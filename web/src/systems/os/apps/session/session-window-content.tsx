@@ -11,6 +11,7 @@ import {
   type SessionEnvironmentControlHandle,
   SessionPromptRuntimeSelector,
   SessionResumeFailure,
+  SessionRuntimeRecoveryNotice,
   SessionSidebar,
   hasUnrecoverableRuntime,
   useCreateSession,
@@ -132,7 +133,12 @@ export function SessionWindowContent({
         sessionActions={sidebar.sessionActions}
       />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        {controls.resumeFailure ? (
+        {session.runtime.status === "recovering" ? (
+          <SessionRuntimeRecoveryNotice
+            attempt={session.runtime.recovery?.attempt}
+            maxAttempts={session.runtime.recovery?.max_attempts}
+          />
+        ) : controls.resumeFailure ? (
           <SessionResumeFailure
             agentName={controls.resumeFailure.providerUnavailable?.agentName ?? agentName}
             isRetrying={controls.isResuming}

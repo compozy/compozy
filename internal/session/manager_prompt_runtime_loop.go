@@ -216,6 +216,22 @@ func (m *Manager) handlePromptPumpEvent(
 	); handled {
 		return failure, errorText, stop
 	}
+	if !runtimeEvent {
+		recoveryCandidate := promptErrorForExitedProcess(
+			session.processHandle(),
+			m.normalizeEvent(session, turnState.turnID, event),
+		)
+		if promptEventIsRecoverable(recoveryCandidate) && promptRecoveryAllowed(loop) {
+			recovered, err := m.attemptPromptRecovery(ctx, session, turnState, loop, recoveryCandidate)
+			if err != nil {
+				failure, errorText := m.promptPersistenceFailure(session, turnState.turnID, err)
+				return failure, errorText, true
+			}
+			if recovered {
+				return nil, "", false
+			}
+		}
+	}
 
 	normalized, skip := m.preparePromptPumpEventForDelivery(
 		ctx,
@@ -243,6 +259,10 @@ func (m *Manager) handlePromptPumpEvent(
 	}
 
 	return fatalPromptFailure, normalized.Error, false
+}
+
+func promptRecoveryAllowed(loop *promptPumpLoopState) bool {
+	return loop == nil || loop.activity == nil || !loop.activity.promptDeadlineWarningDelivered()
 }
 
 func (m *Manager) emitPromptDeadlineWarningBeforeError(

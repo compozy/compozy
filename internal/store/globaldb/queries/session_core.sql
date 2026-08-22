@@ -56,7 +56,7 @@ ORDER BY updated_at DESC, session_id DESC;
 -- name: UpsertSession :execrows
 INSERT INTO sessions (
   id, name, agent_name, provider, model, reasoning_effort, speed, speed_resolution_json,
-  runtime_status, runtime_transition, runtime_failure,
+  runtime_status, runtime_transition, runtime_failure, runtime_generation, runtime_recovery_json,
   selected_provider, selected_model, selected_reasoning_effort, selected_speed,
   runtime_selection_revision, workspace_id, worktree_id, session_type,
   network_spec_json, network_mode, network_channel, network_source, state,
@@ -72,6 +72,7 @@ INSERT INTO sessions (
   sqlc.arg(id), sqlc.narg(name), sqlc.arg(agent_name), sqlc.arg(provider), sqlc.arg(model),
   sqlc.arg(reasoning_effort), sqlc.arg(speed), sqlc.arg(speed_resolution_json),
   sqlc.arg(runtime_status), sqlc.arg(runtime_transition), sqlc.arg(runtime_failure),
+  sqlc.arg(runtime_generation), sqlc.arg(runtime_recovery_json),
   sqlc.arg(selected_provider), sqlc.arg(selected_model), sqlc.arg(selected_reasoning_effort),
   sqlc.arg(selected_speed), sqlc.arg(runtime_selection_revision), sqlc.arg(workspace_id),
   sqlc.narg(worktree_id),
@@ -114,6 +115,8 @@ ON CONFLICT(id) DO UPDATE SET
 	runtime_status = excluded.runtime_status,
 	runtime_transition = excluded.runtime_transition,
 	runtime_failure = excluded.runtime_failure,
+	runtime_generation = excluded.runtime_generation,
+	runtime_recovery_json = excluded.runtime_recovery_json,
 	selected_provider = excluded.selected_provider,
 	selected_model = excluded.selected_model,
 	selected_reasoning_effort = excluded.selected_reasoning_effort,

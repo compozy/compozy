@@ -17,6 +17,8 @@ type runtimeBindingSnapshot struct {
 	status          RuntimeStatus
 	transition      RuntimeTransitionStrategy
 	failure         string
+	generation      int64
+	recovery        *store.SessionRuntimeRecovery
 	acpSessionID    string
 	acpCaps         acp.Caps
 	acpCapsKnown    bool
@@ -42,6 +44,8 @@ func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
 		status:          s.RuntimeStatus,
 		transition:      s.RuntimeTransition,
 		failure:         s.RuntimeFailure,
+		generation:      s.RuntimeGeneration,
+		recovery:        store.CloneSessionRuntimeRecovery(s.RuntimeRecovery),
 		acpSessionID:    s.ACPSessionID,
 		acpCaps:         cloneCaps(s.ACPCaps),
 		acpCapsKnown:    s.ACPCapsKnown,
@@ -67,6 +71,7 @@ func (s *Session) beginRuntimeTransition(
 	s.RuntimeStatus = status
 	s.RuntimeTransition = strategy
 	s.RuntimeFailure = ""
+	s.RuntimeRecovery = nil
 	if !now.IsZero() {
 		s.UpdatedAt = now.UTC()
 	}
@@ -92,8 +97,63 @@ func (s *Session) completeRuntimeTransition(
 	s.RuntimeStatus = RuntimeStatusReady
 	s.RuntimeTransition = strategy
 	s.RuntimeFailure = ""
+	s.RuntimeRecovery = nil
+	if proc != nil && proc != previous {
+		s.RuntimeGeneration++
+	}
 	s.updateFromProcessLocked(proc, now, strings.TrimSpace(selection.Model) == "")
 	return previous
+}
+
+func (s *Session) beginAutomaticRecovery(
+	attempt int,
+	maxAttempts int,
+	nextAttemptAt time.Time,
+	now time.Time,
+) error {
+	if s == nil {
+		return errors.New("session: session is required")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.State != StateActive {
+		return ErrSessionNotActive
+	}
+	startedAt := now.UTC()
+	if s.RuntimeRecovery != nil && !s.RuntimeRecovery.StartedAt.IsZero() {
+		startedAt = s.RuntimeRecovery.StartedAt.UTC()
+	}
+	var next *time.Time
+	if !nextAttemptAt.IsZero() {
+		value := nextAttemptAt.UTC()
+		next = &value
+	}
+	s.RuntimeStatus = RuntimeStatusRecovering
+	s.RuntimeTransition = RuntimeTransitionAutomaticRecovery
+	s.RuntimeFailure = ""
+	s.RuntimeRecovery = &store.SessionRuntimeRecovery{
+		Attempt: attempt, MaxAttempts: maxAttempts, Generation: s.RuntimeGeneration + 1,
+		StartedAt: startedAt, LastAttemptAt: now.UTC(), NextAttemptAt: next,
+	}
+	if !now.IsZero() {
+		s.UpdatedAt = now.UTC()
+	}
+	return nil
+}
+
+func (s *Session) recordAutomaticRecoveryFailure(cause error, now time.Time) {
+	if s == nil || cause == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.RuntimeFailure = strings.TrimSpace(cause.Error())
+	if s.RuntimeRecovery != nil {
+		s.RuntimeRecovery.LastError = s.RuntimeFailure
+	}
+	if !now.IsZero() {
+		s.UpdatedAt = now.UTC()
+	}
 }
 
 func (s *Session) restoreRuntimeBinding(snapshot *runtimeBindingSnapshot, failure string, now time.Time) {
@@ -110,6 +170,8 @@ func (s *Session) restoreRuntimeBinding(snapshot *runtimeBindingSnapshot, failur
 	s.RuntimeStatus = snapshot.status
 	s.RuntimeTransition = snapshot.transition
 	s.RuntimeFailure = strings.TrimSpace(failure)
+	s.RuntimeGeneration = snapshot.generation
+	s.RuntimeRecovery = store.CloneSessionRuntimeRecovery(snapshot.recovery)
 	s.ACPSessionID = snapshot.acpSessionID
 	s.ACPCaps = cloneCaps(snapshot.acpCaps)
 	s.ACPCapsKnown = snapshot.acpCapsKnown

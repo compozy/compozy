@@ -62,6 +62,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		SpawnWakeNotifier: state.sessionWakeBridge,
 		Hooks: session.HookSet{
 			Session:         state.notifier,
+			RuntimeRecovery: state.notifier,
 			Sandbox:         state.notifier,
 			Prompt:          state.notifier,
 			Events:          state.notifier,

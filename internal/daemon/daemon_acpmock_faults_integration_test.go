@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -27,15 +26,18 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
-const faultyMockAgentName = "mock-faulty"
+const (
+	faultyMockAgentName      = "mock-faulty"
+	recoverableMockAgentName = "mock-recoverable-fault"
+)
 
-func TestDaemonE2EACPmockCrashMidStreamProjectsRuntimeFailure(t *testing.T) {
+func TestDaemonE2EACPmockCrashMidStreamRecoversInterruptedTurn(t *testing.T) {
 	acpmock.RequireDriver(t)
 
-	t.Run("Should project runtime failure when the ACP mock crashes mid-stream", func(t *testing.T) {
+	t.Run("Should replace the runtime and complete the same turn after the ACP mock crashes mid-stream", func(t *testing.T) {
 		t.Parallel()
 
-		harness, session := startFaultyMockSession(t)
+		harness, session := startRecoverableFaultMockSession(t)
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 
@@ -45,76 +47,42 @@ func TestDaemonE2EACPmockCrashMidStreamProjectsRuntimeFailure(t *testing.T) {
 			t.Fatalf("PromptSessionHTTP() error = %v", err)
 		}
 		if elapsed := time.Since(promptStarted); elapsed > 15*time.Second {
-			t.Fatalf("PromptSessionHTTP() elapsed = %s, want terminal stream closure within 15s", elapsed)
+			t.Fatalf("PromptSessionHTTP() elapsed = %s, want recovered completion within 15s", elapsed)
 		}
-		assertRawProcessFailureTerminal(t, ctx, harness, session.ID)
-		assertFaultPromptProjection(
+		assertRecoveredPromptProjection(t, ctx, harness, session.ID, stream)
+
+		cliSession := createFixtureBackedSession(
 			t,
 			ctx,
 			harness,
-			session.ID,
-			stream,
-			"partial before crash",
-			false,
+			recoverableMockAgentName,
+			"faulty-cli-session",
 		)
-
-		assertDeadSessionPromptRejected(t, ctx, harness, session.ID)
-		parentTranscript := mustSessionTranscript(t, ctx, harness, session.ID)
-		parentContent := joinTranscriptContent(sessionTranscriptMessages(parentTranscript))
-		if !strings.Contains(parentContent, "partial before crash") ||
-			strings.Contains(parentContent, "recovered after disconnect") {
-			t.Fatalf("dead session transcript = %q, want preserved partial output only", parentContent)
-		}
-
-		child, err := harness.CreateSession(ctx, compozycontract.CreateSessionRequest{
-			AgentName:       faultyMockAgentName,
-			Name:            "faulty-recovery-child",
-			WorkspacePath:   harness.WorkspaceRoot,
-			ParentSessionID: session.ID,
-		})
-		if err != nil {
-			t.Fatalf("CreateSession(recovery child) error = %v", err)
-		}
-		child, err = harness.WaitForSessionActive(ctx, child.ID)
-		if err != nil {
-			t.Fatalf("WaitForSessionActive(recovery child) error = %v", err)
-		}
-		if child.Lineage == nil || child.Lineage.ParentSessionID != session.ID {
-			t.Fatalf("recovery child lineage = %#v, want parent %q", child.Lineage, session.ID)
-		}
-		recoveryStream, err := harness.PromptSessionHTTP(ctx, child.ID, "continue after disconnect")
-		if err != nil {
-			t.Fatalf("PromptSessionHTTP(recovery child) error = %v", err)
-		}
-		if !e2etest.RecordsContainTextDelta(recoveryStream, "recovered after disconnect") ||
-			sseStreamContainsEvent(recoveryStream, "error") ||
-			!sseStreamContainsEvent(recoveryStream, "finish") {
-			t.Fatalf("recovery child prompt stream = %#v, want recovered text and terminal finish", recoveryStream)
-		}
-		childTranscript := mustSessionTranscript(t, ctx, harness, child.ID)
-		childContent := joinTranscriptContent(sessionTranscriptMessages(childTranscript))
-		if !strings.Contains(childContent, "recovered after disconnect") {
-			t.Fatalf("recovery child transcript = %q, want recovered assistant output", childContent)
-		}
-
-		cliSession := createFixtureBackedSession(t, ctx, harness, faultyMockAgentName, "faulty-cli-session")
 		stdout, stderr, cliErr := harness.CLI.Run(
 			ctx,
 			"session", "prompt", cliSession.ID, "trigger crash mid-stream", "-o", "jsonl",
 		)
-		if cliErr == nil {
-			t.Fatalf("CLI crash prompt error = nil, want nonzero exit; stdout=%s stderr=%s", stdout, stderr)
+		if cliErr != nil {
+			t.Fatalf("CLI recovered prompt error = %v; stdout=%s stderr=%s", cliErr, stdout, stderr)
 		}
-		if !strings.Contains(stdout, "partial before crash") || !strings.Contains(stdout, `"type":"error"`) {
-			t.Fatalf("CLI crash prompt stdout = %q, want partial chunk and terminal error frame", stdout)
+		if !strings.Contains(stdout, "partial before crash") ||
+			!strings.Contains(stdout, "recovered interrupted turn") ||
+			strings.Contains(stdout, `"type":"error"`) {
+			t.Fatalf("CLI recovered prompt stdout = %q, want partial and recovered output without terminal error", stdout)
 		}
 
-		nativeSession := createFixtureBackedSession(t, ctx, harness, faultyMockAgentName, "faulty-native-session")
-		nativeErr := agentDefinitionE2EToolRequestError(
+		nativeSession := createFixtureBackedSession(
 			t,
 			ctx,
-			harness.HTTPClient,
-			harness.HTTPURL("/api/tools/"+toolspkg.ToolIDSessionPrompt.String()+"/invoke"),
+			harness,
+			recoverableMockAgentName,
+			"faulty-native-session",
+		)
+		var nativeResponse compozycontract.ToolInvokeResponse
+		if err := harness.HTTPJSON(
+			ctx,
+			http.MethodPost,
+			"/api/tools/"+url.PathEscape(toolspkg.ToolIDSessionPrompt.String())+"/invoke",
 			compozycontract.ToolInvokeRequest{
 				WorkspaceID: harness.WorkspaceID,
 				Input: json.RawMessage(fmt.Sprintf(
@@ -122,11 +90,33 @@ func TestDaemonE2EACPmockCrashMidStreamProjectsRuntimeFailure(t *testing.T) {
 					nativeSession.ID,
 				)),
 			},
-		)
-		if nativeErr.Status != http.StatusBadGateway ||
-			nativeErr.Payload.Error.Code != toolspkg.ErrorCodeBackendFailed ||
-			!slices.Contains(nativeErr.Payload.Error.ReasonCodes, toolspkg.ReasonBackendDead) {
-			t.Fatalf("native session prompt error = %#v, want 502 tool_backend_failed/backend_dead", nativeErr)
+			&nativeResponse,
+		); err != nil {
+			t.Fatalf("native recovered prompt error = %v", err)
+		}
+		if nativeResponse.Status != "completed" || len(nativeResponse.Result.Content) != 1 ||
+			nativeResponse.Result.Content[0].Text != "accepted" {
+			t.Fatalf("native prompt response = %#v, want accepted asynchronous dispatch", nativeResponse)
+		}
+		waitForRuntimeCondition(t, "native prompt recovered", 15*time.Second, func() bool {
+			eventsResponse, eventsErr := harness.SessionEvents(ctx, nativeSession.ID)
+			if eventsErr != nil {
+				return false
+			}
+			events := decodeAgentEvents(t, eventsResponse.Events)
+			return containsAgentEvent(events, compozycontract.AgentEventPayload{
+				Type: "agent_message", Text: "recovered interrupted turn",
+			}) && containsAgentEvent(events, compozycontract.AgentEventPayload{Type: "done"})
+		})
+		nativeProjection, err := harness.GetSession(ctx, nativeSession.ID)
+		if err != nil {
+			t.Fatalf("GetSession(native recovered prompt) error = %v", err)
+		}
+		if got, want := nativeProjection.Runtime.Generation, int64(2); got != want {
+			t.Fatalf("native recovered runtime generation = %d, want %d", got, want)
+		}
+		if got, want := string(nativeProjection.Runtime.Transition), "automatic_recovery"; got != want {
+			t.Fatalf("native recovered runtime transition = %q, want %q", got, want)
 		}
 	})
 }
@@ -179,7 +169,7 @@ func TestDaemonE2EACPmockCrashEscalatesBoundTaskRun(t *testing.T) {
 			t.Fatal("started run session_id = empty, want task-bound session")
 		}
 
-		stream, err := harness.PromptSessionHTTP(ctx, started.SessionID, "trigger crash mid-stream")
+		stream, err := harness.PromptSessionHTTP(ctx, started.SessionID, "trigger persistent crash mid-stream")
 		if err != nil {
 			t.Fatalf("PromptSessionHTTP() error = %v", err)
 		}
@@ -407,6 +397,16 @@ func startFaultyMockSession(
 	return harness, session
 }
 
+func startRecoverableFaultMockSession(t testing.TB) (*e2etest.RuntimeHarness, compozycontract.SessionPayload) {
+	t.Helper()
+
+	harness := startFaultyMockHarness(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	session := createFixtureBackedSession(t, ctx, harness, recoverableMockAgentName, "recoverable-fault-session")
+	return harness, session
+}
+
 func assertDeadSessionPromptRejected(
 	t testing.TB,
 	ctx context.Context,
@@ -480,11 +480,18 @@ func startFaultyMockHarness(
 				}
 			},
 		},
-		MockAgents: []e2etest.MockAgentSpec{{
-			FixturePath:  mockFixturePath(t, "driver_fault_fixture.json"),
-			FixtureAgent: "faulty",
-			AgentName:    faultyMockAgentName,
-		}},
+		MockAgents: []e2etest.MockAgentSpec{
+			{
+				FixturePath:  mockFixturePath(t, "driver_fault_fixture.json"),
+				FixtureAgent: "faulty",
+				AgentName:    faultyMockAgentName,
+			},
+			{
+				FixturePath:  mockFixturePath(t, "driver_fault_fixture.json"),
+				FixtureAgent: "recoverable-fault",
+				AgentName:    recoverableMockAgentName,
+			},
+		},
 	})
 
 }
@@ -541,6 +548,114 @@ func taskRunTotal(health compozycontract.TaskHealthPayload, status taskpkg.RunSt
 		}
 	}
 	return total
+}
+
+func assertRecoveredPromptProjection(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	sessionID string,
+	stream []e2etest.SSEEvent,
+) {
+	t.Helper()
+
+	for _, want := range []string{
+		"runtime_recovery_started",
+		"runtime_recovery_succeeded",
+		"finish",
+	} {
+		if !sseStreamContainsEvent(stream, want) {
+			t.Fatalf("prompt stream = %#v, want %q event", stream, want)
+		}
+	}
+	if sseStreamContainsEvent(stream, "runtime_recovery_exhausted") ||
+		sseStreamContainsEvent(stream, "error") {
+		t.Fatalf("prompt stream = %#v, want successful recovery without terminal error", stream)
+	}
+	for _, want := range []string{"partial before crash", "recovered interrupted turn"} {
+		if !e2etest.RecordsContainTextDelta(stream, want) {
+			t.Fatalf("prompt stream = %#v, want assistant text delta %q", stream, want)
+		}
+	}
+
+	httpSession := mustHTTPSession(t, ctx, harness, sessionID)
+	udsSession, err := harness.GetSession(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("GetSession(%q) error = %v", sessionID, err)
+	}
+	for surface, current := range map[string]compozycontract.SessionPayload{
+		"HTTP": httpSession,
+		"UDS":  udsSession,
+	} {
+		if current.Failure != nil {
+			t.Fatalf("%s session failure = %#v, want none after recovery", surface, current.Failure)
+		}
+		if got, want := current.Runtime.Generation, int64(2); got != want {
+			t.Fatalf("%s runtime generation = %d, want %d", surface, got, want)
+		}
+		if got, want := string(current.Runtime.Status), "ready"; got != want {
+			t.Fatalf("%s runtime status = %q, want %q", surface, got, want)
+		}
+		if got, want := string(current.Runtime.Transition), "automatic_recovery"; got != want {
+			t.Fatalf("%s runtime transition = %q, want %q", surface, got, want)
+		}
+		if current.Runtime.Recovery != nil {
+			t.Fatalf("%s runtime recovery = %#v, want cleared after success", surface, current.Runtime.Recovery)
+		}
+	}
+
+	transcript := mustSessionTranscript(t, ctx, harness, sessionID)
+	content := joinTranscriptContent(sessionTranscriptMessages(transcript))
+	for _, want := range []string{"partial before crash", "recovered interrupted turn"} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("transcript = %q, want fragment %q", content, want)
+		}
+	}
+
+	eventsResp := mustSessionEvents(t, ctx, harness, sessionID)
+	events := decodeAgentEvents(t, eventsResp.Events)
+	wantCounts := map[string]int{
+		"user_message":               1,
+		"runtime_recovery_started":   1,
+		"runtime_recovery_succeeded": 1,
+		"done":                       1,
+	}
+	for eventType, want := range wantCounts {
+		got := 0
+		for _, event := range events {
+			if event.Type == eventType {
+				got++
+			}
+		}
+		if got != want {
+			t.Fatalf("events of type %q = %d, want %d; events=%#v", eventType, got, want, events)
+		}
+	}
+	turnID := ""
+	for _, event := range events {
+		if event.Type == "error" || event.Type == "runtime_recovery_exhausted" {
+			t.Fatalf("events = %#v, want no terminal recovery failure", events)
+		}
+		switch event.Type {
+		case "user_message", "agent_message", "runtime_recovery_started", "runtime_recovery_succeeded", "done":
+			if event.TurnID == "" {
+				t.Fatalf("event %#v has no turn id", event)
+			}
+			if turnID == "" {
+				turnID = event.TurnID
+			}
+			if event.TurnID != turnID {
+				t.Fatalf("event turn id = %q, want interrupted turn %q; event=%#v", event.TurnID, turnID, event)
+			}
+		}
+	}
+
+	if err := harness.CaptureSessionTranscript(ctx, sessionID); err != nil {
+		t.Fatalf("CaptureSessionTranscript() error = %v", err)
+	}
+	if err := harness.CaptureSessionEvents(ctx, sessionID); err != nil {
+		t.Fatalf("CaptureSessionEvents() error = %v", err)
+	}
 }
 
 func assertFaultPromptProjection(

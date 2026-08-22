@@ -160,13 +160,22 @@ Two operational details matter here:
 
 CompozyOS persists each accepted agent event before forwarding it. If the ACP subprocess disconnects
 after sending part of an answer, the stored assistant chunks remain in events and transcript reads.
-The prompt stream ends with an error instead of `done`, and the session stops with
-`failure.kind: "process_exit"`. HTTP and UDS clients receive the terminal error frame because the
-response status cannot change after streaming has started.
+The daemon then makes three automatic recovery attempts with 1, 2, and 4 second delays. While this is
+running, session reads expose:
 
-`compozy session prompt <id> "..." -o jsonl` writes every frame it received, including the terminal
-error frame, then exits nonzero. The `compozy__session_prompt` native tool returns
-`tool_backend_failed` with reason `backend_dead` rather than reporting success. Inspect the session
+- `runtime.status: "recovering"`
+- `runtime.transition: "automatic_recovery"`
+- `runtime.generation` and structured `runtime.recovery` attempt timing
+- durable `runtime_recovery_started`, `runtime_recovery_succeeded`, and
+  `runtime_recovery_exhausted` events
+
+The replacement process first tries ACP `session/load`. When that is unavailable, CompozyOS rebuilds
+context from the durable transcript. It then replays the interrupted turn with its original turn ID;
+the authored user message is not inserted again. A successful replacement continues the same prompt
+stream. Viewer disconnects remain detached from execution and do not stop recovery.
+
+Only exhausted recovery emits one terminal error and stops the runtime. A JSONL prompt writes that
+error and exits nonzero; `compozy__session_prompt` returns `tool_backend_failed`. Inspect the session
 before continuing:
 
 ```bash
@@ -174,10 +183,9 @@ compozy session status sess-1234 -o json
 compozy session events sess-1234 --last 20 -o json
 ```
 
-CompozyOS does not automatically retry the interrupted prompt. Its tool or external effects may have
-completed before the disconnect. A later, explicit prompt restarts the stopped runtime under the
-same CompozyOS session ID and retained transcript. Send a new continuation only after deciding whether
-the interrupted work is safe to repeat.
+Automatic replay can repeat a tool or external side effect whose completion was not persisted before
+the disconnect. CompozyOS supplies retained results to the replacement runtime, but cannot prove an
+external mutation did not complete. Inspect the external system before manually repeating the work.
 
 ### Selecting the next runtime
 

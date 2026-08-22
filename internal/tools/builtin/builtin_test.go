@@ -509,6 +509,33 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			t.Fatalf("session list input schema exposes internal dream type: %s", sessionList.InputSchema)
 		}
 
+		sessionStatus := string(descriptors[toolspkg.ToolIDSessionStatus].OutputSchema)
+		for _, requiredRecoveryContract := range []string{
+			`"recovering"`,
+			`"automatic_recovery"`,
+			`"generation"`,
+			`"recovery"`,
+			`"max_attempts"`,
+		} {
+			if !strings.Contains(sessionStatus, requiredRecoveryContract) {
+				t.Fatalf(
+					"session status output schema omits %s: %s",
+					requiredRecoveryContract,
+					sessionStatus,
+				)
+			}
+		}
+		sessionEvents := string(descriptors[toolspkg.ToolIDSessionEvents].OutputSchema)
+		for _, eventType := range []string{
+			"runtime_recovery_started",
+			"runtime_recovery_succeeded",
+			"runtime_recovery_exhausted",
+		} {
+			if !strings.Contains(sessionEvents, eventType) {
+				t.Fatalf("session events output schema omits %q: %s", eventType, sessionEvents)
+			}
+		}
+
 		bridgeList := descriptors[toolspkg.ToolIDBridgesList]
 		if !strings.Contains(string(bridgeList.InputSchema), `"workspace"`) ||
 			!strings.Contains(string(bridgeList.InputSchema), `"cursor"`) ||

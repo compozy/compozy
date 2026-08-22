@@ -139,6 +139,7 @@ func TestPromptActivitySupervisorProgressIsPersistedThroughPromptPump(t *testing
 		t.Fatal("runtime progress Runtime = nil, want activity payload")
 	}
 
+	source <- acp.AgentEvent{Type: acp.EventTypeDone}
 	close(source)
 	drainPromptEvents(t, events)
 	stored := readStoredEvents(t, session)

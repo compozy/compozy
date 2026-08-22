@@ -167,6 +167,23 @@ func (m *Manager) SubscribeSessionEvents(
 	sessionID string,
 	afterSequence int64,
 ) (<-chan store.SessionEvent, func(), error) {
+	ch, cancel, err := m.subscribePersistedSessionEvents(
+		ctx,
+		sessionID,
+		afterSequence,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	m.emitStreamDiagnostic(ctx, strings.TrimSpace(sessionID), eventspkg.SessionStreamSubscribed, afterSequence)
+	return ch, cancel, nil
+}
+
+func (m *Manager) subscribePersistedSessionEvents(
+	ctx context.Context,
+	sessionID string,
+	afterSequence int64,
+) (<-chan store.SessionEvent, func(), error) {
 	if m == nil {
 		return nil, nil, errors.New("session: manager is required")
 	}
@@ -177,17 +194,12 @@ func (m *Manager) SubscribeSessionEvents(
 	broadcaster := m.streamEvents
 	m.streamEventsMu.Unlock()
 
-	ch, cancel, err := broadcaster.subscribe(
+	return broadcaster.subscribe(
 		ctx,
 		sessionID,
 		afterSequence,
 		sessionEventSubscriptionAfterSequence,
 	)
-	if err != nil {
-		return nil, nil, err
-	}
-	m.emitStreamDiagnostic(ctx, strings.TrimSpace(sessionID), eventspkg.SessionStreamSubscribed, afterSequence)
-	return ch, cancel, nil
 }
 
 // SubscribeSessionEventWakes registers an unfiltered projection wake subscriber.

@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+type State string
+
+type Status string
+
+type StopReason string
+
+type StuckTaskRun struct {
+	TaskID     string        `json:"task_id"`
+	RunID      string        `json:"run_id"`
+	Status     TaskRunStatus `json:"status"`
+	OriginKind OriginKind    `json:"origin_kind"`
+	ChannelID  string        `json:"channel_id,omitempty"`
+	SessionID  string        `json:"session_id,omitempty"`
+	AgeMillis  int64         `json:"age_ms"`
+}
+
 type TargetKind string
 
 type Task struct {
@@ -277,36 +293,4 @@ type TaskDashboardInProgressCardPayload struct {
 	ClaimedRuns  int    `json:"claimed_runs"`
 	QueuedRuns   int    `json:"queued_runs"`
 	HealthStatus string `json:"health_status"`
-}
-
-type TaskDashboardLatencyCardPayload struct {
-	ClaimLatencyMillis TaskLatencyMetricPayload `json:"claim_latency_ms"`
-	StartLatencyMillis TaskLatencyMetricPayload `json:"start_latency_ms"`
-}
-
-type TaskDashboardParams struct {
-	Scope                TaskScope  `json:"scope,omitempty"`
-	Workspace            string     `json:"workspace,omitempty"`
-	Worktree             string     `json:"worktree,omitempty"`
-	OwnerKind            OwnerKind  `json:"owner_kind,omitempty"`
-	OwnerRef             string     `json:"owner_ref,omitempty"`
-	ParticipationChannel string     `json:"participation_channel,omitempty"`
-	OriginKind           OriginKind `json:"origin_kind,omitempty"`
-}
-
-type TaskDashboardQueueDepthPayload struct {
-	ChannelID           string    `json:"channel_id,omitempty"`
-	Count               int       `json:"count"`
-	OldestQueuedAt      time.Time `json:"oldest_queued_at"`
-	OldestQueueAgeMilli int64     `json:"oldest_queue_age_ms"`
-}
-
-type TaskDashboardQueuePayload struct {
-	Total                 int                              `json:"total"`
-	Depth                 []TaskDashboardQueueDepthPayload `json:"depth,omitempty"`
-	OldestQueuedAt        time.Time                        `json:"oldest_queued_at"`
-	OldestQueueAgeMilli   int64                            `json:"oldest_queue_age_ms"`
-	BacklogWarning        bool                             `json:"backlog_warning"`
-	BacklogStatus         string                           `json:"backlog_status"`
-	BacklogThresholdMilli int64                            `json:"backlog_threshold_ms"`
 }

@@ -50,6 +50,29 @@ func (noopSessionLifecycleHooks) DispatchSessionPostStop(
 	return payload, nil
 }
 
+type noopRuntimeRecoveryHooks struct{}
+
+func (noopRuntimeRecoveryHooks) DispatchSessionRuntimeRecoveryStarted(
+	_ context.Context,
+	payload hookspkg.SessionRuntimeRecoveryStartedPayload,
+) (hookspkg.SessionRuntimeRecoveryStartedPayload, error) {
+	return payload, nil
+}
+
+func (noopRuntimeRecoveryHooks) DispatchSessionRuntimeRecoverySucceeded(
+	_ context.Context,
+	payload hookspkg.SessionRuntimeRecoverySucceededPayload,
+) (hookspkg.SessionRuntimeRecoverySucceededPayload, error) {
+	return payload, nil
+}
+
+func (noopRuntimeRecoveryHooks) DispatchSessionRuntimeRecoveryExhausted(
+	_ context.Context,
+	payload hookspkg.SessionRuntimeRecoveryExhaustedPayload,
+) (hookspkg.SessionRuntimeRecoveryExhaustedPayload, error) {
+	return payload, nil
+}
+
 type noopSandboxHooks struct{}
 
 func (noopSandboxHooks) DispatchSandboxPrepare(

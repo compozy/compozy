@@ -13580,6 +13580,21 @@ export interface operations {
                     } | null;
                   } | null;
                   failure?: string;
+                  /** Format: int64 */
+                  generation?: number;
+                  recovery?: {
+                    attempt: number;
+                    /** Format: int64 */
+                    generation: number;
+                    /** Format: date-time */
+                    last_attempt_at: string;
+                    last_error?: string;
+                    max_attempts: number;
+                    /** Format: date-time */
+                    next_attempt_at?: string | null;
+                    /** Format: date-time */
+                    started_at: string;
+                  } | null;
                   selected?: {
                     model?: string;
                     provider: string;
@@ -39740,6 +39755,9 @@ export interface operations {
           | "session.pre_stop"
           | "session.post_stop"
           | "session.message_persisted"
+          | "session.runtime_recovery.started"
+          | "session.runtime_recovery.succeeded"
+          | "session.runtime_recovery.exhausted"
           | "sandbox.prepare"
           | "sandbox.ready"
           | "sandbox.sync.before"
@@ -54575,6 +54593,21 @@ export interface operations {
                   } | null;
                 } | null;
                 failure?: string;
+                /** Format: int64 */
+                generation?: number;
+                recovery?: {
+                  attempt: number;
+                  /** Format: int64 */
+                  generation: number;
+                  /** Format: date-time */
+                  last_attempt_at: string;
+                  last_error?: string;
+                  max_attempts: number;
+                  /** Format: date-time */
+                  next_attempt_at?: string | null;
+                  /** Format: date-time */
+                  started_at: string;
+                } | null;
                 selected?: {
                   model?: string;
                   provider: string;
@@ -55086,6 +55119,21 @@ export interface operations {
                   } | null;
                 } | null;
                 failure?: string;
+                /** Format: int64 */
+                generation?: number;
+                recovery?: {
+                  attempt: number;
+                  /** Format: int64 */
+                  generation: number;
+                  /** Format: date-time */
+                  last_attempt_at: string;
+                  last_error?: string;
+                  max_attempts: number;
+                  /** Format: date-time */
+                  next_attempt_at?: string | null;
+                  /** Format: date-time */
+                  started_at: string;
+                } | null;
                 selected?: {
                   model?: string;
                   provider: string;
@@ -55744,6 +55792,21 @@ export interface operations {
                   } | null;
                 } | null;
                 failure?: string;
+                /** Format: int64 */
+                generation?: number;
+                recovery?: {
+                  attempt: number;
+                  /** Format: int64 */
+                  generation: number;
+                  /** Format: date-time */
+                  last_attempt_at: string;
+                  last_error?: string;
+                  max_attempts: number;
+                  /** Format: date-time */
+                  next_attempt_at?: string | null;
+                  /** Format: date-time */
+                  started_at: string;
+                } | null;
                 selected?: {
                   model?: string;
                   provider: string;
@@ -57596,6 +57659,9 @@ export interface operations {
                   | "session.pre_stop"
                   | "session.post_stop"
                   | "session.message_persisted"
+                  | "session.runtime_recovery.started"
+                  | "session.runtime_recovery.succeeded"
+                  | "session.runtime_recovery.exhausted"
                   | "sandbox.prepare"
                   | "sandbox.ready"
                   | "sandbox.sync.before"
@@ -57894,6 +57960,9 @@ export interface operations {
                   | "session.pre_stop"
                   | "session.post_stop"
                   | "session.message_persisted"
+                  | "session.runtime_recovery.started"
+                  | "session.runtime_recovery.succeeded"
+                  | "session.runtime_recovery.exhausted"
                   | "sandbox.prepare"
                   | "sandbox.ready"
                   | "sandbox.sync.before"
@@ -58447,6 +58516,9 @@ export interface operations {
               | "session.pre_stop"
               | "session.post_stop"
               | "session.message_persisted"
+              | "session.runtime_recovery.started"
+              | "session.runtime_recovery.succeeded"
+              | "session.runtime_recovery.exhausted"
               | "sandbox.prepare"
               | "sandbox.ready"
               | "sandbox.sync.before"
@@ -95266,6 +95338,21 @@ export interface operations {
                   } | null;
                 } | null;
                 failure?: string;
+                /** Format: int64 */
+                generation?: number;
+                recovery?: {
+                  attempt: number;
+                  /** Format: int64 */
+                  generation: number;
+                  /** Format: date-time */
+                  last_attempt_at: string;
+                  last_error?: string;
+                  max_attempts: number;
+                  /** Format: date-time */
+                  next_attempt_at?: string | null;
+                  /** Format: date-time */
+                  started_at: string;
+                } | null;
                 selected?: {
                   model?: string;
                   provider: string;
@@ -96931,6 +97018,9 @@ export interface operations {
           | "session.pre_stop"
           | "session.post_stop"
           | "session.message_persisted"
+          | "session.runtime_recovery.started"
+          | "session.runtime_recovery.succeeded"
+          | "session.runtime_recovery.exhausted"
           | "sandbox.prepare"
           | "sandbox.ready"
           | "sandbox.sync.before"
@@ -114361,6 +114451,21 @@ export interface operations {
                     } | null;
                   } | null;
                   failure?: string;
+                  /** Format: int64 */
+                  generation?: number;
+                  recovery?: {
+                    attempt: number;
+                    /** Format: int64 */
+                    generation: number;
+                    /** Format: date-time */
+                    last_attempt_at: string;
+                    last_error?: string;
+                    max_attempts: number;
+                    /** Format: date-time */
+                    next_attempt_at?: string | null;
+                    /** Format: date-time */
+                    started_at: string;
+                  } | null;
                   selected?: {
                     model?: string;
                     provider: string;
@@ -114823,6 +114928,21 @@ export interface operations {
                     } | null;
                   } | null;
                   failure?: string;
+                  /** Format: int64 */
+                  generation?: number;
+                  recovery?: {
+                    attempt: number;
+                    /** Format: int64 */
+                    generation: number;
+                    /** Format: date-time */
+                    last_attempt_at: string;
+                    last_error?: string;
+                    max_attempts: number;
+                    /** Format: date-time */
+                    next_attempt_at?: string | null;
+                    /** Format: date-time */
+                    started_at: string;
+                  } | null;
                   selected?: {
                     model?: string;
                     provider: string;
@@ -115294,6 +115414,21 @@ export interface operations {
                     } | null;
                   } | null;
                   failure?: string;
+                  /** Format: int64 */
+                  generation?: number;
+                  recovery?: {
+                    attempt: number;
+                    /** Format: int64 */
+                    generation: number;
+                    /** Format: date-time */
+                    last_attempt_at: string;
+                    last_error?: string;
+                    max_attempts: number;
+                    /** Format: date-time */
+                    next_attempt_at?: string | null;
+                    /** Format: date-time */
+                    started_at: string;
+                  } | null;
                   selected?: {
                     model?: string;
                     provider: string;
@@ -118707,6 +118842,21 @@ export interface operations {
                   } | null;
                 } | null;
                 failure?: string;
+                /** Format: int64 */
+                generation?: number;
+                recovery?: {
+                  attempt: number;
+                  /** Format: int64 */
+                  generation: number;
+                  /** Format: date-time */
+                  last_attempt_at: string;
+                  last_error?: string;
+                  max_attempts: number;
+                  /** Format: date-time */
+                  next_attempt_at?: string | null;
+                  /** Format: date-time */
+                  started_at: string;
+                } | null;
                 selected?: {
                   model?: string;
                   provider: string;
@@ -119149,6 +119299,21 @@ export interface operations {
                   } | null;
                 } | null;
                 failure?: string;
+                /** Format: int64 */
+                generation?: number;
+                recovery?: {
+                  attempt: number;
+                  /** Format: int64 */
+                  generation: number;
+                  /** Format: date-time */
+                  last_attempt_at: string;
+                  last_error?: string;
+                  max_attempts: number;
+                  /** Format: date-time */
+                  next_attempt_at?: string | null;
+                  /** Format: date-time */
+                  started_at: string;
+                } | null;
                 selected?: {
                   model?: string;
                   provider: string;
@@ -119688,6 +119853,21 @@ export interface operations {
                   } | null;
                 } | null;
                 failure?: string;
+                /** Format: int64 */
+                generation?: number;
+                recovery?: {
+                  attempt: number;
+                  /** Format: int64 */
+                  generation: number;
+                  /** Format: date-time */
+                  last_attempt_at: string;
+                  last_error?: string;
+                  max_attempts: number;
+                  /** Format: date-time */
+                  next_attempt_at?: string | null;
+                  /** Format: date-time */
+                  started_at: string;
+                } | null;
                 selected?: {
                   model?: string;
                   provider: string;
@@ -120116,6 +120296,21 @@ export interface operations {
                   } | null;
                 } | null;
                 failure?: string;
+                /** Format: int64 */
+                generation?: number;
+                recovery?: {
+                  attempt: number;
+                  /** Format: int64 */
+                  generation: number;
+                  /** Format: date-time */
+                  last_attempt_at: string;
+                  last_error?: string;
+                  max_attempts: number;
+                  /** Format: date-time */
+                  next_attempt_at?: string | null;
+                  /** Format: date-time */
+                  started_at: string;
+                } | null;
                 selected?: {
                   model?: string;
                   provider: string;
@@ -121312,6 +121507,21 @@ export interface operations {
                   } | null;
                 } | null;
                 failure?: string;
+                /** Format: int64 */
+                generation?: number;
+                recovery?: {
+                  attempt: number;
+                  /** Format: int64 */
+                  generation: number;
+                  /** Format: date-time */
+                  last_attempt_at: string;
+                  last_error?: string;
+                  max_attempts: number;
+                  /** Format: date-time */
+                  next_attempt_at?: string | null;
+                  /** Format: date-time */
+                  started_at: string;
+                } | null;
                 selected?: {
                   model?: string;
                   provider: string;
@@ -125489,6 +125699,21 @@ export interface operations {
                     } | null;
                   } | null;
                   failure?: string;
+                  /** Format: int64 */
+                  generation?: number;
+                  recovery?: {
+                    attempt: number;
+                    /** Format: int64 */
+                    generation: number;
+                    /** Format: date-time */
+                    last_attempt_at: string;
+                    last_error?: string;
+                    max_attempts: number;
+                    /** Format: date-time */
+                    next_attempt_at?: string | null;
+                    /** Format: date-time */
+                    started_at: string;
+                  } | null;
                   selected?: {
                     model?: string;
                     provider: string;
@@ -126052,6 +126277,21 @@ export interface operations {
                   } | null;
                 } | null;
                 failure?: string;
+                /** Format: int64 */
+                generation?: number;
+                recovery?: {
+                  attempt: number;
+                  /** Format: int64 */
+                  generation: number;
+                  /** Format: date-time */
+                  last_attempt_at: string;
+                  last_error?: string;
+                  max_attempts: number;
+                  /** Format: date-time */
+                  next_attempt_at?: string | null;
+                  /** Format: date-time */
+                  started_at: string;
+                } | null;
                 selected?: {
                   model?: string;
                   provider: string;
@@ -126509,6 +126749,21 @@ export interface operations {
                   } | null;
                 } | null;
                 failure?: string;
+                /** Format: int64 */
+                generation?: number;
+                recovery?: {
+                  attempt: number;
+                  /** Format: int64 */
+                  generation: number;
+                  /** Format: date-time */
+                  last_attempt_at: string;
+                  last_error?: string;
+                  max_attempts: number;
+                  /** Format: date-time */
+                  next_attempt_at?: string | null;
+                  /** Format: date-time */
+                  started_at: string;
+                } | null;
                 selected?: {
                   model?: string;
                   provider: string;
@@ -126924,6 +127179,21 @@ export interface operations {
                   } | null;
                 } | null;
                 failure?: string;
+                /** Format: int64 */
+                generation?: number;
+                recovery?: {
+                  attempt: number;
+                  /** Format: int64 */
+                  generation: number;
+                  /** Format: date-time */
+                  last_attempt_at: string;
+                  last_error?: string;
+                  max_attempts: number;
+                  /** Format: date-time */
+                  next_attempt_at?: string | null;
+                  /** Format: date-time */
+                  started_at: string;
+                } | null;
                 selected?: {
                   model?: string;
                   provider: string;
@@ -129732,6 +130002,21 @@ export interface operations {
                   } | null;
                 } | null;
                 failure?: string;
+                /** Format: int64 */
+                generation?: number;
+                recovery?: {
+                  attempt: number;
+                  /** Format: int64 */
+                  generation: number;
+                  /** Format: date-time */
+                  last_attempt_at: string;
+                  last_error?: string;
+                  max_attempts: number;
+                  /** Format: date-time */
+                  next_attempt_at?: string | null;
+                  /** Format: date-time */
+                  started_at: string;
+                } | null;
                 selected?: {
                   model?: string;
                   provider: string;
@@ -130477,6 +130762,21 @@ export interface operations {
                   } | null;
                 } | null;
                 failure?: string;
+                /** Format: int64 */
+                generation?: number;
+                recovery?: {
+                  attempt: number;
+                  /** Format: int64 */
+                  generation: number;
+                  /** Format: date-time */
+                  last_attempt_at: string;
+                  last_error?: string;
+                  max_attempts: number;
+                  /** Format: date-time */
+                  next_attempt_at?: string | null;
+                  /** Format: date-time */
+                  started_at: string;
+                } | null;
                 selected?: {
                   model?: string;
                   provider: string;

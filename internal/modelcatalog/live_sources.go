@@ -148,7 +148,7 @@ type LiveProviderSourcesConfig struct {
 	SecretResolver  ProviderSecretResolver
 	HTTPClient      *http.Client
 	CommandExecutor DiscoveryCommandExecutor
-	CursorACPProbe  CursorACPModelProbe
+	ACPProbe        ACPModelProbe
 	DefaultTimeout  time.Duration
 }
 
@@ -200,9 +200,9 @@ func NewLiveProviderSource(
 	if executor == nil {
 		executor = ExecDiscoveryCommandExecutor{}
 	}
-	cursorACPProbe := cfg.CursorACPProbe
-	if cursorACPProbe == nil {
-		cursorACPProbe = ACPModelProbe{}
+	acpProbe := cfg.ACPProbe
+	if acpProbe == nil {
+		acpProbe = SessionACPModelProbe{}
 	}
 	secretResolver := cfg.SecretResolver
 	if secretResolver == nil {
@@ -218,7 +218,7 @@ func NewLiveProviderSource(
 		secretResolver:  secretResolver,
 		httpClient:      cfg.HTTPClient,
 		commandExecutor: executor,
-		cursorACPProbe:  cursorACPProbe,
+		acpProbe:        acpProbe,
 		defaultTimeout:  timeout,
 	}, nil
 }
@@ -238,7 +238,7 @@ type LiveProviderSource struct {
 	secretResolver  ProviderSecretResolver
 	httpClient      *http.Client
 	commandExecutor DiscoveryCommandExecutor
-	cursorACPProbe  CursorACPModelProbe
+	acpProbe        ACPModelProbe
 	defaultTimeout  time.Duration
 
 	providerMu sync.RWMutex
@@ -297,7 +297,7 @@ func (s *LiveProviderSource) CloneWithProvider(
 		SecretResolver:  s.secretResolver,
 		HTTPClient:      s.httpClient,
 		CommandExecutor: s.commandExecutor,
-		CursorACPProbe:  s.cursorACPProbe,
+		ACPProbe:        s.acpProbe,
 		DefaultTimeout:  s.defaultTimeout,
 	})
 	if err != nil {
@@ -325,8 +325,8 @@ func (s *LiveProviderSource) providerSnapshot() compozyconfig.ProviderConfig {
 	return compozyconfig.CloneProviderConfig(s.provider)
 }
 
-// ListModels discovers live provider models. Cursor uses a short-lived ACP session
-// because its CLI aliases are not ACP model values.
+// ListModels discovers live provider models. ACP-capable native providers use
+// the model options advertised by the same bridge command used for launch.
 func (s *LiveProviderSource) ListModels(ctx context.Context, opts ListOptions) ([]ModelRow, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("model catalog: live provider context is required")
@@ -365,7 +365,8 @@ func (s *LiveProviderSource) ListModels(ctx context.Context, opts ListOptions) (
 		}
 		return rows, nil
 	case liveDiscoveryACP:
-		rows, err := s.listCursorACP(runCtx, target.command, env, timeout, now)
+		provider.Command = target.command
+		rows, err := s.listACP(runCtx, provider, env, timeout, now)
 		if err != nil {
 			return nil, err
 		}

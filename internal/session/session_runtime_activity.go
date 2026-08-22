@@ -103,6 +103,7 @@ func (s *Session) markExited(now time.Time) {
 		s.Liveness.Activity = nil
 	}
 	s.RuntimeStatus = RuntimeStatusUnbound
+	s.RuntimeRecovery = nil
 	if !now.IsZero() {
 		s.UpdatedAt = now.UTC()
 	}

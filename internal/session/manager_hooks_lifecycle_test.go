@@ -363,6 +363,7 @@ func TestStopWithCauseLifecycle(t *testing.T) {
 			},
 		}
 		h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
+		h.manager.promptRecoveryDelays = []time.Duration{}
 		session = createSession(t, h)
 		t.Cleanup(func() {
 			if _, ok := h.manager.Get(session.ID); ok {
@@ -396,10 +397,10 @@ func TestStopWithCauseLifecycle(t *testing.T) {
 			t.Fatalf("Prompt() error = %v", err)
 		}
 		promptEvents := collectEvents(t, events)
-		if got, want := len(promptEvents), 1; got != want {
-			t.Fatalf("Prompt() events = %d, want %d", got, want)
+		if len(promptEvents) == 0 {
+			t.Fatal("Prompt() events = empty, want process terminal")
 		}
-		if failure := promptEvents[0].Failure; failure == nil || failure.Kind != store.FailureProcess {
+		if failure := promptEvents[len(promptEvents)-1].Failure; failure == nil || failure.Kind != store.FailureProcess {
 			t.Fatalf("Prompt() failure = %#v, want process_exit", failure)
 		}
 		h.notifier.waitForStopped(t, session.ID)
@@ -467,6 +468,7 @@ func TestStopWithCauseLifecycle(t *testing.T) {
 			},
 		}
 		h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
+		h.manager.promptRecoveryDelays = []time.Duration{}
 		session = createSession(t, h)
 		h.notifier.finalizingHook = func(context.Context, *Session) {
 			recordStep("finalizing")
@@ -496,10 +498,10 @@ func TestStopWithCauseLifecycle(t *testing.T) {
 		close(source)
 
 		promptEvents := collectEvents(t, events)
-		if got, want := len(promptEvents), 1; got != want {
-			t.Fatalf("Prompt() events = %d, want %d", got, want)
+		if len(promptEvents) == 0 {
+			t.Fatal("Prompt() events = empty, want process terminal")
 		}
-		if failure := promptEvents[0].Failure; failure == nil || failure.Kind != store.FailureProcess {
+		if failure := promptEvents[len(promptEvents)-1].Failure; failure == nil || failure.Kind != store.FailureProcess {
 			t.Fatalf("Prompt() failure = %#v, want process_exit", failure)
 		}
 		h.notifier.waitForStopped(t, session.ID)

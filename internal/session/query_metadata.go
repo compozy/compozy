@@ -149,6 +149,8 @@ func sessionInfoFromMeta(meta store.SessionMeta) *Info {
 		RuntimeStatus:            meta.RuntimeStatus,
 		RuntimeTransition:        meta.RuntimeTransition,
 		RuntimeFailure:           store.SessionRuntimeFailureValue(meta.RuntimeFailure),
+		RuntimeGeneration:        meta.RuntimeGeneration,
+		RuntimeRecovery:          store.CloneSessionRuntimeRecovery(meta.RuntimeRecovery),
 		SelectedRuntime:          runtimeSelectionFromSessionStore(selectedRuntime),
 		RuntimeSelectionRevision: selectionRevision,
 		EffectivePermissions:     strings.TrimSpace(meta.EffectivePermissions),

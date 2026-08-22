@@ -31,6 +31,10 @@ func (m *Manager) prepareSessionLaunch(
 	if err != nil {
 		return acp.StartOpts{}, startupFailure("session pre-start hook cwd is invalid", err)
 	}
+	startOpts, err = resolveProviderNativeCLI(ctx, runtime.agent, startOpts)
+	if err != nil {
+		return acp.StartOpts{}, startupFailure("session native provider startup failed", err)
+	}
 	startOpts = m.finalizeProviderProbeEnvForStart(session, runtime.agent, startOpts)
 	if spec.resumeReplay {
 		spec.resumeReplayBlock, spec.resumeReplayMessageCount, err = m.buildResumeReplay(ctx, session)

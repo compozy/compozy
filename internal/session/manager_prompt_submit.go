@@ -193,18 +193,29 @@ func (m *Manager) submitPromptInReservedSlot(
 	if _, err := m.persistSessionPromptActivity(ctx, session, m.now()); err != nil {
 		return nil, err
 	}
+	delivery, err := m.openDurablePromptDelivery(req.deliveryCtx, session, req.turnID)
+	if err != nil {
+		return nil, fmt.Errorf("session: open durable prompt delivery for %q: %w", req.target, err)
+	}
 	supervision := supervisionForSession(session, m.supervision)
 	activity := newPromptActivitySupervisor(ctx, m, session, turnState, supervision)
 	activity.start()
-	source, err := m.driver.Prompt(ctx, proc, acp.PromptRequest{
+	recoveryRequest := acp.PromptRequest{
 		TurnID:                    req.turnID,
 		Message:                   dispatchMessage,
 		Attachments:               attachments,
 		Meta:                      req.meta,
 		ActivityReporter:          activity.report,
 		ActivityHeartbeatInterval: supervision.ActivityHeartbeatInterval,
-	})
+	}
+	turnState.recovery = &promptRecoveryState{
+		executionCtx: ctx,
+		request:      clonePromptRecoveryRequest(recoveryRequest),
+	}
+	recoveryRequest.Message = promptWithResumeReplay(replayBlock, recoveryRequest.Message)
+	source, err := m.driver.Prompt(ctx, proc, recoveryRequest)
 	if err != nil {
+		delivery.cancel()
 		cancelPromptExecution()
 		activity.stop()
 		activity.finish(m.now())
@@ -212,25 +223,28 @@ func (m *Manager) submitPromptInReservedSlot(
 	}
 	if turnState.managed != nil {
 		if err := m.recordManagedDriverAttached(ctx, turnState.managed, req.turnID); err != nil {
+			delivery.cancel()
 			m.abortPromptBeforePump(cancelPromptExecution, activity, source)
 			return nil, err
 		}
 	}
 	if err := m.preparePromptDelivery(ctx, session, req, cancelPromptExecution, activity, source); err != nil {
+		delivery.cancel()
 		return nil, err
 	}
 	m.consumeResumeReplay(session.ID, replayBlock)
 
 	lifecycleCtx := m.fallbackLifecycleContext()
-	return m.startPromptPump(
+	m.startPromptPersistencePump(
 		lifecycleCtx,
-		req.deliveryCtx,
 		session,
 		turnState,
 		source,
 		activity,
 		cancelPromptExecution,
-	), nil
+		delivery.persistenceDone,
+	)
+	return delivery.events, nil
 }
 
 func (m *Manager) preparePromptDelivery(
@@ -288,6 +302,37 @@ func (m *Manager) startPromptPump(
 		)
 	})
 	return out
+}
+
+func (m *Manager) startPromptPersistencePump(
+	lifecycleCtx context.Context,
+	session *Session,
+	turnState *promptTurnDispatchState,
+	source <-chan acp.AgentEvent,
+	activity *promptActivitySupervisor,
+	cancelPromptExecution context.CancelFunc,
+	persistenceDone chan<- struct{},
+) {
+	m.startTrackedPromptTask(func() {
+		defer closePromptPersistenceDone(persistenceDone)
+		m.pumpPrompt(
+			lifecycleCtx,
+			nil,
+			session,
+			turnState,
+			source,
+			activity.eventsChannel(),
+			nil,
+			activity,
+			cancelPromptExecution,
+		)
+	})
+}
+
+func closePromptPersistenceDone(done chan<- struct{}) {
+	if done != nil {
+		close(done)
+	}
 }
 
 func (m *Manager) promptDispatchMessage(ctx context.Context, session *Session, message string) (string, error) {

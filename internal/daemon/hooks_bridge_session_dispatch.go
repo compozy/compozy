@@ -126,6 +126,36 @@ func (n *hooksNotifier) DispatchSessionPostStop(
 	)
 }
 
+func (n *hooksNotifier) DispatchSessionRuntimeRecoveryStarted(
+	ctx context.Context,
+	payload hookspkg.SessionRuntimeRecoveryStartedPayload,
+) (hookspkg.SessionRuntimeRecoveryStartedPayload, error) {
+	return dispatchRuntime(
+		ctx, n, hookspkg.HookSessionRuntimeRecoveryStarted, payload,
+		hookRuntime.DispatchSessionRuntimeRecoveryStarted,
+	)
+}
+
+func (n *hooksNotifier) DispatchSessionRuntimeRecoverySucceeded(
+	ctx context.Context,
+	payload hookspkg.SessionRuntimeRecoverySucceededPayload,
+) (hookspkg.SessionRuntimeRecoverySucceededPayload, error) {
+	return dispatchRuntime(
+		ctx, n, hookspkg.HookSessionRuntimeRecoverySucceeded, payload,
+		hookRuntime.DispatchSessionRuntimeRecoverySucceeded,
+	)
+}
+
+func (n *hooksNotifier) DispatchSessionRuntimeRecoveryExhausted(
+	ctx context.Context,
+	payload hookspkg.SessionRuntimeRecoveryExhaustedPayload,
+) (hookspkg.SessionRuntimeRecoveryExhaustedPayload, error) {
+	return dispatchRuntime(
+		ctx, n, hookspkg.HookSessionRuntimeRecoveryExhausted, payload,
+		hookRuntime.DispatchSessionRuntimeRecoveryExhausted,
+	)
+}
+
 func (n *hooksNotifier) DispatchSandboxPrepare(
 	ctx context.Context,
 	payload hookspkg.SandboxPreparePayload,

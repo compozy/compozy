@@ -1516,6 +1516,8 @@ type Session struct {
 	RuntimeStatus            string         `json:"runtime_status"`
 	RuntimeTransition        string         `json:"runtime_transition"`
 	RuntimeFailure           string         `json:"runtime_failure"`
+	RuntimeGeneration        int64          `json:"runtime_generation"`
+	RuntimeRecoveryJson      string         `json:"runtime_recovery_json"`
 	SelectedProvider         string         `json:"selected_provider"`
 	SelectedModel            string         `json:"selected_model"`
 	SelectedReasoningEffort  string         `json:"selected_reasoning_effort"`

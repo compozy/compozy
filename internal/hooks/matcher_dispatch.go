@@ -34,6 +34,10 @@ func matchSessionLifecycle(matcher HookMatcher, payload SessionLifecyclePayload)
 	return matcher.MatchesSession(payload.SessionContext)
 }
 
+func matchSessionRuntimeRecovery(matcher HookMatcher, payload SessionRuntimeRecoveryPayload) bool {
+	return matcher.MatchesSession(payload.SessionContext)
+}
+
 func matchSandboxPrepare(matcher HookMatcher, payload SandboxPreparePayload) bool {
 	return matcher.MatchesSandboxPrepare(payload)
 }

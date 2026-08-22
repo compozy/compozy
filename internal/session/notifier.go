@@ -43,6 +43,8 @@ func NotificationSessionFromInfo(info *Info) *Session {
 		RuntimeStatus:            info.RuntimeStatus,
 		RuntimeTransition:        info.RuntimeTransition,
 		RuntimeFailure:           info.RuntimeFailure,
+		RuntimeGeneration:        info.RuntimeGeneration,
+		RuntimeRecovery:          store.CloneSessionRuntimeRecovery(info.RuntimeRecovery),
 		SelectedRuntime:          cloneRuntimeSelection(info.SelectedRuntime),
 		RuntimeSelectionRevision: info.RuntimeSelectionRevision,
 		EffectivePermissions:     info.EffectivePermissions,

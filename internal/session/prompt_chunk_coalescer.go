@@ -1,7 +1,6 @@
 package session
 
 import (
-	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -10,6 +9,7 @@ import (
 const (
 	promptChunkCoalesceInterval = 25 * time.Millisecond
 	promptChunkCoalesceMaxBytes = 4096
+	promptEventBatchMaxEvents   = 64
 )
 
 type promptChunkCoalescer struct {
@@ -26,7 +26,7 @@ func (c *promptChunkCoalescer) hasPending() bool {
 }
 
 func (c *promptChunkCoalescer) append(event acp.AgentEvent, runtimeEvent bool) bool {
-	if c == nil || !isCoalesciblePromptChunk(event, runtimeEvent) {
+	if c == nil || runtimeEvent || isPromptTerminalEvent(event.Type) {
 		return false
 	}
 	if c.pending == nil {
@@ -35,9 +35,6 @@ func (c *promptChunkCoalescer) append(event acp.AgentEvent, runtimeEvent bool) b
 			totalBytes: len(event.Text),
 		}
 		return true
-	}
-	if !samePromptChunkRun(c.pending.events[len(c.pending.events)-1], event) {
-		return false
 	}
 	c.pending.events = append(c.pending.events, event)
 	c.pending.totalBytes += len(event.Text)
@@ -57,31 +54,6 @@ func (c *promptChunkCoalescer) shouldFlush() bool {
 	if c == nil || c.pending == nil {
 		return false
 	}
-	return c.pending.totalBytes >= promptChunkCoalesceMaxBytes
-}
-
-func isCoalesciblePromptChunk(event acp.AgentEvent, runtimeEvent bool) bool {
-	if runtimeEvent || strings.TrimSpace(event.Text) == "" {
-		return false
-	}
-	switch strings.TrimSpace(event.Type) {
-	case acp.EventTypeAgentMessage, acp.EventTypeThought:
-	default:
-		return false
-	}
-	return event.Usage == nil &&
-		event.Failure == nil &&
-		event.Runtime == nil &&
-		strings.TrimSpace(event.ToolCallID) == "" &&
-		strings.TrimSpace(event.Action) == "" &&
-		strings.TrimSpace(event.Resource) == "" &&
-		strings.TrimSpace(event.Decision) == "" &&
-		event.Synthetic == nil
-}
-
-func samePromptChunkRun(left acp.AgentEvent, right acp.AgentEvent) bool {
-	return strings.TrimSpace(left.Type) == strings.TrimSpace(right.Type) &&
-		strings.TrimSpace(left.SessionID) == strings.TrimSpace(right.SessionID) &&
-		strings.TrimSpace(left.TurnID) == strings.TrimSpace(right.TurnID) &&
-		strings.TrimSpace(left.RequestIDValue()) == strings.TrimSpace(right.RequestIDValue())
+	return len(c.pending.events) >= promptEventBatchMaxEvents ||
+		c.pending.totalBytes >= promptChunkCoalesceMaxBytes
 }

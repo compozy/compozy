@@ -20613,6 +20613,49 @@
                                 "failure": {
                                   "type": "string"
                                 },
+                                "generation": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                },
+                                "recovery": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "attempt": {
+                                      "type": "integer"
+                                    },
+                                    "generation": {
+                                      "format": "int64",
+                                      "type": "integer"
+                                    },
+                                    "last_attempt_at": {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    },
+                                    "last_error": {
+                                      "type": "string"
+                                    },
+                                    "max_attempts": {
+                                      "type": "integer"
+                                    },
+                                    "next_attempt_at": {
+                                      "format": "date-time",
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "started_at": {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "attempt",
+                                    "generation",
+                                    "last_attempt_at",
+                                    "max_attempts",
+                                    "started_at"
+                                  ],
+                                  "type": "object"
+                                },
                                 "selected": {
                                   "nullable": true,
                                   "properties": {
@@ -93065,6 +93108,9 @@
                 "session.pre_stop",
                 "session.post_stop",
                 "session.message_persisted",
+                "session.runtime_recovery.started",
+                "session.runtime_recovery.succeeded",
+                "session.runtime_recovery.exhausted",
                 "sandbox.prepare",
                 "sandbox.ready",
                 "sandbox.sync.before",
@@ -130962,6 +131008,49 @@
                               "failure": {
                                 "type": "string"
                               },
+                              "generation": {
+                                "format": "int64",
+                                "type": "integer"
+                              },
+                              "recovery": {
+                                "nullable": true,
+                                "properties": {
+                                  "attempt": {
+                                    "type": "integer"
+                                  },
+                                  "generation": {
+                                    "format": "int64",
+                                    "type": "integer"
+                                  },
+                                  "last_attempt_at": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "last_error": {
+                                    "type": "string"
+                                  },
+                                  "max_attempts": {
+                                    "type": "integer"
+                                  },
+                                  "next_attempt_at": {
+                                    "format": "date-time",
+                                    "nullable": true,
+                                    "type": "string"
+                                  },
+                                  "started_at": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "attempt",
+                                  "generation",
+                                  "last_attempt_at",
+                                  "max_attempts",
+                                  "started_at"
+                                ],
+                                "type": "object"
+                              },
                               "selected": {
                                 "nullable": true,
                                 "properties": {
@@ -132448,6 +132537,49 @@
                             },
                             "failure": {
                               "type": "string"
+                            },
+                            "generation": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "recovery": {
+                              "nullable": true,
+                              "properties": {
+                                "attempt": {
+                                  "type": "integer"
+                                },
+                                "generation": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                },
+                                "last_attempt_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "last_error": {
+                                  "type": "string"
+                                },
+                                "max_attempts": {
+                                  "type": "integer"
+                                },
+                                "next_attempt_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "started_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "attempt",
+                                "generation",
+                                "last_attempt_at",
+                                "max_attempts",
+                                "started_at"
+                              ],
+                              "type": "object"
                             },
                             "selected": {
                               "nullable": true,
@@ -134242,6 +134374,49 @@
                             },
                             "failure": {
                               "type": "string"
+                            },
+                            "generation": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "recovery": {
+                              "nullable": true,
+                              "properties": {
+                                "attempt": {
+                                  "type": "integer"
+                                },
+                                "generation": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                },
+                                "last_attempt_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "last_error": {
+                                  "type": "string"
+                                },
+                                "max_attempts": {
+                                  "type": "integer"
+                                },
+                                "next_attempt_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "started_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "attempt",
+                                "generation",
+                                "last_attempt_at",
+                                "max_attempts",
+                                "started_at"
+                              ],
+                              "type": "object"
                             },
                             "selected": {
                               "nullable": true,
@@ -138858,6 +139033,9 @@
                                   "session.pre_stop",
                                   "session.post_stop",
                                   "session.message_persisted",
+                                  "session.runtime_recovery.started",
+                                  "session.runtime_recovery.succeeded",
+                                  "session.runtime_recovery.exhausted",
                                   "sandbox.prepare",
                                   "sandbox.ready",
                                   "sandbox.sync.before",
@@ -139528,6 +139706,9 @@
                                   "session.pre_stop",
                                   "session.post_stop",
                                   "session.message_persisted",
+                                  "session.runtime_recovery.started",
+                                  "session.runtime_recovery.succeeded",
+                                  "session.runtime_recovery.exhausted",
                                   "sandbox.prepare",
                                   "sandbox.ready",
                                   "sandbox.sync.before",
@@ -141279,6 +141460,9 @@
                           "session.pre_stop",
                           "session.post_stop",
                           "session.message_persisted",
+                          "session.runtime_recovery.started",
+                          "session.runtime_recovery.succeeded",
+                          "session.runtime_recovery.exhausted",
                           "sandbox.prepare",
                           "sandbox.ready",
                           "sandbox.sync.before",
@@ -233139,6 +233323,49 @@
                               "failure": {
                                 "type": "string"
                               },
+                              "generation": {
+                                "format": "int64",
+                                "type": "integer"
+                              },
+                              "recovery": {
+                                "nullable": true,
+                                "properties": {
+                                  "attempt": {
+                                    "type": "integer"
+                                  },
+                                  "generation": {
+                                    "format": "int64",
+                                    "type": "integer"
+                                  },
+                                  "last_attempt_at": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "last_error": {
+                                    "type": "string"
+                                  },
+                                  "max_attempts": {
+                                    "type": "integer"
+                                  },
+                                  "next_attempt_at": {
+                                    "format": "date-time",
+                                    "nullable": true,
+                                    "type": "string"
+                                  },
+                                  "started_at": {
+                                    "format": "date-time",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "attempt",
+                                  "generation",
+                                  "last_attempt_at",
+                                  "max_attempts",
+                                  "started_at"
+                                ],
+                                "type": "object"
+                              },
                               "selected": {
                                 "nullable": true,
                                 "properties": {
@@ -237802,6 +238029,9 @@
                 "session.pre_stop",
                 "session.post_stop",
                 "session.message_persisted",
+                "session.runtime_recovery.started",
+                "session.runtime_recovery.succeeded",
+                "session.runtime_recovery.exhausted",
                 "sandbox.prepare",
                 "sandbox.ready",
                 "sandbox.sync.before",
@@ -285839,6 +286069,49 @@
                                   "failure": {
                                     "type": "string"
                                   },
+                                  "generation": {
+                                    "format": "int64",
+                                    "type": "integer"
+                                  },
+                                  "recovery": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "attempt": {
+                                        "type": "integer"
+                                      },
+                                      "generation": {
+                                        "format": "int64",
+                                        "type": "integer"
+                                      },
+                                      "last_attempt_at": {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      },
+                                      "last_error": {
+                                        "type": "string"
+                                      },
+                                      "max_attempts": {
+                                        "type": "integer"
+                                      },
+                                      "next_attempt_at": {
+                                        "format": "date-time",
+                                        "nullable": true,
+                                        "type": "string"
+                                      },
+                                      "started_at": {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "attempt",
+                                      "generation",
+                                      "last_attempt_at",
+                                      "max_attempts",
+                                      "started_at"
+                                    ],
+                                    "type": "object"
+                                  },
                                   "selected": {
                                     "nullable": true,
                                     "properties": {
@@ -287211,6 +287484,49 @@
                                   },
                                   "failure": {
                                     "type": "string"
+                                  },
+                                  "generation": {
+                                    "format": "int64",
+                                    "type": "integer"
+                                  },
+                                  "recovery": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "attempt": {
+                                        "type": "integer"
+                                      },
+                                      "generation": {
+                                        "format": "int64",
+                                        "type": "integer"
+                                      },
+                                      "last_attempt_at": {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      },
+                                      "last_error": {
+                                        "type": "string"
+                                      },
+                                      "max_attempts": {
+                                        "type": "integer"
+                                      },
+                                      "next_attempt_at": {
+                                        "format": "date-time",
+                                        "nullable": true,
+                                        "type": "string"
+                                      },
+                                      "started_at": {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "attempt",
+                                      "generation",
+                                      "last_attempt_at",
+                                      "max_attempts",
+                                      "started_at"
+                                    ],
+                                    "type": "object"
                                   },
                                   "selected": {
                                     "nullable": true,
@@ -288607,6 +288923,49 @@
                                   },
                                   "failure": {
                                     "type": "string"
+                                  },
+                                  "generation": {
+                                    "format": "int64",
+                                    "type": "integer"
+                                  },
+                                  "recovery": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "attempt": {
+                                        "type": "integer"
+                                      },
+                                      "generation": {
+                                        "format": "int64",
+                                        "type": "integer"
+                                      },
+                                      "last_attempt_at": {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      },
+                                      "last_error": {
+                                        "type": "string"
+                                      },
+                                      "max_attempts": {
+                                        "type": "integer"
+                                      },
+                                      "next_attempt_at": {
+                                        "format": "date-time",
+                                        "nullable": true,
+                                        "type": "string"
+                                      },
+                                      "started_at": {
+                                        "format": "date-time",
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "attempt",
+                                      "generation",
+                                      "last_attempt_at",
+                                      "max_attempts",
+                                      "started_at"
+                                    ],
+                                    "type": "object"
                                   },
                                   "selected": {
                                     "nullable": true,
@@ -297824,6 +298183,49 @@
                             "failure": {
                               "type": "string"
                             },
+                            "generation": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "recovery": {
+                              "nullable": true,
+                              "properties": {
+                                "attempt": {
+                                  "type": "integer"
+                                },
+                                "generation": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                },
+                                "last_attempt_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "last_error": {
+                                  "type": "string"
+                                },
+                                "max_attempts": {
+                                  "type": "integer"
+                                },
+                                "next_attempt_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "started_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "attempt",
+                                "generation",
+                                "last_attempt_at",
+                                "max_attempts",
+                                "started_at"
+                              ],
+                              "type": "object"
+                            },
                             "selected": {
                               "nullable": true,
                               "properties": {
@@ -298882,6 +299284,49 @@
                             },
                             "failure": {
                               "type": "string"
+                            },
+                            "generation": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "recovery": {
+                              "nullable": true,
+                              "properties": {
+                                "attempt": {
+                                  "type": "integer"
+                                },
+                                "generation": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                },
+                                "last_attempt_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "last_error": {
+                                  "type": "string"
+                                },
+                                "max_attempts": {
+                                  "type": "integer"
+                                },
+                                "next_attempt_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "started_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "attempt",
+                                "generation",
+                                "last_attempt_at",
+                                "max_attempts",
+                                "started_at"
+                              ],
+                              "type": "object"
                             },
                             "selected": {
                               "nullable": true,
@@ -300384,6 +300829,49 @@
                             "failure": {
                               "type": "string"
                             },
+                            "generation": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "recovery": {
+                              "nullable": true,
+                              "properties": {
+                                "attempt": {
+                                  "type": "integer"
+                                },
+                                "generation": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                },
+                                "last_attempt_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "last_error": {
+                                  "type": "string"
+                                },
+                                "max_attempts": {
+                                  "type": "integer"
+                                },
+                                "next_attempt_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "started_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "attempt",
+                                "generation",
+                                "last_attempt_at",
+                                "max_attempts",
+                                "started_at"
+                              ],
+                              "type": "object"
+                            },
                             "selected": {
                               "nullable": true,
                               "properties": {
@@ -301615,6 +302103,49 @@
                             },
                             "failure": {
                               "type": "string"
+                            },
+                            "generation": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "recovery": {
+                              "nullable": true,
+                              "properties": {
+                                "attempt": {
+                                  "type": "integer"
+                                },
+                                "generation": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                },
+                                "last_attempt_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "last_error": {
+                                  "type": "string"
+                                },
+                                "max_attempts": {
+                                  "type": "integer"
+                                },
+                                "next_attempt_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "started_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "attempt",
+                                "generation",
+                                "last_attempt_at",
+                                "max_attempts",
+                                "started_at"
+                              ],
+                              "type": "object"
                             },
                             "selected": {
                               "nullable": true,
@@ -304738,6 +305269,49 @@
                             },
                             "failure": {
                               "type": "string"
+                            },
+                            "generation": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "recovery": {
+                              "nullable": true,
+                              "properties": {
+                                "attempt": {
+                                  "type": "integer"
+                                },
+                                "generation": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                },
+                                "last_attempt_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "last_error": {
+                                  "type": "string"
+                                },
+                                "max_attempts": {
+                                  "type": "integer"
+                                },
+                                "next_attempt_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "started_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "attempt",
+                                "generation",
+                                "last_attempt_at",
+                                "max_attempts",
+                                "started_at"
+                              ],
+                              "type": "object"
                             },
                             "selected": {
                               "nullable": true,
@@ -314986,6 +315560,49 @@
                                 "failure": {
                                   "type": "string"
                                 },
+                                "generation": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                },
+                                "recovery": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "attempt": {
+                                      "type": "integer"
+                                    },
+                                    "generation": {
+                                      "format": "int64",
+                                      "type": "integer"
+                                    },
+                                    "last_attempt_at": {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    },
+                                    "last_error": {
+                                      "type": "string"
+                                    },
+                                    "max_attempts": {
+                                      "type": "integer"
+                                    },
+                                    "next_attempt_at": {
+                                      "format": "date-time",
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "started_at": {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "attempt",
+                                    "generation",
+                                    "last_attempt_at",
+                                    "max_attempts",
+                                    "started_at"
+                                  ],
+                                  "type": "object"
+                                },
                                 "selected": {
                                   "nullable": true,
                                   "properties": {
@@ -316593,6 +317210,49 @@
                             "failure": {
                               "type": "string"
                             },
+                            "generation": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "recovery": {
+                              "nullable": true,
+                              "properties": {
+                                "attempt": {
+                                  "type": "integer"
+                                },
+                                "generation": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                },
+                                "last_attempt_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "last_error": {
+                                  "type": "string"
+                                },
+                                "max_attempts": {
+                                  "type": "integer"
+                                },
+                                "next_attempt_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "started_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "attempt",
+                                "generation",
+                                "last_attempt_at",
+                                "max_attempts",
+                                "started_at"
+                              ],
+                              "type": "object"
+                            },
                             "selected": {
                               "nullable": true,
                               "properties": {
@@ -317865,6 +318525,49 @@
                             "failure": {
                               "type": "string"
                             },
+                            "generation": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "recovery": {
+                              "nullable": true,
+                              "properties": {
+                                "attempt": {
+                                  "type": "integer"
+                                },
+                                "generation": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                },
+                                "last_attempt_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "last_error": {
+                                  "type": "string"
+                                },
+                                "max_attempts": {
+                                  "type": "integer"
+                                },
+                                "next_attempt_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "started_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "attempt",
+                                "generation",
+                                "last_attempt_at",
+                                "max_attempts",
+                                "started_at"
+                              ],
+                              "type": "object"
+                            },
                             "selected": {
                               "nullable": true,
                               "properties": {
@@ -319105,6 +319808,49 @@
                             },
                             "failure": {
                               "type": "string"
+                            },
+                            "generation": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "recovery": {
+                              "nullable": true,
+                              "properties": {
+                                "attempt": {
+                                  "type": "integer"
+                                },
+                                "generation": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                },
+                                "last_attempt_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "last_error": {
+                                  "type": "string"
+                                },
+                                "max_attempts": {
+                                  "type": "integer"
+                                },
+                                "next_attempt_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "started_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "attempt",
+                                "generation",
+                                "last_attempt_at",
+                                "max_attempts",
+                                "started_at"
+                              ],
+                              "type": "object"
                             },
                             "selected": {
                               "nullable": true,
@@ -325821,6 +326567,49 @@
                             "failure": {
                               "type": "string"
                             },
+                            "generation": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "recovery": {
+                              "nullable": true,
+                              "properties": {
+                                "attempt": {
+                                  "type": "integer"
+                                },
+                                "generation": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                },
+                                "last_attempt_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "last_error": {
+                                  "type": "string"
+                                },
+                                "max_attempts": {
+                                  "type": "integer"
+                                },
+                                "next_attempt_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "started_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "attempt",
+                                "generation",
+                                "last_attempt_at",
+                                "max_attempts",
+                                "started_at"
+                              ],
+                              "type": "object"
+                            },
                             "selected": {
                               "nullable": true,
                               "properties": {
@@ -327841,6 +328630,49 @@
                             },
                             "failure": {
                               "type": "string"
+                            },
+                            "generation": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "recovery": {
+                              "nullable": true,
+                              "properties": {
+                                "attempt": {
+                                  "type": "integer"
+                                },
+                                "generation": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                },
+                                "last_attempt_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "last_error": {
+                                  "type": "string"
+                                },
+                                "max_attempts": {
+                                  "type": "integer"
+                                },
+                                "next_attempt_at": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "started_at": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "attempt",
+                                "generation",
+                                "last_attempt_at",
+                                "max_attempts",
+                                "started_at"
+                              ],
+                              "type": "object"
                             },
                             "selected": {
                               "nullable": true,

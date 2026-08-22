@@ -112,7 +112,7 @@ func (m *Manager) handleProcessExit(
 		return nil
 	}
 	if session.currentPromptCompletion() != nil {
-		m.waitForActivePromptProcessExit(ctx, session)
+		m.waitForActivePromptProcessExit(ctx, session, proc)
 		if !session.isCurrentProcess(proc) {
 			return nil
 		}
@@ -230,12 +230,20 @@ func sandboxSyncReasonForStop(session *Session) sandbox.SyncReason {
 	return sandbox.SyncReasonStop
 }
 
-func (m *Manager) recordProcessExitEvent(ctx context.Context, session *Session, waitErr error) error {
+func (m *Manager) recordProcessExitEvent(
+	ctx context.Context,
+	session *Session,
+	waitErr error,
+	promptOwnsTerminalFailure bool,
+) error {
 	if waitErr == nil {
 		return nil
 	}
 
 	m.dispatchAgentCrashed(ctx, session, session.processHandle(), waitErr)
+	if promptOwnsTerminalFailure {
+		return nil
+	}
 
 	stderr := ""
 	if proc := session.processHandle(); proc != nil {
@@ -267,7 +275,12 @@ func (m *Manager) recordProcessExitEvent(ctx context.Context, session *Session, 
 	return nil
 }
 
-func (m *Manager) recordSessionStoppedEvent(ctx context.Context, session *Session, waitErr error) error {
+func (m *Manager) recordSessionStoppedEvent(
+	ctx context.Context,
+	session *Session,
+	waitErr error,
+	promptOwnsTerminalFailure bool,
+) error {
 	stopReason := store.StopReason("")
 	if info := session.Info(); info != nil {
 		stopReason = info.StopReason
@@ -299,7 +312,8 @@ func (m *Manager) recordSessionStoppedEvent(ctx context.Context, session *Sessio
 		return err
 	}
 	m.notifyAgentEvent(ctx, session, normalizedStop)
-	if kind, summary, evidence, ok := sessionStoppedTranscriptMarker(normalizedStop); ok {
+	if kind, summary, evidence, ok := sessionStoppedTranscriptMarker(normalizedStop); ok &&
+		!(promptOwnsTerminalFailure && kind == transcript.MarkerProviderFailure) {
 		m.emitTranscriptMarker(ctx, session, normalizedStop.TurnID, kind, summary, evidence)
 	}
 	return nil

@@ -42,6 +42,12 @@ const (
 	EventTypeRuntimeProgress = "runtime_progress"
 	// EventTypeRuntimeWarning is emitted by Compozy when active prompt activity is stale.
 	EventTypeRuntimeWarning = "runtime_warning"
+	// EventTypeRuntimeRecoveryStarted is emitted before an automatic runtime recovery attempt.
+	EventTypeRuntimeRecoveryStarted = "runtime_recovery_started"
+	// EventTypeRuntimeRecoverySucceeded is emitted after an automatic runtime recovery resumes the turn.
+	EventTypeRuntimeRecoverySucceeded = "runtime_recovery_succeeded"
+	// EventTypeRuntimeRecoveryExhausted is emitted after all automatic runtime recovery attempts fail.
+	EventTypeRuntimeRecoveryExhausted = "runtime_recovery_exhausted"
 	// EventTypeDone is emitted when a prompt turn finishes.
 	EventTypeDone = "done"
 	// EventTypeError is emitted when prompt processing fails.

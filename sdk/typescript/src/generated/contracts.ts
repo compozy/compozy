@@ -116,6 +116,9 @@ export type HookEvent =
   | "session.pre_stop"
   | "session.post_stop"
   | "session.message_persisted"
+  | "session.runtime_recovery.started"
+  | "session.runtime_recovery.succeeded"
+  | "session.runtime_recovery.exhausted"
   | "sandbox.prepare"
   | "sandbox.ready"
   | "sandbox.sync.before"
@@ -4846,6 +4849,78 @@ export interface SessionRuntimeClearParams {
   expected_revision?: number;
 }
 
+export interface SessionRuntimeRecoveryExhaustedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  session_id?: string;
+  session_name?: string;
+  session_type?: string;
+  agent_name?: string;
+  workspace_id?: string;
+  workspace?: string;
+  worktree_id?: string;
+  acp_session_id?: string;
+  state?: string;
+  soul_snapshot_id?: string;
+  soul_digest?: string;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
+  turn_id?: string;
+  attempt: number;
+  max_attempts: number;
+  generation: number;
+  failure_kind?: string;
+  failure_detail?: string;
+}
+
+export interface SessionRuntimeRecoveryStartedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  session_id?: string;
+  session_name?: string;
+  session_type?: string;
+  agent_name?: string;
+  workspace_id?: string;
+  workspace?: string;
+  worktree_id?: string;
+  acp_session_id?: string;
+  state?: string;
+  soul_snapshot_id?: string;
+  soul_digest?: string;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
+  turn_id?: string;
+  attempt: number;
+  max_attempts: number;
+  generation: number;
+  failure_kind?: string;
+  failure_detail?: string;
+}
+
+export interface SessionRuntimeRecoverySucceededPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  session_id?: string;
+  session_name?: string;
+  session_type?: string;
+  agent_name?: string;
+  workspace_id?: string;
+  workspace?: string;
+  worktree_id?: string;
+  acp_session_id?: string;
+  state?: string;
+  soul_snapshot_id?: string;
+  soul_digest?: string;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
+  turn_id?: string;
+  attempt: number;
+  max_attempts: number;
+  generation: number;
+  failure_kind?: string;
+  failure_detail?: string;
+}
+
 export interface SessionRuntimeSelectionPayload {
   provider: string;
   model?: string;
@@ -4875,6 +4950,16 @@ export interface SessionSoulRefreshRequest {
 export type SessionRuntimeStatus = string;
 
 export type SessionRuntimeTransition = string;
+
+export interface SessionRuntimeRecoveryPayload {
+  attempt: number;
+  max_attempts: number;
+  generation: number;
+  started_at: ISODateTime;
+  last_attempt_at: ISODateTime;
+  next_attempt_at?: ISODateTime;
+  last_error?: string;
+}
 
 export type ResolutionStatus = string;
 
@@ -4922,6 +5007,8 @@ export interface SessionRuntimePayload {
   status: SessionRuntimeStatus;
   transition?: SessionRuntimeTransition;
   failure?: string;
+  generation?: number;
+  recovery?: SessionRuntimeRecoveryPayload;
   selected?: PromptRuntimeSelectionPayload;
   selection_revision: number;
   effective?: RuntimeSelectionPayload;
@@ -7236,6 +7323,9 @@ export interface HookPayloadByEvent {
   "session.pre_stop": SessionPreStopPayload;
   "session.post_stop": SessionPostStopPayload;
   "session.message_persisted": SessionMessagePersistedPayload;
+  "session.runtime_recovery.started": SessionRuntimeRecoveryStartedPayload;
+  "session.runtime_recovery.succeeded": SessionRuntimeRecoverySucceededPayload;
+  "session.runtime_recovery.exhausted": SessionRuntimeRecoveryExhaustedPayload;
   "sandbox.prepare": SandboxPreparePayload;
   "sandbox.ready": SandboxReadyPayload;
   "sandbox.sync.before": SandboxSyncBeforePayload;
@@ -7340,6 +7430,9 @@ export interface HookPatchByEvent {
   "session.pre_stop": SessionPreStopPatch;
   "session.post_stop": SessionPostStopPatch;
   "session.message_persisted": AuthoredContextObservationPatch;
+  "session.runtime_recovery.started": AuthoredContextObservationPatch;
+  "session.runtime_recovery.succeeded": AuthoredContextObservationPatch;
+  "session.runtime_recovery.exhausted": AuthoredContextObservationPatch;
   "sandbox.prepare": SandboxPreparePatch;
   "sandbox.ready": SandboxReadyPatch;
   "sandbox.sync.before": SandboxSyncBeforePatch;

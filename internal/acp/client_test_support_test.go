@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -685,6 +686,21 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 			),
 		}); sendErr != nil {
 			return acpsdk.PromptResponse{}, sendErr
+		}
+	case "diverse_update_burst":
+		for index := range 1_100 {
+			toolCallID := fmt.Sprintf("tool-diverse-%04d", index)
+			if sendErr := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
+				SessionId: params.SessionId,
+				Update: acpsdk.StartToolCall(
+					acpsdk.ToolCallId(toolCallID),
+					"Read file",
+					acpsdk.WithStartKind(acpsdk.ToolKindRead),
+					acpsdk.WithStartStatus(acpsdk.ToolCallStatusInProgress),
+				),
+			}); sendErr != nil {
+				return acpsdk.PromptResponse{}, sendErr
+			}
 		}
 	case "fs_read":
 		response, err := a.conn.ReadTextFile(ctx, acpsdk.ReadTextFileRequest{

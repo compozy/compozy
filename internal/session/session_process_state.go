@@ -62,11 +62,15 @@ func (s *Session) activateWithProcess(
 		s.RuntimeStatus = RuntimeStatusUnbound
 	} else {
 		s.RuntimeStatus = RuntimeStatusReady
+		if s.RuntimeGeneration == 0 {
+			s.RuntimeGeneration = 1
+		}
 		if s.RuntimeTransition == RuntimeTransitionNone {
 			s.RuntimeTransition = RuntimeTransitionInitialBind
 		}
 	}
 	s.RuntimeFailure = ""
+	s.RuntimeRecovery = nil
 	if !preserveStopReason {
 		s.stopCause = CauseNone
 		if s.stopReason != store.StopAgentCrashed {

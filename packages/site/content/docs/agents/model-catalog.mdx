@@ -43,12 +43,13 @@ Higher-priority non-empty fields win; lower-priority sources fill missing fields
 fresher `refreshed_at`, then ascending `source_id`. `models.dev` and `builtin` rows can enrich
 metadata but never prove account-level availability.
 
-Cursor registers `provider_live:cursor` with `cursor-agent acp`. The first catalog read with no
-recorded Cursor discovery status starts a short-lived ACP inspection under the provider's resolved home
-policy, reads the exact values in Cursor's advertised `model` option, and stores those rows before
-returning the projection. The human-readable `cursor-agent models` aliases are not used. Later reads use
-the stored result. A failed first attempt is also stored as source status; use the normal refresh surfaces
-to retry or update the account catalog.
+Providers with a safe ACP discovery adapter register `provider_live:<id>` sources backed by short-lived
+ACP inspection; this currently includes Claude, Codex, and Cursor. The first catalog read without
+recorded discovery status resolves the effective provider command and home
+policy, reads the exact values in its advertised `model` option, and stores those rows before returning
+the projection. Bridge-backed commands inject the same absolute native CLI path used by session launch;
+Cursor uses `cursor-agent acp`. Human-readable CLI aliases are not used. Later reads use the stored
+result. A failed first attempt is also stored as source status; use the normal refresh surfaces to retry.
 
 Input, output, cache-read, cache-write, and reasoning prices merge independently and retain the
 source of the winning field. A cost estimate is available only when every nonzero usage bucket has
@@ -371,8 +372,9 @@ a recorded source status (with redacted error) instead of corrupting the project
 
 ## Refresh lifetime and serialization
 
-- Cursor discovery runs once on the first catalog read that has no `provider_live:cursor` status.
-- Later catalog list calls return stored rows without rerunning the Cursor CLI.
+- Claude, Codex, and Cursor discovery runs once on the first catalog read that has no matching
+  `provider_live:<id>` status.
+- Later catalog list calls return stored rows without rerunning the provider CLI.
 - A recorded failed or disabled first attempt is retried only by an explicit refresh.
 - Refresh detaches from request cancellation via `context.WithoutCancel(ctx)` and re-attaches an
   explicit deadline through `context.WithDeadline`.
@@ -382,10 +384,11 @@ a recorded source status (with redacted error) instead of corrupting the project
 - Refreshes for different providers can run concurrently.
 - The daemon joins outstanding refresh workers during shutdown.
 
-Most discovery paths never create an ACP session. Cursor uses a short-lived ACP inspection because its
-CLI aliases are not transport values. Live provider sources fail closed by recording source status; an
-explicit Cursor model is accepted only when a fresh Cursor ACP catalog entry advertises its exact value.
-Stale rows remain visible as fallback metadata but cannot authorize that explicit Cursor selection.
+HTTP and command discovery paths do not create an ACP session. Claude, Codex, and Cursor use a
+short-lived ACP inspection so catalog values match the runtime transport exactly. Live provider
+sources fail closed by recording source status; an explicit Cursor model is accepted only when a fresh
+Cursor ACP catalog entry advertises its exact value. Stale rows remain visible as fallback metadata but
+cannot authorize that explicit Cursor selection.
 
 ## Observability
 

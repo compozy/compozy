@@ -1585,8 +1585,16 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 		ReasoningEffort:   "high",
 		Speed:             speedpkg.SpeedFast,
 		SpeedResolution:   &speedpkg.Resolution{Requested: speedpkg.SpeedFast, Status: speedpkg.ResolutionApplied},
-		RuntimeStatus:     store.SessionRuntimeReady,
-		RuntimeTransition: store.SessionRuntimeTransitionLiveConfiguration,
+		RuntimeStatus:     store.SessionRuntimeRecovering,
+		RuntimeTransition: store.SessionRuntimeTransitionAutomaticRecovery,
+		RuntimeGeneration: 3,
+		RuntimeRecovery: &store.SessionRuntimeRecovery{
+			Attempt:       1,
+			MaxAttempts:   3,
+			Generation:    4,
+			StartedAt:     createdAt,
+			LastAttemptAt: createdAt.Add(time.Second),
+		},
 		SelectedRuntime: &store.SessionRuntimeSelection{
 			Provider:        "claude",
 			Model:           "claude-fable-5",
@@ -1604,6 +1612,20 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 	if err := globalDB.RegisterSession(testutil.Context(t), session); err != nil {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}
+	databasePath := globalDB.Path()
+	if err := globalDB.Close(testutil.Context(t)); err != nil {
+		t.Fatalf("Close(before recovery reopen) error = %v", err)
+	}
+	globalDB = openGlobalDBForTest(t, databasePath)
+
+	registered, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{ID: session.ID})
+	if err != nil {
+		t.Fatalf("ListSessions(registered recovery) error = %v", err)
+	}
+	if len(registered) != 1 || registered[0].RuntimeGeneration != 3 ||
+		registered[0].RuntimeRecovery == nil || registered[0].RuntimeRecovery.Generation != 4 {
+		t.Fatalf("ListSessions(registered recovery) = %#v, want durable generation 3 recovering into 4", registered)
+	}
 
 	acpSessionID := "acp-123"
 	if err := globalDB.UpdateSessionState(testutil.Context(t), SessionStateUpdate{
@@ -1617,6 +1639,7 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 		Speed:             speedpkg.SpeedNormal,
 		RuntimeStatus:     store.SessionRuntimeReady,
 		RuntimeTransition: store.SessionRuntimeTransitionProcessReplacement,
+		RuntimeGeneration: 4,
 		UpdatedAt:         createdAt.Add(2 * time.Minute),
 	}); err != nil {
 		t.Fatalf("UpdateSessionState() error = %v", err)
@@ -1663,6 +1686,13 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 	}
 	if sessions[0].Provider != "codex" {
 		t.Fatalf("sessions[0].Provider = %q, want codex", sessions[0].Provider)
+	}
+	if sessions[0].RuntimeGeneration != 4 || sessions[0].RuntimeRecovery != nil {
+		t.Fatalf(
+			"session runtime after recovery = generation %d, recovery %#v; want generation 4 without recovery",
+			sessions[0].RuntimeGeneration,
+			sessions[0].RuntimeRecovery,
+		)
 	}
 	if sessions[0].Model != "gpt-5.6" || sessions[0].ReasoningEffort != "medium" ||
 		sessions[0].Speed != speedpkg.SpeedNormal || sessions[0].SpeedResolution != nil ||

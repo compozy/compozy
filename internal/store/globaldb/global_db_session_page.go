@@ -19,6 +19,7 @@ const (
 
 const sessionInfoSelectQuery = `SELECT id, name, agent_name, provider, model, reasoning_effort, speed,
 	speed_resolution_json, runtime_status, runtime_transition, runtime_failure,
+	runtime_generation, runtime_recovery_json,
 	selected_provider, selected_model, selected_reasoning_effort, selected_speed,
 	runtime_selection_revision, workspace_id, worktree_id,
 	network_spec_json, network_mode, network_channel, network_source, session_type,

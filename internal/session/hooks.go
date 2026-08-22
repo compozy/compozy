@@ -28,6 +28,22 @@ type LifecycleHooks interface {
 	DispatchSessionPostStop(context.Context, hookspkg.SessionPostStopPayload) (hookspkg.SessionPostStopPayload, error)
 }
 
+// RuntimeRecoveryHooks groups automatic runtime recovery observation dispatch.
+type RuntimeRecoveryHooks interface {
+	DispatchSessionRuntimeRecoveryStarted(
+		context.Context,
+		hookspkg.SessionRuntimeRecoveryStartedPayload,
+	) (hookspkg.SessionRuntimeRecoveryStartedPayload, error)
+	DispatchSessionRuntimeRecoverySucceeded(
+		context.Context,
+		hookspkg.SessionRuntimeRecoverySucceededPayload,
+	) (hookspkg.SessionRuntimeRecoverySucceededPayload, error)
+	DispatchSessionRuntimeRecoveryExhausted(
+		context.Context,
+		hookspkg.SessionRuntimeRecoveryExhaustedPayload,
+	) (hookspkg.SessionRuntimeRecoveryExhaustedPayload, error)
+}
+
 // SandboxHooks groups execution-sandbox lifecycle hook dispatch.
 type SandboxHooks interface {
 	DispatchSandboxPrepare(
@@ -142,6 +158,7 @@ type AttentionHooks interface {
 // no-op implementations so callers only provide the domains they exercise.
 type HookSet struct {
 	Session         LifecycleHooks
+	RuntimeRecovery RuntimeRecoveryHooks
 	Sandbox         SandboxHooks
 	Prompt          PromptHooks
 	Events          EventHooks
@@ -155,6 +172,7 @@ type HookSet struct {
 }
 
 var _ LifecycleHooks = noopSessionLifecycleHooks{}
+var _ RuntimeRecoveryHooks = noopRuntimeRecoveryHooks{}
 var _ SandboxHooks = noopSandboxHooks{}
 var _ PromptHooks = noopPromptHooks{}
 var _ EventHooks = noopEventHooks{}
@@ -171,6 +189,13 @@ func (h HookSet) session() LifecycleHooks {
 		return h.Session
 	}
 	return noopSessionLifecycleHooks{}
+}
+
+func (h HookSet) runtimeRecovery() RuntimeRecoveryHooks {
+	if h.RuntimeRecovery != nil {
+		return h.RuntimeRecovery
+	}
+	return noopRuntimeRecoveryHooks{}
 }
 
 func (h HookSet) sandbox() SandboxHooks {

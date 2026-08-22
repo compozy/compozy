@@ -203,6 +203,48 @@ func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
 			t.Fatalf("agent.SelectTurn(nonmatching fragment) error = %v, want no turn matched", err)
 		}
 	})
+
+	t.Run("Should select a replay turn by a raw prompt marker", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, err := ParseFixture([]byte(
+			`{"version":2,"agents":[{"name":"replay","provider":"claude","turns":[` +
+				`{"name":"recovered","match":{"user_text":"continue work",` +
+				`"raw_user_text_contains":"<compozy_context_replay>"},` +
+				`"steps":[{"kind":"assistant","text":"recovered"}]},` +
+				`{"name":"initial","match":{"user_text":"continue work"},` +
+				`"steps":[{"kind":"assistant","text":"initial"}]}]}]}`,
+		))
+		if err != nil {
+			t.Fatalf("ParseFixture(raw replay matcher) error = %v", err)
+		}
+		agent, err := fixture.Agent("replay")
+		if err != nil {
+			t.Fatalf("fixture.Agent(replay) error = %v", err)
+		}
+		initial, err := agent.SelectTurn("continue work")
+		if err != nil {
+			t.Fatalf("agent.SelectTurn(initial) error = %v", err)
+		}
+		if got, want := initial.Name, "initial"; got != want {
+			t.Fatalf("initial turn name = %q, want %q", got, want)
+		}
+		recovered, err := agent.SelectTurn(strings.Join([]string{
+			"<compozy_context_replay>",
+			"[]",
+			"</compozy_context_replay>",
+			"",
+			"User request:",
+			"",
+			"continue work",
+		}, "\n"))
+		if err != nil {
+			t.Fatalf("agent.SelectTurn(recovered) error = %v", err)
+		}
+		if got, want := recovered.Name, "recovered"; got != want {
+			t.Fatalf("recovered turn name = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestRegisterRendersValidatedAgentDefinition(t *testing.T) {

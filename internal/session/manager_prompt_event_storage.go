@@ -19,6 +19,10 @@ func (m *Manager) sendPromptPumpEvent(
 	normalized acp.AgentEvent,
 	runtimeEvent bool,
 ) bool {
+	if out == nil {
+		ackPromptPumpRuntimeEvent(loop, normalized, runtimeEvent)
+		return false
+	}
 	if ctx == nil {
 		ctx = m.fallbackLifecycleContext()
 	}

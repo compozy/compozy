@@ -59,6 +59,21 @@ func sessionFamilyHookEventDescriptors() map[HookEvent]EventDescriptor {
 			PayloadSchema: "SessionMessagePersistedPayload",
 			PatchSchema:   introspectionAuthoredContextObservationPatchValue,
 		},
+		HookSessionRuntimeRecoveryStarted: {
+			Event: HookSessionRuntimeRecoveryStarted, Family: HookEventFamilySession, SyncEligible: false,
+			PayloadSchema: "SessionRuntimeRecoveryStartedPayload",
+			PatchSchema:   introspectionAuthoredContextObservationPatchValue,
+		},
+		HookSessionRuntimeRecoverySucceeded: {
+			Event: HookSessionRuntimeRecoverySucceeded, Family: HookEventFamilySession, SyncEligible: false,
+			PayloadSchema: "SessionRuntimeRecoverySucceededPayload",
+			PatchSchema:   introspectionAuthoredContextObservationPatchValue,
+		},
+		HookSessionRuntimeRecoveryExhausted: {
+			Event: HookSessionRuntimeRecoveryExhausted, Family: HookEventFamilySession, SyncEligible: false,
+			PayloadSchema: "SessionRuntimeRecoveryExhaustedPayload",
+			PatchSchema:   introspectionAuthoredContextObservationPatchValue,
+		},
 
 		HookSessionHealthUpdateAfter: {
 			Event:         HookSessionHealthUpdateAfter,

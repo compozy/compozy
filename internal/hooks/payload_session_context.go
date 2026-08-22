@@ -8,6 +8,8 @@ func (p SessionLifecyclePayload) hookSessionContext() SessionContext { return p.
 
 func (p SessionMessagePersistedPayload) hookSessionContext() SessionContext { return p.SessionContext }
 
+func (p SessionRuntimeRecoveryPayload) hookSessionContext() SessionContext { return p.SessionContext }
+
 func (p SandboxPreparePayload) hookSessionContext() SessionContext { return p.SessionContext }
 
 func (p SandboxReadyPayload) hookSessionContext() SessionContext { return p.SessionContext }

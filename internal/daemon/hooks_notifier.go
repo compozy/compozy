@@ -42,6 +42,7 @@ type subprocessHealthRuntimeNotifier interface {
 var _ session.Notifier = (*hooksNotifier)(nil)
 var _ session.FinalizationNotifier = (*hooksNotifier)(nil)
 var _ session.LifecycleHooks = (*hooksNotifier)(nil)
+var _ session.RuntimeRecoveryHooks = (*hooksNotifier)(nil)
 var _ session.SandboxHooks = (*hooksNotifier)(nil)
 var _ session.PromptHooks = (*hooksNotifier)(nil)
 var _ session.EventHooks = (*hooksNotifier)(nil)

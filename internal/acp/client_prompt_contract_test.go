@@ -105,6 +105,63 @@ func TestPromptCoalescesRedundantToolUpdates(t *testing.T) {
 			t.Fatalf("tool result id = %q, want %q", got, want)
 		}
 	})
+
+	t.Run("Should backpressure a diverse notification burst without disconnecting", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New(WithPromptBufferSize(2))
+		proc := startHelperProcess(t, driver, "diverse_update_burst", "", StartOpts{})
+		defer stopProcess(t, driver, proc)
+
+		eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
+			TurnID:  "turn-diverse-update-burst",
+			Message: "run diverse update burst",
+		})
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+
+		waitForNotificationQueueFull(t, proc)
+		select {
+		case <-proc.conn.Done():
+			t.Fatalf("ACP connection closed under notification pressure: %v", proc.conn.Cause())
+		default:
+		}
+
+		events := collectEvents(t, eventsCh)
+		if got, want := len(events), 1_101; got != want {
+			t.Fatalf("Prompt() event count = %d, want %d", got, want)
+		}
+		if got, want := events[0].ToolCallID, "tool-diverse-0000"; got != want {
+			t.Fatalf("first tool call id = %q, want %q", got, want)
+		}
+		if got, want := events[len(events)-2].ToolCallID, "tool-diverse-1099"; got != want {
+			t.Fatalf("last tool call id = %q, want %q", got, want)
+		}
+		if got := events[len(events)-1].Type; got != EventTypeDone {
+			t.Fatalf("last event type = %q, want %q", got, EventTypeDone)
+		}
+	})
+}
+
+func waitForNotificationQueueFull(t *testing.T, process *AgentProcess) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	for {
+		stats := process.conn.NotificationQueueStats()
+		if stats.Capacity > 0 && stats.HighWaterMark == stats.Capacity {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("notification queue did not fill: stats=%#v error=%v", stats, ctx.Err())
+		case <-ticker.C:
+		}
+	}
 }
 
 func TestPromptPrependsSystemPromptOnce(t *testing.T) {
