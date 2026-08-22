@@ -70,7 +70,10 @@ func TestDaemonE2EExtensionCommandPaletteFixture(t *testing.T) {
 		runExtensionAuthoringCLI(t, ctx, harness, &build, "extension", "build", sourceDir, "-o", "json")
 		if len(build.Manifest.Resources.CmdPalette.Commands) != 3 ||
 			len(build.Manifest.Resources.CmdPalette.Views) != 1 {
-			t.Fatalf("built palette fixture = %#v, want three commands and one view", build.Manifest.Resources.CmdPalette)
+			t.Fatalf(
+				"built palette fixture = %#v, want three commands and one view",
+				build.Manifest.Resources.CmdPalette,
+			)
 		}
 
 		var installed compozycontract.ExtensionPayload

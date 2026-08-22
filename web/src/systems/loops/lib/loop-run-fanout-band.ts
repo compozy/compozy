@@ -200,6 +200,12 @@ export function loopFanOutContainerState(
   rollup: Pick<LoopFanoutRollup, "done" | "total">
 ): string {
   for (const candidate of CONTAINER_PRECEDENCE) {
+    if (candidate === "queued" && rollup.done > 0 && rollup.done < rollup.total) {
+      // Worker completions and the next claims are separate commits. Once the
+      // fan has made progress it remains live across that handoff instead of
+      // flashing back to queued while unfinished branches still exist.
+      return "running";
+    }
     if (states.includes(candidate)) return candidate;
   }
   // No branch state we recognise: fall back on the served arithmetic rather than

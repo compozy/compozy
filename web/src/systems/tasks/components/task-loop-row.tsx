@@ -16,6 +16,7 @@ import type { TaskListItem } from "../types";
 export interface TaskLoopRowProps {
   task: TaskListItem;
   loop: TaskLoopProvenance;
+  onOpenRun?: () => void;
 }
 
 /** The runtime models a record's state, not a per-step narrative — that lives on the run page. */
@@ -30,7 +31,7 @@ const LOOP_RECORD_DESCRIPTION = "Loop execution record — open the run to act o
  * status — the signal pill in the trail. Identity is plain words end to end; the
  * machine id only ever appears in secondary text.
  */
-export function TaskLoopRow({ task, loop }: TaskLoopRowProps) {
+export function TaskLoopRow({ task, loop, onOpenRun }: TaskLoopRowProps) {
   const runLink = taskLoopRunLink(loop);
   const roleLabel = taskLoopRoleLabel(loop);
   const identity = taskLoopIdentityLabel(loop);
@@ -82,7 +83,12 @@ export function TaskLoopRow({ task, loop }: TaskLoopRowProps) {
     >
       <ListingRow.Link
         render={
-          <Link aria-label={`Open run for ${identity}`} params={runLink.params} to={runLink.to} />
+          <Link
+            aria-label={`Open run for ${identity}`}
+            onClick={onOpenRun}
+            params={runLink.params}
+            to={runLink.to}
+          />
         }
       >
         <ListingRow.Icon>

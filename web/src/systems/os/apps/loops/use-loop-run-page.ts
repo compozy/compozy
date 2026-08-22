@@ -264,6 +264,7 @@ export function useLoopRunPage(
     definition,
     materializedContract,
     generations: generations ?? [],
+    watchEvents: runQuery.data?.watch_events ?? null,
 
     amendments: runQuery.data?.amendments ?? [],
 

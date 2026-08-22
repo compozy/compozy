@@ -189,6 +189,7 @@ describe("TasksCatalogLocation", () => {
     mocks.page.isEmpty = true;
 
     renderCatalog();
+    expect(screen.getByTestId("tasks-list-surface")).toBeInTheDocument();
     await user.click(screen.getByTestId("tasks-empty-blank"));
 
     expect(mocks.userOpen).toHaveBeenCalledWith({

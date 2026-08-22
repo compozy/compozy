@@ -27,6 +27,17 @@ func TestBriefingContract(t *testing.T) {
 			t.Fatalf("briefing = %#v", got)
 		}
 	})
+	t.Run("Should use the newest durable roster round for public progress", func(t *testing.T) {
+		t.Parallel()
+		source := healthyBriefing(now)
+		source.Roster.Nodes = append(source.Roster.Nodes, RosterNode{
+			Generation: 3, NodeID: "carried", State: NodeStateQuarantined, Action: true,
+		})
+		got := ProjectBriefing(&source)
+		if got.Progress.Round != 3 {
+			t.Fatalf("briefing progress round = %d, want newest durable round 3", got.Progress.Round)
+		}
+	})
 	t.Run("Should satisfy UT-002 with the exact approval unblocker", func(t *testing.T) {
 		t.Parallel()
 		source := healthyBriefing(now)
@@ -39,7 +50,11 @@ func TestBriefingContract(t *testing.T) {
 			!got.Blockers[0].WaitingSince.Equal(source.ApprovalWaitingSince) {
 			t.Fatalf("briefing = %#v", got)
 		}
-		assertBlockerCommand(t, got.Blockers, 0, []string{"compozy", "loop", "approve", "run-a", "--gate", "release"})
+		assertBlockerCommand(t, got.Blockers, 0, []string{
+			"compozy", "loop", "approve", "run-a",
+			"--workspace", "ws-a",
+			"--gate", "release",
+		})
 	})
 	t.Run("Should satisfy UT-003 with approval quarantine request ordering", func(t *testing.T) {
 		t.Parallel()
@@ -105,7 +120,10 @@ func TestBriefingContract(t *testing.T) {
 		assertBlockerCommand(t, got.Blockers, 0, wantArguments)
 		if strings.Contains(got.Blockers[0].Unblocker, "--payload") &&
 			!strings.Contains(got.Blockers[0].Unblocker, "--payload-stdin") {
-			t.Fatalf("request unblocker = %q, want explicit operator input without a fabricated payload", got.Blockers[0].Unblocker)
+			t.Fatalf(
+				"request unblocker = %q, want explicit operator input without a fabricated payload",
+				got.Blockers[0].Unblocker,
+			)
 		}
 	})
 	t.Run("Should preserve an explicit decision placeholder for multi-decision reviews", func(t *testing.T) {
@@ -165,6 +183,14 @@ func TestBriefingContract(t *testing.T) {
 		got := ProjectBriefing(&source)
 		if got.Tone != BriefingToneOK || !strings.Contains(strings.ToLower(got.Headline), "waiting to start") {
 			t.Fatalf("briefing = %#v", got)
+		}
+		encoded, err := json.Marshal(got)
+		if err != nil {
+			t.Fatalf("json.Marshal(briefing) error = %v", err)
+		}
+		if strings.Contains(string(encoded), `"blockers":null`) ||
+			strings.Contains(string(encoded), `"artifacts":null`) {
+			t.Fatalf("briefing collections = %s, want stable empty arrays", encoded)
 		}
 	})
 	t.Run("Should satisfy UT-008 with calm dormant watch truth", func(t *testing.T) {

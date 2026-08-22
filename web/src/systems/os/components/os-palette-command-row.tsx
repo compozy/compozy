@@ -1,4 +1,5 @@
 import { CommandItem, CommandShortcut, KindIcon, Pill, StatusDot, cn } from "@compozy/ui";
+import { useId } from "react";
 
 import {
   CMD_PALETTE_ICON_FALLBACK,
@@ -25,19 +26,23 @@ export interface OsPaletteCommandRowProps {
  * drags that reason below the AA floor; the row reads as disabled through
  * colour instead (authorized delta, `DESIGN-NOTES.md`).
  *
- * It stays *selectable*, and only `aria-disabled` says otherwise. cmdk skips a
- * `disabled` item during keyboard navigation, which would put the row's reason
- * and its meta-actions out of reach of the keyboard entirely (US-014.EC-2). The
- * seam is what refuses the run, reporting the same reason the row shows.
+ * The row remains an enabled option because selecting it is still meaningful:
+ * keyboard selection exposes its reason and its meta-actions (US-014.EC-2).
+ * Marking the option `aria-disabled` would falsely say that none of those
+ * interactions are available and would make cmdk skip it during arrow-key
+ * navigation. Instead, the visible reason is its accessible description and
+ * the dispatch seam refuses the unavailable primary action with that reason.
  */
 export function OsPaletteCommandRow({ command, pending, onSelect }: OsPaletteCommandRowProps) {
   const extension = parseExtensionName(command.source);
   const emoji = isEmojiIcon(command.icon);
+  const reasonId = useId();
+
   return (
     <CommandItem
       forceMount
       aria-busy={pending === true ? true : undefined}
-      aria-disabled={command.available ? undefined : true}
+      aria-describedby={command.available ? undefined : reasonId}
       className={cn(paletteRowClass, !command.available && "text-muted")}
       data-palette-row={command.id}
       data-testid={`os-palette-command-${command.id}`}
@@ -74,6 +79,8 @@ export function OsPaletteCommandRow({ command, pending, onSelect }: OsPaletteCom
       ) : null}
       {command.available ? null : (
         <span
+          aria-hidden="true"
+          id={reasonId}
           className="min-w-0 truncate text-small-body leading-none text-subtle"
           data-slot="os-palette-reason"
         >

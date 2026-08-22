@@ -13,6 +13,7 @@ import (
 
 const (
 	loopRunEventPayloadKeyBlockingIssues = "blocking_issues"
+	loopRunEventPayloadKeyGateID         = "gate_id"
 	loopRunEventPayloadKeyScore          = "score"
 	loopRunEventVerdictPass              = "pass"
 )
@@ -109,7 +110,7 @@ func loopGateVerdictEventPayload(
 	}
 	payload := map[string]any{
 		loopRunEventPayloadKeyNodeID:         gateID,
-		"gate_id":                            gateID,
+		loopRunEventPayloadKeyGateID:         gateID,
 		loopRunEventPayloadKeyItemIndex:      verdict.ItemIndex,
 		loopRunEventPayloadKeyGeneration:     generation,
 		loopRunEventPayloadKeyVerdict:        verdictLabel,
@@ -168,7 +169,7 @@ func appendLoopNeedsApprovalEventWithExecutor(
 	at time.Time,
 ) error {
 	return appendLoopRunEventWithExecutor(ctx, exec, run.ID, run.WorkspaceID, loopRunEventNeedsApproval, map[string]any{
-		"gate_id":                        strings.TrimSpace(string(gateID)),
+		loopRunEventPayloadKeyGateID:     strings.TrimSpace(string(gateID)),
 		loopRunEventPayloadKeyTitle:      firstNonEmptyString(title, "Approve to resume"),
 		loopRunEventPayloadKeyGeneration: generation,
 		"facts":                          facts,

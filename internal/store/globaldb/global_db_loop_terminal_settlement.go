@@ -18,6 +18,7 @@ const (
 	reconciledRunTerminalReason = "reconciled_run_terminal"
 	runMissingReason            = "run_missing"
 	loopSettlementActorRef      = "loop-reconciler"
+	loopSettlementDoneDetail    = "run done; node no longer needed"
 )
 
 type loopSettlementRecord struct {
@@ -165,7 +166,7 @@ func loopTaskStatusTerminal(status taskpkg.Status) bool {
 func loopSettlementTarget(cause looppkg.TerminalCause) (taskpkg.Status, string, error) {
 	switch cause {
 	case looppkg.TerminalCauseDone, looppkg.TerminalCauseNoOp:
-		return taskpkg.TaskStatusCompleted, "run done; node no longer needed", nil
+		return taskpkg.TaskStatusCompleted, loopSettlementDoneDetail, nil
 	case looppkg.TerminalCauseFailed, looppkg.TerminalCauseExhausted, looppkg.TerminalCauseStalled:
 		return taskpkg.TaskStatusFailed, "run " + string(cause) + "; node no longer needed", nil
 	case looppkg.TerminalCauseCanceled, looppkg.TerminalCauseKilled:
@@ -310,7 +311,9 @@ func settleLoopTaskRecord(
 	eventRunID := record.runID
 	if eventRunID != "" {
 		var owner string
-		if err := exec.QueryRowContext(ctx, `SELECT task_id FROM task_runs WHERE id = ?`, eventRunID).Scan(&owner); err != nil {
+		if err := exec.QueryRowContext(
+			ctx, `SELECT task_id FROM task_runs WHERE id = ?`, eventRunID,
+		).Scan(&owner); err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				return fmt.Errorf("store: validate Loop settlement run %q: %w", eventRunID, err)
 			}

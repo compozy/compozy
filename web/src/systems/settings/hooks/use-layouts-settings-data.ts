@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import {
-  isDesktopShell,
   stableWindowManagerClientId,
   type WindowManagerConfig,
   type WindowManagerSettingsSection,
@@ -45,7 +44,7 @@ export interface LayoutsSettingsData {
 export function useLayoutsSettingsData(): LayoutsSettingsData {
   const workspace = useActiveWorkspace();
   const workspaceId = workspace.activeWorkspaceId ?? "";
-  const [clientId] = useState(() => (isDesktopShell() ? stableWindowManagerClientId() : undefined));
+  const [clientId] = useState(stableWindowManagerClientId);
   const settings = useQuery(windowManagerConfigOptions(null, clientId));
   const keyboard = useQuery(
     windowManagerSettingsOptions(workspaceId === "" ? null : workspaceId, clientId)

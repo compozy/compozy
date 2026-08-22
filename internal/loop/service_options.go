@@ -97,6 +97,13 @@ func WithGoalRunActivator(activator GoalRunActivator) Option {
 	}
 }
 
+// WithWorkerRunActivator injects the post-commit activation path for Loop workers.
+func WithWorkerRunActivator(activator WorkerRunActivator) Option {
+	return func(s *service) {
+		s.workerRunActivator = activator
+	}
+}
+
 // WithCoordinatorRunActivator injects the post-commit activation path for non-Goal coordinator wakes.
 func WithCoordinatorRunActivator(activator CoordinatorRunActivator) Option {
 	return func(s *service) {

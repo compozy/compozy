@@ -122,12 +122,29 @@ describe("useCmdPaletteContext (UT-103)", () => {
     const { result, rerender } = harness(false);
     rerender({ attached: true });
 
+    // Attachment is a capability gain, so commands must be usable in the same
+    // paint instead of disappearing for the debounce window.
+    expect(result.current?.["window.focused"]).toBe(true);
+
     for (let index = 0; index < 4; index += 1) {
       act(() => {
         vi.advanceTimersByTime(25);
         rerender({ attached: true });
       });
     }
+
+    expect(result.current?.["window.focused"]).toBe(true);
+  });
+
+  it("Should publish newly focused window capability immediately", () => {
+    setFocus(null);
+    const { result, rerender } = harness();
+    expect(result.current?.["window.focused"]).toBe(false);
+
+    act(() => {
+      setFocus("win-a");
+      rerender({ attached: true });
+    });
 
     expect(result.current?.["window.focused"]).toBe(true);
   });

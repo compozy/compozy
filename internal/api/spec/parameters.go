@@ -6,6 +6,8 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
+const afterSequenceKey = "after_sequence"
+
 func pathParam(name string, description string) ParameterSpec {
 	return ParameterSpec{Name: name, In: specParameterInPath, Description: description, Required: true}
 }
@@ -74,7 +76,7 @@ func memoryError(status int, description string) ResponseSpec {
 
 func afterSequenceQueryParam(description string) ParameterSpec {
 	return ParameterSpec{
-		Name:        "after_sequence",
+		Name:        afterSequenceKey,
 		In:          openapi3.ParameterInQuery,
 		Description: description,
 		Required:    false,

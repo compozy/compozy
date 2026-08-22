@@ -98,7 +98,12 @@ func (b *loopActionSessionBinder) revalidatePersistedProfile(
 	req looppkg.ActionSessionBindRequest,
 	identity store.SessionCreationIdentity,
 ) (looppkg.RuntimeSpec, error) {
-	profile, opts, materialized, err := b.resolveEffectiveCreationProfile(ctx, req, identity.CreationProfileRef)
+	profile, opts, materialized, err := b.resolvePinnedCreationProfile(
+		ctx,
+		req,
+		identity.CreationProfileRef,
+		false,
+	)
 	if err != nil {
 		return looppkg.RuntimeSpec{}, err
 	}

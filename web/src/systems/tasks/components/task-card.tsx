@@ -19,13 +19,14 @@ import { TasksListRow } from "./tasks-list-row";
 
 export interface TaskCardProps {
   task: TaskListItem;
+  onOpenLoopRun?: () => void;
 }
 
-export function TaskCard({ task }: TaskCardProps) {
+export function TaskCard({ task, onOpenLoopRun }: TaskCardProps) {
   // Loop execution records only reach the listing when the reveal filter is on,
   // and they read by their provenance rather than the work-item meta line.
   if (task.loop) {
-    return <TaskLoopRow loop={task.loop} task={task} />;
+    return <TaskLoopRow loop={task.loop} onOpenRun={onOpenLoopRun} task={task} />;
   }
 
   const isBlocked = taskIsBlocked(task);

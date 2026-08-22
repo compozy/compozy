@@ -304,99 +304,166 @@ func timelineEntry(event RunEvent) (TimelineEntry, error) {
 }
 
 func timelineTitle(kind RunEventKind, payload timelinePayload) (string, error) {
+	if title, ok := timelineNodeTitle(kind, payload); ok {
+		return title, nil
+	}
+	if title, ok := timelineApprovalTitle(kind, payload); ok {
+		return title, nil
+	}
+	if title, ok := timelineRunLifecycleTitle(kind, payload); ok {
+		return title, nil
+	}
+	if title, ok := timelineStaticRunTitle(kind); ok {
+		return title, nil
+	}
+	if title, ok := timelineAgentActivityTitle(kind); ok {
+		return title, nil
+	}
+	if title, ok := timelineSystemActivityTitle(kind); ok {
+		return title, nil
+	}
+	if title, ok := timelineRequestTitle(kind); ok {
+		return title, nil
+	}
+	return "", fmt.Errorf("%w: event kind %q has no timeline title", ErrValidation, kind)
+}
+
+func timelineNodeTitle(kind RunEventKind, payload timelinePayload) (string, bool) {
 	switch kind {
 	case RunEventNodeRunning, RunEventNodeSucceeded, RunEventNodeFailed, RunEventNodePaused,
 		RunEventNodeResumed, RunEventNodeCanceled, RunEventNodeKilled, RunEventNodeQuarantined,
 		RunEventNodeRequeued:
 		state := strings.TrimPrefix(string(kind), "node_")
 		if payload.NodeID != "" {
-			return fmt.Sprintf("Step %s %s", payload.NodeID, strings.ReplaceAll(state, "_", " ")), nil
+			return fmt.Sprintf("Step %s %s", payload.NodeID, strings.ReplaceAll(state, "_", " ")), true
 		}
-		return "A step changed state", nil
+		return "A step changed state", true
 	case RunEventNodeRetryScheduled:
 		if payload.NodeID != "" {
-			return fmt.Sprintf("Step %s will retry", payload.NodeID), nil
+			return fmt.Sprintf("Step %s will retry", payload.NodeID), true
 		}
-		return "A step will retry", nil
+		return "A step will retry", true
+	case RunEventNodeWaitStarted:
+		return "A step started waiting", true
+	case RunEventNodeWaitResumed:
+		return "A waiting step resumed", true
+	case RunEventNodeAttentionFlagged:
+		return "A step needs attention", true
+	case RunEventNodeAttentionCleared:
+		return "A step no longer needs attention", true
+	case RunEventNodeAmended:
+		return "A step result was amended", true
+	default:
+		return "", false
+	}
+}
+
+func timelineApprovalTitle(kind RunEventKind, payload timelinePayload) (string, bool) {
+	switch kind {
 	case RunEventNeedsApproval:
 		if payload.GateID != "" {
-			return fmt.Sprintf("Approval %q is waiting", payload.GateID), nil
+			return fmt.Sprintf("Approval %q is waiting", payload.GateID), true
 		}
-		return "An approval is waiting", nil
+		return "An approval is waiting", true
 	case RunEventGateVerdict:
 		if payload.GateID != "" {
-			return fmt.Sprintf("Approval %q: %s", payload.GateID, strings.TrimSpace(payload.Verdict)), nil
+			return fmt.Sprintf("Approval %q: %s", payload.GateID, strings.TrimSpace(payload.Verdict)), true
 		}
-		return "An approval was decided", nil
+		return "An approval was decided", true
+	default:
+		return "", false
+	}
+}
+
+func timelineRunLifecycleTitle(kind RunEventKind, payload timelinePayload) (string, bool) {
+	switch kind {
 	case RunEventStatusChanged:
 		if payload.Status != "" {
-			return "Run is now " + payload.Status, nil
+			return "Run is now " + payload.Status, true
 		}
-		return "Run status changed", nil
+		return "Run status changed", true
 	case RunEventGenerationStarted:
 		if payload.Generation > 0 {
-			return fmt.Sprintf("Round %d started", payload.Generation), nil
+			return fmt.Sprintf("Round %d started", payload.Generation), true
 		}
-		return "A new round started", nil
+		return "A new round started", true
 	case RunEventRunForked:
 		related := payload.RelatedRunID
 		if related == "" {
 			related = payload.ForkRunID
 		}
 		if related != "" {
-			return fmt.Sprintf("Run forked to %s", related), nil
+			return fmt.Sprintf("Run forked to %s", related), true
 		}
-		return "A forked run started", nil
-	case RunEventChannelMsg:
-		return "An agent message was recorded", nil
-	case RunEventTokenTick:
-		return "Token usage increased", nil
-	case RunEventGoalTurnStarted:
-		return "A goal turn started", nil
-	case RunEventGoalTurnCompleted:
-		return "A goal turn finished", nil
-	case RunEventGoalStatusChanged:
-		return "The goal changed state", nil
-	case RunEventRuntimeApplied:
-		return "Runtime settings were applied", nil
-	case RunEventPredicateDiagnostic:
-		return "A route condition was evaluated", nil
-	case RunEventRouteTaken:
-		return "The run chose a route", nil
-	case RunEventNodeWaitStarted:
-		return "A step started waiting", nil
-	case RunEventNodeWaitResumed:
-		return "A waiting step resumed", nil
-	case RunEventNodeAttentionFlagged:
-		return "A step needs attention", nil
-	case RunEventNodeAttentionCleared:
-		return "A step no longer needs attention", nil
-	case RunEventEffectResults:
-		return "Run effects finished", nil
-	case RunEventCustomEvent:
-		return "Loop activity was recorded", nil
-	case RunEventDuplicateSuppressed:
-		return "A duplicate update was ignored", nil
-	case RunEventTargetBreaker:
-		return "A target safety limit changed", nil
-	case RunEventStaleScheduleDropped:
-		return "A stale schedule was ignored", nil
-	case RunEventLateArrival:
-		return "A late result arrived", nil
-	case RunEventRequestOpened:
-		return "A request is waiting", nil
-	case RunEventRequestAnswered:
-		return "A request was answered", nil
-	case RunEventRequestExpired:
-		return "A request expired", nil
-	case RunEventRequestCanceled:
-		return "A request was canceled", nil
-	case RunEventNodeAmended:
-		return "A step result was amended", nil
-	case RunEventBranchPruned:
-		return "An unused branch was skipped", nil
+		return "A forked run started", true
 	default:
-		return "", fmt.Errorf("%w: event kind %q has no timeline title", ErrValidation, kind)
+		return "", false
+	}
+}
+
+func timelineStaticRunTitle(kind RunEventKind) (string, bool) {
+	switch kind {
+	case RunEventRouteTaken:
+		return "The run chose a route", true
+	case RunEventEffectResults:
+		return "Run effects finished", true
+	case RunEventBranchPruned:
+		return "An unused branch was skipped", true
+	default:
+		return "", false
+	}
+}
+
+func timelineAgentActivityTitle(kind RunEventKind) (string, bool) {
+	switch kind {
+	case RunEventChannelMsg:
+		return "An agent message was recorded", true
+	case RunEventTokenTick:
+		return "Token usage increased", true
+	case RunEventGoalTurnStarted:
+		return "A goal turn started", true
+	case RunEventGoalTurnCompleted:
+		return "A goal turn finished", true
+	case RunEventGoalStatusChanged:
+		return "The goal changed state", true
+	case RunEventRuntimeApplied:
+		return "Runtime settings were applied", true
+	case RunEventPredicateDiagnostic:
+		return "A route condition was evaluated", true
+	default:
+		return "", false
+	}
+}
+
+func timelineSystemActivityTitle(kind RunEventKind) (string, bool) {
+	switch kind {
+	case RunEventCustomEvent:
+		return "Loop activity was recorded", true
+	case RunEventDuplicateSuppressed:
+		return "A duplicate update was ignored", true
+	case RunEventTargetBreaker:
+		return "A target safety limit changed", true
+	case RunEventStaleScheduleDropped:
+		return "A stale schedule was ignored", true
+	case RunEventLateArrival:
+		return "A late result arrived", true
+	default:
+		return "", false
+	}
+}
+
+func timelineRequestTitle(kind RunEventKind) (string, bool) {
+	switch kind {
+	case RunEventRequestOpened:
+		return "A request is waiting", true
+	case RunEventRequestAnswered:
+		return "A request was answered", true
+	case RunEventRequestExpired:
+		return "A request expired", true
+	case RunEventRequestCanceled:
+		return "A request was canceled", true
+	default:
+		return "", false
 	}
 }
 

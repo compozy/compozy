@@ -7,7 +7,7 @@ import (
 )
 
 func encodeRosterCursor(cursor rosterCursor) string {
-	raw := []byte(fmt.Sprintf(`{"offset":%d}`, cursor.Offset))
+	raw := fmt.Appendf(nil, `{"offset":%d}`, cursor.Offset)
 	return base64.RawURLEncoding.EncodeToString(raw)
 }
 

@@ -111,6 +111,7 @@ describe("MenubarCommandItem", () => {
 
     const item = screen.getByTestId("os-menubar-command-window.close");
     expect(item).toHaveTextContent("Close window");
+    expect(item).toHaveTextContent("requires a focused window");
     expect(item).toHaveAttribute("aria-disabled", "true");
     expect(item).toHaveAttribute("title", "requires a focused window");
 

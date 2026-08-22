@@ -13,88 +13,95 @@ import (
 
 const taskLoopColumn = "LOOP"
 
-func newTaskListCommand(deps commandDeps) *cobra.Command {
-	var (
-		scopeRaw                string
-		workspaceRef            string
-		statusRaw               string
-		priorityRaw             string
-		ownerKindRaw            string
-		ownerRef                string
-		parentTaskID            string
-		worktreeID              string
-		participationChannelRaw string
-		includeLoop             bool
-		loopRunID               string
-		queryRaw                string
-		sortRaw                 string
-		cursor                  string
-		limit                   int
-	)
+type taskListOptions struct {
+	scopeRaw                string
+	workspaceRef            string
+	statusRaw               string
+	priorityRaw             string
+	ownerKindRaw            string
+	ownerRef                string
+	parentTaskID            string
+	worktreeID              string
+	participationChannelRaw string
+	includeLoop             bool
+	loopRunID               string
+	queryRaw                string
+	sortRaw                 string
+	cursor                  string
+	limit                   int
+}
 
+func newTaskListCommand(deps commandDeps) *cobra.Command {
+	opts := &taskListOptions{}
 	cmd := &cobra.Command{
 		Use:   taskListKey,
 		Short: "List tasks",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-
-			query, err := parseTaskListFilters(
-				cmd,
-				deps,
-				client,
-				scopeRaw,
-				workspaceRef,
-				statusRaw,
-				priorityRaw,
-				ownerKindRaw,
-				ownerRef,
-				parentTaskID,
-				worktreeID,
-				includeLoop,
-				loopRunID,
-				participationChannelRaw,
-				queryRaw,
-				sortRaw,
-				cursor,
-				limit,
-			)
-			if err != nil {
-				return err
-			}
-
-			page, err := client.ListTasks(cmd.Context(), query)
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, taskSummaryListBundle(page))
+			return opts.run(cmd, deps)
 		},
 	}
-	cmd.Flags().StringVar(&scopeRaw, taskScopeKey, "", "Filter by scope: global or workspace")
+	addTaskListFlags(cmd, opts)
+	return cmd
+}
+
+func (o *taskListOptions) run(cmd *cobra.Command, deps commandDeps) error {
+	client, err := clientFromDeps(deps)
+	if err != nil {
+		return err
+	}
+	query, err := parseTaskListFilters(
+		cmd,
+		deps,
+		client,
+		o.scopeRaw,
+		o.workspaceRef,
+		o.statusRaw,
+		o.priorityRaw,
+		o.ownerKindRaw,
+		o.ownerRef,
+		o.parentTaskID,
+		o.worktreeID,
+		o.includeLoop,
+		o.loopRunID,
+		o.participationChannelRaw,
+		o.queryRaw,
+		o.sortRaw,
+		o.cursor,
+		o.limit,
+	)
+	if err != nil {
+		return err
+	}
+	page, err := client.ListTasks(cmd.Context(), query)
+	if err != nil {
+		return err
+	}
+	return writeCommandOutput(cmd, taskSummaryListBundle(page))
+}
+
+func addTaskListFlags(cmd *cobra.Command, opts *taskListOptions) {
+	cmd.Flags().StringVar(&opts.scopeRaw, taskScopeKey, "", "Filter by scope: global or workspace")
 	cmd.Flags().
-		StringVar(&workspaceRef, "workspace", "", "Override workspace filter (ID, name, or path)")
-	cmd.Flags().StringVar(&statusRaw, taskStatusKey, "", "Filter by task status")
-	cmd.Flags().StringVar(&priorityRaw, "priority", "", "Filter by task priority")
-	cmd.Flags().StringVar(&ownerKindRaw, "owner-kind", "", "Filter by owner kind")
-	cmd.Flags().StringVar(&ownerRef, "owner-ref", "", "Filter by owner reference")
-	cmd.Flags().StringVar(&parentTaskID, "parent", "", "Filter by parent task ID")
-	cmd.Flags().StringVar(&worktreeID, "worktree", "", "Filter by active run worktree ID")
-	cmd.Flags().BoolVar(&includeLoop, "include-loop", false, "Include Loop execution records")
-	cmd.Flags().StringVar(&loopRunID, "loop-run", "", "Filter by Loop run ID")
+		StringVar(&opts.workspaceRef, "workspace", "", "Override workspace filter (ID, name, or path)")
+	cmd.Flags().StringVar(&opts.statusRaw, taskStatusKey, "", "Filter by task status")
+	cmd.Flags().StringVar(&opts.priorityRaw, "priority", "", "Filter by task priority")
+	cmd.Flags().StringVar(&opts.ownerKindRaw, "owner-kind", "", "Filter by owner kind")
+	cmd.Flags().StringVar(&opts.ownerRef, "owner-ref", "", "Filter by owner reference")
+	cmd.Flags().StringVar(&opts.parentTaskID, "parent", "", "Filter by parent task ID")
+	cmd.Flags().StringVar(&opts.worktreeID, "worktree", "", "Filter by active run worktree ID")
+	cmd.Flags().BoolVar(&opts.includeLoop, "include-loop", false, "Include Loop execution records")
+	cmd.Flags().StringVar(&opts.loopRunID, "loop-run", "", "Filter by Loop run ID")
 	cmd.Flags().StringVar(
-		&participationChannelRaw,
+		&opts.participationChannelRaw,
 		"participation-channel",
 		"",
 		"Filter by resolved participation channel",
 	)
-	cmd.Flags().StringVar(&queryRaw, "query", "", "Search task title or identifier")
-	cmd.Flags().StringVar(&sortRaw, "sort", "recent", "Sort by recent or priority")
-	cmd.Flags().StringVar(&cursor, "cursor", "", "Continue from an opaque catalog cursor")
-	cmd.Flags().IntVar(&limit, "limit", 0, "Maximum tasks to return (1-200)")
-	return cmd
+	cmd.Flags().StringVar(&opts.queryRaw, "query", "", "Search task title or identifier")
+	cmd.Flags().StringVar(&opts.sortRaw, "sort", "recent", "Sort by recent or priority")
+	cmd.Flags().StringVar(&opts.cursor, "cursor", "", "Continue from an opaque catalog cursor")
+	cmd.Flags().IntVar(&opts.limit, "limit", 0, "Maximum tasks to return (1-200)")
 }
 
 func parseTaskListFilters(
@@ -224,15 +231,15 @@ func taskSummaryListBundle(page TaskListRecord) outputBundle {
 		"Tasks",
 		[]string{
 			"ID",
-			taskIdentifierValue,
-			taskScopeValue,
-			taskWorkspaceValue,
-			taskParentValue,
-			taskStatusValue,
-			taskOwnerValue,
-			taskParticipationChannelValue,
+			strings.ToUpper(taskIdentifierValue),
+			strings.ToUpper(taskScopeValue),
+			strings.ToUpper(taskWorkspaceValue),
+			strings.ToUpper(taskParentValue),
+			strings.ToUpper(taskStatusValue),
+			strings.ToUpper(taskOwnerValue),
+			strings.ToUpper(taskParticipationChannelValue),
 			taskLoopColumn,
-			taskTitleValue,
+			strings.ToUpper(taskTitleValue),
 		},
 		"tasks",
 		[]string{

@@ -1,10 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { readCatalogRecord, writeCatalogRecord } from "../lib/cmd-palette-catalog-cache";
 import { toCatalogRecord, type CmdPaletteCatalogRecord } from "../lib/cmd-palette-catalog-record";
 import { cmdPaletteCatalogOptions } from "../lib/cmd-palette-query-options";
-import type { CmdPaletteStructuralCatalog } from "../lib/cmd-palette-types";
+import { cmdPaletteKeys } from "../lib/cmd-palette-query-keys";
+import type {
+  CmdPaletteCatalogResponse,
+  CmdPaletteStructuralCatalog,
+} from "../lib/cmd-palette-types";
 
 export interface CmdPaletteCatalogState {
   /** Structure only; availability is the evaluator's job, never the cache's. */
@@ -39,6 +43,7 @@ export function useCmdPaletteCatalog({
   enabled = true,
 }: UseCmdPaletteCatalogOptions): CmdPaletteCatalogState {
   const workspace = workspaceId?.trim() ?? "";
+  const queryClient = useQueryClient();
   const query = useQuery(cmdPaletteCatalogOptions(workspace, clientId, enabled));
   const [cached, setCached] = useState<{
     workspaceId: string;
@@ -59,6 +64,11 @@ export function useCmdPaletteCatalog({
   }, [enabled, workspace]);
 
   const served = query.data;
+  const workspaceCatalog =
+    clientId !== null && query.isPending
+      ? queryClient.getQueryData<CmdPaletteCatalogResponse>(cmdPaletteKeys.catalog(workspace, null))
+      : undefined;
+  const activeCatalog = served ?? workspaceCatalog;
   useEffect(() => {
     if (workspace === "" || served === undefined) return;
     void writeCatalogRecord(toCatalogRecord(workspace, served));
@@ -67,17 +77,20 @@ export function useCmdPaletteCatalog({
   const cacheHydrated = enabled && cached?.workspaceId === workspace;
   const cachedRecord = cacheHydrated ? cached.record : null;
   const catalog: CmdPaletteStructuralCatalog | null =
-    served !== undefined ? toCatalogRecord(workspace, served) : cachedRecord;
+    activeCatalog !== undefined ? toCatalogRecord(workspace, activeCatalog) : cachedRecord;
   // A daemon that goes away mid-session leaves its last answer in the query
   // cache. Structure is still the best thing to render, but the *reachability*
   // it was resolved under is gone — reporting otherwise would leave action rows
   // enabled against a runtime that cannot serve them (US-001.EC-1).
-  const daemonReachable = served !== undefined && !query.isError;
+  const daemonReachable =
+    query.failureCount === 0 &&
+    !query.isError &&
+    (served !== undefined || workspaceCatalog !== undefined);
   return {
     catalog,
-    contextRevision: served?.context_revision?.trim() || null,
+    contextRevision: activeCatalog?.context_revision?.trim() || null,
     stale: catalog !== null && !daemonReachable,
     daemonReachable,
-    hydrating: served === undefined && !cacheHydrated && enabled && workspace !== "",
+    hydrating: activeCatalog === undefined && !cacheHydrated && enabled && workspace !== "",
   };
 }

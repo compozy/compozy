@@ -116,16 +116,7 @@ func (g *TaskRepo) completeCoordinatorAndEnqueueNextWithExecutor(
 	if err != nil {
 		return taskpkg.CoordinatorCompletionResult{}, err
 	}
-	if len(state.runStopTransitions) > 0 {
-		if result.Settlement == nil {
-			result.Settlement = &taskpkg.CompletedRunSettlement{}
-		}
-		transitions := make([]taskpkg.StatusTransition, 0,
-			len(state.runStopTransitions)+len(result.Settlement.StatusTransitions))
-		transitions = append(transitions, state.runStopTransitions...)
-		transitions = append(transitions, result.Settlement.StatusTransitions...)
-		result.Settlement.StatusTransitions = transitions
-	}
+	mergeCoordinatorRunStopTransitions(&result, state.runStopTransitions)
 	result.PlanSuperseded = superseded
 	if !superseded {
 		if err := g.reserveCoordinatorConcurrentProgressWithExecutor(
@@ -135,27 +126,58 @@ func (g *TaskRepo) completeCoordinatorAndEnqueueNextWithExecutor(
 		}
 	}
 
-	updated, err := g.getTaskRunWithExecutor(ctx, exec, current.ID)
+	return g.finishCoordinatorCompletionResultWithExecutor(
+		ctx, exec, *completion, current.ID, completionEventID, &result,
+	)
+}
+
+func mergeCoordinatorRunStopTransitions(
+	result *taskpkg.CoordinatorCompletionResult,
+	runStopTransitions []taskpkg.StatusTransition,
+) {
+	if len(runStopTransitions) == 0 {
+		return
+	}
+	if result.Settlement == nil {
+		result.Settlement = &taskpkg.CompletedRunSettlement{}
+	}
+	transitions := make([]taskpkg.StatusTransition, 0,
+		len(runStopTransitions)+len(result.Settlement.StatusTransitions))
+	transitions = append(transitions, runStopTransitions...)
+	transitions = append(transitions, result.Settlement.StatusTransitions...)
+	result.Settlement.StatusTransitions = transitions
+}
+
+func (g *TaskRepo) finishCoordinatorCompletionResultWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	completion taskpkg.CoordinatorCompletion,
+	currentRunID string,
+	completionEventID string,
+	result *taskpkg.CoordinatorCompletionResult,
+) (taskpkg.CoordinatorCompletionResult, error) {
+	updated, err := g.getTaskRunWithExecutor(ctx, exec, currentRunID)
 	if err != nil {
 		return taskpkg.CoordinatorCompletionResult{}, err
 	}
 	result.Run = updated
-	result, err = g.attachCoordinatorSettlementResultWithExecutor(ctx, exec, &result, updated)
+	attached, err := g.attachCoordinatorSettlementResultWithExecutor(ctx, exec, result, updated)
 	if err != nil {
 		return taskpkg.CoordinatorCompletionResult{}, err
 	}
+	*result = attached
 	completionEvent, err := appendCoordinatorCompletionEventWithExecutor(
 		ctx,
 		exec,
 		completionEventID,
-		*completion,
-		&result,
+		completion,
+		result,
 	)
 	if err != nil {
 		return taskpkg.CoordinatorCompletionResult{}, err
 	}
 	result.CompletionEvent = completionEvent
-	return result, nil
+	return *result, nil
 }
 
 type coordinatorBoundaryState struct {
@@ -203,7 +225,7 @@ func (g *TaskRepo) finalizeCoordinatorGenerationWithExecutor(
 	}
 	postReserve := normalizePostReserveSnapshot(completion.Plan.PostReserveSnapshot, snapshot, loopRunID)
 	if err := writeCoordinatorGenerationSnapshotWithExecutor(
-		ctx, exec, snapshot, postReserve, completion.Plan.NodeTasks, finalizer, completion.Actor,
+		ctx, exec, snapshot, postReserve, finalizer, completion.Actor,
 	); err != nil {
 		return coordinatorBoundaryState{}, err
 	}

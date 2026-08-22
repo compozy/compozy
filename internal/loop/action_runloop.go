@@ -55,7 +55,7 @@ func (e *RunLoopActionExecutor) Execute(
 	}
 	payload := map[string]any{metadataLoopRunIDKey: string(child.ID)}
 	if spec.Mode == dsl.RunLoopAwait {
-		payload["status"] = "awaiting_child"
+		payload["status"] = generationOutputAwaitingChild
 	}
 	structured, err := json.Marshal(payload)
 	if err != nil {
@@ -67,7 +67,7 @@ func (e *RunLoopActionExecutor) Execute(
 		ChildLoopRunID: child.ID,
 	}
 	if spec.Mode == dsl.RunLoopAwait {
-		raw.Status = "awaiting_child"
+		raw.Status = generationOutputAwaitingChild
 	}
 	// Detach intentionally emits no awaiting status; the coordinator should not wait for the child terminal wake.
 	return raw, nil

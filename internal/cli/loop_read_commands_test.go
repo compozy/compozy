@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -396,15 +398,36 @@ func loopReadCommandClient(t *testing.T, now time.Time) *stubClient {
 		getWorkspaceFn: resolveTestLoopWorkspace(t),
 		getLoopBriefingFn: func(_ context.Context, _ string, runID string) (contract.LoopBriefingResponse, error) {
 			if runID == "run-missing" {
-				return contract.LoopBriefingResponse{}, fmt.Errorf("loop run %q not found", runID)
+				return contract.LoopBriefingResponse{}, &daemonAPIError{
+					statusCode: http.StatusNotFound,
+					status:     http.StatusText(http.StatusNotFound),
+					payload: contract.ErrorPayload{
+						Error:   loopRunNotFoundCode,
+						Code:    loopRunNotFoundCode,
+						Details: map[string]string{"run_id": runID},
+					},
+				}
 			}
 			if runID == "run-terminal" {
 				return looppkg.Briefing{
-					RunID: "run-terminal", Status: looppkg.StatusDone, Tone: looppkg.BriefingToneOK,
-					Headline: "Finished", Outcome: &looppkg.RunOutcome{Status: looppkg.StatusDone, Cause: "verified", At: now},
-					Artifacts: []looppkg.RunArtifact{{Name: "post-final.md", Output: "saida", Availability: looppkg.ArtifactAvailable}},
-					Progress:  looppkg.StepProgress{Round: 2, StepsDone: 6, StepsTotal: 6},
-					Usage:     looppkg.RunUsage{Tokens: 214500, CostUSD: 0.87, BudgetUsedPct: 38, Duration: "18m12s"},
+					RunID:    "run-terminal",
+					Status:   looppkg.StatusDone,
+					Tone:     looppkg.BriefingToneOK,
+					Headline: "Finished",
+					Outcome: &looppkg.RunOutcome{
+						Status: looppkg.StatusDone,
+						Cause:  "verified",
+						At:     now,
+					},
+					Artifacts: []looppkg.RunArtifact{{
+						Name:         "post-final.md",
+						Output:       "saida",
+						Availability: looppkg.ArtifactAvailable,
+					}},
+					Progress: looppkg.StepProgress{Round: 2, StepsDone: 6, StepsTotal: 6},
+					Usage: looppkg.RunUsage{
+						Tokens: 214500, CostUSD: 0.87, BudgetUsedPct: 38, Duration: "18m12s",
+					},
 				}, nil
 			}
 			return looppkg.Briefing{
@@ -440,8 +463,12 @@ func loopReadRunsFixture(now time.Time) func(
 				Status:         contract.LoopRunStatusRunning,
 				StartedAt:      time.Date(2026, 8, 20, 18, 32, 0, 0, time.Local),
 				LastProgressAt: time.Date(2026, 8, 20, 18, 54, 0, 0, time.Local),
-				Attention:      &contract.LoopRunAttention{Kind: "approval", Count: 1, Since: now.Add(-3 * time.Minute)},
-				Progress:       contract.LoopRunProgress{Round: 1, StepsDone: 4, StepsTotal: 6},
+				Attention: &contract.LoopRunAttention{
+					Kind:  "approval",
+					Count: 1,
+					Since: now.Add(-3 * time.Minute),
+				},
+				Progress: contract.LoopRunProgress{Round: 1, StepsDone: 4, StepsTotal: 6},
 			},
 			{
 				ID:             "run-active",
@@ -527,9 +554,16 @@ func loopReadTimelineFixture(now time.Time) func(
 		query LoopTimelineQuery,
 	) (contract.LoopTimelineResponse, error) {
 		if query.After > 6 {
-			return contract.LoopTimelineResponse{}, &looppkg.TimelinePositionError{
-				Position: query.After,
-				Head:     6,
+			return contract.LoopTimelineResponse{}, &daemonAPIError{
+				statusCode: http.StatusBadRequest,
+				status:     http.StatusText(http.StatusBadRequest),
+				payload: contract.ErrorPayload{
+					Error: fmt.Sprintf("position %d is beyond this run's history (head: 6)", query.After),
+					Code:  looppkg.ErrTimelinePositionBeyondHead.Error(),
+					Details: map[string]string{
+						"position": strconv.FormatInt(query.After, 10), "head_seq": "6",
+					},
+				},
 			}
 		}
 		if query.After == 1 {

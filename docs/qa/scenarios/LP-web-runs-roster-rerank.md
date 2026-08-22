@@ -6,13 +6,13 @@ persona: Lea
 journey: J-supervise-loop-steady-state
 expected: Rows on /loop-runs lead with a plain-words outcome or status, needs-you rows group first and read visibly distinct from active and terminal ones, and the columns are Loop · Status/needs-you · Progress (steps and round) · Started · Duration with the run id demoted to secondary text; the grouping and the progress numbers come from the server's extended list read applied before pagination — no client-side page sort and no per-row follow-up request; a fresh workspace shows an empty roster that explains how to start rather than a blank table; a workspace with dozens of active runs stays readable with the needs-you group still on top; and a lost connection reads as connecting or offline, never as an empty roster.
 entry_points: web /loop-runs; GET /api/workspaces/:workspace_id/loop-runs
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260719-autonomous-progress-unobservable
-fix_status: pending
-retest_status:
+fix_status: fixed
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-task07-final-web-20260822-131622-550786-lab/qa-artifacts/qa/task07-scenario-walks.md; .compozy/tasks/loop-task-legibility/evidence/visual/task_05/VC-33; .compozy/tasks/loop-task-legibility/evidence/visual/task_05/VC-36
+last_report: docs/qa/reports/2026-08-21-loop-task-legibility.md
 overlaps: LP-runs-roster-server-ordering; LP-web-runs-breadcrumb; LP-web-run-default-read-briefing
 ---
 

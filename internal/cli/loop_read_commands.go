@@ -14,6 +14,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	loopRunNotFoundCode = "loop_run_not_found"
+	loopRoundLabel      = "round"
+)
+
 type loopFollowPayloadError struct {
 	cause error
 }
@@ -24,6 +29,24 @@ func (e *loopFollowPayloadError) Error() string {
 
 func (e *loopFollowPayloadError) Unwrap() error {
 	return e.cause
+}
+
+func normalizeLoopReadError(runID string, err error) error {
+	if err == nil {
+		return nil
+	}
+	var apiErr *daemonAPIError
+	if !errors.As(err, &apiErr) {
+		return err
+	}
+	switch strings.TrimSpace(apiErr.payload.Code) {
+	case loopRunNotFoundCode:
+		return withCommandExitCode(1, fmt.Errorf("loop run %q not found", strings.TrimSpace(runID)))
+	case looppkg.ErrTimelinePositionBeyondHead.Error():
+		return withCommandExitCode(1, errors.New(strings.TrimSpace(apiErr.payload.Error)))
+	default:
+		return err
+	}
 }
 
 func loopReadClient(cmd *cobra.Command, deps commandDeps, workspaceRef string) (loopRunReadClient, string, error) {
@@ -45,15 +68,16 @@ func newLoopWhyCommand(deps commandDeps) *cobra.Command {
 		Short: "Explain one Loop run",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			runID := strings.TrimSpace(args[0])
 			client, workspaceID, err := loopReadClient(cmd, deps, workspaceRef)
 			if err != nil {
 				return err
 			}
 			response, err := client.GetLoopRunBriefing(
-				cmd.Context(), workspaceID, strings.TrimSpace(args[0]),
+				cmd.Context(), workspaceID, runID,
 			)
 			if err != nil {
-				return err
+				return normalizeLoopReadError(runID, err)
 			}
 			return writeCommandOutput(cmd, loopWhyOutputBundle(response))
 		},
@@ -113,7 +137,7 @@ func loopWhyHeadline(response contract.LoopBriefingResponse, label string) []str
 	}
 	rounds := "rounds"
 	if response.Progress.Round == 1 {
-		rounds = "round"
+		rounds = loopRoundLabel
 	}
 	lines := []string{fmt.Sprintf(
 		"%s · finished %s after %d %s (%s)",
@@ -176,7 +200,7 @@ func newLoopEventsCommand(deps commandDeps) *cobra.Command {
 			runID := strings.TrimSpace(args[0])
 			page, entries, err := loadLoopTimeline(cmd, client, workspaceID, runID, view, after, limit)
 			if err != nil {
-				return err
+				return normalizeLoopReadError(runID, err)
 			}
 			if err := writeCommandOutput(cmd, loopEventsOutputBundle(page, entries)); err != nil {
 				return err
@@ -186,12 +210,15 @@ func newLoopEventsCommand(deps commandDeps) *cobra.Command {
 			}
 			briefing, err := client.GetLoopRunBriefing(cmd.Context(), workspaceID, runID)
 			if err != nil {
-				return err
+				return normalizeLoopReadError(runID, err)
 			}
 			if terminalLoopStatus(string(briefing.Status)) {
 				return nil
 			}
-			return followLoopEvents(cmd, client, workspaceID, runID, view, page.HeadSeq)
+			return normalizeLoopReadError(
+				runID,
+				followLoopEvents(cmd, client, workspaceID, runID, view, page.HeadSeq),
+			)
 		},
 	}
 	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Override workspace (ID, name, or path)")

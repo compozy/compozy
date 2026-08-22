@@ -10285,6 +10285,22 @@ func TestManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testin
 			t.Fatal("coordinator completion reached the store after entropy failure")
 		}
 	})
+
+	t.Run("Should reserve an event ID for a possible concurrent-progress wake", func(t *testing.T) {
+		t.Parallel()
+
+		plan := CoordinatorCompletionPlan{
+			GenerationInFlight: true,
+			NodeRuns: []EnqueueSpec{
+				{TaskID: "task-node-one"},
+				{TaskID: "task-node-two"},
+			},
+		}
+
+		if got, want := coordinatorPublicationEventCount(plan), 3; got != want {
+			t.Fatalf("coordinatorPublicationEventCount() = %d, want %d", got, want)
+		}
+	})
 }
 
 func TestManagerCoordinatorTerminalValidatorShouldFailClosed(t *testing.T) {

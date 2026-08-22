@@ -135,7 +135,33 @@ const PENDING_VERDICT: StoryVerdict = {
 };
 
 export function pendingRequestsScenario(): LoopRunStoryScenario {
-  return fromRunDetail(releaseTrainRunDetail, releaseTrainFrames(), PENDING_VERDICT);
+  return {
+    ...fromRunDetail(releaseTrainRunDetail, releaseTrainFrames(), PENDING_VERDICT),
+    timeline: [
+      entry(22, "generation_started", "Round 3 started", { generation: 3 }),
+      entry(20, "route_taken", "The run chose route standard", {
+        generation: 3,
+        node_id: "triage",
+      }),
+      entry(18, "request_opened", `Question opened: ${pendingAskRequest.prompt}`, {
+        generation: 3,
+        node_id: pendingAskRequest.node_id,
+      }),
+      entry(17, "request_opened", `Review opened: ${pendingReviewRequest.prompt}`, {
+        generation: 3,
+        node_id: pendingReviewRequest.node_id,
+      }),
+      entry(12, "branch_pruned", "An unused apply-migration branch was skipped", {
+        generation: 3,
+        node_id: "apply-migration",
+      }),
+      entry(8, "node_amended", "Step render-notes was amended", {
+        generation: 3,
+        node_id: "render-notes",
+      }),
+      entry(5, "run_forked", "The run was forked", { generation: 2 }),
+    ],
+  };
 }
 
 export function pendingEnumRequestScenario(): LoopRunStoryScenario {

@@ -57,16 +57,20 @@ func TestShouldEnsureWebBundle(t *testing.T) {
 	}
 }
 
-func TestEnsureWebAssetsAlwaysBuildsCurrentSources(t *testing.T) {
+func TestEnsureE2EAssetsAlwaysBuildsCurrentSources(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should check codegen and rebuild even when a prior bundle exists", func(t *testing.T) {
+	t.Run("Should check codegen and rebuild every fixture dependency", func(t *testing.T) {
 		t.Parallel()
 
-		calls := make([]string, 0, 2)
-		err := ensureWebAssetsWith(
+		calls := make([]string, 0, 3)
+		err := ensureE2EAssetsWith(
 			func() error {
 				calls = append(calls, "codegen-check")
+				return nil
+			},
+			func() error {
+				calls = append(calls, "extension-sdk-build")
 				return nil
 			},
 			func() error {
@@ -75,10 +79,10 @@ func TestEnsureWebAssetsAlwaysBuildsCurrentSources(t *testing.T) {
 			},
 		)
 		if err != nil {
-			t.Fatalf("ensureWebAssetsWith() error = %v", err)
+			t.Fatalf("ensureE2EAssetsWith() error = %v", err)
 		}
-		if got, want := strings.Join(calls, ","), "codegen-check,web-build"; got != want {
-			t.Fatalf("ensureWebAssetsWith() calls = %q, want %q", got, want)
+		if got, want := strings.Join(calls, ","), "codegen-check,extension-sdk-build,web-build"; got != want {
+			t.Fatalf("ensureE2EAssetsWith() calls = %q, want %q", got, want)
 		}
 	})
 }

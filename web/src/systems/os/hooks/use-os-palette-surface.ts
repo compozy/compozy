@@ -53,7 +53,8 @@ export function useOsPaletteSurface({
   const root = useOsPaletteRoot({
     open,
     onOpenChange,
-    dispatch: (command, query) => dispatch.run(command, { query }),
+    dispatch: (command, query, navigate) =>
+      dispatch.run(command, { query, ...(navigate === undefined ? {} : { navigate }) }),
     setPinned: (command, pinned) => void dispatch.setPinned(command, pinned),
   });
   const values = paletteSelectionValues(root);

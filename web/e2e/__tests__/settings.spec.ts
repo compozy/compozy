@@ -67,15 +67,16 @@ test("operator can navigate the settings shell and complete a restart-aware gene
       "General",
       "Appearance",
       "Layouts",
+      "Palette",
       "Providers",
       "Memory",
       "Roles",
       "Skills",
       "Automation",
       "Network",
-      "Attention",
-      "Observability",
-      "Gateway",
+      "Notifications",
+      "Diagnostics",
+      "Remote access",
       "Hooks",
       "Extensions",
     ]);
@@ -174,21 +175,17 @@ test("Herdr E2E-017: shortcut alternates persist and refresh the live cheatsheet
 
   const settingsWin = appWindow(appPage, "settings");
   await expect(settingsWin.getByTestId("settings-page-layouts")).toBeVisible({ timeout: 20_000 });
-  const tabsGroup = settingsWin.getByRole("button", { name: /^Tabs/ });
-  if ((await tabsGroup.getAttribute("aria-expanded")) !== "true") await tabsGroup.click();
 
   const newTab = settingsWin.getByTestId("window-manager-shortcut-window.tab.new");
-  await newTab.getByRole("button", { name: "Add an alternate for New tab" }).click();
-  await appPage.keyboard.press("Alt+r");
-  await expect(newTab).toContainText("⌥R");
-
+  await newTab.getByRole("button", { name: "Add an alternate shortcut for New tab" }).click();
   const saveResponse = appPage.waitForResponse(
     response =>
       new URL(response.url()).pathname === "/api/settings/window-manager" &&
       response.request().method() === "PATCH"
   );
-  await settingsWin.getByTestId("settings-page-layouts-save").click();
+  await appPage.keyboard.press("Alt+r");
   expect((await saveResponse).ok()).toBe(true);
+  await expect(newTab).toContainText("⌥R");
 
   await appPage.keyboard.press("Shift+/");
   const cheatsheet = appPage.getByTestId("os-shortcuts-dialog");
@@ -198,11 +195,21 @@ test("Herdr E2E-017: shortcut alternates persist and refresh the live cheatsheet
 
   await newTab.getByRole("button", { name: "New tab shortcut" }).click();
   await appPage.keyboard.press("Control+Alt+ArrowLeft");
-  await expect(newTab).toContainText("Blocked");
+  const conflict = settingsWin.getByTestId("shortcut-conflict-window.tab.new");
+  await expect(conflict).toContainText("⌃⌥← is already used by Tile left half");
+  await expect(conflict).toContainText("Overwriting leaves Tile left half unbound.");
+  await expect(conflict.getByRole("button", { name: "Overwrite" })).toBeVisible();
+  await expect(conflict.getByRole("button", { name: "Cancel" })).toBeVisible();
   await expect(settingsWin.getByTestId("window-manager-shortcut-sidebar.toggle")).toContainText(
     "Shadowed"
   );
-  await settingsWin.getByTestId("settings-page-layouts-reset").click();
+  const resetResponse = appPage.waitForResponse(
+    response =>
+      new URL(response.url()).pathname === "/api/settings/window-manager" &&
+      response.request().method() === "PATCH"
+  );
+  await newTab.getByRole("button", { name: "Reset New tab to its default shortcut" }).click();
+  expect((await resetResponse).ok()).toBe(true);
 });
 
 test("Herdr E2E-018: Terminal preset previews, applies, reverts, and re-applies idempotently", async ({
@@ -235,20 +242,31 @@ test("Herdr E2E-018: Terminal preset previews, applies, reverts, and re-applies 
     await expect(preset).toContainText("⌘1–9");
     await expect(preset).toContainText("Control+Alt can alias AltGr");
 
+    const firstApplyResponse = appPage.waitForResponse(
+      response =>
+        new URL(response.url()).pathname === "/api/settings/window-manager" &&
+        response.request().method() === "PATCH"
+    );
     await preset.getByRole("button", { name: "Apply preset" }).click();
+    expect((await firstApplyResponse).ok()).toBe(true);
     await expect(preset).toContainText("Applied");
     await expect(preset.getByRole("button", { name: "Revert" })).toBeVisible();
+    const revertResponse = appPage.waitForResponse(
+      response =>
+        new URL(response.url()).pathname === "/api/settings/window-manager" &&
+        response.request().method() === "PATCH"
+    );
     await preset.getByRole("button", { name: "Revert" }).click();
+    expect((await revertResponse).ok()).toBe(true);
     await expect(settingsWin.getByTestId("settings-page-layouts-save-bar")).toHaveCount(0);
 
     await preset.getByRole("button", { name: "Preview" }).click();
-    await preset.getByRole("button", { name: "Apply preset" }).click();
     const saveResponse = appPage.waitForResponse(
       response =>
         new URL(response.url()).pathname === "/api/settings/window-manager" &&
         response.request().method() === "PATCH"
     );
-    await settingsWin.getByTestId("settings-page-layouts-save").click();
+    await preset.getByRole("button", { name: "Apply preset" }).click();
     expect((await saveResponse).ok()).toBe(true);
 
     await appPage.goto(runtime.url("/settings/general"), { waitUntil: "domcontentloaded" });

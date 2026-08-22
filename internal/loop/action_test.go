@@ -522,6 +522,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			NodeID:                    "agent",
 			ItemIndex:                 2,
 			CellEpoch:                 4,
+			SessionSharedKey:          "action:persisted-cell",
 			CorrelationID:             "taskrun-managed-5",
 			OriginSessionID:           "sess-origin",
 			ProvenanceParentSessionID: "sess-provenance-parent",
@@ -559,8 +560,8 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		if bind.Agent != "planner" || bind.Handle != "main" || bind.Isolated {
 			t.Fatalf("bind request = %#v, want shared main planner", bind)
 		}
-		if !strings.HasPrefix(bind.SharedKey, "action:") || bind.SharedKey == bind.Handle {
-			t.Fatalf("bind shared key = %q, want cell-scoped identity distinct from authored handle", bind.SharedKey)
+		if bind.SharedKey != "action:persisted-cell" {
+			t.Fatalf("bind shared key = %q, want persisted cell identity", bind.SharedKey)
 		}
 		if bind.ItemIndex != 2 {
 			t.Fatalf("bind item index = %d, want 2", bind.ItemIndex)

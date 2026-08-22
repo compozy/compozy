@@ -24,26 +24,7 @@ func (b *loopActionSessionBinder) resolveEffectiveCreationProfile(
 	var opts session.CreateOpts
 	var materialized *worktree.Worktree
 	if strings.TrimSpace(pinnedProfileRef) != "" {
-		profile, err := b.creationStore.GetSessionCreationProfile(ctx, pinnedProfileRef)
-		if err != nil {
-			return store.SessionCreationProfile{}, session.CreateOpts{}, nil, err
-		}
-		if err := validatePinnedRuntime(req.RuntimeValue(), profile); err != nil {
-			return store.SessionCreationProfile{}, session.CreateOpts{}, nil, err
-		}
-		agent = profile.AgentName
-		opts = createOptionsFromProfile(req, profile)
-		pinnedCWD := opts.CWD
-		pinnedWorktree := opts.Worktree
-		opts.CWD = ""
-		opts.Worktree = ""
-		resolution, err := b.policyGate.applyResolved(ctx, &opts, agent, opts.AllowedToolsOverride)
-		if err != nil {
-			return store.SessionCreationProfile{}, session.CreateOpts{}, nil, err
-		}
-		opts.CWD = pinnedCWD
-		opts.Worktree = pinnedWorktree
-		return b.validateLoopCreationProfile(ctx, req, pinnedProfileRef, opts, &resolution, nil)
+		return b.resolvePinnedCreationProfile(ctx, req, pinnedProfileRef, true)
 	}
 	if agent == "" {
 		return store.SessionCreationProfile{}, session.CreateOpts{}, nil, fmt.Errorf(
@@ -61,6 +42,41 @@ func (b *loopActionSessionBinder) resolveEffectiveCreationProfile(
 		return store.SessionCreationProfile{}, session.CreateOpts{}, nil, err
 	}
 	return b.validateLoopCreationProfile(ctx, req, pinnedProfileRef, opts, &resolution, materialized)
+}
+
+func (b *loopActionSessionBinder) resolvePinnedCreationProfile(
+	ctx context.Context,
+	req looppkg.ActionSessionBindRequest,
+	pinnedProfileRef string,
+	applyManagedDenials bool,
+) (store.SessionCreationProfile, session.CreateOpts, *worktree.Worktree, error) {
+	profile, err := b.creationStore.GetSessionCreationProfile(ctx, pinnedProfileRef)
+	if err != nil {
+		return store.SessionCreationProfile{}, session.CreateOpts{}, nil, err
+	}
+	if err := validatePinnedRuntime(req.RuntimeValue(), profile); err != nil {
+		return store.SessionCreationProfile{}, session.CreateOpts{}, nil, err
+	}
+	opts := createOptionsFromProfile(req, profile)
+	if !applyManagedDenials {
+		opts.DeniedToolsOverride = append([]string(nil), profile.DeniedTools...)
+	}
+	pinnedCWD := opts.CWD
+	pinnedWorktree := opts.Worktree
+	opts.CWD = ""
+	opts.Worktree = ""
+	resolution, err := b.policyGate.applyResolved(
+		ctx,
+		&opts,
+		profile.AgentName,
+		opts.AllowedToolsOverride,
+	)
+	if err != nil {
+		return store.SessionCreationProfile{}, session.CreateOpts{}, nil, err
+	}
+	opts.CWD = pinnedCWD
+	opts.Worktree = pinnedWorktree
+	return b.validateLoopCreationProfile(ctx, req, pinnedProfileRef, opts, &resolution, nil)
 }
 
 func (b *loopActionSessionBinder) validateLoopCreationProfile(

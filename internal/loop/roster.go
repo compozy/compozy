@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/task"
 )
 
 var ErrInvalidRosterCursor = errors.New("invalid_cursor")
@@ -214,7 +215,7 @@ func ProjectRoster(source *RosterSource, query RosterQuery) (RosterPage, error) 
 			page.Nodes = append(page.Nodes, items...)
 		}
 	}
-	page.FanoutRollups = buildFanoutRollups(page.Nodes)
+	page.FanoutRollups = buildFanoutRollups(page.Nodes, source.Graph)
 	filtered := filterRosterNodes(page.Nodes, query.State)
 	offset, err := decodeRosterCursor(query.Cursor)
 	if err != nil {
@@ -315,27 +316,48 @@ func newRosterNode(
 		return view
 	}
 	if output != nil {
-		state, err := mapOutputState(output.Status)
-		if err == nil {
-			view.State = state
-		}
-		view.Attempt = output.Attempt
-		view.NextRetryAt = output.NextAttemptAt
-		view.ChildLoopRunID = output.ChildLoopRunID
-		view.SessionID = output.SessionID
-		view.CellTaskID = NodeCellTaskID(runID, generation, string(node.ID), item)
-		if output.FirstScheduledAt != nil {
-			started := output.FirstScheduledAt.UTC()
-			view.StartedAt = &started
-		}
-		if output.NextAttemptAt != nil {
-			view.State = NodeStateRetrying
-		}
+		applyRosterOutput(&view, runID, *output)
 	}
+	openAttempt := appendRosterAttempts(&view, history)
+	if openAttempt {
+		markRosterOpenAttemptRunning(&view)
+	}
+	applyRosterWait(&view, wait)
+	applyRosterCancellation(&view, output, control)
+	return view
+}
+
+func applyRosterOutput(view *RosterNode, runID RunID, output GenerationOutput) {
+	state, err := mapOutputState(output.Status)
+	if err == nil {
+		view.State = state
+	}
+	view.Attempt = output.Attempt
+	view.NextRetryAt = output.NextAttemptAt
+	view.ChildLoopRunID = output.ChildLoopRunID
+	view.SessionID = output.SessionID
+	view.CellTaskID = NodeCellTaskID(runID, view.Generation, string(view.NodeID), view.ItemIndex)
+	if output.FirstScheduledAt != nil {
+		started := output.FirstScheduledAt.UTC()
+		view.StartedAt = &started
+	}
+	if output.NextAttemptAt != nil {
+		view.State = NodeStateRetrying
+	}
+	view.State = overlayTaskRunState(view.State, output.TaskRunStatus)
+	if output.TaskRunTokensUsed > 0 {
+		view.Usage = &NodeUsage{Tokens: output.TaskRunTokensUsed}
+	}
+}
+
+func appendRosterAttempts(view *RosterNode, history []NodeAttempt) bool {
+	openAttempt := false
 	for _, attempt := range history {
 		state := NodeStateRunning
 		if attempt.EndedAt != nil {
 			state = attemptState(attempt.Disposition)
+		} else {
+			openAttempt = true
 		}
 		failure := ""
 		if attempt.FailureClass != nil {
@@ -349,9 +371,27 @@ func newRosterNode(
 			view.EndedAt = attempt.EndedAt
 		}
 	}
+	return openAttempt
+}
+
+func markRosterOpenAttemptRunning(view *RosterNode) {
+	switch view.State {
+	case NodeStatePending, NodeStateQueued, NodeStateRunning, NodeStateRetrying:
+		view.State = NodeStateRunning
+	}
+}
+
+func applyRosterWait(view *RosterNode, wait *NodeWait) {
 	if wait != nil && (wait.ClaimState == WaitClaimWaiting || wait.ClaimState == WaitClaimInterventionRequired) {
 		view.State = NodeStateWaiting
 	}
+}
+
+func applyRosterCancellation(
+	view *RosterNode,
+	output *GenerationOutput,
+	control *NodeControl,
+) {
 	if output != nil && view.State == NodeStateCanceled {
 		view.Cancellation = strategyCancellationView(*output)
 	}
@@ -366,7 +406,29 @@ func newRosterNode(
 			view.Cancellation = cancellationView(*control)
 		}
 	}
-	return view
+}
+
+func overlayTaskRunState(current NodeState, status task.RunStatus) NodeState {
+	switch status.Normalize() {
+	case task.TaskRunStatusQueued:
+		if current == NodeStatePending {
+			return NodeStateQueued
+		}
+	case task.TaskRunStatusClaimed, task.TaskRunStatusStarting, task.TaskRunStatusRunning:
+		switch current {
+		case NodeStatePending, NodeStateQueued, NodeStateRunning, NodeStateRetrying:
+			return NodeStateRunning
+		}
+	case task.TaskRunStatusCompleted:
+		// The worker completion and the coordinator output projection are separate
+		// commits. Keep a dispatched node live during that handoff instead of
+		// briefly regressing it to pending or queued on public reads.
+		switch current {
+		case NodeStatePending, NodeStateQueued, NodeStateRunning, NodeStateRetrying:
+			return NodeStateRunning
+		}
+	}
+	return current
 }
 
 func cancellationView(control NodeControl) *NodeCancellation {

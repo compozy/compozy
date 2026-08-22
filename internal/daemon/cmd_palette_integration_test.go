@@ -90,70 +90,73 @@ func TestCmdPaletteDaemonIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("Should invoke form-mapped and inline tool arguments through the real HTTP registry [IT-005][IT-007][IT-009]", func(t *testing.T) {
-		t.Parallel()
-		toolRegistry := &recordingCmdPaletteToolRegistry{result: toolspkg.ToolResult{
-			Structured: json.RawMessage(`{"title":"Standup follow-ups"}`),
-		}}
-		descriptor := integrationToolDescriptor()
-		registry := newCmdPaletteIntegrationRegistry(t, descriptor, nil, &cmdPaletteActionExecutor{
-			tools: toolRegistry, now: time.Now, approvalTTL: time.Minute,
-		})
-		engine := newCmdPaletteIntegrationEngine(registry)
+	t.Run(
+		"Should invoke form-mapped and inline tool arguments through the real HTTP registry [IT-005][IT-007][IT-009]",
+		func(t *testing.T) {
+			t.Parallel()
+			toolRegistry := &recordingCmdPaletteToolRegistry{result: toolspkg.ToolResult{
+				Structured: json.RawMessage(`{"title":"Standup follow-ups"}`),
+			}}
+			descriptor := integrationToolDescriptor()
+			registry := newCmdPaletteIntegrationRegistry(t, descriptor, nil, &cmdPaletteActionExecutor{
+				tools: toolRegistry, now: time.Now, approvalTTL: time.Minute,
+			})
+			engine := newCmdPaletteIntegrationEngine(registry)
 
-		response := performCmdPaletteIntegrationRequest(
-			t,
-			engine,
-			http.MethodPost,
-			"/api/cmd-palette/commands/ext.notes.capture/invoke",
-			`{"workspace":"acme","args":{"title":"Standup follow-ups"}}`,
-			"",
-		)
-		if response.Code != http.StatusOK {
-			t.Fatalf("invoke status = %d, want 200; body=%s", response.Code, response.Body.String())
-		}
-		var result contract.CmdPaletteInvokeResult
-		decodeCmdPaletteIntegrationResponse(t, response, &result)
-		if result.Status != cmdpalette.InvokeStatusOK || string(result.Result) != `{"title":"Standup follow-ups"}` {
-			t.Fatalf("invoke result = %#v", result)
-		}
-		var input map[string]any
-		if err := json.Unmarshal(toolRegistry.call.Input, &input); err != nil {
-			t.Fatalf("json.Unmarshal(tool input) error = %v", err)
-		}
-		if input["title"] != "Standup follow-ups" {
-			t.Fatalf("tool input = %#v", input)
-		}
+			response := performCmdPaletteIntegrationRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/api/cmd-palette/commands/ext.notes.capture/invoke",
+				`{"workspace":"acme","args":{"title":"Standup follow-ups"}}`,
+				"",
+			)
+			if response.Code != http.StatusOK {
+				t.Fatalf("invoke status = %d, want 200; body=%s", response.Code, response.Body.String())
+			}
+			var result contract.CmdPaletteInvokeResult
+			decodeCmdPaletteIntegrationResponse(t, response, &result)
+			if result.Status != cmdpalette.InvokeStatusOK || string(result.Result) != `{"title":"Standup follow-ups"}` {
+				t.Fatalf("invoke result = %#v", result)
+			}
+			var input map[string]any
+			if err := json.Unmarshal(toolRegistry.call.Input, &input); err != nil {
+				t.Fatalf("json.Unmarshal(tool input) error = %v", err)
+			}
+			if input["title"] != "Standup follow-ups" {
+				t.Fatalf("tool input = %#v", input)
+			}
 
-		invalid := performCmdPaletteIntegrationRequest(
-			t,
-			engine,
-			http.MethodPost,
-			"/api/cmd-palette/commands/ext.notes.capture/invoke",
-			`{"workspace":"acme","args":{}}`,
-			"",
-		)
-		var invalidPayload contract.CmdPaletteError
-		decodeCmdPaletteIntegrationResponse(t, invalid, &invalidPayload)
-		if invalid.Code != http.StatusUnprocessableEntity || invalidPayload.Error != "invalid_arguments" ||
-			invalidPayload.Fields["title"] != "required" {
-			t.Fatalf("invalid response = status %d payload %#v", invalid.Code, invalidPayload)
-		}
+			invalid := performCmdPaletteIntegrationRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/api/cmd-palette/commands/ext.notes.capture/invoke",
+				`{"workspace":"acme","args":{}}`,
+				"",
+			)
+			var invalidPayload contract.CmdPaletteError
+			decodeCmdPaletteIntegrationResponse(t, invalid, &invalidPayload)
+			if invalid.Code != http.StatusUnprocessableEntity || invalidPayload.Error != "invalid_arguments" ||
+				invalidPayload.Fields["title"] != "required" {
+				t.Fatalf("invalid response = status %d payload %#v", invalid.Code, invalidPayload)
+			}
 
-		unknown := performCmdPaletteIntegrationRequest(
-			t,
-			engine,
-			http.MethodPost,
-			"/api/cmd-palette/commands/ext.notes.missing/invoke",
-			`{"workspace":"acme","args":{}}`,
-			"",
-		)
-		var unknownPayload contract.CmdPaletteError
-		decodeCmdPaletteIntegrationResponse(t, unknown, &unknownPayload)
-		if unknown.Code != http.StatusNotFound || unknownPayload.Error != "command_not_found" {
-			t.Fatalf("unknown response = status %d payload %#v", unknown.Code, unknownPayload)
-		}
-	})
+			unknown := performCmdPaletteIntegrationRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/api/cmd-palette/commands/ext.notes.missing/invoke",
+				`{"workspace":"acme","args":{}}`,
+				"",
+			)
+			var unknownPayload contract.CmdPaletteError
+			decodeCmdPaletteIntegrationResponse(t, unknown, &unknownPayload)
+			if unknown.Code != http.StatusNotFound || unknownPayload.Error != "command_not_found" {
+				t.Fatalf("unknown response = status %d payload %#v", unknown.Code, unknownPayload)
+			}
+		},
+	)
 
 	t.Run("Should target divergent clients and reject forged or stale identity [IT-031]", func(t *testing.T) {
 		t.Parallel()

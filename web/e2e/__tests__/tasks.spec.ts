@@ -1,3 +1,7 @@
+import { randomUUID } from "node:crypto";
+import { mkdtempSync } from "node:fs";
+import { rm } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -7,7 +11,12 @@ import {
   sessionWindowSelectors,
   tasksOperatorSelectors,
 } from "../fixtures/selectors";
-import { openAppWindow, sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
+import {
+  appWindow,
+  openAppWindow,
+  sessionWindow,
+  switchWorkspace,
+} from "../fixtures/os-navigation";
 import { seedRetainedLoopTask } from "../fixtures/retained-loop-task";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { seedBrowserTasksOperatorFlow } from "../fixtures/runtime";
@@ -26,6 +35,7 @@ const browserLifecycleFixture = path.resolve(
   "testdata",
   "browser_session_lifecycle_fixture.json"
 );
+const tasksLoopWorkspaceRoot = mkdtempSync(path.join(os.tmpdir(), "compozy-tasks-loop-"));
 const tasksSessionAgentName = "browser-lifecycle-agent";
 const createdDraftDescription =
   "Use the shared browser lane to capture fresh Tasks evidence for task_19.";
@@ -36,6 +46,10 @@ let tasksWorktreeRepo: WorktreeRepoFixture | null = null;
 test.afterEach(async () => {
   await tasksWorktreeRepo?.cleanup();
   tasksWorktreeRepo = null;
+});
+
+test.afterAll(async () => {
+  await rm(tasksLoopWorkspaceRoot, { force: true, recursive: true });
 });
 
 function tasksSessionPath(sessionId: string): string {
@@ -512,6 +526,7 @@ const loopLegibilityDefinition: LoopDefinition = {
 
 interface SeededLoopRecords {
   runId: string;
+  loopName: string;
   coordinatorTaskId: string;
   cellTaskId: string;
   workspaceId: string;
@@ -529,8 +544,11 @@ async function prepareLoopWorkspace(
   if (!runtime.paths) {
     throw new Error("Loop legibility browser test requires launch-mode runtime paths");
   }
-  const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
+  const workspace =
+    runtime.seeded.workspace ?? (await runtime.resolveWorkspace(tasksLoopWorkspaceRoot));
   await completeOnboardingIfPrompted(appPage);
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await switchWorkspace(appPage, workspace.id, workspace.name);
   return { id: workspace.id };
 }
 
@@ -540,14 +558,19 @@ async function seedLoopRecords(
   prepared?: { id: string }
 ): Promise<SeededLoopRecords> {
   const workspace = prepared ?? (await prepareLoopWorkspace(runtime, appPage));
+  const loopName = `${loopLegibilityName}-${randomUUID()}`;
+  const definition: LoopDefinition = {
+    ...loopLegibilityDefinition,
+    meta: { ...loopLegibilityDefinition.meta, name: loopName },
+  };
 
   const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
   await runtime.requestJSON(`${workspacePath}/loops`, {
     method: "POST",
-    body: JSON.stringify({ definition: loopLegibilityDefinition }),
+    body: JSON.stringify({ definition }),
   });
   const started = await runtime.requestJSON<RunLoopResult>(
-    `${workspacePath}/loops/${encodeURIComponent(loopLegibilityName)}/run`,
+    `${workspacePath}/loops/${encodeURIComponent(loopName)}/run`,
     { method: "POST", body: JSON.stringify({}) }
   );
   if (!started.run) {
@@ -578,6 +601,7 @@ async function seedLoopRecords(
   }
   return {
     runId: started.run.id,
+    loopName,
     coordinatorTaskId: coordinator.id,
     cellTaskId: cell.id,
     workspaceId: workspace.id,
@@ -617,6 +641,7 @@ test.describe("Loop record legibility", () => {
   test.use({
     runtimeOptions: {
       seed: {
+        workspace: { rootDir: tasksLoopWorkspaceRoot },
         mockAgents: [
           {
             agentName: loopLegibilityAgent,
@@ -678,7 +703,7 @@ test.describe("Loop record legibility", () => {
     );
 
     await appPage.reload({ waitUntil: "domcontentloaded" });
-    const listWin = await openAppWindow(appPage, "Tasks", "tasks");
+    const listWin = appWindow(appPage, "tasks");
     const listUI = tasksOperatorSelectors(listWin, appPage);
     await expect(listWin.getByTestId("tasks-list-surface")).toBeVisible();
     await expect(listUI.taskCard(workItem.task.id)).toBeVisible();
@@ -696,7 +721,7 @@ test.describe("Loop record legibility", () => {
 
     // Aggregates answer the same question over the same population (US-003.AC-1).
     const dashboard = await runtime.requestJSON<DashboardProbe>(
-      `/api/observe/tasks/dashboard?workspace=${encodeURIComponent(seeded.workspaceId)}`
+      `/api/observe/tasks/dashboard?scope=workspace&workspace=${encodeURIComponent(seeded.workspaceId)}`
     );
     const breakdownTotal = dashboard.dashboard.status_breakdown.reduce(
       (total, entry) => total + entry.count,
@@ -767,7 +792,7 @@ test.describe("Loop record legibility", () => {
 
     const seeded = await seedLoopRecords(runtime, appPage, prepared);
     await appPage.reload({ waitUntil: "domcontentloaded" });
-    const tasksWin = await openAppWindow(appPage, "Tasks", "tasks");
+    const tasksWin = appWindow(appPage, "tasks");
 
     await expect(tasksWin.getByTestId("tasks-records-filter-work")).toHaveAttribute(
       "aria-pressed",
@@ -778,7 +803,7 @@ test.describe("Loop record legibility", () => {
     const coordinatorRow = tasksWin.getByTestId(`task-loop-row-${seeded.coordinatorTaskId}`);
     await expect(coordinatorRow).toBeVisible();
     await expect(coordinatorRow.locator('[data-slot="task-loop-row-identity"]')).toContainText(
-      loopLegibilityName
+      seeded.loopName
     );
     // Plain words lead; the machine id is never the row's primary text.
     await expect(coordinatorRow.locator('[data-slot="task-loop-row-identity"]')).not.toContainText(
@@ -888,11 +913,11 @@ test.describe("Loop record legibility", () => {
     await appPage.goto(runtime.url(`/tasks/${encodeURIComponent(seeded.cellTaskId)}`), {
       waitUntil: "domcontentloaded",
     });
-    const liveDetailWin = await openAppWindow(appPage, "Tasks", "tasks");
+    const liveDetailWin = appWindow(appPage, "tasks");
     const liveProvenance = liveDetailWin.getByTestId("task-loop-provenance");
     await expect(liveProvenance).toBeVisible();
     await expect(liveProvenance).toContainText("Loop step");
-    await expect(liveProvenance).toContainText(loopLegibilityName);
+    await expect(liveProvenance).toContainText(seeded.loopName);
     await expect(liveProvenance).toContainText(seeded.runId);
     await expect(liveDetailWin.getByTestId("task-loop-provenance-run-gone")).toHaveCount(0);
     await browserArtifacts.captureScreenshot("tasks-loop-detail-provenance", appPage);
@@ -906,7 +931,7 @@ test.describe("Loop record legibility", () => {
     await appPage.goto(runtime.url(`/tasks/${encodeURIComponent(retained.taskId)}`), {
       waitUntil: "domcontentloaded",
     });
-    const goneDetailWin = await openAppWindow(appPage, "Tasks", "tasks");
+    const goneDetailWin = appWindow(appPage, "tasks");
     const goneProvenance = goneDetailWin.getByTestId("task-loop-provenance");
     await expect(goneProvenance).toBeVisible();
     await expect(goneProvenance).toContainText("Loop step");

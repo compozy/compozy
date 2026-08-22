@@ -17,9 +17,10 @@ func fanOutProgressValue(
 		total = 0
 	}
 	progress := map[string]any{
-		"total": int64(total), generationOutputSucceeded: int64(0), "failed": int64(0),
-		generationOutputCanceled: int64(0), "running": int64(0), string(joinSettlementPending): int64(total),
-		"settled": int64(0), "success_rate": float64(0), "failure_rate": float64(0),
+		"total": int64(total), generationOutputSucceeded: int64(0), string(BriefingToneFailed): int64(0),
+		generationOutputCanceled: int64(0), generationOutputRunning: int64(0),
+		string(joinSettlementPending): int64(total),
+		"settled":                     int64(0), "success_rate": float64(0), "failure_rate": float64(0),
 	}
 	collectID, ok := firstFanOutCollect(topology, fanOutID)
 	if !ok || total == 0 {
@@ -43,9 +44,9 @@ func fanOutProgressValue(
 	}
 	settled := succeeded + failed + canceled
 	progress["succeeded"] = int64(succeeded)
-	progress["failed"] = int64(failed)
+	progress[string(BriefingToneFailed)] = int64(failed)
 	progress["canceled"] = int64(canceled)
-	progress["running"] = int64(running)
+	progress[generationOutputRunning] = int64(running)
 	progress["pending"] = int64(max(total-settled-running, 0))
 	progress["settled"] = int64(settled)
 	progress["success_rate"] = coverageRate(succeeded, total)

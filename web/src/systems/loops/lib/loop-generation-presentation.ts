@@ -94,6 +94,7 @@ const ROUND_NEVER_ENDED = new Set<LoopGenerationProgressState>(["in-progress", "
 
 export interface LoopGenerationRow {
   generation: number;
+  isBest: boolean;
   outcomeLabel: string;
   tone: LoopGenerationTone;
   /** Only present when the loop defines scoring; no column of dashes otherwise. */
@@ -160,6 +161,7 @@ export interface BuildGenerationHistoryInput {
   /** This run's roster rows; the per-round usage and settlement come from here. */
   nodes: readonly LoopRosterNode[];
   runStatus?: string;
+  bestGeneration?: number | null;
 }
 
 /**
@@ -173,6 +175,7 @@ export function buildGenerationHistory({
   generations,
   nodes,
   runStatus,
+  bestGeneration,
 }: BuildGenerationHistoryInput): LoopGenerationRow[] {
   // Indexed once: a run with many rounds and a large roster would otherwise
   // rescan every loaded row for every round it draws.
@@ -192,6 +195,7 @@ export function buildGenerationHistory({
       const hasUsage = tokens > 0;
       return {
         generation: generation.generation,
+        isBest: generation.generation === bestGeneration,
         outcomeLabel: outcome.label,
         tone: outcome.tone,
         scoreLabel: formatLoopScore(loopGenerationScore(generation)),

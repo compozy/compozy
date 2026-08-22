@@ -5,6 +5,8 @@ import (
 	"sort"
 )
 
+const diffOutputChangeSkipped = "skipped"
+
 func diffGenerationOutputs(
 	ctx context.Context,
 	reader GenerationOutputReader,
@@ -105,11 +107,11 @@ func diffOutputChange(left GenerationOutput, leftOK bool, right GenerationOutput
 	case !leftOK:
 		return timeTravelKindRerun
 	case !rightOK:
-		return "skipped"
+		return diffOutputChangeSkipped
 	case generationOutputSettled(left.Status) && !generationOutputSettled(right.Status):
 		return timeTravelKindRerun
 	case !generationOutputSettled(left.Status) && generationOutputSettled(right.Status):
-		return "skipped"
+		return diffOutputChangeSkipped
 	default:
 		return "changed"
 	}

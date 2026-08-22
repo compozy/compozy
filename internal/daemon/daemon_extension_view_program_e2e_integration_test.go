@@ -75,26 +75,47 @@ func TestDaemonE2EExtensionViewProgramFixture(t *testing.T) {
 		defer closeViewProgramBody(t, streamResponse.Body)
 		replayed := readViewProgramFrame(t, streamReader)
 		searchHandler := viewProgramSearchHandler(t, replayed)
-		postViewProgramEvent(t, ctx, harness, openedA, clientA.AttachmentToken, compozycontract.CmdPaletteViewSessionEventRequest{
-			Handler: searchHandler, Args: []any{"standup", 1}, Revision: replayed.Revision, Seq: 1,
-		})
+		postViewProgramEvent(
+			t,
+			ctx,
+			harness,
+			openedA,
+			clientA.AttachmentToken,
+			compozycontract.CmdPaletteViewSessionEventRequest{
+				Handler: searchHandler, Args: []any{"standup", 1}, Revision: replayed.Revision, Seq: 1,
+			},
+		)
 		searched := readViewProgramFrame(t, streamReader)
 		if searched.Revision == replayed.Revision {
 			t.Fatalf("search frame revision = %q, want advancement from %q", searched.Revision, replayed.Revision)
 		}
 
 		actionHandler := viewProgramActionHandler(t, searched, replayed)
-		postViewProgramEvent(t, ctx, harness, openedA, clientA.AttachmentToken, compozycontract.CmdPaletteViewSessionEventRequest{
-			Handler: actionHandler, Revision: searched.Revision, Seq: 2,
-		})
+		postViewProgramEvent(
+			t,
+			ctx,
+			harness,
+			openedA,
+			clientA.AttachmentToken,
+			compozycontract.CmdPaletteViewSessionEventRequest{
+				Handler: actionHandler, Revision: searched.Revision, Seq: 2,
+			},
+		)
 		effectFrame := readViewProgramFrame(t, streamReader)
 		if len(effectFrame.Effects) != 1 || effectFrame.Effects[0].ID == "" {
 			t.Fatalf("action frame effects = %#v, want one stable effect", effectFrame.Effects)
 		}
-		postViewProgramEvent(t, ctx, harness, openedA, clientA.AttachmentToken, compozycontract.CmdPaletteViewSessionEventRequest{
-			Handler: searchHandler, Args: []any{"standup", 2}, Revision: effectFrame.Revision, Seq: 3,
-			AckEffects: []string{effectFrame.Effects[0].ID},
-		})
+		postViewProgramEvent(
+			t,
+			ctx,
+			harness,
+			openedA,
+			clientA.AttachmentToken,
+			compozycontract.CmdPaletteViewSessionEventRequest{
+				Handler: searchHandler, Args: []any{"standup", 2}, Revision: effectFrame.Revision, Seq: 3,
+				AckEffects: []string{effectFrame.Effects[0].ID},
+			},
+		)
 		replayResponse, replayReader := openViewProgramStream(t, ctx, harness, openedA)
 		defer closeViewProgramBody(t, replayResponse.Body)
 		ackReplay := readViewProgramFrame(t, replayReader)
@@ -297,9 +318,19 @@ func assertViewProgramForeignOwnership(
 	path := "/api/cmd-palette/view-sessions/" + url.PathEscape(opened.ViewSession) + "/events"
 	var payload compozycontract.CmdPaletteError
 	doViewProgramJSON(
-		t, ctx, harness, http.MethodPost, path,
-		compozycontract.CmdPaletteViewSessionEventRequest{Handler: "foreign", Revision: opened.FirstFrame.Revision, Seq: 1},
-		foreign.AttachmentToken, http.StatusForbidden, &payload,
+		t,
+		ctx,
+		harness,
+		http.MethodPost,
+		path,
+		compozycontract.CmdPaletteViewSessionEventRequest{
+			Handler:  "foreign",
+			Revision: opened.FirstFrame.Revision,
+			Seq:      1,
+		},
+		foreign.AttachmentToken,
+		http.StatusForbidden,
+		&payload,
 	)
 	if payload.Error != "session_forbidden" {
 		t.Fatalf("foreign ownership error = %#v, want session_forbidden", payload)
@@ -318,14 +349,28 @@ func assertViewProgramSlowSessionIsolation(
 	fastResponse, fastReader := openViewProgramStream(t, ctx, harness, fast)
 	defer closeViewProgramBody(t, fastResponse.Body)
 	fastFirst := readViewProgramFrame(t, fastReader)
-	postViewProgramEvent(t, ctx, harness, slow, client.AttachmentToken, compozycontract.CmdPaletteViewSessionEventRequest{
-		Handler: viewProgramSearchHandler(t, slow.FirstFrame), Args: []any{"release", 1},
-		Revision: slow.FirstFrame.Revision, Seq: 1,
-	})
-	postViewProgramEvent(t, ctx, harness, fast, client.AttachmentToken, compozycontract.CmdPaletteViewSessionEventRequest{
-		Handler: viewProgramSearchHandler(t, fastFirst), Args: []any{"release", 1},
-		Revision: fastFirst.Revision, Seq: 1,
-	})
+	postViewProgramEvent(
+		t,
+		ctx,
+		harness,
+		slow,
+		client.AttachmentToken,
+		compozycontract.CmdPaletteViewSessionEventRequest{
+			Handler: viewProgramSearchHandler(t, slow.FirstFrame), Args: []any{"release", 1},
+			Revision: slow.FirstFrame.Revision, Seq: 1,
+		},
+	)
+	postViewProgramEvent(
+		t,
+		ctx,
+		harness,
+		fast,
+		client.AttachmentToken,
+		compozycontract.CmdPaletteViewSessionEventRequest{
+			Handler: viewProgramSearchHandler(t, fastFirst), Args: []any{"release", 1},
+			Revision: fastFirst.Revision, Seq: 1,
+		},
+	)
 	if next := readViewProgramFrame(t, fastReader); next.Revision == fastFirst.Revision {
 		t.Fatalf("fast session revision = %q, want progress while sibling is slow", next.Revision)
 	}

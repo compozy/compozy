@@ -14,6 +14,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 )
@@ -212,18 +213,23 @@ func assertImplementTasksRuntimes(t testing.TB, detail contract.LoopRunResponse)
 	}
 	want := map[int]contract.LoopResolvedRuntime{
 		0: {
-			Provider: "claude", Model: "opus",
-			Source: contract.LoopRuntimeProvenance{Provider: "run", Model: "run"},
+			Provider: "claude", Model: "opus", Speed: speed.SpeedNormal,
+			SpeedResolution: unsupportedNormalSpeedResolution(),
+			Source:          contract.LoopRuntimeProvenance{Provider: "run", Model: "run", Speed: "agent"},
 		},
 		1: {
-			Provider: acpmock.ProviderName, Model: "docs-model", Reasoning: "high",
+			Provider: acpmock.ProviderName, Model: "docs-model", Reasoning: "high", Speed: speed.SpeedNormal,
+			SpeedResolution: unsupportedNormalSpeedResolution(),
 			Source: contract.LoopRuntimeProvenance{
-				Provider: "frontmatter", Model: "frontmatter", Reasoning: "frontmatter",
+				Provider: "frontmatter", Model: "frontmatter", Reasoning: "frontmatter", Speed: "agent",
 			},
 		},
 		2: {
-			Provider: acpmock.ProviderName, Model: "base-model", Reasoning: "low",
-			Source: contract.LoopRuntimeProvenance{Provider: "agent", Model: "agent", Reasoning: "agent"},
+			Provider: acpmock.ProviderName, Model: "base-model", Reasoning: "low", Speed: speed.SpeedNormal,
+			SpeedResolution: unsupportedNormalSpeedResolution(),
+			Source: contract.LoopRuntimeProvenance{
+				Provider: "agent", Model: "agent", Reasoning: "agent", Speed: "agent",
+			},
 		},
 	}
 	if len(got) != len(want) {
@@ -236,5 +242,13 @@ func assertImplementTasksRuntimes(t testing.TB, detail contract.LoopRunResponse)
 			got[itemIndex],
 			expected,
 		)
+	}
+}
+
+func unsupportedNormalSpeedResolution() *contract.SpeedResolution {
+	return &contract.SpeedResolution{
+		Requested: speed.SpeedNormal,
+		Status:    speed.ResolutionUnsupported,
+		Reason:    speed.ReasonCapabilityAbsent,
 	}
 }

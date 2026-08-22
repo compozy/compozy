@@ -6001,7 +6001,11 @@ func TestHostAPITaskRequestHelpersRejectInvalidPayloads(t *testing.T) {
 					t.Fatalf("taskQueryFromParams(%#v) error = %v", testCase.params, mapErr)
 				}
 				if len(mapped.ExcludeCreatedBy) != 0 {
-					t.Fatalf("taskQueryFromParams(%#v).ExcludeCreatedBy = %#v, want empty", testCase.params, mapped.ExcludeCreatedBy)
+					t.Fatalf(
+						"taskQueryFromParams(%#v).ExcludeCreatedBy = %#v, want empty",
+						testCase.params,
+						mapped.ExcludeCreatedBy,
+					)
 				}
 			})
 		}

@@ -135,6 +135,20 @@ type CatalogManager interface {
 
 // NormalizeCatalogQuery validates and canonicalizes one public task catalog request.
 func NormalizeCatalogQuery(query CatalogQuery) (CatalogQuery, error) {
+	query = normalizeCatalogQuery(query)
+
+	if err := validateCatalogQuery(query); err != nil {
+		return CatalogQuery{}, err
+	}
+	if query.Cursor != "" {
+		if _, err := DecodeCatalogCursor(query); err != nil {
+			return CatalogQuery{}, err
+		}
+	}
+	return query, nil
+}
+
+func normalizeCatalogQuery(query CatalogQuery) CatalogQuery {
 	query.Scope = query.Scope.Normalize()
 	if query.Scope == "" {
 		query.Scope = CatalogScopeAll
@@ -159,19 +173,20 @@ func NormalizeCatalogQuery(query CatalogQuery) (CatalogQuery, error) {
 	if query.Limit == 0 {
 		query.Limit = DefaultCatalogLimit
 	}
-
-	if err := validateCatalogQuery(query); err != nil {
-		return CatalogQuery{}, err
-	}
-	if query.Cursor != "" {
-		if _, err := DecodeCatalogCursor(query); err != nil {
-			return CatalogQuery{}, err
-		}
-	}
-	return query, nil
+	return query
 }
 
 func validateCatalogQuery(query CatalogQuery) error {
+	if err := validateCatalogScope(query); err != nil {
+		return err
+	}
+	if err := validateCatalogFilters(query); err != nil {
+		return err
+	}
+	return validateCatalogPage(query)
+}
+
+func validateCatalogScope(query CatalogQuery) error {
 	switch query.Scope {
 	case CatalogScopeAll:
 	case CatalogScopeGlobal:
@@ -188,6 +203,10 @@ func validateCatalogQuery(query CatalogQuery) error {
 	if query.WorktreeID != "" && query.WorkspaceID == "" {
 		return fmt.Errorf("%w: task_catalog.workspace_id is required with worktree_id", ErrValidation)
 	}
+	return nil
+}
+
+func validateCatalogFilters(query CatalogQuery) error {
 	if query.Status != "" {
 		if err := query.Status.Validate("task_catalog.status"); err != nil {
 			return err
@@ -215,6 +234,10 @@ func validateCatalogQuery(query CatalogQuery) error {
 			return err
 		}
 	}
+	return nil
+}
+
+func validateCatalogPage(query CatalogQuery) error {
 	if query.Sort != CatalogSortRecent && query.Sort != CatalogSortPriority {
 		return fmt.Errorf("%w: task_catalog.sort has unsupported value %q", ErrValidation, query.Sort)
 	}
@@ -257,6 +280,7 @@ func EncodeCatalogCursor(query CatalogQuery, summary *Summary) (string, error) {
 
 // DecodeCatalogCursor verifies and decodes a query-bound task catalog cursor.
 func DecodeCatalogCursor(query CatalogQuery) (CatalogCursor, error) {
+	query = normalizeCatalogQuery(query)
 	fingerprint, err := taskCatalogFingerprint(query)
 	if err != nil {
 		return CatalogCursor{}, err

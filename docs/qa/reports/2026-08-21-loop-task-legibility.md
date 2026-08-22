@@ -1,15 +1,62 @@
 # QA Run Report — 2026-08-21 — loop-task-legibility
 
-- **Scope:** Runtime/CLI/API phase. The 42 Visual Contract bundles and both `make test-e2e-*`
-  lanes remain owned by concurrent agents.
+- **Scope:** Full Loop legibility cycle across runtime, CLI/API, daemon-served Web, scenario walks,
+  and the 42-row Visual Contract matrix.
 - **Cadence:** Targeted release-grade playbook plus settlement and headless charters.
 - **Build:** Started at `4a061d4a`; source frozen after `69c2d74b` plus the official-skill and QA
   documentation update recorded by this report.
 - **Environment:** Fresh isolated `northstar-pay` lab, HTTP `http://127.0.0.1:57105`, UDS
   `/var/folders/7x/xg204hnd04b81fczcxvjlhzr0000gn/T/compozyqa-d30b46c8d45d/runtime/compozyd.sock`.
 - **Manifest:** `/Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-runtime-20260821-1126-20260821-112711-004724-lab/qa-artifacts/qa/bootstrap-manifest.json`
-- **Started:** 2026-08-21T11:26:16Z · **Status:** runtime execution `BLOCKED`; strict audit
-  `BLOCKED`; original teardown clean.
+- **Started:** 2026-08-21T11:26:16Z · **Status:** QA execution `PASS`; every lab teardown is clean.
+  The user explicitly delegated the workstream-closing full gate to PR CI after the controller's
+  local focused checks passed.
+
+## 2026-08-22 — Task 07 daemon-served web continuation
+
+- **Lab:**
+  `/Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-task07-20260822-025427-168223-lab`
+- **Strict accessibility invariant:** Every rendered Loop state chip exposes a non-empty accessible
+  name while retaining its visible label, icon, tokens, and reduced-motion behavior.
+- **Owner and canonical suites:** The Loop state-chip component owns the semantic output;
+  `loop-run-page.test.tsx` owns all 15 component variants and E2E-019 in `loop-run.spec.ts` owns the
+  daemon-served browser contract.
+- **Strict result:** PASS. The rejected `toContainText` assertion was restored to
+  `toHaveAccessibleName(/\S/)`. The canonical component/model selection passed 175/175, the web
+  build (including typecheck) passed, focused real-browser E2E-019 passed, and the complete
+  canonical Loop run file passed 17/17 in the daemon-served lane.
+- **Fresh final lab:**
+  `/Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-task07-final-web-20260822-131622-550786-lab`.
+- **Full web lane:** PASS. After classifying and repairing every one of the 23 deterministic
+  Dashboard, OS shell, Settings, Storybook, and Worktrees failures, the fresh daemon-served lane
+  completed with **227 passed, 3 declared conditional skips, and 0 failed** in 36.0 minutes. The
+  strict E2E-019 accessible-name assertion passed in that complete lane. Remediation used focused
+  reruns only; no timeout or expectation was weakened.
+- **Data-boundary correction:** Palette catalog carry-forward is limited to the same workspace's
+  null-client → attached-client transition. The canonical hook regression proves workspace A
+  commands never render while workspace B is pending.
+- **Unavailable palette rows:** cmdk rows stay enabled and keyboard-navigable because they retain
+  valid meta-actions. The visible unavailability reason is excluded from name-from-content and is
+  supplied once through `aria-describedby`; UT-128 proves the exact accessible name, exact
+  description, navigation, seam refusal, and meta-actions.
+- **Scenario walks:** PASS. All 13 planned tracker walks ran only after the complete lane was green;
+  the three overlapping regression scenarios for gate provenance, pending-request provenance, and
+  cancellation/duration truth also pass. Evidence is indexed by the final lab's
+  `qa/task07-scenario-walks.md`.
+- **Visual Contract:** PASS. Task 04 VC-01–06 and Task 05 VC-01–36 have complete reviewed bundles
+  under `.compozy/tasks/loop-task-legibility/evidence/visual/`; all 42 validators report zero
+  blocking divergences. Broken unstyled prototype captures were rejected and recaptured from the
+  correct reference root before comparison.
+- **Manual browser walk:** PASS. The two-register run page was walked through Graph → Nodes →
+  Events, with arrow-key movement back to Generations, followed by needs-you provenance,
+  cancellation-cause, and mixed-state roster walks. The 33-frame recording is at
+  `/Users/pedronauck/.config/browser-harness/agent-workspace/recordings/task07-loop-operator-register`.
+- **Final teardown:** PASS. The exact final-lab manifest teardown completed at
+  `2026-08-22T16:55:08Z`; `qa/teardown.json` records `"clean": true`, an empty survivor list, and
+  termination of the registered daemon, Storybook, and visual-reference server. Ports 62112, 6006,
+  and 6008 have no listener.
+- **Task status:** QA complete. The controller reviewed the remediation and ran focused race and
+  lint checks; the user explicitly delegated the full monorepo gate to PR CI.
 
 ## Isolation and kickoff
 
@@ -36,10 +83,10 @@
 | 3 | Headless / LP-run-read-agent-journey | Pass | Required-schema unblocker and runtime-owned observer fixed and re-walked | `a53f470`, `b0eaf22`, `37c101d`, observer batch |
 | 4 | Headless / LP-runs-roster-server-ordering | Pass | Roster passed; public-read observer matched the independent catalog through terminal state | observer batch |
 | 5 | Catalog parity / TA-task-list-calm-loop-default | Pass | Four transports matched semantically | — |
-| 6–9 | Run default-read visual rows | Pending external dependency | Visual Contract bundles owned by concurrent agents | — |
-| 10–15 | Tasks/operator-register visual rows | Pending external dependency | Visual Contract bundles owned by concurrent agents | — |
-| 16 | Authoring / LP-loop-run-deep-link | Pass for runtime output | Rendered-route parity remains external | — |
-| 17 | Authoring / LP-fanout-progress-naming | Pending | Nested fan-out and rendered progress remain outside this bounded settlement/headless phase | — |
+| 6–9 | Run default-read visual rows | Pass | Daemon-served walks passed; Task 04/05 Visual Contract bundles validate | QA remediation batch |
+| 10–15 | Tasks/operator-register visual rows | Pass | Daemon-served walks passed; Task 04/05 Visual Contract bundles validate | QA remediation batch |
+| 16 | Authoring / LP-loop-run-deep-link | Pass | Runtime output and rendered-route parity passed | QA remediation batch |
+| 17 | Authoring / LP-fanout-progress-naming | Pass | Nested fan-out and rendered progress passed in the final Web lane | QA remediation batch |
 
 ## Session debriefs
 
@@ -167,8 +214,9 @@ Evidence: `qa/headless/authoring-human.txt`, `qa/headless/authoring-toon.txt`, a
 | BUG-20260821-sessionless-lease-recovery | Nullable session ownership fence used non-null-safe equality | `0a4fe2d` | `TestGlobalDBRecoverExpiredRunLeasesThenClaim` |
 | BUG-20260821-coordinator-lease-exhausted | Coordinator lease used ordinary task attempt exhaustion | `69c2d74` | Expired coordinator plus network-wake/reconcile focused suites |
 | BUG-20260719-autonomous-progress-unobservable | Observer used a lab-owned journey log instead of runtime-owned public state | observer batch | Four focused behavior cases plus fresh one-kickoff public-read replay |
+| BUG-20260822-requeued-continuation-epoch-drift | Requeue advanced the continuation attempt instead of propagating its fenced output epoch | controller remediation batch | Both canonical GlobalDB requeue suites plus focused cross-package race tests |
 
-No test was weakened. No `make gate`, `make gate-full`, or `make test-e2e-*` command was run.
+No test was weakened. The QA worker did not run `make gate` or `make gate-full`.
 
 ## Runtime errors and paper cuts
 
@@ -198,12 +246,8 @@ No test was weakened. No `make gate`, `make gate-full`, or `make test-e2e-*` com
 
 ## Remaining dependencies
 
-- 42 Visual Contract reference/implementation bundles and their structural mismatch decisions.
-- Concurrent `make test-e2e-runtime` and `make test-e2e-web` results.
-- Nested fan-out progress naming across runtime plus rendered web.
-- RT-073's unrelated scheduler, review, disagreement, disruption-recovery, and knowledge-refresh
-  findings.
-- Task 07 remains in progress until those owners finish; this report does not mark it complete.
+- PR CI owns the workstream-closing full gate by explicit user decision; no QA execution evidence
+  is outstanding.
 
 ## Strict audit and teardown
 
@@ -225,13 +269,19 @@ No test was weakened. No `make gate`, `make gate-full`, or `make test-e2e-*` com
 - **Observer-closure teardown:** the fresh one-kickoff lab's exact manifest command completed after
   the terminal catalog comparison. Its `qa/teardown.json` says `"clean": true`, killed registered
   daemon PID `72878`, and reports no survivors.
+- **Task 07 final Web teardown:** the final lab's exact manifest command completed at
+  `2026-08-22T16:55:08Z`. Its `qa/teardown.json` says `"clean": true`, killed registered PIDs
+  `34948`, `86638`, and `91977`, and reports no survivors.
 
 ## Final status
 
-- **Runtime execution:** BLOCKED overall. Settlement, catalog, timeline, corrected required-schema
-  unblocker, and the focused autonomous-progress closure passed; the broader playbook remains blocked
-  by the independently recorded evidence gaps.
-- **Release-grade playbook audit:** BLOCKED by the 12 honest evidence gaps above.
-- **Owned scenario rows:** settlement/config/catalog/deep-link/run-read/roster pass; nested fan-out
-  remains pending.
-- **Full task:** not complete — visual and E2E dependencies remain external.
+- **Task 07 QA execution:** PASS. The daemon-served Web lane is green at 227 passed, 3 declared
+  conditional skips, and 0 failed; all 13 planned walks and three overlapping regression walks pass.
+- **Visual evidence:** PASS. All 42 reference/implementation bundles validate with zero blocking
+  divergences.
+- **Tracker:** Every scenario reset or added by this QA tail records `qa_status: pass` with current
+  evidence.
+- **Open issues by user impact:** Blocks-Completion 0 · Data-Loss 0 · Trust-Damage 0 · Friction 0 ·
+  Cosmetic 0. Every reproduced issue in this run is fixed and re-walked.
+- **Delivery state:** QA is ready for PR publication. By explicit user decision, PR CI owns the
+  workstream-closing full gate.

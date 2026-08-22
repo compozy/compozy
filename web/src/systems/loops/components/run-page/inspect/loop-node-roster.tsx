@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { ArrowUpRight, CornerDownRight } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
@@ -31,6 +31,8 @@ interface LoopNodeRosterProps extends Omit<ComponentProps<"div">, "children" | "
   onRoundChange: (round: number | null) => void;
   onSelect: (row: LoopRosterRow) => void;
   selectedKey: string | null;
+  /** Daemon-authorized verbs for this exact round/item row. */
+  renderActions?: (row: LoopRosterRow) => ReactNode;
   /** Whether the roster read has answered; absent means the caller cannot say. */
   read?: LoopRunRosterRead;
 }
@@ -94,6 +96,7 @@ export function LoopNodeRoster({
   onRoundChange,
   onSelect,
   selectedKey,
+  renderActions,
   read,
   className,
   ...props
@@ -159,6 +162,7 @@ export function LoopNodeRoster({
             {/* Labelled once, in the header, so no row has to carry "est." */}
             <TableHead>Tokens · est. cost</TableHead>
             <TableHead>Session</TableHead>
+            {renderActions ? <TableHead>Actions</TableHead> : null}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -262,6 +266,11 @@ export function LoopNodeRoster({
                   <span className="font-mono text-mono-id text-faint">—</span>
                 )}
               </TableCell>
+              {renderActions ? (
+                <TableCell onClick={event => event.stopPropagation()}>
+                  {renderActions(row)}
+                </TableCell>
+              ) : null}
             </TableRow>
           ))}
         </TableBody>

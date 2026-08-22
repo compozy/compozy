@@ -173,14 +173,14 @@ func (r *loopEffectRelay) executeEmit(
 		return r.finishAcknowledgement(ack, startedAt)
 	}
 	payload, err := json.Marshal(map[string]any{
-		"delivery_id":     entry.DeliveryID,
-		"source_event_id": entry.SourceEventID,
-		"authored_kind":   strings.TrimSpace(persisted.Emit.Kind),
-		"payload":         persisted.Emit.Payload,
-		"trigger":         entry.Trigger,
-		"generation":      entry.Generation,
-		"node_id":         entry.NodeID,
-		"item_index":      entry.ItemIndex,
+		"delivery_id":                   entry.DeliveryID,
+		"source_event_id":               entry.SourceEventID,
+		"authored_kind":                 strings.TrimSpace(persisted.Emit.Kind),
+		"payload":                       persisted.Emit.Payload,
+		"trigger":                       entry.Trigger,
+		watchEventsPayloadGenerationKey: entry.Generation,
+		watchEventsPayloadNodeIDKey:     entry.NodeID,
+		"item_index":                    entry.ItemIndex,
 	})
 	if err != nil {
 		ack.Code = "effect_emit_invalid"

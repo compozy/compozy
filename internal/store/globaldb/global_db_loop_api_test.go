@@ -933,7 +933,6 @@ func TestGlobalDBLoopRunSummaryShouldMatchBriefingProgressWithUntakenAndFailedAc
 			"missing node identity": `{"generation":1,"node_id":" ","item_indexes":[1,3]}`,
 		}
 		for name, payload := range cases {
-			name, payload := name, payload
 			t.Run("Should reject "+name, func(t *testing.T) {
 				t.Parallel()
 

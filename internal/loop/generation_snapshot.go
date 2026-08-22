@@ -48,6 +48,12 @@ type GenerationOutput struct {
 	// SessionID is the ACP session bound to the cell's task run; it is a
 	// read-model join and never part of snapshot state.
 	SessionID string `json:"-"`
+	// TaskRunStatus is the current task-run lifecycle state joined by the
+	// roster read model; it is never part of snapshot state.
+	TaskRunStatus task.RunStatus `json:"-"`
+	// TaskRunTokensUsed is the task run's retained cumulative usage joined by
+	// the roster read model; it is never part of snapshot state.
+	TaskRunTokensUsed int64 `json:"-"`
 	// ExpectedEpoch is the cell epoch observed by the planner. It is used only
 	// for compare-and-swap and is never stored as domain state.
 	ExpectedEpoch *int64 `json:"expected_epoch,omitempty"`

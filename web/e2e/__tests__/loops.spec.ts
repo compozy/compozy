@@ -971,8 +971,11 @@ test("E2E-033: connection drop adds one wired node or no mutation", async ({
     await appPage.mouse.down();
     const handleBox = await handle.boundingBox();
     if (!handleBox) throw new Error("Connection handle geometry is unavailable");
-    await appPage.mouse.move(handleBox.x + handleBox.width + 8, handleBox.y + handleBox.height / 2);
-    await expect(appPage.locator(".react-flow__connection")).toBeVisible();
+    await appPage.mouse.move(
+      handleBox.x + handleBox.width + 8,
+      handleBox.y + handleBox.height / 2 + 8
+    );
+    await expect(appPage.locator(".react-flow__connection-path")).toBeVisible();
     await appPage.mouse.move(drop.x, drop.y, { steps: 12 });
     await appPage.mouse.up();
     await expect(appPage.getByTestId("loop-editor-connection-picker")).toBeVisible();
@@ -1120,13 +1123,22 @@ test("CompozyOS migration E2E-004: loop run renders API runtime provenance witho
       provider: "acpmock",
       model: "frontend-model",
       reasoning: "high",
-      source: { provider: "default", model: "run", reasoning: "run" },
+      source: { provider: "default", model: "run", reasoning: "run", speed: "agent" },
+      speed: "normal",
+      speed_resolution: { requested: "normal", status: "applied" },
     },
     {
       provider: "acpmock",
       model: "docs-model",
       reasoning: "low",
-      source: { provider: "default", model: "frontmatter", reasoning: "default" },
+      source: {
+        provider: "default",
+        model: "frontmatter",
+        reasoning: "default",
+        speed: "agent",
+      },
+      speed: "normal",
+      speed_resolution: { requested: "normal", status: "applied" },
     },
   ]);
 

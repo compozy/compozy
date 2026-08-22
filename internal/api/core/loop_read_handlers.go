@@ -127,8 +127,8 @@ func (h *BaseHandlers) respondLoopRunReadError(c *gin.Context, runID string, err
 		})
 	case errors.Is(err, looppkg.ErrInvalidTimelineCursor), errors.Is(err, looppkg.ErrInvalidRosterCursor):
 		c.JSON(http.StatusBadRequest, contract.ErrorPayload{
-			Error: "invalid_cursor",
-			Code:  "invalid_cursor",
+			Error: loopInvalidCursor,
+			Code:  loopInvalidCursor,
 		})
 	case errors.As(err, &timelinePosition):
 		c.JSON(http.StatusBadRequest, contract.ErrorPayload{

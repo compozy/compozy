@@ -18,6 +18,7 @@ const (
 	BriefingToneNeedsYou BriefingTone = "needs_you"
 	BriefingToneDegraded BriefingTone = "degraded"
 	BriefingToneFailed   BriefingTone = "failed"
+	unknownValue                      = "unknown"
 )
 
 // Blocker describes one ordered condition preventing progress and its exact unblocker.
@@ -103,8 +104,8 @@ func ProjectBriefing(source *BriefingSource) Briefing {
 	now := source.Now.UTC()
 	result := Briefing{
 		RunID: source.Run.ID, Status: source.Run.Status, Tone: BriefingToneOK,
-		Blockers: []Blocker{}, Artifacts: append([]RunArtifact(nil), source.Artifacts...),
-		Progress: ProgressFromRoster(source.Roster, source.Run.Generation),
+		Blockers: []Blocker{}, Artifacts: append([]RunArtifact{}, source.Artifacts...),
+		Progress: ProgressFromRoster(source.Roster, currentBriefingGeneration(source)),
 		Usage:    usageFromRun(source.Run, now),
 	}
 	result.Blockers = briefingBlockers(source, now)
@@ -129,6 +130,14 @@ func ProjectBriefing(source *BriefingSource) Briefing {
 		result.Detail = progressDetail(result.Progress)
 	}
 	return result
+}
+
+func currentBriefingGeneration(source *BriefingSource) int {
+	generation := source.Run.Generation
+	for _, node := range source.Roster.Nodes {
+		generation = max(generation, node.Generation)
+	}
+	return generation
 }
 
 func ProgressFromRoster(roster RosterPage, generation int) StepProgress {
@@ -163,6 +172,7 @@ func briefingBlockers(source *BriefingSource, now time.Time) []Blocker {
 			WaitingSince: source.ApprovalWaitingSince.UTC(),
 			Unblocker: shellquote.Join(
 				"compozy", "loop", "approve", string(source.Run.ID),
+				"--workspace", string(source.Run.WorkspaceID),
 				"--gate", string(source.Run.ActiveGateID),
 			),
 		})
@@ -276,7 +286,7 @@ func terminalBriefing(result Briefing, source *BriefingSource) Briefing {
 		outcome := *source.Outcome
 		result.Outcome = &outcome
 	} else {
-		result.Outcome = &RunOutcome{Status: run.Status, Cause: "unknown"}
+		result.Outcome = &RunOutcome{Status: run.Status, Cause: unknownValue}
 	}
 	if run.Status == StatusCanceled && result.Outcome.ActorKind == "" {
 		result.Outcome.ActorKind = string(run.ControlActor.Kind)

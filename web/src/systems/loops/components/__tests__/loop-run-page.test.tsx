@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -28,6 +28,8 @@ const { makeBriefing, makeGeneration, makeRosterNode, makeTimelineEntry } =
 const { buildStoryBeats } = await import("../../lib/loop-run-story-beats");
 const { buildRunDag } = await import("../../lib/loop-run-dag-view");
 const { LoopRunDag } = await import("../run-page/inspect/loop-run-dag");
+const { LoopNodeStateChip } = await import("../run-page/loop-node-state-chip");
+const { LOOP_ROSTER_STATES, loopRosterStateChip } = await import("../../lib/loop-run-state-copy");
 const { LoopRunStory } = await import("../run-page/loop-run-story");
 const { LoopNodeRoster } = await import("../run-page/inspect/loop-node-roster");
 const { LoopRunArtifactList } = await import("../run-page/loop-run-artifact-list");
@@ -73,6 +75,20 @@ const detail = loopRunDetailByRunId.get("looprun_running")!;
 function run(overrides: Partial<LoopRunRecord> = {}): LoopRunRecord {
   return { ...detail.run, ...overrides };
 }
+
+describe("LoopNodeStateChip", () => {
+  it.each(LOOP_ROSTER_STATES)(
+    "Should expose the visible %s state as its accessible name",
+    state => {
+      const chip = loopRosterStateChip(state);
+      render(<LoopNodeStateChip chip={chip} />);
+
+      const stateChip = screen.getByTestId(`loop-state-chip-${state}`);
+      expect(stateChip).toHaveAccessibleName(chip.label);
+      expect(stateChip).toHaveTextContent(chip.label);
+    }
+  );
+});
 
 describe("LoopRunNeedsYouCard", () => {
   it("Should keep same-node requests from different generations distinct and retry context", () => {
@@ -997,6 +1013,26 @@ describe("LoopRunAboutRail", () => {
     expect(screen.getByTestId("loop-run-about-workspace")).toHaveTextContent("Home");
     expect(screen.getByTestId("loop-run-about-id")).toHaveTextContent(run().id);
   });
+
+  it("Should expose the last wake and open the daemon-selected best generation", async () => {
+    const onOpenGeneration = vi.fn();
+    render(
+      <LoopRunAboutRail
+        run={run({ best_generation: 1, best_score: 0.7 })}
+        inputRows={[]}
+        lastWakeAt="2026-08-19T18:44:00Z"
+        onOpenGeneration={onOpenGeneration}
+        startedBy="An API call"
+        workspaceLabel="Home"
+      />
+    );
+
+    expect(screen.getByTestId("loop-run-about-last-woke")).toHaveTextContent("Last woke");
+    const best = screen.getByRole("link", { name: "Best result · Gen 1 · 0.70" });
+    expect(best).toHaveAttribute("href", "#loop-generation-1");
+    await userEvent.click(best);
+    expect(onOpenGeneration).toHaveBeenCalledWith(1);
+  });
 });
 
 // The briefing strip points at the decision; it never carries it. That pointer
@@ -1497,6 +1533,7 @@ describe("LoopRunRegisters roster and generation lanes", () => {
     const nodes = [runningNode];
     render(
       <LoopRunRegisters
+        bestGeneration={2}
         generations={[generation]}
         graph={null}
         isLive
@@ -1542,6 +1579,44 @@ describe("LoopRunRegisters roster and generation lanes", () => {
     expect(screen.getByRole("columnheader", { name: /est\. cost/i })).toBeInTheDocument();
   });
 
+  it("Should render daemon-authorized actions on the owning roster row", async () => {
+    const nodes = [runningNode];
+    render(
+      <LoopRunRegisters
+        generations={[]}
+        graph={null}
+        isLive
+        isReconnecting={false}
+        nodeLifecycles={[]}
+        nodes={nodes}
+        nowMs={Date.parse("2026-08-19T18:50:00Z")}
+        onOpenChange={() => undefined}
+        onSelectionChange={() => undefined}
+        open
+        registers={projectLoopRunRegisters({
+          briefing: null,
+          nodes,
+          rollups: [],
+          timeline: [],
+          graph: null,
+        })}
+        renderNodeActions={node => (
+          <button data-testid={`row-actions-${node.nodeId}`} type="button">
+            Actions
+          </button>
+        )}
+        rollups={[]}
+        runStatus="running"
+        selection={null}
+      />
+    );
+    await userEvent.click(screen.getByTestId("loop-lane-nodes"));
+
+    expect(screen.getByTestId("loop-roster-row-2:implementar:0")).toContainElement(
+      screen.getByTestId("row-actions-implementar")
+    );
+  });
+
   it("Should give every round's row its own DOM identity", async () => {
     // The same step id exists once per round. A locator that names only the step
     // matches several rows at once, so a test asserting on "the retrying row"
@@ -1582,10 +1657,53 @@ describe("LoopRunRegisters roster and generation lanes", () => {
     await openLane("generations");
 
     const round = screen.getByTestId("loop-generation-2");
+    expect(round).toHaveAttribute("id", "loop-generation-2");
+    expect(within(round).getByText("Best", { exact: true })).toBeInTheDocument();
     expect(round).toHaveTextContent("the output did not match its schema");
     expect(round).not.toHaveTextContent("invalid_output");
     expect(screen.getByTestId("loop-generation-usage-2")).toHaveTextContent("14.8K · ~$0.07 est.");
     // A live run holding an unsettled step has not finished the round.
     expect(screen.getByTestId("loop-generation-progress-2")).toHaveTextContent("still running");
+  });
+
+  it("Should expose watch subscriptions and durable cursors inside Inspect", () => {
+    const nodes = [runningNode];
+    render(
+      <LoopRunRegisters
+        generations={[]}
+        graph={null}
+        isLive
+        isReconnecting={false}
+        nodeLifecycles={[]}
+        nodes={nodes}
+        nowMs={Date.parse("2026-08-19T18:50:00Z")}
+        onOpenChange={() => undefined}
+        onSelectionChange={() => undefined}
+        open
+        registers={projectLoopRunRegisters({
+          briefing: null,
+          nodes,
+          rollups: [],
+          timeline: [],
+          graph: null,
+        })}
+        rollups={[]}
+        runStatus="watching"
+        selection={null}
+        watchEvents={{
+          cursors: { loop_run_events: 17 },
+          last_wake_at: "2026-08-19T18:44:00Z",
+          subscriptions: [
+            { kind: "task.status_changed", filter: "event.payload.to_status == 'blocked'" },
+          ],
+        }}
+      />
+    );
+
+    expect(screen.getByTestId("loop-run-inspect-watch")).toHaveTextContent("task.status_changed");
+    expect(screen.getByTestId("loop-run-inspect-watch")).toHaveTextContent(
+      "event.payload.to_status == 'blocked'"
+    );
+    expect(screen.getByTestId("loop-run-inspect-cursors")).toHaveTextContent("loop_run_events17");
   });
 });

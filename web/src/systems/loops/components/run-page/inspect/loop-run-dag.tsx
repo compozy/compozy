@@ -137,11 +137,12 @@ function LoopDagCard({
       </span>
       {node.fanOut ? (
         <span
-          aria-label={node.fanOut.summary}
+          aria-label={`${node.fanOut.countLabel}. ${node.fanOut.summary}`}
           className="flex h-1 gap-0.5"
           data-testid={`loop-dag-fanout-${node.nodeId}`}
           role="img"
         >
+          <span className="sr-only">{node.fanOut.countLabel}</span>
           {withOccurrenceKeys(node.fanOut.segments, segment => segment).map(
             ({ item: segment, key }) => (
               <span

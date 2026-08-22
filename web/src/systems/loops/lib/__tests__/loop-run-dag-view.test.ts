@@ -299,6 +299,33 @@ describe("buildRunDag", () => {
     expect(fan.chip.tone).toBe("danger");
   });
 
+  it("Should keep a partially completed fan-out live between worker handoffs", () => {
+    const fanGraph: LoopGraph = {
+      nodes: [
+        graphNode("source", "transform", "action"),
+        graphNode("review", "fan-out", "control"),
+        graphNode("join", "collect", "control"),
+      ],
+      edges: [
+        { from: "source", to: "review" },
+        { from: "review", to: "join" },
+      ],
+    };
+    const model = buildRunDag({
+      graph: fanGraph,
+      nodes: [
+        node("source", "succeeded"),
+        node("review", "succeeded", { item_index: 0 }),
+        node("review", "queued", { item_index: 1 }),
+      ],
+      rollups: [{ generation: 1, node_id: "review", done: 1, total: 2, failed: 0 }],
+      round: 1,
+    });
+
+    expect(model.nodes.find(entry => entry.nodeId === "review")?.chip.state).toBe("running");
+    expect(model.columns[0].gutterState).toBe("live");
+  });
+
   it("Should keep the card for a fan-out that spreads one node across item slots", () => {
     // The runtime's ordinary fan-out: several roster rows carrying one node id,
     // told apart by item index, plus a rollup under that same id. The card is

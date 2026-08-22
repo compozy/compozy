@@ -33,6 +33,7 @@ func (m NodeRequeueMutation) Normalize() NodeRequeueMutation {
 type NodeRequeueResult struct {
 	Control     NodeControl
 	Coordinator task.Run
+	Workers     []task.Run
 }
 
 // NodeRequeueStore owns the atomic quarantine-clear and coordinator reservation.

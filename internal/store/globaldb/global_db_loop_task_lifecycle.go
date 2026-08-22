@@ -17,7 +17,6 @@ func writeCoordinatorGenerationSnapshotWithExecutor(
 	exec taskSQLExecutor,
 	snapshot taskpkg.GenerationSnapshot,
 	continuationSnapshot *taskpkg.GenerationSnapshot,
-	reservedTasks []taskpkg.CoordinatorTaskSpec,
 	finalizer taskpkg.GenerationStateFinalizer,
 	actor taskpkg.ActorContext,
 ) error {
@@ -29,7 +28,6 @@ func writeCoordinatorGenerationSnapshotWithExecutor(
 		exec,
 		snapshot,
 		continuationSnapshot,
-		reservedTasks,
 		actor,
 	)
 }
@@ -39,7 +37,6 @@ func parkQuarantinedLoopTasksWithExecutor(
 	exec taskSQLExecutor,
 	snapshot taskpkg.GenerationSnapshot,
 	continuationSnapshot *taskpkg.GenerationSnapshot,
-	reservedTasks []taskpkg.CoordinatorTaskSpec,
 	actor taskpkg.ActorContext,
 ) (err error) {
 	rows, err := exec.QueryContext(ctx, `SELECT outputs.node_id, outputs.item_index, controls.quarantined_at
@@ -78,7 +75,6 @@ func parkQuarantinedLoopTasksWithExecutor(
 		taskID, resolveErr := reservedQuarantinedLoopTaskID(
 			snapshot,
 			continuationSnapshot,
-			reservedTasks,
 			cell.nodeID,
 			cell.itemIndex,
 		)
@@ -103,7 +99,6 @@ func parkQuarantinedLoopTasksWithExecutor(
 func reservedQuarantinedLoopTaskID(
 	snapshot taskpkg.GenerationSnapshot,
 	continuationSnapshot *taskpkg.GenerationSnapshot,
-	reservedTasks []taskpkg.CoordinatorTaskSpec,
 	nodeID string,
 	itemIndex int,
 ) (string, error) {
@@ -120,22 +115,10 @@ func reservedQuarantinedLoopTaskID(
 	if hasContinuation {
 		return looppkg.NodeCellTaskID(runID, continuationGeneration, nodeID, itemIndex), nil
 	}
-	var resolved string
-	for _, task := range reservedTasks {
-		if task.TaskID != currentTaskID {
-			continue
-		}
-		resolved = task.TaskID
-	}
-	if resolved == "" {
-		return "", fmt.Errorf(
-			"%w: quarantined Loop cell %s/%d has no reserved continuation",
-			taskpkg.ErrValidation,
-			nodeID,
-			itemIndex,
-		)
-	}
-	return resolved, nil
+	// A pulse for an already-carried quarantined generation has no new
+	// reservation. Reuse its deterministic cell task; the parking boundary
+	// validates that the task exists and is either ready or already parked.
+	return currentTaskID, nil
 }
 
 func quarantinedLoopContinuationOutputs(
@@ -228,13 +211,8 @@ func (g *TaskRepo) ensureQuarantinedLoopContinuationTaskWithExecutor(
 	if err != nil {
 		return fmt.Errorf("store: get quarantined Loop source task %q: %w", currentTaskID, err)
 	}
-	if currentTask.Status != taskpkg.TaskStatusCompleted {
-		return fmt.Errorf(
-			"%w: quarantined Loop source task %q has status %q",
-			taskpkg.ErrInvalidStatusTransition,
-			currentTaskID,
-			currentTask.Status,
-		)
+	if err := g.validateQuarantinedLoopSourceTaskWithExecutor(ctx, exec, currentTask, output); err != nil {
+		return err
 	}
 	metadata, err := quarantinedLoopContinuationMetadata(
 		currentTask.Metadata,
@@ -268,6 +246,32 @@ func (g *TaskRepo) ensureQuarantinedLoopContinuationTaskWithExecutor(
 		parentTask,
 		origin,
 		now,
+	)
+}
+
+func (g *TaskRepo) validateQuarantinedLoopSourceTaskWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	currentTask taskpkg.Task,
+	output looppkg.GenerationOutput,
+) error {
+	if currentTask.Status == taskpkg.TaskStatusCompleted {
+		return nil
+	}
+	if currentTask.Status == taskpkg.TaskStatusReady && strings.TrimSpace(output.TaskRunID) != "" {
+		currentRun, err := g.getTaskRunWithExecutor(ctx, exec, output.TaskRunID)
+		if err != nil {
+			return fmt.Errorf("store: get quarantined Loop source run %q: %w", output.TaskRunID, err)
+		}
+		if currentRun.TaskID == currentTask.ID && currentRun.Status.Normalize() == taskpkg.TaskRunStatusFailed {
+			return nil
+		}
+	}
+	return fmt.Errorf(
+		"%w: quarantined Loop source task %q has status %q",
+		taskpkg.ErrInvalidStatusTransition,
+		currentTask.ID,
+		currentTask.Status,
 	)
 }
 
@@ -311,6 +315,9 @@ func parkQuarantinedLoopTaskWithExecutor(
 		return err
 	}
 	if record.NeedsAttention != nil && record.Status == taskpkg.TaskStatusNeedsAttention {
+		return nil
+	}
+	if record.NeedsAttention == nil && record.Status == taskpkg.TaskStatusCompleted {
 		return nil
 	}
 	if record.NeedsAttention != nil || record.Status != taskpkg.TaskStatusReady {

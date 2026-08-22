@@ -171,7 +171,7 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 		if err != nil {
 			t.Fatalf("needs-you human loop why error = %v stderr=%s", err, stderr)
 		}
-		assertNeedsYouWhyTranscript(t, needsYouTranscript, approvalRunID, "approval")
+		assertNeedsYouWhyTranscript(t, needsYouTranscript, approvalRunID, harness.WorkspaceID, "approval")
 		var briefing compozycontract.LoopBriefingResponse
 		if err := harness.CLI.RunJSON(
 			ctx,
@@ -576,7 +576,8 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 		conflictPath := loopReadRunPath(harness.WorkspaceID, second.ID) + "/timeline?view=all&cursor=" +
 			url.QueryEscape(firstPage.NextCursor)
 		status, body := loopReadRawGET(t, ctx, harness.HTTPClient, harness.HTTPURL(conflictPath))
-		if status != http.StatusConflict || body != "{\"error\":\"timeline_branch_changed\"}" {
+		if status != http.StatusConflict ||
+			body != "{\"error\":\"timeline_branch_changed\",\"code\":\"timeline_branch_changed\"}" {
 			t.Fatalf("timeline branch response = status %d body %q", status, body)
 		}
 	})
@@ -1241,12 +1242,14 @@ func waitForLoopRosterNodeState(
 	t.Helper()
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
+	var last []looppkg.RosterNode
 	for {
 		var roster compozycontract.LoopRunNodesResponse
 		path := loopReadRunPath(harness.WorkspaceID, runID) + "/nodes?state=all&limit=500"
 		if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &roster); err != nil {
 			t.Fatalf("read Loop roster while waiting for %s: %v", want, err)
 		}
+		last = roster.Nodes
 		for _, node := range roster.Nodes {
 			if node.NodeID == nodeID && node.State == want {
 				return
@@ -1254,7 +1257,7 @@ func waitForLoopRosterNodeState(
 		}
 		select {
 		case <-ctx.Done():
-			t.Fatalf("wait for Loop node %s state %s: %v", nodeID, want, ctx.Err())
+			t.Fatalf("wait for Loop node %s state %s: %v; last roster=%#v", nodeID, want, ctx.Err(), last)
 		case <-ticker.C:
 		}
 	}
@@ -1301,6 +1304,7 @@ func assertHealthyWhyTranscript(t testing.TB, raw string, runID string) {
 	t.Helper()
 	want := strings.Join([]string{
 		"RUNNING · round 1 — Running step prepare in round 1.",
+		"0 of 2 steps are complete in round 1.",
 		"Nothing needs you. 0 of 2 steps done.",
 		"Watch: compozy loop events " + runID + " --follow",
 	}, "\n")
@@ -1309,11 +1313,18 @@ func assertHealthyWhyTranscript(t testing.TB, raw string, runID string) {
 	}
 }
 
-func assertNeedsYouWhyTranscript(t testing.TB, raw string, runID string, gateID string) {
+func assertNeedsYouWhyTranscript(
+	t testing.TB,
+	raw string,
+	runID string,
+	workspaceID string,
+	gateID string,
+) {
 	t.Helper()
 	want := strings.Join([]string{
 		"NEEDS YOU · round 1 — This run needs attention: approval.",
-		"Unblock: compozy loop approve " + runID + " --gate " + gateID,
+		"1 of 2 steps are complete in round 1.",
+		"Unblock: compozy loop approve " + runID + " --workspace " + workspaceID + " --gate " + gateID,
 		"Watch: compozy loop events " + runID + " --follow",
 	}, "\n")
 	if strings.TrimSpace(raw) != want {
@@ -1324,8 +1335,10 @@ func assertNeedsYouWhyTranscript(t testing.TB, raw string, runID string, gateID 
 func assertTerminalWhyTranscript(t testing.TB, raw string) {
 	t.Helper()
 	lines := strings.Split(strings.TrimSpace(raw), "\n")
-	if len(lines) != 1 || !strings.HasPrefix(lines[0], "DONE · round 1 — Run finished: done.") {
-		t.Fatalf("terminal loop why transcript = %q, want one DONE verdict line", raw)
+	if len(lines) < 3 || !strings.HasPrefix(lines[0], "DONE · finished ") ||
+		!strings.Contains(lines[0], " after 1 round (") ||
+		!strings.HasPrefix(lines[1], "Spent ") || !strings.HasPrefix(lines[2], "Produced: ") {
+		t.Fatalf("terminal loop why transcript = %q, want terminal outcome, usage, and artifacts", raw)
 	}
 }
 
@@ -1346,20 +1359,20 @@ func assertSettledTaskListTranscript(t testing.TB, raw string) {
 func assertSettledLoopTaskList(t testing.TB, raw string, runID string) {
 	t.Helper()
 	var response struct {
-		Items []struct {
+		Tasks []struct {
 			Status string `json:"status"`
 			Loop   *struct {
 				RunID string `json:"run_id"`
 			} `json:"loop"`
-		} `json:"items"`
+		} `json:"tasks"`
 	}
 	if err := json.Unmarshal([]byte(raw), &response); err != nil {
 		t.Fatalf("decode settled task list error = %v; body=%s", err, raw)
 	}
-	if len(response.Items) == 0 {
+	if len(response.Tasks) == 0 {
 		t.Fatal("settled task list is empty")
 	}
-	for _, item := range response.Items {
+	for _, item := range response.Tasks {
 		if item.Loop == nil || item.Loop.RunID != runID {
 			t.Fatalf("settled task provenance = %#v, want run %q", item.Loop, runID)
 		}

@@ -748,7 +748,9 @@ SELECT output.generation, output.node_id, output.item_index, output.output_id, o
        output.status, output.output_ref,
        output.task_run_id, output.child_loop_run_id, output.resolved_runtime_json,
        output.attempt, output.next_attempt_at, output.first_scheduled_at, output.epoch,
-       COALESCE(run_link.session_id, '') AS session_id
+	   COALESCE(run_link.session_id, '') AS session_id,
+	   COALESCE(run_link.status, '') AS task_run_status,
+	   COALESCE(run_link.tokens_used, 0) AS task_run_tokens_used
 FROM loop_generation_outputs AS output
 JOIN loop_runs AS run ON run.id = output.loop_run_id
 LEFT JOIN task_runs AS run_link ON run_link.id = output.task_run_id
@@ -778,6 +780,8 @@ type ListLoopRosterOutputsRow struct {
 	FirstScheduledAt    sql.NullTime   `json:"first_scheduled_at"`
 	Epoch               int64          `json:"epoch"`
 	SessionID           string         `json:"session_id"`
+	TaskRunStatus       string         `json:"task_run_status"`
+	TaskRunTokensUsed   int64          `json:"task_run_tokens_used"`
 }
 
 func (q *Queries) ListLoopRosterOutputs(ctx context.Context, arg ListLoopRosterOutputsParams) ([]ListLoopRosterOutputsRow, error) {
@@ -805,6 +809,8 @@ func (q *Queries) ListLoopRosterOutputs(ctx context.Context, arg ListLoopRosterO
 			&i.FirstScheduledAt,
 			&i.Epoch,
 			&i.SessionID,
+			&i.TaskRunStatus,
+			&i.TaskRunTokensUsed,
 		); err != nil {
 			return nil, err
 		}

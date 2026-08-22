@@ -14,6 +14,7 @@ type coordinatorActionRunMetadata struct {
 	ItemIndex           int                    `json:"item_index"`
 	Attempt             int                    `json:"attempt"`
 	Epoch               int64                  `json:"epoch"`
+	SessionHandle       string                 `json:"session_handle,omitempty"`
 	GoalSegmentEpoch    int64                  `json:"goal_segment_epoch,omitempty"`
 	ContinuationKind    string                 `json:"continuation_kind,omitempty"`
 	ResumeFromTaskRunID string                 `json:"resume_from_task_run_id,omitempty"`
@@ -32,6 +33,7 @@ func parseCoordinatorActionRunMetadata(raw json.RawMessage) (coordinatorActionRu
 	meta.ContinuationKind = strings.TrimSpace(meta.ContinuationKind)
 	meta.ResumeFromTaskRunID = strings.TrimSpace(meta.ResumeFromTaskRunID)
 	meta.ResumeFromSessionID = strings.TrimSpace(meta.ResumeFromSessionID)
+	meta.SessionHandle = strings.TrimSpace(meta.SessionHandle)
 	meta.ReviewedParamsRef = strings.TrimSpace(meta.ReviewedParamsRef)
 	if meta.ReviewedParamsRef != "" && !OutputRefLooksContentAddressed(meta.ReviewedParamsRef) {
 		return coordinatorActionRunMetadata{}, fmt.Errorf("%w: reviewed params ref is invalid", ErrValidation)

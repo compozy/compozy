@@ -18,7 +18,12 @@ import {
   selectNodePanel,
 } from "../../lib/loop-run-registers-view";
 import type { LoopGraph } from "../../lib/loop-graph";
-import type { LoopFanoutRollup, LoopRosterNode } from "../../types";
+import type {
+  LoopFanoutRollup,
+  LoopRosterNode,
+  LoopRunGeneration,
+  LoopWatchEventsState,
+} from "../../types";
 import { LoopNodePanel } from "./inspect/loop-node-panel";
 import { LoopNodeRoster } from "./inspect/loop-node-roster";
 import { LoopRunDag } from "./inspect/loop-run-dag";
@@ -27,8 +32,8 @@ import { LoopRunInspectRegister } from "./inspect/loop-run-inspect-register";
 import { LoopGenerationHistory } from "./inspect/loop-generation-history";
 import { LoopRunEventsLane } from "./inspect/loop-run-events-lane";
 import type { LoopRunEventsRead } from "./inspect/loop-run-events-lane";
+import { LoopRunWatch } from "./inspect/loop-run-watch";
 import type { LoopRunRosterRead } from "./loop-run-page-body";
-import type { LoopRunGeneration } from "../../types";
 
 interface LoopRunRegistersProps {
   registers: LoopRunRegistersModel;
@@ -36,6 +41,7 @@ interface LoopRunRegistersProps {
   rollups: readonly LoopFanoutRollup[];
   graph: LoopGraph | null;
   generations: readonly LoopRunGeneration[];
+  bestGeneration?: number | null;
   /** The run's own status; a terminal run with unsettled steps was interrupted. */
   runStatus?: string;
   /** The clock in-progress rows measure against; stories pin it for capture. */
@@ -64,6 +70,9 @@ interface LoopRunRegistersProps {
   renderNodeActions?: (node: LoopNodeLifecycle) => ReactNode;
   onCompareGeneration?: (generation: number) => void;
   onForkGeneration?: (generation: number) => void;
+  /** Controlled lane when a sibling surface, such as About, can open Inspect. */
+  lane?: LoopInspectLane;
+  onLaneChange?: (lane: LoopInspectLane) => void;
   /**
    * Whether the roster read has answered. Without it the lanes cannot tell a run
    * that reached no steps from one whose steps have not been read yet.
@@ -77,6 +86,7 @@ interface LoopRunRegistersProps {
    * rather than presenting a filtered subset as the whole event log.
    */
   events?: Omit<LoopRunEventsRead, "view">;
+  watchEvents?: LoopWatchEventsState | null;
 }
 
 /**
@@ -94,6 +104,7 @@ export function LoopRunRegisters({
   rollups,
   graph,
   generations,
+  bestGeneration,
   runStatus,
   nowMs,
   isLive,
@@ -109,10 +120,18 @@ export function LoopRunRegisters({
   renderNodeActions,
   onCompareGeneration,
   onForkGeneration,
+  lane: controlledLane,
+  onLaneChange,
   rosterRead,
   events,
+  watchEvents,
 }: LoopRunRegistersProps) {
-  const [lane, setLane] = useState<LoopInspectLane>("graph");
+  const [localLane, setLocalLane] = useState<LoopInspectLane>("graph");
+  const lane = controlledLane ?? localLane;
+  const changeLane = (nextLane: LoopInspectLane) => {
+    if (controlledLane === undefined) setLocalLane(nextLane);
+    onLaneChange?.(nextLane);
+  };
   // `null` means "whatever round the run is on"; `"all"` is an explicit choice.
   // Following the run beats defaulting to every round, which makes two rows of
   // the same step indistinguishable until the reader asks for that.
@@ -132,7 +151,12 @@ export function LoopRunRegisters({
     nowMs,
     isComplete: registers.reach.isComplete,
   });
-  const generationRows = buildGenerationHistory({ generations, nodes, runStatus });
+  const generationRows = buildGenerationHistory({
+    generations,
+    nodes,
+    runStatus,
+    bestGeneration,
+  });
   const reachNote = loopRosterReachNote(registers.reach);
 
   const selectRosterRow = (row: LoopRosterRow) =>
@@ -141,6 +165,16 @@ export function LoopRunRegisters({
       itemIndex: row.itemIndex,
       generation: row.generation,
     });
+  const renderRosterActions = renderNodeActions
+    ? (row: LoopRosterRow) => {
+        const target = resolveNodeVerbTarget(
+          { nodeId: row.nodeId, itemIndex: row.itemIndex, generation: row.generation },
+          nodeLifecycles,
+          nodes
+        );
+        return target ? renderNodeActions(target) : null;
+      }
+    : undefined;
 
   const focusNote =
     lane === "graph" && registers.dag.focusReason ? registers.dag.focusReason : null;
@@ -204,7 +238,7 @@ export function LoopRunRegisters({
       lane={lane}
       loadedNodeCount={registers.reach.loadedCount}
       reach={registers.reach}
-      onLaneChange={setLane}
+      onLaneChange={changeLane}
       onOpenChange={onOpenChange}
       open={open}
     >
@@ -220,6 +254,7 @@ export function LoopRunRegisters({
         <LoopNodeRoster
           onRoundChange={next => setRoundChoice(next === null ? "all" : next)}
           onSelect={selectRosterRow}
+          renderActions={renderRosterActions}
           read={rosterRead}
           round={round}
           roster={roster}
@@ -265,6 +300,7 @@ export function LoopRunRegisters({
           />
         </div>
       ) : null}
+      {watchEvents ? <LoopRunWatch watchEvents={watchEvents} /> : null}
     </LoopRunInspectRegister>
   );
 }

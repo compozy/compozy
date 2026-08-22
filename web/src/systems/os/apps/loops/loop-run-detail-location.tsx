@@ -211,6 +211,7 @@ function LoopRunDetail({
         startedBy={page.startedBy}
         workspaceLabel={workspaceName ?? page.effectiveRun.workspace_id}
         versionLabel={page.versionLabel}
+        watchEvents={page.watchEvents}
         inspect={{ open: dialogs.inspectOpen, onOpenChange: dialogs.setInspectOpen }}
         pendingAction={page.pendingAction}
         nodeLifecycles={page.nodeLifecycles}

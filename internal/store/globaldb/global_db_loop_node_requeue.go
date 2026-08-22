@@ -339,32 +339,17 @@ func (g *LoopRepo) reserveNodeRequeue(
 		mutation.NodeID,
 		prepared.control.revision+1,
 	)
-	coordinatorTaskID := loopCoordinatorTaskID(prepared.run.ID)
-	openRunID, err := g.tasks.findOpenRunIDForQueuedRunReservation(ctx, exec, coordinatorTaskID, "")
-	if err != nil {
-		return looppkg.NodeRequeueResult{}, err
-	}
-	coordinator, err := g.reserveOrReuseOpenLoopCoordinatorRunWithExecutor(
+	coordinator, retainedContinuation, err := g.reserveNodeRequeueCoordinatorWithExecutor(
 		ctx,
 		exec,
-		prepared.run,
-		mutation.Actor.Origin,
-		mutation.RequestedAt,
+		mutation,
+		prepared,
 		idempotencyKey,
 	)
 	if err != nil {
 		return looppkg.NodeRequeueResult{}, err
 	}
-	if openRunID != "" {
-		expectedRunID := loopCoordinatorRunID(prepared.run.ID, prepared.nextGeneration)
-		if coordinator.ID != expectedRunID {
-			return looppkg.NodeRequeueResult{}, fmt.Errorf(
-				"%w: open Loop coordinator %q is not requeue generation %d",
-				looppkg.ErrTransitionConflict,
-				coordinator.ID,
-				prepared.nextGeneration,
-			)
-		}
+	if retainedContinuation {
 		if err := updateLoopGenerationWithExecutor(
 			ctx,
 			exec,
@@ -373,15 +358,25 @@ func (g *LoopRepo) reserveNodeRequeue(
 		); err != nil {
 			return looppkg.NodeRequeueResult{}, err
 		}
-		if err := g.reserveRequeuedNodeContinuationRunsWithExecutor(
+		workers, err := g.reserveRequeuedNodeContinuationRunsWithExecutor(
 			ctx,
 			exec,
 			mutation,
 			prepared.nextGeneration,
 			coordinator,
-		); err != nil {
+		)
+		if err != nil {
 			return looppkg.NodeRequeueResult{}, err
 		}
+		return looppkg.NodeRequeueResult{
+			Control: looppkg.NodeControl{
+				LoopRunID: prepared.run.ID, NodeID: mutation.NodeID, Quarantined: false,
+				QuarantineEntry: prepared.entry, Revision: prepared.control.revision + 1,
+				UpdatedAt: mutation.RequestedAt.UTC(),
+			},
+			Coordinator: coordinator,
+			Workers:     workers,
+		}, nil
 	}
 	return looppkg.NodeRequeueResult{
 		Control: looppkg.NodeControl{

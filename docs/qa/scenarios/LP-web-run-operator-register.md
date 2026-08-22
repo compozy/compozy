@@ -6,13 +6,13 @@ persona: Dora
 journey: J-diagnose-loop-run-operator
 expected: "Inspect" is a single in-column disclosure — never a sheet and never a route change — holding four lanes over one read model: Graph, Nodes, Generations, Events. Graph is the default lane and renders the authored topology with per-node icon+text state chips, fan-out drawn as one entity with a rollup and one lane per worker, edge liveness toward the running node, and `pending` (reachable, dashed outline) visually and semantically distinct from `not_taken` (route evidence, neutral-dim). The lane auto-centres on whatever needs a human and says so in its foot. A node opens a panel carrying every recorded attempt (including a single one), next-retry, error class, cancellation cause and actor, plus Open session / Open record / View child run — all valid after the run ends, with a session retention has removed degrading to "Session no longer available" and a never-taken node offering no links at all. Nodes lists every node × round including healthy ones, follows the run's current round by default and shows a Round column under "All rounds"; a step that started and has not ended reads "in progress" with its elapsed clock and never "not started", and usage reads tokens beside a cost the column header labels an estimate. Generations shows per-round outcomes in plain words with no raw verdict enum, the round's own tokens and labelled estimated cost, a truthful still-running / partly-settled / interrupted state, and scores only where the loop defines them; Compare and Fork stay on every round. When the run holds more steps than one read returns, every roster-derived surface says so and offers both "Read the rest" and the exact `compozy loop nodes --run <run id> --all`. Under prefers-reduced-motion the edge pulse is unmounted, not paused.
 entry_points: web /loop-runs/:id Inspect; GET /loop-runs/:id/nodes; GET /loop-runs/:id/timeline
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260719-autonomous-progress-unobservable
 fix_status: pending
-retest_status:
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-task07-final-web-20260822-131622-550786-lab/qa-artifacts/qa/task07-scenario-walks.md; .compozy/tasks/loop-task-legibility/evidence/visual/task_05/VC-17; .compozy/tasks/loop-task-legibility/evidence/visual/task_05/VC-25
+last_report: docs/qa/reports/2026-08-21-loop-task-legibility.md
 overlaps: LP-web-detail-inventory-contract;LP-web-timeline-graph-rows;LP-quarantine-diagnose-requeue;LP-web-attention-loop-rows
 ---
 

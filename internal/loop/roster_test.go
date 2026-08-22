@@ -35,6 +35,52 @@ func TestRosterContract(t *testing.T) {
 			t.Fatalf("running links/history = %#v", page.Nodes[1])
 		}
 	})
+	t.Run("Should project a live task run as running before the output refreshes", func(t *testing.T) {
+		t.Parallel()
+		source := rosterFixture(time.Now().UTC())
+		source.Outputs[1].Status = generationOutputEnqueued
+		source.Outputs[1].TaskRunStatus = task.TaskRunStatusRunning
+		source.Attempts = nil
+
+		page, err := ProjectRoster(&source, RosterQuery{State: NodeStateFilterAll})
+		if err != nil {
+			t.Fatalf("ProjectRoster() error = %v", err)
+		}
+		live := rosterNodesByIdentity(page.Nodes)[rosterKey(1, "live", 0)]
+		if live.State != NodeStateRunning {
+			t.Fatalf("live-task state = %q, want %q", live.State, NodeStateRunning)
+		}
+	})
+	t.Run("Should keep a dispatched node live until its completed task run reaches the output", func(t *testing.T) {
+		t.Parallel()
+		source := rosterFixture(time.Now().UTC())
+		source.Outputs[1].Status = generationOutputEnqueued
+		source.Outputs[1].TaskRunStatus = task.TaskRunStatusCompleted
+		source.Attempts = nil
+
+		page, err := ProjectRoster(&source, RosterQuery{State: NodeStateFilterAll})
+		if err != nil {
+			t.Fatalf("ProjectRoster() error = %v", err)
+		}
+		dispatched := rosterNodesByIdentity(page.Nodes)[rosterKey(1, "live", 0)]
+		if dispatched.State != NodeStateRunning {
+			t.Fatalf("dispatched-task state = %q, want %q", dispatched.State, NodeStateRunning)
+		}
+	})
+	t.Run("Should project retained task-run usage on the owning row", func(t *testing.T) {
+		t.Parallel()
+		source := rosterFixture(time.Now().UTC())
+		source.Outputs[0].TaskRunTokensUsed = 22
+
+		page, err := ProjectRoster(&source, RosterQuery{State: NodeStateFilterAll})
+		if err != nil {
+			t.Fatalf("ProjectRoster() error = %v", err)
+		}
+		row := rosterNodesByIdentity(page.Nodes)[rosterKey(1, "done", 0)]
+		if row.Usage == nil || row.Usage.Tokens != 22 {
+			t.Fatalf("row usage = %#v, want 22 retained tokens", row.Usage)
+		}
+	})
 	t.Run("Should satisfy UT-014 with a total persisted-state mapping", func(t *testing.T) {
 		t.Parallel()
 		cases := map[string]NodeState{
@@ -112,7 +158,10 @@ func TestRosterContract(t *testing.T) {
 		fanout := RosterSource{
 			Run: Run{ID: "run-fanout", Generation: 1},
 			Graph: dsl.Graph{Nodes: []dsl.Node{
-				{ID: "route", Class: dsl.NodeClassControl, Kind: string(dsl.ControlRoute), Routes: []dsl.RouteSpec{{To: "a"}, {To: "b"}}},
+				{
+					ID: "route", Class: dsl.NodeClassControl, Kind: string(dsl.ControlRoute),
+					Routes: []dsl.RouteSpec{{To: "a"}, {To: "b"}},
+				},
 				{ID: "a", Class: dsl.NodeClassAction},
 				{ID: "b", Class: dsl.NodeClassAction},
 			}},
@@ -163,6 +212,38 @@ func TestRosterContract(t *testing.T) {
 		if len(page.Nodes) != 10 || page.NextCursor == "" || len(page.FanoutRollups) != 1 ||
 			page.FanoutRollups[0].Total != 100 {
 			t.Fatalf("page = %#v", page)
+		}
+	})
+	t.Run("Should name a fanout rollup after its authored container", func(t *testing.T) {
+		t.Parallel()
+		source := RosterSource{
+			Run: Run{ID: "r", LoopName: "fan", Generation: 1},
+			Graph: dsl.Graph{
+				Nodes: []dsl.Node{
+					{ID: "source", Class: dsl.NodeClassAction},
+					{ID: "revisores", Class: dsl.NodeClassControl, Kind: string(dsl.ControlFanOut)},
+					{ID: "revisar", Class: dsl.NodeClassAction},
+					{ID: "join", Class: dsl.NodeClassControl},
+				},
+				Edges: []dsl.Edge{
+					{From: "source", To: "revisores"},
+					{From: "revisores", To: "revisar"},
+					{From: "revisar", To: "join"},
+				},
+			},
+		}
+		for itemIndex := range 3 {
+			source.Outputs = append(source.Outputs, GenerationOutput{
+				Generation: 1, NodeID: "revisar", ItemIndex: itemIndex, Status: generationOutputSucceeded,
+			})
+		}
+
+		page, err := ProjectRoster(&source, RosterQuery{})
+		if err != nil {
+			t.Fatalf("ProjectRoster() error = %v", err)
+		}
+		if len(page.FanoutRollups) != 1 || page.FanoutRollups[0].NodeID != "revisores" {
+			t.Fatalf("fanout rollups = %#v, want authored container revisores", page.FanoutRollups)
 		}
 	})
 	t.Run("Should satisfy UT-018 with distinct strategy and operator cancellation", func(t *testing.T) {

@@ -9,6 +9,7 @@ import (
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 // ListLoopRosterOutputs returns every generation output for one workspace-owned run.
@@ -41,6 +42,8 @@ func (g *LoopRepo) ListLoopRosterOutputs(
 		if mapErr != nil {
 			return nil, mapErr
 		}
+		output.TaskRunStatus = taskpkg.ParseRunStatus(row.TaskRunStatus).Normalize()
+		output.TaskRunTokensUsed = row.TaskRunTokensUsed
 		outputs = append(outputs, output)
 	}
 	return outputs, nil

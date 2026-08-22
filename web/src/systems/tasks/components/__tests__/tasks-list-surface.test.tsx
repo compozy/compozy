@@ -53,6 +53,7 @@ interface RenderOptions {
   statusCounts?: ReturnType<typeof countTasksByStatus>;
   recordsFilter?: TaskRecordsFilter;
   onShowWorkItems?: () => void;
+  onOpenLoopRun?: () => void;
 }
 
 function renderSurface(options: RenderOptions = {}) {
@@ -65,6 +66,7 @@ function renderSurface(options: RenderOptions = {}) {
         isLoadingMore={options.isLoadingMore}
         onLoadMore={options.onLoadMore}
         onRetryLoad={options.onRetryLoad}
+        onOpenLoopRun={options.onOpenLoopRun}
         searchQuery={options.searchQuery ?? ""}
         filterState={options.statusFilter ? "active" : "inactive"}
         onShowWorkItems={options.onShowWorkItems}
@@ -127,6 +129,29 @@ describe("TasksListSurface", () => {
     expect(link).not.toBeNull();
     expect(link).toHaveAttribute("href", "/tasks/$id");
     expect(link).toHaveAttribute("data-params", JSON.stringify({ id: "task_777" }));
+  });
+
+  it("Should reset the ephemeral reveal before opening a Loop run", () => {
+    const onOpenLoopRun = vi.fn();
+    renderSurface({
+      onOpenLoopRun,
+      recordsFilter: "loop",
+      tasks: [
+        buildTask({
+          id: "loop.looprun-001.g1.node.review.0",
+          loop: {
+            generation: 1,
+            loop_name: "review-loop",
+            node_id: "review",
+            role: "cell",
+            run_id: "looprun-001",
+          },
+        }),
+      ],
+    });
+
+    fireEvent.click(screen.getByRole("link", { name: /Open run for/ }));
+    expect(onOpenLoopRun).toHaveBeenCalledTimes(1);
   });
 
   it("Should render search and forward list query changes", () => {

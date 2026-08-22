@@ -180,10 +180,10 @@ Use the workspace inventories to find durable work before acting:
 
 `compozy loop nodes` reads in two modes, and `--run` selects which one:
 
-| Mode                | Command                                     | `--state` accepts                                                                                             | Page size            |
-| ------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------- |
-| Workspace inventory | `compozy loop nodes --state <state>`        | `waiting`, `quarantined`, `attention`, `retrying`                                                             | 50 default, 200 max  |
-| Run roster          | `compozy loop nodes --run <run id> [--all]` | `all`, `running`, `queued`, `waiting`, `retrying`, `paused`, `quarantined`, `succeeded`, `failed`, `canceled`, `not_taken` | 50 default, 500 max  |
+| Mode                | Command                                     | `--state` accepts                                                                                                          | Page size           |
+| ------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| Workspace inventory | `compozy loop nodes --state <state>`        | `waiting`, `quarantined`, `attention`, `retrying`                                                                          | 50 default, 200 max |
+| Run roster          | `compozy loop nodes --run <run id> [--all]` | `all`, `running`, `queued`, `waiting`, `retrying`, `paused`, `quarantined`, `succeeded`, `failed`, `canceled`, `not_taken` | 50 default, 500 max |
 
 The inventory is workspace-scoped and requires `--state`, because it tracks exception states only —
 `--state running` is valid only in roster mode. Narrow the inventory with `--loop` or `--run-id`.

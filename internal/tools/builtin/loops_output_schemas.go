@@ -113,7 +113,8 @@ const loopRunsOutputSchema = `{
 			},
 			"additionalProperties":false
 		},
-		"next_cursor":{"type":"string","description":"Opaque continuation cursor for the next page; omitted when no further page exists."}
+		"next_cursor":{"type":"string","description":"Opaque continuation cursor for the next page; ` +
+	`omitted when no further page exists."}
 	},
 	"additionalProperties":false
 }`

@@ -171,6 +171,7 @@ func loopAPIServiceOptions(
 		looppkg.WithDefaultsResolver(newLoopDefaultsResolver(homePaths, state.workspaceResolver)),
 		looppkg.WithInputDefaultsResolver(newLoopInputDefaultsResolver(homePaths, state.workspaceResolver)),
 		looppkg.WithGoalRunActivator(loopGoalRunActivator{state: state}),
+		looppkg.WithWorkerRunActivator(loopWorkerRunActivator{state: state}),
 		looppkg.WithCoordinatorRunActivator(loopCoordinatorRunActivator{state: state}),
 		looppkg.WithRuntimeCatalog(runtimeCatalog),
 		looppkg.WithInputEntityCatalog(daemonLoopInputEntityCatalog{state: state}),

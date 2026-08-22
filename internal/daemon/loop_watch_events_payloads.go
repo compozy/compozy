@@ -23,6 +23,7 @@ const (
 	watchEventsPayloadDirectionKey                    = "direction"
 	watchEventsPayloadDurationMSKey                   = "duration_ms"
 	watchEventsPayloadErrorKey                        = "error"
+	watchEventsPayloadGenerationKey                   = "generation"
 	watchEventsPayloadKindKey                         = "kind"
 	watchEventsPayloadMessageIDKey                    = "message_id"
 	watchEventsPayloadNodeIDKey                       = "node_id"
@@ -326,14 +327,14 @@ func watchEventsLoopNodeTerminalEvent(
 		SessionID:   strings.TrimSpace(payload.SessionID),
 		Channel:     watchEventsParticipationChannel(payload.ResolvedNetworkParticipation),
 		Payload: map[string]any{
-			watchEventsPayloadNodeIDKey:  strings.TrimSpace(payload.NodeID),
-			"generation":                 payload.Generation,
-			coordinatorRuntimeTaskIDKey:  strings.TrimSpace(payload.TaskID),
-			"task_run_id":                strings.TrimSpace(payload.RunID),
-			daemonStatusField:            strings.TrimSpace(payload.TaskStatus),
-			"run_status":                 strings.TrimSpace(payload.RunStatus),
-			watchEventsPayloadErrorKey:   strings.TrimSpace(payload.Error),
-			watchEventsPayloadDetailsKey: watchEventsRawJSONValue(payload.Details),
+			watchEventsPayloadNodeIDKey:     strings.TrimSpace(payload.NodeID),
+			watchEventsPayloadGenerationKey: payload.Generation,
+			coordinatorRuntimeTaskIDKey:     strings.TrimSpace(payload.TaskID),
+			"task_run_id":                   strings.TrimSpace(payload.RunID),
+			daemonStatusField:               strings.TrimSpace(payload.TaskStatus),
+			"run_status":                    strings.TrimSpace(payload.RunStatus),
+			watchEventsPayloadErrorKey:      strings.TrimSpace(payload.Error),
+			watchEventsPayloadDetailsKey:    watchEventsRawJSONValue(payload.Details),
 		},
 		LedgerKind: watchEventsLoopNodeLedgerKind(payload),
 	}

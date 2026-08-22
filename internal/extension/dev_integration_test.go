@@ -538,163 +538,166 @@ func TestManagerDevelopmentLifecycle(t *testing.T) {
 		}
 	})
 
-	t.Run("Should retain the active generation and palette projection after a failed reload [UT-063,IT-018]", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should retain the active generation and palette projection after a failed reload [UT-063,IT-018]",
+		func(t *testing.T) {
+			t.Parallel()
 
-		env := newRegistryTestEnv(t)
-		workspace := newDevTestWorkspace(t, "workspace-last-good")
-		origin := filepath.Join(workspace.RootDir, "resilient-extension")
-		goodHash := writeDevTestGenerationFiles(t, origin, map[string]string{
-			manifestJSONFileName: extensionToolPaletteManifestJSON(
-				"resilient",
-				helperCommand(t),
-				helperArgs(),
-				helperEnv("tool_call_generation_marker", "first"),
-				true,
-				"First search",
-			),
-		})
-		badHash := writeDevTestGenerationFiles(t, origin, map[string]string{
-			manifestJSONFileName: extensionToolPaletteManifestJSON(
-				"resilient",
-				"./missing-extension-binary",
-				nil,
-				nil,
-				true,
-				"Broken search",
-			),
-		})
-		secondHash := writeDevTestGenerationFiles(t, origin, map[string]string{
-			manifestJSONFileName: extensionToolPaletteManifestJSON(
-				"resilient",
-				helperCommand(t),
-				helperArgs(),
-				helperEnv("tool_call_generation_marker", "second"),
-				true,
-				"Second search",
-			),
-		})
-		sourceSessions := &recordingSourceSessionManager{}
-		checker := &CapabilityChecker{}
-		manager := NewManager(
-			env.registry,
-			WithWorkspaceResolver(newHostAPIFakeWorkspaceResolver(workspace)),
-			WithSourceSessionManager(sourceSessions),
-			WithCapabilityChecker(checker),
-		)
-		startDevTestManager(t, manager)
-		if _, err := manager.LinkDevelopmentFromOrigin(
-			testutil.Context(t), workspace.WorkspaceID, origin, goodHash,
-		); err != nil {
-			t.Fatalf("LinkDevelopmentFromOrigin() error = %v", err)
-		}
-		assertCmdPaletteTitle(t, manager, workspace.WorkspaceID, "First search")
+			env := newRegistryTestEnv(t)
+			workspace := newDevTestWorkspace(t, "workspace-last-good")
+			origin := filepath.Join(workspace.RootDir, "resilient-extension")
+			goodHash := writeDevTestGenerationFiles(t, origin, map[string]string{
+				manifestJSONFileName: extensionToolPaletteManifestJSON(
+					"resilient",
+					helperCommand(t),
+					helperArgs(),
+					helperEnv("tool_call_generation_marker", "first"),
+					true,
+					"First search",
+				),
+			})
+			badHash := writeDevTestGenerationFiles(t, origin, map[string]string{
+				manifestJSONFileName: extensionToolPaletteManifestJSON(
+					"resilient",
+					"./missing-extension-binary",
+					nil,
+					nil,
+					true,
+					"Broken search",
+				),
+			})
+			secondHash := writeDevTestGenerationFiles(t, origin, map[string]string{
+				manifestJSONFileName: extensionToolPaletteManifestJSON(
+					"resilient",
+					helperCommand(t),
+					helperArgs(),
+					helperEnv("tool_call_generation_marker", "second"),
+					true,
+					"Second search",
+				),
+			})
+			sourceSessions := &recordingSourceSessionManager{}
+			checker := &CapabilityChecker{}
+			manager := NewManager(
+				env.registry,
+				WithWorkspaceResolver(newHostAPIFakeWorkspaceResolver(workspace)),
+				WithSourceSessionManager(sourceSessions),
+				WithCapabilityChecker(checker),
+			)
+			startDevTestManager(t, manager)
+			if _, err := manager.LinkDevelopmentFromOrigin(
+				testutil.Context(t), workspace.WorkspaceID, origin, goodHash,
+			); err != nil {
+				t.Fatalf("LinkDevelopmentFromOrigin() error = %v", err)
+			}
+			assertCmdPaletteTitle(t, manager, workspace.WorkspaceID, "First search")
 
-		key := InstanceKey{Name: "resilient", WorkspaceID: workspace.WorkspaceID}
-		manager.mu.RLock()
-		initial := manager.instanceLocked(key)
-		if initial == nil {
+			key := InstanceKey{Name: "resilient", WorkspaceID: workspace.WorkspaceID}
+			manager.mu.RLock()
+			initial := manager.instanceLocked(key)
+			if initial == nil {
+				manager.mu.RUnlock()
+				t.Fatal("initial development extension = nil")
+			}
+			initialProcess := initial.process
+			initialGrantID := initial.capabilityGrantID
+			initialNonce := initial.sessionNonce
 			manager.mu.RUnlock()
-			t.Fatal("initial development extension = nil")
-		}
-		initialProcess := initial.process
-		initialGrantID := initial.capabilityGrantID
-		initialNonce := initial.sessionNonce
-		manager.mu.RUnlock()
-		if initialProcess == nil || initialGrantID == "" || initialNonce == "" {
-			t.Fatalf(
-				"initial generation authority = process %v, grant %q, nonce %q; want all set",
-				initialProcess,
-				initialGrantID,
-				initialNonce,
-			)
-		}
-		if _, err := manager.ReloadExtension(testutil.Context(t), key, badHash); err == nil {
-			t.Fatal("ReloadExtension(bad generation) error = nil, want activation failure")
-		}
-		current, err := manager.GetForInstance(key)
-		if err != nil {
-			t.Fatalf("GetForInstance() error = %v", err)
-		}
-		if current.Status.GenerationHash != goodHash || current.Status.LastGoodGeneration != goodHash {
-			t.Fatalf("current status = %#v, want last-good generation %q", current.Status, goodHash)
-		}
-		if current.Status.FailureCode != extensionFailureActivationFailed ||
-			!strings.Contains(current.Status.LastError, extensionFailureActivationFailed) {
-			t.Fatalf("current failure = %#v, want honest activation failure", current.Status)
-		}
-		assertCmdPaletteTitle(t, manager, workspace.WorkspaceID, "First search")
-		link, err := env.registry.GetDevLink(key.Name, key.WorkspaceID)
-		if err != nil {
-			t.Fatalf("GetDevLink() error = %v", err)
-		}
-		if link.BundleGeneration != goodHash {
-			t.Fatalf("persisted generation = %q, want %q", link.BundleGeneration, goodHash)
-		}
-		manager.mu.RLock()
-		retained := manager.instanceLocked(key)
-		retainedProcess := retained.process
-		retainedGrantID := retained.capabilityGrantID
-		manager.mu.RUnlock()
-		if retainedProcess != initialProcess || retainedGrantID != initialGrantID {
-			t.Fatalf(
-				"failed reload authority = process %v grant %q, want original process %v grant %q",
-				retainedProcess,
-				retainedGrantID,
-				initialProcess,
-				initialGrantID,
-			)
-		}
-		if got := sourceSessions.activeNonce(extensionResourceSource(key)); got != initialNonce {
-			t.Fatalf("active source nonce after failed reload = %q, want %q", got, initialNonce)
-		}
-		checker.mu.RLock()
-		_, originalGrantActive := checker.grants[initialGrantID]
-		grantCount := len(checker.grants)
-		checker.mu.RUnlock()
-		if !originalGrantActive || grantCount != 1 {
-			t.Fatalf(
-				"capability grants after failed reload = count %d original active %v, want 1/true",
-				grantCount,
-				originalGrantActive,
-			)
-		}
+			if initialProcess == nil || initialGrantID == "" || initialNonce == "" {
+				t.Fatalf(
+					"initial generation authority = process %v, grant %q, nonce %q; want all set",
+					initialProcess,
+					initialGrantID,
+					initialNonce,
+				)
+			}
+			if _, err := manager.ReloadExtension(testutil.Context(t), key, badHash); err == nil {
+				t.Fatal("ReloadExtension(bad generation) error = nil, want activation failure")
+			}
+			current, err := manager.GetForInstance(key)
+			if err != nil {
+				t.Fatalf("GetForInstance() error = %v", err)
+			}
+			if current.Status.GenerationHash != goodHash || current.Status.LastGoodGeneration != goodHash {
+				t.Fatalf("current status = %#v, want last-good generation %q", current.Status, goodHash)
+			}
+			if current.Status.FailureCode != extensionFailureActivationFailed ||
+				!strings.Contains(current.Status.LastError, extensionFailureActivationFailed) {
+				t.Fatalf("current failure = %#v, want honest activation failure", current.Status)
+			}
+			assertCmdPaletteTitle(t, manager, workspace.WorkspaceID, "First search")
+			link, err := env.registry.GetDevLink(key.Name, key.WorkspaceID)
+			if err != nil {
+				t.Fatalf("GetDevLink() error = %v", err)
+			}
+			if link.BundleGeneration != goodHash {
+				t.Fatalf("persisted generation = %q, want %q", link.BundleGeneration, goodHash)
+			}
+			manager.mu.RLock()
+			retained := manager.instanceLocked(key)
+			retainedProcess := retained.process
+			retainedGrantID := retained.capabilityGrantID
+			manager.mu.RUnlock()
+			if retainedProcess != initialProcess || retainedGrantID != initialGrantID {
+				t.Fatalf(
+					"failed reload authority = process %v grant %q, want original process %v grant %q",
+					retainedProcess,
+					retainedGrantID,
+					initialProcess,
+					initialGrantID,
+				)
+			}
+			if got := sourceSessions.activeNonce(extensionResourceSource(key)); got != initialNonce {
+				t.Fatalf("active source nonce after failed reload = %q, want %q", got, initialNonce)
+			}
+			checker.mu.RLock()
+			_, originalGrantActive := checker.grants[initialGrantID]
+			grantCount := len(checker.grants)
+			checker.mu.RUnlock()
+			if !originalGrantActive || grantCount != 1 {
+				t.Fatalf(
+					"capability grants after failed reload = count %d original active %v, want 1/true",
+					grantCount,
+					originalGrantActive,
+				)
+			}
 
-		if _, err := manager.ReloadExtension(testutil.Context(t), key, secondHash); err != nil {
-			t.Fatalf("ReloadExtension(clean generation) error = %v", err)
-		}
-		assertCmdPaletteTitle(t, manager, workspace.WorkspaceID, "Second search")
-		manager.mu.RLock()
-		replaced := manager.instanceLocked(key)
-		replacedGrantID := replaced.capabilityGrantID
-		replacedNonce := replaced.sessionNonce
-		manager.mu.RUnlock()
-		if replacedGrantID == "" || replacedGrantID == initialGrantID || replacedNonce == initialNonce {
-			t.Fatalf(
-				"clean reload authority = grant %q nonce %q, want new values distinct from %q/%q",
-				replacedGrantID,
-				replacedNonce,
-				initialGrantID,
-				initialNonce,
-			)
-		}
-		if got := sourceSessions.activeNonce(extensionResourceSource(key)); got != replacedNonce {
-			t.Fatalf("active source nonce after clean reload = %q, want %q", got, replacedNonce)
-		}
-		checker.mu.RLock()
-		_, originalGrantActive = checker.grants[initialGrantID]
-		_, replacementGrantActive := checker.grants[replacedGrantID]
-		grantCount = len(checker.grants)
-		checker.mu.RUnlock()
-		if originalGrantActive || !replacementGrantActive || grantCount != 1 {
-			t.Fatalf(
-				"capability grants after clean reload = count %d old %v new %v, want 1/false/true",
-				grantCount,
-				originalGrantActive,
-				replacementGrantActive,
-			)
-		}
-	})
+			if _, err := manager.ReloadExtension(testutil.Context(t), key, secondHash); err != nil {
+				t.Fatalf("ReloadExtension(clean generation) error = %v", err)
+			}
+			assertCmdPaletteTitle(t, manager, workspace.WorkspaceID, "Second search")
+			manager.mu.RLock()
+			replaced := manager.instanceLocked(key)
+			replacedGrantID := replaced.capabilityGrantID
+			replacedNonce := replaced.sessionNonce
+			manager.mu.RUnlock()
+			if replacedGrantID == "" || replacedGrantID == initialGrantID || replacedNonce == initialNonce {
+				t.Fatalf(
+					"clean reload authority = grant %q nonce %q, want new values distinct from %q/%q",
+					replacedGrantID,
+					replacedNonce,
+					initialGrantID,
+					initialNonce,
+				)
+			}
+			if got := sourceSessions.activeNonce(extensionResourceSource(key)); got != replacedNonce {
+				t.Fatalf("active source nonce after clean reload = %q, want %q", got, replacedNonce)
+			}
+			checker.mu.RLock()
+			_, originalGrantActive = checker.grants[initialGrantID]
+			_, replacementGrantActive := checker.grants[replacedGrantID]
+			grantCount = len(checker.grants)
+			checker.mu.RUnlock()
+			if originalGrantActive || !replacementGrantActive || grantCount != 1 {
+				t.Fatalf(
+					"capability grants after clean reload = count %d old %v new %v, want 1/false/true",
+					grantCount,
+					originalGrantActive,
+					replacementGrantActive,
+				)
+			}
+		},
+	)
 
 	t.Run(
 		"Should reload portable source generations atomically and retain the last good diagnostics",
@@ -1663,7 +1666,10 @@ func extensionToolPaletteManifestJSON(
 	title string,
 ) string {
 	payload := map[string]any{}
-	if err := json.Unmarshal([]byte(extensionToolManifestJSON(name, command, args, env, readOnly)), &payload); err != nil {
+	if err := json.Unmarshal(
+		[]byte(extensionToolManifestJSON(name, command, args, env, readOnly)),
+		&payload,
+	); err != nil {
 		panic(fmt.Sprintf("decode extension tool manifest fixture: %v", err))
 	}
 	resources, ok := payload["resources"].(map[string]any)

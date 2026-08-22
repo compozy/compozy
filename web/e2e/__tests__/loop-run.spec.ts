@@ -50,8 +50,11 @@ const QUARANTINE_AGENT = "loop-run-quarantine-agent";
 const NEEDS_YOU_LOOP = "run-page-needs-you-e2e";
 const FANOUT_LOOP = "run-page-fanout-e2e";
 const QUARANTINE_LOOP = "run-page-quarantine-e2e";
+const EXHAUSTED_LOOP = "run-page-exhausted-e2e";
 const DONE_LOOP = "run-page-done-e2e";
+const CANCELED_LOOP = "run-page-canceled-e2e";
 const RETRY_LOOP = "run-page-retry-e2e";
+const USAGE_LOOP = "run-page-usage-e2e";
 const GRAPH_STATES_LOOP = "run-page-graph-states-e2e";
 const RACE_LOOP = "run-page-race-e2e";
 const DEEP_CHAIN_LOOP = "run-page-deep-chain-e2e";
@@ -116,6 +119,13 @@ const needsYouDefinition: LoopDefinition = {
   graph: {
     nodes: [
       {
+        id: "prepare",
+        class: "action",
+        kind: "transform",
+        params: { map: { ready: { value: true } } },
+        produces: { ready: "boolean" },
+      },
+      {
         id: "approval",
         class: "control",
         kind: "gate",
@@ -142,12 +152,22 @@ const needsYouDefinition: LoopDefinition = {
   start: [{ kind: "http" }],
 };
 
+/** The same durable wait under a distinct catalog identity for canceled rows. */
+const canceledDefinition: LoopDefinition = {
+  ...needsYouDefinition,
+  meta: {
+    ...needsYouDefinition.meta,
+    name: CANCELED_LOOP,
+    description: "Parks until its run is canceled by the operator.",
+  },
+};
+
 /**
  * A wide fan-out over run inputs. Workers are transforms, so the width is real
  * and the run still settles quickly — and one run produces enough durable events
  * that the story genuinely has to page.
  */
-const fanOutDefinition: LoopDefinition = {
+const fanOutDefinition = (areas: readonly string[]): LoopDefinition => ({
   apiVersion: "compozy.loop/v1",
   kind: "Loop",
   meta: {
@@ -160,13 +180,20 @@ const fanOutDefinition: LoopDefinition = {
   graph: {
     nodes: [
       {
+        id: "areas",
+        class: "action",
+        kind: "transform",
+        params: { map: { values: { value: areas } } },
+        produces: { values: "array" },
+      },
+      {
         id: "revisores",
         class: "control",
         kind: "fan-out",
-        collection: "{{ .inputs.areas }}",
+        collection: "{{ .nodes.areas.output.values }}",
         bind_as: "area",
-        index_as: "areaIndex",
-        max_parallel: 8,
+        index_as: "area_index",
+        max_parallel: 16,
         max_fan_out: 512,
       },
       {
@@ -178,12 +205,13 @@ const fanOutDefinition: LoopDefinition = {
       { id: "join", class: "control", kind: "collect" },
     ],
     edges: [
+      { from: "areas", to: "revisores" },
       { from: "revisores", to: "revisar" },
       { from: "revisar", to: "join" },
     ],
   } as LoopDefinition["graph"],
   start: [{ kind: "http" }],
-};
+});
 
 /**
  * A fan-out the loop's own strategy closes.
@@ -193,7 +221,7 @@ const fanOutDefinition: LoopDefinition = {
  * US-012.EC-2 is about: the survivors are cancelled by the strategy, not by an
  * operator, and the page has to say so without inventing a person.
  */
-const raceFanOutDefinition: LoopDefinition = {
+const raceFanOutDefinition = (areas: readonly string[]): LoopDefinition => ({
   apiVersion: "compozy.loop/v1",
   kind: "Loop",
   meta: {
@@ -206,13 +234,20 @@ const raceFanOutDefinition: LoopDefinition = {
   graph: {
     nodes: [
       {
+        id: "areas",
+        class: "action",
+        kind: "transform",
+        params: { map: { values: { value: areas } } },
+        produces: { values: "array" },
+      },
+      {
         // One at a time, on purpose: the first item is then provably the winner,
         // so which siblings the strategy cancels is a fact rather than a race
         // between workers. Transforms keep it agent-free and instant.
         id: "revisores",
         class: "control",
         kind: "fan-out",
-        collection: "{{ .inputs.areas }}",
+        collection: "{{ .nodes.areas.output.values }}",
         bind_as: "area",
         max_parallel: 1,
         max_fan_out: 16,
@@ -227,12 +262,13 @@ const raceFanOutDefinition: LoopDefinition = {
       { id: "join", class: "control", kind: "collect" },
     ],
     edges: [
+      { from: "areas", to: "revisores" },
       { from: "revisores", to: "revisar" },
       { from: "revisar", to: "join" },
     ],
   } as LoopDefinition["graph"],
   start: [{ kind: "http" }],
-};
+});
 
 /**
  * One node that fails deterministically until an operator requeues it — the
@@ -263,7 +299,7 @@ const quarantineDefinition: LoopDefinition = {
         result_contract: { failure_field: "error", message_field: "error" },
         params: {
           agent: QUARANTINE_AGENT,
-          prompt: "quarantine probe generation {{ .generation }}",
+          prompt: "graph failure generation {{ .generation }}",
           output_schema: AGENT_OUTPUT_SCHEMA,
         },
       },
@@ -338,6 +374,17 @@ const doneDefinition: LoopDefinition = {
   start: [{ kind: "http" }],
 };
 
+/** One successful action whose deliberately unmet contract exhausts after one round. */
+const exhaustedDefinition: LoopDefinition = {
+  ...doneDefinition,
+  meta: {
+    ...doneDefinition.meta,
+    name: EXHAUSTED_LOOP,
+    description: "Produces one output, then exhausts its one-round contract.",
+  },
+  contract: contract("Require the published note to fail.", "nodes.publish.status == 'failed'"),
+};
+
 /** A step whose first attempt blows its deadline and whose retry heals it. */
 const retryDefinition: LoopDefinition = {
   apiVersion: "compozy.loop/v1",
@@ -373,6 +420,35 @@ const retryDefinition: LoopDefinition = {
   start: [{ kind: "http" }],
 };
 
+/** One direct successful turn with provider usage, without retry lifecycle noise. */
+const usageDefinition: LoopDefinition = {
+  ...retryDefinition,
+  meta: {
+    ...retryDefinition.meta,
+    name: USAGE_LOOP,
+    description: "One successful step that reports provider token usage.",
+  },
+  graph: {
+    nodes: [
+      {
+        id: "execute",
+        class: "action",
+        kind: "run-agent",
+        params: {
+          agent: RETRY_AGENT,
+          prompt: "usage lifecycle",
+          output_schema: {
+            type: "object",
+            required: ["summary", "value"],
+            properties: { summary: { type: "string" }, value: { type: "string" } },
+          },
+        },
+      },
+    ],
+    edges: [],
+  } as LoopDefinition["graph"],
+};
+
 /**
  * One run holding every graph state at once: a taken route, a route the run
  * declined, and a step that fails outright. `risk: low` elects `quick`, so
@@ -388,17 +464,21 @@ const graphStatesDefinition: LoopDefinition = {
     catalog: { category: "Testing" },
   },
   concurrency: "allow",
-  contract: contract("Route, then finish.", "nodes.quick.status == 'succeeded'"),
+  inputs: { risk: { type: "string", required: true } },
+  contract: {
+    ...contract("Route, then finish.", "nodes.quick.status == 'succeeded'"),
+    // The failing agent reports real usage. A one-token ceiling settles this
+    // generation after the failure, instead of exercising the separate
+    // quarantine policy that E2E-017 owns.
+    budget: { tokens: 1, wall_clock_sec: 0, on_exceeded: "halt" },
+  },
   graph: {
     nodes: [
       {
         id: "router",
         class: "control",
         kind: "route",
-        routes: [
-          { when: "inputs.risk == 'low'", to: "quick" },
-          { when: "inputs.risk == 'high'", to: "thorough" },
-        ],
+        routes: [{ when: "inputs.risk == 'low'", to: "quick" }],
         default: "thorough",
         on_eval_error: "fail",
       },
@@ -510,9 +590,11 @@ function isTerminal(detail: LoopRunDetail): boolean {
 
 interface RosterRead {
   nodes: {
+    generation: number;
     node_id: string;
     item_index: number;
     state: string;
+    attempts?: { attempt: number; state: string }[];
     usage?: { tokens: number } | null;
     cancellation?: { disposition: string; actor_kind?: string; actor_ref?: string } | null;
   }[];
@@ -534,7 +616,9 @@ async function waitForRosterState(
     .poll(
       async () => {
         const roster = await readRoster(runtime, runPath);
-        return roster.nodes.find(node => node.node_id === nodeId)?.state ?? "absent";
+        return roster.nodes.some(node => node.node_id === nodeId && node.state === state)
+          ? state
+          : "absent";
       },
       { timeout }
     )
@@ -648,12 +732,7 @@ async function runServedUnblocker(runtime: BrowserRuntime, command: string): Pro
   });
 }
 
-/**
- * Runs a published unblocker after filling in the one value the daemon cannot
- * know: the answer itself. Only the explicit `<json>` placeholder is replaced,
- * as a single argv element, so nothing is re-quoted and no other token can be
- * rewritten by accident.
- */
+/** Runs a published stdin unblocker with the one value only the answerer knows. */
 async function runServedUnblockerWithPayload(
   runtime: BrowserRuntime,
   command: string,
@@ -661,12 +740,21 @@ async function runServedUnblockerWithPayload(
 ): Promise<void> {
   const paths = requirePaths(runtime);
   const argv = unblockerArgv(command);
-  const placeholders = argv.filter(word => word === PAYLOAD_PLACEHOLDER).length;
-  if (placeholders !== 1) {
-    throw new Error(`Expected exactly one ${PAYLOAD_PLACEHOLDER} in: ${command}`);
+  if (!argv.includes("--payload-stdin") || argv.includes(PAYLOAD_PLACEHOLDER)) {
+    throw new Error(`Expected one --payload-stdin unblocker in: ${command}`);
   }
-  const filled = argv.map(word => (word === PAYLOAD_PLACEHOLDER ? JSON.stringify(payload) : word));
-  await execFileAsync(paths.cliShim, filled, { env: cliEnv(paths), timeout: 60_000 });
+  await new Promise<void>((resolve, reject) => {
+    const child = execFile(paths.cliShim, argv, { env: cliEnv(paths), timeout: 60_000 }, error =>
+      error ? reject(error) : resolve()
+    );
+    if (!child.stdin) {
+      child.kill();
+      reject(new Error(`Unblocker stdin unavailable: ${command}`));
+      return;
+    }
+    child.stdin.on("error", reject);
+    child.stdin.end(JSON.stringify(payload));
+  });
 }
 
 interface BriefingBlocker {
@@ -712,14 +800,20 @@ async function seqAttributes(beats: Locator): Promise<number[]> {
  * round the run is on, so naming the step is unambiguous without hard-coding a
  * round number the run decides.
  */
-function rosterRow(appPage: Page, nodeId: string, itemIndex?: number): Locator {
+function rosterRow(
+  appPage: Page,
+  nodeId: string,
+  itemIndex?: number,
+  generation?: number
+): Locator {
   // A fan-out worker shares its step id with every sibling, so anything that
   // opens "the first row called revisar" opens whichever one is listed first —
   // not the one the case is about.
   const item = itemIndex === undefined ? "" : `[data-item-index="${itemIndex}"]`;
+  const round = generation === undefined ? "" : `[data-generation="${generation}"]`;
   return appPage
     .getByTestId("loop-node-roster")
-    .locator(`[data-testid^="loop-roster-row-"][data-node-id="${nodeId}"]${item}`);
+    .locator(`[data-testid^="loop-roster-row-"][data-node-id="${nodeId}"]${item}${round}`);
 }
 
 test.describe("Loop run page — two registers", () => {
@@ -736,7 +830,7 @@ test.describe("Loop run page — two registers", () => {
     // Nothing is expanded: this is the page as it arrives.
     await expect(appPage.getByTestId("loop-run-briefing-headline")).toBeVisible();
     await expect(appPage.getByTestId("loop-run-progress-label")).toBeVisible();
-    await expect(appPage.getByTestId("loop-run-progress-meta")).toContainText(/step \d+ of \d+/i);
+    await expect(appPage.getByRole("button", { name: /Progress Step \d+ of \d+/i })).toBeVisible();
     await expect(appPage.getByTestId("loop-run-story")).toBeVisible();
     await expect(appPage.getByTestId("loop-run-usage-tokens")).toBeVisible();
     await expect(appPage.getByTestId("loop-run-usage-cost")).toBeVisible();
@@ -889,12 +983,7 @@ test.describe("Loop run page — two registers", () => {
     appPage,
     runtime,
   }) => {
-    const { runId, runPath } = await seedRun(
-      appPage,
-      runtime,
-      quarantineDefinition,
-      QUARANTINE_LOOP
-    );
+    const { runId, runPath } = await seedRun(appPage, runtime, exhaustedDefinition, EXHAUSTED_LOOP);
     // A real failure, not a label: the step exhausts and the run settles on one
     // of its failing terminal states.
     await waitForRun(runtime, runPath, detail =>
@@ -945,9 +1034,12 @@ test.describe("Loop run page — two registers", () => {
     test.slow();
     // Wide enough that the run genuinely outgrows one timeline page set.
     const areas = Array.from({ length: 200 }, (_, index) => `area-${index + 1}`);
-    const { runId, runPath } = await seedRun(appPage, runtime, fanOutDefinition, FANOUT_LOOP, {
-      inputs: { areas },
-    });
+    const { runId, runPath } = await seedRun(
+      appPage,
+      runtime,
+      fanOutDefinition(areas),
+      FANOUT_LOOP
+    );
     await waitForRun(runtime, runPath, isTerminal, 180_000);
 
     // The premise, asserted rather than assumed: an under-producing seed fails
@@ -956,7 +1048,7 @@ test.describe("Loop run page — two registers", () => {
     expect(headSeq).toBeGreaterThan(500);
 
     await openRun(appPage, runtime, runId);
-    const beats = appPage.getByTestId(/^loop-run-beat-/);
+    const beats = appPage.getByTestId(/^loop-run-beat-\d+$/);
     await expect(beats.first()).toBeVisible();
 
     // Reload: history that lived in a client frame buffer would be gone here. It
@@ -1001,18 +1093,31 @@ test.describe("Loop run page — two registers", () => {
       GRAPH_STATES_LOOP,
       { inputs: { risk: "low" } }
     );
-    // Every state this case is about is really in the run before it is asserted:
-    // the taken arm succeeded, the declined arm carries route evidence, and the
-    // third step failed outright.
-    await waitForRun(runtime, runPath, isTerminal, 120_000);
-    const roster = await runtime.requestJSON<{ nodes: { node_id: string; state: string }[] }>(
-      `${runPath}/nodes?state=all&limit=500`
-    );
+    // Pause while the deliberately slow failing step is in flight. The current
+    // round then settles with all three dispositions, without invoking the
+    // separately owned repeated-failure quarantine policy.
+    await waitForRosterState(runtime, runPath, "flaky", "running");
+    await runtime.requestJSON(`${runPath}/pause`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    await waitForRun(runtime, runPath, detail => detail.run.status === "paused", 120_000);
+    const roster = await runtime.requestJSON<{
+      nodes: { generation: number; node_id: string; state: string }[];
+    }>(`${runPath}/nodes?state=all&limit=500`);
+    const currentGeneration = Math.max(...roster.nodes.map(node => node.generation));
     const stateOf = (nodeId: string) =>
-      roster.nodes.find(node => node.node_id === nodeId)?.state ?? "absent";
+      roster.nodes.find(node => node.generation === currentGeneration && node.node_id === nodeId)
+        ?.state ?? "absent";
     expect(stateOf("quick")).toBe("succeeded");
     expect(stateOf("thorough")).toBe("not_taken");
     expect(stateOf("flaky")).toBe("failed");
+
+    await runtime.requestJSON(`${runPath}/cancel`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    await waitForRun(runtime, runPath, detail => detail.run.status === "canceled");
 
     await openRun(appPage, runtime, runId);
     await openInspect(appPage, "graph");
@@ -1058,9 +1163,12 @@ test.describe("Loop run page — two registers", () => {
   }) => {
     test.slow();
     const areas = Array.from({ length: 120 }, (_, index) => `area-${index + 1}`);
-    const { runId, runPath } = await seedRun(appPage, runtime, fanOutDefinition, FANOUT_LOOP, {
-      inputs: { areas },
-    });
+    const { runId, runPath } = await seedRun(
+      appPage,
+      runtime,
+      fanOutDefinition(areas),
+      FANOUT_LOOP
+    );
     await waitForRun(runtime, runPath, detail => (detail.generations ?? []).length > 0);
     await openRun(appPage, runtime, runId);
     await openInspect(appPage, "graph");
@@ -1148,11 +1256,39 @@ test.describe("Loop run page — two registers", () => {
     // case pass on a step that merely failed and was still on its way to being
     // parked — a different state, and not the one this is about.
     await waitForRosterState(runtime, runPath, "primary", "quarantined");
+    const parkedRoster = await readRoster(runtime, runPath);
+    const currentParked = parkedRoster.nodes
+      .filter(node => node.node_id === "primary" && node.state === "quarantined")
+      .sort((left, right) => right.generation - left.generation)[0];
+    const attempted = parkedRoster.nodes
+      .filter(node => node.node_id === "primary" && (node.attempts?.length ?? 0) > 0)
+      .sort((left, right) => right.generation - left.generation)[0];
+    if (!currentParked || !attempted) {
+      throw new Error(
+        `The quarantine has no current row or attempt history: ${JSON.stringify(parkedRoster)}`
+      );
+    }
     await openRun(appPage, runtime, runId);
     await openInspect(appPage, "nodes");
 
     await expect(appPage.getByTestId("loop-node-roster")).toBeVisible();
-    const parked = rosterRow(appPage, "primary");
+    // Attempts belong to the round in which they ran. Read that historical row
+    // first; the carried-forward current row must not invent a duplicate attempt.
+    await appPage
+      .getByRole("button", { name: `Round ${attempted.generation}`, exact: true })
+      .click();
+    const attemptedRow = rosterRow(appPage, "primary", undefined, attempted.generation);
+    await attemptedRow.click();
+    const panel = appPage.getByTestId("loop-node-panel");
+    const attempts = panel.getByTestId("loop-node-panel-attempts");
+    await expect(attempts).toBeVisible();
+    await expect(attempts).toContainText(/Attempt \d+/);
+    await expect(attempts.getByTestId(/^loop-state-chip-/).first()).toBeVisible();
+
+    await appPage
+      .getByRole("button", { name: `Round ${currentParked.generation}`, exact: true })
+      .click();
+    const parked = rosterRow(appPage, "primary", undefined, currentParked.generation);
     await expect(parked).toHaveAttribute("data-state", "quarantined");
     // Attempts are metadata on the row, never sibling steps.
     await expect(parked).toContainText(/\d+ of \d+/);
@@ -1160,30 +1296,30 @@ test.describe("Loop run page — two registers", () => {
     // A verb offered from the register is one the daemon accepts, and its effect
     // reaches the page without a reload.
     await parked.click();
-    const panel = appPage.getByTestId("loop-node-panel");
     await expect(panel).toBeVisible();
-    // Every recorded attempt is available to the reader, with its own content —
-    // the attempt number and what became of it, not just a count on the row.
-    const attempts = panel.getByTestId("loop-node-panel-attempts");
-    await expect(attempts).toBeVisible();
-    await expect(attempts).toContainText(/Attempt \d+/);
-    await expect(attempts.getByTestId(/^loop-state-chip-/).first()).toBeVisible();
 
     const requeue = panel.getByTestId(/^loop-node-primary-requeue-/);
     await expect(requeue).toBeVisible();
-    const generationsBefore = (await runtime.requestJSON<LoopRunDetail>(runPath)).generations ?? [];
     await requeue.click();
+    const requeueDialog = appPage.getByTestId("loop-node-control-dialog");
+    await expect(requeueDialog).toBeVisible();
+    await requeueDialog.getByRole("button", { name: "Requeue lane" }).click();
     await expect
       .poll(
         async () => {
-          const detail = await runtime.requestJSON<LoopRunDetail>(runPath);
-          return (detail.generations ?? []).length;
+          const roster = await readRoster(runtime, runPath);
+          return (
+            roster.nodes.find(
+              node => node.node_id === "primary" && node.generation === currentParked.generation
+            )?.state ?? "absent"
+          );
         },
         { timeout: 90_000 }
       )
-      .toBeGreaterThan(generationsBefore.length);
-    // The register reflects the new round without a reload.
-    await expect(rosterRow(appPage, "primary")).toBeVisible();
+      .toMatch(/running|succeeded/);
+    // Requeue resumes the retained continuation in the same round; it does not
+    // manufacture an empty round just to make the action visible.
+    await expect(parked).not.toHaveAttribute("data-state", "quarantined");
   });
 
   test("E2E-017: a healthy row carries its usage, and the round carries its own", async ({
@@ -1191,7 +1327,7 @@ test.describe("Loop run page — two registers", () => {
     runtime,
   }) => {
     test.slow();
-    const { runId, runPath } = await seedRun(appPage, runtime, retryDefinition, RETRY_LOOP);
+    const { runId, runPath } = await seedRun(appPage, runtime, usageDefinition, USAGE_LOOP);
     await waitForRun(runtime, runPath, detail => detail.run.status === "done");
 
     // The step really reported tokens, so the row has a number to price.
@@ -1236,9 +1372,12 @@ test.describe("Loop run page — two registers", () => {
     // US-012.EC-2, both halves, from two real runs. A `race` fan-out settles on
     // the first branch to succeed and the runtime cancels the rest — nobody
     // pressed anything, and the panel must not imply somebody did.
-    const race = await seedRun(appPage, runtime, raceFanOutDefinition, RACE_LOOP, {
-      inputs: { areas: ["fast", "slow-one", "slow-two"] },
-    });
+    const race = await seedRun(
+      appPage,
+      runtime,
+      raceFanOutDefinition(["fast", "slow-one", "slow-two"]),
+      RACE_LOOP
+    );
     await waitForRun(runtime, race.runPath, isTerminal, 120_000);
     const raceRoster = await readRoster(runtime, race.runPath);
     const strategyCanceled = raceRoster.nodes.find(
@@ -1323,9 +1462,12 @@ test.describe("Loop run page — two registers", () => {
     const done = await seedRun(appPage, runtime, doneDefinition, DONE_LOOP);
     // Three different terminal endings, so "plain outcome" is tested as a
     // vocabulary rather than as one lucky word.
-    const failed = await seedRun(appPage, runtime, quarantineDefinition, QUARANTINE_LOOP);
-    const canceled = await seedRun(appPage, runtime, retryDefinition, RETRY_LOOP);
+    const failed = await seedRun(appPage, runtime, exhaustedDefinition, EXHAUSTED_LOOP);
+    const canceled = await seedRun(appPage, runtime, canceledDefinition, CANCELED_LOOP, {
+      humanGate: true,
+    });
     await waitForRun(runtime, done.runPath, detail => detail.run.status === "done");
+    await waitForRun(runtime, canceled.runPath, detail => (detail.requests ?? []).length > 0);
     await runtime.requestJSON(`${canceled.runPath}/cancel`, {
       method: "POST",
       body: JSON.stringify({}),
@@ -1359,9 +1501,9 @@ test.describe("Loop run page — two registers", () => {
         .first()
         .getByTestId("loop-run-status");
     await expect(outcomeOf(DONE_LOOP)).toContainText(/done/i);
-    await expect(outcomeOf(RETRY_LOOP)).toContainText(/canceled/i);
-    await expect(outcomeOf(QUARANTINE_LOOP)).toContainText(/fail|exhaust|stall|block/i);
-    for (const loopName of [DONE_LOOP, RETRY_LOOP, QUARANTINE_LOOP]) {
+    await expect(outcomeOf(CANCELED_LOOP)).toContainText(/canceled/i);
+    await expect(outcomeOf(EXHAUSTED_LOOP)).toContainText(/fail|exhaust|stall|block/i);
+    for (const loopName of [DONE_LOOP, CANCELED_LOOP, EXHAUSTED_LOOP]) {
       await expect(outcomeOf(loopName)).not.toContainText("_");
     }
   });

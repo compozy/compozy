@@ -662,6 +662,10 @@ test("Herdr E2E-016: ⌘E lands on a session while the shared chords keep their 
   await expect(palette).toBeVisible();
   await expect(palette).not.toHaveAttribute("data-palette-view", "sessions");
   await appPage.keyboard.press("ControlOrMeta+K");
+  await expect(appPage.getByTestId("os-palette-action-panel")).toBeVisible();
+  await appPage.keyboard.press("Escape");
+  await expect(appPage.getByTestId("os-palette-action-panel")).toHaveCount(0);
+  await appPage.keyboard.press("Escape");
   await expect(palette).toHaveCount(0);
 
   // Jump-to-attention no-ops calmly when nothing needs the operator.
@@ -682,6 +686,7 @@ test("Herdr E2E-019: palette views push, pop, and always reopen at the root", as
   await expect(palette.getByTestId("os-palette-breadcrumb")).toHaveCount(0);
 
   // A root view entry pushes the view instead of closing the palette.
+  await palette.getByPlaceholder("Search apps, sessions, and actions…").fill("Sessions");
   await paletteRow(palette, "palette.view.sessions").click();
   await expect(palette).toHaveAttribute("data-palette-view", "sessions");
   await expect(palette.getByTestId("os-palette-breadcrumb")).toContainText("Sessions");
@@ -696,6 +701,7 @@ test("Herdr E2E-019: palette views push, pop, and always reopen at the root", as
   await search.fill("");
   await search.press("Backspace");
   await expect(palette.getByTestId("os-palette-breadcrumb")).toHaveCount(0);
+  await palette.getByPlaceholder("Search apps, sessions, and actions…").fill("Sessions");
   await expect(paletteRow(palette, "palette.view.sessions")).toBeVisible();
 
   // Dismiss closes the whole stack, and reopening starts at the root.
@@ -707,6 +713,7 @@ test("Herdr E2E-019: palette views push, pop, and always reopen at the root", as
   await appPage.keyboard.press("ControlOrMeta+K");
   await expect(palette).toBeVisible();
   await expect(palette.getByTestId("os-palette-breadcrumb")).toHaveCount(0);
+  await palette.getByPlaceholder("Search apps, sessions, and actions…").fill("Sessions");
   await expect(paletteRow(palette, "palette.view.sessions")).toBeVisible();
 });
 
@@ -718,6 +725,7 @@ test("Command palette E2E-009: Tasks reports truthful zero counts and clears one
   const task = await createTask(runtime, "Palette filter target");
 
   const palette = await openCommandPalette(appPage);
+  await palette.getByPlaceholder("Search apps, sessions, and actions…").fill("Tasks");
   await paletteRow(palette, "palette.view.tasks").click();
   await expect(palette).toHaveAttribute("data-palette-view", "tasks");
   await expect(palette.getByTestId(`os-palette-domain-task-${task.id}`)).toBeVisible();
@@ -1149,7 +1157,7 @@ test("E2E-022: menubar traverses five menus and operates workspaces, sessions, D
   await switchWorkspace(appPage, secondWorkspace.id, secondWorkspace.name);
 
   await openMenu(appPage, "Session");
-  await appPage.getByTestId("os-menu-new-session").click();
+  await appPage.getByRole("menuitem", { name: /^New session/ }).click();
   const createDialog = appPage.getByTestId("session-create-dialog");
   await expect(createDialog).toBeVisible();
   await createDialog.getByTestId("session-create-mode-advanced").click();
@@ -1187,7 +1195,7 @@ test("E2E-022: menubar traverses five menus and operates workspaces, sessions, D
   await appPage.keyboard.press("Escape");
 
   await openMenu(appPage, "Window");
-  await appPage.getByTestId("os-menu-desktops-overview").click();
+  await appPage.getByRole("menuitem", { name: /^Desktops overview/ }).click();
   const desktops = appPage.locator('[data-slot="desktops-overview"]');
   await expect(desktops).toBeVisible();
   await expect(desktops.getByRole("heading", { name: "Desktops" })).toBeVisible();
@@ -1195,7 +1203,7 @@ test("E2E-022: menubar traverses five menus and operates workspaces, sessions, D
   await appPage.keyboard.press("Escape");
 
   await openMenu(appPage, "Go");
-  await appPage.getByTestId("os-menu-workspaces-overview").click();
+  await appPage.getByRole("menuitem", { name: /^Workspace picker/ }).click();
   const workspaces = appPage.getByTestId("os-workspaces-overview");
   await expect(workspaces).toBeVisible();
   // Command-Tab strip: tiles are listbox options; current carries the check.
@@ -1217,7 +1225,7 @@ test("E2E-022: menubar traverses five menus and operates workspaces, sessions, D
   await appPage.keyboard.press("Escape");
 
   await openMenu(appPage, "Help");
-  await appPage.getByTestId("os-menu-shortcuts").click();
+  await appPage.getByRole("menuitem", { name: /^Keyboard shortcuts/ }).click();
   const shortcuts = appPage.getByTestId("os-shortcuts-dialog");
   await expect(shortcuts).toBeVisible();
   // Every registry action is listed, bound or not.
@@ -1228,7 +1236,7 @@ test("E2E-022: menubar traverses five menus and operates workspaces, sessions, D
   await expect(shortcuts).toHaveCount(0);
 
   await openMenu(appPage, "CompozyOS");
-  await appPage.getByTestId("os-menu-about").click();
+  await appPage.getByRole("menuitem", { name: /^About CompozyOS/ }).click();
   const about = appPage.getByTestId("os-about-dialog");
   await expect(about).toBeVisible();
   await expect(about.getByTestId("os-about-row-pid")).not.toBeEmpty();
@@ -1730,7 +1738,7 @@ test("E2E-013: appearance preferences stay client-local while minimize remains a
   const tasksID = await windowID(tasksWindow);
 
   await openMenu(appPage, "CompozyOS");
-  await appPage.getByTestId("os-menu-appearance").click();
+  await appPage.getByRole("menuitem", { name: "Settings → Appearance" }).click();
   await expect(appPage.getByTestId("os-appearance-pane")).toBeVisible();
   const revisionBeforePreferences = (await windowManagerSnapshot(runtime, workspace.id)).revision;
   await appPage.getByTestId("os-wallpaper-option-carbon").click();
@@ -2058,7 +2066,8 @@ test("E2E-032 (logical E2E-005): the tab shortcut creates a real destination-bac
   await expect(shell.tabButton(newWindow.id)).toHaveAttribute("aria-selected", "true");
   const destinationPicker = appPage.getByTestId("os-command-palette");
   await expect(destinationPicker).toHaveAttribute("data-destination", "");
-  await destinationPicker.getByTestId("os-palette-app-tasks").click();
+  await destinationPicker.getByPlaceholder("Open in this tab…").fill("Tasks");
+  await destinationPicker.getByTestId("os-palette-command-app.open.tasks").click();
   await expect
     .poll(async () => {
       const current = await windowManagerSnapshot(runtime, workspace.id);
@@ -2414,12 +2423,12 @@ test("E2E-038 (logical E2E-014): palette Go to tab crosses desktops by opaque id
   const palette = appPage.getByTestId("os-command-palette");
   await expect(palette).toBeVisible();
   await palette.getByPlaceholder("Search apps, sessions, and actions…").fill("Agents");
-  const duplicateRows = palette.getByText("Agents", { exact: true });
-  await expect(duplicateRows).toHaveCount(2);
-  await expect(palette.getByTestId(`os-palette-tab-${agentsID}`)).toContainText("Tab destination");
-  await expect(palette.getByTestId(`os-palette-tab-${duplicateAgentsID}`)).toContainText(
-    "Tab destination"
-  );
+  const agentsRow = palette.getByTestId(`os-palette-tab-${agentsID}`);
+  const duplicateAgentsRow = palette.getByTestId(`os-palette-tab-${duplicateAgentsID}`);
+  await expect(agentsRow).toContainText("Agents");
+  await expect(agentsRow).toContainText("Tab destination");
+  await expect(duplicateAgentsRow).toContainText("Agents");
+  await expect(duplicateAgentsRow).toContainText("Tab destination");
   await palette.getByTestId(`os-palette-tab-${agentsID}`).click();
   await expect
     .poll(
@@ -3034,6 +3043,11 @@ test("E2E-023: the 12-window envelope holds for drag frames, restore, and conver
 async function prepareShell(page: Page, runtime: BrowserRuntime): Promise<WorkspacePayload> {
   await completeOnboardingIfPrompted(page);
   await expect(page.getByTestId("os-desktop")).toBeVisible();
+  await page.getByRole("menuitem", { name: "Window", exact: true }).click();
+  const closeWindow = page.getByTestId("os-menubar-command-window.close");
+  await expect(closeWindow).toBeVisible();
+  await expect(closeWindow).not.toContainText("requires an attached shell");
+  await page.keyboard.press("Escape");
   const payload = await runtime.requestJSON<{ workspaces: WorkspacePayload[] }>("/api/workspaces");
   const workspace = payload.workspaces[0];
   if (!workspace) throw new Error("OS shell E2E requires one resolved workspace");
@@ -3771,7 +3785,9 @@ test("operator sees one nested worktree tree across all three workspace-listing 
     await appPage.keyboard.press("ControlOrMeta+K");
     const palette = appPage.getByTestId("os-command-palette");
     await expect(palette).toBeVisible();
-    const paletteRow = palette.getByTestId(`os-palette-worktree-${worktree.id}`);
+    const paletteRow = palette
+      .getByRole("group", { name: "Worktrees" })
+      .getByRole("option", { name: /payments-retry/ });
     await expect(paletteRow).toContainText("payments-retry");
     await paletteRow.click();
     await expect(palette).toHaveCount(0);
@@ -3779,7 +3795,7 @@ test("operator sees one nested worktree tree across all three workspace-listing 
     // Surface 3 — the overview's vertical worktree menu, always visible for
     // the focused git-backed workspace: same content and same order.
     await appPage.locator('[data-slot="os-menubar-workspace"]').click();
-    await appPage.getByTestId("os-workspace-overview").click();
+    await appPage.getByRole("menuitem", { name: /^Workspace picker/ }).click();
     await expect(appPage.getByTestId("os-workspaces-overview")).toBeVisible();
     await expect(appPage.getByTestId("os-workspaces-worktree-menu")).toBeVisible();
     const overviewRows = await appPage
@@ -3938,6 +3954,7 @@ test("E2E-015: destination mode offers only eligible targets and exits clean whe
   await expect(destination.getByPlaceholder("Open in this tab…")).toBeVisible();
 
   // Only navigable targets are offered; shell operations are absent, not disabled.
+  await destination.getByPlaceholder("Open in this tab…").fill("Tasks");
   await expect(paletteRow(destination, "app.open.tasks")).toBeVisible();
   await expect(paletteRow(destination, "window.close")).toHaveCount(0);
 
@@ -3955,33 +3972,69 @@ test("E2E-015: destination mode offers only eligible targets and exits clean whe
   await expect(reopened).toHaveCount(0);
 });
 
-test("E2E-018: a cold daemon disables rows with a reason while exempt commands keep working", async ({
+test("E2E-018: a cold daemon explains and refuses primary actions while exempt commands keep working", async ({
   appPage,
   runtime,
 }) => {
-  await prepareShell(appPage, runtime);
+  const workspace = await prepareShell(appPage, runtime);
   const palette = await openCommandPalette(appPage);
   await expect(paletteRow(palette, "window.close")).toBeEnabled();
 
-  // The runtime fixture exposes no lifecycle control, so the daemon is taken
-  // away at the transport: the catalog route stops answering.
+  // Pinning through the palette invalidates its catalog after the public
+  // mutation succeeds. Aborting that read proves the same query boundary used
+  // when the daemon disappears, without substituting browser connectivity for
+  // daemon reachability.
   await appPage.route("**/api/cmd-palette/commands*", route => route.abort());
-  await appPage.evaluate(() => window.dispatchEvent(new Event("offline")));
+  await palette.getByPlaceholder("Search apps, sessions, and actions…").fill("Close window");
+  await appPage.keyboard.press("ControlOrMeta+KeyK");
+  const pin = appPage.getByTestId("os-palette-action-meta.pin");
+  await expect(pin).toHaveText("Pin");
+  await pin.click();
 
-  // The palette stays open and honest: the row is disabled and says why.
-  await expect(paletteRow(palette, "window.close")).toBeDisabled();
+  // The row remains keyboard-selectable because its meta-actions still work,
+  // but the unavailable primary action is described and refused at the shared
+  // dispatch seam without closing the palette or changing the window topology.
+  const closeRow = paletteRow(palette, "window.close");
   await expect(paletteRowReason(palette, "window.close")).toHaveText("runtime unavailable");
+  await expect(closeRow).toHaveAccessibleDescription("runtime unavailable");
+  await palette.getByPlaceholder("Search apps, sessions, and actions…").press("Home");
+  await expect(closeRow).toHaveAttribute("data-selected", "true");
+  await appPage.keyboard.press("Enter");
+  await expect(appPage.locator("[data-sonner-toast]:last-of-type")).toContainText(
+    "Close window — runtime unavailable"
+  );
+  await expect(palette).toBeVisible();
+
+  await appPage.keyboard.press("ControlOrMeta+KeyK");
+  const unavailablePanel = appPage.getByTestId("os-palette-action-panel");
+  await expect(unavailablePanel.getByTestId("os-palette-action-primary.run")).toHaveCount(0);
+  await expect(unavailablePanel.getByTestId("os-palette-action-meta.pin")).toBeVisible();
+  await expect(unavailablePanel.getByTestId("os-palette-action-reason")).toHaveText(
+    "runtime unavailable"
+  );
+  await appPage.keyboard.press("Escape");
   // Availability-exempt commands survive the reconnect (US-001.EC-1).
-  await paletteRow(palette, "shortcuts.cheatsheet").click();
+  await palette.getByPlaceholder("Search apps, sessions, and actions…").fill("");
+  const cheatsheet = paletteRow(palette, "shortcuts.cheatsheet");
+  await expect(cheatsheet).toBeEnabled();
+  await cheatsheet.click();
   await expect(appPage.getByTestId("os-shortcuts-dialog")).toBeVisible();
   await appPage.keyboard.press("Escape");
 
   await appPage.unroute("**/api/cmd-palette/commands*");
-
-  // Recovery re-enables the row.
+  await runtime.requestJSON(
+    `/api/cmd-palette/pins/${encodeURIComponent("window.close")}?workspace=${encodeURIComponent(workspace.id)}`,
+    { method: "DELETE" }
+  );
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await prepareShell(appPage, runtime);
+  // Recovery replaces the transport failure with the live contextual reason;
+  // this fresh shell has no focused window yet.
   const reopened = await openCommandPalette(appPage);
-  await expect(paletteRow(reopened, "window.close")).toBeEnabled();
-  await expect(paletteRowReason(reopened, "window.close")).toHaveCount(0);
+  await expect(paletteRowReason(reopened, "window.close")).toHaveText("requires a focused window");
+  await expect(paletteRow(reopened, "window.close")).toHaveAccessibleDescription(
+    "requires a focused window"
+  );
 });
 
 test("E2E-019: menubar items project the same id, label, chord and reason as the palette row", async ({
@@ -3993,7 +4046,7 @@ test("E2E-019: menubar items project the same id, label, chord and reason as the
   const paletteLabel = await paletteRow(palette, "window.close").innerText();
   await appPage.keyboard.press("Escape");
 
-  await appPage.getByRole("menuitem", { name: "Window" }).click();
+  await appPage.getByRole("menuitem", { name: "Window", exact: true }).click();
   const menuItem = menubarCommandItem(appPage, "window.close");
   await expect(menuItem).toBeVisible();
   // Same registry row, same words: BR-17 curates order only.

@@ -2933,6 +2933,25 @@ func TestTaskReviewCommandsMapRequests(t *testing.T) {
 
 func TestTaskCommandsSupportDetailAndToonOutput(t *testing.T) {
 	t.Parallel()
+	t.Run("Should render the documented uppercase task list headers", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			listTasksFn: func(context.Context, TaskListQuery) ([]TaskCatalogItemRecord, error) {
+				return nil, nil
+			},
+		})
+		humanOut, _, err := executeRootCommand(t, deps, "task", "list")
+		if err != nil {
+			t.Fatalf("task list human error = %v", err)
+		}
+		lines := strings.Split(strings.TrimSpace(humanOut), "\n")
+		if len(lines) < 3 || lines[2] != strings.ToUpper(lines[2]) ||
+			!strings.Contains(lines[2], "ID") || !strings.Contains(lines[2], "STATUS") ||
+			!strings.Contains(lines[2], "TITLE") {
+			t.Fatalf("task list human output = %q, want uppercase ID/STATUS/TITLE headers", humanOut)
+		}
+	})
 
 	t.Run("Should render task detail human sections", func(t *testing.T) {
 		t.Parallel()

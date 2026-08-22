@@ -452,7 +452,8 @@ const loopRunsInputSchema = `{
 		"workspace":{"type":"string"},
 		"loop_name":{"type":"string"},
 		"status":{"type":"string"},
-		"cursor":{"type":"string","description":"Opaque continuation cursor from the previous page; reuse with the same workspace and filters."},
+		"cursor":{"type":"string","description":"Opaque continuation cursor from the previous page; ` +
+	`reuse with the same workspace and filters."},
 		"limit":{"type":"integer","minimum":1}
 	}
 }`

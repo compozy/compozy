@@ -26,21 +26,71 @@ type loopRunListCursor struct {
 	ID            string    `json:"id"`
 }
 
+type loopRunListRequest struct {
+	workspaceID looppkg.WorkspaceID
+	storeQuery  looppkg.RunListQuery
+	limit       int
+}
+
 func (s *daemonLoopAPIService) ListLoopRuns(
 	ctx context.Context,
 	workspaceID string,
 	query core.LoopRunListQuery,
 ) (contract.LoopRunsResponse, error) {
-	ws, err := normalizeLoopWorkspaceID(workspaceID)
+	request, err := prepareLoopRunListRequest(workspaceID, query)
 	if err != nil {
 		return contract.LoopRunsResponse{}, err
+	}
+	runs, err := s.persistence.ListLoopRuns(ctx, request.storeQuery)
+	if err != nil {
+		return contract.LoopRunsResponse{}, err
+	}
+	summaries, err := s.loopRunListSummaries(ctx, request.workspaceID, runs)
+	if err != nil {
+		return contract.LoopRunsResponse{}, err
+	}
+	payloads := make([]contract.LoopRunPayload, 0, len(runs))
+	for _, run := range runs {
+		if summary, ok := summaries[run.ID]; ok {
+			run.SetForks(summary.Forks)
+		}
+		payload, payloadErr := loopRunPayload(run)
+		if payloadErr != nil {
+			return contract.LoopRunsResponse{}, payloadErr
+		}
+		applyLoopRunListSummary(&payload, summaries[run.ID])
+		payloads = append(payloads, payload)
+	}
+	sortLoopRunList(payloads)
+	response := contract.LoopRunsResponse{}
+	if len(payloads) > request.limit {
+		response.Runs = payloads[:request.limit]
+		response.NextCursor, err = encodeLoopRunListCursor(
+			response.Runs[len(response.Runs)-1],
+			string(request.workspaceID),
+			query,
+		)
+		if err != nil {
+			return contract.LoopRunsResponse{}, err
+		}
+	} else {
+		response.Runs = payloads
+	}
+	response.Aggregates = loopRunsAggregate(runs[:len(response.Runs)])
+	return response, nil
+}
+
+func prepareLoopRunListRequest(workspaceID string, query core.LoopRunListQuery) (loopRunListRequest, error) {
+	ws, err := normalizeLoopWorkspaceID(workspaceID)
+	if err != nil {
+		return loopRunListRequest{}, err
 	}
 	cursor, err := decodeLoopRunListCursor(query.Cursor)
 	if err != nil {
-		return contract.LoopRunsResponse{}, err
+		return loopRunListRequest{}, err
 	}
 	if query.Limit < 0 || query.Limit > 500 {
-		return contract.LoopRunsResponse{}, fmt.Errorf(
+		return loopRunListRequest{}, fmt.Errorf(
 			"%w: limit must be 0 or between 1 and 500",
 			looppkg.ErrValidation,
 		)
@@ -50,7 +100,7 @@ func (s *daemonLoopAPIService) ListLoopRuns(
 		limit = 100
 	}
 	if cursor != nil && !cursor.matches(string(ws), query) {
-		return contract.LoopRunsResponse{}, fmt.Errorf(
+		return loopRunListRequest{}, fmt.Errorf(
 			"%w: Loop run list cursor scope changed",
 			looppkg.ErrInvalidRunListCursor,
 		)
@@ -72,43 +122,7 @@ func (s *daemonLoopAPIService) ListLoopRuns(
 			ID:        looppkg.RunID(cursor.ID),
 		}
 	}
-	runs, err := s.persistence.ListLoopRuns(ctx, storeQuery)
-	if err != nil {
-		return contract.LoopRunsResponse{}, err
-	}
-	summaries, err := s.loopRunListSummaries(ctx, ws, runs)
-	if err != nil {
-		return contract.LoopRunsResponse{}, err
-	}
-	payloads := make([]contract.LoopRunPayload, 0, len(runs))
-	for _, run := range runs {
-		if summary, ok := summaries[run.ID]; ok {
-			run.SetForks(summary.Forks)
-		}
-		payload, payloadErr := loopRunPayload(run)
-		if payloadErr != nil {
-			return contract.LoopRunsResponse{}, payloadErr
-		}
-		applyLoopRunListSummary(&payload, summaries[run.ID])
-		payloads = append(payloads, payload)
-	}
-	sortLoopRunList(payloads)
-	response := contract.LoopRunsResponse{}
-	if len(payloads) > limit {
-		response.Runs = payloads[:limit]
-		response.NextCursor, err = encodeLoopRunListCursor(
-			response.Runs[len(response.Runs)-1],
-			string(ws),
-			query,
-		)
-		if err != nil {
-			return contract.LoopRunsResponse{}, err
-		}
-	} else {
-		response.Runs = payloads
-	}
-	response.Aggregates = loopRunsAggregate(runs[:len(response.Runs)])
-	return response, nil
+	return loopRunListRequest{workspaceID: ws, storeQuery: storeQuery, limit: limit}, nil
 }
 
 func (s *daemonLoopAPIService) loopRunListSummaries(

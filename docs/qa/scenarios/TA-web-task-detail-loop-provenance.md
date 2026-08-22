@@ -6,13 +6,13 @@ persona: Dora
 journey: J-supervise-loop-steady-state
 expected: Opening a coordinator or cell record's task detail — by deep link, not only from the list — leads the properties rail with a block headed "Loop run" or "Loop step" carrying the loop name, round, step and item in plain words plus an "Open run" link that lands on that run's page; a record whose run retention deleted keeps the same block and its run id but reads "Run no longer available" with no link to follow; no field on the page is recovered by parsing the task id.
 entry_points: web Tasks window -> List (reveal on) -> record; direct URL /tasks/<record-id>
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-task07-final-web-20260822-131622-550786-lab/qa-artifacts/qa/task07-scenario-walks.md; /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-task07-final-web-20260822-131622-550786-lab/qa-artifacts/qa/screenshots/tasks-loop-detail-provenance.png; /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-task07-final-web-20260822-131622-550786-lab/qa-artifacts/qa/screenshots/tasks-loop-detail-run-gone.png
+last_report: docs/qa/reports/2026-08-21-loop-task-legibility.md
 overlaps: TA-web-tasks-calm-default-reveal; TA-task-list-calm-loop-default
 ---
 

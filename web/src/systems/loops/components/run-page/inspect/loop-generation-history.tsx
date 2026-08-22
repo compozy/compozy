@@ -62,10 +62,12 @@ export function LoopGenerationHistory({
             data-generation={row.generation}
             data-progress={row.progressState}
             data-testid={`loop-generation-${row.generation}`}
+            id={`loop-generation-${row.generation}`}
             key={row.generation}
           >
             <span className="font-mono text-mono-id text-subtle">Round {row.generation}</span>
             <Pill tone={row.tone}>{row.outcomeLabel}</Pill>
+            {row.isBest ? <Pill tone="success">Best</Pill> : null}
             {progressLabel ? (
               <span
                 className="text-form-hint text-muted"
@@ -80,7 +82,7 @@ export function LoopGenerationHistory({
                 className="font-mono text-mono-id text-subtle"
                 data-testid={`loop-generation-score-${row.generation}`}
               >
-                {row.scoreLabel}
+                score {row.scoreLabel}
               </span>
             ) : null}
             <span className="text-form-hint text-faint">{row.originLabel}</span>

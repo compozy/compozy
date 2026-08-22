@@ -11,8 +11,9 @@ import { useDesktop } from "./use-desktop";
 
 /**
  * A reconnect storm can flip window topology several times inside one burst.
- * Rows must not strobe between enabled and disabled while that settles, so the
- * snapshot the evaluator reads lags the raw state by one quiet window
+ * Capability loss lags the raw state by one quiet window so rows do not strobe
+ * disabled during that burst. Attachment and focus gains publish before paint:
+ * a valid shortcut must not disappear while the debounce catches up
  * (US-037.EC-2).
  */
 export const CMD_PALETTE_CONTEXT_DEBOUNCE_MS = 120;
@@ -63,12 +64,21 @@ export function useCmdPaletteContext({
     setSettled(current => (sameContextSnapshot(current, live) ? current : live));
   });
   const revision = contextRevision(live);
+  const gainedCapability =
+    attached &&
+    live !== null &&
+    (settled === null || (settled["window.focused"] !== true && live["window.focused"] === true));
+  const hasPendingChange = !sameContextSnapshot(settled, live);
+
+  if ((!attached || gainedCapability) && hasPendingChange) {
+    setSettled(live);
+  }
 
   useEffect(() => {
-    if (!attached) return undefined;
+    if (!attached || gainedCapability || !hasPendingChange) return undefined;
     const timer = setTimeout(commitLive, debounceMs);
     return () => clearTimeout(timer);
-  }, [attached, debounceMs, revision]);
+  }, [attached, debounceMs, gainedCapability, hasPendingChange, revision]);
 
-  return attached ? settled : null;
+  return attached ? (gainedCapability ? live : settled) : null;
 }

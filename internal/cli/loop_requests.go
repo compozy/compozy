@@ -123,7 +123,7 @@ func loopRespondPayloadInput(
 func loopRespondPayload(decision string, payload string) (json.RawMessage, error) {
 	decision = strings.TrimSpace(decision)
 	payload = strings.TrimSpace(payload)
-	requiresPayload := decision == "" || decision == loopEditKey || decision == "respond"
+	requiresPayload := decision == "" || decision == loopEditKey || decision == loopRespondKey
 	if payload == "" {
 		if requiresPayload {
 			return nil, errors.New("cli: --payload must be valid JSON")

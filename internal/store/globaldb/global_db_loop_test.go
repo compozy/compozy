@@ -138,7 +138,9 @@ func TestGlobalDBLoopTerminalReconciliationShouldConvergeExecutionRecords(t *tes
 		); err != nil {
 			t.Fatalf("clear coordinator metadata error = %v", err)
 		}
-		if _, err := globalDB.db.ExecContext(ctx, `UPDATE loop_runs SET status = 'failed' WHERE id = ?`, run.ID); err != nil {
+		if _, err := globalDB.db.ExecContext(
+			ctx, `UPDATE loop_runs SET status = 'failed' WHERE id = ?`, run.ID,
+		); err != nil {
 			t.Fatalf("seed terminal orphan error = %v", err)
 		}
 
@@ -241,7 +243,11 @@ func TestGlobalDBLoopTerminalReconciliationShouldConvergeExecutionRecords(t *tes
 			storepkg.FormatTimestamp(now), coordinatorTaskID); err != nil {
 			t.Fatalf("seed terminal coordinator task error = %v", err)
 		}
-		if _, err := globalDB.db.ExecContext(ctx, `UPDATE loop_runs SET status = 'failed' WHERE id = ?`, run.ID); err != nil {
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE loop_runs SET status = 'failed' WHERE id = ?`,
+			run.ID,
+		); err != nil {
 			t.Fatalf("seed terminal Loop run error = %v", err)
 		}
 		before := countTaskStatusEventsForTest(t, globalDB, coordinatorTaskID)
@@ -468,8 +474,11 @@ func TestGlobalDBLoopTerminalReconciliationShouldConvergeExecutionRecords(t *tes
 			`UPDATE task_runs SET loop_run_id = ? WHERE loop_run_id = ?`, missingRunID, run.ID); err != nil {
 			t.Fatalf("seed missing Loop run reference error = %v", err)
 		}
-		if _, err := globalDB.db.ExecContext(ctx,
-			`UPDATE tasks SET metadata_json = '{"loop_name":"stale-name"}' WHERE id = ?`, coordinatorTaskID); err != nil {
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE tasks SET metadata_json = '{"loop_name":"stale-name"}' WHERE id = ?`,
+			coordinatorTaskID,
+		); err != nil {
 			t.Fatalf("seed stale coordinator metadata error = %v", err)
 		}
 
@@ -580,9 +589,9 @@ func TestGlobalDBLoopTerminalSettlementShouldApplyCauseMatrix(t *testing.T) {
 		detail            string
 	}{
 		{name: "done", status: looppkg.StatusDone, cause: looppkg.TransitionCauseContract,
-			coordinatorStatus: taskpkg.TaskStatusCompleted, detail: "run done; node no longer needed"},
+			coordinatorStatus: taskpkg.TaskStatusCompleted, detail: loopSettlementDoneDetail},
 		{name: "no-op", status: looppkg.StatusNoOp, cause: looppkg.TransitionCauseContract,
-			coordinatorStatus: taskpkg.TaskStatusCompleted, detail: "run done; node no longer needed"},
+			coordinatorStatus: taskpkg.TaskStatusCompleted, detail: loopSettlementDoneDetail},
 		{name: "failed", status: looppkg.StatusFailed, cause: looppkg.TransitionCauseContract,
 			coordinatorStatus: taskpkg.TaskStatusFailed, detail: "run failed; node no longer needed"},
 		{name: "exhausted", status: looppkg.StatusExhausted, cause: looppkg.TransitionCauseBudget,
@@ -740,9 +749,14 @@ func seedLoopSettlementHierarchyForTest(
 	if err := globalDB.CreateTaskRun(ctx, liveRun); err != nil {
 		t.Fatalf("CreateTaskRun(live settlement cell) error = %v", err)
 	}
+	const settlementClaimToken = "compozy_claim_settlement_secret"
+	settlementClaimHash, err := taskpkg.ClaimTokenHash(settlementClaimToken)
+	if err != nil {
+		t.Fatalf("ClaimTokenHash(live settlement cell) error = %v", err)
+	}
 	if _, err := globalDB.db.ExecContext(ctx, `UPDATE task_runs SET claim_token = ?,
 		claim_token_hash = ?, lease_until = ?, heartbeat_at = ? WHERE id = ?`,
-		"compozy_claim_settlement_secret", "settlement-token-hash", at.Add(time.Minute), at, liveRun.ID); err != nil {
+		settlementClaimToken, settlementClaimHash, at.Add(time.Minute), at, liveRun.ID); err != nil {
 		t.Fatalf("seed live settlement lease error = %v", err)
 	}
 	terminalTask := workspaceTaskRecordForTest(prefix+"-terminal-task", string(run.WorkspaceID))
@@ -2361,49 +2375,52 @@ func TestGlobalDBLoopRunCancellationShouldFenceBeforeTerminalizing(t *testing.T)
 		"run canceled; node no longer needed",
 	)
 
-	t.Run("Should kill through the public cancellation boundary and preserve terminal truth IT-003", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should kill through the public cancellation boundary and preserve terminal truth IT-003",
+		func(t *testing.T) {
+			t.Parallel()
 
-		db := openLoopTestGlobalDB(t)
-		ctx := testutil.Context(t)
-		killAt := now.Add(20 * time.Minute)
-		killedRun, err := db.CreateLoopRunForStart(
-			ctx,
-			testLoopRun("looprun-kill-public", killAt, looppkg.StatusRunning),
-			dsl.ConcurrencyAllow,
-		)
-		if err != nil {
-			t.Fatalf("CreateLoopRunForStart(kill) error = %v", err)
-		}
-		coordinatorID, liveTaskID, liveRunID, terminalTaskID := seedLoopSettlementHierarchyForTest(
-			t, db, killedRun, "kill-public", killAt,
-		)
-		result, err := db.RequestRunCancellation(ctx, looppkg.CancellationMutation{
-			WorkspaceID: killedRun.WorkspaceID,
-			RunID:       killedRun.ID,
-			Kind:        looppkg.RunCancelKill,
-			Reason:      "operator kill",
-			Actor:       operatorActorContextForTest("operator:kill"),
-			RequestedAt: killAt.Add(time.Minute),
-		})
-		if err != nil {
-			t.Fatalf("RequestRunCancellation(kill) error = %v", err)
-		}
-		if !result.Applied || !result.Terminal || result.Run.Status != looppkg.StatusCanceled {
-			t.Fatalf("RequestRunCancellation(kill) = %#v, want terminal canceled result", result)
-		}
-		assertLoopPublicTerminalSettlementForTest(
-			t,
-			db,
-			killedRun,
-			coordinatorID,
-			liveTaskID,
-			liveRunID,
-			terminalTaskID,
-			taskpkg.TaskStatusCanceled,
-			"run killed; node no longer needed",
-		)
-	})
+			db := openLoopTestGlobalDB(t)
+			ctx := testutil.Context(t)
+			killAt := now.Add(20 * time.Minute)
+			killedRun, err := db.CreateLoopRunForStart(
+				ctx,
+				testLoopRun("looprun-kill-public", killAt, looppkg.StatusRunning),
+				dsl.ConcurrencyAllow,
+			)
+			if err != nil {
+				t.Fatalf("CreateLoopRunForStart(kill) error = %v", err)
+			}
+			coordinatorID, liveTaskID, liveRunID, terminalTaskID := seedLoopSettlementHierarchyForTest(
+				t, db, killedRun, "kill-public", killAt,
+			)
+			result, err := db.RequestRunCancellation(ctx, looppkg.CancellationMutation{
+				WorkspaceID: killedRun.WorkspaceID,
+				RunID:       killedRun.ID,
+				Kind:        looppkg.RunCancelKill,
+				Reason:      "operator kill",
+				Actor:       operatorActorContextForTest("operator:kill"),
+				RequestedAt: killAt.Add(time.Minute),
+			})
+			if err != nil {
+				t.Fatalf("RequestRunCancellation(kill) error = %v", err)
+			}
+			if !result.Applied || !result.Terminal || result.Run.Status != looppkg.StatusCanceled {
+				t.Fatalf("RequestRunCancellation(kill) = %#v, want terminal canceled result", result)
+			}
+			assertLoopPublicTerminalSettlementForTest(
+				t,
+				db,
+				killedRun,
+				coordinatorID,
+				liveTaskID,
+				liveRunID,
+				terminalTaskID,
+				taskpkg.TaskStatusCanceled,
+				"run killed; node no longer needed",
+			)
+		},
+	)
 
 	for _, status := range []looppkg.Status{
 		looppkg.StatusQueued,
@@ -2437,6 +2454,22 @@ func TestGlobalDBLoopRunCancellationShouldFenceBeforeTerminalizing(t *testing.T)
 			}
 			if !result.Applied || !result.Terminal || result.Run.Status != looppkg.StatusCanceled {
 				t.Fatalf("direct cancellation from %s = %#v", status, result)
+			}
+			if result.Run.ControlActor.Kind != taskpkg.ActorKindHuman ||
+				result.Run.ControlActor.Ref != "operator:direct-cancel" ||
+				!result.Run.ControlRequestedAt.Equal(now.Add(time.Minute)) {
+				t.Fatalf("direct cancellation actor from %s = %#v at %s", status,
+					result.Run.ControlActor, result.Run.ControlRequestedAt)
+			}
+			persisted, err := db.GetLoopRun(ctx, created.WorkspaceID, created.ID)
+			if err != nil {
+				t.Fatalf("GetLoopRun(%s) error = %v", status, err)
+			}
+			if persisted.ControlActor != result.Run.ControlActor ||
+				!persisted.ControlRequestedAt.Equal(result.Run.ControlRequestedAt) {
+				t.Fatalf("persisted cancellation actor from %s = %#v at %s, result %#v at %s",
+					status, persisted.ControlActor, persisted.ControlRequestedAt,
+					result.Run.ControlActor, result.Run.ControlRequestedAt)
 			}
 		})
 	}
@@ -3397,6 +3430,132 @@ func TestGlobalDBLoopNodeRequeueShouldBeAtomic(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve the fenced epoch on a requeued continuation", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 2, 23, 52, 0, 0, time.UTC)
+		run := seedQuarantinedLoopNodeForTest(t, globalDB, now, looppkg.StatusRunning)
+		continuationTask := taskRecordForTest(looppkg.NodeCellTaskID(run.ID, 3, "finish", 0))
+		continuationTask.WorkspaceID = string(run.WorkspaceID)
+		continuationTask.Scope = taskpkg.ScopeWorkspace
+		continuationTask.Metadata = json.RawMessage(
+			`{"generation":3,"node_id":"finish","item_index":0,"attempt":1,"epoch":1}`,
+		)
+		if err := globalDB.CreateTask(ctx, continuationTask); err != nil {
+			t.Fatalf("CreateTask(quarantined continuation) error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE tasks SET status = 'needs_attention',
+			 needs_attention_reason = 'loop node finish is quarantined', needs_attention_at = ?,
+			 needs_attention_by_kind = 'daemon', needs_attention_by_ref = 'loop-coordinator'
+			 WHERE id = ?`,
+			storepkg.FormatTimestamp(now),
+			continuationTask.ID,
+		); err != nil {
+			t.Fatalf("mark continuation needs attention error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO loop_generation_outputs
+			 (loop_run_id, generation, node_id, item_index, status, attempt, epoch)
+			 VALUES (?, 3, 'finish', 0, 'quarantined', 1, 1)`,
+			run.ID,
+		); err != nil {
+			t.Fatalf("insert quarantined continuation output error = %v", err)
+		}
+		expectedRevision := int64(4)
+		result, err := globalDB.RequeueNode(ctx, looppkg.NodeRequeueMutation{
+			WorkspaceID:      run.WorkspaceID,
+			RunID:            run.ID,
+			NodeID:           "finish",
+			Reason:           "operator repaired the target",
+			ExpectedRevision: &expectedRevision,
+			Actor:            operatorActorContextForTest("operator:alice"),
+			RequestedAt:      now.Add(time.Minute),
+		})
+		if err != nil {
+			t.Fatalf("RequeueNode() error = %v", err)
+		}
+		var workerRunID string
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT task_run_id FROM loop_generation_outputs
+			 WHERE loop_run_id = ? AND generation = 3 AND node_id = 'finish' AND item_index = 0`,
+			run.ID,
+		).Scan(&workerRunID); err != nil {
+			t.Fatalf("read requeued worker run id error = %v", err)
+		}
+		wantWorkerRunID := looppkg.NodeCellAttemptRunID(run.ID, 3, "finish", 0, 1)
+		if workerRunID != wantWorkerRunID {
+			t.Fatalf("requeued worker run id = %q, want preserved attempt %q", workerRunID, wantWorkerRunID)
+		}
+		if len(result.Workers) != 1 || result.Workers[0].ID != wantWorkerRunID {
+			t.Fatalf("requeued worker activations = %#v, want %q", result.Workers, wantWorkerRunID)
+		}
+		var workerMetadata struct {
+			Attempt int   `json:"attempt"`
+			Epoch   int64 `json:"epoch"`
+		}
+		if err := json.Unmarshal(result.Workers[0].Metadata, &workerMetadata); err != nil {
+			t.Fatalf("json.Unmarshal(requeued worker metadata) error = %v", err)
+		}
+		if workerMetadata.Attempt != 1 || workerMetadata.Epoch != 2 {
+			t.Fatalf("requeued worker attempt/epoch = %d/%d, want 1/2", workerMetadata.Attempt, workerMetadata.Epoch)
+		}
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID:            workerRunID,
+			Scope:            taskpkg.ScopeWorkspace,
+			WorkspaceID:      string(run.WorkspaceID),
+			RunKind:          taskpkg.RunKindWorker,
+			ClaimerSessionID: "daemon-loop-requeue-worker",
+			ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop"},
+			LeaseDuration:    5 * time.Minute,
+			Now:              now.Add(2 * time.Minute),
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun(requeued worker) error = %v", err)
+		}
+		if _, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+			RunID:      claim.Run.ID,
+			ClaimToken: claim.ClaimToken,
+			Result:     taskpkg.RunResult{Value: json.RawMessage(`{"summary":"repaired"}`)},
+			Actor:      coordinatorActorContextForTest(),
+			Now:        now.Add(3 * time.Minute),
+		}); err != nil {
+			t.Fatalf("CompleteRunLease(requeued worker) error = %v", err)
+		}
+		var outputStatus string
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT status FROM loop_generation_outputs
+			 WHERE loop_run_id = ? AND generation = 3 AND node_id = 'finish' AND item_index = 0`,
+			run.ID,
+		).Scan(&outputStatus); err != nil {
+			t.Fatalf("read requeued output status error = %v", err)
+		}
+		if outputStatus != loopNodeOutputSucceeded || strings.TrimSpace(result.Coordinator.ID) == "" {
+			t.Fatalf(
+				"requeued output/coordinator = %q/%q, want succeeded with a wake",
+				outputStatus,
+				result.Coordinator.ID,
+			)
+		}
+		var generationOrigin string
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT origin FROM loop_generations WHERE loop_run_id = ? AND generation = 3`,
+			run.ID,
+		).Scan(&generationOrigin); err != nil {
+			t.Fatalf("read retained continuation generation origin error = %v", err)
+		}
+		if generationOrigin != string(looppkg.OriginRequeue) {
+			t.Fatalf("retained continuation generation origin = %q, want requeue", generationOrigin)
+		}
+	})
+
 	t.Run("Should return concurrent requeue winner provenance to the loser", func(t *testing.T) {
 		t.Parallel()
 
@@ -3663,7 +3822,6 @@ func TestGlobalDBQuarantineSnapshotShouldParkCellTasks(t *testing.T) {
 			RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
 			Actor: coordinatorActorContextForTest(), Now: now.Add(3 * time.Second),
 			Plan: taskpkg.CoordinatorCompletionPlan{
-				Yield: true,
 				Snapshot: taskpkg.GenerationSnapshot{
 					LoopRunID: string(created.ID), Generation: 2,
 					Payload: looppkg.GenerationSnapshotPayload{
@@ -3686,6 +3844,13 @@ func TestGlobalDBQuarantineSnapshotShouldParkCellTasks(t *testing.T) {
 							Generation: 3, ParentGeneration: 2, Origin: looppkg.OriginReattempt,
 						},
 					},
+				},
+				NextCoordinator: &taskpkg.EnqueueSpec{
+					TaskID:         loopCoordinatorTaskID(created.ID),
+					RunID:          loopCoordinatorRunID(created.ID, 3),
+					RunKind:        taskpkg.RunKindCoordinator,
+					LoopRunID:      string(created.ID),
+					IdempotencyKey: "quarantine-completed-source-g3",
 				},
 			},
 		}
@@ -3739,6 +3904,201 @@ func TestGlobalDBQuarantineSnapshotShouldParkCellTasks(t *testing.T) {
 		}
 		if persistedRun.Generation != 2 {
 			t.Fatalf("quarantined run generation = %d, want parked at generation 2", persistedRun.Generation)
+		}
+		replayClaim := claimCoordinatorRunForTest(
+			ctx, t, globalDB, created.ID, "quarantine-completed-source-replay", now.Add(4*time.Second),
+		)
+		if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(
+			ctx,
+			taskpkg.CoordinatorCompletion{
+				RunID: replayClaim.Run.ID, ClaimToken: replayClaim.ClaimToken,
+				Actor: coordinatorActorContextForTest(), Now: now.Add(5 * time.Second),
+				Plan: taskpkg.CoordinatorCompletionPlan{
+					Yield: true,
+					Snapshot: taskpkg.GenerationSnapshot{
+						LoopRunID: string(created.ID), Generation: 2,
+						Payload: looppkg.GenerationSnapshotPayload{Outputs: []looppkg.GenerationOutput{{
+							Generation: 2, NodeID: "primary", Status: "quarantined", Attempt: 1, Epoch: 1,
+						}}},
+					},
+				},
+			},
+			looppkg.NewStoreFinalizer(),
+		); err != nil {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext(completed-source replay) error = %v", err)
+		}
+		replayedCompleted, err := globalDB.GetTask(ctx, completedTaskID)
+		if err != nil {
+			t.Fatalf("GetTask(completed source after replay) error = %v", err)
+		}
+		if replayedCompleted.Status != taskpkg.TaskStatusCompleted || replayedCompleted.NeedsAttention != nil {
+			t.Fatalf("completed source after replay = %#v, want unchanged completed", replayedCompleted)
+		}
+	})
+
+	t.Run("Should park the continuation after the source run fails and its task becomes retryable", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 22, 10, 0, 0, 0, time.UTC)
+		created, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-quarantine-failed-source", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		if err := insertLoopGenerationWithExecutor(ctx, globalDB.db, created.ID, looppkg.GenerationIntent{
+			Generation: 2, ParentGeneration: 1, Origin: looppkg.OriginReattempt,
+		}, now.Add(time.Second)); err != nil {
+			t.Fatalf("insert generation-2 provenance error = %v", err)
+		}
+		sourceTaskID := looppkg.NodeCellTaskID(created.ID, 2, "review", 0)
+		sourceTask := workspaceTaskRecordForTest(sourceTaskID, string(created.WorkspaceID))
+		sourceTask.ParentTaskID = loopCoordinatorTaskID(created.ID)
+		sourceTask.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, sourceTask); err != nil {
+			t.Fatalf("CreateTask(generation-2 source) error = %v", err)
+		}
+		sourceRun := taskRunForTest("taskrun-quarantine-failed-source", sourceTaskID)
+		sourceRun.LoopRunID = string(created.ID)
+		sourceRun.RunKind = taskpkg.RunKindWorker
+		if err := globalDB.CreateTaskRun(ctx, sourceRun); err != nil {
+			t.Fatalf("CreateTaskRun(source) error = %v", err)
+		}
+		sourceRun, err = globalDB.GetTaskRun(ctx, sourceRun.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(source) error = %v", err)
+		}
+		failed, err := forceFailTaskRunForTest(
+			ctx,
+			globalDB,
+			taskpkg.NewForceFailRunMutation(sourceRun, "schema-invalid reviewer output", now.Add(2*time.Second)),
+		)
+		if err != nil {
+			t.Fatalf("ForceFailTaskRun(source) error = %v", err)
+		}
+		if failed.Run.Status != taskpkg.TaskRunStatusFailed {
+			t.Fatalf("source run status = %q, want failed", failed.Run.Status)
+		}
+		claim := claimCoordinatorRunForTest(
+			ctx,
+			t,
+			globalDB,
+			created.ID,
+			"quarantine-failed-source",
+			now.Add(3*time.Second),
+		)
+		entry, err := json.Marshal(looppkg.QuarantineEntry{
+			NodeID:   "review",
+			InputRef: "loop-run:" + string(created.ID) + ":node:review:input",
+			Episodes: []looppkg.QuarantineEpisode{{
+				Generation: 2, QuarantinedAt: now.Add(4 * time.Second),
+				Attempts: []looppkg.NodeAttempt{{
+					LoopRunID: created.ID, Generation: 2, NodeID: "review", Attempt: 1,
+					Disposition: looppkg.AttemptQuarantined, StartedAt: now,
+				}},
+			}},
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(quarantine entry) error = %v", err)
+		}
+		continuationTaskID := looppkg.NodeCellTaskID(created.ID, 3, "review", 0)
+		completion := taskpkg.CoordinatorCompletion{
+			RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
+			Actor: coordinatorActorContextForTest(), Now: now.Add(4 * time.Second),
+			Plan: taskpkg.CoordinatorCompletionPlan{
+				Snapshot: taskpkg.GenerationSnapshot{
+					LoopRunID: string(created.ID), Generation: 2,
+					Payload: looppkg.GenerationSnapshotPayload{
+						Outputs: []looppkg.GenerationOutput{{
+							Generation: 2, NodeID: "review", Status: "quarantined", TaskRunID: sourceRun.ID,
+							Attempt: 1, Epoch: 1,
+						}},
+						Controls: []looppkg.NodeControlMutation{{
+							Kind: looppkg.NodeControlMutationQuarantine, NodeID: "review",
+							QuarantineEntry: entry, At: now.Add(4 * time.Second),
+						}},
+					},
+				},
+				PostReserveSnapshot: &taskpkg.GenerationSnapshot{
+					LoopRunID: string(created.ID), Generation: 3,
+					Payload: looppkg.GenerationSnapshotPayload{
+						Outputs: []looppkg.GenerationOutput{{
+							Generation: 3, NodeID: "review", Status: "quarantined", TaskRunID: sourceRun.ID,
+							Attempt: 1, Epoch: 1,
+						}},
+						GenerationProvenance: &looppkg.GenerationIntent{
+							Generation: 3, ParentGeneration: 2, Origin: looppkg.OriginReattempt,
+						},
+					},
+				},
+				NextCoordinator: &taskpkg.EnqueueSpec{
+					TaskID:         loopCoordinatorTaskID(created.ID),
+					RunID:          loopCoordinatorRunID(created.ID, 3),
+					RunKind:        taskpkg.RunKindCoordinator,
+					LoopRunID:      string(created.ID),
+					IdempotencyKey: "quarantine-failed-source-g3",
+				},
+			},
+		}
+		if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(
+			ctx,
+			completion,
+			looppkg.NewStoreFinalizer(),
+		); err != nil {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext(quarantine failed source) error = %v", err)
+		}
+		source, err := globalDB.GetTask(ctx, sourceTaskID)
+		if err != nil {
+			t.Fatalf("GetTask(generation-2 source) error = %v", err)
+		}
+		if source.Status != taskpkg.TaskStatusReady || source.NeedsAttention != nil {
+			t.Fatalf("generation-2 source = %#v, want retryable historical source", source)
+		}
+		continuation, err := globalDB.GetTask(ctx, continuationTaskID)
+		if err != nil {
+			t.Fatalf("GetTask(generation-3 continuation) error = %v", err)
+		}
+		if continuation.Status != taskpkg.TaskStatusNeedsAttention || continuation.NeedsAttention == nil {
+			t.Fatalf("generation-3 continuation = %#v, want quarantined needs-attention", continuation)
+		}
+		replayClaim := claimCoordinatorRunForTest(
+			ctx,
+			t,
+			globalDB,
+			created.ID,
+			"quarantine-failed-source-replay",
+			now.Add(5*time.Second),
+		)
+		if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(
+			ctx,
+			taskpkg.CoordinatorCompletion{
+				RunID: replayClaim.Run.ID, ClaimToken: replayClaim.ClaimToken,
+				Actor: coordinatorActorContextForTest(), Now: now.Add(6 * time.Second),
+				Plan: taskpkg.CoordinatorCompletionPlan{
+					Yield: true,
+					Snapshot: taskpkg.GenerationSnapshot{
+						LoopRunID: string(created.ID), Generation: 3,
+						Payload: looppkg.GenerationSnapshotPayload{Outputs: []looppkg.GenerationOutput{{
+							Generation: 3, NodeID: "review", Status: "quarantined", TaskRunID: sourceRun.ID,
+							Attempt: 1, Epoch: 1,
+						}}},
+					},
+				},
+			},
+			looppkg.NewStoreFinalizer(),
+		); err != nil {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext(quarantine replay) error = %v", err)
+		}
+		replayed, err := globalDB.GetTask(ctx, continuationTaskID)
+		if err != nil {
+			t.Fatalf("GetTask(generation-3 continuation after replay) error = %v", err)
+		}
+		if replayed.Status != taskpkg.TaskStatusNeedsAttention || replayed.NeedsAttention == nil {
+			t.Fatalf("generation-3 continuation after replay = %#v, want idempotent needs-attention", replayed)
 		}
 	})
 
@@ -3937,12 +4297,23 @@ func TestGlobalDBQuarantineSnapshotShouldParkCellTasks(t *testing.T) {
 			if runCount != 1 {
 				t.Fatalf("continuation runs %d = %d, want exactly 1", itemIndex, runCount)
 			}
-			if generationTwoOutputs[index].ItemIndex != itemIndex || generationTwoOutputs[index].Status != "quarantined" {
-				t.Fatalf("generation-2 output %d = %#v, want preserved quarantine", itemIndex, generationTwoOutputs[index])
+			if generationTwoOutputs[index].ItemIndex != itemIndex ||
+				generationTwoOutputs[index].Status != "quarantined" {
+				t.Fatalf(
+					"generation-2 output %d = %#v, want preserved quarantine",
+					itemIndex,
+					generationTwoOutputs[index],
+				)
 			}
-			if generationThreeOutputs[index].ItemIndex != itemIndex || generationThreeOutputs[index].Status != "enqueued" ||
+			if generationThreeOutputs[index].ItemIndex != itemIndex ||
+				generationThreeOutputs[index].Status != "enqueued" ||
 				generationThreeOutputs[index].TaskRunID != runID {
-				t.Fatalf("generation-3 output %d = %#v, want exact enqueued run %q", itemIndex, generationThreeOutputs[index], runID)
+				t.Fatalf(
+					"generation-3 output %d = %#v, want exact enqueued run %q",
+					itemIndex,
+					generationThreeOutputs[index],
+					runID,
+				)
 			}
 			if got := countTaskStatusEventsForTest(t, globalDB, continuationTaskID); got != 2 {
 				t.Fatalf("continuation %d status events = %d, want one park and one release", itemIndex, got)

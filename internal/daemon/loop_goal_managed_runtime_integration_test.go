@@ -27,12 +27,39 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		testLoopActionLivenessIntegration(t)
 	})
 
-	t.Run("Should fail and release a Loop action lease when completion rejects an oversized result", func(t *testing.T) {
-		testLoopActionOversizedResultIntegration(t)
-	})
+	t.Run(
+		"Should fail and release a Loop action lease when completion rejects an oversized result",
+		func(t *testing.T) {
+			testLoopActionOversizedResultIntegration(t)
+		},
+	)
 
 	t.Run("Should quarantine a repeated node failure while preserving a successful sibling", func(t *testing.T) {
 		testLoopFailureBreakerIntegration(t)
+	})
+
+	t.Run("Should revalidate a borrowed origin without rewriting its immutable profile", func(t *testing.T) {
+		fixture := newLoopGoalManagedRuntimeFixture(t, "origin-borrowed", nil, withoutInitialGoalBinding())
+		localParticipation := participation.LocalSpec()
+		originID, originIdentity := fixture.createOriginSession(t, "origin-borrowed", localParticipation)
+		request := fixture.bindingRequest("origin-borrowed")
+		request.OriginSessionID = originID
+		request.PinnedCreationProfileRef = originIdentity.CreationProfileRef
+		request.PinnedCreationDigest = originIdentity.CreationDigest
+		request.StaticPolicySpecDigest = originIdentity.PolicySpecDigest
+		request.NetworkParticipation = &localParticipation
+
+		applied, err := fixture.runtime.revalidatePersistedProfile(
+			testutil.Context(t),
+			request,
+			originIdentity,
+		)
+		if err != nil {
+			t.Fatalf("revalidatePersistedProfile() error = %v", err)
+		}
+		if applied.Provider == "" {
+			t.Fatalf("applied runtime = %#v, want persisted provider", applied)
+		}
 	})
 
 	t.Run("Should create a run-owned session when origin participation differs from the Loop Run", func(t *testing.T) {

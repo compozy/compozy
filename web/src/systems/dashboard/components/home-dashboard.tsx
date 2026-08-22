@@ -66,12 +66,10 @@ export function HomeDashboard({ className, liveEnabled = true, ...props }: HomeD
         <DataSurface.Error
           description={model.overviewErrorMessage ?? "Try again in a moment."}
           icon={AlertTriangle}
-          title="Couldn't load the overview"
+          title="Unable to load the home overview"
         />
         <DataSurface.Content>
-          {!overview ? null : model.hasNoWork ? (
-            <HomeFirstRun workspaceName={workspaceName} />
-          ) : (
+          {!overview ? null : (
             <div className="flex flex-col gap-6">
               <HomeAttentionZone attention={overview.attention} />
               <HomeKpiStrip
@@ -79,38 +77,44 @@ export function HomeDashboard({ className, liveEnabled = true, ...props }: HomeD
                 workingNowDetail={workingNowDetail(workingNow.sessionCount, workingNow.runCount)}
                 workingNowTotal={workingNow.total}
               />
-              <div className="grid grid-cols-1 items-stretch gap-5 min-[1080px]:grid-cols-2">
-                <HomeWorkingNow
-                  cards={workingNow.cards}
-                  errorMessage={workingNow.errorMessage}
-                  liveEnabled={liveEnabled}
-                  status={workingNow.status}
-                  total={workingNow.total}
-                />
-                <HomeNetworkPanel rows={network.rows} />
-              </div>
-              <HomePulseHeatmap pulse={overview.pulse} />
-              <div className="grid grid-cols-1 items-stretch gap-5 min-[1080px]:grid-cols-2">
-                <HomeOutcomesChart outcomes={overview.outcomes} />
-                <HomeUsageChart
-                  onWindowChange={model.setUsageWindow}
-                  usage={overview.usage}
-                  window={model.usageWindow}
-                />
-              </div>
-              <div className="grid grid-cols-1 items-stretch gap-5 min-[1080px]:grid-cols-2">
-                <HomeAgentsPanel rows={agents.rows} />
-                <HomeActivityFeed
-                  errorMessage={model.activityErrorMessage}
-                  events={model.activity ?? []}
-                  status={model.activityStatus}
-                />
-              </div>
-              <HomeSystemPanel
-                onOpenChange={model.setSystemOpen}
-                open={model.systemOpen}
-                system={system}
-              />
+              {model.hasNoWork ? (
+                <HomeFirstRun workspaceName={workspaceName} />
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 items-stretch gap-5 min-[1080px]:grid-cols-2">
+                    <HomeWorkingNow
+                      cards={workingNow.cards}
+                      errorMessage={workingNow.errorMessage}
+                      liveEnabled={liveEnabled}
+                      status={workingNow.status}
+                      total={workingNow.total}
+                    />
+                    <HomeNetworkPanel rows={network.rows} />
+                  </div>
+                  <HomePulseHeatmap pulse={overview.pulse} />
+                  <div className="grid grid-cols-1 items-stretch gap-5 min-[1080px]:grid-cols-2">
+                    <HomeOutcomesChart outcomes={overview.outcomes} />
+                    <HomeUsageChart
+                      onWindowChange={model.setUsageWindow}
+                      usage={overview.usage}
+                      window={model.usageWindow}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 items-stretch gap-5 min-[1080px]:grid-cols-2">
+                    <HomeAgentsPanel rows={agents.rows} />
+                    <HomeActivityFeed
+                      errorMessage={model.activityErrorMessage}
+                      events={model.activity ?? []}
+                      status={model.activityStatus}
+                    />
+                  </div>
+                  <HomeSystemPanel
+                    onOpenChange={model.setSystemOpen}
+                    open={model.systemOpen}
+                    system={system}
+                  />
+                </>
+              )}
             </div>
           )}
         </DataSurface.Content>

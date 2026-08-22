@@ -50,7 +50,12 @@ func TestGlobalDBLoopReadServiceIntegration(t *testing.T) {
 			"selected": looppkg.NodeStateRunning,
 			"skipped":  looppkg.NodeStateNotTaken,
 		})
-		runningOnly, err := reads.NodeRoster(ctx, "ws-read", created.ID, looppkg.RosterQuery{State: looppkg.NodeStateFilter(looppkg.NodeStateRunning)})
+		runningOnly, err := reads.NodeRoster(
+			ctx,
+			"ws-read",
+			created.ID,
+			looppkg.RosterQuery{State: looppkg.NodeStateFilter(looppkg.NodeStateRunning)},
+		)
 		if err != nil {
 			t.Fatalf("NodeRoster(running) error = %v", err)
 		}
@@ -80,10 +85,19 @@ func TestGlobalDBLoopReadServiceIntegration(t *testing.T) {
 			created.ID); err != nil {
 			t.Fatalf("settle selected output error = %v", err)
 		}
-		if _, err := globalDB.db.ExecContext(ctx, `UPDATE loop_runs SET status = 'done' WHERE id = ?`, created.ID); err != nil {
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE loop_runs SET status = 'done' WHERE id = ?`,
+			created.ID,
+		); err != nil {
 			t.Fatalf("terminalize read fixture error = %v", err)
 		}
-		terminal, err := reads.NodeRoster(ctx, "ws-read", created.ID, looppkg.RosterQuery{State: looppkg.NodeStateFilterAll})
+		terminal, err := reads.NodeRoster(
+			ctx,
+			"ws-read",
+			created.ID,
+			looppkg.RosterQuery{State: looppkg.NodeStateFilterAll},
+		)
 		if err != nil {
 			t.Fatalf("NodeRoster(terminal) error = %v", err)
 		}
@@ -104,7 +118,11 @@ func TestGlobalDBLoopReadServiceIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateLoopRunForStart() error = %v", err)
 		}
-		if _, err := globalDB.db.ExecContext(ctx, `UPDATE loop_runs SET generation = 1 WHERE id = ?`, created.ID); err != nil {
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE loop_runs SET generation = 1 WHERE id = ?`,
+			created.ID,
+		); err != nil {
 			t.Fatalf("advance fanout run error = %v", err)
 		}
 		for itemIndex := 0; itemIndex < 100; itemIndex++ {
@@ -202,7 +220,13 @@ func TestGlobalDBLoopReadServiceIntegration(t *testing.T) {
 		if readerErrors[0] != nil || readerErrors[1] != nil ||
 			!slices.Equal(readerSequences[0], readerSequences[1]) ||
 			!slices.Equal(readerSequences[0], []int64{5, 4, 3, 2}) {
-			t.Fatalf("timeline readers = %v/%v errors=%v/%v", readerSequences[0], readerSequences[1], readerErrors[0], readerErrors[1])
+			t.Fatalf(
+				"timeline readers = %v/%v errors=%v/%v",
+				readerSequences[0],
+				readerSequences[1],
+				readerErrors[0],
+				readerErrors[1],
+			)
 		}
 		if first.HeadSeq != 4 {
 			t.Fatalf("first fenced head = %d, want 4", first.HeadSeq)
@@ -263,12 +287,16 @@ func TestGlobalDBLoopReadServiceIntegration(t *testing.T) {
 		run := seedQuarantinedLoopNodeForTest(t, globalDB, now, looppkg.StatusRunning)
 		service, err := looppkg.NewService(
 			globalDB,
-			looppkg.DefinitionResolverFunc(func(context.Context, looppkg.WorkspaceID, string) (*looppkg.ResolvedDefinition, error) {
-				return nil, errors.New("unexpected definition resolution")
-			}),
-			looppkg.GoalRunPolicyResolverFunc(func(context.Context, looppkg.WorkspaceID) (*looppkg.GoalRunPolicy, error) {
-				return &looppkg.GoalRunPolicy{ContextNudgeRatio: 0.8}, nil
-			}),
+			looppkg.DefinitionResolverFunc(
+				func(context.Context, looppkg.WorkspaceID, string) (*looppkg.ResolvedDefinition, error) {
+					return nil, errors.New("unexpected definition resolution")
+				},
+			),
+			looppkg.GoalRunPolicyResolverFunc(
+				func(context.Context, looppkg.WorkspaceID) (*looppkg.GoalRunPolicy, error) {
+					return &looppkg.GoalRunPolicy{ContextNudgeRatio: 0.8}, nil
+				},
+			),
 			looppkg.WithClock(func() time.Time { return now.Add(time.Minute) }),
 		)
 		if err != nil {
@@ -279,7 +307,12 @@ func TestGlobalDBLoopReadServiceIntegration(t *testing.T) {
 			t.Fatalf("NewService() = %T, want NodeLifecycleService", service)
 		}
 		reads := looppkg.NewRunReadService(globalDB, nil)
-		before, err := reads.NodeRoster(ctx, string(run.WorkspaceID), run.ID, looppkg.RosterQuery{State: looppkg.NodeStateFilterAll})
+		before, err := reads.NodeRoster(
+			ctx,
+			string(run.WorkspaceID),
+			run.ID,
+			looppkg.RosterQuery{State: looppkg.NodeStateFilterAll},
+		)
 		if err != nil {
 			t.Fatalf("NodeRoster(before requeue) error = %v", err)
 		}

@@ -103,6 +103,26 @@ func TestTaskRunActivationDispatcherShouldRouteWorkerRunsByKind(t *testing.T) {
 		}
 	})
 
+	t.Run("Should route a committed requeue worker through the live dispatcher", func(t *testing.T) {
+		t.Parallel()
+
+		run := activationDispatchRun("run-requeue-worker", taskpkg.RunKindWorker, "loop-run-1")
+		store := newActivationDispatchStore(run)
+		loops := &activationDispatchObserver{}
+		dispatcher, err := newTaskRunActivationDispatcher(store, nil, loops, nil)
+		if err != nil {
+			t.Fatalf("newTaskRunActivationDispatcher() error = %v", err)
+		}
+		state := &bootState{tasks: &taskRuntime{}}
+		state.tasks.activation.Store(dispatcher)
+
+		(loopWorkerRunActivator{state: state}).ActivateWorkerRun(context.Background(), run)
+
+		if got, want := loops.runIDs(), []string{"run-requeue-worker"}; !slices.Equal(got, want) {
+			t.Fatalf("loop observer run IDs = %#v, want %#v", got, want)
+		}
+	})
+
 	t.Run("Should preserve Goal identity across initial successor and boot activation", func(t *testing.T) {
 		t.Parallel()
 

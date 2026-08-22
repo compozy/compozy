@@ -44,6 +44,8 @@ type computedRunReadService struct {
 	now   func() time.Time
 }
 
+const terminalOutcomeCauseVerified = "verified"
+
 var _ RunReadService = (*computedRunReadService)(nil)
 
 func NewRunReadService(store RunReadStore, now func() time.Time) RunReadService {
@@ -288,12 +290,12 @@ func applyTerminalOutcomeEvidence(source *RosterSource, event RunEvent) error {
 
 func terminalOutcomeCause(status Status, cause TransitionCause) string {
 	if status == StatusDone && cause == TransitionCauseContract {
-		return "verified"
+		return terminalOutcomeCauseVerified
 	}
 	if cause != "" {
 		return string(cause)
 	}
-	return "unknown"
+	return unknownValue
 }
 
 func (s *computedRunReadService) loadRouteEvidence(

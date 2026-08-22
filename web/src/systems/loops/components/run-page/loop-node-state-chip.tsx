@@ -39,6 +39,7 @@ export function LoopNodeStateChip({ chip, className, ...props }: LoopNodeStateCh
       data-testid={`loop-state-chip-${chip.state}`}
       tone={chip.tone}
       {...props}
+      aria-label={chip.label}
     >
       {/* The live accent is a pulsing dot rather than a glyph, so motion marks
           the one running thing and nothing else on the page competes with it.

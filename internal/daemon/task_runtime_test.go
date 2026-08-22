@@ -108,7 +108,8 @@ func (r *blockingRunReconciler) SweepOnce(context.Context) (looppkg.SweepReport,
 		r.firstSweep <- struct{}{}
 		<-r.releaseFirst
 		return looppkg.SweepReport{}, errors.New("injected sweep failure")
-	} else if call == 2 {
+	}
+	if call == 2 {
 		r.secondSweep <- struct{}{}
 	}
 	return looppkg.SweepReport{}, nil

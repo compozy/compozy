@@ -340,6 +340,13 @@ func TestCoordinatorRunnerShouldParkGateApprovalWait(t *testing.T) {
 	definition := dsl.Definition{Graph: dsl.Graph{
 		Nodes: []dsl.Node{
 			gateNode,
+			{
+				ID: "choose", Class: dsl.NodeClassControl, Kind: string(dsl.ControlAsk),
+				Params: dsl.NodeParams{
+					"prompt": "Approve this rollout?",
+					"expect": map[string]any{"decision": "string"},
+				},
+			},
 			lifecycleNode("normal"),
 			lifecycleNode("timed_out"),
 		},
@@ -354,6 +361,7 @@ func TestCoordinatorRunnerShouldParkGateApprovalWait(t *testing.T) {
 		nil,
 		coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
 			{Generation: 1, NodeID: "approval", Status: generationOutputPending, Attempt: 1},
+			{Generation: 1, NodeID: "choose", Status: generationOutputPending, Attempt: 1},
 			{Generation: 1, NodeID: "normal", Status: generationOutputPending, Attempt: 1},
 			{Generation: 1, NodeID: "timed_out", Status: generationOutputPending, Attempt: 1},
 		}}},
@@ -386,9 +394,15 @@ func TestCoordinatorRunnerShouldParkGateApprovalWait(t *testing.T) {
 		outputs["approval/0"].Status != generationOutputSucceeded || outputs["approval/0"].Epoch != 1 {
 		t.Fatalf("approval plan = %#v outputs = %#v", plan, outputs)
 	}
-	if len(payload.Waits) != 1 || payload.Waits[0].Kind != "approval_escalation" ||
-		payload.Waits[0].IssuedEpoch != 1 || payload.Waits[0].NextEscalationAt == nil ||
-		!payload.Waits[0].NextEscalationAt.Equal(now.Add(15*time.Minute)) {
+	var approvalWait *NodeWaitIntent
+	for index := range payload.Waits {
+		if payload.Waits[index].Kind == "approval_escalation" {
+			approvalWait = &payload.Waits[index]
+			break
+		}
+	}
+	if approvalWait == nil || approvalWait.IssuedEpoch != 1 || approvalWait.NextEscalationAt == nil ||
+		!approvalWait.NextEscalationAt.Equal(now.Add(15*time.Minute)) {
 		t.Fatalf("approval waits = %#v, want durable expiring approval", payload.Waits)
 	}
 	var waitEvent *GenerationLifecycleEventIntent
@@ -400,6 +414,14 @@ func TestCoordinatorRunnerShouldParkGateApprovalWait(t *testing.T) {
 	}
 	if waitEvent == nil || len(waitEvent.Effects) != 1 || waitEvent.Effects[0].Trigger != EffectTriggerOnPause {
 		t.Fatalf("approval wait events = %#v, want one on_pause delivery", payload.Events)
+	}
+	if outputs["choose/0"].Status != generationOutputWaiting || len(payload.Requests) != 1 ||
+		payload.Requests[0].NodeID != "choose" {
+		t.Fatalf(
+			"approval sibling request = output:%#v requests:%#v, want one parked ask",
+			outputs["choose/0"],
+			payload.Requests,
+		)
 	}
 }
 

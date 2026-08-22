@@ -872,7 +872,11 @@ func TestUDSTransportWindowManagerMatchesHTTP(t *testing.T) {
 				t.Fatalf("UDS window manager client registration error = %v", err)
 			}
 			if httpClient.AttachmentToken == "" || udsClient.AttachmentToken == "" {
-				t.Fatalf("window manager registration tokens must be present: HTTP=%q UDS=%q", httpClient.AttachmentToken, udsClient.AttachmentToken)
+				t.Fatalf(
+					"window manager registration tokens must be present: HTTP=%q UDS=%q",
+					httpClient.AttachmentToken,
+					udsClient.AttachmentToken,
+				)
 			}
 			if httpClient.AttachmentToken == udsClient.AttachmentToken {
 				t.Fatal("window manager client re-registration did not rotate the attachment token")

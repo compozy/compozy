@@ -23,7 +23,9 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 
 	now := time.Date(2026, 4, 17, 14, 0, 0, 0, time.UTC)
 	lastActivity := now.Add(-time.Minute)
-	loopMetadata := []byte(`{"loop_run_id":"looprun-alpha","loop_name":"alpha","generation":2,"node_id":"review","item_index":0}`)
+	loopMetadata := []byte(
+		`{"loop_run_id":"looprun-alpha","loop_name":"alpha","generation":2,"node_id":"review","item_index":0}`,
+	)
 	var listQuery taskpkg.CatalogQuery
 	var listActor taskpkg.ActorContext
 	var detailActor taskpkg.ActorContext
@@ -243,7 +245,12 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 		nil,
 	)
 	if includeResp.Code != http.StatusOK {
-		t.Fatalf("Loop run list status = %d, want %d; body=%s", includeResp.Code, http.StatusOK, includeResp.Body.String())
+		t.Fatalf(
+			"Loop run list status = %d, want %d; body=%s",
+			includeResp.Code,
+			http.StatusOK,
+			includeResp.Body.String(),
+		)
 	}
 	if listQuery.LoopRunID != "looprun-alpha" || len(listQuery.ExcludeCreatedBy) != 0 {
 		t.Fatalf("Loop run list query IT-012 = %#v", listQuery)
@@ -259,7 +266,11 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 	var detailPayload contract.TaskDetailResponse
 	testutil.DecodeJSONResponse(t, detailResp, &detailPayload)
 	if !reflect.DeepEqual(detailPayload.Task.Task.Loop, listPayload.Tasks[0].Loop) {
-		t.Fatalf("catalog/detail Loop provenance IT-033 = %#v / %#v", listPayload.Tasks[0].Loop, detailPayload.Task.Task.Loop)
+		t.Fatalf(
+			"catalog/detail Loop provenance IT-033 = %#v / %#v",
+			listPayload.Tasks[0].Loop,
+			detailPayload.Task.Task.Loop,
+		)
 	}
 
 	runResp := performRequest(t, fixture.Engine, http.MethodGet, "/task-runs/run-1", nil)

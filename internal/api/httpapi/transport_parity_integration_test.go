@@ -494,7 +494,13 @@ func TestHTTPTransportTaskLoopCatalogParity(t *testing.T) {
 			response := mustHTTPRequest(t, client, http.MethodGet, endpoint, nil, nil)
 			if response.StatusCode != http.StatusOK {
 				body := readAndCloseHTTPBody(t, response)
-				t.Fatalf("%s foreign Loop status = %d, want %d; body=%s", transport, response.StatusCode, http.StatusOK, body)
+				t.Fatalf(
+					"%s foreign Loop status = %d, want %d; body=%s",
+					transport,
+					response.StatusCode,
+					http.StatusOK,
+					body,
+				)
 			}
 			var payload compozycontract.TasksResponse
 			decodeHTTPJSON(t, response, &payload)
@@ -1262,8 +1268,22 @@ func seedTransportTaskLoopCatalog(
 		}
 	}
 	coordinatorID := apitest.TaskLoopParityCoordinatorID
-	visible := completedTask("task-transport-visible", "Visible operator task", harness.WorkspaceID, "", human, humanOrigin)
-	coordinator := completedTask(coordinatorID, "Transport Loop coordinator", harness.WorkspaceID, "", loopActor, loopOrigin)
+	visible := completedTask(
+		"task-transport-visible",
+		"Visible operator task",
+		harness.WorkspaceID,
+		"",
+		human,
+		humanOrigin,
+	)
+	coordinator := completedTask(
+		coordinatorID,
+		"Transport Loop coordinator",
+		harness.WorkspaceID,
+		"",
+		loopActor,
+		loopOrigin,
+	)
 	coordinator.Metadata = json.RawMessage(
 		`{"loop_run_id":"looprun-transport-parity","loop_name":"transport-parity"}`,
 	)

@@ -84,8 +84,8 @@ func run(ctx context.Context, args []string) (err error) {
 		options.runID,
 		options.taskID,
 		options.workspaceID,
-		now,
-		now,
+		now.Format(time.RFC3339Nano),
+		now.Format(time.RFC3339Nano),
 		options.loopRunID,
 	); err != nil {
 		return fmt.Errorf("create retained task run: %w", err)

@@ -48,6 +48,23 @@ func TestStaticRoutesServeEmbeddedIndexForRootAndDeepLinks(t *testing.T) {
 	if !strings.Contains(deepLinkResp.Body.String(), `<div id="app"></div>`) {
 		t.Fatalf("GET /session/sess-001 body = %q, want SPA shell", deepLinkResp.Body.String())
 	}
+
+	loopTaskPath := "/tasks/loop.looprun-001.g1.node.review.0"
+	loopTaskResp := performRequestWithHeaders(t, engine, http.MethodGet, loopTaskPath, nil, map[string]string{
+		"Accept": "text/html,application/xhtml+xml",
+	})
+	if loopTaskResp.Code != http.StatusOK {
+		t.Fatalf(
+			"GET %s status = %d, want %d; body=%s",
+			loopTaskPath,
+			loopTaskResp.Code,
+			http.StatusOK,
+			loopTaskResp.Body.String(),
+		)
+	}
+	if !strings.Contains(loopTaskResp.Body.String(), `<div id="app"></div>`) {
+		t.Fatalf("GET %s body = %q, want SPA shell", loopTaskPath, loopTaskResp.Body.String())
+	}
 }
 
 func TestStaticRoutesServeEmbeddedAssets(t *testing.T) {

@@ -154,7 +154,8 @@ func (g *LoopRepo) repairLoopCoordinatorTaskWithExecutor(
 func loopCoordinatorTaskRecordForRun(run looppkg.Run, taskID string, now time.Time) (taskpkg.Task, error) {
 	origin := loopCoordinatorStartOrigin()
 	metadata, err := json.Marshal(map[string]string{
-		"loop_run_id": string(run.ID), "loop_name": run.LoopName, "workspace_id": string(run.WorkspaceID),
+		columnLoopRunID: string(run.ID), columnLoopName: run.LoopName,
+		watchEventsContentWorkspaceIDKey: string(run.WorkspaceID),
 	})
 	if err != nil {
 		return taskpkg.Task{}, fmt.Errorf("store: marshal Loop coordinator metadata: %w", err)

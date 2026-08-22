@@ -25,6 +25,7 @@ export interface TasksListSurfaceProps {
   /** Which population the server returned — work items only, or with Loop records revealed. */
   recordsFilter?: TaskRecordsFilter;
   onShowWorkItems?: () => void;
+  onOpenLoopRun?: () => void;
   hasMore?: boolean;
   isLoadingMore?: boolean;
   onLoadMore?: () => void;
@@ -40,6 +41,7 @@ export function TasksListSurface({
   searchQuery,
   recordsFilter = "work",
   onShowWorkItems,
+  onOpenLoopRun,
   hasMore = false,
   isLoadingMore = false,
   onLoadMore,
@@ -128,7 +130,7 @@ export function TasksListSurface({
               totalCount={taskStatusFacetTotal(bucket.group.statuses, statusCounts)}
             >
               {bucket.tasks.map(task => (
-                <TaskCard key={task.id} task={task} />
+                <TaskCard key={task.id} onOpenLoopRun={onOpenLoopRun} task={task} />
               ))}
             </TaskGroup>
           ))

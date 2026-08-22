@@ -11,7 +11,7 @@ bug_ids: BUG-20260719-autonomous-progress-unobservable
 fix_status: fixed
 retest_status: pass — runtime-owned observer followed catalog advancement and matched all 11 terminal Tasks
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-runtime-20260821-1126-20260821-112711-004724-lab/qa-artifacts/qa/headless/roster-limit1.json; /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-runtime-20260821-1126-20260821-112711-004724-lab/qa-artifacts/qa/headless/roster-page2.json; /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-runtime-20260821-1126-20260821-112711-004724-lab/qa-artifacts/qa/observation-summary.json
+evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-task07-final-web-20260822-131622-550786-lab/qa-artifacts/qa/task07-scenario-walks.md; .compozy/tasks/loop-task-legibility/evidence/visual/task_05/VC-33
 last_report: docs/qa/reports/2026-08-21-loop-task-legibility.md
 overlaps: LP-run-read-agent-journey; LP-web-runs-roster-rerank; LP-web-runs-breadcrumb; GL-016
 ---
@@ -37,3 +37,7 @@ advanced from 4 to 11 completed Tasks, recorded eight durable transitions, and m
 Task id/status. Together with the earlier server-ordering, paging, progress, and attention walk,
 this resolves the row's only blocked decision and the scenario now passes. Evidence:
 `/Users/pedronauck/dev/qa-labs/compozy-loop-legibility-observer-closure-20260821-130214-633585-lab/qa-artifacts/qa/observer-catalog-comparison.json`.
+
+QA impact 2026-08-21: reset because the degraded-read age presentation changed after the prior
+walk. The fresh task_07 lab must re-walk ordering, paging, attention omission, progress, and the
+updated degraded age before restoring a verdict.

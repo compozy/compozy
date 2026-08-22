@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { ComponentProps, ReactNode } from "react";
 import { Search } from "lucide-react";
 
@@ -14,11 +15,17 @@ import type { LoopGraph } from "../../lib/loop-graph";
 import type { LoopRunInputRow } from "../../lib/loop-run-about";
 import type { LoopRequestView } from "../../lib/loop-request-model";
 import type { LoopRunUsageRow } from "../../lib/loop-run-usage";
-import type { LoopContract, LoopRunGeneration, LoopRunRecord } from "../../types";
+import type {
+  LoopContract,
+  LoopRunGeneration,
+  LoopRunRecord,
+  LoopWatchEventsState,
+} from "../../types";
 import type {
   LoopNodeSelection,
   LoopRunRegisters as LoopRunRegistersModel,
 } from "../../lib/loop-run-registers-view";
+import type { LoopInspectLane } from "./inspect/loop-run-inspect-register";
 import type { LoopFanoutRollup, LoopRosterNode } from "../../types";
 import { LoopRunAboutRail } from "./loop-run-about-rail";
 import { LOOP_NEEDS_YOU_ANCHOR_ID, LoopRunBriefing } from "./loop-run-briefing";
@@ -111,6 +118,7 @@ export interface LoopRunPageBodyProps extends Omit<ComponentProps<"div">, "child
   workspaceId?: string;
   /** `v3 · pinned` when the run pins its executed definition. */
   versionLabel?: string;
+  watchEvents?: LoopWatchEventsState | null;
   inspect: LoopRunInspectState;
   pendingAction?: LoopRunPendingAction;
   /** Every node with declared lifecycle state; feeds the rail's waits panel. */
@@ -166,6 +174,7 @@ export function LoopRunPageBody({
   workspaceLabel,
   workspaceId = "",
   versionLabel,
+  watchEvents,
   inspect,
   pendingAction,
   nodeLifecycles,
@@ -183,6 +192,7 @@ export function LoopRunPageBody({
   className,
   ...divProps
 }: LoopRunPageBodyProps) {
+  const [inspectLane, setInspectLane] = useState<LoopInspectLane>("graph");
   const status = run.status;
   const contract = materializedContract;
   const quarantinedNodes = (nodeLifecycles ?? []).filter(node => node.quarantined);
@@ -247,6 +257,7 @@ export function LoopRunPageBody({
             <LoopRunLineageSection forkedFrom={run.forked_from ?? null} forks={run.forks} />
             {/* Everything the default read demoted lives one disclosure down. */}
             <LoopRunRegisters
+              bestGeneration={run.best_generation}
               generations={generations}
               nodeLifecycles={nodeLifecycles ?? []}
               isLoadingMoreRoster={isLoadingMoreRoster}
@@ -269,6 +280,9 @@ export function LoopRunPageBody({
               events={events}
               rosterRead={rosterRead}
               selection={nodeSelection}
+              lane={inspectLane}
+              onLaneChange={setInspectLane}
+              watchEvents={watchEvents}
             />
           </main>
           <aside data-testid="loop-run-detail-rail">
@@ -280,6 +294,11 @@ export function LoopRunPageBody({
                 inputRows={inputRows}
                 startedBy={startedBy}
                 workspaceLabel={workspaceLabel}
+                lastWakeAt={watchEvents?.last_wake_at}
+                onOpenGeneration={() => {
+                  setInspectLane("generations");
+                  inspect.onOpenChange(true);
+                }}
               />
               <div className="flex items-center justify-between border-t border-line-soft px-3 py-2.5">
                 <Button
