@@ -27,17 +27,17 @@ func (d *Daemon) persistSandboxReconcileMeta(
 	if err := store.WriteSessionMeta(candidate.metaPath, next); err != nil {
 		logger.Warn(
 			"daemon: sandbox reconciliation metadata write failed",
-			sandboxReconcileLogAttrs(candidate.meta, envMeta, 0, err)...,
+			sandboxReconcileLogAttrs(&candidate.meta, envMeta, 0, err)...,
 		)
 		return
 	}
 	if state == nil || state.registry == nil {
 		return
 	}
-	if err := state.registry.RegisterSession(ctx, sessionInfoFromSandboxReconcileMeta(next)); err != nil {
+	if err := state.registry.RegisterSession(ctx, sessionInfoFromSandboxReconcileMeta(&next)); err != nil {
 		logger.Warn(
 			"daemon: sandbox reconciliation session index update failed",
-			sandboxReconcileLogAttrs(candidate.meta, envMeta, 0, err)...,
+			sandboxReconcileLogAttrs(&candidate.meta, envMeta, 0, err)...,
 		)
 	}
 }
@@ -45,7 +45,7 @@ func (d *Daemon) persistSandboxReconcileMeta(
 func (d *Daemon) resolveSandboxReconcileWorkspace(
 	ctx context.Context,
 	state *bootState,
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 	envMeta *store.SessionSandboxMeta,
 ) (*workspacepkg.ResolvedWorkspace, bool) {
 	if state == nil || state.workspaceResolver == nil {
@@ -62,7 +62,7 @@ func (d *Daemon) resolveSandboxReconcileWorkspace(
 	return &resolved, true
 }
 
-func sessionHasRemoteSandbox(meta store.SessionMeta) bool {
+func sessionHasRemoteSandbox(meta *store.SessionMeta) bool {
 	if meta.Sandbox == nil {
 		return false
 	}
@@ -110,7 +110,7 @@ func sandboxReconcileResolvedSandbox(
 func (d *Daemon) resolveSandboxReconcileLocalRoots(
 	ctx context.Context,
 	state *bootState,
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 	envMeta *store.SessionSandboxMeta,
 	resolvedWorkspace *workspacepkg.ResolvedWorkspace,
 	workspaceResolved bool,

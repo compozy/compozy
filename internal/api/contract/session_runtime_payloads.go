@@ -97,11 +97,24 @@ type SessionRuntimePayload struct {
 	Status            session.RuntimeStatus             `json:"status"`
 	Transition        session.RuntimeTransitionStrategy `json:"transition,omitempty"`
 	Failure           string                            `json:"failure,omitempty"`
+	Generation        int64                             `json:"generation,omitempty"`
+	Recovery          *SessionRuntimeRecoveryPayload    `json:"recovery,omitempty"`
 	Selected          *PromptRuntimeSelectionPayload    `json:"selected,omitempty"`
 	SelectionRevision int64                             `json:"selection_revision"`
 	Effective         *RuntimeSelectionPayload          `json:"effective,omitempty"`
 	ACPSessionID      string                            `json:"acp_session_id,omitempty"`
 	ACPCaps           *ACPCapsPayload                   `json:"acp_caps,omitempty"`
+}
+
+// SessionRuntimeRecoveryPayload reports bounded automatic recovery progress.
+type SessionRuntimeRecoveryPayload struct {
+	Attempt       int        `json:"attempt"`
+	MaxAttempts   int        `json:"max_attempts"`
+	Generation    int64      `json:"generation"`
+	StartedAt     time.Time  `json:"started_at"`
+	LastAttemptAt time.Time  `json:"last_attempt_at"`
+	NextAttemptAt *time.Time `json:"next_attempt_at,omitempty"`
+	LastError     string     `json:"last_error,omitempty"`
 }
 
 // SetSessionRuntimeRequest durably selects the default runtime for future prompts.

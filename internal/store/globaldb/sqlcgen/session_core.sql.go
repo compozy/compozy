@@ -248,7 +248,7 @@ func (q *Queries) SweepExpiredSessionAttachLocks(ctx context.Context, now string
 const upsertSession = `-- name: UpsertSession :execrows
 INSERT INTO sessions (
   id, name, agent_name, provider, model, reasoning_effort, speed, speed_resolution_json,
-  runtime_status, runtime_transition, runtime_failure,
+  runtime_status, runtime_transition, runtime_failure, runtime_generation, runtime_recovery_json,
   selected_provider, selected_model, selected_reasoning_effort, selected_speed,
   runtime_selection_revision, workspace_id, worktree_id, session_type,
   network_spec_json, network_mode, network_channel, network_source, state,
@@ -264,36 +264,37 @@ INSERT INTO sessions (
   ?1, ?2, ?3, ?4, ?5,
   ?6, ?7, ?8,
   ?9, ?10, ?11,
-  ?12, ?13, ?14,
-  ?15, ?16, ?17,
-  ?18,
-  ?19, ?20, ?21,
-  ?22, ?23, ?24, ?25,
-  ?26, ?27, ?28, ?29,
-  ?30, ?31, ?32, ?33,
-  ?34, ?35, ?36, ?37,
-  ?38, ?39, ?40,
-  ?41, ?42, ?43,
-  ?44, ?45, ?46,
-  ?47, ?48, ?49,
-  ?50, ?51, ?52,
-  ?53, ?54, ?55,
-  ?56, ?57,
-  ?58, ?59
-WHERE ?18 IS NULL
+  ?12, ?13,
+  ?14, ?15, ?16,
+  ?17, ?18, ?19,
+  ?20,
+  ?21, ?22, ?23,
+  ?24, ?25, ?26, ?27,
+  ?28, ?29, ?30, ?31,
+  ?32, ?33, ?34, ?35,
+  ?36, ?37, ?38, ?39,
+  ?40, ?41, ?42,
+  ?43, ?44, ?45,
+  ?46, ?47, ?48,
+  ?49, ?50, ?51,
+  ?52, ?53, ?54,
+  ?55, ?56, ?57,
+  ?58, ?59,
+  ?60, ?61
+WHERE ?20 IS NULL
    OR EXISTS (
       SELECT 1
       FROM worktrees
-      WHERE worktrees.workspace_id = ?17
-        AND worktrees.id = ?18
+      WHERE worktrees.workspace_id = ?19
+        AND worktrees.id = ?20
         AND worktrees.state = 'ready'
    )
    OR EXISTS (
       SELECT 1
       FROM sessions AS existing_session
       WHERE existing_session.id = ?1
-        AND existing_session.workspace_id = ?17
-        AND existing_session.worktree_id IS ?18
+        AND existing_session.workspace_id = ?19
+        AND existing_session.worktree_id IS ?20
    )
 ON CONFLICT(id) DO UPDATE SET
   name = excluded.name,
@@ -306,6 +307,8 @@ ON CONFLICT(id) DO UPDATE SET
 	runtime_status = excluded.runtime_status,
 	runtime_transition = excluded.runtime_transition,
 	runtime_failure = excluded.runtime_failure,
+	runtime_generation = excluded.runtime_generation,
+	runtime_recovery_json = excluded.runtime_recovery_json,
 	selected_provider = excluded.selected_provider,
 	selected_model = excluded.selected_model,
 	selected_reasoning_effort = excluded.selected_reasoning_effort,
@@ -369,6 +372,8 @@ type UpsertSessionParams struct {
 	RuntimeStatus            string         `json:"runtime_status"`
 	RuntimeTransition        string         `json:"runtime_transition"`
 	RuntimeFailure           string         `json:"runtime_failure"`
+	RuntimeGeneration        int64          `json:"runtime_generation"`
+	RuntimeRecoveryJson      string         `json:"runtime_recovery_json"`
 	SelectedProvider         string         `json:"selected_provider"`
 	SelectedModel            string         `json:"selected_model"`
 	SelectedReasoningEffort  string         `json:"selected_reasoning_effort"`
@@ -432,6 +437,8 @@ func (q *Queries) UpsertSession(ctx context.Context, arg UpsertSessionParams) (i
 		arg.RuntimeStatus,
 		arg.RuntimeTransition,
 		arg.RuntimeFailure,
+		arg.RuntimeGeneration,
+		arg.RuntimeRecoveryJson,
 		arg.SelectedProvider,
 		arg.SelectedModel,
 		arg.SelectedReasoningEffort,

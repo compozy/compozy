@@ -33,6 +33,8 @@ func (s *Session) metaLocked() store.SessionMeta {
 		RuntimeStatus:     s.RuntimeStatus,
 		RuntimeTransition: s.RuntimeTransition,
 		RuntimeFailure:    store.SessionRuntimeFailurePointer(s.RuntimeFailure),
+		RuntimeGeneration: s.RuntimeGeneration,
+		RuntimeRecovery:   store.CloneSessionRuntimeRecovery(s.RuntimeRecovery),
 		RuntimeSelection: store.NewSessionRuntimeSelectionState(
 			storeSessionRuntimeSelection(s.SelectedRuntime),
 			s.RuntimeSelectionRevision,

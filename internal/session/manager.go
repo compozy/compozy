@@ -20,6 +20,8 @@ const (
 	defaultPromptBufferSize = 128
 )
 
+var defaultPromptRecoveryDelays = []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}
+
 var (
 	// ErrSessionNotFound reports that the requested active session does not exist.
 	ErrSessionNotFound = errors.New("session: session not found")
@@ -105,6 +107,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 		newWaitID:                   newULIDGenerator("wait"),
 		acquireSessionDBFamilyLease: sessiondb.AcquireFamilyLease,
 		promptBufSize:               defaultPromptBufferSize,
+		promptRecoveryDelays:        append([]time.Duration(nil), defaultPromptRecoveryDelays...),
 		soulRefreshTimeout:          defaultLifecycleTimeout,
 	}
 

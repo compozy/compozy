@@ -35,6 +35,7 @@ type liveProviderAdapter struct {
 	defaultEndpoint   string
 	defaultCommand    string
 	bootstrapOnList   bool
+	acpOnly           bool
 	parseCommandRows  func(string, string, time.Time) ([]ModelRow, error)
 	authScheme        liveAuthScheme
 	authRequired      bool
@@ -51,8 +52,8 @@ type liveDiscoveryTarget struct {
 
 var liveProviderAdapters = map[string]liveProviderAdapter{
 	liveSourcesCodexKey: {
-		defaultKind:       liveDiscoveryHTTP,
-		defaultEndpoint:   "https://api.openai.com/v1/models",
+		defaultKind:       liveDiscoveryACP,
+		bootstrapOnList:   true,
 		authScheme:        liveAuthBearer,
 		authRequired:      true,
 		credentialEnvKeys: []string{liveSourcesOpenAIEnvName},
@@ -65,8 +66,8 @@ var liveProviderAdapters = map[string]liveProviderAdapter{
 		credentialEnvKeys: []string{liveSourcesOpenAIEnvName},
 	},
 	liveSourcesClaudeKey: {
-		defaultKind:       liveDiscoveryHTTP,
-		defaultEndpoint:   "https://api.anthropic.com/v1/models",
+		defaultKind:       liveDiscoveryACP,
+		bootstrapOnList:   true,
 		authScheme:        liveAuthAnthropic,
 		authRequired:      true,
 		credentialEnvKeys: []string{"ANTHROPIC_API_KEY"},
@@ -113,6 +114,7 @@ var liveProviderAdapters = map[string]liveProviderAdapter{
 		defaultKind:     liveDiscoveryACP,
 		defaultCommand:  cursorACPCommand,
 		bootstrapOnList: true,
+		acpOnly:         true,
 	},
 	"openclaw": {
 		defaultKind: liveDiscoveryNone,
@@ -149,7 +151,7 @@ func (s *LiveProviderSource) discoveryTarget(
 		return liveDiscoveryTarget{}, err
 	}
 	if configuredEndpoint != "" {
-		if s.adapter.defaultKind == liveDiscoveryACP {
+		if s.adapter.acpOnly {
 			return liveDiscoveryTarget{}, fmt.Errorf(
 				"model catalog: provider %q requires an ACP discovery command, not an endpoint",
 				s.providerID,
@@ -178,9 +180,13 @@ func (s *LiveProviderSource) discoveryTarget(
 			timeout: timeout,
 		}, nil
 	case liveDiscoveryACP:
+		command := strings.TrimSpace(provider.Command)
+		if command == "" {
+			command = s.adapter.defaultCommand
+		}
 		return liveDiscoveryTarget{
 			kind:    liveDiscoveryACP,
-			command: s.adapter.defaultCommand,
+			command: command,
 			timeout: timeout,
 		}, nil
 	default:

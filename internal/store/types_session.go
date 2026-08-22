@@ -67,6 +67,8 @@ type SessionInfo struct {
 	RuntimeStatus            SessionRuntimeStatus
 	RuntimeTransition        SessionRuntimeTransition
 	RuntimeFailure           string
+	RuntimeGeneration        int64
+	RuntimeRecovery          *SessionRuntimeRecovery
 	SelectedRuntime          *SessionRuntimeSelection
 	RuntimeSelectionRevision int64
 	WorkspaceID              string
@@ -134,6 +136,9 @@ func (s SessionInfo) Validate() error {
 		return err
 	}
 	if err := validateSessionRuntime(s.RuntimeStatus, s.RuntimeTransition, s.RuntimeFailure); err != nil {
+		return err
+	}
+	if err := validateSessionRuntimeRecovery(s.RuntimeStatus, s.RuntimeGeneration, s.RuntimeRecovery); err != nil {
 		return err
 	}
 	if err := validateSessionSpeedMetadata(s.Speed, s.SpeedResolution); err != nil {
@@ -253,6 +258,8 @@ type SessionStateUpdate struct {
 	RuntimeStatus            SessionRuntimeStatus
 	RuntimeTransition        SessionRuntimeTransition
 	RuntimeFailure           string
+	RuntimeGeneration        int64
+	RuntimeRecovery          *SessionRuntimeRecovery
 	SelectedRuntimeSet       bool
 	SelectedRuntime          *SessionRuntimeSelection
 	RuntimeSelectionRevision int64
@@ -297,6 +304,9 @@ func (u SessionStateUpdate) Validate() error {
 	}
 	if u.RuntimeSet {
 		if err := validateSessionRuntime(u.RuntimeStatus, u.RuntimeTransition, u.RuntimeFailure); err != nil {
+			return err
+		}
+		if err := validateSessionRuntimeRecovery(u.RuntimeStatus, u.RuntimeGeneration, u.RuntimeRecovery); err != nil {
 			return err
 		}
 		if err := validateSessionSpeedMetadata(u.Speed, u.SpeedResolution); err != nil {

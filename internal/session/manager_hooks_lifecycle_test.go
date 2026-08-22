@@ -363,6 +363,7 @@ func TestStopWithCauseLifecycle(t *testing.T) {
 			},
 		}
 		h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
+		h.manager.promptRecoveryDelays = []time.Duration{}
 		session = createSession(t, h)
 		t.Cleanup(func() {
 			if _, ok := h.manager.Get(session.ID); ok {
@@ -467,6 +468,7 @@ func TestStopWithCauseLifecycle(t *testing.T) {
 			},
 		}
 		h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
+		h.manager.promptRecoveryDelays = []time.Duration{}
 		session = createSession(t, h)
 		h.notifier.finalizingHook = func(context.Context, *Session) {
 			recordStep("finalizing")

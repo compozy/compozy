@@ -350,6 +350,13 @@ func WithPromptBufferSize(size int) Option {
 	}
 }
 
+// WithPromptRecoveryDelays overrides the bounded automatic recovery schedule.
+func WithPromptRecoveryDelays(delays ...time.Duration) Option {
+	return func(manager *Manager) {
+		manager.promptRecoveryDelays = append([]time.Duration(nil), delays...)
+	}
+}
+
 // WithSessionSupervision overrides runtime activity supervision settings.
 func WithSessionSupervision(config compozyconfig.SessionSupervisionConfig) Option {
 	return func(manager *Manager) {

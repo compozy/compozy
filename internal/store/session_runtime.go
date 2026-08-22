@@ -13,6 +13,7 @@ const (
 	SessionRuntimeBinding       SessionRuntimeStatus = "binding"
 	SessionRuntimeReady         SessionRuntimeStatus = "ready"
 	SessionRuntimeReconfiguring SessionRuntimeStatus = "reconfiguring"
+	SessionRuntimeRecovering    SessionRuntimeStatus = "recovering"
 	SessionRuntimeFailed        SessionRuntimeStatus = "failed"
 )
 
@@ -24,6 +25,7 @@ const (
 	SessionRuntimeTransitionInitialBind        SessionRuntimeTransition = "initial_bind"
 	SessionRuntimeTransitionLiveConfiguration  SessionRuntimeTransition = "live_configuration"
 	SessionRuntimeTransitionProcessReplacement SessionRuntimeTransition = "process_replacement"
+	SessionRuntimeTransitionAutomaticRecovery  SessionRuntimeTransition = "automatic_recovery"
 )
 
 func validateSessionRuntime(status SessionRuntimeStatus, transition SessionRuntimeTransition, failure string) error {
@@ -32,6 +34,7 @@ func validateSessionRuntime(status SessionRuntimeStatus, transition SessionRunti
 		SessionRuntimeBinding,
 		SessionRuntimeReady,
 		SessionRuntimeReconfiguring,
+		SessionRuntimeRecovering,
 		SessionRuntimeFailed:
 	default:
 		return fmt.Errorf("store: invalid session runtime status %q", status)
@@ -40,7 +43,8 @@ func validateSessionRuntime(status SessionRuntimeStatus, transition SessionRunti
 	case SessionRuntimeTransitionNone,
 		SessionRuntimeTransitionInitialBind,
 		SessionRuntimeTransitionLiveConfiguration,
-		SessionRuntimeTransitionProcessReplacement:
+		SessionRuntimeTransitionProcessReplacement,
+		SessionRuntimeTransitionAutomaticRecovery:
 	default:
 		return fmt.Errorf("store: invalid session runtime transition %q", transition)
 	}

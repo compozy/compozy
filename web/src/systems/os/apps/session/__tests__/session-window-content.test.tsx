@@ -71,6 +71,17 @@ vi.mock("@/systems/session", () => ({
       {retryLabel}
     </button>
   ),
+  SessionRuntimeRecoveryNotice: ({
+    attempt,
+    maxAttempts,
+  }: {
+    attempt?: number;
+    maxAttempts?: number;
+  }) => (
+    <div role="status">
+      Recovering runtime · Attempt {attempt} of {maxAttempts}
+    </div>
+  ),
   SessionSidebar: () => null,
   useCreateSession: () => mocks.forkMutation,
 }));
@@ -145,6 +156,48 @@ describe("SessionWindowContent", () => {
     callbacks?.onSuccess(child);
 
     expect(mocks.selectSession).toHaveBeenCalledWith(child);
+  });
+
+  it("Should show automatic recovery progress while the runtime is recovering", async () => {
+    const recoveringSession = {
+      ...deadSession,
+      failure: undefined,
+      health: undefined,
+      runtime: {
+        generation: 3,
+        recovery: {
+          attempt: 2,
+          generation: 3,
+          last_attempt_at: "2026-08-22T16:00:02Z",
+          max_attempts: 3,
+          started_at: "2026-08-22T16:00:00Z",
+        },
+        selection_revision: 0,
+        status: "recovering",
+      },
+      state: "active",
+    } satisfies SessionPayload;
+
+    render(
+      <Suspense fallback={null}>
+        <SessionWindowContent
+          agentName="codex-agent"
+          liveDataEnabled={false}
+          onDeleteSuccess={vi.fn()}
+          session={recoveringSession}
+          sessionId={recoveringSession.id}
+          windowId={`session:${recoveringSession.id}`}
+          workspaceId="ws-alpha"
+        />
+      </Suspense>
+    );
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Recovering runtime · Attempt 2 of 3"
+    );
+    expect(
+      screen.queryByRole("button", { name: "Fork into a new session" })
+    ).not.toBeInTheDocument();
   });
 
   it("Should treat absent ACP capabilities as unknown", async () => {

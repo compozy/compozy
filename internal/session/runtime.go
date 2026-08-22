@@ -18,6 +18,7 @@ const (
 	RuntimeStatusBinding       = store.SessionRuntimeBinding
 	RuntimeStatusReady         = store.SessionRuntimeReady
 	RuntimeStatusReconfiguring = store.SessionRuntimeReconfiguring
+	RuntimeStatusRecovering    = store.SessionRuntimeRecovering
 	RuntimeStatusFailed        = store.SessionRuntimeFailed
 )
 
@@ -30,6 +31,7 @@ const (
 	RuntimeTransitionInitialBind        = store.SessionRuntimeTransitionInitialBind
 	RuntimeTransitionLiveConfiguration  = store.SessionRuntimeTransitionLiveConfiguration
 	RuntimeTransitionProcessReplacement = store.SessionRuntimeTransitionProcessReplacement
+	RuntimeTransitionAutomaticRecovery  = store.SessionRuntimeTransitionAutomaticRecovery
 )
 
 // RuntimeSelection is the immutable runtime snapshot accepted with one prompt.

@@ -232,6 +232,48 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		}
 	})
 
+	t.Run("Should expose automatic runtime recovery progress", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 8, 22, 16, 20, 29, 0, time.UTC)
+		nextAttemptAt := now.Add(2 * time.Second)
+		payload := core.SessionPayloadFromInfo(&session.Info{
+			ID:                "sess-recovering",
+			AgentName:         "general",
+			Provider:          "claude",
+			Model:             "claude-fable-5",
+			RuntimeStatus:     session.RuntimeStatusRecovering,
+			RuntimeTransition: session.RuntimeTransitionAutomaticRecovery,
+			RuntimeGeneration: 2,
+			RuntimeRecovery: &store.SessionRuntimeRecovery{
+				Attempt:       2,
+				MaxAttempts:   3,
+				Generation:    3,
+				StartedAt:     now.Add(-time.Second),
+				LastAttemptAt: now,
+				NextAttemptAt: &nextAttemptAt,
+				LastError:     "provider transport disconnected",
+			},
+			State:     session.StateActive,
+			CreatedAt: now,
+			UpdatedAt: now,
+		})
+
+		if payload.Runtime.Generation != 2 || payload.Runtime.Recovery == nil {
+			t.Fatalf("payload runtime = %#v, want generation 2 with recovery", payload.Runtime)
+		}
+		if payload.Runtime.Recovery.Attempt != 2 || payload.Runtime.Recovery.MaxAttempts != 3 ||
+			payload.Runtime.Recovery.Generation != 3 ||
+			payload.Runtime.Recovery.LastError != "provider transport disconnected" ||
+			payload.Runtime.Recovery.NextAttemptAt == nil ||
+			!payload.Runtime.Recovery.NextAttemptAt.Equal(nextAttemptAt) {
+			t.Fatalf("payload runtime recovery = %#v", payload.Runtime.Recovery)
+		}
+		if payload.Runtime.Effective == nil || payload.Runtime.Effective.Provider != "claude" {
+			t.Fatalf("payload effective runtime = %#v, want Claude while recovering", payload.Runtime.Effective)
+		}
+	})
+
 	t.Run("Should mark stalled session payloads as hung and not attachable", func(t *testing.T) {
 		t.Parallel()
 

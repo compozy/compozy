@@ -66,6 +66,8 @@ type Info struct {
 	RuntimeStatus            RuntimeStatus
 	RuntimeTransition        RuntimeTransitionStrategy
 	RuntimeFailure           string
+	RuntimeGeneration        int64
+	RuntimeRecovery          *store.SessionRuntimeRecovery
 	SelectedRuntime          *RuntimeSelection
 	RuntimeSelectionRevision int64
 	EffectivePermissions     string
@@ -124,6 +126,8 @@ type Session struct {
 	RuntimeStatus             RuntimeStatus
 	RuntimeTransition         RuntimeTransitionStrategy
 	RuntimeFailure            string
+	RuntimeGeneration         int64
+	RuntimeRecovery           *store.SessionRuntimeRecovery
 	SelectedRuntime           *RuntimeSelection
 	RuntimeSelectionRevision  int64
 	EffectivePermissions      string

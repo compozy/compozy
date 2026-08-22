@@ -453,9 +453,11 @@ func testSessionSandboxUsesPreparedLauncherCommandRuntime(t *testing.T) {
 
 	commandRuntime.mu.Lock()
 	defer commandRuntime.mu.Unlock()
+	wantFinalEnv := append(append([]string(nil), finalEnv...),
+		"CLAUDE_CODE_EXECUTABLE="+commandRuntime.resolvedExecutable)
 	if commandRuntime.resolveCommand != "provider-auth" ||
 		commandRuntime.resolveCwd != canonicalRuntimeRoot ||
-		!slices.Equal(commandRuntime.resolveEnv, finalEnv) {
+		!slices.Equal(commandRuntime.resolveEnv, wantFinalEnv) {
 		t.Fatalf(
 			"remote resolve input = command %q cwd %q env %#v, want final runtime identity",
 			commandRuntime.resolveCommand,
@@ -465,7 +467,7 @@ func testSessionSandboxUsesPreparedLauncherCommandRuntime(t *testing.T) {
 	}
 	if commandRuntime.runSpec.Executable != commandRuntime.resolvedExecutable ||
 		commandRuntime.runSpec.Cwd != canonicalRuntimeRoot ||
-		!slices.Equal(commandRuntime.runSpec.Env, finalEnv) ||
+		!slices.Equal(commandRuntime.runSpec.Env, wantFinalEnv) ||
 		!slices.Equal(commandRuntime.runSpec.Args, []string{"status"}) {
 		t.Fatalf("remote run spec = %#v, want resolved identity and final runtime context", commandRuntime.runSpec)
 	}

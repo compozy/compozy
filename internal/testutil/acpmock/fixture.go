@@ -211,6 +211,7 @@ func (m TurnMatch) Validate(path string) error {
 		return fmt.Errorf("acpmock: %s.turn_source %q is invalid", path, normalized.TurnSource)
 	}
 	if normalized.TurnSource == "" && normalized.UserText == "" && normalized.UserTextContains == "" &&
+		normalized.RawUserTextContains == "" &&
 		normalized.Network == nil && normalized.Goal == nil && normalized.Judge == nil {
 		return fmt.Errorf("acpmock: %s requires at least one stable selector", path)
 	}
@@ -235,9 +236,10 @@ func (m TurnMatch) Validate(path string) error {
 // Normalize returns a trimmed copy of the turn matcher.
 func (m TurnMatch) Normalize() TurnMatch {
 	normalized := TurnMatch{
-		TurnSource:       strings.TrimSpace(m.TurnSource),
-		UserText:         strings.TrimSpace(m.UserText),
-		UserTextContains: canonicalUserText(m.UserTextContains),
+		TurnSource:          strings.TrimSpace(m.TurnSource),
+		UserText:            strings.TrimSpace(m.UserText),
+		UserTextContains:    canonicalUserText(m.UserTextContains),
+		RawUserTextContains: strings.TrimSpace(m.RawUserTextContains),
 	}
 	if m.Goal != nil {
 		goal := m.Goal.Normalize()
@@ -276,6 +278,10 @@ func (m TurnMatch) matches(input turnMatchInput) bool {
 	}
 	if normalized.UserTextContains != "" &&
 		!strings.Contains(canonicalText, normalized.UserTextContains) {
+		return false
+	}
+	if normalized.RawUserTextContains != "" &&
+		!strings.Contains(input.UserText, normalized.RawUserTextContains) {
 		return false
 	}
 	if normalized.Network != nil {

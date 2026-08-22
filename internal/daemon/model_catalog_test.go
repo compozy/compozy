@@ -64,13 +64,13 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		}
 		cfg.Providers = map[string]compozyconfig.ProviderConfig{"cursor": provider}
 
-		probe := &configReloadCursorACPProbe{}
+		probe := &configReloadACPProbe{}
 		liveSource, err := modelcatalog.NewLiveProviderSource(
 			"cursor",
 			provider,
 			&modelcatalog.LiveProviderSourcesConfig{
 				HomePaths:      homePaths,
-				CursorACPProbe: probe,
+				ACPProbe:       probe,
 				DefaultTimeout: 5 * time.Second,
 			},
 		)
@@ -230,14 +230,14 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		}
 		cfg.Providers = map[string]compozyconfig.ProviderConfig{"cursor": provider}
 
-		probe := newGenerationCursorACPProbe()
+		probe := newGenerationACPProbe()
 		t.Cleanup(probe.releaseAll)
 		liveSource, err := modelcatalog.NewLiveProviderSource(
 			"cursor",
 			provider,
 			&modelcatalog.LiveProviderSourcesConfig{
 				HomePaths:      homePaths,
-				CursorACPProbe: probe,
+				ACPProbe:       probe,
 				DefaultTimeout: 5 * time.Second,
 			},
 		)
@@ -416,14 +416,14 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			Timeout: "2s",
 		}
 		cfg.Providers = map[string]compozyconfig.ProviderConfig{"cursor": provider}
-		probe := newGenerationCursorACPProbe()
+		probe := newGenerationACPProbe()
 		t.Cleanup(probe.releaseAll)
 		liveSource, err := modelcatalog.NewLiveProviderSource(
 			"cursor",
 			provider,
 			&modelcatalog.LiveProviderSourcesConfig{
 				HomePaths:      homePaths,
-				CursorACPProbe: probe,
+				ACPProbe:       probe,
 				DefaultTimeout: 5 * time.Second,
 			},
 		)
@@ -632,13 +632,13 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		}
 		cfg.Providers = map[string]compozyconfig.ProviderConfig{"cursor": provider}
 
-		probe := &configReloadCursorACPProbe{}
+		probe := &configReloadACPProbe{}
 		liveSource, err := modelcatalog.NewLiveProviderSource(
 			"cursor",
 			provider,
 			&modelcatalog.LiveProviderSourcesConfig{
 				HomePaths:      homePaths,
-				CursorACPProbe: probe,
+				ACPProbe:       probe,
 				DefaultTimeout: 5 * time.Second,
 			},
 		)
@@ -1279,32 +1279,32 @@ type recordingModelCatalogService struct {
 	lastList     modelcatalog.ListOptions
 }
 
-type configReloadCursorACPProbe struct {
+type configReloadACPProbe struct {
 	mu       sync.Mutex
-	requests []modelcatalog.CursorACPModelProbeRequest
+	requests []modelcatalog.ACPModelProbeRequest
 }
 
-type generationCursorACPProbe struct {
+type generationACPProbe struct {
 	mu        sync.Mutex
-	requests  []modelcatalog.CursorACPModelProbeRequest
-	started   chan modelcatalog.CursorACPModelProbeRequest
+	requests  []modelcatalog.ACPModelProbeRequest
+	started   chan modelcatalog.ACPModelProbeRequest
 	releaseA  chan struct{}
 	releaseB  chan struct{}
 	releaseAO sync.Once
 	releaseBO sync.Once
 }
 
-func newGenerationCursorACPProbe() *generationCursorACPProbe {
-	return &generationCursorACPProbe{
-		started:  make(chan modelcatalog.CursorACPModelProbeRequest, 2),
+func newGenerationACPProbe() *generationACPProbe {
+	return &generationACPProbe{
+		started:  make(chan modelcatalog.ACPModelProbeRequest, 2),
 		releaseA: make(chan struct{}),
 		releaseB: make(chan struct{}),
 	}
 }
 
-func (e *generationCursorACPProbe) InspectCursorModels(
+func (e *generationACPProbe) InspectModels(
 	ctx context.Context,
-	req modelcatalog.CursorACPModelProbeRequest,
+	req modelcatalog.ACPModelProbeRequest,
 ) ([]acp.SessionConfigOption, error) {
 	e.mu.Lock()
 	e.requests = append(e.requests, req)
@@ -1331,7 +1331,7 @@ func (e *generationCursorACPProbe) InspectCursorModels(
 	return cursorModelOptions(modelID), nil
 }
 
-func (e *generationCursorACPProbe) waitForCommand(t *testing.T, want string) {
+func (e *generationACPProbe) waitForCommand(t *testing.T, want string) {
 	t.Helper()
 	ctx := testutil.Context(t)
 	select {
@@ -1344,7 +1344,7 @@ func (e *generationCursorACPProbe) waitForCommand(t *testing.T, want string) {
 	}
 }
 
-func (e *generationCursorACPProbe) release(command string) {
+func (e *generationACPProbe) release(command string) {
 	switch command {
 	case "cursor-a":
 		e.releaseAO.Do(func() { close(e.releaseA) })
@@ -1353,12 +1353,12 @@ func (e *generationCursorACPProbe) release(command string) {
 	}
 }
 
-func (e *generationCursorACPProbe) releaseAll() {
+func (e *generationACPProbe) releaseAll() {
 	e.release("cursor-a")
 	e.release("cursor-b")
 }
 
-func (e *generationCursorACPProbe) commands() []string {
+func (e *generationACPProbe) commands() []string {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	commands := make([]string, 0, len(e.requests))
@@ -1401,9 +1401,9 @@ func (s *failingModelCatalogStore) ReplaceSourceRowsBatch(
 	return s.Store.ReplaceSourceRowsBatch(ctx, replacements)
 }
 
-func (e *configReloadCursorACPProbe) InspectCursorModels(
+func (e *configReloadACPProbe) InspectModels(
 	_ context.Context,
-	req modelcatalog.CursorACPModelProbeRequest,
+	req modelcatalog.ACPModelProbeRequest,
 ) ([]acp.SessionConfigOption, error) {
 	e.mu.Lock()
 	e.requests = append(e.requests, req)
@@ -1418,9 +1418,9 @@ func (e *configReloadCursorACPProbe) InspectCursorModels(
 	return cursorModelOptions(modelID), nil
 }
 
-func (e *configReloadCursorACPProbe) LastRequest(
+func (e *configReloadACPProbe) LastRequest(
 	t *testing.T,
-) modelcatalog.CursorACPModelProbeRequest {
+) modelcatalog.ACPModelProbeRequest {
 	t.Helper()
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -1430,7 +1430,7 @@ func (e *configReloadCursorACPProbe) LastRequest(
 	return e.requests[len(e.requests)-1]
 }
 
-func (e *configReloadCursorACPProbe) CallCount() int {
+func (e *configReloadACPProbe) CallCount() int {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return len(e.requests)

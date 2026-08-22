@@ -61,13 +61,16 @@ func (f HookEventFamily) Validate() error {
 type HookEvent string
 
 const (
-	HookSessionPreCreate        HookEvent = "session.pre_create"
-	HookSessionPostCreate       HookEvent = "session.post_create"
-	HookSessionPreResume        HookEvent = "session.pre_resume"
-	HookSessionPostResume       HookEvent = "session.post_resume"
-	HookSessionPreStop          HookEvent = "session.pre_stop"
-	HookSessionPostStop         HookEvent = "session.post_stop"
-	HookSessionMessagePersisted HookEvent = "session.message_persisted"
+	HookSessionPreCreate                HookEvent = "session.pre_create"
+	HookSessionPostCreate               HookEvent = "session.post_create"
+	HookSessionPreResume                HookEvent = "session.pre_resume"
+	HookSessionPostResume               HookEvent = "session.post_resume"
+	HookSessionPreStop                  HookEvent = "session.pre_stop"
+	HookSessionPostStop                 HookEvent = "session.post_stop"
+	HookSessionMessagePersisted         HookEvent = "session.message_persisted"
+	HookSessionRuntimeRecoveryStarted   HookEvent = "session.runtime_recovery.started"
+	HookSessionRuntimeRecoverySucceeded HookEvent = "session.runtime_recovery.succeeded"
+	HookSessionRuntimeRecoveryExhausted HookEvent = "session.runtime_recovery.exhausted"
 
 	HookSandboxPrepare    HookEvent = "sandbox.prepare"
 	HookSandboxReady      HookEvent = "sandbox.ready"
@@ -172,6 +175,9 @@ var baseHookEventDefinitions = []hookEventDefinition{
 		family:       HookEventFamilySession,
 		syncEligible: false,
 	},
+	{event: HookSessionRuntimeRecoveryStarted, family: HookEventFamilySession, syncEligible: false},
+	{event: HookSessionRuntimeRecoverySucceeded, family: HookEventFamilySession, syncEligible: false},
+	{event: HookSessionRuntimeRecoveryExhausted, family: HookEventFamilySession, syncEligible: false},
 	{event: HookSandboxPrepare,
 		family:       HookEventFamilySandbox,
 		syncEligible: true,

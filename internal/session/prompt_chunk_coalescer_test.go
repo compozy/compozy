@@ -75,17 +75,15 @@ func TestPromptChunkCoalescing(t *testing.T) {
 			t.Fatalf("prepared delivery = %#v, want session %q and a turn id", prepared, session.ID)
 		}
 		runtimeEvents := collectEvents(t, eventsCh)
-		if got, want := countAgentEvents(runtimeEvents, acp.EventTypeAgentMessage), 3; got != want {
-			t.Fatalf("agent_message runtime events = %d, want %d", got, want)
-		}
 		gotTexts := agentEventTexts(runtimeEvents, acp.EventTypeAgentMessage)
-		wantTexts := []string{"hel", "lo ", "world"}
+		wantTexts := []string{"hello world"}
 		if !slices.Equal(gotTexts, wantTexts) {
-			t.Fatalf("agent_message runtime texts = %q, want %q", gotTexts, wantTexts)
+			t.Fatalf("durable agent_message texts = %q, want %q", gotTexts, wantTexts)
 		}
 		notifiedTexts := agentEventTexts(h.notifier.eventsForSession(session.ID), acp.EventTypeAgentMessage)
-		if !slices.Equal(notifiedTexts, wantTexts) {
-			t.Fatalf("agent_message notifier texts = %q, want streaming texts %q", notifiedTexts, wantTexts)
+		wantNotifiedTexts := []string{"hel", "lo ", "world"}
+		if !slices.Equal(notifiedTexts, wantNotifiedTexts) {
+			t.Fatalf("agent_message notifier texts = %q, want source texts %q", notifiedTexts, wantNotifiedTexts)
 		}
 
 		stored := readStoredEvents(t, session)
@@ -155,7 +153,7 @@ func TestPromptChunkCoalescing(t *testing.T) {
 			t.Fatalf("agent_message runtime texts = %q, want %q", gotAgentMessages, wantAgentMessages)
 		}
 		gotThoughts := agentEventTexts(runtimeEvents, acp.EventTypeThought)
-		wantThoughts := []string{"b", "c"}
+		wantThoughts := []string{"bc"}
 		if !slices.Equal(gotThoughts, wantThoughts) {
 			t.Fatalf("thought runtime texts = %q, want %q", gotThoughts, wantThoughts)
 		}
@@ -217,8 +215,9 @@ func TestPromptChunkCoalescing(t *testing.T) {
 			t.Fatalf("Prompt() error = %v", err)
 		}
 		runtimeEvents := collectEvents(t, eventsCh)
-		if len(runtimeEvents) != 0 {
-			t.Fatalf("runtime events = %#v, want none after batch persistence failure", runtimeEvents)
+		if len(runtimeEvents) != 1 || runtimeEvents[0].Type != acp.EventTypeError ||
+			runtimeEvents[0].Failure == nil || runtimeEvents[0].Failure.Kind != store.FailureTransport {
+			t.Fatalf("runtime events = %#v, want only projection failure", runtimeEvents)
 		}
 		notified := h.notifier.eventsForSession(session.ID)
 		if got := countAgentEvents(notified, acp.EventTypeAgentMessage); got != 0 {
@@ -389,10 +388,17 @@ func (r *failingBatchRecorder) RecordTokenUsage(context.Context, store.TokenUsag
 	return r.tokenErr
 }
 
-func (r *failingBatchRecorder) Query(context.Context, store.EventQuery) ([]store.SessionEvent, error) {
+func (r *failingBatchRecorder) Query(_ context.Context, query store.EventQuery) ([]store.SessionEvent, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return append([]store.SessionEvent(nil), r.events...), nil
+	filtered := make([]store.SessionEvent, 0, len(r.events))
+	for _, event := range r.events {
+		if event.Sequence <= query.AfterSequence || (query.TurnID != "" && event.TurnID != query.TurnID) {
+			continue
+		}
+		filtered = append(filtered, event)
+	}
+	return filtered, nil
 }
 
 func (r *failingBatchRecorder) History(context.Context, store.EventQuery) ([]store.TurnHistory, error) {

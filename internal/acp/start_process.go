@@ -68,7 +68,14 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 	if localHandle, ok := handle.(*localProcessHandle); ok {
 		process.managed = localHandle.process
 	}
-	process.conn = acpsdk.NewConnection(process.handleInbound, handle.Stdin(), handle.Stdout())
+	process.conn = acpsdk.NewConnectionWithOptions(
+		process.handleInbound,
+		handle.Stdin(),
+		handle.Stdout(),
+		acpsdk.ConnectionOptions{
+			NotificationQueueOverflow: acpsdk.NotificationQueueOverflowBlock,
+		},
+	)
 	process.conn.SetLogger(d.logger)
 
 	if err := d.registerAgentProcess(ctx, process); err != nil {

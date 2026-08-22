@@ -1,5 +1,7 @@
 import type { InfiniteData } from "@tanstack/react-query";
 
+import { isAgentEventPayload } from "./message-parts";
+
 import type {
   NormalizedSessionTranscriptEntry,
   NormalizedSessionTranscriptResponse,
@@ -69,7 +71,65 @@ export function flattenTranscriptEntries(
 export function flattenTranscriptMessages(
   data: SessionTranscriptData | undefined
 ): SessionMessage[] {
-  return flattenTranscriptEntries(data).map(entry => entry.message);
+  return projectTranscriptMessages(flattenTranscriptEntries(data).map(entry => entry.message));
+}
+
+const PROVIDER_FAILURE_MARKER = "transcript_marker.provider_failure";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function compozyEventFromPart(part: unknown) {
+  if (!isRecord(part) || part.type !== "data-compozy-event") {
+    return null;
+  }
+  return isAgentEventPayload(part.data) ? part.data : null;
+}
+
+function eventTurnID(part: unknown, event: ReturnType<typeof compozyEventFromPart>): string | null {
+  if (!event) return null;
+  if (isRecord(part) && typeof part.turnId === "string" && part.turnId.trim() !== "") {
+    return part.turnId;
+  }
+  return event.turn_id?.trim() || null;
+}
+
+function providerFailureTurnIDs(messages: readonly SessionMessage[]): ReadonlySet<string> {
+  const turnIDs = new Set<string>();
+  for (const message of messages) {
+    for (const part of message.parts ?? []) {
+      const event = compozyEventFromPart(part);
+      if (!event || event.type !== "transcript_marker.created") continue;
+      if ((event.marker?.kind ?? event.title) !== PROVIDER_FAILURE_MARKER) continue;
+      const turnID = eventTurnID(part, event);
+      if (turnID) turnIDs.add(turnID);
+    }
+  }
+  return turnIDs;
+}
+
+function projectTranscriptMessages(messages: readonly SessionMessage[]): SessionMessage[] {
+  const failureTurnIDs = providerFailureTurnIDs(messages);
+  if (failureTurnIDs.size === 0) return [...messages];
+
+  const projected: SessionMessage[] = [];
+  for (const message of messages) {
+    const parts = message.parts ?? [];
+    const visibleParts = parts.filter(part => {
+      const event = compozyEventFromPart(part);
+      if (!event || event.type !== "error") return true;
+      const turnID = eventTurnID(part, event);
+      return !turnID || !failureTurnIDs.has(turnID);
+    });
+    if (visibleParts.length === 0) continue;
+    projected.push(
+      visibleParts.length === parts.length
+        ? message
+        : ({ ...message, parts: visibleParts } as SessionMessage)
+    );
+  }
+  return projected;
 }
 
 export function transcriptFrameMatches(

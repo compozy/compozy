@@ -40,14 +40,6 @@ func TestFailureFromErrorClassifiesFatalPromptRequestErrorsAsProcessExit(t *test
 				Data:    map[string]any{"details": "Resource not found: sess-dead"},
 			},
 		},
-		{
-			name: "Should classify peer disconnected before response as process exit",
-			err: &acpsdk.RequestError{
-				Code:    -32603,
-				Message: "Internal error",
-				Data:    map[string]any{"error": "peer disconnected before response"},
-			},
-		},
 	}
 
 	for _, tc := range testCases {
@@ -63,6 +55,26 @@ func TestFailureFromErrorClassifiesFatalPromptRequestErrorsAsProcessExit(t *test
 			}
 		})
 	}
+}
+
+func TestFailureFromErrorClassifiesPeerDisconnectAsTransport(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should require process evidence before classifying a peer disconnect as a process exit", func(t *testing.T) {
+		t.Parallel()
+
+		failure, ok := FailureFromError(&acpsdk.RequestError{
+			Code:    -32603,
+			Message: "Internal error",
+			Data:    map[string]any{"error": "peer disconnected before response"},
+		}, store.FailurePrompt)
+		if !ok {
+			t.Fatal("FailureFromError() ok = false, want true")
+		}
+		if got, want := failure.Kind, store.FailureTransport; got != want {
+			t.Fatalf("FailureFromError() kind = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestFailureFromErrorPreservesGenericPromptErrors(t *testing.T) {

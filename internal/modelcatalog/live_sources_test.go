@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -239,7 +241,7 @@ func TestLiveProviderSources(t *testing.T) {
 	t.Run("Should use exact Cursor ACP model values instead of CLI aliases", func(t *testing.T) {
 		t.Parallel()
 
-		probe := &fakeCursorACPModelProbe{options: []acp.SessionConfigOption{{
+		probe := &fakeACPModelProbe{options: []acp.SessionConfigOption{{
 			ID:       "model",
 			Category: "model",
 			Kind:     acp.SessionConfigOptionKindSelect,
@@ -251,8 +253,8 @@ func TestLiveProviderSources(t *testing.T) {
 		}}}
 		provider := compozyconfig.ProviderConfig{HomePolicy: compozyconfig.ProviderHomePolicyOperator}
 		source := newLiveSourceForTest(t, "cursor", provider, &LiveProviderSourcesConfig{
-			BaseEnv:        []string{"PATH=/bin", "HOME=/Users/operator"},
-			CursorACPProbe: probe,
+			BaseEnv:  []string{"PATH=/bin", "HOME=/Users/operator"},
+			ACPProbe: probe,
 		})
 
 		rows, err := source.ListModels(testutil.Context(t), ListOptions{
@@ -283,15 +285,61 @@ func TestLiveProviderSources(t *testing.T) {
 		}
 	})
 
+	t.Run("Should use the resolved native Claude executable for ACP discovery", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("executable symlink fixture requires Unix semantics")
+		}
+
+		binDir := t.TempDir()
+		testExecutable, err := os.Executable()
+		if err != nil {
+			t.Fatalf("os.Executable() error = %v", err)
+		}
+		claudeExecutable := filepath.Join(binDir, "claude")
+		if err := os.Symlink(testExecutable, claudeExecutable); err != nil {
+			t.Fatalf("Symlink(claude executable) error = %v", err)
+		}
+		probe := &fakeACPModelProbe{options: []acp.SessionConfigOption{{
+			ID: "model", Kind: acp.SessionConfigOptionKindSelect,
+			Values: []acp.SessionConfigOptionValue{{Value: "claude-fable-5", Label: "Claude Fable 5"}},
+		}}}
+		provider := compozyconfig.ProviderConfig{
+			Command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
+		}
+		source := newLiveSourceForTest(t, "claude", provider, &LiveProviderSourcesConfig{
+			BaseEnv:  []string{"PATH=" + binDir, "HOME=" + t.TempDir()},
+			ACPProbe: probe,
+		})
+
+		rows, err := source.ListModels(testutil.Context(t), ListOptions{
+			ProviderID: "claude",
+			Now:        testTime(0),
+		})
+		if err != nil {
+			t.Fatalf("ListModels(Claude ACP) error = %v", err)
+		}
+		if got := requireSingleRow(t, rows).ModelID; got != "claude-fable-5" {
+			t.Fatalf("ModelID = %q, want claude-fable-5", got)
+		}
+		req := probe.singleRequest(t)
+		if req.Command != provider.Command {
+			t.Fatalf("ACP discovery command = %q, want %q", req.Command, provider.Command)
+		}
+		if got := envValue(req.Env, "CLAUDE_CODE_EXECUTABLE"); got != claudeExecutable {
+			t.Fatalf("CLAUDE_CODE_EXECUTABLE = %q, want %q", got, claudeExecutable)
+		}
+	})
+
 	t.Run("Should reject Cursor ACP sessions without advertised model values", func(t *testing.T) {
 		t.Parallel()
 
-		probe := &fakeCursorACPModelProbe{options: []acp.SessionConfigOption{{
+		probe := &fakeACPModelProbe{options: []acp.SessionConfigOption{{
 			ID: "model", Kind: acp.SessionConfigOptionKindSelect,
 		}}}
 		source := newLiveSourceForTest(t, "cursor", compozyconfig.ProviderConfig{}, &LiveProviderSourcesConfig{
-			BaseEnv:        []string{"PATH=/bin"},
-			CursorACPProbe: probe,
+			BaseEnv:  []string{"PATH=/bin"},
+			ACPProbe: probe,
 		})
 
 		_, err := source.ListModels(testutil.Context(t), ListOptions{ProviderID: "cursor", Now: testTime(0)})
@@ -969,16 +1017,16 @@ type fakeDiscoveryExecutor struct {
 	requests []DiscoveryCommandRequest
 }
 
-type fakeCursorACPModelProbe struct {
+type fakeACPModelProbe struct {
 	mu       sync.Mutex
 	options  []acp.SessionConfigOption
 	err      error
-	requests []CursorACPModelProbeRequest
+	requests []ACPModelProbeRequest
 }
 
-func (p *fakeCursorACPModelProbe) InspectCursorModels(
+func (p *fakeACPModelProbe) InspectModels(
 	_ context.Context,
-	req CursorACPModelProbeRequest,
+	req ACPModelProbeRequest,
 ) ([]acp.SessionConfigOption, error) {
 	p.mu.Lock()
 	p.requests = append(p.requests, req)
@@ -986,7 +1034,7 @@ func (p *fakeCursorACPModelProbe) InspectCursorModels(
 	return acp.CloneSessionConfigOptions(p.options), p.err
 }
 
-func (p *fakeCursorACPModelProbe) singleRequest(t *testing.T) CursorACPModelProbeRequest {
+func (p *fakeACPModelProbe) singleRequest(t *testing.T) ACPModelProbeRequest {
 	t.Helper()
 	p.mu.Lock()
 	defer p.mu.Unlock()

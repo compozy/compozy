@@ -139,7 +139,7 @@ func (m *Manager) finalizeSessionAfterFatalPromptFailure(
 	session.setFailure(store.CloneSessionFailure(fatal.failure))
 	stopCtx, cancel := detachedPromptStopContext(ctx, m)
 	defer cancel()
-	if err := m.finalizeStoppedOwned(stopCtx, session, fatal.waitErr); err != nil {
+	if err := m.finalizeStoppedOwned(stopCtx, session, fatal.waitErr, true); err != nil {
 		m.sessionLogger(session).Warn(
 			"session: finalize after fatal prompt failure failed",
 			"failure_kind", fatal.failure.Kind,

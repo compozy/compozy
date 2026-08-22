@@ -188,6 +188,7 @@ func (m *Manager) persistSessionIdlePresence(
 		activePrompt:  false,
 		attachable:    sessionAttachableAt(session, at),
 		touchPresence: true,
+		activityAt:    at,
 	})
 }
 

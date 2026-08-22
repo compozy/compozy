@@ -403,6 +403,10 @@ export {
   SessionResumeFailure,
   type SessionResumeFailureProps,
 } from "./components/session-resume-failure";
+export {
+  SessionRuntimeRecoveryNotice,
+  type SessionRuntimeRecoveryNoticeProps,
+} from "./components/session-runtime-recovery-notice";
 export { SessionStatusLine, type SessionStatusLineProps } from "./components/session-status-line";
 export {
   SessionDeleteDialog,

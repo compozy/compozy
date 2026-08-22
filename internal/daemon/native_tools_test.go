@@ -7112,12 +7112,22 @@ func TestDaemonNativeTools(t *testing.T) {
 		promptEvents := make(chan acp.AgentEvent)
 		promptAccepted := make(chan struct{})
 		info := &session.Info{
-			ID:          "sess-1",
-			AgentName:   "coder",
-			WorkspaceID: registryWorkspaceID,
-			State:       session.StateActive,
-			CreatedAt:   now,
-			UpdatedAt:   now,
+			ID:                "sess-1",
+			AgentName:         "coder",
+			WorkspaceID:       registryWorkspaceID,
+			RuntimeStatus:     session.RuntimeStatusRecovering,
+			RuntimeTransition: session.RuntimeTransitionAutomaticRecovery,
+			RuntimeGeneration: 2,
+			RuntimeRecovery: &store.SessionRuntimeRecovery{
+				Attempt:       2,
+				MaxAttempts:   3,
+				Generation:    3,
+				StartedAt:     now.Add(-time.Second),
+				LastAttemptAt: now,
+			},
+			State:     session.StateActive,
+			CreatedAt: now,
+			UpdatedAt: now,
 		}
 		workspaces := apitest.StubWorkspaceService{
 			GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
@@ -7354,9 +7364,9 @@ func TestDaemonNativeTools(t *testing.T) {
 						SessionID: id,
 						Sequence:  1,
 						TurnID:    "turn-1",
-						Type:      "agent_message",
+						Type:      acp.EventTypeRuntimeRecoveryStarted,
 						AgentName: "coder",
-						Content:   `{"text":"hello"}`,
+						Content:   `{"raw":{"attempt":2,"max_attempts":3,"generation":3}}`,
 						Timestamp: now,
 					}}, nil
 				},
@@ -7415,8 +7425,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			want  []byte
 		}{
 			{toolspkg.ToolIDSessionList, nil, []byte(`"sess-1"`)},
-			{toolspkg.ToolIDSessionStatus, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1"}`), []byte(`"session"`)},
-			{toolspkg.ToolIDSessionEvents, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","limit":1}`), []byte(`"event-1"`)},
+			{toolspkg.ToolIDSessionStatus, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1"}`), []byte(`"max_attempts":3`)},
+			{toolspkg.ToolIDSessionEvents, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","limit":1}`), []byte(`"runtime_recovery_started"`)},
 			{toolspkg.ToolIDSessionHistory, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","limit":1}`), []byte(`"turn-1"`)},
 			{toolspkg.ToolIDSessionDescribe, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","limit":1}`), []byte(`"history"`)},
 		} {

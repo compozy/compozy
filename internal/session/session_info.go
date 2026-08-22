@@ -40,6 +40,8 @@ func (s *Session) infoLocked() *Info {
 		RuntimeStatus:            s.RuntimeStatus,
 		RuntimeTransition:        s.RuntimeTransition,
 		RuntimeFailure:           strings.TrimSpace(s.RuntimeFailure),
+		RuntimeGeneration:        s.RuntimeGeneration,
+		RuntimeRecovery:          store.CloneSessionRuntimeRecovery(s.RuntimeRecovery),
 		SelectedRuntime:          cloneRuntimeSelection(s.SelectedRuntime),
 		RuntimeSelectionRevision: s.RuntimeSelectionRevision,
 		EffectivePermissions:     s.EffectivePermissions,

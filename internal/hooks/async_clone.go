@@ -65,6 +65,11 @@ func (payload SessionMessagePersistedPayload) cloneForAsync() SessionMessagePers
 	return cloneSessionMessagePersistedPayload(payload)
 }
 
+func (payload SessionRuntimeRecoveryPayload) cloneForAsync() SessionRuntimeRecoveryPayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
+	return payload
+}
+
 func (payload MessagePayload) cloneForAsync() MessagePayload {
 	return cloneMessagePayload(payload)
 }

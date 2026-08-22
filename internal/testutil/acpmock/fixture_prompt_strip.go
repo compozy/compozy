@@ -12,6 +12,7 @@ const (
 	outputContractPromptMarker   = "\n\n" + loopOutputContractPrefix
 	schemaRetryPromptMarker      = "\n\nYour previous response did not satisfy output_schema: "
 	schemaRetryInstructionMarker = "\nReturn exactly one JSON object that satisfies this output_schema: "
+	userRequestPromptMarker      = "User request:"
 )
 
 func canonicalUserText(prompt string) string {
@@ -31,7 +32,7 @@ func promptAfterLastUserMarker(prompt string) string {
 	trimmed := strings.TrimSpace(prompt)
 	markerIndex := -1
 	markerLength := 0
-	for _, marker := range []string{"User request:"} {
+	for _, marker := range []string{userRequestPromptMarker} {
 		index := lastLineMarkerIndex(trimmed, marker)
 		if index > markerIndex {
 			markerIndex = index

@@ -52,7 +52,7 @@ func mergeSandboxSessionState(
 }
 
 func sandboxReconcileLogAttrs(
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 	envMeta *store.SessionSandboxMeta,
 	duration time.Duration,
 	err error,

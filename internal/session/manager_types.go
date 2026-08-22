@@ -230,6 +230,7 @@ type Manager struct {
 	acquireSessionDBFamilyLease  sessionDBFamilyLeaseAcquirer
 	removeAllPath                func(path string) error
 	promptBufSize                int
+	promptRecoveryDelays         []time.Duration
 	soulRefreshTimeout           time.Duration
 	sessionHealthHookMinInterval time.Duration
 }

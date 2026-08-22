@@ -98,6 +98,9 @@ CREATE TABLE sessions (
 		runtime_status TEXT NOT NULL DEFAULT 'unbound',
 		runtime_transition TEXT NOT NULL DEFAULT '',
 		runtime_failure TEXT NOT NULL DEFAULT '',
+		runtime_generation INTEGER NOT NULL DEFAULT 0 CHECK (runtime_generation >= 0),
+		runtime_recovery_json TEXT NOT NULL DEFAULT ''
+			CHECK (runtime_recovery_json = '' OR json_valid(runtime_recovery_json)),
 		selected_provider TEXT NOT NULL DEFAULT '',
 		selected_model TEXT NOT NULL DEFAULT '',
 		selected_reasoning_effort TEXT NOT NULL DEFAULT '',

@@ -1,8 +1,11 @@
 package session
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
+
+	"github.com/compozy/compozy/internal/acp"
 )
 
 type promptTurnDispatchState struct {
@@ -15,6 +18,14 @@ type promptTurnDispatchState struct {
 	turnEnded   bool
 	openMessage *promptMessageDispatchState
 	managed     *managedInputExecution
+	recovery    *promptRecoveryState
+}
+
+type promptRecoveryState struct {
+	executionCtx      context.Context
+	request           acp.PromptRequest
+	attempts          int
+	exhaustedRecorded bool
 }
 
 type promptMessageDispatchState struct {

@@ -74,13 +74,18 @@ history, and submits the new prompt against the same session ID. Concurrent prom
 restart. Attach, queue management, steer, interrupt, and other control operations never trigger this
 restart.
 
-If ACP disconnects during a prompt, CompozyOS keeps every event already persisted, emits a terminal
-error, and stops the failed runtime with `failure.kind=process_exit`. A JSONL prompt command writes
-the frames it received, including the error frame, then exits nonzero. `compozy__session_prompt`
-returns `tool_backend_failed` with `backend_dead` instead of reporting a successful tool call. Inspect
-status, events, and the crash bundle before sending another prompt. CompozyOS never automatically
-replays the interrupted prompt because its external effects may be indeterminate; a new explicit
-prompt is the safe restart boundary.
+If ACP disconnects during a prompt, CompozyOS keeps every persisted event and automatically tries to
+replace the runtime three times with 1, 2, and 4 second delays. Session status reports
+`runtime.status="recovering"`, `runtime.transition="automatic_recovery"`, the runtime `generation`,
+and structured attempt timing. Events report `runtime_recovery_started`,
+`runtime_recovery_succeeded`, or `runtime_recovery_exhausted`. Recovery loads the provider session
+when supported; otherwise it rebuilds context from the durable transcript and replays the interrupted
+turn with the original turn ID. The authored user message remains one durable row.
+
+Automatic replay can repeat an external side effect whose completion was not persisted before the
+disconnect. Inspect the retained tool results and external system before manually repeating the work.
+Only exhausted recovery emits one terminal error and stops the runtime; then inspect status, events,
+and the crash bundle before sending another prompt.
 
 After prompt admission, the daemon owns the turn lifetime. Closing a browser tab, navigating away from the web app, dropping an SSE stream, or disconnecting a CLI/UDS response only detaches that viewer; it does not cancel the accepted prompt. Use explicit runtime intent such as `compozy session stop`, prompt cancel, or interrupt controls when cancellation is required.
 

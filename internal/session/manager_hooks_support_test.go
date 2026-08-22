@@ -93,6 +93,7 @@ func newNativeHookDispatcher(
 
 func fullHookSet(runtime interface {
 	LifecycleHooks
+	RuntimeRecoveryHooks
 	PromptHooks
 	EventHooks
 	AgentHooks
@@ -100,22 +101,35 @@ func fullHookSet(runtime interface {
 	CompactionHooks
 }) HookSet {
 	return HookSet{
-		Session:      runtime,
-		Prompt:       runtime,
-		Events:       runtime,
-		Agent:        runtime,
-		Conversation: runtime,
-		Compaction:   runtime,
+		Session:         runtime,
+		RuntimeRecovery: runtime,
+		Prompt:          runtime,
+		Events:          runtime,
+		Agent:           runtime,
+		Conversation:    runtime,
+		Compaction:      runtime,
 	}
 }
 
 type spyHookDispatcher struct {
-	dispatchSessionPreCreateFn        func(context.Context, hookspkg.SessionPreCreatePayload) (hookspkg.SessionPreCreatePayload, error)
-	dispatchSessionPostCreateFn       func(context.Context, hookspkg.SessionPostCreatePayload) (hookspkg.SessionPostCreatePayload, error)
-	dispatchSessionPreResumeFn        func(context.Context, hookspkg.SessionPreResumePayload) (hookspkg.SessionPreResumePayload, error)
-	dispatchSessionPostResumeFn       func(context.Context, hookspkg.SessionPostResumePayload) (hookspkg.SessionPostResumePayload, error)
-	dispatchSessionPreStopFn          func(context.Context, hookspkg.SessionPreStopPayload) (hookspkg.SessionPreStopPayload, error)
-	dispatchSessionPostStopFn         func(context.Context, hookspkg.SessionPostStopPayload) (hookspkg.SessionPostStopPayload, error)
+	dispatchSessionPreCreateFn              func(context.Context, hookspkg.SessionPreCreatePayload) (hookspkg.SessionPreCreatePayload, error)
+	dispatchSessionPostCreateFn             func(context.Context, hookspkg.SessionPostCreatePayload) (hookspkg.SessionPostCreatePayload, error)
+	dispatchSessionPreResumeFn              func(context.Context, hookspkg.SessionPreResumePayload) (hookspkg.SessionPreResumePayload, error)
+	dispatchSessionPostResumeFn             func(context.Context, hookspkg.SessionPostResumePayload) (hookspkg.SessionPostResumePayload, error)
+	dispatchSessionPreStopFn                func(context.Context, hookspkg.SessionPreStopPayload) (hookspkg.SessionPreStopPayload, error)
+	dispatchSessionPostStopFn               func(context.Context, hookspkg.SessionPostStopPayload) (hookspkg.SessionPostStopPayload, error)
+	dispatchSessionRuntimeRecoveryStartedFn func(
+		context.Context,
+		hookspkg.SessionRuntimeRecoveryStartedPayload,
+	) (hookspkg.SessionRuntimeRecoveryStartedPayload, error)
+	dispatchSessionRuntimeRecoverySucceededFn func(
+		context.Context,
+		hookspkg.SessionRuntimeRecoverySucceededPayload,
+	) (hookspkg.SessionRuntimeRecoverySucceededPayload, error)
+	dispatchSessionRuntimeRecoveryExhaustedFn func(
+		context.Context,
+		hookspkg.SessionRuntimeRecoveryExhaustedPayload,
+	) (hookspkg.SessionRuntimeRecoveryExhaustedPayload, error)
 	dispatchInputPreSubmitFn          func(context.Context, hookspkg.InputPreSubmitPayload) (hookspkg.InputPreSubmitPayload, error)
 	dispatchPromptPostAssembleFn      func(context.Context, hookspkg.PromptPayload) (hookspkg.PromptPayload, error)
 	dispatchEventPreRecordFn          func(context.Context, hookspkg.EventPreRecordPayload) (hookspkg.EventPreRecordPayload, error)
@@ -193,6 +207,36 @@ func (s *spyHookDispatcher) DispatchSessionPostStop(
 ) (hookspkg.SessionPostStopPayload, error) {
 	if s.dispatchSessionPostStopFn != nil {
 		return s.dispatchSessionPostStopFn(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (s *spyHookDispatcher) DispatchSessionRuntimeRecoveryStarted(
+	ctx context.Context,
+	payload hookspkg.SessionRuntimeRecoveryStartedPayload,
+) (hookspkg.SessionRuntimeRecoveryStartedPayload, error) {
+	if s.dispatchSessionRuntimeRecoveryStartedFn != nil {
+		return s.dispatchSessionRuntimeRecoveryStartedFn(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (s *spyHookDispatcher) DispatchSessionRuntimeRecoverySucceeded(
+	ctx context.Context,
+	payload hookspkg.SessionRuntimeRecoverySucceededPayload,
+) (hookspkg.SessionRuntimeRecoverySucceededPayload, error) {
+	if s.dispatchSessionRuntimeRecoverySucceededFn != nil {
+		return s.dispatchSessionRuntimeRecoverySucceededFn(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (s *spyHookDispatcher) DispatchSessionRuntimeRecoveryExhausted(
+	ctx context.Context,
+	payload hookspkg.SessionRuntimeRecoveryExhaustedPayload,
+) (hookspkg.SessionRuntimeRecoveryExhaustedPayload, error) {
+	if s.dispatchSessionRuntimeRecoveryExhaustedFn != nil {
+		return s.dispatchSessionRuntimeRecoveryExhaustedFn(ctx, payload)
 	}
 	return payload, nil
 }

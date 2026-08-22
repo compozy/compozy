@@ -7,7 +7,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-func sessionInfoFromSandboxReconcileMeta(meta store.SessionMeta) store.SessionInfo {
+func sessionInfoFromSandboxReconcileMeta(meta *store.SessionMeta) store.SessionInfo {
 	stopReason := store.StopReason("")
 	if meta.StopReason != nil {
 		stopReason = *meta.StopReason

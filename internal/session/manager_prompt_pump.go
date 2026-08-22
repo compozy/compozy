@@ -46,51 +46,60 @@ type promptPumpRun struct {
 func (m *Manager) runPromptPumpLoop(run *promptPumpRun) {
 	loop := promptPumpLoopState{source: run.source, runtime: run.runtime, activity: run.activity}
 	coalescer := &promptChunkCoalescer{}
-	for loop.active() {
-		event, runtimeEvent, ok, flushOnly := m.nextPromptPumpEventWithPendingChunk(
-			run.lifecycleCtx,
-			&loop,
-			coalescer,
-		)
-		if flushOnly {
+	for {
+		for loop.active() {
+			event, runtimeEvent, ok, flushOnly := m.nextPromptPumpEventWithPendingChunk(
+				run.lifecycleCtx,
+				&loop,
+				coalescer,
+			)
+			if flushOnly {
+				if m.flushPromptPumpRun(run, &loop, coalescer) {
+					return
+				}
+				continue
+			}
+			if !ok {
+				if m.flushPromptPumpRun(run, &loop, coalescer) {
+					return
+				}
+				break
+			}
+			if coalescer.append(event, runtimeEvent) {
+				if !coalescer.shouldFlush() {
+					continue
+				}
+				if m.flushPromptPumpRun(run, &loop, coalescer) {
+					return
+				}
+				continue
+			}
 			if m.flushPromptPumpRun(run, &loop, coalescer) {
 				return
 			}
-			continue
+			if coalescer.append(event, runtimeEvent) {
+				if !coalescer.shouldFlush() {
+					continue
+				}
+				if m.flushPromptPumpRun(run, &loop, coalescer) {
+					return
+				}
+				continue
+			}
+			if m.handlePromptPumpRun(run, &loop, event, runtimeEvent) {
+				return
+			}
 		}
+		terminal, ok := promptStreamFailureWithoutTerminal(run, &loop)
 		if !ok {
-			if m.flushPromptPumpRun(run, &loop, coalescer) {
-				return
-			}
-			break
-		}
-		if coalescer.append(event, runtimeEvent) {
-			if !coalescer.shouldFlush() {
-				continue
-			}
-			if m.flushPromptPumpRun(run, &loop, coalescer) {
-				return
-			}
-			continue
-		}
-		if m.flushPromptPumpRun(run, &loop, coalescer) {
 			return
 		}
-		if coalescer.append(event, runtimeEvent) {
-			if !coalescer.shouldFlush() {
-				continue
-			}
-			if m.flushPromptPumpRun(run, &loop, coalescer) {
-				return
-			}
-			continue
-		}
-		if m.handlePromptPumpRun(run, &loop, event, runtimeEvent) {
+		if m.handlePromptPumpRun(run, &loop, terminal, false) {
 			return
 		}
-	}
-	if terminal, ok := promptStreamFailureWithoutTerminal(run, &loop); ok {
-		m.handlePromptPumpRun(run, &loop, terminal, false)
+		if !loop.active() {
+			return
+		}
 	}
 }
 
@@ -104,6 +113,9 @@ func promptStreamFailureWithoutTerminal(
 	if run.session == nil {
 		return acp.PromptStreamIncompleteEvent(), true
 	}
+	if run.turnState != nil && run.session.promptCancellationRequested(run.turnState.turnID) {
+		return promptCancellationTerminalEvent(), true
+	}
 	info := run.session.Info()
 	if info == nil || info.State != StateActive {
 		return acp.AgentEvent{}, false
@@ -111,9 +123,6 @@ func promptStreamFailureWithoutTerminal(
 	proc := run.session.processHandle()
 	if isProcessDone(proc) {
 		return promptProcessExitEvent(proc), true
-	}
-	if run.turnState != nil && run.session.promptCancellationRequested(run.turnState.turnID) {
-		return promptCancellationTerminalEvent(), true
 	}
 	return acp.PromptStreamIncompleteEvent(), true
 }
@@ -218,20 +227,26 @@ func (m *Manager) finishPromptPump(
 		}
 	}
 	if session == nil {
-		close(out)
+		closePromptOutput(out)
 		return
 	}
 	if fatalPromptFailure != nil {
 		if fatal.finalizationOwned {
 			m.finalizeSessionAfterFatalPromptFailure(lifecycleCtx, session, fatal)
-			close(out)
+			closePromptOutput(out)
 			return
 		}
 		m.stopSessionAfterFatalPromptFailure(lifecycleCtx, session, fatal.failure, fatal.errorText)
-		close(out)
+		closePromptOutput(out)
 		return
 	}
-	close(out)
+	closePromptOutput(out)
 	m.startNextQueuedInputPrompt(session.ID)
 	m.startNextQueuedSyntheticPrompt(session.ID)
+}
+
+func closePromptOutput(out chan<- acp.AgentEvent) {
+	if out != nil {
+		close(out)
+	}
 }

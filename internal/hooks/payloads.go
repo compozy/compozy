@@ -165,6 +165,27 @@ type SessionMessagePersistedPayload struct {
 	ActorID         string          `json:"actor_id,omitempty"`
 }
 
+// SessionRuntimeRecoveryPayload reports one automatic runtime recovery lifecycle event.
+type SessionRuntimeRecoveryPayload struct {
+	PayloadBase
+	SessionContext
+	TurnContext
+	Attempt       int    `json:"attempt"`
+	MaxAttempts   int    `json:"max_attempts"`
+	Generation    int64  `json:"generation"`
+	FailureKind   string `json:"failure_kind,omitempty"`
+	FailureDetail string `json:"failure_detail,omitempty"`
+}
+
+// SessionRuntimeRecoveryStartedPayload is emitted before a bounded recovery attempt.
+type SessionRuntimeRecoveryStartedPayload = SessionRuntimeRecoveryPayload
+
+// SessionRuntimeRecoverySucceededPayload is emitted after the replacement runtime accepts the turn.
+type SessionRuntimeRecoverySucceededPayload = SessionRuntimeRecoveryPayload
+
+// SessionRuntimeRecoveryExhaustedPayload is emitted after all recovery attempts fail.
+type SessionRuntimeRecoveryExhaustedPayload = SessionRuntimeRecoveryPayload
+
 // SessionCreatePatch mutates or denies session lifecycle operations.
 type SessionCreatePatch struct {
 	ControlPatch

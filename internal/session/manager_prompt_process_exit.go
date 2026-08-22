@@ -3,12 +3,17 @@ package session
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
 )
 
-func (m *Manager) waitForActivePromptProcessExit(ctx context.Context, session *Session) {
+func (m *Manager) waitForActivePromptProcessExit(
+	ctx context.Context,
+	session *Session,
+	proc *AgentProcess,
+) {
 	promptDone := session.currentPromptCompletion()
 	if promptDone == nil {
 		return
@@ -18,17 +23,30 @@ func (m *Manager) waitForActivePromptProcessExit(ctx context.Context, session *S
 	if base == nil {
 		base = m.fallbackLifecycleContext()
 	}
-	waitCtx, cancel := context.WithTimeout(context.WithoutCancel(base), defaultLifecycleTimeout)
+	waitTimeout := defaultLifecycleTimeout
+	for _, delay := range m.promptRecoveryDelays {
+		waitTimeout += delay + defaultLifecycleTimeout
+	}
+	waitCtx, cancel := context.WithTimeout(context.WithoutCancel(base), waitTimeout)
 	defer cancel()
-	select {
-	case <-promptDone:
-		return
-	case <-waitCtx.Done():
-		session.cancelCurrentPrompt()
-		m.sessionLogger(session).Warn(
-			"session: prompt did not release process-exit finalization before timeout",
-			"error", waitCtx.Err(),
-		)
+	ticker := time.NewTicker(promptDeliveryCatchUpInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-promptDone:
+			return
+		case <-ticker.C:
+			if !session.isCurrentProcess(proc) {
+				return
+			}
+		case <-waitCtx.Done():
+			session.cancelCurrentPrompt()
+			m.sessionLogger(session).Warn(
+				"session: prompt did not release process-exit finalization before timeout",
+				"error", waitCtx.Err(),
+			)
+			return
+		}
 	}
 }
 

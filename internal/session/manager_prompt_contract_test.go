@@ -276,8 +276,10 @@ func TestPromptPersistenceFailureStopsSessionBeforeLiveDelivery(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Prompt() error = %v", err)
 		}
-		if delivered := collectEvents(t, eventsCh); len(delivered) != 0 {
-			t.Fatalf("Prompt() delivered = %#v, want no unpersisted event", delivered)
+		delivered := collectEvents(t, eventsCh)
+		if len(delivered) != 1 || delivered[0].Type != acp.EventTypeError ||
+			delivered[0].Failure == nil || delivered[0].Failure.Kind != store.FailureTransport {
+			t.Fatalf("Prompt() delivered = %#v, want only projection failure", delivered)
 		}
 		if got := countAgentEvents(h.notifier.eventsForSession(session.ID), acp.EventTypeToolCall); got != 0 {
 			t.Fatalf("tool call notifier events = %d, want zero", got)
@@ -368,10 +370,11 @@ func TestPromptDeadlineDeliversRuntimeWarningBeforeError(t *testing.T) {
 }
 
 func TestPromptFatalProcessFailureStopsSessionAndPreservesReadOnlyHistory(t *testing.T) {
-	t.Run("Should stop after a fatal process failure without resuming the original session", func(t *testing.T) {
+	t.Run("Should stop after automatic recovery is exhausted and preserve partial history", func(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
+		h.manager.promptRecoveryDelays = []time.Duration{0, 0, 0}
 		session := createSession(t, h)
 		originalACP := session.Info().ACPSessionID
 		processExitErr := errors.New("acp subprocess exited: exit status 23")
@@ -388,7 +391,10 @@ func TestPromptFatalProcessFailureStopsSessionAndPreservesReadOnlyHistory(t *tes
 			return nil
 		}
 
-		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			proc.handle.exitStatusFn = func() (subprocess.ExitStatus, bool) {
+				return subprocess.ExitStatus{ExitCode: 23}, true
+			}
 			events := make(chan acp.AgentEvent, 2)
 			go func() {
 				defer close(events)
@@ -419,8 +425,8 @@ func TestPromptFatalProcessFailureStopsSessionAndPreservesReadOnlyHistory(t *tes
 			t.Fatalf("Prompt() error = %v", err)
 		}
 		events := collectEvents(t, eventsCh)
-		if got, want := len(events), 2; got != want {
-			t.Fatalf("Prompt() events = %d, want %d", got, want)
+		if len(events) < 2 {
+			t.Fatalf("Prompt() events = %#v, want partial output and terminal failure", events)
 		}
 		if got, want := events[0].Type, acp.EventTypeAgentMessage; got != want {
 			t.Fatalf("Prompt() first event type = %q, want %q", got, want)
@@ -428,18 +434,19 @@ func TestPromptFatalProcessFailureStopsSessionAndPreservesReadOnlyHistory(t *tes
 		if got, want := events[0].Text, "partial before disconnect"; got != want {
 			t.Fatalf("Prompt() first event text = %q, want %q", got, want)
 		}
-		if events[1].Failure == nil || events[1].Failure.Kind != store.FailureProcess {
-			t.Fatalf("Prompt() failure = %#v, want process_exit", events[1].Failure)
+		terminal := events[len(events)-1]
+		if terminal.Failure == nil || terminal.Failure.Kind != store.FailureProcess {
+			t.Fatalf("Prompt() failure = %#v, want process_exit", terminal.Failure)
 		}
-		if events[1].Failure.CrashBundlePath == "" {
-			t.Fatalf("Prompt() failure = %#v, want crash bundle path", events[1].Failure)
+		if terminal.Failure.CrashBundlePath == "" {
+			t.Fatalf("Prompt() failure = %#v, want crash bundle path", terminal.Failure)
 		}
 		closedMeta := readMeta(t, session.MetaPath())
 		if closedMeta.State != string(StateStopped) || closedMeta.Failure == nil ||
 			closedMeta.Failure.Kind != store.FailureProcess {
 			t.Fatalf("meta after prompt stream close = %#v, want stopped process failure", closedMeta)
 		}
-		publicBundle := readCrashBundleDocument(t, events[1].Failure.CrashBundlePath)
+		publicBundle := readCrashBundleDocument(t, terminal.Failure.CrashBundlePath)
 		if publicBundle.Process == nil || publicBundle.Process.ExitCode == nil ||
 			*publicBundle.Process.ExitCode != 23 {
 			t.Fatalf(
@@ -459,8 +466,8 @@ func TestPromptFatalProcessFailureStopsSessionAndPreservesReadOnlyHistory(t *tes
 			t.Fatalf("Get(%q) found session after stopped notification", session.ID)
 		}
 
-		if got := h.driver.stopCalls; got != 1 {
-			t.Fatalf("driver stop calls = %d, want 1", got)
+		if got, want := h.driver.stopCalls, len(h.manager.promptRecoveryDelays)+1; got != want {
+			t.Fatalf("driver stop calls = %d, want %d replaced and final runtimes", got, want)
 		}
 
 		meta := readMeta(t, session.MetaPath())
@@ -473,7 +480,7 @@ func TestPromptFatalProcessFailureStopsSessionAndPreservesReadOnlyHistory(t *tes
 		if meta.Failure == nil || meta.Failure.Kind != store.FailureProcess {
 			t.Fatalf("meta.Failure = %#v, want process_exit", meta.Failure)
 		}
-		if got, want := meta.Failure.CrashBundlePath, events[1].Failure.CrashBundlePath; got != want {
+		if got, want := meta.Failure.CrashBundlePath, terminal.Failure.CrashBundlePath; got != want {
 			t.Fatalf("meta crash bundle = %q, want event bundle %q", got, want)
 		}
 		if !strings.Contains(meta.StopDetail, processExitErr.Error()) {
@@ -506,6 +513,7 @@ func TestPromptFatalProcessFailureStopsSessionAndPreservesReadOnlyHistory(t *tes
 		t.Parallel()
 
 		h := newHarness(t)
+		h.manager.promptRecoveryDelays = []time.Duration{0, 0, 0}
 		sess := createSession(t, h)
 		proc := h.driver.lastProcess()
 		proc.handle.exitStatusFn = func() (subprocess.ExitStatus, bool) {
@@ -538,9 +546,12 @@ func TestPromptFatalProcessFailureStopsSessionAndPreservesReadOnlyHistory(t *tes
 			t.Fatalf("Prompt() error = %v", err)
 		}
 		events := collectEvents(t, eventsCh)
-		if len(events) != 1 || events[0].Failure == nil ||
-			events[0].Failure.Kind != store.FailureTransport {
-			t.Fatalf("Prompt() events = %#v, want one transport failure", events)
+		if len(events) == 0 {
+			t.Fatal("Prompt() events = empty, want terminal transport failure")
+		}
+		terminal := events[len(events)-1]
+		if terminal.Failure == nil || terminal.Failure.Kind != store.FailureTransport {
+			t.Fatalf("Prompt() events = %#v, want terminal transport failure", events)
 		}
 		h.notifier.waitForStopped(t, sess.ID)
 		meta := readMeta(t, sess.MetaPath())
@@ -558,6 +569,7 @@ func TestPromptStreamClosureWithoutTerminalStopsSession(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
+		h.manager.promptRecoveryDelays = []time.Duration{0, 0, 0}
 		sess := createSession(t, h)
 		proc := h.driver.lastProcess()
 		proc.handle.exitStatusFn = func() (subprocess.ExitStatus, bool) {
@@ -584,6 +596,14 @@ func TestPromptStreamClosureWithoutTerminalStopsSession(t *testing.T) {
 			}
 		})
 		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			proc.handle.exitStatusFn = func() (subprocess.ExitStatus, bool) {
+				select {
+				case <-proc.done:
+					return subprocess.ExitStatus{ExitCode: 23}, true
+				default:
+					return subprocess.ExitStatus{}, false
+				}
+			}
 			events := make(chan acp.AgentEvent, 1)
 			events <- acp.AgentEvent{
 				Type:      acp.EventTypeAgentMessage,
@@ -601,13 +621,13 @@ func TestPromptStreamClosureWithoutTerminalStopsSession(t *testing.T) {
 			t.Fatalf("Prompt() error = %v", err)
 		}
 		events := collectEvents(t, eventsCh)
-		if got, want := len(events), 2; got != want {
+		if len(events) < 2 {
 			t.Fatalf("Prompt() events = %#v, want partial chunk and terminal failure", events)
 		}
 		if got, want := events[0].Text, "partial before EOF"; got != want {
 			t.Fatalf("Prompt() first event text = %q, want %q", got, want)
 		}
-		terminal := events[1]
+		terminal := events[len(events)-1]
 		if terminal.Type != acp.EventTypeError || terminal.Failure == nil ||
 			terminal.Failure.Kind != store.FailureTransport {
 			t.Fatalf("Prompt() terminal event = %#v, want transport failure", terminal)
@@ -1971,6 +1991,7 @@ func TestProcessExitDuringActivePromptPersistsAgentCrashedStopReason(t *testing.
 		t.Parallel()
 
 		h := newHarness(t)
+		h.manager.promptRecoveryDelays = []time.Duration{}
 		session := createSession(t, h)
 		proc := h.driver.lastProcess()
 		proc.handle.exitStatusFn = func() (subprocess.ExitStatus, bool) {
@@ -2017,13 +2038,13 @@ func TestProcessExitDuringActivePromptPersistsAgentCrashedStopReason(t *testing.
 		close(source)
 
 		events := collectEvents(t, eventsCh)
-		if got, want := len(events), 2; got != want {
-			t.Fatalf("Prompt() events = %#v, want partial chunk and one process terminal", events)
+		if len(events) < 2 {
+			t.Fatalf("Prompt() events = %#v, want partial chunk and process terminal", events)
 		}
 		if got, want := events[0].Text, "partial before process exit"; got != want {
 			t.Fatalf("Prompt() first event text = %q, want %q", got, want)
 		}
-		terminal := events[1]
+		terminal := events[len(events)-1]
 		if terminal.Type != acp.EventTypeError || terminal.Failure == nil ||
 			terminal.Failure.Kind != store.FailureProcess {
 			t.Fatalf("Prompt() terminal event = %#v, want process_exit", terminal)
@@ -2076,6 +2097,7 @@ func TestProcessExitDuringActivePromptPersistsAgentCrashedStopReason(t *testing.
 		t.Parallel()
 
 		h := newHarness(t)
+		h.manager.promptRecoveryDelays = []time.Duration{}
 		session := createSession(t, h)
 		proc := h.driver.lastProcess()
 		proc.handle.exitStatusFn = func() (subprocess.ExitStatus, bool) {
@@ -2119,10 +2141,10 @@ func TestProcessExitDuringActivePromptPersistsAgentCrashedStopReason(t *testing.
 			t.Fatalf("Prompt() error = %v", err)
 		}
 		events := collectEvents(t, eventsCh)
-		if got, want := len(events), 1; got != want {
-			t.Fatalf("Prompt() events = %#v, want one promoted terminal", events)
+		if len(events) == 0 {
+			t.Fatal("Prompt() events = empty, want promoted terminal")
 		}
-		terminal := events[0]
+		terminal := events[len(events)-1]
 		if terminal.Type != acp.EventTypeError || terminal.Failure == nil ||
 			terminal.Failure.Kind != store.FailureProcess {
 			t.Fatalf("Prompt() terminal event = %#v, want process_exit", terminal)
@@ -2237,6 +2259,11 @@ func TestWaitForPromptDrains(t *testing.T) {
 		case <-time.After(50 * time.Millisecond):
 		}
 
+		promptEvents <- acp.AgentEvent{
+			Type:             acp.EventTypeDone,
+			StopReason:       string(acp.PromptStopReasonEndTurn),
+			PromptStopReason: acp.PromptStopReasonEndTurn,
+		}
 		close(promptEvents)
 		_ = collectEvents(t, eventsCh)
 

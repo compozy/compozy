@@ -115,6 +115,9 @@ func failureKindForError(err error, fallback store.FailureKind) store.FailureKin
 		if requestErrorIndicatesCancellation(reqErr) {
 			return store.FailureCanceled
 		}
+		if requestErrorIndicatesPeerDisconnect(reqErr) {
+			return store.FailureTransport
+		}
 		if fallback == store.FailurePrompt && requestErrorIndicatesSessionLoss(reqErr) {
 			return store.FailureProcess
 		}
@@ -153,8 +156,6 @@ func requestErrorIndicatesSessionLoss(reqErr *acpsdk.RequestError) bool {
 	switch {
 	case strings.Contains(text, "process exited unexpectedly"):
 		return true
-	case strings.Contains(text, "peer disconnected before response"):
-		return true
 	case strings.Contains(text, "please start a new session"):
 		return true
 	case strings.Contains(text, "session not found"):
@@ -164,6 +165,14 @@ func requestErrorIndicatesSessionLoss(reqErr *acpsdk.RequestError) bool {
 	default:
 		return false
 	}
+}
+
+func requestErrorIndicatesPeerDisconnect(reqErr *acpsdk.RequestError) bool {
+	if reqErr == nil {
+		return false
+	}
+	text := strings.ToLower(strings.TrimSpace(requestErrorDiagnosticText(reqErr)))
+	return strings.Contains(text, "peer disconnected before response")
 }
 
 func requestErrorDiagnosticText(reqErr *acpsdk.RequestError) string {

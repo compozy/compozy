@@ -404,6 +404,8 @@ func sessionInfoFromCatalog(info store.SessionInfo) *Info {
 		RuntimeStatus:          info.RuntimeStatus,
 		RuntimeTransition:      info.RuntimeTransition,
 		RuntimeFailure:         strings.TrimSpace(info.RuntimeFailure),
+		RuntimeGeneration:      info.RuntimeGeneration,
+		RuntimeRecovery:        store.CloneSessionRuntimeRecovery(info.RuntimeRecovery),
 		WorkspaceID:            strings.TrimSpace(info.WorkspaceID),
 		WorktreeID:             strings.TrimSpace(info.WorktreeID),
 		NetworkParticipation:   info.NetworkSpecSnapshot(),

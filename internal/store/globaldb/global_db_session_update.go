@@ -107,7 +107,13 @@ func appendSessionRuntimeAssignments(
 		"runtime_status = ?",
 		"runtime_transition = ?",
 		"runtime_failure = ?",
+		"runtime_generation = ?",
+		"runtime_recovery_json = ?",
 	)
+	runtimeRecoveryJSON, err := encodeSessionRuntimeRecovery(update.RuntimeRecovery)
+	if err != nil {
+		return nil, nil, err
+	}
 	args = append(
 		args,
 		strings.TrimSpace(update.Provider),
@@ -118,6 +124,8 @@ func appendSessionRuntimeAssignments(
 		string(update.RuntimeStatus),
 		string(update.RuntimeTransition),
 		strings.TrimSpace(update.RuntimeFailure),
+		update.RuntimeGeneration,
+		runtimeRecoveryJSON,
 	)
 	return assignments, args, nil
 }

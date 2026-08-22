@@ -10,7 +10,7 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 	if err != nil || !owned {
 		return err
 	}
-	return m.finalizeStoppedOwned(ctx, session, waitErr)
+	return m.finalizeStoppedOwned(ctx, session, waitErr, false)
 }
 
 func (m *Manager) finalizeObservedStop(
@@ -23,13 +23,14 @@ func (m *Manager) finalizeObservedStop(
 	if err != nil || !owned {
 		return err
 	}
-	return m.finalizeStoppedOwned(ctx, session, waitErr)
+	return m.finalizeStoppedOwned(ctx, session, waitErr, false)
 }
 
 func (m *Manager) finalizeStoppedOwned(
 	ctx context.Context,
 	session *Session,
 	waitErr error,
+	promptOwnsTerminalFailure bool,
 ) (err error) {
 	if ctx == nil {
 		return errors.New("session: stopped finalization context is required")
@@ -42,8 +43,14 @@ func (m *Manager) finalizeStoppedOwned(
 	var errs []error
 	errs = appendLifecycleErr(errs, m.beginStoppingSession(ctx, session))
 	errs = appendLifecycleErr(errs, m.persistStopClassification(ctx, session, waitErr))
-	errs = appendLifecycleErr(errs, m.recordProcessExitEvent(ctx, session, waitErr))
-	errs = appendLifecycleErr(errs, m.recordSessionStoppedEvent(ctx, session, waitErr))
+	errs = appendLifecycleErr(
+		errs,
+		m.recordProcessExitEvent(ctx, session, waitErr, promptOwnsTerminalFailure),
+	)
+	errs = appendLifecycleErr(
+		errs,
+		m.recordSessionStoppedEvent(ctx, session, waitErr, promptOwnsTerminalFailure),
+	)
 
 	m.dispatchAgentStopped(ctx, session, session.processHandle(), waitErr)
 	m.logSandboxTransport(session, sandboxEventTransportDisconnect, nil, 0)

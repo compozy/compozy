@@ -15,6 +15,7 @@ type sessionInfoRow struct {
 	name                   sql.NullString
 	worktreeID             sql.NullString
 	speedResolutionJSON    string
+	runtimeRecoveryJSON    string
 	selectedProvider       string
 	selectedModel          string
 	selectedReasoning      string
@@ -88,6 +89,7 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 	session.RuntimeStatus = row.session.RuntimeStatus
 	session.RuntimeTransition = row.session.RuntimeTransition
 	session.RuntimeFailure = strings.TrimSpace(row.session.RuntimeFailure)
+	session.RuntimeGeneration = row.session.RuntimeGeneration
 	session.SelectedRuntime = decodeSelectedRuntime(
 		row.selectedProvider,
 		row.selectedModel,
@@ -162,7 +164,31 @@ func applySessionRuntimeScan(session *store.SessionInfo, row *sessionInfoRow) er
 		return err
 	}
 	session.SpeedResolution = resolution
+	recovery, err := decodeSessionRuntimeRecovery(row.runtimeRecoveryJSON)
+	if err != nil {
+		return err
+	}
+	session.RuntimeRecovery = recovery
+	if err := store.ValidateSessionRuntimeRecovery(
+		session.RuntimeStatus,
+		session.RuntimeGeneration,
+		session.RuntimeRecovery,
+	); err != nil {
+		return err
+	}
 	return nil
+}
+
+func decodeSessionRuntimeRecovery(raw string) (*store.SessionRuntimeRecovery, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, nil
+	}
+	var recovery store.SessionRuntimeRecovery
+	if err := json.Unmarshal([]byte(trimmed), &recovery); err != nil {
+		return nil, fmt.Errorf("store: decode session runtime recovery: %w", err)
+	}
+	return &recovery, nil
 }
 
 func decodeSessionSpeedResolution(raw string) (*speedpkg.Resolution, error) {
@@ -263,6 +289,8 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.session.RuntimeStatus,
 		&row.session.RuntimeTransition,
 		&row.session.RuntimeFailure,
+		&row.session.RuntimeGeneration,
+		&row.runtimeRecoveryJSON,
 		&row.selectedProvider,
 		&row.selectedModel,
 		&row.selectedReasoning,

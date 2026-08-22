@@ -116,6 +116,17 @@ provider command uses its own login/session store. The default `home_policy = "o
 existing CLI logins; `home_policy = "isolated"` creates a private provider home under `$COMPOZY_HOME`
 and starts with no copied credentials.
 
+CompozyOS derives execution from the effective provider command and harness, not from a Claude/Codex
+allowlist. Built-ins such as Gemini, OpenCode, Goose, Hermes, OpenClaw, Cursor, Copilot, Kiro, Qwen
+Code, and Kimi launch their ACP-capable CLI directly. API-backed built-ins launch through their shared
+Pi ACP harness. The same provider-neutral path owns session launch and automatic runtime recovery.
+
+When the effective command is a known ACP bridge that wraps another installed CLI, CompozyOS resolves
+that native executable from the final environment after sandbox preparation. Desktop-owned daemons
+first load the operator login-shell `PATH`. The bridge registry then injects the absolute path expected
+by that adapter; the current Claude and Codex bridges use `CLAUDE_CODE_EXECUTABLE` and `CODEX_PATH`.
+Model discovery uses the same resolution, and a direct command override is left unchanged.
+
 For the direct native `pi` provider, CompozyOS does not override Pi's operator auth directory. When
 `home_policy = "isolated"` is selected, CompozyOS points Pi at `$COMPOZY_HOME/providers/pi/.pi/agent` so
 `compozy provider auth login pi` and session launch use the same isolated auth store. Wrapped API-key

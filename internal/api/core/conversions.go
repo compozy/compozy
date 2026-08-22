@@ -42,6 +42,8 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 			Status:            info.RuntimeStatus,
 			Transition:        info.RuntimeTransition,
 			Failure:           diagnostics.RedactAndBound(info.RuntimeFailure, maxDiagnosticPayloadBytes),
+			Generation:        info.RuntimeGeneration,
+			Recovery:          sessionRuntimeRecoveryPayload(info.RuntimeRecovery),
 			Selected:          contract.PromptRuntimeSelectionPayloadFromSelection(info.SelectedRuntime),
 			SelectionRevision: info.RuntimeSelectionRevision,
 			ACPSessionID:      info.ACPSessionID,
@@ -94,6 +96,8 @@ func SessionPayloadFromStoreInfo(info *store.SessionInfo) contract.SessionPayloa
 		RuntimeStatus:            info.RuntimeStatus,
 		RuntimeTransition:        info.RuntimeTransition,
 		RuntimeFailure:           strings.TrimSpace(info.RuntimeFailure),
+		RuntimeGeneration:        info.RuntimeGeneration,
+		RuntimeRecovery:          store.CloneSessionRuntimeRecovery(info.RuntimeRecovery),
 		Provider:                 strings.TrimSpace(info.Provider),
 		Model:                    strings.TrimSpace(info.Model),
 		ReasoningEffort:          strings.TrimSpace(info.ReasoningEffort),
@@ -174,12 +178,28 @@ func runtimeHasEffectiveSelection(info *session.Info) bool {
 		return false
 	}
 	switch info.RuntimeStatus {
-	case session.RuntimeStatusReady, session.RuntimeStatusReconfiguring, session.RuntimeStatusFailed:
+	case session.RuntimeStatusReady, session.RuntimeStatusReconfiguring,
+		session.RuntimeStatusRecovering, session.RuntimeStatusFailed:
 		return true
 	case session.RuntimeStatusUnbound:
 		return info.RuntimeTransition != session.RuntimeTransitionNone
 	default:
 		return false
+	}
+}
+
+func sessionRuntimeRecoveryPayload(value *store.SessionRuntimeRecovery) *contract.SessionRuntimeRecoveryPayload {
+	if value == nil {
+		return nil
+	}
+	return &contract.SessionRuntimeRecoveryPayload{
+		Attempt:       value.Attempt,
+		MaxAttempts:   value.MaxAttempts,
+		Generation:    value.Generation,
+		StartedAt:     value.StartedAt.UTC(),
+		LastAttemptAt: value.LastAttemptAt.UTC(),
+		NextAttemptAt: cloneTimePtr(value.NextAttemptAt),
+		LastError:     diagnostics.RedactAndBound(value.LastError, maxDiagnosticPayloadBytes),
 	}
 }
 

@@ -31,6 +31,18 @@ type hookRuntime interface {
 	) (hookspkg.SessionPostResumePayload, error)
 	DispatchSessionPreStop(context.Context, hookspkg.SessionPreStopPayload) (hookspkg.SessionPreStopPayload, error)
 	DispatchSessionPostStop(context.Context, hookspkg.SessionPostStopPayload) (hookspkg.SessionPostStopPayload, error)
+	DispatchSessionRuntimeRecoveryStarted(
+		context.Context,
+		hookspkg.SessionRuntimeRecoveryStartedPayload,
+	) (hookspkg.SessionRuntimeRecoveryStartedPayload, error)
+	DispatchSessionRuntimeRecoverySucceeded(
+		context.Context,
+		hookspkg.SessionRuntimeRecoverySucceededPayload,
+	) (hookspkg.SessionRuntimeRecoverySucceededPayload, error)
+	DispatchSessionRuntimeRecoveryExhausted(
+		context.Context,
+		hookspkg.SessionRuntimeRecoveryExhaustedPayload,
+	) (hookspkg.SessionRuntimeRecoveryExhaustedPayload, error)
 	DispatchSandboxPrepare(
 		context.Context,
 		hookspkg.SandboxPreparePayload,

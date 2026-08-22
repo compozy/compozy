@@ -56,6 +56,8 @@ type SessionMeta struct {
 	RuntimeStatus        SessionRuntimeStatus          `json:"runtime_status"`
 	RuntimeTransition    SessionRuntimeTransition      `json:"runtime_transition,omitempty"`
 	RuntimeFailure       *string                       `json:"runtime_failure,omitempty"`
+	RuntimeGeneration    int64                         `json:"runtime_generation,omitempty"`
+	RuntimeRecovery      *SessionRuntimeRecovery       `json:"runtime_recovery,omitempty"`
 	RuntimeSelection     *SessionRuntimeSelectionState `json:"runtime_selection,omitempty"`
 	EffectivePermissions string                        `json:"effective_permissions,omitempty"`
 	*SessionProviderAuthState

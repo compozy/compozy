@@ -10691,6 +10691,27 @@ func (f *fakeHookRuntime) DispatchSessionPostStop(
 	return payload, nil
 }
 
+func (f *fakeHookRuntime) DispatchSessionRuntimeRecoveryStarted(
+	_ context.Context,
+	payload hookspkg.SessionRuntimeRecoveryStartedPayload,
+) (hookspkg.SessionRuntimeRecoveryStartedPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchSessionRuntimeRecoverySucceeded(
+	_ context.Context,
+	payload hookspkg.SessionRuntimeRecoverySucceededPayload,
+) (hookspkg.SessionRuntimeRecoverySucceededPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchSessionRuntimeRecoveryExhausted(
+	_ context.Context,
+	payload hookspkg.SessionRuntimeRecoveryExhaustedPayload,
+) (hookspkg.SessionRuntimeRecoveryExhaustedPayload, error) {
+	return payload, nil
+}
+
 func (f *fakeHookRuntime) DispatchInputPreSubmit(
 	_ context.Context,
 	payload hookspkg.InputPreSubmitPayload,

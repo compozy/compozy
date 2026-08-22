@@ -1566,124 +1566,156 @@ func TestRepositoryCheckReady(t *testing.T) {
 }
 
 func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
-	t.Parallel()
+	t.Run("Should persist recovery state and preserve workspace-scoped listing", func(t *testing.T) {
+		t.Parallel()
 
-	globalDB := openTestGlobalDB(t)
-	createdAt := time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC)
-	workspaceID := registerWorkspaceForGlobalTests(
-		t,
-		globalDB,
-		"sess-global-workspace",
-		filepath.Join(t.TempDir(), "workspace-global"),
-	)
-	session := SessionInfo{
-		ID:                "sess-global",
-		Name:              "Alpha",
-		AgentName:         "coder",
-		Provider:          "claude",
-		Model:             "claude-opus-4",
-		ReasoningEffort:   "high",
-		Speed:             speedpkg.SpeedFast,
-		SpeedResolution:   &speedpkg.Resolution{Requested: speedpkg.SpeedFast, Status: speedpkg.ResolutionApplied},
-		RuntimeStatus:     store.SessionRuntimeReady,
-		RuntimeTransition: store.SessionRuntimeTransitionLiveConfiguration,
-		SelectedRuntime: &store.SessionRuntimeSelection{
-			Provider:        "claude",
-			Model:           "claude-fable-5",
-			ReasoningEffort: "max",
-			Speed:           speedpkg.SpeedFast,
-		},
-		RuntimeSelectionRevision: 4,
-		WorkspaceID:              workspaceID,
-		SessionType:              "dream",
-		State:                    "active",
-		CreatedAt:                createdAt,
-		UpdatedAt:                createdAt,
-	}
-
-	if err := globalDB.RegisterSession(testutil.Context(t), session); err != nil {
-		t.Fatalf("RegisterSession() error = %v", err)
-	}
-
-	acpSessionID := "acp-123"
-	if err := globalDB.UpdateSessionState(testutil.Context(t), SessionStateUpdate{
-		ID:                session.ID,
-		State:             "stopped",
-		ACPSessionID:      &acpSessionID,
-		RuntimeSet:        true,
-		Provider:          "codex",
-		Model:             "gpt-5.6",
-		ReasoningEffort:   "medium",
-		Speed:             speedpkg.SpeedNormal,
-		RuntimeStatus:     store.SessionRuntimeReady,
-		RuntimeTransition: store.SessionRuntimeTransitionProcessReplacement,
-		UpdatedAt:         createdAt.Add(2 * time.Minute),
-	}); err != nil {
-		t.Fatalf("UpdateSessionState() error = %v", err)
-	}
-
-	foreignWorkspaceID := registerWorkspaceForGlobalTests(
-		t,
-		globalDB,
-		"sess-global-foreign-workspace",
-		filepath.Join(t.TempDir(), "workspace-global-foreign"),
-	)
-	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
-		ID:                "sess-global-foreign",
-		AgentName:         "coder",
-		Provider:          "foreign-provider",
-		Model:             "foreign-model",
-		RuntimeStatus:     store.SessionRuntimeReady,
-		RuntimeTransition: store.SessionRuntimeTransitionInitialBind,
-		WorkspaceID:       foreignWorkspaceID,
-		State:             "stopped",
-		CreatedAt:         createdAt,
-		UpdatedAt:         createdAt,
-	}); err != nil {
-		t.Fatalf("RegisterSession(foreign) error = %v", err)
-	}
-
-	sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{
-		State: "stopped", WorkspaceID: workspaceID,
-	})
-	if err != nil {
-		t.Fatalf("ListSessions() error = %v", err)
-	}
-	if got, want := len(sessions), 1; got != want {
-		t.Fatalf("len(sessions) = %d, want %d", got, want)
-	}
-	if sessions[0].State != "stopped" {
-		t.Fatalf("sessions[0].State = %q, want stopped", sessions[0].State)
-	}
-	if sessions[0].SessionType != "dream" {
-		t.Fatalf("sessions[0].SessionType = %q, want dream", sessions[0].SessionType)
-	}
-	if sessions[0].WorkspaceID != workspaceID {
-		t.Fatalf("sessions[0].WorkspaceID = %q, want %q", sessions[0].WorkspaceID, workspaceID)
-	}
-	if sessions[0].Provider != "codex" {
-		t.Fatalf("sessions[0].Provider = %q, want codex", sessions[0].Provider)
-	}
-	if sessions[0].Model != "gpt-5.6" || sessions[0].ReasoningEffort != "medium" ||
-		sessions[0].Speed != speedpkg.SpeedNormal || sessions[0].SpeedResolution != nil ||
-		sessions[0].RuntimeStatus != store.SessionRuntimeReady ||
-		sessions[0].RuntimeTransition != store.SessionRuntimeTransitionProcessReplacement {
-		t.Fatalf("sessions[0] runtime projection = %#v", sessions[0])
-	}
-	if sessions[0].SelectedRuntime == nil || sessions[0].SelectedRuntime.Provider != "claude" ||
-		sessions[0].SelectedRuntime.Model != "claude-fable-5" ||
-		sessions[0].SelectedRuntime.ReasoningEffort != "max" ||
-		sessions[0].SelectedRuntime.Speed != speedpkg.SpeedFast ||
-		sessions[0].RuntimeSelectionRevision != 4 {
-		t.Fatalf(
-			"sessions[0] selected runtime = %#v revision %d, want durable Claude selection at revision 4",
-			sessions[0].SelectedRuntime,
-			sessions[0].RuntimeSelectionRevision,
+		globalDB := openTestGlobalDB(t)
+		createdAt := time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"sess-global-workspace",
+			filepath.Join(t.TempDir(), "workspace-global"),
 		)
-	}
-	if sessions[0].ACPSessionID == nil || *sessions[0].ACPSessionID != "acp-123" {
-		t.Fatalf("sessions[0].ACPSessionID = %#v, want acp-123", sessions[0].ACPSessionID)
-	}
+		session := SessionInfo{
+			ID:                "sess-global",
+			Name:              "Alpha",
+			AgentName:         "coder",
+			Provider:          "claude",
+			Model:             "claude-opus-4",
+			ReasoningEffort:   "high",
+			Speed:             speedpkg.SpeedFast,
+			SpeedResolution:   &speedpkg.Resolution{Requested: speedpkg.SpeedFast, Status: speedpkg.ResolutionApplied},
+			RuntimeStatus:     store.SessionRuntimeRecovering,
+			RuntimeTransition: store.SessionRuntimeTransitionAutomaticRecovery,
+			RuntimeGeneration: 3,
+			RuntimeRecovery: &store.SessionRuntimeRecovery{
+				Attempt:       1,
+				MaxAttempts:   3,
+				Generation:    4,
+				StartedAt:     createdAt,
+				LastAttemptAt: createdAt.Add(time.Second),
+			},
+			SelectedRuntime: &store.SessionRuntimeSelection{
+				Provider:        "claude",
+				Model:           "claude-fable-5",
+				ReasoningEffort: "max",
+				Speed:           speedpkg.SpeedFast,
+			},
+			RuntimeSelectionRevision: 4,
+			WorkspaceID:              workspaceID,
+			SessionType:              "dream",
+			State:                    "active",
+			CreatedAt:                createdAt,
+			UpdatedAt:                createdAt,
+		}
+
+		if err := globalDB.RegisterSession(testutil.Context(t), session); err != nil {
+			t.Fatalf("RegisterSession() error = %v", err)
+		}
+		databasePath := globalDB.Path()
+		if err := globalDB.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("Close(before recovery reopen) error = %v", err)
+		}
+		globalDB = openGlobalDBForTest(t, databasePath)
+
+		registered, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{ID: session.ID})
+		if err != nil {
+			t.Fatalf("ListSessions(registered recovery) error = %v", err)
+		}
+		if len(registered) != 1 || registered[0].RuntimeGeneration != 3 ||
+			registered[0].RuntimeRecovery == nil || registered[0].RuntimeRecovery.Generation != 4 {
+			t.Fatalf("ListSessions(registered recovery) = %#v, want durable generation 3 recovering into 4", registered)
+		}
+
+		acpSessionID := "acp-123"
+		if err := globalDB.UpdateSessionState(testutil.Context(t), SessionStateUpdate{
+			ID:                session.ID,
+			State:             "stopped",
+			ACPSessionID:      &acpSessionID,
+			RuntimeSet:        true,
+			Provider:          "codex",
+			Model:             "gpt-5.6",
+			ReasoningEffort:   "medium",
+			Speed:             speedpkg.SpeedNormal,
+			RuntimeStatus:     store.SessionRuntimeReady,
+			RuntimeTransition: store.SessionRuntimeTransitionProcessReplacement,
+			RuntimeGeneration: 4,
+			UpdatedAt:         createdAt.Add(2 * time.Minute),
+		}); err != nil {
+			t.Fatalf("UpdateSessionState() error = %v", err)
+		}
+
+		foreignWorkspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"sess-global-foreign-workspace",
+			filepath.Join(t.TempDir(), "workspace-global-foreign"),
+		)
+		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+			ID:                "sess-global-foreign",
+			AgentName:         "coder",
+			Provider:          "foreign-provider",
+			Model:             "foreign-model",
+			RuntimeStatus:     store.SessionRuntimeReady,
+			RuntimeTransition: store.SessionRuntimeTransitionInitialBind,
+			WorkspaceID:       foreignWorkspaceID,
+			State:             "stopped",
+			CreatedAt:         createdAt,
+			UpdatedAt:         createdAt,
+		}); err != nil {
+			t.Fatalf("RegisterSession(foreign) error = %v", err)
+		}
+
+		sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{
+			State: "stopped", WorkspaceID: workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("ListSessions() error = %v", err)
+		}
+		if got, want := len(sessions), 1; got != want {
+			t.Fatalf("len(sessions) = %d, want %d", got, want)
+		}
+		if sessions[0].State != "stopped" {
+			t.Fatalf("sessions[0].State = %q, want stopped", sessions[0].State)
+		}
+		if sessions[0].SessionType != "dream" {
+			t.Fatalf("sessions[0].SessionType = %q, want dream", sessions[0].SessionType)
+		}
+		if sessions[0].WorkspaceID != workspaceID {
+			t.Fatalf("sessions[0].WorkspaceID = %q, want %q", sessions[0].WorkspaceID, workspaceID)
+		}
+		if sessions[0].Provider != "codex" {
+			t.Fatalf("sessions[0].Provider = %q, want codex", sessions[0].Provider)
+		}
+		if sessions[0].RuntimeGeneration != 4 || sessions[0].RuntimeRecovery != nil {
+			t.Fatalf(
+				"session runtime after recovery = generation %d, recovery %#v; want generation 4 without recovery",
+				sessions[0].RuntimeGeneration,
+				sessions[0].RuntimeRecovery,
+			)
+		}
+		if sessions[0].Model != "gpt-5.6" || sessions[0].ReasoningEffort != "medium" ||
+			sessions[0].Speed != speedpkg.SpeedNormal || sessions[0].SpeedResolution != nil ||
+			sessions[0].RuntimeStatus != store.SessionRuntimeReady ||
+			sessions[0].RuntimeTransition != store.SessionRuntimeTransitionProcessReplacement {
+			t.Fatalf("sessions[0] runtime projection = %#v", sessions[0])
+		}
+		if sessions[0].SelectedRuntime == nil || sessions[0].SelectedRuntime.Provider != "claude" ||
+			sessions[0].SelectedRuntime.Model != "claude-fable-5" ||
+			sessions[0].SelectedRuntime.ReasoningEffort != "max" ||
+			sessions[0].SelectedRuntime.Speed != speedpkg.SpeedFast ||
+			sessions[0].RuntimeSelectionRevision != 4 {
+			t.Fatalf(
+				"sessions[0] selected runtime = %#v revision %d, want durable Claude selection at revision 4",
+				sessions[0].SelectedRuntime,
+				sessions[0].RuntimeSelectionRevision,
+			)
+		}
+		if sessions[0].ACPSessionID == nil || *sessions[0].ACPSessionID != "acp-123" {
+			t.Fatalf("sessions[0].ACPSessionID = %#v, want acp-123", sessions[0].ACPSessionID)
+		}
+	})
 }
 
 func TestGlobalDBRegisterSessionUpsertsProvider(t *testing.T) {

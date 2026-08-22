@@ -32,6 +32,9 @@ func (m *Manager) applyRuntimeDefaults() error {
 	if m.promptBufSize <= 0 {
 		m.promptBufSize = defaultPromptBufferSize
 	}
+	if len(m.promptRecoveryDelays) == 0 {
+		m.promptRecoveryDelays = append([]time.Duration(nil), defaultPromptRecoveryDelays...)
+	}
 	m.applyMutableStateDefaults()
 	if m.soulRefreshTimeout <= 0 {
 		m.soulRefreshTimeout = defaultLifecycleTimeout

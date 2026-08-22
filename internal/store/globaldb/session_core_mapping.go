@@ -18,6 +18,10 @@ func upsertSessionParams(record *sessionCatalogRecord) (sqlcgen.UpsertSessionPar
 	if err != nil {
 		return sqlcgen.UpsertSessionParams{}, err
 	}
+	runtimeRecoveryJSON, err := encodeSessionRuntimeRecovery(session.RuntimeRecovery)
+	if err != nil {
+		return sqlcgen.UpsertSessionParams{}, err
+	}
 	params := sqlcgen.UpsertSessionParams{
 		ID:                       session.ID,
 		Name:                     nullableSessionString(session.Name),
@@ -30,6 +34,8 @@ func upsertSessionParams(record *sessionCatalogRecord) (sqlcgen.UpsertSessionPar
 		RuntimeStatus:            string(session.RuntimeStatus),
 		RuntimeTransition:        string(session.RuntimeTransition),
 		RuntimeFailure:           strings.TrimSpace(session.RuntimeFailure),
+		RuntimeGeneration:        session.RuntimeGeneration,
+		RuntimeRecoveryJson:      runtimeRecoveryJSON,
 		SelectedProvider:         selectedRuntimeProvider(session.SelectedRuntime),
 		SelectedModel:            selectedRuntimeModel(session.SelectedRuntime),
 		SelectedReasoningEffort:  selectedRuntimeReasoningEffort(session.SelectedRuntime),
@@ -125,6 +131,17 @@ func encodeSessionSpeedResolution(value *speedpkg.Resolution) (string, error) {
 	encoded, err := json.Marshal(value)
 	if err != nil {
 		return "", fmt.Errorf("store: encode session speed resolution: %w", err)
+	}
+	return string(encoded), nil
+}
+
+func encodeSessionRuntimeRecovery(value *store.SessionRuntimeRecovery) (string, error) {
+	if value == nil {
+		return "", nil
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return "", fmt.Errorf("store: encode session runtime recovery: %w", err)
 	}
 	return string(encoded), nil
 }
