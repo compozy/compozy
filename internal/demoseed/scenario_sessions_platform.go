@@ -18,7 +18,7 @@ func platformSessions(clock timeline) []sessionStory {
 
 func partnerReplaySession(clock timeline) sessionStory {
 	return sessionStory{
-		ID: scenarioSessionIDs[0], Name: "Partner replay analysis",
+		ID: sessionPartnerReplayID, Name: "Partner replay analysis",
 		WorkspaceKey: workspaceKeyPlatform, AgentName: agentPlatformEngineer,
 		Provider: providerCodex, Model: modelCodex, SessionType: string(session.SessionTypeUser),
 		StartedAt: clock.hoursMinutesAgo(21, 18), EndedAt: clock.hoursMinutesAgo(21, 7),
@@ -50,7 +50,7 @@ func partnerReplaySession(clock timeline) sessionStory {
 
 func rollbackDrillSession(clock timeline) sessionStory {
 	return sessionStory{
-		ID: scenarioSessionIDs[5], Name: "Rollback drill for the 25% canary",
+		ID: sessionRollbackDrillID, Name: "Rollback drill for the 25% canary",
 		WorkspaceKey: workspaceKeyPlatform, AgentName: agentCheckoutEngineer,
 		Provider: providerCodex, Model: modelCodex, SessionType: string(session.SessionTypeUser),
 		StartedAt: clock.daysHoursAgo(1, 6), EndedAt: clock.daysHoursAgo(1, 5),
@@ -80,7 +80,7 @@ func rollbackDrillSession(clock timeline) sessionStory {
 
 func settlementRetrySession(clock timeline) sessionStory {
 	return sessionStory{
-		ID: scenarioSessionIDs[6], Name: "Settlement retry investigation",
+		ID: sessionSettlementRetryID, Name: "Settlement retry investigation",
 		WorkspaceKey: workspaceKeyPlatform, AgentName: agentPlatformEngineer,
 		Provider: providerCodex, Model: modelCodex, SessionType: string(session.SessionTypeUser),
 		StartedAt: clock.hoursMinutesAgo(4, 20), EndedAt: clock.hoursMinutesAgo(3, 40),
@@ -113,10 +113,10 @@ func settlementWorkerSession(clock timeline) sessionStory {
 		Summary: "Rate limiter patch failed contract tests: settlement batch ordering regressed.",
 	}
 	return sessionStory{
-		ID: scenarioSessionIDs[7], Name: "Add settlement rate limiter",
+		ID: sessionSettlementWorkerID, Name: "Add settlement rate limiter",
 		WorkspaceKey: workspaceKeyPlatform, AgentName: agentCheckoutEngineer,
 		Provider: providerCodex, Model: modelCodex, SessionType: string(session.SessionTypeSpawned),
-		ParentID: scenarioSessionIDs[6], SpawnRole: "worker",
+		ParentID: sessionSettlementRetryID, SpawnRole: "worker",
 		StartedAt: clock.hoursMinutesAgo(3, 50), EndedAt: clock.hoursMinutesAgo(3, 12),
 		StopReason: string(store.StopError), StopDetail: "Contract tests failed after the patch.",
 		Failure: failure,
@@ -146,7 +146,7 @@ func settlementWorkerSession(clock timeline) sessionStory {
 
 func releaseTrainSession(clock timeline) sessionStory {
 	return sessionStory{
-		ID: scenarioSessionIDs[8], Name: "Payments release train",
+		ID: sessionReleaseTrainID, Name: "Payments release train",
 		WorkspaceKey: workspaceKeyPlatform, AgentName: agentReleaseManager,
 		Provider: providerCodex, Model: modelCodex, SessionType: string(session.SessionTypeUser),
 		StartedAt: clock.daysHoursAgo(3, 7), EndedAt: clock.daysHoursAgo(3, 6),
@@ -179,7 +179,7 @@ func releaseTrainSession(clock timeline) sessionStory {
 
 func docsRefreshSession(clock timeline) sessionStory {
 	return sessionStory{
-		ID: scenarioSessionIDs[9], Name: "Runbook freshness pass",
+		ID: sessionDocsRefreshID, Name: "Runbook freshness pass",
 		WorkspaceKey: workspaceKeyPlatform, AgentName: agentDocsSteward,
 		Provider: providerClaude, Model: modelClaude, SessionType: string(session.SessionTypeUser),
 		StartedAt: clock.daysHoursAgo(6, 4), EndedAt: clock.daysHoursAgo(6, 3),

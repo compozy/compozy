@@ -62,14 +62,14 @@ var pulseActors = []struct {
 	sessionID string
 	agentName string
 }{
-	{scenarioSessionIDs[3], agentProductLead},
-	{scenarioSessionIDs[0], agentPlatformEngineer},
-	{scenarioSessionIDs[2], agentSupportLead},
-	{scenarioSessionIDs[5], agentCheckoutEngineer},
-	{scenarioSessionIDs[4], agentFraudAnalyst},
-	{scenarioSessionIDs[9], agentDocsSteward},
-	{scenarioSessionIDs[1], agentComplianceReview},
-	{scenarioSessionIDs[8], agentReleaseManager},
+	{sessionLaunchDecisionID, agentProductLead},
+	{sessionPartnerReplayID, agentPlatformEngineer},
+	{sessionSupportHandoffID, agentSupportLead},
+	{sessionRollbackDrillID, agentCheckoutEngineer},
+	{sessionFraudSweepID, agentFraudAnalyst},
+	{sessionDocsRefreshID, agentDocsSteward},
+	{sessionComplianceCopyID, agentComplianceReview},
+	{sessionReleaseTrainID, agentReleaseManager},
 }
 
 func scenarioEventSummaries(clock timeline) []eventSummaryStory {
@@ -116,24 +116,24 @@ func todayEventSummaries(clock timeline) []eventSummaryStory {
 	stories := []eventSummaryStory{
 		{
 			ID: "sum_today_launch_decision", WorkspaceKey: workspaceKeyLaunch,
-			SessionID: scenarioSessionIDs[3], AgentName: agentProductLead,
+			SessionID: sessionLaunchDecisionID, AgentName: agentProductLead,
 			Type: eventspkg.TaskRunCompleted, Summary: "Checkout launch recommendation completed",
 			At: clock.minutesAgo(41),
 		},
 		{
 			ID: "sum_today_settlement_failed", WorkspaceKey: workspaceKeyPlatform,
-			SessionID: scenarioSessionIDs[7], AgentName: agentCheckoutEngineer,
+			SessionID: sessionSettlementWorkerID, AgentName: agentCheckoutEngineer,
 			Type: eventspkg.TaskRunFailed, Summary: "Settlement rate limiter run failed on batch ordering",
 			At: clock.hoursMinutesAgo(3, 12),
 		},
 		{
 			ID: "sum_today_support_handoff", WorkspaceKey: workspaceKeyLaunch,
-			SessionID: scenarioSessionIDs[2], AgentName: agentSupportLead,
+			SessionID: sessionSupportHandoffID, AgentName: agentSupportLead,
 			Type: eventspkg.SessionStopped, Summary: "Support readiness handoff session stopped",
 			At: clock.hoursMinutesAgo(6, 1),
 		},
 		{
-			ID: "sum_today_canary_task", SessionID: scenarioSessionIDs[3], AgentName: agentProductLead,
+			ID: "sum_today_canary_task", SessionID: sessionLaunchDecisionID, AgentName: agentProductLead,
 			Type: eventspkg.TaskCreated, Summary: "Authorize Brazil 25% canary created",
 			At: clock.minutesAgo(39),
 		},

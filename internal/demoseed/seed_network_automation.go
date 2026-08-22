@@ -109,7 +109,7 @@ func seedNetwork(
 		Channel: launchChannel, WorkspaceID: record.ID,
 		Purpose:      "Checkout launch decisions, market holds, and rollback evidence.",
 		FanoutPolicy: store.NetworkFanoutPolicyAllMembers,
-		CreatedBy:    scenarioSessionIDs[3], CreatedAt: createdAt, UpdatedAt: messages[len(messages)-1].At,
+		CreatedBy:    sessionLaunchDecisionID, CreatedAt: createdAt, UpdatedAt: messages[len(messages)-1].At,
 	}); err != nil {
 		return fmt.Errorf("demo seed: create Network channel: %w", err)
 	}
@@ -161,7 +161,7 @@ func seedLaunchAutomation(ctx context.Context, db *globaldb.GlobalDB, state *sce
 	startedAt := scheduledAt.Add(20 * time.Second)
 	endedAt := startedAt.Add(4 * time.Minute)
 	if _, err := db.CreateRun(ctx, automation.Run{
-		ID: launchAutomationRun, JobID: job.ID, SessionID: scenarioSessionIDs[2],
+		ID: launchAutomationRun, JobID: job.ID, SessionID: sessionSupportHandoffID,
 		TaskID: taskSupportID, TaskRunID: "run_northstar_support_handoff",
 		FireID: "fire_northstar_canary_preflight", Status: automation.RunCompleted, Attempt: 1,
 		ScheduledAt: &scheduledAt, StartedAt: &startedAt, EndedAt: &endedAt,

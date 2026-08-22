@@ -19,7 +19,7 @@ func launchSessions(clock timeline) []sessionStory {
 
 func launchDecisionSession(clock timeline) sessionStory {
 	return sessionStory{
-		ID: scenarioSessionIDs[3], Name: "Checkout launch recommendation",
+		ID: sessionLaunchDecisionID, Name: "Checkout launch recommendation",
 		WorkspaceKey: workspaceKeyLaunch, AgentName: agentProductLead,
 		Provider: providerClaude, Model: modelClaude, SessionType: string(session.SessionTypeUser),
 		StartedAt: clock.minutesAgo(54), EndedAt: clock.minutesAgo(41),
@@ -63,7 +63,7 @@ func launchDecisionSession(clock timeline) sessionStory {
 
 func complianceCopySession(clock timeline) sessionStory {
 	return sessionStory{
-		ID: scenarioSessionIDs[1], Name: "Brazil fallback copy review",
+		ID: sessionComplianceCopyID, Name: "Brazil fallback copy review",
 		WorkspaceKey: workspaceKeyLaunch, AgentName: agentComplianceReview,
 		Provider: providerClaude, Model: modelClaude, SessionType: string(session.SessionTypeUser),
 		StartedAt: clock.hoursMinutesAgo(13, 34), EndedAt: clock.hoursMinutesAgo(13, 26),
@@ -97,7 +97,7 @@ func complianceCopySession(clock timeline) sessionStory {
 
 func supportHandoffSession(clock timeline) sessionStory {
 	return sessionStory{
-		ID: scenarioSessionIDs[2], Name: "Support readiness handoff",
+		ID: sessionSupportHandoffID, Name: "Support readiness handoff",
 		WorkspaceKey: workspaceKeyLaunch, AgentName: agentSupportLead,
 		Provider: providerClaude, Model: modelClaude, SessionType: string(session.SessionTypeUser),
 		StartedAt: clock.hoursMinutesAgo(6, 11), EndedAt: clock.hoursMinutesAgo(6, 1),
@@ -130,7 +130,7 @@ func supportHandoffSession(clock timeline) sessionStory {
 
 func fraudSweepSession(clock timeline) sessionStory {
 	return sessionStory{
-		ID: scenarioSessionIDs[4], Name: "Chargeback signal sweep",
+		ID: sessionFraudSweepID, Name: "Chargeback signal sweep",
 		WorkspaceKey: workspaceKeyLaunch, AgentName: agentFraudAnalyst,
 		Provider: providerClaude, Model: modelClaude, SessionType: string(session.SessionTypeUser),
 		StartedAt: clock.daysHoursAgo(2, 3), EndedAt: clock.daysHoursAgo(2, 2),
@@ -160,7 +160,7 @@ func fraudSweepSession(clock timeline) sessionStory {
 
 func chargebackWatchSession(clock timeline) sessionStory {
 	return sessionStory{
-		ID: scenarioSessionIDs[10], Name: "Chargeback triage coordinator",
+		ID: sessionChargebackWatchID, Name: "Chargeback triage coordinator",
 		WorkspaceKey: workspaceKeyLaunch, AgentName: agentFraudAnalyst,
 		Provider: providerClaude, Model: modelClaude, SessionType: string(session.SessionTypeCoordinator),
 		StartedAt: clock.hoursAgo(9), EndedAt: clock.hoursMinutesAgo(8, 42),
@@ -183,7 +183,7 @@ func chargebackWatchSession(clock timeline) sessionStory {
 
 func incidentReviewSession(clock timeline) sessionStory {
 	return sessionStory{
-		ID: scenarioSessionIDs[11], Name: "Authorization dip postmortem",
+		ID: sessionIncidentReviewID, Name: "Authorization dip postmortem",
 		WorkspaceKey: workspaceKeyLaunch, AgentName: agentProductLead,
 		Provider: providerClaude, Model: modelClaude, SessionType: string(session.SessionTypeUser),
 		StartedAt: clock.daysHoursAgo(4, 5), EndedAt: clock.daysHoursAgo(4, 2),

@@ -173,7 +173,7 @@ func suggestedWebPaths(workspaceID string) []string {
 		fmt.Sprintf("/loops/%s/editor", loopMarketRollout),
 		"/knowledge",
 		"/tasks?mode=dashboard",
-		fmt.Sprintf("/agents/%s/sessions/%s", agentProductLead, scenarioSessionIDs[3]),
+		fmt.Sprintf("/agents/%s/sessions/%s", agentProductLead, sessionLaunchDecisionID),
 		fmt.Sprintf("/network/%s/%s/threads/%s", workspaceID, launchChannel, launchThreadID),
 	}
 }

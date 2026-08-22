@@ -238,7 +238,7 @@ func assertCompleteSeedSurfaces(
 	if err != nil {
 		t.Fatalf("ListGoalTurns() error = %v", err)
 	}
-	if len(turns.Turns) != 2 || turns.Turns[0].SessionID != scenarioSessionIDs[11] {
+	if len(turns.Turns) != 2 || turns.Turns[0].SessionID != sessionIncidentReviewID {
 		t.Fatalf("ListGoalTurns() = %#v, want two session-owned turns", turns)
 	}
 	worktrees, err := db.WorktreeStore().List(ctx, result.WorkspaceIDs[1])
@@ -259,7 +259,7 @@ func assertCompleteSeedSurfaces(
 		t.Fatalf("ListPresets() = %#v, want three built-in presets", items)
 	}
 	assertSeedMemoriesReadable(t, ctx, db, paths, result)
-	meta, err := store.ReadSessionMeta(store.SessionMetaFile(filepath.Join(paths.SessionsDir, scenarioSessionIDs[5])))
+	meta, err := store.ReadSessionMeta(store.SessionMetaFile(filepath.Join(paths.SessionsDir, sessionRollbackDrillID)))
 	if err != nil {
 		t.Fatalf("ReadSessionMeta(checkout engineer) error = %v", err)
 	}
@@ -455,7 +455,7 @@ func assertAutomationStory(t *testing.T, ctx context.Context, db *globaldb.Globa
 
 func assertLaunchTranscript(t *testing.T, ctx context.Context, paths config.HomePaths, workspaceID string) {
 	t.Helper()
-	sessionID := scenarioSessionIDs[3]
+	sessionID := sessionLaunchDecisionID
 	reader, err := sessiondb.OpenSessionDBReadOnly(
 		ctx,
 		store.SessionDBOwner{SessionID: sessionID, WorkspaceID: workspaceID},

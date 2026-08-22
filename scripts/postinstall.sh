@@ -66,8 +66,11 @@ if [ -d "$SPEC_CYCLE_DIR" ]; then
     [ -f "$SPEC_CYCLE_DIR/$skill_name/SKILL.md" ] || continue
 
     shared_link="$SOURCE_DIR/$skill_name"
-    if [ -L "$shared_link" ] || [ -e "$shared_link" ]; then
-      rm -rf "$shared_link"
+    if [ -L "$shared_link" ]; then
+      rm "$shared_link"
+    elif [ -e "$shared_link" ]; then
+      printf 'Refusing to replace non-symlink skill path: %s\n' "$shared_link" >&2
+      exit 1
     fi
 
     ln -s "../../extensions/spec-cycle/skills/$skill_name" "$shared_link"

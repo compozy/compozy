@@ -130,17 +130,32 @@ const (
 	loopReleaseSettlementChildRunID = "loopr_northstar_release_settlement_child"
 )
 
+const (
+	sessionPartnerReplayID    = "sess_northstar_partner_replay"
+	sessionComplianceCopyID   = "sess_northstar_compliance_copy"
+	sessionSupportHandoffID   = "sess_northstar_support_handoff"
+	sessionLaunchDecisionID   = "sess_northstar_launch_decision"
+	sessionFraudSweepID       = "sess_northstar_fraud_sweep"
+	sessionRollbackDrillID    = "sess_northstar_rollback_drill"
+	sessionSettlementRetryID  = "sess_northstar_settlement_retry"
+	sessionSettlementWorkerID = "sess_northstar_settlement_worker"
+	sessionReleaseTrainID     = "sess_northstar_release_train"
+	sessionDocsRefreshID      = "sess_northstar_docs_refresh"
+	sessionChargebackWatchID  = "sess_northstar_chargeback_watch"
+	sessionIncidentReviewID   = "sess_northstar_incident_review"
+)
+
 var scenarioSessionIDs = []string{
-	"sess_northstar_partner_replay",
-	"sess_northstar_compliance_copy",
-	"sess_northstar_support_handoff",
-	"sess_northstar_launch_decision",
-	"sess_northstar_fraud_sweep",
-	"sess_northstar_rollback_drill",
-	"sess_northstar_settlement_retry",
-	"sess_northstar_settlement_worker",
-	"sess_northstar_release_train",
-	"sess_northstar_docs_refresh",
-	"sess_northstar_chargeback_watch",
-	"sess_northstar_incident_review",
+	sessionPartnerReplayID,
+	sessionComplianceCopyID,
+	sessionSupportHandoffID,
+	sessionLaunchDecisionID,
+	sessionFraudSweepID,
+	sessionRollbackDrillID,
+	sessionSettlementRetryID,
+	sessionSettlementWorkerID,
+	sessionReleaseTrainID,
+	sessionDocsRefreshID,
+	sessionChargebackWatchID,
+	sessionIncidentReviewID,
 }

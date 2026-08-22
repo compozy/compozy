@@ -136,7 +136,7 @@ func incidentGoalTurns(story loopRunStory) []looppkg.RunHistoryGoalTurn {
 	return []looppkg.RunHistoryGoalTurn{
 		{
 			Seq: 1, Generation: 1, NodeID: looppkg.NodeID(nodeWritePostmortem), Turn: 1,
-			SessionID: scenarioSessionIDs[11], BindingHandle: "goal:incident-postmortem",
+			SessionID: sessionIncidentReviewID, BindingHandle: "goal:incident-postmortem",
 			BindingEpoch: 1, PromptID: "prompt_northstar_postmortem_01", PromptAttempt: 1,
 			UsageBaseTokens: 18420, StopReason: looppkg.ActionStopEndTurn,
 			VerdictOutcome: gate.VerdictOutcomeRejected,
@@ -149,12 +149,12 @@ func incidentGoalTurns(story loopRunStory) []looppkg.RunHistoryGoalTurn {
 			Warnings: json.RawMessage(
 				`[]`,
 			), PromptRef: "demo://goal/incident-postmortem/turn-1",
-			TokensUsed: 12780, ActorKind: string(task.ActorKindAgentSession), ActorID: scenarioSessionIDs[11],
+			TokensUsed: 12780, ActorKind: string(task.ActorKindAgentSession), ActorID: sessionIncidentReviewID,
 			StartedAt: firstStarted, EndedAt: firstStarted.Add(75 * time.Second),
 		},
 		{
 			Seq: 2, Generation: 1, NodeID: looppkg.NodeID(nodeWritePostmortem), Turn: 2,
-			SessionID: scenarioSessionIDs[11], BindingHandle: "goal:incident-postmortem",
+			SessionID: sessionIncidentReviewID, BindingHandle: "goal:incident-postmortem",
 			BindingEpoch: 1, PromptID: "prompt_northstar_postmortem_02", PromptAttempt: 1,
 			UsageBaseTokens: 31200, StopReason: looppkg.ActionStopMaxTurnRequests,
 			VerdictOutcome: gate.VerdictOutcomeRejected,
@@ -166,7 +166,7 @@ func incidentGoalTurns(story loopRunStory) []looppkg.RunHistoryGoalTurn {
 			),
 			Warnings: json.RawMessage(`[]`), EvidenceRef: "demo://evidence/authorization-dip",
 			PromptRef: "demo://goal/incident-postmortem/turn-2", TokensUsed: 15860,
-			ActorKind: string(task.ActorKindAgentSession), ActorID: scenarioSessionIDs[11],
+			ActorKind: string(task.ActorKindAgentSession), ActorID: sessionIncidentReviewID,
 			StartedAt: secondStarted, EndedAt: secondStarted.Add(35 * time.Second),
 		},
 	}
