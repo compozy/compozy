@@ -681,7 +681,7 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 			status.Reason != "backend_dead" {
 			t.Fatalf("MCPServerRuntimeStatus(threshold) = %#v, want dead/skipped/backend_dead", status)
 		}
-		listed, err := globalDB.ListDeadEntities(ctx, workspaceID)
+		listed, err := globalDB.ListDeadEntities(ctx, store.ReadScope{AllProfiles: true}, workspaceID)
 		if err != nil {
 			t.Fatalf("ListDeadEntities() error = %v", err)
 		}

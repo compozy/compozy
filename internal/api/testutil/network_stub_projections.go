@@ -17,6 +17,7 @@ func (s StubNetworkStore) deriveNetworkChannelProjections(
 		return nil, nil
 	}
 	messages, err := s.ListNetworkMessagesFn(ctx, store.NetworkMessageQuery{
+		ReadScope:   store.ReadScope{AllProfiles: true},
 		WorkspaceID: query.WorkspaceID,
 		Channel:     query.Channel,
 	})
@@ -89,6 +90,7 @@ func (s StubNetworkStore) deriveNetworkChannelKindCounts(
 		return nil, nil
 	}
 	messages, err := s.ListNetworkMessagesFn(ctx, store.NetworkMessageQuery{
+		ReadScope:   store.ReadScope{AllProfiles: true},
 		WorkspaceID: ref.WorkspaceID,
 		Channel:     ref.Channel,
 	})

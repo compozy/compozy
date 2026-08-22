@@ -40,6 +40,7 @@ func (p SessionCatalogPosition) Validate() error {
 // SessionCatalogPageQuery describes one bounded durable-catalog read. Cursor
 // decoding and active-session overlay belong to the session manager.
 type SessionCatalogPageQuery struct {
+	ReadScope           ReadScope
 	WorkspaceID         string
 	WorktreeID          string
 	State               string
@@ -60,6 +61,9 @@ type SessionCatalogPageQuery struct {
 
 // Validate ensures the durable query is bounded and its anchor is usable.
 func (q SessionCatalogPageQuery) Validate() error {
+	if err := q.ReadScope.Validate(); err != nil {
+		return err
+	}
 	if q.Limit <= 0 {
 		return fmt.Errorf("store: session catalog page limit must be positive")
 	}

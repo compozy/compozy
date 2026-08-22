@@ -75,6 +75,7 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().IntVar(&flags.limit, "limit", 0, "Sessions per page (1-100)")
 	cmd.Flags().StringVar(&flags.sortKey, "sort", "", "Sort by recent, last_activity, or attention")
 	cmd.Flags().StringVar(&flags.cursor, "cursor", "", "Continue from an opaque next_cursor")
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 
@@ -205,19 +206,19 @@ func sessionListBundle(page SessionListPage, now func() time.Time) outputBundle 
 		items,
 		"Sessions",
 		[]string{
-			"ID", sessionNameValue, sessionAgentValue, "Parent", sessionProviderValue, sessionBackendValue,
+			"ID", sessionProfileValue, sessionNameValue, sessionAgentValue, "Parent", sessionProviderValue, sessionBackendValue,
 			sessionStateValue, sessionBadgeValue, "Failure", sessionWorkspaceValue, sessionChannelValue,
 			"Health State", "Health", sessionUpdatedValue,
 		},
 		"sessions",
 		[]string{
-			"id", sessionNameKey, sessionAgentNameKey, "parent_session_id", sessionProviderKey, "sandbox_backend",
+			"id", "profile_name", sessionNameKey, sessionAgentNameKey, "parent_session_id", sessionProviderKey, "sandbox_backend",
 			sessionStateKey, sessionBadgeKey, taskFailureKindKey, workspaceSkillSource, sessionChannelKey,
 			"health_state", extensionHealthKey, sessionUpdatedAtKey,
 		},
 		func(item SessionRecord) []string {
 			return []string{
-				stringOrDash(item.ID), stringOrDash(item.Name), stringOrDash(item.AgentName),
+				stringOrDash(item.ID), stringOrDash(item.ProfileName), stringOrDash(item.Name), stringOrDash(item.AgentName),
 				stringOrDash(sessionParentID(item)),
 				stringOrDash(sessionRuntimeProvider(item)), stringOrDash(sessionSandboxBackend(item)),
 				stringOrDash(string(item.State)), stringOrDash(string(item.Badge)),
@@ -228,7 +229,7 @@ func sessionListBundle(page SessionListPage, now func() time.Time) outputBundle 
 		},
 		func(item SessionRecord) []string {
 			return []string{
-				item.ID, item.Name, item.AgentName, sessionParentID(item),
+				item.ID, item.ProfileName, item.Name, item.AgentName, sessionParentID(item),
 				sessionRuntimeProvider(item), sessionSandboxBackend(item),
 				string(item.State), string(item.Badge), sessionFailureKind(item),
 				displaySessionWorkspace(item), sessionResolvedChannelRaw(item), sessionHealthState(item),

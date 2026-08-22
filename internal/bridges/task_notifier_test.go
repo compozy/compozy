@@ -839,6 +839,7 @@ func bridgeTaskSubscriptionForNotifierTest() BridgeTaskSubscription {
 	now := terminalTaskNotifierTestTime()
 	return BridgeTaskSubscription{
 		SubscriptionID:   "sub-1",
+		ProfileID:        store.DefaultProfileID,
 		TaskID:           "task-1",
 		BridgeInstanceID: "brg-1",
 		Scope:            ScopeGlobal,
@@ -928,6 +929,7 @@ func (s *fakeBridgeTaskSubscriptionStore) PutBridgeTaskSubscription(
 
 func (s *fakeBridgeTaskSubscriptionStore) GetBridgeTaskSubscription(
 	context.Context,
+	store.ReadScope,
 	string,
 ) (BridgeTaskSubscription, error) {
 	return BridgeTaskSubscription{}, errors.New("unexpected GetBridgeTaskSubscription call")

@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -232,7 +233,9 @@ func TestGlobalDBLoopAPIRunsShouldRemainWorkspaceScoped(t *testing.T) {
 		globalDB := openQueryRowsCloseErrorGlobalDB(t)
 		_, err := globalDB.ListLoopRuns(
 			testutil.Context(t),
-			looppkg.RunListQuery{WorkspaceID: "ws-close-error"},
+			looppkg.RunListQuery{
+				ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: "ws-close-error",
+			},
 		)
 		if !errors.Is(err, errQueryRowsClose) || !strings.Contains(err.Error(), "scan loop run") {
 			t.Fatalf("ListLoopRuns() error = %v, want joined scan and rows-close errors", err)
@@ -294,6 +297,7 @@ func TestGlobalDBLoopAPIRunsShouldRemainWorkspaceScoped(t *testing.T) {
 		}
 
 		runs, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: "ws-a",
 			LoopName:    "delivery",
 			Status:      looppkg.StatusRunning,
@@ -312,7 +316,9 @@ func TestGlobalDBLoopAPIRunsShouldRemainWorkspaceScoped(t *testing.T) {
 			t.Fatalf("ListLoopRuns() NetworkSpec = %#v, want %#v", got, want)
 		}
 
-		foreign, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{WorkspaceID: "ws-b", Limit: 10})
+		foreign, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: "ws-b", Limit: 10,
+		})
 		if err != nil {
 			t.Fatalf("ListLoopRuns(foreign) error = %v", err)
 		}
@@ -325,6 +331,7 @@ func TestGlobalDBLoopAPIRunsShouldRemainWorkspaceScoped(t *testing.T) {
 
 		live := true
 		sessionRuns, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{
+			ReadScope:       store.ReadScope{AllProfiles: true},
 			WorkspaceID:     "ws-a",
 			OriginKind:      "session",
 			OriginSessionID: "session-a",
@@ -339,6 +346,7 @@ func TestGlobalDBLoopAPIRunsShouldRemainWorkspaceScoped(t *testing.T) {
 		}
 
 		foreignSessionRuns, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{
+			ReadScope:       store.ReadScope{AllProfiles: true},
 			WorkspaceID:     "ws-b",
 			OriginSessionID: "session-a",
 			Limit:           10,
@@ -352,6 +360,7 @@ func TestGlobalDBLoopAPIRunsShouldRemainWorkspaceScoped(t *testing.T) {
 
 		terminal := false
 		catalogRuns, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: "ws-a",
 			OriginKind:  "catalog",
 			Live:        &terminal,

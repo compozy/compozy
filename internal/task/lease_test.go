@@ -13,6 +13,7 @@ import (
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/participation"
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -357,9 +358,10 @@ func TestClaimResultSanitizesRawClaimTokenMetadata(t *testing.T) {
 			`{"claim_token":"task-raw","nested":{"claim_token":"nested-raw"},"workflow_id":"wf-safe"}`,
 		)
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope:    ScopeGlobal,
-			Title:    "Claim result redaction",
-			Metadata: metadata,
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Claim result redaction",
+			Metadata:  metadata,
 		}, operator)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -613,8 +615,9 @@ func TestManagerClaimNextRunAndLeaseFencing(t *testing.T) {
 	agent := agentActorContextForTest("sess-agent", "ws-agent")
 
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Claim lease task",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Claim lease task",
 	}, operator)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -624,8 +627,9 @@ func TestManagerClaimNextRunAndLeaseFencing(t *testing.T) {
 		t.Fatalf("EnqueueRun(first) error = %v", err)
 	}
 	secondTask, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Second claim lease task",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Second claim lease task",
 	}, operator)
 	if err != nil {
 		t.Fatalf("CreateTask(second) error = %v", err)
@@ -796,8 +800,9 @@ func TestManagerClaimedRunNetworkBindingLifecycle(t *testing.T) {
 		manager := newTaskManagerForTestWithOptions(t, store, WithSessionExecutor(executor))
 		operator := validActorContext()
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Release cleanup failure path",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Release cleanup failure path",
 		}, operator)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -1338,8 +1343,9 @@ func newClaimedRunNetworkBindingTestWithStore(
 	)
 	operator := validActorContext()
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Task-run network binding",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Task-run network binding",
 	}, operator)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -1558,6 +1564,7 @@ func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {
 					t.Helper()
 					otherAgent := agentActorContextForTest("sess-other", "ws-same")
 					child, err := manager.CreateTask(context.Background(), CreateTask{
+						ProfileID:   storepkg.DefaultProfileID,
 						Scope:       ScopeWorkspace,
 						WorkspaceID: "ws-same",
 						Title:       "Other session child",
@@ -1575,6 +1582,7 @@ func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {
 					t.Helper()
 					foreignWorkspaceAgent := agentActorContextForTest(agent.Actor.Ref, "ws-away")
 					child, err := manager.CreateTask(context.Background(), CreateTask{
+						ProfileID:   storepkg.DefaultProfileID,
 						Scope:       ScopeWorkspace,
 						WorkspaceID: "ws-away",
 						Title:       "Other workspace child",
@@ -1630,6 +1638,7 @@ func TestManagerCompleteRunLeaseHallucinationGate(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 		_, claim, agent := setupCompletionLeaseForTest(t, manager, ScopeWorkspace, "ws-valid", "sess-valid", claimNow)
 		child, err := manager.CreateTask(context.Background(), CreateTask{
+			ProfileID:   storepkg.DefaultProfileID,
 			Scope:       ScopeWorkspace,
 			WorkspaceID: "ws-valid",
 			Title:       "Valid child",
@@ -1830,6 +1839,7 @@ func setupCompletionLeaseForTest(
 	}
 	agent := agentActorContextForTest(sessionID, agentWorkspaceID)
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       scope,
 		WorkspaceID: workspaceID,
 		Title:       "Completion gate task",
@@ -1923,8 +1933,9 @@ func TestManagerBlockTaskAndReleaseRunParksActiveLease(t *testing.T) {
 	agent := agentActorContextForTest("sess-blocker", "ws-blocker")
 
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Block leased task",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Block leased task",
 	}, operator)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -2007,8 +2018,9 @@ func TestManagerBlockTaskAndReleaseRunRejectsClaimTokenMismatch(t *testing.T) {
 	agent := agentActorContextForTest("sess-mismatch", "ws-mismatch")
 
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Block token mismatch",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Block token mismatch",
 	}, operator)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -2072,8 +2084,9 @@ func TestManagerBlockTaskAndReleaseRunSerializesDuplicateActiveCallers(t *testin
 	agent := agentActorContextForTest("sess-race", "ws-race")
 
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Race block leased task",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Race block leased task",
 	}, operator)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -2165,6 +2178,7 @@ func TestManagerBlockClearAutoEnqueuesReadyOptedInTaskIdempotently(t *testing.T)
 		manager := newTaskManagerForTest(t, store)
 		actor := validActorContext()
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			ProfileID:          storepkg.DefaultProfileID,
 			Scope:              ScopeWorkspace,
 			WorkspaceID:        "ws-auto-block-clear",
 			Title:              "Auto enqueue on block clear",
@@ -2217,6 +2231,7 @@ func TestManagerApprovalGrantedAutoEnqueuesReadyOptedInTask(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 		actor := validActorContext()
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			ProfileID:          storepkg.DefaultProfileID,
 			Scope:              ScopeWorkspace,
 			WorkspaceID:        "ws-auto-approval",
 			Title:              "Auto enqueue on approval",
@@ -2264,6 +2279,7 @@ func TestManagerApprovalGrantedAutoEnqueuesReadyOptedInTask(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 		actor := validActorContext()
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			ProfileID:          storepkg.DefaultProfileID,
 			Scope:              ScopeWorkspace,
 			WorkspaceID:        "ws-auto-approval-alias-failure",
 			Title:              "Auto enqueue alias failure",
@@ -2299,6 +2315,7 @@ func TestManagerCompleteRunLeaseResetsBlockRecurrencesOnlyOnCompletion(t *testin
 		actor := validActorContext()
 		maxAttempts := 3
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			ProfileID:   storepkg.DefaultProfileID,
 			Scope:       ScopeGlobal,
 			Title:       "Recurrence reset target",
 			MaxAttempts: &maxAttempts,
@@ -2469,6 +2486,7 @@ func TestManagerTaskBlockLifecycleRejectsSecretMaterial(t *testing.T) {
 			manager := newTaskManagerForTest(t, store)
 			actor := validActorContext()
 			taskRecord, err := manager.CreateTask(ctx, CreateTask{
+				ProfileID:   storepkg.DefaultProfileID,
 				Scope:       ScopeWorkspace,
 				WorkspaceID: "ws-secret-reject-" + strconv.Itoa(len(tt.name)),
 				Title:       "Secret rejection target",
@@ -2617,8 +2635,9 @@ func TestManagerReleaseSessionRunLeasesRequeuesActiveRunsStructurally(t *testing
 		agent := agentActorContextForTest("sess-child", "ws-child")
 
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Structurally released task",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Structurally released task",
 		}, operator)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)

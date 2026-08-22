@@ -156,7 +156,10 @@ func (g *AutomationRepo) ListRuns(
 
 	// dynamic-sql: optional run dimensions, time bounds, and caller limit change the statement shape.
 	sqlQuery := `SELECT
-		id, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
+		id, COALESCE(
+			(SELECT profile_id FROM automation_jobs WHERE id = automation_runs.job_id),
+			(SELECT profile_id FROM automation_triggers WHERE id = automation_runs.trigger_id)
+		), job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
 		status, attempt, scheduled_at, started_at, ended_at, error,
 		delivery_error, delivery_error_at, loop_run_id, network_participation, metadata_json
 		FROM automation_runs`

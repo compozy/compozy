@@ -32,6 +32,7 @@ const (
 
 type NotifyRequest struct {
 	SessionID   string
+	ProfileID   string
 	WorkspaceID string
 	Title       string
 	Body        string
@@ -45,6 +46,7 @@ type NotifyResult struct {
 type OperatorNotification struct {
 	NotificationID string
 	SessionID      string
+	ProfileID      string
 	WorkspaceID    string
 	Title          string
 	Body           string
@@ -85,7 +87,6 @@ func (m *Manager) PublishOperatorNotification(
 	if err != nil {
 		return NotifyResult{}, err
 	}
-
 	m.notifyMu.Lock()
 	if retryAfter := m.notificationRetryAfterLocked(notification.SessionID, notification.At); retryAfter > 0 {
 		m.notifyMu.Unlock()
@@ -106,6 +107,7 @@ func (m *Manager) PublishOperatorNotification(
 
 	delivered := m.publishSessionCatalogEventCount(CatalogEvent{
 		Name:                 CatalogEventNameOperatorNotification,
+		ProfileID:            notification.ProfileID,
 		WorkspaceID:          notification.WorkspaceID,
 		SessionID:            notification.SessionID,
 		OperatorNotification: &notification,
@@ -122,9 +124,13 @@ func (m *Manager) PublishOperatorNotification(
 
 func (m *Manager) sanitizedOperatorNotification(req NotifyRequest) (OperatorNotification, error) {
 	sessionID := strings.TrimSpace(req.SessionID)
+	profileID := strings.TrimSpace(req.ProfileID)
 	workspaceID := strings.TrimSpace(req.WorkspaceID)
 	if sessionID == "" {
 		return OperatorNotification{}, invalidNotification("session_id", "is required")
+	}
+	if profileID == "" {
+		return OperatorNotification{}, invalidNotification("profile_id", "is required")
 	}
 	if workspaceID == "" {
 		return OperatorNotification{}, invalidNotification("workspace_id", "is required")
@@ -154,7 +160,7 @@ func (m *Manager) sanitizedOperatorNotification(req NotifyRequest) (OperatorNoti
 	}
 	return OperatorNotification{
 		NotificationID: notificationID,
-		SessionID:      sessionID, WorkspaceID: workspaceID,
+		SessionID:      sessionID, ProfileID: profileID, WorkspaceID: workspaceID,
 		Title: title, Body: body, At: m.now().UTC(),
 	}, nil
 }

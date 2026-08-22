@@ -112,6 +112,7 @@ func (s *daemonLoopAPIService) ListLoopRuns(
 		return contract.LoopRunsResponse{}, err
 	}
 	runs, err := s.persistence.ListLoopRuns(ctx, looppkg.RunListQuery{
+		ReadScope:       query.ReadScope,
 		WorkspaceID:     ws,
 		LoopName:        strings.TrimSpace(query.LoopName),
 		Status:          looppkg.Status(strings.TrimSpace(query.Status)),

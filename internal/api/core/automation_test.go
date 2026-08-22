@@ -22,6 +22,7 @@ import (
 	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -40,6 +41,7 @@ func TestAutomationJobManagedLifecycleAllowsOnlyEnabledUpdates(t *testing.T) {
 
 			current := automationpkg.Job{
 				ID:        "job-managed",
+				ProfileID: store.DefaultProfileID,
 				Scope:     automationpkg.AutomationScopeGlobal,
 				Name:      "managed-job",
 				AgentName: "coder",
@@ -150,6 +152,7 @@ func TestAutomationTriggerManagedLifecycleAllowsOnlyEnabledUpdates(t *testing.T)
 
 			current := automationpkg.Trigger{
 				ID:        "trigger-managed",
+				ProfileID: store.DefaultProfileID,
 				Scope:     automationpkg.AutomationScopeGlobal,
 				Name:      "managed-trigger",
 				AgentName: "coder",
@@ -279,6 +282,7 @@ func TestAutomationHandlersRejectInvalidAgentReferencesBeforeMutation(t *testing
 
 	job := automationpkg.Job{
 		ID:        "job-invalid-agent",
+		ProfileID: store.DefaultProfileID,
 		Scope:     automationpkg.AutomationScopeGlobal,
 		Name:      "invalid-agent-job",
 		AgentName: invalidAgentName,
@@ -294,6 +298,7 @@ func TestAutomationHandlersRejectInvalidAgentReferencesBeforeMutation(t *testing
 	}
 	trigger := automationpkg.Trigger{
 		ID:        "trigger-invalid-agent",
+		ProfileID: store.DefaultProfileID,
 		Scope:     automationpkg.AutomationScopeGlobal,
 		Name:      "invalid-agent-trigger",
 		AgentName: invalidAgentName,
@@ -408,6 +413,7 @@ func TestAutomationTriggerHandlersRejectPaddedEvents(t *testing.T) {
 
 	current := automationpkg.Trigger{
 		ID:        "trigger-padded-event",
+		ProfileID: store.DefaultProfileID,
 		Scope:     automationpkg.AutomationScopeGlobal,
 		Name:      "padded-event",
 		AgentName: "coder",
@@ -492,7 +498,7 @@ func TestAutomationTriggerWritesAuthorizeBeforeMutation(t *testing.T) {
 		targetWorkspace = "ws_bbbbbbbbbbbbbbbb"
 	)
 	current := automationpkg.Trigger{
-		ID: "trigger-foreign", Scope: automationpkg.AutomationScopeWorkspace,
+		ID: "trigger-foreign", ProfileID: store.DefaultProfileID, Scope: automationpkg.AutomationScopeWorkspace,
 		WorkspaceID: targetWorkspace, Name: "deploy-review", AgentName: "coder",
 		Prompt: "review", Event: "webhook", Source: automationpkg.JobSourceDynamic,
 		WebhookID: "wbh_123", EndpointSlug: "deploy-review", Enabled: true,
@@ -593,7 +599,7 @@ func TestAutomationTriggerWritesKeepCommittedResultWhenIngressEnrichmentFails(t 
 	t.Parallel()
 
 	trigger := automationpkg.Trigger{
-		ID: "trigger-committed", Scope: automationpkg.AutomationScopeGlobal,
+		ID: "trigger-committed", ProfileID: store.DefaultProfileID, Scope: automationpkg.AutomationScopeGlobal,
 		Name: "deploy-review", AgentName: "coder", Prompt: "review", Event: "webhook",
 		Source: automationpkg.JobSourceDynamic, WebhookID: "wbh_123", EndpointSlug: "deploy-review",
 		Enabled: true, Retry: automationpkg.DefaultRetryConfig(), FireLimit: automationpkg.DefaultFireLimitConfig(),
@@ -671,6 +677,7 @@ func TestAutomationJobWriteHandlersIgnoreNextRunLookupFailures(t *testing.T) {
 
 	current := automationpkg.Job{
 		ID:        "job-dynamic",
+		ProfileID: store.DefaultProfileID,
 		Scope:     automationpkg.AutomationScopeGlobal,
 		Name:      "nightly-review",
 		AgentName: "coder",
@@ -875,6 +882,7 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 
 	job := automationpkg.Job{
 		ID:        "job-dynamic",
+		ProfileID: store.DefaultProfileID,
 		Scope:     automationpkg.AutomationScopeGlobal,
 		Name:      "nightly-review",
 		AgentName: "coder",
@@ -890,6 +898,7 @@ func TestAutomationDynamicHandlersRoundTripAndHelperCoverage(t *testing.T) {
 	}
 	trigger := automationpkg.Trigger{
 		ID:           "trigger-dynamic",
+		ProfileID:    store.DefaultProfileID,
 		Scope:        automationpkg.AutomationScopeWorkspace,
 		Name:         "deploy-review",
 		AgentName:    "coder",

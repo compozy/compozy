@@ -36,20 +36,20 @@ func worktreeListBundle(items []WorktreeRecord) outputBundle {
 		items,
 		items,
 		"Worktrees",
-		[]string{"ID", automationNameValue, worktreeBranchLabel, authoredContextStateValue,
+		[]string{"ID", sessionProfileValue, automationNameValue, worktreeBranchLabel, authoredContextStateValue,
 			"Dirty", "Ahead", "Behind", authoredContextAgentValue},
 		"worktrees",
-		[]string{"id", automationNameKey, worktreeBranchKey, automationPathKey, stateKey,
+		[]string{"id", "profile_name", automationNameKey, worktreeBranchKey, automationPathKey, stateKey,
 			taskOriginKey, "dirty", "ahead", "behind", "agent_activity"},
 		func(item WorktreeRecord) []string {
 			return []string{
-				item.ID, item.Name, item.Branch, item.State, formatOptionalBool(item.Dirty),
+				item.ID, item.ProfileName, item.Name, item.Branch, item.State, formatOptionalBool(item.Dirty),
 				formatOptionalInt(item.Ahead), formatOptionalInt(item.Behind), item.AgentActivity,
 			}
 		},
 		func(item WorktreeRecord) []string {
 			return []string{
-				item.ID, item.Name, item.Branch, item.Path, item.State, item.Origin,
+				item.ID, item.ProfileName, item.Name, item.Branch, item.Path, item.State, item.Origin,
 				formatOptionalBool(item.Dirty), formatOptionalInt(item.Ahead),
 				formatOptionalInt(item.Behind), item.AgentActivity,
 			}

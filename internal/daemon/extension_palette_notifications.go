@@ -13,7 +13,7 @@ import (
 )
 
 type cmdPaletteCatalogNotifier interface {
-	NotifyCatalogChanged(context.Context, cmdpalette.WorkspaceID) error
+	NotifyCatalogChanged(context.Context, cmdpalette.ProfileLens, cmdpalette.WorkspaceID) error
 }
 
 type extensionPaletteNotifier struct {
@@ -97,7 +97,9 @@ func (n *extensionPaletteNotifier) notifyCatalogs(
 	}
 	var notifyErr error
 	for _, workspaceID := range workspaces {
-		if err := notifier.NotifyCatalogChanged(ctx, workspaceID); err != nil {
+		if err := notifier.NotifyCatalogChanged(
+			ctx, cmdpalette.AggregateProfileLens(), workspaceID,
+		); err != nil {
 			notifyErr = errors.Join(notifyErr, fmt.Errorf(
 				"notify workspace %q: %w",
 				workspaceID,
@@ -125,7 +127,9 @@ func (n *extensionPaletteNotifier) invalidateViewSessions(
 	}
 	var invalidateErr error
 	for _, workspaceID := range workspaces {
-		if err := views.InvalidateInstance(ctx, workspaceID, extension, 0); err != nil {
+		if err := views.InvalidateInstance(
+			ctx, cmdpalette.AggregateProfileLens(), workspaceID, extension, 0,
+		); err != nil {
 			invalidateErr = errors.Join(invalidateErr, fmt.Errorf(
 				"invalidate %q in workspace %q: %w",
 				extension,

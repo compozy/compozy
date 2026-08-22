@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
@@ -254,6 +255,7 @@ func (s *stubToolApprovalGrantService) PutApprovalGrant(
 
 func (s *stubToolApprovalGrantService) ListApprovalGrants(
 	ctx context.Context,
+	_ store.ReadScope,
 	workspaceID string,
 ) ([]toolspkg.ApprovalGrant, error) {
 	if s.listFn != nil {
@@ -264,6 +266,7 @@ func (s *stubToolApprovalGrantService) ListApprovalGrants(
 
 func (s *stubToolApprovalGrantService) RevokeApprovalGrant(
 	ctx context.Context,
+	_ string,
 	workspaceID string,
 	id string,
 ) error {

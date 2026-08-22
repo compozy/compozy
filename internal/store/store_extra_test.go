@@ -56,6 +56,17 @@ func TestStoreSQLHelpers(t *testing.T) {
 	if got, want := len(invalidArgs), 0; got != want {
 		t.Fatalf("len(invalidArgs) = %d, want %d", got, want)
 	}
+	qualifiedWhere, qualifiedArgs := BuildClauses(StringClause("jobs.profile_id", "profile-a"))
+	if got, want := qualifiedWhere, []string{"jobs.profile_id = ?"}; !testutil.EqualStringSlices(got, want) {
+		t.Fatalf("qualified where = %#v, want %#v", got, want)
+	}
+	if got, want := qualifiedArgs, []any{"profile-a"}; len(got) != 1 || got[0] != want[0] {
+		t.Fatalf("qualified args = %#v, want %#v", got, want)
+	}
+	unsafeWhere, _ := BuildClauses(StringClause("jobs.profile_id OR 1=1", "profile-a"))
+	if got, want := unsafeWhere, []string{"1 = 0"}; !testutil.EqualStringSlices(got, want) {
+		t.Fatalf("unsafe qualified where = %#v, want %#v", got, want)
+	}
 
 	limitedQuery, limitedArgs := AppendLimit(query, args, 5)
 	if !strings.HasSuffix(limitedQuery, " LIMIT ?") {

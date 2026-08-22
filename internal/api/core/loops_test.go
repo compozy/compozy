@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
 )
@@ -2468,6 +2469,7 @@ func loopLifecycleValidateRequestBody() []byte {
 func loopRunPayload(id string, status looppkg.Status) *contract.LoopRunPayload {
 	return &contract.LoopRunPayload{
 		ID:                           id,
+		ProfileID:                    store.DefaultProfileID,
 		WorkspaceID:                  "ws-1",
 		LoopName:                     "alpha",
 		Status:                       contract.LoopRunStatus(status),

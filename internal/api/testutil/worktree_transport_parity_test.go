@@ -283,7 +283,7 @@ func (s *parityWorktreeService) CancelCreate(_ context.Context, _ string, ref st
 	return nil
 }
 
-func (s *parityWorktreeService) Adopt(context.Context, string, string) (*worktree.Worktree, error) {
+func (s *parityWorktreeService) Adopt(context.Context, string, string, string) (*worktree.Worktree, error) {
 	item := s.item
 	item.Origin = worktree.OriginAdopted
 	return &item, nil

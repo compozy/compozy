@@ -52,6 +52,7 @@ func (n *daemonNativeTools) networkThreads(
 		return toolspkg.ToolResult{}, err
 	}
 	query := store.NetworkThreadQuery{
+		ReadScope: store.ReadScope{ProfileID: scope.ProfileID},
 		Search:    strings.TrimSpace(input.Query),
 		SessionID: strings.TrimSpace(input.SessionID),
 		Sort:      strings.TrimSpace(input.Sort),
@@ -106,6 +107,7 @@ func (n *daemonNativeTools) networkDirects(
 		return toolspkg.ToolResult{}, err
 	}
 	query := store.NetworkDirectRoomQuery{
+		ReadScope: store.ReadScope{ProfileID: scope.ProfileID},
 		Search:    strings.TrimSpace(input.Query),
 		SessionID: strings.TrimSpace(input.SessionID),
 		Sort:      strings.TrimSpace(input.Sort),

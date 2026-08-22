@@ -1023,38 +1023,35 @@ func (s *mcpReliabilityStore) MarkDeadEntity(_ context.Context, entity store.Dea
 
 func (s *mcpReliabilityStore) ClearDeadEntity(
 	_ context.Context,
-	workspaceID string,
-	kind store.DeadEntityKind,
-	entityID string,
+	key store.DeadEntityKey,
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.clears++
-	delete(s.entities, store.DeadEntityKey{WorkspaceID: workspaceID, Kind: kind, EntityID: entityID})
+	delete(s.entities, key)
 	return nil
 }
 
 func (s *mcpReliabilityStore) FindDeadEntity(
 	_ context.Context,
-	workspaceID string,
-	kind store.DeadEntityKind,
-	entityID string,
+	key store.DeadEntityKey,
 ) (store.DeadEntity, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	entity, ok := s.entities[store.DeadEntityKey{WorkspaceID: workspaceID, Kind: kind, EntityID: entityID}]
+	entity, ok := s.entities[key]
 	return entity, ok, nil
 }
 
 func (s *mcpReliabilityStore) ListDeadEntities(
 	_ context.Context,
+	readScope store.ReadScope,
 	workspaceID string,
 ) ([]store.DeadEntity, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	entities := make([]store.DeadEntity, 0)
 	for key, entity := range s.entities {
-		if key.WorkspaceID == workspaceID {
+		if key.WorkspaceID == workspaceID && readScope.Matches(key.ProfileID) {
 			entities = append(entities, entity)
 		}
 	}

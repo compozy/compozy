@@ -1337,6 +1337,7 @@ func testBridgeListRecord(t *testing.T) BridgeListRecord {
 	return BridgeListRecord{
 		Bridges: []contract.BridgePayload{{
 			ID:                   item.ID,
+			ProfileName:          "default",
 			Scope:                item.Scope,
 			WorkspaceID:          item.WorkspaceID,
 			Platform:             item.Platform,

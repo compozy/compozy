@@ -10,14 +10,20 @@ import (
 
 // BridgeCatalogRecord is the lean persisted projection used before page hydration.
 type BridgeCatalogRecord struct {
-	ID            string
-	Scope         Scope
-	WorkspaceID   string
-	Platform      string
-	ExtensionName string
-	DisplayName   string
-	Enabled       bool
-	Status        BridgeStatus
+	ID              string
+	ProfileID       string
+	ProfileName     string
+	ProfileColor    string
+	ProfileIcon     string
+	ProfileEmoji    string
+	ProfileArchived bool
+	Scope           Scope
+	WorkspaceID     string
+	Platform        string
+	ExtensionName   string
+	DisplayName     string
+	Enabled         bool
+	Status          BridgeStatus
 }
 
 // BridgeCatalogRecordItem combines lean persisted metadata with effective runtime status.
@@ -39,14 +45,20 @@ type BridgeCatalogRecordPage struct {
 // BridgeCatalogRecordFromInstance projects one full instance into catalog-only metadata.
 func BridgeCatalogRecordFromInstance(instance BridgeInstance) BridgeCatalogRecord {
 	return BridgeCatalogRecord{
-		ID:            instance.ID,
-		Scope:         instance.Scope.Normalize(),
-		WorkspaceID:   instance.WorkspaceID,
-		Platform:      strings.TrimSpace(instance.Platform),
-		ExtensionName: strings.TrimSpace(instance.ExtensionName),
-		DisplayName:   strings.TrimSpace(instance.DisplayName),
-		Enabled:       instance.Enabled,
-		Status:        instance.Status.Normalize(),
+		ID:              instance.ID,
+		ProfileID:       instance.ProfileID,
+		ProfileName:     instance.ProfileName,
+		ProfileColor:    instance.ProfileColor,
+		ProfileIcon:     instance.ProfileIcon,
+		ProfileEmoji:    instance.ProfileEmoji,
+		ProfileArchived: instance.ProfileArchived,
+		Scope:           instance.Scope.Normalize(),
+		WorkspaceID:     instance.WorkspaceID,
+		Platform:        strings.TrimSpace(instance.Platform),
+		ExtensionName:   strings.TrimSpace(instance.ExtensionName),
+		DisplayName:     strings.TrimSpace(instance.DisplayName),
+		Enabled:         instance.Enabled,
+		Status:          instance.Status.Normalize(),
 	}
 }
 
@@ -64,6 +76,9 @@ func (r BridgeCatalogRecord) Normalized() BridgeCatalogRecord {
 func (r BridgeCatalogRecord) Validate() error {
 	normalized := r.Normalized()
 	if err := requireOpaqueIdentity(normalized.ID, "bridge instance id"); err != nil {
+		return err
+	}
+	if err := requireOpaqueIdentity(normalized.ProfileID, "bridge instance profile id"); err != nil {
 		return err
 	}
 	if err := ValidateScopeWorkspaceID(normalized.Scope, normalized.WorkspaceID); err != nil {

@@ -862,7 +862,10 @@ func TestHostAPIHandlerNetworkDirectResolveShouldBeIdempotentUnderRace(t *testin
 	directs, err := storeDB.ListDirectRooms(testutil.Context(t), store.NetworkChannelRef{
 		WorkspaceID: hostAPINetworkWorkspaceID,
 		Channel:     "builders",
-	}, store.NetworkDirectRoomQuery{Limit: 10})
+	}, store.NetworkDirectRoomQuery{
+		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+		Limit:     10,
+	})
 	if err != nil {
 		t.Fatalf("ListDirectRooms() error = %v", err)
 	}

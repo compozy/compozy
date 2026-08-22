@@ -99,9 +99,13 @@ func (h *HostAPIHandler) handleNetworkThreadGet(ctx context.Context, raw json.Ra
 	if err != nil {
 		return nil, err
 	}
+	profileID, err := hostAPITaskProfileID(ctx)
+	if err != nil {
+		return nil, err
+	}
 	thread, err := networkStore.GetThread(
 		ctx,
-		store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: channel},
+		store.ReadScope{ProfileID: profileID}, store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: channel},
 		threadID,
 	)
 	if err != nil {
@@ -126,12 +130,17 @@ func (h *HostAPIHandler) handleNetworkThreadMessages(ctx context.Context, raw js
 		return nil, err
 	}
 	ref.WorkspaceID = workspaceID
+	profileID, err := hostAPITaskProfileID(ctx)
+	if err != nil {
+		return nil, err
+	}
 	query, err := hostAPINetworkConversationMessageQuery(
 		params.Limit,
 		params.Before,
 		params.After,
 		params.Kind,
 		params.WorkID,
+		store.ReadScope{ProfileID: profileID},
 	)
 	if err != nil {
 		return nil, err
@@ -189,8 +198,12 @@ func (h *HostAPIHandler) handleNetworkDirectResolve(ctx context.Context, raw jso
 		return nil, mapHostAPINetworkRPCError(err)
 	}
 	now := h.now()
+	profileID, err := hostAPITaskProfileID(ctx)
+	if err != nil {
+		return nil, err
+	}
 	direct, err := networkStore.ResolveDirectRoom(ctx, store.NetworkDirectRoomEntry{
-		ProfileID:      store.DefaultProfileID,
+		ProfileID:      profileID,
 		WorkspaceID:    workspaceID,
 		Channel:        channel,
 		DirectID:       directID,
@@ -221,12 +234,17 @@ func (h *HostAPIHandler) handleNetworkDirectMessages(ctx context.Context, raw js
 		return nil, err
 	}
 	ref.WorkspaceID = workspaceID
+	profileID, err := hostAPITaskProfileID(ctx)
+	if err != nil {
+		return nil, err
+	}
 	query, err := hostAPINetworkConversationMessageQuery(
 		params.Limit,
 		params.Before,
 		params.After,
 		params.Kind,
 		params.WorkID,
+		store.ReadScope{ProfileID: profileID},
 	)
 	if err != nil {
 		return nil, err
@@ -255,7 +273,11 @@ func (h *HostAPIHandler) handleNetworkWorkGet(ctx context.Context, raw json.RawM
 	if err != nil {
 		return nil, err
 	}
-	work, err := networkStore.GetWork(ctx, workspaceID, workID)
+	profileID, err := hostAPITaskProfileID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	work, err := networkStore.GetWork(ctx, store.ReadScope{ProfileID: profileID}, workspaceID, workID)
 	if err != nil {
 		return nil, mapHostAPINetworkRPCError(err)
 	}

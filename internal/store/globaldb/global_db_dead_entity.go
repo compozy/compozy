@@ -23,14 +23,27 @@ func (g *DeadEntityRepo) MarkDeadEntity(ctx context.Context, entity store.DeadEn
 	if err := normalized.Validate(); err != nil {
 		return err
 	}
-	if err := g.queries.UpsertDeadEntity(ctx, sqlcgen.UpsertDeadEntityParams{
-		ProfileID:   normalized.ProfileID,
-		WorkspaceID: normalized.WorkspaceID,
-		Kind:        string(normalized.Kind),
-		EntityID:    normalized.EntityID,
-		Reason:      normalized.Reason,
-		MarkedAt:    store.FormatTimestamp(normalized.MarkedAt),
-	}); err != nil {
+	var persistedProfileID string
+	err := g.db.QueryRowContext(ctx, `INSERT INTO dead_entities (
+			profile_id, workspace_id, kind, entity_id, reason, marked_at
+		) VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(profile_id, workspace_id, kind, entity_id) DO UPDATE SET
+			reason = excluded.reason, marked_at = excluded.marked_at
+		WHERE dead_entities.profile_id = excluded.profile_id
+		RETURNING profile_id`,
+		normalized.ProfileID, normalized.WorkspaceID, string(normalized.Kind),
+		normalized.EntityID, normalized.Reason, store.FormatTimestamp(normalized.MarkedAt),
+	).Scan(&persistedProfileID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf(
+			"%w: dead entity %q/%q/%q belongs to another profile",
+			store.ErrInvalidDeadEntity,
+			normalized.WorkspaceID,
+			normalized.Kind,
+			normalized.EntityID,
+		)
+	}
+	if err != nil {
 		return fmt.Errorf(
 			"store: mark dead entity %q/%q/%q: %w",
 			normalized.WorkspaceID,
@@ -45,22 +58,19 @@ func (g *DeadEntityRepo) MarkDeadEntity(ctx context.Context, entity store.DeadEn
 // ClearDeadEntity removes one dead mark. Missing rows are a successful no-op.
 func (g *DeadEntityRepo) ClearDeadEntity(
 	ctx context.Context,
-	workspaceID string,
-	kind store.DeadEntityKind,
-	entityID string,
+	key store.DeadEntityKey,
 ) error {
 	if err := g.checkReady(ctx, "clear dead entity"); err != nil {
 		return err
 	}
-	key := store.DeadEntityKey{WorkspaceID: workspaceID, Kind: kind, EntityID: entityID}.Normalize()
+	key = key.Normalize()
 	if err := key.Validate(); err != nil {
 		return err
 	}
-	if _, err := g.queries.DeleteDeadEntity(ctx, sqlcgen.DeleteDeadEntityParams{
-		WorkspaceID: key.WorkspaceID,
-		Kind:        string(key.Kind),
-		EntityID:    key.EntityID,
-	}); err != nil {
+	if _, err := g.db.ExecContext(ctx, `DELETE FROM dead_entities
+		WHERE profile_id = ? AND workspace_id = ? AND kind = ? AND entity_id = ?`,
+		key.ProfileID, key.WorkspaceID, string(key.Kind), key.EntityID,
+	); err != nil {
 		return fmt.Errorf(
 			"store: clear dead entity %q/%q/%q: %w",
 			key.WorkspaceID,
@@ -75,22 +85,20 @@ func (g *DeadEntityRepo) ClearDeadEntity(
 // FindDeadEntity returns one exact workspace-scoped dead mark.
 func (g *DeadEntityRepo) FindDeadEntity(
 	ctx context.Context,
-	workspaceID string,
-	kind store.DeadEntityKind,
-	entityID string,
+	key store.DeadEntityKey,
 ) (store.DeadEntity, bool, error) {
 	if err := g.checkReady(ctx, "find dead entity"); err != nil {
 		return store.DeadEntity{}, false, err
 	}
-	key := store.DeadEntityKey{WorkspaceID: workspaceID, Kind: kind, EntityID: entityID}.Normalize()
+	key = key.Normalize()
 	if err := key.Validate(); err != nil {
 		return store.DeadEntity{}, false, err
 	}
-	row, err := g.queries.GetDeadEntity(ctx, sqlcgen.GetDeadEntityParams{
-		WorkspaceID: key.WorkspaceID,
-		Kind:        string(key.Kind),
-		EntityID:    key.EntityID,
-	})
+	row := sqlcgen.DeadEntity{}
+	err := g.db.QueryRowContext(ctx, `SELECT profile_id, workspace_id, kind, entity_id, reason, marked_at
+		FROM dead_entities WHERE profile_id = ? AND workspace_id = ? AND kind = ? AND entity_id = ?`,
+		key.ProfileID, key.WorkspaceID, string(key.Kind), key.EntityID,
+	).Scan(&row.ProfileID, &row.WorkspaceID, &row.Kind, &row.EntityID, &row.Reason, &row.MarkedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return store.DeadEntity{}, false, nil
 	}
@@ -113,26 +121,60 @@ func (g *DeadEntityRepo) FindDeadEntity(
 // ListDeadEntities returns one workspace's dead marks in stable forensic order.
 func (g *DeadEntityRepo) ListDeadEntities(
 	ctx context.Context,
+	readScope store.ReadScope,
 	workspaceID string,
-) ([]store.DeadEntity, error) {
+) (entities []store.DeadEntity, err error) {
 	if err := g.checkReady(ctx, "list dead entities"); err != nil {
+		return nil, err
+	}
+	if err := readScope.Validate(); err != nil {
 		return nil, err
 	}
 	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
 	if trimmedWorkspaceID == "" {
 		return nil, fmt.Errorf("%w: workspace_id is required", store.ErrInvalidDeadEntity)
 	}
-	rows, err := g.queries.ListDeadEntities(ctx, trimmedWorkspaceID)
+	where, args := store.BuildClauses(
+		store.ReadScopeClause("d.profile_id", readScope),
+		store.StringClause("d.workspace_id", trimmedWorkspaceID),
+	)
+	rows, err := g.db.QueryContext(ctx, `SELECT d.profile_id, p.name, p.color,
+		COALESCE(p.icon, ''), COALESCE(p.emoji, ''), p.state = 'archived',
+		d.workspace_id, d.kind, d.entity_id, d.reason, d.marked_at
+		FROM dead_entities d JOIN profiles p ON p.id = d.profile_id
+		WHERE `+strings.Join(where, " AND ")+` ORDER BY d.marked_at DESC, d.kind, d.entity_id`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: list dead entities for workspace %q: %w", trimmedWorkspaceID, err)
 	}
-	entities := make([]store.DeadEntity, 0, len(rows))
-	for _, row := range rows {
-		entity, err := deadEntityFromRow(row)
-		if err != nil {
-			return nil, err
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("store: close dead entity rows: %w", closeErr))
 		}
+	}()
+	entities = make([]store.DeadEntity, 0)
+	for rows.Next() {
+		var row sqlcgen.DeadEntity
+		var owner store.DeadEntity
+		if scanErr := rows.Scan(
+			&row.ProfileID, &owner.ProfileName, &owner.ProfileColor, &owner.ProfileIcon,
+			&owner.ProfileEmoji, &owner.ProfileArchived, &row.WorkspaceID, &row.Kind,
+			&row.EntityID, &row.Reason, &row.MarkedAt,
+		); scanErr != nil {
+			return nil, fmt.Errorf("store: scan dead entity: %w", scanErr)
+		}
+		entity, decodeErr := deadEntityFromRow(row)
+		if decodeErr != nil {
+			return nil, decodeErr
+		}
+		entity.ProfileName = owner.ProfileName
+		entity.ProfileColor = owner.ProfileColor
+		entity.ProfileIcon = owner.ProfileIcon
+		entity.ProfileEmoji = owner.ProfileEmoji
+		entity.ProfileArchived = owner.ProfileArchived
 		entities = append(entities, entity)
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, fmt.Errorf("store: iterate dead entities: %w", rowsErr)
 	}
 	return entities, nil
 }

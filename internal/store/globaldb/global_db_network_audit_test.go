@@ -80,6 +80,7 @@ func TestGlobalDBWriteAndListNetworkAudit(t *testing.T) {
 	}
 
 	entries, err := globalDB.ListNetworkAudit(testutil.Context(t), store.NetworkAuditQuery{
+		ReadScope:   store.ReadScope{AllProfiles: true},
 		WorkspaceID: workspaceID,
 		SessionID:   "sess-network-audit",
 		Limit:       10,
@@ -143,6 +144,7 @@ func TestGlobalDBWriteNetworkAuditAllowsUnknownSessionID(t *testing.T) {
 	}
 
 	entries, err := globalDB.ListNetworkAudit(testutil.Context(t), store.NetworkAuditQuery{
+		ReadScope:   store.ReadScope{AllProfiles: true},
 		WorkspaceID: workspaceID,
 		SessionID:   "sess-network-unknown",
 		Limit:       10,
@@ -239,6 +241,7 @@ func TestGlobalDBListNetworkAuditWrapsTimestampParseFailures(t *testing.T) {
 	}
 
 	_, err := globalDB.ListNetworkAudit(testutil.Context(t), store.NetworkAuditQuery{
+		ReadScope:   store.ReadScope{AllProfiles: true},
 		WorkspaceID: workspaceID,
 		SessionID:   "sess-network-bad-timestamp",
 		Limit:       10,

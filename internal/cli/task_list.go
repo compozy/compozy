@@ -85,6 +85,7 @@ func newTaskListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&sortRaw, "sort", "recent", "Sort by recent or priority")
 	cmd.Flags().StringVar(&cursor, "cursor", "", "Continue from an opaque catalog cursor")
 	cmd.Flags().IntVar(&limit, "limit", 0, "Maximum tasks to return (1-200)")
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 
@@ -211,6 +212,7 @@ func taskSummaryListBundle(page TaskListRecord) outputBundle {
 		"Tasks",
 		[]string{
 			"ID",
+			sessionProfileValue,
 			taskIdentifierValue,
 			taskScopeValue,
 			taskWorkspaceValue,
@@ -223,6 +225,7 @@ func taskSummaryListBundle(page TaskListRecord) outputBundle {
 		"tasks",
 		[]string{
 			"id",
+			"profile_name",
 			taskIdentifierKey,
 			taskScopeKey,
 			taskWorkspaceIDKey,
@@ -235,6 +238,7 @@ func taskSummaryListBundle(page TaskListRecord) outputBundle {
 		func(item TaskCatalogItemRecord) []string {
 			return []string{
 				stringOrDash(item.ID),
+				stringOrDash(item.ProfileName),
 				stringOrDash(item.Identifier),
 				stringOrDash(string(item.Scope)),
 				stringOrDash(item.WorkspaceID),
@@ -248,6 +252,7 @@ func taskSummaryListBundle(page TaskListRecord) outputBundle {
 		func(item TaskCatalogItemRecord) []string {
 			return []string{
 				item.ID,
+				item.ProfileName,
 				item.Identifier,
 				string(item.Scope),
 				item.WorkspaceID,

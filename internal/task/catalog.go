@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/listcursor"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const (
@@ -55,6 +56,7 @@ func (s CatalogSort) Normalize() CatalogSort {
 
 // CatalogQuery captures one bounded task catalog request.
 type CatalogQuery struct {
+	ReadScope            store.ReadScope
 	Scope                CatalogScope
 	WorkspaceID          string
 	Status               Status
@@ -103,6 +105,8 @@ type CatalogCursor struct {
 }
 
 type catalogFingerprint struct {
+	ProfileID            string        `json:"profile_id"`
+	AllProfiles          bool          `json:"all_profiles"`
 	Scope                CatalogScope  `json:"scope"`
 	WorkspaceID          string        `json:"workspace_id"`
 	Status               Status        `json:"status"`
@@ -130,6 +134,10 @@ type CatalogManager interface {
 
 // NormalizeCatalogQuery validates and canonicalizes one public task catalog request.
 func NormalizeCatalogQuery(query CatalogQuery) (CatalogQuery, error) {
+	query.ReadScope.ProfileID = strings.TrimSpace(query.ReadScope.ProfileID)
+	if err := query.ReadScope.Validate(); err != nil {
+		return CatalogQuery{}, fmt.Errorf("%w: %w", ErrValidation, err)
+	}
 	query.Scope = query.Scope.Normalize()
 	if query.Scope == "" {
 		query.Scope = CatalogScopeAll
@@ -271,6 +279,8 @@ func CatalogQueryWithoutCursor(query CatalogQuery) CatalogQuery {
 
 func taskCatalogFingerprint(query CatalogQuery) (string, error) {
 	fingerprint, err := listcursor.Fingerprint(catalogFingerprint{
+		ProfileID:            query.ReadScope.ProfileID,
+		AllProfiles:          query.ReadScope.AllProfiles,
 		Scope:                query.Scope,
 		WorkspaceID:          query.WorkspaceID,
 		Status:               query.Status,

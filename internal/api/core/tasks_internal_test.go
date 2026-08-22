@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
@@ -299,7 +300,9 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseTaskListQuery() error = %v", err)
 	}
-	query, err := handlers.taskListDomainQuery(context.Background(), transportQuery)
+	query, err := handlers.taskListDomainQuery(
+		context.Background(), store.ReadScope{ProfileID: store.DefaultProfileID}, transportQuery,
+	)
 	if err != nil {
 		t.Fatalf("taskListDomainQuery() error = %v", err)
 	}

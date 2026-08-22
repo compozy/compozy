@@ -126,12 +126,19 @@ func (g *ObserveRepo) ListEventSummaries(
 	}
 
 	// dynamic-sql: optional event/memory filters, registry-derived IN lists, UNION inclusion, and limit shape the query.
-	eventQuery := `SELECT 0 AS source_rank, rowid AS source_rowid, id, session_id, workspace_id, worktree_id,` +
+	eventQuery := `SELECT 0 AS source_rank, rowid AS source_rowid, id, profile_id,
+		(SELECT name FROM profiles WHERE id = event_summaries.profile_id) AS profile_name,
+		(SELECT color FROM profiles WHERE id = event_summaries.profile_id) AS profile_color,
+		COALESCE((SELECT icon FROM profiles WHERE id = event_summaries.profile_id), '') AS profile_icon,
+		COALESCE((SELECT emoji FROM profiles WHERE id = event_summaries.profile_id), '') AS profile_emoji,
+		(SELECT state = 'archived' FROM profiles WHERE id = event_summaries.profile_id) AS profile_archived,
+		session_id, workspace_id, worktree_id,` +
 		` type, agent_name, provider, outcome, content_json, task_id, run_id, workflow_id, claim_token_hash,` +
 		` lease_until, coordinator_session_id,
 		scheduler_reason, hook_event, hook_name, actor_kind, actor_id, release_reason,
 		parent_session_id, root_session_id, spawn_depth, summary, timestamp FROM event_summaries`
 	eventWhere, args := store.BuildClauses(
+		store.ReadScopeClause("profile_id", query.ReadScope),
 		store.StringClause("workspace_id", query.WorkspaceID),
 		store.StringClause("worktree_id", query.WorktreeID),
 		store.StringClause("session_id", query.SessionID),
@@ -291,7 +298,8 @@ func confirmEventSummaryProjection(field, supplied, projected string) error {
 }
 
 func eventSummaryListQuery(combinedQuery string, limit int) string {
-	baseSelect := `SELECT source_rowid, id, session_id, workspace_id, worktree_id, type, agent_name, provider, outcome, content_json,` +
+	baseSelect := `SELECT source_rowid, id, profile_id, profile_name, profile_color, profile_icon, profile_emoji,
+		profile_archived, session_id, workspace_id, worktree_id, type, agent_name, provider, outcome, content_json,` +
 		` task_id, run_id, workflow_id, claim_token_hash, lease_until, coordinator_session_id,` +
 		` scheduler_reason, hook_event,
 		hook_name, actor_kind, actor_id, release_reason, parent_session_id, root_session_id,

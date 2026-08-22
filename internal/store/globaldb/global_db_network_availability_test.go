@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -55,8 +56,9 @@ func TestNetworkAvailabilityPersistsMonotonicTransitions(t *testing.T) {
 			t.Fatalf("disabled availability repeat = %#v, want disabled epoch 2", disabledAgain)
 		}
 		summaries, err := db.ListEventSummaries(ctx, EventSummaryQuery{
-			Type:  "network.availability.changed",
-			Limit: 10,
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Type:      "network.availability.changed",
+			Limit:     10,
 		})
 		if err != nil {
 			t.Fatalf("ListEventSummaries(network availability) error = %v", err)

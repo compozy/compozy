@@ -102,6 +102,7 @@ func newNetworkDirectsShowCommand(deps commandDeps, workspaceRef *string) *cobra
 	cmd.Flags().StringVar(&flags.directID, networkSurfaceDirect, "", "Direct room id")
 	mustMarkFlagRequired(cmd, networkChannelKey)
 	mustMarkFlagRequired(cmd, networkSurfaceDirect)
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 
@@ -149,6 +150,7 @@ func newNetworkDirectsMessagesCommand(deps commandDeps, workspaceRef *string) *c
 	)
 	mustMarkFlagRequired(cmd, networkChannelKey)
 	mustMarkFlagRequired(cmd, networkSurfaceDirect)
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 

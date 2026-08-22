@@ -10,6 +10,31 @@ type profileResolutionFrame struct {
 	Workspace string `json:"workspace,omitempty"`
 }
 
+type aggregateWorkspaceResolutionFrame struct {
+	Kind      string `json:"kind"`
+	Workspace string `json:"workspace"`
+	Source    string `json:"source"`
+}
+
+func writeAggregateReadResolutionFrame(cmd *cobra.Command) (bool, error) {
+	selection, ok := commandProfileReadSelection(cmd)
+	if !ok || !selection.AllProfiles {
+		return false, nil
+	}
+	if workspace, found := commandWorkspaceResolution(cmd); found {
+		name := workspace.Detail.Workspace.Name
+		if name == "" {
+			name = workspace.ID
+		}
+		return true, writeJSONLineWithoutWorkspaceResolution(cmd, aggregateWorkspaceResolutionFrame{
+			Kind: "workspace_resolution", Workspace: name, Source: workspace.Source,
+		})
+	}
+	return true, writeJSONLineWithoutWorkspaceResolution(cmd, profileResolutionFrame{
+		Kind: "profile_resolution", Profile: "all", Source: "aggregate",
+	})
+}
+
 func writeProfileResolutionFrame(cmd *cobra.Command) (bool, error) {
 	resolution, ok := commandProfileResolution(cmd)
 	if !ok {

@@ -789,6 +789,7 @@ func (s agentCoreNetworkStore) ListThreads(
 
 func (s agentCoreNetworkStore) GetThread(
 	context.Context,
+	store.ReadScope,
 	store.NetworkChannelRef,
 	string,
 ) (store.NetworkThreadSummary, error) {
@@ -827,6 +828,7 @@ func (s agentCoreNetworkStore) ListDirectRooms(
 
 func (s agentCoreNetworkStore) GetDirectRoom(
 	context.Context,
+	store.ReadScope,
 	store.NetworkChannelRef,
 	string,
 ) (store.NetworkDirectRoomSummary, error) {
@@ -841,7 +843,12 @@ func (s agentCoreNetworkStore) ListConversationMessages(
 	return nil, nil
 }
 
-func (s agentCoreNetworkStore) GetWork(context.Context, string, string) (store.NetworkWorkEntry, error) {
+func (s agentCoreNetworkStore) GetWork(
+	context.Context,
+	store.ReadScope,
+	string,
+	string,
+) (store.NetworkWorkEntry, error) {
 	return store.NetworkWorkEntry{}, nil
 }
 
@@ -858,6 +865,7 @@ func (s agentCoreNetworkStore) WriteNetworkAudit(context.Context, store.NetworkA
 
 func (s agentCoreNetworkStore) GetNetworkChannel(
 	context.Context,
+	store.ReadScope,
 	store.NetworkChannelRef,
 ) (store.NetworkChannelEntry, error) {
 	return store.NetworkChannelEntry{}, nil

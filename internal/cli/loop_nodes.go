@@ -40,6 +40,7 @@ func newLoopNodesCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&cursor, "cursor", "", "Opaque continuation cursor")
 	cmd.Flags().IntVar(&limit, "limit", 0, "Page size from 1 to 200; defaults to 50")
 	mustMarkFlagRequired(cmd, loopStateKey)
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 

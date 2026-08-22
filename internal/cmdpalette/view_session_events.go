@@ -195,7 +195,9 @@ func (s *Service) runViewEvent(
 	event ViewEvent,
 	coalescible bool,
 ) {
-	frame, err := s.viewPrograms.HandleProgramEvent(ctx, session.workspace, extension, event)
+	frame, err := s.viewPrograms.HandleProgramEvent(
+		ctx, session.profileLens, session.workspace, extension, event,
+	)
 	if err == nil && frame != nil {
 		if publishErr := s.PublishFrame(
 			context.WithoutCancel(ctx),

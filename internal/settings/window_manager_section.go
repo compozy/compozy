@@ -40,8 +40,11 @@ func (s *service) buildCatalogWindowManagerSection(
 ) (WindowManagerSection, error) {
 	catalog, err := s.cmdPalette.Catalog(
 		ctx,
-		cmdpalette.WorkspaceID(workspaceID),
-		cmdpalette.ClientID(clientID),
+		cmdpalette.CatalogRequest{
+			ProfileLens: cmdpalette.ScopedProfileLens(cmdpalette.DefaultProfileLensID, "default"),
+			WorkspaceID: cmdpalette.WorkspaceID(workspaceID),
+			ClientID:    cmdpalette.ClientID(clientID),
+		},
 	)
 	if err != nil {
 		return WindowManagerSection{}, fmt.Errorf("settings: load command catalog for shortcuts: %w", err)
@@ -140,7 +143,11 @@ func (s *service) buildWindowManagerExtensionDefaults(
 	if !ok {
 		return []WindowManagerExtensionDefault{}, nil
 	}
-	defaults, err := provider.ExtensionDefaults(ctx, cmdpalette.WorkspaceID(workspaceID))
+	defaults, err := provider.ExtensionDefaults(
+		ctx,
+		cmdpalette.ScopedProfileLens(cmdpalette.DefaultProfileLensID, "default"),
+		cmdpalette.WorkspaceID(workspaceID),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("settings: load extension shortcut defaults: %w", err)
 	}

@@ -165,6 +165,14 @@ type Catalog struct {
 	Sources         []SourceStatus    `json:"sources"`
 	Revision        string            `json:"catalog_revision"`
 	ContextRevision string            `json:"context_revision,omitempty"`
+	ProfileLens     ProfileLens       `json:"profile_lens"`
+}
+
+// CatalogRequest identifies one complete command projection.
+type CatalogRequest struct {
+	ProfileLens ProfileLens
+	WorkspaceID WorkspaceID
+	ClientID    ClientID
 }
 
 type Client struct {
@@ -188,12 +196,14 @@ const (
 )
 
 type InvokeRequest struct {
-	WorkspaceID WorkspaceID    `json:"workspace_id"`
-	CommandID   CommandID      `json:"command_id"`
-	Args        map[string]any `json:"args"`
-	ClientID    ClientID       `json:"client,omitempty"`
-	ClientToken string         `json:"-"`
-	Caller      CallerKind     `json:"-"`
+	ProfileLens     ProfileLens    `json:"profile_lens"`
+	WorkspaceID     WorkspaceID    `json:"workspace_id"`
+	CommandID       CommandID      `json:"command_id"`
+	Args            map[string]any `json:"args"`
+	ClientID        ClientID       `json:"client,omitempty"`
+	ClientToken     string         `json:"-"`
+	Caller          CallerKind     `json:"-"`
+	ManagementLocal bool           `json:"-"`
 }
 
 type InvokeStatus string
@@ -204,6 +214,7 @@ const (
 )
 
 type InvokeResult struct {
+	ProfileLens  ProfileLens     `json:"profile_lens"`
 	Status       InvokeStatus    `json:"status"`
 	Result       json.RawMessage `json:"result,omitempty"`
 	ApprovalID   string          `json:"approval_id,omitempty"`
@@ -211,6 +222,7 @@ type InvokeResult struct {
 }
 
 type ExecutionRequest struct {
+	ProfileLens  ProfileLens
 	WorkspaceID  WorkspaceID
 	InvocationID string
 	ClientID     ClientID

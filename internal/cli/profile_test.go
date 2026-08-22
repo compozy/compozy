@@ -4,12 +4,41 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/url"
 	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/spf13/cobra"
 )
+
+func TestProfileReadScopeQueryValues(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should transport only the explicit aggregate profile selection", func(t *testing.T) {
+		t.Parallel()
+		command := &cobra.Command{Use: "list"}
+		recordProfileReadSelection(command, profileReadSelection{AllProfiles: true})
+		original := url.Values{"limit": []string{"20"}}
+		values := profileQueryValues(command.Context(), original)
+		if values.Get("all_profiles") != "true" || values.Get("profile") != "" {
+			t.Fatalf("profile query = %v, want aggregate only", values)
+		}
+		if original.Has("all_profiles") {
+			t.Fatalf("profileQueryValues mutated caller query: %v", original)
+		}
+	})
+
+	t.Run("Should transport the resolved scoped profile", func(t *testing.T) {
+		t.Parallel()
+		command := &cobra.Command{Use: "list"}
+		recordProfileReadSelection(command, profileReadSelection{Profile: "marketing"})
+		values := profileQueryValues(command.Context(), nil)
+		if values.Get("profile") != "marketing" || values.Get("all_profiles") != "" {
+			t.Fatalf("profile query = %v, want marketing only", values)
+		}
+	})
+}
 
 type profileClientStub struct {
 	profiles   []contract.Profile

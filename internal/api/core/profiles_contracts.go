@@ -141,6 +141,9 @@ func (s unavailableProfileService) Create(context.Context, profilepkg.CreateInpu
 func (s unavailableProfileService) GetByName(context.Context, string) (profilepkg.Profile, error) {
 	return profilepkg.Profile{}, s.unavailable()
 }
+func (s unavailableProfileService) Resolve(context.Context, profilepkg.ResolveInput) (profilepkg.Resolution, error) {
+	return profilepkg.Resolution{}, s.unavailable()
+}
 func (s unavailableProfileService) List(context.Context) ([]profilepkg.ProfileWithCounts, error) {
 	return nil, s.unavailable()
 }

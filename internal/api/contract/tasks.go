@@ -27,6 +27,10 @@ type TaskReferencePayload struct {
 // TaskSummaryPayload is the shared list-oriented task response payload.
 type TaskSummaryPayload struct {
 	ID                           string                           `json:"id"`
+	ProfileID                    string                           `json:"profile_id"`
+	ProfileName                  string                           `json:"profile_name"`
+	ProfileColor                 string                           `json:"profile_color,omitempty"`
+	ProfileIcon                  string                           `json:"profile_icon,omitempty"`
 	Identifier                   string                           `json:"identifier,omitempty"`
 	Scope                        taskpkg.Scope                    `json:"scope"`
 	WorkspaceID                  string                           `json:"workspace_id,omitempty"`
@@ -70,6 +74,10 @@ type TaskSummaryPayload struct {
 // TaskPayload is the shared full task response payload.
 type TaskPayload struct {
 	ID                           string                 `json:"id"`
+	ProfileID                    string                 `json:"profile_id"`
+	ProfileName                  string                 `json:"profile_name"`
+	ProfileColor                 string                 `json:"profile_color,omitempty"`
+	ProfileIcon                  string                 `json:"profile_icon,omitempty"`
 	Identifier                   string                 `json:"identifier,omitempty"`
 	Scope                        taskpkg.Scope          `json:"scope"`
 	WorkspaceID                  string                 `json:"workspace_id,omitempty"`

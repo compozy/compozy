@@ -35,11 +35,16 @@ func newViewPatchHub() *viewPatchHub {
 	return &viewPatchHub{streams: make(map[string]*viewPatchStream)}
 }
 
-func viewPatchStreamKey(workspaceID cmdpalette.WorkspaceID, viewID string) string {
-	return string(workspaceID) + "\x00" + viewID
+func viewPatchStreamKey(
+	profileLens cmdpalette.ProfileLens,
+	workspaceID cmdpalette.WorkspaceID,
+	viewID string,
+) string {
+	return string(profileLens.ID) + "\x00" + string(workspaceID) + "\x00" + viewID
 }
 
 func (h *viewPatchHub) publish(
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	patch cmdpalette.ViewPatch,
 	epoch string,
@@ -47,15 +52,19 @@ func (h *viewPatchHub) publish(
 	if h == nil {
 		return cmdpalette.ViewPatchEvent{}, errors.New("daemon: view patch hub is unavailable")
 	}
+	if err := profileLens.Validate(); err != nil {
+		return cmdpalette.ViewPatchEvent{}, err
+	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.closed {
 		return cmdpalette.ViewPatchEvent{}, errors.New("daemon: view patch hub is closed")
 	}
-	stream := h.ensureStreamLocked(workspaceID, strings.TrimSpace(patch.ViewID), epoch)
+	stream := h.ensureStreamLocked(profileLens, workspaceID, strings.TrimSpace(patch.ViewID), epoch)
 	stream.nextSeq++
 	event := cmdpalette.ViewPatchEvent{
-		Sequence: stream.nextSeq, StreamEpoch: stream.epoch, Patch: cloneViewPatch(patch),
+		ProfileLens: profileLens,
+		Sequence:    stream.nextSeq, StreamEpoch: stream.epoch, Patch: cloneViewPatch(patch),
 	}
 	stream.log = append(stream.log, event)
 	if overflow := len(stream.log) - viewPatchRetainLimit; overflow > 0 {
@@ -72,6 +81,7 @@ func (h *viewPatchHub) publish(
 
 func (h *viewPatchHub) subscribe(
 	ctx context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	viewID string,
 	after int64,
@@ -86,6 +96,9 @@ func (h *viewPatchHub) subscribe(
 	if h == nil {
 		return nil, nil, errors.New("daemon: view patch hub is unavailable")
 	}
+	if err := profileLens.Validate(); err != nil {
+		return nil, nil, err
+	}
 	if after < 0 {
 		return nil, nil, errors.New("daemon: view patch cursor after cannot be negative")
 	}
@@ -98,7 +111,7 @@ func (h *viewPatchHub) subscribe(
 	if h.closed {
 		return nil, nil, errors.New("daemon: view patch hub is closed")
 	}
-	stream := h.ensureStreamLocked(workspaceID, viewID, epoch)
+	stream := h.ensureStreamLocked(profileLens, workspaceID, viewID, epoch)
 	replay := stream.replayLocked(after, epoch)
 	updates := make(chan cmdpalette.ViewPatchEvent, viewPatchSubscriberBufferSize)
 	for _, event := range replay {
@@ -110,7 +123,7 @@ func (h *viewPatchHub) subscribe(
 	var once sync.Once
 	cancel := func() {
 		once.Do(func() {
-			h.removeSubscriber(workspaceID, viewID, id, updates)
+			h.removeSubscriber(profileLens, workspaceID, viewID, id, updates)
 		})
 	}
 	return updates, cancel, nil
@@ -135,11 +148,12 @@ func (h *viewPatchHub) close() {
 }
 
 func (h *viewPatchHub) ensureStreamLocked(
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	viewID string,
 	epoch string,
 ) *viewPatchStream {
-	key := viewPatchStreamKey(workspaceID, viewID)
+	key := viewPatchStreamKey(profileLens, workspaceID, viewID)
 	if stream := h.streams[key]; stream != nil {
 		return stream
 	}
@@ -155,6 +169,7 @@ func (h *viewPatchHub) ensureStreamLocked(
 }
 
 func (h *viewPatchHub) removeSubscriber(
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	viewID string,
 	id uint64,
@@ -162,7 +177,7 @@ func (h *viewPatchHub) removeSubscriber(
 ) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	stream := h.streams[viewPatchStreamKey(workspaceID, viewID)]
+	stream := h.streams[viewPatchStreamKey(profileLens, workspaceID, viewID)]
 	if stream == nil {
 		return
 	}

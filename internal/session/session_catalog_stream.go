@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const (
@@ -19,6 +20,7 @@ var ErrCatalogScopeInvalid = errors.New("session: catalog scope is invalid")
 
 // CatalogScope selects one explicit workspace or the labeled aggregate stream.
 type CatalogScope struct {
+	ReadScope     store.ReadScope
 	WorkspaceID   string
 	AllWorkspaces bool
 	Replay        bool
@@ -26,6 +28,9 @@ type CatalogScope struct {
 }
 
 func (s CatalogScope) Validate() error {
+	if err := s.ReadScope.Validate(); err != nil {
+		return fmt.Errorf("%w: %w", ErrCatalogScopeInvalid, err)
+	}
 	hasWorkspace := strings.TrimSpace(s.WorkspaceID) != ""
 	if hasWorkspace == s.AllWorkspaces {
 		return fmt.Errorf("%w: choose exactly one workspace or all workspaces", ErrCatalogScopeInvalid)
@@ -37,7 +42,8 @@ func (s CatalogScope) Validate() error {
 }
 
 func (s CatalogScope) matches(event CatalogEvent) bool {
-	return s.AllWorkspaces || strings.TrimSpace(event.WorkspaceID) == strings.TrimSpace(s.WorkspaceID)
+	workspaceMatches := s.AllWorkspaces || strings.TrimSpace(event.WorkspaceID) == strings.TrimSpace(s.WorkspaceID)
+	return workspaceMatches && s.ReadScope.Matches(event.ProfileID)
 }
 
 // CatalogEventName identifies one named SSE delivery on the catalog stream.
@@ -64,6 +70,8 @@ type CatalogEvent struct {
 	Sequence             int64
 	Name                 CatalogEventName
 	Kind                 CatalogEventKind
+	ProfileID            string
+	ProfileName          string
 	WorkspaceID          string
 	SessionID            string
 	Attention            *AttentionEvent
@@ -122,7 +130,7 @@ func (b *sessionCatalogBroadcaster) subscribe(
 }
 
 func (b *sessionCatalogBroadcaster) publish(event CatalogEvent) int {
-	if strings.TrimSpace(event.SessionID) == "" {
+	if strings.TrimSpace(event.SessionID) == "" || strings.TrimSpace(event.ProfileID) == "" {
 		return 0
 	}
 	b.mu.Lock()
@@ -205,6 +213,7 @@ func sessionCatalogEventFromInfo(kind CatalogEventKind, info *Info) CatalogEvent
 	return CatalogEvent{
 		Name:        CatalogEventNameChanged,
 		Kind:        kind,
+		ProfileID:   strings.TrimSpace(info.ProfileID),
 		WorkspaceID: strings.TrimSpace(info.WorkspaceID),
 		SessionID:   strings.TrimSpace(info.ID),
 	}
@@ -223,6 +232,7 @@ func sessionAttentionCatalogEvent(event AttentionEvent) CatalogEvent {
 	cloned := event
 	return CatalogEvent{
 		Name:        CatalogEventNameAttention,
+		ProfileID:   strings.TrimSpace(event.ProfileID),
 		WorkspaceID: strings.TrimSpace(event.WorkspaceID),
 		SessionID:   strings.TrimSpace(event.SessionID),
 		Attention:   &cloned,

@@ -56,12 +56,16 @@ func (u TokenUsageDailyUpdate) Validate() error {
 
 // OverviewSinceQuery bounds one overview aggregate by timestamp and optional workspace.
 type OverviewSinceQuery struct {
+	ReadScope   ReadScope
 	WorkspaceID string
 	Since       time.Time
 }
 
 // Validate ensures the aggregate window carries an explicit lower bound.
 func (q OverviewSinceQuery) Validate() error {
+	if err := q.ReadScope.Validate(); err != nil {
+		return err
+	}
 	if q.Since.IsZero() {
 		return errors.New("store: overview since bound is required")
 	}
@@ -70,16 +74,31 @@ func (q OverviewSinceQuery) Validate() error {
 
 // OverviewDayQuery bounds one daily-rollup aggregate by day bucket and optional workspace.
 type OverviewDayQuery struct {
+	ReadScope   ReadScope
 	WorkspaceID string
 	SinceDay    string
 }
 
 // Validate ensures the rollup window starts on a canonical day bucket.
 func (q OverviewDayQuery) Validate() error {
+	if err := q.ReadScope.Validate(); err != nil {
+		return err
+	}
 	if _, err := time.Parse(time.DateOnly, strings.TrimSpace(q.SinceDay)); err != nil {
 		return fmt.Errorf("store: overview since day must be a YYYY-MM-DD bucket: %w", err)
 	}
 	return nil
+}
+
+// OverviewWorkspaceQuery scopes one workspace-optional overview projection by profile.
+type OverviewWorkspaceQuery struct {
+	ReadScope   ReadScope
+	WorkspaceID string
+}
+
+// Validate rejects an implicit profile lens before the projection runs.
+func (q OverviewWorkspaceQuery) Validate() error {
+	return q.ReadScope.Validate()
 }
 
 // TokenUsageDay is one daemon-local day of summed token usage.
@@ -93,6 +112,17 @@ type TokenUsageDay struct {
 // TokenUsageAgentTotal is one agent's summed token usage inside a rollup window.
 type TokenUsageAgentTotal struct {
 	AgentName   string
+	TotalTokens int64
+}
+
+// TokenUsageProfileTotal is one owner-labeled profile bucket inside a usage window.
+type TokenUsageProfileTotal struct {
+	ProfileID   string
+	ProfileName string
+	Color       string
+	Icon        string
+	Emoji       string
+	Archived    bool
 	TotalTokens int64
 }
 

@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
@@ -56,7 +57,9 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 			t.Fatalf("ParseTaskListQuery() = %#v", query)
 		}
 
-		domainQuery, err := handlers.taskListDomainQuery(context.Background(), query)
+		domainQuery, err := handlers.taskListDomainQuery(
+			context.Background(), store.ReadScope{ProfileID: store.DefaultProfileID}, query,
+		)
 		if err != nil {
 			t.Fatalf("taskListDomainQuery() error = %v", err)
 		}
@@ -182,7 +185,11 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 			t.Fatalf("ParseTaskDashboardQuery() = %#v", dashboardQuery)
 		}
 
-		domainDashboard, err := handlers.taskDashboardDomainQuery(context.Background(), dashboardQuery)
+		domainDashboard, err := handlers.taskDashboardDomainQuery(
+			context.Background(),
+			store.ReadScope{ProfileID: store.DefaultProfileID},
+			dashboardQuery,
+		)
 		if err != nil {
 			t.Fatalf("taskDashboardDomainQuery() error = %v", err)
 		}
@@ -214,7 +221,9 @@ func TestExpandedTaskQueryParsingAndDomainConversion(t *testing.T) {
 			t.Fatalf("ParseTaskInboxQuery() = %#v", inboxQuery)
 		}
 
-		domainInbox, err := handlers.taskInboxDomainQuery(context.Background(), inboxQuery)
+		domainInbox, err := handlers.taskInboxDomainQuery(
+			context.Background(), store.ReadScope{ProfileID: store.DefaultProfileID}, inboxQuery,
+		)
 		if err != nil {
 			t.Fatalf("taskInboxDomainQuery() error = %v", err)
 		}
@@ -255,6 +264,7 @@ func TestExpandedTaskQueryValidationErrors(t *testing.T) {
 		}
 		if _, err := handlers.taskListDomainQuery(
 			context.Background(),
+			store.ReadScope{ProfileID: store.DefaultProfileID},
 			contract.TaskListQuery{Worktree: "wt-alpha"},
 		); err == nil {
 			t.Fatal("taskListDomainQuery(worktree without workspace) error = nil, want non-nil")
@@ -309,6 +319,7 @@ func TestExpandedTaskQueryValidationErrors(t *testing.T) {
 
 		if _, err := handlers.taskInboxDomainQuery(
 			context.Background(),
+			store.ReadScope{ProfileID: store.DefaultProfileID},
 			contract.TaskInboxQuery{Lane: "bogus"},
 		); err == nil {
 			t.Fatal("taskInboxDomainQuery(invalid lane) error = nil, want non-nil")
@@ -339,6 +350,7 @@ func TestExpandedTaskQueryValidationErrors(t *testing.T) {
 		}
 		if _, err := handlers.taskInboxDomainQuery(
 			context.Background(),
+			store.ReadScope{ProfileID: store.DefaultProfileID},
 			query,
 		); !errors.Is(
 			err,

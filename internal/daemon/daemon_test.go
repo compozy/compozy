@@ -3134,7 +3134,7 @@ func TestDaemonExtensionServiceInstallStatusEnableAndDisable(t *testing.T) {
 		if syncs != 3 {
 			t.Fatalf("hook binding sync count = %d, want 3", syncs)
 		}
-		summaries, err := db.ListEventSummaries(testutil.Context(t), store.EventSummaryQuery{
+		summaries, err := db.ListEventSummaries(testutil.Context(t), store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
 			Component: eventspkg.ComponentExtension,
 		})
 		if err != nil {
@@ -3478,7 +3478,7 @@ func TestDaemonExtensionServiceRecordsCommittedBatchUpdatesBeforeReturningFailur
 		payloads[0].Warnings[0].Code != diagnosticcontract.CodeExtensionUpdateCleanupFailed {
 		t.Fatalf("finalizeMarketplaceUpdateBatch() warnings = %#v, want cleanup warning", payloads[0].Warnings)
 	}
-	summaries, err := db.ListEventSummaries(t.Context(), store.EventSummaryQuery{
+	summaries, err := db.ListEventSummaries(t.Context(), store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
 		Type: eventspkg.ExtensionUpdateCompleted,
 	})
 	if err != nil {
@@ -3508,7 +3508,7 @@ func TestDaemonExtensionServiceRecordsCommittedBatchUpdatesBeforeReturningFailur
 			t.Fatalf("extension.update.completed summaries = %#v, want event for %s", summaries, name)
 		}
 	}
-	failed, err := db.ListEventSummaries(t.Context(), store.EventSummaryQuery{
+	failed, err := db.ListEventSummaries(t.Context(), store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
 		Type: eventspkg.ExtensionUpdateFailed,
 	})
 	if err != nil {
@@ -9099,6 +9099,7 @@ func (r *recordingRegistry) PatchNetworkChannel(
 
 func (r *recordingRegistry) GetNetworkChannel(
 	context.Context,
+	store.ReadScope,
 	store.NetworkChannelRef,
 ) (store.NetworkChannelEntry, error) {
 	return store.NetworkChannelEntry{}, sql.ErrNoRows
@@ -9174,6 +9175,7 @@ func (r *recordingRegistry) ListThreads(
 
 func (r *recordingRegistry) GetThread(
 	context.Context,
+	store.ReadScope,
 	store.NetworkChannelRef,
 	string,
 ) (store.NetworkThreadSummary, error) {
@@ -9190,6 +9192,7 @@ func (r *recordingRegistry) ListDirectRooms(
 
 func (r *recordingRegistry) GetDirectRoom(
 	context.Context,
+	store.ReadScope,
 	store.NetworkChannelRef,
 	string,
 ) (store.NetworkDirectRoomSummary, error) {
@@ -9204,7 +9207,12 @@ func (r *recordingRegistry) ListConversationMessages(
 	return nil, nil
 }
 
-func (r *recordingRegistry) GetWork(context.Context, string, string) (store.NetworkWorkEntry, error) {
+func (r *recordingRegistry) GetWork(
+	context.Context,
+	store.ReadScope,
+	string,
+	string,
+) (store.NetworkWorkEntry, error) {
 	return store.NetworkWorkEntry{}, store.ErrNetworkConversationNotFound
 }
 

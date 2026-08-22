@@ -93,6 +93,7 @@ func automationTriggerListBundle(page AutomationTriggerListRecord) outputBundle 
 		"Automation Triggers",
 		[]string{
 			"ID",
+			sessionProfileValue,
 			automationNameValue,
 			automationEventValue,
 			automationScopeValue,
@@ -104,6 +105,7 @@ func automationTriggerListBundle(page AutomationTriggerListRecord) outputBundle 
 		"automation_triggers",
 		[]string{
 			"id",
+			"profile_name",
 			automationNameKey,
 			automationEventKey,
 			automationScopeKey,
@@ -115,6 +117,7 @@ func automationTriggerListBundle(page AutomationTriggerListRecord) outputBundle 
 		func(item TriggerRecord) []string {
 			return []string{
 				stringOrDash(item.ID),
+				stringOrDash(item.ProfileName),
 				stringOrDash(item.Name),
 				stringOrDash(item.Event),
 				stringOrDash(string(item.Scope)),
@@ -127,6 +130,7 @@ func automationTriggerListBundle(page AutomationTriggerListRecord) outputBundle 
 		func(item TriggerRecord) []string {
 			return []string{
 				item.ID,
+				item.ProfileName,
 				item.Name,
 				item.Event,
 				string(item.Scope),

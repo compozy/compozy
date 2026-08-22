@@ -20,6 +20,7 @@ import (
 
 func (h *BaseHandlers) createTaskSpecFromRequest(
 	ctx context.Context,
+	profileID string,
 	req contract.CreateTaskRequest,
 ) (taskpkg.CreateTask, error) {
 	scope := req.Scope.Normalize()
@@ -30,6 +31,7 @@ func (h *BaseHandlers) createTaskSpecFromRequest(
 
 	spec := taskpkg.CreateTask{
 		ID:                   strings.TrimSpace(req.ID),
+		ProfileID:            strings.TrimSpace(profileID),
 		Identifier:           strings.TrimSpace(req.Identifier),
 		Scope:                scope,
 		WorkspaceID:          workspaceID,
@@ -53,6 +55,7 @@ func (h *BaseHandlers) createTaskSpecFromRequest(
 
 func (h *BaseHandlers) createChildTaskSpecFromRequest(
 	ctx context.Context,
+	profileID string,
 	req contract.CreateTaskChildRequest,
 ) (taskpkg.CreateTask, error) {
 	scope := req.Scope.Normalize()
@@ -63,6 +66,7 @@ func (h *BaseHandlers) createChildTaskSpecFromRequest(
 
 	spec := taskpkg.CreateTask{
 		ID:                   strings.TrimSpace(req.ID),
+		ProfileID:            strings.TrimSpace(profileID),
 		Identifier:           strings.TrimSpace(req.Identifier),
 		Scope:                scope,
 		WorkspaceID:          workspaceID,

@@ -162,14 +162,14 @@ func assertTaskStory(t *testing.T, ctx context.Context, db *globaldb.GlobalDB, w
 func assertNetworkStory(t *testing.T, ctx context.Context, db *globaldb.GlobalDB, workspaceID string) {
 	t.Helper()
 	ref := store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: launchChannel}
-	channel, err := db.GetNetworkChannel(ctx, ref)
+	channel, err := db.GetNetworkChannel(ctx, store.ReadScope{AllProfiles: true}, ref)
 	if err != nil {
 		t.Fatalf("GetNetworkChannel() error = %v", err)
 	}
 	if !strings.Contains(channel.Purpose, "Checkout launch") {
 		t.Fatalf("GetNetworkChannel().Purpose = %q, want checkout launch purpose", channel.Purpose)
 	}
-	thread, err := db.GetThread(ctx, ref, launchThreadID)
+	thread, err := db.GetThread(ctx, store.ReadScope{AllProfiles: true}, ref, launchThreadID)
 	if err != nil {
 		t.Fatalf("GetThread() error = %v", err)
 	}

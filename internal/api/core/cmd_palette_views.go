@@ -21,6 +21,7 @@ type cmdPaletteViewStream struct {
 	h           *BaseHandlers
 	service     cmdpalette.ViewSourceService
 	writer      FlushWriter
+	profileLens cmdpalette.ProfileLens
 	workspaceID cmdpalette.WorkspaceID
 	viewID      string
 	cursor      int64
@@ -29,6 +30,10 @@ type cmdPaletteViewStream struct {
 }
 
 func (h *BaseHandlers) GetCmdPaletteView(c *gin.Context) {
+	profileLens, ok := h.resolveCmdPaletteProfileLens(c, false)
+	if !ok {
+		return
+	}
 	workspaceID, ok := h.resolveCmdPaletteWorkspace(c, c.Query("workspace"))
 	if !ok {
 		return
@@ -37,7 +42,7 @@ func (h *BaseHandlers) GetCmdPaletteView(c *gin.Context) {
 	if !ok {
 		return
 	}
-	snapshot, err := service.OpenSource(c.Request.Context(), workspaceID, c.Param("id"))
+	snapshot, err := service.OpenSource(c.Request.Context(), profileLens, workspaceID, c.Param("id"))
 	if err != nil {
 		h.respondCmdPaletteViewError(c, workspaceID, err)
 		return
@@ -46,6 +51,10 @@ func (h *BaseHandlers) GetCmdPaletteView(c *gin.Context) {
 }
 
 func (h *BaseHandlers) StreamCmdPaletteView(c *gin.Context) {
+	profileLens, ok := h.resolveCmdPaletteProfileLens(c, false)
+	if !ok {
+		return
+	}
 	workspaceID, ok := h.resolveCmdPaletteWorkspace(c, c.Query("workspace"))
 	if !ok {
 		return
@@ -64,7 +73,8 @@ func (h *BaseHandlers) StreamCmdPaletteView(c *gin.Context) {
 	snapshot, events, cancel, err := service.SubscribeViewPatches(
 		c.Request.Context(),
 		cmdpalette.ViewPatchSubscribeRequest{
-			Workspace: workspaceID, ViewID: viewID, After: after, StreamEpoch: requestedEpoch,
+			ProfileLens: profileLens,
+			Workspace:   workspaceID, ViewID: viewID, After: after, StreamEpoch: requestedEpoch,
 		},
 	)
 	if err != nil {
@@ -82,7 +92,8 @@ func (h *BaseHandlers) StreamCmdPaletteView(c *gin.Context) {
 		return
 	}
 	stream := &cmdPaletteViewStream{
-		h: h, service: service, writer: writer, workspaceID: workspaceID, viewID: viewID,
+		h: h, service: service, writer: writer, profileLens: profileLens,
+		workspaceID: workspaceID, viewID: viewID,
 		cursor: after, revision: snapshot.Revision, epoch: snapshot.StreamEpoch,
 	}
 	if requestedEpoch != "" && requestedEpoch != stream.epoch {
@@ -138,7 +149,7 @@ func (s *cmdPaletteViewStream) writeEvent(ctx context.Context, event cmdpalette.
 }
 
 func (s *cmdPaletteViewStream) resync(ctx context.Context, sequence int64) bool {
-	snapshot, err := s.service.OpenSource(ctx, s.workspaceID, s.viewID)
+	snapshot, err := s.service.OpenSource(ctx, s.profileLens, s.workspaceID, s.viewID)
 	if err != nil {
 		s.h.writeSSEBestEffort(s.writer, SSEMessage{Name: handlersErrorKey, Data: ErrorPayloadForError(err)})
 		return false

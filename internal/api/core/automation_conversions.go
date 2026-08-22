@@ -56,6 +56,7 @@ func JobPayloadFromJob(
 ) contract.JobPayload {
 	payload := contract.JobPayload{
 		ID:          job.ID,
+		ProfileID:   job.ProfileID,
 		Scope:       job.Scope,
 		Name:        job.Name,
 		TargetKind:  job.TargetKind,
@@ -127,6 +128,7 @@ func TriggerPayloadsFromTriggers(triggers []automationpkg.Trigger) []contract.Tr
 func RunPayloadFromRun(run automationpkg.Run) contract.RunPayload {
 	return contract.RunPayload{
 		ID:                   run.ID,
+		ProfileID:            run.ProfileID,
 		JobID:                run.JobID,
 		TriggerID:            run.TriggerID,
 		SessionID:            run.SessionID,

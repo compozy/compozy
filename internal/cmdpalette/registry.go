@@ -196,8 +196,12 @@ func cloneProviderRegistrations(source []ProviderRegistration) []ProviderRegistr
 	return append([]ProviderRegistration(nil), source...)
 }
 
-func (s *Service) acquireFlight(workspaceID WorkspaceID, commandID CommandID) bool {
-	key := flightKey(workspaceID, commandID)
+func (s *Service) acquireFlight(
+	profileLens ProfileLens,
+	workspaceID WorkspaceID,
+	commandID CommandID,
+) bool {
+	key := flightKey(profileLens, workspaceID, commandID)
 	s.flightMu.Lock()
 	defer s.flightMu.Unlock()
 	if _, exists := s.flights[key]; exists {
@@ -207,13 +211,17 @@ func (s *Service) acquireFlight(workspaceID WorkspaceID, commandID CommandID) bo
 	return true
 }
 
-func (s *Service) releaseFlight(workspaceID WorkspaceID, commandID CommandID) {
-	key := flightKey(workspaceID, commandID)
+func (s *Service) releaseFlight(
+	profileLens ProfileLens,
+	workspaceID WorkspaceID,
+	commandID CommandID,
+) {
+	key := flightKey(profileLens, workspaceID, commandID)
 	s.flightMu.Lock()
 	delete(s.flights, key)
 	s.flightMu.Unlock()
 }
 
-func flightKey(workspaceID WorkspaceID, commandID CommandID) string {
-	return string(workspaceID) + "\x00" + string(commandID)
+func flightKey(profileLens ProfileLens, workspaceID WorkspaceID, commandID CommandID) string {
+	return string(profileLens.ID) + "\x00" + string(workspaceID) + "\x00" + string(commandID)
 }

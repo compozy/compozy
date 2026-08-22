@@ -74,6 +74,12 @@ func BridgePayloadFromBridgeInstance(instance bridgepkg.BridgeInstance) contract
 	}
 	return contract.BridgePayload{
 		ID:                   instance.ID,
+		ProfileID:            instance.ProfileID,
+		ProfileName:          instance.ProfileName,
+		ProfileColor:         instance.ProfileColor,
+		ProfileIcon:          instance.ProfileIcon,
+		ProfileEmoji:         instance.ProfileEmoji,
+		ProfileArchived:      instance.ProfileArchived,
 		Scope:                instance.Scope,
 		WorkspaceID:          instance.WorkspaceID,
 		Platform:             instance.Platform,

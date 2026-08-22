@@ -33,6 +33,7 @@ func TestTaskPayloadBuildersPreserveIdentityOwnershipAndRunBindings(t *testing.T
 	view := &taskpkg.View{
 		Task: taskpkg.Task{
 			ID:           "task-1",
+			ProfileID:    store.DefaultProfileID,
 			Identifier:   "TASK-1",
 			Scope:        taskpkg.ScopeWorkspace,
 			WorkspaceID:  "ws-alpha",
@@ -326,6 +327,7 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionEndpoints(t *testing.T) {
 	now := time.Date(2026, 5, 5, 11, 0, 0, 0, time.UTC)
 	subscription := bridgepkg.BridgeTaskSubscription{
 		SubscriptionID:   "sub-1",
+		ProfileID:        store.DefaultProfileID,
 		TaskID:           "task-1",
 		BridgeInstanceID: "brg-1",
 		Scope:            bridgepkg.ScopeWorkspace,
@@ -359,6 +361,7 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionEndpoints(t *testing.T) {
 			}
 			return &taskpkg.View{Task: taskpkg.Task{
 				ID:          "task-1",
+				ProfileID:   store.DefaultProfileID,
 				Scope:       taskpkg.ScopeWorkspace,
 				WorkspaceID: "ws-1",
 			}}, nil
@@ -480,6 +483,7 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionEndpoints(t *testing.T) {
 				}
 				return &taskpkg.View{Task: taskpkg.Task{
 					ID:          "task-1",
+					ProfileID:   store.DefaultProfileID,
 					Scope:       taskpkg.ScopeWorkspace,
 					WorkspaceID: "ws-1",
 				}}, nil
@@ -708,7 +712,9 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionValidation(t *testing.T) 
 				if id != taskID {
 					t.Fatalf("GetTask id = %q, want exact %q", id, taskID)
 				}
-				return &taskpkg.View{Task: taskpkg.Task{ID: taskID, Scope: taskpkg.ScopeGlobal}}, nil
+				return &taskpkg.View{Task: taskpkg.Task{
+					ID: taskID, ProfileID: store.DefaultProfileID, Scope: taskpkg.ScopeGlobal,
+				}}, nil
 			},
 		}
 		bridges := testutil.StubBridgeService{
@@ -757,6 +763,7 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionValidation(t *testing.T) 
 			GetTaskFn: func(_ context.Context, id string, _ taskpkg.ActorContext) (*taskpkg.View, error) {
 				return &taskpkg.View{Task: taskpkg.Task{
 					ID: id, Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-1",
+					ProfileID: store.DefaultProfileID,
 				}}, nil
 			},
 		}
@@ -823,6 +830,7 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionValidation(t *testing.T) 
 
 		subscription := bridgepkg.BridgeTaskSubscription{
 			SubscriptionID:   "sub-1",
+			ProfileID:        store.DefaultProfileID,
 			TaskID:           "task-1",
 			BridgeInstanceID: "brg-1",
 			Scope:            bridgepkg.ScopeGlobal,
@@ -851,6 +859,7 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionValidation(t *testing.T) 
 				}
 				return &taskpkg.View{Task: taskpkg.Task{
 					ID:          "task-1",
+					ProfileID:   store.DefaultProfileID,
 					Scope:       taskpkg.ScopeWorkspace,
 					WorkspaceID: "ws-1",
 				}}, nil
@@ -916,6 +925,7 @@ func TestBaseHandlersTaskBridgeNotificationSubscriptionValidation(t *testing.T) 
 				}
 				return &taskpkg.View{Task: taskpkg.Task{
 					ID:          "task-1",
+					ProfileID:   store.DefaultProfileID,
 					Scope:       taskpkg.ScopeWorkspace,
 					WorkspaceID: "ws-1",
 				}}, nil
@@ -1204,6 +1214,7 @@ func TestBaseHandlersTaskSchedulerControlEndpoints(t *testing.T) {
 				pauseRequest = req
 				return &taskpkg.Task{
 					ID:           id,
+					ProfileID:    store.DefaultProfileID,
 					Scope:        taskpkg.ScopeGlobal,
 					Title:        "Paused task",
 					Status:       taskpkg.TaskStatusReady,
@@ -1228,6 +1239,7 @@ func TestBaseHandlersTaskSchedulerControlEndpoints(t *testing.T) {
 				resumeRequest = req
 				return &taskpkg.Task{
 					ID:        id,
+					ProfileID: store.DefaultProfileID,
 					Scope:     taskpkg.ScopeGlobal,
 					Title:     "Resumed task",
 					Status:    taskpkg.TaskStatusReady,
@@ -1348,6 +1360,7 @@ func TestBaseHandlersTaskSchedulerControlEndpoints(t *testing.T) {
 					Runs: []taskpkg.SchedulerBacklogRun{{
 						Task: taskpkg.Task{
 							ID:        "task-paused",
+							ProfileID: store.DefaultProfileID,
 							Scope:     taskpkg.ScopeWorkspace,
 							Title:     "Paused task",
 							Status:    taskpkg.TaskStatusReady,
@@ -1839,6 +1852,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	taskView := &taskpkg.View{
 		Task: taskpkg.Task{
 			ID:          "task-1",
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: "ws-alpha",
 			Title:       "Review task API",
@@ -1860,6 +1874,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		Runs: []taskpkg.Run{
 			{
 				ID:        "run-1",
+				ProfileID: store.DefaultProfileID,
 				TaskID:    "task-1",
 				Status:    taskpkg.TaskRunStatusRunning,
 				Attempt:   1,
@@ -1869,12 +1884,13 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 				StartedAt: now,
 			},
 			{
-				ID:       "run-2",
-				TaskID:   "task-1",
-				Status:   taskpkg.TaskRunStatusQueued,
-				Attempt:  2,
-				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.enqueue_run"},
-				QueuedAt: now,
+				ID:        "run-2",
+				ProfileID: store.DefaultProfileID,
+				TaskID:    "task-1",
+				Status:    taskpkg.TaskRunStatusQueued,
+				Attempt:   2,
+				Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.enqueue_run"},
+				QueuedAt:  now,
 			},
 		},
 		Events: []taskpkg.Event{{
@@ -1898,6 +1914,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 			liveSpec := testLiveParticipation("ws-alpha", "builders")
 			return taskpkg.CatalogPage{Tasks: []taskpkg.Summary{{
 				ID:           "task-1",
+				ProfileID:    store.DefaultProfileID,
 				Scope:        taskpkg.Scope(query.Scope),
 				WorkspaceID:  query.WorkspaceID,
 				ParentTaskID: query.ParentTaskID,
@@ -1959,6 +1976,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 			childSpec = spec
 			return &taskpkg.Task{
 				ID:           "task-child",
+				ProfileID:    store.DefaultProfileID,
 				Scope:        spec.Scope,
 				WorkspaceID:  spec.WorkspaceID,
 				Title:        spec.Title,
@@ -2295,6 +2313,13 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("list runs status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+	}
+	var runsResponse contract.TaskRunsResponse
+	testutil.DecodeJSONResponse(t, resp, &runsResponse)
+	if len(runsResponse.Runs) != 1 ||
+		runsResponse.Runs[0].ProfileID != store.DefaultProfileID ||
+		runsResponse.Runs[0].ProfileName != "default" {
+		t.Fatalf("list runs owner payload = %#v, want default profile identity", runsResponse.Runs)
 	}
 
 	resp = performRequest(
@@ -3012,10 +3037,11 @@ func TestBaseHandlersUpdateTaskNetworkParticipation(t *testing.T) {
 				}
 				return &taskpkg.View{
 					Task: taskpkg.Task{
-						ID:     taskID,
-						Title:  "Draft handoff",
-						Scope:  taskpkg.ScopeWorkspace,
-						Status: taskpkg.TaskStatusDraft,
+						ID:        taskID,
+						ProfileID: store.DefaultProfileID,
+						Title:     "Draft handoff",
+						Scope:     taskpkg.ScopeWorkspace,
+						Status:    taskpkg.TaskStatusDraft,
 					},
 				}, nil
 			},

@@ -284,8 +284,8 @@ func TestGlobalCommandPaletteMigrationTail(t *testing.T) {
 			}
 		}
 
-		if err := store.Apply(ctx, db, stream); err != nil {
-			t.Fatalf("Apply(global through 00079) error = %v", err)
+		if err := store.Apply(ctx, db, migrationPrefixStream(t, stream, 80)); err != nil {
+			t.Fatalf("Apply(global through 00080) error = %v", err)
 		}
 		for _, table := range []string{"cmd_palette_usage", "cmd_palette_query_hits", "cmd_palette_pins"} {
 			if !sqliteTableExists(t, db, table) {
@@ -376,7 +376,7 @@ func TestGlobalCommandPaletteMigrationTail(t *testing.T) {
 			strings.Index(before, "expires_at") > strings.Index(before, "resume_fence") {
 			t.Fatalf("recovery index at 00079 = %q, want expires_at before resume_fence", before)
 		}
-		if err := store.Apply(ctx, db, stream); err != nil {
+		if err := store.Apply(ctx, db, migrationPrefixStream(t, stream, 80)); err != nil {
 			t.Fatalf("Apply(global through 00080) error = %v", err)
 		}
 		after := sqliteIndexSQL(t, db, "idx_tool_approval_pending_recovery")

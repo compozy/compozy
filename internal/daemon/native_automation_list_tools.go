@@ -13,7 +13,7 @@ import (
 
 func (n *daemonNativeTools) automationJobsList(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input automationJobsListInput
@@ -21,6 +21,10 @@ func (n *daemonNativeTools) automationJobsList(
 		return toolspkg.ToolResult{}, err
 	}
 	query, err := input.query(req.ToolID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	query.ReadScope, err = n.nativeProfileReadScope(ctx, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -46,7 +50,7 @@ func (n *daemonNativeTools) automationJobsList(
 
 func (n *daemonNativeTools) automationTriggersList(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input automationTriggersListInput
@@ -54,6 +58,10 @@ func (n *daemonNativeTools) automationTriggersList(
 		return toolspkg.ToolResult{}, err
 	}
 	query, err := input.query(req.ToolID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	query.ReadScope, err = n.nativeProfileReadScope(ctx, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

@@ -23,6 +23,32 @@ import (
 func TestBaseHandlersCmdPalette(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should carry scoped and aggregate profile lenses through the shared transport [IT-088]", func(t *testing.T) {
+		t.Parallel()
+		registry := &cmdPaletteRegistryStub{}
+		handlers := newCmdPaletteHandlers(registry, nil)
+		engine := gin.New()
+		engine.GET("/api/cmd-palette/commands", handlers.ListCmdPaletteCommands)
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequestWithContext(
+			t.Context(), http.MethodGet,
+			"/api/cmd-palette/commands?workspace=alpha&all_profiles=true", http.NoBody,
+		)
+		engine.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusOK || registry.catalogProfileLens != cmdpalette.AggregateProfileLens() {
+			t.Fatalf("aggregate catalog = status %d lens %#v body=%s", recorder.Code, registry.catalogProfileLens, recorder.Body.String())
+		}
+		conflict := httptest.NewRecorder()
+		request = httptest.NewRequestWithContext(
+			t.Context(), http.MethodGet,
+			"/api/cmd-palette/commands?workspace=alpha&profile=default&all_profiles=true", http.NoBody,
+		)
+		engine.ServeHTTP(conflict, request)
+		if conflict.Code != http.StatusBadRequest {
+			t.Fatalf("conflicting lens status = %d, want 400; body=%s", conflict.Code, conflict.Body.String())
+		}
+	})
+
 	t.Run("Should resolve list scope and flatten the canonical catalog wire", func(t *testing.T) {
 		t.Parallel()
 		registry := &cmdPaletteRegistryStub{catalog: cmdpalette.Catalog{
@@ -56,7 +82,8 @@ func TestBaseHandlersCmdPalette(t *testing.T) {
 		if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
 			t.Fatalf("json.Unmarshal(response) error = %v", err)
 		}
-		if registry.catalogWorkspace != "workspace-canonical" || registry.catalogClient != "client-a" {
+		if registry.catalogWorkspace != "workspace-canonical" || registry.catalogClient != "client-a" ||
+			registry.catalogProfileLens.ID != cmdpalette.DefaultProfileLensID {
 			t.Fatalf(
 				"Catalog() scope = %q/%q, want workspace-canonical/client-a",
 				registry.catalogWorkspace,
@@ -471,7 +498,8 @@ func TestBaseHandlersCmdPalette(t *testing.T) {
 			t.Fatalf("stream = status %d content-type %q", recorder.Code, recorder.Header().Get("Content-Type"))
 		}
 		want := "event: cmd_palette.catalog.changed\n" +
-			"data: {\"workspace\":\"workspace-canonical\",\"catalog_revision\":\"cr_current\"}\n\n"
+			"data: {\"profile_lens\":{\"profile_lens_id\":\"00000000000000000000000000\",\"profile_name\":\"default\"}," +
+			"\"workspace\":\"workspace-canonical\",\"catalog_revision\":\"cr_current\"}\n\n"
 		if recorder.Body.String() != want {
 			t.Fatalf("stream body = %q, want %q", recorder.Body.String(), want)
 		}
@@ -712,6 +740,7 @@ func newCmdPaletteHandlers(
 
 type cmdPaletteRegistryStub struct {
 	catalog              cmdpalette.Catalog
+	catalogProfileLens   cmdpalette.ProfileLens
 	catalogWorkspace     cmdpalette.WorkspaceID
 	catalogClient        cmdpalette.ClientID
 	invokeRequest        cmdpalette.InvokeRequest
@@ -745,11 +774,11 @@ type cmdPaletteRegistryStub struct {
 
 func (s *cmdPaletteRegistryStub) Catalog(
 	_ context.Context,
-	workspaceID cmdpalette.WorkspaceID,
-	clientID cmdpalette.ClientID,
+	request cmdpalette.CatalogRequest,
 ) (cmdpalette.Catalog, error) {
-	s.catalogWorkspace = workspaceID
-	s.catalogClient = clientID
+	s.catalogProfileLens = request.ProfileLens
+	s.catalogWorkspace = request.WorkspaceID
+	s.catalogClient = request.ClientID
 	return s.catalog, nil
 }
 
@@ -775,6 +804,7 @@ func (s *cmdPaletteRegistryStub) RecordUsage(_ context.Context, usage cmdpalette
 
 func (s *cmdPaletteRegistryStub) Personalization(
 	context.Context,
+	cmdpalette.ProfileLens,
 	cmdpalette.WorkspaceID,
 ) (cmdpalette.Snapshot, error) {
 	return s.snapshot, nil
@@ -782,6 +812,7 @@ func (s *cmdPaletteRegistryStub) Personalization(
 
 func (s *cmdPaletteRegistryStub) PersonalizationSummary(
 	context.Context,
+	cmdpalette.ProfileLens,
 	cmdpalette.WorkspaceID,
 ) (cmdpalette.PersonalizationSummary, error) {
 	return s.summary, nil
@@ -789,6 +820,7 @@ func (s *cmdPaletteRegistryStub) PersonalizationSummary(
 
 func (s *cmdPaletteRegistryStub) ResetPersonalization(
 	_ context.Context,
+	_ cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 ) error {
 	s.resetWorkspace = workspaceID
@@ -797,6 +829,7 @@ func (s *cmdPaletteRegistryStub) ResetPersonalization(
 
 func (s *cmdPaletteRegistryStub) Pin(
 	_ context.Context,
+	_ cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	commandID cmdpalette.CommandID,
 ) error {
@@ -808,6 +841,7 @@ func (s *cmdPaletteRegistryStub) Pin(
 
 func (s *cmdPaletteRegistryStub) Unpin(
 	_ context.Context,
+	_ cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	commandID cmdpalette.CommandID,
 ) error {
@@ -819,6 +853,7 @@ func (s *cmdPaletteRegistryStub) Unpin(
 
 func (s *cmdPaletteRegistryStub) SubscribeCmdPaletteEvents(
 	context.Context,
+	cmdpalette.ProfileLens,
 	cmdpalette.WorkspaceID,
 ) (<-chan cmdpalette.Event, func(), error) {
 	if s.eventUpdates != nil {
@@ -831,6 +866,7 @@ func (s *cmdPaletteRegistryStub) SubscribeCmdPaletteEvents(
 
 func (s *cmdPaletteRegistryStub) ResolveView(
 	_ context.Context,
+	_ cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	viewID string,
 ) (cmdpalette.ViewDescriptor, error) {
@@ -844,6 +880,7 @@ func (s *cmdPaletteRegistryStub) ResolveView(
 
 func (s *cmdPaletteRegistryStub) OpenSource(
 	_ context.Context,
+	_ cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	viewID string,
 ) (cmdpalette.ViewSnapshot, error) {
@@ -932,13 +969,20 @@ func (s *cmdPaletteRegistryStub) CloseSession(
 
 func (s *cmdPaletteRegistryStub) CloseClientSessions(
 	context.Context,
+	cmdpalette.ProfileLens,
 	cmdpalette.WorkspaceID,
 	cmdpalette.ClientID,
 ) error {
 	return nil
 }
 
-func (s *cmdPaletteRegistryStub) InvalidateInstance(context.Context, cmdpalette.WorkspaceID, string, uint64) error {
+func (s *cmdPaletteRegistryStub) InvalidateInstance(
+	context.Context,
+	cmdpalette.ProfileLens,
+	cmdpalette.WorkspaceID,
+	string,
+	uint64,
+) error {
 	return nil
 }
 

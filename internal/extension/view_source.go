@@ -47,6 +47,7 @@ func (m *Manager) OpenProgram(
 // HandleProgramEvent calls view/event and permits an acknowledgement-only response.
 func (m *Manager) HandleProgramEvent(
 	ctx context.Context,
+	_ cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	extensionName string,
 	event cmdpalette.ViewEvent,
@@ -86,6 +87,7 @@ func (m *Manager) HandleProgramEvent(
 // CloseProgram calls view/close through the same gate as open and event.
 func (m *Manager) CloseProgram(
 	ctx context.Context,
+	_ cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	extensionName string,
 	request cmdpalette.ViewCloseRequest,

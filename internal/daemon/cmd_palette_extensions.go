@@ -46,6 +46,7 @@ func (p *extensionCmdPaletteProvider) OpenProgram(
 
 func (p *extensionCmdPaletteProvider) HandleProgramEvent(
 	ctx context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	extensionName string,
 	event cmdpalette.ViewEvent,
@@ -54,11 +55,12 @@ func (p *extensionCmdPaletteProvider) HandleProgramEvent(
 	if err != nil {
 		return nil, err
 	}
-	return runtime.HandleProgramEvent(ctx, workspaceID, extensionName, event)
+	return runtime.HandleProgramEvent(ctx, profileLens, workspaceID, extensionName, event)
 }
 
 func (p *extensionCmdPaletteProvider) CloseProgram(
 	ctx context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	extensionName string,
 	request cmdpalette.ViewCloseRequest,
@@ -67,7 +69,7 @@ func (p *extensionCmdPaletteProvider) CloseProgram(
 	if err != nil {
 		return err
 	}
-	return runtime.CloseProgram(ctx, workspaceID, extensionName, request)
+	return runtime.CloseProgram(ctx, profileLens, workspaceID, extensionName, request)
 }
 
 func (p *extensionCmdPaletteProvider) viewProgramRuntime() (cmdpalette.ViewProgramProvider, error) {
@@ -83,17 +85,17 @@ func (p *extensionCmdPaletteProvider) viewProgramRuntime() (cmdpalette.ViewProgr
 
 func (p *extensionCmdPaletteProvider) ProvideCommands(
 	ctx context.Context,
-	workspaceID cmdpalette.WorkspaceID,
+	request cmdpalette.CatalogRequest,
 ) ([]cmdpalette.Descriptor, error) {
-	contribution, err := p.ProvideContribution(ctx, workspaceID)
+	contribution, err := p.ProvideContribution(ctx, request)
 	return contribution.Commands, err
 }
 
 func (p *extensionCmdPaletteProvider) ProvideContribution(
 	ctx context.Context,
-	workspaceID cmdpalette.WorkspaceID,
+	request cmdpalette.CatalogRequest,
 ) (cmdpalette.Contribution, error) {
-	projection, err := p.projection(ctx, workspaceID)
+	projection, err := p.projection(ctx, request)
 	if err != nil {
 		return cmdpalette.Contribution{}, err
 	}
@@ -122,9 +124,9 @@ func (p *extensionCmdPaletteProvider) ProvideContribution(
 
 func (p *extensionCmdPaletteProvider) ProvideViews(
 	ctx context.Context,
-	workspaceID cmdpalette.WorkspaceID,
+	request cmdpalette.CatalogRequest,
 ) ([]cmdpalette.ViewDescriptor, error) {
-	projection, err := p.projection(ctx, workspaceID)
+	projection, err := p.projection(ctx, request)
 	if err != nil {
 		return nil, err
 	}
@@ -144,13 +146,17 @@ func (p *extensionCmdPaletteProvider) ProvideViews(
 
 func (p *extensionCmdPaletteProvider) OpenSource(
 	ctx context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	viewID string,
 ) (cmdpalette.ViewPayload, error) {
 	if p == nil || p.tools == nil {
 		return cmdpalette.ViewPayload{}, errors.New("daemon: extension palette tool registry is unavailable")
 	}
-	projection, err := p.projection(ctx, workspaceID)
+	projection, err := p.projection(ctx, cmdpalette.CatalogRequest{
+		ProfileLens: profileLens,
+		WorkspaceID: workspaceID,
+	})
 	if err != nil {
 		return cmdpalette.ViewPayload{}, err
 	}
@@ -175,7 +181,8 @@ func (p *extensionCmdPaletteProvider) OpenSource(
 	}
 	callID := "cmd-palette-view:" + uuid.NewString()
 	result, err := p.tools.Call(ctx, toolspkg.Scope{
-		WorkspaceID: string(workspaceID), SessionID: callID, ActorKind: "cmd_palette", Operator: true,
+		ProfileID: string(profileLens.ID), WorkspaceID: string(workspaceID),
+		SessionID: callID, ActorKind: "cmd_palette", Operator: true,
 	}, toolspkg.CallRequest{
 		ToolID: toolspkg.ToolID(selected.SourceTool), ToolCallID: callID, SessionID: callID,
 		WorkspaceID: string(workspaceID), CorrelationID: callID, Input: json.RawMessage(`{}`),
@@ -201,7 +208,7 @@ func (p *extensionCmdPaletteProvider) OpenSource(
 
 func (p *extensionCmdPaletteProvider) projection(
 	ctx context.Context,
-	workspaceID cmdpalette.WorkspaceID,
+	request cmdpalette.CatalogRequest,
 ) (extensionpkg.CmdPaletteProjection, error) {
 	if ctx == nil {
 		return extensionpkg.CmdPaletteProjection{}, errors.New("daemon: extension palette context is required")
@@ -209,11 +216,14 @@ func (p *extensionCmdPaletteProvider) projection(
 	if err := ctx.Err(); err != nil {
 		return extensionpkg.CmdPaletteProjection{}, err
 	}
+	if err := request.ProfileLens.Validate(); err != nil {
+		return extensionpkg.CmdPaletteProjection{}, err
+	}
 	runtime := p.paletteRuntime()
 	if runtime == nil {
 		return extensionpkg.CmdPaletteProjection{}, nil
 	}
-	projection, err := runtime.CmdPalette(string(workspaceID))
+	projection, err := runtime.CmdPalette(string(request.WorkspaceID))
 	if err != nil {
 		return extensionpkg.CmdPaletteProjection{}, fmt.Errorf("daemon: project extension command palette: %w", err)
 	}

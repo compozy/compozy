@@ -30,6 +30,10 @@ func (r *cmdPaletteEventRecorder) RecordCmdPaletteEvent(ctx context.Context, eve
 	if r == nil {
 		return
 	}
+	if err := event.ProfileLens.Validate(); err != nil {
+		r.logFailure(event, "validate_profile_lens", err)
+		return
+	}
 	r.logInvocation(event)
 	if r.writer == nil {
 		return
@@ -42,7 +46,7 @@ func (r *cmdPaletteEventRecorder) RecordCmdPaletteEvent(ctx context.Context, eve
 	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cmdPaletteEventWriteTimeout)
 	defer cancel()
 	if err := r.writer.WriteEventSummary(writeCtx, store.EventSummary{
-		ProfileID:   store.DefaultProfileID,
+		ProfileID:   string(event.ProfileLens.ID),
 		WorkspaceID: string(event.WorkspaceID), Type: string(event.Name),
 		Outcome: string(eventspkg.OutcomeFor(string(event.Name))), Content: payload,
 		Summary: string(event.Name), Timestamp: event.OccurredAt,

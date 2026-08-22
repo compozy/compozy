@@ -129,6 +129,7 @@ func newTaskReviewListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(&reviewerSessionID, "reviewer-session", "", "Filter by reviewer session ID")
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N reviews")
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 

@@ -122,7 +122,7 @@ func newAutomationJobsCreateCommand(deps commandDeps) *cobra.Command {
 }
 
 func newAutomationJobsGetCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   automationGetIDValue,
 		Short: "Show one automation job",
 		Args:  exactOneNonBlankArg(),
@@ -139,6 +139,8 @@ func newAutomationJobsGetCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, automationJobBundle(job))
 		},
 	}
+	configureProfileReadCommand(cmd, deps)
+	return cmd
 }
 
 func newAutomationJobsUpdateCommand(deps commandDeps) *cobra.Command {

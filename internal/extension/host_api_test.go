@@ -1721,6 +1721,7 @@ func TestHostAPIHandlerResourcesMethodsCoexistWithBridgeOperationalMethods(t *te
 	}
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-coexist",
 		ExtensionName: "telegram-adapter",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
@@ -2000,6 +2001,7 @@ func TestHostAPIHandlerBridgesMessagesIngestRejectsInvalidPayloads(t *testing.T)
 	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-ingest-invalid",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
@@ -2064,6 +2066,7 @@ func TestHostAPIHandlerBridgesMessagesIngestRejectsDisabledOrUnknownInstances(t 
 	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
 	disabled := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-ingest-disabled",
 		Enabled:       false,
 		Status:        bridgepkg.BridgeStatusDisabled,
@@ -2088,6 +2091,7 @@ func TestHostAPIHandlerBridgesMessagesIngestRejectsDisabledOrUnknownInstances(t 
 	}
 
 	ready := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-ingest-ready",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
@@ -2116,6 +2120,7 @@ func TestHostAPIHandlerBridgesMessagesIngestSuppressesDuplicateWebhookRetries(t 
 	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-ingest-dedup",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
@@ -2188,6 +2193,7 @@ func TestHostAPIHandlerBridgesInstancesReportStateRejectsInvalidUpdates(t *testi
 	env.grant("telegram-adapter", []string{"bridges/instances/report_state"}, []string{"bridge.write"})
 
 	ready := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-report-state-ready",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
@@ -2221,6 +2227,7 @@ func TestHostAPIHandlerBridgesInstancesReportStateRejectsConflictingDegradationC
 	env.grant("telegram-adapter", []string{"bridges/instances/report_state"}, []string{"bridge.write"})
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-report-state-conflict",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
@@ -2249,9 +2256,10 @@ func TestHostAPIHandlerBridgesInstancesReportStateClearsDegradationOnRecovery(t 
 	)
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
-		ID:      "brg-report-state-recovery",
-		Enabled: true,
-		Status:  bridgepkg.BridgeStatusAuthRequired,
+		ProfileID: store.DefaultProfileID,
+		ID:        "brg-report-state-recovery",
+		Enabled:   true,
+		Status:    bridgepkg.BridgeStatusAuthRequired,
 		Degradation: &bridgepkg.BridgeDegradation{
 			Reason:  bridgepkg.BridgeDegradationReasonAuthFailed,
 			Message: "expired",
@@ -2295,6 +2303,7 @@ func TestHostAPIHandlerBridgesInstancesGetRejectsMismatchedRuntimeOwnership(t *t
 	env.grant("telegram-adapter", []string{"bridges/instances/get"}, []string{"bridge.read"})
 
 	other := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-other-owner",
 		ExtensionName: "discord-adapter",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
@@ -2314,6 +2323,7 @@ func TestHostAPIHandlerMethodHandlersExposeBridgeRuntimeAwareInstanceLookup(t *t
 	env.grant("telegram-adapter", []string{"bridges/instances/get"}, []string{"bridge.read"})
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-method-handler",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
@@ -2346,14 +2356,17 @@ func TestHostAPIHandlerBridgesInstancesListReturnsOwnedInstancesForProviderRunti
 	env.grant("telegram-adapter", []string{"bridges/instances/list", "bridges/instances/get"}, []string{"bridge.read"})
 
 	first := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-owned-a",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
 	second := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-owned-b",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
 	_ = env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-foreign",
 		ExtensionName: "discord-adapter",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
@@ -2422,6 +2435,7 @@ func TestHostAPIHandlerBridgesMessagesIngestConcurrentSameRoutingKeyCreatesOneSe
 	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-ingest-concurrent",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
@@ -2491,6 +2505,7 @@ func TestHostAPIHandlerBridgesMessagesIngestRebindsStaleRouteToReplacementSessio
 	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-ingest-rebind",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
@@ -2555,6 +2570,7 @@ func TestHostAPIHandlerBridgesMessagesIngestExpiredDedupAllowsReingest(t *testin
 	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-ingest-expiry",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
@@ -2624,6 +2640,7 @@ func TestHostAPIHandlerBridgesMessagesIngestRegistersPromptDelivery(t *testing.T
 	)
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-ingest-register",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
@@ -2731,6 +2748,7 @@ func TestHostAPIHandlerRegisterPromptDeliveryReplaysStoredPromptEvents(t *testin
 	}
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-register-replay",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
@@ -4345,6 +4363,7 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 	actor := mustExtensionTaskActorContext(t, "seed-writer", env.workspaceID)
 	maxAttempts := 3
 	parent, err := env.tasks.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: env.workspaceID,
 		Title:       "Parent task",
@@ -4358,6 +4377,7 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 	}
 
 	child, err := env.tasks.CreateChildTask(testutil.Context(t), parent.ID, taskpkg.CreateTask{
+		ProfileID:      store.DefaultProfileID,
 		Scope:          taskpkg.ScopeWorkspace,
 		WorkspaceID:    env.workspaceID,
 		Title:          "Filtered child",
@@ -4374,6 +4394,7 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 	}
 
 	if _, err := env.tasks.CreateChildTask(testutil.Context(t), parent.ID, taskpkg.CreateTask{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: env.workspaceID,
 		Title:       "Draft child",
@@ -4387,6 +4408,7 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 	}
 
 	if _, err := env.tasks.CreateChildTask(testutil.Context(t), parent.ID, taskpkg.CreateTask{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: env.workspaceID,
 		Title:       "Other child",
@@ -4399,6 +4421,7 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 	}
 
 	blocker, err := env.tasks.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: env.workspaceID,
 		Title:       "Blocking task",
@@ -4599,6 +4622,7 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 
 	actor := mustExtensionTaskActorContext(t, "seed-writer", env.workspaceID)
 	root, err := env.tasks.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: env.workspaceID,
 		Title:       "Root task",
@@ -4608,6 +4632,7 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 	}
 
 	child, err := env.tasks.CreateChildTask(testutil.Context(t), root.ID, taskpkg.CreateTask{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: env.workspaceID,
 		Title:       "Child task",
@@ -4622,6 +4647,7 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 	}
 
 	approvalTask, err := env.tasks.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		ProfileID:      store.DefaultProfileID,
 		Scope:          taskpkg.ScopeWorkspace,
 		WorkspaceID:    env.workspaceID,
 		Title:          "Approval needed",

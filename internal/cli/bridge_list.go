@@ -52,6 +52,7 @@ func newBridgeListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&query.Sort, "sort", bridgepkg.BridgeCatalogSortName, "Stable ordering: name")
 	cmd.Flags().StringVar(&query.Cursor, "cursor", "", "Continue from a bridge catalog cursor")
 	cmd.Flags().IntVar(&query.Limit, "limit", 0, "Maximum bridges to return (default 50, max 200)")
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 
@@ -70,6 +71,7 @@ func bridgeListTableBundle(result BridgeListRecord, now func() time.Time) output
 		"Bridges",
 		[]string{
 			"ID",
+			sessionProfileValue,
 			automationNameValue,
 			bundlePlatformValue,
 			bridgeExtensionValue,
@@ -82,6 +84,7 @@ func bridgeListTableBundle(result BridgeListRecord, now func() time.Time) output
 		"bridges",
 		[]string{
 			"id",
+			"profile_name",
 			bridgeDisplayNameKey,
 			bridgePlatformKey,
 			bridgeSetupExtensionNameKey,
@@ -94,6 +97,7 @@ func bridgeListTableBundle(result BridgeListRecord, now func() time.Time) output
 		func(item contract.BridgePayload) []string {
 			return []string{
 				stringOrDash(item.ID),
+				stringOrDash(item.ProfileName),
 				stringOrDash(item.DisplayName),
 				stringOrDash(item.Platform),
 				stringOrDash(item.ExtensionName),
@@ -107,6 +111,7 @@ func bridgeListTableBundle(result BridgeListRecord, now func() time.Time) output
 		func(item contract.BridgePayload) []string {
 			return []string{
 				item.ID,
+				item.ProfileName,
 				item.DisplayName,
 				item.Platform,
 				item.ExtensionName,

@@ -245,7 +245,7 @@ func testExtensionSecretTransportAbsence(t *testing.T) {
 	structuredError := mustExtensionTransportJSON(t, core.ErrorPayloadForError(publishErr))
 	assertSecretsAbsent(t, "structured publish error", string(structuredError), secrets)
 
-	events, err := db.ListEventSummaries(t.Context(), store.EventSummaryQuery{})
+	events, err := db.ListEventSummaries(t.Context(), store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}})
 	if err != nil {
 		t.Fatalf("ListEventSummaries() error = %v", err)
 	}

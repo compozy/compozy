@@ -105,7 +105,7 @@ func TestOpenGlobalDBCreatesBridgeTables(t *testing.T) {
 		t.Fatalf("ExecContext(insert legacy bridge row without source) error = %v", err)
 	}
 
-	loaded, err := globalDB.GetBridgeInstance(testutil.Context(t), "brg-default-source")
+	loaded, err := globalDB.GetBridgeInstance(testutil.Context(t), store.ReadScope{AllProfiles: true}, "brg-default-source")
 	if err != nil {
 		t.Fatalf("GetBridgeInstance() error = %v", err)
 	}
@@ -128,6 +128,7 @@ func TestGlobalDBListBridgeInstancesByIDsIsBoundedAndOrdered(t *testing.T) {
 		for _, id := range []string{"brg-a", "brg-b", "brg-foreign"} {
 			if err := globalDB.InsertBridgeInstance(ctx, bridges.BridgeInstance{
 				ID:            id,
+				ProfileID:     store.DefaultProfileID,
 				Scope:         bridges.ScopeGlobal,
 				Platform:      "telegram",
 				ExtensionName: "telegram-adapter",
@@ -140,7 +141,7 @@ func TestGlobalDBListBridgeInstancesByIDsIsBoundedAndOrdered(t *testing.T) {
 			}
 		}
 
-		instances, err := globalDB.ListBridgeInstancesByIDs(ctx, []string{"brg-b", "brg-missing", "brg-a"})
+		instances, err := globalDB.ListBridgeInstancesByIDs(ctx, store.ReadScope{AllProfiles: true}, []string{"brg-b", "brg-missing", "brg-a"})
 		if err != nil {
 			t.Fatalf("ListBridgeInstancesByIDs() error = %v", err)
 		}
@@ -157,17 +158,107 @@ func TestGlobalDBListBridgeInstancesByIDsIsBoundedAndOrdered(t *testing.T) {
 		t.Parallel()
 
 		globalDB := openTestGlobalDB(t)
-		if _, err := globalDB.ListBridgeInstancesByIDs(testutil.Context(t), nil); err == nil {
+		if _, err := globalDB.ListBridgeInstancesByIDs(testutil.Context(t), store.ReadScope{AllProfiles: true}, nil); err == nil {
 			t.Fatal("ListBridgeInstancesByIDs(nil) error = nil, want non-nil")
 		}
 		ids := make([]string, bridges.MaxBridgeCatalogLimit+1)
 		for index := range ids {
 			ids[index] = fmt.Sprintf("brg-%03d", index)
 		}
-		if _, err := globalDB.ListBridgeInstancesByIDs(testutil.Context(t), ids); err == nil {
+		if _, err := globalDB.ListBridgeInstancesByIDs(testutil.Context(t), store.ReadScope{AllProfiles: true}, ids); err == nil {
 			t.Fatal("ListBridgeInstancesByIDs(oversized) error = nil, want non-nil")
 		}
 	})
+}
+
+func TestGlobalDBBridgeReadsAreProfileScopedAndAggregateOwnerLabeled(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	now := time.Date(2026, 8, 21, 18, 0, 0, 0, time.UTC)
+	foreignProfileID := "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+	if _, err := globalDB.db.ExecContext(
+		ctx,
+		`INSERT INTO profiles (id, name, color, icon, emoji, state, created_at, archived_at)
+		 VALUES (?, 'foreign', '#E8572A', NULL, '🧪', 'active', ?, NULL)`,
+		foreignProfileID,
+		store.FormatTimestamp(now),
+	); err != nil {
+		t.Fatalf("insert foreign profile: %v", err)
+	}
+
+	for _, instance := range []bridges.BridgeInstance{
+		bridgeReadScopeTestInstance("brg-owned", store.DefaultProfileID, "Owned", now),
+		bridgeReadScopeTestInstance("brg-foreign", foreignProfileID, "Foreign", now),
+	} {
+		if err := globalDB.InsertBridgeInstance(ctx, instance); err != nil {
+			t.Fatalf("InsertBridgeInstance(%s) error = %v", instance.ID, err)
+		}
+	}
+	if _, err := globalDB.db.ExecContext(
+		ctx,
+		`UPDATE profiles SET state = 'archived', archived_at = ? WHERE id = ?`,
+		store.FormatTimestamp(now.Add(time.Minute)),
+		foreignProfileID,
+	); err != nil {
+		t.Fatalf("archive foreign profile: %v", err)
+	}
+
+	scoped := store.ReadScope{ProfileID: store.DefaultProfileID}
+	instances, err := globalDB.ListBridgeInstances(ctx, scoped)
+	if err != nil {
+		t.Fatalf("ListBridgeInstances(scoped) error = %v", err)
+	}
+	if len(instances) != 1 || instances[0].ID != "brg-owned" {
+		t.Fatalf("ListBridgeInstances(scoped) = %#v, want owned bridge only", instances)
+	}
+	if _, err := globalDB.GetBridgeInstance(ctx, scoped, "brg-foreign"); !errors.Is(
+		err,
+		bridges.ErrBridgeInstanceNotFound,
+	) {
+		t.Fatalf("GetBridgeInstance(foreign scoped) error = %v, want not found", err)
+	}
+
+	aggregate := store.ReadScope{AllProfiles: true}
+	foreign, err := globalDB.GetBridgeInstance(ctx, aggregate, "brg-foreign")
+	if err != nil {
+		t.Fatalf("GetBridgeInstance(foreign aggregate) error = %v", err)
+	}
+	if foreign.ProfileID != foreignProfileID || foreign.ProfileName != "foreign" ||
+		foreign.ProfileColor != "#E8572A" || foreign.ProfileEmoji != "🧪" || !foreign.ProfileArchived {
+		t.Fatalf("aggregate bridge owner = %#v, want archived foreign owner label", foreign)
+	}
+	records, err := globalDB.ListBridgeCatalogRecords(ctx, bridges.BridgeCatalogQuery{
+		ReadScope: aggregate,
+		Scope:     "all",
+	})
+	if err != nil {
+		t.Fatalf("ListBridgeCatalogRecords(aggregate) error = %v", err)
+	}
+	byID := make(map[string]bridges.BridgeCatalogRecord, len(records))
+	for _, record := range records {
+		byID[record.ID] = record
+	}
+	if len(records) != 2 || byID["brg-foreign"].ProfileName != "foreign" ||
+		!byID["brg-foreign"].ProfileArchived {
+		t.Fatalf("aggregate bridge catalog = %#v, want two owner-labeled rows", records)
+	}
+}
+
+func bridgeReadScopeTestInstance(
+	id string,
+	profileID string,
+	displayName string,
+	now time.Time,
+) bridges.BridgeInstance {
+	return bridges.BridgeInstance{
+		ID: id, ProfileID: profileID, Scope: bridges.ScopeGlobal,
+		Platform: "telegram", ExtensionName: "telegram-adapter", DisplayName: displayName,
+		Source: bridges.BridgeInstanceSourceDynamic, Enabled: true, Status: bridges.BridgeStatusReady,
+		DMPolicy: bridges.BridgeDMPolicyOpen, RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true},
+		CreatedAt: now, UpdatedAt: now,
+	}
 }
 
 func TestGlobalDBBridgeCatalogProjectionHydratesOnlyPageIDs(t *testing.T) {
@@ -191,6 +282,7 @@ func TestGlobalDBBridgeCatalogProjectionHydratesOnlyPageIDs(t *testing.T) {
 		for _, instance := range []bridges.BridgeInstance{
 			{
 				ID:            "brg-alpha",
+				ProfileID:     store.DefaultProfileID,
 				Scope:         bridges.ScopeGlobal,
 				Platform:      "slack",
 				ExtensionName: "slack-adapter",
@@ -201,6 +293,7 @@ func TestGlobalDBBridgeCatalogProjectionHydratesOnlyPageIDs(t *testing.T) {
 			},
 			{
 				ID:            "brg-zulu",
+				ProfileID:     store.DefaultProfileID,
 				Scope:         bridges.ScopeGlobal,
 				Platform:      "telegram",
 				ExtensionName: "telegram-adapter",
@@ -211,6 +304,7 @@ func TestGlobalDBBridgeCatalogProjectionHydratesOnlyPageIDs(t *testing.T) {
 			},
 			{
 				ID:            "brg-foreign",
+				ProfileID:     store.DefaultProfileID,
 				Scope:         bridges.ScopeWorkspace,
 				WorkspaceID:   "ws-beta",
 				Platform:      "slack",
@@ -234,7 +328,7 @@ func TestGlobalDBBridgeCatalogProjectionHydratesOnlyPageIDs(t *testing.T) {
 		); err != nil {
 			t.Fatalf("ExecContext(corrupt off-page routing policy) error = %v", err)
 		}
-		if _, err := globalDB.ListBridgeInstances(ctx); err == nil {
+		if _, err := globalDB.ListBridgeInstances(ctx, store.ReadScope{AllProfiles: true}); err == nil {
 			t.Fatal("ListBridgeInstances() error = nil, want corrupt off-page JSON to fail full hydration")
 		}
 		if _, err := globalDB.db.ExecContext(
@@ -246,7 +340,10 @@ func TestGlobalDBBridgeCatalogProjectionHydratesOnlyPageIDs(t *testing.T) {
 			t.Fatalf("ExecContext(corrupt foreign catalog metadata) error = %v", err)
 		}
 
-		query := bridges.BridgeCatalogQuery{Scope: "all", WorkspaceID: "ws-alpha", Limit: 1}
+		query := bridges.BridgeCatalogQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			Scope:     "all", WorkspaceID: "ws-alpha", Limit: 1,
+		}
 		records, err := globalDB.ListBridgeCatalogRecords(ctx, query)
 		if err != nil {
 			t.Fatalf("ListBridgeCatalogRecords() error = %v", err)
@@ -264,7 +361,7 @@ func TestGlobalDBBridgeCatalogProjectionHydratesOnlyPageIDs(t *testing.T) {
 			t.Fatalf("catalog selection = %#v, want alpha-only first page of two records", selection)
 		}
 
-		instances, err := globalDB.ListBridgeInstancesByIDs(ctx, []string{selection.Items[0].Record.ID})
+		instances, err := globalDB.ListBridgeInstancesByIDs(ctx, store.ReadScope{AllProfiles: true}, []string{selection.Items[0].Record.ID})
 		if err != nil {
 			t.Fatalf("ListBridgeInstancesByIDs(page) error = %v", err)
 		}
@@ -295,7 +392,7 @@ func TestGlobalDBBridgeListsPropagateRowsCloseErrors(t *testing.T) {
 		{
 			name: "Should propagate route rows close errors",
 			list: func(ctx context.Context, globalDB *GlobalDB) error {
-				_, err := globalDB.ListBridgeRoutes(ctx, "brg-close-error")
+				_, err := globalDB.ListBridgeRoutes(ctx, store.ReadScope{AllProfiles: true}, "brg-close-error")
 				return err
 			},
 		},
@@ -536,7 +633,7 @@ func TestGlobalDBBridgeGuardClauses(t *testing.T) {
 	if err := globalDB.InsertBridgeInstance(nilGlobalContext(), bridges.BridgeInstance{}); err == nil {
 		t.Fatal("InsertBridgeInstance(nil ctx) error = nil, want non-nil")
 	}
-	if _, err := globalDB.GetBridgeInstance(nilGlobalContext(), "brg-1"); err == nil {
+	if _, err := globalDB.GetBridgeInstance(nilGlobalContext(), store.ReadScope{AllProfiles: true}, "brg-1"); err == nil {
 		t.Fatal("GetBridgeInstance(nil ctx) error = nil, want non-nil")
 	}
 	if err := globalDB.PutBridgeSecretBinding(nilGlobalContext(), bridges.BridgeSecretBinding{}); err == nil {
@@ -569,6 +666,7 @@ func TestGlobalDBBridgePersistenceHelpers(t *testing.T) {
 	)
 	instance := bridges.BridgeInstance{
 		ID:             "brg-workspace",
+		ProfileID:      store.DefaultProfileID,
 		Scope:          bridges.ScopeWorkspace,
 		WorkspaceID:    workspaceID,
 		Platform:       "telegram",
@@ -584,7 +682,7 @@ func TestGlobalDBBridgePersistenceHelpers(t *testing.T) {
 		t.Fatalf("InsertBridgeInstance() error = %v", err)
 	}
 
-	loaded, err := globalDB.GetBridgeInstance(testutil.Context(t), instance.ID)
+	loaded, err := globalDB.GetBridgeInstance(testutil.Context(t), store.ReadScope{AllProfiles: true}, instance.ID)
 	if err != nil {
 		t.Fatalf("GetBridgeInstance() error = %v", err)
 	}
@@ -607,7 +705,7 @@ func TestGlobalDBBridgePersistenceHelpers(t *testing.T) {
 		t.Fatalf("UpdateBridgeInstance() error = %v", err)
 	}
 
-	instances, err := globalDB.ListBridgeInstances(testutil.Context(t))
+	instances, err := globalDB.ListBridgeInstances(testutil.Context(t), store.ReadScope{AllProfiles: true})
 	if err != nil {
 		t.Fatalf("ListBridgeInstances() error = %v", err)
 	}
@@ -721,6 +819,7 @@ func TestGlobalDBBridgeTargetDirectoryShouldPreserveMissingSnapshots(t *testing.
 		registry := bridges.NewRegistry(globalDB, bridges.WithNow(func() time.Time { return now }))
 		instance := bridges.BridgeInstance{
 			ID:            "brg-targets",
+			ProfileID:     store.DefaultProfileID,
 			Scope:         bridges.ScopeGlobal,
 			Platform:      "slack",
 			ExtensionName: "ext-slack",
@@ -814,6 +913,7 @@ func TestGlobalDBReplaceBridgeInstancesAtomicallySwapsProjection(t *testing.T) {
 	now := time.Date(2026, 4, 16, 13, 0, 0, 0, time.UTC)
 	stale := bridges.BridgeInstance{
 		ID:            "brg-stale",
+		ProfileID:     store.DefaultProfileID,
 		Scope:         bridges.ScopeGlobal,
 		Platform:      "telegram",
 		ExtensionName: "ext-telegram",
@@ -840,6 +940,7 @@ func TestGlobalDBReplaceBridgeInstancesAtomicallySwapsProjection(t *testing.T) {
 	keep.UpdatedAt = now
 	added := bridges.BridgeInstance{
 		ID:            "brg-added",
+		ProfileID:     store.DefaultProfileID,
 		Scope:         bridges.ScopeGlobal,
 		Platform:      "slack",
 		ExtensionName: "ext-slack",
@@ -856,20 +957,20 @@ func TestGlobalDBReplaceBridgeInstancesAtomicallySwapsProjection(t *testing.T) {
 		t.Fatalf("ReplaceBridgeInstances() error = %v", err)
 	}
 
-	if _, err := globalDB.GetBridgeInstance(testutil.Context(t), stale.ID); !errors.Is(
+	if _, err := globalDB.GetBridgeInstance(testutil.Context(t), store.ReadScope{AllProfiles: true}, stale.ID); !errors.Is(
 		err,
 		bridges.ErrBridgeInstanceNotFound,
 	) {
 		t.Fatalf("GetBridgeInstance(stale) error = %v, want ErrBridgeInstanceNotFound", err)
 	}
-	loaded, err := globalDB.GetBridgeInstance(testutil.Context(t), keep.ID)
+	loaded, err := globalDB.GetBridgeInstance(testutil.Context(t), store.ReadScope{AllProfiles: true}, keep.ID)
 	if err != nil {
 		t.Fatalf("GetBridgeInstance(keep) error = %v", err)
 	}
 	if got, want := loaded.DisplayName, "Projected Bridge"; got != want {
 		t.Fatalf("loaded.DisplayName = %q, want %q", got, want)
 	}
-	instances, err := globalDB.ListBridgeInstances(testutil.Context(t))
+	instances, err := globalDB.ListBridgeInstances(testutil.Context(t), store.ReadScope{AllProfiles: true})
 	if err != nil {
 		t.Fatalf("ListBridgeInstances() error = %v", err)
 	}
@@ -908,6 +1009,7 @@ func TestGlobalDBReplaceBridgeInstancesPreservesNewerOperationalState(t *testing
 			builtAt := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
 			initial := bridges.BridgeInstance{
 				ID:            "brg-operational-rebase",
+				ProfileID:     store.DefaultProfileID,
 				Scope:         bridges.ScopeGlobal,
 				Platform:      "telegram",
 				ExtensionName: "ext-telegram",
@@ -944,7 +1046,7 @@ func TestGlobalDBReplaceBridgeInstancesPreservesNewerOperationalState(t *testing
 				t.Fatalf("ReplaceBridgeInstances(stale projection) error = %v", err)
 			}
 
-			loaded, err := globalDB.GetBridgeInstance(testutil.Context(t), initial.ID)
+			loaded, err := globalDB.GetBridgeInstance(testutil.Context(t), store.ReadScope{AllProfiles: true}, initial.ID)
 			if err != nil {
 				t.Fatalf("GetBridgeInstance() error = %v", err)
 			}
@@ -1013,6 +1115,7 @@ func TestGlobalDBBridgeWritesWaitForConcurrentWriter(t *testing.T) {
 
 			instance := bridges.BridgeInstance{
 				ID:            "brg-concurrent-writer",
+				ProfileID:     store.DefaultProfileID,
 				Scope:         bridges.ScopeGlobal,
 				Platform:      "telegram",
 				ExtensionName: "telegram-reference",
@@ -1081,7 +1184,7 @@ func TestGlobalDBBridgeWritesWaitForConcurrentWriter(t *testing.T) {
 			case <-ctx.Done():
 				t.Fatalf("bridge write after concurrent commit timed out: %v", ctx.Err())
 			}
-			loaded, err := globalDB.GetBridgeInstance(ctx, instance.ID)
+			loaded, err := globalDB.GetBridgeInstance(ctx, store.ReadScope{AllProfiles: true}, instance.ID)
 			if err != nil {
 				t.Fatalf("GetBridgeInstance() error = %v", err)
 			}
@@ -1098,6 +1201,7 @@ func TestGlobalDBBridgeRouteCRUD(t *testing.T) {
 	globalDB := openTestGlobalDB(t)
 	instance := bridges.BridgeInstance{
 		ID:            "brg-route-unit",
+		ProfileID:     store.DefaultProfileID,
 		Scope:         bridges.ScopeGlobal,
 		Platform:      "telegram",
 		ExtensionName: "telegram-adapter",
@@ -1146,7 +1250,7 @@ func TestGlobalDBBridgeRouteCRUD(t *testing.T) {
 		t.Fatalf("ResolveBridgeRoute().RoutingKeyHash = %q, want %q", resolved.RoutingKeyHash, canonical.RoutingKeyHash)
 	}
 
-	routes, err := globalDB.ListBridgeRoutes(testutil.Context(t), instance.ID)
+	routes, err := globalDB.ListBridgeRoutes(testutil.Context(t), store.ReadScope{AllProfiles: true}, instance.ID)
 	if err != nil {
 		t.Fatalf("ListBridgeRoutes() error = %v", err)
 	}
@@ -1188,6 +1292,7 @@ func TestGlobalDBBridgeCatalogBatchReads(t *testing.T) {
 		for _, id := range []string{"brg-batch-a", "brg-batch-b", "brg-batch-c"} {
 			if err := globalDB.InsertBridgeInstance(ctx, bridges.BridgeInstance{
 				ID:            id,
+				ProfileID:     store.DefaultProfileID,
 				Scope:         bridges.ScopeGlobal,
 				Platform:      "telegram",
 				ExtensionName: "telegram-adapter",
@@ -1275,6 +1380,7 @@ func TestNormalizeBridgeInstanceRecordEncodesProviderConfigAndDegradation(t *tes
 
 	instance := bridges.BridgeInstance{
 		ID:               "brg-encode",
+		ProfileID:        store.DefaultProfileID,
 		Scope:            bridges.ScopeGlobal,
 		Platform:         "slack",
 		ExtensionName:    "slack-adapter",
@@ -1365,6 +1471,7 @@ func TestGlobalDBBridgeMissingLookupsAndHelpers(t *testing.T) {
 	globalDB := openTestGlobalDB(t)
 	if _, err := globalDB.GetBridgeInstance(
 		testutil.Context(t),
+		store.ReadScope{AllProfiles: true},
 		"missing",
 	); !errors.Is(
 		err,
@@ -1374,6 +1481,7 @@ func TestGlobalDBBridgeMissingLookupsAndHelpers(t *testing.T) {
 	}
 	if err := globalDB.UpdateBridgeInstance(testutil.Context(t), bridges.BridgeInstance{
 		ID:            "missing",
+		ProfileID:     store.DefaultProfileID,
 		Scope:         bridges.ScopeGlobal,
 		Platform:      "telegram",
 		ExtensionName: "telegram-adapter",
@@ -1463,6 +1571,7 @@ func TestGlobalDBBridgeConstraintFailuresAndDefaultDedupLookupTime(t *testing.T)
 
 	if err := globalDB.InsertBridgeInstance(testutil.Context(t), bridges.BridgeInstance{
 		ID:            "brg-missing-workspace",
+		ProfileID:     store.DefaultProfileID,
 		Scope:         bridges.ScopeWorkspace,
 		WorkspaceID:   "ws-missing",
 		Platform:      "telegram",
@@ -1505,6 +1614,7 @@ func TestGlobalDBBridgeConstraintFailuresAndDefaultDedupLookupTime(t *testing.T)
 
 	instance := bridges.BridgeInstance{
 		ID:            "brg-live-default-lookup",
+		ProfileID:     store.DefaultProfileID,
 		Scope:         bridges.ScopeGlobal,
 		Platform:      "telegram",
 		ExtensionName: "telegram-adapter",

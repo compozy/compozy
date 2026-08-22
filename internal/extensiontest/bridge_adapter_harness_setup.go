@@ -20,6 +20,7 @@ import (
 	observepkg "github.com/compozy/compozy/internal/observe"
 
 	"github.com/compozy/compozy/internal/session"
+	storepkg "github.com/compozy/compozy/internal/store"
 
 	"github.com/compozy/compozy/internal/store/globaldb"
 
@@ -332,6 +333,7 @@ func harnessCreateInstanceRequest(
 	}
 
 	createReq := bridgepkg.CreateInstanceRequest{
+		ProfileID:        storepkg.DefaultProfileID,
 		ID:               firstNonEmpty(managedCfg.ID, fmt.Sprintf("brg-%d", seq)),
 		Scope:            bridgepkg.ScopeWorkspace,
 		WorkspaceID:      harnessWorkspaceID(workspace),

@@ -14,17 +14,47 @@ func (h *BaseHandlers) sessionPayloadsWithOptionalHealth(
 	infos []*session.Info,
 	includeHealth bool,
 ) ([]contract.SessionPayload, error) {
+	var payloads []contract.SessionPayload
+	var err error
 	if !includeHealth {
-		return SessionPayloadsFromInfos(infos), nil
+		payloads = SessionPayloadsFromInfos(infos)
+	} else {
+		if h.SessionHealth == nil {
+			return nil, errSessionHealthMissing
+		}
+		pageReader, ok := h.SessionHealth.(SessionHealthPageReader)
+		if !ok {
+			return nil, errSessionHealthMissing
+		}
+		payloads, err = SessionPayloadsWithPageHealth(ctx, infos, pageReader)
+		if err != nil {
+			return nil, err
+		}
 	}
-	if h.SessionHealth == nil {
-		return nil, errSessionHealthMissing
+	return h.decorateSessionOwners(ctx, payloads)
+}
+
+func (h *BaseHandlers) decorateSessionOwners(
+	ctx context.Context,
+	payloads []contract.SessionPayload,
+) ([]contract.SessionPayload, error) {
+	owners, err := h.profileOwnerIdentities(ctx)
+	if err != nil {
+		return nil, err
 	}
-	pageReader, ok := h.SessionHealth.(SessionHealthPageReader)
-	if !ok {
-		return nil, errSessionHealthMissing
+	for index := range payloads {
+		owner, found := owners[payloads[index].ProfileID]
+		if !found {
+			return nil, fmt.Errorf("api: session %q profile owner %q not found", payloads[index].ID, payloads[index].ProfileID)
+		}
+		if payloads[index].ProfileID == "" && (h == nil || h.Profiles == nil) {
+			payloads[index].ProfileID = owner.ID
+		}
+		payloads[index].ProfileName = owner.Name
+		payloads[index].ProfileColor = owner.Color
+		payloads[index].ProfileIcon = owner.Icon
 	}
-	return SessionPayloadsWithPageHealth(ctx, infos, pageReader)
+	return payloads, nil
 }
 
 // SessionPayloadsWithPageHealth decorates one bounded session page from one

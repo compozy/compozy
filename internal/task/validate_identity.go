@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 // Validate reports whether the actor identity contains a supported kind and non-empty reference.
@@ -124,6 +126,11 @@ func (a ActorContext) Validate() error {
 	if err := a.Scope.Validate(a.Actor); err != nil {
 		return err
 	}
+	if a.ReadScope != (store.ReadScope{}) {
+		if err := a.ReadScope.Validate(); err != nil {
+			return fmt.Errorf("%w: actor read scope: %v", ErrValidation, err)
+		}
+	}
 	return nil
 }
 
@@ -131,6 +138,9 @@ func (a ActorContext) Validate() error {
 func (t Task) Validate() error {
 	if strings.TrimSpace(t.ID) == "" {
 		return fmt.Errorf("%w: task.id is required", ErrValidation)
+	}
+	if strings.TrimSpace(t.ProfileID) == "" {
+		return fmt.Errorf("%w: task.profile_id is required", ErrValidation)
 	}
 	if err := ValidateScopeBinding(t.Scope, t.WorkspaceID, "task", "workspace_id"); err != nil {
 		return err

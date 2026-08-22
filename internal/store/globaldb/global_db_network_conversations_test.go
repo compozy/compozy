@@ -100,8 +100,9 @@ func TestNetworkConversationConstraints(t *testing.T) {
 		_, err := globalDB.db.ExecContext(
 			ctx,
 			`INSERT INTO network_direct_rooms (
-				workspace_id, channel, direct_id, session_a, session_b, opened_at, last_activity_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+				profile_id, workspace_id, channel, direct_id, session_a, session_b, opened_at, last_activity_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			store.DefaultProfileID,
 			networkConversationTestWorkspaceID,
 			"builders",
 			"direct_fedcba9876543210fedcba9876543210",
@@ -115,8 +116,9 @@ func TestNetworkConversationConstraints(t *testing.T) {
 		_, err = globalDB.db.ExecContext(
 			ctx,
 			`INSERT INTO network_direct_rooms (
-				workspace_id, channel, direct_id, session_a, session_b, opened_at, last_activity_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+				profile_id, workspace_id, channel, direct_id, session_a, session_b, opened_at, last_activity_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			store.DefaultProfileID,
 			networkConversationTestWorkspaceID,
 			"builders",
 			"direct_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -139,8 +141,9 @@ func TestNetworkConversationConstraints(t *testing.T) {
 		_, err := globalDB.db.ExecContext(
 			ctx,
 			`INSERT INTO network_work (
-				work_id, workspace_id, channel, surface, thread_id, opened_by_session_id, state, opened_at, last_activity_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				profile_id, work_id, workspace_id, channel, surface, thread_id, opened_by_session_id, state, opened_at, last_activity_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			store.DefaultProfileID,
 			"work_missing_thread",
 			networkConversationTestWorkspaceID,
 			"builders",
@@ -246,8 +249,9 @@ func insertThread(t *testing.T, db *sql.DB, channel string, threadID string, roo
 	if _, err := db.ExecContext(
 		testutil.Context(t),
 		`INSERT INTO network_threads (
-			workspace_id, channel, thread_id, root_message_id, opened_by_peer_id, opened_at, last_activity_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			profile_id, workspace_id, channel, thread_id, root_message_id, opened_by_peer_id, opened_at, last_activity_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		store.DefaultProfileID,
 		networkConversationTestWorkspaceID,
 		channel,
 		threadID,
@@ -274,8 +278,9 @@ func insertDirectRoom(
 	if _, err := db.ExecContext(
 		testutil.Context(t),
 		`INSERT INTO network_direct_rooms (
-			workspace_id, channel, direct_id, session_a, session_b, opened_at, last_activity_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			profile_id, workspace_id, channel, direct_id, session_a, session_b, opened_at, last_activity_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		store.DefaultProfileID,
 		workspaceID,
 		channel,
 		directID,
@@ -294,8 +299,9 @@ func insertWorkForThread(t *testing.T, db *sql.DB, workID string, channel string
 	if _, err := db.ExecContext(
 		testutil.Context(t),
 		`INSERT INTO network_work (
-			work_id, workspace_id, channel, surface, thread_id, opened_by_session_id, state, opened_at, last_activity_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			profile_id, work_id, workspace_id, channel, surface, thread_id, opened_by_session_id, state, opened_at, last_activity_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		store.DefaultProfileID,
 		workID,
 		networkConversationTestWorkspaceID,
 		channel,
@@ -316,8 +322,9 @@ func insertWorkForDirect(t *testing.T, db *sql.DB, workID string, channel string
 	if _, err := db.ExecContext(
 		testutil.Context(t),
 		`INSERT INTO network_work (
-			work_id, workspace_id, channel, surface, direct_id, opened_by_session_id, state, opened_at, last_activity_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			profile_id, work_id, workspace_id, channel, surface, direct_id, opened_by_session_id, state, opened_at, last_activity_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		store.DefaultProfileID,
 		workID,
 		networkConversationTestWorkspaceID,
 		channel,
@@ -345,6 +352,7 @@ func registerNetworkConversationSessions(t *testing.T, globalDB *GlobalDB, sessi
 	for _, sessionID := range sessionIDs {
 		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
 			ID:            sessionID,
+			ProfileID:     store.DefaultProfileID,
 			AgentName:     "coder",
 			Provider:      "claude",
 			RuntimeStatus: store.SessionRuntimeUnbound,

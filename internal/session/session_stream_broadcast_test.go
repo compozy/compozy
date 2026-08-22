@@ -178,7 +178,7 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 			t.Fatalf("NewManager() error = %v", err)
 		}
 		cleanupTestManager(t, manager)
-		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t), CatalogScope{AllWorkspaces: true})
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t), CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true})
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 		}
@@ -214,13 +214,13 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 			t.Fatalf("NewManager() error = %v", err)
 		}
 		cleanupTestManager(t, manager)
-		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t), CatalogScope{WorkspaceID: "ws-attention"})
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t), CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: "ws-attention"})
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 		}
 		defer cancel()
 
-		session := &Session{ID: "sess-attention", WorkspaceID: "ws-attention"}
+		session := &Session{ID: "sess-attention", ProfileID: store.DefaultProfileID, WorkspaceID: "ws-attention"}
 		for index, eventType := range []string{
 			acp.EventTypePermission,
 			acp.EventTypeClarify,
@@ -230,7 +230,7 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 			manager.publishSessionCatalogWakeForEvent(session, acp.AgentEvent{Type: eventType})
 			select {
 			case event := <-events:
-				want := CatalogEvent{
+				want := CatalogEvent{ProfileID: store.DefaultProfileID,
 					Sequence:    int64(index + 1),
 					Name:        CatalogEventNameChanged,
 					Kind:        CatalogEventUpserted,
@@ -261,25 +261,25 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 			t.Fatalf("NewManager() error = %v", err)
 		}
 		cleanupTestManager(t, manager)
-		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t), CatalogScope{AllWorkspaces: true})
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t), CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true})
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 		}
 
-		manager.publishSessionCatalogEvent(CatalogEvent{
+		manager.publishSessionCatalogEvent(CatalogEvent{ProfileID: store.DefaultProfileID,
 			Kind:        CatalogEventUpserted,
 			WorkspaceID: "ws-beta",
 			SessionID:   "sess-beta",
 		})
-		manager.publishSessionCatalogEvent(CatalogEvent{
+		manager.publishSessionCatalogEvent(CatalogEvent{ProfileID: store.DefaultProfileID,
 			Kind:        CatalogEventUpserted,
 			WorkspaceID: "ws-alpha",
 			SessionID:   "sess-alpha",
 		})
 
 		for _, want := range []CatalogEvent{
-			{Sequence: 1, Kind: CatalogEventUpserted, WorkspaceID: "ws-beta", SessionID: "sess-beta"},
-			{Sequence: 2, Kind: CatalogEventUpserted, WorkspaceID: "ws-alpha", SessionID: "sess-alpha"},
+			{Sequence: 1, Kind: CatalogEventUpserted, ProfileID: store.DefaultProfileID, WorkspaceID: "ws-beta", SessionID: "sess-beta"},
+			{Sequence: 2, Kind: CatalogEventUpserted, ProfileID: store.DefaultProfileID, WorkspaceID: "ws-alpha", SessionID: "sess-alpha"},
 		} {
 			select {
 			case event := <-events:
@@ -307,7 +307,7 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 		cleanupTestManager(t, manager)
 		alphaLive, cancelAlpha, err := manager.SubscribeSessionCatalogEvents(
 			testutil.Context(t),
-			CatalogScope{WorkspaceID: "ws-alpha"},
+			CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: "ws-alpha"},
 		)
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents(alpha) error = %v", err)
@@ -315,7 +315,7 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 		defer cancelAlpha()
 		aggregateLive, cancelAggregate, err := manager.SubscribeSessionCatalogEvents(
 			testutil.Context(t),
-			CatalogScope{AllWorkspaces: true},
+			CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
 		)
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents(aggregate) error = %v", err)
@@ -323,9 +323,9 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 		defer cancelAggregate()
 
 		published := []CatalogEvent{
-			{Kind: CatalogEventUpserted, WorkspaceID: "ws-beta", SessionID: "sess-beta"},
-			{Kind: CatalogEventUpserted, WorkspaceID: "ws-alpha", SessionID: "sess-alpha"},
-			{Kind: CatalogEventUpserted, SessionID: "sess-global"},
+			{Kind: CatalogEventUpserted, ProfileID: store.DefaultProfileID, WorkspaceID: "ws-beta", SessionID: "sess-beta"},
+			{Kind: CatalogEventUpserted, ProfileID: store.DefaultProfileID, WorkspaceID: "ws-alpha", SessionID: "sess-alpha"},
+			{Kind: CatalogEventUpserted, ProfileID: store.DefaultProfileID, SessionID: "sess-global"},
 		}
 		for _, event := range published {
 			manager.publishSessionCatalogEvent(event)
@@ -357,7 +357,7 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 
 		alphaReplay, cancelAlphaReplay, err := manager.SubscribeSessionCatalogEvents(
 			testutil.Context(t),
-			CatalogScope{WorkspaceID: "ws-alpha", Replay: true, ReplayAfter: 1},
+			CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: "ws-alpha", Replay: true, ReplayAfter: 1},
 		)
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents(alpha replay) error = %v", err)
@@ -379,15 +379,15 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 
 		aggregateReplay, cancelAggregateReplay, err := manager.SubscribeSessionCatalogEvents(
 			testutil.Context(t),
-			CatalogScope{AllWorkspaces: true, Replay: true, ReplayAfter: 1},
+			CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, Replay: true, ReplayAfter: 1},
 		)
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents(aggregate replay) error = %v", err)
 		}
 		defer cancelAggregateReplay()
 		for _, want := range []CatalogEvent{
-			{Sequence: 2, WorkspaceID: "ws-alpha", SessionID: "sess-alpha"},
-			{Sequence: 3, WorkspaceID: "", SessionID: "sess-global"},
+			{Sequence: 2, ProfileID: store.DefaultProfileID, WorkspaceID: "ws-alpha", SessionID: "sess-alpha"},
+			{Sequence: 3, ProfileID: store.DefaultProfileID, WorkspaceID: "", SessionID: "sess-global"},
 		} {
 			select {
 			case event := <-aggregateReplay:
@@ -410,8 +410,10 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 		cleanupTestManager(t, manager)
 		for _, scope := range []CatalogScope{
 			{},
-			{WorkspaceID: "ws-alpha", AllWorkspaces: true},
-			{WorkspaceID: "ws-alpha", ReplayAfter: 1},
+			{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}},
+			{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID, AllProfiles: true}, AllWorkspaces: true},
+			{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: "ws-alpha", AllWorkspaces: true},
+			{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: "ws-alpha", ReplayAfter: 1},
 		} {
 			events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t), scope)
 			if !errors.Is(err, ErrCatalogScopeInvalid) {
@@ -433,7 +435,8 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 		at := time.Date(2026, 8, 15, 18, 2, 41, 0, time.UTC)
 		catalog := newRecordingSessionCatalog()
 		if err := catalog.RegisterSession(ctx, store.SessionInfo{
-			ID: "sess-attention", AgentName: "coder", WorkspaceID: "ws-attention",
+			ID: "sess-attention", ProfileID: store.DefaultProfileID,
+			AgentName: "coder", WorkspaceID: "ws-attention",
 			SessionType: string(SessionTypeUser), State: string(StateActive),
 			CreatedAt: at.Add(-time.Hour), UpdatedAt: at.Add(-time.Minute),
 		}); err != nil {
@@ -448,7 +451,7 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 			t.Fatalf("NewManager() error = %v", err)
 		}
 		cleanupTestManager(t, manager)
-		events, cancel, err := manager.SubscribeSessionCatalogEvents(ctx, CatalogScope{WorkspaceID: "ws-attention"})
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(ctx, CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: "ws-attention"})
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 		}
@@ -510,7 +513,7 @@ func assertCatalogEventName(
 		return event
 	case <-time.After(time.Second):
 		t.Fatalf("timed out waiting for catalog event %q", want)
-		return CatalogEvent{}
+		return CatalogEvent{ProfileID: store.DefaultProfileID}
 	}
 }
 

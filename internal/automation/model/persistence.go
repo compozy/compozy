@@ -3,6 +3,8 @@ package model
 import (
 	"errors"
 	"time"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 var (
@@ -36,38 +38,41 @@ var (
 
 // JobListQuery filters persisted automation job listings.
 type JobListQuery struct {
-	Scope       Scope     `json:"scope,omitempty"`
-	WorkspaceID string    `json:"workspace_id,omitempty"`
-	Source      JobSource `json:"source,omitempty"`
-	LoopName    string    `json:"loop_name,omitempty"`
-	Enabled     *bool     `json:"enabled,omitempty"`
-	Search      string    `json:"q,omitempty"`
-	Cursor      string    `json:"cursor,omitempty"`
-	Limit       int       `json:"limit,omitempty"`
+	ReadScope   store.ReadScope `json:"read_scope"`
+	Scope       Scope           `json:"scope,omitempty"`
+	WorkspaceID string          `json:"workspace_id,omitempty"`
+	Source      JobSource       `json:"source,omitempty"`
+	LoopName    string          `json:"loop_name,omitempty"`
+	Enabled     *bool           `json:"enabled,omitempty"`
+	Search      string          `json:"q,omitempty"`
+	Cursor      string          `json:"cursor,omitempty"`
+	Limit       int             `json:"limit,omitempty"`
 }
 
 // TriggerListQuery filters persisted automation trigger listings.
 type TriggerListQuery struct {
-	Scope       Scope     `json:"scope,omitempty"`
-	WorkspaceID string    `json:"workspace_id,omitempty"`
-	Event       string    `json:"event,omitempty"`
-	Source      JobSource `json:"source,omitempty"`
-	LoopName    string    `json:"loop_name,omitempty"`
-	Enabled     *bool     `json:"enabled,omitempty"`
-	Search      string    `json:"q,omitempty"`
-	Cursor      string    `json:"cursor,omitempty"`
-	Limit       int       `json:"limit,omitempty"`
+	ReadScope   store.ReadScope `json:"read_scope"`
+	Scope       Scope           `json:"scope,omitempty"`
+	WorkspaceID string          `json:"workspace_id,omitempty"`
+	Event       string          `json:"event,omitempty"`
+	Source      JobSource       `json:"source,omitempty"`
+	LoopName    string          `json:"loop_name,omitempty"`
+	Enabled     *bool           `json:"enabled,omitempty"`
+	Search      string          `json:"q,omitempty"`
+	Cursor      string          `json:"cursor,omitempty"`
+	Limit       int             `json:"limit,omitempty"`
 }
 
 // RunQuery filters automation run history and fire-limit window lookups.
 type RunQuery struct {
-	JobID     string    `json:"job_id,omitempty"`
-	TriggerID string    `json:"trigger_id,omitempty"`
-	Status    RunStatus `json:"status,omitempty"`
-	ExcludeID string    `json:"exclude_id,omitempty"`
-	Since     time.Time `json:"since"`
-	Until     time.Time `json:"until"`
-	Limit     int       `json:"limit,omitempty"`
+	ReadScope store.ReadScope `json:"read_scope"`
+	JobID     string          `json:"job_id,omitempty"`
+	TriggerID string          `json:"trigger_id,omitempty"`
+	Status    RunStatus       `json:"status,omitempty"`
+	ExcludeID string          `json:"exclude_id,omitempty"`
+	Since     time.Time       `json:"since"`
+	Until     time.Time       `json:"until"`
+	Limit     int             `json:"limit,omitempty"`
 }
 
 // RunReservation atomically evaluates one rolling fire-limit window and, when

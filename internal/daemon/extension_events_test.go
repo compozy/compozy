@@ -254,8 +254,9 @@ type recordingExtensionPaletteCatalog struct {
 }
 
 type viewSessionInvalidation struct {
-	workspace cmdpalette.WorkspaceID
-	extension string
+	profileLens cmdpalette.ProfileLens
+	workspace   cmdpalette.WorkspaceID
+	extension   string
 }
 
 type recordingExtensionViewSessions struct {
@@ -265,19 +266,22 @@ type recordingExtensionViewSessions struct {
 
 func (s *recordingExtensionViewSessions) InvalidateInstance(
 	_ context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspace cmdpalette.WorkspaceID,
 	extension string,
 	_ uint64,
 ) error {
 	s.invalidations = append(s.invalidations, viewSessionInvalidation{
-		workspace: workspace,
-		extension: extension,
+		profileLens: profileLens,
+		workspace:   workspace,
+		extension:   extension,
 	})
 	return nil
 }
 
 func (c *recordingExtensionPaletteCatalog) NotifyCatalogChanged(
 	_ context.Context,
+	_ cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 ) error {
 	c.workspaces = append(c.workspaces, workspaceID)

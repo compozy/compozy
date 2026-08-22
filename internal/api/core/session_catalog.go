@@ -21,6 +21,10 @@ func (h *BaseHandlers) ListSessions(c *gin.Context) {
 	}
 	query, includeHealth, err := h.parseSessionListQuery(c)
 	if err != nil {
+		if isProfileDomainError(err) {
+			respondProfileError(c, err)
+			return
+		}
 		status := http.StatusBadRequest
 		if isSessionListWorkspaceError(err) {
 			status = StatusForWorkspaceError(err)
@@ -63,6 +67,10 @@ func isSessionListWorkspaceError(err error) bool {
 }
 
 func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery, bool, error) {
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		return session.ListQuery{}, false, err
+	}
 	includeHealth, err := parseBoolQuery(c, "include_health")
 	if err != nil {
 		return session.ListQuery{}, false, err
@@ -106,6 +114,7 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 		return session.ListQuery{}, false, err
 	}
 	query := session.ListQuery{
+		ReadScope:       readScope,
 		WorkspaceID:     workspaceID,
 		AllWorkspaces:   allWorkspaces,
 		WorktreeID:      strings.TrimSpace(c.Query("worktree")),

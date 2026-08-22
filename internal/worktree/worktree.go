@@ -50,25 +50,30 @@ const (
 )
 
 type Worktree struct {
-	ID            string
-	ProfileID     string
-	WorkspaceID   string
-	Name          string
-	Branch        string
-	Path          string
-	GitDir        string
-	State         State
-	PendingPhase  PendingPhase
-	Origin        Origin
-	SetupState    SetupState
-	SetupError    string
-	BaseRef       string
-	CreatedBranch bool
-	RunNamespace  string
-	CreatedHead   string
-	RunID         string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID              string
+	ProfileID       string
+	ProfileName     string
+	ProfileColor    string
+	ProfileIcon     string
+	ProfileEmoji    string
+	ProfileArchived bool
+	WorkspaceID     string
+	Name            string
+	Branch          string
+	Path            string
+	GitDir          string
+	State           State
+	PendingPhase    PendingPhase
+	Origin          Origin
+	SetupState      SetupState
+	SetupError      string
+	BaseRef         string
+	CreatedBranch   bool
+	RunNamespace    string
+	CreatedHead     string
+	RunID           string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 type Status struct {

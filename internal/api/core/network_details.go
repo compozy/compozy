@@ -47,6 +47,12 @@ type networkMessageHistorySummary struct {
 }
 
 type networkChannelMetadataFields struct {
+	profileID         string
+	profileName       string
+	profileColor      string
+	profileIcon       string
+	profileEmoji      string
+	profileArchived   bool
 	createdAt         *time.Time
 	purpose           string
 	fanoutPolicy      string
@@ -90,6 +96,11 @@ func (h *BaseHandlers) CreateNetworkChannel(c *gin.Context) {
 	if !ok {
 		return
 	}
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	if !scope.BodyWorkspaceIDMatches(req.WorkspaceID) {
 		h.respondError(
 			c,
@@ -116,7 +127,7 @@ func (h *BaseHandlers) CreateNetworkChannel(c *gin.Context) {
 	}
 
 	entry := store.NetworkChannelEntry{
-		ProfileID:         store.DefaultProfileID,
+		ProfileID:         mutationScope.ProfileID,
 		Channel:           channel,
 		WorkspaceID:       networkWorkspaceID,
 		Purpose:           purpose,
@@ -169,8 +180,15 @@ func (h *BaseHandlers) NetworkChannel(c *gin.Context) {
 	if !ok {
 		return
 	}
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 
-	detail, err := h.networkChannelDetailPayload(c.Request.Context(), service, scope.NetworkWorkspaceID(), channel)
+	detail, err := h.networkChannelDetailPayload(
+		c.Request.Context(), service, readScope, scope.NetworkWorkspaceID(), channel,
+	)
 	if err != nil {
 		if isNetworkChannelNotFound(err) {
 			h.respondError(c, http.StatusNotFound, err)
@@ -204,6 +222,11 @@ func (h *BaseHandlers) UpdateNetworkChannel(c *gin.Context) {
 	if !ok {
 		return
 	}
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	var req contract.UpdateNetworkChannelRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.respondError(
@@ -222,6 +245,11 @@ func (h *BaseHandlers) UpdateNetworkChannel(c *gin.Context) {
 		return
 	}
 	ref := scope.NetworkChannelRef(channel)
+	readScope := store.ReadScope{ProfileID: mutationScope.ProfileID}
+	if _, err := networkStore.GetNetworkChannel(c.Request.Context(), readScope, ref); err != nil {
+		h.respondError(c, StatusForNetworkError(err), err)
+		return
+	}
 	patch := store.NetworkChannelPatch{UpdatedAt: h.nowUTC()}
 	if req.Purpose != nil {
 		purpose := strings.TrimSpace(*req.Purpose)
@@ -243,7 +271,7 @@ func (h *BaseHandlers) UpdateNetworkChannel(c *gin.Context) {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
-	detail, err := h.networkChannelDetailPayload(c.Request.Context(), service, ref.WorkspaceID, ref.Channel)
+	detail, err := h.networkChannelDetailPayload(c.Request.Context(), service, readScope, ref.WorkspaceID, ref.Channel)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return

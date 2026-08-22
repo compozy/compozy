@@ -1931,14 +1931,14 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 		if got, want := len(queued), 1; got != want {
 			t.Fatalf("queued coordinator runs = %d, want %d", got, want)
 		}
-		summaries, err := globalDB.ListEventSummaries(ctx, EventSummaryQuery{Type: watchEventsWakeEnqueuedEvent})
+		summaries, err := globalDB.ListEventSummaries(ctx, EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, Type: watchEventsWakeEnqueuedEvent})
 		if err != nil {
 			t.Fatalf("ListEventSummaries(wake_enqueued) error = %v", err)
 		}
 		if got := len(summaries); got == 0 {
 			t.Fatal("wake_enqueued summaries = 0, want at least one")
 		}
-		coalesced, err := globalDB.ListEventSummaries(ctx, EventSummaryQuery{
+		coalesced, err := globalDB.ListEventSummaries(ctx, EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
 			Type: "loop.watch_events.wake_coalesced",
 		})
 		if err != nil {

@@ -29,6 +29,7 @@ const (
 
 // TaskSummaryQuery filters the current task summary view.
 type TaskSummaryQuery struct {
+	ReadScope            store.ReadScope    `json:"-"`
 	Scope                taskpkg.Scope      `json:"scope,omitempty"`
 	WorkspaceID          string             `json:"workspace_id,omitempty"`
 	WorktreeID           string             `json:"worktree_id,omitempty"`
@@ -41,6 +42,9 @@ type TaskSummaryQuery struct {
 
 // Validate ensures the summary query uses supported filters.
 func (q TaskSummaryQuery) Validate() error {
+	if err := q.ReadScope.Validate(); err != nil {
+		return err
+	}
 	if q.Scope.Normalize() != "" {
 		if err := q.Scope.Validate("task_summary_query.scope"); err != nil {
 			return err
@@ -64,6 +68,7 @@ func (q TaskSummaryQuery) Validate() error {
 
 // TaskMetricsQuery filters audit-derived metrics and current queue metrics.
 type TaskMetricsQuery struct {
+	ReadScope            store.ReadScope    `json:"-"`
 	Since                time.Time          `json:"since"`
 	ParticipationChannel string             `json:"participation_channel,omitempty"`
 	OriginKind           taskpkg.OriginKind `json:"origin_kind,omitempty"`
@@ -71,6 +76,9 @@ type TaskMetricsQuery struct {
 
 // Validate ensures the metrics query uses supported filters.
 func (q TaskMetricsQuery) Validate() error {
+	if err := q.ReadScope.Validate(); err != nil {
+		return err
+	}
 	if q.OriginKind.Normalize() != "" {
 		if err := q.OriginKind.Validate("task_metrics_query.origin_kind"); err != nil {
 			return err
@@ -81,6 +89,7 @@ func (q TaskMetricsQuery) Validate() error {
 
 // TaskDashboardQuery filters the observer-backed task dashboard read model.
 type TaskDashboardQuery struct {
+	ReadScope            store.ReadScope    `json:"-"`
 	Scope                taskpkg.Scope      `json:"scope,omitempty"`
 	WorkspaceID          string             `json:"workspace_id,omitempty"`
 	WorktreeID           string             `json:"worktree_id,omitempty"`
@@ -107,6 +116,7 @@ func (q TaskDashboardQuery) Validate() error {
 
 func (q TaskDashboardQuery) summaryQuery() TaskSummaryQuery {
 	return TaskSummaryQuery{
+		ReadScope:            q.ReadScope,
 		Scope:                q.Scope,
 		WorkspaceID:          q.WorkspaceID,
 		WorktreeID:           q.WorktreeID,
@@ -119,6 +129,7 @@ func (q TaskDashboardQuery) summaryQuery() TaskSummaryQuery {
 
 func (q TaskDashboardQuery) metricsQuery(since time.Time) TaskMetricsQuery {
 	return TaskMetricsQuery{
+		ReadScope:            q.ReadScope,
 		Since:                since,
 		ParticipationChannel: q.ParticipationChannel,
 		OriginKind:           q.OriginKind,

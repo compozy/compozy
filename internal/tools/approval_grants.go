@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 var (
@@ -138,9 +140,14 @@ func (k ApprovalGrantKey) Validate() error {
 type ApprovalGrant struct {
 	ID string `json:"id"`
 	ApprovalGrantKey
-	Decision   ApprovalGrantDecision `json:"decision"`
-	CreatedAt  time.Time             `json:"created_at"`
-	LastUsedAt time.Time             `json:"last_used_at"`
+	ProfileName     string                `json:"profile_name,omitempty"`
+	ProfileColor    string                `json:"profile_color,omitempty"`
+	ProfileIcon     string                `json:"profile_icon,omitempty"`
+	ProfileEmoji    string                `json:"profile_emoji,omitempty"`
+	ProfileArchived bool                  `json:"profile_archived,omitempty"`
+	Decision        ApprovalGrantDecision `json:"decision"`
+	CreatedAt       time.Time             `json:"created_at"`
+	LastUsedAt      time.Time             `json:"last_used_at"`
 }
 
 // Normalize returns a canonical durable grant.
@@ -189,6 +196,6 @@ func (g ApprovalGrant) Validate() error {
 type ApprovalGrantStore interface {
 	LookupApprovalGrant(ctx context.Context, key ApprovalGrantKey) (ApprovalGrant, bool, error)
 	PutApprovalGrant(ctx context.Context, grant ApprovalGrant) (ApprovalGrant, error)
-	ListApprovalGrants(ctx context.Context, workspaceID string) ([]ApprovalGrant, error)
-	RevokeApprovalGrant(ctx context.Context, workspaceID, id string) error
+	ListApprovalGrants(ctx context.Context, readScope store.ReadScope, workspaceID string) ([]ApprovalGrant, error)
+	RevokeApprovalGrant(ctx context.Context, profileID, workspaceID, id string) error
 }

@@ -12,6 +12,7 @@ import (
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/notifications"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -203,6 +204,7 @@ func TestTaskCreateRemainsOperatorExplicitWithAgentEnv(t *testing.T) {
 			getSessionFn: func(context.Context, string) (SessionRecord, error) {
 				return SessionRecord{
 					ID:          "agent-session",
+					ProfileID:   store.DefaultProfileID,
 					AgentName:   "coder",
 					WorkspaceID: "alpha",
 					State:       session.StateActive,
@@ -2954,7 +2956,7 @@ func TestTaskCommandsSupportDetailAndToonOutput(t *testing.T) {
 		}
 		if !strings.Contains(
 			toonOut,
-			"tasks[1]{id,identifier,scope,workspace_id,parent_task_id,status,owner,participation_channel,title}:",
+			"tasks[1]{id,profile_name,identifier,scope,workspace_id,parent_task_id,status,owner,participation_channel,title}:",
 		) || !strings.Contains(toonOut, "builders") {
 			t.Fatalf("task list toon output = %q, want tasks TOON array with builders", toonOut)
 		}
@@ -2976,7 +2978,7 @@ func TestTaskBundlesRenderTaskRunAndDetailSections(t *testing.T) {
 			!strings.Contains(detailToon, "task_dependencies[1]{task_id,depends_on_task_id,kind,created_at}:") ||
 			!strings.Contains(
 				detailToon,
-				"task_runs[1]{id,status,attempt,session_id,claimed_by,participation_channel,queued_at,started_at,ended_at,error}:",
+				"task_runs[1]{id,profile_name,status,attempt,session_id,claimed_by,participation_channel,queued_at,started_at,ended_at,error}:",
 			) ||
 			!strings.Contains(detailToon, "task_events[1]{id,event_type,run_id,actor,origin,timestamp}:") ||
 			!strings.Contains(detailToon, "builders") {
@@ -3045,7 +3047,7 @@ func TestTaskBundlesRenderTaskRunAndDetailSections(t *testing.T) {
 		}
 		if !strings.Contains(
 			runToon,
-			"task_runs[1]{id,status,attempt,session_id,claimed_by,participation_channel,queued_at,started_at,ended_at,error}:",
+			"task_runs[1]{id,profile_name,status,attempt,session_id,claimed_by,participation_channel,queued_at,started_at,ended_at,error}:",
 		) || !strings.Contains(runToon, "completed") || !strings.Contains(runToon, "builders") {
 			t.Fatalf("task run toon output = %q, want completed task run TOON array with builders", runToon)
 		}
@@ -3326,6 +3328,7 @@ func timePointer(value time.Time) *time.Time {
 func sampleTaskRunRecord(status taskpkg.RunStatus) TaskRunRecord {
 	record := TaskRunRecord{
 		ID:                           "run-1",
+		ProfileName:                  "default",
 		TaskID:                       "task-1",
 		Status:                       status,
 		Origin:                       taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "tasks.run.start"},

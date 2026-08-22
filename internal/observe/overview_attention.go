@@ -16,6 +16,7 @@ func (o *Observer) overviewAttention(ctx context.Context, query OverviewQuery) (
 	}
 
 	page, err := o.QueryTaskInbox(ctx, TaskInboxQuery{
+		ReadScope:   query.ReadScope,
 		Scope:       query.TaskScope,
 		WorkspaceID: query.WorkspaceID,
 		Limit:       overviewAttentionScan,
@@ -33,6 +34,7 @@ func (o *Observer) overviewAttention(ctx context.Context, query OverviewQuery) (
 	var needsAttention []taskpkg.Summary
 	if ownerKind != "" && ownerRef != "" {
 		needsAttention, err = o.registry.ListTasks(ctx, taskpkg.Query{
+			ReadScope:   query.ReadScope,
 			Scope:       taskScope,
 			WorkspaceID: query.WorkspaceID,
 			Status:      taskpkg.TaskStatusNeedsAttention,

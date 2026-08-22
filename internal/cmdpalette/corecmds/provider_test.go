@@ -166,7 +166,10 @@ func mustCommands(t *testing.T) []cmdpalette.Descriptor {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	commands, err := provider.ProvideCommands(t.Context(), "ws-test")
+	commands, err := provider.ProvideCommands(t.Context(), cmdpalette.CatalogRequest{
+		ProfileLens: cmdpalette.ScopedProfileLens(cmdpalette.DefaultProfileLensID, "default"),
+		WorkspaceID: "ws-test",
+	})
 	if err != nil {
 		t.Fatalf("ProvideCommands() error = %v", err)
 	}

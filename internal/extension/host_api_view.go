@@ -15,6 +15,7 @@ import (
 type ViewPatchPublisher interface {
 	PublishViewPatch(
 		context.Context,
+		cmdpalette.ProfileLens,
 		cmdpalette.WorkspaceID,
 		string,
 		cmdpalette.ViewPatch,
@@ -95,8 +96,14 @@ func (h *HostAPIHandler) publishDeclarativeViewPatch(
 	if !bound || strings.TrimSpace(workspaceID) == "" {
 		return nil, errors.New("extension: declarative view patch requires a workspace-bound session")
 	}
+	profileID, err := hostAPITaskProfileID(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if err := h.viewPatches.PublishViewPatch(
-		ctx, cmdpalette.WorkspaceID(workspaceID), extensionName, *frame.Patch,
+		ctx,
+		cmdpalette.ScopedProfileLens(cmdpalette.ProfileLensID(profileID), ""),
+		cmdpalette.WorkspaceID(workspaceID), extensionName, *frame.Patch,
 	); err != nil {
 		return nil, fmt.Errorf("extension: publish command palette view patch: %w", err)
 	}

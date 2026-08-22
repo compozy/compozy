@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
@@ -24,6 +25,7 @@ func TestResolveValidatesAgentCallerIdentity(t *testing.T) {
 	now := time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC)
 	active := SessionSnapshot{
 		ID:            "sess-1",
+		ProfileID:     store.DefaultProfileID,
 		Name:          "worker",
 		AgentName:     "coder",
 		Provider:      "test-provider",
@@ -188,6 +190,7 @@ func TestResolveAuthorizesWorkspaceAccess(t *testing.T) {
 
 	snapshot := SessionSnapshot{
 		ID:          "sess-1",
+		ProfileID:   store.DefaultProfileID,
 		AgentName:   "coder",
 		WorkspaceID: "ws-home",
 		State:       session.StateActive,
@@ -385,6 +388,7 @@ func TestResolveRejectsUnavailableAndMalformedLookupResults(t *testing.T) {
 			lookup: func(_ context.Context, _ string) (SessionSnapshot, error) {
 				return SessionSnapshot{
 					ID:        "sess-1",
+					ProfileID: store.DefaultProfileID,
 					AgentName: "coder",
 					State:     session.StateActive,
 				}, nil
@@ -401,6 +405,7 @@ func TestResolveRejectsUnavailableAndMalformedLookupResults(t *testing.T) {
 			ctx:  context.Background(),
 			lookup: func(_ context.Context, _ string) (SessionSnapshot, error) {
 				return SessionSnapshot{
+					ProfileID: store.DefaultProfileID,
 					AgentName: "coder",
 					State:     session.StateActive,
 				}, nil
@@ -413,6 +418,7 @@ func TestResolveRejectsUnavailableAndMalformedLookupResults(t *testing.T) {
 			lookup: func(_ context.Context, _ string) (SessionSnapshot, error) {
 				return SessionSnapshot{
 					ID:        "sess-2",
+					ProfileID: store.DefaultProfileID,
 					AgentName: "coder",
 					State:     session.StateActive,
 				}, nil
@@ -464,6 +470,7 @@ func TestResolveDefaultsAgentSessionOrigin(t *testing.T) {
 			Lookup: func(_ context.Context, _ string) (SessionSnapshot, error) {
 				return SessionSnapshot{
 					ID:          " sess-1 ",
+					ProfileID:   store.DefaultProfileID,
 					AgentName:   " coder ",
 					WorkspaceID: " ws-1 ",
 					State:       session.StateActive,
@@ -513,6 +520,7 @@ func TestSessionSnapshotFromInfo(t *testing.T) {
 		}
 		info := &session.Info{
 			ID:                   "sess-1",
+			ProfileID:            store.DefaultProfileID,
 			Name:                 "worker",
 			AgentName:            "coder",
 			Provider:             "provider",

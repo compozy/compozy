@@ -39,6 +39,7 @@ func newNetworkWorkLookupCommand(deps commandDeps, workspaceRef *string) *cobra.
 	}
 	cmd.Flags().StringVar(&workID, "work", "", "Network work id")
 	mustMarkFlagRequired(cmd, "work")
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 

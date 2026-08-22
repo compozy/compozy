@@ -1166,6 +1166,7 @@ func joinManagerSendParticipantWithCapabilities(
 	t.Helper()
 	spec := managerSendLiveSpec()
 	if err := manager.JoinChannel(testutil.Context(t), session.NetworkPeerJoin{
+		ProfileID:            store.DefaultProfileID,
 		SessionID:            sessionID,
 		PeerID:               peerID,
 		WorkspaceID:          testWorkspaceID,

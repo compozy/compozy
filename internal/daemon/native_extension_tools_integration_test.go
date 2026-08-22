@@ -721,7 +721,7 @@ func assertNativeExtensionLifecycleEvents(
 		eventspkg.ExtensionDevUnlinked,
 		eventspkg.ExtensionReloadCompleted,
 	} {
-		events, err := storeReader.ListEventSummaries(t.Context(), store.EventSummaryQuery{Type: eventType})
+		events, err := storeReader.ListEventSummaries(t.Context(), store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, Type: eventType})
 		if err != nil {
 			t.Fatalf("ListEventSummaries(%s) error = %v", eventType, err)
 		}
@@ -738,7 +738,7 @@ func assertNativeExtensionLifecycleEvents(
 	}
 	failedReloads, err := storeReader.ListEventSummaries(
 		t.Context(),
-		store.EventSummaryQuery{Type: eventspkg.ExtensionReloadFailed},
+		store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, Type: eventspkg.ExtensionReloadFailed},
 	)
 	if err != nil {
 		t.Fatalf("ListEventSummaries(%s) error = %v", eventspkg.ExtensionReloadFailed, err)
@@ -751,7 +751,7 @@ func assertNativeExtensionLifecycleEvents(
 		)
 	}
 	for _, eventType := range []string{eventspkg.ExtensionPublishCompleted, eventspkg.ExtensionPublishFailed} {
-		events, err := storeReader.ListEventSummaries(t.Context(), store.EventSummaryQuery{Type: eventType})
+		events, err := storeReader.ListEventSummaries(t.Context(), store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, Type: eventType})
 		if err != nil {
 			t.Fatalf("ListEventSummaries(%s) error = %v", eventType, err)
 		}

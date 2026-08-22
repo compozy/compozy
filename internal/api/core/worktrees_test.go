@@ -29,6 +29,20 @@ type worktreeServiceStub struct {
 	catalogEvents <-chan worktree.CatalogEvent
 }
 
+func TestWorktreeOwnerProjection(t *testing.T) {
+	t.Parallel()
+
+	payload := WorktreePayloadFromInspection(worktree.Inspection{Worktree: worktree.Worktree{
+		ID: "wt-profile-owner", ProfileID: "profile-owner", ProfileName: "Platform",
+		ProfileColor: "#5FBF85", ProfileIcon: "circle", ProfileEmoji: "🛠️", ProfileArchived: true,
+	}})
+	if payload.ProfileID != "profile-owner" || payload.ProfileName != "Platform" ||
+		payload.ProfileColor != "#5FBF85" || payload.ProfileIcon != "circle" ||
+		payload.ProfileEmoji != "🛠️" || !payload.ProfileArchived {
+		t.Fatalf("WorktreePayloadFromInspection() owner = %#v, want complete owner label", payload)
+	}
+}
+
 func (s worktreeServiceStub) Create(
 	ctx context.Context,
 	workspaceID string,
@@ -114,7 +128,7 @@ func (s worktreeServiceStub) CancelCreate(context.Context, string, string) error
 	return fmt.Errorf("unexpected CancelCreate call")
 }
 
-func (s worktreeServiceStub) Adopt(context.Context, string, string) (*worktree.Worktree, error) {
+func (s worktreeServiceStub) Adopt(context.Context, string, string, string) (*worktree.Worktree, error) {
 	return nil, fmt.Errorf("unexpected Adopt call")
 }
 

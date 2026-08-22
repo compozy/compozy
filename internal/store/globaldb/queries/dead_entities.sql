@@ -6,20 +6,23 @@ INSERT INTO dead_entities (
   sqlc.arg(profile_id),
   sqlc.arg(workspace_id), sqlc.arg(kind), sqlc.arg(entity_id), sqlc.arg(reason), sqlc.arg(marked_at)
 )
-ON CONFLICT(workspace_id, kind, entity_id) DO UPDATE SET
+ON CONFLICT(profile_id, workspace_id, kind, entity_id) DO UPDATE SET
   reason = excluded.reason,
-  marked_at = excluded.marked_at;
+  marked_at = excluded.marked_at
+WHERE dead_entities.profile_id = excluded.profile_id;
 
 -- name: GetDeadEntity :one
 SELECT profile_id, workspace_id, kind, entity_id, reason, marked_at
 FROM dead_entities
 WHERE workspace_id = sqlc.arg(workspace_id)
+	AND profile_id = sqlc.arg(profile_id)
   AND kind = sqlc.arg(kind)
   AND entity_id = sqlc.arg(entity_id);
 
 -- name: DeleteDeadEntity :execrows
 DELETE FROM dead_entities
 WHERE workspace_id = sqlc.arg(workspace_id)
+	AND profile_id = sqlc.arg(profile_id)
   AND kind = sqlc.arg(kind)
   AND entity_id = sqlc.arg(entity_id);
 

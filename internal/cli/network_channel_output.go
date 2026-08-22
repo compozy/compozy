@@ -125,17 +125,19 @@ func networkChannelsBundle(channels []NetworkChannelRecord) outputBundle {
 		channels,
 		channels,
 		"Network Channels",
-		[]string{networkChannelValue, "Peers"},
+		[]string{sessionProfileValue, networkChannelValue, "Peers"},
 		"network_channels",
-		[]string{networkChannelKey, "peer_count"},
+		[]string{"profile_name", networkChannelKey, "peer_count"},
 		func(channel NetworkChannelRecord) []string {
 			return []string{
+				stringOrDash(channel.ProfileName),
 				stringOrDash(channel.Channel),
 				strconv.Itoa(channel.PeerCount),
 			}
 		},
 		func(channel NetworkChannelRecord) []string {
 			return []string{
+				channel.ProfileName,
 				channel.Channel,
 				strconv.Itoa(channel.PeerCount),
 			}
@@ -145,6 +147,7 @@ func networkChannelsBundle(channels []NetworkChannelRecord) outputBundle {
 
 func networkChannelBundle(channel NetworkChannelDetailRecord) outputBundle {
 	fields := []string{
+		"profile_name",
 		networkChannelKey,
 		automationWorkspaceIDKey,
 		"purpose",
@@ -154,6 +157,7 @@ func networkChannelBundle(channel NetworkChannelDetailRecord) outputBundle {
 		networkMessageCountKey,
 	}
 	values := []string{
+		channel.ProfileName,
 		channel.Channel,
 		channel.WorkspaceID,
 		channel.Purpose,
@@ -167,6 +171,7 @@ func networkChannelBundle(channel NetworkChannelDetailRecord) outputBundle {
 		human: func() (string, error) {
 			return renderHumanBlocks(
 				renderHumanSection("Network Channel", []keyValue{
+					{Label: sessionProfileValue, Value: stringOrDash(channel.ProfileName)},
 					{Label: networkChannelValue, Value: stringOrDash(channel.Channel)},
 					{Label: networkWorkspaceValue, Value: stringOrDash(channel.WorkspaceID)},
 					{Label: "Purpose", Value: stringOrDash(channel.Purpose)},
@@ -188,11 +193,12 @@ func networkSubscriptionsBundle(subscriptions []NetworkSubscriptionRecord) outpu
 		contract.NetworkSubscriptionsResponse{Subscriptions: subscriptions},
 		subscriptions,
 		"Network Subscriptions",
-		[]string{networkChannelValue, taskThreadValue, sessionIDLabel, networkModeValue},
+		[]string{sessionProfileValue, networkChannelValue, taskThreadValue, sessionIDLabel, networkModeValue},
 		"network_subscriptions",
-		[]string{networkChannelKey, networkThreadIDKey, taskSessionIDKey, networkModeKey},
+		[]string{"profile_name", networkChannelKey, networkThreadIDKey, taskSessionIDKey, networkModeKey},
 		func(subscription NetworkSubscriptionRecord) []string {
 			return []string{
+				stringOrDash(subscription.ProfileName),
 				stringOrDash(subscription.Channel),
 				stringOrDash(subscription.ThreadID),
 				stringOrDash(subscription.SessionID),
@@ -201,6 +207,7 @@ func networkSubscriptionsBundle(subscriptions []NetworkSubscriptionRecord) outpu
 		},
 		func(subscription NetworkSubscriptionRecord) []string {
 			return []string{
+				subscription.ProfileName,
 				subscription.Channel,
 				subscription.ThreadID,
 				subscription.SessionID,
@@ -215,6 +222,7 @@ func networkSubscriptionBundle(subscription NetworkSubscriptionRecord) outputBun
 		jsonValue: contract.NetworkSubscriptionResponse{Subscription: subscription},
 		human: func() (string, error) {
 			return renderHumanSection("Network Subscription", []keyValue{
+				{Label: sessionProfileValue, Value: stringOrDash(subscription.ProfileName)},
 				{Label: networkChannelValue, Value: stringOrDash(subscription.Channel)},
 				{Label: taskThreadValue, Value: stringOrDash(subscription.ThreadID)},
 				{Label: sessionIDLabel, Value: stringOrDash(subscription.SessionID)},
@@ -224,8 +232,9 @@ func networkSubscriptionBundle(subscription NetworkSubscriptionRecord) outputBun
 		toon: func() (string, error) {
 			return renderToonObject(
 				"network_subscription",
-				[]string{networkChannelKey, networkThreadIDKey, taskSessionIDKey, networkModeKey},
+				[]string{"profile_name", networkChannelKey, networkThreadIDKey, taskSessionIDKey, networkModeKey},
 				[]string{
+					subscription.ProfileName,
 					subscription.Channel,
 					subscription.ThreadID,
 					subscription.SessionID,

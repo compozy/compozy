@@ -166,6 +166,7 @@ func TestRegistryResolveDeliveryTargetUsesServiceSeam(t *testing.T) {
 
 		registry, _ := newRegistryTestHarness(t)
 		instance := createTestBridgeInstance(t, registry, bridgepkg.CreateInstanceRequest{
+			ProfileID:        store.DefaultProfileID,
 			ID:               "brg-target-service",
 			Scope:            bridgepkg.ScopeGlobal,
 			Platform:         "telegram",

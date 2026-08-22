@@ -135,7 +135,7 @@ func (o *Observer) aggregateObservedUsage(
 			UpdatedAt:    usageTimestamp,
 		},
 		store.TokenUsageDailyUpdate{
-			ProfileID:    store.DefaultProfileID,
+			ProfileID:    snapshot.profileID,
 			Day:          store.LocalDay(usageTimestamp),
 			WorkspaceID:  snapshot.workspaceID,
 			AgentName:    snapshot.agentName,

@@ -32,6 +32,7 @@ var _ cmdpalette.PersonalizationPolicy = (*cmdPaletteBindingsResolver)(nil)
 
 func (r *cmdPaletteBindingsResolver) PersonalizationEnabled(
 	ctx context.Context,
+	_ cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 ) (bool, error) {
 	paletteConfig, err := r.resolvePaletteConfig(ctx, workspaceID)
@@ -43,6 +44,7 @@ func (r *cmdPaletteBindingsResolver) PersonalizationEnabled(
 
 func (r *cmdPaletteBindingsResolver) Bindings(
 	ctx context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 ) (map[cmdpalette.CommandID][]string, map[cmdpalette.CommandID]string, error) {
 	if r == nil || r.workspaces == nil || r.catalog == nil {
@@ -64,11 +66,11 @@ func (r *cmdPaletteBindingsResolver) Bindings(
 	if catalog == nil {
 		return nil, nil, errors.New("daemon: command palette catalog is unavailable")
 	}
-	commandIDs, err := catalog.BindableIDs(ctx, workspaceID)
+	commandIDs, err := catalog.BindableIDs(ctx, profileLens, workspaceID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("daemon: list bindable command ids: %w", err)
 	}
-	defaults, err := r.extensionDefaults(ctx, catalog, workspaceID)
+	defaults, err := r.extensionDefaults(ctx, catalog, profileLens, workspaceID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -79,6 +81,7 @@ func (r *cmdPaletteBindingsResolver) Bindings(
 
 func (r *cmdPaletteBindingsResolver) BindingsForCatalogSnapshot(
 	ctx context.Context,
+	_ cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	commandIDs []cmdpalette.CommandID,
 	defaults []cmdpalette.ExtensionDefaultShortcut,
@@ -106,6 +109,7 @@ func (r *cmdPaletteBindingsResolver) BindingsForCatalogSnapshot(
 
 func (r *cmdPaletteBindingsResolver) GlobalBindingsForCatalogSnapshot(
 	ctx context.Context,
+	_ cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	commandIDs []cmdpalette.CommandID,
 ) (map[cmdpalette.CommandID]string, error) {
@@ -182,13 +186,14 @@ func (r *cmdPaletteBindingsResolver) resolveBindingsFromSnapshot(
 func (r *cmdPaletteBindingsResolver) extensionDefaults(
 	ctx context.Context,
 	catalog cmdpalette.BindableCatalog,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 ) ([]windowmanager.ExtensionDefaultShortcut, error) {
 	provider, ok := catalog.(cmdpalette.ExtensionDefaultCatalog)
 	if !ok {
 		return nil, nil
 	}
-	defaults, err := provider.ExtensionDefaults(ctx, workspaceID)
+	defaults, err := provider.ExtensionDefaults(ctx, profileLens, workspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: list extension shortcut defaults: %w", err)
 	}

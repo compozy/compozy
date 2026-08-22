@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -39,14 +40,15 @@ func TestGlobalDBBridgeTaskSubscriptionStore(t *testing.T) {
 			t.Fatalf("PutBridgeTaskSubscription() error = %v", err)
 		}
 
-		loaded, err := globalDB.GetBridgeTaskSubscription(ctx, subscription.SubscriptionID)
+		loaded, err := globalDB.GetBridgeTaskSubscription(ctx, store.ReadScope{AllProfiles: true}, subscription.SubscriptionID)
 		if err != nil {
 			t.Fatalf("GetBridgeTaskSubscription() error = %v", err)
 		}
 		assertBridgeTaskSubscriptionEqual(t, loaded, subscription)
 
 		byTask, err := globalDB.ListBridgeTaskSubscriptions(ctx, bridges.BridgeTaskSubscriptionQuery{
-			TaskID: taskRecord.ID,
+			ReadScope: store.ReadScope{AllProfiles: true},
+			TaskID:    taskRecord.ID,
 		})
 		if err != nil {
 			t.Fatalf("ListBridgeTaskSubscriptions(by task) error = %v", err)
@@ -56,6 +58,7 @@ func TestGlobalDBBridgeTaskSubscriptionStore(t *testing.T) {
 		}
 
 		byBridge, err := globalDB.ListBridgeTaskSubscriptions(ctx, bridges.BridgeTaskSubscriptionQuery{
+			ReadScope:        store.ReadScope{AllProfiles: true},
 			BridgeInstanceID: instance.ID,
 			Scope:            bridges.ScopeGlobal,
 			Limit:            1,
@@ -74,7 +77,7 @@ func TestGlobalDBBridgeTaskSubscriptionStore(t *testing.T) {
 		if err := globalDB.PutBridgeTaskSubscription(ctx, updated); err != nil {
 			t.Fatalf("PutBridgeTaskSubscription(update) error = %v", err)
 		}
-		loaded, err = globalDB.GetBridgeTaskSubscription(ctx, subscription.SubscriptionID)
+		loaded, err = globalDB.GetBridgeTaskSubscription(ctx, store.ReadScope{AllProfiles: true}, subscription.SubscriptionID)
 		if err != nil {
 			t.Fatalf("GetBridgeTaskSubscription(updated) error = %v", err)
 		}
@@ -83,7 +86,7 @@ func TestGlobalDBBridgeTaskSubscriptionStore(t *testing.T) {
 		if err := globalDB.DeleteBridgeTaskSubscription(ctx, subscription.SubscriptionID); err != nil {
 			t.Fatalf("DeleteBridgeTaskSubscription() error = %v", err)
 		}
-		if _, err := globalDB.GetBridgeTaskSubscription(ctx, subscription.SubscriptionID); !errors.Is(
+		if _, err := globalDB.GetBridgeTaskSubscription(ctx, store.ReadScope{AllProfiles: true}, subscription.SubscriptionID); !errors.Is(
 			err,
 			bridges.ErrBridgeTaskSubscriptionNotFound,
 		) {
@@ -132,7 +135,7 @@ func TestGlobalDBBridgeTaskSubscriptionStore(t *testing.T) {
 		if err := globalDB.DeleteBridgeTaskSubscription(ctx, subscription.SubscriptionID); err != nil {
 			t.Fatalf("DeleteBridgeTaskSubscription() error = %v", err)
 		}
-		if _, err := globalDB.GetBridgeTaskSubscription(ctx, subscription.SubscriptionID); !errors.Is(
+		if _, err := globalDB.GetBridgeTaskSubscription(ctx, store.ReadScope{AllProfiles: true}, subscription.SubscriptionID); !errors.Is(
 			err,
 			bridges.ErrBridgeTaskSubscriptionNotFound,
 		) {
@@ -140,7 +143,9 @@ func TestGlobalDBBridgeTaskSubscriptionStore(t *testing.T) {
 		}
 		active, err := globalDB.ListBridgeTaskSubscriptions(
 			ctx,
-			bridges.BridgeTaskSubscriptionQuery{TaskID: taskRecord.ID},
+			bridges.BridgeTaskSubscriptionQuery{
+				ReadScope: store.ReadScope{AllProfiles: true}, TaskID: taskRecord.ID,
+			},
 		)
 		if err != nil {
 			t.Fatalf("ListBridgeTaskSubscriptions(after delete) error = %v", err)
@@ -197,13 +202,14 @@ func TestGlobalDBBridgeTaskSubscriptionStore(t *testing.T) {
 		if err := globalDB.PutBridgeTaskSubscription(ctx, subscription); err != nil {
 			t.Fatalf("PutBridgeTaskSubscription() error = %v", err)
 		}
-		loaded, err := globalDB.GetBridgeTaskSubscription(ctx, subscription.SubscriptionID)
+		loaded, err := globalDB.GetBridgeTaskSubscription(ctx, store.ReadScope{AllProfiles: true}, subscription.SubscriptionID)
 		if err != nil {
 			t.Fatalf("GetBridgeTaskSubscription() error = %v", err)
 		}
 		assertBridgeTaskSubscriptionEqual(t, loaded, subscription)
 
 		listed, err := globalDB.ListBridgeTaskSubscriptions(ctx, bridges.BridgeTaskSubscriptionQuery{
+			ReadScope:        store.ReadScope{AllProfiles: true},
 			TaskID:           taskRecord.ID,
 			BridgeInstanceID: instance.ID,
 			Scope:            bridges.ScopeGlobal,
@@ -222,6 +228,7 @@ func bridgeInstanceForSubscriptionTest(id string) bridges.BridgeInstance {
 	now := bridgeTaskSubscriptionTestTime()
 	return bridges.BridgeInstance{
 		ID:            id,
+		ProfileID:     store.DefaultProfileID,
 		Scope:         bridges.ScopeGlobal,
 		Platform:      "telegram",
 		ExtensionName: "telegram-extension",
@@ -244,6 +251,7 @@ func bridgeTaskSubscriptionForGlobalDBTest(
 	now := bridgeTaskSubscriptionTestTime()
 	return bridges.BridgeTaskSubscription{
 		SubscriptionID:   subscriptionID,
+		ProfileID:        store.DefaultProfileID,
 		TaskID:           taskID,
 		BridgeInstanceID: bridgeInstanceID,
 		Scope:            bridges.ScopeGlobal,

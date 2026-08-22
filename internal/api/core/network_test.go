@@ -1230,6 +1230,7 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 	}
 	networkChannels := map[string]store.NetworkChannelEntry{
 		networkChannelKey("ws-workspace", "builders"): {
+			ProfileID:    store.DefaultProfileID,
 			WorkspaceID:  "ws-workspace",
 			Channel:      "builders",
 			Purpose:      "Build coordination",
@@ -1286,8 +1287,16 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 			networkChannels[key] = patch.Apply(entry)
 			return nil
 		},
-		ListNetworkChannelsFn: func(context.Context, store.NetworkChannelQuery) ([]store.NetworkChannelEntry, error) {
-			return nil, nil
+		ListNetworkChannelsFn: func(_ context.Context, query store.NetworkChannelQuery) ([]store.NetworkChannelEntry, error) {
+			networkStateMu.Lock()
+			defer networkStateMu.Unlock()
+			entries := make([]store.NetworkChannelEntry, 0, len(networkChannels))
+			for _, entry := range networkChannels {
+				if entry.WorkspaceID == query.WorkspaceID && query.ReadScope.Matches(entry.ProfileID) {
+					entries = append(entries, entry)
+				}
+			}
+			return entries, nil
 		},
 		ListNetworkMessagesFn: func(context.Context, store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
 			return nil, nil
@@ -3347,7 +3356,11 @@ func TestBaseHandlersNetworkChannelsHideDirectedTrafficFromPublicTimeline(t *tes
 			}
 			fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
 				ListNetworkChannelsFn: func(context.Context, store.NetworkChannelQuery) ([]store.NetworkChannelEntry, error) {
-					return nil, nil
+					return []store.NetworkChannelEntry{{
+						ProfileID:   store.DefaultProfileID,
+						WorkspaceID: "ws-workspace",
+						Channel:     channel,
+					}}, nil
 				},
 				ListNetworkMessagesFn: func(_ context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
 					switch {

@@ -27,7 +27,7 @@ type CreateBridgeRequest struct {
 
 // ToCreateInstanceRequest validates and converts the transport payload into the
 // daemon-owned bridge create request.
-func (r CreateBridgeRequest) ToCreateInstanceRequest() (bridgepkg.CreateInstanceRequest, error) {
+func (r CreateBridgeRequest) ToCreateInstanceRequest(profileID string) (bridgepkg.CreateInstanceRequest, error) {
 	providerConfig, err := normalizeBridgeJSONPayload(
 		json.RawMessage(r.ProviderConfig),
 		"bridge provider config",
@@ -42,6 +42,7 @@ func (r CreateBridgeRequest) ToCreateInstanceRequest() (bridgepkg.CreateInstance
 	}
 
 	req := bridgepkg.CreateInstanceRequest{
+		ProfileID:            strings.TrimSpace(profileID),
 		Scope:                r.Scope,
 		WorkspaceID:          strings.TrimSpace(r.WorkspaceID),
 		Platform:             strings.TrimSpace(r.Platform),
@@ -348,6 +349,12 @@ type BridgeProviderPayload struct {
 // BridgePayload captures the shared bridge-management contract returned by HTTP/UDS.
 type BridgePayload struct {
 	ID                   string                         `json:"id"`
+	ProfileID            string                         `json:"profile_id"`
+	ProfileName          string                         `json:"profile_name"`
+	ProfileColor         string                         `json:"profile_color,omitempty"`
+	ProfileIcon          string                         `json:"profile_icon,omitempty"`
+	ProfileEmoji         string                         `json:"profile_emoji,omitempty"`
+	ProfileArchived      bool                           `json:"profile_archived,omitempty"`
 	Scope                bridgepkg.Scope                `json:"scope"`
 	WorkspaceID          string                         `json:"workspace_id,omitempty"`
 	Platform             string                         `json:"platform"`

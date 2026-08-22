@@ -70,7 +70,12 @@ func (h *BaseHandlers) ForkSessionToWorktree(c *gin.Context) {
 		return
 	}
 
-	worktreeTarget, err := h.resolveWorktreeForkTarget(c.Request.Context(), scope.RegistryID, req)
+	worktreeTarget, err := h.resolveWorktreeForkTarget(
+		c.Request.Context(),
+		origin.ProfileID,
+		scope.RegistryID,
+		req,
+	)
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
@@ -87,6 +92,7 @@ func (h *BaseHandlers) ForkSessionToWorktree(c *gin.Context) {
 		origin.ID,
 		session.CreateAcceptedOpts{
 			Session: session.CreateOpts{
+				ProfileID: origin.ProfileID,
 				AgentName: origin.AgentName,
 				Workspace: scope.SessionWorkspaceID(),
 				Worktree:  worktreeTarget.ID,
@@ -135,6 +141,7 @@ func validateWorktreeForkAvailability(
 
 func (h *BaseHandlers) resolveWorktreeForkTarget(
 	ctx context.Context,
+	profileID string,
 	workspaceID string,
 	req contract.ForkSessionWorktreeRequest,
 ) (materializedSessionWorktree, error) {
@@ -145,8 +152,9 @@ func (h *BaseHandlers) resolveWorktreeForkTarget(
 		return materializedSessionWorktree{}, errors.New("api: worktree creation is unavailable")
 	}
 	created, err := h.Worktrees.CreateReady(ctx, workspaceID, worktree.CreateOptions{
-		Name:   strings.TrimSpace(req.NewWorktree.Name),
-		Origin: worktree.OriginManual,
+		ProfileID: profileID,
+		Name:      strings.TrimSpace(req.NewWorktree.Name),
+		Origin:    worktree.OriginManual,
 	})
 	if err != nil {
 		return materializedSessionWorktree{}, err

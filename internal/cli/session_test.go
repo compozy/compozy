@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -649,6 +650,7 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 			getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
 				return SessionRecord{
 					ID:          id,
+					ProfileID:   store.DefaultProfileID,
 					AgentName:   "coder",
 					WorkspaceID: "ws-session",
 					State:       session.StateActive,
@@ -1305,6 +1307,68 @@ func TestSessionListJSONLIncludesContinuationRecord(t *testing.T) {
 		!continuation.Page.HasMore || continuation.Page.Total != 3 || continuation.Page.Limit != 1 {
 		t.Fatalf("continuation = %#v, want usable page metadata", continuation)
 	}
+}
+
+func TestSessionListProfileReadScope(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should emit aggregate resolution before owner-labeled rows [UT-077]", func(t *testing.T) {
+		t.Parallel()
+		workspaceClient := &stubClient{
+			getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+				return WorkspaceDetailRecord{Workspace: WorkspaceRecord{
+					ID: "ws-1", Name: "my-saas", RootDir: "/workspace",
+				}}, nil
+			},
+			listSessionPageFn: func(context.Context, SessionListQuery) (SessionListPage, error) {
+				return SessionListPage{Sessions: []SessionRecord{{
+					ID: "sess-marketing", ProfileName: "marketing", State: session.StateActive,
+				}}}, nil
+			},
+		}
+		client := &profileTestDaemonClient{
+			DaemonClient: workspaceClient,
+			profileClientAPI: &profileClientStub{profiles: []contract.Profile{{
+				Name: "default", State: "active",
+			}}},
+		}
+		deps := newTestDeps(t, client)
+		deps.getwd = func() (string, error) { return "/workspace", nil }
+		deps.getenv = func(string) string { return "" }
+
+		stdout, _, err := executeRootCommand(
+			t, deps, "session", "list", "--workspace", "my-saas", "--all-profiles", "-o", "jsonl",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session list --all-profiles) error = %v", err)
+		}
+		lines := strings.Split(strings.TrimSpace(stdout), "\n")
+		if len(lines) != 3 {
+			t.Fatalf("aggregate JSONL lines = %d, want frame + row + page; output=%q", len(lines), stdout)
+		}
+		if lines[0] != `{"kind":"workspace_resolution","workspace":"my-saas","source":"flag"}` {
+			t.Fatalf("aggregate resolution frame = %s", lines[0])
+		}
+		var row map[string]any
+		if err := json.Unmarshal([]byte(lines[1]), &row); err != nil {
+			t.Fatalf("json.Unmarshal(aggregate row) error = %v", err)
+		}
+		if row["profile_name"] != "marketing" {
+			t.Fatalf("aggregate row profile_name = %#v, want marketing", row["profile_name"])
+		}
+	})
+
+	t.Run("Should reject profile and aggregate selection together [UT-024]", func(t *testing.T) {
+		t.Parallel()
+		deps := profileTestDeps(t)
+		_, _, err := executeRootCommand(
+			t, deps, "session", "list", "--profile", "marketing", "--all-profiles", "-o", "json",
+		)
+		var profileErr *profileCommandError
+		if !errors.As(err, &profileErr) || profileErr.payload.Error.Code != "profile_selection_conflict" {
+			t.Fatalf("aggregate conflict error = %v, want profile_selection_conflict", err)
+		}
+	})
 }
 
 func TestSessionRepairPassesFlagsAndRendersJSON(t *testing.T) {
@@ -3188,9 +3252,10 @@ func TestSessionListBundleRendersHumanAndToon(t *testing.T) {
 	t.Parallel()
 
 	items := []SessionRecord{{
-		ID:        "sess-1",
-		Name:      "demo",
-		AgentName: "coder",
+		ID:          "sess-1",
+		ProfileName: "default",
+		Name:        "demo",
+		AgentName:   "coder",
 		Runtime: contract.SessionRuntimePayload{Effective: &contract.RuntimeSelectionPayload{
 			Provider: "fake",
 		}},
@@ -3222,6 +3287,7 @@ func TestSessionListBundleRendersHumanAndToon(t *testing.T) {
 		t.Fatalf("sessionListBundle().human() error = %v", err)
 	}
 	if !strings.Contains(human, "sess-1") ||
+		!strings.Contains(human, "default") ||
 		!strings.Contains(strings.ToLower(human), "provider") ||
 		!strings.Contains(human, "fake") ||
 		!strings.Contains(human, "/workspace/project") ||
@@ -3237,6 +3303,7 @@ func TestSessionListBundleRendersHumanAndToon(t *testing.T) {
 	}
 	if !strings.Contains(toon, "sessions") ||
 		!strings.Contains(toon, "sess-1") ||
+		!strings.Contains(toon, "default") ||
 		!strings.Contains(strings.ToLower(toon), "provider") ||
 		!strings.Contains(toon, "fake") ||
 		!strings.Contains(strings.ToLower(toon), "channel") ||

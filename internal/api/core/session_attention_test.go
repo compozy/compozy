@@ -126,7 +126,13 @@ func TestBaseHandlersSessionAttentionSurfaces(t *testing.T) {
 		t.Parallel()
 
 		manager := attentionRouteSessionManager()
-		manager.Attention.SummaryFn = func(context.Context) (store.SessionAttentionSummary, error) {
+		manager.Attention.SummaryFn = func(
+			_ context.Context,
+			readScope store.ReadScope,
+		) (store.SessionAttentionSummary, error) {
+			if readScope.ProfileID != store.DefaultProfileID || readScope.AllProfiles {
+				t.Fatalf("AttentionSummary() read scope = %#v, want default profile", readScope)
+			}
 			return store.SessionAttentionSummary{
 				NeedsYou: 101,
 				Finished: 17,

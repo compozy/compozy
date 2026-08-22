@@ -29,6 +29,10 @@ func ResolvedWorktreeModeValues() []string {
 // TaskRunPayload is the shared task-run response payload.
 type TaskRunPayload struct {
 	ID                           string                         `json:"id"`
+	ProfileID                    string                         `json:"profile_id,omitempty"`
+	ProfileName                  string                         `json:"profile_name,omitempty"`
+	ProfileColor                 string                         `json:"profile_color,omitempty"`
+	ProfileIcon                  string                         `json:"profile_icon,omitempty"`
 	TaskID                       string                         `json:"task_id"`
 	Status                       taskpkg.RunStatus              `json:"status"`
 	Attempt                      int                            `json:"attempt"`

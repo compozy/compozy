@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -55,6 +56,7 @@ func TestContextForSessionTopLevelTaskReferenceContract(t *testing.T) {
 
 		payload, err := service.ContextForSession(context.Background(), &session.Info{
 			ID:          run.SessionID,
+			ProfileID:   store.DefaultProfileID,
 			AgentName:   "coder",
 			Provider:    "codex",
 			WorkspaceID: taskRecord.WorkspaceID,

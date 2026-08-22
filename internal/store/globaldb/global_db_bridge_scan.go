@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
@@ -88,6 +89,12 @@ func scanBridgeInstance(scanner rowScanner) (bridges.BridgeInstance, error) {
 	)
 	if err := scanner.Scan(
 		&instance.ID,
+		&instance.ProfileID,
+		&instance.ProfileName,
+		&instance.ProfileColor,
+		&instance.ProfileIcon,
+		&instance.ProfileEmoji,
+		&instance.ProfileArchived,
 		&scopeRaw,
 		&workspaceID,
 		&instance.Platform,
@@ -185,6 +192,27 @@ func scanBridgeSecretBinding(scanner rowScanner) (bridges.BridgeSecretBinding, e
 	return binding, nil
 }
 
+func scanBridgeRoute(scanner rowScanner) (bridges.BridgeRoute, error) {
+	var row sqlcgen.BridgeRoute
+	if err := scanner.Scan(
+		&row.RoutingKeyHash,
+		&row.Scope,
+		&row.WorkspaceID,
+		&row.BridgeInstanceID,
+		&row.PeerID,
+		&row.ThreadID,
+		&row.GroupID,
+		&row.SessionID,
+		&row.AgentName,
+		&row.LastActivityAt,
+		&row.CreatedAt,
+		&row.UpdatedAt,
+	); err != nil {
+		return bridges.BridgeRoute{}, fmt.Errorf("store: scan bridge route: %w", err)
+	}
+	return bridgeRouteFromGenerated(row)
+}
+
 func scanBridgeTaskSubscription(scanner rowScanner) (bridges.BridgeTaskSubscription, error) {
 	var (
 		subscription  bridges.BridgeTaskSubscription
@@ -200,6 +228,12 @@ func scanBridgeTaskSubscription(scanner rowScanner) (bridges.BridgeTaskSubscript
 	)
 	if err := scanner.Scan(
 		&subscription.SubscriptionID,
+		&subscription.ProfileID,
+		&subscription.ProfileName,
+		&subscription.ProfileColor,
+		&subscription.ProfileIcon,
+		&subscription.ProfileEmoji,
+		&subscription.ProfileArchived,
 		&subscription.TaskID,
 		&subscription.BridgeInstanceID,
 		&scopeRaw,

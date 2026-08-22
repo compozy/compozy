@@ -10,16 +10,21 @@ import (
 )
 
 type EventSummary struct {
-	ID          string
-	ProfileID   string
-	SessionID   string
-	WorkspaceID string
-	Sequence    int64
-	Type        string
-	AgentName   string
-	Provider    string
-	Outcome     string
-	Content     json.RawMessage
+	ID              string
+	ProfileID       string
+	ProfileName     string
+	ProfileColor    string
+	ProfileIcon     string
+	ProfileEmoji    string
+	ProfileArchived bool
+	SessionID       string
+	WorkspaceID     string
+	Sequence        int64
+	Type            string
+	AgentName       string
+	Provider        string
+	Outcome         string
+	Content         json.RawMessage
 	EventCorrelation
 	ParentSessionID string
 	RootSessionID   string
@@ -69,6 +74,7 @@ func eventSummaryAllowsGlobalScope(eventType string) bool {
 
 // EventSummaryQuery filters global event summary queries.
 type EventSummaryQuery struct {
+	ReadScope     ReadScope
 	SessionID     string
 	WorkspaceID   string
 	WorktreeID    string
@@ -89,6 +95,9 @@ type EventSummaryQuery struct {
 
 // Validate ensures the query uses sane bounds.
 func (q EventSummaryQuery) Validate() error {
+	if err := q.ReadScope.Validate(); err != nil {
+		return err
+	}
 	if err := requirePositiveLimit(q.Limit, "event summary limit"); err != nil {
 		return err
 	}

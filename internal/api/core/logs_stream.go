@@ -20,11 +20,17 @@ func (h *BaseHandlers) StreamLogs(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: observer is required"))
 		return
 	}
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	query, err := ParseLogsQuery(c)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
+	query.ReadScope = readScope
 	if err := query.Validate(); err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return

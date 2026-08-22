@@ -66,6 +66,8 @@ func (g *NetworkRepo) ListNetworkInbox(
 func networkInboxQuery(workspaceID string, sessionID string, channel string, limit int) (string, []any) {
 	// dynamic-sql: only the optional, internally selected channel predicate changes the statement shape.
 	query := `SELECT
+		owner_profile.id, owner_profile.name, owner_profile.color, COALESCE(owner_profile.icon, ''),
+		COALESCE(owner_profile.emoji, ''), owner_profile.archived_at IS NOT NULL,
 		n.sequence,
 		n.message_id,
 		n.session_id,
@@ -102,6 +104,19 @@ func networkInboxQuery(workspaceID string, sessionID string, channel string, lim
 	JOIN sessions AS s
 		ON s.id = d.recipient_session_id
 		AND s.workspace_id = d.workspace_id
+	LEFT JOIN network_threads AS owner_thread
+		ON owner_thread.workspace_id = n.workspace_id
+		AND owner_thread.channel = n.channel
+		AND owner_thread.thread_id = n.thread_id
+	LEFT JOIN network_direct_rooms AS owner_direct
+		ON owner_direct.workspace_id = n.workspace_id
+		AND owner_direct.channel = n.channel
+		AND owner_direct.direct_id = n.direct_id
+	JOIN network_channels AS owner_channel
+		ON owner_channel.workspace_id = n.workspace_id
+		AND owner_channel.channel = n.channel
+	JOIN profiles AS owner_profile
+		ON owner_profile.id = COALESCE(owner_thread.profile_id, owner_direct.profile_id, owner_channel.profile_id)
 	WHERE d.recipient_session_id = ?
 		AND d.workspace_id = ?
 		AND d.decision = ?`

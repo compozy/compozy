@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"time"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 // RunListQuery filters workspace-scoped loop run listings.
 type RunListQuery struct {
+	ReadScope       store.ReadScope
 	WorkspaceID     WorkspaceID
 	LoopName        string
 	Status          Status

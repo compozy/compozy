@@ -159,6 +159,7 @@ func (s SessionInfo) Validate() error {
 
 // SessionListQuery filters global session index queries.
 type SessionListQuery struct {
+	ReadScope       ReadScope
 	ID              string
 	State           string
 	AgentName       string
@@ -193,6 +194,9 @@ func (u SessionTranscriptEpochUpdate) Validate() error {
 
 // Validate ensures the query uses sane bounds.
 func (q SessionListQuery) Validate() error {
+	if err := q.ReadScope.Validate(); err != nil {
+		return err
+	}
 	if err := requirePositiveLimit(q.Limit, "session limit"); err != nil {
 		return err
 	}

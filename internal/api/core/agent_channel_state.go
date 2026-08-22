@@ -26,7 +26,7 @@ func (h *BaseHandlers) agentChannelPayloads(
 		return nil, err
 	}
 
-	metadata := h.agentChannelMetadata(ctx, caller.Session.WorkspaceID)
+	metadata := h.agentChannelMetadata(ctx, caller.Session.WorkspaceID, caller.Session.ProfileID)
 	payloadByID := make(map[string]contract.CoordinationChannelPayload, len(infos)+len(metadata))
 	for _, info := range infos {
 		channel := strings.TrimSpace(info.Channel)
@@ -94,11 +94,13 @@ func mergeCoordinationChannels(
 func (h *BaseHandlers) agentChannelMetadata(
 	ctx context.Context,
 	workspaceID string,
+	profileID string,
 ) map[string]store.NetworkChannelEntry {
 	if h == nil || h.NetworkStore == nil || strings.TrimSpace(workspaceID) == "" {
 		return nil
 	}
 	entries, err := h.NetworkStore.ListNetworkChannels(ctx, store.NetworkChannelQuery{
+		ReadScope:   store.ReadScope{ProfileID: strings.TrimSpace(profileID)},
 		WorkspaceID: strings.TrimSpace(workspaceID),
 	})
 	if err != nil {

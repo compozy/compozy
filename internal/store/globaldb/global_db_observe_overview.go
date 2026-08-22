@@ -59,25 +59,7 @@ func (g *ObserveRepo) ListTokenUsageByDay(
 	if err := query.Validate(); err != nil {
 		return nil, err
 	}
-
-	rows, err := g.queries.ListTokenUsageDailyByDay(ctx, sqlcgen.ListTokenUsageDailyByDayParams{
-		SinceDay:    strings.TrimSpace(query.SinceDay),
-		WorkspaceID: strings.TrimSpace(query.WorkspaceID),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("store: query token usage by day: %w", err)
-	}
-
-	days := make([]store.TokenUsageDay, 0, len(rows))
-	for _, row := range rows {
-		days = append(days, store.TokenUsageDay{
-			Day:          row.Day,
-			InputTokens:  row.InputTokens,
-			OutputTokens: row.OutputTokens,
-			TotalTokens:  row.TotalTokens,
-		})
-	}
-	return days, nil
+	return g.queryTokenUsageDays(ctx, query)
 }
 
 // ListTokenUsageByAgent returns summed per-agent token usage inside the rollup window.
@@ -92,22 +74,21 @@ func (g *ObserveRepo) ListTokenUsageByAgent(
 		return nil, err
 	}
 
-	rows, err := g.queries.ListTokenUsageDailyByAgent(ctx, sqlcgen.ListTokenUsageDailyByAgentParams{
-		SinceDay:    strings.TrimSpace(query.SinceDay),
-		WorkspaceID: strings.TrimSpace(query.WorkspaceID),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("store: query token usage by agent: %w", err)
-	}
+	return g.queryTokenUsageAgents(ctx, query)
+}
 
-	totals := make([]store.TokenUsageAgentTotal, 0, len(rows))
-	for _, row := range rows {
-		totals = append(totals, store.TokenUsageAgentTotal{
-			AgentName:   strings.TrimSpace(row.AgentName),
-			TotalTokens: row.TotalTokens,
-		})
+// ListTokenUsageByProfile returns owner-labeled usage buckets inside the rollup window.
+func (g *ObserveRepo) ListTokenUsageByProfile(
+	ctx context.Context,
+	query store.OverviewDayQuery,
+) ([]store.TokenUsageProfileTotal, error) {
+	if err := g.checkReady(ctx, "list token usage by profile"); err != nil {
+		return nil, err
 	}
-	return totals, nil
+	if err := query.Validate(); err != nil {
+		return nil, err
+	}
+	return g.queryTokenUsageProfiles(ctx, query)
 }
 
 // SumTokenUsageCost returns provenance-grouped cost totals inside the rollup window.
@@ -122,26 +103,7 @@ func (g *ObserveRepo) SumTokenUsageCost(
 		return nil, err
 	}
 
-	rows, err := g.queries.SumTokenUsageDailyCost(ctx, sqlcgen.SumTokenUsageDailyCostParams{
-		SinceDay:    strings.TrimSpace(query.SinceDay),
-		WorkspaceID: strings.TrimSpace(query.WorkspaceID),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("store: query token usage cost: %w", err)
-	}
-
-	groups := make([]store.TokenUsageCostGroup, 0, len(rows))
-	for _, row := range rows {
-		groups = append(groups, store.TokenUsageCostGroup{
-			CostStatus:      row.CostStatus,
-			CostSource:      row.CostSource,
-			CostCurrency:    row.CostCurrency,
-			TotalCost:       row.TotalCost,
-			RowsWithoutCost: row.RowsWithoutCost,
-			RowsTotal:       row.RowsTotal,
-		})
-	}
-	return groups, nil
+	return g.queryTokenUsageCosts(ctx, query)
 }
 
 // CountTaskRunOutcomesByDay returns terminal worker-run outcome counts per daemon-local day.
@@ -156,24 +118,7 @@ func (g *ObserveRepo) CountTaskRunOutcomesByDay(
 		return nil, err
 	}
 
-	rows, err := g.queries.CountTaskRunOutcomesByDay(ctx, sqlcgen.CountTaskRunOutcomesByDayParams{
-		Since:       store.FormatTimestamp(query.Since),
-		WorkspaceID: strings.TrimSpace(query.WorkspaceID),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("store: query task run outcomes by day: %w", err)
-	}
-
-	days := make([]store.TaskRunOutcomeDay, 0, len(rows))
-	for _, row := range rows {
-		days = append(days, store.TaskRunOutcomeDay{
-			Day:       row.Day,
-			Completed: int(row.Completed),
-			Failed:    int(row.Failed),
-			Canceled:  int(row.Canceled),
-		})
-	}
-	return days, nil
+	return g.queryTaskRunOutcomeDays(ctx, query)
 }
 
 // CountTasksClosedByDay returns completed-task closure counts per daemon-local day.
@@ -188,19 +133,7 @@ func (g *ObserveRepo) CountTasksClosedByDay(
 		return nil, err
 	}
 
-	rows, err := g.queries.CountTasksClosedByDay(ctx, sqlcgen.CountTasksClosedByDayParams{
-		Since:       store.FormatTimestamp(query.Since),
-		WorkspaceID: strings.TrimSpace(query.WorkspaceID),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("store: query tasks closed by day: %w", err)
-	}
-
-	days := make([]store.TaskClosedDay, 0, len(rows))
-	for _, row := range rows {
-		days = append(days, store.TaskClosedDay{Day: row.Day, Closed: int(row.Closed)})
-	}
-	return days, nil
+	return g.queryTaskClosedDays(ctx, query)
 }
 
 // CountEventsByHourWeekday returns hour-by-weekday event counts inside the window.
@@ -215,43 +148,21 @@ func (g *ObserveRepo) CountEventsByHourWeekday(
 		return nil, err
 	}
 
-	rows, err := g.queries.CountEventSummariesByHourWeekday(ctx, sqlcgen.CountEventSummariesByHourWeekdayParams{
-		Since:       store.FormatTimestamp(query.Since),
-		WorkspaceID: strings.TrimSpace(query.WorkspaceID),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("store: query events by hour and weekday: %w", err)
-	}
-
-	buckets := make([]store.EventHourWeekdayBucket, 0, len(rows))
-	for _, row := range rows {
-		buckets = append(buckets, store.EventHourWeekdayBucket{
-			Weekday: int(row.Weekday),
-			Hour:    int(row.Hour),
-			Events:  int(row.Events),
-		})
-	}
-	return buckets, nil
+	return g.queryEventHourWeekdays(ctx, query)
 }
 
 // LatestEventSummaryAt returns the newest event summary timestamp, zero when none exist.
-func (g *ObserveRepo) LatestEventSummaryAt(ctx context.Context, workspaceID string) (time.Time, error) {
+func (g *ObserveRepo) LatestEventSummaryAt(
+	ctx context.Context,
+	query store.OverviewWorkspaceQuery,
+) (time.Time, error) {
 	if err := g.checkReady(ctx, "latest event summary timestamp"); err != nil {
 		return time.Time{}, err
 	}
-
-	latest, err := g.queries.MaxEventSummaryTimestamp(ctx, strings.TrimSpace(workspaceID))
-	if err != nil {
-		return time.Time{}, fmt.Errorf("store: query latest event summary timestamp: %w", err)
+	if err := query.Validate(); err != nil {
+		return time.Time{}, err
 	}
-	if strings.TrimSpace(latest) == "" {
-		return time.Time{}, nil
-	}
-	parsed, err := store.ParseTimestamp(latest)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("store: parse latest event summary timestamp: %w", err)
-	}
-	return parsed, nil
+	return g.queryLatestEventSummaryAt(ctx, query)
 }
 
 // CountNetworkMessagesSince counts durable network audit envelopes inside the window.
@@ -263,14 +174,7 @@ func (g *ObserveRepo) CountNetworkMessagesSince(ctx context.Context, query store
 		return 0, err
 	}
 
-	messages, err := g.queries.CountNetworkAuditSince(ctx, sqlcgen.CountNetworkAuditSinceParams{
-		Since:       store.FormatTimestamp(query.Since),
-		WorkspaceID: strings.TrimSpace(query.WorkspaceID),
-	})
-	if err != nil {
-		return 0, fmt.Errorf("store: count network audit messages: %w", err)
-	}
-	return int(messages), nil
+	return g.queryNetworkMessageCount(ctx, query)
 }
 
 // CountHookDispatchesSince counts hook dispatch completions and failures inside the window.
@@ -285,17 +189,7 @@ func (g *ObserveRepo) CountHookDispatchesSince(
 		return store.HookDispatchCounts{}, err
 	}
 
-	row, err := g.queries.CountHookDispatchSince(ctx, sqlcgen.CountHookDispatchSinceParams{
-		Since:       store.FormatTimestamp(query.Since),
-		WorkspaceID: strings.TrimSpace(query.WorkspaceID),
-	})
-	if err != nil {
-		return store.HookDispatchCounts{}, fmt.Errorf("store: count hook dispatches: %w", err)
-	}
-	return store.HookDispatchCounts{
-		Runs:     int(row.Runs),
-		Failures: int(row.Failures),
-	}, nil
+	return g.queryHookDispatchCounts(ctx, query)
 }
 
 // LongestUserSessionSince returns the longest user session started inside the window, nil when none.
@@ -310,29 +204,7 @@ func (g *ObserveRepo) LongestUserSessionSince(
 		return nil, err
 	}
 
-	rows, err := g.queries.LongestUserSessionSince(ctx, sqlcgen.LongestUserSessionSinceParams{
-		Now:         store.FormatTimestamp(g.now()),
-		Since:       store.FormatTimestamp(query.Since),
-		WorkspaceID: strings.TrimSpace(query.WorkspaceID),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("store: query longest user session: %w", err)
-	}
-	if len(rows) == 0 {
-		return nil, nil
-	}
-
-	row := rows[0]
-	startedAt, err := store.ParseTimestamp(row.CreatedAt)
-	if err != nil {
-		return nil, fmt.Errorf("store: parse longest session start: %w", err)
-	}
-	return &store.LongestSessionSample{
-		SessionID:      row.ID,
-		AgentName:      strings.TrimSpace(row.AgentName),
-		StartedAt:      startedAt,
-		RuntimeSeconds: row.RuntimeSeconds,
-	}, nil
+	return g.queryLongestUserSession(ctx, query)
 }
 
 // overviewTokenDelta treats a nil delta as a zero contribution; negative deltas

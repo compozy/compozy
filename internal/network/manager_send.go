@@ -186,6 +186,9 @@ func (m *Manager) bindDurableSessionIdentities(
 		return
 	}
 	entry.PeerFrom = strings.TrimSpace(senderSessionID)
+	if runtime, ok := m.sessionSnapshot(senderSessionID); ok {
+		entry.ProfileID = strings.TrimSpace(runtime.profileID)
+	}
 	if route.Envelope.IsDirected() {
 		for _, delivery := range route.Deliveries {
 			if deliveryAddressedToPeer(delivery) {

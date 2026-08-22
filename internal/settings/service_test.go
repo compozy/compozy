@@ -5388,29 +5388,32 @@ type recordingCmdPaletteCatalog struct {
 
 func (r *recordingCmdPaletteCatalog) Catalog(
 	context.Context,
-	cmdpalette.WorkspaceID,
-	cmdpalette.ClientID,
+	cmdpalette.CatalogRequest,
 ) (cmdpalette.Catalog, error) {
 	return r.catalog, nil
 }
 
 func (r *recordingCmdPaletteCatalog) NotifyBindingChanged(
 	_ context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	commandID cmdpalette.CommandID,
 ) {
 	r.record(cmdpalette.Event{
-		Name: cmdpalette.EventBindingChanged, WorkspaceID: workspaceID, CommandID: commandID,
+		Name: cmdpalette.EventBindingChanged, ProfileLens: profileLens,
+		WorkspaceID: workspaceID, CommandID: commandID,
 	})
 }
 
 func (r *recordingCmdPaletteCatalog) NotifyAliasChanged(
 	_ context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	commandID cmdpalette.CommandID,
 ) {
 	r.record(cmdpalette.Event{
-		Name: cmdpalette.EventAliasChanged, WorkspaceID: workspaceID, CommandID: commandID,
+		Name: cmdpalette.EventAliasChanged, ProfileLens: profileLens,
+		WorkspaceID: workspaceID, CommandID: commandID,
 	})
 }
 
@@ -5428,8 +5431,7 @@ func (r *recordingCmdPaletteCatalog) recorded() []cmdpalette.Event {
 
 func (f fakeCmdPaletteCatalog) Catalog(
 	context.Context,
-	cmdpalette.WorkspaceID,
-	cmdpalette.ClientID,
+	cmdpalette.CatalogRequest,
 ) (cmdpalette.Catalog, error) {
 	return f.catalog, nil
 }
@@ -5868,7 +5870,7 @@ func TestSettingsMutationsEmitEventSummaries(t *testing.T) {
 			t.Fatalf("UpdateSection() error = %v", err)
 		}
 
-		summaries, err := eventStore.ListEventSummaries(context.Background(), store.EventSummaryQuery{})
+		summaries, err := eventStore.ListEventSummaries(context.Background(), store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}})
 		if err != nil {
 			t.Fatalf("ListEventSummaries() error = %v", err)
 		}

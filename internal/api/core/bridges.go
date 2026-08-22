@@ -128,7 +128,12 @@ func (h *BaseHandlers) CreateBridge(c *gin.Context) {
 		return
 	}
 
-	createReq, err := req.ToCreateInstanceRequest()
+	readScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	createReq, err := req.ToCreateInstanceRequest(readScope.ProfileID)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
@@ -165,7 +170,12 @@ func (h *BaseHandlers) GetBridge(c *gin.Context) {
 		return
 	}
 
-	instance, err := bridges.GetInstance(c.Request.Context(), c.Param("id"))
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	instance, err := bridges.GetInstanceScoped(c.Request.Context(), readScope, c.Param("id"))
 	if err != nil {
 		h.respondError(c, StatusForBridgeError(err), err)
 		return
@@ -228,7 +238,12 @@ func (h *BaseHandlers) ListBridgeRoutes(c *gin.Context) {
 		return
 	}
 
-	routes, err := bridges.ListRoutes(c.Request.Context(), c.Param("id"))
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	routes, err := bridges.ListRoutesScoped(c.Request.Context(), readScope, c.Param("id"))
 	if err != nil {
 		h.respondError(c, StatusForBridgeError(err), err)
 		return

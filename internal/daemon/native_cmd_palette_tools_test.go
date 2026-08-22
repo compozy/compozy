@@ -23,8 +23,7 @@ type nativeCmdPaletteRegistryStub struct {
 
 func (s *nativeCmdPaletteRegistryStub) Catalog(
 	context.Context,
-	cmdpalette.WorkspaceID,
-	cmdpalette.ClientID,
+	cmdpalette.CatalogRequest,
 ) (cmdpalette.Catalog, error) {
 	return s.catalog, nil
 }
@@ -50,6 +49,7 @@ func (s *nativeCmdPaletteRegistryStub) RecordUsage(context.Context, cmdpalette.U
 
 func (s *nativeCmdPaletteRegistryStub) Personalization(
 	context.Context,
+	cmdpalette.ProfileLens,
 	cmdpalette.WorkspaceID,
 ) (cmdpalette.Snapshot, error) {
 	return cmdpalette.Snapshot{}, errors.New("unexpected Personalization call")
@@ -57,6 +57,7 @@ func (s *nativeCmdPaletteRegistryStub) Personalization(
 
 func (s *nativeCmdPaletteRegistryStub) PersonalizationSummary(
 	context.Context,
+	cmdpalette.ProfileLens,
 	cmdpalette.WorkspaceID,
 ) (cmdpalette.PersonalizationSummary, error) {
 	return cmdpalette.PersonalizationSummary{}, errors.New("unexpected PersonalizationSummary call")
@@ -64,6 +65,7 @@ func (s *nativeCmdPaletteRegistryStub) PersonalizationSummary(
 
 func (s *nativeCmdPaletteRegistryStub) ResetPersonalization(
 	context.Context,
+	cmdpalette.ProfileLens,
 	cmdpalette.WorkspaceID,
 ) error {
 	return errors.New("unexpected ResetPersonalization call")
@@ -71,6 +73,7 @@ func (s *nativeCmdPaletteRegistryStub) ResetPersonalization(
 
 func (s *nativeCmdPaletteRegistryStub) Pin(
 	context.Context,
+	cmdpalette.ProfileLens,
 	cmdpalette.WorkspaceID,
 	cmdpalette.CommandID,
 ) error {
@@ -79,6 +82,7 @@ func (s *nativeCmdPaletteRegistryStub) Pin(
 
 func (s *nativeCmdPaletteRegistryStub) Unpin(
 	context.Context,
+	cmdpalette.ProfileLens,
 	cmdpalette.WorkspaceID,
 	cmdpalette.CommandID,
 ) error {
@@ -273,7 +277,7 @@ type nativeCmdPaletteStaticProvider struct {
 
 func (p nativeCmdPaletteStaticProvider) ProvideCommands(
 	context.Context,
-	cmdpalette.WorkspaceID,
+	cmdpalette.CatalogRequest,
 ) ([]cmdpalette.Descriptor, error) {
 	return append([]cmdpalette.Descriptor(nil), p.commands...), nil
 }

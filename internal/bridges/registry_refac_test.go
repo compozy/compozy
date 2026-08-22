@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -130,6 +131,7 @@ func TestBridgeProviderConfigRejectsOperatorOwnedDestinations(t *testing.T) {
 
 func providerConfigRefacCreateRequest(config json.RawMessage) bridgepkg.CreateInstanceRequest {
 	return bridgepkg.CreateInstanceRequest{
+		ProfileID:      storepkg.DefaultProfileID,
 		ID:             "brg-provider-create",
 		Scope:          bridgepkg.ScopeGlobal,
 		Platform:       "slack",

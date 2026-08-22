@@ -83,6 +83,7 @@ func newNotificationPresetListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		BoolVar(&enabled, extensionEnabledKey, false, "Only show presets with this enabled value")
 	cmd.Flags().BoolVar(&builtIn, "built-in", false, "Only show presets with this built-in value")
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 

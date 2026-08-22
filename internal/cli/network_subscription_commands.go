@@ -54,6 +54,7 @@ func newNetworkSubscriptionsListCommand(deps commandDeps, workspaceRef *string) 
 	cmd.Flags().StringVar(&flags.sessionID, "session", "", "Optional session id filter")
 	cmd.Flags().IntVar(&flags.limit, "limit", 0, "Maximum number of preferences to return")
 	mustMarkFlagRequired(cmd, networkChannelKey)
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 

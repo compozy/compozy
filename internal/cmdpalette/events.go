@@ -26,6 +26,7 @@ const (
 
 type Event struct {
 	Name            EventName   `json:"-"`
+	ProfileLens     ProfileLens `json:"profile_lens"`
 	WorkspaceID     WorkspaceID `json:"workspace"`
 	CatalogRevision string      `json:"revision,omitempty"`
 	CommandID       CommandID   `json:"command_id,omitempty"`
@@ -48,22 +49,26 @@ type Event struct {
 // NotifyBindingChanged records one effective shortcut mutation.
 func (s *Service) NotifyBindingChanged(
 	ctx context.Context,
+	profileLens ProfileLens,
 	workspaceID WorkspaceID,
 	commandID CommandID,
 ) {
 	s.emit(ctx, Event{
-		Name: EventBindingChanged, WorkspaceID: workspaceID, CommandID: commandID,
+		Name: EventBindingChanged, ProfileLens: profileLens,
+		WorkspaceID: workspaceID, CommandID: commandID,
 	})
 }
 
 // NotifyAliasChanged records one effective alias mutation.
 func (s *Service) NotifyAliasChanged(
 	ctx context.Context,
+	profileLens ProfileLens,
 	workspaceID WorkspaceID,
 	commandID CommandID,
 ) {
 	s.emit(ctx, Event{
-		Name: EventAliasChanged, WorkspaceID: workspaceID, CommandID: commandID,
+		Name: EventAliasChanged, ProfileLens: profileLens,
+		WorkspaceID: workspaceID, CommandID: commandID,
 	})
 }
 
@@ -72,7 +77,8 @@ func (s *Service) emitViewSessionEvent(ctx context.Context, name EventName, sess
 		return
 	}
 	s.emit(ctx, Event{
-		Name: name, WorkspaceID: session.workspace, ViewID: session.view,
+		Name: name, ProfileLens: session.profileLens,
+		WorkspaceID: session.workspace, ViewID: session.view,
 		Extension: session.extension, ClientID: session.client, ViewSessionID: session.id,
 	})
 }
@@ -80,6 +86,7 @@ func (s *Service) emitViewSessionEvent(ctx context.Context, name EventName, sess
 // NotifyGlobalHotkeyRegistrationFailed records one shell registration failure.
 func (s *Service) NotifyGlobalHotkeyRegistrationFailed(
 	ctx context.Context,
+	profileLens ProfileLens,
 	workspaceID WorkspaceID,
 	clientID ClientID,
 	commandID CommandID,
@@ -88,6 +95,7 @@ func (s *Service) NotifyGlobalHotkeyRegistrationFailed(
 ) {
 	s.emit(ctx, Event{
 		Name:        EventGlobalHotkeyRegistrationFailed,
+		ProfileLens: profileLens,
 		WorkspaceID: workspaceID,
 		ClientID:    clientID,
 		CommandID:   commandID,
@@ -101,7 +109,7 @@ type EventRecorder interface {
 }
 
 type EventSubscriber interface {
-	SubscribeCmdPaletteEvents(context.Context, WorkspaceID) (<-chan Event, func(), error)
+	SubscribeCmdPaletteEvents(context.Context, ProfileLens, WorkspaceID) (<-chan Event, func(), error)
 }
 
 type ApprovalCompletionReader interface {
@@ -110,6 +118,7 @@ type ApprovalCompletionReader interface {
 
 func (s *Service) SubscribeCmdPaletteEvents(
 	ctx context.Context,
+	profileLens ProfileLens,
 	workspaceID WorkspaceID,
 ) (<-chan Event, func(), error) {
 	if ctx == nil {
@@ -118,11 +127,18 @@ func (s *Service) SubscribeCmdPaletteEvents(
 	if workspaceID == "" {
 		return nil, nil, errors.New("cmd palette: event subscription workspace is required")
 	}
+	if err := profileLens.Validate(); err != nil {
+		return nil, nil, err
+	}
 	updates := make(chan Event, eventSubscriberBufferSize)
 	s.eventMu.Lock()
 	s.nextSubscriber++
 	id := s.nextSubscriber
-	s.eventSubscribers[id] = eventSubscription{workspaceID: workspaceID, updates: updates}
+	s.eventSubscribers[id] = eventSubscription{
+		profileLens: profileLens,
+		workspaceID: workspaceID,
+		updates:     updates,
+	}
 	s.eventMu.Unlock()
 	var once sync.Once
 	cancel := func() {
@@ -136,13 +152,20 @@ func (s *Service) SubscribeCmdPaletteEvents(
 	return updates, cancel, nil
 }
 
-func (s *Service) NotifyCatalogChanged(ctx context.Context, workspaceID WorkspaceID) error {
-	catalog, err := s.Catalog(ctx, workspaceID, "")
+func (s *Service) NotifyCatalogChanged(
+	ctx context.Context,
+	profileLens ProfileLens,
+	workspaceID WorkspaceID,
+) error {
+	catalog, err := s.Catalog(ctx, CatalogRequest{
+		ProfileLens: profileLens,
+		WorkspaceID: workspaceID,
+	})
 	if err != nil {
 		return err
 	}
 	s.emit(ctx, Event{
-		Name: EventCatalogChanged, WorkspaceID: workspaceID,
+		Name: EventCatalogChanged, ProfileLens: profileLens, WorkspaceID: workspaceID,
 		CatalogRevision: catalog.Revision, OccurredAt: s.now().UTC(),
 	})
 	return nil
@@ -161,6 +184,10 @@ func (s *Service) emit(ctx context.Context, event Event) {
 		if subscriber.workspaceID != event.WorkspaceID {
 			continue
 		}
+		if !subscriber.profileLens.IsAggregate() && !event.ProfileLens.IsAggregate() &&
+			subscriber.profileLens.ID != event.ProfileLens.ID {
+			continue
+		}
 		select {
 		case subscriber.updates <- event:
 		default:
@@ -169,6 +196,7 @@ func (s *Service) emit(ctx context.Context, event Event) {
 }
 
 type eventSubscription struct {
+	profileLens ProfileLens
 	workspaceID WorkspaceID
 	updates     chan Event
 }

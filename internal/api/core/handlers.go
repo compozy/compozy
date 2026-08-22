@@ -72,13 +72,19 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		)
 		return
 	}
-	worktreeTarget, err := h.resolveCreateSessionWorktree(c, req)
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	worktreeTarget, err := h.resolveCreateSessionWorktree(c, mutationScope.ProfileID, req)
 	if err != nil {
 		h.respondError(c, StatusForWorktreeError(err), err)
 		return
 	}
 
 	opts := session.CreateOpts{
+		ProfileID:            mutationScope.ProfileID,
 		AgentName:            req.AgentName,
 		Name:                 req.Name,
 		Workspace:            req.Workspace,
@@ -103,6 +109,7 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 
 func (h *BaseHandlers) resolveCreateSessionWorktree(
 	c *gin.Context,
+	profileID string,
 	req contract.CreateSessionRequest,
 ) (materializedSessionWorktree, error) {
 	if ref := strings.TrimSpace(req.Worktree); ref != "" {
@@ -119,8 +126,9 @@ func (h *BaseHandlers) resolveCreateSessionWorktree(
 		return materializedSessionWorktree{}, err
 	}
 	item, err := h.Worktrees.CreateReady(c.Request.Context(), workspaceID, worktree.CreateOptions{
-		Name:   strings.TrimSpace(req.NewWorktree.Name),
-		Origin: worktree.OriginManual,
+		ProfileID: profileID,
+		Name:      strings.TrimSpace(req.NewWorktree.Name),
+		Origin:    worktree.OriginManual,
 	})
 	if err != nil {
 		return materializedSessionWorktree{}, err

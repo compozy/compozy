@@ -123,6 +123,9 @@ func resolveProfileAtWorkspaceBoundary(
 	client workspaceLookupClient,
 	workspace workspaceResolution,
 ) error {
+	if selection, ok := commandProfileReadSelection(cmd); ok && selection.AllProfiles {
+		return nil
+	}
 	if profileSelectionExemptCommand(cmd) {
 		return nil
 	}

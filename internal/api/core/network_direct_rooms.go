@@ -28,6 +28,11 @@ func (h *BaseHandlers) ResolveNetworkDirectRoom(c *gin.Context) {
 	if !ok {
 		return
 	}
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 
 	var req contract.NetworkDirectResolveRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -74,7 +79,7 @@ func (h *BaseHandlers) ResolveNetworkDirectRoom(c *gin.Context) {
 	}
 	now := h.nowUTC()
 	direct, err := h.NetworkStore.ResolveDirectRoom(c.Request.Context(), store.NetworkDirectRoomEntry{
-		ProfileID:      store.DefaultProfileID,
+		ProfileID:      mutationScope.ProfileID,
 		WorkspaceID:    networkWorkspaceID,
 		Channel:        channel,
 		DirectID:       directID,
@@ -112,7 +117,12 @@ func (h *BaseHandlers) NetworkDirectRoom(c *gin.Context) {
 		return
 	}
 
-	direct, err := h.NetworkStore.GetDirectRoom(c.Request.Context(), scope.NetworkChannelRef(channel), directID)
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	direct, err := h.NetworkStore.GetDirectRoom(c.Request.Context(), readScope, scope.NetworkChannelRef(channel), directID)
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return

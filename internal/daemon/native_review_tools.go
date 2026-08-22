@@ -324,6 +324,10 @@ func reviewToolActorContext(id toolspkg.ToolID, scope toolspkg.Scope) (taskpkg.A
 	if err != nil {
 		return taskpkg.ActorContext{}, "", nativeReviewToolError(id, err)
 	}
+	actor, err = bindNativeTaskActorProfile(actor, scope)
+	if err != nil {
+		return taskpkg.ActorContext{}, "", nativeReviewToolError(id, err)
+	}
 	return actor, sessionID, nil
 }
 

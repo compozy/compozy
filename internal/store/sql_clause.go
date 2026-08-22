@@ -22,7 +22,7 @@ func StringClause(column string, value string) Clause {
 	if value == "" {
 		return Clause{}
 	}
-	if _, err := NormalizeSQLiteIdentifier(column); err != nil {
+	if err := validateSQLiteColumnReference(column); err != nil {
 		return alwaysFalseClause()
 	}
 
@@ -34,7 +34,7 @@ func OpaqueStringClause(column string, value string) Clause {
 	if value == "" {
 		return Clause{}
 	}
-	if _, err := NormalizeSQLiteIdentifier(column); err != nil {
+	if err := validateSQLiteColumnReference(column); err != nil {
 		return alwaysFalseClause()
 	}
 
@@ -47,7 +47,7 @@ func NotStringClause(column string, value string) Clause {
 	if value == "" {
 		return Clause{}
 	}
-	if _, err := NormalizeSQLiteIdentifier(column); err != nil {
+	if err := validateSQLiteColumnReference(column); err != nil {
 		return alwaysFalseClause()
 	}
 
@@ -59,7 +59,7 @@ func TimeClause(column string, op string, value time.Time) Clause {
 	if value.IsZero() {
 		return Clause{}
 	}
-	if _, err := NormalizeSQLiteIdentifier(column); err != nil || !isAllowedSQLOperator(op) {
+	if err := validateSQLiteColumnReference(column); err != nil || !isAllowedSQLOperator(op) {
 		return alwaysFalseClause()
 	}
 
@@ -71,7 +71,7 @@ func Int64Clause(column string, op string, value int64) Clause {
 	if value <= 0 {
 		return Clause{}
 	}
-	if _, err := NormalizeSQLiteIdentifier(column); err != nil || !isAllowedSQLOperator(op) {
+	if err := validateSQLiteColumnReference(column); err != nil || !isAllowedSQLOperator(op) {
 		return alwaysFalseClause()
 	}
 
@@ -112,6 +112,19 @@ func AppendLimit(query string, args []any, limit int) (string, []any) {
 
 func alwaysFalseClause() Clause {
 	return Clause{sql: sqlFalsePredicate, ok: true}
+}
+
+func validateSQLiteColumnReference(value string) error {
+	parts := strings.Split(strings.TrimSpace(value), ".")
+	if len(parts) == 0 || len(parts) > 2 {
+		return fmt.Errorf("store: invalid sqlite column reference %q", value)
+	}
+	for _, part := range parts {
+		if _, err := NormalizeSQLiteIdentifier(part); err != nil {
+			return fmt.Errorf("store: invalid sqlite column reference %q: %w", value, err)
+		}
+	}
+	return nil
 }
 
 func isAllowedSQLOperator(value string) bool {

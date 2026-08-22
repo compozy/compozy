@@ -40,6 +40,7 @@ var (
 
 // ListQuery describes one public session catalog page.
 type ListQuery struct {
+	ReadScope       store.ReadScope
 	WorkspaceID     string
 	AllWorkspaces   bool
 	WorktreeID      string
@@ -68,6 +69,8 @@ type ListPage struct {
 }
 
 type sessionListFingerprint struct {
+	ProfileID       string                     `json:"profile_id"`
+	AllProfiles     bool                       `json:"all_profiles"`
 	WorkspaceID     string                     `json:"workspace_id"`
 	AllWorkspaces   bool                       `json:"all_workspaces"`
 	WorktreeID      string                     `json:"worktree_id"`
@@ -113,6 +116,7 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 	activeByID, activeIDs, activeMatches := m.activeSessionCatalogRows(normalized)
 
 	durable, err := pager.PageSessions(ctx, store.SessionCatalogPageQuery{
+		ReadScope:           normalized.ReadScope,
 		WorkspaceID:         normalized.WorkspaceID,
 		WorktreeID:          normalized.WorktreeID,
 		State:               normalized.State,
@@ -192,6 +196,10 @@ func (m *Manager) activeSessionCatalogRows(
 }
 
 func normalizeListQuery(query ListQuery) (ListQuery, error) {
+	query.ReadScope.ProfileID = strings.TrimSpace(query.ReadScope.ProfileID)
+	if err := query.ReadScope.Validate(); err != nil {
+		return ListQuery{}, fmt.Errorf("%w: %w", ErrListQueryInvalid, err)
+	}
 	query.WorkspaceID = strings.TrimSpace(query.WorkspaceID)
 	if (query.WorkspaceID != "") == query.AllWorkspaces {
 		return ListQuery{}, fmt.Errorf(
@@ -283,7 +291,8 @@ func sessionMatchesIdentityFilters(info *Info, query ListQuery) bool {
 	if !isPublicSessionCatalogInfo(info) {
 		return false
 	}
-	return (query.WorkspaceID == "" || strings.TrimSpace(info.WorkspaceID) == query.WorkspaceID) &&
+	return query.ReadScope.Matches(info.ProfileID) &&
+		(query.WorkspaceID == "" || strings.TrimSpace(info.WorkspaceID) == query.WorkspaceID) &&
 		(query.WorktreeID == "" || strings.TrimSpace(info.WorktreeID) == query.WorktreeID) &&
 		(query.State == "" || strings.TrimSpace(string(info.State)) == query.State) &&
 		(query.SessionType == "" || normalizeSessionType(info.Type) == query.SessionType) &&
@@ -326,6 +335,8 @@ func sessionMatchesArchiveFilter(info *Info, filter store.SessionArchiveFilter) 
 
 func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 	fingerprint, err := listcursor.Fingerprint(sessionListFingerprint{
+		ProfileID:       query.ReadScope.ProfileID,
+		AllProfiles:     query.ReadScope.AllProfiles,
 		WorkspaceID:     query.WorkspaceID,
 		AllWorkspaces:   query.AllWorkspaces,
 		WorktreeID:      query.WorktreeID,

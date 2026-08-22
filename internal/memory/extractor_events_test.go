@@ -86,7 +86,10 @@ func TestStoreRecordExtractorEvent(t *testing.T) {
 		events, err := store.ListMemoryEventSummaries(
 			testutil.Context(t),
 			nil,
-			storepkg.EventSummaryQuery{Type: memoryextractor.EventStarted},
+			storepkg.EventSummaryQuery{
+				ReadScope: storepkg.ReadScope{AllProfiles: true},
+				Type:      memoryextractor.EventStarted,
+			},
 		)
 		if err != nil {
 			t.Fatalf("ListMemoryEventSummaries() error = %v", err)

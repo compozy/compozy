@@ -69,6 +69,7 @@ func scanTaskCatalogSummary(scanner rowScanner) (taskpkg.Summary, error) {
 	var fields taskCatalogScanFields
 	if err := scanner.Scan(
 		&summary.ID,
+		&summary.ProfileID,
 		&fields.identifier,
 		&fields.scope,
 		&fields.workspaceID,

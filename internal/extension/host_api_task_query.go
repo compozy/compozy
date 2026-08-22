@@ -10,6 +10,7 @@ import (
 	apicontract "github.com/compozy/compozy/internal/api/contract"
 
 	observepkg "github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -59,6 +60,14 @@ func (h *HostAPIHandler) taskActorContext(ctx context.Context) (taskpkg.ActorCon
 	if err != nil {
 		return taskpkg.ActorContext{}, invalidParamsRPCError(err)
 	}
+	profileID, err := hostAPITaskProfileID(ctx)
+	if err != nil {
+		return taskpkg.ActorContext{}, invalidParamsRPCError(err)
+	}
+	actor.ReadScope = store.ReadScope{ProfileID: profileID}
+	if err := actor.Validate(); err != nil {
+		return taskpkg.ActorContext{}, invalidParamsRPCError(err)
+	}
 	return actor, nil
 }
 
@@ -69,7 +78,12 @@ func (h *HostAPIHandler) taskQueryFromParams(
 	if err := apicontract.ValidateTaskListQuery(params, "task_query"); err != nil {
 		return taskpkg.CatalogQuery{}, invalidParamsRPCError(err)
 	}
+	profileID, err := hostAPITaskProfileID(ctx)
+	if err != nil {
+		return taskpkg.CatalogQuery{}, invalidParamsRPCError(err)
+	}
 	query := taskpkg.CatalogQuery{
+		ReadScope:     store.ReadScope{ProfileID: profileID},
 		Scope:         params.Scope.Normalize(),
 		Status:        params.Status.Normalize(),
 		Priority:      params.Priority.Normalize(),
@@ -136,7 +150,12 @@ func (h *HostAPIHandler) taskDashboardQueryFromParams(
 	ctx context.Context,
 	params apicontract.TaskDashboardQuery,
 ) (observepkg.TaskDashboardQuery, error) {
+	profileID, err := hostAPITaskProfileID(ctx)
+	if err != nil {
+		return observepkg.TaskDashboardQuery{}, invalidParamsRPCError(err)
+	}
 	query := observepkg.TaskDashboardQuery{
+		ReadScope:            store.ReadScope{ProfileID: profileID},
 		Scope:                params.Scope.Normalize(),
 		OwnerKind:            params.OwnerKind.Normalize(),
 		OwnerRef:             strings.TrimSpace(params.OwnerRef),
@@ -184,7 +203,12 @@ func (h *HostAPIHandler) taskInboxQueryFromParams(
 	if err := apicontract.ValidateTaskInboxQuery(params, "task_inbox_query"); err != nil {
 		return observepkg.TaskInboxQuery{}, invalidParamsRPCError(err)
 	}
+	profileID, err := hostAPITaskProfileID(ctx)
+	if err != nil {
+		return observepkg.TaskInboxQuery{}, invalidParamsRPCError(err)
+	}
 	query := observepkg.TaskInboxQuery{
+		ReadScope: store.ReadScope{ProfileID: profileID},
 		Scope:     params.Scope.Normalize(),
 		OwnerKind: params.OwnerKind.Normalize(),
 		OwnerRef:  strings.TrimSpace(params.OwnerRef),

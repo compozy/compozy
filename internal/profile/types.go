@@ -5,6 +5,8 @@ package profile
 import (
 	"context"
 	"time"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 type State string
@@ -180,7 +182,4 @@ type Resolution struct {
 	Note    ResolutionNote
 }
 
-type ReadScope struct {
-	ProfileID   string
-	AllProfiles bool
-}
+type ReadScope = store.ReadScope

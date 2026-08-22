@@ -70,8 +70,9 @@ func TestManagerClaimNextRunInjectsTrustedWorkspaceCapacity(t *testing.T) {
 		manager := newTaskManagerForTestWithOptions(t, store, WithWorkspaceActiveRunCap(16))
 		actor := validActorContext()
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Trusted claim capacity",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Trusted claim capacity",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -109,8 +110,9 @@ func TestManagerWorkAdmission(t *testing.T) {
 	worker := agentSessionActorContext("sess-drain-worker")
 
 	claimedTask, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Already admitted run",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Already admitted run",
 	}, operator)
 	if err != nil {
 		t.Fatalf("CreateTask(claimed) error = %v", err)
@@ -134,8 +136,9 @@ func TestManagerWorkAdmission(t *testing.T) {
 	}
 
 	queuedTask, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Queued before drain",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Queued before drain",
 	}, operator)
 	if err != nil {
 		t.Fatalf("CreateTask(queued) error = %v", err)
@@ -149,8 +152,9 @@ func TestManagerWorkAdmission(t *testing.T) {
 		t.Fatalf("EnqueueRun(queued) error = %v", err)
 	}
 	retryTask, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Retry source before drain",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Retry source before drain",
 	}, operator)
 	if err != nil {
 		t.Fatalf("CreateTask(retry source) error = %v", err)
@@ -168,8 +172,9 @@ func TestManagerWorkAdmission(t *testing.T) {
 	store.runs[retryRun.ID] = retrySource
 
 	recoverTask, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Recovery source before drain",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Recovery source before drain",
 	}, operator)
 	if err != nil {
 		t.Fatalf("CreateTask(recovery source) error = %v", err)
@@ -4157,8 +4162,9 @@ func TestManagerTaskStreamUsesLatestEventSequenceSeed(t *testing.T) {
 			manager := newTaskManagerForTest(t, store)
 			actor := validActorContext()
 			taskRecord, err := manager.CreateTask(ctx, CreateTask{
-				Scope: ScopeGlobal,
-				Title: "Latest sequence replay",
+				ProfileID: storepkg.DefaultProfileID,
+				Scope:     ScopeGlobal,
+				Title:     "Latest sequence replay",
 			}, actor)
 			if err != nil {
 				t.Fatalf("CreateTask() error = %v", err)
@@ -4248,8 +4254,9 @@ func TestManagerTaskStreamUsesLatestEventSequenceSeed(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 		actor := validActorContext()
 		taskRecord, err := manager.CreateTask(ctx, CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Concurrent terminal stream",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Concurrent terminal stream",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -4297,8 +4304,9 @@ func TestManagerRecordTaskEventRejectsTransactionalWatchKinds(t *testing.T) {
 	manager := newTaskManagerForTest(t, store)
 	actor := validActorContext()
 	taskRecord, err := manager.CreateTask(ctx, CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Watch kind guard",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Watch kind guard",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -4539,8 +4547,9 @@ func TestManagerCreateTaskUsesTrustedActorContext(t *testing.T) {
 	}
 
 	created, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Investigate task manager",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Investigate task manager",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -4604,8 +4613,9 @@ func TestManagerCreateTaskRecordsIntentWithoutRuns(t *testing.T) {
 				return validActorContext()
 			},
 			spec: CreateTask{
-				Scope: ScopeGlobal,
-				Title: "User intent only",
+				ProfileID: storepkg.DefaultProfileID,
+				Scope:     ScopeGlobal,
+				Title:     "User intent only",
 			},
 		},
 		{
@@ -4619,6 +4629,7 @@ func TestManagerCreateTaskRecordsIntentWithoutRuns(t *testing.T) {
 				return actor
 			},
 			spec: CreateTask{
+				ProfileID:      storepkg.DefaultProfileID,
 				Scope:          ScopeGlobal,
 				Title:          "Agent intent only",
 				ApprovalPolicy: ApprovalPolicyManual,
@@ -4667,9 +4678,10 @@ func TestManagerCreateTaskAppliesSemanticDefaultsAndDraftStatus(t *testing.T) {
 	actor := validActorContext()
 
 	draftCreated, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Draft task",
-		Draft: true,
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Draft task",
+		Draft:     true,
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask(draft) error = %v", err)
@@ -4703,9 +4715,10 @@ func TestManagerDraftPublicationReconcilesIntoReadyOrBlocked(t *testing.T) {
 		actor := validActorContext()
 
 		draftTask, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Draft task",
-			Draft: true,
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Draft task",
+			Draft:     true,
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask(draft) error = %v", err)
@@ -4757,16 +4770,18 @@ func TestManagerDraftPublicationReconcilesIntoReadyOrBlocked(t *testing.T) {
 			actor := validActorContext()
 
 			blocker, err := manager.CreateTask(context.Background(), CreateTask{
-				Scope: ScopeGlobal,
-				Title: "Blocker",
+				ProfileID: storepkg.DefaultProfileID,
+				Scope:     ScopeGlobal,
+				Title:     "Blocker",
 			}, actor)
 			if err != nil {
 				t.Fatalf("CreateTask(blocker) error = %v", err)
 			}
 			target, err := manager.CreateTask(context.Background(), CreateTask{
-				Scope: ScopeGlobal,
-				Title: "Target draft",
-				Draft: true,
+				ProfileID: storepkg.DefaultProfileID,
+				Scope:     ScopeGlobal,
+				Title:     "Target draft",
+				Draft:     true,
 			}, actor)
 			if err != nil {
 				t.Fatalf("CreateTask(target) error = %v", err)
@@ -4812,8 +4827,9 @@ func TestManagerPublishTaskRejectsNonDraftTasks(t *testing.T) {
 		actor := validActorContext()
 
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Already runnable",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Already runnable",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -4840,9 +4856,10 @@ func TestManagerPublishTaskRejectsNonDraftTasks(t *testing.T) {
 		actor := validActorContext()
 
 		draftTask, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Draft once",
-			Draft: true,
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Draft once",
+			Draft:     true,
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask(draft) error = %v", err)
@@ -4888,8 +4905,9 @@ func TestManagerExecutionBoundaryStartPublishApprovalIdempotency(t *testing.T) {
 			prepare: func(t *testing.T, manager *Service, actor ActorContext) string {
 				t.Helper()
 				taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-					Scope: ScopeGlobal,
-					Title: "Start boundary",
+					ProfileID: storepkg.DefaultProfileID,
+					Scope:     ScopeGlobal,
+					Title:     "Start boundary",
 				}, actor)
 				if err != nil {
 					t.Fatalf("CreateTask() error = %v", err)
@@ -4903,9 +4921,10 @@ func TestManagerExecutionBoundaryStartPublishApprovalIdempotency(t *testing.T) {
 			prepare: func(t *testing.T, manager *Service, actor ActorContext) string {
 				t.Helper()
 				taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-					Scope: ScopeGlobal,
-					Title: "Publish boundary",
-					Draft: true,
+					ProfileID: storepkg.DefaultProfileID,
+					Scope:     ScopeGlobal,
+					Title:     "Publish boundary",
+					Draft:     true,
 				}, actor)
 				if err != nil {
 					t.Fatalf("CreateTask() error = %v", err)
@@ -4919,6 +4938,7 @@ func TestManagerExecutionBoundaryStartPublishApprovalIdempotency(t *testing.T) {
 			prepare: func(t *testing.T, manager *Service, actor ActorContext) string {
 				t.Helper()
 				taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+					ProfileID:      storepkg.DefaultProfileID,
 					Scope:          ScopeGlobal,
 					Title:          "Approval boundary",
 					ApprovalPolicy: ApprovalPolicyManual,
@@ -4992,7 +5012,7 @@ func TestManagerCreateTaskEnforcesScopeAuthority(t *testing.T) {
 	}{
 		{
 			name: "global create denied without global authority",
-			spec: CreateTask{Scope: ScopeGlobal, Title: "Global task"},
+			spec: CreateTask{ProfileID: storepkg.DefaultProfileID, Scope: ScopeGlobal, Title: "Global task"},
 			actor: ActorContext{
 				Actor:     ActorIdentity{Kind: ActorKindHuman, Ref: "user-1"},
 				Origin:    Origin{Kind: OriginKindCLI, Ref: "compozy task create"},
@@ -5002,7 +5022,7 @@ func TestManagerCreateTaskEnforcesScopeAuthority(t *testing.T) {
 		},
 		{
 			name: "workspace create denied without workspace authority",
-			spec: CreateTask{Scope: ScopeWorkspace, WorkspaceID: "ws-1", Title: "Workspace task"},
+			spec: CreateTask{ProfileID: storepkg.DefaultProfileID, Scope: ScopeWorkspace, WorkspaceID: "ws-1", Title: "Workspace task"},
 			actor: ActorContext{
 				Actor:     ActorIdentity{Kind: ActorKindHuman, Ref: "user-1"},
 				Origin:    Origin{Kind: OriginKindCLI, Ref: "compozy task create"},
@@ -5034,15 +5054,16 @@ func TestManagerCreateTaskRejectsInvalidSemanticInputsBeforePersistence(t *testi
 	}{
 		{
 			name: "invalid priority",
-			spec: CreateTask{Scope: ScopeGlobal, Title: "Bad priority", Priority: Priority("rush")},
+			spec: CreateTask{ProfileID: storepkg.DefaultProfileID, Scope: ScopeGlobal, Title: "Bad priority", Priority: Priority("rush")},
 		},
 		{
 			name: "invalid max attempts",
-			spec: CreateTask{Scope: ScopeGlobal, Title: "Bad attempts", MaxAttempts: new(0)},
+			spec: CreateTask{ProfileID: storepkg.DefaultProfileID, Scope: ScopeGlobal, Title: "Bad attempts", MaxAttempts: new(0)},
 		},
 		{
 			name: "invalid approval policy",
 			spec: CreateTask{
+				ProfileID:      storepkg.DefaultProfileID,
 				Scope:          ScopeGlobal,
 				Title:          "Bad approval",
 				ApprovalPolicy: ApprovalPolicy("auto"),
@@ -5083,6 +5104,7 @@ func TestManagerUpdateTaskAllowsMutableFieldsAndOwnership(t *testing.T) {
 	actor := validActorContext()
 
 	created, err := manager.CreateTask(context.Background(), CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       ScopeWorkspace,
 		WorkspaceID: "ws-1",
 		Title:       "Queue task",
@@ -5172,7 +5194,7 @@ func TestManagerUpdateTaskTogglesAutoEnqueueOnReady(t *testing.T) {
 
 	created, err := manager.CreateTask(
 		context.Background(),
-		CreateTask{Scope: ScopeGlobal, Title: "Toggle"},
+		CreateTask{ProfileID: storepkg.DefaultProfileID, Scope: ScopeGlobal, Title: "Toggle"},
 		actor,
 	)
 	if err != nil {
@@ -5242,7 +5264,7 @@ func TestManagerUpdateTaskPreservesCanonicalBlockedStatus(t *testing.T) {
 
 	taskA, err := manager.CreateTask(
 		context.Background(),
-		CreateTask{Scope: ScopeGlobal, Title: "task A"},
+		CreateTask{ProfileID: storepkg.DefaultProfileID, Scope: ScopeGlobal, Title: "task A"},
 		actor,
 	)
 	if err != nil {
@@ -5250,7 +5272,7 @@ func TestManagerUpdateTaskPreservesCanonicalBlockedStatus(t *testing.T) {
 	}
 	taskB, err := manager.CreateTask(
 		context.Background(),
-		CreateTask{Scope: ScopeGlobal, Title: "task B"},
+		CreateTask{ProfileID: storepkg.DefaultProfileID, Scope: ScopeGlobal, Title: "task B"},
 		actor,
 	)
 	if err != nil {
@@ -5284,6 +5306,7 @@ func TestManagerApprovalGateBlocksExecutionUntilApproved(t *testing.T) {
 	actor := validActorContext()
 
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		ProfileID:      storepkg.DefaultProfileID,
 		Scope:          ScopeGlobal,
 		Title:          "Manual approval task",
 		ApprovalPolicy: ApprovalPolicyManual,
@@ -5351,6 +5374,7 @@ func TestManagerApprovalGateBlocksExecutionUntilApproved(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 		actor := validActorContext()
 		gatedTask, err := manager.CreateTask(context.Background(), CreateTask{
+			ProfileID:      storepkg.DefaultProfileID,
 			Scope:          ScopeGlobal,
 			Title:          "Pre-enqueued manual approval task",
 			ApprovalPolicy: ApprovalPolicyManual,
@@ -5399,6 +5423,7 @@ func TestManagerRejectTaskKeepsManualApprovalBlocked(t *testing.T) {
 	actor := validActorContext()
 
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		ProfileID:      storepkg.DefaultProfileID,
 		Scope:          ScopeGlobal,
 		Title:          "Manual rejection task",
 		ApprovalPolicy: ApprovalPolicyManual,
@@ -5447,8 +5472,9 @@ func TestManagerTaskTriageMutationsPersistActorScopedStateWithoutTaskEvents(t *t
 	bob.Actor.Ref = "user-bob"
 
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Inbox triage target",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Inbox triage target",
 	}, alice)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -5542,6 +5568,7 @@ func TestManagerAttemptExhaustionBlocksFurtherRetries(t *testing.T) {
 	actor := validActorContext()
 
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       ScopeGlobal,
 		Title:       "Retry budget task",
 		MaxAttempts: new(2),
@@ -5656,8 +5683,9 @@ func TestManagerEnqueueRunRejectsConcurrentOpenRun(t *testing.T) {
 			actor := validActorContext()
 
 			taskRecord, err := manager.CreateTask(ctx, CreateTask{
-				Scope: ScopeGlobal,
-				Title: "Concurrent run guard",
+				ProfileID: storepkg.DefaultProfileID,
+				Scope:     ScopeGlobal,
+				Title:     "Concurrent run guard",
 			}, actor)
 			if err != nil {
 				t.Fatalf("CreateTask() error = %v", err)
@@ -5716,9 +5744,10 @@ func TestManagerEnqueueRunRejectsDraftTask(t *testing.T) {
 	actor := validActorContext()
 
 	draftTask, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Draft task",
-		Draft: true,
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Draft task",
+		Draft:     true,
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -5747,14 +5776,16 @@ func TestManagerCreateChildTaskEnforcesParentRulesAndEmitsAudit(t *testing.T) {
 		actor := validActorContext()
 
 		parent, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Coordinator",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Coordinator",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask(parent) error = %v", err)
 		}
 
 		child, err := manager.CreateChildTask(context.Background(), parent.ID, CreateTask{
+			ProfileID:   storepkg.DefaultProfileID,
 			Scope:       ScopeWorkspace,
 			WorkspaceID: "ws-1",
 			Title:       "Workspace child",
@@ -5788,6 +5819,7 @@ func TestManagerCreateChildTaskEnforcesParentRulesAndEmitsAudit(t *testing.T) {
 			actor := validActorContext()
 
 			parent, err := manager.CreateTask(context.Background(), CreateTask{
+				ProfileID:   storepkg.DefaultProfileID,
 				Scope:       ScopeWorkspace,
 				WorkspaceID: "ws-parent",
 				Title:       "Workspace parent",
@@ -5797,14 +5829,16 @@ func TestManagerCreateChildTaskEnforcesParentRulesAndEmitsAudit(t *testing.T) {
 			}
 
 			_, err = manager.CreateChildTask(context.Background(), parent.ID, CreateTask{
-				Scope: ScopeGlobal,
-				Title: "Invalid global child",
+				ProfileID: storepkg.DefaultProfileID,
+				Scope:     ScopeGlobal,
+				Title:     "Invalid global child",
 			}, actor)
 			if !errors.Is(err, ErrValidation) {
 				t.Fatalf("CreateChildTask(global child) error = %v, want %v", err, ErrValidation)
 			}
 
 			_, err = manager.CreateChildTask(context.Background(), parent.ID, CreateTask{
+				ProfileID:   storepkg.DefaultProfileID,
 				Scope:       ScopeWorkspace,
 				WorkspaceID: "ws-other",
 				Title:       "Wrong workspace child",
@@ -5830,12 +5864,13 @@ func TestManagerGlobalTaskWorkspaceIsolation(t *testing.T) {
 	operator := validActorContext()
 	workspaceActor := agentSessionActorContextForWorkspace("sess-ws-a", "ws-a")
 
-	root, err := manager.CreateTask(ctx, CreateTask{Scope: ScopeGlobal, Title: "Global root"}, operator)
+	root, err := manager.CreateTask(ctx, CreateTask{ProfileID: storepkg.DefaultProfileID, Scope: ScopeGlobal, Title: "Global root"}, operator)
 	if err != nil {
 		t.Fatalf("CreateTask(root) error = %v", err)
 	}
 	foreignChild, err := manager.CreateChildTask(ctx, root.ID, CreateTask{
-		Scope: ScopeWorkspace, WorkspaceID: "ws-b", Title: "Foreign child",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeWorkspace, WorkspaceID: "ws-b", Title: "Foreign child",
 	}, operator)
 	if err != nil {
 		t.Fatalf("CreateChildTask(foreign child) error = %v", err)
@@ -5898,7 +5933,8 @@ func TestManagerGlobalTaskWorkspaceIsolation(t *testing.T) {
 
 	beforeTasks := len(store.tasks)
 	if _, err := manager.CreateChildTask(ctx, root.ID, CreateTask{
-		Scope: ScopeWorkspace, WorkspaceID: "ws-b", Title: "Unauthorized child",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeWorkspace, WorkspaceID: "ws-b", Title: "Unauthorized child",
 	}, workspaceActor); !errors.Is(err, ErrPermissionDenied) {
 		t.Fatalf("CreateChildTask(foreign workspace) error = %v, want %v", err, ErrPermissionDenied)
 	}
@@ -5973,7 +6009,7 @@ func TestManagerAddAndRemoveDependencyReconcileStatusAndEvents(t *testing.T) {
 
 	taskA, err := manager.CreateTask(
 		context.Background(),
-		CreateTask{Scope: ScopeGlobal, Title: "task A"},
+		CreateTask{ProfileID: storepkg.DefaultProfileID, Scope: ScopeGlobal, Title: "task A"},
 		actor,
 	)
 	if err != nil {
@@ -5981,7 +6017,7 @@ func TestManagerAddAndRemoveDependencyReconcileStatusAndEvents(t *testing.T) {
 	}
 	taskB, err := manager.CreateTask(
 		context.Background(),
-		CreateTask{Scope: ScopeGlobal, Title: "task B"},
+		CreateTask{ProfileID: storepkg.DefaultProfileID, Scope: ScopeGlobal, Title: "task B"},
 		actor,
 	)
 	if err != nil {
@@ -6100,6 +6136,7 @@ func TestManagerTaskBlockStatusDerivation(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 		actor := validActorContext()
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			ProfileID:   storepkg.DefaultProfileID,
 			Scope:       ScopeWorkspace,
 			WorkspaceID: "ws-blocked",
 			Title:       "Blocked by runtime condition",
@@ -6141,6 +6178,7 @@ func TestManagerTaskBlockStatusDerivation(t *testing.T) {
 			manager := newTaskManagerForTest(t, store)
 			actor := validActorContext()
 			taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+				ProfileID:   storepkg.DefaultProfileID,
 				Scope:       ScopeWorkspace,
 				WorkspaceID: "ws-expired",
 				Title:       "Expired transient block",
@@ -6180,6 +6218,7 @@ func TestManagerTaskBlockStatusDerivation(t *testing.T) {
 			manager := newTaskManagerForTest(t, store)
 			actor := validActorContext()
 			dependency, err := manager.CreateTask(context.Background(), CreateTask{
+				ProfileID:   storepkg.DefaultProfileID,
 				Scope:       ScopeWorkspace,
 				WorkspaceID: "ws-multi",
 				Title:       "Dependency",
@@ -6188,6 +6227,7 @@ func TestManagerTaskBlockStatusDerivation(t *testing.T) {
 				t.Fatalf("CreateTask(dependency) error = %v", err)
 			}
 			target, err := manager.CreateTask(context.Background(), CreateTask{
+				ProfileID:      storepkg.DefaultProfileID,
 				Scope:          ScopeWorkspace,
 				WorkspaceID:    "ws-multi",
 				Title:          "Multi-source blocked target",
@@ -6312,6 +6352,7 @@ func TestManagerBlockTaskServiceValidation(t *testing.T) {
 					manager := newTaskManagerForTest(t, store)
 					actor := validActorContext()
 					taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+						ProfileID:   storepkg.DefaultProfileID,
 						Scope:       ScopeWorkspace,
 						WorkspaceID: "ws-block-validation-" + strings.ReplaceAll(tt.name, " ", "-"),
 						Title:       "Block validation",
@@ -6356,6 +6397,7 @@ func TestManagerBlockTaskServiceValidation(t *testing.T) {
 				manager := newTaskManagerForTest(t, store)
 				actor := validActorContext()
 				taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+					ProfileID:   storepkg.DefaultProfileID,
 					Scope:       ScopeWorkspace,
 					WorkspaceID: "ws-block-expiry-" + string(kind),
 					Title:       "Block expiry rejection",
@@ -6384,6 +6426,7 @@ func TestManagerBlockTaskServiceValidation(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 		actor := validActorContext()
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			ProfileID:   storepkg.DefaultProfileID,
 			Scope:       ScopeWorkspace,
 			WorkspaceID: "ws-block-expiry-transient",
 			Title:       "Transient block expiry",
@@ -6423,7 +6466,7 @@ func TestManagerTaskBlockAgentSessionScope(t *testing.T) {
 
 			leasedTask, err := manager.CreateTask(
 				ctx,
-				CreateTask{Scope: ScopeGlobal, Title: "leased task"},
+				CreateTask{ProfileID: storepkg.DefaultProfileID, Scope: ScopeGlobal, Title: "leased task"},
 				operator,
 			)
 			if err != nil {
@@ -6431,7 +6474,7 @@ func TestManagerTaskBlockAgentSessionScope(t *testing.T) {
 			}
 			foreignTask, err := manager.CreateTask(
 				ctx,
-				CreateTask{Scope: ScopeGlobal, Title: "foreign task"},
+				CreateTask{ProfileID: storepkg.DefaultProfileID, Scope: ScopeGlobal, Title: "foreign task"},
 				operator,
 			)
 			if err != nil {
@@ -6533,6 +6576,7 @@ func TestManagerClearAndListTaskBlocks(t *testing.T) {
 	manager := newTaskManagerForTest(t, store)
 	actor := validActorContext()
 	target, err := manager.CreateTask(context.Background(), CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       ScopeWorkspace,
 		WorkspaceID: "ws-block-list-target",
 		Title:       "Block list target",
@@ -6541,6 +6585,7 @@ func TestManagerClearAndListTaskBlocks(t *testing.T) {
 		t.Fatalf("CreateTask(target) error = %v", err)
 	}
 	other, err := manager.CreateTask(context.Background(), CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       ScopeWorkspace,
 		WorkspaceID: "ws-block-list-other",
 		Title:       "Other workspace task",
@@ -6655,6 +6700,7 @@ func TestManagerTaskBlockBreakerEscalatesAtLimit(t *testing.T) {
 			)
 			actor := validActorContext()
 			taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+				ProfileID:   storepkg.DefaultProfileID,
 				Scope:       ScopeWorkspace,
 				WorkspaceID: "ws-block-breaker",
 				Title:       "Breaker target",
@@ -6788,6 +6834,7 @@ func TestManagerTaskBlockBreakerReEscalatesAfterRecover(t *testing.T) {
 			)
 			actor := validActorContext()
 			taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+				ProfileID:   storepkg.DefaultProfileID,
 				Scope:       ScopeWorkspace,
 				WorkspaceID: "ws-block-breaker-recover",
 				Title:       "Breaker recover target",
@@ -6879,6 +6926,7 @@ func TestManagerTaskBlockBreakerCanBeDisabled(t *testing.T) {
 			manager := newTaskManagerForTestWithOptions(t, store, WithBlockRecurrenceLimit(0))
 			actor := validActorContext()
 			taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+				ProfileID:   storepkg.DefaultProfileID,
 				Scope:       ScopeWorkspace,
 				WorkspaceID: "ws-block-breaker-disabled",
 				Title:       "Breaker disabled",
@@ -6936,6 +6984,7 @@ func TestManagerExpireTaskBlocksDoesNotIncrementRecurrenceOnClear(t *testing.T) 
 			)
 			actor := validActorContext()
 			taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+				ProfileID:   storepkg.DefaultProfileID,
 				Scope:       ScopeWorkspace,
 				WorkspaceID: "ws-transient-expiry",
 				Title:       "Transient expiry",
@@ -7002,6 +7051,7 @@ func TestManagerExpireTaskBlocksDoesNotIncrementRecurrenceOnClear(t *testing.T) 
 		blocks := make([]TaskBlock, 0, 2)
 		for index := range 2 {
 			taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+				ProfileID:   storepkg.DefaultProfileID,
 				Scope:       ScopeWorkspace,
 				WorkspaceID: fmt.Sprintf("ws-transient-expiry-entropy-%d", index),
 				Title:       fmt.Sprintf("Transient expiry entropy %d", index),
@@ -7081,6 +7131,7 @@ func TestManagerRecoverTaskClearsEscalationAndAutoEnqueuesReadyTask(t *testing.T
 		)
 		actor := validActorContext()
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			ProfileID:          storepkg.DefaultProfileID,
 			Scope:              ScopeWorkspace,
 			WorkspaceID:        "ws-block-recover",
 			Title:              "Recover target",
@@ -7220,6 +7271,7 @@ func TestManagerStickyTaskBlockNeverAutoClears(t *testing.T) {
 	manager := newTaskManagerForTest(t, store)
 	actor := validActorContext()
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       ScopeWorkspace,
 		WorkspaceID: "ws-sticky-block",
 		Title:       "Sticky block",
@@ -7403,6 +7455,7 @@ func TestManagerBlockedReasonsProjection(t *testing.T) {
 	actor := validActorContext()
 	rawClaimToken := "compozy_claim_reason_SECRET123"
 	dependency, err := manager.CreateTask(context.Background(), CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       ScopeWorkspace,
 		WorkspaceID: "ws-reasons",
 		Title:       "Dependency",
@@ -7411,6 +7464,7 @@ func TestManagerBlockedReasonsProjection(t *testing.T) {
 		t.Fatalf("CreateTask(dependency) error = %v", err)
 	}
 	target, err := manager.CreateTask(context.Background(), CreateTask{
+		ProfileID:      storepkg.DefaultProfileID,
 		Scope:          ScopeWorkspace,
 		WorkspaceID:    "ws-reasons",
 		Title:          "Reasoned target",
@@ -7506,6 +7560,7 @@ func TestManagerReconcilePersistsNeedsAttentionStatus(t *testing.T) {
 	manager := newTaskManagerForTest(t, store)
 	actor := validActorContext()
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       ScopeWorkspace,
 		WorkspaceID: "ws-attention",
 		Title:       "Escalated target",
@@ -7545,22 +7600,25 @@ func TestManagerGetAndListTasksRequireReadAuthorityAndBuildView(t *testing.T) {
 	actor := validActorContext()
 
 	parent, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Parent task",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Parent task",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask(parent) error = %v", err)
 	}
 	child, err := manager.CreateChildTask(context.Background(), parent.ID, CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Child task",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Child task",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateChildTask() error = %v", err)
 	}
 	dependency, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Dependency",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Dependency",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask(dependency) error = %v", err)
@@ -7598,6 +7656,9 @@ func TestManagerGetAndListTasksRequireReadAuthorityAndBuildView(t *testing.T) {
 	}
 	if len(view.Runs) != 1 {
 		t.Fatalf("len(view.Runs) = %d, want 1", len(view.Runs))
+	}
+	if got, want := view.Runs[0].ProfileID, child.ProfileID; got != want {
+		t.Fatalf("view.Runs[0].ProfileID = %q, want inherited owner %q", got, want)
 	}
 	if len(view.Events) < 2 {
 		t.Fatalf("len(view.Events) = %d, want at least 2", len(view.Events))
@@ -7651,6 +7712,36 @@ func TestManagerGetAndListTasksRequireReadAuthorityAndBuildView(t *testing.T) {
 	if len(runs) != 1 || runs[0].ID != "run-active" {
 		t.Fatalf("ListTaskRuns() = %#v, want only run-active", runs)
 	}
+	if got, want := runs[0].ProfileID, child.ProfileID; got != want {
+		t.Fatalf("ListTaskRuns()[0].ProfileID = %q, want inherited owner %q", got, want)
+	}
+
+	t.Run("Should reject task and run reads outside the actor profile scope", func(t *testing.T) {
+		t.Parallel()
+
+		foreignActor := actor
+		foreignActor.ReadScope = storepkg.ReadScope{ProfileID: strings.Repeat("f", 26)}
+		if _, err := manager.GetTask(context.Background(), child.ID, foreignActor); !errors.Is(
+			err,
+			ErrTaskNotFound,
+		) {
+			t.Fatalf("GetTask(foreign profile) error = %v, want %v", err, ErrTaskNotFound)
+		}
+		if _, err := manager.ListTaskRuns(
+			context.Background(),
+			child.ID,
+			RunQuery{},
+			foreignActor,
+		); !errors.Is(err, ErrTaskNotFound) {
+			t.Fatalf("ListTaskRuns(foreign profile) error = %v, want %v", err, ErrTaskNotFound)
+		}
+
+		aggregateActor := actor
+		aggregateActor.ReadScope = storepkg.ReadScope{AllProfiles: true}
+		if _, err := manager.GetTask(context.Background(), child.ID, aggregateActor); err != nil {
+			t.Fatalf("GetTask(aggregate) error = %v", err)
+		}
+	})
 
 	noRead := actor
 	noRead.Authority.Read = false
@@ -7687,6 +7778,7 @@ func TestManagerListTasksSupportsSearchAndOrdersByLatestActivity(t *testing.T) {
 	actor := validActorContext()
 
 	first, err := manager.CreateTask(context.Background(), CreateTask{
+		ProfileID:  storepkg.DefaultProfileID,
 		Scope:      ScopeGlobal,
 		Title:      "Alpha planning",
 		Identifier: "OPS-100",
@@ -7695,6 +7787,7 @@ func TestManagerListTasksSupportsSearchAndOrdersByLatestActivity(t *testing.T) {
 		t.Fatalf("CreateTask(first) error = %v", err)
 	}
 	second, err := manager.CreateTask(context.Background(), CreateTask{
+		ProfileID:  storepkg.DefaultProfileID,
 		Scope:      ScopeGlobal,
 		Title:      "Beta rollout",
 		Identifier: "OPS-200",
@@ -7751,13 +7844,15 @@ func TestManagerTaskResourceAuthorityFencesWorkspaces(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 		operator := validActorContext()
 		globalTask, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Global task",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Global task",
 		}, operator)
 		if err != nil {
 			t.Fatalf("CreateTask(global) error = %v", err)
 		}
 		workspaceTask, err := manager.CreateTask(context.Background(), CreateTask{
+			ProfileID:   storepkg.DefaultProfileID,
 			Scope:       ScopeWorkspace,
 			WorkspaceID: "ws-a",
 			Title:       "Workspace A task",
@@ -7766,6 +7861,7 @@ func TestManagerTaskResourceAuthorityFencesWorkspaces(t *testing.T) {
 			t.Fatalf("CreateTask(workspace a) error = %v", err)
 		}
 		foreignTask, err := manager.CreateTask(context.Background(), CreateTask{
+			ProfileID:   storepkg.DefaultProfileID,
 			Scope:       ScopeWorkspace,
 			WorkspaceID: "ws-b",
 			Title:       "Workspace B task",
@@ -7860,6 +7956,7 @@ func TestManagerTaskResourceAuthorityFencesWorkspaces(t *testing.T) {
 		policy := &recordingTaskWorkspaceAccessPolicy{}
 		manager := newTaskManagerForTestWithOptions(t, store, WithWorkspaceAccessPolicy(policy))
 		foreignTask, err := manager.CreateTask(t.Context(), CreateTask{
+			ProfileID:   storepkg.DefaultProfileID,
 			Scope:       ScopeWorkspace,
 			WorkspaceID: "ws-b",
 			Title:       "Automation must not cross workspace boundaries",
@@ -7951,6 +8048,7 @@ func TestManagerListTasksCombinedFiltersPreserveEnrichedFields(t *testing.T) {
 	actor := validActorContext()
 
 	parent, err := manager.CreateTask(context.Background(), CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       ScopeWorkspace,
 		WorkspaceID: "ws-1",
 		Title:       "Alpha parent",
@@ -7959,6 +8057,7 @@ func TestManagerListTasksCombinedFiltersPreserveEnrichedFields(t *testing.T) {
 		t.Fatalf("CreateTask(parent) error = %v", err)
 	}
 	blocker, err := manager.CreateTask(context.Background(), CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       ScopeWorkspace,
 		WorkspaceID: "ws-1",
 		Title:       "Ops blocker",
@@ -7968,6 +8067,7 @@ func TestManagerListTasksCombinedFiltersPreserveEnrichedFields(t *testing.T) {
 		t.Fatalf("CreateTask(blocker) error = %v", err)
 	}
 	matching, err := manager.CreateChildTask(context.Background(), parent.ID, CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       ScopeWorkspace,
 		WorkspaceID: "ws-1",
 		Title:       "Alpha child rollout",
@@ -7985,6 +8085,7 @@ func TestManagerListTasksCombinedFiltersPreserveEnrichedFields(t *testing.T) {
 	}
 
 	if _, err := manager.CreateChildTask(context.Background(), parent.ID, CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       ScopeWorkspace,
 		WorkspaceID: "ws-1",
 		Title:       "Alpha child ready",
@@ -7993,6 +8094,7 @@ func TestManagerListTasksCombinedFiltersPreserveEnrichedFields(t *testing.T) {
 		t.Fatalf("CreateChildTask(ready sibling) error = %v", err)
 	}
 	if _, err := manager.CreateTask(context.Background(), CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       ScopeWorkspace,
 		WorkspaceID: "ws-2",
 		Title:       "Alpha child rollout",
@@ -8109,8 +8211,9 @@ func TestManagerRunLifecycleRejectsInvalidTransitions(t *testing.T) {
 	actor := validActorContext()
 
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Lifecycle transitions",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Lifecycle transitions",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -8435,8 +8538,9 @@ func createRunningRunForTest(t *testing.T, manager *Service, actor ActorContext)
 	t.Helper()
 
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Terminal session cleanup",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Terminal session cleanup",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -8554,15 +8658,17 @@ func TestManagerTaskReconciliationAcrossDependenciesAndRuns(t *testing.T) {
 	actor := validActorContext()
 
 	blocker, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Blocking task",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Blocking task",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask(blocker) error = %v", err)
 	}
 	target, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Target task",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Target task",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask(target) error = %v", err)
@@ -8632,6 +8738,7 @@ func TestManagerTaskReconciliationAcrossDependenciesAndRuns(t *testing.T) {
 	}
 
 	failedTask, err := manager.CreateTask(context.Background(), CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       ScopeGlobal,
 		Title:       "Failure task",
 		MaxAttempts: new(1),
@@ -8665,8 +8772,9 @@ func TestManagerTaskReconciliationAcrossDependenciesAndRuns(t *testing.T) {
 	}
 
 	cancelledTask, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Canceled task",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Canceled task",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask(cancelledTask) error = %v", err)
@@ -8712,14 +8820,14 @@ func TestManagerCancelTaskPropagatesAcrossTree(t *testing.T) {
 		executor := &recordingSessionExecutor{}
 		manager := newTaskManagerForTestWithOptions(t, store, WithSessionExecutor(executor))
 		actor := validActorContext()
-		parent, err := manager.CreateTask(context.Background(), CreateTask{Scope: ScopeGlobal, Title: "Parent"}, actor)
+		parent, err := manager.CreateTask(context.Background(), CreateTask{ProfileID: storepkg.DefaultProfileID, Scope: ScopeGlobal, Title: "Parent"}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask(parent) error = %v", err)
 		}
 		firstChild, err := manager.CreateChildTask(
 			context.Background(),
 			parent.ID,
-			CreateTask{Scope: ScopeGlobal, Title: "First child"},
+			CreateTask{ProfileID: storepkg.DefaultProfileID, Scope: ScopeGlobal, Title: "First child"},
 			actor,
 		)
 		if err != nil {
@@ -8728,7 +8836,7 @@ func TestManagerCancelTaskPropagatesAcrossTree(t *testing.T) {
 		secondChild, err := manager.CreateChildTask(
 			context.Background(),
 			parent.ID,
-			CreateTask{Scope: ScopeGlobal, Title: "Second child"},
+			CreateTask{ProfileID: storepkg.DefaultProfileID, Scope: ScopeGlobal, Title: "Second child"},
 			actor,
 		)
 		if err != nil {
@@ -8817,22 +8925,25 @@ func testManagerCancelTaskPropagatesAcrossTree(t *testing.T) {
 	actor := validActorContext()
 
 	parent, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Parent task",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Parent task",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask(parent) error = %v", err)
 	}
 	queuedChild, err := manager.CreateChildTask(context.Background(), parent.ID, CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Queued child",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Queued child",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateChildTask(queued child) error = %v", err)
 	}
 	activeChild, err := manager.CreateChildTask(context.Background(), parent.ID, CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Active child",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Active child",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateChildTask(active child) error = %v", err)
@@ -8933,6 +9044,7 @@ func TestManagerAttachRunSessionAndRetryLatestRunOutcome(t *testing.T) {
 	actor := validActorContext()
 
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       ScopeGlobal,
 		Title:       "Attach and retry",
 		MaxAttempts: new(2),
@@ -9069,8 +9181,9 @@ func TestManagerForceRunOperations(t *testing.T) {
 			actor := validActorContext()
 
 			taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-				Scope: ScopeGlobal,
-				Title: "Force release",
+				ProfileID: storepkg.DefaultProfileID,
+				Scope:     ScopeGlobal,
+				Title:     "Force release",
 			}, actor)
 			if err != nil {
 				t.Fatalf("CreateTask() error = %v", err)
@@ -9174,8 +9287,9 @@ func TestManagerForceRunOperations(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 		actor := validActorContext()
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Bulk force release",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Bulk force release",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -9236,8 +9350,9 @@ func TestManagerForceRunOperations(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 		actor := validActorContext()
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Force fail",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Force fail",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -9324,8 +9439,9 @@ func TestManagerForceRunOperations(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 		actor := validActorContext()
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Sanitized force fail",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Sanitized force fail",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -9392,8 +9508,9 @@ func TestManagerForceRunOperations(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 		actor := validActorContext()
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Bounded force fail",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Bounded force fail",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -9444,8 +9561,9 @@ func TestManagerForceRunOperations(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 		actor := validActorContext()
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Bounded force fail reason",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Bounded force fail reason",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -9503,6 +9621,7 @@ func TestManagerForceRunOperations(t *testing.T) {
 		actor := validActorContext()
 		maxAttempts := 3
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			ProfileID:   storepkg.DefaultProfileID,
 			Scope:       ScopeGlobal,
 			Title:       "Retry failed",
 			MaxAttempts: &maxAttempts,
@@ -9610,6 +9729,7 @@ func TestManagerForceRunOperations(t *testing.T) {
 			actor := validActorContext()
 			maxAttempts := 3
 			taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+				ProfileID:   storepkg.DefaultProfileID,
 				Scope:       ScopeGlobal,
 				Title:       "Recover needs_attention",
 				MaxAttempts: &maxAttempts,
@@ -9752,8 +9872,9 @@ func TestManagerForceRunOperations(t *testing.T) {
 			manager := newTaskManagerForTest(t, store)
 			actor := validActorContext()
 			taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-				Scope: ScopeGlobal,
-				Title: "Starved",
+				ProfileID: storepkg.DefaultProfileID,
+				Scope:     ScopeGlobal,
+				Title:     "Starved",
 			}, actor)
 			if err != nil {
 				t.Fatalf("CreateTask() error = %v", err)
@@ -9841,8 +9962,9 @@ func TestManagerForceRunOperations(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 		writer := validActorContext()
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Read-only escalation",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Read-only escalation",
 		}, writer)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -9884,8 +10006,9 @@ func TestManagerForceRunOperations(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 		actor := validActorContext()
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Sensitive diagnostic",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Sensitive diagnostic",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -9931,8 +10054,9 @@ func TestManagerForceRunOperations(t *testing.T) {
 		manager := newTaskManagerForTest(t, store)
 		actor := validActorContext()
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Bounded needs attention diagnostic",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Bounded needs attention diagnostic",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -9986,8 +10110,9 @@ func TestManagerForceRunOperations(t *testing.T) {
 			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 		}
 		taskRecord, err := disabledManager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Agent force disabled",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Agent force disabled",
 		}, operator)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -10019,8 +10144,9 @@ func TestManagerForceRunOperations(t *testing.T) {
 			),
 		)
 		rateTask, err := rateManager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Agent force rate",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Agent force rate",
 		}, operator)
 		if err != nil {
 			t.Fatalf("CreateTask(rate) error = %v", err)
@@ -10058,15 +10184,17 @@ func TestManagerNonHumanIdempotencyAndExecutionGuards(t *testing.T) {
 	}
 
 	taskOne, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Idempotent task one",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Idempotent task one",
 	}, automationActor)
 	if err != nil {
 		t.Fatalf("CreateTask(taskOne) error = %v", err)
 	}
 	taskTwo, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Idempotent task two",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Idempotent task two",
 	}, automationActor)
 	if err != nil {
 		t.Fatalf("CreateTask(taskTwo) error = %v", err)
@@ -10647,8 +10775,9 @@ func TestManagerEnqueueRunPreservesMetadataAcrossIdempotentDuplicates(t *testing
 		}
 
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Detached metadata task",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Detached metadata task",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -10739,8 +10868,9 @@ func TestManagerRecordTaskEventPostCommitNotifications(t *testing.T) {
 		actor := validActorContext()
 
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Detached post-commit notifications",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Detached post-commit notifications",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -10813,8 +10943,9 @@ func TestManagerRecordTaskEventPostCommitNotifications(t *testing.T) {
 		actor := validActorContext()
 
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Observer panic notifications",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Observer panic notifications",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -10954,8 +11085,9 @@ func TestManagerNetworkPeerEnqueueRunUsesOriginScopedIdempotency(t *testing.T) {
 	}
 
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Peer-originated task",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Peer-originated task",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -11025,6 +11157,7 @@ func TestManagerGlobalTaskWithLocalParticipationSkipsWorkspaceResolver(t *testin
 				t.Fatalf("DeriveHumanActorContext() error = %v", err)
 			}
 			taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+				ProfileID:            storepkg.DefaultProfileID,
 				Scope:                ScopeGlobal,
 				Title:                "Local global task",
 				NetworkParticipation: test.profile,
@@ -11085,8 +11218,9 @@ func TestManagerStartRunPreservesResolvedParticipationSnapshot(t *testing.T) {
 	}
 
 	taskRecord, err := bootstrap.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Resolved run snapshot task",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Resolved run snapshot task",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -11142,15 +11276,17 @@ func TestManagerBlockedExecutionAndFailureGuardrails(t *testing.T) {
 	actor := validActorContext()
 
 	blocker, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Blocker",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Blocker",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask(blocker) error = %v", err)
 	}
 	target, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Target",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Target",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask(target) error = %v", err)
@@ -11179,6 +11315,7 @@ func TestManagerBlockedExecutionAndFailureGuardrails(t *testing.T) {
 	}
 
 	failingTask, err := manager.CreateTask(context.Background(), CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       ScopeGlobal,
 		Title:       "Failing start task",
 		MaxAttempts: new(1),
@@ -11210,8 +11347,9 @@ func TestManagerBlockedExecutionAndFailureGuardrails(t *testing.T) {
 	}
 
 	completedTask, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Completed task",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Completed task",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask(completedTask) error = %v", err)
@@ -11492,8 +11630,9 @@ func TestManagerStartRunPersistsDedicatedSessionAfterCallerCancellation(t *testi
 	actor := validActorContext()
 
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Cancelable start run",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Cancelable start run",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -11564,6 +11703,7 @@ func TestManagerStartRunTransfersClaimedPerRunExecutionToDedicatedSession(t *tes
 	claimer := agentSessionActorContext("sess-claimer")
 
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       ScopeWorkspace,
 		WorkspaceID: "ws-test",
 		Title:       "Per-run claimed transfer",
@@ -11625,8 +11765,9 @@ func TestManagerStartRunExecutionProfile(t *testing.T) {
 			actor := validActorContext()
 
 			taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-				Scope: ScopeGlobal,
-				Title: "Profiled start run",
+				ProfileID: storepkg.DefaultProfileID,
+				Scope:     ScopeGlobal,
+				Title:     "Profiled start run",
 			}, actor)
 			if err != nil {
 				t.Fatalf("CreateTask() error = %v", err)
@@ -11702,8 +11843,9 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 		actor := validActorContext()
 
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Stale session binding",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Stale session binding",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -11768,8 +11910,9 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 		agent := agentSessionActorContext("sess-heartbeat-owner")
 
 		taskRecord, err := manager.CreateTask(ctx, CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Heartbeat during materialization",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Heartbeat during materialization",
 		}, operator)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -11843,8 +11986,9 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 		agent := agentSessionActorContext("sess-heartbeat-failure")
 
 		taskRecord, err := manager.CreateTask(ctx, CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Heartbeat-fenced materialization failure",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Heartbeat-fenced materialization failure",
 		}, operator)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -11915,8 +12059,9 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 		agent := agentSessionActorContext("sess-expired-failure")
 
 		taskRecord, err := manager.CreateTask(ctx, CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Expired materialization failure",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Expired materialization failure",
 		}, operator)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -11978,8 +12123,9 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 		agent := agentSessionActorContext("sess-expired-owner")
 
 		taskRecord, err := manager.CreateTask(ctx, CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Expired materialization",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Expired materialization",
 		}, operator)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -12086,8 +12232,9 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 			actor := validActorContext()
 
 			taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-				Scope: ScopeGlobal,
-				Title: "Nil session ref task",
+				ProfileID: storepkg.DefaultProfileID,
+				Scope:     ScopeGlobal,
+				Title:     "Nil session ref task",
 			}, actor)
 			if err != nil {
 				t.Fatalf("CreateTask() error = %v", err)
@@ -12129,8 +12276,9 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 		ctx := t.Context()
 
 		taskRecord, err := manager.CreateTask(ctx, CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Sanitized start failure",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Sanitized start failure",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -12189,8 +12337,9 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 		actor := validActorContext()
 
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Shared session guard",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Shared session guard",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -12212,8 +12361,9 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 		}
 
 		taskRecordTwo, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Second task sharing session",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Second task sharing session",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask(taskRecordTwo) error = %v", err)
@@ -12255,8 +12405,9 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 		actor := validActorContext()
 
 		taskRecord, err := managerWithoutExecutor.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Attach validation task",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Attach validation task",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -12292,8 +12443,9 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 			WithSessionExecutor(&recordingSessionExecutor{}),
 		)
 		taskRecord, err = managerWithExecutor.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Attach session id validation",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Attach session id validation",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask(with executor) error = %v", err)
@@ -12354,8 +12506,9 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 		actor := validActorContext()
 
 		taskRecord, err := manager.CreateTask(ctx, CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Attach status guard",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Attach status guard",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -12409,8 +12562,9 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 		actor := validActorContext()
 
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Claimed recovery",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Claimed recovery",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -12468,8 +12622,9 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 		actor := validActorContext()
 
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Starting recovery",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Starting recovery",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -12518,8 +12673,9 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 			actor := validActorContext()
 
 			taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-				Scope: ScopeGlobal,
-				Title: "Running recovery",
+				ProfileID: storepkg.DefaultProfileID,
+				Scope:     ScopeGlobal,
+				Title:     "Running recovery",
 			}, actor)
 			if err != nil {
 				t.Fatalf("CreateTask() error = %v", err)
@@ -12596,8 +12752,9 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 			actor := validActorContext()
 
 			taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-				Scope: ScopeGlobal,
-				Title: "Claimed without session",
+				ProfileID: storepkg.DefaultProfileID,
+				Scope:     ScopeGlobal,
+				Title:     "Claimed without session",
 			}, actor)
 			if err != nil {
 				t.Fatalf("CreateTask() error = %v", err)
@@ -12640,8 +12797,9 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 			actor := validActorContext()
 
 			taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-				Scope: ScopeGlobal,
-				Title: "Running still live",
+				ProfileID: storepkg.DefaultProfileID,
+				Scope:     ScopeGlobal,
+				Title:     "Running still live",
 			}, actor)
 			if err != nil {
 				t.Fatalf("CreateTask() error = %v", err)
@@ -12710,8 +12868,9 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 		actor := validActorContext()
 
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Starting cannot requeue",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Starting cannot requeue",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -12802,8 +12961,9 @@ func TestManagerGetTaskAndFailRunGuardrails(t *testing.T) {
 	}
 
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Queued fail guard",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Queued fail guard",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -12993,8 +13153,9 @@ func TestManagerAdditionalBranchCoverage(t *testing.T) {
 		}
 
 		created, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Entropy failure",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Entropy failure",
 		}, validActorContext())
 		if !errors.Is(err, entropyErr) {
 			t.Fatalf("CreateTask() error = %v, want %v", err, entropyErr)
@@ -13067,14 +13228,16 @@ func TestManagerAdditionalBranchCoverage(t *testing.T) {
 		manager := newTaskManagerForTest(t, newInMemoryManagerStore())
 		actor := validActorContext()
 		parent, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Parent",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Parent",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask(parent) error = %v", err)
 		}
 
 		_, err = manager.CreateChildTask(context.Background(), parent.ID, CreateTask{
+			ProfileID:    storepkg.DefaultProfileID,
 			Scope:        ScopeGlobal,
 			ParentTaskID: "different-parent",
 			Title:        "Child",
@@ -13209,8 +13372,9 @@ func TestManagerWakeCreatorDispatchesEligibleTransitions(t *testing.T) {
 	}
 
 	blockedTask, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Blocked child",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Blocked child",
 	}, creator)
 	if err != nil {
 		t.Fatalf("CreateTask(blocked) error = %v", err)
@@ -13224,8 +13388,9 @@ func TestManagerWakeCreatorDispatchesEligibleTransitions(t *testing.T) {
 	}
 
 	attentionTask, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Needs attention child",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Needs attention child",
 	}, creator)
 	if err != nil {
 		t.Fatalf("CreateTask(attention) error = %v", err)
@@ -13274,8 +13439,9 @@ func TestManagerWakeCreatorDeliversOncePerWakeEventID(t *testing.T) {
 		manager := newTaskManagerForTestWithOptions(t, store, WithWakeNotifier(wakes))
 		creator := agentSessionActorContext("sess-creator")
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Dedupe child",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Dedupe child",
 		}, creator)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -13302,8 +13468,9 @@ func TestManagerWakeCreatorDeliversOncePerWakeEventID(t *testing.T) {
 		manager := newTaskManagerForTestWithOptions(t, store, WithWakeNotifier(wakes))
 		creator := agentSessionActorContext("sess-creator-eviction")
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Dedupe after eviction",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Dedupe after eviction",
 		}, creator)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -13367,8 +13534,9 @@ func TestManagerWakeCreatorQueriesAuditIdentityOutsideWakeLock(t *testing.T) {
 		}
 		creator := agentSessionActorContext("sess-creator")
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Audit scan child",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Audit scan child",
 		}, creator)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -13402,8 +13570,9 @@ func TestManagerWakeCreatorSuppressesIneligibleDelivery(t *testing.T) {
 		manager := newTaskManagerForTestWithOptions(t, store, WithWakeNotifier(wakes))
 		creator := agentSessionActorContext("sess-dead")
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Dead creator child",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Dead creator child",
 		}, creator)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -13433,8 +13602,9 @@ func TestManagerWakeCreatorSuppressesIneligibleDelivery(t *testing.T) {
 		manager := newTaskManagerForTestWithOptions(t, store, WithWakeNotifier(wakes))
 		creator := agentSessionActorContext("sess-creator")
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Opt-out child",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Opt-out child",
 		}, creator)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -13467,8 +13637,9 @@ func TestManagerWakeCreatorSuppressesIneligibleDelivery(t *testing.T) {
 		manager := newTaskManagerForTestWithOptions(t, store, WithWakeNotifier(wakes))
 		creator := agentSessionActorContext("sess-self")
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Self child",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Self child",
 		}, creator)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -13498,8 +13669,9 @@ func TestManagerWakeCreatorSuppressesIneligibleDelivery(t *testing.T) {
 		manager := newTaskManagerForTestWithOptions(t, store, WithWakeNotifier(wakes))
 		actor := validActorContext()
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Human child",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Human child",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -13734,6 +13906,7 @@ func createRunningRunForWakeTestWithMaxAttempts(
 	t.Helper()
 
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       ScopeGlobal,
 		Title:       title,
 		MaxAttempts: &maxAttempts,
@@ -13920,22 +14093,25 @@ func setupStaleDependencyReadScenario(
 	actor := validActorContext()
 
 	upstream, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Upstream dependency",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Upstream dependency",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask(upstream) error = %v", err)
 	}
 	blocker, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Intermediate blocker",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Intermediate blocker",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask(blocker) error = %v", err)
 	}
 	target, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Blocked target",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Blocked target",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask(target) error = %v", err)

@@ -1099,6 +1099,7 @@ func TestServiceForgetEntity(t *testing.T) {
 		}
 
 		service.ForgetEntity(store.DeadEntityKey{
+			ProfileID:   "  " + target.ProfileID + "  ",
 			WorkspaceID: "  " + target.WorkspaceID + "  ",
 			Kind:        target.Kind,
 			EntityID:    "  " + target.EntityID + "  ",
@@ -1414,34 +1415,31 @@ func (s *blockingDeadEntityStore) MarkDeadEntity(ctx context.Context, entity sto
 
 func (s *blockingDeadEntityStore) ClearDeadEntity(
 	ctx context.Context,
-	workspaceID string,
-	kind store.DeadEntityKind,
-	entityID string,
+	key store.DeadEntityKey,
 ) error {
 	if s.clearGate != nil {
 		if err := s.clearGate.Wait(ctx); err != nil {
 			return err
 		}
 	}
-	return s.recordingDeadEntityStore.ClearDeadEntity(ctx, workspaceID, kind, entityID)
+	return s.recordingDeadEntityStore.ClearDeadEntity(ctx, key)
 }
 
 func (s *blockingDeadEntityStore) FindDeadEntity(
 	ctx context.Context,
-	workspaceID string,
-	kind store.DeadEntityKind,
-	entityID string,
+	key store.DeadEntityKey,
 ) (store.DeadEntity, bool, error) {
 	if s.findGate != nil {
 		if err := s.findGate.Wait(ctx); err != nil {
 			return store.DeadEntity{}, false, err
 		}
 	}
-	return s.recordingDeadEntityStore.FindDeadEntity(ctx, workspaceID, kind, entityID)
+	return s.recordingDeadEntityStore.FindDeadEntity(ctx, key)
 }
 
 func (s *blockingDeadEntityStore) ListDeadEntities(
 	ctx context.Context,
+	readScope store.ReadScope,
 	workspaceID string,
 ) ([]store.DeadEntity, error) {
 	if s.listGate != nil {
@@ -1449,7 +1447,7 @@ func (s *blockingDeadEntityStore) ListDeadEntities(
 			return nil, err
 		}
 	}
-	return s.recordingDeadEntityStore.ListDeadEntities(ctx, workspaceID)
+	return s.recordingDeadEntityStore.ListDeadEntities(ctx, readScope, workspaceID)
 }
 
 type blockingDeadEntityEventStore struct {
@@ -1499,16 +1497,10 @@ type staleFindDeadEntityStore struct {
 
 func (s *staleFindDeadEntityStore) FindDeadEntity(
 	ctx context.Context,
-	workspaceID string,
-	kind store.DeadEntityKind,
-	entityID string,
+	key store.DeadEntityKey,
 ) (store.DeadEntity, bool, error) {
 	s.mu.Lock()
-	entity, found := s.entities[store.DeadEntityKey{
-		WorkspaceID: workspaceID,
-		Kind:        kind,
-		EntityID:    entityID,
-	}]
+	entity, found := s.entities[key]
 	s.mu.Unlock()
 	if err := s.findGate.Wait(ctx); err != nil {
 		return store.DeadEntity{}, false, err
@@ -1558,9 +1550,7 @@ func (s *recordingDeadEntityStore) MarkDeadEntity(_ context.Context, entity stor
 
 func (s *recordingDeadEntityStore) ClearDeadEntity(
 	_ context.Context,
-	workspaceID string,
-	kind store.DeadEntityKind,
-	entityID string,
+	key store.DeadEntityKey,
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1568,27 +1558,26 @@ func (s *recordingDeadEntityStore) ClearDeadEntity(
 	if s.clearErr != nil {
 		return s.clearErr
 	}
-	delete(s.entities, store.DeadEntityKey{WorkspaceID: workspaceID, Kind: kind, EntityID: entityID})
+	delete(s.entities, key)
 	return nil
 }
 
 func (s *recordingDeadEntityStore) FindDeadEntity(
 	_ context.Context,
-	workspaceID string,
-	kind store.DeadEntityKind,
-	entityID string,
+	key store.DeadEntityKey,
 ) (store.DeadEntity, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.findErr != nil {
 		return store.DeadEntity{}, false, s.findErr
 	}
-	entity, ok := s.entities[store.DeadEntityKey{WorkspaceID: workspaceID, Kind: kind, EntityID: entityID}]
+	entity, ok := s.entities[key]
 	return entity, ok, nil
 }
 
 func (s *recordingDeadEntityStore) ListDeadEntities(
 	_ context.Context,
+	readScope store.ReadScope,
 	workspaceID string,
 ) ([]store.DeadEntity, error) {
 	s.mu.Lock()
@@ -1599,7 +1588,7 @@ func (s *recordingDeadEntityStore) ListDeadEntities(
 	}
 	entities := make([]store.DeadEntity, 0)
 	for key, entity := range s.entities {
-		if key.WorkspaceID == workspaceID {
+		if key.WorkspaceID == workspaceID && readScope.Matches(key.ProfileID) {
 			entities = append(entities, entity)
 		}
 	}
@@ -1679,6 +1668,7 @@ func (c *deadEntityTestClock) Advance(delta time.Duration) {
 
 func deadEntityTestKey(workspaceID string) store.DeadEntityKey {
 	return store.DeadEntityKey{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: workspaceID,
 		Kind:        store.DeadEntityKindMCPSidecar,
 		EntityID:    "github",
@@ -1687,6 +1677,7 @@ func deadEntityTestKey(workspaceID string) store.DeadEntityKey {
 
 func loopTargetTestKey(workspaceID, entityID string) store.DeadEntityKey {
 	return store.DeadEntityKey{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: workspaceID,
 		Kind:        store.DeadEntityKindLoopTarget,
 		EntityID:    entityID,

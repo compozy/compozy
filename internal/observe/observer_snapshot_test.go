@@ -31,7 +31,7 @@ func TestOnAgentEventPersistsTranscriptSnapshotServedContent(t *testing.T) {
 			Raw:  raw,
 		})
 
-		events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{
+		events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
 			SessionID: sess.ID,
 			Type:      eventspkg.SessionStreamSnapshotServed,
 		})

@@ -124,6 +124,7 @@ func newTaskNotificationListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(&workspaceID, "workspace", "", "Override workspace filter (ID, name, or path)")
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N subscriptions")
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/network/participation"
+	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 func TestOwnerKindForActor(t *testing.T) {
@@ -905,6 +906,7 @@ func validTask() Task {
 	now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
 	return Task{
 		ID:             "task-1",
+		ProfileID:      storepkg.DefaultProfileID,
 		Identifier:     "TASK-1",
 		Scope:          ScopeGlobal,
 		Title:          "Bootstrap internal/task",
@@ -1391,6 +1393,7 @@ func TestRequestAndQueryValidation(t *testing.T) {
 			name: "create task valid",
 			run: func() error {
 				return CreateTask{
+					ProfileID:      storepkg.DefaultProfileID,
 					Scope:          ScopeWorkspace,
 					Title:          "Create task",
 					Priority:       PriorityHigh,
@@ -1406,6 +1409,7 @@ func TestRequestAndQueryValidation(t *testing.T) {
 			name: "create task invalid max attempts zero",
 			run: func() error {
 				return CreateTask{
+					ProfileID:   storepkg.DefaultProfileID,
 					Scope:       ScopeGlobal,
 					Title:       "Create task",
 					MaxAttempts: new(0),
@@ -1417,6 +1421,7 @@ func TestRequestAndQueryValidation(t *testing.T) {
 			name: "create task invalid parent self",
 			run: func() error {
 				return CreateTask{
+					ProfileID:    storepkg.DefaultProfileID,
 					ID:           "task-1",
 					Scope:        ScopeGlobal,
 					Title:        "Create task",

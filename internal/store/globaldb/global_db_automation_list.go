@@ -25,6 +25,9 @@ func (g *AutomationRepo) ListJobs(
 		return automation.JobListPage{}, err
 	}
 	normalized := automation.JobListQueryWithDefaultLimit(query)
+	if err := normalized.ReadScope.Validate(); err != nil {
+		return automation.JobListPage{}, fmt.Errorf("store: invalid automation job read scope: %w", err)
+	}
 	if err := automation.ValidateJobListQuery(normalized); err != nil {
 		return automation.JobListPage{}, err
 	}
@@ -52,6 +55,9 @@ func (g *AutomationRepo) ListTriggers(
 		return automation.TriggerListPage{}, err
 	}
 	normalized := automation.TriggerListQueryWithDefaultLimit(query)
+	if err := normalized.ReadScope.Validate(); err != nil {
+		return automation.TriggerListPage{}, fmt.Errorf("store: invalid automation trigger read scope: %w", err)
+	}
 	if err := automation.ValidateTriggerListQuery(normalized); err != nil {
 		return automation.TriggerListPage{}, err
 	}

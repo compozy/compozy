@@ -19,9 +19,6 @@ func (s *Service) RecordUsage(ctx context.Context, usage Usage) error {
 	if s.personalization == nil {
 		return errors.New("cmd palette: personalization service is unavailable")
 	}
-	if usage.ProfileLensID == "" {
-		usage.ProfileLensID = DefaultProfileLensID
-	}
 	if err := usage.ProfileLensID.Validate(); err != nil {
 		return err
 	}
@@ -29,10 +26,11 @@ func (s *Service) RecordUsage(ctx context.Context, usage Usage) error {
 	if usage.CommandID == "" {
 		return errors.New("cmd palette: command ID is required")
 	}
-	if err := s.requireCatalogCommand(ctx, usage.WorkspaceID, usage.CommandID); err != nil {
+	profileLens := profileLensFromID(usage.ProfileLensID)
+	if err := s.requireCatalogCommand(ctx, profileLens, usage.WorkspaceID, usage.CommandID); err != nil {
 		return err
 	}
-	enabled, err := s.personalizationEnabled(ctx, usage.WorkspaceID)
+	enabled, err := s.personalizationEnabled(ctx, profileLens, usage.WorkspaceID)
 	if err != nil {
 		return err
 	}
@@ -55,7 +53,7 @@ func (s *Service) recordDaemonUsage(ctx context.Context, execution ExecutionRequ
 	if execution.Descriptor.Action.Kind != ActionKindTool || s.personalization == nil {
 		return
 	}
-	enabled, err := s.personalizationEnabled(ctx, execution.WorkspaceID)
+	enabled, err := s.personalizationEnabled(ctx, execution.ProfileLens, execution.WorkspaceID)
 	if err != nil {
 		s.logger.WarnContext(ctx, "resolve command palette personalization policy",
 			"workspace_id", execution.WorkspaceID,
@@ -68,7 +66,7 @@ func (s *Service) recordDaemonUsage(ctx context.Context, execution ExecutionRequ
 		return
 	}
 	usage := Usage{
-		ProfileLensID: DefaultProfileLensID,
+		ProfileLensID: execution.ProfileLens.ID,
 		WorkspaceID:   execution.WorkspaceID,
 		CommandID:     execution.Descriptor.ID,
 		UsedAt:        s.now().UTC(),
@@ -82,21 +80,31 @@ func (s *Service) recordDaemonUsage(ctx context.Context, execution ExecutionRequ
 	}
 }
 
-func (s *Service) Personalization(ctx context.Context, workspaceID WorkspaceID) (Snapshot, error) {
+func (s *Service) Personalization(
+	ctx context.Context,
+	profileLens ProfileLens,
+	workspaceID WorkspaceID,
+) (Snapshot, error) {
 	if err := requirePersonalizationRequest(ctx, workspaceID); err != nil {
+		return Snapshot{}, err
+	}
+	if err := profileLens.Validate(); err != nil {
 		return Snapshot{}, err
 	}
 	if s.personalization == nil {
 		return Snapshot{}, errors.New("cmd palette: personalization service is unavailable")
 	}
-	enabled, err := s.personalizationEnabled(ctx, workspaceID)
+	enabled, err := s.personalizationEnabled(ctx, profileLens, workspaceID)
 	if err != nil {
 		return Snapshot{}, err
 	}
 	if !enabled {
-		return newPersonalizationSnapshot(nil, nil, nil)
+		return newPersonalizationSnapshotForLens(profileLens, nil, nil, nil)
 	}
-	descriptors, _, _, err := s.collectDescriptors(ctx, workspaceID)
+	descriptors, _, _, err := s.collectDescriptors(ctx, CatalogRequest{
+		ProfileLens: profileLens,
+		WorkspaceID: workspaceID,
+	})
 	if err != nil {
 		return Snapshot{}, err
 	}
@@ -104,22 +112,26 @@ func (s *Service) Personalization(ctx context.Context, workspaceID WorkspaceID) 
 	for _, descriptor := range descriptors {
 		valid[descriptor.ID] = struct{}{}
 	}
-	rows, err := s.personalization.CmdPalettePersonalization(ctx, DefaultProfileLensID, workspaceID)
+	rows, err := s.personalization.CmdPalettePersonalization(ctx, profileLens.ID, workspaceID)
 	if err != nil {
 		s.logPersonalizationDegraded(workspaceID, err)
-		return newPersonalizationSnapshot(nil, nil, nil)
+		return newPersonalizationSnapshotForLens(profileLens, nil, nil, nil)
 	}
 	usage, queryHits, pins := s.maintainPersonalization(
-		ctx, DefaultProfileLensID, workspaceID, valid, rows,
+		ctx, profileLens.ID, workspaceID, valid, rows,
 	)
-	return newPersonalizationSnapshot(usage, queryHits, pins)
+	return newPersonalizationSnapshotForLens(profileLens, usage, queryHits, pins)
 }
 
-func (s *Service) personalizationEnabled(ctx context.Context, workspaceID WorkspaceID) (bool, error) {
+func (s *Service) personalizationEnabled(
+	ctx context.Context,
+	profileLens ProfileLens,
+	workspaceID WorkspaceID,
+) (bool, error) {
 	if s.policy == nil {
 		return true, nil
 	}
-	enabled, err := s.policy.PersonalizationEnabled(ctx, workspaceID)
+	enabled, err := s.policy.PersonalizationEnabled(ctx, profileLens, workspaceID)
 	if err != nil {
 		return false, fmt.Errorf("cmd palette: resolve personalization policy: %w", err)
 	}
@@ -128,9 +140,10 @@ func (s *Service) personalizationEnabled(ctx context.Context, workspaceID Worksp
 
 func (s *Service) PersonalizationSummary(
 	ctx context.Context,
+	profileLens ProfileLens,
 	workspaceID WorkspaceID,
 ) (PersonalizationSummary, error) {
-	snapshot, err := s.Personalization(ctx, workspaceID)
+	snapshot, err := s.Personalization(ctx, profileLens, workspaceID)
 	if err != nil {
 		return PersonalizationSummary{}, err
 	}
@@ -139,21 +152,47 @@ func (s *Service) PersonalizationSummary(
 		pins = append(pins, pin.CommandID)
 	}
 	return PersonalizationSummary{
-		Workspace: workspaceID, Pins: pins, Recents: len(snapshot.Usage),
+		ProfileLens: profileLens,
+		Workspace:   workspaceID, Pins: pins, Recents: len(snapshot.Usage),
 		FrecencyEntries: len(snapshot.Usage), QueryAssociations: len(snapshot.QueryHits),
 	}, nil
 }
 
-func (s *Service) Pin(ctx context.Context, workspaceID WorkspaceID, commandID CommandID) error {
-	return s.changePin(ctx, workspaceID, commandID, true)
+func newPersonalizationSnapshotForLens(
+	profileLens ProfileLens,
+	usage []UsageSignal,
+	queryHits []QueryHit,
+	pins []Pin,
+) (Snapshot, error) {
+	snapshot, err := newPersonalizationSnapshot(usage, queryHits, pins)
+	if err != nil {
+		return Snapshot{}, err
+	}
+	snapshot.ProfileLens = profileLens
+	return snapshot, nil
 }
 
-func (s *Service) Unpin(ctx context.Context, workspaceID WorkspaceID, commandID CommandID) error {
-	return s.changePin(ctx, workspaceID, commandID, false)
+func (s *Service) Pin(
+	ctx context.Context,
+	profileLens ProfileLens,
+	workspaceID WorkspaceID,
+	commandID CommandID,
+) error {
+	return s.changePin(ctx, profileLens, workspaceID, commandID, true)
+}
+
+func (s *Service) Unpin(
+	ctx context.Context,
+	profileLens ProfileLens,
+	workspaceID WorkspaceID,
+	commandID CommandID,
+) error {
+	return s.changePin(ctx, profileLens, workspaceID, commandID, false)
 }
 
 func (s *Service) changePin(
 	ctx context.Context,
+	profileLens ProfileLens,
 	workspaceID WorkspaceID,
 	commandID CommandID,
 	pinned bool,
@@ -161,47 +200,59 @@ func (s *Service) changePin(
 	if err := requirePersonalizationRequest(ctx, workspaceID); err != nil {
 		return err
 	}
+	if err := profileLens.Validate(); err != nil {
+		return err
+	}
 	if s.personalization == nil {
 		return errors.New("cmd palette: personalization service is unavailable")
 	}
 	commandID = CommandID(strings.TrimSpace(string(commandID)))
-	if err := s.requireCatalogCommand(ctx, workspaceID, commandID); err != nil {
+	if err := s.requireCatalogCommand(ctx, profileLens, workspaceID, commandID); err != nil {
 		return err
 	}
 	var err error
 	if pinned {
 		err = s.personalization.PutCmdPalettePin(
-			ctx, DefaultProfileLensID, workspaceID, commandID, s.now().UTC(),
+			ctx, profileLens.ID, workspaceID, commandID, s.now().UTC(),
 		)
 	} else {
-		err = s.personalization.DeleteCmdPalettePin(ctx, DefaultProfileLensID, workspaceID, commandID)
+		err = s.personalization.DeleteCmdPalettePin(ctx, profileLens.ID, workspaceID, commandID)
 	}
 	if err != nil {
 		return fmt.Errorf("cmd palette: change pin for %q: %w", commandID, err)
 	}
 	s.emit(ctx, Event{
-		Name: EventPinChanged, WorkspaceID: workspaceID, CommandID: commandID,
+		Name: EventPinChanged, ProfileLens: profileLens,
+		WorkspaceID: workspaceID, CommandID: commandID,
 		Pinned: &pinned, OccurredAt: s.now().UTC(),
 	})
-	return s.NotifyCatalogChanged(ctx, workspaceID)
+	return s.NotifyCatalogChanged(ctx, profileLens, workspaceID)
 }
 
-func (s *Service) ResetPersonalization(ctx context.Context, workspaceID WorkspaceID) error {
+func (s *Service) ResetPersonalization(
+	ctx context.Context,
+	profileLens ProfileLens,
+	workspaceID WorkspaceID,
+) error {
 	if err := requirePersonalizationRequest(ctx, workspaceID); err != nil {
+		return err
+	}
+	if err := profileLens.Validate(); err != nil {
 		return err
 	}
 	if s.personalization == nil {
 		return errors.New("cmd palette: personalization service is unavailable")
 	}
 	if err := s.personalization.ResetCmdPalettePersonalization(
-		ctx, DefaultProfileLensID, workspaceID,
+		ctx, profileLens.ID, workspaceID,
 	); err != nil {
 		return fmt.Errorf("cmd palette: reset personalization: %w", err)
 	}
 	s.emit(ctx, Event{
-		Name: EventPersonalizationReset, WorkspaceID: workspaceID, OccurredAt: s.now().UTC(),
+		Name: EventPersonalizationReset, ProfileLens: profileLens,
+		WorkspaceID: workspaceID, OccurredAt: s.now().UTC(),
 	})
-	return s.NotifyCatalogChanged(ctx, workspaceID)
+	return s.NotifyCatalogChanged(ctx, profileLens, workspaceID)
 }
 
 func (s *Service) maintainPersonalization(
@@ -295,13 +346,17 @@ func shouldPruneSignal(weight float64, last, now time.Time) bool {
 
 func (s *Service) requireCatalogCommand(
 	ctx context.Context,
+	profileLens ProfileLens,
 	workspaceID WorkspaceID,
 	commandID CommandID,
 ) error {
 	if commandID == "" {
 		return errors.New("cmd palette: command ID is required")
 	}
-	descriptors, _, _, err := s.collectDescriptors(ctx, workspaceID)
+	descriptors, _, _, err := s.collectDescriptors(ctx, CatalogRequest{
+		ProfileLens: profileLens,
+		WorkspaceID: workspaceID,
+	})
 	if err != nil {
 		return err
 	}

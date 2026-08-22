@@ -31,7 +31,7 @@ func newSessionInputCommand(deps commandDeps) *cobra.Command {
 }
 
 func newSessionInputListCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:     "list <session-id>",
 		Short:   "List pending input for a session",
 		Args:    exactOneNonBlankArg(),
@@ -48,6 +48,8 @@ func newSessionInputListCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, sessionInputListBundle(record))
 		},
 	}
+	configureProfileReadCommand(cmd, deps)
+	return cmd
 }
 
 func newSessionInputEditCommand(deps commandDeps) *cobra.Command {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func BenchmarkBuildResourceState(b *testing.B) {
@@ -55,7 +56,10 @@ type benchmarkResourceProjectionStore struct {
 	instances []BridgeInstance
 }
 
-func (s benchmarkResourceProjectionStore) ListBridgeInstances(context.Context) ([]BridgeInstance, error) {
+func (s benchmarkResourceProjectionStore) ListBridgeInstances(
+	context.Context,
+	store.ReadScope,
+) ([]BridgeInstance, error) {
 	return cloneBridgeInstances(s.instances), nil
 }
 

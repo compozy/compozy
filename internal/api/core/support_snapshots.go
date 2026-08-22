@@ -50,7 +50,10 @@ func (h *BaseHandlers) EventSummariesSnapshot(ctx context.Context) (contract.Log
 	if h.Observer == nil {
 		return contract.LogsListResponse{}, errors.New("api: observer is required")
 	}
-	events, err := h.Observer.QueryEvents(ctx, store.EventSummaryQuery{Limit: 500})
+	events, err := h.Observer.QueryEvents(ctx, store.EventSummaryQuery{
+		ReadScope: store.ReadScope{AllProfiles: true},
+		Limit:     500,
+	})
 	if err != nil {
 		return contract.LogsListResponse{}, fmt.Errorf("api: query event summaries: %w", err)
 	}

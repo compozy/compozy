@@ -31,6 +31,7 @@ func TestGlobalDBBridgeInstanceRoundTripAcrossReopen(t *testing.T) {
 	)
 	instance := bridges.BridgeInstance{
 		ID:               "brg-integration",
+		ProfileID:        store.DefaultProfileID,
 		Scope:            bridges.ScopeWorkspace,
 		WorkspaceID:      workspaceID,
 		Platform:         "telegram",
@@ -75,7 +76,7 @@ func TestGlobalDBBridgeInstanceRoundTripAcrossReopen(t *testing.T) {
 		"bridge_ingest_dedup",
 	)
 
-	loaded, err := second.GetBridgeInstance(testutil.Context(t), instance.ID)
+	loaded, err := second.GetBridgeInstance(testutil.Context(t), store.ReadScope{AllProfiles: true}, instance.ID)
 	if err != nil {
 		t.Fatalf("GetBridgeInstance() error = %v", err)
 	}
@@ -119,6 +120,7 @@ func TestGlobalDBBridgeRouteSurvivesReopen(t *testing.T) {
 	registerSessionForGlobalTests(t, first, "sess-bridge-route")
 	instance := bridges.BridgeInstance{
 		ID:            "brg-route",
+		ProfileID:     store.DefaultProfileID,
 		Scope:         bridges.ScopeWorkspace,
 		WorkspaceID:   workspaceID,
 		Platform:      "telegram",
@@ -185,6 +187,7 @@ func TestGlobalDBGlobalAndWorkspaceInstancesCoexist(t *testing.T) {
 
 	globalInstance := bridges.BridgeInstance{
 		ID:            "brg-global",
+		ProfileID:     store.DefaultProfileID,
 		Scope:         bridges.ScopeGlobal,
 		Platform:      "telegram",
 		ExtensionName: "telegram-adapter",
@@ -195,6 +198,7 @@ func TestGlobalDBGlobalAndWorkspaceInstancesCoexist(t *testing.T) {
 	}
 	workspaceInstance := bridges.BridgeInstance{
 		ID:            "brg-workspace",
+		ProfileID:     store.DefaultProfileID,
 		Scope:         bridges.ScopeWorkspace,
 		WorkspaceID:   workspaceID,
 		Platform:      "telegram",
@@ -212,7 +216,7 @@ func TestGlobalDBGlobalAndWorkspaceInstancesCoexist(t *testing.T) {
 		t.Fatalf("InsertBridgeInstance(workspace) error = %v", err)
 	}
 
-	instances, err := globalDB.ListBridgeInstances(testutil.Context(t))
+	instances, err := globalDB.ListBridgeInstances(testutil.Context(t), store.ReadScope{AllProfiles: true})
 	if err != nil {
 		t.Fatalf("ListBridgeInstances() error = %v", err)
 	}
@@ -227,6 +231,7 @@ func TestGlobalDBExpiredDedupRecordsExcluded(t *testing.T) {
 	globalDB := openTestGlobalDB(t)
 	instance := bridges.BridgeInstance{
 		ID:            "brg-dedup",
+		ProfileID:     store.DefaultProfileID,
 		Scope:         bridges.ScopeGlobal,
 		Platform:      "telegram",
 		ExtensionName: "telegram-adapter",

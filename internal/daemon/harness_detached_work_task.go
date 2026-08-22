@@ -121,6 +121,7 @@ func (b *harnessDetachedWorkBridge) ensureTask(
 
 	created, err := b.tasks.CreateTask(ctx, taskpkg.CreateTask{
 		ID:          req.TaskID,
+		ProfileID:   req.ProfileID,
 		Scope:       req.Scope,
 		WorkspaceID: req.WorkspaceID,
 		Title:       req.Summary,

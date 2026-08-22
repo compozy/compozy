@@ -199,6 +199,7 @@ func toolApprovalGrantCLIRecord() ToolApprovalGrantRecord {
 	now := time.Date(2026, time.July, 15, 12, 0, 0, 0, time.UTC)
 	return ToolApprovalGrantRecord{
 		ID:          "grant-1",
+		ProfileName: "default",
 		WorkspaceID: "ws-1",
 		AgentName:   "codex",
 		ToolID:      toolspkg.ToolID("compozy__approval_probe"),

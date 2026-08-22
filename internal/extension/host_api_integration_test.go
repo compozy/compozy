@@ -17,6 +17,7 @@ import (
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
+	storepkg "github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -210,6 +211,7 @@ func TestHostAPIIntegrationBridgeProviderKeepsOperationalMethodsAlongsideGeneric
 	env.activateResourceSession(t, "telegram-adapter", sessionNonce)
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-resource-coexist",
 		ExtensionName: "telegram-adapter",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
@@ -542,6 +544,7 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 
 	actor := mustExtensionTaskActorContext(t, "seed-writer", env.workspaceID)
 	root, err := env.tasks.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: env.workspaceID,
 		Title:       "Integration root",
@@ -551,6 +554,7 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 	}
 
 	child, err := env.tasks.CreateChildTask(testutil.Context(t), root.ID, taskpkg.CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: env.workspaceID,
 		Title:       "Integration child",
@@ -564,6 +568,7 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 	}
 
 	approvalTask, err := env.tasks.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		ProfileID:      storepkg.DefaultProfileID,
 		Scope:          taskpkg.ScopeWorkspace,
 		WorkspaceID:    env.workspaceID,
 		Title:          "Integration approval",
@@ -702,6 +707,7 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 	}
 
 	if _, err := env.tasks.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: env.workspaceID,
 		Title:       "Newest hidden draft",
@@ -764,6 +770,7 @@ func TestHostAPIIntegrationBridgesMessagesIngestCreatesRouteAndSession(t *testin
 	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-integration-ingest",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true, IncludeThread: true},
 	})
@@ -807,10 +814,12 @@ func TestHostAPIIntegrationBridgesMessagesIngestSupportsSiblingInstancesInOneRun
 	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
 	first := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-integration-multi-a",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
 	second := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-integration-multi-b",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
@@ -858,6 +867,7 @@ func TestHostAPIIntegrationBridgesMessagesIngestDuplicateRetryIsSuppressed(t *te
 	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-integration-dedup",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
@@ -909,10 +919,12 @@ func TestHostAPIIntegrationBridgesMessagesIngestRejectsNonOwnedInstance(t *testi
 	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
 	owned := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-integration-owned",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
 	foreign := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-integration-non-owned",
 		ExtensionName: "discord-adapter",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
@@ -942,6 +954,7 @@ func TestHostAPIIntegrationBridgesInstancesReportStatePublishesAuthRequired(t *t
 	)
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-integration-state",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
@@ -993,14 +1006,17 @@ func TestHostAPIIntegrationBridgesInstancesListAndGetReturnOwnedInstances(t *tes
 	env.grant("telegram-adapter", []string{"bridges/instances/list", "bridges/instances/get"}, []string{"bridge.read"})
 
 	first := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-integration-owned-a",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
 	second := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-integration-owned-b",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
 	_ = env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-integration-foreign",
 		ExtensionName: "discord-adapter",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
@@ -1049,6 +1065,7 @@ func TestHostAPIIntegrationBridgesMessagesIngestConcurrentSameRoutingKeyUsesOneR
 	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-integration-concurrent",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})

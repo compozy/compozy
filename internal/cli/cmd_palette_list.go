@@ -45,6 +45,7 @@ func newCmdPaletteListCommand(deps commandDeps) *cobra.Command {
 		false,
 		cmdPaletteAvailableFlagHelp,
 	)
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 

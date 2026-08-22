@@ -25,6 +25,7 @@ func writeCommandOutputWithJSONL[T any](cmd *cobra.Command, bundle outputBundle,
 
 func networkThreadHumanRow(thread NetworkThreadRecord) []string {
 	return []string{
+		stringOrDash(thread.ProfileName),
 		stringOrDash(thread.ThreadID),
 		stringOrDash(thread.RootMessageID),
 		stringOrDash(thread.OpenedByPeerID),
@@ -38,6 +39,7 @@ func networkThreadHumanRow(thread NetworkThreadRecord) []string {
 
 func networkThreadToonRow(thread NetworkThreadRecord) []string {
 	return []string{
+		thread.ProfileName,
 		thread.Channel,
 		thread.ThreadID,
 		thread.RootMessageID,
@@ -52,6 +54,7 @@ func networkThreadToonRow(thread NetworkThreadRecord) []string {
 
 func networkThreadKeyValues(thread NetworkThreadRecord) []keyValue {
 	return []keyValue{
+		{Label: sessionProfileValue, Value: stringOrDash(thread.ProfileName)},
 		{Label: networkChannelValue, Value: stringOrDash(thread.Channel)},
 		{Label: networkThreadIDValue, Value: stringOrDash(thread.ThreadID)},
 		{Label: "Root Message", Value: stringOrDash(thread.RootMessageID)},
@@ -69,6 +72,7 @@ func networkThreadKeyValues(thread NetworkThreadRecord) []keyValue {
 
 func networkDirectHumanRow(direct NetworkDirectRoomRecord) []string {
 	return []string{
+		stringOrDash(direct.ProfileName),
 		stringOrDash(direct.DirectID),
 		stringOrDash(direct.SessionA),
 		stringOrDash(direct.SessionB),
@@ -81,6 +85,7 @@ func networkDirectHumanRow(direct NetworkDirectRoomRecord) []string {
 
 func networkDirectToonRow(direct NetworkDirectRoomRecord) []string {
 	return []string{
+		direct.ProfileName,
 		direct.Channel,
 		direct.DirectID,
 		direct.SessionA,
@@ -94,6 +99,7 @@ func networkDirectToonRow(direct NetworkDirectRoomRecord) []string {
 
 func networkDirectKeyValues(direct NetworkDirectRoomRecord) []keyValue {
 	return []keyValue{
+		{Label: sessionProfileValue, Value: stringOrDash(direct.ProfileName)},
 		{Label: networkChannelValue, Value: stringOrDash(direct.Channel)},
 		{Label: networkDirectIDValue, Value: stringOrDash(direct.DirectID)},
 		{Label: "Session A", Value: stringOrDash(direct.SessionA)},
@@ -108,6 +114,7 @@ func networkDirectKeyValues(direct NetworkDirectRoomRecord) []keyValue {
 
 func networkMessageHumanRow(message NetworkConversationMessageRecord) []string {
 	return []string{
+		stringOrDash(message.ProfileName),
 		stringOrDash(message.MessageID),
 		stringOrDash(message.Surface),
 		stringOrDash(message.ThreadID),
@@ -124,6 +131,7 @@ func networkMessageHumanRow(message NetworkConversationMessageRecord) []string {
 
 func networkMessageToonRow(message NetworkConversationMessageRecord) []string {
 	return []string{
+		message.ProfileName,
 		message.MessageID,
 		message.Channel,
 		message.Surface,

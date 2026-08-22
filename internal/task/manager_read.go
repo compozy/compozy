@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 // GetTask returns one expanded task view after enforcing read authority.
@@ -23,7 +25,7 @@ func (m *Service) GetTask(ctx context.Context, id string, actor ActorContext) (*
 		return nil, err
 	}
 
-	children, err := m.listTaskSummaries(ctx, Query{ParentTaskID: trimmedID})
+	children, err := m.listTaskSummaries(ctx, Query{ReadScope: actor.ReadScope, ParentTaskID: trimmedID})
 	if err != nil {
 		return nil, err
 	}
@@ -35,6 +37,9 @@ func (m *Service) GetTask(ctx context.Context, id string, actor ActorContext) (*
 	runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: trimmedID})
 	if err != nil {
 		return nil, err
+	}
+	for index := range runs {
+		runs[index].ProfileID = record.ProfileID
 	}
 	events, err := m.store.ListTaskEvents(ctx, EventQuery{TaskID: trimmedID})
 	if err != nil {
@@ -115,11 +120,21 @@ func (m *Service) ListTaskRuns(
 
 	normalizedQuery := query
 	normalizedQuery.TaskID = trimmedID
+	if actor.ReadScope != (store.ReadScope{}) {
+		normalizedQuery.ReadScope = actor.ReadScope
+	}
 	runs, err := m.store.ListTaskRuns(ctx, normalizedQuery)
 	if err != nil {
 		return nil, err
 	}
-	return m.filterAuthorizedRuns(ctx, actor, taskRecord, runs)
+	visibleRuns, err := m.filterAuthorizedRuns(ctx, actor, taskRecord, runs)
+	if err != nil {
+		return nil, err
+	}
+	for index := range visibleRuns {
+		visibleRuns[index].ProfileID = taskRecord.ProfileID
+	}
+	return visibleRuns, nil
 }
 
 func (m *Service) filterAuthorizedTaskSummaries(
@@ -127,7 +142,7 @@ func (m *Service) filterAuthorizedTaskSummaries(
 	actor ActorContext,
 	summaries []Summary,
 ) []Summary {
-	if isTaskOperator(actor) {
+	if isTaskOperator(actor) && actor.ReadScope.AllProfiles {
 		return summaries
 	}
 	visible := make([]Summary, 0, len(summaries))
@@ -145,7 +160,7 @@ func (m *Service) filterAuthorizedRuns(
 	taskRecord Task,
 	runs []Run,
 ) ([]Run, error) {
-	if isTaskOperator(actor) {
+	if isTaskOperator(actor) && actor.ReadScope.AllProfiles {
 		return runs, nil
 	}
 	visible := make([]Run, 0, len(runs))
@@ -168,7 +183,7 @@ func (m *Service) filterAuthorizedEvents(
 	taskRecord Task,
 	events []Event,
 ) ([]Event, error) {
-	if isTaskOperator(actor) {
+	if isTaskOperator(actor) && actor.ReadScope.AllProfiles {
 		return events, nil
 	}
 	visible := make([]Event, 0, len(events))
@@ -195,7 +210,7 @@ func (m *Service) filterAuthorizedDependencies(
 	actor ActorContext,
 	dependencies []Dependency,
 ) ([]Dependency, error) {
-	if isTaskOperator(actor) {
+	if isTaskOperator(actor) && actor.ReadScope.AllProfiles {
 		return dependencies, nil
 	}
 	visible := make([]Dependency, 0, len(dependencies))
@@ -266,11 +281,14 @@ func (m *Service) ListTasks(
 	if err := requireReadAuthority(actor); err != nil {
 		return nil, err
 	}
+	if actor.ReadScope != (store.ReadScope{}) {
+		query.ReadScope = actor.ReadScope
+	}
 	summaries, err := m.listTaskSummaries(ctx, query)
 	if err != nil {
 		return nil, err
 	}
-	if isTaskOperator(actor) {
+	if isTaskOperator(actor) && actor.ReadScope.AllProfiles {
 		return summaries, nil
 	}
 	visible := make([]Summary, 0, len(summaries))

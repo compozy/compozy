@@ -10,10 +10,10 @@ import (
 
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/redact"
-	"github.com/compozy/compozy/internal/store"
 )
 
 type CreateOptions struct {
+	ProfileID      string
 	Name           string
 	Branch         string
 	BaseRef        string
@@ -25,8 +25,9 @@ type CreateOptions struct {
 }
 
 type RunWorktreeRequest struct {
-	TaskSlug string
-	RunID    string
+	ProfileID string
+	TaskSlug  string
+	RunID     string
 }
 
 func (s *Service) Create(ctx context.Context, workspaceID string, options CreateOptions) (*Worktree, error) {
@@ -103,7 +104,8 @@ func (s *Service) MaterializeForRun(
 	name := RunWorktreeName(request.TaskSlug, request.RunID)
 	branch := RunBranchName(settings.RunBranchNamespace, request.TaskSlug, request.RunID)
 	item, err := s.create(ctx, workspaceID, CreateOptions{
-		Name: name, Branch: branch, Origin: OriginPerRun, RunID: request.RunID,
+		ProfileID: request.ProfileID,
+		Name:      name, Branch: branch, Origin: OriginPerRun, RunID: request.RunID,
 		RunNamespace: settings.RunBranchNamespace,
 	})
 	if err != nil {
@@ -154,6 +156,9 @@ func (s *Service) prepareCreation(
 	workspaceID string,
 	options CreateOptions,
 ) (Workspace, Worktree, string, error) {
+	if strings.TrimSpace(options.ProfileID) == "" {
+		return Workspace{}, Worktree{}, "", refusal(ErrRefInvalid, "profile_id is required")
+	}
 	if _, err := s.capability.Check(ctx); err != nil {
 		return Workspace{}, Worktree{}, "", err
 	}
@@ -267,7 +272,7 @@ func (s *Service) prepareCreate(
 	}
 	now := s.now().UTC()
 	return Worktree{
-		ProfileID: store.DefaultProfileID,
+		ProfileID: strings.TrimSpace(options.ProfileID),
 		ID:        id, WorkspaceID: workspace.ID, Name: names.Directory, Branch: branch, Path: path,
 		State: StatePending, Origin: origin, SetupState: SetupNone, BaseRef: strings.TrimSpace(options.BaseRef),
 		RunID: strings.TrimSpace(options.RunID), RunNamespace: strings.TrimSpace(options.RunNamespace),

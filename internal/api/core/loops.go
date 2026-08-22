@@ -246,8 +246,17 @@ func (h *BaseHandlers) ListLoopRuns(c *gin.Context) {
 		h.respondLoopError(c, fmt.Errorf("%w: %v", looppkg.ErrValidation, err))
 		return
 	}
+	query.ReadScope, err = h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	response, err := service.ListLoopRuns(c.Request.Context(), c.Param("workspace_id"), query)
 	if err != nil {
+		h.respondLoopError(c, err)
+		return
+	}
+	if err := h.decorateLoopRunOwners(c.Request.Context(), &response); err != nil {
 		h.respondLoopError(c, err)
 		return
 	}
@@ -260,8 +269,21 @@ func (h *BaseHandlers) GetLoopRun(c *gin.Context) {
 	if !ok {
 		return
 	}
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	response, err := service.GetLoopRun(c.Request.Context(), c.Param("workspace_id"), c.Param("run_id"))
 	if err != nil {
+		h.respondLoopError(c, err)
+		return
+	}
+	if !readScope.Matches(response.Run.ProfileID) {
+		h.respondLoopError(c, looppkg.ErrRunNotFound)
+		return
+	}
+	if err := h.decorateLoopRunOwner(c.Request.Context(), &response.Run); err != nil {
 		h.respondLoopError(c, err)
 		return
 	}

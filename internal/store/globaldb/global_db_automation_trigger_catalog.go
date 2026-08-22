@@ -8,12 +8,14 @@ import (
 	"strings"
 
 	automation "github.com/compozy/compozy/internal/automation/model"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 const automationTriggerCatalogWorkspaceIndex = "idx_automation_trigger_catalog_workspace_order"
 
 const automationTriggerCatalogBaseSQL = ` FROM automation_trigger_catalog_entries AS c
+	JOIN automation_triggers AS t ON t.id = c.trigger_id
 	LEFT JOIN automation_trigger_overlays AS o ON o.trigger_id = c.trigger_id`
 
 func listAutomationTriggerCatalog(
@@ -89,6 +91,9 @@ func listAutomationTriggerCatalog(
 func automationTriggerCatalogWhere(query automation.TriggerListQuery) (string, []any) {
 	clauses := make([]string, 0, 7)
 	args := make([]any, 0, 18)
+	profileClauses, profileArgs := store.BuildClauses(store.ReadScopeClause("t.profile_id", query.ReadScope))
+	clauses = append(clauses, profileClauses...)
+	args = append(args, profileArgs...)
 	if query.Scope != "" {
 		clauses = append(clauses, "c.scope = ?")
 		args = append(args, query.Scope)

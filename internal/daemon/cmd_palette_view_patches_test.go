@@ -19,9 +19,7 @@ func TestExtensionCmdPaletteViewPatchSubscriber(t *testing.T) {
 		t.Parallel()
 		provider := newViewPatchTestProvider(t, viewPatchTestProjection())
 		service := newViewPatchTestService(t, provider)
-		if err := provider.PublishViewPatch(
-			t.Context(), "ws-a", "notes", viewPatchTestPatch("vr_1", "vr_2"),
-		); err != nil {
+		if err := provider.PublishViewPatch(t.Context(), testCmdPaletteProfileLens, "ws-a", "notes", viewPatchTestPatch("vr_1", "vr_2")); err != nil {
 			t.Fatalf("PublishViewPatch() error = %v", err)
 		}
 		var subscriber cmdpalette.ViewPatchSubscriber = provider
@@ -52,19 +50,13 @@ func TestExtensionCmdPaletteViewPatchSubscriber(t *testing.T) {
 	t.Run("Should replay retained patches after the cursor on the same epoch", func(t *testing.T) {
 		t.Parallel()
 		provider := newViewPatchTestProvider(t, viewPatchTestProjection())
-		if err := provider.PublishViewPatch(
-			t.Context(), "ws-a", "notes", viewPatchTestPatch("vr_1", "vr_2"),
-		); err != nil {
+		if err := provider.PublishViewPatch(t.Context(), testCmdPaletteProfileLens, "ws-a", "notes", viewPatchTestPatch("vr_1", "vr_2")); err != nil {
 			t.Fatalf("PublishViewPatch(first) error = %v", err)
 		}
-		if err := provider.PublishViewPatch(
-			t.Context(), "ws-a", "notes", viewPatchTestPatch("vr_2", "vr_3"),
-		); err != nil {
+		if err := provider.PublishViewPatch(t.Context(), testCmdPaletteProfileLens, "ws-a", "notes", viewPatchTestPatch("vr_2", "vr_3")); err != nil {
 			t.Fatalf("PublishViewPatch(second) error = %v", err)
 		}
-		events, cancel, err := provider.SubscribeViewPatchesAfter(
-			t.Context(), "ws-a", "ext.notes.recent", 1, "",
-		)
+		events, cancel, err := provider.SubscribeViewPatchesAfter(t.Context(), testCmdPaletteProfileLens, "ws-a", "ext.notes.recent", 1, "")
 		if err != nil {
 			t.Fatalf("SubscribeViewPatchesAfter() error = %v", err)
 		}
@@ -83,9 +75,7 @@ func TestExtensionCmdPaletteViewPatchSubscriber(t *testing.T) {
 			t.Fatalf("SubscribeViewPatches() error = %v", err)
 		}
 		t.Cleanup(cancel)
-		if err := provider.PublishViewPatch(
-			t.Context(), "ws-a", "notes", viewPatchTestPatch("vr_1", "vr_2"),
-		); err != nil {
+		if err := provider.PublishViewPatch(t.Context(), testCmdPaletteProfileLens, "ws-a", "notes", viewPatchTestPatch("vr_1", "vr_2")); err != nil {
 			t.Fatalf("PublishViewPatch() error = %v", err)
 		}
 		event := recvViewPatchEvent(t, events)
@@ -97,9 +87,7 @@ func TestExtensionCmdPaletteViewPatchSubscriber(t *testing.T) {
 	t.Run("Should skip replay when the after cursor names a different epoch", func(t *testing.T) {
 		t.Parallel()
 		provider := newViewPatchTestProvider(t, viewPatchTestProjection())
-		if err := provider.PublishViewPatch(
-			t.Context(), "ws-a", "notes", viewPatchTestPatch("vr_1", "vr_2"),
-		); err != nil {
+		if err := provider.PublishViewPatch(t.Context(), testCmdPaletteProfileLens, "ws-a", "notes", viewPatchTestPatch("vr_1", "vr_2")); err != nil {
 			t.Fatalf("PublishViewPatch() error = %v", err)
 		}
 		events, cancel, err := provider.SubscribeViewPatches(
@@ -119,13 +107,12 @@ func TestExtensionCmdPaletteViewPatchSubscriber(t *testing.T) {
 	t.Run("Should isolate patches across workspaces", func(t *testing.T) {
 		t.Parallel()
 		provider := newViewPatchTestProvider(t, viewPatchTestProjection())
-		if err := provider.PublishViewPatch(
-			t.Context(), "ws-a", "notes", viewPatchTestPatch("vr_1", "vr_2"),
-		); err != nil {
+		if err := provider.PublishViewPatch(t.Context(), testCmdPaletteProfileLens, "ws-a", "notes", viewPatchTestPatch("vr_1", "vr_2")); err != nil {
 			t.Fatalf("PublishViewPatch(ws-a) error = %v", err)
 		}
 		events, cancel, err := provider.SubscribeViewPatches(t.Context(), cmdpalette.ViewPatchSubscribeRequest{
-			Workspace: "ws-b", ViewID: "ext.notes.recent",
+			ProfileLens: testCmdPaletteProfileLens,
+			Workspace:   "ws-b", ViewID: "ext.notes.recent",
 		})
 		if err != nil {
 			t.Fatalf("SubscribeViewPatches(ws-b) error = %v", err)
@@ -134,6 +121,29 @@ func TestExtensionCmdPaletteViewPatchSubscriber(t *testing.T) {
 		select {
 		case event := <-events:
 			t.Fatalf("ws-b received %#v, want workspace isolation", event)
+		default:
+		}
+	})
+
+	t.Run("Should isolate patches across profile lenses", func(t *testing.T) {
+		t.Parallel()
+		provider := newViewPatchTestProvider(t, viewPatchTestProjection())
+		if err := provider.PublishViewPatch(
+			t.Context(), testCmdPaletteProfileLens, "ws-a", "notes", viewPatchTestPatch("vr_1", "vr_2"),
+		); err != nil {
+			t.Fatalf("PublishViewPatch(profile a) error = %v", err)
+		}
+		profileB := cmdpalette.ScopedProfileLens("01ARZ3NDEKTSV4RRFFQ69G5FAV", "review")
+		events, cancel, err := provider.SubscribeViewPatches(t.Context(), cmdpalette.ViewPatchSubscribeRequest{
+			ProfileLens: profileB, Workspace: "ws-a", ViewID: "ext.notes.recent",
+		})
+		if err != nil {
+			t.Fatalf("SubscribeViewPatches(profile b) error = %v", err)
+		}
+		t.Cleanup(cancel)
+		select {
+		case event := <-events:
+			t.Fatalf("profile b received %#v, want profile isolation", event)
 		default:
 		}
 	})
@@ -149,9 +159,7 @@ func TestExtensionCmdPaletteViewPatchSubscriber(t *testing.T) {
 		if _, open := <-events; open {
 			t.Fatal("subscriber stayed open after cancel")
 		}
-		if err := provider.PublishViewPatch(
-			t.Context(), "ws-a", "notes", viewPatchTestPatch("vr_1", "vr_2"),
-		); err != nil {
+		if err := provider.PublishViewPatch(t.Context(), testCmdPaletteProfileLens, "ws-a", "notes", viewPatchTestPatch("vr_1", "vr_2")); err != nil {
 			t.Fatalf("PublishViewPatch(after cancel) error = %v", err)
 		}
 	})
@@ -168,7 +176,7 @@ func TestExtensionCmdPaletteViewPatchSubscriber(t *testing.T) {
 		if _, open := <-events; open {
 			t.Fatal("subscriber stayed open after CloseViewPatches")
 		}
-		err = provider.PublishViewPatch(t.Context(), "ws-a", "notes", viewPatchTestPatch("vr_1", "vr_2"))
+		err = provider.PublishViewPatch(t.Context(), testCmdPaletteProfileLens, "ws-a", "notes", viewPatchTestPatch("vr_1", "vr_2"))
 		if err == nil {
 			t.Fatal("PublishViewPatch() after close error = nil")
 		}
@@ -186,7 +194,8 @@ func TestExtensionCmdPaletteViewPatchSubscriber(t *testing.T) {
 			t.Parallel()
 			provider := newViewPatchTestProvider(t, projection)
 			_, _, err := provider.SubscribeViewPatches(t.Context(), cmdpalette.ViewPatchSubscribeRequest{
-				Workspace: "ws-a", ViewID: "ext.notes.gone",
+				ProfileLens: testCmdPaletteProfileLens,
+				Workspace:   "ws-a", ViewID: "ext.notes.gone",
 			})
 			var notFound *cmdpalette.ViewNotFoundError
 			if !errors.As(err, &notFound) || notFound.ViewID != "ext.notes.gone" {
@@ -197,7 +206,8 @@ func TestExtensionCmdPaletteViewPatchSubscriber(t *testing.T) {
 			t.Parallel()
 			provider := newViewPatchTestProvider(t, projection)
 			_, _, err := provider.SubscribeViewPatches(t.Context(), cmdpalette.ViewPatchSubscribeRequest{
-				Workspace: "ws-a", ViewID: "ext.notes.board",
+				ProfileLens: testCmdPaletteProfileLens,
+				Workspace:   "ws-a", ViewID: "ext.notes.board",
 			})
 			if err == nil {
 				t.Fatal("SubscribeViewPatches(program) error = nil")
@@ -206,9 +216,7 @@ func TestExtensionCmdPaletteViewPatchSubscriber(t *testing.T) {
 		t.Run("Should reject a foreign extension publish", func(t *testing.T) {
 			t.Parallel()
 			provider := newViewPatchTestProvider(t, projection)
-			err := provider.PublishViewPatch(
-				t.Context(), "ws-a", "other", viewPatchTestPatch("vr_1", "vr_2"),
-			)
+			err := provider.PublishViewPatch(t.Context(), testCmdPaletteProfileLens, "ws-a", "other", viewPatchTestPatch("vr_1", "vr_2"))
 			if err == nil {
 				t.Fatal("PublishViewPatch(foreign) error = nil")
 			}
@@ -265,7 +273,8 @@ func viewPatchTestProjection() extensionpkg.CmdPaletteProjection {
 
 func viewPatchSubscribeRequest(after int64, epoch string) cmdpalette.ViewPatchSubscribeRequest {
 	return cmdpalette.ViewPatchSubscribeRequest{
-		Workspace: "ws-a", ViewID: "ext.notes.recent", After: after, StreamEpoch: epoch,
+		ProfileLens: testCmdPaletteProfileLens,
+		Workspace:   "ws-a", ViewID: "ext.notes.recent", After: after, StreamEpoch: epoch,
 	}
 }
 
@@ -304,7 +313,7 @@ type viewPatchTestCommands struct{}
 
 func (viewPatchTestCommands) ProvideCommands(
 	context.Context,
-	cmdpalette.WorkspaceID,
+	cmdpalette.CatalogRequest,
 ) ([]cmdpalette.Descriptor, error) {
 	return nil, nil
 }

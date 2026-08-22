@@ -32,11 +32,17 @@ func (h *BaseHandlers) ListAutomationJobs(c *gin.Context) {
 		return
 	}
 
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	query, err := ParseAutomationJobListQuery(c)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
 		return
 	}
+	query.ReadScope = readScope
 
 	page, err := manager.ListJobs(c.Request.Context(), query)
 	if err != nil {
@@ -50,8 +56,13 @@ func (h *BaseHandlers) ListAutomationJobs(c *gin.Context) {
 		return
 	}
 
+	jobPayloads := JobPayloadsFromJobs(page.Jobs, schedulerStateByID)
+	if err := h.decorateAutomationJobOwners(c.Request.Context(), jobPayloads); err != nil {
+		h.respondError(c, StatusForAutomationError(err), err)
+		return
+	}
 	c.JSON(http.StatusOK, contract.JobsResponse{
-		Jobs: JobPayloadsFromJobs(page.Jobs, schedulerStateByID),
+		Jobs: jobPayloads,
 		Page: contract.CountedCursorPagePayload{
 			NextCursor: page.NextCursor,
 			HasMore:    page.HasMore,
@@ -65,6 +76,11 @@ func (h *BaseHandlers) ListAutomationJobs(c *gin.Context) {
 func (h *BaseHandlers) CreateAutomationJob(c *gin.Context) {
 	manager, ok := h.requireAutomationManager(c)
 	if !ok {
+		return
+	}
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
 		return
 	}
 
@@ -85,6 +101,7 @@ func (h *BaseHandlers) CreateAutomationJob(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
 		return
 	}
+	job.ProfileID = mutationScope.ProfileID
 	if err := job.Validate("job"); err != nil {
 		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
 		return
@@ -119,9 +136,18 @@ func (h *BaseHandlers) GetAutomationJob(c *gin.Context) {
 		return
 	}
 
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	job, err := manager.GetJob(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
+		return
+	}
+	if !readScope.Matches(job.ProfileID) {
+		h.respondError(c, http.StatusNotFound, automationpkg.ErrJobNotFound)
 		return
 	}
 
@@ -131,17 +157,27 @@ func (h *BaseHandlers) GetAutomationJob(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.JobResponse{Job: JobPayloadFromJob(
+	payload := JobPayloadFromJob(
 		job,
 		schedulerNextRunFromMap(schedulerStateByID, job.ID),
 		schedulerStatePointerFromMap(schedulerStateByID, job.ID),
-	)})
+	)
+	if err := h.decorateAutomationJobOwner(c.Request.Context(), &payload); err != nil {
+		h.respondError(c, StatusForAutomationError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.JobResponse{Job: payload})
 }
 
 // UpdateAutomationJob patches one automation job definition.
 func (h *BaseHandlers) UpdateAutomationJob(c *gin.Context) {
 	manager, ok := h.requireAutomationManager(c)
 	if !ok {
+		return
+	}
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
 		return
 	}
 
@@ -168,6 +204,10 @@ func (h *BaseHandlers) UpdateAutomationJob(c *gin.Context) {
 	current, err := manager.GetJob(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
+		return
+	}
+	if !mutationScope.Matches(current.ProfileID) {
+		h.respondError(c, http.StatusNotFound, automationpkg.ErrJobNotFound)
 		return
 	}
 
@@ -218,10 +258,19 @@ func (h *BaseHandlers) DeleteAutomationJob(c *gin.Context) {
 	if !ok {
 		return
 	}
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 
 	current, err := manager.GetJob(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
+		return
+	}
+	if !mutationScope.Matches(current.ProfileID) {
+		h.respondError(c, http.StatusNotFound, automationpkg.ErrJobNotFound)
 		return
 	}
 	if current.Source != automationpkg.JobSourceDynamic {
@@ -246,8 +295,22 @@ func (h *BaseHandlers) TriggerAutomationJob(c *gin.Context) {
 	if !ok {
 		return
 	}
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	job, err := manager.GetJob(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		h.respondError(c, StatusForAutomationError(err), err)
+		return
+	}
+	if !mutationScope.Matches(job.ProfileID) {
+		h.respondError(c, http.StatusNotFound, automationpkg.ErrJobNotFound)
+		return
+	}
 
-	run, err := manager.TriggerJob(c.Request.Context(), c.Param("id"))
+	run, err := manager.TriggerJob(c.Request.Context(), job.ID)
 	if err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return
@@ -262,9 +325,18 @@ func (h *BaseHandlers) AutomationJobRuns(c *gin.Context) {
 		return
 	}
 
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	job, err := manager.GetJob(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
+		return
+	}
+	if !readScope.Matches(job.ProfileID) {
+		h.respondError(c, http.StatusNotFound, automationpkg.ErrJobNotFound)
 		return
 	}
 
@@ -275,11 +347,17 @@ func (h *BaseHandlers) AutomationJobRuns(c *gin.Context) {
 	}
 	query.JobID = job.ID
 	query.TriggerID = ""
+	query.ReadScope = readScope
 
 	runs, err := manager.ListRuns(c.Request.Context(), query)
 	if err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.RunsResponse{Runs: RunPayloadsFromRuns(runs)})
+	runPayloads := RunPayloadsFromRuns(runs)
+	if err := h.decorateAutomationRunOwners(c.Request.Context(), runPayloads); err != nil {
+		h.respondError(c, StatusForAutomationError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.RunsResponse{Runs: runPayloads})
 }

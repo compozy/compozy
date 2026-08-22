@@ -79,6 +79,7 @@ type SessionPageManager interface {
 type AgentSessionMetricsReader interface {
 	AggregateSessionsByAgent(
 		ctx context.Context,
+		readScope store.ReadScope,
 		workspaceID string,
 	) (map[string]session.AgentSessionMetrics, error)
 }

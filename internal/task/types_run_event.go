@@ -37,6 +37,7 @@ type RunWorktreeState struct {
 // Run is the durable execution record for one task attempt.
 type Run struct {
 	ID             string         `json:"id"`
+	ProfileID      string         `json:"profile_id,omitempty"`
 	TaskID         string         `json:"task_id"`
 	WorkspaceID    string         `json:"workspace_id,omitempty"`
 	Attempt        int32          `json:"attempt"`
@@ -95,6 +96,7 @@ type TriageState struct {
 // Summary is the lightweight read model returned from list-oriented task queries.
 type Summary struct {
 	ID              string                `json:"id"`
+	ProfileID       string                `json:"profile_id"`
 	Identifier      string                `json:"identifier,omitempty"`
 	Scope           Scope                 `json:"scope"`
 	WorkspaceID     string                `json:"workspace_id,omitempty"`

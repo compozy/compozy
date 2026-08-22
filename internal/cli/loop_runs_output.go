@@ -49,10 +49,11 @@ func loopRunsOutputBundle(response contract.LoopRunsResponse) outputBundle {
 		response,
 		response.Runs,
 		"Loop runs",
-		[]string{"ID", "LOOP", "STATUS", "COMPLETION", "GENERATION", "BEST GEN", "BEST SCORE"},
+		[]string{"ID", "PROFILE", "LOOP", "STATUS", "COMPLETION", "GENERATION", "BEST GEN", "BEST SCORE"},
 		"loop_runs",
 		[]string{
 			"id",
+			"profile_name",
 			"loop_name",
 			automationStatusKey,
 			"completion_state",
@@ -84,6 +85,7 @@ func loopRunsOutputBundle(response contract.LoopRunsResponse) outputBundle {
 func loopRunSummaryRow(run contract.LoopRunPayload) []string {
 	return []string{
 		stringOrDash(run.ID),
+		stringOrDash(run.ProfileName),
 		stringOrDash(run.LoopName),
 		stringOrDash(string(run.Status)),
 		stringOrDash(string(run.CompletionState)),

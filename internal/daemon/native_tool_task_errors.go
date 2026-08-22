@@ -194,6 +194,10 @@ func autonomyActorContext(id toolspkg.ToolID, scope toolspkg.Scope) (taskpkg.Act
 	if err != nil {
 		return taskpkg.ActorContext{}, "", nativeAutonomyToolError(id, err)
 	}
+	actor, err = bindNativeTaskActorProfile(actor, scope)
+	if err != nil {
+		return taskpkg.ActorContext{}, "", nativeAutonomyToolError(id, err)
+	}
 	return actor, sessionID, nil
 }
 

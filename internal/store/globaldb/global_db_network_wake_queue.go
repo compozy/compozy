@@ -147,6 +147,7 @@ func (g *NetworkRepo) LoadNetworkWake(
 	messages := make([]store.NetworkMessageEntry, 0, len(envelopeIDs))
 	for _, envelopeID := range envelopeIDs {
 		entries, listErr := g.ListNetworkMessages(ctx, store.NetworkMessageQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: targetWorkspaceID,
 			Channel:     channel,
 			MessageID:   envelopeID,

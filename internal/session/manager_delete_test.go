@@ -312,7 +312,7 @@ func TestManagerDelete(t *testing.T) {
 				}
 				events, cancel, err := h.manager.SubscribeSessionCatalogEvents(
 					testutil.Context(t),
-					CatalogScope{AllWorkspaces: true},
+					CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
 				)
 				if err != nil {
 					t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
@@ -353,7 +353,7 @@ func TestManagerDelete(t *testing.T) {
 				session := createSession(t, h)
 				events, cancel, err := h.manager.SubscribeSessionCatalogEvents(
 					testutil.Context(t),
-					CatalogScope{AllWorkspaces: true},
+					CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
 				)
 				if err != nil {
 					t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)

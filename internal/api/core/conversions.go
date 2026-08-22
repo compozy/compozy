@@ -36,6 +36,7 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 	ref := workref.NewPath(info.WorkspaceID, info.Workspace)
 	payload = contract.SessionPayload{
 		ID:        info.ID,
+		ProfileID: strings.TrimSpace(info.ProfileID),
 		Name:      info.Name,
 		AgentName: info.AgentName,
 		Runtime: contract.SessionRuntimePayload{
@@ -89,6 +90,7 @@ func SessionPayloadFromStoreInfo(info *store.SessionInfo) contract.SessionPayloa
 	attention := info.AttentionSnapshot()
 	converted := &session.Info{
 		ID:                       strings.TrimSpace(info.ID),
+		ProfileID:                strings.TrimSpace(info.ProfileID),
 		Name:                     strings.TrimSpace(info.Name),
 		AgentName:                strings.TrimSpace(info.AgentName),
 		RuntimeStatus:            info.RuntimeStatus,

@@ -20,6 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -148,6 +149,7 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 			getSessionFn: func(context.Context, string) (SessionRecord, error) {
 				return SessionRecord{
 					ID:          "sess-author",
+					ProfileID:   store.DefaultProfileID,
 					AgentName:   "coder",
 					WorkspaceID: "ws-alpha",
 					State:       session.StateActive,
@@ -542,6 +544,7 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 			getSessionFn: func(context.Context, string) (SessionRecord, error) {
 				return SessionRecord{
 					ID:          "sess-author",
+					ProfileID:   store.DefaultProfileID,
 					AgentName:   "coder",
 					WorkspaceID: "ws-alpha",
 					State:       session.StateActive,

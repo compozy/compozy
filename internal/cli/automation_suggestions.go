@@ -40,6 +40,7 @@ func newAutomationSuggestionsCommand(deps commandDeps) *cobra.Command {
 		"Filter by status: pending, accepted, or dismissed")
 	cmd.AddCommand(newAutomationSuggestionAcceptCommand(deps, &workspaceRef))
 	cmd.AddCommand(newAutomationSuggestionDismissCommand(deps, &workspaceRef))
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 

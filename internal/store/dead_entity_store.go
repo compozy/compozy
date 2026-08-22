@@ -5,12 +5,10 @@ import "context"
 // DeadEntityStore manages workspace-scoped confirmed-dead external runtimes.
 type DeadEntityStore interface {
 	MarkDeadEntity(ctx context.Context, entity DeadEntity) error
-	ClearDeadEntity(ctx context.Context, workspaceID string, kind DeadEntityKind, entityID string) error
+	ClearDeadEntity(ctx context.Context, key DeadEntityKey) error
 	FindDeadEntity(
 		ctx context.Context,
-		workspaceID string,
-		kind DeadEntityKind,
-		entityID string,
+		key DeadEntityKey,
 	) (DeadEntity, bool, error)
-	ListDeadEntities(ctx context.Context, workspaceID string) ([]DeadEntity, error)
+	ListDeadEntities(ctx context.Context, readScope ReadScope, workspaceID string) ([]DeadEntity, error)
 }

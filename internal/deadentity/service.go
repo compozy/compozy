@@ -187,7 +187,7 @@ func (s *Service) RecordSuccess(ctx context.Context, key store.DeadEntityKey) er
 		s.completeOperation(state, operation)
 		return nil
 	}
-	if err := s.store.ClearDeadEntity(ctx, normalized.WorkspaceID, normalized.Kind, normalized.EntityID); err != nil {
+	if err := s.store.ClearDeadEntity(ctx, normalized); err != nil {
 		if ctxErr := contextError(ctx); ctxErr != nil {
 			s.invalidateLoadedState(normalized, state, operation)
 			s.completeOperation(state, operation)

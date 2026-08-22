@@ -7,6 +7,7 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -16,13 +17,13 @@ func TestPublishOperatorNotification(t *testing.T) {
 	t.Run("Should sanitize and deliver to a live catalog subscriber", func(t *testing.T) {
 		t.Parallel()
 		manager, _ := newNotifyTestManager()
-		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t), CatalogScope{AllWorkspaces: true})
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t), CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true})
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 		}
 		defer cancel()
 
-		result, err := manager.PublishOperatorNotification(testutil.Context(t), NotifyRequest{
+		result, err := manager.PublishOperatorNotification(testutil.Context(t), NotifyRequest{ProfileID: store.DefaultProfileID,
 			SessionID: "sess-notify", WorkspaceID: "ws-notify",
 			Title: "  Dependency\n audit done  ",
 			Body:  "  No\t blockers. token=ghp_abcdefghijklmnopqrstuv ",
@@ -46,12 +47,12 @@ func TestPublishOperatorNotification(t *testing.T) {
 	t.Run("Should reject a title above the post-sanitize cap without publishing", func(t *testing.T) {
 		t.Parallel()
 		manager, _ := newNotifyTestManager()
-		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t), CatalogScope{AllWorkspaces: true})
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t), CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true})
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 		}
 		defer cancel()
-		_, err = manager.PublishOperatorNotification(testutil.Context(t), NotifyRequest{
+		_, err = manager.PublishOperatorNotification(testutil.Context(t), NotifyRequest{ProfileID: store.DefaultProfileID,
 			SessionID: "sess-cap", WorkspaceID: "ws-cap", Title: strings.Repeat("x", 81),
 		})
 		if !errors.Is(err, ErrInvalidNotification) || !strings.Contains(err.Error(), "80") {
@@ -67,14 +68,14 @@ func TestPublishOperatorNotification(t *testing.T) {
 	t.Run("Should rate limit the second send from one session", func(t *testing.T) {
 		t.Parallel()
 		manager, advance := newNotifyTestManager()
-		first, err := manager.PublishOperatorNotification(testutil.Context(t), NotifyRequest{
+		first, err := manager.PublishOperatorNotification(testutil.Context(t), NotifyRequest{ProfileID: store.DefaultProfileID,
 			SessionID: "sess-rate", WorkspaceID: "ws-rate", Title: "First",
 		})
 		if err != nil || first.Outcome != NotifyOutcomeNoClient {
 			t.Fatalf("first notification = %#v, error = %v", first, err)
 		}
 		advance(100 * time.Millisecond)
-		second, err := manager.PublishOperatorNotification(testutil.Context(t), NotifyRequest{
+		second, err := manager.PublishOperatorNotification(testutil.Context(t), NotifyRequest{ProfileID: store.DefaultProfileID,
 			SessionID: "sess-rate", WorkspaceID: "ws-rate", Title: "Second",
 		})
 		if err != nil {
@@ -88,7 +89,7 @@ func TestPublishOperatorNotification(t *testing.T) {
 	t.Run("Should reject an empty sanitized title", func(t *testing.T) {
 		t.Parallel()
 		manager, _ := newNotifyTestManager()
-		_, err := manager.PublishOperatorNotification(testutil.Context(t), NotifyRequest{
+		_, err := manager.PublishOperatorNotification(testutil.Context(t), NotifyRequest{ProfileID: store.DefaultProfileID,
 			SessionID: "sess-empty", WorkspaceID: "ws-empty", Title: " \n\t ",
 		})
 		if !errors.Is(err, ErrInvalidNotification) || !strings.Contains(err.Error(), "title is required") {
@@ -105,19 +106,19 @@ func TestPublishOperatorNotification(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("SetAttentionConfig() error = %v", err)
 		}
-		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t), CatalogScope{AllWorkspaces: true})
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t), CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true})
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 		}
 		defer cancel()
-		first, err := manager.PublishOperatorNotification(testutil.Context(t), NotifyRequest{
+		first, err := manager.PublishOperatorNotification(testutil.Context(t), NotifyRequest{ProfileID: store.DefaultProfileID,
 			SessionID: "sess-muted", WorkspaceID: workspaceID, Title: "Muted",
 		})
 		if err != nil || first.Outcome != NotifyOutcomeMutedWorkspace {
 			t.Fatalf("muted notification = %#v, error = %v", first, err)
 		}
 		advance(100 * time.Millisecond)
-		second, err := manager.PublishOperatorNotification(testutil.Context(t), NotifyRequest{
+		second, err := manager.PublishOperatorNotification(testutil.Context(t), NotifyRequest{ProfileID: store.DefaultProfileID,
 			SessionID: "sess-muted", WorkspaceID: workspaceID, Title: "Still muted",
 		})
 		if err != nil || second.Outcome != NotifyOutcomeRateLimited {

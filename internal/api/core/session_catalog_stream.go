@@ -26,7 +26,11 @@ func (h *BaseHandlers) StreamSessionCatalog(c *gin.Context) {
 	}
 	scope, err := h.parseSessionCatalogScope(c)
 	if err != nil {
-		h.respondError(c, http.StatusBadRequest, err)
+		if isProfileDomainError(err) {
+			respondProfileError(c, err)
+		} else {
+			h.respondError(c, http.StatusBadRequest, err)
+		}
 		return
 	}
 	events, cancel, err := subscriber.SubscribeSessionCatalogEvents(c.Request.Context(), scope)
@@ -35,6 +39,11 @@ func (h *BaseHandlers) StreamSessionCatalog(c *gin.Context) {
 		return
 	}
 	defer cancel()
+	owners, err := h.profileOwnerIdentities(c.Request.Context())
+	if err != nil {
+		respondProfileError(c, err)
+		return
+	}
 
 	writer, err := PrepareSSE(c)
 	if err != nil {
@@ -56,6 +65,20 @@ func (h *BaseHandlers) StreamSessionCatalog(c *gin.Context) {
 			if !open {
 				return
 			}
+			owner, found := owners[event.ProfileID]
+			if !found {
+				owners, err = h.profileOwnerIdentities(c.Request.Context())
+				if err != nil {
+					h.logSSEWriteFailure(sessionCatalogChangedEvent, err)
+					return
+				}
+				owner, found = owners[event.ProfileID]
+			}
+			if !found {
+				h.logSSEWriteFailure(sessionCatalogChangedEvent, fmt.Errorf("profile owner %q not found", event.ProfileID))
+				return
+			}
+			event.ProfileName = owner.Name
 			name, data := sessionCatalogSSEMessage(event)
 			if err := WriteSSE(writer, SSEMessage{
 				ID:   strconv.FormatInt(event.Sequence, 10),
@@ -70,6 +93,10 @@ func (h *BaseHandlers) StreamSessionCatalog(c *gin.Context) {
 }
 
 func (h *BaseHandlers) parseSessionCatalogScope(c *gin.Context) (session.CatalogScope, error) {
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		return session.CatalogScope{}, err
+	}
 	allWorkspaces, err := parseBoolQuery(c, "all_workspaces")
 	if err != nil {
 		return session.CatalogScope{}, err
@@ -88,6 +115,7 @@ func (h *BaseHandlers) parseSessionCatalogScope(c *gin.Context) (session.Catalog
 	replay := strings.TrimSpace(c.GetHeader("Last-Event-ID")) != ""
 	if allWorkspaces {
 		return session.CatalogScope{
+			ReadScope:     readScope,
 			AllWorkspaces: true,
 			Replay:        replay,
 			ReplayAfter:   afterSequence,
@@ -98,6 +126,7 @@ func (h *BaseHandlers) parseSessionCatalogScope(c *gin.Context) (session.Catalog
 		return session.CatalogScope{}, fmt.Errorf("api: resolve session catalog workspace: %w", err)
 	}
 	return session.CatalogScope{
+		ReadScope:   readScope,
 		WorkspaceID: workspaceID,
 		Replay:      replay,
 		ReplayAfter: afterSequence,
@@ -109,14 +138,16 @@ func sessionCatalogSSEMessage(event session.CatalogEvent) (string, any) {
 		notification := event.OperatorNotification
 		return string(session.CatalogEventNameOperatorNotification), contract.OperatorNotificationEventPayload{
 			NotificationID: notification.NotificationID,
-			SessionID:      notification.SessionID, WorkspaceID: notification.WorkspaceID,
-			Title: notification.Title, Body: notification.Body, At: notification.At,
+			SessionID:      notification.SessionID, ProfileID: event.ProfileID, ProfileName: event.ProfileName,
+			WorkspaceID: notification.WorkspaceID,
+			Title:       notification.Title, Body: notification.Body, At: notification.At,
 		}
 	}
 	if event.Name == session.CatalogEventNameAttention && event.Attention != nil {
 		return string(session.CatalogEventNameAttention), contract.SessionAttentionEventPayload{
-			SessionID: event.Attention.SessionID, WorkspaceID: event.Attention.WorkspaceID,
-			From: event.Attention.From, To: event.Attention.To,
+			SessionID: event.Attention.SessionID, ProfileID: event.ProfileID, ProfileName: event.ProfileName,
+			WorkspaceID: event.Attention.WorkspaceID,
+			From:        event.Attention.From, To: event.Attention.To,
 			Class: event.Attention.Class, At: event.Attention.At,
 		}
 	}
@@ -126,6 +157,8 @@ func sessionCatalogSSEMessage(event session.CatalogEvent) (string, any) {
 func sessionCatalogEventPayload(event session.CatalogEvent) contract.SessionCatalogEventPayload {
 	return contract.SessionCatalogEventPayload{
 		Kind:        string(event.Kind),
+		ProfileID:   event.ProfileID,
+		ProfileName: event.ProfileName,
 		WorkspaceID: event.WorkspaceID,
 		SessionID:   event.SessionID,
 	}

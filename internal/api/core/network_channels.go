@@ -22,6 +22,11 @@ func (h *BaseHandlers) NetworkChannels(c *gin.Context) {
 	if !ok {
 		return
 	}
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	recentLimit, err := ParseOptionalInt(c.Query("recent_limit"))
 	if err != nil || recentLimit < 0 {
 		if err == nil {
@@ -32,12 +37,12 @@ func (h *BaseHandlers) NetworkChannels(c *gin.Context) {
 	}
 
 	workspaceID := scope.NetworkWorkspaceID()
-	channels, err := h.networkChannelPayloads(c.Request.Context(), service, workspaceID)
+	channels, err := h.networkChannelPayloads(c.Request.Context(), service, readScope, workspaceID)
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
-	recents, err := h.networkRecentPayloads(c, workspaceID, recentLimit)
+	recents, err := h.networkRecentPayloads(c, readScope, workspaceID, recentLimit)
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
@@ -47,6 +52,7 @@ func (h *BaseHandlers) NetworkChannels(c *gin.Context) {
 
 func (h *BaseHandlers) networkRecentPayloads(
 	c *gin.Context,
+	readScope store.ReadScope,
 	workspaceID string,
 	limit int,
 ) ([]contract.NetworkRecentPayload, error) {
@@ -58,6 +64,7 @@ func (h *BaseHandlers) networkRecentPayloads(
 		return nil, errors.New("api: network recent store is required")
 	}
 	recents, err := recentStore.ListNetworkRecents(c.Request.Context(), store.NetworkRecentQuery{
+		ReadScope:   readScope,
 		WorkspaceID: strings.TrimSpace(workspaceID),
 		Limit:       limit,
 	})
@@ -68,6 +75,12 @@ func (h *BaseHandlers) networkRecentPayloads(
 	for _, recent := range recents {
 		activity := recent.LastActivityAt.UTC()
 		payloads = append(payloads, contract.NetworkRecentPayload{
+			ProfileID:          strings.TrimSpace(recent.ProfileID),
+			ProfileName:        strings.TrimSpace(recent.ProfileName),
+			ProfileColor:       strings.TrimSpace(recent.ProfileColor),
+			ProfileIcon:        strings.TrimSpace(recent.ProfileIcon),
+			ProfileEmoji:       strings.TrimSpace(recent.ProfileEmoji),
+			ProfileArchived:    recent.ProfileArchived,
 			Channel:            strings.TrimSpace(recent.Channel),
 			Surface:            strings.TrimSpace(recent.Surface),
 			ContainerID:        strings.TrimSpace(recent.ContainerID),

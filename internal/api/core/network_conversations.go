@@ -34,7 +34,12 @@ func (h *BaseHandlers) NetworkThread(c *gin.Context) {
 		return
 	}
 
-	thread, err := h.NetworkStore.GetThread(c.Request.Context(), scope.NetworkChannelRef(channel), threadID)
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	thread, err := h.NetworkStore.GetThread(c.Request.Context(), readScope, scope.NetworkChannelRef(channel), threadID)
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
@@ -60,6 +65,11 @@ func (h *BaseHandlers) NetworkThread(c *gin.Context) {
 func (h *BaseHandlers) PromoteNetworkThreadTask(c *gin.Context) {
 	manager, ok := h.requireTaskManager(c)
 	if !ok {
+		return
+	}
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
 		return
 	}
 	if _, ok := h.requireNetworkReadDependencies(c); !ok {
@@ -95,6 +105,7 @@ func (h *BaseHandlers) PromoteNetworkThreadTask(c *gin.Context) {
 	}
 	source, err := h.networkThreadPromotionSource(
 		c.Request.Context(),
+		store.ReadScope{ProfileID: mutationScope.ProfileID},
 		scope.NetworkWorkspaceID(),
 		channel,
 		threadID,
@@ -109,7 +120,9 @@ func (h *BaseHandlers) PromoteNetworkThreadTask(c *gin.Context) {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
-	taskRecord, err := h.createPromotedNetworkThreadTask(c.Request.Context(), manager, actor, source, req)
+	taskRecord, err := h.createPromotedNetworkThreadTask(
+		c.Request.Context(), manager, actor, mutationScope.ProfileID, source, req,
+	)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
@@ -140,6 +153,7 @@ type networkThreadPromotionSource struct {
 
 func (h *BaseHandlers) networkThreadPromotionSource(
 	ctx context.Context,
+	readScope store.ReadScope,
 	workspaceID string,
 	channel string,
 	threadID string,
@@ -154,7 +168,7 @@ func (h *BaseHandlers) networkThreadPromotionSource(
 	messages, err := h.NetworkStore.ListConversationMessages(
 		ctx,
 		ref,
-		store.NetworkConversationMessageQuery{Limit: 200},
+		store.NetworkConversationMessageQuery{ReadScope: readScope, Limit: 200},
 	)
 	if err != nil {
 		return networkThreadPromotionSource{}, err
@@ -166,7 +180,7 @@ func (h *BaseHandlers) networkThreadPromotionSource(
 		)
 	}
 	channelRef := store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: channel}
-	thread, err := h.NetworkStore.GetThread(ctx, channelRef, threadID)
+	thread, err := h.NetworkStore.GetThread(ctx, readScope, channelRef, threadID)
 	if err != nil {
 		return networkThreadPromotionSource{}, err
 	}
@@ -185,10 +199,12 @@ func (h *BaseHandlers) createPromotedNetworkThreadTask(
 	ctx context.Context,
 	manager TaskService,
 	actor taskpkg.ActorContext,
+	profileID string,
 	source networkThreadPromotionSource,
 	req contract.PromoteNetworkThreadTaskRequest,
 ) (*taskpkg.Task, error) {
 	spec := taskpkg.CreateTask{
+		ProfileID:   strings.TrimSpace(profileID),
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: source.workspaceID,
 		Title:       promotedNetworkThreadTaskTitle(req, source),

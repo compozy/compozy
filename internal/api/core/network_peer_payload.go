@@ -58,6 +58,12 @@ func networkChannelPayloadFromAggregate(
 		strings.TrimSpace(aggregate.workspaceID),
 	)
 	payload.Purpose = strings.TrimSpace(aggregate.metadata.Purpose)
+	payload.ProfileID = strings.TrimSpace(aggregate.metadata.ProfileID)
+	payload.ProfileName = strings.TrimSpace(aggregate.metadata.ProfileName)
+	payload.ProfileColor = strings.TrimSpace(aggregate.metadata.ProfileColor)
+	payload.ProfileIcon = strings.TrimSpace(aggregate.metadata.ProfileIcon)
+	payload.ProfileEmoji = strings.TrimSpace(aggregate.metadata.ProfileEmoji)
+	payload.ProfileArchived = aggregate.metadata.ProfileArchived
 	payload.FanoutPolicy = strings.TrimSpace(aggregate.metadata.FanoutPolicy)
 	payload.CoordinatorPeerID = strings.TrimSpace(aggregate.metadata.CoordinatorPeerID)
 	payload.CreatedBy = strings.TrimSpace(aggregate.metadata.CreatedBy)
@@ -97,9 +103,10 @@ func networkMessagePreview(entry store.NetworkMessageEntry) string {
 func (h *BaseHandlers) loadNetworkChannelMetadata(
 	ctx context.Context,
 	networkStore NetworkStore,
+	readScope store.ReadScope,
 	ref store.NetworkChannelRef,
 ) (*store.NetworkChannelEntry, error) {
-	entry, err := networkStore.GetNetworkChannel(ctx, ref)
+	entry, err := networkStore.GetNetworkChannel(ctx, readScope, ref)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil

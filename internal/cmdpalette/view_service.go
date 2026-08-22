@@ -25,6 +25,7 @@ type ViewDescriptor struct {
 }
 
 type ViewSnapshot struct {
+	ProfileLens ProfileLens
 	Descriptor  ViewDescriptor
 	Payload     ViewPayload
 	Revision    string
@@ -32,16 +33,18 @@ type ViewSnapshot struct {
 }
 
 type ViewPatchEvent struct {
+	ProfileLens ProfileLens
 	Sequence    int64
 	StreamEpoch string
 	Patch       ViewPatch
 }
 
 type ViewSourceProvider interface {
-	OpenSource(context.Context, WorkspaceID, string) (ViewPayload, error)
+	OpenSource(context.Context, ProfileLens, WorkspaceID, string) (ViewPayload, error)
 }
 
 type ViewPatchSubscribeRequest struct {
+	ProfileLens ProfileLens
 	Workspace   WorkspaceID
 	ViewID      string
 	After       int64
@@ -62,14 +65,14 @@ type ViewProviderRegistration struct {
 
 // DynamicViewProvider resolves workspace-scoped extension view descriptors.
 type DynamicViewProvider interface {
-	ProvideViews(context.Context, WorkspaceID) ([]ViewDescriptor, error)
+	ProvideViews(context.Context, CatalogRequest) ([]ViewDescriptor, error)
 	ViewSourceProvider
 }
 
 // ViewSourceService is the Tier-1 read surface consumed by both API transports.
 type ViewSourceService interface {
-	ResolveView(context.Context, WorkspaceID, string) (ViewDescriptor, error)
-	OpenSource(context.Context, WorkspaceID, string) (ViewSnapshot, error)
+	ResolveView(context.Context, ProfileLens, WorkspaceID, string) (ViewDescriptor, error)
+	OpenSource(context.Context, ProfileLens, WorkspaceID, string) (ViewSnapshot, error)
 	SubscribeViewPatches(
 		context.Context,
 		ViewPatchSubscribeRequest,
@@ -87,8 +90,8 @@ type ViewSessionService interface {
 		SessionToken,
 	) (ViewFrame, <-chan ViewFrame, func(), error)
 	CloseSession(context.Context, SessionToken, string) error
-	CloseClientSessions(context.Context, WorkspaceID, ClientID) error
-	InvalidateInstance(context.Context, WorkspaceID, string, uint64) error
+	CloseClientSessions(context.Context, ProfileLens, WorkspaceID, ClientID) error
+	InvalidateInstance(context.Context, ProfileLens, WorkspaceID, string, uint64) error
 }
 
 // ViewService owns both declarative views and programmable sessions.
@@ -132,26 +135,28 @@ func WithDynamicViewProvider(provider DynamicViewProvider) Option {
 
 func (s *Service) ResolveView(
 	ctx context.Context,
+	profileLens ProfileLens,
 	workspaceID WorkspaceID,
 	viewID string,
 ) (ViewDescriptor, error) {
-	descriptor, _, err := s.lookupView(ctx, workspaceID, viewID)
+	descriptor, _, err := s.lookupView(ctx, profileLens, workspaceID, viewID)
 	return descriptor, err
 }
 
 func (s *Service) OpenSource(
 	ctx context.Context,
+	profileLens ProfileLens,
 	workspaceID WorkspaceID,
 	viewID string,
 ) (ViewSnapshot, error) {
-	descriptor, provider, err := s.resolveViewProvider(ctx, workspaceID, viewID)
+	descriptor, provider, err := s.resolveViewProvider(ctx, profileLens, workspaceID, viewID)
 	if err != nil {
 		return ViewSnapshot{}, err
 	}
 	if err := requireDeclarativeViewSource(descriptor); err != nil {
 		return ViewSnapshot{}, err
 	}
-	payload, err := provider.OpenSource(ctx, workspaceID, descriptor.ID)
+	payload, err := provider.OpenSource(ctx, profileLens, workspaceID, descriptor.ID)
 	if err != nil {
 		return ViewSnapshot{}, fmt.Errorf("cmd palette view: open %q: %w", descriptor.ID, err)
 	}
@@ -159,12 +164,13 @@ func (s *Service) OpenSource(
 	if err != nil {
 		return ViewSnapshot{}, err
 	}
-	revision, err := viewPayloadRevision(validated)
+	revision, err := viewPayloadRevision(profileLens, validated)
 	if err != nil {
 		return ViewSnapshot{}, err
 	}
 	return ViewSnapshot{
-		Descriptor: cloneViewDescriptor(descriptor), Payload: validated,
+		ProfileLens: profileLens,
+		Descriptor:  cloneViewDescriptor(descriptor), Payload: validated,
 		Revision: revision, StreamEpoch: s.viewStreamEpoch,
 	}, nil
 }
@@ -181,7 +187,9 @@ func (s *Service) SubscribeViewPatches(
 	if request.StreamEpoch == "" {
 		request.StreamEpoch = s.viewStreamEpoch
 	}
-	descriptor, provider, err := s.resolveViewProvider(ctx, request.Workspace, request.ViewID)
+	descriptor, provider, err := s.resolveViewProvider(
+		ctx, request.ProfileLens, request.Workspace, request.ViewID,
+	)
 	if err != nil {
 		return ViewSnapshot{}, nil, nil, err
 	}
@@ -196,7 +204,7 @@ func (s *Service) SubscribeViewPatches(
 	if err != nil {
 		return ViewSnapshot{}, nil, nil, err
 	}
-	snapshot, err := s.OpenSource(ctx, request.Workspace, request.ViewID)
+	snapshot, err := s.OpenSource(ctx, request.ProfileLens, request.Workspace, request.ViewID)
 	if err != nil {
 		cancel()
 		return ViewSnapshot{}, nil, nil, err
@@ -205,6 +213,9 @@ func (s *Service) SubscribeViewPatches(
 }
 
 func validateViewPatchSubscribeRequest(request ViewPatchSubscribeRequest) error {
+	if err := request.ProfileLens.Validate(); err != nil {
+		return err
+	}
 	if request.After < 0 {
 		return ErrViewInvalidSequence
 	}
@@ -226,14 +237,16 @@ func requireDeclarativeViewSource(descriptor ViewDescriptor) error {
 
 func (s *Service) resolveViewProvider(
 	ctx context.Context,
+	profileLens ProfileLens,
 	workspaceID WorkspaceID,
 	viewID string,
 ) (ViewDescriptor, ViewSourceProvider, error) {
-	return s.lookupView(ctx, workspaceID, viewID)
+	return s.lookupView(ctx, profileLens, workspaceID, viewID)
 }
 
 func (s *Service) lookupView(
 	ctx context.Context,
+	profileLens ProfileLens,
 	workspaceID WorkspaceID,
 	viewID string,
 ) (ViewDescriptor, ViewSourceProvider, error) {
@@ -243,6 +256,9 @@ func (s *Service) lookupView(
 	if workspaceID == "" {
 		return ViewDescriptor{}, nil, errors.New("cmd palette view: workspace ID is required")
 	}
+	if err := profileLens.Validate(); err != nil {
+		return ViewDescriptor{}, nil, err
+	}
 	viewID = strings.TrimSpace(viewID)
 	for _, registration := range s.viewProviders {
 		if registration.Descriptor.ID == viewID {
@@ -250,7 +266,10 @@ func (s *Service) lookupView(
 		}
 	}
 	for _, provider := range s.dynamicViews {
-		descriptors, err := provider.ProvideViews(ctx, workspaceID)
+		descriptors, err := provider.ProvideViews(ctx, CatalogRequest{
+			ProfileLens: profileLens,
+			WorkspaceID: workspaceID,
+		})
 		if err != nil {
 			return ViewDescriptor{}, nil, fmt.Errorf("cmd palette view: project dynamic views: %w", err)
 		}
@@ -296,8 +315,11 @@ func validateViewProviderRegistrations(registrations []ViewProviderRegistration)
 	return nil
 }
 
-func viewPayloadRevision(payload ViewPayload) (string, error) {
-	wire, err := json.Marshal(payload)
+func viewPayloadRevision(profileLens ProfileLens, payload ViewPayload) (string, error) {
+	wire, err := json.Marshal(struct {
+		ProfileLens ProfileLens `json:"profile_lens"`
+		Payload     ViewPayload `json:"payload"`
+	}{ProfileLens: profileLens, Payload: payload})
 	if err != nil {
 		return "", fmt.Errorf("cmd palette view: encode revision payload: %w", err)
 	}

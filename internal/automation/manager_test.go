@@ -676,7 +676,7 @@ func TestManagerObserversAndRunsRouteTriggerEvents(t *testing.T) {
 		t.Fatalf("Prompt() call count = %d, want %d", got, want)
 	}
 
-	runs, err := manager.Runs(h.ctx, RunQuery{})
+	runs, err := manager.Runs(h.ctx, RunQuery{ReadScope: store.ReadScope{AllProfiles: true}})
 	if err != nil {
 		t.Fatalf("manager.Runs() error = %v", err)
 	}
@@ -1083,6 +1083,7 @@ func TestManagerDynamicJobCRUDAndRunHistory(t *testing.T) {
 	jobs, err := manager.ListJobs(h.ctx, JobListQuery{
 		Scope:       AutomationScopeWorkspace,
 		WorkspaceID: h.workspace.ID,
+		ReadScope:   store.ReadScope{AllProfiles: true},
 	})
 	if err != nil {
 		t.Fatalf("manager.ListJobs() error = %v", err)
@@ -1128,7 +1129,9 @@ func TestManagerDynamicJobCRUDAndRunHistory(t *testing.T) {
 		t.Fatalf("manager.GetRun() id = %q, want %q", got, want)
 	}
 
-	runs, err := manager.ListRuns(h.ctx, RunQuery{JobID: updated.ID})
+	runs, err := manager.ListRuns(h.ctx, RunQuery{
+		ReadScope: store.ReadScope{AllProfiles: true}, JobID: updated.ID,
+	})
 	if err != nil {
 		t.Fatalf("manager.ListRuns() error = %v", err)
 	}
@@ -1230,6 +1233,7 @@ func TestManagerCreateJobRejectsDaemonLifecycleCommands(t *testing.T) {
 			page, err := manager.ListJobs(h.ctx, JobListQuery{
 				Scope:       AutomationScopeWorkspace,
 				WorkspaceID: h.workspace.ID,
+				ReadScope:   store.ReadScope{AllProfiles: true},
 			})
 			if err != nil {
 				t.Fatalf("manager.ListJobs() error = %v", err)
@@ -1475,6 +1479,7 @@ func TestManagerDynamicTriggerCRUDWebhookAndExtensionFire(t *testing.T) {
 		Scope:       AutomationScopeWorkspace,
 		WorkspaceID: h.workspace.ID,
 		Event:       "webhook",
+		ReadScope:   store.ReadScope{AllProfiles: true},
 	})
 	if err != nil {
 		t.Fatalf("manager.ListTriggers(webhook) error = %v", err)
@@ -1583,7 +1588,9 @@ func TestManagerDynamicTriggerCRUDWebhookAndExtensionFire(t *testing.T) {
 		t.Fatalf("len(extension fire result.Runs) = %d, want %d", got, want)
 	}
 
-	extensionRuns, err := manager.ListRuns(h.ctx, RunQuery{TriggerID: createdExtension.ID})
+	extensionRuns, err := manager.ListRuns(h.ctx, RunQuery{
+		ReadScope: store.ReadScope{AllProfiles: true}, TriggerID: createdExtension.ID,
+	})
 	if err != nil {
 		t.Fatalf("manager.ListRuns(extension) error = %v", err)
 	}

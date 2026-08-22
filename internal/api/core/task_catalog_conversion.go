@@ -1,12 +1,41 @@
 package core
 
 import (
+	"context"
+	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	observepkg "github.com/compozy/compozy/internal/observe"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
+
+func (h *BaseHandlers) decorateTaskCatalogOwners(
+	ctx context.Context,
+	response contract.TasksResponse,
+) (contract.TasksResponse, error) {
+	owners, err := h.profileOwnerIdentities(ctx)
+	if err != nil {
+		return contract.TasksResponse{}, err
+	}
+	for index := range response.Tasks {
+		owner, found := owners[response.Tasks[index].ProfileID]
+		if !found {
+			return contract.TasksResponse{}, fmt.Errorf(
+				"api: task %q profile owner %q not found",
+				response.Tasks[index].ID,
+				response.Tasks[index].ProfileID,
+			)
+		}
+		if response.Tasks[index].ProfileID == "" && (h == nil || h.Profiles == nil) {
+			response.Tasks[index].ProfileID = owner.ID
+		}
+		response.Tasks[index].ProfileName = owner.Name
+		response.Tasks[index].ProfileColor = owner.Color
+		response.Tasks[index].ProfileIcon = owner.Icon
+	}
+	return response, nil
+}
 
 // TaskCatalogResponseFromPage converts one bounded catalog page into its wire envelope.
 func TaskCatalogResponseFromPage(page taskpkg.CatalogPage) contract.TasksResponse {

@@ -158,7 +158,7 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 				if workspaceRef != "ws-alpha" {
 					t.Fatalf("NetworkChannels() workspace = %q, want ws-alpha", workspaceRef)
 				}
-				return []NetworkChannelRecord{{Channel: "builders", PeerCount: 2}}, nil
+				return []NetworkChannelRecord{{ProfileName: "default", Channel: "builders", PeerCount: 2}}, nil
 			},
 			createNetworkChannelFn: func(
 				_ context.Context,
@@ -294,7 +294,8 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 		if err != nil {
 			t.Fatalf("network channels error = %v", err)
 		}
-		if !strings.Contains(channelsOut, "network_channels[1]{channel,peer_count}:") {
+		if !strings.Contains(channelsOut, "network_channels[1]{profile_name,channel,peer_count}:") ||
+			!strings.Contains(channelsOut, "default") {
 			t.Fatalf("network channels toon = %q, want TOON list", channelsOut)
 		}
 

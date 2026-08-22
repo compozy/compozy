@@ -8,11 +8,11 @@ CREATE TABLE tool_approval_grants (
 	decision     TEXT NOT NULL CHECK (decision IN ('allow', 'reject')),
 	created_at   TEXT NOT NULL,
 	last_used_at TEXT NOT NULL,
-	UNIQUE (workspace_id, agent_name, tool_id, input_digest)
+	UNIQUE (profile_id, workspace_id, agent_name, tool_id, input_digest)
 );
 
 CREATE INDEX idx_tool_approval_grants_lookup
-	ON tool_approval_grants (workspace_id, tool_id, agent_name, input_digest);
+	ON tool_approval_grants (profile_id, workspace_id, tool_id, agent_name, input_digest);
 
 CREATE INDEX idx_tool_approval_grants_list
-	ON tool_approval_grants (workspace_id, created_at DESC, id);
+	ON tool_approval_grants (profile_id, workspace_id, created_at DESC, id);

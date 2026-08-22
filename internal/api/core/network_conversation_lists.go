@@ -24,7 +24,12 @@ func (h *BaseHandlers) NetworkThreads(c *gin.Context) {
 	if !ok {
 		return
 	}
-	query, err := parseNetworkThreadQuery(c)
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	query, err := parseNetworkThreadQuery(c, readScope)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
@@ -80,7 +85,12 @@ func (h *BaseHandlers) NetworkDirectRooms(c *gin.Context) {
 	if !ok {
 		return
 	}
-	query, err := parseNetworkDirectRoomQuery(c)
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	query, err := parseNetworkDirectRoomQuery(c, readScope)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
@@ -127,7 +137,12 @@ func (h *BaseHandlers) respondNetworkConversationMessages(c *gin.Context, ref st
 		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
 		return
 	}
-	query, err := parseNetworkConversationMessageQuery(c)
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	query, err := parseNetworkConversationMessageQuery(c, readScope)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
@@ -156,7 +171,7 @@ func (h *BaseHandlers) respondNetworkConversationMessages(c *gin.Context, ref st
 	}
 }
 
-func parseNetworkThreadQuery(c *gin.Context) (store.NetworkThreadQuery, error) {
+func parseNetworkThreadQuery(c *gin.Context, readScope store.ReadScope) (store.NetworkThreadQuery, error) {
 	limit, err := parsePositiveIntQuery(c)
 	if err != nil {
 		return store.NetworkThreadQuery{}, NewNetworkValidationError(err)
@@ -166,6 +181,7 @@ func parseNetworkThreadQuery(c *gin.Context) (store.NetworkThreadQuery, error) {
 		return store.NetworkThreadQuery{}, err
 	}
 	query := store.NetworkThreadQuery{
+		ReadScope: readScope,
 		Search:    strings.TrimSpace(c.Query("query")),
 		SessionID: strings.TrimSpace(c.Query("session_id")),
 		Sort:      strings.TrimSpace(c.Query("sort")),
@@ -179,7 +195,7 @@ func parseNetworkThreadQuery(c *gin.Context) (store.NetworkThreadQuery, error) {
 	return query, nil
 }
 
-func parseNetworkDirectRoomQuery(c *gin.Context) (store.NetworkDirectRoomQuery, error) {
+func parseNetworkDirectRoomQuery(c *gin.Context, readScope store.ReadScope) (store.NetworkDirectRoomQuery, error) {
 	limit, err := parsePositiveIntQuery(c)
 	if err != nil {
 		return store.NetworkDirectRoomQuery{}, NewNetworkValidationError(err)
@@ -189,6 +205,7 @@ func parseNetworkDirectRoomQuery(c *gin.Context) (store.NetworkDirectRoomQuery, 
 		return store.NetworkDirectRoomQuery{}, err
 	}
 	query := store.NetworkDirectRoomQuery{
+		ReadScope: readScope,
 		Search:    strings.TrimSpace(c.Query("query")),
 		SessionID: strings.TrimSpace(c.Query("session_id")),
 		Sort:      strings.TrimSpace(c.Query("sort")),
@@ -214,12 +231,16 @@ func parseNetworkHasWorkQuery(c *gin.Context) (*bool, error) {
 	return &value, nil
 }
 
-func parseNetworkConversationMessageQuery(c *gin.Context) (store.NetworkConversationMessageQuery, error) {
+func parseNetworkConversationMessageQuery(
+	c *gin.Context,
+	readScope store.ReadScope,
+) (store.NetworkConversationMessageQuery, error) {
 	limit, err := parsePositiveIntQuery(c)
 	if err != nil {
 		return store.NetworkConversationMessageQuery{}, NewNetworkValidationError(err)
 	}
 	query := store.NetworkConversationMessageQuery{
+		ReadScope:       readScope,
 		BeforeMessageID: strings.TrimSpace(c.Query("before")),
 		AfterMessageID:  strings.TrimSpace(c.Query("after")),
 		Kind:            strings.TrimSpace(c.Query("kind")),

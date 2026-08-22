@@ -7,6 +7,7 @@ import (
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/session"
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -430,6 +431,7 @@ func createObserveBridgeInstance(
 	t.Helper()
 
 	instance, err := h.bridges.CreateInstance(testutil.Context(t), bridgepkg.CreateInstanceRequest{
+		ProfileID:     storepkg.DefaultProfileID,
 		ID:            id,
 		Scope:         bridgepkg.ScopeWorkspace,
 		WorkspaceID:   h.workspaceID,

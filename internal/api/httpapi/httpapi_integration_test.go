@@ -3294,6 +3294,7 @@ func TestIntegrationBridgeServiceLifecycleTransitionsReachReady(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 
 	created, err := runtime.bridges.CreateInstance(context.Background(), bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-lifecycle-ready",
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",

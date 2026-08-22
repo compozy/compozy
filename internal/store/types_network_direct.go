@@ -40,6 +40,11 @@ func (e NetworkDirectRoomEntry) Validate() error {
 type NetworkWorkEntry struct {
 	WorkID            string
 	ProfileID         string
+	ProfileName       string
+	ProfileColor      string
+	ProfileIcon       string
+	ProfileEmoji      string
+	ProfileArchived   bool
 	WorkspaceID       string
 	Channel           string
 	Surface           string
@@ -91,31 +96,36 @@ func (e NetworkWorkEntry) Validate() error {
 
 // NetworkConversationMessage is one persisted network conversation or presence message.
 type NetworkConversationMessage struct {
-	Sequence    int64
-	ProfileID   string
-	MessageID   string
-	SessionID   string
-	WorkspaceID string
-	Channel     string
-	Surface     string
-	ThreadID    string
-	DirectID    string
-	Direction   string
-	PeerFrom    string
-	PeerTo      string
-	Kind        string
-	WorkID      string
-	ReplyTo     string
-	TraceID     string
-	CausationID string
-	Intent      string
-	Text        string
-	PreviewText string
-	Mentions    []string
-	ExtJSON     json.RawMessage
-	Body        json.RawMessage
-	SizeBytes   int64
-	Timestamp   time.Time
+	Sequence        int64
+	ProfileID       string
+	ProfileName     string
+	ProfileColor    string
+	ProfileIcon     string
+	ProfileEmoji    string
+	ProfileArchived bool
+	MessageID       string
+	SessionID       string
+	WorkspaceID     string
+	Channel         string
+	Surface         string
+	ThreadID        string
+	DirectID        string
+	Direction       string
+	PeerFrom        string
+	PeerTo          string
+	Kind            string
+	WorkID          string
+	ReplyTo         string
+	TraceID         string
+	CausationID     string
+	Intent          string
+	Text            string
+	PreviewText     string
+	Mentions        []string
+	ExtJSON         json.RawMessage
+	Body            json.RawMessage
+	SizeBytes       int64
+	Timestamp       time.Time
 }
 
 // NetworkMessageEntry is the persisted network timeline row used by existing store interfaces.

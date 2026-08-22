@@ -802,7 +802,7 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
 		events, cancel, err := h.manager.SubscribeSessionCatalogEvents(
 			testutil.Context(t),
-			CatalogScope{AllWorkspaces: true},
+			CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
 		)
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)

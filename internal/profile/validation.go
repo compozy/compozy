@@ -100,14 +100,3 @@ func (r RepoChoice) Validate() error {
 	}
 	return nil
 }
-
-func (s ReadScope) Validate() error {
-	profileID := strings.TrimSpace(s.ProfileID)
-	if s.AllProfiles && profileID != "" {
-		return fmt.Errorf("%w: aggregate read forbids profile id", ErrInvalidInput)
-	}
-	if !s.AllProfiles && profileID == "" {
-		return fmt.Errorf("%w: scoped read requires profile id", ErrInvalidInput)
-	}
-	return nil
-}

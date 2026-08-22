@@ -38,6 +38,7 @@ const (
 
 // OverviewQuery bounds one home overview read.
 type OverviewQuery struct {
+	ReadScope       store.ReadScope
 	WorkspaceID     string
 	TaskScope       taskpkg.CatalogScope
 	UsageWindowDays int
@@ -46,6 +47,9 @@ type OverviewQuery struct {
 
 // Validate normalizes the usage window and rejects unsupported values.
 func (q *OverviewQuery) Validate() error {
+	if err := q.ReadScope.Validate(); err != nil {
+		return err
+	}
 	if q.UsageWindowDays == 0 {
 		q.UsageWindowDays = overviewDefaultUsageDays
 	}
@@ -123,6 +127,18 @@ type OverviewUsage struct {
 	CostStatus    string
 	Days          []store.TokenUsageDay
 	AgentShare    []OverviewAgentShare
+	Profiles      []OverviewProfileUsage
+}
+
+// OverviewProfileUsage is one owner-labeled usage bucket.
+type OverviewProfileUsage struct {
+	ProfileID   string
+	ProfileName string
+	Color       string
+	Icon        string
+	Emoji       string
+	Archived    bool
+	Tokens      int64
 }
 
 // OverviewAgentShare is one agent's fraction of window token usage.

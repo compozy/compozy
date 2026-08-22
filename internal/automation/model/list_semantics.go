@@ -59,6 +59,9 @@ func normalizeTriggerListQuery(query TriggerListQuery) TriggerListQuery {
 }
 
 func jobMatchesListQuery(job Job, query JobListQuery) bool {
+	if !query.ReadScope.Matches(job.ProfileID) {
+		return false
+	}
 	if query.Scope != "" && job.Scope != query.Scope {
 		return false
 	}
@@ -102,6 +105,9 @@ func JobMatchesListQuery(job Job, query JobListQuery) bool {
 }
 
 func triggerMatchesListQuery(trigger Trigger, query TriggerListQuery) bool {
+	if !query.ReadScope.Matches(trigger.ProfileID) {
+		return false
+	}
 	if query.Scope != "" && trigger.Scope != query.Scope {
 		return false
 	}

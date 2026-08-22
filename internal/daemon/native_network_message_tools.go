@@ -63,7 +63,7 @@ func (n *daemonNativeTools) networkThreadMessages(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	page, err := n.networkConversationMessages(ctx, req.ToolID, store.NetworkConversationRef{
+	page, err := n.networkConversationMessages(ctx, req.ToolID, scope, store.NetworkConversationRef{
 		WorkspaceID: workspaceID,
 		Channel:     channel,
 		Surface:     store.NetworkSurfaceThread,
@@ -101,7 +101,7 @@ func (n *daemonNativeTools) networkDirectMessages(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	page, err := n.networkConversationMessages(ctx, req.ToolID, store.NetworkConversationRef{
+	page, err := n.networkConversationMessages(ctx, req.ToolID, scope, store.NetworkConversationRef{
 		WorkspaceID: workspaceID,
 		Channel:     channel,
 		Surface:     store.NetworkSurfaceDirect,
@@ -125,6 +125,7 @@ func (n *daemonNativeTools) networkDirectMessages(
 func (n *daemonNativeTools) networkConversationMessages(
 	ctx context.Context,
 	id toolspkg.ToolID,
+	scope toolspkg.Scope,
 	ref store.NetworkConversationRef,
 	input networkConversationMessageQueryInput,
 ) (networkConversationMessagePage, error) {
@@ -133,6 +134,7 @@ func (n *daemonNativeTools) networkConversationMessages(
 	}
 	limit := store.NormalizeNetworkMessageLimit(input.Limit)
 	query := store.NetworkConversationMessageQuery{
+		ReadScope:       store.ReadScope{ProfileID: scope.ProfileID},
 		BeforeMessageID: strings.TrimSpace(input.Before),
 		AfterMessageID:  strings.TrimSpace(input.After),
 		Kind:            strings.TrimSpace(input.Kind),

@@ -199,7 +199,7 @@ func newNetworkStatusCommand(deps commandDeps, workspaceRef *string) *cobra.Comm
 }
 
 func newNetworkPeersCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "peers [channel]",
 		Short: "List visible local peers and their capability cards",
 		Args:  cobra.MaximumNArgs(1),
@@ -225,6 +225,8 @@ func newNetworkPeersCommand(deps commandDeps, workspaceRef *string) *cobra.Comma
 			return writeCommandOutput(cmd, networkPeersBundle(peers))
 		},
 	}
+	configureProfileReadCommand(cmd, deps)
+	return cmd
 }
 
 func newNetworkChannelsCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
@@ -250,6 +252,7 @@ func newNetworkChannelsCommand(deps commandDeps, workspaceRef *string) *cobra.Co
 	}
 	cmd.AddCommand(newNetworkChannelsCreateCommand(deps, workspaceRef))
 	cmd.AddCommand(newNetworkChannelsUpdateCommand(deps, workspaceRef))
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 

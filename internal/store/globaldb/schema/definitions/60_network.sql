@@ -57,7 +57,8 @@ CREATE TABLE network_channels (
 			updated_at   TEXT NOT NULL, fanout_policy TEXT NOT NULL DEFAULT 'capability_match' CHECK (
 					fanout_policy IN ('capability_match', 'coordinator', 'all_members')
 				), coordinator_peer_id TEXT NOT NULL DEFAULT '',
-			PRIMARY KEY (workspace_id, channel)
+			PRIMARY KEY (workspace_id, channel),
+			FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
 		);
 
 CREATE TABLE network_direct_rooms (

@@ -176,14 +176,14 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		if got := string(payload); got != attachmentContents {
 			t.Fatalf("attachment after archive = %q, want %q", got, attachmentContents)
 		}
-		defaultPage, err := h.manager.ListPage(ctx, ListQuery{WorkspaceID: h.workspaceID})
+		defaultPage, err := h.manager.ListPage(ctx, ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: h.workspaceID})
 		if err != nil {
 			t.Fatalf("ListPage(default) error = %v", err)
 		}
 		if defaultPage.Total != 0 || len(defaultPage.Sessions) != 0 {
 			t.Fatalf("ListPage(default) = %#v, want archived session excluded", defaultPage)
 		}
-		archivedPage, err := h.manager.ListPage(ctx, ListQuery{
+		archivedPage, err := h.manager.ListPage(ctx, ListQuery{ReadScope: store.ReadScope{AllProfiles: true},
 			WorkspaceID: h.workspaceID,
 			Archive:     ArchiveOnly,
 		})
@@ -273,7 +273,7 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 			t.Errorf("user session type = %q, want %q", got, want)
 		}
 
-		userPage, err := h.manager.ListPage(ctx, ListQuery{
+		userPage, err := h.manager.ListPage(ctx, ListQuery{ReadScope: store.ReadScope{AllProfiles: true},
 			AllWorkspaces: true,
 			State:         string(StateActive),
 			SessionType:   SessionTypeUser,
@@ -286,7 +286,7 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 			t.Errorf("ListPage(user) = %#v, want onboarding and coder sessions", userPage)
 		}
 
-		allPage, err := h.manager.ListPage(ctx, ListQuery{
+		allPage, err := h.manager.ListPage(ctx, ListQuery{ReadScope: store.ReadScope{AllProfiles: true},
 			AllWorkspaces: true,
 			State:         string(StateActive),
 			Sort:          ListSortRecent,
@@ -359,7 +359,7 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		resolverCallsBefore := len(h.resolver.resolveCalls)
 		h.resolver.mu.Unlock()
 
-		query := ListQuery{
+		query := ListQuery{ReadScope: store.ReadScope{AllProfiles: true},
 			WorkspaceID: h.workspaceID,
 			SessionType: SessionTypeUser,
 			AgentName:   "coder",
@@ -467,7 +467,7 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 			t.Fatalf("AttachSession() error = %v", err)
 		}
 
-		locked, err := h.manager.ListPage(testutil.Context(t), ListQuery{
+		locked, err := h.manager.ListPage(testutil.Context(t), ListQuery{ReadScope: store.ReadScope{AllProfiles: true},
 			WorkspaceID: h.workspaceID,
 			Resumable:   true,
 		})
@@ -486,7 +486,7 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		if status.AttachedTo != "" || status.AttachExpiresAt != nil || !AttachableForInfo(status, clock.Now()) {
 			t.Fatalf("Status(after expiry) = %#v, want normalized attachable session", status)
 		}
-		resumable, err := h.manager.ListPage(testutil.Context(t), ListQuery{
+		resumable, err := h.manager.ListPage(testutil.Context(t), ListQuery{ReadScope: store.ReadScope{AllProfiles: true},
 			WorkspaceID: h.workspaceID,
 			Resumable:   true,
 		})
@@ -541,7 +541,11 @@ func TestManagerAggregateSessionsByAgent(t *testing.T) {
 		}}
 		clock.Set(baseAt.Add(30 * time.Second))
 
-		metrics, err := h.manager.AggregateSessionsByAgent(testutil.Context(t), h.workspaceID)
+		metrics, err := h.manager.AggregateSessionsByAgent(
+			testutil.Context(t),
+			store.ReadScope{AllProfiles: true},
+			h.workspaceID,
+		)
 		if err != nil {
 			t.Fatalf("AggregateSessionsByAgent() error = %v", err)
 		}
@@ -586,7 +590,7 @@ func TestSessionMatchesListQuery(t *testing.T) {
 	t.Run("Should apply exact workspace state agent and literal search filters", func(t *testing.T) {
 		t.Parallel()
 
-		if !sessionMatchesListQuery(base, ListQuery{
+		if !sessionMatchesListQuery(base, ListQuery{ReadScope: store.ReadScope{AllProfiles: true},
 			WorkspaceID: "ws-alpha",
 			WorktreeID:  "wt-alpha",
 			State:       "active",
@@ -596,7 +600,7 @@ func TestSessionMatchesListQuery(t *testing.T) {
 		}, now) {
 			t.Fatal("sessionMatchesListQuery() = false, want exact filters to match")
 		}
-		if !sessionMatchesListQuery(base, ListQuery{Search: "BUILDERS"}, now) {
+		if !sessionMatchesListQuery(base, ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, Search: "BUILDERS"}, now) {
 			t.Fatal("sessionMatchesListQuery(BUILDERS) = false, want case-insensitive participation-channel match")
 		}
 		for _, query := range []ListQuery{
@@ -607,6 +611,7 @@ func TestSessionMatchesListQuery(t *testing.T) {
 			{AgentName: "reviewer"},
 			{Search: "missing"},
 		} {
+			query.ReadScope = store.ReadScope{AllProfiles: true}
 			if sessionMatchesListQuery(base, query, now) {
 				t.Fatalf("sessionMatchesListQuery(%#v) = true, want false", query)
 			}
@@ -618,13 +623,13 @@ func TestSessionMatchesListQuery(t *testing.T) {
 
 		dream := *base
 		dream.Type = SessionTypeDream
-		if sessionMatchesListQuery(&dream, ListQuery{}, now) {
+		if sessionMatchesListQuery(&dream, ListQuery{ReadScope: store.ReadScope{AllProfiles: true}}, now) {
 			t.Fatal("sessionMatchesListQuery(dream) = true, want false")
 		}
 		for _, role := range []string{SpawnRoleMemoryExtractor, SpawnRoleAutoTitle} {
 			internal := *base
 			internal.Lineage = &store.SessionLineage{SpawnRole: role}
-			if sessionMatchesListQuery(&internal, ListQuery{}, now) {
+			if sessionMatchesListQuery(&internal, ListQuery{ReadScope: store.ReadScope{AllProfiles: true}}, now) {
 				t.Fatalf("sessionMatchesListQuery(%s) = true, want false", role)
 			}
 		}
@@ -640,19 +645,19 @@ func TestSessionMatchesListQuery(t *testing.T) {
 			RootSessionID:   "sess-root",
 			SpawnDepth:      1,
 		}
-		if !sessionMatchesListQuery(&child, ListQuery{ParentSessionID: "sess-root"}, now) {
+		if !sessionMatchesListQuery(&child, ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, ParentSessionID: "sess-root"}, now) {
 			t.Fatal("sessionMatchesListQuery(parent) = false, want provenance child match")
 		}
-		if !sessionMatchesListQuery(&child, ListQuery{RootSessionID: "sess-root"}, now) {
+		if !sessionMatchesListQuery(&child, ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, RootSessionID: "sess-root"}, now) {
 			t.Fatal("sessionMatchesListQuery(root) = false, want descendant match")
 		}
-		if sessionMatchesListQuery(&child, ListQuery{ParentSessionID: "sess-other"}, now) {
+		if sessionMatchesListQuery(&child, ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, ParentSessionID: "sess-other"}, now) {
 			t.Fatal("sessionMatchesListQuery(foreign parent) = true, want false")
 		}
-		if !sessionMatchesListQuery(base, ListQuery{RootSessionID: base.ID}, now) {
+		if !sessionMatchesListQuery(base, ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, RootSessionID: base.ID}, now) {
 			t.Fatal("sessionMatchesListQuery(own root) = false, want root session to match its own tree")
 		}
-		if sessionMatchesListQuery(base, ListQuery{ParentSessionID: "sess-root"}, now) {
+		if sessionMatchesListQuery(base, ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, ParentSessionID: "sess-root"}, now) {
 			t.Fatal("sessionMatchesListQuery(rootless parent) = true, want false")
 		}
 	})
@@ -660,14 +665,14 @@ func TestSessionMatchesListQuery(t *testing.T) {
 	t.Run("Should apply resumable eligibility before the page cut", func(t *testing.T) {
 		t.Parallel()
 
-		if !sessionMatchesListQuery(base, ListQuery{Resumable: true}, now) {
+		if !sessionMatchesListQuery(base, ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, Resumable: true}, now) {
 			t.Fatal("sessionMatchesListQuery(resumable) = false, want attachable active session")
 		}
 		locked := *base
 		locked.AttachedTo = "uds:123"
 		expiresAt := now.Add(time.Hour)
 		locked.AttachExpiresAt = &expiresAt
-		if sessionMatchesListQuery(&locked, ListQuery{Resumable: true}, now) {
+		if sessionMatchesListQuery(&locked, ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, Resumable: true}, now) {
 			t.Fatal("sessionMatchesListQuery(locked resumable) = true, want false")
 		}
 	})
@@ -679,7 +684,7 @@ func TestNormalizeListQuery(t *testing.T) {
 	t.Run("Should normalize defaults and case-insensitive search", func(t *testing.T) {
 		t.Parallel()
 
-		query, err := normalizeListQuery(ListQuery{AllWorkspaces: true, Search: "  Review  "})
+		query, err := normalizeListQuery(ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, Search: "  Review  "})
 		if err != nil {
 			t.Fatalf("normalizeListQuery() error = %v", err)
 		}
@@ -692,14 +697,14 @@ func TestNormalizeListQuery(t *testing.T) {
 		name  string
 		query ListQuery
 	}{
-		{name: "state", query: ListQuery{AllWorkspaces: true, State: "unknown"}},
-		{name: "type", query: ListQuery{AllWorkspaces: true, SessionType: "unknown"}},
-		{name: "dream type", query: ListQuery{AllWorkspaces: true, SessionType: SessionTypeDream}},
-		{name: "sort", query: ListQuery{AllWorkspaces: true, Sort: "oldest"}},
-		{name: "negative limit", query: ListQuery{AllWorkspaces: true, Limit: -1}},
-		{name: "oversized limit", query: ListQuery{AllWorkspaces: true, Limit: MaxListLimit + 1}},
-		{name: "missing scope", query: ListQuery{}},
-		{name: "conflicting scope", query: ListQuery{WorkspaceID: "ws-alpha", AllWorkspaces: true}},
+		{name: "state", query: ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, State: "unknown"}},
+		{name: "type", query: ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, SessionType: "unknown"}},
+		{name: "dream type", query: ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, SessionType: SessionTypeDream}},
+		{name: "sort", query: ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, Sort: "oldest"}},
+		{name: "negative limit", query: ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, Limit: -1}},
+		{name: "oversized limit", query: ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, Limit: MaxListLimit + 1}},
+		{name: "missing scope", query: ListQuery{ReadScope: store.ReadScope{AllProfiles: true}}},
+		{name: "conflicting scope", query: ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: "ws-alpha", AllWorkspaces: true}},
 	} {
 		t.Run("Should reject invalid "+testCase.name, func(t *testing.T) {
 			t.Parallel()
@@ -723,7 +728,10 @@ func TestManagerAttentionCatalogUsesCanonicalBadgesAcrossPages(t *testing.T) {
 		}
 		h := newHarness(t, WithSessionCatalog(catalog))
 
-		summary, err := h.manager.AttentionSummary(testutil.Context(t))
+		summary, err := h.manager.AttentionSummary(
+			testutil.Context(t),
+			store.ReadScope{AllProfiles: true},
+		)
 		if err != nil {
 			t.Fatalf("AttentionSummary() error = %v", err)
 		}
@@ -757,7 +765,7 @@ func TestManagerAttentionCatalogUsesCanonicalBadgesAcrossPages(t *testing.T) {
 		}
 		h := newHarness(t, WithSessionCatalog(catalog))
 		ctx := testutil.Context(t)
-		query := ListQuery{AllWorkspaces: true, Badges: []Badge{BadgeDone}, Limit: 13}
+		query := ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, Badges: []Badge{BadgeDone}, Limit: 13}
 		first, err := h.manager.ListPage(ctx, query)
 		if err != nil {
 			t.Fatalf("ListPage(first) error = %v", err)
@@ -886,7 +894,7 @@ func TestManagerAttentionCatalogUsesCanonicalBadgesAcrossPages(t *testing.T) {
 			},
 		}
 		h := newHarness(t, WithSessionCatalog(catalog))
-		query := ListQuery{AllWorkspaces: true, Sort: ListSortAttention, Limit: 3}
+		query := ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, Sort: ListSortAttention, Limit: 3}
 		ids := func(infos []*Info) []string {
 			result := make([]string, 0, len(infos))
 			for _, info := range infos {

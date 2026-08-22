@@ -90,7 +90,8 @@ func (n *daemonNativeTools) worktreeCreate(
 		return toolspkg.ToolResult{}, err
 	}
 	item, err := n.deps.Worktrees.CreateAccepted(ctx, workspaceID, worktree.CreateOptions{
-		Name: input.Name, Branch: input.Branch, BaseRef: input.BaseRef,
+		ProfileID: scope.ProfileID,
+		Name:      input.Name, Branch: input.Branch, BaseRef: input.BaseRef,
 		ExistingBranch: input.ExistingBranch, Path: input.Path, Origin: worktree.OriginManual,
 	})
 	if err != nil {

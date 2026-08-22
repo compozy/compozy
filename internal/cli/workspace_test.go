@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -377,6 +378,7 @@ func TestWorkspaceInfoResolvesReferenceSources(t *testing.T) {
 					}
 					return SessionRecord{
 						ID:            id,
+						ProfileID:     store.DefaultProfileID,
 						AgentName:     tt.agentName,
 						WorkspaceID:   tt.sessionWorkspaceID,
 						WorkspacePath: "/workspace/identity",
@@ -456,6 +458,7 @@ func TestWorkspaceInfoResolvesReferenceSources(t *testing.T) {
 				getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
 					return SessionRecord{
 						ID:          id,
+						ProfileID:   store.DefaultProfileID,
 						AgentName:   "coder",
 						WorkspaceID: "ws-session",
 						State:       "active",

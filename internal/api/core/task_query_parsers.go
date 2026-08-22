@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
 )
@@ -77,15 +78,20 @@ func validateParsedTaskDashboardQuery(query contract.TaskDashboardQuery) error {
 			taskpkg.ErrValidation,
 		))
 	}
-	summaryQuery := observe.TaskSummaryQuery{
-		Scope:                query.Scope,
-		OwnerKind:            query.OwnerKind,
-		OwnerRef:             query.OwnerRef,
-		ParticipationChannel: query.ParticipationChannel,
-		OriginKind:           query.OriginKind,
+	if query.Scope.Normalize() != "" {
+		if err := query.Scope.Validate("task_dashboard_query.scope"); err != nil {
+			return NewTaskValidationError(err)
+		}
 	}
-	if err := summaryQuery.Validate(); err != nil {
-		return NewTaskValidationError(err)
+	if query.OwnerKind.Normalize() != "" {
+		if err := query.OwnerKind.Validate("task_dashboard_query.owner_kind"); err != nil {
+			return NewTaskValidationError(err)
+		}
+	}
+	if query.OriginKind.Normalize() != "" {
+		if err := query.OriginKind.Validate("task_dashboard_query.origin_kind"); err != nil {
+			return NewTaskValidationError(err)
+		}
 	}
 	return nil
 }
@@ -144,9 +150,11 @@ func (h *BaseHandlers) taskStreamDomainQuery(
 
 func (h *BaseHandlers) taskDashboardDomainQuery(
 	ctx context.Context,
+	readScope store.ReadScope,
 	query contract.TaskDashboardQuery,
 ) (observe.TaskDashboardQuery, error) {
 	domainQuery := observe.TaskDashboardQuery{
+		ReadScope:            readScope,
 		Scope:                query.Scope.Normalize(),
 		WorktreeID:           strings.TrimSpace(query.Worktree),
 		OwnerKind:            query.OwnerKind.Normalize(),

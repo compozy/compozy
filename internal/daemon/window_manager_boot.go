@@ -19,6 +19,7 @@ const windowManagerMaxSnapshotBytes = 16 * 1024 * 1024
 type globalHotkeyFailureNotifier interface {
 	NotifyGlobalHotkeyRegistrationFailed(
 		context.Context,
+		cmdpalette.ProfileLens,
 		cmdpalette.WorkspaceID,
 		cmdpalette.ClientID,
 		cmdpalette.CommandID,
@@ -95,6 +96,7 @@ func closeCmdPaletteClientViews(state *bootState) func(
 		}
 		return views.CloseClientSessions(
 			ctx,
+			cmdpalette.AggregateProfileLens(),
 			cmdpalette.WorkspaceID(workspaceID),
 			cmdpalette.ClientID(clientID),
 		)
@@ -119,6 +121,7 @@ func notifyGlobalHotkeyRegistrationFailure(state *bootState) func(
 		}
 		notifier.NotifyGlobalHotkeyRegistrationFailed(
 			ctx,
+			cmdpalette.AggregateProfileLens(),
 			cmdpalette.WorkspaceID(workspaceID),
 			cmdpalette.ClientID(clientID),
 			cmdpalette.CommandID(registration.CommandID),

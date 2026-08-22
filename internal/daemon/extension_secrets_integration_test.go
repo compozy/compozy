@@ -832,7 +832,7 @@ func testExtensionSecretBindingEnableInjection(t *testing.T) {
 	if !bytes.Contains(logsJSON, []byte("[REDACTED]")) {
 		t.Fatalf("bound extension logs = %s, want redaction marker proving injected value", logsJSON)
 	}
-	events, err := harness.db.ListEventSummaries(t.Context(), store.EventSummaryQuery{Component: "extension"})
+	events, err := harness.db.ListEventSummaries(t.Context(), store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, Component: "extension"})
 	if err != nil {
 		t.Fatalf("ListEventSummaries() error = %v", err)
 	}

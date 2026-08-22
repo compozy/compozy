@@ -199,6 +199,7 @@ func taskRunListBundle(items []TaskRunRecord) outputBundle {
 		"Task Runs",
 		[]string{
 			"ID",
+			sessionProfileValue,
 			taskStatusValue,
 			taskAttemptValue,
 			taskSessionValue,
@@ -212,6 +213,7 @@ func taskRunListBundle(items []TaskRunRecord) outputBundle {
 		"task_runs",
 		[]string{
 			"id",
+			"profile_name",
 			taskStatusKey,
 			taskAttemptKey,
 			taskSessionIDKey,
@@ -225,6 +227,7 @@ func taskRunListBundle(items []TaskRunRecord) outputBundle {
 		func(item TaskRunRecord) []string {
 			return []string{
 				stringOrDash(item.ID),
+				stringOrDash(item.ProfileName),
 				stringOrDash(item.Status.String()),
 				intOrDash(item.Attempt),
 				stringOrDash(item.SessionID),
@@ -239,6 +242,7 @@ func taskRunListBundle(items []TaskRunRecord) outputBundle {
 		func(item TaskRunRecord) []string {
 			return []string{
 				item.ID,
+				item.ProfileName,
 				item.Status.String(),
 				strconv.Itoa(item.Attempt),
 				item.SessionID,
@@ -337,6 +341,7 @@ func taskRunToonRows(items []TaskRunRecord) [][]string {
 	for _, item := range items {
 		rows = append(rows, []string{
 			item.ID,
+			item.ProfileName,
 			item.Status.String(),
 			strconv.Itoa(item.Attempt),
 			item.SessionID,

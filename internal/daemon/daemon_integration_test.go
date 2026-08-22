@@ -333,6 +333,7 @@ func TestBootWiresTaskRuntimeWithDedicatedSessionBridge(t *testing.T) {
 	}
 
 	taskRecord, err := d.tasks.manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: resolved.ID,
 		Title:       "Bridge task",
@@ -1144,8 +1145,9 @@ func TestBootRecoversOrphanedTaskRunsAndRecordsAudit(t *testing.T) {
 
 	createTask := func(title string) taskpkg.Task {
 		taskRecord, err := seedManager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: title,
+			ProfileID: store.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     title,
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask(%q) error = %v", title, err)
@@ -1934,6 +1936,7 @@ func TestBootNetworkEnabledDeliversInboundAndShutsDownCleanly(t *testing.T) {
 		t.Fatal("network lifecycle binding = nil, want boot-time late binding")
 	}
 	if err := lifecycle.JoinChannel(testutil.Context(t), session.NetworkPeerJoin{
+		ProfileID:            store.DefaultProfileID,
 		SessionID:            "sess-net",
 		WorkspaceID:          "ws-integration",
 		PeerID:               "coder.sess-net",
@@ -1944,6 +1947,7 @@ func TestBootNetworkEnabledDeliversInboundAndShutsDownCleanly(t *testing.T) {
 		t.Fatalf("JoinChannel() error = %v", err)
 	}
 	if err := lifecycle.JoinChannel(testutil.Context(t), session.NetworkPeerJoin{
+		ProfileID:            store.DefaultProfileID,
 		SessionID:            "sess-sender",
 		WorkspaceID:          "ws-integration",
 		PeerID:               "coder.sess-sender",
@@ -2053,6 +2057,7 @@ func TestBootNetworkShutdownPreservesCommittedDelivery(t *testing.T) {
 		t.Fatal("network lifecycle binding = nil, want boot-time late binding")
 	}
 	if err := lifecycle.JoinChannel(testutil.Context(t), session.NetworkPeerJoin{
+		ProfileID:            store.DefaultProfileID,
 		SessionID:            "sess-net",
 		WorkspaceID:          "ws-integration",
 		PeerID:               "coder.sess-net",
@@ -2063,6 +2068,7 @@ func TestBootNetworkShutdownPreservesCommittedDelivery(t *testing.T) {
 		t.Fatalf("JoinChannel() error = %v", err)
 	}
 	if err := lifecycle.JoinChannel(testutil.Context(t), session.NetworkPeerJoin{
+		ProfileID:            store.DefaultProfileID,
 		SessionID:            "sess-sender",
 		WorkspaceID:          "ws-integration",
 		PeerID:               "coder.sess-sender",
@@ -3359,6 +3365,7 @@ func TestBootStartsBridgeExtensionWithBoundRuntime(t *testing.T) {
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
 	instance := seedDaemonBridgeInstanceFixture(t, registry, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            instanceID,
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "slack",
@@ -3466,6 +3473,7 @@ func TestBootStartsBridgeExtensionWithDefaultVaultSecretResolver(t *testing.T) {
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
 	instance := seedDaemonBridgeInstanceFixture(t, registry, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            instanceID,
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "slack",
@@ -3563,6 +3571,7 @@ func TestBootFailsWhenDefaultBridgeSecretVaultValueIsMissing(t *testing.T) {
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
 	instance := seedDaemonBridgeInstanceFixture(t, registry, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            instanceID,
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "slack",
@@ -3647,6 +3656,7 @@ func TestBootStartsBridgeExtensionWithMultipleOwnedInstances(t *testing.T) {
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
 	for _, req := range []bridgepkg.CreateInstanceRequest{
+		ProfileID: store.DefaultProfileID,
 		{
 			ID:            firstID,
 			Scope:         bridgepkg.ScopeGlobal,
@@ -3823,6 +3833,7 @@ func TestCreateEnabledBridgeAfterBootReloadsErroredExtension(t *testing.T) {
 	}
 
 	created, err := d.bridges.CreateInstance(testutil.Context(t), bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            instanceID,
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "slack",
@@ -3884,6 +3895,7 @@ func TestBridgeRuntimeRestartPreservesRouteContinuity(t *testing.T) {
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
 	seedDaemonBridgeInstanceFixture(t, registry, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            instanceID,
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "slack",
@@ -4035,6 +4047,7 @@ func TestDaemonShutdownClosesBridgeRuntimeCleanly(t *testing.T) {
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
 	seedDaemonBridgeInstanceFixture(t, registry, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            instanceID,
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "slack",

@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 const (
@@ -152,6 +151,7 @@ func upsertNetworkThreadParticipantsForMessage(
 // GetThread returns one public-thread summary.
 func (g *NetworkRepo) GetThread(
 	ctx context.Context,
+	readScope store.ReadScope,
 	channelRef store.NetworkChannelRef,
 	threadID string,
 ) (store.NetworkThreadSummary, error) {
@@ -167,16 +167,24 @@ func (g *NetworkRepo) GetThread(
 	if err := ref.Validate(); err != nil {
 		return store.NetworkThreadSummary{}, err
 	}
-
-	row, err := g.queries.GetNetworkThread(ctx, sqlcgen.GetNetworkThreadParams{
-		WorkspaceID: ref.WorkspaceID, Channel: ref.Channel, ThreadID: ref.ThreadID,
-	})
-	return networkThreadFromGenerated(row, err)
+	if err := readScope.Validate(); err != nil {
+		return store.NetworkThreadSummary{}, fmt.Errorf("store: validate network thread read scope: %w", err)
+	}
+	where, args := store.BuildClauses(
+		store.ReadScopeClause("network_threads.profile_id", readScope),
+		store.StringClause("network_threads.workspace_id", ref.WorkspaceID),
+		store.StringClause("network_threads.channel", ref.Channel),
+		store.StringClause("network_threads.thread_id", ref.ThreadID),
+	)
+	return scanNetworkThreadSummary(g.db.QueryRowContext(
+		ctx, store.AppendWhere(networkThreadSummarySelect(), where), args...,
+	))
 }
 
 // GetDirectRoom returns one direct-room summary.
 func (g *NetworkRepo) GetDirectRoom(
 	ctx context.Context,
+	readScope store.ReadScope,
 	channelRef store.NetworkChannelRef,
 	directID string,
 ) (store.NetworkDirectRoomSummary, error) {
@@ -192,11 +200,18 @@ func (g *NetworkRepo) GetDirectRoom(
 	if err := ref.Validate(); err != nil {
 		return store.NetworkDirectRoomSummary{}, err
 	}
-
-	row, err := g.queries.GetNetworkDirectRoom(ctx, sqlcgen.GetNetworkDirectRoomParams{
-		WorkspaceID: ref.WorkspaceID, Channel: ref.Channel, DirectID: ref.DirectID,
-	})
-	return networkDirectRoomFromGenerated(row, err)
+	if err := readScope.Validate(); err != nil {
+		return store.NetworkDirectRoomSummary{}, fmt.Errorf("store: validate network direct room read scope: %w", err)
+	}
+	where, args := store.BuildClauses(
+		store.ReadScopeClause("network_direct_rooms.profile_id", readScope),
+		store.StringClause("network_direct_rooms.workspace_id", ref.WorkspaceID),
+		store.StringClause("network_direct_rooms.channel", ref.Channel),
+		store.StringClause("network_direct_rooms.direct_id", ref.DirectID),
+	)
+	return scanNetworkDirectRoomSummary(g.db.QueryRowContext(
+		ctx, store.AppendWhere(networkDirectRoomSummarySelect(), where), args...,
+	))
 }
 
 // ListConversationMessages returns messages isolated to one conversation container.
@@ -273,7 +288,12 @@ func (g *NetworkRepo) ListConversationMessages(
 }
 
 // GetWork returns one network work row by workspace_id and work_id.
-func (g *NetworkRepo) GetWork(ctx context.Context, workspaceID string, workID string) (store.NetworkWorkEntry, error) {
+func (g *NetworkRepo) GetWork(
+	ctx context.Context,
+	readScope store.ReadScope,
+	workspaceID string,
+	workID string,
+) (store.NetworkWorkEntry, error) {
 	if err := g.checkReady(ctx, "get network work"); err != nil {
 		return store.NetworkWorkEntry{}, err
 	}
@@ -285,5 +305,8 @@ func (g *NetworkRepo) GetWork(ctx context.Context, workspaceID string, workID st
 	if err := validateNetworkWorkID(trimmed); err != nil {
 		return store.NetworkWorkEntry{}, err
 	}
-	return getNetworkWorkWithExecutor(ctx, g.db, trimmedWorkspaceID, trimmed)
+	if err := readScope.Validate(); err != nil {
+		return store.NetworkWorkEntry{}, fmt.Errorf("store: validate network work read scope: %w", err)
+	}
+	return getScopedNetworkWork(ctx, g.db, readScope, trimmedWorkspaceID, trimmed)
 }

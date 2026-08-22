@@ -65,6 +65,7 @@ func (d *cmdPaletteClientDirectory) Authorize(
 
 func (d *cmdPaletteClientDirectory) GlobalShortcutStatuses(
 	ctx context.Context,
+	_ cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	clientID cmdpalette.ClientID,
 ) (map[cmdpalette.CommandID]cmdpalette.GlobalShortcut, error) {

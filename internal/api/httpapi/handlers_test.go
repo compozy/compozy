@@ -842,6 +842,7 @@ func TestTaskBlockHandlersReturnStatusAndBodies(t *testing.T) {
 				return &taskpkg.View{
 					Summary: taskpkg.Summary{
 						ID:             id,
+						ProfileID:      store.DefaultProfileID,
 						Title:          "Blocked task " + rawClaimToken,
 						Status:         taskpkg.TaskStatusBlocked,
 						PausedReason:   "paused on " + rawClaimToken,
@@ -850,6 +851,7 @@ func TestTaskBlockHandlersReturnStatusAndBodies(t *testing.T) {
 					},
 					Task: taskpkg.Task{
 						ID:           id,
+						ProfileID:    store.DefaultProfileID,
 						Title:        "Blocked task " + rawClaimToken,
 						Description:  "description " + rawClaimToken,
 						Status:       taskpkg.TaskStatusBlocked,

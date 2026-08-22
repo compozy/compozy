@@ -176,22 +176,13 @@ func (s StubNetworkStore) ListNetworkAudit(
 
 func (s StubNetworkStore) GetNetworkChannel(
 	ctx context.Context,
+	_ store.ReadScope,
 	ref store.NetworkChannelRef,
 ) (store.NetworkChannelEntry, error) {
 	if s.GetNetworkChannelFn != nil {
 		return s.GetNetworkChannelFn(ctx, ref)
 	}
 	return store.NetworkChannelEntry{}, sql.ErrNoRows
-}
-
-func (s StubNetworkStore) ListNetworkChannels(
-	ctx context.Context,
-	query store.NetworkChannelQuery,
-) ([]store.NetworkChannelEntry, error) {
-	if s.ListNetworkChannelsFn != nil {
-		return s.ListNetworkChannelsFn(ctx, query)
-	}
-	return nil, nil
 }
 
 func (s StubNetworkStore) ListNetworkChannelProjections(
@@ -252,7 +243,7 @@ func (s StubNetworkStore) PatchNetworkChannel(
 	if s.PatchNetworkChannelFn != nil {
 		return s.PatchNetworkChannelFn(ctx, ref, patch)
 	}
-	entry, err := s.GetNetworkChannel(ctx, ref)
+	entry, err := s.GetNetworkChannel(ctx, store.ReadScope{AllProfiles: true}, ref)
 	if err != nil {
 		return err
 	}
@@ -299,6 +290,7 @@ func (s StubNetworkStore) ListThreads(
 
 func (s StubNetworkStore) GetThread(
 	ctx context.Context,
+	_ store.ReadScope,
 	ref store.NetworkChannelRef,
 	threadID string,
 ) (store.NetworkThreadSummary, error) {
@@ -352,6 +344,7 @@ func (s StubNetworkStore) ListDirectRooms(
 
 func (s StubNetworkStore) GetDirectRoom(
 	ctx context.Context,
+	_ store.ReadScope,
 	ref store.NetworkChannelRef,
 	directID string,
 ) (store.NetworkDirectRoomSummary, error) {
@@ -374,6 +367,7 @@ func (s StubNetworkStore) ListConversationMessages(
 
 func (s StubNetworkStore) GetWork(
 	ctx context.Context,
+	_ store.ReadScope,
 	workspaceID string,
 	workID string,
 ) (store.NetworkWorkEntry, error) {

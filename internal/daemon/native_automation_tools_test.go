@@ -11,6 +11,7 @@ import (
 
 	apitest "github.com/compozy/compozy/internal/api/testutil"
 	automationpkg "github.com/compozy/compozy/internal/automation"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -493,6 +494,10 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		foreignJob := nativeAutomationJobFixture("job-b", automationpkg.JobSourceDynamic)
 		foreignJob.Scope = automationpkg.AutomationScopeWorkspace
 		foreignJob.WorkspaceID = "ws-b"
+		foreignProfileJob := nativeAutomationJobFixture("job-profile-b", automationpkg.JobSourceDynamic)
+		foreignProfileJob.ProfileID = strings.Repeat("b", 26)
+		foreignProfileJob.Scope = automationpkg.AutomationScopeWorkspace
+		foreignProfileJob.WorkspaceID = "ws-a"
 		foreignTrigger := nativeAutomationTriggerFixture("trigger-b", automationpkg.JobSourceDynamic)
 		foreignTrigger.Scope = automationpkg.AutomationScopeWorkspace
 		foreignTrigger.WorkspaceID = "ws-b"
@@ -528,6 +533,8 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 					switch id {
 					case foreignJob.ID:
 						return foreignJob, nil
+					case foreignProfileJob.ID:
+						return foreignProfileJob, nil
 					case "job-missing":
 						return automationpkg.Job{}, automationpkg.ErrJobNotFound
 					default:
@@ -647,6 +654,18 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 			}
 		})
 
+		t.Run("Should hide an automation owned by another profile in the same workspace", func(t *testing.T) {
+			_, err := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDAutomationJobsGet,
+					Input:  json.RawMessage(`{"job_id":"job-profile-b"}`),
+				},
+			)
+			requireToolReason(t, err, toolspkg.ErrToolNotFound, toolspkg.ReasonToolUnknown)
+		})
+
 		t.Run("Should reject mutating a foreign workspace job before the update", func(t *testing.T) {
 			_, err := registry.Call(
 				t.Context(),
@@ -759,14 +778,15 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		}
 		tools := &daemonNativeTools{deps: &daemonNativeToolsDeps{Automation: manager}}
 
-		jobs, err := tools.nativeAutomationJobsForWorkspace(t.Context(), "ws-a")
+		readScope := store.ReadScope{AllProfiles: true}
+		jobs, err := tools.nativeAutomationJobsForWorkspace(t.Context(), "ws-a", readScope)
 		if err != nil {
 			t.Fatalf("nativeAutomationJobsForWorkspace() error = %v", err)
 		}
 		if len(jobs) != 2 || jobCalls != 2 {
 			t.Fatalf("jobs/calls = %d/%d, want 2/2", len(jobs), jobCalls)
 		}
-		triggers, err := tools.nativeAutomationTriggersForWorkspace(t.Context(), "ws-a")
+		triggers, err := tools.nativeAutomationTriggersForWorkspace(t.Context(), "ws-a", readScope)
 		if err != nil {
 			t.Fatalf("nativeAutomationTriggersForWorkspace() error = %v", err)
 		}
@@ -1336,6 +1356,7 @@ func nativeAutomationJobFixture(id string, source automationpkg.JobSource) autom
 	now := time.Date(2026, 4, 30, 12, 0, 0, 0, time.UTC)
 	return automationpkg.Job{
 		ID:        id,
+		ProfileID: store.DefaultProfileID,
 		Scope:     automationpkg.AutomationScopeGlobal,
 		Name:      "daily",
 		AgentName: "codex",
@@ -1357,6 +1378,7 @@ func nativeAutomationTriggerFixture(id string, source automationpkg.JobSource) a
 	now := time.Date(2026, 4, 30, 12, 0, 0, 0, time.UTC)
 	return automationpkg.Trigger{
 		ID:        id,
+		ProfileID: store.DefaultProfileID,
 		Scope:     automationpkg.AutomationScopeGlobal,
 		Name:      "on-session",
 		AgentName: "codex",

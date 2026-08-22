@@ -6,7 +6,7 @@ import "context"
 type NetworkChannelStore interface {
 	CreateNetworkChannel(ctx context.Context, entry NetworkChannelEntry) error
 	WriteNetworkChannel(ctx context.Context, entry NetworkChannelEntry) error
-	GetNetworkChannel(ctx context.Context, ref NetworkChannelRef) (NetworkChannelEntry, error)
+	GetNetworkChannel(ctx context.Context, readScope ReadScope, ref NetworkChannelRef) (NetworkChannelEntry, error)
 	ListNetworkChannels(ctx context.Context, query NetworkChannelQuery) ([]NetworkChannelEntry, error)
 	PatchNetworkChannel(ctx context.Context, ref NetworkChannelRef, patch NetworkChannelPatch) error
 	DeleteNetworkChannel(ctx context.Context, ref NetworkChannelRef) error

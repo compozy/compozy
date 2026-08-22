@@ -19,17 +19,17 @@ func TestWorktreeListCommand(t *testing.T) {
 		dirty, ahead, behind := true, 2, 1
 		items := []WorktreeRecord{
 			{
-				ID: "wt-pending", WorkspaceID: "workspace-a", Name: "pending", Branch: "feature/pending",
+				ID: "wt-pending", ProfileName: "default", WorkspaceID: "workspace-a", Name: "pending", Branch: "feature/pending",
 				Path: "/repo/.compozy/worktrees/pending", State: "pending", Origin: "manual",
 				Dirty: nil, Ahead: nil, Behind: nil, AgentActivity: "idle",
 			},
 			{
-				ID: "wt-missing", WorkspaceID: "workspace-a", Name: "missing", Branch: "feature/missing",
+				ID: "wt-missing", ProfileName: "default", WorkspaceID: "workspace-a", Name: "missing", Branch: "feature/missing",
 				Path: "/repo/.compozy/worktrees/missing", State: "missing", Origin: "adopted",
 				Dirty: &dirty, Ahead: &ahead, Behind: &behind, AgentActivity: "running",
 			},
 			{
-				ID: "wt-failed", WorkspaceID: "workspace-a", Name: "failed", Branch: "feature/failed",
+				ID: "wt-failed", ProfileName: "default", WorkspaceID: "workspace-a", Name: "failed", Branch: "feature/failed",
 				Path: "/repo/.compozy/worktrees/failed", State: "failed", Origin: "manual",
 				SetupError: "setup failed", AgentActivity: "idle",
 			},

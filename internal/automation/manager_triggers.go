@@ -13,7 +13,7 @@ import (
 
 // Triggers returns overlay-aware trigger definitions from persistence.
 func (m *Manager) Triggers(ctx context.Context) ([]Trigger, error) {
-	return m.loadEffectiveTriggers(ctx, TriggerListQuery{})
+	return m.loadEffectiveTriggers(ctx, TriggerListQuery{ReadScope: store.ReadScope{AllProfiles: true}})
 }
 
 // ListTriggers returns overlay-aware trigger definitions using the supplied

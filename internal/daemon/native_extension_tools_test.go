@@ -618,7 +618,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			!installed.Provenance.ChecksumVerified {
 			t.Fatalf("curated provenance = %#v, want separate verified archive and tree digests", installed.Provenance)
 		}
-		summaries, err := deps.ExtensionEvents.ListEventSummaries(t.Context(), store.EventSummaryQuery{
+		summaries, err := deps.ExtensionEvents.ListEventSummaries(t.Context(), store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
 			Type: eventspkg.ExtensionDigestVerify,
 		})
 		if err != nil {
@@ -683,7 +683,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		if _, err := extRegistry.Get("tool-ext"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
 			t.Fatalf("extension registry Get(after digest mismatch) error = %v, want ErrExtensionNotFound", err)
 		}
-		summaries, listErr := deps.ExtensionEvents.ListEventSummaries(t.Context(), store.EventSummaryQuery{
+		summaries, listErr := deps.ExtensionEvents.ListEventSummaries(t.Context(), store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
 			Type: eventspkg.ExtensionDigestVerify,
 		})
 		if listErr != nil {

@@ -130,6 +130,7 @@ func TestGlobalDBWriteAndListNetworkMessages(t *testing.T) {
 		}
 
 		entries, err := globalDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: workspaceID,
 			Channel:     "builders",
 			Limit:       10,
@@ -260,6 +261,7 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 		}
 
 		latest, err := globalDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: workspaceID,
 			Channel:     "builders",
 			Limit:       2,
@@ -272,6 +274,7 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 		}
 
 		latestPublic, err := globalDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: workspaceID,
 			Channel:     "builders",
 			PublicOnly:  true,
@@ -285,6 +288,7 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 		}
 
 		before, err := globalDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{
+			ReadScope:       store.ReadScope{AllProfiles: true},
 			WorkspaceID:     workspaceID,
 			Channel:         "builders",
 			BeforeMessageID: "msg-2a",
@@ -304,6 +308,7 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 		}
 
 		after, err := globalDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{
+			ReadScope:      store.ReadScope{AllProfiles: true},
 			WorkspaceID:    workspaceID,
 			Channel:        "builders",
 			AfterMessageID: "msg-2z",
@@ -323,6 +328,7 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 		}
 
 		_, err = globalDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{
+			ReadScope:       store.ReadScope{AllProfiles: true},
 			WorkspaceID:     workspaceID,
 			Channel:         "builders",
 			BeforeMessageID: "msg-4",
@@ -333,6 +339,7 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 		}
 
 		_, err = globalDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{
+			ReadScope:       store.ReadScope{AllProfiles: true},
 			WorkspaceID:     workspaceID,
 			PeerID:          "peer-a",
 			DirectedOnly:    true,
@@ -473,6 +480,7 @@ func TestGlobalDBListNetworkMessagesWrapsTimestampParseFailures(t *testing.T) {
 		}
 
 		_, err := globalDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: workspaceID,
 			Channel:     "builders",
 		})

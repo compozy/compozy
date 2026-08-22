@@ -81,12 +81,16 @@ type logQueryInput struct {
 	Limit         int    `json:"limit,omitempty"`
 }
 
-func (i logQueryInput) eventSummaryQuery(id toolspkg.ToolID) (store.EventSummaryQuery, error) {
+func (i logQueryInput) eventSummaryQuery(
+	id toolspkg.ToolID,
+	readScope store.ReadScope,
+) (store.EventSummaryQuery, error) {
 	since, err := parseNativeOptionalRFC3339(id, "since", i.Since)
 	if err != nil {
 		return store.EventSummaryQuery{}, err
 	}
 	query := store.EventSummaryQuery{
+		ReadScope:     readScope,
 		WorkspaceID:   strings.TrimSpace(i.WorkspaceID),
 		SessionID:     strings.TrimSpace(i.SessionID),
 		AgentName:     strings.TrimSpace(i.AgentName),

@@ -394,6 +394,7 @@ func renderTaskDetailToon(detail *TaskDetailRecord) (string, error) {
 			"task_runs",
 			[]string{
 				"id",
+				"profile_name",
 				taskStatusKey,
 				taskAttemptKey,
 				taskSessionIDKey,

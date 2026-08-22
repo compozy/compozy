@@ -136,14 +136,16 @@ type PersonalizationRows struct {
 }
 
 type Snapshot struct {
-	Weights   Weights       `json:"weights"`
-	Usage     []UsageSignal `json:"usage"`
-	QueryHits []QueryHit    `json:"query_hits"`
-	Pins      []Pin         `json:"pins"`
-	Revision  string        `json:"revision"`
+	ProfileLens ProfileLens   `json:"profile_lens"`
+	Weights     Weights       `json:"weights"`
+	Usage       []UsageSignal `json:"usage"`
+	QueryHits   []QueryHit    `json:"query_hits"`
+	Pins        []Pin         `json:"pins"`
+	Revision    string        `json:"revision"`
 }
 
 type PersonalizationSummary struct {
+	ProfileLens       ProfileLens `json:"profile_lens"`
 	Workspace         WorkspaceID `json:"workspace"`
 	Pins              []CommandID `json:"pins"`
 	Recents           int         `json:"recents"`
@@ -164,5 +166,5 @@ type PersonalizationStore interface {
 
 // PersonalizationPolicy resolves whether workspace ranking signals are active.
 type PersonalizationPolicy interface {
-	PersonalizationEnabled(context.Context, WorkspaceID) (bool, error)
+	PersonalizationEnabled(context.Context, ProfileLens, WorkspaceID) (bool, error)
 }

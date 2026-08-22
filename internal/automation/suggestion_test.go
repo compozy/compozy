@@ -136,6 +136,7 @@ func TestManagerAutomationSuggestions(t *testing.T) {
 		page, err := manager.ListJobs(h.ctx, JobListQuery{
 			Scope:       AutomationScopeWorkspace,
 			WorkspaceID: h.workspace.ID,
+			ReadScope:   store.ReadScope{AllProfiles: true},
 		})
 		if err != nil {
 			t.Fatalf("ListJobs() error = %v", err)

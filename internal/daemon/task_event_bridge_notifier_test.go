@@ -10,6 +10,7 @@ import (
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/notifications"
 	presetspkg "github.com/compozy/compozy/internal/notifications/presets"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -304,6 +305,7 @@ var _ bridgepkg.DeliveryTransport = (*daemonBridgeNotificationStore)(nil)
 func newDaemonBridgeNotificationStore(now time.Time) *daemonBridgeNotificationStore {
 	subscription := bridgepkg.BridgeTaskSubscription{
 		SubscriptionID:   "sub-1",
+		ProfileID:        store.DefaultProfileID,
 		TaskID:           "task-1",
 		BridgeInstanceID: "brg-1",
 		Scope:            bridgepkg.ScopeWorkspace,
@@ -319,6 +321,7 @@ func newDaemonBridgeNotificationStore(now time.Time) *daemonBridgeNotificationSt
 		subscription: subscription,
 		task: taskpkg.Task{
 			ID:             "task-1",
+			ProfileID:      store.DefaultProfileID,
 			Scope:          taskpkg.ScopeWorkspace,
 			WorkspaceID:    "ws-1",
 			Status:         taskpkg.TaskStatusCompleted,
@@ -384,6 +387,7 @@ func (s *daemonBridgeNotificationStore) PutBridgeTaskSubscription(
 
 func (s *daemonBridgeNotificationStore) GetBridgeTaskSubscription(
 	context.Context,
+	store.ReadScope,
 	string,
 ) (bridgepkg.BridgeTaskSubscription, error) {
 	return s.subscription, nil

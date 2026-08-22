@@ -62,6 +62,9 @@ func encodeTriggerRecord(trigger automation.Trigger) (any, string, string, autom
 }
 
 func validateAutomationRunQuery(query automation.RunQuery) error {
+	if err := query.ReadScope.Validate(); err != nil {
+		return fmt.Errorf("store: invalid automation run read scope: %w", err)
+	}
 	if query.Limit < 0 {
 		return fmt.Errorf("store: invalid automation run limit %d", query.Limit)
 	}
@@ -114,6 +117,13 @@ func buildAutomationRunClauses(query automation.RunQuery) ([]string, []any) {
 		store.TimeClause("started_at", ">=", query.Since),
 		store.TimeClause("started_at", "<=", query.Until),
 	)
+	if !query.ReadScope.AllProfiles {
+		where = append(where, `COALESCE(
+			(SELECT profile_id FROM automation_jobs WHERE id = automation_runs.job_id),
+			(SELECT profile_id FROM automation_triggers WHERE id = automation_runs.trigger_id)
+		) = ?`)
+		args = append(args, query.ReadScope.ProfileID)
+	}
 	return where, args
 }
 

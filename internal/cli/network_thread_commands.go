@@ -64,6 +64,7 @@ func newNetworkThreadsShowCommand(deps commandDeps, workspaceRef *string) *cobra
 	cmd.Flags().StringVar(&flags.threadID, networkSurfaceThread, "", "Public thread id")
 	mustMarkFlagRequired(cmd, networkChannelKey)
 	mustMarkFlagRequired(cmd, networkSurfaceThread)
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 
@@ -112,6 +113,7 @@ func newNetworkThreadsMessagesCommand(deps commandDeps, workspaceRef *string) *c
 	cmd.Flags().Lookup(networkSurfaceThread).Usage = "Public thread id"
 	mustMarkFlagRequired(cmd, networkChannelKey)
 	mustMarkFlagRequired(cmd, networkSurfaceThread)
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 

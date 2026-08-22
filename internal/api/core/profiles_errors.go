@@ -49,6 +49,13 @@ func profileErrorStatus(err *profilepkg.Error) int {
 	}
 }
 
+func isProfileDomainError(err error) bool {
+	var typed *profilepkg.Error
+	return errors.As(err, &typed) || errors.Is(err, profilepkg.ErrInvalidInput) ||
+		errors.Is(err, profilepkg.ErrNotFound) || errors.Is(err, profilepkg.ErrArchived) ||
+		errors.Is(err, profilepkg.ErrUnavailable)
+}
+
 // ProfileRemoteWriteForbidden rejects profile-state writes on paired listeners.
 func (h *BaseHandlers) ProfileRemoteWriteForbidden(c *gin.Context) {
 	c.AbortWithStatusJSON(http.StatusForbidden, contract.ProfileErrorPayload{Error: contract.ProfileError{

@@ -169,6 +169,12 @@ func scanEventSummary(scanner rowScanner) (store.EventSummary, error) {
 	if err := scanner.Scan(
 		&summary.Sequence,
 		&summary.ID,
+		&summary.ProfileID,
+		&summary.ProfileName,
+		&summary.ProfileColor,
+		&summary.ProfileIcon,
+		&summary.ProfileEmoji,
+		&summary.ProfileArchived,
 		&summary.SessionID,
 		&summary.WorkspaceID,
 		&summary.WorktreeID,

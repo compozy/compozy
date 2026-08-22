@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -20,7 +21,7 @@ func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 			ApprovalGrants: grantStore,
 			Sessions:       nativeNetworkTestSessionManager("ws-a"),
 		}, nativeApproveAllPolicyInputs())
-		scope := toolspkg.Scope{SessionID: "sess-a", WorkspaceID: "ws-a", AgentName: "codex"}
+		scope := toolspkg.Scope{ProfileID: store.DefaultProfileID, SessionID: "sess-a", WorkspaceID: "ws-a", AgentName: "codex"}
 
 		result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDToolApprovalsSet,
@@ -48,7 +49,9 @@ func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(tool_approvals_set tool) error = %v", err)
 		}
-		grants, err := grantStore.ListApprovalGrants(t.Context(), "ws-a")
+		grants, err := grantStore.ListApprovalGrants(
+			t.Context(), store.ReadScope{ProfileID: store.DefaultProfileID}, "ws-a",
+		)
 		if err != nil {
 			t.Fatalf("ListApprovalGrants() error = %v", err)
 		}
@@ -76,7 +79,7 @@ func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 			ApprovalGrants: grantStore,
 			Sessions:       nativeNetworkTestSessionManager("ws-a"),
 		}, nativeApproveAllPolicyInputs())
-		scope := toolspkg.Scope{SessionID: "sess-a", WorkspaceID: "ws-a", AgentName: "codex"}
+		scope := toolspkg.Scope{ProfileID: store.DefaultProfileID, SessionID: "sess-a", WorkspaceID: "ws-a", AgentName: "codex"}
 
 		result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDToolApprovalsList,
@@ -100,11 +103,15 @@ func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(tool_approvals_revoke) error = %v", err)
 		}
-		remaining, err := grantStore.ListApprovalGrants(t.Context(), "ws-a")
+		remaining, err := grantStore.ListApprovalGrants(
+			t.Context(), store.ReadScope{ProfileID: store.DefaultProfileID}, "ws-a",
+		)
 		if err != nil || len(remaining) != 0 {
 			t.Fatalf("workspace A grants after revoke = %#v, %v, want empty", remaining, err)
 		}
-		foreign, err := grantStore.ListApprovalGrants(t.Context(), "ws-b")
+		foreign, err := grantStore.ListApprovalGrants(
+			t.Context(), store.ReadScope{ProfileID: store.DefaultProfileID}, "ws-b",
+		)
 		if err != nil || len(foreign) != 1 || foreign[0].ID != "grant-b" {
 			t.Fatalf("workspace B grants after revoke = %#v, %v, want grant-b", foreign, err)
 		}
@@ -120,7 +127,7 @@ func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 		}, nativeApproveAllPolicyInputs())
 		_, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{SessionID: "sess-a", WorkspaceID: "ws-a"},
+			toolspkg.Scope{ProfileID: store.DefaultProfileID, SessionID: "sess-a", WorkspaceID: "ws-a"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDToolApprovalsSet,
 				Input: json.RawMessage(
@@ -150,7 +157,7 @@ func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 		}, nativeApproveAllPolicyInputs())
 		_, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{SessionID: "sess-a", WorkspaceID: "ws-a"},
+			toolspkg.Scope{ProfileID: store.DefaultProfileID, SessionID: "sess-a", WorkspaceID: "ws-a"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDToolApprovalsRevoke,
 				Input:  json.RawMessage(`{"id":"foreign-or-missing"}`),

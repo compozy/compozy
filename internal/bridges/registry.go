@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 // CreateInstanceRequest captures the persisted configuration for a new bridge instance.
 type CreateInstanceRequest struct {
 	ID                   string               `json:"id,omitempty"`
+	ProfileID            string               `json:"profile_id"`
 	Scope                Scope                `json:"scope"`
 	WorkspaceID          string               `json:"workspace_id,omitempty"`
 	Platform             string               `json:"platform"`
@@ -188,11 +191,20 @@ func (s *Service) CreateInstance(ctx context.Context, req CreateInstanceRequest)
 
 // GetInstance returns one persisted bridge instance by primary key.
 func (s *Service) GetInstance(ctx context.Context, id string) (*BridgeInstance, error) {
+	return s.GetInstanceScoped(ctx, store.ReadScope{AllProfiles: true}, id)
+}
+
+// GetInstanceScoped returns one bridge only when it is visible through the explicit profile lens.
+func (s *Service) GetInstanceScoped(
+	ctx context.Context,
+	readScope store.ReadScope,
+	id string,
+) (*BridgeInstance, error) {
 	if err := s.checkReady(ctx, "get bridge instance"); err != nil {
 		return nil, err
 	}
 
-	instance, err := s.store.GetBridgeInstance(ctx, id)
+	instance, err := s.store.GetBridgeInstance(ctx, readScope, id)
 	if err != nil {
 		return nil, fmt.Errorf("bridges: get bridge instance %q: %w", id, err)
 	}
@@ -214,7 +226,7 @@ func (s *Service) UpdateInstance(ctx context.Context, req UpdateInstanceRequest)
 	}
 
 	bridgeID := req.ID
-	instance, err := s.store.GetBridgeInstance(ctx, bridgeID)
+	instance, err := s.store.GetBridgeInstance(ctx, store.ReadScope{AllProfiles: true}, bridgeID)
 	if err != nil {
 		return nil, fmt.Errorf("bridges: update bridge instance %q: load current state: %w", bridgeID, err)
 	}
@@ -289,7 +301,7 @@ func (s *Service) UpdateInstanceState(ctx context.Context, req UpdateInstanceSta
 	}
 
 	bridgeID := req.ID
-	instance, err := s.store.GetBridgeInstance(ctx, bridgeID)
+	instance, err := s.store.GetBridgeInstance(ctx, store.ReadScope{AllProfiles: true}, bridgeID)
 	if err != nil {
 		return nil, fmt.Errorf("bridges: update bridge instance state %q: load current state: %w", bridgeID, err)
 	}

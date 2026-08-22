@@ -6,6 +6,12 @@ import "time"
 // by the broker for observability surfaces.
 type BridgeDeliveryMetrics struct {
 	BridgeInstanceID        string         `json:"bridge_instance_id"`
+	ProfileID               string         `json:"profile_id"`
+	ProfileName             string         `json:"profile_name,omitempty"`
+	ProfileColor            string         `json:"profile_color,omitempty"`
+	ProfileIcon             string         `json:"profile_icon,omitempty"`
+	ProfileEmoji            string         `json:"profile_emoji,omitempty"`
+	ProfileArchived         bool           `json:"profile_archived,omitempty"`
 	DeliveryBacklog         int            `json:"delivery_backlog"`
 	DeliveryDroppedTotal    int            `json:"delivery_dropped_total"`
 	DeliveryDroppedByReason map[string]int `json:"delivery_dropped_by_reason,omitempty"`

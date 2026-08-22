@@ -73,7 +73,7 @@ func (n *daemonNativeTools) toolApprovalsSet(
 		Decision:  input.Decision,
 		Scope:     input.Scope,
 		AgentName: input.AgentName,
-	}).BuildGrant(store.DefaultProfileID, workspaceID)
+	}).BuildGrant(scope.ProfileID, workspaceID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeToolApprovalGrantError(req.ToolID, err)
 	}
@@ -108,7 +108,9 @@ func (n *daemonNativeTools) toolApprovalsList(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	grants, err := service.ListApprovalGrants(ctx, workspaceID)
+	grants, err := service.ListApprovalGrants(
+		ctx, store.ReadScope{ProfileID: scope.ProfileID}, workspaceID,
+	)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeToolApprovalGrantError(req.ToolID, err)
 	}
@@ -139,7 +141,7 @@ func (n *daemonNativeTools) toolApprovalsRevoke(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if err := service.RevokeApprovalGrant(ctx, workspaceID, input.ID); err != nil {
+	if err := service.RevokeApprovalGrant(ctx, scope.ProfileID, workspaceID, input.ID); err != nil {
 		return toolspkg.ToolResult{}, nativeToolApprovalGrantError(req.ToolID, err)
 	}
 	return structuredResult(map[string]string{

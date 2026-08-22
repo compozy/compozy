@@ -116,14 +116,14 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 			!listing.Discovered[0].Selectable {
 			t.Fatalf("discovered = %#v, want selectable external worktree", listing.Discovered)
 		}
-		item, err := fixture.service.Adopt(context.Background(), fixture.workspace.ID, externalPath)
+		item, err := fixture.service.Adopt(context.Background(), testWorktreeProfileID, fixture.workspace.ID, externalPath)
 		if err != nil {
 			t.Fatalf("Adopt() error = %v", err)
 		}
 		if item.Origin != OriginAdopted || item.GitDir == "" || item.State != StateReady {
 			t.Fatalf("adopted item = %#v, want ready identity", item)
 		}
-		again, err := fixture.service.Adopt(context.Background(), fixture.workspace.ID, externalPath)
+		again, err := fixture.service.Adopt(context.Background(), testWorktreeProfileID, fixture.workspace.ID, externalPath)
 		if err != nil || again.ID != item.ID {
 			t.Fatalf("Adopt(retry) = (%#v, %v), want idempotent %q", again, err, item.ID)
 		}
@@ -152,6 +152,7 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		}
 		if _, err := fixture.service.Adopt(
 			context.Background(),
+			testWorktreeProfileID,
 			fixture.workspace.ID,
 			fixture.workspace.Root,
 		); !errors.Is(
@@ -354,7 +355,9 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		for range 2 {
 			go func() {
 				<-start
-				item, err := concurrent.service.Adopt(context.Background(), concurrent.workspace.ID, adoptPath)
+				item, err := concurrent.service.Adopt(
+					context.Background(), testWorktreeProfileID, concurrent.workspace.ID, adoptPath,
+				)
 				adoptResults <- createIntegrationResult{item: item, err: err}
 			}()
 		}
@@ -388,7 +391,7 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 			t.Fatalf("Stat(sentinel before) error = %v", err)
 		}
 		if _, err := owner.service.Adopt(
-			context.Background(), owner.workspace.ID, foreignPath,
+			context.Background(), testWorktreeProfileID, owner.workspace.ID, foreignPath,
 		); !errors.Is(err, ErrAdoptionForeignRepo) {
 			t.Fatalf("Adopt(foreign) error = %v, want ErrAdoptionForeignRepo", err)
 		}
@@ -1096,7 +1099,7 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		adoptPath := filepath.Join(t.TempDir(), "event-adopted")
 		eventFixture.git(eventFixture.workspace.Root, "worktree", "add", adoptPath, "event-adopted")
 		if _, err := eventFixture.service.Adopt(
-			context.Background(), eventFixture.workspace.ID, adoptPath,
+			context.Background(), testWorktreeProfileID, eventFixture.workspace.ID, adoptPath,
 		); err != nil {
 			t.Fatalf("Adopt(event matrix) error = %v", err)
 		}

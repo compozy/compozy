@@ -13,9 +13,11 @@ import (
 )
 
 const bridgeDeliverySelectColumns = `
-	delivery_id, session_id, turn_id, routing_key, bridge_instance_id,
-	scope, workspace_id, state, last_sent_seq, last_acked_seq,
-	remote_message_id, terminal_error, created_at, updated_at`
+	bd.delivery_id, bi.profile_id, p.name, p.color, COALESCE(p.icon, ''), COALESCE(p.emoji, ''),
+	p.archived_at IS NOT NULL,
+	bd.session_id, bd.turn_id, bd.routing_key, bd.bridge_instance_id,
+	bd.scope, bd.workspace_id, bd.state, bd.last_sent_seq, bd.last_acked_seq,
+	bd.remote_message_id, bd.terminal_error, bd.created_at, bd.updated_at`
 
 var _ bridges.DeliveryLedgerStore = (*BridgeRepo)(nil)
 
@@ -136,9 +138,12 @@ func (g *BridgeRepo) ListBridgeDeliveries(
 	}
 	where, args := bridgeDeliveryQueryClauses(normalized)
 	// dynamic-sql: optional scope/workspace/instance/state filters and caller limit change the statement shape.
-	statement := `SELECT ` + bridgeDeliverySelectColumns + ` FROM bridge_deliveries`
+	statement := `SELECT ` + bridgeDeliverySelectColumns + `
+		FROM bridge_deliveries bd
+		JOIN bridge_instances bi ON bi.id = bd.bridge_instance_id
+		JOIN profiles p ON p.id = bi.profile_id`
 	statement = store.AppendWhere(statement, where)
-	statement += ` ORDER BY updated_at ASC, delivery_id ASC`
+	statement += ` ORDER BY bd.updated_at ASC, bd.delivery_id ASC`
 	statement, args = store.AppendLimit(statement, args, normalized.Limit)
 
 	rows, err := g.db.QueryContext(ctx, statement, args...)
@@ -167,10 +172,11 @@ func (g *BridgeRepo) ListBridgeDeliveries(
 
 func bridgeDeliveryQueryClauses(query bridges.DeliveryLedgerQuery) ([]string, []any) {
 	return store.BuildClauses(
-		store.StringClause("scope", string(query.Scope)),
-		store.OpaqueStringClause("workspace_id", query.WorkspaceID),
-		store.OpaqueStringClause("bridge_instance_id", query.BridgeInstanceID),
-		store.StringClause("state", string(query.State)),
+		store.ReadScopeClause("bi.profile_id", query.ReadScope),
+		store.StringClause("bd.scope", string(query.Scope)),
+		store.OpaqueStringClause("bd.workspace_id", query.WorkspaceID),
+		store.OpaqueStringClause("bd.bridge_instance_id", query.BridgeInstanceID),
+		store.StringClause("bd.state", string(query.State)),
 	)
 }
 

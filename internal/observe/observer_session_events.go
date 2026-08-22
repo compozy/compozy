@@ -152,7 +152,9 @@ func (o *Observer) recoverSessionSnapshot(ctx context.Context, sessionID string)
 	if o.registry == nil {
 		return observedSession{}, false
 	}
-	sessions, err := o.registry.ListSessions(ctx, store.SessionListQuery{})
+	sessions, err := o.registry.ListSessions(ctx, store.SessionListQuery{
+		ReadScope: store.ReadScope{AllProfiles: true},
+	})
 	if err != nil {
 		o.logger.Warn("observe: recover session snapshot failed", "session_id", id, "error", err)
 		return observedSession{}, false
@@ -171,6 +173,7 @@ func (o *Observer) recoverSessionSnapshot(ctx context.Context, sessionID string)
 		}
 		snapshot := observedSessionIdentity(
 			id,
+			info.ProfileID,
 			info.AgentName,
 			info.Provider,
 			model,
@@ -192,6 +195,7 @@ func (o *Observer) recoverSessionSnapshot(ctx context.Context, sessionID string)
 func (o *Observer) observedSessionSnapshot(
 	ctx context.Context,
 	sessionID string,
+	profileID string,
 	agentName string,
 	provider string,
 	model string,
@@ -204,6 +208,7 @@ func (o *Observer) observedSessionSnapshot(
 
 	snapshot := observedSessionIdentity(
 		sessionID,
+		profileID,
 		agentName,
 		provider,
 		model,
@@ -249,6 +254,7 @@ func (o *Observer) trackLiveSession(ctx context.Context, info *session.Info) obs
 	}
 	candidate := observedSessionIdentity(
 		info.ID,
+		info.ProfileID,
 		info.AgentName,
 		info.Provider,
 		info.Model,
@@ -264,6 +270,7 @@ func (o *Observer) trackLiveSession(ctx context.Context, info *session.Info) obs
 	snapshot := o.observedSessionSnapshot(
 		ctx,
 		info.ID,
+		info.ProfileID,
 		info.AgentName,
 		info.Provider,
 		info.Model,
@@ -278,6 +285,7 @@ func (o *Observer) trackLiveSession(ctx context.Context, info *session.Info) obs
 
 func observedSessionIdentity(
 	sessionID string,
+	profileID string,
 	agentName string,
 	provider string,
 	model string,
@@ -288,6 +296,7 @@ func observedSessionIdentity(
 ) observedSession {
 	normalizedLineage := store.NormalizeSessionLineage(sessionID, lineage)
 	return observedSession{
+		profileID:       strings.TrimSpace(profileID),
 		agentName:       strings.TrimSpace(agentName),
 		provider:        strings.TrimSpace(provider),
 		model:           strings.TrimSpace(model),
@@ -301,7 +310,8 @@ func observedSessionIdentity(
 }
 
 func (snapshot observedSession) sameRuntimeIdentity(other observedSession) bool {
-	return snapshot.agentName == other.agentName &&
+	return snapshot.profileID == other.profileID &&
+		snapshot.agentName == other.agentName &&
 		snapshot.provider == other.provider &&
 		snapshot.model == other.model &&
 		snapshot.workspaceID == other.workspaceID &&

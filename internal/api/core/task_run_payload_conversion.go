@@ -19,6 +19,7 @@ func TaskRunPayloadFromRun(run *taskpkg.Run) contract.TaskRunPayload {
 	}
 	return contract.TaskRunPayload{
 		ID:                           run.ID,
+		ProfileID:                    run.ProfileID,
 		TaskID:                       run.TaskID,
 		Status:                       run.Status,
 		Attempt:                      int(run.Attempt),

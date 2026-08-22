@@ -20,7 +20,7 @@ func worktreeFromSQLC(row sqlcgen.Worktree) (*worktree.Worktree, error) {
 		return nil, err
 	}
 	return &worktree.Worktree{
-		ID: row.ID, WorkspaceID: row.WorkspaceID, Name: row.Name, Branch: row.Branch,
+		ID: row.ID, ProfileID: row.ProfileID, WorkspaceID: row.WorkspaceID, Name: row.Name, Branch: row.Branch,
 		Path: row.Path, GitDir: row.GitDir, State: worktree.State(row.State),
 		PendingPhase: worktree.PendingPhase(row.PendingPhase), Origin: worktree.Origin(row.Origin),
 		SetupState: worktree.SetupState(row.SetupState), SetupError: row.SetupError,

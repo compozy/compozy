@@ -167,6 +167,7 @@ func taskInboxFilter(query taskpkg.InboxQuery) ([]string, []any) {
 
 func taskInboxBaseFilter(query taskpkg.InboxQuery) ([]string, []any) {
 	return taskCatalogBaseFilter(taskpkg.CatalogQuery{
+		ReadScope:     query.ReadScope,
 		Scope:         query.Scope,
 		WorkspaceID:   query.WorkspaceID,
 		Priority:      query.Priority,

@@ -40,7 +40,7 @@ func New() (*Provider, error) {
 // ProvideCommands returns a defensive copy of the core inventory and ignores workspace.
 func (p *Provider) ProvideCommands(
 	context.Context,
-	cmdpalette.WorkspaceID,
+	cmdpalette.CatalogRequest,
 ) ([]cmdpalette.Descriptor, error) {
 	return cloneCommands(p.commands), nil
 }

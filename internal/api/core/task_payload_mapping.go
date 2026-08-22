@@ -26,6 +26,7 @@ func TaskSummaryPayloadFromSummary(record *taskpkg.Summary) contract.TaskSummary
 
 	return contract.TaskSummaryPayload{
 		ID:                           record.ID,
+		ProfileID:                    record.ProfileID,
 		Identifier:                   record.Identifier,
 		Scope:                        record.Scope,
 		WorkspaceID:                  record.WorkspaceID,
@@ -75,6 +76,7 @@ func TaskPayloadFromTask(record *taskpkg.Task) contract.TaskPayload {
 
 	return contract.TaskPayload{
 		ID:                 record.ID,
+		ProfileID:          record.ProfileID,
 		Identifier:         record.Identifier,
 		Scope:              record.Scope,
 		WorkspaceID:        record.WorkspaceID,

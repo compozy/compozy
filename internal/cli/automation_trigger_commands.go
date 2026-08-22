@@ -72,7 +72,7 @@ func bindAutomationTriggerCreateFlags(
 }
 
 func newAutomationTriggersGetCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   automationGetIDValue,
 		Short: "Show one automation trigger",
 		Args:  exactOneNonBlankArg(),
@@ -89,6 +89,8 @@ func newAutomationTriggersGetCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, automationTriggerBundle(trigger))
 		},
 	}
+	configureProfileReadCommand(cmd, deps)
+	return cmd
 }
 
 func newAutomationTriggersUpdateCommand(deps commandDeps) *cobra.Command {

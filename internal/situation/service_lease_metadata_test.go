@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -45,6 +46,7 @@ func TestContextForSessionActiveLeaseMetadataContract(t *testing.T) {
 
 		payload, err := service.ContextForSession(context.Background(), &session.Info{
 			ID:          "sess-1",
+			ProfileID:   store.DefaultProfileID,
 			AgentName:   "coder",
 			Provider:    "codex",
 			WorkspaceID: "ws-1",

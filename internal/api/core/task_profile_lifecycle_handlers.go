@@ -280,6 +280,11 @@ func (h *BaseHandlers) CreateChildTask(c *gin.Context) {
 	if !ok {
 		return
 	}
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 
 	parentTaskID, err := requiredPathID(c.Param("id"), "task id")
 	if err != nil {
@@ -303,7 +308,7 @@ func (h *BaseHandlers) CreateChildTask(c *gin.Context) {
 		return
 	}
 
-	spec, err := h.createChildTaskSpecFromRequest(c.Request.Context(), req)
+	spec, err := h.createChildTaskSpecFromRequest(c.Request.Context(), mutationScope.ProfileID, req)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return

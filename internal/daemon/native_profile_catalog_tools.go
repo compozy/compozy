@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -98,7 +99,11 @@ func (n *daemonNativeTools) nativeCurrentProfileIdentity(
 	ctx context.Context,
 	scope toolspkg.Scope,
 ) (profileID, source, workspaceID string, err error) {
-	profileID, source = store.DefaultProfileID, "default"
+	requestedProfileID := strings.TrimSpace(scope.ProfileID)
+	profileID, source = requestedProfileID, "scope"
+	if profileID == "" {
+		profileID, source = store.DefaultProfileID, "default"
+	}
 	workspaceID = strings.TrimSpace(scope.WorkspaceID)
 	if sessionID := strings.TrimSpace(scope.SessionID); sessionID != "" {
 		if n.deps.Sessions == nil {
@@ -108,10 +113,32 @@ func (n *daemonNativeTools) nativeCurrentProfileIdentity(
 		if statusErr != nil {
 			return "", "", "", statusErr
 		}
-		profileID, source, workspaceID = strings.TrimSpace(info.ProfileID), "session", strings.TrimSpace(info.WorkspaceID)
-		if profileID == "" {
+		sessionProfileID := strings.TrimSpace(info.ProfileID)
+		if sessionProfileID == "" {
 			return "", "", "", errors.New("daemon: session has no bound profile")
 		}
+		if requestedProfileID != "" && requestedProfileID != sessionProfileID {
+			return "", "", "", &profilepkg.Error{
+				Code: "profile_session_conflict", Message: "session is bound to another profile",
+				Action: "drop the acting profile override; the session decides", Cause: profilepkg.ErrSessionConflict,
+			}
+		}
+		profileID, source, workspaceID = sessionProfileID, "session", strings.TrimSpace(info.WorkspaceID)
 	}
 	return profileID, source, workspaceID, nil
+}
+
+func (n *daemonNativeTools) nativeProfileReadScope(
+	ctx context.Context,
+	scope toolspkg.Scope,
+) (store.ReadScope, error) {
+	profileID, _, _, err := n.nativeCurrentProfileIdentity(ctx, scope)
+	if err != nil {
+		return store.ReadScope{}, err
+	}
+	readScope := store.ReadScope{ProfileID: profileID}
+	if err := readScope.Validate(); err != nil {
+		return store.ReadScope{}, err
+	}
+	return readScope, nil
 }

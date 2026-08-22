@@ -13,6 +13,7 @@ import (
 func summaryFromTaskRecord(record Task) Summary {
 	return Summary{
 		ID:                 record.ID,
+		ProfileID:          record.ProfileID,
 		Identifier:         record.Identifier,
 		Scope:              record.Scope,
 		WorkspaceID:        record.WorkspaceID,

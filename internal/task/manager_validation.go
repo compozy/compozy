@@ -53,6 +53,7 @@ func requireCreateAuthority(actor ActorContext, scope Scope) error {
 func normalizeCreateTaskSpec(spec CreateTask) (CreateTask, error) {
 	normalized := spec
 	normalized.ID = strings.TrimSpace(normalized.ID)
+	normalized.ProfileID = strings.TrimSpace(normalized.ProfileID)
 	normalized.Identifier = strings.TrimSpace(normalized.Identifier)
 	normalized.Scope = normalized.Scope.Normalize()
 	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)

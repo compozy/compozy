@@ -17,6 +17,7 @@ import (
 
 func (h *BaseHandlers) createNetworkChannelSessions(
 	ctx context.Context,
+	profileID string,
 	channel string,
 	workspaceID string,
 	agentNames []string,
@@ -24,6 +25,7 @@ func (h *BaseHandlers) createNetworkChannelSessions(
 	createdIDs := make([]string, 0, len(agentNames))
 	for _, agentName := range agentNames {
 		sess, err := h.Sessions.Create(ctx, session.CreateOpts{
+			ProfileID:            strings.TrimSpace(profileID),
 			AgentName:            agentName,
 			Provider:             "",
 			Workspace:            workspaceID,
@@ -43,6 +45,7 @@ func (h *BaseHandlers) createNetworkChannelSessions(
 func (h *BaseHandlers) networkChannelDetailPayload(
 	ctx context.Context,
 	service NetworkService,
+	readScope store.ReadScope,
 	workspaceID string,
 	channel string,
 ) (contract.NetworkChannelDetailPayload, error) {
@@ -64,7 +67,7 @@ func (h *BaseHandlers) networkChannelDetailPayload(
 	}
 
 	filteredSessions := sessionsForChannel(sessions, trimmedWorkspaceID, channel)
-	metadata, err := h.loadNetworkChannelMetadata(ctx, networkStore, store.NetworkChannelRef{
+	metadata, err := h.loadNetworkChannelMetadata(ctx, networkStore, readScope, store.NetworkChannelRef{
 		WorkspaceID: trimmedWorkspaceID,
 		Channel:     channel,
 	})
@@ -92,6 +95,12 @@ func (h *BaseHandlers) networkChannelDetailPayload(
 	}
 
 	return contract.NetworkChannelDetailPayload{
+		ProfileID:                  metadataFields.profileID,
+		ProfileName:                metadataFields.profileName,
+		ProfileColor:               metadataFields.profileColor,
+		ProfileIcon:                metadataFields.profileIcon,
+		ProfileEmoji:               metadataFields.profileEmoji,
+		ProfileArchived:            metadataFields.profileArchived,
 		Channel:                    channel,
 		WorkspaceID:                firstNonEmpty(metadataFields.workspaceID, trimmedWorkspaceID),
 		Purpose:                    metadataFields.purpose,
@@ -136,6 +145,12 @@ func networkChannelMetadataPayloadFields(metadata *store.NetworkChannelEntry) ne
 		return networkChannelMetadataFields{}
 	}
 	return networkChannelMetadataFields{
+		profileID:         strings.TrimSpace(metadata.ProfileID),
+		profileName:       strings.TrimSpace(metadata.ProfileName),
+		profileColor:      strings.TrimSpace(metadata.ProfileColor),
+		profileIcon:       strings.TrimSpace(metadata.ProfileIcon),
+		profileEmoji:      strings.TrimSpace(metadata.ProfileEmoji),
+		profileArchived:   metadata.ProfileArchived,
 		createdAt:         cloneTimePtr(&metadata.CreatedAt),
 		purpose:           strings.TrimSpace(metadata.Purpose),
 		fanoutPolicy:      strings.TrimSpace(metadata.FanoutPolicy),

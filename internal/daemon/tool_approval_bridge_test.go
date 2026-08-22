@@ -11,6 +11,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
@@ -768,11 +769,12 @@ func (s *recordingApprovalGrantStore) PutApprovalGrant(
 
 func (s *recordingApprovalGrantStore) ListApprovalGrants(
 	_ context.Context,
+	readScope store.ReadScope,
 	workspaceID string,
 ) ([]toolspkg.ApprovalGrant, error) {
 	grants := make([]toolspkg.ApprovalGrant, 0, len(s.grants))
 	for _, grant := range s.grants {
-		if grant.WorkspaceID == workspaceID {
+		if grant.WorkspaceID == workspaceID && readScope.Matches(grant.ProfileID) {
 			grants = append(grants, grant)
 		}
 	}
@@ -781,11 +783,12 @@ func (s *recordingApprovalGrantStore) ListApprovalGrants(
 
 func (s *recordingApprovalGrantStore) RevokeApprovalGrant(
 	_ context.Context,
+	profileID string,
 	workspaceID string,
 	id string,
 ) error {
 	for index, grant := range s.grants {
-		if grant.WorkspaceID == workspaceID && grant.ID == id {
+		if grant.ProfileID == profileID && grant.WorkspaceID == workspaceID && grant.ID == id {
 			s.grants = append(s.grants[:index], s.grants[index+1:]...)
 			return nil
 		}
@@ -799,6 +802,9 @@ func materializedApprovalGrant(
 	decision toolspkg.ApprovalGrantDecision,
 ) toolspkg.ApprovalGrant {
 	now := time.Date(2026, time.July, 15, 12, 0, 0, 0, time.UTC)
+	if key.ProfileID == "" {
+		key.ProfileID = store.DefaultProfileID
+	}
 	return toolspkg.ApprovalGrant{
 		ID:               id,
 		ApprovalGrantKey: key,

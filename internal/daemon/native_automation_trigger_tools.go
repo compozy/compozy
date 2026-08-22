@@ -14,7 +14,7 @@ import (
 
 func (n *daemonNativeTools) automationTriggersGet(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input automationTriggerIDInput
@@ -25,7 +25,11 @@ func (n *daemonNativeTools) automationTriggersGet(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	trigger, err := n.nativeAutomationTriggerForWorkspace(ctx, input.WorkspaceID, triggerID)
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	trigger, err := n.nativeAutomationTriggerForWorkspace(ctx, input.WorkspaceID, triggerID, readScope)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -35,7 +39,7 @@ func (n *daemonNativeTools) automationTriggersGet(
 
 func (n *daemonNativeTools) automationTriggersCreate(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input automationTriggerCreateInput
@@ -43,6 +47,11 @@ func (n *daemonNativeTools) automationTriggersCreate(
 		return toolspkg.ToolResult{}, err
 	}
 	trigger := core.AutomationTriggerFromCreateRequest(input.request())
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	trigger.ProfileID = readScope.ProfileID
 	if err := automationpkg.ValidateTriggerEvent(trigger.Event, "trigger"); err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationValidationError(req.ToolID, err)
 	}
@@ -56,7 +65,7 @@ func (n *daemonNativeTools) automationTriggersCreate(
 
 func (n *daemonNativeTools) automationTriggersUpdate(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input automationTriggerUpdateInput
@@ -74,7 +83,11 @@ func (n *daemonNativeTools) automationTriggersUpdate(
 			errors.New("automation trigger update must include at least one field"),
 		)
 	}
-	current, err := n.nativeAutomationTriggerForWorkspace(ctx, input.WorkspaceID, triggerID)
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	current, err := n.nativeAutomationTriggerForWorkspace(ctx, input.WorkspaceID, triggerID, readScope)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -101,7 +114,7 @@ func (n *daemonNativeTools) automationTriggersUpdate(
 
 func (n *daemonNativeTools) automationTriggersDelete(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input automationTriggerIDInput
@@ -112,7 +125,11 @@ func (n *daemonNativeTools) automationTriggersDelete(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	current, err := n.nativeAutomationTriggerForWorkspace(ctx, input.WorkspaceID, triggerID)
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	current, err := n.nativeAutomationTriggerForWorkspace(ctx, input.WorkspaceID, triggerID, readScope)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -135,23 +152,23 @@ func (n *daemonNativeTools) automationTriggersDelete(
 
 func (n *daemonNativeTools) automationTriggersEnable(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	return n.automationSetTriggerEnabled(ctx, req, true)
+	return n.automationSetTriggerEnabled(ctx, scope, req, true)
 }
 
 func (n *daemonNativeTools) automationTriggersDisable(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	return n.automationSetTriggerEnabled(ctx, req, false)
+	return n.automationSetTriggerEnabled(ctx, scope, req, false)
 }
 
 func (n *daemonNativeTools) automationTriggersHistory(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input automationTriggerHistoryInput
@@ -162,7 +179,11 @@ func (n *daemonNativeTools) automationTriggersHistory(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	trigger, err := n.nativeAutomationTriggerForWorkspace(ctx, input.WorkspaceID, triggerID)
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	trigger, err := n.nativeAutomationTriggerForWorkspace(ctx, input.WorkspaceID, triggerID, readScope)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -172,12 +193,13 @@ func (n *daemonNativeTools) automationTriggersHistory(
 	}
 	query.JobID = ""
 	query.TriggerID = trigger.ID
+	query.ReadScope = readScope
 	return n.automationRunsForQuery(ctx, req.ToolID, input.WorkspaceID, query)
 }
 
 func (n *daemonNativeTools) automationRunsList(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input automationRunQueryInput
@@ -188,12 +210,16 @@ func (n *daemonNativeTools) automationRunsList(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	query.ReadScope, err = n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	return n.automationRunsForQuery(ctx, req.ToolID, input.WorkspaceID, query)
 }
 
 func (n *daemonNativeTools) automationRunsGet(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input automationRunIDInput
@@ -204,7 +230,11 @@ func (n *daemonNativeTools) automationRunsGet(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	run, err := n.nativeAutomationRunForWorkspace(ctx, input.WorkspaceID, runID)
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	run, err := n.nativeAutomationRunForWorkspace(ctx, input.WorkspaceID, runID, readScope)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -214,6 +244,7 @@ func (n *daemonNativeTools) automationRunsGet(
 
 func (n *daemonNativeTools) automationSetJobEnabled(
 	ctx context.Context,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 	enabled bool,
 ) (toolspkg.ToolResult, error) {
@@ -225,7 +256,11 @@ func (n *daemonNativeTools) automationSetJobEnabled(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	current, err := n.nativeAutomationJobForWorkspace(ctx, input.WorkspaceID, jobID)
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	current, err := n.nativeAutomationJobForWorkspace(ctx, input.WorkspaceID, jobID, readScope)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -239,6 +274,7 @@ func (n *daemonNativeTools) automationSetJobEnabled(
 
 func (n *daemonNativeTools) automationSetTriggerEnabled(
 	ctx context.Context,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 	enabled bool,
 ) (toolspkg.ToolResult, error) {
@@ -250,7 +286,11 @@ func (n *daemonNativeTools) automationSetTriggerEnabled(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	current, err := n.nativeAutomationTriggerForWorkspace(ctx, input.WorkspaceID, triggerID)
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	current, err := n.nativeAutomationTriggerForWorkspace(ctx, input.WorkspaceID, triggerID, readScope)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}

@@ -275,10 +275,15 @@ func (n *daemonNativeTools) loopRuns(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	response, err := n.loopService().ListLoopRuns(ctx, workspaceID, core.LoopRunListQuery{
-		LoopName: strings.TrimSpace(input.LoopName),
-		Status:   strings.TrimSpace(input.Status),
-		Limit:    input.Limit,
+		ReadScope: readScope,
+		LoopName:  strings.TrimSpace(input.LoopName),
+		Status:    strings.TrimSpace(input.Status),
+		Limit:     input.Limit,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)

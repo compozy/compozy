@@ -72,19 +72,27 @@ func (s *toolApprovalGrantService) PutApprovalGrant(
 
 func (s *toolApprovalGrantService) ListApprovalGrants(
 	ctx context.Context,
+	readScope store.ReadScope,
 	workspaceID string,
 ) ([]toolspkg.ApprovalGrant, error) {
 	if s == nil || s.store == nil {
 		return nil, errors.New("daemon: tool approval grant store is unavailable")
 	}
-	return s.store.ListApprovalGrants(ctx, workspaceID)
+	return s.store.ListApprovalGrants(ctx, readScope, workspaceID)
 }
 
-func (s *toolApprovalGrantService) RevokeApprovalGrant(ctx context.Context, workspaceID, id string) error {
+func (s *toolApprovalGrantService) RevokeApprovalGrant(
+	ctx context.Context,
+	profileID string,
+	workspaceID string,
+	id string,
+) error {
 	if s == nil || s.store == nil {
 		return errors.New("daemon: tool approval grant store is unavailable")
 	}
-	grants, err := s.store.ListApprovalGrants(ctx, workspaceID)
+	grants, err := s.store.ListApprovalGrants(
+		ctx, store.ReadScope{ProfileID: profileID}, workspaceID,
+	)
 	if err != nil {
 		return err
 	}
@@ -100,7 +108,7 @@ func (s *toolApprovalGrantService) RevokeApprovalGrant(ctx context.Context, work
 	if !found {
 		return toolspkg.ErrApprovalGrantNotFound
 	}
-	if err := s.store.RevokeApprovalGrant(ctx, workspaceID, id); err != nil {
+	if err := s.store.RevokeApprovalGrant(ctx, profileID, workspaceID, id); err != nil {
 		return err
 	}
 	s.emitTransition(ctx, events.ToolApprovalGrantRevoked, revoked)

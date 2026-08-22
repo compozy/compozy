@@ -13,6 +13,7 @@ func networkThreadsBundle(response contract.NetworkThreadsResponse) outputBundle
 		threads,
 		"Network Threads",
 		[]string{
+			sessionProfileValue,
 			taskThreadValue,
 			"Root",
 			networkOpenedByValue,
@@ -24,6 +25,7 @@ func networkThreadsBundle(response contract.NetworkThreadsResponse) outputBundle
 		},
 		"network_threads",
 		[]string{
+			"profile_name",
 			networkChannelKey,
 			networkThreadIDKey,
 			"root_message_id",
@@ -49,6 +51,7 @@ func networkThreadBundle(thread NetworkThreadRecord) outputBundle {
 			return renderToonObject(
 				"network_thread",
 				[]string{
+					"profile_name",
 					networkChannelKey,
 					networkThreadIDKey,
 					"root_message_id",
@@ -63,6 +66,7 @@ func networkThreadBundle(thread NetworkThreadRecord) outputBundle {
 					networkLastMessagePreviewKey,
 				},
 				[]string{
+					thread.ProfileName,
 					thread.Channel,
 					thread.ThreadID,
 					thread.RootMessageID,
@@ -122,6 +126,7 @@ func networkDirectsBundle(response contract.NetworkDirectRoomsResponse) outputBu
 		directs,
 		"Network Direct Rooms",
 		[]string{
+			sessionProfileValue,
 			"Direct",
 			"Session A",
 			"Session B",
@@ -132,6 +137,7 @@ func networkDirectsBundle(response contract.NetworkDirectRoomsResponse) outputBu
 		},
 		"network_directs",
 		[]string{
+			"profile_name",
 			networkChannelKey,
 			networkDirectIDKey,
 			"session_a",
@@ -156,6 +162,7 @@ func networkDirectBundle(direct NetworkDirectRoomRecord) outputBundle {
 			return renderToonObject(
 				"network_direct",
 				[]string{
+					"profile_name",
 					networkChannelKey,
 					networkDirectIDKey,
 					"session_a",
@@ -167,6 +174,7 @@ func networkDirectBundle(direct NetworkDirectRoomRecord) outputBundle {
 					networkLastMessagePreviewKey,
 				},
 				[]string{
+					direct.ProfileName,
 					direct.Channel,
 					direct.DirectID,
 					direct.SessionA,
@@ -192,6 +200,7 @@ func networkMessagesBundle(jsonValue any, messages []NetworkConversationMessageR
 		messages,
 		"Network Messages",
 		[]string{
+			sessionProfileValue,
 			networkMessageValue,
 			networkSurfaceValue,
 			taskThreadValue,
@@ -206,6 +215,7 @@ func networkMessagesBundle(jsonValue any, messages []NetworkConversationMessageR
 		},
 		"network_messages",
 		[]string{
+			"profile_name",
 			messageIDKey,
 			networkChannelKey,
 			networkSurfaceKey,

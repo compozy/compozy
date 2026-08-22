@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/network/participation"
-	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 // CreateTask derives one canonical task record from trusted actor context and
@@ -70,7 +69,7 @@ func (m *Service) newTaskRecord(normalizedSpec CreateTask, actor ActorContext) (
 	now := m.now().UTC()
 	record := Task{
 		ID:                 normalizedSpec.ID,
-		ProfileID:          storepkg.DefaultProfileID,
+		ProfileID:          normalizedSpec.ProfileID,
 		Identifier:         normalizedSpec.Identifier,
 		Scope:              normalizedSpec.Scope,
 		WorkspaceID:        normalizedSpec.WorkspaceID,
@@ -120,8 +119,12 @@ func (m *Service) CreateChildTask(
 			ErrValidation,
 		)
 	}
-	if _, err := m.loadAuthorizedTask(ctx, m.store, trimmedParentID, actor); err != nil {
+	parent, err := m.loadAuthorizedTask(ctx, m.store, trimmedParentID, actor)
+	if err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(spec.ProfileID) != strings.TrimSpace(parent.ProfileID) {
+		return nil, ErrPermissionDenied
 	}
 
 	spec.ParentTaskID = trimmedParentID
@@ -381,7 +384,7 @@ func (m *Service) CancelTask(
 		return nil, err
 	}
 
-	tree, root, err := m.loadCancellationTree(ctx, trimmedID)
+	tree, root, err := m.loadCancellationTree(ctx, trimmedID, actor)
 	if err != nil {
 		return nil, err
 	}

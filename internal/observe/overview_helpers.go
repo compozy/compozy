@@ -23,6 +23,7 @@ func (o *Observer) overviewPulse(
 	since := store.LocalDayStart(now, overviewPulseWindowDays-1)
 
 	counted, err := overviewStore.CountEventsByHourWeekday(ctx, store.OverviewSinceQuery{
+		ReadScope:   query.ReadScope,
 		WorkspaceID: query.WorkspaceID,
 		Since:       since,
 	})
@@ -34,6 +35,7 @@ func (o *Observer) overviewPulse(
 	pulse.Busiest = busiestPulseBucket(pulse.Buckets)
 
 	longest, err := overviewStore.LongestUserSessionSince(ctx, store.OverviewSinceQuery{
+		ReadScope:   query.ReadScope,
 		WorkspaceID: query.WorkspaceID,
 		Since:       since,
 	})
@@ -92,15 +94,18 @@ func busiestPulseBucket(buckets []store.EventHourWeekdayBucket) *store.EventHour
 func (o *Observer) overviewFreshness(
 	ctx context.Context,
 	overviewStore OverviewStore,
+	readScope store.ReadScope,
 	workspaceID string,
 	now time.Time,
 ) (TaskDashboardFreshness, error) {
-	latest, err := overviewStore.LatestEventSummaryAt(ctx, workspaceID)
+	latest, err := overviewStore.LatestEventSummaryAt(ctx, store.OverviewWorkspaceQuery{
+		ReadScope: readScope, WorkspaceID: workspaceID,
+	})
 	if err != nil {
 		return TaskDashboardFreshness{}, fmt.Errorf("observe: query latest activity: %w", err)
 	}
 
-	hasLiveWork := o.hasLiveWorkspaceWork(workspaceID)
+	hasLiveWork := o.hasLiveWorkspaceWork(readScope, workspaceID)
 
 	staleAfter := max(o.taskDashboardConfig.staleAfter, 0)
 	observedAt := now.UTC()
@@ -120,12 +125,15 @@ func (o *Observer) overviewFreshness(
 
 // hasLiveWorkspaceWork reports whether any in-memory session in the requested
 // scope is in a live state. An empty workspaceID matches the global home scope.
-func (o *Observer) hasLiveWorkspaceWork(workspaceID string) bool {
+func (o *Observer) hasLiveWorkspaceWork(readScope store.ReadScope, workspaceID string) bool {
 	if o.sessionSource == nil {
 		return false
 	}
 	for _, info := range o.sessionSource.List() {
 		if info == nil || !isLiveSessionState(string(info.State)) {
+			continue
+		}
+		if !readScope.Matches(info.ProfileID) {
 			continue
 		}
 		if workspaceID != "" && strings.TrimSpace(info.WorkspaceID) != workspaceID {

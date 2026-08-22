@@ -1072,9 +1072,10 @@ func TestTaskExecutionCommandShouldRollbackPublishWhenEnqueuedEventFails(t *test
 	actor := operatorActorContextForTest("operator")
 	actor.Authority.CreateGlobal = true
 	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Atomic publish rollback",
-		Draft: true,
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Atomic publish rollback",
+		Draft:     true,
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -2110,8 +2111,9 @@ func TestGlobalDBTaskEventAppendFailureShouldRollbackOwningState(t *testing.T) {
 		actor := operatorActorContextForTest("operator:direct-admission-rollback")
 		actor.Authority.CreateGlobal = true
 		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Direct execution admission rollback",
+			ProfileID: store.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     "Direct execution admission rollback",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -4373,7 +4375,7 @@ func TestTaskCoordinationCommandShouldCommitProfileAndEventsAtomically(t *testin
 		if len(events) != 1 || events[0].EventType != eventspkg.TaskExecutionProfileUpdated {
 			t.Fatalf("task events = %#v, want one execution profile event", events)
 		}
-		summaries, err := globalDB.ListEventSummaries(ctx, EventSummaryQuery{
+		summaries, err := globalDB.ListEventSummaries(ctx, EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
 			WorkspaceID: workspaceID,
 			TaskID:      taskRecord.ID,
 			Type:        eventspkg.NetworkCoordinationSettingChanged,
@@ -4457,7 +4459,7 @@ func TestTaskCoordinationCommandShouldCommitProfileAndEventsAtomically(t *testin
 		) {
 			t.Fatalf("GetExecutionProfile() error = %v, want rolled-back profile", err)
 		}
-		summaries, err := globalDB.ListEventSummaries(ctx, EventSummaryQuery{
+		summaries, err := globalDB.ListEventSummaries(ctx, EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
 			WorkspaceID: workspaceID,
 			TaskID:      taskRecord.ID,
 			Type:        eventspkg.NetworkCoordinationSettingChanged,

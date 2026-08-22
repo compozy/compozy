@@ -26,10 +26,10 @@ func seedOverviewTask(
 	if _, err := globalDB.db.ExecContext(
 		testutil.Context(t),
 		`INSERT INTO tasks (
-			id, scope, workspace_id, title, status, created_by_kind, created_by_ref,
+			id, profile_id, scope, workspace_id, title, status, created_by_kind, created_by_ref,
 			origin_kind, origin_ref, created_at, updated_at, closed_at
-		) VALUES (?, ?, ?, ?, ?, 'human', 'tester', 'cli', 'test', ?, ?, ?)`,
-		taskID, scope, workspaceID, "Task "+taskID, status, createdAt, createdAt, closedAt,
+		) VALUES (?, ?, ?, ?, ?, ?, 'human', 'tester', 'cli', 'test', ?, ?, ?)`,
+		taskID, store.DefaultProfileID, scope, workspaceID, "Task "+taskID, status, createdAt, createdAt, closedAt,
 	); err != nil {
 		t.Fatalf("seed task %q error = %v", taskID, err)
 	}
@@ -90,9 +90,9 @@ func seedOverviewSessionWithState(
 	if _, err := globalDB.db.ExecContext(
 		testutil.Context(t),
 		`INSERT INTO sessions (
-			id, agent_name, workspace_id, session_type, state, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		sessionID, agentName, workspaceID, sessionType, state,
+			id, profile_id, agent_name, workspace_id, session_type, state, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		sessionID, store.DefaultProfileID, agentName, workspaceID, sessionType, state,
 		store.FormatTimestamp(createdAt), store.FormatTimestamp(updatedAt),
 	); err != nil {
 		t.Fatalf("seed session %q error = %v", sessionID, err)
@@ -112,6 +112,7 @@ func seedOverviewEvent(
 	t.Helper()
 	summary := store.EventSummary{
 		ID:          eventID,
+		ProfileID:   store.DefaultProfileID,
 		SessionID:   sessionID,
 		Type:        eventType,
 		AgentName:   "coder",
@@ -127,6 +128,69 @@ func seedOverviewEvent(
 func TestObserveOverviewTokenUsageDaily(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should isolate usage aggregates by explicit profile scope", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		foreignProfileID := "uuuuuuuuuuuuuuuuuuuuuuuuuu"
+		if _, err := globalDB.DB().ExecContext(ctx, `
+			INSERT INTO profiles (id, name, color, icon, state, created_at)
+			VALUES (?, 'usage-foreign', '#8E8EB5', 'circle', 'active', ?)`,
+			foreignProfileID,
+			store.FormatTimestamp(time.Date(2026, 8, 21, 10, 0, 0, 0, time.UTC)),
+		); err != nil {
+			t.Fatalf("insert foreign profile error = %v", err)
+		}
+		day := "2026-08-21"
+		foreignTokens := int64(20)
+		defaultTokens := int64(10)
+		for _, update := range []store.TokenUsageDailyUpdate{
+			{
+				ProfileID: foreignProfileID, Day: day, AgentName: "foreign", TotalTokens: &foreignTokens,
+				CostStatus: store.TokenCostStatusIncluded, CostSource: store.TokenCostSourceNone,
+			},
+			{
+				ProfileID: store.DefaultProfileID, Day: day, AgentName: "default", TotalTokens: &defaultTokens,
+				CostStatus: store.TokenCostStatusIncluded, CostSource: store.TokenCostSourceNone,
+			},
+		} {
+			if err := globalDB.UpsertTokenUsageDaily(ctx, update); err != nil {
+				t.Fatalf("UpsertTokenUsageDaily(%q) error = %v", update.ProfileID, err)
+			}
+		}
+
+		scoped, err := globalDB.ListTokenUsageByDay(ctx, store.OverviewDayQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, SinceDay: day,
+		})
+		if err != nil {
+			t.Fatalf("ListTokenUsageByDay(scoped) error = %v", err)
+		}
+		if len(scoped) != 1 || scoped[0].TotalTokens != 10 {
+			t.Fatalf("ListTokenUsageByDay(scoped) = %+v, want 10 tokens", scoped)
+		}
+		aggregate, err := globalDB.ListTokenUsageByDay(ctx, store.OverviewDayQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, SinceDay: day,
+		})
+		if err != nil {
+			t.Fatalf("ListTokenUsageByDay(aggregate) error = %v", err)
+		}
+		if len(aggregate) != 1 || aggregate[0].TotalTokens != 30 {
+			t.Fatalf("ListTokenUsageByDay(aggregate) = %+v, want 30 tokens", aggregate)
+		}
+		breakdown, err := globalDB.ListTokenUsageByProfile(ctx, store.OverviewDayQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, SinceDay: day,
+		})
+		if err != nil {
+			t.Fatalf("ListTokenUsageByProfile(aggregate) error = %v", err)
+		}
+		if len(breakdown) != 2 || breakdown[0].ProfileName != "usage-foreign" ||
+			breakdown[0].TotalTokens != 20 || breakdown[1].ProfileName != "default" ||
+			breakdown[1].TotalTokens != 10 {
+			t.Fatalf("ListTokenUsageByProfile(aggregate) = %+v, want labeled 20+10 buckets", breakdown)
+		}
+	})
+
 	t.Run("Should add token usage into one daily bucket across upserts", func(t *testing.T) {
 		t.Parallel()
 		globalDB := openTestGlobalDB(t)
@@ -135,6 +199,7 @@ func TestObserveOverviewTokenUsageDaily(t *testing.T) {
 		day := "2026-07-20"
 		for range 2 {
 			if err := globalDB.UpsertTokenUsageDaily(ctx, store.TokenUsageDailyUpdate{
+				ProfileID:    store.DefaultProfileID,
 				Day:          day,
 				WorkspaceID:  "ws-usage",
 				AgentName:    "writer",
@@ -152,7 +217,7 @@ func TestObserveOverviewTokenUsageDaily(t *testing.T) {
 			}
 		}
 
-		days, err := globalDB.ListTokenUsageByDay(ctx, store.OverviewDayQuery{SinceDay: day})
+		days, err := globalDB.ListTokenUsageByDay(ctx, store.OverviewDayQuery{ReadScope: store.ReadScope{AllProfiles: true}, SinceDay: day})
 		if err != nil {
 			t.Fatalf("ListTokenUsageByDay() error = %v", err)
 		}
@@ -163,7 +228,7 @@ func TestObserveOverviewTokenUsageDaily(t *testing.T) {
 			t.Fatalf("ListTokenUsageByDay() = %+v, want additive bucket for %s", days[0], day)
 		}
 
-		groups, err := globalDB.SumTokenUsageCost(ctx, store.OverviewDayQuery{SinceDay: day})
+		groups, err := globalDB.SumTokenUsageCost(ctx, store.OverviewDayQuery{ReadScope: store.ReadScope{AllProfiles: true}, SinceDay: day})
 		if err != nil {
 			t.Fatalf("SumTokenUsageCost() error = %v", err)
 		}
@@ -202,7 +267,8 @@ func TestObserveOverviewTokenUsageDaily(t *testing.T) {
 				UpdatedAt: time.Now(),
 			},
 			store.TokenUsageDailyUpdate{
-				Day: "2026-07-24", AgentName: "writer",
+				ProfileID: store.DefaultProfileID,
+				Day:       "2026-07-24", AgentName: "writer",
 				TotalTokens: new(int64(140)), CostStatus: "unknown", CostSource: "none",
 				UpdatedAt: time.Now(),
 			},
@@ -219,7 +285,7 @@ func TestObserveOverviewTokenUsageDaily(t *testing.T) {
 			t.Fatalf("token_stats rows = %d, want 0 (RecordTokenUsage must roll back both writes)", len(stats))
 		}
 
-		daily, err := globalDB.ListTokenUsageByDay(ctx, store.OverviewDayQuery{SinceDay: "2026-07-24"})
+		daily, err := globalDB.ListTokenUsageByDay(ctx, store.OverviewDayQuery{ReadScope: store.ReadScope{AllProfiles: true}, SinceDay: "2026-07-24"})
 		if err != nil {
 			t.Fatalf("ListTokenUsageByDay() error = %v", err)
 		}
@@ -235,7 +301,8 @@ func TestObserveOverviewTokenUsageDaily(t *testing.T) {
 
 		day := "2026-07-21"
 		if err := globalDB.UpsertTokenUsageDaily(ctx, store.TokenUsageDailyUpdate{
-			Day: day, AgentName: "writer",
+			ProfileID: store.DefaultProfileID,
+			Day:       day, AgentName: "writer",
 			TotalTokens:  new(int64(100)),
 			CostAmount:   new(float64(0.5)),
 			CostCurrency: new(string("USD")),
@@ -245,7 +312,8 @@ func TestObserveOverviewTokenUsageDaily(t *testing.T) {
 			t.Fatalf("UpsertTokenUsageDaily(estimated) error = %v", err)
 		}
 		if err := globalDB.UpsertTokenUsageDaily(ctx, store.TokenUsageDailyUpdate{
-			Day: day, AgentName: "writer",
+			ProfileID: store.DefaultProfileID,
+			Day:       day, AgentName: "writer",
 			TotalTokens: new(int64(50)),
 			CostStatus:  "included", CostSource: "none",
 			UpdatedAt: time.Now(),
@@ -253,14 +321,14 @@ func TestObserveOverviewTokenUsageDaily(t *testing.T) {
 			t.Fatalf("UpsertTokenUsageDaily(included) error = %v", err)
 		}
 
-		groups, err := globalDB.SumTokenUsageCost(ctx, store.OverviewDayQuery{SinceDay: day})
+		groups, err := globalDB.SumTokenUsageCost(ctx, store.OverviewDayQuery{ReadScope: store.ReadScope{AllProfiles: true}, SinceDay: day})
 		if err != nil {
 			t.Fatalf("SumTokenUsageCost() error = %v", err)
 		}
 		if len(groups) != 1 || groups[0].CostStatus != "unknown" || groups[0].RowsWithoutCost != 1 {
 			t.Fatalf("SumTokenUsageCost() = %+v, want one unknown group without cost", groups)
 		}
-		days, err := globalDB.ListTokenUsageByDay(ctx, store.OverviewDayQuery{SinceDay: day})
+		days, err := globalDB.ListTokenUsageByDay(ctx, store.OverviewDayQuery{ReadScope: store.ReadScope{AllProfiles: true}, SinceDay: day})
 		if err != nil {
 			t.Fatalf("ListTokenUsageByDay() error = %v", err)
 		}
@@ -277,7 +345,8 @@ func TestObserveOverviewTokenUsageDaily(t *testing.T) {
 		seedRow := func(day string, workspaceID string, agent string, tokens int64) {
 			t.Helper()
 			if err := globalDB.UpsertTokenUsageDaily(ctx, store.TokenUsageDailyUpdate{
-				Day: day, WorkspaceID: workspaceID, AgentName: agent,
+				ProfileID: store.DefaultProfileID,
+				Day:       day, WorkspaceID: workspaceID, AgentName: agent,
 				TotalTokens: new(tokens),
 				CostStatus:  "unknown", CostSource: "none",
 				UpdatedAt: time.Now(),
@@ -289,7 +358,7 @@ func TestObserveOverviewTokenUsageDaily(t *testing.T) {
 		seedRow("2026-07-10", "ws-a", "writer", 20)
 		seedRow("2026-07-10", "ws-b", "researcher", 40)
 
-		days, err := globalDB.ListTokenUsageByDay(ctx, store.OverviewDayQuery{SinceDay: "2026-07-05"})
+		days, err := globalDB.ListTokenUsageByDay(ctx, store.OverviewDayQuery{ReadScope: store.ReadScope{AllProfiles: true}, SinceDay: "2026-07-05"})
 		if err != nil {
 			t.Fatalf("ListTokenUsageByDay() error = %v", err)
 		}
@@ -298,6 +367,7 @@ func TestObserveOverviewTokenUsageDaily(t *testing.T) {
 		}
 
 		scoped, err := globalDB.ListTokenUsageByAgent(ctx, store.OverviewDayQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			SinceDay:    "2026-07-05",
 			WorkspaceID: "ws-b",
 		})
@@ -319,7 +389,8 @@ func TestObserveOverviewTokenUsageDaily(t *testing.T) {
 		currentDay := store.LocalDay(cutoff)
 		for _, day := range []string{oldDay, currentDay} {
 			if err := globalDB.UpsertTokenUsageDaily(ctx, store.TokenUsageDailyUpdate{
-				Day: day, AgentName: "writer",
+				ProfileID: store.DefaultProfileID,
+				Day:       day, AgentName: "writer",
 				TotalTokens: new(int64(10)),
 				CostStatus:  "unknown", CostSource: "none",
 				UpdatedAt: cutoff,
@@ -335,7 +406,7 @@ func TestObserveOverviewTokenUsageDaily(t *testing.T) {
 		if result.DeletedTokenUsageDaily != 1 {
 			t.Fatalf("SweepObservability() DeletedTokenUsageDaily = %d, want 1", result.DeletedTokenUsageDaily)
 		}
-		days, err := globalDB.ListTokenUsageByDay(ctx, store.OverviewDayQuery{SinceDay: oldDay})
+		days, err := globalDB.ListTokenUsageByDay(ctx, store.OverviewDayQuery{ReadScope: store.ReadScope{AllProfiles: true}, SinceDay: oldDay})
 		if err != nil {
 			t.Fatalf("ListTokenUsageByDay() error = %v", err)
 		}
@@ -355,7 +426,8 @@ func TestObserveOverviewTokenUsageDaily(t *testing.T) {
 			t.Fatalf("OpenGlobalDB(first) error = %v", err)
 		}
 		if err := first.UpsertTokenUsageDaily(ctx, store.TokenUsageDailyUpdate{
-			Day: "2026-07-22", AgentName: "writer",
+			ProfileID: store.DefaultProfileID,
+			Day:       "2026-07-22", AgentName: "writer",
 			TotalTokens: new(int64(77)),
 			CostStatus:  "unknown", CostSource: "none",
 			UpdatedAt: time.Now(),
@@ -375,7 +447,7 @@ func TestObserveOverviewTokenUsageDaily(t *testing.T) {
 				t.Errorf("Close(reopen) error = %v", err)
 			}
 		})
-		days, err := reopened.ListTokenUsageByDay(ctx, store.OverviewDayQuery{SinceDay: "2026-07-22"})
+		days, err := reopened.ListTokenUsageByDay(ctx, store.OverviewDayQuery{ReadScope: store.ReadScope{AllProfiles: true}, SinceDay: "2026-07-22"})
 		if err != nil {
 			t.Fatalf("ListTokenUsageByDay(reopen) error = %v", err)
 		}
@@ -413,7 +485,8 @@ func TestObserveOverviewRunAndTaskBuckets(t *testing.T) {
 		seedOverviewRun(t, globalDB, "run-6", "task-out-1", nil, "running", "worker", nil)
 
 		days, err := globalDB.CountTaskRunOutcomesByDay(ctx, store.OverviewSinceQuery{
-			Since: store.LocalDayStart(now, 13),
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Since:     store.LocalDayStart(now, 13),
 		})
 		if err != nil {
 			t.Fatalf("CountTaskRunOutcomesByDay() error = %v", err)
@@ -443,7 +516,8 @@ func TestObserveOverviewRunAndTaskBuckets(t *testing.T) {
 		seedOverviewRun(t, globalDB, "run-scoped", "task-scoped", workspaceID, "completed", "worker", endedAt)
 
 		all, err := globalDB.CountTaskRunOutcomesByDay(ctx, store.OverviewSinceQuery{
-			Since: store.LocalDayStart(now, 1),
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Since:     store.LocalDayStart(now, 1),
 		})
 		if err != nil {
 			t.Fatalf("CountTaskRunOutcomesByDay(all) error = %v", err)
@@ -453,6 +527,7 @@ func TestObserveOverviewRunAndTaskBuckets(t *testing.T) {
 		}
 
 		scoped, err := globalDB.CountTaskRunOutcomesByDay(ctx, store.OverviewSinceQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: workspaceID,
 			Since:       store.LocalDayStart(now, 1),
 		})
@@ -476,7 +551,8 @@ func TestObserveOverviewRunAndTaskBuckets(t *testing.T) {
 		seedOverviewTask(t, globalDB, "task-open", nil, "in_progress", nil)
 
 		days, err := globalDB.CountTasksClosedByDay(ctx, store.OverviewSinceQuery{
-			Since: store.LocalDayStart(now, 0),
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Since:     store.LocalDayStart(now, 0),
 		})
 		if err != nil {
 			t.Fatalf("CountTasksClosedByDay() error = %v", err)
@@ -511,6 +587,7 @@ func TestObserveOverviewEventAndSessionAggregates(t *testing.T) {
 		)
 
 		buckets, err := globalDB.CountEventsByHourWeekday(ctx, store.OverviewSinceQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: workspaceID,
 			Since:       store.LocalDayStart(now, 13),
 		})
@@ -551,7 +628,8 @@ func TestObserveOverviewEventAndSessionAggregates(t *testing.T) {
 		)
 
 		counts, err := globalDB.CountHookDispatchesSince(ctx, store.OverviewSinceQuery{
-			Since: store.LocalDayStart(now, 0),
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Since:     store.LocalDayStart(now, 0),
 		})
 		if err != nil {
 			t.Fatalf("CountHookDispatchesSince() error = %v", err)
@@ -567,7 +645,9 @@ func TestObserveOverviewEventAndSessionAggregates(t *testing.T) {
 		ctx := testutil.Context(t)
 		latestWorkspaceID := registerSessionForGlobalTests(t, globalDB, "sess-overview-latest")
 
-		empty, err := globalDB.LatestEventSummaryAt(ctx, "")
+		empty, err := globalDB.LatestEventSummaryAt(ctx, store.OverviewWorkspaceQuery{
+			ReadScope: store.ReadScope{AllProfiles: true},
+		})
 		if err != nil {
 			t.Fatalf("LatestEventSummaryAt(empty) error = %v", err)
 		}
@@ -583,7 +663,9 @@ func TestObserveOverviewEventAndSessionAggregates(t *testing.T) {
 		seedOverviewEvent(t, globalDB, "evt-latest-2", "message", "sess-overview-latest",
 			latestWorkspaceID, "info", latest)
 
-		observed, err := globalDB.LatestEventSummaryAt(ctx, "")
+		observed, err := globalDB.LatestEventSummaryAt(ctx, store.OverviewWorkspaceQuery{
+			ReadScope: store.ReadScope{AllProfiles: true},
+		})
 		if err != nil {
 			t.Fatalf("LatestEventSummaryAt() error = %v", err)
 		}
@@ -621,7 +703,8 @@ func TestObserveOverviewEventAndSessionAggregates(t *testing.T) {
 		write("naud-ov-2", store.LocalDayStart(now, 2))
 
 		messages, err := globalDB.CountNetworkMessagesSince(ctx, store.OverviewSinceQuery{
-			Since: store.LocalDayStart(now, 0),
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Since:     store.LocalDayStart(now, 0),
 		})
 		if err != nil {
 			t.Fatalf("CountNetworkMessagesSince() error = %v", err)
@@ -646,7 +729,8 @@ func TestObserveOverviewEventAndSessionAggregates(t *testing.T) {
 			start.Add(6*time.Hour))
 
 		longest, err := globalDB.LongestUserSessionSince(ctx, store.OverviewSinceQuery{
-			Since: store.LocalDayStart(now, 13),
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Since:     store.LocalDayStart(now, 13),
 		})
 		if err != nil {
 			t.Fatalf("LongestUserSessionSince() error = %v", err)
@@ -662,6 +746,7 @@ func TestObserveOverviewEventAndSessionAggregates(t *testing.T) {
 		}
 
 		none, err := globalDB.LongestUserSessionSince(ctx, store.OverviewSinceQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: "ws-elsewhere",
 			Since:       store.LocalDayStart(now, 13),
 		})
@@ -689,7 +774,8 @@ func TestObserveOverviewEventAndSessionAggregates(t *testing.T) {
 			start, start.Add(5*time.Minute))
 
 		longest, err := globalDB.LongestUserSessionSince(ctx, store.OverviewSinceQuery{
-			Since: store.LocalDayStart(now, 13),
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Since:     store.LocalDayStart(now, 13),
 		})
 		if err != nil {
 			t.Fatalf("LongestUserSessionSince() error = %v", err)

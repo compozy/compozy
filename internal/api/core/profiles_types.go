@@ -9,6 +9,7 @@ import (
 type profileCatalog interface {
 	Create(context.Context, profilepkg.CreateInput) (profilepkg.Profile, error)
 	GetByName(context.Context, string) (profilepkg.Profile, error)
+	Resolve(context.Context, profilepkg.ResolveInput) (profilepkg.Resolution, error)
 	List(context.Context) ([]profilepkg.ProfileWithCounts, error)
 	UpdateIdentity(context.Context, string, profilepkg.IdentityPatch) (profilepkg.Profile, error)
 	ListSelections(context.Context) ([]profilepkg.Selection, error)

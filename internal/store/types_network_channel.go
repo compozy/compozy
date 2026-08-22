@@ -10,6 +10,11 @@ import (
 // NetworkChannelEntry stores durable channel metadata for the operator-facing network workspace.
 type NetworkChannelEntry struct {
 	ProfileID         string
+	ProfileName       string
+	ProfileColor      string
+	ProfileIcon       string
+	ProfileEmoji      string
+	ProfileArchived   bool
 	Channel           string
 	WorkspaceID       string
 	Purpose           string
@@ -124,6 +129,7 @@ func ValidateNetworkFanoutPolicy(policy string) error {
 
 // NetworkChannelQuery filters persisted network channel metadata lookups.
 type NetworkChannelQuery struct {
+	ReadScope   ReadScope
 	Channel     string
 	WorkspaceID string
 	Limit       int
@@ -131,6 +137,9 @@ type NetworkChannelQuery struct {
 
 // Validate ensures the query uses sane bounds.
 func (q NetworkChannelQuery) Validate() error {
+	if err := q.ReadScope.Validate(); err != nil {
+		return fmt.Errorf("store: invalid network channel read scope: %w", err)
+	}
 	if err := requireField(q.WorkspaceID, "network channel query workspace_id"); err != nil {
 		return err
 	}

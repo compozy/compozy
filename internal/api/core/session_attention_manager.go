@@ -14,5 +14,5 @@ type SessionAttentionManager interface {
 		sessionID string,
 		statuses []string,
 	) ([]store.PendingInteraction, error)
-	AttentionSummary(ctx context.Context) (store.SessionAttentionSummary, error)
+	AttentionSummary(ctx context.Context, readScope store.ReadScope) (store.SessionAttentionSummary, error)
 }

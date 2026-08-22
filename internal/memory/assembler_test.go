@@ -465,7 +465,7 @@ func TestSnapshotServiceCapture(t *testing.T) {
 
 		provider := &snapshotProviderStub{
 			results: map[string]memcontract.SnapshotResult{
-				"global/": {
+				"profile/": {
 					Markdown: "- [Provider Global](global.md) - provider global",
 					AgeMs:    int64((48 * time.Hour) / time.Millisecond),
 				},

@@ -91,7 +91,7 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 }
 
 func newTaskGetCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   taskGetIDValue,
 		Short: "Show one task with related detail",
 		Args:  exactOneNonBlankArg(),
@@ -108,10 +108,12 @@ func newTaskGetCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, taskDetailBundle(&taskDetail))
 		},
 	}
+	configureProfileReadCommand(cmd, deps)
+	return cmd
 }
 
 func newTaskInspectCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   cliInspectIDUse,
 		Short: "Inspect a task or run with diagnostics",
 		Args:  exactOneNonBlankArg(),
@@ -137,6 +139,8 @@ func newTaskInspectCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, taskInspectBundle(&inspect))
 		},
 	}
+	configureProfileReadCommand(cmd, deps)
+	return cmd
 }
 
 func newTaskPublishCommand(deps commandDeps) *cobra.Command {

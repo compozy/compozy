@@ -9,6 +9,7 @@ import (
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -690,6 +691,7 @@ func TestBridgeInstanceSpecFromCreateRequestBindsWorkspaceScope(t *testing.T) {
 	t.Parallel()
 
 	request := bridgepkg.CreateInstanceRequest{
+		ProfileID:        store.DefaultProfileID,
 		Scope:            bridgepkg.ScopeWorkspace,
 		WorkspaceID:      "ws-alpha",
 		Platform:         "telegram",
@@ -751,7 +753,10 @@ type projectionStore struct {
 	replaceErr   error
 }
 
-func (s *projectionStore) ListBridgeInstances(context.Context) ([]bridgepkg.BridgeInstance, error) {
+func (s *projectionStore) ListBridgeInstances(
+	context.Context,
+	store.ReadScope,
+) ([]bridgepkg.BridgeInstance, error) {
 	instances := make([]bridgepkg.BridgeInstance, 0, len(s.instances))
 	for _, instance := range s.instances {
 		instances = append(instances, cloneBridgeInstanceForTest(instance))

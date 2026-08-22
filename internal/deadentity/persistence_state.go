@@ -34,7 +34,7 @@ func (s *Service) ensureLoaded(
 		state.mu.Unlock()
 		return true, false, nil
 	}
-	entity, found, err := s.store.FindDeadEntity(ctx, key.WorkspaceID, key.Kind, key.EntityID)
+	entity, found, err := s.store.FindDeadEntity(ctx, key)
 	if err != nil {
 		if ctxErr := contextError(ctx); ctxErr != nil {
 			return false, false, ctxErr

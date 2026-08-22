@@ -20,7 +20,7 @@ type StubSessionManager struct {
 	ListAllFn                    func(context.Context) ([]*session.Info, error)
 	ListPageFn                   func(context.Context, session.ListQuery) (session.ListPage, error)
 	SubscribeCatalogFn           func(context.Context, session.CatalogScope) (<-chan session.CatalogEvent, func(), error)
-	MetricsByAgentFn             func(context.Context, string) (map[string]session.AgentSessionMetrics, error)
+	MetricsByAgentFn             func(context.Context, store.ReadScope, string) (map[string]session.AgentSessionMetrics, error)
 	ListSessionsFn               func(context.Context, store.SessionListQuery) ([]store.SessionInfo, error)
 	StatusFn                     func(context.Context, string) (*session.Info, error)
 	EventsFn                     func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
@@ -145,10 +145,11 @@ func (s StubSessionManager) SubscribeSessionCatalogEvents(
 
 func (s StubSessionManager) AggregateSessionsByAgent(
 	ctx context.Context,
+	readScope store.ReadScope,
 	workspaceID string,
 ) (map[string]session.AgentSessionMetrics, error) {
 	if s.MetricsByAgentFn != nil {
-		return s.MetricsByAgentFn(ctx, workspaceID)
+		return s.MetricsByAgentFn(ctx, readScope, workspaceID)
 	}
 	infos, err := s.ListAll(ctx)
 	if err != nil {
@@ -156,7 +157,8 @@ func (s StubSessionManager) AggregateSessionsByAgent(
 	}
 	metrics := make(map[string]session.AgentSessionMetrics)
 	for _, info := range infos {
-		if info == nil || info.WorkspaceID != workspaceID || info.Type == session.SessionTypeDream {
+		if info == nil || info.WorkspaceID != workspaceID || info.Type == session.SessionTypeDream ||
+			!readScope.Matches(info.ProfileID) {
 			continue
 		}
 		if info.Lineage != nil && session.IsInternalSpawnRole(info.Lineage.SpawnRole) {

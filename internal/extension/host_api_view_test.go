@@ -105,17 +105,20 @@ func mustViewPatchParams(t *testing.T, payload map[string]any) json.RawMessage {
 }
 
 type recordingViewPatchPublisher struct {
-	workspace cmdpalette.WorkspaceID
-	extension string
-	patch     cmdpalette.ViewPatch
+	profileLens cmdpalette.ProfileLens
+	workspace   cmdpalette.WorkspaceID
+	extension   string
+	patch       cmdpalette.ViewPatch
 }
 
 func (r *recordingViewPatchPublisher) PublishViewPatch(
 	_ context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	extension string,
 	patch cmdpalette.ViewPatch,
 ) error {
+	r.profileLens = profileLens
 	r.workspace = workspaceID
 	r.extension = extension
 	r.patch = patch
@@ -128,13 +131,13 @@ type hostAPIViewServiceStub struct {
 }
 
 func (s *hostAPIViewServiceStub) ResolveView(
-	context.Context, cmdpalette.WorkspaceID, string,
+	context.Context, cmdpalette.ProfileLens, cmdpalette.WorkspaceID, string,
 ) (cmdpalette.ViewDescriptor, error) {
 	return cmdpalette.ViewDescriptor{}, nil
 }
 
 func (s *hostAPIViewServiceStub) OpenSource(
-	context.Context, cmdpalette.WorkspaceID, string,
+	context.Context, cmdpalette.ProfileLens, cmdpalette.WorkspaceID, string,
 ) (cmdpalette.ViewSnapshot, error) {
 	return cmdpalette.ViewSnapshot{}, nil
 }
@@ -181,12 +184,19 @@ func (s *hostAPIViewServiceStub) CloseSession(context.Context, cmdpalette.Sessio
 
 func (s *hostAPIViewServiceStub) CloseClientSessions(
 	context.Context,
+	cmdpalette.ProfileLens,
 	cmdpalette.WorkspaceID,
 	cmdpalette.ClientID,
 ) error {
 	return nil
 }
 
-func (s *hostAPIViewServiceStub) InvalidateInstance(context.Context, cmdpalette.WorkspaceID, string, uint64) error {
+func (s *hostAPIViewServiceStub) InvalidateInstance(
+	context.Context,
+	cmdpalette.ProfileLens,
+	cmdpalette.WorkspaceID,
+	string,
+	uint64,
+) error {
 	return nil
 }

@@ -29,12 +29,17 @@ func (h *BaseHandlers) ListTasks(c *gin.Context) {
 		return
 	}
 
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	transportQuery, err := ParseTaskListQuery(c)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
-	query, err := h.taskListDomainQuery(c.Request.Context(), transportQuery)
+	query, err := h.taskListDomainQuery(c.Request.Context(), readScope, transportQuery)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
@@ -46,13 +51,23 @@ func (h *BaseHandlers) ListTasks(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, TaskCatalogResponseFromPage(page))
+	response, err := h.decorateTaskCatalogOwners(c.Request.Context(), TaskCatalogResponseFromPage(page))
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, response)
 }
 
 // CreateTask creates one new task.
 func (h *BaseHandlers) CreateTask(c *gin.Context) {
 	manager, ok := h.requireTaskManager(c)
 	if !ok {
+		return
+	}
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
 		return
 	}
 
@@ -66,7 +81,7 @@ func (h *BaseHandlers) CreateTask(c *gin.Context) {
 		return
 	}
 
-	spec, err := h.createTaskSpecFromRequest(c.Request.Context(), req)
+	spec, err := h.createTaskSpecFromRequest(c.Request.Context(), mutationScope.ProfileID, req)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
@@ -92,6 +107,11 @@ func (h *BaseHandlers) GetTask(c *gin.Context) {
 		return
 	}
 
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	taskID, err := requiredPathID(c.Param("id"), "task id")
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
@@ -107,6 +127,10 @@ func (h *BaseHandlers) GetTask(c *gin.Context) {
 	view, err := manager.GetTask(c.Request.Context(), taskID, actor)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	if !readScope.Matches(view.Task.ProfileID) {
+		h.respondError(c, http.StatusNotFound, taskpkg.ErrTaskNotFound)
 		return
 	}
 
@@ -307,6 +331,9 @@ func (h *BaseHandlers) RecoverTask(c *gin.Context) {
 
 func (h *BaseHandlers) taskDetailPayload(ctx context.Context, view *taskpkg.View) (contract.TaskDetailPayload, error) {
 	payload := TaskDetailPayloadFromView(view)
+	if err := h.decorateTaskDetailOwners(ctx, &payload); err != nil {
+		return contract.TaskDetailPayload{}, err
+	}
 	if h == nil || h.NetworkStore == nil || view == nil || strings.TrimSpace(view.Task.ID) == "" {
 		return payload, nil
 	}

@@ -435,6 +435,7 @@ func actionNodeForRun(graph dsl.Graph, nodeID string) (dsl.Node, error) {
 
 func actionToolScope(run Run, actor task.ActorContext) tools.Scope {
 	return tools.Scope{
+		ProfileID:   strings.TrimSpace(run.ProfileID),
 		WorkspaceID: string(run.WorkspaceID),
 		ActorKind:   string(actor.Actor.Kind.Normalize()),
 	}

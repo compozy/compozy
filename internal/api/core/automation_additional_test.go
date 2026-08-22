@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/testutil"
 	automationpkg "github.com/compozy/compozy/internal/automation"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestAutomationEndpointsAdditionalCoverage(t *testing.T) {
@@ -18,6 +19,7 @@ func TestAutomationEndpointsAdditionalCoverage(t *testing.T) {
 	now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
 	job := automationpkg.Job{
 		ID:        "job-1",
+		ProfileID: store.DefaultProfileID,
 		Scope:     automationpkg.AutomationScopeWorkspace,
 		Name:      "nightly-review",
 		AgentName: "coder",
@@ -31,6 +33,7 @@ func TestAutomationEndpointsAdditionalCoverage(t *testing.T) {
 	}
 	trigger := automationpkg.Trigger{
 		ID:        "trigger-1",
+		ProfileID: store.DefaultProfileID,
 		Scope:     automationpkg.AutomationScopeWorkspace,
 		Name:      "deploy-review",
 		AgentName: "coder",

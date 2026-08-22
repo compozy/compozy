@@ -46,6 +46,7 @@ func newWorktreeListCommand(deps commandDeps) *cobra.Command {
 	}
 	addWorktreeWorkspaceFlag(cmd, &workspaceRef)
 	cmd.Flags().BoolVar(&refresh, "refresh", false, "Refresh Git discovery and status")
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 

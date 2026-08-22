@@ -270,9 +270,9 @@ catalog_derived AS (
 	LEFT JOIN latest_terminal_candidates lt ON lt.task_id = t.id AND lt.row_number = 1
 	LEFT JOIN active_run_candidates ar ON ar.task_id = t.id AND ar.row_number = 1
 ),
-catalog AS (
+	catalog AS (
 	SELECT
-		id, identifier, scope, workspace_id, parent_task_id, network_channel, title,
+		id, profile_id, identifier, scope, workspace_id, parent_task_id, network_channel, title,
 		priority, max_attempts, auto_enqueue_on_ready, canonical_status AS status,
 		approval_policy, approval_state, owner_kind, owner_ref, current_run_id,
 		latest_event_seq, created_by_kind, created_by_ref, origin_kind, origin_ref,
@@ -290,7 +290,7 @@ catalog AS (
 	FROM catalog_derived
 )`
 
-const taskCatalogSelectColumns = `id, identifier, scope, workspace_id, parent_task_id,
+const taskCatalogSelectColumns = `id, profile_id, identifier, scope, workspace_id, parent_task_id,
 	title, priority, max_attempts, auto_enqueue_on_ready, status,
 	approval_policy, approval_state, owner_kind, owner_ref, current_run_id,
 	latest_event_seq, created_by_kind, created_by_ref, origin_kind, origin_ref,
@@ -305,7 +305,7 @@ const taskCatalogSelectColumns = `id, identifier, scope, workspace_id, parent_ta
 	active_run_queued_at, active_run_claimed_at, active_run_started_at,
 	active_run_ended_at, active_run_error`
 
-const taskCatalogBaseColumns = `id, identifier, scope, workspace_id, parent_task_id,
+const taskCatalogBaseColumns = `id, profile_id, identifier, scope, workspace_id, parent_task_id,
 	title, priority, max_attempts, auto_enqueue_on_ready, status,
 	approval_policy, approval_state, owner_kind, owner_ref, current_run_id,
 	created_by_kind, created_by_ref, origin_kind, origin_ref, created_at, updated_at,
@@ -314,6 +314,7 @@ const taskCatalogBaseColumns = `id, identifier, scope, workspace_id, parent_task
 
 func taskCatalogBaseFilter(query taskpkg.CatalogQuery) ([]string, []any) {
 	where, args := store.BuildClauses(
+		store.ReadScopeClause("profile_id", query.ReadScope),
 		store.StringClause("priority", string(query.Priority)),
 		store.StringClause("approval_state", string(query.ApprovalState)),
 		store.StringClause("owner_kind", string(query.OwnerKind)),

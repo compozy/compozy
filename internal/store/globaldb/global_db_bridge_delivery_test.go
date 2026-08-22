@@ -122,7 +122,8 @@ func TestGlobalDBBridgeDeliveryStore(t *testing.T) {
 		}
 
 		listed, err := globalDB.ListBridgeDeliveries(ctx, bridges.DeliveryLedgerQuery{
-			Scope: bridges.ScopeGlobal,
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Scope:     bridges.ScopeGlobal,
 		})
 		if err != nil {
 			t.Fatalf("ListBridgeDeliveries(active) error = %v", err)
@@ -153,7 +154,8 @@ func TestGlobalDBBridgeDeliveryStore(t *testing.T) {
 		}
 
 		listed, err = globalDB.ListBridgeDeliveries(ctx, bridges.DeliveryLedgerQuery{
-			Scope: bridges.ScopeGlobal,
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Scope:     bridges.ScopeGlobal,
 		})
 		if err != nil {
 			t.Fatalf("ListBridgeDeliveries(acked) error = %v", err)
@@ -163,7 +165,8 @@ func TestGlobalDBBridgeDeliveryStore(t *testing.T) {
 		}
 
 		metricRows, err := globalDB.ListBridgeDeliveryMetrics(ctx, bridges.DeliveryLedgerQuery{
-			Scope: bridges.ScopeGlobal,
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Scope:     bridges.ScopeGlobal,
 		})
 		if err != nil {
 			t.Fatalf("ListBridgeDeliveryMetrics(active) error = %v", err)
@@ -204,7 +207,8 @@ func TestGlobalDBBridgeDeliveryStore(t *testing.T) {
 			t.Fatalf("CheckpointBridgeDelivery(stale metric snapshot) error = %v", err)
 		}
 		listed, err = globalDB.ListBridgeDeliveries(ctx, bridges.DeliveryLedgerQuery{
-			Scope: bridges.ScopeGlobal,
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Scope:     bridges.ScopeGlobal,
 		})
 		if err != nil {
 			t.Fatalf("ListBridgeDeliveries(after metric regression) error = %v", err)
@@ -213,7 +217,8 @@ func TestGlobalDBBridgeDeliveryStore(t *testing.T) {
 			t.Fatalf("delivery after stale metric merge = %#v, want sent=5 acked=4 remote=remote-5", got)
 		}
 		metricRows, err = globalDB.ListBridgeDeliveryMetrics(ctx, bridges.DeliveryLedgerQuery{
-			Scope: bridges.ScopeGlobal,
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Scope:     bridges.ScopeGlobal,
 		})
 		if err != nil {
 			t.Fatalf("ListBridgeDeliveryMetrics(after stale snapshot) error = %v", err)
@@ -244,8 +249,9 @@ func TestGlobalDBBridgeDeliveryStore(t *testing.T) {
 		}
 
 		terminalRows, err := globalDB.ListBridgeDeliveries(ctx, bridges.DeliveryLedgerQuery{
-			Scope: bridges.ScopeGlobal,
-			State: bridges.DeliveryLedgerStateTerminalOK,
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Scope:     bridges.ScopeGlobal,
+			State:     bridges.DeliveryLedgerStateTerminalOK,
 		})
 		if err != nil {
 			t.Fatalf("ListBridgeDeliveries(terminal) error = %v", err)
@@ -254,7 +260,8 @@ func TestGlobalDBBridgeDeliveryStore(t *testing.T) {
 			t.Fatalf("terminal deliveries = %#v, want one terminal_ok row", terminalRows)
 		}
 		metricRows, err = globalDB.ListBridgeDeliveryMetrics(ctx, bridges.DeliveryLedgerQuery{
-			Scope: bridges.ScopeGlobal,
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Scope:     bridges.ScopeGlobal,
 		})
 		if err != nil {
 			t.Fatalf("ListBridgeDeliveryMetrics(terminal) error = %v", err)
@@ -298,7 +305,8 @@ func TestGlobalDBBridgeDeliveryStore(t *testing.T) {
 			t.Fatalf("CreateBridgeDelivery() error = %v", err)
 		}
 		deliveries, err := globalDB.ListBridgeDeliveries(ctx, bridges.DeliveryLedgerQuery{
-			Scope: bridges.ScopeGlobal,
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Scope:     bridges.ScopeGlobal,
 		})
 		if err != nil {
 			t.Fatalf("ListBridgeDeliveries() error = %v", err)
@@ -358,7 +366,8 @@ func TestGlobalDBBridgeDeliveryMetricsSurviveRestart(t *testing.T) {
 			}
 		})
 		metricRows, err := reopened.ListBridgeDeliveryMetrics(ctx, bridges.DeliveryLedgerQuery{
-			Scope: bridges.ScopeGlobal,
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Scope:     bridges.ScopeGlobal,
 		})
 		if err != nil {
 			t.Fatalf("ListBridgeDeliveryMetrics() error = %v", err)
@@ -381,7 +390,7 @@ func TestGlobalDBBridgeDeliveryProtectsActiveInstanceIdentity(t *testing.T) {
 		globalDB := openTestGlobalDB(t)
 		const instanceID = "brg-delivery-identity-lock"
 		insertBridgeDeliveryInstance(t, globalDB, bridges.ScopeGlobal, "", instanceID)
-		instance, err := globalDB.GetBridgeInstance(ctx, instanceID)
+		instance, err := globalDB.GetBridgeInstance(ctx, store.ReadScope{AllProfiles: true}, instanceID)
 		if err != nil {
 			t.Fatalf("GetBridgeInstance() error = %v", err)
 		}
@@ -421,7 +430,7 @@ func TestGlobalDBBridgeDeliveryProtectsActiveInstanceIdentity(t *testing.T) {
 			t.Fatal("ReplaceBridgeInstances(delete active instance) error = nil, want active-delivery guard")
 		}
 
-		stored, err := globalDB.GetBridgeInstance(ctx, instanceID)
+		stored, err := globalDB.GetBridgeInstance(ctx, store.ReadScope{AllProfiles: true}, instanceID)
 		if err != nil {
 			t.Fatalf("GetBridgeInstance(after rejected mutations) error = %v", err)
 		}
@@ -430,8 +439,9 @@ func TestGlobalDBBridgeDeliveryProtectsActiveInstanceIdentity(t *testing.T) {
 			t.Fatalf("stored instance after rejected mutations = %#v, want original identity", stored)
 		}
 		active, err := globalDB.ListBridgeDeliveries(ctx, bridges.DeliveryLedgerQuery{
-			Scope: bridges.ScopeGlobal,
-			State: bridges.DeliveryLedgerStateActive,
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Scope:     bridges.ScopeGlobal,
+			State:     bridges.DeliveryLedgerStateActive,
 		})
 		if err != nil {
 			t.Fatalf("ListBridgeDeliveries(active) error = %v", err)
@@ -451,7 +461,8 @@ func TestGlobalDBBridgeDeliveryProtectsActiveInstanceIdentity(t *testing.T) {
 			t.Fatalf("ReplaceBridgeInstances(delete terminal instance) error = %v", err)
 		}
 		remaining, err := globalDB.ListBridgeDeliveries(ctx, bridges.DeliveryLedgerQuery{
-			Scope: bridges.ScopeGlobal,
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Scope:     bridges.ScopeGlobal,
 		})
 		if err != nil {
 			t.Fatalf("ListBridgeDeliveries(after terminal delete) error = %v", err)
@@ -506,6 +517,7 @@ func TestGlobalDBBridgeDeliveriesAreWorkspaceIsolated(t *testing.T) {
 		}
 
 		deliveriesA, err := globalDB.ListBridgeDeliveries(ctx, bridges.DeliveryLedgerQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			Scope:       bridges.ScopeWorkspace,
 			WorkspaceID: workspaceA,
 		})
@@ -517,6 +529,7 @@ func TestGlobalDBBridgeDeliveriesAreWorkspaceIsolated(t *testing.T) {
 		}
 
 		metricsA, err := globalDB.ListBridgeDeliveryMetrics(ctx, bridges.DeliveryLedgerQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			Scope:       bridges.ScopeWorkspace,
 			WorkspaceID: workspaceA,
 		})
@@ -531,6 +544,7 @@ func TestGlobalDBBridgeDeliveriesAreWorkspaceIsolated(t *testing.T) {
 		}
 
 		if _, err := globalDB.ListBridgeDeliveries(ctx, bridges.DeliveryLedgerQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			Scope:       bridges.ScopeGlobal,
 			WorkspaceID: workspaceA,
 		}); err == nil {
@@ -712,6 +726,7 @@ func insertBridgeDeliveryInstance(
 	now := bridgeDeliveryTestTime()
 	if err := globalDB.InsertBridgeInstance(testutil.Context(t), bridges.BridgeInstance{
 		ID:            id,
+		ProfileID:     store.DefaultProfileID,
 		Scope:         scope,
 		WorkspaceID:   workspaceID,
 		Platform:      "telegram",
@@ -785,6 +800,10 @@ func assertBridgeDeliveryRecordEqual(
 ) {
 	t.Helper()
 
+	want.ProfileID = store.DefaultProfileID
+	want.ProfileName = "default"
+	want.ProfileColor = "#8E8EB5"
+	want.ProfileIcon = "circle"
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("delivery record = %#v, want %#v", got, want)
 	}
@@ -821,6 +840,10 @@ func assertBridgeDeliveryMetricsEqual(
 ) {
 	t.Helper()
 
+	want.ProfileID = store.DefaultProfileID
+	want.ProfileName = "default"
+	want.ProfileColor = "#8E8EB5"
+	want.ProfileIcon = "circle"
 	want.DeliveryBacklog = got.DeliveryBacklog
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("delivery metrics = %#v, want %#v", got, want)

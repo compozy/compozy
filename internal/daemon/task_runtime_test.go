@@ -2846,6 +2846,7 @@ func TestBootTasksSchedulerStatusUsesDurableStarvationEpisodes(t *testing.T) {
 		}
 		withinThresholdManager := managerAt(thresholdNow.Add(-30 * time.Minute))
 		withinThresholdTask, err := withinThresholdManager.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: workspaceRecord.ID,
 			Title:       "Verify scheduler status within threshold",
@@ -2869,6 +2870,7 @@ func TestBootTasksSchedulerStatusUsesDurableStarvationEpisodes(t *testing.T) {
 
 		ageOnlyManager := managerAt(thresholdNow.Add(-2 * time.Hour))
 		ageOnlyTask, err := ageOnlyManager.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: workspaceRecord.ID,
 			Title:       "Verify scheduler status without starvation episode",
@@ -3006,8 +3008,9 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 		t.Fatalf("DeriveDaemonActorContext(seed) error = %v", err)
 	}
 	taskRecord, err := seedManager.CreateTask(context.Background(), taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Recover boot task",
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Recover boot task",
 	}, seedActor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -5015,7 +5018,7 @@ func eventSummaryTypesForRunSession(t *testing.T, runtime *taskRuntime, sessionI
 	}
 	summaries, err := summaryStore.ListEventSummaries(
 		testutil.Context(t),
-		store.EventSummaryQuery{SessionID: sessionID},
+		store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, SessionID: sessionID},
 	)
 	if err != nil {
 		t.Fatalf("ListEventSummaries() error = %v", err)

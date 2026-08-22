@@ -27,7 +27,7 @@ func decodeLogQueryInput(
 	}
 	workspaceID := nativeCallerWorkspaceInput(input.WorkspaceID, scope)
 	input.WorkspaceID = workspaceID
-	query, err := input.eventSummaryQuery(req.ToolID)
+	query, err := input.eventSummaryQuery(req.ToolID, store.ReadScope{ProfileID: scope.ProfileID})
 	if err != nil {
 		return logQueryInput{}, store.EventSummaryQuery{}, err
 	}
@@ -47,7 +47,7 @@ func decodeObserveSearchInput(
 	}
 	workspaceID := nativeCallerWorkspaceInput(input.WorkspaceID, scope)
 	input.WorkspaceID = workspaceID
-	query, err := input.eventSummaryQuery(req.ToolID)
+	query, err := input.eventSummaryQuery(req.ToolID, store.ReadScope{ProfileID: scope.ProfileID})
 	if err != nil {
 		return observeSearchInput{}, store.EventSummaryQuery{}, err
 	}
@@ -162,10 +162,17 @@ func sessionHistoryPayload(history []store.TurnHistory, info *session.Info) []an
 }
 
 func actorContextFromScope(scope toolspkg.Scope) (taskpkg.ActorContext, error) {
+	var actor taskpkg.ActorContext
+	var err error
 	if sessionID := strings.TrimSpace(scope.SessionID); sessionID != "" {
-		return taskpkg.DeriveAgentSessionActorContext(sessionID, scope.WorkspaceID)
+		actor, err = taskpkg.DeriveAgentSessionActorContext(sessionID, scope.WorkspaceID)
+	} else {
+		actor, err = taskpkg.DeriveDaemonActorContext("native-tools", "tool.registry")
 	}
-	return taskpkg.DeriveDaemonActorContext("native-tools", "tool.registry")
+	if err != nil {
+		return taskpkg.ActorContext{}, err
+	}
+	return bindNativeTaskActorProfile(actor, scope)
 }
 
 func searchSkills(skillList []*skills.Skill, query string) []*skills.Skill {

@@ -3952,8 +3952,12 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 		manager := testutil.StubSessionManager{
 			MetricsByAgentFn: func(
 				_ context.Context,
+				readScope store.ReadScope,
 				workspaceID string,
 			) (map[string]session.AgentSessionMetrics, error) {
+				if readScope.ProfileID != store.DefaultProfileID || readScope.AllProfiles {
+					t.Fatalf("AggregateSessionsByAgent() read scope = %#v, want default profile", readScope)
+				}
 				if workspaceID != "ws-1" {
 					t.Fatalf("AggregateSessionsByAgent() workspace = %q, want ws-1", workspaceID)
 				}
@@ -4068,7 +4072,11 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 		}
 
 		fixture.Handlers.Sessions = testutil.StubSessionManager{
-			MetricsByAgentFn: func(context.Context, string) (map[string]session.AgentSessionMetrics, error) {
+			MetricsByAgentFn: func(
+				context.Context,
+				store.ReadScope,
+				string,
+			) (map[string]session.AgentSessionMetrics, error) {
 				return nil, errors.New("session catalog unavailable")
 			},
 		}

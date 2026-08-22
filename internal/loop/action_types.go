@@ -245,6 +245,7 @@ type ActionSessionBinder interface {
 
 // ActionSessionBindRequest describes shared-default or isolated run-agent binding.
 type ActionSessionBindRequest struct {
+	ProfileID                      string
 	WorkspaceID                    WorkspaceID
 	LoopRunID                      RunID
 	Generation                     int

@@ -19,7 +19,7 @@ func TestServiceAdopt(t *testing.T) {
 	t.Run("Should adopt an exact linked worktree without running bootstrap", func(t *testing.T) {
 		t.Parallel()
 		fixture := newAdoptionTestFixture(t)
-		item, err := fixture.service.Adopt(context.Background(), fixture.workspace.ID, fixture.candidate)
+		item, err := fixture.service.Adopt(context.Background(), testWorktreeProfileID, fixture.workspace.ID, fixture.candidate)
 		if err != nil {
 			t.Fatalf("Adopt() error = %v", err)
 		}
@@ -48,7 +48,7 @@ func TestServiceAdopt(t *testing.T) {
 			return baseRun(call)
 		}
 
-		item, err := fixture.service.Adopt(context.Background(), fixture.workspace.ID, fixture.candidate)
+		item, err := fixture.service.Adopt(context.Background(), testWorktreeProfileID, fixture.workspace.ID, fixture.candidate)
 		if err != nil {
 			t.Fatalf("Adopt() error = %v", err)
 		}
@@ -62,12 +62,12 @@ func TestServiceAdopt(t *testing.T) {
 		fixture := newAdoptionTestFixture(t)
 		events := &recordingEventSink{}
 		fixture.service.events = events
-		first, err := fixture.service.Adopt(context.Background(), fixture.workspace.ID, fixture.candidate)
+		first, err := fixture.service.Adopt(context.Background(), testWorktreeProfileID, fixture.workspace.ID, fixture.candidate)
 		if err != nil {
 			t.Fatalf("Adopt(first) error = %v", err)
 		}
 		callsBefore := len(fixture.runner.invocations())
-		second, err := fixture.service.Adopt(context.Background(), fixture.workspace.ID, fixture.candidate)
+		second, err := fixture.service.Adopt(context.Background(), testWorktreeProfileID, fixture.workspace.ID, fixture.candidate)
 		if err != nil || second.ID != first.ID {
 			t.Fatalf("Adopt(second) = %#v, %v, want existing %q", second, err, first.ID)
 		}
@@ -98,7 +98,7 @@ func TestServiceAdopt(t *testing.T) {
 			t.Fatalf("SubscribeWorktreeCatalogEvents() error = %v", err)
 		}
 		defer cancelCatalog()
-		first, err := fixture.service.Adopt(context.Background(), fixture.workspace.ID, fixture.candidate)
+		first, err := fixture.service.Adopt(context.Background(), testWorktreeProfileID, fixture.workspace.ID, fixture.candidate)
 		if err != nil {
 			t.Fatalf("Adopt(first) error = %v", err)
 		}
@@ -111,7 +111,7 @@ func TestServiceAdopt(t *testing.T) {
 			t.Fatalf("SetState(missing) error = %v", err)
 		}
 		callsBefore := len(fixture.runner.invocations())
-		restored, err := fixture.service.Adopt(context.Background(), fixture.workspace.ID, fixture.candidate)
+		restored, err := fixture.service.Adopt(context.Background(), testWorktreeProfileID, fixture.workspace.ID, fixture.candidate)
 		if err != nil || restored.ID != first.ID || restored.State != StateReady {
 			t.Fatalf("Adopt(missing) = %#v, %v, want restored %q", restored, err, first.ID)
 		}
@@ -133,7 +133,7 @@ func TestServiceAdopt(t *testing.T) {
 	t.Run("Should preserve a missing row when its restored checkout has a different identity", func(t *testing.T) {
 		t.Parallel()
 		fixture := newAdoptionTestFixture(t)
-		first, err := fixture.service.Adopt(context.Background(), fixture.workspace.ID, fixture.candidate)
+		first, err := fixture.service.Adopt(context.Background(), testWorktreeProfileID, fixture.workspace.ID, fixture.candidate)
 		if err != nil {
 			t.Fatalf("Adopt(first) error = %v", err)
 		}
@@ -160,7 +160,7 @@ func TestServiceAdopt(t *testing.T) {
 			t.Fatalf("replace candidate identity: %v", err)
 		}
 		if _, err := fixture.service.Adopt(
-			context.Background(), fixture.workspace.ID, fixture.candidate,
+			context.Background(), testWorktreeProfileID, fixture.workspace.ID, fixture.candidate,
 		); !errors.Is(err, ErrAdoptionUnreadable) || !strings.Contains(err.Error(), "identity changed") {
 			t.Fatalf("Adopt(replaced missing identity) error = %v, want classified refusal", err)
 		}
@@ -173,7 +173,7 @@ func TestServiceAdopt(t *testing.T) {
 	t.Run("Should refuse idempotent adoption after the checkout identity is replaced", func(t *testing.T) {
 		t.Parallel()
 		fixture := newAdoptionTestFixture(t)
-		if _, err := fixture.service.Adopt(context.Background(), fixture.workspace.ID, fixture.candidate); err != nil {
+		if _, err := fixture.service.Adopt(context.Background(), testWorktreeProfileID, fixture.workspace.ID, fixture.candidate); err != nil {
 			t.Fatalf("Adopt(first) error = %v", err)
 		}
 		replacementAdmin := filepath.Join(fixture.commonDir, "worktrees", "replacement")
@@ -194,7 +194,7 @@ func TestServiceAdopt(t *testing.T) {
 			t.Fatalf("replace candidate identity: %v", err)
 		}
 		if _, err := fixture.service.Adopt(
-			context.Background(), fixture.workspace.ID, fixture.candidate,
+			context.Background(), testWorktreeProfileID, fixture.workspace.ID, fixture.candidate,
 		); !errors.Is(err, ErrAdoptionUnreadable) || !strings.Contains(err.Error(), "identity changed") {
 			t.Fatalf("Adopt(replaced identity) error = %v, want classified refusal", err)
 		}
@@ -205,6 +205,7 @@ func TestServiceAdopt(t *testing.T) {
 		fixture := newAdoptionTestFixture(t)
 		if _, err := fixture.service.Adopt(
 			context.Background(),
+			testWorktreeProfileID,
 			fixture.workspace.ID,
 			fixture.workspace.Root,
 		); !errors.Is(
@@ -215,6 +216,7 @@ func TestServiceAdopt(t *testing.T) {
 		}
 		if _, err := fixture.service.Adopt(
 			context.Background(),
+			testWorktreeProfileID,
 			fixture.workspace.ID,
 			filepath.Join(t.TempDir(), "gone"),
 		); !errors.Is(
@@ -241,6 +243,7 @@ func TestServiceAdopt(t *testing.T) {
 		}
 		if _, err := foreign.service.Adopt(
 			context.Background(),
+			testWorktreeProfileID,
 			foreign.workspace.ID,
 			foreign.candidate,
 		); !errors.Is(
@@ -260,6 +263,7 @@ func TestServiceAdopt(t *testing.T) {
 		}
 		if _, err := broken.service.Adopt(
 			context.Background(),
+			testWorktreeProfileID,
 			broken.workspace.ID,
 			broken.candidate,
 		); !errors.Is(
@@ -276,7 +280,7 @@ func TestServiceAdopt(t *testing.T) {
 		if err := os.Remove(filepath.Join(fixture.adminGitDir, "commondir")); err != nil {
 			t.Fatalf("Remove(commondir) error = %v", err)
 		}
-		item, err := fixture.service.Adopt(context.Background(), fixture.workspace.ID, fixture.candidate)
+		item, err := fixture.service.Adopt(context.Background(), testWorktreeProfileID, fixture.workspace.ID, fixture.candidate)
 		if err != nil || item == nil || item.GitDir != fixture.adminGitDir {
 			t.Fatalf("Adopt(missing commondir) = (%#v, %v), want strict fallback success", item, err)
 		}
@@ -293,7 +297,7 @@ func TestServiceAdopt(t *testing.T) {
 			return baseRun(call)
 		}
 		if _, err := redirected.service.Adopt(
-			context.Background(), redirected.workspace.ID, redirected.candidate,
+			context.Background(), testWorktreeProfileID, redirected.workspace.ID, redirected.candidate,
 		); !errors.Is(err, ErrAdoptionUnreadable) {
 			t.Fatalf("Adopt(core.worktree) error = %v, want ErrAdoptionUnreadable", err)
 		}
@@ -309,7 +313,7 @@ func TestServiceAdopt(t *testing.T) {
 			t.Fatalf("WriteFile(submodule pointer) error = %v", err)
 		}
 		if _, err := submodule.service.Adopt(
-			context.Background(), submodule.workspace.ID, submodule.candidate,
+			context.Background(), testWorktreeProfileID, submodule.workspace.ID, submodule.candidate,
 		); !errors.Is(err, ErrAdoptionUnreadable) || !strings.Contains(err.Error(), "submodule") {
 			t.Fatalf("Adopt(submodule) error = %v, want classified unreadable submodule", err)
 		}
@@ -326,7 +330,7 @@ func TestServiceAdopt(t *testing.T) {
 			return baseRun(call)
 		}
 		if _, err := absent.service.Adopt(
-			context.Background(), absent.workspace.ID, absent.candidate,
+			context.Background(), testWorktreeProfileID, absent.workspace.ID, absent.candidate,
 		); !errors.Is(err, ErrAdoptionUnreadable) || !strings.Contains(err.Error(), "not an attached") {
 			t.Fatalf("Adopt(absent from porcelain) error = %v, want classified unreadable", err)
 		}
@@ -337,7 +341,7 @@ func TestServiceAdopt(t *testing.T) {
 			t.Fatalf("write bare HEAD: %v", err)
 		}
 		if _, err := bare.service.Adopt(
-			context.Background(), bare.workspace.ID, barePath,
+			context.Background(), testWorktreeProfileID, bare.workspace.ID, barePath,
 		); !errors.Is(err, ErrAdoptionUnreadable) {
 			t.Fatalf("Adopt(bare) error = %v, want ErrAdoptionUnreadable", err)
 		}
@@ -357,7 +361,7 @@ func TestServiceAdopt(t *testing.T) {
 			t.Fatalf("write escaping .git pointer: %v", err)
 		}
 		if _, err := fixture.service.Adopt(
-			context.Background(), fixture.workspace.ID, fixture.candidate,
+			context.Background(), testWorktreeProfileID, fixture.workspace.ID, fixture.candidate,
 		); !errors.Is(err, ErrAdoptionUnreadable) || !strings.Contains(err.Error(), "escapes") {
 			t.Fatalf("Adopt(admin symlink escape) error = %v, want classified unreadable", err)
 		}

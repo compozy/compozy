@@ -1349,7 +1349,7 @@ default_reasoning_effort = "high"
 		if got := applier.calls; got != 0 {
 			t.Fatalf("ApplyActiveConfig() calls = %d, want 0", got)
 		}
-		summaries, err := eventStore.ListEventSummaries(ctx, store.EventSummaryQuery{})
+		summaries, err := eventStore.ListEventSummaries(ctx, store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}})
 		if err != nil {
 			t.Fatalf("ListEventSummaries() error = %v", err)
 		}

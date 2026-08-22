@@ -5,6 +5,8 @@ import (
 	"errors"
 
 	"strings"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 // Runs returns persisted automation run history.
@@ -35,11 +37,11 @@ func (m *Manager) Status(ctx context.Context) (ManagerStatus, error) {
 		return ManagerStatus{}, errors.New("automation: status context is required")
 	}
 
-	jobs, err := m.loadEffectiveJobs(ctx, JobListQuery{})
+	jobs, err := m.loadEffectiveJobs(ctx, JobListQuery{ReadScope: store.ReadScope{AllProfiles: true}})
 	if err != nil {
 		return ManagerStatus{}, err
 	}
-	triggers, err := m.loadEffectiveTriggers(ctx, TriggerListQuery{})
+	triggers, err := m.loadEffectiveTriggers(ctx, TriggerListQuery{ReadScope: store.ReadScope{AllProfiles: true}})
 	if err != nil {
 		return ManagerStatus{}, err
 	}

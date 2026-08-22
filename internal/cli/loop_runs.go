@@ -65,6 +65,7 @@ func newLoopRunsCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&origin, "origin", "", "Filter by run origin: catalog or session")
 	cmd.Flags().StringVar(&originSession, "origin-session", "", "Filter by origin session ID")
 	cmd.Flags().IntVar(&limit, "limit", 0, "Maximum runs to return")
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 
@@ -103,6 +104,7 @@ func newLoopTurnsCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().Int64Var(&afterSeq, "after-seq", 0, "Resume after this run-wide Goal sequence")
 	cmd.Flags().IntVar(&limit, "limit", 0, "Page size from 1 to 200; defaults to 50")
 	mustMarkFlagRequired(cmd, "run")
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 

@@ -10,6 +10,7 @@ import (
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/notifications"
 	presetspkg "github.com/compozy/compozy/internal/notifications/presets"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -330,7 +331,9 @@ func (o *bridgeTerminalTaskNotificationObserver) processTerminalWake(
 ) {
 	sweep, err := o.notifier.DeliverDue(
 		ctx,
-		bridgepkg.BridgeTaskSubscriptionQuery{TaskID: wake.taskID},
+		bridgepkg.BridgeTaskSubscriptionQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, TaskID: wake.taskID,
+		},
 	)
 	if err != nil {
 		o.logTerminalWakeFailure(wake, sweep, err)

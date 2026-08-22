@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
+	storepkg "github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -270,6 +271,7 @@ func TestStubTaskManagerFallbacks(t *testing.T) {
 			}, nil
 		}}
 		query := taskpkg.CatalogQuery{
+			ReadScope:            storepkg.ReadScope{ProfileID: storepkg.DefaultProfileID},
 			Scope:                taskpkg.CatalogScopeGlobal,
 			Sort:                 taskpkg.CatalogSortRecent,
 			Limit:                1,

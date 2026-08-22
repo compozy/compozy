@@ -10,6 +10,7 @@ func networkWorkBundle(work NetworkWorkRecord) outputBundle {
 		jsonValue: contract.NetworkWorkResponse{Work: work},
 		human: func() (string, error) {
 			return renderHumanSection("Network Work", []keyValue{
+				{Label: sessionProfileValue, Value: stringOrDash(work.ProfileName)},
 				{Label: "Work ID", Value: stringOrDash(work.WorkID)},
 				{Label: networkChannelValue, Value: stringOrDash(work.Channel)},
 				{Label: networkSurfaceValue, Value: stringOrDash(work.Surface)},
@@ -27,6 +28,7 @@ func networkWorkBundle(work NetworkWorkRecord) outputBundle {
 			return renderToonObject(
 				"network_work",
 				[]string{
+					"profile_name",
 					networkWorkIDKey,
 					networkChannelKey,
 					networkSurfaceKey,
@@ -40,6 +42,7 @@ func networkWorkBundle(work NetworkWorkRecord) outputBundle {
 					"terminal_at",
 				},
 				[]string{
+					work.ProfileName,
 					work.WorkID,
 					work.Channel,
 					work.Surface,

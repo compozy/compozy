@@ -1754,7 +1754,10 @@ func TestBaseHandlersStreamSessionCatalog(t *testing.T) {
 		if resp.Code != http.StatusOK {
 			t.Fatalf("session catalog replay status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 		}
-		want := session.CatalogScope{WorkspaceID: "ws-resolved", Replay: true, ReplayAfter: 17}
+		want := session.CatalogScope{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: "ws-resolved", Replay: true, ReplayAfter: 17,
+		}
 		if subscribedScope != want {
 			t.Fatalf("subscribed scope = %#v, want %#v", subscribedScope, want)
 		}

@@ -1738,9 +1738,9 @@ func TestSweepObservabilityDeletesOnlyRowsOlderThanCutoff(t *testing.T) {
 	fresh := cutoff.Add(time.Nanosecond)
 
 	for _, event := range []EventSummary{
-		{ID: "sum-old", SessionID: "sess-retention", Type: "agent_message", AgentName: "coder", Timestamp: old},
-		{ID: "sum-boundary", SessionID: "sess-retention", Type: "agent_message", AgentName: "coder", Timestamp: boundary},
-		{ID: "sum-fresh", SessionID: "sess-retention", Type: "agent_message", AgentName: "coder", Timestamp: fresh},
+		{ProfileID: store.DefaultProfileID, ID: "sum-old", SessionID: "sess-retention", Type: "agent_message", AgentName: "coder", Timestamp: old},
+		{ProfileID: store.DefaultProfileID, ID: "sum-boundary", SessionID: "sess-retention", Type: "agent_message", AgentName: "coder", Timestamp: boundary},
+		{ProfileID: store.DefaultProfileID, ID: "sum-fresh", SessionID: "sess-retention", Type: "agent_message", AgentName: "coder", Timestamp: fresh},
 	} {
 		if err := globalDB.WriteEventSummary(ctx, event); err != nil {
 			t.Fatalf("WriteEventSummary(%q) error = %v", event.ID, err)
@@ -2595,7 +2595,7 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 		if !winner.Enabled || winner.UpdatedBy != "operator:concurrent-first" || winner.Revision != 4 {
 			t.Fatalf("Get(concurrent winner) = %#v, want sole first writer at revision four", winner)
 		}
-		summaries, summaryErr := globalDB.ListEventSummaries(ctx, EventSummaryQuery{
+		summaries, summaryErr := globalDB.ListEventSummaries(ctx, EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
 			WorkspaceID: updated.ID,
 			Type:        "network.coordination.setting_changed",
 		})
@@ -3549,6 +3549,7 @@ func TestGlobalDBWriteEventSummary(t *testing.T) {
 	registerSessionForGlobalTests(t, globalDB, "sess-summary")
 
 	if err := globalDB.WriteEventSummary(testutil.Context(t), EventSummary{
+		ProfileID:     store.DefaultProfileID,
 		SessionID:     "sess-summary",
 		Type:          "agent_message",
 		AgentName:     "coder",
@@ -3559,7 +3560,7 @@ func TestGlobalDBWriteEventSummary(t *testing.T) {
 		t.Fatalf("WriteEventSummary() error = %v", err)
 	}
 
-	summaries, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{SessionID: "sess-summary"})
+	summaries, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, SessionID: "sess-summary"})
 	if err != nil {
 		t.Fatalf("ListEventSummaries() error = %v", err)
 	}
@@ -3579,7 +3580,7 @@ func TestGlobalDBWriteEventSummary(t *testing.T) {
 		t.Fatalf("summaries[0].Outcome = %q, want %q", got, want)
 	}
 
-	providerFiltered, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{
+	providerFiltered, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
 		Provider:  "claude",
 		Component: "session",
 	})
@@ -3591,6 +3592,7 @@ func TestGlobalDBWriteEventSummary(t *testing.T) {
 	}
 
 	if err := globalDB.WriteEventSummary(testutil.Context(t), EventSummary{
+		ProfileID: store.DefaultProfileID,
 		SessionID: "sess-summary",
 		Type:      "task.run_failed",
 		AgentName: "coder",
@@ -3599,7 +3601,7 @@ func TestGlobalDBWriteEventSummary(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("WriteEventSummary(failed task run) error = %v", err)
 	}
-	errorOnly, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{
+	errorOnly, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
 		Provider:  "claude",
 		Component: "task",
 		ErrorOnly: true,
@@ -3621,6 +3623,7 @@ func TestGlobalDBWriteEventSummary(t *testing.T) {
 		{
 			name: "workspace",
 			summary: EventSummary{
+				ProfileID: store.DefaultProfileID,
 				SessionID: "sess-summary", WorkspaceID: "different-workspace",
 				Type: "agent_message", AgentName: "coder", Summary: "invalid workspace",
 			},
@@ -3628,6 +3631,7 @@ func TestGlobalDBWriteEventSummary(t *testing.T) {
 		{
 			name: "provider",
 			summary: EventSummary{
+				ProfileID: store.DefaultProfileID,
 				SessionID: "sess-summary", Provider: "different-provider",
 				Type: "agent_message", AgentName: "coder", Summary: "invalid provider",
 			},
@@ -3635,6 +3639,7 @@ func TestGlobalDBWriteEventSummary(t *testing.T) {
 		{
 			name: "worktree",
 			summary: EventSummary{
+				ProfileID: store.DefaultProfileID,
 				SessionID: "sess-summary", EventCorrelation: store.EventCorrelation{WorktreeID: "different-worktree"},
 				Type: "agent_message", AgentName: "coder", Summary: "invalid worktree",
 			},
@@ -3655,13 +3660,13 @@ func TestGlobalDBWriteEventSummariesAtomic(t *testing.T) {
 	globalDB := openTestGlobalDB(t)
 	timestamp := time.Date(2026, 8, 2, 18, 0, 0, 0, time.UTC)
 	err := globalDB.WriteEventSummaries(testutil.Context(t), []EventSummary{
-		{ID: "duplicate-summary", Type: "settings.changed", Summary: "first", Timestamp: timestamp},
-		{ID: "duplicate-summary", Type: "settings.changed", Summary: "second", Timestamp: timestamp},
+		{ProfileID: store.DefaultProfileID, ID: "duplicate-summary", Type: "settings.changed", Summary: "first", Timestamp: timestamp},
+		{ProfileID: store.DefaultProfileID, ID: "duplicate-summary", Type: "settings.changed", Summary: "second", Timestamp: timestamp},
 	})
 	if !isSQLitePrimaryKeyConstraint(err) {
 		t.Fatalf("WriteEventSummaries(duplicate id) error = %v, want primary-key constraint", err)
 	}
-	summaries, listErr := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{})
+	summaries, listErr := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}})
 	if listErr != nil {
 		t.Fatalf("ListEventSummaries() error = %v", listErr)
 	}
@@ -3688,6 +3693,7 @@ func TestGlobalDBWriteEventSummaryAllowsGlobalEvents(t *testing.T) {
 		{
 			name: "Should persist settings changed events with content",
 			summary: EventSummary{
+				ProfileID: store.DefaultProfileID,
 				Type:      "settings.changed",
 				Content:   []byte(`{"section":"skills","source":"http","operation":"patch"}`),
 				Summary:   "skills settings changed",
@@ -3699,6 +3705,7 @@ func TestGlobalDBWriteEventSummaryAllowsGlobalEvents(t *testing.T) {
 		{
 			name: "Should persist skill shadowed events without a session",
 			summary: EventSummary{
+				ProfileID: store.DefaultProfileID,
 				Type:      "skill.shadowed",
 				AgentName: "reviewer",
 				Content:   []byte(skillShadowedBody),
@@ -3721,7 +3728,7 @@ func TestGlobalDBWriteEventSummaryAllowsGlobalEvents(t *testing.T) {
 				t.Fatalf("WriteEventSummary(global event) error = %v", err)
 			}
 
-			summaries, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{})
+			summaries, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}})
 			if err != nil {
 				t.Fatalf("ListEventSummaries() error = %v", err)
 			}
@@ -4418,7 +4425,7 @@ func registerWorkspaceForGlobalTests(t *testing.T, globalDB *GlobalDB, name stri
 func assertEventSummaryIDs(t *testing.T, globalDB *GlobalDB, want []string) {
 	t.Helper()
 
-	events, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{})
+	events, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}})
 	if err != nil {
 		t.Fatalf("ListEventSummaries() error = %v", err)
 	}

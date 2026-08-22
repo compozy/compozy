@@ -203,7 +203,9 @@ func (o *Observer) collectAgentProbeHealth(ctx context.Context) ([]acp.ProbeResu
 }
 
 func (o *Observer) collectFailureHealth(ctx context.Context) (FailureHealth, error) {
-	sessions, err := o.registry.ListSessions(ctx, store.SessionListQuery{})
+	sessions, err := o.registry.ListSessions(ctx, store.SessionListQuery{
+		ReadScope: store.ReadScope{AllProfiles: true},
+	})
 	if err != nil {
 		return FailureHealth{}, fmt.Errorf("observe: list sessions for failure health: %w", err)
 	}
@@ -281,7 +283,9 @@ func (o *Observer) activeSnapshot(ctx context.Context) (int, int, []SessionActiv
 		return count, len(agents), activities, nil
 	}
 
-	sessions, err := o.registry.ListSessions(ctx, store.SessionListQuery{})
+	sessions, err := o.registry.ListSessions(ctx, store.SessionListQuery{
+		ReadScope: store.ReadScope{AllProfiles: true},
+	})
 	if err != nil {
 		return 0, 0, nil, fmt.Errorf("observe: list sessions for health: %w", err)
 	}

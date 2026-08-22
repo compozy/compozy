@@ -13,9 +13,10 @@ func (m *Manager) durableSessionInfoForLifecycleTransition(
 	sessionID string,
 ) (*Info, error) {
 	rows, err := m.sessionCatalog.ListSessions(ctx, store.SessionListQuery{
-		ID:      strings.TrimSpace(sessionID),
-		Archive: store.SessionArchiveInclude,
-		Limit:   1,
+		ReadScope: store.ReadScope{AllProfiles: true},
+		ID:        strings.TrimSpace(sessionID),
+		Archive:   store.SessionArchiveInclude,
+		Limit:     1,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("session: read lifecycle attention snapshot: %w", err)
@@ -47,6 +48,7 @@ func (m *Manager) publishLifecycleAttentionTransition(
 	}
 	event := AttentionEvent{
 		SessionID:   strings.TrimSpace(after.ID),
+		ProfileID:   strings.TrimSpace(after.ProfileID),
 		WorkspaceID: strings.TrimSpace(after.WorkspaceID),
 		From:        from,
 		To:          to,

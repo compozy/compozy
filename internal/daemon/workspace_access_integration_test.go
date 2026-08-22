@@ -388,7 +388,7 @@ func workspaceAccessIntegrationSummaries(
 	db store.EventSummaryStore,
 ) []store.EventSummary {
 	t.Helper()
-	summaries, err := db.ListEventSummaries(ctx, store.EventSummaryQuery{
+	summaries, err := db.ListEventSummaries(ctx, store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
 		WorkspaceID: workspaceAccessIntegrationHome,
 		Limit:       100,
 	})

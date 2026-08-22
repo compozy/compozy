@@ -131,6 +131,7 @@ func (g *BridgeRepo) PutBridgeTaskSubscription(
 // GetBridgeTaskSubscription loads one persisted task notification subscription.
 func (g *BridgeRepo) GetBridgeTaskSubscription(
 	ctx context.Context,
+	readScope store.ReadScope,
 	subscriptionID string,
 ) (bridges.BridgeTaskSubscription, error) {
 	if err := g.checkReady(ctx, "get bridge task subscription"); err != nil {
@@ -142,15 +143,36 @@ func (g *BridgeRepo) GetBridgeTaskSubscription(
 	if !utf8.ValidString(subscriptionID) {
 		return bridges.BridgeTaskSubscription{}, errors.New("store: bridge task subscription id must be valid UTF-8")
 	}
-
-	row, err := g.queries.GetBridgeTaskSubscription(ctx, subscriptionID)
+	if err := readScope.Validate(); err != nil {
+		return bridges.BridgeTaskSubscription{}, fmt.Errorf(
+			"store: invalid bridge task subscription read scope: %w",
+			err,
+		)
+	}
+	statement := `SELECT
+		bs.subscription_id, bi.profile_id, p.name, p.color, COALESCE(p.icon, ''), COALESCE(p.emoji, ''),
+		p.archived_at IS NOT NULL,
+		bs.task_id, bs.bridge_instance_id, bs.scope, bs.workspace_id,
+		bs.peer_id, bs.thread_id, bs.group_id, bs.delivery_mode, bs.created_by_kind,
+		bs.created_by_ref, bs.created_at, bs.updated_at
+		FROM bridge_task_subscriptions bs
+		JOIN bridge_instances bi ON bi.id = bs.bridge_instance_id
+		JOIN profiles p ON p.id = bi.profile_id
+		WHERE bs.subscription_id = ?`
+	args := []any{subscriptionID}
+	if !readScope.AllProfiles {
+		statement += ` AND bi.profile_id = ?`
+		args = append(args, readScope.ProfileID)
+	}
+	row := g.db.QueryRowContext(ctx, statement, args...)
+	subscription, err := scanBridgeTaskSubscription(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return bridges.BridgeTaskSubscription{}, bridges.ErrBridgeTaskSubscriptionNotFound
 		}
 		return bridges.BridgeTaskSubscription{}, err
 	}
-	return bridgeSubscriptionFromGenerated(row)
+	return subscription, nil
 }
 
 // ListBridgeTaskSubscriptions returns active bridge task subscriptions matching the query.
@@ -167,18 +189,23 @@ func (g *BridgeRepo) ListBridgeTaskSubscriptions(
 	}
 	// dynamic-sql: optional task/bridge/scope/workspace filters and caller limit change the statement shape.
 	sqlQuery := `SELECT
-			subscription_id, task_id, bridge_instance_id, scope, workspace_id,
-			peer_id, thread_id, group_id, delivery_mode, created_by_kind,
-			created_by_ref, created_at, updated_at
-		FROM bridge_task_subscriptions`
+			bs.subscription_id, bi.profile_id, p.name, p.color, COALESCE(p.icon, ''), COALESCE(p.emoji, ''),
+			p.archived_at IS NOT NULL,
+			bs.task_id, bs.bridge_instance_id, bs.scope, bs.workspace_id,
+			bs.peer_id, bs.thread_id, bs.group_id, bs.delivery_mode, bs.created_by_kind,
+			bs.created_by_ref, bs.created_at, bs.updated_at
+		FROM bridge_task_subscriptions bs
+		JOIN bridge_instances bi ON bi.id = bs.bridge_instance_id
+		JOIN profiles p ON p.id = bi.profile_id`
 	where, args := store.BuildClauses(
-		store.OpaqueStringClause("task_id", normalized.TaskID),
-		store.OpaqueStringClause("bridge_instance_id", normalized.BridgeInstanceID),
-		store.StringClause("scope", string(normalized.Scope)),
-		store.OpaqueStringClause("workspace_id", normalized.WorkspaceID),
+		store.ReadScopeClause("bi.profile_id", normalized.ReadScope),
+		store.OpaqueStringClause("bs.task_id", normalized.TaskID),
+		store.OpaqueStringClause("bs.bridge_instance_id", normalized.BridgeInstanceID),
+		store.StringClause("bs.scope", string(normalized.Scope)),
+		store.OpaqueStringClause("bs.workspace_id", normalized.WorkspaceID),
 	)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
-	sqlQuery += " ORDER BY task_id ASC, updated_at DESC, subscription_id ASC"
+	sqlQuery += " ORDER BY bs.task_id ASC, bs.updated_at DESC, bs.subscription_id ASC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, normalized.Limit)
 
 	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)

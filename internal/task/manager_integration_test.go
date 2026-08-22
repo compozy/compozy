@@ -288,8 +288,9 @@ func TestTaskManagerPreservesPerRunHookDenialIntegration(t *testing.T) {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
 	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Denied per-run task",
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Denied per-run task",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -344,8 +345,9 @@ func TestTaskManagerFailsRemovedWorktreeRefAtRunStartIntegration(t *testing.T) {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
 	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Removed worktree ref task",
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Removed worktree ref task",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -407,8 +409,9 @@ func TestTaskManagerLeaseFencesMaterializationWithGlobalDBIntegration(t *testing
 		t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 	}
 	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Lease-fenced materialization",
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Lease-fenced materialization",
 	}, operator)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -497,8 +500,9 @@ func TestTaskManagerLeaseFencesMaterializationWithGlobalDBIntegration(t *testing
 	}
 
 	failureTask, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Expired materialization failure",
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Expired materialization failure",
 	}, operator)
 	if err != nil {
 		t.Fatalf("CreateTask(failure) error = %v", err)
@@ -641,8 +645,9 @@ func TestTaskManagerCreateTaskPersistsAgentSessionIdentity(t *testing.T) {
 	}
 
 	created, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Investigate task manager",
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Investigate task manager",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -719,6 +724,7 @@ func TestTaskManagerCrossWorkspaceClaimPropagationIntegration(t *testing.T) {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
 		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: targetWorkspaceID,
 			Title:       "Cross workspace claim",
@@ -788,18 +794,20 @@ func TestTaskManagerRejectsInvalidTaskSemanticsBeforePersistence(t *testing.T) {
 		{
 			name: "invalid priority",
 			spec: taskpkg.CreateTask{
-				Scope:    taskpkg.ScopeGlobal,
-				Title:    "Bad priority",
-				Priority: taskpkg.Priority("rush"),
+				ProfileID: store.DefaultProfileID,
+				Scope:     taskpkg.ScopeGlobal,
+				Title:     "Bad priority",
+				Priority:  taskpkg.Priority("rush"),
 			},
 		},
 		{
 			name: "invalid max attempts",
-			spec: taskpkg.CreateTask{Scope: taskpkg.ScopeGlobal, Title: "Bad attempts", MaxAttempts: intPtr(0)},
+			spec: taskpkg.CreateTask{ProfileID: store.DefaultProfileID, Scope: taskpkg.ScopeGlobal, Title: "Bad attempts", MaxAttempts: intPtr(0)},
 		},
 		{
 			name: "invalid approval policy",
 			spec: taskpkg.CreateTask{
+				ProfileID:      store.DefaultProfileID,
 				Scope:          taskpkg.ScopeGlobal,
 				Title:          "Bad approval",
 				ApprovalPolicy: taskpkg.ApprovalPolicy("auto"),
@@ -856,8 +864,9 @@ func TestTaskManagerCreateTaskPersistsAutomationLinkedAgentOrigin(t *testing.T) 
 	}
 
 	created, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Investigate automation-linked task creation",
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Investigate automation-linked task creation",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -895,16 +904,18 @@ func TestTaskManagerPublishTaskReconcilesDraftLifecycleIntegration(t *testing.T)
 	}
 
 	blocker, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Blocker",
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Blocker",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask(blocker) error = %v", err)
 	}
 	target, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Draft target",
-		Draft: true,
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Draft target",
+		Draft:     true,
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask(target) error = %v", err)
@@ -996,6 +1007,7 @@ func TestTaskManagerPublishTaskReadModelsStayConsistentAfterReload(t *testing.T)
 	}
 
 	blocker, err := firstManager.CreateTask(ctx, taskpkg.CreateTask{
+		ProfileID:  store.DefaultProfileID,
 		Scope:      taskpkg.ScopeGlobal,
 		Title:      "Release blocker",
 		Identifier: "OPS-100",
@@ -1004,6 +1016,7 @@ func TestTaskManagerPublishTaskReadModelsStayConsistentAfterReload(t *testing.T)
 		t.Fatalf("CreateTask(blocker) error = %v", err)
 	}
 	target, err := firstManager.CreateTask(ctx, taskpkg.CreateTask{
+		ProfileID:  store.DefaultProfileID,
 		Scope:      taskpkg.ScopeGlobal,
 		Title:      "Draft target",
 		Identifier: "OPS-300",
@@ -1131,8 +1144,9 @@ func TestTaskManagerTriageMutationsRemainActorScopedAfterReload(t *testing.T) {
 	}
 
 	taskRecord, err := firstManager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Persist triage state",
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Persist triage state",
 	}, alice)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -1197,6 +1211,7 @@ func TestTaskManagerApprovalGateAndAttemptExhaustionIntegration(t *testing.T) {
 	}
 
 	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+		ProfileID:      store.DefaultProfileID,
 		Scope:          taskpkg.ScopeGlobal,
 		Title:          "Approval-gated task",
 		ApprovalPolicy: taskpkg.ApprovalPolicyManual,
@@ -1284,6 +1299,7 @@ func TestTaskManagerApprovalGateAndAttemptExhaustionIntegration(t *testing.T) {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
 		gatedTask, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID:      store.DefaultProfileID,
 			Scope:          taskpkg.ScopeGlobal,
 			Title:          "Pre-enqueued approval integration",
 			ApprovalPolicy: taskpkg.ApprovalPolicyManual,
@@ -1360,6 +1376,7 @@ func TestTaskManagerApprovalGateAndAttemptExhaustionIntegration(t *testing.T) {
 		}
 		maxAttempts := 2
 		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeGlobal,
 			Title:       "Bound expired lease recovery",
 			MaxAttempts: &maxAttempts,
@@ -1452,6 +1469,7 @@ func TestTaskManagerPlainWorkspaceStartPersistsLocalParticipationIntegration(t *
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
 	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: workspaceID,
 		Title:       "Manual start boundary",
@@ -1545,6 +1563,7 @@ func TestTaskManagerGlobalLocalParticipationIntegration(t *testing.T) {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
 		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID:      store.DefaultProfileID,
 			Scope:          taskpkg.ScopeGlobal,
 			Title:          "Global approval boundary",
 			ApprovalPolicy: taskpkg.ApprovalPolicyManual,
@@ -1586,8 +1605,9 @@ func TestTaskManagerGlobalLocalParticipationIntegration(t *testing.T) {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
 		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Global explicit local boundary",
+			ProfileID: store.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     "Global explicit local boundary",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -1626,8 +1646,9 @@ func TestTaskManagerGlobalLocalParticipationIntegration(t *testing.T) {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
 		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Global live boundary",
+			ProfileID: store.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     "Global live boundary",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -1688,6 +1709,7 @@ func TestTaskManagerParticipationPrecedenceAndWorkspaceToggleIntegration(t *test
 
 	t.Run("Should resolve an explicit live override once over a local task profile", func(t *testing.T) {
 		taskRecord, createErr := manager.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: workspaceID,
 			Title:       "Explicit override",
@@ -1755,6 +1777,7 @@ func TestTaskManagerParticipationPrecedenceAndWorkspaceToggleIntegration(t *test
 
 	t.Run("Should let an explicit local request override a live task profile", func(t *testing.T) {
 		taskRecord, createErr := manager.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: workspaceID,
 			Title:       "Explicit local override",
@@ -1800,6 +1823,7 @@ func TestTaskManagerParticipationPrecedenceAndWorkspaceToggleIntegration(t *test
 			taskpkg.WithParticipationResolver(denyResolver),
 		)
 		taskRecord, createErr := deniedManager.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: workspaceID,
 			Title:       "Denied override",
@@ -1828,6 +1852,7 @@ func TestTaskManagerParticipationPrecedenceAndWorkspaceToggleIntegration(t *test
 			t.Fatalf("CoordinationCommands.Set(true) error = %v", setErr)
 		}
 		firstTask, createErr := manager.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: workspaceID,
 			Title:       "Coordination enabled",
@@ -1847,6 +1872,7 @@ func TestTaskManagerParticipationPrecedenceAndWorkspaceToggleIntegration(t *test
 		}
 
 		profileTask, createErr := manager.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: workspaceID,
 			Title:       "Profile overrides workspace",
@@ -1876,6 +1902,7 @@ func TestTaskManagerParticipationPrecedenceAndWorkspaceToggleIntegration(t *test
 			t.Fatalf("CoordinationCommands.Set(false) error = %v", setErr)
 		}
 		secondTask, createErr := manager.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: workspaceID,
 			Title:       "Coordination disabled",
@@ -1906,6 +1933,7 @@ func TestTaskManagerParticipationPrecedenceAndWorkspaceToggleIntegration(t *test
 			t.Fatalf("CoordinationCommands.Set(true) error = %v", setErr)
 		}
 		fanOutTask, createErr := manager.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: workspaceID,
 			Title:       "Shared coordinated fan-out",
@@ -1943,6 +1971,7 @@ func TestTaskManagerParticipationPrecedenceAndWorkspaceToggleIntegration(t *test
 		}
 
 		independentTask, createErr := manager.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: workspaceID,
 			Title:       "Independent coordinated fan-out",
@@ -2014,13 +2043,14 @@ func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t
 
 			blocker, err := manager.CreateTask(
 				ctx,
-				taskpkg.CreateTask{Scope: taskpkg.ScopeGlobal, Title: "Blocker"},
+				taskpkg.CreateTask{ProfileID: store.DefaultProfileID, Scope: taskpkg.ScopeGlobal, Title: "Blocker"},
 				actor,
 			)
 			if err != nil {
 				t.Fatalf("CreateTask(blocker) error = %v", err)
 			}
 			optedIn, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+				ProfileID:          store.DefaultProfileID,
 				Scope:              taskpkg.ScopeGlobal,
 				Title:              "Opted-in dependent",
 				AutoEnqueueOnReady: true,
@@ -2030,7 +2060,7 @@ func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t
 			}
 			optedOut, err := manager.CreateTask(
 				ctx,
-				taskpkg.CreateTask{Scope: taskpkg.ScopeGlobal, Title: "Opted-out dependent"},
+				taskpkg.CreateTask{ProfileID: store.DefaultProfileID, Scope: taskpkg.ScopeGlobal, Title: "Opted-out dependent"},
 				actor,
 			)
 			if err != nil {
@@ -2112,7 +2142,7 @@ func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t
 
 			blockerA, err := manager.CreateTask(
 				ctx,
-				taskpkg.CreateTask{Scope: taskpkg.ScopeGlobal, Title: "Blocker A"},
+				taskpkg.CreateTask{ProfileID: store.DefaultProfileID, Scope: taskpkg.ScopeGlobal, Title: "Blocker A"},
 				actor,
 			)
 			if err != nil {
@@ -2120,13 +2150,14 @@ func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t
 			}
 			blockerB, err := manager.CreateTask(
 				ctx,
-				taskpkg.CreateTask{Scope: taskpkg.ScopeGlobal, Title: "Blocker B"},
+				taskpkg.CreateTask{ProfileID: store.DefaultProfileID, Scope: taskpkg.ScopeGlobal, Title: "Blocker B"},
 				actor,
 			)
 			if err != nil {
 				t.Fatalf("CreateTask(blocker B) error = %v", err)
 			}
 			dependent, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+				ProfileID:          store.DefaultProfileID,
 				Scope:              taskpkg.ScopeGlobal,
 				Title:              "Opted-in dependent",
 				AutoEnqueueOnReady: true,
@@ -2227,8 +2258,9 @@ func TestTaskManagerCompletedChildrenRollUpParentIntegration(t *testing.T) {
 		}
 
 		parent, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Parent rollup",
+			ProfileID: store.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     "Parent rollup",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask(parent) error = %v", err)
@@ -2249,8 +2281,9 @@ func TestTaskManagerCompletedChildrenRollUpParentIntegration(t *testing.T) {
 		children := make([]*taskpkg.Task, 0, 2)
 		for _, title := range []string{"Child A", "Child B"} {
 			child, err := manager.CreateChildTask(ctx, parent.ID, taskpkg.CreateTask{
-				Scope: taskpkg.ScopeGlobal,
-				Title: title,
+				ProfileID: store.DefaultProfileID,
+				Scope:     taskpkg.ScopeGlobal,
+				Title:     title,
 			}, actor)
 			if err != nil {
 				t.Fatalf("CreateChildTask(%s) error = %v", title, err)
@@ -2391,7 +2424,8 @@ func TestTaskManagerCompletedChildrenRollUpParentIntegration(t *testing.T) {
 				t.Fatalf("DeriveHumanActorContext() error = %v", err)
 			}
 			parent, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-				Scope: taskpkg.ScopeGlobal, Title: "Parent publication",
+				ProfileID: store.DefaultProfileID,
+				Scope:     taskpkg.ScopeGlobal, Title: "Parent publication",
 			}, actor)
 			if err != nil {
 				t.Fatalf("CreateTask(parent) error = %v", err)
@@ -2404,7 +2438,8 @@ func TestTaskManagerCompletedChildrenRollUpParentIntegration(t *testing.T) {
 				t.Fatalf("MarkRunNeedsAttention(parent) error = %v", err)
 			}
 			child, err := manager.CreateChildTask(ctx, parent.ID, taskpkg.CreateTask{
-				Scope: taskpkg.ScopeGlobal, Title: "Only child",
+				ProfileID: store.DefaultProfileID,
+				Scope:     taskpkg.ScopeGlobal, Title: "Only child",
 			}, actor)
 			if err != nil {
 				t.Fatalf("CreateChildTask() error = %v", err)
@@ -2494,8 +2529,9 @@ func TestTaskManagerCompletedChildrenRollUpParentIntegration(t *testing.T) {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
 		parent, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Concurrent parent rollup",
+			ProfileID: store.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     "Concurrent parent rollup",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask(parent) error = %v", err)
@@ -2515,8 +2551,9 @@ func TestTaskManagerCompletedChildrenRollUpParentIntegration(t *testing.T) {
 		claims := make([]claimedCompletion, 0, 2)
 		for idx, title := range []string{"Concurrent child A", "Concurrent child B"} {
 			child, err := manager.CreateChildTask(ctx, parent.ID, taskpkg.CreateTask{
-				Scope: taskpkg.ScopeGlobal,
-				Title: title,
+				ProfileID: store.DefaultProfileID,
+				Scope:     taskpkg.ScopeGlobal,
+				Title:     title,
 			}, actor)
 			if err != nil {
 				t.Fatalf("CreateChildTask(%s) error = %v", title, err)
@@ -2589,8 +2626,9 @@ func TestTaskManagerCompletedChildrenRollUpParentIntegration(t *testing.T) {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
 		parent, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Unfenced parent rollup",
+			ProfileID: store.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     "Unfenced parent rollup",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask(parent) error = %v", err)
@@ -2598,8 +2636,9 @@ func TestTaskManagerCompletedChildrenRollUpParentIntegration(t *testing.T) {
 
 		for idx, title := range []string{"Unfenced child A", "Unfenced child B"} {
 			child, err := manager.CreateChildTask(ctx, parent.ID, taskpkg.CreateTask{
-				Scope: taskpkg.ScopeGlobal,
-				Title: title,
+				ProfileID: store.DefaultProfileID,
+				Scope:     taskpkg.ScopeGlobal,
+				Title:     title,
 			}, actor)
 			if err != nil {
 				t.Fatalf("CreateChildTask(%s) error = %v", title, err)
@@ -2652,20 +2691,23 @@ func TestTaskManagerCompletedChildrenRollUpParentIntegration(t *testing.T) {
 				t.Fatalf("DeriveHumanActorContext() error = %v", err)
 			}
 			parent, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-				Scope: taskpkg.ScopeGlobal,
-				Title: "Negative parent rollup",
+				ProfileID: store.DefaultProfileID,
+				Scope:     taskpkg.ScopeGlobal,
+				Title:     "Negative parent rollup",
 			}, actor)
 			if err != nil {
 				t.Fatalf("CreateTask(parent) error = %v", err)
 			}
 			completedChild, err := manager.CreateChildTask(ctx, parent.ID, taskpkg.CreateTask{
-				Scope: taskpkg.ScopeGlobal,
-				Title: "Completed child",
+				ProfileID: store.DefaultProfileID,
+				Scope:     taskpkg.ScopeGlobal,
+				Title:     "Completed child",
 			}, actor)
 			if err != nil {
 				t.Fatalf("CreateChildTask(completed) error = %v", err)
 			}
 			terminalChild, err := manager.CreateChildTask(ctx, parent.ID, taskpkg.CreateTask{
+				ProfileID:   store.DefaultProfileID,
 				Scope:       taskpkg.ScopeGlobal,
 				Title:       "Non-success child",
 				MaxAttempts: new(1),
@@ -2778,6 +2820,7 @@ func TestTaskManagerAgentCreatedTaskApprovesThenClaimsIntegration(t *testing.T) 
 		t.Fatalf("DeriveAgentSessionActorContext(author) error = %v", err)
 	}
 	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+		ProfileID:      store.DefaultProfileID,
 		Scope:          taskpkg.ScopeWorkspace,
 		WorkspaceID:    workspaceID,
 		Title:          "Agent approval boundary",
@@ -2849,13 +2892,15 @@ func TestTaskManagerChildAndDependencyFlowsPersistAudit(t *testing.T) {
 	}
 
 	parent, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Coordinator",
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Coordinator",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask(parent) error = %v", err)
 	}
 	child, err := manager.CreateChildTask(ctx, parent.ID, taskpkg.CreateTask{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: workspaceID,
 		Title:       "Workspace child",
@@ -2865,6 +2910,7 @@ func TestTaskManagerChildAndDependencyFlowsPersistAudit(t *testing.T) {
 		t.Fatalf("CreateChildTask() error = %v", err)
 	}
 	blocker, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: workspaceID,
 		Title:       "Blocking task",
@@ -2965,6 +3011,7 @@ func TestTaskManagerListTasksReturnsEnrichedSummariesIntegration(t *testing.T) {
 	}
 
 	first, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+		ProfileID:  store.DefaultProfileID,
 		Scope:      taskpkg.ScopeGlobal,
 		Title:      "Alpha planning",
 		Identifier: "OPS-100",
@@ -2973,6 +3020,7 @@ func TestTaskManagerListTasksReturnsEnrichedSummariesIntegration(t *testing.T) {
 		t.Fatalf("CreateTask(first) error = %v", err)
 	}
 	second, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+		ProfileID:  store.DefaultProfileID,
 		Scope:      taskpkg.ScopeGlobal,
 		Title:      "Beta rollout",
 		Identifier: "OPS-200",
@@ -3069,8 +3117,9 @@ func TestTaskManagerCatalogMatchesCanonicalDependencyStatusIntegration(t *testin
 		}
 
 		dependency, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Canonical dependency",
+			ProfileID: store.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     "Canonical dependency",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask(dependency) error = %v", err)
@@ -3087,8 +3136,9 @@ func TestTaskManagerCatalogMatchesCanonicalDependencyStatusIntegration(t *testin
 			t.Fatalf("CompleteRun(dependency) error = %v", err)
 		}
 		dependent, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Canonical dependent parity target",
+			ProfileID: store.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     "Canonical dependent parity target",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask(dependent) error = %v", err)
@@ -3137,8 +3187,9 @@ func TestTaskManagerRunLifecyclePersistsAndReconcilesAgainstStorage(t *testing.T
 	}
 
 	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Lifecycle integration",
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Lifecycle integration",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -3256,6 +3307,7 @@ func TestTaskManagerRecoverRunOnBootRequeuesBoundRunWithGlobalDB(t *testing.T) {
 		}
 
 		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeGlobal,
 			Title:       "Boot recovery integration",
 			MaxAttempts: intPtr(2),
@@ -3433,8 +3485,9 @@ func TestTaskManagerRecoverRunOnBootRequeuesBoundRunWithGlobalDB(t *testing.T) {
 				}
 
 				taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-					Scope: taskpkg.ScopeGlobal,
-					Title: "Oversized boot recovery",
+					ProfileID: store.DefaultProfileID,
+					Scope:     taskpkg.ScopeGlobal,
+					Title:     "Oversized boot recovery",
 				}, operator)
 				if err != nil {
 					t.Fatalf("CreateTask() error = %v", err)
@@ -3509,22 +3562,25 @@ func TestTaskManagerCancelTaskTreePersistsCancellationAudit(t *testing.T) {
 	}
 
 	parent, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Cancellation parent",
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Cancellation parent",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask(parent) error = %v", err)
 	}
 	queuedChild, err := manager.CreateChildTask(ctx, parent.ID, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Queued child",
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Queued child",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateChildTask(queued child) error = %v", err)
 	}
 	activeChild, err := manager.CreateChildTask(ctx, parent.ID, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Active child",
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Active child",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateChildTask(active child) error = %v", err)
@@ -3636,8 +3692,9 @@ func TestTaskManagerTimelineLiveReadsIntegration(t *testing.T) {
 	}
 
 	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Timeline detail task",
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Timeline detail task",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -3766,6 +3823,7 @@ func TestTaskManagerRunDetailUsesPersistedRuntimeDataIntegration(t *testing.T) {
 	}
 
 	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: workspaceID,
 		Title:       "Run detail task",
@@ -3967,29 +4025,33 @@ func TestTaskManagerTreeLiveViewIntegration(t *testing.T) {
 	}
 
 	root, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Root live task",
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Root live task",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask(root) error = %v", err)
 	}
 	childActive, err := manager.CreateChildTask(ctx, root.ID, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Active child",
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Active child",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateChildTask(active) error = %v", err)
 	}
 	childIdle, err := manager.CreateChildTask(ctx, root.ID, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Idle child",
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Idle child",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateChildTask(idle) error = %v", err)
 	}
 	grandchild, err := manager.CreateChildTask(ctx, childActive.ID, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Grandchild",
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Grandchild",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateChildTask(grandchild) error = %v", err)
@@ -4069,15 +4131,17 @@ func TestTaskManagerStreamSupportsReplayAndReconnectIntegration(t *testing.T) {
 	}
 
 	root, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Stream root",
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Stream root",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask(root) error = %v", err)
 	}
 	child, err := manager.CreateChildTask(ctx, root.ID, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Stream child",
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Stream child",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateChildTask(child) error = %v", err)
@@ -4214,8 +4278,9 @@ func TestTaskManagerStreamSupportsReplayAndReconnectIntegration(t *testing.T) {
 
 	t.Run("Should publish committed recovery lifecycle events exactly once", func(t *testing.T) {
 		attentionTask, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Stream recovered task",
+			ProfileID: store.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     "Stream recovered task",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask(attention) error = %v", err)
@@ -4322,6 +4387,7 @@ func TestTaskManagerBlockReleaseUnblockClaimableCycleIntegration(t *testing.T) {
 		}
 
 		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: workspaceID,
 			Title:       "Block release cycle",
@@ -4444,8 +4510,9 @@ func TestTaskManagerGlobalBlockReleaseUnblockClaimableCycleIntegration(t *testin
 		}
 
 		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Global block release cycle",
+			ProfileID: store.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     "Global block release cycle",
 		}, operator)
 		if err != nil {
 			t.Fatalf("CreateTask(global) error = %v", err)
@@ -4562,8 +4629,9 @@ func TestTaskManagerRejectsOversizedAuditTextBeforeMutationIntegration(t *testin
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
 		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Oversized force release",
+			ProfileID: store.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     "Oversized force release",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -4615,8 +4683,9 @@ func TestTaskManagerRejectsOversizedAuditTextBeforeMutationIntegration(t *testin
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
 		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Oversized force fail",
+			ProfileID: store.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     "Oversized force fail",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -4665,8 +4734,9 @@ func TestTaskManagerRejectsOversizedAuditTextBeforeMutationIntegration(t *testin
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
 		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Oversized recovery",
+			ProfileID: store.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     "Oversized recovery",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -4725,8 +4795,9 @@ func TestTaskManagerRejectsOversizedAuditTextBeforeMutationIntegration(t *testin
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
 		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Oversized failure",
+			ProfileID: store.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     "Oversized failure",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -4830,7 +4901,7 @@ func newTaskParticipationResolver(
 			return state.Enabled, nil
 		},
 		ChannelExists: func(ctx context.Context, workspaceID, channelID string) (bool, error) {
-			_, readErr := db.GetNetworkChannel(ctx, store.NetworkChannelRef{
+			_, readErr := db.GetNetworkChannel(ctx, store.ReadScope{AllProfiles: true}, store.NetworkChannelRef{
 				WorkspaceID: workspaceID,
 				Channel:     channelID,
 			})
@@ -4918,6 +4989,7 @@ func createIntegrationClaimedRun(
 	t.Helper()
 
 	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: workspaceID,
 		Title:       title,
@@ -5174,8 +5246,9 @@ func TestTaskManagerGetTaskRequiresReadAuthorityIntegration(t *testing.T) {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
 	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Read auth check",
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Read auth check",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -5203,8 +5276,9 @@ func TestTaskManagerBlockBreakerRecoverAndCompletionResetIntegration(t *testing.
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
 		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Breaker integration target",
+			ProfileID: store.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     "Breaker integration target",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -5340,6 +5414,7 @@ func TestTaskManagerExpireTransientBlocksAutoEnqueuesIntegration(t *testing.T) {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
 		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID:          store.DefaultProfileID,
 			Scope:              taskpkg.ScopeGlobal,
 			Title:              "Transient expiry integration target",
 			AutoEnqueueOnReady: true,
@@ -5416,6 +5491,7 @@ func TestTaskManagerObservabilityCoverageMatrixIntegration(t *testing.T) {
 		}
 
 		releasedTask, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: workspaceID,
 			Title:       "Coverage matrix release",
@@ -5494,8 +5570,9 @@ func TestTaskManagerObservabilityCoverageMatrixIntegration(t *testing.T) {
 		assertIntegrationPayloadOmitsRawValue(t, releasedEvent, releaseClaim.ClaimToken)
 
 		attentionTask, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Coverage matrix attention",
+			ProfileID: store.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     "Coverage matrix attention",
 		}, operator)
 		if err != nil {
 			t.Fatalf("CreateTask(attention) error = %v", err)
@@ -5573,6 +5650,7 @@ func TestTaskManagerObservabilityCoverageMatrixIntegration(t *testing.T) {
 		assertIntegrationPayloadString(t, recoveredPayload, "note", "operator reviewed escalation")
 
 		clearAutoTask, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID:          store.DefaultProfileID,
 			Scope:              taskpkg.ScopeGlobal,
 			Title:              "Coverage matrix block clear auto enqueue",
 			AutoEnqueueOnReady: true,
@@ -5657,6 +5735,7 @@ func TestTaskManagerObservabilityCoverageMatrixIntegration(t *testing.T) {
 		assertIntegrationPayloadString(t, clearAutoPayload, "trigger_ref", clearAutoBlock.ID)
 
 		expiryTask, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID:          store.DefaultProfileID,
 			Scope:              taskpkg.ScopeGlobal,
 			Title:              "Coverage matrix transient expiry",
 			AutoEnqueueOnReady: true,
@@ -5819,8 +5898,9 @@ func TestTaskManagerObservabilityCoverageMatrixIntegration(t *testing.T) {
 			t.Fatalf("DeriveAgentSessionActorContext(creator) error = %v", err)
 		}
 		wakeTask, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Coverage matrix wake delivered",
+			ProfileID: store.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     "Coverage matrix wake delivered",
 		}, creator)
 		if err != nil {
 			t.Fatalf("CreateTask(wake delivered) error = %v", err)
@@ -5861,6 +5941,7 @@ func TestTaskManagerObservabilityCoverageMatrixIntegration(t *testing.T) {
 
 		wakeDisabled := false
 		suppressedTask, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeGlobal,
 			Title:       "Coverage matrix wake suppressed",
 			WakeCreator: &wakeDisabled,
@@ -5929,8 +6010,9 @@ func TestTaskManagerNeedsAttentionDurableAcrossRestartIntegration(t *testing.T) 
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
 		taskRecord, err := firstManager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Durable needs attention target",
+			ProfileID: store.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     "Durable needs attention target",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -6023,8 +6105,9 @@ func TestTaskManagerSubprocessHealthEscalationIntegration(t *testing.T) {
 		}
 
 		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Subprocess health escalation target",
+			ProfileID: store.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     "Subprocess health escalation target",
 		}, operator)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -6133,8 +6216,9 @@ func TestTaskManagerSubprocessHealthEscalationIntegration(t *testing.T) {
 		}
 
 		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Terminal subprocess health target",
+			ProfileID: store.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     "Terminal subprocess health target",
 		}, operator)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)

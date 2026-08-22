@@ -70,6 +70,7 @@ func automationRunListBundle(items []RunRecord) outputBundle {
 		"Automation Runs",
 		[]string{
 			"ID",
+			sessionProfileValue,
 			automationTargetValue,
 			automationStatusValue,
 			automationAttemptValue,
@@ -83,6 +84,7 @@ func automationRunListBundle(items []RunRecord) outputBundle {
 		"automation_runs",
 		[]string{
 			"id",
+			"profile_name",
 			automationTargetKey,
 			automationStatusKey,
 			automationAttemptKey,
@@ -96,6 +98,7 @@ func automationRunListBundle(items []RunRecord) outputBundle {
 		func(item RunRecord) []string {
 			return []string{
 				stringOrDash(item.ID),
+				stringOrDash(item.ProfileName),
 				stringOrDash(displayRunTarget(item)),
 				stringOrDash(string(item.Status)),
 				strconv.Itoa(item.Attempt),
@@ -110,6 +113,7 @@ func automationRunListBundle(items []RunRecord) outputBundle {
 		func(item RunRecord) []string {
 			return []string{
 				item.ID,
+				item.ProfileName,
 				displayRunTarget(item),
 				string(item.Status),
 				strconv.Itoa(item.Attempt),

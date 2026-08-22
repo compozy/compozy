@@ -195,7 +195,7 @@ func TestOnAgentEventWritesEventSummaryToGlobalDB(t *testing.T) {
 		Text:      "assistant replied with the requested diff",
 	})
 
-	events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{SessionID: sess.ID})
+	events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, SessionID: sess.ID})
 	if err != nil {
 		t.Fatalf("QueryEvents() error = %v", err)
 	}
@@ -239,7 +239,7 @@ func TestObserverQueryEventsAggregatesMemoryEventSource(t *testing.T) {
 		h.observer.memoryEventSource = source
 		h.observer.mu.Unlock()
 
-		events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{})
+		events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}})
 		if err != nil {
 			t.Fatalf("QueryEvents() error = %v", err)
 		}
@@ -282,7 +282,7 @@ func TestObserverQueryEventsNormalizesMemoryWorkspaceFilter(t *testing.T) {
 
 		events, err := h.observer.QueryEvents(
 			testutil.Context(t),
-			store.EventSummaryQuery{WorkspaceID: h.workspaceID, Type: "memory.write.reindex"},
+			store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: h.workspaceID, Type: "memory.write.reindex"},
 		)
 		if err != nil {
 			t.Fatalf("QueryEvents(workspace) error = %v", err)
@@ -320,7 +320,7 @@ func TestObserverQueryEventsKeepsSessionScopedEventsNarrow(t *testing.T) {
 		h.observer.memoryEventSource = source
 		h.observer.mu.Unlock()
 
-		events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{SessionID: sess.ID})
+		events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, SessionID: sess.ID})
 		if err != nil {
 			t.Fatalf("QueryEvents(session) error = %v", err)
 		}
@@ -348,7 +348,7 @@ func TestObserverQueryEventsKeepsWorktreeScopedEventsNarrow(t *testing.T) {
 
 		events, err := h.observer.QueryEvents(
 			testutil.Context(t),
-			store.EventSummaryQuery{WorkspaceID: h.workspaceID, WorktreeID: "wt-a", Limit: 500},
+			store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: h.workspaceID, WorktreeID: "wt-a", Limit: 500},
 		)
 		if err != nil {
 			t.Fatalf("QueryEvents(worktree) error = %v", err)
@@ -478,7 +478,7 @@ func TestOnAgentEventRecoversSessionSnapshot(t *testing.T) {
 				Text:      tc.summary,
 			})
 
-			events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{SessionID: sess.ID})
+			events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, SessionID: sess.ID})
 			if err != nil {
 				t.Fatalf("QueryEvents() error = %v", err)
 			}
@@ -519,6 +519,7 @@ func TestObserverSessionSnapshotRequiresContext(t *testing.T) {
 				observer.observedSessionSnapshot(
 					nilContext(),
 					"sess-nil-context",
+					store.DefaultProfileID,
 					"coder",
 					"",
 					"",
@@ -600,7 +601,7 @@ func TestSweepRetentionModes(t *testing.T) {
 				if health.DeletedEventSummaries != 1 {
 					t.Fatalf("SweepRetention().DeletedEventSummaries = %d, want 1", health.DeletedEventSummaries)
 				}
-				events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{SessionID: sess.ID})
+				events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, SessionID: sess.ID})
 				if err != nil {
 					t.Fatalf("QueryEvents() error = %v", err)
 				}
@@ -630,7 +631,7 @@ func TestSweepRetentionModes(t *testing.T) {
 				if health.Enabled || health.LastSweepStatus != retentionSweepStatusDisabled {
 					t.Fatalf("SweepRetention(disabled) health = %#v, want disabled status", health)
 				}
-				events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{SessionID: sess.ID})
+				events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, SessionID: sess.ID})
 				if err != nil {
 					t.Fatalf("QueryEvents() error = %v", err)
 				}
@@ -1024,7 +1025,7 @@ func TestOnAgentEventSkipsUnknownSession(t *testing.T) {
 		Text:      "ignored",
 	})
 
-	events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{})
+	events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}})
 	if err != nil {
 		t.Fatalf("QueryEvents() error = %v", err)
 	}
@@ -1049,7 +1050,7 @@ func TestNotifierLifecycleWritesThroughObserver(t *testing.T) {
 	sess.State = session.StateStopped
 	h.observer.OnSessionStopped(testutil.Context(t), sess)
 
-	events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{SessionID: sess.ID})
+	events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, SessionID: sess.ID})
 	if err != nil {
 		t.Fatalf("QueryEvents() error = %v", err)
 	}
@@ -1075,7 +1076,7 @@ func TestOnAgentEventGuardBranches(t *testing.T) {
 		Timestamp: h.now,
 	})
 
-	events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{})
+	events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}})
 	if err != nil {
 		t.Fatalf("QueryEvents() error = %v", err)
 	}
@@ -1121,7 +1122,7 @@ func TestQueryEventsFilterBySessionID(t *testing.T) {
 	h.recordEvent(t, sessA.ID, "agent_message", h.now.Add(time.Minute), "a-1")
 	h.recordEvent(t, sessB.ID, "agent_message", h.now.Add(2*time.Minute), "b-1")
 
-	events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{SessionID: sessB.ID})
+	events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, SessionID: sessB.ID})
 	if err != nil {
 		t.Fatalf("QueryEvents() error = %v", err)
 	}
@@ -1173,7 +1174,7 @@ func TestQueryEventsReturnsHarnessLifecycleSummaries(t *testing.T) {
 		}
 	}
 
-	events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{
+	events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
 		SessionID: sess.ID,
 		Limit:     3,
 	})
@@ -1204,7 +1205,7 @@ func TestQueryEventsFilterByEventType(t *testing.T) {
 	h.recordEvent(t, sess.ID, "agent_message", h.now.Add(time.Minute), "msg")
 	h.recordEvent(t, sess.ID, "tool_call", h.now.Add(2*time.Minute), "tool")
 
-	events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{Type: "tool_call"})
+	events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, Type: "tool_call"})
 	if err != nil {
 		t.Fatalf("QueryEvents() error = %v", err)
 	}
@@ -1230,7 +1231,7 @@ func TestQueryEventsFilterByTimeRange(t *testing.T) {
 
 	events, err := h.observer.QueryEvents(
 		testutil.Context(t),
-		store.EventSummaryQuery{Since: h.now.Add(2 * time.Minute)},
+		store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, Since: h.now.Add(2 * time.Minute)},
 	)
 	if err != nil {
 		t.Fatalf("QueryEvents() error = %v", err)
@@ -1254,7 +1255,7 @@ func TestQueryEventsLimitReturnsMostRecentRowsInAscendingOrder(t *testing.T) {
 	h.recordEvent(t, sess.ID, "agent_message", h.now.Add(2*time.Minute), "two")
 	h.recordEvent(t, sess.ID, "agent_message", h.now.Add(3*time.Minute), "three")
 
-	events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{Limit: 2})
+	events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, Limit: 2})
 	if err != nil {
 		t.Fatalf("QueryEvents() error = %v", err)
 	}

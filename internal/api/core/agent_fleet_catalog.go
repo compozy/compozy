@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/listcursor"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
 
@@ -72,7 +73,12 @@ func (h *BaseHandlers) ListAgentCatalog(c *gin.Context) {
 		return compareAgentCatalogNames(left.Name, right.Name)
 	})
 
-	metrics, sessionsAvailable := h.agentCatalogSessionMetrics(c, resolved.WorkspaceID)
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	metrics, sessionsAvailable := h.agentCatalogSessionMetrics(c, readScope, resolved.WorkspaceID)
 	response, err := buildAgentCatalogResponse(query, resolved.WorkspaceID, agents, metrics, sessionsAvailable)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
@@ -83,13 +89,14 @@ func (h *BaseHandlers) ListAgentCatalog(c *gin.Context) {
 
 func (h *BaseHandlers) agentCatalogSessionMetrics(
 	c *gin.Context,
+	readScope store.ReadScope,
 	workspaceID string,
 ) (map[string]session.AgentSessionMetrics, bool) {
 	reader, ok := h.Sessions.(AgentSessionMetricsReader)
 	if !ok || reader == nil {
 		return nil, false
 	}
-	metrics, err := reader.AggregateSessionsByAgent(c.Request.Context(), workspaceID)
+	metrics, err := reader.AggregateSessionsByAgent(c.Request.Context(), readScope, workspaceID)
 	if err != nil {
 		h.Logger.Warn(
 			"api: agent catalog session metrics unavailable",

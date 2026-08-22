@@ -23,6 +23,22 @@ compozy profile use <name> -o json
 Inside a managed session, prefer `compozy__profile_list` and `compozy__profile_current`. Their live
 descriptors define the exact schema. They expose the session-bound profile but do not mutate selection.
 
+## Scoped And Aggregate Reads
+
+Work reads use the resolved profile by default. Select another owner with root `--profile`, or request an
+explicit cross-profile view with `--all-profiles`; API and UDS callers use `all_profiles=true`. These two
+choices conflict. Aggregate rows include `profile_name`, and JSONL output starts with a
+`profile_resolution` frame even when no rows match.
+
+A scoped detail read of work owned by another profile returns not found. An aggregate detail read may
+return it with its owner label. Session catalog initial state, replay, and live events follow the same
+scope. Agent-native calls derive their immutable session profile and cannot accept a caller-supplied
+replacement.
+
+Worktrees are intentionally visible across profiles because they represent workspace filesystem state;
+their rows still identify the owner. Network delivery is profile-blind, while network channels,
+conversations, subscriptions, and work remain owner-scoped.
+
 ## Lifecycle
 
 Create and identity update are direct local mutations:

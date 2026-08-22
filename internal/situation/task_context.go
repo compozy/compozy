@@ -8,6 +8,7 @@ import (
 
 	"strings"
 
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -27,7 +28,11 @@ func (s *Service) BundleForActiveLease(
 	if sessionID == "" {
 		return taskpkg.ContextBundle{}, fmt.Errorf("%w: session_id is required", taskpkg.ErrPermissionDenied)
 	}
-	run, ok, err := s.activeRunForSession(ctx, sessionID)
+	readScope := storepkgReadScope(req.ProfileID)
+	if err := readScope.Validate(); err != nil {
+		return taskpkg.ContextBundle{}, fmt.Errorf("%w: profile_id is required", taskpkg.ErrPermissionDenied)
+	}
+	run, ok, err := s.activeRunForSession(ctx, readScope, sessionID)
 	if err != nil || !ok {
 		return taskpkg.ContextBundle{}, err
 	}
@@ -42,6 +47,9 @@ func (s *Service) BundleForActiveLease(
 	taskRecord, err := store.GetTask(ctx, run.TaskID)
 	if err != nil {
 		return taskpkg.ContextBundle{}, err
+	}
+	if !readScope.Matches(taskRecord.ProfileID) {
+		return taskpkg.ContextBundle{}, taskpkg.ErrTaskNotFound
 	}
 	workspaceSnapshot, err := s.resolveWorkspace(ctx, taskRecord.WorkspaceID, "", nil)
 	if err != nil {
@@ -65,15 +73,23 @@ func (s *Service) BundleForOperatorTask(
 	if taskID == "" {
 		return taskpkg.ContextBundle{}, fmt.Errorf("%w: task_id is required", taskpkg.ErrValidation)
 	}
+	if err := req.ReadScope.Validate(); err != nil {
+		return taskpkg.ContextBundle{}, fmt.Errorf("%w: invalid profile read scope", taskpkg.ErrPermissionDenied)
+	}
 	taskRecord, err := store.GetTask(ctx, taskID)
 	if err != nil {
 		return taskpkg.ContextBundle{}, err
+	}
+	if !req.ReadScope.Matches(taskRecord.ProfileID) {
+		return taskpkg.ContextBundle{}, taskpkg.ErrTaskNotFound
 	}
 	workspaceSnapshot, err := s.resolveWorkspace(ctx, taskRecord.WorkspaceID, "", nil)
 	if err != nil {
 		return taskpkg.ContextBundle{}, err
 	}
-	runs, err := store.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: taskID})
+	runs, err := store.ListTaskRuns(ctx, taskpkg.RunQuery{
+		ReadScope: req.ReadScope, TaskID: taskID,
+	})
 	if err != nil {
 		return taskpkg.ContextBundle{}, err
 	}
@@ -137,18 +153,25 @@ func (s *Service) TaskRunPromptOverlayByID(ctx context.Context, taskID string, r
 
 func (s *Service) activeRunForSession(
 	ctx context.Context,
+	readScope store.ReadScope,
 	sessionID string,
 ) (taskpkg.Run, bool, error) {
 	store := s.taskStoreValue()
 	if store == nil {
 		return taskpkg.Run{}, false, nil
 	}
-	runs, err := store.ListTaskRuns(ctx, taskpkg.RunQuery{SessionID: strings.TrimSpace(sessionID)})
+	runs, err := store.ListTaskRuns(ctx, taskpkg.RunQuery{
+		ReadScope: readScope, SessionID: strings.TrimSpace(sessionID),
+	})
 	if err != nil {
 		return taskpkg.Run{}, false, err
 	}
 	run, ok := selectActiveRun(runs)
 	return run, ok, nil
+}
+
+func storepkgReadScope(profileID string) store.ReadScope {
+	return store.ReadScope{ProfileID: strings.TrimSpace(profileID)}
 }
 
 func (s *Service) bundleForTaskOnly(

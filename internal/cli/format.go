@@ -167,6 +167,9 @@ func writeCommandOutput(cmd *cobra.Command, bundle outputBundle) error {
 		if bundle.jsonl == nil {
 			return errors.New("cli: jsonl formatter is required")
 		}
+		if _, err := writeAggregateReadResolutionFrame(cmd); err != nil {
+			return err
+		}
 		return bundle.jsonl(cmd)
 	case OutputToon:
 		if bundle.toon == nil {

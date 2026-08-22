@@ -811,7 +811,7 @@ func TestAutomationCommandsSupportToonOutput(t *testing.T) {
 	}
 	if !strings.Contains(
 		jobsToon,
-		"automation_jobs[1]{id,name,scope,workspace_id,schedule,agent_name,enabled,source,next_run}:",
+		"automation_jobs[1]{id,profile_name,name,scope,workspace_id,schedule,agent_name,enabled,source,next_run}:",
 	) {
 		t.Fatalf("jobs toon output = %q, want automation_jobs TOON array", jobsToon)
 	}
@@ -833,7 +833,7 @@ func TestAutomationCommandsSupportToonOutput(t *testing.T) {
 	}
 	if !strings.Contains(
 		runsToon,
-		"automation_runs[1]{id,target,status,attempt,session_id,scheduled_at,started_at,ended_at,error,delivery_error}:",
+		"automation_runs[1]{id,profile_name,target,status,attempt,session_id,scheduled_at,started_at,ended_at,error,delivery_error}:",
 	) {
 		t.Fatalf("runs toon output = %q, want automation_runs TOON array", runsToon)
 	}
@@ -1205,6 +1205,7 @@ func sampleAutomationJobRecord() JobRecord {
 	nextRun := fixedTestNow.Add(time.Hour)
 	return JobRecord{
 		ID:          "job-1",
+		ProfileName: "default",
 		Scope:       automationpkg.AutomationScopeWorkspace,
 		Name:        "nightly-review",
 		AgentName:   "coder",
@@ -1304,6 +1305,7 @@ func automationTriggerCursorForTest(t *testing.T, query AutomationTriggerQuery) 
 func sampleAutomationTriggerRecord() TriggerRecord {
 	return TriggerRecord{
 		ID:           "trg-1",
+		ProfileName:  "default",
 		Scope:        automationpkg.AutomationScopeWorkspace,
 		Name:         "branch-review",
 		AgentName:    "coder",
@@ -1326,12 +1328,13 @@ func sampleAutomationRunRecord() RunRecord {
 	started := fixedTestNow
 	ended := fixedTestNow.Add(2 * time.Minute)
 	return RunRecord{
-		ID:        "run-1",
-		JobID:     "job-1",
-		SessionID: "sess-1",
-		Status:    automationpkg.RunCompleted,
-		Attempt:   1,
-		StartedAt: &started,
-		EndedAt:   &ended,
+		ID:          "run-1",
+		ProfileName: "default",
+		JobID:       "job-1",
+		SessionID:   "sess-1",
+		Status:      automationpkg.RunCompleted,
+		Attempt:     1,
+		StartedAt:   &started,
+		EndedAt:     &ended,
 	}
 }

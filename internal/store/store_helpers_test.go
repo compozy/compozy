@@ -205,6 +205,7 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			name: "event summary valid",
 			validate: func() error {
 				return (EventSummary{
+					ProfileID:   DefaultProfileID,
 					SessionID:   "sess-1",
 					WorkspaceID: "ws-store-helpers",
 					Type:        "agent_message",
@@ -247,13 +248,13 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 		{
 			name: "global event summary settings changed",
 			validate: func() error {
-				return (EventSummary{Type: "settings.changed"}).Validate()
+				return (EventSummary{ProfileID: DefaultProfileID, Type: "settings.changed"}).Validate()
 			},
 		},
 		{
 			name: "global event summary skill shadowed",
 			validate: func() error {
-				return (EventSummary{Type: "skill.shadowed"}).Validate()
+				return (EventSummary{ProfileID: DefaultProfileID, Type: "skill.shadowed"}).Validate()
 			},
 		},
 		{
@@ -271,31 +272,31 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 		{
 			name: "global event summary skills load failed",
 			validate: func() error {
-				return (EventSummary{Type: "skills.load_failed"}).Validate()
+				return (EventSummary{ProfileID: DefaultProfileID, Type: "skills.load_failed"}).Validate()
 			},
 		},
 		{
 			name: "global event summary hook dispatch start",
 			validate: func() error {
-				return (EventSummary{Type: "hook.dispatch.start"}).Validate()
+				return (EventSummary{ProfileID: DefaultProfileID, Type: "hook.dispatch.start"}).Validate()
 			},
 		},
 		{
 			name: "global event summary hook dispatch complete",
 			validate: func() error {
-				return (EventSummary{Type: "hook.dispatch.complete"}).Validate()
+				return (EventSummary{ProfileID: DefaultProfileID, Type: "hook.dispatch.complete"}).Validate()
 			},
 		},
 		{
 			name: "global event summary memory provider collision",
 			validate: func() error {
-				return (EventSummary{Type: "memory.provider.collision"}).Validate()
+				return (EventSummary{ProfileID: DefaultProfileID, Type: "memory.provider.collision"}).Validate()
 			},
 		},
 		{
 			name: "event summary query invalid",
 			validate: func() error {
-				return (EventSummaryQuery{Limit: -1}).Validate()
+				return (EventSummaryQuery{ReadScope: ReadScope{AllProfiles: true}, Limit: -1}).Validate()
 			},
 			wantError: true,
 		},
@@ -463,6 +464,7 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			name: "network message entry valid",
 			validate: func() error {
 				return (NetworkMessageEntry{
+					ProfileID:   DefaultProfileID,
 					WorkspaceID: "ws-store-helpers",
 					MessageID:   "msg-1",
 					Channel:     "builders",

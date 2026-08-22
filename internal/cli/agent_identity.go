@@ -51,6 +51,7 @@ func agentSessionLookup(client agentSessionClient) agentidentity.SessionLookup {
 		}
 		return agentidentity.SessionSnapshot{
 			ID:            record.ID,
+			ProfileID:     record.ProfileID,
 			Name:          record.Name,
 			AgentName:     record.AgentName,
 			Provider:      sessionRuntimeProvider(record),

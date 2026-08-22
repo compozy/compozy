@@ -104,13 +104,19 @@ type NetworkSubscriptionRequest struct {
 
 // NetworkSubscriptionPayload exposes one session delivery preference.
 type NetworkSubscriptionPayload struct {
-	WorkspaceID string     `json:"workspace_id,omitempty"`
-	Channel     string     `json:"channel"`
-	ThreadID    string     `json:"thread_id,omitempty"`
-	SessionID   string     `json:"session_id"`
-	Mode        string     `json:"mode"`
-	CreatedAt   *time.Time `json:"created_at,omitempty"`
-	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
+	ProfileID       string     `json:"profile_id"`
+	ProfileName     string     `json:"profile_name"`
+	ProfileColor    string     `json:"profile_color,omitempty"`
+	ProfileIcon     string     `json:"profile_icon,omitempty"`
+	ProfileEmoji    string     `json:"profile_emoji,omitempty"`
+	ProfileArchived bool       `json:"profile_archived,omitempty"`
+	WorkspaceID     string     `json:"workspace_id,omitempty"`
+	Channel         string     `json:"channel"`
+	ThreadID        string     `json:"thread_id,omitempty"`
+	SessionID       string     `json:"session_id"`
+	Mode            string     `json:"mode"`
+	CreatedAt       *time.Time `json:"created_at,omitempty"`
+	UpdatedAt       *time.Time `json:"updated_at,omitempty"`
 }
 
 // PromoteNetworkThreadTaskRequest promotes a thread message into a durable task.
@@ -210,6 +216,12 @@ type NetworkPeerPayload struct {
 
 // NetworkChannelPayload is the shared JSON representation of one active channel.
 type NetworkChannelPayload struct {
+	ProfileID                  string     `json:"profile_id"`
+	ProfileName                string     `json:"profile_name"`
+	ProfileColor               string     `json:"profile_color,omitempty"`
+	ProfileIcon                string     `json:"profile_icon,omitempty"`
+	ProfileEmoji               string     `json:"profile_emoji,omitempty"`
+	ProfileArchived            bool       `json:"profile_archived,omitempty"`
 	Channel                    string     `json:"channel"`
 	WorkspaceID                string     `json:"workspace_id,omitempty"`
 	Purpose                    string     `json:"purpose,omitempty"`
@@ -255,6 +267,12 @@ type NetworkEnvelopePayload struct {
 
 // NetworkChannelDetailPayload is the shared channel detail payload used by the network UI.
 type NetworkChannelDetailPayload struct {
+	ProfileID                  string                           `json:"profile_id"`
+	ProfileName                string                           `json:"profile_name"`
+	ProfileColor               string                           `json:"profile_color,omitempty"`
+	ProfileIcon                string                           `json:"profile_icon,omitempty"`
+	ProfileEmoji               string                           `json:"profile_emoji,omitempty"`
+	ProfileArchived            bool                             `json:"profile_archived,omitempty"`
 	Channel                    string                           `json:"channel"`
 	WorkspaceID                string                           `json:"workspace_id,omitempty"`
 	Purpose                    string                           `json:"purpose,omitempty"`
@@ -284,34 +302,46 @@ type NetworkChannelKindCountPayload struct {
 
 // NetworkConversationMessagePayload is the shared network conversation timeline payload.
 type NetworkConversationMessagePayload struct {
-	MessageID   string          `json:"message_id"`
-	WorkspaceID string          `json:"workspace_id,omitempty"`
-	Channel     string          `json:"channel"`
-	Surface     string          `json:"surface,omitempty"`
-	ThreadID    string          `json:"thread_id,omitempty"`
-	DirectID    string          `json:"direct_id,omitempty"`
-	Kind        string          `json:"kind"`
-	Direction   string          `json:"direction"`
-	PeerFrom    string          `json:"peer_from"`
-	PeerTo      string          `json:"peer_to,omitempty"`
-	Mentions    []string        `json:"mentions,omitempty"`
-	DisplayName string          `json:"display_name,omitempty"`
-	SessionID   string          `json:"session_id,omitempty"`
-	Local       bool            `json:"local,omitempty"`
-	WorkID      string          `json:"work_id,omitempty"`
-	ReplyTo     string          `json:"reply_to,omitempty"`
-	TraceID     string          `json:"trace_id,omitempty"`
-	CausationID string          `json:"causation_id,omitempty"`
-	Intent      string          `json:"intent,omitempty"`
-	Text        string          `json:"text,omitempty"`
-	PreviewText string          `json:"preview_text,omitempty"`
-	SizeBytes   int64           `json:"size_bytes,omitempty"`
-	Body        json.RawMessage `json:"body"`
-	Timestamp   time.Time       `json:"timestamp"`
+	ProfileID       string          `json:"profile_id"`
+	ProfileName     string          `json:"profile_name"`
+	ProfileColor    string          `json:"profile_color,omitempty"`
+	ProfileIcon     string          `json:"profile_icon,omitempty"`
+	ProfileEmoji    string          `json:"profile_emoji,omitempty"`
+	ProfileArchived bool            `json:"profile_archived,omitempty"`
+	MessageID       string          `json:"message_id"`
+	WorkspaceID     string          `json:"workspace_id,omitempty"`
+	Channel         string          `json:"channel"`
+	Surface         string          `json:"surface,omitempty"`
+	ThreadID        string          `json:"thread_id,omitempty"`
+	DirectID        string          `json:"direct_id,omitempty"`
+	Kind            string          `json:"kind"`
+	Direction       string          `json:"direction"`
+	PeerFrom        string          `json:"peer_from"`
+	PeerTo          string          `json:"peer_to,omitempty"`
+	Mentions        []string        `json:"mentions,omitempty"`
+	DisplayName     string          `json:"display_name,omitempty"`
+	SessionID       string          `json:"session_id,omitempty"`
+	Local           bool            `json:"local,omitempty"`
+	WorkID          string          `json:"work_id,omitempty"`
+	ReplyTo         string          `json:"reply_to,omitempty"`
+	TraceID         string          `json:"trace_id,omitempty"`
+	CausationID     string          `json:"causation_id,omitempty"`
+	Intent          string          `json:"intent,omitempty"`
+	Text            string          `json:"text,omitempty"`
+	PreviewText     string          `json:"preview_text,omitempty"`
+	SizeBytes       int64           `json:"size_bytes,omitempty"`
+	Body            json.RawMessage `json:"body"`
+	Timestamp       time.Time       `json:"timestamp"`
 }
 
 // NetworkThreadSummaryPayload is the public-thread list/detail projection.
 type NetworkThreadSummaryPayload struct {
+	ProfileID          string                          `json:"profile_id"`
+	ProfileName        string                          `json:"profile_name"`
+	ProfileColor       string                          `json:"profile_color,omitempty"`
+	ProfileIcon        string                          `json:"profile_icon,omitempty"`
+	ProfileEmoji       string                          `json:"profile_emoji,omitempty"`
+	ProfileArchived    bool                            `json:"profile_archived,omitempty"`
 	WorkspaceID        string                          `json:"workspace_id,omitempty"`
 	Channel            string                          `json:"channel"`
 	ThreadID           string                          `json:"thread_id"`
@@ -347,6 +377,12 @@ type NetworkThreadSessionCostPayload struct {
 
 // NetworkDirectRoomPayload is the direct-room list/detail projection.
 type NetworkDirectRoomPayload struct {
+	ProfileID          string     `json:"profile_id"`
+	ProfileName        string     `json:"profile_name"`
+	ProfileColor       string     `json:"profile_color,omitempty"`
+	ProfileIcon        string     `json:"profile_icon,omitempty"`
+	ProfileEmoji       string     `json:"profile_emoji,omitempty"`
+	ProfileArchived    bool       `json:"profile_archived,omitempty"`
 	WorkspaceID        string     `json:"workspace_id,omitempty"`
 	Channel            string     `json:"channel"`
 	DirectID           string     `json:"direct_id"`
@@ -361,6 +397,12 @@ type NetworkDirectRoomPayload struct {
 
 // NetworkWorkPayload is the public network work lookup projection.
 type NetworkWorkPayload struct {
+	ProfileID       string     `json:"profile_id"`
+	ProfileName     string     `json:"profile_name"`
+	ProfileColor    string     `json:"profile_color,omitempty"`
+	ProfileIcon     string     `json:"profile_icon,omitempty"`
+	ProfileEmoji    string     `json:"profile_emoji,omitempty"`
+	ProfileArchived bool       `json:"profile_archived,omitempty"`
 	WorkID          string     `json:"work_id"`
 	WorkspaceID     string     `json:"workspace_id,omitempty"`
 	Channel         string     `json:"channel"`

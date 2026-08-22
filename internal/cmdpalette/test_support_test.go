@@ -7,12 +7,18 @@ import (
 	"sync"
 )
 
+var testProfileLens = ScopedProfileLens(DefaultProfileLensID, "default")
+
+func testCatalogRequest(workspaceID WorkspaceID, clientID ClientID) CatalogRequest {
+	return CatalogRequest{ProfileLens: testProfileLens, WorkspaceID: workspaceID, ClientID: clientID}
+}
+
 type staticTestProvider struct {
 	commands []Descriptor
 	err      error
 }
 
-func (p staticTestProvider) ProvideCommands(context.Context, WorkspaceID) ([]Descriptor, error) {
+func (p staticTestProvider) ProvideCommands(context.Context, CatalogRequest) ([]Descriptor, error) {
 	if p.err != nil {
 		return nil, p.err
 	}
@@ -26,7 +32,7 @@ type dynamicTestProvider struct {
 	err      error
 }
 
-func (p dynamicTestProvider) ProvideCommands(context.Context, WorkspaceID) ([]Descriptor, error) {
+func (p dynamicTestProvider) ProvideCommands(context.Context, CatalogRequest) ([]Descriptor, error) {
 	if p.err != nil {
 		return nil, p.err
 	}
@@ -42,6 +48,7 @@ type testBindings struct {
 
 func (b *testBindings) GlobalBindingsForCatalogSnapshot(
 	context.Context,
+	ProfileLens,
 	WorkspaceID,
 	[]CommandID,
 ) (map[CommandID]string, error) {
@@ -50,6 +57,7 @@ func (b *testBindings) GlobalBindingsForCatalogSnapshot(
 
 func (b *testBindings) Bindings(
 	context.Context,
+	ProfileLens,
 	WorkspaceID,
 ) (map[CommandID][]string, map[CommandID]string, error) {
 	return b.bindings, b.aliases, b.err
@@ -65,6 +73,7 @@ type testClientDirectory struct {
 
 func (d *testClientDirectory) GlobalShortcutStatuses(
 	_ context.Context,
+	_ ProfileLens,
 	_ WorkspaceID,
 	clientID ClientID,
 ) (map[CommandID]GlobalShortcut, error) {

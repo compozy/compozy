@@ -23,6 +23,7 @@ func TestGlobalDBDeadEntityStore(t *testing.T) {
 
 		markDeadEntityForTest(t, globalDB, store.DeadEntity{
 			DeadEntityKey: store.DeadEntityKey{
+				ProfileID:   store.DefaultProfileID,
 				WorkspaceID: workspaceA,
 				Kind:        store.DeadEntityKindMCPSidecar,
 				EntityID:    "github",
@@ -32,6 +33,7 @@ func TestGlobalDBDeadEntityStore(t *testing.T) {
 		})
 		markDeadEntityForTest(t, globalDB, store.DeadEntity{
 			DeadEntityKey: store.DeadEntityKey{
+				ProfileID:   store.DefaultProfileID,
 				WorkspaceID: workspaceB,
 				Kind:        store.DeadEntityKindMCPSidecar,
 				EntityID:    "github",
@@ -41,6 +43,7 @@ func TestGlobalDBDeadEntityStore(t *testing.T) {
 		})
 		markDeadEntityForTest(t, globalDB, store.DeadEntity{
 			DeadEntityKey: store.DeadEntityKey{
+				ProfileID:   store.DefaultProfileID,
 				WorkspaceID: workspaceA,
 				Kind:        store.DeadEntityKindBridge,
 				EntityID:    "telegram",
@@ -52,6 +55,7 @@ func TestGlobalDBDeadEntityStore(t *testing.T) {
 		refreshedAt := firstMarkedAt.Add(3 * time.Minute)
 		markDeadEntityForTest(t, globalDB, store.DeadEntity{
 			DeadEntityKey: store.DeadEntityKey{
+				ProfileID:   store.DefaultProfileID,
 				WorkspaceID: workspaceA,
 				Kind:        store.DeadEntityKindMCPSidecar,
 				EntityID:    "github",
@@ -62,9 +66,8 @@ func TestGlobalDBDeadEntityStore(t *testing.T) {
 
 		got, found, err := globalDB.FindDeadEntity(
 			ctx,
-			workspaceA,
-			store.DeadEntityKindMCPSidecar,
-			"github",
+			store.DeadEntityKey{ProfileID: store.DefaultProfileID, WorkspaceID: workspaceA,
+				Kind: store.DeadEntityKindMCPSidecar, EntityID: "github"},
 		)
 		if err != nil {
 			t.Fatalf("FindDeadEntity() error = %v", err)
@@ -76,7 +79,9 @@ func TestGlobalDBDeadEntityStore(t *testing.T) {
 			t.Fatalf("FindDeadEntity() = %#v, want refreshed reason and timestamp", got)
 		}
 
-		listedA, err := globalDB.ListDeadEntities(ctx, workspaceA)
+		listedA, err := globalDB.ListDeadEntities(
+			ctx, store.ReadScope{ProfileID: store.DefaultProfileID}, workspaceA,
+		)
 		if err != nil {
 			t.Fatalf("ListDeadEntities(workspace A) error = %v", err)
 		}
@@ -86,12 +91,54 @@ func TestGlobalDBDeadEntityStore(t *testing.T) {
 		if listedA[0].EntityID != "github" || listedA[1].EntityID != "telegram" {
 			t.Fatalf("ListDeadEntities(workspace A) order = %#v, want newest first", listedA)
 		}
-		listedB, err := globalDB.ListDeadEntities(ctx, workspaceB)
+		listedB, err := globalDB.ListDeadEntities(
+			ctx, store.ReadScope{ProfileID: store.DefaultProfileID}, workspaceB,
+		)
 		if err != nil {
 			t.Fatalf("ListDeadEntities(workspace B) error = %v", err)
 		}
 		if len(listedB) != 1 || listedB[0].Reason != "workspace-b failure" {
 			t.Fatalf("ListDeadEntities(workspace B) = %#v, want isolated row", listedB)
+		}
+
+		foreignProfileID := "dddddddddddddddddddddddddd"
+		if _, err := globalDB.db.ExecContext(ctx, `
+			INSERT INTO profiles (id, name, color, icon, state, created_at)
+			VALUES (?, 'reliability-foreign', '#D6A647', 'triangle', 'active', ?)`,
+			foreignProfileID, store.FormatTimestamp(firstMarkedAt),
+		); err != nil {
+			t.Fatalf("insert foreign profile error = %v", err)
+		}
+		markDeadEntityForTest(t, globalDB, store.DeadEntity{
+			DeadEntityKey: store.DeadEntityKey{
+				ProfileID: foreignProfileID, WorkspaceID: workspaceA,
+				Kind: store.DeadEntityKindMCPSidecar, EntityID: "github",
+			},
+			Reason: "foreign profile failure", MarkedAt: firstMarkedAt.Add(4 * time.Minute),
+		})
+		if _, err := globalDB.db.ExecContext(ctx, `UPDATE profiles
+			SET state = 'archived', archived_at = ? WHERE id = ?`,
+			store.FormatTimestamp(firstMarkedAt.Add(5*time.Minute)), foreignProfileID,
+		); err != nil {
+			t.Fatalf("archive foreign profile error = %v", err)
+		}
+		scopedA, err := globalDB.ListDeadEntities(
+			ctx, store.ReadScope{ProfileID: store.DefaultProfileID}, workspaceA,
+		)
+		if err != nil {
+			t.Fatalf("ListDeadEntities(scoped profile) error = %v", err)
+		}
+		if len(scopedA) != 2 {
+			t.Fatalf("ListDeadEntities(scoped profile) = %#v, want two default rows", scopedA)
+		}
+		aggregateA, err := globalDB.ListDeadEntities(
+			ctx, store.ReadScope{AllProfiles: true}, workspaceA,
+		)
+		if err != nil {
+			t.Fatalf("ListDeadEntities(aggregate) error = %v", err)
+		}
+		if len(aggregateA) != 3 || !hasDeadEntityOwner(aggregateA, foreignProfileID, true) {
+			t.Fatalf("ListDeadEntities(aggregate) = %#v, want same-key archived owner-labeled row", aggregateA)
 		}
 	})
 
@@ -103,6 +150,7 @@ func TestGlobalDBDeadEntityStore(t *testing.T) {
 		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "dead-entity-clear", t.TempDir())
 		entity := store.DeadEntity{
 			DeadEntityKey: store.DeadEntityKey{
+				ProfileID:   store.DefaultProfileID,
 				WorkspaceID: workspaceID,
 				Kind:        store.DeadEntityKindExtension,
 				EntityID:    "audit-extension",
@@ -112,13 +160,13 @@ func TestGlobalDBDeadEntityStore(t *testing.T) {
 		}
 		markDeadEntityForTest(t, globalDB, entity)
 
-		if err := globalDB.ClearDeadEntity(ctx, workspaceID, entity.Kind, entity.EntityID); err != nil {
+		if err := globalDB.ClearDeadEntity(ctx, entity.DeadEntityKey); err != nil {
 			t.Fatalf("ClearDeadEntity() error = %v", err)
 		}
-		if err := globalDB.ClearDeadEntity(ctx, workspaceID, entity.Kind, entity.EntityID); err != nil {
+		if err := globalDB.ClearDeadEntity(ctx, entity.DeadEntityKey); err != nil {
 			t.Fatalf("ClearDeadEntity(missing) error = %v", err)
 		}
-		_, found, err := globalDB.FindDeadEntity(ctx, workspaceID, entity.Kind, entity.EntityID)
+		_, found, err := globalDB.FindDeadEntity(ctx, entity.DeadEntityKey)
 		if err != nil || found {
 			t.Fatalf("FindDeadEntity(after clear) found = %t, error = %v, want false/nil", found, err)
 		}
@@ -139,6 +187,15 @@ func TestGlobalDBDeadEntityStore(t *testing.T) {
 			t.Fatalf("dead entity cascade count = %d, want 0", count)
 		}
 	})
+}
+
+func hasDeadEntityOwner(entities []store.DeadEntity, profileID string, archived bool) bool {
+	for _, entity := range entities {
+		if entity.ProfileID == profileID && entity.ProfileArchived == archived {
+			return true
+		}
+	}
+	return false
 }
 
 func TestGlobalDBDeadEntityMigration(t *testing.T) {
@@ -165,6 +222,7 @@ func TestGlobalDBDeadEntityMigration(t *testing.T) {
 		ctx = testutil.Context(t)
 		markDeadEntityForTest(t, globalDB, store.DeadEntity{
 			DeadEntityKey: store.DeadEntityKey{
+				ProfileID:   store.DefaultProfileID,
 				WorkspaceID: workspaceID,
 				Kind:        store.DeadEntityKindMCPSidecar,
 				EntityID:    "upgrade-sidecar",
@@ -188,9 +246,8 @@ func TestGlobalDBDeadEntityMigration(t *testing.T) {
 		})
 		entity, found, err := reopened.FindDeadEntity(
 			ctx,
-			workspaceID,
-			store.DeadEntityKindMCPSidecar,
-			"upgrade-sidecar",
+			store.DeadEntityKey{ProfileID: store.DefaultProfileID, WorkspaceID: workspaceID,
+				Kind: store.DeadEntityKindMCPSidecar, EntityID: "upgrade-sidecar"},
 		)
 		if err != nil {
 			t.Fatalf("FindDeadEntity(reopen) error = %v", err)

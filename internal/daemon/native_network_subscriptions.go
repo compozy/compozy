@@ -123,7 +123,7 @@ func nativeNetworkSubscriptionChannel(
 	}
 	now := time.Now().UTC()
 	return store.NetworkChannelEntry{
-		ProfileID:    store.DefaultProfileID,
+		ProfileID:    scope.ProfileID,
 		WorkspaceID:  ref.WorkspaceID,
 		Channel:      ref.Channel,
 		Purpose:      "network_channel",

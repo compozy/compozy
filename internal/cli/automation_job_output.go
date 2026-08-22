@@ -93,6 +93,7 @@ func automationJobListBundle(page AutomationJobListRecord) outputBundle {
 		"Automation Jobs",
 		[]string{
 			"ID",
+			sessionProfileValue,
 			automationNameValue,
 			automationScopeValue,
 			automationWorkspaceValue,
@@ -105,6 +106,7 @@ func automationJobListBundle(page AutomationJobListRecord) outputBundle {
 		"automation_jobs",
 		[]string{
 			"id",
+			"profile_name",
 			automationNameKey,
 			automationScopeKey,
 			automationWorkspaceIDKey,
@@ -117,6 +119,7 @@ func automationJobListBundle(page AutomationJobListRecord) outputBundle {
 		func(item JobRecord) []string {
 			return []string{
 				stringOrDash(item.ID),
+				stringOrDash(item.ProfileName),
 				stringOrDash(item.Name),
 				stringOrDash(string(item.Scope)),
 				stringOrDash(item.WorkspaceID),
@@ -130,6 +133,7 @@ func automationJobListBundle(page AutomationJobListRecord) outputBundle {
 		func(item JobRecord) []string {
 			return []string{
 				item.ID,
+				item.ProfileName,
 				item.Name,
 				string(item.Scope),
 				item.WorkspaceID,

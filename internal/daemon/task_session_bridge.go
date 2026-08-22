@@ -252,8 +252,9 @@ func (b *taskSessionBridge) applySessionWorktreePolicy(
 			return nil, fmt.Errorf("%w: task workspace is required", worktree.ErrPerRunMaterialization)
 		}
 		item, err := b.worktrees.MaterializeForRun(ctx, workspaceID, worktree.RunWorktreeRequest{
-			TaskSlug: taskWorktreeSlug(spec.Task),
-			RunID:    spec.Run.ID,
+			ProfileID: spec.Task.ProfileID,
+			TaskSlug:  taskWorktreeSlug(spec.Task),
+			RunID:     spec.Run.ID,
 		})
 		if err != nil {
 			return nil, err

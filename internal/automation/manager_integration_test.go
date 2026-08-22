@@ -10,6 +10,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
+	storepkg "github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/jonboulle/clockwork"
@@ -399,6 +400,7 @@ func TestManagerIntegrationAutomationSessionCanCreateTaskWithAutomationOrigin(t 
 	}
 
 	createdTask, err := taskManager.CreateTask(h.ctx, taskpkg.CreateTask{
+		ProfileID:   storepkg.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: h.workspace.ID,
 		Title:       "Agent-created follow-up",

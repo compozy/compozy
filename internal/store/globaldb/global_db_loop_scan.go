@@ -72,6 +72,7 @@ func scanLoopRun(row loopRunScanner) (looppkg.Run, error) {
 func (v *loopRunScanValues) scan(row loopRunScanner) error {
 	return row.Scan(
 		&v.runID,
+		&v.run.ProfileID,
 		&v.workspaceID,
 		&v.run.LoopName,
 		&v.status,

@@ -7,6 +7,7 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -211,6 +212,7 @@ type LoopService interface {
 
 // LoopRunListQuery contains HTTP/UDS list filters for loop runs.
 type LoopRunListQuery struct {
+	ReadScope     store.ReadScope
 	LoopName      string
 	Status        string
 	Origin        string

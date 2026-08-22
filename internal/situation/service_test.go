@@ -235,6 +235,7 @@ func TestContextForSessionBoundsListsAndIncludesTaskParticipationProvenance(t *t
 
 	payload, err := service.ContextForSession(context.Background(), &session.Info{
 		ID:          "sess-1",
+		ProfileID:   store.DefaultProfileID,
 		Name:        "Coding Session",
 		AgentName:   "coder",
 		Provider:    "codex",
@@ -322,6 +323,64 @@ func TestContextForSessionBoundsListsAndIncludesTaskParticipationProvenance(t *t
 	})
 	if strings.Contains(rendered, "claim_token") {
 		t.Fatalf("RenderPrompt() leaked raw claim token field: %s", rendered)
+	}
+}
+
+func TestContextForSessionProfileLeakProbe(t *testing.T) {
+	t.Parallel()
+
+	const foreignProfileID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+	queries := []taskpkg.RunQuery{}
+	ownedTask := taskpkg.Task{
+		ID: "task-owned", ProfileID: store.DefaultProfileID, Scope: taskpkg.ScopeWorkspace,
+		WorkspaceID: "ws-1", Title: "owned context", Status: taskpkg.TaskStatusInProgress,
+	}
+	foreignTask := taskpkg.Task{
+		ID: "task-foreign", ProfileID: foreignProfileID, Scope: taskpkg.ScopeWorkspace,
+		WorkspaceID: "ws-1", Title: "FOREIGN_PROFILE_SECRET", Status: taskpkg.TaskStatusInProgress,
+	}
+	service := NewService(Deps{
+		Now: fixedNow,
+		WorkspaceResolver: workspaceResolverFunc(func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+			return workspacepkg.ResolvedWorkspace{
+				Workspace: workspacepkg.Workspace{ID: "ws-1", Name: "Compozy", RootDir: "/work/compozy"},
+			}, nil
+		}),
+		TaskStore: taskStoreStub{
+			tasks: map[string]taskpkg.Task{ownedTask.ID: ownedTask, foreignTask.ID: foreignTask},
+			runs: []taskpkg.Run{
+				{ID: "run-owned", TaskID: ownedTask.ID, SessionID: "sess-1", Status: taskpkg.TaskRunStatusRunning},
+				{ID: "run-foreign", TaskID: foreignTask.ID, SessionID: "sess-1", Status: taskpkg.TaskRunStatusRunning},
+			},
+			runQueries: &queries,
+		},
+	})
+
+	payload, err := service.ContextForSession(t.Context(), &session.Info{
+		ID: "sess-1", ProfileID: store.DefaultProfileID, AgentName: "coder", Provider: "codex",
+		WorkspaceID: "ws-1", Workspace: "/work/compozy", Type: session.SessionTypeUser,
+		State: session.StateActive, CreatedAt: fixedTime(), UpdatedAt: fixedTime(),
+	})
+	if err != nil {
+		t.Fatalf("ContextForSession() error = %v", err)
+	}
+	if !payload.Task.Available || payload.Task.Task == nil || payload.Task.Task.ID != ownedTask.ID {
+		t.Fatalf("Task context = %#v, want owned task only", payload.Task)
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("json.Marshal(payload) error = %v", err)
+	}
+	if strings.Contains(string(encoded), "FOREIGN_PROFILE_SECRET") || strings.Contains(string(encoded), foreignTask.ID) {
+		t.Fatalf("situation payload leaked foreign profile data: %s", encoded)
+	}
+	if len(queries) == 0 {
+		t.Fatal("task store received no scoped run query")
+	}
+	for _, query := range queries {
+		if query.ReadScope != (store.ReadScope{ProfileID: store.DefaultProfileID}) {
+			t.Fatalf("run query ReadScope = %#v, want session profile", query.ReadScope)
+		}
 	}
 }
 
@@ -420,6 +479,7 @@ func TestContextBundleRedactsReviewContinuationAndRawClaimTokens(t *testing.T) {
 		})
 
 		bundle, err := service.BundleForActiveLease(context.Background(), taskpkg.ContextRequest{
+			ProfileID: store.DefaultProfileID,
 			SessionID: currentRun.SessionID,
 			RunID:     currentRun.ID,
 			Now:       fixedTime().Add(30 * time.Minute),
@@ -596,8 +656,9 @@ func TestBundleForOperatorTaskRejectsOversizedUntrimmableBundle(t *testing.T) {
 	})
 
 	_, err := service.BundleForOperatorTask(context.Background(), taskpkg.OperatorTaskContextRequest{
-		TaskID: taskRecord.ID,
-		Now:    fixedTime(),
+		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+		TaskID:    taskRecord.ID,
+		Now:       fixedTime(),
 	})
 	if !errors.Is(err, taskpkg.ErrPayloadTooLarge) {
 		t.Fatalf("BundleForOperatorTask() error = %v, want %v", err, taskpkg.ErrPayloadTooLarge)
@@ -665,6 +726,7 @@ func TestContextForSessionIncludesReviewerTaskBundleWithoutActiveLease(t *testin
 
 		payload, err := service.ContextForSession(context.Background(), &session.Info{
 			ID:                   "sess-reviewer",
+			ProfileID:            store.DefaultProfileID,
 			AgentName:            "reviewer",
 			Provider:             "codex",
 			WorkspaceID:          "ws-review",
@@ -751,6 +813,7 @@ func TestContextForSessionIncludesReviewerTaskBundleWithoutActiveLease(t *testin
 
 		payload, err := service.ContextForSession(context.Background(), &session.Info{
 			ID:                   "sess-reviewer",
+			ProfileID:            store.DefaultProfileID,
 			AgentName:            "reviewer",
 			Provider:             "codex",
 			WorkspaceID:          "ws-review",
@@ -824,6 +887,7 @@ func TestContextForSessionKeepsTaskChannelContextWhenBundleEnrichmentFails(t *te
 
 		payload, err := service.ContextForSession(context.Background(), &session.Info{
 			ID:                   "sess-active",
+			ProfileID:            store.DefaultProfileID,
 			AgentName:            "coder",
 			Provider:             "codex",
 			WorkspaceID:          taskRecord.WorkspaceID,
@@ -907,6 +971,7 @@ func TestContextForSessionKeepsTaskChannelContextWhenBundleEnrichmentFails(t *te
 
 		payload, err := service.ContextForSession(context.Background(), &session.Info{
 			ID:                   "sess-reviewer",
+			ProfileID:            store.DefaultProfileID,
 			AgentName:            "reviewer",
 			Provider:             "codex",
 			WorkspaceID:          taskRecord.WorkspaceID,
@@ -987,6 +1052,7 @@ func TestContextForSessionIncludesCompactSoulProjection(t *testing.T) {
 
 		payload, err := service.ContextForSession(context.Background(), &session.Info{
 			ID:             "sess-1",
+			ProfileID:      store.DefaultProfileID,
 			AgentName:      "coder",
 			Provider:       "codex",
 			WorkspaceID:    "ws-1",
@@ -1640,6 +1706,7 @@ type taskStoreStub struct {
 	getRunReviewErr         error
 	lookupRunReviewErr      error
 	listRunReviewsErr       error
+	runQueries              *[]taskpkg.RunQuery
 }
 
 func (s taskStoreStub) GetTask(_ context.Context, id string) (taskpkg.Task, error) {
@@ -1650,16 +1717,36 @@ func (s taskStoreStub) GetTask(_ context.Context, id string) (taskpkg.Task, erro
 	if !ok {
 		return taskpkg.Task{}, errors.New("missing task")
 	}
+	if strings.TrimSpace(taskRecord.ProfileID) == "" {
+		taskRecord.ProfileID = store.DefaultProfileID
+	}
 	taskRecord.LatestEventSeq = s.latestEventSeq(taskRecord.ID)
 	return taskRecord, nil
 }
 
 func (s taskStoreStub) ListTaskRuns(_ context.Context, query taskpkg.RunQuery) ([]taskpkg.Run, error) {
+	if s.runQueries != nil {
+		*s.runQueries = append(*s.runQueries, query)
+	}
+	if err := query.ReadScope.Validate(); err != nil {
+		return nil, err
+	}
 	if s.listTaskRunsErr != nil {
 		return nil, s.listTaskRunsErr
 	}
 	runs := make([]taskpkg.Run, 0, len(s.runs))
 	for _, run := range s.runs {
+		taskRecord, ok := s.tasks[run.TaskID]
+		if !ok {
+			continue
+		}
+		profileID := strings.TrimSpace(taskRecord.ProfileID)
+		if profileID == "" {
+			profileID = store.DefaultProfileID
+		}
+		if !query.ReadScope.Matches(profileID) {
+			continue
+		}
 		if strings.TrimSpace(query.TaskID) != "" &&
 			strings.TrimSpace(run.TaskID) != strings.TrimSpace(query.TaskID) {
 			continue

@@ -66,6 +66,12 @@ func (q NetworkChannelProjectionQuery) Validate() error {
 
 // NetworkRecentSummary is one cross-channel thread or direct-room list item.
 type NetworkRecentSummary struct {
+	ProfileID            string
+	ProfileName          string
+	ProfileColor         string
+	ProfileIcon          string
+	ProfileEmoji         string
+	ProfileArchived      bool
 	WorkspaceID          string
 	Channel              string
 	Surface              string

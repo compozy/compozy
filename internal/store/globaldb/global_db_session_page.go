@@ -132,6 +132,7 @@ func sessionCatalogPageFilters(
 	now string,
 ) ([]string, []any, error) {
 	where, args := store.BuildClauses(
+		store.ReadScopeClause("profile_id", query.ReadScope),
 		store.StringClause("workspace_id", query.WorkspaceID),
 		store.StringClause("worktree_id", query.WorktreeID),
 		store.StringClause("state", query.State),

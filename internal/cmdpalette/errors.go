@@ -6,16 +6,17 @@ import (
 )
 
 var (
-	ErrInvalidDescriptor  = errors.New("cmd palette: invalid descriptor")
-	ErrDuplicateCommandID = errors.New("cmd palette: duplicate command id")
-	ErrCommandNotFound    = errors.New("cmd palette: command not found")
-	ErrAlreadyRunning     = errors.New("cmd palette: command already running")
-	ErrNoAttachedShell    = errors.New("cmd palette: no attached shell")
-	ErrMultipleClients    = errors.New("cmd palette: multiple clients")
-	ErrCannotDeferSecrets = errors.New("cmd palette: cannot defer secrets")
-	ErrClientUnauthorized = errors.New("cmd palette: client unauthorized")
-	ErrInvalidExecution   = errors.New("cmd palette: invalid execution result")
-	ErrUnsafeURL          = errors.New("cmd palette: url must be an absolute http or https URL")
+	ErrInvalidDescriptor          = errors.New("cmd palette: invalid descriptor")
+	ErrDuplicateCommandID         = errors.New("cmd palette: duplicate command id")
+	ErrCommandNotFound            = errors.New("cmd palette: command not found")
+	ErrAlreadyRunning             = errors.New("cmd palette: command already running")
+	ErrNoAttachedShell            = errors.New("cmd palette: no attached shell")
+	ErrMultipleClients            = errors.New("cmd palette: multiple clients")
+	ErrCannotDeferSecrets         = errors.New("cmd palette: cannot defer secrets")
+	ErrClientUnauthorized         = errors.New("cmd palette: client unauthorized")
+	ErrInvalidExecution           = errors.New("cmd palette: invalid execution result")
+	ErrProfileManagementForbidden = errors.New("cmd palette: profile management is local-only")
+	ErrUnsafeURL                  = errors.New("cmd palette: url must be an absolute http or https URL")
 )
 
 type InvalidArgumentsError struct {

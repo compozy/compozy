@@ -358,6 +358,7 @@ func nativeNetworkTestSessionManager(workspaceID string) apitest.StubSessionMana
 			}
 			return &session.Info{
 				ID:                   sessionID,
+				ProfileID:            store.DefaultProfileID,
 				AgentName:            "coder",
 				WorkspaceID:          workspaceID,
 				State:                session.StateActive,
@@ -9697,7 +9698,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		events, err := memoryStore.ListMemoryEventSummaries(
 			t.Context(),
 			nil,
-			store.EventSummaryQuery{Type: "memory.write.rejected"},
+			store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, Type: "memory.write.rejected"},
 		)
 		if err != nil {
 			t.Fatalf("ListMemoryEventSummaries(write rejected) error = %v", err)

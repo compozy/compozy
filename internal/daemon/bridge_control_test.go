@@ -31,6 +31,7 @@ func TestBridgeRuntimeResolveBridgeControlRuntimeKeepsDisabledState(t *testing.T
 		resolver := &recordingBridgeSecretResolver{values: map[string]string{"bot_token": "secret-value"}}
 		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, resolver)
 		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-control-disabled",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "telegram",
@@ -104,6 +105,7 @@ func TestBridgeRuntimeCheckBridgeDoesNotChangeLifecycleState(t *testing.T) {
 		now := time.Date(2026, 7, 12, 13, 5, 0, 0, time.UTC)
 		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, nil)
 		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-control-read-only",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "telegram",
@@ -163,6 +165,7 @@ func TestBridgeRuntimeCheckBridgeDeadEntityRecovery(t *testing.T) {
 		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, nil)
 		runtime.deadEntities = deadentity.New(db, deadentity.WithClock(func() time.Time { return now }))
 		workspaceInstance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-dead-workspace",
 			Scope:         bridgepkg.ScopeWorkspace,
 			WorkspaceID:   workspaceID,
@@ -174,6 +177,7 @@ func TestBridgeRuntimeCheckBridgeDeadEntityRecovery(t *testing.T) {
 			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 		})
 		globalInstance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-dead-global",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -228,7 +232,7 @@ func TestBridgeRuntimeCheckBridgeDeadEntityRecovery(t *testing.T) {
 				deadentity.DefaultPermanentFailureThreshold,
 			)
 		}
-		entities, err := db.ListDeadEntities(ctx, workspaceID)
+		entities, err := db.ListDeadEntities(ctx, store.ReadScope{AllProfiles: true}, workspaceID)
 		if err != nil {
 			t.Fatalf("ListDeadEntities(marked) error = %v", err)
 		}
@@ -252,7 +256,7 @@ func TestBridgeRuntimeCheckBridgeDeadEntityRecovery(t *testing.T) {
 		if len(recovered.Checks) != 1 || recovered.Checks[0].Status != bridgepkg.BridgeCheckStatusPass {
 			t.Fatalf("CheckBridge(recovery) = %#v, want structured pass", recovered)
 		}
-		entities, err = db.ListDeadEntities(ctx, workspaceID)
+		entities, err = db.ListDeadEntities(ctx, store.ReadScope{AllProfiles: true}, workspaceID)
 		if err != nil {
 			t.Fatalf("ListDeadEntities(recovered) error = %v", err)
 		}
@@ -268,7 +272,7 @@ func TestBridgeRuntimeCheckBridgeDeadEntityRecovery(t *testing.T) {
 			}
 			assertProviderCall(globalInstance.ID)
 		}
-		entities, err = db.ListDeadEntities(ctx, workspaceID)
+		entities, err = db.ListDeadEntities(ctx, store.ReadScope{AllProfiles: true}, workspaceID)
 		if err != nil {
 			t.Fatalf("ListDeadEntities(global) error = %v", err)
 		}
@@ -286,6 +290,7 @@ func TestBridgeRuntimeControlCallHoldsLifecycleLockThroughTransportCleanup(t *te
 		now := time.Date(2026, 7, 12, 13, 10, 0, 0, time.UTC)
 		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, nil)
 		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-control-lock",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "telegram",
@@ -363,6 +368,7 @@ func TestBridgeRuntimeControlLockWaitHonorsCancellation(t *testing.T) {
 		db := openDaemonTestGlobalDB(t)
 		runtime := newBridgeRuntime(db, discardLogger(), time.Now, nil)
 		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-control-cancel",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "telegram",
@@ -435,6 +441,7 @@ func TestBridgeRuntimeControlAllowsDifferentInstancesForOneExtension(t *testing.
 		instances := make([]*bridgepkg.BridgeInstance, 0, 2)
 		for _, id := range []string{"brg-control-a", "brg-control-b"} {
 			instances = append(instances, mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+				ProfileID:     store.DefaultProfileID,
 				ID:            id,
 				Scope:         bridgepkg.ScopeGlobal,
 				Platform:      "telegram",
@@ -490,6 +497,7 @@ func TestBridgeRuntimeControlRejectsExtensionMismatchBeforeTransport(t *testing.
 		db := openDaemonTestGlobalDB(t)
 		runtime := newBridgeRuntime(db, discardLogger(), time.Now, nil)
 		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-control-owner",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "telegram",

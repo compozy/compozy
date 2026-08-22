@@ -23,6 +23,7 @@ type AgentSessionMetrics struct {
 // the manager's current live-session snapshots.
 func (m *Manager) AggregateSessionsByAgent(
 	ctx context.Context,
+	readScope store.ReadScope,
 	workspaceID string,
 ) (map[string]AgentSessionMetrics, error) {
 	if ctx == nil {
@@ -38,10 +39,12 @@ func (m *Manager) AggregateSessionsByAgent(
 	}
 
 	_, activeIDs, activeMatches := m.activeSessionCatalogRows(ListQuery{
+		ReadScope:   readScope,
 		WorkspaceID: workspaceID,
 		Archive:     ArchiveExclude,
 	})
 	durable, err := reader.AggregateSessionsByAgent(ctx, store.SessionAgentMetricsQuery{
+		ReadScope:           readScope,
 		WorkspaceID:         workspaceID,
 		ExcludeIDs:          activeIDs,
 		ExcludeSessionTypes: []string{string(SessionTypeDream)},

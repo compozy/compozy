@@ -8,7 +8,6 @@ import (
 
 	"net/http"
 	"time"
-	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
@@ -53,7 +52,8 @@ func (h *BaseHandlers) CreateTaskBridgeNotificationSubscription(c *gin.Context) 
 		h.respondError(c, StatusForBridgeError(err), err)
 		return
 	}
-	instance, err := bridges.GetInstance(c.Request.Context(), subscription.BridgeInstanceID)
+	readScope := store.ReadScope{ProfileID: taskRecord.ProfileID}
+	instance, err := bridges.GetInstanceScoped(c.Request.Context(), readScope, subscription.BridgeInstanceID)
 	if err != nil {
 		h.respondError(c, StatusForBridgeError(err), err)
 		return
@@ -66,7 +66,11 @@ func (h *BaseHandlers) CreateTaskBridgeNotificationSubscription(c *gin.Context) 
 		h.respondError(c, StatusForBridgeError(err), err)
 		return
 	}
-	stored, err := bridges.GetBridgeTaskSubscription(c.Request.Context(), subscription.SubscriptionID)
+	stored, err := bridges.GetBridgeTaskSubscription(
+		c.Request.Context(),
+		readScope,
+		subscription.SubscriptionID,
+	)
 	if err != nil {
 		h.respondError(c, StatusForBridgeError(err), err)
 		return
@@ -98,7 +102,7 @@ func (h *BaseHandlers) ListTaskBridgeNotificationSubscriptions(c *gin.Context) {
 	if !ok {
 		return
 	}
-	query, err := parseTaskBridgeNotificationSubscriptionQuery(c, taskRecord.ID)
+	query, err := parseTaskBridgeNotificationSubscriptionQuery(c, taskRecord.ProfileID, taskRecord.ID)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
@@ -136,7 +140,9 @@ func (h *BaseHandlers) GetTaskBridgeNotificationSubscription(c *gin.Context) {
 	if !ok {
 		return
 	}
-	subscription, ok := h.taskBridgeNotificationSubscriptionByPath(c, bridges, taskRecord.ID)
+	subscription, ok := h.taskBridgeNotificationSubscriptionByPath(
+		c, bridges, taskRecord.ProfileID, taskRecord.ID,
+	)
 	if !ok {
 		return
 	}
@@ -167,7 +173,9 @@ func (h *BaseHandlers) DeleteTaskBridgeNotificationSubscription(c *gin.Context) 
 	if !ok {
 		return
 	}
-	subscription, ok := h.taskBridgeNotificationSubscriptionByPath(c, bridges, taskRecord.ID)
+	subscription, ok := h.taskBridgeNotificationSubscriptionByPath(
+		c, bridges, taskRecord.ProfileID, taskRecord.ID,
+	)
 	if !ok {
 		return
 	}
@@ -176,35 +184,6 @@ func (h *BaseHandlers) DeleteTaskBridgeNotificationSubscription(c *gin.Context) 
 		return
 	}
 	c.Status(http.StatusNoContent)
-}
-
-func (h *BaseHandlers) taskBridgeNotificationSubscriptionByPath(
-	c *gin.Context,
-	bridges BridgeService,
-	taskID string,
-) (bridgepkg.BridgeTaskSubscription, bool) {
-	subscriptionID, err := requiredOpaqueTaskBridgeNotificationPathID(
-		c.Param("subscription_id"),
-		"bridge task subscription id",
-	)
-	if err != nil {
-		h.respondError(c, StatusForBridgeError(err), err)
-		return bridgepkg.BridgeTaskSubscription{}, false
-	}
-	subscription, err := bridges.GetBridgeTaskSubscription(c.Request.Context(), subscriptionID)
-	if err != nil {
-		h.respondError(c, StatusForBridgeError(err), err)
-		return bridgepkg.BridgeTaskSubscription{}, false
-	}
-	if subscription.TaskID != taskID {
-		h.respondError(
-			c,
-			StatusForBridgeError(bridgepkg.ErrBridgeTaskSubscriptionNotFound),
-			bridgepkg.ErrBridgeTaskSubscriptionNotFound,
-		)
-		return bridgepkg.BridgeTaskSubscription{}, false
-	}
-	return subscription, true
 }
 
 func (h *BaseHandlers) transitionBridge(
@@ -406,6 +385,7 @@ func taskBridgeNotificationSubscriptionFromRequest(
 	}
 	subscription := bridgepkg.BridgeTaskSubscription{
 		SubscriptionID:   subscriptionID,
+		ProfileID:        taskRecord.ProfileID,
 		TaskID:           taskRecord.ID,
 		BridgeInstanceID: req.BridgeInstanceID,
 		Scope:            taskScope,
@@ -452,41 +432,4 @@ func validateTaskBridgeNotificationInstanceScope(
 		)
 	}
 	return nil
-}
-
-func parseTaskBridgeNotificationSubscriptionQuery(
-	c *gin.Context,
-	taskID string,
-) (bridgepkg.BridgeTaskSubscriptionQuery, error) {
-	limit, err := ParseOptionalInt(c.Query("limit"))
-	if err != nil {
-		return bridgepkg.BridgeTaskSubscriptionQuery{}, err
-	}
-	query := bridgepkg.BridgeTaskSubscriptionQuery{
-		TaskID:           taskID,
-		BridgeInstanceID: c.Query("bridge_instance_id"),
-		Scope:            bridgepkg.Scope(c.Query("scope")),
-		WorkspaceID:      c.Query("workspace_id"),
-		Limit:            limit,
-	}
-	if query.Scope != "" {
-		if err := query.Scope.Validate(); err != nil {
-			return bridgepkg.BridgeTaskSubscriptionQuery{}, err
-		}
-	}
-	normalized := query.Normalize()
-	if err := normalized.Validate(); err != nil {
-		return bridgepkg.BridgeTaskSubscriptionQuery{}, err
-	}
-	return normalized, nil
-}
-
-func requiredOpaqueTaskBridgeNotificationPathID(value string, label string) (string, error) {
-	if value == "" {
-		return "", fmt.Errorf("api: %s is required", label)
-	}
-	if !utf8.ValidString(value) {
-		return "", fmt.Errorf("api: %s must be valid UTF-8", label)
-	}
-	return value, nil
 }

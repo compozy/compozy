@@ -95,6 +95,7 @@ func (h *BaseHandlers) StreamWorktree(c *gin.Context) {
 		return
 	}
 	query := store.EventSummaryQuery{
+		ReadScope:   store.ReadScope{AllProfiles: true},
 		WorkspaceID: scope.RegistryID, WorktreeID: worktreeID, AfterSequence: afterSequence, Limit: worktreeReplayLimit,
 	}
 	afterSequence, ok = h.replayWorktreeEvents(c, writer, query)

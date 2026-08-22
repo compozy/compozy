@@ -68,7 +68,8 @@ func (n *daemonNativeTools) taskNotificationSubscribe(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeTaskNotificationToolError(req.ToolID, err)
 	}
-	instance, err := n.deps.Bridges.GetInstance(ctx, subscription.BridgeInstanceID)
+	readScope := store.ReadScope{ProfileID: taskRecord.ProfileID}
+	instance, err := n.deps.Bridges.GetInstanceScoped(ctx, readScope, subscription.BridgeInstanceID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeTaskNotificationToolError(req.ToolID, err)
 	}
@@ -78,7 +79,7 @@ func (n *daemonNativeTools) taskNotificationSubscribe(
 	if err := n.deps.Bridges.PutBridgeTaskSubscription(ctx, subscription); err != nil {
 		return toolspkg.ToolResult{}, nativeTaskNotificationToolError(req.ToolID, err)
 	}
-	stored, err := n.deps.Bridges.GetBridgeTaskSubscription(ctx, subscription.SubscriptionID)
+	stored, err := n.deps.Bridges.GetBridgeTaskSubscription(ctx, readScope, subscription.SubscriptionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeTaskNotificationToolError(req.ToolID, err)
 	}
@@ -105,7 +106,7 @@ func (n *daemonNativeTools) taskNotificationList(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	query, err := nativeTaskNotificationQuery(req.ToolID, taskRecord.ID, input)
+	query, err := nativeTaskNotificationQuery(req.ToolID, taskRecord.ProfileID, taskRecord.ID, input)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -239,6 +240,7 @@ func nativeTaskNotificationSubscriptionFromInput(
 	}
 	subscription := bridgepkg.BridgeTaskSubscription{
 		SubscriptionID:   subscriptionID,
+		ProfileID:        taskRecord.ProfileID,
 		TaskID:           taskRecord.ID,
 		BridgeInstanceID: input.BridgeInstanceID,
 		Scope:            taskScope,
@@ -289,10 +291,12 @@ func nativeValidateTaskNotificationInstanceScope(
 
 func nativeTaskNotificationQuery(
 	id toolspkg.ToolID,
+	profileID string,
 	taskID string,
 	input taskNotificationListInput,
 ) (bridgepkg.BridgeTaskSubscriptionQuery, error) {
 	query := bridgepkg.BridgeTaskSubscriptionQuery{
+		ReadScope:        store.ReadScope{ProfileID: profileID},
 		TaskID:           taskID,
 		BridgeInstanceID: input.BridgeInstanceID,
 		Scope:            bridgepkg.Scope(input.Scope),
@@ -315,7 +319,11 @@ func (n *daemonNativeTools) taskNotificationSubscriptionByID(
 	if err != nil {
 		return bridgepkg.BridgeTaskSubscription{}, err
 	}
-	subscription, err := n.deps.Bridges.GetBridgeTaskSubscription(ctx, validatedID)
+	subscription, err := n.deps.Bridges.GetBridgeTaskSubscription(
+		ctx,
+		store.ReadScope{ProfileID: taskRecord.ProfileID},
+		validatedID,
+	)
 	if err != nil {
 		return bridgepkg.BridgeTaskSubscription{}, nativeTaskNotificationToolError(id, err)
 	}

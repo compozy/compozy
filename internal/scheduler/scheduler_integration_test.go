@@ -260,6 +260,7 @@ func TestSchedulerRecoversExpiredImmutableParticipationLeaseIntegration(t *testi
 				t.Fatalf("DeriveHumanActorContext() error = %v", err)
 			}
 			taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+				ProfileID:   store.DefaultProfileID,
 				Scope:       taskpkg.ScopeWorkspace,
 				WorkspaceID: workspaceID,
 				Title:       "Immutable participation lease expiry recovery",
@@ -887,6 +888,7 @@ func createSchedulerTaskRun(
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
 	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: workspaceID,
 		Title:       title,

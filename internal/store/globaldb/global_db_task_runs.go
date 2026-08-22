@@ -99,6 +99,11 @@ func (g *TaskRepo) listTaskRunsWithExecutor(
 		store.StringClause("designation_group_id", normalized.DesignationGroupID),
 		store.StringClause("network_channel", normalized.ParticipationChannel),
 	)
+	if normalized.ReadScope != (store.ReadScope{}) && !normalized.ReadScope.AllProfiles {
+		profilePredicate := "EXISTS (SELECT 1 FROM tasks WHERE tasks.id = task_runs.task_id AND tasks.profile_id = ?)"
+		where = append(where, profilePredicate)
+		args = append(args, normalized.ReadScope.ProfileID)
+	}
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += " ORDER BY queued_at DESC, id DESC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, normalized.Limit)

@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/network/participation"
 
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -27,11 +28,16 @@ func (h *HostAPIHandler) createTaskSpecFromRequest(
 	if err != nil {
 		return taskpkg.CreateTask{}, err
 	}
+	profileID, err := hostAPITaskProfileID(ctx)
+	if err != nil {
+		return taskpkg.CreateTask{}, invalidParamsRPCError(err)
+	}
 
 	spec := taskpkg.CreateTask{
 		ID:                   strings.TrimSpace(req.ID),
 		Identifier:           strings.TrimSpace(req.Identifier),
 		Scope:                scope,
+		ProfileID:            profileID,
 		WorkspaceID:          workspaceID,
 		Title:                strings.TrimSpace(req.Title),
 		Description:          strings.TrimSpace(req.Description),
@@ -49,6 +55,22 @@ func (h *HostAPIHandler) createTaskSpecFromRequest(
 		return taskpkg.CreateTask{}, invalidParamsRPCError(err)
 	}
 	return spec, nil
+}
+
+func hostAPITaskProfileID(ctx context.Context) (string, error) {
+	runtime := hostAPIBridgeRuntimeFromContext(ctx)
+	if runtime == nil {
+		return store.DefaultProfileID, nil
+	}
+	managed, err := runtime.SingleManagedInstance()
+	if err != nil {
+		return "", fmt.Errorf("resolve task profile from bridge runtime: %w", err)
+	}
+	profileID := strings.TrimSpace(managed.Instance.ProfileID)
+	if profileID == "" {
+		return "", errors.New("resolve task profile from bridge runtime: profile id is required")
+	}
+	return profileID, nil
 }
 
 func taskPatchFromRequest(req apicontract.UpdateTaskRequest) (taskpkg.Patch, error) {

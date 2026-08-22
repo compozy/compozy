@@ -66,7 +66,7 @@ func (s *nativeWorktreeServiceStub) CancelCreate(context.Context, string, string
 	return fmt.Errorf("unexpected CancelCreate call")
 }
 
-func (s *nativeWorktreeServiceStub) Adopt(context.Context, string, string) (*worktree.Worktree, error) {
+func (s *nativeWorktreeServiceStub) Adopt(context.Context, string, string, string) (*worktree.Worktree, error) {
 	return nil, fmt.Errorf("unexpected Adopt call")
 }
 

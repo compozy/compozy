@@ -24,11 +24,17 @@ func (h *BaseHandlers) ListAutomationTriggers(c *gin.Context) {
 		return
 	}
 
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	query, err := ParseAutomationTriggerListQuery(c)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
 		return
 	}
+	query.ReadScope = readScope
 
 	page, err := manager.ListTriggers(c.Request.Context(), query)
 	if err != nil {
@@ -38,6 +44,10 @@ func (h *BaseHandlers) ListAutomationTriggers(c *gin.Context) {
 	payloads, err := h.triggerPayloads(projectionCtx, page.Triggers)
 	if err != nil {
 		h.respondGatewayError(c, err)
+		return
+	}
+	if err := h.decorateAutomationTriggerOwners(c.Request.Context(), payloads); err != nil {
+		h.respondError(c, StatusForAutomationError(err), err)
 		return
 	}
 
@@ -58,6 +68,11 @@ func (h *BaseHandlers) CreateAutomationTrigger(c *gin.Context) {
 	if !ok {
 		return
 	}
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 
 	var req contract.CreateTriggerRequest
 	if err := decodeStrictJSONBody(c, &req); err != nil {
@@ -72,6 +87,7 @@ func (h *BaseHandlers) CreateAutomationTrigger(c *gin.Context) {
 	}
 
 	trigger := triggerFromCreateRequest(req)
+	trigger.ProfileID = mutationScope.ProfileID
 	webhookSecret := webhookSecretWriteFromCreateRequest(req)
 	validationTrigger := trigger
 	if strings.TrimSpace(validationTrigger.WebhookSecretRef) == "" && webhookSecret.Value != nil {
@@ -114,14 +130,27 @@ func (h *BaseHandlers) GetAutomationTrigger(c *gin.Context) {
 		return
 	}
 
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	trigger, err := manager.GetTrigger(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return
 	}
+	if !readScope.Matches(trigger.ProfileID) {
+		h.respondError(c, http.StatusNotFound, automationpkg.ErrTriggerNotFound)
+		return
+	}
 	payload, err := h.triggerPayload(projectionCtx, trigger)
 	if err != nil {
 		h.respondGatewayError(c, err)
+		return
+	}
+	if err := h.decorateAutomationTriggerOwner(c.Request.Context(), &payload); err != nil {
+		h.respondError(c, StatusForAutomationError(err), err)
 		return
 	}
 	c.JSON(http.StatusOK, contract.TriggerResponse{Trigger: payload})
@@ -131,6 +160,11 @@ func (h *BaseHandlers) GetAutomationTrigger(c *gin.Context) {
 func (h *BaseHandlers) UpdateAutomationTrigger(c *gin.Context) {
 	manager, ok := h.requireAutomationManager(c)
 	if !ok {
+		return
+	}
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
 		return
 	}
 
@@ -157,6 +191,10 @@ func (h *BaseHandlers) UpdateAutomationTrigger(c *gin.Context) {
 	current, err := manager.GetTrigger(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
+		return
+	}
+	if !mutationScope.Matches(current.ProfileID) {
+		h.respondError(c, http.StatusNotFound, automationpkg.ErrTriggerNotFound)
 		return
 	}
 	projectionCtx, ok := h.requireGatewayIngressReadContextForWorkspace(
@@ -204,10 +242,19 @@ func (h *BaseHandlers) DeleteAutomationTrigger(c *gin.Context) {
 	if !ok {
 		return
 	}
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 
 	current, err := manager.GetTrigger(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
+		return
+	}
+	if !mutationScope.Matches(current.ProfileID) {
+		h.respondError(c, http.StatusNotFound, automationpkg.ErrTriggerNotFound)
 		return
 	}
 	if _, ok := h.requireGatewayIngressReadContextForWorkspace(
@@ -240,9 +287,18 @@ func (h *BaseHandlers) AutomationTriggerRuns(c *gin.Context) {
 		return
 	}
 
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	trigger, err := manager.GetTrigger(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
+		return
+	}
+	if !readScope.Matches(trigger.ProfileID) {
+		h.respondError(c, http.StatusNotFound, automationpkg.ErrTriggerNotFound)
 		return
 	}
 
@@ -253,13 +309,19 @@ func (h *BaseHandlers) AutomationTriggerRuns(c *gin.Context) {
 	}
 	query.JobID = ""
 	query.TriggerID = trigger.ID
+	query.ReadScope = readScope
 
 	runs, err := manager.ListRuns(c.Request.Context(), query)
 	if err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.RunsResponse{Runs: RunPayloadsFromRuns(runs)})
+	runPayloads := RunPayloadsFromRuns(runs)
+	if err := h.decorateAutomationRunOwners(c.Request.Context(), runPayloads); err != nil {
+		h.respondError(c, StatusForAutomationError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.RunsResponse{Runs: runPayloads})
 }
 
 // ListAutomationRuns returns filtered automation run history.
@@ -269,33 +331,29 @@ func (h *BaseHandlers) ListAutomationRuns(c *gin.Context) {
 		return
 	}
 
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	query, err := ParseAutomationRunQuery(c)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
 		return
 	}
+	query.ReadScope = readScope
 
 	runs, err := manager.ListRuns(c.Request.Context(), query)
 	if err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.RunsResponse{Runs: RunPayloadsFromRuns(runs)})
-}
-
-// GetAutomationRun returns one automation run by id.
-func (h *BaseHandlers) GetAutomationRun(c *gin.Context) {
-	manager, ok := h.requireAutomationManager(c)
-	if !ok {
-		return
-	}
-
-	run, err := manager.GetRun(c.Request.Context(), c.Param("id"))
-	if err != nil {
+	runPayloads := RunPayloadsFromRuns(runs)
+	if err := h.decorateAutomationRunOwners(c.Request.Context(), runPayloads); err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.RunResponse{Run: RunPayloadFromRun(run)})
+	c.JSON(http.StatusOK, contract.RunsResponse{Runs: runPayloads})
 }
 
 // DeliverGlobalWebhook handles external webhook delivery for global triggers.

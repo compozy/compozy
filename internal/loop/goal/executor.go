@@ -285,6 +285,7 @@ func (e *Executor) actionSessionBindRequest(
 	}
 	runtimeRequest := segment.resolvedRuntime.Runtime
 	return loop.ActionSessionBindRequest{
+		ProfileID:                      segment.input.ToolScope.ProfileID,
 		WorkspaceID:                    segment.key.WorkspaceID,
 		LoopRunID:                      segment.key.LoopRunID,
 		Generation:                     segment.key.Generation,

@@ -85,7 +85,7 @@ type TransportParityProvider interface {
 
 // CmdPaletteCatalog returns the workspace command catalog used by shortcut settings.
 type CmdPaletteCatalog interface {
-	Catalog(context.Context, cmdpalette.WorkspaceID, cmdpalette.ClientID) (cmdpalette.Catalog, error)
+	Catalog(context.Context, cmdpalette.CatalogRequest) (cmdpalette.Catalog, error)
 }
 
 // MCPAuthRuntimeProvider owns daemon-mediated MCP OAuth sessions and status.

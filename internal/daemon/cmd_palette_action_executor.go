@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/cmdpalette"
-	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/windowmanager"
 )
@@ -108,7 +107,7 @@ func (e *cmdPaletteActionExecutor) beginApproval(
 		return cmdpalette.ExecutionResult{}, fmt.Errorf("cmd palette: encode approval target: %w", err)
 	}
 	ticket, err := e.approvals.Begin(ctx, toolspkg.ApprovalRequest{
-		ProfileID:   store.DefaultProfileID,
+		ProfileID:   string(request.ProfileLens.ID),
 		WorkspaceID: string(request.WorkspaceID), InvocationID: request.InvocationID,
 		CommandID: string(request.Descriptor.ID),
 		Target: toolspkg.ApprovalTarget{
@@ -136,14 +135,22 @@ func (e *cmdPaletteActionExecutor) DispatchApproval(
 		return nil, fmt.Errorf("cmd palette: decode deferred approval arguments: %w", err)
 	}
 	request := cmdpalette.ExecutionRequest{
+		ProfileLens: cmdpalette.ScopedProfileLens(cmdpalette.ProfileLensID(status.ProfileID), ""),
 		WorkspaceID: cmdpalette.WorkspaceID(status.WorkspaceID), InvocationID: status.InvocationID,
 		ClientID: target.ClientID, Descriptor: cmdpalette.Descriptor{
 			ID: cmdpalette.CommandID(status.CommandID), Action: target.Action,
 		},
 		Args: args,
 	}
+	if err := request.ProfileLens.Validate(); err != nil {
+		return nil, fmt.Errorf("cmd palette: validate resumed approval owner: %w", err)
+	}
+	requiresApproval, err := e.ApprovalRequired(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("cmd palette: recheck resumed approval policy: %w", err)
+	}
 	approvalToken := ""
-	if target.Action.Kind == cmdpalette.ActionKindTool {
+	if target.Action.Kind == cmdpalette.ActionKindTool && requiresApproval {
 		if e.approvalTokens == nil {
 			return nil, errors.New("cmd palette: approval token issuer is unavailable")
 		}
@@ -224,7 +231,8 @@ func (e *cmdPaletteActionExecutor) dispatch(
 
 func cmdPaletteToolScope(request cmdpalette.ExecutionRequest) toolspkg.Scope {
 	return toolspkg.Scope{
-		WorkspaceID: string(request.WorkspaceID), SessionID: approvalSessionID(request.InvocationID),
+		ProfileID: string(request.ProfileLens.ID), WorkspaceID: string(request.WorkspaceID),
+		SessionID: approvalSessionID(request.InvocationID),
 		ActorKind: "cmd_palette", Operator: true,
 	}
 }

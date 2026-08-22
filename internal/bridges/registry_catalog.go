@@ -3,15 +3,22 @@ package bridges
 import (
 	"context"
 	"fmt"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 // ListInstances returns all persisted bridge instances.
 func (s *Service) ListInstances(ctx context.Context) ([]BridgeInstance, error) {
+	return s.ListInstancesScoped(ctx, store.ReadScope{AllProfiles: true})
+}
+
+// ListInstancesScoped returns bridge instances visible through one explicit profile lens.
+func (s *Service) ListInstancesScoped(ctx context.Context, readScope store.ReadScope) ([]BridgeInstance, error) {
 	if err := s.checkReady(ctx, "list bridge instances"); err != nil {
 		return nil, err
 	}
 
-	instances, err := s.store.ListBridgeInstances(ctx)
+	instances, err := s.store.ListBridgeInstances(ctx, readScope)
 	if err != nil {
 		return nil, fmt.Errorf("bridges: list bridge instances: %w", err)
 	}
@@ -38,6 +45,15 @@ func (s *Service) ListInstancesByIDs(
 	ctx context.Context,
 	bridgeInstanceIDs []string,
 ) ([]BridgeInstance, error) {
+	return s.ListInstancesByIDsScoped(ctx, store.ReadScope{AllProfiles: true}, bridgeInstanceIDs)
+}
+
+// ListInstancesByIDsScoped returns a bounded bridge batch visible through one explicit profile lens.
+func (s *Service) ListInstancesByIDsScoped(
+	ctx context.Context,
+	readScope store.ReadScope,
+	bridgeInstanceIDs []string,
+) ([]BridgeInstance, error) {
 	if err := s.checkReady(ctx, "list bridge instances by ids"); err != nil {
 		return nil, err
 	}
@@ -46,7 +62,7 @@ func (s *Service) ListInstancesByIDs(
 		return nil, fmt.Errorf("bridges: list bridge instances by ids: %w", err)
 	}
 
-	instances, err := s.store.ListBridgeInstancesByIDs(ctx, ids)
+	instances, err := s.store.ListBridgeInstancesByIDs(ctx, readScope, ids)
 	if err != nil {
 		return nil, fmt.Errorf("bridges: list bridge instances by ids: %w", err)
 	}

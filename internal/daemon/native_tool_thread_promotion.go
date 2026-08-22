@@ -76,7 +76,10 @@ func (n *daemonNativeTools) nativeThreadPromotionSource(
 			Surface:     store.NetworkSurfaceThread,
 			ThreadID:    threadID,
 		},
-		store.NetworkConversationMessageQuery{Limit: 200},
+		store.NetworkConversationMessageQuery{
+			ReadScope: store.ReadScope{ProfileID: scope.ProfileID},
+			Limit:     200,
+		},
 	)
 	if err != nil {
 		return nativeThreadPromotionSource{}, nativeNetworkInputError(toolID, err)
@@ -90,7 +93,7 @@ func (n *daemonNativeTools) nativeThreadPromotionSource(
 	}
 	thread, err := n.deps.NetworkStore.GetThread(
 		ctx,
-		store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: channel},
+		store.ReadScope{ProfileID: scope.ProfileID}, store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: channel},
 		threadID,
 	)
 	if err != nil {

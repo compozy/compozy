@@ -40,7 +40,12 @@ func (h *BaseHandlers) NetworkChannelMessages(c *gin.Context) {
 	if !ok {
 		return
 	}
-	query, err := parseNetworkMessageQuery(c)
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	query, err := parseNetworkMessageQuery(c, readScope)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
@@ -74,6 +79,7 @@ func (h *BaseHandlers) NetworkChannelMessages(c *gin.Context) {
 	if err := h.ensureNetworkChannelTimelineExists(
 		c.Request.Context(),
 		networkStore,
+		query.ReadScope,
 		scope.NetworkChannelRef(channel),
 		sessions,
 		peers,
@@ -122,12 +128,13 @@ func (h *BaseHandlers) networkChannelMessagesResponse(
 func (h *BaseHandlers) ensureNetworkChannelTimelineExists(
 	ctx context.Context,
 	networkStore NetworkStore,
+	readScope store.ReadScope,
 	ref store.NetworkChannelRef,
 	sessions []*session.Info,
 	peers []network.PeerInfo,
 	messages []store.NetworkMessageEntry,
 ) error {
-	metadata, err := h.loadNetworkChannelMetadata(ctx, networkStore, ref)
+	metadata, err := h.loadNetworkChannelMetadata(ctx, networkStore, readScope, ref)
 	if err != nil {
 		return fmt.Errorf("load network channel metadata: %w", err)
 	}
@@ -147,9 +154,10 @@ func (h *BaseHandlers) ensureNetworkChannelTimelineExists(
 func (h *BaseHandlers) networkChannelMetadataForUpdate(
 	ctx context.Context,
 	networkStore NetworkStore,
+	readScope store.ReadScope,
 	ref store.NetworkChannelRef,
 ) (store.NetworkChannelEntry, error) {
-	metadata, err := h.loadNetworkChannelMetadata(ctx, networkStore, ref)
+	metadata, err := h.loadNetworkChannelMetadata(ctx, networkStore, readScope, ref)
 	if err != nil {
 		return store.NetworkChannelEntry{}, err
 	}
@@ -158,7 +166,7 @@ func (h *BaseHandlers) networkChannelMetadataForUpdate(
 	}
 	now := h.nowUTC()
 	return store.NetworkChannelEntry{
-		ProfileID:    store.DefaultProfileID,
+		ProfileID:    readScope.ProfileID,
 		WorkspaceID:  strings.TrimSpace(ref.WorkspaceID),
 		Channel:      strings.TrimSpace(ref.Channel),
 		Purpose:      "network_channel",
@@ -188,7 +196,12 @@ func (h *BaseHandlers) NetworkPeerMessages(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	query, err := parseNetworkMessageQuery(c)
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	query, err := parseNetworkMessageQuery(c, readScope)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
@@ -274,6 +287,11 @@ func (h *BaseHandlers) NetworkPeer(c *gin.Context) {
 	if !ok {
 		return
 	}
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	peers, err := service.ListPeers(c.Request.Context(), scope.NetworkWorkspaceID(), "")
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
@@ -291,7 +309,7 @@ func (h *BaseHandlers) NetworkPeer(c *gin.Context) {
 		return
 	}
 
-	auditEntries, err := h.loadPeerAuditEntries(c.Request.Context(), networkStore, peer)
+	auditEntries, err := h.loadPeerAuditEntries(c.Request.Context(), networkStore, peer, readScope)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return

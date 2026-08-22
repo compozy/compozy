@@ -28,7 +28,7 @@ func (o *Observer) writeObservedEventSummary(
 ) error {
 	correlation := event.Normalize()
 	return o.registry.WriteEventSummary(ctx, store.EventSummary{
-		ProfileID:        store.DefaultProfileID,
+		ProfileID:        snapshot.profileID,
 		SessionID:        sessionID,
 		WorkspaceID:      snapshot.workspaceID,
 		Type:             strings.TrimSpace(event.Type),

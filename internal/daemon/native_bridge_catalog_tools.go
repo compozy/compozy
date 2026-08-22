@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -187,7 +188,7 @@ func (n *daemonNativeTools) bridgeCatalogPage(
 	if err != nil {
 		return nativeBridgeCatalogResponse{}, bridgepkg.BridgeCatalogPage{}, nativeBridgeCatalogError(id, err)
 	}
-	instances, err := nativeBridgeCatalogHydration(ctx, n.deps.Bridges, selection.Items)
+	instances, err := nativeBridgeCatalogHydration(ctx, n.deps.Bridges, query.ReadScope, selection.Items)
 	if err != nil {
 		return nativeBridgeCatalogResponse{}, bridgepkg.BridgeCatalogPage{}, err
 	}
@@ -252,6 +253,7 @@ func nativeBridgeCatalogQuery(
 		requestedScope = string(bridgepkg.ScopeGlobal)
 	}
 	return bridgepkg.BridgeCatalogQuery{
+		ReadScope:   store.ReadScope{ProfileID: strings.TrimSpace(scope.ProfileID)},
 		Scope:       requestedScope,
 		WorkspaceID: strings.TrimSpace(workspaceID),
 		Search:      input.Search,
@@ -348,6 +350,7 @@ func (n *daemonNativeTools) bridgeCatalogObserver() (core.BridgeCatalogObserver,
 func nativeBridgeCatalogHydration(
 	ctx context.Context,
 	service core.BridgeService,
+	readScope store.ReadScope,
 	items []bridgepkg.BridgeCatalogRecordItem,
 ) ([]bridgepkg.BridgeInstance, error) {
 	if len(items) == 0 {
@@ -357,7 +360,7 @@ func nativeBridgeCatalogHydration(
 	for _, item := range items {
 		ids = append(ids, item.Record.ID)
 	}
-	return service.ListInstancesByIDs(ctx, ids)
+	return service.ListInstancesByIDsScoped(ctx, readScope, ids)
 }
 
 func redactedBridgePayload(instance bridgepkg.BridgeInstance) contract.BridgePayload {

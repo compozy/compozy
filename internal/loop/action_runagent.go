@@ -131,6 +131,7 @@ func (e *RunAgentActionExecutor) bindRunAgentSession(
 	}
 	runtimeRequest := resolvedRuntime.Runtime
 	binding, err := e.binder.BindActionSession(ctx, ActionSessionBindRequest{
+		ProfileID:          in.ToolScope.ProfileID,
 		WorkspaceID:        in.WorkspaceID,
 		LoopRunID:          in.LoopRunID,
 		Generation:         in.Generation,

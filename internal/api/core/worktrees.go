@@ -25,6 +25,10 @@ func (h *BaseHandlers) ListWorktrees(c *gin.Context) {
 		h.respondError(c, StatusForWorktreeError(err), err)
 		return
 	}
+	if err := h.enrichWorktreeListingOwners(c.Request.Context(), listing); err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
 	c.JSON(http.StatusOK, WorktreesPayloadFromListing(listing))
 }
 
@@ -38,13 +42,23 @@ func (h *BaseHandlers) CreateWorktree(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, fmt.Errorf("api: decode create worktree request: %w", err))
 		return
 	}
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	item, err := h.Worktrees.CreateAccepted(c.Request.Context(), scope.RegistryID, worktree.CreateOptions{
-		Name: strings.TrimSpace(request.Name), Branch: strings.TrimSpace(request.Branch),
+		ProfileID: mutationScope.ProfileID,
+		Name:      strings.TrimSpace(request.Name), Branch: strings.TrimSpace(request.Branch),
 		BaseRef: strings.TrimSpace(request.BaseRef), ExistingBranch: strings.TrimSpace(request.ExistingBranch),
 		Path: strings.TrimSpace(request.Path), Origin: worktree.OriginManual,
 	})
 	if err != nil {
 		h.respondError(c, StatusForWorktreeError(err), err)
+		return
+	}
+	if err := h.enrichWorktreeOwner(c.Request.Context(), item); err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusAccepted, contract.WorktreeResponse{
@@ -64,9 +78,23 @@ func (h *BaseHandlers) AdoptWorktree(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, fmt.Errorf("api: decode adopt worktree request: %w", err))
 		return
 	}
-	item, err := h.Worktrees.Adopt(c.Request.Context(), scope.RegistryID, strings.TrimSpace(request.Path))
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	item, err := h.Worktrees.Adopt(
+		c.Request.Context(),
+		mutationScope.ProfileID,
+		scope.RegistryID,
+		strings.TrimSpace(request.Path),
+	)
 	if err != nil {
 		h.respondError(c, StatusForWorktreeError(err), err)
+		return
+	}
+	if err := h.enrichWorktreeOwner(c.Request.Context(), item); err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusOK, contract.WorktreeResponse{
@@ -84,6 +112,10 @@ func (h *BaseHandlers) InspectWorktree(c *gin.Context) {
 	inspection, err := h.Worktrees.Inspect(c.Request.Context(), scope.RegistryID, id)
 	if err != nil {
 		h.respondError(c, StatusForWorktreeError(err), err)
+		return
+	}
+	if err := h.enrichWorktreeOwner(c.Request.Context(), &inspection.Worktree); err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusOK, WorktreeInspectionPayload(*inspection))

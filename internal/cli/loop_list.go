@@ -36,6 +36,7 @@ func newLoopListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&query.Sort, "sort", looppkg.CatalogSortName, "Stable ordering: name")
 	cmd.Flags().StringVar(&query.Cursor, "cursor", "", "Continue from an opaque Loop catalog cursor")
 	cmd.Flags().IntVar(&query.Limit, "limit", 0, "Maximum Loops to return (default 50, max 200)")
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 

@@ -29,6 +29,7 @@ func (g *LoopRepo) ListLoopRuns(
 		return nil, err
 	}
 	clauses := []store.Clause{
+		store.ReadScopeClause("profile_id", normalized.ReadScope),
 		store.StringClause("workspace_id", string(normalized.WorkspaceID)),
 		store.StringClause("loop_name", normalized.LoopName),
 		store.StringClause("status", string(normalized.Status)),
@@ -213,6 +214,9 @@ func normalizeLoopRunListQuery(query looppkg.RunListQuery) (looppkg.RunListQuery
 	normalized.OriginKind = strings.TrimSpace(query.OriginKind)
 	normalized.OriginSessionID = strings.TrimSpace(query.OriginSessionID)
 	normalized.CreatedAfter = query.CreatedAfter.UTC()
+	if err := normalized.ReadScope.Validate(); err != nil {
+		return looppkg.RunListQuery{}, fmt.Errorf("%w: %w", looppkg.ErrValidation, err)
+	}
 	if normalized.WorkspaceID == "" {
 		return looppkg.RunListQuery{}, fmt.Errorf("%w: workspace_id is required", looppkg.ErrValidation)
 	}

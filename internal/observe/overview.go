@@ -17,6 +17,7 @@ type OverviewStore interface {
 	UpsertTokenUsageDaily(ctx context.Context, update store.TokenUsageDailyUpdate) error
 	ListTokenUsageByDay(ctx context.Context, query store.OverviewDayQuery) ([]store.TokenUsageDay, error)
 	ListTokenUsageByAgent(ctx context.Context, query store.OverviewDayQuery) ([]store.TokenUsageAgentTotal, error)
+	ListTokenUsageByProfile(ctx context.Context, query store.OverviewDayQuery) ([]store.TokenUsageProfileTotal, error)
 	SumTokenUsageCost(ctx context.Context, query store.OverviewDayQuery) ([]store.TokenUsageCostGroup, error)
 	CountTaskRunOutcomesByDay(ctx context.Context, query store.OverviewSinceQuery) ([]store.TaskRunOutcomeDay, error)
 	CountTasksClosedByDay(ctx context.Context, query store.OverviewSinceQuery) ([]store.TaskClosedDay, error)
@@ -24,7 +25,7 @@ type OverviewStore interface {
 		ctx context.Context,
 		query store.OverviewSinceQuery,
 	) ([]store.EventHourWeekdayBucket, error)
-	LatestEventSummaryAt(ctx context.Context, workspaceID string) (time.Time, error)
+	LatestEventSummaryAt(ctx context.Context, query store.OverviewWorkspaceQuery) (time.Time, error)
 	CountNetworkMessagesSince(ctx context.Context, query store.OverviewSinceQuery) (int, error)
 	CountHookDispatchesSince(ctx context.Context, query store.OverviewSinceQuery) (store.HookDispatchCounts, error)
 	LongestUserSessionSince(ctx context.Context, query store.OverviewSinceQuery) (*store.LongestSessionSample, error)
@@ -99,6 +100,7 @@ func (o *Observer) fetchOverviewParts(
 	})
 	group.Go(func() (err error) {
 		parts.rawOutcomes, err = overviewStore.CountTaskRunOutcomesByDay(gctx, store.OverviewSinceQuery{
+			ReadScope:   query.ReadScope,
 			WorkspaceID: query.WorkspaceID,
 			Since:       store.LocalDayStart(now, overviewOutcomeWindowDays-1),
 		})
@@ -109,6 +111,7 @@ func (o *Observer) fetchOverviewParts(
 	})
 	group.Go(func() (err error) {
 		parts.closedToday, err = overviewStore.CountTasksClosedByDay(gctx, store.OverviewSinceQuery{
+			ReadScope:   query.ReadScope,
 			WorkspaceID: query.WorkspaceID,
 			Since:       todayStart,
 		})
@@ -127,6 +130,7 @@ func (o *Observer) fetchOverviewParts(
 	})
 	group.Go(func() (err error) {
 		parts.messagesToday, err = overviewStore.CountNetworkMessagesSince(gctx, store.OverviewSinceQuery{
+			ReadScope:   query.ReadScope,
 			WorkspaceID: query.WorkspaceID,
 			Since:       todayStart,
 		})
@@ -137,6 +141,7 @@ func (o *Observer) fetchOverviewParts(
 	})
 	group.Go(func() (err error) {
 		parts.hooks, err = overviewStore.CountHookDispatchesSince(gctx, store.OverviewSinceQuery{
+			ReadScope:   query.ReadScope,
 			WorkspaceID: query.WorkspaceID,
 			Since:       todayStart,
 		})
@@ -146,7 +151,7 @@ func (o *Observer) fetchOverviewParts(
 		return nil
 	})
 	group.Go(func() (err error) {
-		parts.freshness, err = o.overviewFreshness(gctx, overviewStore, query.WorkspaceID, now)
+		parts.freshness, err = o.overviewFreshness(gctx, overviewStore, query.ReadScope, query.WorkspaceID, now)
 		return err
 	})
 	if err := group.Wait(); err != nil {

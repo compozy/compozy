@@ -16,6 +16,7 @@ func (o *Observer) overviewUsage(
 	now time.Time,
 ) (OverviewUsage, error) {
 	windowQuery := store.OverviewDayQuery{
+		ReadScope:   query.ReadScope,
 		WorkspaceID: query.WorkspaceID,
 		SinceDay:    store.LocalDay(store.LocalDayStart(now, query.UsageWindowDays-1)),
 	}
@@ -29,11 +30,16 @@ func (o *Observer) overviewUsage(
 		return OverviewUsage{}, fmt.Errorf("observe: query usage cost: %w", err)
 	}
 	agentTotals, err := overviewStore.ListTokenUsageByAgent(ctx, store.OverviewDayQuery{
+		ReadScope:   query.ReadScope,
 		WorkspaceID: query.WorkspaceID,
 		SinceDay:    store.LocalDay(store.LocalDayStart(now, overviewShareWindowDays-1)),
 	})
 	if err != nil {
 		return OverviewUsage{}, fmt.Errorf("observe: query usage by agent: %w", err)
+	}
+	profileTotals, err := overviewStore.ListTokenUsageByProfile(ctx, windowQuery)
+	if err != nil {
+		return OverviewUsage{}, fmt.Errorf("observe: query usage by profile: %w", err)
 	}
 
 	usage := OverviewUsage{
@@ -42,12 +48,24 @@ func (o *Observer) overviewUsage(
 		Truncated:     o.retention.RetentionDays > 0 && query.UsageWindowDays > o.retention.RetentionDays,
 		Days:          days,
 		AgentShare:    overviewAgentShare(agentTotals),
+		Profiles:      overviewProfileUsage(profileTotals),
 	}
 	for _, day := range days {
 		usage.TotalTokens += day.TotalTokens
 	}
 	usage.EstimatedCost, usage.CostCurrency, usage.CostStatus = overviewUsageCost(costGroups)
 	return usage, nil
+}
+
+func overviewProfileUsage(totals []store.TokenUsageProfileTotal) []OverviewProfileUsage {
+	profiles := make([]OverviewProfileUsage, 0, len(totals))
+	for _, total := range totals {
+		profiles = append(profiles, OverviewProfileUsage{
+			ProfileID: total.ProfileID, ProfileName: total.ProfileName, Color: total.Color,
+			Icon: total.Icon, Emoji: total.Emoji, Archived: total.Archived, Tokens: total.TotalTokens,
+		})
+	}
+	return profiles
 }
 
 // overviewUsageCost keeps the token_stats provenance rule: a truthful cost only

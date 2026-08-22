@@ -30,6 +30,23 @@ func TestProfileLensIDValidation(t *testing.T) {
 			t.Fatalf("ProfileLensID(%q).Validate() error = nil, want non-nil", lens)
 		}
 	}
+	for name, lens := range map[string]ProfileLens{
+		"scoped":    ScopedProfileLens(DefaultProfileLensID, "default"),
+		"aggregate": AggregateProfileLens(),
+	} {
+		if err := lens.Validate(); err != nil {
+			t.Fatalf("%s ProfileLens.Validate() error = %v", name, err)
+		}
+	}
+	for name, lens := range map[string]ProfileLens{
+		"missing":               {},
+		"unlabeled aggregate":   {ID: AggregateProfileLensID},
+		"mislabelled aggregate": {ID: AggregateProfileLensID, Name: "default"},
+	} {
+		if err := lens.Validate(); err == nil {
+			t.Fatalf("%s ProfileLens.Validate() error = nil, want non-nil", name)
+		}
+	}
 }
 
 func TestPersonalization(t *testing.T) {
@@ -53,7 +70,7 @@ func TestPersonalization(t *testing.T) {
 		t.Parallel()
 		store := &personalizationStoreStub{}
 		service := personalizationTestRegistry(t, store, nil)
-		if err := service.RecordUsage(t.Context(), Usage{
+		if err := service.RecordUsage(t.Context(), Usage{ProfileLensID: testProfileLens.ID,
 			WorkspaceID: "workspace-a", CommandID: "session.new", Query: "  Séssão   NOVA  ",
 		}); err != nil {
 			t.Fatalf("RecordUsage() error = %v", err)
@@ -81,7 +98,7 @@ func TestPersonalization(t *testing.T) {
 			})),
 		)
 
-		if err := service.RecordUsage(t.Context(), Usage{
+		if err := service.RecordUsage(t.Context(), Usage{ProfileLensID: testProfileLens.ID,
 			WorkspaceID: "workspace-a", CommandID: "session.new", Query: "new",
 		}); err != nil {
 			t.Fatalf("RecordUsage() error = %v", err)
@@ -115,7 +132,7 @@ func TestPersonalization(t *testing.T) {
 			},
 		}}
 		service := personalizationTestRegistry(t, store, func() time.Time { return now })
-		snapshot, err := service.Personalization(t.Context(), "workspace-a")
+		snapshot, err := service.Personalization(t.Context(), testProfileLens, "workspace-a")
 		if err != nil {
 			t.Fatalf("Personalization() error = %v", err)
 		}
@@ -140,11 +157,11 @@ func TestPersonalization(t *testing.T) {
 		var logs bytes.Buffer
 		logger := slog.New(slog.NewTextHandler(&logs, nil))
 		service := personalizationTestRegistryWithLogger(t, store, nil, logger)
-		first, err := service.Personalization(t.Context(), "workspace-a")
+		first, err := service.Personalization(t.Context(), testProfileLens, "workspace-a")
 		if err != nil {
 			t.Fatalf("Personalization(first) error = %v", err)
 		}
-		second, err := service.Personalization(t.Context(), "workspace-a")
+		second, err := service.Personalization(t.Context(), testProfileLens, "workspace-a")
 		if err != nil {
 			t.Fatalf("Personalization(second) error = %v", err)
 		}
@@ -187,10 +204,10 @@ func TestPersonalization(t *testing.T) {
 			WithClock(func() time.Time { return now }),
 		)
 
-		if err := service.Pin(t.Context(), "workspace-a", "session.new"); err != nil {
+		if err := service.Pin(t.Context(), testProfileLens, "workspace-a", "session.new"); err != nil {
 			t.Fatalf("Pin() error = %v", err)
 		}
-		if err := service.ResetPersonalization(t.Context(), "workspace-a"); err != nil {
+		if err := service.ResetPersonalization(t.Context(), testProfileLens, "workspace-a"); err != nil {
 			t.Fatalf("ResetPersonalization() error = %v", err)
 		}
 		if !store.pinned || store.resetWorkspace != "workspace-a" {
@@ -216,6 +233,7 @@ type personalizationPolicyFunc func(context.Context, WorkspaceID) (bool, error)
 
 func (f personalizationPolicyFunc) PersonalizationEnabled(
 	ctx context.Context,
+	_ ProfileLens,
 	workspaceID WorkspaceID,
 ) (bool, error) {
 	return f(ctx, workspaceID)

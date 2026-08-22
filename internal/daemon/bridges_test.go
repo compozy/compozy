@@ -319,6 +319,7 @@ func TestBootBridgeDeliveryReconcileCompletesBeforeRegistration(t *testing.T) {
 			t.Fatalf("RegisterPromptDelivery(after boot reconcile) error = %v", err)
 		}
 		records, err := db.ListBridgeDeliveries(ctx, bridgepkg.DeliveryLedgerQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			Scope:       instance.Scope,
 			WorkspaceID: instance.WorkspaceID,
 			State:       bridgepkg.DeliveryLedgerStateTerminalError,
@@ -432,6 +433,7 @@ func TestBootBridgeDeliveryReconcileCompletesBeforeRegistration(t *testing.T) {
 				t.Fatalf("reconciled workspace for %q = %q, want %q", deliveryID, got, want)
 			}
 			rows, err := db.ListBridgeDeliveries(ctx, bridgepkg.DeliveryLedgerQuery{
+				ReadScope:        store.ReadScope{AllProfiles: true},
 				Scope:            bridgepkg.ScopeWorkspace,
 				WorkspaceID:      workspaceID,
 				BridgeInstanceID: "brg-" + workspaceID,
@@ -625,6 +627,7 @@ func TestBridgeRuntimeStartInstance(t *testing.T) {
 		runtime.setExtensionRuntime(extensions)
 
 		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-start",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -675,6 +678,7 @@ func TestBridgeRuntimeStartInstance(t *testing.T) {
 		runtime.mu.Unlock()
 
 		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-start-targets",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -743,6 +747,7 @@ func TestBridgeRuntimeStartInstance(t *testing.T) {
 		runtime.mu.Unlock()
 
 		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-resolve-targets",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -782,6 +787,7 @@ func TestBridgeRuntimeStartInstance(t *testing.T) {
 		runtime.mu.Unlock()
 
 		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-resolve-targets-failure",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -816,6 +822,7 @@ func TestBridgeRuntimeCreateInstance(t *testing.T) {
 		runtime.setExtensionRuntime(extensions)
 
 		created, err := runtime.CreateInstance(testutil.Context(t), bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-create",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -847,6 +854,7 @@ func TestBridgeRuntimeCreateInstance(t *testing.T) {
 		runtime.setExtensionRuntime(extensions)
 
 		_, err := runtime.CreateInstance(testutil.Context(t), bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-create-rollback",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -894,6 +902,7 @@ func TestBridgeRuntimeCreateInstance(t *testing.T) {
 		)
 		go func() {
 			created, err = runtime.CreateInstance(testutil.Context(t), bridgepkg.CreateInstanceRequest{
+				ProfileID:     store.DefaultProfileID,
 				ID:            "brg-create-reentrant",
 				Scope:         bridgepkg.ScopeGlobal,
 				Platform:      "slack",
@@ -949,6 +958,7 @@ func TestBridgeRuntimeCreateInstanceResourceBacked(t *testing.T) {
 		})
 
 		_, err := runtime.CreateInstance(testutil.Context(t), bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-resource-create",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -1133,6 +1143,7 @@ func TestBridgeRuntimeResolveBridgeRuntime(t *testing.T) {
 
 		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, resolver)
 		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-secret",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -1206,6 +1217,7 @@ func TestBridgeRuntimeResolveBridgeRuntime(t *testing.T) {
 			vaultBridgeSecretResolver{service: refStore},
 		)
 		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-secret-vault",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -1252,6 +1264,7 @@ func TestBridgeRuntimeResolveBridgeRuntime(t *testing.T) {
 		now := time.Date(2026, 4, 11, 12, 35, 0, 0, time.UTC)
 		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, nil)
 		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-secret-missing",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -1288,6 +1301,7 @@ func TestBridgeRuntimeResolveBridgeRuntime(t *testing.T) {
 		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, resolver)
 
 		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-secret-fail",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -1335,6 +1349,7 @@ func TestBridgeRuntimeResolveBridgeRuntime(t *testing.T) {
 		)
 
 		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-secret-missing-vault",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -1370,6 +1385,7 @@ func TestBridgeRuntimeResolveBridgeRuntime(t *testing.T) {
 		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, nil)
 
 		first := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-multi-a",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -1380,6 +1396,7 @@ func TestBridgeRuntimeResolveBridgeRuntime(t *testing.T) {
 			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 		})
 		second := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-multi-b",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -1439,6 +1456,7 @@ func TestBridgeRuntimeSecretBindings(t *testing.T) {
 			vaultBridgeSecretResolver{service: refStore},
 		)
 		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-secret-binding",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -1501,6 +1519,7 @@ func TestBridgeRuntimeSecretBindings(t *testing.T) {
 			vaultBridgeSecretResolver{service: &recordingBridgeSecretRefStore{}},
 		)
 		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-secret-binding-invalid",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -1572,6 +1591,7 @@ func TestBridgeRuntimeStopInstance(t *testing.T) {
 		runtime.setExtensionRuntime(extensions)
 
 		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-stop",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -1629,6 +1649,7 @@ func TestBridgeRuntimeRestartInstance(t *testing.T) {
 		now := time.Date(2026, 4, 16, 13, 5, 0, 0, time.UTC)
 		runtime, _ := newResourceBackedBridgeRuntime(t, now, nil)
 		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-restart-reloaded-state",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "telegram",
@@ -1677,6 +1698,7 @@ func TestBridgeRuntimeRestartInstance(t *testing.T) {
 		runtime.setExtensionRuntime(extensions)
 
 		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-restart",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -1736,6 +1758,7 @@ func TestBridgeRuntimeTransition(t *testing.T) {
 		now := time.Date(2026, 4, 16, 12, 0, 0, 0, time.UTC)
 		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, nil)
 		previous := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-resource-typed-nil",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -1768,6 +1791,7 @@ func TestBridgeRuntimeTransition(t *testing.T) {
 		now := time.Date(2026, 4, 16, 12, 0, 0, 0, time.UTC)
 		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, nil)
 		previous := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-resource-rollback",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -1859,6 +1883,7 @@ func TestBridgeRuntimeTransition(t *testing.T) {
 				}
 				runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, nil)
 				instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+					ProfileID:     store.DefaultProfileID,
 					ID:            "brg-resource-retirement",
 					Scope:         bridgepkg.ScopeWorkspace,
 					WorkspaceID:   workspaceID,
@@ -1900,7 +1925,7 @@ func TestBridgeRuntimeTransition(t *testing.T) {
 				if test.reloadErr != nil && !errors.Is(err, test.reloadErr) {
 					t.Fatalf("ApplyBridgeResourceState() error = %v, want %v", err, test.reloadErr)
 				}
-				if err := db.ClearDeadEntity(ctx, deadKey.WorkspaceID, deadKey.Kind, deadKey.EntityID); err != nil {
+				if err := db.ClearDeadEntity(ctx, deadKey); err != nil {
 					t.Fatalf("ClearDeadEntity(test durable fixture) error = %v", err)
 				}
 				status, err := deadService.Status(ctx, deadKey)
@@ -1929,6 +1954,7 @@ func TestBridgeRuntimeTransition(t *testing.T) {
 			{
 				name: "ShouldRollbackStart",
 				request: bridgepkg.CreateInstanceRequest{
+					ProfileID:     store.DefaultProfileID,
 					ID:            "brg-start-rollback",
 					Scope:         bridgepkg.ScopeGlobal,
 					Platform:      "slack",
@@ -1947,6 +1973,7 @@ func TestBridgeRuntimeTransition(t *testing.T) {
 			{
 				name: "ShouldRollbackStop",
 				request: bridgepkg.CreateInstanceRequest{
+					ProfileID:     store.DefaultProfileID,
 					ID:            "brg-stop-rollback",
 					Scope:         bridgepkg.ScopeGlobal,
 					Platform:      "slack",
@@ -1965,6 +1992,7 @@ func TestBridgeRuntimeTransition(t *testing.T) {
 			{
 				name: "ShouldRollbackRestart",
 				request: bridgepkg.CreateInstanceRequest{
+					ProfileID:     store.DefaultProfileID,
 					ID:            "brg-restart-rollback",
 					Scope:         bridgepkg.ScopeGlobal,
 					Platform:      "slack",
@@ -2021,6 +2049,7 @@ func TestBridgeRuntimeTransition(t *testing.T) {
 		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, nil)
 
 		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-race",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -2089,6 +2118,7 @@ func TestBridgeRuntimeTransition(t *testing.T) {
 		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, nil)
 
 		first := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-race-a",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -2099,6 +2129,7 @@ func TestBridgeRuntimeTransition(t *testing.T) {
 			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 		})
 		second := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-race-b",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -2159,6 +2190,7 @@ func TestBridgeRuntimeUpdateInstanceResourceBacked(t *testing.T) {
 		now := time.Date(2026, 4, 16, 12, 50, 0, 0, time.UTC)
 		runtime, resourceStore := newResourceBackedBridgeRuntime(t, now, nil)
 		created := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-resource-update",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -2227,6 +2259,7 @@ func TestBridgeRuntimeTransitionResourceBacked(t *testing.T) {
 		now := time.Date(2026, 4, 16, 12, 55, 0, 0, time.UTC)
 		runtime, _ := newResourceBackedBridgeRuntime(t, now, nil)
 		created := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-resource-start",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
@@ -2267,6 +2300,7 @@ func TestBridgeRuntimeTransitionResourceBacked(t *testing.T) {
 		now := time.Date(2026, 4, 16, 13, 0, 0, 0, time.UTC)
 		runtime, resourceStore := newResourceBackedBridgeRuntime(t, now, nil)
 		created := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     store.DefaultProfileID,
 			ID:            "brg-resource-transition",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",

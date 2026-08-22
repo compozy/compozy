@@ -66,7 +66,11 @@ func newOverviewFixture(t *testing.T) *overviewFixture {
 }
 
 func (f *overviewFixture) query() OverviewQuery {
-	return OverviewQuery{TaskScope: taskpkg.CatalogScopeGlobal, Actor: f.actor}
+	return OverviewQuery{
+		ReadScope: store.ReadScope{AllProfiles: true},
+		TaskScope: taskpkg.CatalogScopeGlobal,
+		Actor:     f.actor,
+	}
 }
 
 func (f *overviewFixture) seedTask(t *testing.T, record taskpkg.Task) {

@@ -1,5 +1,5 @@
 {
     "title": "Profiles",
     "icon": "Users",
-    "pages": ["selection", "lifecycle", "errors"]
+    "pages": ["selection", "reads", "lifecycle", "errors"]
 }

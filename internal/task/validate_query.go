@@ -6,10 +6,16 @@ import (
 	"strings"
 
 	networkrules "github.com/compozy/compozy/internal/network/rules"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // Validate reports whether the task-query filters are internally consistent.
 func (q Query) Validate(path string) error {
+	if q.ReadScope != (store.ReadScope{}) {
+		if err := q.ReadScope.Validate(); err != nil {
+			return fmt.Errorf("%w: %s.read_scope: %v", ErrValidation, path, err)
+		}
+	}
 	if q.Scope.Normalize() != "" {
 		if err := ValidateScopeBinding(q.Scope, q.WorkspaceID, path, "workspace_id"); err != nil {
 			return err
@@ -61,6 +67,11 @@ func (q SchedulerBacklogQuery) Validate(path string) error {
 
 // Validate reports whether the task-run query filters are internally consistent.
 func (q RunQuery) Validate(path string) error {
+	if q.ReadScope != (store.ReadScope{}) {
+		if err := q.ReadScope.Validate(); err != nil {
+			return fmt.Errorf("%w: %s.read_scope: %v", ErrValidation, path, err)
+		}
+	}
 	if q.Status.Normalize() != TaskRunStatusUnknown {
 		if err := q.Status.Validate(nestedPath(path, "status")); err != nil {
 			return err
