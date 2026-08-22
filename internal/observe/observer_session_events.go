@@ -166,7 +166,7 @@ func (o *Observer) recoverSessionSnapshot(ctx context.Context, sessionID string)
 		authMode := compozyconfig.ProviderAuthMode("")
 		if meta, ok := o.readObservedSessionMeta(id, info.WorkspaceID); ok {
 			model = strings.TrimSpace(meta.Model)
-			permissionMode = strings.TrimSpace(meta.EffectivePermissions)
+			permissionMode = strings.TrimSpace(meta.EffectivePermissionsValue())
 			authMode = compozyconfig.ProviderAuthMode(strings.TrimSpace(meta.EffectiveProviderAuthModeValue()))
 		}
 		snapshot := observedSessionIdentity(

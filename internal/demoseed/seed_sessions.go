@@ -74,7 +74,7 @@ func writeSessionRecords(
 	stopDetail := story.StopDetail
 	meta := store.SessionMeta{
 		ID: story.ID, Name: story.Name, AgentName: story.AgentName, Provider: story.Provider,
-		Model: story.Model, EffectivePermissions: permissions,
+		Model:       story.Model,
 		WorkspaceID: record.ID, CWD: record.RootDir,
 		SessionType: story.SessionType, State: string(session.StateStopped),
 		RuntimeStatus: store.SessionRuntimeUnbound,
@@ -84,6 +84,7 @@ func writeSessionRecords(
 		NetworkParticipation: &networkSpec,
 		CreatedAt:            story.StartedAt, UpdatedAt: story.EndedAt,
 	}
+	meta.SetEffectivePermissions(permissions)
 	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), meta); err != nil {
 		return fmt.Errorf("demo seed: write metadata for session %q: %w", story.ID, err)
 	}

@@ -278,32 +278,6 @@ func (m *Manager) abortPromptBeforePump(
 	})
 }
 
-func (m *Manager) startPromptPump(
-	lifecycleCtx context.Context,
-	callerCtx context.Context,
-	session *Session,
-	turnState *promptTurnDispatchState,
-	source <-chan acp.AgentEvent,
-	activity *promptActivitySupervisor,
-	cancelPromptExecution context.CancelFunc,
-) <-chan acp.AgentEvent {
-	out := make(chan acp.AgentEvent, m.promptBufSize)
-	m.startTrackedPromptTask(func() {
-		m.pumpPrompt(
-			lifecycleCtx,
-			callerCtx,
-			session,
-			turnState,
-			source,
-			activity.eventsChannel(),
-			out,
-			activity,
-			cancelPromptExecution,
-		)
-	})
-	return out
-}
-
 func (m *Manager) startPromptPersistencePump(
 	lifecycleCtx context.Context,
 	session *Session,

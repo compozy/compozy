@@ -37,30 +37,30 @@ type SessionAdvertisedCommandState struct {
 	AdvertisedCommands []SessionAdvertisedCommand `json:"advertised_commands,omitempty"`
 }
 
-// SessionProviderAuthState keeps the resolved provider authentication owner compact inside SessionMeta.
+// SessionProviderExecutionState keeps resolved provider execution settings compact inside SessionMeta.
 // Embedding preserves the flat session metadata JSON contract.
-type SessionProviderAuthState struct {
+type SessionProviderExecutionState struct {
+	EffectivePermissions      string `json:"effective_permissions,omitempty"`
 	EffectiveProviderAuthMode string `json:"effective_provider_auth_mode,omitempty"`
 }
 
 // SessionMeta is the atomically-written session metadata document.
 type SessionMeta struct {
-	ID                   string                        `json:"id"`
-	Name                 string                        `json:"name,omitempty"`
-	AgentName            string                        `json:"agent_name"`
-	Provider             string                        `json:"provider,omitempty"`
-	Model                string                        `json:"model,omitempty"`
-	ReasoningEffort      string                        `json:"reasoning_effort,omitempty"`
-	Speed                speedpkg.Speed                `json:"speed,omitempty"`
-	SpeedResolution      *speedpkg.Resolution          `json:"speed_resolution,omitempty"`
-	RuntimeStatus        SessionRuntimeStatus          `json:"runtime_status"`
-	RuntimeTransition    SessionRuntimeTransition      `json:"runtime_transition,omitempty"`
-	RuntimeFailure       *string                       `json:"runtime_failure,omitempty"`
-	RuntimeGeneration    int64                         `json:"runtime_generation,omitempty"`
-	RuntimeRecovery      *SessionRuntimeRecovery       `json:"runtime_recovery,omitempty"`
-	RuntimeSelection     *SessionRuntimeSelectionState `json:"runtime_selection,omitempty"`
-	EffectivePermissions string                        `json:"effective_permissions,omitempty"`
-	*SessionProviderAuthState
+	ID                string                        `json:"id"`
+	Name              string                        `json:"name,omitempty"`
+	AgentName         string                        `json:"agent_name"`
+	Provider          string                        `json:"provider,omitempty"`
+	Model             string                        `json:"model,omitempty"`
+	ReasoningEffort   string                        `json:"reasoning_effort,omitempty"`
+	Speed             speedpkg.Speed                `json:"speed,omitempty"`
+	SpeedResolution   *speedpkg.Resolution          `json:"speed_resolution,omitempty"`
+	RuntimeStatus     SessionRuntimeStatus          `json:"runtime_status"`
+	RuntimeTransition SessionRuntimeTransition      `json:"runtime_transition,omitempty"`
+	RuntimeFailure    *string                       `json:"runtime_failure,omitempty"`
+	RuntimeGeneration int64                         `json:"runtime_generation,omitempty"`
+	RuntimeRecovery   *SessionRuntimeRecovery       `json:"runtime_recovery,omitempty"`
+	RuntimeSelection  *SessionRuntimeSelectionState `json:"runtime_selection,omitempty"`
+	*SessionProviderExecutionState
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	*SessionWorktreeState
 	CWD                  string                  `json:"cwd,omitempty"`
@@ -125,7 +125,7 @@ func (m *SessionMeta) SetAdvertisedCommands(commands []SessionAdvertisedCommand)
 
 // EffectiveProviderAuthModeValue returns the persisted provider authentication owner.
 func (m SessionMeta) EffectiveProviderAuthModeValue() string {
-	if m.SessionProviderAuthState == nil {
+	if m.SessionProviderExecutionState == nil {
 		return ""
 	}
 	return m.EffectiveProviderAuthMode
@@ -133,11 +133,40 @@ func (m SessionMeta) EffectiveProviderAuthModeValue() string {
 
 // SetEffectiveProviderAuthMode updates the optional provider authentication owner.
 func (m *SessionMeta) SetEffectiveProviderAuthMode(mode string) {
-	if mode == "" {
-		m.SessionProviderAuthState = nil
-		return
+	if m.SessionProviderExecutionState == nil {
+		if mode == "" {
+			return
+		}
+		m.SessionProviderExecutionState = &SessionProviderExecutionState{}
 	}
-	m.SessionProviderAuthState = &SessionProviderAuthState{EffectiveProviderAuthMode: mode}
+	m.EffectiveProviderAuthMode = mode
+	m.clearEmptyProviderExecutionState()
+}
+
+// EffectivePermissionsValue returns the persisted permission mode.
+func (m SessionMeta) EffectivePermissionsValue() string {
+	if m.SessionProviderExecutionState == nil {
+		return ""
+	}
+	return m.EffectivePermissions
+}
+
+// SetEffectivePermissions updates the optional persisted permission mode.
+func (m *SessionMeta) SetEffectivePermissions(permissions string) {
+	if m.SessionProviderExecutionState == nil {
+		if permissions == "" {
+			return
+		}
+		m.SessionProviderExecutionState = &SessionProviderExecutionState{}
+	}
+	m.EffectivePermissions = permissions
+	m.clearEmptyProviderExecutionState()
+}
+
+func (m *SessionMeta) clearEmptyProviderExecutionState() {
+	if m.EffectivePermissions == "" && m.EffectiveProviderAuthMode == "" {
+		m.SessionProviderExecutionState = nil
+	}
 }
 
 // Validate ensures the metadata file remains aligned with the session index schema.

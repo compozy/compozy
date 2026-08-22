@@ -153,7 +153,7 @@ func sessionInfoFromMeta(meta store.SessionMeta) *Info {
 		RuntimeRecovery:          store.CloneSessionRuntimeRecovery(meta.RuntimeRecovery),
 		SelectedRuntime:          runtimeSelectionFromSessionStore(selectedRuntime),
 		RuntimeSelectionRevision: selectionRevision,
-		EffectivePermissions:     strings.TrimSpace(meta.EffectivePermissions),
+		EffectivePermissions:     strings.TrimSpace(meta.EffectivePermissionsValue()),
 		WorkspaceID:              meta.WorkspaceID,
 		WorktreeID:               meta.WorktreeIDValue(),
 		NetworkParticipation:     meta.NetworkSpecSnapshot(),

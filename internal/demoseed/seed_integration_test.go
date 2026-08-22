@@ -263,8 +263,8 @@ func assertCompleteSeedSurfaces(
 	if err != nil {
 		t.Fatalf("ReadSessionMeta(checkout engineer) error = %v", err)
 	}
-	if meta.EffectivePermissions != approveAll {
-		t.Fatalf("checkout engineer permissions = %q, want %q", meta.EffectivePermissions, approveAll)
+	if meta.EffectivePermissionsValue() != approveAll {
+		t.Fatalf("checkout engineer permissions = %q, want %q", meta.EffectivePermissionsValue(), approveAll)
 	}
 }
 
