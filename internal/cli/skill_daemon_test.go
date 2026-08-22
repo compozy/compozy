@@ -194,7 +194,7 @@ func TestSkillMarketplaceCommandsUseDaemonWhenRunning(t *testing.T) {
 				if cursor != "" {
 					t.Fatalf("BrowseMarketplace cursor = %q, want empty", cursor)
 				}
-				if scope.Scope != contract.SettingsWorkspaceScopeGlobal || scope.WorkspaceID != "" {
+				if scope.Scope != contract.SettingsLayeredScopeUser || scope.WorkspaceID != "" {
 					t.Fatalf("Marketplace read scope = %#v, want global", scope)
 				}
 				downloads := 42
@@ -262,7 +262,7 @@ func TestSkillMarketplaceCommandsUseDaemonWhenRunning(t *testing.T) {
 				if installedName != "" {
 					t.Fatalf("MarketplaceInfo installedName = %q, want empty", installedName)
 				}
-				if scope.Scope != contract.SettingsWorkspaceScopeGlobal || scope.WorkspaceID != "" {
+				if scope.Scope != contract.SettingsLayeredScopeUser || scope.WorkspaceID != "" {
 					t.Fatalf("Marketplace read scope = %#v, want global", scope)
 				}
 				return want, nil

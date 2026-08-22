@@ -275,6 +275,8 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 			"active_config_hash",
 			"generation",
 			"actor",
+			"write_target",
+			"write_path",
 			"diff_class",
 			"status",
 			"diagnostic_json",

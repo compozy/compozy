@@ -11,13 +11,15 @@ import {
 } from "./mcp-install-model";
 import { mcpInstallDialogLogic } from "./mcp-install-dialog-store";
 import { usePutVaultSecret, useVaultSecrets } from "@/systems/vault";
+import type { MCPConfigScope } from "../hooks/marketplace-mcp-scope";
 
 interface UseMCPInstallDialogOptions {
   data: MarketplaceEntryResponse;
   onInstall: (request: MCPInstallRequest) => Promise<MCPInstallResponse>;
   onOpenChange: (open: boolean) => void;
   workspaceId?: string | null;
-  scope?: "global" | "workspace";
+  scope?: MCPConfigScope;
+  profileName?: string | null;
 }
 
 export function useMCPInstallDialog({
@@ -26,11 +28,12 @@ export function useMCPInstallDialog({
   onOpenChange,
   workspaceId,
   scope: requestedScope,
+  profileName,
 }: UseMCPInstallDialogOptions) {
   const { entry, mcp } = data;
   const fields = mcp?.inputs ?? [];
   const remote = mcp?.launch?.type === "remote";
-  const resolvedScope = requestedScope ?? (workspaceId ? "workspace" : "global");
+  const resolvedScope = requestedScope ?? (workspaceId ? "workspace" : "user");
   const vaultQuery = useVaultSecrets({ namespace: "mcp" });
   const putVault = usePutVaultSecret();
   const store = useStore(mcpInstallDialogLogic, {
@@ -50,9 +53,12 @@ export function useMCPInstallDialog({
   });
   const canonicalRef = (field: MCPInputField) => {
     const server = entry.install_slug?.trim() || entry.entry_id;
+    if (resolvedScope === "profile" && profileName) {
+      return `vault:mcp/profile/${profileName}/${server}/inputs/${field.id}`;
+    }
     return resolvedScope === "workspace" && workspaceId
       ? `vault:mcp/ws/${workspaceId}/${server}/inputs/${field.id}`
-      : `vault:mcp/global/${server}/inputs/${field.id}`;
+      : `vault:mcp/user/${server}/inputs/${field.id}`;
   };
 
   return {
@@ -75,7 +81,7 @@ export function useMCPInstallDialog({
       store.trigger.installationRequested({
         scope: resolvedScope,
         install: (bindings, scope) =>
-          onInstall(buildMCPInstallRequest(data, scope, workspaceId, bindings)).then(
+          onInstall(buildMCPInstallRequest(data, scope, workspaceId, profileName, bindings)).then(
             () => undefined
           ),
       }),
@@ -83,7 +89,10 @@ export function useMCPInstallDialog({
     installing: state.phase === "installing",
     putVault,
     remote,
-    requiredComplete: requiredComplete && (resolvedScope === "global" || Boolean(workspaceId)),
+    requiredComplete:
+      requiredComplete &&
+      (resolvedScope === "user" ||
+        (resolvedScope === "profile" ? Boolean(profileName) : Boolean(workspaceId))),
     scope: resolvedScope,
     updateBinding: (name: string, binding: MCPFieldBinding) =>
       store.trigger.bindingChanged({ name, binding }),

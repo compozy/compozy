@@ -1922,7 +1922,7 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 		request := compozycontract.InstallSettingsMCPServerRequest{
 			EntryID: "filesystem",
 			Name:    "filesystem-parity",
-			Scope:   compozycontract.SettingsWorkspaceScopeGlobal,
+			Scope:   compozycontract.SettingsLayeredScopeUser,
 			Values:  &compozycontract.SettingsMCPCatalogInstallValuesPayload{},
 		}
 		var httpValue compozycontract.InstallSettingsMCPServerResponse
@@ -2609,7 +2609,7 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 	var forbidden compozycontract.ErrorPayload
 	decodeHTTPJSON(t, httpPutResp, &forbidden)
 
-	var udsMutation compozycontract.SettingsGlobalWorkspaceCollectionMutationResult
+	var udsMutation compozycontract.SettingsLayeredCollectionMutationResult
 	if err := runtimeHarness.UDSJSON(
 		ctx,
 		http.MethodPut,
@@ -2625,7 +2625,7 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 	); err != nil {
 		t.Fatalf("UDSJSON(PUT %s) error = %v", putPath, err)
 	}
-	if udsMutation.Scope != compozycontract.SettingsWorkspaceScopeWorkspace || udsMutation.WorkspaceID != workspaceID {
+	if udsMutation.Scope != compozycontract.SettingsLayeredScopeWorkspace || udsMutation.WorkspaceID != workspaceID {
 		t.Fatalf("UDS mutation = %#v, want workspace-scoped result", udsMutation)
 	}
 
@@ -2660,11 +2660,11 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 
 	deletePath := "/api/settings/mcp-servers/server-a?scope=workspace&workspace_id=" +
 		url.QueryEscape(workspaceID) + "&target=sidecar"
-	var deleteResult compozycontract.SettingsGlobalWorkspaceCollectionMutationResult
+	var deleteResult compozycontract.SettingsLayeredCollectionMutationResult
 	if err := runtimeHarness.UDSJSON(ctx, http.MethodDelete, deletePath, nil, &deleteResult); err != nil {
 		t.Fatalf("UDSJSON(DELETE %s) error = %v", deletePath, err)
 	}
-	if deleteResult.Scope != compozycontract.SettingsWorkspaceScopeWorkspace ||
+	if deleteResult.Scope != compozycontract.SettingsLayeredScopeWorkspace ||
 		deleteResult.WorkspaceID != workspaceID {
 		t.Fatalf("deleteResult = %#v, want workspace-scoped delete result", deleteResult)
 	}

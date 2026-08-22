@@ -63,16 +63,14 @@ func (m *Manager) Rename(
 		if _, err := exec.ExecContext(ctx, `UPDATE profiles SET name = ? WHERE id = ?`, newName, profile.ID); err != nil {
 			return mapNameConstraint(err, newName)
 		}
-		oldPrefix := "vault:profiles/" + profile.Name + "/"
-		newPrefix := "vault:profiles/" + newName + "/"
-		if _, err := exec.ExecContext(
+		if err := m.vaultRefs.RewriteProfileRefs(
 			ctx,
-			`UPDATE extension_env_bindings
-			 SET secret_ref = REPLACE(secret_ref, ?, ?), updated_at = ?
-			 WHERE secret_ref LIKE ?`,
-			oldPrefix, newPrefix, formatTimestamp(m.now()), oldPrefix+"%",
+			exec,
+			profile.Name,
+			newName,
+			formatTimestamp(m.now()),
 		); err != nil {
-			return fmt.Errorf("profile: rewrite extension vault refs: %w", err)
+			return fmt.Errorf("profile: rewrite vault refs: %w", err)
 		}
 		return m.insertOperation(
 			ctx, exec, opID, "rename", profile.ID, profile.Name, newName, plan.Revision,

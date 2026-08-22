@@ -51,8 +51,12 @@ func (n *daemonNativeTools) resolveMemoryLocation(
 		location.Filename = trimmedFilename
 		return location, nil
 	}
+	profileStore, err := n.profileMemoryStore(ctx, callerScope)
+	if err != nil {
+		return memoryToolLocation{}, err
+	}
 	candidates := []memoryToolLocation{
-		{Store: n.deps.MemoryStore, Scope: memcontract.ScopeProfile, Filename: trimmedFilename},
+		{Store: profileStore, Scope: memcontract.ScopeProfile, Filename: trimmedFilename},
 	}
 	if strings.TrimSpace(firstNonEmpty(selector.Workspace, callerScope.WorkspaceID)) != "" {
 		workspaceSelector := selector
@@ -114,9 +118,13 @@ func (n *daemonNativeTools) memoryStoreFor(
 		scope = memcontract.ScopeProfile
 	}
 	workspaceRef := firstNonEmpty(selector.Workspace, callerScope.WorkspaceID)
+	profileStore, err := n.profileMemoryStore(ctx, callerScope)
+	if err != nil {
+		return memoryToolLocation{}, err
+	}
 	switch scope.Normalize() {
 	case memcontract.ScopeProfile:
-		return memoryToolLocation{Store: n.deps.MemoryStore, Scope: memcontract.ScopeProfile}, nil
+		return memoryToolLocation{Store: profileStore, Scope: memcontract.ScopeProfile}, nil
 	case memcontract.ScopeWorkspace:
 		workspaceID, workspace, err := n.memoryWorkspaceIdentity(ctx, workspaceRef)
 		if err != nil {
@@ -128,7 +136,7 @@ func (n *daemonNativeTools) memoryStoreFor(
 			)
 		}
 		return memoryToolLocation{
-			Store:       n.deps.MemoryStore.ForWorkspace(workspace),
+			Store:       profileStore.ForWorkspace(workspace),
 			Scope:       memcontract.ScopeWorkspace,
 			Workspace:   workspace,
 			WorkspaceID: workspaceID,
@@ -277,7 +285,10 @@ func (n *daemonNativeTools) agentMemoryStoreFor(
 	if err != nil {
 		return memoryToolLocation{}, err
 	}
-	base := n.deps.MemoryStore
+	base, err := n.profileMemoryStore(ctx, callerScope)
+	if err != nil {
+		return memoryToolLocation{}, err
+	}
 	location := memoryToolLocation{
 		Scope:     memcontract.ScopeAgent,
 		AgentName: agentName,

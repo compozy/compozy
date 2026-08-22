@@ -54,12 +54,17 @@ func (h *BaseHandlers) createAgentDefinitionPath(
 func (h *BaseHandlers) workspaceAgentEntriesWithDiagnostics(
 	ctx context.Context,
 	workspaceRef string,
+	profileNames ...string,
 ) (workspaceAgentEntries, error) {
 	if h.Workspaces == nil {
 		return workspaceAgentEntries{},
 			fmt.Errorf("api: %w", workspacepkg.ErrWorkspaceResolverUnavailable)
 	}
-	resolved, err := h.Workspaces.Resolve(ctx, workspaceRef)
+	profileName := ""
+	if len(profileNames) > 0 {
+		profileName = strings.TrimSpace(profileNames[0])
+	}
+	resolved, err := resolveWorkspaceAgentProfile(ctx, h.Workspaces, workspaceRef, profileName)
 	if err != nil {
 		return workspaceAgentEntries{}, err
 	}
@@ -97,6 +102,7 @@ func (h *BaseHandlers) workspaceAgentDef(
 	ctx context.Context,
 	workspaceRef string,
 	name string,
+	profileNames ...string,
 ) (AgentCatalogEntry, compozyconfig.Config, error) {
 	trimmedName := strings.TrimSpace(name)
 	if trimmedName == "" {
@@ -104,7 +110,7 @@ func (h *BaseHandlers) workspaceAgentDef(
 			fmt.Errorf("api: agent name is required: %w", os.ErrNotExist)
 	}
 
-	resolved, err := h.workspaceAgentEntriesWithDiagnostics(ctx, workspaceRef)
+	resolved, err := h.workspaceAgentEntriesWithDiagnostics(ctx, workspaceRef, profileNames...)
 	if err != nil {
 		return AgentCatalogEntry{}, compozyconfig.Config{}, err
 	}

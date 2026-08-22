@@ -46,6 +46,24 @@ func (s *service) classifyGeneralRequest(ctx context.Context, req SectionUpdateR
 	return lifecycleForChangedPaths(changed, lifecycle.RestartRequired)
 }
 
+func (s *service) classifyPersonaRequest(ctx context.Context, req SectionUpdateRequest) lifecycle.Lifecycle {
+	loaded, err := s.loadScopedSectionUpdateForProfile(
+		ctx,
+		req.Section,
+		req.Scope,
+		req.WorkspaceID,
+		req.ProfileName,
+		ScopeUser,
+		ScopeProfile,
+		ScopeWorkspace,
+	)
+	if err != nil {
+		return lifecycle.Live
+	}
+	changed := diffPersonaSettings(loaded.config.Defaults, *req.Persona)
+	return lifecycleForChangedPaths(changed, lifecycle.Live)
+}
+
 func (s *service) classifyRolesRequest(ctx context.Context, req SectionUpdateRequest) lifecycle.Lifecycle {
 	loaded, err := s.loadRolesSectionUpdate(ctx, req.Scope, req.WorkspaceID)
 	if err != nil {
@@ -101,12 +119,14 @@ func (s *service) classifyCmdPaletteRequest(
 	ctx context.Context,
 	req SectionUpdateRequest,
 ) lifecycle.Lifecycle {
-	loaded, err := s.loadScopedSectionUpdate(
+	loaded, err := s.loadScopedSectionUpdateForProfile(
 		ctx,
 		req.Section,
 		req.Scope,
 		req.WorkspaceID,
+		req.ProfileName,
 		ScopeUser,
+		ScopeProfile,
 		ScopeWorkspace,
 	)
 	if err != nil {

@@ -320,6 +320,7 @@ func (s *service) executeMCPSecretCleanupPlan(
 	ctx context.Context,
 	scope ScopeKind,
 	workspaceID string,
+	profileName string,
 	root string,
 	name string,
 	target compozyconfig.WriteTarget,
@@ -357,7 +358,7 @@ func (s *service) executeMCPSecretCleanupPlan(
 				errors.Join(cleanupFailure, restoreErr).Error(),
 		}, nil
 	}
-	invalidateErr := s.invalidateMCPAuthAfterDefinitionRestore(scope, workspaceID, name)
+	invalidateErr := s.invalidateMCPAuthAfterDefinitionRestore(scope, workspaceID, profileName, name)
 	rollbackErr := s.rollbackMCPSecretMutations(ctx, secretMutations)
 	return nil, errors.Join(
 		cleanupFailure,

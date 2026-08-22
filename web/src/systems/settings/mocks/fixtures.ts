@@ -27,8 +27,8 @@ import { storyAgentNames, storyCompany, storyWorkspacePaths } from "@/storybook/
 
 export const settingsGeneralSectionFixture: SettingsGeneralSection = {
   section: "general",
-  scope: "global",
-  available_scopes: ["global"],
+  scope: "user",
+  available_scopes: ["user"],
   actions: {
     restart: { available: true, behavior: "action_trigger", name: "restart" },
   },
@@ -38,7 +38,6 @@ export const settingsGeneralSectionFixture: SettingsGeneralSection = {
       reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },
       socket: "/tmp/compozy.sock",
     },
-    defaults: { agent: storyAgentNames.product, provider: "claude", sandbox: "local" },
     http: { host: "127.0.0.1", port: 2123 },
     limits: { max_concurrent_agents: 20 },
     permissions: { mode: "approve-all" },

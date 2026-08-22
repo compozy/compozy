@@ -3,6 +3,7 @@ package settings
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -19,6 +20,7 @@ func (s *service) resolveMCPTargetContext(
 	ctx context.Context,
 	scope ScopeKind,
 	workspaceID string,
+	profileName string,
 ) (string, map[string][]mcpSourceEntry, error) {
 	resolved, err := s.resolveWorkspace(ctx, scope, workspaceID)
 	if err != nil {
@@ -29,7 +31,7 @@ func (s *service) resolveMCPTargetContext(
 		root = resolved.RootDir
 	}
 
-	sources, err := s.loadMCPSources(workspaceID, root, scope)
+	sources, err := s.loadMCPSources(workspaceID, root, scope, profileName)
 	if err != nil {
 		return "", nil, err
 	}
@@ -40,6 +42,7 @@ func (s *service) loadMCPSources(
 	workspaceID string,
 	workspaceRoot string,
 	scope ScopeKind,
+	profileName string,
 ) (map[string][]mcpSourceEntry, error) {
 	sources := make(map[string][]mcpSourceEntry)
 
@@ -50,7 +53,7 @@ func (s *service) loadMCPSources(
 				continue
 			}
 			sources[name] = append(sources[name], mcpSourceEntry{
-				Source: sourceRefForWriteTarget(kind, workspaceID),
+				Source: sourceRefForWriteTarget(kind, workspaceID, profileName),
 				Target: kind,
 				Server: server,
 			})
@@ -68,8 +71,33 @@ func (s *service) loadMCPSources(
 		return nil, fmt.Errorf("settings: load global MCP sidecar: %w", err)
 	}
 	appendServers(WriteTargetGlobalMCPSidecar, globalSidecarServers)
+	if scope == ScopeProfile {
+		profileConfigTarget, targetErr := compozyconfig.ResolveConfigWriteTarget(
+			s.homePaths, workspaceRoot, compozyconfig.WriteScopeProfile, profileName,
+		)
+		if targetErr != nil {
+			return nil, targetErr
+		}
+		profileConfigServers, loadErr := loadMCPServersFromConfigFile(profileConfigTarget.Path(), s.homePaths)
+		if loadErr != nil {
+			return nil, fmt.Errorf("settings: load profile config MCP servers: %w", loadErr)
+		}
+		appendServers(WriteTargetProfileConfig, profileConfigServers)
 
-	if scope == ScopeWorkspace {
+		profileSidecarTarget, targetErr := compozyconfig.ResolveMCPSidecarWriteTarget(
+			s.homePaths, workspaceRoot, compozyconfig.WriteScopeProfile, profileName,
+		)
+		if targetErr != nil {
+			return nil, targetErr
+		}
+		profileSidecarServers, loadErr := compozyconfig.LoadMCPServersJSONFile(profileSidecarTarget.Path())
+		if loadErr != nil {
+			return nil, fmt.Errorf("settings: load profile MCP sidecar: %w", loadErr)
+		}
+		appendServers(WriteTargetProfileMCPSidecar, profileSidecarServers)
+	}
+
+	if scope == ScopeWorkspace || (scope == ScopeProfile && strings.TrimSpace(workspaceRoot) != "") {
 		workspaceConfigServers, loadErr := loadMCPServersFromConfigFile(
 			workspaceConfigPath(workspaceRoot),
 			s.homePaths,
@@ -86,6 +114,25 @@ func (s *service) loadMCPSources(
 			return nil, fmt.Errorf("settings: load workspace MCP sidecar: %w", loadErr)
 		}
 		appendServers(WriteTargetWorkspaceMCPSidecar, workspaceSidecarServers)
+
+		if scope == ScopeProfile {
+			workspaceProfileRoot := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.ProfilesDirName, profileName)
+			workspaceProfileConfigServers, profileLoadErr := loadMCPServersFromConfigFile(
+				filepath.Join(workspaceProfileRoot, compozyconfig.ConfigName),
+				s.homePaths,
+			)
+			if profileLoadErr != nil {
+				return nil, fmt.Errorf("settings: load workspace profile config MCP servers: %w", profileLoadErr)
+			}
+			appendServers(WriteTargetWorkspaceProfileConfig, workspaceProfileConfigServers)
+			workspaceProfileSidecarServers, profileLoadErr := compozyconfig.LoadMCPServersJSONFile(
+				filepath.Join(workspaceProfileRoot, compozyconfig.MCPJSONName),
+			)
+			if profileLoadErr != nil {
+				return nil, fmt.Errorf("settings: load workspace profile MCP sidecar: %w", profileLoadErr)
+			}
+			appendServers(WriteTargetWorkspaceProfileMCPSidecar, workspaceProfileSidecarServers)
+		}
 	}
 
 	return sources, nil
@@ -102,6 +149,7 @@ func loadMCPServersFromConfigFile(path string, homePaths compozyconfig.HomePaths
 func (s *service) resolveMCPPutTarget(
 	scope ScopeKind,
 	workspaceRoot string,
+	profileName string,
 	name string,
 	selector TargetSelector,
 	sources map[string][]mcpSourceEntry,
@@ -111,18 +159,18 @@ func (s *service) resolveMCPPutTarget(
 		return compozyconfig.WriteTarget{}, err
 	}
 	if normalized == TargetConfig {
-		return compozyconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
+		return compozyconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope(), profileName)
 	}
 	if normalized == TargetSidecar {
-		return compozyconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
+		return compozyconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope(), profileName)
 	}
 
 	targetKind := preferredMCPPutTarget(scope, name, sources)
 	switch targetKind {
-	case WriteTargetGlobalConfig, WriteTargetWorkspaceConfig:
-		return compozyconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
-	case WriteTargetGlobalMCPSidecar, WriteTargetWorkspaceMCPSidecar:
-		return compozyconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
+	case WriteTargetGlobalConfig, WriteTargetProfileConfig, WriteTargetWorkspaceConfig:
+		return compozyconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope(), profileName)
+	case WriteTargetGlobalMCPSidecar, WriteTargetProfileMCPSidecar, WriteTargetWorkspaceMCPSidecar:
+		return compozyconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope(), profileName)
 	default:
 		return compozyconfig.WriteTarget{}, conflictError(
 			fmt.Errorf("settings: unsupported MCP write target %q for %q", targetKind, name),
@@ -133,6 +181,7 @@ func (s *service) resolveMCPPutTarget(
 func (s *service) resolveMCPDeleteTarget(
 	scope ScopeKind,
 	workspaceRoot string,
+	profileName string,
 	name string,
 	selector TargetSelector,
 	sources map[string][]mcpSourceEntry,
@@ -142,10 +191,10 @@ func (s *service) resolveMCPDeleteTarget(
 		return compozyconfig.WriteTarget{}, err
 	}
 	if normalized == TargetConfig {
-		return compozyconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
+		return compozyconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope(), profileName)
 	}
 	if normalized == TargetSidecar {
-		return compozyconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
+		return compozyconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope(), profileName)
 	}
 
 	targetKind, ok := preferredMCPDeleteTarget(scope, name, sources)
@@ -155,10 +204,10 @@ func (s *service) resolveMCPDeleteTarget(
 		)
 	}
 	switch targetKind {
-	case WriteTargetGlobalConfig, WriteTargetWorkspaceConfig:
-		return compozyconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
-	case WriteTargetGlobalMCPSidecar, WriteTargetWorkspaceMCPSidecar:
-		return compozyconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
+	case WriteTargetGlobalConfig, WriteTargetProfileConfig, WriteTargetWorkspaceConfig:
+		return compozyconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope(), profileName)
+	case WriteTargetGlobalMCPSidecar, WriteTargetProfileMCPSidecar, WriteTargetWorkspaceMCPSidecar:
+		return compozyconfig.ResolveMCPSidecarWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope(), profileName)
 	default:
 		return compozyconfig.WriteTarget{}, conflictError(
 			fmt.Errorf("settings: unsupported MCP write target %q for %q", targetKind, name),
@@ -172,6 +221,9 @@ func preferredMCPPutTarget(scope ScopeKind, name string, sources map[string][]mc
 	}
 	if scope == ScopeWorkspace {
 		return WriteTargetWorkspaceMCPSidecar
+	}
+	if scope == ScopeProfile {
+		return WriteTargetProfileMCPSidecar
 	}
 	return WriteTargetGlobalMCPSidecar
 }
@@ -191,6 +243,13 @@ func preferredMCPDeleteTarget(
 		for _, entry := range slices.Backward(entries) {
 			switch entry.Target {
 			case WriteTargetWorkspaceMCPSidecar, WriteTargetWorkspaceConfig:
+				return entry.Target, true
+			}
+		}
+	case ScopeProfile:
+		for _, entry := range slices.Backward(entries) {
+			switch entry.Target {
+			case WriteTargetProfileMCPSidecar, WriteTargetProfileConfig:
 				return entry.Target, true
 			}
 		}

@@ -4,6 +4,8 @@ CREATE TABLE config_apply_records (
 			active_config_hash  TEXT NOT NULL,
 			generation          INTEGER NOT NULL CHECK (generation >= 0),
 			actor               TEXT NOT NULL,
+			write_target        TEXT NOT NULL DEFAULT '',
+			write_path          TEXT NOT NULL DEFAULT '',
 			diff_class          TEXT NOT NULL,
 			status              TEXT NOT NULL CHECK (status IN ('pending_apply', 'applied', 'blocked', 'failed')),
 			diagnostic_json     TEXT NOT NULL DEFAULT '',

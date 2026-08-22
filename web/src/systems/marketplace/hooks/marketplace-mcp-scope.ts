@@ -1,1 +1,1 @@
-export type MCPConfigScope = "global" | "workspace";
+export type MCPConfigScope = "user" | "profile" | "workspace";

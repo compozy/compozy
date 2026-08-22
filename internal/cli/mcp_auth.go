@@ -24,6 +24,7 @@ const (
 type mcpAuthCommandOptions struct {
 	scope                  string
 	workspaceID            string
+	profile                string
 	manual                 bool
 	timeout                time.Duration
 	approvedScopes         []string
@@ -50,7 +51,7 @@ func newMCPAuthLoginCommand(deps commandDeps) *cobra.Command {
 }
 
 func newMCPAuthorizationCommand(deps commandDeps, use string, short string) *cobra.Command {
-	opts := mcpAuthCommandOptions{scope: string(contract.SettingsWorkspaceScopeGlobal)}
+	opts := mcpAuthCommandOptions{scope: string(contract.SettingsLayeredScopeUser)}
 	cmd := &cobra.Command{
 		Use:   use,
 		Short: short,
@@ -66,7 +67,7 @@ func newMCPAuthorizationCommand(deps commandDeps, use string, short string) *cob
 			if err != nil {
 				return err
 			}
-			resolvedOpts, err := opts.resolveWorkspace(cmd, deps, client)
+			resolvedOpts, err := opts.resolveTarget(cmd, deps, client)
 			if err != nil {
 				return err
 			}
@@ -108,7 +109,7 @@ func newMCPAuthorizationCommand(deps commandDeps, use string, short string) *cob
 }
 
 func newMCPAuthStatusCommand(deps commandDeps) *cobra.Command {
-	opts := mcpAuthCommandOptions{scope: string(contract.SettingsWorkspaceScopeGlobal)}
+	opts := mcpAuthCommandOptions{scope: string(contract.SettingsLayeredScopeUser)}
 	cmd := &cobra.Command{
 		Use:   "status [server]",
 		Short: "Show redacted remote MCP auth status",
@@ -118,7 +119,7 @@ func newMCPAuthStatusCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resolvedOpts, err := opts.resolveWorkspace(cmd, deps, client)
+			resolvedOpts, err := opts.resolveTarget(cmd, deps, client)
 			if err != nil {
 				return err
 			}
@@ -136,9 +137,11 @@ func newMCPAuthStatusCommand(deps commandDeps) *cobra.Command {
 				}
 				return writeCommandOutput(cmd, mcpAuthStatusListBundle([]SettingsMCPAuthStatusRecord{status}))
 			}
-			scope := contract.SettingsWorkspaceScopeKind(strings.TrimSpace(resolvedOpts.scope))
+			scope := contract.SettingsLayeredScopeKind(strings.TrimSpace(resolvedOpts.scope))
 			workspaceID := strings.TrimSpace(resolvedOpts.workspaceID)
-			response, err := client.ListSettingsMCPServers(cmd.Context(), scope, workspaceID)
+			response, err := client.ListSettingsMCPServers(
+				cmd.Context(), scope, workspaceID, resolvedOpts.profile,
+			)
 			if err != nil {
 				return err
 			}
@@ -151,7 +154,7 @@ func newMCPAuthStatusCommand(deps commandDeps) *cobra.Command {
 }
 
 func newMCPAuthLogoutCommand(deps commandDeps) *cobra.Command {
-	opts := mcpAuthCommandOptions{scope: string(contract.SettingsWorkspaceScopeGlobal)}
+	opts := mcpAuthCommandOptions{scope: string(contract.SettingsLayeredScopeUser)}
 	cmd := &cobra.Command{
 		Use:   "logout <server>",
 		Short: "Revoke or delete remote MCP auth tokens through the daemon",
@@ -161,7 +164,7 @@ func newMCPAuthLogoutCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resolvedOpts, err := opts.resolveWorkspace(cmd, deps, client)
+			resolvedOpts, err := opts.resolveTarget(cmd, deps, client)
 			if err != nil {
 				return err
 			}
@@ -181,18 +184,18 @@ func newMCPAuthLogoutCommand(deps commandDeps) *cobra.Command {
 }
 
 func addMCPAuthTargetFlags(cmd *cobra.Command, opts *mcpAuthCommandOptions) {
-	cmd.Flags().StringVar(&opts.scope, "scope", opts.scope, "MCP server scope: global or workspace")
+	cmd.Flags().StringVar(&opts.scope, "scope", opts.scope, "MCP server scope: user, profile, or workspace")
 	cmd.Flags().
 		StringVar(&opts.workspaceID, "workspace", "", "Override workspace (ID, name, or path)")
 }
 
-func (o mcpAuthCommandOptions) resolveWorkspace(
+func (o mcpAuthCommandOptions) resolveTarget(
 	cmd *cobra.Command,
 	deps commandDeps,
-	client workspaceLookupClient,
+	client DaemonClient,
 ) (mcpAuthCommandOptions, error) {
-	if contract.SettingsWorkspaceScopeKind(strings.TrimSpace(o.scope)) ==
-		contract.SettingsWorkspaceScopeWorkspace {
+	scope := contract.SettingsLayeredScopeKind(strings.TrimSpace(o.scope))
+	if scope == contract.SettingsLayeredScopeWorkspace {
 		resolution, err := resolveCommandWorkspace(
 			cmd.Context(),
 			cmd,
@@ -204,6 +207,17 @@ func (o mcpAuthCommandOptions) resolveWorkspace(
 			return mcpAuthCommandOptions{}, err
 		}
 		o.workspaceID = resolution.ID
+	}
+	if scope == contract.SettingsLayeredScopeProfile {
+		profiles, _, err := profileClientFromDeps(deps)
+		if err != nil {
+			return mcpAuthCommandOptions{}, err
+		}
+		resolution, err := resolveCommandProfile(cmd.Context(), cmd, deps, profiles, client)
+		if err != nil {
+			return mcpAuthCommandOptions{}, err
+		}
+		o.profile = strings.TrimSpace(resolution.Profile.Name)
 	}
 	if err := o.validateScope(); err != nil {
 		return mcpAuthCommandOptions{}, err
@@ -224,20 +238,31 @@ func (o mcpAuthCommandOptions) target(name string) (SettingsMCPAuthTarget, error
 	}
 	return SettingsMCPAuthTarget{
 		Name:        name,
-		Scope:       contract.SettingsWorkspaceScopeKind(strings.TrimSpace(o.scope)),
+		Scope:       contract.SettingsLayeredScopeKind(strings.TrimSpace(o.scope)),
 		WorkspaceID: strings.TrimSpace(o.workspaceID),
+		Profile:     strings.TrimSpace(o.profile),
 	}, nil
 }
 
 func (o mcpAuthCommandOptions) validateScope() error {
-	switch contract.SettingsWorkspaceScopeKind(strings.TrimSpace(o.scope)) {
-	case contract.SettingsWorkspaceScopeGlobal:
+	switch contract.SettingsLayeredScopeKind(strings.TrimSpace(o.scope)) {
+	case contract.SettingsLayeredScopeUser:
+		if strings.TrimSpace(o.workspaceID) != "" || strings.TrimSpace(o.profile) != "" {
+			return errors.New("cli: --workspace requires --scope workspace")
+		}
+	case contract.SettingsLayeredScopeProfile:
 		if strings.TrimSpace(o.workspaceID) != "" {
 			return errors.New("cli: --workspace requires --scope workspace")
 		}
-	case contract.SettingsWorkspaceScopeWorkspace:
+		if strings.TrimSpace(o.profile) == "" || strings.TrimSpace(o.profile) == "default" {
+			return errors.New("cli: --scope profile requires an active non-default profile")
+		}
+	case contract.SettingsLayeredScopeWorkspace:
 		if strings.TrimSpace(o.workspaceID) == "" {
 			return errors.New("cli: --scope workspace requires --workspace")
+		}
+		if strings.TrimSpace(o.profile) != "" {
+			return errors.New("cli: profile identity requires --scope profile")
 		}
 	default:
 		return fmt.Errorf("cli: unsupported MCP auth scope %q", o.scope)

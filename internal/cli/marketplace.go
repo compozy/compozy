@@ -124,10 +124,10 @@ func (v marketplaceReadFlagValues) resolve(
 	client workspaceLookupClient,
 ) (MarketplaceReadScope, error) {
 	result := MarketplaceReadScope{
-		Scope:       contract.SettingsWorkspaceScopeKind(strings.TrimSpace(v.scope)),
+		Scope:       contract.SettingsLayeredScopeKind(strings.TrimSpace(v.scope)),
 		WorkspaceID: strings.TrimSpace(v.workspaceID),
 	}
-	if result.Scope == contract.SettingsWorkspaceScopeWorkspace {
+	if result.Scope == contract.SettingsLayeredScopeWorkspace {
 		resolution, err := resolveCommandWorkspace(
 			cmd.Context(),
 			cmd,
@@ -140,6 +140,17 @@ func (v marketplaceReadFlagValues) resolve(
 		}
 		result.WorkspaceID = resolution.ID
 	}
+	if result.Scope == contract.SettingsLayeredScopeProfile {
+		profiles, ok := client.(profileClientAPI)
+		if !ok {
+			return MarketplaceReadScope{}, errors.New("cli: profile catalog is unavailable")
+		}
+		resolution, err := resolveCommandProfile(cmd.Context(), cmd, deps, profiles, client)
+		if err != nil {
+			return MarketplaceReadScope{}, err
+		}
+		result.Profile = strings.TrimSpace(resolution.Profile.Name)
+	}
 	if _, err := result.queryValues(); err != nil {
 		return MarketplaceReadScope{}, err
 	}
@@ -150,8 +161,8 @@ func addMarketplaceReadFlags(cmd *cobra.Command, values *marketplaceReadFlagValu
 	cmd.Flags().StringVar(
 		&values.scope,
 		marketplaceScopeKey,
-		string(contract.SettingsWorkspaceScopeGlobal),
-		"Installed-state scope: global or workspace",
+		string(contract.SettingsLayeredScopeUser),
+		"Installed-state scope: user, profile, or workspace",
 	)
 	cmd.Flags().
 		StringVar(&values.workspaceID, "workspace", "", "Override workspace scope (ID, name, or path)")

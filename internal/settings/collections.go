@@ -28,48 +28,45 @@ func (s *service) ListCollection(ctx context.Context, req CollectionRequest) (Co
 			fmt.Errorf("settings: collection %q does not support agent scope", req.Collection),
 		)
 	}
-	if req.Collection != CollectionMCPServers && scope == ScopeWorkspace {
-		return CollectionEnvelope{}, conflictError(
-			fmt.Errorf("settings: collection %q does not support workspace scope", req.Collection),
-		)
+	availableScopes, err := validateCollectionScope(req.Collection, scope)
+	if err != nil {
+		return CollectionEnvelope{}, err
 	}
 
-	cfg, resolved, err := s.loadConfig(ctx, scope, workspaceID)
+	cfg, resolved, err := s.loadConfig(ctx, scope, workspaceID, req.ProfileName)
 	if err != nil {
 		return CollectionEnvelope{}, fmt.Errorf("settings: load collection %q config: %w", req.Collection, err)
 	}
 
 	envelope := CollectionEnvelope{
-		Collection:  req.Collection,
-		Scope:       scope,
-		WorkspaceID: workspaceID,
+		Collection:      req.Collection,
+		Scope:           scope,
+		WorkspaceID:     workspaceID,
+		ProfileName:     req.ProfileName,
+		AvailableScopes: availableScopes,
 	}
 
 	switch req.Collection {
 	case CollectionProviders:
-		envelope.AvailableScopes = []ScopeKind{ScopeUser}
 		items, buildErr := s.buildProviderItems(ctx, &cfg)
 		if buildErr != nil {
 			return CollectionEnvelope{}, buildErr
 		}
 		envelope.Providers = items
 	case CollectionMCPServers:
-		envelope.AvailableScopes = []ScopeKind{ScopeUser, ScopeWorkspace}
-		items, buildErr := s.buildMCPServerItems(ctx, scope, workspaceID, resolved)
+		items, buildErr := s.buildMCPServerItems(ctx, scope, workspaceID, req.ProfileName, resolved)
 		if buildErr != nil {
 			return CollectionEnvelope{}, buildErr
 		}
 		envelope.MCPServers = items
 	case CollectionSandboxes:
-		envelope.AvailableScopes = []ScopeKind{ScopeUser}
 		items, buildErr := s.buildSandboxItems(ctx, &cfg)
 		if buildErr != nil {
 			return CollectionEnvelope{}, buildErr
 		}
 		envelope.Sandboxes = items
 	case CollectionHooks:
-		envelope.AvailableScopes = []ScopeKind{ScopeUser}
-		envelope.Hooks = buildHookItems(cfg.Hooks.Declarations)
+		envelope.Hooks = buildHookItems(cfg.Hooks.Declarations, scope, workspaceID, req.ProfileName)
 	default:
 		return CollectionEnvelope{}, notFoundError(fmt.Errorf("settings: unknown collection %q", req.Collection))
 	}
@@ -95,12 +92,12 @@ func (s *service) PutCollectionItem(ctx context.Context, req CollectionItemPutRe
 			fmt.Errorf("settings: collection %q does not support agent scope", req.Collection),
 		)
 	}
+	if _, err := validateCollectionScope(req.Collection, scope); err != nil {
+		return MutationResult{}, err
+	}
 
 	switch req.Collection {
 	case CollectionProviders:
-		if scope != ScopeUser {
-			return MutationResult{}, conflictError(errors.New("settings: providers do not support workspace scope"))
-		}
 		if req.Provider == nil {
 			return MutationResult{}, validationError(errors.New("settings: provider payload is required"))
 		}
@@ -114,23 +111,15 @@ func (s *service) PutCollectionItem(ctx context.Context, req CollectionItemPutRe
 	case CollectionMCPServers:
 		return finalize(s.putMCPCollectionItem(ctx, scope, workspaceID, name, req))
 	case CollectionSandboxes:
-		if scope != ScopeUser {
-			return MutationResult{}, conflictError(
-				errors.New("settings: sandboxes do not support workspace scope"),
-			)
-		}
 		if req.Sandbox == nil {
 			return MutationResult{}, validationError(errors.New("settings: sandbox payload is required"))
 		}
 		return finalize(s.putSandbox(name, *req.Sandbox))
 	case CollectionHooks:
-		if scope != ScopeUser {
-			return MutationResult{}, conflictError(errors.New("settings: hooks do not support workspace scope"))
-		}
 		if req.Hook == nil {
 			return MutationResult{}, validationError(errors.New("settings: hook payload is required"))
 		}
-		return finalize(s.putHook(name, *req.Hook))
+		return finalize(s.putHook(ctx, scope, workspaceID, req.ProfileName, name, *req.Hook))
 	default:
 		return MutationResult{}, notFoundError(fmt.Errorf("settings: unknown collection %q", req.Collection))
 	}
@@ -154,27 +143,19 @@ func (s *service) DeleteCollectionItem(ctx context.Context, req CollectionItemDe
 			fmt.Errorf("settings: collection %q does not support agent scope", req.Collection),
 		)
 	}
+	if _, err := validateCollectionScope(req.Collection, scope); err != nil {
+		return MutationResult{}, err
+	}
 
 	switch req.Collection {
 	case CollectionProviders:
-		if scope != ScopeUser {
-			return MutationResult{}, conflictError(errors.New("settings: providers do not support workspace scope"))
-		}
 		return finalize(s.deleteProvider(name))
 	case CollectionMCPServers:
-		return finalize(s.deleteMCPServer(ctx, scope, workspaceID, name, req.Target))
+		return finalize(s.deleteMCPServer(ctx, scope, workspaceID, req.ProfileName, name, req.Target))
 	case CollectionSandboxes:
-		if scope != ScopeUser {
-			return MutationResult{}, conflictError(
-				errors.New("settings: sandboxes do not support workspace scope"),
-			)
-		}
 		return finalize(s.deleteSandbox(name))
 	case CollectionHooks:
-		if scope != ScopeUser {
-			return MutationResult{}, conflictError(errors.New("settings: hooks do not support workspace scope"))
-		}
-		return finalize(s.deleteHook(name))
+		return finalize(s.deleteHook(ctx, scope, workspaceID, req.ProfileName, name))
 	default:
 		return MutationResult{}, notFoundError(fmt.Errorf("settings: unknown collection %q", req.Collection))
 	}

@@ -1,8 +1,10 @@
 import type {
   SettingsApplyRecordsFilter,
   SettingsCmdPaletteFilter,
+  SettingsHookListFilter,
   SettingsMCPServerListFilter,
   SettingsNotificationPresetFilter,
+  SettingsPersonaFilter,
   SettingsSectionName,
   SettingsSectionSlug,
   SettingsSkillsFilter,
@@ -24,6 +26,13 @@ export const settingsKeys = {
 
   sections: () => [...settingsKeys.all, "section"] as const,
   section: (section: SettingsSectionKey) => [...settingsKeys.sections(), section] as const,
+  personaSection: (filter: SettingsPersonaFilter) =>
+    [
+      ...settingsKeys.section("persona"),
+      filter.scope ?? "",
+      normalizeText(filter.workspace_id),
+      normalizeText(filter.profile),
+    ] as const,
   windowManagerLayoutsRoot: () => [...settingsKeys.section("window-manager"), "layouts"] as const,
   windowManagerLayoutProfiles: (workspaceId: string) =>
     [...settingsKeys.windowManagerLayoutsRoot(), "profiles", normalizeText(workspaceId)] as const,
@@ -42,13 +51,14 @@ export const settingsKeys = {
       normalizeText(filter.workspace_id),
       normalizeText(filter.agent_name),
     ] as const,
-  // Scope is part of the key: global and each workspace answer differently, so
-  // one entry serving all of them would show another scope's setting.
+  // Scope is part of the key: user, profile, and workspace answer differently,
+  // so one entry serving all of them would show another scope's setting.
   cmdPaletteSection: (filter: SettingsCmdPaletteFilter = {}) =>
     [
       ...settingsKeys.section("cmd-palette"),
       filter.scope ?? "",
       normalizeText(filter.workspace_id),
+      normalizeText(filter.profile),
     ] as const,
 
   rolesStatus: () => [...settingsKeys.all, "roles-status"] as const,
@@ -64,12 +74,24 @@ export const settingsKeys = {
   sandboxDetail: (name: string) => [...settingsKeys.sandboxesRoot(), "detail", name] as const,
 
   hooksRoot: () => [...settingsKeys.collections(), "hooks"] as const,
-  hooksList: () => [...settingsKeys.hooksRoot(), "list"] as const,
+  hooksList: (filter: SettingsHookListFilter = {}) =>
+    [
+      ...settingsKeys.hooksRoot(),
+      "list",
+      filter.scope ?? "",
+      normalizeText(filter.workspace_id),
+      normalizeText(filter.profile),
+    ] as const,
 
   mcpRoot: () => [...settingsKeys.collections(), "mcp-servers"] as const,
   mcpLists: () => [...settingsKeys.mcpRoot(), "list"] as const,
   mcpList: (filter: SettingsMCPServerListFilter = {}) =>
-    [...settingsKeys.mcpLists(), filter.scope ?? "", normalizeText(filter.workspace_id)] as const,
+    [
+      ...settingsKeys.mcpLists(),
+      filter.scope ?? "",
+      normalizeText(filter.workspace_id),
+      normalizeText(filter.profile),
+    ] as const,
 
   notificationsRoot: () => [...settingsKeys.all, "notifications"] as const,
   notificationPresetsList: (filter: SettingsNotificationPresetFilter = {}) =>

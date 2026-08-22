@@ -15,8 +15,11 @@ import {
   type SettingsHookEntry,
   type SettingsHookRequest,
   usePutSettingsHook,
+  useSettingsHooks,
   useSettingsHooksExtensions,
 } from "@/systems/settings";
+import { useProfileReadScope } from "@/systems/profiles";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 function errorMessage(error: unknown): string | null {
   if (error instanceof SettingsApiError || error instanceof Error) return error.message;
@@ -24,7 +27,18 @@ function errorMessage(error: unknown): string | null {
 }
 
 export function useSettingsHooksPage() {
-  const query = useSettingsHooksExtensions();
+  const { destination } = useProfileReadScope();
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const filter =
+    destination === "default"
+      ? ({ scope: "user" } as const)
+      : ({
+          scope: "profile",
+          profile: destination,
+          workspace_id: activeWorkspaceId ?? undefined,
+        } as const);
+  const query = useSettingsHooks(filter);
+  const capabilityQuery = useSettingsHooksExtensions();
   const hookMutation = usePutSettingsHook();
   const presetsQuery = useNotificationPresets();
   const createPreset = useCreateNotificationPreset();
@@ -42,7 +56,7 @@ export function useSettingsHooksPage() {
       enabled,
     };
     hookMutation.mutate(
-      { name: entry.name, body: { declaration } },
+      { name: entry.name, body: { declaration }, filter },
       { onSettled: () => setPendingHookName(null) }
     );
   };
@@ -66,19 +80,20 @@ export function useSettingsHooksPage() {
     errorMessage(updatePreset.error) ??
     errorMessage(deletePreset.error);
   return {
-    canMutateHooks: query.data?.transport_parity?.settings_http !== false,
+    canMutateHooks: capabilityQuery.data?.transport_parity?.settings_http !== false,
     createNotificationPreset,
     deleteNotificationPreset,
     envelope: query.data ?? null,
-    error: query.error,
-    handleRetry: () => void Promise.all([query.refetch(), presetsQuery.refetch()]),
+    error: query.error ?? capabilityQuery.error,
+    handleRetry: () =>
+      void Promise.all([query.refetch(), capabilityQuery.refetch(), presetsQuery.refetch()]),
     hookError: errorMessage(hookMutation.error),
     hooks,
     hooksCounts: {
       enabled: hooks.filter(entry => entry.declaration.enabled !== false).length,
       total: hooks.length,
     },
-    isLoading: query.isLoading,
+    isLoading: query.isLoading || capabilityQuery.isLoading,
     notificationPresetActionError: mutationError,
     notificationPresets: presetsQuery.data?.presets ?? [],
     notificationPresetsError: errorMessage(presetsQuery.error),

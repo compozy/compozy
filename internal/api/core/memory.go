@@ -48,6 +48,8 @@ var (
 
 // MemoryLocation identifies the storage location for a memory document.
 type MemoryLocation struct {
+	ProfileID   string
+	ProfileName string
 	Scope       memcontract.Scope
 	Workspace   string
 	WorkspaceID string
@@ -57,6 +59,8 @@ type MemoryLocation struct {
 }
 
 type memorySelector struct {
+	ProfileID     string
+	ProfileName   string
 	Scope         memcontract.Scope
 	Workspace     string
 	WorkspaceID   string

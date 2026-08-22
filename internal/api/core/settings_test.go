@@ -565,6 +565,8 @@ func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	settings.POST("/update/apply", handlers.ApplySettingsUpdate)
 	settings.POST("/update/cancel", handlers.CancelSettingsUpdate)
 	settings.PATCH("/general", handlers.UpdateSettingsGeneral)
+	settings.GET("/persona", handlers.GetSettingsPersona)
+	settings.PATCH("/persona", handlers.UpdateSettingsPersona)
 	settings.GET("/memory", handlers.GetSettingsMemory)
 	settings.PATCH("/memory", handlers.UpdateSettingsMemory)
 	settings.GET("/roles", handlers.GetSettingsRoles)
@@ -889,7 +891,7 @@ func TestSettingsMCPAuthHandlersUseConfiguredRedirectURI(t *testing.T) {
 				t,
 				fixture.Engine,
 				http.MethodPost,
-				"/api/settings/mcp-servers/linear/auth/begin?scope=global",
+				"/api/settings/mcp-servers/linear/auth/begin?scope=user",
 				[]byte(`{"mode":"`+string(tc.mode)+`"}`),
 			)
 			if response.Code != tc.wantStatus {
@@ -922,24 +924,24 @@ func TestSettingsMCPAuthHandlersRejectInvalidTargetsAndBodies(t *testing.T) {
 		},
 		{
 			name: "Should require a supported begin mode",
-			path: "/api/settings/mcp-servers/linear/auth/begin?scope=global",
+			path: "/api/settings/mcp-servers/linear/auth/begin?scope=user",
 			body: []byte(`{"mode":"unspecified"}`),
 		},
 		{
 			name: "Should reject the legacy code exchange field without echoing its value",
-			path: "/api/settings/mcp-servers/linear/auth/exchange?scope=global",
+			path: "/api/settings/mcp-servers/linear/auth/exchange?scope=user",
 			body: []byte(`{"code":"sensitive-code"}`),
 		},
 		{
 			name: "Should reject unknown exchange fields without echoing their value",
-			path: "/api/settings/mcp-servers/linear/auth/exchange?scope=global",
+			path: "/api/settings/mcp-servers/linear/auth/exchange?scope=user",
 			body: []byte(
 				`{"redirect_url":"http://127.0.0.1:2123/api/mcp/oauth/callback?code=sensitive-code","verifier":"sensitive-verifier"}`,
 			),
 		},
 		{
 			name: "Should reject scope escalation without explicit approval",
-			path: "/api/settings/mcp-servers/linear/auth/begin?scope=global",
+			path: "/api/settings/mcp-servers/linear/auth/begin?scope=user",
 			body: []byte(`{"mode":"automatic","approved_scopes":["tools.write"]}`),
 		},
 	}
@@ -1335,8 +1337,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					DaemonInfo:       "/tmp/home/daemon.json",
 				},
 				Settings: settingspkg.GeneralSettings{
-					Defaults: compozyconfig.DefaultsConfig{Agent: "coder", Provider: "openai", Sandbox: "local"},
-					Limits:   compozyconfig.LimitsConfig{MaxConcurrentAgents: 2},
+					Limits: compozyconfig.LimitsConfig{MaxConcurrentAgents: 2},
 					Permissions: compozyconfig.PermissionsConfig{
 						Mode: compozyconfig.PermissionModeApproveReads,
 					},
@@ -1351,6 +1352,15 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 						Behavior:  settingspkg.MutationBehaviorActionTrigger,
 					},
 				},
+			},
+		},
+		{
+			Section:         settingspkg.SectionPersona,
+			Scope:           settingspkg.ScopeProfile,
+			ProfileName:     "marketing",
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser, settingspkg.ScopeProfile, settingspkg.ScopeWorkspace},
+			Persona: &settingspkg.PersonaSection{
+				Config: compozyconfig.DefaultsConfig{Agent: "coder", Provider: "openai", Sandbox: "local"},
 			},
 		},
 		{
@@ -1666,7 +1676,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 				}
 				if !payload.Personalization || !payload.FallbackAgentEnabled ||
 					payload.WorkspaceID != "ws-test" ||
-					payload.Scope != contract.SettingsWorkspaceScopeWorkspace {
+					payload.Scope != contract.SettingsLayeredScopeWorkspace {
 					t.Fatalf("cmd-palette response = %#v, want workspace personalization", payload)
 				}
 				return
@@ -2281,11 +2291,6 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			path: "/api/settings/general",
 			body: contract.UpdateSettingsGeneralRequest{
 				Config: contract.SettingsGeneralConfigPayload{
-					Defaults: contract.SettingsDefaultsPayload{
-						Agent:    "coder",
-						Provider: "openai",
-						Sandbox:  "local",
-					},
 					Limits: contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
 					Permissions: contract.SettingsPermissionsPayload{
 						Mode: contract.SettingsPermissionModeApproveReads,
@@ -2297,8 +2302,21 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			},
 			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
 				t.Helper()
-				if req.General == nil || req.General.Defaults.Agent != "coder" {
+				if req.General == nil || req.General.Limits.MaxConcurrentAgents != 2 {
 					t.Fatalf("req.General = %#v, want populated general settings", req.General)
+				}
+			},
+		},
+		{
+			name: "persona profile",
+			path: "/api/settings/persona?scope=profile&profile=marketing",
+			body: contract.UpdateSettingsPersonaRequest{Config: contract.SettingsDefaultsPayload{
+				Agent: "coder", Provider: "openai", Sandbox: "local",
+			}},
+			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
+				t.Helper()
+				if req.Persona == nil || req.Persona.Agent != "coder" || req.ProfileName != "marketing" {
+					t.Fatalf("req = %#v, want profile persona payload", req)
 				}
 			},
 		},
@@ -3567,8 +3585,7 @@ func TestSettingsHandlersReturnServiceUnavailableWithoutInjectedDependencies(t *
 			path:   "/api/settings/general",
 			body: mustJSON(t, contract.UpdateSettingsGeneralRequest{
 				Config: contract.SettingsGeneralConfigPayload{
-					Defaults: contract.SettingsDefaultsPayload{Agent: "coder"},
-					Limits:   contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
+					Limits: contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
 					Permissions: contract.SettingsPermissionsPayload{
 						Mode: contract.SettingsPermissionModeApproveReads,
 					},
@@ -3780,7 +3797,7 @@ func TestInstallSettingsMCPServerMapsStrictRequestAndRedactedResponse(t *testing
 		body := mustJSON(t, contract.InstallSettingsMCPServerRequest{
 			EntryID:     "github",
 			Name:        "github",
-			Scope:       contract.SettingsWorkspaceScopeWorkspace,
+			Scope:       contract.SettingsLayeredScopeWorkspace,
 			WorkspaceID: "ws-1",
 			Values: &contract.SettingsMCPCatalogInstallValuesPayload{
 				Inputs: map[string]contract.SettingsMCPCatalogInputPayload{
@@ -3840,7 +3857,7 @@ func TestInstallSettingsMCPServerMapsStrictRequestAndRedactedResponse(t *testing
 			fixture.Engine,
 			http.MethodPost,
 			"/api/settings/mcp-servers/install",
-			[]byte(`{"entry_id":"github","scope":"global","values":{},"command":"operator-command"}`),
+			[]byte(`{"entry_id":"github","scope":"user","values":{},"command":"operator-command"}`),
 		)
 		if got, want := response.Code, http.StatusBadRequest; got != want {
 			t.Fatalf("override status = %d, want %d; body=%s", got, want, response.Body.String())
@@ -3864,7 +3881,7 @@ func TestInstallSettingsMCPServerMapsStrictRequestAndRedactedResponse(t *testing
 			fixture.Engine,
 			http.MethodPost,
 			"/api/settings/mcp-servers/install",
-			[]byte(`{"entry_id":"linear","name":"linear","scope":"global","values":null}`),
+			[]byte(`{"entry_id":"linear","name":"linear","scope":"user","values":null}`),
 		)
 		if got, want := response.Code, http.StatusOK; got != want {
 			t.Fatalf("null values status = %d, want %d; body=%s", got, want, response.Body.String())
@@ -3887,7 +3904,7 @@ func TestInstallSettingsMCPServerMapsStrictRequestAndRedactedResponse(t *testing
 			fixture.Engine,
 			http.MethodPost,
 			"/api/settings/mcp-servers/install",
-			[]byte(`{"entry_id":"linear","name":"linear","scope":"global"}`),
+			[]byte(`{"entry_id":"linear","name":"linear","scope":"user"}`),
 		)
 		if got, want := response.Code, http.StatusBadRequest; got != want {
 			t.Fatalf("omitted values status = %d, want %d; body=%s", got, want, response.Body.String())
@@ -4059,6 +4076,8 @@ func TestListSettingsApplyRecordsReturnsBlockedDiagnostics(t *testing.T) {
 					ActiveHash:  "sha256:active",
 					Generation:  7,
 					Actor:       "http",
+					WriteTarget: settingspkg.WriteTargetProfileConfig,
+					WritePath:   "/tmp/compozy/profiles/marketing/config.toml",
 					DiffClass:   lifecycle.DiffClassRestartRequired,
 					Status:      lifecycle.StatusBlocked,
 					Lifecycle:   lifecycle.RestartRequired,
@@ -4083,6 +4102,10 @@ func TestListSettingsApplyRecordsReturnsBlockedDiagnostics(t *testing.T) {
 		entry := payload.Entries[0]
 		if got, want := entry.Status, contract.ConfigApplyStatusBlocked; got != want {
 			t.Fatalf("entry.Status = %q, want %q", got, want)
+		}
+		if entry.WriteTarget != contract.SettingsWriteTargetProfileConfig ||
+			entry.WritePath != "/tmp/compozy/profiles/marketing/config.toml" {
+			t.Fatalf("entry provenance = %q %q", entry.WriteTarget, entry.WritePath)
 		}
 		if len(entry.Diagnostics) != 1 {
 			t.Fatalf("entry.Diagnostics len = %d, want 1", len(entry.Diagnostics))

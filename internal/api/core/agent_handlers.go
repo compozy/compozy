@@ -18,9 +18,15 @@ import (
 // ListAgents returns all readable agent definitions in home paths.
 func (h *BaseHandlers) ListAgents(c *gin.Context) {
 	if workspaceRef := strings.TrimSpace(c.Query("workspace")); workspaceRef != "" {
+		profileName, err := h.agentResourceProfileName(c)
+		if err != nil {
+			h.respondProfileReadScopeError(c, err)
+			return
+		}
 		resolved, err := h.workspaceAgentEntriesWithDiagnostics(
 			c.Request.Context(),
 			workspaceRef,
+			profileName,
 		)
 		if err != nil {
 			h.respondError(c, statusForAgentWorkspaceError(err), err)
@@ -152,7 +158,17 @@ func (h *BaseHandlers) rollbackCreatedAgentDefinition(ctx context.Context, sourc
 // GetAgent returns one agent definition by name.
 func (h *BaseHandlers) GetAgent(c *gin.Context) {
 	if workspaceRef := strings.TrimSpace(c.Query("workspace")); workspaceRef != "" {
-		entry, cfg, err := h.workspaceAgentDef(c.Request.Context(), workspaceRef, c.Param("name"))
+		profileName, err := h.agentResourceProfileName(c)
+		if err != nil {
+			h.respondProfileReadScopeError(c, err)
+			return
+		}
+		entry, cfg, err := h.workspaceAgentDef(
+			c.Request.Context(),
+			workspaceRef,
+			c.Param("name"),
+			profileName,
+		)
 		if err != nil {
 			h.respondError(c, statusForAgentWorkspaceError(err), err)
 			return

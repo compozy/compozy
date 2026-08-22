@@ -11,24 +11,39 @@ import (
 )
 
 // LoadWorkspaceAgentDefs loads workspace-visible agents using root, additional, then global precedence.
-func LoadWorkspaceAgentDefs(rootDir string, additionalDirs []string, homePaths HomePaths) ([]AgentDef, error) {
-	roots := WorkspaceDiscoveryRoots(rootDir, additionalDirs, homePaths)
+func LoadWorkspaceAgentDefs(
+	rootDir string,
+	additionalDirs []string,
+	homePaths HomePaths,
+	profileNames ...string,
+) ([]AgentDef, error) {
+	if profileName := firstProfileName(profileNames); profileName != "" {
+		if err := ValidateResourceProfileName(profileName); err != nil {
+			return nil, err
+		}
+	}
+	roots := WorkspaceDiscoveryRoots(rootDir, additionalDirs, homePaths, profileNames...)
 	if len(roots) == 0 {
 		return nil, nil
 	}
 
 	agents := make([]AgentDef, 0)
-	seen := make(map[string]struct{})
+	seen := make(map[string]int)
 	for _, root := range roots {
 		loaded, err := loadAgentDefsFromRoot(root)
 		if err != nil {
 			return nil, err
 		}
 		for _, agent := range loaded {
-			if _, ok := seen[agent.Name]; ok {
+			agent.SourceLayer = AgentLayerName(root.Source)
+			if winnerIndex, ok := seen[agent.Name]; ok {
+				agents[winnerIndex].ShadowedDefinitions = append(
+					agents[winnerIndex].ShadowedDefinitions,
+					AgentDefinitionRef{Layer: agent.SourceLayer, Path: agent.SourcePath},
+				)
 				continue
 			}
-			seen[agent.Name] = struct{}{}
+			seen[agent.Name] = len(agents)
 			agents = append(agents, agent)
 		}
 	}

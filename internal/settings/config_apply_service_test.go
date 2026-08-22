@@ -26,6 +26,67 @@ import (
 func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should keep user and profile writes in one provenance timeline [IT-046]", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(ctx); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		})
+
+		service := testService(t, homePaths, Dependencies{
+			ApplyRecords: NewConfigApplyRecordRepository(db.DB(), nil),
+		})
+		for _, request := range []SectionUpdateRequest{
+			{
+				SectionRequest: SectionRequest{Section: SectionPersona, Scope: ScopeUser},
+				Persona: &compozyconfig.DefaultsConfig{
+					Agent: "user-agent", Provider: "user-provider", Sandbox: "user-sandbox",
+				},
+			},
+			{
+				SectionRequest: SectionRequest{
+					Section: SectionPersona, Scope: ScopeProfile, ProfileName: "marketing",
+				},
+				Persona: &compozyconfig.DefaultsConfig{
+					Agent: "profile-agent", Provider: "profile-provider", Sandbox: "profile-sandbox",
+				},
+			},
+		} {
+			if _, err := service.ApplySection(WithMutationSource(ctx, "http"), request); err != nil {
+				t.Fatalf("ApplySection(%s) error = %v", request.Scope, err)
+			}
+		}
+
+		records, err := service.ListApplyRecords(ctx, ApplyRecordFilter{})
+		if err != nil {
+			t.Fatalf("ListApplyRecords() error = %v", err)
+		}
+		if len(records) != 2 {
+			t.Fatalf("ListApplyRecords() len = %d, want 2", len(records))
+		}
+		pathsByTarget := make(map[WriteTargetKind]string, len(records))
+		for _, record := range records {
+			pathsByTarget[record.WriteTarget] = record.WritePath
+		}
+		if got, want := pathsByTarget[WriteTargetGlobalConfig], homePaths.ConfigFile; got != want {
+			t.Fatalf("user apply path = %q, want %q", got, want)
+		}
+		if got, want := pathsByTarget[WriteTargetProfileConfig], filepath.Join(
+			homePaths.ProfilesDir, "marketing", compozyconfig.ConfigName,
+		); got != want {
+			t.Fatalf("profile apply path = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("Should persist applied live record and advance active generation", func(t *testing.T) {
 		t.Parallel()
 
@@ -1046,7 +1107,6 @@ func TestConfigApplyServiceRecordsRestartRequiredWithoutAdvancingGeneration(t *t
 			t.Fatalf("LoadForHome() error = %v", err)
 		}
 		general := GeneralSettings{
-			Defaults:       cfg.Defaults,
 			Limits:         cfg.Limits,
 			Permissions:    cfg.Permissions,
 			SessionTimeout: cfg.Session.Limits.Timeout,

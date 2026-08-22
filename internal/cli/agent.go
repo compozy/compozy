@@ -172,6 +172,8 @@ func agentListBundle(items []AgentRecord) outputBundle {
 			taskOriginValue,
 			automationWorkspaceValue,
 			"Disabled Skills",
+			"Layer",
+			"Shadows",
 			"Definition Digest",
 			toolOperatorToolsValue,
 			installPermissionsValue,
@@ -185,6 +187,8 @@ func agentListBundle(items []AgentRecord) outputBundle {
 			taskOriginKey,
 			automationWorkspaceIDKey,
 			agentDisabledSkillsKey,
+			"layer",
+			"shadows",
 			"definition_digest",
 			"tool_count",
 			configPermissionsKey,
@@ -198,6 +202,8 @@ func agentListBundle(items []AgentRecord) outputBundle {
 				stringOrDash(string(item.Origin)),
 				stringOrDash(item.WorkspaceID),
 				stringOrDash(agentSkillsLabel(item.Skills)),
+				stringOrDash(item.Layer),
+				stringOrDash(agentShadowLayers(item.Shadows)),
 				stringOrDash(item.DefinitionDigest),
 				strconv.Itoa(len(item.Tools)),
 				stringOrDash(item.Permissions),
@@ -212,6 +218,8 @@ func agentListBundle(items []AgentRecord) outputBundle {
 				string(item.Origin),
 				item.WorkspaceID,
 				agentSkillsLabel(item.Skills),
+				item.Layer,
+				agentShadowLayers(item.Shadows),
 				item.DefinitionDigest,
 				strconv.Itoa(len(item.Tools)),
 				item.Permissions,
@@ -234,6 +242,8 @@ func agentBundle(item AgentRecord) outputBundle {
 				{Label: taskOriginValue, Value: stringOrDash(string(item.Origin))},
 				{Label: automationWorkspaceValue, Value: stringOrDash(item.WorkspaceID)},
 				{Label: "Disabled Skills", Value: stringOrDash(agentSkillsLabel(item.Skills))},
+				{Label: "Layer", Value: stringOrDash(item.Layer)},
+				{Label: "Shadows", Value: stringOrDash(agentShadowLayers(item.Shadows))},
 				{Label: "Definition Digest", Value: stringOrDash(item.DefinitionDigest)},
 				{Label: toolOperatorToolsValue, Value: stringOrDash(strings.Join(item.Tools, ", "))},
 				{Label: installPermissionsValue, Value: stringOrDash(item.Permissions)},
@@ -287,6 +297,16 @@ func agentBundle(item AgentRecord) outputBundle {
 			}), nil
 		},
 	}
+}
+
+func agentShadowLayers(shadows []contract.AgentDefinitionShadowPayload) string {
+	layers := make([]string, 0, len(shadows))
+	for _, shadow := range shadows {
+		if layer := strings.TrimSpace(shadow.Layer); layer != "" {
+			layers = append(layers, layer)
+		}
+	}
+	return strings.Join(layers, ", ")
 }
 
 func agentCategoryLabel(path []string) string {

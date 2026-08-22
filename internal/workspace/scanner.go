@@ -13,6 +13,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
+	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/skillscan"
 )
 
@@ -22,13 +23,15 @@ const (
 )
 
 type workspaceScan struct {
-	snapshots map[string]filesnap.Snapshot
-	agents    []agentCandidate
-	skills    []skillCandidate
+	snapshots           map[string]filesnap.Snapshot
+	agents              []agentCandidate
+	skills              []skillCandidate
+	profileDeclarations []ProfileDeclaration
 }
 
 type agentCandidate struct {
-	path string
+	path   string
+	source compozyconfig.WorkspaceDiscoverySource
 }
 
 type skillCandidate struct {
@@ -38,15 +41,19 @@ type skillCandidate struct {
 	rootOrder int
 }
 
-func (r *Resolver) scanWorkspace(ctx context.Context, ws Workspace) (workspaceScan, error) {
+func (r *Resolver) scanWorkspace(ctx context.Context, ws Workspace, profileName string) (workspaceScan, error) {
 	if err := checkContext(ctx); err != nil {
 		return workspaceScan{}, err
 	}
 
 	scan := workspaceScan{
-		snapshots: make(map[string]filesnap.Snapshot),
-		agents:    make([]agentCandidate, 0),
-		skills:    make([]skillCandidate, 0),
+		snapshots:           make(map[string]filesnap.Snapshot),
+		agents:              make([]agentCandidate, 0),
+		skills:              make([]skillCandidate, 0),
+		profileDeclarations: make([]ProfileDeclaration, 0),
+	}
+	if err := validatePersonalProfileRoot(ws.RootDir, r.homePaths.ProfilesDir, profileName); err != nil {
+		return workspaceScan{}, err
 	}
 
 	if err := addSnapshotIfExists(r.homePaths.ConfigFile, scan.snapshots); err != nil {
@@ -73,8 +80,18 @@ func (r *Resolver) scanWorkspace(ctx context.Context, ws Workspace) (workspaceSc
 	); err != nil {
 		return workspaceScan{}, fmt.Errorf("workspace: snapshot workspace MCP JSON %q: %w", ws.RootDir, err)
 	}
+	declarations, err := scanWorkspaceProfileDeclarations(ws.RootDir, scan.snapshots)
+	if err != nil {
+		return workspaceScan{}, err
+	}
+	scan.profileDeclarations = declarations
 
-	for rootOrder, root := range compozyconfig.WorkspaceDiscoveryRoots(ws.RootDir, ws.AdditionalDirs, r.homePaths) {
+	for rootOrder, root := range compozyconfig.WorkspaceDiscoveryRoots(
+		ws.RootDir,
+		ws.AdditionalDirs,
+		r.homePaths,
+		profileName,
+	) {
 		if err := checkContext(ctx); err != nil {
 			return workspaceScan{}, err
 		}
@@ -88,6 +105,26 @@ func (r *Resolver) scanWorkspace(ctx context.Context, ws Workspace) (workspaceSc
 	}
 
 	return scan, nil
+}
+
+func validatePersonalProfileRoot(workspaceRoot, profilesRoot, profileName string) error {
+	trimmedName := strings.TrimSpace(profileName)
+	if trimmedName == "" {
+		return nil
+	}
+	personalRoot := filepath.Join(profilesRoot, trimmedName)
+	contained, err := fileutil.PathWithinRoot(workspaceRoot, personalRoot)
+	if err != nil {
+		return fmt.Errorf("workspace: compare personal profile root with workspace: %w", err)
+	}
+	if contained {
+		return fmt.Errorf(
+			"workspace: personal profile resource root %q cannot be inside registered workspace %q",
+			personalRoot,
+			workspaceRoot,
+		)
+	}
+	return nil
 }
 
 func scanAgentSource(
@@ -125,7 +162,7 @@ func scanAgentSource(
 			continue
 		}
 		if compozyconfig.IsReservedAgentName(entry.Name()) {
-			*dst = append(*dst, agentCandidate{path: agentPath})
+			*dst = append(*dst, agentCandidate{path: agentPath, source: root.Source})
 			continue
 		}
 		if err := scanAgentCapabilityCatalog(agentDir, snapshots); err != nil {
@@ -133,7 +170,8 @@ func scanAgentSource(
 		}
 
 		*dst = append(*dst, agentCandidate{
-			path: agentPath,
+			path:   agentPath,
+			source: root.Source,
 		})
 	}
 
@@ -210,7 +248,7 @@ func loadAgents(ctx context.Context, candidates []agentCandidate) ([]compozyconf
 
 	agents := make([]compozyconfig.AgentDef, 0, len(candidates))
 	diagnostics := make([]AgentDiagnostic, 0)
-	seen := make(map[string]struct{}, len(candidates))
+	seen := make(map[string]int, len(candidates))
 
 	for _, candidate := range candidates {
 		if err := checkContext(ctx); err != nil {
@@ -232,12 +270,17 @@ func loadAgents(ctx context.Context, candidates []agentCandidate) ([]compozyconf
 			diagnostics = append(diagnostics, reservedAgentDiagnostic(candidate.path, agent.Name))
 			continue
 		}
+		agent.SourceLayer = compozyconfig.AgentLayerName(candidate.source)
 
-		if _, ok := seen[agent.Name]; ok {
+		if winnerIndex, ok := seen[agent.Name]; ok {
+			agents[winnerIndex].ShadowedDefinitions = append(
+				agents[winnerIndex].ShadowedDefinitions,
+				compozyconfig.AgentDefinitionRef{Layer: agent.SourceLayer, Path: agent.SourcePath},
+			)
 			continue
 		}
 
-		seen[agent.Name] = struct{}{}
+		seen[agent.Name] = len(agents)
 		agents = append(agents, agent)
 	}
 

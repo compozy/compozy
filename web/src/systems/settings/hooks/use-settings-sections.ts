@@ -5,6 +5,7 @@ import {
   settingsAutomationOptions,
   settingsApplyRecordsOptions,
   settingsGeneralOptions,
+  settingsPersonaOptions,
   settingsHooksExtensionsOptions,
   settingsMemoryOptions,
   settingsNetworkOptions,
@@ -15,10 +16,18 @@ import {
   settingsSkillsOptions,
   settingsUpdateOptions,
 } from "../lib/query-options";
-import type { SettingsApplyRecordsFilter, SettingsSkillsFilter } from "../types";
+import type {
+  SettingsApplyRecordsFilter,
+  SettingsPersonaFilter,
+  SettingsSkillsFilter,
+} from "../types";
 
 export function useSettingsGeneral() {
   return useQuery(settingsGeneralOptions());
+}
+
+export function useSettingsPersona(filter: SettingsPersonaFilter) {
+  return useQuery(settingsPersonaOptions(filter));
 }
 
 export function useSettingsUpdate() {

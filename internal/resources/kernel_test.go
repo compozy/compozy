@@ -249,6 +249,21 @@ func TestKernelPutRawRejectsInvalidScopeBinding(t *testing.T) {
 			scope:   ResourceScope{Kind: ResourceScopeKindWorkspace},
 			wantErr: ErrInvalidScopeBinding,
 		},
+		{
+			name:    "profile without scope id",
+			scope:   ResourceScope{Kind: ResourceScopeKindProfile},
+			wantErr: ErrInvalidScopeBinding,
+		},
+		{
+			name:    "workspace profile without composite scope id",
+			scope:   ResourceScope{Kind: ResourceScopeKindWorkspaceProfile, ID: "ws-1"},
+			wantErr: ErrInvalidScopeBinding,
+		},
+		{
+			name:    "workspace profile with unsafe profile name",
+			scope:   ResourceScope{Kind: ResourceScopeKindWorkspaceProfile, ID: "ws-1@pf:Dev/Tools"},
+			wantErr: ErrInvalidScopeBinding,
+		},
 	}
 
 	for _, tc := range testCases {

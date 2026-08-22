@@ -54,13 +54,27 @@ func (s *service) buildSandboxItems(
 	return items, nil
 }
 
-func buildHookItems(declarations []hookspkg.HookDecl) []HookItem {
+func buildHookItems(
+	declarations []hookspkg.HookDecl,
+	scope ScopeKind,
+	workspaceID string,
+	profileName string,
+) []HookItem {
+	target := WriteTargetGlobalConfig
+	if scope == ScopeWorkspace {
+		target = WriteTargetWorkspaceConfig
+	} else if scope == ScopeProfile {
+		target = WriteTargetProfileConfig
+	}
 	items := make([]HookItem, 0, len(declarations))
 	for _, decl := range declarations {
 		item := HookItem{
-			Name:           strings.TrimSpace(decl.Name),
-			Declaration:    decl,
-			SourceMetadata: globalConfigSourceMetadata(),
+			Name:        strings.TrimSpace(decl.Name),
+			Declaration: decl,
+			SourceMetadata: SourceMetadata{
+				EffectiveSource:  sourceRefForWriteTarget(target, workspaceID, profileName),
+				AvailableTargets: []WriteTargetKind{target},
+			},
 		}
 		items = append(items, cloneHookItem(&item))
 	}
@@ -74,6 +88,7 @@ func (s *service) buildMCPServerItems(
 	ctx context.Context,
 	scope ScopeKind,
 	workspaceID string,
+	profileName string,
 	resolved *workspacepkg.ResolvedWorkspace,
 ) ([]MCPServerItem, error) {
 	root := ""
@@ -81,7 +96,7 @@ func (s *service) buildMCPServerItems(
 		root = resolved.RootDir
 	}
 
-	sources, err := s.loadMCPSources(workspaceID, root, scope)
+	sources, err := s.loadMCPSources(workspaceID, root, scope, profileName)
 	if err != nil {
 		return nil, err
 	}
@@ -152,6 +167,7 @@ func (s *service) putProvider(
 	}
 	if classification.noOp && len(secretWrites) == 0 && modelCuration == nil {
 		result := mutationResultForProvider(target.Kind(), true)
+		result.writePath = target.Path()
 		result.Warnings = []string{sectionsNoChangesValue}
 		return result, nil
 	}
@@ -177,7 +193,10 @@ func (s *service) putProvider(
 		return MutationResult{}, fmt.Errorf("settings: write provider %q: %w", name, err)
 	}
 
-	return mutationResultForProvider(target.Kind(), classification.modelOnly && len(secretWrites) == 0), nil
+	return mutationResultAtPath(
+		mutationResultForProvider(target.Kind(), classification.modelOnly && len(secretWrites) == 0),
+		target.Path(),
+	), nil
 }
 
 func (s *service) preserveProviderAuthLoginCommand(

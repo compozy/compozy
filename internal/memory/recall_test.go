@@ -90,6 +90,65 @@ func TestNewRecallAugmenter(t *testing.T) {
 			t.Fatalf("Augment() = %q, want no legacy user message marker", got)
 		}
 	})
+
+	t.Run("Should resolve durable recall from the session profile", func(t *testing.T) {
+		t.Parallel()
+
+		baseDir := t.TempDir()
+		catalogPath := filepath.Join(baseDir, "compozy.db")
+		defaultStore := newOpenTestStore(
+			t,
+			filepath.Join(baseDir, "profiles", "default", memoryDirName),
+			WithCatalogDatabasePath(catalogPath),
+		)
+		marketingStore := defaultStore.ForProfile(
+			"01PROFILEMARKETING000000000",
+			filepath.Join(baseDir, "profiles", "marketing", memoryDirName),
+		)
+		for _, profileStore := range []*Store{defaultStore, marketingStore} {
+			if err := profileStore.EnsureDirs(); err != nil {
+				t.Fatalf("Store.EnsureDirs() error = %v", err)
+			}
+		}
+		if err := defaultStore.Write(
+			t.Context(), memcontract.ScopeProfile, "preference.md",
+			mustMemoryContent(
+				t,
+				testMemoryMeta{Name: "Default", Description: "Default orchid launch", Type: memcontract.TypeUser},
+				"default orchid launch campaign audience",
+			),
+		); err != nil {
+			t.Fatalf("default Store.Write() error = %v", err)
+		}
+		if err := marketingStore.Write(
+			t.Context(), memcontract.ScopeProfile, "preference.md",
+			mustMemoryContent(
+				t,
+				testMemoryMeta{Name: "Marketing", Description: "Marketing orchid launch", Type: memcontract.TypeUser},
+				"marketing orchid launch campaign audience",
+			),
+		); err != nil {
+			t.Fatalf("marketing Store.Write() error = %v", err)
+		}
+
+		augmenter := NewProfileRecallAugmenter(defaultStore, func(_ context.Context, profileID string) (*Store, error) {
+			if profileID == marketingStore.profileID {
+				return marketingStore, nil
+			}
+			return defaultStore, nil
+		})
+		got, err := augmenter(
+			t.Context(),
+			&session.Session{Type: session.SessionTypeUser, ProfileID: marketingStore.profileID},
+			"orchid launch campaign audience",
+		)
+		if err != nil {
+			t.Fatalf("Augment() error = %v", err)
+		}
+		if !strings.Contains(got, "Marketing") || strings.Contains(got, "Default") {
+			t.Fatalf("Augment() = %q, want only marketing profile memory", got)
+		}
+	})
 }
 
 func TestBuildPackagedRecallBlock(t *testing.T) {
@@ -129,6 +188,103 @@ func TestBuildPackagedRecallBlock(t *testing.T) {
 
 func TestStoreRecall(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should isolate profile recall while sharing workspace memory IT-058 IT-074", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		baseDir := t.TempDir()
+		catalogPath := filepath.Join(baseDir, "compozy.db")
+		profileA := newOpenTestStore(
+			t,
+			filepath.Join(baseDir, "profiles", "alpha", memoryDirName),
+			WithProfileID("01PROFILEALPHA000000000001"),
+			WithCatalogDatabasePath(catalogPath),
+		)
+		profileB := newOpenTestStore(
+			t,
+			filepath.Join(baseDir, "profiles", "beta", memoryDirName),
+			WithProfileID("01PROFILEBETA0000000000002"),
+			WithCatalogDatabasePath(catalogPath),
+		)
+		for _, profileStore := range []*Store{profileA, profileB} {
+			if err := profileStore.EnsureDirs(); err != nil {
+				t.Fatalf("Store.EnsureDirs() error = %v", err)
+			}
+		}
+		writeProfileMemory := func(profileStore *Store, name string, body string) {
+			t.Helper()
+			if err := profileStore.Write(
+				ctx,
+				memcontract.ScopeProfile,
+				"shared.md",
+				mustMemoryContent(t, testMemoryMeta{
+					Name:        name,
+					Description: "Shared recall fixture",
+					Type:        memcontract.TypeUser,
+				}, body),
+			); err != nil {
+				t.Fatalf("Store.Write() error = %v", err)
+			}
+		}
+		writeProfileMemory(profileA, "Alpha preference", "profile alpha remembers lunar orchids")
+		writeProfileMemory(profileB, "Beta preference", "profile beta remembers lunar violets")
+
+		assertRecallName := func(profileStore *Store, wantName string) {
+			t.Helper()
+			for range 2 {
+				packaged, err := profileStore.Recall(
+					ctx,
+					memcontract.Query{QueryText: "remembers lunar"},
+					memcontract.RecallOptions{TopK: 5},
+				)
+				if err != nil {
+					t.Fatalf("Store.Recall() error = %v", err)
+				}
+				entries := packagedRecallEntries(packaged)
+				if len(entries) != 1 || entries[0].Title != wantName {
+					t.Fatalf("Store.Recall() entries = %#v, want only %q", entries, wantName)
+				}
+			}
+		}
+		assertRecallName(profileA, "Alpha preference")
+		assertRecallName(profileB, "Beta preference")
+
+		workspaceRoot := filepath.Join(baseDir, "workspace")
+		workspaceA := profileA.ForWorkspace(workspaceRoot)
+		workspaceB := profileB.ForWorkspace(workspaceRoot)
+		if err := workspaceA.EnsureDirs(); err != nil {
+			t.Fatalf("workspace Store.EnsureDirs() error = %v", err)
+		}
+		if err := workspaceA.Write(
+			ctx,
+			memcontract.ScopeWorkspace,
+			"shared-project.md",
+			mustMemoryContent(t, testMemoryMeta{
+				Name: "Shared workspace", Description: "Shared workspace fixture", Type: memcontract.TypeProject,
+			}, "shared workspace nebula campaign context"),
+		); err != nil {
+			t.Fatalf("workspace Store.Write() error = %v", err)
+		}
+		shared, err := workspaceB.Recall(
+			ctx,
+			memcontract.Query{QueryText: "workspace nebula campaign context"},
+			memcontract.RecallOptions{TopK: 5},
+		)
+		if err != nil {
+			t.Fatalf("profile B workspace Recall() error = %v", err)
+		}
+		sharedEntries := packagedRecallEntries(shared)
+		if len(sharedEntries) != 1 || sharedEntries[0].Title != "Shared workspace" {
+			t.Fatalf("profile B workspace recall = %#v, want shared workspace memory", sharedEntries)
+		}
+		if gotA, gotB := recallSignalRecorderKey(profileA.profileID, "shared-workspace"),
+			recallSignalRecorderKey(profileB.profileID, "shared-workspace"); gotA == gotB {
+			t.Fatalf("recorder keys = %q and %q, want profile isolation", gotA, gotB)
+		}
+		closeRecallRecorders(t, profileA)
+		closeRecallRecorders(t, profileB)
+	})
 
 	t.Run("Should recall from chunk FTS with shadow precedence and live signals", func(t *testing.T) {
 		t.Parallel()

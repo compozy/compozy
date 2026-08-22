@@ -7,6 +7,7 @@ import {
   deleteSettingsProvider,
   getSettingsGeneral,
   getSettingsObservability,
+  getSettingsPersona,
   getRolesStatus,
   getSettingsRestartStatus,
   getSettingsRoles,
@@ -25,6 +26,7 @@ import {
   triggerSettingsRestart,
   updateSettingsAutomation,
   updateSettingsGeneral,
+  updateSettingsPersona,
   updateSettingsRoles,
   updateSettingsSkills,
 } from "../settings-api";
@@ -36,8 +38,8 @@ import {
 
 const generalSectionFixture = {
   section: "general" as const,
-  scope: "global" as const,
-  available_scopes: ["global" as const],
+  scope: "user" as const,
+  available_scopes: ["user" as const],
   actions: {
     restart: {
       available: true,
@@ -47,7 +49,6 @@ const generalSectionFixture = {
   },
   config: {
     daemon: { socket: "/tmp/compozy.sock" },
-    defaults: { agent: "claude-code" },
     http: { host: "127.0.0.1", port: 2123 },
     limits: { max_concurrent_agents: 4 },
     permissions: { mode: "approve-reads" as const },
@@ -73,7 +74,7 @@ const mutationFixture = {
   active_config_hash: "sha256:active-live",
   active_generation: 42,
   section: "general" as const,
-  scope: "global" as const,
+  scope: "user" as const,
   applied: true,
   apply_record_id: "cfg_apply_001",
   lifecycle: "restart-required" as const,
@@ -160,7 +161,6 @@ describe("section reads and updates", () => {
           reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },
           socket: "/tmp/next.sock",
         },
-        defaults: { agent: "claude-code" },
         http: { host: "127.0.0.1", port: 2123 },
         limits: { max_concurrent_agents: 4 },
         permissions: { mode: "approve-reads" as const },
@@ -177,6 +177,39 @@ describe("section reads and updates", () => {
       body,
       method: "PATCH",
       path: "/api/settings/general",
+    });
+  });
+
+  it("reads persona defaults from the selected profile layer", async () => {
+    const persona = {
+      section: "persona" as const,
+      scope: "profile" as const,
+      profile: "marketing",
+      available_scopes: ["user", "profile", "workspace"] as const,
+      config: { agent: "campaigns", provider: "openai", sandbox: "browser" },
+    };
+    mockJsonResponse(persona);
+
+    const result = await getSettingsPersona({ scope: "profile", profile: " marketing " });
+
+    expect(result).toEqual(persona);
+    await expectFetchRequest({
+      path: "/api/settings/persona?scope=profile&profile=marketing",
+    });
+  });
+
+  it("updates persona defaults in the selected layer", async () => {
+    mockJsonResponse({ ...mutationFixture, section: "persona", scope: "profile" });
+    const body = {
+      config: { agent: "campaigns", provider: "openai", sandbox: "browser" },
+    };
+
+    await updateSettingsPersona(body, { scope: "profile", profile: "marketing" });
+
+    await expectFetchRequest({
+      body,
+      method: "PATCH",
+      path: "/api/settings/persona?scope=profile&profile=marketing",
     });
   });
 

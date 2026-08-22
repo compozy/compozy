@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/compozy/compozy/internal/vault"
 )
 
 func (m *Manager) PrepareRename(ctx context.Context, name, newName string) (RenamePlan, error) {
@@ -73,12 +75,11 @@ func (m *Manager) renamePlan(
 	if err := rows.Close(); err != nil {
 		return RenamePlan{}, fmt.Errorf("profile: close repository candidate rows: %w", err)
 	}
-	prefix := "vault:profiles/" + profile.Name + "/"
-	if err := q.QueryRowContext(
-		ctx, `SELECT COUNT(*) FROM extension_env_bindings WHERE secret_ref LIKE ?`, prefix+"%",
-	).Scan(&plan.VaultRefRewrites); err != nil {
-		return RenamePlan{}, fmt.Errorf("profile: count vault ref rewrites: %w", err)
+	vaultRefRewrites, err := vault.ListProfileRefRewrites(ctx, q, profile.Name, newName)
+	if err != nil {
+		return RenamePlan{}, fmt.Errorf("profile: list vault ref rewrites: %w", err)
 	}
+	plan.VaultRefRewrites = len(vaultRefRewrites)
 	dirDigest, err := directoryDigest(oldDir)
 	if err != nil {
 		return RenamePlan{}, err
@@ -181,6 +182,10 @@ func (m *Manager) PrepareDelete(ctx context.Context, name string) (DeletePlan, e
 func (m *Manager) deletePlan(ctx context.Context, q queryer, profile Profile) (DeletePlan, error) {
 	var plan DeletePlan
 	var err error
+	plan.Removed, err = profileFileRemovalSummary(m.profileDir(profile.Name))
+	if err != nil {
+		return DeletePlan{}, err
+	}
 	plan.ApprovalBlockers, err = executableApprovals(ctx, q, profile.ID)
 	if err != nil {
 		return DeletePlan{}, err
@@ -205,12 +210,7 @@ func (m *Manager) deletePlan(ctx context.Context, q queryer, profile Profile) (D
 		  AND COALESCE(execution_status, '') NOT IN ('dispatching','uncertain')`, profile.ID).Scan(&plan.Removed.TerminalApprovals); err != nil {
 		return DeletePlan{}, err
 	}
-	if err := q.QueryRowContext(
-		ctx, `SELECT COUNT(*) FROM profile_credential_requirements WHERE profile_id = ?`, profile.ID,
-	).Scan(&plan.Removed.CredentialOverrides); err != nil {
-		return DeletePlan{}, err
-	}
-	plan.Removed.MemoryEntries, err = countFiles(filepath.Join(m.profileDir(profile.Name), "memory"))
+	plan.Removed.CredentialOverrides, err = countProfileCredentialRows(ctx, q, profile)
 	if err != nil {
 		return DeletePlan{}, err
 	}

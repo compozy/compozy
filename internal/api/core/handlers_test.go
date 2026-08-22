@@ -48,6 +48,15 @@ type sessionProfileServiceStub struct {
 	core.ProfileService
 }
 
+type workspaceHintProfileServiceStub struct {
+	core.ProfileService
+	profiles []profilepkg.ProfileWithCounts
+}
+
+func (s *workspaceHintProfileServiceStub) List(context.Context) ([]profilepkg.ProfileWithCounts, error) {
+	return append([]profilepkg.ProfileWithCounts(nil), s.profiles...), nil
+}
+
 func (sessionProfileServiceStub) Resolve(
 	_ context.Context,
 	in profilepkg.ResolveInput,
@@ -4169,6 +4178,61 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 			t.Fatalf("partial agent catalog facets = %#v, want no invented session status", partial.Facets)
 		}
 	})
+}
+
+func TestBaseHandlersWorkspaceProfileHintsTrackTeamAdoptionIT042(t *testing.T) {
+	t.Parallel()
+
+	profiles := &workspaceHintProfileServiceStub{profiles: []profilepkg.ProfileWithCounts{
+		{Profile: profilepkg.Profile{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive}},
+		{Profile: profilepkg.Profile{ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive}},
+	}}
+	fixture := newHandlerFixture(
+		t,
+		testutil.StubSessionManager{},
+		testutil.StubObserver{},
+		testutil.StubWorkspaceService{ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+			return workspacepkg.ResolvedWorkspace{
+				Workspace: workspacepkg.Workspace{ID: "ws-team", Name: "team", RootDir: "/workspace/team"},
+				ProfileDeclarations: []workspacepkg.ProfileDeclaration{
+					{Name: "dev", Path: "/workspace/team/.compozy/profiles/dev"},
+					{Name: "marketing", Path: "/workspace/team/.compozy/profiles/marketing"},
+				},
+				Config: compozyconfig.Config{},
+			}, nil
+		}},
+		nil,
+		nil,
+	)
+	fixture.Handlers.Profiles = profiles
+
+	response := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/ws-team", nil)
+	if response.Code != http.StatusOK {
+		t.Fatalf("workspace hints status = %d, want 200; body=%s", response.Code, response.Body.String())
+	}
+	var detail contract.WorkspaceDetailPayload
+	if err := json.Unmarshal(response.Body.Bytes(), &detail); err != nil {
+		t.Fatalf("decode workspace hints: %v", err)
+	}
+	if len(detail.ProfileHints) != 1 || detail.ProfileHints[0].Name != "dev" ||
+		detail.ProfileHints[0].Action != "compozy profile create dev" {
+		t.Fatalf("workspace profile hints = %#v, want dev create hint only", detail.ProfileHints)
+	}
+
+	profiles.profiles = append(profiles.profiles, profilepkg.ProfileWithCounts{Profile: profilepkg.Profile{
+		ID: "profile-dev", Name: "dev", State: profilepkg.StateActive,
+	}})
+	response = performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/ws-team", nil)
+	if response.Code != http.StatusOK {
+		t.Fatalf("workspace hints after adoption status = %d, want 200", response.Code)
+	}
+	detail = contract.WorkspaceDetailPayload{}
+	if err := json.Unmarshal(response.Body.Bytes(), &detail); err != nil {
+		t.Fatalf("decode workspace hints after adoption: %v", err)
+	}
+	if len(detail.ProfileHints) != 0 {
+		t.Fatalf("workspace profile hints after adoption = %#v, want none", detail.ProfileHints)
+	}
 }
 
 type stubAgentCatalog struct {

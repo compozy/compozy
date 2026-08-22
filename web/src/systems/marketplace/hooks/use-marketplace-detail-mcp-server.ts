@@ -5,9 +5,11 @@ import {
   useSettingsMCPServers,
 } from "@/systems/settings";
 import { useActiveWorkspace } from "@/systems/workspace";
+import type { SettingsLayeredScope } from "@/systems/settings";
 
 type SettingsMCPServersFilter =
-  | { scope: "global" }
+  | { scope: "user" }
+  | { scope: "profile"; profile: string; workspace_id?: string }
   | { scope: "workspace"; workspace_id: string | undefined };
 
 function findInstalledMCPServer(
@@ -32,19 +34,24 @@ function findInstalledMCPServer(
  */
 function useMarketplaceDetailMCPServer(
   entry: MarketplaceEntryResponse["entry"],
-  scope?: "global" | "workspace",
+  scope?: SettingsLayeredScope,
   workspaceId?: string,
+  profileName?: string,
   liveDataEnabled = true
 ) {
   const { activeWorkspaceId } = useActiveWorkspace();
   const resolvedWorkspaceId = workspaceId ?? activeWorkspaceId ?? undefined;
-  const resolvedScope = scope ?? (resolvedWorkspaceId ? "workspace" : "global");
+  const resolvedScope = scope ?? (resolvedWorkspaceId ? "workspace" : "user");
   const queryFilter: SettingsMCPServersFilter =
     resolvedScope === "workspace"
       ? { scope: "workspace", workspace_id: resolvedWorkspaceId }
-      : { scope: "global" };
+      : resolvedScope === "profile" && profileName
+        ? { scope: "profile", profile: profileName, workspace_id: resolvedWorkspaceId }
+        : { scope: "user" };
   const queryEnabled =
-    entry.installed && (resolvedScope === "global" || Boolean(resolvedWorkspaceId));
+    entry.installed &&
+    (resolvedScope === "user" ||
+      (resolvedScope === "profile" ? Boolean(profileName) : Boolean(resolvedWorkspaceId)));
   const query = useSettingsMCPServers(queryFilter, {
     enabled: queryEnabled && liveDataEnabled,
     refetchInterval: SETTINGS_QUERY_INTERVALS.collectionRefetchInterval,

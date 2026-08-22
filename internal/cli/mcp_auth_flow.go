@@ -255,7 +255,8 @@ func mcpAuthStatuses(
 	statuses := make([]SettingsMCPAuthStatusRecord, 0, len(servers))
 	for _, server := range servers {
 		if string(server.Scope) != strings.TrimSpace(opts.scope) ||
-			server.WorkspaceID != strings.TrimSpace(opts.workspaceID) {
+			server.WorkspaceID != strings.TrimSpace(opts.workspaceID) ||
+			server.Profile != strings.TrimSpace(opts.profile) {
 			continue
 		}
 		if server.AuthStatus == nil {

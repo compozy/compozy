@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"maps"
+	"os"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -168,7 +169,7 @@ func TestRegisterUpdateAndLoadWorkspaceSandboxRef(t *testing.T) {
 	}
 }
 
-func TestResolveWorkspaceLensesComposeUserResourcesAndLocalOverrides(t *testing.T) {
+func TestResolveWorkspaceLensesComposeUserResourcesAndLocalOverridesIT040(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -185,6 +186,41 @@ func TestResolveWorkspaceLensesComposeUserResourcesAndLocalOverrides(t *testing.
 	)
 	writeAgentDef(t, filepath.Join(homePaths.AgentsDir, "reviewer", agentDefinitionFile), "reviewer", "review")
 	writeSkill(t, filepath.Join(homePaths.SkillsDir, "user-skill"))
+	writeAgentDef(
+		t,
+		filepath.Join(homePaths.ProfilesDir, "marketing", compozyconfig.AgentsDirName, "coder", agentDefinitionFile),
+		"coder",
+		"profile",
+	)
+	writeAgentDef(
+		t,
+		filepath.Join(homePaths.ProfilesDir, "marketing", compozyconfig.AgentsDirName, "personal", agentDefinitionFile),
+		"personal",
+		"profile-only",
+	)
+	writeAgentDef(
+		t,
+		filepath.Join(
+			firstRoot,
+			compozyconfig.DirName,
+			compozyconfig.ProfilesDirName,
+			"marketing",
+			compozyconfig.AgentsDirName,
+			"coder",
+			agentDefinitionFile,
+		),
+		"coder",
+		"workspace-profile",
+	)
+	writeSkill(t, filepath.Join(homePaths.ProfilesDir, "marketing", compozyconfig.SkillsDirName, "profile-skill"))
+	writeSkill(t, filepath.Join(
+		firstRoot,
+		compozyconfig.DirName,
+		compozyconfig.ProfilesDirName,
+		"marketing",
+		compozyconfig.SkillsDirName,
+		"project-profile-skill",
+	))
 
 	store := newMockWorkspaceStore(
 		Workspace{ID: "ws_agents", RootDir: firstRoot, Name: "repo"},
@@ -223,6 +259,147 @@ func TestResolveWorkspaceLensesComposeUserResourcesAndLocalOverrides(t *testing.
 	if got, want := second.Skills, first.Skills; !slices.Equal(got, want) {
 		t.Fatalf("second workspace user skills = %#v, want %#v", got, want)
 	}
+
+	marketing, err := resolver.ResolveForProfile(ctx, "ws_agents", "marketing")
+	if err != nil {
+		t.Fatalf("ResolveForProfile(marketing) error = %v", err)
+	}
+	if got, want := marketing.ProfileName, "marketing"; got != want {
+		t.Fatalf("resolved profile name = %q, want %q", got, want)
+	}
+	if got, want := agentModel(marketing.Agents, "coder"), "workspace-profile"; got != want {
+		t.Fatalf("marketing coder model = %q, want %q", got, want)
+	}
+	if got, want := agentModel(marketing.Agents, "personal"), "profile-only"; got != want {
+		t.Fatalf("marketing personal model = %q, want %q", got, want)
+	}
+	if got, want := skillPathSourceByName(marketing.Skills, "profile-skill"), "profile"; got != want {
+		t.Fatalf("profile skill source = %q, want %q", got, want)
+	}
+	if got, want := skillPathSourceByName(marketing.Skills, "project-profile-skill"), "workspace_profile"; got != want {
+		t.Fatalf("project profile skill source = %q, want %q", got, want)
+	}
+
+	sales, err := resolver.ResolveForProfile(ctx, "ws_agents", "sales")
+	if err != nil {
+		t.Fatalf("ResolveForProfile(sales) error = %v", err)
+	}
+	if got, want := agentModel(sales.Agents, "coder"), "local"; got != want {
+		t.Fatalf("sales coder model = %q, want %q", got, want)
+	}
+	if got := agentModel(sales.Agents, "personal"); got != "" {
+		t.Fatalf("sales personal model = %q, want absent", got)
+	}
+	if got := skillPathSourceByName(sales.Skills, "profile-skill"); got != "" {
+		t.Fatalf("sales profile skill source = %q, want absent", got)
+	}
+
+	t.Run("Should reject a personal profile root inside the workspace", func(t *testing.T) {
+		t.Parallel()
+
+		containedHome := homePaths
+		containedHome.ProfilesDir = filepath.Join(firstRoot, "personal-profiles")
+		containedResolver := newTestResolver(
+			t,
+			store,
+			WithHomePaths(containedHome),
+			WithConfigLoader(loader.Load),
+		)
+		if _, err := containedResolver.ResolveForProfile(ctx, "ws_agents", "marketing"); err == nil {
+			t.Fatal("ResolveForProfile(contained personal root) error = nil, want rejection")
+		}
+	})
+}
+
+func TestWorkspaceProfileDeclarationsRefreshAndBindIT041IT042(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	homePaths := newTestHomePaths(t)
+	firstRoot := t.TempDir()
+	secondRoot := t.TempDir()
+	firstDevAgent := filepath.Join(
+		firstRoot, compozyconfig.DirName, compozyconfig.ProfilesDirName, "dev",
+		compozyconfig.AgentsDirName, "first-dev", agentDefinitionFile,
+	)
+	secondDevAgent := filepath.Join(
+		secondRoot, compozyconfig.DirName, compozyconfig.ProfilesDirName, "dev",
+		compozyconfig.AgentsDirName, "second-dev", agentDefinitionFile,
+	)
+	writeAgentDef(t, firstDevAgent, "first-dev", "first")
+	writeAgentDef(t, secondDevAgent, "second-dev", "second")
+	writeSkill(t, filepath.Join(
+		firstRoot, compozyconfig.DirName, compozyconfig.ProfilesDirName, "marketing",
+		compozyconfig.SkillsDirName, "campaigns",
+	))
+
+	store := newMockWorkspaceStore(
+		Workspace{ID: "ws_first", RootDir: firstRoot, Name: "first"},
+		Workspace{ID: "ws_second", RootDir: secondRoot, Name: "second"},
+	)
+	resolver := newTestResolver(
+		t,
+		store,
+		WithHomePaths(homePaths),
+		WithConfigLoader((&countingConfigLoader{cfg: validConfig(homePaths)}).Load),
+	)
+
+	first, err := resolver.Resolve(ctx, "ws_first")
+	if err != nil {
+		t.Fatalf("Resolve(first declarations) error = %v", err)
+	}
+	if got, want := declarationNames(first.ProfileDeclarations), []string{"dev", "marketing"}; !slices.Equal(got, want) {
+		t.Fatalf("first declarations = %#v, want %#v", got, want)
+	}
+	firstBound, err := resolver.ResolveForProfile(ctx, "ws_first", "dev")
+	if err != nil {
+		t.Fatalf("ResolveForProfile(first dev) error = %v", err)
+	}
+	if got := agentModel(firstBound.Agents, "first-dev"); got != "first" {
+		t.Fatalf("first repo dev agent model = %q, want first", got)
+	}
+	if got := agentModel(firstBound.Agents, "second-dev"); got != "" {
+		t.Fatalf("first repo foreign dev agent model = %q, want absent", got)
+	}
+	secondBound, err := resolver.ResolveForProfile(ctx, "ws_second", "dev")
+	if err != nil {
+		t.Fatalf("ResolveForProfile(second dev) error = %v", err)
+	}
+	if got := agentModel(secondBound.Agents, "second-dev"); got != "second" {
+		t.Fatalf("second repo dev agent model = %q, want second", got)
+	}
+
+	writeAgentDef(t, filepath.Join(
+		firstRoot, compozyconfig.DirName, compozyconfig.ProfilesDirName, "dev",
+		compozyconfig.AgentsDirName, "fresh", agentDefinitionFile,
+	), "fresh", "refreshed")
+	refreshed, err := resolver.ResolveForProfile(ctx, "ws_first", "dev")
+	if err != nil {
+		t.Fatalf("ResolveForProfile(refreshed dev) error = %v", err)
+	}
+	if got := agentModel(refreshed.Agents, "fresh"); got != "refreshed" {
+		t.Fatalf("refreshed profile agent model = %q, want refreshed", got)
+	}
+
+	profilesRoot := filepath.Join(firstRoot, compozyconfig.DirName, compozyconfig.ProfilesDirName)
+	if err := os.Rename(filepath.Join(profilesRoot, "marketing"), filepath.Join(profilesRoot, "growth")); err != nil {
+		t.Fatalf("Rename(marketing profile folder) error = %v", err)
+	}
+	branchRefreshed, err := resolver.Resolve(ctx, "ws_first")
+	if err != nil {
+		t.Fatalf("Resolve(branch-refreshed declarations) error = %v", err)
+	}
+	if got, want := declarationNames(branchRefreshed.ProfileDeclarations), []string{"dev", "growth"}; !slices.Equal(got, want) {
+		t.Fatalf("branch-refreshed declarations = %#v, want %#v", got, want)
+	}
+}
+
+func declarationNames(values []ProfileDeclaration) []string {
+	names := make([]string, 0, len(values))
+	for _, value := range values {
+		names = append(names, value.Name)
+	}
+	return names
 }
 
 func TestResolveRecordsMalformedAgentDiagnostics(t *testing.T) {

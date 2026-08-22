@@ -22,6 +22,7 @@ import {
   updateSettingsMemory,
   updateSettingsNetwork,
   updateSettingsObservability,
+  updateSettingsPersona,
   updateSettingsRoles,
   updateSettingsShell,
   updateSettingsSkills,
@@ -36,6 +37,8 @@ import { settingsRestartStore } from "../stores/settings-restart-store";
 import type {
   SettingsSandboxRequest,
   SettingsHookRequest,
+  SettingsHookDeleteFilter,
+  SettingsHookPutFilter,
   SettingsCreateNotificationPresetRequest,
   SettingsNotificationPresetEntry,
   SettingsMCPAuthBeginRequest,
@@ -47,6 +50,7 @@ import type {
   SettingsMutationResult,
   SettingsUpdateNotificationPresetRequest,
   SettingsProviderRequest,
+  SettingsPersonaFilter,
   SettingsUpdateAutomationRequest,
   SettingsUpdateGeneralRequest,
   SettingsUpdateHooksExtensionsRequest,
@@ -55,6 +59,7 @@ import type {
   SettingsUpdateAttentionRequest,
   SettingsUpdateShellRequest,
   SettingsUpdateObservabilityRequest,
+  SettingsUpdatePersonaRequest,
   SettingsRolesSection,
   SettingsUpdateRolesRequest,
   SettingsAttentionSection,
@@ -160,6 +165,28 @@ export function useUpdateSettingsGeneral() {
     mutationFn: (body: SettingsUpdateGeneralRequest) => updateSettingsGeneral(body),
     onSuccess: recordMutation,
     onSettled: () => invalidateSection(queryClient, "general"),
+  });
+}
+
+export function useUpdateSettingsPersona() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      body,
+      filter,
+    }: {
+      body: SettingsUpdatePersonaRequest;
+      filter: SettingsPersonaFilter;
+    }) => updateSettingsPersona(body, filter),
+    onSuccess: recordMutation,
+    onSettled: (_result, _error, variables) =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: settingsKeys.personaSection(variables.filter),
+        }),
+        invalidateApplyRecords(queryClient),
+      ]),
   });
 }
 
@@ -332,8 +359,12 @@ export function usePutSettingsHook() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ name, body }: NameBodyParams<SettingsHookRequest>) =>
-      putSettingsHook(name, body),
+    mutationFn: ({
+      name,
+      body,
+      filter,
+    }: NameBodyParams<SettingsHookRequest> & { filter?: SettingsHookPutFilter }) =>
+      putSettingsHook(name, body, filter ?? {}),
     onSuccess: recordMutation,
     onSettled: () => invalidateHooks(queryClient),
   });
@@ -343,7 +374,8 @@ export function useDeleteSettingsHook() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (name: string) => deleteSettingsHook(name),
+    mutationFn: ({ name, filter }: { name: string; filter?: SettingsHookDeleteFilter }) =>
+      deleteSettingsHook(name, filter ?? {}),
     onSuccess: recordMutation,
     onSettled: () => invalidateHooks(queryClient),
   });

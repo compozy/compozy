@@ -131,6 +131,8 @@ func (s *service) Reload(ctx context.Context) (ApplyResult, error) {
 		&desiredConfig,
 		configLifecycle,
 		false,
+		"",
+		"",
 	)
 	if err != nil {
 		return ApplyResult{}, err

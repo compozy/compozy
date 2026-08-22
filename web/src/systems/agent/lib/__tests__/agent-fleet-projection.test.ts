@@ -11,6 +11,8 @@ import {
   formatAgentFleetAriaLabel,
   formatAgentFleetCardCategory,
   formatAgentFleetMeta,
+  formatAgentLayer,
+  agentShadowLayers,
   formatCategoryMetaSegment,
   projectAgentFleetRows,
 } from "../agent-fleet-projection";
@@ -188,6 +190,28 @@ describe("agent fleet projection", () => {
     expect(rows[0]?.cardCategory).toBe("openai");
     expect(rows[0]?.cardOrigin).toBe("Workspace");
     expect(rows[0]?.ariaLabel).toBe("triage-bot, Idle, 0 of 0 sessions active");
+  });
+
+  it("Should preserve the effective layer and every unique shadow layer", () => {
+    const definition = agent({
+      name: "profile-reviewer",
+      origin: "workspace",
+      layer: "workspace_profile",
+      shadows: [
+        { layer: "workspace", path: "/repo/.compozy/agents/profile-reviewer/AGENT.md" },
+        { layer: "profile", path: "/home/profiles/dev/agents/profile-reviewer/AGENT.md" },
+        { layer: "workspace", path: "/repo/.compozy/agents/duplicate/AGENT.md" },
+      ],
+    });
+    const [row] = projectAgentFleetRows({
+      items: [catalogItem(definition)],
+      sessionsAvailable: true,
+    });
+
+    expect(formatAgentLayer(definition)).toBe("workspace_profile");
+    expect(agentShadowLayers(definition)).toEqual(["workspace", "profile"]);
+    expect(row?.layer).toBe("workspace_profile");
+    expect(row?.shadowLayers).toEqual(["workspace", "profile"]);
   });
 });
 

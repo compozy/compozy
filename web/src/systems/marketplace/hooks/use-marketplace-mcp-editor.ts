@@ -23,6 +23,7 @@ interface UseMarketplaceMCPEditorOptions {
   scope: MCPConfigScope;
   servers: readonly SettingsMCPServerEntry[];
   workspaceId?: string | null;
+  profileName?: string | null;
 }
 
 function errorMessage(error: unknown): string | null {
@@ -35,6 +36,7 @@ function useMarketplaceMCPEditor({
   scope: createScope,
   servers,
   workspaceId,
+  profileName,
 }: UseMarketplaceMCPEditorOptions) {
   const putMutation = usePutSettingsMCPServer();
   const resetPutMutation = putMutation.reset;
@@ -49,7 +51,12 @@ function useMarketplaceMCPEditor({
   });
 
   const openCreate = () => {
-    if (!enabled || (createScope === "workspace" && !workspaceId)) return;
+    if (
+      !enabled ||
+      (createScope === "workspace" && !workspaceId) ||
+      (createScope === "profile" && !profileName)
+    )
+      return;
     resetPutMutation();
     editorLogic.trigger.editorOpened({
       editor: {
@@ -58,6 +65,7 @@ function useMarketplaceMCPEditor({
         scope: createScope,
         target: "auto",
         workspaceId: workspaceId ?? undefined,
+        profileName: profileName ?? undefined,
       },
     });
   };
@@ -74,7 +82,8 @@ function useMarketplaceMCPEditor({
         mode: "edit",
         scope: management.scope,
         target: management.target,
-        workspaceId: management.scope === "workspace" ? management.workspace_id : undefined,
+        workspaceId: management.scope === "user" ? undefined : management.workspace_id,
+        profileName: management.scope === "profile" ? management.profile : undefined,
       },
     });
   };
@@ -117,10 +126,18 @@ function useMarketplaceMCPEditor({
   const saveEditor = () => {
     if (editor.mode === "closed" || !isValid) return;
     if (editor.scope === "workspace" && !editor.workspaceId) return;
+    if (editor.scope === "profile" && !editor.profileName) return;
     const filter =
       editor.scope === "workspace"
         ? { scope: editor.scope, workspace_id: editor.workspaceId, target: editor.target }
-        : { scope: editor.scope, target: editor.target };
+        : editor.scope === "profile"
+          ? {
+              scope: editor.scope,
+              profile: editor.profileName,
+              workspace_id: editor.workspaceId,
+              target: editor.target,
+            }
+          : { scope: editor.scope, target: editor.target };
     const name = editor.draft.name.trim();
     const body = toRequest(editor.draft);
     editorLogic.trigger.saveRequested({

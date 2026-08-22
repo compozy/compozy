@@ -15,6 +15,7 @@ import (
 
 type providerAuthStatusOptions struct {
 	providerRef string
+	profileName string
 	probe       bool
 	nativeCLI   *providerNativeCLIStatusRecord
 }
@@ -37,10 +38,22 @@ func buildProviderAuthStatus(
 		return providerAuthStatusRecord{}, err
 	}
 	pinProviderNativeCLIResolution(&probeEnv, options.nativeCLI)
+	profileSlots, err := authproviders.ProfileCredentialSlots(
+		ctx,
+		providerName,
+		options.profileName,
+		provider.EffectiveCredentialSlots(),
+		probeEnv.Vault,
+	)
+	if err != nil {
+		return providerAuthStatusRecord{}, err
+	}
+	provider.CredentialSlots = profileSlots
 	credentials, err := providerCredentialStatuses(ctx, provider, &probeEnv)
 	if err != nil {
 		return providerAuthStatusRecord{}, err
 	}
+	labelProviderCredentialSources(credentials, options.profileName)
 	classification, err := authproviders.ClassifyDeclared(ctx, provider, &probeEnv)
 	if err != nil {
 		return providerAuthStatusRecord{}, err

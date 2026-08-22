@@ -48,7 +48,7 @@ func TestMCPInstallCommandMapsFlagsAndPreservesStructuredResponse(t *testing.T) 
 				if got, want := request.Name, "github-workspace"; got != want {
 					t.Fatalf("Name = %q, want %q", got, want)
 				}
-				if got, want := request.Scope, contract.SettingsWorkspaceScopeWorkspace; got != want {
+				if got, want := request.Scope, contract.SettingsLayeredScopeWorkspace; got != want {
 					t.Fatalf("Scope = %q, want %q", got, want)
 				}
 				if got, want := request.WorkspaceID, "ws-1"; got != want {
@@ -139,7 +139,7 @@ func TestMCPInstallCommandMapsFlagsAndPreservesStructuredResponse(t *testing.T) 
 		) (InstallSettingsMCPServerRecord, error) {
 			return InstallSettingsMCPServerRecord{
 				MCPServer: contract.SettingsMCPServerItemPayload{
-					Name: "github", Transport: "stdio", Scope: contract.SettingsScopeGlobal,
+					Name: "github", Transport: "stdio", Scope: contract.SettingsScopeUser,
 					CatalogEntry: "github", CatalogVersion: "1.2.3",
 				},
 				Apply: contract.SettingsApplyResponse{
@@ -179,7 +179,7 @@ func TestMCPInstallCommandMapsFlagsAndPreservesStructuredResponse(t *testing.T) 
 				}
 				return InstallSettingsMCPServerRecord{
 					MCPServer: contract.SettingsMCPServerItemPayload{
-						Name: "github", Scope: contract.SettingsScopeGlobal,
+						Name: "github", Scope: contract.SettingsScopeUser,
 					},
 					NextStep: contract.SettingsMCPInstallNextStepAuthorize,
 				}, nil
@@ -203,6 +203,43 @@ func TestMCPInstallCommandMapsFlagsAndPreservesStructuredResponse(t *testing.T) 
 			t.Fatalf("mcp install output leaked catalog secret ref: %s", stdout)
 		}
 	})
+
+	t.Run("Should carry the active profile into a profile install", func(t *testing.T) {
+		t.Parallel()
+
+		client := &profileAwareStubClient{
+			stubClient: withWorkspaceResolution(&stubClient{installSettingsMCPServerFn: func(
+				_ context.Context,
+				request InstallSettingsMCPServerRequest,
+			) (InstallSettingsMCPServerRecord, error) {
+				if request.Scope != contract.SettingsLayeredScopeProfile || request.Profile != "marketing" ||
+					request.WorkspaceID != "" {
+					t.Fatalf("profile install request = %#v", request)
+				}
+				return InstallSettingsMCPServerRecord{MCPServer: contract.SettingsMCPServerItemPayload{
+					Name: "github", Scope: contract.SettingsScopeProfile, Profile: "marketing",
+				}}, nil
+			}}),
+			profileClientStub: &profileClientStub{profiles: []contract.Profile{
+				{Name: "default", State: "active"},
+				{Name: "marketing", State: "active"},
+			}},
+		}
+		stdout, _, err := executeRootCommand(
+			t, newTestDeps(t, client),
+			"--profile", "marketing", "mcp", "install", "github", "--scope", "profile", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("profile MCP install error = %v", err)
+		}
+		var response InstallSettingsMCPServerRecord
+		if err := json.Unmarshal([]byte(stdout), &response); err != nil {
+			t.Fatalf("decode profile MCP install output: %v", err)
+		}
+		if response.MCPServer.Profile != "marketing" {
+			t.Fatalf("profile MCP install output = %#v", response)
+		}
+	})
 }
 
 func TestMCPInstallCommandRejectsAmbiguousInputsBeforeCallingDaemon(t *testing.T) {
@@ -223,7 +260,7 @@ func TestMCPInstallCommandRejectsAmbiguousInputsBeforeCallingDaemon(t *testing.T
 			detail: "assigned more than once",
 		},
 		{
-			name:   "Should reject workspace ID in global scope",
+			name:   "Should reject workspace ID without workspace scope",
 			args:   []string{"mcp", "install", "github", "--workspace", "ws-1"},
 			detail: "requires --scope workspace",
 		},
@@ -333,11 +370,11 @@ func TestUnixSocketClientInstallSettingsMCPServerUsesCanonicalEndpoint(t *testin
 
 		want := InstallSettingsMCPServerRecord{
 			MCPServer: contract.SettingsMCPServerItemPayload{
-				Name: "github", Transport: "stdio", Scope: contract.SettingsScopeGlobal,
+				Name: "github", Transport: "stdio", Scope: contract.SettingsScopeUser,
 				CatalogEntry: "github", CatalogVersion: "1.2.3",
 			},
 			Apply: mcpInstallApplyFixture(
-				contract.SettingsScopeGlobal,
+				contract.SettingsScopeUser,
 				contract.SettingsWriteTargetGlobalMCPSidecar,
 				"",
 			),
@@ -345,7 +382,7 @@ func TestUnixSocketClientInstallSettingsMCPServerUsesCanonicalEndpoint(t *testin
 		}
 		request := InstallSettingsMCPServerRequest{
 			EntryID: "github",
-			Scope:   contract.SettingsWorkspaceScopeGlobal,
+			Scope:   contract.SettingsLayeredScopeUser,
 			Values:  &contract.SettingsMCPCatalogInstallValuesPayload{},
 		}
 		transport := roundTripperFunc(func(httpRequest *http.Request) (*http.Response, error) {

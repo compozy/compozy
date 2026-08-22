@@ -4,10 +4,12 @@ import (
 	"fmt"
 
 	"os"
+	"strings"
 )
 
 type loadOptions struct {
 	workspaceRoot             string
+	profileName               string
 	skipDotEnv                bool
 	skipValidate              bool
 	skipWorkspaceOverlayFiles bool
@@ -41,6 +43,13 @@ type LoadOption func(*loadOptions)
 func WithWorkspaceRoot(root string) LoadOption {
 	return func(opts *loadOptions) {
 		opts.workspaceRoot = root
+	}
+}
+
+// WithProfile loads the personal and workspace layers bound to one active profile name.
+func WithProfile(name string) LoadOption {
+	return func(opts *loadOptions) {
+		opts.profileName = name
 	}
 }
 
@@ -95,6 +104,7 @@ func Load(opts ...LoadOption) (Config, error) {
 	return loadWithHome(
 		homePaths,
 		workspaceRoot,
+		options.profileName,
 		options.skipWorkspaceOverlayFiles,
 		options.skipValidate,
 		lookup,
@@ -128,6 +138,7 @@ func LoadForHome(homePaths HomePaths, opts ...LoadOption) (Config, error) {
 	return loadWithHome(
 		homePaths,
 		workspaceRoot,
+		options.profileName,
 		options.skipWorkspaceOverlayFiles,
 		options.skipValidate,
 		lookup,
@@ -137,6 +148,7 @@ func LoadForHome(homePaths HomePaths, opts ...LoadOption) (Config, error) {
 func loadWithHome(
 	homePaths HomePaths,
 	workspaceRoot string,
+	profileName string,
 	skipWorkspaceOverlayFiles bool,
 	skipValidate bool,
 	lookup envLookup,
@@ -148,12 +160,36 @@ func loadWithHome(
 	if err := applyConfigMCPSidecarFile(globalMCPJSONFile(homePaths), &cfg); err != nil {
 		return Config{}, fmt.Errorf("load global MCP JSON: %w", err)
 	}
+	profileName = strings.TrimSpace(profileName)
+	if profileName != "" {
+		if err := ValidateResourceProfileName(profileName); err != nil {
+			return Config{}, fmt.Errorf("load profile config: %w", err)
+		}
+		if err := applyProfileConfigOverlayFile(profileConfigFile(homePaths, profileName), &cfg, RoleFieldSourceProfile); err != nil {
+			return Config{}, fmt.Errorf("load profile config: %w", err)
+		}
+		if err := applyConfigMCPSidecarFile(profileMCPJSONFile(homePaths, profileName), &cfg); err != nil {
+			return Config{}, fmt.Errorf("load profile MCP JSON: %w", err)
+		}
+	}
 	if !skipWorkspaceOverlayFiles && hasDistinctWorkspaceOverlay(homePaths, workspaceRoot) {
 		if err := applyWorkspaceConfigOverlayFile(workspaceConfigFile(workspaceRoot), &cfg); err != nil {
 			return Config{}, fmt.Errorf("load workspace config: %w", err)
 		}
 		if err := applyConfigMCPSidecarFile(workspaceMCPJSONFile(workspaceRoot), &cfg); err != nil {
 			return Config{}, fmt.Errorf("load workspace MCP JSON: %w", err)
+		}
+		if profileName != "" {
+			if err := applyProfileConfigOverlayFile(
+				workspaceProfileConfigFile(workspaceRoot, profileName),
+				&cfg,
+				RoleFieldSourceWorkspaceProfile,
+			); err != nil {
+				return Config{}, fmt.Errorf("load workspace profile config: %w", err)
+			}
+			if err := applyConfigMCPSidecarFile(workspaceProfileMCPJSONFile(workspaceRoot, profileName), &cfg); err != nil {
+				return Config{}, fmt.Errorf("load workspace profile MCP JSON: %w", err)
+			}
 		}
 	}
 	if err := normalizeConfigPaths(&cfg); err != nil {

@@ -47,7 +47,11 @@ function MarketplaceCard({
         }}
         params={{ entryId: entry.entry_id, kind }}
         search={prev => ({
-          scope: prev.scope === "global" || prev.scope === "workspace" ? prev.scope : undefined,
+          profile: prev.profile,
+          scope:
+            prev.scope === "user" || prev.scope === "profile" || prev.scope === "workspace"
+              ? prev.scope
+              : undefined,
           tab: "market" as const,
           workspace_id: prev.workspace_id,
         })}

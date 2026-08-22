@@ -128,10 +128,12 @@ func maybeReloadConfigAfterLocalWrite(
 	}
 	record.Lifecycle = string(result.Lifecycle)
 	record.ApplyRecordID = result.ApplyRecordID
-	record.Applied = result.Applied
 	record.ActiveGeneration = result.ActiveGeneration
 	record.ActiveConfigHash = result.ActiveConfigHash
-	record.NextAction = string(result.NextAction)
+	if record.Status != "ok_overridden" {
+		record.Applied = result.Applied
+		record.NextAction = string(result.NextAction)
+	}
 	record.RestartRequired = result.RestartRequired
 	record.RestartScope = result.RestartScope
 	return &record, nil

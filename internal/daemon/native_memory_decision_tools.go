@@ -51,7 +51,11 @@ func (n *daemonNativeTools) memoryAdminDecisionsList(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
 	}
-	records, err := n.deps.MemoryStore.ListDecisionRecords(ctx, memorypkg.DecisionListQuery{
+	profileStore, err := n.profileMemoryStore(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
+	}
+	records, err := profileStore.ListDecisionRecords(ctx, memorypkg.DecisionListQuery{
 		Scope:          selector.Scope,
 		WorkspaceID:    selector.WorkspaceID,
 		AgentName:      selector.AgentName,
@@ -88,7 +92,11 @@ func (n *daemonNativeTools) memoryAdminDecisionsShow(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	record, err := n.deps.MemoryStore.LoadDecisionRecord(ctx, decisionID)
+	profileStore, err := n.profileMemoryStore(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
+	}
+	record, err := profileStore.LoadDecisionRecord(ctx, decisionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
 	}
@@ -112,7 +120,11 @@ func (n *daemonNativeTools) memoryAdminDecisionsRevert(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	record, err := n.deps.MemoryStore.LoadDecisionRecord(ctx, decisionID)
+	profileStore, err := n.profileMemoryStore(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
+	}
+	record, err := profileStore.LoadDecisionRecord(ctx, decisionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
 	}
@@ -159,7 +171,7 @@ func (n *daemonNativeTools) memoryAdminStoreForDecisionRecord(
 		}
 		return location.Store, nil
 	}
-	return n.deps.MemoryStore, nil
+	return n.profileMemoryStore(ctx, scope)
 }
 
 func nativeMemoryAdminAuthorizeDecisionRecord(

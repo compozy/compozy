@@ -16,8 +16,14 @@ export type {
   SettingsSandboxEntry,
   SettingsSandboxRequest,
   SettingsGeneralSection,
+  SettingsPersonaFilter,
+  SettingsPersonaSection,
+  SettingsLayeredScope,
   SettingsHookCollection,
+  SettingsHookDeleteFilter,
   SettingsHookEntry,
+  SettingsHookListFilter,
+  SettingsHookPutFilter,
   SettingsHookRequest,
   SettingsHooksExtensionsHook,
   SettingsHooksExtensionsInstalled,
@@ -93,6 +99,7 @@ export type {
   SettingsUpdateAttentionRequest,
   SettingsUpdateShellRequest,
   SettingsUpdateGeneralRequest,
+  SettingsUpdatePersonaRequest,
   SettingsUpdateHooksExtensionsRequest,
   SettingsUpdateWindowManagerRequest,
   SettingsUpdateNotificationPresetRequest,
@@ -179,6 +186,7 @@ export {
   getSettingsSandbox,
   getSettingsCmdPalette,
   getSettingsGeneral,
+  getSettingsPersona,
   getSettingsHooksExtensions,
   getSettingsMemory,
   getRolesStatus,
@@ -214,6 +222,7 @@ export {
   updateSettingsAutomation,
   updateSettingsCmdPalette,
   updateSettingsGeneral,
+  updateSettingsPersona,
   updateSettingsHooksExtensions,
   updateSettingsMemory,
   updateSettingsAttention,
@@ -307,6 +316,7 @@ export {
   settingsSandboxDetailOptions,
   settingsSandboxesListOptions,
   settingsGeneralOptions,
+  settingsPersonaOptions,
   settingsHooksExtensionsOptions,
   settingsHooksListOptions,
   settingsNotificationPresetsOptions,
@@ -409,6 +419,7 @@ export {
   useSettingsAutomation,
   useSettingsApplyRecords,
   useSettingsGeneral,
+  useSettingsPersona,
   useSettingsHooksExtensions,
   useSettingsMemory,
   useSettingsAttention,
@@ -459,6 +470,7 @@ export {
   useUpdateSettingsShell,
   useUpdateSettingsNetwork,
   useUpdateSettingsObservability,
+  useUpdateSettingsPersona,
   useUpdateSettingsRoles,
   useUpdateSettingsSkills,
 } from "./hooks/use-settings-mutations";
@@ -471,6 +483,7 @@ export {
 export { useSettingsPage } from "./hooks/use-settings-page";
 export { useSettingsRestart } from "./hooks/use-settings-restart";
 export { useSettingsRolesPage } from "./hooks/use-settings-roles-page";
+export { useSettingsPersonaPage } from "./hooks/use-settings-persona-page";
 export { useSettingsSaveBarState } from "./hooks/use-settings-save-bar-state";
 export { useSettingsTopbar, type UseSettingsTopbarOptions } from "./hooks/use-settings-topbar";
 export type { SettingsSaveBarState } from "./lib/save-state";

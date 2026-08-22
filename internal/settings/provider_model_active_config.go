@@ -59,6 +59,8 @@ func (s *service) recordProjectedMutationApply(
 		nextActiveConfig,
 		configLifecycle,
 		noChanges,
+		result.WriteTarget,
+		result.writePath,
 	)
 	if err != nil {
 		return ApplyResult{}, err
@@ -69,6 +71,7 @@ func (s *service) recordProjectedMutationApply(
 		Scope:           result.Scope,
 		WriteTarget:     result.WriteTarget,
 		WorkspaceID:     result.WorkspaceID,
+		ProfileName:     result.ProfileName,
 		AgentName:       result.AgentName,
 		Applied:         plan.applied,
 		NextAction:      lifecycle.NextActionForLifecycle(configLifecycle, plan.status),

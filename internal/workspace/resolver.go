@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -34,15 +35,17 @@ type UpdateOptions struct {
 
 // Resolver resolves persisted workspaces into runtime workspace snapshots.
 type Resolver struct {
-	store           Store
-	homePaths       compozyconfig.HomePaths
-	loadConfig      ConfigLoader
-	logger          *slog.Logger
-	now             func() time.Time
-	cacheTTL        time.Duration
-	idGenerator     idGenerator
-	changeHook      ChangeHook
-	operatorHomeDir string
+	store               Store
+	homePaths           compozyconfig.HomePaths
+	loadConfig          ConfigLoader
+	loadProfileConfig   ProfileConfigLoader
+	profileAvailability ProfileAvailabilityChecker
+	logger              *slog.Logger
+	now                 func() time.Time
+	cacheTTL            time.Duration
+	idGenerator         idGenerator
+	changeHook          ChangeHook
+	operatorHomeDir     string
 
 	registrationMu     sync.Mutex
 	reconcileMu        sync.Mutex
@@ -75,21 +78,49 @@ func NewResolver(store Store, opts ...Option) (*Resolver, error) {
 	}
 
 	return &Resolver{
-		store:           store,
-		homePaths:       resolvedOpts.homePaths,
-		loadConfig:      resolvedOpts.loadConfig,
-		logger:          resolvedOpts.logger,
-		now:             resolvedOpts.now,
-		cacheTTL:        resolvedOpts.cacheTTL,
-		idGenerator:     resolvedOpts.idGenerator,
-		changeHook:      resolvedOpts.changeHook,
-		operatorHomeDir: resolvedOpts.operatorHomeDir,
-		cache:           make(map[string]*cachedEntry),
+		store:               store,
+		homePaths:           resolvedOpts.homePaths,
+		loadConfig:          resolvedOpts.loadConfig,
+		loadProfileConfig:   resolvedOpts.loadProfileConfig,
+		profileAvailability: resolvedOpts.profileAvailability,
+		logger:              resolvedOpts.logger,
+		now:                 resolvedOpts.now,
+		cacheTTL:            resolvedOpts.cacheTTL,
+		idGenerator:         resolvedOpts.idGenerator,
+		changeHook:          resolvedOpts.changeHook,
+		operatorHomeDir:     resolvedOpts.operatorHomeDir,
+		cache:               make(map[string]*cachedEntry),
 	}, nil
 }
 
 // Resolve loads and caches the effective runtime snapshot for a workspace.
 func (r *Resolver) Resolve(ctx context.Context, idOrNameOrPath string) (resolved ResolvedWorkspace, err error) {
+	return r.resolve(ctx, idOrNameOrPath, "")
+}
+
+// ResolveForProfile loads the workspace with personal and project profile roots.
+func (r *Resolver) ResolveForProfile(
+	ctx context.Context,
+	idOrNameOrPath string,
+	profileName string,
+) (resolved ResolvedWorkspace, err error) {
+	trimmedProfile := strings.TrimSpace(profileName)
+	if err := compozyconfig.ValidateResourceProfileName(trimmedProfile); err != nil {
+		return ResolvedWorkspace{}, fmt.Errorf("workspace: resolve profile resources: %w", err)
+	}
+	if r.profileAvailability != nil {
+		if err := r.profileAvailability.EnsureAvailableName(ctx, trimmedProfile); err != nil {
+			return ResolvedWorkspace{}, fmt.Errorf("workspace: resolve profile resources: %w", err)
+		}
+	}
+	return r.resolve(ctx, idOrNameOrPath, trimmedProfile)
+}
+
+func (r *Resolver) resolve(
+	ctx context.Context,
+	idOrNameOrPath string,
+	profileName string,
+) (resolved ResolvedWorkspace, err error) {
 	start := r.now()
 	cacheHit := false
 	workspaceID := ""
@@ -116,7 +147,7 @@ func (r *Resolver) Resolve(ctx context.Context, idOrNameOrPath string) (resolved
 	}
 	workspaceID = identity.WorkspaceID
 
-	scan, err := r.scanWorkspace(ctx, ws)
+	scan, err := r.scanWorkspace(ctx, ws, profileName)
 	if err != nil {
 		return ResolvedWorkspace{}, err
 	}
@@ -125,7 +156,8 @@ func (r *Resolver) Resolve(ctx context.Context, idOrNameOrPath string) (resolved
 
 	r.mu.Lock()
 	r.evictExpiredLocked(now)
-	if cached := r.cache[ws.ID]; cached != nil && cached.canReuse(ws, scan.snapshots) {
+	cacheKey := workspaceProfileCacheKey(ws.ID, profileName)
+	if cached := r.cache[cacheKey]; cached != nil && cached.canReuse(ws, scan.snapshots) {
 		cached.lastAccess = now
 		cacheHit = true
 		resolved = cloneResolvedWorkspace(&cached.resolved)
@@ -136,7 +168,7 @@ func (r *Resolver) Resolve(ctx context.Context, idOrNameOrPath string) (resolved
 	}
 	r.mu.Unlock()
 
-	resolved, err = r.buildResolvedWorkspace(ctx, ws, scan)
+	resolved, err = r.buildResolvedWorkspace(ctx, ws, scan, profileName)
 	if err != nil {
 		return ResolvedWorkspace{}, err
 	}
@@ -144,7 +176,7 @@ func (r *Resolver) Resolve(ctx context.Context, idOrNameOrPath string) (resolved
 
 	r.mu.Lock()
 	r.evictExpiredLocked(now)
-	r.cache[ws.ID] = &cachedEntry{
+	r.cache[cacheKey] = &cachedEntry{
 		workspace:  cloneWorkspace(ws),
 		resolved:   cloneResolvedWorkspace(&resolved),
 		snapshots:  cloneSnapshots(scan.snapshots),
@@ -287,7 +319,11 @@ func (r *Resolver) Invalidate(workspaceID string) {
 	}
 
 	r.mu.Lock()
-	delete(r.cache, trimmedID)
+	for key := range r.cache {
+		if key == trimmedID || strings.HasPrefix(key, trimmedID+"\x00") {
+			delete(r.cache, key)
+		}
+	}
 	r.mu.Unlock()
 }
 
@@ -315,12 +351,19 @@ func (r *Resolver) buildResolvedWorkspace(
 	ctx context.Context,
 	ws Workspace,
 	scan workspaceScan,
+	profileName string,
 ) (ResolvedWorkspace, error) {
 	if err := checkContext(ctx); err != nil {
 		return ResolvedWorkspace{}, err
 	}
 
-	cfg, err := r.loadConfig(ws.RootDir)
+	var cfg compozyconfig.Config
+	var err error
+	if strings.TrimSpace(profileName) != "" && r.loadProfileConfig != nil {
+		cfg, err = r.loadProfileConfig(ws.RootDir, profileName)
+	} else {
+		cfg, err = r.loadConfig(ws.RootDir)
+	}
 	if err != nil {
 		return ResolvedWorkspace{}, fmt.Errorf("workspace: load config for %q: %w", ws.RootDir, err)
 	}
@@ -338,14 +381,32 @@ func (r *Resolver) buildResolvedWorkspace(
 	skills := mergeSkillPaths(scan.skills)
 
 	return ResolvedWorkspace{
-		Workspace:        cloneWorkspace(ws),
-		Config:           compozyconfig.CloneConfig(&cfg),
-		Agents:           cloneAgentDefs(agents),
-		AgentDiagnostics: append([]AgentDiagnostic(nil), agentDiagnostics...),
-		Skills:           cloneSkillPaths(skills),
-		Sandbox:          cloneSandboxResolved(resolvedSandbox),
-		ResolvedAt:       r.now(),
+		Workspace:           cloneWorkspace(ws),
+		ProfileName:         profileName,
+		ProfileRoot:         resolvedProfileRoot(r.homePaths.ProfilesDir, profileName),
+		ProfileDeclarations: append([]ProfileDeclaration(nil), scan.profileDeclarations...),
+		Config:              compozyconfig.CloneConfig(&cfg),
+		Agents:              cloneAgentDefs(agents),
+		AgentDiagnostics:    append([]AgentDiagnostic(nil), agentDiagnostics...),
+		Skills:              cloneSkillPaths(skills),
+		Sandbox:             cloneSandboxResolved(resolvedSandbox),
+		ResolvedAt:          r.now(),
 	}, nil
+}
+
+func resolvedProfileRoot(profilesDir, profileName string) string {
+	if strings.TrimSpace(profileName) == "" || strings.TrimSpace(profilesDir) == "" {
+		return ""
+	}
+	return filepath.Join(profilesDir, profileName)
+}
+
+func workspaceProfileCacheKey(workspaceID, profileName string) string {
+	trimmedProfile := strings.TrimSpace(profileName)
+	if trimmedProfile == "" {
+		return strings.TrimSpace(workspaceID)
+	}
+	return strings.TrimSpace(workspaceID) + "\x00" + trimmedProfile
 }
 
 func resolveWorkspaceSandbox(ws Workspace, cfg *compozyconfig.Config) (sandbox.Resolved, error) {

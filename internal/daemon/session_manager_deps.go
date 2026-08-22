@@ -48,6 +48,7 @@ type SessionManagerDeps struct {
 	ProcessRegistry        *toolruntime.Registry
 	HostedMCP              session.HostedMCPLauncher
 	ProviderSecrets        session.ProviderSecretResolver
+	ProfileNames           session.ProfileNameResolver
 	ModelCatalog           modelcatalog.Service
 	SoulStore              session.SoulSnapshotStore
 	SoulRunChecker         session.SoulRunActivityChecker
@@ -102,6 +103,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		ProcessRegistry:        state.processRegistry,
 		HostedMCP:              hostedMCPLauncher(state.hostedMCP),
 		ProviderSecrets:        sessionProviderVaultDependency(state.providerVault),
+		ProfileNames:           state.profiles,
 		ModelCatalog:           state.modelCatalog,
 		SoulStore:              soulSnapshotStoreDependency(state.registry),
 		SoulRunChecker:         soulRunActivityCheckerDependency(state.registry),

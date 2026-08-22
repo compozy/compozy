@@ -2,9 +2,73 @@ package vault
 
 import (
 	"encoding/hex"
+	"errors"
 	"strings"
 	"testing"
 )
+
+func TestProfileSecretRefsEnforceGrammarAndOwnership(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should parse profile provider and extension refs", func(t *testing.T) {
+		t.Parallel()
+
+		for _, ref := range []string{
+			"vault:profiles/marketing/providers/openai/api_key",
+			"vault:profiles/marketing/extensions/growth/token",
+		} {
+			parsed, err := ParseProfileSecretRef(ref)
+			if err != nil {
+				t.Fatalf("ParseProfileSecretRef(%q) error = %v", ref, err)
+			}
+			if parsed.ProfileName != "marketing" {
+				t.Fatalf("ParseProfileSecretRef(%q).ProfileName = %q, want marketing", ref, parsed.ProfileName)
+			}
+			if err := ValidateSecretRef(ref); err != nil {
+				t.Fatalf("ValidateSecretRef(%q) error = %v", ref, err)
+			}
+		}
+	})
+
+	t.Run("Should reject another profile owner", func(t *testing.T) {
+		t.Parallel()
+
+		err := ValidateProfileSecretRefAccess(
+			"vault:profiles/sales/providers/openai/api_key",
+			"marketing",
+		)
+		if err == nil || !strings.Contains(err.Error(), `profile "marketing" cannot access`) {
+			t.Fatalf("ValidateProfileSecretRefAccess() error = %v, want owner rejection", err)
+		}
+	})
+
+	t.Run("Should reject environment refs with the stable profile code", func(t *testing.T) {
+		t.Parallel()
+
+		err := ValidateProfileScopedRef("env:OPENAI_API_KEY", "marketing")
+		if !errors.Is(err, ErrProfileSecretEnvForbidden) {
+			t.Fatalf("ValidateProfileScopedRef() error = %v, want ErrProfileSecretEnvForbidden", err)
+		}
+		var typed *ProfileSecretError
+		if !errors.As(err, &typed) || typed.Code != "profile_secret_env_forbidden" {
+			t.Fatalf("ValidateProfileScopedRef() error = %#v, want stable code", err)
+		}
+	})
+
+	t.Run("Should reject generic paths inside the profiles namespace", func(t *testing.T) {
+		t.Parallel()
+
+		for _, ref := range []string{
+			"vault:profiles/marketing/random/value",
+			"vault:profiles/Marketing/providers/openai/api_key",
+			"vault:profiles/marketing/providers/openai/nested/api_key",
+		} {
+			if err := ValidateSecretRef(ref); err == nil {
+				t.Fatalf("ValidateSecretRef(%q) error = nil, want grammar rejection", ref)
+			}
+		}
+	})
+}
 
 func TestSecretLikeEnvName(t *testing.T) {
 	t.Parallel()
@@ -59,33 +123,40 @@ func TestValidateNonSecretEnvMapRejectsPrivateKeyNames(t *testing.T) {
 func TestMCPSecretOwnerPrefixIsCollisionSafeAcrossScopes(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should keep global and workspace MCP secret prefixes collision-safe", func(t *testing.T) {
+	t.Run("Should keep user profile and workspace MCP secret prefixes collision-safe", func(t *testing.T) {
 		t.Parallel()
 
 		workspaceID := "workspace/alpha"
-		globalPrefix, err := MCPSecretOwnerPrefix(MCPGlobalScope, "", "linear")
+		userPrefix, err := MCPSecretOwnerPrefix(MCPUserScope, "", "linear")
 		if err != nil {
-			t.Fatalf("MCPSecretOwnerPrefix(global) error = %v", err)
+			t.Fatalf("MCPSecretOwnerPrefix(user) error = %v", err)
+		}
+		profilePrefix, err := MCPSecretOwnerPrefix(MCPProfileScope, "marketing", "linear")
+		if err != nil {
+			t.Fatalf("MCPSecretOwnerPrefix(profile) error = %v", err)
 		}
 		workspacePrefix, err := MCPSecretOwnerPrefix(MCPWorkspaceScope, workspaceID, "linear")
 		if err != nil {
 			t.Fatalf("MCPSecretOwnerPrefix(workspace) error = %v", err)
 		}
-		if globalPrefix == workspacePrefix {
-			t.Fatalf("global and workspace prefixes collided: %q", globalPrefix)
+		if userPrefix == workspacePrefix || userPrefix == profilePrefix || profilePrefix == workspacePrefix {
+			t.Fatalf("MCP owner prefixes collided: user=%q profile=%q workspace=%q", userPrefix, profilePrefix, workspacePrefix)
 		}
-		if got, want := globalPrefix, "vault:mcp/global/linear/"; got != want {
-			t.Fatalf("global prefix = %q, want %q", got, want)
+		if got, want := userPrefix, "vault:mcp/user/linear/"; got != want {
+			t.Fatalf("user prefix = %q, want %q", got, want)
 		}
-		globalDCRRefs, err := MCPDCRSecretRefsForTarget(MCPGlobalScope, "", "linear")
+		if got, want := profilePrefix, "vault:mcp/profile/marketing/linear/"; got != want {
+			t.Fatalf("profile prefix = %q, want %q", got, want)
+		}
+		userDCRRefs, err := MCPDCRSecretRefsForTarget(MCPUserScope, "", "linear")
 		if err != nil {
-			t.Fatalf("MCPDCRSecretRefsForTarget(global) error = %v", err)
+			t.Fatalf("MCPDCRSecretRefsForTarget(user) error = %v", err)
 		}
-		if got, want := globalDCRRefs.ClientSecretRef, globalPrefix+"oauth/dcr-client-secret"; got != want {
-			t.Fatalf("global DCR client secret ref = %q, want %q", got, want)
+		if got, want := userDCRRefs.ClientSecretRef, userPrefix+"oauth/dcr-client-secret"; got != want {
+			t.Fatalf("user DCR client secret ref = %q, want %q", got, want)
 		}
-		if got, want := globalDCRRefs.RegistrationAccessTokenRef, globalPrefix+"oauth/registration-access-token"; got != want {
-			t.Fatalf("global DCR registration token ref = %q, want %q", got, want)
+		if got, want := userDCRRefs.RegistrationAccessTokenRef, userPrefix+"oauth/registration-access-token"; got != want {
+			t.Fatalf("user DCR registration token ref = %q, want %q", got, want)
 		}
 		segment, err := MCPWorkspaceSegment(workspaceID)
 		if err != nil {
@@ -101,6 +172,9 @@ func TestMCPSecretOwnerPrefixIsCollisionSafeAcrossScopes(t *testing.T) {
 		if reservedSegment == segment {
 			t.Fatalf("encoded workspace ID collided with reserved literal: %q", segment)
 		}
+		if _, err := MCPSecretOwnerPrefix("global", "", "linear"); err == nil {
+			t.Fatal("MCPSecretOwnerPrefix(global) error = nil, want obsolete scope rejection")
+		}
 	})
 
 	t.Run("Should encode unsafe MCP server names without colliding with reserved literals", func(t *testing.T) {
@@ -115,11 +189,11 @@ func TestMCPSecretOwnerPrefixIsCollisionSafeAcrossScopes(t *testing.T) {
 		if segment != wantSegment {
 			t.Fatalf("MCPServerSegment() = %q, want %q", segment, wantSegment)
 		}
-		prefix, err := MCPSecretOwnerPrefix(MCPGlobalScope, "", serverName)
+		prefix, err := MCPSecretOwnerPrefix(MCPUserScope, "", serverName)
 		if err != nil {
 			t.Fatalf("MCPSecretOwnerPrefix() error = %v", err)
 		}
-		if got, want := prefix, "vault:mcp/global/"+wantSegment+"/"; got != want {
+		if got, want := prefix, "vault:mcp/user/"+wantSegment+"/"; got != want {
 			t.Fatalf("MCPSecretOwnerPrefix() = %q, want %q", got, want)
 		}
 		reservedSegment, err := MCPServerSegment(segment)
@@ -176,7 +250,7 @@ func TestValidateMCPSecretRefAccessIsolatesOwners(t *testing.T) {
 	t.Run("Should reject caller refs in the daemon-managed OAuth subtree", func(t *testing.T) {
 		t.Parallel()
 
-		refs, err := MCPDCRSecretRefsForTarget(MCPGlobalScope, "", "linear")
+		refs, err := MCPDCRSecretRefsForTarget(MCPUserScope, "", "linear")
 		if err != nil {
 			t.Fatalf("MCPDCRSecretRefsForTarget() error = %v", err)
 		}
@@ -185,7 +259,7 @@ func TestValidateMCPSecretRefAccessIsolatesOwners(t *testing.T) {
 			refs.RegistrationAccessTokenRef,
 			strings.Replace(refs.ClientSecretRef, "/oauth/", "/OAuth/", 1),
 		} {
-			err := ValidateMCPSecretRefAccess(ref, MCPGlobalScope, "", "linear")
+			err := ValidateMCPSecretRefAccess(ref, MCPUserScope, "", "linear")
 			if err == nil || !strings.Contains(err.Error(), "daemon-managed OAuth subtree") {
 				t.Fatalf("ValidateMCPSecretRefAccess(%q) error = %v, want OAuth subtree rejection", ref, err)
 			}

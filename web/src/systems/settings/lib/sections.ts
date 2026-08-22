@@ -12,6 +12,7 @@ import {
   Route,
   SlidersHorizontal,
   UsersRound,
+  UserRoundCog,
   Webhook,
   Wrench,
   Zap,
@@ -36,6 +37,13 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     icon: SlidersHorizontal,
     group: "workspace",
     keywords: "defaults permissions session timeout update version runtime socket",
+  },
+  {
+    slug: "defaults",
+    label: "Defaults",
+    icon: UserRoundCog,
+    group: "workspace",
+    keywords: "profile agent provider sandbox defaults new sessions",
   },
   {
     slug: "appearance",

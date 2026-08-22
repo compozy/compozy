@@ -7,10 +7,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   mockProviders,
-  mockSettingsGeneral,
+  mockSettingsPersona,
   mockSettingsProvider,
   mockPutProvider,
-  mockUpdateGeneral,
+  mockUpdatePersona,
   mockCatalogRefresh,
 } = vi.hoisted(() => ({
   mockProviders: {
@@ -23,8 +23,8 @@ const {
     isLoading: false,
     error: null as Error | null,
   },
-  mockSettingsGeneral: {
-    data: { config: { defaults: {} as Record<string, string> } },
+  mockSettingsPersona: {
+    data: { config: { agent: "general", provider: "", sandbox: "" } },
     error: null as Error | null,
     isSuccess: true,
   },
@@ -41,7 +41,7 @@ const {
     isSuccess: true,
   },
   mockPutProvider: { mutateAsync: vi.fn(), isPending: false },
-  mockUpdateGeneral: { mutateAsync: vi.fn(), isPending: false },
+  mockUpdatePersona: { mutateAsync: vi.fn(), isPending: false },
   mockCatalogRefresh: vi.fn(),
 }));
 
@@ -72,12 +72,12 @@ vi.mock("@/systems/settings/hooks/use-settings-collections", () => ({
 }));
 
 vi.mock("@/systems/settings/hooks/use-settings-mutations", () => ({
-  useUpdateSettingsGeneral: () => mockUpdateGeneral,
+  useUpdateSettingsPersona: () => mockUpdatePersona,
   usePutSettingsProvider: () => mockPutProvider,
 }));
 
 vi.mock("@/systems/settings/hooks/use-settings-sections", () => ({
-  useSettingsGeneral: () => mockSettingsGeneral,
+  useSettingsPersona: () => mockSettingsPersona,
 }));
 
 import { onboardingDraftStore } from "../../stores/use-onboarding-draft-store";
@@ -88,9 +88,9 @@ describe("useOnboardingDefaultModel", () => {
     window.localStorage.clear();
     onboardingDraftStore.trigger.draftCleared();
     mockPutProvider.mutateAsync.mockReset().mockResolvedValue(undefined);
-    mockUpdateGeneral.mutateAsync.mockReset().mockResolvedValue(undefined);
+    mockUpdatePersona.mutateAsync.mockReset().mockResolvedValue(undefined);
     mockCatalogRefresh.mockReset();
-    mockSettingsGeneral.data = { config: { defaults: {} } };
+    mockSettingsPersona.data = { config: { agent: "general", provider: "", sandbox: "" } };
     mockSettingsProvider.data = {
       settings: {
         display_name: "Claude Code",
@@ -178,8 +178,9 @@ describe("useOnboardingDefaultModel", () => {
       model_id: "claude-opus-4-8",
       default_effort: "xhigh",
     });
-    expect(mockUpdateGeneral.mutateAsync).toHaveBeenCalledWith({
-      config: { defaults: { provider: "claude" } },
+    expect(mockUpdatePersona.mutateAsync).toHaveBeenCalledWith({
+      body: { config: { agent: "general", provider: "claude", sandbox: "" } },
+      filter: { scope: "user" },
     });
   });
 

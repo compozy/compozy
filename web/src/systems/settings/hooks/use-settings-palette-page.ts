@@ -22,7 +22,11 @@ interface PaletteSettingsWrite {
 }
 
 function isSameScope(left: SettingsCmdPaletteFilter, right: SettingsCmdPaletteFilter): boolean {
-  return left.scope === right.scope && (left.workspace_id ?? "") === (right.workspace_id ?? "");
+  return (
+    left.scope === right.scope &&
+    (left.workspace_id ?? "") === (right.workspace_id ?? "") &&
+    (left.profile ?? "") === (right.profile ?? "")
+  );
 }
 
 export interface SettingsPalettePageModel {
@@ -49,10 +53,9 @@ export interface SettingsPalettePageModel {
  * what was already learned is kept until it is reset, so the ranking the palette
  * shows next has to be re-read rather than assumed.
  *
- * Reads and writes address one scope. `resolveActiveWorkspace` has already
- * decided which one — it downgrades workspace to global when nothing is
- * remembered, and only then is `activeWorkspaceId` null — so this reads that
- * resolution instead of applying a second policy of its own.
+ * Reads and writes address one scope. A named profile wins because palette
+ * preferences follow that persona; the permanent default profile falls back
+ * to the active workspace, then to the user-wide config.
  */
 export function useSettingsPalettePage(): SettingsPalettePageModel {
   // Personalization is per profile; a reset acts as one rather than across all.
@@ -61,17 +64,24 @@ export function useSettingsPalettePage(): SettingsPalettePageModel {
   const queryClient = useQueryClient();
   const page = useSettingsPage({ currentSlug: "palette" });
   // Until workspace truth settles, the resolver reports the *requested* scope
-  // with no id — indistinguishable from global. Asking then would write a real
-  // global read into the cache for an operator who is actually in a workspace.
+  // with no id — indistinguishable from user scope. Asking then would write a
+  // user read into the cache for an operator who is actually in a workspace.
   // `pending` is its own signal: the catalog can be loaded while `$HOME` is
   // still unknown, and the resolver settles nothing until both have landed.
   const settled = workspace.hasHydrated && !workspace.isLoading && !workspace.pending;
   const filter: SettingsCmdPaletteFilter =
-    workspace.scope === "workspace" && workspace.activeWorkspaceId !== null
-      ? { scope: "workspace", workspace_id: workspace.activeWorkspaceId }
-      : { scope: "global" };
-  const query = useQuery({ ...settingsCmdPaletteOptions(filter), enabled: settled });
-  const pageError = workspace.error instanceof Error ? workspace.error : (query.error ?? null);
+    destination !== "default"
+      ? { scope: "profile", profile: destination }
+      : workspace.scope === "workspace" && workspace.activeWorkspaceId !== null
+        ? { scope: "workspace", workspace_id: workspace.activeWorkspaceId }
+        : { scope: "user" };
+  const needsWorkspace = destination === "default";
+  const query = useQuery({
+    ...settingsCmdPaletteOptions(filter),
+    enabled: !needsWorkspace || settled,
+  });
+  const pageError =
+    needsWorkspace && workspace.error instanceof Error ? workspace.error : (query.error ?? null);
   const mutation = useMutation({
     mutationFn: (variables: PaletteSettingsWrite) =>
       updateSettingsCmdPalette(variables.update, variables.filter),
@@ -115,13 +125,15 @@ export function useSettingsPalettePage(): SettingsPalettePageModel {
     },
   });
   const scopeLabel =
-    workspace.scope === "workspace"
-      ? (workspace.activeWorkspace?.name ?? workspace.activeWorkspaceId ?? "workspace")
-      : "Global";
+    filter.scope === "profile"
+      ? `Profile ${destination}`
+      : filter.scope === "workspace"
+        ? (workspace.activeWorkspace?.name ?? workspace.activeWorkspaceId ?? "workspace")
+        : "User";
 
   return {
     section,
-    isLoading: pageError === null && (!settled || query.isLoading),
+    isLoading: pageError === null && ((needsWorkspace && !settled) || query.isLoading),
     isSaving: mutation.isPending,
     error: pageError,
     saveError: mutation.error instanceof Error ? mutation.error.message : null,

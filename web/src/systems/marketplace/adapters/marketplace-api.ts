@@ -24,7 +24,7 @@ function scopeQuery(workspaceId?: string | null) {
   const normalizedWorkspaceId = normalizeOptionalText(workspaceId);
   return normalizedWorkspaceId
     ? ({ scope: "workspace", workspace_id: normalizedWorkspaceId } as const)
-    : ({ scope: "global" } as const);
+    : ({ scope: "user" } as const);
 }
 
 function searchQuery(options: MarketplaceSearchOptions): MarketplaceSearchQuery {

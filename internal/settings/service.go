@@ -328,7 +328,10 @@ func (s *service) resolveWorkspace(
 	workspaceID string,
 ) (*workspacepkg.ResolvedWorkspace, error) {
 	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
-	if scope != ScopeWorkspace && (scope != ScopeAgent || trimmedWorkspaceID == "") {
+	if scope != ScopeWorkspace && scope != ScopeProfile && (scope != ScopeAgent || trimmedWorkspaceID == "") {
+		return nil, nil
+	}
+	if scope == ScopeProfile && trimmedWorkspaceID == "" {
 		return nil, nil
 	}
 	if trimmedWorkspaceID == "" {
@@ -349,10 +352,29 @@ func (s *service) loadConfig(
 	ctx context.Context,
 	scope ScopeKind,
 	workspaceID string,
+	profileNames ...string,
 ) (compozyconfig.Config, *workspacepkg.ResolvedWorkspace, error) {
 	normalizedScope, normalizedWorkspaceID, err := s.normalizeReadScope(scope, workspaceID)
 	if err != nil {
 		return compozyconfig.Config{}, nil, err
+	}
+	profileName := ""
+	if len(profileNames) > 0 {
+		profileName = strings.TrimSpace(profileNames[0])
+	}
+	if normalizedScope == ScopeProfile {
+		if profileName == "" || profileName == "default" {
+			return compozyconfig.Config{}, nil, validationError(
+				errors.New("settings: profile scope requires a non-default profile"),
+			)
+		}
+		if err := compozyconfig.ValidateResourceProfileName(profileName); err != nil {
+			return compozyconfig.Config{}, nil, validationError(err)
+		}
+	} else if profileName != "" {
+		return compozyconfig.Config{}, nil, conflictError(
+			errors.New("settings: profile requires profile scope"),
+		)
 	}
 
 	resolved, err := s.resolveWorkspace(ctx, normalizedScope, normalizedWorkspaceID)
@@ -361,11 +383,19 @@ func (s *service) loadConfig(
 	}
 
 	if resolved != nil {
-		cfg, loadErr := compozyconfig.LoadForHome(s.homePaths, compozyconfig.WithWorkspaceRoot(resolved.RootDir))
+		options := []compozyconfig.LoadOption{compozyconfig.WithWorkspaceRoot(resolved.RootDir)}
+		if profileName != "" {
+			options = append(options, compozyconfig.WithProfile(profileName))
+		}
+		cfg, loadErr := compozyconfig.LoadForHome(s.homePaths, options...)
 		return cfg, resolved, loadErr
 	}
 
-	cfg, loadErr := compozyconfig.LoadForHome(s.homePaths)
+	options := make([]compozyconfig.LoadOption, 0, 1)
+	if profileName != "" {
+		options = append(options, compozyconfig.WithProfile(profileName))
+	}
+	cfg, loadErr := compozyconfig.LoadForHome(s.homePaths, options...)
 	return cfg, nil, loadErr
 }
 

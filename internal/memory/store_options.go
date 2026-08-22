@@ -113,7 +113,7 @@ func (s *Store) RecallSignalRecorderStats(workspaceID string) memoryrecall.Signa
 	if s == nil || s.recallRecorders == nil {
 		return memoryrecall.SignalRecorderStats{}
 	}
-	key := recallSignalRecorderKey(workspaceID)
+	key := recallSignalRecorderKey(s.profileID, workspaceID)
 	return s.recallRecorders.stats(key)
 }
 

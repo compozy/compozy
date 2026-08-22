@@ -18,6 +18,8 @@ import type {
   SettingsNotificationPresetEntry,
   SettingsNotificationPresetFilter,
   SettingsObservabilitySection,
+  SettingsPersonaFilter,
+  SettingsPersonaSection,
   SettingsShellSection,
   SettingsSkillsFilter,
   SettingsSkillsSection,
@@ -29,6 +31,7 @@ import type {
   SettingsUpdateNetworkRequest,
   SettingsUpdateNotificationPresetRequest,
   SettingsUpdateObservabilityRequest,
+  SettingsUpdatePersonaRequest,
   SettingsUpdateApplyRequest,
   SettingsUpdateApplyResult,
   SettingsUpdateCancelResult,
@@ -86,6 +89,50 @@ export async function updateSettingsGeneral(
     );
   }
   return requireResponseData(data, response, "Failed to update general settings");
+}
+
+function normalizeSettingsPersonaFilter(filter: SettingsPersonaFilter) {
+  return {
+    scope: filter.scope,
+    workspace_id: normalizeOptionalText(filter.workspace_id),
+    profile: normalizeOptionalText(filter.profile),
+  };
+}
+
+export async function getSettingsPersona(
+  filter: SettingsPersonaFilter,
+  signal?: AbortSignal
+): Promise<SettingsPersonaSection> {
+  const { data, error, response } = await apiClient.GET("/api/settings/persona", {
+    params: { query: normalizeSettingsPersonaFilter(filter) },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw new SettingsApiError(
+      defaultApiErrorMessage("Failed to load profile defaults", response, error),
+      response.status
+    );
+  }
+  return requireResponseData(data, response, "Failed to load profile defaults");
+}
+
+export async function updateSettingsPersona(
+  body: SettingsUpdatePersonaRequest,
+  filter: SettingsPersonaFilter,
+  signal?: AbortSignal
+): Promise<SettingsMutationResult> {
+  const { data, error, response } = await apiClient.PATCH("/api/settings/persona", {
+    body,
+    params: { query: normalizeSettingsPersonaFilter(filter) },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw new SettingsApiError(
+      defaultApiErrorMessage("Failed to update profile defaults", response, error),
+      response.status
+    );
+  }
+  return requireResponseData(data, response, "Failed to update profile defaults");
 }
 
 export async function getSettingsUpdate(signal?: AbortSignal): Promise<SettingsUpdateStatus> {

@@ -4,6 +4,7 @@ import { CatalogCard, KindIcon, Pill, providerKindIconRegistry } from "@compozy/
 
 import { formatCategoryMetaSegment, type AgentFleetRowModel } from "../lib/agent-fleet-projection";
 import { AgentFleetNewSessionButton } from "./agent-fleet-new-session-button";
+import { AgentLayerProvenance } from "./agent-layer-provenance";
 
 export interface AgentFleetCardProps {
   row: AgentFleetRowModel;
@@ -47,6 +48,11 @@ function AgentFleetCard({ row, newSessionDisabled = false, onNewSession }: Agent
               {!category && agent.provider ? <span>{agent.provider}</span> : null}
               {model ? <span className="font-mono">{model}</span> : null}
             </CatalogCard.Meta>
+            <AgentLayerProvenance
+              data-testid={`agent-fleet-provenance-${agent.name}`}
+              layer={row.layer}
+              shadows={row.shadowLayers}
+            />
           </div>
         </div>
       </Link>

@@ -18,6 +18,7 @@ export type MarketplaceMCPEditorState =
       scope: MCPConfigScope;
       target: SettingsMCPServerTarget;
       workspaceId?: string;
+      profileName?: string;
     }
   | {
       draft: MCPDraft;
@@ -26,6 +27,7 @@ export type MarketplaceMCPEditorState =
       scope: MCPConfigScope;
       target: SettingsMCPServerTarget;
       workspaceId?: string;
+      profileName?: string;
     };
 
 export type MarketplaceMCPEditorFlow = {

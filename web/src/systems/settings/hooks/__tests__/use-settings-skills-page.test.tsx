@@ -38,8 +38,8 @@ import { settingsSkillsDraftLogic } from "../settings-skills-draft-logic";
 
 const skillsEnvelope: SettingsSkillsSection = {
   section: "skills",
-  scope: "global",
-  available_scopes: ["global"],
+  scope: "user",
+  available_scopes: ["user"],
   runtime_available: true,
   discovered_count: 10,
   disabled_count: 1,
@@ -147,7 +147,7 @@ describe("useSettingsSkillsPage", () => {
   it("save disabled sends full config with only disabled_skills changed and records applied-now label", async () => {
     vi.mocked(updateSettingsSkills).mockResolvedValue({
       section: "skills",
-      scope: "global",
+      scope: "user",
       applied: true,
       active_config_hash: "sha256:test-active",
       active_generation: 1,
@@ -180,14 +180,14 @@ describe("useSettingsSkillsPage", () => {
           marketplace: skillsEnvelope.config.marketplace,
         }),
       },
-      { scope: "global" }
+      { scope: "user" }
     );
   });
 
   it("save policy sends full config with only policy changes and records restart-required label", async () => {
     vi.mocked(updateSettingsSkills).mockResolvedValue({
       section: "skills",
-      scope: "global",
+      scope: "user",
       applied: true,
       active_config_hash: "sha256:test-active",
       active_generation: 1,
@@ -223,7 +223,7 @@ describe("useSettingsSkillsPage", () => {
           disabled_skills: skillsEnvelope.config.disabled_skills,
         }),
       },
-      { scope: "global" }
+      { scope: "user" }
     );
   });
 
@@ -245,7 +245,7 @@ describe("useSettingsSkillsPage", () => {
       persisted = true;
       return {
         section: "skills",
-        scope: "global",
+        scope: "user",
         applied: true,
         active_config_hash: "sha256:test-active",
         active_generation: 1,
@@ -288,8 +288,8 @@ describe("useSettingsSkillsPage", () => {
       const requested = filter ?? {};
       return {
         ...skillsEnvelope,
-        scope: requested.scope ?? "global",
-        available_scopes: ["global", "agent"],
+        scope: requested.scope ?? "user",
+        available_scopes: ["user", "agent"],
         agent_name: requested.agent_name,
       };
     });

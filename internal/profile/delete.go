@@ -78,6 +78,21 @@ func (m *Manager) Delete(
 				return fmt.Errorf("profile: remove support state for %q: %w", name, err)
 			}
 		}
+		if _, err := exec.ExecContext(
+			ctx,
+			`DELETE FROM mcp_oauth_registrations WHERE scope = 'profile' AND workspace_id = ?`,
+			profile.Name,
+		); err != nil {
+			return fmt.Errorf("profile: remove MCP registrations for %q: %w", name, err)
+		}
+		if _, err := exec.ExecContext(
+			ctx,
+			`DELETE FROM vault_secrets WHERE ref LIKE ? OR ref LIKE ?`,
+			profileVaultRefPrefix(profile.Name)+"%",
+			profileMCPVaultRefPrefix(profile.Name)+"%",
+		); err != nil {
+			return fmt.Errorf("profile: remove credential overrides for %q: %w", name, err)
+		}
 		if _, err := exec.ExecContext(ctx, `DELETE FROM profiles WHERE id = ?`, profile.ID); err != nil {
 			return fmt.Errorf("profile: delete %q: %w", name, err)
 		}

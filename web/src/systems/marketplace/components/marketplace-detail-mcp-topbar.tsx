@@ -14,12 +14,14 @@ import {
   SETTINGS_QUERY_INTERVALS,
   useMCPAuthorize,
   useSettingsMCPServers,
+  type SettingsLayeredScope,
 } from "@/systems/settings";
 
 interface MarketplaceMCPDetailTopbarActionsProps {
   entry: MarketplaceEntryResponse["entry"];
-  scope?: "global" | "workspace";
+  scope?: SettingsLayeredScope;
   workspaceId?: string;
+  profileName?: string;
   onAction: (entry: MarketplaceListing) => void;
   pending: boolean;
   liveDataEnabled?: boolean;
@@ -35,6 +37,7 @@ function MarketplaceMCPDetailTopbarActions({
   entry,
   scope,
   workspaceId,
+  profileName,
   onAction,
   pending,
   liveDataEnabled = true,
@@ -43,6 +46,7 @@ function MarketplaceMCPDetailTopbarActions({
     entry,
     scope,
     workspaceId,
+    profileName,
     liveDataEnabled
   );
   const authorize = useMCPAuthorize();
@@ -79,7 +83,7 @@ function MarketplaceMCPDetailTopbarActions({
       <MarketplaceMCPTopbarEntryControls entry={entry} onAction={onAction} pending={pending}>
         <MCPAuthorizeDialog
           authorize={authorize}
-          scope={authFilter?.scope ?? "global"}
+          scope={authFilter?.scope ?? "user"}
           server={polledServer}
         />
       </MarketplaceMCPTopbarEntryControls>
@@ -119,7 +123,7 @@ function MarketplaceMCPDetailTopbarActions({
       </Button>
       <MCPAuthorizeDialog
         authorize={authorize}
-        scope={authFilter?.scope ?? "global"}
+        scope={authFilter?.scope ?? "user"}
         server={polledServer}
       />
     </>

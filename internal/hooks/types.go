@@ -38,11 +38,13 @@ var hookSourceNames = map[HookSource]string{
 type HookSkillSource string
 
 const (
-	HookSkillSourceBundled     HookSkillSource = "bundled"
-	HookSkillSourceMarketplace HookSkillSource = "marketplace"
-	HookSkillSourceUser        HookSkillSource = "user"
-	HookSkillSourceAdditional  HookSkillSource = "additional"
-	HookSkillSourceWorkspace   HookSkillSource = "workspace"
+	HookSkillSourceBundled          HookSkillSource = "bundled"
+	HookSkillSourceMarketplace      HookSkillSource = "marketplace"
+	HookSkillSourceUser             HookSkillSource = "user"
+	HookSkillSourceProfile          HookSkillSource = "profile"
+	HookSkillSourceAdditional       HookSkillSource = "additional"
+	HookSkillSourceWorkspace        HookSkillSource = "workspace"
+	HookSkillSourceWorkspaceProfile HookSkillSource = "workspace_profile"
 )
 
 // String returns the stable text form for the hook source.
@@ -90,8 +92,10 @@ func (s HookSkillSource) Validate() error {
 	case HookSkillSourceBundled,
 		HookSkillSourceMarketplace,
 		HookSkillSourceUser,
+		HookSkillSourceProfile,
 		HookSkillSourceAdditional,
-		HookSkillSourceWorkspace:
+		HookSkillSourceWorkspace,
+		HookSkillSourceWorkspaceProfile:
 		return nil
 	default:
 		return fmt.Errorf("hooks: invalid hook skill source %q", s)

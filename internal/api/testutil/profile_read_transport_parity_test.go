@@ -80,6 +80,28 @@ func TestProfileDetailReadHTTPUDSTransportParityIT070(t *testing.T) {
 	}
 }
 
+// Canonical suite: IT-074 memory aggregate reads fail closed across HTTP and UDS.
+func TestMemoryAggregateReadRefusalHTTPUDSTransportParityIT074(t *testing.T) {
+	t.Parallel()
+
+	profiles := parityProfileService{profiles: []profilepkg.ProfileWithCounts{{Profile: profilepkg.Profile{
+		ID: store.DefaultProfileID, Name: "default", Color: "#8E8EB5", State: profilepkg.StateActive,
+	}}}}
+	httpRouter := newProfileReadParityHTTPRouter(t, &testutil.StubTaskManager{}, profiles)
+	udsRouter := newProfileReadParityUDSRouter(t, &testutil.StubTaskManager{}, profiles)
+	httpResponse := performWorktreeParityRequest(t, httpRouter, http.MethodGet, "/api/memory?all_profiles=true", "")
+	udsResponse := performWorktreeParityRequest(t, udsRouter, http.MethodGet, "/api/memory?all_profiles=true", "")
+	assertWorktreeParityResponse(t, httpResponse, udsResponse, http.StatusBadRequest)
+
+	var payload contract.ProfileErrorPayload
+	if err := json.Unmarshal(httpResponse.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode memory aggregate refusal: %v", err)
+	}
+	if payload.Error.Code != "profile_selection_conflict" {
+		t.Fatalf("memory aggregate error = %#v, want profile_selection_conflict", payload.Error)
+	}
+}
+
 type parityProfileService struct {
 	core.ProfileService
 	profiles []profilepkg.ProfileWithCounts

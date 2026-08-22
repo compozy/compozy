@@ -109,6 +109,7 @@ func TestHomePathsExtensionDataPathEncodesInstanceScope(t *testing.T) {
 		name        string
 		extension   string
 		workspaceID string
+		profileID   string
 		wantSegment string
 	}{
 		{name: "Should encode a global dotted name", extension: "acme.tools", wantSegment: "acme.tools"},
@@ -118,12 +119,19 @@ func TestHomePathsExtensionDataPathEncodesInstanceScope(t *testing.T) {
 			workspaceID: "abc-123",
 			wantSegment: "acme.tools@ws-abc-123",
 		},
+		{
+			name:        "Should encode a rename-stable default profile instance",
+			extension:   "acme.tools",
+			workspaceID: "abc-123",
+			profileID:   "00000000000000000000000000",
+			wantSegment: "acme.tools@ws-abc-123@pf-00000000000000000000000000",
+		},
 		{name: "Should keep the data package under the dedicated root", extension: "data", wantSegment: "data"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			got, pathErr := paths.ExtensionDataPath(test.extension, test.workspaceID)
+			got, pathErr := paths.ExtensionDataPath(test.extension, test.workspaceID, test.profileID)
 			if pathErr != nil {
 				t.Fatalf("ExtensionDataPath() error = %v", pathErr)
 			}
@@ -149,6 +157,9 @@ func TestHomePathsExtensionDataPathEncodesInstanceScope(t *testing.T) {
 		if _, pathErr := paths.ExtensionDataPath(invalid, ""); pathErr == nil {
 			t.Fatalf("ExtensionDataPath(%q) error = nil, want containment rejection", invalid)
 		}
+	}
+	if _, pathErr := paths.ExtensionDataPath("acme.tools", "", "marketing"); pathErr == nil {
+		t.Fatal("ExtensionDataPath(profile name) error = nil, want stable profile id rejection")
 	}
 }
 

@@ -131,7 +131,7 @@ func (s *Store) replayBatchDecision(
 	workspaceID string,
 	idempotencyKey string,
 ) (BatchApplyResult, bool, error) {
-	stored, found, err := s.catalog.loadDecisionByIdempotencyKey(ctx, idempotencyKey)
+	stored, found, err := s.catalog.loadDecisionByIdempotencyKey(ctx, s.profileID, idempotencyKey)
 	if err != nil || !found {
 		return BatchApplyResult{}, found, err
 	}

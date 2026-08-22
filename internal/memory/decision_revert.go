@@ -21,7 +21,7 @@ func (s *Store) RevertDecision(ctx context.Context, id string) (DecisionRevertRe
 	if err := s.ensureDecisionCatalog(ctx); err != nil {
 		return DecisionRevertResult{}, err
 	}
-	decision, err := s.catalog.loadDecision(ctx, id)
+	decision, err := s.catalog.loadDecision(ctx, s.profileID, id)
 	if err != nil {
 		return DecisionRevertResult{}, err
 	}

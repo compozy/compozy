@@ -19,6 +19,7 @@ function normalizeSettingsCmdPaletteFilter(
   return {
     scope: filter.scope,
     workspace_id: normalizeOptionalText(filter.workspace_id),
+    profile: normalizeOptionalText(filter.profile),
   };
 }
 

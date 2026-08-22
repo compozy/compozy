@@ -71,7 +71,7 @@ describe("useMarketplaceMCPEditor", () => {
       () =>
         useMarketplaceMCPEditor({
           enabled: true,
-          scope: "global",
+          scope: "user",
           servers: [],
         }),
       { wrapper }
@@ -91,7 +91,7 @@ describe("useMarketplaceMCPEditor", () => {
     expect(mocks.mutateAsync).toHaveBeenCalledOnce();
     expect(mocks.mutateAsync).toHaveBeenCalledWith({
       body: { server: { command: "npx", name: "github", transport: "stdio" } },
-      filter: { scope: "global", target: "auto" },
+      filter: { scope: "user", target: "auto" },
       name: "github",
     });
   });
@@ -106,7 +106,7 @@ describe("useMarketplaceMCPEditor", () => {
       () =>
         useMarketplaceMCPEditor({
           enabled: true,
-          scope: "global",
+          scope: "user",
           servers: [],
         }),
       { wrapper }
@@ -136,5 +136,42 @@ describe("useMarketplaceMCPEditor", () => {
 
     act(() => result.current.editorProps?.onClose());
     expect(mocks.reset).toHaveBeenCalledOnce();
+  });
+
+  it("Should carry the active profile into a profile save", async () => {
+    mocks.mutateAsync.mockResolvedValue(undefined);
+    const { result } = renderHook(
+      () =>
+        useMarketplaceMCPEditor({
+          enabled: true,
+          profileName: "marketing",
+          scope: "profile",
+          servers: [],
+          workspaceId: "workspace:alpha",
+        }),
+      { wrapper }
+    );
+
+    act(() => result.current.openCreate());
+    act(() =>
+      result.current.editorProps?.onChange(draft => ({
+        ...draft,
+        command: "npx",
+        name: "github",
+      }))
+    );
+    act(() => result.current.editorProps?.onSave());
+
+    await waitFor(() => expect(mocks.mutateAsync).toHaveBeenCalledOnce());
+    expect(mocks.mutateAsync).toHaveBeenCalledWith({
+      body: { server: { command: "npx", name: "github", transport: "stdio" } },
+      filter: {
+        profile: "marketing",
+        scope: "profile",
+        target: "auto",
+        workspace_id: "workspace:alpha",
+      },
+      name: "github",
+    });
   });
 });

@@ -32,7 +32,7 @@ func settingsWindowManagerSectionResponse(
 		diagnostics = storedDiagnostics
 	}
 	return contract.SettingsWindowManagerResponse{
-		SettingsGlobalWorkspaceSectionResponseMetaPayload: settingsGlobalWorkspaceSectionMetaPayload(envelope),
+		SettingsWorkspaceSectionResponseMetaPayload: settingsUserWorkspaceSectionMetaPayload(envelope),
 		Config: settingsWindowManagerConfigPayload(
 			envelope.WindowManager.Config,
 		),

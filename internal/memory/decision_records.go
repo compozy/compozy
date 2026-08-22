@@ -24,7 +24,7 @@ func (s *Store) LoadDecisionRecord(ctx context.Context, id string) (DecisionReco
 	if err := s.ensureDecisionCatalog(ctx); err != nil {
 		return DecisionRecord{}, err
 	}
-	decision, err := s.catalog.loadDecision(ctx, id)
+	decision, err := s.catalog.loadDecision(ctx, s.profileID, id)
 	if err != nil {
 		return DecisionRecord{}, err
 	}

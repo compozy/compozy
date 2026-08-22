@@ -11,10 +11,10 @@ import (
 var vaultSafeSegmentPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
 
 const (
-	// MCPGlobalScope identifies machine-global MCP credentials.
-	MCPGlobalScope = "global"
 	// MCPUserScope identifies user-owned MCP credentials.
 	MCPUserScope = "user"
+	// MCPProfileScope identifies profile-owned MCP credentials.
+	MCPProfileScope = "profile"
 	// MCPWorkspaceScope identifies workspace-owned MCP credentials.
 	MCPWorkspaceScope = "workspace"
 	// MCPSharedRefPrefix identifies MCP secrets explicitly shared across owners.
@@ -76,16 +76,17 @@ func MCPSecretOwnerPrefix(scope string, workspaceID string, serverName string) (
 
 	var owner string
 	switch strings.TrimSpace(scope) {
-	case MCPGlobalScope:
-		if strings.TrimSpace(workspaceID) != "" {
-			return "", errors.New("vault: global MCP secret owner cannot include workspace_id")
-		}
-		owner = "global/" + serverSegment
 	case MCPUserScope:
 		if strings.TrimSpace(workspaceID) != "" {
 			return "", errors.New("vault: user MCP secret owner cannot include workspace_id")
 		}
 		owner = "user/" + serverSegment
+	case MCPProfileScope:
+		segment, err := MCPWorkspaceSegment(workspaceID)
+		if err != nil {
+			return "", fmt.Errorf("vault: profile name is required for profile MCP secrets: %w", err)
+		}
+		owner = "profile/" + segment + "/" + serverSegment
 	case MCPWorkspaceScope:
 		segment, err := MCPWorkspaceSegment(workspaceID)
 		if err != nil {

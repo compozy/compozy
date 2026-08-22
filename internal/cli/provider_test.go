@@ -812,3 +812,23 @@ func providerTestEnvValue(env []string, key string) string {
 	}
 	return ""
 }
+
+func TestProviderCredentialSourceLabels(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should distinguish profile overrides from user fallback [E2E-007]", func(t *testing.T) {
+		t.Parallel()
+
+		statuses := []providerCredentialStatusItem{
+			{SecretRef: "vault:profiles/marketing/providers/openai/api_key"},
+			{SecretRef: "vault:providers/openai/organization"},
+		}
+		labelProviderCredentialSources(statuses, "marketing")
+		if got, want := statuses[0].Source, "profile marketing (override)"; got != want {
+			t.Fatalf("override source = %q, want %q", got, want)
+		}
+		if got, want := statuses[1].Source, "user (default)"; got != want {
+			t.Fatalf("fallback source = %q, want %q", got, want)
+		}
+	})
+}

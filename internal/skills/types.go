@@ -108,6 +108,10 @@ const (
 	SourceWorkspace
 	// SourceAgentLocal is the final overlay from `<root>/.compozy/agents/<name>/skills/`.
 	SourceAgentLocal
+	// SourceProfile identifies personal skills under the active profile directory.
+	SourceProfile
+	// SourceWorkspaceProfile identifies project skills bound to the active profile name.
+	SourceWorkspaceProfile
 )
 
 // MCPServerDecl declares an MCP server dependency in skill frontmatter.

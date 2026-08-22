@@ -23,23 +23,7 @@ func newConfigPathCommand(deps commandDeps) *cobra.Command {
 		Short: "Show resolved CompozyOS config paths",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			scope, err := parseWriteScope(scopeRaw)
-			if err != nil {
-				return err
-			}
-			homeWorkspace := ""
-			if scope == compozyconfig.WriteScopeWorkspace || strings.TrimSpace(workspaceRoot) != "" {
-				homeWorkspace, err = resolveConfigWorkspaceRoot(cmd, deps, workspaceRoot)
-				if err != nil {
-					return err
-				}
-			} else {
-				homeWorkspace, err = currentWorkingDirectory(deps)
-				if err != nil {
-					return err
-				}
-			}
-			homePaths, err := deps.resolveHomeForWorkspace(homeWorkspace)
+			homePaths, selected, homeWorkspace, err := configWriteTarget(cmd, deps, scopeRaw, workspaceRoot)
 			if err != nil {
 				return err
 			}
@@ -47,20 +31,16 @@ func newConfigPathCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			selected, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeUser)
-			if err != nil {
-				return err
-			}
 			record := configPathRecord{
 				HomeDir:              homePaths.HomeDir,
 				GlobalConfig:         homePaths.ConfigFile,
 				GlobalMCPJSON:        globalMCP.Path(),
-				Scope:                string(scope),
+				Scope:                string(selected.Scope()),
 				Managed:              detectManagedState(deps).Managed,
 				Manager:              detectManagedState(deps).Manager,
 				SelectedConfigTarget: selected.Path(),
 			}
-			if scope == compozyconfig.WriteScopeWorkspace || strings.TrimSpace(workspaceRoot) != "" {
+			if selected.Scope() == compozyconfig.WriteScopeWorkspace || strings.TrimSpace(workspaceRoot) != "" {
 				workspace := homeWorkspace
 				workspaceConfig, err := compozyconfig.ResolveConfigWriteTarget(
 					homePaths,
@@ -81,7 +61,7 @@ func newConfigPathCommand(deps commandDeps) *cobra.Command {
 				record.WorkspaceRoot = workspace
 				record.WorkspaceConfig = workspaceConfig.Path()
 				record.WorkspaceMCPJSON = workspaceMCP.Path()
-				if scope == compozyconfig.WriteScopeWorkspace {
+				if selected.Scope() == compozyconfig.WriteScopeWorkspace {
 					record.SelectedConfigTarget = workspaceConfig.Path()
 				}
 			}
@@ -89,7 +69,7 @@ func newConfigPathCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().
-		StringVar(&scopeRaw, configScopeKey, string(compozyconfig.WriteScopeUser), "Path scope: user or workspace")
+		StringVar(&scopeRaw, configScopeKey, "", "Path scope: user, profile, or workspace (defaults to active owner)")
 	cmd.Flags().
 		StringVar(&workspaceRoot, "workspace", "", "Override workspace binding (ID, name, or path)")
 	return cmd
@@ -259,7 +239,7 @@ func newConfigEditCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().
-		StringVar(&scopeRaw, configScopeKey, string(compozyconfig.WriteScopeUser), "Edit scope: user or workspace")
+		StringVar(&scopeRaw, configScopeKey, "", "Edit scope: user, profile, or workspace (defaults to active owner)")
 	cmd.Flags().
 		StringVar(&workspaceRoot, "workspace", "", "Override workspace binding (ID, name, or path)")
 	return cmd

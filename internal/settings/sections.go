@@ -59,12 +59,13 @@ func (s *service) GetSection(ctx context.Context, req SectionRequest) (SectionEn
 		return SectionEnvelope{}, fmt.Errorf("settings: get section %q: %w", req.Section, err)
 	}
 
-	cfg, resolved, err := s.loadConfig(ctx, scope, workspaceID)
+	cfg, resolved, err := s.loadConfig(ctx, scope, workspaceID, req.ProfileName)
 	if err != nil {
 		return SectionEnvelope{}, fmt.Errorf("settings: load section %q config: %w", req.Section, err)
 	}
 
 	envelope := newSectionEnvelope(req.Section, scope, workspaceID, agentName)
+	envelope.ProfileName = req.ProfileName
 	envelope.ClientID = req.ClientID
 	if err := s.populateSectionEnvelope(ctx, &envelope, &cfg, resolved); err != nil {
 		return SectionEnvelope{}, err
@@ -107,7 +108,7 @@ func (s *service) resolveSectionScope(
 }
 
 func validateSectionScope(section SectionName, scope ScopeKind, agentName string) error {
-	if section == SectionRoles || section == SectionWindowManager || section == SectionCmdPalette {
+	if section == SectionRoles || section == SectionPersona || section == SectionWindowManager || section == SectionCmdPalette {
 		if scope == ScopeAgent {
 			return conflictError(
 				fmt.Errorf("settings: section %q does not support %s scope", section, scope),
@@ -229,6 +230,10 @@ func (s *service) populateSectionEnvelope(
 
 func populateSimpleSectionEnvelope(envelope *SectionEnvelope, cfg *compozyconfig.Config) bool {
 	switch envelope.Section {
+	case SectionPersona:
+		envelope.AvailableScopes = []ScopeKind{ScopeUser, ScopeProfile, ScopeWorkspace}
+		section := PersonaSection{Config: cfg.Defaults}
+		envelope.Persona = &section
 	case SectionRoles:
 		envelope.AvailableScopes = []ScopeKind{ScopeUser, ScopeWorkspace}
 		section := RolesSection{Config: compozyconfig.CloneRolesConfig(&cfg.Roles)}
@@ -238,7 +243,7 @@ func populateSimpleSectionEnvelope(envelope *SectionEnvelope, cfg *compozyconfig
 		section := GatewaySection{Config: cfg.Gateway}
 		envelope.Gateway = &section
 	case SectionCmdPalette:
-		envelope.AvailableScopes = []ScopeKind{ScopeUser, ScopeWorkspace}
+		envelope.AvailableScopes = []ScopeKind{ScopeUser, ScopeProfile, ScopeWorkspace}
 		section := buildCmdPaletteSection(cfg)
 		envelope.CmdPalette = &section
 	case SectionAttention:

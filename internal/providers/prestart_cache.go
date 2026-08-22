@@ -22,31 +22,16 @@ const (
 // daemon composition. Entries use LRU eviction; ties are resolved by the
 // explicit comparable key order so eviction stays deterministic.
 type PreStarter struct {
-	mu         sync.Mutex
-	entries    map[preStartCacheKey]preStartCacheEntry
-	now        func() time.Time
-	ttl        time.Duration
-	capacity   int
-	access     uint64
-	generation uint64
-	cacheKey   preStartCacheHMACKey
-	cacheReady bool
-}
-
-type preStartCacheKey struct {
-	ProviderName      string
-	WorkspaceID       string
-	HomeIdentity      string
-	SandboxID         string
-	SandboxBackend    string
-	SandboxProfile    string
-	SandboxInstanceID string
-	AuthMode          compozyconfig.ProviderAuthMode
-	EnvPolicy         compozyconfig.ProviderEnvPolicy
-	HomePolicy        compozyconfig.ProviderHomePolicy
-	Harness           compozyconfig.ProviderHarness
-	RuntimeProvider   string
-	Fingerprint       preStartCacheFingerprint
+	mu                  sync.Mutex
+	entries             map[preStartCacheKey]preStartCacheEntry
+	now                 func() time.Time
+	ttl                 time.Duration
+	capacity            int
+	access              uint64
+	generation          uint64
+	cacheKey            preStartCacheHMACKey
+	cacheReady          bool
+	profileAvailability ProfileAvailabilityChecker
 }
 
 type preStartCacheEntry struct {
@@ -101,6 +86,9 @@ func (s *PreStarter) PreStart(
 	env *ProbeEnv,
 ) PreStartReport {
 	normalized := env.Normalize()
+	if err := s.checkProfileAvailability(ctx, &normalized); err != nil {
+		return preStartErrorReport(&normalized, err)
+	}
 	if s == nil || !preStartContextCacheable(ctx) {
 		return runPreStart(ctx, provider, &normalized)
 	}
@@ -184,60 +172,8 @@ func withPreStartClock(now func() time.Time) preStarterOption {
 	}
 }
 
-func (s *PreStarter) newPreStartCacheKey(
-	provider compozyconfig.ProviderConfig,
-	env *ProbeEnv,
-) (preStartCacheKey, bool) {
-	if s == nil || !s.cacheReady {
-		return preStartCacheKey{}, false
-	}
-	scope := normalizePreStartScope(env.PreStartScope)
-	providerName := strings.TrimSpace(env.ProviderName)
-	if providerName == "" || !scope.cacheable() {
-		return preStartCacheKey{}, false
-	}
-	fingerprint, fingerprinted := preStartSemanticFingerprint(s.cacheKey, provider, env)
-	if !fingerprinted {
-		return preStartCacheKey{}, false
-	}
-	return preStartCacheKey{
-		ProviderName:      providerName,
-		WorkspaceID:       scope.WorkspaceID,
-		HomeIdentity:      scope.HomeIdentity,
-		SandboxID:         scope.SandboxID,
-		SandboxBackend:    scope.SandboxBackend,
-		SandboxProfile:    scope.SandboxProfile,
-		SandboxInstanceID: scope.SandboxInstanceID,
-		AuthMode:          provider.EffectiveAuthMode(),
-		EnvPolicy:         provider.EffectiveEnvPolicy(),
-		HomePolicy:        provider.EffectiveHomePolicy(),
-		Harness:           provider.EffectiveHarness(),
-		RuntimeProvider:   strings.TrimSpace(provider.RuntimeProviderName(providerName)),
-		Fingerprint:       fingerprint,
-	}, true
-}
-
 func preStartContextCacheable(ctx context.Context) bool {
 	return ctx != nil && ctx.Err() == nil && context.Cause(ctx) == nil
-}
-
-func normalizePreStartScope(scope PreStartScope) PreStartScope {
-	return PreStartScope{
-		WorkspaceID:       strings.TrimSpace(scope.WorkspaceID),
-		HomeIdentity:      strings.TrimSpace(scope.HomeIdentity),
-		SandboxID:         strings.TrimSpace(scope.SandboxID),
-		SandboxBackend:    strings.TrimSpace(scope.SandboxBackend),
-		SandboxProfile:    strings.TrimSpace(scope.SandboxProfile),
-		SandboxInstanceID: strings.TrimSpace(scope.SandboxInstanceID),
-	}
-}
-
-func (s PreStartScope) cacheable() bool {
-	return s.WorkspaceID != "" &&
-		s.HomeIdentity != "" &&
-		s.SandboxID != "" &&
-		s.SandboxBackend != "" &&
-		s.SandboxProfile != ""
 }
 
 func (s *PreStarter) deleteExpiredLocked(now time.Time) {

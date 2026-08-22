@@ -317,7 +317,7 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 	state.startupOverlay = compozyRuntimePromptOverlay{}
 	promptAugmenterDescriptors := defaultPromptInputAugmenterDescriptors(
 		situation.WorkspaceKnowledgeAugmenter,
-		memory.NewRecallAugmenter(state.memoryStore),
+		memory.NewProfileRecallAugmenter(state.memoryStore, d.memoryRecallStoreResolver(state)),
 		newSkillsCatalogAugmenter(state.skillsRegistry, func() session.AgentResolver {
 			return agentCatalogDependency(state.agentCatalog)
 		}, func() promptSkillsWorkspaceResolver {

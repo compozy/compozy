@@ -277,6 +277,7 @@ func registerMarketplaceRoutes(api gin.IRouter, handlers *Handlers) {
 
 func registerMemoryRoutes(api gin.IRouter, handlers *Handlers) {
 	memoryGroup := api.Group("/memory")
+	memoryGroup.Use(handlers.BindMemoryProfile)
 	memoryGroup.GET("", handlers.ListMemory)
 	memoryGroup.GET("/health", handlers.MemoryHealth)
 	memoryGroup.GET("/config", handlers.MemoryConfigMetadata)
@@ -315,6 +316,7 @@ func registerMemoryRoutes(api gin.IRouter, handlers *Handlers) {
 	memoryGroup.DELETE("/:filename", handlers.DeleteMemory)
 
 	workspaceMemorySessions := api.Group("/workspaces/:workspace_id/memory/sessions")
+	workspaceMemorySessions.Use(handlers.BindMemoryProfile)
 	workspaceMemorySessions.GET("/:session_id/ledger", handlers.GetMemorySessionLedger)
 	workspaceMemorySessions.POST("/:session_id/replay", handlers.ReplayMemorySession)
 }
@@ -385,10 +387,12 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.GET("/apply", handlers.ListSettingsApplyRecords)
 	settings.POST("/reload", privileged, handlers.ReloadSettings)
 	settings.GET("/general", handlers.GetSettingsGeneral)
+	settings.GET("/persona", handlers.GetSettingsPersona)
 	settings.GET("/update", handlers.GetSettingsUpdate)
 	settings.POST("/update/apply", privileged, handlers.ApplySettingsUpdate)
 	settings.POST("/update/cancel", privileged, handlers.CancelSettingsUpdate)
 	settings.PATCH("/general", privileged, handlers.UpdateSettingsGeneral)
+	settings.PATCH("/persona", privileged, handlers.UpdateSettingsPersona)
 	settings.GET("/memory", handlers.GetSettingsMemory)
 	settings.PATCH("/memory", privileged, handlers.UpdateSettingsMemory)
 	settings.GET("/roles", handlers.GetSettingsRoles)

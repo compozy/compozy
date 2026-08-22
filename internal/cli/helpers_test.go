@@ -122,7 +122,7 @@ type stubClient struct {
 	marketplaceInfoFn           func(context.Context, string, string, string, MarketplaceReadScope) (MarketplaceEntryRecord, error)
 	refreshMarketplaceFn        func(context.Context, string) (MarketplaceRefreshRecord, error)
 	installSettingsMCPServerFn  func(context.Context, InstallSettingsMCPServerRequest) (InstallSettingsMCPServerRecord, error)
-	listSettingsMCPServersFn    func(context.Context, contract.SettingsWorkspaceScopeKind, string) (contract.SettingsMCPServersResponse, error)
+	listSettingsMCPServersFn    func(context.Context, contract.SettingsLayeredScopeKind, string, string) (contract.SettingsMCPServersResponse, error)
 	getSettingsMCPAuthStatusFn  func(context.Context, SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error)
 	beginSettingsMCPAuthFn      func(
 		context.Context,
@@ -526,6 +526,11 @@ type stubClient struct {
 	agentTaskCompleteFn    func(context.Context, string, AgentTaskCompleteRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error)
 	agentTaskFailFn        func(context.Context, string, AgentTaskFailRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error)
 	agentTaskReleaseFn     func(context.Context, string, AgentTaskReleaseRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error)
+}
+
+type profileAwareStubClient struct {
+	*stubClient
+	*profileClientStub
 }
 
 func (s *stubClient) SearchExtensions(
@@ -1133,11 +1138,12 @@ func (s *stubClient) InstallSettingsMCPServer(
 
 func (s *stubClient) ListSettingsMCPServers(
 	ctx context.Context,
-	scope contract.SettingsWorkspaceScopeKind,
+	scope contract.SettingsLayeredScopeKind,
 	workspaceID string,
+	profile string,
 ) (contract.SettingsMCPServersResponse, error) {
 	if s.listSettingsMCPServersFn != nil {
-		return s.listSettingsMCPServersFn(ctx, scope, workspaceID)
+		return s.listSettingsMCPServersFn(ctx, scope, workspaceID, profile)
 	}
 	return contract.SettingsMCPServersResponse{}, errors.New("unexpected ListSettingsMCPServers call")
 }

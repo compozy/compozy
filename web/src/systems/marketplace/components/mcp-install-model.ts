@@ -1,4 +1,5 @@
 import type { MarketplaceEntryResponse, MCPInstallRequest } from "../types";
+import type { MCPConfigScope } from "../hooks/marketplace-mcp-scope";
 
 export type MCPInputField = NonNullable<
   NonNullable<MarketplaceEntryResponse["mcp"]>["inputs"]
@@ -45,8 +46,9 @@ export function bindingValuePresent(binding: MCPFieldBinding): boolean {
 
 export function buildMCPInstallRequest(
   data: MarketplaceEntryResponse,
-  scope: "global" | "workspace",
+  scope: MCPConfigScope,
   workspaceId: string | null | undefined,
+  profileName: string | null | undefined,
   bindings: Record<string, MCPFieldBinding>
 ): MCPInstallRequest {
   const inputs = Object.fromEntries(
@@ -67,6 +69,7 @@ export function buildMCPInstallRequest(
     entry_id: data.entry.entry_id,
     scope,
     values: Object.keys(inputs).length === 0 ? null : { inputs },
-    workspace_id: scope === "workspace" ? (workspaceId ?? undefined) : undefined,
+    workspace_id: scope === "user" ? undefined : (workspaceId ?? undefined),
+    profile: scope === "profile" ? (profileName ?? undefined) : undefined,
   };
 }

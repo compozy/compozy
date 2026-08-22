@@ -114,7 +114,7 @@ func (s *Store) ListDreamRunRecords(ctx context.Context, query DreamRunListQuery
 	if err := s.ensureDecisionCatalog(ctx); err != nil {
 		return nil, err
 	}
-	return s.catalog.listDreamRuns(ctx, query)
+	return s.catalog.listDreamRuns(ctx, s.profileID, query)
 }
 
 // LoadDreamRunRecord returns one persisted dreaming run.
@@ -125,7 +125,7 @@ func (s *Store) LoadDreamRunRecord(ctx context.Context, id string) (DreamRunReco
 	if err := s.ensureDecisionCatalog(ctx); err != nil {
 		return DreamRunRecord{}, err
 	}
-	return s.catalog.loadDreamRun(ctx, id)
+	return s.catalog.loadDreamRun(ctx, s.profileID, id)
 }
 
 // ListDailyLogRecords returns memory-event daily summaries ordered newest first.
@@ -136,7 +136,7 @@ func (s *Store) ListDailyLogRecords(ctx context.Context, query DailyLogListQuery
 	if err := s.ensureDecisionCatalog(ctx); err != nil {
 		return nil, err
 	}
-	return s.catalog.listDailyLogs(ctx, query)
+	return s.catalog.listDailyLogs(ctx, s.profileID, query)
 }
 
 func (c *catalog) clearDerivedScope(
@@ -183,7 +183,11 @@ func (c *catalog) clearDerivedScope(
 	return returnCount, nil
 }
 
-func (c *catalog) listDreamRuns(ctx context.Context, query DreamRunListQuery) (records []DreamRunRecord, err error) {
+func (c *catalog) listDreamRuns(
+	ctx context.Context,
+	profileID string,
+	query DreamRunListQuery,
+) (records []DreamRunRecord, err error) {
 	db, err := c.ensureDB(ctx)
 	if err != nil {
 		return nil, err
@@ -196,7 +200,7 @@ func (c *catalog) listDreamRuns(ctx context.Context, query DreamRunListQuery) (r
 		`status, input_count, promoted_count, error, metadata`,
 		`FROM memory_consolidations`,
 	}, "\n")
-	clauses, args, err := dreamRunWhere(query)
+	clauses, args, err := dreamRunWhere(profileID, query)
 	if err != nil {
 		return nil, err
 	}
@@ -225,7 +229,7 @@ func (c *catalog) listDreamRuns(ctx context.Context, query DreamRunListQuery) (r
 	return records, nil
 }
 
-func (c *catalog) loadDreamRun(ctx context.Context, id string) (DreamRunRecord, error) {
+func (c *catalog) loadDreamRun(ctx context.Context, profileID string, id string) (DreamRunRecord, error) {
 	db, err := c.ensureDB(ctx)
 	if err != nil {
 		return DreamRunRecord{}, err
@@ -238,8 +242,10 @@ func (c *catalog) loadDreamRun(ctx context.Context, id string) (DreamRunRecord, 
 		`SELECT id, workspace_id, scope, agent_name, agent_tier, started_at, finished_at,
 			status, input_count, promoted_count, error, metadata
 		 FROM memory_consolidations
-		 WHERE id = ?`,
+		 WHERE id = ?
+		 AND (profile_id = ? OR (profile_id = '' AND scope <> 'profile'))`,
 		strings.TrimSpace(id),
+		strings.TrimSpace(profileID),
 	)
 	record, err := scanDreamRunRecord(row)
 	if err != nil {
@@ -251,9 +257,9 @@ func (c *catalog) loadDreamRun(ctx context.Context, id string) (DreamRunRecord, 
 	return record, nil
 }
 
-func dreamRunWhere(query DreamRunListQuery) ([]string, []any, error) {
-	clauses := make([]string, 0, 4)
-	args := make([]any, 0, 4)
+func dreamRunWhere(profileID string, query DreamRunListQuery) ([]string, []any, error) {
+	clauses := []string{`(profile_id = ? OR (profile_id = '' AND scope <> 'profile'))`}
+	args := []any{strings.TrimSpace(profileID)}
 	if scope := query.Scope.Normalize(); scope != "" {
 		if err := scope.Validate(); err != nil {
 			return nil, nil, wrapValidationError("list dream runs scope", string(query.Scope), err)
@@ -327,7 +333,11 @@ func scanDreamRunRecord(scanner interface{ Scan(dest ...any) error }) (DreamRunR
 	return record, nil
 }
 
-func (c *catalog) listDailyLogs(ctx context.Context, query DailyLogListQuery) (records []DailyLogRecord, err error) {
+func (c *catalog) listDailyLogs(
+	ctx context.Context,
+	profileID string,
+	query DailyLogListQuery,
+) (records []DailyLogRecord, err error) {
 	db, err := c.ensureDB(ctx)
 	if err != nil {
 		return nil, err
@@ -341,7 +351,7 @@ func (c *catalog) listDailyLogs(ctx context.Context, query DailyLogListQuery) (r
 		`COALESCE(agent_tier, ''), COUNT(*)`,
 		`FROM memory_events`,
 	}, "\n")
-	clauses, args, err := dailyLogWhere(query)
+	clauses, args, err := dailyLogWhere(profileID, query)
 	if err != nil {
 		return nil, err
 	}
@@ -381,9 +391,9 @@ func (c *catalog) listDailyLogs(ctx context.Context, query DailyLogListQuery) (r
 	return records, nil
 }
 
-func dailyLogWhere(query DailyLogListQuery) ([]string, []any, error) {
-	clauses := make([]string, 0, 5)
-	args := make([]any, 0, 5)
+func dailyLogWhere(profileID string, query DailyLogListQuery) ([]string, []any, error) {
+	clauses := []string{`(profile_id = ? OR (profile_id = '' AND COALESCE(scope, '') <> 'profile'))`}
+	args := []any{strings.TrimSpace(profileID)}
 	if date := strings.TrimSpace(query.Date); date != "" {
 		if _, err := time.Parse("2006-01-02", date); err != nil {
 			return nil, nil, wrapValidationError("list daily logs date", date, err)

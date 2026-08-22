@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
@@ -17,6 +18,8 @@ func (s *service) updateConfigBackedSection(
 	switch req.Section {
 	case SectionGeneral:
 		return s.updateGeneralSection(ctx, req)
+	case SectionPersona:
+		return s.updatePersonaSection(ctx, req)
 	case SectionMemory:
 		return s.updateMemorySection(ctx, req)
 	case SectionRoles:
@@ -265,6 +268,7 @@ type scopedSectionUpdate struct {
 	target        compozyconfig.WriteTarget
 	scope         ScopeKind
 	workspaceID   string
+	profileName   string
 	workspaceRoot string
 }
 
@@ -273,6 +277,19 @@ func (s *service) loadScopedSectionUpdate(
 	section SectionName,
 	scope ScopeKind,
 	workspaceID string,
+	allowedScopes ...ScopeKind,
+) (scopedSectionUpdate, error) {
+	return s.loadScopedSectionUpdateForProfile(
+		ctx, section, scope, workspaceID, "", allowedScopes...,
+	)
+}
+
+func (s *service) loadScopedSectionUpdateForProfile(
+	ctx context.Context,
+	section SectionName,
+	scope ScopeKind,
+	workspaceID string,
+	profileName string,
 	allowedScopes ...ScopeKind,
 ) (scopedSectionUpdate, error) {
 	normalizedScope, normalizedWorkspaceID, err := s.normalizeReadScope(scope, workspaceID)
@@ -291,7 +308,7 @@ func (s *service) loadScopedSectionUpdate(
 		)
 	}
 
-	cfg, resolved, err := s.loadConfig(ctx, normalizedScope, normalizedWorkspaceID)
+	cfg, resolved, err := s.loadConfig(ctx, normalizedScope, normalizedWorkspaceID, profileName)
 	if err != nil {
 		return scopedSectionUpdate{}, fmt.Errorf(
 			"settings: load section %q config: %w",
@@ -302,14 +319,19 @@ func (s *service) loadScopedSectionUpdate(
 
 	writeScope := compozyconfig.WriteScopeUser
 	workspaceRoot := ""
+	if resolved != nil {
+		workspaceRoot = resolved.RootDir
+	}
 	if normalizedScope == ScopeWorkspace {
 		if resolved == nil {
 			return scopedSectionUpdate{}, errors.New("settings: resolved workspace is required for section update")
 		}
 		writeScope = compozyconfig.WriteScopeWorkspace
-		workspaceRoot = resolved.RootDir
 	}
-	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, writeScope)
+	if normalizedScope == ScopeProfile {
+		writeScope = compozyconfig.WriteScopeProfile
+	}
+	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, writeScope, profileName)
 	if err != nil {
 		return scopedSectionUpdate{}, fmt.Errorf(
 			"settings: resolve section %q write target: %w",
@@ -323,6 +345,7 @@ func (s *service) loadScopedSectionUpdate(
 		target:        target,
 		scope:         normalizedScope,
 		workspaceID:   normalizedWorkspaceID,
+		profileName:   strings.TrimSpace(profileName),
 		workspaceRoot: workspaceRoot,
 	}, nil
 }
@@ -353,16 +376,34 @@ func (s *service) updateScopedConfigSection(
 	workspaceRoot string,
 	mutate func(*compozyconfig.OverlayEditor) error,
 ) (MutationResult, error) {
+	return s.updateScopedConfigSectionForProfile(
+		section, changed, target, scope, workspaceID, "", workspaceRoot, mutate,
+	)
+}
+
+func (s *service) updateScopedConfigSectionForProfile(
+	section SectionName,
+	changed []string,
+	target compozyconfig.WriteTarget,
+	scope ScopeKind,
+	workspaceID string,
+	profileName string,
+	workspaceRoot string,
+	mutate func(*compozyconfig.OverlayEditor) error,
+) (MutationResult, error) {
 	if len(changed) == 0 {
 		return MutationResult{
 			Section:     section,
 			Scope:       scope,
+			WriteTarget: target.Kind(),
 			WorkspaceID: workspaceID,
+			ProfileName: strings.TrimSpace(profileName),
 			Behavior:    MutationBehaviorAppliedNow,
 			Applied:     true,
 			Warnings:    []string{sectionsNoChangesValue},
 			Lifecycle:   lifecycle.Live,
 			DiffClass:   lifecycle.DiffClassForRoot(string(section)),
+			writePath:   target.Path(),
 		}, nil
 	}
 
@@ -380,11 +421,13 @@ func (s *service) updateScopedConfigSection(
 		Scope:           scope,
 		WriteTarget:     target.Kind(),
 		WorkspaceID:     workspaceID,
+		ProfileName:     strings.TrimSpace(profileName),
 		Behavior:        classification.Behavior,
 		Applied:         classification.Applied,
 		RestartRequired: classification.RestartRequired,
 		RestartScope:    classification.RestartScope,
 		Lifecycle:       classification.Lifecycle,
 		DiffClass:       classification.DiffClass,
+		writePath:       target.Path(),
 	}, nil
 }

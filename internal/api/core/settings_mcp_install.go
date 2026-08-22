@@ -57,11 +57,12 @@ func (h *BaseHandlers) InstallSettingsMCPServer(c *gin.Context) {
 
 func parseInstallSettingsMCPServerRequest(c *gin.Context) (settingspkg.MCPCatalogInstallRequest, error) {
 	var body struct {
-		EntryID     string                              `json:"entry_id"`
-		Name        string                              `json:"name,omitempty"`
-		Scope       contract.SettingsWorkspaceScopeKind `json:"scope,omitempty"`
-		WorkspaceID string                              `json:"workspace_id,omitempty"`
-		Values      json.RawMessage                     `json:"values"`
+		EntryID     string                            `json:"entry_id"`
+		Name        string                            `json:"name,omitempty"`
+		Scope       contract.SettingsLayeredScopeKind `json:"scope,omitempty"`
+		WorkspaceID string                            `json:"workspace_id,omitempty"`
+		Profile     string                            `json:"profile,omitempty"`
+		Values      json.RawMessage                   `json:"values"`
 	}
 	if err := decodeStrictJSONBody(c, &body); err != nil {
 		return settingspkg.MCPCatalogInstallRequest{}, NewSettingsValidationError(
@@ -99,6 +100,7 @@ func parseInstallSettingsMCPServerRequest(c *gin.Context) (settingspkg.MCPCatalo
 		Name:        strings.TrimSpace(body.Name),
 		Scope:       settingspkg.ScopeKind(strings.TrimSpace(string(body.Scope))),
 		WorkspaceID: strings.TrimSpace(body.WorkspaceID),
+		ProfileName: strings.TrimSpace(body.Profile),
 		Values:      values,
 	}, nil
 }

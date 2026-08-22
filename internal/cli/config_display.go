@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -98,9 +99,26 @@ func configWriteTarget(
 	scopeRaw string,
 	workspaceRoot string,
 ) (compozyconfig.HomePaths, compozyconfig.WriteTarget, string, error) {
-	scope, err := parseWriteScope(scopeRaw)
+	profileName, err := resolveConfigWriteProfile(cmd, deps)
 	if err != nil {
 		return compozyconfig.HomePaths{}, compozyconfig.WriteTarget{}, "", err
+	}
+	requestedScope := strings.TrimSpace(scopeRaw)
+	if requestedScope == "" {
+		if profileName == "" || profileName == "default" {
+			requestedScope = string(compozyconfig.WriteScopeUser)
+		} else {
+			requestedScope = string(compozyconfig.WriteScopeProfile)
+		}
+	}
+	scope, err := parseWriteScope(requestedScope)
+	if err != nil {
+		return compozyconfig.HomePaths{}, compozyconfig.WriteTarget{}, "", err
+	}
+	if scope == compozyconfig.WriteScopeProfile && (profileName == "" || profileName == "default") {
+		return compozyconfig.HomePaths{}, compozyconfig.WriteTarget{}, "", errors.New(
+			"cli: the default profile writes user config; select a non-default profile or use --scope user",
+		)
 	}
 	var workspace string
 	if scope == compozyconfig.WriteScopeWorkspace {
@@ -129,11 +147,36 @@ func configWriteTarget(
 	if scope == compozyconfig.WriteScopeWorkspace {
 		writeWorkspace = workspace
 	}
-	target, err := compozyconfig.ResolveConfigWriteTarget(homePaths, writeWorkspace, scope)
+	target, err := compozyconfig.ResolveConfigWriteTarget(homePaths, writeWorkspace, scope, profileName)
 	if err != nil {
 		return compozyconfig.HomePaths{}, compozyconfig.WriteTarget{}, "", err
 	}
-	return homePaths, target, writeWorkspace, nil
+	return homePaths, target, workspace, nil
+}
+
+func resolveConfigWriteProfile(cmd *cobra.Command, deps commandDeps) (string, error) {
+	client, err := clientFromDeps(deps)
+	if err != nil {
+		return "", err
+	}
+	profiles, ok := client.(profileClientAPI)
+	if !ok {
+		flag, flagErr := commandProfileFlag(cmd)
+		if flagErr != nil {
+			return "", flagErr
+		}
+		if strings.TrimSpace(flag) != "" || strings.TrimSpace(deps.getenv(profileEnvName)) != "" {
+			return "", newProfileSelectionError(
+				"profile_unavailable", "profile client is unavailable", "start the daemon and retry",
+			)
+		}
+		return "default", nil
+	}
+	resolution, err := resolveCommandProfile(cmd.Context(), cmd, deps, profiles, client)
+	if err != nil {
+		return "", err
+	}
+	return resolution.Profile.Name, nil
 }
 
 func parseWriteScope(raw string) (compozyconfig.WriteScope, error) {

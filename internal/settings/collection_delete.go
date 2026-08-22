@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"context"
 	"fmt"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -29,7 +30,10 @@ func (s *service) deleteProvider(name string) (MutationResult, error) {
 		return MutationResult{}, fmt.Errorf("settings: delete provider %q: %w", name, err)
 	}
 
-	return mutationResultForCollection(CollectionProviders, ScopeUser, "", target.Kind()), nil
+	return mutationResultAtPath(
+		mutationResultForCollection(CollectionProviders, ScopeUser, "", target.Kind()),
+		target.Path(),
+	), nil
 }
 
 func (s *service) putSandbox(name string, profile compozyconfig.SandboxProfile) (MutationResult, error) {
@@ -50,7 +54,10 @@ func (s *service) putSandbox(name string, profile compozyconfig.SandboxProfile) 
 		return MutationResult{}, fmt.Errorf("settings: write sandbox %q: %w", name, err)
 	}
 
-	return mutationResultForCollection(CollectionSandboxes, ScopeUser, "", target.Kind()), nil
+	return mutationResultAtPath(
+		mutationResultForCollection(CollectionSandboxes, ScopeUser, "", target.Kind()),
+		target.Path(),
+	), nil
 }
 
 func (s *service) deleteSandbox(name string) (MutationResult, error) {
@@ -74,23 +81,33 @@ func (s *service) deleteSandbox(name string) (MutationResult, error) {
 		return MutationResult{}, fmt.Errorf("settings: delete sandbox %q: %w", name, err)
 	}
 
-	return mutationResultForCollection(CollectionSandboxes, ScopeUser, "", target.Kind()), nil
+	return mutationResultAtPath(
+		mutationResultForCollection(CollectionSandboxes, ScopeUser, "", target.Kind()),
+		target.Path(),
+	), nil
 }
 
-func (s *service) putHook(name string, declaration hookspkg.HookDecl) (MutationResult, error) {
+func (s *service) putHook(
+	ctx context.Context,
+	scope ScopeKind,
+	workspaceID string,
+	profileName string,
+	name string,
+	declaration hookspkg.HookDecl,
+) (MutationResult, error) {
 	normalized, err := normalizeHookDeclaration(name, declaration)
 	if err != nil {
 		return MutationResult{}, err
 	}
 
-	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeUser)
+	root, target, err := s.resolveCollectionConfigTarget(ctx, scope, workspaceID, profileName)
 	if err != nil {
 		return MutationResult{}, err
 	}
 
 	if _, err := compozyconfig.EditConfigOverlay(
 		s.homePaths,
-		"",
+		root,
 		target,
 		func(editor *compozyconfig.OverlayEditor) error {
 			return editor.UpsertArrayTableItem(
@@ -104,18 +121,27 @@ func (s *service) putHook(name string, declaration hookspkg.HookDecl) (MutationR
 		return MutationResult{}, fmt.Errorf("settings: write hook %q: %w", name, err)
 	}
 
-	return mutationResultForCollection(CollectionHooks, ScopeUser, "", target.Kind()), nil
+	result := mutationResultForCollection(CollectionHooks, scope, workspaceID, target.Kind())
+	result.ProfileName = profileName
+	result.writePath = target.Path()
+	return result, nil
 }
 
-func (s *service) deleteHook(name string) (MutationResult, error) {
-	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeUser)
+func (s *service) deleteHook(
+	ctx context.Context,
+	scope ScopeKind,
+	workspaceID string,
+	profileName string,
+	name string,
+) (MutationResult, error) {
+	root, target, err := s.resolveCollectionConfigTarget(ctx, scope, workspaceID, profileName)
 	if err != nil {
 		return MutationResult{}, err
 	}
 
 	if _, err := compozyconfig.EditConfigOverlay(
 		s.homePaths,
-		"",
+		root,
 		target,
 		func(editor *compozyconfig.OverlayEditor) error {
 			deleted, deleteErr := editor.DeleteArrayTableItem([]string{"hooks", "declarations"}, "name", name)
@@ -131,7 +157,10 @@ func (s *service) deleteHook(name string) (MutationResult, error) {
 		return MutationResult{}, fmt.Errorf("settings: delete hook %q: %w", name, err)
 	}
 
-	return mutationResultForCollection(CollectionHooks, ScopeUser, "", target.Kind()), nil
+	result := mutationResultForCollection(CollectionHooks, scope, workspaceID, target.Kind())
+	result.ProfileName = profileName
+	result.writePath = target.Path()
+	return result, nil
 }
 
 func mutationResultForCollection(

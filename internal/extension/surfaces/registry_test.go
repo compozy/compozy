@@ -23,8 +23,10 @@ func TestLookupReturnsFirstWaveSurfaceMetadata(t *testing.T) {
 	if !slices.Equal(surface.LegalScopes, []resources.ResourceScopeKind{
 		resources.ResourceScopeKindUser,
 		resources.ResourceScopeKindWorkspace,
+		resources.ResourceScopeKindProfile,
+		resources.ResourceScopeKindWorkspaceProfile,
 	}) {
-		t.Fatalf("Lookup(tool).LegalScopes = %#v, want global+workspace", surface.LegalScopes)
+		t.Fatalf("Lookup(tool).LegalScopes = %#v, want every resource scope", surface.LegalScopes)
 	}
 }
 
@@ -78,8 +80,10 @@ func TestResolveManifestRequestExpandsGlobalScopeToGrantedScopeSet(t *testing.T)
 	if !slices.Equal(request.Scopes, []resources.ResourceScopeKind{
 		resources.ResourceScopeKindUser,
 		resources.ResourceScopeKindWorkspace,
+		resources.ResourceScopeKindProfile,
+		resources.ResourceScopeKindWorkspaceProfile,
 	}) {
-		t.Fatalf("ResolveManifestRequest().Scopes = %#v, want global+workspace", request.Scopes)
+		t.Fatalf("ResolveManifestRequest().Scopes = %#v, want every resource scope", request.Scopes)
 	}
 }
 

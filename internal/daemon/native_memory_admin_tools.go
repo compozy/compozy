@@ -203,7 +203,7 @@ func (n *daemonNativeTools) memoryAdminToolBindings(
 
 func (n *daemonNativeTools) memoryAdminHealth(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input memoryAdminHealthInput
@@ -240,7 +240,11 @@ func (n *daemonNativeTools) memoryAdminHealth(
 			payload.LastConsolidation = &lastConsolidation
 		}
 	}
-	globalCount, err := n.deps.MemoryStore.SourceHeaderCount(ctx, memcontract.ScopeProfile)
+	profileStore, err := n.profileMemoryStore(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
+	}
+	globalCount, err := profileStore.SourceHeaderCount(ctx, memcontract.ScopeProfile)
 	if err != nil {
 		payload.Status = "unavailable"
 		payload.Reason = taskpkg.RedactClaimTokens(err.Error())
@@ -253,7 +257,7 @@ func (n *daemonNativeTools) memoryAdminHealth(
 	}
 	payload.WorkspaceCount = len(workspaces)
 	for _, workspace := range workspaces {
-		count, err := n.deps.MemoryStore.ForWorkspace(workspace).SourceHeaderCount(ctx, memcontract.ScopeWorkspace)
+		count, err := profileStore.ForWorkspace(workspace).SourceHeaderCount(ctx, memcontract.ScopeWorkspace)
 		if err != nil {
 			payload.Status = nativeMemoryHealthStatusDegraded
 			payload.Reason = taskpkg.RedactClaimTokens(err.Error())
@@ -261,7 +265,7 @@ func (n *daemonNativeTools) memoryAdminHealth(
 		}
 		payload.WorkspaceFiles += count
 	}
-	stats, err := n.deps.MemoryStore.HealthStats(ctx, workspaces)
+	stats, err := profileStore.HealthStats(ctx, workspaces)
 	if err != nil {
 		payload.Status = nativeMemoryHealthStatusDegraded
 		payload.Reason = taskpkg.RedactClaimTokens(err.Error())
@@ -321,7 +325,11 @@ func (n *daemonNativeTools) memoryAdminHistory(
 		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
 	}
 	query.Since = since
-	records, err := n.deps.MemoryStore.History(ctx, query)
+	profileStore, err := n.profileMemoryStore(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
+	}
+	records, err := profileStore.History(ctx, query)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeMemoryAdminToolError(req.ToolID, err)
 	}

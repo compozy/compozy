@@ -185,6 +185,7 @@ func registerRootCommands(cmd *cobra.Command, deps commandDeps) {
 		newRolesCommand(deps), newExtensionCommand(deps), newHooksCommand(deps), newAutomationCommand(deps),
 		newLoopCommand(deps), newSchedulerCommand(deps), newTaskCommand(deps), newSkillCommand(deps),
 		newResourceCommand(deps), newMemoryCommand(deps), newVaultCommand(deps), newToolCommand(deps),
+		newSecretCommand(deps),
 		newToolsetsCommand(deps), newMCPCommand(deps), newLogsCommand(deps), newWhoamiCommand(deps),
 		newCmdPaletteCommand(deps), newApprovalsCommand(deps),
 		newOpenCommand(deps), newDocCommand(), newInternalCommand(),

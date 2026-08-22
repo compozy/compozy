@@ -110,6 +110,13 @@ func WithProviderSecretResolver(resolver ProviderSecretResolver) Option {
 	}
 }
 
+// WithProfileNameResolver injects stable-id to current-name resolution for profile-owned resources.
+func WithProfileNameResolver(resolver ProfileNameResolver) Option {
+	return func(manager *Manager) {
+		manager.profileNames = resolver
+	}
+}
+
 // WithModelCatalog injects the live model catalog used to validate explicit runtime models.
 func WithModelCatalog(catalog modelcatalog.Service) Option {
 	return func(manager *Manager) {

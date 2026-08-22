@@ -47,13 +47,15 @@ import {
   isMCPAuthorizePending,
   useDeleteSettingsMCPServer,
   useMCPAuthorize,
+  type SettingsLayeredScope,
 } from "@/systems/settings";
 import { useRemoveSkillMarketplace } from "@/systems/skill";
 
 interface MarketplaceActionControllerOptions {
   onViewInstalled?: () => void;
   installedItems?: readonly MarketplaceInstalledItem[];
-  mcpScope?: "global" | "workspace";
+  mcpScope?: SettingsLayeredScope;
+  profileName?: string | null;
   workspaceName?: string | null;
 }
 
@@ -411,7 +413,7 @@ function useMarketplaceActionController(
     <>
       <MarketplaceActionDialogs
         authorize={authorize}
-        authScope={authFilter?.scope ?? "global"}
+        authScope={authFilter?.scope ?? "user"}
         authServer={authServerEntry}
         mcpDetail={phase.status === "mcpInstall" ? dialogDetail : null}
         onConfirmTrust={confirmUnverifiedExtension}
@@ -421,7 +423,8 @@ function useMarketplaceActionController(
         trustEntry={trustEntry(phase)}
         trustError={trustError(phase)}
         trustPending={phase.status === "extensionTrustSubmitting"}
-        scope={options.mcpScope ?? (workspaceId ? "workspace" : "global")}
+        scope={options.mcpScope ?? (workspaceId ? "workspace" : "user")}
+        profileName={options.profileName}
         workspaceId={workspaceId}
         workspaceName={options.workspaceName}
       />

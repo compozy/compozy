@@ -46,7 +46,14 @@ func resolveCommandProfile(
 			"profile_name_invalid", "--profile requires a profile name", "pass --profile <name>",
 		)
 	}
-	workspace, hasWorkspace, err := resolveContextualCommandWorkspace(ctx, cmd, deps, workspaces, "")
+	workspaceRef := ""
+	if cmd != nil && cmd.Flags().Lookup(workspaceFlagName) != nil {
+		workspaceRef, err = commandWorkspaceFlag(cmd)
+		if err != nil {
+			return profileResolution{}, fmt.Errorf("cli: read profile workspace: %w", err)
+		}
+	}
+	workspace, hasWorkspace, err := resolveContextualCommandWorkspace(ctx, cmd, deps, workspaces, workspaceRef)
 	if err != nil {
 		return profileResolution{}, err
 	}

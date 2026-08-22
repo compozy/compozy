@@ -993,6 +993,19 @@ func (r *fakeWorkspaceResolver) Resolve(ctx context.Context, idOrPath string) (w
 	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 }
 
+func (r *fakeWorkspaceResolver) ResolveForProfile(
+	ctx context.Context,
+	idOrPath string,
+	profileName string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	resolved, err := r.Resolve(ctx, idOrPath)
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, err
+	}
+	resolved.ProfileName = strings.TrimSpace(profileName)
+	return resolved, nil
+}
+
 func (r *fakeWorkspaceResolver) ResolveOrRegister(
 	ctx context.Context,
 	path string,
@@ -1059,6 +1072,7 @@ func cloneResolvedWorkspaceForTests(src *workspacepkg.ResolvedWorkspace) workspa
 	}
 	dst := *src
 	dst.AdditionalDirs = append([]string(nil), src.AdditionalDirs...)
+	dst.ProfileDeclarations = append([]workspacepkg.ProfileDeclaration(nil), src.ProfileDeclarations...)
 	dst.Agents = append([]compozyconfig.AgentDef(nil), src.Agents...)
 	dst.Skills = append([]workspacepkg.SkillPath(nil), src.Skills...)
 	return dst

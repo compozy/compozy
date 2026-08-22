@@ -128,7 +128,7 @@ func seedOverviewEvent(
 func TestObserveOverviewTokenUsageDaily(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should isolate usage aggregates by explicit profile scope", func(t *testing.T) {
+	t.Run("Should attribute usage by owner despite mixed credential sources [IT-021]", func(t *testing.T) {
 		t.Parallel()
 
 		globalDB := openTestGlobalDB(t)
@@ -147,11 +147,11 @@ func TestObserveOverviewTokenUsageDaily(t *testing.T) {
 		defaultTokens := int64(10)
 		for _, update := range []store.TokenUsageDailyUpdate{
 			{
-				ProfileID: foreignProfileID, Day: day, AgentName: "foreign", TotalTokens: &foreignTokens,
+				ProfileID: foreignProfileID, Day: day, AgentName: "profile-credential", TotalTokens: &foreignTokens,
 				CostStatus: store.TokenCostStatusIncluded, CostSource: store.TokenCostSourceNone,
 			},
 			{
-				ProfileID: store.DefaultProfileID, Day: day, AgentName: "default", TotalTokens: &defaultTokens,
+				ProfileID: store.DefaultProfileID, Day: day, AgentName: "user-credential", TotalTokens: &defaultTokens,
 				CostStatus: store.TokenCostStatusIncluded, CostSource: store.TokenCostSourceNone,
 			},
 		} {

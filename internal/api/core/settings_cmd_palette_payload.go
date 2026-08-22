@@ -12,8 +12,9 @@ func settingsCmdPaletteSectionResponse(envelope settingspkg.SectionEnvelope) (an
 		return nil, errors.New("settings cmd-palette section is required")
 	}
 	return contract.SettingsCmdPaletteResponse{
-		SettingsGlobalWorkspaceSectionResponseMetaPayload: settingsGlobalWorkspaceSectionMetaPayload(envelope),
-		FallbackAgentEnabled:                              envelope.CmdPalette.FallbackAgentEnabled,
-		Personalization:                                   envelope.CmdPalette.Personalization,
+		SettingsLayeredSectionResponseMetaPayload: settingsGlobalWorkspaceSectionMetaPayload(envelope),
+		FallbackAgentEnabled:                      envelope.CmdPalette.FallbackAgentEnabled,
+		Personalization:                           envelope.CmdPalette.Personalization,
+		Aliases:                                   cloneSettingsAliases(envelope.CmdPalette.Aliases),
 	}, nil
 }

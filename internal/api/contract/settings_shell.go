@@ -34,6 +34,6 @@ type UpdateSettingsShellRequest struct {
 
 // SettingsShellResponse returns the effective global shell settings.
 type SettingsShellResponse struct {
-	SettingsGlobalSectionResponseMetaPayload
+	SettingsUserSectionResponseMetaPayload
 	Config SettingsShellPayload `json:"config"`
 }

@@ -1,14 +1,14 @@
 import { Alert, AlertActions, AlertDescription, AlertTitle, Button } from "@compozy/ui";
 import { CircleAlert, CircleCheck } from "lucide-react";
 
-import type { SettingsMCPServerEntry } from "../types";
+import type { SettingsLayeredScope, SettingsMCPServerEntry } from "../types";
 
 import { mcpProvenanceLine } from "./mcp-server-labels";
 
 export interface MCPSelectionStripProps {
   selectedName: string;
   server: SettingsMCPServerEntry | null;
-  scope: "workspace" | "global";
+  scope: SettingsLayeredScope;
   onClear: () => void;
 }
 

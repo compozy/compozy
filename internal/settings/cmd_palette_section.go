@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"maps"
 	"reflect"
 	"slices"
 
@@ -16,6 +17,7 @@ func cmdPaletteSectionFromConfig(current compozyconfig.CmdPaletteConfig) CmdPale
 			compozyconfig.CmdPaletteFallbackAgent,
 		),
 		Personalization: current.Personalization,
+		Aliases:         maps.Clone(current.Aliases),
 	}
 }
 
@@ -34,6 +36,9 @@ func desiredCmdPaletteSection(
 	if update.Personalization != nil {
 		desired.Personalization = *update.Personalization
 	}
+	if update.Aliases != nil {
+		desired.Aliases = maps.Clone(*update.Aliases)
+	}
 	return desired
 }
 
@@ -41,13 +46,16 @@ func diffCmdPaletteSettings(
 	current compozyconfig.CmdPaletteConfig,
 	desired CmdPaletteSection,
 ) []string {
-	changed := make([]string, 0, 2)
+	changed := make([]string, 0, 3)
 	currentSection := cmdPaletteSectionFromConfig(current)
 	if currentSection.FallbackAgentEnabled != desired.FallbackAgentEnabled {
 		changed = append(changed, "cmd_palette.fallback_targets")
 	}
 	if currentSection.Personalization != desired.Personalization {
 		changed = append(changed, "cmd_palette.personalization")
+	}
+	if !reflect.DeepEqual(currentSection.Aliases, desired.Aliases) {
+		changed = append(changed, "cmd_palette.aliases")
 	}
 	return changed
 }
@@ -84,6 +92,15 @@ func applyCmdPaletteSettings(
 			[]string{cmdPaletteConfigRoot, "personalization"},
 			*update.Personalization,
 		); err != nil {
+			return err
+		}
+	}
+	if update.Aliases != nil {
+		values := make(map[string]any, len(*update.Aliases))
+		for name, target := range *update.Aliases {
+			values[name] = target
+		}
+		if err := editor.SetTable([]string{cmdPaletteConfigRoot, "aliases"}, values); err != nil {
 			return err
 		}
 	}

@@ -74,24 +74,32 @@ type AgentEffectiveRuntimePayload struct {
 	Sources         AgentEffectiveRuntimeSources `json:"sources"`
 }
 
+// AgentDefinitionShadowPayload reports one lower-precedence authored definition.
+type AgentDefinitionShadowPayload struct {
+	Layer string `json:"layer"`
+	Path  string `json:"path"`
+}
+
 // AgentPayload is the shared agent definition response payload.
 type AgentPayload struct {
-	Name             string                        `json:"name"`
-	Provider         string                        `json:"provider"`
-	Command          string                        `json:"command,omitempty"`
-	Model            string                        `json:"model,omitempty"`
-	ReasoningEffort  ReasoningEffort               `json:"reasoning_effort,omitempty"`
-	Tools            []string                      `json:"tools,omitempty"`
-	Toolsets         []string                      `json:"toolsets,omitempty"`
-	DenyTools        []string                      `json:"deny_tools,omitempty"`
-	Permissions      string                        `json:"permissions,omitempty"`
-	CategoryPath     []string                      `json:"category_path,omitempty"`
-	MCPServers       []AgentMCPServerJSON          `json:"mcp_servers,omitempty"`
-	Origin           AgentOrigin                   `json:"origin"`
-	WorkspaceID      string                        `json:"workspace_id,omitempty"`
-	Skills           *CreateAgentSkillsConfig      `json:"skills,omitempty"`
-	DefinitionDigest string                        `json:"definition_digest"`
-	Prompt           string                        `json:"prompt"`
-	Diagnostics      []AgentDiagnosticPayload      `json:"diagnostics,omitempty"`
-	EffectiveRuntime *AgentEffectiveRuntimePayload `json:"effective_runtime,omitempty"`
+	Name             string                         `json:"name"`
+	Provider         string                         `json:"provider"`
+	Command          string                         `json:"command,omitempty"`
+	Model            string                         `json:"model,omitempty"`
+	ReasoningEffort  ReasoningEffort                `json:"reasoning_effort,omitempty"`
+	Tools            []string                       `json:"tools,omitempty"`
+	Toolsets         []string                       `json:"toolsets,omitempty"`
+	DenyTools        []string                       `json:"deny_tools,omitempty"`
+	Permissions      string                         `json:"permissions,omitempty"`
+	CategoryPath     []string                       `json:"category_path,omitempty"`
+	MCPServers       []AgentMCPServerJSON           `json:"mcp_servers,omitempty"`
+	Origin           AgentOrigin                    `json:"origin"`
+	WorkspaceID      string                         `json:"workspace_id,omitempty"`
+	Layer            string                         `json:"layer,omitempty"`
+	Shadows          []AgentDefinitionShadowPayload `json:"shadows,omitempty"`
+	Skills           *CreateAgentSkillsConfig       `json:"skills,omitempty"`
+	DefinitionDigest string                         `json:"definition_digest"`
+	Prompt           string                         `json:"prompt"`
+	Diagnostics      []AgentDiagnosticPayload       `json:"diagnostics,omitempty"`
+	EffectiveRuntime *AgentEffectiveRuntimePayload  `json:"effective_runtime,omitempty"`
 }

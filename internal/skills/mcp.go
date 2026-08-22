@@ -112,7 +112,7 @@ func orderSkillsBySource(skills []*Skill) []*Skill {
 		if left == nil || right == nil {
 			return left != nil
 		}
-		return left.Source < right.Source
+		return SkillPrecedenceRank(left.Source) < SkillPrecedenceRank(right.Source)
 	})
 	return ordered
 }

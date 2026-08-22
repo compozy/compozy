@@ -115,7 +115,6 @@ describe("useUpdateSettingsGeneral", () => {
             reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },
             socket: "/tmp/a.sock",
           },
-          defaults: { agent: "claude-code" },
           http: { host: "127.0.0.1", port: 2123 },
           limits: { max_concurrent_agents: 4 },
           permissions: { mode: "approve-reads" as const },

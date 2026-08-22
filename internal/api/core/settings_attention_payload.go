@@ -13,8 +13,8 @@ func settingsAttentionSectionResponse(envelope settingspkg.SectionEnvelope) (any
 		return nil, errors.New("settings attention section is required")
 	}
 	return contract.SettingsAttentionResponse{
-		SettingsGlobalSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
-		Config:                                   settingsAttentionPayload(envelope.Attention.Config),
+		SettingsUserSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
+		Config:                                 settingsAttentionPayload(envelope.Attention.Config),
 	}, nil
 }
 

@@ -67,7 +67,7 @@ func (s *Store) recallSignalRecorder(
 	if s == nil || s.catalog == nil || s.recallRecorders == nil {
 		return nil, false, nil
 	}
-	key := recallSignalRecorderKey(workspaceID)
+	key := recallSignalRecorderKey(s.profileID, workspaceID)
 	return s.recallRecorders.acquire(ctx, key, func(
 		shouldStop func() bool,
 		onStopped func(),
@@ -86,11 +86,16 @@ func (s *Store) recallSignalRecorder(
 	})
 }
 
-func recallSignalRecorderKey(workspaceID string) string {
-	if trimmed := strings.TrimSpace(workspaceID); trimmed != "" {
-		return trimmed
+func recallSignalRecorderKey(profileID string, workspaceID string) string {
+	profileKey := strings.TrimSpace(profileID)
+	if profileKey == "" {
+		profileKey = storepkg.DefaultProfileID
 	}
-	return recallSourceGlobalKey
+	workspaceKey := strings.TrimSpace(workspaceID)
+	if workspaceKey == "" {
+		workspaceKey = recallSourceGlobalKey
+	}
+	return profileKey + ":" + workspaceKey
 }
 
 func (s *Store) recallWorkspaceID(ctx context.Context, explicitWorkspaceID string) (string, error) {
@@ -163,6 +168,7 @@ func (s *Store) Candidates(
 	unicodeCandidates, err := queryRecallFTS(
 		ctx,
 		db,
+		s.profileID,
 		"memory_chunks_fts",
 		match,
 		query,
@@ -175,6 +181,7 @@ func (s *Store) Candidates(
 	trigramCandidates, err := queryRecallFTS(
 		ctx,
 		db,
+		s.profileID,
 		"memory_chunks_fts_trigram",
 		match,
 		query,
@@ -190,6 +197,7 @@ func (s *Store) Candidates(
 func queryRecallFTS(
 	ctx context.Context,
 	db *sql.DB,
+	profileID string,
 	table string,
 	match string,
 	query memcontract.Query,
@@ -228,7 +236,7 @@ func queryRecallFTS(
 		`WHERE ` + tableName + ` MATCH ?`,
 	}, "\n")
 	args := []any{match}
-	base, args = appendRecallVisibilityFilter(base, args, query, opts.IncludeSystem)
+	base, args = appendRecallVisibilityFilter(base, args, profileID, query, opts.IncludeSystem)
 	base += "\nORDER BY bm25(" + tableName + ") ASC, e.mtime_ms DESC, c.id ASC\nLIMIT ?"
 	args = append(args, limit)
 
@@ -267,12 +275,14 @@ func queryRecallFTS(
 func appendRecallVisibilityFilter(
 	base string,
 	args []any,
+	profileID string,
 	query memcontract.Query,
 	includeSystem bool,
 ) (string, []any) {
 	workspaceID := strings.TrimSpace(query.WorkspaceID)
 	agentName := strings.TrimSpace(query.AgentName)
-	clauses := []string{`e.scope = 'profile'`}
+	clauses := []string{`(e.scope = 'profile' AND e.profile_id = ?)`}
+	args = append(args, strings.TrimSpace(profileID))
 	if workspaceID != "" {
 		clauses = append(clauses, `(e.scope = 'workspace' AND e.workspace_id = ?)`)
 		args = append(args, workspaceID)

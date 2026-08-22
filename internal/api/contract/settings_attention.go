@@ -15,6 +15,6 @@ type UpdateSettingsAttentionRequest struct {
 
 // SettingsAttentionResponse returns the effective global attention settings.
 type SettingsAttentionResponse struct {
-	SettingsGlobalSectionResponseMetaPayload
+	SettingsUserSectionResponseMetaPayload
 	Config SettingsAttentionPayload `json:"config"`
 }

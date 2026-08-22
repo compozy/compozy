@@ -77,8 +77,8 @@ type ApplyRecordsQuery = {
 
 const envelope = {
   section: "general" as const,
-  scope: "global" as const,
-  available_scopes: ["global"] as const,
+  scope: "user" as const,
+  available_scopes: ["user"] as const,
   actions: {
     restart: { available: true, behavior: "action_trigger" as const, name: "restart" },
   },
@@ -88,7 +88,6 @@ const envelope = {
       reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },
       socket: "/tmp/compozy.sock",
     },
-    defaults: { agent: "general", provider: "claude", sandbox: "local" },
     http: { host: "127.0.0.1", port: 2123 },
     limits: { max_concurrent_agents: 20 },
     permissions: { mode: "approve-all" as const },
@@ -184,8 +183,6 @@ vi.mock("@/systems/settings", async importOriginal => {
   return {
     ...actual,
     useSettingsGeneral: () => ({ data: envelope, isLoading: false, error: null }),
-    useSettingsProviders: () => ({ data: { providers: [{ name: "claude" }] } }),
-    useSettingsSandboxes: () => ({ data: { sandboxes: [{ name: "local" }] } }),
     useUpdateSettingsGeneral: () => mockMutation,
     SettingsApiError: class SettingsApiError extends Error {},
   };
@@ -279,7 +276,7 @@ describe("GeneralSettingsPage", () => {
     expect(screen.getByTestId("settings-page-general-error")).toHaveTextContent("boom");
   });
 
-  it("renders runtime, defaults, permissions, and config path from the section envelope", () => {
+  it("renders runtime, permissions, and config path from the section envelope", () => {
     render(<GeneralSettingsPage />);
 
     expect(screen.getByTestId("settings-page-general-subhead")).toHaveTextContent(
@@ -287,10 +284,6 @@ describe("GeneralSettingsPage", () => {
     );
     expect(screen.getByTestId("settings-page-general-subhead")).toHaveTextContent(
       "7 agents working"
-    );
-    expect(screen.getByTestId("settings-page-general-default-agent-input")).toHaveValue("general");
-    expect(screen.getByTestId("settings-page-general-default-provider-input")).toHaveValue(
-      "claude"
     );
     expect(screen.getByTestId("settings-page-general-permissions-group")).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /Allow everything/ })).toBeChecked();

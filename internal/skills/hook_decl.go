@@ -47,10 +47,14 @@ func skillHookSource(source SkillSource) hookspkg.HookSkillSource {
 		return hookspkg.HookSkillSourceMarketplace
 	case SourceUser:
 		return hookspkg.HookSkillSourceUser
+	case SourceProfile:
+		return hookspkg.HookSkillSourceProfile
 	case SourceAdditional:
 		return hookspkg.HookSkillSourceAdditional
 	case SourceWorkspace:
 		return hookspkg.HookSkillSourceWorkspace
+	case SourceWorkspaceProfile:
+		return hookspkg.HookSkillSourceWorkspaceProfile
 	default:
 		return ""
 	}

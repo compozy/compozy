@@ -23,8 +23,9 @@ type SettingsMCPCatalogInstallValuesPayload struct {
 type InstallSettingsMCPServerRequest struct {
 	EntryID     string                                  `json:"entry_id"`
 	Name        string                                  `json:"name,omitempty"`
-	Scope       SettingsWorkspaceScopeKind              `json:"scope,omitempty"`
+	Scope       SettingsLayeredScopeKind                `json:"scope,omitempty"`
 	WorkspaceID string                                  `json:"workspace_id,omitempty"`
+	Profile     string                                  `json:"profile,omitempty"`
 	Values      *SettingsMCPCatalogInstallValuesPayload `json:"values"`
 }
 

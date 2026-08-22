@@ -254,6 +254,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/settings/sandboxes",
 			"GET /api/settings/sandboxes/:name",
 			"GET /api/settings/general",
+			"GET /api/settings/persona",
 			"GET /api/settings/update",
 			"GET /api/settings/hooks",
 			"GET /api/settings/hooks-extensions",
@@ -337,6 +338,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"PATCH /api/settings/shell",
 			"PATCH /api/settings/cmd-palette",
 			"PATCH /api/settings/general",
+			"PATCH /api/settings/persona",
 			"PATCH /api/settings/hooks-extensions",
 			"PATCH /api/settings/memory",
 			"PATCH /api/settings/network",
@@ -818,8 +820,7 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			wantStatus: http.StatusOK,
 			body: mustJSONBody(t, contract.UpdateSettingsGeneralRequest{
 				Config: contract.SettingsGeneralConfigPayload{
-					Defaults: contract.SettingsDefaultsPayload{Agent: "coder"},
-					Limits:   contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
+					Limits: contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
 					Permissions: contract.SettingsPermissionsPayload{
 						Mode: contract.SettingsPermissionModeApproveReads,
 					},
@@ -831,7 +832,7 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				t.Helper()
 
-				var response contract.SettingsGlobalSectionMutationResult
+				var response contract.SettingsUserSectionMutationResult
 				decodeJSONResponse(t, recorder, &response)
 				if response.Section != contract.SettingsSectionGeneral {
 					t.Fatalf("response.Section = %q, want %q", response.Section, contract.SettingsSectionGeneral)
@@ -844,7 +845,7 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 					)
 				}
 				if settingsService.LastUpdateSectionRequest.General == nil ||
-					settingsService.LastUpdateSectionRequest.General.Defaults.Agent != "coder" {
+					settingsService.LastUpdateSectionRequest.General.Limits.MaxConcurrentAgents != 2 {
 					t.Fatalf(
 						"LastUpdateSectionRequest.General = %#v, want parsed payload",
 						settingsService.LastUpdateSectionRequest.General,
@@ -889,7 +890,7 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				t.Helper()
 
-				var response contract.SettingsGlobalSectionMutationResult
+				var response contract.SettingsUserSectionMutationResult
 				decodeJSONResponse(t, recorder, &response)
 				if response.Section != contract.SettingsSectionAttention {
 					t.Fatalf("response.Section = %q, want attention", response.Section)
@@ -943,7 +944,7 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				t.Helper()
 
-				var response contract.SettingsGlobalSectionMutationResult
+				var response contract.SettingsUserSectionMutationResult
 				decodeJSONResponse(t, recorder, &response)
 				if response.Section != contract.SettingsSectionShell {
 					t.Fatalf("response.Section = %q, want shell", response.Section)
@@ -990,7 +991,7 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				t.Helper()
 
-				var response contract.SettingsGlobalSectionMutationResult
+				var response contract.SettingsUserSectionMutationResult
 				decodeJSONResponse(t, recorder, &response)
 				if response.Section != contract.SettingsSectionWindowManager {
 					t.Fatalf(
@@ -1023,10 +1024,10 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 
 				var response contract.SettingsMCPServersResponse
 				decodeJSONResponse(t, recorder, &response)
-				if response.Scope != contract.SettingsWorkspaceScopeWorkspace || response.WorkspaceID != "ws-1" {
+				if response.Scope != contract.SettingsLayeredScopeWorkspace || response.WorkspaceID != "ws-1" {
 					t.Fatalf(
 						"response meta = %#v, want workspace ws-1",
-						response.SettingsGlobalWorkspaceCollectionResponseMetaPayload,
+						response.SettingsLayeredCollectionResponseMetaPayload,
 					)
 				}
 				if settingsService.LastListCollectionRequest.Collection != settingspkg.CollectionMCPServers ||
@@ -1047,9 +1048,9 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				t.Helper()
 
-				var response contract.SettingsGlobalWorkspaceCollectionMutationResult
+				var response contract.SettingsLayeredCollectionMutationResult
 				decodeJSONResponse(t, recorder, &response)
-				if response.Scope != contract.SettingsWorkspaceScopeWorkspace || response.WorkspaceID != "ws-1" {
+				if response.Scope != contract.SettingsLayeredScopeWorkspace || response.WorkspaceID != "ws-1" {
 					t.Fatalf("response = %#v, want workspace mutation metadata", response)
 				}
 				if settingsService.LastPutCollectionRequest.Collection != settingspkg.CollectionMCPServers ||
@@ -1075,7 +1076,7 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			body: mustJSONBody(t, contract.InstallSettingsMCPServerRequest{
 				EntryID:     "github",
 				Name:        "github-workspace",
-				Scope:       contract.SettingsWorkspaceScopeWorkspace,
+				Scope:       contract.SettingsLayeredScopeWorkspace,
 				WorkspaceID: "ws-1",
 				Values:      &contract.SettingsMCPCatalogInstallValuesPayload{},
 			}),
@@ -1101,9 +1102,9 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				t.Helper()
 
-				var response contract.SettingsGlobalWorkspaceCollectionMutationResult
+				var response contract.SettingsLayeredCollectionMutationResult
 				decodeJSONResponse(t, recorder, &response)
-				if response.Scope != contract.SettingsWorkspaceScopeWorkspace || response.WorkspaceID != "ws-1" {
+				if response.Scope != contract.SettingsLayeredScopeWorkspace || response.WorkspaceID != "ws-1" {
 					t.Fatalf("response = %#v, want workspace mutation metadata", response)
 				}
 				if settingsService.LastDeleteCollectionRequest.Collection != settingspkg.CollectionMCPServers ||

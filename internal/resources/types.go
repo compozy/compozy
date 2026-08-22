@@ -3,9 +3,12 @@ package resources
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 )
+
+var workspaceProfileNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 
 // ResourceKind identifies one canonical desired-state resource family.
 type ResourceKind string
@@ -130,14 +133,25 @@ func (s ResourceScope) Validate(path string) error {
 				ResourceScopeKindUser,
 			)
 		}
-	case ResourceScopeKindWorkspace:
+	case ResourceScopeKindWorkspace, ResourceScopeKindProfile:
 		if strings.TrimSpace(s.ID) == "" {
 			return fmt.Errorf(
 				"%w: %s is required when %s is %q",
 				ErrInvalidScopeBinding,
 				idPath,
 				scopePath,
-				ResourceScopeKindWorkspace,
+				s.Kind.Normalize(),
+			)
+		}
+	case ResourceScopeKindWorkspaceProfile:
+		workspaceID, profileName, ok := strings.Cut(strings.TrimSpace(s.ID), "@pf:")
+		if !ok || strings.TrimSpace(workspaceID) == "" || !workspaceProfileNamePattern.MatchString(profileName) {
+			return fmt.Errorf(
+				"%w: %s must match <workspace_id>@pf:<profile_name> when %s is %q",
+				ErrInvalidScopeBinding,
+				idPath,
+				scopePath,
+				ResourceScopeKindWorkspaceProfile,
 			)
 		}
 	}

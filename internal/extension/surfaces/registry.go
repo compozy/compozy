@@ -40,64 +40,61 @@ type GrantRequest struct {
 }
 
 var (
-	globalAndWorkspaceScopes = []resources.ResourceScopeKind{
-		resources.ResourceScopeKindUser,
-		resources.ResourceScopeKindWorkspace,
-	}
-	registry = []Surface{
+	allResourceScopes = resources.ScopesThrough(resources.ResourceScopeKindUser)
+	registry          = []Surface{
 		{
 			Kind:             resources.ResourceKind("hook.binding"),
 			ManifestFamily:   FamilyHooks,
 			ExtensionPublish: true,
-			LegalScopes:      cloneScopes(globalAndWorkspaceScopes),
+			LegalScopes:      cloneScopes(allResourceScopes),
 		},
 		{
 			Kind:             resources.ResourceKind("tool"),
 			ManifestFamily:   FamilyTools,
 			ExtensionPublish: true,
-			LegalScopes:      cloneScopes(globalAndWorkspaceScopes),
+			LegalScopes:      cloneScopes(allResourceScopes),
 		},
 		{
 			Kind:             resources.ResourceKind("agent"),
 			ManifestFamily:   FamilyAgents,
 			ExtensionPublish: true,
-			LegalScopes:      cloneScopes(globalAndWorkspaceScopes),
+			LegalScopes:      cloneScopes(allResourceScopes),
 		},
 		{
 			Kind:             resources.ResourceKind("mcp_server"),
 			ManifestFamily:   FamilyMCPServers,
 			ExtensionPublish: true,
-			LegalScopes:      cloneScopes(globalAndWorkspaceScopes),
+			LegalScopes:      cloneScopes(allResourceScopes),
 		},
 		{
 			Kind:             resources.ResourceKind("skill"),
 			ManifestFamily:   FamilySkills,
 			ExtensionPublish: true,
-			LegalScopes:      cloneScopes(globalAndWorkspaceScopes),
+			LegalScopes:      cloneScopes(allResourceScopes),
 		},
 		{
 			Kind:             resources.ResourceKind("automation.job"),
 			ManifestFamily:   FamilyAutomationJobs,
 			ExtensionPublish: true,
-			LegalScopes:      cloneScopes(globalAndWorkspaceScopes),
+			LegalScopes:      cloneScopes(allResourceScopes),
 		},
 		{
 			Kind:             resources.ResourceKind("automation.trigger"),
 			ManifestFamily:   FamilyAutomationTriggers,
 			ExtensionPublish: true,
-			LegalScopes:      cloneScopes(globalAndWorkspaceScopes),
+			LegalScopes:      cloneScopes(allResourceScopes),
 		},
 		{
 			Kind:             resources.ResourceKind("window_layout"),
 			ManifestFamily:   FamilyWindowLayouts,
 			ExtensionPublish: true,
-			LegalScopes:      cloneScopes(globalAndWorkspaceScopes),
+			LegalScopes:      cloneScopes(allResourceScopes),
 		},
 		{
 			Kind:             resources.ResourceKind("bridge.instance"),
 			ManifestFamily:   FamilyBridgeInstances,
 			ExtensionPublish: false,
-			LegalScopes:      cloneScopes(globalAndWorkspaceScopes),
+			LegalScopes:      cloneScopes(allResourceScopes),
 		},
 	}
 	registryByKind         = buildRegistryByKind(registry)
@@ -156,7 +153,7 @@ func ResolveManifestRequest(
 	}
 
 	requestedKinds := make([]resources.ResourceKind, 0, len(normalizedFamilies))
-	legalScopes := cloneScopes(globalAndWorkspaceScopes)
+	legalScopes := cloneScopes(allResourceScopes)
 	for _, family := range normalizedFamilies {
 		surface, ok := registryByManifestName[family]
 		if !ok {
@@ -169,7 +166,7 @@ func ResolveManifestRequest(
 		legalScopes = intersectScopes(legalScopes, surface.LegalScopes)
 	}
 	requestedKinds = normalizeKinds(requestedKinds)
-	allowedScopes := intersectScopes(legalScopes, scopesThrough(normalizedMaxScope))
+	allowedScopes := intersectScopes(legalScopes, resources.ScopesThrough(normalizedMaxScope))
 	if len(allowedScopes) == 0 {
 		return GrantRequest{}, fmt.Errorf(
 			"resources.publish.max_scope %q is not legal for requested kinds",
@@ -273,17 +270,6 @@ func normalizeKinds(values []resources.ResourceKind) []resources.ResourceKind {
 	return kinds
 }
 
-func scopesThrough(maxScope resources.ResourceScopeKind) []resources.ResourceScopeKind {
-	switch maxScope.Normalize() {
-	case resources.ResourceScopeKindUser:
-		return cloneScopes(globalAndWorkspaceScopes)
-	case resources.ResourceScopeKindWorkspace:
-		return []resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace}
-	default:
-		return nil
-	}
-}
-
 func intersectScopes(
 	left []resources.ResourceScopeKind,
 	right []resources.ResourceScopeKind,
@@ -305,7 +291,6 @@ func intersectScopes(
 	if len(scopes) == 0 {
 		return nil
 	}
-	slices.Sort(scopes)
 	return scopes
 }
 

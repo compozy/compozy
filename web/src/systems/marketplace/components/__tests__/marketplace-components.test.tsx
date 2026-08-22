@@ -238,11 +238,9 @@ vi.mock("@/systems/settings/hooks/use-settings-collections", async () => {
   >("@/systems/settings/hooks/use-settings-collections");
   return {
     ...actual,
-    useSettingsMCPServers: (filter: { scope: string }) => ({
+    useSettingsMCPServers: (_filter: { scope: string }) => ({
       data: {
-        mcp_servers: mocks.mcpServers.filter(
-          server => (server as { scope?: string }).scope === filter.scope
-        ),
+        mcp_servers: mocks.mcpServers,
       },
       error: mocks.mcpError,
       isLoading: false,
@@ -319,7 +317,7 @@ function renderKindPage(
 interface MarketplaceDialogsHarnessProps {
   data: MarketplaceEntryResponse;
   onInstall: (request: MCPInstallRequest) => Promise<MCPInstallResponse>;
-  scope: "global" | "workspace";
+  scope: "user" | "workspace";
   workspaceId: string | null;
 }
 
@@ -582,7 +580,7 @@ describe("MarketplaceKindPage", () => {
         auth: { registration: "auto" },
         auth_status: {
           server_name: "linear",
-          scope: "global",
+          scope: "user",
           status: "needs_login",
           token_present: false,
           refreshable: true,
@@ -596,7 +594,7 @@ describe("MarketplaceKindPage", () => {
         },
         source_metadata: {
           available_targets: [],
-          effective_source: { kind: "global-config", scope: "global" },
+          effective_source: { kind: "global-config", scope: "user" },
           shadowed_sources: [],
         },
       },
@@ -605,11 +603,11 @@ describe("MarketplaceKindPage", () => {
     const card = screen.getByTestId("marketplace-installed-card-linear");
     expect(card).toBeInTheDocument();
     expect(within(card).getByText("http")).toBeInTheDocument();
-    expect(within(card).getByText("global")).toBeInTheDocument();
+    expect(within(card).getByText("user")).toBeInTheDocument();
     expect(within(card).getByText("authorize")).toBeInTheDocument();
     expect(within(card).getByRole("link", { name: "View linear details" })).toHaveAttribute(
       "href",
-      expect.stringMatching(/^\/marketplace\/mcp\/linear\?.*scope=global/)
+      expect.stringMatching(/^\/marketplace\/mcp\/linear\?.*scope=user/)
     );
     expect(within(card).getByRole("link", { name: "View linear details" })).not.toHaveAttribute(
       "href",
@@ -712,10 +710,10 @@ describe("MarketplaceKindPage", () => {
         workspace_id: "ws-a",
       },
       {
-        expectedFilter: { scope: "global", target: "sidecar" },
+        expectedFilter: { scope: "user", target: "sidecar" },
         name: "global-sidecar",
-        scope: "global",
-        source: { kind: "global-mcp-sidecar", scope: "global" },
+        scope: "user",
+        source: { kind: "global-mcp-sidecar", scope: "user" },
         workspace_id: undefined,
       },
       {
@@ -726,10 +724,10 @@ describe("MarketplaceKindPage", () => {
         workspace_id: "ws-a",
       },
       {
-        expectedFilter: { scope: "global", target: "config" },
+        expectedFilter: { scope: "user", target: "config" },
         name: "global-config-from-workspace-collection",
         scope: "workspace",
-        source: { kind: "global-config", scope: "global" },
+        source: { kind: "global-config", scope: "user" },
         workspace_id: "ws-a",
       },
     ] as const;
@@ -900,14 +898,14 @@ describe("MarketplaceKindPage", () => {
     expect(screen.getByText("MCPs results may be out of date")).toBeInTheDocument();
   });
 
-  it("Should keep a global MCP server visible and scoped with an active workspace", async () => {
+  it("Should keep a user-layer MCP server visible and scoped with an active workspace", async () => {
     const user = userEvent.setup();
     mocks.marketData = marketplaceKindFixture("mcp");
     mocks.mcpServers = [
       {
         name: "global-filesystem",
         transport: "stdio",
-        scope: "global",
+        scope: "user",
         runtime_status: {
           configured: true,
           initialized: true,
@@ -917,7 +915,7 @@ describe("MarketplaceKindPage", () => {
         },
         source_metadata: {
           available_targets: [],
-          effective_source: { kind: "global-config", scope: "global" },
+          effective_source: { kind: "global-config", scope: "user" },
           shadowed_sources: [],
         },
       },
@@ -927,13 +925,13 @@ describe("MarketplaceKindPage", () => {
 
     expect(screen.getByRole("link", { name: "View global-filesystem details" })).toHaveAttribute(
       "href",
-      expect.stringMatching(/^\/marketplace\/mcp\/global-filesystem\?.*scope=global/)
+      expect.stringMatching(/^\/marketplace\/mcp\/global-filesystem\?.*scope=user/)
     );
     const menu = screen.getByRole("button", { name: "More for global-filesystem" });
     fireEvent.pointerDown(menu, { button: 0, pointerType: "mouse" });
     await user.click(menu);
     await user.click(await screen.findByRole("menuitem", { name: "Edit configuration" }));
-    expect(screen.getByText("MCP server · global")).toBeInTheDocument();
+    expect(screen.getByText("MCP server · user")).toBeInTheDocument();
   });
 
   it("Should show teaching empty for Installed scope with browse CTA", async () => {
@@ -1333,7 +1331,7 @@ describe("MCP guided install", () => {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
-    const renderDialogs = (scope: "global" | "workspace", workspaceId: string | null) => (
+    const renderDialogs = (scope: "user" | "workspace", workspaceId: string | null) => (
       <QueryClientProvider client={client}>
         <MarketplaceDialogsHarness
           data={marketplaceDetails["mcp:github"]!}
@@ -1347,7 +1345,7 @@ describe("MCP guided install", () => {
     const input = screen.getByLabelText(/^github_personal_access_token\*?$/);
     await user.type(input, "workspace-secret");
 
-    view.rerender(renderDialogs("global", null));
+    view.rerender(renderDialogs("user", null));
 
     const resetInput = screen.getByLabelText(/^github_personal_access_token\*?$/);
     expect(resetInput).toHaveValue("");
@@ -1356,7 +1354,7 @@ describe("MCP guided install", () => {
     await waitFor(() => expect(onInstall).toHaveBeenCalledOnce());
     expect(onInstall).toHaveBeenCalledWith(
       expect.objectContaining({
-        scope: "global",
+        scope: "user",
         values: { inputs: { github_personal_access_token: { value: "global-secret" } } },
         workspace_id: undefined,
       })
@@ -1586,7 +1584,7 @@ describe("MCP guided install", () => {
     expect(onInstall).toHaveBeenCalledWith(
       expect.objectContaining({ entry_id: "linear", values: null })
     );
-    expect(buildMCPInstallRequest(remote, "global", null, {}).values).toBeNull();
+    expect(buildMCPInstallRequest(remote, "user", null, null, {}).values).toBeNull();
   });
 
   it("Should render the catalog's pre-registered OAuth mode", () => {

@@ -13,8 +13,9 @@ import (
 
 // MarketplaceReadScope selects the installed-state projection for Marketplace reads.
 type MarketplaceReadScope struct {
-	Scope       contract.SettingsWorkspaceScopeKind
+	Scope       contract.SettingsLayeredScopeKind
 	WorkspaceID string
+	Profile     string
 }
 
 // MarketplaceClient exposes curated discovery and refresh operations.
@@ -140,21 +141,30 @@ func (c *daemonClient) MarketplaceInfo(
 }
 
 func (s MarketplaceReadScope) queryValues() (url.Values, error) {
-	scope := contract.SettingsWorkspaceScopeKind(strings.TrimSpace(string(s.Scope)))
+	scope := contract.SettingsLayeredScopeKind(strings.TrimSpace(string(s.Scope)))
 	workspaceID := strings.TrimSpace(s.WorkspaceID)
+	profile := strings.TrimSpace(s.Profile)
 	values := url.Values{}
 	switch scope {
-	case contract.SettingsWorkspaceScopeGlobal:
+	case contract.SettingsLayeredScopeUser:
+		if workspaceID != "" || profile != "" {
+			return nil, errors.New("cli: --workspace requires --scope workspace")
+		}
+	case contract.SettingsLayeredScopeProfile:
 		if workspaceID != "" {
 			return nil, errors.New("cli: --workspace requires --scope workspace")
 		}
-	case contract.SettingsWorkspaceScopeWorkspace:
+		if profile == "" || profile == "default" {
+			return nil, errors.New("cli: --scope profile requires an active non-default profile")
+		}
+		values.Set("profile", profile)
+	case contract.SettingsLayeredScopeWorkspace:
 		if workspaceID == "" {
 			return nil, errors.New("cli: --scope workspace requires --workspace")
 		}
 		values.Set("workspace_id", workspaceID)
 	default:
-		return nil, errors.New("cli: marketplace read scope must be global or workspace")
+		return nil, errors.New("cli: marketplace read scope must be user, profile, or workspace")
 	}
 	values.Set("scope", string(scope))
 	return values, nil

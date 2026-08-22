@@ -97,9 +97,9 @@ func TestUnixSocketClientMCPAuthRoutesCarryExactWorkspaceIdentity(t *testing.T) 
 			})},
 		}
 		ctx := context.Background()
-		scope := contract.SettingsWorkspaceScopeWorkspace
+		scope := contract.SettingsLayeredScopeWorkspace
 		target := SettingsMCPAuthTarget{Name: "linear", Scope: scope, WorkspaceID: "workspace-a"}
-		if _, err := client.ListSettingsMCPServers(ctx, scope, "workspace-a"); err != nil {
+		if _, err := client.ListSettingsMCPServers(ctx, scope, "workspace-a", ""); err != nil {
 			t.Fatalf("ListSettingsMCPServers() error = %v", err)
 		}
 		readStatus, err := client.GetSettingsMCPAuthStatus(ctx, target)
@@ -141,6 +141,45 @@ func TestUnixSocketClientMCPAuthRoutesCarryExactWorkspaceIdentity(t *testing.T) 
 		}
 		if requestIndex != 5 {
 			t.Fatalf("request count = %d, want 5", requestIndex)
+		}
+	})
+
+	t.Run("Should carry exact profile identity through MCP reads", func(t *testing.T) {
+		t.Parallel()
+
+		requestIndex := 0
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				requestIndex++
+				if got := req.URL.Query().Get("scope"); got != "profile" {
+					return nil, fmt.Errorf("profile request scope = %q", got)
+				}
+				if got := req.URL.Query().Get("profile"); got != "marketing" {
+					return nil, fmt.Errorf("profile request profile = %q", got)
+				}
+				if got := req.URL.Query().Get("workspace_id"); got != "" {
+					return nil, fmt.Errorf("profile request workspace_id = %q", got)
+				}
+				switch requestIndex {
+				case 1:
+					return newHTTPResponse(http.StatusOK, `{"mcp_servers":[]}`), nil
+				case 2:
+					return newHTTPResponse(http.StatusOK, confirmedClientMCPAuthStatusJSON), nil
+				default:
+					return nil, fmt.Errorf("unexpected profile request %d", requestIndex)
+				}
+			})},
+		}
+		if _, err := client.ListSettingsMCPServers(
+			t.Context(), contract.SettingsLayeredScopeProfile, "", "marketing",
+		); err != nil {
+			t.Fatalf("ListSettingsMCPServers(profile) error = %v", err)
+		}
+		if _, err := client.GetSettingsMCPAuthStatus(t.Context(), SettingsMCPAuthTarget{
+			Name: "linear", Scope: contract.SettingsLayeredScopeProfile, Profile: "marketing",
+		}); err != nil {
+			t.Fatalf("GetSettingsMCPAuthStatus(profile) error = %v", err)
 		}
 	})
 }

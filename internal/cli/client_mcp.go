@@ -18,8 +18,9 @@ type InstallSettingsMCPServerRecord = contract.InstallSettingsMCPServerResponse
 // SettingsMCPAuthTarget selects one exact daemon-owned MCP credential set.
 type SettingsMCPAuthTarget struct {
 	Name        string
-	Scope       contract.SettingsWorkspaceScopeKind
+	Scope       contract.SettingsLayeredScopeKind
 	WorkspaceID string
+	Profile     string
 }
 
 // SettingsMCPAuthBeginRecord is the verifier-free daemon OAuth handoff.
@@ -42,8 +43,9 @@ type MCPSettingsClient interface {
 	) (InstallSettingsMCPServerRecord, error)
 	ListSettingsMCPServers(
 		ctx context.Context,
-		scope contract.SettingsWorkspaceScopeKind,
+		scope contract.SettingsLayeredScopeKind,
 		workspaceID string,
+		profile string,
 	) (contract.SettingsMCPServersResponse, error)
 	GetSettingsMCPAuthStatus(ctx context.Context, target SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error)
 	BeginSettingsMCPAuth(
@@ -79,13 +81,17 @@ func (c *daemonClient) InstallSettingsMCPServer(
 
 func (c *daemonClient) ListSettingsMCPServers(
 	ctx context.Context,
-	scope contract.SettingsWorkspaceScopeKind,
+	scope contract.SettingsLayeredScopeKind,
 	workspaceID string,
+	profile string,
 ) (contract.SettingsMCPServersResponse, error) {
 	query := url.Values{}
 	query.Set("scope", strings.TrimSpace(string(scope)))
 	if normalized := strings.TrimSpace(workspaceID); normalized != "" {
 		query.Set("workspace_id", normalized)
+	}
+	if normalized := strings.TrimSpace(profile); normalized != "" {
+		query.Set("profile", normalized)
 	}
 	var response contract.SettingsMCPServersResponse
 	if err := c.doJSON(ctx, http.MethodGet, "/api/settings/mcp-servers", query, nil, &response); err != nil {
@@ -178,6 +184,9 @@ func settingsMCPAuthQuery(target SettingsMCPAuthTarget) url.Values {
 	query.Set("scope", strings.TrimSpace(string(target.Scope)))
 	if workspaceID := strings.TrimSpace(target.WorkspaceID); workspaceID != "" {
 		query.Set("workspace_id", workspaceID)
+	}
+	if profile := strings.TrimSpace(target.Profile); profile != "" {
+		query.Set("profile", profile)
 	}
 	return query
 }

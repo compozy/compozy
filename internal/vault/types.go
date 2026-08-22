@@ -123,6 +123,11 @@ func ValidateSecretRef(ref string) error {
 	if !vaultRefPattern.MatchString(normalized) {
 		return fmt.Errorf("%w: %s", ErrUnsupportedSecretRef, normalized)
 	}
+	if strings.HasPrefix(normalized, ProfileSecretRefPrefix) {
+		if _, err := ParseProfileSecretRef(normalized); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -134,6 +139,11 @@ func ValidateSecretRefPrefix(prefix string) error {
 	}
 	if !vaultRefPrefixPattern.MatchString(normalized) {
 		return fmt.Errorf("%w: %s", ErrUnsupportedSecretRef, normalized)
+	}
+	if strings.HasPrefix(normalized, ProfileSecretRefPrefix) {
+		if err := validateProfileSecretRefPrefix(normalized); err != nil {
+			return err
+		}
 	}
 	return nil
 }

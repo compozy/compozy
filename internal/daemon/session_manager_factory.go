@@ -57,6 +57,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithSessionCatalog(deps.SessionCatalog),
 			session.WithHostedMCPLauncher(deps.HostedMCP),
 			session.WithProviderSecretResolver(deps.ProviderSecrets),
+			session.WithProfileNameResolver(deps.ProfileNames),
 			session.WithModelCatalog(deps.ModelCatalog),
 			session.WithSoulSnapshotStore(deps.SoulStore),
 			session.WithSoulRunActivityChecker(deps.SoulRunChecker),

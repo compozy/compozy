@@ -12,6 +12,7 @@ import {
   getSettingsNetwork,
   listSettingsNotificationPresets,
   getSettingsObservability,
+  getSettingsPersona,
   getSettingsProvider,
   getSettingsRestartStatus,
   getSettingsRoles,
@@ -32,6 +33,8 @@ import type {
   SettingsMCPServerListFilter,
   SettingsNotificationPresetFilter,
   SettingsCmdPaletteFilter,
+  SettingsHookListFilter,
+  SettingsPersonaFilter,
   SettingsSkillsFilter,
 } from "../types";
 
@@ -63,6 +66,16 @@ export function settingsGeneralOptions() {
   return queryOptions({
     queryKey: settingsKeys.section("general"),
     queryFn: ({ signal }) => getSettingsGeneral(signal),
+    staleTime: SECTION_STALE_TIME,
+    refetchInterval: SECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
+  });
+}
+
+export function settingsPersonaOptions(filter: SettingsPersonaFilter) {
+  return queryOptions({
+    queryKey: settingsKeys.personaSection(filter),
+    queryFn: ({ signal }) => getSettingsPersona(filter, signal),
     staleTime: SECTION_STALE_TIME,
     refetchInterval: SECTION_REFETCH_INTERVAL,
     retry: shouldRetrySettingsQuery,
@@ -235,10 +248,10 @@ export function settingsSandboxDetailOptions(name: string, enabled = true) {
   });
 }
 
-export function settingsHooksListOptions() {
+export function settingsHooksListOptions(filter: SettingsHookListFilter = {}) {
   return queryOptions({
-    queryKey: settingsKeys.hooksList(),
-    queryFn: ({ signal }) => listSettingsHooks(signal),
+    queryKey: settingsKeys.hooksList(filter),
+    queryFn: ({ signal }) => listSettingsHooks(filter, signal),
     staleTime: COLLECTION_STALE_TIME,
     refetchInterval: COLLECTION_REFETCH_INTERVAL,
     retry: shouldRetrySettingsQuery,

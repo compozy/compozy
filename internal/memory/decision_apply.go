@@ -34,7 +34,7 @@ func (s *Store) applyDecision(ctx context.Context, decision memcontract.Decision
 	if err != nil {
 		return DecisionApplyResult{}, err
 	}
-	existing, found, err := s.catalog.loadDecisionByIdempotencyKey(ctx, normalized.IdempotencyKey)
+	existing, found, err := s.catalog.loadDecisionByIdempotencyKey(ctx, s.profileID, normalized.IdempotencyKey)
 	if err != nil {
 		return DecisionApplyResult{}, err
 	}

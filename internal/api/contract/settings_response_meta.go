@@ -1,9 +1,9 @@
 package contract
 
-type SettingsGlobalSectionResponseMetaPayload struct {
-	Section         SettingsSectionName       `json:"section"`
-	Scope           SettingsGlobalScopeKind   `json:"scope"`
-	AvailableScopes []SettingsGlobalScopeKind `json:"available_scopes"`
+type SettingsUserSectionResponseMetaPayload struct {
+	Section         SettingsSectionName     `json:"section"`
+	Scope           SettingsUserScopeKind   `json:"scope"`
+	AvailableScopes []SettingsUserScopeKind `json:"available_scopes"`
 }
 
 type SettingsSkillsSectionResponseMetaPayload struct {
@@ -14,22 +14,31 @@ type SettingsSkillsSectionResponseMetaPayload struct {
 	AvailableScopes []SettingsAgentScopeKind `json:"available_scopes"`
 }
 
-type SettingsGlobalWorkspaceSectionResponseMetaPayload struct {
+type SettingsLayeredSectionResponseMetaPayload struct {
+	Section         SettingsSectionName        `json:"section"`
+	Scope           SettingsLayeredScopeKind   `json:"scope"`
+	WorkspaceID     string                     `json:"workspace_id,omitempty"`
+	Profile         string                     `json:"profile,omitempty"`
+	AvailableScopes []SettingsLayeredScopeKind `json:"available_scopes"`
+}
+
+type SettingsWorkspaceSectionResponseMetaPayload struct {
 	Section         SettingsSectionName          `json:"section"`
 	Scope           SettingsWorkspaceScopeKind   `json:"scope"`
 	WorkspaceID     string                       `json:"workspace_id,omitempty"`
 	AvailableScopes []SettingsWorkspaceScopeKind `json:"available_scopes"`
 }
 
-type SettingsGlobalCollectionResponseMetaPayload struct {
-	Collection      SettingsCollectionName    `json:"collection"`
-	Scope           SettingsGlobalScopeKind   `json:"scope"`
-	AvailableScopes []SettingsGlobalScopeKind `json:"available_scopes"`
+type SettingsUserCollectionResponseMetaPayload struct {
+	Collection      SettingsCollectionName  `json:"collection"`
+	Scope           SettingsUserScopeKind   `json:"scope"`
+	AvailableScopes []SettingsUserScopeKind `json:"available_scopes"`
 }
 
-type SettingsGlobalWorkspaceCollectionResponseMetaPayload struct {
-	Collection      SettingsCollectionName       `json:"collection"`
-	Scope           SettingsWorkspaceScopeKind   `json:"scope"`
-	WorkspaceID     string                       `json:"workspace_id,omitempty"`
-	AvailableScopes []SettingsWorkspaceScopeKind `json:"available_scopes"`
+type SettingsLayeredCollectionResponseMetaPayload struct {
+	Collection      SettingsCollectionName     `json:"collection"`
+	Scope           SettingsLayeredScopeKind   `json:"scope"`
+	WorkspaceID     string                     `json:"workspace_id,omitempty"`
+	Profile         string                     `json:"profile,omitempty"`
+	AvailableScopes []SettingsLayeredScopeKind `json:"available_scopes"`
 }

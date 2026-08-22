@@ -25,6 +25,11 @@ type GeneralSection struct {
 	Actions     GeneralActions
 }
 
+// PersonaSection is the profile-layerable defaults read model.
+type PersonaSection struct {
+	Config compozyconfig.DefaultsConfig
+}
+
 // MemorySection is the memory section read model.
 type MemorySection struct {
 	Config  compozyconfig.MemoryConfig
@@ -107,12 +112,14 @@ type WindowManagerExtensionDefault struct {
 type CmdPaletteSection struct {
 	FallbackAgentEnabled bool
 	Personalization      bool
+	Aliases              map[string]string
 }
 
 // CmdPaletteUpdate changes either live command-palette control while preserving omitted values.
 type CmdPaletteUpdate struct {
 	FallbackAgentEnabled *bool
 	Personalization      *bool
+	Aliases              *map[string]string
 }
 
 // AttentionSection is the operator attention section read model.
@@ -291,6 +298,7 @@ type SourceRef struct {
 	Kind        SourceKind
 	Scope       ScopeKind
 	WorkspaceID string
+	ProfileName string
 	AgentName   string
 }
 

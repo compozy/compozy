@@ -21,5 +21,8 @@ func ValidateConfigWriteScope(scope WriteScope, path []string) error {
 			strings.Join(clean, "."),
 		)
 	}
+	if scope == WriteScopeProfile {
+		return validateProfileMutationPath(clean)
+	}
 	return nil
 }

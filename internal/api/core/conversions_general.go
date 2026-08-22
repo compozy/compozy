@@ -9,11 +9,6 @@ import (
 
 func settingsGeneralConfigPayload(value settingspkg.GeneralSettings) contract.SettingsGeneralConfigPayload {
 	return contract.SettingsGeneralConfigPayload{
-		Defaults: contract.SettingsDefaultsPayload{
-			Agent:    strings.TrimSpace(value.Defaults.Agent),
-			Provider: strings.TrimSpace(value.Defaults.Provider),
-			Sandbox:  strings.TrimSpace(value.Defaults.Sandbox),
-		},
 		Limits: contract.SettingsLimitsPayload{MaxConcurrentAgents: value.Limits.MaxConcurrentAgents},
 		Permissions: contract.SettingsPermissionsPayload{
 			Mode: contract.SettingsPermissionMode(value.Permissions.Mode),

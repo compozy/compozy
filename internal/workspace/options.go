@@ -16,6 +16,15 @@ const defaultCacheTTL = 10 * time.Minute
 // ConfigLoader loads the effective configuration for a workspace root.
 type ConfigLoader func(rootDir string) (compozyconfig.Config, error)
 
+// ProfileConfigLoader loads the five-layer effective config for one active profile.
+type ProfileConfigLoader func(rootDir string, profileName string) (compozyconfig.Config, error)
+
+// ProfileAvailabilityChecker rejects profile-owned resource discovery while a
+// lifecycle operation has exclusive ownership of that profile.
+type ProfileAvailabilityChecker interface {
+	EnsureAvailableName(context.Context, string) error
+}
+
 // ChangeHook runs after persisted workspace mutations that affect resolved runtime state.
 type ChangeHook func(context.Context) error
 
@@ -25,14 +34,16 @@ type Option func(*resolverOptions)
 type idGenerator func(prefix string) (string, error)
 
 type resolverOptions struct {
-	homePaths       compozyconfig.HomePaths
-	loadConfig      ConfigLoader
-	logger          *slog.Logger
-	now             func() time.Time
-	cacheTTL        time.Duration
-	idGenerator     idGenerator
-	changeHook      ChangeHook
-	operatorHomeDir string
+	homePaths           compozyconfig.HomePaths
+	loadConfig          ConfigLoader
+	loadProfileConfig   ProfileConfigLoader
+	profileAvailability ProfileAvailabilityChecker
+	logger              *slog.Logger
+	now                 func() time.Time
+	cacheTTL            time.Duration
+	idGenerator         idGenerator
+	changeHook          ChangeHook
+	operatorHomeDir     string
 }
 
 // WithHomePaths overrides the global Compozy home layout used for agent and skill discovery.
@@ -53,6 +64,21 @@ func WithOperatorHomeDir(operatorHomeDir string) Option {
 func WithConfigLoader(loader ConfigLoader) Option {
 	return func(opts *resolverOptions) {
 		opts.loadConfig = loader
+	}
+}
+
+// WithProfileConfigLoader overrides profile-aware config loading during workspace resolution.
+func WithProfileConfigLoader(loader ProfileConfigLoader) Option {
+	return func(opts *resolverOptions) {
+		opts.loadProfileConfig = loader
+	}
+}
+
+// WithProfileAvailabilityChecker installs the lifecycle availability gate used
+// before profile-aware discovery reads any profile-owned resource roots.
+func WithProfileAvailabilityChecker(checker ProfileAvailabilityChecker) Option {
+	return func(opts *resolverOptions) {
+		opts.profileAvailability = checker
 	}
 }
 
@@ -100,6 +126,12 @@ func resolveOptions(opts []Option) (resolverOptions, error) {
 		homePaths: homePaths,
 		loadConfig: func(rootDir string) (compozyconfig.Config, error) {
 			return compozyconfig.Load(compozyconfig.WithWorkspaceRoot(rootDir))
+		},
+		loadProfileConfig: func(rootDir string, profileName string) (compozyconfig.Config, error) {
+			return compozyconfig.Load(
+				compozyconfig.WithWorkspaceRoot(rootDir),
+				compozyconfig.WithProfile(profileName),
+			)
 		},
 		logger:      slog.Default(),
 		now:         time.Now,

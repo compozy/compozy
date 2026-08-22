@@ -53,9 +53,20 @@ func (h *BaseHandlers) ListAgentCatalog(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	profileName, err := h.agentResourceProfileNameForScope(c.Request.Context(), readScope)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	resolved, err := h.workspaceAgentEntriesWithDiagnostics(
 		c.Request.Context(),
 		query.Workspace,
+		profileName,
 	)
 	if err != nil {
 		h.respondError(c, statusForAgentWorkspaceError(err), err)
@@ -73,11 +84,6 @@ func (h *BaseHandlers) ListAgentCatalog(c *gin.Context) {
 		return compareAgentCatalogNames(left.Name, right.Name)
 	})
 
-	readScope, err := h.resolveProfileReadScope(c)
-	if err != nil {
-		h.respondProfileReadScopeError(c, err)
-		return
-	}
 	metrics, sessionsAvailable := h.agentCatalogSessionMetrics(c, readScope, resolved.WorkspaceID)
 	response, err := buildAgentCatalogResponse(query, resolved.WorkspaceID, agents, metrics, sessionsAvailable)
 	if err != nil {

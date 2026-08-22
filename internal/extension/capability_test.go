@@ -392,8 +392,11 @@ func TestCapabilityCheckerResolveShouldApplyOperatorResourcePolicy(t *testing.T)
 	if !slices.Equal(grant.ResourceKinds, []resources.ResourceKind{resources.ResourceKind("tool")}) {
 		t.Fatalf("Resolve().ResourceKinds = %#v, want [tool]", grant.ResourceKinds)
 	}
-	if !slices.Equal(grant.ResourceScopes, []resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace}) {
-		t.Fatalf("Resolve().ResourceScopes = %#v, want [workspace]", grant.ResourceScopes)
+	if !slices.Equal(grant.ResourceScopes, []resources.ResourceScopeKind{
+		resources.ResourceScopeKindWorkspace,
+		resources.ResourceScopeKindWorkspaceProfile,
+	}) {
+		t.Fatalf("Resolve().ResourceScopes = %#v, want workspace closure", grant.ResourceScopes)
 	}
 }
 
@@ -412,8 +415,11 @@ func TestCapabilityCheckerResolveShouldApplySourceTierScopeCeiling(t *testing.T)
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
 	}
-	if !slices.Equal(grant.ResourceScopes, []resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace}) {
-		t.Fatalf("Resolve().ResourceScopes = %#v, want [workspace]", grant.ResourceScopes)
+	if !slices.Equal(grant.ResourceScopes, []resources.ResourceScopeKind{
+		resources.ResourceScopeKindWorkspace,
+		resources.ResourceScopeKindWorkspaceProfile,
+	}) {
+		t.Fatalf("Resolve().ResourceScopes = %#v, want workspace closure", grant.ResourceScopes)
 	}
 }
 
@@ -432,8 +438,11 @@ func TestCapabilityCheckerResolveShouldApplySessionModeScopeNarrowing(t *testing
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
 	}
-	if !slices.Equal(grant.ResourceScopes, []resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace}) {
-		t.Fatalf("Resolve().ResourceScopes = %#v, want [workspace]", grant.ResourceScopes)
+	if !slices.Equal(grant.ResourceScopes, []resources.ResourceScopeKind{
+		resources.ResourceScopeKindWorkspace,
+		resources.ResourceScopeKindWorkspaceProfile,
+	}) {
+		t.Fatalf("Resolve().ResourceScopes = %#v, want workspace closure", grant.ResourceScopes)
 	}
 }
 
@@ -452,8 +461,11 @@ func TestCapabilityCheckerRegisterForSessionStoresGrantSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RegisterForSession() error = %v", err)
 	}
-	if !slices.Equal(grant.ResourceScopes, []resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace}) {
-		t.Fatalf("RegisterForSession().ResourceScopes = %#v, want [workspace]", grant.ResourceScopes)
+	if !slices.Equal(grant.ResourceScopes, []resources.ResourceScopeKind{
+		resources.ResourceScopeKindWorkspace,
+		resources.ResourceScopeKindWorkspaceProfile,
+	}) {
+		t.Fatalf("RegisterForSession().ResourceScopes = %#v, want workspace closure", grant.ResourceScopes)
 	}
 
 	stored := checker.Grant("ext")
@@ -541,44 +553,90 @@ func TestSourceTierResourceHelpers(t *testing.T) {
 		})
 	}
 
-	t.Run("Should project scopes through each valid ceiling", func(t *testing.T) {
+	t.Run("Should project every downward scope closure", func(t *testing.T) {
 		t.Parallel()
 
-		if !slices.Equal(scopesThrough(resources.ResourceScopeKindUser), []resources.ResourceScopeKind{
+		cases := []struct {
+			ceiling resources.ResourceScopeKind
+			want    []resources.ResourceScopeKind
+		}{
+			{resources.ResourceScopeKindUser, []resources.ResourceScopeKind{
+				resources.ResourceScopeKindUser,
+				resources.ResourceScopeKindWorkspace,
+				resources.ResourceScopeKindProfile,
+				resources.ResourceScopeKindWorkspaceProfile,
+			}},
+			{resources.ResourceScopeKindWorkspace, []resources.ResourceScopeKind{
+				resources.ResourceScopeKindWorkspace,
+				resources.ResourceScopeKindWorkspaceProfile,
+			}},
+			{resources.ResourceScopeKindProfile, []resources.ResourceScopeKind{
+				resources.ResourceScopeKindProfile,
+				resources.ResourceScopeKindWorkspaceProfile,
+			}},
+			{resources.ResourceScopeKindWorkspaceProfile, []resources.ResourceScopeKind{
+				resources.ResourceScopeKindWorkspaceProfile,
+			}},
+		}
+		for _, tc := range cases {
+			if got := resources.ScopesThrough(tc.ceiling); !slices.Equal(got, tc.want) {
+				t.Fatalf("ScopesThrough(%q) = %#v, want %#v", tc.ceiling, got, tc.want)
+			}
+		}
+		if got := resources.ScopesThrough(resources.ResourceScopeKind("invalid")); got != nil {
+			t.Fatalf("ScopesThrough(invalid) = %#v, want nil", got)
+		}
+	})
+
+	t.Run("Should narrow every pair to its lattice meet", func(t *testing.T) {
+		t.Parallel()
+
+		all := []resources.ResourceScopeKind{
 			resources.ResourceScopeKindUser,
 			resources.ResourceScopeKindWorkspace,
-		}) {
-			t.Fatalf(
-				"scopesThrough(global) = %#v, want global+workspace",
-				scopesThrough(resources.ResourceScopeKindUser),
-			)
+			resources.ResourceScopeKindProfile,
+			resources.ResourceScopeKindWorkspaceProfile,
 		}
-		if !slices.Equal(scopesThrough(resources.ResourceScopeKindWorkspace), []resources.ResourceScopeKind{
+		for _, left := range all {
+			for _, right := range all {
+				got, err := resources.MeetScopeCeilings(left, right)
+				if err != nil {
+					t.Fatalf("MeetScopeCeilings(%q, %q) error = %v", left, right, err)
+				}
+				wantClosure := intersectResourceScopes(
+					resources.ScopesThrough(left),
+					resources.ScopesThrough(right),
+				)
+				if gotClosure := resources.ScopesThrough(got); !slices.Equal(gotClosure, wantClosure) {
+					t.Fatalf(
+						"MeetScopeCeilings(%q, %q) = %q with closure %#v, want closure %#v",
+						left,
+						right,
+						got,
+						gotClosure,
+						wantClosure,
+					)
+				}
+			}
+		}
+		got, err := resources.MeetScopeCeilings(
 			resources.ResourceScopeKindWorkspace,
-		}) {
-			t.Fatalf(
-				"scopesThrough(workspace) = %#v, want [workspace]",
-				scopesThrough(resources.ResourceScopeKindWorkspace),
-			)
-		}
-		if got := scopesThrough(resources.ResourceScopeKind("invalid")); got != nil {
-			t.Fatalf("scopesThrough(invalid) = %#v, want nil", got)
+			resources.ResourceScopeKindProfile,
+		)
+		if err != nil || got != resources.ResourceScopeKindWorkspaceProfile {
+			t.Fatalf("MeetScopeCeilings(workspace, profile) = (%q, %v), want workspace_profile", got, err)
 		}
 	})
+}
 
-	t.Run("Should rank workspace before global and unknown scopes", func(t *testing.T) {
-		t.Parallel()
-
-		if got, want := scopeRank(resources.ResourceScopeKindWorkspace), 0; got != want {
-			t.Fatalf("scopeRank(workspace) = %d, want %d", got, want)
+func intersectResourceScopes(left, right []resources.ResourceScopeKind) []resources.ResourceScopeKind {
+	intersection := make([]resources.ResourceScopeKind, 0, len(left))
+	for _, scope := range left {
+		if slices.Contains(right, scope) {
+			intersection = append(intersection, scope)
 		}
-		if got, want := scopeRank(resources.ResourceScopeKindUser), 1; got != want {
-			t.Fatalf("scopeRank(global) = %d, want %d", got, want)
-		}
-		if got, want := scopeRank(resources.ResourceScopeKind("")), 2; got != want {
-			t.Fatalf("scopeRank(unknown) = %d, want %d", got, want)
-		}
-	})
+	}
+	return intersection
 }
 
 func TestCapabilityHelperPoliciesAndCeilings(t *testing.T) {

@@ -79,10 +79,10 @@ export function SkillsSettingsPage() {
   }
 
   const { envelope, draft, setDraft, restart } = page;
-  const isGlobalScope = page.selection.scope === "global";
+  const isUserScope = page.selection.scope === "user";
   const scopeLabel =
-    page.selection.scope === "global"
-      ? "global"
+    page.selection.scope === "user"
+      ? "user"
       : `agent ${page.selectedAgent?.name ?? page.selection.agentName}`;
 
   return (
@@ -117,7 +117,7 @@ export function SkillsSettingsPage() {
       ]}
       restart={restart}
       saveBar={
-        isGlobalScope ? (
+        isUserScope ? (
           <SettingsSaveBar
             onReset={page.handleResetPolicy}
             onSave={page.handleSavePolicy}
@@ -134,7 +134,7 @@ export function SkillsSettingsPage() {
           description="Skill discovery counts could not be measured. Policy settings remain editable."
         />
       ) : null}
-      {isGlobalScope ? (
+      {isUserScope ? (
         <>
           <EngineSection draft={draft} setDraft={setDraft} />
           <MarketplaceSection draft={draft} setDraft={setDraft} />
@@ -146,7 +146,7 @@ export function SkillsSettingsPage() {
         availableScopes={page.availableScopes}
         agents={page.agents}
         workspaces={page.workspaces}
-        onSelectGlobal={page.selectGlobal}
+        onSelectUser={page.selectUser}
         onSelectAgentScope={page.selectAgentScope}
         onSelectAgent={page.selectAgent}
         onSelectWorkspaceContext={page.selectWorkspaceContext}
@@ -183,7 +183,7 @@ export function SkillsSettingsPage() {
           />
         }
       />
-      {isGlobalScope ? (
+      {isUserScope ? (
         <SettingsAdvancedFold
           data-testid="settings-page-skills-advanced"
           label="Advanced — endpoint & install policy"
@@ -198,13 +198,13 @@ export function SkillsSettingsPage() {
   );
 }
 
-type SkillsScopeValue = "global" | "agent";
+type SkillsScopeValue = "user" | "agent";
 interface ScopeSelectorProps {
   selection: SkillsScopeSelection;
   availableScopes: readonly SettingsScope[];
   agents: AgentPayload[];
   workspaces: WorkspacePayload[];
-  onSelectGlobal: () => void;
+  onSelectUser: () => void;
   onSelectAgentScope: () => void;
   onSelectAgent: (agentName: string) => void;
   onSelectWorkspaceContext: (workspaceId: string) => void;
@@ -215,7 +215,7 @@ function ScopeSelector({
   availableScopes,
   agents,
   workspaces,
-  onSelectGlobal,
+  onSelectUser,
   onSelectAgentScope,
   onSelectAgent,
   onSelectWorkspaceContext,
@@ -223,9 +223,9 @@ function ScopeSelector({
   const agentScopeAvailable = availableScopes.includes("agent");
   const items: Array<{ value: SkillsScopeValue; label: string; testId: string }> = [
     {
-      value: "global",
-      label: "Global",
-      testId: "settings-page-skills-scope-global",
+      value: "user",
+      label: "User",
+      testId: "settings-page-skills-scope-user",
     },
   ];
   if (agentScopeAvailable) {
@@ -251,8 +251,8 @@ function ScopeSelector({
           size="sm"
           aria-label="Skills scope"
           onChange={next => {
-            if (next === "global") {
-              onSelectGlobal();
+            if (next === "user") {
+              onSelectUser();
               return;
             }
             onSelectAgentScope();
@@ -288,7 +288,7 @@ function ScopeSelector({
                 value={selection.workspaceId ?? ""}
                 onChange={event => onSelectWorkspaceContext(event.target.value)}
               >
-                <NativeSelectOption value="">Global resolution</NativeSelectOption>
+                <NativeSelectOption value="">User resolution</NativeSelectOption>
                 {workspaces.map(workspace => (
                   <NativeSelectOption key={workspace.id} value={workspace.id}>
                     {workspace.name}
@@ -398,7 +398,7 @@ function AgentScopePolicyNotice() {
     >
       <p className="text-sm text-muted">
         Agent scope only supports logical `skills.disabled_skills` tombstones. Registry enablement,
-        poll interval, and marketplace allowlists remain global settings.
+        poll interval, and marketplace allowlists remain user settings.
       </p>
     </SettingsGroup>
   );

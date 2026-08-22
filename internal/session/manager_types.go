@@ -107,6 +107,11 @@ type ProviderSecretResolver interface {
 	ResolveRef(ctx context.Context, ref string) (string, error)
 }
 
+// ProfileNameResolver maps stable profile ids to the current vault/resource name.
+type ProfileNameResolver interface {
+	ProfileName(ctx context.Context, profileID string) (string, error)
+}
+
 // Option customizes the session manager.
 type Option func(*Manager)
 
@@ -187,6 +192,7 @@ type Manager struct {
 	sandbox                      *sandbox.Registry
 	agentResolver                AgentResolver
 	providerSecrets              ProviderSecretResolver
+	profileNames                 ProfileNameResolver
 	modelCatalog                 modelcatalog.Service
 	skillRegistry                SkillRegistry
 	toolsetCatalog               toolspkg.ToolsetCatalog

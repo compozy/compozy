@@ -25,6 +25,31 @@ describe("SettingsSourceBadge", () => {
     expect(screen.getByTestId("badge-effective")).toHaveTextContent("WORKSPACE · ws_alpha");
   });
 
+  it("shows profile and repository-profile sources with their owner identity", () => {
+    const { rerender } = render(
+      <SettingsSourceBadge
+        data-testid="badge"
+        source={{ kind: "profile-config", scope: "profile", profile: "marketing" }}
+      />
+    );
+    expect(screen.getByTestId("badge-effective")).toHaveTextContent("PROFILE · marketing");
+
+    rerender(
+      <SettingsSourceBadge
+        data-testid="badge"
+        source={{
+          kind: "workspace-profile-config",
+          scope: "profile",
+          workspace_id: "ws_alpha",
+          profile: "marketing",
+        }}
+      />
+    );
+    expect(screen.getByTestId("badge-effective")).toHaveTextContent(
+      "WORKSPACE PROFILE · ws_alpha · marketing"
+    );
+  });
+
   it("shows the builtin label when the source is a daemon builtin", () => {
     render(
       <SettingsSourceBadge

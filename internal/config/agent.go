@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -13,24 +14,34 @@ import (
 	"github.com/goccy/go-yaml"
 )
 
+var resourceProfileNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
+
 // AgentDef is the parsed representation of an AGENT.md file.
 type AgentDef struct {
-	Name            string              `json:"name"                       yaml:"name"                       toml:"name"`
-	Provider        string              `json:"provider,omitempty"         yaml:"provider"                   toml:"provider"`
-	Command         string              `json:"command,omitempty"          yaml:"command,omitempty"          toml:"command,omitempty"`
-	Model           string              `json:"model,omitempty"            yaml:"model,omitempty"            toml:"model,omitempty"`
-	ReasoningEffort string              `json:"reasoning_effort,omitempty" yaml:"reasoning_effort,omitempty" toml:"reasoning_effort,omitempty"`
-	Tools           []string            `json:"tools,omitempty"            yaml:"tools,omitempty"            toml:"tools,omitempty"`
-	Toolsets        []string            `json:"toolsets,omitempty"         yaml:"toolsets,omitempty"         toml:"toolsets,omitempty"`
-	DenyTools       []string            `json:"deny_tools,omitempty"       yaml:"deny_tools,omitempty"       toml:"deny_tools,omitempty"`
-	Permissions     string              `json:"permissions,omitempty"      yaml:"permissions,omitempty"      toml:"permissions,omitempty"`
-	Skills          AgentSkillsConfig   `json:"skills,omitzero"            yaml:"skills,omitempty"           toml:"skills,omitempty"`
-	CategoryPath    []string            `json:"category_path,omitempty"    yaml:"category_path,omitempty"    toml:"category_path,omitempty"`
-	MCPServers      []MCPServer         `json:"mcp_servers,omitempty"      yaml:"mcp_servers,omitempty"      toml:"mcp_servers,omitempty"`
-	Hooks           []hookspkg.HookDecl `json:"hooks,omitempty"            yaml:"hooks,omitempty"            toml:"hooks,omitempty"`
-	Capabilities    *CapabilityCatalog  `json:"capabilities,omitempty"     yaml:"-"                          toml:"-"`
-	Prompt          string              `json:"prompt,omitempty"           yaml:"-"`
-	SourcePath      string              `json:"-"                          yaml:"-"                          toml:"-"`
+	Name                string               `json:"name"                       yaml:"name"                       toml:"name"`
+	Provider            string               `json:"provider,omitempty"         yaml:"provider"                   toml:"provider"`
+	Command             string               `json:"command,omitempty"          yaml:"command,omitempty"          toml:"command,omitempty"`
+	Model               string               `json:"model,omitempty"            yaml:"model,omitempty"            toml:"model,omitempty"`
+	ReasoningEffort     string               `json:"reasoning_effort,omitempty" yaml:"reasoning_effort,omitempty" toml:"reasoning_effort,omitempty"`
+	Tools               []string             `json:"tools,omitempty"            yaml:"tools,omitempty"            toml:"tools,omitempty"`
+	Toolsets            []string             `json:"toolsets,omitempty"         yaml:"toolsets,omitempty"         toml:"toolsets,omitempty"`
+	DenyTools           []string             `json:"deny_tools,omitempty"       yaml:"deny_tools,omitempty"       toml:"deny_tools,omitempty"`
+	Permissions         string               `json:"permissions,omitempty"      yaml:"permissions,omitempty"      toml:"permissions,omitempty"`
+	Skills              AgentSkillsConfig    `json:"skills,omitzero"            yaml:"skills,omitempty"           toml:"skills,omitempty"`
+	CategoryPath        []string             `json:"category_path,omitempty"    yaml:"category_path,omitempty"    toml:"category_path,omitempty"`
+	MCPServers          []MCPServer          `json:"mcp_servers,omitempty"      yaml:"mcp_servers,omitempty"      toml:"mcp_servers,omitempty"`
+	Hooks               []hookspkg.HookDecl  `json:"hooks,omitempty"            yaml:"hooks,omitempty"            toml:"hooks,omitempty"`
+	Capabilities        *CapabilityCatalog   `json:"capabilities,omitempty"     yaml:"-"                          toml:"-"`
+	Prompt              string               `json:"prompt,omitempty"           yaml:"-"`
+	SourcePath          string               `json:"-" yaml:"-" toml:"-"`
+	SourceLayer         string               `json:"-" yaml:"-" toml:"-"`
+	ShadowedDefinitions []AgentDefinitionRef `json:"-" yaml:"-" toml:"-"`
+}
+
+// AgentDefinitionRef identifies one lower-precedence definition hidden by a winner.
+type AgentDefinitionRef struct {
+	Layer string
+	Path  string
 }
 
 type parsedAgentDef struct {
@@ -59,12 +70,34 @@ const (
 	WorkspaceDiscoverySourceAdditional WorkspaceDiscoverySource = "additional"
 	// WorkspaceDiscoverySourceGlobal marks the global Compozy home root.
 	WorkspaceDiscoverySourceGlobal WorkspaceDiscoverySource = "global"
+	// WorkspaceDiscoverySourceProfile marks the active profile's personal root.
+	WorkspaceDiscoverySourceProfile WorkspaceDiscoverySource = "profile"
+	// WorkspaceDiscoverySourceWorkspaceProfile marks the project root bound to the active profile name.
+	WorkspaceDiscoverySourceWorkspaceProfile WorkspaceDiscoverySource = "workspace_profile"
 )
 
 // WorkspaceDiscoveryRoot describes a filesystem root participating in multi-root resource discovery.
 type WorkspaceDiscoveryRoot struct {
 	Dir    string
 	Source WorkspaceDiscoverySource
+}
+
+// AgentLayerName returns the public layer label for a discovery source.
+func AgentLayerName(source WorkspaceDiscoverySource) string {
+	switch source {
+	case WorkspaceDiscoverySourceGlobal:
+		return "user"
+	case WorkspaceDiscoverySourceProfile:
+		return "profile"
+	case WorkspaceDiscoverySourceAdditional:
+		return "additional"
+	case WorkspaceDiscoverySourceWorkspace:
+		return "project"
+	case WorkspaceDiscoverySourceWorkspaceProfile:
+		return "project_profile"
+	default:
+		return "unknown"
+	}
 }
 
 var (
@@ -152,12 +185,24 @@ func loadAgentDefFromDirectory(
 	return agent, nil
 }
 
-// WorkspaceDiscoveryRoots returns ordered discovery roots for workspace-scoped resources.
-// Precedence is left to right: workspace root, additional roots, then the global Compozy home.
-func WorkspaceDiscoveryRoots(rootDir string, additionalDirs []string, homePaths HomePaths) []WorkspaceDiscoveryRoot {
-	roots := make([]WorkspaceDiscoveryRoot, 0, len(additionalDirs)+2)
+// WorkspaceDiscoveryRoots returns ordered discovery roots for workspace-visible resources.
+// An optional profile name inserts the two profile-bound roots at their precedence slots.
+func WorkspaceDiscoveryRoots(
+	rootDir string,
+	additionalDirs []string,
+	homePaths HomePaths,
+	profileNames ...string,
+) []WorkspaceDiscoveryRoot {
+	profileName := firstProfileName(profileNames)
+	roots := make([]WorkspaceDiscoveryRoot, 0, len(additionalDirs)+4)
 
 	if trimmed := strings.TrimSpace(rootDir); trimmed != "" {
+		if profileName != "" {
+			roots = append(roots, WorkspaceDiscoveryRoot{
+				Dir:    filepath.Join(trimmed, DirName, ProfilesDirName, profileName),
+				Source: WorkspaceDiscoverySourceWorkspaceProfile,
+			})
+		}
 		roots = append(roots, WorkspaceDiscoveryRoot{
 			Dir:    trimmed,
 			Source: WorkspaceDiscoverySourceWorkspace,
@@ -173,6 +218,13 @@ func WorkspaceDiscoveryRoots(rootDir string, additionalDirs []string, homePaths 
 		}
 	}
 
+	if profileName != "" && strings.TrimSpace(homePaths.ProfilesDir) != "" {
+		roots = append(roots, WorkspaceDiscoveryRoot{
+			Dir:    filepath.Join(homePaths.ProfilesDir, profileName),
+			Source: WorkspaceDiscoverySourceProfile,
+		})
+	}
+
 	if trimmed := strings.TrimSpace(homePaths.HomeDir); trimmed != "" {
 		roots = append(roots, WorkspaceDiscoveryRoot{
 			Dir:    trimmed,
@@ -183,9 +235,33 @@ func WorkspaceDiscoveryRoots(rootDir string, additionalDirs []string, homePaths 
 	return roots
 }
 
+func firstProfileName(values []string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+// ValidateResourceProfileName validates a profile name used in discovery paths.
+func ValidateResourceProfileName(name string) error {
+	trimmed := strings.TrimSpace(name)
+	if !resourceProfileNamePattern.MatchString(trimmed) {
+		return fmt.Errorf(
+			"config: resource profile name %q must match %s",
+			trimmed,
+			resourceProfileNamePattern.String(),
+		)
+	}
+	return nil
+}
+
 // AgentsDir returns the agent-definition directory for this discovery root.
 func (r WorkspaceDiscoveryRoot) AgentsDir() string {
-	if r.Source == WorkspaceDiscoverySourceGlobal {
+	if r.Source == WorkspaceDiscoverySourceGlobal ||
+		r.Source == WorkspaceDiscoverySourceProfile ||
+		r.Source == WorkspaceDiscoverySourceWorkspaceProfile {
 		return filepath.Join(r.Dir, AgentsDirName)
 	}
 
@@ -194,7 +270,9 @@ func (r WorkspaceDiscoveryRoot) AgentsDir() string {
 
 // SkillsDir returns the skill-definition directory for this discovery root.
 func (r WorkspaceDiscoveryRoot) SkillsDir() string {
-	if r.Source == WorkspaceDiscoverySourceGlobal {
+	if r.Source == WorkspaceDiscoverySourceGlobal ||
+		r.Source == WorkspaceDiscoverySourceProfile ||
+		r.Source == WorkspaceDiscoverySourceWorkspaceProfile {
 		return filepath.Join(r.Dir, SkillsDirName)
 	}
 
@@ -203,7 +281,9 @@ func (r WorkspaceDiscoveryRoot) SkillsDir() string {
 
 // LoopsDir returns the loop-definition directory for this discovery root.
 func (r WorkspaceDiscoveryRoot) LoopsDir() string {
-	if r.Source == WorkspaceDiscoverySourceGlobal {
+	if r.Source == WorkspaceDiscoverySourceGlobal ||
+		r.Source == WorkspaceDiscoverySourceProfile ||
+		r.Source == WorkspaceDiscoverySourceWorkspaceProfile {
 		return filepath.Join(r.Dir, LoopsDirName)
 	}
 

@@ -166,6 +166,30 @@ func parseSettingsScope(rawScope string, rawWorkspaceID string) (settingspkg.Sco
 	return scope, strings.TrimSpace(rawWorkspaceID), nil
 }
 
+func parseSettingsOwner(c *gin.Context) (settingspkg.ScopeKind, string, string, error) {
+	rawScope := strings.TrimSpace(c.Query("scope"))
+	profileName := strings.TrimSpace(c.Query("profile"))
+	if rawScope == "" && profileName != "" && profileName != "default" {
+		rawScope = string(settingspkg.ScopeProfile)
+	}
+	scope, workspaceID, err := parseSettingsScope(rawScope, c.Query("workspace_id"))
+	if err != nil {
+		return "", "", "", err
+	}
+	if scope == settingspkg.ScopeProfile {
+		if profileName == "" || profileName == "default" {
+			return "", "", "", NewSettingsValidationError(
+				errors.New("settings.profile is required for profile scope"),
+			)
+		}
+		if err := compozyconfig.ValidateResourceProfileName(profileName); err != nil {
+			return "", "", "", NewSettingsValidationError(err)
+		}
+		return scope, workspaceID, profileName, nil
+	}
+	return scope, workspaceID, "", nil
+}
+
 func parseSettingsTarget(raw string) (settingspkg.TargetSelector, error) {
 	target := settingspkg.TargetSelector(strings.TrimSpace(raw))
 	if target == "" {

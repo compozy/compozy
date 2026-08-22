@@ -37,6 +37,7 @@ type MCPCatalogInstallRequest struct {
 	Name        string
 	Scope       ScopeKind
 	WorkspaceID string
+	ProfileName string
 	Values      MCPCatalogInstallValues
 }
 
@@ -63,7 +64,7 @@ func (s *service) InstallMCPCatalog(
 	}
 	if _, err := s.prepareMCPSecretWrites(
 		normalized.Scope,
-		normalized.WorkspaceID,
+		mcpScopeIdentifier(normalized.Scope, normalized.WorkspaceID, normalized.ProfileName),
 		server.Name,
 		&server,
 		secrets,
@@ -75,6 +76,7 @@ func (s *service) InstallMCPCatalog(
 			Collection:  CollectionMCPServers,
 			Scope:       normalized.Scope,
 			WorkspaceID: normalized.WorkspaceID,
+			ProfileName: normalized.ProfileName,
 		},
 		Name:       server.Name,
 		Target:     TargetAuto,
@@ -165,6 +167,21 @@ func (s *service) prepareMCPCatalogInstall(
 	normalized.EntryID = entryID
 	normalized.Scope = scope
 	normalized.WorkspaceID = workspaceID
+	normalized.ProfileName = strings.TrimSpace(req.ProfileName)
+	if scope == ScopeProfile {
+		if normalized.ProfileName == "" || normalized.ProfileName == "default" {
+			return MCPCatalogInstallRequest{}, nil, nil, validationError(
+				errors.New("settings: MCP catalog profile scope requires a non-default profile"),
+			)
+		}
+		if err := compozyconfig.ValidateResourceProfileName(normalized.ProfileName); err != nil {
+			return MCPCatalogInstallRequest{}, nil, nil, validationError(err)
+		}
+	} else if normalized.ProfileName != "" {
+		return MCPCatalogInstallRequest{}, nil, nil, conflictError(
+			errors.New("settings: MCP catalog profile requires profile scope"),
+		)
+	}
 	normalized.Name = strings.TrimSpace(req.Name)
 	if normalized.Name == "" {
 		normalized.Name = strings.TrimSpace(entry.Name)

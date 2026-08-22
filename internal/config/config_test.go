@@ -3,6 +3,7 @@ package config
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"log/slog"
 	"math"
 	"os"
@@ -2876,6 +2877,168 @@ func TestLoadGlobalConfigRejectsRemovedNetworkKeys(t *testing.T) {
 				t.Fatalf("LoadGlobalConfig() error = %q, want path network.%s", err, tc.key)
 			}
 		})
+	}
+}
+
+func TestProfileConfigLayersComposeInSpecificityOrder(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	workspaceRoot := t.TempDir()
+	profileName := "marketing"
+	layers := []struct {
+		path  string
+		value int
+	}{
+		{path: homePaths.ConfigFile, value: 2},
+		{path: profileConfigFile(homePaths, profileName), value: 3},
+		{path: workspaceConfigFile(workspaceRoot), value: 4},
+		{path: workspaceProfileConfigFile(workspaceRoot, profileName), value: 5},
+	}
+	for _, layer := range layers {
+		writeFile(t, layer.path, fmt.Sprintf("[limits]\nmax_concurrent_agents = %d\n", layer.value))
+	}
+	writeFile(t, profileMCPJSONFile(homePaths, profileName), `{
+  "mcpServers": {"layered": {"command": "profile-sidecar"}}
+}`)
+	writeFile(t, workspaceProfileMCPJSONFile(workspaceRoot, profileName), `{
+  "mcpServers": {"layered": {"command": "workspace-profile-sidecar"}}
+}`)
+
+	cfg, err := LoadForHome(
+		homePaths,
+		WithWorkspaceRoot(workspaceRoot),
+		WithProfile(profileName),
+	)
+	if err != nil {
+		t.Fatalf("LoadForHome(profile layers) error = %v", err)
+	}
+	if got, want := cfg.Limits.MaxConcurrentAgents, 5; got != want {
+		t.Fatalf("MaxConcurrentAgents = %d, want workspace-profile winner %d", got, want)
+	}
+	if len(cfg.MCPServers) != 1 || cfg.MCPServers[0].Command != "workspace-profile-sidecar" {
+		t.Fatalf("MCPServers = %#v, want workspace-profile sidecar winner", cfg.MCPServers)
+	}
+
+	if err := os.Remove(workspaceProfileConfigFile(workspaceRoot, profileName)); err != nil {
+		t.Fatalf("Remove(workspace profile config) error = %v", err)
+	}
+	if err := os.Remove(workspaceProfileMCPJSONFile(workspaceRoot, profileName)); err != nil {
+		t.Fatalf("Remove(workspace profile MCP) error = %v", err)
+	}
+	cfg, err = LoadForHome(homePaths, WithWorkspaceRoot(workspaceRoot), WithProfile(profileName))
+	if err != nil {
+		t.Fatalf("LoadForHome(profile fallback) error = %v", err)
+	}
+	if got, want := cfg.Limits.MaxConcurrentAgents, 4; got != want {
+		t.Fatalf("MaxConcurrentAgents fallback = %d, want workspace winner %d", got, want)
+	}
+	if len(cfg.MCPServers) != 1 || cfg.MCPServers[0].Command != "profile-sidecar" {
+		t.Fatalf("MCPServers fallback = %#v, want personal profile sidecar", cfg.MCPServers)
+	}
+}
+
+func TestProfileConfigOverlayRejectsMachineOnlyKeys(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should allow palette personalization", func(t *testing.T) {
+		t.Parallel()
+
+		if _, err := loadProfileConfigOverlayBytes([]byte("[cmd_palette]\npersonalization = false\n"), "profile.toml"); err != nil {
+			t.Fatalf("loadProfileConfigOverlayBytes(cmd_palette) error = %v", err)
+		}
+	})
+
+	t.Run("Should reject every machine-only root and global shortcut binding", func(t *testing.T) {
+		t.Parallel()
+
+		inputs := []string{
+			"[http]\nport = 9999\n",
+			"[sandboxes.dev]\nbackend = \"host\"\n",
+			"[window_manager.global_shortcuts]\nsummon = \"meta+KeyK\"\n",
+		}
+		for _, input := range inputs {
+			_, err := loadProfileConfigOverlayBytes([]byte(input), "profile.toml")
+			var validation ValidationError
+			if !errors.As(err, &validation) || validation.Code != "profile_config_key_denied" {
+				t.Fatalf("loadProfileConfigOverlayBytes(%q) error = %#v, want profile_config_key_denied", input, err)
+			}
+			if !strings.Contains(err.Error(), "--scope user") {
+				t.Fatalf("denied profile overlay error = %q, want user-scope guidance", err)
+			}
+		}
+	})
+}
+
+func TestProfileWriteTargetsUsePersonalProfileDirectory(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	configTarget, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeProfile, "marketing")
+	if err != nil {
+		t.Fatalf("ResolveConfigWriteTarget(profile) error = %v", err)
+	}
+	mcpTarget, err := ResolveMCPSidecarWriteTarget(homePaths, "", WriteScopeProfile, "marketing")
+	if err != nil {
+		t.Fatalf("ResolveMCPSidecarWriteTarget(profile) error = %v", err)
+	}
+	if got, want := configTarget.Path(), filepath.Join(homePaths.ProfilesDir, "marketing", ConfigName); got != want {
+		t.Fatalf("profile config target = %q, want %q", got, want)
+	}
+	if got, want := mcpTarget.Path(), filepath.Join(homePaths.ProfilesDir, "marketing", MCPJSONName); got != want {
+		t.Fatalf("profile MCP target = %q, want %q", got, want)
+	}
+	if _, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeProfile, "Marketing"); err == nil {
+		t.Fatal("ResolveConfigWriteTarget(invalid profile) error = nil, want name rejection")
+	}
+}
+
+func TestInspectProfileLayerFilesReportsOrphansWithoutApplyingThem(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	workspaceRoot := t.TempDir()
+	writeFile(
+		t,
+		filepath.Join(homePaths.ProfilesDir, "ghost", ConfigName),
+		"[defaults]\nprovider = \"orphan-provider\"\n",
+	)
+	writeFile(
+		t,
+		filepath.Join(workspaceRoot, DirName, ProfilesDirName, "ghost", MCPJSONName),
+		`{"mcpServers":{"orphan-server":{"command":"orphan"}}}`,
+	)
+
+	diagnostics, err := InspectProfileLayerFiles(homePaths, workspaceRoot, []string{"marketing"})
+	if err != nil {
+		t.Fatalf("InspectProfileLayerFiles() error = %v", err)
+	}
+	if got, want := len(diagnostics), 2; got != want {
+		t.Fatalf("InspectProfileLayerFiles() diagnostics = %#v, want %d", diagnostics, want)
+	}
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Code != ProfileLayerOrphanedCode || diagnostic.Profile != "ghost" {
+			t.Fatalf("profile layer diagnostic = %#v, want ghost orphan", diagnostic)
+		}
+	}
+	loaded, err := LoadForHome(homePaths, WithWorkspaceRoot(workspaceRoot), withoutDotEnv())
+	if err != nil {
+		t.Fatalf("LoadForHome() error = %v", err)
+	}
+	if loaded.Defaults.Provider == "orphan-provider" {
+		t.Fatal("LoadForHome() applied an orphan profile config")
+	}
+	if slices.ContainsFunc(loaded.MCPServers, func(server MCPServer) bool { return server.Name == "orphan-server" }) {
+		t.Fatal("LoadForHome() applied an orphan profile MCP sidecar")
 	}
 }
 

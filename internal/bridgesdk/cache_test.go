@@ -86,3 +86,33 @@ func TestInstanceCacheSnapshotAndListReturnClones(t *testing.T) {
 		t.Fatalf("fresh.Instance.Degradation = %#v, want rate_limited", fresh.Instance.Degradation)
 	}
 }
+
+func TestInstanceCacheKeysManagedInstancesByProfile(t *testing.T) {
+	t.Parallel()
+
+	runtime := testManagedRuntime("shared")
+	second := runtime.ManagedInstances[0]
+	second.Instance.ProfileID = "profile-2"
+	second.BoundSecrets[0].Value = "secret-profile-2"
+	runtime.ManagedInstances = append(runtime.ManagedInstances, second)
+
+	cache := NewInstanceCache(runtime)
+	if _, ok := cache.Get("shared"); ok {
+		t.Fatal("Get(shared) ok = true, want ambiguous profile-less lookup rejected")
+	}
+	first, ok := cache.GetForProfile("profile-1", "shared")
+	if !ok || first.Instance.ProfileID != "profile-1" {
+		t.Fatalf("GetForProfile(profile-1, shared) = (%#v, %v)", first, ok)
+	}
+	secondValue, ok := cache.BoundSecretValueForProfile("profile-2", "shared", "bot_token")
+	if !ok || secondValue != "secret-profile-2" {
+		t.Fatalf(
+			"BoundSecretValueForProfile(profile-2, shared) = (%q, %v), want profile-2 secret",
+			secondValue,
+			ok,
+		)
+	}
+	if _, ok := cache.BoundSecretValueForProfile("profile-3", "shared", "bot_token"); ok {
+		t.Fatal("BoundSecretValueForProfile(profile-3, shared) ok = true, want false")
+	}
+}

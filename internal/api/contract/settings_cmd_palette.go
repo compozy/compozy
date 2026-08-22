@@ -1,12 +1,14 @@
 package contract
 
 type UpdateSettingsCmdPaletteRequest struct {
-	FallbackAgentEnabled *bool `json:"fallback_agent_enabled,omitempty"`
-	Personalization      *bool `json:"personalization,omitempty"`
+	FallbackAgentEnabled *bool              `json:"fallback_agent_enabled,omitempty"`
+	Personalization      *bool              `json:"personalization,omitempty"`
+	Aliases              *map[string]string `json:"aliases,omitempty"`
 }
 
 type SettingsCmdPaletteResponse struct {
-	SettingsGlobalWorkspaceSectionResponseMetaPayload
-	FallbackAgentEnabled bool `json:"fallback_agent_enabled"`
-	Personalization      bool `json:"personalization"`
+	SettingsLayeredSectionResponseMetaPayload
+	FallbackAgentEnabled bool              `json:"fallback_agent_enabled"`
+	Personalization      bool              `json:"personalization"`
+	Aliases              map[string]string `json:"aliases"`
 }

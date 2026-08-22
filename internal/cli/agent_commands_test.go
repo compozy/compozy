@@ -25,16 +25,21 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 		t.Parallel()
 
 		agent := AgentRecord{
-			Name:             "coder",
-			Provider:         "fake",
-			Command:          "codex",
-			Model:            "gpt-5.4",
-			ReasoningEffort:  "max",
-			Tools:            []string{"shell", "git"},
-			Permissions:      "standard",
-			CategoryPath:     []string{"Marketing", "Sales"},
-			Origin:           contract.AgentOriginWorkspace,
-			WorkspaceID:      "ws-1",
+			Name:            "coder",
+			Provider:        "fake",
+			Command:         "codex",
+			Model:           "gpt-5.4",
+			ReasoningEffort: "max",
+			Tools:           []string{"shell", "git"},
+			Permissions:     "standard",
+			CategoryPath:    []string{"Marketing", "Sales"},
+			Origin:          contract.AgentOriginWorkspace,
+			WorkspaceID:     "ws-1",
+			Layer:           "project_profile",
+			Shadows: []contract.AgentDefinitionShadowPayload{
+				{Layer: "profile", Path: "/profiles/marketing/agents/coder/AGENT.md"},
+				{Layer: "user", Path: "/agents/coder/AGENT.md"},
+			},
 			Skills:           &contract.CreateAgentSkillsConfig{Disabled: []string{"legacy-review"}},
 			DefinitionDigest: "digest-coder",
 			Prompt:           "You are coder.",
@@ -84,7 +89,9 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 			t.Fatalf("agent list human error = %v", err)
 		}
 		if !strings.Contains(listHuman, "Category") || !strings.Contains(listHuman, "Marketing / Sales") ||
-			!strings.Contains(listHuman, "Origin") || !strings.Contains(listHuman, "workspace") {
+			!strings.Contains(listHuman, "Origin") || !strings.Contains(listHuman, "workspace") ||
+			!strings.Contains(listHuman, "Layer") || !strings.Contains(listHuman, "project_profile") ||
+			!strings.Contains(listHuman, "Shadows") || !strings.Contains(listHuman, "profile, user") {
 			t.Fatalf("agent list human output = %q, want category column", listHuman)
 		}
 
@@ -93,7 +100,7 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 			t.Fatalf("agent list toon error = %v", err)
 		}
 		const wantHeader = "agents[1]{name,provider,model,category,origin,workspace_id," +
-			"disabled_skills,definition_digest,tool_count,permissions}:"
+			"disabled_skills,layer,shadows,definition_digest,tool_count,permissions}:"
 		if !strings.Contains(listToon, wantHeader) ||
 			!strings.Contains(listToon, "Marketing / Sales") {
 			t.Fatalf("agent list toon output = %q, want category key", listToon)

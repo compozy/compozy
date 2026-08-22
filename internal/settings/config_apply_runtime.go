@@ -17,12 +17,16 @@ func (s *service) persistRuntimeApply(
 	nextActiveConfig *compozyconfig.Config,
 	configLifecycle lifecycle.Lifecycle,
 	noChanges bool,
+	writeTarget WriteTargetKind,
+	writePath string,
 ) (ApplyRecord, runtimeApplyPlan, error) {
 	plan := newRuntimeApplyPlan(state, nextActiveHash, configLifecycle, noChanges)
 	pending, err := s.createPendingApplyRecord(ctx, applyRecordInput{
 		desiredHash: desiredHash,
 		activeHash:  state.hash,
 		generation:  state.generation,
+		writeTarget: writeTarget,
+		writePath:   writePath,
 		lifecycle:   configLifecycle,
 	})
 	if err != nil {

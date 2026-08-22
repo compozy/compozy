@@ -50,6 +50,22 @@ func workspaceConfigFile(root string) string {
 	return filepath.Join(root, DirName, ConfigName)
 }
 
+func profileConfigFile(homePaths HomePaths, profileName string) string {
+	return filepath.Join(homePaths.ProfilesDir, strings.TrimSpace(profileName), ConfigName)
+}
+
+func profileMCPJSONFile(homePaths HomePaths, profileName string) string {
+	return filepath.Join(homePaths.ProfilesDir, strings.TrimSpace(profileName), MCPJSONName)
+}
+
+func workspaceProfileConfigFile(root string, profileName string) string {
+	return filepath.Join(root, DirName, "profiles", strings.TrimSpace(profileName), ConfigName)
+}
+
+func workspaceProfileMCPJSONFile(root string, profileName string) string {
+	return filepath.Join(root, DirName, "profiles", strings.TrimSpace(profileName), MCPJSONName)
+}
+
 func hasDistinctWorkspaceOverlay(homePaths HomePaths, root string) bool {
 	if strings.TrimSpace(root) == "" {
 		return false

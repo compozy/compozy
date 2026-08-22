@@ -52,6 +52,7 @@ const (
 	specAPIResourcesKindIDPath                               = "/api/resources/{kind}/{id}"
 	specAPISettingsAutomationPath                            = "/api/settings/automation"
 	specAPISettingsGeneralPath                               = "/api/settings/general"
+	specAPISettingsPersonaPath                               = "/api/settings/persona"
 	specAPISettingsHooksExtensionsPath                       = "/api/settings/hooks-extensions"
 	specAPISettingsHooksNamePath                             = "/api/settings/hooks/{name}"
 	specAPISettingsMCPServersNamePath                        = "/api/settings/mcp-servers/{name}"

@@ -460,6 +460,7 @@ func TestRegistryForWorkspaceMergesGlobalAndWorkspaceSkills(t *testing.T) {
 	userDir := filepath.Join(root, "user")
 	workspace := filepath.Join(root, "workspace")
 	additional := filepath.Join(root, "additional")
+	profileRoot := filepath.Join(root, "profiles", "marketing")
 
 	writeSkillFile(
 		t,
@@ -479,6 +480,18 @@ func TestRegistryForWorkspaceMergesGlobalAndWorkspaceSkills(t *testing.T) {
 		filepath.Join("shared", skillFileName),
 		skillWithDescription("shared", "Additional skill"),
 	)
+	profileDir := writeSkillFile(
+		t,
+		filepath.Join(profileRoot, "skills"),
+		filepath.Join("personal", skillFileName),
+		skillWithDescription("personal", "Profile skill"),
+	)
+	workspaceProfileDir := writeSkillFile(
+		t,
+		filepath.Join(workspace, ".compozy", "profiles", "marketing", "skills"),
+		filepath.Join("project-profile", skillFileName),
+		skillWithDescription("project-profile", "Workspace profile skill"),
+	)
 
 	registry := newTestRegistry(t, RegistryConfig{
 		UserSkillsDir: userDir,
@@ -489,18 +502,22 @@ func TestRegistryForWorkspaceMergesGlobalAndWorkspaceSkills(t *testing.T) {
 	}
 
 	got, err := registry.ForWorkspace(context.Background(), &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: "ws_1", RootDir: workspace},
+		Workspace:   workspacepkg.Workspace{ID: "ws_1", RootDir: workspace},
+		ProfileName: "marketing",
+		ProfileRoot: profileRoot,
 		Skills: []workspacepkg.SkillPath{
+			{Dir: filepath.Dir(workspaceProfileDir), Source: "workspace_profile"},
 			{Dir: filepath.Dir(workspaceDir), Source: "workspace"},
 			{Dir: filepath.Dir(additionalDir), Source: "additional"},
+			{Dir: filepath.Dir(profileDir), Source: "profile"},
 		},
 	})
 	if err != nil {
 		t.Fatalf("ForWorkspace() error = %v", err)
 	}
 
-	if len(got) != 3 {
-		t.Fatalf("ForWorkspace() len = %d, want 3", len(got))
+	if len(got) != 5 {
+		t.Fatalf("ForWorkspace() len = %d, want 5", len(got))
 	}
 	if findSkill(t, got, "global").Source != SourceUser {
 		t.Fatalf("global Source = %v, want %v", findSkill(t, got, "global").Source, SourceUser)
@@ -513,6 +530,16 @@ func TestRegistryForWorkspaceMergesGlobalAndWorkspaceSkills(t *testing.T) {
 			"shared Source = %v, want %v",
 			findSkill(t, got, "shared").Source,
 			SourceAdditional,
+		)
+	}
+	if findSkill(t, got, "personal").Source != SourceProfile {
+		t.Fatalf("personal Source = %v, want %v", findSkill(t, got, "personal").Source, SourceProfile)
+	}
+	if findSkill(t, got, "project-profile").Source != SourceWorkspaceProfile {
+		t.Fatalf(
+			"project-profile Source = %v, want %v",
+			findSkill(t, got, "project-profile").Source,
+			SourceWorkspaceProfile,
 		)
 	}
 }
@@ -1775,6 +1802,16 @@ func TestSkillTypesSupportMarketplaceDeclarations(t *testing.T) {
 func TestSkillSourceMarketplacePrecedenceAndNaming(t *testing.T) {
 	t.Parallel()
 
+	if got, want := []SkillSource{
+		SourceBundled,
+		SourceMarketplace,
+		SourceUser,
+		SourceAdditional,
+		SourceWorkspace,
+		SourceAgentLocal,
+	}, []SkillSource{0, 1, 2, 3, 4, 5}; !slices.Equal(got, want) {
+		t.Fatalf("persisted SkillSource values = %v, want %v", got, want)
+	}
 	if SourceBundled >= SourceMarketplace || SourceMarketplace >= SourceUser {
 		t.Fatalf(
 			"SourceMarketplace ordering = [%d %d %d], want bundled < marketplace < user",
@@ -1802,6 +1839,29 @@ func TestSkillSourceMarketplacePrecedenceAndNaming(t *testing.T) {
 			"skillSourceFromWorkspacePath(marketplace) include = true, want false for global marketplace source",
 		)
 	}
+
+	t.Run("Should rank appended profile sources without enum ordering", func(t *testing.T) {
+		t.Parallel()
+
+		ordered := []SkillSource{
+			SourceBundled,
+			SourceMarketplace,
+			SourceUser,
+			SourceProfile,
+			SourceAdditional,
+			SourceWorkspace,
+			SourceWorkspaceProfile,
+			SourceAgentLocal,
+		}
+		for index := 1; index < len(ordered); index++ {
+			if SkillPrecedenceRank(ordered[index-1]) >= SkillPrecedenceRank(ordered[index]) {
+				t.Fatalf("SkillPrecedenceRank ordering = %v", ordered)
+			}
+		}
+		if SourceProfile < SourceAgentLocal || SourceWorkspaceProfile < SourceAgentLocal {
+			t.Fatal("profile sources were inserted into the persisted enum")
+		}
+	})
 }
 
 func TestCloneSkillDeepCopiesExtendedFields(t *testing.T) {

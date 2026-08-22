@@ -153,20 +153,30 @@ func parseMCPInstallAssignment(flag string, assignment string) (string, string, 
 	return id, strings.TrimSpace(value), nil
 }
 
-func validateMCPInstallScope(scope contract.SettingsWorkspaceScopeKind, workspaceID string) error {
+func validateMCPInstallScope(scope contract.SettingsLayeredScopeKind, workspaceID string, profile string) error {
 	switch scope {
 	case "":
-		if strings.TrimSpace(workspaceID) != "" {
+		if strings.TrimSpace(workspaceID) != "" || strings.TrimSpace(profile) != "" {
 			return errors.New("cli: --workspace requires --scope workspace")
 		}
 		return nil
-	case contract.SettingsWorkspaceScopeGlobal:
+	case contract.SettingsLayeredScopeUser:
+		if strings.TrimSpace(workspaceID) != "" || strings.TrimSpace(profile) != "" {
+			return errors.New("cli: --workspace requires --scope workspace")
+		}
+	case contract.SettingsLayeredScopeProfile:
 		if strings.TrimSpace(workspaceID) != "" {
 			return errors.New("cli: --workspace requires --scope workspace")
 		}
-	case contract.SettingsWorkspaceScopeWorkspace:
+		if strings.TrimSpace(profile) == "" || strings.TrimSpace(profile) == "default" {
+			return errors.New("cli: --scope profile requires an active non-default profile")
+		}
+	case contract.SettingsLayeredScopeWorkspace:
 		if strings.TrimSpace(workspaceID) == "" {
 			return errors.New("cli: --scope workspace requires --workspace")
+		}
+		if strings.TrimSpace(profile) != "" {
+			return errors.New("cli: profile identity requires --scope profile")
 		}
 	default:
 		return fmt.Errorf("cli: unsupported MCP install scope %q", scope)

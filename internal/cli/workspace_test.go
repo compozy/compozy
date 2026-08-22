@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -244,6 +245,10 @@ func TestWorkspaceListInfoAndRemove(t *testing.T) {
 						Dir:    "/workspace/project/.compozy/skills/review",
 						Source: "workspace",
 					}},
+					ProfileHints: []contract.WorkspaceProfileHintPayload{{
+						Name: "dev", Message: "This workspace declares content for profile \"dev\".",
+						Action: "compozy profile create dev",
+					}},
 				}, nil
 			},
 			deleteWorkspaceFn: func(_ context.Context, ref string) error {
@@ -273,7 +278,7 @@ func TestWorkspaceListInfoAndRemove(t *testing.T) {
 			t.Fatalf("json.Unmarshal(workspace info) error = %v", err)
 		}
 		if detail.Workspace.ID != "ws_alpha" || len(detail.Sessions) != 1 || len(detail.Agents) != 1 ||
-			len(detail.Skills) != 1 {
+			len(detail.Skills) != 1 || len(detail.ProfileHints) != 1 {
 			t.Fatalf("detail = %#v, want workspace detail payload", detail)
 		}
 		if got, want := strings.Join(detail.Agents[0].CategoryPath, ","), "Engineering,Tools"; got != want {

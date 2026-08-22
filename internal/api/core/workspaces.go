@@ -91,14 +91,56 @@ func (h *BaseHandlers) GetWorkspace(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
+	profileHints, err := h.workspaceProfileHints(c.Request.Context(), resolved.ProfileDeclarations)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
 
 	c.JSON(http.StatusOK, contract.WorkspaceDetailPayload{
-		Workspace: WorkspacePayloadFromWorkspace(resolved.Workspace),
-		Sessions:  SessionPayloadsForWorkspace(sessions, resolved.WorkspaceID),
-		Agents:    AgentPayloadsFromEntries(agents),
-		Skills:    WorkspaceSkillPayloads(resolved.Skills),
-		Providers: SessionProviderOptionPayloadsFromConfig(&resolved.Config),
+		Workspace:    WorkspacePayloadFromWorkspace(resolved.Workspace),
+		Sessions:     SessionPayloadsForWorkspace(sessions, resolved.WorkspaceID),
+		Agents:       AgentPayloadsFromEntries(agents),
+		Skills:       WorkspaceSkillPayloads(resolved.Skills),
+		Providers:    SessionProviderOptionPayloadsFromConfig(&resolved.Config),
+		ProfileHints: profileHints,
 	})
+}
+
+func (h *BaseHandlers) workspaceProfileHints(
+	ctx context.Context,
+	declarations []workspacepkg.ProfileDeclaration,
+) ([]contract.WorkspaceProfileHintPayload, error) {
+	if len(declarations) == 0 {
+		return nil, nil
+	}
+	known := map[string]struct{}{"default": {}}
+	if h.Profiles != nil {
+		profiles, err := h.Profiles.List(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("api: list profiles for workspace hints: %w", err)
+		}
+		for _, item := range profiles {
+			known[strings.TrimSpace(item.Name)] = struct{}{}
+		}
+	}
+	hints := make([]contract.WorkspaceProfileHintPayload, 0, len(declarations))
+	for _, declaration := range declarations {
+		name := strings.TrimSpace(declaration.Name)
+		if name == "" {
+			continue
+		}
+		if _, exists := known[name]; exists {
+			continue
+		}
+		hints = append(hints, contract.WorkspaceProfileHintPayload{
+			Name:    name,
+			Path:    strings.TrimSpace(declaration.Path),
+			Message: fmt.Sprintf("This workspace declares content for profile %q.", name),
+			Action:  "compozy profile create " + name,
+		})
+	}
+	return hints, nil
 }
 
 func (h *BaseHandlers) workspaceDetailAgentEntries(

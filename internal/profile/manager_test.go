@@ -13,12 +13,93 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	providerpkg "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/vault"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestManagerProfileLifecycle(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should enumerate and atomically rewrite only renamed profile vault refs", func(t *testing.T) {
+		t.Parallel()
+
+		manager, database, home := newTestManager(t)
+		ctx := testutil.Context(t)
+		created, err := manager.Create(ctx, CreateInput{Name: "dev"})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		service, err := vault.NewService(
+			database,
+			vault.NewFileKeyProvider(home.HomeDir, nil),
+		)
+		if err != nil {
+			t.Fatalf("vault.NewService() error = %v", err)
+		}
+		oldRef := "vault:profiles/dev/providers/openai/api_key"
+		foreignRef := "vault:profiles/sales/providers/openai/api_key"
+		if _, err := service.PutSecret(ctx, oldRef, "api_key", "dev-secret"); err != nil {
+			t.Fatalf("PutSecret(dev) error = %v", err)
+		}
+		if _, err := service.PutSecret(ctx, foreignRef, "api_key", "sales-secret"); err != nil {
+			t.Fatalf("PutSecret(sales) error = %v", err)
+		}
+		now := formatTimestamp(time.Now())
+		if _, err := database.DB().ExecContext(ctx, `
+			INSERT INTO extension_env_bindings
+			(extension_name, profile_id, workspace_id, env_name, secret_ref, kind, created_at, updated_at)
+			VALUES ('growth', ?, '', 'OPENAI_API_KEY', ?, 'extension_env', ?, ?)`,
+			created.ID,
+			oldRef,
+			now,
+			now,
+		); err != nil {
+			t.Fatalf("insert extension profile secret binding error = %v", err)
+		}
+
+		plan, err := manager.PrepareRename(ctx, "dev", "engineering")
+		if err != nil {
+			t.Fatalf("PrepareRename() error = %v", err)
+		}
+		if plan.VaultRefRewrites != 2 {
+			t.Fatalf("PrepareRename().VaultRefRewrites = %d, want 2 persisted occurrences", plan.VaultRefRewrites)
+		}
+		if _, err := manager.Rename(ctx, "dev", RenameOptions{
+			NewName: "engineering", Repos: RepoChoice{None: true}, PlanRevision: plan.Revision,
+		}); err != nil {
+			t.Fatalf("Rename() error = %v", err)
+		}
+
+		newRef := "vault:profiles/engineering/providers/openai/api_key"
+		value, err := service.ResolveRef(ctx, newRef)
+		if err != nil {
+			t.Fatalf("ResolveRef(renamed) error = %v", err)
+		}
+		if value != "dev-secret" {
+			t.Fatalf("ResolveRef(renamed) = %q, want dev-secret", value)
+		}
+		if _, err := service.ResolveRef(ctx, oldRef); !errors.Is(err, vault.ErrSecretNotFound) {
+			t.Fatalf("ResolveRef(old) error = %v, want ErrSecretNotFound", err)
+		}
+		foreignValue, err := service.ResolveRef(ctx, foreignRef)
+		if err != nil || foreignValue != "sales-secret" {
+			t.Fatalf("ResolveRef(foreign) = %q, %v; want unchanged sales-secret", foreignValue, err)
+		}
+		var bindingRef string
+		if err := database.DB().QueryRowContext(
+			ctx,
+			`SELECT secret_ref FROM extension_env_bindings WHERE extension_name = 'growth' AND profile_id = ?`,
+			created.ID,
+		).Scan(&bindingRef); err != nil {
+			t.Fatalf("read renamed extension binding error = %v", err)
+		}
+		if bindingRef != newRef {
+			t.Fatalf("extension binding ref = %q, want %q", bindingRef, newRef)
+		}
+	})
 
 	t.Run("Should preserve identity through rename archive unarchive and delete", func(t *testing.T) {
 		t.Parallel()
@@ -96,10 +177,42 @@ func TestManagerProfileLifecycle(t *testing.T) {
 		if _, err := manager.Unarchive(ctx, "growth"); err != nil {
 			t.Fatalf("Unarchive(idempotent) error = %v", err)
 		}
+		profileDir := filepath.Join(home.ProfilesDir, "growth")
+		if err := os.WriteFile(
+			filepath.Join(profileDir, compozyconfig.ConfigName),
+			[]byte("[persona]\nagent = \"coder\"\nprovider = \"codex\"\n"),
+			0o600,
+		); err != nil {
+			t.Fatalf("write profile config fixture error = %v", err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(profileDir, compozyconfig.MCPJSONName),
+			[]byte(`{"mcpServers":{"github":{"command":"github-mcp"},"linear":{"command":"linear-mcp"}}}`),
+			0o600,
+		); err != nil {
+			t.Fatalf("write profile MCP fixture error = %v", err)
+		}
+		vaultService, err := vault.NewService(database, vault.NewFileKeyProvider(home.HomeDir, nil))
+		if err != nil {
+			t.Fatalf("vault.NewService() error = %v", err)
+		}
+		credentialRefs := []string{
+			"vault:profiles/growth/providers/openai/api_key",
+			"vault:mcp/profile/growth/github/access_token",
+		}
+		for _, ref := range credentialRefs {
+			if _, err := vaultService.PutSecret(ctx, ref, "api_key", "secret"); err != nil {
+				t.Fatalf("PutSecret(%q) error = %v", ref, err)
+			}
+		}
 
 		deletePlan, err := manager.PrepareDelete(ctx, "growth")
 		if err != nil {
 			t.Fatalf("PrepareDelete() error = %v", err)
+		}
+		if deletePlan.Removed.ConfigKeys != 2 || deletePlan.Removed.MCPServers != 2 ||
+			deletePlan.Removed.CredentialOverrides != 2 {
+			t.Fatalf("PrepareDelete().Removed = %#v, want config=2 MCP=2 credentials=2", deletePlan.Removed)
 		}
 		deleted, err := manager.Delete(ctx, "growth", deletePlan.Revision)
 		if err != nil {
@@ -107,6 +220,17 @@ func TestManagerProfileLifecycle(t *testing.T) {
 		}
 		if deleted.SweptSelections != 1 {
 			t.Fatalf("Delete().SweptSelections = %d, want 1", deleted.SweptSelections)
+		}
+		if deleted.Removed != deletePlan.Removed {
+			t.Fatalf("Delete().Removed = %#v, want preview %#v", deleted.Removed, deletePlan.Removed)
+		}
+		if _, err := os.Stat(profileDir); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("deleted profile directory error = %v, want not exist", err)
+		}
+		for _, ref := range credentialRefs {
+			if _, err := vaultService.ResolveRef(ctx, ref); !errors.Is(err, vault.ErrSecretNotFound) {
+				t.Fatalf("ResolveRef(%q) error = %v, want ErrSecretNotFound", ref, err)
+			}
 		}
 		if _, err := manager.GetByName(ctx, "growth"); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("GetByName(deleted) error = %v, want ErrNotFound", err)
@@ -117,6 +241,9 @@ func TestManagerProfileLifecycle(t *testing.T) {
 		}
 		if selections != 0 {
 			t.Fatalf("selection rows = %d, want 0", selections)
+		}
+		if _, err := manager.Create(ctx, CreateInput{Name: "growth"}); err != nil {
+			t.Fatalf("Create(freed name) error = %v", err)
 		}
 	})
 
@@ -340,6 +467,25 @@ func TestManagerSelectionResolutionAndAvailability(t *testing.T) {
 		}
 		if err := manager.PutSelection(ctx, Selection{Lens: SelectionLensGlobal, ProfileID: dev.ID}); !errors.Is(err, ErrUnavailable) {
 			t.Fatalf("PutSelection(unavailable) error = %v, want ErrUnavailable", err)
+		}
+		resolver, err := workspacepkg.NewResolver(
+			database,
+			workspacepkg.WithHomePaths(manager.home),
+			workspacepkg.WithProfileAvailabilityChecker(manager),
+		)
+		if err != nil {
+			t.Fatalf("workspace.NewResolver() error = %v", err)
+		}
+		if _, err := resolver.ResolveForProfile(ctx, "missing-workspace", dev.Name); !errors.Is(err, ErrUnavailable) {
+			t.Fatalf("ResolveForProfile(unavailable) error = %v, want ErrUnavailable", err)
+		}
+		preStarter := providerpkg.NewPreStarter()
+		preStarter.SetProfileAvailabilityChecker(manager)
+		report := preStarter.PreStart(ctx, compozyconfig.ProviderConfig{}, &providerpkg.ProbeEnv{
+			PreStartScope: providerpkg.PreStartScope{ProfileID: dev.ID},
+		})
+		if !errors.Is(report.Cause, ErrUnavailable) {
+			t.Fatalf("PreStart(unavailable).Cause = %v, want ErrUnavailable", report.Cause)
 		}
 		if _, err := database.DB().ExecContext(ctx, `UPDATE profile_lifecycle_ops SET status = 'done', completed_at = ? WHERE id = ?`, formatTimestamp(time.Now()), "op_availability"); err != nil {
 			t.Fatalf("complete lifecycle operation error = %v", err)

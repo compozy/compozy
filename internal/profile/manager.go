@@ -3,6 +3,7 @@ package profile
 import (
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 const defaultProfileID = "00000000000000000000000000"
@@ -37,6 +39,7 @@ type Manager struct {
 	logger     *slog.Logger
 	events     EventRecorder
 	selections *selectionStore
+	vaultRefs  *vault.ProfileRefRewriter
 	opMu       sync.Mutex
 }
 
@@ -118,6 +121,11 @@ func NewManager(opts ...Option) (*Manager, error) {
 	if strings.TrimSpace(m.home.ProfilesDir) == "" {
 		return nil, errors.New("profile: profiles directory is required")
 	}
+	vaultRefs, err := vault.NewProfileRefRewriter(vault.NewFileKeyProvider(m.home.HomeDir, nil))
+	if err != nil {
+		return nil, fmt.Errorf("profile: create vault ref rewriter: %w", err)
+	}
+	m.vaultRefs = vaultRefs
 	m.selections = &selectionStore{manager: m}
 	return m, nil
 }

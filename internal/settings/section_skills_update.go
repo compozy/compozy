@@ -60,6 +60,7 @@ func (s *service) updateSkillsSection(
 			Warnings:  []string{sectionsNoChangesValue},
 			Lifecycle: lifecycle.Live,
 			DiffClass: lifecycle.DiffClassLive,
+			writePath: target.Path(),
 		}, nil
 	}
 
@@ -91,6 +92,7 @@ func (s *service) updateSkillsSection(
 		RestartScope:    classification.RestartScope,
 		Lifecycle:       classification.Lifecycle,
 		DiffClass:       classification.DiffClass,
+		writePath:       target.Path(),
 	}, nil
 }
 
@@ -144,6 +146,7 @@ func (s *service) updateAgentSkillsSection(
 			Warnings:    []string{sectionsNoChangesValue},
 			Lifecycle:   lifecycle.Live,
 			DiffClass:   lifecycle.DiffClassLive,
+			writePath:   agent.SourcePath,
 		}, nil
 	}
 
@@ -174,5 +177,6 @@ func (s *service) updateAgentSkillsSection(
 		RestartScope:    classification.RestartScope,
 		Lifecycle:       classification.Lifecycle,
 		DiffClass:       classification.DiffClass,
+		writePath:       agent.SourcePath,
 	}, nil
 }

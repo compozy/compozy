@@ -15,6 +15,8 @@ func SettingsSectionResponseFromEnvelope(envelope settingspkg.SectionEnvelope) (
 	switch envelope.Section {
 	case settingspkg.SectionGeneral:
 		return settingsGeneralSectionResponse(envelope)
+	case settingspkg.SectionPersona:
+		return settingsPersonaSectionResponse(envelope)
 	case settingspkg.SectionMemory:
 		return settingsMemorySectionResponse(envelope)
 	case settingspkg.SectionRoles:
@@ -42,13 +44,23 @@ func SettingsSectionResponseFromEnvelope(envelope settingspkg.SectionEnvelope) (
 	}
 }
 
+func settingsPersonaSectionResponse(envelope settingspkg.SectionEnvelope) (any, error) {
+	if envelope.Persona == nil {
+		return nil, errors.New("settings persona section is required")
+	}
+	return contract.SettingsPersonaResponse{
+		SettingsLayeredSectionResponseMetaPayload: settingsGlobalWorkspaceSectionMetaPayload(envelope),
+		Config: settingsDefaultsPayload(envelope.Persona.Config),
+	}, nil
+}
+
 func settingsRolesSectionResponse(envelope settingspkg.SectionEnvelope) (any, error) {
 	if envelope.Roles == nil {
 		return nil, errors.New("settings roles section is required")
 	}
 	return contract.SettingsRolesResponse{
-		SettingsGlobalSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
-		Config:                                   settingsRolesConfigPayload(&envelope.Roles.Config),
+		SettingsWorkspaceSectionResponseMetaPayload: settingsUserWorkspaceSectionMetaPayload(envelope),
+		Config: settingsRolesConfigPayload(&envelope.Roles.Config),
 	}, nil
 }
 
@@ -57,10 +69,10 @@ func settingsGeneralSectionResponse(envelope settingspkg.SectionEnvelope) (any, 
 		return nil, errors.New("settings general section is required")
 	}
 	return contract.SettingsGeneralResponse{
-		SettingsGlobalSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
-		ConfigPaths:                              settingsConfigPathsPayload(envelope.General.ConfigPaths),
-		Config:                                   settingsGeneralConfigPayload(envelope.General.Settings),
-		Runtime:                                  settingsDaemonRuntimePayload(envelope.General.Runtime),
+		SettingsUserSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
+		ConfigPaths:                            settingsConfigPathsPayload(envelope.General.ConfigPaths),
+		Config:                                 settingsGeneralConfigPayload(envelope.General.Settings),
+		Runtime:                                settingsDaemonRuntimePayload(envelope.General.Runtime),
 		Actions: contract.SettingsGeneralActionsPayload{
 			Restart: settingsActionMetadataPayload(envelope.General.Actions.Restart),
 		},
@@ -72,9 +84,9 @@ func settingsMemorySectionResponse(envelope settingspkg.SectionEnvelope) (any, e
 		return nil, errors.New("settings memory section is required")
 	}
 	return contract.SettingsMemoryResponse{
-		SettingsGlobalSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
-		Config:                                   settingsMemoryConfigPayload(&envelope.Memory.Config),
-		Health:                                   settingsMemoryHealthPayload(envelope.Memory.Health),
+		SettingsUserSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
+		Config:                                 settingsMemoryConfigPayload(&envelope.Memory.Config),
+		Health:                                 settingsMemoryHealthPayload(envelope.Memory.Health),
 		Actions: contract.SettingsMemoryActionsPayload{
 			Consolidate: settingsActionMetadataPayload(envelope.Memory.Actions.Consolidate),
 		},
@@ -101,10 +113,10 @@ func settingsAutomationSectionResponse(envelope settingspkg.SectionEnvelope) (an
 		return nil, errors.New("settings automation section is required")
 	}
 	return contract.SettingsAutomationResponse{
-		SettingsGlobalSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
-		Config:                                   settingsAutomationConfigPayload(envelope.Automation.Config),
-		Runtime:                                  settingsAutomationRuntimePayload(envelope.Automation.Runtime),
-		Links:                                    settingsOperationalLinkPayloads(envelope.Automation.Links),
+		SettingsUserSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
+		Config:                                 settingsAutomationConfigPayload(envelope.Automation.Config),
+		Runtime:                                settingsAutomationRuntimePayload(envelope.Automation.Runtime),
+		Links:                                  settingsOperationalLinkPayloads(envelope.Automation.Links),
 	}, nil
 }
 
@@ -113,10 +125,10 @@ func settingsNetworkSectionResponse(envelope settingspkg.SectionEnvelope) (any, 
 		return nil, errors.New("settings network section is required")
 	}
 	return contract.SettingsNetworkResponse{
-		SettingsGlobalSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
-		Config:                                   settingsNetworkConfigPayload(envelope.Network.Config),
-		Runtime:                                  settingsNetworkRuntimePayload(envelope.Network.Runtime),
-		Links:                                    settingsOperationalLinkPayloads(envelope.Network.Links),
+		SettingsUserSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
+		Config:                                 settingsNetworkConfigPayload(envelope.Network.Config),
+		Runtime:                                settingsNetworkRuntimePayload(envelope.Network.Runtime),
+		Links:                                  settingsOperationalLinkPayloads(envelope.Network.Links),
 	}, nil
 }
 
@@ -125,9 +137,9 @@ func settingsObservabilitySectionResponse(envelope settingspkg.SectionEnvelope) 
 		return nil, errors.New("settings observability section is required")
 	}
 	return contract.SettingsObservabilityResponse{
-		SettingsGlobalSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
-		Config:                                   settingsObservabilityConfigPayload(envelope.Observability.Config),
-		Runtime:                                  settingsObservabilityRuntimePayload(envelope.Observability.Runtime),
+		SettingsUserSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
+		Config:                                 settingsObservabilityConfigPayload(envelope.Observability.Config),
+		Runtime:                                settingsObservabilityRuntimePayload(envelope.Observability.Runtime),
 		LogTail: settingsLogTailCapabilityPayload(
 			envelope.Observability.LogTailSupport,
 		),
@@ -139,9 +151,9 @@ func settingsHooksExtensionsSectionResponse(envelope settingspkg.SectionEnvelope
 		return nil, errors.New("settings hooks-extensions section is required")
 	}
 	return contract.SettingsHooksExtensionsResponse{
-		SettingsGlobalSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
-		Hooks:                                    settingsHookItemPayloads(envelope.HooksExtensions.Hooks),
-		Config:                                   settingsExtensionsConfigPayload(envelope.HooksExtensions.Extensions),
+		SettingsUserSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
+		Hooks:                                  settingsHookItemPayloads(envelope.HooksExtensions.Hooks),
+		Config:                                 settingsExtensionsConfigPayload(envelope.HooksExtensions.Extensions),
 		Installed: settingsInstalledExtensionPayloads(
 			envelope.HooksExtensions.Installed,
 		),
@@ -156,24 +168,26 @@ func SettingsCollectionResponseFromEnvelope(envelope settingspkg.CollectionEnvel
 	switch envelope.Collection {
 	case settingspkg.CollectionProviders:
 		return contract.SettingsProvidersResponse{
-			SettingsGlobalCollectionResponseMetaPayload: settingsGlobalCollectionMetaPayload(envelope),
+			SettingsUserCollectionResponseMetaPayload: settingsGlobalCollectionMetaPayload(envelope),
 			Providers: settingsProviderItemPayloads(envelope.Providers),
 		}, nil
 	case settingspkg.CollectionMCPServers:
 		return contract.SettingsMCPServersResponse{
-			SettingsGlobalWorkspaceCollectionResponseMetaPayload: settingsGlobalWorkspaceCollectionMetaPayload(
+			SettingsLayeredCollectionResponseMetaPayload: settingsGlobalWorkspaceCollectionMetaPayload(
 				envelope,
 			),
 			MCPServers: settingsMCPServerItemPayloads(envelope.MCPServers),
 		}, nil
 	case settingspkg.CollectionSandboxes:
 		return contract.SettingsSandboxesResponse{
-			SettingsGlobalCollectionResponseMetaPayload: settingsGlobalCollectionMetaPayload(envelope),
+			SettingsUserCollectionResponseMetaPayload: settingsGlobalCollectionMetaPayload(envelope),
 			Sandboxes: settingsSandboxItemPayloads(envelope.Sandboxes),
 		}, nil
 	case settingspkg.CollectionHooks:
 		return contract.SettingsHooksResponse{
-			SettingsGlobalCollectionResponseMetaPayload: settingsGlobalCollectionMetaPayload(envelope),
+			SettingsLayeredCollectionResponseMetaPayload: settingsGlobalWorkspaceCollectionMetaPayload(
+				envelope,
+			),
 			Hooks: settingsHookItemPayloads(envelope.Hooks),
 		}, nil
 	default:
@@ -186,19 +200,37 @@ func SettingsSectionMutationResultPayloadFromResult(result settingspkg.MutationR
 	switch result.Section {
 	case settingspkg.SectionGeneral,
 		settingspkg.SectionMemory,
-		settingspkg.SectionRoles,
 		settingspkg.SectionAutomation,
 		settingspkg.SectionNetwork,
-		settingspkg.SectionWindowManager,
-		settingspkg.SectionCmdPalette,
 		settingspkg.SectionAttention,
 		settingspkg.SectionShell,
 		settingspkg.SectionObservability,
 		settingspkg.SectionHooksExtensions:
-		return contract.SettingsGlobalSectionMutationResult{
+		return contract.SettingsUserSectionMutationResult{
 			Section:         contract.SettingsSectionName(result.Section),
-			Scope:           contract.SettingsGlobalScopeKind(result.Scope),
+			Scope:           contract.SettingsUserScopeKind(result.Scope),
 			WriteTarget:     contract.SettingsWriteTargetKind(result.WriteTarget),
+			Behavior:        contract.SettingsMutationBehavior(result.Behavior),
+			Applied:         result.Applied,
+			RestartRequired: result.RestartRequired,
+			RestartScope:    strings.TrimSpace(result.RestartScope),
+			Warnings:        cloneStrings(result.Warnings),
+		}, nil
+	case settingspkg.SectionPersona, settingspkg.SectionCmdPalette:
+		return contract.SettingsLayeredSectionMutationResult{
+			Section: contract.SettingsSectionName(result.Section), Scope: contract.SettingsLayeredScopeKind(result.Scope),
+			WriteTarget: contract.SettingsWriteTargetKind(result.WriteTarget),
+			WorkspaceID: strings.TrimSpace(result.WorkspaceID), Profile: strings.TrimSpace(result.ProfileName),
+			Behavior: contract.SettingsMutationBehavior(result.Behavior), Applied: result.Applied,
+			RestartRequired: result.RestartRequired, RestartScope: strings.TrimSpace(result.RestartScope),
+			Warnings: cloneStrings(result.Warnings),
+		}, nil
+	case settingspkg.SectionRoles, settingspkg.SectionWindowManager:
+		return contract.SettingsWorkspaceSectionMutationResult{
+			Section:         contract.SettingsSectionName(result.Section),
+			Scope:           contract.SettingsWorkspaceScopeKind(result.Scope),
+			WriteTarget:     contract.SettingsWriteTargetKind(result.WriteTarget),
+			WorkspaceID:     strings.TrimSpace(result.WorkspaceID),
 			Behavior:        contract.SettingsMutationBehavior(result.Behavior),
 			Applied:         result.Applied,
 			RestartRequired: result.RestartRequired,
@@ -229,11 +261,10 @@ func SettingsCollectionMutationResultPayloadFromResult(result settingspkg.Mutati
 	collection := contract.SettingsCollectionName(result.Section)
 	switch collection {
 	case contract.SettingsCollectionProviders,
-		contract.SettingsCollectionSandboxes,
-		contract.SettingsCollectionHooks:
-		return contract.SettingsGlobalCollectionMutationResult{
+		contract.SettingsCollectionSandboxes:
+		return contract.SettingsUserCollectionMutationResult{
 			Section:         collection,
-			Scope:           contract.SettingsGlobalScopeKind(result.Scope),
+			Scope:           contract.SettingsUserScopeKind(result.Scope),
 			WriteTarget:     contract.SettingsWriteTargetKind(result.WriteTarget),
 			Behavior:        contract.SettingsMutationBehavior(result.Behavior),
 			Applied:         result.Applied,
@@ -241,12 +272,13 @@ func SettingsCollectionMutationResultPayloadFromResult(result settingspkg.Mutati
 			RestartScope:    strings.TrimSpace(result.RestartScope),
 			Warnings:        cloneStrings(result.Warnings),
 		}, nil
-	case contract.SettingsCollectionMCPServers:
-		return contract.SettingsGlobalWorkspaceCollectionMutationResult{
+	case contract.SettingsCollectionMCPServers, contract.SettingsCollectionHooks:
+		return contract.SettingsLayeredCollectionMutationResult{
 			Section:         collection,
-			Scope:           contract.SettingsWorkspaceScopeKind(result.Scope),
+			Scope:           contract.SettingsLayeredScopeKind(result.Scope),
 			WriteTarget:     contract.SettingsWriteTargetKind(result.WriteTarget),
 			WorkspaceID:     strings.TrimSpace(result.WorkspaceID),
+			Profile:         strings.TrimSpace(result.ProfileName),
 			Behavior:        contract.SettingsMutationBehavior(result.Behavior),
 			Applied:         result.Applied,
 			RestartRequired: result.RestartRequired,
@@ -265,6 +297,7 @@ func SettingsApplyResponseFromResult(result settingspkg.ApplyResult) contract.Se
 		Scope:            contract.SettingsScopeKind(strings.TrimSpace(string(result.Scope))),
 		WriteTarget:      contract.SettingsWriteTargetKind(result.WriteTarget),
 		WorkspaceID:      strings.TrimSpace(result.WorkspaceID),
+		Profile:          strings.TrimSpace(result.ProfileName),
 		AgentName:        strings.TrimSpace(result.AgentName),
 		Applied:          result.Applied,
 		Lifecycle:        contract.SettingsApplyLifecycle(result.Record.Lifecycle),
@@ -299,6 +332,8 @@ func configApplyRecordPayload(record settingspkg.ApplyRecord) contract.ConfigApp
 		ActiveConfigHash:  strings.TrimSpace(record.ActiveHash),
 		Generation:        record.Generation,
 		Actor:             strings.TrimSpace(record.Actor),
+		WriteTarget:       contract.SettingsWriteTargetKind(record.WriteTarget),
+		WritePath:         strings.TrimSpace(record.WritePath),
 		DiffClass:         contract.SettingsApplyLifecycle(record.DiffClass),
 		Status:            contract.ConfigApplyStatus(record.Status),
 		Lifecycle:         contract.SettingsApplyLifecycle(record.Lifecycle),

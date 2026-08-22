@@ -12,6 +12,7 @@ export {
   getSettingsMemory,
   getSettingsNetwork,
   getSettingsObservability,
+  getSettingsPersona,
   getSettingsShell,
   getSettingsSkills,
   getSettingsUpdate,
@@ -25,6 +26,7 @@ export {
   updateSettingsNetwork,
   updateSettingsNotificationPreset,
   updateSettingsObservability,
+  updateSettingsPersona,
   updateSettingsShell,
   updateSettingsSkills,
 } from "./settings-sections-api";

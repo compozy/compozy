@@ -24,6 +24,7 @@ import (
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/gin-gonic/gin"
 	"github.com/goccy/go-yaml"
 )
 
@@ -92,6 +93,68 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			trigger,
 		), workspace, trigger
 	}
+
+	t.Run("Should project profile memory through the selected API lens", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testutil.NewTestHomePaths(t)
+		memoryStore := memory.NewStore(
+			homePaths.MemoryDir,
+			memory.WithCatalogDatabasePath(homePaths.DatabaseFile),
+		)
+		openCoreTestMemoryCatalog(t, memoryStore)
+		marketingStore := memoryStore.ForProfile(
+			"profile-marketing",
+			filepath.Join(homePaths.ProfilesDir, "marketing", compozyconfig.MemoryDirName),
+		)
+		for _, profileStore := range []*memory.Store{memoryStore, marketingStore} {
+			if err := profileStore.EnsureDirs(); err != nil {
+				t.Fatalf("Store.EnsureDirs() error = %v", err)
+			}
+		}
+		writeProfileEntry := func(profileStore *memory.Store, name string) {
+			t.Helper()
+			if err := profileStore.Write(
+				t.Context(),
+				memcontract.ScopeProfile,
+				"preference.md",
+				[]byte(memoryDocument(t, name, memcontract.TypeUser, "profile-specific memory")),
+			); err != nil {
+				t.Fatalf("Store.Write() error = %v", err)
+			}
+		}
+		writeProfileEntry(memoryStore, "Default preference")
+		writeProfileEntry(marketingStore, "Marketing preference")
+
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			Profiles:    sessionProfileServiceStub{},
+			MemoryStore: memoryStore,
+			HomePaths:   homePaths,
+			Logger:      testutil.DiscardLogger(),
+		})
+		engine := gin.New()
+		group := engine.Group("/memory")
+		group.Use(handlers.BindMemoryProfile)
+		group.GET("", handlers.ListMemory)
+
+		for _, test := range []struct {
+			path     string
+			wantName string
+		}{
+			{path: "/memory", wantName: "Default preference"},
+			{path: "/memory?profile=marketing", wantName: "Marketing preference"},
+		} {
+			response := performRequest(t, engine, http.MethodGet, test.path, nil)
+			if response.Code != http.StatusOK {
+				t.Fatalf("GET %s status = %d; body=%s", test.path, response.Code, response.Body.String())
+			}
+			var payload contract.MemoryListResponse
+			testutil.DecodeJSONResponse(t, response, &payload)
+			if len(payload.Memories) != 1 || payload.Memories[0].Name != test.wantName {
+				t.Fatalf("GET %s memories = %#v, want only %q", test.path, payload.Memories, test.wantName)
+			}
+		}
+	})
 
 	t.Run("Should list memory for a workspace", func(t *testing.T) {
 		t.Parallel()

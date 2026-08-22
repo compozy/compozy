@@ -13,8 +13,8 @@ func settingsShellSectionResponse(envelope settingspkg.SectionEnvelope) (any, er
 		return nil, errors.New("settings shell section is required")
 	}
 	return contract.SettingsShellResponse{
-		SettingsGlobalSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
-		Config:                                   settingsShellPayload(envelope.Shell.Config),
+		SettingsUserSectionResponseMetaPayload: settingsGlobalSectionMetaPayload(envelope),
+		Config:                                 settingsShellPayload(envelope.Shell.Config),
 	}, nil
 }
 

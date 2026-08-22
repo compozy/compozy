@@ -29,11 +29,15 @@ function mcpInstalledPath(input: {
   scope: string;
   server: string;
   workspaceId?: string;
+  profile?: string;
 }): string {
   const search = new URLSearchParams({ scope: input.scope });
   if (input.server) search.set("installed_name", input.server);
-  if (input.scope === "workspace" && input.workspaceId) {
+  if (input.scope !== "user" && input.workspaceId) {
     search.set("workspace_id", input.workspaceId);
+  }
+  if (input.scope === "profile" && input.profile) {
+    search.set("profile", input.profile);
   }
   return `/marketplace/mcp/${encodeURIComponent(input.entryId)}?${search.toString()}`;
 }
@@ -69,6 +73,7 @@ export function useInstallMarketplaceMCP() {
         scope: result.mcp_server?.scope ?? variables.scope,
         server: result.mcp_server?.name ?? variables.name ?? "",
         workspaceId: result.mcp_server?.workspace_id ?? variables.workspace_id,
+        profile: result.mcp_server?.profile ?? variables.profile,
       });
       if (result.next_step === "authorize") {
         toast.success(

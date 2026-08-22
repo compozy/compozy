@@ -70,6 +70,19 @@ func (s *Store) ForWorkspace(workspaceRoot string) *Store {
 	return &clone
 }
 
+// ForProfile returns a clone bound to one durable profile owner and directory.
+func (s *Store) ForProfile(profileID string, profileMemoryDir string) *Store {
+	clone := *s
+	clone.profileID = strings.TrimSpace(profileID)
+	clone.globalDir = cleanDirPath(profileMemoryDir)
+	clone.workspaceDir = ""
+	clone.workspaceRoot = ""
+	clone.agentName = ""
+	clone.agentTier = ""
+	clone.agentWorkspaceID = ""
+	return &clone
+}
+
 // ForAgent returns a clone of the store bound to one agent memory tier.
 func (s *Store) ForAgent(workspaceID string, agentName string, tier memcontract.AgentTier) *Store {
 	clone := *s
@@ -296,7 +309,7 @@ func (s *Store) History(
 	normalized.Scope = scope
 	normalized.Workspace = workspaceID
 	normalized.Operation = query.Operation.Normalize()
-	return s.catalog.listOperations(ctx, normalized)
+	return s.catalog.listOperations(ctx, s.profileID, normalized)
 }
 
 func operationRecordScope(scope memcontract.Scope, workspaceID string) memcontract.Scope {

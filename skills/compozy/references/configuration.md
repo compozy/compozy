@@ -3,6 +3,7 @@
 ## Contents
 
 - Desired state and apply lifecycle
+- Profile layers and credentials
 - Host update cadence
 - Gateway
 - Marketplace catalog
@@ -19,7 +20,7 @@
 
 ## Desired State And Apply Lifecycle
 
-`config.toml` is desired state. Runtime truth advances only when the daemon applies that desired change to the active generation or records why it cannot. Global configuration lives at `$COMPOZY_HOME/config.toml`; a workspace can overlay it with `<workspace>/.compozy/config.toml`.
+`config.toml` is desired state. Runtime truth advances only when the daemon applies that desired change to the active generation or records why it cannot. Effective configuration merges user → personal profile → workspace → workspace named profile. The last layer wins and binds only when its directory name matches the active profile.
 
 Settings changes surface lifecycle status, not just file writes. The public contract names are:
 
@@ -33,6 +34,24 @@ Use `compozy config reload -o json` to reconcile edited desired state with the a
 
 Read and write scalar keys with `compozy config show|list|get|set|unset|diff|path` or the `compozy__config_*` native tools. Resolve the live `compozy__config_set` descriptor before mutating: it names the key's scope, lifecycle, and validation. Structured values (arrays, route tables) are edited through `config.toml` or the typed Settings APIs, never guessed into a scalar write.
 `compozy__config_get` reports an absent key as `config_path_not_found: config path not found`; after `compozy__config_set`, read the same path again and confirm its structured value.
+
+## Profile Layers And Credentials
+
+`default` writes `$COMPOZY_HOME/config.toml`; a non-default active profile writes
+`$COMPOZY_HOME/profiles/<name>/config.toml`. Override with `--scope user|profile|workspace`. The
+repository layer `<workspace>/.compozy/profiles/<name>/config.toml` is read-only. A successful lower
+layer write may return `ok_overridden`; inspect `winning_layer` before claiming the value is active.
+
+Profile overlays reject `http`, `daemon`, `log`, `database`, `gateway`, `shell`, `marketplace`,
+`observability`, `network`, `sandboxes`, and `window_manager.global_shortcuts` with
+`profile_config_key_denied`; write machine-only keys with `--scope user`.
+
+Write profile credentials with `compozy --profile <name> secret set
+providers/<provider>/<slot> --value-stdin` or the equivalent `extensions/<extension>/<key>` path.
+Non-default profiles use `vault:profiles/<name>/...`; `--from-env` fails with
+`profile_secret_env_forbidden` because the process environment is shared. Verify only redacted source
+metadata with `provider inspect`. `secret rm` falls back to the user credential and requires `--yes`
+for non-interactive removal when the profile owns work.
 
 ## Host update cadence
 

@@ -22,7 +22,7 @@ func parseSettingsSectionRequest(
 	c *gin.Context,
 	section settingspkg.SectionName,
 ) (settingspkg.SectionRequest, error) {
-	scope, workspaceID, err := parseSettingsScope(c.Query("scope"), c.Query("workspace_id"))
+	scope, workspaceID, profileName, err := parseSettingsOwner(c)
 	if err != nil {
 		return settingspkg.SectionRequest{}, err
 	}
@@ -41,6 +41,7 @@ func parseSettingsSectionRequest(
 		Section:     section,
 		Scope:       scope,
 		WorkspaceID: workspaceID,
+		ProfileName: profileName,
 		AgentName:   agentName,
 		ClientID:    strings.TrimSpace(c.Query("client_id")),
 	}, nil
@@ -50,7 +51,7 @@ func parseSettingsCollectionRequest(
 	c *gin.Context,
 	collection settingspkg.CollectionName,
 ) (settingspkg.CollectionRequest, error) {
-	scope, workspaceID, err := parseSettingsScope(c.Query("scope"), c.Query("workspace_id"))
+	scope, workspaceID, profileName, err := parseSettingsOwner(c)
 	if err != nil {
 		return settingspkg.CollectionRequest{}, err
 	}
@@ -58,6 +59,7 @@ func parseSettingsCollectionRequest(
 		Collection:  collection,
 		Scope:       scope,
 		WorkspaceID: workspaceID,
+		ProfileName: profileName,
 	}, nil
 }
 
@@ -151,6 +153,29 @@ func parseUpdateSettingsGeneralRequest(c *gin.Context) (settingspkg.SectionUpdat
 		return settingspkg.SectionUpdateRequest{}, err
 	}
 	return settingspkg.SectionUpdateRequest{SectionRequest: req, General: &config}, nil
+}
+
+func parseUpdateSettingsPersonaRequest(c *gin.Context) (settingspkg.SectionUpdateRequest, error) {
+	var body struct {
+		Config *contract.SettingsDefaultsPayload `json:"config"`
+	}
+	if err := decodeStrictJSONBody(c, &body); err != nil {
+		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(
+			fmt.Errorf("decode persona settings request: %w", err),
+		)
+	}
+	if body.Config == nil {
+		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(errors.New("persona.config is required"))
+	}
+	req, err := parseSettingsSectionRequest(c, settingspkg.SectionPersona)
+	if err != nil {
+		return settingspkg.SectionUpdateRequest{}, err
+	}
+	config, err := defaultsConfigFromPayload(*body.Config)
+	if err != nil {
+		return settingspkg.SectionUpdateRequest{}, err
+	}
+	return settingspkg.SectionUpdateRequest{SectionRequest: req, Persona: &config}, nil
 }
 
 func parseUpdateSettingsMemoryRequest(c *gin.Context) (settingspkg.SectionUpdateRequest, error) {

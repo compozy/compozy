@@ -8357,6 +8357,75 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredContains(t, ownedResult, []byte(`workspace A body`))
 	})
 
+	t.Run("Should isolate native memory projections by authenticated profile", func(t *testing.T) {
+		t.Parallel()
+
+		const marketingID = "01PROFILEMARKETING000000000"
+		homePaths := apitest.NewTestHomePaths(t)
+		memoryStore := memorypkg.NewStore(
+			homePaths.MemoryDir,
+			memorypkg.WithCatalogDatabasePath(homePaths.DatabaseFile),
+		)
+		openDaemonMemoryCatalog(t, memoryStore)
+		marketingStore := memoryStore.ForProfile(
+			marketingID,
+			filepath.Join(homePaths.ProfilesDir, "marketing", compozyconfig.MemoryDirName),
+		)
+		for _, profileStore := range []*memorypkg.Store{memoryStore, marketingStore} {
+			if err := profileStore.EnsureDirs(); err != nil {
+				t.Fatalf("Store.EnsureDirs() error = %v", err)
+			}
+		}
+		if err := memoryStore.Write(
+			t.Context(),
+			memcontract.ScopeProfile,
+			"preference.md",
+			nativeMemoryDocument("Default preference", "Default memory", memcontract.TypeUser, "default body"),
+		); err != nil {
+			t.Fatalf("default Store.Write() error = %v", err)
+		}
+		if err := marketingStore.Write(
+			t.Context(),
+			memcontract.ScopeProfile,
+			"preference.md",
+			nativeMemoryDocument("Marketing preference", "Marketing memory", memcontract.TypeUser, "marketing body"),
+		); err != nil {
+			t.Fatalf("marketing Store.Write() error = %v", err)
+		}
+
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			MemoryStore: memoryStore,
+			HomePaths:   homePaths,
+			Profiles: nativeProfileReaderStub{profiles: []profilepkg.ProfileWithCounts{
+				{Profile: profilepkg.Profile{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive}},
+				{Profile: profilepkg.Profile{ID: marketingID, Name: "marketing", State: profilepkg.StateActive}},
+			}},
+		}, nativeApproveAllPolicyInputs())
+
+		for _, test := range []struct {
+			profileID string
+			want      []byte
+			reject    []byte
+		}{
+			{profileID: store.DefaultProfileID, want: []byte(`"name":"Default preference"`), reject: []byte(`Marketing preference`)},
+			{profileID: marketingID, want: []byte(`"name":"Marketing preference"`), reject: []byte(`Default preference`)},
+		} {
+			result, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{ProfileID: test.profileID, Operator: true},
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDMemoryList,
+					Input:  json.RawMessage(`{}`),
+				},
+			)
+			if err != nil {
+				t.Fatalf("Registry.Call(memory_list profile %q) error = %v", test.profileID, err)
+			}
+			requireNativeStructuredContains(t, result, test.want)
+			requireNativeStructuredExcludes(t, result, test.reject)
+		}
+	})
+
 	t.Run("Should read memory tools through the current memory store with redaction", func(t *testing.T) {
 		t.Parallel()
 

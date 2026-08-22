@@ -54,9 +54,14 @@ func (h *BaseHandlers) resolveMemoryLocation(
 		return h.resolveScopedMemoryLocation(ctx, filename, resolved)
 	}
 
-	candidates := []MemoryLocation{{Scope: memcontract.ScopeProfile, Filename: filename}}
+	candidates := []MemoryLocation{{
+		ProfileID: resolved.ProfileID, ProfileName: resolved.ProfileName,
+		Scope: memcontract.ScopeProfile, Filename: filename,
+	}}
 	if resolved.Workspace != "" {
 		candidates = append(candidates, MemoryLocation{
+			ProfileID:   resolved.ProfileID,
+			ProfileName: resolved.ProfileName,
 			Scope:       memcontract.ScopeWorkspace,
 			Workspace:   resolved.Workspace,
 			WorkspaceID: resolved.WorkspaceID,
@@ -65,6 +70,8 @@ func (h *BaseHandlers) resolveMemoryLocation(
 	}
 	if resolved.AgentName != "" && resolved.AgentTier != "" {
 		candidates = append(candidates, MemoryLocation{
+			ProfileID:   resolved.ProfileID,
+			ProfileName: resolved.ProfileName,
 			Scope:       memcontract.ScopeAgent,
 			Workspace:   resolved.Workspace,
 			WorkspaceID: resolved.WorkspaceID,
@@ -118,6 +125,8 @@ func (h *BaseHandlers) resolveScopedMemoryLocation(
 		return MemoryLocation{}, fmt.Errorf("%w: memory %q not found", os.ErrNotExist, filename)
 	}
 	return MemoryLocation{
+		ProfileID:   resolved.ProfileID,
+		ProfileName: resolved.ProfileName,
 		Scope:       resolved.Scope,
 		Workspace:   resolved.Workspace,
 		WorkspaceID: resolved.WorkspaceID,
@@ -132,21 +141,25 @@ func (h *BaseHandlers) memoryStoreForSelector(ctx context.Context, selector memo
 		return nil, errors.New("memory store is not configured")
 	}
 
+	profileStore, err := h.memoryProfileStore(selector)
+	if err != nil {
+		return nil, err
+	}
 	switch selector.Scope.Normalize() {
 	case memcontract.ScopeProfile:
-		return h.MemoryStore, nil
+		return profileStore, nil
 	case memcontract.ScopeWorkspace:
 		resolved, err := h.resolveMemorySelector(ctx, selector, true)
 		if err != nil {
 			return nil, err
 		}
-		return h.MemoryStore.ForWorkspace(resolved.Workspace), nil
+		return profileStore.ForWorkspace(resolved.Workspace), nil
 	case memcontract.ScopeAgent:
 		resolved, err := h.resolveMemorySelector(ctx, selector, true)
 		if err != nil {
 			return nil, err
 		}
-		base := h.MemoryStore
+		base := profileStore
 		if resolved.AgentTier.Normalize() == memcontract.AgentTierWorkspace {
 			base = base.ForWorkspace(resolved.Workspace)
 		}
@@ -167,7 +180,10 @@ func (h *BaseHandlers) memoryRecallStoreForSelector(
 	if err != nil {
 		return nil, err
 	}
-	store := h.MemoryStore
+	store, err := h.memoryProfileStore(resolved)
+	if err != nil {
+		return nil, err
+	}
 	needsWorkspaceStore := strings.TrimSpace(resolved.Workspace) != "" &&
 		(resolved.Scope == "" ||
 			resolved.Scope == memcontract.ScopeWorkspace ||
@@ -184,6 +200,8 @@ func (h *BaseHandlers) memoryRecallStoreForSelector(
 
 func (h *BaseHandlers) memoryStoreForLocation(ctx context.Context, location MemoryLocation) (*memory.Store, error) {
 	return h.memoryStoreForSelector(ctx, memorySelector{
+		ProfileID:   location.ProfileID,
+		ProfileName: location.ProfileName,
 		Scope:       location.Scope,
 		Workspace:   location.Workspace,
 		WorkspaceID: location.WorkspaceID,
@@ -198,6 +216,13 @@ func (h *BaseHandlers) resolveMemorySelector(
 	requireScope bool,
 ) (memorySelector, error) {
 	resolved := selector
+	binding := memoryProfileBindingFromContext(ctx)
+	if strings.TrimSpace(resolved.ProfileID) == "" {
+		resolved.ProfileID = binding.ID
+	}
+	if strings.TrimSpace(resolved.ProfileName) == "" {
+		resolved.ProfileName = binding.Name
+	}
 	scope, err := parseOptionalMemoryScope(string(selector.Scope))
 	if err != nil {
 		return memorySelector{}, err

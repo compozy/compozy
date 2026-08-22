@@ -413,6 +413,11 @@ func TestAgentPayloadFromDef(t *testing.T) {
 			DenyTools:   []string{"compozy__task_*"},
 			Permissions: "approve-reads",
 			Prompt:      "hello",
+			SourceLayer: "project_profile",
+			ShadowedDefinitions: []compozyconfig.AgentDefinitionRef{
+				{Layer: "profile", Path: "/profiles/marketing/agents/coder/AGENT.md"},
+				{Layer: "user", Path: "/agents/coder/AGENT.md"},
+			},
 			MCPServers: []compozyconfig.MCPServer{{
 				Name:    "memory",
 				Command: "memoryd",
@@ -435,6 +440,10 @@ func TestAgentPayloadFromDef(t *testing.T) {
 		}
 		if payload.MCPServers[0].Env["TOKEN"] != compozyconfig.RedactedValue() {
 			t.Fatalf("payload mcp env = %#v", payload.MCPServers[0].Env)
+		}
+		if payload.Layer != "project_profile" || len(payload.Shadows) != 2 ||
+			payload.Shadows[0].Layer != "profile" || payload.Shadows[1].Layer != "user" {
+			t.Fatalf("payload layer/shadows = %q/%#v, want inspectable precedence evidence", payload.Layer, payload.Shadows)
 		}
 	})
 }

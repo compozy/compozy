@@ -6,6 +6,10 @@ type UpdateSettingsGeneralRequest struct {
 	Config SettingsGeneralConfigPayload `json:"config"`
 }
 
+type UpdateSettingsPersonaRequest struct {
+	Config SettingsDefaultsPayload `json:"config"`
+}
+
 type UpdateSettingsMemoryRequest struct {
 	Config SettingsMemoryConfigPayload `json:"config"`
 }
@@ -56,22 +60,27 @@ type PutSettingsHookRequest struct {
 }
 
 type SettingsGeneralResponse struct {
-	SettingsGlobalSectionResponseMetaPayload
+	SettingsUserSectionResponseMetaPayload
 	ConfigPaths SettingsConfigPathsPayload    `json:"config_paths"`
 	Config      SettingsGeneralConfigPayload  `json:"config"`
 	Runtime     SettingsDaemonRuntimePayload  `json:"runtime"`
 	Actions     SettingsGeneralActionsPayload `json:"actions"`
 }
 
+type SettingsPersonaResponse struct {
+	SettingsLayeredSectionResponseMetaPayload
+	Config SettingsDefaultsPayload `json:"config"`
+}
+
 type SettingsMemoryResponse struct {
-	SettingsGlobalSectionResponseMetaPayload
+	SettingsUserSectionResponseMetaPayload
 	Config  SettingsMemoryConfigPayload  `json:"config"`
 	Health  SettingsMemoryHealthPayload  `json:"health"`
 	Actions SettingsMemoryActionsPayload `json:"actions"`
 }
 
 type SettingsRolesResponse struct {
-	SettingsGlobalSectionResponseMetaPayload
+	SettingsWorkspaceSectionResponseMetaPayload
 	Config SettingsRolesConfigPayload `json:"config"`
 }
 
@@ -86,28 +95,28 @@ type SettingsSkillsResponse struct {
 }
 
 type SettingsAutomationResponse struct {
-	SettingsGlobalSectionResponseMetaPayload
+	SettingsUserSectionResponseMetaPayload
 	Config  SettingsAutomationConfigPayload  `json:"config"`
 	Runtime SettingsAutomationRuntimePayload `json:"runtime"`
 	Links   []SettingsOperationalLinkPayload `json:"links,omitempty"`
 }
 
 type SettingsNetworkResponse struct {
-	SettingsGlobalSectionResponseMetaPayload
+	SettingsUserSectionResponseMetaPayload
 	Config  SettingsNetworkConfigPayload     `json:"config"`
 	Runtime SettingsNetworkRuntimePayload    `json:"runtime"`
 	Links   []SettingsOperationalLinkPayload `json:"links,omitempty"`
 }
 
 type SettingsObservabilityResponse struct {
-	SettingsGlobalSectionResponseMetaPayload
+	SettingsUserSectionResponseMetaPayload
 	Config  SettingsObservabilityConfigPayload  `json:"config"`
 	Runtime SettingsObservabilityRuntimePayload `json:"runtime"`
 	LogTail SettingsLogTailCapabilityPayload    `json:"log_tail"`
 }
 
 type SettingsHooksExtensionsResponse struct {
-	SettingsGlobalSectionResponseMetaPayload
+	SettingsUserSectionResponseMetaPayload
 	Hooks           []SettingsHookItemPayload           `json:"hooks,omitempty"`
 	Config          SettingsExtensionsConfigPayload     `json:"config"`
 	Installed       []SettingsInstalledExtensionPayload `json:"installed,omitempty"`
@@ -115,7 +124,7 @@ type SettingsHooksExtensionsResponse struct {
 }
 
 type SettingsProvidersResponse struct {
-	SettingsGlobalCollectionResponseMetaPayload
+	SettingsUserCollectionResponseMetaPayload
 	Providers []SettingsProviderItemPayload `json:"providers"`
 }
 
@@ -124,12 +133,12 @@ type SettingsProviderResponse struct {
 }
 
 type SettingsMCPServersResponse struct {
-	SettingsGlobalWorkspaceCollectionResponseMetaPayload
+	SettingsLayeredCollectionResponseMetaPayload
 	MCPServers []SettingsMCPServerItemPayload `json:"mcp_servers"`
 }
 
 type SettingsSandboxesResponse struct {
-	SettingsGlobalCollectionResponseMetaPayload
+	SettingsUserCollectionResponseMetaPayload
 	Sandboxes []SettingsSandboxItemPayload `json:"sandboxes"`
 }
 
@@ -138,7 +147,7 @@ type SettingsSandboxResponse struct {
 }
 
 type SettingsHooksResponse struct {
-	SettingsGlobalCollectionResponseMetaPayload
+	SettingsLayeredCollectionResponseMetaPayload
 	Hooks []SettingsHookItemPayload `json:"hooks"`
 }
 
@@ -146,15 +155,40 @@ type SettingsHookResponse struct {
 	Hook SettingsHookItemPayload `json:"hook"`
 }
 
-type SettingsGlobalSectionMutationResult struct {
+type SettingsUserSectionMutationResult struct {
 	Section         SettingsSectionName      `json:"section"`
-	Scope           SettingsGlobalScopeKind  `json:"scope"`
+	Scope           SettingsUserScopeKind    `json:"scope"`
 	WriteTarget     SettingsWriteTargetKind  `json:"write_target,omitempty"`
 	Behavior        SettingsMutationBehavior `json:"behavior"`
 	Applied         bool                     `json:"applied"`
 	RestartRequired bool                     `json:"restart_required"`
 	RestartScope    string                   `json:"restart_scope,omitempty"`
 	Warnings        []string                 `json:"warnings,omitempty"`
+}
+
+type SettingsLayeredSectionMutationResult struct {
+	Section         SettingsSectionName      `json:"section"`
+	Scope           SettingsLayeredScopeKind `json:"scope"`
+	WriteTarget     SettingsWriteTargetKind  `json:"write_target,omitempty"`
+	WorkspaceID     string                   `json:"workspace_id,omitempty"`
+	Profile         string                   `json:"profile,omitempty"`
+	Behavior        SettingsMutationBehavior `json:"behavior"`
+	Applied         bool                     `json:"applied"`
+	RestartRequired bool                     `json:"restart_required"`
+	RestartScope    string                   `json:"restart_scope,omitempty"`
+	Warnings        []string                 `json:"warnings,omitempty"`
+}
+
+type SettingsWorkspaceSectionMutationResult struct {
+	Section         SettingsSectionName        `json:"section"`
+	Scope           SettingsWorkspaceScopeKind `json:"scope"`
+	WriteTarget     SettingsWriteTargetKind    `json:"write_target,omitempty"`
+	WorkspaceID     string                     `json:"workspace_id,omitempty"`
+	Behavior        SettingsMutationBehavior   `json:"behavior"`
+	Applied         bool                       `json:"applied"`
+	RestartRequired bool                       `json:"restart_required"`
+	RestartScope    string                     `json:"restart_scope,omitempty"`
+	Warnings        []string                   `json:"warnings,omitempty"`
 }
 
 type SettingsSkillsMutationResult struct {
@@ -170,9 +204,9 @@ type SettingsSkillsMutationResult struct {
 	Warnings        []string                 `json:"warnings,omitempty"`
 }
 
-type SettingsGlobalCollectionMutationResult struct {
+type SettingsUserCollectionMutationResult struct {
 	Section         SettingsCollectionName   `json:"section"`
-	Scope           SettingsGlobalScopeKind  `json:"scope"`
+	Scope           SettingsUserScopeKind    `json:"scope"`
 	WriteTarget     SettingsWriteTargetKind  `json:"write_target,omitempty"`
 	Behavior        SettingsMutationBehavior `json:"behavior"`
 	Applied         bool                     `json:"applied"`
@@ -181,16 +215,17 @@ type SettingsGlobalCollectionMutationResult struct {
 	Warnings        []string                 `json:"warnings,omitempty"`
 }
 
-type SettingsGlobalWorkspaceCollectionMutationResult struct {
-	Section         SettingsCollectionName     `json:"section"`
-	Scope           SettingsWorkspaceScopeKind `json:"scope"`
-	WriteTarget     SettingsWriteTargetKind    `json:"write_target,omitempty"`
-	WorkspaceID     string                     `json:"workspace_id,omitempty"`
-	Behavior        SettingsMutationBehavior   `json:"behavior"`
-	Applied         bool                       `json:"applied"`
-	RestartRequired bool                       `json:"restart_required"`
-	RestartScope    string                     `json:"restart_scope,omitempty"`
-	Warnings        []string                   `json:"warnings,omitempty"`
+type SettingsLayeredCollectionMutationResult struct {
+	Section         SettingsCollectionName   `json:"section"`
+	Scope           SettingsLayeredScopeKind `json:"scope"`
+	WriteTarget     SettingsWriteTargetKind  `json:"write_target,omitempty"`
+	WorkspaceID     string                   `json:"workspace_id,omitempty"`
+	Profile         string                   `json:"profile,omitempty"`
+	Behavior        SettingsMutationBehavior `json:"behavior"`
+	Applied         bool                     `json:"applied"`
+	RestartRequired bool                     `json:"restart_required"`
+	RestartScope    string                   `json:"restart_scope,omitempty"`
+	Warnings        []string                 `json:"warnings,omitempty"`
 }
 
 type SettingsApplyFailurePayload struct {
@@ -203,6 +238,7 @@ type SettingsApplyResponse struct {
 	Scope            SettingsScopeKind             `json:"scope,omitempty"`
 	WriteTarget      SettingsWriteTargetKind       `json:"write_target,omitempty"`
 	WorkspaceID      string                        `json:"workspace_id,omitempty"`
+	Profile          string                        `json:"profile,omitempty"`
 	AgentName        string                        `json:"agent_name,omitempty"`
 	Applied          bool                          `json:"applied"`
 	Lifecycle        SettingsApplyLifecycle        `json:"lifecycle"`
@@ -224,6 +260,8 @@ type ConfigApplyRecordPayload struct {
 	ActiveConfigHash  string                  `json:"active_config_hash"`
 	Generation        int64                   `json:"generation"`
 	Actor             string                  `json:"actor"`
+	WriteTarget       SettingsWriteTargetKind `json:"write_target,omitempty"`
+	WritePath         string                  `json:"write_path,omitempty"`
 	DiffClass         SettingsApplyLifecycle  `json:"diff_class"`
 	Status            ConfigApplyStatus       `json:"status"`
 	Lifecycle         SettingsApplyLifecycle  `json:"lifecycle"`

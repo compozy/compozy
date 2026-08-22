@@ -21,6 +21,8 @@ const (
 	ScopeUser ScopeKind = "user"
 	// ScopeWorkspace selects one workspace-local overlay scope.
 	ScopeWorkspace ScopeKind = "workspace"
+	// ScopeProfile selects one personal profile overlay scope.
+	ScopeProfile ScopeKind = "profile"
 	// ScopeAgent selects one effective agent-local overlay scope.
 	ScopeAgent ScopeKind = "agent"
 )
@@ -28,7 +30,7 @@ const (
 // Validate ensures the requested settings scope is supported.
 func (s ScopeKind) Validate() error {
 	switch s {
-	case ScopeUser, ScopeWorkspace, ScopeAgent:
+	case ScopeUser, ScopeProfile, ScopeWorkspace, ScopeAgent:
 		return nil
 	default:
 		return fmt.Errorf("settings: invalid scope %q", s)
@@ -36,6 +38,9 @@ func (s ScopeKind) Validate() error {
 }
 
 func (s ScopeKind) configWriteScope() compozyconfig.WriteScope {
+	if s == ScopeProfile {
+		return compozyconfig.WriteScopeProfile
+	}
 	if s == ScopeWorkspace {
 		return compozyconfig.WriteScopeWorkspace
 	}
@@ -48,12 +53,20 @@ type WriteTargetKind = compozyconfig.WriteTargetKind
 const (
 	// WriteTargetGlobalConfig persists to `~/.compozy/config.toml`.
 	WriteTargetGlobalConfig = compozyconfig.WriteTargetGlobalConfig
+	// WriteTargetProfileConfig persists to `~/.compozy/profiles/<name>/config.toml`.
+	WriteTargetProfileConfig = compozyconfig.WriteTargetProfileConfig
 	// WriteTargetWorkspaceConfig persists to `<workspace>/.compozy/config.toml`.
 	WriteTargetWorkspaceConfig = compozyconfig.WriteTargetWorkspaceConfig
+	// WriteTargetWorkspaceProfileConfig identifies the read-only workspace profile config layer.
+	WriteTargetWorkspaceProfileConfig WriteTargetKind = "workspace-profile-config"
 	// WriteTargetGlobalMCPSidecar persists to `~/.compozy/mcp.json`.
 	WriteTargetGlobalMCPSidecar = compozyconfig.WriteTargetGlobalMCPSidecar
+	// WriteTargetProfileMCPSidecar persists to `~/.compozy/profiles/<name>/mcp.json`.
+	WriteTargetProfileMCPSidecar = compozyconfig.WriteTargetProfileMCPSidecar
 	// WriteTargetWorkspaceMCPSidecar persists to `<workspace>/.compozy/mcp.json`.
 	WriteTargetWorkspaceMCPSidecar = compozyconfig.WriteTargetWorkspaceMCPSidecar
+	// WriteTargetWorkspaceProfileMCPSidecar identifies the read-only workspace profile MCP layer.
+	WriteTargetWorkspaceProfileMCPSidecar WriteTargetKind = "workspace-profile-mcp-sidecar"
 	// WriteTargetGlobalAgentFile persists to `~/.compozy/agents/<name>/AGENT.md`.
 	WriteTargetGlobalAgentFile WriteTargetKind = "global-agent-file"
 	// WriteTargetWorkspaceAgentFile persists to `<root>/.compozy/agents/<name>/AGENT.md`.
@@ -64,8 +77,10 @@ const (
 type SectionName string
 
 const (
-	// SectionGeneral exposes daemon-wide runtime and config defaults.
+	// SectionGeneral exposes daemon-wide runtime and machine settings.
 	SectionGeneral SectionName = "general"
+	// SectionPersona exposes profile-layerable agent, provider, and sandbox defaults.
+	SectionPersona SectionName = "persona"
 	// SectionMemory exposes memory and dream settings.
 	SectionMemory SectionName = "memory"
 	// SectionRoles exposes background role routing settings.
@@ -158,12 +173,20 @@ const (
 	SourceKindBuiltinProvider SourceKind = "builtin-provider"
 	// SourceKindGlobalConfig identifies the global TOML config.
 	SourceKindGlobalConfig SourceKind = "global-config"
+	// SourceKindProfileConfig identifies a personal profile TOML config.
+	SourceKindProfileConfig SourceKind = "profile-config"
 	// SourceKindWorkspaceConfig identifies the workspace TOML config.
 	SourceKindWorkspaceConfig SourceKind = "workspace-config"
+	// SourceKindWorkspaceProfileConfig identifies a repository profile TOML config.
+	SourceKindWorkspaceProfileConfig SourceKind = "workspace-profile-config"
 	// SourceKindGlobalMCPSidecar identifies the global MCP JSON sidecar.
 	SourceKindGlobalMCPSidecar SourceKind = "global-mcp-sidecar"
+	// SourceKindProfileMCPSidecar identifies a personal profile MCP JSON sidecar.
+	SourceKindProfileMCPSidecar SourceKind = "profile-mcp-sidecar"
 	// SourceKindWorkspaceMCPSidecar identifies the workspace MCP JSON sidecar.
 	SourceKindWorkspaceMCPSidecar SourceKind = "workspace-mcp-sidecar"
+	// SourceKindWorkspaceProfileMCPSidecar identifies a repository profile MCP sidecar.
+	SourceKindWorkspaceProfileMCPSidecar SourceKind = "workspace-profile-mcp-sidecar"
 	// SourceKindGlobalAgentFile identifies a global AGENT.md frontmatter source.
 	SourceKindGlobalAgentFile SourceKind = "global-agent-file"
 	// SourceKindWorkspaceAgentFile identifies a workspace/additional AGENT.md frontmatter source.
@@ -175,6 +198,7 @@ type SectionRequest struct {
 	Section     SectionName
 	Scope       ScopeKind
 	WorkspaceID string
+	ProfileName string
 	AgentName   string
 	ClientID    string
 }
@@ -183,6 +207,7 @@ type SectionRequest struct {
 type SectionUpdateRequest struct {
 	SectionRequest
 	General                      *GeneralSettings
+	Persona                      *compozyconfig.DefaultsConfig
 	Memory                       *compozyconfig.MemoryConfig
 	Roles                        *compozyconfig.RolesConfig
 	Skills                       *compozyconfig.SkillsConfig
@@ -206,6 +231,7 @@ type CollectionRequest struct {
 	Collection  CollectionName
 	Scope       ScopeKind
 	WorkspaceID string
+	ProfileName string
 }
 
 // CollectionItemPutRequest identifies one collection upsert.
@@ -236,10 +262,12 @@ type SectionEnvelope struct {
 	Section         SectionName
 	Scope           ScopeKind
 	WorkspaceID     string
+	ProfileName     string
 	AgentName       string
 	ClientID        string
 	AvailableScopes []ScopeKind
 	General         *GeneralSection
+	Persona         *PersonaSection
 	Memory          *MemorySection
 	Roles           *RolesSection
 	Skills          *SkillsSection
@@ -259,6 +287,7 @@ type CollectionEnvelope struct {
 	Collection      CollectionName
 	Scope           ScopeKind
 	WorkspaceID     string
+	ProfileName     string
 	AvailableScopes []ScopeKind
 	Providers       []ProviderItem
 	MCPServers      []MCPServerItem
@@ -272,6 +301,7 @@ type MutationResult struct {
 	Scope           ScopeKind        `json:"scope"`
 	WriteTarget     WriteTargetKind  `json:"write_target,omitempty"`
 	WorkspaceID     string           `json:"workspace_id,omitempty"`
+	ProfileName     string           `json:"profile,omitempty"`
 	AgentName       string           `json:"agent_name,omitempty"`
 	Behavior        MutationBehavior `json:"behavior"`
 	Applied         bool             `json:"applied"`
@@ -281,6 +311,7 @@ type MutationResult struct {
 	Lifecycle       lifecycle.Lifecycle
 	DiffClass       lifecycle.DiffClass
 	MCPServer       *MCPServerItem `json:"-"`
+	writePath       string
 }
 
 // MutationDescriptor identifies the changed fields or action behind one mutation.
@@ -288,6 +319,11 @@ type MutationDescriptor struct {
 	Section       SectionName
 	ChangedFields []string
 	Action        string
+}
+
+func mutationResultAtPath(result MutationResult, path string) MutationResult {
+	result.writePath = path
+	return result
 }
 
 // MutationClassification reports the classified runtime behavior for one mutation.
@@ -308,6 +344,7 @@ type ApplyResult struct {
 	Scope           ScopeKind
 	WriteTarget     WriteTargetKind
 	WorkspaceID     string
+	ProfileName     string
 	AgentName       string
 	Applied         bool
 	NextAction      lifecycle.NextAction
@@ -333,6 +370,8 @@ type ApplyRecord struct {
 	ActiveHash  string
 	Generation  int64
 	Actor       string
+	WriteTarget WriteTargetKind
+	WritePath   string
 	DiffClass   lifecycle.DiffClass
 	Status      lifecycle.Status
 	Lifecycle   lifecycle.Lifecycle

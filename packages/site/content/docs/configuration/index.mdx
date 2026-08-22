@@ -11,9 +11,10 @@ for the change you actually want.
 
 | If you want to change...            | Primary surface                                                                                | Reach for this when...                                                                                                                                         |
 | ----------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Machine-wide defaults               | `~/.compozy/config.toml`                                                                       | The daemon, default provider, permissions mode, HTTP bind address, automation defaults, or marketplace trust should change for every workspace on one machine. |
+| User defaults                       | `$COMPOZY_HOME/config.toml`                                                                    | The daemon, default provider, permissions mode, HTTP bind address, automation defaults, or marketplace trust should change for every workspace on one machine. |
 | One workspace                       | `<workspace>/.compozy/config.toml`                                                             | A repository needs different defaults, limits, or permissions than the rest of the machine.                                                                    |
-| One operator profile                | [`compozy profile`](/docs/profiles)                                                            | Separate work, resources, remembered workspace choices, and future per-profile overrides without creating another OS user.                                     |
+| One operator profile                | `$COMPOZY_HOME/profiles/<name>/config.toml`                                                    | One profile needs different persona, provider, permission, hook, memory, or tool defaults without changing another profile.                                    |
+| One profile inside one workspace    | `<workspace>/.compozy/profiles/<name>/config.toml`                                             | A repository supplies a read-only named profile layer that activates only when the selected profile has the same name.                                         |
 | One agent                           | `AGENT.md`                                                                                     | A specific agent needs a different prompt, provider, permission mode, or MCP attachment.                                                                       |
 | One agent's advertised capabilities | [capability catalog](/docs/agents/capabilities) next to `AGENT.md`                             | Other peers need outcome-oriented discovery metadata about what that agent can do.                                                                             |
 | One skill                           | `SKILL.md`                                                                                     | You are defining reusable instructions, optional MCP metadata, or skill-owned hooks.                                                                           |
@@ -35,15 +36,40 @@ for the change you actually want.
 8. [mcp.json](/docs/configuration/mcp-json)
 9. [Environment Variables](/docs/configuration/env-vars)
 
-That order mirrors how operators usually troubleshoot CompozyOS: global defaults first, then
+That order mirrors how operators usually troubleshoot CompozyOS: user defaults first, then
 lifecycle, secret storage, path resolution, file formats, and agent sidecars. Remote access is
 configured through explicit gateway transitions rather than config keys — the
 [Gateway](/docs/gateway) section owns that flow, and the
 [`[gateway]` reference](/docs/configuration/config-toml#gateway) owns its bounded tunables.
 
+## Profile Layer Precedence
+
+CompozyOS merges four operator-authored layers. Later rows win over earlier rows:
+
+| Order | Layer                   | File                                               | Writable through the CLI |
+| ----- | ----------------------- | -------------------------------------------------- | ------------------------ |
+| 1     | User                    | `$COMPOZY_HOME/config.toml`                        | `--scope user`           |
+| 2     | Personal profile        | `$COMPOZY_HOME/profiles/<name>/config.toml`        | `--scope profile`        |
+| 3     | Workspace               | `<workspace>/.compozy/config.toml`                 | `--scope workspace`      |
+| 4     | Workspace named profile | `<workspace>/.compozy/profiles/<name>/config.toml` | No; repository-authored  |
+
+The workspace named profile layer activates only when `<name>` matches the active profile. A folder
+whose name is not in the profile catalog stays dormant and reports `config_profile_layer_orphaned`;
+creating that profile activates the layer without rewriting it.
+
+When `--scope` is omitted, `default` writes the user file and every other active profile writes its
+personal profile file. An explicit `--scope user|profile|workspace` selects another writable target.
+If a more specific layer already wins, the command returns `ok_overridden` with the winning layer:
+the value was saved, but it is not the current effective value.
+
+Profile files cannot change machine-only roots: `http`, `daemon`, `log`, `database`, `gateway`,
+`shell`, `marketplace`, `observability`, `network`, or `sandboxes`. They also cannot change
+`window_manager.global_shortcuts`, because the operating system has one shortcut registry. These
+writes fail with `profile_config_key_denied` and direct the operator to `--scope user`.
+
 ## CLI Inspection and Mutation
 
-Use `compozy config path` before editing to confirm the selected global or workspace overlay. Prefer
+Use `compozy config path` before editing to confirm the selected user, profile, or workspace overlay. Prefer
 `compozy config set <path> <value>` for supported scalar and list settings because it writes through the
 same validated persistence path as the settings API. `config.toml` is desired state; the daemon's
 active generation is runtime truth. Every settings write, boot reconcile, and explicit reload is

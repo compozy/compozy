@@ -83,9 +83,19 @@ func (m *Manager) prepareProviderStartPolicies(
 	resolved compozyconfig.ResolvedAgent,
 	opts acp.StartOpts,
 ) (acp.StartOpts, providerSecretBindings, error) {
+	profileSlots, err := authproviders.ProfileCredentialSlots(
+		ctx,
+		resolved.Provider,
+		resolved.ProfileName,
+		resolved.CredentialSlots,
+		providerSecretMetadataResolver{resolver: m.providerSecrets},
+	)
+	if err != nil {
+		return acp.StartOpts{}, providerSecretBindings{}, err
+	}
+	resolved.CredentialSlots = profileSlots
 	opts.Env = setProviderStartEnv(opts.Env, resolved)
 
-	var err error
 	if resolved.HomePolicy == compozyconfig.ProviderHomePolicyIsolated {
 		opts.Env, err = providerenv.ApplyHomePolicy(
 			m.homePaths,
@@ -184,6 +194,7 @@ func providerPreStartScopeForSession(
 	}
 	return authproviders.PreStartScope{
 		WorkspaceID:       strings.TrimSpace(info.WorkspaceID),
+		ProfileID:         strings.TrimSpace(info.ProfileID),
 		HomeIdentity:      providerHomeIdentity(env),
 		SandboxID:         strings.TrimSpace(info.Sandbox.SandboxID),
 		SandboxBackend:    strings.TrimSpace(info.Sandbox.Backend),

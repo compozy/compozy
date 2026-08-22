@@ -125,6 +125,14 @@ func (d *Daemon) bootRegistryState(
 	if err := d.bootMemoryCatalog(ctx, state, cleanup); err != nil {
 		return err
 	}
+	if profileStore, ok := registry.(*globaldb.GlobalDB); ok {
+		profiles, err := d.bootProfiles(ctx, state, profileStore)
+		if err != nil {
+			return err
+		}
+		state.profiles = profiles
+		d.providerPreStarter.SetProfileAvailabilityChecker(profiles)
+	}
 	getenv := d.getenv
 	if getenv == nil {
 		getenv = os.Getenv
@@ -151,6 +159,14 @@ func (d *Daemon) bootRegistryState(
 				compozyconfig.WithWorkspaceRoot(rootDir),
 			)
 		}),
+		workspacepkg.WithProfileConfigLoader(func(rootDir string, profileName string) (compozyconfig.Config, error) {
+			return compozyconfig.LoadForHome(
+				d.homePaths,
+				compozyconfig.WithWorkspaceRoot(rootDir),
+				compozyconfig.WithProfile(profileName),
+			)
+		}),
+		workspacepkg.WithProfileAvailabilityChecker(state.profiles),
 		workspacepkg.WithChangeHook(func(changeCtx context.Context) error {
 			return syncWorkspaceDerivedResources(changeCtx, state)
 		}),
@@ -159,13 +175,6 @@ func (d *Daemon) bootRegistryState(
 		return fmt.Errorf("daemon: create workspace resolver: %w", err)
 	}
 	state.registry = registry
-	if profileStore, ok := registry.(*globaldb.GlobalDB); ok {
-		profiles, err := d.bootProfiles(ctx, state, profileStore)
-		if err != nil {
-			return err
-		}
-		state.profiles = profiles
-	}
 	if bindings, ok := any(registry).(extensionpkg.EnvBindingStore); ok {
 		state.extensionEnvBindings = bindings
 	}

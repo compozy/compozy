@@ -91,6 +91,8 @@ type configSetRecord struct {
 	NextAction       string `json:"next_action,omitempty"`
 	RestartRequired  bool   `json:"restart_required"`
 	RestartScope     string `json:"restart_scope,omitempty"`
+	Status           string `json:"status,omitempty"`
+	WinningLayer     string `json:"winning_layer,omitempty"`
 }
 
 type configUnsetRecord struct {

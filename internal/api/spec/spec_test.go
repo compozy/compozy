@@ -231,8 +231,8 @@ func TestDocumentDescribesAgentNameRequestConstraints(t *testing.T) {
 			compozyconfig.OptionalAgentNamePattern,
 		)
 
-		updateGeneral := jsonRequestSchema(t, operationFor(t, doc, "/api/settings/general", http.MethodPatch))
-		defaults := propertySchema(t, propertySchema(t, updateGeneral, "config"), "defaults")
+		updatePersona := jsonRequestSchema(t, operationFor(t, doc, "/api/settings/persona", http.MethodPatch))
+		defaults := propertySchema(t, updatePersona, "config")
 		assertRequired(t, defaults, "agent")
 		assertAgentNameRequestSchema(
 			t,
@@ -251,6 +251,22 @@ func TestDocumentDescribesAgentNameRequestConstraints(t *testing.T) {
 			compozyconfig.OptionalAgentNamePattern,
 		)
 	})
+}
+
+func TestDocumentDescribesWorkspaceProfileHints(t *testing.T) {
+	t.Parallel()
+
+	doc, err := Document()
+	if err != nil {
+		t.Fatalf("Document() error = %v", err)
+	}
+	workspace := jsonResponseSchema(t, operationFor(t, doc, "/api/workspaces/{id}", http.MethodGet), http.StatusOK)
+	hints := propertySchema(t, workspace, "profile_hints")
+	if hints.Type == nil || !hints.Type.Is("array") || hints.Items == nil || hints.Items.Value == nil {
+		t.Fatalf("profile_hints schema = %#v, want array items", hints)
+	}
+	hint := hints.Items.Value
+	assertRequired(t, hint, "name", "path", "message", "action")
 }
 
 func TestDocumentDescribesSessionAttachmentContracts(t *testing.T) {

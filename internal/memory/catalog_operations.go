@@ -81,6 +81,7 @@ func insertMemoryEventDB(ctx context.Context, db *sql.DB, profileID string, reco
 
 func (c *catalog) listOperations(
 	ctx context.Context,
+	profileID string,
 	query memcontract.OperationHistoryQuery,
 ) (records []memcontract.OperationRecord, err error) {
 	db, err := c.ensureDB(ctx)
@@ -109,7 +110,8 @@ func (c *catalog) listOperations(
 		ctx,
 		`SELECT id, op, scope, workspace_id, agent_name, target_id, metadata, ts_ms
 		 FROM memory_events
-		 WHERE (? = '' OR op = ?)
+		 WHERE (profile_id = ? OR (profile_id = '' AND COALESCE(scope, '') <> 'profile'))
+		 AND (? = '' OR op = ?)
 		 AND (
 			(? = '' AND (? = '' OR scope IS NULL OR scope = 'profile' OR (scope = 'workspace' AND workspace_id = ?)))
 			OR (? = 'profile' AND scope = 'profile')
@@ -118,6 +120,7 @@ func (c *catalog) listOperations(
 		 AND (? = 0 OR ts_ms >= ?)
 		 ORDER BY ts_ms DESC, id DESC
 		 LIMIT ?`,
+		strings.TrimSpace(profileID),
 		operation,
 		operation,
 		scope,

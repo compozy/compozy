@@ -258,6 +258,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/settings/sandboxes",
 		"GET /api/settings/sandboxes/:name",
 		"GET /api/settings/general",
+		"GET /api/settings/persona",
 		"GET /api/settings/update",
 		"GET /api/settings/hooks",
 		"GET /api/settings/hooks-extensions",
@@ -341,6 +342,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"PATCH /api/settings/shell",
 		"PATCH /api/settings/cmd-palette",
 		"PATCH /api/settings/general",
+		"PATCH /api/settings/persona",
 		"PATCH /api/settings/hooks-extensions",
 		"PATCH /api/settings/memory",
 		"PATCH /api/settings/network",
@@ -1567,8 +1569,7 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 			wantStatus: http.StatusOK,
 			body: mustJSONBody(t, contract.UpdateSettingsGeneralRequest{
 				Config: contract.SettingsGeneralConfigPayload{
-					Defaults: contract.SettingsDefaultsPayload{Agent: "coder"},
-					Limits:   contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
+					Limits: contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
 					Permissions: contract.SettingsPermissionsPayload{
 						Mode: contract.SettingsPermissionModeApproveReads,
 					},
@@ -1613,7 +1614,7 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 			body: mustJSONBody(t, contract.InstallSettingsMCPServerRequest{
 				EntryID:     "github",
 				Name:        "github-workspace",
-				Scope:       contract.SettingsWorkspaceScopeWorkspace,
+				Scope:       contract.SettingsLayeredScopeWorkspace,
 				WorkspaceID: "ws-1",
 				Values: &contract.SettingsMCPCatalogInstallValuesPayload{
 					Inputs: map[string]contract.SettingsMCPCatalogInputPayload{
@@ -2155,6 +2156,10 @@ func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 			Dir:    sharedSkillDir,
 			Source: "workspace",
 		}},
+		ProfileDeclarations: []workspacepkg.ProfileDeclaration{{
+			Name: "marketing",
+			Path: filepath.Join(rootDir, ".compozy", "profiles", "marketing"),
+		}},
 	}
 	manager := stubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
@@ -2186,6 +2191,10 @@ func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 	}
 	if response.Skills[0].Name != "campaign-brief" {
 		t.Fatalf("skill name = %q, want campaign-brief", response.Skills[0].Name)
+	}
+	if len(response.ProfileHints) != 1 || response.ProfileHints[0].Name != "marketing" ||
+		response.ProfileHints[0].Action != "compozy profile create marketing" {
+		t.Fatalf("profile hints = %#v, want dormant marketing declaration", response.ProfileHints)
 	}
 	providerNames := make([]string, 0, len(response.Providers))
 	for _, provider := range response.Providers {

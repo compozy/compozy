@@ -17,6 +17,21 @@ func (m *Manager) GetByName(ctx context.Context, name string) (Profile, error) {
 	return getProfileByName(ctx, m.store.DB(), strings.TrimSpace(name))
 }
 
+// ProfileName resolves the current profile name for one stable profile id.
+func (m *Manager) ProfileName(ctx context.Context, profileID string) (string, error) {
+	if ctx == nil {
+		return "", errors.New("profile: get name context is required")
+	}
+	profile, err := getProfileByID(ctx, m.store.DB(), strings.TrimSpace(profileID))
+	if err != nil {
+		return "", err
+	}
+	if err := ensureAvailable(ctx, m.store.DB(), profile, true); err != nil {
+		return "", err
+	}
+	return profile.Name, nil
+}
+
 func (m *Manager) List(ctx context.Context) (profiles []ProfileWithCounts, err error) {
 	if ctx == nil {
 		return nil, errors.New("profile: list context is required")

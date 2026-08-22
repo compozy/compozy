@@ -9,11 +9,13 @@ import { MarketplaceDetailLede } from "./marketplace-detail-lede";
 import { MarketplaceDetailMCPView } from "./marketplace-detail-mcp";
 import { MarketplaceDetailSkillView } from "./marketplace-detail-skill";
 import { isMarketplaceKind } from "./marketplace-ui";
+import type { SettingsLayeredScope } from "@/systems/settings";
 
 interface MarketplaceDetailProps {
   data: MarketplaceEntryResponse;
-  managementScope?: "global" | "workspace";
+  managementScope?: SettingsLayeredScope;
   managementWorkspaceId?: string;
+  managementProfileName?: string;
   liveDataEnabled?: boolean;
 }
 
@@ -27,12 +29,19 @@ const MARKETPLACE_DETAIL_KIND_VIEWS: Record<
   (props: MarketplaceDetailProps) => ReactNode
 > = {
   extension: ({ data }) => <MarketplaceDetailExtensionView data={data} />,
-  mcp: ({ data, managementScope, managementWorkspaceId, liveDataEnabled }) => (
+  mcp: ({
+    data,
+    managementScope,
+    managementWorkspaceId,
+    managementProfileName,
+    liveDataEnabled,
+  }) => (
     <MarketplaceDetailMCPView
       data={data}
       liveDataEnabled={liveDataEnabled}
       scope={managementScope}
       workspaceId={managementWorkspaceId}
+      profileName={managementProfileName}
     />
   ),
   skill: ({ data }) => <MarketplaceDetailSkillView data={data} />,

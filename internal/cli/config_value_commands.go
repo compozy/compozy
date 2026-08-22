@@ -44,7 +44,7 @@ func newConfigUnsetCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().
-		StringVar(&scopeRaw, configScopeKey, string(compozyconfig.WriteScopeUser), "Write scope: user or workspace")
+		StringVar(&scopeRaw, configScopeKey, "", "Write scope: user, profile, or workspace (defaults to active owner)")
 	cmd.Flags().
 		StringVar(&workspaceRoot, "workspace", "", "Override workspace binding (ID, name, or path)")
 	return cmd
@@ -214,7 +214,7 @@ func newConfigSetCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().
-		StringVar(&scopeRaw, configScopeKey, string(compozyconfig.WriteScopeUser), "Write scope: user or workspace")
+		StringVar(&scopeRaw, configScopeKey, "", "Write scope: user, profile, or workspace (defaults to active owner)")
 	cmd.Flags().
 		StringVar(&workspaceRoot, "workspace", "", "Override workspace binding (ID, name, or path)")
 	return cmd
@@ -276,6 +276,16 @@ func runConfigSetCommand(
 		return err
 	}
 	record := configSetRecordForLocalWrite(path, value, target, redacted, lifecycle)
+	winner, overridden, err := compozyconfig.ConfigWriteOverride(homePaths, workspace, target, path)
+	if err != nil {
+		return err
+	}
+	if overridden {
+		record.Status = "ok_overridden"
+		record.WinningLayer = winner
+		record.Applied = false
+		record.NextAction = "saved but not applied — " + winner + " wins"
+	}
 	reloadRecord, err := maybeReloadConfigAfterLocalWrite(cmd.Context(), deps, target, record)
 	if err != nil {
 		return err

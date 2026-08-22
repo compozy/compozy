@@ -32,6 +32,28 @@ func validateEffectiveConfigWrite(
 	if err := applyConfigMCPSidecarContent(globalMCPJSONFile(homePaths), target, rendered, &cfg); err != nil {
 		return Config{}, fmt.Errorf("load global MCP JSON: %w", err)
 	}
+	profileName := strings.TrimSpace(target.profileName)
+	if profileName != "" {
+		profileOverlay, err := loadProfileConfigOverlayForWrite(
+			profileConfigFile(homePaths, profileName),
+			target,
+			rendered,
+		)
+		if err != nil {
+			return Config{}, err
+		}
+		if err := applyConfigOverlay(&cfg, &profileOverlay, RoleFieldSourceProfile); err != nil {
+			return Config{}, fmt.Errorf("apply profile config overlay: %w", err)
+		}
+		if err := applyConfigMCPSidecarContent(
+			profileMCPJSONFile(homePaths, profileName),
+			target,
+			rendered,
+			&cfg,
+		); err != nil {
+			return Config{}, fmt.Errorf("load profile MCP JSON: %w", err)
+		}
+	}
 
 	resolvedWorkspaceRoot, err := resolveWorkspaceRoot(workspaceRoot)
 	if err != nil {
@@ -40,6 +62,27 @@ func validateEffectiveConfigWrite(
 	if hasDistinctWorkspaceOverlay(homePaths, resolvedWorkspaceRoot) {
 		if err := applyWorkspaceConfigWrite(resolvedWorkspaceRoot, target, rendered, &cfg); err != nil {
 			return Config{}, err
+		}
+		if profileName != "" {
+			profileOverlay, err := loadProfileConfigOverlayForWrite(
+				workspaceProfileConfigFile(resolvedWorkspaceRoot, profileName),
+				target,
+				rendered,
+			)
+			if err != nil {
+				return Config{}, err
+			}
+			if err := applyConfigOverlay(&cfg, &profileOverlay, RoleFieldSourceWorkspaceProfile); err != nil {
+				return Config{}, fmt.Errorf("apply workspace profile config overlay: %w", err)
+			}
+			if err := applyConfigMCPSidecarContent(
+				workspaceProfileMCPJSONFile(resolvedWorkspaceRoot, profileName),
+				target,
+				rendered,
+				&cfg,
+			); err != nil {
+				return Config{}, fmt.Errorf("load workspace profile MCP JSON: %w", err)
+			}
 		}
 	}
 
