@@ -16,6 +16,7 @@ import type { WorktreePayload, WorktreesResponse } from "../types";
 import { workspaceKeys } from "../lib/query-keys";
 import { worktreeMaterializationFailureOptions } from "../lib/query-options";
 import { useCancelWorktreeCreate, useCreateWorktree } from "./use-worktrees";
+import { useAggregateDestination } from "@/systems/profiles";
 
 export interface WorktreeCreateDraft {
   name: string;
@@ -52,6 +53,11 @@ export interface WorktreeCreateDialogModel {
   setAdvancedOpen: (open: boolean) => void;
   /** Generated suggestion, shown as a placeholder only — never prefilled. */
   generatedName: string;
+  /**
+   * The profile this worktree will belong to, supplied only while the aggregate
+   * is on. A scoped view already answers the question on screen (ADR-005).
+   */
+  profileDestination: string | null;
   preview: WorktreeCreatePreview | null;
   branchCandidates: BranchCandidate[];
   refusal: WorktreeRefusal | null;
@@ -113,6 +119,7 @@ export function useWorktreeCreateDialog(
   const queryClient = useQueryClient();
   const createMutation = useCreateWorktree(workspaceId);
   const cancelMutation = useCancelWorktreeCreate(workspaceId);
+  const profileDestination = useAggregateDestination();
   const worktrees = listing?.worktrees ?? [];
   const catalogPending = worktrees.find(worktree => worktree.state === "pending") ?? null;
   const trackedPending = pendingWorktree ?? catalogPending;
@@ -227,6 +234,8 @@ export function useWorktreeCreateDialog(
     advancedOpen,
     setAdvancedOpen,
     generatedName,
+    /** Where the worktree will be filed, stated only while the aggregate is on. */
+    profileDestination,
     preview,
     branchCandidates,
     refusal,

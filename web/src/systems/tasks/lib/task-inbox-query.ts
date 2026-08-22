@@ -29,6 +29,8 @@ export function normalizeTaskInboxFilter(filters: TaskInboxFilter = {}): TaskInb
     query: normalizeOptionalText(filters.query),
     cursor: normalizeOptionalText(filters.cursor),
     limit: filters.limit,
+    profile: normalizeOptionalText(filters.profile),
+    all_profiles: filters.all_profiles,
   };
 }
 
@@ -46,6 +48,10 @@ export function taskInboxStableFilter(filters: TaskInboxFilter = {}): TaskInboxS
     unread: normalized.unread,
     query: normalized.query,
     limit: normalized.limit,
+    // Profile scope rides the stable filter, so it lands in both the request and
+    // the key — pagination can never straddle a profile switch.
+    profile: normalized.profile,
+    all_profiles: normalized.all_profiles,
   };
 }
 

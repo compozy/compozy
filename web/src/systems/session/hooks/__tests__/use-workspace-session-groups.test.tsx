@@ -14,6 +14,8 @@ import { useWorkspaceSessionGroups } from "../use-workspace-session-groups";
 
 function session(id: string): SessionPayload {
   return {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     id,
     agent_name: "claude",
     runtime: { status: "ready", transition: "initial_bind", selection_revision: 0 },
@@ -64,7 +66,11 @@ describe("useWorkspaceSessionGroups", () => {
     expect(result.current[0]?.total).toBe(2);
     expect(fetchSessions).toHaveBeenNthCalledWith(
       2,
-      expect.objectContaining({ cursor: "cursor-1", workspace: "ws-alpha" }),
+      expect.objectContaining({
+        cursor: "cursor-1",
+        profile: "default",
+        workspace_id: "ws-alpha",
+      }),
       expect.any(AbortSignal)
     );
     expect(vi.mocked(fetchSessions).mock.calls[0]?.[0]).not.toHaveProperty("archive");
@@ -89,7 +95,11 @@ describe("useWorkspaceSessionGroups", () => {
 
     await waitFor(() => expect(result.current[0]?.sessions).toHaveLength(1));
     expect(fetchSessions).toHaveBeenCalledWith(
-      expect.objectContaining({ archive: "only", workspace: "ws-alpha" }),
+      expect.objectContaining({
+        archive: "only",
+        profile: "default",
+        workspace_id: "ws-alpha",
+      }),
       expect.any(AbortSignal)
     );
   });

@@ -22,6 +22,7 @@ import {
   resetOptimisticMessage,
 } from "./network-message-cache";
 import { sessionKeys } from "@/systems/session";
+import { useProfileReadScope } from "@/systems/profiles";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 function invalidateConversation(
@@ -50,11 +51,18 @@ export function useSendNetworkMessage(
 ): UseSendNetworkMessageResult {
   const queryClient = useQueryClient();
   const { runtimeWorkspaceId } = useActiveWorkspace();
+  const scope = useProfileReadScope();
+  const owner = { id: scope.destinationOwner?.id ?? "", name: scope.destination };
   const workspaceId = options.workspaceId ?? runtimeWorkspaceId;
   const mutation = useMutation<SendNetworkMessageResult, Error, ScopedSendNetworkMessageInput>({
     mutationFn: async input => {
       const clientMessageId = input.clientMessageId ?? generateClientMessageId();
-      const optimistic = buildOptimisticMessage(input, clientMessageId, new Date().toISOString());
+      const optimistic = buildOptimisticMessage(
+        input,
+        clientMessageId,
+        new Date().toISOString(),
+        owner
+      );
       await queryClient.cancelQueries({
         queryKey: canonicalNetworkMessageKey(input),
         exact: true,

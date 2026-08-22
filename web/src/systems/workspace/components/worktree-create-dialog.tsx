@@ -26,6 +26,7 @@ import {
 import type { WorktreeCreateDialogModel } from "../hooks/use-worktree-create-dialog";
 import { WorktreeCreateAdvancedFields } from "./worktree-create-advanced-fields";
 import { WorktreePath } from "./worktree-path";
+import { ProfileDestinationChip } from "@/systems/profiles";
 
 export interface WorktreeCreateDialogProps {
   open: boolean;
@@ -184,7 +185,7 @@ export function WorktreeCreateDialog({
             // an abort, so disabling it would imply a rollback that never runs.
             cancelDisabled={false}
             cancelTestId="worktree-create-cancel"
-            hint={<WorktreeCreatePreviewLine model={model} />}
+            hint={<WorktreeCreateFooterHint model={model} />}
             hintTestId="worktree-create-preview"
             isSaving={isSubmitting}
             onCancel={() => onOpenChange(false)}
@@ -200,13 +201,18 @@ export function WorktreeCreateDialog({
 }
 
 /**
- * `branch → path`. The path is omitted when the placement root is unknown,
- * because the root is operator-configurable and guessing it would preview a
- * directory the daemon will not create.
+ * `branch → path`, and under the aggregate the profile the worktree will belong
+ * to. The path is omitted when the placement root is unknown, because the root
+ * is operator-configurable and guessing it would preview a directory the daemon
+ * will not create.
  */
-function WorktreeCreatePreviewLine({ model }: { model: WorktreeCreateDialogModel }) {
-  // A refused existing-branch pick leaves no valid derivation to show.
-  if (!model.preview || model.fieldError === "branch") return null;
+function WorktreeCreateFooterHint({ model }: { model: WorktreeCreateDialogModel }) {
+  const destination = model.profileDestination ? (
+    <ProfileDestinationChip profile={model.profileDestination} />
+  ) : null;
+  // A refused existing-branch pick leaves no valid derivation to show, but the
+  // destination is a standing guardrail rather than part of the preview.
+  if (!model.preview || model.fieldError === "branch") return destination;
 
   return (
     <span className="flex min-w-0 w-full items-center gap-1.5 overflow-hidden">
@@ -218,6 +224,7 @@ function WorktreeCreatePreviewLine({ model }: { model: WorktreeCreateDialogModel
         </>
       ) : null}
       {model.isSubmitting ? <Spinner className="size-3" /> : null}
+      {destination}
     </span>
   );
 }

@@ -37,6 +37,8 @@ export const automationKeys = {
       normalizeText(normalized.q),
       normalizeNumber(normalized.limit),
       normalizeText(normalized.loop),
+      normalizeText(normalized.profile),
+      normalizeBoolean(normalized.all_profiles),
     ] as const;
   },
   jobDetails: () => [...automationKeys.jobs(), "detail"] as const,
@@ -66,6 +68,8 @@ export const automationKeys = {
       normalizeText(normalized.q),
       normalizeNumber(normalized.limit),
       normalizeText(normalized.loop),
+      normalizeText(normalized.profile),
+      normalizeBoolean(normalized.all_profiles),
     ] as const;
   },
   triggerDetails: () => [...automationKeys.triggers(), "detail"] as const,

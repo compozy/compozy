@@ -16,6 +16,8 @@ import type {
   UpdateAutomationJobRequest,
   UpdateAutomationTriggerRequest,
 } from "../types";
+import { notifyUser } from "@/lib/user-feedback";
+import { createdInProfileToast, useProfileReadScope } from "@/systems/profiles";
 
 interface AutomationIdParams {
   id: string;
@@ -57,9 +59,17 @@ function invalidateTriggerQueries(queryClient: ReturnType<typeof useQueryClient>
 
 export function useCreateAutomationJob() {
   const queryClient = useQueryClient();
+  // Files into the acting profile — `default` while the aggregate is on (ADR-005).
+  // The toast names the owner only there, where it is not already on screen.
+  const { aggregate, destination } = useProfileReadScope();
 
   return useMutation({
-    mutationFn: (data: CreateAutomationJobRequest) => createAutomationJob(data),
+    mutationFn: (data: CreateAutomationJobRequest) => createAutomationJob(data, destination),
+    onSuccess: job => {
+      if (aggregate) {
+        notifyUser({ message: createdInProfileToast(job.profile_name), tone: "success" });
+      }
+    },
     onSettled: () => invalidateJobQueries(queryClient),
   });
 }
@@ -93,9 +103,18 @@ export function useTriggerAutomationJob() {
 
 export function useCreateAutomationTrigger() {
   const queryClient = useQueryClient();
+  // Files into the acting profile — `default` while the aggregate is on (ADR-005).
+  // The toast names the owner only there, where it is not already on screen.
+  const { aggregate, destination } = useProfileReadScope();
 
   return useMutation({
-    mutationFn: (data: CreateAutomationTriggerRequest) => createAutomationTrigger(data),
+    mutationFn: (data: CreateAutomationTriggerRequest) =>
+      createAutomationTrigger(data, destination),
+    onSuccess: trigger => {
+      if (aggregate) {
+        notifyUser({ message: createdInProfileToast(trigger.profile_name), tone: "success" });
+      }
+    },
     onSettled: () => invalidateTriggerQueries(queryClient),
   });
 }

@@ -11,11 +11,13 @@ import {
   tasksListOptions,
   type TasksRouteSearch,
 } from "@/systems/tasks";
+import { readProfileLens, readProfileScopeParams } from "@/systems/profiles";
 
 export async function preloadTasksRoute(
   queryClient: QueryClient,
   search: TasksRouteSearch
 ): Promise<void> {
+  const profileScope = readProfileScopeParams(queryClient, readProfileLens());
   const mode = parseTasksSurfaceMode(search);
   const resolution = await resolveActiveWorkspaceSelection(queryClient);
   const scope = taskScopeForActiveWorkspace(resolution.scope, resolution.activeWorkspaceId);
@@ -31,7 +33,7 @@ export async function preloadTasksRoute(
   if (mode === "dashboard") {
     queries.unshift(
       queryClient.ensureQueryData(
-        taskDashboardOptions({ scope: scope.scope, workspace: scope.workspace })
+        taskDashboardOptions({ scope: scope.scope, workspace: scope.workspace, ...profileScope })
       ),
       queryClient.ensureQueryData(schedulerStatusOptions()),
       queryClient.ensureQueryData(
@@ -50,7 +52,7 @@ export async function preloadTasksRoute(
   } else {
     queries.unshift(
       queryClient.ensureInfiniteQueryData(
-        tasksListOptions(taskListFilterFromRouteSearch(scope, search))
+        tasksListOptions({ ...taskListFilterFromRouteSearch(scope, search), ...profileScope })
       )
     );
   }

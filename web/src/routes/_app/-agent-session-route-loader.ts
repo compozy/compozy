@@ -14,6 +14,11 @@ import {
  * A deep link either loads under the active workspace, belongs to another workspace (the operator
  * confirms the switch — ADR-004), or exists nowhere. Only the `loaded` branch reads session data;
  * the `foreign` branch carries the owner projection and nothing else.
+ *
+ * This loader decides the *workspace* axis only. The profile axis is resolved when the window
+ * mounts, against the by-id route that enforces it — reading it here would make a workspace miss
+ * and a profile miss indistinguishable, and this route's confirm dialog depends on telling them
+ * apart.
  */
 export type AgentSessionRouteLoaderData =
   | { status: "loaded"; workspaceId: string }

@@ -59,7 +59,8 @@ function openWorktreeCatalogStream(
   queryClient: QueryClient,
   workspaceIds: readonly string[],
   eventSourceFactory: WorktreeCatalogEventSourceFactory,
-  onStatusChange: (status: Exclude<WorktreeCatalogStreamStatus, "disabled">) => void
+  onStatusChange: (status: Exclude<WorktreeCatalogStreamStatus, "disabled">) => void,
+  url: string
 ): () => void {
   const authorizedWorkspaceIds = new Set(workspaceIds);
   // A reconnect may have missed frames, so every authorized workspace rereads.
@@ -90,7 +91,7 @@ function openWorktreeCatalogStream(
     });
   };
 
-  const source = eventSourceFactory(worktreeCatalogStreamURL());
+  const source = eventSourceFactory(url);
   try {
     source.addEventListener("open", reconcileWorkspaces);
     source.addEventListener("error", handleStreamError);
@@ -152,7 +153,8 @@ export function useWorktreeCatalogStream(
           queryClient,
           JSON.parse(workspaceKey) as string[],
           eventSourceFactory ?? defaultEventSourceFactory,
-          onStatusChange
+          onStatusChange,
+          worktreeCatalogStreamURL()
         ),
     });
     return () => store.trigger.connectionDisabled();

@@ -59,12 +59,20 @@ export async function fetchWorktrees(
 export async function createWorktree(
   workspaceID: string,
   params: CreateWorktreeParams,
+  /**
+   * The profile stamped on the worktree. Worktrees stay visible in every
+   * profile, but the row still names the one that created it (US-009.EC-1).
+   */
+  profile?: string,
   signal?: AbortSignal
 ): Promise<WorktreePayload> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/worktrees",
     {
-      params: { path: { workspace_id: workspaceID } },
+      params: {
+        path: { workspace_id: workspaceID },
+        query: profile ? { profile } : {},
+      },
       body: params,
       signal,
     }

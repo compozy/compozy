@@ -76,6 +76,8 @@ export const loopsKeys = {
       normalizeText(filters.origin_session),
       normalizeBoolean(filters.live),
       normalizeNumber(filters.limit),
+      normalizeText(filters.profile),
+      normalizeBoolean(filters.all_profiles),
     ] as const,
 
   runDetails: () => [...loopsKeys.all, "run-detail"] as const,

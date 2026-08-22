@@ -162,6 +162,15 @@ func (h *BaseHandlers) GetSession(c *gin.Context) {
 	if !ok {
 		return
 	}
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	if !readScope.Matches(info.ProfileID) {
+		h.respondError(c, http.StatusNotFound, errors.New("session not found"))
+		return
+	}
 	includeHealth, err := parseBoolQuery(c, "include_health")
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)

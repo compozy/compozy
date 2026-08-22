@@ -39,6 +39,11 @@ vi.mock("../../adapters/settings-sections-api", () => ({
   updateSettingsCmdPalette,
 }));
 vi.mock("@/systems/workspace", () => ({ useActiveWorkspace: () => workspace }));
+// Personalization is per profile; which profile is the shell's business, not
+// this page's, so the acting one is stubbed at its own seam.
+vi.mock("@/systems/profiles", () => ({
+  useProfileReadScope: () => ({ destination: "default", key: "default", aggregate: false }),
+}));
 vi.mock("@/systems/os", () => ({
   cmdPaletteKeys: { all: ["cmd-palette"] },
   resetCmdPalettePersonalization,
@@ -142,7 +147,9 @@ describe("useSettingsPalettePage", () => {
 
     await act(async () => result.current.resetPersonalization());
 
-    expect(resetCmdPalettePersonalization).toHaveBeenCalledWith("workspace:home");
+    // A reset acts as one profile — the aggregate keeps its own history and is
+    // refused server-side, so the acting profile rides the call.
+    expect(resetCmdPalettePersonalization).toHaveBeenCalledWith("workspace:home", "default");
   });
 
   it("Should read and write the active workspace when that is the effective scope", async () => {

@@ -6,6 +6,10 @@ import type { ToolApprovalGrant, ToolApprovalGrantsListResponse } from "@/system
  */
 export const toolApprovalGrantFixtures: ToolApprovalGrant[] = [
   {
+    profile_archived: false,
+    profile_color: "#8a8f98",
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     id: "5f3a1c2e-8b7d-4a6f-9c1e-2d3b4a5c6d7e",
     workspace_id: "ws_default",
     agent_name: "claude-code",
@@ -15,6 +19,10 @@ export const toolApprovalGrantFixtures: ToolApprovalGrant[] = [
     last_used_at: "2026-07-15T08:40:00Z",
   },
   {
+    profile_archived: false,
+    profile_color: "#8a8f98",
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
     workspace_id: "ws_default",
     tool_id: "compozy__task_create",
@@ -23,6 +31,10 @@ export const toolApprovalGrantFixtures: ToolApprovalGrant[] = [
     last_used_at: "2026-07-14T22:15:00Z",
   },
   {
+    profile_archived: false,
+    profile_color: "#8a8f98",
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     id: "c9d8e7f6-a5b4-4c3d-9e2f-1a0b9c8d7e6f",
     workspace_id: "ws_default",
     agent_name: "openclaw",

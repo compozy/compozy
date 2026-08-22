@@ -197,6 +197,7 @@ function useBridgeDetailPage(bridgeId: string) {
       const result = await updateBridgeMutation.mutateAsync({
         data: requestResult.data,
         id: selectedBridge.id,
+        profile: selectedBridge.profile_name,
       });
 
       setEditDialogOpen(false);
@@ -222,7 +223,10 @@ function useBridgeDetailPage(bridgeId: string) {
 
     setupFlow.clearVerification();
     try {
-      const result = await enableBridgeMutation.mutateAsync({ id: selectedBridge.id });
+      const result = await enableBridgeMutation.mutateAsync({
+        id: selectedBridge.id,
+        profile: selectedBridge.profile_name,
+      });
       clearRestartRequired(result.bridge.id);
       toast.success(`Enabled bridge ${result.bridge.display_name}.`);
     } catch (error) {
@@ -237,7 +241,10 @@ function useBridgeDetailPage(bridgeId: string) {
 
     setupFlow.clearVerification();
     try {
-      const result = await disableBridgeMutation.mutateAsync({ id: selectedBridge.id });
+      const result = await disableBridgeMutation.mutateAsync({
+        id: selectedBridge.id,
+        profile: selectedBridge.profile_name,
+      });
       toast.success(`Disabled bridge ${result.bridge.display_name}.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to disable bridge");
@@ -251,7 +258,10 @@ function useBridgeDetailPage(bridgeId: string) {
 
     setupFlow.clearVerification();
     try {
-      const result = await restartBridgeMutation.mutateAsync({ id: selectedBridge.id });
+      const result = await restartBridgeMutation.mutateAsync({
+        id: selectedBridge.id,
+        profile: selectedBridge.profile_name,
+      });
       clearRestartRequired(result.bridge.id);
       toast.success(`Restarted bridge ${result.bridge.display_name}.`);
     } catch (error) {

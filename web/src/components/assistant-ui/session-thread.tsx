@@ -23,7 +23,13 @@ import {
 
 const EMPTY_QUEUED_PROMPTS: NonNullable<SessionComposerProps["queuedPrompts"]> = [];
 
-interface SessionThreadProps extends SessionComposerProps {
+interface SessionThreadProps extends Omit<SessionComposerProps, "canPrompt" | "onCancelPrompt"> {
+  canPrompt: boolean;
+  /**
+   * Absent in read-only mode, where the composer that owns cancellation is not
+   * rendered — there is no run this surface could cancel.
+   */
+  onCancelPrompt?: () => void;
   sessionId: string;
   agentName: string;
   workspaceId?: string;
@@ -32,6 +38,15 @@ interface SessionThreadProps extends SessionComposerProps {
   failure?: SessionFailurePayload | null;
   workingStartedAt?: number;
   liveDataEnabled?: boolean;
+  /**
+   * Renders the transcript with no way to act on it.
+   *
+   * The composer and the decision dock are omitted rather than disabled: this
+   * mode exists for a session the operator is allowed to read but not to touch,
+   * and a greyed-out send button still asserts that sending is this surface's
+   * business. Nothing here is a permission check — the daemon owns that.
+   */
+  readOnly?: boolean;
 }
 
 /**
@@ -70,6 +85,7 @@ export function SessionThread({
   onCommandAction,
   promptImageCapability = "unknown",
   promptEmbeddedContextCapability = "unknown",
+  readOnly = false,
 }: SessionThreadProps) {
   const aui = useAui();
   const reducedMotion = usePrefersReducedMotion();
@@ -83,12 +99,13 @@ export function SessionThread({
     isSessionRunning || renderedComposerState.isRunning || promptDispatchPending;
   const startupFailed =
     sessionState === "stopped" && Boolean(failure) && !acpSessionId?.trim().length;
-  const lifecycleCanPrompt = canPrompt && sessionState !== "starting" && !startupFailed;
+  const lifecycleCanPrompt =
+    !readOnly && canPrompt && sessionState !== "starting" && !startupFailed;
   useSessionFirstPrompt({ canPrompt: lifecycleCanPrompt, sessionId });
   const handleCancelPrompt = () => {
     aui.thread.cancelRun();
     promptDispatch.cancelPending();
-    onCancelPrompt();
+    onCancelPrompt?.();
   };
   return (
     <ThreadPrimitive.Root className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -122,47 +139,49 @@ export function SessionThread({
             />
           ) : null}
         </ThreadContentRail>
-        <SessionComposer
-          composerState={renderedComposerState}
-          contentInset={contentInset}
-          decisionDock={
-            workspaceId ? (
-              <SessionDecisionDock
-                enabled={liveDataEnabled}
-                sessionId={sessionId}
-                workspaceId={workspaceId}
-              />
-            ) : undefined
-          }
-          canPrompt={lifecycleCanPrompt}
-          onCancelPrompt={handleCancelPrompt}
-          onQueuePrompt={onQueuePrompt}
-          onInterruptPrompt={onInterruptPrompt}
-          onSteerPrompt={onSteerPrompt}
-          isBusyInputPending={isBusyInputPending}
-          isSessionRunning={runtimeRunning}
-          allowBusyInput={allowBusyInput}
-          busyInputFenceAvailable={busyInputFenceAvailable}
-          queuedPrompts={queuedPrompts}
-          onRemoveQueuedPrompt={onRemoveQueuedPrompt}
-          onReplaceQueuedPrompt={onReplaceQueuedPrompt}
-          onSteerQueuedPrompt={onSteerQueuedPrompt}
-          inactivePlaceholder={
-            sessionState === "starting"
-              ? "Session is starting…"
-              : startupFailed
-                ? "Session failed to start"
-                : undefined
-          }
-          runtimeControl={runtimeControl}
-          environmentControl={environmentControl}
-          commandCatalog={commandCatalog}
-          commandCatalogStatus={commandCatalogStatus}
-          onCommandCatalogOpen={onCommandCatalogOpen}
-          onCommandAction={onCommandAction}
-          promptImageCapability={promptImageCapability}
-          promptEmbeddedContextCapability={promptEmbeddedContextCapability}
-        />
+        {readOnly ? null : (
+          <SessionComposer
+            composerState={renderedComposerState}
+            contentInset={contentInset}
+            decisionDock={
+              workspaceId ? (
+                <SessionDecisionDock
+                  enabled={liveDataEnabled}
+                  sessionId={sessionId}
+                  workspaceId={workspaceId}
+                />
+              ) : undefined
+            }
+            canPrompt={lifecycleCanPrompt}
+            onCancelPrompt={handleCancelPrompt}
+            onQueuePrompt={onQueuePrompt}
+            onInterruptPrompt={onInterruptPrompt}
+            onSteerPrompt={onSteerPrompt}
+            isBusyInputPending={isBusyInputPending}
+            isSessionRunning={runtimeRunning}
+            allowBusyInput={allowBusyInput}
+            busyInputFenceAvailable={busyInputFenceAvailable}
+            queuedPrompts={queuedPrompts}
+            onRemoveQueuedPrompt={onRemoveQueuedPrompt}
+            onReplaceQueuedPrompt={onReplaceQueuedPrompt}
+            onSteerQueuedPrompt={onSteerQueuedPrompt}
+            inactivePlaceholder={
+              sessionState === "starting"
+                ? "Session is starting…"
+                : startupFailed
+                  ? "Session failed to start"
+                  : undefined
+            }
+            runtimeControl={runtimeControl}
+            environmentControl={environmentControl}
+            commandCatalog={commandCatalog}
+            commandCatalogStatus={commandCatalogStatus}
+            onCommandCatalogOpen={onCommandCatalogOpen}
+            onCommandAction={onCommandAction}
+            promptImageCapability={promptImageCapability}
+            promptEmbeddedContextCapability={promptEmbeddedContextCapability}
+          />
+        )}
       </SessionComposerPrefillProvider>
     </ThreadPrimitive.Root>
   );

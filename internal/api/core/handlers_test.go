@@ -26,6 +26,7 @@ import (
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/network"
 	"github.com/compozy/compozy/internal/observe"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/skills"
@@ -41,6 +42,41 @@ type sessionCommandCatalogManagerStub struct {
 	testutil.StubSessionManager
 	catalog commandpkg.Catalog
 	calls   *atomic.Int32
+}
+
+type sessionProfileServiceStub struct {
+	core.ProfileService
+}
+
+func (sessionProfileServiceStub) Resolve(
+	_ context.Context,
+	in profilepkg.ResolveInput,
+) (profilepkg.Resolution, error) {
+	if in.Flag == "marketing" {
+		return profilepkg.Resolution{
+			Profile: profilepkg.Profile{
+				ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive,
+			},
+			Source: profilepkg.ResolutionSourceFlag,
+		}, nil
+	}
+	return profilepkg.Resolution{
+		Profile: profilepkg.Profile{
+			ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive,
+		},
+		Source: profilepkg.ResolutionSourceDefault,
+	}, nil
+}
+
+func (sessionProfileServiceStub) List(context.Context) ([]profilepkg.ProfileWithCounts, error) {
+	return []profilepkg.ProfileWithCounts{
+		{Profile: profilepkg.Profile{
+			ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive,
+		}},
+		{Profile: profilepkg.Profile{
+			ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive,
+		}},
+	}, nil
 }
 
 func TestBaseHandlersStreamDoneBridge(t *testing.T) {
@@ -210,6 +246,10 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			info.CreatedAt = now
 			info.UpdatedAt = now
 			info.TranscriptEpoch = 1
+			info.ProfileID = store.DefaultProfileID
+			if id == "sess-marketing" {
+				info.ProfileID = "profile-marketing"
+			}
 			if attachResult.SessionID == id {
 				info.AttachedTo = attachResult.AttachedTo
 				info.AttachExpiresAt = &attachResult.AttachExpiresAt
@@ -440,6 +480,34 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/ws-workspace/sessions/sess-a", nil)
 		if getResp.Code != http.StatusOK {
 			t.Fatalf("get status = %d, want %d", getResp.Code, http.StatusOK)
+		}
+	})
+
+	t.Run("Should scope workspace session details by profile", func(t *testing.T) {
+		fixture.Handlers.Profiles = sessionProfileServiceStub{}
+		foreignResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-marketing",
+			nil,
+		)
+		assertAPIErrorResponse(t, foreignResp, http.StatusNotFound, "session not found")
+
+		aggregateResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-marketing?all_profiles=true",
+			nil,
+		)
+		if aggregateResp.Code != http.StatusOK {
+			t.Fatalf(
+				"aggregate get status = %d, want %d; body=%s",
+				aggregateResp.Code,
+				http.StatusOK,
+				aggregateResp.Body.String(),
+			)
 		}
 	})
 

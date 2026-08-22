@@ -94,6 +94,7 @@ export function HomeDashboard({ className, liveEnabled = true, ...props }: HomeD
                 <HomeOutcomesChart outcomes={overview.outcomes} />
                 <HomeUsageChart
                   onWindowChange={model.setUsageWindow}
+                  profileAggregate={model.profileAggregate}
                   usage={overview.usage}
                   window={model.usageWindow}
                 />

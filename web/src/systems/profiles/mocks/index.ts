@@ -1,5 +1,6 @@
 export { handlers } from "./handlers";
 export {
+  aggregateListingScopeFixture,
   archiveBlockedPlanFixture,
   archivePlanFixture,
   consultingProfileFixture,
@@ -10,6 +11,8 @@ export {
   oldAgencyProfileFixture,
   profileFixtures,
   profileSelectionFixtures,
+  profileOwnerLabels,
   renamePlanFixture,
+  scopedListingScopeFixture,
   scratchProfileFixture,
 } from "./fixtures";

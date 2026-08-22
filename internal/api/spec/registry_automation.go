@@ -31,7 +31,7 @@ func listAutomationJobsOperationSpec() OperationSpec {
 		Summary:     "List automation jobs",
 		Tags:        []string{specAutomationKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileScope(
 			enumQueryParam(specScopeKey, "Filter by automation scope", automationScopeValues()),
 			queryParam("workspace_id", "Filter by workspace id", false),
 			enumQueryParam("source", "Filter by job source", automationSourceValues()),
@@ -43,7 +43,7 @@ func listAutomationJobsOperationSpec() OperationSpec {
 			),
 			queryParam("cursor", "Continue after this automation job cursor", false),
 			intQueryParam("limit", "Maximum number of records to return"),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.JobsResponse{}},
 			{Status: 400, Description: "Invalid automation filter", Body: contract.ErrorPayload{}},
@@ -68,6 +68,7 @@ func createAutomationJobOperationSpec() OperationSpec {
 		Summary:     "Create an automation job",
 		Tags:        []string{specAutomationKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters:  withProfileSelector(),
 		RequestBody: contract.CreateJobRequest{},
 		Responses: []ResponseSpec{
 			{Status: 201, Description: specCreatedDescription, Body: contract.JobResponse{}},
@@ -235,13 +236,13 @@ func listAutomationJobRunsOperationSpec() OperationSpec {
 		Summary:     "List run history for one automation job",
 		Tags:        []string{specAutomationKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileScope(
 			pathParam("id", "Automation job id"),
 			enumQueryParam("status", "Filter by run status", automationRunStatusValues()),
 			dateTimeQueryParam("since", "Only runs started since this timestamp"),
 			dateTimeQueryParam("until", "Only runs started before this timestamp"),
 			intQueryParam("limit", "Maximum number of records to return"),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.RunsResponse{}},
 			{
@@ -275,7 +276,7 @@ func listAutomationTriggersOperationSpec() OperationSpec {
 		Summary:     "List automation triggers",
 		Tags:        []string{specAutomationKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileScope(
 			enumQueryParam(specScopeKey, "Filter by automation scope", automationScopeValues()),
 			queryParam("workspace_id", "Filter by workspace id", false),
 			enumQueryParam("source", "Filter by trigger source", automationSourceValues()),
@@ -284,7 +285,7 @@ func listAutomationTriggersOperationSpec() OperationSpec {
 			queryParam("q", "Search triggers by definition or filter fields", false),
 			queryParam("cursor", "Continue after this automation trigger cursor", false),
 			intQueryParam("limit", "Maximum number of records to return"),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.TriggersResponse{}},
 			{Status: 400, Description: "Invalid automation filter", Body: contract.ErrorPayload{}},
@@ -309,6 +310,7 @@ func createAutomationTriggerOperationSpec() OperationSpec {
 		Summary:     "Create an automation trigger",
 		Tags:        []string{specAutomationKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters:  withProfileSelector(),
 		RequestBody: contract.CreateTriggerRequest{},
 		Responses: []ResponseSpec{
 			{Status: 201, Description: specCreatedDescription, Body: contract.TriggerResponse{}},

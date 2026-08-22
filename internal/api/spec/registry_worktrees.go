@@ -51,7 +51,8 @@ func createWorktreeOperationSpec() OperationSpec {
 	return OperationSpec{
 		Method: httpMethodPost, Path: specAPIWorktreesPath, OperationID: "createWorktree",
 		Summary: "Accept a worktree creation", Tags: []string{specWorktreesKey},
-		Transports: []Transport{TransportHTTP, TransportUDS}, Parameters: worktreeWorkspaceParams(),
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters:  withProfileSelector(worktreeWorkspaceParams()...),
 		RequestBody: contract.CreateWorktreeRequest{},
 		Responses: append(worktreeMutationResponses(),
 			ResponseSpec{Status: 202, Description: specAcceptedDescription, Body: contract.WorktreeResponse{}},

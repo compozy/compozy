@@ -568,13 +568,14 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 						_ context.Context,
 						workspaceID string,
 						name string,
-						request contract.RunLoopRequest,
-						startKind dsl.StartKind,
-						actor taskpkg.ActorContext,
-						dry bool,
+						input core.LoopRunInput,
 					) (contract.RunLoopResponse, error) {
+						request := input.Request
 						if workspaceID != "ws-alpha" || name != "release" {
 							t.Fatalf("RunLoop target = %s/%s, want ws-alpha/release", workspaceID, name)
+						}
+						if input.ProfileID != "profile-marketing" {
+							t.Fatalf("RunLoop profile = %q, want profile-marketing", input.ProfileID)
 						}
 						if request.Inputs["target"] != "prod" {
 							t.Fatalf("RunLoop inputs = %#v, want target prod", request.Inputs)
@@ -595,9 +596,9 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 								request.NetworkParticipation,
 							)
 						}
-						capturedStartKind = startKind
-						capturedActor = actor
-						capturedDry = dry
+						capturedStartKind = input.StartKind
+						capturedActor = input.Actor
+						capturedDry = input.Dry
 						return contract.RunLoopResponse{
 							DryRun: &contract.LoopPlanPayload{
 								LoopName:       "release",
@@ -614,7 +615,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 
 		result, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{SessionID: "sess-caller", WorkspaceID: "ws-alpha"},
+			toolspkg.Scope{SessionID: "sess-caller", ProfileID: "profile-marketing", WorkspaceID: "ws-alpha"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDLoopRun,
 				Input: json.RawMessage(
@@ -653,10 +654,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 						context.Context,
 						string,
 						string,
-						contract.RunLoopRequest,
-						dsl.StartKind,
-						taskpkg.ActorContext,
-						bool,
+						core.LoopRunInput,
 					) (contract.RunLoopResponse, error) {
 						return contract.RunLoopResponse{
 							Run:    &contract.LoopRunPayload{ID: "run-release"},
@@ -669,7 +667,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 
 		result, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{SessionID: "sess-caller", WorkspaceID: "ws-alpha"},
+			toolspkg.Scope{SessionID: "sess-caller", ProfileID: "profile-marketing", WorkspaceID: "ws-alpha"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDLoopRun,
 				Input:  json.RawMessage(`{"name":"release"}`),
@@ -696,10 +694,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 						context.Context,
 						string,
 						string,
-						contract.RunLoopRequest,
-						dsl.StartKind,
-						taskpkg.ActorContext,
-						bool,
+						core.LoopRunInput,
 					) (contract.RunLoopResponse, error) {
 						return contract.RunLoopResponse{}, &looppkg.InputValidationError{
 							Loop: "review-and-fix", Field: "unknown", Origin: looppkg.InputOriginRun,
@@ -713,7 +708,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 
 		_, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{SessionID: "sess-caller", WorkspaceID: "ws-alpha"},
+			toolspkg.Scope{SessionID: "sess-caller", ProfileID: "profile-marketing", WorkspaceID: "ws-alpha"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDLoopRun,
 				Input:  json.RawMessage(`{"name":"review-and-fix","inputs":{"unknown":true},"dry":true}`),
@@ -1332,7 +1327,7 @@ type nativeLoopServiceStub struct {
 	patchLoopFn            func(context.Context, string, string, contract.PatchLoopRequest) (contract.LoopResponse, error)
 	validateLoopFn         func(context.Context, string, string, contract.ValidateLoopRequest) (contract.LoopValidationResponse, error)
 	deleteLoopFn           func(context.Context, string, string) error
-	runLoopFn              func(context.Context, string, string, contract.RunLoopRequest, dsl.StartKind, taskpkg.ActorContext, bool) (contract.RunLoopResponse, error)
+	runLoopFn              func(context.Context, string, string, core.LoopRunInput) (contract.RunLoopResponse, error)
 	getLoopConfigFn        func(context.Context, string, string) (contract.LoopConfigResponse, error)
 	putLoopConfigFn        func(context.Context, string, string, contract.PutLoopConfigRequest) (contract.LoopConfigResponse, error)
 	listLoopRunsFn         func(context.Context, string, core.LoopRunListQuery) (contract.LoopRunsResponse, error)
@@ -1500,13 +1495,10 @@ func (s *nativeLoopServiceStub) RunLoop(
 	ctx context.Context,
 	workspaceID string,
 	name string,
-	req contract.RunLoopRequest,
-	startKind dsl.StartKind,
-	actor taskpkg.ActorContext,
-	dry bool,
+	input core.LoopRunInput,
 ) (contract.RunLoopResponse, error) {
 	if s.runLoopFn != nil {
-		return s.runLoopFn(ctx, workspaceID, name, req, startKind, actor, dry)
+		return s.runLoopFn(ctx, workspaceID, name, input)
 	}
 	return contract.RunLoopResponse{}, errors.New("unexpected RunLoop call")
 }

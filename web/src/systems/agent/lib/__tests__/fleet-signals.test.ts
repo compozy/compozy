@@ -6,6 +6,8 @@ import { deriveAgentFleetSignals } from "../fleet-signals";
 
 function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
   return {
+    profile_name: "default",
+    profile_id: "00000000000000000000000000",
     id: "sess-1",
     agent_name: "coder",
     runtime: {

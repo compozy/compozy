@@ -19,6 +19,7 @@ import type {
   AutomationRunListFilter,
   AutomationTriggerStableFilter,
 } from "../types";
+import { useProfileReadScope } from "@/systems/profiles";
 
 interface QueryHookOptions {
   enabled?: boolean;
@@ -28,8 +29,10 @@ export function useAutomationJobs(
   filters: AutomationJobStableFilter = {},
   options: QueryHookOptions = {}
 ) {
+  // Scope applied at the single list hook, so a switch moves every consumer.
+  const { params } = useProfileReadScope();
   const query = useInfiniteQuery({
-    ...automationJobsListOptions(filters),
+    ...automationJobsListOptions({ ...filters, ...params }),
     enabled: options.enabled ?? true,
   });
   return {
@@ -55,8 +58,9 @@ export function useAutomationTriggers(
   filters: AutomationTriggerStableFilter = {},
   options: QueryHookOptions = {}
 ) {
+  const { params } = useProfileReadScope();
   const query = useInfiniteQuery({
-    ...automationTriggersListOptions(filters),
+    ...automationTriggersListOptions({ ...filters, ...params }),
     enabled: options.enabled ?? true,
   });
   return {

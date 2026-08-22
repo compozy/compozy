@@ -54,6 +54,32 @@ export function makeHomeOverview(overrides: Partial<HomeOverview> = {}): HomeOve
         { agent_name: "writer", tokens: 900_000, fraction: 0.64 },
         { agent_name: "researcher", tokens: 500_000, fraction: 0.36 },
       ],
+      profiles: [
+        {
+          profile_id: "00000000000000000000000000",
+          profile_name: "default",
+          profile_color: "#8a8f98",
+          profile_icon: "user-round",
+          profile_archived: false,
+          tokens: 900_000,
+        },
+        {
+          profile_id: "01J9MARKETING00000000000000",
+          profile_name: "marketing",
+          profile_color: "#c26ad6",
+          profile_icon: "megaphone",
+          profile_archived: false,
+          tokens: 400_000,
+        },
+        {
+          profile_id: "01J9OLDAGENCY00000000000000",
+          profile_name: "old agency",
+          profile_color: "#b58e5f",
+          profile_icon: "folder",
+          profile_archived: true,
+          tokens: 100_000,
+        },
+      ],
     },
     pulse: {
       window_days: 14,

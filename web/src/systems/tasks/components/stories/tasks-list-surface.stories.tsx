@@ -62,6 +62,13 @@ interface TasksListStoryProps extends Omit<Partial<TasksListSurfaceProps>, "task
   tasks?: TaskListItem[];
 }
 
+const STORY_PROFILE_SCOPE = {
+  aggregate: false,
+  destination: "default",
+  scopeLabel: "default",
+  ownerOf: () => ({ id: "00000000000000000000000000", name: "default", archived: false }),
+};
+
 function Stateful(props: TasksListStoryProps) {
   const [statusFilter, setStatusFilter] = useState<TaskStatus | null>(null);
   const [ownerFilter, setOwnerFilter] = useState<TaskFilterOwnerOption | null>(null);
@@ -144,6 +151,7 @@ function TasksListStoryRoute({
 
   return (
     <TasksListSurface
+      profile={STORY_PROFILE_SCOPE}
       filterState={
         statusFilter || ownerFilter || priorityFilter || searchQuery ? "active" : "inactive"
       }

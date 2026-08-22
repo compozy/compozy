@@ -222,6 +222,7 @@ func TestStartBindingShouldStartThroughServiceForEveryDeclaredSurface(t *testing
 				ActorRef:    "actor-ref",
 				OriginRef:   "origin-ref",
 				Inputs: loop.Inputs{
+					ProfileID: "profile-marketing",
 					Values: map[string]any{
 						"tasks": "task-ref",
 						"title": "direct-title",
@@ -234,6 +235,9 @@ func TestStartBindingShouldStartThroughServiceForEveryDeclaredSurface(t *testing
 			}
 			if run.ID == "" {
 				t.Fatal("StartFromBinding() run ID is empty")
+			}
+			if run.ProfileID != "profile-marketing" {
+				t.Fatalf("StartFromBinding() profile = %q, want profile-marketing", run.ProfileID)
 			}
 			if got := store.createCount(); got != 1 {
 				t.Fatalf("CreateLoopRunForStart calls = %d, want 1", got)

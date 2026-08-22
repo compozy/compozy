@@ -83,6 +83,8 @@ export const Stacked: Story = {
         kind: "agent",
         key: "c",
         notification: {
+          profile_id: "00000000000000000000000000",
+          profile_name: "default",
           notification_id: "ntf-1",
           session_id: "sess-payments",
           workspace_id: "ws-compozy",

@@ -73,7 +73,7 @@ func sessionCatalogListOperation() OperationSpec {
 		Summary:     "List sessions",
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileScope(
 			queryParam("workspace_id", "Workspace id or path", false),
 			boolQueryParam("all_workspaces", "Use the explicit all-workspaces aggregate"),
 			boolQueryParam("include_health", "Include metadata-only health for returned sessions"),
@@ -99,7 +99,7 @@ func sessionCatalogListOperation() OperationSpec {
 			enumQueryParam("sort", "Stable session ordering", []string{"recent", "last_activity", "attention"}),
 			queryParam("cursor", "Opaque next_cursor from the previous page", false),
 			intQueryParam("limit", "Sessions per page (1-100)"),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SessionCatalogResponse{}},
 			{Status: 400, Description: "Invalid session list query or cursor", Body: contract.ErrorPayload{}},
@@ -198,11 +198,11 @@ func sessionCatalogStreamOperation() OperationSpec {
 		Summary:     "Stream session catalog changes across workspaces",
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileScope(
 			queryParam("workspace_id", "Workspace id or path", false),
 			boolQueryParam("all_workspaces", "Subscribe to the explicit all-workspaces aggregate"),
 			optionalHeaderParam("Last-Event-ID", "Resume after this catalog sequence"),
-		},
+		),
 		Responses: []ResponseSpec{
 			{
 				Status:      200,

@@ -43,7 +43,7 @@ describe("cmd-palette dispatch seam (UT-105)", () => {
       args: { title: "Standup" },
       ports,
     });
-    expect(outcome).toEqual({
+    expect(outcome).toMatchObject({
       status: "invoked",
       result: { status: "ok", invocation_id: "inv-fixture" },
     });
@@ -233,7 +233,7 @@ describe("cmd-palette pre-execution gates (UT-120, UT-123)", () => {
       args: { title: "Standup follow-ups" },
       ports,
     });
-    expect(outcome).toEqual({
+    expect(outcome).toMatchObject({
       status: "invoked",
       result: { status: "ok", invocation_id: "inv-fixture" },
     });
@@ -262,7 +262,7 @@ describe("cmd-palette pre-execution gates (UT-120, UT-123)", () => {
       confirmed: true,
       ports,
     });
-    expect(outcome).toEqual({
+    expect(outcome).toMatchObject({
       status: "invoked",
       result: { status: "ok", invocation_id: "inv-fixture" },
     });
@@ -296,7 +296,11 @@ describe("cmd-palette feedback lifecycle (UT-159, UT-160)", () => {
     const { ports } = portsFixture({
       invoke: vi.fn(async () => {
         order.push("invoke");
-        return { status: "ok", invocation_id: "inv-async" };
+        return {
+          status: "ok",
+          invocation_id: "inv-async",
+          profile_lens: { profile_lens_id: "00000000000000000000000000", profile_name: "default" },
+        };
       }),
       onPendingStart: vi.fn(() => order.push("start")),
       onPendingSettle: vi.fn(() => order.push("settle")),

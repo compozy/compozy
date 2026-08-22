@@ -44,7 +44,7 @@ describe("command palette API adapter", () => {
     } as never);
 
     await expect(
-      openCmdPaletteViewSession("ws", "ext.notes.browser", "token")
+      openCmdPaletteViewSession("ws", "marketing", "ext.notes.browser", "token")
     ).rejects.toMatchObject({
       kind: "malformed_response",
       name: CmdPaletteApiError.name,
@@ -58,7 +58,7 @@ describe("command palette API adapter", () => {
       response: new Response(null, { status: 200 }),
     } as never);
 
-    await expect(getCmdPaletteView("ws", "ext.notes.browser")).rejects.toMatchObject({
+    await expect(getCmdPaletteView("ws", "default", "ext.notes.browser")).rejects.toMatchObject({
       kind: "malformed_response",
     });
   });
@@ -70,13 +70,15 @@ describe("command palette API adapter", () => {
       response: new Response(null, { status: 200 }),
     } as never);
 
-    await expect(listCmdPaletteCommands("ws", "client-1")).rejects.toMatchObject({
+    await expect(listCmdPaletteCommands("ws", "default", "client-1")).rejects.toMatchObject({
       kind: "malformed_response",
     });
     expect(apiClient.GET).toHaveBeenCalledWith(
       "/api/cmd-palette/commands",
       expect.objectContaining({
-        params: { query: { workspace: "ws", client: "client-1" } },
+        // The lens is never omitted: an absent selector resolves `default`
+        // server-side, which would silently answer for the wrong profile.
+        params: { query: { workspace: "ws", client: "client-1", profile: "default" } },
       })
     );
   });
@@ -94,7 +96,7 @@ describe("command palette API adapter", () => {
     } as never);
 
     await expect(
-      invokeCmdPaletteCommand({ workspaceId: "ws", commandId: "notes.open" })
+      invokeCmdPaletteCommand({ workspaceId: "ws", profile: "marketing", commandId: "notes.open" })
     ).rejects.toMatchObject({
       kind: "daemon",
       status: 409,
@@ -108,6 +110,7 @@ describe("command palette API adapter", () => {
         params: {
           path: { id: "notes.open" },
           header: { "X-Compozy-Client-Token": "" },
+          query: { profile: "marketing" },
         },
         body: { workspace: "ws", args: {} },
       })
@@ -123,6 +126,7 @@ describe("command palette API adapter", () => {
 
     await invokeCmdPaletteCommand({
       workspaceId: "ws",
+      profile: "marketing",
       commandId: "notes.open",
       clientId: "client-1",
       attachmentToken: "tok",
@@ -133,6 +137,7 @@ describe("command palette API adapter", () => {
         params: {
           path: { id: "notes.open" },
           header: { "X-Compozy-Client-Token": "tok" },
+          query: { profile: "marketing" },
         },
         body: { workspace: "ws", args: {}, client: "client-1" },
       })
@@ -146,13 +151,18 @@ describe("command palette API adapter", () => {
       response: new Response(null, { status: 200 }),
     } as never);
 
-    await invokeCmdPaletteCommand({ workspaceId: "ws", commandId: "notes.open" });
+    await invokeCmdPaletteCommand({
+      workspaceId: "ws",
+      profile: "marketing",
+      commandId: "notes.open",
+    });
     expect(apiClient.POST).toHaveBeenCalledWith(
       "/api/cmd-palette/commands/{id}/invoke",
       expect.objectContaining({
         params: {
           path: { id: "notes.open" },
           header: { "X-Compozy-Client-Token": "" },
+          query: { profile: "marketing" },
         },
         body: { workspace: "ws", args: {} },
       })
@@ -175,13 +185,14 @@ describe("command palette API adapter", () => {
       response: new Response(null, { status: 200 }),
     } as never);
 
-    await openCmdPaletteViewSession("ws", "ext.notes.browser", "tok");
+    await openCmdPaletteViewSession("ws", "marketing", "ext.notes.browser", "tok");
     expect(apiClient.POST).toHaveBeenCalledWith(
       "/api/cmd-palette/views/{id}/open",
       expect.objectContaining({
         params: {
           path: { id: "ext.notes.browser" },
           header: { "X-Compozy-Client-Token": "tok" },
+          query: { profile: "marketing" },
         },
         body: { workspace: "ws", args: {} },
       })
@@ -191,6 +202,36 @@ describe("command palette API adapter", () => {
   it("Should encode the view-session stream URL [RA0252]", () => {
     expect(cmdPaletteViewSessionStreamURL("vs/a", "t k")).toBe(
       "/api/cmd-palette/view-sessions/vs%2Fa/stream?token=t%20k"
+    );
+  });
+
+  it("Should bind a view session to the acting profile rather than resolving default", async () => {
+    vi.mocked(apiClient.POST).mockResolvedValue({
+      data: {
+        view_session: "vs_1",
+        stream_token: "st_1",
+        profile_lens: { profile_lens_id: "01J9MARKETING00000000000000", profile_name: "marketing" },
+        first_frame: {
+          view_session: "vs_1",
+          revision: "vr_1",
+          seq: 1,
+          effects: [],
+          generation: 1,
+          handlers: [],
+        },
+      },
+      error: undefined,
+      response: new Response(null, { status: 200 }),
+    } as never);
+
+    await openCmdPaletteViewSession("ws", "marketing", "ext.notes.browser", "tok");
+    // A programmable view runs extension code under an owner; opening it without
+    // a selector would bind the session to `default` from any profile.
+    expect(apiClient.POST).toHaveBeenLastCalledWith(
+      "/api/cmd-palette/views/{id}/open",
+      expect.objectContaining({
+        params: expect.objectContaining({ query: { profile: "marketing" } }),
+      })
     );
   });
 });

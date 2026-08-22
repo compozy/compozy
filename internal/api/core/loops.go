@@ -133,6 +133,11 @@ func (h *BaseHandlers) RunLoop(c *gin.Context) {
 		h.respondLoopError(c, fmt.Errorf("%w: dry query: %v", looppkg.ErrValidation, err))
 		return
 	}
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	actor, err := h.taskActorContextForWorkspace(c, loopActionRun, c.Param("workspace_id"))
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
@@ -142,10 +147,10 @@ func (h *BaseHandlers) RunLoop(c *gin.Context) {
 		c.Request.Context(),
 		c.Param("workspace_id"),
 		c.Param("name"),
-		req,
-		loopStartKindForTransport(h.transportName()),
-		actor,
-		dry,
+		LoopRunInput{
+			Request: req, ProfileID: mutationScope.ProfileID,
+			StartKind: loopStartKindForTransport(h.transportName()), Actor: actor, Dry: dry,
+		},
 	)
 	if err != nil {
 		h.respondLoopError(c, err)

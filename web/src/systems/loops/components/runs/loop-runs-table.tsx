@@ -2,11 +2,14 @@ import { Eyebrow } from "@compozy/ui";
 
 import type { LoopRun } from "../../types";
 import { LOOP_RUNS_ROW_GRID, LoopRunRow } from "./loop-run-row";
+import type { ProfileOwner, ProfileOwnerLabel } from "@/systems/profiles";
 
 interface LoopRunsTableProps {
   title: string;
   runs: readonly LoopRun[];
   testId: string;
+  /** Resolves each run's owner. Absent in a scoped list — no tags there. */
+  ownerOf?: (run: ProfileOwnerLabel) => ProfileOwner;
   pendingRequestCounts?: ReadonlyMap<string, number>;
 }
 
@@ -27,7 +30,13 @@ const COLUMNS: readonly string[] = [
  * Renders nothing when the section is empty so the outcome filter hides sections
  * with no matching runs.
  */
-export function LoopRunsTable({ title, runs, testId, pendingRequestCounts }: LoopRunsTableProps) {
+export function LoopRunsTable({
+  title,
+  runs,
+  testId,
+  ownerOf,
+  pendingRequestCounts,
+}: LoopRunsTableProps) {
   if (runs.length === 0) return null;
   return (
     <section data-testid={testId}>
@@ -48,6 +57,7 @@ export function LoopRunsTable({ title, runs, testId, pendingRequestCounts }: Loo
         {runs.map(run => (
           <LoopRunRow
             key={run.id}
+            owner={ownerOf?.(run)}
             pendingRequestCount={pendingRequestCounts?.get(run.id)}
             run={run}
           />

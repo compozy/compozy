@@ -59,6 +59,23 @@ func requiredIntQueryParam(name string, description string) ParameterSpec {
 	return parameter
 }
 
+// profileScopeQueryParams documents the two — and only two — profile read modes every
+// work-read surface accepts: scoped to one profile, or the explicit owner-labeled
+// aggregate. Sending both is rejected with `profile_selection_conflict`; sending
+// neither resolves the caller's profile rather than widening (ADR-005, ADR-015).
+func withProfileScope(params ...ParameterSpec) []ParameterSpec {
+	return append(params,
+		queryParam("profile", "Read one profile's rows by name", false),
+		boolQueryParam("all_profiles", "Read the owner-labeled all-profiles aggregate"),
+	)
+}
+
+// withProfileSelector documents the scoped selector alone. Mutating surfaces resolve
+// an owner rather than a view, so the aggregate is refused there and is not offered.
+func withProfileSelector(params ...ParameterSpec) []ParameterSpec {
+	return append(params, queryParam("profile", "Act as this profile by name", false))
+}
+
 func memorySelectorQueryParams() []ParameterSpec {
 	return []ParameterSpec{
 		enumQueryParam(specScopeKey, "Memory scope", memoryScopeValues()),

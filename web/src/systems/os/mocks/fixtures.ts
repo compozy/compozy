@@ -18,6 +18,8 @@ export const windowManagerStoryDesktopId = "desktop-launch";
 export const windowManagerStoryWindowId = "w-story-settings";
 
 export const osSessionAttentionEventFixture: SessionAttentionEventPayload = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   session_id: storySessionIds.cto,
   workspace_id: storyWorkspaceIds.hq,
   from: "running",
@@ -27,6 +29,8 @@ export const osSessionAttentionEventFixture: SessionAttentionEventPayload = {
 };
 
 export const osOperatorNotificationEventFixture: OperatorNotificationEventPayload = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   notification_id: "ntf_story_deps_audit",
   session_id: storySessionIds.cto,
   workspace_id: storyWorkspaceIds.hq,

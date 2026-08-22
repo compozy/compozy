@@ -1,3 +1,5 @@
+import { ownerFromRow } from "../lib/profile-scope";
+import type { ProfileListingScope, ProfileOwnerLabel } from "../lib/profile-scope";
 import type {
   ArchiveProfilePlan,
   DeleteProfilePlan,
@@ -130,3 +132,33 @@ export const deletePlanFixture: DeleteProfilePlan = {
   selections_to_sweep: 1,
   approval_blockers: [],
 };
+
+/** A scoped listing: no owner tags, and the empty state names `default`. */
+export const scopedListingScopeFixture: ProfileListingScope = {
+  aggregate: false,
+  destination: "default",
+  scopeLabel: "default",
+  ownerOf: row => ownerFromRow(row),
+};
+
+/**
+ * The aggregate listing. Rows carry whatever owner the daemon labelled them
+ * with, so a mixed-owner fixture set renders mixed tags without extra wiring.
+ */
+export const aggregateListingScopeFixture: ProfileListingScope = {
+  aggregate: true,
+  destination: "default",
+  scopeLabel: null,
+  ownerOf: row => ownerFromRow(row),
+};
+
+/** Owner labels a fixture row can spread to belong to a named profile. */
+export function profileOwnerLabels(profile: ProfilePayload): ProfileOwnerLabel {
+  return {
+    profile_id: profile.id,
+    profile_name: profile.name,
+    profile_color: profile.color,
+    profile_icon: profile.icon ?? undefined,
+    profile_archived: profile.state === "archived",
+  };
+}

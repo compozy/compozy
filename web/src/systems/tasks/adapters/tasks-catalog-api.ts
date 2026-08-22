@@ -99,9 +99,15 @@ export async function deleteTask(id: string, signal?: AbortSignal): Promise<void
 
 export async function createTask(
   body: CreateTaskRequest,
+  /** The profile that will own the task. Omitting it files into `default`. */
+  profile?: string,
   signal?: AbortSignal
 ): Promise<TaskRecord> {
-  const { data, error, response } = await apiClient.POST("/api/tasks", { body, signal });
+  const { data, error, response } = await apiClient.POST("/api/tasks", {
+    body,
+    params: { query: profile ? { profile } : {} },
+    signal,
+  });
   if (apiRequestFailed(response, error)) {
     throw new TasksApiError(
       defaultApiErrorMessage("Failed to create task", response, error),

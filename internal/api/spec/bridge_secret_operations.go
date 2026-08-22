@@ -11,9 +11,9 @@ func bridgeSecretOperations() []OperationSpec {
 			Summary:     "List persisted secret bindings for a bridge instance",
 			Tags:        []string{specBridgesKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters: []ParameterSpec{
+			Parameters: withProfileScope(
 				pathParam("id", "Bridge instance id"),
-			},
+			),
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.BridgeSecretBindingsResponse{}},
 				{Status: 404, Description: specBridgeInstanceNotFoundDescription, Body: contract.ErrorPayload{}},
@@ -28,10 +28,10 @@ func bridgeSecretOperations() []OperationSpec {
 			Summary:     "Create or update one bridge secret binding",
 			Tags:        []string{specBridgesKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters: []ParameterSpec{
+			Parameters: withProfileSelector(
 				pathParam("id", "Bridge instance id"),
 				pathParam("binding_name", "Bridge provider secret slot name"),
-			},
+			),
 			RequestBody: contract.PutBridgeSecretBindingRequest{},
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.BridgeSecretBindingResponse{}},
@@ -49,10 +49,10 @@ func bridgeSecretOperations() []OperationSpec {
 			Summary:     "Delete one bridge secret binding",
 			Tags:        []string{specBridgesKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters: []ParameterSpec{
+			Parameters: withProfileSelector(
 				pathParam("id", "Bridge instance id"),
 				pathParam("binding_name", "Bridge provider secret slot name"),
-			},
+			),
 			Responses: []ResponseSpec{
 				{Status: 204, Description: specNoContentDescription},
 				{

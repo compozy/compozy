@@ -136,6 +136,7 @@ export function createSessionLiveTailRuntime({
             }
           : existing
     );
+    void queryClient.invalidateQueries({ queryKey: sessionKeys.byIdRoot(sessionId) });
     const failureMessage = terminalFailureMessage(payload, sessionId);
     if (failureMessage) {
       queryClient.setQueryData<SessionTranscriptData>(transcriptQueryKey, existing =>

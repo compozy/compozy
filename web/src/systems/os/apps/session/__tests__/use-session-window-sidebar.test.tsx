@@ -44,6 +44,8 @@ import { useSessionWindowSidebar } from "../use-session-window-sidebar";
 
 function session(workspaceId: string): SessionPayload {
   return {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     id: `session-${workspaceId}`,
     agent_name: "claude",
     runtime: { status: "ready", transition: "initial_bind", selection_revision: 0 },

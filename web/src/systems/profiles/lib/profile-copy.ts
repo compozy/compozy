@@ -55,3 +55,48 @@ export function workItemsLabel(count: number): string {
 export function archivedFallbackToast(archived: string): string {
   return `${archived} was archived. You're back on default.`;
 }
+
+/**
+ * The aggregate's own label. It matches the daemon's reserved wording exactly, so
+ * the same two words name the state in the switcher, the palette footer, and the
+ * lens the runtime reports back.
+ */
+export const ALL_PROFILES_LABEL = "All profiles";
+
+/** Appended to an owner tag whose profile has since been archived. */
+export const ARCHIVED_OWNER_SUFFIX = " · archived";
+
+/** The confirmation after creating something while the aggregate is on. */
+export function createdInProfileToast(profile: string): string {
+  return `Created in ${profile}.`;
+}
+
+/** "No sessions in Marketing yet" — a scoped empty list answers "empty for whom". */
+export function emptyInProfile(plural: string, profile: string): string {
+  return `No ${plural} in ${profile} yet`;
+}
+
+/**
+ * The aggregate's empty state.
+ *
+ * It must not name a profile: the aggregate is bounded by no single one, and
+ * naming the create target would tell the operator a list is empty in `default`
+ * when what is empty is the machine.
+ */
+export function emptyAcrossProfiles(plural: string): string {
+  return `No ${plural} in any profile yet`;
+}
+
+/** The sentence a listing's empty state should use for the scope it is showing. */
+export function emptyForScope(plural: string, scopeLabel: string | null): string {
+  return scopeLabel === null ? emptyAcrossProfiles(plural) : emptyInProfile(plural, scopeLabel);
+}
+
+/** The deep-link banner: state the owner, then offer the move. */
+export function ownedByProfileLine(noun: string, profile: string): string {
+  return `This ${noun} belongs to ${profile}.`;
+}
+
+export function switchToProfileLabel(profile: string): string {
+  return `Switch to ${profile}`;
+}

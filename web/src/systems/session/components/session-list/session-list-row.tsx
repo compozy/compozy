@@ -10,9 +10,15 @@ import { SessionBadgeMark } from "../session-badge-mark";
 import type { SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { SessionRowActions } from "../session-row-actions";
+import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 
 export interface SessionListRowProps {
   session: SessionPayload;
+  /**
+   * The row's profile, supplied only while the aggregate is on. A scoped list
+   * already answers "whose work is this", so it stays tag-free (US-011.AC-1).
+   */
+  owner?: ProfileOwner;
   current?: boolean;
   onSelect: () => void;
   sessionActions: SessionLifecycleActionHandlers;
@@ -24,6 +30,7 @@ export interface SessionListRowProps {
 
 export function SessionListRow({
   session,
+  owner,
   current = false,
   onSelect,
   sessionActions,
@@ -77,7 +84,10 @@ export function SessionListRow({
             ) : null}
           </span>
         </span>
-        <Time iso={session.updated_at} className="mt-0.5 font-mono text-micro text-subtle" />
+        <span className="mt-0.5 flex items-center gap-1.5">
+          {owner ? <ProfileOwnerTag owner={owner} /> : null}
+          <Time iso={session.updated_at} className="font-mono text-micro text-subtle" />
+        </span>
       </button>
       <div className="flex items-center gap-0.5 pt-1">
         {trailing}

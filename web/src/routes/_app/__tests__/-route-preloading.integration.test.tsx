@@ -1293,15 +1293,18 @@ describe("route query preloading", () => {
 
     const usageWindow = homePrefsStore.getSnapshot().context.usageWindow;
     expect(usageWindow).toBe(7);
+    // The profile axis rides the same keys as the workspace axis; the claim under
+    // test is still which *workspace* the preload warmed.
     const scopedKeys = [
-      homeOverviewOptions({ workspace: workspace.id, usageWindow }).queryKey,
-      homeActivityOptions({ workspace_id: workspace.id }).queryKey,
-      taskDashboardOptions({ scope: "workspace", workspace: workspace.id }).queryKey,
+      homeOverviewOptions({ workspace: workspace.id, usageWindow, profile: "default" }).queryKey,
+      homeActivityOptions({ workspace_id: workspace.id, profile: "default" }).queryKey,
+      taskDashboardOptions({ scope: "workspace", workspace: workspace.id, profile: "default" })
+        .queryKey,
     ];
     const globalKeys = [
-      homeOverviewOptions({ workspace: undefined, usageWindow }).queryKey,
-      homeActivityOptions({ workspace_id: undefined }).queryKey,
-      taskDashboardOptions({ scope: "global" }).queryKey,
+      homeOverviewOptions({ workspace: undefined, usageWindow, profile: "default" }).queryKey,
+      homeActivityOptions({ workspace_id: undefined, profile: "default" }).queryKey,
+      taskDashboardOptions({ scope: "global", profile: "default" }).queryKey,
     ];
 
     for (const key of scopedKeys) {

@@ -16,13 +16,14 @@ const CATALOG_STALE_TIME = 60_000;
 
 export const cmdPaletteCatalogOptions = (
   workspaceId: string | null,
+  profileKey: string,
   clientId: string | null,
   enabled = true
 ) => {
   const workspace = workspaceId?.trim() ?? "";
   return queryOptions({
-    queryKey: cmdPaletteKeys.catalog(workspace, clientId),
-    queryFn: ({ signal }) => listCmdPaletteCommands(workspace, clientId, signal),
+    queryKey: cmdPaletteKeys.catalog(workspace, profileKey, clientId),
+    queryFn: ({ signal }) => listCmdPaletteCommands(workspace, profileKey, clientId, signal),
     enabled: enabled && workspace !== "",
     staleTime: CATALOG_STALE_TIME,
   });
@@ -30,24 +31,29 @@ export const cmdPaletteCatalogOptions = (
 
 export const cmdPaletteViewOptions = (
   workspaceId: string | null,
+  profileKey: string,
   viewId: string,
   enabled = true
 ) => {
   const workspace = workspaceId?.trim() ?? "";
   const view = viewId.trim();
   return queryOptions({
-    queryKey: cmdPaletteKeys.view(workspace, view),
-    queryFn: ({ signal }) => getCmdPaletteView(workspace, view, signal),
+    queryKey: cmdPaletteKeys.view(workspace, profileKey, view),
+    queryFn: ({ signal }) => getCmdPaletteView(workspace, profileKey, view, signal),
     enabled: enabled && workspace !== "" && view !== "",
     staleTime: 30_000,
   });
 };
 
-export const cmdPaletteRankSignalsOptions = (workspaceId: string | null, enabled = true) => {
+export const cmdPaletteRankSignalsOptions = (
+  workspaceId: string | null,
+  profileKey: string,
+  enabled = true
+) => {
   const workspace = workspaceId?.trim() ?? "";
   return queryOptions({
-    queryKey: cmdPaletteKeys.rankSignals(workspace),
-    queryFn: ({ signal }) => getCmdPaletteRankSignals(workspace, signal),
+    queryKey: cmdPaletteKeys.rankSignals(workspace, profileKey),
+    queryFn: ({ signal }) => getCmdPaletteRankSignals(workspace, profileKey, signal),
     enabled: enabled && workspace !== "",
     staleTime: Infinity,
   });

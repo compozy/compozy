@@ -155,6 +155,11 @@ func (h *BaseHandlers) DeleteNetworkSubscription(c *gin.Context) {
 	if !ok {
 		return
 	}
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	ref := store.NetworkSubscriptionRef{
 		WorkspaceID: scope.NetworkWorkspaceID(),
 		Channel:     channel,
@@ -163,6 +168,14 @@ func (h *BaseHandlers) DeleteNetworkSubscription(c *gin.Context) {
 	}
 	if err := ref.Validate(); err != nil {
 		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
+		return
+	}
+	if _, err := h.NetworkStore.GetNetworkChannel(
+		c.Request.Context(),
+		store.ReadScope{ProfileID: mutationScope.ProfileID},
+		store.NetworkChannelRef{WorkspaceID: ref.WorkspaceID, Channel: ref.Channel},
+	); err != nil {
+		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
 	if err := h.NetworkStore.DeleteNetworkSubscription(c.Request.Context(), ref); err != nil {

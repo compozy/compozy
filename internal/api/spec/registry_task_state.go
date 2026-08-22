@@ -312,7 +312,7 @@ func getTaskDashboardOperationSpec() OperationSpec {
 		Summary:     "Get the observer-backed task dashboard",
 		Tags:        []string{specObserveKey, specTasksKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileScope(
 			enumQueryParam(specScopeKey, "Filter by task scope", taskScopeValues()),
 			queryParam(specWorkspaceKey, "Filter by workspace path, name, or ID", false),
 			queryParam("worktree", "Filter by active run worktree ID", false),
@@ -320,7 +320,7 @@ func getTaskDashboardOperationSpec() OperationSpec {
 			queryParam("owner_ref", "Filter by owner reference", false),
 			queryParam("participation_channel", "Filter by resolved participation channel", false),
 			enumQueryParam("origin_kind", "Filter by task origin kind", taskOriginKindValues()),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.TaskDashboardResponse{}},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
@@ -338,7 +338,7 @@ func getTaskInboxOperationSpec() OperationSpec {
 		Summary:     "Get the observer-backed task inbox",
 		Tags:        []string{specObserveKey, specTasksKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileScope(
 			enumQueryParam(specScopeKey, "Filter by task scope", taskScopeValues()),
 			queryParam(specWorkspaceKey, "Filter by workspace path, name, or ID", false),
 			queryParam("worktree", "Filter by active run worktree ID", false),
@@ -351,7 +351,7 @@ func getTaskInboxOperationSpec() OperationSpec {
 			queryParam("query", "Filter by task title or identifier", false),
 			queryParam("cursor", "Opaque actor- and query-bound continuation cursor", false),
 			intQueryParam("limit", "Page size from 1 to 200 (default 50)"),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.TaskInboxResponse{}},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},

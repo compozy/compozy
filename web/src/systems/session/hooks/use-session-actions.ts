@@ -35,6 +35,8 @@ import type {
 } from "../types";
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
 import { useActiveWorkspace } from "@/systems/workspace";
+import { createdInProfileToast, useProfileReadScope } from "@/systems/profiles";
+import { notifyUser } from "@/lib/user-feedback";
 
 function requireWorkspace(workspaceId: string | null | undefined): string {
   if (!workspaceId) {
@@ -102,10 +104,19 @@ function useAbortableMutationRequest() {
 
 export function useCreateSession() {
   const queryClient = useQueryClient();
+  // The destination is the acting profile — `default` while the aggregate is on,
+  // which is exactly what the destination chip promised (ADR-005).
+  const { aggregate, destination } = useProfileReadScope();
 
   return useMutation({
-    mutationFn: (params: CreateSessionParams) => createSession(params),
+    mutationFn: (params: CreateSessionParams) => createSession(params, destination),
     onSuccess: session => {
+      // Only under the aggregate: a scoped view already shows whose session this
+      // is, so announcing it there would be noise. Here it is the guardrail that
+      // makes a misfile visible immediately (US-012.AC-2).
+      if (aggregate) {
+        notifyUser({ message: createdInProfileToast(session.profile_name), tone: "success" });
+      }
       const workspaceId = requireWorkspace(session.workspace_id);
       queryClient.setQueryData(sessionKeys.detail(workspaceId, session.id), session);
       void queryClient.invalidateQueries({ queryKey: sessionKeys.detail(workspaceId, session.id) });

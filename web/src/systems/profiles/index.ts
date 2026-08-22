@@ -25,6 +25,23 @@ export { ProfileApiError } from "./adapters/profiles-api";
 // Query infrastructure
 export { profileKeys, profileLensKey } from "./lib/query-keys";
 export {
+  isAggregateView,
+  ownerFromRow,
+  profileScopeParams,
+  profileViewKey,
+  type ProfileListingScope,
+  type ProfileMutationScopeParams,
+  type ProfileOwner,
+  type ProfileOwnerLabel,
+  type ProfileScopeParams,
+} from "./lib/profile-scope";
+export {
+  readProfileKey,
+  readProfileLens,
+  readProfileScopeParams,
+  readProfileView,
+} from "./lib/profile-scope-resolver";
+export {
   archivePlanOptions,
   deletePlanOptions,
   profileDetailOptions,
@@ -51,9 +68,17 @@ export {
   type ProfileRowState,
 } from "./lib/profile-rows";
 export {
+  ALL_PROFILES_LABEL,
+  ARCHIVED_OWNER_SUFFIX,
   archivedFallbackToast,
+  createdInProfileToast,
+  emptyAcrossProfiles,
+  emptyForScope,
+  emptyInProfile,
   NAME_REQUIRED_MESSAGE,
   nameTakenMessage,
+  ownedByProfileLine,
+  switchToProfileLabel,
   PROFILE_BOUNDARY_ANSWER,
   PROFILE_PERMANENT_LINE,
   PROFILE_REMOTE_MANAGEMENT_LINE,
@@ -131,6 +156,11 @@ export {
   useProfileLifecycle,
 } from "./hooks/use-profile-lifecycle";
 export { useProfileLens } from "./hooks/use-profile-lens";
+export {
+  useAggregateDestination,
+  useProfileReadScope,
+  type ProfileReadScope,
+} from "./hooks/use-profile-read-scope";
 export { useProfileFlowIntent, type ProfileFlowSearch } from "./hooks/use-profile-flow-intent";
 export { useProfilesSettingsPage } from "./hooks/use-profiles-settings-page";
 export { useProfileSwitcher } from "./hooks/use-profile-switcher";
@@ -162,3 +192,12 @@ export { ProfileSwitcherSlot } from "./components/profile-switcher-slot";
 export { ProfileSettingsList } from "./components/profile-settings-list";
 export { ProfileSelectionMap } from "./components/profile-selection-map";
 export { ProfilePaletteRow } from "./components/profile-palette-row";
+export { ProfileOwnerTag, type ProfileOwnerTagProps } from "./components/profile-owner-tag";
+export {
+  ProfileDestinationChip,
+  type ProfileDestinationChipProps,
+} from "./components/profile-destination-chip";
+export {
+  ProfileOwnerBanner,
+  type ProfileOwnerBannerProps,
+} from "./components/profile-owner-banner";

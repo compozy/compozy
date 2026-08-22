@@ -101,10 +101,13 @@ export async function getAutomationJob(id: string, signal?: AbortSignal): Promis
 
 export async function createAutomationJob(
   body: CreateAutomationJobRequest,
+  /** The profile that will own the job. Omitting it files into `default`. */
+  profile?: string,
   signal?: AbortSignal
 ): Promise<AutomationJob> {
   const { data, error, response } = await apiClient.POST("/api/automation/jobs", {
     body,
+    params: { query: profile ? { profile } : {} },
     signal,
   });
 
@@ -268,10 +271,13 @@ export async function getAutomationTrigger(
 
 export async function createAutomationTrigger(
   body: CreateAutomationTriggerRequest,
+  /** The profile that will own the trigger. Omitting it files into `default`. */
+  profile?: string,
   signal?: AbortSignal
 ): Promise<AutomationTrigger> {
   const { data, error, response } = await apiClient.POST("/api/automation/triggers", {
     body,
+    params: { query: profile ? { profile } : {} },
     signal,
   });
 

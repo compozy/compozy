@@ -965,6 +965,7 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		raw, err := executor.Execute(context.Background(), awaitNode, loop.ActionExecutionInput{
 			WorkspaceID: "ws-1",
 			LoopRunID:   "parent-1",
+			ToolScope:   tools.Scope{ProfileID: "profile-marketing"},
 			Namespace:   map[string]any{"inputs": map[string]any{"ticket": "T-1"}},
 			Environment: &dsl.EnvironmentSpec{Mode: dsl.EnvironmentWorktree, WorktreeRef: "parent-feature"},
 			RuntimeSelection: &loop.ActionRuntimeSelection{
@@ -981,7 +982,8 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			t.Fatalf("await raw = %#v, want child awaiting status", raw)
 		}
 		start := starter.mustLastStart(t)
-		if start.inputs.ParentLoopRunID != "parent-1" || start.inputs.Values["ticket"] != "T-1" {
+		if start.inputs.ProfileID != "profile-marketing" ||
+			start.inputs.ParentLoopRunID != "parent-1" || start.inputs.Values["ticket"] != "T-1" {
 			t.Fatalf("start inputs = %#v, want parent + rendered inputs", start.inputs)
 		}
 		if len(start.inputs.ConfigOverrides.RuntimeRules) != 0 {

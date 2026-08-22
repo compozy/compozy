@@ -73,6 +73,8 @@ function installMatchMedia({ matches }: InstallMatchMediaArgs) {
 
 const channels: NetworkChannelSummary[] = [
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     channel: "alpha",
     workspace_id: "w1",
     created_at: "2026-04-17T14:00:00Z",
@@ -80,6 +82,8 @@ const channels: NetworkChannelSummary[] = [
     peer_count: 2,
   },
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     channel: "design",
     workspace_id: "w1",
     created_at: "2026-04-17T14:00:00Z",
@@ -87,6 +91,8 @@ const channels: NetworkChannelSummary[] = [
     peer_count: 2,
   },
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     channel: "ops",
     workspace_id: "w1",
     created_at: "2026-04-17T14:00:00Z",

@@ -80,6 +80,8 @@ vi.mock("sonner", () => ({ toast: { error: mocks.toastError } }));
 import { SessionWindowContent } from "../session-window-content";
 
 const deadSession: SessionPayload = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   agent_name: "codex-agent",
   archived_at: null,
   attachable: false,

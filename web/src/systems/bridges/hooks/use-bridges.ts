@@ -15,10 +15,18 @@ import {
   flattenBridgePages,
 } from "../lib/bridge-list-query";
 import type { BridgeCatalogFilter, BridgeTargetsQuery } from "../types";
+import { useProfileReadScope } from "@/systems/profiles";
 
+/**
+ * Bridge instances belong to the profile that created them, so every read here
+ * states its lens. The scope is applied at this seam rather than by each caller,
+ * so no bridge surface can fall back to an unscoped read the daemon would
+ * silently resolve to `default`.
+ */
 export function useBridges(filters: BridgeCatalogFilter = {}, options?: { enabled?: boolean }) {
+  const { params } = useProfileReadScope();
   const query = useInfiniteQuery({
-    ...bridgesListOptions(filters),
+    ...bridgesListOptions({ ...filters, ...params }),
     enabled: options?.enabled ?? true,
   });
   const page = bridgeListPage(query.data);
@@ -40,15 +48,18 @@ export function useBridgeProviders(options?: { enabled?: boolean }) {
 }
 
 export function useSlackBridgeManifest(instanceID: string, options?: { enabled?: boolean }) {
-  return useQuery(slackBridgeManifestOptions(instanceID, options?.enabled));
+  const { params } = useProfileReadScope();
+  return useQuery(slackBridgeManifestOptions(instanceID, params, options?.enabled));
 }
 
 export function useBridge(id: string, options?: { enabled?: boolean }) {
-  return useQuery(bridgeDetailOptions(id, options?.enabled));
+  const { params } = useProfileReadScope();
+  return useQuery(bridgeDetailOptions(id, params, options?.enabled));
 }
 
 export function useBridgeRoutes(id: string, options?: { enabled?: boolean }) {
-  return useQuery(bridgeRoutesOptions(id, options?.enabled));
+  const { params } = useProfileReadScope();
+  return useQuery(bridgeRoutesOptions(id, params, options?.enabled));
 }
 
 export function useBridgeTargets(
@@ -56,9 +67,11 @@ export function useBridgeTargets(
   query: BridgeTargetsQuery = {},
   options?: { enabled?: boolean }
 ) {
-  return useQuery(bridgeTargetsOptions(id, query, options?.enabled));
+  const { params } = useProfileReadScope();
+  return useQuery(bridgeTargetsOptions(id, { ...query, ...params }, options?.enabled));
 }
 
 export function useBridgeSecretBindings(id: string, options?: { enabled?: boolean }) {
-  return useQuery(bridgeSecretBindingsOptions(id, options?.enabled));
+  const { params } = useProfileReadScope();
+  return useQuery(bridgeSecretBindingsOptions(id, params, options?.enabled));
 }

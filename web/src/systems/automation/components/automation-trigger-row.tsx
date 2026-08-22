@@ -12,13 +12,16 @@ import {
 } from "../lib/automation-formatters";
 import { describeAutomationTarget, projectAutomationTarget } from "../lib/automation-target";
 import type { AutomationTrigger } from "../types";
+import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 
 export interface AutomationTriggerRowProps {
   trigger: AutomationTrigger;
+  /** The trigger's profile, supplied only in aggregate mode. */
+  owner?: ProfileOwner;
 }
 
 /** Row presentation for a trigger in the Triggers catalog (rows view). */
-function AutomationTriggerRow({ trigger }: AutomationTriggerRowProps) {
+function AutomationTriggerRow({ trigger, owner }: AutomationTriggerRowProps) {
   const enabledTone = automationStatusTone(trigger.enabled ? "enabled" : "disabled");
   const target = projectAutomationTarget(trigger);
   const description =
@@ -54,6 +57,12 @@ function AutomationTriggerRow({ trigger }: AutomationTriggerRowProps) {
           {description ? <ListingRow.Description>{description}</ListingRow.Description> : null}
           <ListingRow.Meta>
             <span>{automationScopeLabel(trigger.scope)}</span>
+            {owner ? (
+              <>
+                <ListingRow.MetaDot />
+                <ProfileOwnerTag data-testid={`automation-profile-${trigger.id}`} owner={owner} />
+              </>
+            ) : null}
           </ListingRow.Meta>
         </ListingRow.Main>
       </ListingRow.Link>

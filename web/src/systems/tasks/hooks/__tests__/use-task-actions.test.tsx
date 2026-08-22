@@ -125,7 +125,11 @@ describe("task mutation hooks", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(createTask).toHaveBeenCalledWith(expect.objectContaining({ title: "Review" }));
+    // The acting profile rides the create call (ADR-005).
+    expect(createTask).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Review" }),
+      "default"
+    );
     expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "list"] });
     expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "dashboard"] });
     expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "inbox"] });

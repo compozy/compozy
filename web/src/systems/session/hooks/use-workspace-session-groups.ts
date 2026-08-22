@@ -3,6 +3,7 @@ import { useQueries } from "@tanstack/react-query";
 import { sessionsCompleteListOptions } from "../lib/query-options";
 import { sessionListSortParam, type SessionListSort } from "../lib/session-list-preferences";
 import type { SessionPayload } from "../types";
+import { useProfileReadScope } from "@/systems/profiles";
 
 const WORKSPACE_GROUP_PAGE_SIZE = 100;
 
@@ -44,6 +45,7 @@ export function useWorkspaceSessionGroups({
   archived,
   enabled,
 }: WorkspaceSessionGroupsInput): WorkspaceSessionGroup[] {
+  const { params } = useProfileReadScope();
   const results = useQueries({
     queries: workspaces.map(workspace => ({
       ...sessionsCompleteListOptions({
@@ -52,6 +54,7 @@ export function useWorkspaceSessionGroups({
         limit: WORKSPACE_GROUP_PAGE_SIZE,
         sort: sessionListSortParam(sort),
         ...(archived ? { archive: "only" as const } : {}),
+        ...params,
       }),
       enabled,
     })),

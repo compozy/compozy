@@ -392,33 +392,31 @@ func (s *daemonLoopAPIService) RunLoop(
 	ctx context.Context,
 	workspaceID string,
 	name string,
-	req contract.RunLoopRequest,
-	startKind dsl.StartKind,
-	actor taskpkg.ActorContext,
-	dry bool,
+	input core.LoopRunInput,
 ) (contract.RunLoopResponse, error) {
 	ws, err := normalizeLoopWorkspaceID(workspaceID)
 	if err != nil {
 		return contract.RunLoopResponse{}, err
 	}
-	values, err := cloneLoopAPIMap(req.Inputs)
+	values, err := cloneLoopAPIMap(input.Request.Inputs)
 	if err != nil {
 		return contract.RunLoopResponse{}, err
 	}
 	inputs := looppkg.Inputs{
+		ProfileID:            strings.TrimSpace(input.ProfileID),
 		Values:               values,
-		ParentLoopRunID:      looppkg.RunID(strings.TrimSpace(req.ParentLoopRunID)),
-		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
+		ParentLoopRunID:      looppkg.RunID(strings.TrimSpace(input.Request.ParentLoopRunID)),
+		NetworkParticipation: participation.CloneRequest(input.Request.NetworkParticipation),
 	}
-	if req.ConfigOverrides != nil {
-		config, err := loopConfigDomain(*req.ConfigOverrides)
+	if input.Request.ConfigOverrides != nil {
+		config, err := loopConfigDomain(*input.Request.ConfigOverrides)
 		if err != nil {
 			return contract.RunLoopResponse{}, err
 		}
 		inputs.ConfigOverrides = config
 	}
-	if dry {
-		if _, err := looppkg.ResolveStartBinding(ctx, s.resolver, ws, name, startKind); err != nil {
+	if input.Dry {
+		if _, err := looppkg.ResolveStartBinding(ctx, s.resolver, ws, name, input.StartKind); err != nil {
 			return contract.RunLoopResponse{}, err
 		}
 		plan, err := s.aggregate.DryRun(ctx, ws, name, inputs)
@@ -438,9 +436,9 @@ func (s *daemonLoopAPIService) RunLoop(
 	run, err := looppkg.StartFromActor(ctx, s.aggregate, s.resolver, looppkg.StartBindingRequest{
 		WorkspaceID: ws,
 		LoopName:    name,
-		Kind:        startKind,
+		Kind:        input.StartKind,
 		Inputs:      inputs,
-	}, actor)
+	}, input.Actor)
 	if err != nil {
 		return contract.RunLoopResponse{}, err
 	}

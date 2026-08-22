@@ -18,6 +18,8 @@ import { useNetworkMessageTail } from "../use-network-message-tail";
 
 function message(id: string) {
   return {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     body: {},
     channel: "ops",
     direction: "received",

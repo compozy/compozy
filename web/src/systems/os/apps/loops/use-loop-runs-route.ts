@@ -13,8 +13,12 @@ import {
   useLoops,
 } from "@/systems/loops";
 import { useActiveWorkspace } from "@/systems/workspace";
+import { useProfileReadScope } from "@/systems/profiles";
 
 export function useLoopRunsRoute(search: LoopRunsRouteSearch) {
+  // The runs listing's profile axis: owner tags under the aggregate, and the
+  // profile named when nothing has run yet.
+  const profile = useProfileReadScope();
   const { activeWorkspace, runtimeWorkspaceId } = useActiveWorkspace();
   const workspaceId = runtimeWorkspaceId ?? "";
   const workspaceLabel = activeWorkspace?.name ?? activeWorkspace?.id ?? "workspace";
@@ -103,6 +107,7 @@ export function useLoopRunsRoute(search: LoopRunsRouteSearch) {
   };
 
   return {
+    profile,
     outcome,
     runsQuery,
     setOriginFilter,

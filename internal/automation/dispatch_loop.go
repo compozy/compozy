@@ -40,6 +40,7 @@ type LoopCatchUpPolicyRequest struct {
 
 // LoopStartRequest starts one loop target from an automation fire.
 type LoopStartRequest struct {
+	ProfileID            string
 	WorkspaceID          string
 	LoopName             string
 	Kind                 LoopStartKind
@@ -108,6 +109,7 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 		return d.finishRun(ctx, scheduledRun, RunFailed, err)
 	}
 	result, err := d.loopStarter.StartLoop(ctx, LoopStartRequest{
+		ProfileID:            req.profileID(),
 		WorkspaceID:          strings.TrimSpace(target.WorkspaceID),
 		LoopName:             strings.TrimSpace(target.LoopName),
 		Kind:                 req.loopStartKind(),

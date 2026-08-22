@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
 
@@ -21,6 +22,7 @@ const bridgeHealthStreamIDsQueryKey = "bridge_ids"
 
 type bridgeHealthStreamQuery struct {
 	scope     bridgeScopeQuery
+	readScope store.ReadScope
 	bridgeIDs []string
 }
 
@@ -107,6 +109,10 @@ func (h *BaseHandlers) StreamBridgeHealth(c *gin.Context) {
 }
 
 func (h *BaseHandlers) parseBridgeHealthStreamQuery(c *gin.Context) (bridgeHealthStreamQuery, error) {
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		return bridgeHealthStreamQuery{}, err
+	}
 	scope, err := h.parseBridgeScopeQuery(c.Request.Context(), c)
 	if err != nil {
 		return bridgeHealthStreamQuery{}, err
@@ -115,7 +121,7 @@ func (h *BaseHandlers) parseBridgeHealthStreamQuery(c *gin.Context) (bridgeHealt
 	if err != nil {
 		return bridgeHealthStreamQuery{}, fmt.Errorf("%s: %w", h.transportName(), err)
 	}
-	return bridgeHealthStreamQuery{scope: scope, bridgeIDs: bridgeIDs}, nil
+	return bridgeHealthStreamQuery{scope: scope, readScope: readScope, bridgeIDs: bridgeIDs}, nil
 }
 
 func normalizeBridgeHealthStreamIDs(raw []string) ([]string, error) {
@@ -153,7 +159,7 @@ func (h *BaseHandlers) bridgeHealthStreamSnapshot(
 	observer BridgeCatalogObserver,
 	query bridgeHealthStreamQuery,
 ) (contract.BridgeHealthStreamPayload, error) {
-	instances, err := bridges.ListInstancesByIDs(ctx, query.bridgeIDs)
+	instances, err := bridges.ListInstancesByIDsScoped(ctx, query.readScope, query.bridgeIDs)
 	if err != nil {
 		return contract.BridgeHealthStreamPayload{}, err
 	}

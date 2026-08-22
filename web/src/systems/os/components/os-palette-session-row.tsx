@@ -10,8 +10,14 @@ import {
 } from "@/systems/session";
 
 import { attentionOrderKey } from "../lib/attention-order";
+import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 
 export interface OsPaletteSessionRowProps {
+  /**
+   * The session's profile, supplied only under the aggregate lens — the
+   * palette speaks the same owner vocabulary as the listing rows.
+   */
+  owner?: ProfileOwner;
   session: SessionPayload;
   /** The workspace name, shown only once the list reaches past this workspace. */
   workspaceLabel?: string;
@@ -24,7 +30,7 @@ export interface OsPaletteSessionRowProps {
  * The state word is always spelled out in the daemon's own vocabulary, so the
  * roundel's tone is never the only thing carrying the state.
  */
-export function OsPaletteSessionRow({ session, workspaceLabel }: OsPaletteSessionRowProps) {
+export function OsPaletteSessionRow({ session, owner, workspaceLabel }: OsPaletteSessionRowProps) {
   const signal = sessionBadgeSignal(session.badge);
   const agentName = session.agent_name?.trim() ?? "";
   return (
@@ -44,9 +50,10 @@ export function OsPaletteSessionRow({ session, workspaceLabel }: OsPaletteSessio
           )}
         </span>
       </span>
+      {owner ? <ProfileOwnerTag className="ml-auto shrink-0" owner={owner} /> : null}
       <Time
         iso={attentionOrderKey(session)}
-        className="ml-auto shrink-0 font-mono text-micro text-subtle"
+        className={cn("shrink-0 font-mono text-micro text-subtle", owner ? "" : "ml-auto")}
       />
     </>
   );

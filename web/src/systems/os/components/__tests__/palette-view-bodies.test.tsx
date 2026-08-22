@@ -256,6 +256,7 @@ describe("command palette view bodies", () => {
 
 function viewEnvelope(): CmdPaletteViewEnvelope {
   return {
+    profile_lens: { profile_lens_id: "00000000000000000000000000", profile_name: "default" },
     view_id: "ext.notes.browser",
     title: "Browse notes",
     kind: "list",

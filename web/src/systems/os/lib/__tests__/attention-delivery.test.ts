@@ -35,6 +35,8 @@ function target(overrides: Partial<AttentionDeliveryTarget> = {}): AttentionDeli
 
 function edge(overrides: Partial<SessionAttentionEventPayload> = {}): SessionAttentionEventPayload {
   return {
+    profile_name: "default",
+    profile_id: "00000000000000000000000000",
     session_id: "sess-1",
     workspace_id: "ws-compozy",
     from: "running",
@@ -308,6 +310,8 @@ describe("agent notifications (UT-083)", () => {
     title: "Deps audit done",
     body: "3 findings, 1 high severity",
     at: "2026-07-20T12:00:00Z",
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
   };
 
   it("Should deliver an agent notification with its sending session resolved", () => {
@@ -328,7 +332,10 @@ describe("agent notifications (UT-083)", () => {
     expect(world.batches).toHaveLength(0);
 
     world.setContext({ focusedSessionId: null, mutedWorkspaceIds: new Set(["ws-compozy"]) });
-    world.engine.ingestNotification({ ...notification, notification_id: "ntf-2" });
+    world.engine.ingestNotification({
+      ...notification,
+      notification_id: "ntf-2",
+    });
     vi.advanceTimersByTime(1);
     expect(world.batches).toHaveLength(0);
   });

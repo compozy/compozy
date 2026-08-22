@@ -92,6 +92,13 @@ func (r DispatchRequest) workspaceID() string {
 	return strings.TrimSpace(r.Trigger.WorkspaceID)
 }
 
+func (r DispatchRequest) profileID() string {
+	if r.Job != nil {
+		return strings.TrimSpace(r.Job.ProfileID)
+	}
+	return strings.TrimSpace(r.Trigger.ProfileID)
+}
+
 func (r DispatchRequest) envelopeData() map[string]any {
 	if r.Envelope == nil {
 		return nil

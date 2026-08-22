@@ -174,6 +174,7 @@ func (s *automationLoopStarter) StartLoop(
 		return automationpkg.LoopStartResult{}, err
 	}
 	run, err := s.service.Start(ctx, workspaceID, loopName, looppkg.Inputs{
+		ProfileID:                  strings.TrimSpace(req.ProfileID),
 		Values:                     values,
 		StartMetadata:              automationLoopStartMetadata(req),
 		NetworkParticipation:       req.NetworkParticipation,

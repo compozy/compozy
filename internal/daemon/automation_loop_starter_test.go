@@ -113,6 +113,7 @@ func TestAutomationLoopStarterShouldForwardDefinitionParticipationAsAutomationIn
 		}
 
 		result, err := starter.StartLoop(context.Background(), automationpkg.LoopStartRequest{
+			ProfileID:            "profile-marketing",
 			WorkspaceID:          "ws-1",
 			LoopName:             "deploy",
 			Kind:                 automationpkg.LoopStartKindWebhook,
@@ -125,6 +126,9 @@ func TestAutomationLoopStarterShouldForwardDefinitionParticipationAsAutomationIn
 		}
 		if got, want := result.RunID, "looprun-automation"; got != want {
 			t.Fatalf("StartLoop().RunID = %q, want %q", got, want)
+		}
+		if got, want := service.inputs.ProfileID, "profile-marketing"; got != want {
+			t.Fatalf("Start().ProfileID = %q, want %q", got, want)
 		}
 		if service.inputs.NetworkParticipationSource != participation.SourceAutomationJob {
 			t.Fatalf(

@@ -7,6 +7,7 @@ import type { TaskListTree } from "../lib/task-hierarchy";
 import type { TaskStatus } from "../types";
 import { TaskCard } from "./task-card";
 import { TaskGroup } from "./task-group";
+import { emptyForScope, type ProfileListingScope } from "@/systems/profiles";
 
 const TASK_LIST_SKELETON_IDS = [
   "task-list-skeleton-1",
@@ -18,6 +19,8 @@ const TASK_LIST_SKELETON_IDS = [
 
 export interface TasksListSurfaceProps {
   taskTree: TaskListTree;
+  /** Owner tags in aggregate mode; names the profile in the empty state. */
+  profile: ProfileListingScope;
   statusCounts: Record<TaskStatus, number>;
   isLoading?: boolean;
   errorMessage?: string | null;
@@ -31,6 +34,7 @@ export interface TasksListSurfaceProps {
 
 export function TasksListSurface({
   taskTree,
+  profile,
   statusCounts,
   isLoading = false,
   errorMessage = null,
@@ -93,7 +97,11 @@ export function TasksListSurface({
                 : "Open a new task contract from the topbar to populate this list."
             }
             icon={hasFilters ? Search : ListChecks}
-            title={hasFilters ? "No tasks match the current filters" : "No tasks yet"}
+            title={
+              hasFilters
+                ? "No tasks match the current filters"
+                : emptyForScope("tasks", profile.scopeLabel)
+            }
           />
         ) : (
           buckets.map(bucket => (
@@ -107,6 +115,7 @@ export function TasksListSurface({
               {bucket.tasks.map(task => (
                 <TaskCard
                   key={task.id}
+                  profileOwner={profile.aggregate ? profile.ownerOf(task) : undefined}
                   subtasks={taskTree.childrenByParent.get(task.id)}
                   task={task}
                 />

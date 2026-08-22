@@ -30,6 +30,10 @@ export function normalizeBridgeCatalogFilter(
     status: filters.status,
     sort: filters.sort,
     limit: filters.limit,
+    // The lens rides the stable filter, so it lands in both the request and the
+    // key — pagination can never straddle a profile switch.
+    profile: normalizeOptionalText(filters.profile),
+    all_profiles: filters.all_profiles,
   };
 }
 

@@ -108,6 +108,8 @@ export function buildTaskRunRecordFixture(overrides: Partial<TaskRun> = {}): Tas
 
 export function buildTaskFixture(overrides: Partial<TaskListItem> = {}): TaskListItem {
   return {
+    profile_name: "default",
+    profile_id: "00000000000000000000000000",
     id: "task_001",
     identifier: "TASK-1",
     title: "Lock launch blockers for the 18:30 UTC cutover",

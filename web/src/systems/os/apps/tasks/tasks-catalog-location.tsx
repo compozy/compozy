@@ -200,7 +200,12 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
           pendingRetryIds={page.pendingRetryIds}
         />
       ) : page.isEmpty ? (
-        <TasksEmptyState onSelectTemplate={openCreate} workspaceName={page.activeWorkspaceName} />
+        <TasksEmptyState
+          acrossProfiles={page.profile.aggregate}
+          onSelectTemplate={openCreate}
+          profileName={page.profile.scopeLabel}
+          workspaceName={page.activeWorkspaceName}
+        />
       ) : mode === "kanban" ? (
         <TasksKanbanBoard
           columns={page.kanbanColumns}
@@ -218,6 +223,7 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
         />
       ) : (
         <TasksListSurface
+          profile={page.profile}
           errorMessage={page.listError?.message ?? null}
           filterState={
             Boolean(page.statusFilter) ||

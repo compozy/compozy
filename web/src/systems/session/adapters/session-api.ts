@@ -56,10 +56,13 @@ export type {
 
 export async function createSession(
   params: CreateSessionParams,
+  /** The profile that will own the session. Omitting it files into `default`. */
+  profile?: string,
   signal?: AbortSignal
 ): Promise<SessionPayload> {
   const { data, error, response } = await apiClient.POST("/api/sessions", {
     body: params,
+    params: { query: profile ? { profile } : {} },
     signal,
   });
   if (apiRequestFailed(response, error)) {

@@ -20,6 +20,10 @@ export async function invalidateSessionMutationQueries(
     queryClient.invalidateQueries({
       queryKey: sessionKeys.detail(workspaceId, sessionId),
     }),
+    // The profile-enforced by-id entries hold the same session under whichever
+    // lens read it. A mutation knows the session, not the lens, so it sweeps the
+    // whole family rather than guessing which one is on screen.
+    queryClient.invalidateQueries({ queryKey: sessionKeys.byIdRoot(sessionId) }),
     invalidateWorkspaceSessionCatalog(queryClient, workspaceId),
   ]);
 }
@@ -42,6 +46,7 @@ export async function invalidateSessionLiveQueries(
       queryKey: sessionKeys.inputQueue(workspaceId, sessionId),
       exact: true,
     }),
+    queryClient.invalidateQueries({ queryKey: sessionKeys.byIdRoot(sessionId) }),
     invalidateWorkspaceSessionCatalog(queryClient, workspaceId),
   ]);
 }

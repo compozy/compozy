@@ -30,6 +30,7 @@ const weights = JSON.parse(
 
 function snapshot(overrides: Partial<RankingSnapshot> = {}): RankingSnapshot {
   return {
+    profile_lens: { profile_lens_id: "00000000000000000000000000", profile_name: "default" },
     weights,
     usage: [],
     query_hits: [],

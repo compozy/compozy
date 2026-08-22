@@ -56,15 +56,21 @@ export async function runLoop(
   workspaceId: string,
   name: string,
   body: RunLoopRequest,
-  options: { dry?: boolean } = {},
+  options: { dry?: boolean; profile?: string } = {},
   signal?: AbortSignal
 ): Promise<RunLoopResult> {
+  const profile = options.profile?.trim();
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/loops/{name}/run",
     {
       params: {
         path: { workspace_id: workspaceId, name },
-        query: options.dry ? { dry: true } : {},
+        // A run is owned work: the profile it is started as decides who the run
+        // belongs to, and an omitted selector would hand it to `default`.
+        query: {
+          ...(options.dry ? { dry: true } : {}),
+          ...(profile ? { profile } : {}),
+        },
       },
       body,
       signal,

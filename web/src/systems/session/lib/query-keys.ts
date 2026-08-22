@@ -43,6 +43,18 @@ export const sessionKeys = {
     return [...sessionKeys.workspaceLists(normalized.workspace_id ?? ""), normalized] as const;
   },
   workspace: (workspace: string) => [...sessionKeys.all, "workspace", workspace] as const,
+  /**
+   * By-id reads, which are the only ones the daemon scopes by profile.
+   *
+   * The id comes before the lens so `byIdRoot` prefix-invalidates every lens for
+   * one session — a mutation knows the session it changed, not which lens some
+   * other surface is looking through. It sits outside the workspace tree because
+   * it answers "may I see this at all", which no workspace-scoped invalidation
+   * should disturb.
+   */
+  byIdRoot: (id: string) => [...sessionKeys.all, "by-id", id.trim()] as const,
+  byId: (id: string, profileKey: string) =>
+    [...sessionKeys.byIdRoot(id), profileKey.trim()] as const,
   detail: (workspace: string, id: string) =>
     [...sessionKeys.workspace(workspace), "detail", id] as const,
   events: (workspace: string, id: string) =>

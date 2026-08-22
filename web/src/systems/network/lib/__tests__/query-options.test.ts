@@ -78,6 +78,8 @@ function requireRetry(
 
 function networkMessage(messageId: string, text = messageId) {
   return {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     body: {},
     channel: "builders",
     direction: "received",
@@ -321,6 +323,8 @@ describe("network query options , surface isolation", () => {
         {
           messages: [
             {
+              profile_id: "00000000000000000000000000",
+              profile_name: "default",
               message_id: "thread-msg",
               body: {},
               channel: "builders",
@@ -340,6 +344,8 @@ describe("network query options , surface isolation", () => {
         {
           messages: [
             {
+              profile_id: "00000000000000000000000000",
+              profile_name: "default",
               message_id: "direct-msg",
               body: {},
               channel: "builders",

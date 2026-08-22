@@ -149,7 +149,13 @@ describe("useHomeDashboard", () => {
       });
       await waitFor(() => expect(result.current.overviewStatus).toBe("ready"));
 
-      expect(useHomeLive).toHaveBeenLastCalledWith({ workspaceId: "", enabled: liveEnabled });
+      // The stream carries the same lens as the reads beside it, so the feed and
+      // the list can never disagree about which owners are in view.
+      expect(useHomeLive).toHaveBeenLastCalledWith({
+        workspaceId: "",
+        scope: { profile: "default" },
+        enabled: liveEnabled,
+      });
       expect(useHomeWorkingNow).toHaveBeenLastCalledWith(
         expect.objectContaining({ workspaceParam: "" }),
         liveEnabled
@@ -202,7 +208,9 @@ describe("useHomeDashboard", () => {
       expect(filter).toMatchObject({ workspace: "ws-proj" });
     }
     for (const [filter] of getHomeActivity.mock.calls) {
-      expect(filter).toMatchObject({ workspace_id: "ws-proj" });
+      // The lens rides the same filter as the workspace, so activity is never
+      // read unscoped on either axis.
+      expect(filter).toMatchObject({ workspace_id: "ws-proj", profile: "default" });
     }
     expect(getHomeOverview).not.toHaveBeenCalledWith(
       expect.objectContaining({ workspace: undefined }),

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { childSessionSignalTone } from "../../lib/session-hierarchy";
 import type { SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
+import type { ProfileOwner, ProfileOwnerLabel } from "@/systems/profiles";
 import { SessionListRow } from "./session-list-row";
 
 const CHILD_SIGNAL_CLASS: Record<string, string> = {
@@ -17,6 +18,10 @@ const CHILD_SIGNAL_CLASS: Record<string, string> = {
 
 export interface SessionListThreadProps {
   session: SessionPayload;
+  /** The root row's owner tag, supplied only in aggregate mode. */
+  owner?: ProfileOwner;
+  /** Resolves each child row's owner. Absent in a scoped list. */
+  ownerOf?: (session: ProfileOwnerLabel) => ProfileOwner;
   childSessions: readonly SessionPayload[];
   currentSessionId?: string;
   collapsed: boolean;
@@ -33,6 +38,8 @@ export interface SessionListThreadProps {
  */
 export function SessionListThread({
   session,
+  owner,
+  ownerOf,
   childSessions,
   currentSessionId,
   collapsed,
@@ -44,6 +51,7 @@ export function SessionListThread({
   const rootRow = (
     <SessionListRow
       session={session}
+      owner={owner}
       current={session.id === currentSessionId}
       onSelect={() => onSelectSession(session)}
       sessionActions={sessionActions}
@@ -79,6 +87,7 @@ export function SessionListThread({
             <SessionListRow
               key={child.id}
               session={child}
+              owner={ownerOf?.(child)}
               current={child.id === currentSessionId}
               onSelect={() => onSelectSession(child)}
               sessionActions={sessionActions}

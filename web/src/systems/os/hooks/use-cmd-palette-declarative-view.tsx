@@ -32,6 +32,7 @@ import {
   type PaletteViewContent,
   type PaletteViewDefinition,
 } from "../lib/palette-view-registry";
+import { useProfileReadScope } from "@/systems/profiles";
 
 const VIEW_TIMEOUT_MS = 3_000;
 
@@ -59,7 +60,8 @@ export function useCmdPaletteDeclarativeView({
 }): CmdPaletteDeclarativeViewModel {
   const { runtimeWorkspaceId } = useActiveWorkspace();
   const registry = usePaletteRegistry();
-  const request = useQuery(cmdPaletteViewOptions(runtimeWorkspaceId, viewId, enabled));
+  const { key: profileKey } = useProfileReadScope();
+  const request = useQuery(cmdPaletteViewOptions(runtimeWorkspaceId, profileKey, viewId, enabled));
   const [attempt, setAttempt] = useState(0);
   const requestKey = `${viewId}\u0000${attempt}`;
   const [timedOutKey, setTimedOutKey] = useState("");

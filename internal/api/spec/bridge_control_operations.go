@@ -11,7 +11,7 @@ func bridgeControlOperations() []OperationSpec {
 			Summary:     "Run live provider checks without changing bridge lifecycle state",
 			Tags:        []string{specBridgesKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters:  []ParameterSpec{pathParam("id", "Bridge instance id")},
+			Parameters:  withProfileScope(pathParam("id", "Bridge instance id")),
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.BridgeVerifyResponse{}},
 				{Status: 404, Description: specBridgeInstanceNotFoundDescription, Body: contract.ErrorPayload{}},
@@ -26,7 +26,7 @@ func bridgeControlOperations() []OperationSpec {
 			Summary:     "Send one real message through the bridge provider",
 			Tags:        []string{specBridgesKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters:  []ParameterSpec{pathParam("id", "Bridge instance id")},
+			Parameters:  withProfileSelector(pathParam("id", "Bridge instance id")),
 			RequestBody: contract.BridgeSendTestRequest{},
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.BridgeSendTestResponse{}},
@@ -44,7 +44,7 @@ func bridgeControlOperations() []OperationSpec {
 			Summary:     "Register the configured provider webhook",
 			Tags:        []string{specBridgesKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters:  []ParameterSpec{pathParam("id", "Bridge instance id")},
+			Parameters:  withProfileSelector(pathParam("id", "Bridge instance id")),
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.BridgeWebhookRegistrationResponse{}},
 				{Status: 404, Description: specBridgeInstanceNotFoundDescription, Body: contract.ErrorPayload{}},

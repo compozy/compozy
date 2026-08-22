@@ -50,6 +50,8 @@ interface PatchLoopParams extends LoopNameParams {
 interface RunLoopParams extends LoopNameParams {
   data: RunLoopRequest;
   dry?: boolean;
+  /** The profile the run is started as, and therefore the one that owns it. */
+  profile?: string;
 }
 
 interface ValidateLoopParams extends LoopNameParams {
@@ -154,8 +156,8 @@ export function useValidateLoop() {
 export function useRunLoop() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ workspaceId, name, data, dry }: RunLoopParams) =>
-      runLoop(workspaceId, name, data, { dry }),
+    mutationFn: ({ workspaceId, name, data, dry, profile }: RunLoopParams) =>
+      runLoop(workspaceId, name, data, { dry, profile }),
     onSettled: (_result, _error, { workspaceId, dry }) => {
       // A dry run creates no durable state, so it never invalidates run caches.
       if (dry) {

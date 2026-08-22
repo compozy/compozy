@@ -6,12 +6,17 @@ export type HomeOverviewWireFilter = OperationQuery<"getObserveOverview">;
 export interface HomeOverviewFilter {
   workspace?: string;
   usageWindow?: HomeUsageWindow;
+  /** One profile's figures. Mutually exclusive with `allProfiles`. */
+  profile?: string;
+  /** The labeled aggregate: every profile's figures, each owner named. */
+  allProfiles?: boolean;
 }
 export type HomeAttention = HomeOverview["attention"];
 export type HomeAttentionItem = HomeAttention["items"][number];
 export type HomeOutcomeDay = HomeOverview["outcomes"]["days"][number];
 export type HomeUsageDay = HomeOverview["usage"]["days"][number];
 export type HomeAgentShare = HomeOverview["usage"]["agent_share"][number];
+export type HomeProfileUsage = HomeOverview["usage"]["profiles"][number];
 export type HomePulseBucket = HomeOverview["pulse"]["buckets"][number];
 
 export type HomeActivityEvent = OperationResponse<"listLogs", 200>["events"][number];

@@ -4,6 +4,8 @@ import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
 
+import { useProfileReadScope, type ProfileScopeParams } from "@/systems/profiles";
+
 import { sessionKeys } from "../lib/query-keys";
 import type {
   OperatorNotificationEventPayload,
@@ -36,8 +38,11 @@ interface UseSessionCatalogStreamsOptions extends SessionCatalogStreamHandlers {
 
 export type { SessionCatalogStreamStatus } from "./session-catalog-streams-store";
 
-export function sessionCatalogStreamURL(): string {
-  return "/api/sessions/catalog-stream?all_workspaces=true";
+export function sessionCatalogStreamURL(scope: ProfileScopeParams): string {
+  const params = new URLSearchParams({ all_workspaces: "true" });
+  if ("all_profiles" in scope) params.set("all_profiles", "true");
+  else params.set("profile", scope.profile);
+  return `/api/sessions/catalog-stream?${params.toString()}`;
 }
 
 function defaultEventSourceFactory(url: string): SessionCatalogEventSource {
@@ -93,7 +98,8 @@ function openSessionCatalogStream(
   queryClient: QueryClient,
   eventSourceFactory: SessionCatalogEventSourceFactory,
   onStatusChange: (status: Exclude<SessionCatalogStreamStatus, "disabled">) => void,
-  handlers: SessionCatalogStreamHandlers
+  handlers: SessionCatalogStreamHandlers,
+  url: string
 ): () => void {
   const reconcileWorkspaces: EventListener = () => {
     onStatusChange("live");
@@ -110,6 +116,8 @@ function openSessionCatalogStream(
       queryKey: sessionKeys.detail(payload.workspace_id, payload.session_id),
       exact: true,
     });
+    // Same session, whichever lens is holding it open.
+    void queryClient.invalidateQueries({ queryKey: sessionKeys.byIdRoot(payload.session_id) });
     invalidateGlobalSessionViews(queryClient);
   };
   const handleAttentionEdge: EventListener = event => {
@@ -146,7 +154,7 @@ function openSessionCatalogStream(
     [SESSION_ATTENTION_CHANGED_EVENT, handleAttentionEdge],
     [OPERATOR_NOTIFICATION_EVENT, handleOperatorNotification],
   ];
-  const source = eventSourceFactory(sessionCatalogStreamURL());
+  const source = eventSourceFactory(url);
   const detach = () => {
     for (const [type, listener] of listeners) source.removeEventListener(type, listener);
   };
@@ -184,6 +192,11 @@ export function useSessionCatalogStreams({
     (eventSourceFactory !== undefined || typeof EventSource !== "undefined");
   const store = useStore(sessionCatalogStreamsLogic);
   const status = useSelector(store, snapshot => snapshot.context.status);
+  // The URL carries the profile scope, so it doubles as the reconnect identity:
+  // a switch changes the string, which bumps the store's generation, fences every
+  // frame still in flight from the old socket, and closes it before the new one
+  // opens — leaving a profile's scope stops its stream writes (US-010.EC-2).
+  const streamUrl = sessionCatalogStreamURL(useProfileReadScope().params);
 
   useEffect(() => {
     if (!canConnect) {
@@ -201,12 +214,13 @@ export function useSessionCatalogStreams({
             onAttentionEdge: edge => handlersRef.current.onAttentionEdge?.(edge),
             onOperatorNotification: notification =>
               handlersRef.current.onOperatorNotification?.(notification),
-          }
+          },
+          streamUrl
         );
       },
     });
     return () => store.trigger.connectionDisabled();
-  }, [canConnect, eventSourceFactory, queryClient, store]);
+  }, [canConnect, eventSourceFactory, queryClient, store, streamUrl]);
 
   return status;
 }

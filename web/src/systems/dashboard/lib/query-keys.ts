@@ -17,6 +17,8 @@ export const dashboardKeys = {
       ...dashboardKeys.overviewRoot(),
       normalizeText(filters.workspace),
       normalizeNumber(filters.usageWindow),
+      // Two profiles reading the same window are two answers, never one entry.
+      filters.allProfiles === true ? "@all" : normalizeText(filters.profile),
     ] as const,
 
   activityRoot: () => [...dashboardKeys.all, "activity"] as const,
@@ -25,5 +27,9 @@ export const dashboardKeys = {
       ...dashboardKeys.activityRoot(),
       normalizeText(filters.workspace_id),
       normalizeNumber(filters.limit),
+      // The lens partitions the feed the same way it partitions the overview:
+      // one profile's events and the labeled aggregate are two answers, so a
+      // switch reads a different entry rather than inheriting the last one.
+      filters.all_profiles === true ? "@all" : normalizeText(filters.profile),
     ] as const,
 };

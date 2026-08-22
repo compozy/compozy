@@ -14,6 +14,7 @@ import {
   loopRunsOptions,
   loopsCatalogOptions,
 } from "@/systems/loops";
+import { readProfileLens, readProfileScopeParams } from "@/systems/profiles";
 
 async function withActiveWorkspace(
   queryClient: QueryClient,
@@ -47,6 +48,7 @@ export async function preloadLoopDetailRoute(
   name: string,
   routeWorkspaceId?: string
 ): Promise<void> {
+  const profileScope = readProfileScopeParams(queryClient, readProfileLens());
   const workspaceId = await resolveRouteWorkspaceId(queryClient, routeWorkspaceId);
   if (!workspaceId) return;
   await settleRouteQueries([
@@ -55,7 +57,9 @@ export async function preloadLoopDetailRoute(
     queryClient.ensureInfiniteQueryData(
       loopsCatalogOptions(workspaceId, { limit: 50, q: name, sort: "name" })
     ),
-    queryClient.ensureQueryData(loopRunsOptions(workspaceId, { loop: name, limit: 5 })),
+    queryClient.ensureQueryData(
+      loopRunsOptions(workspaceId, { loop: name, limit: 5, ...profileScope })
+    ),
   ]);
 }
 
@@ -85,8 +89,9 @@ export function preloadLoopRunsRoute(
   queryClient: QueryClient,
   filters: LoopRunsFilter
 ): Promise<void> {
+  const profileScope = readProfileScopeParams(queryClient, readProfileLens());
   return withActiveWorkspace(queryClient, workspaceId => [
-    queryClient.ensureQueryData(loopRunsOptions(workspaceId, filters)),
+    queryClient.ensureQueryData(loopRunsOptions(workspaceId, { ...filters, ...profileScope })),
   ]);
 }
 

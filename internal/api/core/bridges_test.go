@@ -19,6 +19,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -219,6 +220,43 @@ func TestBridgeHandlersCreateListGetAndUpdate(t *testing.T) {
 			t.Fatalf("update webhook_public_url = %q, want omitted for invalid callback", got)
 		}
 	})
+
+	t.Run("Should reject updating a bridge owned by another profile", func(t *testing.T) {
+		t.Parallel()
+
+		updateCalled := false
+		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+				return &bridgepkg.BridgeInstance{ID: id, ProfileID: "profile-marketing"}, nil
+			},
+			UpdateInstanceFn: func(
+				_ context.Context,
+				_ bridgepkg.UpdateInstanceRequest,
+			) (*bridgepkg.BridgeInstance, error) {
+				updateCalled = true
+				return nil, errors.New("unexpected update")
+			},
+		})
+
+		response := performRequest(
+			t,
+			engine,
+			http.MethodPatch,
+			"/bridges/brg-marketing",
+			[]byte(`{"display_name":"Wrong profile"}`),
+		)
+		if response.Code != http.StatusNotFound {
+			t.Fatalf(
+				"foreign update status = %d, want %d; body=%s",
+				response.Code,
+				http.StatusNotFound,
+				response.Body.String(),
+			)
+		}
+		if updateCalled {
+			t.Fatal("UpdateInstance() called for foreign-profile bridge")
+		}
+	})
 }
 
 func TestBridgeHandlersSurfaceConfirmedGatewayIngressHealth(t *testing.T) {
@@ -409,6 +447,9 @@ func TestBridgeHandlersValidateTypedProgressSettings(t *testing.T) {
 		t.Parallel()
 
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+				return &bridgepkg.BridgeInstance{ID: id}, nil
+			},
 			UpdateInstanceFn: func(
 				_ context.Context,
 				req bridgepkg.UpdateInstanceRequest,
@@ -1168,6 +1209,9 @@ func TestBridgeHandlersLifecycleTransitions(t *testing.T) {
 	t.Parallel()
 
 	_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+		GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+			return &bridgepkg.BridgeInstance{ID: id}, nil
+		},
 		StartInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
 			return &bridgepkg.BridgeInstance{
 				ID:            id,
@@ -1227,6 +1271,37 @@ func TestBridgeHandlersLifecycleTransitions(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should reject transitioning a bridge owned by another profile", func(t *testing.T) {
+		transitionCalled := false
+		_, foreignEngine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+				return &bridgepkg.BridgeInstance{ID: id, ProfileID: "profile-marketing"}, nil
+			},
+			StartInstanceFn: func(_ context.Context, _ string) (*bridgepkg.BridgeInstance, error) {
+				transitionCalled = true
+				return nil, errors.New("unexpected transition")
+			},
+		})
+		response := performRequest(
+			t,
+			foreignEngine,
+			http.MethodPost,
+			"/bridges/brg-marketing/enable",
+			nil,
+		)
+		if response.Code != http.StatusNotFound {
+			t.Fatalf(
+				"foreign transition status = %d, want %d; body=%s",
+				response.Code,
+				http.StatusNotFound,
+				response.Body.String(),
+			)
+		}
+		if transitionCalled {
+			t.Fatal("StartInstance() called for foreign-profile bridge")
+		}
+	})
 }
 
 func TestBridgeHandlersRoutesAndTestDelivery(t *testing.T) {
@@ -1236,6 +1311,9 @@ func TestBridgeHandlersRoutesAndTestDelivery(t *testing.T) {
 		t.Parallel()
 
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+				return &bridgepkg.BridgeInstance{ID: id, ProfileID: store.DefaultProfileID}, nil
+			},
 			ListRoutesFn: func(_ context.Context, bridgeInstanceID string) ([]bridgepkg.BridgeRoute, error) {
 				return []bridgepkg.BridgeRoute{{
 					RoutingKeyHash:   "hash-1",
@@ -1304,6 +1382,9 @@ func TestBridgeHandlersTargetDirectory(t *testing.T) {
 			LastSeenAt:     time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 		}
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+				return &bridgepkg.BridgeInstance{ID: id}, nil
+			},
 			ListBridgeTargetsFn: func(_ context.Context, query bridgepkg.BridgeTargetQuery) (bridgepkg.BridgeTargetsResult, error) {
 				listQuery = query
 				return bridgepkg.BridgeTargetsResult{
@@ -1404,6 +1485,9 @@ func TestBridgeHandlersSecretBindingsCRUD(t *testing.T) {
 		)
 
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+				return &bridgepkg.BridgeInstance{ID: id, ProfileID: store.DefaultProfileID}, nil
+			},
 			ListSecretBindingsFn: func(_ context.Context, bridgeInstanceID string) ([]bridgepkg.BridgeSecretBinding, error) {
 				if bridgeInstanceID != "brg-core" {
 					t.Fatalf("ListSecretBindings() bridgeInstanceID = %q, want brg-core", bridgeInstanceID)
@@ -1473,6 +1557,55 @@ func TestBridgeHandlersSecretBindingsCRUD(t *testing.T) {
 		}
 		if deleteInstanceID != "brg-core" || deleteName != "bot_token" {
 			t.Fatalf("delete args = %q/%q, want brg-core/bot_token", deleteInstanceID, deleteName)
+		}
+	})
+
+	t.Run("Should reject secret binding reads and mutations for a foreign profile", func(t *testing.T) {
+		t.Parallel()
+
+		service := testutil.StubBridgeService{
+			GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+				return &bridgepkg.BridgeInstance{ID: id, ProfileID: "profile-marketing"}, nil
+			},
+			ListSecretBindingsFn: func(context.Context, string) ([]bridgepkg.BridgeSecretBinding, error) {
+				t.Fatal("ListSecretBindings() called for foreign-profile bridge")
+				return nil, nil
+			},
+			PutSecretBindingFn: func(context.Context, bridgepkg.BridgeSecretBinding, *string) error {
+				t.Fatal("PutSecretBinding() called for foreign-profile bridge")
+				return nil
+			},
+			DeleteSecretBindingFn: func(context.Context, string, string) error {
+				t.Fatal("DeleteSecretBinding() called for foreign-profile bridge")
+				return nil
+			},
+		}
+		_, engine := newBridgeHandlerFixture(t, service)
+		requests := []struct {
+			method string
+			path   string
+			body   []byte
+		}{
+			{method: http.MethodGet, path: "/bridges/brg-marketing/secret-bindings"},
+			{
+				method: http.MethodPut,
+				path:   "/bridges/brg-marketing/secret-bindings/bot_token",
+				body:   []byte(`{"secret_ref":"vault:bridges/brg-marketing/bot_token","kind":"token"}`),
+			},
+			{method: http.MethodDelete, path: "/bridges/brg-marketing/secret-bindings/bot_token"},
+		}
+		for _, request := range requests {
+			response := performRequest(t, engine, request.method, request.path, request.body)
+			if response.Code != http.StatusNotFound {
+				t.Fatalf(
+					"%s %s status = %d, want %d; body=%s",
+					request.method,
+					request.path,
+					response.Code,
+					http.StatusNotFound,
+					response.Body.String(),
+				)
+			}
 		}
 	})
 }
@@ -1550,6 +1683,9 @@ func TestBridgeHandlersLifecycleAndSecretBindingErrorPaths(t *testing.T) {
 		t.Parallel()
 
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+				return &bridgepkg.BridgeInstance{ID: id, ProfileID: store.DefaultProfileID}, nil
+			},
 			PutSecretBindingFn: func(context.Context, bridgepkg.BridgeSecretBinding, *string) error {
 				t.Fatal("PutSecretBinding() should not be called for invalid payload")
 				return nil
@@ -1747,6 +1883,9 @@ func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 		t.Parallel()
 
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+				return &bridgepkg.BridgeInstance{ID: id}, nil
+			},
 			UpdateInstanceFn: func(context.Context, bridgepkg.UpdateInstanceRequest) (*bridgepkg.BridgeInstance, error) {
 				return nil, bridgepkg.ErrBridgeInstanceReadOnly
 			},
@@ -1782,6 +1921,9 @@ func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 		t.Parallel()
 
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+				return &bridgepkg.BridgeInstance{ID: id, ProfileID: store.DefaultProfileID}, nil
+			},
 			PutSecretBindingFn: func(context.Context, bridgepkg.BridgeSecretBinding, *string) error {
 				return bridgepkg.ErrBridgeInstanceReadOnly
 			},
@@ -1855,6 +1997,9 @@ func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 		t.Parallel()
 
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+				return &bridgepkg.BridgeInstance{ID: id, ProfileID: store.DefaultProfileID}, nil
+			},
 			ResolveDeliveryTargetFn: func(context.Context, bridgepkg.ResolveDeliveryTargetRequest) (*bridgepkg.DeliveryTarget, error) {
 				t.Fatal("ResolveDeliveryTarget() should not be called for malformed JSON")
 				return nil, nil
@@ -1959,6 +2104,9 @@ func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 		t.Parallel()
 
 		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+				return &bridgepkg.BridgeInstance{ID: id, ProfileID: store.DefaultProfileID}, nil
+			},
 			ResolveDeliveryTargetFn: func(context.Context, bridgepkg.ResolveDeliveryTargetRequest) (*bridgepkg.DeliveryTarget, error) {
 				return nil, bridgepkg.ErrDeliveryQueueSaturated
 			},
@@ -2023,6 +2171,9 @@ func TestBridgeHandlersLifecycleHelperErrorPaths(t *testing.T) {
 			path:   "/bridges/brg-core/disable",
 			status: http.StatusNotFound,
 			bridges: testutil.StubBridgeService{
+				GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+					return &bridgepkg.BridgeInstance{ID: id}, nil
+				},
 				StopInstanceFn: func(context.Context, string) (*bridgepkg.BridgeInstance, error) {
 					return nil, bridgepkg.ErrBridgeInstanceNotFound
 				},
@@ -2033,6 +2184,9 @@ func TestBridgeHandlersLifecycleHelperErrorPaths(t *testing.T) {
 			path:   "/bridges/brg-core/restart",
 			status: http.StatusConflict,
 			bridges: testutil.StubBridgeService{
+				GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+					return &bridgepkg.BridgeInstance{ID: id}, nil
+				},
 				RestartInstanceFn: func(context.Context, string) (*bridgepkg.BridgeInstance, error) {
 					return nil, bridgepkg.ErrInvalidBridgeStateTransition
 				},

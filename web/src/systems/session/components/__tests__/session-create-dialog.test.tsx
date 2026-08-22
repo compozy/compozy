@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { AgentPayload } from "@/systems/agent";
 import { FIXTURE_AGENT_DEFINITION_DIGEST } from "@/systems/agent/mocks";
 import type { WorkspacePayload } from "@/systems/workspace";
@@ -54,6 +55,12 @@ function getDialogBackdrop(): HTMLElement {
   return backdrop;
 }
 
+// The destination statement reads the shell's active profile, which is server
+// state, so every tree that renders the dialog needs a query client.
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false, gcTime: 0 } },
+});
+
 function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCreateDialogProps {
   return {
     open: true,
@@ -85,20 +92,24 @@ function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCr
 
 function renderDialog(overrides: Partial<SessionCreateDialogProps> = {}) {
   return render(
-    <UIProvider reducedMotion="never" skipAnimations>
-      <SessionCreateDialog {...makeProps(overrides)} />
-    </UIProvider>
+    <QueryClientProvider client={queryClient}>
+      <UIProvider reducedMotion="never" skipAnimations>
+        <SessionCreateDialog {...makeProps(overrides)} />
+      </UIProvider>
+    </QueryClientProvider>
   );
 }
 
 async function closeDialogFromFocusedLauncher(restoreFocusOnClose: boolean) {
   const renderSurface = (open: boolean) => (
-    <UIProvider reducedMotion="never" skipAnimations>
-      <button data-testid="session-create-launcher" type="button">
-        New session
-      </button>
-      <SessionCreateDialog {...makeProps({ open, restoreFocusOnClose })} />
-    </UIProvider>
+    <QueryClientProvider client={queryClient}>
+      <UIProvider reducedMotion="never" skipAnimations>
+        <button data-testid="session-create-launcher" type="button">
+          New session
+        </button>
+        <SessionCreateDialog {...makeProps({ open, restoreFocusOnClose })} />
+      </UIProvider>
+    </QueryClientProvider>
   );
   const view = render(renderSurface(false));
   const launcher = screen.getByTestId("session-create-launcher");
@@ -118,12 +129,14 @@ async function closeDialogFromFocusedLauncher(restoreFocusOnClose: boolean) {
 
 function renderDialogWithFocusSource(overrides: Partial<SessionCreateDialogProps> = {}) {
   const renderTree = (nextOverrides: Partial<SessionCreateDialogProps>) => (
-    <UIProvider reducedMotion="never" skipAnimations>
-      <button data-testid="session-create-focus-source" type="button">
-        New session
-      </button>
-      <SessionCreateDialog {...makeProps(nextOverrides)} />
-    </UIProvider>
+    <QueryClientProvider client={queryClient}>
+      <UIProvider reducedMotion="never" skipAnimations>
+        <button data-testid="session-create-focus-source" type="button">
+          New session
+        </button>
+        <SessionCreateDialog {...makeProps(nextOverrides)} />
+      </UIProvider>
+    </QueryClientProvider>
   );
   const view = render(renderTree(overrides));
   return {
@@ -156,6 +169,9 @@ describe("SessionCreateDialog", () => {
     expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent(
       "Runs in alpha — /workspace/alpha"
     );
+    // The destination chip rides the same statement and appears only under the
+    // aggregate; a scoped draft already shows whose session it will be.
+    expect(screen.queryByTestId("profile-destination-chip")).not.toBeInTheDocument();
     expect(screen.queryByTestId("session-create-workspace-select")).not.toBeInTheDocument();
   });
 

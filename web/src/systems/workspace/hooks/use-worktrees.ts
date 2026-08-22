@@ -20,6 +20,8 @@ import { worktreesListOptions } from "../lib/query-options";
 import { reconcileWorktreeList, removeWorktreeFromList } from "../lib/worktree-list-reconciliation";
 import type { WorktreeListingByWorkspace } from "../lib/workspace-tree";
 import type { WorktreePayload, WorktreesResponse } from "../types";
+import { notifyUser } from "@/lib/user-feedback";
+import { createdInProfileToast, useProfileReadScope } from "@/systems/profiles";
 
 interface UseWorktreesOptions {
   enabled?: boolean;
@@ -74,12 +76,22 @@ function reconcileThenInvalidate(
 
 export function useCreateWorktree(workspaceID: string) {
   const queryClient = useQueryClient();
+  // Stamped with the acting profile — `default` while the aggregate is on.
+  const { aggregate, destination } = useProfileReadScope();
 
   return useMutation({
-    mutationFn: (params: CreateWorktreeParams) => createWorktree(workspaceID, params),
+    mutationFn: (params: CreateWorktreeParams) => createWorktree(workspaceID, params, destination),
     // The 202 payload is the pending row; it appears in every list immediately
     // and materializes daemon-side.
-    onSuccess: worktree => reconcileThenInvalidate(queryClient, workspaceID, worktree),
+    onSuccess: worktree => {
+      // Only under the aggregate, and naming the owner the daemon returned
+      // rather than the one we asked for — an echoed request could never
+      // surface a misfile (US-012.AC-2).
+      if (aggregate) {
+        notifyUser({ message: createdInProfileToast(worktree.profile_name), tone: "success" });
+      }
+      return reconcileThenInvalidate(queryClient, workspaceID, worktree);
+    },
   });
 }
 

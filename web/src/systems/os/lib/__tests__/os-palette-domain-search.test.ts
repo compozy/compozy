@@ -27,6 +27,7 @@ const TEST_WEIGHTS = JSON.parse(
 ) as CmdPaletteRankSignals["weights"];
 
 const SIGNALS: CmdPaletteRankSignals = {
+  profile_lens: { profile_lens_id: "00000000000000000000000000", profile_name: "default" },
   weights: TEST_WEIGHTS,
   usage: [],
   query_hits: [],

@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 // Suite: OS command palette root
 // Invariant: every row is a projection of the one client registry, entity rows
 // preserve the selected tab's identity, session landing goes through the shared
@@ -50,6 +51,7 @@ const TEST_WEIGHTS = JSON.parse(
 ) as CmdPaletteRankSignals["weights"];
 
 const TEST_RANK_SIGNALS: CmdPaletteRankSignals = {
+  profile_lens: { profile_lens_id: "00000000000000000000000000", profile_name: "default" },
   weights: TEST_WEIGHTS,
   usage: [],
   query_hits: [],
@@ -411,9 +413,16 @@ const PALETTE_REGISTRY: PaletteRegistry = (() => {
   };
 })();
 
+/** The palette resolves the active profile, which is a server read. */
+const paletteQueryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
 function PaletteHarness({ children }: { children: ReactNode }) {
   return (
-    <CmdPaletteRegistryProvider registry={PALETTE_REGISTRY}>{children}</CmdPaletteRegistryProvider>
+    <QueryClientProvider client={paletteQueryClient}>
+      <CmdPaletteRegistryProvider registry={PALETTE_REGISTRY}>
+        {children}
+      </CmdPaletteRegistryProvider>
+    </QueryClientProvider>
   );
 }
 

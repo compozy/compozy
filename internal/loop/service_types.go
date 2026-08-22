@@ -22,6 +22,7 @@ type NodeID = dsl.NodeID
 
 // Inputs carries user inputs plus runtime-only start metadata.
 type Inputs struct {
+	ProfileID                  string                 `json:"-"`
 	Values                     map[string]any         `json:"values,omitempty"`
 	ParentLoopRunID            RunID                  `json:"parent_loop_run_id,omitempty"`
 	ConfigOverrides            LoopConfig             `json:"config_overrides"`

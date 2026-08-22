@@ -16,7 +16,7 @@ import (
 
 // VerifyBridge runs live provider checks without changing bridge lifecycle state.
 func (h *BaseHandlers) VerifyBridge(c *gin.Context) {
-	bridges, instance, ok := h.bridgeControlInstance(c)
+	bridges, instance, ok := h.bridgeControlInstance(c, false)
 	if !ok {
 		return
 	}
@@ -35,7 +35,7 @@ func (h *BaseHandlers) VerifyBridge(c *gin.Context) {
 
 // RegisterBridgeWebhook asks the owning adapter to register its configured callback.
 func (h *BaseHandlers) RegisterBridgeWebhook(c *gin.Context) {
-	bridges, instance, ok := h.bridgeControlInstance(c)
+	bridges, instance, ok := h.bridgeControlInstance(c, true)
 	if !ok {
 		return
 	}
@@ -90,17 +90,16 @@ func (h *BaseHandlers) SendBridgeTest(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, bridgeControlRequestError("send-test message is required"))
 		return
 	}
+	instance, ok := h.bridgeMutationInstance(c, bridges)
+	if !ok {
+		return
+	}
 	targetRequest, err := request.ToResolveDeliveryTargetRequest(c.Param("id"))
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
 	target, err := bridges.ResolveDeliveryTarget(c.Request.Context(), targetRequest)
-	if err != nil {
-		h.respondError(c, StatusForBridgeError(err), err)
-		return
-	}
-	instance, err := bridges.GetInstance(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		h.respondError(c, StatusForBridgeError(err), err)
 		return
@@ -177,15 +176,20 @@ func publicDeliveryAckError(detail *bridgepkg.DeliveryErrorDetail) *bridgepkg.De
 
 func (h *BaseHandlers) bridgeControlInstance(
 	c *gin.Context,
+	mutation bool,
 ) (BridgeService, *bridgepkg.BridgeInstance, bool) {
 	bridges, ok := h.bridgeService()
 	if !ok {
 		h.respondError(c, http.StatusServiceUnavailable, errBridgeServiceUnavailable)
 		return nil, nil, false
 	}
-	instance, err := bridges.GetInstance(c.Request.Context(), c.Param("id"))
-	if err != nil {
-		h.respondError(c, StatusForBridgeError(err), err)
+	var instance *bridgepkg.BridgeInstance
+	if mutation {
+		instance, ok = h.bridgeMutationInstance(c, bridges)
+	} else {
+		instance, ok = h.bridgeReadInstance(c, bridges)
+	}
+	if !ok {
 		return nil, nil, false
 	}
 	return bridges, instance, true

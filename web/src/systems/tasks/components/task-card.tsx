@@ -17,14 +17,20 @@ import {
 import type { TaskListItem } from "../types";
 import { TaskSubtaskList } from "./task-subtask-list";
 import { TasksListRow } from "./tasks-list-row";
+import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 
 export interface TaskCardProps {
   task: TaskListItem;
+  /**
+   * The profile that owns the task, supplied only in aggregate mode. Distinct
+   * from `task.owner`, which names the assignee — two different questions.
+   */
+  profileOwner?: ProfileOwner;
   /** Children nested under this row; rendered as a collapsed subtask group. */
   subtasks?: TaskListItem[];
 }
 
-export function TaskCard({ task, subtasks }: TaskCardProps) {
+export function TaskCard({ task, profileOwner, subtasks }: TaskCardProps) {
   const isBlocked = taskIsBlocked(task);
   const needsAttention = task.status === "needs_attention";
   const showApproval = taskHasApprovalPending(task);
@@ -42,6 +48,15 @@ export function TaskCard({ task, subtasks }: TaskCardProps) {
       {ownerLabel}
     </span>,
   ];
+  if (profileOwner) {
+    metaItems.push(
+      <ProfileOwnerTag
+        data-testid={`task-card-profile-${task.id}`}
+        key="profile"
+        owner={profileOwner}
+      />
+    );
+  }
   if (activeRun) {
     metaItems.push(
       <span data-testid={`task-card-attempt-${task.id}`} key="attempt">

@@ -46,8 +46,28 @@ describe("automation list options", () => {
       "review",
       "10",
       "",
+      // The profile axis rides the same key: two profiles reading one workspace
+      // are two catalogs, so an absent selector must not share an entry with a
+      // named one.
+      "",
+      "",
     ]);
     expect(options.initialPageParam).toBeUndefined();
+  });
+
+  it("separates two profiles' job catalogs and the aggregate from all of them", () => {
+    const marketing = automationJobsListOptions({ workspace_id: "ws_alpha", profile: "marketing" });
+    const consulting = automationJobsListOptions({
+      workspace_id: "ws_alpha",
+      profile: "consulting",
+    });
+    const aggregate = automationJobsListOptions({ workspace_id: "ws_alpha", all_profiles: true });
+
+    expect(marketing.queryKey).not.toEqual(consulting.queryKey);
+    expect(aggregate.queryKey).not.toEqual(marketing.queryKey);
+    expect(aggregate.queryKey).not.toEqual(
+      automationJobsListOptions({ workspace_id: "ws_alpha", profile: "default" }).queryKey
+    );
   });
 
   it("caches the complete suggestion envelope by workspace and status", () => {

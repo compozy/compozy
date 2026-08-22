@@ -121,6 +121,21 @@ describe("useBridges", () => {
     );
   });
 
+  it("Should send the active profile lens on the listing read", async () => {
+    vi.mocked(listBridges).mockResolvedValue(bridgePage());
+
+    const { result } = renderHook(() => useBridges({ scope: "all" }), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.bridges).toEqual([]));
+
+    // Bridge instances belong to the profile that created them, so the listing
+    // is scoped server-side — never filtered on the client after the fact.
+    const [filters] = vi.mocked(listBridges).mock.calls[0];
+    expect(filters).toMatchObject({ profile: "default" });
+    expect(filters).not.toHaveProperty("all_profiles", true);
+  });
+
   it("appends cursor pages and preserves the exact server total", async () => {
     const firstBridge = { id: "brg_1" } as BridgesListResponse["bridges"][number];
     const secondBridge = { id: "brg_2" } as BridgesListResponse["bridges"][number];
@@ -246,7 +261,11 @@ describe("useSlackBridgeManifest", () => {
     await waitFor(() => {
       expect(result.current.data?.manifest.display_information.name).toBe("CompozyOS");
     });
-    expect(getSlackBridgeManifest).toHaveBeenCalledWith(" brg_slack ", expect.any(AbortSignal));
+    expect(getSlackBridgeManifest).toHaveBeenCalledWith(
+      " brg_slack ",
+      { profile: "default" },
+      expect.any(AbortSignal)
+    );
   });
 
   it("does not fetch a manifest without a persisted bridge instance", () => {
@@ -270,6 +289,8 @@ describe("useBridge", () => {
   it("loads a selected bridge detail", async () => {
     vi.mocked(getBridge).mockResolvedValue({
       bridge: {
+        profile_id: "00000000000000000000000000",
+        profile_name: "default",
         created_at: "2026-04-13T12:00:00Z",
         display_name: "Support",
         enabled: true,
@@ -302,7 +323,13 @@ describe("useBridge", () => {
       expect(result.current.data?.bridge.id).toBe("brg_support");
     });
 
-    expect(getBridge).toHaveBeenCalledWith("brg_support", expect.any(AbortSignal));
+    // Bridges are profile-owned, so the read states its lens rather than letting
+    // the daemon resolve an omitted selector to `default`.
+    expect(getBridge).toHaveBeenCalledWith(
+      "brg_support",
+      { profile: "default" },
+      expect.any(AbortSignal)
+    );
   });
 
   it("does not fetch when bridge id is empty", () => {
@@ -347,7 +374,11 @@ describe("useBridgeRoutes", () => {
       expect(result.current.data).toHaveLength(1);
     });
 
-    expect(listBridgeRoutes).toHaveBeenCalledWith("brg_support", expect.any(AbortSignal));
+    expect(listBridgeRoutes).toHaveBeenCalledWith(
+      "brg_support",
+      { profile: "default" },
+      expect.any(AbortSignal)
+    );
   });
 });
 
@@ -380,6 +411,10 @@ describe("useBridgeSecretBindings", () => {
       expect(result.current.data).toHaveLength(1);
     });
 
-    expect(listBridgeSecretBindings).toHaveBeenCalledWith("brg_support", expect.any(AbortSignal));
+    expect(listBridgeSecretBindings).toHaveBeenCalledWith(
+      "brg_support",
+      { profile: "default" },
+      expect.any(AbortSignal)
+    );
   });
 });

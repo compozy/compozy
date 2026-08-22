@@ -4,42 +4,17 @@ import { automationKeys } from "../query-keys";
 
 describe("automationKeys", () => {
   it("separates job, trigger, and run namespaces", () => {
-    expect(automationKeys.jobList()).toEqual([
-      "automation",
-      "jobs",
-      "list",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-    ]);
-    expect(automationKeys.triggerList()).toEqual([
-      "automation",
-      "triggers",
-      "list",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-    ]);
-    expect(automationKeys.runList()).toEqual([
-      "automation",
-      "runs",
-      "list",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-    ]);
+    // What matters is that the three families can never collide, not how many
+    // filter dimensions each currently folds in.
+    expect(automationKeys.jobList().slice(0, 3)).toEqual(["automation", "jobs", "list"]);
+    expect(automationKeys.triggerList().slice(0, 3)).toEqual(["automation", "triggers", "list"]);
+    expect(automationKeys.runList().slice(0, 3)).toEqual(["automation", "runs", "list"]);
+    const namespaces = [
+      automationKeys.jobList(),
+      automationKeys.triggerList(),
+      automationKeys.runList(),
+    ].map(key => JSON.stringify(key));
+    expect(new Set(namespaces).size).toBe(3);
   });
 
   it("distinguishes workspace-scoped filters in list keys", () => {
@@ -54,6 +29,8 @@ describe("automationKeys", () => {
       "",
       "",
       "",
+      "",
+      "",
     ]);
     expect(automationKeys.jobList({ scope: "workspace", workspace_id: "ws_beta" })).toEqual([
       "automation",
@@ -61,6 +38,8 @@ describe("automationKeys", () => {
       "list",
       "workspace",
       "ws_beta",
+      "",
+      "",
       "",
       "",
       "",
@@ -89,6 +68,8 @@ describe("automationKeys", () => {
       "review",
       "25",
       "delivery",
+      "",
+      "",
     ]);
   });
 

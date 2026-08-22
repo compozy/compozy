@@ -365,6 +365,8 @@ func TestLoopOpenAPIContract(t *testing.T) {
 		propertySchema(t, patchLintSchema, "errors")
 
 		runLoop := operationFor(t, doc, "/api/workspaces/{workspace_id}/loops/{name}/run", "POST")
+		assertParameter(t, runLoop, "profile", openapi3.ParameterInQuery, false)
+		assertParameterAbsent(t, runLoop, "all_profiles", openapi3.ParameterInQuery)
 		runUnprocessable := jsonResponseSchema(t, runLoop, 422)
 		inputValidation := propertySchema(t, runUnprocessable, "input_validation")
 		assertRequired(t, inputValidation, "loop", "field", "origin", "reason")

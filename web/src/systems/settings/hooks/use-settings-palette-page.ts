@@ -13,6 +13,7 @@ import type {
   SettingsUpdateCmdPaletteRequest,
 } from "../types";
 import { useSettingsPage } from "./use-settings-page";
+import { useProfileReadScope } from "@/systems/profiles";
 
 /** A write carries the scope it was made in, so a late answer cannot move. */
 interface PaletteSettingsWrite {
@@ -54,6 +55,8 @@ export interface SettingsPalettePageModel {
  * resolution instead of applying a second policy of its own.
  */
 export function useSettingsPalettePage(): SettingsPalettePageModel {
+  // Personalization is per profile; a reset acts as one rather than across all.
+  const { destination } = useProfileReadScope();
   const workspace = useActiveWorkspace();
   const queryClient = useQueryClient();
   const page = useSettingsPage({ currentSlug: "palette" });
@@ -104,7 +107,7 @@ export function useSettingsPalettePage(): SettingsPalettePageModel {
       if (workspace.runtimeWorkspaceId === null) {
         throw new Error("The active workspace is not ready.");
       }
-      await resetCmdPalettePersonalization(workspace.runtimeWorkspaceId);
+      await resetCmdPalettePersonalization(workspace.runtimeWorkspaceId, destination);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: cmdPaletteKeys.all });

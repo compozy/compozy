@@ -115,6 +115,67 @@ func TestBridgeControlHandlersPreserveStructuredProviderResults(t *testing.T) {
 	})
 }
 
+func TestBridgeControlHandlersEnforceProfileOwner(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	service := testutil.StubBridgeService{
+		GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+			return &bridgepkg.BridgeInstance{ID: id, ProfileID: "profile-marketing"}, nil
+		},
+		CheckBridgeFn: func(
+			context.Context,
+			string,
+			bridgepkg.BridgeCheckRequest,
+		) (bridgepkg.BridgeCheckResponse, error) {
+			called = true
+			return bridgepkg.BridgeCheckResponse{}, nil
+		},
+		RegisterBridgeWebhookFn: func(
+			context.Context,
+			string,
+			bridgepkg.BridgeWebhookRegistrationRequest,
+		) (bridgepkg.BridgeWebhookRegistrationResponse, error) {
+			called = true
+			return bridgepkg.BridgeWebhookRegistrationResponse{}, nil
+		},
+		ResolveDeliveryTargetFn: func(
+			context.Context,
+			bridgepkg.ResolveDeliveryTargetRequest,
+		) (*bridgepkg.DeliveryTarget, error) {
+			called = true
+			return nil, nil
+		},
+	}
+	_, engine := newBridgeControlHandlerFixture(t, service)
+	requests := []struct {
+		path string
+		body []byte
+	}{
+		{path: "/bridges/brg-marketing/verify"},
+		{path: "/bridges/brg-marketing/webhook/register"},
+		{
+			path: "/bridges/brg-marketing/send-test",
+			body: []byte(`{"message":"ping","target":{"peer_id":"peer-1","mode":"direct-send"}}`),
+		},
+	}
+	for _, request := range requests {
+		response := performRequest(t, engine, http.MethodPost, request.path, request.body)
+		if response.Code != http.StatusNotFound {
+			t.Fatalf(
+				"POST %s status = %d, want %d; body=%s",
+				request.path,
+				response.Code,
+				http.StatusNotFound,
+				response.Body.String(),
+			)
+		}
+	}
+	if called {
+		t.Fatal("provider control called for foreign-profile bridge")
+	}
+}
+
 func TestBridgeSendTestUsesRealDeliveryWhileDryRunDoesNot(t *testing.T) {
 	t.Run("Should call the extension delivery transport only for send-test", func(t *testing.T) {
 		t.Parallel()

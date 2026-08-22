@@ -13,6 +13,8 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
 
 const embedded: NonNullable<NetworkChannelsResponse["recents"]> = [
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     channel: "ops",
     container_id: "direct_ops_one",
     last_activity_at: "2026-04-17T18:30:00Z",
@@ -22,6 +24,8 @@ const embedded: NonNullable<NetworkChannelsResponse["recents"]> = [
     surface: "direct",
   },
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     channel: "ops",
     container_id: "thread_ops_one",
     last_activity_at: "2026-04-17T18:16:00Z",
@@ -31,6 +35,8 @@ const embedded: NonNullable<NetworkChannelsResponse["recents"]> = [
     title: "Ops thread",
   },
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     channel: "design",
     container_id: "thread_design_one",
     last_activity_at: "2026-04-17T17:00:00Z",
@@ -38,6 +44,8 @@ const embedded: NonNullable<NetworkChannelsResponse["recents"]> = [
     surface: "thread",
   },
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     channel: "design",
     container_id: "direct_design_one",
     last_activity_at: "2026-04-17T17:00:00Z",
@@ -46,6 +54,8 @@ const embedded: NonNullable<NetworkChannelsResponse["recents"]> = [
     surface: "direct",
   },
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     channel: "ops",
     container_id: "direct_ops_two",
     last_activity_at: "2026-04-17T15:00:00Z",

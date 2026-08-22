@@ -29,6 +29,9 @@ import {
   transcriptPageRequest,
   type SessionTranscriptPageParam,
 } from "./session-transcript-query";
+import { PROFILE_AGGREGATE } from "@/systems/profiles";
+
+import { fetchSessionAcrossProfiles, fetchSessionById } from "../adapters/session-owner-api";
 
 const SESSION_LIVE_REFETCH_INTERVAL_MS = 5_000;
 const SESSION_STARTING_REFETCH_INTERVAL_MS = 500;
@@ -316,5 +319,55 @@ export function sessionLedgerOptions(
       }
       return failureCount < 1;
     },
+  });
+}
+
+/**
+ * The profile-enforced detail read.
+ *
+ * The workspace-scoped route answers 200 for a session in any profile, so it
+ * cannot be the read a profile boundary rests on. This one is `getSessionByID`
+ * with an explicit selector: the daemon compares the session's owner against the
+ * scope and answers 404 when they differ, which is what makes the deep-link
+ * fallback reachable at all. `retry: false` keeps that 404 a decision rather
+ * than three seconds of retries.
+ */
+export function sessionScopedDetailOptions(
+  sessionId: string,
+  profileKey: string,
+  options: { enabled?: boolean; liveTail?: boolean } = {}
+) {
+  const id = sessionId.trim();
+  const { enabled = true, liveTail = true } = options;
+  return queryOptions({
+    queryKey: sessionKeys.byId(id, profileKey),
+    queryFn: ({ signal }) => fetchSessionById(id, profileKey, signal),
+    refetchInterval: query => {
+      if (!liveTail) return false;
+      const state = query.state.data?.state;
+      if (state === "starting") return SESSION_STARTING_REFETCH_INTERVAL_MS;
+      return isLiveSessionState(state) ? SESSION_LIVE_REFETCH_INTERVAL_MS : false;
+    },
+    staleTime: SESSION_DETAIL_STALE_TIME_MS,
+    ...SESSION_WARM_CACHE_POLICY,
+    retry: false,
+    enabled: enabled && id !== "" && profileKey.trim() !== "",
+  });
+}
+
+/**
+ * The labeled aggregate-by-id read behind the deep-link owner banner.
+ *
+ * Same family as the scoped read, one lens over: the aggregate is a way of
+ * looking, so it is a sibling entry rather than a separate concept.
+ */
+export function sessionAcrossProfilesOptions(sessionId: string, enabled = true) {
+  const id = sessionId.trim();
+  return queryOptions({
+    queryKey: sessionKeys.byId(id, PROFILE_AGGREGATE),
+    queryFn: ({ signal }) => fetchSessionAcrossProfiles(id, signal),
+    enabled: enabled && id !== "",
+    retry: false,
+    staleTime: 30_000,
   });
 }

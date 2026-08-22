@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -218,38 +219,42 @@ func TestDaemonLoopAPIServiceShouldBuildRunWebURLFromEffectiveConfig(t *testing.
 func TestDaemonLoopAPIServiceShouldResolveRunWebEndpointBeforeStarting(t *testing.T) {
 	t.Parallel()
 
-	errResolve := errors.New("resolve effective config")
-	startCalled := false
-	aggregate := &loopApprovalAggregateStub{startFn: func(
-		context.Context,
-		looppkg.WorkspaceID,
-		string,
-		looppkg.Inputs,
-		task.ActorContext,
-	) (*looppkg.Run, error) {
-		startCalled = true
-		return nil, errors.New("unexpected Start call")
-	}}
-	service := &daemonLoopAPIService{
-		aggregate:         aggregate,
-		workspaceResolver: &loopAPIWorkspaceResolverErrorStub{err: errResolve},
-	}
+	t.Run("Should resolve the run URL before creating durable state", func(t *testing.T) {
+		t.Parallel()
 
-	_, err := service.RunLoop(
-		t.Context(),
-		"ws-1",
-		"delivery",
-		contract.RunLoopRequest{},
-		dsl.StartHTTP,
-		task.ActorContext{},
-		false,
-	)
-	if !errors.Is(err, errResolve) {
-		t.Fatalf("RunLoop() error = %v, want effective-config resolution error", err)
-	}
-	if startCalled {
-		t.Fatal("RunLoop() called Start before resolving the run web endpoint")
-	}
+		errResolve := errors.New("resolve effective config")
+		startCalled := false
+		aggregate := &loopApprovalAggregateStub{startFn: func(
+			context.Context,
+			looppkg.WorkspaceID,
+			string,
+			looppkg.Inputs,
+			task.ActorContext,
+		) (*looppkg.Run, error) {
+			startCalled = true
+			return nil, errors.New("unexpected Start call")
+		}}
+		service := &daemonLoopAPIService{
+			aggregate:         aggregate,
+			workspaceResolver: &loopAPIWorkspaceResolverErrorStub{err: errResolve},
+		}
+
+		_, err := service.RunLoop(
+			t.Context(),
+			"ws-1",
+			"delivery",
+			core.LoopRunInput{
+				Request: contract.RunLoopRequest{}, ProfileID: storepkg.DefaultProfileID,
+				StartKind: dsl.StartHTTP, Actor: task.ActorContext{},
+			},
+		)
+		if !errors.Is(err, errResolve) {
+			t.Fatalf("RunLoop() error = %v, want effective-config resolution error", err)
+		}
+		if startCalled {
+			t.Fatal("RunLoop() called Start before resolving the run web endpoint")
+		}
+	})
 }
 
 func TestDaemonLoopAPIServiceShouldAssembleGenerationDetailFromLineage(t *testing.T) {

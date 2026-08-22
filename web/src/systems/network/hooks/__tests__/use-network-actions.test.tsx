@@ -63,6 +63,8 @@ function createWrapper() {
 
 function makeMessage(messageId: string, text: string): NetworkConversationMessage {
   return {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     body: { text },
     channel: "ops",
     direction: "sent",

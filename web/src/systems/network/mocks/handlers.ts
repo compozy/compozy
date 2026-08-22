@@ -129,6 +129,8 @@ export const handlers: HttpHandler[] = [
       HttpResponse.json({
         subscriptions: [
           {
+            profile_id: "00000000000000000000000000",
+            profile_name: "default",
             channel: String(params.channel),
             created_at: "2026-04-17T18:10:00Z",
             mode: "full",
@@ -153,6 +155,8 @@ export const handlers: HttpHandler[] = [
 
       return HttpResponse.json({
         subscription: {
+          profile_id: "00000000000000000000000000",
+          profile_name: "default",
           channel: String(params.channel),
           created_at: "2026-04-17T18:10:00Z",
           mode,
@@ -237,6 +241,8 @@ export const handlers: HttpHandler[] = [
             workspace_id: String(params.workspace_id),
           },
           task: {
+            profile_id: "00000000000000000000000000",
+            profile_name: "default",
             created_at: now,
             created_by: { kind: "network_peer", ref: "peer_northstar_launch_control" },
             description:

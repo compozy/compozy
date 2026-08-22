@@ -84,6 +84,7 @@ export function useBridgeSecretRotations({
         bindingName,
         data: requestResult.data,
         id: bridge.id,
+        profile: bridge.profile_name,
       });
 
       setInputValues(current => ({
@@ -104,7 +105,7 @@ export function useBridgeSecretRotations({
     if (!bridge) return;
 
     try {
-      await deleteBinding.mutateAsync({ bindingName, id: bridge.id });
+      await deleteBinding.mutateAsync({ bindingName, id: bridge.id, profile: bridge.profile_name });
       setInputValues(current => ({
         ...current,
         [bridgeSecretDraftKey(bridge.id, bindingName)]: "",

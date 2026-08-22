@@ -53,11 +53,19 @@ interface RenderOptions {
   statusCounts?: ReturnType<typeof countTasksByStatus>;
 }
 
+const STORY_PROFILE_SCOPE = {
+  aggregate: false,
+  destination: "default",
+  scopeLabel: "default",
+  ownerOf: () => ({ id: "00000000000000000000000000", name: "default", archived: false }),
+};
+
 function renderSurface(options: RenderOptions = {}) {
   const tasks = options.tasks ?? [];
   return render(
     <UIProvider reducedMotion="never" skipAnimations>
       <TasksListSurface
+        profile={STORY_PROFILE_SCOPE}
         errorMessage={options.errorMessage ?? null}
         isLoading={options.isLoading}
         isLoadingMore={options.isLoadingMore}
@@ -150,6 +158,30 @@ describe("TasksListSurface", () => {
     fireEvent.change(search, { target: { value: "deploy" } });
     expect(handleSearchQueryChange).toHaveBeenCalledWith("deploy");
     expect(screen.queryByTestId("tasks-view-nav")).toBeNull();
+  });
+
+  it("Should name the profile the list is scoped to, not the create target", () => {
+    renderSurface({ tasks: [] });
+    expect(screen.getByTestId("tasks-list-surface-empty")).toHaveTextContent(
+      "No tasks in default yet"
+    );
+  });
+
+  it("Should say the machine is empty rather than name a profile under the aggregate", () => {
+    render(
+      <UIProvider reducedMotion="never" skipAnimations>
+        <TasksListSurface
+          profile={{ ...STORY_PROFILE_SCOPE, aggregate: true, scopeLabel: null }}
+          errorMessage={null}
+          searchQuery=""
+          statusCounts={countTasksByStatus([])}
+          taskTree={buildTaskListTree([])}
+        />
+      </UIProvider>
+    );
+    const empty = screen.getByTestId("tasks-list-surface-empty");
+    expect(empty).toHaveTextContent("No tasks in any profile yet");
+    expect(empty).not.toHaveTextContent("default");
   });
 
   it("Should render the empty state when the list is empty", () => {

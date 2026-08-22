@@ -22,9 +22,11 @@ import { TriggerPreview } from "./trigger-form/preview/trigger-preview";
 import { ReliabilitySection } from "./trigger-form/reliability-section";
 import { TriggerTargetStep } from "./trigger-form/target-step";
 import type { AgentPayload } from "@/systems/agent";
-import { WorkspaceScopeStatement, destinationLabel } from "@/systems/workspace";
+import { CreateDestinationStatement, destinationLabel } from "@/systems/workspace";
 
 interface AutomationTriggerFormProps {
+  /** The profile a creation lands in while the aggregate is on (ADR-005). */
+  profileDestination?: string | null;
   activeWorkspaceId?: string | null;
   draft: CreateAutomationTriggerRequest;
   isPending: boolean;
@@ -44,6 +46,7 @@ interface AutomationTriggerFormProps {
 const EMPTY_AGENTS: AgentPayload[] = [];
 
 export function AutomationTriggerForm({
+  profileDestination,
   activeWorkspaceId,
   draft,
   isPending,
@@ -196,7 +199,8 @@ export function AutomationTriggerForm({
 
       <EntityDialogFooter
         hint={
-          <WorkspaceScopeStatement
+          <CreateDestinationStatement
+            profileDestination={profileDestination}
             destination={destination}
             kind={mode === "edit" ? "edit" : "create"}
             scope={scope}

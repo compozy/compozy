@@ -1,6 +1,7 @@
-// Suite: OS session-window live ownership
+// Suite: OS session-window live ownership and profile resolution
 // Invariant: every visible session window on the active desktop owns a live tail, while operator
-// presence additionally requires the shell window and browser document to hold focus.
+// presence additionally requires the shell window and browser document to hold focus; and the
+// window resolves a session through the profile-enforced read before deciding it is gone.
 // Owning layer: the OS session-window controller.
 import { render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -34,7 +35,8 @@ const queryState: {
   data: typeof session | undefined;
   error: Error | null;
   isLoading: boolean;
-} = { data: session, error: null, isLoading: false };
+  isError: boolean;
+} = { data: session, error: null, isLoading: false, isError: false };
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (options: Record<string, unknown>) => {
@@ -51,8 +53,33 @@ vi.mock("@/systems/session/adapters/session-api", () => ({
   },
 }));
 
+const scopedDetailSpy = vi.fn((..._args: unknown[]) => ({}));
+const foreignState: { current: Record<string, unknown> } = { current: { status: "disabled" } };
+const ownerViewSpy = vi.fn((_props: Record<string, unknown>) => null);
+
 vi.mock("@/systems/session/lib/query-options", () => ({
-  sessionDetailOptions: () => ({}),
+  sessionScopedDetailOptions: (...args: unknown[]) => scopedDetailSpy(...args),
+}));
+
+vi.mock("@/systems/session", async importOriginal => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    sessionScopedDetailOptions: (...args: unknown[]) => scopedDetailSpy(...args),
+    useForeignProfileSession: () => foreignState.current,
+  };
+});
+
+vi.mock("@/systems/session/hooks/use-foreign-profile-session", () => ({
+  useForeignProfileSession: () => foreignState.current,
+}));
+
+vi.mock("@/systems/profiles/hooks/use-profile-read-scope", () => ({
+  useProfileReadScope: () => ({ key: "marketing", aggregate: false }),
+}));
+
+vi.mock("../session-profile-owner-notice", () => ({
+  SessionProfileOwnerNotice: (props: Record<string, unknown>) => ownerViewSpy(props),
 }));
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
@@ -98,11 +125,15 @@ describe("SessionWindow", () => {
     queryState.data = session;
     queryState.error = null;
     queryState.isLoading = false;
+    queryState.isError = false;
     workspace.runtimeWorkspaceId = "ws-1";
     documentActivity.active = true;
     sessionWindowViewSpy.mockClear();
     sessionWindowNoticeSpy.mockClear();
     queryOptionsSpy.mockClear();
+    scopedDetailSpy.mockClear();
+    ownerViewSpy.mockClear();
+    foreignState.current = { status: "disabled" };
     userClose.mockClear();
     userOpen.mockClear();
     useSessionPresenceSpy.mockClear();
@@ -165,12 +196,13 @@ describe("SessionWindow", () => {
     );
   });
 
-  it("Should treat an empty runtime workspace as unavailable without querying or rendering", () => {
+  it("Should treat an empty runtime workspace as unavailable without rendering the session", () => {
     workspace.runtimeWorkspaceId = "";
 
     render(<SessionWindow windowId="session:sess-1" />);
 
-    expect(queryOptionsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: false }));
+    // The by-id read carries no workspace, so an unresolved shell no longer
+    // gates the request — it gates what is shown.
     expect(sessionWindowNoticeSpy).toHaveBeenLastCalledWith({
       message: "Session workspace unavailable",
     });
@@ -180,6 +212,8 @@ describe("SessionWindow", () => {
   it("Should show the truthful gone notice and return a restored missing session to its agent list (UT-087)", async () => {
     queryState.data = undefined;
     queryState.error = new SessionNotFoundError("sess-1");
+    queryState.isError = true;
+    foreignState.current = { status: "missing" };
     render(<SessionWindow windowId="session:sess-1" />);
 
     expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
@@ -200,6 +234,8 @@ describe("SessionWindow", () => {
   it("Should retain the same gone-state recovery path when the active tab's drilled session disappears (UT-089)", async () => {
     queryState.data = undefined;
     queryState.error = new SessionNotFoundError("sess-1");
+    queryState.isError = true;
+    foreignState.current = { status: "missing" };
     desktop.focusedId = "session:sess-1";
     render(<SessionWindow windowId="session:sess-1" />);
 
@@ -214,5 +250,72 @@ describe("SessionWindow", () => {
       app: "agents",
       route: { pathname: "/agents/qa-agent", search: {} },
     });
+  });
+
+  it("Should read the session through the profile-enforced route, keyed by the active lens", () => {
+    render(<SessionWindow windowId="session:sess-1" />);
+
+    // Not the workspace detail route: that one answers 200 for any profile, so a
+    // boundary resting on it would never see a foreign session as foreign.
+    expect(scopedDetailSpy).toHaveBeenLastCalledWith(
+      "sess-1",
+      "marketing",
+      expect.objectContaining({ enabled: true })
+    );
+  });
+
+  it("Should hold the window open while the aggregate lookup is still in flight", async () => {
+    queryState.data = undefined;
+    queryState.error = new SessionNotFoundError("sess-1");
+    queryState.isError = true;
+    foreignState.current = { status: "loading" };
+
+    render(<SessionWindow windowId="session:sess-1" />);
+    await waitFor(() => expect(sessionWindowViewSpy).toHaveBeenCalled());
+
+    // Closing here is what made a visible session look deleted: the scoped miss
+    // alone does not mean gone, only "not in this profile".
+    expect(userClose).not.toHaveBeenCalled();
+    expect(userOpen).not.toHaveBeenCalled();
+    expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ isLoading: true })
+    );
+  });
+
+  it("Should render a foreign session under its owner banner instead of bouncing", async () => {
+    queryState.data = undefined;
+    queryState.error = new SessionNotFoundError("sess-1");
+    queryState.isError = true;
+    foreignState.current = {
+      status: "found",
+      session,
+      owner: { id: "01J9CONSULTING000000000000", name: "consulting", archived: false },
+    };
+
+    render(<SessionWindow windowId="session:sess-1" />);
+
+    await waitFor(() => expect(ownerViewSpy).toHaveBeenCalled());
+    expect(ownerViewSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        owner: expect.objectContaining({ name: "consulting" }),
+        session,
+      })
+    );
+    expect(userClose).not.toHaveBeenCalled();
+    expect(sessionWindowNoticeSpy).not.toHaveBeenCalled();
+  });
+
+  it("Should surface a failed owner lookup instead of claiming the session is gone", async () => {
+    queryState.data = undefined;
+    queryState.error = new SessionNotFoundError("sess-1");
+    queryState.isError = true;
+    foreignState.current = { status: "error", error: new Error("Owner lookup failed") };
+
+    render(<SessionWindow windowId="session:sess-1" />);
+
+    await waitFor(() =>
+      expect(sessionWindowNoticeSpy).toHaveBeenLastCalledWith({ message: "Owner lookup failed" })
+    );
+    expect(userClose).not.toHaveBeenCalled();
   });
 });

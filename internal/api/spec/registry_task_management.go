@@ -35,7 +35,7 @@ func listTasksOperationSpec() OperationSpec {
 		Summary:     "List a bounded task catalog page",
 		Tags:        []string{specTasksKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileScope(
 			enumQueryParam(specScopeKey, "Filter by catalog visibility", taskCatalogScopeValues()),
 			queryParam(specWorkspaceKey, "Filter by workspace path, name, or ID", false),
 			enumQueryParam("status", "Filter by task status", taskStatusValues()),
@@ -51,7 +51,7 @@ func listTasksOperationSpec() OperationSpec {
 			enumQueryParam("sort", "Order by recent activity or priority", taskCatalogSortValues()),
 			queryParam("cursor", "Opaque query-bound continuation cursor", false),
 			intQueryParam("limit", "Page size from 1 to 200 (default 50)"),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.TasksResponse{}},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
@@ -70,6 +70,7 @@ func createTaskOperationSpec() OperationSpec {
 		Summary:     "Create a task",
 		Tags:        []string{specTasksKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters:  withProfileSelector(),
 		RequestBody: contract.CreateTaskRequest{},
 		Responses: []ResponseSpec{
 			{Status: 201, Description: specCreatedDescription, Body: contract.TaskResponse{}},
@@ -90,9 +91,9 @@ func getTaskOperationSpec() OperationSpec {
 		Summary:     "Get one task with detail",
 		Tags:        []string{specTasksKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileScope(
 			pathParam("id", "Task id"),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.TaskDetailResponse{}},
 			{Status: 404, Description: specTaskNotFoundDescription, Body: contract.ErrorPayload{}},

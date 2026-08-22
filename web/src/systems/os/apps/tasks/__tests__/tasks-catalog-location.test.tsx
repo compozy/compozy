@@ -12,6 +12,13 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   userOpen: vi.fn(),
   page: {
+    // The listing's profile axis, as the page hook resolves it.
+    profile: {
+      aggregate: false,
+      destination: "default",
+      scopeLabel: "default",
+      ownerOf: () => ({ id: "00000000000000000000000000", name: "default", archived: false }),
+    },
     dashboard: null,
     dashboardError: null,
     dashboardLoading: false,

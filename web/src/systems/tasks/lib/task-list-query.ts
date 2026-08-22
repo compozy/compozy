@@ -36,6 +36,8 @@ export function normalizeTaskListFilter(filters: TaskListFilter = {}): TaskListF
     sort: filters.sort,
     cursor: normalizeOptionalText(filters.cursor),
     limit: filters.limit,
+    profile: normalizeOptionalText(filters.profile),
+    all_profiles: filters.all_profiles,
   };
 }
 
@@ -58,6 +60,10 @@ export function taskListStableFilter(filters: TaskListFilter = {}): TaskListStab
     query: normalized.query,
     sort: normalized.sort,
     limit: normalized.limit,
+    // Profile scope is part of the request and therefore part of the key: two
+    // profiles reading the same workspace are two catalogs, never one entry.
+    profile: normalized.profile,
+    all_profiles: normalized.all_profiles,
   };
 }
 

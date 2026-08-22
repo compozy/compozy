@@ -12,16 +12,19 @@ import {
   formatRelativeTime,
 } from "../lib/automation-formatters";
 import type { AutomationJob } from "../types";
+import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 
 export interface AutomationJobRowProps {
   job: AutomationJob;
   isRunPending: boolean;
   onRun: (id: string) => void;
   runDisabled: boolean;
+  /** The job's profile, supplied only in aggregate mode. */
+  owner?: ProfileOwner;
 }
 
 /** Row presentation for a job in the Jobs catalog (rows view). */
-function AutomationJobRow({ job, isRunPending, onRun, runDisabled }: AutomationJobRowProps) {
+function AutomationJobRow({ job, owner, isRunPending, onRun, runDisabled }: AutomationJobRowProps) {
   const enabledTone = automationStatusTone(job.enabled ? "enabled" : "disabled");
   const nextRun = job.scheduler?.next_run_at ?? job.next_run;
 
@@ -52,6 +55,12 @@ function AutomationJobRow({ job, isRunPending, onRun, runDisabled }: AutomationJ
             <span>{describeSchedule(job.schedule)}</span>
             <ListingRow.MetaDot />
             <span>{automationScopeLabel(job.scope)}</span>
+            {owner ? (
+              <>
+                <ListingRow.MetaDot />
+                <ProfileOwnerTag data-testid={`automation-profile-${job.id}`} owner={owner} />
+              </>
+            ) : null}
           </ListingRow.Meta>
         </ListingRow.Main>
       </ListingRow.Link>

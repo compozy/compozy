@@ -6,11 +6,15 @@ import { formatRelativeTime, Pill } from "@compozy/ui";
 import { loopRunBestLabel } from "../../lib/loop-generation-presentation";
 import { formatRunInputs, loopBudgetBar, runGenerationLabel } from "../../lib/loop-runs-view";
 import type { LoopRun } from "../../types";
+import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
+
 import { LoopStatusPill } from "../loop-status-pill";
 import { LoopBudgetMiniBar } from "./loop-budget-mini-bar";
 
 interface LoopRunRowProps {
   run: LoopRun;
+  /** The run's profile, supplied only in aggregate mode. */
+  owner?: ProfileOwner;
   pendingRequestCount?: number;
 }
 
@@ -30,7 +34,7 @@ function triggerLabel(run: LoopRun): string {
  * inputs, generations vs cap, when it started, budget mini-bar, and a chevron to
  * the run detail.
  */
-export function LoopRunRow({ run, pendingRequestCount = 0 }: LoopRunRowProps) {
+export function LoopRunRow({ run, owner, pendingRequestCount = 0 }: LoopRunRowProps) {
   const inputs = formatRunInputs(run.inputs);
   const best = loopRunBestLabel(run);
   return (
@@ -57,6 +61,7 @@ export function LoopRunRow({ run, pendingRequestCount = 0 }: LoopRunRowProps) {
               {pendingRequestCount}
             </Pill>
           ) : null}
+          {owner ? <ProfileOwnerTag className="shrink-0" owner={owner} /> : null}
         </span>
         <span className="font-mono text-mono-id text-faint">
           {run.id} · {triggerLabel(run)}

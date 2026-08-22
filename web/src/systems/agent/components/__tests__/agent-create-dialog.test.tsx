@@ -241,6 +241,9 @@ describe("AgentCreateDialog", () => {
 
     renderStatefulDialog({ draft: validDraft({ scope: "global" }) });
     expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent("Creates in Global");
+    // No profile destination chip: creating an agent definition does not stamp a
+    // profile owner, so claiming one here would promise filing that never happens.
+    expect(screen.queryByTestId("profile-destination-chip")).not.toBeInTheDocument();
   });
 
   it("Should fail closed on an off-contract reasoning effort", () => {

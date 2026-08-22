@@ -290,4 +290,169 @@ test.describe("Profiles", () => {
     await reopened.getByTestId("os-palette-command-profile.archive").click();
     await expect(appWindow(appPage, "settings")).toBeVisible();
   });
+
+  test("E2E-015: All profiles labels every row, states the destination, and names the owner", async ({
+    appPage,
+    runtime,
+  }) => {
+    await ensureGlobalWorkspace(runtime);
+    await completeOnboardingIfPrompted(appPage);
+    await createProfile(runtime, "marketing", "#c26ad6", "megaphone");
+    await createProfile(runtime, "old-agency", "#b58e5f", "folder");
+    await runtime.requestJSON("/api/profiles/old-agency/archive", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+
+    const ui = profilesOperatorSelectors(appPage);
+    await ui.switcher.click();
+    await ui.switcherAll.click();
+    await expect(ui.switcher).toContainText("All profiles");
+
+    // S3: every aggregate row names its owner, and an archived owner says so.
+    const sessions = await openAppWindow(appPage, "Sessions", "sessions");
+    const rows = profilesOperatorSelectors(appPage, sessions);
+    await expect(rows.ownerTags.first()).toBeVisible();
+
+    // S2: the destination is stated before the commit, as fixed text.
+    await sessions.getByTestId("os-sessions-modal-new-session").click();
+    const chip = profilesOperatorSelectors(appPage).destinationChip;
+    await expect(chip).toBeVisible();
+    await expect(chip).toContainText("default");
+    await expect(chip.locator("button, select, input")).toHaveCount(0);
+
+    // S11: the two axes compose — the globe stays independent of the profile.
+    await appPage.getByTestId("os-global-scope-toggle").click();
+    await expect(ui.switcher).toContainText("All profiles");
+
+    // Leaving the aggregate lands on a real profile, never on the aggregate.
+    await ui.switcher.click();
+    await ui.switcherOption("marketing").click();
+    await expect(ui.switcher).toContainText("marketing");
+    await expect(rows.ownerTags).toHaveCount(0);
+  });
+
+  test("E2E-018: a deep link into another profile's session names its owner and offers the switch", async ({
+    appPage,
+    runtime,
+  }) => {
+    await ensureGlobalWorkspace(runtime);
+    await completeOnboardingIfPrompted(appPage);
+    await createProfile(runtime, "consulting", "#4ea7fc", "briefcase");
+    const foreign = await runtime.requestJSON<{ session: { id: string; agent_name: string } }>(
+      "/api/sessions?profile=consulting",
+      { method: "POST", body: JSON.stringify({ agent_name: "claude-agent" }) }
+    );
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+
+    const ui = profilesOperatorSelectors(appPage);
+    await appPage.goto(`/session/${foreign.session.id}`, { waitUntil: "domcontentloaded" });
+
+    // Informed, not blocked: the item resolves through the labeled aggregate read.
+    await expect(ui.ownerBanner).toContainText("belongs to consulting");
+    await ui.ownerBannerSwitch.click();
+    await expect(ui.switcher).toContainText("consulting");
+  });
+
+  test("E2E-019: an empty listing names the profile it is empty for", async ({
+    appPage,
+    runtime,
+  }) => {
+    await ensureGlobalWorkspace(runtime);
+    await completeOnboardingIfPrompted(appPage);
+    await createProfile(runtime, "marketing", "#c26ad6", "megaphone");
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+
+    const ui = profilesOperatorSelectors(appPage);
+    await ui.switcher.click();
+    await ui.switcherOption("marketing").click();
+
+    const tasks = await openAppWindow(appPage, "Tasks", "tasks");
+    await expect(tasks.getByRole("heading", { name: /No tasks in marketing yet/i })).toBeVisible();
+  });
+
+  test("E2E-021: usage is scoped per profile and breaks down by owner in the aggregate", async ({
+    appPage,
+    runtime,
+  }) => {
+    await ensureGlobalWorkspace(runtime);
+    await completeOnboardingIfPrompted(appPage);
+    await createProfile(runtime, "marketing", "#c26ad6", "megaphone");
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+
+    const home = await openAppWindow(appPage, "Home", "dashboard");
+    const scoped = profilesOperatorSelectors(appPage, home);
+    // Scoped: figures cover this profile only, so no breakdown is offered.
+    await expect(scoped.usageProfileShare).toHaveCount(0);
+
+    const ui = profilesOperatorSelectors(appPage);
+    await ui.switcher.click();
+    await ui.switcherAll.click();
+    await expect(scoped.usageProfileShare).toBeVisible();
+    await expect(scoped.usageProfileShare).toContainText("default");
+  });
+
+  test("E2E-028: palette results, ranking, and view sessions re-scope across a switch", async ({
+    appPage,
+    runtime,
+  }) => {
+    await ensureGlobalWorkspace(runtime);
+    await completeOnboardingIfPrompted(appPage);
+    await createProfile(runtime, "marketing", "#c26ad6", "megaphone");
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+
+    const ui = profilesOperatorSelectors(appPage);
+    const scopedCatalog = appPage.waitForResponse(
+      response =>
+        response.url().includes("/api/cmd-palette/commands") &&
+        response.url().includes("profile=default")
+    );
+    await openCommandPalette(appPage);
+    expect((await scopedCatalog).ok()).toBe(true);
+    await appPage.keyboard.press("Escape");
+
+    await ui.switcher.click();
+    await ui.switcherAll.click();
+    const aggregateCatalog = appPage.waitForResponse(
+      response =>
+        response.url().includes("/api/cmd-palette/commands") &&
+        response.url().includes("all_profiles=true")
+    );
+    const palette = await openCommandPalette(appPage);
+    expect((await aggregateCatalog).ok()).toBe(true);
+    await palette.getByRole("combobox").fill("session");
+    // The aggregate speaks the same owner vocabulary as the listings.
+    await expect(profilesOperatorSelectors(appPage, palette).ownerTags.first()).toBeVisible();
+  });
+
+  test("E2E-029: the right cluster order holds and a keyboard-only switch re-scopes listings", async ({
+    appPage,
+    runtime,
+  }) => {
+    await ensureGlobalWorkspace(runtime);
+    await completeOnboardingIfPrompted(appPage);
+    await createProfile(runtime, "marketing", "#c26ad6", "megaphone");
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+
+    // S1: notifications → palette → profile switcher → Settings, in that order.
+    const order = await appPage.evaluate(() => {
+      const slots = ["os-menubar-notifications", "os-menubar-command", "os-menubar-profile"];
+      const positions = slots.map(
+        slot =>
+          document.querySelector(`[data-testid="${slot}"]`)?.getBoundingClientRect().left ?? -1
+      );
+      const settings =
+        document.querySelector('[data-testid="os-menubar-settings"]')?.getBoundingClientRect()
+          .left ?? -1;
+      return [...positions, settings];
+    });
+    expect(order).toEqual([...order].sort((left, right) => left - right));
+
+    const ui = profilesOperatorSelectors(appPage);
+    const palette = await openCommandPalette(appPage);
+    await palette.getByRole("combobox").fill("marketing");
+    await appPage.keyboard.press("Enter");
+    await expect(ui.switcher).toContainText("marketing");
+  });
 });

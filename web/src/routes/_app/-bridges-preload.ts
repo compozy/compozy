@@ -12,6 +12,7 @@ import {
   bridgesListOptions,
   bridgeTargetsOptions,
 } from "@/systems/bridges";
+import { readProfileLens, readProfileScopeParams } from "@/systems/profiles";
 
 export async function preloadBridgesRoute(
   queryClient: QueryClient,
@@ -22,6 +23,7 @@ export async function preloadBridgesRoute(
     status?: BridgeCatalogFilter["status"];
   }
 ): Promise<void> {
+  const profileScope = readProfileScopeParams(queryClient, readProfileLens());
   const workspaceId = await resolveActiveWorkspaceId(queryClient);
   const filters: BridgeCatalogFilter = {
     ...bridgeListFilterForScope(deps.scope, workspaceId),
@@ -30,6 +32,7 @@ export async function preloadBridgesRoute(
     q: deps.q,
     sort: "name",
     status: deps.status,
+    ...profileScope,
   };
   const enabled = deps.scope !== "workspace" || Boolean(workspaceId);
 
@@ -44,15 +47,18 @@ export async function preloadBridgeDetailRoute(
   queryClient: QueryClient,
   bridgeId: string
 ): Promise<void> {
+  const profileScope = readProfileScopeParams(queryClient, readProfileLens());
   const workspaceId = await resolveActiveWorkspaceId(queryClient);
-  const filters = bridgeListFilterForScope("all", workspaceId);
+  const filters = { ...bridgeListFilterForScope("all", workspaceId), ...profileScope };
 
   await settleRouteQueries([
     queryClient.ensureInfiniteQueryData(bridgesListOptions(filters)),
     queryClient.ensureQueryData(bridgeProvidersOptions()),
-    queryClient.ensureQueryData(bridgeDetailOptions(bridgeId)),
-    queryClient.ensureQueryData(bridgeRoutesOptions(bridgeId)),
-    queryClient.ensureQueryData(bridgeTargetsOptions(bridgeId, { limit: 50, q: "" })),
-    queryClient.ensureQueryData(bridgeSecretBindingsOptions(bridgeId)),
+    queryClient.ensureQueryData(bridgeDetailOptions(bridgeId, profileScope)),
+    queryClient.ensureQueryData(bridgeRoutesOptions(bridgeId, profileScope)),
+    queryClient.ensureQueryData(
+      bridgeTargetsOptions(bridgeId, { limit: 50, q: "", ...profileScope })
+    ),
+    queryClient.ensureQueryData(bridgeSecretBindingsOptions(bridgeId, profileScope)),
   ]);
 }

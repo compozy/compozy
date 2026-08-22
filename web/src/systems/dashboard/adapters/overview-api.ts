@@ -4,6 +4,7 @@ import {
   defaultApiErrorMessage,
   requireResponseData,
 } from "@/lib/api-client";
+import type { ProfileScopeParams } from "@/systems/profiles";
 
 import type {
   HomeActivityEvent,
@@ -26,6 +27,9 @@ function normalizeOverviewFilter(filters: HomeOverviewFilter = {}): HomeOverview
     workspace: normalizeOptionalText(filters.workspace),
     usage_window:
       filters.usageWindow === undefined ? undefined : USAGE_WINDOW_WIRE[filters.usageWindow],
+    ...(filters.allProfiles
+      ? { all_profiles: true }
+      : { profile: normalizeOptionalText(filters.profile) }),
   };
 }
 
@@ -55,6 +59,11 @@ export async function getHomeActivity(
       query: {
         workspace_id: normalizeOptionalText(filters.workspace_id),
         limit: filters.limit,
+        // Activity is a profile-owned read: omitting the selector resolves to
+        // `default`, so the aggregate view has to say so on the wire.
+        ...(filters.all_profiles
+          ? { all_profiles: true }
+          : { profile: normalizeOptionalText(filters.profile) }),
       },
     },
     signal,
@@ -68,12 +77,19 @@ export async function getHomeActivity(
   return requireResponseData(data, response, "Failed to fetch home activity").events;
 }
 
-export function buildHomeLogsStreamUrl(workspaceId: string): string {
+/**
+ * The stream carries the same read scope as the activity list it feeds, so the
+ * two can never disagree about which owners are in view. The returned string is
+ * also the stream's identity: a lens change produces a different URL, which is
+ * what closes the previous source instead of leaving it feeding the new lens.
+ */
+export function buildHomeLogsStreamUrl(workspaceId: string, scope: ProfileScopeParams): string {
   const params = new URLSearchParams();
   const workspace = workspaceId.trim();
   if (workspace !== "") {
     params.set("workspace_id", workspace);
   }
-  const query = params.toString();
-  return query === "" ? "/api/logs/stream" : `/api/logs/stream?${query}`;
+  if ("all_profiles" in scope) params.set("all_profiles", "true");
+  else params.set("profile", scope.profile);
+  return `/api/logs/stream?${params.toString()}`;
 }

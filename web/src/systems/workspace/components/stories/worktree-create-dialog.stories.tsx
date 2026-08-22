@@ -41,6 +41,7 @@ function useHarnessModel(overrides: Partial<WorktreeCreateDialogModel>): Worktre
     advancedOpen,
     setAdvancedOpen,
     generatedName: GENERATED_NAME,
+    profileDestination: null,
     preview: buildWorktreeCreatePreview(effectiveName, draft.branch, PARENT_DIR),
     branchCandidates: worktreeListingFixture.worktrees.map(worktree => ({
       branch: worktree.branch,

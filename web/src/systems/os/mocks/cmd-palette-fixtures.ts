@@ -195,6 +195,7 @@ export const cmdPaletteStoryCommands: CmdPaletteCommand[] = [
 ];
 
 export const cmdPaletteCatalogFixture: CmdPaletteCatalogResponse = {
+  profile_lens: { profile_lens_id: "00000000000000000000000000", profile_name: "default" },
   catalog_revision: "sha256:story-catalog-1",
   context_revision: "12",
   commands: cmdPaletteStoryCommands,

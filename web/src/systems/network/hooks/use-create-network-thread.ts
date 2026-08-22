@@ -21,6 +21,7 @@ import {
   discardOptimisticMessage,
   reconcileOptimisticMessage,
 } from "./network-message-cache";
+import { useProfileReadScope } from "@/systems/profiles";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 export const THREAD_COLLISION_TOAST = "Couldn't open this thread. Try again.";
@@ -28,6 +29,8 @@ export const THREAD_COLLISION_TOAST = "Couldn't open this thread. Try again.";
 interface CreateThreadAttemptArgs extends CreateNetworkThreadInput {
   threadId: string;
   workspaceId: string;
+  /** The profile the new thread's first message is filed under (ADR-005). */
+  owner: { id: string; name: string };
 }
 
 async function attemptCreateThread(
@@ -39,7 +42,12 @@ async function attemptCreateThread(
     ...args,
     surface: "thread",
   };
-  const optimistic = buildOptimisticMessage(input, clientMessageId, new Date().toISOString());
+  const optimistic = buildOptimisticMessage(
+    input,
+    clientMessageId,
+    new Date().toISOString(),
+    args.owner
+  );
   await queryClient.cancelQueries({ queryKey: canonicalNetworkMessageKey(input), exact: true });
   applyOptimisticMessage(queryClient, input, optimistic);
   try {
@@ -63,6 +71,8 @@ export function useCreateNetworkThread(
 ): UseCreateNetworkThreadResult {
   const queryClient = useQueryClient();
   const { runtimeWorkspaceId } = useActiveWorkspace();
+  const scope = useProfileReadScope();
+  const owner = { id: scope.destinationOwner?.id ?? "", name: scope.destination };
   const workspaceId = options.workspaceId ?? runtimeWorkspaceId;
   const mutation = useMutation<
     CreateNetworkThreadResult,
@@ -72,11 +82,11 @@ export function useCreateNetworkThread(
     mutationFn: async input => {
       const firstId = `thread_${generateClientMessageId().replace(/-/g, "")}`;
       try {
-        return await attemptCreateThread(queryClient, { ...input, threadId: firstId });
+        return await attemptCreateThread(queryClient, { ...input, threadId: firstId, owner });
       } catch (firstError) {
         const secondId = `thread_${generateClientMessageId().replace(/-/g, "")}`;
         try {
-          return await attemptCreateThread(queryClient, { ...input, threadId: secondId });
+          return await attemptCreateThread(queryClient, { ...input, threadId: secondId, owner });
         } catch (secondError) {
           toast.error(THREAD_COLLISION_TOAST);
           throw secondError instanceof Error ? secondError : firstError;

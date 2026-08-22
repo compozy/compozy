@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { vi } from "vitest";
+import { aggregateListingScopeFixture, scopedListingScopeFixture } from "@/systems/profiles/mocks";
 
 vi.mock("@tanstack/react-router", async importOriginal => {
   const actual = await importOriginal<typeof import("@tanstack/react-router")>();
@@ -23,7 +24,9 @@ const { loopRunFixtures } = await import("../../mocks/fixtures");
 
 describe("LoopRunsView", () => {
   it("Should render the four workspace KPIs with a live active count", () => {
-    render(<LoopRunsView outcome="all" runs={loopRunFixtures} />);
+    render(
+      <LoopRunsView profile={scopedListingScopeFixture} outcome="all" runs={loopRunFixtures} />
+    );
     const kpis = screen.getByTestId("loop-runs-kpis");
     expect(within(kpis).getByText("Active now")).toBeInTheDocument();
     expect(within(kpis).getByText("Awaiting you")).toBeInTheDocument();
@@ -34,7 +37,9 @@ describe("LoopRunsView", () => {
   });
 
   it("Should render Active and Past tables with budget mini-bars and run links", () => {
-    render(<LoopRunsView outcome="all" runs={loopRunFixtures} />);
+    render(
+      <LoopRunsView profile={scopedListingScopeFixture} outcome="all" runs={loopRunFixtures} />
+    );
     expect(screen.getByTestId("loop-runs-active")).toBeInTheDocument();
     expect(screen.getByTestId("loop-runs-past")).toBeInTheDocument();
     expect(screen.getAllByTestId("loop-budget-bar").length).toBeGreaterThan(0);
@@ -51,6 +56,7 @@ describe("LoopRunsView", () => {
   it("Should label a session-origin Run with its exact origin session", () => {
     render(
       <LoopRunsView
+        profile={scopedListingScopeFixture}
         outcome="all"
         runs={[
           {
@@ -65,7 +71,9 @@ describe("LoopRunsView", () => {
   });
 
   it("Should filter the tables to the selected outcome", () => {
-    render(<LoopRunsView outcome="done" runs={loopRunFixtures} />);
+    render(
+      <LoopRunsView profile={scopedListingScopeFixture} outcome="done" runs={loopRunFixtures} />
+    );
     const rows = screen.getAllByTestId("loop-run-row");
     expect(rows.every(row => row.getAttribute("data-status") === "done")).toBe(true);
     // Done runs are terminal, so the Active table hides.
@@ -74,7 +82,9 @@ describe("LoopRunsView", () => {
 
   it("Should show the truthful empty state when the outcome filter matches no run", () => {
     // No fixture run is `watching`, so the filter empties both tables.
-    render(<LoopRunsView outcome="watching" runs={loopRunFixtures} />);
+    render(
+      <LoopRunsView profile={scopedListingScopeFixture} outcome="watching" runs={loopRunFixtures} />
+    );
     expect(screen.getByText("No matching runs")).toBeInTheDocument();
     expect(screen.queryByTestId("loop-run-row")).not.toBeInTheDocument();
     expect(screen.queryByTestId("loop-runs-active")).not.toBeInTheDocument();
@@ -85,6 +95,7 @@ describe("LoopRunsView", () => {
     const target = loopRunFixtures[0];
     render(
       <LoopRunsView
+        profile={scopedListingScopeFixture}
         outcome="all"
         pendingRequestCounts={new Map([[target.id, 3]])}
         runs={loopRunFixtures}
@@ -96,5 +107,17 @@ describe("LoopRunsView", () => {
       .find(row => row.getAttribute("data-params")?.includes(target.id));
     expect(within(targetRow!).getByLabelText("3 pending requests")).toBeInTheDocument();
     expect(screen.getAllByTestId("loop-run-pending-requests")).toHaveLength(1);
+  });
+
+  it("Should name the profile a scoped runs list is empty for", () => {
+    render(<LoopRunsView profile={scopedListingScopeFixture} outcome="all" runs={[]} />);
+    expect(screen.getByText("No runs in default yet")).toBeInTheDocument();
+  });
+
+  it("Should not name a profile when every profile's runs are on screen", () => {
+    render(<LoopRunsView profile={aggregateListingScopeFixture} outcome="all" runs={[]} />);
+    // `default` is the create target, never a description of what is shown.
+    expect(screen.getByText("No runs in any profile yet")).toBeInTheDocument();
+    expect(screen.queryByText(/in default yet/)).not.toBeInTheDocument();
   });
 });

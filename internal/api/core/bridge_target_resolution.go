@@ -22,6 +22,15 @@ func (h *BaseHandlers) ListBridgeTargets(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errBridgeServiceUnavailable)
 		return
 	}
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	if _, err := bridges.GetInstanceScoped(c.Request.Context(), readScope, c.Param("id")); err != nil {
+		h.respondError(c, StatusForBridgeError(err), err)
+		return
+	}
 	limit, err := ParseOptionalInt(c.Query("limit"))
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
@@ -58,6 +67,15 @@ func (h *BaseHandlers) ResolveBridgeTarget(c *gin.Context) {
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
 		h.respondError(c, http.StatusBadRequest, fmt.Errorf("%s: bridge target name is required", h.transportName()))
+		return
+	}
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	if _, err := bridges.GetInstanceScoped(c.Request.Context(), readScope, c.Param("id")); err != nil {
+		h.respondError(c, StatusForBridgeError(err), err)
 		return
 	}
 	result, err := bridges.ResolveBridgeTarget(

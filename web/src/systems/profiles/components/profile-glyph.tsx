@@ -21,6 +21,14 @@ export interface ProfileGlyphProps extends Omit<ComponentProps<"span">, "childre
   aggregate?: boolean;
   /** Surface the glyph sits on, so the ink is measured against the right plate. */
   surface?: string;
+  /**
+   * Drops the image role and label.
+   *
+   * Set it wherever visible text already names the profile: the glyph is then a
+   * second rendering of the same fact, and announcing it twice makes a two-word
+   * tag read as four.
+   */
+  decorative?: boolean;
 }
 
 const SIZE_CLASS: Record<ProfileGlyphSize, string> = {
@@ -47,6 +55,7 @@ export function ProfileGlyph({
   needsSetup = false,
   aggregate = false,
   surface,
+  decorative = false,
   style,
   ...props
 }: ProfileGlyphProps) {
@@ -59,8 +68,9 @@ export function ProfileGlyph({
       data-slot="profile-glyph"
       data-current={current ? "true" : undefined}
       data-aggregate={aggregate ? "true" : undefined}
-      role="img"
-      aria-label={label}
+      role={decorative ? undefined : "img"}
+      aria-label={decorative ? undefined : label}
+      aria-hidden={decorative ? true : undefined}
       className={cn(
         "relative inline-grid shrink-0 place-items-center text-badge leading-none",
         SIZE_CLASS[size],

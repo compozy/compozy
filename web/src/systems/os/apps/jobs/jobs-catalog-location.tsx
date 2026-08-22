@@ -22,8 +22,10 @@ import {
   AutomationSuggestionsPanel,
 } from "@/systems/automation";
 import { useActiveWorkspace } from "@/systems/workspace";
+import { useProfileReadScope } from "@/systems/profiles";
 
 export function JobsCatalogLocation({ search }: { search: AutomationRouteSearch }) {
+  const profile = useProfileReadScope();
   const page = useAutomationJobsPage(
     search.create === "loop" && search.loop ? { loop: search.loop } : {},
     search
@@ -111,6 +113,7 @@ export function JobsCatalogLocation({ search }: { search: AutomationRouteSearch 
         data-testid="jobs-shell"
       >
         <AutomationJobsCatalog
+          profile={profile}
           errorMessage={page.errorMessage}
           hasActiveFilters={page.hasActiveFilters}
           isLoading={page.isLoading}

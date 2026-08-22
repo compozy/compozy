@@ -1844,6 +1844,14 @@ export interface ProfilesOperatorSelectors {
   paletteRow: (name: string) => Locator;
   paletteCreate: Locator;
   paletteAggregate: Locator;
+  /** Owner tags — present only in aggregate mode, except on worktree rows. */
+  ownerTag: (name: string) => Locator;
+  ownerTags: Locator;
+  /** The fixed "→ default" chip on a shared creation surface (ADR-005). */
+  destinationChip: Locator;
+  ownerBanner: Locator;
+  ownerBannerSwitch: Locator;
+  usageProfileShare: Locator;
 }
 
 /**
@@ -1902,5 +1910,11 @@ export function profilesOperatorSelectors(
     paletteRow: (name: string) => page.getByTestId(`os-palette-profile-${name}`),
     paletteCreate: page.getByTestId("os-palette-profile-create"),
     paletteAggregate: page.getByTestId("os-palette-profile-aggregate"),
+    ownerTag: (name: string) => scope.getByTestId("profile-owner-tag").filter({ hasText: name }),
+    ownerTags: scope.getByTestId("profile-owner-tag"),
+    destinationChip: scope.getByTestId("profile-destination-chip"),
+    ownerBanner: page.getByTestId("profile-owner-banner"),
+    ownerBannerSwitch: page.getByTestId("profile-owner-banner-switch"),
+    usageProfileShare: scope.getByTestId("home-profile-share"),
   };
 }

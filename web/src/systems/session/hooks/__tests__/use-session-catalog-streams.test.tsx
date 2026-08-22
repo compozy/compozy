@@ -3,6 +3,8 @@ import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { resetProfileViews, setProfileView } from "@/systems/profiles";
+
 import { sessionKeys } from "../../lib/query-keys";
 import {
   useSessionCatalogStreams,
@@ -81,8 +83,10 @@ describe("useSessionCatalogStreams", () => {
       { wrapper: wrapper(queryClient) }
     );
 
+    // Both axes ride the URL: workspaces widened, profile scoped. The scope is
+    // never omitted, so the daemon can never answer an unscoped subscription.
     expect(sources.map(source => source.url)).toEqual([
-      "/api/sessions/catalog-stream?all_workspaces=true",
+      "/api/sessions/catalog-stream?all_workspaces=true&profile=default",
     ]);
 
     act(() => {
@@ -120,6 +124,41 @@ describe("useSessionCatalogStreams", () => {
     unmount();
     expect(sources[0]?.closed).toBe(true);
     expect([...sources[0]!.listeners.values()].every(listeners => listeners.size === 0)).toBe(true);
+  });
+
+  it("Should reopen under the new profile and stop the old socket on a switch", () => {
+    const queryClient = new QueryClient();
+    const sources: FakeCatalogEventSource[] = [];
+    const factory = (url: string) => {
+      const source = new FakeCatalogEventSource(url);
+      sources.push(source);
+      return source;
+    };
+    const { unmount } = renderHook(
+      () => useSessionCatalogStreams({ eventSourceFactory: factory }),
+      { wrapper: wrapper(queryClient) }
+    );
+    expect(sources).toHaveLength(1);
+
+    act(() => setProfileView({ scope: "global" }, { kind: "profile", profile: "marketing" }));
+
+    // A second socket opens under the new scope, and the first one is closed —
+    // leaving a profile's scope stops its stream writes (US-010.EC-2).
+    expect(sources).toHaveLength(2);
+    expect(sources[1]?.url).toBe(
+      "/api/sessions/catalog-stream?all_workspaces=true&profile=marketing"
+    );
+    expect(sources[0]?.closed).toBe(true);
+    expect([...sources[0]!.listeners.values()].every(listeners => listeners.size === 0)).toBe(true);
+
+    act(() => setProfileView({ scope: "global" }, { kind: "aggregate" }));
+    expect(sources[2]?.url).toBe(
+      "/api/sessions/catalog-stream?all_workspaces=true&all_profiles=true"
+    );
+    expect(sources[1]?.closed).toBe(true);
+
+    unmount();
+    resetProfileViews();
   });
 
   it("Should route each named attention event to its handler exactly once (UT-078, UT-083)", () => {

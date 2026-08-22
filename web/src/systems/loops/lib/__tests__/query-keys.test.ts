@@ -66,11 +66,44 @@ describe("loopsKeys", () => {
         origin_session: "session_1",
         live: true,
         limit: 20,
+        profile: "marketing",
       })
-    ).toEqual(["loops", "runs", "ws_a", "delivery", "running", "session", "session_1", true, "20"]);
-    expect(loopsKeys.runs("ws_a")).toEqual(["loops", "runs", "ws_a", "", "", "", "", "", ""]);
+    ).toEqual([
+      "loops",
+      "runs",
+      "ws_a",
+      "delivery",
+      "running",
+      "session",
+      "session_1",
+      true,
+      "20",
+      "marketing",
+      "",
+    ]);
+    expect(loopsKeys.runs("ws_a")).toEqual([
+      "loops",
+      "runs",
+      "ws_a",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ]);
     expect(loopsKeys.runs("ws_a", { loop: "delivery" })).not.toEqual(
       loopsKeys.runs("ws_a", { loop: "watch" })
+    );
+    // Runs are profile-owned work, so two profiles reading one workspace are two
+    // lists — and the aggregate is neither of them.
+    expect(loopsKeys.runs("ws_a", { profile: "marketing" })).not.toEqual(
+      loopsKeys.runs("ws_a", { profile: "default" })
+    );
+    expect(loopsKeys.runs("ws_a", { all_profiles: true })).not.toEqual(
+      loopsKeys.runs("ws_a", { profile: "default" })
     );
   });
 

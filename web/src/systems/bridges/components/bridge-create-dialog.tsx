@@ -25,7 +25,7 @@ import {
   BridgeManifestHandoff,
   type BridgeManifestCommittedState,
 } from "./bridge-manifest-handoff";
-import { WorkspaceScopeStatement, destinationLabel } from "@/systems/workspace";
+import { CreateDestinationStatement, destinationLabel } from "@/systems/workspace";
 
 /**
  * Phase-two state after `POST /api/bridges` committed: the bridge exists, so the
@@ -47,6 +47,11 @@ interface BridgeCreateDialogProps {
   isPending: boolean;
   manifestState?: BridgeManifestCommittedState | null;
   mode?: EntityMode;
+  /**
+   * The profile this bridge will belong to, supplied only while the aggregate
+   * is on. Passed in rather than read here so the dialog stays presentational.
+   */
+  profileDestination?: string | null;
   onModeChange?: (mode: EntityMode) => void;
   onDraftChange: (draft: BridgeCreateDraft) => void;
   onOpenChange: (open: boolean) => void;
@@ -64,6 +69,7 @@ export function BridgeCreateDialog({
   isPending,
   manifestState,
   mode = "simple",
+  profileDestination = null,
   onModeChange,
   onDraftChange,
   onOpenChange,
@@ -243,9 +249,10 @@ export function BridgeCreateDialog({
             secretRecovery ? (
               "The bridge already exists — retrying only writes the missing credentials."
             ) : (
-              <WorkspaceScopeStatement
+              <CreateDestinationStatement
                 destination={destinationLabel(scope, activeWorkspaceName)}
                 kind="create"
+                profileDestination={profileDestination}
                 scope={scope}
                 variant="note"
               />

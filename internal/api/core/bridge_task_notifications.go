@@ -194,6 +194,14 @@ func (h *BaseHandlers) transitionBridge(
 		RespondError(c, http.StatusServiceUnavailable, errBridgeServiceUnavailable, false)
 		return
 	}
+	bridges, ok := h.bridgeService()
+	if !ok {
+		h.respondError(c, http.StatusServiceUnavailable, errBridgeServiceUnavailable)
+		return
+	}
+	if !h.requireBridgeMutationOwner(c, bridges) {
+		return
+	}
 	resp, err := fn(h, c)
 	if err != nil {
 		if errors.Is(err, gateway.ErrIngressForbidden) {

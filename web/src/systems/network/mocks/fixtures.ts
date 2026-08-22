@@ -214,6 +214,8 @@ function sayMessage(
   text: string
 ): NetworkConversationMessage {
   return {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     body: { text },
     channel: storyHeroNetworkChannel,
     direction: "sent",
@@ -243,6 +245,8 @@ function directMessage(
   }
 ): NetworkConversationMessage {
   return {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     body: { text },
     channel: storyHeroNetworkChannel,
     direct_id: "direct_story_launch_corridor",
@@ -285,6 +289,8 @@ export const networkStatusFixture: NetworkStatus = {
 export const networkChannelsFixture: NetworkChannelsResponse = {
   channels: [
     {
+      profile_id: "00000000000000000000000000",
+      profile_name: "default",
       channel: storyChannels.launchWarRoom,
       created_at: "2026-04-17T14:00:00Z",
       created_by: storyAgentNames.product,
@@ -302,6 +308,8 @@ export const networkChannelsFixture: NetworkChannelsResponse = {
       workspace_id: storyWorkspaceIds.hq,
     },
     {
+      profile_id: "00000000000000000000000000",
+      profile_name: "default",
       channel: storyChannels.landingPage,
       created_at: "2026-04-17T12:00:00Z",
       created_by: storyAgentNames.frontend,
@@ -316,6 +324,8 @@ export const networkChannelsFixture: NetworkChannelsResponse = {
       workspace_id: storyWorkspaceIds.product,
     },
     {
+      profile_id: "00000000000000000000000000",
+      profile_name: "default",
       channel: storyChannels.releaseControl,
       created_at: "2026-04-17T09:15:00Z",
       created_by: storyAgentNames.release,
@@ -329,6 +339,8 @@ export const networkChannelsFixture: NetworkChannelsResponse = {
       workspace_id: storyWorkspaceIds.platform,
     },
     {
+      profile_id: "00000000000000000000000000",
+      profile_name: "default",
       channel: storyChannels.growthLaunch,
       created_at: "2026-04-17T09:45:00Z",
       created_by: storyAgentNames.marketing,
@@ -343,6 +355,8 @@ export const networkChannelsFixture: NetworkChannelsResponse = {
       workspace_id: storyWorkspaceIds.growth,
     },
     {
+      profile_id: "00000000000000000000000000",
+      profile_name: "default",
       channel: storyChannels.financeWatch,
       created_at: "2026-04-17T10:30:00Z",
       created_by: storyAgentNames.cfo,
@@ -356,6 +370,8 @@ export const networkChannelsFixture: NetworkChannelsResponse = {
       workspace_id: storyWorkspaceIds.finance,
     },
     {
+      profile_id: "00000000000000000000000000",
+      profile_name: "default",
       channel: storyChannels.supportSwarm,
       created_at: "2026-04-17T13:00:00Z",
       created_by: storyAgentNames.support,
@@ -370,6 +386,8 @@ export const networkChannelsFixture: NetworkChannelsResponse = {
       workspace_id: storyWorkspaceIds.support,
     },
     {
+      profile_id: "00000000000000000000000000",
+      profile_name: "default",
       channel: storyChannels.riskOps,
       created_at: "2026-04-17T10:45:00Z",
       created_by: storyAgentNames.fraud,
@@ -383,6 +401,8 @@ export const networkChannelsFixture: NetworkChannelsResponse = {
       workspace_id: storyWorkspaceIds.risk,
     },
     {
+      profile_id: "00000000000000000000000000",
+      profile_name: "default",
       channel: storyChannels.partnerSync,
       created_at: "2026-04-17T09:05:00Z",
       created_by: storyAgentNames.platform,
@@ -397,6 +417,8 @@ export const networkChannelsFixture: NetworkChannelsResponse = {
       workspace_id: storyWorkspaceIds.platform,
     },
     {
+      profile_id: "00000000000000000000000000",
+      profile_name: "default",
       channel: storyChannels.merchantEscalations,
       created_at: "2026-04-17T12:50:00Z",
       created_by: storyAgentNames.support,
@@ -411,6 +433,8 @@ export const networkChannelsFixture: NetworkChannelsResponse = {
       workspace_id: storyWorkspaceIds.support,
     },
     {
+      profile_id: "00000000000000000000000000",
+      profile_name: "default",
       channel: storyChannels.execSignal,
       created_at: "2026-04-17T10:10:00Z",
       created_by: storyAgentNames.cto,
@@ -428,6 +452,8 @@ export const networkChannelsFixture: NetworkChannelsResponse = {
 };
 
 export const networkChannelFixture: NetworkChannel = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   channel: storyHeroNetworkChannel,
   created_at: "2026-04-17T14:00:00Z",
   created_by: storyAgentNames.product,
@@ -535,6 +561,8 @@ export const networkChannelFixture: NetworkChannel = {
   session_count: 6,
   sessions: [
     {
+      profile_id: "00000000000000000000000000",
+      profile_name: "default",
       id: storySessionIds.product,
       name: "Launch room command brief",
       agent_name: storyAgentNames.product,
@@ -554,6 +582,8 @@ export const networkChannelFixture: NetworkChannel = {
       workspace_path: storyWorkspacePaths.hq,
     },
     {
+      profile_id: "00000000000000000000000000",
+      profile_name: "default",
       id: storySessionIds.cto,
       name: "Executive launch review",
       agent_name: storyAgentNames.cto,
@@ -573,6 +603,8 @@ export const networkChannelFixture: NetworkChannel = {
       workspace_path: storyWorkspacePaths.hq,
     },
     {
+      profile_id: "00000000000000000000000000",
+      profile_name: "default",
       id: storySessionIds.cfo,
       name: "Launch revenue watch",
       agent_name: storyAgentNames.cfo,
@@ -592,6 +624,8 @@ export const networkChannelFixture: NetworkChannel = {
       workspace_path: storyWorkspacePaths.finance,
     },
     {
+      profile_id: "00000000000000000000000000",
+      profile_name: "default",
       id: storySessionIds.compliance,
       name: "Claim compliance review",
       agent_name: storyAgentNames.compliance,
@@ -611,6 +645,8 @@ export const networkChannelFixture: NetworkChannel = {
       workspace_path: storyWorkspacePaths.risk,
     },
     {
+      profile_id: "00000000000000000000000000",
+      profile_name: "default",
       id: storySessionIds.frontend,
       name: "Landing page launch QA",
       agent_name: storyAgentNames.frontend,
@@ -630,6 +666,8 @@ export const networkChannelFixture: NetworkChannel = {
       workspace_path: storyWorkspacePaths.product,
     },
     {
+      profile_id: "00000000000000000000000000",
+      profile_name: "default",
       id: storySessionIds.support,
       name: "Launch support swarm",
       agent_name: storyAgentNames.support,
@@ -654,6 +692,8 @@ export const networkChannelFixture: NetworkChannel = {
 
 export const networkThreadMessagesFixture: NetworkThreadMessage[] = [
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     body: {
       summary:
         "Launch Control heartbeat with product, finance, engineering, support, and partner desks active.",
@@ -675,6 +715,8 @@ export const networkThreadMessagesFixture: NetworkThreadMessage[] = [
     timestamp: "2026-04-17T17:50:00Z",
   },
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     body: {
       summary: "Partner desks are connected and waiting on the final pricing and replay decision.",
       peer_card: {
@@ -746,6 +788,8 @@ export const networkThreadMessagesFixture: NetworkThreadMessage[] = [
     "Approved headline: Launch checkout in days, not quarters. I removed every zero-fee claim from the hero."
   ),
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     body: {
       type: "ownership_query",
       query: "Which launch room owns BR merchant payout delays after go-live?",
@@ -763,6 +807,8 @@ export const networkThreadMessagesFixture: NetworkThreadMessage[] = [
     timestamp: "2026-04-17T17:58:00Z",
   },
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     body: {
       state: "running",
       message: "CDN invalidate for the hero rollout is running in São Paulo and Querétaro POPs.",
@@ -780,6 +826,8 @@ export const networkThreadMessagesFixture: NetworkThreadMessage[] = [
     trace_id: "trace_cdn_441",
   },
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     body: {
       status: "ack",
       for_id: "msg_launch_006",
@@ -796,6 +844,8 @@ export const networkThreadMessagesFixture: NetworkThreadMessage[] = [
     timestamp: "2026-04-17T18:00:00Z",
   },
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     body: {
       capability: {
         id: "tools",
@@ -857,6 +907,8 @@ export const networkThreadMessagesFixture: NetworkThreadMessage[] = [
     "BR timeout copy is approved if we avoid guaranteed-settlement wording and keep the fallback ETA generic."
   ),
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     body: {
       state: "progress",
       message:
@@ -876,6 +928,8 @@ export const networkThreadMessagesFixture: NetworkThreadMessage[] = [
     trace_id: "trace_canary_882",
   },
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     body: {
       status: "staged",
       for_id: "msg_launch_015",
@@ -910,6 +964,8 @@ export const networkThreadMessagesFixture: NetworkThreadMessage[] = [
     "Burn impact is flat. Refund reserve buffer remains inside policy even if BR opens five minutes late."
   ),
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     body: {
       type: "ownership_query",
       query: "Who owns MX cashback wording on the landing page after the hero update ships?",
@@ -947,6 +1003,8 @@ export const networkThreadMessagesFixture: NetworkThreadMessage[] = [
     }
   ),
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     body: {
       status: "ready",
       for_id: "trace_canary_882",
@@ -964,6 +1022,8 @@ export const networkThreadMessagesFixture: NetworkThreadMessage[] = [
     timestamp: "2026-04-17T18:13:00Z",
   },
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     body: {
       state: "done",
       message:
@@ -1170,6 +1230,8 @@ export const createNetworkChannelFixture: CreateNetworkChannelResponse = {
 
 export const networkThreadsFixture: NetworkThreadSummary[] = [
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     channel: storyHeroNetworkChannel,
     last_activity_at: "2026-04-17T18:16:00Z",
     last_message_preview:
@@ -1185,6 +1247,8 @@ export const networkThreadsFixture: NetworkThreadSummary[] = [
     title: "Launch command brief",
   },
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     channel: storyHeroNetworkChannel,
     last_activity_at: "2026-04-17T18:11:00Z",
     last_message_preview:
@@ -1202,6 +1266,8 @@ export const networkThreadsFixture: NetworkThreadSummary[] = [
 ];
 
 export const networkThreadDetailFixture: NetworkThreadDetail = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   channel: storyHeroNetworkChannel,
   last_activity_at: "2026-04-17T18:16:00Z",
   last_message_preview:
@@ -1229,6 +1295,8 @@ export const networkThreadDetailFixture: NetworkThreadDetail = {
 
 export const networkDirectRoomsFixture: NetworkDirectRoomSummary[] = [
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     channel: storyHeroNetworkChannel,
     direct_id: "direct_story_launch_corridor",
     last_activity_at: "2026-04-17T18:12:00Z",
@@ -1243,6 +1311,8 @@ export const networkDirectRoomsFixture: NetworkDirectRoomSummary[] = [
 ];
 
 export const networkDirectRoomDetailFixture: NetworkDirectRoomDetail = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   workspace_id: storyWorkspaceIds.hq,
   channel: storyHeroNetworkChannel,
   direct_id: "direct_story_launch_corridor",
@@ -1257,6 +1327,8 @@ export const networkDirectRoomDetailFixture: NetworkDirectRoomDetail = {
 };
 
 export const networkWorkFixture: NetworkWorkDetail = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   channel: storyHeroNetworkChannel,
   direct_id: "direct_story_launch_corridor",
   last_activity_at: "2026-04-17T18:12:00Z",

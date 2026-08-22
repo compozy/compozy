@@ -4,6 +4,8 @@
 // Boundary IN: task/profile Query projections, active workspace, and template route search.
 // Boundary OUT: mutations and the presentational editor surface.
 import { act, renderHook } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const editorMocks = vi.hoisted(() => ({
@@ -94,10 +96,18 @@ beforeEach(() => {
   editorMocks.activeWorkspaceOptions = undefined;
 });
 
+/** The create flow resolves the acting profile, which is a server read. */
+function wrapper() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return ({ children }: { children: ReactNode }) =>
+    createElement(QueryClientProvider, { client: queryClient }, children);
+}
+
 describe("task editor state identity", () => {
   it("Should disable create scope observers while preserving the cached draft", () => {
-    const { result } = renderHook(() =>
-      useTaskCreateState({}, vi.fn(), { liveDataEnabled: false })
+    const { result } = renderHook(
+      () => useTaskCreateState({}, vi.fn(), { liveDataEnabled: false }),
+      { wrapper: wrapper() }
     );
 
     expect(editorMocks.activeWorkspaceOptions).toEqual({ enabled: false });
@@ -106,7 +116,7 @@ describe("task editor state identity", () => {
 
   it("Should keep an unresolved workspace draft out of Global scope and block submission", async () => {
     editorMocks.activeWorkspaceId = null;
-    const { result } = renderHook(() => useTaskCreateState({}, vi.fn()));
+    const { result } = renderHook(() => useTaskCreateState({}, vi.fn()), { wrapper: wrapper() });
     const draft = { ...result.current.draft, title: "Wait for workspace" };
 
     expect(result.current.isScopeResolving).toBe(true);
@@ -124,7 +134,7 @@ describe("task editor state identity", () => {
         renderedTitles.push(state.draft.title);
         return state;
       },
-      { initialProps: { template: "one_shot" } }
+      { initialProps: { template: "one_shot" }, wrapper: wrapper() }
     );
 
     act(() => {
@@ -156,7 +166,9 @@ describe("task editor state identity", () => {
       status: "ready" as const,
       template: "one_shot" as const,
     };
-    const { result } = renderHook(() => useTaskCreateState(search, navigate));
+    const { result } = renderHook(() => useTaskCreateState(search, navigate), {
+      wrapper: wrapper(),
+    });
 
     act(() => {
       result.current.handleTemplateChange("human_in_loop");
@@ -175,7 +187,7 @@ describe("task editor state identity", () => {
         resolveCreate = resolve;
       })
     );
-    const { result } = renderHook(() => useTaskCreateState({}, vi.fn()));
+    const { result } = renderHook(() => useTaskCreateState({}, vi.fn()), { wrapper: wrapper() });
     const draft = { ...result.current.draft, title: "Single submission" };
 
     let first: ReturnType<typeof result.current.handleSubmit> | undefined;
@@ -205,7 +217,7 @@ describe("task editor state identity", () => {
     const { result, rerender } = renderHook(
       ({ template }: { template: "one_shot" | "human_in_loop" }) =>
         useTaskCreateState({ template }, vi.fn()),
-      { initialProps: { template: "one_shot" } }
+      { initialProps: { template: "one_shot" }, wrapper: wrapper() }
     );
     const draft = { ...result.current.draft, title: "Single submission" };
 
@@ -234,7 +246,9 @@ describe("task editor state identity", () => {
         resolveUpdate = resolve;
       })
     );
-    const { result } = renderHook(() => useTaskEditState("task_alpha", vi.fn()));
+    const { result } = renderHook(() => useTaskEditState("task_alpha", vi.fn()), {
+      wrapper: wrapper(),
+    });
     const draft = { ...result.current.draft, title: "Saved once" };
 
     let first: ReturnType<typeof result.current.handleSubmit> | undefined;

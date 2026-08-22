@@ -48,6 +48,8 @@ function createWrapper() {
 
 function makeSession(overrides: Partial<SessionPayload> = {}): SessionPayload {
   return {
+    profile_name: "default",
+    profile_id: "00000000000000000000000000",
     id: "sess-001",
     agent_name: "claude-agent",
     runtime: {
@@ -96,8 +98,10 @@ describe("useSessions", () => {
 
     expect(result.current.data?.[0]?.runtime.effective?.provider).toBe("claude");
     expect(result.current.total).toBe(1);
+    // Every session read carries its profile scope: the daemon has exactly two
+    // read modes and an omitted scope silently resolves to `default`.
     expect(fetchSessions).toHaveBeenCalledWith(
-      { workspace_id: "ws_alpha" },
+      { profile: "default", workspace_id: "ws_alpha" },
       expect.any(AbortSignal)
     );
   });
@@ -141,6 +145,7 @@ describe("useSessions", () => {
       {
         agent: "claude-agent",
         limit: 1,
+        profile: "default",
         sort: "last_activity",
         workspace_id: "ws_alpha",
       },
@@ -152,6 +157,7 @@ describe("useSessions", () => {
         agent: "claude-agent",
         cursor: "cursor-1",
         limit: 1,
+        profile: "default",
         sort: "last_activity",
         workspace_id: "ws_alpha",
       },
@@ -166,6 +172,7 @@ describe("useSessions", () => {
       sessionKeys.list({
         agent: "claude-agent",
         limit: 1,
+        profile: "default",
         sort: "last_activity",
         workspace_id: "ws_alpha",
       })
@@ -292,6 +299,8 @@ function createWrapperWithClient(queryClient: QueryClient) {
 describe("useSession", () => {
   it("loads a single session detail", async () => {
     vi.mocked(fetchSession).mockResolvedValue({
+      profile_id: "00000000000000000000000000",
+      profile_name: "default",
       id: "sess-001",
       agent_name: "claude-agent",
       runtime: {

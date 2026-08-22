@@ -62,6 +62,8 @@ describe("automation mutation hooks", () => {
 
   it("invalidates job and run queries after triggering a job", async () => {
     vi.mocked(triggerAutomationJob).mockResolvedValue({
+      profile_id: "00000000000000000000000000",
+      profile_name: "default",
       id: "run_queued",
       attempt: 1,
       status: "running",
@@ -128,8 +130,11 @@ describe("automation mutation hooks", () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
+    // The acting profile rides the create call; omitting it would file every
+    // web-created job into `default` whatever profile the operator is in.
     expect(createAutomationJob).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "nightly-docs" })
+      expect.objectContaining({ name: "nightly-docs" }),
+      "default"
     );
     expect(invalidateSpy).toHaveBeenNthCalledWith(1, { queryKey: ["automation", "jobs"] });
     expect(invalidateSpy).toHaveBeenNthCalledWith(2, { queryKey: ["automation", "runs"] });
@@ -258,7 +263,8 @@ describe("automation mutation hooks", () => {
     });
 
     expect(createAutomationTrigger).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "push-review" })
+      expect.objectContaining({ name: "push-review" }),
+      "default"
     );
     expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
       queryKey: ["automation", "triggers"],

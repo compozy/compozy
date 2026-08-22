@@ -2,8 +2,11 @@
 // Invariant: a run-form draft belongs to exactly one workspace-and-loop scope; when
 // that identity changes, the next scope receives its own baseline instead of the old draft.
 // Owning layer: hook integration. Canonical suite: this file (no existing run-form-state suite).
-import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const notifyUser = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/user-feedback", () => ({ notifyUser }));
 
 import { LoopInputValidationError } from "../../adapters/loops-api";
 import { loopEffectiveConfigFixture } from "../../mocks/fixtures";
@@ -65,6 +68,7 @@ describe("useLoopRunFormState", () => {
       scope: { loopName: "delivery", workspaceId: "workspace-alpha" },
     });
     store.trigger.runRequested({
+      announceOwner: false,
       execute: () => new Promise<never>(() => undefined),
       loopName: "delivery",
     });
@@ -143,5 +147,63 @@ describe("useLoopRunFormState", () => {
       channelStrategy: "named",
     });
     expect(result.current.networkParticipationOverridden).toBe(false);
+  });
+
+  describe("run confirmation", () => {
+    beforeEach(() => {
+      notifyUser.mockClear();
+    });
+
+    function runStore() {
+      return loopRunFormLogic.createStore({
+        effectiveConfig: loopEffectiveConfigFixture,
+        networkParticipation: { channelId: "", channelStrategy: "", mode: "local" },
+        schema,
+        scope: { loopName: "delivery", workspaceId: "workspace-alpha" },
+      });
+    }
+
+    it("Should name the owner the daemon returned when the aggregate is on", async () => {
+      const store = runStore();
+      // The request acted as `default`; the daemon filed the run under
+      // `marketing`. Echoing the request would hide exactly that.
+      store.trigger.runRequested({
+        announceOwner: true,
+        execute: async () => ({ run: { id: "run_9", profile_name: "marketing" } }) as never,
+        loopName: "delivery",
+      });
+
+      await waitFor(() =>
+        expect(notifyUser).toHaveBeenCalledWith({
+          message: "Run started · run_9 Created in marketing.",
+          tone: "success",
+        })
+      );
+    });
+
+    it("Should claim no owner under a scoped view", async () => {
+      const store = runStore();
+      store.trigger.runRequested({
+        announceOwner: false,
+        execute: async () => ({ run: { id: "run_9", profile_name: "marketing" } }) as never,
+        loopName: "delivery",
+      });
+
+      await waitFor(() =>
+        expect(notifyUser).toHaveBeenCalledWith({ message: "Run started · run_9", tone: "success" })
+      );
+    });
+
+    it("Should never claim an owner for a dry run", async () => {
+      const store = runStore();
+      // A dry run creates nothing, so the response carries no run and there is
+      // no owner to name — saying otherwise would be a lie about durable state.
+      store.trigger.dryRunRequested({ execute: async () => ({ dry_run: plan }) as never });
+
+      await waitFor(() => expect(notifyUser).toHaveBeenCalled());
+      const [[feedback]] = notifyUser.mock.calls;
+      expect(feedback.message).toBe("Dry run passed — inputs valid, plan rendered");
+      expect(feedback.message).not.toContain("Created in");
+    });
   });
 });

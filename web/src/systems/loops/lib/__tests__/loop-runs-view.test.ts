@@ -17,6 +17,8 @@ const NOW = new Date("2026-07-05T20:00:00Z");
 
 function run(overrides: Partial<LoopRun> & Pick<LoopRun, "id" | "status">): LoopRun {
   return {
+    profile_name: "default",
+    profile_id: "00000000000000000000000000",
     workspace_id: "ws",
     loop_name: "implement-tasks",
     completion_state: "complete",

@@ -28,6 +28,7 @@ const CLIENT = "client-1";
 
 function catalog(revision: string, titles: readonly string[]): CmdPaletteCatalogResponse {
   return {
+    profile_lens: { profile_lens_id: "00000000000000000000000000", profile_name: "default" },
     catalog_revision: revision,
     context_revision: "9",
     commands: titles.map(title => ({
@@ -66,7 +67,7 @@ function harness() {
 
 describe("useCmdPaletteCatalog (UT-095)", () => {
   beforeEach(async () => {
-    await dropCatalogRecord(WORKSPACE);
+    await dropCatalogRecord(WORKSPACE, "default");
   });
 
   afterEach(() => {
@@ -74,7 +75,9 @@ describe("useCmdPaletteCatalog (UT-095)", () => {
   });
 
   it("Should render the last-known catalog before the daemon answers, then reconcile to the fetched revision", async () => {
-    await writeCatalogRecord(toCatalogRecord(WORKSPACE, catalog("sha256:cached", ["Cached row"])));
+    await writeCatalogRecord(
+      toCatalogRecord(WORKSPACE, "default", catalog("sha256:cached", ["Cached row"]))
+    );
     let release: (value: CmdPaletteCatalogResponse) => void = () => {};
     vi.spyOn(api, "listCmdPaletteCommands").mockReturnValue(
       new Promise<CmdPaletteCatalogResponse>(resolve => {
@@ -107,9 +110,11 @@ describe("useCmdPaletteCatalog (UT-095)", () => {
     const { result } = harness();
     await waitFor(() => expect(result.current.daemonReachable).toBe(true));
     await waitFor(async () =>
-      expect((await readCatalogRecord(WORKSPACE))?.catalogRevision).toBe("sha256:persisted")
+      expect((await readCatalogRecord(WORKSPACE, "default"))?.catalogRevision).toBe(
+        "sha256:persisted"
+      )
     );
-    const stored = await readCatalogRecord(WORKSPACE);
+    const stored = await readCatalogRecord(WORKSPACE, "default");
     for (const command of stored?.commands ?? []) {
       expect(command).not.toHaveProperty("available");
       expect(command).not.toHaveProperty("reason");
@@ -117,7 +122,9 @@ describe("useCmdPaletteCatalog (UT-095)", () => {
   });
 
   it("Should keep the cached catalog and report the daemon unreachable when the fetch fails", async () => {
-    await writeCatalogRecord(toCatalogRecord(WORKSPACE, catalog("sha256:cached", ["Cached row"])));
+    await writeCatalogRecord(
+      toCatalogRecord(WORKSPACE, "default", catalog("sha256:cached", ["Cached row"]))
+    );
     vi.spyOn(api, "listCmdPaletteCommands").mockRejectedValue(
       new CmdPaletteApiError("Command palette unavailable", 503, "daemon")
     );
@@ -153,5 +160,35 @@ describe("useCmdPaletteCatalog (UT-095)", () => {
     expect(result.current.catalog).toBeNull();
     expect(result.current.stale).toBe(false);
     expect(result.current.daemonReachable).toBe(false);
+  });
+
+  it("Should never hydrate one profile's catalog into another (IT-091)", async () => {
+    // Marketing's offline record exists; default's does not. Entering default
+    // must render nothing cached rather than Marketing's rows.
+    await writeCatalogRecord(
+      toCatalogRecord(WORKSPACE, "marketing", catalog("sha256:marketing", ["Marketing row"]))
+    );
+    vi.spyOn(api, "listCmdPaletteCommands").mockRejectedValue(
+      new CmdPaletteApiError("Command palette unavailable", 503, "daemon")
+    );
+    const { result } = harness();
+    await waitFor(() => expect(result.current.hydrating).toBe(false));
+    expect(result.current.catalog).toBeNull();
+
+    // The record is still there for the profile that wrote it.
+    await expect(readCatalogRecord(WORKSPACE, "marketing")).resolves.toMatchObject({
+      catalogRevision: "sha256:marketing",
+      profileKey: "marketing",
+    });
+    await dropCatalogRecord(WORKSPACE, "marketing");
+  });
+
+  it("Should send the profile lens with every catalog read (IT-091)", async () => {
+    const list = vi
+      .spyOn(api, "listCmdPaletteCommands")
+      .mockResolvedValue(catalog("sha256:live", ["Live row"]));
+    const { result } = harness();
+    await waitFor(() => expect(result.current.daemonReachable).toBe(true));
+    expect(list).toHaveBeenCalledWith(WORKSPACE, "default", CLIENT, expect.any(AbortSignal));
   });
 });

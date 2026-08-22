@@ -49,6 +49,8 @@ export const tasksKeys = {
       normalizeText(normalized.query),
       normalizeText(normalized.sort),
       normalizeNumber(normalized.limit),
+      normalizeText(normalized.profile),
+      normalizeFlag(normalized.all_profiles),
     ] as const;
   },
 
@@ -95,6 +97,9 @@ export const tasksKeys = {
       normalizeText(filters.owner_ref),
       normalizeText(filters.participation_channel),
       normalizeText(filters.origin_kind),
+      // The profile axis: a dashboard scoped to one profile is not the machine's.
+      normalizeText(filters.profile),
+      normalizeFlag(filters.all_profiles),
     ] as const,
 
   inboxRoot: () => [...tasksKeys.all, "inbox"] as const,
@@ -113,6 +118,8 @@ export const tasksKeys = {
       normalizeFlag(normalized.unread),
       normalizeText(normalized.query),
       normalizeNumber(normalized.limit),
+      normalizeText(normalized.profile),
+      normalizeFlag(normalized.all_profiles),
     ] as const;
   },
 

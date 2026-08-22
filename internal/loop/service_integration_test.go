@@ -70,7 +70,7 @@ func TestServiceIntegrationShouldPersistConfigureAndReflectEffectiveConfig(t *te
 			t.Fatalf("Configure() error = %v", err)
 		}
 
-		run, err := svc.Start(ctx, "ws-1", "valid-loop", loop.Inputs{
+		run, err := svc.Start(ctx, "ws-1", "valid-loop", loop.Inputs{ProfileID: store.DefaultProfileID,
 			Values: map[string]any{"tasks": "task-ref"},
 		}, humanActor(t))
 		if err != nil {
@@ -85,7 +85,7 @@ func TestServiceIntegrationShouldPersistConfigureAndReflectEffectiveConfig(t *te
 			)
 		}
 
-		preview, err := svc.DryRun(ctx, "ws-1", "valid-loop", loop.Inputs{
+		preview, err := svc.DryRun(ctx, "ws-1", "valid-loop", loop.Inputs{ProfileID: store.DefaultProfileID,
 			Values: map[string]any{"tasks": "task-ref"},
 		})
 		if err != nil {
@@ -110,7 +110,7 @@ func TestServiceIntegrationDryRunShouldCreateNoState(t *testing.T) {
 
 		loopRunsBefore := countRows(ctx, t, globalDB, "loop_runs")
 		taskRunsBefore := countRows(ctx, t, globalDB, "task_runs")
-		preview, err := svc.DryRun(ctx, "ws-1", "valid-loop", loop.Inputs{
+		preview, err := svc.DryRun(ctx, "ws-1", "valid-loop", loop.Inputs{ProfileID: store.DefaultProfileID,
 			Values: map[string]any{"tasks": "task-ref"},
 		})
 		if err != nil {
@@ -176,7 +176,7 @@ func TestServiceIntegrationExecutedDefinitionSnapshot(t *testing.T) {
 		svc := newIntegrationService(t, globalDB, definition)
 		ctx := testutil.Context(t)
 
-		run, err := svc.Start(ctx, "ws-1", "valid-loop", loop.Inputs{
+		run, err := svc.Start(ctx, "ws-1", "valid-loop", loop.Inputs{ProfileID: store.DefaultProfileID,
 			Values: map[string]any{"slug": "issue-313"},
 		}, humanActor(t))
 		if err != nil {
@@ -222,7 +222,7 @@ func TestServiceIntegrationParticipationShouldPersistOneSnapshotPerLoopRun(t *te
 		insertLoopServiceWorkspace(t, globalDB, "ws-1")
 		svc := newIntegrationService(t, globalDB, validDefinition())
 		ctx := testutil.Context(t)
-		inputs := loop.Inputs{Values: map[string]any{"tasks": "task-ref"}}
+		inputs := loop.Inputs{ProfileID: store.DefaultProfileID, Values: map[string]any{"tasks": "task-ref"}}
 		preview, err := svc.DryRun(ctx, "ws-1", "valid-loop", inputs)
 		if err != nil {
 			t.Fatalf("DryRun() error = %v", err)
@@ -265,7 +265,7 @@ func TestServiceIntegrationParticipationShouldPersistOneSnapshotPerLoopRun(t *te
 			loop.WithParticipationResolver(resolver),
 		)
 		ctx := testutil.Context(t)
-		inputs := loop.Inputs{Values: map[string]any{"tasks": "task-ref"}}
+		inputs := loop.Inputs{ProfileID: store.DefaultProfileID, Values: map[string]any{"tasks": "task-ref"}}
 		if _, err := svc.DryRun(ctx, "ws-1", "valid-loop", inputs); err != nil {
 			t.Fatalf("DryRun() error = %v", err)
 		}

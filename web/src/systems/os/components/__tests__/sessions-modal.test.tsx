@@ -26,6 +26,8 @@ vi.mock("../../hooks/use-attention-jump", () => ({
 
 function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
   return {
+    profile_name: "default",
+    profile_id: "00000000000000000000000000",
     id: "session-1",
     name: "Web shell polish",
     agent_name: "codex",
@@ -75,6 +77,9 @@ function listView(overrides: Partial<SessionListViewModel> = {}): SessionListVie
     setSort: vi.fn(),
     setArchived: vi.fn(),
     workspaceGroups: [],
+    aggregate: false,
+    scopeLabel: "default",
+    ownerOf: () => ({ id: "00000000000000000000000000", name: "default", archived: false }),
     collapsedWorkspaceIds: new Set<string>(),
     toggleWorkspace: vi.fn(),
     ...overrides,

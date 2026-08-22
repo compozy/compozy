@@ -5,6 +5,7 @@ import { StorySurface } from "@/storybook/story-layout";
 import { LoopRunsView } from "../runs/loop-runs-view";
 import type { LoopOutcomeValue } from "../../lib/loop-runs-view";
 import { loopRunFixtures } from "../../mocks/fixtures";
+import { scopedListingScopeFixture } from "@/systems/profiles/mocks";
 
 const meta: Meta<typeof LoopRunsView> = {
   title: "systems/loops/components/LoopRuns",
@@ -21,6 +22,7 @@ function RunsHarness({ outcome = "all" }: { outcome?: LoopOutcomeValue }) {
     <StorySurface className="p-8">
       <div className="mx-auto max-w-[1320px]">
         <LoopRunsView
+          profile={scopedListingScopeFixture}
           outcome={outcome}
           pendingRequestCounts={pendingRequestCounts}
           runs={loopRunFixtures}

@@ -35,6 +35,8 @@ type SessionFixtureInput = Omit<SessionPayload, "pending_interactions"> & {
 
 const sessionFixtureRows: SessionFixtureInput[] = [
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     id: storySessionIds.frontend,
     name: "Landing page launch QA",
     agent_name: storyAgentNames.frontend,
@@ -79,6 +81,8 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     updated_at: "2026-04-17T18:09:00Z",
   },
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     id: storySessionIds.cto,
     name: "Executive launch review",
     agent_name: storyAgentNames.cto,
@@ -111,6 +115,8 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     updated_at: "2026-04-17T18:11:00Z",
   },
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     id: storySessionIds.cfo,
     name: "Launch revenue watch",
     agent_name: storyAgentNames.cfo,
@@ -143,6 +149,8 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     updated_at: "2026-04-17T18:13:00Z",
   },
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     id: storySessionIds.product,
     name: "Launch room command brief",
     agent_name: storyAgentNames.product,
@@ -163,6 +171,8 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     updated_at: "2026-04-17T18:14:00Z",
   },
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     id: storySessionIds.marketing,
     name: "CRM launch timing",
     agent_name: storyAgentNames.marketing,
@@ -182,6 +192,8 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     updated_at: "2026-04-17T17:58:00Z",
   },
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     id: storySessionIds.copywriter,
     name: "Headline claim polish",
     agent_name: storyAgentNames.copywriter,
@@ -201,6 +213,8 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     updated_at: "2026-04-17T18:06:00Z",
   },
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     id: storySessionIds.support,
     name: "Launch support swarm",
     agent_name: storyAgentNames.support,
@@ -220,6 +234,8 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     updated_at: "2026-04-17T18:08:00Z",
   },
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     id: storySessionIds.fraud,
     name: "Reserve spike monitor",
     agent_name: storyAgentNames.fraud,
@@ -239,6 +255,8 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     updated_at: "2026-04-17T18:07:00Z",
   },
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     id: storySessionIds.compliance,
     name: "Claim compliance review",
     agent_name: storyAgentNames.compliance,
@@ -258,6 +276,8 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     updated_at: "2026-04-17T18:04:00Z",
   },
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     id: storySessionIds.release,
     name: "Release control canary",
     agent_name: storyAgentNames.release,
@@ -277,6 +297,8 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     updated_at: "2026-04-17T18:03:00Z",
   },
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     id: storySessionIds.platform,
     name: "Partner webhook stability",
     agent_name: storyAgentNames.platform,
@@ -305,12 +327,16 @@ export const sessionFixtures: SessionPayload[] = sessionFixtureRows.map(session 
 export const primarySessionFixture: SessionPayload = sessionFixtures[0]!;
 
 export const sessionCatalogChangedFixture: SessionCatalogEventPayload = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   kind: "upserted",
   session_id: storySessionIds.cto,
   workspace_id: storyWorkspaceIds.hq,
 };
 
 export const sessionAttentionChangedFixture: SessionAttentionEventPayload = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   session_id: storySessionIds.cto,
   workspace_id: storyWorkspaceIds.hq,
   from: "running",
@@ -320,6 +346,8 @@ export const sessionAttentionChangedFixture: SessionAttentionEventPayload = {
 };
 
 export const operatorNotificationFixture: OperatorNotificationEventPayload = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   notification_id: "ntf_story_launch_ready",
   session_id: storySessionIds.cto,
   workspace_id: storyWorkspaceIds.hq,

@@ -137,7 +137,11 @@ export function portsFixture(overrides: Partial<PaletteDispatchPorts> = {}) {
       navigate: context.navigate,
       openUrl: context.openUrl,
     },
-    invoke: vi.fn(async () => ({ status: "ok", invocation_id: "inv-fixture" })),
+    invoke: vi.fn(async () => ({
+      status: "ok",
+      invocation_id: "inv-fixture",
+      profile_lens: { profile_lens_id: "00000000000000000000000000", profile_name: "default" },
+    })),
     navigate: vi.fn(),
     pushView: vi.fn(),
     openUrl: vi.fn(),

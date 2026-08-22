@@ -43,6 +43,7 @@ func (e *RunLoopActionExecutor) Execute(
 		spec.Mode = dsl.RunLoopAwait
 	}
 	child, err := e.starter.Start(runCtx, in.WorkspaceID, spec.Loop, Inputs{
+		ProfileID:            in.ToolScope.ProfileID,
 		Values:               spec.Inputs,
 		ParentLoopRunID:      in.LoopRunID,
 		InheritedEnvironment: cloneEnvironmentSpec(in.EnvironmentValue()),

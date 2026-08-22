@@ -95,7 +95,8 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 			t.Fatalf("started Goal snapshot = %#v", started.Result.Snapshot)
 		}
 		first := fixture.mustRun(t, started.Result.Snapshot.RunID)
-		if first.StartedBy.Kind != taskpkg.ActorKindHuman || first.StartedBy.Ref != "operator" ||
+		if first.ProfileID != store.DefaultProfileID ||
+			first.StartedBy.Kind != taskpkg.ActorKindHuman || first.StartedBy.Ref != "operator" ||
 			first.StartedOrigin.Kind != taskpkg.OriginKindHTTP || first.Origin.CreationProfileRef != fixture.profileRef {
 			t.Fatalf("started Goal identity = %#v", first)
 		}

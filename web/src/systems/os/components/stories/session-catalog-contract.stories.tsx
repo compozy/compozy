@@ -11,6 +11,8 @@ import { SessionList } from "@/systems/session/components/session-list/session-l
 
 function session(id: string, title: string, workspaceId: string): SessionPayload {
   return {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     id,
     name: title,
     agent_name: "codex",
@@ -75,6 +77,9 @@ function SessionCatalogContract({ state }: { state: CatalogState }) {
     setScope: fn(),
     setSort: fn(),
     setArchived: fn(),
+    aggregate: false,
+    scopeLabel: "default",
+    ownerOf: () => ({ id: "00000000000000000000000000", name: "default", archived: false }),
     workspaceGroups,
     collapsedWorkspaceIds: state === "group-collapsed" ? new Set(["workspace-infra"]) : new Set(),
     toggleWorkspace: fn(),

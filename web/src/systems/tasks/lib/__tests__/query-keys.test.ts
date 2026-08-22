@@ -32,6 +32,7 @@ describe("tasksKeys", () => {
         sort: "priority",
         cursor: "ignored-cursor",
         limit: 50,
+        profile: "marketing",
       })
     ).toEqual([
       "tasks",
@@ -52,6 +53,8 @@ describe("tasksKeys", () => {
       "review",
       "priority",
       "50",
+      "marketing",
+      "",
     ]);
 
     expect(tasksKeys.list()).toEqual([
@@ -71,7 +74,18 @@ describe("tasksKeys", () => {
       "",
       "",
       "",
+      "",
+      "",
     ]);
+
+    // Two profiles reading one workspace are two catalogs; the aggregate is a
+    // third, and never `default`'s.
+    expect(tasksKeys.list({ profile: "marketing" })).not.toEqual(
+      tasksKeys.list({ profile: "default" })
+    );
+    expect(tasksKeys.list({ all_profiles: true })).not.toEqual(
+      tasksKeys.list({ profile: "default" })
+    );
 
     expect(tasksKeys.list({ scope: "workspace", sort: "recent", cursor: "first" })).toEqual(
       tasksKeys.list({ scope: "workspace", sort: "recent", cursor: "second" })
@@ -103,7 +117,7 @@ describe("tasksKeys", () => {
   it("serializes dashboard and inbox filters stably", () => {
     expect(
       tasksKeys.dashboard({ scope: "workspace", workspace: "ws_alpha", worktree: "wt_alpha" })
-    ).toEqual(["tasks", "dashboard", "workspace", "ws_alpha", "wt_alpha", "", "", "", ""]);
+    ).toEqual(["tasks", "dashboard", "workspace", "ws_alpha", "wt_alpha", "", "", "", "", "", ""]);
 
     expect(
       tasksKeys.inbox({
@@ -131,6 +145,8 @@ describe("tasksKeys", () => {
       "1",
       "",
       "20",
+      "",
+      "",
     ]);
     expect(tasksKeys.inbox({ lane: "approvals", cursor: "first" })).toEqual(
       tasksKeys.inbox({ lane: "approvals", cursor: "second" })
@@ -140,6 +156,14 @@ describe("tasksKeys", () => {
     );
     expect(tasksKeys.inbox({ worktree: "wt_alpha" })).not.toEqual(
       tasksKeys.inbox({ worktree: "wt_beta" })
+    );
+    // The dashboard and inbox are profile-owned reads too, so the lens separates
+    // them the same way the workspace does.
+    expect(tasksKeys.dashboard({ profile: "marketing" })).not.toEqual(
+      tasksKeys.dashboard({ profile: "default" })
+    );
+    expect(tasksKeys.inbox({ all_profiles: true })).not.toEqual(
+      tasksKeys.inbox({ profile: "default" })
     );
   });
 

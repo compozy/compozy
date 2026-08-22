@@ -4,10 +4,17 @@ import { taskDetailOptions, taskRunsOptions, tasksListOptions } from "../lib/que
 import { readTaskListData } from "../lib/task-list-query";
 import type { TaskListFilter, TaskRunsFilter } from "../types";
 import { type TaskQueryHookOptions, withTaskQueryHookOptions } from "./task-query-hook-options";
+import { useProfileReadScope } from "@/systems/profiles";
 
 export function useTasks(filters: TaskListFilter = {}, options: TaskQueryHookOptions = {}) {
+  // Scope is applied at the one hook every task list goes through, so a switch
+  // moves every consumer together and the key partitions by profile for free.
+  const { params } = useProfileReadScope();
   const query = useInfiniteQuery(
-    withTaskQueryHookOptions(tasksListOptions(filters, options.enabled ?? true), options)
+    withTaskQueryHookOptions(
+      tasksListOptions({ ...filters, ...params }, options.enabled ?? true),
+      options
+    )
   );
   const catalog = readTaskListData(query.data);
   return {

@@ -4,6 +4,7 @@ import { useSelector } from "@xstate/store-react";
 import { useStoreBinding } from "@/hooks/use-store-binding";
 import type { NetworkParticipationDraft } from "@/lib/network-participation";
 import { notifyUser } from "@/lib/user-feedback";
+import { createdInProfileToast } from "@/systems/profiles";
 
 import { LoopInputValidationError } from "../adapters/loops-api";
 import { initialOverrideDraft, type LoopOverrideDraft } from "../lib/loop-overrides";
@@ -46,8 +47,16 @@ type LoopRunFormEvents = {
   networkParticipationChanged: { draft: NetworkParticipationDraft };
   overridesChanged: { overrides: LoopOverrideDraft };
   runFailed: { attempt: number; error: unknown; loopName: string };
-  runRequested: { execute: () => Promise<RunLoopResult>; loopName: string };
-  runSucceeded: { attempt: number; runId?: string };
+  runRequested: {
+    /**
+     * Whether the confirmation should name the run's owner. Only the aggregate
+     * needs it: a scoped view already says whose runs these are.
+     */
+    announceOwner: boolean;
+    execute: () => Promise<RunLoopResult>;
+    loopName: string;
+  };
+  runSucceeded: { attempt: number; ownerProfile?: string; runId?: string };
   submissionAttempted: {};
 };
 
@@ -194,7 +203,14 @@ export const loopRunFormLogic = createStoreLogic<
       enqueue.effect(async ({ trigger }) => {
         try {
           const result = await event.execute();
-          trigger.runSucceeded({ attempt, runId: result.run?.id });
+          trigger.runSucceeded({
+            attempt,
+            // The owner the daemon returned, never the one we asked for: an
+            // echoed request would keep saying "default" even if the run was
+            // filed elsewhere, which is the misfile this exists to surface.
+            ownerProfile: event.announceOwner ? result.run?.profile_name : undefined,
+            runId: result.run?.id,
+          });
         } catch (error) {
           trigger.runFailed({ attempt, error, loopName: event.loopName });
         }
@@ -213,9 +229,12 @@ export const loopRunFormLogic = createStoreLogic<
       ) {
         return;
       }
+      const started = event.runId ? `Run started · ${event.runId}` : "Run started";
       enqueue.effect(() =>
         notifyUser({
-          message: event.runId ? `Run started · ${event.runId}` : "Run started",
+          message: event.ownerProfile
+            ? `${started} ${createdInProfileToast(event.ownerProfile)}`
+            : started,
           tone: "success",
         })
       );
@@ -265,8 +284,8 @@ export function useLoopRunFormState(input: LoopRunFormStateInput) {
     markSubmissionAttempted: () => store.trigger.submissionAttempted(),
     requestDryRun: (execute: () => Promise<RunLoopResult>) =>
       store.trigger.dryRunRequested({ execute }),
-    requestRun: (loopName: string, execute: () => Promise<RunLoopResult>) =>
-      store.trigger.runRequested({ execute, loopName }),
+    requestRun: (loopName: string, execute: () => Promise<RunLoopResult>, announceOwner = false) =>
+      store.trigger.runRequested({ announceOwner, execute, loopName }),
     store,
   };
 }

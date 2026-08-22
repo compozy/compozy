@@ -16,6 +16,7 @@ import { programViewContentForPhase } from "../lib/cmd-palette-program-content";
 import type { WindowManagerRegisteredClientView } from "../lib/window-manager-types";
 import type {
   CmdPaletteViewAction,
+  CmdPaletteViewEnvelope,
   CmdPaletteViewFrame,
   CmdPaletteViewSessionEvent,
 } from "../lib/cmd-palette-types";
@@ -42,11 +43,14 @@ import {
 } from "./use-cmd-palette-declarative-view";
 import type { CmdPaletteDispatch } from "./use-cmd-palette-dispatch";
 import { usePaletteRegistry } from "./use-palette-registry";
+import { useProfileReadScope } from "@/systems/profiles";
 
 interface ViewSessionIdentity {
   readonly epoch: number;
   readonly streamToken: string;
   readonly viewSession: string;
+  /** The profile lens the daemon resolved for this session, carried verbatim. */
+  readonly profileLens: CmdPaletteViewEnvelope["profile_lens"];
 }
 
 export interface CmdPaletteProgramViewModel extends CmdPaletteDeclarativeViewModel {
@@ -91,7 +95,11 @@ export function useCmdPaletteProgramView({
   } | null>(null);
   const attachmentToken = client?.attachmentToken ?? "";
   const programChrome = state.payload?.chrome;
-  const fallbackKey = `${runtimeWorkspaceId ?? ""}\u0000${viewId}\u0000${attachmentToken}`;
+  // The view-session identity gains the profile lens: a switch changes this
+  // string, which aborts the open, closes the session daemon-side, and reopens
+  // under the new lens — teardown and re-scope in one move (ADR-016).
+  const { destination, key: profileKey } = useProfileReadScope();
+  const fallbackKey = `${runtimeWorkspaceId ?? ""}\u0000${profileKey}\u0000${viewId}\u0000${attachmentToken}`;
   const declarative = declarativeKey === fallbackKey;
 
   useEffect(() => {
@@ -104,13 +112,21 @@ export function useCmdPaletteProgramView({
     }
     const controller = new AbortController();
     let opened: ViewSessionIdentity | null = null;
-    void openCmdPaletteViewSession(workspace, viewId, attachmentToken, {}, controller.signal)
+    void openCmdPaletteViewSession(
+      workspace,
+      destination,
+      viewId,
+      attachmentToken,
+      {},
+      controller.signal
+    )
       .then(response => {
         if (controller.signal.aborted) return;
         opened = {
           epoch,
           streamToken: response.stream_token,
           viewSession: response.view_session,
+          profileLens: response.profile_lens,
         };
         setSession(opened);
         store.trigger.openSucceeded({ frame: response.first_frame });
@@ -133,7 +149,17 @@ export function useCmdPaletteProgramView({
         });
       }
     };
-  }, [attachmentToken, fallbackKey, runtimeWorkspaceId, state.openEpoch, store, viewId]);
+    // `fallbackKey` carries the lens, so a switch aborts this open, closes the
+    // session daemon-side, and reopens under the new owner.
+  }, [
+    attachmentToken,
+    destination,
+    fallbackKey,
+    runtimeWorkspaceId,
+    state.openEpoch,
+    store,
+    viewId,
+  ]);
 
   useEffect(() => {
     if (!session || session.epoch !== state.openEpoch || declarative) return undefined;
@@ -271,9 +297,10 @@ export function useCmdPaletteProgramView({
     registry.commands.find(
       command => command.action.kind === "view" && command.action.view === viewId
     )?.title ?? viewId;
-  const envelope = state.payload
-    ? programViewEnvelope(viewId, title, state.frame!, state.payload)
-    : null;
+  const envelope =
+    state.payload && session
+      ? programViewEnvelope(viewId, title, state.frame!, state.payload, session.profileLens)
+      : null;
   const retry = () => {
     if (state.phase === "unavailable") {
       store.trigger.reopenRequested({});

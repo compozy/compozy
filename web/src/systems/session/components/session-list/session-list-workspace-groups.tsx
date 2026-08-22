@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import type { WorkspaceSessionGroup } from "../../hooks/use-workspace-session-groups";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import type { SessionPayload } from "../../types";
+import type { ProfileOwner, ProfileOwnerLabel } from "@/systems/profiles";
 import { SessionListRow } from "./session-list-row";
 
 function GroupNote({ children }: { children: React.ReactNode }) {
@@ -20,12 +21,14 @@ function GroupNote({ children }: { children: React.ReactNode }) {
 function GroupBody({
   group,
   currentSessionId,
+  ownerOf,
   onSelectSession,
   sessionActions,
   testIdPrefix,
 }: {
   group: WorkspaceSessionGroup;
   currentSessionId?: string;
+  ownerOf?: (session: ProfileOwnerLabel) => ProfileOwner;
   onSelectSession: (session: SessionPayload) => void;
   sessionActions: SessionLifecycleActionHandlers;
   testIdPrefix: string;
@@ -57,6 +60,7 @@ function GroupBody({
         <SessionListRow
           key={session.id}
           session={session}
+          owner={ownerOf?.(session)}
           current={session.id === currentSessionId}
           onSelect={() => onSelectSession(session)}
           sessionActions={sessionActions}
@@ -72,6 +76,8 @@ export interface SessionListWorkspaceGroupsProps {
   groups: readonly WorkspaceSessionGroup[];
   collapsedWorkspaceIds: ReadonlySet<string>;
   currentSessionId?: string;
+  /** Resolves each row's owner. Absent in a scoped list — no tags there. */
+  ownerOf?: (session: ProfileOwnerLabel) => ProfileOwner;
   onToggleWorkspace: (workspaceId: string) => void;
   onSelectSession: (session: SessionPayload) => void;
   sessionActions: SessionLifecycleActionHandlers;
@@ -88,6 +94,7 @@ export function SessionListWorkspaceGroups({
   groups,
   collapsedWorkspaceIds,
   currentSessionId,
+  ownerOf,
   onToggleWorkspace,
   onSelectSession,
   sessionActions,
@@ -123,6 +130,7 @@ export function SessionListWorkspaceGroups({
               <GroupBody
                 group={group}
                 currentSessionId={currentSessionId}
+                ownerOf={ownerOf}
                 onSelectSession={onSelectSession}
                 sessionActions={sessionActions}
                 testIdPrefix={testIdPrefix}

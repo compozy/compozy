@@ -93,6 +93,8 @@ function createWrapper(queryClient: QueryClient) {
 }
 
 const createdSession: SessionPayload = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   id: "sess-created",
   name: "Created session",
   agent_name: "claude-agent",
@@ -204,10 +206,15 @@ describe("session actions", () => {
       });
     });
 
-    expect(createSession).toHaveBeenCalledWith({
-      agent_name: createdSession.agent_name,
-      workspace: createdSession.workspace_id,
-    });
+    // The acting profile rides the create call: omitting it would file every
+    // web-created session into `default` regardless of the active profile.
+    expect(createSession).toHaveBeenCalledWith(
+      {
+        agent_name: createdSession.agent_name,
+        workspace: createdSession.workspace_id,
+      },
+      "default"
+    );
     expect(queryClient.getQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id))).toEqual(
       createdSession
     );

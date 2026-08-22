@@ -37,10 +37,7 @@ type LoopService interface {
 		ctx context.Context,
 		workspaceID string,
 		name string,
-		req contract.RunLoopRequest,
-		startKind dsl.StartKind,
-		actor taskpkg.ActorContext,
-		dry bool,
+		input LoopRunInput,
 	) (contract.RunLoopResponse, error)
 	GetLoopConfig(ctx context.Context, workspaceID string, name string) (contract.LoopConfigResponse, error)
 	PutLoopConfig(
@@ -208,6 +205,15 @@ type LoopService interface {
 		runID string,
 		afterSeq int64,
 	) ([]contract.LoopRunEventPayload, error)
+}
+
+// LoopRunInput carries the resolved owner and transport context for one Loop start.
+type LoopRunInput struct {
+	Request   contract.RunLoopRequest
+	ProfileID string
+	StartKind dsl.StartKind
+	Actor     taskpkg.ActorContext
+	Dry       bool
 }
 
 // LoopRunListQuery contains HTTP/UDS list filters for loop runs.

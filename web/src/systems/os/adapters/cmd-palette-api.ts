@@ -10,6 +10,7 @@ import type {
   CmdPaletteViewSessionEvent,
   CmdPaletteViewSessionOpenResponse,
 } from "../lib/cmd-palette-types";
+import { CMD_PALETTE_AGGREGATE_LENS_KEY } from "../lib/cmd-palette-query-keys";
 
 export type CmdPaletteApiErrorKind = "daemon" | "malformed_response" | "transport";
 
@@ -133,14 +134,33 @@ function requireArray<T>(
  * it reports `requires an attached shell` rather than auto-selecting an
  * attachment (Part II § API Endpoints).
  */
+/**
+ * Turns the shell's profile key into the daemon's scope params. Every palette
+ * read carries one: the lens is either a real profile or the explicit aggregate,
+ * and absence would silently mean `default` (ADR-016).
+ */
+function profileScopeQuery(profileKey: string): { profile: string } | { all_profiles: true } {
+  const normalized = profileKey.trim();
+  return normalized === "" || normalized === CMD_PALETTE_AGGREGATE_LENS_KEY
+    ? { all_profiles: true }
+    : { profile: normalized };
+}
+
 export async function listCmdPaletteCommands(
   workspaceId: string,
+  profileKey: string,
   clientId: string | null,
   signal?: AbortSignal
 ): Promise<CmdPaletteCatalogResponse> {
   const client = clientId?.trim() || undefined;
   const { data, error, response } = await apiClient.GET("/api/cmd-palette/commands", {
-    params: { query: { workspace: workspaceId, ...(client ? { client } : {}) } },
+    params: {
+      query: {
+        workspace: workspaceId,
+        ...(client ? { client } : {}),
+        ...profileScopeQuery(profileKey),
+      },
+    },
     signal,
   });
   const fallback = "Failed to load the command catalog";
@@ -174,11 +194,15 @@ export async function listCmdPaletteClients(
 
 export async function getCmdPaletteView(
   workspaceId: string,
+  profileKey: string,
   viewId: string,
   signal?: AbortSignal
 ): Promise<CmdPaletteViewEnvelope> {
   const { data, error, response } = await apiClient.GET("/api/cmd-palette/views/{id}", {
-    params: { path: { id: viewId }, query: { workspace: workspaceId } },
+    params: {
+      path: { id: viewId },
+      query: { workspace: workspaceId, ...profileScopeQuery(profileKey) },
+    },
     signal,
   });
   const fallback = `Failed to load ${viewId}`;
@@ -203,6 +227,7 @@ const CLIENT_TOKEN_HEADER = "X-Compozy-Client-Token";
 
 export async function openCmdPaletteViewSession(
   workspaceId: string,
+  profile: string,
   viewId: string,
   attachmentToken: string,
   args: Readonly<Record<string, unknown>> = {},
@@ -212,6 +237,9 @@ export async function openCmdPaletteViewSession(
     params: {
       path: { id: viewId },
       header: { [CLIENT_TOKEN_HEADER]: attachmentToken },
+      // Opening a programmable view runs extension code under an owner, so the
+      // session is bound to the acting profile rather than resolved to default.
+      query: { profile },
     },
     body: { workspace: workspaceId, args: { ...args } },
     signal,
@@ -295,6 +323,8 @@ export function cmdPaletteViewSessionStreamURL(viewSession: string, streamToken:
 
 export interface CmdPaletteInvokeInput {
   readonly workspaceId: string;
+  /** The profile the command runs as — the acting destination, never the aggregate. */
+  readonly profile: string;
   readonly commandId: string;
   readonly args?: Readonly<Record<string, unknown>>;
   readonly clientId?: string | null;
@@ -316,6 +346,10 @@ export async function invokeCmdPaletteCommand(
     params: {
       path: { id: input.commandId },
       header: { [CLIENT_TOKEN_HEADER]: attachmentToken },
+      // Invocation acts as a profile rather than looking through one, so it
+      // carries the acting destination and never the aggregate. Omitting it
+      // would run the command under `default` from whichever profile invoked it.
+      query: { profile: input.profile },
     },
     body: {
       workspace: input.workspaceId,
@@ -331,10 +365,11 @@ export async function invokeCmdPaletteCommand(
 
 export async function getCmdPaletteRankSignals(
   workspaceId: string,
+  profileKey: string,
   signal?: AbortSignal
 ): Promise<CmdPaletteRankSignals> {
   const { data, error, response } = await apiClient.GET("/api/cmd-palette/rank-signals", {
-    params: { query: { workspace: workspaceId } },
+    params: { query: { workspace: workspaceId, ...profileScopeQuery(profileKey) } },
     signal,
   });
   const fallback = "Failed to load command palette rank signals";
@@ -344,12 +379,14 @@ export async function getCmdPaletteRankSignals(
 
 export async function recordCmdPaletteUsage(
   workspaceId: string,
+  profileKey: string,
   commandId: string,
   query: string,
   signal?: AbortSignal
 ): Promise<void> {
   const { error, response } = await apiClient.POST("/api/cmd-palette/usage", {
     body: { workspace: workspaceId, command_id: commandId, query },
+    params: { query: profileScopeQuery(profileKey) },
     signal,
   });
   if (apiRequestFailed(response, error)) {
@@ -359,13 +396,16 @@ export async function recordCmdPaletteUsage(
 
 export async function setCmdPalettePin(
   workspaceId: string,
+  profile: string,
   commandId: string,
   pinned: boolean,
   signal?: AbortSignal
 ): Promise<boolean> {
   const request = pinned ? apiClient.PUT : apiClient.DELETE;
   const { data, error, response } = await request("/api/cmd-palette/pins/{id}", {
-    params: { path: { id: commandId }, query: { workspace: workspaceId } },
+    // Pinning acts as a profile rather than looking through one, so the
+    // aggregate is refused upstream and only the scoped selector is sent.
+    params: { path: { id: commandId }, query: { workspace: workspaceId, profile } },
     signal,
   });
   const fallback = pinned ? "Failed to pin command" : "Failed to unpin command";
@@ -375,10 +415,11 @@ export async function setCmdPalettePin(
 
 export async function getCmdPalettePersonalization(
   workspaceId: string,
+  profileKey: string,
   signal?: AbortSignal
 ): Promise<CmdPalettePersonalization> {
   const { data, error, response } = await apiClient.GET("/api/cmd-palette/personalization", {
-    params: { query: { workspace: workspaceId } },
+    params: { query: { workspace: workspaceId, ...profileScopeQuery(profileKey) } },
     signal,
   });
   const fallback = "Failed to load command palette personalization";
@@ -388,10 +429,11 @@ export async function getCmdPalettePersonalization(
 
 export async function resetCmdPalettePersonalization(
   workspaceId: string,
+  profile: string,
   signal?: AbortSignal
 ): Promise<void> {
   const { error, response } = await apiClient.DELETE("/api/cmd-palette/personalization", {
-    params: { query: { workspace: workspaceId } },
+    params: { query: { workspace: workspaceId, profile } },
     signal,
   });
   if (apiRequestFailed(response, error)) {

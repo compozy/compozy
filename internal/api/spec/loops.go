@@ -150,11 +150,11 @@ func runLoopOperation() OperationSpec {
 		"runLoop",
 		"Start or dry-run one Loop",
 		contract.RunLoopRequest{},
-		[]ParameterSpec{
+		withProfileSelector(
 			workspaceIDParam(),
 			loopNameParam(),
 			boolQueryParam("dry", "Preview the run without creating durable state"),
-		},
+		),
 		[]ResponseSpec{
 			ok(contract.RunLoopResponse{}),
 			created(contract.RunLoopResponse{}),
@@ -249,7 +249,7 @@ func loopRuntimeOperations() []OperationSpec {
 			"listLoopRuns",
 			"List Loop runs",
 			nil,
-			[]ParameterSpec{
+			withProfileScope(
 				workspaceIDParam(),
 				queryParam("loop", "Filter by Loop name", false),
 				queryParam("status", "Filter by Loop status", false),
@@ -257,7 +257,7 @@ func loopRuntimeOperations() []OperationSpec {
 				queryParam("origin_session", "Filter by origin session id", false),
 				boolQueryParam("live", "Filter by live or terminal status"),
 				intQueryParam("limit", "Maximum number of records to return"),
-			},
+			),
 			[]ResponseSpec{ok(contract.LoopRunsResponse{}), badRequest(), loopUnavailable(), internalError()},
 		),
 		loopOperation(

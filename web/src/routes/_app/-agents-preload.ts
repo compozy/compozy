@@ -10,6 +10,7 @@ import {
 } from "@/systems/agent";
 import { settingsProvidersListOptions } from "@/systems/settings";
 import { workspaceDetailOptions } from "@/systems/workspace";
+import { readProfileLens, readProfileScopeParams } from "@/systems/profiles";
 
 export async function preloadAgentsRoute(
   queryClient: QueryClient,
@@ -39,6 +40,7 @@ export async function preloadAgentDetailRoute(
   queryClient: QueryClient,
   name: string
 ): Promise<void> {
+  const profileScope = readProfileScopeParams(queryClient, readProfileLens());
   const workspaceId = await resolveActiveWorkspaceId(queryClient);
   if (!workspaceId) return;
 
@@ -50,6 +52,7 @@ export async function preloadAgentDetailRoute(
         agent: name,
         type: "user",
         sort: "last_activity",
+        ...profileScope,
       })
     ),
     queryClient.ensureInfiniteQueryData(
@@ -59,6 +62,7 @@ export async function preloadAgentDetailRoute(
         state: "active",
         type: "user",
         limit: 1,
+        ...profileScope,
       })
     ),
     queryClient.ensureInfiniteQueryData(
@@ -68,6 +72,7 @@ export async function preloadAgentDetailRoute(
         type: "user",
         resumable: true,
         limit: 1,
+        ...profileScope,
       })
     ),
   ]);

@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1241,6 +1242,7 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 		},
 	}
 	networkSubscriptions := make([]store.NetworkSubscriptionEntry, 0)
+	var networkSubscriptionDeleted atomic.Bool
 	var networkStateMu sync.Mutex
 	fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
 		GetDirectRoomFn: func(_ context.Context, ref store.NetworkChannelRef, gotDirectID string) (store.NetworkDirectRoomSummary, error) {
@@ -1340,6 +1342,10 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 				out = append(out, entry)
 			}
 			return out, nil
+		},
+		DeleteNetworkSubscriptionFn: func(_ context.Context, _ store.NetworkSubscriptionRef) error {
+			networkSubscriptionDeleted.Store(true)
+			return nil
 		},
 	}
 
@@ -1556,6 +1562,29 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 				http.StatusBadRequest,
 				body,
 			)
+		}
+	})
+
+	t.Run("Should reject aggregate network subscription deletion", func(t *testing.T) {
+		t.Parallel()
+
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodDelete,
+			"/workspaces/ws-workspace/network/channels/builders/subscriptions/sess-a?all_profiles=true",
+			nil,
+		)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf(
+				"aggregate delete code = %d, want %d; body=%s",
+				response.Code,
+				http.StatusBadRequest,
+				response.Body.String(),
+			)
+		}
+		if networkSubscriptionDeleted.Load() {
+			t.Fatal("DeleteNetworkSubscription() called for aggregate mutation")
 		}
 	})
 

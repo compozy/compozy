@@ -26,6 +26,7 @@ import {
 
 export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
   const {
+    profile,
     outcome,
     runsQuery,
     setOriginFilter,
@@ -182,7 +183,12 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
           title="No matching runs"
         />
       ) : (
-        <LoopRunsView outcome={outcome} pendingRequestCounts={pendingRequestCounts} runs={runs} />
+        <LoopRunsView
+          profile={profile}
+          outcome={outcome}
+          pendingRequestCounts={pendingRequestCounts}
+          runs={runs}
+        />
       )}
     </ListingPage>
   );

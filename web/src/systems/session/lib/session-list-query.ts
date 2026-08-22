@@ -36,6 +36,13 @@ export function normalizeSessionListFilters(filters: SessionListFilters = {}): S
   if (filters.archive !== undefined) normalized.archive = filters.archive;
   if (filters.sort !== undefined) normalized.sort = filters.sort;
   if (filters.limit !== undefined) normalized.limit = filters.limit;
+  // Profile scope is part of the request, so it is part of the key: two profiles
+  // reading the same workspace are two catalogs, never one shared cache entry.
+  if (filters.all_profiles === true) normalized.all_profiles = true;
+  else {
+    const profile = normalizedText(filters.profile);
+    if (profile) normalized.profile = profile;
+  }
 
   return normalized;
 }

@@ -5,8 +5,10 @@ import { agentCatalogOptions, agentsListOptions } from "@/systems/agent";
 import { onboardingStatusOptions } from "@/systems/onboarding";
 import { sessionsListOptions } from "@/systems/session";
 import { workspaceDetailOptions } from "@/systems/workspace";
+import { readProfileLens, readProfileScopeParams } from "@/systems/profiles";
 
 export async function preloadAppRoute(queryClient: QueryClient): Promise<void> {
+  const profileScope = readProfileScopeParams(queryClient, readProfileLens());
   const [onboardingResult, workspaceResult] = await Promise.allSettled([
     queryClient.ensureQueryData(onboardingStatusOptions()),
     resolveActiveWorkspaceId(queryClient),
@@ -27,7 +29,7 @@ export async function preloadAppRoute(queryClient: QueryClient): Promise<void> {
     queryClient.ensureInfiniteQueryData(agentCatalogOptions(workspaceId, { limit: 1 })),
     queryClient.ensureQueryData(workspaceDetailOptions(workspaceId)),
     queryClient.ensureInfiniteQueryData(
-      sessionsListOptions({ workspace_id: workspaceId, state: "active", limit: 1 })
+      sessionsListOptions({ workspace_id: workspaceId, state: "active", limit: 1, ...profileScope })
     ),
   ]);
 }

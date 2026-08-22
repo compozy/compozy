@@ -15,6 +15,7 @@ import {
   sessionListTotal,
 } from "../lib/session-list-query";
 import type { SessionListFilters, SessionState } from "../types";
+import { useProfileReadScope } from "@/systems/profiles";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 interface UseSessionsOptions {
@@ -25,9 +26,15 @@ interface UseSessionsOptions {
 }
 
 export function useSessions(workspace: string | null = null, options?: UseSessionsOptions) {
+  // The profile scope is applied here rather than at each call site: every
+  // session read is server-scoped, and folding it into the filters means the
+  // query key partitions by profile for free, so a switch cannot show the
+  // previous profile's rows while the new page loads.
+  const { params } = useProfileReadScope();
   const filters = normalizeSessionListFilters({
     ...options?.filters,
     ...(workspace ? { workspace_id: workspace } : { all_workspaces: true }),
+    ...params,
   });
   const query = useInfiniteQuery({
     ...sessionsListOptions(filters),

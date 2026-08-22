@@ -64,6 +64,32 @@ const overview = makeHomeOverview({
       { agent_name: "ops", tokens: 210_000, fraction: 0.15 },
       { agent_name: "other", tokens: 112_000, fraction: 0.08 },
     ],
+    profiles: [
+      {
+        profile_id: "00000000000000000000000000",
+        profile_name: "default",
+        profile_color: "#8a8f98",
+        profile_icon: "user-round",
+        profile_archived: false,
+        tokens: 868_000,
+      },
+      {
+        profile_id: "01J9MARKETING00000000000000",
+        profile_name: "marketing",
+        profile_color: "#c26ad6",
+        profile_icon: "megaphone",
+        profile_archived: false,
+        tokens: 378_000,
+      },
+      {
+        profile_id: "01J9OLDAGENCY00000000000000",
+        profile_name: "old agency",
+        profile_color: "#b58e5f",
+        profile_icon: "folder",
+        profile_archived: true,
+        tokens: 154_000,
+      },
+    ],
   },
 });
 

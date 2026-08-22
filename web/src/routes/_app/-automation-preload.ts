@@ -16,6 +16,7 @@ import {
   automationTriggersListOptions,
   type AutomationTriggerStableFilter,
 } from "@/systems/automation";
+import { readProfileLens, readProfileScopeParams } from "@/systems/profiles";
 
 async function resolveListScope(
   queryClient: QueryClient,
@@ -30,6 +31,7 @@ export async function preloadAutomationJobsRoute(
   queryClient: QueryClient,
   search: AutomationRouteSearch
 ): Promise<void> {
+  const profileScope = readProfileScopeParams(queryClient, readProfileLens());
   const activeWorkspaceID =
     search.scope === "global" ? null : await resolveActiveWorkspaceId(queryClient);
   const scope =
@@ -45,7 +47,9 @@ export async function preloadAutomationJobsRoute(
     source: search.source,
   };
   if (scope.scope === "workspace" && !scope.workspace_id) return;
-  const jobsQuery = queryClient.ensureInfiniteQueryData(automationJobsListOptions(filters));
+  const jobsQuery = queryClient.ensureInfiniteQueryData(
+    automationJobsListOptions({ ...filters, ...profileScope })
+  );
   const suggestionsQuery =
     activeWorkspaceID && !automationRouteHasActiveFilters(search)
       ? jobsQuery.then(result => {
@@ -62,6 +66,7 @@ export async function preloadAutomationTriggersRoute(
   queryClient: QueryClient,
   search: AutomationRouteSearch
 ): Promise<void> {
+  const profileScope = readProfileScopeParams(queryClient, readProfileLens());
   const scope = await resolveListScope(queryClient, search);
   const filters: AutomationTriggerStableFilter = {
     ...scope,
@@ -74,7 +79,9 @@ export async function preloadAutomationTriggersRoute(
   };
   if (scope.scope === "workspace" && !scope.workspace_id) return;
   await settleRouteQueries([
-    queryClient.ensureInfiniteQueryData(automationTriggersListOptions(filters)),
+    queryClient.ensureInfiniteQueryData(
+      automationTriggersListOptions({ ...filters, ...profileScope })
+    ),
   ]);
 }
 

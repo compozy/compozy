@@ -10,6 +10,8 @@ import type { ChannelMember } from "../../../hooks/use-channel-members";
 import type { NetworkChannel, NetworkChannelSummary } from "../../../types";
 
 const channel: NetworkChannelSummary = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   channel: "ops",
   coordinator_peer_id: "peer-release",
   created_at: "2026-04-17T14:00:00Z",

@@ -410,6 +410,103 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
+			name: "ShouldDescribeLogProfileReadModes",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				for _, path := range []string{"/api/logs", "/api/logs/stream"} {
+					operation := operationFor(t, doc, path, http.MethodGet)
+					assertParameter(t, operation, "profile", openapi3.ParameterInQuery, false)
+					assertParameter(t, operation, "all_profiles", openapi3.ParameterInQuery, false)
+				}
+			},
+		},
+		{
+			name: "ShouldDescribeBridgeProfileContracts",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				for _, path := range []string{
+					"/api/bridges",
+					"/api/bridges/{id}",
+					"/api/bridges/{id}/routes",
+					"/api/bridges/{id}/targets",
+					"/api/bridges/health/stream",
+				} {
+					operation := operationFor(t, doc, path, http.MethodGet)
+					assertParameter(t, operation, "profile", openapi3.ParameterInQuery, false)
+					assertParameter(t, operation, "all_profiles", openapi3.ParameterInQuery, false)
+				}
+				resolveTarget := operationFor(t, doc, "/api/bridges/{id}/resolve", http.MethodPost)
+				assertParameter(t, resolveTarget, "profile", openapi3.ParameterInQuery, false)
+				assertParameter(t, resolveTarget, "all_profiles", openapi3.ParameterInQuery, false)
+
+				create := operationFor(t, doc, "/api/bridges", http.MethodPost)
+				assertParameter(t, create, "profile", openapi3.ParameterInQuery, false)
+				assertParameterAbsent(t, create, "all_profiles", openapi3.ParameterInQuery)
+
+				for _, endpoint := range []struct {
+					path   string
+					method string
+				}{
+					{path: "/api/bridges/{id}", method: http.MethodPatch},
+					{path: "/api/bridges/{id}/enable", method: http.MethodPost},
+					{path: "/api/bridges/{id}/disable", method: http.MethodPost},
+					{path: "/api/bridges/{id}/restart", method: http.MethodPost},
+				} {
+					operation := operationFor(t, doc, endpoint.path, endpoint.method)
+					assertParameter(t, operation, "profile", openapi3.ParameterInQuery, false)
+					assertParameterAbsent(t, operation, "all_profiles", openapi3.ParameterInQuery)
+				}
+			},
+		},
+		{
+			name: "ShouldDescribeSessionAndNetworkProfileContracts",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				profileReads := []struct {
+					path   string
+					method string
+				}{
+					{path: "/api/workspaces/{workspace_id}/sessions/{session_id}", method: http.MethodGet},
+					{path: "/api/workspaces/{workspace_id}/network/peers/{peer_id}", method: http.MethodGet},
+					{path: "/api/workspaces/{workspace_id}/network/channels", method: http.MethodGet},
+					{path: "/api/workspaces/{workspace_id}/network/channels/{channel}", method: http.MethodGet},
+					{path: "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions", method: http.MethodGet},
+					{path: "/api/workspaces/{workspace_id}/network/channels/{channel}/threads", method: http.MethodGet},
+					{path: "/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}", method: http.MethodGet},
+					{path: "/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}/messages", method: http.MethodGet},
+					{path: "/api/workspaces/{workspace_id}/network/channels/{channel}/directs", method: http.MethodGet},
+					{path: "/api/workspaces/{workspace_id}/network/channels/{channel}/directs/{direct_id}", method: http.MethodGet},
+					{path: "/api/workspaces/{workspace_id}/network/channels/{channel}/directs/{direct_id}/messages", method: http.MethodGet},
+					{path: "/api/workspaces/{workspace_id}/network/work/{work_id}", method: http.MethodGet},
+				}
+				for _, endpoint := range profileReads {
+					operation := operationFor(t, doc, endpoint.path, endpoint.method)
+					assertParameter(t, operation, "profile", openapi3.ParameterInQuery, false)
+					assertParameter(t, operation, "all_profiles", openapi3.ParameterInQuery, false)
+				}
+
+				profileMutations := []struct {
+					path   string
+					method string
+				}{
+					{path: "/api/workspaces/{workspace_id}/network/channels", method: http.MethodPost},
+					{path: "/api/workspaces/{workspace_id}/network/channels/{channel}", method: http.MethodPatch},
+					{path: "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions", method: http.MethodPut},
+					{path: "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions/{session_id}", method: http.MethodDelete},
+					{path: "/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}/promote-task", method: http.MethodPost},
+					{path: "/api/workspaces/{workspace_id}/network/channels/{channel}/directs/resolve", method: http.MethodPost},
+				}
+				for _, endpoint := range profileMutations {
+					operation := operationFor(t, doc, endpoint.path, endpoint.method)
+					assertParameter(t, operation, "profile", openapi3.ParameterInQuery, false)
+					assertParameterAbsent(t, operation, "all_profiles", openapi3.ParameterInQuery)
+				}
+			},
+		},
+		{
 			name: "ShouldDescribeBoundedLoopCatalogContract",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()

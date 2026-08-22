@@ -226,12 +226,14 @@ func (n *daemonNativeTools) loopRun(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}
-	response, err := n.loopService().RunLoop(ctx, workspaceID, name, contract.RunLoopRequest{
-		Inputs:               input.Inputs,
-		ParentLoopRunID:      strings.TrimSpace(input.ParentLoopRunID),
-		ConfigOverrides:      configOverrides,
-		NetworkParticipation: participation.CloneRequest(input.NetworkParticipation),
-	}, dsl.StartNativeTool, actor, input.Dry)
+	response, err := n.loopService().RunLoop(ctx, workspaceID, name, core.LoopRunInput{
+		Request: contract.RunLoopRequest{
+			Inputs: input.Inputs, ParentLoopRunID: strings.TrimSpace(input.ParentLoopRunID),
+			ConfigOverrides:      configOverrides,
+			NetworkParticipation: participation.CloneRequest(input.NetworkParticipation),
+		},
+		ProfileID: scope.ProfileID, StartKind: dsl.StartNativeTool, Actor: actor, Dry: input.Dry,
+	})
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}

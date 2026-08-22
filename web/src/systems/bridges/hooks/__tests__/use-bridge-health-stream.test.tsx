@@ -1,13 +1,18 @@
 import { QueryClient, QueryClientProvider, type InfiniteData } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   applyBridgeHealthSnapshot,
   useBridgeHealthStream,
 } from "@/systems/bridges/hooks/use-bridge-health-stream";
 import type { BridgesListResponse } from "@/systems/bridges/types";
+import { resetProfileViews, setProfileView } from "@/systems/profiles";
+
+afterEach(() => {
+  resetProfileViews();
+});
 
 class FakeEventSource {
   public close = vi.fn();
@@ -63,6 +68,8 @@ describe("applyBridgeHealthSnapshot", () => {
             bridge_health: {},
             bridges: [
               {
+                profile_id: "00000000000000000000000000",
+                profile_name: "default",
                 created_at: "2026-04-13T12:00:00Z",
                 display_name: "Support",
                 enabled: true,
@@ -104,6 +111,8 @@ describe("applyBridgeHealthSnapshot", () => {
             },
             bridges: [
               {
+                profile_id: "00000000000000000000000000",
+                profile_name: "default",
                 created_at: "2026-04-13T12:00:00Z",
                 display_name: "Other",
                 enabled: true,
@@ -256,7 +265,7 @@ describe("useBridgeHealthStream", () => {
     );
 
     expect(eventSourceFactory).toHaveBeenCalledWith(
-      "/api/bridges/health/stream?bridge_ids=brg_support&scope=all&workspace_id=ws_test"
+      "/api/bridges/health/stream?bridge_ids=brg_support&scope=all&workspace_id=ws_test&profile=default"
     );
 
     act(() => {
@@ -299,8 +308,35 @@ describe("useBridgeHealthStream", () => {
     const streamURL = new URL(eventSourceFactory.mock.calls[0]?.[0] ?? "", "http://compozy.local");
     expect(streamURL.searchParams.getAll("bridge_ids")).toEqual([" brg-support ", "brg,comma"]);
     expect(streamURL.searchParams.get("workspace_id")).toBe(" workspace-opaque ");
+    expect(streamURL.searchParams.get("profile")).toBe("default");
 
     unmount();
+  });
+
+  it("closes the scoped stream and reconnects with the aggregate lens after a switch", () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const sources: FakeEventSource[] = [];
+    const eventSourceFactory = vi.fn((_url: string) => {
+      const source = new FakeEventSource();
+      sources.push(source);
+      return source;
+    });
+    const rendered = renderHook(
+      () => useBridgeHealthStream({ bridgeIds: ["brg_support"], eventSourceFactory }),
+      { wrapper: createWrapper(queryClient) }
+    );
+
+    expect(eventSourceFactory.mock.calls[0]?.[0]).toContain("profile=default");
+
+    act(() => {
+      setProfileView({ scope: "global" }, { kind: "aggregate" });
+    });
+
+    expect(sources[0]?.close).toHaveBeenCalledTimes(1);
+    expect(eventSourceFactory).toHaveBeenCalledTimes(2);
+    expect(eventSourceFactory.mock.calls[1]?.[0]).toContain("all_profiles=true");
+
+    rendered.unmount();
   });
 
   it("does not subscribe without ids and chunks every authorized request at 200 ids", () => {

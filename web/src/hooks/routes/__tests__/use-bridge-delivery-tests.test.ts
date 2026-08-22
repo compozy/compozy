@@ -39,6 +39,8 @@ const bridge = {
   status: "ready",
   updated_at: "2026-07-25T12:00:00Z",
   workspace_id: "workspace-alpha",
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
 } satisfies BridgeSummary;
 
 function createQueryClientWrapper() {
@@ -75,6 +77,7 @@ describe("use bridge delivery tests", () => {
           target: expect.objectContaining({ bridge_instance_id: nextBridge.id }),
         }),
         id: nextBridge.id,
+        profile: nextBridge.profile_name,
       });
     });
   });
