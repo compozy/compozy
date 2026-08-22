@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.3.0 - 2026-08-21
+## 0.3.0 - 2026-08-22
 
 ### ♻️ Refactoring
 
@@ -54,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Complete Loop graph engineering and typed inputs (#427)
 - Simplify the interface for everyday users (#440)
 - Deliver the command palette operating surface (#441)
+- Make loop runs legible and task lists calm (#452)
 
 ### 🐛 Bug Fixes
 
@@ -131,6 +132,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Resolve agent runtime recovery regressions (#447)
 - Preserve run-agent session lifecycle (#446)
 - Use migration timeout for tail replay
+- Recover ACP sessions after provider disconnects (#454)
 
 ### 🔧 Miscellaneous Tasks
 
