@@ -234,7 +234,7 @@ func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
 			"[]",
 			"</compozy_context_replay>",
 			"",
-			"User request:",
+			userRequestPromptMarker,
 			"",
 			"continue work",
 		}, "\n"))
@@ -721,7 +721,7 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 		"",
 		"You are alpha.",
 		"",
-		"User request:",
+		userRequestPromptMarker,
 		"",
 		"<compozy-situation-context>",
 		`{"self":{"session_id":"sess_123","agent_name":"alpha"}}`,

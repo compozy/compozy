@@ -19,6 +19,9 @@ const (
 	StrategyNativeCLIBridge StrategyKind = "native_cli_bridge"
 	// StrategyHarnessAdapter launches a shared harness configured for a downstream API provider.
 	StrategyHarnessAdapter StrategyKind = "harness_adapter"
+
+	nativeCLIClaudeCommand = "claude"
+	nativeCLICodexCommand  = "codex"
 )
 
 // NativeCLI identifies the installed CLI consumed by an ACP bridge.
@@ -41,11 +44,11 @@ type bridgeSpec struct {
 var bridgeRegistry = []bridgeSpec{
 	{
 		adapterToken: "@agentclientprotocol/claude-agent-acp",
-		nativeCLI:    NativeCLI{Command: "claude", BridgeEnvKey: "CLAUDE_CODE_EXECUTABLE"},
+		nativeCLI:    NativeCLI{Command: nativeCLIClaudeCommand, BridgeEnvKey: "CLAUDE_CODE_EXECUTABLE"},
 	},
 	{
 		adapterToken: "@agentclientprotocol/codex-acp",
-		nativeCLI:    NativeCLI{Command: "codex", BridgeEnvKey: "CODEX_PATH"},
+		nativeCLI:    NativeCLI{Command: nativeCLICodexCommand, BridgeEnvKey: "CODEX_PATH"},
 	},
 }
 

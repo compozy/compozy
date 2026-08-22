@@ -62,13 +62,13 @@ func TestProviderExecutionStrategyContracts(t *testing.T) {
 			name:     "Should classify a versioned Claude bridge without provider identity",
 			provider: compozyconfig.ProviderConfig{Command: "npx -y @agentclientprotocol/claude-agent-acp@0.70.0"},
 			wantKind: StrategyNativeCLIBridge,
-			wantCLI:  NativeCLI{Command: "claude", BridgeEnvKey: "CLAUDE_CODE_EXECUTABLE"},
+			wantCLI:  NativeCLI{Command: nativeCLIClaudeCommand, BridgeEnvKey: "CLAUDE_CODE_EXECUTABLE"},
 		},
 		{
 			name:     "Should classify a versioned Codex bridge without provider identity",
 			provider: compozyconfig.ProviderConfig{Command: "npx -y @agentclientprotocol/codex-acp@latest"},
 			wantKind: StrategyNativeCLIBridge,
-			wantCLI:  NativeCLI{Command: "codex", BridgeEnvKey: "CODEX_PATH"},
+			wantCLI:  NativeCLI{Command: nativeCLICodexCommand, BridgeEnvKey: "CODEX_PATH"},
 		},
 		{
 			name:     "Should leave a direct override free of stale bridge metadata",

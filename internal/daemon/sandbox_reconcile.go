@@ -99,7 +99,7 @@ func (d *Daemon) loadSandboxReconcileSessions(
 			)
 			continue
 		}
-		if !sessionHasRemoteSandbox(meta) {
+		if !sessionHasRemoteSandbox(&meta) {
 			continue
 		}
 		sessions = append(sessions, sandboxReconcileSession{metaPath: metaPath, meta: meta})
@@ -112,7 +112,7 @@ func (d *Daemon) reconcileDaemonSandboxSession(
 	state *bootState,
 	candidate *sandboxReconcileSession,
 ) {
-	meta := candidate.meta
+	meta := &candidate.meta
 	envMeta := cloneDaemonSessionSandboxMeta(meta.Sandbox)
 	logger := sandboxReconcileLogger(state)
 	if envMeta == nil {
@@ -194,7 +194,7 @@ func (d *Daemon) findDaemonSandbox(
 	ctx context.Context,
 	state *bootState,
 	provider sandbox.Provider,
-	meta store.SessionMeta,
+	meta *store.SessionMeta,
 	envMeta *store.SessionSandboxMeta,
 	resolvedEnv sandbox.Resolved,
 	localRoot string,
@@ -241,7 +241,7 @@ func (d *Daemon) reattachDaemonSandbox(
 	localRoot string,
 	localAdditional []string,
 ) {
-	meta := candidate.meta
+	meta := &candidate.meta
 	started := time.Now()
 	prepared, err := provider.Prepare(ctx, sandbox.PrepareRequest{
 		SessionID:           strings.TrimSpace(meta.ID),
@@ -288,7 +288,7 @@ func (d *Daemon) destroyDaemonSandbox(
 	envMeta *store.SessionSandboxMeta,
 	providerState sandbox.SessionState,
 ) {
-	meta := candidate.meta
+	meta := &candidate.meta
 	logger := sandboxReconcileLogger(state)
 	if strings.TrimSpace(providerState.InstanceID) == "" {
 		logger.Warn(

@@ -145,10 +145,11 @@ func (o *Observer) loadRecoveredSession(ctx context.Context, entryName string) (
 		)
 		return recoveredSession{}, false
 	}
-	return recoveredSessionFromMeta(o.normalizeRecoveredMeta(metaPath, meta, ownerAuthoritative)), true
+	normalized := o.normalizeRecoveredMeta(metaPath, meta, ownerAuthoritative)
+	return recoveredSessionFromMeta(&normalized), true
 }
 
-func recoveredSessionFromMeta(meta store.SessionMeta) recoveredSession {
+func recoveredSessionFromMeta(meta *store.SessionMeta) recoveredSession {
 	stopReason := store.StopReason("")
 	if meta.StopReason != nil {
 		stopReason = *meta.StopReason
