@@ -22,24 +22,79 @@ func (g *LoopRepo) ImportRunHistory(ctx context.Context, command *looppkg.RunHis
 	if command == nil {
 		return fmt.Errorf("%w: run history import command is required", looppkg.ErrValidation)
 	}
+	prepared, err := prepareLoopRunHistoryImport(command)
+	if err != nil {
+		return err
+	}
+	return g.withTaskImmediateTransaction(ctx, "import loop run history", func(exec taskSQLExecutor) error {
+		if err := insertLoopRunHistoryRecord(ctx, exec, &prepared); err != nil {
+			return err
+		}
+		return importLoopRunHistoryLedger(ctx, exec, &prepared.snapshot)
+	})
+}
+
+// ImportRunHistoryBatch atomically imports a related set of historical runs.
+// Rows are materialized before lineage validation so parent and child ledgers
+// may reference each other without weakening the single-run boundary.
+func (g *LoopRepo) ImportRunHistoryBatch(ctx context.Context, commands []*looppkg.RunHistoryImport) error {
+	if err := g.checkReady(ctx, "import loop run history batch"); err != nil {
+		return err
+	}
+	if len(commands) == 0 {
+		return fmt.Errorf("%w: run history import batch is required", looppkg.ErrValidation)
+	}
+	prepared := make([]preparedLoopRunHistoryImport, 0, len(commands))
+	for index, command := range commands {
+		if command == nil {
+			return fmt.Errorf("%w: run history import command %d is required", looppkg.ErrValidation, index)
+		}
+		item, err := prepareLoopRunHistoryImport(command)
+		if err != nil {
+			return err
+		}
+		prepared = append(prepared, item)
+	}
+	return g.withTaskImmediateTransaction(ctx, "import loop run history batch", func(exec taskSQLExecutor) error {
+		for index := range prepared {
+			if err := insertLoopRunHistoryRecord(ctx, exec, &prepared[index]); err != nil {
+				return err
+			}
+		}
+		for index := range prepared {
+			if err := importLoopRunHistoryLedger(ctx, exec, &prepared[index].snapshot); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+type preparedLoopRunHistoryImport struct {
+	snapshot          looppkg.RunHistorySnapshot
+	inputsJSON        []byte
+	startMetadataJSON []byte
+}
+
+func prepareLoopRunHistoryImport(command *looppkg.RunHistoryImport) (preparedLoopRunHistoryImport, error) {
 	snapshot := command.Snapshot()
 	run, err := normalizeLoopRunForHistoryImport(snapshot.Run)
 	if err != nil {
-		return err
+		return preparedLoopRunHistoryImport{}, err
 	}
 	snapshot.Run = run
 	inputsJSON, startMetadataJSON, err := marshalLoopRunCreatePayload(run)
 	if err != nil {
-		return err
+		return preparedLoopRunHistoryImport{}, err
 	}
 	decisions, err := normalizeLoopGateDecisionRecords(snapshot.Decisions, run.CreatedAt)
 	if err != nil {
-		return err
+		return preparedLoopRunHistoryImport{}, err
 	}
 	snapshot.Decisions = decisions
-	return g.withTaskImmediateTransaction(ctx, "import loop run history", func(exec taskSQLExecutor) error {
-		return importLoopRunHistory(ctx, exec, &snapshot, inputsJSON, startMetadataJSON)
-	})
+	return preparedLoopRunHistoryImport{
+		snapshot: snapshot, inputsJSON: inputsJSON, startMetadataJSON: startMetadataJSON,
+	}, nil
 }
 
 // DeleteRunHistory removes one imported run and its workspace-scoped event ledger.
@@ -95,18 +150,25 @@ func (g *LoopRepo) DeleteRunHistory(
 	})
 }
 
-func importLoopRunHistory(
+func insertLoopRunHistoryRecord(
 	ctx context.Context,
 	exec taskSQLExecutor,
-	snapshot *looppkg.RunHistorySnapshot,
-	inputsJSON []byte,
-	startMetadataJSON []byte,
+	prepared *preparedLoopRunHistoryImport,
 ) error {
-	run := snapshot.Run
+	run := prepared.snapshot.Run
 	if err := upsertLoopDefinitionSnapshot(ctx, exec, run, run.CreatedAt); err != nil {
 		return err
 	}
-	if err := insertLoopRun(ctx, exec, run, inputsJSON, startMetadataJSON); err != nil {
+	return insertLoopRun(ctx, exec, run, prepared.inputsJSON, prepared.startMetadataJSON)
+}
+
+func importLoopRunHistoryLedger(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	snapshot *looppkg.RunHistorySnapshot,
+) error {
+	run := snapshot.Run
+	if err := validateLoopHistoryParent(ctx, exec, run); err != nil {
 		return err
 	}
 	finalizer := looppkg.NewStoreFinalizer()
@@ -153,11 +215,15 @@ func importLoopHistoryGoalTurns(
 		?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), ?, ?, ?, ?, ?)`
 	for _, turn := range turns {
 		var sessionWorkspace string
-		if err := exec.QueryRowContext(
+		err := exec.QueryRowContext(
 			ctx,
 			`SELECT workspace_id FROM sessions WHERE id = ?`,
 			turn.SessionID,
-		).Scan(&sessionWorkspace); err != nil || sessionWorkspace != string(run.WorkspaceID) {
+		).Scan(&sessionWorkspace)
+		if err != nil {
+			return fmt.Errorf("store: inspect goal turn %d session %q: %w", turn.Seq, turn.SessionID, err)
+		}
+		if sessionWorkspace != string(run.WorkspaceID) {
 			return fmt.Errorf(
 				"%w: goal turn %d session %q is not owned by workspace %q",
 				looppkg.ErrValidation,
@@ -190,43 +256,69 @@ func validateLoopHistoryReferences(
 ) error {
 	for _, output := range outputs {
 		if output.TaskRunID != "" {
-			var exists int
+			var workspaceID string
 			err := exec.QueryRowContext(
 				ctx,
-				`SELECT 1 FROM task_runs WHERE id = ? AND workspace_id = ?`,
+				`SELECT workspace_id FROM task_runs WHERE id = ?`,
 				output.TaskRunID,
-				string(run.WorkspaceID),
-			).Scan(&exists)
+			).Scan(&workspaceID)
 			if err != nil {
+				return fmt.Errorf("store: inspect output %q task run %q: %w", output.NodeID, output.TaskRunID, err)
+			}
+			if workspaceID != string(run.WorkspaceID) {
 				return fmt.Errorf(
-					"%w: output %q task run %q is not owned by workspace %q: %v",
-					looppkg.ErrValidation,
-					output.NodeID,
-					output.TaskRunID,
-					run.WorkspaceID,
-					err,
+					"%w: output %q task run %q is not owned by workspace %q",
+					looppkg.ErrValidation, output.NodeID, output.TaskRunID, run.WorkspaceID,
 				)
 			}
 		}
 		if output.ChildLoopRunID != "" {
-			var exists int
+			var workspaceID string
 			err := exec.QueryRowContext(
 				ctx,
-				`SELECT 1 FROM loop_runs WHERE id = ? AND workspace_id = ?`,
+				`SELECT workspace_id FROM loop_runs WHERE id = ?`,
 				output.ChildLoopRunID,
-				string(run.WorkspaceID),
-			).Scan(&exists)
+			).Scan(&workspaceID)
 			if err != nil {
 				return fmt.Errorf(
-					"%w: output %q child run %q is not owned by workspace %q: %v",
-					looppkg.ErrValidation,
+					"store: inspect output %q child run %q: %w",
 					output.NodeID,
 					output.ChildLoopRunID,
-					run.WorkspaceID,
 					err,
 				)
 			}
+			if workspaceID != string(run.WorkspaceID) {
+				return fmt.Errorf(
+					"%w: output %q child run %q is not owned by workspace %q",
+					looppkg.ErrValidation, output.NodeID, output.ChildLoopRunID, run.WorkspaceID,
+				)
+			}
 		}
+	}
+	return nil
+}
+
+func validateLoopHistoryParent(ctx context.Context, exec taskSQLExecutor, run looppkg.Run) error {
+	parentID := strings.TrimSpace(string(run.ParentLoopRunID))
+	if parentID == "" {
+		return nil
+	}
+	if parentID == strings.TrimSpace(string(run.ID)) {
+		return fmt.Errorf("%w: loop run %q cannot be its own parent", looppkg.ErrValidation, run.ID)
+	}
+	var workspaceID string
+	if err := exec.QueryRowContext(
+		ctx,
+		`SELECT workspace_id FROM loop_runs WHERE id = ?`,
+		parentID,
+	).Scan(&workspaceID); err != nil {
+		return fmt.Errorf("store: inspect parent loop run %q: %w", parentID, err)
+	}
+	if workspaceID != string(run.WorkspaceID) {
+		return fmt.Errorf(
+			"%w: parent loop run %q is not owned by workspace %q",
+			looppkg.ErrValidation, parentID, run.WorkspaceID,
+		)
 	}
 	return nil
 }

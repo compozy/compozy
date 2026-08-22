@@ -32,6 +32,22 @@ import (
 func TestSeed(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve hook order when local-day offsets are still in the future", func(t *testing.T) {
+		t.Parallel()
+
+		clock := newTimeline(time.Date(2026, 7, 27, 8, 0, 0, 0, time.UTC))
+		hooks := hookDispatchSummaries(clock)
+		for index := 1; index < len(hooks); index++ {
+			if !hooks[index-1].At.Before(hooks[index].At) {
+				t.Fatalf("hook timestamps[%d:%d] = %s then %s, want strict order",
+					index-1, index, hooks[index-1].At, hooks[index].At)
+			}
+		}
+		if hooks[len(hooks)-1].At.After(clock.Now()) {
+			t.Fatalf("latest hook timestamp = %s, want no later than %s", hooks[len(hooks)-1].At, clock.Now())
+		}
+	})
+
 	t.Run("Should persist one coherent scenario and replace it without duplication", func(t *testing.T) {
 		t.Parallel()
 
@@ -260,8 +276,8 @@ func assertSeedMemoriesReadable(
 	result Result,
 ) {
 	t.Helper()
-	store := memory.NewStore(paths.MemoryDir)
-	global, err := store.Scan(ctx, memcontract.ScopeGlobal)
+	memoryStore := memory.NewStore(paths.MemoryDir)
+	global, err := memoryStore.Scan(ctx, memcontract.ScopeGlobal)
 	if err != nil {
 		t.Fatalf("Memory.Scan(global) error = %v", err)
 	}
@@ -271,7 +287,7 @@ func assertSeedMemoriesReadable(
 		if err != nil {
 			t.Fatalf("GetWorkspace(%q) error = %v", workspaceID, err)
 		}
-		workspaceStore := store.ForWorkspace(workspaceRecord.RootDir)
+		workspaceStore := memoryStore.ForWorkspace(workspaceRecord.RootDir)
 		workspaceMemories, err := workspaceStore.Scan(ctx, memcontract.ScopeWorkspace)
 		if err != nil {
 			t.Fatalf("Memory.Scan(workspace %q) error = %v", workspaceID, err)

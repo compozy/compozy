@@ -42,6 +42,7 @@ SELECT id, status, definition_digest, origin_session_id, goal_context_nudge_rati
 FROM loop_runs
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND origin_kind = 'session'
+  AND historical = 0
   AND origin_session_id = sqlc.arg(origin_session_id)
 ORDER BY created_at DESC, rowid DESC
 LIMIT 1;

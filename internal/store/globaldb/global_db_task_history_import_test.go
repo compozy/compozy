@@ -175,19 +175,34 @@ func TestGlobalDBTerminalRunHistoryImport(t *testing.T) {
 	t.Run("Should reject every non-terminal source before persistence", func(t *testing.T) {
 		t.Parallel()
 
-		run := completedHistoryRunForTest("reject", completedHistoryTaskForTest("reject"))
-		run.Status = taskpkg.TaskRunStatusQueued
-		run.EndedAt = time.Time{}
-		_, err := taskpkg.NewTerminalRunHistoryImport(
-			run,
-			operatorActorContextForTest("operator:history-reject"),
-		)
-		if !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
-			t.Fatalf(
-				"NewTerminalRunHistoryImport(queued) error = %v, want %v",
-				err,
-				taskpkg.ErrInvalidStatusTransition,
-			)
+		for _, testCase := range []struct {
+			name   string
+			status taskpkg.RunStatus
+		}{
+			{name: "unknown", status: taskpkg.TaskRunStatusUnknown},
+			{name: "queued", status: taskpkg.TaskRunStatusQueued},
+			{name: "claimed", status: taskpkg.TaskRunStatusClaimed},
+			{name: "starting", status: taskpkg.TaskRunStatusStarting},
+			{name: "running", status: taskpkg.TaskRunStatusRunning},
+			{name: "needs attention", status: taskpkg.TaskRunStatusNeedsAttention},
+		} {
+			t.Run("Should reject "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+				run := completedHistoryRunForTest("reject-"+testCase.name, completedHistoryTaskForTest("reject"))
+				run.Status = testCase.status
+				_, err := taskpkg.NewTerminalRunHistoryImport(
+					run,
+					operatorActorContextForTest("operator:history-reject"),
+				)
+				if !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
+					t.Fatalf(
+						"NewTerminalRunHistoryImport(%s) error = %v, want %v",
+						testCase.status,
+						err,
+						taskpkg.ErrInvalidStatusTransition,
+					)
+				}
+			})
 		}
 	})
 }

@@ -40,13 +40,15 @@ func memoryDirFor(state *scenario, story memoryStory) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return filepath.Join(record.RootDir, config.DirName, "memory"), nil
+		return filepath.Join(record.RootDir, config.DirName, config.MemoryDirName), nil
 	case memoryScopeAgent:
 		record, err := state.recordFor(story.WorkspaceKey)
 		if err != nil {
 			return "", err
 		}
-		return filepath.Join(record.RootDir, config.DirName, "agents", story.AgentName, "memory"), nil
+		return filepath.Join(
+			record.RootDir, config.DirName, config.AgentsDirName, story.AgentName, config.MemoryDirName,
+		), nil
 	default:
 		return "", fmt.Errorf("demo seed: unknown memory scope %q", story.Scope)
 	}

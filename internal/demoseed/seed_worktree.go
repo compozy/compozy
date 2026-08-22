@@ -75,7 +75,8 @@ func seedWorktree(ctx context.Context, db *globaldb.GlobalDB, state *scenario) (
 }
 
 func ensureSeedGitRepository(ctx context.Context, runner worktree.GitRunner, root string) error {
-	if _, stderr, err := runner.Run(ctx, root, "rev-parse", "--is-inside-work-tree"); err != nil {
+	// A rev-parse failure means the fixture root is not a Git repository yet.
+	if _, _, err := runner.Run(ctx, root, "rev-parse", "--is-inside-work-tree"); err != nil {
 		if _, initStderr, initErr := runner.Run(ctx, root, "init", "--initial-branch=main"); initErr != nil {
 			return fmt.Errorf(
 				"demo seed: initialize Git repository: %s: %w",
@@ -83,7 +84,6 @@ func ensureSeedGitRepository(ctx context.Context, runner worktree.GitRunner, roo
 				initErr,
 			)
 		}
-		_ = stderr
 	}
 	for _, setting := range [][]string{
 		{"config", "user.name", "Compozy Demo"},

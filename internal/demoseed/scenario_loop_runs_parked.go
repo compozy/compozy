@@ -128,7 +128,7 @@ func runningFanOutLoopRun(clock timeline) loopRunStory {
 	})
 	return loopRunStory{
 		ID: loopRunningRunID, LoopName: loopMarketRollout, WorkspaceKey: workspaceKeyLaunch,
-		Status: cellRunning, Generation: 1, IterationCap: 2,
+		Status: runRunning, Generation: 1, IterationCap: 2,
 		BudgetTokens: 120000, TokensUsed: 38400,
 		CreatedAt: createdAt, LastProgressAt: clock.minutesAgo(2),
 		Generations: []loopGenerationStory{{
@@ -182,7 +182,7 @@ func pausedLoopRun(clock timeline) loopRunStory {
 	)
 	return loopRunStory{
 		ID: "loopr_northstar_dispute_sweep_paused", LoopName: loopDisputeSweep,
-		WorkspaceKey: workspaceKeyPlatform, Status: cellPaused, Generation: 1,
+		WorkspaceKey: workspaceKeyPlatform, Status: runPaused, Generation: 1,
 		IterationCap: 2, BudgetTokens: 30000, TokensUsed: 6100,
 		CreatedAt: createdAt, LastProgressAt: pausedAt,
 		Generations: []loopGenerationStory{{

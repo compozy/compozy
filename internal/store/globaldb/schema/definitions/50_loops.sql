@@ -690,6 +690,7 @@ CREATE INDEX idx_loop_runs_queue_order
 
 CREATE UNIQUE INDEX uq_loop_runs_active_session_goal ON loop_runs(origin_session_id)
 			WHERE origin_kind='session'
+			  AND historical = 0
 			  AND status IN ('queued','running','watching','needs-approval','paused');
 
 CREATE UNIQUE INDEX uq_loop_session_bindings_active

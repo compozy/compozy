@@ -96,6 +96,60 @@ func TestRegistryInstallPersistsExtension(t *testing.T) {
 	}
 }
 
+// Invariant: delayed cleanup from an older extension lifecycle cannot disable
+// a replacement lifecycle for the same registry name.
+// Owner: extension registry persistence.
+// Canonical suite: extension registry tests.
+func TestRegistryConditionalDisableFencesOlderLifecycle(t *testing.T) {
+	withDaemonVersion(t, "0.6.0")
+
+	t.Run("Should reject stale cleanup and accept the current lifecycle owner", func(t *testing.T) {
+		env := newRegistryTestEnv(t)
+		dir, manifest, checksum := createRegistryTestExtension(t, "lifecycle-fence", registryManifestOptions{})
+		if err := env.registry.Install(manifest, dir, checksum); err != nil {
+			t.Fatalf("Install() error = %v", err)
+		}
+		older, err := env.registry.Get(manifest.Name)
+		if err != nil {
+			t.Fatalf("Get(older) error = %v", err)
+		}
+		if older.lifecycleToken == "" {
+			t.Fatal("older lifecycle token is empty")
+		}
+		if err := env.registry.Enable(manifest.Name); err != nil {
+			t.Fatalf("Enable(replacement lifecycle) error = %v", err)
+		}
+		replacement, err := env.registry.Get(manifest.Name)
+		if err != nil {
+			t.Fatalf("Get(replacement) error = %v", err)
+		}
+		if replacement.lifecycleToken == older.lifecycleToken {
+			t.Fatalf("replacement lifecycle token = %q, want a new owner token", replacement.lifecycleToken)
+		}
+		disabled, err := env.registry.DisableIfLifecycleToken(manifest.Name, older.lifecycleToken)
+		if err != nil {
+			t.Fatalf("DisableIfLifecycleToken(older) error = %v", err)
+		}
+		if disabled {
+			t.Fatal("DisableIfLifecycleToken(older) disabled the replacement")
+		}
+		current, err := env.registry.Get(manifest.Name)
+		if err != nil {
+			t.Fatalf("Get(after stale disable) error = %v", err)
+		}
+		if !current.Enabled {
+			t.Fatal("replacement Enabled = false after stale disable")
+		}
+		disabled, err = env.registry.DisableIfLifecycleToken(manifest.Name, replacement.lifecycleToken)
+		if err != nil {
+			t.Fatalf("DisableIfLifecycleToken(replacement) error = %v", err)
+		}
+		if !disabled {
+			t.Fatal("DisableIfLifecycleToken(replacement) disabled = false, want true")
+		}
+	})
+}
+
 // Invariant: format and recorded ingestion diagnostics round-trip on the row
 // that owns each global or workspace extension instance.
 // Owner: extension registry persistence.

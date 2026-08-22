@@ -155,6 +155,15 @@ func hookDispatchSummaries(clock timeline) []eventSummaryStory {
 		{"runbook-freshness", string(eventspkg.OutcomeSuccess), 14 * time.Hour},
 		{guardrailsHook, string(eventspkg.OutcomeSuccess), 15*time.Hour + 45*time.Minute},
 	}
+	timestamps := make([]time.Time, len(hooks))
+	for index, hook := range hooks {
+		timestamps[index] = clock.todayAt(hook.offset)
+	}
+	for index := len(timestamps) - 2; index >= 0; index-- {
+		if !timestamps[index].Before(timestamps[index+1]) {
+			timestamps[index] = timestamps[index+1].Add(-time.Minute)
+		}
+	}
 	stories := make([]eventSummaryStory, 0, len(hooks))
 	for index, hook := range hooks {
 		actor := pulseActors[index%len(pulseActors)]
@@ -165,7 +174,7 @@ func hookDispatchSummaries(clock timeline) []eventSummaryStory {
 			HookEvent: "on_session_stopped", HookName: hook.name,
 			Outcome: hook.outcome,
 			Summary: fmt.Sprintf("Hook %s dispatched", hook.name),
-			At:      clock.todayAt(hook.offset),
+			At:      timestamps[index],
 		})
 	}
 	return stories

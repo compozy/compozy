@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"slices"
 
 	"github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -62,12 +63,10 @@ func scenarioLoopPlacements() []loopPlacement {
 func scenarioLoopNames() []string {
 	placements := scenarioLoopPlacements()
 	names := make([]string, 0, len(placements))
-	seen := make(map[string]struct{}, len(placements))
 	for _, placement := range placements {
-		if _, duplicate := seen[placement.name]; duplicate {
+		if slices.Contains(names, placement.name) {
 			continue
 		}
-		seen[placement.name] = struct{}{}
 		names = append(names, placement.name)
 	}
 	return names

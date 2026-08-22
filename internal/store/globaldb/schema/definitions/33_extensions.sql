@@ -10,6 +10,7 @@ CREATE TABLE extensions (
 		provides_json TEXT NOT NULL DEFAULT '[]',
 		permissions_json TEXT NOT NULL DEFAULT '[]',
 		checksum      TEXT NOT NULL,
+		lifecycle_token TEXT NOT NULL DEFAULT '',
 		registry_slug TEXT,
 		registry_name TEXT,
 		remote_version TEXT,

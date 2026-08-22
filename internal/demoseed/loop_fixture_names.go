@@ -46,6 +46,7 @@ const (
 	runStalled       = "stalled"
 	runCanceled      = "canceled"
 	runQueued        = "queued"
+	runRunning       = "running"
 	runNeedsApproval = "needs-approval"
 	runWatching      = "watching"
 	runPaused        = "paused"

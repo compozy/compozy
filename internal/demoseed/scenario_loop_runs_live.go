@@ -46,7 +46,7 @@ func ratchetLoopRun(clock timeline) loopRunStory {
 	return loopRunStory{
 		ID: "loopr_northstar_market_rollout_done", LoopName: loopMarketRollout,
 		WorkspaceKey: workspaceKeyLaunch, Status: runDone, Generation: 3,
-		IterationCap: 2, BudgetTokens: 120000, TokensUsed: 84210,
+		IterationCap: 3, BudgetTokens: 120000, TokensUsed: 84210,
 		CreatedAt: createdAt, LastProgressAt: endedAt,
 		BestGeneration: 3, BestScore: 0.94,
 		Generations: generations, Events: events,

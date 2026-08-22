@@ -13,23 +13,33 @@ type TerminalRunHistoryImport struct {
 	actor ActorContext
 }
 
+var terminalRunHistoryStatuses = []struct {
+	runStatus  RunStatus
+	taskStatus Status
+}{
+	{runStatus: TaskRunStatusCompleted, taskStatus: TaskStatusCompleted},
+	{runStatus: TaskRunStatusFailed, taskStatus: TaskStatusFailed},
+	{runStatus: TaskRunStatusCanceled, taskStatus: TaskStatusCanceled},
+}
+
 // TerminalRunHistoryStatuses lists the run statuses a history import accepts.
 func TerminalRunHistoryStatuses() []RunStatus {
-	return []RunStatus{TaskRunStatusCompleted, TaskRunStatusFailed, TaskRunStatusCanceled}
+	statuses := make([]RunStatus, 0, len(terminalRunHistoryStatuses))
+	for _, status := range terminalRunHistoryStatuses {
+		statuses = append(statuses, status.runStatus)
+	}
+	return statuses
 }
 
 // StatusForTerminalRun reports the task projection a terminal run requires.
 func StatusForTerminalRun(status RunStatus) (Status, bool) {
-	switch status.Normalize() {
-	case TaskRunStatusCompleted:
-		return TaskStatusCompleted, true
-	case TaskRunStatusFailed:
-		return TaskStatusFailed, true
-	case TaskRunStatusCanceled:
-		return TaskStatusCanceled, true
-	default:
-		return "", false
+	normalized := status.Normalize()
+	for _, candidate := range terminalRunHistoryStatuses {
+		if candidate.runStatus == normalized {
+			return candidate.taskStatus, true
+		}
 	}
+	return "", false
 }
 
 // NewTerminalRunHistoryImport validates and isolates one finished history
@@ -38,7 +48,7 @@ func NewTerminalRunHistoryImport(run Run, actor ActorContext) (TerminalRunHistor
 	if err := requireWriteAuthority(actor); err != nil {
 		return TerminalRunHistoryImport{}, err
 	}
-	if !slices.Contains(TerminalRunHistoryStatuses(), run.Status.Normalize()) {
+	if _, supported := StatusForTerminalRun(run.Status); !supported {
 		return TerminalRunHistoryImport{}, fmt.Errorf(
 			"%w: history import requires a terminal run status, got %q",
 			ErrInvalidStatusTransition,

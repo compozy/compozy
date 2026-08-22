@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
+	"github.com/compozy/compozy/internal/task"
 )
 
 func TestRunHistoryImport(t *testing.T) {
@@ -51,6 +52,16 @@ func TestRunHistoryImport(t *testing.T) {
 		snapshot.GoalTurns[0].Seq = 2
 		if _, err := loop.NewRunHistoryImport(&snapshot); !errors.Is(err, loop.ErrValidation) {
 			t.Fatalf("NewRunHistoryImport(gapped goal turns) error = %v, want ErrValidation", err)
+		}
+	})
+
+	t.Run("Should reject an actor without write authority", func(t *testing.T) {
+		t.Parallel()
+
+		snapshot := validRunHistorySnapshot(t)
+		snapshot.Actor.Authority = task.Authority{Read: true}
+		if _, err := loop.NewRunHistoryImport(&snapshot); !errors.Is(err, task.ErrPermissionDenied) {
+			t.Fatalf("NewRunHistoryImport(read-only actor) error = %v, want ErrPermissionDenied", err)
 		}
 	})
 }

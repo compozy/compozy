@@ -260,7 +260,6 @@ func validateRunHistoryGenerations(generations []RunHistoryGeneration, run Run) 
 		return 0, fmt.Errorf("%w: run history import requires at least one generation", ErrValidation)
 	}
 	highest := 0
-	seen := make(map[int]struct{}, len(generations))
 	previousCreatedAt := time.Time{}
 	for index := range generations {
 		generation := generations[index]
@@ -268,10 +267,6 @@ func validateRunHistoryGenerations(generations []RunHistoryGeneration, run Run) 
 			return 0, fmt.Errorf("loop: validate imported generation: %w", err)
 		}
 		number := int(generation.Intent.Generation)
-		if _, duplicate := seen[number]; duplicate {
-			return 0, fmt.Errorf("%w: generation %d is imported twice", ErrValidation, number)
-		}
-		seen[number] = struct{}{}
 		if number != index+1 {
 			return 0, fmt.Errorf(
 				"%w: generations must be imported in gap-free ascending order starting at 1",

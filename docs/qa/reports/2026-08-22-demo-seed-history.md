@@ -63,7 +63,7 @@ None.
 
 ## Final Status
 
-- **Exit gate (full automated suite):** `make gate-full` — PASS; evidence: `/Users/pedronauck/dev/qa-labs/compozy-demo-seed-history-20260822-181255-352261-lab/qa-artifacts/qa/final-make-verify.log`
+- **Earlier lab verification:** `make verify` — PASS; evidence: `/Users/pedronauck/dev/qa-labs/compozy-demo-seed-history-20260822-181255-352261-lab/qa-artifacts/qa/final-make-verify.log`. Exact-head full verification is delegated to pull-request CI.
 - **Issues by user impact:** Blocks-Completion 0 · Data-Loss 0 · Trust-Damage 0 · Friction 0 · Cosmetic 0
 - **Coverage:** 1/1 journeys walked; CLI, API, web, and runtime surfaces covered
 - **Verdict:** ready — the Northstar Pay seed is populated, repeatable, ownership-safe, and truthful after daemon boot.

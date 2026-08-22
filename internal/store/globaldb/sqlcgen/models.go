@@ -471,6 +471,7 @@ type Extension struct {
 	ProvidesJson             string         `json:"provides_json"`
 	PermissionsJson          string         `json:"permissions_json"`
 	Checksum                 string         `json:"checksum"`
+	LifecycleToken           string         `json:"lifecycle_token"`
 	RegistrySlug             sql.NullString `json:"registry_slug"`
 	RegistryName             sql.NullString `json:"registry_name"`
 	RemoteVersion            sql.NullString `json:"remote_version"`

@@ -29,7 +29,9 @@ func seedLoopRuns(
 ) (loopSeedCounts, error) {
 	counts := loopSeedCounts{}
 	snapshots := map[string]loopSnapshot{}
-	for _, story := range scenarioLoopRuns(state.clock) {
+	stories := scenarioLoopRuns(state.clock)
+	commands := make([]*looppkg.RunHistoryImport, 0, len(stories))
+	for _, story := range stories {
 		record, err := state.recordFor(story.WorkspaceKey)
 		if err != nil {
 			return loopSeedCounts{}, err
@@ -46,14 +48,15 @@ func seedLoopRuns(
 		if err != nil {
 			return loopSeedCounts{}, fmt.Errorf("demo seed: prepare Loop run %q: %w", story.ID, err)
 		}
-		if err := db.ImportRunHistory(ctx, &command); err != nil {
-			return loopSeedCounts{}, fmt.Errorf("demo seed: import Loop run %q: %w", story.ID, err)
-		}
+		commands = append(commands, &command)
 		counts.runs++
 		counts.generations += len(story.Generations)
 		// The run insert appends its own opening status_changed event.
 		counts.events += len(snapshot.Events) + 1
 		counts.goalTurns += len(snapshot.GoalTurns)
+	}
+	if err := db.ImportRunHistoryBatch(ctx, commands); err != nil {
+		return loopSeedCounts{}, fmt.Errorf("demo seed: import Loop run batch: %w", err)
 	}
 	return counts, nil
 }

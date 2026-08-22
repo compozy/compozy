@@ -188,7 +188,8 @@ JOIN loop_session_bindings AS bindings
  AND bindings.handle = checkpoints.binding_handle
  AND bindings.binding_epoch = checkpoints.binding_epoch
  AND bindings.session_id = checkpoints.session_id
-WHERE runs.workspace_id = ?1 AND runs.goal_cleared_at IS NULL
+WHERE runs.workspace_id = ?1 AND runs.historical = 0
+  AND runs.goal_cleared_at IS NULL
   AND runs.status IN ('queued','running','watching','needs-approval','paused')
   AND checkpoints.phase = 'prompting' AND checkpoints.goal_status = 'active'
   AND checkpoints.session_id = ?2 AND checkpoints.prompt_id IS NOT NULL
@@ -545,6 +546,7 @@ FROM loop_session_bindings AS bindings
 JOIN loop_runs AS runs ON runs.id = bindings.loop_run_id
 WHERE bindings.workspace_id = ?1 AND bindings.session_id = ?2
   AND bindings.state = 'active' AND runs.workspace_id = ?1
+  AND runs.historical = 0
   AND runs.origin_kind = 'session' AND runs.origin_session_id <> bindings.session_id
   AND runs.goal_cleared_at IS NULL
   AND runs.status IN ('queued','running','watching','needs-approval','paused')

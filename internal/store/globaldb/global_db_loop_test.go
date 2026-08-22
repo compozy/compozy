@@ -5056,6 +5056,61 @@ func TestGlobalDBLoopHistoryShouldPersistMachineFacts(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve parent lineage inside one workspace", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t, "ws-1", "ws-2")
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 22, 13, 0, 0, 0, time.UTC)
+		actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "seed history")
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		parent := testLoopRun("looprun-history-parent", now, looppkg.StatusDone)
+		if _, err := globalDB.CreateLoopRunForStart(ctx, parent, dsl.ConcurrencyAllow); err != nil {
+			t.Fatalf("CreateLoopRunForStart(parent) error = %v", err)
+		}
+		foreignParent := testLoopRun("looprun-history-foreign-parent", now, looppkg.StatusDone)
+		foreignParent.WorkspaceID = "ws-2"
+		if _, err := globalDB.CreateLoopRunForStart(ctx, foreignParent, dsl.ConcurrencyAllow); err != nil {
+			t.Fatalf("CreateLoopRunForStart(foreign parent) error = %v", err)
+		}
+		newCommand := func(id string, parentID looppkg.RunID) looppkg.RunHistoryImport {
+			t.Helper()
+			run := testLoopRun(id, now.Add(time.Minute), looppkg.StatusFailed)
+			run.Generation = 1
+			run.ParentLoopRunID = parentID
+			command, commandErr := looppkg.NewRunHistoryImport(&looppkg.RunHistorySnapshot{
+				Run: run,
+				Generations: []looppkg.RunHistoryGeneration{{
+					Intent: looppkg.GenerationIntent{
+						Generation: 1,
+						Origin:     looppkg.OriginInitial,
+					},
+					CreatedAt: run.CreatedAt,
+				}},
+				Actor: actor,
+			})
+			if commandErr != nil {
+				t.Fatalf("NewRunHistoryImport(%q) error = %v", id, commandErr)
+			}
+			return command
+		}
+
+		missing := newCommand("looprun-history-missing-parent", "looprun-missing")
+		if err := globalDB.ImportRunHistory(ctx, &missing); !errors.Is(err, sql.ErrNoRows) {
+			t.Fatalf("ImportRunHistory(missing parent) error = %v, want sql.ErrNoRows", err)
+		}
+		foreign := newCommand("looprun-history-foreign-child", foreignParent.ID)
+		if err := globalDB.ImportRunHistory(ctx, &foreign); !errors.Is(err, looppkg.ErrValidation) {
+			t.Fatalf("ImportRunHistory(foreign parent) error = %v, want ErrValidation", err)
+		}
+		valid := newCommand("looprun-history-valid-child", parent.ID)
+		if err := globalDB.ImportRunHistory(ctx, &valid); err != nil {
+			t.Fatalf("ImportRunHistory(valid parent) error = %v", err)
+		}
+	})
+
 	t.Run("Should scope deterministic generation and verdict history to its workspace", func(t *testing.T) {
 		t.Parallel()
 
