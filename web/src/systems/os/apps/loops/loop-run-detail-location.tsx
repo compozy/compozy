@@ -140,25 +140,26 @@ function LoopRunDetail({
         ) : null}
       </span>
     ) : undefined,
-    actions: page.run && !page.run.historical ? (
-      <div className="flex items-center gap-2">
-        <LoopRunControls
-          status={page.run.status}
-          pauseRequested={page.run.pause_requested}
-          pendingVerb={page.pendingRunVerb}
-          onPause={page.handlePause}
-          onResume={page.handleResume}
-          onCancel={() => dialogs.openRunControl("cancel")}
-        />
-        <LoopRunOverflowMenu
-          isKillPending={page.isKillPending}
-          loopName={page.run.loop_name}
-          // Kill is offered only while the run is live; a terminal run gets the
-          // views but no verb the daemon would reject.
-          onKill={page.canKillRun ? () => dialogs.openRunControl("kill") : undefined}
-        />
-      </div>
-    ) : undefined,
+    actions:
+      page.run && !page.run.historical ? (
+        <div className="flex items-center gap-2">
+          <LoopRunControls
+            status={page.run.status}
+            pauseRequested={page.run.pause_requested}
+            pendingVerb={page.pendingRunVerb}
+            onPause={page.handlePause}
+            onResume={page.handleResume}
+            onCancel={() => dialogs.openRunControl("cancel")}
+          />
+          <LoopRunOverflowMenu
+            isKillPending={page.isKillPending}
+            loopName={page.run.loop_name}
+            // Kill is offered only while the run is live; a terminal run gets the
+            // views but no verb the daemon would reject.
+            onKill={page.canKillRun ? () => dialogs.openRunControl("kill") : undefined}
+          />
+        </div>
+      ) : undefined,
   });
 
   if (page.runQuery.isLoading) {
