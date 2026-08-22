@@ -1,4 +1,4 @@
-## 0.3.0 - 2026-08-21
+## 0.3.0 - 2026-08-22
 
 ### ♻️ Refactoring
 
@@ -47,6 +47,7 @@
 - Complete Loop graph engineering and typed inputs (#427)
 - Simplify the interface for everyday users (#440)
 - Deliver the command palette operating surface (#441)
+- Make loop runs legible and task lists calm (#452)
 
 ### 🐛 Bug Fixes
 
@@ -124,6 +125,7 @@
 - Resolve agent runtime recovery regressions (#447)
 - Preserve run-agent session lifecycle (#446)
 - Use migration timeout for tail replay
+- Recover ACP sessions after provider disconnects (#454)
 
 ### 🔧 Miscellaneous Tasks
 
