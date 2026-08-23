@@ -459,12 +459,20 @@ func TestReconciliationPreservesWorktreeBinding(t *testing.T) {
 			t.Fatalf("WriteSessionMeta() error = %v", err)
 		}
 
-		result, err := h.observer.Reconcile(ctx)
+		firstResult, err := h.observer.Reconcile(ctx)
 		if err != nil {
-			t.Fatalf("Reconcile() error = %v", err)
+			t.Fatalf("first Reconcile() error = %v", err)
 		}
-		if len(result.Indexed) != 0 {
-			t.Fatalf("Indexed = %#v, want empty for an existing session", result.Indexed)
+		if len(firstResult.Indexed) != 0 {
+			t.Fatalf("first Indexed = %#v, want empty for an existing session", firstResult.Indexed)
+		}
+
+		secondResult, err := h.observer.Reconcile(ctx)
+		if err != nil {
+			t.Fatalf("second Reconcile() error = %v", err)
+		}
+		if len(secondResult.Indexed) != 0 {
+			t.Fatalf("second Indexed = %#v, want empty for an existing session", secondResult.Indexed)
 		}
 		sessions, err := h.registry.ListSessions(ctx, store.SessionListQuery{})
 		if err != nil {
