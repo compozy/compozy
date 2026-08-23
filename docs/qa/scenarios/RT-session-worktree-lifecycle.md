@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/native-handoff-fixed-task.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/browser-worktree-bound-context.png; internal/daemon/daemon_worktree_e2e_integration_test.go
-last_report: docs/qa/reports/2026-08-13-worktree-support.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/native-handoff-fixed-task.json; /Users/pedronauck/dev/qa-labs/compozy-worktree-support-20260813-083057-155448-lab/qa-artifacts/qa/browser-worktree-bound-context.png; internal/daemon/daemon_worktree_e2e_integration_test.go; /home/francisross/dev/qa-labs/compozy-session-worktree-reconcile-20260823-032508-181632-lab/qa-artifacts/qa/cli-runtime-evidence.json; internal/observe/reconcile_test.go
+last_report: docs/qa/reports/2026-08-23-session-worktree-reconcile.md
 overlaps: RT-worktree-api-surface-parity; RT-worktree-cli-lifecycle
 ---
 

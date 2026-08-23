@@ -11,9 +11,9 @@ import (
 
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/soul"
-	"github.com/compozy/compozy/internal/testutil"
-
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/testutil"
+	worktreepkg "github.com/compozy/compozy/internal/worktree"
 )
 
 func TestReconciliationIndexesSessionDirNotInDB(t *testing.T) {
@@ -354,6 +354,127 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 			recent.FailureKind != store.FailureProcess ||
 			recent.Summary != "agent exited with status 1" {
 			t.Fatalf("Health().Failures.Recent[0] = %#v, want reconstructed failure", recent)
+		}
+	})
+}
+
+func TestReconciliationPreservesWorktreeBinding(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should refresh an identity-bound session without losing its worktree", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		ctx := testutil.Context(t)
+		now := h.now.Add(40 * time.Minute)
+		sessionID := "sess-worktree-bound"
+		worktreeID := "wt-session-reconcile"
+		worktreePath := filepath.Join(h.workspace, ".worktrees", "session-reconcile")
+		if err := h.registry.Worktrees.Insert(ctx, worktreepkg.Worktree{
+			ID:          worktreeID,
+			WorkspaceID: h.workspaceID,
+			Name:        "session-reconcile",
+			Branch:      "fix/session-reconcile",
+			Path:        worktreePath,
+			State:       worktreepkg.StateReady,
+			Origin:      worktreepkg.OriginManual,
+			SetupState:  worktreepkg.SetupNone,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}); err != nil {
+			t.Fatalf("Insert(worktree) error = %v", err)
+		}
+
+		creationProfile := store.SessionCreationProfile{
+			Version: store.SessionCreationProfileVersion, AgentName: "coder", Provider: "claude",
+			WorkspaceID: h.workspaceID, CWD: worktreePath, WorktreeRef: worktreeID,
+			SandboxMode: store.SessionCreationSandboxNone, Permissions: "approve-reads",
+		}
+		creationOptions := store.SessionCreationOptions{
+			SessionID:            sessionID,
+			Name:                 "Worktree-bound session",
+			NetworkOwnerKey:      "session:" + sessionID,
+			NetworkParticipation: participation.LocalSpec(),
+			SessionType:          "user",
+		}
+		creationProfileRef, err := h.registry.PutSessionCreationProfile(ctx, creationProfile)
+		if err != nil {
+			t.Fatalf("PutSessionCreationProfile() error = %v", err)
+		}
+		policySpecDigest, err := creationProfile.PolicySpecDigest()
+		if err != nil {
+			t.Fatalf("SessionCreationProfile.PolicySpecDigest() error = %v", err)
+		}
+		creationDigest, err := creationProfile.CreationDigest(creationOptions)
+		if err != nil {
+			t.Fatalf("SessionCreationProfile.CreationDigest() error = %v", err)
+		}
+		creationIdentity := store.SessionCreationIdentity{
+			CreationProfileRef: creationProfileRef,
+			PolicySpecDigest:   policySpecDigest,
+			CreationDigest:     creationDigest,
+		}
+		info := store.SessionInfo{
+			ID:            sessionID,
+			Name:          creationOptions.Name,
+			AgentName:     creationProfile.AgentName,
+			Provider:      creationProfile.Provider,
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   h.workspaceID,
+			WorktreeID:    worktreeID,
+			SessionType:   creationOptions.SessionType,
+			State:         "stopped",
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		}
+		info.SetNetworkSpec(creationOptions.NetworkParticipation)
+		if _, err := h.registry.RegisterSessionWithCreationIdentity(ctx, info, creationIdentity); err != nil {
+			t.Fatalf("RegisterSessionWithCreationIdentity() error = %v", err)
+		}
+
+		meta := store.SessionMeta{
+			ID:                   sessionID,
+			Name:                 creationOptions.Name,
+			AgentName:            creationProfile.AgentName,
+			Provider:             creationProfile.Provider,
+			RuntimeStatus:        store.SessionRuntimeUnbound,
+			WorkspaceID:          h.workspaceID,
+			CWD:                  worktreePath,
+			NetworkParticipation: participation.CloneSpec(creationOptions.NetworkParticipation),
+			SessionType:          creationOptions.SessionType,
+			State:                "stopped",
+			CreationProfile:      &creationProfile,
+			CreationOptions:      &creationOptions,
+			CreationProfileRef:   creationIdentity.CreationProfileRef,
+			PolicySpecDigest:     creationIdentity.PolicySpecDigest,
+			CreationDigest:       creationIdentity.CreationDigest,
+			CreatedAt:            now,
+			UpdatedAt:            now,
+		}
+		meta.SetWorktreeID(worktreeID)
+		if err := store.WriteSessionMeta(
+			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, sessionID)),
+			meta,
+		); err != nil {
+			t.Fatalf("WriteSessionMeta() error = %v", err)
+		}
+
+		result, err := h.observer.Reconcile(ctx)
+		if err != nil {
+			t.Fatalf("Reconcile() error = %v", err)
+		}
+		if len(result.Indexed) != 0 {
+			t.Fatalf("Indexed = %#v, want empty for an existing session", result.Indexed)
+		}
+		sessions, err := h.registry.ListSessions(ctx, store.SessionListQuery{})
+		if err != nil {
+			t.Fatalf("ListSessions() error = %v", err)
+		}
+		if got, want := len(sessions), 1; got != want {
+			t.Fatalf("len(sessions) = %d, want %d", got, want)
+		}
+		if got, want := sessions[0].WorktreeID, worktreeID; got != want {
+			t.Fatalf("sessions[0].WorktreeID = %q, want %q", got, want)
 		}
 	})
 }
