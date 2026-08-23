@@ -184,7 +184,7 @@ func (s *service) renderNodeCanceledEffects(
 }
 
 func (s *service) prepareCancellation(
-	_ context.Context,
+	ctx context.Context,
 	ws WorkspaceID,
 	runID RunID,
 	nodeID NodeID,
@@ -192,6 +192,9 @@ func (s *service) prepareCancellation(
 	reason string,
 	actor task.ActorContext,
 ) (CancellationStore, CancellationMutation, error) {
+	if err := s.requireMutableRun(ctx, ws, runID); err != nil {
+		return nil, CancellationMutation{}, err
+	}
 	store, ok := s.store.(CancellationStore)
 	if !ok {
 		return nil, CancellationMutation{}, fmt.Errorf(

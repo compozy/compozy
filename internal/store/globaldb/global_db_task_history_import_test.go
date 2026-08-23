@@ -10,7 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 )
 
-func TestGlobalDBCompletedRunHistoryImport(t *testing.T) {
+func TestGlobalDBTerminalRunHistoryImport(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should atomically import one completed run projection and audit event", func(t *testing.T) {
@@ -24,15 +24,15 @@ func TestGlobalDBCompletedRunHistoryImport(t *testing.T) {
 		}
 		run := completedHistoryRunForTest("success", taskRecord)
 		actor := operatorActorContextForTest("operator:history-success")
-		command, err := taskpkg.NewCompletedRunHistoryImport(run, actor)
+		command, err := taskpkg.NewTerminalRunHistoryImport(run, actor)
 		if err != nil {
-			t.Fatalf("NewCompletedRunHistoryImport() error = %v", err)
+			t.Fatalf("NewTerminalRunHistoryImport() error = %v", err)
 		}
 		observer := &recordingTaskEventCommitObserver{db: globalDB}
 		globalDB.SetTaskEventCommitObserver(observer)
 
-		if err := globalDB.ImportCompletedRunHistory(ctx, &command); err != nil {
-			t.Fatalf("ImportCompletedRunHistory() error = %v", err)
+		if err := globalDB.ImportTerminalRunHistory(ctx, &command); err != nil {
+			t.Fatalf("ImportTerminalRunHistory() error = %v", err)
 		}
 		storedRun, err := globalDB.GetTaskRun(ctx, run.ID)
 		if err != nil {
@@ -80,19 +80,19 @@ func TestGlobalDBCompletedRunHistoryImport(t *testing.T) {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
 		run := completedHistoryRunForTest("rollback", taskRecord)
-		command, err := taskpkg.NewCompletedRunHistoryImport(
+		command, err := taskpkg.NewTerminalRunHistoryImport(
 			run,
 			operatorActorContextForTest("operator:history-rollback"),
 		)
 		if err != nil {
-			t.Fatalf("NewCompletedRunHistoryImport() error = %v", err)
+			t.Fatalf("NewTerminalRunHistoryImport() error = %v", err)
 		}
 		observer := &recordingTaskEventCommitObserver{db: globalDB}
 		globalDB.SetTaskEventCommitObserver(observer)
 		installTaskEventInsertFailureTriggerForType(t, globalDB, eventspkg.TaskRunCompleted)
 
-		err = globalDB.ImportCompletedRunHistory(ctx, &command)
-		assertForcedTaskEventInsertError(t, err, "ImportCompletedRunHistory()")
+		err = globalDB.ImportTerminalRunHistory(ctx, &command)
+		assertForcedTaskEventInsertError(t, err, "ImportTerminalRunHistory()")
 		if _, err := globalDB.GetTaskRun(ctx, run.ID); !errors.Is(err, taskpkg.ErrTaskRunNotFound) {
 			t.Fatalf("GetTaskRun(after rollback) error = %v, want %v", err, taskpkg.ErrTaskRunNotFound)
 		}
@@ -108,22 +108,101 @@ func TestGlobalDBCompletedRunHistoryImport(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject every non-completed source before persistence", func(t *testing.T) {
+	t.Run("Should preserve failed and canceled outcomes in their task projections", func(t *testing.T) {
 		t.Parallel()
 
-		run := completedHistoryRunForTest("reject", completedHistoryTaskForTest("reject"))
-		run.Status = taskpkg.TaskRunStatusQueued
-		run.EndedAt = time.Time{}
-		_, err := taskpkg.NewCompletedRunHistoryImport(
-			run,
-			operatorActorContextForTest("operator:history-reject"),
-		)
-		if !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
-			t.Fatalf(
-				"NewCompletedRunHistoryImport(queued) error = %v, want %v",
-				err,
-				taskpkg.ErrInvalidStatusTransition,
-			)
+		for _, testCase := range []struct {
+			name       string
+			runStatus  taskpkg.RunStatus
+			taskStatus taskpkg.Status
+			eventType  string
+		}{
+			{name: "failed", runStatus: taskpkg.TaskRunStatusFailed, taskStatus: taskpkg.TaskStatusFailed, eventType: eventspkg.TaskRunFailed},
+			{name: "canceled", runStatus: taskpkg.TaskRunStatusCanceled, taskStatus: taskpkg.TaskStatusCanceled, eventType: eventspkg.TaskRunCanceled},
+		} {
+			t.Run("Should import "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t)
+				globalDB := openTestGlobalDB(t)
+				taskRecord := completedHistoryTaskForTest(testCase.name)
+				taskRecord.Status = testCase.taskStatus
+				if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+					t.Fatalf("CreateTask() error = %v", err)
+				}
+				run := completedHistoryRunForTest(testCase.name, taskRecord)
+				run.Status = testCase.runStatus
+				command, err := taskpkg.NewTerminalRunHistoryImport(
+					run,
+					operatorActorContextForTest("operator:history-"+testCase.name),
+				)
+				if err != nil {
+					t.Fatalf("NewTerminalRunHistoryImport() error = %v", err)
+				}
+				if err := globalDB.ImportTerminalRunHistory(ctx, &command); err != nil {
+					t.Fatalf("ImportTerminalRunHistory() error = %v", err)
+				}
+				storedRun, err := globalDB.GetTaskRun(ctx, run.ID)
+				if err != nil {
+					t.Fatalf("GetTaskRun() error = %v", err)
+				}
+				if storedRun.Status.Normalize() != testCase.runStatus {
+					t.Fatalf("stored run status = %q, want %q", storedRun.Status, testCase.runStatus)
+				}
+				events, err := globalDB.ListTaskEvents(ctx, taskpkg.EventQuery{
+					TaskID: taskRecord.ID, RunID: run.ID, EventType: testCase.eventType,
+				})
+				if err != nil {
+					t.Fatalf("ListTaskEvents() error = %v", err)
+				}
+				if len(events) != 1 {
+					t.Fatalf("terminal event count = %d, want 1", len(events))
+				}
+			})
+		}
+	})
+
+	t.Run("Should reject a missing import command", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		err := globalDB.ImportTerminalRunHistory(testutil.Context(t), nil)
+		if !errors.Is(err, taskpkg.ErrValidation) {
+			t.Fatalf("ImportTerminalRunHistory(nil) error = %v, want ErrValidation", err)
+		}
+	})
+
+	t.Run("Should reject every non-terminal source before persistence", func(t *testing.T) {
+		t.Parallel()
+
+		for _, testCase := range []struct {
+			name   string
+			status taskpkg.RunStatus
+		}{
+			{name: "unknown", status: taskpkg.TaskRunStatusUnknown},
+			{name: "queued", status: taskpkg.TaskRunStatusQueued},
+			{name: "claimed", status: taskpkg.TaskRunStatusClaimed},
+			{name: "starting", status: taskpkg.TaskRunStatusStarting},
+			{name: "running", status: taskpkg.TaskRunStatusRunning},
+			{name: "needs attention", status: taskpkg.TaskRunStatusNeedsAttention},
+		} {
+			t.Run("Should reject "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+				run := completedHistoryRunForTest("reject-"+testCase.name, completedHistoryTaskForTest("reject"))
+				run.Status = testCase.status
+				_, err := taskpkg.NewTerminalRunHistoryImport(
+					run,
+					operatorActorContextForTest("operator:history-reject"),
+				)
+				if !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
+					t.Fatalf(
+						"NewTerminalRunHistoryImport(%s) error = %v, want %v",
+						testCase.status,
+						err,
+						taskpkg.ErrInvalidStatusTransition,
+					)
+				}
+			})
 		}
 	})
 }

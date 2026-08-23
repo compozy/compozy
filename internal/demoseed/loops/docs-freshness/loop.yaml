@@ -1,0 +1,64 @@
+apiVersion: compozy.loop/v1
+kind: Loop
+meta:
+  name: docs-freshness
+  description: Compare payments runbooks against the shipped rollout controls and flag the stale ones.
+  catalog:
+    use_when: "You want runbooks checked against current controls without rewriting them."
+    keywords: [docs, runbooks, freshness, drift]
+    category: Operations
+
+concurrency: forbid
+
+inputs:
+  area:
+    type: string
+    default: payments
+
+contract:
+  goal: "Flag every {{ .inputs.area }} runbook whose steps no longer match the shipped controls."
+  definition_of_done: >
+    Each checked runbook is either confirmed current or flagged with the exact step that drifted.
+  iteration_cap: 1
+  no_progress:
+    window: 1
+  budget:
+    tokens: 20000
+    wall_clock_sec: 600
+    on_exceeded: halt
+  terminal_states: [done, no-op, blocked, failed]
+
+graph:
+  nodes:
+    - id: area_input
+      class: source
+      kind: input
+      input_ref: area
+
+    - id: flag_stale
+      class: action
+      kind: transform
+      params:
+        map:
+          area:
+            value: "{{ .inputs.area }}"
+          checked:
+            value: "11"
+          flagged:
+            value: "2"
+      produces:
+        area: string
+        checked: string
+        flagged: string
+
+  edges:
+    - from: area_input
+      to: flag_stale
+
+start:
+  - kind: manual
+  - kind: cli
+  - kind: http
+  - kind: uds
+  - kind: native_tool
+  - kind: schedule

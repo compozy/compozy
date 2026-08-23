@@ -18,6 +18,9 @@ func (s *service) RequeueNode(
 	reason string,
 	actor task.ActorContext,
 ) (NodeRequeueResult, error) {
+	if err := s.requireMutableRun(ctx, ws, runID); err != nil {
+		return NodeRequeueResult{}, err
+	}
 	store, ok := s.store.(NodeRequeueStore)
 	if !ok {
 		return NodeRequeueResult{}, fmt.Errorf("%w: node requeue store is unavailable", ErrActionDependencyMissing)
@@ -61,6 +64,9 @@ func (s *service) ResumeNodeWait(
 	}
 	run, err := s.Get(ctx, ws, runID)
 	if err != nil {
+		return WaitResumeResult{}, err
+	}
+	if err := rejectHistoricalRunMutation(*run); err != nil {
 		return WaitResumeResult{}, err
 	}
 	resolved, err := s.pinnedResolvedDefinition(ctx, *run)

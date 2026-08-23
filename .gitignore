@@ -44,6 +44,10 @@ ai-docs/
 .impeccable
 .coderabbit/reviews/
 .agents/skills/compozy
+.agents/skills/cy-execute-task
+.agents/skills/cy-fix-reviews
+.agents/skills/cy-review-round
+.agents/skills/cy-workflow-memory
 
 # Python
 __pycache__/

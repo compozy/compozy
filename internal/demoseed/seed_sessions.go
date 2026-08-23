@@ -2,80 +2,136 @@ package demoseed
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
-	"github.com/compozy/compozy/internal/acp"
-	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/sessiondb"
-	"github.com/compozy/compozy/internal/transcript"
-	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
 func seedSessions(
 	ctx context.Context,
 	db *globaldb.GlobalDB,
-	paths config.HomePaths,
-	workspace compozyworkspace.Workspace,
+	state *scenario,
 	stories []sessionStory,
-) error {
+) (int, error) {
+	total := 0
 	for _, story := range stories {
-		if err := seedSession(ctx, db, paths, workspace, story); err != nil {
-			return err
+		written, err := seedSession(ctx, db, state, story)
+		if err != nil {
+			return 0, err
 		}
+		total += written
 	}
-	return nil
+	return total, nil
 }
 
 func seedSession(
 	ctx context.Context,
 	db *globaldb.GlobalDB,
-	paths config.HomePaths,
-	workspace compozyworkspace.Workspace,
+	state *scenario,
 	story sessionStory,
-) error {
-	story.ToolInput = strings.ReplaceAll(story.ToolInput, "$WORKSPACE_ID", workspace.ID)
-	sessionDir := filepath.Join(paths.SessionsDir, story.ID)
+) (int, error) {
+	record, err := state.recordFor(story.WorkspaceKey)
+	if err != nil {
+		return 0, err
+	}
+	sessionDir := filepath.Join(state.paths.SessionsDir, story.ID)
 	if err := os.MkdirAll(sessionDir, 0o700); err != nil {
-		return fmt.Errorf("demo seed: create session directory %q: %w", sessionDir, err)
+		return 0, fmt.Errorf("demo seed: create session directory %q: %w", sessionDir, err)
 	}
-	if err := writeSessionTranscript(ctx, sessionDir, workspace.ID, story); err != nil {
-		return err
+	written, err := writeSessionTranscript(ctx, sessionDir, record.ID, story)
+	if err != nil {
+		return 0, err
 	}
+	permissions, err := sessionPermissions(story)
+	if err != nil {
+		return 0, err
+	}
+	if err := writeSessionRecords(ctx, db, sessionDir, record, story, permissions); err != nil {
+		return 0, err
+	}
+	return written, nil
+}
 
-	stopReason := store.StopCompleted
+func writeSessionRecords(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	sessionDir string,
+	record workspaceRecord,
+	story sessionStory,
+	permissions string,
+) error {
+	stopReason := store.StopReason(story.stopReason())
 	networkSpec := participation.LocalSpec()
+	lineage := sessionLineage(story)
+	stopDetail := story.StopDetail
 	meta := store.SessionMeta{
 		ID: story.ID, Name: story.Name, AgentName: story.AgentName, Provider: story.Provider,
-		EffectivePermissions: approveReads, WorkspaceID: workspace.ID, CWD: workspace.RootDir,
-		SessionType: string(session.SessionTypeUser), State: string(session.StateStopped),
+		Model:       story.Model,
+		WorkspaceID: record.ID, CWD: record.RootDir,
+		SessionType: story.SessionType, State: string(session.StateStopped),
 		RuntimeStatus: store.SessionRuntimeUnbound,
-		StopReason:    &stopReason, StopDetail: "Work completed and handed off.",
-		NetworkParticipation: &networkSpec, CreatedAt: story.StartedAt, UpdatedAt: story.EndedAt,
+		StopReason:    &stopReason, StopDetail: stopDetail,
+		Failure:              sessionFailure(story),
+		Lineage:              lineage,
+		NetworkParticipation: &networkSpec,
+		CreatedAt:            story.StartedAt, UpdatedAt: story.EndedAt,
 	}
+	meta.SetEffectivePermissions(permissions)
 	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), meta); err != nil {
 		return fmt.Errorf("demo seed: write metadata for session %q: %w", story.ID, err)
 	}
 	if err := db.RegisterSession(ctx, store.SessionInfo{
 		ID: story.ID, Name: story.Name, AgentName: story.AgentName, Provider: story.Provider,
-		WorkspaceID: workspace.ID, SessionType: string(session.SessionTypeUser),
+		Model: story.Model, WorkspaceID: record.ID, SessionType: story.SessionType,
+		Lineage:             lineage,
 		SessionNetworkState: &store.SessionNetworkState{NetworkSpec: networkSpec},
 		State:               string(session.StateStopped), RuntimeStatus: store.SessionRuntimeUnbound,
-		StopReason: store.StopCompleted,
-		StopDetail: "Work completed and handed off.", CreatedAt: story.StartedAt, UpdatedAt: story.EndedAt,
+		StopReason: stopReason, StopDetail: stopDetail, Failure: sessionFailure(story),
+		CreatedAt: story.StartedAt, UpdatedAt: story.EndedAt,
 	}); err != nil {
 		return fmt.Errorf("demo seed: register session %q: %w", story.ID, err)
 	}
 	return nil
+}
+
+func sessionPermissions(story sessionStory) (string, error) {
+	for _, agent := range scenarioAgents() {
+		if agent.WorkspaceKey == story.WorkspaceKey && agent.Name == story.AgentName {
+			return agent.Permissions, nil
+		}
+	}
+	return "", fmt.Errorf(
+		"demo seed: agent %q is not defined in workspace %q",
+		story.AgentName,
+		story.WorkspaceKey,
+	)
+}
+
+func sessionLineage(story sessionStory) *store.SessionLineage {
+	if strings.TrimSpace(story.ParentID) == "" {
+		return nil
+	}
+	return &store.SessionLineage{
+		ParentSessionID: story.ParentID, RootSessionID: story.ParentID,
+		SpawnDepth: 1, SpawnRole: story.SpawnRole, AutoStopOnParent: true,
+	}
+}
+
+func sessionFailure(story sessionStory) *store.SessionFailure {
+	if story.Failure == nil {
+		return nil
+	}
+	return &store.SessionFailure{
+		Kind: store.FailureKind(story.Failure.Kind), Summary: story.Failure.Summary,
+	}
 }
 
 func writeSessionTranscript(
@@ -83,13 +139,13 @@ func writeSessionTranscript(
 	sessionDir string,
 	workspaceID string,
 	story sessionStory,
-) (err error) {
+) (written int, err error) {
 	eventsDB, err := sessiondb.OpenSessionDB(ctx, store.SessionDBOwner{
 		SessionID:   story.ID,
 		WorkspaceID: workspaceID,
 	}, store.SessionDBFile(sessionDir))
 	if err != nil {
-		return fmt.Errorf("demo seed: open transcript for session %q: %w", story.ID, err)
+		return 0, fmt.Errorf("demo seed: open transcript for session %q: %w", story.ID, err)
 	}
 	defer func() {
 		closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
@@ -98,98 +154,15 @@ func writeSessionTranscript(
 			err = errors.Join(err, fmt.Errorf("demo seed: close transcript for session %q: %w", story.ID, closeErr))
 		}
 	}()
-
-	persisted, usage, err := sessionEvents(story)
+	persisted, usage, err := buildTranscript(story, workspaceID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if _, err := eventsDB.RecordPersistedBatch(ctx, persisted); err != nil {
-		return fmt.Errorf("demo seed: write transcript for session %q: %w", story.ID, err)
+		return 0, fmt.Errorf("demo seed: write transcript for session %q: %w", story.ID, err)
 	}
 	if err := eventsDB.RecordTokenUsage(ctx, usage); err != nil {
-		return fmt.Errorf("demo seed: write transcript usage for session %q: %w", story.ID, err)
+		return 0, fmt.Errorf("demo seed: write transcript usage for session %q: %w", story.ID, err)
 	}
-	return nil
-}
-
-func sessionEvents(story sessionStory) ([]store.SessionEvent, store.TokenUsage, error) {
-	turnID := "turn_" + story.ID
-	toolCallID := "call_" + story.ID
-	total := story.Input + story.Output
-	currency := "USD"
-	timestamps := evenlySpaced(story.StartedAt, story.EndedAt, 6)
-	toolInput := json.RawMessage(story.ToolInput)
-	if !json.Valid(toolInput) {
-		return nil, store.TokenUsage{}, fmt.Errorf("demo seed: invalid tool input for session %q", story.ID)
-	}
-	resultRaw, err := json.Marshal(map[string]any{
-		"status":  taskStatusCompleted,
-		"content": []map[string]string{{"type": jsonTextKey, jsonTextKey: story.ToolResult}},
-	})
-	if err != nil {
-		return nil, store.TokenUsage{}, fmt.Errorf("demo seed: encode tool result for session %q: %w", story.ID, err)
-	}
-	usage := store.TokenUsage{
-		TurnID: turnID, InputTokens: &story.Input, OutputTokens: &story.Output,
-		TotalTokens: &total, CostAmount: &story.CostUSD, CostCurrency: &currency, Timestamp: story.EndedAt,
-	}
-	agentUsage := acp.TokenUsage{
-		TurnID: turnID, InputTokens: &story.Input, OutputTokens: &story.Output,
-		TotalTokens: &total, CostAmount: &story.CostUSD, CostCurrency: &currency, Timestamp: story.EndedAt,
-	}
-	toolCallEvent := acp.AgentEvent{
-		Type: acp.EventTypeToolCall, SessionID: story.ID, TurnID: turnID, Title: story.ToolName,
-		ToolCallID: toolCallID, Timestamp: timestamps[2],
-	}
-	toolCallEvent = toolCallEvent.WithTool(story.ToolName, toolInput, false).WithToolKind(story.ToolKind)
-	toolResultEvent := acp.AgentEvent{
-		Type: acp.EventTypeToolResult, SessionID: story.ID, TurnID: turnID, Title: story.ToolName,
-		ToolCallID: toolCallID, Raw: resultRaw, Timestamp: timestamps[3],
-	}
-	toolResultEvent = toolResultEvent.WithTool(story.ToolName, toolInput, false).WithToolKind(story.ToolKind)
-	agentEvents := []acp.AgentEvent{
-		{
-			Type: acp.EventTypeUserMessage, SessionID: story.ID, TurnID: turnID,
-			Text: story.Prompt, Timestamp: timestamps[0],
-		},
-		{
-			Type: acp.EventTypeAgentMessage, SessionID: story.ID, TurnID: turnID,
-			Text: story.Opening, Timestamp: timestamps[1],
-		},
-		toolCallEvent,
-		toolResultEvent,
-		{
-			Type: acp.EventTypeAgentMessage, SessionID: story.ID, TurnID: turnID,
-			Text: story.Conclusion, Timestamp: timestamps[4],
-		},
-		{Type: acp.EventTypeDone, SessionID: story.ID, TurnID: turnID, StopReason: string(store.StopCompleted),
-			Usage: &agentUsage, Timestamp: timestamps[5]},
-	}
-	persisted := make([]store.SessionEvent, 0, len(agentEvents))
-	for index, event := range agentEvents {
-		content, err := transcript.MarshalAgentEvent(event)
-		if err != nil {
-			return nil, store.TokenUsage{}, fmt.Errorf(
-				"demo seed: encode event %d for session %q: %w",
-				index,
-				story.ID,
-				err,
-			)
-		}
-		persisted = append(persisted, store.SessionEvent{
-			ID: fmt.Sprintf("evt_%s_%02d", story.ID, index+1), SessionID: story.ID,
-			TurnID: turnID, Type: event.Type, AgentName: story.AgentName,
-			Content: content, Timestamp: event.Timestamp,
-		})
-	}
-	return persisted, usage, nil
-}
-
-func evenlySpaced(start time.Time, end time.Time, count int) []time.Time {
-	result := make([]time.Time, count)
-	step := end.Sub(start) / time.Duration(count-1)
-	for index := range result {
-		result[index] = start.Add(time.Duration(index) * step)
-	}
-	return result
+	return len(persisted), nil
 }

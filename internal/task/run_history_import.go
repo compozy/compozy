@@ -2,47 +2,86 @@ package task
 
 import (
 	"fmt"
-
 	"slices"
 )
 
-// CompletedRunHistoryImport is the explicit bootstrap-only boundary for one
-// already-completed historical run. Runtime execution must create queued work
+// TerminalRunHistoryImport is the explicit bootstrap-only boundary for one
+// already-finished historical run. Runtime execution must create queued work
 // through the execution transaction instead.
-type CompletedRunHistoryImport struct {
+type TerminalRunHistoryImport struct {
 	run   Run
 	actor ActorContext
 }
 
-// NewCompletedRunHistoryImport validates and isolates one completed history
-// snapshot before it reaches persistence.
-func NewCompletedRunHistoryImport(run Run, actor ActorContext) (CompletedRunHistoryImport, error) {
-	if err := requireWriteAuthority(actor); err != nil {
-		return CompletedRunHistoryImport{}, err
+var terminalRunHistoryStatuses = []struct {
+	runStatus  RunStatus
+	taskStatus Status
+}{
+	{runStatus: TaskRunStatusCompleted, taskStatus: TaskStatusCompleted},
+	{runStatus: TaskRunStatusFailed, taskStatus: TaskStatusFailed},
+	{runStatus: TaskRunStatusCanceled, taskStatus: TaskStatusCanceled},
+}
+
+// TerminalRunHistoryStatuses lists the run statuses a history import accepts.
+func TerminalRunHistoryStatuses() []RunStatus {
+	statuses := make([]RunStatus, 0, len(terminalRunHistoryStatuses))
+	for _, status := range terminalRunHistoryStatuses {
+		statuses = append(statuses, status.runStatus)
 	}
-	if run.Status.Normalize() != TaskRunStatusCompleted {
-		return CompletedRunHistoryImport{}, fmt.Errorf(
-			"%w: completed history import requires completed status",
+	return statuses
+}
+
+// StatusForTerminalRun reports the task projection a terminal run requires.
+func StatusForTerminalRun(status RunStatus) (Status, bool) {
+	normalized := status.Normalize()
+	for _, candidate := range terminalRunHistoryStatuses {
+		if candidate.runStatus == normalized {
+			return candidate.taskStatus, true
+		}
+	}
+	return "", false
+}
+
+// NewTerminalRunHistoryImport validates and isolates one finished history
+// snapshot before it reaches persistence.
+func NewTerminalRunHistoryImport(run Run, actor ActorContext) (TerminalRunHistoryImport, error) {
+	if err := requireWriteAuthority(actor); err != nil {
+		return TerminalRunHistoryImport{}, err
+	}
+	if _, supported := StatusForTerminalRun(run.Status); !supported {
+		return TerminalRunHistoryImport{}, fmt.Errorf(
+			"%w: history import requires a terminal run status, got %q",
 			ErrInvalidStatusTransition,
+			run.Status,
 		)
 	}
 	if !run.IsTaskAnchored() {
-		return CompletedRunHistoryImport{}, fmt.Errorf(
-			"%w: completed history import requires a task-anchored run",
+		return TerminalRunHistoryImport{}, fmt.Errorf(
+			"%w: history import requires a task-anchored run",
 			ErrValidation,
 		)
 	}
-	if err := run.Validate(); err != nil {
-		return CompletedRunHistoryImport{}, err
+	if run.EndedAt.IsZero() {
+		return TerminalRunHistoryImport{}, fmt.Errorf("%w: history import requires ended_at", ErrValidation)
 	}
-	return CompletedRunHistoryImport{run: cloneImportedRun(run), actor: actor}, nil
+	if run.QueuedAt.IsZero() {
+		return TerminalRunHistoryImport{}, fmt.Errorf("%w: history import requires queued_at", ErrValidation)
+	}
+	if (!run.StartedAt.IsZero() && run.StartedAt.Before(run.QueuedAt)) || run.EndedAt.Before(run.QueuedAt) ||
+		(!run.StartedAt.IsZero() && run.EndedAt.Before(run.StartedAt)) {
+		return TerminalRunHistoryImport{}, fmt.Errorf("%w: history import timestamps are out of order", ErrValidation)
+	}
+	if err := run.Validate(); err != nil {
+		return TerminalRunHistoryImport{}, err
+	}
+	return TerminalRunHistoryImport{run: cloneImportedRun(run), actor: actor}, nil
 }
 
-// Run reports an isolated copy of the completed historical snapshot.
-func (c *CompletedRunHistoryImport) Run() Run { return cloneImportedRun(c.run) }
+// Run reports an isolated copy of the finished historical snapshot.
+func (c *TerminalRunHistoryImport) Run() Run { return cloneImportedRun(c.run) }
 
 // Actor reports the authority responsible for the import.
-func (c *CompletedRunHistoryImport) Actor() ActorContext { return c.actor }
+func (c *TerminalRunHistoryImport) Actor() ActorContext { return c.actor }
 
 func cloneImportedRun(run Run) Run {
 	cloned := run

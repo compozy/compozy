@@ -16,6 +16,7 @@ function run(overrides: Partial<LoopRun> & Pick<LoopRun, "id" | "status">): Loop
     workspace_id: "ws",
     loop_name: "implement-tasks",
     completion_state: "complete",
+    historical: false,
     generation: 1,
     iteration_cap: 50,
     tokens_used: 0,
@@ -57,6 +58,27 @@ describe("buildRunsRoster", () => {
     expect(model.groups.map(group => group.label)).toEqual(["Needs you", "Active", "Recent"]);
     expect(model.needsYouCount).toBe(1);
     expect(model.loadedCount).toBe(3);
+  });
+
+  it("Should keep imported history in Recent without live attention or animation", () => {
+    const model = buildRunsRoster([
+      run({
+        id: "historical-running",
+        status: "running",
+        historical: true,
+        attention: { kind: "approval", count: 1, since: "2026-07-05T11:57:00Z" },
+        progress: { round: 3, steps_done: 2, steps_total: 6 },
+      }),
+    ]);
+
+    expect(model.groups.map(group => group.id)).toEqual(["recent"]);
+    expect(model.needsYouCount).toBe(0);
+    expect(model.groups[0].rows[0]).toMatchObject({
+      needsYou: false,
+      progressLabel: "3 rounds",
+      statusPulse: false,
+      summaryLine: null,
+    });
   });
 
   it("Should preserve the server's order inside a group rather than sorting it", () => {

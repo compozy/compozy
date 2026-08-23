@@ -313,7 +313,7 @@ func (m *Manager) recordSessionStoppedEvent(
 	}
 	m.notifyAgentEvent(ctx, session, normalizedStop)
 	if kind, summary, evidence, ok := sessionStoppedTranscriptMarker(normalizedStop); ok &&
-		!(promptOwnsTerminalFailure && kind == transcript.MarkerProviderFailure) {
+		(!promptOwnsTerminalFailure || kind != transcript.MarkerProviderFailure) {
 		m.emitTranscriptMarker(ctx, session, normalizedStop.TurnID, kind, summary, evidence)
 	}
 	return nil

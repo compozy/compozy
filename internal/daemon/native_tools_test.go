@@ -4825,12 +4825,12 @@ func TestDaemonNativeTools(t *testing.T) {
 				RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: participation.LocalSpec()},
 				QueuedAt:        now, EndedAt: now,
 			}
-			command, commandErr := taskpkg.NewCompletedRunHistoryImport(run, actor)
+			command, commandErr := taskpkg.NewTerminalRunHistoryImport(run, actor)
 			if commandErr != nil {
-				t.Fatalf("NewCompletedRunHistoryImport(%s) error = %v", runID, commandErr)
+				t.Fatalf("NewTerminalRunHistoryImport(%s) error = %v", runID, commandErr)
 			}
-			if importErr := database.ImportCompletedRunHistory(ctx, &command); importErr != nil {
-				t.Fatalf("ImportCompletedRunHistory(%s) error = %v", runID, importErr)
+			if importErr := database.ImportTerminalRunHistory(ctx, &command); importErr != nil {
+				t.Fatalf("ImportTerminalRunHistory(%s) error = %v", runID, importErr)
 			}
 		}
 		importCompletedLoopRun(
@@ -4869,12 +4869,12 @@ func TestDaemonNativeTools(t *testing.T) {
 			RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: participation.LocalSpec()},
 			QueuedAt:        now, EndedAt: now,
 		}
-		importCommand, err := taskpkg.NewCompletedRunHistoryImport(foreignRun, actor)
+		importCommand, err := taskpkg.NewTerminalRunHistoryImport(foreignRun, actor)
 		if err != nil {
-			t.Fatalf("NewCompletedRunHistoryImport(foreign Loop) error = %v", err)
+			t.Fatalf("NewTerminalRunHistoryImport(foreign Loop) error = %v", err)
 		}
-		if err := database.ImportCompletedRunHistory(ctx, &importCommand); err != nil {
-			t.Fatalf("ImportCompletedRunHistory(foreign Loop) error = %v", err)
+		if err := database.ImportTerminalRunHistory(ctx, &importCommand); err != nil {
+			t.Fatalf("ImportTerminalRunHistory(foreign Loop) error = %v", err)
 		}
 		taskManager, err := taskpkg.NewManager(taskpkg.WithStore(database))
 		if err != nil {

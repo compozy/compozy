@@ -47,6 +47,7 @@ type LoopRunPayload struct {
 	WorkspaceID                  string                `json:"workspace_id"`
 	LoopName                     string                `json:"loop_name"`
 	Status                       LoopRunStatus         `json:"status"`
+	Historical                   bool                  `json:"historical"`
 	CompletionState              LoopCompletionState   `json:"completion_state"`
 	Generation                   int64                 `json:"generation"`
 	BestGeneration               *int64                `json:"best_generation,omitempty"`
@@ -102,11 +103,12 @@ type LoopRunsResponse struct {
 
 // LoopRunsAggregatePayload summarizes the returned run set.
 type LoopRunsAggregatePayload struct {
-	Total     int `json:"total"`
-	Live      int `json:"live"`
-	Terminal  int `json:"terminal"`
-	Succeeded int `json:"succeeded"`
-	Failed    int `json:"failed"`
+	Total      int `json:"total"`
+	Live       int `json:"live"`
+	Terminal   int `json:"terminal"`
+	Succeeded  int `json:"succeeded"`
+	Failed     int `json:"failed"`
+	Historical int `json:"historical"`
 }
 
 // LoopRunResponse returns one run with generation detail.

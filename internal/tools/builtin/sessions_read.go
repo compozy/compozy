@@ -60,7 +60,9 @@ const sessionStatusOutputSchema = `{
 					"required":["status","generation"],
 					"properties":{
 						"status":{"type":"string","enum":["unbound","binding","ready","reconfiguring","recovering","failed"]},
-						"transition":{"type":"string","enum":["","initial_bind","live_configuration","process_replacement","automatic_recovery"]},
+						"transition":{"type":"string","enum":[
+							"","initial_bind","live_configuration","process_replacement","automatic_recovery"
+						]},
 						"failure":{"type":"string"},
 						"generation":{"type":"integer","minimum":0},
 						"recovery":{

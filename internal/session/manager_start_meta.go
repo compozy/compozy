@@ -32,7 +32,7 @@ func sessionStartSpecFromMeta(
 		speed:                    requestedSpeed,
 		selectedRuntime:          runtimeSelectionFromSessionStore(selectedRuntime),
 		runtimeSelectionRevision: selectionRevision,
-		permissions:              compozyconfig.PermissionMode(strings.TrimSpace(meta.EffectivePermissions)),
+		permissions:              compozyconfig.PermissionMode(strings.TrimSpace(meta.EffectivePermissionsValue())),
 		workspace:                *workspace,
 		worktreeID:               strings.TrimSpace(meta.WorktreeIDValue()),
 		networkParticipation:     meta.NetworkSpecSnapshot(),

@@ -203,7 +203,7 @@ export { useNowTick } from "./hooks/use-now-tick";
 
 // Formatters and helpers
 export type { LoopStatusSignal } from "./lib/loop-formatters";
-export { isTerminalLoopStatus } from "./lib/loop-formatters";
+export { isLiveLoopRun, isTerminalLoopStatus } from "./lib/loop-formatters";
 
 // Read hooks
 export {

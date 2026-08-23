@@ -1,0 +1,70 @@
+apiVersion: compozy.loop/v1
+kind: Loop
+meta:
+  name: release-train
+  description: Run the payments release window as two child Loops - readiness first, then the settlement audit.
+  catalog:
+    use_when: "A release window needs market readiness and a settlement audit run back to back."
+    keywords: [release, train, payments, child-loops]
+    category: Engineering
+
+concurrency: queue
+
+inputs:
+  market:
+    type: string
+    required: true
+  partner:
+    type: string
+    default: mercadox
+
+contract:
+  goal: "Close the release window for {{ .inputs.market }} with readiness and settlement both proven."
+  definition_of_done: >
+    The readiness child Loop returned a decision and the settlement audit child Loop reached a
+    terminal outcome.
+  iteration_cap: 1
+  no_progress:
+    window: 1
+  budget:
+    tokens: 0
+    wall_clock_sec: 0
+    on_exceeded: halt
+  terminal_states: [done, no-op, blocked, failed, canceled, exhausted, stalled]
+
+graph:
+  nodes:
+    - id: market_input
+      class: source
+      kind: input
+      input_ref: market
+
+    - id: readiness
+      class: action
+      kind: run-loop
+      params:
+        loop: launch-readiness
+        inputs:
+          market: "{{ .inputs.market }}"
+
+    - id: settlement_audit
+      class: action
+      kind: run-loop
+      params:
+        loop: partner-settlement-audit
+        inputs:
+          partner: "{{ .inputs.partner }}"
+
+  edges:
+    - from: market_input
+      to: readiness
+    - from: readiness
+      to: settlement_audit
+
+start:
+  - kind: manual
+  - kind: cli
+  - kind: http
+  - kind: uds
+  - kind: native_tool
+  - kind: schedule

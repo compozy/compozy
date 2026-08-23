@@ -624,6 +624,76 @@ func TestGoalCheckpointControlIntegration(t *testing.T) {
 func TestGoalCheckpointIntentsIntegration(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should exclude historical runs from live Goal tool resolution", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t, "ws-goal-tool-historical")
+		originSessionID := "session-historical-origin"
+		insertGoalSchemaLoopRun(
+			t,
+			globalDB,
+			"run-tool-historical",
+			"ws-goal-tool-historical",
+			"session",
+			&originSessionID,
+		)
+		if _, err := globalDB.db.ExecContext(
+			testutil.Context(t),
+			"UPDATE loop_runs SET historical = 1 WHERE id = ?",
+			"run-tool-historical",
+		); err != nil {
+			t.Fatalf("mark loop run historical: %v", err)
+		}
+		now := time.Date(2026, 7, 10, 15, 15, 0, 0, time.UTC)
+		seedActiveGoalBindingForTest(
+			t,
+			globalDB,
+			"run-tool-historical",
+			"ws-goal-tool-historical",
+			"goal:tool-historical",
+			1,
+			"session-historical-bound",
+			now,
+		)
+		if _, err := globalDB.CreateCheckpoint(testutil.Context(t), goal.CreateCheckpointRequest{
+			Checkpoint: goal.Checkpoint{
+				Key: goal.TurnKey{
+					WorkspaceID: "ws-goal-tool-historical",
+					LoopRunID:   "run-tool-historical",
+					Generation:  1,
+					NodeID:      "goal",
+				},
+				ControlEpoch: 1, Phase: "prompting", Status: "active",
+				TurnsUsed: 1, TurnLimit: 6, TaskRunID: "task-tool-historical",
+				QueueEntryID: "queue-tool-historical", PromptID: "prompt-tool-historical",
+				PromptKind: "work", SessionID: "session-historical-bound",
+				BindingHandle: "goal:tool-historical", BindingEpoch: 1,
+				ContextState: "unknown", ContextNudgeRatio: 0.8, UpdatedAt: now,
+			},
+		}); err != nil {
+			t.Fatalf("CreateCheckpoint(historical run) error = %v", err)
+		}
+
+		if target, found, err := globalDB.FindGoalReportTarget(
+			testutil.Context(t),
+			"ws-goal-tool-historical",
+			"session-historical-bound",
+		); err != nil {
+			t.Fatalf("FindGoalReportTarget(historical run) error = %v", err)
+		} else if found {
+			t.Fatalf("FindGoalReportTarget(historical run) = %#v, want not found", target)
+		}
+		if alias, found, err := globalDB.ResolveActiveGoalOriginAlias(
+			testutil.Context(t),
+			"ws-goal-tool-historical",
+			"session-historical-bound",
+		); err != nil {
+			t.Fatalf("ResolveActiveGoalOriginAlias(historical run) error = %v", err)
+		} else if found {
+			t.Fatalf("ResolveActiveGoalOriginAlias(historical run) = %q, want not found", alias)
+		}
+	})
+
 	t.Run("Should atomically materialize report evidence for the active bound prompt", func(t *testing.T) {
 		t.Parallel()
 

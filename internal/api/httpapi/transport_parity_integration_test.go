@@ -1326,12 +1326,12 @@ func seedTransportTaskLoopCatalog(
 	}
 	importRun := func(run taskpkg.Run) {
 		t.Helper()
-		command, err := taskpkg.NewCompletedRunHistoryImport(run, actor)
+		command, err := taskpkg.NewTerminalRunHistoryImport(run, actor)
 		if err != nil {
-			t.Fatalf("NewCompletedRunHistoryImport(%q) error = %v", run.ID, err)
+			t.Fatalf("NewTerminalRunHistoryImport(%q) error = %v", run.ID, err)
 		}
-		if err := database.ImportCompletedRunHistory(ctx, &command); err != nil {
-			t.Fatalf("ImportCompletedRunHistory(%q) error = %v", run.ID, err)
+		if err := database.ImportTerminalRunHistory(ctx, &command); err != nil {
+			t.Fatalf("ImportTerminalRunHistory(%q) error = %v", run.ID, err)
 		}
 	}
 	newRun := func(id, taskID, workspaceID, loopRunID string, kind taskpkg.RunKind, attempt int32) taskpkg.Run {

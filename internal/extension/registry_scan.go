@@ -54,6 +54,7 @@ func (r *extensionInfoRow) scan(scanner interface{ Scan(dest ...any) error }) er
 		&r.providesRaw,
 		&r.permissionsRaw,
 		&r.info.Checksum,
+		&r.info.lifecycleToken,
 		&r.registrySlug,
 		&r.registryName,
 		&r.remoteVersion,

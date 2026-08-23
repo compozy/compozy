@@ -19,6 +19,9 @@ func (s *service) PauseNode(
 	reason string,
 	actor task.ActorContext,
 ) (NodePauseResult, error) {
+	if err := s.requireMutableRun(ctx, ws, runID); err != nil {
+		return NodePauseResult{}, err
+	}
 	store, ok := s.store.(NodePauseStore)
 	if !ok {
 		return NodePauseResult{}, fmt.Errorf("%w: node pause store is unavailable", ErrActionDependencyMissing)
@@ -53,6 +56,9 @@ func (s *service) ResumeNode(
 	mode NodeResumeMode,
 	actor task.ActorContext,
 ) (NodeResumeResult, error) {
+	if err := s.requireMutableRun(ctx, ws, runID); err != nil {
+		return NodeResumeResult{}, err
+	}
 	store, ok := s.store.(NodePauseStore)
 	if !ok {
 		return NodeResumeResult{}, fmt.Errorf("%w: node pause store is unavailable", ErrActionDependencyMissing)

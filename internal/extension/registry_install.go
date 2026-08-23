@@ -173,6 +173,10 @@ func registryInstallInfo(
 	actualChecksum string,
 	config installConfig,
 ) (ExtensionInfo, error) {
+	lifecycleToken, err := store.NewID("extstate")
+	if err != nil {
+		return ExtensionInfo{}, fmt.Errorf("extension: generate lifecycle token: %w", err)
+	}
 	installedAt := r.now().UTC()
 	if config.installedAt != nil {
 		installedAt = config.installedAt.UTC()
@@ -207,6 +211,7 @@ func registryInstallInfo(
 		Capabilities:             capabilities,
 		Permissions:              permissions,
 		Checksum:                 actualChecksum,
+		lifecycleToken:           lifecycleToken,
 		RegistrySlug:             config.registrySlug,
 		RegistryName:             config.registryName,
 		RemoteVersion:            config.remoteVersion,
@@ -225,7 +230,7 @@ func (r *Registry) persistInstalledInfo(info ExtensionInfo, sourceText string, r
 		INSERT INTO extensions (
 ` + registryInsertColumns + `
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	if replaceExisting {
 		query += `
@@ -239,6 +244,7 @@ func (r *Registry) persistInstalledInfo(info ExtensionInfo, sourceText string, r
 			provides_json = excluded.provides_json,
 			permissions_json = excluded.permissions_json,
 			checksum = excluded.checksum,
+			lifecycle_token = excluded.lifecycle_token,
 			registry_slug = excluded.registry_slug,
 			registry_name = excluded.registry_name,
 			remote_version = excluded.remote_version,
@@ -271,6 +277,7 @@ func (r *Registry) persistInstalledInfo(info ExtensionInfo, sourceText string, r
 		string(encoded.capabilities),
 		string(encoded.permissions),
 		info.Checksum,
+		info.lifecycleToken,
 		nullableStringValue(info.RegistrySlug),
 		nullableStringValue(info.RegistryName),
 		nullableStringValue(info.RemoteVersion),

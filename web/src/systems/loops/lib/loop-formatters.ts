@@ -2,7 +2,7 @@ import type { PillTone } from "@compozy/ui";
 
 import { LOOP_RUN_STATUSES, LOOP_RUN_TERMINAL_STATUSES } from "@/generated/loop-enums";
 
-import type { LoopRunStatus } from "../types";
+import type { LoopRun, LoopRunStatus } from "../types";
 
 export interface LoopStatusSignal {
   tone: PillTone;
@@ -58,6 +58,13 @@ export function isLoopRunStatus(value: unknown): value is LoopRunStatus {
 
 export function isTerminalLoopStatus(status?: string | null): boolean {
   return isLoopRunStatus(status) && LOOP_TERMINAL_STATUS_SET.has(status);
+}
+
+/** A daemon-owned run that can still change through runtime execution. */
+export function isLiveLoopRun(run?: Pick<LoopRun, "historical" | "status"> | null): boolean {
+  return Boolean(
+    run && !run.historical && isLoopRunStatus(run.status) && !isTerminalLoopStatus(run.status)
+  );
 }
 
 export function loopStatusTone(status?: string | null): PillTone {

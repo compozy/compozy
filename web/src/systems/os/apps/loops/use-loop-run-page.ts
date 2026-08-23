@@ -6,6 +6,7 @@ import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import { loopRunPageLogic } from "./use-loop-run-page-state";
 import {
+  isLiveLoopRun,
   isTerminalLoopStatus,
   loopControlAnswer,
   LoopLifecycleConflictError,
@@ -119,7 +120,7 @@ export function useLoopRunPage(
   const rosterRead = useLoopRunRoster(workspaceId, runId, liveDataEnabled);
   const timelineRead = useLoopRunTimeline(workspaceId, runId, "notable", liveDataEnabled);
 
-  const isLive = runQuery.isSuccess && !isTerminalLoopStatus(run?.status);
+  const isLive = runQuery.isSuccess && isLiveLoopRun(run);
   // Terminal runs keep replaying through their post-status effect results so
   // generation-zero failures and terminal reactions survive navigation or reload.
   // The no-gap seam. The stream may not open until the newest timeline page has
@@ -130,7 +131,7 @@ export function useLoopRunPage(
   const seam = loopStreamSeam(timelineRead.headSeq);
   useLoopStream(workspaceId, runId, {
     afterSequence: seam.afterSequence,
-    enabled: runQuery.isSuccess && liveDataEnabled && seam.ready,
+    enabled: isLive && liveDataEnabled && seam.ready,
     onEvent: (frame, subscription) =>
       runPageStore.trigger.streamFrameReceived({
         frame,
@@ -156,7 +157,7 @@ export function useLoopRunPage(
   const killMutation = useKillLoopRun();
   const approveMutation = useApproveLoopRun();
 
-  const nowMs = useNowTick(run?.status === "running" && liveDataEnabled);
+  const nowMs = useNowTick(isLive && liveDataEnabled);
   const view = run
     ? projectLoopRunPageView({
         run,

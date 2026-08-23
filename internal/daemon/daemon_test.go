@@ -7096,7 +7096,7 @@ func seedDetachedHarnessRecoveryRunForTest(
 	}); err != nil {
 		t.Fatalf("CreateTask(%q) error = %v", taskID, err)
 	}
-	command, err := taskpkg.NewCompletedRunHistoryImport(taskpkg.Run{
+	command, err := taskpkg.NewTerminalRunHistoryImport(taskpkg.Run{
 		ID:              runID,
 		TaskID:          taskID,
 		Status:          taskpkg.TaskRunStatusCompleted,
@@ -7112,10 +7112,10 @@ func seedDetachedHarnessRecoveryRunForTest(
 		Result:          json.RawMessage(`{"ok":true}`),
 	}, actor)
 	if err != nil {
-		t.Fatalf("NewCompletedRunHistoryImport(%q) error = %v", runID, err)
+		t.Fatalf("NewTerminalRunHistoryImport(%q) error = %v", runID, err)
 	}
-	if err := db.ImportCompletedRunHistory(testutil.Context(t), &command); err != nil {
-		t.Fatalf("ImportCompletedRunHistory(%q) error = %v", runID, err)
+	if err := db.ImportTerminalRunHistory(testutil.Context(t), &command); err != nil {
+		t.Fatalf("ImportTerminalRunHistory(%q) error = %v", runID, err)
 	}
 }
 
