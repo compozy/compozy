@@ -66,6 +66,8 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 			'ready',
 			'live_configuration',
 			'',
+			3,
+			'',
 			'claude',
 			'claude-fable-5',
 			'max',
@@ -168,6 +170,9 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 		}
 		if got, want := info.RuntimeTransition, store.SessionRuntimeTransitionLiveConfiguration; got != want {
 			t.Fatalf("info.RuntimeTransition = %q, want %q", got, want)
+		}
+		if got, want := info.RuntimeGeneration, int64(3); got != want {
+			t.Fatalf("info.RuntimeGeneration = %d, want %d", got, want)
 		}
 		if info.SelectedRuntime == nil || info.SelectedRuntime.Provider != "claude" ||
 			info.SelectedRuntime.Model != "claude-fable-5" ||
@@ -320,6 +325,8 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 			'unbound',
 			'',
 			'',
+			0,
+			'',
 			'',
 			'',
 			'',
@@ -439,6 +446,8 @@ func TestScanSessionInfoRejectsInvalidSandboxLastSyncAt(t *testing.T) {
 			'unbound',
 			'',
 			'',
+			0,
+			'',
 			'',
 			'',
 			'',
@@ -530,6 +539,8 @@ func TestScanSessionInfoRejectsStallStateWithoutReason(t *testing.T) {
 			'',
 			'unbound',
 			'',
+			'',
+			0,
 			'',
 			'',
 			'',

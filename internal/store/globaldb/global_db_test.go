@@ -3060,6 +3060,8 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 				"runtime_status",
 				"runtime_transition",
 				"runtime_failure",
+				"runtime_generation",
+				"runtime_recovery_json",
 				"selected_provider",
 				"selected_model",
 				"selected_reasoning_effort",
