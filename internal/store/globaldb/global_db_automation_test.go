@@ -1181,12 +1181,10 @@ func TestGlobalDBAutomationListsSearchPageAndIsolateWorkspaces(t *testing.T) {
 	})
 }
 
-func TestGlobalDBAutomationSuggestionsEnforceConsentInvariants(t *testing.T) {
-	t.Parallel()
-
+func TestGlobalDBAutomationSuggestionMigrations(t *testing.T) {
+	// Keep these full-history fixtures serial: migration helpers share a process-wide
+	// lock, and parallel suite contention can exhaust the package timeout under -race.
 	t.Run("Should append the v20 schema and preserve suggestions across reopen", func(t *testing.T) {
-		t.Parallel()
-
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
 		prefixDB, err := openGlobalMigrationPrefixDatabase(t, path, automationSuggestionMigrationPrefix(t))
 		if err != nil {
@@ -1270,8 +1268,6 @@ func TestGlobalDBAutomationSuggestionsEnforceConsentInvariants(t *testing.T) {
 	})
 
 	t.Run("Should preserve v20 payload rows through the hard column rename", func(t *testing.T) {
-		t.Parallel()
-
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
 		prefixDB, err := openGlobalMigrationPrefixDatabase(
 			t,
@@ -1346,6 +1342,10 @@ func TestGlobalDBAutomationSuggestionsEnforceConsentInvariants(t *testing.T) {
 			"id", "workspace_id", "source", "dedup_key", "status", "payload", "created_at", "resolved_at",
 		})
 	})
+}
+
+func TestGlobalDBAutomationSuggestionsEnforceConsentInvariants(t *testing.T) {
+	t.Parallel()
 
 	t.Run("Should reject a payload bound to another workspace before persistence", func(t *testing.T) {
 		t.Parallel()
