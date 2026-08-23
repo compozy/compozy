@@ -1,8 +1,8 @@
 {
   "version": 1,
   "kind": "html",
-  "title": "design-system-sidebar-sessions.html",
-  "entry": "sidebar-sessions-01.html",
+  "title": "design-system/empty-states.html",
+  "entry": "design-system/empty-states.html",
   "renderer": "html",
   "status": "complete",
   "exports": [
@@ -10,8 +10,8 @@
     "pdf",
     "zip"
   ],
-  "createdAt": "2026-07-14T16:37:33.511Z",
-  "updatedAt": "2026-07-15T03:14:36.335Z",
+  "createdAt": "2026-08-23T00:00:00.000Z",
+  "updatedAt": "2026-08-23T00:00:00.000Z",
   "metadata": {
     "inferred": true,
     "reconciled": true

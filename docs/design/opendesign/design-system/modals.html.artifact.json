@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "design-system/modals.html",
+  "entry": "design-system/modals.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-23T00:00:00.000Z",
+  "updatedAt": "2026-08-23T00:00:00.000Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

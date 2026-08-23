@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CompozyOS DS · 08 Empty States</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ds-core.css">
+<link rel="stylesheet" href="ds-shell.css">
+<link rel="stylesheet" href="ds-docs.css">
+<style>
+/* ============================================================
+   Chapter 08 — page-local demo styles. Prefix .est- (empty state).
+   Runtime truth behind the suggestion demos:
+   GET /api/workspaces/:id/automation/suggestions returns full Job
+   drafts (name, prompt, target, schedule, fire_limit, source).
+   Consent-first: accept creates, dismiss is durable.
+   ============================================================ */
+/* zero-specificity baseline so component sizing rules always win */
+:where(svg.lucide){width:14px;height:14px;flex:none}
+svg.lucide{stroke-width:1.6}
+svg.disclosure-icon{width:12px;height:12px}
+.demo .win{position:relative;resize:none;animation:none;min-width:0;width:100%}
+.demo--host{padding:0;border:0;background:none;display:block}
+.est-host .win{height:520px}
+.est-host .win-body{display:flex}
+.est-col{max-width:720px;width:100%;margin:auto;display:flex;flex-direction:column;gap:22px;padding:28px 24px}
+/* ds-core scopes `.empty b` to the title — emphasis inside the sentence must not inherit it */
+.empty p b{font-size:inherit;line-height:inherit;letter-spacing:inherit;font-weight:510;color:var(--fg)}
+
+/* --- suggestion panel --- */
+.est-sug__head{display:flex;flex-direction:column;gap:4px;padding:14px 16px 12px;border-bottom:1px solid var(--line)}
+.est-sug__t{display:flex;align-items:center;gap:8px}
+.est-sug__note{font-size:12px;line-height:1.5;color:var(--muted);max-width:56ch}
+.est-list>li{border-top:1px solid var(--line-soft)}
+.est-list>li:first-child{border-top:0}
+.est-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:14px;padding:0 16px}
+.est-row:hover{background:var(--row-hover)}
+li[data-state] .est-row:hover{background:transparent}
+.est-open{display:grid;grid-template-columns:12px 28px minmax(0,1fr);gap:11px;align-items:start;width:100%;min-width:0;text-align:left;padding:13px 0}
+.est-open .disclosure-icon{margin-top:4px}
+.est-ico{width:28px;height:28px;margin-top:1px;border-radius:var(--radius-md);display:grid;place-items:center;background:var(--canvas-tint);color:var(--muted)}
+.est-ico[data-tone="accent"]{background:var(--accent-tint);color:var(--accent)}
+.est-ico[data-tone="info"]{background:var(--info-tint);color:var(--info)}
+.est-ico[data-tone="success"]{background:var(--success-tint);color:var(--success)}
+.est-main{min-width:0}
+.est-name{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.est-name b{font-size:13.5px;font-weight:510;letter-spacing:var(--track-row-title);color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.est-desc{font-size:12.5px;line-height:1.5;color:var(--muted);margin-top:3px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical}
+.est-acts{display:flex;align-items:center;gap:6px;flex:none}
+/* the modern height animation — grid-template-rows 0fr → 1fr */
+.est-detail{display:grid;grid-template-rows:0fr;transition:grid-template-rows .26s var(--ease)}
+li[data-open="true"] .est-detail{grid-template-rows:1fr}
+.est-detail>div{overflow:hidden;min-height:0}
+.est-detail__in{display:flex;flex-direction:column;gap:8px;padding:2px 16px 16px 78px}
+.est-quote{border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--input-fill);padding:10px 12px;font-size:12.5px;line-height:1.6;color:var(--fg)}
+.est-facts{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);font-variant-numeric:tabular-nums;padding-left:2px}
+/* accepted / dismissed morphs */
+.est-live{display:grid;grid-template-rows:1fr;transition:grid-template-rows .24s var(--ease)}
+.est-live>div{overflow:hidden;min-height:0}
+li[data-state="dismissed"] .est-live{grid-template-rows:0fr}
+li[data-state="dismissed"]{border-top-color:transparent}
+.est-done{display:flex;align-items:center;gap:10px;padding:13px 16px;font-size:12.5px;color:var(--muted)}
+.est-done b{font-family:var(--font-mono);font-size:12px;font-weight:510;color:var(--fg-strong)}
+.est-done .btn{margin-left:auto}
+.est-foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 16px;border-top:1px solid var(--line);font-size:11.5px;color:var(--subtle)}
+.est-cli{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:2px 6px}
+.est-undo{display:none;align-items:center;gap:8px;margin-left:auto}
+.est-undo.is-on{display:inline-flex}
+
+/* --- degraded / loading --- */
+.est-stale{display:flex;align-items:center;gap:9px;padding:9px 16px;border-bottom:1px solid var(--line-soft);background:var(--warning-tint);font-size:12px;color:var(--muted)}
+.est-jrow{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 16px;border-top:1px solid var(--line-soft);font-size:13px}
+.est-jrow:first-of-type{border-top:0}
+.est-jrow b{font-weight:510;color:var(--fg-strong)}
+.est-jrow .sub{font-size:12px;color:var(--muted);margin-top:2px}
+.est-skrow{display:grid;grid-template-columns:28px minmax(0,1fr) 72px;gap:12px;align-items:center;padding:13px 16px;border-top:1px solid var(--line-soft)}
+.est-skrow:first-child{border-top:0}
+
+@media (max-width:760px){
+  .est-host .win{height:auto}
+  .est-row{grid-template-columns:minmax(0,1fr)}
+  .est-acts{padding:0 0 13px 62px}
+  .est-detail__in{padding-left:16px}
+}
+</style>
+</head>
+<body class="ds-doc">
+<div class="doc" data-od-id="ds-empty-states">
+  <nav class="docnav" data-od-id="docnav">
+    <a href="index.html"><span class="num">00</span>Overview</a>
+    <a href="foundations.html"><span class="num">01</span>Foundations</a>
+    <a href="os-shell.html"><span class="num">02</span>OS Shell</a>
+    <a href="components.html"><span class="num">03</span>Components</a>
+    <a href="command-palette.html"><span class="num">04</span>Command Palette</a>
+    <a href="modals.html"><span class="num">05</span>Modals</a>
+    <a href="settings.html"><span class="num">06</span>Settings</a>
+    <a href="dashboards.html"><span class="num">07</span>Dashboards</a>
+    <a href="empty-states.html" aria-current="page"><span class="num">08</span>Empty States</a>
+    <a href="profiles.html"><span class="num">09</span>Profiles</a>
+    <a href="patterns.html"><span class="num">10</span>Patterns</a>
+  </nav>
+
+  <header class="hero" data-od-id="hero">
+    <p class="eyebrow">CompozyOS · Chapter 08</p>
+    <h1>Empty states</h1>
+    <p>An empty listing is the first screen most people ever see, and it is where a product either explains
+    itself or apologises. CompozyOS empty states are <b>working screens with nothing in them yet</b> — the
+    window chrome stays fully live, the primary action stays where it always lives, and the body offers the
+    shortest honest path to a first item. Four states are designed for every listing: first-run,
+    filtered-empty, error, and degraded/loading. The <code>../_done/empty-states/</code> set is the newest
+    legacy — already window-hosted; this chapter modernizes it and fills the two states it never drew.</p>
+  </header>
+
+  <!-- ============ 01 PLACEMENT ============ -->
+  <section class="sec" data-od-id="sec-placement">
+    <h2><span class="num">01</span>Placement — the chrome never degrades</h2>
+    <p class="lead">The empty state lives <b>inside</b> the window, not instead of it. The 44px head keeps its
+    glyph, title, zero count and primary action; the 38px strip keeps search and Rows|Cards even though there
+    is nothing to search or switch. A poster screen that swallows the toolbar teaches the user that the
+    controls appear and disappear, which is the one thing chrome must never do.</p>
+    <div class="demo demo--host est-host" data-od-id="demo-empty-host">
+      <section class="win is-focused" aria-label="Jobs window">
+        <header class="win-head">
+          <div class="win-controls"><button class="wc wc-close" aria-label="Close"></button><button class="wc wc-min" aria-label="Minimize"></button><button class="wc wc-zoom" aria-label="Zoom"></button></div>
+          <div class="w2-id">
+            <span class="w2-glyph" aria-hidden="true"><i data-lucide="clock"></i></span>
+            <span class="w2-title">Jobs</span><span class="w2-count mono" id="jobsCount">0</span>
+          </div>
+          <span class="w2-flex" aria-hidden="true"></span>
+          <div class="win-trail"><div class="w2-actions"><button class="btn btn--primary btn--sm">New job</button></div></div>
+        </header>
+        <div class="win-toolbar">
+          <label class="field field-search"><i data-lucide="search"></i>
+            <input type="search" placeholder="Search jobs…" aria-label="Search jobs"><kbd>/</kbd></label>
+          <span class="w2-flex" aria-hidden="true"></span>
+          <div class="pill-group pill-group--sm" role="group" aria-label="View mode">
+            <button class="pill-group__item is-on" aria-pressed="true">Rows</button>
+            <button class="pill-group__item" aria-pressed="false">Cards</button>
+          </div>
+        </div>
+        <div class="win-body">
+          <div class="est-col">
+            <div class="empty" style="padding:0">
+              <span class="empty__well"><i data-lucide="clock"></i></span>
+              <b>No jobs yet</b>
+              <p>A job runs an agent or a loop on a schedule. Nothing is scheduled in this workspace.</p>
+              <div class="empty__acts"><button class="btn">Blank job</button></div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <p class="demo-note">head primary stays accent · strip stays live · body column is centered on both axes
+      with <b>max-width 720 · margin auto · gap 22</b></p>
+    </div>
+    <table class="spec">
+      <tr><th>Layer</th><th>In an empty state</th></tr>
+      <tr><td>Window head</td><td>Unchanged. Glyph, title, <code>0</code> count, one accent primary.</td></tr>
+      <tr><td>Context strip</td><td>Unchanged. Search stays enabled; view pills stay switchable.</td></tr>
+      <tr><td>Body column</td><td><code>max-width:720px; margin:auto; gap:22px; padding:28px 24px</code></td></tr>
+      <tr><td>Scroll</td><td><code>margin:auto</code> keeps it centered while short and scrollable once tall.</td></tr>
+      <tr><td>Wallpaper</td><td>Window frame only. The body never opens a hole to the desktop.</td></tr>
+    </table>
+  </section>
+
+  <!-- ============ 02 INTRO BLOCK ============ -->
+  <section class="sec" data-od-id="sec-intro">
+    <h2><span class="num">02</span>The intro block</h2>
+    <p class="lead">One well, one title, one sentence, one neutral button. The <code>.empty</code> primitive in
+    <code>ds-core.css</code> already carries the geometry: a 48px well on <code>--canvas-soft</code> at
+    <code>radius 14</code> holding a 20px Lucide glyph, an 18px/510/-.022em title, and a 13.5px/1.6 muted
+    sentence capped at 28rem. The sentence says what the thing <i>is</i> and why the list is empty — never
+    “get started by creating your first item”.</p>
+    <div class="demo demo--col" data-od-id="demo-intro">
+      <div class="empty" style="width:100%">
+        <span class="empty__well"><i data-lucide="list-checks"></i></span>
+        <b>No tasks yet</b>
+        <p>Tasks are units of work you hand to an agent. This workspace has none.</p>
+        <div class="empty__acts"><button class="btn">Blank task</button></div>
+      </div>
+      <p class="demo-note">the intro CTA is <b>neutral</b> — the accent primary already exists in the head</p>
+    </div>
+    <h3>CTA budget</h3>
+    <p class="lead">Accent means “act”, and an empty screen is the easiest place to overspend it. Total accent
+    on screen is <b>one</b>: the head primary. Everything the body offers is neutral or ghost.</p>
+    <table class="spec">
+      <tr><th>Slot</th><th>Weight</th><th>Example</th></tr>
+      <tr><td>Window head</td><td><code>.btn--primary</code> — the only accent</td><td>New job</td></tr>
+      <tr><td>Intro block</td><td><code>.btn</code> neutral, exactly one</td><td>Blank job</td></tr>
+      <tr><td>Suggestion row</td><td><code>.btn</code> neutral + <code>.btn--ghost</code></td><td>Create · Dismiss</td></tr>
+      <tr><td>Filtered empty</td><td><code>.btn</code> + <code>.btn--ghost</code></td><td>Clear filters · Search everywhere</td></tr>
+      <tr><td>Error</td><td><code>.btn</code> + <code>.btn--ghost</code></td><td>Retry · Copy report</td></tr>
+      <tr><td>Anywhere else</td><td>none</td><td>—</td></tr>
+    </table>
+  </section>
+
+  <!-- ============ 03 SUGGESTION PANEL ============ -->
+  <section class="sec" data-od-id="sec-suggestions">
+    <h2><span class="num">03</span>Suggestion panel — consent first</h2>
+    <p class="lead">When the daemon has drafted work for this workspace, the suggestions <b>are</b> the empty
+    state and the intro block shrinks to an opening line. Every row is a full draft the user can read before
+    accepting: a caret opens a detail inset holding the exact prompt and the machine facts. Nothing runs, and
+    nothing is created, until the user presses Create — the panel note says so in the head, not in a tooltip.</p>
+    <div class="demo demo--col" data-od-id="demo-suggestions">
+      <section class="panelbox" style="width:100%" aria-label="Suggested jobs">
+        <header class="est-sug__head">
+          <div class="est-sug__t"><span class="eyebrow">Suggested jobs</span><span class="count-chip" id="sugCount">3</span></div>
+          <p class="est-sug__note">Drafted by the agent from what it saw in this workspace — nothing runs until you accept.</p>
+        </header>
+        <ul class="est-list" id="sugList">
+          <li data-od-id="sug-nightly-digest">
+            <div class="est-live"><div>
+              <div class="est-row">
+                <button class="est-open" type="button" aria-expanded="false">
+                  <i data-lucide="chevron-right" class="disclosure-icon"></i>
+                  <span class="est-ico" data-tone="accent"><i data-lucide="file-text"></i></span>
+                  <span class="est-main">
+                    <span class="est-name"><b>Nightly repo digest</b><span class="pill pill--xs" data-mono="true">0 7 * * 1-5</span></span>
+                    <span class="est-desc">Digest of merged PRs, failed runs and reviews still waiting.</span>
+                  </span>
+                </button>
+                <div class="est-acts"><button class="btn btn--sm" data-accept data-slug="nightly-repo-digest">Create</button><button class="btn btn--sm btn--ghost" data-dismiss>Dismiss</button></div>
+              </div>
+              <div class="est-detail"><div><div class="est-detail__in">
+                <div class="est-quote">Summarize merged PRs, failed loop runs, and review threads still waiting from the last 24 hours into one digest note for this workspace.</div>
+                <div class="est-facts">weekdays 07:00 · agent core · 1 fire / 24h · starts enabled</div>
+              </div></div></div>
+            </div></div>
+          </li>
+          <li data-od-id="sug-dependency-audit">
+            <div class="est-live"><div>
+              <div class="est-row">
+                <button class="est-open" type="button" aria-expanded="false">
+                  <i data-lucide="chevron-right" class="disclosure-icon"></i>
+                  <span class="est-ico" data-tone="info"><i data-lucide="shield-check"></i></span>
+                  <span class="est-main">
+                    <span class="est-name"><b>Weekly dependency audit</b><span class="pill pill--xs" data-mono="true">0 9 * * 1</span></span>
+                    <span class="est-desc">Finds outdated or vulnerable dependencies, one task per upgrade.</span>
+                  </span>
+                </button>
+                <div class="est-acts"><button class="btn btn--sm" data-accept data-slug="weekly-dependency-audit">Create</button><button class="btn btn--sm btn--ghost" data-dismiss>Dismiss</button></div>
+              </div>
+              <div class="est-detail"><div><div class="est-detail__in">
+                <div class="est-quote">Scan go.mod and package.json for outdated or vulnerable dependencies and open one task per upgrade worth doing this week.</div>
+                <div class="est-facts">mondays 09:00 · agent reviewer · 1 fire / 7d · starts enabled</div>
+              </div></div></div>
+            </div></div>
+          </li>
+          <li data-od-id="sug-stale-sweeper">
+            <div class="est-live"><div>
+              <div class="est-row">
+                <button class="est-open" type="button" aria-expanded="false">
+                  <i data-lucide="chevron-right" class="disclosure-icon"></i>
+                  <span class="est-ico"><i data-lucide="refresh-cw"></i></span>
+                  <span class="est-main">
+                    <span class="est-name"><b>Stale run sweeper</b><span class="pill pill--xs" data-mono="true">every 6h</span></span>
+                    <span class="est-desc">Closes loop runs that stopped reporting and reopens their tasks.</span>
+                  </span>
+                </button>
+                <div class="est-acts"><button class="btn btn--sm" data-accept data-slug="stale-run-sweeper">Create</button><button class="btn btn--sm btn--ghost" data-dismiss>Dismiss</button></div>
+              </div>
+              <div class="est-detail"><div><div class="est-detail__in">
+                <div class="est-quote">Find loop runs with no event for more than two hours, mark them stale, and reopen the tasks they were holding.</div>
+                <div class="est-facts">every 6h · loop nightly-triage · no fire limit · starts paused</div>
+              </div></div></div>
+            </div></div>
+          </li>
+        </ul>
+        <footer class="est-foot">
+          <span>Same thing from the terminal: <span class="est-cli">compozy jobs new</span></span>
+          <span class="est-undo" id="undo"><span id="undoLabel">1 dismissed</span><button class="btn btn--xs btn--ghost" id="undoBtn">Undo</button></span>
+        </footer>
+      </section>
+      <p class="demo-note">open a row · press Create · press Dismiss — the row morphs in place and the head
+      count follows the real inventory</p>
+    </div>
+    <table class="spec">
+      <tr><th>Part</th><th>Spec</th></tr>
+      <tr><td>Row grid</td><td><code>12px caret · 28px icon well · 1fr main</code>, gap 11, row padding <code>13px 16px</code></td></tr>
+      <tr><td>Icon well</td><td>28px, <code>radius-md</code>, <code>data-tone</code> tint — taxonomy, not state</td></tr>
+      <tr><td>Name</td><td>13.5px/510/<code>--track-row-title</code> + <b>state pill only</b>; the schedule is mono data</td></tr>
+      <tr><td>Description</td><td>12.5px muted, clamped to one line</td></tr>
+      <tr><td>Actions</td><td>Neutral <code>Create</code> + ghost <code>Dismiss</code> — never accent</td></tr>
+      <tr><td>Detail</td><td><code>grid-template-rows:0fr→1fr</code> over <code>.26s var(--ease)</code></td></tr>
+      <tr><td>Detail inset</td><td><code>padding-left:78px</code> — aligned under the <b>title</b>, not the icon</td></tr>
+      <tr><td>Prompt quote</td><td><code>--input-fill</code> + <code>--line-soft</code>, 12.5px/1.6 <code>--fg</code></td></tr>
+      <tr><td>Facts line</td><td>mono 10.5px <code>--subtle</code> — machine truth demoted, never removed</td></tr>
+      <tr><td>Accept</td><td>Row morphs to a success line with the created slug + Open</td></tr>
+      <tr><td>Dismiss</td><td>Row collapses to <code>0fr</code>; footer grows an Undo affordance</td></tr>
+    </table>
+  </section>
+
+  <!-- ============ 04 TEMPLATES ============ -->
+  <section class="sec" data-od-id="sec-templates">
+    <h2><span class="num">04</span>Templates variant</h2>
+    <p class="lead">Same panel, different lifecycle. Templates are a catalog, not a proposal: one neutral
+    <b>Use template</b> per row, no dismiss, no accepted state, no undo. The footnote states the consequence
+    plainly — picking a template opens the create dialog prefilled, so nothing is created from this screen.</p>
+    <div class="demo demo--col" data-od-id="demo-templates">
+      <section class="panelbox" style="width:100%" aria-label="Task templates">
+        <header class="est-sug__head">
+          <div class="est-sug__t"><span class="eyebrow">Start from a template</span><span class="count-chip">3</span></div>
+        </header>
+        <ul class="est-list">
+          <li>
+            <div class="est-row">
+              <button class="est-open" type="button" aria-expanded="false">
+                <i data-lucide="chevron-right" class="disclosure-icon"></i>
+                <span class="est-ico" data-tone="info"><i data-lucide="bug"></i></span>
+                <span class="est-main"><span class="est-name"><b>Bug triage</b></span>
+                  <span class="est-desc">Reproduce, label, and route an incoming issue to the right agent.</span></span>
+              </button>
+              <div class="est-acts"><button class="btn btn--sm">Use template</button></div>
+            </div>
+            <div class="est-detail"><div><div class="est-detail__in">
+              <div class="est-quote">Reproduce the reported behavior, capture the failing command, label the issue, and assign it to the agent that owns the touched package.</div>
+              <div class="est-facts">agent core · 4 steps · no schedule</div>
+            </div></div></div>
+          </li>
+          <li>
+            <div class="est-row">
+              <button class="est-open" type="button" aria-expanded="false">
+                <i data-lucide="chevron-right" class="disclosure-icon"></i>
+                <span class="est-ico" data-tone="accent"><i data-lucide="scroll-text"></i></span>
+                <span class="est-main"><span class="est-name"><b>Release notes</b></span>
+                  <span class="est-desc">Turn the commits since the last tag into a readable changelog.</span></span>
+              </button>
+              <div class="est-acts"><button class="btn btn--sm">Use template</button></div>
+            </div>
+            <div class="est-detail"><div><div class="est-detail__in">
+              <div class="est-quote">Read every commit since the last release tag, group them by user-visible change, and write the release notes in the house voice.</div>
+              <div class="est-facts">agent docs-writer · 3 steps · no schedule</div>
+            </div></div></div>
+          </li>
+          <li>
+            <div class="est-row">
+              <button class="est-open" type="button" aria-expanded="false">
+                <i data-lucide="chevron-right" class="disclosure-icon"></i>
+                <span class="est-ico"><i data-lucide="book-open"></i></span>
+                <span class="est-main"><span class="est-name"><b>Docs pass</b></span>
+                  <span class="est-desc">Check one docs page against the code it documents.</span></span>
+              </button>
+              <div class="est-acts"><button class="btn btn--sm">Use template</button></div>
+            </div>
+            <div class="est-detail"><div><div class="est-detail__in">
+              <div class="est-quote">Compare the page against the current API surface, fix what drifted, and list anything that needs a human decision.</div>
+              <div class="est-facts">agent docs-writer · 2 steps · no schedule</div>
+            </div></div></div>
+          </li>
+        </ul>
+        <footer class="est-foot"><span>Nothing is created here — a template opens the new-task dialog with the fields filled in.</span></footer>
+      </section>
+      <p class="demo-note">no Dismiss, no morph, no Undo — a catalog has no lifecycle to design</p>
+    </div>
+  </section>
+
+  <!-- ============ 05 FILTERED EMPTY ============ -->
+  <section class="sec" data-od-id="sec-filtered">
+    <h2><span class="num">05</span>Filtered empty</h2>
+    <p class="lead">A list emptied by a filter is not a first-run screen and must never be dressed as one —
+    showing “No jobs yet” to someone with 40 jobs and an active search is a lie. Use the compact
+    <code>.empty--framed</code> inside the list area, quote the query, name every active filter, and offer
+    exactly one way out plus one way wider. <b>Never hide the toolbar that caused it</b>; the search field
+    keeps its text so the user can see what they typed.</p>
+    <div class="demo demo--col" data-od-id="demo-filtered">
+      <div class="panelbox" style="width:100%;padding:14px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <label class="field field-search"><i data-lucide="search"></i><input type="search" value="ledger" aria-label="Search jobs"></label>
+          <div class="filters"><span class="filter-chip"><span class="filter-chip__label">Status</span><span class="filter-chip__op">is</span><span class="filter-chip__val">enabled</span><button class="filter-chip__x" aria-label="Remove filter"><i data-lucide="x"></i></button></span></div>
+          <span style="flex:1"></span><span class="toolbar-meta">0 of 40</span>
+        </div>
+        <div class="empty empty--framed">
+          <b>No jobs match “ledger”</b>
+          <p>40 jobs in this workspace, none matching that text while <b>Status is enabled</b> is applied.</p>
+          <div class="empty__acts"><button class="btn">Clear filters</button><button class="btn btn--ghost">Search everywhere</button></div>
+        </div>
+      </div>
+      <p class="demo-note">no 48px well here — the framed variant is <b>160px min</b> with a hairline border,
+      because the surrounding list chrome already carries the context</p>
+    </div>
+  </section>
+
+  <!-- ============ 06 ERROR & DEGRADED ============ -->
+  <section class="sec" data-od-id="sec-error">
+    <h2><span class="num">06</span>Error, degraded, loading</h2>
+    <p class="lead">Three states the legacy set never drew, and the three that decide whether a user trusts
+    the screen. The rule under all of them: <b>never paint stale as live</b>, and never let a UI claim
+    knowledge it does not have.</p>
+
+    <h3>Error — one honest sentence, cause on demand</h3>
+    <p class="lead">The glyph takes a danger tone, the sentence says what failed in plain words, and the raw
+    cause hides behind <code>.empty__cause</code> so the operator can read it without the sentence turning
+    into a stack trace. Retry is neutral; Copy report is ghost.</p>
+    <div class="demo demo--col" data-od-id="demo-error">
+      <div class="empty empty--framed" style="width:100%">
+        <span class="empty__well" style="color:var(--danger);background:var(--danger-tint)"><i data-lucide="unplug"></i></span>
+        <b>Couldn’t load jobs</b>
+        <p>The daemon didn’t answer in time. Your jobs are safe — this screen just can’t read them right now.</p>
+        <details class="empty__cause">
+          <summary><i data-lucide="chevron-right" class="disclosure-icon"></i>Show the cause</summary>
+          <pre>GET /api/workspaces/compozy-core/jobs
+context deadline exceeded (5s)
+uds: /Users/pedro/.compozy/run/compozyd.sock</pre>
+        </details>
+        <div class="empty__acts"><button class="btn">Retry</button><button class="btn btn--ghost">Copy report</button></div>
+      </div>
+      <p class="demo-note">the well flips tone; the panel border does <b>not</b> — a red frame turns one failed
+      request into a broken product</p>
+    </div>
+
+    <h3>Degraded — the list stays, the freshness label changes</h3>
+    <p class="lead">When the stream drops but cached rows exist, keep rendering them. Add a stale pill and a
+    reconnecting notice above the list. The rows stay readable and stay honest: they are what we last knew,
+    labelled as such, with actions that could act on stale data disabled rather than hidden.</p>
+    <div class="demo demo--col" data-od-id="demo-degraded">
+      <div class="panelbox" style="width:100%">
+        <div class="est-stale"><span class="d d--needs"></span>Reconnecting to the daemon — showing what we last knew
+          <span style="flex:1"></span><span class="pill pill--xs" data-tone="warning">Stale · 2m</span></div>
+        <div class="est-jrow"><span class="est-ico"><i data-lucide="clock"></i></span>
+          <div><b>nightly-repo-digest</b><div class="sub">weekdays 07:00 · agent core</div></div>
+          <button class="btn btn--sm" disabled>Run now</button></div>
+        <div class="est-jrow"><span class="est-ico"><i data-lucide="clock"></i></span>
+          <div><b>weekly-dependency-audit</b><div class="sub">mondays 09:00 · agent reviewer</div></div>
+          <button class="btn btn--sm" disabled>Run now</button></div>
+      </div>
+      <p class="demo-note">actions that would act on stale truth are <b>disabled with the reason on screen</b>,
+      never silently removed</p>
+    </div>
+
+    <h3>Loading — skeletons shaped like the answer</h3>
+    <p class="lead">Skeleton rows use the real row grid, so the layout does not jump when data lands. Never a
+    spinner over a whole surface, never a skeleton over chrome that is already known.</p>
+    <div class="demo demo--col" data-od-id="demo-loading">
+      <div class="panelbox" style="width:100%">
+        <div class="est-skrow"><span class="sk" style="width:28px;height:28px;border-radius:10px"></span>
+          <span><span class="sk" style="display:block;width:38%;height:12px"></span><span class="sk" style="display:block;width:56%;height:10px;margin-top:6px"></span></span>
+          <span class="sk" style="height:26px;border-radius:10px"></span></div>
+        <div class="est-skrow"><span class="sk" style="width:28px;height:28px;border-radius:10px"></span>
+          <span><span class="sk" style="display:block;width:30%;height:12px"></span><span class="sk" style="display:block;width:46%;height:10px;margin-top:6px"></span></span>
+          <span class="sk" style="height:26px;border-radius:10px"></span></div>
+        <div class="est-skrow"><span class="sk" style="width:28px;height:28px;border-radius:10px"></span>
+          <span><span class="sk" style="display:block;width:44%;height:12px"></span><span class="sk" style="display:block;width:34%;height:10px;margin-top:6px"></span></span>
+          <span class="sk" style="height:26px;border-radius:10px"></span></div>
+      </div>
+      <p class="demo-note">same 28 / 1fr / trail grid as <code>.est-jrow</code> — three rows, then the real data</p>
+    </div>
+  </section>
+
+  <!-- ============ 07 RULES ============ -->
+  <section class="sec" data-od-id="sec-rules">
+    <h2><span class="num">07</span>Empty-state rules</h2>
+    <div class="rule-list">
+      <div class="rule"><i>E1</i><span><b>Chrome stays live.</b> Head, count, primary action and context strip render exactly as they do with data. An empty state is never a poster.</span></div>
+      <div class="rule"><i>E2</i><span><b>One accent per screen</b>, and it lives in the window head. Body CTAs are neutral or ghost — including the one in the intro block.</span></div>
+      <div class="rule"><i>E3</i><span><b>Pills carry state only.</b> Kinds, schedules, targets and other enums render as text or mono data. A taxonomy chip is not a badge.</span></div>
+      <div class="rule"><i>E4</i><span><b>Suggestions are consent-first.</b> Nothing is created and nothing runs until the user accepts; the panel says so in its head, the row shows the full draft, and dismiss is durable with an undo.</span></div>
+      <div class="rule"><i>E5</i><span><b>Every listing designs four states:</b> first-run, filtered-empty, error, degraded + loading. A screen with only a first-run drawing is an unfinished screen.</span></div>
+      <div class="rule"><i>E6</i><span><b>Machine truth is demoted, never removed.</b> Cron strings, agent names, fire limits and socket paths live in mono ≤10.5px <code>--subtle</code>, or one disclosure away.</span></div>
+      <div class="rule"><i>E7</i><span><b>Wallpaper glow budget:</b> teal depth behind the window is fine; an accent glow behind an empty state is decoration and is skipped. Accent is “act”, not atmosphere.</span></div>
+      <div class="rule"><i>E8</i><span><b>Filtered ≠ first-run.</b> Quote the query, name the active filters, keep the toolbar, and offer Clear filters plus one wider search.</span></div>
+      <div class="rule"><i>E9</i><span><b>Stale is labelled, not styled away.</b> Cached rows keep rendering under a stale pill; actions that need fresh truth are disabled with the reason visible.</span></div>
+    </div>
+    <p style="font-size:var(--text-form);color:var(--muted);margin-top:14px">Living references:
+    <code>../_done/empty-states/jobs-empty-suggestions.html</code> (suggestion lifecycle),
+    <code>tasks-empty-templates.html</code> (catalog variant) and
+    <code>triggers-empty-suggestions.html</code>. They are window-hosted and structurally current; pull the
+    interaction from there and every token value from <code>ds-core.css</code>.</p>
+  </section>
+</div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(() => {
+  "use strict";
+  const jobsCount = document.getElementById("jobsCount");
+  const sugCount = document.getElementById("sugCount");
+  const undo = document.getElementById("undo");
+  const undoLabel = document.getElementById("undoLabel");
+  const dismissed = [];
+
+  const pending = () => document.querySelectorAll("#sugList > li:not([data-state])").length;
+  const refresh = () => { sugCount.textContent = String(pending()); };
+
+  document.querySelectorAll(".est-open").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const li = btn.closest("li");
+      const open = li.getAttribute("data-open") === "true";
+      li.setAttribute("data-open", open ? "false" : "true");
+      btn.setAttribute("aria-expanded", open ? "false" : "true");
+    });
+  });
+
+  document.querySelectorAll("[data-accept]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const li = btn.closest("li");
+      li.setAttribute("data-state", "accepted");
+      li.querySelector(".est-live > div").innerHTML =
+        '<div class="est-done" role="status"><span class="d d--ok"></span>' +
+        "<span>Created — <b>" + btn.dataset.slug + "</b></span>" +
+        '<span class="row-meta">just now</span>' +
+        '<button class="btn btn--sm btn--ghost" type="button">Open job</button></div>';
+      jobsCount.textContent = String(Number(jobsCount.textContent) + 1);
+      refresh();
+    });
+  });
+
+  document.querySelectorAll("[data-dismiss]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const li = btn.closest("li");
+      li.setAttribute("data-state", "dismissed");
+      li.querySelector(".est-open").setAttribute("tabindex", "-1");
+      dismissed.push(li);
+      undoLabel.textContent = dismissed.length + " dismissed";
+      undo.classList.add("is-on");
+      refresh();
+    });
+  });
+
+  document.getElementById("undoBtn").addEventListener("click", () => {
+    const li = dismissed.pop();
+    if (li) { li.removeAttribute("data-state"); li.querySelector(".est-open").removeAttribute("tabindex"); }
+    if (dismissed.length === 0) undo.classList.remove("is-on");
+    else undoLabel.textContent = dismissed.length + " dismissed";
+    refresh();
+  });
+
+  lucide.createIcons();
+})();
+</script>
+</body>
+</html>

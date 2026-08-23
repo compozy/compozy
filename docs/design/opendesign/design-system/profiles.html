@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CompozyOS DS · 09 Profiles &amp; Identity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ds-core.css">
+<link rel="stylesheet" href="ds-shell.css">
+<link rel="stylesheet" href="ds-docs.css">
+<style>
+/* ── chapter 09 page-local (.prf-*) ─────────────────────────────
+   Distilled from ../profiles/profiles.css (post-#440 reference set).
+   Identity color arrives as --id on the element. That inline style
+   and meter widths are the only inline styles this system allows. */
+
+/* glyph ladder — rounded-square wells */
+.prf-glyph{
+  --id:#8a8f98;
+  position:relative;display:inline-grid;place-items:center;flex:none;
+  width:22px;height:22px;border-radius:var(--radius-sm);
+  background:color-mix(in oklab,var(--id) 20%,transparent);
+  color:color-mix(in oklab,var(--id) 72%,#fff);
+  font-size:12px;line-height:1;
+}
+/* the guard: shell rules paint nested svgs gray — identity ink must survive */
+.prf-glyph svg{width:12px;height:12px;color:inherit}
+.prf-glyph--sm{width:18px;height:18px;border-radius:var(--radius-xs);font-size:10px}
+.prf-glyph--sm svg{width:10px;height:10px}
+.prf-glyph--lg{width:28px;height:28px;border-radius:var(--radius);font-size:15px}
+.prf-glyph--lg svg{width:15px;height:15px}
+.prf-glyph.is-current{box-shadow:0 0 0 1.5px color-mix(in oklab,var(--id) 60%,transparent)}
+.prf-glyph--all{background:var(--badge-fill);box-shadow:inset 0 0 0 1px var(--line-strong);color:var(--muted)}
+.prf-dot{
+  position:absolute;top:-2.5px;right:-2.5px;width:8px;height:8px;flex:none;
+  border-radius:var(--radius-pill);background:var(--warning);
+  box-shadow:0 0 0 1.5px var(--canvas-soft);
+}
+/* owner tag (round = ownership) and destination chip (squarish = fixed label) */
+.prf-owner{
+  display:inline-flex;align-items:center;gap:5px;flex:none;
+  height:20px;padding:0 8px 0 3px;border-radius:var(--radius-pill);
+  background:var(--badge-fill);
+  font-size:11px;font-weight:510;letter-spacing:var(--track-eyebrow);color:var(--muted);
+}
+.prf-owner .prf-glyph{width:14px;height:14px;border-radius:4px;font-size:8px}
+.prf-owner .prf-glyph svg{width:8px;height:8px}
+.prf-owner[data-archived]{background:var(--info-tint);color:var(--info)}
+.prf-dest{
+  display:inline-flex;align-items:center;gap:5px;flex:none;
+  height:20px;padding:0 8px;border-radius:var(--radius-xs);
+  background:var(--badge-fill);font-size:11px;font-weight:510;color:var(--muted);
+}
+.prf-dest b{font-weight:510;color:var(--fg)}
+/* switcher */
+.prf-trigger{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 8px;border-radius:var(--radius-sm)}
+.prf-trigger:hover,.prf-trigger[aria-expanded="true"]{background:var(--btn-fill)}
+.prf-trigger .prf-name{font-size:13.5px;font-weight:600;color:var(--fg-strong);white-space:nowrap}
+.prf-trigger .prf-chev{width:12px;height:12px;color:var(--subtle)}
+.prf-menu{position:relative;width:280px;padding:6px;animation:none}
+.prf-menu .pop-item{height:32px}
+.prf-menu .pop-item[aria-pressed="true"]{background:var(--row-selected);box-shadow:var(--highlight)}
+.prf-menu .pop-item .pi-check{color:var(--fg-strong)}
+.prf-menu .pop-item .pi-check svg{color:var(--fg-strong)}
+.prf-state{margin-left:auto;flex:none;font-size:10.5px;font-weight:510;color:var(--warning)}
+.prf-menu__meta{display:flex;align-items:center;gap:5px;padding:4px 10px 5px;font-size:11px;color:var(--faint)}
+.prf-menu__foot{margin-top:5px;padding:8px 10px 4px;border-top:1px solid var(--line);font-size:11px;line-height:1.5;color:var(--subtle)}
+/* pickers */
+.prf-picker{--id:#8a8f98;display:flex;flex-direction:column;gap:12px;width:268px}
+.prf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(26px,1fr));gap:3px}
+.prf-cell{
+  aspect-ratio:1;display:grid;place-items:center;border-radius:var(--radius-xs);
+  color:color-mix(in oklab,var(--id) 62%,#fff);font-size:14px;line-height:1;
+  transition:background var(--dur-fast) var(--ease);
+}
+.prf-cell svg{width:14px;height:14px;color:inherit}
+.prf-cell:hover{background:var(--row-hover)}
+.prf-cell.is-on{
+  background:color-mix(in oklab,var(--id) 20%,transparent);
+  box-shadow:inset 0 0 0 1.5px color-mix(in oklab,var(--id) 55%,transparent);
+}
+.prf-swatches{display:flex;align-items:center;gap:7px}
+.prf-swatch{
+  --id:#8a8f98;width:20px;height:20px;flex:none;border-radius:var(--radius-pill);
+  background:var(--id);transition:transform var(--dur-fast) var(--ease);
+}
+.prf-swatch:hover{transform:scale(1.12)}
+.prf-swatch.is-on{box-shadow:0 0 0 2px var(--canvas-soft),0 0 0 3.5px color-mix(in oklab,var(--id) 70%,#fff)}
+@media (prefers-reduced-motion:reduce){.prf-swatch:hover{transform:none}}
+.prf-hex{width:118px}
+.prf-hex input{font-family:var(--font-mono);font-size:11.5px}
+/* enumeration + plan blocks */
+.prf-enum{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--radius-md);overflow:hidden}
+.prf-enum__row{display:flex;align-items:center;gap:9px;min-height:32px;padding:0 12px;font-size:12.5px;color:var(--fg);border-top:1px solid var(--line-soft)}
+.prf-enum__row:first-child{border-top:0}
+.prf-enum__row svg{width:13px;height:13px;color:var(--subtle);flex:none}
+.prf-enum__row .mono{font-size:11px;color:var(--subtle);margin-left:auto}
+.prf-plan{border:1px solid var(--line);border-radius:var(--radius-md);overflow:hidden}
+.prf-plan__tier{padding:10px 12px 11px;border-top:1px solid var(--line-soft)}
+.prf-plan__tier:first-child{border-top:0}
+.prf-plan__t{display:flex;align-items:baseline;gap:7px;font-size:13.5px;font-weight:510;color:var(--fg)}
+.prf-plan__tag{margin-left:auto;flex:none;font-size:11px;font-weight:510;color:var(--faint)}
+.prf-plan__row{display:flex;align-items:center;gap:8px;min-height:28px;font-size:12.5px;color:var(--muted)}
+.prf-plan__row code{font-family:var(--font-mono);font-size:11px;color:var(--muted);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:1px 4px}
+.prf-plan__row[data-skipped]{color:var(--faint)}
+/* advisory blocks — tone lives in the fill */
+.prf-advice{
+  display:flex;align-items:flex-start;gap:10px;
+  padding:12px 14px;border-radius:var(--radius-md);
+  background:var(--info-tint);font-size:12.5px;line-height:1.5;color:var(--fg);
+}
+.prf-advice>svg,.prf-advice>i{width:14px;height:14px;color:var(--info);flex:none;margin-top:3px}
+.prf-advice b{font-weight:600;color:var(--fg-strong)}
+.prf-advice__body{min-width:0}
+.prf-advice__act{display:flex;gap:7px;margin-left:auto;flex:none}
+.prf-advice--wrap{flex-wrap:wrap}
+.prf-advice--wrap .prf-advice__act{margin-left:0;width:100%;padding-left:24px}
+/* helpers */
+.prf-lead{display:flex;align-items:center;gap:10px;min-width:0}
+.prf-count{flex:none;font-size:12px;color:var(--subtle);font-variant-numeric:tabular-nums}
+.prf-row3{display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+.prf-stack{display:flex;flex-direction:column;align-items:center;gap:7px}
+.prf-stack span.eyebrow{font-size:11px}
+</style>
+</head>
+<body class="ds-doc">
+<div class="doc" data-od-id="ds-profiles">
+  <nav class="docnav" data-od-id="docnav">
+    <a href="index.html"><span class="num">00</span>Overview</a>
+    <a href="foundations.html"><span class="num">01</span>Foundations</a>
+    <a href="os-shell.html"><span class="num">02</span>OS Shell</a>
+    <a href="components.html"><span class="num">03</span>Components</a>
+    <a href="command-palette.html"><span class="num">04</span>Command Palette</a>
+    <a href="modals.html"><span class="num">05</span>Modals</a>
+    <a href="settings.html"><span class="num">06</span>Settings</a>
+    <a href="dashboards.html"><span class="num">07</span>Dashboards</a>
+    <a href="empty-states.html"><span class="num">08</span>Empty States</a>
+    <a href="profiles.html" aria-current="page"><span class="num">09</span>Profiles</a>
+    <a href="patterns.html"><span class="num">10</span>Patterns</a>
+  </nav>
+
+  <header class="hero" data-od-id="hero">
+    <p class="eyebrow">CompozyOS · Chapter 09</p>
+    <h1>Profiles &amp; identity</h1>
+    <p>A profile answers one question: <b>who is working right now</b>. It labels work, it never gates it.
+    That makes identity colour <b>user data</b> — someone picked purple for a client — and data is not
+    allowed to borrow the signal palette. This chapter distils the living boards in
+    <code>../profiles/</code> into the reusable grammar: the <code>--id</code> mix formulas, the glyph
+    ladder, owner tags, the switcher, the pickers, enumeration blocks and advisory fills.</p>
+  </header>
+
+  <!-- ============ 01 IDENTITY COLOR ============ -->
+  <section class="sec" data-od-id="sec-id-color">
+    <h2><span class="num">01</span>Identity colour is user data, not signal</h2>
+    <p class="lead">Identity colour never becomes a token, because it isn't ours — it's a value the user
+    chose and the daemon stored. It flows as a per-element custom property,
+    <code>style="--id:#C26AD6"</code>, and every surface derives its fill, ink and ring from that one value
+    with the formulas below. Alongside meter widths, this is the only sanctioned inline style in the system.</p>
+
+    <table class="spec" data-od-id="spec-id-mix">
+      <tr><th>Derivation</th><th>Formula</th><th>Why</th></tr>
+      <tr><td>Fill</td><td><code>color-mix(in oklab, var(--id) 20%, transparent)</code></td><td>A tint at 20% reads on every surface in the warm-dark ramp without becoming a plate</td></tr>
+      <tr><td>Ink</td><td><code>color-mix(in oklab, var(--id) 72%, #fff)</code></td><td>Mixed toward white so a dark user-chosen hue still clears AA on the tint</td></tr>
+      <tr><td>Active ring</td><td><code>0 0 0 1.5px color-mix(in oklab, var(--id) 60%, transparent)</code></td><td>Marks the current profile without a second colour or a checkmark plate</td></tr>
+      <tr><td>Glyph guard</td><td><code>.prf-glyph svg { color: inherit }</code></td><td>Shell rules paint nested <code>svg</code>s <code>--muted</code>; without this the identity greys out inside menus and the palette</td></tr>
+    </table>
+
+    <div class="demo" data-od-id="demo-id-mix">
+      <div class="prf-row3">
+        <div class="prf-stack">
+          <span class="prf-glyph prf-glyph--lg is-current" style="--id:#C26AD6"><i data-lucide="boxes"></i></span>
+          <span class="eyebrow">Compozy</span>
+          <span class="mono-id">#C26AD6</span>
+        </div>
+        <div class="prf-stack">
+          <span class="prf-glyph prf-glyph--lg" style="--id:#5B9FE8"><i data-lucide="briefcase"></i></span>
+          <span class="eyebrow">Client work</span>
+          <span class="mono-id">#5B9FE8</span>
+        </div>
+        <div class="prf-stack">
+          <span class="prf-glyph prf-glyph--lg" style="--id:#6FC49A"><i data-lucide="house"></i></span>
+          <span class="eyebrow">Personal</span>
+          <span class="mono-id">#6FC49A</span>
+        </div>
+        <div class="prf-stack">
+          <span class="prf-glyph prf-glyph--lg prf-glyph--all"><i data-lucide="layout-grid"></i></span>
+          <span class="eyebrow">All profiles</span>
+          <span class="mono-id">neutral</span>
+        </div>
+      </div>
+      <p class="demo-note"><b>Green is not success here.</b> "Personal" is green because someone picked
+      green. That is exactly why identity colour is never allowed to carry state: the moment a green glyph
+      could mean "healthy", the palette stops being readable.</p>
+    </div>
+  </section>
+
+  <!-- ============ 02 GLYPH LADDER ============ -->
+  <section class="sec" data-od-id="sec-glyph">
+    <h2><span class="num">02</span>The glyph ladder</h2>
+    <p class="lead">Four sizes, all rounded-square inline-grid wells. The square distinguishes a profile
+    from an agent avatar (which is a mono monogram) and from a status dot (which is a circle).</p>
+
+    <div class="demo" data-od-id="demo-glyph-ladder">
+      <div class="prf-row3">
+        <div class="prf-stack"><span class="prf-glyph prf-glyph--sm" style="--id:#C26AD6"><i data-lucide="boxes"></i></span><span class="mchip">sm 18 · r6 · 10</span></div>
+        <div class="prf-stack"><span class="prf-glyph" style="--id:#C26AD6"><i data-lucide="boxes"></i></span><span class="mchip">base 22 · r7 · 12</span></div>
+        <div class="prf-stack"><span class="prf-glyph prf-glyph--lg" style="--id:#C26AD6"><i data-lucide="boxes"></i></span><span class="mchip">lg 28 · r8 · 15</span></div>
+        <div class="prf-stack"><span class="prf-owner" style="--id:#C26AD6"><span class="prf-glyph"><i data-lucide="boxes"></i></span>Compozy</span><span class="mchip">owner-tag 14 · r4 · 8</span></div>
+        <div class="prf-stack">
+          <span class="prf-glyph prf-glyph--lg" style="--id:#5B9FE8"><i data-lucide="briefcase"></i><i class="prf-dot"></i></span>
+          <span class="pill" data-tone="warning"><i data-lucide="triangle-alert"></i>needs setup</span>
+        </div>
+      </div>
+      <p class="demo-note"><b>The needs-setup dot never travels alone.</b> 8×8 warning at the top-right
+      corner with a 1.5px <code>--canvas-soft</code> knockout ring, always paired with the literal words
+      "needs setup" in the row it belongs to. A bare dot is a decoration; a dot plus a word is a state.</p>
+    </div>
+
+    <table class="spec" data-od-id="spec-glyph">
+      <tr><th>Size</th><th>Box</th><th>Radius</th><th>Glyph</th><th>Used in</th></tr>
+      <tr><td><code>--sm</code></td><td>18 × 18</td><td>6</td><td>10</td><td>Session rows, palette rows, dense lists</td></tr>
+      <tr><td>base</td><td>22 × 22</td><td>7</td><td>12</td><td>Switcher menu, settings rows, window heads</td></tr>
+      <tr><td><code>--lg</code></td><td>28 × 28</td><td>8</td><td>15</td><td>Dialog heads, picker preview, empty states</td></tr>
+      <tr><td>owner-tag</td><td>14 × 14</td><td>4</td><td>8</td><td>Inside <code>.prf-owner</code> only</td></tr>
+      <tr><td><code>--all</code></td><td>any</td><td>—</td><td>—</td><td><code>--badge-fill</code> + <code>--line-strong</code> ring + <code>--muted</code> ink. Deliberately colourless.</td></tr>
+    </table>
+  </section>
+
+  <!-- ============ 03 OWNER TAGS & DESTINATION CHIPS ============ -->
+  <section class="sec" data-od-id="sec-tags">
+    <h2><span class="num">03</span>Owner tags &amp; destination chips</h2>
+    <p class="lead">Two chips that look adjacent and mean opposite things, so their shapes are deliberately
+    different. <b>Round means ownership</b> — this thing belongs to that profile. <b>Squarish (radius 6)
+    means a fixed label</b> — a destination, a mode, a constant. Nothing else in the system uses that
+    distinction, which is exactly what makes it readable.</p>
+
+    <div class="demo" data-od-id="demo-tags">
+      <span class="prf-owner" style="--id:#C26AD6"><span class="prf-glyph"><i data-lucide="boxes"></i></span>Compozy</span>
+      <span class="prf-owner" style="--id:#5B9FE8"><span class="prf-glyph"><i data-lucide="briefcase"></i></span>Client work</span>
+      <span class="prf-owner" data-archived style="--id:#6FC49A"><span class="prf-glyph"><i data-lucide="house"></i></span>Personal · archived</span>
+      <span class="dotsep"></span>
+      <span class="prf-dest"><i data-lucide="corner-down-right" style="width:11px;height:11px"></i>→ <b>Compozy</b></span>
+      <span class="prf-dest">runs in <b>~/Dev/compozy</b></span>
+      <p class="demo-note"><b>Asymmetric padding is structural.</b> <code>0 8px 0 3px</code> — the glyph eats
+      the left pad so the round outline hugs the square well instead of floating around it. Archived swaps
+      the fill to <code>--info-tint</code>: archived is a fact, not a fault, so it never goes warning.</p>
+    </div>
+
+    <table class="spec" data-od-id="spec-tags">
+      <tr><th>Chip</th><th>Shape</th><th>Spec</th><th>Means</th></tr>
+      <tr><td><code>.prf-owner</code></td><td>Round (pill)</td><td>20px, padding <code>0 8px 0 3px</code>, <code>--badge-fill</code>, 11/510 <code>--muted</code></td><td>This row belongs to that profile. Aggregate views only — scoped views stay tag-free.</td></tr>
+      <tr><td><code>.prf-owner[data-archived]</code></td><td>Round</td><td><code>--info-tint</code> fill, <code>--info</code> ink</td><td>The owning profile is archived. Calm, not alarming.</td></tr>
+      <tr><td><code>.prf-dest</code></td><td>Squarish (r6)</td><td>20px, padding <code>0 8px</code>, <code>--badge-fill</code>, 11/510</td><td>A fixed label — where this will land. Never a picker, never clickable.</td></tr>
+    </table>
+  </section>
+
+  <!-- ============ 04 SWITCHER ============ -->
+  <section class="sec" data-od-id="sec-switcher">
+    <h2><span class="num">04</span>The switcher</h2>
+    <p class="lead">A 28px trigger in the menu-bar right cluster, immediately before the cog, opening a
+    280px <code>.popover</code>. It is <b>quiet until plural</b>: with a single profile the trigger renders as
+    a plain icon button — no name, no colour, no chevrons — because there is nothing to switch between and a
+    colour with one member teaches nothing.</p>
+
+    <div class="demo demo--rail" data-od-id="demo-switcher" style="align-items:flex-start;gap:32px">
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="prf-trigger" aria-expanded="true">
+            <span class="prf-glyph prf-glyph--sm" style="--id:#C26AD6"><i data-lucide="boxes"></i></span>
+            <span class="prf-name">Compozy</span>
+            <i class="prf-chev" data-lucide="chevrons-up-down"></i>
+          </button>
+          <span class="mchip">plural · 28px</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="mb-icon" aria-label="Profile"><i data-lucide="user-round"></i></button>
+          <span class="mchip">single · quiet</span>
+        </div>
+      </div>
+
+      <div class="popover prf-menu" style="position:relative;inset:auto" data-od-id="switcher-menu">
+        <p class="pop-eyebrow">Switch profile</p>
+        <button class="pop-item" aria-pressed="true">
+          <span class="prf-glyph prf-glyph--sm is-current" style="--id:#C26AD6"><i data-lucide="boxes"></i></span>
+          Compozy
+          <span class="pi-check"><i data-lucide="check" style="width:13px;height:13px"></i></span>
+        </button>
+        <button class="pop-item">
+          <span class="prf-glyph prf-glyph--sm" style="--id:#5B9FE8"><i data-lucide="briefcase"></i></span>
+          Client work
+        </button>
+        <button class="pop-item">
+          <span class="prf-glyph prf-glyph--sm" style="--id:#6FC49A"><i data-lucide="house"></i><i class="prf-dot"></i></span>
+          Personal
+          <span class="prf-state">needs setup</span>
+        </button>
+        <div class="pop-sep"></div>
+        <button class="pop-item">
+          <span class="prf-glyph prf-glyph--sm prf-glyph--all"><i data-lucide="layout-grid"></i></span>
+          All profiles
+        </button>
+        <p class="prf-menu__meta">3 profiles · 12 sessions · 4 running</p>
+        <div class="prf-menu__foot">Switching changes what you see and where new work is filed. Nothing
+        stops running.</div>
+      </div>
+    </div>
+    <p class="demo-note" style="margin-top:10px"><b>The boundary sentence replaces helper text.</b> A feature
+    like this raises exactly one question — "what happens to my running work?" — so it gets exactly one
+    answer, once, at the foot of the menu, above a hairline. Not a caption under every row.</p>
+
+    <table class="spec" data-od-id="spec-switcher">
+      <tr><th>Part</th><th>Spec</th><th>Rule</th></tr>
+      <tr><td>Trigger</td><td>28px, 6px gap, name 13.5/600 <code>--fg-strong</code>, 12px <code>chevrons-up-down</code></td><td><code>--btn-fill</code> on hover and while open</td></tr>
+      <tr><td>Menu</td><td>280px <code>.popover</code>, 6px pad</td><td>Right-aligned to the trigger</td></tr>
+      <tr><td>Row</td><td>32px, <code>--sm</code> glyph, 13.5 label</td><td>Current row: <code>--row-selected</code> plate + <code>--fg-strong</code> check + identity ring on the glyph</td></tr>
+      <tr><td>State word</td><td>10.5 / 510 <code>--warning</code> at <code>margin-left:auto</code></td><td>A word, never a bare dot. "needs setup", "archived".</td></tr>
+      <tr><td>Meta line</td><td>11px <code>--faint</code></td><td>Counts are data — tabular, no prose</td></tr>
+      <tr><td>Footer</td><td>Hairline top + 11/1.5 <code>--subtle</code></td><td>One sentence answering the one question. Never two.</td></tr>
+      <tr><td>Single profile</td><td>Plain <code>.mb-icon</code>, no name, no colour</td><td>Quiet until plural</td></tr>
+    </table>
+  </section>
+
+  <!-- ============ 05 PICKERS ============ -->
+  <section class="sec" data-od-id="sec-pickers">
+    <h2><span class="num">05</span>Symbol &amp; colour pickers</h2>
+    <p class="lead">The chosen colour tints the whole grid — <code>--id</code> lives on the picker root, so
+    symbols preview in the identity before it is committed. The grid is
+    <code>repeat(auto-fill, minmax(26px,1fr))</code> with <code>aspect-ratio:1</code> cells: the box hugs the
+    glyph and the container width decides how many columns appear. That means it <b>needs a definite
+    width</b> — dropped into an auto-sized flex parent it collapses to one column.</p>
+
+    <div class="demo" data-od-id="demo-pickers" style="align-items:flex-start;gap:28px">
+      <div class="prf-picker" style="--id:#C26AD6" data-od-id="symbol-grid">
+        <p class="eyebrow">Symbol</p>
+        <div class="prf-grid">
+          <button class="prf-cell is-on"><i data-lucide="boxes"></i></button>
+          <button class="prf-cell"><i data-lucide="briefcase"></i></button>
+          <button class="prf-cell"><i data-lucide="house"></i></button>
+          <button class="prf-cell"><i data-lucide="rocket"></i></button>
+          <button class="prf-cell"><i data-lucide="flask-conical"></i></button>
+          <button class="prf-cell"><i data-lucide="compass"></i></button>
+          <button class="prf-cell"><i data-lucide="anchor"></i></button>
+          <button class="prf-cell"><i data-lucide="feather"></i></button>
+          <button class="prf-cell"><i data-lucide="leaf"></i></button>
+          <button class="prf-cell"><i data-lucide="mountain"></i></button>
+          <button class="prf-cell"><i data-lucide="palette"></i></button>
+          <button class="prf-cell"><i data-lucide="cpu"></i></button>
+          <button class="prf-cell"><i data-lucide="database"></i></button>
+          <button class="prf-cell"><i data-lucide="terminal"></i></button>
+          <button class="prf-cell"><i data-lucide="graduation-cap"></i></button>
+          <button class="prf-cell"><i data-lucide="heart"></i></button>
+        </div>
+        <p class="eyebrow">Colour</p>
+        <div class="prf-swatches">
+          <button class="prf-swatch is-on" style="--id:#C26AD6" aria-label="Purple"></button>
+          <button class="prf-swatch" style="--id:#5B9FE8" aria-label="Blue"></button>
+          <button class="prf-swatch" style="--id:#6FC49A" aria-label="Green"></button>
+          <button class="prf-swatch" style="--id:#E5A54B" aria-label="Amber"></button>
+          <button class="prf-swatch" style="--id:#E0736A" aria-label="Coral"></button>
+          <button class="prf-swatch" style="--id:#8A8F98" aria-label="Grey"></button>
+          <div class="field prf-hex" style="margin-left:auto"><input value="#C26AD6" aria-label="Hex"></div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <p class="eyebrow">Preview</p>
+        <div class="prf-row3">
+          <span class="prf-glyph prf-glyph--lg is-current" style="--id:#C26AD6"><i data-lucide="boxes"></i></span>
+          <span class="prf-owner" style="--id:#C26AD6"><span class="prf-glyph"><i data-lucide="boxes"></i></span>Compozy</span>
+        </div>
+        <p class="demo-note" style="margin-top:0;max-width:34ch">Swatch hover scales to 1.12 — and that
+        transform is unmounted under <code>prefers-reduced-motion</code>, not merely shortened, because a
+        scale is spatial, not a state change.</p>
+      </div>
+    </div>
+
+    <table class="spec" data-od-id="spec-pickers">
+      <tr><th>Part</th><th>Spec</th><th>Selected</th></tr>
+      <tr><td>Symbol grid</td><td><code>repeat(auto-fill, minmax(26px,1fr))</code>, gap 3, cells <code>aspect-ratio:1</code></td><td>—</td></tr>
+      <tr><td>Cell ink</td><td><code>color-mix(in oklab, var(--id) 62%, #fff)</code>, 14px glyph</td><td>Fill <code>--id</code> 20% + inset <code>1.5px --id</code> 55%</td></tr>
+      <tr><td>Cell hover</td><td><code>--row-hover</code></td><td>Radius 6, no border</td></tr>
+      <tr><td>Colour swatch</td><td>20px round, solid <code>--id</code>, hover <code>scale(1.12)</code></td><td>Double-ring knockout: <code>0 0 0 2px --canvas-soft</code>, <code>0 0 0 3.5px --id</code> 70% white</td></tr>
+      <tr><td>Hex input</td><td>118px <code>.field</code>, mono 11.5</td><td>Invalid: border mixes 50% <code>--danger</code> into <code>--line</code></td></tr>
+    </table>
+  </section>
+
+  <!-- ============ 06 ENUMERATION & PLAN BLOCKS ============ -->
+  <section class="sec" data-od-id="sec-enum">
+    <h2><span class="num">06</span>Enumeration &amp; plan blocks</h2>
+    <p class="lead">Before a destructive or wide-reaching action, show the list. Both blocks share one
+    container — a <code>--line</code> outer border with <code>--line-soft</code> internal rows — and both are
+    <b>calm by construction</b>: facts, counts and code chips, with colour reserved for the destructive
+    button in the footer. A red list makes the button invisible.</p>
+
+    <div class="compare" data-od-id="demo-enum-plan">
+      <div>
+        <p class="eyebrow" style="margin-bottom:8px">Enumeration — what deleting removes</p>
+        <div class="prf-enum">
+          <div class="prf-enum__row"><i data-lucide="messages-square"></i>Sessions<span class="mono">18</span></div>
+          <div class="prf-enum__row"><i data-lucide="brain"></i>Memory entries<span class="mono">240</span></div>
+          <div class="prf-enum__row"><i data-lucide="folder-tree"></i>Linked directories<span class="mono">3</span></div>
+          <div class="prf-enum__row"><i data-lucide="repeat"></i>Scheduled loops<span class="mono">2</span></div>
+          <div class="prf-enum__row"><i data-lucide="key-round"></i>Provider logins<span class="mono">1</span></div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+          <button class="btn btn--ghost btn--sm">Cancel</button>
+          <button class="btn btn--destructive btn--sm">Delete profile</button>
+        </div>
+      </div>
+      <div>
+        <p class="eyebrow" style="margin-bottom:8px">Plan — what renaming will do</p>
+        <div class="prf-plan">
+          <div class="prf-plan__tier">
+            <p class="prf-plan__t">Renamed automatically<span class="prf-plan__tag">4 items</span></p>
+            <p class="prf-plan__row"><i data-lucide="check" style="width:13px;height:13px;color:var(--success)"></i>Workspace label and switcher entry</p>
+            <p class="prf-plan__row"><i data-lucide="check" style="width:13px;height:13px;color:var(--success)"></i>Session filters that reference <code>compozy</code></p>
+          </div>
+          <div class="prf-plan__tier">
+            <p class="prf-plan__t">Kept as-is<span class="prf-plan__tag">2 items</span></p>
+            <p class="prf-plan__row"><i data-lucide="minus" style="width:13px;height:13px"></i>Directory paths under <code>~/Dev/compozy</code></p>
+            <p class="prf-plan__row"><i data-lucide="minus" style="width:13px;height:13px"></i>Transcripts already written</p>
+          </div>
+          <div class="prf-plan__tier">
+            <p class="prf-plan__t">Needs you afterwards<span class="prf-plan__tag">1 item</span></p>
+            <p class="prf-plan__row" data-skipped><i data-lucide="triangle-alert" style="width:13px;height:13px;color:var(--warning)"></i>An extension pins <code>profile=compozy</code></p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="demo-note"><b>Tiers are labelled by what they will do</b>, never by an internal category.
+    Rows at 28px, 12.5 <code>--muted</code>, with mono code chips on <code>--badge-fill</code>;
+    <code>data-skipped</code> drops the row to <code>--faint</code> without hiding it.</p>
+  </section>
+
+  <!-- ============ 07 ADVISORY BLOCKS ============ -->
+  <section class="sec" data-od-id="sec-advisory">
+    <h2><span class="num">07</span>Advisory blocks</h2>
+    <p class="lead">Nothing is wrong — the interface just knows something the user doesn't. Both blocks use
+    an <code>--info-tint</code> fill at radius 10, 12.5/1.5 text and a 14px info glyph. <b>The tone lives in
+    the fill, never in a border.</b> A tinted border on a neutral fill reads as an error frame no matter what
+    the words say.</p>
+
+    <div class="demo demo--col" data-od-id="demo-advisory">
+      <div class="prf-advice" data-od-id="advice-deeplink">
+        <i data-lucide="corner-up-right"></i>
+        <div class="prf-advice__body">This session belongs to <b>Client work</b>. You're viewing it from
+        Compozy, so it's read-only here.</div>
+        <div class="prf-advice__act">
+          <button class="btn btn--ghost btn--sm">Stay here</button>
+          <button class="btn btn--sm">Switch to Client work</button>
+        </div>
+      </div>
+      <div class="prf-advice prf-advice--wrap" data-od-id="advice-repo-hint">
+        <i data-lucide="git-branch"></i>
+        <div class="prf-advice__body"><b>This repository declares two profiles.</b>
+        <code>.compozy/profiles.toml</code> names <code>backend</code> and <code>frontend</code>; neither
+        exists on this machine yet.</div>
+        <div class="prf-advice__act">
+          <button class="btn btn--sm">Create backend</button>
+          <button class="btn btn--sm">Create frontend</button>
+          <button class="btn btn--ghost btn--sm">Ignore for this repo</button>
+        </div>
+      </div>
+      <p class="demo-note"><b>Two action shapes, one block.</b> A deep-link banner has one obvious answer, so
+      its actions sit at <code>margin-left:auto</code> on the same line. A repo hint may offer several
+      equal-weight actions, so they wrap onto their own line, indented to the text column. Neither ever nags
+      twice — "Ignore for this repo" is a durable answer the daemon stores.</p>
+    </div>
+  </section>
+
+  <!-- ============ 08 RULES ============ -->
+  <section class="sec" data-od-id="sec-rules">
+    <h2><span class="num">08</span>Rules</h2>
+    <div class="rule-list" data-od-id="profiles-rules">
+      <div class="rule"><i>P1</i><span><b>Identity is not signal.</b> An identity colour never carries state
+      — not running, not failed, not needs-setup. State arrives beside it as a pill, a dot plus a word, or
+      the signal ink from <code>ds-core</code>. Identity hues are user data and may legally collide with
+      green, amber or red.</span></div>
+      <div class="rule"><i>P2</i><span><b>The aggregate is neutral.</b> "All profiles" is deliberately
+      colourless — <code>--badge-fill</code>, a <code>--line-strong</code> ring, <code>--muted</code> ink.
+      An aggregate is not an identity, and giving it one invents a profile nobody created.</span></div>
+      <div class="rule"><i>P3</i><span><b>Quiet until plural.</b> With one profile, the switcher is a plain
+      icon button, aggregate views don't exist, owner tags don't render, and no row mentions profiles at all.
+      The feature appears when a second profile does.</span></div>
+      <div class="rule"><i>P4</i><span><b>Dialogs use the DS dialog frame.</b> Create, rename, archive and
+      delete run on <code>.dialog</code> from <a href="modals.html" style="color:var(--fg);text-decoration:underline;text-underline-offset:2px">chapter 05</a>
+      — <code>--canvas-soft</code>, <code>--radius-lg</code>, <code>--shadow-overlay</code> carrying the ring.
+      The reference set's bordered <code>.pf-modal</code> is superseded.</span></div>
+      <div class="rule"><i>P5</i><span><b>Settings rows compose <code>.srow</code>.</b> A profile row is a
+      normal settings row with an identity lead in <code>.srow__main</code> — never a bespoke row geometry.
+      Chapter 06 owns the shape; this chapter only supplies the lead.</span></div>
+      <div class="rule"><i>P6</i><span><b>Counts are data, not prose.</b> "18" in 12px
+      <code>--subtle</code> tabular numerals, beside the thing it counts. Never "There are 18 sessions in
+      this profile."</span></div>
+    </div>
+    <p style="font-size:var(--text-form);color:var(--muted);margin-top:14px">The living boards —
+    switcher, aggregate, picker, lifecycle, settings, extension placements, hints and the palette view —
+    are in <code>../profiles/</code> with their contract in <code>DESIGN-NOTES.md</code>.
+    <b>Iterate those boards; never regenerate them.</b></p>
+  </section>
+</div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

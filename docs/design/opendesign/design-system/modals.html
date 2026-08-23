@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CompozyOS DS · 05 Modals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ds-core.css">
+<link rel="stylesheet" href="ds-shell.css">
+<link rel="stylesheet" href="ds-docs.css">
+<style>
+/* ---- chapter-local dialog staging (.mdl-) — the dialog vocabulary itself
+   ships in ds-core.css (.dialog / .dlg-scrim / .ffield / .flabel …). ---- */
+
+/* a dialog rendered on the rail so its --canvas-soft body reads correctly */
+.mdl-stage{display:flex;justify-content:center;padding:22px;margin-top:12px;
+  border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--rail)}
+.mdl-stage--tight{padding:16px}
+.mdl-stage--row{justify-content:flex-start;align-items:center;gap:14px;flex-wrap:wrap}
+.mdl-stage .dialog{width:100%;max-height:none}
+
+/* a miniature window so window-scoped scrim is demonstrable, not asserted */
+.mdl-win{position:relative;overflow:hidden;min-height:320px;margin-top:12px;
+  display:flex;flex-direction:column;
+  border:1px solid var(--line-strong);border-radius:12px;background:var(--canvas);
+  box-shadow:var(--shadow-win)}
+.mdl-win__head{flex:none;height:44px;display:flex;align-items:center;gap:10px;padding:0 12px;
+  border-bottom:1px solid var(--line)}
+.mdl-win__title{font-size:13px;font-weight:600;letter-spacing:var(--track-tight);color:var(--fg-strong)}
+.mdl-win__body{flex:1;position:relative;overflow:hidden;padding:14px 16px}
+.mdl-win__ghost{display:flex;flex-direction:column;gap:9px}
+.mdl-win__ghost span{height:9px;border-radius:var(--radius-xxs);background:var(--surface-glaze)}
+.mdl-win__ghost span:nth-child(2){width:72%}
+.mdl-win__ghost span:nth-child(3){width:54%}
+.mdl-win__ghost span:nth-child(4){width:84%;margin-top:9px}
+.mdl-win__ghost span:nth-child(5){width:61%}
+.mdl-win__ghost span:nth-child(6){width:76%}
+.mdl-win__ghost span:nth-child(7){width:88%;margin-top:9px}
+.mdl-win__ghost span:nth-child(8){width:57%}
+.mdl-win__ghost span:nth-child(9){width:69%}
+
+/* size-ladder diagram — proportional bars, not real modals.
+   Every bar is a percentage of the widest (1180 = 100% of the track), so the
+   diagram is self-contained at any container width; labels sit above their bar
+   and wrap as normal inline text instead of being pushed off the right edge. */
+.mdl-ladder{display:flex;flex-direction:column;gap:14px;margin-top:12px;
+  padding:18px 20px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas)}
+.mdl-bar{display:flex;flex-direction:column;gap:6px;min-width:0}
+.mdl-bar__l{font-size:var(--text-form);line-height:1.5;color:var(--muted)}
+.mdl-bar__l b{color:var(--fg-strong);font-weight:600}
+.mdl-bar__l .mono{font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--faint)}
+.mdl-bar__track{display:block;width:100%;min-width:0}
+.mdl-bar__box{display:block;height:26px;border-radius:var(--radius);
+  background:var(--canvas-soft);box-shadow:var(--shadow-hairline-inset)}
+/* the sheet is right-anchored, so its bar is too */
+.mdl-bar--sheet .mdl-bar__box{margin-left:auto;border-radius:var(--radius-md) 0 0 var(--radius-md)}
+
+/* two-up compare grid */
+.mdl-two{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+@media (max-width:860px){.mdl-two{grid-template-columns:1fr}}
+
+/* footer-order annotation strip — sits in the first column of .mdl-two and
+   repeats the footer's own rhythm: note (1fr) → Cancel → Primary, inset by the
+   stage padding (16) + footer padding (20). The two button columns take the
+   demo's own button widths as their floor, so each label centres under the
+   control it names. */
+.mdl-order{display:grid;grid-template-columns:minmax(0,1fr) minmax(51px,auto) minmax(99px,auto);
+  align-items:baseline;gap:10px;padding:0 36px;font-size:var(--text-badge);color:var(--subtle)}
+.mdl-order>span{white-space:nowrap}
+.mdl-order>span+span{text-align:center}
+.mdl-order i{font-family:var(--font-mono);font-size:10px;font-style:normal;color:var(--accent-strong);margin-right:6px}
+
+/* the sheet demo reuses the miniature window so the sheet reads anchored to a
+   window edge instead of floating in an empty rail */
+.mdl-win--sheet{min-height:360px}
+
+/* canonical-selector sketches (spec table companions, never re-implementations) */
+.mdl-sel{display:flex;align-items:center;gap:8px;height:36px;padding:0 10px;
+  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--elevated);
+  font-size:var(--text-small-body);color:var(--fg)}
+.mdl-sel__mono{width:20px;height:20px;flex:none;display:grid;place-items:center;border-radius:var(--radius-xs);
+  background:var(--canvas-tint);box-shadow:var(--inset-strong);
+  font-family:var(--font-mono);font-size:9px;font-weight:600;color:var(--muted)}
+.mdl-sel .chevrons{margin-left:auto;width:13px;height:13px;color:var(--subtle)}
+
+/* prose reads at a measure, not at container width (ds-docs caps neither) */
+.mdl-rules .rule>span{max-width:92ch}
+.doc .demo-note{max-width:88ch}
+</style>
+</head>
+<body class="ds-doc">
+<div class="doc" data-od-id="ds-modals">
+  <nav class="docnav" data-od-id="docnav">
+    <a href="index.html"><span class="num">00</span>Overview</a>
+    <a href="foundations.html"><span class="num">01</span>Foundations</a>
+    <a href="os-shell.html"><span class="num">02</span>OS Shell</a>
+    <a href="components.html"><span class="num">03</span>Components</a>
+    <a href="command-palette.html"><span class="num">04</span>Command Palette</a>
+    <a href="modals.html" aria-current="page"><span class="num">05</span>Modals</a>
+    <a href="settings.html"><span class="num">06</span>Settings</a>
+    <a href="dashboards.html"><span class="num">07</span>Dashboards</a>
+    <a href="empty-states.html"><span class="num">08</span>Empty States</a>
+    <a href="profiles.html"><span class="num">09</span>Profiles</a>
+    <a href="patterns.html"><span class="num">10</span>Patterns</a>
+  </nav>
+
+  <header class="hero" data-od-id="hero">
+    <p class="eyebrow">CompozyOS · Design System · Chapter 05</p>
+    <h1>Modals &amp; dialogs</h1>
+    <p>A dialog is where the operator commits a change the daemon will persist. This chapter is the
+    <b>bare-token edition</b> of the shipped modal library: every class demoed here lives in
+    <code>ds-core.css</code> under <code>.dialog*</code>, <code>.dlg-scrim</code> and the <code>.ffield</code>
+    form family. The 16 delivered surfaces in <code>../_done/modals/</code> still carry the legacy
+    <code>--color-*</code> names — this chapter supersedes them on naming, never on anatomy.</p>
+  </header>
+
+  <!-- 01 -->
+  <section class="sec" id="ladder" data-od-id="sec-ladder">
+    <h2><span class="num">01</span>Size ladder &amp; scrim</h2>
+    <p class="lead">Four widths plus a sheet. Pick by <b>content shape</b>, never by importance: a confirmation is
+    small because it holds one sentence, not because it matters less.</p>
+    <div class="mdl-ladder" data-od-id="demo-ladder">
+      <div class="mdl-bar" data-od-id="demo-ladder-sm">
+        <span class="mdl-bar__l"><b>560</b> · <code>.dialog--sm</code> <span class="mono">confirmations · single-decision forms</span></span>
+        <span class="mdl-bar__track"><span class="mdl-bar__box" style="width:47.5%"></span></span>
+      </div>
+      <div class="mdl-bar" data-od-id="demo-ladder-md">
+        <span class="mdl-bar__l"><b>720</b> · <code>.dialog</code> <span class="mono">default — create/edit entity forms</span></span>
+        <span class="mdl-bar__track"><span class="mdl-bar__box" style="width:61%"></span></span>
+      </div>
+      <div class="mdl-bar" data-od-id="demo-ladder-lg">
+        <span class="mdl-bar__l"><b>880</b> · <code>.dialog--lg</code> <span class="mono">multi-section forms · task builders</span></span>
+        <span class="mdl-bar__track"><span class="mdl-bar__box" style="width:74.6%"></span></span>
+      </div>
+      <div class="mdl-bar" data-od-id="demo-ladder-xl">
+        <span class="mdl-bar__l"><b>1180</b> · <code>.dialog--xl</code> <span class="mono">split panes · directory browsers</span></span>
+        <span class="mdl-bar__track"><span class="mdl-bar__box" style="width:100%"></span></span>
+      </div>
+      <div class="mdl-bar mdl-bar--sheet" data-od-id="demo-ladder-sheet">
+        <span class="mdl-bar__l"><b>576 × 100dvh</b> · <code>.dialog--sheet</code> <span class="mono">right-anchored inspector sheets</span></span>
+        <span class="mdl-bar__track"><span class="mdl-bar__box" style="width:48.8%"></span></span>
+      </div>
+    </div>
+    <p class="demo-note">Bars are drawn to scale — <code>.dialog--xl</code> at 1180 is the full track, every other
+    width is a share of it.</p>
+    <p class="lead" style="margin-top:22px">The scrim is <b>window-scoped</b>: a modal darkens the window that
+    raised it, so the rest of the desktop stays live and readable. Only a shell-level dialog scrims the desktop.</p>
+    <div class="mdl-win" data-od-id="demo-scrim">
+      <div class="mdl-win__head" data-od-id="demo-scrim-head">
+        <span class="w2-glyph"><i data-lucide="database"></i></span>
+        <span class="mdl-win__title">Knowledge</span><span class="w2-count">·4·</span>
+      </div>
+      <div class="mdl-win__body">
+        <div class="mdl-win__ghost"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+        <div class="dlg-scrim" data-od-id="demo-scrim-layer">
+          <div class="dialog dialog--sm" style="max-height:none;grid-template-rows:auto auto" data-od-id="demo-scrim-dialog">
+            <div class="dialog__head">
+              <span class="dialog__head-icon"><i data-lucide="database"></i></span>
+              <div class="dialog__head-main">
+                <span class="eyebrow">Catalog · Knowledge</span>
+                <h3 class="dialog__title">Add a knowledge base</h3>
+                <p class="dialog__desc">Agents in this workspace can search it during a session.
+                <b>Indexing starts as soon as you save.</b></p>
+              </div>
+              <button class="dialog__close" aria-label="Close"><i data-lucide="x"></i></button>
+            </div>
+            <div class="dialog__foot">
+              <span class="dialog__foot-note"><i data-lucide="info"></i><span>Creates one knowledge base in <b>compozy</b>.</span></span>
+              <button class="btn">Cancel</button>
+              <button class="btn btn--primary">Add knowledge base</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <table class="spec">
+      <tr><th>Axis</th><th>Contract</th></tr>
+      <tr><td>Height cap</td><td><code>min(900px, 93vh)</code>; <code>--xl</code> caps at <code>min(840px, 93vh)</code> so a split pane never outruns a laptop viewport.</td></tr>
+      <tr><td>Scrim</td><td><code>rgba(0,0,0,.55)</code> + <code>blur(3px)</code>. <code>.dlg-scrim</code> is <b>absolute inside <code>.win-body</code></b>; <code>--fixed</code> exists only for full-shell demos and shell-level dialogs.</td></tr>
+      <tr><td>Z tiers</td><td><code>--z-scrim: 60</code> / <code>--z-sheet: 61</code> — window-body tiers, below the shell's 900/1000/1200. A modal never outranks the menu bar.</td></tr>
+      <tr><td>Below 760px</td><td>Bottom sheet: full width, square bottom corners, top corners keep radius 14, controls lift to a 44px touch floor.</td></tr>
+    </table>
+  </section>
+
+  <!-- 02 -->
+  <section class="sec" id="shell" data-od-id="sec-shell">
+    <h2><span class="num">02</span>Shell</h2>
+    <p class="lead">Four grid rows, always in the same order — head, optional mode toolbar, body, footer. The body
+    is the <b>only</b> scroll owner; head and footer stay pinned so the primary action never scrolls away.</p>
+    <table class="spec">
+      <tr><th>Part</th><th>Spec</th></tr>
+      <tr><td>Grid</td><td><code>grid-template-rows: auto auto minmax(0,1fr) auto</code>. The <code>minmax(0,…)</code> is load-bearing: without it the body refuses to shrink and the footer leaves the frame.</td></tr>
+      <tr><td>Frame</td><td><code>--canvas-soft</code>, radius 14, <code>--shadow-overlay</code>. <b>No border</b> — the overlay shadow's 1px ring is the border.</td></tr>
+      <tr><td>Scroll</td><td><code>.dialog__body</code> owns <code>overflow-y:auto</code> + <code>scrollbar-gutter:stable</code>, so content does not shift by 10px when the scrollbar appears.</td></tr>
+      <tr><td>Overflow</td><td><code>overflow:hidden</code> on the frame clips section rules and footer bands to the radius. Popovers raised from inside the body portal out; they are never clipped children.</td></tr>
+    </table>
+  </section>
+
+  <!-- 03 -->
+  <section class="sec" id="head" data-od-id="sec-head">
+    <h2><span class="num">03</span>Head</h2>
+    <p class="lead">The head answers <i>what am I creating, and where does it land</i> before the first field.
+    Its 36px icon well is <b>the only accent-tinted surface in the system</b> — spending accent here is why no
+    other panel needs it.</p>
+    <div class="mdl-two">
+      <div class="mdl-stage mdl-stage--tight" data-od-id="demo-head-accent">
+        <div class="dialog" style="grid-template-rows:auto" data-od-id="demo-head-accent-dialog">
+          <div class="dialog__head">
+            <span class="dialog__head-icon"><i data-lucide="bot"></i></span>
+            <div class="dialog__head-main">
+              <span class="eyebrow">Catalog · Agent</span>
+              <h3 class="dialog__title">Create an agent</h3>
+              <p class="dialog__desc">Choose the provider, model and skills this agent starts every session with.
+              <b>You can change all of it later.</b></p>
+            </div>
+            <button class="dialog__close" aria-label="Close"><i data-lucide="x"></i></button>
+          </div>
+        </div>
+      </div>
+      <div class="mdl-stage mdl-stage--tight" data-od-id="demo-head-neutral">
+        <div class="dialog" style="grid-template-rows:auto" data-od-id="demo-head-neutral-dialog">
+          <div class="dialog__head">
+            <span class="dialog__head-icon dialog__head-icon--neutral"><i data-lucide="settings-2"></i></span>
+            <div class="dialog__head-main">
+              <span class="eyebrow">Providers · Anthropic</span>
+              <h3 class="dialog__title">Edit provider</h3>
+              <p class="dialog__desc">Credentials stay in the vault. <b>Sessions already running keep their current key.</b></p>
+            </div>
+            <button class="dialog__close" aria-label="Close"><i data-lucide="x"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="demo-note"><b>Accent well = creation.</b> Edit and settings sheets take the neutral variant
+    (<code>--canvas-tint</code> + <code>--muted</code> glyph + <code>--line-strong</code> inset) — nothing is
+    being brought into existence, so nothing claims the accent.</p>
+    <table class="spec">
+      <tr><th>Element</th><th>Spec</th></tr>
+      <tr><td>Icon well</td><td>36×36, radius 12, <code>--accent-tint</code> fill + <code>--accent-strong</code> 16px glyph + <code>inset 0 0 0 1px var(--accent-dim)</code> ring.</td></tr>
+      <tr><td>Eyebrow</td><td>“Domain · Object” — <code>Catalog · Knowledge</code>, <code>Providers · Anthropic</code>. Sentence case, 12 / 510. It orients; it never repeats the title.</td></tr>
+      <tr><td>Title</td><td>16 / 510 / <code>-.014em</code>, line-height 1.3. A question for confirmations, an imperative for creation.</td></tr>
+      <tr><td>Description</td><td>13.5 / 1.45 <code>--muted</code>, max 66ch. One <code>b</code> clause carries the load-bearing consequence at <code>--fg</code> 510 — never bold for emphasis alone.</td></tr>
+      <tr><td>Close</td><td>26×26 ghost square, 14px glyph, <code>--row-hover</code> plate. Esc does the same thing; the button is for pointers.</td></tr>
+    </table>
+  </section>
+
+  <!-- 04 -->
+  <section class="sec" id="modebar" data-od-id="sec-modebar">
+    <h2><span class="num">04</span>Mode toolbar</h2>
+    <p class="lead">An optional <code>10px 20px</code> band on <code>--canvas-tint</code> between head and body.
+    It holds exactly one of two shapes: a mode switch, or a read-only context statement.</p>
+    <div class="mdl-stage" data-od-id="demo-modebar">
+      <div class="dialog" style="grid-template-rows:auto auto auto" data-od-id="demo-modebar-dialog">
+        <div class="dialog__head" style="padding-bottom:14px">
+          <span class="dialog__head-icon"><i data-lucide="list-checks"></i></span>
+          <div class="dialog__head-main">
+            <span class="eyebrow">Automation · Task</span>
+            <h3 class="dialog__title">Create a task</h3>
+          </div>
+          <button class="dialog__close" aria-label="Close"><i data-lucide="x"></i></button>
+        </div>
+        <div class="dialog__modebar" data-od-id="demo-modebar-simple">
+          <div class="pill-group">
+            <button class="pill-group__item is-on">Simple</button>
+            <button class="pill-group__item">Advanced</button>
+          </div>
+          <span class="w2-flex"></span>
+          <span class="toolbar-meta">Creates in <b style="color:var(--fg)">compozy</b></span>
+        </div>
+        <div class="dialog__modebar" style="border-bottom:0" data-od-id="demo-modebar-status">
+          <span class="eyebrow">Runs on</span>
+          <span class="srow__value">nightly · 02:00 UTC</span>
+          <span class="w2-flex"></span>
+          <span class="pill" data-tone="success"><span class="dot"></span>Schedule valid</span>
+        </div>
+      </div>
+    </div>
+    <p class="demo-note">Shape A: <b>Simple / Advanced</b> pill-group (24px segments, never accent). Shape B:
+    <b>label · value · spacer · status</b>. Two mode bars are stacked here to show both — a real dialog carries
+    at most one.</p>
+  </section>
+
+  <!-- 05 -->
+  <section class="sec" id="body" data-od-id="sec-body">
+    <h2><span class="num">05</span>Body &amp; form sections</h2>
+    <p class="lead">20px padding, numbered sections separated by a hairline rule, and one field vocabulary.
+    Every field maps to a value the daemon will persist — a control with nowhere to land is a defect.</p>
+    <div class="mdl-stage" data-od-id="demo-body">
+      <div class="dialog" style="grid-template-rows:auto" data-od-id="demo-body-dialog">
+        <div class="dialog__body" style="overflow:visible">
+          <div class="dialog__sec" data-od-id="demo-sec-1">
+            <div class="dialog__sec-head">
+              <span class="dialog__sec-num">01</span>
+              <span class="dialog__sec-title">Identity</span>
+              <span class="dialog__sec-sub">How the agent appears in sessions</span>
+            </div>
+            <div class="fgrid-2">
+              <div class="ffield">
+                <label class="flabel">Name <span class="req">*</span></label>
+                <input class="input" value="Nightly triage">
+              </div>
+              <div class="ffield">
+                <label class="flabel">Slug <span class="opt">optional</span></label>
+                <input class="input input--mono" value="nightly-triage">
+                <p class="fhint">Used in CLI commands and the API path.</p>
+              </div>
+              <div class="ffield full">
+                <label class="flabel">Instructions</label>
+                <textarea class="textarea">Triage overnight failures, group them by root cause, and open one issue per cause.</textarea>
+              </div>
+            </div>
+          </div>
+          <div class="dialog__sec" data-od-id="demo-sec-2">
+            <div class="dialog__sec-head">
+              <span class="dialog__sec-num">02</span>
+              <span class="dialog__sec-title">Runtime</span>
+              <span class="dialog__sec-sub">Where the work runs</span>
+            </div>
+            <div class="choice-grid">
+              <button class="choice is-on">
+                <span class="choice__ic"><i data-lucide="laptop"></i></span>
+                <span class="choice__name">This machine</span>
+                <span class="choice__desc">Runs in your workspace folder.</span>
+              </button>
+              <button class="choice">
+                <span class="choice__ic"><i data-lucide="box"></i></span>
+                <span class="choice__name">Sandbox</span>
+                <span class="choice__desc">Isolated filesystem and network.</span>
+              </button>
+              <button class="choice">
+                <span class="choice__ic"><i data-lucide="cloud"></i></span>
+                <span class="choice__name">Remote</span>
+                <span class="choice__desc">Runs on a connected bridge.</span>
+              </button>
+            </div>
+            <div class="ffield" style="margin-top:16px">
+              <label class="flabel">Idle timeout <span class="req">*</span></label>
+              <input class="input" aria-invalid="true" value="0">
+              <p class="ferr">Enter at least 30 seconds.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <table class="spec">
+      <tr><th>Part</th><th>Spec</th></tr>
+      <tr><td>Section</td><td><code>.dialog__sec</code>: 28px top margin + 22px top padding + <code>--line</code> rule. The first section is flush — no rule, no margin.</td></tr>
+      <tr><td>Section head</td><td>mono num 10.5 <code>--faint</code> + title 13.5 / 600 <code>--fg-strong</code> + sub 12 <code>--muted</code>, baseline-aligned, 14px below.</td></tr>
+      <tr><td>Field row</td><td><code>.ffield</code> 18px stack; <code>.flabel</code> 12.5 / 510 with <code>.opt</code> (11 <code>--muted</code>) or <code>.req</code> (accent asterisk); <code>.fhint</code> / <code>.ferr</code> 12.5 at 7px offset.</td></tr>
+      <tr><td>Inputs</td><td>36px on <code>--elevated</code>, radius 10. Invalid = <code>--danger</code> border, no ring. Textarea 84px min, vertical resize only.</td></tr>
+      <tr><td>Grids</td><td><code>.fgrid-2</code> / <code>.fgrid-3</code> with 16px gap; <code>.full</code> spans the row. Both collapse to one column ≤959px.</td></tr>
+      <tr><td>RadioCards</td><td><code>.choice</code> — selection is <b>neutral</b> (<code>--surface-glaze</code> + <code>--line-strong</code> inset). Accent never marks a selected card.</td></tr>
+    </table>
+  </section>
+
+  <!-- 06 -->
+  <section class="sec" id="footer" data-od-id="sec-footer">
+    <h2><span class="num">06</span>Footer</h2>
+    <p class="lead">A <code>--canvas-tint</code> band, 52px minimum, with a <b>locked order</b>. The note is not
+    decoration: it is the sentence that tells the operator what persists when they confirm.</p>
+    <div class="mdl-two">
+      <div class="mdl-stage mdl-stage--tight" data-od-id="demo-foot-primary">
+        <div class="dialog" style="grid-template-rows:auto" data-od-id="demo-foot-primary-dialog">
+          <div class="dialog__foot">
+            <span class="dialog__foot-note"><i data-lucide="info"></i><span>Creates one agent in <b>compozy</b> and installs 3 skills.</span></span>
+            <button class="btn">Cancel</button>
+            <button class="btn btn--primary">Create agent</button>
+          </div>
+        </div>
+      </div>
+      <div class="mdl-stage mdl-stage--tight" data-od-id="demo-foot-danger">
+        <div class="dialog" style="grid-template-rows:auto" data-od-id="demo-foot-danger-dialog">
+          <div class="dialog__foot">
+            <span class="dialog__foot-note"><i data-lucide="info"></i><span>Removes 12 sessions and 4 tasks from this workspace.</span></span>
+            <button class="btn">Cancel</button>
+            <button class="btn btn--destructive">Delete workspace</button>
+          </div>
+        </div>
+      </div>
+      <div class="mdl-order" data-od-id="demo-foot-order">
+        <span><i>01</i>consequence note</span>
+        <span><i>02</i>Cancel</span>
+        <span><i>03</i>Primary</span>
+      </div>
+    </div>
+    <table class="spec">
+      <tr><th>Slot</th><th>Spec</th></tr>
+      <tr><td>Consequence note</td><td><code>flex:1</code>, 12 <code>--muted</code>, leading 13px <code>--faint</code> info glyph. States what persists and how much — <code>Removes 12 sessions and 4 tasks</code>, never <code>This action cannot be undone</code> alone.</td></tr>
+      <tr><td>Cancel</td><td>Plain <code>.btn</code> (30px, <code>--btn-fill</code>). Always present; always second-to-last.</td></tr>
+      <tr><td>Primary</td><td>Exactly one, always last. <code>.btn--primary</code> = accent plate + <code>--accent-ink</code>.</td></tr>
+      <tr><td>Destructive primary</td><td><code>.btn--destructive</code>: <code>--danger-tint</code> plate + danger ink. <b>Never a solid danger fill</b> — a solid red button outshouts every primary in the product.</td></tr>
+      <tr><td>Pending</td><td>The primary swaps its label for the present participle (<code>Creating…</code>) and disables; the footer never grows a progress bar.</td></tr>
+    </table>
+  </section>
+
+  <!-- 07 -->
+  <section class="sec" id="split" data-od-id="sec-split">
+    <h2><span class="num">07</span>Split body &amp; sheet</h2>
+    <p class="lead">When a dialog hosts a component that wants to expand — a directory browser, a file preview —
+    it goes two-pane instead of growing a scroll region inside a scroll region.</p>
+    <div class="mdl-stage" data-od-id="demo-split">
+      <div class="dialog dialog--lg" style="grid-template-rows:auto auto" data-od-id="demo-split-dialog">
+        <div class="dialog__body dialog__body--split" style="min-height:200px">
+          <div class="dialog__pane">
+            <div class="ffield">
+              <label class="flabel">Workspace folder <span class="req">*</span></label>
+              <div class="input input--mono" style="display:flex;align-items:center;gap:8px">
+                <i data-lucide="folder" style="width:14px;height:14px;color:var(--subtle)"></i>~/Dev/compozy/compozy</div>
+              <p class="fhint">Agents can read and write anywhere under this folder.</p>
+            </div>
+            <div class="ffield">
+              <label class="flabel">Display name</label>
+              <input class="input" value="compozy">
+            </div>
+          </div>
+          <div class="dialog__pane dialog__pane--side">
+            <p class="eyebrow" style="margin-bottom:10px">Detected in this folder</p>
+            <ul class="list">
+              <li><i data-lucide="git-branch" style="width:14px;height:14px;color:var(--muted)"></i><span class="row-title">git · main</span></li>
+              <li><i data-lucide="file-code-2" style="width:14px;height:14px;color:var(--muted)"></i><span class="row-title">compozy.toml</span></li>
+              <li><i data-lucide="package" style="width:14px;height:14px;color:var(--muted)"></i><span class="row-title">bun workspace</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="dialog__foot">
+          <span class="dialog__foot-note"><i data-lucide="info"></i><span>Adds one workspace; nothing on disk changes.</span></span>
+          <button class="btn">Cancel</button>
+          <button class="btn btn--primary">Add workspace</button>
+        </div>
+      </div>
+    </div>
+    <div class="mdl-win mdl-win--sheet" data-od-id="demo-sheet">
+      <div class="mdl-win__head" data-od-id="demo-sheet-head">
+        <span class="w2-glyph"><i data-lucide="plug"></i></span>
+        <span class="mdl-win__title">Bridges</span><span class="w2-count">·3·</span>
+      </div>
+      <div class="mdl-win__body">
+        <div class="mdl-win__ghost"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+        <div class="dlg-scrim dlg-scrim--sheet" data-od-id="demo-sheet-layer">
+          <div class="dialog dialog--sheet" style="grid-template-rows:auto minmax(0,1fr) auto" data-od-id="demo-sheet-dialog">
+            <div class="dialog__head">
+              <span class="dialog__head-icon dialog__head-icon--neutral"><i data-lucide="plug"></i></span>
+              <div class="dialog__head-main">
+                <span class="eyebrow">Bridges · tmux</span>
+                <h3 class="dialog__title">Bridge details</h3>
+              </div>
+              <button class="dialog__close" aria-label="Close"><i data-lucide="x"></i></button>
+            </div>
+            <div class="dialog__body">
+              <div class="prow"><span class="prow__k">Status</span><span class="prow__v" style="color:var(--success)">connected</span></div>
+              <div class="prow"><span class="prow__k">Socket</span><span class="prow__v mono">~/.compozy/tmux.sock</span></div>
+              <div class="prow"><span class="prow__k">Sessions</span><span class="prow__v">3</span></div>
+              <div class="prow"><span class="prow__k">Version</span><span class="prow__v mono">0.3.0</span></div>
+            </div>
+            <div class="dialog__foot">
+              <span class="dialog__foot-note"><i data-lucide="info"></i><span>Disconnecting stops 3 sessions.</span></span>
+              <button class="btn">Close</button>
+              <button class="btn btn--destructive">Disconnect</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="demo-note">The sheet is staged inside the same miniature window as the scrim demo:
+    <code>.dlg-scrim--sheet</code> drops the scrim padding and stretches the panel to the window's right edge,
+    so a sheet is always read against the surface it belongs to.</p>
+    <table class="spec">
+      <tr><th>Variant</th><th>Spec</th></tr>
+      <tr><td>Split</td><td><code>.dialog__body--split</code>: <code>minmax(0,1fr) / 420px</code>, no body padding (each pane owns its own). Side pane on <code>--canvas</code> with a <code>--line-soft</code> divider — a step <i>down</i>, so the form keeps the foreground.</td></tr>
+      <tr><td>Split ≤960px</td><td>Stacks: the side pane drops below, divider becomes a top border, height caps at 320px.</td></tr>
+      <tr><td>Sheet</td><td><code>min(576px, 100%)</code> × full height, right-anchored, radius 10 on the left corners only. Same head/body/foot contract as a dialog; used for inspect-and-adjust, not create.</td></tr>
+    </table>
+  </section>
+
+  <!-- 08 -->
+  <section class="sec" id="confirm" data-od-id="sec-confirm">
+    <h2><span class="num">08</span>Confirmation</h2>
+    <p class="lead">A confirmation is <code>.dialog--sm</code> with the mode bar and body dropped: head, one
+    sentence, footer. Nothing to fill in means nothing to get wrong.</p>
+    <div class="mdl-stage" data-od-id="demo-confirm">
+      <div class="dialog dialog--sm" style="grid-template-rows:auto auto" data-od-id="demo-confirm-dialog">
+        <div class="dialog__head">
+          <span class="dialog__head-icon dialog__head-icon--neutral"><i data-lucide="trash-2"></i></span>
+          <div class="dialog__head-main">
+            <span class="eyebrow">Workspaces · compozy</span>
+            <h3 class="dialog__title">Delete this workspace?</h3>
+            <p class="dialog__desc">Its sessions, tasks and vault entries are removed from CompozyOS.
+            <b>The folder on disk is left untouched.</b></p>
+          </div>
+          <button class="dialog__close" aria-label="Close"><i data-lucide="x"></i></button>
+        </div>
+        <div class="dialog__foot">
+          <span class="dialog__foot-note"><i data-lucide="info"></i><span>Removes 12 sessions, 4 tasks and 7 secrets.</span></span>
+          <button class="btn" autofocus>Cancel</button>
+          <button class="btn btn--destructive">Delete workspace</button>
+        </div>
+      </div>
+    </div>
+    <p class="demo-note"><b>Cancel takes focus by default.</b> A confirmation dialog that opens with the
+    destructive button focused turns ⏎ into a loaded trigger. Title asks a question; the description names what
+    survives, not only what dies.</p>
+  </section>
+
+  <!-- 09 -->
+  <section class="sec" id="selectors" data-od-id="sec-selectors">
+    <h2><span class="num">09</span>Canonical selectors</h2>
+    <p class="lead">These four are <b>copied, never approximated</b> — importing the production component is the
+    only correct implementation. Placement rules (which surface uses which) live in
+    <a href="patterns.html" style="color:var(--accent-strong)">chapter 10 · Patterns</a>; the geometry contract
+    is here so a prototype can be checked against it.</p>
+    <div class="mdl-stage mdl-stage--row" data-od-id="demo-selectors">
+      <span class="mdl-sel" style="width:220px" data-od-id="demo-sel-workspace">
+        <span class="mdl-sel__mono">CZ</span>compozy<i data-lucide="chevrons-up-down" class="chevrons"></i></span>
+      <span class="mdl-sel" style="width:260px" data-od-id="demo-sel-runtime">
+        <i data-lucide="bot" style="width:14px;height:14px;color:var(--muted)"></i>Anthropic · Sonnet
+        <span class="im" data-level="4" style="margin-left:auto"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></span>
+    </div>
+    <p class="demo-note">Two of the four have a geometry sketch here — the component popover and the full
+    <code>RuntimeSelector</code> are too large to sketch honestly, so the table carries their contract instead.</p>
+    <table class="spec">
+      <tr><th>Need</th><th>Component</th><th>Geometry</th></tr>
+      <tr><td>Workspace picking</td><td><code>.command-select</code></td><td>36px trigger with a 20px monogram well + chevrons; popover 256px with a 32px search; project workspaces only; “Add workspace” footer.</td></tr>
+      <tr><td>Provider · model · effort</td><td><code>RuntimeSelector</code></td><td>34px segmented trigger (30px compact). Never a native <code>select</code> for agent, provider or model.</td></tr>
+      <tr><td>Reasoning effort</td><td><code>.im</code></td><td>7 bars, 2.5px wide, 12px tall at level 7; Medium = 4/7. Lives in a <b>quiet footer</b>, never a banner. Accent paints the fill only.</td></tr>
+      <tr><td>Component popover</td><td><code>component-popover</code></td><td>528px wide · 44px search row · 52px provider rail (2px bar on the active provider) · 28px option wells. Selected option takes <code>--accent-tint</code>.</td></tr>
+    </table>
+  </section>
+
+  <!-- 10 -->
+  <section class="sec" id="rules" data-od-id="sec-rules">
+    <h2><span class="num">10</span>Rules</h2>
+    <p class="lead">Eight invariants. Each one names a failure this library exists to prevent — if a dialog
+    breaks one of them, the dialog is wrong, not the rule.</p>
+    <div class="rule-list mdl-rules">
+      <div class="rule"><i>M1</i><span><b>One primary per dialog.</b> Two accent buttons means the decision was not made; split the surface or demote one to <code>.btn</code>.</span></div>
+      <div class="rule"><i>M2</i><span><b>Modals never stack.</b> Depth drills <i>within</i> the body (sections, split pane, inline picker) — a dialog raised from a dialog has no legible dismissal story and traps focus twice.</span></div>
+      <div class="rule"><i>M3</i><span><b>Every field maps to a daemon-persisted value.</b> A control the runtime cannot store is plausible UI, and plausible UI is a lie the operator finds out about later.</span></div>
+      <div class="rule"><i>M4</i><span><b>Failure renders inside the body</b> as a <code>.notice--danger</code> with the verbatim cause and a retry — never a toast. The dialog stays open with every value intact.</span></div>
+      <div class="rule"><i>M5</i><span><b>The head icon well is the accent budget.</b> No accent borders, no accent section rules, no accent selected cards — <code>.choice</code> selection stays neutral.</span></div>
+      <div class="rule"><i>M6</i><span><b>Scrim the window, not the desktop.</b> A modal belongs to the window that raised it; the menu bar, dock and every other window stay live.</span></div>
+      <div class="rule"><i>M7</i><span><b>Plain language over mechanism keys.</b> “End idle sessions after”, not <code>session.timeout_seconds</code>. Config keys survive as <code>.provchip</code> inside an Advanced fold.</span></div>
+      <div class="rule"><i>M8</i><span><b>Sheets inspect, dialogs commit.</b> If the surface is mostly read-only property rows, it is a sheet; if it collects a decision, it is a dialog.</span></div>
+    </div>
+    <p class="demo-note" style="margin-top:16px">The 16 delivered modal surfaces — create/edit for agents,
+    providers, bridges, MCP servers, knowledge, network channels, sandbox profiles, vault secrets, workspaces,
+    plus the task, trigger, job and session builders — live in <code>../_done/modals/</code> with
+    <code>modal-system.css</code>, <code>modal-system.js</code> and <code>verify.mjs</code>. They still use the
+    legacy <code>--color-*</code> token names; <b>this chapter is the bare-token successor</b>. Never mix the two
+    dialects in one file.</p>
+  </section>
+</div>
+<script src="https://unpkg.com/lucide@1.28/dist/umd/lucide.min.js"></script>
+<script>
+  if (window.lucide) window.lucide.createIcons();
+</script>
+</body>
+</html>

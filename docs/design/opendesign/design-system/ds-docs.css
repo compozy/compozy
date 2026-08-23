@@ -1,0 +1,109 @@
+/* ============================================================
+   COMPOZYOS DESIGN SYSTEM — ds-docs.css
+   Shared documentation chrome for the chapter pages.
+   Depends on ds-core.css (link it first). Doc-only — never used
+   by product prototypes.
+   ============================================================ */
+
+body.ds-doc{background:var(--canvas);overflow-y:auto}
+.doc{max-width:1080px;margin:0 auto;padding:0 32px 120px}
+
+/* top navigation shared by every chapter */
+.docnav{
+  position:sticky;top:0;z-index:20;
+  display:flex;align-items:center;gap:2px;flex-wrap:wrap;
+  margin:0 -32px;padding:10px 32px;
+  background:color-mix(in srgb,var(--canvas) 88%,transparent);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line-soft);
+}
+.docnav a{
+  display:inline-flex;align-items:center;gap:6px;
+  height:28px;padding:0 10px;border-radius:var(--radius-sm);
+  font-size:var(--text-eyebrow);font-weight:510;color:var(--muted);
+  transition:background var(--dur-fast),color var(--dur-fast);
+}
+.docnav a:hover{background:var(--row-hover);color:var(--fg)}
+.docnav a[aria-current="page"]{background:var(--elevated);color:var(--fg-strong)}
+.docnav .num{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.docnav a[aria-current="page"] .num{color:var(--accent-strong)}
+
+/* hero */
+.hero{padding:44px 0 8px}
+.hero .eyebrow{color:var(--accent-strong)}
+.hero h1{font-size:28px;font-weight:600;letter-spacing:var(--track-detail);color:var(--fg-strong);margin:10px 0 12px}
+.hero p{font-size:var(--text-small-body);line-height:1.65;color:var(--muted);max-width:74ch}
+.hero code,.sec code{font-family:var(--font-mono);font-size:var(--text-eyebrow);color:var(--fg);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:1px 5px}
+
+/* sections */
+.sec{margin-top:52px}
+.sec>h2{display:flex;align-items:baseline;gap:10px;font-size:17px;font-weight:600;letter-spacing:var(--track-tight);color:var(--fg-strong);margin-bottom:6px}
+.sec>h2 .num{font-family:var(--font-mono);font-size:11px;color:var(--accent-strong)}
+.sec>.lead{font-size:var(--text-small-body);line-height:1.6;color:var(--muted);max-width:76ch;margin-bottom:14px;text-wrap:pretty}
+.sec h3{font-size:var(--text-card-title);font-weight:600;color:var(--fg-strong);margin:22px 0 8px}
+
+/* demo stage — renders live specimens on the window canvas */
+.demo{
+  border:1px solid var(--line);border-radius:var(--radius-lg);
+  background:var(--canvas);padding:20px;margin-top:12px;
+  display:flex;flex-wrap:wrap;align-items:center;gap:12px;
+}
+.demo--col{flex-direction:column;align-items:stretch}
+.demo--rail{background:var(--rail)}
+.demo--soft{background:var(--canvas-soft)}
+.demo-note{font-size:var(--text-badge);color:var(--subtle);margin-top:8px;line-height:1.55;max-width:88ch;text-wrap:pretty}
+/* .demo--col is a 12px-gap flex column — zero the note's own margin there
+   so notes sit 12px (not 20px) below their specimen */
+.demo--col>.demo-note{margin-top:0}
+.demo-note b{color:var(--muted);font-weight:510}
+/* measurement chip overlaying a demo */
+.mchip{
+  display:inline-flex;align-items:center;gap:5px;
+  height:18px;padding:0 6px;border-radius:var(--radius-xxs);
+  background:var(--badge-fill);font-family:var(--font-mono);font-size:10px;color:var(--subtle);
+}
+
+/* spec tables */
+.spec{width:100%;border-collapse:collapse;font-size:var(--text-form);margin-top:12px}
+.spec th{
+  text-align:left;font-size:var(--text-eyebrow-caps);font-weight:600;text-transform:uppercase;
+  letter-spacing:var(--track-caps);color:var(--subtle);
+  padding:8px 10px;border-bottom:1px solid var(--line);
+}
+.spec td{padding:8px 10px;border-bottom:1px solid var(--line-soft);color:var(--muted);vertical-align:top;line-height:1.5}
+.spec td:first-child{color:var(--fg);white-space:nowrap}
+.spec code{font-size:var(--text-badge)}
+
+/* rule lists */
+.rule-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft);margin-top:12px}
+.rule{display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;padding:12px 16px;border-top:1px solid var(--line-soft);font-size:var(--text-form);line-height:1.55;color:var(--muted)}
+.rule>span{max-width:92ch;text-wrap:pretty}
+.rule:first-child{border-top:0}
+.rule i{font-family:var(--font-mono);font-size:10px;font-style:normal;color:var(--accent-strong);padding-top:2px}
+.rule b{color:var(--fg-strong);font-weight:600}
+
+/* token swatches */
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:12px}
+.swatch{border:1px solid var(--line);border-radius:var(--radius-md);overflow:hidden;background:var(--canvas-soft)}
+.swatch__chip{height:44px;border-bottom:1px solid var(--line-soft)}
+.swatch__meta{padding:8px 10px}
+.swatch__name{font-family:var(--font-mono);font-size:10.5px;color:var(--fg)}
+.swatch__val{font-family:var(--font-mono);font-size:10px;color:var(--faint);margin-top:2px}
+
+/* two-column compare */
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+@media (max-width:760px){.compare{grid-template-columns:1fr}}
+
+/* chapter grid (index) */
+.chapters{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:32px}
+@media (max-width:760px){.chapters{grid-template-columns:1fr}}
+.chapter{
+  display:flex;flex-direction:column;gap:8px;
+  padding:18px 20px;border-radius:var(--radius-lg);
+  background:var(--canvas-soft);border:1px solid var(--line);
+  transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease);
+}
+.chapter:hover{background:var(--elevated);border-color:var(--line-strong)}
+.chapter .num{font-family:var(--font-mono);font-size:10px;color:var(--accent-strong)}
+.chapter b{font-size:var(--text-card-title);font-weight:600;letter-spacing:var(--track-tight);color:var(--fg-strong)}
+.chapter p{font-size:var(--text-form);line-height:1.55;color:var(--muted)}

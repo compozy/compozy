@@ -1,13 +1,21 @@
 /* ============================================================
    COMPOZYOS DESIGN SYSTEM — ds-shell.css
-   OS shell chrome: menu bar, dock, window frame, overlays.
-   Depends on ds-core.css (tokens + base + content components).
+   OS shell chrome: menu bar, dock, window frame, deck (tabs),
+   overlays, mobile mode. Depends on ds-core.css.
 
-   Source of truth lineage: os/os-v2.css (applied prototype) +
-   os/pagehead-redesign.html (head anatomy contract).
+   Source of truth: web/src/systems/os/** + packages/ui tokens
+   (shell section). The former window-tabs-variations.html deck
+   contract is folded in here — production shipped it.
+
    The OS radius waiver applies ONLY to this layer: shell chrome
-   may use 12–22px radii; window CONTENT stays on the production
-   radius scale (3–10px) defined in ds-core.css.
+   may use 12–22px radii and glass/blur/cast shadows; window
+   CONTENT stays flat on the ds-core.css scale (3–18px, no glass,
+   no cast shadows).
+
+   Z ladder (fixed tiers — never bare 999/9999):
+     dock zone 600 · menubar 500 · shell popover 900 ·
+     overlay 1000 · toasts 1200. Window-body tiers are
+     --z-menu 40 / --z-scrim 60 / --z-sheet 61 (ds-core).
    ============================================================ */
 
 /* ---- shell-only tokens (OS radius waiver layer) ---- */
@@ -15,9 +23,16 @@
   --shell-glass:rgba(12,11,11,.72);
   --shell-glass-pop:rgba(19,18,17,.94);
   --teal:#225555; /* registered brand tone — wallpaper depth only */
-  --r-pop:12px; --r-win:12px; --r-widget:14px; --r-dock:22px;
+  --r-pop:12px; --r-win:12px; --r-widget:14px; --r-dock:22px; --r-dock-item:13px;
+  --blur-shell:28px; --saturate-shell:1.25;
+  --dur-shell-fast:120ms; --dur-shell:240ms; --dur-shell-slow:320ms;
   --ease-spring:cubic-bezier(.32,.72,.28,1);
   --shadow-win:0 40px 90px -30px rgba(0,0,0,.7), 0 10px 30px -12px rgba(0,0,0,.55);
+  --shadow-win-unfocused:0 18px 50px -22px rgba(0,0,0,.55);
+  --shadow-dock:0 18px 50px -18px rgba(0,0,0,.6);
+  /* work-area reservation: item 46 + 2×7 pad + 2 border + 10 offset + 10 clearance */
+  --dock-band:82px;
+  --h-deck:37px; --h-deck-tab:30px; --w-deck-tab-min:96px; --w-deck-tab-max:180px;
 }
 
 .os{position:fixed;inset:0;display:flex;flex-direction:column}
@@ -47,29 +62,25 @@ body[data-wallpaper="carbon"] .desktop{
     linear-gradient(180deg, var(--canvas), var(--rail) 50%);
 }
 
-.win-layer{position:absolute;inset:0}
+/* the dock band is reserved: no window rect resolves under the dock */
+.win-layer{position:absolute;inset:0;bottom:calc(var(--dock-band) + env(safe-area-inset-bottom,0px))}
 .desk-hint{
   position:absolute;left:50%;top:50%;translate:-50% -50%;
   display:flex;align-items:center;gap:8px;
-  font-size:12.5px;color:var(--subtle);
+  font-size:var(--text-small-body);color:var(--subtle);
   pointer-events:none;user-select:none;
   animation:fade-in .4s ease;
-}
-.desk-hint kbd{
-  font-size:11px;color:var(--muted);
-  border:1px solid var(--line-strong);border-radius:var(--radius-sm);
-  padding:2px 6px;background:var(--badge-fill);
 }
 .desk-hint .dh-desktop{display:inline-flex;align-items:center;gap:8px}
 .desk-hint .dh-mobile{display:none}
 
-/* ============ MENU BAR ============ */
+/* ============ MENU BAR (44px) ============ */
 .menubar{
   height:44px;flex:none;
   display:flex;align-items:center;justify-content:space-between;
   padding:0 10px;
   background:var(--shell-glass);
-  backdrop-filter:blur(26px) saturate(1.2);
+  backdrop-filter:blur(var(--blur-shell)) saturate(var(--saturate-shell));
   border-bottom:1px solid var(--line);
   position:relative;z-index:500;
 }
@@ -86,21 +97,18 @@ body[data-wallpaper="carbon"] .desktop{
 .ws-avatar{
   width:18px;height:18px;border-radius:var(--radius-sm);
   display:grid;place-items:center;
-  font-size:8.5px;font-weight:600;letter-spacing:.04em;
+  font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.04em;
   background:var(--elevated);border:1px solid var(--line-strong);color:var(--fg);
 }
-.ws-name{font-weight:600;font-size:12.5px;color:var(--fg-strong)}
+.ws-name{font-weight:600;font-size:var(--text-small-body);color:var(--fg-strong);white-space:nowrap}
+.ws-worktree{font-size:var(--text-small-body);color:var(--fg);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chevrons{width:12px;height:12px;color:var(--subtle)}
 
 .mb-menus{display:flex;margin-left:6px}
-.mb-menu{height:28px;padding:0 9px;border-radius:7px;font-size:12.5px;color:var(--muted)}
+.mb-menu{height:28px;padding:0 9px;border-radius:7px;font-size:var(--text-small-body);color:var(--muted)}
 .mb-menu:hover,.mb-menu.is-open{background:var(--btn-fill);color:var(--fg-strong)}
 
-.mb-chip{
-  display:flex;align-items:center;gap:5px;height:26px;padding:0 9px;border-radius:7px;
-  font-size:11px;color:var(--muted);border:1px solid var(--line);
-}
-.mb-chip:hover{background:var(--btn-fill);color:var(--fg-strong)}
+/* tray: bell · ⌘K · cog — 28px squares, 16px glyphs */
 .mb-icon{position:relative;width:28px;height:28px;border-radius:7px;display:grid;place-items:center;color:var(--muted)}
 .mb-icon:hover{background:var(--btn-fill);color:var(--fg-strong)}
 .mb-icon svg{width:16px;height:16px}
@@ -118,31 +126,29 @@ body[data-wallpaper="carbon"] .desktop{
   position:fixed;z-index:900;
   min-width:224px;padding:6px;
   background:var(--shell-glass-pop);
-  backdrop-filter:blur(30px) saturate(1.25);
+  backdrop-filter:blur(30px) saturate(var(--saturate-shell));
   border:1px solid var(--line-strong);border-radius:var(--r-pop);
   box-shadow:var(--shadow-overlay);
   animation:pop-in .16s var(--ease-spring);
 }
 @keyframes pop-in{from{opacity:0;transform:translateY(-4px) scale(.98)}}
-.pop-eyebrow{
-  font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--subtle);padding:6px 10px 4px;
-}
+.pop-eyebrow{font-size:11.5px;font-weight:510;letter-spacing:var(--track-eyebrow);color:var(--subtle);padding:6px 10px 4px}
 .pop-sep{height:1px;background:var(--line);margin:5px 4px}
 .pop-item{
   display:flex;align-items:center;gap:9px;width:100%;
   height:30px;padding:0 10px;border-radius:7px;
-  font-size:12.5px;color:var(--fg);text-align:left;
+  font-size:var(--text-small-body);color:var(--fg);text-align:left;
 }
 .pop-item:hover{background:var(--row-hover)}
 .pop-item svg{width:13px;height:13px;color:var(--muted);flex:none}
 .pop-item kbd{margin-left:auto}
 .pop-item .pi-check{margin-left:auto;color:var(--success)}
 .pop-item .pi-check svg{color:var(--success)}
-.pop-empty{padding:8px 10px 10px;font-size:12px;color:var(--muted)}
+.pop-empty{padding:8px 10px 10px;font-size:var(--text-eyebrow);color:var(--muted)}
+.pop-foot{margin-top:5px;padding:8px 10px 4px;border-top:1px solid var(--line);font-size:var(--text-badge);line-height:1.5;color:var(--subtle)}
 .ws-list .pop-item{height:34px}
 .ws-home-badge{
-  font-size:9px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+  font-size:var(--text-badge);font-weight:510;
   color:var(--subtle);border:1px solid var(--line);border-radius:var(--radius-sm);padding:1px 5px;
 }
 .bell-pop{width:324px}
@@ -150,7 +156,7 @@ body[data-wallpaper="carbon"] .desktop{
 
 /* ============ DOCK ============ */
 .dock-zone{
-  position:fixed;left:0;right:0;bottom:10px;z-index:600;
+  position:fixed;left:0;right:0;bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:600;
   display:flex;align-items:flex-end;gap:10px;
   padding:0 16px;
   pointer-events:none;
@@ -161,15 +167,15 @@ body[data-wallpaper="carbon"] .desktop{
   display:flex;align-items:flex-end;gap:4px;
   padding:7px;
   background:var(--shell-glass);
-  backdrop-filter:blur(28px) saturate(1.25);
+  backdrop-filter:blur(var(--blur-shell)) saturate(var(--saturate-shell));
   border:1px solid var(--line);border-radius:var(--r-dock);
-  box-shadow:0 18px 50px -18px rgba(0,0,0,.6);
+  box-shadow:var(--shadow-dock);
 }
 .dock-item{
-  position:relative;width:46px;height:46px;border-radius:13px;
+  position:relative;width:46px;height:46px;border-radius:var(--r-dock-item);
   display:grid;place-items:center;color:var(--muted);
   transform-origin:bottom center;
-  transition:transform .12s var(--ease-spring),background var(--dur),color var(--dur);
+  transition:transform var(--dur-shell-fast) var(--ease-spring),background var(--dur),color var(--dur);
 }
 .dock-item:hover{color:var(--fg-strong);background:var(--btn-fill)}
 .dock-item svg{width:21px;height:21px}
@@ -196,7 +202,7 @@ body[data-wallpaper="carbon"] .desktop{
   position:absolute;bottom:calc(100% + 12px);left:50%;translate:-50% 4px;
   padding:4px 9px;border-radius:7px;white-space:nowrap;
   background:var(--shell-glass-pop);border:1px solid var(--line-strong);
-  font-size:11px;font-weight:500;color:var(--fg-strong);
+  font-size:var(--text-badge);font-weight:510;color:var(--fg-strong);
   opacity:0;pointer-events:none;transition:opacity .14s,translate .14s var(--ease-spring);
 }
 .dock-item:hover .tip,.dock-new:hover .tip{opacity:1;translate:-50% 0}
@@ -205,11 +211,11 @@ body[data-wallpaper="carbon"] .desktop{
 
 .dock-actions{padding:7px}
 .dock-new{
-  position:relative;width:46px;height:46px;border-radius:13px;
+  position:relative;width:46px;height:46px;border-radius:var(--r-dock-item);
   display:grid;place-items:center;
   background:var(--accent);color:var(--accent-ink);
   box-shadow:var(--highlight);
-  transition:transform .12s var(--ease-spring),background var(--dur);
+  transition:transform var(--dur-shell-fast) var(--ease-spring),background var(--dur);
 }
 .dock-new:hover{background:var(--accent-hover);transform:translateY(-2px)}
 .dock-new svg{width:18px;height:18px}
@@ -217,20 +223,26 @@ body[data-wallpaper="carbon"] .desktop{
 /* ============ WINDOW FRAME ============ */
 .win{
   position:absolute;
-  min-width:400px;min-height:280px;
+  min-width:280px;min-height:180px;
   display:flex;flex-direction:column;
   background:var(--canvas);
   border:1px solid var(--line-strong);border-radius:var(--r-win);
   box-shadow:var(--shadow-win),var(--highlight);
   overflow:hidden;resize:both;
-  animation:win-in .24s var(--ease-spring);
+  animation:win-in var(--dur-shell) var(--ease-spring);
 }
 @keyframes win-in{from{opacity:0;transform:scale(.96) translateY(8px)}}
-.win.is-focused{border-color:rgba(255,255,255,.14)}
-.win:not(.is-focused){box-shadow:0 18px 50px -22px rgba(0,0,0,.55)}
+.win.is-focused{border-color:var(--line-focus)}
+.win:not(.is-focused){box-shadow:var(--shadow-win-unfocused)}
 .win:not(.is-focused) .win-head{color:var(--subtle)}
+.win:not(.is-focused) .w2-id,.win:not(.is-focused) .win-trail{opacity:.6}
+/* tiled panes sit in gutters: keep radius + border, drop the cast */
+.win--tiled,.win.is-tiled{box-shadow:none;resize:none}
 .win.is-max{resize:none}
-.win.is-minimizing{transition:transform .3s var(--ease-spring),opacity .28s ease;pointer-events:none}
+/* inline/document demo host: a .win embedded in flowing content (doc pages,
+   labs). Kills the floating-layout floors so the frame hugs its content. */
+.win--inline{position:relative;min-width:0;min-height:0;resize:none;animation:none}
+.win.is-minimizing{transition:transform var(--dur-shell-slow) var(--ease-spring),opacity .28s ease;pointer-events:none}
 
 /* ---- unified 44px window head (identity renders ONCE) ---- */
 .win-head{
@@ -246,13 +258,14 @@ body[data-wallpaper="carbon"] .desktop{
 .win-head.is-scrolled{border-bottom-color:var(--line-strong);box-shadow:0 10px 18px -14px rgba(0,0,0,.55)}
 .win-controls{display:flex;gap:7px;margin-right:2px;flex:none}
 .wc{
-  width:12px;height:12px;border-radius:var(--radius-xs);
+  width:12px;height:12px;border-radius:var(--radius-xxs);
   border:1px solid var(--line-strong);background:var(--btn-fill);
-  transition:background var(--dur),border-color var(--dur);
+  transition:background var(--dur-fast),border-color var(--dur-fast);
 }
-.win:hover .wc-close,.wc-close:focus-visible{background:var(--accent);border-color:var(--accent)}
-.win:hover .wc-min,.wc-min:focus-visible{background:var(--muted);border-color:var(--muted)}
-.win:hover .wc-zoom,.wc-zoom:focus-visible{background:var(--success);border-color:var(--success)}
+/* tones on control hover / focus-visible only (production: per-button, not per-window) */
+.wc-close:hover,.wc-close:focus-visible{background:var(--accent);border-color:var(--accent)}
+.wc-min:hover,.wc-min:focus-visible{background:var(--muted);border-color:var(--muted)}
+.wc-zoom:hover,.wc-zoom:focus-visible{background:var(--success);border-color:var(--success)}
 
 .w2-id{display:flex;align-items:center;gap:8px;min-width:0;flex:none;max-width:55%}
 .w2-glyph{
@@ -260,32 +273,35 @@ body[data-wallpaper="carbon"] .desktop{
   display:grid;place-items:center;
   background:var(--badge-fill);border:1px solid var(--line);color:var(--muted);
 }
-.w2-glyph svg{width:13px;height:13px}
+.w2-glyph svg{width:14px;height:14px}
 .win[data-doc="true"] .w2-glyph{display:none}
 .w2-title{
-  font-size:13px;line-height:18px;font-weight:600;color:var(--fg-strong);
+  font-size:13px;line-height:18px;font-weight:600;letter-spacing:var(--track-tight);color:var(--fg-strong);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;
 }
-.w2-count{font-size:10px;color:var(--faint);flex:none}
+.w2-count{font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--faint);flex:none;font-variant-numeric:tabular-nums}
 
-/* drill-in breadcrumb: depth grows a trail, never a new window */
+/* drill-in breadcrumb: depth grows a trail, never a new window.
+   >2 parents collapse to a "…" dropdown (first + last kept). */
 .w2-back{
   width:24px;height:24px;flex:none;display:grid;place-items:center;
   border-radius:var(--radius);color:var(--muted);cursor:pointer;
 }
 .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
-.w2-back svg{width:13px;height:13px}
+.w2-back svg{width:14px;height:14px}
 .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
 .w2-crumb{
-  font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;
+  font-size:13px;font-weight:510;color:var(--subtle);white-space:nowrap;
   max-width:150px;overflow:hidden;text-overflow:ellipsis;
   border-radius:var(--radius-sm);padding:1px 5px;cursor:pointer;
 }
 .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
 .w2-crumb--more{max-width:none;padding:1px 3px;color:var(--faint)}
-.w2-sep{font-size:12px;color:var(--faint);flex:none}
+.w2-sep{font-size:var(--text-small-body);color:var(--faint);flex:none}
 
-/* route tabs (peer views) — sit immediately after the title, left side */
+/* DEPRECATED — route/peer views in the head. Rule S3: views live on the
+   38px strip as its leading pill-group. Kept only so older boards render;
+   new work puts a .pill-group in .win-toolbar instead. */
 .w2-tabs{
   display:inline-flex;gap:1px;margin-left:2px;padding:2px;flex:none;
   border-radius:var(--radius-md);background:var(--canvas-tint);
@@ -294,7 +310,7 @@ body[data-wallpaper="carbon"] .desktop{
 .w2-tabs::-webkit-scrollbar{display:none}
 .w2-tab{
   min-height:24px;padding:0 9px;border-radius:var(--radius-xs);
-  font-size:12px;font-weight:500;color:var(--subtle);white-space:nowrap;
+  font-size:var(--text-eyebrow);font-weight:510;color:var(--subtle);white-space:nowrap;
   display:inline-flex;align-items:center;gap:5px;
 }
 .w2-tab .mono{font-size:10px;color:var(--faint)}
@@ -309,18 +325,83 @@ body[data-wallpaper="carbon"] .desktop{
 /* trail: status chip (color = state) + at most 2 actions */
 .w2-status{
   display:inline-flex;align-items:center;gap:6px;flex:none;
-  font-size:10.5px;font-weight:600;color:var(--muted);
+  font-size:var(--text-badge);font-weight:510;color:var(--muted);
 }
+.w2-status svg{width:12px;height:12px}
 .w2-status[data-tone="ok"]{color:var(--success)}
 .w2-status[data-tone="run"]{color:var(--accent-strong)}
 .w2-status[data-tone="needs"]{color:var(--warning)}
-.w2-meta{font-size:10.5px;color:var(--subtle);flex:none}
+.w2-meta{font-size:var(--text-badge);color:var(--subtle);flex:none}
 .w2-vsep{width:1px;height:14px;background:var(--line-strong);flex:none}
 .w2-actions{display:flex;align-items:center;gap:6px;flex:none}
 .win-trail{display:flex;align-items:center;gap:8px;flex:none;min-width:0;justify-content:flex-end}
-.livebadge{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:600;color:var(--accent)}
 
-/* ---- optional 38px context strip — tools ONLY (filters / search / Rows|Cards) ---- */
+/* ---- deck (window tabs) — mounts only at ≥2 tabs, never in compact ---- */
+.deck{
+  flex:none;height:var(--h-deck);
+  display:flex;align-items:flex-end;gap:2px;
+  padding:0 10px;
+  background:var(--rail);
+  box-shadow:inset 0 -1px 0 var(--line);
+  cursor:grab;
+}
+.deck:active{cursor:grabbing}
+.deck .win-controls{align-self:center;margin-right:6px}
+.deck-scroll{display:flex;align-items:flex-end;gap:2px;min-width:0;overflow-x:auto;scrollbar-width:none}
+.deck-scroll::-webkit-scrollbar{display:none}
+.deck-tab{
+  position:relative;display:inline-flex;align-items:center;gap:7px;
+  height:var(--h-deck-tab);min-width:var(--w-deck-tab-min);max-width:var(--w-deck-tab-max);flex:1 1 0;
+  padding:0 10px;border-radius:8px 8px 0 0;
+  border:1px solid transparent;border-bottom:0;
+  font-size:var(--text-small-body);font-weight:510;color:var(--subtle);
+  transition:background var(--dur) var(--ease),color var(--dur) var(--ease);
+}
+.deck-tab:hover{background:var(--canvas-soft);color:var(--fg)}
+.deck-tab:focus-visible{outline:none;box-shadow:var(--focus-ring-inset)}
+/* active tab fuses with the head: canvas fill + 1px canvas shadow closes the seam */
+.deck-tab.is-on{
+  background:var(--canvas);border-color:var(--line);
+  font-weight:600;color:var(--fg-strong);
+  box-shadow:0 1px 0 var(--canvas);
+}
+.deck-tab--pinned{min-width:0;max-width:none;flex:none;padding:0 9px}
+.deck-tab__glyph{width:13px;height:13px;flex:none;color:var(--muted)}
+.deck-tab.is-on .deck-tab__glyph{color:var(--fg-strong)}
+.deck-tab__dot{width:6px;height:6px;border-radius:50%;flex:none;background:var(--neutral)}
+.deck-tab__dot[data-s="running"]{background:var(--success);animation:pulse 1.8s var(--ease) infinite;color:var(--success)}
+.deck-tab__dot[data-s="attention"]{background:var(--accent)}
+.deck-tab__label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.deck-tab__badge{
+  min-width:14px;height:14px;padding:0 4px;border-radius:var(--radius-pill);flex:none;
+  background:var(--accent);color:var(--accent-ink);
+  font-family:var(--font-mono);font-size:9px;font-weight:700;line-height:14px;text-align:center;
+}
+.deck-tab__x{
+  width:16px;height:16px;flex:none;margin-right:-4px;border-radius:var(--radius-xxs);
+  display:grid;place-items:center;color:var(--faint);opacity:0;
+  transition:opacity var(--dur-fast),background var(--dur-fast),color var(--dur-fast);
+}
+.deck-tab:hover .deck-tab__x,.deck-tab.is-on .deck-tab__x,.deck-tab__x:focus-visible{opacity:1}
+.deck-tab__x:hover{background:var(--row-hover);color:var(--fg)}
+.deck-tab__x svg{width:9px;height:9px}
+.deck-add{
+  width:24px;height:24px;flex:none;margin-bottom:3px;border-radius:7px;
+  display:grid;place-items:center;color:var(--muted);
+}
+.deck-add:hover{background:var(--btn-fill);color:var(--fg-strong)}
+.deck-add svg{width:12px;height:12px}
+.deck-caret{width:2px;height:var(--h-deck-tab);border-radius:var(--radius-pill);background:var(--accent);align-self:flex-end;flex:none}
+.deck-gutter{flex:1;min-width:16px;align-self:stretch}
+/* drop-to-merge affordance */
+.merge-target{
+  position:absolute;inset:0 0 auto 0;z-index:50;height:44px;
+  display:grid;place-items:center;
+  border:1px solid var(--accent);background:var(--accent-tint);
+  font-size:var(--text-eyebrow);font-weight:510;color:var(--accent-strong);
+}
+
+/* ---- optional 38px context strip — views · filters · spacer · Rows|Cards ---- */
 .win-toolbar{
   flex:none;min-height:38px;
   display:flex;align-items:center;gap:10px;padding:2px 12px;
@@ -333,7 +414,21 @@ body[data-wallpaper="carbon"] .desktop{
   justify-content:flex-start;flex-wrap:nowrap;
 }
 
-.win-body{flex:1;overflow:auto;background:var(--canvas)}
+.win-body{flex:1;overflow:auto;background:var(--canvas);position:relative}
+
+/* snap preview + seams (ephemeral affordances) */
+.snap-preview{
+  position:absolute;z-index:50;border-radius:var(--radius-md);
+  border:1px solid var(--accent);background:var(--accent-tint);
+  pointer-events:none;
+}
+.snap-seam{position:absolute;z-index:2}
+.snap-seam::before{content:"";position:absolute;inset:0;margin:auto;background:var(--line-strong)}
+.snap-seam--v{width:12px;cursor:col-resize}
+.snap-seam--v::before{width:1px}
+.snap-seam--h{height:12px;cursor:row-resize}
+.snap-seam--h::before{height:1px}
+.snap-seam:hover::before,.snap-seam:focus-visible::before,.snap-seam[data-drag]::before{background:var(--accent)}
 
 /* ============ OVERLAYS ============ */
 .overlay{
@@ -344,44 +439,58 @@ body[data-wallpaper="carbon"] .desktop{
 }
 @keyframes fade-in{from{opacity:0}}
 
-/* command palette */
-.palette-overlay{display:grid;justify-items:center;align-items:start;padding-top:16vh}
+/* command palette shell — opaque panel, NO glass. The palette ground sits one
+   step below the window ramp so the overlay reads darker than the OS behind it.
+   Full grammar (rows, views, forms, action panel): command-palette.html chapter. */
+.palette-overlay{display:grid;justify-items:center;align-items:start;padding-top:16vh;backdrop-filter:blur(3px)}
 .palette{
   width:min(560px,92vw);
-  background:var(--shell-glass-pop);
-  backdrop-filter:blur(34px) saturate(1.25);
-  border:1px solid var(--line-strong);border-radius:14px;
+  background:color-mix(in oklab, var(--canvas) 55%, var(--canvas-soft));
+  border-radius:var(--radius-md);
   box-shadow:var(--shadow-overlay);
   overflow:hidden;
   animation:pal-in .2s var(--ease-spring);
 }
 @keyframes pal-in{from{opacity:0;transform:translateY(-10px) scale(.985)}}
-.palette-head{display:flex;align-items:center;gap:10px;padding:0 16px;height:52px;border-bottom:1px solid var(--line)}
-.palette-head svg{width:16px;height:16px;color:var(--muted);flex:none}
-.palette-head input{flex:1;height:100%;background:none;border:0;outline:none;font-size:14.5px;color:var(--fg-strong)}
-.palette-head input::placeholder{color:var(--subtle)}
-.palette-results{max-height:46vh;overflow:auto;padding:6px}
-.pal-group{
-  font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--subtle);padding:8px 10px 4px;
+.palette-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px 0;padding:12px 8px 10px;border-bottom:1px solid var(--line-soft)}
+.pal-input-box{
+  flex:1 0 100%;display:flex;align-items:center;gap:10px;
+  height:32px;padding:0 12px 0 11px;
+  border:1px solid var(--line);border-radius:var(--radius);background:var(--canvas-tint);
 }
+.pal-input-box:focus-within{border-color:var(--line-strong);box-shadow:var(--focus-ring)}
+.pal-input-box svg{width:16px;height:16px;color:var(--subtle);flex:none}
+.pal-input-box input{flex:1;min-width:0;background:none;border:0;outline:none;font-size:13px;letter-spacing:var(--track-body);color:var(--fg)}
+.pal-input-box input::placeholder{color:var(--subtle)}
+.palette-results{max-height:46vh;overflow:auto;padding:12px 8px}
+.pal-group{font-size:11.5px;font-weight:510;letter-spacing:var(--track-eyebrow);color:var(--faint);padding:8px 12px 4px}
+.pal-group--rule{border-top:1px solid var(--line);margin:8px -8px 0;padding:8px 20px 4px}
+.pal-group:first-child{border-top:0;margin-top:0;padding-top:6px}
 .pal-item{
-  display:flex;align-items:center;gap:10px;width:100%;
-  height:36px;padding:0 10px;border-radius:var(--radius-md);
-  font-size:13px;color:var(--fg);text-align:left;
+  display:flex;align-items:center;gap:8px;width:100%;
+  min-height:32px;padding:6px 12px;border-radius:var(--radius);
+  font-size:13px;line-height:1;color:var(--fg);text-align:left;
 }
-.pal-item svg{width:15px;height:15px;color:var(--muted);flex:none}
-.pal-item .pal-meta{margin-left:auto;font-size:10.5px;color:var(--subtle);font-family:var(--font-mono)}
-/* selection = neutral plate (row-selected + top light edge) — accent is
-   state, never a selection marker; the old inset accent bar is retired */
-.pal-item:hover{background:var(--row-hover)}
-.pal-item.is-active{background:var(--row-selected);box-shadow:var(--highlight)}
-.pal-none{padding:16px 12px 18px;font-size:12.5px;color:var(--muted);text-align:center}
+.pal-item + .pal-item{margin-top:2px}
+.pal-item svg{width:16px;height:16px;color:var(--muted);flex:none}
+.pal-item .pal-meta{margin-left:auto;font-family:var(--font-mono);font-size:var(--text-kbd);letter-spacing:var(--track-caps);color:var(--faint)}
+/* selection = elevated plate + fg-strong. No rim, no accent marker. */
+.pal-item:hover{background:var(--row-hover);color:var(--fg-strong)}
+.pal-item.is-active{background:var(--elevated);color:var(--fg-strong)}
+.pal-item.is-active svg{color:var(--fg-strong)}
+.pal-none{padding:16px 12px 18px;font-size:var(--text-form);color:var(--muted);text-align:center}
+.pal-foot{
+  display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px;padding:8px 20px;
+  border-top:1px solid var(--line-soft);font-size:var(--text-badge);color:var(--subtle);
+}
+.pal-foot span{display:inline-flex;align-items:center;gap:8px}
+.pal-foot .key{border:0;background:var(--canvas-soft);color:var(--muted)}
+.pal-foot .pal-esc{margin-left:auto}
 
 /* spaces overview */
 .spaces-overlay{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
 .spaces-title{font-size:17px;font-weight:600;color:var(--fg-strong)}
-.spaces-sub{font-size:12px;color:var(--muted);margin-bottom:22px}
+.spaces-sub{font-size:var(--text-eyebrow);color:var(--muted);margin-bottom:22px}
 .spaces-row{display:flex;gap:18px}
 .space-card{
   width:264px;border-radius:14px;overflow:hidden;text-align:left;
@@ -397,8 +506,8 @@ body[data-wallpaper="carbon"] .desktop{
 }
 .space-foot{display:flex;align-items:center;gap:8px;padding:10px 12px}
 .space-foot .ws-avatar{width:20px;height:20px;font-size:9px}
-.space-name{font-size:12.5px;font-weight:600;flex:1;color:var(--fg-strong)}
-.space-meta{font-size:10.5px;color:var(--subtle);font-family:var(--font-mono)}
+.space-name{font-size:var(--text-form);font-weight:600;flex:1;color:var(--fg-strong)}
+.space-meta{font-size:var(--text-kbd);color:var(--subtle);font-family:var(--font-mono)}
 .space-thumb[data-wp="ember"]{background:radial-gradient(200px 120px at 12% 110%, var(--accent-tint), transparent 62%), radial-gradient(190px 110px at 92% -12%, color-mix(in oklab, var(--teal) 34%, transparent), transparent 60%), var(--canvas)}
 .space-thumb[data-wp="mesh"]{background:radial-gradient(180px 110px at 85% 108%, var(--success-tint), transparent 60%), radial-gradient(220px 130px at 8% -8%, color-mix(in oklab, var(--teal) 42%, transparent), transparent 64%), var(--canvas)}
 .space-thumb[data-wp="carbon"]{background:radial-gradient(200px 110px at 50% -14%, rgba(255,255,255,.05), transparent 58%), var(--canvas)}
@@ -412,7 +521,7 @@ body[data-wallpaper="carbon"] .desktop{
 .toast{
   pointer-events:auto;
   background:var(--shell-glass-pop);
-  backdrop-filter:blur(30px) saturate(1.25);
+  backdrop-filter:blur(30px) saturate(var(--saturate-shell));
   border:1px solid var(--line-strong);border-radius:13px;
   box-shadow:var(--shadow-overlay);
   padding:11px 13px;
@@ -421,20 +530,26 @@ body[data-wallpaper="carbon"] .desktop{
 }
 .toast.is-leaving{transition:opacity .22s,transform .22s var(--ease-spring);opacity:0;transform:translateX(16px)}
 @keyframes toast-in{from{opacity:0;transform:translateX(24px)}}
-.toast-head{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted)}
+.toast-head{display:flex;align-items:center;gap:8px;font-size:var(--text-badge);color:var(--muted)}
+.toast-head svg{width:16px;height:16px}
 .toast-head strong{color:var(--fg-strong);font-weight:600}
-.toast-body{font-size:12.5px;line-height:1.45}
-.toast-body code{font-family:var(--font-mono);font-size:11.5px}
+.toast-head[data-tone="success"] svg{color:var(--success)}
+.toast-head[data-tone="danger"] svg{color:var(--danger)}
+.toast-head[data-tone="warning"] svg{color:var(--warning)}
+.toast-head[data-tone="info"] svg{color:var(--info)}
+.toast-body{font-size:var(--text-form);line-height:1.45}
+.toast-body code{font-family:var(--font-mono);font-size:var(--text-eyebrow)}
 .toast-actions{display:flex;gap:7px}
 
-/* ============ MOBILE MODE (<960px) ============
+/* ============ MOBILE / COMPACT MODE (<960px) ============
    Reflow, don't block: windows become stacked fullscreen surfaces
-   (z-order decides visibility), the dock becomes a bottom tab bar
-   with full route parity, and drag/resize/zoom/magnification are
-   disabled behind JS isMobile() guards so desktop rects survive. */
+   (z-order decides visibility), the deck is unavailable, the dock
+   becomes a bottom tab bar with full route parity, and drag/resize/
+   zoom/magnification are disabled so desktop rects survive. */
 @media (max-width:959px){
   :root{--tabbar-h:56px}
   .os{padding-bottom:calc(var(--tabbar-h) + env(safe-area-inset-bottom,0px))}
+  .win-layer{bottom:0}
 
   .mb-menus{display:none}
 
@@ -446,9 +561,10 @@ body[data-wallpaper="carbon"] .desktop{
   }
   .win-head{cursor:default}
   .win-head:active{cursor:default}
+  .deck{display:none}
   .win-controls{gap:12px}
   .wc{width:15px;height:15px;position:relative}
-  .wc::after{content:"";position:absolute;inset:-9px}
+  .wc::after{content:"";position:absolute;inset:-15px}
   .wc-zoom{display:none}
   .w2-id{max-width:48%}
   .win-trail{min-width:0}
@@ -458,7 +574,7 @@ body[data-wallpaper="carbon"] .desktop{
     left:0;right:0;bottom:0;gap:0;padding:0;
     align-items:stretch;
     background:var(--shell-glass);
-    backdrop-filter:blur(28px) saturate(1.25);
+    backdrop-filter:blur(var(--blur-shell)) saturate(var(--saturate-shell));
     border-top:1px solid var(--line);
   }
   .dock-flex{display:none}
@@ -476,7 +592,7 @@ body[data-wallpaper="carbon"] .desktop{
   .dock::-webkit-scrollbar{display:none}
   .dock-sep{display:none}
   .dock-item{
-    width:44px;height:44px;flex:none;border-radius:10px;
+    width:44px;height:44px;flex:none;border-radius:var(--radius-lg);
     transform:none!important;
     transition:background var(--dur),color var(--dur);
   }
@@ -487,7 +603,7 @@ body[data-wallpaper="carbon"] .desktop{
     flex:none;padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px)) 6px;
     border-left:1px solid var(--line);
   }
-  .dock-new{width:44px;height:44px;border-radius:10px}
+  .dock-new{width:44px;height:44px;border-radius:var(--radius-lg)}
   .dock-new:hover{transform:none}
 
   .desk-hint{padding:0 24px;text-align:center}
@@ -503,8 +619,8 @@ body[data-wallpaper="carbon"] .desktop{
 }
 
 @media (prefers-reduced-motion:reduce){
-  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+  *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
 }
 body[data-motion="reduced"] *,body[data-motion="reduced"] *::before,body[data-motion="reduced"] *::after{
-  animation-duration:.01ms!important;transition-duration:.01ms!important;
+  animation-duration:.001ms!important;transition-duration:.001ms!important;
 }

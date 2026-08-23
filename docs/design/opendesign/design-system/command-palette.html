@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CompozyOS DS · 04 Command Palette</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ds-core.css">
+<link rel="stylesheet" href="ds-shell.css">
+<link rel="stylesheet" href="ds-docs.css">
+<style>
+/* ---- chapter-local palette pieces (.cp-) — everything ds-shell.css
+   does not ship. Geometry mirrors command-palette/command-palette.css. ---- */
+:root{--cp-panel:color-mix(in oklab,var(--canvas) 55%,var(--canvas-soft));--cp-detail-w:208px;--cp-act-w:260px}
+
+/* staging: a darkened desktop so the palette ground reads correctly */
+.cp-stage{display:flex;justify-content:center;padding:22px;margin-top:12px;
+  border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--rail)}
+.cp-stage .palette,.cp-desk .palette{animation:none}
+.cp-desk{position:relative;overflow:hidden;min-height:392px;margin-top:12px;
+  border:1px solid var(--line);border-radius:var(--radius-lg);
+  background:radial-gradient(680px 420px at 12% 112%,var(--accent-tint-strong),transparent 62%),
+             radial-gradient(560px 360px at 92% -14%,color-mix(in oklab,#225555 34%,transparent),transparent 60%),
+             linear-gradient(180deg,var(--canvas-soft),var(--rail) 62%)}
+.cp-desk__win{position:absolute;left:24px;top:22px;right:24px;height:150px;overflow:hidden;
+  border:1px solid var(--line-strong);border-radius:12px;background:var(--canvas)}
+.cp-desk__head{height:44px;display:flex;align-items:center;gap:9px;padding:0 12px;border-bottom:1px solid var(--line);
+  font-size:13px;font-weight:600;letter-spacing:var(--track-tight);color:var(--fg-strong)}
+.cp-scrim{position:absolute;inset:0;display:grid;justify-items:center;align-items:start;padding-top:40px;
+  background:var(--scrim);backdrop-filter:blur(3px)}
+/* the 20px rail guide */
+.cp-rail{position:relative}
+.cp-rail::before{content:"";position:absolute;left:20px;top:0;bottom:0;width:1px;z-index:3;pointer-events:none;
+  background:repeating-linear-gradient(180deg,var(--accent-dim) 0 4px,transparent 4px 8px)}
+
+/* head */
+.cp-scope{flex:none;margin-left:auto;display:inline-flex;align-items:center;height:22px;padding:0 10px;
+  border-radius:var(--radius-xs);background:var(--neutral-tint);color:var(--neutral-ink);
+  font-size:var(--text-eyebrow);font-weight:510;letter-spacing:var(--track-eyebrow)}
+.cp-back{flex:none;width:24px;height:24px;margin-left:8px;display:grid;place-items:center;
+  border-radius:var(--radius-sm);color:var(--muted)}
+.cp-back:hover{background:var(--row-hover);color:var(--fg-strong)}
+.cp-back svg{width:14px;height:14px}
+.cp-crumbs{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:8px;padding:0 12px 0 6px;
+  font-size:var(--text-eyebrow);color:var(--muted)}
+.cp-crumbs svg{width:12px;height:12px;flex:none;color:var(--faint)}
+.cp-crumb{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cp-crumbs .cp-crumb:last-child{font-weight:510;color:var(--fg-strong)}
+.cp-ghost{flex:1;min-width:0;display:flex;align-items:center;font-size:13px;letter-spacing:var(--track-body);white-space:nowrap}
+.cp-ghost__typed{color:var(--fg)}
+.cp-ghost__tail{color:var(--subtle)}
+.cp-ghost__accept{flex:none;font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--faint)}
+
+/* rows */
+.pal-item.cp-off,.pal-item.cp-off:hover{color:var(--muted);background:transparent;cursor:not-allowed}
+.pal-item.cp-off svg{color:var(--faint)}
+.cp-hint{margin-left:auto;flex:none;max-width:46%;font-size:var(--text-micro);line-height:1.3;
+  color:var(--subtle);text-align:right}
+.cp-state{display:inline-flex;align-items:center;gap:6px;margin-left:auto;flex:none;font-size:var(--text-micro)}
+.cp-state svg{width:12px;height:12px}
+.cp-hint~.chord,.cp-state~.chord,.pal-meta~.chord,.cp-ret~.chord{margin-left:0}
+.cp-two{min-height:44px;align-items:center}
+.cp-two__main{min-width:0;flex:1;display:flex;flex-direction:column;gap:4px}
+.cp-two__t{font-size:var(--text-small-body);font-weight:510;color:var(--fg-strong)}
+.cp-two__s{font-size:var(--text-micro);line-height:1.3;color:var(--subtle)}
+.cp-skel{display:flex;align-items:center;gap:8px;min-height:32px;padding:6px 12px}
+.cp-skel i,.cp-skel u{border-radius:var(--radius-md);text-decoration:none;
+  background-color:var(--canvas-soft);
+  background-image:linear-gradient(90deg,transparent 0,var(--surface-glaze) 50%,transparent 100%);
+  background-size:200% 100%;animation:cp-shimmer 1.6s var(--ease) infinite}
+.cp-skel i{width:14px;height:14px;flex:none}
+.cp-skel u{height:8px;width:42%}
+.cp-skel u.sm{width:22%;margin-left:auto}
+@keyframes cp-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.cp-ask{width:18px;height:18px;flex:none;display:grid;place-items:center;border-radius:var(--radius-pill);
+  background:var(--info-tint);color:var(--info)}
+.cp-ask svg{width:11px;height:11px;color:var(--info)}
+.cp-askq{color:var(--info);font-weight:510}
+
+/* bands + frames */
+.cp-band{position:relative;overflow:hidden;display:flex;align-items:center;gap:8px;
+  min-height:28px;margin:10px 8px 0;padding:5px 12px;border-radius:var(--radius);
+  font-size:var(--text-eyebrow);color:var(--subtle)}
+.cp-band svg{width:13px;height:13px;flex:none}
+.cp-band .btn{margin-left:auto}
+.cp-band--busy{color:var(--muted)}
+.cp-band--busy::before{content:"";position:absolute;left:0;top:0;width:30%;height:2px;
+  background:color-mix(in oklab,var(--accent) 70%,transparent);animation:cp-travel 1.2s var(--ease) infinite}
+@keyframes cp-travel{0%{transform:translateX(-100%)}100%{transform:translateX(333%)}}
+.cp-band--degraded{color:var(--fg);background:color-mix(in srgb,var(--warning-tint) 70%,transparent)}
+.cp-band--degraded svg{color:var(--warning)}
+.cp-pend{width:7px;height:7px;flex:none;border-radius:var(--radius-pill);background:var(--accent);
+  color:var(--accent);animation:pulse 1.8s var(--ease) infinite}
+.cp-frame{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  min-height:200px;padding:36px 24px;text-align:center}
+.cp-frame svg{width:16px;height:16px;color:var(--faint)}
+.cp-frame--health svg{color:var(--warning)}
+.cp-frame__t{font-size:13px;font-weight:510;color:var(--fg-strong)}
+.cp-frame__s{font-size:var(--text-eyebrow);line-height:1.45;color:var(--muted);max-width:28ch}
+
+/* split + detail */
+.cp-split{display:grid;grid-template-columns:minmax(0,1fr) var(--cp-detail-w);min-height:220px;align-items:stretch}
+.cp-split__list{min-width:0;border-right:1px solid var(--line);padding:12px 8px}
+.cp-split__detail{min-width:0;overflow:auto;padding:14px 16px 16px;background:var(--canvas-soft)}
+.cp-kv{display:flex;flex-direction:column}
+.cp-kv__row{display:grid;grid-template-columns:72px minmax(0,1fr);gap:10px;align-items:baseline;
+  padding:7px 0;border-top:1px solid var(--line-soft)}
+.cp-kv__row:first-child{border-top:0;padding-top:0}
+.cp-kv__k{font-size:var(--text-eyebrow);color:var(--subtle)}
+.cp-kv__v{font-size:var(--text-small-body);color:var(--fg);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cp-kv__v .mono{font-size:var(--text-mono-id);color:var(--muted)}
+
+/* form + grid */
+.cp-body{padding:14px 16px 16px}
+.cp-form{display:flex;flex-direction:column;gap:14px}
+.cp-field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.cp-field__lab{font-size:var(--text-eyebrow);font-weight:510;color:var(--fg)}
+.cp-field__hint{font-size:11.5px;color:var(--muted)}
+.cp-field__err{font-size:11.5px;color:var(--danger)}
+.cp-field.is-miss .input::placeholder{color:var(--fg);font-weight:510}
+.cp-check{display:inline-flex;align-items:center;gap:8px;min-height:36px;font-size:var(--text-small-body);color:var(--fg)}
+.cp-path{display:flex;align-items:center;gap:8px;height:36px;padding:0 10px;
+  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--elevated);
+  font-family:var(--font-mono);font-size:var(--text-form);color:var(--fg)}
+.cp-path svg{width:14px;height:14px;color:var(--subtle);flex:none}
+.cp-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:760px){.cp-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.cp-tile{display:flex;flex-direction:column;gap:8px;min-height:84px;padding:10px;
+  border-radius:var(--radius);text-align:left;color:var(--fg)}
+.cp-tile:hover{background:var(--row-hover);color:var(--fg-strong)}
+.cp-tile.is-active{background:var(--elevated);color:var(--fg-strong)}
+.cp-tile__media{height:52px;border-radius:var(--radius-sm);background:var(--elevated);
+  display:grid;place-items:center;font-size:22px;line-height:1}
+.cp-tile__t{font-size:var(--text-eyebrow);font-weight:510;color:var(--fg-strong);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* action panel */
+.cp-act{width:var(--cp-act-w);padding:8px;border-radius:var(--radius-lg);
+  background:var(--cp-panel);box-shadow:var(--shadow-hairline)}
+.cp-act__filter{display:flex;align-items:center;gap:8px;height:36px;padding:0 12px;
+  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--canvas-tint);
+  font-size:13px;color:var(--subtle)}
+.cp-act__filter svg{width:16px;height:16px;flex:none}
+.cp-act__sec{border-top:1px solid var(--line-soft);margin:6px -8px 0;padding:14px 20px 6px;
+  font-size:11.5px;font-weight:510;letter-spacing:var(--track-eyebrow);color:var(--faint)}
+.cp-act__sec:first-child{border-top:0;margin-top:0;padding-top:10px}
+.cp-ret{margin-left:auto;font-family:var(--font-mono);font-size:var(--text-badge);color:var(--faint)}
+.cp-danger,.cp-danger:hover{color:var(--danger)}
+.cp-danger svg{color:var(--danger)}
+.cp-danger:hover{background:var(--danger-tint)}
+.cp-why{padding:2px 8px 8px;font-size:var(--text-micro);line-height:1.45;color:var(--subtle)}
+
+/* args + confirmation */
+.cp-args{flex:1 0 100%;min-width:0;display:flex;align-items:center;gap:6px}
+.cp-arg{position:relative;display:flex;align-items:center;gap:8px;height:32px;padding:0 12px 0 11px;
+  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--canvas-tint);min-width:0}
+.cp-arg__lab{flex:none;font-size:var(--text-eyebrow);font-weight:400;color:var(--subtle)}
+.cp-arg__in{min-width:72px;flex:1;font-size:13px;color:var(--fg)}
+.cp-arg__ph{min-width:72px;flex:1;font-size:13px;color:var(--subtle)}
+.cp-arg.is-on{border-color:var(--line-strong);background:var(--elevated)}
+.cp-arg.is-miss{border-color:var(--danger);box-shadow:none}
+.cp-arg.is-miss .cp-arg__ph{color:var(--fg);font-weight:510}
+.cp-arg__err{position:absolute;top:calc(100% + 8px);left:0;font-size:11.5px;color:var(--danger);white-space:nowrap}
+.cp-reserve{position:relative;min-height:36px}
+
+/* chord tiers */
+.cp-key-foot{border:0;background:var(--canvas-soft);color:var(--muted)}
+.cp-key-alt{border-style:dashed;border-color:var(--line-strong)}
+.cp-key-over{border-color:var(--accent-dim);color:var(--accent-strong)}
+.cp-caps{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.cp-legend{font-size:var(--text-badge);color:var(--faint)}
+.cp-two-up{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+@media (max-width:860px){.cp-two-up{grid-template-columns:1fr}}
+</style>
+</head>
+<body class="ds-doc">
+<div class="doc" data-od-id="ds-command-palette">
+  <nav class="docnav" data-od-id="docnav">
+    <a href="index.html"><span class="num">00</span>Overview</a>
+    <a href="foundations.html"><span class="num">01</span>Foundations</a>
+    <a href="os-shell.html"><span class="num">02</span>OS Shell</a>
+    <a href="components.html"><span class="num">03</span>Components</a>
+    <a href="command-palette.html" aria-current="page"><span class="num">04</span>Command Palette</a>
+    <a href="modals.html"><span class="num">05</span>Modals</a>
+    <a href="settings.html"><span class="num">06</span>Settings</a>
+    <a href="dashboards.html"><span class="num">07</span>Dashboards</a>
+    <a href="empty-states.html"><span class="num">08</span>Empty States</a>
+    <a href="profiles.html"><span class="num">09</span>Profiles</a>
+    <a href="patterns.html"><span class="num">10</span>Patterns</a>
+  </nav>
+
+  <header class="hero" data-od-id="hero">
+    <p class="eyebrow">CompozyOS · Design System · Chapter 04</p>
+    <h1>Command palette</h1>
+    <p>The ⌘K surface is the keyboard route into every window, entity and verb the daemon exposes. This
+    chapter is the distilled anatomy — panel, rail, row ladder, chord tiers, view states, latency bands,
+    forms, action panel, args and confirmation. The shell classes (<code>.palette</code>, <code>.pal-*</code>)
+    ship in <code>ds-shell.css</code>; pieces the shell does not carry are prefixed <code>.cp-</code> in this
+    page and mirror <code>../command-palette/command-palette.css</code> exactly.</p>
+  </header>
+
+  <!-- 01 -->
+  <section class="sec" id="panel" data-od-id="sec-panel">
+    <h2><span class="num">01</span>Panel &amp; zones</h2>
+    <p class="lead">The palette is <b>opaque</b> — glass is retired. Its ground sits one step below the window
+    ramp, so the overlay reads darker than the OS behind it instead of floating above it. The scrim is the only
+    blur in the product.</p>
+    <div class="cp-desk" data-od-id="demo-panel">
+      <div class="cp-desk__win" data-od-id="demo-panel-window">
+        <div class="cp-desk__head"><span class="w2-glyph"><i data-lucide="list-checks"></i></span>Tasks<span class="w2-count">·6·</span></div>
+      </div>
+      <div class="cp-scrim" data-od-id="demo-panel-scrim">
+        <div class="palette cp-rail" data-od-id="demo-panel-palette">
+          <div class="palette-head">
+            <div class="pal-input-box">
+              <i data-lucide="search"></i>
+              <span class="cp-ghost"><span class="cp-ghost__typed">start ses</span><span class="cp-ghost__tail">sion</span></span>
+              <span class="cp-scope">compozy</span>
+            </div>
+          </div>
+          <div class="palette-results" style="max-height:none">
+            <div class="pal-group">Commands</div>
+            <button class="pal-item is-active"><i data-lucide="rocket"></i>Start session<span class="chord">⌘N</span></button>
+            <button class="pal-item"><i data-lucide="git-branch"></i>Fork session<span class="chord">⌘⇧F</span></button>
+            <button class="pal-item"><i data-lucide="square-terminal"></i>Run task…<span class="chord">⌘R</span></button>
+          </div>
+          <div class="pal-foot">
+            <span><kbd class="key cp-key-foot">↑↓</kbd>Move</span>
+            <span><kbd class="key cp-key-foot">⌘⇧G</kbd>Global scope</span>
+            <span class="pal-esc"><kbd class="key cp-key-foot">esc</kbd>Close</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="demo-note"><b>Dashed line = the 20px rail.</b> Every leading glyph, group label and footer keycap
+    lands its left edge 20px from the panel edge — composed as 8px results-well padding + 12px row padding.
+    Nothing in the panel crosses it, nothing stops short of it.</p>
+    <table class="spec">
+      <tr><th>Part</th><th>Contract</th></tr>
+      <tr><td>Scrim</td><td><code>rgba(0,0,0,.55)</code> + <code>blur(3px)</code> — the only blur in the system. Overlay opens at <code>16vh</code> from the top (9vh in compact).</td></tr>
+      <tr><td>Panel</td><td><code>min(560px, 92vw)</code>, radius 10, <code>--shadow-overlay</code> (its 1px ring replaces a border). Opaque: no glass, no saturation, no backdrop filter on the panel itself.</td></tr>
+      <tr><td>Ground</td><td><code>color-mix(in oklab, var(--canvas) 55%, var(--canvas-soft))</code> — one step BELOW the window ramp. A palette lighter than the window reads as a floating card, not an overlay.</td></tr>
+      <tr><td>Zones</td><td>head → results → footer, split by <code>--line-soft</code> hairlines. Head <code>12px 8px 10px</code>, results <code>12px 8px</code> capped at <code>46vh</code>, footer <code>8px 20px</code>.</td></tr>
+      <tr><td>Entry</td><td><code>pal-in .2s</code> spring: fade + <code>translateY(-10px) scale(.985)</code>. Reduced-motion drops it to a cut.</td></tr>
+    </table>
+  </section>
+
+  <!-- 02 -->
+  <section class="sec" id="head" data-od-id="sec-head">
+    <h2><span class="num">02</span>Head</h2>
+    <p class="lead">One 32px input box owns the head at root. Scope rides <b>inside</b> the box as a trailing chip —
+    a lone chip never earns its own band. Drilled-in views swap the box for a back control plus breadcrumbs.</p>
+    <div class="cp-stage" data-od-id="demo-head">
+      <div style="display:flex;flex-direction:column;gap:14px;width:min(560px,92vw)">
+        <div class="palette cp-rail" data-od-id="demo-head-root">
+          <div class="palette-head">
+            <div class="pal-input-box">
+              <i data-lucide="search"></i>
+              <span class="cp-ghost"><span class="cp-ghost__typed">open kn</span><span class="cp-ghost__tail">owledge base</span></span>
+              <span class="cp-ghost__accept">→</span>
+              <span class="cp-scope">Global</span>
+            </div>
+          </div>
+          <div class="palette-results" style="max-height:none;padding-bottom:8px">
+            <button class="pal-item is-active"><i data-lucide="book-open"></i>Open knowledge base<span class="chord">⌘K B</span></button>
+          </div>
+        </div>
+        <div class="palette cp-rail" data-od-id="demo-head-drill">
+          <div class="palette-head" style="flex-wrap:nowrap;padding:12px 12px 10px 0">
+            <button class="cp-back" aria-label="Back"><i data-lucide="chevron-left"></i></button>
+            <div class="cp-crumbs">
+              <span class="cp-crumb">Sessions</span><i data-lucide="chevron-right"></i>
+              <span class="cp-crumb">nightly-triage</span><i data-lucide="chevron-right"></i>
+              <span class="cp-crumb">Actions</span>
+            </div>
+            <span class="cp-scope" style="margin-right:12px">compozy</span>
+          </div>
+          <div class="palette-results" style="max-height:none;padding-bottom:8px">
+            <button class="pal-item is-active"><i data-lucide="square"></i>Stop run<span class="chord">↩</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="demo-note">The ghost mirror renders the typed run <b>transparent</b> over the live input and paints
+    only the completion tail in <code>--subtle</code>; <code>→</code> is the accept marker, never a button.</p>
+    <table class="spec">
+      <tr><th>Element</th><th>Spec</th></tr>
+      <tr><td>Input box</td><td>32px, 1px <code>--line</code>, <code>--canvas-tint</code>, radius 8. <code>:focus-within</code> → <code>--line-strong</code> + focus ring. Search glyph 16px <code>--subtle</code>; text 13px / <code>-.006em</code>.</td></tr>
+      <tr><td>Scope chip</td><td>22px pill inside the box at <code>margin-left:auto</code>. Reads the workspace name or <code>Global</code>; ⌘⇧G flips it.</td></tr>
+      <tr><td>Back control</td><td>24×24 hit target around a 14px chevron — a bare 16px glyph button fails the target-size floor.</td></tr>
+      <tr><td>Breadcrumbs</td><td><code>flex:1 1 auto</code>, 12px, separators 12px <code>--faint</code>. Last crumb 510 / <code>--fg-strong</code>. Over three levels, the middle collapses to <code>…</code> with an “Earlier levels” tooltip.</td></tr>
+      <tr><td>Ghost autocomplete</td><td>Absolute mirror over the input: typed run transparent, tail <code>--subtle</code>, accept marker <code>→</code> mono <code>--faint</code> at the right edge.</td></tr>
+    </table>
+  </section>
+
+  <!-- 03 -->
+  <section class="sec" id="rows" data-od-id="sec-rows">
+    <h2><span class="num">03</span>Rows</h2>
+    <p class="lead">Two row heights, one grammar. 32px single-line for commands, 44px two-line for entities.
+    Selection is an <code>--elevated</code> plate plus <code>--fg-strong</code> ink — no rim, no accent marker,
+    no left bar.</p>
+    <div class="cp-stage" data-od-id="demo-rows">
+      <div class="palette cp-rail" data-od-id="demo-rows-palette">
+        <div class="palette-results" style="max-height:none">
+          <div class="pal-group">Commands</div>
+          <button class="pal-item"><i data-lucide="rocket"></i>Start session<span class="chord">⌘N</span></button>
+          <button class="pal-item is-active"><i data-lucide="refresh-cw"></i>Restart daemon<span class="cp-state"><i data-lucide="dot"></i>running</span><span class="chord">⌘⇧R</span></button>
+          <button class="pal-item cp-off"><i data-lucide="upload"></i>Publish capability<span class="cp-hint">Vault has no publish token</span></button>
+          <div class="pal-group pal-group--rule">Sessions</div>
+          <button class="pal-item cp-two">
+            <span class="status-dot" style="background:var(--accent)"></span>
+            <span class="cp-two__main">
+              <span class="cp-two__t">nightly-triage</span>
+              <span class="cp-two__s">claude-code · 42 messages · edited 3 files</span>
+            </span>
+            <span class="pal-meta">4m</span>
+          </button>
+          <button class="pal-item cp-two">
+            <span class="status-dot" style="background:var(--success)"></span>
+            <span class="cp-two__main">
+              <span class="cp-two__t">docs-sweep</span>
+              <span class="cp-two__s">hermes · idle · packages/site</span>
+            </span>
+            <span class="pal-meta">1h</span>
+          </button>
+          <div class="pal-group pal-group--rule">Knowledge</div>
+          <div class="cp-skel"><i></i><u></u><u class="sm"></u></div>
+          <div class="cp-skel"><i></i><u style="width:34%"></u><u class="sm"></u></div>
+          <div class="pal-group pal-group--rule">Nothing else matched</div>
+          <button class="pal-item"><span class="cp-ask"><i data-lucide="sparkles"></i></span>Ask an agent <span class="cp-askq">“why did nightly-triage stall”</span></button>
+        </div>
+      </div>
+    </div>
+    <table class="spec">
+      <tr><th>Part</th><th>Spec</th></tr>
+      <tr><td>Group heading</td><td>11.5px / 510, sentence case, <code>--faint</code>. Between groups a full-bleed rule (<code>border-top</code> + negative side margins) crosses the whole panel. Rhythm: 8px above the label, 4px below, 2px between rows.</td></tr>
+      <tr><td>Command row</td><td>32px min, 13px text, 16px glyph <code>--muted</code>, radius 10, padding <code>6px 12px</code>.</td></tr>
+      <tr><td>Entity row</td><td>44px two-line: title 13.5 / 510 <code>--fg-strong</code>, sub 11px <code>--subtle</code>. Same selection plate as commands.</td></tr>
+      <tr><td>Disabled</td><td><code>color-dim</code>: <code>--muted</code> label + <code>--faint</code> glyph. Never <code>opacity:.5</code> — the mandated reason must stay AA-legible.</td></tr>
+      <tr><td>Reason slot</td><td>The verbatim availability reason from the daemon, right-aligned, 11px <code>--subtle</code>, <code>max-width:46%</code>. One reason scale across rows, action panel and hints.</td></tr>
+      <tr><td>Trailing slots</td><td>Chord (<code>--font-keys</code> 10.5 / 510 <code>--faint</code>, ONE span per chord) · state word + glyph as one unit · mono meta (elapsed, count).</td></tr>
+      <tr><td>Skeleton</td><td>14px glyph block + 8px bars on a travelling glaze (1.6s). Cold entity lanes use the 44px variant so nothing jumps on load.</td></tr>
+      <tr><td>Ask-agent</td><td>Fallback row when nothing matched: 18px info roundel + the query quoted in <code>--info</code> 510.</td></tr>
+    </table>
+    <div class="rule-list">
+      <div class="rule"><i>R1</i><span><b>One auto margin per row.</b> Two <code>margin-left:auto</code> children split the free space instead of pushing one cluster right. The first right-cluster starter owns the auto margin; every later trailing slot zeroes its own and rides the row gap.</span></div>
+      <div class="rule"><i>R2</i><span><b>The state word and its glyph travel as one unit.</b> Give them separate auto margins and the pair splits across the row on the first narrow panel.</span></div>
+      <div class="rule"><i>R3</i><span><b>A disabled row still says why.</b> No reason from the runtime means the row is not rendered — never a dead row with an invented excuse.</span></div>
+    </div>
+  </section>
+
+  <!-- 04 -->
+  <section class="sec" id="footer" data-od-id="sec-footer">
+    <h2><span class="num">04</span>Footer &amp; chord tiers</h2>
+    <p class="lead">The footer is the only place the palette teaches its own keyboard: <code>8px 20px</code>, a
+    <code>--line-soft</code> top rule, 11px <code>--subtle</code> labels, one filled cap per hint.</p>
+    <div class="cp-stage" data-od-id="demo-footer">
+      <div class="palette cp-rail" data-od-id="demo-footer-palette">
+        <div class="palette-results" style="max-height:none;padding-bottom:6px">
+          <button class="pal-item is-active"><i data-lucide="folder-open"></i>Open workspace…<span class="chord">⌘O</span></button>
+        </div>
+        <div class="pal-foot">
+          <span><kbd class="key cp-key-foot">↑↓</kbd>Move</span>
+          <span><kbd class="key cp-key-foot">↩</kbd>Run</span>
+          <span><kbd class="key cp-key-foot">⌘⇧G</kbd>Global scope</span>
+          <span class="pal-esc"><kbd class="key cp-key-foot">esc</kbd>Close</span>
+        </div>
+      </div>
+    </div>
+    <table class="spec">
+      <tr><th>Tier</th><th>Rendition</th><th>Where</th></tr>
+      <tr><td>Row</td><td><span class="chord" style="margin-left:0">⌘⇧F</span> — bare text, no plate, <code>--font-keys</code> 10.5 / 510 <code>--faint</code></td><td>Result rows, action-panel rows, menus</td></tr>
+      <tr><td>Footer</td><td><kbd class="key cp-key-foot">⌘⇧G</kbd> — filled 20px cap on <code>--canvas-soft</code>, borderless</td><td>Palette footer hints only</td></tr>
+      <tr><td>Settings</td><td><kbd class="key">⌘⇧P</kbd> — bordered 20px cap, <code>--line</code> rim</td><td>Keyboard settings — the only surface where a chord is editable</td></tr>
+      <tr><td>Alternate</td><td><kbd class="key cp-key-alt">⌃⌥P</kbd> — dashed <code>--line-strong</code> rim</td><td>Second binding for the same command</td></tr>
+      <tr><td>Overridden</td><td><kbd class="key cp-key-over">⌘⇧K</kbd> — <code>--accent-dim</code> border + <code>--accent-strong</code> label</td><td>User-changed binding, in Settings only</td></tr>
+    </table>
+    <div class="rule-list">
+      <div class="rule"><i>F1</i><span><b>One cap per binding, never per key.</b> <code>⌘⇧G</code> is a single cap. Splitting a chord into three caps turns a hint into a keyboard diagram.</span></div>
+      <div class="rule"><i>F2</i><span><b>Caps use <code>--font-keys</code></b> (system stack) — the mono subsets ship no ⌘⇧⌥⌃⏎⌫ glyphs.</span></div>
+      <div class="rule"><i>F3</i><span><b>Esc is pushed right</b> (<code>margin-left:auto</code>) and is the last hint in every footer; the leading hints stay in navigate → act order.</span></div>
+    </div>
+  </section>
+
+  <!-- 05 -->
+  <section class="sec" id="states" data-od-id="sec-states">
+    <h2><span class="num">05</span>View states &amp; latency</h2>
+    <p class="lead">A view that cannot answer says so in the results well, under identical chrome. Latency never
+    blanks the list — it rides an inset band above rows that stay on screen.</p>
+    <div class="cp-two-up">
+      <div class="cp-stage" style="padding:16px" data-od-id="demo-frame">
+        <div class="palette" style="width:100%" data-od-id="demo-frame-palette">
+          <div class="palette-head"><div class="pal-input-box"><i data-lucide="search"></i><span class="cp-ghost"><span class="cp-ghost__typed">deploy</span></span></div></div>
+          <div class="palette-results" style="max-height:none">
+            <div class="cp-frame cp-frame--health">
+              <i data-lucide="unplug"></i>
+              <span class="cp-frame__t">This view stopped responding</span>
+              <span class="cp-frame__s">deploy-console · reopen the extension to try again</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="cp-stage" style="padding:16px" data-od-id="demo-bands">
+        <div class="palette" style="width:100%" data-od-id="demo-bands-palette">
+          <div class="cp-band cp-band--busy" data-od-id="band-busy"><span class="cp-pend"></span>updating results…</div>
+          <div class="cp-band cp-band--degraded" data-od-id="band-degraded">
+            <i data-lucide="triangle-alert"></i>Showing the last known list
+            <button class="btn btn--xs">Retry</button>
+          </div>
+          <div class="palette-results" style="max-height:none;padding-top:8px">
+            <button class="pal-item is-active"><i data-lucide="ship"></i>Deploy preview<span class="pal-meta">2m ago</span></button>
+            <button class="pal-item"><i data-lucide="history"></i>Deploy history</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <table class="spec">
+      <tr><th>State</th><th>Spec</th></tr>
+      <tr><td>Frame</td><td>Centered, <code>min-height:200px</code>: 16px glyph (<code>--faint</code>; <code>--warning</code> for every runtime-health frame) → title 13 / 510 → sub 12 / 1.45 capped at 28ch. One optional qualifier line at 11px.</td></tr>
+      <tr><td>Band geometry</td><td>Inset chip: <code>margin:10px 8px 0</code>, 28px min, radius 8, <code>overflow:hidden</code>. Never a full-bleed dam glued to both zones.</td></tr>
+      <tr><td>Busy</td><td>A 2px accent sliver travelling across the band (1.2s loop cadence, not a <code>--dur-*</code> step). <b>One motion channel:</b> inside a busy band the pulsing dot hides — the word “updating” is the non-motion channel.</td></tr>
+      <tr><td>Degraded / broken</td><td><code>--warning-tint</code> mix + warning glyph + literal cause; a hosted control (<code>.btn--xs</code>) sits at <code>margin-left:auto</code>. Previous rows stay visible below.</td></tr>
+      <tr><td>Pending</td><td>7px accent dot, 1.8s pulse. Motion only — the palette never renders a fake percentage for work it cannot measure.</td></tr>
+      <tr><td>Reduced motion</td><td>Sweep, shimmer and pulse all collapse to their static frame; the band and its words remain.</td></tr>
+    </table>
+  </section>
+
+  <!-- 06 -->
+  <section class="sec" id="split" data-od-id="sec-split">
+    <h2><span class="num">06</span>Split view &amp; detail rail</h2>
+    <p class="lead">List views that carry a preview split <code>1fr / 208px</code>. The rail is flat: a hairline
+    separates it, <code>--canvas-soft</code> lifts it, nothing casts.</p>
+    <div class="cp-stage" data-od-id="demo-split">
+      <div class="palette" data-od-id="demo-split-palette">
+        <div class="palette-head"><div class="pal-input-box"><i data-lucide="search"></i><span class="cp-ghost"><span class="cp-ghost__typed">triage</span></span><span class="cp-scope">compozy</span></div></div>
+        <div class="cp-split">
+          <div class="cp-split__list cp-rail">
+            <button class="pal-item cp-two is-active">
+              <span class="status-dot" style="background:var(--accent)"></span>
+              <span class="cp-two__main"><span class="cp-two__t">nightly-triage</span><span class="cp-two__s">claude-code · running</span></span>
+            </button>
+            <button class="pal-item cp-two">
+              <span class="status-dot" style="background:var(--neutral)"></span>
+              <span class="cp-two__main"><span class="cp-two__t">triage-backlog</span><span class="cp-two__s">hermes · stopped</span></span>
+            </button>
+          </div>
+          <div class="cp-split__detail">
+            <div class="cp-kv">
+              <div class="cp-kv__row"><span class="cp-kv__k">Agent</span><span class="cp-kv__v">claude-code</span></div>
+              <div class="cp-kv__row"><span class="cp-kv__k">State</span><span class="cp-kv__v" style="color:var(--accent-strong)">running</span></div>
+              <div class="cp-kv__row"><span class="cp-kv__k">Started</span><span class="cp-kv__v">08:14</span></div>
+              <div class="cp-kv__row"><span class="cp-kv__k">Session</span><span class="cp-kv__v mono">ses_7f31a0</span></div>
+              <div class="cp-kv__row"><span class="cp-kv__k">Workspace</span><span class="cp-kv__v">compozy</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="pal-foot">
+          <span><kbd class="key cp-key-foot">↩</kbd>Open</span>
+          <span><kbd class="key cp-key-foot">⌘.</kbd>Actions</span>
+          <span class="pal-esc"><kbd class="key cp-key-foot">esc</kbd>Back</span>
+        </div>
+      </div>
+    </div>
+    <p class="demo-note"><b>Authorized delta:</b> the kv label gutter is 72px here, against production's 140px —
+    a 140px gutter leaves no value column inside a 208px rail. Rows are 7px padded and separated by
+    <code>--line-soft</code>; values are single-line and ellipsize, never wrap-then-clip.</p>
+  </section>
+
+  <!-- 07 -->
+  <section class="sec" id="form" data-od-id="sec-form">
+    <h2><span class="num">07</span>Form &amp; grid views</h2>
+    <p class="lead">A view may declare fields or tiles instead of rows. Both reuse the window-content
+    vocabulary — 36px inputs, 32px compact controls, the same selection grammar as a result row.</p>
+    <div class="cp-two-up">
+      <div class="cp-stage" style="padding:16px" data-od-id="demo-form">
+        <div class="palette" style="width:100%" data-od-id="demo-form-palette">
+          <div class="palette-head" style="flex-wrap:nowrap;padding:12px 12px 10px 0">
+            <button class="cp-back" aria-label="Back"><i data-lucide="chevron-left"></i></button>
+            <div class="cp-crumbs"><span class="cp-crumb">Vault</span><i data-lucide="chevron-right"></i><span class="cp-crumb">New secret</span></div>
+          </div>
+          <div class="cp-body">
+            <div class="cp-form">
+              <div class="cp-field">
+                <label class="cp-field__lab">Name</label>
+                <input class="input" value="ANTHROPIC_API_KEY">
+                <span class="cp-field__hint">Uppercase with underscores.</span>
+              </div>
+              <div class="cp-field is-miss">
+                <label class="cp-field__lab">Value</label>
+                <input class="input" aria-invalid="true" placeholder="Required" value="">
+                <span class="cp-field__err">Enter a value before saving.</span>
+              </div>
+              <label class="cp-check"><span class="cbx is-on"><i data-lucide="check"></i></span>Share with every workspace</label>
+              <div class="cp-field">
+                <label class="cp-field__lab">Store at</label>
+                <div class="cp-path"><i data-lucide="folder"></i>~/.compozy/vault/compozy.db</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="cp-stage" style="padding:16px" data-od-id="demo-grid">
+        <div class="palette" style="width:100%" data-od-id="demo-grid-palette">
+          <div class="palette-head"><div class="pal-input-box"><i data-lucide="search"></i><span class="cp-ghost"><span class="cp-ghost__tail">Pick a workspace symbol…</span></span></div></div>
+          <div class="cp-body">
+            <div class="cp-tiles">
+              <button class="cp-tile is-active"><span class="cp-tile__media">◆</span><span class="cp-tile__t">Diamond</span></button>
+              <button class="cp-tile"><span class="cp-tile__media">▲</span><span class="cp-tile__t">Prism</span></button>
+              <button class="cp-tile"><span class="cp-tile__media">●</span><span class="cp-tile__t">Orb</span></button>
+              <button class="cp-tile"><span class="cp-tile__media">■</span><span class="cp-tile__t">Block</span></button>
+              <button class="cp-tile"><span class="cp-tile__media">✦</span><span class="cp-tile__t">Spark</span></button>
+              <button class="cp-tile"><span class="cp-tile__media">⬡</span><span class="cp-tile__t">Cell</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <table class="spec">
+      <tr><th>Part</th><th>Spec</th></tr>
+      <tr><td>Form rhythm</td><td>Field stack gap 14, inner gap 6. Label 12 / 510 inheriting <code>--fg</code> (focus lifts it to <code>--fg-strong</code>), hint 11.5 <code>--muted</code>, error 11.5 <code>--danger</code>.</td></tr>
+      <tr><td>Missing required</td><td>Placeholder switches to <code>--fg</code> + 510 — the non-color channel — before any red appears.</td></tr>
+      <tr><td>Invalid</td><td><code>--danger</code> border, <b>no ring</b>: the focus ring stays exclusive to <code>:focus-visible</code>.</td></tr>
+      <tr><td>Checkbox row</td><td>36px lane, 16px <code>.cbx</code>, label 13.5. Path picker is a 36px mono field, never a bare text input.</td></tr>
+      <tr><td>Grid</td><td>3 columns (2 at ≤760px), tile 84px min, radius 8, media well 52px. Selection follows the row grammar exactly: <code>--elevated</code> plate, no rim.</td></tr>
+      <tr><td>Scroll</td><td>Form and grid bodies cap at <code>46vh</code> like the results well, so a long view scrolls inside the panel instead of growing it past the viewport.</td></tr>
+    </table>
+  </section>
+
+  <!-- 08 -->
+  <section class="sec" id="action-panel" data-od-id="sec-action-panel">
+    <h2><span class="num">08</span>Action panel</h2>
+    <p class="lead">⌘. opens the verbs for the selected row in a 260px panel on the same ground as the palette.
+    Rows are the same tier as the list they act on.</p>
+    <div class="cp-stage" data-od-id="demo-act">
+      <div class="cp-act" data-od-id="demo-act-panel">
+        <div class="cp-act__filter"><i data-lucide="search"></i>Filter actions…</div>
+        <div class="cp-act__sec">Run</div>
+        <button class="pal-item is-active"><i data-lucide="square"></i>Stop run<span class="cp-ret">↩</span></button>
+        <button class="pal-item"><i data-lucide="git-branch"></i>Fork session</button>
+        <button class="pal-item"><i data-lucide="external-link"></i>Open in window</button>
+        <div class="cp-act__sec">Manage</div>
+        <button class="pal-item"><i data-lucide="pin"></i>Pin to dock</button>
+        <button class="pal-item cp-off"><i data-lucide="archive"></i>Archive</button>
+        <p class="cp-why">A running session cannot be archived. Stop it first.</p>
+        <button class="pal-item cp-danger"><i data-lucide="trash-2"></i>Delete session</button>
+      </div>
+    </div>
+    <table class="spec">
+      <tr><th>Part</th><th>Spec</th></tr>
+      <tr><td>Panel</td><td>260px, <code>--cp-panel</code> ground, radius 14, 8px padding, hairline shadow — no overlay cast; it is a child of the palette, not a second overlay.</td></tr>
+      <tr><td>Filter row</td><td>36px, same recipe as the palette input box. Mounted only when the set exceeds a screenful.</td></tr>
+      <tr><td>Section label</td><td>11.5 / 510 <code>--faint</code>, full-bleed <code>--line-soft</code> rule above via negative margins. First section drops the rule.</td></tr>
+      <tr><td>Rows</td><td>32px, identical to <code>.pal-item</code>. The primary action carries an <code>↩</code> marker in the chord slot.</td></tr>
+      <tr><td>Destructive</td><td><code>--danger</code> text + glyph at rest; hover/selected raises a <code>--danger-tint</code> plate. Never a solid danger fill.</td></tr>
+      <tr><td>Reason slot</td><td>10.5 / 1.45 <code>--subtle</code>, directly under the disabled row it explains — same reason scale as the row hint.</td></tr>
+    </table>
+  </section>
+
+  <!-- 09 -->
+  <section class="sec" id="args" data-od-id="sec-args">
+    <h2><span class="num">09</span>Args &amp; confirmation</h2>
+    <p class="lead">A command that needs input morphs the input bar into typed argument pills — no second modal,
+    no page. A command that destroys something confirms in a Dialog, never in the palette.</p>
+    <div class="cp-two-up">
+      <div class="cp-stage" style="padding:16px" data-od-id="demo-args">
+        <div class="palette" style="width:100%" data-od-id="demo-args-palette">
+          <div class="palette-head" style="flex-wrap:nowrap;padding:12px 12px 10px 0">
+            <button class="cp-back" aria-label="Back"><i data-lucide="chevron-left"></i></button>
+            <div class="cp-crumbs"><span class="cp-crumb">Run task</span></div>
+          </div>
+          <div class="cp-body" style="padding-top:0">
+            <div class="cp-args">
+              <div class="cp-arg is-on"><span class="cp-arg__lab">task</span><span class="cp-arg__in">nightly-triage</span></div>
+              <div class="cp-arg is-miss"><span class="cp-arg__lab">branch</span><span class="cp-arg__ph">Required</span>
+                <span class="cp-arg__err">Pick a branch to run against.</span></div>
+            </div>
+            <div class="cp-reserve"></div>
+          </div>
+          <div class="pal-foot">
+            <span><kbd class="key cp-key-foot">⇥</kbd>Next field</span>
+            <span class="pal-esc"><kbd class="key cp-key-foot">esc</kbd>Cancel</span>
+          </div>
+        </div>
+      </div>
+      <div class="cp-stage" style="padding:16px" data-od-id="demo-confirm">
+        <div class="dialog dialog--sm" style="width:100%;max-height:none;grid-template-rows:auto auto" data-od-id="demo-confirm-dialog">
+          <div class="dialog__head">
+            <span class="dialog__head-icon dialog__head-icon--neutral"><i data-lucide="trash-2"></i></span>
+            <div class="dialog__head-main">
+              <span class="eyebrow">Sessions · nightly-triage</span>
+              <h3 class="dialog__title">Delete this session?</h3>
+              <p class="dialog__desc">Its transcript, tool calls and run history are removed from this workspace.
+              <b>Files the agent already wrote stay on disk.</b></p>
+            </div>
+          </div>
+          <div class="dialog__foot">
+            <span class="dialog__foot-note"><i data-lucide="info"></i>Deletes 42 messages and 6 runs.</span>
+            <button class="btn" autofocus>Cancel</button>
+            <button class="btn btn--destructive">Delete session</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <table class="spec">
+      <tr><th>Part</th><th>Spec</th></tr>
+      <tr><td>Arg pill</td><td>32px, <code>--canvas-tint</code>, radius 10. Label 12 <code>--subtle</code> and <b>quiet</b> — uppercase chips read as cockpit. Focus → <code>--line-strong</code> + <code>--elevated</code>. ⇥ traverses.</td></tr>
+      <tr><td>Missing / invalid</td><td><code>--danger</code> border, no ring; the placeholder lifts to <code>--fg</code> 510. The error is absolutely positioned below <b>its own field</b>, never in the head.</td></tr>
+      <tr><td>In-flow reserve</td><td>The block under the args sizes the state actually depicted (error line, one-row dropdown, two-row dropdown) — reserving the max case leaves a hole in a static frame.</td></tr>
+      <tr><td>Confirmation</td><td>Dialog anatomy: title 16 / 510 / <code>-.014em</code>, body 13.5 / 1.5 capped at 42ch, footer band full-bleed <code>--canvas-tint</code>.</td></tr>
+      <tr><td>Danger action</td><td><code>--danger-tint</code> plate with danger ink — <b>never</b> a solid danger fill. Cancel takes focus by default.</td></tr>
+    </table>
+  </section>
+
+  <!-- 10 -->
+  <section class="sec" id="density" data-od-id="sec-density">
+    <h2><span class="num">10</span>Density &amp; motion rules</h2>
+    <div class="rule-list">
+      <div class="rule"><i>P1</i><span><b>The row ladder is locked at 32px</b> (44 for two-line entities). The 40px experiment made the root list unscannable — fewer verbs per screen, more travel per keystroke. Density is the point of a palette.</span></div>
+      <div class="rule"><i>P2</i><span><b>Anti-cockpit.</b> No uppercase argument chips, no key-by-key diagrams, no operator ids in the row title. Machine truth demotes to mono ≤10.5px <code>--faint</code> — demoted, never deleted.</span></div>
+      <div class="rule"><i>P3</i><span><b>State feedback runs on 120 / 180 / 260</b> with <code>cubic-bezier(.22,1,.36,1)</code>. Cadence is off that ramp: shimmer 1.6s, band sweep 1.2s, pending pulse 1.8s — loops, not state steps.</span></div>
+      <div class="rule"><i>P4</i><span><b>One motion channel per zone.</b> A travelling sweep and a pulsing dot in the same band is two clocks arguing; the sweep wins and the dot stands down.</span></div>
+      <div class="rule"><i>P5</i><span><b>Reduced motion kills everything</b> — entry spring, shimmer, sweep, pulse. Every state still reads from words, shape and tone alone.</span></div>
+      <div class="rule"><i>P6</i><span><b>Accent stays “act”:</b> the busy sliver, the pending dot, the required mark. Selection is neutral <code>--elevated</code>; scope, groups and breadcrumbs never take accent.</span></div>
+      <div class="rule"><i>P7</i><span><b>Production parity:</b> <code>CommandDialog</code> / <code>CommandItem</code> / <code>CommandEmpty</code> in <code>@compozy/ui</code>. Prototype divergence is a delta to annotate, not a fork to ship.</span></div>
+      <div class="rule"><i>P8</i><span><b>Truthful palette:</b> a verb the daemon cannot run is either absent or disabled with its verbatim reason. No optimistic rows, no percentages the runtime cannot measure.</span></div>
+    </div>
+    <p class="demo-note" style="margin-top:16px">Full working boards — root, root states, domain list, view shell,
+    view bands, form/grid, action panel, args/confirmation, settings and the settings palette — live in
+    <code>../command-palette/</code> (11 boards + <code>command-palette.css</code> + <code>DESIGN-NOTES.md</code>).
+    <b>Iterate there, never regenerate.</b></p>
+  </section>
+</div>
+<script src="https://unpkg.com/lucide@1.28/dist/umd/lucide.min.js"></script>
+<script>
+  if (window.lucide) window.lucide.createIcons();
+</script>
+</body>
+</html>

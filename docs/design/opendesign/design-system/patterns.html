@@ -3,207 +3,648 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CompozyOS DS · 04 Patterns</title>
+<title>CompozyOS DS · 10 Patterns</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="ds-core.css">
+<link rel="stylesheet" href="ds-shell.css">
+<link rel="stylesheet" href="ds-docs.css">
 <style>
-body{background:var(--canvas);overflow-y:auto}
-.doc{max-width:1080px;margin:0 auto;padding:0 32px 120px}
-.docnav{
-  position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:2px;
-  margin:0 -32px 40px;padding:10px 32px;
-  background:color-mix(in srgb,var(--canvas) 86%,transparent);
-  backdrop-filter:blur(14px);border-bottom:1px solid var(--line);
+/* ── chapter 10 page-local (.pat-*) ───────────────────────────── */
+.pat-wire{
+  width:100%;overflow-x:auto;white-space:pre;
+  padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius-md);
+  background:var(--rail);
+  font-family:var(--font-mono);font-size:var(--text-badge);line-height:1.8;color:var(--subtle);
 }
-.docnav__brand{display:flex;align-items:center;gap:8px;margin-right:14px;font-size:12.5px;font-weight:600;color:var(--fg-strong)}
-.docnav__brand i{width:16px;height:16px;border-radius:5px;background:var(--accent);display:inline-block}
-.docnav a{font-size:12px;font-weight:500;color:var(--muted);padding:5px 9px;border-radius:var(--radius);text-decoration:none}
-.docnav a:hover{color:var(--fg);background:var(--row-hover)}
-.docnav a[aria-current="page"]{color:var(--fg-strong);background:var(--row-selected)}
-.hero{padding:48px 0 8px}
-.hero .eyebrow{color:var(--accent-strong);letter-spacing:.1em}
-.hero h1{font-size:26px;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong);margin:8px 0 10px}
-.hero p{font-size:13.5px;line-height:1.6;color:var(--muted);max-width:70ch}
-.sec{margin-top:52px}
-.sec__head{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
-.sec__num{font-family:var(--font-mono);font-size:11px;color:var(--faint)}
-.sec__head h2{font-size:17px;font-weight:600;letter-spacing:-.02em;color:var(--fg-strong)}
-.sec>p,.sec>div>p.lead{font-size:13px;line-height:1.6;color:var(--muted);max-width:76ch;margin-bottom:14px}
-.spec{width:100%;border-collapse:collapse;font-size:12.5px}
-.spec th{text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--subtle);padding:8px 10px;border-bottom:1px solid var(--line)}
-.spec td{padding:8px 10px;border-bottom:1px solid var(--line-soft);color:var(--muted);vertical-align:top}
-.spec td:first-child{color:var(--fg);white-space:nowrap}
-.spec code{font-size:11px;color:var(--fg);background:var(--badge-fill);border-radius:3px;padding:1px 5px}
-.rule-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
-.rule{display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;padding:12px 16px;border-top:1px solid var(--line-soft);font-size:12.5px;line-height:1.55;color:var(--muted)}
-.rule:first-child{border-top:0}
-.rule i{font-family:var(--font-mono);font-size:10px;color:var(--accent-strong);padding-top:2px}
-.rule b{color:var(--fg-strong);font-weight:600}
-.wire{
-  font-family:var(--font-mono);font-size:10.5px;line-height:1.9;color:var(--muted);
-  background:var(--rail);border:1px solid var(--line);border-radius:var(--radius-lg);
-  padding:14px 18px;overflow-x:auto;white-space:pre;
+.pat-wire b{color:var(--fg);font-weight:400}
+.pat-win{
+  position:relative;width:100%;display:flex;flex-direction:column;overflow:hidden;
+  background:var(--canvas);border:1px solid var(--line-strong);border-radius:var(--r-win);
 }
-.wire b{color:var(--fg-strong);font-weight:600}
-.wire em{color:var(--accent-strong);font-style:normal}
+.pat-win .win-head{cursor:default}
+.pat-strip{
+  display:flex;align-items:center;gap:10px;flex:none;min-height:38px;padding:0 12px;
+  background:var(--canvas);border-bottom:1px solid var(--line);
+}
+.pat-body{padding:14px 16px}
+.pat-foot{
+  display:flex;align-items:center;gap:8px;padding:9px 16px;border-top:1px solid var(--line-soft);
+  font-size:var(--text-badge);color:var(--faint);
+}
+/* rhythm diagram */
+.pat-rhythm{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:32px;width:100%}
+@media (max-width:900px){.pat-rhythm{grid-template-columns:1fr}}
+.pat-sect{padding:0 0 10px}.pat-sect+.pat-sect{margin-top:26px}
+.pat-sect__h{display:flex;align-items:center;gap:8px;min-height:24px;padding-bottom:10px}
+.pat-sect__h svg{width:14px;height:14px;color:var(--muted);flex:none}
+.pat-sect__h b{font-size:var(--text-small-body);font-weight:600;color:var(--fg-strong)}
+.pat-ruler{display:flex;align-items:center;gap:8px;font-size:10px;font-family:var(--font-mono);color:var(--faint)}
+.pat-ruler i{display:block;height:1px;flex:1;background:var(--line)}
+/* status dictionary demo */
+.pat-dict{display:flex;flex-wrap:wrap;gap:8px}
+.pat-kind{
+  display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 9px;
+  border:1px solid var(--line);border-radius:var(--radius-sm);
+  font-size:var(--text-form);color:var(--fg);
+}
+.pat-kind svg{width:12px;height:12px;color:var(--muted);flex:none}
+.pat-dashed{
+  display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 9px;
+  border:1px dashed var(--line-strong);border-radius:var(--radius-sm);
+  font-size:var(--text-form);color:var(--subtle);
+}
+/* canonical selectors */
+.pat-runtime{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:420px}
+.pat-runtime button{
+  display:flex;align-items:center;justify-content:center;gap:7px;height:34px;
+  border-radius:var(--radius-md);background:var(--canvas-tint);
+  box-shadow:var(--shadow-hairline-inset);
+  font-size:var(--text-form);font-weight:510;color:var(--muted);
+}
+.pat-runtime button svg{width:13px;height:13px}
+.pat-runtime button[aria-pressed="true"]{background:var(--elevated);color:var(--fg-strong);box-shadow:var(--inset-strong)}
+.pat-cmdsel{
+  display:flex;align-items:center;gap:9px;width:100%;max-width:300px;height:36px;padding:0 10px;
+  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--elevated);
+  font-size:var(--text-small-body);color:var(--fg);
+}
+.pat-mono20{
+  width:20px;height:20px;flex:none;display:grid;place-items:center;border-radius:var(--radius-xs);
+  background:var(--badge-fill);box-shadow:var(--shadow-hairline-inset);
+  font-family:var(--font-mono);font-size:9px;font-weight:600;color:var(--muted);
+}
+.pat-cmdsel .pat-chev{width:14px;height:14px;color:var(--faint);margin-left:auto;flex:none}
+.pat-dirbrowse{
+  display:flex;align-items:center;gap:8px;width:100%;max-width:420px;height:36px;padding:0 6px 0 10px;
+  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--elevated);
+}
+.pat-dirbrowse .path{flex:1;min-width:0;font-family:var(--font-mono);font-size:var(--text-form);color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left}
+/* overflow foot */
+.pat-overflow{width:100%;max-width:560px}
+.pat-strip-row{display:flex;gap:8px;padding-bottom:6px}
+.pat-strip-row .pill{flex:none}
 </style>
 </head>
-<body>
+<body class="ds-doc">
 <div class="doc" data-od-id="ds-patterns">
-  <nav class="docnav" data-od-id="ds-nav">
-    <span class="docnav__brand"><i></i>CompozyOS DS</span>
-    <a href="index.html">Overview</a>
-    <a href="foundations.html">01 Foundations</a>
-    <a href="os-shell.html">02 OS Shell</a>
-    <a href="components.html">03 Components</a>
-    <a href="patterns.html" aria-current="page">04 Patterns</a>
+  <nav class="docnav" data-od-id="docnav">
+    <a href="index.html"><span class="num">00</span>Overview</a>
+    <a href="foundations.html"><span class="num">01</span>Foundations</a>
+    <a href="os-shell.html"><span class="num">02</span>OS Shell</a>
+    <a href="components.html"><span class="num">03</span>Components</a>
+    <a href="command-palette.html"><span class="num">04</span>Command Palette</a>
+    <a href="modals.html"><span class="num">05</span>Modals</a>
+    <a href="settings.html"><span class="num">06</span>Settings</a>
+    <a href="dashboards.html"><span class="num">07</span>Dashboards</a>
+    <a href="empty-states.html"><span class="num">08</span>Empty States</a>
+    <a href="profiles.html"><span class="num">09</span>Profiles</a>
+    <a href="patterns.html" aria-current="page"><span class="num">10</span>Patterns</a>
   </nav>
 
   <header class="hero" data-od-id="hero">
-    <p class="eyebrow">CompozyOS Design System · Chapter 04</p>
-    <h1>Patterns</h1>
-    <p>How windows compose the vocabulary: listings, drill-in, detail pages, settings, modals, sessions
-    and dashboards. Every pattern assumes the OS shell (chapter 02) owns identity and navigation, and the
-    daemon owns truth — <b>truthful UI beats plausible UI</b> on every surface.</p>
+    <p class="eyebrow">CompozyOS · Chapter 10</p>
+    <h1>Surface patterns</h1>
+    <p>Chapters 01–09 give you parts. This one gives you <b>whole surfaces</b>: how a listing is arranged,
+    how depth is expressed, what rhythm a detail page keeps, which words and glyphs each status is allowed to
+    use, and which selectors are copied rather than re-drawn. Where a number appears here it was measured
+    from production, not chosen — the detail-page rhythm comes verbatim from the loop-legibility metrics
+    table, and the selectors come from the exported components.</p>
   </header>
 
-  <!-- 01 LISTINGS -->
-  <section class="sec" id="listings" data-od-id="sec-listings">
-    <div class="sec__head"><span class="sec__num">01</span><h2>Listing surfaces</h2></div>
-    <p class="lead" style="margin-bottom:14px">Inventory routes (Tasks, Loops, Agents, Vault, Sandbox…) share one scaffold.
-    Tools hoist into the window's 38px context strip; the body is rows or cards.</p>
-    <div class="wire" data-od-id="wire-listing"><b>window head 44</b>   controls · glyph+title+count · [peer tabs] · drag · status · ≤2 actions
-<b>context strip 38</b>  [scope pill-group] · search 28 · [+ filter chips] · <em>spacer</em> · Rows|Cards
-<b>body</b>             .list-shell → .listing-row   |   .listing-card-grid → .listing-card</div>
-    <div class="rule-list" style="margin-top:14px">
-      <div class="rule"><i>L1</i><span><b>Toolbar order is locked:</b> filters/search leading → spacer → view-mode PillGroup trailing. Search before filters; facets are filter chips, never kind-tab strips.</span></div>
-      <div class="rule"><i>L2</i><span><b>Every listing route ships Rows|Cards.</b> Rows default (operator scan); Cards for browse density. Persist the choice per route.</span></div>
-      <div class="rule"><i>L3</i><span><b>Never double-encode a facet</b> as both a pill-group and a filter chip; never render “Sorted by …” without a real sort control.</span></div>
-      <div class="rule"><i>L4</i><span><b>Marketplace is the exception:</b> one route, kind pill-group (Skills · MCPs · Extensions · Bundles) + search in the strip, Marketplace|Installed scope tabs in content, <b>cards only</b> — no Rows toggle, no per-kind routes, installed and available always together.</span></div>
-      <div class="rule"><i>L5</i><span><b>Empty states:</b> zero-inventory CTA = the page primary; no-match CTA = Clear filters.</span></div>
+  <!-- ============ 01 LISTING SURFACES ============ -->
+  <section class="sec" data-od-id="sec-listing">
+    <h2><span class="num">01</span>Listing surfaces</h2>
+    <p class="lead">Agents, Skills, Extensions, Sessions, Marketplace, Directories — every inventory in
+    CompozyOS is the same surface with different rows. The strip order is locked, so a user who learns one
+    listing has learned all of them.</p>
+
+    <div class="pat-wire" data-od-id="listing-wireframe">┌──────────────────────────────────────────────────────────────────────┐
+│ <b>HEAD  44px</b>   ● ● ●   [glyph] Agents  ·12                    [ + New agent ] │
+├──────────────────────────────────────────────────────────────────────┤
+│ <b>STRIP 38px</b>   (All)(Running)(Idle)   ⌕ search  ⌗ filters   ⟶   [≣|▦] │
+├──────────────────────────────────────────────────────────────────────┤
+│ <b>BODY</b>        .list-shell rows        — or —      .listing-card-grid │
+│                ┌────────────────────┐         ┌──────┐ ┌──────┐      │
+│                │ [34] name · meta  ›│         │ card │ │ card │      │
+│                └────────────────────┘         └──────┘ └──────┘      │
+├──────────────────────────────────────────────────────────────────────┤
+│ <b>FOOT</b>        12 agents · 4 running · updated 20s ago              │
+└──────────────────────────────────────────────────────────────────────┘</div>
+
+    <div class="demo demo--col demo--rail" data-od-id="demo-listing">
+      <div class="pat-win" style="max-width:960px">
+        <div class="win-head">
+          <div class="win-controls"><i class="wc wc-close"></i><i class="wc wc-min"></i><i class="wc wc-zoom"></i></div>
+          <div class="w2-id"><span class="w2-glyph"><i data-lucide="bot"></i></span><span class="w2-title">Agents</span><span class="w2-count">12</span></div>
+          <div style="margin-left:auto"><button class="btn btn--primary btn--sm"><i data-lucide="plus"></i>New agent</button></div>
+        </div>
+        <div class="pat-strip">
+          <div class="listing-toolbar" style="flex:1">
+            <div class="listing-toolbar__leading">
+              <div class="pill-group pill-group--sm">
+                <button class="pill-group__item is-on">All <span class="mono">12</span></button>
+                <button class="pill-group__item">Running <span class="mono">4</span></button>
+                <button class="pill-group__item">Idle <span class="mono">8</span></button>
+              </div>
+              <div class="field field-search" style="width:180px"><i data-lucide="search"></i><input placeholder="Search agents"></div>
+              <div class="filters"><div class="filter-chip">
+                <span class="filter-chip__label">provider</span><span class="filter-chip__op">is</span>
+                <span class="filter-chip__val">anthropic</span><button class="filter-chip__x"><i data-lucide="x"></i></button>
+              </div></div>
+            </div>
+            <div class="listing-toolbar__trailing">
+              <div class="pill-group pill-group--sm">
+                <button class="pill-group__item is-on" aria-label="Rows"><i data-lucide="list"></i></button>
+                <button class="pill-group__item" aria-label="Cards"><i data-lucide="layout-grid"></i></button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="pat-body">
+          <div class="list-shell">
+            <div class="listing-row" data-status="running">
+              <span class="listing-row__icon"><i data-lucide="bot"></i></span>
+              <div class="listing-row__main">
+                <div class="listing-row__name"><b>Claude Code</b><span class="listing-row__slug">claude-code</span><span class="pill" data-tone="accent"><span class="dot"></span>running</span></div>
+                <p class="listing-row__desc">Default coding agent · repo-scoped tools, journal on</p>
+                <p class="listing-row__meta"><span class="k">acp/stdio</span><span class="dotsep"></span>3 sessions<span class="dotsep"></span>last run 2m ago</p>
+              </div>
+              <div class="listing-row__trail">
+                <div class="listing-row__stat"><span class="listing-row__stat-v">98.2%</span><span class="listing-row__stat-l">success</span></div>
+                <i data-lucide="chevron-right" style="width:14px;height:14px;color:var(--faint)"></i>
+              </div>
+            </div>
+            <div class="listing-row">
+              <span class="listing-row__icon"><i data-lucide="bot"></i></span>
+              <div class="listing-row__main">
+                <div class="listing-row__name"><b>OpenClaw</b><span class="listing-row__slug">openclaw</span></div>
+                <p class="listing-row__desc">Browser-capable agent · bridged over the extension SDK</p>
+                <p class="listing-row__meta"><span class="k">acp/bridge</span><span class="dotsep"></span>0 sessions<span class="dotsep"></span>last run 4h ago</p>
+              </div>
+              <div class="listing-row__trail">
+                <div class="listing-row__stat"><span class="listing-row__stat-v">91.0%</span><span class="listing-row__stat-l">success</span></div>
+                <i data-lucide="chevron-right" style="width:14px;height:14px;color:var(--faint)"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="pat-foot">12 agents · 4 running · updated 20s ago</div>
+      </div>
+    </div>
+
+    <div class="rule-list" data-od-id="listing-rules">
+      <div class="rule"><i>L1</i><span><b>Strip order is locked:</b> views → search and filters → spacer →
+      display mode. Views lead because they change what the list contains; display mode trails because it
+      only changes how it looks. Never reorder them per surface.</span></div>
+      <div class="rule"><i>L2</i><span><b>Every listing ships Rows and Cards.</b> Rows are the default —
+      denser, scannable, sortable. Cards exist for surfaces people browse rather than operate. Shipping only
+      one is an incomplete listing.</span></div>
+      <div class="rule"><i>L3</i><span><b>No double-encoded facets.</b> A facet is a filter <em>or</em> a
+      column, never both. "provider" as a pill-group view and a column and a filter chip is three controls
+      for one idea.</span></div>
+      <div class="rule"><i>L4</i><span><b>Marketplace cards may lead with icon tiles</b> — the single
+      exception. Third-party extensions have their own marks, and a browsing surface is where a mark earns
+      its space. Every other listing keeps the neutral 34px well.</span></div>
+      <div class="rule"><i>L5</i><span><b>Empty states follow
+      <a href="empty-states.html" style="color:var(--fg);text-decoration:underline;text-underline-offset:2px">chapter 08</a>.</b>
+      A filtered-empty list keeps its strip live — the way out is the filter you just set, so it must stay
+      on screen.</span></div>
     </div>
   </section>
 
-  <!-- 02 DRILL-IN -->
-  <section class="sec" id="drillin" data-od-id="sec-drillin">
-    <div class="sec__head"><span class="sec__num">02</span><h2>Drill-in navigation</h2></div>
-    <p class="lead" style="margin-bottom:14px">Opening an entity from a listing <b>pushes a level inside the same window</b> —
-    depth never spawns another floating window. The head swaps glyph → back chevron + window-local trail.</p>
-    <div class="wire" data-od-id="wire-drillin"><b>root</b>      [glyph] Tasks ·6·            tabs: List | Kanban      actions: New task
-<b>level 1</b>   [‹] Tasks / <b>Nightly triage</b>   tabs hidden              actions: Open run
-<b>level 2</b>   [‹] Tasks / Nightly triage / <b>Run #418</b>                 actions: Stop run</div>
-    <div class="rule-list" style="margin-top:14px">
-      <div class="rule"><i>D1</i><span>Parents are buttons that jump straight to their level; the leaf is the title, never a link. &gt;2 parents collapse the middle into a “…” crumb whose menu lists hidden levels; any crumb truncates at 150px.</span></div>
-      <div class="rule"><i>D2</i><span>Status chip, actions and the context strip are <b>per-level</b> — they swap on every push/pop. Back = chevron, ⌘[ or mouse-back.</span></div>
-      <div class="rule"><i>D3</i><span>The trail starts at the window's root route — never the workspace (menu bar owns workspace, dock owns routes).</span></div>
-      <div class="rule"><i>D4</i><span>Documents (sessions, runs opened as documents) never breadcrumb; origin, if needed, is a crumbless meta chip.</span></div>
+  <!-- ============ 02 DRILL-IN ============ -->
+  <section class="sec" data-od-id="sec-drillin">
+    <h2><span class="num">02</span>Drill-in</h2>
+    <p class="lead">Depth grows a breadcrumb in the window head. It never opens a second window and it never
+    spawns a tab — a tab is a peer document you chose to keep, not a place you happen to be standing.</p>
+
+    <div class="demo demo--col demo--rail" data-od-id="demo-drillin">
+      <div class="pat-win" style="max-width:960px">
+        <div class="win-head">
+          <div class="win-controls"><i class="wc wc-close"></i><i class="wc wc-min"></i><i class="wc wc-zoom"></i></div>
+          <button class="w2-back" aria-label="Back"><i data-lucide="chevron-left"></i></button>
+          <div class="w2-crumbs">
+            <span class="w2-crumb">Agents</span>
+            <span class="w2-sep">/</span>
+            <span class="w2-crumb w2-crumb--more">…</span>
+            <span class="w2-sep">/</span>
+            <span class="w2-crumb">Claude Code</span>
+            <span class="w2-sep">/</span>
+            <span class="w2-title">Run 4c19</span>
+          </div>
+        </div>
+        <div class="pat-strip">
+          <div class="pill-group pill-group--sm">
+            <button class="pill-group__item is-on">Timeline</button>
+            <button class="pill-group__item">Diff <span class="mono">7</span></button>
+            <button class="pill-group__item">Tools <span class="mono">23</span></button>
+          </div>
+          <div class="field field-search" style="width:170px;margin-left:auto"><i data-lucide="search"></i><input placeholder="Search this run"></div>
+        </div>
+        <div class="pat-body"><p style="font-size:var(--text-form);color:var(--subtle)">Level 3 content — the
+        strip survives the descent, so the same views are available at every depth.</p></div>
+      </div>
+      <p class="demo-note"><b>Three parents collapse to "…".</b> First and last crumbs stay; the middle
+      becomes a dropdown. The head never wraps and never grows past 44px.</p>
+    </div>
+
+    <div class="rule-list" data-od-id="drillin-rules">
+      <div class="rule"><i>D1</i><span><b>Depth is a breadcrumb, not a window.</b> Drilling replaces the
+      head's identity with back button + crumbs. The window count never changes because you clicked a
+      row.</span></div>
+      <div class="rule"><i>D2</i><span><b>Drilling never spawns a tab.</b> Tabs are peers the user
+      deliberately kept open. Descent is navigation, and navigation is reversible with one button.</span></div>
+      <div class="rule"><i>D3</i><span><b>More than two parents collapse to "…".</b> 24px back control,
+      crumbs at 13/510 capped at 150px each, first and last always visible.</span></div>
+      <div class="rule"><i>D4</i><span><b>Every level keeps the strip.</b> Views, search and filters remain
+      available at depth — a child list is still a listing and obeys L1–L5.</span></div>
+      <div class="rule"><i>D5</i><span><b>Documents self-title and never breadcrumb.</b> A live session is a
+      document: its head shows its own name plus a state dot, because it isn't inside anything you
+      navigated.</span></div>
     </div>
   </section>
 
-  <!-- 03 DETAIL PAGES -->
-  <section class="sec" id="detail" data-od-id="sec-detail">
-    <div class="sec__head"><span class="sec__num">03</span><h2>Detail pages</h2></div>
-    <p class="lead" style="margin-bottom:14px">Entity detail (task, agent, loop) renders <b>inside</b> a drilled-in window.
-    The head carries ≤2 pills of state; everything else demotes to a quiet meta strip. Operator depth
-    lives behind an Inspect drawer, not on the page.</p>
-    <div class="wire" data-od-id="wire-detail"><b>head 44</b>    [‹] Tasks / <b>Nightly triage</b> · status pill · primary + ···
-<b>subhead</b>    priority pill · owner · created · updated        (plain text, .dotsep)
-<b>lane-tabs</b>  Overview | Runs ·2· | Activity                   (40px, 1.5px underline)
-<b>layout</b>     content minmax(0,1fr)  ·32px·  rail 320px (sticky .railbox: .prow 26px rows)
-<b>drawer</b>     Inspect →  .sheet 600px right slide-over (raw ids, bridges, code)</div>
-    <div class="rule-list" style="margin-top:14px">
-      <div class="rule"><i>T1</i><span><b>Pill budget ≤2</b> (head status + one subhead pill). Status is derived — never render a status select.</span></div>
-      <div class="rule"><i>T2</i><span><b>One primary action</b> in the head + ··· overflow. Stop/destructive actions stay neutral, never accent.</span></div>
-      <div class="rule"><i>T3</i><span>The 320px rail holds property rows (26px, key left / value right, inline-edit affordances). Sheet/drawer: width min(600px, 100vw−24px), slides .2s, scrim + blur, z-sheet.</span></div>
-      <div class="rule"><i>T4</i><span>Subtask/dependency rows use the 14px spine grid with state dots: done = filled success · active = hollow accent ring · todo = hollow faint ring.</span></div>
-    </div>
-  </section>
+  <!-- ============ 03 DETAIL PAGES ============ -->
+  <section class="sec" data-od-id="sec-detail">
+    <h2><span class="num">03</span>Detail pages — the rhythm contract</h2>
+    <p class="lead">These numbers are measured, not preferred. They come from the production-metrics table
+    of the loop-legibility pass, which is the citation any change to them must argue against. Encoded
+    verbatim:</p>
 
-  <!-- 04 SETTINGS -->
-  <section class="sec" id="settings" data-od-id="sec-settings">
-    <div class="sec__head"><span class="sec__num">04</span><h2>Settings</h2></div>
-    <p class="lead" style="margin-bottom:14px">Settings opens from the menu-bar cog as a normal window: left nav
-    (30px items, accent-tint on the current section) + panes of <code class="mono">.srow</code> decision rows.
-    <b>Each section leads with its own information shape</b> — never the same panelbox form with different labels.</p>
-    <table class="spec">
-      <tr><th>Shape</th><th>Sections</th><th>Leads with</th></tr>
-      <tr><td>Form-led</td><td>General · Memory · Network · Observability · Automation · Extensions</td><td>grouped .srow panelboxes + one Advanced fold + floating save bar (draft model)</td></tr>
-      <tr><td>Inventory-led</td><td>Providers · Hooks</td><td>listing rows/cards + per-item inspector sheet (per-item model, no save bar)</td></tr>
-      <tr><td>Runtime-state-led</td><td>Network (mesh state) · Automation (manager) · Observability (storage)</td><td>non-editable .tiles fact block above the form</td></tr>
-      <tr><td>Immediate</td><td>Hooks toggles · Skills disabled-list</td><td>the switch is the save; failures raise a danger notice on the row group</td></tr>
+    <table class="spec" data-od-id="spec-rhythm">
+      <tr><th>Slot</th><th>Value</th><th>Note</th></tr>
+      <tr><td>Page grid gap</td><td><code>32px</code></td><td>Between main column and rail</td></tr>
+      <tr><td>Rail width</td><td><code>320px</code></td><td><code>--w-rail</code>, fixed</td></tr>
+      <tr><td>Main section rhythm</td><td><code>26px</code></td><td>Between sections in the main column</td></tr>
+      <tr><td>Section header</td><td><code>24px</code> min-height · <code>8px</code> icon gap · <code>10px</code> bottom pad</td><td>The header is a line, not a band</td></tr>
+      <tr><td>Rail sections</td><td>ONE card · <code>0</code> gap · <code>--line-soft</code> dividers · <code>16/18</code> padding</td><td>Never a stack of separate cards</td></tr>
+      <tr><td>Rail footer</td><td><code>10/12</code>, primary left, digest right</td><td>One line, two facts</td></tr>
+      <tr><td>Property rows</td><td><code>30px</code></td><td><code>--h-prow</code></td></tr>
+      <tr><td>Icon ladder</td><td><code>14</code> page default · <code>12</code> rail and inline links · <code>11</code> medallion only</td><td><b>Nothing above 16.</b></td></tr>
+      <tr><td>Group headings</td><td>Bare <code>.eyebrow</code> + <code>.count-chip</code></td><td><b>No icons.</b> An icon on a group heading competes with the row icons under it.</td></tr>
+      <tr><td>Listing-group gap</td><td><code>14px</code></td><td>The second rhythm — between groups <em>inside</em> a window. Different surface, different owner.</td></tr>
     </table>
-    <div class="rule-list" style="margin-top:14px">
-      <div class="rule"><i>G1</i><span><b>Settings holds policy, not catalog.</b> Enabling/installing/removing catalog entities happens in the Marketplace; Settings keeps global config + a <code>.srow--link</code> “Manage … in the marketplace”.</span></div>
-      <div class="rule"><i>G2</i><span><b>Rows state policy in plain language</b> (“End idle sessions after”), never mechanism keys. Keys survive only as <code>.provchip</code> inside the one Advanced fold.</span></div>
-      <div class="rule"><i>G3</i><span>Every row maps to a daemon-persisted value; restart consequences render as the warning notice with “what happens if you don't act”.</span></div>
+
+    <div class="demo demo--col" data-od-id="demo-rhythm">
+      <div class="pat-rhythm">
+        <div>
+          <div class="pat-sect">
+            <div class="pat-sect__h"><i data-lucide="list-checks"></i><b>Steps</b></div>
+            <div class="pat-ruler"><span>section header 24</span><i></i><span>pad 10</span></div>
+            <div class="runcards" style="margin-top:10px">
+              <div class="runcard">
+                <div>
+                  <p class="runcard__title"><span class="kind">task</span>Draft the migration<span class="pill" data-tone="success"><i data-lucide="check"></i>done</span></p>
+                  <p class="runcard__sub">3 files touched · 2 tools · no approvals needed</p>
+                </div>
+                <span class="runcard__elapsed">1m 14s</span>
+              </div>
+              <div class="runcard">
+                <div>
+                  <p class="runcard__title"><span class="kind">task</span>Apply and verify<span class="pill" data-tone="warning"><i data-lucide="triangle-alert"></i>pending</span></p>
+                  <p class="runcard__sub">Waiting on you since 14:02 · expires in 43m</p>
+                </div>
+                <span class="runcard__elapsed">—</span>
+              </div>
+            </div>
+          </div>
+          <div class="pat-sect">
+            <div class="pat-sect__h"><i data-lucide="file-diff"></i><b>Changes</b></div>
+            <div class="pat-ruler"><span>section rhythm 26</span><i></i><span>page gap 32</span></div>
+            <div class="toolcall" style="margin-top:10px">
+              <div class="toolcall-head" aria-expanded="false"><i class="tc-caret" data-lucide="chevron-right"></i><span class="tc-name">edit_file</span><span class="tc-file">internal/store/migrations/00078_agent_calls.sql</span><span class="tc-diff"><i class="add">+38</i> <i class="del">−4</i></span></div>
+            </div>
+          </div>
+        </div>
+        <aside class="railbox" style="position:static">
+          <div class="rail-sec">
+            <p class="rail-sec__t"><i data-lucide="info"></i>Run</p>
+            <div class="prow"><span class="prow__k">Status</span><span class="prow__v"><span class="pill" data-tone="warning"><i data-lucide="triangle-alert"></i>pending</span></span></div>
+            <div class="prow"><span class="prow__k">Agent</span><span class="prow__v">Claude Code</span></div>
+            <div class="prow"><span class="prow__k">Started</span><span class="prow__v">14:01:38</span></div>
+            <div class="prow"><span class="prow__k">Run id</span><span class="prow__v mono">4c19a7b2</span></div>
+          </div>
+          <div class="rail-sec">
+            <p class="rail-sec__t"><i data-lucide="git-fork"></i>Lineage</p>
+            <div class="prow"><span class="prow__k">Forked from</span><span class="prow__v mono">9f02e1c</span></div>
+            <div class="prow"><span class="prow__k">Attempt</span><span class="prow__v">2 of 3</span></div>
+          </div>
+          <div class="pat-foot" style="padding:10px 12px">Claude Code<span style="margin-left:auto">23 tools · 4c19a7b2</span></div>
+        </aside>
+      </div>
+      <p class="demo-note"><b>The rail is one card.</b> Sections inside it are divided by
+      <code>--line-soft</code> hairlines at 0 gap — never separate cards with gutters between them. A stack of
+      floating rail cards reads as four unrelated widgets instead of one properties panel.</p>
     </div>
   </section>
 
-  <!-- 05 MODALS -->
-  <section class="sec" id="modals" data-od-id="sec-modals">
-    <div class="sec__head"><span class="sec__num">05</span><h2>Modals &amp; canonical selectors</h2></div>
-    <p class="lead" style="margin-bottom:14px">Modals are <b>window-scoped</b> in the OS (they scrim their window, not
-    the desktop) and keep the shipped anatomy. The living modal library is
-    <code class="mono">modals/modal-system.css</code> + <code class="mono">modal-system.js</code>
-    (verified by <code class="mono">modals/verify.mjs</code>) — build modal prototypes on it; this chapter
-    is the contract summary.</p>
-    <table class="spec">
-      <tr><th>Part</th><th>Contract</th></tr>
-      <tr><td>Hosts</td><td>compact 560 · standard 720 · wide 880 · extra-wide/split 1180 · edge sheet min(576, 100%) · radius 10 (xl modals 14) · scrim ·55 + 3px blur · one body scroll owner</td></tr>
-      <tr><td>Header</td><td>36px icon well (accent-tint — the <b>only</b> accent-tinted surface) + eyebrow 11/600 caps accent-strong + title 15/500 + 66ch desc + 26px close</td></tr>
-      <tr><td>Body</td><td>form sections split by hairlines · inputs 36px on elevated · RadioCard selection is <b>neutral</b> (glaze + rim, never accent) · mode pill-groups 24px</td></tr>
-      <tr><td>Footer</td><td>52px · consequence note left (“what persists when you confirm”) · Cancel + one primary</td></tr>
-      <tr><td>Split panes</td><td>a modal hosting a large expanding component (directory browser…) goes two-pane: main 1fr + side 420px, side on canvas with hairline; stacks ≤960</td></tr>
-      <tr><td>Never</td><td>catalog-status banners in modal chrome · side-stripe accents · native selects for agent/provider/model · per-modal component forks</td></tr>
-    </table>
-    <p class="lead" style="margin:18px 0 10px"><b>Canonical selectors — one need, one component.</b> Modals and pages
-    always reuse these; inventing a variant is a defect:</p>
-    <table class="spec">
-      <tr><th>Need</th><th>Component</th><th>Geometry anchor</th></tr>
-      <tr><td>Provider · model · reasoning</td><td>RuntimeSelector</td><td>segmented trigger 34px (30px compact) · popover 528px: 44px search · 52px provider rail (2px accent bar on active) · model rows (selected = accent-tint) · reasoning footer with Default + 7 effort pills each carrying a 7-bar <code>.im</code>. Accent only on: meter fill, pressed pill, selected row, rail bar. The reasoning control stays a quiet footer — never a banner.</td></tr>
-      <tr><td>Agent picking</td><td>AgentCommandSelect / MultiSelect</td><td>command popover with search; provider + category visible in every result; multi shows count + identity summary</td></tr>
-      <tr><td>Workspace picking</td><td>WorkspaceCommandSelect</td><td>trigger 36px (32–36 by density) · 22px monogram · popover 256px with 32px search · project workspaces only (operator-home row hidden) · Add workspace footer</td></tr>
-      <tr><td>Directory picking</td><td>DirectoryBrowser</td><td>min-height 220 · toolbar home/up + mono path + “Use this folder” · hover-revealed pick per row · selected root card · never a plain path input</td></tr>
-      <tr><td>Scope</td><td>GlobalScopeToggle + WorkspaceScopeStatement</td><td>the menubar Globe toggle owns scope; surfaces render a read-only landing statement (&ldquo;Creates in <b>compozy</b>.&rdquo; / &ldquo;Creates in <b>Global</b> &mdash; visible to every workspace.&rdquo;) &mdash; scope pill-groups, radios and selects are retired</td></tr>
-    </table>
-  </section>
+  <!-- ============ 04 STATUS DICTIONARY ============ -->
+  <section class="sec" data-od-id="sec-status">
+    <h2><span class="num">04</span>Status dictionary</h2>
+    <p class="lead"><b>Colour never travels alone.</b> Every status is a triple — tone, glyph, and the
+    literal word. Someone who can't distinguish amber from red still reads "pending" and "failed"; someone
+    scanning at speed reads the shape. The table below is locked: these are the only statuses, and these are
+    the only renditions of them.</p>
 
-  <!-- 06 SESSIONS -->
-  <section class="sec" id="sessions" data-od-id="sec-sessions">
-    <div class="sec__head"><span class="sec__num">06</span><h2>Session surfaces</h2></div>
-    <table class="spec">
-      <tr><th>Surface</th><th>Contract</th></tr>
-      <tr><td>Sessions window</td><td>normal OS window, first dock icon. Strip = full-width filter field. Two panes sliding (.32s spring): Recent (two-line rows) ⇄ All (28px rows, sticky agent headers, data-collapsed persistence). Dock badge counts sessions <b>waiting on you</b>.</td></tr>
-      <tr><td>Live session</td><td>document window: pulsing dot + session name in the head; trail = agent chip · model · elapsed. Body = transcript (62ch messages, collapsible toolcalls with mono diff) + 34px composer. New session = accent dock button / ⌘N — agent + runtime selection first.</td></tr>
-      <tr><td>Approvals</td><td>only in the menu-bar bell (324px popover of .att__row) and on the dashboard “Needs you” zone. No desktop widgets.</td></tr>
+    <table class="spec" data-od-id="spec-status">
+      <tr><th>Status</th><th>Tone</th><th>Glyph</th><th>Word</th><th>Note</th></tr>
+      <tr><td>Pending human request</td><td>warning</td><td><code>triangle-alert</code></td><td>pending</td><td>Someone must answer. The bell mirrors it.</td></tr>
+      <tr><td>Near expiry</td><td>warning</td><td><code>clock</code></td><td>expires in 12m</td><td>Countdown is part of the word</td></tr>
+      <tr><td>Expired</td><td>danger</td><td><code>circle-alert</code></td><td>expired</td><td>The window closed unanswered</td></tr>
+      <tr><td>Answered</td><td>info</td><td><code>check</code></td><td>answered</td><td>Resolved, not "successful"</td></tr>
+      <tr><td>Amended</td><td>info</td><td><code>pencil</code></td><td>amended</td><td>Answered, then changed</td></tr>
+      <tr><td>Partial</td><td>warning</td><td><code>triangle-alert</code></td><td>partial · 4 of 7</td><td>Coverage numbers are mandatory</td></tr>
+      <tr><td>Canceled / not taken</td><td><b>neutral</b></td><td><code>circle-slash</code></td><td>canceled</td><td>Calm. The cause goes in text, never in alarm colour.</td></tr>
+      <tr><td>Fork lineage</td><td>info</td><td><code>git-fork</code></td><td>forked from 9f02e1c</td><td>A relationship, not a state</td></tr>
+      <tr><td>Failed</td><td>danger</td><td><code>circle-alert</code></td><td>failed</td><td>Danger is reserved for this, expired, quarantined and the bell</td></tr>
+      <tr><td>Quarantined</td><td>danger</td><td><code>shield-alert</code></td><td>quarantined</td><td>Blocked by policy, not by error</td></tr>
     </table>
-  </section>
 
-  <!-- 07 DASHBOARD -->
-  <section class="sec" id="dashboard" data-od-id="sec-dashboard">
-    <div class="sec__head"><span class="sec__num">07</span><h2>Dashboard</h2></div>
-    <p class="lead" style="margin-bottom:14px">The home window answers three questions in order: <b>what needs you ·
-    what agents did · what it costs.</b> Zones: Needs you → KPI strip → live row (Working now | Activity)
-    → Pulse → charts (Outcomes | Usage) → Agents | Network → System.</p>
-    <div class="rule-list">
-      <div class="rule"><i>H1</i><span><b>Every widget maps to a persisted daemon read</b> (/api/status, observe/tasks, agents/catalog, session usage, network/status). Metrics needing new aggregation are explicitly marked; nothing is invented to fill a layout.</span></div>
-      <div class="rule"><i>H2</i><span><b>Paired panels close flush</b> — stretch and absorb surplus height with real content (chart flex, distributed rows), footers via margin-top:auto. Never leftover air.</span></div>
-      <div class="rule"><i>H3</i><span>Charts use neutral viz ink with provenance footnotes (“each bar counts task runs that ended that day”). Live cards: pulsing dot + pill, standard border.</span></div>
+    <div class="demo" data-od-id="demo-status-dict">
+      <div class="pat-dict">
+        <span class="pill" data-tone="warning"><i data-lucide="triangle-alert"></i>pending</span>
+        <span class="pill" data-tone="warning"><i data-lucide="clock"></i>expires in 12m</span>
+        <span class="pill" data-tone="danger"><i data-lucide="circle-alert"></i>expired</span>
+        <span class="pill" data-tone="info"><i data-lucide="check"></i>answered</span>
+        <span class="pill" data-tone="info"><i data-lucide="pencil"></i>amended</span>
+        <span class="pill" data-tone="warning"><i data-lucide="triangle-alert"></i>partial · 4 of 7</span>
+        <span class="pill"><i data-lucide="circle-slash"></i>canceled</span>
+        <span class="pill" data-tone="info"><i data-lucide="git-fork"></i>forked from 9f02e1c</span>
+        <span class="pill" data-tone="danger"><i data-lucide="circle-alert"></i>failed</span>
+        <span class="pill" data-tone="danger"><i data-lucide="shield-alert"></i>quarantined</span>
+      </div>
+    </div>
+
+    <h3>Structure and status never share a channel</h3>
+    <div class="compare" data-od-id="demo-kind-vs-status">
+      <div class="surface">
+        <p class="eyebrow">Node kind — structure</p>
+        <div class="pat-dict" style="margin-top:10px">
+          <span class="pat-kind"><i data-lucide="square-terminal"></i>task</span>
+          <span class="pat-kind"><i data-lucide="repeat"></i>loop</span>
+          <span class="pat-kind"><i data-lucide="git-branch"></i>branch</span>
+          <span class="pat-kind"><i data-lucide="user-round-check"></i>approval</span>
+        </div>
+        <p class="demo-note">12px <code>--muted</code> glyph, neutral <code>--line</code> border. Kind never
+        changes with state.</p>
+      </div>
+      <div class="surface">
+        <p class="eyebrow">Status — state</p>
+        <div class="pat-dict" style="margin-top:10px">
+          <span class="pill" data-tone="accent"><span class="dot"></span>running</span>
+          <span class="pill" data-tone="success"><i data-lucide="check"></i>done</span>
+          <span class="pill" data-tone="warning"><i data-lucide="triangle-alert"></i>pending</span>
+          <span class="pat-dashed"><i data-lucide="circle-dashed" style="width:12px;height:12px"></i>not started</span>
+        </div>
+        <p class="demo-note"><b>Dashed means exactly one thing: not started.</b> Never "draft", never
+        "disabled", never "optional".</p>
+      </div>
     </div>
   </section>
 
-  <!-- 08 STATES & TRUTH -->
-  <section class="sec" id="truth" data-od-id="sec-truth">
-    <div class="sec__head"><span class="sec__num">08</span><h2>States &amp; truthful UI</h2></div>
-    <div class="rule-list">
-      <div class="rule"><i>U1</i><span><b>Never render controls or metrics the runtime doesn't support.</b> On conflict, daemon truth wins. Missing value → honest labelled placeholder, never a fake stat.</span></div>
-      <div class="rule"><i>U2</i><span>Every surface designs its empty, loading (skeleton), error (danger notice + retry) and degraded (stale badge) states — not just the happy path.</span></div>
-      <div class="rule"><i>U3</i><span>Copy follows <code>COPY.md</code> + the glossary: the artifact is a <b>capability</b> (never recipe/workflow/playbook); plain-language policy over operator jargon; consequence sentences on destructive/persistent actions.</span></div>
-      <div class="rule"><i>U4</i><span>Prototype data is runtime-plausible (real routes, real fields from the daemon contract) — realistic, present-tense, no marketing numbers.</span></div>
+  <!-- ============ 05 SESSIONS ============ -->
+  <section class="sec" data-od-id="sec-sessions">
+    <h2><span class="num">05</span>Sessions surfaces</h2>
+    <p class="lead">Three surfaces, one model. The Sessions window is a listing grouped by agent; a live
+    session is a <b>document</b> that self-titles with a state dot; approvals live in the bell. Approvals
+    never become desktop widgets — a request that follows you around the desktop is a notification with
+    extra steps.</p>
+
+    <div class="demo demo--col demo--rail" data-od-id="demo-sessions" style="gap:16px">
+      <div style="display:grid;grid-template-columns:300px minmax(0,1fr);gap:16px;width:100%">
+        <div class="pat-win" data-od-id="sessions-window">
+          <div class="win-head">
+            <div class="win-controls"><i class="wc wc-close"></i><i class="wc wc-min"></i><i class="wc wc-zoom"></i></div>
+            <div class="w2-id"><span class="w2-glyph"><i data-lucide="messages-square"></i></span><span class="w2-title">Sessions</span><span class="w2-count">12</span></div>
+          </div>
+          <div class="pat-body" style="padding:8px 10px">
+            <div class="agent-group">
+              <button class="agent-group__head" aria-expanded="true">
+                <i class="disclosure-icon" data-lucide="chevron-right"></i>
+                <span class="agent-avatar">CC</span>
+                <span class="agent-group__name">Claude Code</span>
+                <span class="agent-group__count">3</span>
+              </button>
+              <div class="agent-group__body"><div class="session-list">
+                <button class="session-row" data-status="running" aria-current="page">
+                  <span class="status-dot"></span>
+                  <span class="session-row__body">
+                    <span class="session-row__title">Migrate agent_calls to 00078</span>
+                    <span class="session-row__sub"><b>~/Dev/compozy</b><span class="session-row__state">running</span></span>
+                  </span>
+                  <span class="session-row__time">2m</span>
+                </button>
+                <button class="session-row" data-status="waiting-for-auth">
+                  <span class="status-dot"></span>
+                  <span class="session-row__body">
+                    <span class="session-row__title">Reap stale QA labs</span>
+                    <span class="session-row__sub"><b>~/Dev/compozy</b><span class="session-row__state">needs you</span></span>
+                  </span>
+                  <span class="session-row__time">14m</span>
+                </button>
+                <button class="session-row" data-status="failed">
+                  <span class="status-dot"></span>
+                  <span class="session-row__body">
+                    <span class="session-row__title">Backfill journal digests</span>
+                    <span class="session-row__sub"><b>~/Dev/herdr</b><span class="session-row__state">failed</span></span>
+                  </span>
+                  <span class="session-row__time">1h</span>
+                </button>
+              </div></div>
+            </div>
+            <div class="agent-group">
+              <button class="agent-group__head" aria-expanded="false">
+                <i class="disclosure-icon" data-lucide="chevron-right"></i>
+                <span class="agent-avatar">OC</span>
+                <span class="agent-group__name">OpenClaw</span>
+                <span class="agent-group__count">2</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div class="pat-win" data-doc="true" data-od-id="session-document">
+            <div class="win-head">
+              <div class="win-controls"><i class="wc wc-close"></i><i class="wc wc-min"></i><i class="wc wc-zoom"></i></div>
+              <div class="w2-id" data-status="running">
+                <span class="status-dot"></span>
+                <span class="w2-title">Migrate agent_calls to 00078</span>
+              </div>
+              <span class="livebadge" style="margin-left:auto"><span class="dot"></span>live</span>
+            </div>
+            <div class="transcript" style="padding:14px 16px;gap:12px">
+              <div class="msg-user"><p class="msg-role">You</p><p class="msg-text">Add the calls table and wire the sqlc queries.</p></div>
+              <div><p class="msg-role">Claude Code</p><p class="msg-text">Appending migration <code>00078_agent_calls.sql</code> and regenerating sqlc output.<span class="caret"></span></p></div>
+            </div>
+            <div class="composer"><input placeholder="Reply to this session"><button class="btn btn--primary composer-send"><i data-lucide="arrow-up"></i></button></div>
+          </div>
+
+          <div class="popover bell-pop" style="position:relative;inset:auto;width:auto;animation:none" data-od-id="bell-approvals">
+            <p class="pop-eyebrow">Needs you · 2</p>
+            <div class="att">
+              <div class="att__row">
+                <i data-lucide="triangle-alert" style="width:14px;height:14px;color:var(--warning)"></i>
+                <div>
+                  <p class="att__head"><b>Reap stale QA labs</b> · Claude Code</p>
+                  <p class="att__text">Run <code>make qa-reap</code> against 3 labs?</p>
+                  <p class="att__meta">expires in 43m</p>
+                </div>
+                <div class="att__actions"><button class="btn btn--xs btn--primary">Allow</button><button class="btn btn--xs">Deny</button></div>
+              </div>
+              <div class="att__row">
+                <i data-lucide="circle-alert" style="width:14px;height:14px;color:var(--danger)"></i>
+                <div>
+                  <p class="att__head"><b>Backfill journal digests</b> · Claude Code</p>
+                  <p class="att__text">Failed after 3 attempts — journal write blocked.</p>
+                  <p class="att__meta">1h ago</p>
+                </div>
+                <div class="att__actions"><button class="btn btn--xs">Open</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="demo-note"><b>The document head carries the state dot, not a breadcrumb</b> (D5), and the
+      live badge sits at the trailing edge so it can be swapped for a reconnecting chip without moving
+      anything else — see U3.</p>
+    </div>
+  </section>
+
+  <!-- ============ 06 CANONICAL SELECTORS ============ -->
+  <section class="sec" data-od-id="sec-selectors">
+    <h2><span class="num">06</span>Canonical selectors</h2>
+    <p class="lead">These five are copied from the exported component, never approximated. If a board draws
+    a runtime picker at 32px or a workspace select without its monogram, the board is wrong — production is
+    the authority and these geometries are already shipped.</p>
+
+    <table class="spec" data-od-id="spec-selectors">
+      <tr><th>Selector</th><th>Geometry</th><th>Used for</th></tr>
+      <tr><td>RuntimeSelector</td><td>34px segmented grid, <code>--canvas-tint</code> rest, <code>--elevated</code> + <code>--inset-strong</code> selected</td><td>Choosing where a session runs</td></tr>
+      <tr><td>AgentCommandSelect</td><td><code>.command-select</code> 36px + 20px monogram well</td><td>Choosing the agent for a new session</td></tr>
+      <tr><td>WorkspaceCommandSelect</td><td>Same 36px shell, workspace monogram</td><td>Choosing the workspace a command lands in</td></tr>
+      <tr><td>DirectoryBrowser</td><td>36px field, mono path, trailing Browse button</td><td>Picking a working directory</td></tr>
+      <tr><td>GlobalScopeToggle</td><td>Menu-bar globe, <code>.mb-icon</code> 28px</td><td>Global vs workspace scope for the current view</td></tr>
+      <tr><td>Reasoning intensity</td><td><code>.im</code> 7 bars, 2.5px wide, 12px tall</td><td>Effort level — <b>bars, never glyphs, never a number</b></td></tr>
+    </table>
+
+    <div class="demo demo--col" data-od-id="demo-selectors">
+      <div style="display:flex;flex-direction:column;gap:8px;width:100%">
+        <p class="eyebrow">RuntimeSelector</p>
+        <div class="pat-runtime">
+          <button aria-pressed="true"><i data-lucide="laptop"></i>This machine</button>
+          <button><i data-lucide="box"></i>Container</button>
+          <button><i data-lucide="server"></i>Remote host</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:24px;flex-wrap:wrap;width:100%">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <p class="eyebrow">AgentCommandSelect</p>
+          <div class="pat-cmdsel"><span class="pat-mono20">CC</span>Claude Code<i class="pat-chev" data-lucide="chevrons-up-down"></i></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <p class="eyebrow">WorkspaceCommandSelect</p>
+          <div class="pat-cmdsel"><span class="pat-mono20">CZ</span>compozy<i class="pat-chev" data-lucide="chevrons-up-down"></i></div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;width:100%">
+        <p class="eyebrow">DirectoryBrowser</p>
+        <div class="pat-dirbrowse">
+          <i data-lucide="folder" style="width:14px;height:14px;color:var(--muted);flex:none"></i>
+          <span class="path">~/Dev/compozy/internal/store</span>
+          <button class="btn btn--sm">Browse</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-end;width:100%">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <p class="eyebrow">GlobalScopeToggle</p>
+          <div style="display:flex;gap:6px">
+            <button class="mb-icon" aria-label="Global scope"><i data-lucide="globe"></i></button>
+            <button class="mb-icon is-on" style="background:var(--btn-fill);color:var(--fg-strong)" aria-label="Workspace scope"><i data-lucide="box"></i></button>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <p class="eyebrow">Reasoning intensity</p>
+          <div style="display:flex;align-items:center;gap:14px">
+            <span style="display:inline-flex;align-items:center;gap:7px"><span class="im" data-level="2"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="mchip">low</span></span>
+            <span style="display:inline-flex;align-items:center;gap:7px"><span class="im" data-level="4"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="mchip">medium</span></span>
+            <span style="display:inline-flex;align-items:center;gap:7px"><span class="im" data-level="7"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="mchip">max</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 07 TRUTHFUL UI ============ -->
+  <section class="sec" data-od-id="sec-truthful">
+    <h2><span class="num">07</span>Truthful UI &amp; states</h2>
+    <p class="lead">A plausible interface is worse than an incomplete one — it costs trust the first time
+    someone acts on it. On any conflict between a nice-looking control and what the daemon can actually do,
+    the daemon wins and the control goes.</p>
+
+    <div class="rule-list" data-od-id="truthful-rules">
+      <div class="rule"><i>U1</i><span><b>Every control maps to daemon truth.</b> A control that gates on a
+      payload field cites it in an HTML comment beside the markup, so a reviewer can check the claim without
+      reading the handler. If no field backs it, the control doesn't ship.</span></div>
+      <div class="rule"><i>U2</i><span><b>Every surface designs four states:</b> empty, loading, error,
+      degraded. A surface with only its happy path is half-designed; the other three are where people
+      actually meet it.</span></div>
+      <div class="rule"><i>U3</i><span><b>Liveness degrades honestly.</b> When the stream drops, the
+      reconnecting chip replaces the live badge in place, the last reconciled read <em>stays rendered</em>,
+      and its age is stated in words. Never blank the panel; never keep animating a feed that isn't
+      arriving.</span></div>
+      <div class="rule"><i>U4</i><span><b>Specs gate implementation scope, not preview scope.</b> A board may
+      render a surface the current spec won't build — it renders tagged "proposal" so nobody mistakes it for
+      a commitment.</span></div>
+    </div>
+
+    <div class="compare" data-od-id="demo-liveness">
+      <div class="surface">
+        <p class="eyebrow">Connected</p>
+        <!-- gating payload: sse.stream_state === "open" -->
+        <div style="display:flex;align-items:center;gap:10px;margin-top:10px">
+          <span class="livebadge"><span class="dot"></span>live</span>
+          <span style="font-size:var(--text-form);color:var(--muted)">4 running · 12 queued</span>
+        </div>
+      </div>
+      <div class="surface">
+        <p class="eyebrow">Degraded — U3</p>
+        <!-- gating payload: sse.stream_state === "reconnecting", sse.last_reconciled_at -->
+        <div style="display:flex;align-items:center;gap:10px;margin-top:10px">
+          <span class="pill" data-tone="warning"><i data-lucide="refresh-cw"></i>reconnecting</span>
+          <span style="font-size:var(--text-form);color:var(--muted)">4 running · 12 queued</span>
+        </div>
+        <p class="demo-note">Last update 38 seconds ago. The numbers stay on screen with their age stated —
+        stale and labelled beats blank or fake-live.</p>
+      </div>
+    </div>
+
+    <h3>Horizontal overflow</h3>
+    <p style="font-size:var(--text-form);color:var(--muted);max-width:76ch">When a row scrolls sideways, three
+    things ship together: a 36px <code>mask-image</code> fade at the trailing edge, a 6px scrollbar, and a
+    foot that <b>names what sits past the fold</b>. A fade alone tells you there is more; only the foot tells
+    you whether it is worth reaching.</p>
+    <div class="demo demo--col" data-od-id="demo-overflow">
+      <div class="pat-overflow">
+        <div class="scroll-x">
+          <div class="pat-strip-row">
+            <span class="pill" data-tone="accent"><span class="dot"></span>running 4</span>
+            <span class="pill" data-tone="warning"><i data-lucide="triangle-alert"></i>pending 2</span>
+            <span class="pill" data-tone="success"><i data-lucide="check"></i>done 31</span>
+            <span class="pill" data-tone="danger"><i data-lucide="circle-alert"></i>failed 1</span>
+            <span class="pill"><i data-lucide="circle-slash"></i>canceled 3</span>
+            <span class="pill" data-tone="info"><i data-lucide="git-fork"></i>forked 2</span>
+          </div>
+        </div>
+        <p class="pat-foot" style="border-top:0;padding:6px 0 0">2 more states past the edge — canceled and
+        forked. Scroll or filter to reach them.</p>
+      </div>
     </div>
   </section>
 </div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<script>lucide.createIcons();</script>
 </body>
 </html>

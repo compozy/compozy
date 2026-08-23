@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CompozyOS DS · 06 Settings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ds-core.css">
+<link rel="stylesheet" href="ds-shell.css">
+<link rel="stylesheet" href="ds-docs.css">
+<style>
+/* ── chapter 06 page-local (.set-*) ─────────────────────────────
+   Everything else (incl. .sgroup) comes from ds-core.css. */
+.set-win{
+  position:relative;width:100%;max-width:1000px;height:540px;
+  display:flex;flex-direction:column;overflow:hidden;
+  background:var(--canvas);border:1px solid var(--line-strong);border-radius:var(--r-win);
+}
+.set-win .win-head{cursor:default}
+.set-shell{display:grid;grid-template-columns:232px minmax(0,1fr);flex:1;min-height:0}
+.set-nav{display:flex;flex-direction:column;padding:10px;gap:2px;background:var(--sidebar);border-right:1px solid var(--line)}
+.set-nav .field{width:auto;margin-bottom:8px}
+.set-navgrp{display:flex;flex-direction:column;gap:1px;margin-top:11px}
+.set-navgrp:first-of-type{margin-top:0}
+.set-navgrp>.eyebrow{padding:0 8px 4px}
+.set-navrow{
+  display:flex;align-items:center;gap:9px;width:100%;text-align:left;
+  height:var(--h-sidebar-row);padding:0 8px;border-radius:var(--radius-sm);
+  font-size:var(--text-small-body);font-weight:510;color:var(--muted);
+  transition:background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease);
+}
+.set-navrow svg{width:16px;height:16px;flex:none;color:var(--subtle)}
+.set-navrow:hover{background:var(--row-hover);color:var(--fg)}
+.set-navrow[aria-current="page"]{background:var(--elevated);color:var(--fg-strong)}
+.set-navrow[aria-current="page"] svg{color:var(--fg-strong)}
+.set-ver{
+  display:flex;align-items:center;gap:7px;margin-top:auto;
+  padding:9px 8px 2px;border-top:1px solid var(--line-soft);
+  font-family:var(--font-mono);font-size:var(--text-kbd);color:var(--faint);
+}
+.set-col{display:flex;flex-direction:column;gap:14px;padding:18px 22px;overflow:hidden}
+/* form-column specimens — the 768 ladder rung, shared by §03 §05 §06 §07.
+   The note under a specimen keeps the specimen's measure instead of the stage's. */
+.set-formcol{width:100%;max-width:768px}
+.set-stack{display:flex;flex-direction:column;gap:12px}
+.set-formcol~.demo-note{max-width:768px}
+/* width ladder */
+.set-ladder{display:flex;flex-direction:column;gap:9px;width:100%}
+.set-lrow{display:grid;grid-template-columns:132px minmax(0,1fr) 58px;align-items:center;gap:14px;font-size:var(--text-form);color:var(--muted)}
+.set-lbar{height:10px;border-radius:var(--radius-xxs);background:var(--bar-fill);box-shadow:var(--shadow-hairline-inset)}
+.set-lval{font-family:var(--font-mono);font-size:var(--text-badge);color:var(--subtle);text-align:right;font-variant-numeric:tabular-nums}
+/* info-shape miniatures */
+.set-quad{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%}
+@media (max-width:760px){.set-quad{grid-template-columns:1fr}}
+.set-mini{display:flex;flex-direction:column;gap:8px;padding:14px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft)}
+.set-mini__t{display:flex;align-items:center;gap:8px;font-size:var(--text-form);font-weight:600;color:var(--fg-strong)}
+.set-mini__t .mono{font-size:10px;color:var(--faint);margin-left:auto}
+.set-mini .panelbox{background:var(--canvas)}
+.set-mini .srow{min-height:44px;padding:9px 12px}
+.set-mini .srow__desc{display:none}
+</style>
+</head>
+<body class="ds-doc">
+<div class="doc" data-od-id="ds-settings">
+  <nav class="docnav" data-od-id="docnav">
+    <a href="index.html"><span class="num">00</span>Overview</a>
+    <a href="foundations.html"><span class="num">01</span>Foundations</a>
+    <a href="os-shell.html"><span class="num">02</span>OS Shell</a>
+    <a href="components.html"><span class="num">03</span>Components</a>
+    <a href="command-palette.html"><span class="num">04</span>Command Palette</a>
+    <a href="modals.html"><span class="num">05</span>Modals</a>
+    <a href="settings.html" aria-current="page"><span class="num">06</span>Settings</a>
+    <a href="dashboards.html"><span class="num">07</span>Dashboards</a>
+    <a href="empty-states.html"><span class="num">08</span>Empty States</a>
+    <a href="profiles.html"><span class="num">09</span>Profiles</a>
+    <a href="patterns.html"><span class="num">10</span>Patterns</a>
+  </nav>
+
+  <header class="hero" data-od-id="hero">
+    <p class="eyebrow">CompozyOS · Chapter 06</p>
+    <h1>Settings</h1>
+    <p>Settings is a <b>normal OS window</b>. It opens from the cog in the menu bar, it tiles, it minimises,
+    it stacks with everything else. The old 264px takeover shell — a full-screen surface that swallowed the
+    desktop and hid the window manager — is retired. Inside the window, the section list is just a
+    <b>pane</b>. Everything below is the vocabulary that fills the other column: the <code>.srow</code>
+    family, four section info-shapes, the width ladder, and the three save models.</p>
+  </header>
+
+  <!-- ============ 01 SHELL ============ -->
+  <section class="sec" data-od-id="sec-shell">
+    <h2><span class="num">01</span>Shell — a window, not a takeover</h2>
+    <p class="lead">The 44px window head owns identity exactly once (rule 03). The nav pane carries a 28px
+    search, grouped 32px rows, and a version footer pinned to the bottom. Active section = the neutral
+    <code>--elevated</code> plate plus <code>--fg-strong</code> ink. The accent-tint active state that older
+    settings boards used is retired — accent means "act", so it never marks which section is open.</p>
+
+    <div class="demo demo--col demo--rail" data-od-id="demo-settings-window">
+      <div class="set-win" data-od-id="settings-window">
+        <div class="win-head">
+          <div class="win-controls"><i class="wc wc-close"></i><i class="wc wc-min"></i><i class="wc wc-zoom"></i></div>
+          <div class="w2-id">
+            <span class="w2-glyph"><i data-lucide="settings"></i></span>
+            <span class="w2-title">Settings</span>
+          </div>
+        </div>
+        <div class="set-shell">
+          <aside class="set-nav" data-od-id="settings-nav">
+            <div class="field"><i data-lucide="search"></i><input placeholder="Search settings" aria-label="Search settings"></div>
+            <div class="set-navgrp">
+              <p class="eyebrow">Workspace</p>
+              <button class="set-navrow"><i data-lucide="sliders-horizontal"></i>General</button>
+              <button class="set-navrow" aria-current="page"><i data-lucide="messages-square"></i>Sessions</button>
+              <button class="set-navrow"><i data-lucide="bot"></i>Agents</button>
+              <button class="set-navrow"><i data-lucide="book-open"></i>Skills</button>
+              <button class="set-navrow"><i data-lucide="folder-tree"></i>Directories</button>
+            </div>
+            <div class="set-navgrp">
+              <p class="eyebrow">System</p>
+              <button class="set-navrow"><i data-lucide="cpu"></i>Runtime</button>
+              <button class="set-navrow"><i data-lucide="globe"></i>Network</button>
+              <button class="set-navrow"><i data-lucide="key-round"></i>Providers</button>
+              <button class="set-navrow"><i data-lucide="database"></i>Storage</button>
+              <button class="set-navrow"><i data-lucide="bell"></i>Notifications</button>
+            </div>
+            <div class="set-ver"><span class="d d--ok"></span>0.3.0 · up 4d 6h</div>
+          </aside>
+          <div class="set-col">
+            <div class="sgroup">
+              <p class="sgroup__t">Session lifetime</p>
+              <p class="sgroup__d">How long a session stays alive when nobody is talking to it.</p>
+            </div>
+            <div class="panelbox">
+              <div class="srow">
+                <div class="srow__main">
+                  <p class="srow__label">Keep sessions warm</p>
+                  <p class="srow__desc">A warm session answers straight away instead of starting the agent again.</p>
+                </div>
+                <div class="srow__ctl"><button class="switch is-on" role="switch" aria-checked="true" aria-label="Keep sessions warm"><i class="knob"></i></button></div>
+              </div>
+              <div class="srow">
+                <div class="srow__main">
+                  <p class="srow__label">End idle sessions after</p>
+                  <p class="srow__desc">Compozy closes the agent and keeps the transcript.</p>
+                </div>
+                <div class="srow__ctl"><input class="ctl ctl--num" value="45" aria-label="Idle minutes"><span class="unit">minutes</span></div>
+              </div>
+              <div class="srow">
+                <div class="srow__main"><p class="srow__label">When a session ends</p></div>
+                <div class="srow__ctl">
+                  <select class="ctl" style="min-width:200px" aria-label="When a session ends">
+                    <option>Archive the transcript</option><option>Keep it in the sidebar</option><option>Delete it</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="demo-note"><b>Window chrome is real.</b> Settings sits in the window manager like Sessions or
+      Marketplace — same 44px head, same traffic lights, same tiling. Nothing about it is modal.</p>
+    </div>
+
+    <table class="spec" data-od-id="spec-shell">
+      <tr><th>Part</th><th>Spec</th><th>Note</th></tr>
+      <tr><td>Trigger</td><td>Menu-bar cog, <code>.mb-icon</code> 28px / 16px glyph</td><td>Opens or focuses the existing Settings window — never a second one</td></tr>
+      <tr><td>Window</td><td>1000 × 720 default, resizable, tileable</td><td>232 nav pane + 768 form column</td></tr>
+      <tr><td>Nav pane</td><td>232px, <code>--sidebar</code>, 1px <code>--line</code> right edge</td><td>A pane, not a shell. It scrolls with the window.</td></tr>
+      <tr><td>Search</td><td><code>.field</code> 28px, placeholder "Search settings"</td><td>Filters rows across sections, not just names</td></tr>
+      <tr><td>Group label</td><td><code>.eyebrow</code> 12/510 sentence case</td><td>Workspace · System. Never uppercase.</td></tr>
+      <tr><td>Nav row</td><td>32px, 13.5/510 <code>--muted</code>, 16px icon, 9px gap</td><td>Matches <code>--h-sidebar-row</code></td></tr>
+      <tr><td>Active row</td><td><code>--elevated</code> plate + <code>--fg-strong</code> ink + icon promoted</td><td>No accent tint, no rail, no rim</td></tr>
+      <tr><td>Version footer</td><td>6px <code>--success</code> dot + mono 10.5 <code>--faint</code></td><td>The dot is daemon liveness, not decoration</td></tr>
+    </table>
+  </section>
+
+  <!-- ============ 02 WIDTH LADDER ============ -->
+  <section class="sec" data-od-id="sec-widths">
+    <h2><span class="num">02</span>The width ladder</h2>
+    <p class="lead">Declared once here; every other chapter cites it instead of picking a number. Content
+    columns are capped so a maximised window grows margin, not line length.</p>
+    <div class="demo demo--col" data-od-id="demo-width-ladder">
+      <div class="set-ladder">
+        <div class="set-lrow"><span>Form column</span><i class="set-lbar" style="width:61.9%"></i><span class="set-lval">768</span></div>
+        <div class="set-lrow"><span>Listing column</span><i class="set-lbar" style="width:77.4%"></i><span class="set-lval">960</span></div>
+        <div class="set-lrow"><span>Canvas surfaces</span><i class="set-lbar" style="width:83.9%"></i><span class="set-lval">1040</span></div>
+        <div class="set-lrow"><span>Dashboard</span><i class="set-lbar" style="width:100%"></i><span class="set-lval">1240</span></div>
+      </div>
+      <p class="demo-note">Bars are drawn to scale against 1240. Widths are max-widths on the content
+      column — the window itself resizes freely.</p>
+    </div>
+    <table class="spec" data-od-id="spec-widths">
+      <tr><th>Ladder</th><th>Max width</th><th>Used by</th></tr>
+      <tr><td>Form column</td><td><code>768px</code></td><td>Settings sections, dialogs' inner forms, onboarding steps</td></tr>
+      <tr><td>Listing column</td><td><code>960px</code></td><td>Agents, Skills, Extensions, Sessions, Marketplace</td></tr>
+      <tr><td>Canvas surfaces</td><td><code>1040px</code></td><td>Detail pages, transcripts, graph and diff canvases</td></tr>
+      <tr><td>Dashboard</td><td><code>1240px</code></td><td>KPI grids and multi-panel dashboards only</td></tr>
+    </table>
+  </section>
+
+  <!-- ============ 03 THE .srow VOCABULARY ============ -->
+  <section class="sec" data-od-id="sec-srow">
+    <h2><span class="num">03</span>The <code>.srow</code> vocabulary</h2>
+    <p class="lead">One row shape, five trailing controls. A row is at least 54px so the label and its
+    description breathe; the control column is <code>flex:none</code> so labels wrap and controls never do.
+    Descriptions cap at 52ch — past that the sentence belongs in the group description, or nowhere.</p>
+
+    <div class="demo demo--col" data-od-id="demo-srow-family">
+      <div class="set-formcol">
+        <div class="sgroup">
+          <p class="sgroup__t">Agent behaviour</p>
+          <p class="sgroup__d">Applies to every agent in this workspace unless the agent overrides it.</p>
+        </div>
+        <div class="panelbox">
+          <div class="srow" data-od-id="srow-switch">
+            <div class="srow__main">
+              <p class="srow__label">Ask before running shell commands</p>
+              <p class="srow__desc">Compozy pauses and asks you first. Turning this off lets agents run commands on their own.</p>
+            </div>
+            <div class="srow__ctl"><button class="switch is-on" role="switch" aria-checked="true" aria-label="Ask before running shell commands"><i class="knob"></i></button></div>
+          </div>
+          <div class="srow" data-od-id="srow-select">
+            <div class="srow__main">
+              <p class="srow__label">Default agent <span class="provchip">claude-code</span></p>
+              <p class="srow__desc">Used when you start a session without choosing one.</p>
+            </div>
+            <div class="srow__ctl">
+              <select class="ctl" style="min-width:200px" aria-label="Default agent">
+                <option>Claude Code</option><option>OpenClaw</option><option>Hermes</option>
+              </select>
+            </div>
+          </div>
+          <div class="srow" data-od-id="srow-numeric">
+            <div class="srow__main">
+              <p class="srow__label">Stop a run after</p>
+              <p class="srow__desc">A long run is cancelled and marked failed so it can't stall the queue.</p>
+            </div>
+            <div class="srow__ctl"><input class="ctl ctl--num" value="30" aria-label="Run timeout minutes"><span class="unit">minutes</span></div>
+          </div>
+          <button class="srow srow--link" style="width:100%;text-align:left" data-od-id="srow-link">
+            <div class="srow__main">
+              <p class="srow__label">Working directory</p>
+              <p class="srow__desc">Where new sessions start.</p>
+            </div>
+            <div class="srow__ctl">
+              <span class="srow__value">~/Dev/compozy</span>
+              <i class="chev" data-lucide="chevron-right"></i>
+            </div>
+          </button>
+        </div>
+
+        <div class="sgroup" style="margin-top:22px">
+          <p class="sgroup__t">Danger zone</p>
+          <p class="sgroup__d">These cannot be undone from the interface.</p>
+        </div>
+        <div class="panelbox">
+          <div class="srow" data-od-id="srow-danger">
+            <div class="srow__main">
+              <p class="srow__label">Delete this workspace</p>
+              <p class="srow__desc">Removes its sessions, memory and directory links. Agents that are still running finish first.</p>
+            </div>
+            <div class="srow__ctl"><button class="btn btn--destructive btn--sm">Delete workspace</button></div>
+          </div>
+        </div>
+      </div>
+      <p class="demo-note"><b>The danger row is a normal row.</b> No red border, no red plate, no red label —
+      the tone lives in the button alone. Red on the frame trains people to ignore red.</p>
+    </div>
+
+    <table class="spec" data-od-id="spec-srow">
+      <tr><th>Part</th><th>Spec</th><th>Rule</th></tr>
+      <tr><td><code>.srow</code></td><td>min-height 54px, padding 12/16, gap 20, 1px <code>--line-soft</code> top</td><td>First row has no top line — the panelbox border is it</td></tr>
+      <tr><td><code>.srow__label</code></td><td>13.5 / 510 / <code>--fg-strong</code></td><td>States a policy. May carry one <code>.provchip</code>.</td></tr>
+      <tr><td><code>.srow__desc</code></td><td>12.5 / 1.5 / <code>--muted</code>, max 52ch</td><td>Optional. Says what happens, not what the setting is called.</td></tr>
+      <tr><td><code>.srow__ctl</code></td><td><code>flex:none</code>, gap 8</td><td>Controls never wrap; labels do</td></tr>
+      <tr><td>Switch row</td><td><code>.switch</code> 32×18, accent when on</td><td>Immediate save — see §06</td></tr>
+      <tr><td>Select row</td><td><code>.ctl</code> 32px, <code>min-width:200px</code></td><td>Fixed min width keeps a column of selects aligned</td></tr>
+      <tr><td>Numeric row</td><td><code>.ctl--num</code> 110px mono right-aligned + <code>.unit</code></td><td>The unit is a word beside the field, never inside it</td></tr>
+      <tr><td>Value + chev row</td><td><code>.srow--link</code> + <code>.srow__value</code> mono 11 + 14px chevron</td><td>Opens a sheet or dialog. Whole row is the target.</td></tr>
+      <tr><td>Danger row</td><td>Normal row + <code>.btn--destructive</code></td><td>Own <code>.sgroup</code> titled "Danger zone", last on the page</td></tr>
+      <tr><td><code>.sgroup__t</code></td><td>13.5 / 600 / -.014em</td><td>Sits above the panelbox, never inside it</td></tr>
+      <tr><td><code>.sgroup__d</code></td><td>12.5 / <code>--muted</code>, max 60ch</td><td>One sentence. Absent is fine.</td></tr>
+    </table>
+  </section>
+
+  <!-- ============ 04 FOUR INFO-SHAPES ============ -->
+  <section class="sec" data-od-id="sec-shapes">
+    <h2><span class="num">04</span>Four section info-shapes</h2>
+    <p class="lead">Before laying out a settings section, name its shape. The shape decides the save model,
+    and the save model decides whether a save bar exists at all. Mixing two shapes in one section is the
+    most common defect — an inventory with a save bar, or a form that half-saves on toggle.</p>
+
+    <table class="spec" data-od-id="spec-shapes">
+      <tr><th>Shape</th><th>Body</th><th>Save model</th><th>Sections</th></tr>
+      <tr><td>Form-led</td><td>Grouped <code>.srow</code>s + one Advanced fold</td><td>Draft — edits collect, one save bar commits</td><td>General, Sessions, Network</td></tr>
+      <tr><td>Inventory-led</td><td><code>.listing-row</code> list + per-item sheet</td><td>Per item, on sheet close. <b>No save bar.</b></td><td>Agents, Skills, Directories, Providers</td></tr>
+      <tr><td>Runtime-state-led</td><td>Non-editable <code>.tiles</code> fact block above the form</td><td>Facts are read-only; the form below is a draft</td><td>Runtime, Storage</td></tr>
+      <tr><td>Immediate</td><td>Switch rows only</td><td>The switch <b>is</b> the save; failure = danger notice on the group</td><td>Notifications, Privacy</td></tr>
+    </table>
+
+    <div class="demo demo--col" data-od-id="demo-shapes">
+      <div class="set-quad">
+        <div class="set-mini" data-od-id="mini-form-led">
+          <p class="set-mini__t"><i data-lucide="square-pen" style="width:13px;height:13px;color:var(--muted)"></i>Form-led<span class="mono">draft</span></p>
+          <div class="panelbox">
+            <div class="srow"><div class="srow__main"><p class="srow__label">Show token usage</p></div><div class="srow__ctl"><button class="switch" role="switch" aria-checked="false" aria-label="Show token usage"><i class="knob"></i></button></div></div>
+            <div class="srow"><div class="srow__main"><p class="srow__label">Retry failed steps</p></div><div class="srow__ctl"><input class="ctl ctl--num" value="2" aria-label="Retries"><span class="unit">times</span></div></div>
+          </div>
+          <div class="savebar" style="position:static;bottom:auto">
+            <div class="savebar__state"><span class="d d--needs"></span>2 unsaved changes</div>
+            <button class="btn btn--ghost btn--sm">Discard</button>
+            <button class="btn btn--primary btn--sm">Save</button>
+          </div>
+        </div>
+
+        <div class="set-mini" data-od-id="mini-inventory-led">
+          <p class="set-mini__t"><i data-lucide="list" style="width:13px;height:13px;color:var(--muted)"></i>Inventory-led<span class="mono">per item</span></p>
+          <div class="list-shell">
+            <div class="listing-row" style="padding:10px 12px">
+              <span class="listing-row__icon"><i data-lucide="bot"></i></span>
+              <div class="listing-row__main"><div class="listing-row__name"><b>Claude Code</b></div><p class="listing-row__meta"><span class="k">acp · native</span></p></div>
+              <div class="listing-row__trail"><i class="chev" data-lucide="chevron-right" style="width:14px;height:14px;color:var(--faint)"></i></div>
+            </div>
+            <div class="listing-row" style="padding:10px 12px">
+              <span class="listing-row__icon"><i data-lucide="bot"></i></span>
+              <div class="listing-row__main"><div class="listing-row__name"><b>OpenClaw</b></div><p class="listing-row__meta"><span class="k">acp · bridge</span></p></div>
+              <div class="listing-row__trail"><i class="chev" data-lucide="chevron-right" style="width:14px;height:14px;color:var(--faint)"></i></div>
+            </div>
+          </div>
+          <p class="demo-note" style="margin-top:0">No save bar. The sheet saves when it closes.</p>
+        </div>
+
+        <div class="set-mini" data-od-id="mini-runtime-led">
+          <p class="set-mini__t"><i data-lucide="activity" style="width:13px;height:13px;color:var(--muted)"></i>Runtime-state-led<span class="mono">read-only + draft</span></p>
+          <div class="tiles">
+            <div class="tile"><p class="tile__l">Daemon</p><p class="tile__v"><span class="d d--ok"></span>Running</p></div>
+            <div class="tile"><p class="tile__l">Listening on</p><p class="tile__v">127.0.0.1:2123</p></div>
+            <div class="tile"><p class="tile__l">Database</p><p class="tile__v">42.8 MB · WAL</p></div>
+            <div class="tile"><p class="tile__l">Uptime</p><p class="tile__v">4d 6h</p></div>
+          </div>
+          <p class="demo-note" style="margin-top:0">Facts first, form second. Tiles never hover.</p>
+        </div>
+
+        <div class="set-mini" data-od-id="mini-immediate">
+          <p class="set-mini__t"><i data-lucide="zap" style="width:13px;height:13px;color:var(--muted)"></i>Immediate<span class="mono">the switch is the save</span></p>
+          <div class="panelbox">
+            <div class="srow"><div class="srow__main"><p class="srow__label">Notify when a run needs you</p></div><div class="srow__ctl"><button class="switch is-on" role="switch" aria-checked="true" aria-label="Notify when a run needs you"><i class="knob"></i></button></div></div>
+            <div class="srow"><div class="srow__main"><p class="srow__label">Notify when a run fails</p></div><div class="srow__ctl"><button class="switch" role="switch" aria-checked="false" aria-label="Notify when a run fails"><i class="knob"></i></button></div></div>
+          </div>
+          <div class="notice notice--danger">
+            <i data-lucide="circle-alert"></i>
+            <div><b>Couldn't turn that off.</b> The daemon is restarting. Nothing changed — try again in a moment.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 05 CHOICE CARDS & FACT TILES ============ -->
+  <section class="sec" data-od-id="sec-choice">
+    <h2><span class="num">05</span>Choice cards &amp; fact tiles</h2>
+    <p class="lead">Use a choice card when the options need a sentence each and picking one excludes the
+    others; use a select when they don't. Selection is neutral — a <code>--surface-glaze</code> fill plus an
+    inset <code>--line-strong</code> rim. Accent never marks a chosen card.</p>
+
+    <div class="demo demo--col" data-od-id="demo-choice">
+      <div class="set-formcol">
+        <div class="sgroup">
+          <p class="sgroup__t">Where agents find their credentials</p>
+          <p class="sgroup__d">New sessions use this. Sessions already running keep what they started with.</p>
+        </div>
+        <div class="choice-grid" role="radiogroup" aria-label="Credential source">
+          <button class="choice" role="radio" aria-checked="false">
+            <span class="choice__ic"><i data-lucide="user-round"></i></span>
+            <span class="choice__name">Use my login</span>
+            <span class="choice__desc">Agents reuse the provider login already on this machine.</span>
+            <span class="choice__mode">operator</span>
+          </button>
+          <button class="choice is-on" role="radio" aria-checked="true">
+            <span class="choice__ic"><i data-lucide="box"></i></span>
+            <span class="choice__name">Isolated per workspace</span>
+            <span class="choice__desc">Each workspace keeps its own provider home and its own login.</span>
+            <span class="choice__mode">workspace</span>
+          </button>
+          <button class="choice" role="radio" aria-checked="false">
+            <span class="choice__ic"><i data-lucide="key-round"></i></span>
+            <span class="choice__name">Short-lived token</span>
+            <span class="choice__desc">The daemon hands each session a token that expires with it.</span>
+            <span class="choice__mode">broker</span>
+          </button>
+        </div>
+      </div>
+      <p class="demo-note"><b>The mono enum line is the only mechanism text allowed on the face of a card</b>
+      — it's the value an agent would pass over the CLI, and it makes the card searchable. Everything above
+      it is plain language.</p>
+    </div>
+
+    <table class="spec" data-od-id="spec-choice">
+      <tr><th>Part</th><th>Spec</th><th>Rule</th></tr>
+      <tr><td><code>.choice-grid</code></td><td>3 columns, 8px gap; 1 column under 960px</td><td>More than three options means a select, not cards</td></tr>
+      <tr><td><code>.choice</code> rest</td><td><code>--canvas-tint</code> + 1px <code>--line-soft</code></td><td>Radius 10</td></tr>
+      <tr><td><code>.choice</code> selected</td><td><code>--surface-glaze</code> + <code>--inset-strong</code>, border transparent</td><td>Neutral. No accent, no checkmark badge.</td></tr>
+      <tr><td><code>.choice__ic</code></td><td>28px well, 14px glyph, <code>--badge-fill</code></td><td>Optional — omit when the names are self-evident</td></tr>
+      <tr><td><code>.choice__mode</code></td><td>mono 9.5 <code>--faint</code></td><td>The enum value, lowercase, verbatim from the daemon</td></tr>
+      <tr><td><code>.tiles</code></td><td>2 columns, 10px gap, <code>--input-fill</code> + <code>--line-soft</code></td><td><b>No hover, no focus ring</b> — non-editable by construction</td></tr>
+      <tr><td><code>.tile__l</code></td><td><code>.eyebrow-caps</code> 11/600/+.06em</td><td>The one sanctioned uppercase in Settings</td></tr>
+      <tr><td><code>.tile__v</code></td><td>12.5 / 510 / <code>--fg</code>, optional 6px signal dot</td><td>Dot is liveness only</td></tr>
+    </table>
+  </section>
+
+  <!-- ============ 06 SAVE MODELS & NOTICES ============ -->
+  <section class="sec" data-od-id="sec-save">
+    <h2><span class="num">06</span>Save models &amp; notices</h2>
+    <p class="lead">Exactly one save bar per page, and only on a draft page. It sticks 24px above the bottom
+    of the content column, sits on <code>--elevated</code> with a <code>--line-strong</code> border, and casts
+    nothing — in-window chrome stays flat. Its dot is warning while changes are pending and success once they
+    land; the wording changes with it.</p>
+
+    <div class="demo demo--col" data-od-id="demo-savebar">
+      <div class="set-formcol set-stack">
+        <div class="savebar" style="position:static;bottom:auto" data-od-id="savebar-dirty">
+          <div class="savebar__state"><span class="d d--needs"></span>3 unsaved changes</div>
+          <button class="btn btn--ghost btn--sm">Discard</button>
+          <button class="btn btn--primary btn--sm">Save changes</button>
+        </div>
+        <div class="savebar" style="position:static;bottom:auto" data-od-id="savebar-saved">
+          <div class="savebar__state"><span class="d d--ok"></span>Saved just now</div>
+          <button class="btn btn--ghost btn--sm" disabled>Discard</button>
+          <button class="btn btn--sm" disabled>Save changes</button>
+        </div>
+        <div class="notice" data-od-id="notice-restart">
+          <i data-lucide="triangle-alert"></i>
+          <div><b>The daemon needs a restart to use the new port.</b> Until it restarts, Compozy keeps
+          listening on <code>127.0.0.1:2123</code> and the new port stays unused.</div>
+          <div class="notice__actions">
+            <button class="btn btn--ghost btn--sm">Not now</button>
+            <button class="btn btn--sm">Restart daemon</button>
+          </div>
+        </div>
+        <div class="notice notice--danger" style="align-items:center" data-od-id="notice-failure">
+          <i data-lucide="circle-alert"></i>
+          <div><b>Couldn't save Notifications.</b> Quiet hours end before they start. Nothing was changed.</div>
+          <div class="notice__actions"><button class="btn btn--ghost btn--sm">Try again</button></div>
+        </div>
+      </div>
+      <p class="demo-note"><b>A restart notice states the consequence of doing nothing</b>, not the mechanism
+      that changed. "Not now" is a real, safe answer — so it's a ghost button, and Restart is neutral, not
+      accent. Nothing here is urgent enough to spend the accent budget.</p>
+    </div>
+
+    <table class="spec" data-od-id="spec-save">
+      <tr><th>Model</th><th>Commit</th><th>Feedback</th><th>Failure</th></tr>
+      <tr><td>Draft</td><td>Save bar, one per page</td><td>Dot warning → success, label follows</td><td><code>.notice--danger</code> above the save bar; edits stay in the form</td></tr>
+      <tr><td>Per item</td><td>Sheet close</td><td>Row updates in place</td><td>Sheet reopens with the field flagged <code>aria-invalid</code></td></tr>
+      <tr><td>Immediate</td><td>The control itself</td><td>Control settles into its new state</td><td>Control snaps back + <code>.notice--danger</code> under the group</td></tr>
+      <tr><td>Restart-gated</td><td>Saved now, effective later</td><td><code>.notice</code> warning tint, persists until restart</td><td>Restart failure keeps the notice and adds the cause</td></tr>
+    </table>
+  </section>
+
+  <!-- ============ 07 ADVANCED FOLD ============ -->
+  <section class="sec" data-od-id="sec-advanced">
+    <h2><span class="num">07</span>The Advanced fold</h2>
+    <p class="lead">Exactly one per page, closed by default, always last before the danger zone. It is the
+    only place mechanism keys are allowed to surface — everywhere above it, rows state policy in plain
+    language. If a row can't be phrased as a policy, it belongs in the fold.</p>
+
+    <div class="demo demo--col" data-od-id="demo-advanced">
+      <div class="set-formcol">
+        <button class="adv-toggle" aria-expanded="true"><i class="chev" data-lucide="chevron-right"></i>Advanced</button>
+        <div class="panelbox">
+          <div class="srow">
+            <div class="srow__main">
+              <p class="srow__label">Idle sweep interval <span class="provchip">session.idle_sweep_interval</span></p>
+              <p class="srow__desc">How often Compozy checks for sessions that have gone quiet.</p>
+            </div>
+            <div class="srow__ctl"><input class="ctl ctl--num" value="30" aria-label="Sweep seconds"><span class="unit">seconds</span></div>
+          </div>
+          <div class="srow">
+            <div class="srow__main">
+              <p class="srow__label">Journal write mode <span class="provchip">journal.fsync</span></p>
+              <p class="srow__desc">Fail-closed keeps a run blocked when the journal can't be written.</p>
+            </div>
+            <div class="srow__ctl">
+              <select class="ctl" style="min-width:200px" aria-label="Journal write mode"><option>Fail closed</option><option>Best effort</option></select>
+            </div>
+          </div>
+          <div class="srow">
+            <div class="srow__main">
+              <p class="srow__label">Log level <span class="provchip">log.level</span></p>
+            </div>
+            <div class="srow__ctl">
+              <select class="ctl" style="min-width:200px" aria-label="Log level"><option>info</option><option>debug</option><option>warn</option><option>error</option></select>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="demo-note"><b>Plain language, then the key.</b> The label still reads as a sentence; the
+      <code>.provchip</code> is the <code>config.toml</code> key so an operator can find it and an agent can
+      set it over the CLI. Above the fold, that chip is forbidden.</p>
+    </div>
+
+    <div class="compare" data-od-id="compare-language">
+      <div class="surface">
+        <p class="eyebrow" style="color:var(--danger)">Mechanism-led — rejected</p>
+        <p style="font-size:var(--text-small-body);font-weight:510;color:var(--fg-strong);margin-top:8px">session_idle_ttl_seconds</p>
+        <p style="font-size:var(--text-form);color:var(--muted);margin-top:2px">Integer. TTL applied by the reaper.</p>
+      </div>
+      <div class="surface">
+        <p class="eyebrow" style="color:var(--success)">Policy-led — canonical</p>
+        <p style="font-size:var(--text-small-body);font-weight:510;color:var(--fg-strong);margin-top:8px">End idle sessions after</p>
+        <p style="font-size:var(--text-form);color:var(--muted);margin-top:2px">Compozy closes the agent and keeps the transcript.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 08 RULES ============ -->
+  <section class="sec" data-od-id="sec-rules">
+    <h2><span class="num">08</span>Rules</h2>
+    <div class="rule-list" data-od-id="settings-rules">
+      <div class="rule"><i>G1</i><span><b>Settings holds policy, not catalog.</b> Installing, enabling and
+      updating live in Marketplace. A Settings section that lists installable things keeps one
+      <code>.srow--link</code> row — "Manage in marketplace" — and stops there. The section configures what
+      is already installed; it never becomes a second store.</span></div>
+      <div class="rule"><i>G2</i><span><b>Plain language over mechanism keys.</b> Every row states a policy
+      in a sentence a new user can act on ("End idle sessions after"), never a config key. Keys surface only
+      inside the Advanced fold, as a <code>.provchip</code> beside a label that still reads as a
+      sentence.</span></div>
+      <div class="rule"><i>G3</i><span><b>Every row maps to a daemon-persisted value.</b> No row exists for a
+      value the daemon can't store and an agent can't read back over CLI, HTTP or UDS. When a saved value
+      only takes effect after a restart, that consequence renders as a warning <code>.notice</code> that
+      persists until the restart happens — never as a silent difference between what the row says and what
+      the daemon is doing.</span></div>
+    </div>
+    <p style="font-size:var(--text-form);color:var(--muted);margin-top:14px">Related: dialogs and sheets in
+    <a href="modals.html" style="color:var(--fg);text-decoration:underline;text-underline-offset:2px">chapter 05</a>,
+    empty and degraded sections in
+    <a href="empty-states.html" style="color:var(--fg);text-decoration:underline;text-underline-offset:2px">chapter 08</a>,
+    identity rows in
+    <a href="profiles.html" style="color:var(--fg);text-decoration:underline;text-underline-offset:2px">chapter 09</a>.</p>
+  </section>
+</div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

@@ -1,0 +1,767 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CompozyOS DS · 07 Dashboards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ds-core.css">
+<link rel="stylesheet" href="ds-shell.css">
+<link rel="stylesheet" href="ds-docs.css">
+<style>
+/* ============================================================
+   Chapter 07 — page-local demo styles. Prefix .dsh- (dashboard).
+   Everything here is dashboard grammar that does NOT ship in
+   ds-core.css yet; tokens are pulled, never invented.
+   ============================================================ */
+/* zero-specificity baseline so component sizing rules always win */
+:where(svg.lucide){width:14px;height:14px;flex:none}
+svg.lucide{stroke-width:1.6}
+/* demo windows are sized by their content — the 180px shell floor would open a void */
+.demo .win{position:relative;resize:none;animation:none;min-width:0;min-height:0;width:100%}
+
+/* --- demoted page meta line (the dashboard has no H1) --- */
+.dsh-pagemeta{
+  display:flex;align-items:center;flex-wrap:wrap;
+  padding-bottom:9px;margin-bottom:16px;
+  border-bottom:1px solid var(--line-soft);
+  font-size:12px;color:var(--subtle);
+}
+.dsh-pagemeta b{color:var(--muted);font-weight:510}
+
+/* --- section head: eyebrow · count · spacer · quiet trailing link --- */
+/* min-height keeps paired heads on one baseline whether they carry a chip, a
+   note or a pill-group (--h-pill 20px + 2px group padding = 24px) */
+.dsh-head{display:flex;align-items:center;gap:8px;min-height:24px;margin-bottom:10px;min-width:0}
+.dsh-sp{flex:1;min-width:8px}
+.dsh-note{font-size:var(--text-badge);color:var(--faint)}
+.dsh-act{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:510;color:var(--muted);transition:color var(--dur-fast) var(--ease)}
+.dsh-act svg.lucide{width:12px;height:12px}
+.dsh-act:hover{color:var(--fg-strong)}
+
+/* --- collapsible section (calm default; closed still informs) --- */
+.dsh-fold{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);overflow:hidden;width:100%}
+.dsh-fold+.dsh-fold{margin-top:8px}
+.dsh-fold>summary{display:flex;align-items:center;gap:9px;padding:11px 14px;cursor:pointer;list-style:none;min-width:0}
+.dsh-fold>summary::-webkit-details-marker{display:none}
+.dsh-fold>summary:hover{background:var(--row-hover)}
+.dsh-fold>summary svg.lucide{color:var(--muted)}.dsh-fold>summary b{font-size:13px;font-weight:510;color:var(--fg-strong);flex:none}
+.dsh-fold>summary .gist{font-size:12px;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsh-fold>summary .chev{margin-left:auto;color:var(--faint);transition:transform var(--dur) var(--ease)}
+.dsh-fold[open]>summary .chev{transform:rotate(180deg)}
+.dsh-fold__body{padding:2px 14px 14px}
+
+/* --- KPI extras --- */
+.dsh-kpirow{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.dsh-spark{width:66px;height:22px;flex:none}
+.dsh-spark path{fill:none;stroke:var(--viz-line);stroke-width:1.25}
+.dsh-spark polygon{fill:var(--viz-fill);stroke:none}
+
+/* --- paired panels: the flush-bottom contract --- */
+.dsh-grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:stretch}
+.dsh-col{display:flex;flex-direction:column;min-width:0}
+.dsh-col>.panelbox,.dsh-col>.panel{flex:1;display:flex;flex-direction:column;min-height:0}
+.dsh-fill{flex:1}
+/* a chart card with no footer lands its provenance line on the panel floor —
+   same contract as .dsh-foot, so a short panel never trails dead air */
+.dsh-col>.panel>.footnote:last-child{margin-top:auto;padding-top:12px}
+.dsh-foot{
+  display:flex;align-items:center;gap:8px;margin-top:auto;
+  padding:9px 14px;border-top:1px solid var(--line-soft);
+}
+
+/* --- chart cards --- */
+.dsh-figure{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.dsh-figure b{font-size:22px;font-weight:620;letter-spacing:var(--track-tight);line-height:1.1;color:var(--fg-strong);font-variant-numeric:tabular-nums}
+.dsh-figure span{font-size:12px;color:var(--subtle)}
+.dsh-chart{min-height:120px;display:flex;flex-direction:column;justify-content:flex-end;gap:6px;margin-top:12px}
+.dsh-bars{display:flex;align-items:stretch;gap:3px;height:104px}
+.dsh-bar{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;gap:1px;min-width:0}
+.dsh-bar i{display:block;border-radius:2px}
+.dsh-xaxis{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+.dsh-area{width:100%;height:104px;display:block}
+.dsh-area .grid{stroke:var(--viz-grid);stroke-width:1}
+.dsh-area .ln{fill:none;stroke:var(--viz-line);stroke-width:1.4;vector-effect:non-scaling-stroke}
+.dsh-area .fl{fill:var(--viz-fill);stroke:none}
+.dsh-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:11.5px;color:var(--muted)}
+.dsh-legend span{display:inline-flex;align-items:center;gap:6px}
+.dsh-legend i{width:8px;height:8px;border-radius:2px;flex:none}
+.dsh-legend .n{font-family:var(--font-mono);font-size:10.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+/* full-bleed hairline inside a padded panel */
+.dsh-subdiv{margin:14px -14px 0;padding:14px 14px 0;border-top:1px solid var(--line-soft)}
+.dsh-subhead{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+
+/* --- data rows --- */
+.dsh-att-done{background:var(--success-tint);border-radius:var(--radius-md)}
+.dsh-agrow{
+  display:grid;grid-template-columns:minmax(0,1fr) 52px 64px 52px 1fr;
+  align-items:center;gap:10px;padding:9px 14px;
+  border-top:1px solid var(--line-soft);font-size:12.5px;color:var(--fg);
+}
+.dsh-agrow:hover{background:var(--row-hover)}
+.dsh-aghead{border-top:0;font-size:var(--text-badge);color:var(--subtle)}
+.dsh-aghead span:not(:first-child){text-align:right}
+.dsh-agname{display:flex;align-items:center;gap:8px;min-width:0}
+.dsh-agname b{font-weight:510;color:var(--fg-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsh-num{font-family:var(--font-mono);font-size:11.5px;color:var(--fg);text-align:right;font-variant-numeric:tabular-nums}
+.dsh-num[data-zero]{color:var(--faint)}.dsh-num[data-tone="danger"]{color:var(--danger)}
+.dsh-agrt{display:flex;align-items:center;gap:8px;min-width:0}
+.dsh-agbar{flex:1;height:4px;border-radius:2px;background:var(--canvas-tint);overflow:hidden}
+.dsh-agbar i{display:block;height:100%;background:var(--viz-bar)}
+.dsh-agh{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);flex:none;font-variant-numeric:tabular-nums}
+
+.dsh-ev{display:grid;grid-template-columns:7px minmax(0,1fr) auto;gap:11px;align-items:start;padding:9px 14px;border-top:1px solid var(--line-soft)}
+.dsh-ev:first-child{border-top:0}
+.dsh-ev__dot{width:7px;height:7px;border-radius:50%;background:var(--faint);margin-top:5px}
+.dsh-ev__dot[data-tone="success"]{background:var(--success)}.dsh-ev__dot[data-tone="warning"]{background:var(--warning)}
+.dsh-ev__dot[data-tone="danger"]{background:var(--danger)}.dsh-ev__dot[data-tone="run"]{background:var(--accent)}
+.dsh-ev__t{font-size:13px;font-weight:510;color:var(--fg);line-height:1.4}
+.dsh-ev__t b{font-weight:600;color:var(--fg-strong)}
+.dsh-ev__d{font-size:12px;line-height:1.5;color:var(--muted);margin-top:2px}
+.dsh-ev__time{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);font-variant-numeric:tabular-nums;margin-top:3px}
+.dsh-evsep{display:flex;align-items:center;gap:10px;padding:12px 14px 2px}
+.dsh-evsep::after{content:"";flex:1;height:1px;background:var(--line-soft)}
+.dsh-evmore{display:flex;align-items:center;gap:7px;width:100%;padding:10px 14px;text-align:left;font-size:12px;color:var(--muted);border-top:1px solid var(--line-soft)}
+.dsh-evmore:hover{color:var(--fg);background:var(--row-hover)}
+.dsh-evmore svg.lucide{width:12px;height:12px;color:var(--faint);transition:transform var(--dur) var(--ease)}
+.dsh-evmore[aria-expanded="true"] svg.lucide{transform:rotate(90deg)}
+
+/* --- heatmap & meters --- */
+/* 34 + 24×15 + 25×3 = 469px of fixed track: the grid already refuses to shrink,
+   so a larger min-width would only scroll empty gutter under the .scroll-x fade */
+.dsh-heat{display:grid;grid-template-columns:34px repeat(24,15px);gap:3px;min-width:min-content;padding:14px}
+.dsh-heat-l{font-family:var(--font-mono);font-size:9.5px;color:var(--faint);line-height:15px}
+.dsh-heat-h{font-family:var(--font-mono);font-size:9.5px;color:var(--faint);line-height:12px;text-align:center}
+.dsh-cell{width:15px;height:15px;border-radius:3px;background:var(--viz-cell)}
+.dsh-insights{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:10px 14px;border-top:1px solid var(--line-soft);font-size:12px;color:var(--muted)}
+.dsh-insights b{color:var(--fg-strong);font-weight:510}
+.dsh-insights .mono{font-size:10.5px;color:var(--faint)}
+.dsh-share{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--canvas-tint)}
+.dsh-share i{display:block;height:100%}
+.dsh-mrow{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:6px;font-size:11.5px;color:var(--muted)}
+.dsh-mrow .mono{font-size:10.5px;color:var(--subtle)}
+.dsh-meters{display:flex;flex-direction:column;gap:12px}
+
+/* --- system fold --- */
+.dsh-sysbar{display:flex;align-items:center;gap:10px;width:100%;padding:11px 14px;text-align:left}
+.dsh-sysbar:hover{background:var(--row-hover)}
+.dsh-sysbar b{font-size:13px;font-weight:510;color:var(--fg-strong);flex:none}
+.dsh-sysbar .sum{margin-left:auto;font-family:var(--font-mono);font-size:11px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsh-sysbar svg.lucide{color:var(--faint);flex:none;transition:transform var(--dur) var(--ease)}
+.dsh-sysbar[aria-expanded="true"] svg.lucide{transform:rotate(180deg)}
+.dsh-sysdetail{padding:0 14px 14px;border-top:1px solid var(--line-soft)}
+.dsh-sysdetail .tiles{grid-template-columns:repeat(3,1fr);margin-top:14px}
+.dsh-code{
+  margin-top:12px;padding:10px 12px;border-radius:var(--radius-md);background:var(--rail);
+  font-family:var(--font-mono);font-size:11.5px;line-height:1.55;color:var(--muted);
+  white-space:pre;overflow-x:auto;
+}
+.dsh-code .c{color:var(--faint)}
+.dsh-code .k{color:var(--accent-strong)}
+
+@media (max-width:1080px){.dsh-grid2{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}.dsh-sysdetail .tiles{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:760px){.dsh-agrow{grid-template-columns:minmax(0,1fr) 48px 48px}.dsh-agrow>:nth-child(n+4){display:none}}
+@media (max-width:520px){.kpis{grid-template-columns:1fr}}
+</style>
+</head>
+<body class="ds-doc">
+<div class="doc" data-od-id="ds-dashboards">
+  <nav class="docnav" data-od-id="docnav">
+    <a href="index.html"><span class="num">00</span>Overview</a>
+    <a href="foundations.html"><span class="num">01</span>Foundations</a>
+    <a href="os-shell.html"><span class="num">02</span>OS Shell</a>
+    <a href="components.html"><span class="num">03</span>Components</a>
+    <a href="command-palette.html"><span class="num">04</span>Command Palette</a>
+    <a href="modals.html"><span class="num">05</span>Modals</a>
+    <a href="settings.html"><span class="num">06</span>Settings</a>
+    <a href="dashboards.html" aria-current="page"><span class="num">07</span>Dashboards</a>
+    <a href="empty-states.html"><span class="num">08</span>Empty States</a>
+    <a href="profiles.html"><span class="num">09</span>Profiles</a>
+    <a href="patterns.html"><span class="num">10</span>Patterns</a>
+  </nav>
+
+  <header class="hero" data-od-id="hero">
+    <p class="eyebrow">CompozyOS · Chapter 07</p>
+    <h1>Dashboards</h1>
+    <p>A dashboard is a <b>document you read top to bottom</b>, not a cockpit you monitor. It answers four
+    questions in order — <i>what needs me · what is happening · how did it go · is the machine healthy</i> —
+    and every zone below is placed by that answer, not by visual balance. The grammar here is the modernized
+    form of <code>../_done/dashboard/dashboard.html</code>: same zone order, but tokens now come from
+    <code>ds-core.css</code>, icons are Lucide only, panels carry no signal-tinted borders, and every section
+    is collapsible. On conflict this chapter supersedes that file.</p>
+  </header>
+
+  <!-- ============ 01 ZONE ORDER ============ -->
+  <section class="sec" data-od-id="sec-zones">
+    <h2><span class="num">01</span>Zone order is locked</h2>
+    <p class="lead">Order encodes priority. A dashboard that opens on charts is telling the user their
+    attention belongs to a number instead of to the approval waiting on them. Zones may be empty (an empty
+    zone renders a one-line honest note, never a placeholder chart) but they never trade places.</p>
+    <table class="spec" data-od-id="zone-table">
+      <tr><th>#</th><th>Zone</th><th>Answers</th><th>Shape</th></tr>
+      <tr><td>0</td><td>Page meta</td><td>Which workspace, how fresh</td><td>Demoted 12px line + hairline</td></tr>
+      <tr><td>1</td><td>Needs you</td><td>What is blocked on me</td><td>Attention rows (<code>.att</code>)</td></tr>
+      <tr><td>2</td><td>KPI strip</td><td>The four numbers of the day</td><td>4-up <code>.kpi--lg</code></td></tr>
+      <tr><td>3</td><td>Working now │ Network</td><td>What is running right now</td><td>Paired panels</td></tr>
+      <tr><td>4</td><td>Pulse</td><td>When this workspace is busy</td><td>Full-width heatmap</td></tr>
+      <tr><td>5</td><td>Outcomes │ Usage</td><td>How did the last two weeks go</td><td>Paired chart cards</td></tr>
+      <tr><td>6</td><td>Agents │ Activity</td><td>Who did the work, in what order</td><td>Paired table + feed</td></tr>
+      <tr><td>7</td><td>System</td><td>Is the machine healthy</td><td>One-line fold</td></tr>
+    </table>
+
+    <h3>Zone 0 — the page never renders an H1</h3>
+    <p class="lead">Identity renders once, in the 44px window head (non-negotiable 03). The body opens on a
+    demoted meta line: 12px subtle, <code>.dotsep</code> separators, a hairline bottom rule, no icon.</p>
+    <div class="demo demo--col" data-od-id="demo-pagemeta">
+      <section class="win is-focused">
+        <header class="win-head">
+          <div class="win-controls"><button class="wc wc-close" aria-label="Close"></button><button class="wc wc-min" aria-label="Minimize"></button><button class="wc wc-zoom" aria-label="Zoom"></button></div>
+          <div class="w2-id">
+            <span class="w2-glyph" aria-hidden="true"><i data-lucide="layout-dashboard"></i></span>
+            <span class="w2-title">Overview</span>
+          </div>
+          <span class="w2-flex" aria-hidden="true"></span>
+          <div class="win-trail">
+            <span class="w2-status" data-tone="run"><span class="d d--run d--pulse"></span>4 working</span>
+            <span class="w2-vsep"></span>
+            <div class="w2-actions"><button class="btn btn--primary btn--sm">New session</button></div>
+          </div>
+        </header>
+        <div class="win-body" style="padding:16px 20px 18px">
+          <div class="dsh-pagemeta" data-od-id="pagemeta">
+            <b>compozy-core</b><span class="dotsep"></span>4 agents<span class="dotsep"></span>2 loops
+            <span class="dotsep"></span>updated 14s ago<span class="dotsep"></span>events kept 60 days
+          </div>
+          <div class="dsh-head">
+            <span class="eyebrow">Needs you</span><span class="count-chip">3</span>
+            <span class="dsh-sp"></span>
+            <a class="dsh-act" href="#">Open inbox <i data-lucide="chevron-right"></i></a>
+          </div>
+          <div class="panelbox" style="padding:4px 10px">
+            <div class="att">
+              <div class="att__row"><span class="d d--needs" style="margin-top:4px"></span>
+                <div><div class="att__text"><b style="color:var(--fg-strong);font-weight:600">reviewer</b> wants to push 4 commits to <code>main</code></div>
+                  <div class="att__meta">nightly-triage · asked 6m ago</div></div>
+                <div class="att__actions"><button class="btn btn--sm">Review</button></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <p class="demo-note"><b>No title, no subtitle, no route breadcrumb bar.</b> The head owns the name; the
+      meta line owns the scope and the freshness, and it is the quietest text on the page.</p>
+    </div>
+  </section>
+
+  <!-- ============ 02 SECTION HEAD ============ -->
+  <section class="sec" data-od-id="sec-section-head">
+    <h2><span class="num">02</span>Section head &amp; the collapse contract</h2>
+    <p class="lead">One head grammar for every zone: <code>.eyebrow</code> (sentence case, 12px/510) ·
+    <code>.count-chip</code> when a count exists · spacer · one quiet trailing link. No uppercase shouting,
+    no icon per heading, no second action. Counts of zero render nothing at all.</p>
+    <div class="demo demo--col" data-od-id="demo-section-head">
+      <div style="width:100%">
+        <div class="dsh-head">
+          <span class="eyebrow">Needs you</span><span class="count-chip">3</span>
+          <span class="dsh-sp"></span>
+          <a class="dsh-act" href="#">Open inbox <i data-lucide="chevron-right"></i></a>
+        </div>
+        <div class="panelbox">
+          <div class="dsh-ev"><span class="dsh-ev__dot" data-tone="warning"></span>
+            <div><div class="dsh-ev__t"><b>reviewer</b> wants to push 4 commits to <code>main</code></div></div>
+            <span class="dsh-ev__time">6m</span></div>
+          <div class="dsh-ev"><span class="dsh-ev__dot" data-tone="warning"></span>
+            <div><div class="dsh-ev__t"><b>docs-writer</b> asked which version the quickstart targets</div></div>
+            <span class="dsh-ev__time">22m</span></div>
+        </div>
+      </div>
+      <p class="demo-note">trailing link is <b>11px/510 muted + 12px chevron</b> — a destination, never a verb</p>
+    </div>
+
+    <h3>Every section collapses</h3>
+    <p class="lead">Sections are <code>details/summary</code>: icon · title · one-line gist · chevron. Defaults
+    are calm — heavy zones (Pulse, Usage, Agents) ship closed, and <b>a closed section still informs</b>,
+    because the gist carries the verdict. Collapse state is per-user, never per-session.</p>
+    <div class="demo demo--col" data-od-id="demo-collapse">
+      <details class="dsh-fold" open>
+        <summary><i data-lucide="activity"></i><b>Outcomes</b><span class="gist">93% of 137 runs finished clean · last 14 days</span><i data-lucide="chevron-down" class="chev"></i></summary>
+        <div class="dsh-fold__body">
+          <div class="dsh-figure"><b>93%</b><span>finished clean — 127 of 137 runs</span></div>
+          <div class="dsh-legend">
+            <span><i style="background:var(--viz-bar)"></i>Finished <b class="n">127</b></span>
+            <span><i style="background:var(--viz-other)"></i>Canceled <b class="n">4</b></span>
+            <span><i style="background:var(--danger)"></i>Failed <b class="n">6</b></span>
+          </div>
+        </div>
+      </details>
+      <details class="dsh-fold">
+        <summary><i data-lucide="calendar-clock"></i><b>Pulse</b><span class="gist">Busiest Tue 14:00 · quiet weekends</span><i data-lucide="chevron-down" class="chev"></i></summary>
+        <div class="dsh-fold__body">
+          <div class="dsh-insights" style="padding:8px 0 2px;border-top:0">
+            <span>Busiest hour <b>Tue 14:00</b> <span class="mono">61 events</span></span><span class="dotsep"></span>
+            <span>Quietest <b>Sun</b> <span class="mono">9 events</span></span>
+          </div>
+        </div>
+      </details>
+      <p class="demo-note">closed row reads as a sentence — the user learns the verdict without opening it</p>
+    </div>
+  </section>
+
+  <!-- ============ 03 KPI STRIP ============ -->
+  <section class="sec" data-od-id="sec-kpi">
+    <h2><span class="num">03</span>KPI strip</h2>
+    <p class="lead">Four tiles, never five. The dashboard tier uses <code>.kpi--lg</code>: value 24px/620
+    tabular, label 12.5px muted, and a composition sub-line at 12.5px subtle that spends the number
+    (<i>3 sessions · 1 loop run</i>). A sparkline may sit at the right of the value row, drawn in
+    <code>--viz-line</code> over <code>--viz-fill</code>. No decorative arrow repeated on every label.</p>
+    <div class="demo demo--col" data-od-id="demo-kpis">
+      <div class="kpis" style="width:100%">
+        <a class="kpi kpi--lg" href="#" data-od-id="kpi-working">
+          <span class="kpi__l">Working now</span>
+          <div class="dsh-kpirow"><span class="kpi__v">4</span></div>
+          <span class="kpi__sub">3 sessions · 1 loop run</span>
+        </a>
+        <a class="kpi kpi--lg" href="#" data-od-id="kpi-needs">
+          <span class="kpi__l">Needs you</span>
+          <div class="dsh-kpirow"><span class="kpi__v" data-tone="warning">3</span></div>
+          <span class="kpi__sub">1 approval · 1 input · 1 failure</span>
+        </a>
+        <a class="kpi kpi--lg" href="#" data-od-id="kpi-finished">
+          <span class="kpi__l">Finished today</span>
+          <div class="dsh-kpirow"><span class="kpi__v">17</span></div>
+          <span class="kpi__sub">12 runs · 5 tasks closed</span>
+        </a>
+        <a class="kpi kpi--lg" href="#" data-od-id="kpi-tokens">
+          <span class="kpi__l">Tokens · 30d</span>
+          <div class="dsh-kpirow"><span class="kpi__v">41.8M</span><svg class="dsh-spark" id="spark" viewBox="0 0 66 22" aria-hidden="true"></svg></div>
+          <span class="kpi__sub">≈ $126 estimated</span>
+        </a>
+      </div>
+    </div>
+    <table class="spec">
+      <tr><th>Slot</th><th>Dashboard tier</th><th>Window tier</th></tr>
+      <tr><td>Value</td><td><code>--text-kpi</code> 24px / 620 / <code>--track-detail</code></td><td><code>--text-kpi-compact</code> 17px / 620</td></tr>
+      <tr><td>Label</td><td>12.5px <code>--muted</code>, sentence case</td><td>same</td></tr>
+      <tr><td>Sub line</td><td>12.5px <code>--subtle</code> — composition, never a delta badge</td><td>optional</td></tr>
+      <tr><td>Padding</td><td><code>16px 20px</code> (<code>.kpi--lg</code>)</td><td><code>12px 16px</code></td></tr>
+      <tr><td>Tone</td><td><code>data-tone</code> on the value only, and only when the number <i>is</i> a state</td><td>same</td></tr>
+      <tr><td>Sparkline</td><td>66×22, <code>--viz-line</code> 1.25px + <code>--viz-fill</code></td><td>omitted</td></tr>
+    </table>
+  </section>
+
+  <!-- ============ 04 PAIRED PANELS ============ -->
+  <section class="sec" data-od-id="sec-paired">
+    <h2><span class="num">04</span>Paired panels &amp; the flush-bottom contract</h2>
+    <p class="lead">Two panels side by side almost always hold unequal content, and the short one ends in a
+    band of dead air with its footer link floating mid-column. The fix is a four-link flex chain — encode it
+    verbatim, it is not optional styling.</p>
+    <div class="dsh-code" data-od-id="flush-bottom-contract"><span class="c">/* grid → section → panelbox → list → foot */</span>
+.dsh-grid2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; <span class="k">align-items:stretch</span> }
+.dsh-col   { display:flex; flex-direction:column }           <span class="c">/* section is a column   */</span>
+.dsh-col &gt; .panelbox { <span class="k">flex:1</span>; display:flex; flex-direction:column } <span class="c">/* panel fills it */</span>
+.dsh-fill  { <span class="k">flex:1</span> }                                    <span class="c">/* inner list absorbs    */</span>
+.dsh-foot  { <span class="k">margin-top:auto</span>; border-top:1px solid var(--line-soft) }</div>
+    <div class="demo demo--col" data-od-id="demo-paired">
+      <div class="dsh-grid2" style="width:100%">
+        <section class="dsh-col" data-od-id="panel-working-now">
+          <div class="dsh-head"><span class="eyebrow">Working now</span><span class="count-chip">4</span>
+            <span class="dsh-sp"></span><a class="dsh-act" href="#">View sessions <i data-lucide="chevron-right"></i></a></div>
+          <div class="panelbox">
+            <div class="dsh-fill" style="padding:10px;display:flex;flex-direction:column;gap:8px">
+              <a class="runcard" href="#">
+                <div style="min-width:0">
+                  <div class="runcard__title"><span class="d d--run d--pulse"></span><span class="agent-avatar">CO</span>core</div>
+                  <div class="runcard__sub">Reviewing the ACP reconnect patch — 3 of 7 files read</div>
+                </div>
+                <span class="runcard__elapsed">12m 08s</span>
+              </a>
+              <a class="runcard" href="#">
+                <div style="min-width:0">
+                  <div class="runcard__title"><span class="d d--run d--pulse"></span><span class="agent-avatar">DW</span>docs-writer</div>
+                  <div class="runcard__sub">Rewriting the Loops quickstart — section 2 of 5</div>
+                </div>
+                <span class="runcard__elapsed">4m 31s</span>
+              </a>
+              <a class="runcard" href="#">
+                <div style="min-width:0">
+                  <div class="runcard__title"><span class="d d--run d--pulse"></span><span class="agent-avatar">OP</span>ops<span class="kind">loop run</span></div>
+                  <div class="runcard__sub">nightly-triage — labelling 18 open issues</div>
+                </div>
+                <span class="runcard__elapsed">1h 02m</span>
+              </a>
+            </div>
+            <div class="dsh-foot"><a class="dsh-act" href="#">Open the session list <i data-lucide="chevron-right"></i></a></div>
+          </div>
+        </section>
+
+        <section class="dsh-col" data-od-id="panel-network">
+          <div class="dsh-head"><span class="eyebrow">Network</span>
+            <span class="dsh-sp"></span><span class="dsh-note">2 peers reachable</span></div>
+          <div class="panelbox">
+            <div class="dsh-fill" style="padding:6px 14px">
+              <div class="prow"><span class="prow__k">Peers online</span><span class="prow__v"><span class="d d--ok"></span> 2 <span class="mono" style="color:var(--faint)">mac-studio · hermes-vps</span></span></div>
+              <div class="prow"><span class="prow__k">Open work</span><span class="prow__v">3 <span class="dotsep"></span><span class="mono" style="color:var(--warning)">1 needs input</span></span></div>
+              <div class="prow"><span class="prow__k">Messages today</span><span class="prow__v mono">128</span></div>
+              <div class="prow"><span class="prow__k">Last activity</span><span class="prow__v">6m ago</span></div>
+              <div style="margin:12px 0 4px">
+                <div class="dsh-mrow"><span>Wakes this week <span style="color:var(--faint)">· resets Sunday</span></span><span class="mono">12 / 50</span></div>
+                <div class="meter" role="img" aria-label="12 of 50 network wakes used"><i class="meter-fill" style="width:24%"></i></div>
+              </div>
+            </div>
+            <div class="dsh-foot"><a class="dsh-act" href="#">Open Network <i data-lucide="chevron-right"></i></a></div>
+          </div>
+        </section>
+      </div>
+      <p class="demo-note">both footers sit on the same baseline even though the left panel holds three cards
+      and the right holds four rows plus a meter — <b>no leftover air</b></p>
+    </div>
+  </section>
+
+  <!-- ============ 05 CHART CARDS ============ -->
+  <section class="sec" data-od-id="sec-charts">
+    <h2><span class="num">05</span>Chart cards</h2>
+    <p class="lead">A chart card is a headline sentence with a picture under it. <b>One headline figure per
+    panel</b> — 22px/620 value plus a 12px subtle caption that says what the figure counts. Below it a chart
+    body of at least 120px, a legend, and a mandatory provenance footnote. If you cannot write the footnote,
+    the panel does not ship.</p>
+    <div class="demo demo--col" data-od-id="demo-charts">
+      <div class="dsh-grid2" style="width:100%">
+        <section class="dsh-col" data-od-id="panel-outcomes">
+          <div class="dsh-head"><span class="eyebrow">Outcomes</span><span class="dsh-sp"></span><span class="dsh-note">last 14 days</span></div>
+          <div class="panel">
+            <div class="dsh-figure"><b>93%</b><span>finished clean — 127 of 137 runs</span></div>
+            <div class="dsh-chart">
+              <div class="dsh-bars" id="outBars" role="img" aria-label="Daily run outcomes for the last 14 days: 127 finished, 4 canceled, 6 failed"></div>
+              <div class="dsh-xaxis"><span>Aug 10</span><span>Aug 17</span><span>Aug 23</span></div>
+            </div>
+            <div class="dsh-legend">
+              <span><i style="background:var(--viz-bar)"></i>Finished <b class="n">127</b></span>
+              <span><i style="background:var(--viz-other)"></i>Canceled <b class="n">4</b></span>
+              <span><i style="background:var(--danger)"></i>Failed <b class="n">6</b></span>
+            </div>
+            <p class="footnote">Each bar counts loop and task runs that <b>ended</b> that day in this workspace.
+            Runs still open are not counted anywhere.</p>
+          </div>
+        </section>
+
+        <section class="dsh-col" data-od-id="panel-usage">
+          <div class="dsh-head"><span class="eyebrow">Usage</span><span class="dsh-sp"></span>
+            <div class="pill-group pill-group--sm" role="group" aria-label="Usage window">
+              <button class="pill-group__item" aria-pressed="false">7d</button>
+              <button class="pill-group__item is-on" aria-pressed="true">30d</button>
+              <button class="pill-group__item" aria-pressed="false">90d</button>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="dsh-figure"><b>41.8M</b><span>tokens — ≈ $126 estimated</span></div>
+            <div class="dsh-chart">
+              <svg class="dsh-area" id="useArea" viewBox="0 0 300 104" preserveAspectRatio="none" role="img" aria-label="Tokens per day over the last 30 days, peaking mid-window"></svg>
+              <div class="dsh-xaxis"><span>Jul 25</span><span>Aug 08</span><span>Aug 23</span></div>
+            </div>
+            <p class="footnote">Cost is estimated from the model catalog and may diverge from provider billing.</p>
+            <div class="dsh-subdiv">
+              <div class="dsh-subhead"><span class="eyebrow">Share by agent</span><span class="dsh-sp"></span><span class="dsh-note">last 30 days</span></div>
+              <div class="dsh-share" role="img" aria-label="Token share: core 44%, reviewer 27%, docs-writer 18%, ops 11%">
+                <i style="width:44%;background:rgba(255,255,255,.34)"></i>
+                <i style="width:27%;background:rgba(255,255,255,.24)"></i>
+                <i style="width:18%;background:rgba(255,255,255,.16)"></i>
+                <i style="width:11%;background:rgba(255,255,255,.09)"></i>
+              </div>
+              <div class="dsh-legend">
+                <span><i style="background:rgba(255,255,255,.34)"></i>core <b class="n">18.4M</b></span>
+                <span><i style="background:rgba(255,255,255,.24)"></i>reviewer <b class="n">11.3M</b></span>
+                <span><i style="background:rgba(255,255,255,.16)"></i>docs-writer <b class="n">7.5M</b></span>
+                <span><i style="background:rgba(255,255,255,.09)"></i>ops <b class="n">4.6M</b></span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+      <p class="demo-note"><b>.dsh-subdiv</b> uses the full-bleed hairline trick — negative side margins equal
+      to the panel padding, so the rule reaches both edges while the content stays aligned</p>
+    </div>
+
+    <h3>Viz ink rules</h3>
+    <p class="lead">Magnitude is neutral. A hue appears only when the series <i>is</i> the state — failed runs
+    are <code>--danger</code> because failure is the meaning of the bar, not because red looks urgent. The
+    <b>expected outcome stays neutral</b> — “finished” is the norm, not a signal — and legend swatches match
+    their mark exactly, because a green key over a grey bar is a lie about the chart.</p>
+    <table class="spec">
+      <tr><th>Mark</th><th>Ink</th><th>Alpha</th></tr>
+      <tr><td>Bars (magnitude)</td><td><code>--viz-bar</code></td><td><code>.30</code></td></tr>
+      <tr><td>Line</td><td><code>--viz-line</code></td><td><code>.42</code></td></tr>
+      <tr><td>Area fill</td><td><code>--viz-fill</code></td><td><code>.055</code></td></tr>
+      <tr><td>Grid rules</td><td><code>--viz-grid</code></td><td><code>.045</code></td></tr>
+      <tr><td>Secondary series</td><td><code>--viz-other</code></td><td><code>.26</code></td></tr>
+      <tr><td>Heatmap cell</td><td><code>--viz-cell</code> at ramped alpha</td><td><code>.05 → .55</code></td></tr>
+      <tr><td>Signal series</td><td><code>--success</code> / <code>--danger</code> / <code>--warning</code></td><td>solid — state only</td></tr>
+      <tr><td>Axes / ticks</td><td>mono 9.5px <code>--faint</code></td><td>—</td></tr>
+      <tr><td>Legend</td><td>11.5px, 8px swatch <code>radius 2</code>, mono count</td><td>—</td></tr>
+    </table>
+  </section>
+
+  <!-- ============ 06 DATA ROWS ============ -->
+  <section class="sec" data-od-id="sec-rows">
+    <h2><span class="num">06</span>Data rows</h2>
+
+    <h3>Attention rows — the tone lives in the dot</h3>
+    <p class="lead">Zone 1 rows carry a 7px dot, 12.5px text, a mono timestamp, and exactly two actions: one
+    primary verb and one ghost escape. <b>The panel border stays neutral</b> — a warning-tinted panel edge
+    turns a single blocked run into a red screen. A resolved row flips to <code>--success-tint</code> in place
+    and keeps its height so nothing jumps.</p>
+    <div class="demo demo--col" data-od-id="demo-attention">
+      <div class="panelbox" style="width:100%;padding:4px 10px">
+        <div class="att">
+          <div class="att__row" data-od-id="att-approval"><span class="d d--needs" style="margin-top:4px"></span>
+            <div><div class="att__text"><b style="color:var(--fg-strong);font-weight:600">reviewer</b> wants to push 4 commits to <code>main</code></div>
+              <div class="att__meta">nightly-triage · asked 6m ago</div></div>
+            <div class="att__actions"><button class="btn btn--sm">Review</button><button class="btn btn--sm btn--ghost">Later</button></div></div>
+          <div class="att__row" data-od-id="att-input"><span class="d d--needs" style="margin-top:4px"></span>
+            <div><div class="att__text"><b style="color:var(--fg-strong);font-weight:600">docs-writer</b> asked which version the quickstart targets</div>
+              <div class="att__meta">session 4f2a · asked 22m ago</div></div>
+            <div class="att__actions"><button class="btn btn--sm">Answer</button><button class="btn btn--sm btn--ghost">Open</button></div></div>
+          <div class="att__row" data-od-id="att-failure"><span class="d d--fail" style="margin-top:4px"></span>
+            <div><div class="att__text"><b style="color:var(--fg-strong);font-weight:600">docs-sync</b> failed on its second attempt</div>
+              <div class="att__meta">loop run 118 · 1h ago · exit 1</div></div>
+            <div class="att__actions"><button class="btn btn--sm">Retry</button><button class="btn btn--sm btn--ghost">Logs</button></div></div>
+          <div class="att__row dsh-att-done" data-od-id="att-resolved"><span class="d d--ok" style="margin-top:4px"></span>
+            <div><div class="att__text">You approved <b style="color:var(--fg-strong);font-weight:600">brand-kit refresh</b></div>
+              <div class="att__meta">resolved just now</div></div>
+            <div class="att__actions"><button class="btn btn--sm btn--ghost">Undo</button></div></div>
+        </div>
+      </div>
+      <p class="demo-note">four tones, one neutral container — <b>the dots carry the state</b></p>
+    </div>
+
+    <h3>Agent table rows</h3>
+    <p class="lead">Grid <code>1fr / 52 / 64 / 52 / 1fr</code>. Numerics are mono, right-aligned and tabular so
+    columns stack visually; a zero renders <code>--faint</code> instead of bold nothing; a failure count above
+    zero takes <code>--danger</code> ink and nothing else changes.</p>
+    <div class="demo demo--col" data-od-id="demo-agents">
+      <div class="panelbox" style="width:100%">
+        <div class="dsh-agrow dsh-aghead" aria-hidden="true"><span>Agent</span><span>Live</span><span>Sessions</span><span>Failed</span><span style="text-align:left">Runtime · 7d</span></div>
+        <a class="dsh-agrow" href="#" data-od-id="agent-core"><span class="dsh-agname"><span class="agent-avatar">CO</span><b>core</b></span>
+          <span class="dsh-num">1</span><span class="dsh-num">42</span><span class="dsh-num" data-tone="danger">2</span>
+          <span class="dsh-agrt"><span class="dsh-agbar"><i style="width:100%"></i></span><span class="dsh-agh">11.4h</span></span></a>
+        <a class="dsh-agrow" href="#" data-od-id="agent-reviewer"><span class="dsh-agname"><span class="agent-avatar">RV</span><b>reviewer</b></span>
+          <span class="dsh-num">1</span><span class="dsh-num">27</span><span class="dsh-num" data-zero>0</span>
+          <span class="dsh-agrt"><span class="dsh-agbar"><i style="width:58%"></i></span><span class="dsh-agh">6.6h</span></span></a>
+        <a class="dsh-agrow" href="#" data-od-id="agent-docs-writer"><span class="dsh-agname"><span class="agent-avatar">DW</span><b>docs-writer</b></span>
+          <span class="dsh-num">1</span><span class="dsh-num">18</span><span class="dsh-num" data-tone="danger">1</span>
+          <span class="dsh-agrt"><span class="dsh-agbar"><i style="width:34%"></i></span><span class="dsh-agh">3.9h</span></span></a>
+        <a class="dsh-agrow" href="#" data-od-id="agent-ops"><span class="dsh-agname"><span class="agent-avatar">OP</span><b>ops</b></span>
+          <span class="dsh-num" data-zero>0</span><span class="dsh-num">9</span><span class="dsh-num" data-zero>0</span>
+          <span class="dsh-agrt"><span class="dsh-agbar"><i style="width:16%"></i></span><span class="dsh-agh">1.8h</span></span></a>
+      </div>
+      <p class="demo-note">runtime bar is <b>--viz-bar</b>, not accent — it is magnitude, not activity</p>
+    </div>
+
+    <h3>Activity feed</h3>
+    <p class="lead">7px tone dot · 13px/510 title · optional 12px/1.5 muted detail · tabular time. Day
+    separators are an eyebrow followed by a flex rule. Everything mechanical (tool calls, config reads,
+    compactions) folds behind one disclosure that names what it hides.</p>
+    <div class="demo demo--col" data-od-id="demo-activity">
+      <div class="panelbox" style="width:100%">
+        <div class="dsh-ev"><span class="dsh-ev__dot" data-tone="success"></span>
+          <div><div class="dsh-ev__t"><b>reviewer</b> finished “ACP reconnect review”</div>
+            <div class="dsh-ev__d">Left 6 comments and marked the branch ready to merge.</div></div>
+          <span class="dsh-ev__time" title="Aug 23, 09:43">2m</span></div>
+        <div class="dsh-ev"><span class="dsh-ev__dot" data-tone="run"></span>
+          <div><div class="dsh-ev__t"><b>docs-writer</b> started a session</div></div>
+          <span class="dsh-ev__time" title="Aug 23, 09:33">12m</span></div>
+        <div class="dsh-ev"><span class="dsh-ev__dot" data-tone="warning"></span>
+          <div><div class="dsh-ev__t"><b>nightly-triage</b> paused, waiting on your approval</div></div>
+          <span class="dsh-ev__time" title="Aug 23, 09:00">45m</span></div>
+        <div class="dsh-ev"><span class="dsh-ev__dot" data-tone="danger"></span>
+          <div><div class="dsh-ev__t"><b>docs-sync</b> failed — retry queued</div>
+            <div class="dsh-ev__d">The build step exited early; the scheduler will run attempt 3 at 11:00.</div></div>
+          <span class="dsh-ev__time" title="Aug 23, 08:11">1h</span></div>
+        <div class="dsh-evsep"><span class="eyebrow">Yesterday</span></div>
+        <div class="dsh-ev"><span class="dsh-ev__dot"></span>
+          <div><div class="dsh-ev__t">You created the trigger <b>docs/**/*.mdx</b></div></div>
+          <span class="dsh-ev__time" title="Aug 22, 18:20">15h</span></div>
+        <button class="dsh-evmore" type="button" aria-expanded="false" aria-controls="quiet" data-od-id="quiet-fold">
+          <i data-lucide="chevron-right"></i>9 quieter events — tool calls, config reads, memory compaction
+        </button>
+        <div id="quiet" hidden>
+          <div class="dsh-ev"><span class="dsh-ev__dot"></span><div><div class="dsh-ev__t"><b>core</b> ran Edit 14 times on <code>internal/acp</code></div></div><span class="dsh-ev__time">16h</span></div>
+          <div class="dsh-ev"><span class="dsh-ev__dot"></span><div><div class="dsh-ev__t">Memory compaction finished</div></div><span class="dsh-ev__time">18h</span></div>
+        </div>
+      </div>
+      <p class="demo-note">the fold <b>names its contents</b>, so a user can decide without opening it</p>
+    </div>
+
+    <h3>Key-value rows</h3>
+    <p class="lead">Runtime facts use <code>.prow</code> — key 12px subtle left, value 12.5px/510 right,
+    30px min height, mono only for machine values (ids, hostnames, counts).</p>
+  </section>
+
+  <!-- ============ 07 HEATMAP & METERS ============ -->
+  <section class="sec" data-od-id="sec-pulse">
+    <h2><span class="num">07</span>Heatmap &amp; meters</h2>
+    <p class="lead">Pulse answers <i>when is this workspace busy</i>. A 34px label column plus 24 hourly cells
+    of 15px at <code>radius 3</code>, alpha-ramped on <code>--viz-cell</code>. The fixed tracks give it a hard
+    floor of 469px, so it lives in <code>.scroll-x</code> rather than shrinking into mush. The insight strip below
+    turns the picture into three sentences for anyone who does not read grids.</p>
+    <div class="demo demo--col" data-od-id="demo-heatmap">
+      <div class="panelbox" style="width:100%">
+        <div class="scroll-x"><div class="dsh-heat" id="heat" role="img" aria-label="Activity by hour and weekday over the last 14 days; the busiest hour is Tuesday at 14:00"></div></div>
+        <div class="dsh-insights" data-od-id="pulse-insights">
+          <span>Busiest hour <b>Tue 14:00</b> <span class="mono">61 events</span></span><span class="dotsep"></span>
+          <span>Longest session <b>2h 47m</b> <span class="mono">core · yesterday</span></span><span class="dotsep"></span>
+          <span>Top tool <b>Edit</b> <span class="mono">418 calls</span></span>
+        </div>
+      </div>
+      <p class="demo-note">alpha ramp <b>.05 → .55</b> on a single ink — hue would imply a category that isn't there</p>
+    </div>
+
+    <h3>Share bars &amp; meters</h3>
+    <p class="lead">A share bar is a 10px stacked strip: one composition, no axis, legend below. A meter is 6px
+    with a label row above it that states both numbers, so the bar is never the only source of the value.</p>
+    <div class="demo" data-od-id="demo-meters">
+      <div class="panelbox dsh-meters" style="width:100%;padding:14px">
+        <div data-od-id="share-by-kind">
+          <div class="dsh-mrow"><span>Runs by kind <span style="color:var(--faint)">· last 30 days</span></span><span class="mono">137 total</span></div>
+          <div class="dsh-share" role="img" aria-label="Runs by kind: loop runs 62, sessions 41, tasks 34">
+            <i style="width:45%;background:rgba(255,255,255,.34)"></i>
+            <i style="width:30%;background:rgba(255,255,255,.24)"></i>
+            <i style="width:25%;background:rgba(255,255,255,.16)"></i>
+          </div>
+          <div class="dsh-legend">
+            <span><i style="background:rgba(255,255,255,.34)"></i>Loop runs <b class="n">62</b></span>
+            <span><i style="background:rgba(255,255,255,.24)"></i>Sessions <b class="n">41</b></span>
+            <span><i style="background:rgba(255,255,255,.16)"></i>Tasks <b class="n">34</b></span>
+          </div>
+        </div>
+        <div>
+          <div class="dsh-mrow"><span>Loop budget · nightly-triage</span><span class="mono">38 / 60 runs</span></div>
+          <div class="meter"><i class="meter-fill" style="width:63%"></i></div>
+        </div>
+        <div>
+          <div class="dsh-mrow"><span>Runs waiting on you</span><span class="mono">3 / 21</span></div>
+          <div class="meter"><i class="meter-fill" data-s="wait" style="width:14%"></i></div>
+        </div>
+        <div>
+          <div class="dsh-mrow"><span>Failed this week</span><span class="mono">6 / 137</span></div>
+          <div class="meter"><i class="meter-fill" data-s="fail" style="width:4.4%"></i></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 08 SYSTEM FOLD ============ -->
+  <section class="sec" data-od-id="sec-system">
+    <h2><span class="num">08</span>System fold</h2>
+    <p class="lead">Health is the last thing on the page and one line tall when nothing is wrong: 7px dot,
+    13px/510 verdict, a mono summary that already contains the answer, chevron. Expanded it becomes a fact
+    grid plus the CLI that produces the same view — the dashboard is a rendering of daemon truth, and it says so.</p>
+    <div class="demo demo--col" data-od-id="demo-system">
+      <div class="panelbox" style="width:100%">
+        <button class="dsh-sysbar" type="button" aria-expanded="true" aria-controls="sysdetail" data-od-id="system-bar">
+          <span class="d d--ok"></span><b>All systems normal</b>
+          <span class="sum">v0.3.0 · up 4d 11h · providers 3/3 · scheduler running</span>
+          <i data-lucide="chevron-down"></i>
+        </button>
+        <div class="dsh-sysdetail" id="sysdetail">
+          <div class="tiles">
+            <div class="tile"><div class="tile__l">Daemon</div><div class="tile__v"><span class="d d--ok"></span>Running <span class="mono" style="color:var(--faint)">v0.3.0</span></div></div>
+            <div class="tile"><div class="tile__l">Providers</div><div class="tile__v"><span class="d d--ok"></span>3 of 3 <span class="mono" style="color:var(--faint)">claude · codex · hermes</span></div></div>
+            <div class="tile"><div class="tile__l">Scheduler</div><div class="tile__v"><span class="d d--ok"></span>Running <span class="mono" style="color:var(--faint)">next 11:00</span></div></div>
+            <div class="tile"><div class="tile__l">Triggers</div><div class="tile__v"><span class="d d--ok"></span>4 armed <span class="mono" style="color:var(--faint)">0 misfires</span></div></div>
+            <div class="tile"><div class="tile__l">Memory</div><div class="tile__v"><span class="d d--ok"></span>Healthy <span class="mono" style="color:var(--faint)">compacted 04:12</span></div></div>
+            <div class="tile"><div class="tile__l">Retention</div><div class="tile__v">60 days <span class="mono" style="color:var(--faint)">events · usage</span></div></div>
+          </div>
+          <div class="dsh-code"><span class="c"># the same view, from the CLI</span>
+<span class="k">compozy</span> observe overview <span class="c">-o json</span></div>
+        </div>
+      </div>
+      <p class="demo-note">collapsed, this bar is <b>one row</b>; a degraded subsystem swaps the dot and rewrites
+      the verdict — it never opens itself or turns the panel red</p>
+    </div>
+  </section>
+
+  <!-- ============ 09 RULES ============ -->
+  <section class="sec" data-od-id="sec-rules">
+    <h2><span class="num">09</span>Dashboard rules</h2>
+    <div class="rule-list">
+      <div class="rule"><i>H1</i><span><b>A dashboard is a document window.</b> Identity renders in the 44px head; the body opens on the demoted meta line. No H1, no subtitle, no PageHead stack.</span></div>
+      <div class="rule"><i>H2</i><span><b>One headline figure per panel.</b> If a panel needs two numbers, it is two panels. The caption must say what the figure counts, in words.</span></div>
+      <div class="rule"><i>H3</i><span><b>Provenance footnotes are mandatory</b> on every chart — the window, the population, and any estimate. A chart you cannot source does not ship.</span></div>
+      <div class="rule"><i>H4</i><span><b>Signal color only on live state.</b> Magnitude is monochrome <code>--viz-*</code>; hue appears when the series <i>is</i> the state. Panels never take a tinted border.</span></div>
+      <div class="rule"><i>H5</i><span><b>Hero KPI 24px/620 is dashboard-only.</b> The same metric inside a normal window renders at <code>--text-kpi-compact</code> 17px. Never mix the two tiers on one screen.</span></div>
+      <div class="rule"><i>H6</i><span><b>Count-ups, pulses and tickers are gated</b> by <code>prefers-reduced-motion</code> and must land on the true value immediately when reduced. Live regions announce, they do not animate.</span></div>
+      <div class="rule"><i>H7</i><span><b>Responsive ladder:</b> 1080 → paired grids collapse to one column and KPIs go 2-up; 760 → agent table drops to name + two numerics; 520 → KPIs go 1-up. The heatmap always scrolls, never shrinks.</span></div>
+      <div class="rule"><i>H8</i><span><b>Every section collapses</b> and its summary carries the verdict, so a fully collapsed dashboard is still a readable status report.</span></div>
+      <div class="rule"><i>H9</i><span><b>Paired panels obey the flush-bottom chain</b> (§04). Unequal content is the normal case, not the exception.</span></div>
+      <div class="rule"><i>H10</i><span><b>Empty zones tell the truth.</b> “No runs finished in this window” beats a zeroed chart, and a zero count renders no chip at all.</span></div>
+    </div>
+    <p style="font-size:var(--text-form);color:var(--muted);margin-top:14px">Living reference:
+    <code>../_done/dashboard/dashboard.html</code> — the full-page composition of all eight zones. It inlines
+    pre-#440 tokens and hand-drawn SVG glyphs; <b>this chapter supersedes its grammar</b>, so pull structure
+    from there and every value from <code>ds-core.css</code>.</p>
+  </section>
+</div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(() => {
+  "use strict";
+  // ---- KPI sparkline: 14 daily token totals (millions) ----
+  const sp = [1.1,1.4,1.2,1.9,2.2,1.6,0.7,0.5,1.8,2.4,2.1,1.7,2.6,2.3];
+  const mx = Math.max(...sp), mn = Math.min(...sp);
+  const pts = sp.map((v,i) => [i*(66/(sp.length-1)), 20 - ((v-mn)/(mx-mn))*17 + 1]);
+  const d = pts.map((p,i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+  document.getElementById("spark").innerHTML =
+    '<polygon points="' + pts.map(p => p[0].toFixed(1)+","+p[1].toFixed(1)).join(" ") + ' 66,22 0,22"/><path d="' + d + '"/>';
+
+  // ---- Outcomes: 14 days × [finished, canceled, failed] ----
+  const out = [[9,0,1],[11,1,0],[8,0,0],[12,0,1],[10,1,0],[6,0,0],[4,0,0],
+               [13,0,2],[11,0,0],[9,1,0],[12,0,1],[10,0,0],[7,0,0],[5,0,1]];
+  const top = Math.max(...out.map(c => c[0]+c[1]+c[2]));
+  document.getElementById("outBars").innerHTML = out.map(([f,c,x]) => {
+    const seg = (n, bg) => n ? '<i style="height:' + (n/top*100).toFixed(1) + '%;background:' + bg + '"></i>' : "";
+    return '<span class="dsh-bar">' + seg(x,"var(--danger)") + seg(c,"var(--viz-other)") + seg(f,"var(--viz-bar)") + "</span>";
+  }).join("");
+
+  // ---- Usage: 30 daily token totals, area + baseline grid ----
+  const use = [0.9,1.2,1.1,1.6,1.4,0.6,0.4,1.7,2.0,1.8,2.3,2.1,0.8,0.5,1.9,
+               2.4,2.2,2.6,2.5,1.1,0.7,2.0,2.3,1.9,2.7,2.4,1.0,0.6,2.1,2.5];
+  const umx = Math.max(...use);
+  const up = use.map((v,i) => [i*(300/(use.length-1)), 100 - (v/umx)*88]);
+  const uline = up.map((p,i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+  document.getElementById("useArea").innerHTML =
+    '<line class="grid" x1="0" y1="12" x2="300" y2="12"/><line class="grid" x1="0" y1="56" x2="300" y2="56"/>' +
+    '<line class="grid" x1="0" y1="100" x2="300" y2="100"/>' +
+    '<path class="fl" d="' + uline + ' L300 104 L0 104 Z"/><path class="ln" d="' + uline + '"/>';
+
+  // ---- Pulse heatmap: 7 weekdays × 24 hours ----
+  const days = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const shape = h => (h < 7 ? 0.05 : h < 10 ? 0.4 : h < 13 ? 0.85 : h < 16 ? 1 : h < 19 ? 0.7 : h < 22 ? 0.35 : 0.1);
+  const dayw = [0.9,1,0.95,0.85,0.75,0.2,0.15];
+  let html = '<span></span>' + Array.from({length:24}, (_,h) =>
+    '<span class="dsh-heat-h">' + (h % 6 === 0 ? String(h).padStart(2,"0") : "") + "</span>").join("");
+  days.forEach((dn, di) => {
+    html += '<span class="dsh-heat-l">' + dn + "</span>";
+    for (let h = 0; h < 24; h++) {
+      const a = 0.05 + shape(h) * dayw[di] * 0.5;
+      html += '<span class="dsh-cell" style="opacity:' + a.toFixed(3) + '"></span>';
+    }
+  });
+  document.getElementById("heat").innerHTML = html;
+
+  // ---- quiet-events fold + system fold ----
+  document.querySelectorAll('[aria-expanded]').forEach(btn => {
+    btn.addEventListener("click", () => {
+      const on = btn.getAttribute("aria-expanded") === "true";
+      btn.setAttribute("aria-expanded", on ? "false" : "true");
+      const target = btn.getAttribute("aria-controls") && document.getElementById(btn.getAttribute("aria-controls"));
+      if (target) target.hidden = on;
+    });
+  });
+
+  lucide.createIcons();
+})();
+</script>
+</body>
+</html>

@@ -6,269 +6,566 @@
 <title>CompozyOS DS · 01 Foundations</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="ds-core.css">
+<link rel="stylesheet" href="ds-docs.css">
 <style>
-/* ---- chapter chrome (doc scaffolding, not product) ---- */
-body{background:var(--canvas);overflow-y:auto}
-.doc{max-width:1080px;margin:0 auto;padding:0 32px 120px}
-.docnav{
-  position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:2px;
-  margin:0 -32px 40px;padding:10px 32px;
-  background:color-mix(in srgb,var(--canvas) 86%,transparent);
-  backdrop-filter:blur(14px);border-bottom:1px solid var(--line);
-}
-.docnav__brand{display:flex;align-items:center;gap:8px;margin-right:14px;font-size:12.5px;font-weight:600;color:var(--fg-strong)}
-.docnav__brand i{width:16px;height:16px;border-radius:5px;background:var(--accent);display:inline-block}
-.docnav a{font-size:12px;font-weight:500;color:var(--muted);padding:5px 9px;border-radius:var(--radius);text-decoration:none}
-.docnav a:hover{color:var(--fg);background:var(--row-hover)}
-.docnav a[aria-current="page"]{color:var(--fg-strong);background:var(--row-selected)}
-.hero{padding:48px 0 8px}
-.hero .eyebrow{color:var(--accent-strong);letter-spacing:.1em}
-.hero h1{font-size:26px;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong);margin:8px 0 10px}
-.hero p{font-size:13.5px;line-height:1.6;color:var(--muted);max-width:70ch}
-.sec{margin-top:56px}
-.sec__head{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
-.sec__num{font-family:var(--font-mono);font-size:11px;color:var(--faint)}
-.sec__head h2{font-size:17px;font-weight:600;letter-spacing:-.02em;color:var(--fg-strong)}
-.sec>p{font-size:13px;line-height:1.6;color:var(--muted);max-width:76ch;margin-bottom:16px}
-.stage{padding:22px;background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg)}
-.spec{width:100%;border-collapse:collapse;font-size:12.5px}
-.spec th{text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--subtle);padding:8px 10px;border-bottom:1px solid var(--line)}
-.spec td{padding:8px 10px;border-bottom:1px solid var(--line-soft);color:var(--muted);vertical-align:top}
-.spec td:first-child{color:var(--fg);white-space:nowrap}
-.spec code{font-size:11px;color:var(--fg);background:var(--badge-fill);border-radius:3px;padding:1px 5px}
-.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
-.sw{border:1px solid var(--line);border-radius:var(--radius-md);overflow:hidden}
-.sw i{display:block;height:44px}
-.sw div{padding:8px 10px;background:var(--canvas-soft)}
-.sw b{display:block;font-size:11.5px;font-weight:600;color:var(--fg)}
-.sw span{font-family:var(--font-mono);font-size:9.5px;color:var(--subtle)}
-.rule-list{display:flex;flex-direction:column;gap:0;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
-.rule{display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;padding:12px 16px;border-top:1px solid var(--line-soft);font-size:12.5px;line-height:1.55;color:var(--muted)}
-.rule:first-child{border-top:0}
-.rule i{font-family:var(--font-mono);font-size:10px;color:var(--accent-strong);padding-top:2px}
-.rule b{color:var(--fg-strong);font-weight:600}
-.typerow{display:flex;align-items:baseline;gap:16px;padding:9px 0;border-bottom:1px solid var(--line-soft)}
-.typerow:last-child{border-bottom:0}
-.typerow .sample{flex:1;min-width:0;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.typerow .meta{font-family:var(--font-mono);font-size:10px;color:var(--subtle);flex:none}
-.hbar{display:flex;align-items:center;gap:12px;padding:6px 0}
-.hbar i{height:14px;border-radius:3px;background:var(--accent-tint-strong);border:1px solid var(--accent-dim);flex:none}
-.hbar span{font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
-.radrow{display:flex;gap:14px;flex-wrap:wrap}
-.rad{display:flex;flex-direction:column;align-items:center;gap:7px}
-.rad i{width:52px;height:52px;background:var(--elevated);border:1px solid var(--line-strong)}
-.rad span{font-family:var(--font-mono);font-size:9.5px;color:var(--subtle)}
-.two{display:grid;grid-template-columns:1fr 1fr;gap:20px}
-@media (max-width:860px){.two{grid-template-columns:1fr}}
+/* page-local specimen chrome — never product CSS */
+.fd-ramp .swatch__chip{height:58px}
+.fd-note{font-size:var(--text-form);line-height:1.6;color:var(--muted);max-width:78ch;margin-top:12px}
+.fd-note b{color:var(--fg-strong);font-weight:600}
+.fd-stack{display:flex;flex-direction:column;gap:2px;width:100%}
+.fd-glaze{display:flex;align-items:center;gap:10px;height:36px;padding:0 12px;border-radius:var(--radius-md);font-size:var(--text-small-body);color:var(--fg)}
+.fd-glaze .fd-v{margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--faint);font-variant-numeric:tabular-nums}
+.fd-hair{display:flex;flex-direction:column;width:100%}
+.fd-hair div{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 2px;font-size:var(--text-form);color:var(--muted);border-bottom-width:1px;border-bottom-style:solid}
+.fd-type{display:flex;flex-direction:column;width:100%}
+.fd-type__row{display:grid;grid-template-columns:minmax(0,1fr) 224px;gap:20px;align-items:baseline;padding:10px 0;border-top:1px solid var(--line-soft)}
+.fd-type__row:first-child{border-top:0}
+.fd-type__s{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg-strong)}
+.fd-type__m{font-family:var(--font-mono);font-size:10px;color:var(--subtle);text-align:right;font-variant-numeric:tabular-nums}
+.fd-h{display:flex;align-items:center;gap:12px;padding:4px 0}
+.fd-h i{flex:none;border-radius:var(--radius-xs);background:var(--surface-glaze);box-shadow:var(--inset-strong)}
+.fd-h b{font-size:var(--text-form);font-weight:510;color:var(--muted)}
+.fd-h span{margin-left:auto;font-family:var(--font-mono);font-size:10.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+.fd-rads{display:flex;flex-wrap:wrap;gap:14px}
+.fd-rad{display:flex;flex-direction:column;align-items:center;gap:7px}
+.fd-rad i{width:58px;height:58px;display:block;background:var(--elevated);box-shadow:var(--inset-strong)}
+.fd-rad span{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.fd-rad em{font-style:normal;font-size:10px;color:var(--subtle)}
+/* lucide.createIcons() copies class + style onto the generated <svg>, so the
+   rule has to hold for both the placeholder and the replaced element */
+.fd-ic{display:inline-grid;place-items:center;color:var(--muted);flex:none;stroke-width:1.75}
+.fd-ic svg{width:100%;height:100%;stroke-width:1.75}
+.fd-ic--floor,.fd-ic--floor svg{stroke-width:2}
+.fd-spec{display:flex;flex-direction:column;align-items:center;gap:9px}
+.fd-spec span{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.fd-well{display:grid;place-items:center;border-radius:var(--radius-md);background:var(--elevated);color:var(--muted);flex:none}
+.fd-mot{display:flex;align-items:center;gap:9px;height:34px;padding:0 12px;border-radius:var(--radius-md);background:var(--btn-fill);font-size:var(--text-form);font-weight:510;color:var(--fg-strong)}
+.fd-mot:hover{background:var(--btn-hover);color:var(--accent-strong)}
+.fd-mot .fd-v{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.fd-ring{box-shadow:var(--focus-ring)}
+.fd-ring-inset{box-shadow:var(--focus-ring-inset)}
+.fd-dis{border-color:var(--line-soft)!important;background:var(--canvas)!important;color:var(--disabled)!important}
+.fd-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:760px){.fd-grid2{grid-template-columns:1fr}.fd-type__row{grid-template-columns:1fr}.fd-type__m{text-align:left}}
 </style>
 </head>
-<body>
+<body class="ds-doc">
 <div class="doc" data-od-id="ds-foundations">
-  <nav class="docnav" data-od-id="ds-nav">
-    <span class="docnav__brand"><i></i>CompozyOS DS</span>
-    <a href="index.html">Overview</a>
-    <a href="foundations.html" aria-current="page">01 Foundations</a>
-    <a href="os-shell.html">02 OS Shell</a>
-    <a href="components.html">03 Components</a>
-    <a href="patterns.html">04 Patterns</a>
+  <nav class="docnav" data-od-id="docnav">
+    <a href="index.html"><span class="num">00</span>Overview</a>
+    <a href="foundations.html" aria-current="page"><span class="num">01</span>Foundations</a>
+    <a href="os-shell.html"><span class="num">02</span>OS Shell</a>
+    <a href="components.html"><span class="num">03</span>Components</a>
+    <a href="command-palette.html"><span class="num">04</span>Command Palette</a>
+    <a href="modals.html"><span class="num">05</span>Modals</a>
+    <a href="settings.html"><span class="num">06</span>Settings</a>
+    <a href="dashboards.html"><span class="num">07</span>Dashboards</a>
+    <a href="empty-states.html"><span class="num">08</span>Empty States</a>
+    <a href="profiles.html"><span class="num">09</span>Profiles</a>
+    <a href="patterns.html"><span class="num">10</span>Patterns</a>
   </nav>
 
   <header class="hero" data-od-id="hero">
-    <p class="eyebrow">CompozyOS Design System · Chapter 01</p>
+    <p class="eyebrow">CompozyOS · Design System · Chapter 01</p>
     <h1>Foundations</h1>
-    <p>The token layer every Compozy surface is built from. One warm-dark ramp, one accent, hairline depth,
-    Geist + JetBrains Mono. Production truth is <code class="mono">packages/ui/src/tokens.css</code>;
-    the prototype-canonical mirror is <code class="mono">design-system/ds-core.css</code> — copy its
-    <code class="mono">:root</code> verbatim into any new prototype. There is no light theme.</p>
+    <p>Everything a CompozyOS surface is allowed to be made of: five warm surfaces, four hairlines,
+    six glazes, one accent, one type stack, one radius ladder, three durations, one focus ring. Every
+    value below is already in <code>ds-core.css</code> — link the file or paste its <code>:root</code>
+    verbatim. Nothing here is a suggestion: a value that is not on one of these ladders is a defect,
+    not a variation.</p>
   </header>
 
-  <!-- ============ 01 SURFACES ============ -->
-  <section class="sec" id="surfaces" data-od-id="sec-surfaces">
-    <div class="sec__head"><span class="sec__num">01</span><h2>Surfaces &amp; depth</h2></div>
-    <p>Depth is a flat ramp plus hairlines — never drop shadows on content. Surfaces stack
-    rail → canvas → canvas-soft → canvas-tint → elevated; separation comes from translucent-white
-    hairlines. The only sanctioned shadows are <code class="mono">--shadow-overlay</code> (popovers,
-    menus, sheets, toasts, modals), <code class="mono">--highlight</code> (inset top edge on primary
-    buttons and active pill segments), and the shell-only window/dock shadows in ds-shell.css.</p>
-    <div class="swatches">
-      <div class="sw"><i style="background:var(--rail)"></i><div><b>rail</b><span>#0c0b0b · desktop base, code blocks</span></div></div>
-      <div class="sw"><i style="background:var(--canvas)"></i><div><b>canvas</b><span>#131211 · window body</span></div></div>
-      <div class="sw"><i style="background:var(--canvas-soft)"></i><div><b>canvas-soft</b><span>#1a1918 · panels, cards, sidebars</span></div></div>
-      <div class="sw"><i style="background:var(--canvas-tint)"></i><div><b>canvas-tint</b><span>#1c1b1a · runcards, pill tracks</span></div></div>
-      <div class="sw"><i style="background:var(--elevated)"></i><div><b>elevated</b><span>#232220 · wells, inputs, active pills</span></div></div>
+  <!-- ============ 01 SURFACES & DEPTH ============ -->
+  <section class="sec" data-od-id="sec-surfaces">
+    <h2><span class="num">01</span>Surfaces &amp; depth</h2>
+    <p class="lead">Depth is flat: a five-step warm ramp, four hairline strengths and a small set of
+    inset rings. There is no elevation scale, no layered shadow stack, no glass in window content.
+    A surface is either one step up the ramp or it is not a surface.</p>
+
+    <div class="swatches fd-ramp" data-od-id="surface-ramp">
+      <div class="swatch"><div class="swatch__chip" style="background:#0c0b0b"></div>
+        <div class="swatch__meta"><div class="swatch__name">--rail</div><div class="swatch__val">#0c0b0b · desktop, sidebar well</div></div></div>
+      <div class="swatch"><div class="swatch__chip" style="background:#171615"></div>
+        <div class="swatch__meta"><div class="swatch__name">--canvas</div><div class="swatch__val">#171615 · window body</div></div></div>
+      <div class="swatch"><div class="swatch__chip" style="background:#1f1e1c"></div>
+        <div class="swatch__meta"><div class="swatch__name">--canvas-soft</div><div class="swatch__val">#1f1e1c · cards, menus, dialogs</div></div></div>
+      <div class="swatch"><div class="swatch__chip" style="background:#232220"></div>
+        <div class="swatch__meta"><div class="swatch__name">--canvas-tint</div><div class="swatch__val">#232220 · run cards, footers</div></div></div>
+      <div class="swatch"><div class="swatch__chip" style="background:#2a2927"></div>
+        <div class="swatch__meta"><div class="swatch__name">--elevated</div><div class="swatch__val">#2a2927 · inputs, icon wells, selected</div></div></div>
+      <div class="swatch"><div class="swatch__chip" style="background:#4a4847"></div>
+        <div class="swatch__meta"><div class="swatch__name">--disabled</div><div class="swatch__val">#4a4847 · disabled fill/border/ink</div></div></div>
     </div>
-    <table class="spec" style="margin-top:18px">
-      <tr><th>Layer</th><th>Value</th><th>Use</th></tr>
-      <tr><td><code>--line-soft</code></td><td>white ·03</td><td>row separators (border-top, first-child zeroed)</td></tr>
-      <tr><td><code>--line</code></td><td>white ·055</td><td>panel/control borders, head hairlines</td></tr>
-      <tr><td><code>--line-strong</code></td><td>white ·09</td><td>hover borders, focused fields, dividers</td></tr>
-      <tr><td><code>--row-hover / --row-selected</code></td><td>white ·022 / ·03</td><td>state glazes — never opaque grays</td></tr>
-      <tr><td><code>--btn-fill / --btn-hover / --badge-fill / --input-fill / --surface-glaze</code></td><td>white ·04 / ·07 / ·05 / ·025 / ·04</td><td>the glaze ladder over the warm ramp</td></tr>
+    <p class="fd-note"><b>Warmth invariant.</b> Every ramp step holds OKLCH chroma ≤ .005 and a red-minus-blue
+    delta of no more than 3 (<code>#171615</code> → 23−21 = 2). More chroma reads as sepia drift and breaks the
+    neutral base the signal palette depends on; a pure grey ramp reads clinical against the accent. Warm-dark is a
+    product contract — <code>color-scheme: dark</code>, no light theme, no user-tunable ramp.</p>
+
+    <h3>Hairlines</h3>
+    <div class="demo demo--soft" data-od-id="hairline-ladder">
+      <div class="fd-hair">
+        <div style="border-color:var(--line-soft)"><span><code>--line-soft</code> · rgba(255,255,255,.03)</span><span>row dividers, menu hairline</span></div>
+        <div style="border-color:var(--line)"><span><code>--line</code> · rgba(255,255,255,.055)</span><span>default control &amp; panel borders</span></div>
+        <div style="border-color:var(--line-strong)"><span><code>--line-strong</code> · rgba(255,255,255,.09)</span><span>hover/active borders, selected inset</span></div>
+        <div style="border-color:var(--line-focus)"><span><code>--line-focus</code> · rgba(255,255,255,.14)</span><span>focused window frame, <code>:focus-within</code></span></div>
+      </div>
+    </div>
+    <p class="demo-note">The hairline under each row is drawn with the token that row names.
+    <b>--line-focus is not the focus ring</b> — it strengthens a frame that already exists (§08 owns the ring).</p>
+
+    <h3>Glaze ladder</h3>
+    <div class="demo demo--col" data-od-id="glaze-ladder">
+      <div class="fd-stack">
+        <div class="fd-glaze" style="background:var(--row-hover)"><i class="fd-ic" style="width:14px;height:14px" data-lucide="mouse-pointer-2"></i>Row hover — <code>--row-hover</code><span class="fd-v">.045</span></div>
+        <div class="fd-glaze" style="background:var(--row-selected)"><i class="fd-ic" style="width:14px;height:14px" data-lucide="check"></i>Row selected / surface glaze<span class="fd-v">.06</span></div>
+        <div class="fd-glaze" style="background:var(--input-fill)"><i class="fd-ic" style="width:14px;height:14px" data-lucide="text-cursor-input"></i>Input fill · badge fill<span class="fd-v">.05</span></div>
+        <div class="fd-glaze" style="background:var(--btn-fill)"><i class="fd-ic" style="width:14px;height:14px" data-lucide="square"></i>Button rest — <code>--btn-fill</code><span class="fd-v">.07</span></div>
+        <div class="fd-glaze" style="background:var(--bar-fill)"><i class="fd-ic" style="width:14px;height:14px" data-lucide="rows-3"></i>Bar fill — toolbars, meters<span class="fd-v">.085</span></div>
+        <div class="fd-glaze" style="background:var(--btn-hover)"><i class="fd-ic" style="width:14px;height:14px" data-lucide="hand"></i>Button hover — <code>--btn-hover</code><span class="fd-v">.10</span></div>
+      </div>
+      <p class="demo-note"><b>Anything under .045 reads as no affordance.</b> The pre-#440 hover at .022 was invisible
+      on the lifted ramp — users could not tell a hoverable row from static text. Selection is this neutral glaze,
+      never an accent wash.</p>
+    </div>
+
+    <h3>Shadow whitelist</h3>
+    <table class="spec" data-od-id="shadow-whitelist">
+      <tr><th>Token</th><th>Value</th><th>Allowed on</th></tr>
+      <tr><td><code>--shadow-overlay</code></td><td>0 24px 48px -12px rgba(0,0,0,.65) + 1px ring</td><td>Modals, sheets, overlay menus. The ring replaces the border.</td></tr>
+      <tr><td><code>--highlight</code></td><td>inset 0 1px 0 rgba(255,255,255,.035)</td><td>Button and pill top rim <b>only</b> — never rows, tiles, chips or cards.</td></tr>
+      <tr><td><code>--shadow-hairline</code></td><td>0 0 0 1px var(--line-soft)</td><td>Resting menus and popovers that are not overlays.</td></tr>
+      <tr><td><code>--shadow-hairline-inset</code></td><td>inset 0 0 0 1px var(--line-soft)</td><td>Icon wells inside choice cards.</td></tr>
+      <tr><td><code>--inset-strong</code></td><td>inset 0 0 0 1px var(--line-strong)</td><td>Selected radio cards, hollow pills, selected rows.</td></tr>
+      <tr><td><code>--focus-ring</code> / <code>-inset</code></td><td>0 0 0 2px rgba(255,255,255,.5)</td><td><code>:focus-visible</code> only (§08).</td></tr>
     </table>
+    <p class="fd-note">That is the complete list. The shell layer adds window and dock cast shadows
+    (<code>--shadow-win</code>, <code>--shadow-dock</code>) under the OS waiver — see chapter 02.
+    <b>Content cards never cast.</b> A card that needs separation gets a ramp step or a hairline, not a shadow.</p>
   </section>
 
   <!-- ============ 02 SIGNAL PALETTE ============ -->
-  <section class="sec" id="color" data-od-id="sec-color">
-    <div class="sec__head"><span class="sec__num">02</span><h2>Signal palette &amp; accent budget</h2></div>
-    <p>Accent is the only hue with presence — and it is a <b>state indicator, never decoration</b>.
-    It marks the primary action, live/running state, the current selection and active reasoning bars;
-    it never washes cards, borders or backgrounds. Semantic colors appear as 6–12% tints with the tone
-    color as ink. Data viz uses neutral <code class="mono">--viz-*</code> ink — charts never borrow signal colors.</p>
-    <div class="swatches">
-      <div class="sw"><i style="background:var(--accent)"></i><div><b>accent</b><span>#e8572a · action / running</span></div></div>
-      <div class="sw"><i style="background:var(--accent-strong)"></i><div><b>accent-strong</b><span>#f6874f · accent text on dark</span></div></div>
-      <div class="sw"><i style="background:var(--success)"></i><div><b>success</b><span>#5fbf85 · ok / idle / connected</span></div></div>
-      <div class="sw"><i style="background:var(--warning)"></i><div><b>warning</b><span>#d6a647 · needs you / waiting</span></div></div>
-      <div class="sw"><i style="background:var(--danger)"></i><div><b>danger</b><span>#e0635a · failed / destructive</span></div></div>
-      <div class="sw"><i style="background:var(--info)"></i><div><b>info</b><span>#8e8eb5 · tool calls / meta</span></div></div>
-      <div class="sw"><i style="background:var(--neutral)"></i><div><b>neutral</b><span>#7a7a80 · idle shapes, base pills</span></div></div>
-      <div class="sw"><i style="background:var(--teal,#225555)"></i><div><b>teal</b><span>#225555 · wallpaper depth ONLY</span></div></div>
+  <section class="sec" data-od-id="sec-signal">
+    <h2><span class="num">02</span>Signal palette &amp; accent budget</h2>
+    <p class="lead">One non-neutral hue carries action. Five signal hues carry state. Nothing carries
+    taste. If a color is not telling the operator something the daemon reported, it does not belong
+    on the surface.</p>
+
+    <div class="swatches" data-od-id="signal-swatches">
+      <div class="swatch"><div class="swatch__chip" style="background:#e8572a"></div>
+        <div class="swatch__meta"><div class="swatch__name">--accent · "act"</div><div class="swatch__val">#e8572a · tint .10</div></div></div>
+      <div class="swatch"><div class="swatch__chip" style="background:#5fbf85"></div>
+        <div class="swatch__meta"><div class="swatch__name">--success</div><div class="swatch__val">#5fbf85 · tint .08</div></div></div>
+      <div class="swatch"><div class="swatch__chip" style="background:#d6a647"></div>
+        <div class="swatch__meta"><div class="swatch__name">--warning</div><div class="swatch__val">#d6a647 · tint .08</div></div></div>
+      <div class="swatch"><div class="swatch__chip" style="background:#e0635a"></div>
+        <div class="swatch__meta"><div class="swatch__name">--danger</div><div class="swatch__val">#e0635a · tint .09</div></div></div>
+      <div class="swatch"><div class="swatch__chip" style="background:#8e8eb5"></div>
+        <div class="swatch__meta"><div class="swatch__name">--info</div><div class="swatch__val">#8e8eb5 · tint .12</div></div></div>
+      <div class="swatch"><div class="swatch__chip" style="background:#7a7a80"></div>
+        <div class="swatch__meta"><div class="swatch__name">--neutral</div><div class="swatch__val">#7a7a80 · ink #8a8a90 · tint .06</div></div></div>
+      <div class="swatch"><div class="swatch__chip" style="background:#225555"></div>
+        <div class="swatch__meta"><div class="swatch__name">--teal</div><div class="swatch__val">#225555 · wallpaper depth only</div></div></div>
     </div>
-    <div class="rule-list" style="margin-top:18px">
-      <div class="rule"><i>R1</i><span><b>Accent budget:</b> per screen — one primary action, live dots, current-selection markers. A full-card accent border is decorative wash and is banned (running state = pulsing dot + pill, not a border).</span></div>
-      <div class="rule"><i>R2</i><span><b>Status is color + shape.</b> The session vocabulary pairs each state with a distinct dot shape (circle, diamond, rounded square, hollow ring) so state survives color-blindness. See Components §01.</span></div>
-      <div class="rule"><i>R3</i><span><b>Tints carry tone ink.</b> Pills and notices use <code>--*-tint</code> backgrounds with the tone color as text — never saturated fills.</span></div>
-      <div class="rule"><i>R4</i><span><b>#225555 (teal)</b> is a registered brand tone used exclusively for wallpaper radial depth in the OS shell. It never appears in content, borders or controls.</span></div>
+
+    <div class="demo demo--col" data-od-id="accent-budget">
+      <div class="app-toolbar">
+        <span class="livebadge"><span class="dot"></span>3 running</span>
+        <div class="field field-search"><i class="fd-ic" style="width:12px;height:12px" data-lucide="search"></i><input placeholder="Search sessions"><kbd>⌘K</kbd></div>
+        <div class="pill-group pill-group--sm" style="margin-left:auto">
+          <button class="pill-group__item is-on">Rows</button>
+          <button class="pill-group__item">Cards</button>
+        </div>
+        <button class="btn btn--primary"><i class="fd-ic" style="width:16px;height:16px" data-lucide="plus"></i>New session</button>
+      </div>
+      <div class="list-shell" style="width:100%">
+        <div class="listing-row" data-status="running">
+          <div class="listing-row__icon"><i class="fd-ic" style="width:16px;height:16px" data-lucide="bot"></i></div>
+          <div class="listing-row__main">
+            <div class="listing-row__name"><b>Refactor the ACP session store</b><span class="listing-row__slug">Claude Code · compozy-core</span></div>
+            <div class="listing-row__meta"><span class="k">ses_8f21c4</span><span class="dotsep"></span>started 14 min ago</div>
+          </div>
+          <div class="listing-row__trail"><span class="pill" data-tone="accent"><span class="dot"></span>Running</span></div>
+        </div>
+        <div class="listing-row" data-status="waiting-for-auth">
+          <div class="listing-row__icon"><i class="fd-ic" style="width:16px;height:16px" data-lucide="key-round"></i></div>
+          <div class="listing-row__main">
+            <div class="listing-row__name"><b>Publish the release notes</b><span class="listing-row__slug">Hermes · site-redesign</span></div>
+            <div class="listing-row__meta"><span class="k">ses_4b07de</span><span class="dotsep"></span>waiting 2 min</div>
+          </div>
+          <div class="listing-row__trail"><span class="pill" data-tone="warning"><i class="fd-ic" style="width:12px;height:12px" data-lucide="triangle-alert"></i>Needs you</span></div>
+        </div>
+        <div class="listing-row" data-status="failed">
+          <div class="listing-row__icon"><i class="fd-ic" style="width:16px;height:16px" data-lucide="repeat"></i></div>
+          <div class="listing-row__main">
+            <div class="listing-row__name"><b>nightly-docs-sweep</b><span class="listing-row__slug">Loop · compozy-core</span></div>
+            <div class="listing-row__meta"><span class="k">loop_2ad91f</span><span class="dotsep"></span>iteration 7 of 12</div>
+          </div>
+          <div class="listing-row__trail"><span class="pill" data-tone="danger"><i class="fd-ic" style="width:12px;height:12px" data-lucide="x"></i>Failed</span></div>
+        </div>
+      </div>
+      <p class="demo-note">One accent object per viewport: the <b>New session</b> button. The live badge and the
+      running dot are the same accent because they are the same fact — this workspace is doing something right now.
+      Rows stay neutral; state lives in tinted pills with ink and a glyph.</p>
+    </div>
+
+    <div class="rule-list" data-od-id="signal-rules">
+      <div class="rule"><i>01</i><span><b>Accent ≈ once per viewport.</b> Either the primary call to action or the live identity — never both competing, never a border, tab indicator, selection marker or decoration.</span></div>
+      <div class="rule"><i>02</i><span><b>Signal is information, never decoration.</b> Green means the daemon reported success. Amber means a human is blocking progress. If you cannot name the daemon fact, use neutral.</span></div>
+      <div class="rule"><i>03</i><span><b>Rows are neutral at rest.</b> Tone enters through a pill, a dot or a meter fill — the row background itself only ever carries a glaze.</span></div>
+      <div class="rule"><i>04</i><span><b>Tint plus ink, never solid banners.</b> Signal fills run 6–12% alpha with readable ink on top. A full-bleed red bar is not available; <code>data-form="solid"</code> is reserved for pills that must read at a glance.</span></div>
+      <div class="rule"><i>05</i><span><b>Color never travels alone.</b> Every state pairs hue with text, an icon or a shape — failed is a squared dot, waiting is a rotated diamond, stopped is a hollow ring. Color-blind operators read the shape.</span></div>
+      <div class="rule"><i>06</i><span><b>Charts are monochrome.</b> Series use <code>--viz-line</code> / <code>--viz-bar</code> / <code>--viz-other</code>; a signal hue enters a chart only when the series <i>is</i> the state (failures, waits).</span></div>
     </div>
   </section>
 
   <!-- ============ 03 TYPOGRAPHY ============ -->
-  <section class="sec" id="type" data-od-id="sec-type">
-    <div class="sec__head"><span class="sec__num">03</span><h2>Typography</h2></div>
-    <p>Two families. <b>Geist</b> (display + body; wght axis only, no feature block) for UI chrome,
-    names and prose. <b>JetBrains Mono</b> for everything machine-shaped: ids, slugs, counts, timestamps,
-    durations, key-values, code — always with <code class="mono">tabular-nums</code>, subpixel-antialiased,
-    letter-spacing 0. Body baseline is 13.5px / 1.5 / −.006em. Production medium weight is <b>510</b>.</p>
-    <div class="stage">
-      <div class="typerow"><span class="sample" style="font-size:26px;font-weight:600;letter-spacing:-.028em">Detail page title</span><span class="meta">1.4rem–26px · 600 · -.028em · route H1</span></div>
-      <div class="typerow"><span class="sample mono" style="font-size:24px;font-weight:620;letter-spacing:-.02em">128 runs</span><span class="meta">24px · 620 · hero KPI value (mono, tabular)</span></div>
-      <div class="typerow"><span class="sample" style="font-size:17px;font-weight:600">Window KPI value · Spaces title</span><span class="meta">17px · 600</span></div>
-      <div class="typerow"><span class="sample" style="font-size:15px;font-weight:500;letter-spacing:-.014em">Modal / sheet title</span><span class="meta">15px · 500 · -.014em</span></div>
-      <div class="typerow"><span class="sample" style="font-size:13.5px">Body text — transcripts, descriptions, prose</span><span class="meta">13.5px · 400 · 1.5</span></div>
-      <div class="typerow"><span class="sample" style="font-size:13px;font-weight:600">Window title · row emphasis</span><span class="meta">13px · 600</span></div>
-      <div class="typerow"><span class="sample" style="font-size:12.5px;font-weight:500">Row titles, menu items, controls</span><span class="meta">12.5px · 500/510</span></div>
-      <div class="typerow"><span class="sample" style="font-size:12px;font-weight:500">Buttons, tabs, pill segments</span><span class="meta">12px · 500 · -.005em</span></div>
-      <div class="typerow"><span class="sample" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--subtle)">Section eyebrow / KV label</span><span class="meta">10.5–11px · 600 · caps · +.04em</span></div>
-      <div class="typerow"><span class="sample mono" style="font-size:10.5px;color:var(--subtle)">meta · counts · 10.5px mono</span><span class="meta">10.5px mono · badges, meta</span></div>
-      <div class="typerow"><span class="sample mono" style="font-size:9px;color:var(--subtle)">09:41:22 timestamps</span><span class="meta">9px mono · tabular · time columns</span></div>
+  <section class="sec" data-od-id="sec-typography">
+    <h2><span class="num">03</span>Typography</h2>
+    <p class="lead">Geist for everything a person reads. JetBrains Mono for identifiers, code and
+    fixed-width values only. A system stack for key caps, because the mono subsets ship no
+    ⌘⇧⌥⌃⏎⌫ glyphs and fall back to a different family mid-chord.</p>
+
+    <div class="demo demo--col" data-od-id="type-ramp">
+      <div class="fd-type">
+        <div class="fd-type__row"><span class="fd-type__s" style="font-size:28px;font-weight:600;letter-spacing:-.028em">Sessions</span><span class="fd-type__m">28 / 600 / -.028em · page display</span></div>
+        <div class="fd-type__row"><span class="fd-type__s" style="font-size:22px;font-weight:600;letter-spacing:-.028em">Refactor the ACP session store</span><span class="fd-type__m">22 / 600 · --text-detail-h1</span></div>
+        <div class="fd-type__row"><span class="fd-type__s" style="font-size:18px;font-weight:510;letter-spacing:-.022em">No sessions in this workspace yet</span><span class="fd-type__m">18 / 510 · --text-empty-h1</span></div>
+        <div class="fd-type__row"><span class="fd-type__s" style="font-size:24px;font-weight:620;letter-spacing:-.028em;font-variant-numeric:tabular-nums">1,284</span><span class="fd-type__m">24 / 620 tabular · --text-kpi</span></div>
+        <div class="fd-type__row"><span class="fd-type__s" style="font-size:17px;font-weight:620;letter-spacing:-.014em;font-variant-numeric:tabular-nums">42 runs · 6m 12s</span><span class="fd-type__m">17 / 620 tabular · --text-kpi-compact</span></div>
+        <div class="fd-type__row"><span class="fd-type__s" style="font-size:16px;font-weight:510;letter-spacing:-.01em">Claude Code — compozy-core</span><span class="fd-type__m">16 / 510 · --text-item-title</span></div>
+        <div class="fd-type__row"><span class="fd-type__s" style="font-size:15px;font-weight:400;letter-spacing:-.006em">The agent finished the migration and is waiting for your review.</span><span class="fd-type__m">15 / 400 / 1.55 · --text-body</span></div>
+        <div class="fd-type__row"><span class="fd-type__s" style="font-size:15px;font-weight:510;letter-spacing:-.01em">Workspace defaults</span><span class="fd-type__m">15 / 510 · --text-card-title</span></div>
+        <div class="fd-type__row"><span class="fd-type__s" style="font-size:13.5px;font-weight:400;color:var(--muted)">Runs every night at 02:00 in the compozy-core workspace.</span><span class="fd-type__m">13.5 / 400 · --text-small-body</span></div>
+        <div class="fd-type__row"><span class="fd-type__s" style="font-size:12.5px;font-weight:510">Approval required before writing files</span><span class="fd-type__m">12.5 / 510 · --text-form</span></div>
+        <div class="fd-type__row"><span class="fd-type__s eyebrow">Recent activity</span><span class="fd-type__m">12 / 510 / -.005em · --text-eyebrow</span></div>
+        <div class="fd-type__row"><span class="fd-type__s" style="font-size:11px;font-weight:510;color:var(--muted)">Needs you</span><span class="fd-type__m">11 / 510 · --text-badge</span></div>
+        <div class="fd-type__row"><span class="fd-type__s mono-id" style="font-size:11px">ses_8f21c4a0</span><span class="fd-type__m">11 mono / .02em · --text-mono-id</span></div>
+        <div class="fd-type__row"><span class="fd-type__s"><kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>K</kbd></span><span class="fd-type__m">10.5 / 510 / +.03em · --text-kbd</span></div>
+      </div>
     </div>
-    <table class="spec" style="margin-top:16px">
-      <tr><th>Rule</th><th>Contract</th></tr>
-      <tr><td>Mono trigger</td><td>ids, slugs, counts, badges, timestamps, elapsed clocks, metric values, code, key-values. Class <code>.mono</code> flips smoothing to subpixel + resets font features.</td></tr>
-      <tr><td>Eyebrows</td><td>10–11px · 600 · uppercase · tracking .04–.08em · <code>--subtle</code>. Section labels stay in content; chrome never carries a description line.</td></tr>
-      <tr><td>Weights</td><td>400 body · 500/510 medium (production canon 510) · 600 titles · 620/700 numeric display. Avoid the 520–560 scatter found in older prototypes.</td></tr>
+
+    <h3>Weight ladder</h3>
+    <div class="demo fd-grid2" data-od-id="weight-ladder">
+      <div>
+        <div class="fd-type">
+          <div class="fd-type__row"><span class="fd-type__s" style="font-weight:400">400 — body prose, long descriptions</span><span class="fd-type__m">400</span></div>
+          <div class="fd-type__row"><span class="fd-type__s" style="font-weight:510">510 — the UI medium: labels, rows, buttons</span><span class="fd-type__m">510</span></div>
+          <div class="fd-type__row"><span class="fd-type__s" style="font-weight:600">600 — headings, section titles, caps eyebrows</span><span class="fd-type__m">600</span></div>
+          <div class="fd-type__row"><span class="fd-type__s" style="font-weight:620;font-variant-numeric:tabular-nums">620 — 1,284 display numerals</span><span class="fd-type__m">620</span></div>
+          <div class="fd-type__row"><span class="fd-type__s" style="font-weight:700">700 — reserved, brand lockups only</span><span class="fd-type__m">700</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="surface surface--compact" style="background:var(--canvas-tint)">
+          <p class="eyebrow" style="margin-bottom:8px">500 vs 510</p>
+          <p style="font-size:15px;font-weight:500;letter-spacing:-.01em;color:var(--fg-strong)">Publish the release notes</p>
+          <p style="font-size:15px;font-weight:510;letter-spacing:-.01em;color:var(--fg-strong);margin-top:4px">Publish the release notes</p>
+          <p class="demo-note" style="margin-top:10px">Geist is a variable font, so 510 is a real instance, not a
+          rounding of 500. At 13–16px the extra 10 units restore the stem weight that antialiasing eats on the warm-dark
+          ramp — <b>510 is the UI medium</b>. Writing <code>font-weight:500</code> silently ships a lighter row title.</p>
+        </div>
+      </div>
+    </div>
+
+    <h3>Eyebrow contract</h3>
+    <div class="demo fd-grid2" data-od-id="eyebrow-contract">
+      <div class="surface surface--compact">
+        <p class="eyebrow">Recent activity</p>
+        <p class="demo-note">Default — <code>.eyebrow</code> · 12 / 510 / -.005em, sentence case, <code>--muted</code>.</p>
+      </div>
+      <div class="surface surface--compact">
+        <p class="eyebrow-caps">Workspace</p>
+        <p class="demo-note">Opt-in — <code>.eyebrow-caps</code> · 11 / 600 / +.06em, <code>--subtle</code>. Table heads and
+        runtime-fact tiles only.</p>
+      </div>
+    </div>
+    <p class="fd-note"><b>Uppercase never takes negative tracking</b> — caps need letters pushed apart, not pulled
+    together, and the old 10px/600/+.08em eyebrow was shouting metadata at the operator. Eyebrows label
+    <i>structure</i>: section names, table columns, metadata terms. They never label a metric, an id or a pill —
+    those already carry their own type contract.</p>
+
+    <h3>Tracking ladder</h3>
+    <table class="spec" data-od-id="tracking-ladder">
+      <tr><th>Token</th><th>Value</th><th>Applies to</th></tr>
+      <tr><td><code>--track-body</code></td><td>-.006em</td><td>Body text at 15px, the document default</td></tr>
+      <tr><td><code>--track-row-title</code></td><td>-.01em</td><td>Row titles, card titles, item titles</td></tr>
+      <tr><td><code>--track-modal</code></td><td>-.012em</td><td>Modal titles at 16px</td></tr>
+      <tr><td><code>--track-tight</code></td><td>-.014em</td><td>Section headings, compact KPI values</td></tr>
+      <tr><td><code>--track-empty</code></td><td>-.022em</td><td>Empty-state headline at 18px</td></tr>
+      <tr><td><code>--track-detail</code></td><td>-.028em</td><td>Detail H1 at 22px, hero KPI at 24px</td></tr>
+      <tr><td><code>--track-eyebrow</code></td><td>-.005em</td><td>Eyebrows, buttons, pills, form labels</td></tr>
+      <tr><td><code>--track-mono</code></td><td>.02em</td><td>Code and mono values (not <code>.mono-id</code>, which sits at 0)</td></tr>
+      <tr><td><code>--track-kbd</code></td><td>.03em</td><td>Key caps and bare chords</td></tr>
+      <tr><td><code>--track-caps</code></td><td>.06em</td><td>Uppercase only — <code>.eyebrow-caps</code>, tile labels</td></tr>
+    </table>
+    <p class="fd-note">The rule is monotonic: <b>the bigger the type, the tighter the tracking.</b> Anything typed in
+    caps moves the other way, to positive tracking, without exception.</p>
+  </section>
+
+  <!-- ============ 04 SPACING & CONTROLS ============ -->
+  <section class="sec" data-od-id="sec-spacing">
+    <h2><span class="num">04</span>Spacing &amp; the control ladder</h2>
+    <p class="lead">An 8px baseline with 4px half-steps for control internals. Every control height is a
+    named token — picking a height means picking a row on this ladder, never typing a number.</p>
+
+    <div class="demo demo--col" data-od-id="height-ladder">
+      <div style="width:100%">
+        <div class="fd-h"><i style="width:180px;height:18px"></i><b>Pill, extra small</b><span>18 · --h-pill-xs</span></div>
+        <div class="fd-h"><i style="width:180px;height:20px"></i><b>Pill, default · key cap</b><span>20 · --h-pill</span></div>
+        <div class="fd-h"><i style="width:180px;height:24px"></i><b>Pill medium · button xs</b><span>24 · --h-pill-md / --h-btn-xs</span></div>
+        <div class="fd-h"><i style="width:180px;height:26px"></i><b>Button small · run button</b><span>26 · --h-btn-sm</span></div>
+        <div class="fd-h"><i style="width:180px;height:28px"></i><b>Toolbar search</b><span>28 · --h-search</span></div>
+        <div class="fd-h"><i style="width:180px;height:30px"></i><b>Button default · property row · scope tab</b><span>30 · --h-btn / --h-prow</span></div>
+        <div class="fd-h"><i style="width:180px;height:32px"></i><b>Compact control · sidebar row</b><span>32 · --h-ctl / --h-sidebar-row</span></div>
+        <div class="fd-h"><i style="width:180px;height:34px"></i><b>Button large · icon well</b><span>34 · --h-btn-lg / --size-icon-well</span></div>
+        <div class="fd-h"><i style="width:180px;height:36px"></i><b>Form input · CTA</b><span>36 · --h-input / --h-cta</span></div>
+        <div class="fd-h"><i style="width:180px;height:40px"></i><b>Lane tabs list</b><span>40 · --h-tabs</span></div>
+        <div class="fd-h"><i style="width:180px;height:44px"></i><b>Window head · touch CTA</b><span>44 · --h-cta-lg</span></div>
+        <div class="fd-h"><i style="width:180px;height:48px"></i><b>Empty-state icon well</b><span>48 · --size-empty-icon</span></div>
+        <div class="fd-h"><i style="width:180px;height:54px"></i><b>Settings row</b><span>54 · --h-srow</span></div>
+      </div>
+    </div>
+
+    <div class="demo" data-od-id="control-specimens">
+      <span class="pill pill--xs" data-tone="info">18</span>
+      <span class="pill" data-tone="success">20 · Idle</span>
+      <span class="pill pill--md" data-tone="accent"><span class="dot"></span>24 · Running</span>
+      <button class="btn btn--xs btn--outline">24 xs</button>
+      <button class="btn btn--sm">26 sm</button>
+      <div class="field" style="width:200px"><i class="fd-ic" style="width:12px;height:12px" data-lucide="search"></i><input placeholder="28 search"></div>
+      <button class="btn">30 default</button>
+      <button class="btn btn--lg">34 large</button>
+      <button class="btn btn--primary btn--cta">36 CTA</button>
+    </div>
+
+    <h3>Width ladder</h3>
+    <table class="spec" data-od-id="width-ladder">
+      <tr><th>Token</th><th>Value</th><th>Applies to</th></tr>
+      <tr><td>Content max</td><td>1320px</td><td>Widest a window body ever measures before it centres</td></tr>
+      <tr><td><code>--w-rail</code></td><td>320px</td><td>Detail properties rail, inspector drawer</td></tr>
+      <tr><td><code>--w-kv-label</code></td><td>140px</td><td>Key column in key/value blocks</td></tr>
+      <tr><td><code>--w-modal-sm</code> … <code>-xl</code></td><td>560 / 720 / 880 / 1180</td><td>Confirm · standard form · split pane · workbench</td></tr>
+      <tr><td>Settings form</td><td>768px</td><td>Default settings column</td></tr>
+      <tr><td>Settings wide</td><td>960px</td><td>Tables and enumerations inside settings</td></tr>
+      <tr><td>Settings canvas</td><td>1040px</td><td>Full-bleed settings surfaces (profiles, extensions)</td></tr>
     </table>
   </section>
 
-  <!-- ============ 04 SPACE & CONTROL LADDER ============ -->
-  <section class="sec" id="space" data-od-id="sec-space">
-    <div class="sec__head"><span class="sec__num">04</span><h2>Spacing &amp; the control-height ladder</h2></div>
-    <p>Layout runs on an 8px baseline with 2px optical sub-steps (paddings 12×16, gaps 8/10/14).
-    Heights are a fixed ladder — pick from it, never invent between-steps:</p>
-    <div class="stage">
-      <div class="hbar"><i style="width:19px"></i><span>17/19px — tags, pills</span></div>
-      <div class="hbar"><i style="width:22px"></i><span>22px — sm buttons, filter chips, status pills, chips, switch (18h)</span></div>
-      <div class="hbar"><i style="width:24px"></i><span>24px — pill-group segments, route tabs (w2-tab), back button</span></div>
-      <div class="hbar"><i style="width:26px"></i><span>26px — default button, icon button, property rows</span></div>
-      <div class="hbar"><i style="width:28px"></i><span>28px — search fields, dense session rows, menubar controls</span></div>
-      <div class="hbar"><i style="width:30px"></i><span>30px — compact tabs, popover items, settings nav</span></div>
-      <div class="hbar"><i style="width:32px"></i><span>32px — settings row control (.ctl), toolcall head, ws search</span></div>
-      <div class="hbar"><i style="width:34px"></i><span>34px — runtime trigger, composer input, listing icon well</span></div>
-      <div class="hbar"><i style="width:36px"></i><span>36px — form inputs (--height-input), workspace select, palette items</span></div>
-      <div class="hbar"><i style="width:38px"></i><span>38px — window context strip</span></div>
-      <div class="hbar"><i style="width:40px"></i><span>40px — detail lane-tabs</span></div>
-      <div class="hbar"><i style="width:44px"></i><span>44px — window head, menu bar, popover search, mobile targets</span></div>
-      <div class="hbar"><i style="width:54px"></i><span>54px — settings decision rows (.srow min-height)</span></div>
-    </div>
-    <p style="margin-top:14px">Content max-width: <b>1320px</b> (production <code class="mono">--container-content-max</code>).
-    Detail properties rail: <b>320px</b>. Prose measure: 62–76ch.</p>
-  </section>
-
   <!-- ============ 05 RADIUS ============ -->
-  <section class="sec" id="radius" data-od-id="sec-radius">
-    <div class="sec__head"><span class="sec__num">05</span><h2>Radius</h2></div>
-    <p>Content scale is 3–14px. The OS shell holds a <b>waiver</b> — chrome only (windows 12px, popovers 12px,
-    widgets 14px, dock 22px). Never “correct” shell radii down to the content scale, and never let the
-    waiver leak into window content.</p>
-    <div class="stage">
-      <div class="radrow">
-        <div class="rad"><i style="border-radius:3px"></i><span>xxs 3 · code chips</span></div>
-        <div class="rad"><i style="border-radius:4px"></i><span>xs 4 · pills, segments</span></div>
-        <div class="rad"><i style="border-radius:5px"></i><span>sm 5 · avatars, chips</span></div>
-        <div class="rad"><i style="border-radius:6px"></i><span>base 6 · glyphs, rows</span></div>
-        <div class="rad"><i style="border-radius:8px"></i><span>md 8 · buttons, fields</span></div>
-        <div class="rad"><i style="border-radius:10px"></i><span>lg 10 · cards, panels</span></div>
-        <div class="rad"><i style="border-radius:14px"></i><span>xl 14 · large modals</span></div>
-        <div class="rad"><i style="border-radius:12px;border-color:var(--accent-dim)"></i><span>win 12 · shell waiver</span></div>
-        <div class="rad"><i style="border-radius:22px;border-color:var(--accent-dim)"></i><span>dock 22 · shell waiver</span></div>
+  <section class="sec" data-od-id="sec-radius">
+    <h2><span class="num">05</span>Radius</h2>
+    <p class="lead">Eight steps, rebased at #440 from the old 4/5/6/8/10/14 ladder. The rebase was not
+    cosmetic: the lifted surface ramp needs a slightly softer corner to keep panels from reading as
+    hard-cut rectangles, and the two ladders differ on every shared step.</p>
+
+    <div class="demo" data-od-id="radius-ladder">
+      <div class="fd-rads">
+        <div class="fd-rad"><i style="border-radius:3px"></i><span>3</span><em>xxs · code chips</em></div>
+        <div class="fd-rad"><i style="border-radius:6px"></i><span>6</span><em>xs · checkbox, tags</em></div>
+        <div class="fd-rad"><i style="border-radius:7px"></i><span>7</span><em>sm · key caps, chips</em></div>
+        <div class="fd-rad"><i style="border-radius:8px"></i><span>8</span><em>base · filter groups</em></div>
+        <div class="fd-rad"><i style="border-radius:10px"></i><span>10</span><em>md · buttons, inputs, rows</em></div>
+        <div class="fd-rad"><i style="border-radius:14px"></i><span>14</span><em>lg · cards, panels, dialogs</em></div>
+        <div class="fd-rad"><i style="border-radius:18px"></i><span>18</span><em>xl · large containers</em></div>
+        <div class="fd-rad"><i style="border-radius:9999px"></i><span>pill</span><em>pills, meters, switches</em></div>
       </div>
+    </div>
+
+    <div class="demo demo--rail" data-od-id="radius-waiver">
+      <div class="fd-rads">
+        <div class="fd-rad"><i style="border-radius:12px;background:var(--canvas-soft)"></i><span>12</span><em>--r-pop / --r-win</em></div>
+        <div class="fd-rad"><i style="border-radius:13px;background:var(--canvas-soft)"></i><span>13</span><em>--r-dock-item</em></div>
+        <div class="fd-rad"><i style="border-radius:22px;background:var(--canvas-soft)"></i><span>22</span><em>--r-dock</em></div>
+      </div>
+      <p class="demo-note"><b>Shell waiver.</b> 12 / 13 / 22 exist only in <code>ds-shell.css</code> — window frames,
+      shell popovers, the dock and its items. Window <i>content</i> never uses them. If a card in a window body is
+      rounded at 12px, it is off-system.</p>
     </div>
   </section>
 
   <!-- ============ 06 MOTION ============ -->
-  <section class="sec" id="motion" data-od-id="sec-motion">
-    <div class="sec__head"><span class="sec__num">06</span><h2>Motion</h2></div>
-    <table class="spec">
-      <tr><th>Token</th><th>Value</th><th>Use</th></tr>
-      <tr><td><code>--dur-fast</code></td><td>100ms</td><td>hovers on tiny targets</td></tr>
-      <tr><td><code>--dur</code></td><td>140ms</td><td>default hover/color transitions</td></tr>
-      <tr><td><code>--dur-slow</code></td><td>200ms</td><td>pane slides, collapses</td></tr>
-      <tr><td><code>--ease</code></td><td>cubic-bezier(.2,0,0,1)</td><td>the standard curve</td></tr>
-      <tr><td><code>--ease-in-out</code></td><td>cubic-bezier(.4,0,0,.2,1)</td><td>symmetric transitions</td></tr>
-      <tr><td><code>--ease-spring</code> <span style="color:var(--faint)">(shell)</span></td><td>cubic-bezier(.32,.72,.28,1)</td><td>window/popover/toast entrances, dock magnify, drill-in slide</td></tr>
+  <section class="sec" data-od-id="sec-motion">
+    <h2><span class="num">06</span>Motion</h2>
+    <p class="lead">Motion confirms state changes; it never entertains. Three durations, two easings,
+    and a strict separation between state feedback and continuous cadence.</p>
+
+    <table class="spec" data-od-id="motion-ladder">
+      <tr><th>Token</th><th>Value</th><th>Drives</th></tr>
+      <tr><td><code>--dur-fast</code></td><td>120ms</td><td>Hover and press feedback, menu open/close, icon colour</td></tr>
+      <tr><td><code>--dur</code></td><td>180ms</td><td>Tab switches, row selection, pill toggles, switch knob</td></tr>
+      <tr><td><code>--dur-slow</code></td><td>260ms</td><td>Panel reveals, disclosure folds, progress fills</td></tr>
+      <tr><td><code>--ease</code></td><td>cubic-bezier(.22, 1, .36, 1)</td><td>Default — fast out, settled landing</td></tr>
+      <tr><td><code>--ease-in-out</code></td><td>cubic-bezier(.4, 0, .2, 1)</td><td>Symmetric moves that return to origin</td></tr>
+      <tr><td>Shell tier</td><td>120 / 240 / 320ms + spring (.32, .72, .28, 1)</td><td>Window open, dock magnify, space switch (chapter 02)</td></tr>
     </table>
-    <p style="margin-top:12px">Signature animations: <code class="mono">pulse 1.8s</code> (live dots) ·
-    <code class="mono">session-live 2.6s</code> (running row halo) · popover in .16s · window in .24s ·
-    toast in .28s · collapse via <code class="mono">grid-template-rows 1fr→0fr</code>.
-    <code class="mono">prefers-reduced-motion</code> and <code class="mono">body[data-motion="reduced"]</code>
-    both collapse every duration — always ship both guards.</p>
+    <p class="fd-note"><b>The old easing was invalid CSS.</b> Pre-#440 prototypes carried a five-argument
+    <code>cubic-bezier</code>; browsers dropped the whole declaration silently, so those transitions ran on the
+    <code>ease</code> default and nobody noticed. Any copied easing value must have exactly four arguments.</p>
+
+    <div class="demo" data-od-id="motion-demo">
+      <button class="fd-mot" style="transition:background 120ms cubic-bezier(.22,1,.36,1),color 120ms cubic-bezier(.22,1,.36,1)">Hover me<span class="fd-v">120ms</span></button>
+      <button class="fd-mot" style="transition:background 180ms cubic-bezier(.22,1,.36,1),color 180ms cubic-bezier(.22,1,.36,1)">Hover me<span class="fd-v">180ms</span></button>
+      <button class="fd-mot" style="transition:background 260ms cubic-bezier(.22,1,.36,1),color 260ms cubic-bezier(.22,1,.36,1)">Hover me<span class="fd-v">260ms</span></button>
+      <p class="demo-note" style="width:100%">Above 260ms a state change stops reading as a response and starts
+      reading as an animation the operator has to wait out.</p>
+    </div>
+
+    <h3>Continuous cadence</h3>
+    <div class="demo" data-od-id="cadence-demo">
+      <div class="sk" style="width:180px;height:14px"></div>
+      <span class="mchip">shimmer · 2s</span>
+      <div style="width:180px"><div class="progress"><i style="width:62%" data-tone="accent"></i></div></div>
+      <span class="mchip">band sweep · 1.2s</span>
+      <span class="d d--run d--pulse" style="margin-left:4px"></span>
+      <span class="mchip">live pulse · 1.8s</span>
+    </div>
+    <p class="fd-note">Cadence is deliberately <b>off the duration ramp</b>. Loading shimmer runs 2s, the loading band
+    sweeps in 1.2s, the live dot pulses at 1.8s. These are ambient rhythms, not responses — putting them on 120/180/260
+    would make a loading surface feel like it is being clicked. <b>Double guard for reduced motion:</b> honour
+    <code>prefers-reduced-motion</code> in CSS (<code>ds-core.css</code> collapses every duration to .001ms) <i>and</i>
+    gate any JS-driven loop on <code>matchMedia("(prefers-reduced-motion: reduce)")</code>, because a CSS-neutered
+    animation still burns a frame budget on a requestAnimationFrame loop.</p>
   </section>
 
   <!-- ============ 07 ICONOGRAPHY ============ -->
-  <section class="sec" id="icons" data-od-id="sec-icons">
-    <div class="sec__head"><span class="sec__num">07</span><h2>Iconography</h2></div>
-    <table class="spec">
-      <tr><th>Rule</th><th>Contract</th></tr>
-      <tr><td>Style</td><td>Lucide-grammar stroke SVGs — <code>fill=none stroke=currentColor</code>, stroke 1.7–2 (2.4 for checks), round caps/joins, <code>svg{display:block}</code>. Text glyphs (×, ⌄, ★, ▮) are banned for meaning — the only text glyphs allowed are identity monograms (agent/workspace initials in wells).</td></tr>
-      <tr><td>Glyph sizes</td><td>12px (pills, chevrons) · 13–14px (buttons, rows) · 15–16px (nav, palette, icon wells) · 17px (menubar logo) · 21px (dock)</td></tr>
-      <tr><td>Icon-well ladder</td><td>18px avatars · 20px provider glyph · 22px window glyph / workspace mark · 24px card icon · 28px option glyph · 34px listing row well · 36px modal head well · 38px empty-state well · 42px page hero</td></tr>
-      <tr><td>Never</td><td>an icon beside every heading; emoji as icons; accent-tinted wells for wayfinding (the window glyph well is neutral — accent wells belong to modal headers only)</td></tr>
-    </table>
+  <section class="sec" data-od-id="sec-icons">
+    <h2><span class="num">07</span>Iconography</h2>
+    <p class="lead">Lucide, one library, no exceptions. Icons are labels, not illustration — one concept
+    gets exactly one glyph across the whole product, and that mapping is a contract.</p>
+
+    <div class="demo" data-od-id="icon-sizes">
+      <div class="fd-spec"><span class="fd-ic fd-ic--floor" style="width:11px;height:11px" data-lucide="git-branch"></span><span>11 / 2.0</span></div>
+      <div class="fd-spec"><span class="fd-ic" style="width:12px;height:12px" data-lucide="git-branch"></span><span>12 / 1.75</span></div>
+      <div class="fd-spec"><span class="fd-ic" style="width:14px;height:14px" data-lucide="git-branch"></span><span>14 / 1.75</span></div>
+      <div class="fd-spec"><span class="fd-ic" style="width:16px;height:16px" data-lucide="git-branch"></span><span>16 / 1.75</span></div>
+      <p class="demo-note" style="width:100%"><b>11px is the floor</b>, and it is the only size that moves to stroke 2 —
+      1.75 disappears at that scale. 12 sits in pills and dense meta rows, 14 in menus and lane tabs, 16 in buttons and
+      icon wells. Nothing above 16 lives in content; larger glyphs belong to wells.</p>
+    </div>
+
+    <div class="demo" data-od-id="icon-wells">
+      <div class="fd-spec"><span class="fd-well" style="width:18px;height:18px"><span class="fd-ic" style="width:11px;height:11px" data-lucide="user"></span></span><span>18 avatar</span></div>
+      <div class="fd-spec"><span class="fd-well" style="width:22px;height:22px"><span class="fd-ic" style="width:12px;height:12px" data-lucide="folder"></span></span><span>22 inline</span></div>
+      <div class="fd-spec"><span class="fd-well" style="width:24px;height:24px"><span class="fd-ic" style="width:13px;height:13px" data-lucide="layers"></span></span><span>24 card</span></div>
+      <div class="fd-spec"><span class="fd-well" style="width:28px;height:28px"><span class="fd-ic" style="width:14px;height:14px" data-lucide="shield-check"></span></span><span>28 choice</span></div>
+      <div class="fd-spec"><span class="fd-well" style="width:34px;height:34px"><span class="fd-ic" style="width:16px;height:16px" data-lucide="bot"></span></span><span>34 listing row</span></div>
+      <div class="fd-spec"><span class="fd-well" style="width:48px;height:48px;border-radius:var(--radius-lg);background:var(--canvas-soft)"><span class="fd-ic" style="width:20px;height:20px" data-lucide="inbox"></span></span><span>48 empty state</span></div>
+    </div>
+
+    <div class="rule-list" data-od-id="icon-rules">
+      <div class="rule"><i>01</i><span><b>Size the parent, never the glyph.</b> An unsized Lucide <code>svg</code> renders at 24×24 and blows a 20px pill open. Set width and height on the container and let the svg fill it.</span></div>
+      <div class="rule"><i>02</i><span><b>One icon per concept.</b> A session is always <code>bot</code>, a loop is always <code>repeat</code>, a workspace is always <code>layers</code>. Reusing a glyph for a second meaning breaks scanning across every surface at once.</span></div>
+      <div class="rule"><i>03</i><span><b>Icons inherit ink.</b> They take <code>currentColor</code> from the row or pill they sit in — an icon is never the only thing carrying a signal hue.</span></div>
+      <div class="rule"><i>04</i><span><b>Never:</b> emoji as icons, hand-drawn SVG paths, icon fonts, or a text node standing in for a wordmark. If Lucide has no glyph for the concept, the concept needs a word, not a drawing.</span></div>
+    </div>
   </section>
 
   <!-- ============ 08 FOCUS & A11Y ============ -->
-  <section class="sec" id="a11y" data-od-id="sec-a11y">
-    <div class="sec__head"><span class="sec__num">08</span><h2>Focus &amp; accessibility</h2></div>
-    <div class="rule-list">
-      <div class="rule"><i>A1</i><span><b>Focus ring is the production contract:</b> <code>0 0 0 2px rgba(255,255,255,.5)</code> on <code>:focus-visible</code> (≥3:1). The 1px line-strong ring in pre-2026-07 prototypes is deprecated.</span></div>
-      <div class="rule"><i>A2</i><span><b>Pointer focus is quiet:</b> fields on <code>:focus-within</code> only strengthen their border; the 2px ring is keyboard-only.</span></div>
-      <div class="rule"><i>A3</i><span>Real semantics: <code>aria-pressed</code> on pill segments, <code>aria-current="page"</code> on nav, <code>aria-expanded</code> on disclosures, <code>role="dialog" aria-modal</code> on modals, every <code>aria-controls</code> resolving to a real id, one focusable H1 per surface.</span></div>
-      <div class="rule"><i>A4</i><span>Touch targets ≥44px on mobile (window controls grow to 15px + 9px inset hit area; toolbar buttons to 44px).</span></div>
-      <div class="rule"><i>A5</i><span><code>data-od-id</code> on every region, heading, control and repeated card users may point at.</span></div>
+  <section class="sec" data-od-id="sec-focus">
+    <h2><span class="num">08</span>Focus &amp; accessibility</h2>
+    <p class="lead">One ring, one trigger, one value. Keyboard operators are the primary audience for an
+    agent OS — a lost focus indicator is a broken product, not a polish item.</p>
+
+    <div class="demo demo--col" data-od-id="focus-ring">
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px">
+        <button class="btn btn--primary fd-ring">Approve run</button>
+        <button class="btn fd-ring">Cancel</button>
+        <div class="field" style="width:220px;border-color:var(--line-strong);box-shadow:var(--focus-ring)"><i class="fd-ic" style="width:12px;height:12px" data-lucide="search"></i><input placeholder="Search sessions"></div>
+        <span class="mchip">0 0 0 2px rgba(255,255,255,.5)</span>
+      </div>
+      <div class="list-shell" style="width:100%">
+        <div class="listing-row fd-ring-inset" data-selected>
+          <div class="listing-row__icon"><i class="fd-ic" style="width:16px;height:16px" data-lucide="bot"></i></div>
+          <div class="listing-row__main">
+            <div class="listing-row__name"><b>Refactor the ACP session store</b></div>
+            <div class="listing-row__meta"><span class="k">ses_8f21c4</span><span class="dotsep"></span>full-bleed rows take the inset ring</div>
+          </div>
+          <div class="listing-row__trail"><span class="mchip">--focus-ring-inset</span></div>
+        </div>
+      </div>
+      <p class="demo-note">The rings above are painted statically so you can read them. In product they appear
+      <b>only on <code>:focus-visible</code></b>. A 50% white ring composites to roughly <code>#898988</code> and clears
+      5.3:1 against every step of the ramp, including <code>--elevated</code> — one value works everywhere, so there is
+      no per-surface ring. <b>Pointer focus strengthens the border and nothing else</b>: clicking a field must never
+      flash a ring at a mouse user.</p>
+    </div>
+
+    <h3>Contrast floor — WCAG 2.2 AA</h3>
+    <table class="spec" data-od-id="a11y-floor">
+      <tr><th>Element</th><th>Floor</th><th>Note</th></tr>
+      <tr><td>Body text</td><td>4.5:1</td><td><code>--muted</code> on <code>--canvas</code> and above; <code>--faint</code> only for non-essential metadata already stated elsewhere</td></tr>
+      <tr><td>Large text (≥18.66px bold / 24px)</td><td>3:1</td><td>Applies to display headings and hero KPI values only</td></tr>
+      <tr><td>Placeholders</td><td>4.5:1</td><td>Held to the body floor, not the 3:1 exception — a placeholder often carries the only format hint</td></tr>
+      <tr><td>Non-text indicators</td><td>3:1</td><td>Status dots, meter fills, chart series, control borders, focus ring</td></tr>
+      <tr><td>Touch targets</td><td>44×44px below 960px</td><td><code>ds-core.css</code> lifts <code>.btn</code>, <code>.input</code> and <code>.ctl</code> to 44px at the mobile breakpoint</td></tr>
+    </table>
+
+    <div class="demo fd-grid2" data-od-id="disabled-contract">
+      <div>
+        <label class="flabel">Workspace<span class="opt">locked by policy</span></label>
+        <input class="input fd-dis" value="compozy-core" disabled>
+        <p class="fhint">Your administrator pinned this session to <b>compozy-core</b>. Ask an owner to unpin it before switching.</p>
+      </div>
+      <div>
+        <p class="eyebrow" style="margin-bottom:8px">Why not opacity</p>
+        <p class="demo-note">Disabled controls swap <b>tokens</b> — fill to <code>--canvas</code>, border to
+        <code>--line-soft</code>, ink to <code>--disabled</code> (#4a4847). Dimming the whole control with
+        <code>opacity</code> would drag the mandated reason text below AA at the same time, and the reason is the one
+        thing the operator still has to read. Buttons are the single exception: they carry no reason text, so
+        <code>.btn:disabled</code> may use <code>.5</code>.</p>
+      </div>
     </div>
   </section>
 
   <!-- ============ 09 DIVERGENCE LEDGER ============ -->
-  <section class="sec" id="ledger" data-od-id="sec-ledger">
-    <div class="sec__head"><span class="sec__num">09</span><h2>Divergence ledger — prototype vs production</h2></div>
-    <p>Known deltas between the prototype lineage and <code class="mono">packages/ui/src/tokens.css</code>.
-    Production wins each one; this ledger exists so no future prototype re-imports the drift.</p>
-    <table class="spec">
-      <tr><th>Axis</th><th>Prototype drift</th><th>Canon (this DS)</th></tr>
-      <tr><td>Focus ring</td><td>1px <code>--line-strong</code></td><td>2px white ·5 (production <code>--shadow-focus-ring</code>)</td></tr>
-      <tr><td>Reasoning meter</td><td>agent-detail 5-bar <code>.meter</code></td><td><b>7-bar</b> <code>.im</code> (intensity-meter.tsx; Medium = 4/7)</td></tr>
-      <tr><td>Switch</td><td>os-v2 34×20</td><td><b>32×18</b>, knob 14, travel 14 (verify-locked)</td></tr>
-      <tr><td>KPI value</td><td>dashboard 24px</td><td>windows 17px · hero dashboards 24px (<code>.kpi--lg</code>); production names 28px — revisit at implementation</td></tr>
-      <tr><td>Content max</td><td>dashboard/task 1240px</td><td><b>1320px</b> (<code>--container-content-max</code>)</td></tr>
-      <tr><td>subtle/faint</td><td>hex #76767c / #545458</td><td>production uses oklch equivalents — same appearance, keep hex in prototypes</td></tr>
-      <tr><td>Mono family</td><td>"JetBrains Mono" first</td><td>"JetBrains Mono Variable" first</td></tr>
-      <tr><td>Input height</td><td>settings 32px vs modal 36px</td><td>36px forms (<code>--height-input</code>) · 32px only as <code>.ctl</code> inside settings rows</td></tr>
-      <tr><td>Pill-group segment</td><td>22–28px scatter</td><td>24px md · 22px <code>--sm</code> (dense chart toggles) · never 28px</td></tr>
-      <tr><td>Token naming</td><td>modal library uses <code>--color-*</code> prefixes</td><td>prototypes keep bare names; production/web uses prefixed — 1:1 mapping, never both in one file</td></tr>
+  <section class="sec" data-od-id="sec-divergence">
+    <h2><span class="num">09</span>Divergence ledger</h2>
+    <p class="lead">These prototypes are not production code, and a handful of differences are deliberate.
+    Each row below is an <b>authorized delta</b>: the prototype dialect is correct here, the production form is
+    correct in <code>web/</code>, and an implementer translates rather than copies. Anything not on this list
+    is drift and gets fixed.</p>
+
+    <table class="spec" data-od-id="divergence-table">
+      <tr><th>Axis</th><th>Prototype</th><th>Production</th><th>Status</th></tr>
+      <tr>
+        <td>Token names</td>
+        <td>Bare — <code>--canvas</code>, <code>--accent</code>, <code>--line-soft</code></td>
+        <td>Prefixed — <code>--color-canvas</code>, <code>--color-accent</code>; full map in <code>PARITY.md</code></td>
+        <td>Authorized delta</td>
+      </tr>
+      <tr>
+        <td>Scale units</td>
+        <td>px ramp — <code>--text-body:15px</code>, <code>--h-btn:30px</code></td>
+        <td>rem tokens in <code>packages/ui/src/tokens.css</code>; the px values are the rendered mirror</td>
+        <td>Authorized delta</td>
+      </tr>
+      <tr>
+        <td>Eyebrow</td>
+        <td><code>.eyebrow</code> / <code>.eyebrow-caps</code> classes</td>
+        <td><code>&lt;Eyebrow&gt;</code> from <code>@compozy/ui</code>; the <code>no-inline-eyebrow</code> lint blocks hand-rolled copies</td>
+        <td>Authorized delta</td>
+      </tr>
+      <tr>
+        <td>Window resizing</td>
+        <td>Native <code>resize:both</code> on the frame — enough to test a layout at two sizes</td>
+        <td><code>react-rnd</code> with snapping, tiling seams and the reserved dock band</td>
+        <td>Authorized delta</td>
+      </tr>
+      <tr>
+        <td>Fonts</td>
+        <td>Geist + JetBrains Mono from Google Fonts, loaded per page</td>
+        <td>Bundled variable fonts, self-hosted and subset; no third-party font request at runtime</td>
+        <td>Authorized delta</td>
+      </tr>
     </table>
+    <p class="fd-note">Authority chain, unchanged: <code>packages/ui/src/tokens.css</code> + <code>web/src</code>
+    win, then this folder, then any older prototype. When a prototype and production disagree on anything
+    <i>not</i> in the table above, production is right and the prototype is stale.</p>
   </section>
 </div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>lucide.createIcons();</script>
 </body>
 </html>

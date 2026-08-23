@@ -1,8 +1,8 @@
 {
   "version": 1,
   "kind": "html",
-  "title": "_done/shell/index.html",
-  "entry": "_done/shell/index.html",
+  "title": "design-system/settings.html",
+  "entry": "design-system/settings.html",
   "renderer": "html",
   "status": "complete",
   "exports": [
@@ -10,8 +10,8 @@
     "pdf",
     "zip"
   ],
-  "createdAt": "2026-07-28T18:24:28.162Z",
-  "updatedAt": "2026-07-28T18:24:28.162Z",
+  "createdAt": "2026-08-23T00:00:00.000Z",
+  "updatedAt": "2026-08-23T00:00:00.000Z",
   "metadata": {
     "inferred": true,
     "reconciled": true
