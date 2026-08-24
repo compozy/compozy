@@ -234,7 +234,7 @@ func openWorkspaceRoleSessionReader(
 ) func() []store.SessionInfo {
 	t.Helper()
 
-	db, err := globaldb.OpenGlobalDB(ctx, harness.HomePaths.DatabaseFile)
+	db, err := openDaemonTestGlobalDBAtPath(ctx, harness.HomePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB(workspace roles) error = %v", err)
 	}

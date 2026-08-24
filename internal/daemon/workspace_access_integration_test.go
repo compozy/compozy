@@ -40,7 +40,7 @@ func TestWorkspaceAccessIntegration(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		db, err := globaldb.OpenGlobalDB(ctx, filepath.Join(t.TempDir(), store.GlobalDatabaseName))
+		db, err := openDaemonTestGlobalDBAtPath(ctx, filepath.Join(t.TempDir(), store.GlobalDatabaseName))
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}

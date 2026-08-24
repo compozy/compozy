@@ -43,7 +43,7 @@ func TestLoopActionEnvironmentRealGitIntegration(t *testing.T) {
 	runLoopEnvironmentGit(t, runner, repository, "add", "README.md")
 	runLoopEnvironmentGit(t, runner, repository, "commit", "-m", "initial")
 
-	database, err := globaldb.OpenGlobalDB(ctx, filepath.Join(t.TempDir(), "compozy.db"))
+	database, err := openDaemonTestGlobalDBAtPath(ctx, filepath.Join(t.TempDir(), "compozy.db"))
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}

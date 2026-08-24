@@ -48,7 +48,7 @@ func TestDaemonE2ENetworkLiveBoundsCoalesceDepthAndBudget(t *testing.T) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 		defer cancel()
-		db, err := globaldb.OpenGlobalDB(ctx, harness.HomePaths.DatabaseFile)
+		db, err := openDaemonTestGlobalDBAtPath(ctx, harness.HomePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(Network bounds) error = %v", err)
 		}

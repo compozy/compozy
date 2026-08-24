@@ -48,7 +48,6 @@ import (
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -11666,7 +11665,7 @@ func TestNativeMemoryDreamAdminShouldRespectProfileStores(t *testing.T) {
 		if err := memoryStore.EnsureDirs(); err != nil {
 			t.Fatalf("MemoryStore.EnsureDirs() error = %v", err)
 		}
-		db, err := globaldb.OpenGlobalDB(t.Context(), homePaths.DatabaseFile)
+		db, err := openDaemonTestGlobalDBAtPath(t.Context(), homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}

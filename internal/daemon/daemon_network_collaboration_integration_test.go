@@ -455,7 +455,7 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 			}
 		}
 
-		usageDB, err := globaldb.OpenGlobalDB(ctx, harness.HomePaths.DatabaseFile)
+		usageDB, err := openDaemonTestGlobalDBAtPath(ctx, harness.HomePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(network usage) error = %v", err)
 		}
@@ -839,7 +839,7 @@ func TestDaemonE2ENetworkWakeCancellationWithMockAgent(t *testing.T) {
 		})
 		mustSetNetworkEnabled(t, ctx, harness, false)
 
-		usageDB, err := globaldb.OpenGlobalDB(ctx, harness.HomePaths.DatabaseFile)
+		usageDB, err := openDaemonTestGlobalDBAtPath(ctx, harness.HomePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(canceled network wake) error = %v", err)
 		}
@@ -1871,7 +1871,7 @@ func waitForSettledNetworkWakeCount(
 	want int,
 ) {
 	t.Helper()
-	usageDB, err := globaldb.OpenGlobalDB(ctx, harness.HomePaths.DatabaseFile)
+	usageDB, err := openDaemonTestGlobalDBAtPath(ctx, harness.HomePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB(network wake settlement) error = %v", err)
 	}

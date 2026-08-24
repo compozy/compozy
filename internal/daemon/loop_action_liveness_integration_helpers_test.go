@@ -42,7 +42,7 @@ func testLoopActionSettlementIntegration(
 
 	ctx := testutil.Context(t)
 	root := t.TempDir()
-	db, err := globaldb.OpenGlobalDB(ctx, filepath.Join(root, store.GlobalDatabaseName))
+	db, err := openDaemonTestGlobalDBAtPath(ctx, filepath.Join(root, store.GlobalDatabaseName))
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
@@ -199,7 +199,7 @@ func testLoopFailureBreakerIntegration(t *testing.T) {
 
 	ctx := testutil.Context(t)
 	root := t.TempDir()
-	db, err := globaldb.OpenGlobalDB(ctx, filepath.Join(root, store.GlobalDatabaseName))
+	db, err := openDaemonTestGlobalDBAtPath(ctx, filepath.Join(root, store.GlobalDatabaseName))
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}

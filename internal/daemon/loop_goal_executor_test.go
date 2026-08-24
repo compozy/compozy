@@ -18,7 +18,6 @@ import (
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/tools"
@@ -29,7 +28,7 @@ func TestComposeLoopGoalExecutorShouldRegisterThroughParentActionBoundary(t *tes
 	t.Run("Should resolve the child executor without a parent package import", func(t *testing.T) {
 		t.Parallel()
 
-		store, err := globaldb.OpenGlobalDB(context.Background(), filepath.Join(t.TempDir(), "compozy.db"))
+		store, err := openDaemonTestGlobalDBAtPath(context.Background(), filepath.Join(t.TempDir(), "compozy.db"))
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -64,7 +63,7 @@ func TestComposeLoopGoalExecutorShouldRegisterThroughParentActionBoundary(t *tes
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		store, err := globaldb.OpenGlobalDB(ctx, filepath.Join(t.TempDir(), "compozy.db"))
+		store, err := openDaemonTestGlobalDBAtPath(ctx, filepath.Join(t.TempDir(), "compozy.db"))
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}

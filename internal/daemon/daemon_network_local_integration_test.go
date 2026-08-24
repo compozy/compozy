@@ -203,7 +203,7 @@ func assertLocalNetworkPersistence(
 	loopRunID string,
 ) {
 	t.Helper()
-	db, err := globaldb.OpenGlobalDB(ctx, harness.HomePaths.DatabaseFile)
+	db, err := openDaemonTestGlobalDBAtPath(ctx, harness.HomePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB(Local zero-cost assertion) error = %v", err)
 	}

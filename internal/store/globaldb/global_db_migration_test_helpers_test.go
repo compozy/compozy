@@ -3,7 +3,8 @@ package globaldb
 import (
 	"context"
 	"database/sql"
-	"sync"
+	"errors"
+	"os"
 	"testing"
 	"time"
 
@@ -11,8 +12,6 @@ import (
 )
 
 const globalMigrationTestTimeout = 3 * time.Minute
-
-var globalMigrationTestMu sync.Mutex
 
 func globalMigrationTestContext(t *testing.T) context.Context {
 	t.Helper()
@@ -28,8 +27,14 @@ func openGlobalMigrationPrefixDatabase(
 	stream store.MigrationStream,
 ) (*sql.DB, error) {
 	t.Helper()
-	globalMigrationTestMu.Lock()
-	defer globalMigrationTestMu.Unlock()
+	if _, err := os.Stat(path); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+		if err := copyGlobalMigrationTemplate(path, stream); err != nil {
+			return nil, err
+		}
+	}
 
 	return store.OpenSQLiteDatabase(
 		globalMigrationTestContext(t),
@@ -46,8 +51,6 @@ func applyGlobalMigrationPrefix(
 	stream store.MigrationStream,
 ) error {
 	t.Helper()
-	globalMigrationTestMu.Lock()
-	defer globalMigrationTestMu.Unlock()
 
 	return store.Apply(globalMigrationTestContext(t), db, stream)
 }
@@ -62,8 +65,6 @@ func openGlobalMigrationUpgradeWithOptions(
 	options ...OpenOption,
 ) (*GlobalDB, error) {
 	t.Helper()
-	globalMigrationTestMu.Lock()
-	defer globalMigrationTestMu.Unlock()
 
 	return OpenGlobalDB(globalMigrationTestContext(t), path, options...)
 }

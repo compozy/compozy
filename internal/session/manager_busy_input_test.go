@@ -2976,7 +2976,7 @@ func openManagerInputQueueStore(t *testing.T) *globaldb.GlobalDB {
 	t.Helper()
 
 	ctx := testutil.Context(t)
-	queueStore, err := globaldb.OpenGlobalDB(ctx, filepath.Join(t.TempDir(), store.GlobalDatabaseName))
+	queueStore, err := openSessionTestGlobalDB(ctx, filepath.Join(t.TempDir(), store.GlobalDatabaseName))
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
