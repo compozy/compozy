@@ -501,9 +501,11 @@ Runtime routing belongs to the Loop runtime. Worker fields resolve independently
 per-run rules, imported task frontmatter, a referenced runtime input, configured runtime rules,
 literal `params.runtime`, `runtime_defaults.worker`, then the agent definition. A higher layer
 replaces only the fields it sets. `resolved_runtime.source` uses `input` for the referenced layer.
-Each rule matches exactly one of `id`, `type`, or `complexity`; specificity is
-`id > type > complexity`, and the later rule wins when specificity is equal. Child `run-loop`
-definitions resolve their own rules and never inherit the parent's per-run rules.
+Rules match one exact `id`, one `type`, one `complexity`, or the conjunction
+`type + complexity`. The conjunction is AND. Specificity is
+`id > type + complexity > type > complexity`; later equal-specificity rules
+win per non-empty runtime field. Child `run-loop` definitions resolve their own rules and never
+inherit the parent's per-run rules.
 
 Use `contract.runtime_defaults` and `contract.runtime_rules` in a Loop definition, or
 `[loops.defaults.delivery|watch]` plus stored Loop config for operator defaults. `run-agent` and
@@ -527,6 +529,9 @@ compozy loop run \
   --dry-run \
   -o json
 ```
+
+The repeatable examples remain default or single-selector rules. Configure a `type + complexity`
+conjunction in `runtime_rules`; this reference documents no compact CLI conjunction syntax.
 
 The runtime expression is `provider/model@reasoning:speed=normal|fast`. Use `-` to leave provider or
 model unset, `-/-:speed=fast` for speed-only intent, and bare `worker=opus` for model-only shorthand.
