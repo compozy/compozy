@@ -720,6 +720,7 @@ speed = "normal"
 [[loops.defaults.delivery.runtime_rules]]
 [loops.defaults.delivery.runtime_rules.match]
 type = "frontend"
+complexity = "high"
 [loops.defaults.delivery.runtime_rules.runtime]
 model = "gpt-5.5-codex"
 speed = "normal"
@@ -2167,7 +2168,7 @@ logical width.
 | `requests.expire_after`                                      | empty    | empty   | Empty or positive Go duration.           | Seeds an expiry only when an authored request omits `expires`; authored expiry wins.     |
 | `admission.tombstone_horizon`                                | `168h`   | `168h`  | Positive Go duration.                    | Minimum watch-admission deduplication retention.                                         |
 | `runtime_defaults.{worker,judge}.{provider,model,reasoning}` | empty    | empty   | Valid provider/model/reasoning fields.   | Worker and judge runtime defaults.                                                       |
-| `runtime_rules[]`                                            | none     | none    | One `id`, `type`, or `complexity` match. | Field-merged worker override; `id > type > complexity`, later wins on equal specificity. |
+| `runtime_rules[]`                                            | none     | none    | Exactly `id`, `type`, `complexity`, or `type + complexity`. | Field-merged worker override; conjunction is AND, specificity is `id > type + complexity > type > complexity`, and later equal-specificity rules win per non-empty field. |
 
 Only a definition containing `watch-source` selects the watch defaults. A definition with
 `watch-events` but no `watch-source` remains on delivery defaults, including `iteration_cap = 50`,

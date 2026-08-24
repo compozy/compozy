@@ -35,7 +35,7 @@ func ResolveJudgeRuntime(defaults RuntimeSpec, criterion RuntimeSpec) ResolvedRu
 	return normalizeResolvedRuntime(resolved)
 }
 
-// ValidateRuntimeRules enforces exclusive selectors and non-empty runtime values.
+// ValidateRuntimeRules enforces the supported selector shapes and non-empty runtime values.
 func ValidateRuntimeRules(rules []RuntimeRule) error {
 	return validateRuntimeRules(context.Background(), nil, rules)
 }

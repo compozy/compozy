@@ -698,6 +698,17 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 								request.ConfigOverrides,
 							)
 						}
+						if len(request.ConfigOverrides.RuntimeRules) != 2 ||
+							request.ConfigOverrides.RuntimeRules[0].Match.Type != "frontend" ||
+							request.ConfigOverrides.RuntimeRules[0].Match.Complexity != "high" ||
+							request.ConfigOverrides.RuntimeRules[0].Runtime.Reasoning != "high" ||
+							request.ConfigOverrides.RuntimeRules[1].Match.Complexity != "low" ||
+							request.ConfigOverrides.RuntimeRules[1].Runtime.Model != "gpt-5.6-luna" {
+							t.Fatalf(
+								"RunLoop runtime rules = %#v, want conjunction and legacy rule",
+								request.ConfigOverrides.RuntimeRules,
+							)
+						}
 						if request.NetworkParticipation == nil ||
 							request.NetworkParticipation.Mode == nil ||
 							*request.NetworkParticipation.Mode != participation.ModeLocal {
@@ -716,6 +727,9 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 								InputOrigins: map[string]contract.LoopInputOrigin{
 									"target": contract.LoopInputOriginRun,
 								},
+								EffectiveConfig: contract.LoopEffectiveConfig{
+									RunRuntimeRules: request.ConfigOverrides.RuntimeRules,
+								},
 							},
 						}, nil
 					},
@@ -730,7 +744,9 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 				ToolID: toolspkg.ToolIDLoopRun,
 				Input: json.RawMessage(
 					`{"workspace":"ws-alpha","name":"release","inputs":{"target":"prod"},` +
-						`"config_overrides":{"environment":{"mode":"per_run"}},` +
+						`"config_overrides":{"environment":{"mode":"per_run"},"runtime_rules":[` +
+						`{"match":{"type":"frontend","complexity":"high"},"runtime":{"reasoning":"high"}},` +
+						`{"match":{"complexity":"low"},"runtime":{"model":"gpt-5.6-luna"}}]},` +
 						`"network_participation":{"mode":"local"},"dry":true}`,
 				),
 			},
@@ -751,6 +767,74 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		requireNativeStructuredContains(t, result, []byte(`"dry_run"`))
 		requireNativeStructuredContains(t, result, []byte(`"release"`))
 		requireNativeStructuredContains(t, result, []byte(`"input_origins":{"target":"run"}`))
+		requireNativeStructuredContains(
+			t,
+			result,
+			[]byte(`"match":{"type":"frontend","complexity":"high"}`),
+		)
+		requireNativeStructuredContains(
+			t,
+			result,
+			[]byte(`"match":{"complexity":"low"},"runtime":{"model":"gpt-5.6-luna"}`),
+		)
+	})
+
+	t.Run("Should reject structurally invalid runtime rules before Loop service", func(t *testing.T) {
+		t.Parallel()
+
+		for _, testCase := range []struct {
+			name string
+			rule string
+		}{
+			{name: "Should reject an empty matcher", rule: `{"match":{},"runtime":{"provider":"codex"}}`},
+			{
+				name: "Should reject an ID collision",
+				rule: `{"match":{"id":"task_01","type":"frontend"},"runtime":{"provider":"codex"}}`,
+			},
+			{name: "Should reject an empty runtime", rule: `{"match":{"type":"frontend"},"runtime":{}}`},
+			{
+				name: "Should reject an unknown runtime field",
+				rule: `{"match":{"type":"frontend"},"runtime":{"effort":"high"}}`,
+			},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				called := false
+				registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+					Sessions: nativeNetworkTestSessionManager("ws-alpha"),
+					Loops: func() core.LoopService {
+						return &nativeLoopServiceStub{runLoopFn: func(
+							context.Context,
+							string,
+							string,
+							core.LoopRunInput,
+						) (contract.RunLoopResponse, error) {
+							called = true
+							return contract.RunLoopResponse{}, nil
+						}}
+					},
+				}, nativeApproveAllPolicyInputs())
+				_, err := registry.Call(
+					t.Context(),
+					toolspkg.Scope{SessionID: "sess-caller", WorkspaceID: "ws-alpha"},
+					toolspkg.CallRequest{
+						ToolID: toolspkg.ToolIDLoopRun,
+						Input: json.RawMessage(
+							`{"name":"release","config_overrides":{"runtime_rules":[` +
+								testCase.rule + `]},"dry":true}`,
+						),
+					},
+				)
+				if called {
+					t.Fatal("Loop service was called for a structurally invalid runtime rule")
+				}
+				toolErr, matched := errors.AsType[*toolspkg.ToolError](err)
+				if !matched || toolErr.Code != toolspkg.ErrorCodeInvalidInput {
+					t.Fatalf("Registry.Call(loop_run) error = %#v, want invalid-input ToolError", err)
+				}
+			})
+		}
 	})
 
 	t.Run("Should preserve the persisted run web URL in structured output", func(t *testing.T) {

@@ -267,6 +267,24 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
+	t.Run("Should expose exact Loop runtime rule contracts", func(t *testing.T) {
+		t.Parallel()
+
+		descriptors := descriptorMap(NativeDescriptors())
+		configure := decodeNativeObjectSchema(t, descriptors[toolspkg.ToolIDLoopConfigure], "config")
+		assertNativeLoopRuntimeRulesSchema(
+			t,
+			descriptors[toolspkg.ToolIDLoopConfigure],
+			configure.Properties["runtime_rules"],
+		)
+		run := decodeNativeObjectSchema(t, descriptors[toolspkg.ToolIDLoopRun], "config_overrides")
+		assertNativeLoopRuntimeRulesSchema(
+			t,
+			descriptors[toolspkg.ToolIDLoopRun],
+			run.Properties["runtime_rules"],
+		)
+	})
+
 	t.Run("Should expose closed session mutation contracts", func(t *testing.T) {
 		t.Parallel()
 
@@ -2695,6 +2713,88 @@ func assertNativeLoopEnvironmentSchema(t *testing.T, owner string, raw json.RawM
 		environment.Properties["mode"],
 		[]string{"root", "worktree", "per_run", "directory"},
 	)
+}
+
+func assertNativeLoopRuntimeRulesSchema(
+	t *testing.T,
+	descriptor toolspkg.Descriptor,
+	raw json.RawMessage,
+) {
+	t.Helper()
+	compiled := compileNativeSchema(t, descriptor, raw, "runtime_rules")
+	for _, testCase := range []struct {
+		name    string
+		payload string
+		valid   bool
+	}{
+		{
+			name:    "Should accept an exact ID rule",
+			payload: `[{"match":{"id":"task_01"},"runtime":{"provider":"codex"}}]`,
+			valid:   true,
+		},
+		{
+			name:    "Should accept a type rule",
+			payload: `[{"match":{"type":"frontend"},"runtime":{"model":"gpt-5.6-sol"}}]`,
+			valid:   true,
+		},
+		{
+			name:    "Should accept a complexity rule",
+			payload: `[{"match":{"complexity":"high"},"runtime":{"reasoning":"high"}}]`,
+			valid:   true,
+		},
+		{
+			name: "Should accept a type and complexity rule with every runtime field",
+			payload: `[{"match":{"type":"frontend","complexity":"high"},` +
+				`"runtime":{"provider":"codex","model":"gpt-5.6-sol",` +
+				`"reasoning":"high","speed":"fast"}}]`,
+			valid: true,
+		},
+		{
+			name:    "Should reject an empty matcher",
+			payload: `[{"match":{},"runtime":{"provider":"codex"}}]`,
+		},
+		{
+			name:    "Should reject an ID and type collision",
+			payload: `[{"match":{"id":"task_01","type":"frontend"},"runtime":{"provider":"codex"}}]`,
+		},
+		{
+			name:    "Should reject an ID and complexity collision",
+			payload: `[{"match":{"id":"task_01","complexity":"high"},"runtime":{"provider":"codex"}}]`,
+		},
+		{
+			name: "Should reject all matcher fields together",
+			payload: `[{"match":{"id":"task_01","type":"frontend","complexity":"high"},` +
+				`"runtime":{"provider":"codex"}}]`,
+		},
+		{
+			name:    "Should reject an empty runtime",
+			payload: `[{"match":{"type":"frontend"},"runtime":{}}]`,
+		},
+		{
+			name:    "Should reject unknown matcher fields",
+			payload: `[{"match":{"domain":"frontend"},"runtime":{"provider":"codex"}}]`,
+		},
+		{
+			name:    "Should reject unknown runtime fields",
+			payload: `[{"match":{"type":"frontend"},"runtime":{"effort":"high"}}]`,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			instance, err := jsonschema.UnmarshalJSON(strings.NewReader(testCase.payload))
+			if err != nil {
+				t.Fatalf("%s runtime_rules payload parse error = %v", descriptor.ID, err)
+			}
+			err = compiled.Validate(instance)
+			if testCase.valid && err != nil {
+				t.Fatalf("%s runtime_rules schema rejected %s: %v", descriptor.ID, testCase.payload, err)
+			}
+			if !testCase.valid && err == nil {
+				t.Fatalf("%s runtime_rules schema accepted invalid payload %s", descriptor.ID, testCase.payload)
+			}
+		})
+	}
 }
 
 func assertStringEnumSchema(t *testing.T, owner string, raw json.RawMessage, want []string) {

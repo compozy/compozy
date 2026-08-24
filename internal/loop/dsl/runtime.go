@@ -65,7 +65,8 @@ type RuntimeDefaults struct {
 	Judge  RuntimeSpec `json:"judge,omitzero"  yaml:"judge,omitempty"  toml:"judge"`
 }
 
-// RuntimeMatch selects exactly one task identity dimension.
+// RuntimeMatch selects exactly one task id, one task type, one complexity,
+// or a type and complexity conjunction. The conjunction is AND and id is exclusive.
 type RuntimeMatch struct {
 	ID         string         `json:"id,omitempty"         yaml:"id,omitempty"         toml:"id"`
 	Type       string         `json:"type,omitempty"       yaml:"type,omitempty"       toml:"type"`

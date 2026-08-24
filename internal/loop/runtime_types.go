@@ -16,7 +16,7 @@ type RuntimeSpec = dsl.RuntimeSpec
 // RuntimeDefaults contains worker and judge default runtime intent.
 type RuntimeDefaults = dsl.RuntimeDefaults
 
-// RuntimeMatch selects one task identity dimension.
+// RuntimeMatch selects one supported task matcher shape.
 type RuntimeMatch = dsl.RuntimeMatch
 
 // RuntimeRule is one task runtime selection rule.

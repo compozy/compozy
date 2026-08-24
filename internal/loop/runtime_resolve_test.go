@@ -140,6 +140,24 @@ func TestResolveItemRuntimeShouldMergeFieldsByPrecedence(t *testing.T) {
 		)
 	})
 
+	t.Run("Should merge disjoint matrix fields and prefer later equal-specificity fields", func(t *testing.T) {
+		t.Parallel()
+
+		matrixMatch := loop.RuntimeMatch{Type: "frontend", Complexity: "high"}
+		got := resolveRuntimeForTest(t, loop.RuntimeLayers{ConfigRules: []loop.RuntimeRule{
+			{Match: matrixMatch, Runtime: loop.RuntimeSpec{Provider: "codex", Model: "first-model"}},
+			{Match: matrixMatch, Runtime: loop.RuntimeSpec{Reasoning: "high"}},
+			{Match: matrixMatch, Runtime: loop.RuntimeSpec{Model: "later-model"}},
+		}}, loop.ItemRuntime{TaskType: "frontend", Complexity: "high"})
+		assertResolvedRuntime(t, got,
+			loop.RuntimeSpec{Provider: "codex", Model: "later-model", Reasoning: "high"},
+			loop.RuntimeProvenance{
+				Provider: loop.RuntimeSourceConfig,
+				Model:    loop.RuntimeSourceConfig, Reasoning: loop.RuntimeSourceConfig,
+			},
+		)
+	})
+
 	t.Run("Should enforce pairwise item layer precedence", func(t *testing.T) {
 		t.Parallel()
 
