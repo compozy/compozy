@@ -81,7 +81,7 @@ func TestDaemonE2ELocalDefaultExecutionHasZeroNetworkCost(t *testing.T) {
 		startedRun, err := harness.StartClaimedTaskRunForSession(
 			ctx,
 			taskRun.ID,
-			localSession,
+			&localSession,
 			compozycontract.StartTaskRunRequest{IdempotencyKey: "start-" + taskRun.ID},
 		)
 		if err != nil {

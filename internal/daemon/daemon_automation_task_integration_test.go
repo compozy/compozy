@@ -300,7 +300,7 @@ func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
 		automationTaskFixtureAgentName,
 		"automation-task-claim-worker",
 	)
-	claimedRun, err := harness.ClaimExactTaskRunForSession(ctx, run.TaskRunID, worker)
+	claimedRun, err := harness.ClaimExactTaskRunForSession(ctx, run.TaskRunID, &worker)
 	if err != nil {
 		t.Fatalf("ClaimExactTaskRunForSession(%q) error = %v", run.TaskRunID, err)
 	}
@@ -311,7 +311,7 @@ func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
 	startedRun, err := harness.StartClaimedTaskRunForSession(
 		ctx,
 		run.TaskRunID,
-		worker,
+		&worker,
 		compozycontract.StartTaskRunRequest{IdempotencyKey: "start-" + run.TaskRunID},
 	)
 	if err != nil {

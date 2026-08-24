@@ -40,7 +40,7 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 		homePaths := e2etest.NewHomePaths(t)
 		harnessOptions := e2etest.RuntimeHarnessOptions{
 			HomePaths: homePaths,
-			Workspace: e2etest.WorkspaceSeedOptions{Root: homePaths.HomeDir},
+			Workspace: e2etest.WorkspaceSeedOptions{Root: filepath.Join(homePaths.HomeDir, "workspace")},
 			MockAgents: []e2etest.MockAgentSpec{{
 				FixturePath: mockFixturePath(t, "loop_events_fixture.json"), FixtureAgent: "loop_events",
 				AgentName: "loop-events-agent",
@@ -162,15 +162,9 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 			}
 		}
 
-		foreign := readLoopRunSSEForDuration(
-			t,
-			harness,
-			loopRunEventsPath("foreign-workspace", run.ID, 0),
-			250*time.Millisecond,
+		assertLoopRunSSEStatus(
+			t, ctx, harness, loopRunEventsPath("foreign-workspace", run.ID, 0), http.StatusNotFound,
 		)
-		if len(foreign) != 0 {
-			t.Fatalf("foreign workspace stream events = %#v, want none", foreign)
-		}
 	})
 
 	t.Run("Should exit a broken stop-when with a durable diagnostic", func(t *testing.T) {
@@ -230,7 +224,7 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 		fixturePath := writeLoopControlRestartFixture(t)
 		harnessOptions := e2etest.RuntimeHarnessOptions{
 			HomePaths: homePaths,
-			Workspace: e2etest.WorkspaceSeedOptions{Root: homePaths.HomeDir},
+			Workspace: e2etest.WorkspaceSeedOptions{Root: filepath.Join(homePaths.HomeDir, "workspace")},
 			MockAgents: []e2etest.MockAgentSpec{{
 				FixturePath:  fixturePath,
 				FixtureAgent: "loop_control_restart",
@@ -281,7 +275,7 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 		homePaths := e2etest.NewHomePaths(t)
 		harnessOptions := e2etest.RuntimeHarnessOptions{
 			HomePaths: homePaths,
-			Workspace: e2etest.WorkspaceSeedOptions{Root: homePaths.HomeDir},
+			Workspace: e2etest.WorkspaceSeedOptions{Root: filepath.Join(homePaths.HomeDir, "workspace")},
 		}
 		harness := e2etest.StartRuntimeHarness(t, &harnessOptions)
 		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
@@ -469,7 +463,7 @@ func TestDaemonE2ELoopWatchEventsShouldWakeAndRecover(t *testing.T) {
 		acpmock.RequireDriver(t)
 
 		homePaths := e2etest.NewHomePaths(t)
-		workspaceRoot := homePaths.HomeDir
+		workspaceRoot := filepath.Join(homePaths.HomeDir, "workspace")
 		seedWatchEventsLoopDefinition(t, workspaceRoot)
 		fixturePath := writeWatchEventsFixture(t)
 		harness := startWatchEventsRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
@@ -1838,6 +1832,36 @@ func streamLoopRunSSE(
 		return nil, fmt.Errorf("loop SSE status %d: %s", resp.StatusCode, bytes.TrimSpace(payload))
 	}
 	return readLoopRunSSERecords(resp.Body, done)
+}
+
+func assertLoopRunSSEStatus(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	path string,
+	want int,
+) {
+	t.Helper()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, harness.HTTPURL(path), nil)
+	if err != nil {
+		t.Fatalf("create Loop SSE request error = %v", err)
+	}
+	response, err := harness.HTTPClient.Do(req)
+	if err != nil {
+		t.Fatalf("request Loop SSE status error = %v", err)
+	}
+	defer func() {
+		if closeErr := response.Body.Close(); closeErr != nil {
+			t.Errorf("close Loop SSE status body error = %v", closeErr)
+		}
+	}()
+	if response.StatusCode != want {
+		body, readErr := io.ReadAll(response.Body)
+		if readErr != nil {
+			t.Fatalf("read Loop SSE status body error = %v", readErr)
+		}
+		t.Fatalf("Loop SSE status = %d body=%s, want %d", response.StatusCode, bytes.TrimSpace(body), want)
+	}
 }
 
 func readLoopRunSSERecords(

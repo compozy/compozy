@@ -148,7 +148,7 @@ func recordRoleFallbackEvent(
 		ProfileID: roleEventProfileID(correlation),
 		SessionID: correlation.SessionID, WorkspaceID: correlation.WorkspaceID,
 		Type: eventspkg.RoleFallbackUsed, AgentName: firstRoleValue(correlation.AgentName, route.AgentName),
-		Provider: route.Provider, Outcome: string(eventspkg.OutcomeFor(eventspkg.RoleFallbackUsed)),
+		Outcome:          string(eventspkg.OutcomeFor(eventspkg.RoleFallbackUsed)),
 		EventCorrelation: correlation.Event, ParentSessionID: correlation.ParentSessionID,
 		RootSessionID: correlation.RootSessionID, SpawnDepth: correlation.SpawnDepth,
 		Summary: fmt.Sprintf("%s role fallback attempt %d", role.Role, attempt),

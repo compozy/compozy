@@ -99,6 +99,7 @@ func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
 	workspaceRef, workspacePath := spawnWorkspaceCreateRefs(parent, normalized)
 
 	child, err := m.Create(ctx, CreateOpts{
+		ProfileID:            strings.TrimSpace(parent.ProfileID),
 		AgentName:            normalized.AgentName,
 		Provider:             normalized.Provider,
 		Model:                normalized.Model,

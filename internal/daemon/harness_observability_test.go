@@ -39,6 +39,7 @@ func TestSectionSelectorQueuesStartupSummariesUntilSessionCreated(t *testing.T) 
 
 	startup := session.StartupPromptContext{
 		SessionID:            "sess-startup",
+		ProfileID:            "profile-marketing",
 		AgentName:            "coder",
 		SessionType:          session.SessionTypeUser,
 		NetworkParticipation: daemonTestLiveParticipation("ws-1", "builders"),
@@ -54,7 +55,9 @@ func TestSectionSelectorQueuesStartupSummariesUntilSessionCreated(t *testing.T) 
 		t.Fatalf("startup summaries written before session creation = %#v, want queued only", got)
 	}
 
-	recorder.OnSessionCreated(context.Background(), &session.Session{ID: startup.SessionID})
+	recorder.OnSessionCreated(context.Background(), &session.Session{
+		ID: startup.SessionID, ProfileID: startup.ProfileID,
+	})
 
 	summaries := summaryStore.Summaries()
 	if got, want := len(summaries), 2; got != want {
@@ -68,6 +71,9 @@ func TestSectionSelectorQueuesStartupSummariesUntilSessionCreated(t *testing.T) 
 	}
 	if got, want := summaries[0].SessionID, startup.SessionID; got != want {
 		t.Fatalf("summaries[0].SessionID = %q, want %q", got, want)
+	}
+	if got, want := summaries[0].ProfileID, startup.ProfileID; got != want {
+		t.Fatalf("summaries[0].ProfileID = %q, want %q", got, want)
 	}
 	if got, want := summaries[0].AgentName, startup.AgentName; got != want {
 		t.Fatalf("summaries[0].AgentName = %q, want %q", got, want)

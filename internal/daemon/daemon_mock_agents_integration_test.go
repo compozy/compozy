@@ -2278,7 +2278,7 @@ func completeWakeTaskRunViaSession(
 	if err != nil {
 		t.Fatalf("GetSession(%s) error = %v", sessionID, err)
 	}
-	claimed, err := harness.ClaimExactTaskRunForSession(ctx, run.ID, sessionRecord)
+	claimed, err := harness.ClaimExactTaskRunForSession(ctx, run.ID, &sessionRecord)
 	if err != nil {
 		t.Fatalf("ClaimExactTaskRunForSession(%s) error = %v", run.ID, err)
 	}

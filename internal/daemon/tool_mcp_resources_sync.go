@@ -160,6 +160,11 @@ func (d *Daemon) newToolMCPPublisher(
 		return nil, fmt.Errorf("daemon: create mcp server store: %w", err)
 	}
 
+	var profiles extensionProfileCatalog
+	if state.deps.Profiles != nil {
+		profiles = state.deps.Profiles
+	}
+
 	return newToolMCPSourceSyncerWithConfigProvider(
 		state.resourceKernel,
 		toolStore,
@@ -183,7 +188,7 @@ func (d *Daemon) newToolMCPPublisher(
 			registry,
 			state.currentExtensionRuntime,
 			d.getenv,
-			state.deps.Profiles,
+			profiles,
 		),
 	), nil
 }

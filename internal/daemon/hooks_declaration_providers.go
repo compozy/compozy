@@ -12,6 +12,7 @@ import (
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 
 	"github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/store"
 
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -55,14 +56,17 @@ func extensionDeclarationProvider(
 		if !ok {
 			return nil, errors.New("daemon: extension runtime does not support profile hook projection")
 		}
-		if profiles == nil {
-			return nil, errors.New("daemon: profile catalog is required for extension hook projection")
+		lenses := []extensionpkg.ProfileLens{{
+			ID: store.DefaultProfileID, Name: daemonDefaultProfileName,
+		}}
+		if profiles != nil {
+			rows, err := profiles.List(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("daemon: list profiles for extension hook projection: %w", err)
+			}
+			lenses = activeExtensionProfileLenses(rows)
 		}
-		rows, err := profiles.List(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("daemon: list profiles for extension hook projection: %w", err)
-		}
-		decls, err := projector.HookDeclarationsForProfiles(ctx, activeExtensionProfileLenses(rows))
+		decls, err := projector.HookDeclarationsForProfiles(ctx, lenses)
 		if err != nil {
 			return nil, fmt.Errorf("daemon: project hook declarations from extension runtime: %w", err)
 		}

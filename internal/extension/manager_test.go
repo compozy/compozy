@@ -554,11 +554,14 @@ profile = "y"
 	if err := env.registry.SetEnabledForProfile(fixture.manifest.Name, xProfileID, false); err != nil {
 		t.Fatalf("SetEnabledForProfile(x disabled) error = %v", err)
 	}
+	liveExtension := manager.extensions[fixture.manifest.Name]
+	delete(manager.extensions, fixture.manifest.Name)
 	xProjection, enabled = project(t, xProfileID, "x")
 	if enabled {
 		t.Fatal("ProjectForProfile(x disabled) enabled = true, want false [IT-053]")
 	}
 	assertSkills(t, xProjection, []string{"shared", "x-one", "x-two"})
+	manager.extensions[fixture.manifest.Name] = liveExtension
 
 	if err := env.registry.SetEnabledForProfile(fixture.manifest.Name, xProfileID, true); err != nil {
 		t.Fatalf("SetEnabledForProfile(x enabled) error = %v", err)

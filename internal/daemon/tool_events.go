@@ -40,8 +40,12 @@ func (s *daemonToolEventSink) EmitToolEvent(ctx context.Context, event toolspkg.
 	if s.now != nil {
 		timestamp = s.now().UTC()
 	}
-	profileID := store.DefaultProfileID
-	if sessionID := strings.TrimSpace(event.SessionID); sessionID != "" && s.profileForSession != nil {
+	profileID := strings.TrimSpace(event.ProfileID)
+	if profileID == "" {
+		profileID = store.DefaultProfileID
+	}
+	if sessionID := strings.TrimSpace(event.SessionID); strings.TrimSpace(event.ProfileID) == "" &&
+		sessionID != "" && s.profileForSession != nil {
 		profileID, err = s.profileForSession(ctx, sessionID)
 		if err != nil {
 			return fmt.Errorf("daemon: resolve tool event session profile: %w", err)

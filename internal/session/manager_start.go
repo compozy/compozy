@@ -144,6 +144,7 @@ func (s *sessionStartSpec) startupPromptContext(updatedAt time.Time) StartupProm
 	ref := workref.NewRoot(s.workspace.ID, s.workspace.RootDir)
 	return StartupPromptContext{
 		SessionID:            strings.TrimSpace(s.sessionID),
+		ProfileID:            strings.TrimSpace(s.profileID),
 		SessionName:          strings.TrimSpace(s.sessionName),
 		AgentName:            strings.TrimSpace(s.agentName),
 		Provider:             strings.TrimSpace(s.provider),

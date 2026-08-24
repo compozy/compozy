@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -73,7 +74,10 @@ func resourceProfileKey(resolved *workspacepkg.ResolvedWorkspace) string {
 	if profileID := strings.TrimSpace(resolved.ProfileID); profileID != "" {
 		return profileID
 	}
-	return strings.TrimSpace(resolved.ProfileName)
+	if profileName := strings.TrimSpace(resolved.ProfileName); profileName != "" {
+		return profileName
+	}
+	return store.DefaultProfileID
 }
 
 func resourceProfileSkills(
@@ -83,9 +87,15 @@ func resourceProfileSkills(
 	if resolved == nil {
 		return nil
 	}
+	profileID := strings.TrimSpace(resolved.ProfileID)
+	profileName := strings.TrimSpace(resolved.ProfileName)
+	if profileID == "" && profileName == "" {
+		profileID = store.DefaultProfileID
+		profileName = "default"
+	}
 	keys := []string{
-		strings.TrimSpace(resolved.ProfileID),
-		strings.TrimSpace(resolved.ProfileName),
+		profileID,
+		profileName,
 		strings.TrimSpace(resolved.ProfileRoot),
 	}
 	for _, key := range keys {
@@ -110,11 +120,15 @@ func resourceWorkspaceProfileKey(resolved *workspacepkg.ResolvedWorkspace) strin
 		return ""
 	}
 	workspaceID := strings.TrimSpace(resolved.ID)
-	profileID := resourceProfileKey(resolved)
-	if workspaceID == "" || profileID == "" {
+	profileName := strings.TrimSpace(resolved.ProfileName)
+	profileID := strings.TrimSpace(resolved.ProfileID)
+	if profileName == "" && (profileID == "" || profileID == store.DefaultProfileID) {
+		profileName = "default"
+	}
+	if workspaceID == "" || profileName == "" {
 		return ""
 	}
-	return workspaceID + "@pf:" + profileID
+	return workspaceID + "@pf:" + profileName
 }
 
 func (r *Registry) lookupSkillLocked(name string) (*Skill, bool) {

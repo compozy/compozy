@@ -65,6 +65,10 @@ func (g *ApprovalGrantRepo) PutApprovalGrant(
 	if err := grant.ValidateForPut(); err != nil {
 		return toolspkg.ApprovalGrant{}, err
 	}
+	owner, err := g.approvalGrantProfileOwner(ctx, grant.ProfileID)
+	if err != nil {
+		return toolspkg.ApprovalGrant{}, err
+	}
 	now := g.now().UTC()
 	if grant.ID == "" {
 		grant.ID = uuid.NewString()
@@ -99,7 +103,50 @@ func (g *ApprovalGrantRepo) PutApprovalGrant(
 			err,
 		)
 	}
-	return approvalGrantFromRow(row)
+	stored, err := approvalGrantFromRow(row)
+	if err != nil {
+		return toolspkg.ApprovalGrant{}, err
+	}
+	stored.ProfileName = owner.ProfileName
+	stored.ProfileColor = owner.ProfileColor
+	stored.ProfileIcon = owner.ProfileIcon
+	stored.ProfileEmoji = owner.ProfileEmoji
+	stored.ProfileArchived = owner.ProfileArchived
+	return stored, nil
+}
+
+func (g *ApprovalGrantRepo) approvalGrantProfileOwner(
+	ctx context.Context,
+	profileID string,
+) (toolspkg.ApprovalGrant, error) {
+	var owner toolspkg.ApprovalGrant
+	err := g.db.QueryRowContext(
+		ctx,
+		`SELECT name, color, COALESCE(icon, ''), COALESCE(emoji, ''), state = 'archived'
+		 FROM profiles WHERE id = ?`,
+		strings.TrimSpace(profileID),
+	).Scan(
+		&owner.ProfileName,
+		&owner.ProfileColor,
+		&owner.ProfileIcon,
+		&owner.ProfileEmoji,
+		&owner.ProfileArchived,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return toolspkg.ApprovalGrant{}, fmt.Errorf(
+			"%w: approval profile %q does not exist",
+			toolspkg.ErrApprovalGrantInvalid,
+			strings.TrimSpace(profileID),
+		)
+	}
+	if err != nil {
+		return toolspkg.ApprovalGrant{}, fmt.Errorf(
+			"store: read tool approval grant profile %q: %w",
+			strings.TrimSpace(profileID),
+			err,
+		)
+	}
+	return owner, nil
 }
 
 // ListApprovalGrants returns one workspace's grants under the requested profile

@@ -200,6 +200,18 @@ func (s *daemonExtensionService) desiredExtensionKit(
 	if err != nil {
 		return nil, nil, err
 	}
+	if ext == nil {
+		return nil, nil, fmt.Errorf("daemon: inspect extension %q returned no package", strings.TrimSpace(name))
+	}
+	if ext.Manifest == nil {
+		return nil, nil, fmt.Errorf(
+			"daemon: inspected extension %q has no manifest (enabled=%t root=%q manifest_path=%q)",
+			strings.TrimSpace(name),
+			ext.Info.Enabled,
+			strings.TrimSpace(ext.RootDir),
+			strings.TrimSpace(ext.Info.ManifestPath),
+		)
+	}
 	items, err := projectExtensionKitItems(ctx, ext, s.resourceCodecs, s.getenv)
 	if err != nil {
 		return nil, nil, err

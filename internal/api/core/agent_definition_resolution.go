@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -17,6 +18,7 @@ type resolvedAgentDefinition struct {
 	Entry              AgentCatalogEntry
 	OperationWorkspace string
 	WorkspaceRoot      string
+	ProfileName        string
 	Config             compozyconfig.Config
 }
 
@@ -31,6 +33,8 @@ func (h *BaseHandlers) resolveAgentDefinition(
 	ctx context.Context,
 	workspaceRef string,
 	name string,
+	profileScope profilepkg.ReadScope,
+	profileName string,
 ) (resolvedAgentDefinition, error) {
 	target := compozyconfig.NormalizeAgentName(name)
 	if target == "" {
@@ -48,7 +52,7 @@ func (h *BaseHandlers) resolveAgentDefinition(
 				workspacepkg.ErrWorkspaceResolverUnavailable,
 			)
 		}
-		resolved, err := h.Workspaces.Resolve(ctx, workspaceRef)
+		resolved, err := resolveWorkspaceAgentProfile(ctx, h.Workspaces, workspaceRef, profileName)
 		if err != nil {
 			return resolvedAgentDefinition{}, err
 		}
@@ -58,10 +62,15 @@ func (h *BaseHandlers) resolveAgentDefinition(
 			}
 			workspaceID := strings.TrimSpace(resolved.ID)
 			entry := h.agentCatalogEntryFromDef(agent, workspaceID)
+			resolvedProfileName := strings.TrimSpace(resolved.ProfileName)
+			if resolvedProfileName == "" {
+				resolvedProfileName = strings.TrimSpace(profileName)
+			}
 			return resolvedAgentDefinition{
 				Entry:              entry,
 				OperationWorkspace: workspaceID,
 				WorkspaceRoot:      strings.TrimSpace(resolved.RootDir),
+				ProfileName:        resolvedProfileName,
 				Config:             resolved.Config,
 			}, nil
 		}
@@ -74,14 +83,27 @@ func (h *BaseHandlers) resolveAgentDefinition(
 	}
 
 	if h.AgentCatalog != nil {
-		entry, err := h.AgentCatalog.GetAgent(ctx, target)
+		entries, err := h.AgentCatalog.ListAgentsForWorkspace(
+			ctx,
+			&workspacepkg.ResolvedWorkspace{
+				ProfileID:   strings.TrimSpace(profileScope.ProfileID),
+				ProfileName: strings.TrimSpace(profileName),
+			},
+		)
 		if err != nil {
 			return resolvedAgentDefinition{}, err
 		}
-		return resolvedAgentDefinition{
-			Entry:  entry,
-			Config: h.Config,
-		}, nil
+		for _, entry := range entries {
+			if compozyconfig.NormalizeAgentName(entry.Def.Name) != target {
+				continue
+			}
+			return resolvedAgentDefinition{
+				Entry:       entry,
+				ProfileName: strings.TrimSpace(profileName),
+				Config:      h.Config,
+			}, nil
+		}
+		return resolvedAgentDefinition{}, fmt.Errorf("%w: %s", os.ErrNotExist, target)
 	}
 
 	agent, err := h.AgentLoader(target, h.HomePaths)
@@ -112,6 +134,7 @@ func (h *BaseHandlers) duplicateAgentTarget(
 	ctx context.Context,
 	req contract.DuplicateAgentRequest,
 	source *resolvedAgentDefinition,
+	profileName string,
 ) (agentDefinitionMutationTarget, error) {
 	scope := req.Scope
 	if scope == "" {
@@ -158,7 +181,7 @@ func (h *BaseHandlers) duplicateAgentTarget(
 				workspacepkg.ErrWorkspaceResolverUnavailable,
 			)
 		}
-		resolved, err := h.Workspaces.Resolve(ctx, workspaceRef)
+		resolved, err := resolveWorkspaceAgentProfile(ctx, h.Workspaces, workspaceRef, profileName)
 		if err != nil {
 			return agentDefinitionMutationTarget{}, err
 		}
@@ -166,6 +189,8 @@ func (h *BaseHandlers) duplicateAgentTarget(
 			Path: filepath.Join(
 				resolved.RootDir,
 				compozyconfig.DirName,
+				compozyconfig.ProfilesDirName,
+				strings.TrimSpace(resolved.ProfileName),
 				compozyconfig.AgentsDirName,
 				targetName,
 			),
@@ -192,7 +217,20 @@ func (h *BaseHandlers) agentDefinitionAgentsRoot(resolved *resolvedAgentDefiniti
 				errors.New("source workspace root is unavailable"),
 			)
 		}
-		return filepath.Join(resolved.WorkspaceRoot, compozyconfig.DirName, compozyconfig.AgentsDirName), nil
+		profileName := strings.TrimSpace(resolved.ProfileName)
+		if profileName == "" {
+			return "", errors.Join(
+				errAgentDefinitionInvalid,
+				errors.New("source workspace profile is unavailable"),
+			)
+		}
+		return filepath.Join(
+			resolved.WorkspaceRoot,
+			compozyconfig.DirName,
+			compozyconfig.ProfilesDirName,
+			profileName,
+			compozyconfig.AgentsDirName,
+		), nil
 	default:
 		return "", errors.Join(
 			errAgentDefinitionInvalid,

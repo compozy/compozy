@@ -113,18 +113,11 @@ func (c *resourceAgentCatalog) lookupAgentRecord(
 		return resources.Record[compozyconfig.AgentDef]{}, false
 	}
 
-	workspaceID := ""
-	if resolved != nil {
-		workspaceID = strings.TrimSpace(resolved.ID)
-	}
-	var (
-		globalKey      string
-		globalAgent    resources.Record[compozyconfig.AgentDef]
-		globalFound    bool
-		workspaceKey   string
-		workspaceAgent resources.Record[compozyconfig.AgentDef]
-		workspaceFound bool
-	)
+	lens := agentCatalogLensFor(resolved)
+	bestRank := -1
+	bestKey := ""
+	var best resources.Record[compozyconfig.AgentDef]
+	found := false
 
 	c.catalog.mu.RLock()
 	defer c.catalog.mu.RUnlock()
@@ -132,32 +125,20 @@ func (c *resourceAgentCatalog) lookupAgentRecord(
 		if strings.TrimSpace(record.Spec.Name) != target {
 			continue
 		}
-
+		rank, visible := lens.rank(record.Scope)
+		if !visible {
+			continue
+		}
 		sortKey := agentRecordSortKey(record)
-		switch record.Scope.Kind.Normalize() {
-		case resources.ResourceScopeKindUser:
-			if !globalFound || sortKey > globalKey {
-				globalKey = sortKey
-				globalAgent = record
-				globalFound = true
-			}
-		case resources.ResourceScopeKindWorkspace:
-			if workspaceID == "" || strings.TrimSpace(record.Scope.ID) != workspaceID {
-				continue
-			}
-			if !workspaceFound || sortKey > workspaceKey {
-				workspaceKey = sortKey
-				workspaceAgent = record
-				workspaceFound = true
-			}
+		if !found || rank > bestRank || rank == bestRank && sortKey > bestKey {
+			bestRank = rank
+			bestKey = sortKey
+			best = record
+			found = true
 		}
 	}
-
-	if workspaceFound {
-		return c.catalog.cloneRecord(workspaceAgent), true
-	}
-	if globalFound {
-		return c.catalog.cloneRecord(globalAgent), true
+	if found {
+		return c.catalog.cloneRecord(best), true
 	}
 	return resources.Record[compozyconfig.AgentDef]{}, false
 }

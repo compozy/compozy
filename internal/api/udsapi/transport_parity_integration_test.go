@@ -1960,7 +1960,7 @@ func TestUDSTransportMarketplaceParityMatchesHTTPAndCLI(t *testing.T) {
 				"--name",
 				"filesystem-parity",
 				"--scope",
-				"global",
+				"user",
 				"-o",
 				"json",
 			); err != nil {

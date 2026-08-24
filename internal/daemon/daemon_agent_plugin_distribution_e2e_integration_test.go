@@ -71,26 +71,26 @@ func testDaemonE2EAgentPluginCLIGoldenPath(t *testing.T) {
 		"extension", "install", "github:acme/hello", "--allow-unverified", "--yes",
 	)
 	assertAgentPluginTranscriptOrder(t, installOut,
+		"acme.tools will:",
 		"✓ install acme.tools",
 		"Format: agent plugin",
 		"Ingested",
 		"skill",
 		"Skipped",
 		"legacy-events",
-		"next: compozy extension enable acme.tools",
+		"next: compozy extension status acme.tools",
 		"Extension",
 		"Name:",
 		"acme.tools",
 		"Summary:",
-		"disabled",
+		"running",
 	)
 
 	enableOut := runAgentPluginHumanCLI(
 		t, ctx, harness, true, "extension", "enable", "acme.tools",
 	)
 	assertAgentPluginTranscriptOrder(t, enableOut,
-		"✓ Enabled acme.tools",
-		"next: compozy extension status acme.tools",
+		"Enabled in profile default.",
 	)
 
 	statusOut := runAgentPluginHumanCLI(
@@ -397,6 +397,13 @@ func runAgentPluginHumanCLI(
 	if wantSuccess {
 		if err != nil {
 			t.Fatalf("CLI %q error = %v; stdout=%s stderr=%s", strings.Join(args, " "), err, stdout, stderr)
+		}
+		isInstall := len(args) >= 2 && args[0] == "extension" && args[1] == "install"
+		if isInstall {
+			if strings.TrimSpace(stderr) == "" {
+				t.Fatalf("CLI %q stderr is empty, want install preview", strings.Join(args, " "))
+			}
+			return stderr + stdout
 		}
 		if strings.TrimSpace(stderr) != "" {
 			t.Fatalf("CLI %q stderr = %q, want empty", strings.Join(args, " "), stderr)

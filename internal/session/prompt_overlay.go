@@ -14,6 +14,7 @@ import (
 // startup prompt assembly and overlay selection.
 type StartupPromptContext struct {
 	SessionID            string
+	ProfileID            string
 	SessionName          string
 	AgentName            string
 	Provider             string

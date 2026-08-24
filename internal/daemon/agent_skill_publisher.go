@@ -35,6 +35,16 @@ func (d *Daemon) newAgentSkillPublisher(
 	if err != nil {
 		return nil, err
 	}
+	extensionProfileCatalogs := make([]extensionProfileCatalog, 0, 1)
+	if state.deps.Profiles != nil {
+		extensionProfileCatalogs = append(extensionProfileCatalogs, state.deps.Profiles)
+	}
+	extensionProvider := extensionAgentSkillDeclarationProvider(
+		registry,
+		state.currentExtensionRuntime,
+		state.logger,
+		extensionProfileCatalogs...,
+	)
 
 	syncer := newAgentSkillSourceSyncer(agentSkillSourceSyncerDeps{
 		raw:            state.resourceKernel,
@@ -67,12 +77,7 @@ func (d *Daemon) newAgentSkillPublisher(
 				state.skillsRegistry,
 				state.logger,
 			),
-			extensionAgentSkillDeclarationProvider(
-				registry,
-				state.currentExtensionRuntime,
-				state.logger,
-				state.deps.Profiles,
-			),
+			extensionProvider,
 		},
 	})
 	if syncer == nil {

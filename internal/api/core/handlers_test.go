@@ -2392,6 +2392,49 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 			t.Fatalf("missing agent status = %d, want %d", missingResp.Code, http.StatusNotFound)
 		}
 	})
+
+	t.Run("Should serve resource-backed agents through the selected profile lens", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Profiles = sessionProfileServiceStub{}
+		fixture.Handlers.AgentCatalog = stubAgentCatalog{
+			listForWorkspace: func(resolved *workspacepkg.ResolvedWorkspace) ([]core.AgentCatalogEntry, error) {
+				if resolved.ProfileID != "profile-marketing" || resolved.ProfileName != "marketing" {
+					t.Fatalf("agent catalog profile lens = %#v, want marketing", resolved)
+				}
+				return []core.AgentCatalogEntry{{
+					Def: compozyconfig.AgentDef{
+						Name: "reviewer", Provider: "codex", Prompt: "Review marketing work.",
+						SourceLayer: "profile",
+					},
+					Origin: contract.AgentOriginGlobal,
+				}}, nil
+			},
+		}
+
+		listResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents?profile=marketing", nil)
+		if listResp.Code != http.StatusOK {
+			t.Fatalf("list resource-backed agents status = %d; body=%s", listResp.Code, listResp.Body.String())
+		}
+		var listed contract.AgentsResponse
+		decodeJSON(t, listResp.Body.Bytes(), &listed)
+		if len(listed.Agents) != 1 || listed.Agents[0].Name != "reviewer" {
+			t.Fatalf("resource-backed agents = %#v, want reviewer", listed.Agents)
+		}
+
+		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/reviewer?profile=marketing", nil)
+		if getResp.Code != http.StatusOK {
+			t.Fatalf("get resource-backed agent status = %d; body=%s", getResp.Code, getResp.Body.String())
+		}
+	})
 }
 
 func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
@@ -3045,7 +3088,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			t.Fatalf("AgentDefinitionDigest() error = %v", err)
 		}
 		fixture.Handlers.AgentCatalog = stubAgentCatalog{
-			get: map[string]compozyconfig.AgentDef{"code_implementer": current},
+			agents: []compozyconfig.AgentDef{current},
 		}
 
 		resp := performRequest(
@@ -3302,6 +3345,8 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		workspacePath := filepath.Join(
 			workspaceRoot,
 			compozyconfig.DirName,
+			compozyconfig.ProfilesDirName,
+			"default",
 			compozyconfig.AgentsDirName,
 			"coder",
 			compozyconfig.AgentDefinitionFileName,
@@ -3378,6 +3423,8 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		workspacePath := filepath.Join(
 			workspaceRoot,
 			compozyconfig.DirName,
+			compozyconfig.ProfilesDirName,
+			"default",
 			compozyconfig.AgentsDirName,
 			"coder",
 			compozyconfig.AgentDefinitionFileName,
@@ -3427,6 +3474,8 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		workspacePath := filepath.Join(
 			workspaceRoot,
 			compozyconfig.DirName,
+			compozyconfig.ProfilesDirName,
+			"default",
 			compozyconfig.AgentsDirName,
 			"coder",
 			compozyconfig.AgentDefinitionFileName,
@@ -3473,6 +3522,8 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		workspacePath := filepath.Join(
 			workspaceRoot,
 			compozyconfig.DirName,
+			compozyconfig.ProfilesDirName,
+			"default",
 			compozyconfig.AgentsDirName,
 			"coder",
 			compozyconfig.AgentDefinitionFileName,
@@ -3645,6 +3696,8 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		sourcePath := filepath.Join(
 			workspaceRoot,
 			compozyconfig.DirName,
+			compozyconfig.ProfilesDirName,
+			"default",
 			compozyconfig.AgentsDirName,
 			"coder",
 			compozyconfig.AgentDefinitionFileName,
@@ -3689,6 +3742,8 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		targetPath := filepath.Join(
 			workspaceRoot,
 			compozyconfig.DirName,
+			compozyconfig.ProfilesDirName,
+			"default",
 			compozyconfig.AgentsDirName,
 			"reviewer",
 			compozyconfig.AgentDefinitionFileName,
@@ -3723,6 +3778,8 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		explicitTargetPath := filepath.Join(
 			workspaceRoot,
 			compozyconfig.DirName,
+			compozyconfig.ProfilesDirName,
+			"default",
 			compozyconfig.AgentsDirName,
 			"operator",
 			compozyconfig.AgentDefinitionFileName,
@@ -4328,10 +4385,11 @@ func TestBaseHandlersWorkspaceProfileHintsTrackTeamAdoptionIT042(t *testing.T) {
 }
 
 type stubAgentCatalog struct {
-	agents  []compozyconfig.AgentDef
-	get     map[string]compozyconfig.AgentDef
-	listErr error
-	getErr  error
+	agents           []compozyconfig.AgentDef
+	get              map[string]compozyconfig.AgentDef
+	listErr          error
+	getErr           error
+	listForWorkspace func(*workspacepkg.ResolvedWorkspace) ([]core.AgentCatalogEntry, error)
 }
 
 var _ core.AgentCatalog = stubAgentCatalog{}
@@ -4352,8 +4410,11 @@ func (s stubAgentCatalog) ListAgents(context.Context) ([]core.AgentCatalogEntry,
 
 func (s stubAgentCatalog) ListAgentsForWorkspace(
 	ctx context.Context,
-	_ *workspacepkg.ResolvedWorkspace,
+	resolved *workspacepkg.ResolvedWorkspace,
 ) ([]core.AgentCatalogEntry, error) {
+	if s.listForWorkspace != nil {
+		return s.listForWorkspace(resolved)
+	}
 	return s.ListAgents(ctx)
 }
 

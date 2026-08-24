@@ -310,6 +310,7 @@ type CallRequest struct {
 	ToolID               ToolID          `json:"tool_id"`
 	ToolCallID           string          `json:"tool_call_id,omitempty"`
 	TurnID               string          `json:"turn_id,omitempty"`
+	ProfileID            string          `json:"profile_id,omitempty"`
 	SessionID            string          `json:"session_id,omitempty"`
 	WorkspaceID          string          `json:"workspace_id,omitempty"`
 	AgentName            string          `json:"agent_name,omitempty"`
@@ -360,6 +361,7 @@ type ToolCallEvent struct {
 	DisplayTitle         string            `json:"display_title,omitempty"`
 	SourceKind           SourceKind        `json:"source_kind,omitempty"`
 	SourceOwner          string            `json:"source_owner,omitempty"`
+	ProfileID            string            `json:"profile_id,omitempty"`
 	WorkspaceID          string            `json:"workspace_id,omitempty"`
 	SessionID            string            `json:"session_id,omitempty"`
 	AgentName            string            `json:"agent_name,omitempty"`

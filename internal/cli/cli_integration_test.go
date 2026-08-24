@@ -4227,6 +4227,7 @@ func (s *integrationBridgeService) PutBridgeTaskSubscription(
 
 func (s *integrationBridgeService) GetBridgeTaskSubscription(
 	ctx context.Context,
+	readScope store.ReadScope,
 	subscriptionID string,
 ) (bridgepkg.BridgeTaskSubscription, error) {
 	if s == nil || s.taskSubscriptions == nil {
@@ -4234,7 +4235,7 @@ func (s *integrationBridgeService) GetBridgeTaskSubscription(
 			"integration bridge task subscription store is not configured",
 		)
 	}
-	return s.taskSubscriptions.GetBridgeTaskSubscription(ctx, subscriptionID)
+	return s.taskSubscriptions.GetBridgeTaskSubscription(ctx, readScope, subscriptionID)
 }
 
 func (s *integrationBridgeService) ListBridgeTaskSubscriptions(

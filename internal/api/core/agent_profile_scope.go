@@ -11,11 +11,19 @@ import (
 )
 
 func (h *BaseHandlers) agentResourceProfileName(c *gin.Context) (string, error) {
+	_, name, err := h.agentResourceProfile(c)
+	return name, err
+}
+
+func (h *BaseHandlers) agentResourceProfile(
+	c *gin.Context,
+) (profilepkg.ReadScope, string, error) {
 	scope, err := h.resolveProfileReadScope(c)
 	if err != nil {
-		return "", err
+		return profilepkg.ReadScope{}, "", err
 	}
-	return h.agentResourceProfileNameForScope(c.Request.Context(), scope)
+	name, err := h.agentResourceProfileNameForScope(c.Request.Context(), scope)
+	return scope, name, err
 }
 
 func (h *BaseHandlers) agentResourceProfileNameForScope(

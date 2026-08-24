@@ -98,6 +98,7 @@ type HostedMCPLauncher interface {
 // HostedMCPLaunchRequest describes the session identity for a hosted MCP entry.
 type HostedMCPLaunchRequest struct {
 	SessionID   string
+	ProfileID   string
 	WorkspaceID string
 	AgentName   string
 }

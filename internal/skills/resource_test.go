@@ -11,6 +11,7 @@ import (
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -398,6 +399,30 @@ func TestResourceAuthorityProjectsWorkspaceSkills(t *testing.T) {
 				Enabled:     true,
 			},
 		},
+		{
+			Kind: SkillResourceKind,
+			ID:   "profile:profile-skill",
+			Scope: resources.ResourceScope{
+				Kind: resources.ResourceScopeKindProfile,
+				ID:   store.DefaultProfileID,
+			},
+			Spec: SkillResourceSpec{
+				Name: "profile-skill", Description: "Profile resource skill",
+				Source: skillSourceName(SourceProfile), Enabled: true,
+			},
+		},
+		{
+			Kind: SkillResourceKind,
+			ID:   "workspace-profile:workspace-profile-skill",
+			Scope: resources.ResourceScope{
+				Kind: resources.ResourceScopeKindWorkspaceProfile,
+				ID:   "/workspace/project@pf:default",
+			},
+			Spec: SkillResourceSpec{
+				Name: "workspace-profile-skill", Description: "Workspace-profile resource skill",
+				Source: skillSourceName(SourceWorkspaceProfile), Enabled: true,
+			},
+		},
 	}
 	if err := registry.ApplyResourceRecords(context.Background(), 2, records); err != nil {
 		t.Fatalf("ApplyResourceRecords() error = %v", err)
@@ -405,6 +430,7 @@ func TestResourceAuthorityProjectsWorkspaceSkills(t *testing.T) {
 
 	skills, err := registry.ForWorkspace(context.Background(), &workspacepkg.ResolvedWorkspace{
 		Workspace: workspacepkg.Workspace{ID: "/workspace/project"},
+		ProfileID: store.DefaultProfileID, ProfileName: "default",
 	})
 	if err != nil {
 		t.Fatalf("ForWorkspace() error = %v", err)
@@ -415,15 +441,35 @@ func TestResourceAuthorityProjectsWorkspaceSkills(t *testing.T) {
 	if !hasSkillNamed(skills, "workspace-skill") {
 		t.Fatal("ForWorkspace() missing workspace-skill")
 	}
+	if !hasSkillNamed(skills, "profile-skill") {
+		t.Fatal("ForWorkspace() missing profile-skill")
+	}
+	if !hasSkillNamed(skills, "workspace-profile-skill") {
+		t.Fatal("ForWorkspace() missing workspace-profile-skill")
+	}
+	defaultSkills, err := registry.ForWorkspace(context.Background(), &workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{ID: "/workspace/project"},
+	})
+	if err != nil {
+		t.Fatalf("ForWorkspace(default profile) error = %v", err)
+	}
+	if !hasSkillNamed(defaultSkills, "profile-skill") ||
+		!hasSkillNamed(defaultSkills, "workspace-profile-skill") {
+		t.Fatalf("ForWorkspace(default profile) skills = %#v, want profile layers", defaultSkills)
+	}
 
 	other, err := registry.ForWorkspace(context.Background(), &workspacepkg.ResolvedWorkspace{
 		Workspace: workspacepkg.Workspace{ID: "/workspace/other"},
+		ProfileID: store.DefaultProfileID, ProfileName: "default",
 	})
 	if err != nil {
 		t.Fatalf("ForWorkspace(other) error = %v", err)
 	}
 	if hasSkillNamed(other, "workspace-skill") {
 		t.Fatal("ForWorkspace(other) includes workspace-skill, want workspace scope isolation")
+	}
+	if hasSkillNamed(other, "workspace-profile-skill") {
+		t.Fatal("ForWorkspace(other) includes workspace-profile-skill, want combined scope isolation")
 	}
 
 	if err := registry.SetEnabled(

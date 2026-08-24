@@ -2176,6 +2176,32 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 func TestProviderSettingsUsesMergedCatalogProjection(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should read the persisted catalog without starting an implicit refresh", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		catalog := &settingsModelCatalogStub{}
+		service := testService(t, homePaths, Dependencies{ModelCatalog: catalog})
+
+		if _, err := service.ListCollection(context.Background(), CollectionRequest{
+			Collection: CollectionProviders,
+		}); err != nil {
+			t.Fatalf("ListCollection(providers) error = %v", err)
+		}
+
+		catalog.mu.Lock()
+		defer catalog.mu.Unlock()
+		if len(catalog.opts) == 0 {
+			t.Fatal("model catalog reads = 0, want one read per provider")
+		}
+		for _, opts := range catalog.opts {
+			if !opts.SkipRefreshIfEmpty {
+				t.Fatalf("model catalog read for provider %q allows implicit refresh", opts.ProviderID)
+			}
+		}
+	})
+
 	t.Run("Should leave a builtin provider untouched after an unchanged projected round trip", func(t *testing.T) {
 		t.Parallel()
 

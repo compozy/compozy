@@ -131,6 +131,7 @@ func (d *Daemon) bootRegistryState(
 			return err
 		}
 		state.profiles = profiles
+		state.deps.Profiles = profiles
 		d.providerPreStarter.SetProfileAvailabilityChecker(profiles)
 	}
 	workspaceResolver, err := d.newBootWorkspaceResolver(state, registry)

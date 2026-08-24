@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -41,9 +42,21 @@ func (h *BaseHandlers) ListAgents(c *gin.Context) {
 		)
 		return
 	}
-	profileName, err := h.agentResourceProfileName(c)
+	profileScope, profileName, err := h.agentResourceProfile(c)
 	if err != nil {
 		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	if h.AgentCatalog != nil {
+		entries, listErr := h.AgentCatalog.ListAgentsForWorkspace(
+			c.Request.Context(),
+			&workspacepkg.ResolvedWorkspace{ProfileID: profileScope.ProfileID, ProfileName: profileName},
+		)
+		if listErr != nil {
+			h.respondError(c, http.StatusInternalServerError, listErr)
+			return
+		}
+		h.respondAgentEntries(c, entries, &h.Config, "")
 		return
 	}
 	agentDefs, err := compozyconfig.LoadWorkspaceAgentDefs("", nil, h.HomePaths, profileName)
@@ -140,9 +153,30 @@ func (h *BaseHandlers) GetAgent(c *gin.Context) {
 		c.JSON(http.StatusOK, contract.AgentResponse{Agent: AgentPayloadFromEntryWithConfig(entry, &cfg)})
 		return
 	}
-	profileName, err := h.agentResourceProfileName(c)
+	profileScope, profileName, err := h.agentResourceProfile(c)
 	if err != nil {
 		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	if h.AgentCatalog != nil {
+		entries, listErr := h.AgentCatalog.ListAgentsForWorkspace(
+			c.Request.Context(),
+			&workspacepkg.ResolvedWorkspace{ProfileID: profileScope.ProfileID, ProfileName: profileName},
+		)
+		if listErr != nil {
+			h.respondError(c, http.StatusInternalServerError, listErr)
+			return
+		}
+		target := strings.TrimSpace(c.Param("name"))
+		for _, entry := range entries {
+			if strings.TrimSpace(entry.Def.Name) == target {
+				c.JSON(http.StatusOK, contract.AgentResponse{
+					Agent: AgentPayloadFromEntryWithConfig(entry, &h.Config),
+				})
+				return
+			}
+		}
+		h.respondError(c, http.StatusNotFound, os.ErrNotExist)
 		return
 	}
 	agentDefs, err := compozyconfig.LoadWorkspaceAgentDefs("", nil, h.HomePaths, profileName)

@@ -11,6 +11,8 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+const sessionDefaultProfileName = "default"
+
 func resolveStoredSessionWorkspace(
 	ctx context.Context,
 	meta store.SessionMeta,
@@ -63,7 +65,7 @@ func (m *Manager) resolveCreateWorkspace(ctx context.Context, opts CreateOpts) (
 					err,
 				)
 			}
-			return resolved, nil
+			return withDefaultProfileIdentity(resolved), nil
 		}
 		profileName, err := resolveProfileName(ctx, m.profileNames, opts.ProfileID)
 		if err != nil {
@@ -148,7 +150,11 @@ func resolveWorkspaceForProfile(
 ) (workspacepkg.ResolvedWorkspace, error) {
 	profileID = strings.TrimSpace(profileID)
 	if profileID == "" || profileID == store.DefaultProfileID {
-		return resolver.Resolve(ctx, workspaceRef)
+		resolved, err := resolver.Resolve(ctx, workspaceRef)
+		if err != nil {
+			return workspacepkg.ResolvedWorkspace{}, err
+		}
+		return withDefaultProfileIdentity(resolved), nil
 	}
 	profileName, err := resolveProfileName(ctx, profileNames, profileID)
 	if err != nil {
@@ -166,6 +172,12 @@ func resolveWorkspaceForProfile(
 	}
 	resolved.ProfileID = profileID
 	return resolved, nil
+}
+
+func withDefaultProfileIdentity(resolved workspacepkg.ResolvedWorkspace) workspacepkg.ResolvedWorkspace {
+	resolved.ProfileID = store.DefaultProfileID
+	resolved.ProfileName = sessionDefaultProfileName
+	return resolved
 }
 
 func resolveProfileName(ctx context.Context, profileNames ProfileNameResolver, profileID string) (string, error) {

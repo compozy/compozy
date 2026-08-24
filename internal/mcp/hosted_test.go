@@ -30,6 +30,7 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 
 		launch, err := service.Launch(t.Context(), HostedLaunchRequest{
 			SessionID:   "sess-1",
+			ProfileID:   "profile-a",
 			WorkspaceID: "ws-1",
 			AgentName:   "codex",
 		})
@@ -51,7 +52,8 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Bind() error = %v", err)
 		}
-		if bind.Scope.SessionID != "sess-1" || bind.Scope.WorkspaceID != "ws-1" || bind.Scope.AgentName != "codex" {
+		if bind.Scope.ProfileID != "profile-a" || bind.Scope.SessionID != "sess-1" ||
+			bind.Scope.WorkspaceID != "ws-1" || bind.Scope.AgentName != "codex" {
 			t.Fatalf("bind scope = %#v, want launch scope", bind.Scope)
 		}
 

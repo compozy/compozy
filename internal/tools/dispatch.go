@@ -112,6 +112,9 @@ func (r *RuntimeRegistry) executeDispatchTarget(
 }
 
 func normalizeCallRequest(scope Scope, req CallRequest) (CallRequest, error) {
+	if err := bindCallScopeField(req.ToolID, "profile_id", scope.ProfileID, &req.ProfileID); err != nil {
+		return CallRequest{}, err
+	}
 	if err := bindCallScopeField(req.ToolID, "session_id", scope.SessionID, &req.SessionID); err != nil {
 		return CallRequest{}, err
 	}
@@ -162,6 +165,7 @@ func validateHookCallRequestIdentity(original CallRequest, patched CallRequest) 
 	}{
 		{field: "tool_call_id", left: original.ToolCallID, right: patched.ToolCallID},
 		{field: "turn_id", left: original.TurnID, right: patched.TurnID},
+		{field: "profile_id", left: original.ProfileID, right: patched.ProfileID},
 		{field: "session_id", left: original.SessionID, right: patched.SessionID},
 		{field: "workspace_id", left: original.WorkspaceID, right: patched.WorkspaceID},
 		{field: "agent_name", left: original.AgentName, right: patched.AgentName},

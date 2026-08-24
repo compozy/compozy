@@ -86,10 +86,6 @@ func collectExtensionManifestToolMCPDeclarations(
 	if registry == nil || runtime == nil {
 		return toolMCPDesiredResources{}, nil
 	}
-	if profiles == nil {
-		return toolMCPDesiredResources{}, fmt.Errorf("daemon: profile catalog is required for extension tool/mcp sync")
-	}
-
 	manager := runtime()
 	if manager == nil {
 		return toolMCPDesiredResources{}, nil

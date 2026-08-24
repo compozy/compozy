@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 )
 
 // SessionCatalogStreamResult is one completed catalog-stream observation.
@@ -23,7 +25,12 @@ func (h *RuntimeHarness) StartSessionCatalogHTTPStream(
 	if err := validateSSEPredicate(predicate); err != nil {
 		return nil, err
 	}
-	targetURL := h.HTTPURL("/api/sessions/catalog-stream")
+	workspaceID := strings.TrimSpace(h.WorkspaceID)
+	if workspaceID == "" {
+		return nil, errors.New("runtime harness workspace ID is required")
+	}
+	query := url.Values{"workspace_id": []string{workspaceID}}
+	targetURL := h.HTTPURL("/api/sessions/catalog-stream?" + query.Encode())
 	response, requestErr := doRequest(ctx, h.HTTPClient, targetURL, http.MethodGet, nil)
 	if requestErr != nil {
 		return nil, requestErr

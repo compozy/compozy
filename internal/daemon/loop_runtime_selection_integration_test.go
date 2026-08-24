@@ -452,18 +452,6 @@ func TestLoopRuntimeSelectionIntegration(t *testing.T) {
 			harness.WorkspaceID,
 			"/loops/"+url.PathEscape(loopInputDefaultsName)+"/input-defaults/unknown_configured",
 		)
-		if err := harness.HTTPJSON(
-			ctx,
-			http.MethodPut,
-			unknownConfigPath,
-			contract.PutLoopInputDefaultRequest{
-				Scope: contract.LoopInputDefaultsScopeWorkspace,
-				Value: true,
-			},
-			new(contract.LoopInputDefaultResponse),
-		); err != nil {
-			t.Fatalf("HTTP set unknown configured Loop input default error = %v", err)
-		}
 		for _, transport := range []struct {
 			name   string
 			client *http.Client
@@ -472,26 +460,44 @@ func TestLoopRuntimeSelectionIntegration(t *testing.T) {
 			{name: "HTTP", client: harness.HTTPClient, base: harness.HTTPBaseURL},
 			{name: "UDS", client: harness.UDSClient, base: harness.UDSBaseURL},
 		} {
-			assertInputDefaultFailure(
-				transport.name+" configured unknown",
+			var validation contract.LoopValidationResponse
+			status := loopRuntimeRawJSON(
+				t,
+				ctx,
 				transport.client,
-				transport.base+runPath,
-				request,
-				"unknown_configured",
+				transport.base+unknownConfigPath,
+				http.MethodPut,
+				contract.PutLoopInputDefaultRequest{
+					Scope: contract.LoopInputDefaultsScopeWorkspace,
+					Value: true,
+				},
+				&validation,
 			)
+			if status != http.StatusUnprocessableEntity || validation.InputValidation == nil ||
+				validation.InputValidation.Loop != loopInputDefaultsName ||
+				validation.InputValidation.Field != "unknown_configured" ||
+				validation.InputValidation.Origin != string(contract.LoopInputOriginWorkspace) ||
+				validation.InputValidation.Reason != string(looppkg.InputValidationReasonUnknownInput) {
+				t.Fatalf(
+					"%s configured unknown input = status:%d payload:%#v",
+					transport.name,
+					status,
+					validation,
+				)
+			}
 		}
-		var deleted contract.DeleteLoopInputDefaultResponse
+		var absent contract.LoopInputDefaultResponse
 		if err := harness.UDSJSON(
 			ctx,
-			http.MethodDelete,
+			http.MethodGet,
 			unknownConfigPath+"?scope=workspace",
 			nil,
-			&deleted,
+			&absent,
 		); err != nil {
-			t.Fatalf("UDS delete unknown configured Loop input default error = %v", err)
+			t.Fatalf("UDS read rejected Loop input default error = %v", err)
 		}
-		if !deleted.Deleted {
-			t.Fatalf("UDS delete unknown configured Loop input default = %#v, want deleted", deleted)
+		if absent.Present {
+			t.Fatalf("rejected Loop input default = %#v, want absent", absent)
 		}
 		assertLoopRuntimeRunCount(t, ctx, harness, 0)
 	}) {
@@ -956,15 +962,9 @@ func assertLoopRuntimeForeignIsolation(
 		}
 	}
 
-	foreignEvents := readLoopRunSSEForDuration(
-		t,
-		harness,
-		loopRunEventsPath(foreignWorkspaceID, runID, 0),
-		250*time.Millisecond,
+	assertLoopRunSSEStatus(
+		t, ctx, harness, loopRunEventsPath(foreignWorkspaceID, runID, 0), http.StatusNotFound,
 	)
-	if len(foreignEvents) != 0 {
-		t.Fatalf("foreign workspace SSE events = %#v, want none", foreignEvents)
-	}
 
 	input, err := json.Marshal(map[string]string{"run_id": runID})
 	if err != nil {

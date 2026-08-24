@@ -108,6 +108,10 @@ func (d *Daemon) newLoopPublisher(
 	if err != nil {
 		return nil, err
 	}
+	var profiles extensionProfileCatalog
+	if state.deps.Profiles != nil {
+		profiles = state.deps.Profiles
+	}
 	return newLoopSourceSyncer(
 		store,
 		codec,
@@ -124,7 +128,7 @@ func (d *Daemon) newLoopPublisher(
 		extensionLoopDeclarationProvider(
 			registry,
 			state.currentExtensionRuntime,
-			state.deps.Profiles,
+			profiles,
 		),
 	), nil
 }
@@ -333,13 +337,14 @@ func extensionLoopDeclarationProvider(
 		if manager == nil {
 			return nil, nil
 		}
-		if profileCatalog == nil {
-			return nil, errors.New("daemon: profile catalog is required for extension loop sync")
-		}
 		var desired []loopPublicationInput
-		snapshots, err := extensionResourceSnapshotsForProfiles(
-			ctx, registry, manager, profileCatalog,
-		)
+		var snapshots []scopedExtensionResourceSnapshot
+		var err error
+		if profileCatalog != nil {
+			snapshots, err = extensionResourceSnapshotsForProfiles(ctx, registry, manager, profileCatalog)
+		} else {
+			snapshots, err = extensionResourceSnapshots(registry, manager, nil)
+		}
 		if err != nil {
 			return nil, err
 		}

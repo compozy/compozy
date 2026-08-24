@@ -60,7 +60,14 @@ func (h *BaseHandlers) UpdateAgent(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errAgentDefinitionSyncUnavailable)
 		return
 	}
-	resolved, err := h.resolveAgentDefinition(c.Request.Context(), req.Workspace, name)
+	profileScope, profileName, err := h.agentResourceProfile(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	resolved, err := h.resolveAgentDefinition(
+		c.Request.Context(), req.Workspace, name, profileScope, profileName,
+	)
 	if err != nil {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
@@ -114,7 +121,14 @@ func (h *BaseHandlers) DeleteAgent(c *gin.Context) {
 		return
 	}
 	name := compozyconfig.NormalizeAgentName(c.Param("name"))
-	resolved, err := h.resolveAgentDefinition(c.Request.Context(), c.Query("workspace"), name)
+	profileScope, profileName, err := h.agentResourceProfile(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	resolved, err := h.resolveAgentDefinition(
+		c.Request.Context(), c.Query("workspace"), name, profileScope, profileName,
+	)
 	if err != nil {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
@@ -189,12 +203,19 @@ func (h *BaseHandlers) DuplicateAgent(c *gin.Context) {
 		h.respondError(c, statusForAgentDefinitionError(wrapped), wrapped)
 		return
 	}
-	source, err := h.resolveAgentDefinition(c.Request.Context(), req.Workspace, c.Param("name"))
+	profileScope, profileName, err := h.agentResourceProfile(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	source, err := h.resolveAgentDefinition(
+		c.Request.Context(), req.Workspace, c.Param("name"), profileScope, profileName,
+	)
 	if err != nil {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
 	}
-	target, err := h.duplicateAgentTarget(c.Request.Context(), req, &source)
+	target, err := h.duplicateAgentTarget(c.Request.Context(), req, &source, profileName)
 	if err != nil {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return

@@ -189,7 +189,7 @@ func (n *daemonNativeTools) extensionInfo(
 
 func (n *daemonNativeTools) extensionInstall(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input extensionInstallInput
@@ -200,7 +200,7 @@ func (n *daemonNativeTools) extensionInstall(
 	if err := input.validate(); err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionValidationError(req.ToolID, err)
 	}
-	actor, err := nativeExtensionActorContext(req)
+	actor, err := nativeExtensionScopedActorContext(scope, req)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
@@ -213,7 +213,7 @@ func (n *daemonNativeTools) extensionInstall(
 
 func (n *daemonNativeTools) extensionUpdate(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input extensionUpdateInput
@@ -233,7 +233,7 @@ func (n *daemonNativeTools) extensionUpdate(
 			errors.New("confirm_network_digest applies only to a single extension update"),
 		)
 	}
-	actor, err := nativeExtensionActorContext(req)
+	actor, err := nativeExtensionScopedActorContext(scope, req)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}

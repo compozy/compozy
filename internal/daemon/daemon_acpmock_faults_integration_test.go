@@ -156,7 +156,7 @@ func TestDaemonE2EACPmockCrashEscalatesBoundTaskRun(t *testing.T) {
 		started, err := harness.StartClaimedTaskRunForSession(
 			ctx,
 			run.ID,
-			claimant,
+			&claimant,
 			compozycontract.StartTaskRunRequest{IdempotencyKey: "start-" + run.ID},
 		)
 		if err != nil {

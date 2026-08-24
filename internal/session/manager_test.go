@@ -1508,9 +1508,10 @@ func TestCreateInjectsOnlyHostedMCPServerWhenLauncherConfigured(t *testing.T) {
 	if len(requests) != 1 {
 		t.Fatalf("hosted launch requests = %#v, want one launch request", requests)
 	}
-	if requests[0].SessionID != session.ID || requests[0].WorkspaceID != h.workspaceID ||
+	if requests[0].SessionID != session.ID || requests[0].ProfileID != store.DefaultProfileID ||
+		requests[0].WorkspaceID != h.workspaceID ||
 		requests[0].AgentName != "coder" {
-		t.Fatalf("hosted launch request = %#v, want session/workspace/agent scope", requests[0])
+		t.Fatalf("hosted launch request = %#v, want profile/session/workspace/agent scope", requests[0])
 	}
 	if armed := hosted.armedSessionIDs(); !slices.Equal(armed, []string{session.ID}) {
 		t.Fatalf("hosted armed sessions = %#v, want [%q]", armed, session.ID)

@@ -77,6 +77,7 @@ func (l hostedMCPLauncherAdapter) Launch(
 	}
 	return l.service.Launch(ctx, mcppkg.HostedLaunchRequest{
 		SessionID:   req.SessionID,
+		ProfileID:   req.ProfileID,
 		WorkspaceID: req.WorkspaceID,
 		AgentName:   req.AgentName,
 	})

@@ -172,11 +172,11 @@ func TestDaemonE2ESpecCycleEnrollmentShouldPublishAndToggleLoops(t *testing.T) {
 		d := newTestDaemon(t, homePaths, &cfg)
 		extRegistry := extensionpkg.NewRegistry(db.DB())
 		d.newExtensionManager = func(extensionManagerDeps) extensionRuntime {
-			return &fakeExtensionRuntime{
+			return &specCycleProfileRuntime{fakeExtensionRuntime: &fakeExtensionRuntime{
 				getFn: func(name string) (*extensionpkg.Extension, error) {
 					return loadRegisteredSpecCycleExtensionSnapshot(name, extRegistry)
 				},
-			}
+			}, registry: extRegistry}
 		}
 
 		state := newSpecCycleLoopE2EState(t, d, db, cfg)
@@ -239,6 +239,32 @@ func TestDaemonE2ESpecCycleEnrollmentShouldPublishAndToggleLoops(t *testing.T) {
 		}
 		assertSpecCycleLoopCatalog(t, state.loopCatalog, true)
 	})
+}
+
+type specCycleProfileRuntime struct {
+	*fakeExtensionRuntime
+	registry *extensionpkg.Registry
+}
+
+func (r *specCycleProfileRuntime) ProjectForProfile(
+	_ context.Context,
+	key extensionpkg.InstanceKey,
+	profile extensionpkg.ProfileLens,
+) (*extensionpkg.Extension, bool, error) {
+	if key.Name != speccycle.Name {
+		return &extensionpkg.Extension{}, false, nil
+	}
+	extension, err := r.Get(key.Name)
+	if err != nil {
+		return nil, false, err
+	}
+	enabled, err := r.registry.IsEnabledForProfile(key.Name, profile.ID)
+	if err != nil {
+		return nil, false, err
+	}
+	extension.Info.Enabled = enabled
+	extension.Status.Enabled = enabled
+	return extension, enabled, nil
 }
 
 func TestLoopWatcherIntegrationShouldResyncForkedFileBackedEdits(t *testing.T) {

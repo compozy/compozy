@@ -25,6 +25,7 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
@@ -1316,7 +1317,8 @@ func seedTransportTaskLoopCatalog(
 	loopOrigin := taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop-coordinator"}
 	completedTask := func(id, title, workspaceID, parentID string, actor taskpkg.ActorIdentity, origin taskpkg.Origin) taskpkg.Task {
 		return taskpkg.Task{
-			ID: id, Identifier: id, Scope: taskpkg.ScopeWorkspace, WorkspaceID: workspaceID,
+			ID: id, ProfileID: storepkg.DefaultProfileID, Identifier: id,
+			Scope: taskpkg.ScopeWorkspace, WorkspaceID: workspaceID,
 			ParentTaskID: parentID, Title: title, Priority: taskpkg.DefaultPriority,
 			MaxAttempts: taskpkg.DefaultTaskMaxAttempts, Status: taskpkg.TaskStatusCompleted,
 			ApprovalPolicy: taskpkg.ApprovalPolicyNone, ApprovalState: taskpkg.ApprovalStateNotRequired,
@@ -1393,7 +1395,8 @@ func seedTransportTaskLoopCatalog(
 	newRun := func(id, taskID, workspaceID, loopRunID string, kind taskpkg.RunKind, attempt int32) taskpkg.Run {
 		queuedAt := now.Add(time.Duration(attempt) * time.Minute)
 		return taskpkg.Run{
-			ID: id, TaskID: taskID, WorkspaceID: workspaceID, Attempt: attempt,
+			ID: id, ProfileID: storepkg.DefaultProfileID, TaskID: taskID,
+			WorkspaceID: workspaceID, Attempt: attempt,
 			RunKind: kind, Status: taskpkg.TaskRunStatusCompleted, LoopRunID: loopRunID,
 			Origin: loopOrigin, RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: participation.LocalSpec()},
 			Metadata: json.RawMessage(fmt.Sprintf(

@@ -57,12 +57,16 @@ func (d *Daemon) newExtensionKitResourcePublisher(
 	if err != nil {
 		return nil, err
 	}
+	var profiles extensionProfileCatalog
+	if state.deps.Profiles != nil {
+		profiles = state.deps.Profiles
+	}
 	return &extensionKitSourceSyncer{
 		jobs: jobStore, jobCodec: jobCodec,
 		triggers: triggerStore, triggerCodec: triggerCodec,
 		layouts: layoutStore, layoutCodec: layoutCodec,
 		actor: extensionKitSyncActor(), registry: registry, runtime: state.currentExtensionRuntime,
-		profiles: state.deps.Profiles,
+		profiles: profiles,
 		logger:   state.logger,
 		trigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
 			if state.resourceReconcile == nil {

@@ -315,6 +315,21 @@ func TestExtensionAgentPluginOutputContract(t *testing.T) {
 		}
 	})
 
+	t.Run("Should point an already enabled portable install to status", func(t *testing.T) {
+		t.Parallel()
+
+		enabled := item
+		enabled.Enabled = true
+		human, err := extensionInstallSuccessBundle(&enabled, report).human()
+		if err != nil {
+			t.Fatalf("extensionInstallSuccessBundle(enabled).human() error = %v", err)
+		}
+		if !strings.Contains(human, "next: compozy extension status acme.tools") ||
+			strings.Contains(human, "next: compozy extension enable acme.tools") {
+			t.Fatalf("enabled portable install output = %q, want status next step", human)
+		}
+	})
+
 	t.Run("Should preserve native install human shape", func(t *testing.T) {
 		t.Parallel()
 

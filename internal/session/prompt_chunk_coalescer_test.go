@@ -170,6 +170,55 @@ func TestPromptChunkCoalescing(t *testing.T) {
 		}
 	})
 
+	t.Run("Should persist attention events through the canonical interaction path", func(t *testing.T) {
+		t.Parallel()
+
+		at := time.Date(2026, 8, 24, 7, 45, 0, 0, time.UTC)
+		attentionStore := &committingAttentionStore{at: at}
+		h := newHarness(t)
+		h.manager.attentionStore = attentionStore
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 2)
+			events <- acp.AgentEvent{
+				Type:      acp.EventTypePermission,
+				SessionID: proc.handle.SessionID,
+				TurnID:    req.TurnID,
+				Timestamp: at,
+				Title:     "Approve protected write",
+			}.WithRequestID("permission-batch-boundary")
+			events <- acp.AgentEvent{
+				Type:      acp.EventTypeDone,
+				SessionID: proc.handle.SessionID,
+				TurnID:    req.TurnID,
+				Timestamp: at.Add(time.Millisecond),
+			}
+			close(events)
+			return events, nil
+		}
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(context.Background(), session.ID); err != nil &&
+				!errors.Is(err, ErrSessionNotFound) {
+				t.Errorf("Stop(%q) error = %v", session.ID, err)
+			}
+		})
+
+		eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "request permission")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		runtimeEvents := collectEvents(t, eventsCh)
+		if got, want := countAgentEvents(runtimeEvents, acp.EventTypePermission), 1; got != want {
+			t.Fatalf("permission runtime events = %d, want %d", got, want)
+		}
+		if !attentionStore.wasCommitted() {
+			t.Fatal("attention store commit = false, want canonical permission interaction")
+		}
+		if got, want := BadgeForInfo(session.Info()), BadgeWaitingForAuth; got != want {
+			t.Fatalf("BadgeForInfo() = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("Should stop without publishing chunks when batch persistence fails", func(t *testing.T) {
 		t.Parallel()
 

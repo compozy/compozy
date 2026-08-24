@@ -171,9 +171,9 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 	assertDistributionExtensionInventory(t, ctx, consumer, "hello", true, "hourly", true)
 	assertDistributionExtensionInvocation(t, ctx, consumer, "published-v2:alpha")
 
-	var disabled compozycontract.ExtensionPayload
+	var disabled compozycontract.ExtensionEnablementPayload
 	runExtensionAuthoringCLI(t, ctx, consumer, &disabled, "extension", "disable", "hello", "-o", "json")
-	if disabled.Enabled {
+	if disabled.Enabled || disabled.Profile != "default" {
 		t.Fatalf("extension disable result = %#v, want disabled", disabled)
 	}
 	assertDistributionExtensionInventory(t, ctx, consumer, "hello", false, "hourly", false)
@@ -446,6 +446,15 @@ func invokeDistributionNativeTool(
 		compozycontract.ToolInvokeRequest{WorkspaceID: harness.WorkspaceID, Input: rawInput},
 		&response,
 	); err != nil {
+		if manifest, manifestErr := harness.RuntimeManifest(); manifestErr == nil {
+			if processLog, readErr := os.ReadFile(manifest.Logs.ProcessLogFile); readErr == nil {
+				t.Logf("native extension tool daemon process log:\n%s", processLog)
+			} else {
+				t.Logf("read native extension tool daemon process log error = %v", readErr)
+			}
+		} else {
+			t.Logf("read native extension tool runtime manifest error = %v", manifestErr)
+		}
 		t.Fatalf("invoke native tool %q error = %v", toolID, err)
 	}
 	if !json.Valid(response.Result.Structured) || response.Result.Preview == "" {

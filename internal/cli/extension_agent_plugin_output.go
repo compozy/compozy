@@ -117,7 +117,7 @@ func extensionInstallSuccessBundle(item *ExtensionRecord, report *extensionpkg.V
 					"(native manifest wins)")
 		}
 		next := "next: compozy extension status " + strings.TrimSpace(item.Name)
-		if portable {
+		if portable && !item.Enabled {
 			next = "next: compozy extension enable " + strings.TrimSpace(item.Name)
 		}
 		blocks = append(blocks, next, extensionHumanDetail(item, portable))

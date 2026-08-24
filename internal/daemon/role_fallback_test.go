@@ -173,7 +173,8 @@ func TestRoleObservabilityCoverageMatrix(t *testing.T) {
 		}
 		event := recorder.single(t)
 		if event.Type != eventspkg.RoleFallbackUsed || event.WorkspaceID != "ws-1" ||
-			event.SessionID != "session-1" || event.TaskID != "task-1" || event.RunID != "run-1" {
+			event.SessionID != "session-1" || event.TaskID != "task-1" || event.RunID != "run-1" ||
+			event.Provider != "" {
 			t.Fatalf("fallback event = %#v", event)
 		}
 		var payload roleFallbackEventPayload

@@ -159,7 +159,7 @@ func TestRuntimeRegistryDispatchValidationAndPolicy(t *testing.T) {
 		})
 		registry := mustDispatchRegistry(t, provider, WithToolEventSink(events))
 
-		_, err := registry.Call(t.Context(), Scope{}, CallRequest{
+		_, err := registry.Call(t.Context(), Scope{ProfileID: "profile-a"}, CallRequest{
 			ToolID: descriptor.ID,
 			Input:  json.RawMessage(`{"query":42}`),
 		})
@@ -171,6 +171,11 @@ func TestRuntimeRegistryDispatchValidationAndPolicy(t *testing.T) {
 		}
 		if got, want := events.kinds(), []ToolCallEventKind{ToolCallStarted, ToolCallFailed}; !slices.Equal(got, want) {
 			t.Fatalf("event kinds = %#v, want %#v", got, want)
+		}
+		for _, event := range events.snapshot() {
+			if event.ProfileID != "profile-a" {
+				t.Fatalf("event profile id = %q, want profile-a", event.ProfileID)
+			}
 		}
 	})
 

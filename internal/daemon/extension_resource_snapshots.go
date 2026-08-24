@@ -11,6 +11,7 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type scopedExtensionResourceSnapshot struct {
@@ -153,14 +154,19 @@ func extensionProfileResourceSnapshots(
 	if !ok || projector == nil {
 		return nil, errors.New("daemon: extension runtime does not support profile resource projection")
 	}
-	profileRows, err := profiles.List(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("daemon: list profiles for extension resource sync: %w", err)
+	activeProfiles := []extensionpkg.ProfileLens{{
+		ID: store.DefaultProfileID, Name: daemonDefaultProfileName,
+	}}
+	if profiles != nil {
+		profileRows, err := profiles.List(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("daemon: list profiles for extension resource sync: %w", err)
+		}
+		slices.SortFunc(profileRows, func(left, right profilepkg.WithCounts) int {
+			return strings.Compare(left.Name, right.Name)
+		})
+		activeProfiles = activeExtensionProfileLenses(profileRows)
 	}
-	slices.SortFunc(profileRows, func(left, right profilepkg.WithCounts) int {
-		return strings.Compare(left.Name, right.Name)
-	})
-	activeProfiles := activeExtensionProfileLenses(profileRows)
 
 	snapshots, err := installedExtensionProfileSnapshots(ctx, projector, infos, activeProfiles)
 	if err != nil {

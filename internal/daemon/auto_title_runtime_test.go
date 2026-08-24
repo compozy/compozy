@@ -66,6 +66,7 @@ func TestAutoTitleRuntime(t *testing.T) {
 					close(started)
 					<-release
 					if request.SessionID != "sess-title" || request.AgentName != "coder" ||
+						request.ProfileID != store.DefaultProfileID ||
 						request.UserMessage != "Fix checkout retries" || request.AssistantReply != "I will fix it." {
 						return "", errors.New("automatic title request mismatch")
 					}
@@ -320,7 +321,8 @@ func autoTitleUserEvent(t *testing.T, sessionID string, turnID string, text stri
 func autoTitleHookPayload(sessionID string, turnID string, text string) hookspkg.SessionMessagePersistedPayload {
 	return hookspkg.SessionMessagePersistedPayload{
 		SessionContext: hookspkg.SessionContext{
-			SessionID: sessionID, SessionType: string(session.SessionTypeUser), AgentName: "coder",
+			ProfileID: store.DefaultProfileID, SessionID: sessionID,
+			SessionType: string(session.SessionTypeUser), AgentName: "coder",
 		},
 		TurnContext: hookspkg.TurnContext{TurnID: turnID},
 		Role:        "assistant",

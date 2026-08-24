@@ -79,38 +79,35 @@ func (c *resourceAgentCatalog) agentEntriesForWorkspace(
 	slices.SortFunc(records, func(left, right resources.Record[compozyconfig.AgentDef]) int {
 		return strings.Compare(agentRecordSortKey(left), agentRecordSortKey(right))
 	})
-	merged := make(map[string]core.AgentCatalogEntry)
+	lens := agentCatalogLensFor(resolved)
+	type rankedEntry struct {
+		entry core.AgentCatalogEntry
+		rank  int
+		key   string
+	}
+	merged := make(map[string]rankedEntry)
 	for _, record := range records {
-		if record.Scope.Kind.Normalize() != resources.ResourceScopeKindUser {
+		rank, visible := lens.rank(record.Scope)
+		if !visible {
 			continue
 		}
 		name := strings.TrimSpace(record.Spec.Name)
-		if name != "" {
-			merged[name] = core.AgentCatalogEntry{
-				Def:    cloneAgentDef(record.Spec),
-				Origin: contract.AgentOriginGlobal,
-			}
+		if name == "" {
+			continue
 		}
-	}
-	workspaceID := ""
-	if resolved != nil {
-		workspaceID = strings.TrimSpace(resolved.ID)
-	}
-	if workspaceID != "" {
-		for _, record := range records {
-			if record.Scope.Kind.Normalize() != resources.ResourceScopeKindWorkspace ||
-				strings.TrimSpace(record.Scope.ID) != workspaceID {
-				continue
-			}
-			name := strings.TrimSpace(record.Spec.Name)
-			if name != "" {
-				merged[name] = core.AgentCatalogEntry{
-					Def:         cloneAgentDef(record.Spec),
-					Origin:      contract.AgentOriginWorkspace,
-					WorkspaceID: strings.TrimSpace(record.Scope.ID),
-				}
-			}
+		sortKey := agentRecordSortKey(record)
+		current, exists := merged[name]
+		if exists && (current.rank > rank || current.rank == rank && current.key >= sortKey) {
+			continue
 		}
+		workspaceID, workspaceScoped := lens.entryScope(record.Scope)
+		origin := contract.AgentOriginGlobal
+		if workspaceScoped {
+			origin = contract.AgentOriginWorkspace
+		}
+		merged[name] = rankedEntry{entry: core.AgentCatalogEntry{
+			Def: cloneAgentDef(record.Spec), Origin: origin, WorkspaceID: workspaceID,
+		}, rank: rank, key: sortKey}
 	}
 	names := make([]string, 0, len(merged))
 	for name := range merged {
@@ -119,7 +116,7 @@ func (c *resourceAgentCatalog) agentEntriesForWorkspace(
 	slices.Sort(names)
 	entries := make([]core.AgentCatalogEntry, 0, len(names))
 	for _, name := range names {
-		entry := merged[name]
+		entry := merged[name].entry
 		entry.Def = cloneAgentDef(entry.Def)
 		entries = append(entries, entry)
 	}

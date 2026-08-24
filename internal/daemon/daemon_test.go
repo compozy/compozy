@@ -810,6 +810,7 @@ func TestBootLoopReconciliationBarrier(t *testing.T) {
 		if err != nil {
 			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
 		}
+		actor.ReadScope = store.ReadScope{ProfileID: store.DefaultProfileID}
 		query := taskpkg.CatalogQuery{
 			Scope: taskpkg.CatalogScopeWorkspace, WorkspaceID: workspaceID,
 			IncludeDrafts: true, Limit: 10,

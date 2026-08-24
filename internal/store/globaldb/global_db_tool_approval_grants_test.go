@@ -31,8 +31,9 @@ func TestGlobalDBToolApprovalGrants(t *testing.T) {
 		if err != nil {
 			t.Fatalf("PutApprovalGrant() error = %v", err)
 		}
-		if created.ID == "" || !created.CreatedAt.Equal(current) || !created.LastUsedAt.Equal(current) {
-			t.Fatalf("PutApprovalGrant() = %#v, want materialized identity and timestamps", created)
+		if created.ID == "" || !created.CreatedAt.Equal(current) || !created.LastUsedAt.Equal(current) ||
+			created.ProfileName != "default" || created.ProfileColor == "" || created.ProfileIcon == "" {
+			t.Fatalf("PutApprovalGrant() = %#v, want materialized identity, owner, and timestamps", created)
 		}
 
 		current = current.Add(time.Minute)

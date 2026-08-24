@@ -98,7 +98,9 @@ func (r *harnessLifecycleRecorder) OnSessionCreated(ctx context.Context, sess *s
 
 	for _, summary := range summaries {
 		summary = harnessEventSummaryWithLineage(summary, info.Lineage)
-		summary.ProfileID = strings.TrimSpace(info.ProfileID)
+		if profileID := strings.TrimSpace(info.ProfileID); profileID != "" {
+			summary.ProfileID = profileID
+		}
 		r.write(ctx, summaryStore, summary)
 	}
 }
@@ -119,7 +121,7 @@ func (r *harnessLifecycleRecorder) RecordStartupContextResolved(
 ) {
 	r.queue(
 		store.EventSummary{
-			ProfileID: store.DefaultProfileID,
+			ProfileID: firstNonEmptyString(strings.TrimSpace(startup.ProfileID), store.DefaultProfileID),
 			SessionID: strings.TrimSpace(startup.SessionID),
 			Type:      harnessSummaryContextResolved,
 			AgentName: harnessSummaryAgentName(startup.AgentName),
@@ -137,7 +139,7 @@ func (r *harnessLifecycleRecorder) RecordStartupSectionSelected(
 ) {
 	r.queue(
 		store.EventSummary{
-			ProfileID: store.DefaultProfileID,
+			ProfileID: firstNonEmptyString(strings.TrimSpace(startup.ProfileID), store.DefaultProfileID),
 			SessionID: strings.TrimSpace(startup.SessionID),
 			Type:      harnessSummarySectionSelected,
 			AgentName: harnessSummaryAgentName(startup.AgentName),

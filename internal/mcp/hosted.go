@@ -84,6 +84,7 @@ type HostedService struct {
 // HostedLaunchRequest describes one session-bound MCP launch.
 type HostedLaunchRequest struct {
 	SessionID   string
+	ProfileID   string
 	WorkspaceID string
 	AgentName   string
 }
@@ -129,6 +130,7 @@ type HostedReleaseRequest struct {
 
 type hostedLaunchRecord struct {
 	sessionID     string
+	profileID     string
 	workspaceID   string
 	agentName     string
 	nonceHash     string
@@ -143,6 +145,7 @@ type hostedLaunchRecord struct {
 type hostedBindRecord struct {
 	bindID        string
 	sessionID     string
+	profileID     string
 	workspaceID   string
 	agentName     string
 	expectedBin   string
@@ -216,6 +219,7 @@ func (s *HostedService) Launch(ctx context.Context, req HostedLaunchRequest) (co
 	now := s.now().UTC()
 	record := &hostedLaunchRecord{
 		sessionID:     sessionID,
+		profileID:     strings.TrimSpace(req.ProfileID),
 		workspaceID:   strings.TrimSpace(req.WorkspaceID),
 		agentName:     strings.TrimSpace(req.AgentName),
 		nonceHash:     tokenHash(nonce),

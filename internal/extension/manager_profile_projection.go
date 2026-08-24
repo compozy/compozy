@@ -36,6 +36,12 @@ func (m *Manager) ProjectForProfile(
 	if err != nil {
 		return nil, false, err
 	}
+	if extension.Manifest == nil {
+		extension, err = m.inspectProjectionSource(ctx, key)
+		if err != nil {
+			return nil, false, err
+		}
+	}
 	enabled := extension.Info.Enabled
 	if m.registry != nil {
 		enabled, err = m.registry.IsEnabledForProfile(key.Name, profile.ID)
@@ -81,6 +87,30 @@ func (m *Manager) ProjectForProfile(
 	extension.AutomationTriggers = loaded.automationTriggers
 	extension.Layouts = loaded.layouts
 	return extension, enabled, nil
+}
+
+func (m *Manager) inspectProjectionSource(ctx context.Context, key InstanceKey) (*Extension, error) {
+	if key.WorkspaceID == "" {
+		return m.InspectPackageResources(ctx, key.Name)
+	}
+	link, err := m.registry.GetDevLink(key.Name, key.WorkspaceID)
+	if err != nil {
+		if errors.Is(err, ErrExtensionNotDevLinked) {
+			return m.InspectPackageResources(ctx, key.Name)
+		}
+		return nil, fmt.Errorf("extension: inspect development projection %q: %w", key.runtimeID(), err)
+	}
+	verified, err := m.resolveDevGeneration(ctx, key, link.OriginPath, link.BundleGeneration)
+	if err != nil {
+		return nil, fmt.Errorf("extension: verify development projection %q: %w", key.runtimeID(), err)
+	}
+	candidate := managedDevExtension(key, verified, m.logRingFor(key))
+	loaded, err := m.loadDeclarativeResources(ctx, candidate)
+	if err != nil {
+		return nil, fmt.Errorf("extension: load development projection %q: %w", key.runtimeID(), err)
+	}
+	loaded.apply(candidate)
+	return m.cloneExtension(candidate), nil
 }
 
 func projectManifestResourcesForProfile(resources *ResourcesConfig, profileName string) {

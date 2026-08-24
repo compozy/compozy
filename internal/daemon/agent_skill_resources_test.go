@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/resources"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/soul"
+	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -52,6 +53,25 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"},
 				Spec:  compozyconfig.AgentDef{Name: "onboarding", Prompt: "workspace onboarding"},
 			},
+			{
+				ID:    "profile:coder",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: store.DefaultProfileID},
+				Spec:  compozyconfig.AgentDef{Name: "coder", Prompt: "default-profile coder"},
+			},
+			{
+				ID:    "profile:reviewer",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: store.DefaultProfileID},
+				Spec:  compozyconfig.AgentDef{Name: "reviewer", Prompt: "default-profile reviewer"},
+			},
+			{
+				ID: "workspace-profile:coder",
+				Scope: resources.ResourceScope{
+					Kind: resources.ResourceScopeKindWorkspaceProfile, ID: "ws-1@pf:default",
+				},
+				Spec: compozyconfig.AgentDef{
+					Name: "coder", Prompt: "workspace-profile coder", Tools: []string{"compozy__lookup"},
+				},
+			},
 		})
 
 		dependency := agentCatalogDependency(catalog)
@@ -59,11 +79,12 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListAgents() error = %v", err)
 		}
-		if got, want := len(listed), 3; got != want {
+		if got, want := len(listed), 4; got != want {
 			t.Fatalf("len(ListAgents()) = %d, want %d", got, want)
 		}
-		if listed[0].Def.Name != "alpha" || listed[1].Def.Name != "coder" || listed[2].Def.Name != "onboarding" {
-			t.Fatalf("ListAgents() = %#v, want global agents sorted by name", listed)
+		if listed[0].Def.Name != "alpha" || listed[1].Def.Name != "coder" ||
+			listed[2].Def.Name != "onboarding" || listed[3].Def.Name != "reviewer" {
+			t.Fatalf("ListAgents() = %#v, want default-profile agents sorted by name", listed)
 		}
 		if listed[0].Origin != contract.AgentOriginGlobal || listed[0].WorkspaceID != "" {
 			t.Fatalf("ListAgents()[0] origin = %#v", listed[0])
@@ -83,13 +104,20 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 		if err != nil || onboardingEntry.Def.Prompt != "global onboarding" {
 			t.Fatalf("GetAgent(onboarding) = %#v, %v", onboardingEntry, err)
 		}
+		reviewerEntry, err := dependency.GetAgent(context.Background(), "reviewer")
+		if err != nil || reviewerEntry.Def.Prompt != "default-profile reviewer" {
+			t.Fatalf("GetAgent(reviewer) = %#v, %v", reviewerEntry, err)
+		}
 
-		resolved := &workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-1"}}
+		resolved := &workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: "ws-1"},
+			ProfileID: store.DefaultProfileID, ProfileName: "default",
+		}
 		workspaceEntries, err := dependency.ListAgentsForWorkspace(context.Background(), resolved)
 		if err != nil {
 			t.Fatalf("ListAgentsForWorkspace() error = %v", err)
 		}
-		if len(workspaceEntries) != 3 || workspaceEntries[1].Origin != contract.AgentOriginWorkspace ||
+		if len(workspaceEntries) != 4 || workspaceEntries[1].Origin != contract.AgentOriginWorkspace ||
 			workspaceEntries[1].WorkspaceID != "ws-1" {
 			t.Fatalf("workspace entries = %#v", workspaceEntries)
 		}
@@ -97,8 +125,8 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveAgent(coder) error = %v", err)
 		}
-		if coder.Prompt != "workspace coder" || len(coder.Tools) != 1 || coder.Tools[0] != "compozy__lookup" {
-			t.Fatalf("ResolveAgent(coder) = %#v, want workspace override", coder)
+		if coder.Prompt != "workspace-profile coder" || len(coder.Tools) != 1 || coder.Tools[0] != "compozy__lookup" {
+			t.Fatalf("ResolveAgent(coder) = %#v, want workspace-profile override", coder)
 		}
 		onboarding, err := dependency.ResolveAgent("onboarding", resolved)
 		if err != nil {

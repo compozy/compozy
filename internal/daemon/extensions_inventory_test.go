@@ -421,6 +421,27 @@ func TestExtensionInventoryAndEnablePreview(t *testing.T) {
 		}
 	})
 
+	t.Run("Should mark a profile-scoped materialized layout live", func(t *testing.T) {
+		t.Parallel()
+
+		const layoutID = "extension/kit/window_layout/two-up"
+		desired := []extensionpkg.KitItem{{
+			Kind: windowmanager.WindowLayoutResourceKind,
+			ID:   layoutID,
+			Name: "two-up",
+		}}
+		live := []resources.RawRecord{{
+			Kind:  windowmanager.WindowLayoutResourceKind,
+			ID:    layoutID + "/profile/pf-marketing",
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: "pf-marketing"},
+		}}
+
+		items := (&daemonExtensionService{}).mergeExtensionKitInventory(t.Context(), desired, live)
+		if len(items) != 1 || items[0].Name != "two-up" || !items[0].Live {
+			t.Fatalf("mergeExtensionKitInventory() = %#v, want live profile layout", items)
+		}
+	})
+
 	t.Run("Should report changed canonical content", func(t *testing.T) {
 		t.Parallel()
 
