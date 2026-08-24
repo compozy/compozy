@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { fn, userEvent, within } from "storybook/test";
 
 import { StorySurface } from "@/storybook/story-layout";
 
@@ -68,6 +68,10 @@ export const Plural: Story = {
     aggregate: false,
     quiet: false,
     archivedCount: 2,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Profile: marketing" }));
   },
 };
 

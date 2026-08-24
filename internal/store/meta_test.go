@@ -43,7 +43,6 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 		CreatedAt: time.Date(2026, 4, 3, 17, 0, 0, 0, time.UTC),
 		UpdatedAt: time.Date(2026, 4, 3, 17, 1, 0, 0, time.UTC),
 	}
-
 	if err := WriteSessionMeta(path, meta); err != nil {
 		t.Fatalf("WriteSessionMeta() error = %v", err)
 	}

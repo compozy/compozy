@@ -4924,7 +4924,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		) {
 			t.Helper()
 			taskRecord := taskpkg.Task{
-				ID: id, Identifier: id, Scope: taskpkg.ScopeWorkspace, WorkspaceID: localWorkspace.ID,
+				ID: id, ProfileID: store.DefaultProfileID,
+				Identifier: id, Scope: taskpkg.ScopeWorkspace, WorkspaceID: localWorkspace.ID,
 				ParentTaskID: parentID, Title: title, Priority: taskpkg.DefaultPriority,
 				MaxAttempts: taskpkg.MaxTaskMaxAttempts, Status: taskpkg.TaskStatusCompleted,
 				ApprovalPolicy: taskpkg.ApprovalPolicyNone, ApprovalState: taskpkg.ApprovalStateNotRequired,
@@ -4960,7 +4961,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		) {
 			t.Helper()
 			run := taskpkg.Run{
-				ID: runID, TaskID: taskID, WorkspaceID: localWorkspace.ID,
+				ID: runID, ProfileID: store.DefaultProfileID,
+				TaskID: taskID, WorkspaceID: localWorkspace.ID,
 				Attempt: attempt, RunKind: runKind, Status: taskpkg.TaskRunStatusCompleted,
 				LoopRunID: apitest.TaskLoopParityRunID, Origin: loopOrigin, Metadata: metadata,
 				RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: participation.LocalSpec()},
@@ -4991,8 +4993,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			)
 		}
 		foreignTask := taskpkg.Task{
-			ID: "task-native-foreign-loop", Identifier: "task-native-foreign-loop",
-			Scope: taskpkg.ScopeWorkspace, WorkspaceID: foreignWorkspace.ID,
+			ID: "task-native-foreign-loop", ProfileID: store.DefaultProfileID,
+			Identifier: "task-native-foreign-loop",
+			Scope:      taskpkg.ScopeWorkspace, WorkspaceID: foreignWorkspace.ID,
 			Title: "Foreign Loop cell", Priority: taskpkg.DefaultPriority,
 			MaxAttempts: taskpkg.DefaultTaskMaxAttempts, Status: taskpkg.TaskStatusCompleted,
 			ApprovalPolicy: taskpkg.ApprovalPolicyNone, ApprovalState: taskpkg.ApprovalStateNotRequired,
@@ -5004,7 +5007,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("CreateTask(foreign Loop) error = %v", err)
 		}
 		foreignRun := taskpkg.Run{
-			ID: "run-native-foreign-loop", TaskID: foreignTask.ID, WorkspaceID: foreignWorkspace.ID,
+			ID: "run-native-foreign-loop", ProfileID: store.DefaultProfileID,
+			TaskID: foreignTask.ID, WorkspaceID: foreignWorkspace.ID,
 			Attempt: 1, RunKind: taskpkg.RunKindWorker, Status: taskpkg.TaskRunStatusCompleted,
 			LoopRunID: "looprun-native-foreign", Origin: foreignTask.Origin,
 			RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: participation.LocalSpec()},

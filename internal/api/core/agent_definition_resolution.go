@@ -46,40 +46,7 @@ func (h *BaseHandlers) resolveAgentDefinition(
 
 	workspaceRef = strings.TrimSpace(workspaceRef)
 	if workspaceRef != "" {
-		if h.Workspaces == nil {
-			return resolvedAgentDefinition{}, fmt.Errorf(
-				"api: %w",
-				workspacepkg.ErrWorkspaceResolverUnavailable,
-			)
-		}
-		resolved, err := resolveWorkspaceAgentProfile(ctx, h.Workspaces, workspaceRef, profileName)
-		if err != nil {
-			return resolvedAgentDefinition{}, err
-		}
-		for _, agent := range resolved.Agents {
-			if compozyconfig.NormalizeAgentName(agent.Name) != target {
-				continue
-			}
-			workspaceID := strings.TrimSpace(resolved.ID)
-			entry := h.agentCatalogEntryFromDef(agent, workspaceID)
-			resolvedProfileName := strings.TrimSpace(resolved.ProfileName)
-			if resolvedProfileName == "" {
-				resolvedProfileName = strings.TrimSpace(profileName)
-			}
-			return resolvedAgentDefinition{
-				Entry:              entry,
-				OperationWorkspace: workspaceID,
-				WorkspaceRoot:      strings.TrimSpace(resolved.RootDir),
-				ProfileName:        resolvedProfileName,
-				Config:             resolved.Config,
-			}, nil
-		}
-		return resolvedAgentDefinition{}, fmt.Errorf(
-			"api: agent %q is not available in workspace %q: %w",
-			target,
-			canonicalWorkspaceDisplay(&resolved, workspaceRef),
-			workspacepkg.ErrAgentNotAvailable,
-		)
+		return h.resolveWorkspaceAgentDefinition(ctx, workspaceRef, target, profileName)
 	}
 
 	if h.AgentCatalog != nil {
@@ -114,6 +81,48 @@ func (h *BaseHandlers) resolveAgentDefinition(
 		Entry:  h.agentCatalogEntryFromDef(agent, ""),
 		Config: h.Config,
 	}, nil
+}
+
+func (h *BaseHandlers) resolveWorkspaceAgentDefinition(
+	ctx context.Context,
+	workspaceRef string,
+	target string,
+	profileName string,
+) (resolvedAgentDefinition, error) {
+	if h.Workspaces == nil {
+		return resolvedAgentDefinition{}, fmt.Errorf(
+			"api: %w",
+			workspacepkg.ErrWorkspaceResolverUnavailable,
+		)
+	}
+	resolved, err := resolveWorkspaceAgentProfile(ctx, h.Workspaces, workspaceRef, profileName)
+	if err != nil {
+		return resolvedAgentDefinition{}, err
+	}
+	for _, agent := range resolved.Agents {
+		if compozyconfig.NormalizeAgentName(agent.Name) != target {
+			continue
+		}
+		workspaceID := strings.TrimSpace(resolved.ID)
+		entry := h.agentCatalogEntryFromDef(agent, workspaceID)
+		resolvedProfileName := strings.TrimSpace(resolved.ProfileName)
+		if resolvedProfileName == "" {
+			resolvedProfileName = strings.TrimSpace(profileName)
+		}
+		return resolvedAgentDefinition{
+			Entry:              entry,
+			OperationWorkspace: workspaceID,
+			WorkspaceRoot:      strings.TrimSpace(resolved.RootDir),
+			ProfileName:        resolvedProfileName,
+			Config:             resolved.Config,
+		}, nil
+	}
+	return resolvedAgentDefinition{}, fmt.Errorf(
+		"api: agent %q is not available in workspace %q: %w",
+		target,
+		canonicalWorkspaceDisplay(&resolved, workspaceRef),
+		workspacepkg.ErrAgentNotAvailable,
+	)
 }
 
 func canonicalWorkspaceDisplay(resolved *workspacepkg.ResolvedWorkspace, fallback string) string {

@@ -38,7 +38,7 @@ func TestLoopRunListOrderingAndCursorContract(t *testing.T) {
 		}
 
 		query := core.LoopRunListQuery{LoopName: "delivery"}
-		cursorValue, err := encodeLoopRunListCursor(runs[1], "ws-a", query)
+		cursorValue, err := encodeLoopRunListCursor(&runs[1], "ws-a", query)
 		if err != nil {
 			t.Fatalf("encodeLoopRunListCursor() error = %v", err)
 		}

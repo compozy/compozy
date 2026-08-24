@@ -23,7 +23,8 @@ func (o *Observer) Reconcile(ctx context.Context) (store.ReconcileResult, error)
 
 	sessions := make([]store.SessionInfo, 0, len(recovered))
 	creationIndexed := make([]string, 0)
-	for _, recoveredSession := range recovered {
+	for index := range recovered {
+		recoveredSession := &recovered[index]
 		created, err := o.reconcileRecoveredSessionCreation(ctx, recoveredSession)
 		if err != nil {
 			return store.ReconcileResult{}, err
@@ -52,8 +53,11 @@ type recoveredSession struct {
 
 func (o *Observer) reconcileRecoveredSessionCreation(
 	ctx context.Context,
-	recovered recoveredSession,
+	recovered *recoveredSession,
 ) (bool, error) {
+	if recovered == nil {
+		return false, errors.New("observe: recovered session is required")
+	}
 	if recovered.creationProfile == nil && recovered.creationIdentity == nil {
 		return false, nil
 	}

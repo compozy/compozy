@@ -1,7 +1,7 @@
 package demoseed
 
 const (
-	memoryScopeGlobal    = "global"
+	memoryScopeProfile   = "profile"
 	memoryScopeWorkspace = "workspace"
 	memoryScopeAgent     = "agent"
 	memoryTypeUser       = "user"
@@ -11,13 +11,13 @@ const (
 )
 
 func scenarioMemories(clock timeline) []memoryStory {
-	return append(globalMemories(clock), scopedMemories(clock)...)
+	return append(profileMemories(clock), scopedMemories(clock)...)
 }
 
-func globalMemories(clock timeline) []memoryStory {
+func profileMemories(clock timeline) []memoryStory {
 	return []memoryStory{
 		{
-			Name: "operator-decision-style", Scope: memoryScopeGlobal, Type: memoryTypeUser,
+			Name: "operator-decision-style", Scope: memoryScopeProfile, Type: memoryTypeUser,
 			Description: "Pedro wants a recommendation with the threshold attached, not a menu of options.",
 			Body: "Lead with the decision and the number that would reverse it. A recommendation without a " +
 				"rollback threshold reads as an opinion.\n\n**Why:** every launch review has ended with the same " +
@@ -26,7 +26,7 @@ func globalMemories(clock timeline) []memoryStory {
 			CreatedAt: clock.daysAgo(28), UpdatedAt: clock.daysAgo(6),
 		},
 		{
-			Name: "market-hold-language", Scope: memoryScopeGlobal, Type: memoryTypeFeedback,
+			Name: "market-hold-language", Scope: memoryScopeProfile, Type: memoryTypeFeedback,
 			Description: "Never merge two markets into one go/no-go sentence.",
 			Body: "Brazil and Mexico are separate decisions with separate evidence. Reporting them together " +
 				"has twice produced a hold being read as an approval.\n\n**Why:** the 2026-07 checkout review " +
@@ -34,7 +34,7 @@ func globalMemories(clock timeline) []memoryStory {
 			CreatedAt: clock.daysAgo(21), UpdatedAt: clock.daysAgo(21),
 		},
 		{
-			Name: "mercadox-partner-contacts", Scope: memoryScopeGlobal, Type: memoryTypeReference,
+			Name: "mercadox-partner-contacts", Scope: memoryScopeProfile, Type: memoryTypeReference,
 			Description: "Where the MercadoX replay exports and escalation path live.",
 			Body: "Replay exports land in `data/partners/mercadox/` with a `manifest.json` per batch. " +
 				"Escalation goes through the partner integrations rotation, not the payments on-call.",

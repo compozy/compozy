@@ -25,10 +25,11 @@ type SessionSandboxMeta struct {
 	LastSyncError         string          `json:"last_sync_error,omitempty"`
 }
 
-// SessionWorktreeState keeps the optional worktree binding compact inside SessionMeta.
+// SessionExecutionLocationState keeps the optional execution location compact inside SessionMeta.
 // Embedding preserves the flat session metadata JSON contract.
-type SessionWorktreeState struct {
+type SessionExecutionLocationState struct {
 	WorktreeID string `json:"worktree_id,omitempty"`
+	CWD        string `json:"cwd,omitempty"`
 }
 
 // SessionAdvertisedCommandState keeps the optional command catalog compact inside SessionMeta.
@@ -63,8 +64,7 @@ type SessionMeta struct {
 	*SessionProviderExecutionState
 	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
-	*SessionWorktreeState
-	CWD                  string                  `json:"cwd,omitempty"`
+	*SessionExecutionLocationState
 	NetworkParticipation *participation.Spec     `json:"network_participation"`
 	SessionType          string                  `json:"session_type,omitempty"`
 	Lineage              *SessionLineage         `json:"lineage,omitempty"`
@@ -90,7 +90,7 @@ type SessionMeta struct {
 
 // WorktreeIDValue returns the optional worktree binding without exposing nil embedding details.
 func (m SessionMeta) WorktreeIDValue() string {
-	if m.SessionWorktreeState == nil {
+	if m.SessionExecutionLocationState == nil {
 		return ""
 	}
 	return m.WorktreeID
@@ -98,11 +98,40 @@ func (m SessionMeta) WorktreeIDValue() string {
 
 // SetWorktreeID updates the optional worktree binding with value semantics.
 func (m *SessionMeta) SetWorktreeID(worktreeID string) {
-	if worktreeID == "" {
-		m.SessionWorktreeState = nil
-		return
+	if m.SessionExecutionLocationState == nil {
+		if worktreeID == "" {
+			return
+		}
+		m.SessionExecutionLocationState = &SessionExecutionLocationState{}
 	}
-	m.SessionWorktreeState = &SessionWorktreeState{WorktreeID: worktreeID}
+	m.WorktreeID = worktreeID
+	m.clearEmptyExecutionLocationState()
+}
+
+// CWDValue returns the optional execution directory without exposing nil embedding details.
+func (m SessionMeta) CWDValue() string {
+	if m.SessionExecutionLocationState == nil {
+		return ""
+	}
+	return m.CWD
+}
+
+// SetCWD updates the optional execution directory with value semantics.
+func (m *SessionMeta) SetCWD(cwd string) {
+	if m.SessionExecutionLocationState == nil {
+		if cwd == "" {
+			return
+		}
+		m.SessionExecutionLocationState = &SessionExecutionLocationState{}
+	}
+	m.CWD = cwd
+	m.clearEmptyExecutionLocationState()
+}
+
+func (m *SessionMeta) clearEmptyExecutionLocationState() {
+	if m.WorktreeID == "" && m.CWD == "" {
+		m.SessionExecutionLocationState = nil
+	}
 }
 
 // AdvertisedCommandsValue returns the optional advertised command catalog.
