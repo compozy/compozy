@@ -250,6 +250,44 @@ func TestValidateDefinitionRuntimeShouldEnforceStaticRuntimeContract(t *testing.
 	})
 }
 
+func TestValidateRuntimeRulesShouldAcceptTypeComplexityConjunction(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		match      dsl.RuntimeMatch
+		wantReason string
+	}{
+		{name: "id", match: dsl.RuntimeMatch{ID: "task_01"}},
+		{name: "type", match: dsl.RuntimeMatch{Type: "frontend"}},
+		{name: "complexity", match: dsl.RuntimeMatch{Complexity: "high"}},
+		{name: "type and complexity", match: dsl.RuntimeMatch{Type: "frontend", Complexity: "high"}},
+		{name: "empty", match: dsl.RuntimeMatch{}, wantReason: "selector_required"},
+		{name: "id and type", match: dsl.RuntimeMatch{ID: "task_01", Type: "frontend"}, wantReason: "selector_collision"},
+		{name: "id and complexity", match: dsl.RuntimeMatch{ID: "task_01", Complexity: "high"}, wantReason: "selector_collision"},
+		{name: "all", match: dsl.RuntimeMatch{ID: "task_01", Type: "frontend", Complexity: "high"}, wantReason: "selector_collision"},
+	}
+	for _, tc := range tests {
+		t.Run("Should validate "+tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			definition := dsl.Definition{Contract: dsl.Contract{RuntimeRules: []dsl.RuntimeRule{{
+				Match: tc.match, Runtime: dsl.RuntimeSpec{Model: "opus"},
+			}}}}
+			err := loop.ValidateDefinitionRuntime(context.Background(), nil, definition)
+			if tc.wantReason == "" {
+				if err != nil {
+					t.Fatalf("ValidateDefinitionRuntime() error = %v", err)
+				}
+				return
+			}
+			assertRuntimeValidationItem(t, err, loop.RuntimeValidationItem{
+				Field: "runtime_rules[0].match", Reason: tc.wantReason,
+			})
+		})
+	}
+}
+
 type runtimeCatalogForTest struct{}
 
 func (runtimeCatalogForTest) CanonicalProvider(provider string) string {
