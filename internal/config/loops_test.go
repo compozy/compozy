@@ -165,8 +165,11 @@ action = "pause"
 [[loops.defaults.delivery.runtime_rules]]
 [loops.defaults.delivery.runtime_rules.match]
 type = "frontend"
+complexity = "high"
 [loops.defaults.delivery.runtime_rules.runtime]
-model = "workspace-frontend-model"
+provider = "cursor"
+model = "frontier"
+reasoning = "high"
 
 [loops.defaults.watch]
 fan_out_width = 5
@@ -219,8 +222,19 @@ fixer = ""
 		})
 		rules := cfg.Loops.Defaults.Delivery.RuntimeRules
 		if len(rules) != 2 || rules[0].Match.Complexity != "high" ||
-			rules[1].Match.Type != "frontend" || rules[1].Runtime.Model != "workspace-frontend-model" {
+			!reflect.DeepEqual(rules[1], dsl.RuntimeRule{
+				Match: dsl.RuntimeMatch{Type: "frontend", Complexity: "high"},
+				Runtime: dsl.RuntimeSpec{
+					Provider:  "cursor",
+					Model:     "frontier",
+					Reasoning: "high",
+				},
+			}) {
 			t.Fatalf("delivery runtime rules = %#v, want ordered global/workspace rules", rules)
+		}
+		clonedRules := CloneConfig(&cfg).Loops.Defaults.Delivery.RuntimeRules
+		if len(clonedRules) != 2 || !reflect.DeepEqual(clonedRules[1], rules[1]) {
+			t.Fatalf("cloned delivery runtime rules = %#v, want %#v", clonedRules, rules)
 		}
 		if got := cfg.Loops.Defaults.Delivery.Retry; got.MaxAttempts != 0 ||
 			got.BackoffBase != "2s" || got.BackoffMax != "45s" {

@@ -692,6 +692,134 @@ func TestLoopRuntimeSelectionIntegration(t *testing.T) {
 	})
 }
 
+func TestLoopRuntimeSelectionMatrixIntegration(t *testing.T) {
+	environment := newLoopRuntimeIntegrationEnvironment(t)
+	harness := environment.harness
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
+	defer cancel()
+
+	definition := loopRuntimeMixedDefinition()
+	definition.Meta.Name = "runtime-selection-matrix-integration"
+	definition.Contract.RuntimeRules = nil
+	definition.Graph.Nodes[0].Params["map"] = map[string]any{
+		"tasks": map[string]any{"value": []any{
+			map[string]any{
+				"id": "task_frontend_high", "path": ".compozy/tasks/runtime/task_frontend_high.md",
+				"title": "Frontend high runtime task", "type": "frontend", "complexity": "high",
+				"body": "Frontend high fixture",
+			},
+			map[string]any{
+				"id": "task_frontend_low", "path": ".compozy/tasks/runtime/task_frontend_low.md",
+				"title": "Frontend low runtime task", "type": "frontend", "complexity": "low",
+				"body": "Frontend low fixture",
+			},
+			map[string]any{
+				"id": "task_backend_high", "path": ".compozy/tasks/runtime/task_backend_high.md",
+				"title": "Backend high runtime task", "type": "backend", "complexity": "high",
+				"body": "Backend high fixture",
+			},
+			map[string]any{
+				"id": "task_frontend_high_exact", "path": ".compozy/tasks/runtime/task_frontend_high_exact.md",
+				"title": "Exact frontend high runtime task", "type": "frontend", "complexity": "high",
+				"body": "Exact frontend high fixture",
+			},
+		}},
+	}
+	definition.Graph.Nodes[1].MaxFanOut = 4
+	createLoopViaHTTP(t, ctx, harness, definition)
+
+	path := loopRuntimeEndpoint(
+		harness.WorkspaceID,
+		"/loops/"+url.PathEscape(definition.Meta.Name)+"/run",
+	)
+	var started contract.RunLoopResponse
+	if err := harness.HTTPJSON(
+		ctx,
+		http.MethodPost,
+		path,
+		contract.RunLoopRequest{ConfigOverrides: &contract.LoopConfig{RuntimeRules: []contract.LoopRuntimeRule{
+			{
+				Match: contract.LoopRuntimeMatch{Complexity: "high"},
+				Runtime: contract.LoopRuntimeSpec{
+					Provider: acpmock.ProviderName, Model: "docs-model", Reasoning: "high", Speed: contract.SpeedFast,
+				},
+			},
+			{
+				Match: contract.LoopRuntimeMatch{Type: "frontend"},
+				Runtime: contract.LoopRuntimeSpec{
+					Provider: acpmock.ProviderName, Model: "base-model", Reasoning: "low", Speed: contract.SpeedFast,
+				},
+			},
+			{
+				Match: contract.LoopRuntimeMatch{Type: "frontend", Complexity: "high"},
+				Runtime: contract.LoopRuntimeSpec{
+					Provider: "codex", Model: "frontend-model", Reasoning: "high", Speed: contract.SpeedNormal,
+				},
+			},
+			{
+				Match: contract.LoopRuntimeMatch{ID: "task_frontend_high_exact"},
+				Runtime: contract.LoopRuntimeSpec{
+					Provider: acpmock.ProviderName, Model: "vendor/model", Reasoning: "low", Speed: contract.SpeedFast,
+				},
+			},
+		}}},
+		&started,
+	); err != nil {
+		t.Fatalf("HTTP start matrix runtime loop error = %v", err)
+	}
+	if started.Run == nil {
+		t.Fatalf("matrix runtime response = %#v, want run", started)
+	}
+	waitForLoopRunStatus(t, ctx, harness, started.Run.ID, contract.LoopRunStatusDone)
+
+	statusPath := loopRuntimeEndpoint(
+		harness.WorkspaceID,
+		"/loop-runs/"+url.PathEscape(started.Run.ID),
+	)
+	var detail contract.LoopRunResponse
+	if err := harness.HTTPJSON(ctx, http.MethodGet, statusPath, nil, &detail); err != nil {
+		t.Fatalf("HTTP get matrix runtime loop error = %v", err)
+	}
+	assertMatrixRuntimeOutputs(t, detail)
+}
+
+func assertMatrixRuntimeOutputs(t testing.TB, detail contract.LoopRunResponse) {
+	t.Helper()
+	outputs := loopRuntimeResolvedOutputs(detail)
+	if len(outputs) != 4 {
+		t.Fatalf("matrix resolved runtime outputs = %#v, want four", outputs)
+	}
+	want := []contract.LoopResolvedRuntime{
+		matrixResolvedRuntime("codex", "frontend-model", "high", contract.SpeedNormal),
+		matrixResolvedRuntime(acpmock.ProviderName, "base-model", "low", contract.SpeedFast),
+		matrixResolvedRuntime(acpmock.ProviderName, "docs-model", "high", contract.SpeedFast),
+		matrixResolvedRuntime(acpmock.ProviderName, "vendor/model", "low", contract.SpeedFast),
+	}
+	for index := range want {
+		if outputs[index].ResolvedRuntime == nil {
+			t.Fatalf("matrix outputs[%d] runtime = nil", index)
+		}
+		loopRuntimeAssertJSONEqual(t, "matrix runtime output", *outputs[index].ResolvedRuntime, want[index])
+	}
+}
+
+func matrixResolvedRuntime(
+	provider string,
+	model string,
+	reasoning string,
+	speed contract.Speed,
+) contract.LoopResolvedRuntime {
+	return contract.LoopResolvedRuntime{
+		Provider: provider, Model: model, Reasoning: reasoning, Speed: speed,
+		SpeedResolution: &contract.SpeedResolution{
+			Requested: speed, Status: contract.SpeedResolutionApplied,
+		},
+		Source: contract.LoopRuntimeProvenance{
+			Provider: "run", Model: "run", Reasoning: "run", Speed: "run",
+		},
+	}
+}
+
 func loopRuntimeValidationBody(
 	t testing.TB,
 	ctx context.Context,
