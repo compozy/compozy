@@ -48,7 +48,6 @@ import (
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -4924,7 +4923,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		) {
 			t.Helper()
 			taskRecord := taskpkg.Task{
-				ID: id, Identifier: id, Scope: taskpkg.ScopeWorkspace, WorkspaceID: localWorkspace.ID,
+				ID: id, ProfileID: store.DefaultProfileID,
+				Identifier: id, Scope: taskpkg.ScopeWorkspace, WorkspaceID: localWorkspace.ID,
 				ParentTaskID: parentID, Title: title, Priority: taskpkg.DefaultPriority,
 				MaxAttempts: taskpkg.MaxTaskMaxAttempts, Status: taskpkg.TaskStatusCompleted,
 				ApprovalPolicy: taskpkg.ApprovalPolicyNone, ApprovalState: taskpkg.ApprovalStateNotRequired,
@@ -4991,8 +4991,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			)
 		}
 		foreignTask := taskpkg.Task{
-			ID: "task-native-foreign-loop", Identifier: "task-native-foreign-loop",
-			Scope: taskpkg.ScopeWorkspace, WorkspaceID: foreignWorkspace.ID,
+			ID: "task-native-foreign-loop", ProfileID: store.DefaultProfileID,
+			Identifier: "task-native-foreign-loop",
+			Scope:      taskpkg.ScopeWorkspace, WorkspaceID: foreignWorkspace.ID,
 			Title: "Foreign Loop cell", Priority: taskpkg.DefaultPriority,
 			MaxAttempts: taskpkg.DefaultTaskMaxAttempts, Status: taskpkg.TaskStatusCompleted,
 			ApprovalPolicy: taskpkg.ApprovalPolicyNone, ApprovalState: taskpkg.ApprovalStateNotRequired,
@@ -11662,7 +11663,7 @@ func TestNativeMemoryDreamAdminShouldRespectProfileStores(t *testing.T) {
 		if err := memoryStore.EnsureDirs(); err != nil {
 			t.Fatalf("MemoryStore.EnsureDirs() error = %v", err)
 		}
-		db, err := globaldb.OpenGlobalDB(t.Context(), homePaths.DatabaseFile)
+		db, err := openDaemonTestGlobalDBAtPath(t.Context(), homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}

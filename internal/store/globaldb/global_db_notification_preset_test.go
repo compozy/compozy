@@ -97,6 +97,45 @@ func TestGlobalDBNotificationPresetSchema(t *testing.T) {
 func TestGlobalDBNotificationPresetDefaults(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should restore stale built-in default versions on reopen", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE notification_presets SET default_version = '0' WHERE name = ?`,
+			presetspkg.BuiltInTaskTerminal,
+		); err != nil {
+			t.Fatalf("stale built-in default version fixture error = %v", err)
+		}
+		path := globalDB.Path()
+		if err := globalDB.Close(ctx); err != nil {
+			t.Fatalf("Close(stale built-in defaults) error = %v", err)
+		}
+
+		reopened, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(stale built-in defaults) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(testutil.Context(t)); err != nil {
+				t.Errorf("Close(reopened built-in defaults) error = %v", err)
+			}
+		})
+		stored, err := reopened.GetPreset(ctx, presetspkg.BuiltInTaskTerminal)
+		if err != nil {
+			t.Fatalf("GetPreset(reopened built-in defaults) error = %v", err)
+		}
+		if stored.DefaultVersion != presetspkg.BuiltInDefaultVersion {
+			t.Fatalf(
+				"reopened built-in default version = %q, want %q",
+				stored.DefaultVersion,
+				presetspkg.BuiltInDefaultVersion,
+			)
+		}
+	})
+
 	t.Run("Should preserve user-modified built-ins and flag default drift", func(t *testing.T) {
 		t.Parallel()
 

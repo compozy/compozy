@@ -392,7 +392,7 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 	command := sessionStopHelperCommand(t)
 	writeSessionIntegrationAgentDef(t, homePaths, "coder", command)
 
-	registry, err := globaldb.OpenGlobalDB(context.Background(), homePaths.DatabaseFile)
+	registry, err := openSessionTestGlobalDB(context.Background(), homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}

@@ -62,6 +62,7 @@ const globalDBExtensionProvenanceJSONKey = "provenance_json"
 const sqliteDriverName = "sqlite"
 
 var testGlobalDBCurrentSchemaSeedPath string
+var testGlobalDBMigrationTemplatePaths map[string]string
 
 func formatTimestamp(value time.Time) string {
 	return store.FormatTimestamp(value)
@@ -100,7 +101,11 @@ func runGlobalDBTests(m *testing.M) (code int) {
 	}()
 
 	ctx := context.Background()
-	path := filepath.Join(dir, GlobalDatabaseName)
+	path, migrationTemplates, err := buildGlobalMigrationTestSeeds(ctx, dir)
+	if err != nil {
+		reportTestMainError("build global migration seeds error = %v", err)
+		return 1
+	}
 	globalDB, err := OpenGlobalDB(ctx, path)
 	if err != nil {
 		reportTestMainError("OpenGlobalDB(globaldb seed) error = %v", err)
@@ -124,6 +129,7 @@ func runGlobalDBTests(m *testing.M) (code int) {
 	}
 
 	testGlobalDBCurrentSchemaSeedPath = path
+	testGlobalDBMigrationTemplatePaths = migrationTemplates
 	return m.Run()
 }
 

@@ -772,7 +772,7 @@ func gatewayDaemonMarshalJSON(t *testing.T, value any) []byte {
 func seedGatewayEndToEndExposure(t *testing.T, databasePath string) {
 	t.Helper()
 	ctx := testutil.Context(t)
-	database, err := globaldb.OpenGlobalDB(ctx, databasePath)
+	database, err := openDaemonTestGlobalDBAtPath(ctx, databasePath)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}

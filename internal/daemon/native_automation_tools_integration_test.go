@@ -329,7 +329,7 @@ func newNativeAutomationIntegrationManager(t *testing.T, ctx context.Context) *a
 	t.Helper()
 
 	homePaths := testHomePaths(t)
-	db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+	db, err := openDaemonTestGlobalDBAtPath(ctx, homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
