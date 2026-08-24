@@ -693,6 +693,12 @@ func TestLoopRuntimeSelectionIntegration(t *testing.T) {
 }
 
 func TestLoopRuntimeSelectionMatrixIntegration(t *testing.T) {
+	t.Run("Should select matrix and exact-ID runtime rules", func(t *testing.T) {
+		testLoopRuntimeSelectionMatrixIntegration(t)
+	})
+}
+
+func testLoopRuntimeSelectionMatrixIntegration(t *testing.T) {
 	environment := newLoopRuntimeIntegrationEnvironment(t)
 	harness := environment.harness
 	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
