@@ -129,14 +129,22 @@ type runtimeCandidate struct {
 }
 
 func runtimeRuleSpecificity(match RuntimeMatch, item ItemRuntime) (int, bool) {
-	if value := strings.TrimSpace(match.ID); value != "" {
-		return 3, value == strings.TrimSpace(item.TaskID)
+	id := strings.TrimSpace(match.ID)
+	taskType := strings.TrimSpace(match.Type)
+	complexity := strings.TrimSpace(match.Complexity)
+	if id != "" {
+		return 4, id == strings.TrimSpace(item.TaskID)
 	}
-	if value := strings.TrimSpace(match.Type); value != "" {
-		return 2, value == strings.TrimSpace(item.TaskType)
+	if taskType != "" && complexity != "" {
+		return 3,
+			taskType == strings.TrimSpace(item.TaskType) &&
+				complexity == strings.TrimSpace(item.Complexity)
 	}
-	if value := strings.TrimSpace(match.Complexity); value != "" {
-		return 1, value == strings.TrimSpace(item.Complexity)
+	if taskType != "" {
+		return 2, taskType == strings.TrimSpace(item.TaskType)
+	}
+	if complexity != "" {
+		return 1, complexity == strings.TrimSpace(item.Complexity)
 	}
 	return 0, false
 }

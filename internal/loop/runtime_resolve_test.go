@@ -87,6 +87,59 @@ func TestResolveItemRuntimeShouldMergeFieldsByPrecedence(t *testing.T) {
 		)
 	})
 
+	t.Run("Should require type and complexity conjunctions to match together", func(t *testing.T) {
+		t.Parallel()
+
+		matrix := loop.RuntimeRule{
+			Match:   loop.RuntimeMatch{Type: "frontend", Complexity: "high"},
+			Runtime: loop.RuntimeSpec{Provider: "cursor", Model: "frontier", Reasoning: "high"},
+		}
+		for name, item := range map[string]loop.ItemRuntime{
+			"Should match frontend high":        {TaskType: "frontend", Complexity: "high"},
+			"Should not match frontend low":     {TaskType: "frontend", Complexity: "low"},
+			"Should not match backend high":     {TaskType: "backend", Complexity: "high"},
+			"Should not match empty type":       {Complexity: "high"},
+			"Should not match empty complexity": {TaskType: "frontend"},
+		} {
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+
+				got := resolveRuntimeForTest(t, loop.RuntimeLayers{ConfigRules: []loop.RuntimeRule{matrix}}, item)
+				if item.TaskType == "frontend" && item.Complexity == "high" {
+					assertResolvedRuntime(t, got, matrix.Runtime, loop.RuntimeProvenance{
+						Provider:  loop.RuntimeSourceConfig,
+						Model:     loop.RuntimeSourceConfig,
+						Reasoning: loop.RuntimeSourceConfig,
+					})
+					return
+				}
+				assertResolvedRuntime(t, got, loop.RuntimeSpec{}, loop.RuntimeProvenance{})
+			})
+		}
+	})
+
+	t.Run("Should prefer exact over matrix over type over complexity per field", func(t *testing.T) {
+		t.Parallel()
+
+		rules := []loop.RuntimeRule{
+			{Match: loop.RuntimeMatch{Complexity: "high"}, Runtime: loop.RuntimeSpec{Reasoning: "medium", Model: "complexity"}},
+			{Match: loop.RuntimeMatch{Type: "frontend"}, Runtime: loop.RuntimeSpec{Provider: "type", Model: "type"}},
+			{Match: loop.RuntimeMatch{Type: "frontend", Complexity: "high"}, Runtime: loop.RuntimeSpec{Provider: "matrix", Model: "matrix", Reasoning: "high"}},
+			{Match: loop.RuntimeMatch{ID: "task_01"}, Runtime: loop.RuntimeSpec{Provider: "exact"}},
+		}
+		got := resolveRuntimeForTest(t, loop.RuntimeLayers{ConfigRules: rules}, loop.ItemRuntime{
+			TaskID: "task_01", TaskType: "frontend", Complexity: "high",
+		})
+		assertResolvedRuntime(t, got,
+			loop.RuntimeSpec{Provider: "exact", Model: "matrix", Reasoning: "high"},
+			loop.RuntimeProvenance{
+				Provider:  loop.RuntimeSourceConfig,
+				Model:     loop.RuntimeSourceConfig,
+				Reasoning: loop.RuntimeSourceConfig,
+			},
+		)
+	})
+
 	t.Run("Should enforce pairwise item layer precedence", func(t *testing.T) {
 		t.Parallel()
 
