@@ -73,16 +73,18 @@ func (g *GlobalDB) FinishExitOperationWithEvent(
 func worktreeEventSummary(event worktree.LifecycleEvent) store.EventSummary {
 	outcome := string(eventspkg.OutcomeFor(event.Name))
 	content := append(json.RawMessage(nil), event.Payload...)
-	return store.EventSummary{
+	summary := store.EventSummary{
+		ProfileID:   strings.TrimSpace(event.ProfileID),
 		WorkspaceID: event.WorkspaceID,
 		Type:        event.Name,
 		Outcome:     outcome,
-		Content:     content,
 		EventCorrelation: store.EventCorrelation{
 			WorktreeID: event.WorktreeID,
 			RunID:      event.RunID,
 		},
 	}
+	summary.SetContent(content)
+	return summary
 }
 
 var _ worktree.EventSink = (*GlobalDB)(nil)

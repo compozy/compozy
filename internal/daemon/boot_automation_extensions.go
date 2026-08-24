@@ -38,6 +38,9 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 	if err := forgegithub.EnsureManagedInstall(d.homePaths, extRegistry); err != nil {
 		return fmt.Errorf("daemon: enroll GitHub forge extension: %w", err)
 	}
+	if err := reconcileDeclaredExtensionProfiles(ctx, state.profiles, extRegistry); err != nil {
+		return err
+	}
 	if err := d.configureExtensionResourcePublishers(state, extRegistry); err != nil {
 		return err
 	}

@@ -19,6 +19,16 @@ func (h *BaseHandlers) ListLoops(c *gin.Context) {
 		h.respondLoopError(c, fmt.Errorf("%w: %v", looppkg.ErrCatalogQueryInvalid, err))
 		return
 	}
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	if readScope.AllProfiles {
+		h.respondLoopError(c, fmt.Errorf("%w: loop catalog requires one profile", looppkg.ErrCatalogQueryInvalid))
+		return
+	}
+	query.ProfileID = readScope.ProfileID
 	response, err := service.ListLoops(c.Request.Context(), c.Param("workspace_id"), query)
 	if err != nil {
 		h.respondLoopError(c, err)

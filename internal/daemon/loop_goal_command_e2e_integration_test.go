@@ -505,7 +505,7 @@ func listGoalRuntimeSessions(
 	harness *e2etest.RuntimeHarness,
 ) (compozycontract.SessionCatalogResponse, error) {
 	var response compozycontract.SessionCatalogResponse
-	path := "/api/sessions?workspace=" + url.QueryEscape(harness.WorkspaceID) + "&limit=100"
+	path := "/api/sessions?workspace_id=" + url.QueryEscape(harness.WorkspaceID) + "&limit=100"
 	err := harness.UDSJSON(ctx, http.MethodGet, path, nil, &response)
 	return response, err
 }

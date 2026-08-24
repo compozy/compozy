@@ -6,3 +6,9 @@ export type NotificationPresetTarget = NotificationPresetEntry["targets"][number
 export type NotificationPresetFilter = NonNullable<OperationQuery<"listNotificationPresets">>;
 export type CreateNotificationPresetRequest = OperationRequestBody<"createNotificationPreset">;
 export type UpdateNotificationPresetRequest = OperationRequestBody<"updateNotificationPreset">;
+export type SetNotificationPresetEnablementRequest =
+  OperationRequestBody<"setNotificationPresetEnablement">;
+export type NotificationPresetEnablement = OperationResponse<
+  "setNotificationPresetEnablement",
+  200
+>;

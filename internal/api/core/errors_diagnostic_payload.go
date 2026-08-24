@@ -10,12 +10,16 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/worktree"
 )
 
 func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	message = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(message))
 	payload := contract.ErrorPayload{Error: message}
+	if errors.Is(err, workspace.ErrOperatorHomeWorkspace) {
+		payload.Code = "workspace_home_forbidden"
+	}
 	if code := GatewayErrorCode(err); code != "" {
 		payload.Code = code
 	}

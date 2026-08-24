@@ -13,13 +13,17 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/gin-gonic/gin"
 )
@@ -733,6 +737,71 @@ func TestWindowManagerHandlers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should hand the resolved profile to the window-manager provider", func(t *testing.T) {
+		t.Parallel()
+		fixture := newWindowManagerHandlerFixture(t)
+		path := windowManagerTestPath("workspace-a")
+
+		// Named profile: the provider is asked for the resolved id, not the name.
+		response := performWindowManagerTestRequest(t, fixture.router, http.MethodGet, path+"?profile=marketing", "")
+		if response.Code != http.StatusOK {
+			t.Fatalf("GET ?profile=marketing status = %d; body=%s", response.Code, response.Body.String())
+		}
+		// Omitted profile: the boundary resolves `default` rather than reading unscoped.
+		response = performWindowManagerTestRequest(t, fixture.router, http.MethodGet, path, "")
+		if response.Code != http.StatusOK {
+			t.Fatalf("GET (no profile) status = %d; body=%s", response.Code, response.Body.String())
+		}
+		if got := fixture.providers.requestedProfiles(); !slices.Equal(
+			got, []string{"profile-marketing", store.DefaultProfileID},
+		) {
+			t.Fatalf("requested profiles = %v, want [profile-marketing %s]", got, store.DefaultProfileID)
+		}
+	})
+
+	t.Run("Should refuse an all-profiles view of one profile's desktops", func(t *testing.T) {
+		t.Parallel()
+		fixture := newWindowManagerHandlerFixture(t)
+		response := performWindowManagerTestRequest(
+			t, fixture.router, http.MethodGet,
+			windowManagerTestPath("workspace-a")+"?all_profiles=true", "",
+		)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("GET ?all_profiles=true status = %d; body=%s", response.Code, response.Body.String())
+		}
+		if !strings.Contains(response.Body.String(), "profile_selection_conflict") {
+			t.Fatalf("GET ?all_profiles=true body = %s, want profile_selection_conflict", response.Body.String())
+		}
+		if got := fixture.providers.requestedProfiles(); len(got) != 0 {
+			t.Fatalf("requested profiles = %v, want none for a refused read", got)
+		}
+	})
+
+	t.Run("Should claim a client id through one atomic registration", func(t *testing.T) {
+		t.Parallel()
+		fixture := newWindowManagerHandlerFixture(t)
+		body := `{"workspace_id":"workspace-a","client_id":"client:web","kind":"browser",` +
+			`"context":{"workspace_trusted":true}}`
+		response := performWindowManagerTestRequest(
+			t, fixture.router, http.MethodPost,
+			windowManagerTestPath("workspace-a")+"/clients?profile=marketing", body,
+		)
+		if response.Code != http.StatusCreated {
+			t.Fatalf("POST /clients status = %d; body=%s", response.Code, response.Body.String())
+		}
+		// One call carries the whole claim: the transport never retires and registers
+		// as two operations that another registration could interleave with.
+		want := []claimedWindowManagerClient{
+			{workspaceID: "workspace-a", clientID: "client:web", profileID: "profile-marketing"},
+		}
+		if got := fixture.providers.claimedClients(); !slices.Equal(got, want) {
+			t.Fatalf("claimed clients = %+v, want %+v", got, want)
+		}
+		if got := fixture.providers.requestedProfiles(); len(got) != 0 {
+			t.Fatalf("requested profiles = %v, want the claim to resolve its own runtime", got)
+		}
+	})
+
 	t.Run("Should expose only global and route-workspace layout profiles", func(t *testing.T) {
 		t.Parallel()
 		fixture := newWindowManagerHandlerFixture(t)
@@ -740,7 +809,7 @@ func TestWindowManagerHandlers(t *testing.T) {
 		records := map[string]resources.RawRecord{
 			"global-profile": {
 				Kind: windowmanager.WindowLayoutResourceKind, ID: "global-profile", Version: 1,
-				Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				SpecJSON: []byte(`{"version":1}`), CreatedAt: now, UpdatedAt: now,
 			},
 			"workspace-a-profile": {
@@ -760,7 +829,7 @@ func TestWindowManagerHandlers(t *testing.T) {
 				if filter.Kind != windowmanager.WindowLayoutResourceKind || filter.Scope == nil {
 					t.Fatalf("layout-profile filter = %+v", filter)
 				}
-				if filter.Scope.Kind == resources.ResourceScopeKindGlobal {
+				if filter.Scope.Kind == resources.ResourceScopeKindUser {
 					return []resources.RawRecord{records["global-profile"]}, nil
 				}
 				if filter.Scope.ID == "workspace-a" {
@@ -840,9 +909,10 @@ func TestWindowManagerHandlers(t *testing.T) {
 }
 
 type windowManagerHandlerFixture struct {
-	router   *gin.Engine
-	handlers *BaseHandlers
-	manager  *windowmanager.Manager
+	router    *gin.Engine
+	handlers  *BaseHandlers
+	manager   *windowmanager.Manager
+	providers *singleProfileWindowManagers
 }
 
 func newWindowManagerHandlerFixture(t *testing.T) windowManagerHandlerFixture {
@@ -861,7 +931,11 @@ func newWindowManagerHandlerFixture(t *testing.T) windowManagerHandlerFixture {
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
 	}
-	handlers := NewBaseHandlers(&BaseHandlerConfig{WindowManager: manager})
+	providers := &singleProfileWindowManagers{manager: manager}
+	handlers := NewBaseHandlers(&BaseHandlerConfig{
+		WindowManager: providers,
+		Profiles:      windowManagerProfileServiceStub{},
+	})
 	router := gin.New()
 	registerWindowManagerTestRoutes(router, handlers)
 	t.Cleanup(func() {
@@ -874,7 +948,9 @@ func newWindowManagerHandlerFixture(t *testing.T) windowManagerHandlerFixture {
 			t.Errorf("Manager.Close() error = %v", closeErr)
 		}
 	})
-	return windowManagerHandlerFixture{router: router, handlers: handlers, manager: manager}
+	return windowManagerHandlerFixture{
+		router: router, handlers: handlers, manager: manager, providers: providers,
+	}
 }
 
 func registerWindowManagerTestRoutes(router gin.IRouter, handlers *BaseHandlers) {
@@ -1015,4 +1091,85 @@ func listWindowManagerTestClients(
 	var clients contract.WindowManagerClientsResponse
 	decodeWindowManagerTestBody(t, response, &clients)
 	return clients
+}
+
+// singleProfileWindowManagers serves one manager for every profile and records the
+// profile each request asked for.
+//
+// The partition itself is the daemon repository suite's subject; what the transport
+// owes is that the profile it resolved is the one it hands the provider — recording
+// it is the only way that can be asserted rather than assumed.
+type singleProfileWindowManagers struct {
+	manager WindowManagerService
+
+	mu       sync.Mutex
+	profiles []string
+	claims   []claimedWindowManagerClient
+}
+
+type claimedWindowManagerClient struct {
+	workspaceID string
+	clientID    string
+	profileID   string
+}
+
+func (s *singleProfileWindowManagers) WindowManagerFor(profileID string) (WindowManagerService, error) {
+	s.mu.Lock()
+	s.profiles = append(s.profiles, profileID)
+	s.mu.Unlock()
+	return s.manager, nil
+}
+
+func (s *singleProfileWindowManagers) ClaimClient(
+	ctx context.Context,
+	profileID string,
+	registration windowmanager.ClientRegistration,
+) (windowmanager.ClientView, error) {
+	s.mu.Lock()
+	s.claims = append(s.claims, claimedWindowManagerClient{
+		workspaceID: string(registration.WorkspaceID),
+		clientID:    string(registration.ClientID),
+		profileID:   profileID,
+	})
+	s.mu.Unlock()
+	return s.manager.RegisterClient(ctx, registration)
+}
+
+func (s *singleProfileWindowManagers) requestedProfiles() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.profiles...)
+}
+
+func (s *singleProfileWindowManagers) claimedClients() []claimedWindowManagerClient {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]claimedWindowManagerClient(nil), s.claims...)
+}
+
+// windowManagerProfileServiceStub resolves the one named profile these transport
+// tests use, so the handler performs a real name → id resolution instead of the
+// unavailable-service shortcut.
+type windowManagerProfileServiceStub struct {
+	ProfileService
+}
+
+func (windowManagerProfileServiceStub) Resolve(
+	_ context.Context,
+	in profilepkg.ResolveInput,
+) (profilepkg.Resolution, error) {
+	if in.Flag == "marketing" {
+		return profilepkg.Resolution{
+			Profile: profilepkg.Profile{
+				ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive,
+			},
+			Source: profilepkg.ResolutionSourceFlag,
+		}, nil
+	}
+	return profilepkg.Resolution{
+		Profile: profilepkg.Profile{
+			ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive,
+		},
+		Source: profilepkg.ResolutionSourceDefault,
+	}, nil
 }

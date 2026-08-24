@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -16,6 +15,7 @@ import (
 
 const (
 	watchEventsParentTaskIDPayloadKey = "parent_task_id"
+	watchEventsAllRowsSQL             = "1 = 1"
 
 	watchEventsPayloadAgentNameKey            = "agent_name"
 	watchEventsPayloadAttemptKey              = "attempt"
@@ -51,6 +51,7 @@ const (
 
 type normalizedWatchEventsQuery struct {
 	workspaceID string
+	readScope   store.ReadScope
 	streams     map[string]int64
 	kinds       []string
 	limit       int
@@ -107,6 +108,13 @@ func normalizeWatchEventsQuery(query looppkg.WatchEventsQuery) (normalizedWatchE
 	if workspaceID == "" {
 		return normalizedWatchEventsQuery{}, fmt.Errorf("%w: workspace_id is required", looppkg.ErrValidation)
 	}
+	if err := query.ReadScope.Validate(); err != nil {
+		return normalizedWatchEventsQuery{}, fmt.Errorf(
+			"%w: watch-events read scope: %w",
+			looppkg.ErrValidation,
+			err,
+		)
+	}
 	streams := make(map[string]int64, len(query.Streams))
 	for stream, cursor := range query.Streams {
 		trimmed := strings.TrimSpace(stream)
@@ -149,6 +157,7 @@ func normalizeWatchEventsQuery(query looppkg.WatchEventsQuery) (normalizedWatchE
 	}
 	return normalizedWatchEventsQuery{
 		workspaceID: workspaceID,
+		readScope:   query.ReadScope,
 		streams:     streams,
 		kinds:       kinds,
 		limit:       limit,
@@ -169,8 +178,10 @@ func (g *WatchEventsRepo) readWatchEventsCursor(
 	switch stream {
 	case looppkg.WatchEventsTaskStream:
 		// dynamic-sql: task cursors use caller-selected kind sets with variable-width IN lists.
-		placeholders, args := sqlInPlaceholders(query.kinds)
-		args = append([]any{query.workspaceID}, args...)
+		placeholders, kindArgs := sqlInPlaceholders(query.kinds)
+		scopeSQL, scopeArgs := watchEventsScopeClause("t.profile_id", query.readScope)
+		args := append([]any{query.workspaceID}, scopeArgs...)
+		args = append(args, kindArgs...)
 		return scanWatchEventCursor(
 			g.db.QueryRowContext(
 				ctx,
@@ -178,6 +189,7 @@ func (g *WatchEventsRepo) readWatchEventsCursor(
 				   FROM task_events te
 				   JOIN tasks t ON t.id = te.task_id
 				  WHERE COALESCE(t.workspace_id, '') = ?
+				    AND `+scopeSQL+`
 				    AND te.event_type IN (`+placeholders+`)`,
 				args...,
 			),
@@ -203,29 +215,6 @@ func scanWatchEventCursor(row rowScanner, stream string) (int64, error) {
 	var cursor int64
 	if err := row.Scan(&cursor); err != nil {
 		return 0, fmt.Errorf("store: scan watch-events cursor %q: %w", stream, err)
-	}
-	return cursor, nil
-}
-
-func watchEventsCursorFromGenerated(raw any, stream string) (int64, error) {
-	switch value := raw.(type) {
-	case int64:
-		return value, nil
-	case int:
-		return int64(value), nil
-	case []byte:
-		return parseWatchEventsCursor(string(value), stream)
-	case string:
-		return parseWatchEventsCursor(value, stream)
-	default:
-		return 0, fmt.Errorf("store: scan watch-events cursor %q encoded as %T", stream, raw)
-	}
-}
-
-func parseWatchEventsCursor(raw string, stream string) (int64, error) {
-	cursor, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("store: parse watch-events cursor %q: %w", stream, err)
 	}
 	return cursor, nil
 }
@@ -262,7 +251,10 @@ func (g *WatchEventsRepo) readTaskWatchEvents(
 	query normalizedWatchEventsQuery,
 ) ([]looppkg.WatchEvent, error) {
 	placeholders, kindArgs := sqlInPlaceholders(query.kinds)
-	args := append([]any{query.workspaceID, query.streams[looppkg.WatchEventsTaskStream]}, kindArgs...)
+	scopeSQL, scopeArgs := watchEventsScopeClause("t.profile_id", query.readScope)
+	args := append([]any{query.workspaceID}, scopeArgs...)
+	args = append(args, query.streams[looppkg.WatchEventsTaskStream])
+	args = append(args, kindArgs...)
 	args = append(args, query.limit)
 	// dynamic-sql: caller-selected task event kinds require a variable-width IN list.
 	// #nosec G202 -- IN placeholders are generated from normalized kind count; values are parameterized.
@@ -280,6 +272,7 @@ func (g *WatchEventsRepo) readTaskWatchEvents(
 		   FROM task_events te
 		   JOIN tasks t ON t.id = te.task_id
 		  WHERE COALESCE(t.workspace_id, '') = ?
+		    AND `+scopeSQL+`
 		    AND te.event_seq > ?
 		    AND te.event_type IN (`+placeholders+`)
 		  ORDER BY te.event_seq ASC
@@ -308,6 +301,14 @@ func (g *WatchEventsRepo) readTaskWatchEvents(
 		return nil, err
 	}
 	return events, nil
+}
+
+func watchEventsScopeClause(column string, scope store.ReadScope) (string, []any) {
+	clauses, args := store.BuildClauses(store.ReadScopeClause(column, scope))
+	if len(clauses) == 0 {
+		return watchEventsAllRowsSQL, nil
+	}
+	return clauses[0], args
 }
 
 func scanTaskWatchEvent(row rowScanner) (looppkg.WatchEvent, error) {

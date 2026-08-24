@@ -126,6 +126,8 @@ const agents: AgentPayload[] = [
 ];
 
 const createdSession: SessionPayload = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   id: "sess-new",
   agent_name: "codex-agent",
   workspace_id: "ws_alpha",

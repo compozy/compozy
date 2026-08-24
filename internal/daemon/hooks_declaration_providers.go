@@ -8,12 +8,18 @@ import (
 
 	"strings"
 
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 
 	"github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/store"
 
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
+
+type profiledExtensionHookRuntime interface {
+	HookDeclarationsForProfiles(context.Context, []extensionpkg.ProfileLens) ([]hookspkg.HookDecl, error)
+}
 
 func chainDeclarationProviders(providers ...hookspkg.DeclarationProvider) hookspkg.DeclarationProvider {
 	return func(ctx context.Context) ([]hookspkg.HookDecl, error) {
@@ -33,7 +39,10 @@ func chainDeclarationProviders(providers ...hookspkg.DeclarationProvider) hooksp
 	}
 }
 
-func extensionDeclarationProvider(getRuntime func() extensionRuntime) hookspkg.DeclarationProvider {
+func extensionDeclarationProvider(
+	getRuntime func() extensionRuntime,
+	profiles extensionProfileCatalog,
+) hookspkg.DeclarationProvider {
 	return func(ctx context.Context) ([]hookspkg.HookDecl, error) {
 		if getRuntime == nil {
 			return nil, nil
@@ -43,9 +52,23 @@ func extensionDeclarationProvider(getRuntime func() extensionRuntime) hookspkg.D
 		if runtime == nil {
 			return nil, nil
 		}
-		decls, err := runtime.HookDeclarations(ctx)
+		projector, ok := runtime.(profiledExtensionHookRuntime)
+		if !ok {
+			return nil, errors.New("daemon: extension runtime does not support profile hook projection")
+		}
+		lenses := []extensionpkg.ProfileLens{{
+			ID: store.DefaultProfileID, Name: daemonDefaultProfileName,
+		}}
+		if profiles != nil {
+			rows, err := profiles.List(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("daemon: list profiles for extension hook projection: %w", err)
+			}
+			lenses = activeExtensionProfileLenses(rows)
+		}
+		decls, err := projector.HookDeclarationsForProfiles(ctx, lenses)
 		if err != nil {
-			return nil, fmt.Errorf("daemon: load hook declarations from extension runtime: %w", err)
+			return nil, fmt.Errorf("daemon: project hook declarations from extension runtime: %w", err)
 		}
 		return decls, nil
 	}

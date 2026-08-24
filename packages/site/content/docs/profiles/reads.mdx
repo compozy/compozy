@@ -1,0 +1,52 @@
+---
+title: Scoped and aggregate reads
+description: Read one profile by default, or request an owner-labeled view across profiles.
+---
+
+CompozyOS reads work through the resolved profile by default. A session list, task catalog, automation
+catalog, bridge catalog, network conversation, or other work read only returns records owned by that
+profile.
+
+Use root `--profile` to choose another profile for one command:
+
+```bash
+compozy --profile marketing session list
+```
+
+Use `--all-profiles` only when you need an aggregate view across profiles:
+
+```bash
+compozy session list --all-profiles -o json
+```
+
+`--profile` and `--all-profiles` conflict. Choose one. HTTP and UDS clients request the same aggregate
+view with `all_profiles=true`.
+
+## Owner labels
+
+Aggregate rows include `profile_name`. JSONL output starts with a `profile_resolution` frame even when
+the result set is empty, so consumers can distinguish a scoped read from an aggregate read without
+guessing from row content.
+
+A scoped lookup of an item owned by another profile returns not found. An aggregate lookup may return
+that item and includes its profile owner. This applies to direct links and detail routes as well as list
+routes.
+
+Session catalog streams keep the same rule for initial state, replay, and live updates. Scoped streams
+only emit sessions for their profile. Aggregate streams include `profile_name` on every session row.
+
+## Bound sessions and exceptions
+
+Agent-native reads derive their profile from the immutable session binding. A caller cannot replace that
+profile with request input. `compozy__profile_list` and `compozy__profile_current` expose profile catalog
+truth but do not mutate profile state.
+
+Worktrees remain visible from every profile because they describe workspace filesystem state. Each row
+still carries its owning `profile_name`. Network delivery remains profile-blind so transport can deliver
+messages, while channels, conversations, subscriptions, and work records retain their profile owner.
+
+## Related
+
+[Create your first profile](/docs/profiles/quickstart) walks a scoped read and an aggregate read
+back to back. [Select a profile](/docs/profiles/selection) explains how the profile being filtered
+on is chosen, and [Profile errors](/docs/profiles/errors) lists what a refused read returns.

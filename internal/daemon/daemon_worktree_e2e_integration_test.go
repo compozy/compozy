@@ -386,7 +386,7 @@ func TestDaemonTaskPerRunWorktreeJourneyE2E002IT029IT040(t *testing.T) {
 	lease, err := harness.CompleteClaimedTaskRunForSession(
 		ctx,
 		run.ID,
-		taskSession,
+		&taskSession,
 		compozycontract.AgentTaskCompleteRequest{Result: json.RawMessage(`{"ok":true}`)},
 	)
 	if err != nil {
@@ -426,13 +426,13 @@ func TestDaemonTaskPerRunWorktreeJourneyE2E002IT029IT040(t *testing.T) {
 	); err != nil {
 		t.Fatalf("post-enqueue root task profile set-worktree(per_run) error = %v", err)
 	}
-	if _, err := harness.ClaimExactTaskRunForSession(ctx, rootRun.ID, secondClaimer); err != nil {
+	if _, err := harness.ClaimExactTaskRunForSession(ctx, rootRun.ID, &secondClaimer); err != nil {
 		t.Fatalf("ClaimExactTaskRunForSession(root %s) error = %v", rootRun.ID, err)
 	}
 	rootStarted, err := harness.StartClaimedTaskRunForSession(
 		ctx,
 		rootRun.ID,
-		secondClaimer,
+		&secondClaimer,
 		compozycontract.StartTaskRunRequest{IdempotencyKey: "start-" + rootRun.ID},
 	)
 	if err != nil {
@@ -506,13 +506,13 @@ func TestDaemonTaskFanOutPerRunIsolationIT029IT031(t *testing.T) {
 			"local-default",
 			"fanout-claimer-"+strconv.Itoa(index+1),
 		)
-		if _, err := harness.ClaimExactTaskRunForSession(ctx, queued.ID, claimer); err != nil {
+		if _, err := harness.ClaimExactTaskRunForSession(ctx, queued.ID, &claimer); err != nil {
 			t.Fatalf("ClaimExactTaskRunForSession(%s) error = %v", queued.ID, err)
 		}
 		started, err := harness.StartClaimedTaskRunForSession(
 			ctx,
 			queued.ID,
-			claimer,
+			&claimer,
 			compozycontract.StartTaskRunRequest{IdempotencyKey: "start-" + queued.ID},
 		)
 		if err != nil {
@@ -598,7 +598,7 @@ func TestDaemonTaskFanOutPerRunIsolationIT029IT031(t *testing.T) {
 		if _, err := harness.CompleteClaimedTaskRunForSession(
 			ctx,
 			started.ID,
-			taskSession,
+			&taskSession,
 			compozycontract.AgentTaskCompleteRequest{Result: json.RawMessage(`{"ok":true}`)},
 		); err != nil {
 			t.Fatalf("complete fan-out run %s error = %v", started.ID, err)
@@ -664,7 +664,7 @@ func TestDaemonTaskFanOutSecondMaterializationFailureIT031(t *testing.T) {
 			"local-default",
 			"fanout-failure-claimer-"+strconv.Itoa(index+1),
 		)
-		if _, err := harness.ClaimExactTaskRunForSession(ctx, queued.ID, claimer); err != nil {
+		if _, err := harness.ClaimExactTaskRunForSession(ctx, queued.ID, &claimer); err != nil {
 			t.Fatalf("ClaimExactTaskRunForSession(%s) error = %v", queued.ID, err)
 		}
 		if index == 1 {
@@ -681,7 +681,7 @@ func TestDaemonTaskFanOutSecondMaterializationFailureIT031(t *testing.T) {
 			if _, err := harness.StartClaimedTaskRunForSession(
 				ctx,
 				queued.ID,
-				claimer,
+				&claimer,
 				compozycontract.StartTaskRunRequest{IdempotencyKey: "start-" + queued.ID},
 			); err == nil || !strings.Contains(err.Error(), worktree.ErrPerRunMaterialization.Error()) {
 				t.Fatalf(
@@ -696,7 +696,7 @@ func TestDaemonTaskFanOutSecondMaterializationFailureIT031(t *testing.T) {
 		started, err := harness.StartClaimedTaskRunForSession(
 			ctx,
 			queued.ID,
-			claimer,
+			&claimer,
 			compozycontract.StartTaskRunRequest{IdempotencyKey: "start-" + queued.ID},
 		)
 		if err != nil {
@@ -759,7 +759,7 @@ func TestDaemonTaskFanOutSecondMaterializationFailureIT031(t *testing.T) {
 		if _, err := harness.CompleteClaimedTaskRunForSession(
 			ctx,
 			started.ID,
-			taskSession,
+			&taskSession,
 			compozycontract.AgentTaskCompleteRequest{Result: json.RawMessage(`{"ok":true}`)},
 		); err != nil {
 			t.Fatalf("complete fan-out run %s error = %v", started.ID, err)

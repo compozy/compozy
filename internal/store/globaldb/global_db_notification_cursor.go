@@ -45,10 +45,11 @@ func (n *NotificationRepo) ListCursors(
 	}
 	// dynamic-sql: optional cursor filters and the limit change the query structure.
 	sqlQuery := `SELECT
-			scope_kind, workspace_id, consumer_id, stream_name, subject_id, last_sequence, last_delivery_id,
+			scope_kind, profile_id, workspace_id, consumer_id, stream_name, subject_id, last_sequence, last_delivery_id,
 			last_delivered_at, last_error, updated_at
 		FROM notification_cursors`
 	where, args := store.BuildClauses(
+		store.OpaqueStringClause("profile_id", normalized.ProfileID),
 		store.StringClause("scope_kind", string(normalized.Scope.Kind)),
 		store.OpaqueStringClause("workspace_id", normalized.Scope.WorkspaceID),
 		store.OpaqueStringClause("consumer_id", normalized.ConsumerID),
@@ -56,7 +57,7 @@ func (n *NotificationRepo) ListCursors(
 		store.OpaqueStringClause("subject_id", normalized.SubjectID),
 	)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
-	sqlQuery += ` ORDER BY scope_kind ASC, workspace_id ASC, stream_name ASC, subject_id ASC, consumer_id ASC`
+	sqlQuery += ` ORDER BY scope_kind ASC, profile_id ASC, workspace_id ASC, stream_name ASC, subject_id ASC, consumer_id ASC`
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, normalized.Limit)
 
 	rows, err := n.db.QueryContext(ctx, sqlQuery, args...)
@@ -114,7 +115,10 @@ func (n *NotificationRepo) AdvanceCursor(
 		} else {
 			cursor, loadErr = insertNotificationCursor(writeCtx, queries, normalized)
 		}
-		return loadErr
+		if loadErr != nil {
+			return loadErr
+		}
+		return clearNotificationDeliveryPermit(writeCtx, tx, normalized)
 	})
 	if err != nil {
 		return notifications.Cursor{}, fmt.Errorf("store: advance notification cursor: %w", err)
@@ -161,6 +165,7 @@ func (n *NotificationRepo) RecordCursorError(
 	err = store.ExecuteWrite(ctx, n.db, func(writeCtx context.Context, tx *store.WriteTx) error {
 		queries := sqlcgen.New(tx)
 		if recordErr := queries.RecordNotificationCursorError(writeCtx, sqlcgen.RecordNotificationCursorErrorParams{
+			ProfileID:   normalized.Key.ProfileID,
 			ScopeKind:   string(normalized.Key.Scope.Kind),
 			WorkspaceID: normalized.Key.Scope.WorkspaceID,
 			ConsumerID:  normalized.Key.ConsumerID,
@@ -200,6 +205,7 @@ func loadNotificationCursor(
 	key notifications.CursorKey,
 ) (notifications.Cursor, bool, error) {
 	row, err := queries.GetNotificationCursor(ctx, sqlcgen.GetNotificationCursorParams{
+		ProfileID:   key.ProfileID,
 		ScopeKind:   string(key.Scope.Kind),
 		WorkspaceID: key.Scope.WorkspaceID,
 		ConsumerID:  key.ConsumerID,
@@ -243,6 +249,7 @@ func insertNotificationCursor(
 	update notifications.AdvanceCursor,
 ) (notifications.Cursor, error) {
 	if err := queries.InsertNotificationCursor(ctx, sqlcgen.InsertNotificationCursorParams{
+		ProfileID:       update.Key.ProfileID,
 		ScopeKind:       string(update.Key.Scope.Kind),
 		WorkspaceID:     update.Key.Scope.WorkspaceID,
 		ConsumerID:      update.Key.ConsumerID,
@@ -293,6 +300,7 @@ func writeNotificationCursor(
 	action string,
 ) (notifications.Cursor, error) {
 	if err := queries.UpdateNotificationCursor(ctx, sqlcgen.UpdateNotificationCursorParams{
+		ProfileID:       update.Key.ProfileID,
 		LastSequence:    update.LastSequence,
 		LastDeliveryID:  update.DeliveryID,
 		LastDeliveredAt: notificationCursorTimeArg(lastDeliveredAt),
@@ -321,6 +329,7 @@ func upsertNotificationCursorReset(
 	reset notifications.ResetCursor,
 ) (notifications.Cursor, error) {
 	if err := queries.ResetNotificationCursor(ctx, sqlcgen.ResetNotificationCursorParams{
+		ProfileID:       reset.Key.ProfileID,
 		ScopeKind:       string(reset.Key.Scope.Kind),
 		WorkspaceID:     reset.Key.Scope.WorkspaceID,
 		ConsumerID:      reset.Key.ConsumerID,

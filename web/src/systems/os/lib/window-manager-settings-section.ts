@@ -4,7 +4,7 @@
  * The daemon serves the whole bindable registry here — every command with its
  * title, section and source, the effective keymap it resolved, and the aliases
  * in force — so no surface has to assemble a command list of its own (ADR-006).
- * Read at workspace scope the list spans core plus `ext.*`; read globally the
+ * Read at workspace scope the list spans core plus `ext.*`; read at user scope the
  * daemon can only answer for core ids, and says so by titling them with their id.
  */
 import { z } from "zod";
@@ -19,7 +19,7 @@ import type { ShortcutBinding } from "./window-manager-shortcuts";
 import type { WindowManagerConfig } from "./window-manager-types";
 import type { WindowManagerGlobalShortcutRegistration } from "./window-manager-shortcut-types";
 
-export type WindowManagerSettingsScope = "global" | "workspace";
+export type WindowManagerSettingsScope = "user" | "workspace";
 
 /** One bindable command, exactly as the registry names it. */
 export interface WindowManagerShortcutCommand {
@@ -61,7 +61,7 @@ export interface WindowManagerSettingsSection {
   globalShortcuts: readonly WindowManagerGlobalShortcutRegistration[];
 }
 
-const scopeSchema = z.enum(["global", "workspace"]);
+const scopeSchema = z.enum(["user", "workspace"]);
 
 const commandSchema = z.strictObject({
   id: z.string(),

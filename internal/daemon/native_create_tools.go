@@ -76,6 +76,7 @@ func (n *daemonNativeTools) networkChannelCreate(
 		return toolspkg.ToolResult{}, err
 	}
 	entry := store.NetworkChannelEntry{
+		ProfileID:         scope.ProfileID,
 		Channel:           channel,
 		WorkspaceID:       workspaceID,
 		Purpose:           purpose,
@@ -140,10 +141,11 @@ func (n *daemonNativeTools) networkChannelUpdate(
 		coordinatorPeerID := strings.TrimSpace(*input.CoordinatorPeerID)
 		patch.CoordinatorPeerID = &coordinatorPeerID
 	}
-	if err := n.deps.NetworkStore.PatchNetworkChannel(ctx, ref, patch); err != nil {
+	readScope := store.ReadScope{ProfileID: scope.ProfileID}
+	if err := n.deps.NetworkStore.PatchNetworkChannel(ctx, readScope, ref, patch); err != nil {
 		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
 	}
-	entry, err := n.deps.NetworkStore.GetNetworkChannel(ctx, ref)
+	entry, err := n.deps.NetworkStore.GetNetworkChannel(ctx, readScope, ref)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
 	}

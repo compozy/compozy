@@ -146,36 +146,29 @@ describe("ExtensionProvenanceDialog", () => {
 });
 
 describe("ExtensionNetworkConfirmDialog", () => {
-  it.each([
-    ["enable" as const, "Enabling dep-kit-ops"],
-    ["update" as const, "Updating dep-kit-ops"],
-  ])(
-    "Should show the exact digest and preserve the confirmation callback for %s",
-    async (action, sentence) => {
-      const user = userEvent.setup();
-      const onConfirm = vi.fn();
-      render(
-        <ExtensionNetworkConfirmDialog
-          action={action}
-          digest="sha256:6f1c0a94d3b27e58"
-          error="confirmation rejected"
-          extensionName="dep-kit-ops"
-          onConfirm={onConfirm}
-          onOpenChange={vi.fn()}
-          open
-          pending={false}
-        />
-      );
+  it("Should show the exact digest and preserve the update callback", async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    render(
+      <ExtensionNetworkConfirmDialog
+        digest="sha256:6f1c0a94d3b27e58"
+        error="confirmation rejected"
+        extensionName="dep-kit-ops"
+        onConfirm={onConfirm}
+        onOpenChange={vi.fn()}
+        open
+        pending={false}
+      />
+    );
 
-      expect(screen.getByText("confirmation rejected")).toBeInTheDocument();
-      expect(screen.getByText(new RegExp(sentence))).toBeInTheDocument();
-      expect(screen.getByTestId("extension-network-confirm-digest")).toHaveTextContent(
-        "sha256:6f1c0a94d3b27e58"
-      );
-      await user.click(screen.getByTestId("extension-network-confirm-accept"));
-      expect(onConfirm).toHaveBeenCalledOnce();
-    }
-  );
+    expect(screen.getByText("confirmation rejected")).toBeInTheDocument();
+    expect(screen.getByText(/Updating dep-kit-ops/)).toBeInTheDocument();
+    expect(screen.getByTestId("extension-network-confirm-digest")).toHaveTextContent(
+      "sha256:6f1c0a94d3b27e58"
+    );
+    await user.click(screen.getByTestId("extension-network-confirm-accept"));
+    expect(onConfirm).toHaveBeenCalledOnce();
+  });
 });
 
 describe("VerifiedMark", () => {

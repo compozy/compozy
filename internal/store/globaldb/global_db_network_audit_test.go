@@ -19,6 +19,7 @@ func TestOpenGlobalDBCreatesNetworkAuditLogSchema(t *testing.T) {
 	assertTablesPresent(t, globalDB.db, "network_audit_log")
 	assertTableColumns(t, globalDB.db, "network_audit_log", []string{
 		"id",
+		"profile_id",
 		"session_id",
 		"workspace_id",
 		"direction",
@@ -35,7 +36,15 @@ func TestOpenGlobalDBCreatesNetworkAuditLogSchema(t *testing.T) {
 		"size",
 		"timestamp",
 	})
-	assertTableHasNoForeignKeys(t, globalDB.db, "network_audit_log")
+	hasProfileForeignKey, err := tableHasForeignKey(
+		testutil.Context(t), globalDB.db, "network_audit_log", "profiles",
+	)
+	if err != nil {
+		t.Fatalf("tableHasForeignKey(network_audit_log, profiles) error = %v", err)
+	}
+	if !hasProfileForeignKey {
+		t.Fatal("network_audit_log profile foreign key = false, want true")
+	}
 }
 
 func TestGlobalDBWriteAndListNetworkAudit(t *testing.T) {
@@ -48,6 +57,7 @@ func TestGlobalDBWriteAndListNetworkAudit(t *testing.T) {
 	globalDB.now = func() time.Time { return now }
 
 	if err := globalDB.WriteNetworkAudit(testutil.Context(t), store.NetworkAuditEntry{
+		ProfileID:   store.DefaultProfileID,
 		SessionID:   "sess-network-audit",
 		WorkspaceID: workspaceID,
 		Direction:   "sent",
@@ -65,6 +75,7 @@ func TestGlobalDBWriteAndListNetworkAudit(t *testing.T) {
 	}
 
 	if err := globalDB.WriteNetworkAudit(testutil.Context(t), store.NetworkAuditEntry{
+		ProfileID:   store.DefaultProfileID,
 		SessionID:   "sess-network-audit",
 		WorkspaceID: workspaceID,
 		Direction:   "rejected",
@@ -80,6 +91,7 @@ func TestGlobalDBWriteAndListNetworkAudit(t *testing.T) {
 	}
 
 	entries, err := globalDB.ListNetworkAudit(testutil.Context(t), store.NetworkAuditQuery{
+		ReadScope:   store.ReadScope{AllProfiles: true},
 		WorkspaceID: workspaceID,
 		SessionID:   "sess-network-audit",
 		Limit:       10,
@@ -122,14 +134,25 @@ func TestGlobalDBWriteNetworkAuditAllowsUnknownSessionID(t *testing.T) {
 	t.Parallel()
 
 	globalDB := openTestGlobalDB(t)
+	ctx := testutil.Context(t)
 	workspaceID := registerWorkspaceForGlobalTests(
 		t,
 		globalDB,
 		"network-audit-unknown",
 		filepath.Join(t.TempDir(), "network-audit-unknown"),
 	)
+	foreignProfileID := "01ARZ3NDEKTSV4RRFFQ69G5FAX"
+	if _, err := globalDB.db.ExecContext(ctx, `
+		INSERT INTO profiles (id, name, color, icon, state, created_at)
+		VALUES (?, 'network-foreign', '#8E8EB5', 'circle', 'active', ?)`,
+		foreignProfileID,
+		store.FormatTimestamp(time.Now().UTC()),
+	); err != nil {
+		t.Fatalf("insert foreign profile: %v", err)
+	}
 
-	if err := globalDB.WriteNetworkAudit(testutil.Context(t), store.NetworkAuditEntry{
+	if err := globalDB.WriteNetworkAudit(ctx, store.NetworkAuditEntry{
+		ProfileID:   store.DefaultProfileID,
 		SessionID:   "sess-network-unknown",
 		WorkspaceID: workspaceID,
 		Direction:   "sent",
@@ -142,7 +165,8 @@ func TestGlobalDBWriteNetworkAuditAllowsUnknownSessionID(t *testing.T) {
 		t.Fatalf("WriteNetworkAudit(unknown session) error = %v", err)
 	}
 
-	entries, err := globalDB.ListNetworkAudit(testutil.Context(t), store.NetworkAuditQuery{
+	entries, err := globalDB.ListNetworkAudit(ctx, store.NetworkAuditQuery{
+		ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 		WorkspaceID: workspaceID,
 		SessionID:   "sess-network-unknown",
 		Limit:       10,
@@ -156,16 +180,151 @@ func TestGlobalDBWriteNetworkAuditAllowsUnknownSessionID(t *testing.T) {
 	if got, want := entries[0].MessageID, "msg_greet_01"; got != want {
 		t.Fatalf("entries[0].MessageID = %q, want %q", got, want)
 	}
+	if got, want := entries[0].ProfileID, store.DefaultProfileID; got != want {
+		t.Fatalf("entries[0].ProfileID = %q, want %q", got, want)
+	}
+	foreignEntries, err := globalDB.ListNetworkAudit(ctx, store.NetworkAuditQuery{
+		ReadScope:   store.ReadScope{ProfileID: foreignProfileID},
+		WorkspaceID: workspaceID,
+		SessionID:   "sess-network-unknown",
+		Limit:       10,
+	})
+	if err != nil {
+		t.Fatalf("ListNetworkAudit(foreign profile) error = %v", err)
+	}
+	if len(foreignEntries) != 0 {
+		t.Fatalf("ListNetworkAudit(foreign profile) = %#v, want empty", foreignEntries)
+	}
+}
+
+func TestGlobalDBNetworkAuditProfileOwnershipMigration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should backfill the channel owner without widening visibility", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefixDB, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			globalMigrationPrefixBefore(t, "00089_schema.sql"),
+		)
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(v88 prefix) error = %v", err)
+		}
+		prefixClosed := false
+		t.Cleanup(func() {
+			if prefixClosed {
+				return
+			}
+			if err := prefixDB.Close(); err != nil {
+				t.Errorf("prefixDB.Close(cleanup) error = %v", err)
+			}
+		})
+
+		ctx := testutil.Context(t)
+		profileID := "01ARZ3NDEKTSV4RRFFQ69G5FAX"
+		workspaceID := "ws-network-audit-upgrade"
+		timestamp := store.FormatTimestamp(time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC))
+		if _, err := prefixDB.ExecContext(ctx, `
+			INSERT INTO profiles (id, name, color, icon, state, created_at)
+			VALUES (?, 'network-owner', '#8E8EB5', 'circle', 'active', ?)`,
+			profileID,
+			timestamp,
+		); err != nil {
+			t.Fatalf("insert profile owner error = %v", err)
+		}
+		if _, err := prefixDB.ExecContext(ctx, `
+			INSERT INTO workspaces (id, root_dir, name, created_at, updated_at)
+			VALUES (?, ?, 'network-audit-upgrade', ?, ?)`,
+			workspaceID,
+			filepath.Join(t.TempDir(), "network-audit-upgrade"),
+			timestamp,
+			timestamp,
+		); err != nil {
+			t.Fatalf("insert workspace error = %v", err)
+		}
+		if _, err := prefixDB.ExecContext(ctx, `
+			INSERT INTO network_channels (
+				profile_id, workspace_id, channel, purpose, created_at, updated_at
+			) VALUES (?, ?, 'builders', 'migration ownership', ?, ?)`,
+			profileID,
+			workspaceID,
+			timestamp,
+			timestamp,
+		); err != nil {
+			t.Fatalf("insert network channel error = %v", err)
+		}
+		if _, err := prefixDB.ExecContext(ctx, `
+			INSERT INTO network_audit_log (
+				id, session_id, workspace_id, direction, kind, channel, peer_from,
+				message_id, size, timestamp
+			) VALUES (
+				'naud-profile-backfill', 'sess-ownerless', ?, 'sent', 'say', 'builders',
+				'coder.sess-ownerless', 'msg-profile-backfill', 42, ?
+			)`,
+			workspaceID,
+			timestamp,
+		); err != nil {
+			t.Fatalf("insert legacy audit row error = %v", err)
+		}
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("prefixDB.Close() error = %v", err)
+		}
+		prefixClosed = true
+
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(v89 upgrade) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := upgraded.Close(testutil.Context(t)); err != nil {
+				t.Errorf("upgraded.Close(cleanup) error = %v", err)
+			}
+		})
+
+		entries, err := upgraded.ListNetworkAudit(testutil.Context(t), store.NetworkAuditQuery{
+			ReadScope:   store.ReadScope{ProfileID: profileID},
+			WorkspaceID: workspaceID,
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ListNetworkAudit(owner profile) error = %v", err)
+		}
+		if got, want := len(entries), 1; got != want {
+			t.Fatalf("len(owner entries) = %d, want %d", got, want)
+		}
+		if got, want := entries[0].ProfileID, profileID; got != want {
+			t.Fatalf("entries[0].ProfileID = %q, want %q", got, want)
+		}
+
+		defaultEntries, err := upgraded.ListNetworkAudit(testutil.Context(t), store.NetworkAuditQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: workspaceID,
+			Limit:       10,
+		})
+		if err != nil {
+			t.Fatalf("ListNetworkAudit(default profile) error = %v", err)
+		}
+		if len(defaultEntries) != 0 {
+			t.Fatalf("ListNetworkAudit(default profile) = %#v, want empty", defaultEntries)
+		}
+	})
 }
 
 func TestGlobalDBNetworkAuditGuardClauses(t *testing.T) {
 	t.Parallel()
 
 	globalDB := openTestGlobalDB(t)
-	if err := globalDB.WriteNetworkAudit(nilGlobalContext(), store.NetworkAuditEntry{}); err == nil {
+	if err := globalDB.WriteNetworkAudit(
+		nilGlobalContext(),
+		store.NetworkAuditEntry{ProfileID: store.DefaultProfileID},
+	); err == nil {
 		t.Fatal("WriteNetworkAudit(nil ctx) error = nil, want non-nil")
 	}
-	if _, err := globalDB.ListNetworkAudit(nilGlobalContext(), store.NetworkAuditQuery{}); err == nil {
+	if _, err := globalDB.ListNetworkAudit(nilGlobalContext(), store.NetworkAuditQuery{
+		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+	}); err == nil {
 		t.Fatal("ListNetworkAudit(nil ctx) error = nil, want non-nil")
 	}
 	if err := globalDB.Close(testutil.Context(t)); err != nil {
@@ -173,7 +332,7 @@ func TestGlobalDBNetworkAuditGuardClauses(t *testing.T) {
 	}
 	if err := globalDB.WriteNetworkAudit(
 		testutil.Context(t),
-		store.NetworkAuditEntry{},
+		store.NetworkAuditEntry{ProfileID: store.DefaultProfileID},
 	); !errors.Is(
 		err,
 		store.ErrClosed,
@@ -189,6 +348,7 @@ func TestGlobalDBWriteNetworkAuditRejectsWhitechannelPaddedDirection(t *testing.
 	workspaceID := registerSessionForGlobalTests(t, globalDB, "sess-network-direction")
 
 	err := globalDB.WriteNetworkAudit(testutil.Context(t), store.NetworkAuditEntry{
+		ProfileID:   store.DefaultProfileID,
 		SessionID:   "sess-network-direction",
 		WorkspaceID: workspaceID,
 		Direction:   " sent ",
@@ -215,10 +375,11 @@ func TestGlobalDBListNetworkAuditWrapsTimestampParseFailures(t *testing.T) {
 	if _, err := globalDB.db.ExecContext(
 		testutil.Context(t),
 		`INSERT INTO network_audit_log (
-			id, session_id, workspace_id, direction, kind, channel, surface, thread_id, direct_id, work_id,
+			id, profile_id, session_id, workspace_id, direction, kind, channel, surface, thread_id, direct_id, work_id,
 			peer_from, peer_to, message_id, reason, size, timestamp
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		"naud_bad_timestamp",
+		store.DefaultProfileID,
 		"sess-network-bad-timestamp",
 		workspaceID,
 		"sent",
@@ -239,6 +400,7 @@ func TestGlobalDBListNetworkAuditWrapsTimestampParseFailures(t *testing.T) {
 	}
 
 	_, err := globalDB.ListNetworkAudit(testutil.Context(t), store.NetworkAuditQuery{
+		ReadScope:   store.ReadScope{AllProfiles: true},
 		WorkspaceID: workspaceID,
 		SessionID:   "sess-network-bad-timestamp",
 		Limit:       10,

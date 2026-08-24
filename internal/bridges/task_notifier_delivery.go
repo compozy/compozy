@@ -123,7 +123,7 @@ func (n *TerminalTaskNotifier) deliverResolvedTaskNotification(
 	record taskpkg.EventRecord,
 	notification TerminalTaskNotification,
 ) (processTaskNotificationResult, error) {
-	if err := n.deliverNotification(ctx, subscription, notification); err != nil {
+	if err := n.deliverNotification(ctx, cursorKey, subscription, notification); err != nil {
 		if errors.Is(err, ErrBridgeNotificationSuppressed) {
 			skippedID, skippedIDErr := terminalTaskNotificationSkippedDeliveryID(
 				subscription,

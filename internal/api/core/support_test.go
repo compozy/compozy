@@ -14,6 +14,8 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/support"
 	"github.com/gin-gonic/gin"
 )
@@ -22,6 +24,34 @@ type supportBundleServiceStub struct {
 	createFn       func(context.Context, support.CreateRequest) (support.Operation, error)
 	getFn          func(context.Context, string) (support.Operation, error)
 	downloadPathFn func(context.Context, string) (support.Operation, string, error)
+}
+
+// Invariant: support snapshots expose the same profile owner identity as live
+// session responses. Owner: core support snapshot provider. Canonical suite:
+// support handler tests (no earlier snapshot-specific suite exists).
+func TestSessionsSnapshotDecoratesProfileOwners(t *testing.T) {
+	t.Parallel()
+
+	fixture := newHandlerFixture(
+		t,
+		testutil.StubSessionManager{ListAllFn: func(context.Context) ([]*session.Info, error) {
+			return []*session.Info{{
+				ID: "sess-support", ProfileID: store.DefaultProfileID, State: session.StateStopped,
+			}}, nil
+		}},
+		testutil.StubObserver{},
+		testutil.StubWorkspaceService{},
+		nil,
+		nil,
+	)
+	payload, err := fixture.Handlers.SessionsSnapshot(t.Context())
+	if err != nil {
+		t.Fatalf("SessionsSnapshot() error = %v", err)
+	}
+	if len(payload.Sessions) != 1 || payload.Sessions[0].ProfileID != store.DefaultProfileID ||
+		payload.Sessions[0].ProfileName != "default" {
+		t.Fatalf("SessionsSnapshot().Sessions = %#v, want default profile owner", payload.Sessions)
+	}
 }
 
 func (s supportBundleServiceStub) Create(

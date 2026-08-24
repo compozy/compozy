@@ -12,32 +12,41 @@ import (
 
 const countPendingAutomationSuggestions = `-- name: CountPendingAutomationSuggestions :one
 SELECT COUNT(*) FROM automation_suggestions
-WHERE workspace_id = ?1 AND status = 'pending'
+WHERE profile_id = ?1
+  AND workspace_id IS ?2 AND status = 'pending'
 `
 
-func (q *Queries) CountPendingAutomationSuggestions(ctx context.Context, workspaceID string) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countPendingAutomationSuggestions, workspaceID)
+type CountPendingAutomationSuggestionsParams struct {
+	ProfileID   string         `json:"profile_id"`
+	WorkspaceID sql.NullString `json:"workspace_id"`
+}
+
+func (q *Queries) CountPendingAutomationSuggestions(ctx context.Context, arg CountPendingAutomationSuggestionsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countPendingAutomationSuggestions, arg.ProfileID, arg.WorkspaceID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
 }
 
 const getAutomationSuggestion = `-- name: GetAutomationSuggestion :one
-SELECT id, workspace_id, source, dedup_key, status, payload, created_at, resolved_at
+SELECT id, profile_id, workspace_id, source, dedup_key, status, payload, created_at, resolved_at
 FROM automation_suggestions
-WHERE workspace_id = ?1 AND id = ?2
+WHERE profile_id = ?1
+  AND workspace_id IS ?2 AND id = ?3
 `
 
 type GetAutomationSuggestionParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	ID          string `json:"id"`
+	ProfileID   string         `json:"profile_id"`
+	WorkspaceID sql.NullString `json:"workspace_id"`
+	ID          string         `json:"id"`
 }
 
 func (q *Queries) GetAutomationSuggestion(ctx context.Context, arg GetAutomationSuggestionParams) (AutomationSuggestion, error) {
-	row := q.db.QueryRowContext(ctx, getAutomationSuggestion, arg.WorkspaceID, arg.ID)
+	row := q.db.QueryRowContext(ctx, getAutomationSuggestion, arg.ProfileID, arg.WorkspaceID, arg.ID)
 	var i AutomationSuggestion
 	err := row.Scan(
 		&i.ID,
+		&i.ProfileID,
 		&i.WorkspaceID,
 		&i.Source,
 		&i.DedupKey,
@@ -50,21 +59,24 @@ func (q *Queries) GetAutomationSuggestion(ctx context.Context, arg GetAutomation
 }
 
 const getAutomationSuggestionByDedupKey = `-- name: GetAutomationSuggestionByDedupKey :one
-SELECT id, workspace_id, source, dedup_key, status, payload, created_at, resolved_at
+SELECT id, profile_id, workspace_id, source, dedup_key, status, payload, created_at, resolved_at
 FROM automation_suggestions
-WHERE workspace_id = ?1 AND dedup_key = ?2
+WHERE profile_id = ?1
+  AND workspace_id IS ?2 AND dedup_key = ?3
 `
 
 type GetAutomationSuggestionByDedupKeyParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	DedupKey    string `json:"dedup_key"`
+	ProfileID   string         `json:"profile_id"`
+	WorkspaceID sql.NullString `json:"workspace_id"`
+	DedupKey    string         `json:"dedup_key"`
 }
 
 func (q *Queries) GetAutomationSuggestionByDedupKey(ctx context.Context, arg GetAutomationSuggestionByDedupKeyParams) (AutomationSuggestion, error) {
-	row := q.db.QueryRowContext(ctx, getAutomationSuggestionByDedupKey, arg.WorkspaceID, arg.DedupKey)
+	row := q.db.QueryRowContext(ctx, getAutomationSuggestionByDedupKey, arg.ProfileID, arg.WorkspaceID, arg.DedupKey)
 	var i AutomationSuggestion
 	err := row.Scan(
 		&i.ID,
+		&i.ProfileID,
 		&i.WorkspaceID,
 		&i.Source,
 		&i.DedupKey,
@@ -78,16 +90,19 @@ func (q *Queries) GetAutomationSuggestionByDedupKey(ctx context.Context, arg Get
 
 const insertAutomationSuggestion = `-- name: InsertAutomationSuggestion :exec
 INSERT INTO automation_suggestions (
+  profile_id,
   id, workspace_id, source, dedup_key, status, payload, created_at, resolved_at
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7, ?8
+  ?1,
+  ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8, ?9
 )
 `
 
 type InsertAutomationSuggestionParams struct {
+	ProfileID   string         `json:"profile_id"`
 	ID          string         `json:"id"`
-	WorkspaceID string         `json:"workspace_id"`
+	WorkspaceID sql.NullString `json:"workspace_id"`
 	Source      string         `json:"source"`
 	DedupKey    string         `json:"dedup_key"`
 	Status      string         `json:"status"`
@@ -98,6 +113,7 @@ type InsertAutomationSuggestionParams struct {
 
 func (q *Queries) InsertAutomationSuggestion(ctx context.Context, arg InsertAutomationSuggestionParams) error {
 	_, err := q.db.ExecContext(ctx, insertAutomationSuggestion,
+		arg.ProfileID,
 		arg.ID,
 		arg.WorkspaceID,
 		arg.Source,
@@ -112,16 +128,19 @@ func (q *Queries) InsertAutomationSuggestion(ctx context.Context, arg InsertAuto
 
 const insertAutomationSuggestionEventSummary = `-- name: InsertAutomationSuggestionEventSummary :exec
 INSERT INTO event_summaries (
+  profile_id,
   id, workspace_id, type, content_json, actor_kind, actor_id, outcome, summary, timestamp
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  'automation_suggestion', ?5, ?6, ?7,
-  ?8
+  ?1,
+  ?2, ?3, ?4, ?5,
+  'automation_suggestion', ?6, ?7, ?8,
+  ?9
 )
 ON CONFLICT(id) DO NOTHING
 `
 
 type InsertAutomationSuggestionEventSummaryParams struct {
+	ProfileID   string         `json:"profile_id"`
 	ID          string         `json:"id"`
 	WorkspaceID string         `json:"workspace_id"`
 	Type        string         `json:"type"`
@@ -134,6 +153,7 @@ type InsertAutomationSuggestionEventSummaryParams struct {
 
 func (q *Queries) InsertAutomationSuggestionEventSummary(ctx context.Context, arg InsertAutomationSuggestionEventSummaryParams) error {
 	_, err := q.db.ExecContext(ctx, insertAutomationSuggestionEventSummary,
+		arg.ProfileID,
 		arg.ID,
 		arg.WorkspaceID,
 		arg.Type,
@@ -146,15 +166,15 @@ func (q *Queries) InsertAutomationSuggestionEventSummary(ctx context.Context, ar
 	return err
 }
 
-const listAcceptedAutomationSuggestions = `-- name: ListAcceptedAutomationSuggestions :many
-SELECT id, workspace_id, source, dedup_key, status, payload, created_at, resolved_at
+const listAcceptedAutomationSuggestionsAllProfiles = `-- name: ListAcceptedAutomationSuggestionsAllProfiles :many
+SELECT id, profile_id, workspace_id, source, dedup_key, status, payload, created_at, resolved_at
 FROM automation_suggestions
 WHERE status = 'accepted'
 ORDER BY created_at ASC, id ASC
 `
 
-func (q *Queries) ListAcceptedAutomationSuggestions(ctx context.Context) ([]AutomationSuggestion, error) {
-	rows, err := q.db.QueryContext(ctx, listAcceptedAutomationSuggestions)
+func (q *Queries) ListAcceptedAutomationSuggestionsAllProfiles(ctx context.Context) ([]AutomationSuggestion, error) {
+	rows, err := q.db.QueryContext(ctx, listAcceptedAutomationSuggestionsAllProfiles)
 	if err != nil {
 		return nil, err
 	}
@@ -164,6 +184,7 @@ func (q *Queries) ListAcceptedAutomationSuggestions(ctx context.Context) ([]Auto
 		var i AutomationSuggestion
 		if err := rows.Scan(
 			&i.ID,
+			&i.ProfileID,
 			&i.WorkspaceID,
 			&i.Source,
 			&i.DedupKey,
@@ -186,20 +207,22 @@ func (q *Queries) ListAcceptedAutomationSuggestions(ctx context.Context) ([]Auto
 }
 
 const listAutomationSuggestions = `-- name: ListAutomationSuggestions :many
-SELECT id, workspace_id, source, dedup_key, status, payload, created_at, resolved_at
+SELECT id, profile_id, workspace_id, source, dedup_key, status, payload, created_at, resolved_at
 FROM automation_suggestions
-WHERE workspace_id = ?1
-  AND (CAST(?2 AS TEXT) = '' OR status = CAST(?2 AS TEXT))
+WHERE profile_id = ?1
+  AND workspace_id IS ?2
+  AND (CAST(?3 AS TEXT) = '' OR status = CAST(?3 AS TEXT))
 ORDER BY created_at ASC, id ASC
 `
 
 type ListAutomationSuggestionsParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	Status      string `json:"status"`
+	ProfileID   string         `json:"profile_id"`
+	WorkspaceID sql.NullString `json:"workspace_id"`
+	Status      string         `json:"status"`
 }
 
 func (q *Queries) ListAutomationSuggestions(ctx context.Context, arg ListAutomationSuggestionsParams) ([]AutomationSuggestion, error) {
-	rows, err := q.db.QueryContext(ctx, listAutomationSuggestions, arg.WorkspaceID, arg.Status)
+	rows, err := q.db.QueryContext(ctx, listAutomationSuggestions, arg.ProfileID, arg.WorkspaceID, arg.Status)
 	if err != nil {
 		return nil, err
 	}
@@ -209,6 +232,53 @@ func (q *Queries) ListAutomationSuggestions(ctx context.Context, arg ListAutomat
 		var i AutomationSuggestion
 		if err := rows.Scan(
 			&i.ID,
+			&i.ProfileID,
+			&i.WorkspaceID,
+			&i.Source,
+			&i.DedupKey,
+			&i.Status,
+			&i.Payload,
+			&i.CreatedAt,
+			&i.ResolvedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAutomationSuggestionsAllProfiles = `-- name: ListAutomationSuggestionsAllProfiles :many
+SELECT id, profile_id, workspace_id, source, dedup_key, status, payload, created_at, resolved_at
+FROM automation_suggestions
+WHERE workspace_id IS ?1
+  AND (CAST(?2 AS TEXT) = '' OR status = CAST(?2 AS TEXT))
+ORDER BY created_at ASC, id ASC
+`
+
+type ListAutomationSuggestionsAllProfilesParams struct {
+	WorkspaceID sql.NullString `json:"workspace_id"`
+	Status      string         `json:"status"`
+}
+
+func (q *Queries) ListAutomationSuggestionsAllProfiles(ctx context.Context, arg ListAutomationSuggestionsAllProfilesParams) ([]AutomationSuggestion, error) {
+	rows, err := q.db.QueryContext(ctx, listAutomationSuggestionsAllProfiles, arg.WorkspaceID, arg.Status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AutomationSuggestion{}
+	for rows.Next() {
+		var i AutomationSuggestion
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProfileID,
 			&i.WorkspaceID,
 			&i.Source,
 			&i.DedupKey,
@@ -233,13 +303,15 @@ func (q *Queries) ListAutomationSuggestions(ctx context.Context, arg ListAutomat
 const resolveAutomationSuggestion = `-- name: ResolveAutomationSuggestion :execrows
 UPDATE automation_suggestions
 SET status = ?1, resolved_at = ?2
-WHERE workspace_id = ?3 AND id = ?4 AND status = 'pending'
+WHERE profile_id = ?3
+  AND workspace_id IS ?4 AND id = ?5 AND status = 'pending'
 `
 
 type ResolveAutomationSuggestionParams struct {
 	Status      string         `json:"status"`
 	ResolvedAt  sql.NullString `json:"resolved_at"`
-	WorkspaceID string         `json:"workspace_id"`
+	ProfileID   string         `json:"profile_id"`
+	WorkspaceID sql.NullString `json:"workspace_id"`
 	ID          string         `json:"id"`
 }
 
@@ -247,6 +319,7 @@ func (q *Queries) ResolveAutomationSuggestion(ctx context.Context, arg ResolveAu
 	result, err := q.db.ExecContext(ctx, resolveAutomationSuggestion,
 		arg.Status,
 		arg.ResolvedAt,
+		arg.ProfileID,
 		arg.WorkspaceID,
 		arg.ID,
 	)
@@ -259,18 +332,25 @@ func (q *Queries) ResolveAutomationSuggestion(ctx context.Context, arg ResolveAu
 const rollbackAutomationSuggestionAcceptance = `-- name: RollbackAutomationSuggestionAcceptance :execrows
 UPDATE automation_suggestions
 SET status = 'pending', resolved_at = NULL
-WHERE workspace_id = ?1 AND id = ?2
-  AND status = 'accepted' AND resolved_at = ?3
+WHERE profile_id = ?1
+  AND workspace_id IS ?2 AND id = ?3
+  AND status = 'accepted' AND resolved_at = ?4
 `
 
 type RollbackAutomationSuggestionAcceptanceParams struct {
-	WorkspaceID string         `json:"workspace_id"`
+	ProfileID   string         `json:"profile_id"`
+	WorkspaceID sql.NullString `json:"workspace_id"`
 	ID          string         `json:"id"`
 	ResolvedAt  sql.NullString `json:"resolved_at"`
 }
 
 func (q *Queries) RollbackAutomationSuggestionAcceptance(ctx context.Context, arg RollbackAutomationSuggestionAcceptanceParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, rollbackAutomationSuggestionAcceptance, arg.WorkspaceID, arg.ID, arg.ResolvedAt)
+	result, err := q.db.ExecContext(ctx, rollbackAutomationSuggestionAcceptance,
+		arg.ProfileID,
+		arg.WorkspaceID,
+		arg.ID,
+		arg.ResolvedAt,
+	)
 	if err != nil {
 		return 0, err
 	}

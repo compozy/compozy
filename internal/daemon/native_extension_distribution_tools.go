@@ -72,7 +72,7 @@ func (n *daemonNativeTools) extensionProvenance(
 
 func (n *daemonNativeTools) extensionPublish(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (_ toolspkg.ToolResult, err error) {
 	var input extensionPublishInput
@@ -95,7 +95,7 @@ func (n *daemonNativeTools) extensionPublish(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
-	actor, err := nativeExtensionActorContext(req)
+	actor, err := nativeExtensionScopedActorContext(scope, req)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}

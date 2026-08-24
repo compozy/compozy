@@ -9,9 +9,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithTopbar } from "@/test/render-with-topbar";
 
 const mocks = vi.hoisted(() => ({
+  emptyStateProps: null as null | {
+    profileScopeLabel?: string | null;
+    workspaceName?: string | null;
+  },
+  listSurfaceProps: null as null | { profile: unknown },
   navigate: vi.fn(),
   userOpen: vi.fn(),
   page: {
+    // The listing's profile axis, as the page hook resolves it.
+    profile: {
+      aggregate: false as boolean,
+      destination: "default" as string,
+      scopeLabel: "default" as string | null,
+      ownerOf: () => ({ id: "00000000000000000000000000", name: "default", archived: false }),
+    },
     dashboard: null,
     dashboardError: null,
     dashboardLoading: false,
@@ -113,20 +125,30 @@ vi.mock("@/systems/os/hooks/use-os-shell", () => ({
 
 vi.mock("@/systems/tasks/components/public-api", () => ({
   TasksDashboardView: () => <div data-testid="tasks-dashboard-view" />,
-  TasksEmptyState: ({ onSelectTemplate }: { onSelectTemplate: (id: string) => void }) => (
-    <div data-testid="tasks-empty-state">
-      <button
-        data-testid="tasks-empty-blank"
-        onClick={() => onSelectTemplate("blank")}
-        type="button"
-      >
-        Blank task
-      </button>
-    </div>
-  ),
+  TasksEmptyState: (props: {
+    onSelectTemplate: (id: string) => void;
+    profileScopeLabel?: string | null;
+    workspaceName?: string | null;
+  }) => {
+    mocks.emptyStateProps = props;
+    return (
+      <div data-testid="tasks-empty-state">
+        <button
+          data-testid="tasks-empty-blank"
+          onClick={() => props.onSelectTemplate("blank")}
+          type="button"
+        >
+          Blank task
+        </button>
+      </div>
+    );
+  },
   TasksInboxView: () => <div data-testid="tasks-inbox-view" />,
   TasksKanbanBoard: () => <div data-testid="tasks-kanban-view" />,
-  TasksListSurface: () => <div data-testid="tasks-list-surface" />,
+  TasksListSurface: (props: { profile: unknown }) => {
+    mocks.listSurfaceProps = props;
+    return <div data-testid="tasks-list-surface" />;
+  },
   TasksListToolbar: () => <div data-testid="tasks-list-toolbar" />,
 }));
 
@@ -152,7 +174,12 @@ function renderCatalog(mode?: "dashboard" | "kanban") {
 
 describe("TasksCatalogLocation", () => {
   beforeEach(() => {
+    mocks.emptyStateProps = null;
+    mocks.listSurfaceProps = null;
     mocks.page.isEmpty = false;
+    mocks.page.profile.aggregate = false;
+    mocks.page.profile.destination = "default";
+    mocks.page.profile.scopeLabel = "default";
     mocks.userOpen.mockReset();
   });
 
@@ -195,6 +222,24 @@ describe("TasksCatalogLocation", () => {
     expect(mocks.userOpen).toHaveBeenCalledWith({
       app: "tasks",
       route: { pathname: "/tasks/new", search: { mode: "list", template: "blank" } },
+    });
+  });
+
+  it("Should pass the resolved default profile into the list surface", () => {
+    renderCatalog();
+
+    expect(mocks.listSurfaceProps?.profile).toBe(mocks.page.profile);
+  });
+
+  it("Should pass aggregate profile context into the empty state", () => {
+    mocks.page.isEmpty = true;
+    mocks.page.profile.aggregate = true;
+    mocks.page.profile.scopeLabel = null;
+
+    renderCatalog();
+
+    expect(mocks.emptyStateProps).toMatchObject({
+      profileScopeLabel: null,
     });
   });
 });

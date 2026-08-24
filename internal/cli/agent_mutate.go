@@ -16,7 +16,7 @@ import (
 func newAgentCreateCommand(deps commandDeps) *cobra.Command {
 	var flags agentDefinitionFlags
 	cmd := &cobra.Command{
-		Use:   "create <name>",
+		Use:   cliNamedCreateUse,
 		Short: "Create a global or workspace-local agent definition",
 		Long:  "Create a global or workspace-local agent definition through a running CompozyOS daemon.",
 		Example: `  compozy agent create pricing_strategist \
@@ -46,7 +46,7 @@ func newAgentCreateCommand(deps commandDeps) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().String("workspace", "", "Override workspace binding (ID, name, or path)")
+	cmd.Flags().String(workspaceSkillSource, "", "Override workspace binding (ID, name, or path)")
 	addAgentDefinitionFlags(cmd, &flags)
 	return cmd
 }
@@ -55,7 +55,7 @@ func newAgentUpdateCommand(deps commandDeps) *cobra.Command {
 	var flags agentDefinitionFlags
 	var expectedDigest string
 	cmd := &cobra.Command{
-		Use:   "update <name>",
+		Use:   cliNamedUpdateUse,
 		Short: "Update an agent definition for future sessions",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -88,7 +88,7 @@ func newAgentUpdateCommand(deps commandDeps) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().String("workspace", "", "Override workspace context (ID, name, or path)")
+	cmd.Flags().String(workspaceSkillSource, "", "Override workspace context (ID, name, or path)")
 	cmd.Flags().StringVar(&expectedDigest, "expected-digest", "", "Definition digest from the last read")
 	addAgentDefinitionFlags(cmd, &flags)
 	return cmd
@@ -97,7 +97,7 @@ func newAgentUpdateCommand(deps commandDeps) *cobra.Command {
 func newAgentDeleteCommand(deps commandDeps) *cobra.Command {
 	var yes bool
 	cmd := &cobra.Command{
-		Use:   "delete <name>",
+		Use:   cliNamedDeleteUse,
 		Short: "Durably delete an agent definition",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -122,7 +122,7 @@ func newAgentDeleteCommand(deps commandDeps) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().String("workspace", "", "Override workspace context (ID, name, or path)")
+	cmd.Flags().String(workspaceSkillSource, "", "Override workspace context (ID, name, or path)")
 	cmd.Flags().BoolVar(&yes, yesFlagName, false, "Confirm durable deletion without prompting")
 	return cmd
 }
@@ -153,7 +153,7 @@ func newAgentDuplicateCommand(deps commandDeps) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().String("workspace", "", "Override source or target workspace (ID, name, or path)")
+	cmd.Flags().String(workspaceSkillSource, "", "Override source or target workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&scope, "scope", "", "Target scope: global or workspace (default: source origin)")
 	addAgentDefinitionFlags(cmd, &flags)
 	return cmd

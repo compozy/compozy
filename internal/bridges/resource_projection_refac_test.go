@@ -22,7 +22,7 @@ func TestResourceProjectionRollbackPlanRefacs(t *testing.T) {
 			[]resources.Record[bridgepkg.BridgeInstanceSpec]{{
 				ID:        "brg-created",
 				Version:   12,
-				Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				Spec:      resourceSpec("Created Bridge", true),
 				CreatedAt: now,
 				UpdatedAt: now,

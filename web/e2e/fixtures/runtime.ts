@@ -1,5 +1,5 @@
-import { mkdir, mkdtemp, readFile, symlink, writeFile, copyFile } from "node:fs/promises";
-import { createWriteStream, existsSync } from "node:fs";
+import { copyFile, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { createWriteStream, existsSync, rmSync } from "node:fs";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import type { Server } from "node:http";
 import os from "node:os";
@@ -54,11 +54,20 @@ const RUNTIME_CONTROL_ENV_VARS = [
   DAEMON_BINARY_ENV_VAR,
   "COMPOZY_WEB_DIST_DIR",
 ] as const;
+const RUNTIME_PATH_REMOVE_OPTIONS = {
+  force: true,
+  recursive: true,
+  maxRetries: 5,
+  retryDelay: 100,
+} as const;
 
 let daemonBinaryPromise: Promise<string> | undefined;
+let daemonBinaryBuildDir: string | undefined;
 
 export interface RuntimePaths {
   homeDir: string;
+  operatorHomeDir: string;
+  workspaceDir: string;
   configFile: string;
   daemonSocket: string;
   daemonLog: string;
@@ -221,12 +230,13 @@ export async function createBrowserRuntime(
       paths,
       launchState: runtime,
     });
-    const seeded = await applyBrowserRuntimeSeed(activeRuntime, options.seed);
+    const seeded = await applyBrowserRuntimeSeed(activeRuntime, options.seed, paths.workspaceDir);
     return activeRuntime.withSeeded(seeded);
   } catch (error) {
     return await cleanupFailedRuntimeLaunch(
       error,
       runtime,
+      paths,
       skillMarketplace,
       marketplaceCatalog,
       extensionRegistry
@@ -358,6 +368,7 @@ class ActiveBrowserRuntime implements BrowserRuntime {
       return;
     }
 
+    const cleanupErrors: Error[] = [];
     try {
       if (this.paths === undefined) {
         await stopSpawnedDaemonProcess(this.launchState.process);
@@ -365,15 +376,33 @@ class ActiveBrowserRuntime implements BrowserRuntime {
         await stopBrowserDaemonProcess(this.launchState.process, {
           cliShim: this.paths.cliShim,
           homeDir: this.paths.homeDir,
+          operatorHomeDir: this.paths.operatorHomeDir,
           repoRoot: this.launchState.repoRoot,
         });
       }
-    } finally {
-      await Promise.all([
-        closeSkillMarketplaceServer(this.launchState.skillMarketplaceServer),
-        closeMarketplaceCatalogServer(this.launchState.marketplaceCatalogServer),
-        closeExtensionRegistryServer(this.launchState.extensionRegistryServer),
-      ]);
+    } catch (error) {
+      cleanupErrors.push(errorFromUnknown(error));
+    }
+
+    const serverResults = await Promise.allSettled([
+      closeSkillMarketplaceServer(this.launchState.skillMarketplaceServer),
+      closeMarketplaceCatalogServer(this.launchState.marketplaceCatalogServer),
+      closeExtensionRegistryServer(this.launchState.extensionRegistryServer),
+    ]);
+    for (const result of serverResults) {
+      if (result.status === "rejected") cleanupErrors.push(errorFromUnknown(result.reason));
+    }
+
+    if (this.paths !== undefined) {
+      try {
+        await cleanupBrowserRuntimePaths(this.paths);
+      } catch (error) {
+        cleanupErrors.push(errorFromUnknown(error));
+      }
+    }
+
+    if (cleanupErrors.length > 0) {
+      throw new AggregateError(cleanupErrors, "browser runtime cleanup reported errors");
     }
   }
 }
@@ -402,6 +431,7 @@ async function validateDaemonServedRuntime(
 async function cleanupFailedRuntimeLaunch(
   cause: unknown,
   runtime: RuntimeLaunchState | undefined,
+  paths: RuntimePaths,
   skillMarketplace: SkillMarketplaceTestServer | undefined,
   marketplaceCatalog: Awaited<ReturnType<typeof startMarketplaceCatalogServer>>,
   extensionRegistry: Awaited<ReturnType<typeof startExtensionRegistryServer>>
@@ -427,6 +457,11 @@ async function cleanupFailedRuntimeLaunch(
   }
   try {
     await closeExtensionRegistryServer(extensionRegistry?.server);
+  } catch (error) {
+    cleanupErrors.push(errorFromUnknown(error));
+  }
+  try {
+    await cleanupBrowserRuntimePaths(paths);
   } catch (error) {
     cleanupErrors.push(errorFromUnknown(error));
   }
@@ -496,12 +531,42 @@ async function buildDaemonBinary(repoRoot: string): Promise<string> {
   const buildDir = await mkdtemp(path.join(os.tmpdir(), "compozy-playwright-build-"));
   const binaryName = process.platform === "win32" ? "compozy.exe" : "compozy";
   const binaryPath = path.join(buildDir, binaryName);
-  await runCommand("go", ["build", "-o", binaryPath, "./cmd/compozy"], repoRoot);
+  try {
+    await runCommand("go", ["build", "-o", binaryPath, "./cmd/compozy"], repoRoot);
+  } catch (error) {
+    await rm(buildDir, { force: true, recursive: true });
+    throw error;
+  }
+  daemonBinaryBuildDir = buildDir;
   return binaryPath;
 }
 
+process.once("exit", () => {
+  if (daemonBinaryBuildDir === undefined) return;
+  try {
+    rmSync(daemonBinaryBuildDir, RUNTIME_PATH_REMOVE_OPTIONS);
+  } catch (error) {
+    process.stderr.write(
+      `failed to remove browser daemon build: ${errorFromUnknown(error).message}\n`
+    );
+  }
+});
+
+export async function cleanupBrowserRuntimePaths(paths: RuntimePaths): Promise<void> {
+  await Promise.all([
+    rm(paths.homeDir, RUNTIME_PATH_REMOVE_OPTIONS),
+    rm(paths.operatorHomeDir, RUNTIME_PATH_REMOVE_OPTIONS),
+    rm(paths.workspaceDir, RUNTIME_PATH_REMOVE_OPTIONS),
+    rm(paths.daemonSocket, { force: true }),
+  ]);
+}
+
 async function createRuntimePaths(): Promise<RuntimePaths> {
-  const homeDir = await mkdtemp(path.join(os.tmpdir(), "compozy-playwright-home-"));
+  const [homeDir, operatorHomeDir, workspaceDir] = await Promise.all([
+    mkdtemp(path.join(os.tmpdir(), "compozy-playwright-home-")),
+    mkdtemp(path.join(os.tmpdir(), "compozy-playwright-operator-home-")),
+    mkdtemp(path.join(os.tmpdir(), "compozy-playwright-workspace-")),
+  ]);
   const configFile = path.join(homeDir, "config.toml");
   const daemonSocket = path.join(
     os.tmpdir(),
@@ -523,6 +588,8 @@ async function createRuntimePaths(): Promise<RuntimePaths> {
 
   return {
     homeDir,
+    operatorHomeDir,
+    workspaceDir,
     configFile,
     daemonSocket,
     daemonLog,
@@ -543,7 +610,7 @@ async function createRuntimeEnv(
     COMPOZY_E2E_CLI_BIN: paths.cliShim,
     [DAEMON_BINARY_ENV_VAR]: binaryPath,
     COMPOZY_HOME: paths.homeDir,
-    HOME: paths.homeDir,
+    HOME: paths.operatorHomeDir,
     PATH: prependPath(path.dirname(paths.cliShim), env.PATH),
   });
 }

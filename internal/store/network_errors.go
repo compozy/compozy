@@ -15,4 +15,6 @@ var (
 	ErrNetworkCursorInvalid = errors.New("store: network cursor invalid")
 	// ErrNetworkChannelExists reports an attempted create for an existing workspace channel.
 	ErrNetworkChannelExists = errors.New("store: network channel already exists")
+	// ErrNetworkChannelNotFound reports a message written without channel authority.
+	ErrNetworkChannelNotFound = errors.New("store: network channel not found")
 )

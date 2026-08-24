@@ -10,8 +10,6 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
-	hookspkg "github.com/compozy/compozy/internal/hooks"
-
 	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -54,26 +52,11 @@ func (s *service) buildSandboxItems(
 	return items, nil
 }
 
-func buildHookItems(declarations []hookspkg.HookDecl) []HookItem {
-	items := make([]HookItem, 0, len(declarations))
-	for _, decl := range declarations {
-		item := HookItem{
-			Name:           strings.TrimSpace(decl.Name),
-			Declaration:    decl,
-			SourceMetadata: globalConfigSourceMetadata(),
-		}
-		items = append(items, cloneHookItem(&item))
-	}
-	sort.Slice(items, func(i, j int) bool {
-		return items[i].Name < items[j].Name
-	})
-	return items
-}
-
 func (s *service) buildMCPServerItems(
 	ctx context.Context,
 	scope ScopeKind,
 	workspaceID string,
+	profileName string,
 	resolved *workspacepkg.ResolvedWorkspace,
 ) ([]MCPServerItem, error) {
 	root := ""
@@ -81,7 +64,7 @@ func (s *service) buildMCPServerItems(
 		root = resolved.RootDir
 	}
 
-	sources, err := s.loadMCPSources(workspaceID, root, scope)
+	sources, err := s.loadMCPSources(workspaceID, root, scope, profileName)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +83,7 @@ func (s *service) buildMCPServerItems(
 		}
 		effective := entries[len(entries)-1]
 		items = append(items, mcpCollectionItem{
-			item:  baseMCPServerItem(effective, entries, scope, workspaceID),
+			item:  baseMCPServerItem(effective, entries, scope, workspaceID, profileName),
 			entry: effective,
 		})
 	}
@@ -141,7 +124,7 @@ func (s *service) putProvider(
 	var target compozyconfig.WriteTarget
 	classification := providerWriteClassification{}
 	if len(values) != 0 {
-		target, err = compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeGlobal)
+		target, err = compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeUser, "")
 		if err != nil {
 			return MutationResult{}, err
 		}
@@ -152,6 +135,7 @@ func (s *service) putProvider(
 	}
 	if classification.noOp && len(secretWrites) == 0 && modelCuration == nil {
 		result := mutationResultForProvider(target.Kind(), true)
+		result.writePath = target.Path()
 		result.Warnings = []string{sectionsNoChangesValue}
 		return result, nil
 	}
@@ -159,7 +143,7 @@ func (s *service) putProvider(
 		return MutationResult{}, err
 	}
 	if len(values) == 0 {
-		return mutationResultForCollection(CollectionProviders, ScopeGlobal, "", WriteTargetGlobalConfig), nil
+		return mutationResultForCollection(CollectionProviders, ScopeUser, "", WriteTargetGlobalConfig), nil
 	}
 
 	if _, err := compozyconfig.EditConfigOverlay(
@@ -177,7 +161,10 @@ func (s *service) putProvider(
 		return MutationResult{}, fmt.Errorf("settings: write provider %q: %w", name, err)
 	}
 
-	return mutationResultForProvider(target.Kind(), classification.modelOnly && len(secretWrites) == 0), nil
+	return mutationResultAtPath(
+		mutationResultForProvider(target.Kind(), classification.modelOnly && len(secretWrites) == 0),
+		target.Path(),
+	), nil
 }
 
 func (s *service) preserveProviderAuthLoginCommand(
@@ -188,7 +175,7 @@ func (s *service) preserveProviderAuthLoginCommand(
 	if settings.AuthLoginCmdSet || strings.TrimSpace(settings.AuthLoginCmd) != "" {
 		return settings, nil
 	}
-	cfg, _, err := s.loadConfig(ctx, ScopeGlobal, "")
+	cfg, _, err := s.loadConfig(ctx, ScopeUser, "", "")
 	if err != nil {
 		return ProviderSettings{}, fmt.Errorf("settings: load provider %q write-only fields: %w", name, err)
 	}

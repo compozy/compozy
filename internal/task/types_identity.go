@@ -3,6 +3,8 @@ package task
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 // ActorIdentity is the immutable server-derived actor identity attached to task and run writes.
@@ -101,17 +103,20 @@ type CallerScope struct {
 	Operator    bool   `json:"operator,omitempty"`
 }
 
-// ActorContext carries the authenticated principal, ingress origin, resolved task authority, and caller scope.
+// ActorContext carries the authenticated principal, ingress origin, resolved task authority, caller scope,
+// and the explicit profile read lens used by task reads.
 type ActorContext struct {
-	Actor     ActorIdentity `json:"actor"`
-	Origin    Origin        `json:"origin"`
-	Authority Authority     `json:"authority"`
-	Scope     CallerScope   `json:"scope"`
+	Actor     ActorIdentity   `json:"actor"`
+	Origin    Origin          `json:"origin"`
+	Authority Authority       `json:"authority"`
+	Scope     CallerScope     `json:"scope"`
+	ReadScope store.ReadScope `json:"read_scope,omitzero"`
 }
 
 // Task is the durable coordination record owned by the task domain.
 type Task struct {
 	ID             string         `json:"id"`
+	ProfileID      string         `json:"profile_id"`
 	Identifier     string         `json:"identifier,omitempty"`
 	Scope          Scope          `json:"scope"`
 	WorkspaceID    string         `json:"workspace_id,omitempty"`

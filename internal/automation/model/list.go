@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/listcursor"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const (
@@ -51,6 +52,8 @@ type ListCursorPosition struct {
 }
 
 type jobListFingerprint struct {
+	ProfileID   string    `json:"profile_id"`
+	AllProfiles bool      `json:"all_profiles"`
 	Kind        string    `json:"kind"`
 	Scope       Scope     `json:"scope"`
 	WorkspaceID string    `json:"workspace_id"`
@@ -61,6 +64,8 @@ type jobListFingerprint struct {
 }
 
 type triggerListFingerprint struct {
+	ProfileID   string    `json:"profile_id"`
+	AllProfiles bool      `json:"all_profiles"`
 	Kind        string    `json:"kind"`
 	Scope       Scope     `json:"scope"`
 	WorkspaceID string    `json:"workspace_id"`
@@ -146,6 +151,11 @@ func EncodeTriggerListCursor(query TriggerListQuery, position ListCursorPosition
 // ValidateJobListQuery validates filters and cursor binding for a job query.
 func ValidateJobListQuery(query JobListQuery) error {
 	query = normalizeJobListQuery(query)
+	if query.ReadScope != (store.ReadScope{}) {
+		if err := query.ReadScope.Validate(); err != nil {
+			return fmt.Errorf("automation: invalid job read scope: %w", err)
+		}
+	}
 	if err := validateListLimit("job", query.Limit); err != nil {
 		return err
 	}
@@ -179,6 +189,11 @@ func ValidateJobListQuery(query JobListQuery) error {
 // ValidateTriggerListQuery validates filters and cursor binding for a trigger query.
 func ValidateTriggerListQuery(query TriggerListQuery) error {
 	query = normalizeTriggerListQuery(query)
+	if query.ReadScope != (store.ReadScope{}) {
+		if err := query.ReadScope.Validate(); err != nil {
+			return fmt.Errorf("automation: invalid trigger read scope: %w", err)
+		}
+	}
 	if err := validateListLimit("trigger", query.Limit); err != nil {
 		return err
 	}
@@ -306,6 +321,8 @@ func validateListLimit(kind string, limit int) error {
 
 func jobQueryFingerprint(query JobListQuery) (string, error) {
 	return listcursor.Fingerprint(jobListFingerprint{
+		ProfileID:   query.ReadScope.ProfileID,
+		AllProfiles: query.ReadScope.AllProfiles,
 		Kind:        jobListCursorKind,
 		Scope:       query.Scope,
 		WorkspaceID: query.WorkspaceID,
@@ -318,6 +335,8 @@ func jobQueryFingerprint(query JobListQuery) (string, error) {
 
 func triggerQueryFingerprint(query TriggerListQuery) (string, error) {
 	return listcursor.Fingerprint(triggerListFingerprint{
+		ProfileID:   query.ReadScope.ProfileID,
+		AllProfiles: query.ReadScope.AllProfiles,
 		Kind:        triggerCursorKind,
 		Scope:       query.Scope,
 		WorkspaceID: query.WorkspaceID,

@@ -108,6 +108,10 @@ func (d *Daemon) newLoopPublisher(
 	if err != nil {
 		return nil, err
 	}
+	var profiles extensionProfileCatalog
+	if state.deps.Profiles != nil {
+		profiles = state.deps.Profiles
+	}
 	return newLoopSourceSyncer(
 		store,
 		codec,
@@ -121,7 +125,11 @@ func (d *Daemon) newLoopPublisher(
 			return err
 		},
 		daemonLoopDeclarationProvider(d.homePaths, state.registry, state.workspaceResolver, state.logger),
-		extensionLoopDeclarationProvider(registry, state.currentExtensionRuntime, state.logger),
+		extensionLoopDeclarationProvider(
+			registry,
+			state.currentExtensionRuntime,
+			profiles,
+		),
 	), nil
 }
 
@@ -133,7 +141,7 @@ func loopSyncActor() resources.MutationActor {
 			Kind: resources.ResourceSourceKind("daemon"),
 			ID:   "loop-sync",
 		},
-		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 	}
 }
 
@@ -272,14 +280,14 @@ func daemonLoopDeclarationProvider(
 	logger *slog.Logger,
 ) loopDeclarationProvider {
 	return func(ctx context.Context) ([]loopPublicationInput, error) {
-		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+		userScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 		var desired []loopPublicationInput
 
 		global, err := scanLoopResourceDir(ctx, homePaths.LoopsDir, looppkg.SourceUser)
 		if err != nil {
 			return nil, fmt.Errorf("daemon: discover global loops: %w", err)
 		}
-		appendLoopResources(&desired, globalScope, "loops/global", global)
+		appendLoopResources(&desired, userScope, "loops/global", global)
 
 		workspaces, err := registeredWorkspaces(ctx, registry, workspaceResolver, logger)
 		if err != nil {
@@ -295,6 +303,7 @@ func daemonLoopDeclarationProvider(
 				resolved.RootDir,
 				resolved.AdditionalDirs,
 				homePaths,
+				"",
 			) {
 				if root.Source == compozyconfig.WorkspaceDiscoverySourceGlobal {
 					continue
@@ -315,7 +324,7 @@ func daemonLoopDeclarationProvider(
 func extensionLoopDeclarationProvider(
 	registry *extensionpkg.Registry,
 	runtime func() extensionRuntime,
-	logger *slog.Logger,
+	profileCatalog extensionProfileCatalog,
 ) loopDeclarationProvider {
 	return func(ctx context.Context) ([]loopPublicationInput, error) {
 		if err := ctx.Err(); err != nil {
@@ -329,7 +338,13 @@ func extensionLoopDeclarationProvider(
 			return nil, nil
 		}
 		var desired []loopPublicationInput
-		snapshots, err := extensionResourceSnapshots(registry, manager, logger)
+		var snapshots []scopedExtensionResourceSnapshot
+		var err error
+		if profileCatalog != nil {
+			snapshots, err = extensionResourceSnapshotsForProfiles(ctx, registry, manager, profileCatalog)
+		} else {
+			snapshots, err = extensionResourceSnapshots(registry, manager, nil)
+		}
 		if err != nil {
 			return nil, err
 		}

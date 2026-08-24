@@ -15,6 +15,7 @@ func automationRunBundle(item RunRecord) outputBundle {
 		human: func() (string, error) {
 			return renderHumanSection("Automation Run", []keyValue{
 				{Label: "ID", Value: stringOrDash(item.ID)},
+				{Label: sessionProfileValue, Value: stringOrDash(item.ProfileName)},
 				{Label: automationTargetValue, Value: stringOrDash(displayRunTarget(item))},
 				{Label: "Job ID", Value: stringOrDash(item.JobID)},
 				{Label: "Trigger ID", Value: stringOrDash(item.TriggerID)},
@@ -32,6 +33,7 @@ func automationRunBundle(item RunRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject("automation_run", []string{
 				"id",
+				profileNameOutputKey,
 				automationTargetKey,
 				"job_id",
 				"trigger_id",
@@ -46,6 +48,7 @@ func automationRunBundle(item RunRecord) outputBundle {
 				"delivery_error",
 			}, []string{
 				item.ID,
+				item.ProfileName,
 				displayRunTarget(item),
 				item.JobID,
 				item.TriggerID,
@@ -70,6 +73,7 @@ func automationRunListBundle(items []RunRecord) outputBundle {
 		"Automation Runs",
 		[]string{
 			"ID",
+			sessionProfileValue,
 			automationTargetValue,
 			automationStatusValue,
 			automationAttemptValue,
@@ -83,6 +87,7 @@ func automationRunListBundle(items []RunRecord) outputBundle {
 		"automation_runs",
 		[]string{
 			"id",
+			profileNameOutputKey,
 			automationTargetKey,
 			automationStatusKey,
 			automationAttemptKey,
@@ -96,6 +101,7 @@ func automationRunListBundle(items []RunRecord) outputBundle {
 		func(item RunRecord) []string {
 			return []string{
 				stringOrDash(item.ID),
+				stringOrDash(item.ProfileName),
 				stringOrDash(displayRunTarget(item)),
 				stringOrDash(string(item.Status)),
 				strconv.Itoa(item.Attempt),
@@ -110,6 +116,7 @@ func automationRunListBundle(items []RunRecord) outputBundle {
 		func(item RunRecord) []string {
 			return []string{
 				item.ID,
+				item.ProfileName,
 				displayRunTarget(item),
 				string(item.Status),
 				strconv.Itoa(item.Attempt),

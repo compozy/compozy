@@ -3,9 +3,12 @@ package resources
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 )
+
+var workspaceProfileNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 
 // ResourceKind identifies one canonical desired-state resource family.
 type ResourceKind string
@@ -62,10 +65,14 @@ func (k MutationActorKind) Validate(path string) error {
 type ResourceScopeKind string
 
 const (
-	// ResourceScopeKindGlobal identifies a global-scope record.
-	ResourceScopeKindGlobal ResourceScopeKind = "global"
+	// ResourceScopeKindUser identifies a user-wide record.
+	ResourceScopeKindUser ResourceScopeKind = "user"
 	// ResourceScopeKindWorkspace identifies a workspace-scope record.
 	ResourceScopeKindWorkspace ResourceScopeKind = "workspace"
+	// ResourceScopeKindProfile identifies a profile-scope record.
+	ResourceScopeKindProfile ResourceScopeKind = "profile"
+	// ResourceScopeKindWorkspaceProfile identifies a workspace-and-profile record.
+	ResourceScopeKindWorkspaceProfile ResourceScopeKind = "workspace_profile"
 )
 
 // Normalize returns the canonical trimmed scope kind.
@@ -76,15 +83,18 @@ func (k ResourceScopeKind) Normalize() ResourceScopeKind {
 // Validate reports whether the scope kind is supported.
 func (k ResourceScopeKind) Validate(path string) error {
 	switch k.Normalize() {
-	case ResourceScopeKindGlobal, ResourceScopeKindWorkspace:
+	case ResourceScopeKindUser, ResourceScopeKindWorkspace,
+		ResourceScopeKindProfile, ResourceScopeKindWorkspaceProfile:
 		return nil
 	default:
 		return fmt.Errorf(
-			"%w: %s must be %q or %q: %q",
+			"%w: %s must be %q, %q, %q, or %q: %q",
 			ErrValidation,
 			path,
-			ResourceScopeKindGlobal,
+			ResourceScopeKindUser,
 			ResourceScopeKindWorkspace,
+			ResourceScopeKindProfile,
+			ResourceScopeKindWorkspaceProfile,
 			k,
 		)
 	}
@@ -113,24 +123,35 @@ func (s ResourceScope) Validate(path string) error {
 
 	idPath := nestedPath(path, "id")
 	switch s.Kind.Normalize() {
-	case ResourceScopeKindGlobal:
+	case ResourceScopeKindUser:
 		if strings.TrimSpace(s.ID) != "" {
 			return fmt.Errorf(
 				"%w: %s must be empty when %s is %q",
 				ErrInvalidScopeBinding,
 				idPath,
 				scopePath,
-				ResourceScopeKindGlobal,
+				ResourceScopeKindUser,
 			)
 		}
-	case ResourceScopeKindWorkspace:
+	case ResourceScopeKindWorkspace, ResourceScopeKindProfile:
 		if strings.TrimSpace(s.ID) == "" {
 			return fmt.Errorf(
 				"%w: %s is required when %s is %q",
 				ErrInvalidScopeBinding,
 				idPath,
 				scopePath,
-				ResourceScopeKindWorkspace,
+				s.Kind.Normalize(),
+			)
+		}
+	case ResourceScopeKindWorkspaceProfile:
+		workspaceID, profileName, ok := strings.Cut(strings.TrimSpace(s.ID), "@pf:")
+		if !ok || strings.TrimSpace(workspaceID) == "" || !workspaceProfileNamePattern.MatchString(profileName) {
+			return fmt.Errorf(
+				"%w: %s must match <workspace_id>@pf:<profile_name> when %s is %q",
+				ErrInvalidScopeBinding,
+				idPath,
+				scopePath,
+				ResourceScopeKindWorkspaceProfile,
 			)
 		}
 	}

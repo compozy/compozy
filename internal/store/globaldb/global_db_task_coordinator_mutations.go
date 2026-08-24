@@ -135,6 +135,7 @@ func coordinatorTaskRecord(
 ) taskpkg.Task {
 	return taskpkg.Task{
 		ID:           spec.TaskID,
+		ProfileID:    parent.ProfileID,
 		Scope:        parent.Scope,
 		WorkspaceID:  parent.WorkspaceID,
 		ParentTaskID: parent.ID,

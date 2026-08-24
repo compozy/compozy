@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	apitestutil "github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/gateway"
@@ -650,29 +651,24 @@ func TestLoopbackServerAllowsSettingsAndExtensionMutations(t *testing.T) {
 	settingsService := &stubSettingsService{}
 	restartController := &stubSettingsRestartController{}
 	var (
-		installedReq contract.InstallExtensionRequest
-		enabledName  string
-		disabledName string
+		installedReq   contract.InstallExtensionRequest
+		enablementReq  contract.SetExtensionEnablementRequest
+		enablementName string
 	)
 	extensionService := &stubExtensionService{
 		InstallFn: func(_ context.Context, req contract.InstallExtensionRequest, _ taskpkg.ActorContext) (contract.ExtensionPayload, error) {
 			installedReq = req
 			return contract.ExtensionPayload{Name: "demo", State: "registered"}, nil
 		},
-		EnableFn: func(
+		SetEnablementFn: func(
 			_ context.Context,
 			name string,
-			_ contract.EnableExtensionRequest,
+			req contract.SetExtensionEnablementRequest,
 			_ taskpkg.ActorContext,
-		) (contract.ExtensionEnableResult, error) {
-			enabledName = name
-			return contract.ExtensionEnableResult{
-				Extension: contract.ExtensionPayload{Name: name, Enabled: true, State: "active"},
-			}, nil
-		},
-		DisableFn: func(_ context.Context, name string, _ taskpkg.ActorContext) (contract.ExtensionPayload, error) {
-			disabledName = name
-			return contract.ExtensionPayload{Name: name, Enabled: false, State: "inactive"}, nil
+		) (contract.ExtensionEnablementPayload, error) {
+			enablementName = name
+			enablementReq = req
+			return contract.ExtensionEnablementPayload(req), nil
 		},
 	}
 
@@ -716,8 +712,7 @@ func TestLoopbackServerAllowsSettingsAndExtensionMutations(t *testing.T) {
 			wantStatus: http.StatusOK,
 			body: mustJSONBody(t, contract.UpdateSettingsGeneralRequest{
 				Config: contract.SettingsGeneralConfigPayload{
-					Defaults: contract.SettingsDefaultsPayload{Agent: "coder"},
-					Limits:   contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
+					Limits: contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
 					Permissions: contract.SettingsPermissionsPayload{
 						Mode: contract.SettingsPermissionModeApproveReads,
 					},
@@ -799,28 +794,15 @@ func TestLoopbackServerAllowsSettingsAndExtensionMutations(t *testing.T) {
 			},
 		},
 		{
-			name:       "Should enable extensions on loopback HTTP",
-			method:     http.MethodPost,
-			path:       "/api/extensions/demo/enable",
-			body:       []byte(`{}`),
+			name:       "Should set profile extension enablement on loopback HTTP",
+			method:     http.MethodPut,
+			path:       "/api/extensions/demo/enablement",
+			body:       []byte(`{"profile":"finance","enabled":false}`),
 			wantStatus: http.StatusOK,
 			assert: func(t *testing.T) {
 				t.Helper()
-				if enabledName != "demo" {
-					t.Fatalf("enabledName = %q, want %q", enabledName, "demo")
-				}
-			},
-		},
-		{
-			name:       "Should disable extensions on loopback HTTP",
-			method:     http.MethodPost,
-			path:       "/api/extensions/demo/disable",
-			body:       []byte(`{}`),
-			wantStatus: http.StatusOK,
-			assert: func(t *testing.T) {
-				t.Helper()
-				if disabledName != "demo" {
-					t.Fatalf("disabledName = %q, want %q", disabledName, "demo")
+				if enablementName != "demo" || enablementReq.Profile != "finance" || enablementReq.Enabled {
+					t.Fatalf("enablement = name:%q req:%#v", enablementName, enablementReq)
 				}
 			},
 		},
@@ -1177,10 +1159,10 @@ func TestNonLoopbackServerBlocksDaemonAPIRoutes(t *testing.T) {
 			body:   []byte(`{}`),
 		},
 		{
-			name:   "Should block extension enables",
-			method: http.MethodPost,
-			path:   "/api/extensions/demo/enable",
-			body:   []byte(`{}`),
+			name:   "Should block extension enablement writes",
+			method: http.MethodPut,
+			path:   "/api/extensions/demo/enablement",
+			body:   []byte(`{"profile":"default","enabled":true}`),
 		},
 	}
 	for _, tc := range mutationCases {
@@ -1425,7 +1407,7 @@ func newWindowManagerLifecycleServer(t *testing.T) *Server {
 		WithTaskService(&stubTaskManager{}),
 		WithObserver(stubObserver{}),
 		WithWorkspaceResolver(stubWorkspaceService{}),
-		WithWindowManagerService(manager),
+		WithWindowManagerProvider(apitestutil.SingleProfileWindowManagers{Manager: manager}),
 	)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)

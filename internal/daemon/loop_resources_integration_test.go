@@ -16,6 +16,7 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
@@ -62,7 +63,7 @@ func TestLoopSourceSyncerIntegrationShouldProjectFSPrecedence(t *testing.T) {
 				}
 				appendLoopResources(
 					&desired,
-					resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+					resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 					"test/global",
 					global,
 				)
@@ -90,7 +91,9 @@ func TestLoopSourceSyncerIntegrationShouldProjectFSPrecedence(t *testing.T) {
 		if got, wantMin := len(records), 2; got < wantMin {
 			t.Fatalf("len(catalog.Snapshot()) = %d, want at least %d", got, wantMin)
 		}
-		resolved := looppkg.ResolveEffectiveResources(records, "ws-1")
+		resolved := looppkg.ResolveEffectiveResources(records, looppkg.ResourceLens{
+			WorkspaceID: "ws-1", ProfileID: store.DefaultProfileID, ProfileName: "default",
+		})
 		found := false
 		for _, record := range resolved {
 			if record.Spec.Name != "implement-tasks" {
@@ -127,12 +130,12 @@ func TestLoopSourceSyncerIntegrationShouldProjectFSPrecedence(t *testing.T) {
 				return []loopPublicationInput{
 					{
 						sourceKey: "extension/market-ext/loops/extension-loop",
-						scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+						scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 						spec:      extensionSpec,
 					},
 					{
 						sourceKey: "global/user/extension-loop",
-						scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+						scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 						spec:      userSpec,
 					},
 				}, nil
@@ -144,7 +147,9 @@ func TestLoopSourceSyncerIntegrationShouldProjectFSPrecedence(t *testing.T) {
 		if err := harness.driver.RunBoot(ctx); err != nil {
 			t.Fatalf("driver.RunBoot() error = %v", err)
 		}
-		resolved := looppkg.ResolveEffectiveResources(harness.catalog.Snapshot(), "")
+		resolved := looppkg.ResolveEffectiveResources(harness.catalog.Snapshot(), looppkg.ResourceLens{
+			ProfileID: store.DefaultProfileID, ProfileName: "default",
+		})
 		if got, want := len(resolved), 1; got != want {
 			t.Fatalf("len(resolved) = %d, want %d", got, want)
 		}
@@ -167,11 +172,11 @@ func TestDaemonE2ESpecCycleEnrollmentShouldPublishAndToggleLoops(t *testing.T) {
 		d := newTestDaemon(t, homePaths, &cfg)
 		extRegistry := extensionpkg.NewRegistry(db.DB())
 		d.newExtensionManager = func(extensionManagerDeps) extensionRuntime {
-			return &fakeExtensionRuntime{
+			return &specCycleProfileRuntime{fakeExtensionRuntime: &fakeExtensionRuntime{
 				getFn: func(name string) (*extensionpkg.Extension, error) {
 					return loadRegisteredSpecCycleExtensionSnapshot(name, extRegistry)
 				},
-			}
+			}, registry: extRegistry}
 		}
 
 		state := newSpecCycleLoopE2EState(t, d, db, cfg)
@@ -234,6 +239,32 @@ func TestDaemonE2ESpecCycleEnrollmentShouldPublishAndToggleLoops(t *testing.T) {
 		}
 		assertSpecCycleLoopCatalog(t, state.loopCatalog, true)
 	})
+}
+
+type specCycleProfileRuntime struct {
+	*fakeExtensionRuntime
+	registry *extensionpkg.Registry
+}
+
+func (r *specCycleProfileRuntime) ProjectForProfile(
+	_ context.Context,
+	key extensionpkg.InstanceKey,
+	profile extensionpkg.ProfileLens,
+) (*extensionpkg.Extension, bool, error) {
+	if key.Name != speccycle.Name {
+		return &extensionpkg.Extension{}, false, nil
+	}
+	extension, err := r.Get(key.Name)
+	if err != nil {
+		return nil, false, err
+	}
+	enabled, err := r.registry.IsEnabledForProfile(key.Name, profile.ID)
+	if err != nil {
+		return nil, false, err
+	}
+	extension.Info.Enabled = enabled
+	extension.Status.Enabled = enabled
+	return extension, enabled, nil
 }
 
 func TestLoopWatcherIntegrationShouldResyncForkedFileBackedEdits(t *testing.T) {
@@ -396,7 +427,9 @@ func assertSpecCycleLoopCatalog(
 	if catalog == nil {
 		t.Fatal("loop catalog = nil")
 	}
-	records := looppkg.ResolveEffectiveResources(catalog.Snapshot(), "")
+	records := looppkg.ResolveEffectiveResources(catalog.Snapshot(), looppkg.ResourceLens{
+		ProfileID: store.DefaultProfileID, ProfileName: "default",
+	})
 	found := map[string]looppkg.ResourceSpec{}
 	for _, record := range records {
 		if record.Spec.InstalledFromExtension == speccycle.Name {
@@ -468,7 +501,7 @@ func loadSpecCycleLoopResourceSpecs(
 ) ([]looppkg.ResourceSpec, error) {
 	loaded := map[string]looppkg.ResourceSpec{}
 	for _, resourcePath := range manifest.Resources.Loops {
-		resourceRoot := filepath.Join(rootDir, filepath.FromSlash(resourcePath))
+		resourceRoot := filepath.Join(rootDir, filepath.FromSlash(resourcePath.Path))
 		err := filepath.WalkDir(resourceRoot, func(path string, entry os.DirEntry, walkErr error) error {
 			if walkErr != nil {
 				return walkErr

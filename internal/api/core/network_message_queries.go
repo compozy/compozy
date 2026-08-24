@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func parseNetworkMessageQuery(c *gin.Context) (store.NetworkMessageQuery, error) {
+func parseNetworkMessageQuery(c *gin.Context, readScope store.ReadScope) (store.NetworkMessageQuery, error) {
 	limit, err := ParseOptionalInt(c.Query("limit"))
 	if err != nil {
 		return store.NetworkMessageQuery{}, err
@@ -23,6 +23,7 @@ func parseNetworkMessageQuery(c *gin.Context) (store.NetworkMessageQuery, error)
 		return store.NetworkMessageQuery{}, err
 	}
 	query := store.NetworkMessageQuery{
+		ReadScope:       readScope,
 		BeforeMessageID: strings.TrimSpace(c.Query("before")),
 		AfterMessageID:  strings.TrimSpace(c.Query("after")),
 		IncludePresence: includePresence,

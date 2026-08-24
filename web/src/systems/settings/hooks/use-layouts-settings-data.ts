@@ -8,6 +8,7 @@ import {
   windowManagerConfigOptions,
   windowManagerSettingsOptions,
 } from "@/systems/os";
+import { useProfileReadScope } from "@/systems/profiles";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import {
@@ -23,6 +24,8 @@ export interface LayoutsSettingsData {
   isPending: boolean;
   error: Error | null;
   workspaceId: string;
+  /** The profile whose desks this page reads and applies (US-026). */
+  profileName: string;
   workspaceName: string | null;
   clientId: string | undefined;
   /** Global window-manager defaults — the page's save-bar baseline. */
@@ -44,13 +47,16 @@ export interface LayoutsSettingsData {
 export function useLayoutsSettingsData(): LayoutsSettingsData {
   const workspace = useActiveWorkspace();
   const workspaceId = workspace.activeWorkspaceId ?? "";
+  // Layouts read and write one profile's desks, so this surface names the profile
+  // it is editing rather than letting the daemon resolve `default` (US-026).
+  const profileName = useProfileReadScope().destination;
   const [clientId] = useState(stableWindowManagerClientId);
   const settings = useQuery(windowManagerConfigOptions(null, clientId));
   const keyboard = useQuery(
     windowManagerSettingsOptions(workspaceId === "" ? null : workspaceId, clientId)
   );
-  const profiles = useQuery(windowManagerLayoutProfilesOptions(workspaceId));
-  const layout = useQuery(windowManagerLayoutOptions(workspaceId));
+  const profiles = useQuery(windowManagerLayoutProfilesOptions(workspaceId, profileName));
+  const layout = useQuery(windowManagerLayoutOptions(workspaceId, profileName));
   const waitingForWorkspace = !workspace.hasHydrated || workspace.isLoading || workspace.pending;
   const firstError = [settings.error, keyboard.error, profiles.error, workspace.error, layout.error]
     .filter(entry => entry instanceof Error)
@@ -64,6 +70,7 @@ export function useLayoutsSettingsData(): LayoutsSettingsData {
       (workspaceId !== "" && (profiles.isPending || layout.isPending)),
     error: firstError ?? null,
     workspaceId,
+    profileName,
     workspaceName: workspace.activeWorkspace?.name ?? null,
     clientId,
     config: settings.data ?? null,

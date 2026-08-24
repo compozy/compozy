@@ -9,6 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/toolmeta"
 )
@@ -1686,6 +1687,7 @@ func TestBrokerReconcileDeliveryFailsOpenThroughTerminalPost(t *testing.T) {
 		)
 		t.Cleanup(restarted.Close)
 		if err := restarted.LoadDeliveryMetrics(ctx, DeliveryLedgerQuery{
+			ReadScope:   storepkg.ReadScope{AllProfiles: true},
 			Scope:       record.Scope,
 			WorkspaceID: record.WorkspaceID,
 		}); err != nil {
@@ -1795,6 +1797,7 @@ func TestBrokerReconcileDeliveryFailsOpenThroughTerminalPost(t *testing.T) {
 		)
 		t.Cleanup(firstBroker.Close)
 		if err := firstBroker.LoadDeliveryMetrics(ctx, DeliveryLedgerQuery{
+			ReadScope:   storepkg.ReadScope{AllProfiles: true},
 			Scope:       ScopeWorkspace,
 			WorkspaceID: "ws-1",
 		}); err != nil {
@@ -1826,6 +1829,7 @@ func TestBrokerReconcileDeliveryFailsOpenThroughTerminalPost(t *testing.T) {
 		)
 		t.Cleanup(restarted.Close)
 		if err := restarted.LoadDeliveryMetrics(ctx, DeliveryLedgerQuery{
+			ReadScope:   storepkg.ReadScope{AllProfiles: true},
 			Scope:       ScopeWorkspace,
 			WorkspaceID: "ws-1",
 		}); err != nil {
@@ -1936,6 +1940,7 @@ func TestDeliveryValidationAndMetadataHelpers(t *testing.T) {
 		}
 
 		query, err := (DeliveryLedgerQuery{
+			ReadScope:        storepkg.ReadScope{AllProfiles: true},
 			Scope:            ScopeGlobal,
 			BridgeInstanceID: " bridge ",
 		}).Canonicalize()

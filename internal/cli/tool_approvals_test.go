@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -34,7 +35,7 @@ func TestToolApprovalGrantCommands(t *testing.T) {
 		}
 		stdout, _, err := executeRootCommand(
 			t,
-			newWorkspaceTestDeps(t, client),
+			newDefaultProfileWorkspaceTestDeps(t, client),
 			"tool",
 			"approvals",
 			"set",
@@ -65,7 +66,7 @@ func TestToolApprovalGrantCommands(t *testing.T) {
 
 		_, _, err := executeRootCommand(
 			t,
-			newWorkspaceTestDeps(t, &stubClient{}),
+			newDefaultProfileWorkspaceTestDeps(t, &stubClient{}),
 			"tool",
 			"approvals",
 			"set",
@@ -101,7 +102,7 @@ func TestToolApprovalGrantCommands(t *testing.T) {
 		}
 		stdout, _, err := executeRootCommand(
 			t,
-			newWorkspaceTestDeps(t, client),
+			newDefaultProfileWorkspaceTestDeps(t, client),
 			"tool",
 			"approvals",
 			"list",
@@ -133,7 +134,7 @@ func TestToolApprovalGrantCommands(t *testing.T) {
 		}
 		stdout, _, err := executeRootCommand(
 			t,
-			newWorkspaceTestDeps(t, client),
+			newDefaultProfileWorkspaceTestDeps(t, client),
 			"tool",
 			"approvals",
 			"revoke",
@@ -153,6 +154,49 @@ func TestToolApprovalGrantCommands(t *testing.T) {
 		decodeJSONOutput(t, stdout, &payload)
 		if payload.RevokedID != "grant-1" || payload.WorkspaceID != "ws-1" {
 			t.Fatalf("tool approvals revoke payload = %#v", payload)
+		}
+	})
+
+	t.Run("Should send the selected profile for set and revoke mutations", func(t *testing.T) {
+		t.Parallel()
+
+		const profileName = "marketing"
+		client := &stubClient{
+			listProfilesFn: func(context.Context) ([]contract.Profile, error) {
+				return []contract.Profile{{ID: "profile-marketing", Name: profileName, State: "active"}}, nil
+			},
+			setToolApprovalGrantFn: func(
+				ctx context.Context,
+				_ string,
+				_ ToolApprovalGrantSetRequest,
+			) (ToolApprovalGrantRecord, error) {
+				if got := profileQueryValues(ctx, nil).Get(profileFlagName); got != profileName {
+					t.Fatalf("SetToolApprovalGrant() profile = %q, want %q", got, profileName)
+				}
+				return toolApprovalGrantCLIRecord(), nil
+			},
+			revokeToolApprovalGrantFn: func(ctx context.Context, _, _ string) error {
+				if got := profileQueryValues(ctx, nil).Get(profileFlagName); got != profileName {
+					t.Fatalf("RevokeToolApprovalGrant() profile = %q, want %q", got, profileName)
+				}
+				return nil
+			},
+		}
+		deps := newWorkspaceTestDeps(t, client)
+		if _, _, err := executeRootCommand(
+			t, deps,
+			"tool", "approvals", "set", "compozy__approval_probe",
+			"--workspace", "ws-1", "--decision", "allow", "--scope", "tool",
+			"--profile", profileName, "-o", "json",
+		); err != nil {
+			t.Fatalf("tool approvals set selected profile error = %v", err)
+		}
+		if _, _, err := executeRootCommand(
+			t, deps,
+			"tool", "approvals", "revoke", "grant-1",
+			"--workspace", "ws-1", "--profile", profileName, "-o", "json",
+		); err != nil {
+			t.Fatalf("tool approvals revoke selected profile error = %v", err)
 		}
 	})
 
@@ -180,7 +224,7 @@ func TestToolApprovalGrantCommands(t *testing.T) {
 
 		if _, _, err := executeRootCommand(
 			t,
-			newWorkspaceTestDeps(t, client),
+			newDefaultProfileWorkspaceTestDeps(t, client),
 			"tool",
 			"approvals",
 			"list",
@@ -199,6 +243,7 @@ func toolApprovalGrantCLIRecord() ToolApprovalGrantRecord {
 	now := time.Date(2026, time.July, 15, 12, 0, 0, 0, time.UTC)
 	return ToolApprovalGrantRecord{
 		ID:          "grant-1",
+		ProfileName: "default",
 		WorkspaceID: "ws-1",
 		AgentName:   "codex",
 		ToolID:      toolspkg.ToolID("compozy__approval_probe"),

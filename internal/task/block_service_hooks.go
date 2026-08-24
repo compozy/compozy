@@ -112,6 +112,7 @@ func (m *Service) taskHookContext(
 	release *BlockTaskAndReleaseRunResult,
 ) hookspkg.TaskContext {
 	contextPayload := hookspkg.TaskContext{
+		ProfileID:    strings.TrimSpace(taskRecord.ProfileID),
 		TaskID:       strings.TrimSpace(taskRecord.ID),
 		ParentTaskID: strings.TrimSpace(taskRecord.ParentTaskID),
 		WorkspaceID:  strings.TrimSpace(taskRecord.WorkspaceID),

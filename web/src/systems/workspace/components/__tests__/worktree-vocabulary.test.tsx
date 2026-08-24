@@ -7,11 +7,16 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { UIProvider } from "@compozy/ui";
+
+import { buildWorktreeFixture } from "../../mocks/worktree-fixtures";
+import { WorktreeNestRow } from "../worktree-nest-row";
+import { WorktreeRow } from "../worktree-row";
 import { WorktreeDetachedPin } from "../worktree-signal-parts";
 import { WorktreeSignals } from "../worktree-signals";
 import { WorktreeStateChip } from "../worktree-state-chip";
 import { WorktreeStateDot } from "../worktree-state-dot";
-import { toWorktreeDisplayState } from "../../lib/worktree-display";
+import { toWorktreeDisplayState, toWorktreeNestEntries } from "../../lib/worktree-display";
 
 function renderSignals(props: Partial<React.ComponentProps<typeof WorktreeSignals>> = {}) {
   return render(
@@ -190,5 +195,27 @@ describe("WorktreeDetachedPin", () => {
     const { container } = render(<WorktreeDetachedPin sha="   " />);
 
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe("worktree profile owners", () => {
+  it("Should render the daemon profile owner in full and nested row densities", () => {
+    const worktree = buildWorktreeFixture({
+      profile_id: "01J9MARKETING00000000000000",
+      profile_name: "marketing",
+    });
+    const entry = toWorktreeNestEntries({ worktrees: [worktree], discovered: [] })[0];
+    if (!entry) throw new Error("worktree entry fixture missing");
+
+    render(
+      <UIProvider reducedMotion="never" skipAnimations>
+        <WorktreeRow entry={entry} />
+        <WorktreeNestRow entry={entry} />
+      </UIProvider>
+    );
+
+    const ownerTags = screen.getAllByTestId("profile-owner-tag");
+    expect(ownerTags).toHaveLength(2);
+    expect(ownerTags.every(tag => tag.textContent?.includes("marketing"))).toBe(true);
   });
 });

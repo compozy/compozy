@@ -10,6 +10,7 @@ import (
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/notifications"
 	presetspkg "github.com/compozy/compozy/internal/notifications/presets"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -50,6 +51,93 @@ func TestBridgeTerminalTaskNotificationObserver(t *testing.T) {
 		}
 		if cursor.LastDeliveryID != delivery.Event.DeliveryID {
 			t.Fatalf("cursor.LastDeliveryID = %q, want %q", cursor.LastDeliveryID, delivery.Event.DeliveryID)
+		}
+	})
+
+	t.Run("Should retry a durable terminal delivery after a transient failure", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 6, 1, 2, 0, 0, time.UTC)
+		store := newDaemonBridgeNotificationStore(now)
+		attempts := 0
+		store.deliverFn = func(_ context.Context, req bridgepkg.DeliveryRequest) (bridgepkg.DeliveryAck, error) {
+			store.mu.Lock()
+			defer store.mu.Unlock()
+			attempts++
+			if attempts == 1 {
+				return bridgepkg.DeliveryAck{}, errors.New("temporary bridge outage")
+			}
+			store.deliveries = append(store.deliveries, req)
+			return bridgepkg.DeliveryAck{DeliveryID: req.Event.DeliveryID, Seq: req.Event.Seq}, nil
+		}
+		observer := newBridgeTerminalTaskNotificationObserver(
+			store, store, store, store, store, nil, discardLogger(),
+			func() time.Time { return now }, 10*time.Millisecond,
+		)
+		if observer == nil {
+			t.Fatal("newBridgeTerminalTaskNotificationObserver() = nil, want observer")
+		}
+		t.Cleanup(observer.shutdown)
+
+		observer.OnTaskEvent(context.Background(), store.records[0])
+		waitForCondition(t, "terminal delivery retry", func() bool {
+			store.mu.RLock()
+			defer store.mu.RUnlock()
+			return attempts >= 2 && len(store.deliveries) == 1 && len(store.permits) == 0
+		})
+	})
+
+	t.Run("Should replay a durable preset permit when the observer starts", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 6, 1, 3, 0, 0, time.UTC)
+		store := newDaemonBridgeNotificationStore(now)
+		record := store.records[0]
+		key := notifications.CursorKey{
+			ProfileID: store.task.ProfileID,
+			Scope: notifications.ScopeRef{
+				Kind:        notifications.ScopeKindWorkspace,
+				WorkspaceID: store.task.WorkspaceID,
+			},
+			ConsumerID: "preset-target",
+			StreamName: record.Event.EventType,
+			SubjectID:  record.Event.ID,
+		}
+		deliveryID, err := notifications.EncodeDeliveryID(notifications.DeliveryIdentity{
+			Cursor:         key,
+			TargetIdentity: "preset-target",
+			Sequence:       record.Sequence,
+			Kind:           notifications.DeliveryKindDeliver,
+		})
+		if err != nil {
+			t.Fatalf("EncodeDeliveryID() error = %v", err)
+		}
+		permit := notifications.DeliveryPermit{Key: key, DeliveryID: deliveryID, AcquiredAt: now}
+		if err := store.AcquireDeliveryPermit(context.Background(), permit); err != nil {
+			t.Fatalf("AcquireDeliveryPermit() error = %v", err)
+		}
+		dispatcher := &recordingNotificationPresetDispatcher{events: make(chan presetspkg.Event, 1)}
+		observer := newBridgeTerminalTaskNotificationObserver(
+			nil, store, nil, store, store, dispatcher, discardLogger(),
+			func() time.Time { return now }, time.Second,
+		)
+		if observer == nil {
+			t.Fatal("newBridgeTerminalTaskNotificationObserver() = nil, want preset observer")
+		}
+		t.Cleanup(observer.shutdown)
+
+		select {
+		case event := <-dispatcher.events:
+			if event.ID != record.Event.ID || event.Sequence != record.Sequence {
+				t.Fatalf(
+					"replayed preset event = %#v, want event %q sequence %d",
+					event,
+					record.Event.ID,
+					record.Sequence,
+				)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("notification preset permit was not replayed on startup")
 		}
 	})
 
@@ -286,6 +374,7 @@ type daemonBridgeNotificationStore struct {
 	bridge        bridgepkg.BridgeInstance
 	records       []taskpkg.EventRecord
 	cursors       map[notifications.CursorKey]notifications.Cursor
+	permits       map[string]notifications.DeliveryPermit
 	deliveries    []bridgepkg.DeliveryRequest
 	deliverFn     func(context.Context, bridgepkg.DeliveryRequest) (bridgepkg.DeliveryAck, error)
 	deliveryReady chan struct{}
@@ -297,11 +386,14 @@ var _ bridgepkg.BridgeTaskSubscriptionStore = (*daemonBridgeNotificationStore)(n
 var _ bridgepkg.TerminalTaskEventReader = (*daemonBridgeNotificationStore)(nil)
 var _ bridgepkg.BridgeInstanceReader = (*daemonBridgeNotificationStore)(nil)
 var _ notifications.CursorStore = (*daemonBridgeNotificationStore)(nil)
+var _ notifications.DeliveryPermitStore = (*daemonBridgeNotificationStore)(nil)
+var _ notifications.DeliveryPermitReader = (*daemonBridgeNotificationStore)(nil)
 var _ bridgepkg.DeliveryTransport = (*daemonBridgeNotificationStore)(nil)
 
 func newDaemonBridgeNotificationStore(now time.Time) *daemonBridgeNotificationStore {
 	subscription := bridgepkg.BridgeTaskSubscription{
 		SubscriptionID:   "sub-1",
+		ProfileID:        store.DefaultProfileID,
 		TaskID:           "task-1",
 		BridgeInstanceID: "brg-1",
 		Scope:            bridgepkg.ScopeWorkspace,
@@ -317,6 +409,7 @@ func newDaemonBridgeNotificationStore(now time.Time) *daemonBridgeNotificationSt
 		subscription: subscription,
 		task: taskpkg.Task{
 			ID:             "task-1",
+			ProfileID:      store.DefaultProfileID,
 			Scope:          taskpkg.ScopeWorkspace,
 			WorkspaceID:    "ws-1",
 			Status:         taskpkg.TaskStatusCompleted,
@@ -352,10 +445,37 @@ func newDaemonBridgeNotificationStore(now time.Time) *daemonBridgeNotificationSt
 			},
 		}},
 		cursors:       make(map[notifications.CursorKey]notifications.Cursor),
+		permits:       make(map[string]notifications.DeliveryPermit),
 		deliveryReady: make(chan struct{}, 1),
 		cursorReady:   make(chan struct{}, 1),
 		now:           now,
 	}
+}
+
+func (s *daemonBridgeNotificationStore) AcquireDeliveryPermit(
+	_ context.Context,
+	permit notifications.DeliveryPermit,
+) error {
+	normalized, err := permit.Normalize(s.now)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.permits[normalized.DeliveryID] = normalized
+	return nil
+}
+
+func (s *daemonBridgeNotificationStore) ListDeliveryPermits(
+	context.Context,
+) ([]notifications.DeliveryPermit, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	permits := make([]notifications.DeliveryPermit, 0, len(s.permits))
+	for _, permit := range s.permits {
+		permits = append(permits, permit)
+	}
+	return permits, nil
 }
 
 func (s *daemonBridgeNotificationStore) PutBridgeTaskSubscription(
@@ -367,6 +487,7 @@ func (s *daemonBridgeNotificationStore) PutBridgeTaskSubscription(
 
 func (s *daemonBridgeNotificationStore) GetBridgeTaskSubscription(
 	context.Context,
+	store.ReadScope,
 	string,
 ) (bridgepkg.BridgeTaskSubscription, error) {
 	return s.subscription, nil
@@ -409,6 +530,18 @@ func (s *daemonBridgeNotificationStore) ListTaskEventRecords(
 		records = append(records, record)
 	}
 	return records, nil
+}
+
+func (s *daemonBridgeNotificationStore) GetTaskEventRecord(
+	_ context.Context,
+	eventID string,
+) (taskpkg.EventRecord, error) {
+	for _, record := range s.records {
+		if record.Event.ID == eventID {
+			return record, nil
+		}
+	}
+	return taskpkg.EventRecord{}, errors.New("task event not found")
 }
 
 func (s *daemonBridgeNotificationStore) GetBridgeInstance(
@@ -454,6 +587,7 @@ func (s *daemonBridgeNotificationStore) AdvanceCursor(
 		UpdatedAt:       update.Now,
 	}
 	s.cursors[update.Key] = cursor
+	delete(s.permits, update.DeliveryID)
 	select {
 	case s.cursorReady <- struct{}{}:
 	default:

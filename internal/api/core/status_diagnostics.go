@@ -2,6 +2,7 @@ package core
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -36,6 +37,7 @@ func diagnosticItemsFromStatus(status *contract.StatusPayload, includeProviders 
 		logTailDiagnosticItem(status.LogTail),
 		taskDiagnosticItem(status.Tasks),
 	}
+	items = append(items, configLayerDiagnosticItems(status.Config.Diagnostics)...)
 	if includeProviders {
 		items = append(items, providerDiagnosticItems(status.Providers)...)
 	}
@@ -45,6 +47,24 @@ func diagnosticItemsFromStatus(status *contract.StatusPayload, includeProviders 
 	sort.SliceStable(items, func(i, j int) bool {
 		return items[i].ID < items[j].ID
 	})
+	return items
+}
+
+func configLayerDiagnosticItems(values []contract.ConfigLayerDiagnosticPayload) []contract.DiagnosticItem {
+	items := make([]contract.DiagnosticItem, 0, len(values))
+	for index, value := range values {
+		items = append(items, diagnostics.NewItem(diagnostics.ItemSpec{
+			ID:            "doctor.config.profile_layer_orphaned." + strconv.Itoa(index),
+			Code:          contract.CodeConfigProfileLayerOrphaned,
+			Category:      contract.CategoryConfig,
+			Title:         "Profile config layer is dormant",
+			Message:       strings.TrimSpace(value.Message),
+			Severity:      contract.SeverityWarn,
+			DataFreshness: contract.FreshnessLive,
+		}, diagnostics.WithEvidence(map[string]any{
+			"layer": value.Layer, "profile": value.Profile, "path": value.Path,
+		}), diagnostics.WithSuggestedCommand("compozy profile create "+value.Profile)))
+	}
 	return items
 }
 

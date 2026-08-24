@@ -437,7 +437,8 @@ func TestLoopGoalJudgeEvaluatorShouldReturnAggregateUsage(t *testing.T) {
 		now := time.Date(2026, 7, 10, 21, 0, 0, 0, time.UTC)
 		run := looppkg.Run{
 			ID: "looprun-goal-judge-usage", WorkspaceID: "workspace-goal-judge-usage",
-			LoopName: "goal-judge-usage", Status: looppkg.StatusRunning,
+			ProfileID: "profile-marketing",
+			LoopName:  "goal-judge-usage", Status: looppkg.StatusRunning,
 			CreatedAt: now, StartedAt: now, Inputs: map[string]any{},
 		}
 		wantParticipation := daemonTestLiveParticipation(string(run.WorkspaceID), "goal-judge")
@@ -501,6 +502,9 @@ func TestLoopGoalJudgeEvaluatorShouldReturnAggregateUsage(t *testing.T) {
 				gotJudgeReq.NetworkParticipation,
 				wantParticipation,
 			)
+		}
+		if got, want := gotJudgeReq.ProfileID, run.ProfileID; got != want {
+			t.Fatalf("JudgeRequest.ProfileID = %q, want %q", got, want)
 		}
 		if result.Verdict.Outcome != gate.VerdictOutcomeApproved ||
 			result.TokensUsed != 9 || !result.TokensReported {

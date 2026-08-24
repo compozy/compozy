@@ -65,6 +65,7 @@ func TestListSessionsWorkspaceStateIndex(t *testing.T) {
 		assertIndexAbsent(t, globalDB.db, "idx_sessions_workspace_state")
 
 		sessions, err := globalDB.ListSessions(ctx, store.SessionListQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			State:       globalDBSessionStateActive,
 			WorkspaceID: alphaWorkspaceID,
 		})
@@ -158,6 +159,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			{name: "include", archive: store.SessionArchiveInclude, want: []string{stopped.ID, active.ID}},
 		} {
 			page, pageErr := globalDB.PageSessions(ctx, store.SessionCatalogPageQuery{
+				ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 				WorkspaceID: workspaceID,
 				Archive:     testCase.archive,
 				Sort:        sessionCatalogSortRecent,
@@ -231,6 +233,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		}
 
 		page, err := globalDB.PageSessions(ctx, store.SessionCatalogPageQuery{
+			ReadScope:           store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID:         workspaceID,
 			SessionType:         "user",
 			Sort:                "recent",
@@ -275,18 +278,21 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 				ID: "wt-target", WorkspaceID: workspaceID, Name: "target", Branch: "feature/target",
 				Path: filepath.Join(t.TempDir(), "target"), State: worktreepkg.StateReady,
 				Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
+				ProfileID: store.DefaultProfileID,
 				CreatedAt: baseAt, UpdatedAt: baseAt,
 			},
 			{
 				ID: "wt-other", WorkspaceID: workspaceID, Name: "other", Branch: "feature/other",
 				Path: filepath.Join(t.TempDir(), "other"), State: worktreepkg.StateReady,
 				Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
+				ProfileID: store.DefaultProfileID,
 				CreatedAt: baseAt, UpdatedAt: baseAt,
 			},
 			{
 				ID: "wt-foreign", WorkspaceID: foreignWorkspaceID, Name: "foreign", Branch: "feature/foreign",
 				Path: filepath.Join(t.TempDir(), "foreign"), State: worktreepkg.StateReady,
 				Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
+				ProfileID: store.DefaultProfileID,
 				CreatedAt: baseAt, UpdatedAt: baseAt,
 			},
 		}
@@ -341,6 +347,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		}
 
 		page, err := globalDB.PageSessions(ctx, store.SessionCatalogPageQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: workspaceID,
 			WorktreeID:  "wt-target",
 			Sort:        sessionCatalogSortRecent,
@@ -355,6 +362,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		}
 
 		listed, err := globalDB.ListSessions(ctx, store.SessionListQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: workspaceID,
 			WorktreeID:  "wt-target",
 			Limit:       10,
@@ -421,6 +429,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		}
 
 		parentPage, err := globalDB.PageSessions(ctx, store.SessionCatalogPageQuery{
+			ReadScope:       store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID:     workspaceID,
 			ParentSessionID: "sess-prov-root",
 			Sort:            "recent",
@@ -438,6 +447,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		}
 
 		rootPage, err := globalDB.PageSessions(ctx, store.SessionCatalogPageQuery{
+			ReadScope:     store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID:   workspaceID,
 			RootSessionID: "sess-prov-root",
 			Sort:          "recent",
@@ -495,6 +505,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		}
 
 		page, err := globalDB.PageSessions(ctx, store.SessionCatalogPageQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: workspaceID,
 			Resumable:   true,
 			Sort:        "last_activity",
@@ -587,6 +598,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		}
 
 		metrics, err := globalDB.AggregateSessionsByAgent(ctx, store.SessionAgentMetricsQuery{
+			ReadScope:           store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID:         workspaceID,
 			ExcludeIDs:          []string{reviewer.ID},
 			ExcludeSessionTypes: []string{"dream"},
@@ -679,6 +691,7 @@ func TestDeleteSessionRemovesDurableCatalogTruth(t *testing.T) {
 		}
 
 		page, err := globalDB.PageSessions(ctx, store.SessionCatalogPageQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: workspaceID,
 			SessionType: "user",
 			Sort:        "recent",
@@ -779,6 +792,7 @@ func TestPageSessionsStableKeyset(t *testing.T) {
 		}
 
 		query := store.SessionCatalogPageQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: workspaceID,
 			State:       globalDBSessionStateActive,
 			AgentName:   "coder",
@@ -973,6 +987,7 @@ last_settled_revision = ?, attention_changed_at = ? WHERE id = ?`,
 		}
 
 		query := store.SessionCatalogPageQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: workspaceID,
 			Sort:        sessionCatalogSortAttention,
 			Limit:       3,
@@ -1075,7 +1090,11 @@ func TestSessionAttentionSeenFenceIsMonotonicAndPassiveReadsArePure(t *testing.T
 	if err != nil {
 		t.Fatalf("GetSessionAttention(before read) error = %v", err)
 	}
-	if _, err := globalDB.ListSessions(ctx, store.SessionListQuery{ID: sessionID, Limit: 1}); err != nil {
+	if _, err := globalDB.ListSessions(ctx, store.SessionListQuery{
+		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+		ID:        sessionID,
+		Limit:     1,
+	}); err != nil {
 		t.Fatalf("ListSessions(passive) error = %v", err)
 	}
 	afterRead, err := globalDB.GetSessionAttention(ctx, sessionID)
@@ -1324,7 +1343,8 @@ func registerAttentionSession(
 	sessionID := "sess-attention"
 	now := time.Date(2026, 8, 15, 18, 0, 0, 0, time.UTC)
 	if err := globalDB.RegisterSession(testutil.Context(t), store.SessionInfo{
-		ID: sessionID, Name: "Attention", AgentName: "coder",
+		ProfileID: store.DefaultProfileID,
+		ID:        sessionID, Name: "Attention", AgentName: "coder",
 		RuntimeStatus: store.SessionRuntimeUnbound, WorkspaceID: workspaceID,
 		SessionType: "user", State: globalDBSessionStateActive,
 		Attention: store.CloneSessionAttention(&attention),
@@ -1382,6 +1402,7 @@ func sessionInfoForWorkspaceStateIndexTest(
 ) store.SessionInfo {
 	return store.SessionInfo{
 		ID:            id,
+		ProfileID:     store.DefaultProfileID,
 		Name:          id,
 		AgentName:     "coder",
 		RuntimeStatus: store.SessionRuntimeUnbound,

@@ -12,6 +12,7 @@ import (
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/notifications"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -166,6 +167,34 @@ func TestTaskInspectCommandMapsTargets(t *testing.T) {
 		}
 	})
 
+	t.Run("Should include the task profile in human and TOON inspect output", func(t *testing.T) {
+		t.Parallel()
+
+		for _, format := range []string{"human", "toon"} {
+			t.Run("Should render "+format, func(t *testing.T) {
+				t.Parallel()
+
+				stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, &stubClient{
+					inspectTaskFn: func(_ context.Context, _ string) (TaskInspectRecord, error) {
+						return sampleTaskInspectRecord("task"), nil
+					},
+				}), "task", "inspect", "task-1", "-o", format)
+				if err != nil {
+					t.Fatalf("task inspect %s error = %v", format, err)
+				}
+				if !strings.Contains(stdout, "marketing") {
+					t.Fatalf("task inspect %s output = %q, want marketing profile", format, stdout)
+				}
+				if format == "human" && !strings.Contains(stdout, "PROFILE") {
+					t.Fatalf("task inspect human output = %q, want PROFILE field", stdout)
+				}
+				if format == "toon" && !strings.Contains(stdout, "profile_name") {
+					t.Fatalf("task inspect TOON output = %q, want profile_name field", stdout)
+				}
+			})
+		}
+	})
+
 	t.Run("Should render id format diagnostic without calling the daemon for unknown ids", func(t *testing.T) {
 		t.Parallel()
 
@@ -203,6 +232,7 @@ func TestTaskCreateRemainsOperatorExplicitWithAgentEnv(t *testing.T) {
 			getSessionFn: func(context.Context, string) (SessionRecord, error) {
 				return SessionRecord{
 					ID:          "agent-session",
+					ProfileID:   store.DefaultProfileID,
 					AgentName:   "coder",
 					WorkspaceID: "alpha",
 					State:       session.StateActive,
@@ -2233,7 +2263,7 @@ func TestTaskNotificationCommandsMapRequests(t *testing.T) {
 			deleteTaskID    string
 			deleteID        string
 		)
-		deps := newWorkspaceTestDeps(t, &stubClient{
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{
 			createTaskBridgeNotificationSubscriptionFn: func(
 				_ context.Context,
 				taskID string,
@@ -2355,6 +2385,7 @@ func TestTaskNotificationCommandsMapRequests(t *testing.T) {
 			t.Fatalf("list query = %#v for task %q", listQuery, listTaskID)
 		}
 		if !strings.Contains(stdout, `"subscription_id": "sub-1"`) ||
+			!strings.Contains(stdout, `"profile_name": "default"`) ||
 			!strings.Contains(stdout, `"last_sequence": 7`) ||
 			!strings.Contains(stdout, `"last_error": "bridge adapter rejected send"`) {
 			t.Fatalf("notification list stdout = %s", stdout)
@@ -2397,6 +2428,8 @@ func TestTaskNotificationCommandsMapRequests(t *testing.T) {
 			t.Fatalf("task notification show human error = %v", err)
 		}
 		if !strings.Contains(stdout, "Cursor Last Sequence") ||
+			!strings.Contains(stdout, "Profile") ||
+			!strings.Contains(stdout, "default") ||
 			!strings.Contains(stdout, "bridge adapter rejected send") {
 			t.Fatalf("notification show human stdout = %s", stdout)
 		}
@@ -2500,7 +2533,7 @@ func TestTaskNotificationCommandsMapRequests(t *testing.T) {
 	t.Run("Should reject negative notification list limits before calling client", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newWorkspaceTestDeps(t, &stubClient{
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{
 			listTaskBridgeNotificationSubscriptionsFn: func(
 				context.Context,
 				string,
@@ -2529,7 +2562,7 @@ func TestTaskNotificationCommandsMapRequests(t *testing.T) {
 	t.Run("Should reject noncanonical notification enums before calling client", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newWorkspaceTestDeps(t, &stubClient{
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{
 			createTaskBridgeNotificationSubscriptionFn: func(
 				context.Context,
 				string,
@@ -2630,7 +2663,7 @@ func TestTaskReviewCommandsMapRequests(t *testing.T) {
 			submitID     string
 			submitBody   TaskRunReviewVerdictRequest
 		)
-		deps := newWorkspaceTestDeps(t, &stubClient{
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{
 			requestTaskRunReviewFn: func(
 				_ context.Context,
 				runID string,
@@ -2712,7 +2745,7 @@ func TestTaskReviewCommandsMapRequests(t *testing.T) {
 			t.Fatalf("requested review = %#v", requested)
 		}
 
-		if _, _, err := executeRootCommand(
+		stdout, _, err = executeRootCommand(
 			t,
 			deps,
 			"task",
@@ -2728,7 +2761,8 @@ func TestTaskReviewCommandsMapRequests(t *testing.T) {
 			"3",
 			"-o",
 			"json",
-		); err != nil {
+		)
+		if err != nil {
 			t.Fatalf("task review list error = %v", err)
 		}
 		if listQuery.TaskID != "task-1" ||
@@ -2736,6 +2770,9 @@ func TestTaskReviewCommandsMapRequests(t *testing.T) {
 			listQuery.ReviewerSessionID != "sess-review" ||
 			listQuery.Limit != 3 {
 			t.Fatalf("list query = %#v", listQuery)
+		}
+		if !strings.Contains(stdout, `"profile_name": "default"`) {
+			t.Fatalf("review list stdout = %s, want profile owner", stdout)
 		}
 
 		stdout, _, err = executeRootCommand(t, deps, "task", "review", "show", "review-1", "-o", "json")
@@ -2749,7 +2786,7 @@ func TestTaskReviewCommandsMapRequests(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &shown); err != nil {
 			t.Fatalf("json.Unmarshal(review show) error = %v", err)
 		}
-		if shown.ReviewID != "review-1" {
+		if shown.ReviewID != "review-1" || shown.ProfileName != "default" {
 			t.Fatalf("shown review = %#v", shown)
 		}
 
@@ -2803,7 +2840,7 @@ func TestTaskReviewCommandsMapRequests(t *testing.T) {
 	t.Run("Should reject ambiguous review list scope before calling client", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newWorkspaceTestDeps(t, &stubClient{
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{
 			listTaskRunReviewsFn: func(context.Context, TaskRunReviewListQuery) ([]TaskRunReviewRecord, error) {
 				t.Fatal("ListTaskRunReviews should not be called for ambiguous scope")
 				return nil, nil
@@ -2830,7 +2867,7 @@ func TestTaskReviewCommandsMapRequests(t *testing.T) {
 		t.Parallel()
 
 		var listQuery TaskRunReviewListQuery
-		deps := newWorkspaceTestDeps(t, &stubClient{
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{
 			listTaskRunReviewsFn: func(_ context.Context, query TaskRunReviewListQuery) ([]TaskRunReviewRecord, error) {
 				listQuery = query
 				return []TaskRunReviewRecord{sampleTaskRunReviewRecord(taskpkg.RunReviewStatusRequested)}, nil
@@ -2966,7 +3003,8 @@ func TestTaskCommandsSupportDetailAndToonOutput(t *testing.T) {
 			t.Fatalf("task get human error = %v", err)
 		}
 		if !strings.Contains(humanOut, "Task") || !strings.Contains(humanOut, "Dependencies") ||
-			!strings.Contains(humanOut, "Task Runs") {
+			!strings.Contains(humanOut, "Task Runs") || !strings.Contains(humanOut, "PROFILE") ||
+			!strings.Contains(humanOut, "marketing") || !strings.Contains(humanOut, "default") {
 			t.Fatalf("task get human output = %q, want detail sections", humanOut)
 		}
 	})
@@ -2985,7 +3023,7 @@ func TestTaskCommandsSupportDetailAndToonOutput(t *testing.T) {
 		}
 		if !strings.Contains(
 			toonOut,
-			"tasks[1]{id,identifier,scope,workspace_id,parent_task_id,status,owner,participation_channel,loop,title}:",
+			"tasks[1]{id,profile_name,identifier,scope,workspace_id,parent_task_id,status,owner,participation_channel,loop,title}:",
 		) || !strings.Contains(toonOut, "builders") {
 			t.Fatalf("task list toon output = %q, want tasks TOON array with builders", toonOut)
 		}
@@ -3026,11 +3064,15 @@ func TestTaskBundlesRenderTaskRunAndDetailSections(t *testing.T) {
 		if err != nil {
 			t.Fatalf("taskDetailBundle().toon() error = %v", err)
 		}
-		if !strings.Contains(detailToon, "task_children[1]{id,identifier,scope,workspace_id,status,owner,title}:") ||
+		if !strings.Contains(
+			detailToon,
+			"task_children[1]{id,profile_name,identifier,scope,workspace_id,status,owner,title}:",
+		) ||
 			!strings.Contains(detailToon, "task_dependencies[1]{task_id,depends_on_task_id,kind,created_at}:") ||
+			!strings.Contains(detailToon, "marketing") ||
 			!strings.Contains(
 				detailToon,
-				"task_runs[1]{id,status,attempt,session_id,claimed_by,participation_channel,queued_at,started_at,ended_at,error}:",
+				"task_runs[1]{id,profile_name,status,attempt,session_id,claimed_by,participation_channel,queued_at,started_at,ended_at,error}:",
 			) ||
 			!strings.Contains(detailToon, "task_events[1]{id,event_type,run_id,actor,origin,timestamp}:") ||
 			!strings.Contains(detailToon, "builders") {
@@ -3045,7 +3087,8 @@ func TestTaskBundlesRenderTaskRunAndDetailSections(t *testing.T) {
 		if err != nil {
 			t.Fatalf("taskRunBundle().human() error = %v", err)
 		}
-		if !strings.Contains(runHuman, "Task Run") || !strings.Contains(runHuman, "Idempotency Key") ||
+		if !strings.Contains(runHuman, "Task Run") || !strings.Contains(runHuman, "PROFILE") ||
+			!strings.Contains(runHuman, "default") || !strings.Contains(runHuman, "Idempotency Key") ||
 			!strings.Contains(runHuman, "Result") {
 			t.Fatalf("task run human output = %q, want task run detail section", runHuman)
 		}
@@ -3099,7 +3142,7 @@ func TestTaskBundlesRenderTaskRunAndDetailSections(t *testing.T) {
 		}
 		if !strings.Contains(
 			runToon,
-			"task_runs[1]{id,status,attempt,session_id,claimed_by,participation_channel,queued_at,started_at,ended_at,error}:",
+			"task_runs[1]{id,profile_name,status,attempt,session_id,claimed_by,participation_channel,queued_at,started_at,ended_at,error}:",
 		) || !strings.Contains(runToon, "completed") || !strings.Contains(runToon, "builders") {
 			t.Fatalf("task run toon output = %q, want completed task run TOON array with builders", runToon)
 		}
@@ -3271,10 +3314,11 @@ func sampleTaskInspectRecord(target string) TaskInspectRecord {
 	return TaskInspectRecord{
 		Target: target,
 		Task: TaskSummaryRecord{
-			ID:     "task-1",
-			Title:  "Inspect task",
-			Status: taskpkg.TaskStatusReady,
-			Scope:  taskpkg.ScopeWorkspace,
+			ID:          "task-1",
+			ProfileName: "marketing",
+			Title:       "Inspect task",
+			Status:      taskpkg.TaskStatusReady,
+			Scope:       taskpkg.ScopeWorkspace,
 		},
 		CurrentRun: &contract.TaskInspectRunPayload{
 			RunID:                   "run-1",
@@ -3327,6 +3371,8 @@ func sampleTaskBridgeNotificationSubscriptionRecord() TaskBridgeNotificationSubs
 	cursorUpdatedAt := fixedTestNow.Add(2 * time.Minute)
 	return TaskBridgeNotificationSubscriptionRecord{
 		SubscriptionID:   "sub-1",
+		ProfileID:        store.DefaultProfileID,
+		ProfileName:      "default",
 		TaskID:           "task-1",
 		BridgeInstanceID: "brg-1",
 		Scope:            bridgepkg.ScopeWorkspace,
@@ -3356,19 +3402,23 @@ func sampleTaskBridgeNotificationSubscriptionRecord() TaskBridgeNotificationSubs
 
 func sampleTaskRunReviewRecord(status taskpkg.RunReviewStatus) TaskRunReviewRecord {
 	return TaskRunReviewRecord{
-		ReviewID:          "review-1",
-		TaskID:            "task-1",
-		RunID:             "run-1",
-		Policy:            taskpkg.ReviewPolicyAlways,
-		ReviewRound:       1,
-		Attempt:           1,
-		Status:            status,
-		Reason:            "ready for review",
-		MissingWork:       json.RawMessage(`[]`),
-		ReviewerSessionID: "sess-review",
-		RequestedAt:       fixedTestNow,
-		CreatedAt:         fixedTestNow,
-		UpdatedAt:         fixedTestNow,
+		RunReview: taskpkg.RunReview{
+			ReviewID:          "review-1",
+			TaskID:            "task-1",
+			RunID:             "run-1",
+			Policy:            taskpkg.ReviewPolicyAlways,
+			ReviewRound:       1,
+			Attempt:           1,
+			Status:            status,
+			Reason:            "ready for review",
+			MissingWork:       json.RawMessage(`[]`),
+			ReviewerSessionID: "sess-review",
+			RequestedAt:       fixedTestNow,
+			CreatedAt:         fixedTestNow,
+			UpdatedAt:         fixedTestNow,
+		},
+		ProfileID:   store.DefaultProfileID,
+		ProfileName: "default",
 	}
 }
 
@@ -3380,6 +3430,7 @@ func timePointer(value time.Time) *time.Time {
 func sampleTaskRunRecord(status taskpkg.RunStatus) TaskRunRecord {
 	record := TaskRunRecord{
 		ID:                           "run-1",
+		ProfileName:                  "default",
 		TaskID:                       "task-1",
 		Status:                       status,
 		Origin:                       taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "tasks.run.start"},
@@ -3532,7 +3583,7 @@ func sampleTaskDetailRecord() TaskDetailRecord {
 		Task: sampleTaskRecord(),
 		Children: []TaskSummaryRecord{
 			{
-				ID:          "task-child",
+				ID: "task-child", ProfileName: "marketing",
 				Identifier:  "OPS-43",
 				Scope:       taskpkg.ScopeWorkspace,
 				WorkspaceID: "ws-alpha",

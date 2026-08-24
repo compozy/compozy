@@ -50,6 +50,10 @@ func (c *daemonClient) WatchWindowManager(
 	if clientID != nil {
 		query.Set("client_id", strings.TrimSpace(string(*clientID)))
 	}
+	// Desks are per-profile, and this dialer builds its own URL instead of going
+	// through the request path that stamps the resolved profile — so it stamps it
+	// here or it would watch the default profile's windows.
+	query = profileQueryValues(ctx, query)
 	query, err := c.withFreshStreamTicket(ctx, query)
 	if err != nil {
 		return err

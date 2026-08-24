@@ -55,7 +55,12 @@ func registerFilesystemRoutes(api gin.IRouter, handlers *Handlers) {
 	fsGroup.GET("/browse", handlers.BrowseDirectory)
 }
 
-func registerNotificationRoutes(api gin.IRouter, handlers *Handlers) {
+func registerNotificationRoutes(api gin.IRouter, handlers *Handlers, localOnly bool) {
+	privileged := handlers.privilegedMutationGuard()
+	profileWrite := privileged
+	if !localOnly {
+		profileWrite = handlers.ProfileRemoteWriteForbidden
+	}
 	notifications := api.Group("/notifications")
 	presets := notifications.Group("/presets")
 	presets.GET("", handlers.ListNotificationPresets)
@@ -63,6 +68,7 @@ func registerNotificationRoutes(api gin.IRouter, handlers *Handlers) {
 	presets.GET("/:name", handlers.GetNotificationPreset)
 	presets.PUT("/:name", handlers.UpdateNotificationPreset)
 	presets.DELETE("/:name", handlers.DeleteNotificationPreset)
+	presets.PUT("/:name/enablement", profileWrite, handlers.SetNotificationPresetEnablement)
 }
 
 func registerWorkspaceRoutes(api gin.IRouter, handlers *Handlers) {
@@ -277,6 +283,7 @@ func registerMarketplaceRoutes(api gin.IRouter, handlers *Handlers) {
 
 func registerMemoryRoutes(api gin.IRouter, handlers *Handlers) {
 	memoryGroup := api.Group("/memory")
+	memoryGroup.Use(handlers.BindMemoryProfile)
 	memoryGroup.GET("", handlers.ListMemory)
 	memoryGroup.GET("/health", handlers.MemoryHealth)
 	memoryGroup.GET("/config", handlers.MemoryConfigMetadata)
@@ -315,6 +322,7 @@ func registerMemoryRoutes(api gin.IRouter, handlers *Handlers) {
 	memoryGroup.DELETE("/:filename", handlers.DeleteMemory)
 
 	workspaceMemorySessions := api.Group("/workspaces/:workspace_id/memory/sessions")
+	workspaceMemorySessions.Use(handlers.BindMemoryProfile)
 	workspaceMemorySessions.GET("/:session_id/ledger", handlers.GetMemorySessionLedger)
 	workspaceMemorySessions.POST("/:session_id/replay", handlers.ReplayMemorySession)
 }
@@ -354,12 +362,17 @@ func registerNetworkRoutes(api gin.IRouter, handlers *Handlers) {
 	workspaceCoordination.PUT("/invitation", handlers.PutNetworkCoordinationInvitation)
 }
 
-func registerExtensionRoutes(api gin.IRouter, handlers *Handlers) {
+func registerExtensionRoutes(api gin.IRouter, handlers *Handlers, localOnly bool) {
 	privileged := handlers.privilegedMutationGuard()
+	profileWrite := privileged
+	if !localOnly {
+		profileWrite = handlers.ProfileRemoteWriteForbidden
+	}
 	extensions := api.Group("/extensions")
 	extensions.GET("", handlers.ListExtensions)
 	extensions.GET("/search", handlers.SearchExtensions)
 	extensions.GET("/commands", handlers.ExtensionCommands)
+	extensions.POST("/preview-install", privileged, handlers.PreviewExtensionInstall)
 	extensions.POST("", privileged, handlers.InstallExtension)
 	extensions.POST("/dev", privileged, handlers.DevExtension)
 	extensions.POST("/update", privileged, handlers.UpdateExtensions)
@@ -370,12 +383,12 @@ func registerExtensionRoutes(api gin.IRouter, handlers *Handlers) {
 	extensions.PUT("/:name/secrets", privileged, handlers.SetExtensionSecrets)
 	extensions.DELETE("/:name/secrets/:env_name", privileged, handlers.DeleteExtensionSecret)
 	extensions.GET("/:name/inventory", handlers.ExtensionInventory)
-	extensions.GET("/:name/preview", handlers.PreviewExtensionEnable)
 	extensions.GET("/:name", handlers.ExtensionStatus)
 	extensions.POST("/:name/reload", privileged, handlers.ReloadDevExtension)
 	extensions.GET("/:name/logs", handlers.ExtensionLogs)
-	extensions.POST("/:name/enable", privileged, handlers.EnableExtension)
-	extensions.POST("/:name/disable", privileged, handlers.DisableExtension)
+	extensions.GET("/:name/enablement", handlers.ListExtensionEnablement)
+	extensions.PUT("/:name/enablement", profileWrite, handlers.SetExtensionEnablement)
+	extensions.GET("/:name/preview", handlers.PreviewExtensionEnable)
 }
 
 func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
@@ -385,10 +398,12 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.GET("/apply", handlers.ListSettingsApplyRecords)
 	settings.POST("/reload", privileged, handlers.ReloadSettings)
 	settings.GET("/general", handlers.GetSettingsGeneral)
+	settings.GET("/persona", handlers.GetSettingsPersona)
 	settings.GET("/update", handlers.GetSettingsUpdate)
 	settings.POST("/update/apply", privileged, handlers.ApplySettingsUpdate)
 	settings.POST("/update/cancel", privileged, handlers.CancelSettingsUpdate)
 	settings.PATCH("/general", privileged, handlers.UpdateSettingsGeneral)
+	settings.PATCH("/persona", privileged, handlers.UpdateSettingsPersona)
 	settings.GET("/memory", handlers.GetSettingsMemory)
 	settings.PATCH("/memory", privileged, handlers.UpdateSettingsMemory)
 	settings.GET("/roles", handlers.GetSettingsRoles)

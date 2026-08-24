@@ -76,7 +76,7 @@ func (n *daemonNativeTools) sessionCreate(
 	if !ok {
 		return toolspkg.ToolResult{}, errors.New("daemon: durable session acceptance is required")
 	}
-	worktreeTarget, err := n.resolveNativeSessionWorktree(ctx, workspaceID, input)
+	worktreeTarget, err := n.resolveNativeSessionWorktree(ctx, workspaceID, scope.ProfileID, input)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -120,6 +120,7 @@ type nativeSessionWorktreeTarget struct {
 func (n *daemonNativeTools) resolveNativeSessionWorktree(
 	ctx context.Context,
 	workspaceID string,
+	profileID string,
 	input sessionCreateInput,
 ) (nativeSessionWorktreeTarget, error) {
 	ref := strings.TrimSpace(input.Worktree)
@@ -133,8 +134,9 @@ func (n *daemonNativeTools) resolveNativeSessionWorktree(
 		return nativeSessionWorktreeTarget{}, errors.New("daemon: worktree creation is unavailable")
 	}
 	item, err := n.deps.Worktrees.CreateReady(ctx, workspaceID, worktree.CreateOptions{
-		Name:   strings.TrimSpace(input.NewWorktree.Name),
-		Origin: worktree.OriginManual,
+		ProfileID: profileID,
+		Name:      strings.TrimSpace(input.NewWorktree.Name),
+		Origin:    worktree.OriginManual,
 	})
 	if err != nil {
 		return nativeSessionWorktreeTarget{}, err

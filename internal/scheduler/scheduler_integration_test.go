@@ -247,6 +247,7 @@ func TestSchedulerRecoversExpiredImmutableParticipationLeaseIntegration(t *testi
 			if err := db.WriteNetworkChannel(ctx, store.NetworkChannelEntry{
 				Channel:     "scope-direct-history",
 				WorkspaceID: workspaceID,
+				ProfileID:   store.DefaultProfileID,
 				Purpose:     "Immutable participation lease expiry recovery validation",
 				CreatedBy:   "founder",
 				CreatedAt:   channelTimestamp,
@@ -260,6 +261,7 @@ func TestSchedulerRecoversExpiredImmutableParticipationLeaseIntegration(t *testi
 				t.Fatalf("DeriveHumanActorContext() error = %v", err)
 			}
 			taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+				ProfileID:   store.DefaultProfileID,
 				Scope:       taskpkg.ScopeWorkspace,
 				WorkspaceID: workspaceID,
 				Title:       "Immutable participation lease expiry recovery",
@@ -887,6 +889,7 @@ func createSchedulerTaskRun(
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
 	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: workspaceID,
 		Title:       title,

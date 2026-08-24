@@ -13,10 +13,9 @@ import (
 func (r *windowManagerStoreWorkspaceResolver) prepareRemoval(
 	workspace workspacepkg.Workspace,
 	service *clientstate.Engine,
-	manager *windowmanager.Manager,
-	repository *windowManagerRepository,
+	managers *windowManagerRegistry,
 ) (workspacepkg.UnregisterPreparation, error) {
-	if service == nil || manager == nil || repository == nil {
+	if service == nil || managers == nil {
 		return nil, errors.New("daemon: window-manager removal dependencies are required")
 	}
 	workspaceID := clientstate.WorkspaceID(workspace.ID)
@@ -41,7 +40,7 @@ func (r *windowManagerStoreWorkspaceResolver) prepareRemoval(
 		"state", "deleting",
 	)
 	return &windowManagerRemovalPreparation{
-		resolver: r, service: service, manager: manager, repository: repository,
+		resolver: r, service: service, managers: managers,
 		workspace: workspaceID, generation: record.generation,
 	}, nil
 }
@@ -49,8 +48,7 @@ func (r *windowManagerStoreWorkspaceResolver) prepareRemoval(
 type windowManagerRemovalPreparation struct {
 	resolver   *windowManagerStoreWorkspaceResolver
 	service    *clientstate.Engine
-	manager    *windowmanager.Manager
-	repository *windowManagerRepository
+	managers   *windowManagerRegistry
 	workspace  clientstate.WorkspaceID
 	generation clientstate.WorkspaceGeneration
 	purge      clientstate.WorkspacePurgePreparation
@@ -78,9 +76,7 @@ func (p *windowManagerRemovalPreparation) Commit(ctx context.Context) error {
 		delete(p.resolver.records, p.workspace)
 	}
 	p.resolver.mu.Unlock()
-	workspaceID := windowmanager.WorkspaceID(p.workspace)
-	p.manager.ForgetWorkspace(workspaceID)
-	p.repository.forgetWorkspace(workspaceID)
+	p.managers.ForgetWorkspace(windowmanager.WorkspaceID(p.workspace))
 	p.resolver.logger.Info(
 		"window_manager.workspace.deletion_gate",
 		"workspace_id", p.workspace,

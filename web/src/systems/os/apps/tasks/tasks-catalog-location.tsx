@@ -203,7 +203,11 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
         />
       ) : page.isEmpty ? (
         <ListingPage data-testid="tasks-list-surface">
-          <TasksEmptyState onSelectTemplate={openCreate} workspaceName={page.activeWorkspaceName} />
+          <TasksEmptyState
+            onSelectTemplate={openCreate}
+            profileScopeLabel={page.profile.scopeLabel}
+            workspaceName={page.activeWorkspaceName}
+          />
         </ListingPage>
       ) : mode === "kanban" ? (
         <TasksKanbanBoard
@@ -217,11 +221,13 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
           onRetryTask={page.handleRetryRun}
           onSelectTask={taskId => navigate(`/tasks/${encodeURIComponent(taskId)}`)}
           onLoadMore={page.loadMoreTasks}
+          profile={page.profile}
           selectedTaskId={page.effectiveSelectedTaskId}
           statusCounts={page.statusCounts}
         />
       ) : (
         <TasksListSurface
+          profile={page.profile}
           errorMessage={page.listError?.message ?? null}
           filterState={
             Boolean(page.statusFilter) ||

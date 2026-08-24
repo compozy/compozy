@@ -61,6 +61,8 @@ beforeEach(() => {
   window.localStorage.clear();
   window.localStorage.setItem(STORAGE_KEY, "client:stable");
   vi.mocked(isDesktopShell).mockReturnValue(false);
+  // Matches the adapter's real shape: retiring a registration is awaited.
+  vi.mocked(unregisterWindowManagerClient).mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -72,7 +74,8 @@ describe("useWindowManagerClient", () => {
   it("Should register once with the stable ID and no active desktop hint", async () => {
     vi.mocked(registerWindowManagerClient).mockResolvedValue(client());
     const { result, rerender, unmount } = renderHook(
-      ({ workspaceId }: { workspaceId: string | null }) => useWindowManagerClient(workspaceId),
+      ({ workspaceId }: { workspaceId: string | null }) =>
+        useWindowManagerClient(workspaceId, "marketing"),
       { initialProps: { workspaceId: "workspace:test" } }
     );
 
@@ -83,6 +86,7 @@ describe("useWindowManagerClient", () => {
     expect(registerWindowManagerClient).toHaveBeenCalledOnce();
     expect(registerWindowManagerClient).toHaveBeenCalledWith(
       "workspace:test",
+      "marketing",
       "client:stable",
       undefined,
       "browser",
@@ -96,7 +100,7 @@ describe("useWindowManagerClient", () => {
     vi.mocked(registerWindowManagerClient)
       .mockRejectedValueOnce(new Error("daemon restarting"))
       .mockResolvedValueOnce(client());
-    const { result } = renderHook(() => useWindowManagerClient("workspace:test"));
+    const { result } = renderHook(() => useWindowManagerClient("workspace:test", "marketing"));
 
     await act(async () => {
       await Promise.resolve();
@@ -110,12 +114,76 @@ describe("useWindowManagerClient", () => {
 
     expect(result.current.status).toBe("registered");
     expect(registerWindowManagerClient).toHaveBeenCalledTimes(2);
-    expect(vi.mocked(registerWindowManagerClient).mock.calls.map(call => call.slice(0, 3))).toEqual(
+    expect(vi.mocked(registerWindowManagerClient).mock.calls.map(call => call.slice(0, 4))).toEqual(
       [
-        ["workspace:test", "client:stable", undefined],
-        ["workspace:test", "client:stable", undefined],
+        ["workspace:test", "marketing", "client:stable", undefined],
+        ["workspace:test", "marketing", "client:stable", undefined],
       ]
     );
+  });
+
+  it("Should register in the profile it enters without unregistering anywhere", async () => {
+    vi.mocked(registerWindowManagerClient).mockImplementation(async (_workspace, profile) => ({
+      ...client(),
+      activeDesktopId: profile,
+    }));
+    const { result, rerender } = renderHook(
+      ({ profileId }: { profileId: string }) => useWindowManagerClient("workspace:test", profileId),
+      { initialProps: { profileId: "marketing" } }
+    );
+    await waitFor(() => expect(result.current.status).toBe("registered"));
+
+    rerender({ profileId: "research" });
+    await waitFor(() => expect(result.current.client?.activeDesktopId).toBe("research"));
+
+    // Registering is the whole gesture: the daemon's claim moves the attachment, so
+    // this side never issues a delete that could outlive the switch it followed.
+    expect(vi.mocked(registerWindowManagerClient).mock.calls.map(call => call[1])).toEqual([
+      "marketing",
+      "research",
+    ]);
+    expect(unregisterWindowManagerClient).not.toHaveBeenCalled();
+  });
+
+  it("Should survive a rapid switch back without deleting the current attachment", async () => {
+    vi.mocked(registerWindowManagerClient).mockImplementation(async (_workspace, profile) => ({
+      ...client(),
+      activeDesktopId: profile,
+    }));
+    const { result, rerender } = renderHook(
+      ({ profileId }: { profileId: string }) => useWindowManagerClient("workspace:test", profileId),
+      { initialProps: { profileId: "marketing" } }
+    );
+    await waitFor(() => expect(result.current.status).toBe("registered"));
+
+    // A → B → A faster than any request completes. A stale delete for A landing
+    // after the second A registration would drop the attachment the operator is
+    // actually looking at, so no delete is issued at all.
+    rerender({ profileId: "research" });
+    rerender({ profileId: "marketing" });
+
+    await waitFor(() => expect(result.current.client?.activeDesktopId).toBe("marketing"));
+    expect(unregisterWindowManagerClient).not.toHaveBeenCalled();
+    expect(result.current.status).toBe("registered");
+  });
+
+  it("Should leave the client unregistered when the profile it enters refuses", async () => {
+    vi.mocked(registerWindowManagerClient)
+      .mockResolvedValueOnce(client())
+      .mockRejectedValueOnce(new Error("daemon restarting"));
+    const { result, rerender } = renderHook(
+      ({ profileId }: { profileId: string }) => useWindowManagerClient("workspace:test", profileId),
+      { initialProps: { profileId: "marketing" } }
+    );
+    await waitFor(() => expect(result.current.status).toBe("registered"));
+
+    rerender({ profileId: "research" });
+    await waitFor(() => expect(result.current.status).toBe("error"));
+
+    // A failed claim leaves this client presenting nothing, which its retry repairs
+    // — never the profile the operator already left.
+    expect(result.current.client).toBeNull();
+    expect(unregisterWindowManagerClient).not.toHaveBeenCalled();
   });
 
   it("Should pause failed-registration retries while the document is hidden", async () => {
@@ -125,7 +193,7 @@ describe("useWindowManagerClient", () => {
     vi.mocked(registerWindowManagerClient)
       .mockRejectedValueOnce(new Error("daemon restarting"))
       .mockResolvedValueOnce(client());
-    const { result } = renderHook(() => useWindowManagerClient("workspace:test"));
+    const { result } = renderHook(() => useWindowManagerClient("workspace:test", "marketing"));
 
     await act(async () => {
       await Promise.resolve();
@@ -155,7 +223,7 @@ describe("useWindowManagerClient", () => {
     vi.mocked(registerWindowManagerClient)
       .mockResolvedValueOnce(client(1))
       .mockResolvedValueOnce(client(2));
-    const { result } = renderHook(() => useWindowManagerClient("workspace:test"));
+    const { result } = renderHook(() => useWindowManagerClient("workspace:test", "marketing"));
 
     await waitFor(() => expect(result.current.status).toBe("registered"));
     act(() => result.current.reregister());
@@ -173,7 +241,8 @@ describe("useWindowManagerClient", () => {
       .mockResolvedValueOnce(client())
       .mockImplementationOnce(() => new Promise(resolve => (resolveNext = resolve)));
     const { result, rerender } = renderHook(
-      ({ workspaceId }: { workspaceId: string }) => useWindowManagerClient(workspaceId),
+      ({ workspaceId }: { workspaceId: string }) =>
+        useWindowManagerClient(workspaceId, "marketing"),
       { initialProps: { workspaceId: "workspace:test" } }
     );
 
@@ -190,11 +259,12 @@ describe("useWindowManagerClient", () => {
   it("Should register as a shell client when the desktop bridge is present", async () => {
     vi.mocked(isDesktopShell).mockReturnValue(true);
     vi.mocked(registerWindowManagerClient).mockResolvedValue({ ...client(), kind: "shell" });
-    const { result } = renderHook(() => useWindowManagerClient("workspace:test"));
+    const { result } = renderHook(() => useWindowManagerClient("workspace:test", "marketing"));
 
     await waitFor(() => expect(result.current.status).toBe("registered"));
     expect(registerWindowManagerClient).toHaveBeenCalledWith(
       "workspace:test",
+      "marketing",
       "client:stable",
       undefined,
       "shell",

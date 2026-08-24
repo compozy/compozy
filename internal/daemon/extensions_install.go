@@ -13,9 +13,10 @@ import (
 )
 
 type preparedDaemonExtensionInstall struct {
-	name    string
-	commit  func() error
-	cleanup func() error
+	name     string
+	manifest *extensionpkg.Manifest
+	commit   func() error
+	cleanup  func() error
 }
 
 func (p preparedDaemonExtensionInstall) Close() error {
@@ -33,6 +34,7 @@ func (s *daemonExtensionService) prepareExtensionInstall(
 ) (preparedDaemonExtensionInstall, error) {
 	req.Source = normalizedInstallSource(req.Source)
 	req.Ref = strings.TrimSpace(req.Ref)
+	req.ConfirmNetworkDigest = strings.TrimSpace(req.ConfirmNetworkDigest)
 	if req.Ref == "" {
 		return preparedDaemonExtensionInstall{}, errors.New("daemon: extension install ref is required")
 	}
@@ -80,7 +82,7 @@ func (s *daemonExtensionService) prepareLocalExtensionInstall(
 	provenance := extensionpkg.LocalPathProvenance(manifest, req.Ref, checksum, s.now(), req.AllowUnverified)
 	provenance.InstalledBy = installedBy
 	return preparedDaemonExtensionInstall{
-		name: manifest.Name,
+		name: manifest.Name, manifest: manifest,
 		commit: func() error {
 			return extensionpkg.InstallLocalManaged(
 				s.homePaths,
@@ -126,7 +128,7 @@ func (s *daemonExtensionService) preparePublishedExtensionInstall(
 		return preparedDaemonExtensionInstall{}, err
 	}
 	return preparedDaemonExtensionInstall{
-		name: prepared.Name(),
+		name: prepared.Name(), manifest: prepared.Manifest(),
 		commit: func() error {
 			_, commitErr := prepared.Commit()
 			return commitErr

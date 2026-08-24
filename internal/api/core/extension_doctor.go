@@ -32,7 +32,8 @@ func (h *BaseHandlers) registerExtensionDoctorProbe(registry *doctor.Registry) e
 
 func extensionDiagnosticItems(extensions []contract.ExtensionPayload) []contract.DiagnosticItem {
 	items := make([]contract.DiagnosticItem, 0)
-	for _, extension := range extensions {
+	for index := range extensions {
+		extension := &extensions[index]
 		name := strings.TrimSpace(extension.Name)
 		failureCode := strings.TrimSpace(extension.FailureCode)
 		if extension.ConsecutiveFailures >= extensionpkg.DefaultRestartFailureThreshold {

@@ -15,6 +15,8 @@ function sidebarSession(
   parentId?: string
 ): SessionPayload {
   return {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     id,
     name,
     agent_name: agentName,

@@ -1,6 +1,8 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { automationJobFixtures, automationTriggerFixtures } from "../../mocks/fixtures";
+
 const createAutomationJobMock = vi.fn();
 const updateAutomationJobMock = vi.fn();
 const createAutomationTriggerMock = vi.fn();
@@ -19,7 +21,7 @@ vi.mock("../use-automation-actions", () => ({
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-import { useAutomationJobEditor } from "../use-automation-editor";
+import { useAutomationJobEditor, useAutomationTriggerEditor } from "../use-automation-editor";
 
 function deferred<T>() {
   let resolve: (value: T) => void;
@@ -71,5 +73,39 @@ describe("useAutomationJobEditor", () => {
     });
 
     await waitFor(() => expect(result.current.editor).toMatchObject({ mode: "create" }));
+  });
+
+  it("preserves the job owner when saving an edit from an aggregate catalog", async () => {
+    const job = { ...automationJobFixtures[0], profile_name: "marketing" };
+    updateAutomationJobMock.mockResolvedValue(job);
+    const { result } = renderHook(() =>
+      useAutomationJobEditor({ activeWorkspaceId: job.workspace_id })
+    );
+
+    act(() => result.current.openEdit(job));
+    act(() => result.current.editorDialogProps.editor?.onSubmit());
+
+    await waitFor(() =>
+      expect(updateAutomationJobMock).toHaveBeenCalledWith(
+        expect.objectContaining({ id: job.id, profile: "marketing" })
+      )
+    );
+  });
+
+  it("preserves the trigger owner when saving an edit from an aggregate catalog", async () => {
+    const trigger = { ...automationTriggerFixtures[0], profile_name: "support" };
+    updateAutomationTriggerMock.mockResolvedValue(trigger);
+    const { result } = renderHook(() =>
+      useAutomationTriggerEditor({ activeWorkspaceId: trigger.workspace_id })
+    );
+
+    act(() => result.current.openEdit(trigger));
+    act(() => result.current.editorDialogProps.editor?.onSubmit());
+
+    await waitFor(() =>
+      expect(updateAutomationTriggerMock).toHaveBeenCalledWith(
+        expect.objectContaining({ id: trigger.id, profile: "support" })
+      )
+    );
   });
 });

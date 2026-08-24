@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render as renderTestingLibrary, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState, type ReactElement } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AutomationEditorDialog } from "../automation-editor-dialog";
 import {
@@ -12,6 +12,12 @@ import {
 } from "../../lib/automation-drafts";
 import { createAutomationDialogHandle } from "../../lib/dialog-handle";
 import type { CreateAutomationJobRequest, CreateAutomationTriggerRequest } from "../../types";
+
+const aggregateDestination = vi.hoisted(() => ({ value: null as string | null }));
+vi.mock("@/systems/profiles", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/profiles")>()),
+  useAggregateDestination: () => aggregateDestination.value,
+}));
 
 const WORKSPACES = [
   { id: "ws_test", name: "test-workspace" },
@@ -133,6 +139,10 @@ function DetachedTriggerHarness() {
 }
 
 describe("AutomationEditorDialog", () => {
+  beforeEach(() => {
+    aggregateDestination.value = null;
+  });
+
   it("Should render the job editor with the Automation · Job eyebrow, Create job title, and job form", () => {
     const onCancel = vi.fn();
     const onSubmit = vi.fn();
@@ -266,6 +276,7 @@ describe("AutomationEditorDialog", () => {
   });
 
   it("Should render the Edit trigger title for the triggers edit mode", () => {
+    aggregateDestination.value = "default";
     render(<TriggerEditorHarness mode="edit" onCancel={vi.fn()} onSubmit={vi.fn()} />);
 
     const header = screen
@@ -275,6 +286,24 @@ describe("AutomationEditorDialog", () => {
     expect(within(header as HTMLElement).getByText("Automation · Trigger")).toBeInTheDocument();
     expect(within(header as HTMLElement).getByText("Edit trigger")).toBeInTheDocument();
     expect(screen.getByTestId("automation-trigger-form")).toBeInTheDocument();
+    expect(screen.queryByTestId("profile-destination-chip")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    {
+      name: "job",
+      renderEditor: () => <JobEditorHarness onCancel={vi.fn()} onSubmit={vi.fn()} />,
+    },
+    {
+      name: "trigger",
+      renderEditor: () => <TriggerEditorHarness onCancel={vi.fn()} onSubmit={vi.fn()} />,
+    },
+  ])("Should show the aggregate destination for a new $name", ({ renderEditor }) => {
+    aggregateDestination.value = "default";
+
+    render(renderEditor());
+
+    expect(screen.getByTestId("profile-destination-chip")).toHaveTextContent("default");
   });
 
   it("Should open and stay open when editor state is driven by a detached trigger button", async () => {

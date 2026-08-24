@@ -60,6 +60,7 @@ export type ExtensionHandler<TParams = unknown, TResult = unknown> = (
 ) => Promise<TResult> | TResult;
 
 export interface ExtensionToolOptions {
+  profile?: string;
   id?: ToolID;
   description?: string;
   friendlyVerb?: string;

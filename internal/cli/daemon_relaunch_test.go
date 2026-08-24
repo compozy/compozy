@@ -15,8 +15,8 @@ func TestDaemonRelaunchCommandInvokesHelper(t *testing.T) {
 		deps.executable = func() (string, error) { return "/usr/bin/compozy", nil }
 
 		var captured compozydaemon.RelaunchHelperConfig
-		deps.runRelaunchHelper = func(_ context.Context, cfg compozydaemon.RelaunchHelperConfig) error {
-			captured = cfg
+		deps.runRelaunchHelper = func(_ context.Context, cfg *compozydaemon.RelaunchHelperConfig) error {
+			captured = *cfg
 			return nil
 		}
 

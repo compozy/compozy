@@ -83,7 +83,7 @@ export const handlers: HttpHandler[] = [
         lifecycle: "live-add",
         next_action: "none",
         restart_required: false,
-        scope: body.scope === "workspace" ? "workspace" : "global",
+        scope: body.scope === "workspace" ? "workspace" : "user",
         warnings: [],
         write_target: body.scope === "workspace" ? "workspace-mcp-sidecar" : "global-mcp-sidecar",
       },
@@ -92,12 +92,12 @@ export const handlers: HttpHandler[] = [
         auth_status: null,
         catalog_entry: body.entry_id,
         name: body.name ?? body.entry_id ?? "mcp-server",
-        scope: body.scope === "workspace" ? "workspace" : "global",
+        scope: body.scope === "workspace" ? "workspace" : "user",
         source_metadata: {
           available_targets: ["global-config", "workspace-config"],
           effective_source: {
             kind: body.scope === "workspace" ? "workspace-config" : "global-config",
-            scope: body.scope === "workspace" ? "workspace" : "global",
+            scope: body.scope === "workspace" ? "workspace" : "user",
           },
           shadowed_sources: [],
         },

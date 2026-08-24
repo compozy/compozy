@@ -2,6 +2,7 @@ import { Bell, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import type { CreateNotificationPresetRequest, NotificationPresetEntry } from "../types";
+import { ProfileGlyph, type ProfileOwner } from "@/systems/profiles";
 import {
   Button,
   Empty,
@@ -22,6 +23,7 @@ interface NotificationPresetsPanelProps {
   error: string | null;
   pendingName: string | null;
   canMutate: boolean;
+  profile: ProfileOwner | null;
   onCreate: (body: CreateNotificationPresetRequest) => void;
   onToggle: (preset: NotificationPresetEntry, nextEnabled: boolean) => void;
   onDelete: (preset: NotificationPresetEntry) => void;
@@ -38,6 +40,7 @@ export function NotificationPresetsPanel({
   error,
   pendingName,
   canMutate,
+  profile,
   onCreate,
   onToggle,
   onDelete,
@@ -48,7 +51,6 @@ export function NotificationPresetsPanel({
     events: "task.run_*",
     target: "",
     filter: "",
-    enabled: false,
   });
   const [localError, setLocalError] = useState<string | null>(null);
   const createPending = pendingName !== null;
@@ -75,7 +77,6 @@ export function NotificationPresetsPanel({
       events: eventList,
       targets,
       filter: form.filter.trim(),
-      enabled: form.enabled,
     });
   };
 
@@ -83,20 +84,37 @@ export function NotificationPresetsPanel({
     <Section
       data-testid="settings-page-hooks-notification-presets-section"
       label="Notifications"
-      note="Presets apply immediately — no restart."
       right={
-        <Button
-          aria-expanded={createOpen}
-          data-testid="settings-page-hooks-notification-preset-new"
-          disabled={!canMutate || createPending}
-          onClick={() => setCreateOpen(open => !open)}
-          size="sm"
-          type="button"
-          variant="neutral"
-        >
-          <Plus className="size-3.5" />
-          New preset
-        </Button>
+        <div className="flex items-center gap-2">
+          {profile ? (
+            <span
+              className="inline-flex items-center gap-1.5 text-xs text-muted"
+              data-testid="settings-page-hooks-notification-preset-profile"
+            >
+              <ProfileGlyph
+                color={profile.color}
+                decorative
+                emoji={profile.emoji}
+                icon={profile.icon}
+                name={profile.name}
+                size="sm"
+              />
+              {profile.name}
+            </span>
+          ) : null}
+          <Button
+            aria-expanded={createOpen}
+            data-testid="settings-page-hooks-notification-preset-new"
+            disabled={!canMutate || createPending}
+            onClick={() => setCreateOpen(open => !open)}
+            size="sm"
+            type="button"
+            variant="neutral"
+          >
+            <Plus className="size-3.5" />
+            New preset
+          </Button>
+        </div>
       }
     >
       <div className="flex flex-col gap-3">
@@ -150,42 +168,30 @@ export function NotificationPresetsPanel({
                 onChange={event => setForm(current => ({ ...current, filter: event.target.value }))}
               />
             </div>
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 text-xs text-muted">
-                <Switch
-                  aria-label="Create notification preset enabled"
-                  checked={form.enabled}
-                  disabled={!canMutate || createPending}
-                  onCheckedChange={next => setForm(current => ({ ...current, enabled: next }))}
-                  data-testid="settings-page-hooks-notification-preset-enabled"
-                />
-                enabled
-              </label>
-              <div className="ml-auto flex items-center gap-2">
-                <Button
-                  data-testid="settings-page-hooks-notification-preset-cancel"
-                  onClick={() => {
-                    setCreateOpen(false);
-                    setLocalError(null);
-                  }}
-                  disabled={createPending}
-                  size="sm"
-                  type="button"
-                  variant="ghost"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  data-testid="settings-page-hooks-notification-preset-create"
-                  disabled={!canMutate || createPending}
-                  onClick={submit}
-                  type="button"
-                  size="sm"
-                >
-                  {createPending ? <Spinner className="size-3.5" /> : <Plus className="size-3.5" />}
-                  Create
-                </Button>
-              </div>
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                data-testid="settings-page-hooks-notification-preset-cancel"
+                onClick={() => {
+                  setCreateOpen(false);
+                  setLocalError(null);
+                }}
+                disabled={createPending}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                Cancel
+              </Button>
+              <Button
+                data-testid="settings-page-hooks-notification-preset-create"
+                disabled={!canMutate || createPending}
+                onClick={submit}
+                type="button"
+                size="sm"
+              >
+                {createPending ? <Spinner className="size-3.5" /> : <Plus className="size-3.5" />}
+                Create
+              </Button>
             </div>
           </div>
         ) : null}
@@ -245,6 +251,9 @@ export function NotificationPresetsPanel({
             ))}
           </ul>
         )}
+        {profile?.archived ? (
+          <p className="text-xs text-subtle">Deliveries for archived profiles are paused.</p>
+        ) : null}
       </div>
     </Section>
   );

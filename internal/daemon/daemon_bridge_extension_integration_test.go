@@ -21,6 +21,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	extensiontest "github.com/compozy/compozy/internal/extensiontest"
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
@@ -215,6 +216,7 @@ func TestDaemonE2EBridgeDeliveryReconcilesAfterRestart(t *testing.T) {
 			}
 		}()
 		terminal, err := verifiedDB.ListBridgeDeliveries(verifyCtx, bridgepkg.DeliveryLedgerQuery{
+			ReadScope:        storepkg.ReadScope{AllProfiles: true},
 			Scope:            bridgepkg.ScopeWorkspace,
 			WorkspaceID:      first.WorkspaceID,
 			BridgeInstanceID: bridgeID,

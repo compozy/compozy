@@ -27,11 +27,13 @@ const (
 )
 
 const (
-	workspaceCacheTTL          = 10 * time.Minute
-	skillSourceMarketplaceName = "marketplace"
-	skillSourceWorkspaceName   = "workspace"
-	skillSourceExtensionName   = "extension"
-	skillSourceUnknownName     = "unknown"
+	workspaceCacheTTL               = 10 * time.Minute
+	skillSourceMarketplaceName      = "marketplace"
+	skillSourceProfileName          = "profile"
+	skillSourceWorkspaceName        = "workspace"
+	skillSourceWorkspaceProfileName = "workspace_profile"
+	skillSourceExtensionName        = "extension"
+	skillSourceUnknownName          = "unknown"
 )
 
 // Option customizes a Registry instance.
@@ -39,18 +41,24 @@ type Option func(*Registry)
 
 // Registry manages global skills loaded at boot and lazily cached workspace skills.
 type Registry struct {
-	mu                                 sync.RWMutex
-	globalSkills                       map[string]*Skill
-	resourceAuthority                  bool
-	resourceRevision                   int64
-	resourceWorkspaces                 map[string]map[string]*Skill
-	resourceGlobalCommandCandidates    []*Skill
-	resourceWorkspaceCommandCandidates map[string][]*Skill
-	globalLoaded                       bool
-	globalSnapshots                    map[string]filesnap.Snapshot
-	globalDiagnostics                  []SkillDiagnostic
-	workspaceDisabled                  map[string][]string
-	wsCache                            map[string]*wsCache
+	mu                                        sync.RWMutex
+	globalSkills                              map[string]*Skill
+	resourceAuthority                         bool
+	resourceRevision                          int64
+	resourceWorkspaces                        map[string]map[string]*Skill
+	resourceProfiles                          map[string]map[string]*Skill
+	resourceWorkspaceProfiles                 map[string]map[string]*Skill
+	resourceGlobalCommandCandidates           []*Skill
+	resourceProfileCommandCandidates          map[string][]*Skill
+	resourceWorkspaceCommandCandidates        map[string][]*Skill
+	resourceWorkspaceProfileCommandCandidates map[string][]*Skill
+	globalLoaded                              bool
+	globalSnapshots                           map[string]filesnap.Snapshot
+	globalDiagnostics                         []SkillDiagnostic
+	workspaceDisabled                         map[string][]string
+	profileDisabled                           map[string][]string
+	workspaceProfileDisabled                  map[string][]string
+	wsCache                                   map[string]*wsCache
 
 	globalVersion atomic.Int64
 
@@ -65,7 +73,9 @@ type skillToggleScope int
 
 const (
 	skillToggleScopeGlobal skillToggleScope = iota
+	skillToggleScopeProfile
 	skillToggleScopeWorkspace
+	skillToggleScopeWorkspaceProfile
 )
 
 // WithLogger injects the logger used for registry diagnostics.
@@ -93,15 +103,21 @@ func WithEventSummaryStore(events store.EventSummaryStore) Option {
 // NewRegistry constructs a Registry with the provided configuration.
 func NewRegistry(cfg RegistryConfig, opts ...Option) *Registry {
 	registry := &Registry{
-		globalSkills:                       make(map[string]*Skill),
-		resourceWorkspaces:                 make(map[string]map[string]*Skill),
-		resourceWorkspaceCommandCandidates: make(map[string][]*Skill),
-		globalSnapshots:                    make(map[string]filesnap.Snapshot),
-		workspaceDisabled:                  make(map[string][]string),
-		wsCache:                            make(map[string]*wsCache),
-		cfg:                                cfg,
-		logger:                             slog.Default(),
-		now:                                time.Now,
+		globalSkills:                              make(map[string]*Skill),
+		resourceWorkspaces:                        make(map[string]map[string]*Skill),
+		resourceProfiles:                          make(map[string]map[string]*Skill),
+		resourceWorkspaceProfiles:                 make(map[string]map[string]*Skill),
+		resourceProfileCommandCandidates:          make(map[string][]*Skill),
+		resourceWorkspaceCommandCandidates:        make(map[string][]*Skill),
+		resourceWorkspaceProfileCommandCandidates: make(map[string][]*Skill),
+		globalSnapshots:                           make(map[string]filesnap.Snapshot),
+		workspaceDisabled:                         make(map[string][]string),
+		profileDisabled:                           make(map[string][]string),
+		workspaceProfileDisabled:                  make(map[string][]string),
+		wsCache:                                   make(map[string]*wsCache),
+		cfg:                                       cfg,
+		logger:                                    slog.Default(),
+		now:                                       time.Now,
 	}
 
 	for _, opt := range opts {
@@ -241,6 +257,7 @@ func (r *Registry) refreshWorkspaceCacheLocked(
 		globalSkills,
 		workspaceSkills,
 		skillSourceWorkspaceName,
+		resolvedSkillEventProfileID(resolved),
 		workspaceKey,
 		"",
 	)

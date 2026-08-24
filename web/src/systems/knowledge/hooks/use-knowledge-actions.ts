@@ -34,24 +34,31 @@ export function useDeleteMemory() {
 export interface EditMemoryParams {
   filename: string;
   body: MemoryEditRequest;
+  profile?: string;
 }
 
 export function useEditMemory() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ filename, body }: EditMemoryParams) => editMemory(filename, body),
+    mutationFn: ({ filename, body, profile }: EditMemoryParams) =>
+      editMemory(filename, body, profile),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.all });
     },
   });
 }
 
+export interface WriteMemoryParams {
+  body: MemoryWriteRequest;
+  profile?: string;
+}
+
 export function useWriteMemory() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (body: MemoryWriteRequest) => writeMemory(body),
+    mutationFn: ({ body, profile }: WriteMemoryParams) => writeMemory(body, profile),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.all });
     },
@@ -61,14 +68,15 @@ export function useWriteMemory() {
 interface RevertMemoryDecisionParams {
   decisionID: string;
   body?: MemoryDecisionRevertRequest;
+  profile?: string;
 }
 
 export function useRevertMemoryDecision() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ decisionID, body }: RevertMemoryDecisionParams) =>
-      revertMemoryDecision(decisionID, body ?? {}),
+    mutationFn: ({ decisionID, body, profile }: RevertMemoryDecisionParams) =>
+      revertMemoryDecision(decisionID, body ?? {}, profile),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.all });
     },
@@ -77,13 +85,15 @@ export function useRevertMemoryDecision() {
 
 interface TriggerMemoryDreamParams {
   workspaceID?: string;
+  profile?: string;
 }
 
 export function useTriggerMemoryDream() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ workspaceID }: TriggerMemoryDreamParams) => triggerMemoryDream(workspaceID),
+    mutationFn: ({ workspaceID, profile }: TriggerMemoryDreamParams) =>
+      triggerMemoryDream(workspaceID, profile),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: knowledgeKeys.all });
     },

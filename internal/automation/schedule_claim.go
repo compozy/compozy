@@ -25,6 +25,7 @@ func (s *Scheduler) claimScheduledJob(
 	claimedAt := s.now()
 	nextRun := nextRunAfter(job, scheduledAt, s.location)
 	claim := SchedulerClaim{
+		ProfileID:            job.ProfileID,
 		JobID:                job.ID,
 		RunID:                scheduledRunID(job.ID, scheduledAt),
 		FireID:               scheduledFireID(job.ID, scheduledAt),

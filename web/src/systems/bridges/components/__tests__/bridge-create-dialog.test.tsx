@@ -90,6 +90,19 @@ function readDraftProbe(): BridgeCreateDraft {
 }
 
 describe("BridgeCreateDialog", () => {
+  it("Should state where the bridge will be filed only while the aggregate is on", () => {
+    const { rerender } = render(<DialogHarness />);
+    // A scoped view already answers the question on screen.
+    expect(screen.queryByTestId("profile-destination-chip")).not.toBeInTheDocument();
+
+    rerender(<DialogHarness profileDestination="marketing" />);
+    const chip = screen.getByTestId("profile-destination-chip");
+    expect(chip).toHaveTextContent("marketing");
+    // Fixed text, never a picker: the owner-naming confirmation after the
+    // commit is what surfaces a misfile (ADR-005).
+    expect(chip.querySelector("button, select, input, a")).toBeNull();
+  });
+
   it("Should present a single-surface editor with no wizard chrome left", () => {
     render(<DialogHarness providers={[]} />);
 
@@ -280,6 +293,7 @@ describe("BridgeCreateDialog", () => {
         ]}
         secretRecovery={{
           bridgeId: "brg_slack",
+          profileName: "default",
           bound: ["signing_secret"],
           failures: { bot_token: "vault unavailable" },
           provider: makeProvider({

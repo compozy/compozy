@@ -21,5 +21,10 @@ func CloneAgentDef(agent AgentDef) AgentDef {
 		Capabilities:    agent.Capabilities.Clone(),
 		Prompt:          strings.TrimSpace(agent.Prompt),
 		SourcePath:      strings.TrimSpace(agent.SourcePath),
+		SourceLayer:     strings.TrimSpace(agent.SourceLayer),
+		ShadowedDefinitions: append(
+			[]AgentDefinitionRef(nil),
+			agent.ShadowedDefinitions...,
+		),
 	}
 }

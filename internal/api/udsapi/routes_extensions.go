@@ -8,6 +8,7 @@ func registerExtensionRoutes(api gin.IRouter, handlers *Handlers) {
 		extensions.GET("", handlers.ListExtensions)
 		extensions.GET("/search", handlers.SearchExtensions)
 		extensions.GET("/commands", handlers.ExtensionCommands)
+		extensions.POST("/preview-install", handlers.PreviewExtensionInstall)
 		extensions.POST("", handlers.InstallExtension)
 		extensions.POST("/dev", handlers.DevExtension)
 		extensions.POST("/update", handlers.UpdateExtensions)
@@ -18,11 +19,11 @@ func registerExtensionRoutes(api gin.IRouter, handlers *Handlers) {
 		extensions.PUT("/:name/secrets", handlers.SetExtensionSecrets)
 		extensions.DELETE("/:name/secrets/:env_name", handlers.DeleteExtensionSecret)
 		extensions.GET("/:name/inventory", handlers.ExtensionInventory)
-		extensions.GET("/:name/preview", handlers.PreviewExtensionEnable)
 		extensions.GET("/:name", handlers.ExtensionStatus)
 		extensions.POST("/:name/reload", handlers.ReloadDevExtension)
 		extensions.GET("/:name/logs", handlers.ExtensionLogs)
-		extensions.POST("/:name/enable", handlers.EnableExtension)
-		extensions.POST("/:name/disable", handlers.DisableExtension)
+		extensions.GET("/:name/enablement", handlers.ListExtensionEnablement)
+		extensions.PUT("/:name/enablement", handlers.SetExtensionEnablement)
+		extensions.GET("/:name/preview", handlers.PreviewExtensionEnable)
 	}
 }

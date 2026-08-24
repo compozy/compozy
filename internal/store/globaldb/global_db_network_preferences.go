@@ -59,6 +59,7 @@ func (g *NetworkRepo) PutNetworkSubscriptionWithChannel(
 		func(exec networkSQLExecutor) error {
 			queries := sqlcgen.New(exec)
 			if err := queries.CreateNetworkChannel(ctx, sqlcgen.CreateNetworkChannelParams{
+				ProfileID:         preparedChannel.ProfileID,
 				Channel:           preparedChannel.Channel,
 				WorkspaceID:       preparedChannel.WorkspaceID,
 				Purpose:           preparedChannel.Purpose,

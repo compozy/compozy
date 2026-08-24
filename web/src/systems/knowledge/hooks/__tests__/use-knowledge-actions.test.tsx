@@ -55,7 +55,7 @@ describe("useDeleteMemory", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
-    const listKey = knowledgeKeys.list({ scope: "global", limit: 1 });
+    const listKey = knowledgeKeys.list({ scope: "profile", limit: 1 });
     const cachedList = {
       pageParams: [undefined],
       pages: [
@@ -75,7 +75,13 @@ describe("useDeleteMemory", () => {
 
     act(() => {
       result.current.mutate({
-        selector: { scope: "agent", agentName: "cto", agentTier: "workspace", workspaceId: "ws" },
+        selector: {
+          profile: "marketing",
+          scope: "agent",
+          agentName: "cto",
+          agentTier: "workspace",
+          workspaceId: "ws",
+        },
         filename: "old.md",
       });
     });
@@ -85,7 +91,13 @@ describe("useDeleteMemory", () => {
     });
 
     expect(deleteMemory).toHaveBeenCalledWith(
-      { scope: "agent", agentName: "cto", agentTier: "workspace", workspaceId: "ws" },
+      {
+        profile: "marketing",
+        scope: "agent",
+        agentName: "cto",
+        agentTier: "workspace",
+        workspaceId: "ws",
+      },
       "old.md"
     );
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["knowledge"] });
@@ -106,7 +118,7 @@ describe("useDeleteMemory", () => {
     const { result } = renderHook(() => useDeleteMemory(), { wrapper });
 
     act(() => {
-      result.current.mutate({ selector: { scope: "global" }, filename: "missing.md" });
+      result.current.mutate({ selector: { scope: "profile" }, filename: "missing.md" });
     });
 
     await waitFor(() => {
@@ -142,7 +154,8 @@ describe("useEditMemory", () => {
     act(() => {
       result.current.mutate({
         filename: "operator-style.md",
-        body: { content: "next", scope: "global", type: "user", name: "Operator Style" },
+        body: { content: "next", scope: "profile", type: "user", name: "Operator Style" },
+        profile: "marketing",
       });
     });
 
@@ -150,12 +163,16 @@ describe("useEditMemory", () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(editMemory).toHaveBeenCalledWith("operator-style.md", {
-      content: "next",
-      scope: "global",
-      type: "user",
-      name: "Operator Style",
-    });
+    expect(editMemory).toHaveBeenCalledWith(
+      "operator-style.md",
+      {
+        content: "next",
+        scope: "profile",
+        type: "user",
+        name: "Operator Style",
+      },
+      "marketing"
+    );
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["knowledge"] });
   });
 
@@ -211,11 +228,14 @@ describe("useWriteMemory", () => {
 
     act(() => {
       result.current.mutate({
-        scope: "workspace",
-        workspace_id: "ws_launch",
-        type: "project",
-        name: "Launch Memory",
-        content: "memory body",
+        profile: "marketing",
+        body: {
+          scope: "workspace",
+          workspace_id: "ws_launch",
+          type: "project",
+          name: "Launch Memory",
+          content: "memory body",
+        },
       });
     });
 
@@ -223,13 +243,16 @@ describe("useWriteMemory", () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(writeMemory).toHaveBeenCalledWith({
-      scope: "workspace",
-      workspace_id: "ws_launch",
-      type: "project",
-      name: "Launch Memory",
-      content: "memory body",
-    });
+    expect(writeMemory).toHaveBeenCalledWith(
+      {
+        scope: "workspace",
+        workspace_id: "ws_launch",
+        type: "project",
+        name: "Launch Memory",
+        content: "memory body",
+      },
+      "marketing"
+    );
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["knowledge"] });
   });
 });
@@ -260,6 +283,7 @@ describe("useRevertMemoryDecision", () => {
       result.current.mutate({
         decisionID: "dec_edit_fixture",
         body: { reason: "operator reverted from Knowledge" },
+        profile: "marketing",
       });
     });
 
@@ -267,9 +291,11 @@ describe("useRevertMemoryDecision", () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(revertMemoryDecision).toHaveBeenCalledWith("dec_edit_fixture", {
-      reason: "operator reverted from Knowledge",
-    });
+    expect(revertMemoryDecision).toHaveBeenCalledWith(
+      "dec_edit_fixture",
+      { reason: "operator reverted from Knowledge" },
+      "marketing"
+    );
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["knowledge"] });
   });
 });
@@ -297,14 +323,14 @@ describe("useTriggerMemoryDream", () => {
     const { result } = renderHook(() => useTriggerMemoryDream(), { wrapper });
 
     act(() => {
-      result.current.mutate({ workspaceID: "ws_launch" });
+      result.current.mutate({ workspaceID: "ws_launch", profile: "marketing" });
     });
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(triggerMemoryDream).toHaveBeenCalledWith("ws_launch");
+    expect(triggerMemoryDream).toHaveBeenCalledWith("ws_launch", "marketing");
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["knowledge"] });
   });
 });

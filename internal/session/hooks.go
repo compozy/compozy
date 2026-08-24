@@ -48,8 +48,8 @@ type RuntimeRecoveryHooks interface {
 type SandboxHooks interface {
 	DispatchSandboxPrepare(
 		context.Context,
-		hookspkg.SandboxPreparePayload,
-	) (hookspkg.SandboxPreparePayload, error)
+		*hookspkg.SandboxPreparePayload,
+	) (*hookspkg.SandboxPreparePayload, error)
 	DispatchSandboxReady(
 		context.Context,
 		hookspkg.SandboxReadyPayload,

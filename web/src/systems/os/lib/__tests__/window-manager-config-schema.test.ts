@@ -14,7 +14,7 @@ function settingsResponse(): WindowManagerSettingsWire {
     section: "window-manager",
     scope: "workspace",
     workspace_id: "workspace:alpha",
-    available_scopes: ["global", "workspace"],
+    available_scopes: ["user", "workspace"],
     aliases: { "ext.notes.capture": "cap" },
     commands: [
       {
@@ -90,7 +90,7 @@ describe("parseSettingsWindowManagerSection", () => {
 
     expect(section.scope).toBe("workspace");
     expect(section.workspaceId).toBe("workspace:alpha");
-    expect(section.availableScopes).toEqual(["global", "workspace"]);
+    expect(section.availableScopes).toEqual(["user", "workspace"]);
     expect(section.commands.map(command => command.id)).toEqual([
       "desktop.switch.next",
       "ext.notes.capture",

@@ -128,7 +128,8 @@ export function useBridgeSetupFlow({ bindings, bridge, health, provider }: Bridg
         store.trigger.registrationRequested({
           bridgeId: bridge.id,
           bridgeName: bridge.display_name,
-          register: bridgeId => registerMutation.mutateAsync({ id: bridgeId }),
+          register: bridgeId =>
+            registerMutation.mutateAsync({ id: bridgeId, profile: bridge.profile_name }),
         });
       }
     },
@@ -137,7 +138,8 @@ export function useBridgeSetupFlow({ bindings, bridge, health, provider }: Bridg
         store.trigger.verificationRequested({
           bridgeId: bridge.id,
           bridgeName: bridge.display_name,
-          verify: bridgeId => verifyMutation.mutateAsync({ id: bridgeId }),
+          verify: bridgeId =>
+            verifyMutation.mutateAsync({ id: bridgeId, profile: bridge.profile_name }),
         });
       }
     },

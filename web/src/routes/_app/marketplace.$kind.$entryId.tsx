@@ -15,7 +15,12 @@ export const Route = createFileRoute("/_app/marketplace/$kind/$entryId")({
       parentCrumb: isMarketplaceKind(params.kind)
         ? {
             label: MARKETPLACE_KIND_LABEL[params.kind],
-            search: { scope: search.scope, tab: search.tab, workspace_id: search.workspace_id },
+            search: {
+              profile: search.profile,
+              scope: search.scope,
+              tab: search.tab,
+              workspace_id: search.workspace_id,
+            },
             to: `/marketplace/${marketplaceRouteKindFor(params.kind)}`,
           }
         : undefined,

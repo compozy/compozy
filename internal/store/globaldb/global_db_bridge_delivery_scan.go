@@ -13,6 +13,12 @@ import (
 
 type bridgeDeliveryStorageRow struct {
 	deliveryID       string
+	profileID        string
+	profileName      string
+	profileColor     string
+	profileIcon      string
+	profileEmoji     string
+	profileArchived  bool
 	sessionID        string
 	turnID           string
 	routingKey       string
@@ -32,6 +38,12 @@ func scanBridgeDelivery(scanner rowScanner) (bridges.DeliveryLedgerRecord, error
 	var row bridgeDeliveryStorageRow
 	if err := scanner.Scan(
 		&row.deliveryID,
+		&row.profileID,
+		&row.profileName,
+		&row.profileColor,
+		&row.profileIcon,
+		&row.profileEmoji,
+		&row.profileArchived,
 		&row.sessionID,
 		&row.turnID,
 		&row.routingKey,
@@ -65,6 +77,8 @@ func bridgeDeliveryFromGenerated(row sqlcgen.BridgeDelivery) (bridges.DeliveryLe
 func bridgeDeliveryFromStorageRow(row bridgeDeliveryStorageRow) (bridges.DeliveryLedgerRecord, error) {
 	record := bridges.DeliveryLedgerRecord{
 		DeliveryID: row.deliveryID, SessionID: row.sessionID, TurnID: row.turnID,
+		ProfileID: row.profileID, ProfileName: row.profileName, ProfileColor: row.profileColor,
+		ProfileIcon: row.profileIcon, ProfileEmoji: row.profileEmoji, ProfileArchived: row.profileArchived,
 		BridgeInstanceID: row.bridgeInstanceID, Scope: bridges.Scope(row.scope),
 		WorkspaceID: bridgeStringValue(row.workspaceID), State: bridges.DeliveryLedgerState(row.state),
 		LastSentSeq: row.lastSentSeq, LastAckedSeq: row.lastAckedSeq,

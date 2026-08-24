@@ -281,6 +281,7 @@ type JudgeRequest struct {
 	CriterionID          string
 	Attempt              int
 	CorrelationID        string
+	ProfileID            string
 	WorkspaceID          string
 	Agent                string
 	Runtime              dsl.RuntimeSpec

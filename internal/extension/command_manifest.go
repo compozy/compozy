@@ -225,6 +225,7 @@ func normalizeCommandGroups(
 	for idx := range groups {
 		groups[idx].Path = strings.TrimSpace(groups[idx].Path)
 		groups[idx].Summary = strings.TrimSpace(groups[idx].Summary)
+		groups[idx].Profile = strings.TrimSpace(groups[idx].Profile)
 	}
 	return groups
 }

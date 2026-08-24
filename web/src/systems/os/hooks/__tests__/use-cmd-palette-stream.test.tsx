@@ -85,7 +85,7 @@ describe("useCmdPaletteStream (UT-104)", () => {
   it("Should subscribe through the named catalog event and never a bare message handler", () => {
     const { sources } = harness();
     const [source] = sources;
-    expect(source?.url).toBe(cmdPaletteStreamUrl(WORKSPACE));
+    expect(source?.url).toBe(cmdPaletteStreamUrl(WORKSPACE, "default"));
     expect(source?.listenerCount(CMD_PALETTE_CATALOG_CHANGED_EVENT)).toBe(1);
     // L-017: a bare `onmessage` would swallow every other family on the socket.
     expect(source?.onmessage).toBeNull();
@@ -103,12 +103,29 @@ describe("useCmdPaletteStream (UT-104)", () => {
     await waitFor(() => expect(invalidate).toHaveBeenCalledTimes(1));
     const call = invalidate.mock.calls[0]?.[0];
     expect(call).toEqual({ predicate: expect.any(Function) });
+    // UT-099: the workspace prefix still sweeps every lens and every client
+    // under it, so one catalog event cannot leave another profile's rows stale.
     expect(
-      call?.predicate?.({ queryKey: ["cmd-palette", "catalog", WORKSPACE, "client-a"] } as never)
+      call?.predicate?.({
+        queryKey: ["cmd-palette", "catalog", WORKSPACE, "default", "client-a"],
+      } as never)
     ).toBe(true);
     expect(
-      call?.predicate?.({ queryKey: ["cmd-palette", "rank-signals", WORKSPACE] } as never)
+      call?.predicate?.({
+        queryKey: ["cmd-palette", "catalog", WORKSPACE, "@all", "client-a"],
+      } as never)
     ).toBe(true);
+    expect(
+      call?.predicate?.({
+        queryKey: ["cmd-palette", "rank-signals", WORKSPACE, "default"],
+      } as never)
+    ).toBe(true);
+    // Another profile's ranking history is not this event's business.
+    expect(
+      call?.predicate?.({
+        queryKey: ["cmd-palette", "rank-signals", WORKSPACE, "marketing"],
+      } as never)
+    ).toBe(false);
     expect(call?.predicate?.({ queryKey: ["cmd-palette", "catalog", "ws-other"] } as never)).toBe(
       false
     );
@@ -158,5 +175,21 @@ describe("useCmdPaletteStream (UT-104)", () => {
     const { result, sources } = harness(null);
     expect(result.current).toBe("disabled");
     expect(sources).toHaveLength(0);
+  });
+
+  it("Should subscribe under the active profile so the daemon never sends another's revisions", () => {
+    const { sources } = harness();
+    // Both axes on the subscription: an omitted selector resolves `default`
+    // server-side, so this client would be told about the wrong catalog.
+    const url = new URL(sources[0]?.url ?? "", "http://localhost");
+    expect(url.searchParams.get("workspace")).toBe(WORKSPACE);
+    expect(url.searchParams.get("profile")).toBe("default");
+    expect(url.searchParams.get("all_profiles")).toBeNull();
+  });
+
+  it("Should widen the subscription only through the explicit aggregate flag", () => {
+    const url = new URL(cmdPaletteStreamUrl(WORKSPACE, "@all"), "http://localhost");
+    expect(url.searchParams.get("all_profiles")).toBe("true");
+    expect(url.searchParams.get("profile")).toBeNull();
   });
 });

@@ -27,8 +27,8 @@ import { useSettingsAutomationPage } from "../use-settings-automation-page";
 
 const automationEnvelope: SettingsAutomationSection = {
   section: "automation",
-  scope: "global",
-  available_scopes: ["global"],
+  scope: "user",
+  available_scopes: ["user"],
   config: {
     enabled: true,
     timezone: "UTC",
@@ -102,7 +102,7 @@ describe("useSettingsAutomationPage", () => {
   it("save persists draft via the mutation and stores the restart-required applied label", async () => {
     vi.mocked(updateSettingsAutomation).mockResolvedValue({
       section: "automation",
-      scope: "global",
+      scope: "user",
       applied: true,
       active_config_hash: "sha256:test-active",
       active_generation: 1,

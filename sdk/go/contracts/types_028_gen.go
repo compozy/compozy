@@ -7,6 +7,79 @@ import (
 	"time"
 )
 
+type TaskTimelineItem struct {
+	Sequence  int64                  `json:"sequence"`
+	EventID   string                 `json:"event_id"`
+	Task      TaskReferencePayload   `json:"task"`
+	Run       *TaskRunSummaryPayload `json:"run,omitempty"`
+	EventType string                 `json:"event_type"`
+	Reason    string                 `json:"reason,omitempty"`
+	Actor     ActorIdentity          `json:"actor"`
+	Origin    Origin                 `json:"origin"`
+	Payload   json.RawMessage        `json:"payload,omitempty"`
+	Timestamp time.Time              `json:"timestamp"`
+}
+
+type TaskTimelineParams struct {
+	ID            string `json:"id"`
+	AfterSequence int64  `json:"after_sequence,omitempty"`
+	Limit         int    `json:"limit,omitempty"`
+}
+
+type TaskTree struct {
+	Root        TaskTreeNodePayload   `json:"root"`
+	Descendants []TaskTreeNodePayload `json:"descendants,omitempty"`
+}
+
+type TaskTreeNodePayload struct {
+	Task           TaskReferencePayload   `json:"task"`
+	ParentTaskID   string                 `json:"parent_task_id,omitempty"`
+	Depth          int                    `json:"depth"`
+	ChildCount     int                    `json:"child_count,omitempty"`
+	ActiveRun      *TaskRunSummaryPayload `json:"active_run,omitempty"`
+	LastActivityAt time.Time              `json:"last_activity_at"`
+}
+
+type TaskTreeParams struct {
+	ID string `json:"id"`
+}
+
+type TaskTriageStatePayload struct {
+	TaskID             string        `json:"task_id"`
+	Actor              ActorIdentity `json:"actor"`
+	Read               bool          `json:"read"`
+	Archived           bool          `json:"archived"`
+	Dismissed          bool          `json:"dismissed"`
+	LastSeenActivityAt *time.Time    `json:"last_seen_activity_at,omitempty"`
+	UpdatedAt          time.Time     `json:"updated_at"`
+}
+
+type TaskUnblockedPayload struct {
+	Event                        HookEvent       `json:"event"`
+	Timestamp                    time.Time       `json:"timestamp"`
+	ProfileID                    string          `json:"profile_id,omitempty"`
+	TaskID                       string          `json:"task_id,omitempty"`
+	ParentTaskID                 string          `json:"parent_task_id,omitempty"`
+	WorkspaceID                  string          `json:"workspace_id,omitempty"`
+	WorkflowID                   string          `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *Spec           `json:"resolved_network_participation,omitempty"`
+	AgentName                    string          `json:"agent_name,omitempty"`
+	ActorKind                    string          `json:"actor_kind,omitempty"`
+	ActorID                      string          `json:"actor_id,omitempty"`
+	OriginKind                   string          `json:"origin_kind,omitempty"`
+	OriginRef                    string          `json:"origin_ref,omitempty"`
+	TaskStatus                   string          `json:"task_status,omitempty"`
+	RunID                        string          `json:"run_id,omitempty"`
+	ReleaseReason                string          `json:"release_reason,omitempty"`
+	ClaimTokenHash               string          `json:"claim_token_hash,omitempty"`
+	BlockID                      string          `json:"block_id,omitempty"`
+	Kind                         string          `json:"kind,omitempty"`
+	Reason                       string          `json:"reason,omitempty"`
+	Details                      json.RawMessage `json:"details,omitempty"`
+	ClearedAt                    time.Time       `json:"cleared_at,omitzero"`
+	ClearNote                    string          `json:"clear_note,omitempty"`
+}
+
 type TaskUpdateParams struct {
 	ID                   string           `json:"id"`
 	Title                *string          `json:"title,omitempty"`
@@ -110,6 +183,7 @@ type ToolLocation struct {
 type ToolPostCallPayload struct {
 	Event          HookEvent       `json:"event"`
 	Timestamp      time.Time       `json:"timestamp"`
+	ProfileID      string          `json:"profile_id,omitempty"`
 	SessionID      string          `json:"session_id,omitempty"`
 	SessionName    string          `json:"session_name,omitempty"`
 	SessionType    string          `json:"session_type,omitempty"`
@@ -143,6 +217,7 @@ type ToolPostErrorPatch struct {
 type ToolPostErrorPayload struct {
 	Event          HookEvent       `json:"event"`
 	Timestamp      time.Time       `json:"timestamp"`
+	ProfileID      string          `json:"profile_id,omitempty"`
 	SessionID      string          `json:"session_id,omitempty"`
 	SessionName    string          `json:"session_name,omitempty"`
 	SessionType    string          `json:"session_type,omitempty"`
@@ -168,6 +243,7 @@ type ToolPostErrorPayload struct {
 type ToolPreCallPayload struct {
 	Event          HookEvent       `json:"event"`
 	Timestamp      time.Time       `json:"timestamp"`
+	ProfileID      string          `json:"profile_id,omitempty"`
 	SessionID      string          `json:"session_id,omitempty"`
 	SessionName    string          `json:"session_name,omitempty"`
 	SessionType    string          `json:"session_type,omitempty"`
@@ -212,74 +288,4 @@ type ToolResult struct {
 	Truncated  bool                       `json:"truncated"`
 	Bytes      int64                      `json:"bytes"`
 	DurationMS int64                      `json:"duration_ms"`
-}
-
-type ToolResultPatch struct {
-	Deny       bool            `json:"deny,omitempty"`
-	DenyReason string          `json:"deny_reason,omitempty"`
-	Title      *string         `json:"title,omitempty"`
-	ToolResult json.RawMessage `json:"tool_result,omitempty"`
-	Error      *string         `json:"error,omitempty"`
-}
-
-type ToolsetID string
-
-type Trigger struct {
-	ID                   string                 `json:"id"`
-	Scope                Scope                  `json:"scope"`
-	Name                 string                 `json:"name"`
-	TargetKind           TargetKind             `json:"target_kind"`
-	AgentName            string                 `json:"agent_name"`
-	WorkspaceID          string                 `json:"workspace_id,omitempty"`
-	Prompt               string                 `json:"prompt"`
-	Event                string                 `json:"event"`
-	Filter               map[string]string      `json:"filter,omitempty"`
-	LoopTarget           *LoopTarget            `json:"loop_target,omitempty"`
-	Enabled              bool                   `json:"enabled"`
-	Retry                RetryConfig            `json:"retry"`
-	FireLimit            FireLimitConfig        `json:"fire_limit"`
-	Source               JobSource              `json:"source"`
-	WebhookID            string                 `json:"webhook_id,omitempty"`
-	EndpointSlug         string                 `json:"endpoint_slug,omitempty"`
-	WebhookSecretPresent bool                   `json:"webhook_secret_present"`
-	WebhookSecretHash    string                 `json:"webhook_secret_hash,omitempty"`
-	Ingress              *GatewayIngressPayload `json:"ingress,omitempty"`
-	CreatedAt            time.Time              `json:"created_at"`
-	UpdatedAt            time.Time              `json:"updated_at"`
-}
-
-type TriggerResult struct {
-	Matched int   `json:"matched"`
-	Runs    []Run `json:"runs,omitempty"`
-}
-
-type TurnContext struct {
-	TurnID string `json:"turn_id,omitempty"`
-}
-
-type TurnEndPatch struct {
-	Deny       bool              `json:"deny,omitempty"`
-	DenyReason string            `json:"deny_reason,omitempty"`
-	Labels     map[string]string `json:"labels,omitempty"`
-}
-
-type TurnEndPayload struct {
-	Event          HookEvent `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	TurnID         string    `json:"turn_id,omitempty"`
-	InputClass     string    `json:"input_class,omitempty"`
-	UserMessage    string    `json:"user_message,omitempty"`
 }

@@ -1,12 +1,33 @@
 package core
 
 import (
+	"context"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	observepkg "github.com/compozy/compozy/internal/observe"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
+
+func (h *BaseHandlers) decorateTaskCatalogOwners(
+	ctx context.Context,
+	response contract.TasksResponse,
+) (contract.TasksResponse, error) {
+	owners, err := h.profileOwnerIdentities(ctx)
+	if err != nil {
+		return contract.TasksResponse{}, err
+	}
+	for index := range response.Tasks {
+		if err := setTaskCatalogItemProfileOwner(
+			owners,
+			&response.Tasks[index],
+			h == nil || h.Profiles == nil,
+		); err != nil {
+			return contract.TasksResponse{}, err
+		}
+	}
+	return response, nil
+}
 
 // TaskCatalogResponseFromPage converts one bounded catalog page into its wire envelope.
 func TaskCatalogResponseFromPage(page taskpkg.CatalogPage) contract.TasksResponse {

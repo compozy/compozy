@@ -223,9 +223,13 @@ func closeNetworkPageRows(rows *sql.Rows, label string, target *error) {
 
 func networkThreadSummarySelect() string {
 	return `SELECT
-		workspace_id, channel, thread_id, root_message_id, title, opened_by_peer_id, opened_session_id,
-		opened_at, opened_sequence, last_activity_at, last_activity_sequence,
-		message_count, participant_count, open_work_count,
+		network_threads.profile_id, profiles.name, profiles.color, COALESCE(profiles.icon, ''),
+		COALESCE(profiles.emoji, ''), profiles.archived_at IS NOT NULL,
+		network_threads.workspace_id, network_threads.channel, network_threads.thread_id,
+		network_threads.root_message_id, network_threads.title, network_threads.opened_by_peer_id,
+		network_threads.opened_session_id, network_threads.opened_at, network_threads.opened_sequence,
+		network_threads.last_activity_at, network_threads.last_activity_sequence,
+		network_threads.message_count, network_threads.participant_count, network_threads.open_work_count,
 		COALESCE((
 			SELECT SUM(stats.delivered_count)
 			FROM network_thread_session_token_stats AS stats
@@ -247,14 +251,20 @@ func networkThreadSummarySelect() string {
 				AND stats.channel = network_threads.channel
 				AND stats.thread_id = network_threads.thread_id
 		), 0),
-		last_message_preview
-	FROM network_threads`
+		network_threads.last_message_preview
+	FROM network_threads
+	JOIN profiles ON profiles.id = network_threads.profile_id`
 }
 
 func networkDirectRoomSummarySelect() string {
 	return `SELECT
-		workspace_id, channel, direct_id, session_a, session_b,
-		opened_at, opened_sequence, last_activity_at, last_activity_sequence,
-		message_count, open_work_count, last_message_preview
-	FROM network_direct_rooms`
+		network_direct_rooms.profile_id, profiles.name, profiles.color, COALESCE(profiles.icon, ''),
+		COALESCE(profiles.emoji, ''), profiles.archived_at IS NOT NULL,
+		network_direct_rooms.workspace_id, network_direct_rooms.channel, network_direct_rooms.direct_id,
+		network_direct_rooms.session_a, network_direct_rooms.session_b, network_direct_rooms.opened_at,
+		network_direct_rooms.opened_sequence, network_direct_rooms.last_activity_at,
+		network_direct_rooms.last_activity_sequence, network_direct_rooms.message_count,
+		network_direct_rooms.open_work_count, network_direct_rooms.last_message_preview
+	FROM network_direct_rooms
+	JOIN profiles ON profiles.id = network_direct_rooms.profile_id`
 }

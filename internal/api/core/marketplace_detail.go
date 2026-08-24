@@ -100,7 +100,7 @@ func (h *BaseHandlers) skillMarketplaceEntry(
 	scope marketplaceReadScope,
 ) (contract.MarketplaceEntryResponse, error) {
 	if slug, ok := decodeRemoteSkillEntryID(entryID); ok {
-		return h.remoteSkillMarketplaceEntry(ctx, entryID, slug)
+		return h.remoteSkillMarketplaceEntry(ctx, entryID, slug, scope)
 	}
 
 	response, err := h.curatedMarketplaceEntry(ctx, marketplacepkg.KindSkill, entryID, scope)
@@ -147,6 +147,7 @@ func (h *BaseHandlers) remoteSkillMarketplaceEntry(
 	ctx context.Context,
 	entryID string,
 	slug string,
+	scope marketplaceReadScope,
 ) (contract.MarketplaceEntryResponse, error) {
 	if h == nil {
 		return contract.MarketplaceEntryResponse{}, errors.Join(
@@ -158,7 +159,7 @@ func (h *BaseHandlers) remoteSkillMarketplaceEntry(
 	if err != nil {
 		return contract.MarketplaceEntryResponse{}, normalizeSkillMarketplaceError(err)
 	}
-	installed, err := h.skillInstallIndex(ctx)
+	installed, err := h.skillInstallIndex(ctx, scope)
 	if err != nil {
 		return contract.MarketplaceEntryResponse{}, err
 	}

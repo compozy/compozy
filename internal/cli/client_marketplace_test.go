@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/compozy/compozy/internal/api/contract"
 )
 
 func TestUnixSocketClientMarketplaceMethods(t *testing.T) {
@@ -104,16 +106,16 @@ func TestUnixSocketClientMarketplaceMethods(t *testing.T) {
 
 		client := &daemonClient{}
 		ctx := context.Background()
-		globalScope := MarketplaceReadScope{Scope: "global"}
-		if _, err := client.BrowseMarketplace(ctx, "   ", "", 20, "", globalScope); err == nil ||
+		userScope := MarketplaceReadScope{Scope: "user"}
+		if _, err := client.BrowseMarketplace(ctx, "   ", "", 20, "", userScope); err == nil ||
 			!strings.Contains(err.Error(), "marketplace kind is required") {
 			t.Fatalf("BrowseMarketplace(blank kind) error = %v", err)
 		}
-		if _, err := client.MarketplaceInfo(ctx, "   ", "entry", "", globalScope); err == nil ||
+		if _, err := client.MarketplaceInfo(ctx, "   ", "entry", "", userScope); err == nil ||
 			!strings.Contains(err.Error(), "marketplace kind is required") {
 			t.Fatalf("MarketplaceInfo(blank kind) error = %v", err)
 		}
-		if _, err := client.MarketplaceInfo(ctx, "skill", "   ", "", globalScope); err == nil ||
+		if _, err := client.MarketplaceInfo(ctx, "skill", "   ", "", userScope); err == nil ||
 			!strings.Contains(err.Error(), "marketplace entry ID is required") {
 			t.Fatalf("MarketplaceInfo(blank entry ID) error = %v", err)
 		}
@@ -130,9 +132,17 @@ func TestUnixSocketClientMarketplaceMethods(t *testing.T) {
 			"skill",
 			"entry",
 			"",
-			MarketplaceReadScope{Scope: "global", WorkspaceID: "ws-alpha"},
+			MarketplaceReadScope{Scope: "user", WorkspaceID: "ws-alpha"},
 		); err == nil || !strings.Contains(err.Error(), "--workspace requires --scope workspace") {
 			t.Fatalf("MarketplaceInfo(global with workspace) error = %v", err)
+		}
+		if _, err := client.SearchMarketplace(
+			ctx,
+			"",
+			20,
+			MarketplaceReadScope{Scope: "user", Profile: "marketing"},
+		); err == nil || !strings.Contains(err.Error(), "--profile requires --scope profile") {
+			t.Fatalf("SearchMarketplace(user with profile) error = %v", err)
 		}
 	})
 
@@ -152,10 +162,33 @@ func TestUnixSocketClientMarketplaceMethods(t *testing.T) {
 			"artifact",
 			"review-kit",
 			"activation-review-kit",
-			MarketplaceReadScope{Scope: "global"},
+			MarketplaceReadScope{Scope: "user"},
 		)
 		if err == nil || !strings.Contains(err.Error(), "--installed-name is only supported") {
 			t.Fatalf("MarketplaceInfo(unsupported installed identity) error = %v, want local validation", err)
+		}
+	})
+
+	t.Run("Should carry profile identity in installed-state reads", func(t *testing.T) {
+		t.Parallel()
+
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				if got := req.URL.Query().Get("scope"); got != "profile" {
+					t.Fatalf("profile marketplace scope = %q", got)
+				}
+				if got := req.URL.Query().Get("profile"); got != "marketing" {
+					t.Fatalf("profile marketplace identity = %q", got)
+				}
+				return newHTTPResponse(http.StatusOK, `{"kinds":[]}`), nil
+			})},
+		}
+		_, err := client.SearchMarketplace(t.Context(), "", 20, MarketplaceReadScope{
+			Scope: contract.SettingsLayeredScopeProfile, Profile: "marketing",
+		})
+		if err != nil {
+			t.Fatalf("SearchMarketplace(profile) error = %v", err)
 		}
 	})
 }

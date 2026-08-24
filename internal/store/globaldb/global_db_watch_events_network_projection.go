@@ -11,7 +11,7 @@ import (
 )
 
 func networkWatchEventFromRow(
-	row networkWatchEventRow,
+	row *networkWatchEventRow,
 	kind hookspkg.HookEvent,
 	workState string,
 ) looppkg.WatchEvent {
@@ -47,7 +47,7 @@ func networkWatchEventFromRow(
 
 func appendRequestedNetworkWorkEvent(
 	events *[]looppkg.WatchEvent,
-	row networkWatchEventRow,
+	row *networkWatchEventRow,
 	kindSet map[string]struct{},
 	kind hookspkg.HookEvent,
 	workState string,
@@ -60,7 +60,7 @@ func appendRequestedNetworkWorkEvent(
 
 func (g *WatchEventsRepo) networkConversationOpenedAtTimelineRow(
 	ctx context.Context,
-	row networkWatchEventRow,
+	row *networkWatchEventRow,
 	surface string,
 ) (bool, error) {
 	message := row.message

@@ -22,6 +22,8 @@ function session(
   pendingInteractions: SessionPayload["pending_interactions"] = []
 ): SessionPayload {
   return {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     id,
     name: "Checkout launch review",
     agent_name: "codex",

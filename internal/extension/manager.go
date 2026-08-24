@@ -261,6 +261,7 @@ type Manager struct {
 	compozyExecutable     func() (string, error)
 	secretResolver        SecretRefResolver
 	envBindings           EnvBindingStore
+	profileNames          ProfileNameResolver
 	launch                processLauncher
 	toolCallTracker       ExtensionToolCallTracker
 	hostMethods           map[string]subprocess.HandlerFunc
@@ -288,11 +289,13 @@ type Manager struct {
 	devOperationsDone chan struct{}
 	viewCallGates     viewCallGateRegistry
 
-	extensions      map[string]*managedExtension
-	devExtensions   map[InstanceKey]*managedExtension
-	devCoordinators map[InstanceKey]*sync.Mutex
-	devLogs         map[InstanceKey]*ExtensionLogRing
-	pendingCleanups []pendingExtensionCleanup
+	extensions          map[string]*managedExtension
+	devExtensions       map[InstanceKey]*managedExtension
+	profileExtensions   map[InstanceKey]*managedExtension
+	devCoordinators     map[InstanceKey]*sync.Mutex
+	profileCoordinators map[InstanceKey]*sync.Mutex
+	devLogs             map[InstanceKey]*ExtensionLogRing
+	pendingCleanups     []pendingExtensionCleanup
 }
 
 // NewManager constructs an extension manager with sensible defaults.
@@ -332,7 +335,9 @@ func newManagerDefaults(registry *Registry) *Manager {
 		subprocessSignalGrace:     defaultSubprocessSignalGrace,
 		extensions:                make(map[string]*managedExtension),
 		devExtensions:             make(map[InstanceKey]*managedExtension),
+		profileExtensions:         make(map[InstanceKey]*managedExtension),
 		devCoordinators:           make(map[InstanceKey]*sync.Mutex),
+		profileCoordinators:       make(map[InstanceKey]*sync.Mutex),
 		devLogs:                   make(map[InstanceKey]*ExtensionLogRing),
 	}
 	manager.launch = func(ctx context.Context, cfg subprocess.LaunchConfig) (processHandle, error) {

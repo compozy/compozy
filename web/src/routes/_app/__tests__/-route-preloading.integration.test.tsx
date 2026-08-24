@@ -33,6 +33,7 @@ import { DEFAULT_MEMORY_LIST_LIMIT, memoriesListOptions, useMemories } from "@/s
 import { useNotificationPresets } from "@/systems/notifications";
 import { onboardingStatusOptions, useOnboardingStatus } from "@/systems/onboarding";
 import { homeActivityOptions, homeOverviewOptions, homePrefsStore } from "@/systems/dashboard";
+import { resetProfileViews, setProfileView } from "@/systems/profiles";
 import { useSchedulerBacklog, useSchedulerStatus } from "@/systems/scheduler";
 import { useSessions } from "@/systems/session";
 import { statusOptions } from "@/systems/status";
@@ -366,7 +367,8 @@ const cases: PreloadCase[] = [
     mountConsumer: queryClient =>
       mountQueries(queryClient, () => {
         useMemories({
-          scope: "global",
+          profile: "default",
+          scope: "profile",
           includeSystem: false,
           limit: DEFAULT_MEMORY_LIST_LIMIT,
           sort: "recent",
@@ -762,7 +764,7 @@ const cases: PreloadCase[] = [
       mountQueries(queryClient, () => {
         useAgents();
         useWorkspaces();
-        useSettingsSkills({ scope: "global" });
+        useSettingsSkills({ scope: "user" });
       }),
     requests: [
       adapterMocks.fetchAgents,
@@ -811,6 +813,7 @@ const cases: PreloadCase[] = [
 
 describe("route query preloading", () => {
   beforeEach(() => {
+    resetProfileViews();
     homePrefsStore.trigger.usageWindowSelected({ usageWindow: 30 });
     homePrefsStore.trigger.systemPanelClosed();
 
@@ -840,7 +843,7 @@ describe("route query preloading", () => {
     adapterMocks.getSettingsUpdate.mockResolvedValue({ status: "idle" });
     adapterMocks.listSettingsApplyRecords.mockResolvedValue({ records: [] });
     adapterMocks.listSettingsProviders.mockResolvedValue({ providers: [] });
-    adapterMocks.getSettingsSkills.mockResolvedValue({ config: {}, scope: "global" });
+    adapterMocks.getSettingsSkills.mockResolvedValue({ config: {}, scope: "user" });
     adapterMocks.getSettingsMemory.mockResolvedValue({ config: {} });
     adapterMocks.getSettingsObservability.mockResolvedValue({ config: {} });
     adapterMocks.getSettingsHooksExtensions.mockResolvedValue({ config: {} });
@@ -861,11 +864,11 @@ describe("route query preloading", () => {
     });
     adapterMocks.getAutomationJob.mockResolvedValue({
       id: "job-1",
-      scope: "global",
+      scope: "user",
     });
     adapterMocks.getAutomationTrigger.mockResolvedValue({
       id: "trigger-1",
-      scope: "global",
+      scope: "user",
     });
     adapterMocks.listAutomationJobRuns.mockResolvedValue([]);
     adapterMocks.listAutomationTriggerRuns.mockResolvedValue([]);
@@ -1091,7 +1094,8 @@ describe("route query preloading", () => {
     await waitFor(() => {
       const knowledgeState = queryClient.getQueryState(
         memoriesListOptions({
-          scope: "global",
+          profile: "default",
+          scope: "profile",
           includeSystem: false,
           limit: DEFAULT_MEMORY_LIST_LIMIT,
           sort: "recent",
@@ -1154,6 +1158,10 @@ describe("route query preloading", () => {
   it("Should preload the inbox badge and defer the stale inbox request until mount", async () => {
     const queryClient = createQueryClient();
     const scope = { scope: "workspace" as const, workspace: workspace.id };
+    setProfileView(
+      { scope: "workspace", workspaceId: workspace.id },
+      { kind: "profile", profile: "marketing" }
+    );
 
     await expect(
       invokeLoader(TasksRoute, {
@@ -1171,6 +1179,10 @@ describe("route query preloading", () => {
 
     expect(adapterMocks.listTasks).not.toHaveBeenCalled();
     expect(adapterMocks.getTaskInbox).toHaveBeenCalledTimes(1);
+    expect(adapterMocks.getTaskInbox).toHaveBeenCalledWith(
+      expect.objectContaining({ profile: "marketing" }),
+      expect.any(AbortSignal)
+    );
     expect(adapterMocks.getTaskDashboard).not.toHaveBeenCalled();
 
     const unmount = mountQueries(queryClient, () => {
@@ -1293,15 +1305,18 @@ describe("route query preloading", () => {
 
     const usageWindow = homePrefsStore.getSnapshot().context.usageWindow;
     expect(usageWindow).toBe(7);
+    // The profile axis rides the same keys as the workspace axis; the claim under
+    // test is still which *workspace* the preload warmed.
     const scopedKeys = [
-      homeOverviewOptions({ workspace: workspace.id, usageWindow }).queryKey,
-      homeActivityOptions({ workspace_id: workspace.id }).queryKey,
-      taskDashboardOptions({ scope: "workspace", workspace: workspace.id }).queryKey,
+      homeOverviewOptions({ workspace: workspace.id, usageWindow, profile: "default" }).queryKey,
+      homeActivityOptions({ workspace_id: workspace.id, profile: "default" }).queryKey,
+      taskDashboardOptions({ scope: "workspace", workspace: workspace.id, profile: "default" })
+        .queryKey,
     ];
     const globalKeys = [
-      homeOverviewOptions({ workspace: undefined, usageWindow }).queryKey,
-      homeActivityOptions({ workspace_id: undefined }).queryKey,
-      taskDashboardOptions({ scope: "global" }).queryKey,
+      homeOverviewOptions({ workspace: undefined, usageWindow, profile: "default" }).queryKey,
+      homeActivityOptions({ workspace_id: undefined, profile: "default" }).queryKey,
+      taskDashboardOptions({ scope: "global", profile: "default" }).queryKey,
     ];
 
     for (const key of scopedKeys) {

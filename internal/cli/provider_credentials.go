@@ -40,6 +40,21 @@ func providerCredentialStatuses(
 	return items, nil
 }
 
+func labelProviderCredentialSources(statuses []providerCredentialStatusItem, profileName string) {
+	profileName = strings.TrimSpace(profileName)
+	if profileName == "" {
+		return
+	}
+	for index := range statuses {
+		parsed, err := vault.ParseProfileSecretRef(statuses[index].SecretRef)
+		if err == nil && parsed.ProfileName == profileName {
+			statuses[index].Source = "profile " + profileName + " (override)"
+			continue
+		}
+		statuses[index].Source = providerDefaultSource
+	}
+}
+
 func providerAuthProbeEnv(
 	homePaths compozyconfig.HomePaths,
 	providerName string,

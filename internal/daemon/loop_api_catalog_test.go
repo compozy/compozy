@@ -12,12 +12,105 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestDaemonLoopCatalogShouldBatchBeforePageHydration(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should isolate profile-placed definitions across two profiles", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
+		workspaceRoot := t.TempDir()
+		workspaceResolver := loopCatalogWorkspaceResolverForTest(t, "ws-catalog", workspaceRoot, now)
+		marketingSpec := loopCatalogSpecWithFile(t, t.TempDir(), "profile-loop", looppkg.SourceMarketplace)
+		marketingSpec.Description = "marketing profile"
+		engineeringSpec := loopCatalogSpecWithFile(t, t.TempDir(), "profile-loop", looppkg.SourceMarketplace)
+		engineeringSpec.Description = "engineering profile"
+		if err := os.WriteFile(
+			marketingSpec.FilePath,
+			[]byte(testLoopYAML("profile-loop", "marketing profile")),
+			0o600,
+		); err != nil {
+			t.Fatalf("WriteFile(marketing loop) error = %v", err)
+		}
+		if err := os.WriteFile(
+			engineeringSpec.FilePath,
+			[]byte(testLoopYAML("profile-loop", "engineering profile")),
+			0o600,
+		); err != nil {
+			t.Fatalf("WriteFile(engineering loop) error = %v", err)
+		}
+		catalog := newResourceCatalog(looppkg.CloneResourceSpec)
+		catalog.Replace(1, []resources.Record[looppkg.ResourceSpec]{
+			{
+				ID: "marketing-loop", Scope: resources.ResourceScope{
+					Kind: resources.ResourceScopeKindProfile, ID: "profile-marketing",
+				}, Spec: marketingSpec,
+			},
+			{
+				ID: "engineering-loop", Scope: resources.ResourceScope{
+					Kind: resources.ResourceScopeKindProfile, ID: "profile-engineering",
+				}, Spec: engineeringSpec,
+			},
+		})
+		service := &daemonLoopAPIService{
+			catalog: catalog, catalogRuns: &loopCatalogRunReaderStub{}, workspaceResolver: workspaceResolver,
+			profiles: loopProfileNameResolverStub{
+				"profile-marketing": "marketing", "profile-engineering": "engineering",
+			},
+			now: func() time.Time { return now },
+		}
+
+		marketing, err := service.ListLoops(ctx, "ws-catalog", looppkg.CatalogQuery{
+			ProfileID: "profile-marketing",
+		})
+		if err != nil {
+			t.Fatalf("ListLoops(marketing) error = %v", err)
+		}
+		engineering, err := service.ListLoops(ctx, "ws-catalog", looppkg.CatalogQuery{
+			ProfileID: "profile-engineering",
+		})
+		if err != nil {
+			t.Fatalf("ListLoops(engineering) error = %v", err)
+		}
+		if got, want := marketing.Loops[0].Description, "marketing profile"; got != want {
+			t.Fatalf("marketing description = %q, want %q", got, want)
+		}
+		if got, want := engineering.Loops[0].Description, "engineering profile"; got != want {
+			t.Fatalf("engineering description = %q, want %q", got, want)
+		}
+
+		definitionResolver := &daemonLoopDefinitionResolver{
+			catalog:  catalog,
+			profiles: service.profiles,
+			compilerFactory: func(context.Context) *looppkg.Compiler {
+				return looppkg.NewCompiler()
+			},
+		}
+		resolvedMarketing, err := definitionResolver.ResolveLoop(
+			ctx, "ws-catalog", "profile-marketing", "profile-loop",
+		)
+		if err != nil {
+			t.Fatalf("ResolveLoop(marketing) error = %v", err)
+		}
+		resolvedEngineering, err := definitionResolver.ResolveLoop(
+			ctx, "ws-catalog", "profile-engineering", "profile-loop",
+		)
+		if err != nil {
+			t.Fatalf("ResolveLoop(engineering) error = %v", err)
+		}
+		if got, want := resolvedMarketing.Definition.Meta.Description, "marketing profile"; got != want {
+			t.Fatalf("resolved marketing description = %q, want %q", got, want)
+		}
+		if got, want := resolvedEngineering.Definition.Meta.Description, "engineering profile"; got != want {
+			t.Fatalf("resolved engineering description = %q, want %q", got, want)
+		}
+	})
 
 	t.Run("Should overlay resources once and open definitions only for returned rows", func(t *testing.T) {
 		t.Parallel()
@@ -27,12 +120,12 @@ func TestDaemonLoopCatalogShouldBatchBeforePageHydration(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		resolver := loopCatalogWorkspaceResolverForTest(t, "ws-catalog", workspaceRoot, now)
 		alpha := loopCatalogSpecWithFile(t, t.TempDir(), "alpha", looppkg.SourceUser)
-		shadowGlobal := alpha
-		shadowGlobal.Name = "shadow"
-		shadowGlobal.Source = looppkg.SourceUser
-		shadowGlobal.FilePath = filepath.Join(t.TempDir(), "missing-global-shadow.yaml")
-		shadowGlobal.ContractGoal = "Global shadow"
-		shadowWorkspace := shadowGlobal
+		shadowUser := alpha
+		shadowUser.Name = "shadow"
+		shadowUser.Source = looppkg.SourceUser
+		shadowUser.FilePath = filepath.Join(t.TempDir(), "missing-user-shadow.yaml")
+		shadowUser.ContractGoal = "User shadow"
+		shadowWorkspace := shadowUser
 		shadowWorkspace.Source = looppkg.SourceWorkspace
 		shadowWorkspace.ContractGoal = "Workspace shadow"
 		shadowWorkspace.FilePath = filepath.Join(t.TempDir(), "missing-workspace-shadow.yaml")
@@ -43,14 +136,14 @@ func TestDaemonLoopCatalogShouldBatchBeforePageHydration(t *testing.T) {
 		catalog := newResourceCatalog(looppkg.CloneResourceSpec)
 		catalog.Replace(1, []resources.Record[looppkg.ResourceSpec]{
 			{
-				ID:    "global-alpha",
-				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				ID:    "user-alpha",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				Spec:  alpha,
 			},
 			{
-				ID:    "global-shadow",
-				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-				Spec:  shadowGlobal,
+				ID:    "user-shadow",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+				Spec:  shadowUser,
 			},
 			{
 				ID:    "workspace-shadow",
@@ -83,8 +176,9 @@ func TestDaemonLoopCatalogShouldBatchBeforePageHydration(t *testing.T) {
 		}
 
 		response, err := service.ListLoops(ctx, "ws-catalog", looppkg.CatalogQuery{
-			Kind:  looppkg.CatalogKindReadOnly,
-			Limit: 1,
+			ProfileID: store.DefaultProfileID,
+			Kind:      looppkg.CatalogKindReadOnly,
+			Limit:     1,
 		})
 		if err != nil {
 			t.Fatalf("ListLoops() error = %v", err)
@@ -123,7 +217,9 @@ func TestDaemonLoopCatalogShouldBatchBeforePageHydration(t *testing.T) {
 			workspaceResolver: resolver,
 			now:               func() time.Time { return now },
 		}
-		_, err := service.ListLoops(testutil.Context(t), "ws-unknown", looppkg.CatalogQuery{})
+		_, err := service.ListLoops(testutil.Context(t), "ws-unknown", looppkg.CatalogQuery{
+			ProfileID: store.DefaultProfileID,
+		})
 		if !errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
 			t.Fatalf("ListLoops(unknown) error = %v, want ErrWorkspaceNotFound", err)
 		}
@@ -145,7 +241,9 @@ func TestDaemonLoopCatalogShouldBatchBeforePageHydration(t *testing.T) {
 			workspaceResolver: resolver,
 			now:               func() time.Time { return now },
 		}
-		_, err := service.ListLoops(testutil.Context(t), "ws-missing-root", looppkg.CatalogQuery{})
+		_, err := service.ListLoops(testutil.Context(t), "ws-missing-root", looppkg.CatalogQuery{
+			ProfileID: store.DefaultProfileID,
+		})
 		if !errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) {
 			t.Fatalf("ListLoops(missing root) error = %v, want ErrWorkspaceRootMissing", err)
 		}
@@ -159,6 +257,16 @@ type loopCatalogRunReaderStub struct {
 	calls     int
 	query     looppkg.CatalogRunQuery
 	summaries map[string]looppkg.CatalogRunSummary
+}
+
+type loopProfileNameResolverStub map[string]string
+
+func (s loopProfileNameResolverStub) ProfileName(_ context.Context, profileID string) (string, error) {
+	name, ok := s[profileID]
+	if !ok {
+		return "", errors.New("profile not found")
+	}
+	return name, nil
 }
 
 func (s *loopCatalogRunReaderStub) ListLoopCatalogRunSummaries(

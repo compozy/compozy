@@ -21,14 +21,14 @@ func (g *NetworkRepo) lookupNetworkConversationMessageCursor(
 	cursorQuery.BeforeMessageID = ""
 	cursorQuery.AfterMessageID = ""
 	where, args := networkConversationMessageFilterClauses(ref, cursorQuery)
-	where = append([]string{"message_id = ?"}, where...)
+	where = append([]string{"network_timeline_log.message_id = ?"}, where...)
 	args = append([]any{strings.TrimSpace(messageID)}, args...)
 
 	var cursor networkMessageCursor
 	// dynamic-sql: the cursor must reuse the container-specific and optional message filters from the page query.
 	if err := g.db.QueryRowContext(
 		ctx,
-		store.AppendWhere(`SELECT sequence FROM network_timeline_log`, where),
+		store.AppendWhere(`SELECT network_timeline_log.sequence `+networkTimelineOwnerFromClause(), where),
 		args...,
 	).Scan(&cursor.Sequence); err != nil {
 		return networkMessageCursor{}, fmt.Errorf(
@@ -43,61 +43,54 @@ func (g *NetworkRepo) lookupNetworkConversationMessageCursor(
 
 func networkConversationMessageSelect() string {
 	return `SELECT
-		sequence,
-		message_id,
-			session_id,
-			workspace_id,
-			channel,
-		surface,
-		thread_id,
-		direct_id,
-		direction,
-		peer_from,
-		peer_to,
-		kind,
-		work_id,
-		reply_to,
-		trace_id,
-		causation_id,
-		intent,
-		text,
-		preview_text,
-		mentions_json,
-		ext_json,
-		body_json,
+		owner_profile.id, owner_profile.name, owner_profile.color, COALESCE(owner_profile.icon, ''),
+		COALESCE(owner_profile.emoji, ''), owner_profile.archived_at IS NOT NULL,
+		network_timeline_log.sequence, network_timeline_log.message_id,
+		network_timeline_log.session_id, network_timeline_log.workspace_id,
+		network_timeline_log.channel, network_timeline_log.surface,
+		network_timeline_log.thread_id, network_timeline_log.direct_id,
+		network_timeline_log.direction, network_timeline_log.peer_from,
+		network_timeline_log.peer_to, network_timeline_log.kind,
+		network_timeline_log.work_id, network_timeline_log.reply_to,
+		network_timeline_log.trace_id, network_timeline_log.causation_id,
+		network_timeline_log.intent, network_timeline_log.text,
+		network_timeline_log.preview_text, network_timeline_log.mentions_json,
+		network_timeline_log.ext_json, network_timeline_log.body_json,
 		COALESCE((
 			SELECT MAX(audit.size)
 			FROM network_audit_log AS audit
 			WHERE audit.workspace_id = network_timeline_log.workspace_id
 				AND audit.message_id = network_timeline_log.message_id
 		), 0),
-		timestamp
-	FROM network_timeline_log`
+		network_timeline_log.timestamp
+	` + networkTimelineOwnerFromClause()
 }
 
 func networkConversationMessageFilterClauses(
 	ref store.NetworkConversationRef,
 	query store.NetworkConversationMessageQuery,
 ) ([]string, []any) {
-	where := []string{
-		globalDBNetworkConversationsWorkspaceIDValue,
-		globalDBNetworkConversationsChannelValue,
-		"surface = ?",
-	}
+	where, scopeArgs := store.BuildClauses(store.ReadScopeClause("owner_profile.id", query.ReadScope))
+	where = append(where,
+		"network_timeline_log.workspace_id = ?",
+		"network_timeline_log.channel = ?",
+		"network_timeline_log.surface = ?",
+	)
 	args := []any{ref.WorkspaceID, ref.Channel, ref.Surface}
+	args = append(scopeArgs, args...)
 	if ref.Surface == store.NetworkSurfaceThread {
-		where = append(where, "thread_id = ?")
+		where = append(where, "network_timeline_log.thread_id = ?")
 		args = append(args, ref.ThreadID)
 	} else {
-		where = append(where, "direct_id = ?")
+		where = append(where, "network_timeline_log.direct_id = ?")
 		args = append(args, ref.DirectID)
 	}
 	if strings.TrimSpace(query.Kind) != "" {
-		where = append(where, "kind = ?")
+		where = append(where, "network_timeline_log.kind = ?")
 		args = append(args, strings.TrimSpace(query.Kind))
 	}
 	if strings.TrimSpace(query.WorkID) != "" {
-		where = append(where, "work_id = ?")
+		where = append(where, "network_timeline_log.work_id = ?")
 		args = append(args, strings.TrimSpace(query.WorkID))
 	}
 	return where, args
@@ -145,6 +138,12 @@ func scanNetworkThreadSummary(scanner rowScanner) (store.NetworkThreadSummary, e
 		activityRaw string
 	)
 	if err := scanner.Scan(
+		&summary.ProfileID,
+		&summary.ProfileName,
+		&summary.ProfileColor,
+		&summary.ProfileIcon,
+		&summary.ProfileEmoji,
+		&summary.ProfileArchived,
 		&summary.WorkspaceID,
 		&summary.Channel,
 		&summary.ThreadID,
@@ -221,6 +220,12 @@ func scanNetworkDirectRoomSummary(scanner rowScanner) (store.NetworkDirectRoomSu
 		activityRaw string
 	)
 	if err := scanner.Scan(
+		&summary.ProfileID,
+		&summary.ProfileName,
+		&summary.ProfileColor,
+		&summary.ProfileIcon,
+		&summary.ProfileEmoji,
+		&summary.ProfileArchived,
 		&summary.WorkspaceID,
 		&summary.Channel,
 		&summary.DirectID,

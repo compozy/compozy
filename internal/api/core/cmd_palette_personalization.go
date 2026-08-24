@@ -10,6 +10,10 @@ import (
 )
 
 func (h *BaseHandlers) GetCmdPaletteRankSignals(c *gin.Context) {
+	profileLens, ok := h.resolveCmdPaletteProfileLens(c, false)
+	if !ok {
+		return
+	}
 	workspaceID, ok := h.resolveCmdPaletteWorkspace(c, c.Query("workspace"))
 	if !ok {
 		return
@@ -18,7 +22,7 @@ func (h *BaseHandlers) GetCmdPaletteRankSignals(c *gin.Context) {
 		h.respondCmdPaletteError(c, workspaceID, errCmdPaletteServiceUnavailable)
 		return
 	}
-	snapshot, err := h.CmdPalette.Personalization(c.Request.Context(), workspaceID)
+	snapshot, err := h.CmdPalette.Personalization(c.Request.Context(), profileLens, workspaceID)
 	if err != nil {
 		h.respondCmdPaletteError(c, workspaceID, err)
 		return
@@ -42,7 +46,12 @@ func (h *BaseHandlers) RecordCmdPaletteUsage(c *gin.Context) {
 	if !ok {
 		return
 	}
+	profileLens, ok := h.resolveCmdPaletteProfileLens(c, true)
+	if !ok {
+		return
+	}
 	if err := h.CmdPalette.RecordUsage(c.Request.Context(), cmdpalette.Usage{
+		ProfileLens: profileLens,
 		WorkspaceID: workspaceID,
 		CommandID:   cmdpalette.CommandID(strings.TrimSpace(string(body.CommandID))),
 		Query:       body.Query,
@@ -62,6 +71,10 @@ func (h *BaseHandlers) UnpinCmdPaletteCommand(c *gin.Context) {
 }
 
 func (h *BaseHandlers) changeCmdPalettePin(c *gin.Context, pinned bool) {
+	profileLens, ok := h.resolveCmdPaletteProfileLens(c, true)
+	if !ok {
+		return
+	}
 	workspaceID, ok := h.resolveCmdPaletteWorkspace(c, c.Query("workspace"))
 	if !ok {
 		return
@@ -73,9 +86,9 @@ func (h *BaseHandlers) changeCmdPalettePin(c *gin.Context, pinned bool) {
 	commandID := cmdpalette.CommandID(strings.TrimSpace(c.Param("id")))
 	var err error
 	if pinned {
-		err = h.CmdPalette.Pin(c.Request.Context(), workspaceID, commandID)
+		err = h.CmdPalette.Pin(c.Request.Context(), profileLens, workspaceID, commandID)
 	} else {
-		err = h.CmdPalette.Unpin(c.Request.Context(), workspaceID, commandID)
+		err = h.CmdPalette.Unpin(c.Request.Context(), profileLens, workspaceID, commandID)
 	}
 	if err != nil {
 		h.respondCmdPaletteError(c, workspaceID, err)
@@ -85,6 +98,10 @@ func (h *BaseHandlers) changeCmdPalettePin(c *gin.Context, pinned bool) {
 }
 
 func (h *BaseHandlers) GetCmdPalettePersonalization(c *gin.Context) {
+	profileLens, ok := h.resolveCmdPaletteProfileLens(c, false)
+	if !ok {
+		return
+	}
 	workspaceID, ok := h.resolveCmdPaletteWorkspace(c, c.Query("workspace"))
 	if !ok {
 		return
@@ -93,7 +110,7 @@ func (h *BaseHandlers) GetCmdPalettePersonalization(c *gin.Context) {
 		h.respondCmdPaletteError(c, workspaceID, errCmdPaletteServiceUnavailable)
 		return
 	}
-	summary, err := h.CmdPalette.PersonalizationSummary(c.Request.Context(), workspaceID)
+	summary, err := h.CmdPalette.PersonalizationSummary(c.Request.Context(), profileLens, workspaceID)
 	if err != nil {
 		h.respondCmdPaletteError(c, workspaceID, err)
 		return
@@ -102,6 +119,10 @@ func (h *BaseHandlers) GetCmdPalettePersonalization(c *gin.Context) {
 }
 
 func (h *BaseHandlers) ResetCmdPalettePersonalization(c *gin.Context) {
+	profileLens, ok := h.resolveCmdPaletteProfileLens(c, true)
+	if !ok {
+		return
+	}
 	workspaceID, ok := h.resolveCmdPaletteWorkspace(c, c.Query("workspace"))
 	if !ok {
 		return
@@ -110,7 +131,7 @@ func (h *BaseHandlers) ResetCmdPalettePersonalization(c *gin.Context) {
 		h.respondCmdPaletteError(c, workspaceID, errCmdPaletteServiceUnavailable)
 		return
 	}
-	if err := h.CmdPalette.ResetPersonalization(c.Request.Context(), workspaceID); err != nil {
+	if err := h.CmdPalette.ResetPersonalization(c.Request.Context(), profileLens, workspaceID); err != nil {
 		h.respondCmdPaletteError(c, workspaceID, err)
 		return
 	}

@@ -94,7 +94,7 @@ func TestMCPProviderProjectionGeneration(t *testing.T) {
 			Kind:          SourceMCP,
 			Owner:         "linear",
 			RawServerName: "linear",
-			Scope:         mcpSourceScopeGlobal,
+			Scope:         mcpSourceScopeUser,
 		}
 		provider, err := NewMCPProvider(
 			MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) {
@@ -487,7 +487,7 @@ func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) 
 		}
 	})
 
-	t.Run("Should Never Persist Global MCP Sources", func(t *testing.T) {
+	t.Run("Should Never Persist User MCP Sources", func(t *testing.T) {
 		t.Parallel()
 
 		deadStore := newMCPReliabilityStore()
@@ -506,7 +506,7 @@ func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) 
 					Kind:          SourceMCP,
 					Owner:         "global",
 					RawServerName: "global",
-					Scope:         mcpSourceScopeGlobal,
+					Scope:         mcpSourceScopeUser,
 				}}, nil
 			}),
 			executor,
@@ -710,10 +710,138 @@ func TestShouldRetainDeadMCPDescriptorsUntilOpportunisticRecovery(t *testing.T) 
 			t.Fatalf("provider.List(workspace A failure) = %#v, want workspace A cached descriptor", descriptors)
 		}
 	})
+
+	t.Run("Should isolate reliability state across profiles", func(t *testing.T) {
+		t.Parallel()
+
+		deadStore := newMCPReliabilityStore()
+		deadService := deadentity.New(deadStore)
+		executor := newFakeMCPExecutor([]MCPToolDescriptor{{
+			RawName:     "lookup",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+		}})
+		source := SourceRef{
+			Kind: SourceMCP, Owner: "github", RawServerName: "github",
+			Scope: mcpSourceScopeWorkspace, WorkspaceID: "ws-profile-isolation",
+		}
+		provider, err := NewMCPProvider(
+			MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) {
+				return []SourceRef{source}, nil
+			}),
+			executor,
+			executor,
+			WithMCPDeadEntityService(deadService),
+		)
+		if err != nil {
+			t.Fatalf("NewMCPProvider() error = %v", err)
+		}
+		scopes := []Scope{
+			{ProfileID: "profile-a", WorkspaceID: source.WorkspaceID, Operator: true},
+			{ProfileID: "profile-b", WorkspaceID: source.WorkspaceID, Operator: true},
+		}
+		for _, scope := range scopes {
+			if descriptors, listErr := provider.List(
+				context.Background(),
+				scope,
+			); listErr != nil ||
+				len(descriptors) != 1 {
+				t.Fatalf(
+					"provider.List(%s, initial) = %#v, %v, want one descriptor",
+					scope.ProfileID,
+					descriptors,
+					listErr,
+				)
+			}
+		}
+		executor.setListError(NewToolError(
+			ErrorCodeUnavailable,
+			"mcp__github__lookup",
+			"github sidecar is unreachable",
+			ErrToolUnavailable,
+			ReasonMCPUnreachable,
+		))
+		for attempt := range deadentity.DefaultPermanentFailureThreshold {
+			for _, scope := range scopes {
+				descriptors, listErr := provider.List(context.Background(), scope)
+				if listErr != nil || len(descriptors) != 1 {
+					t.Fatalf(
+						"provider.List(%s, failure %d) = %#v, %v, want its cached descriptor",
+						scope.ProfileID,
+						attempt,
+						descriptors,
+						listErr,
+					)
+				}
+			}
+		}
+		marked := deadStore.Marked()
+		if len(marked) != 2 || marked[0].ProfileID == marked[1].ProfileID {
+			t.Fatalf("dead marks = %#v, want one mark per profile", marked)
+		}
+	})
+
+	t.Run("Should Retire Deleted Server State Across Profiles", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		executor := newFakeMCPExecutor([]MCPToolDescriptor{{
+			RawName:     "lookup",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+		}})
+		source := SourceRef{
+			Kind: SourceMCP, Owner: "github", RawServerName: "github",
+			Scope: mcpSourceScopeWorkspace, WorkspaceID: "ws-profile-retirement",
+		}
+		provider, err := NewMCPProvider(
+			MCPSourceListerFunc(func(context.Context) ([]SourceRef, error) {
+				return []SourceRef{source}, nil
+			}),
+			executor,
+			executor,
+			WithMCPDeadEntityService(deadentity.New(newMCPReliabilityStore())),
+		)
+		if err != nil {
+			t.Fatalf("NewMCPProvider() error = %v", err)
+		}
+		scopes := []Scope{
+			{ProfileID: "profile-a", WorkspaceID: source.WorkspaceID, Operator: true},
+			{ProfileID: "profile-b", WorkspaceID: source.WorkspaceID, Operator: true},
+		}
+		for _, scope := range scopes {
+			if descriptors, listErr := provider.List(ctx, scope); listErr != nil || len(descriptors) != 1 {
+				t.Fatalf(
+					"provider.List(%s, initial) = %#v, %v, want one descriptor",
+					scope.ProfileID,
+					descriptors,
+					listErr,
+				)
+			}
+		}
+
+		provider.ForgetMCPServer(source.WorkspaceID, source.RawServerName)
+		executor.setListError(NewToolError(
+			ErrorCodeUnavailable,
+			"mcp__github__lookup",
+			"github sidecar is unreachable",
+			ErrToolUnavailable,
+			ReasonMCPUnreachable,
+		))
+		for _, scope := range scopes {
+			descriptors, listErr := provider.List(ctx, scope)
+			if listErr != nil || len(descriptors) != 0 {
+				t.Fatalf(
+					"provider.List(%s, retired) = %#v, %v, want no stale descriptor",
+					scope.ProfileID,
+					descriptors,
+					listErr,
+				)
+			}
+		}
+	})
 }
 
 func TestShouldIsolateMCPProviderRegistryByWorkspace(t *testing.T) {
-	t.Run("Should Project Only Global And Current Workspace Sources", func(t *testing.T) {
+	t.Run("Should Project Only User And Current Workspace Sources", func(t *testing.T) {
 		t.Parallel()
 
 		executor := newFakeMCPExecutor([]MCPToolDescriptor{{
@@ -725,7 +853,7 @@ func TestShouldIsolateMCPProviderRegistryByWorkspace(t *testing.T) {
 				Kind:          SourceMCP,
 				Owner:         "github",
 				RawServerName: "github",
-				Scope:         "global",
+				Scope:         "user",
 			},
 			{
 				Kind:          SourceMCP,
@@ -766,7 +894,51 @@ func TestShouldIsolateMCPProviderRegistryByWorkspace(t *testing.T) {
 		}
 	})
 
-	t.Run("Should Prefer The Current Workspace Source Over A Homonymous Global Source", func(t *testing.T) {
+	t.Run("Should prefer the active workspace-profile source across all four layers", func(t *testing.T) {
+		t.Parallel()
+
+		executor := newFakeMCPExecutor([]MCPToolDescriptor{{
+			RawName:     "lookup",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+		}})
+		provider := newTestMCPProvider(t, executor, []SourceRef{
+			{Kind: SourceMCP, Owner: "linear", RawServerName: "linear", Scope: mcpSourceScopeUser},
+			{
+				Kind: SourceMCP, Owner: "linear", RawServerName: "linear",
+				ResourceID: "mcp-profile-active", Scope: mcpSourceScopeProfile, ProfileID: "profile-active",
+			},
+			{
+				Kind: SourceMCP, Owner: "linear", RawServerName: "linear",
+				ResourceID: "mcp-workspace-a", Scope: mcpSourceScopeWorkspace, WorkspaceID: "workspace-a",
+			},
+			{
+				Kind: SourceMCP, Owner: "linear", RawServerName: "linear",
+				ResourceID: "mcp-workspace-profile-active", Scope: mcpSourceScopeWorkspaceProfile,
+				ProfileID: "profile-active", WorkspaceID: "workspace-a",
+			},
+			{
+				Kind: SourceMCP, Owner: "linear", RawServerName: "linear",
+				ResourceID: "mcp-workspace-profile-foreign", Scope: mcpSourceScopeWorkspaceProfile,
+				ProfileID: "profile-foreign", WorkspaceID: "workspace-a",
+			},
+		})
+		registry := newMCPRegistry(t, provider)
+
+		views, err := registry.OperatorProjection(context.Background(), Scope{
+			Operator: true, ProfileID: "profile-active", WorkspaceID: "workspace-a",
+		})
+		if err != nil {
+			t.Fatalf("registry.OperatorProjection() error = %v", err)
+		}
+		if len(views) != 1 || views[0].Descriptor.Source.ResourceID != "mcp-workspace-profile-active" {
+			t.Fatalf("registry.OperatorProjection() views = %#v, want active workspace-profile source", views)
+		}
+		if executor.listedResource("mcp-workspace-profile-foreign") {
+			t.Fatal("registry.OperatorProjection() probed a foreign profile source")
+		}
+	})
+
+	t.Run("Should Prefer The Current Workspace Source Over A Homonymous User Source", func(t *testing.T) {
 		t.Parallel()
 
 		executor := newFakeMCPExecutor([]MCPToolDescriptor{{
@@ -778,7 +950,7 @@ func TestShouldIsolateMCPProviderRegistryByWorkspace(t *testing.T) {
 				Kind:          SourceMCP,
 				Owner:         "linear",
 				RawServerName: "linear",
-				Scope:         "global",
+				Scope:         "user",
 			},
 			{
 				Kind:          SourceMCP,
@@ -1023,38 +1195,35 @@ func (s *mcpReliabilityStore) MarkDeadEntity(_ context.Context, entity store.Dea
 
 func (s *mcpReliabilityStore) ClearDeadEntity(
 	_ context.Context,
-	workspaceID string,
-	kind store.DeadEntityKind,
-	entityID string,
+	key store.DeadEntityKey,
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.clears++
-	delete(s.entities, store.DeadEntityKey{WorkspaceID: workspaceID, Kind: kind, EntityID: entityID})
+	delete(s.entities, key)
 	return nil
 }
 
 func (s *mcpReliabilityStore) FindDeadEntity(
 	_ context.Context,
-	workspaceID string,
-	kind store.DeadEntityKind,
-	entityID string,
+	key store.DeadEntityKey,
 ) (store.DeadEntity, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	entity, ok := s.entities[store.DeadEntityKey{WorkspaceID: workspaceID, Kind: kind, EntityID: entityID}]
+	entity, ok := s.entities[key]
 	return entity, ok, nil
 }
 
 func (s *mcpReliabilityStore) ListDeadEntities(
 	_ context.Context,
+	readScope store.ReadScope,
 	workspaceID string,
 ) ([]store.DeadEntity, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	entities := make([]store.DeadEntity, 0)
 	for key, entity := range s.entities {
-		if key.WorkspaceID == workspaceID {
+		if key.WorkspaceID == workspaceID && readScope.Matches(key.ProfileID) {
 			entities = append(entities, entity)
 		}
 	}

@@ -42,7 +42,7 @@ func (s *daemonExtensionService) Inventory(
 		live = nil
 	}
 	items := s.mergeExtensionKitInventory(ctx, desired, live)
-	projection, err := s.payloadFromExtension(ctx, ext)
+	projection, err := s.payloadFromExtension(ctx, ext, extensionDefaultProfileLens())
 	if err != nil {
 		return contract.ExtensionInventoryPayload{}, err
 	}
@@ -199,6 +199,18 @@ func (s *daemonExtensionService) desiredExtensionKit(
 	ext, err := s.runtime.InspectPackageResources(ctx, strings.TrimSpace(name))
 	if err != nil {
 		return nil, nil, err
+	}
+	if ext == nil {
+		return nil, nil, fmt.Errorf("daemon: inspect extension %q returned no package", strings.TrimSpace(name))
+	}
+	if ext.Manifest == nil {
+		return nil, nil, fmt.Errorf(
+			"daemon: inspected extension %q has no manifest (enabled=%t root=%q manifest_path=%q)",
+			strings.TrimSpace(name),
+			ext.Info.Enabled,
+			strings.TrimSpace(ext.RootDir),
+			strings.TrimSpace(ext.Info.ManifestPath),
+		)
 	}
 	items, err := projectExtensionKitItems(ctx, ext, s.resourceCodecs, s.getenv)
 	if err != nil {

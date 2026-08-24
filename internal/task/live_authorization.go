@@ -39,7 +39,7 @@ func (m *Service) listTaskTreeEventRecords(
 	afterSequence int64,
 	actor ActorContext,
 ) ([]EventRecord, error) {
-	tree, err := m.collectTaskTree(ctx, rootTaskID)
+	tree, err := m.collectTaskTree(ctx, rootTaskID, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +74,7 @@ func (m *Service) filterAuthorizedTaskTree(
 	actor ActorContext,
 	tree []Task,
 ) []Task {
-	if isTaskOperator(actor) {
+	if canBypassTaskReadAuthorization(actor) {
 		return tree
 	}
 	hidden := make(map[string]struct{})
@@ -98,7 +98,7 @@ func (m *Service) filterAuthorizedEventRecords(
 	actor ActorContext,
 	records []EventRecord,
 ) ([]EventRecord, error) {
-	if isTaskOperator(actor) {
+	if canBypassTaskReadAuthorization(actor) {
 		return records, nil
 	}
 	visible := make([]EventRecord, 0, len(records))

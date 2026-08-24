@@ -52,6 +52,10 @@ func (d *Daemon) hookBindingProviders(
 	state *bootState,
 	nativeDecls []hookspkg.HookDecl,
 ) []hookBindingDeclarationProvider {
+	var profiles extensionProfileCatalog
+	if state.profiles != nil {
+		profiles = state.profiles
+	}
 	return []hookBindingDeclarationProvider{
 		func(context.Context) ([]hookspkg.HookDecl, error) {
 			return hookCloneDeclarations(nativeDecls), nil
@@ -65,7 +69,7 @@ func (d *Daemon) hookBindingProviders(
 			state.cfg.Skills.AllowedMarketplaceHooks,
 			state.logger,
 		),
-		extensionDeclarationProvider(state.currentExtensionRuntime),
+		extensionDeclarationProvider(state.currentExtensionRuntime, profiles),
 	}
 }
 

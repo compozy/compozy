@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 
@@ -53,7 +54,7 @@ func startAutoTitleRoleHarness(
 ) *e2etest.RuntimeHarness {
 	t.Helper()
 	acpmock.RequireDriver(t)
-	return e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
 			cfg.Roles.MemoryExtractor.Enabled = false
 			if mutate != nil {
@@ -66,6 +67,23 @@ func startAutoTitleRoleHarness(
 			AgentName:    "auto-title-agent",
 		}},
 	})
+	t.Cleanup(func() {
+		if !t.Failed() {
+			return
+		}
+		manifest, err := harness.RuntimeManifest()
+		if err != nil {
+			t.Logf("RuntimeManifest(auto-title failure) error = %v", err)
+			return
+		}
+		processLog, err := os.ReadFile(manifest.Logs.ProcessLogFile)
+		if err != nil {
+			t.Logf("os.ReadFile(auto-title daemon process log) error = %v", err)
+			return
+		}
+		t.Logf("auto-title daemon process log:\n%s", processLog)
+	})
+	return harness
 }
 
 func runAutoTitleRoleExhaustionIntegration(t *testing.T) {
@@ -227,6 +245,7 @@ func openWorkspaceRoleSessionReader(
 	})
 	return func() []store.SessionInfo {
 		sessions, listErr := db.ListSessions(ctx, store.SessionListQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID: harness.WorkspaceID,
 			Limit:       100,
 		})

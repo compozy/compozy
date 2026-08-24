@@ -319,9 +319,9 @@ func loopToolSchemaDescriptor(t *testing.T) toolspkg.Descriptor {
 	t.Helper()
 
 	descriptor := toolspkg.Descriptor{
-		ID:           "ext__spec_cycle__finalize_review_round",
-		DisplayTitle: "Finalize review round",
-		Description:  "Resolve triaged review issue artifacts.",
+		ID:               "ext__spec_cycle__finalize_review_round",
+		ToolPresentation: toolspkg.NewToolPresentation("Finalize review round", "", ""),
+		Description:      "Resolve triaged review issue artifacts.",
 		InputSchema: json.RawMessage(
 			`{"type":"object","required":["task_name","round"],"properties":{"task_name":{"type":"string"},"round":{"type":"integer"}}}`,
 		),

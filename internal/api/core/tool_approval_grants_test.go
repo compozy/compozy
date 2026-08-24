@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
@@ -84,7 +85,10 @@ func TestToolApprovalGrantHandlers(t *testing.T) {
 		t.Parallel()
 
 		service := &stubToolApprovalGrantService{
-			listFn: func(_ context.Context, workspaceID string) ([]toolspkg.ApprovalGrant, error) {
+			listFn: func(_ context.Context, scope store.ReadScope, workspaceID string) ([]toolspkg.ApprovalGrant, error) {
+				if scope.ProfileID != store.DefaultProfileID || scope.AllProfiles {
+					t.Fatalf("ListApprovalGrants scope = %#v, want default profile", scope)
+				}
 				if workspaceID != "registry-ws" {
 					t.Fatalf("ListApprovalGrants workspace_id = %q, want registry-ws", workspaceID)
 				}
@@ -117,7 +121,10 @@ func TestToolApprovalGrantHandlers(t *testing.T) {
 		t.Parallel()
 
 		service := &stubToolApprovalGrantService{
-			revokeFn: func(_ context.Context, workspaceID, id string) error {
+			revokeFn: func(_ context.Context, profileID, workspaceID, id string) error {
+				if profileID != store.DefaultProfileID {
+					t.Fatalf("RevokeApprovalGrant profile_id = %q, want %q", profileID, store.DefaultProfileID)
+				}
 				if workspaceID != "registry-ws" || id != "grant-1" {
 					t.Fatalf("RevokeApprovalGrant(%q, %q), want registry-ws/grant-1", workspaceID, id)
 				}
@@ -143,7 +150,7 @@ func TestToolApprovalGrantHandlers(t *testing.T) {
 		t.Parallel()
 
 		service := &stubToolApprovalGrantService{
-			revokeFn: func(context.Context, string, string) error {
+			revokeFn: func(context.Context, string, string, string) error {
 				return toolspkg.ErrApprovalGrantNotFound
 			},
 		}
@@ -226,8 +233,8 @@ func toolApprovalGrantHandlerFixture() toolspkg.ApprovalGrant {
 type stubToolApprovalGrantService struct {
 	lookupFn func(context.Context, toolspkg.ApprovalGrantKey) (toolspkg.ApprovalGrant, bool, error)
 	putFn    func(context.Context, toolspkg.ApprovalGrant) (toolspkg.ApprovalGrant, error)
-	listFn   func(context.Context, string) ([]toolspkg.ApprovalGrant, error)
-	revokeFn func(context.Context, string, string) error
+	listFn   func(context.Context, store.ReadScope, string) ([]toolspkg.ApprovalGrant, error)
+	revokeFn func(context.Context, string, string, string) error
 }
 
 var _ ToolApprovalGrantService = (*stubToolApprovalGrantService)(nil)
@@ -254,21 +261,23 @@ func (s *stubToolApprovalGrantService) PutApprovalGrant(
 
 func (s *stubToolApprovalGrantService) ListApprovalGrants(
 	ctx context.Context,
+	scope store.ReadScope,
 	workspaceID string,
 ) ([]toolspkg.ApprovalGrant, error) {
 	if s.listFn != nil {
-		return s.listFn(ctx, workspaceID)
+		return s.listFn(ctx, scope, workspaceID)
 	}
 	return []toolspkg.ApprovalGrant{}, nil
 }
 
 func (s *stubToolApprovalGrantService) RevokeApprovalGrant(
 	ctx context.Context,
+	profileID string,
 	workspaceID string,
 	id string,
 ) error {
 	if s.revokeFn != nil {
-		return s.revokeFn(ctx, workspaceID, id)
+		return s.revokeFn(ctx, profileID, workspaceID, id)
 	}
 	return errors.New("unexpected RevokeApprovalGrant call")
 }

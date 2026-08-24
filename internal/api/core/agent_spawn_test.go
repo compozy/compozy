@@ -216,6 +216,7 @@ func agentSpawnRouter(manager core.SessionManager) *gin.Engine {
 func agentSpawnCallerInfo() *session.Info {
 	return &session.Info{
 		ID:                   "sess-parent",
+		ProfileID:            store.DefaultProfileID,
 		Name:                 "parent",
 		AgentName:            "coder",
 		Provider:             "codex",

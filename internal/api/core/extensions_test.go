@@ -24,6 +24,7 @@ import (
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
 	sessionpkg "github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/gin-gonic/gin"
@@ -381,6 +382,64 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 			t.Fatalf("portable validation payload leaked claim token: %s", response.Body.String())
 		}
 	})
+
+	t.Run("Should preview the exact install summary without invoking install", func(t *testing.T) {
+		t.Parallel()
+
+		want := contract.ExtensionInstallPreviewPayload{
+			Name: "growth-kit",
+			DeclaredProfiles: []contract.ExtensionInstallDeclaredProfilePayload{{
+				Name: "growth", Create: true,
+				Credentials: []contract.ProfileCredentialRequirement{{
+					Provider: "openai", Slot: "api_key", SourceExtension: "growth-kit", Missing: true,
+				}},
+			}},
+			Placements: []contract.ExtensionPlacementPayload{{
+				Kind: "skill", Resource: "tweet-writer", Profile: "growth",
+			}},
+			NetworkRequirementDigest: "sha256:growth-kit",
+		}
+		installCalled := false
+		service := extensionServiceStub{
+			installFn: func(
+				context.Context,
+				contract.InstallExtensionRequest,
+				taskpkg.ActorContext,
+			) (contract.ExtensionPayload, error) {
+				installCalled = true
+				return contract.ExtensionPayload{}, nil
+			},
+			previewInstallFn: func(
+				_ context.Context,
+				req contract.InstallExtensionRequest,
+				actor taskpkg.ActorContext,
+			) (contract.ExtensionInstallPreviewPayload, error) {
+				if req.Source != contract.InstallExtensionSourceLocalPath || req.Ref != "/tmp/growth-kit" ||
+					!req.AllowUnverified || !actor.Authority.Write {
+					t.Fatalf("PreviewInstall() req=%#v actor=%#v", req, actor)
+				}
+				return want, nil
+			},
+		}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+		engine := gin.New()
+		engine.POST("/extensions/preview-install", handlers.PreviewExtensionInstall)
+		response := performRequest(t, engine, http.MethodPost, "/extensions/preview-install",
+			[]byte(`{"source":"local_path","ref":"/tmp/growth-kit","allow_unverified":true}`))
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", response.Code, response.Body.String())
+		}
+		var got contract.ExtensionInstallPreviewPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &got); err != nil {
+			t.Fatalf("json.Unmarshal(preview) error = %v", err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("preview = %#v, want %#v", got, want)
+		}
+		if installCalled {
+			t.Fatal("PreviewExtensionInstall invoked Install")
+		}
+	})
 }
 
 type extensionServiceStub struct {
@@ -388,8 +447,9 @@ type extensionServiceStub struct {
 	searchFn           func(context.Context, contract.ExtensionSearchRequest) (contract.ExtensionSearchResponse, error)
 	updateBatchFn      func(context.Context, contract.UpdateExtensionsRequest, taskpkg.ActorContext) ([]contract.ManagedExtensionUpdatePayload, error)
 	installFn          func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
+	previewInstallFn   func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionInstallPreviewPayload, error)
 	enableFn           func(context.Context, string, contract.EnableExtensionRequest, taskpkg.ActorContext) (contract.ExtensionEnableResult, error)
-	inventoryFn        func(context.Context, string) (contract.ExtensionInventoryPayload, error)
+	inventoryFn        func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionInventoryPayload, error)
 	previewFn          func(context.Context, string) (contract.ExtensionEnablePreviewPayload, error)
 	listSecretsFn      func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionSecretsPayload, error)
 	setSecretsFn       func(context.Context, string, contract.SetExtensionSecretsRequest, taskpkg.ActorContext) (contract.ExtensionSecretsPayload, error)
@@ -431,6 +491,17 @@ func (s extensionServiceStub) Install(
 		return s.installFn(ctx, req, actor)
 	}
 	return contract.ExtensionPayload{}, nil
+}
+
+func (s extensionServiceStub) PreviewInstall(
+	ctx context.Context,
+	req contract.InstallExtensionRequest,
+	actor taskpkg.ActorContext,
+) (contract.ExtensionInstallPreviewPayload, error) {
+	if s.previewInstallFn != nil {
+		return s.previewInstallFn(ctx, req, actor)
+	}
+	return contract.ExtensionInstallPreviewPayload{}, nil
 }
 
 func (extensionServiceStub) Update(
@@ -485,9 +556,13 @@ func (extensionServiceStub) Provenance(context.Context, string) (contract.Extens
 	return contract.ExtensionProvenancePayload{}, nil
 }
 
-func (s extensionServiceStub) Inventory(ctx context.Context, name string) (contract.ExtensionInventoryPayload, error) {
+func (s extensionServiceStub) InventoryScoped(
+	ctx context.Context,
+	name string,
+	actor taskpkg.ActorContext,
+) (contract.ExtensionInventoryPayload, error) {
 	if s.inventoryFn != nil {
-		return s.inventoryFn(ctx, name)
+		return s.inventoryFn(ctx, name, actor)
 	}
 	return contract.ExtensionInventoryPayload{}, nil
 }
@@ -713,21 +788,30 @@ func TestExtensionKitHandlersReturnDedicatedPayloads(t *testing.T) {
 			}},
 			AutomationStarting: []string{"kit/daily"},
 		}
+		var inventoryActor taskpkg.ActorContext
 		service := extensionServiceStub{
-			inventoryFn: func(_ context.Context, name string) (contract.ExtensionInventoryPayload, error) {
-				if name != "kit" {
-					t.Fatalf("Inventory() name = %q, want kit", name)
-				}
-				return inventory, nil
-			},
 			previewFn: func(_ context.Context, name string) (contract.ExtensionEnablePreviewPayload, error) {
 				if name != "kit" {
 					t.Fatalf("Preview() name = %q, want kit", name)
 				}
 				return preview, nil
 			},
+			inventoryFn: func(
+				_ context.Context,
+				name string,
+				actor taskpkg.ActorContext,
+			) (contract.ExtensionInventoryPayload, error) {
+				if name != "kit" {
+					t.Fatalf("InventoryScoped() name = %q, want kit", name)
+				}
+				inventoryActor = actor
+				return inventory, nil
+			},
 		}
-		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			Extensions: service,
+			Profiles:   sessionProfileServiceStub{},
+		})
 		engine := gin.New()
 		engine.GET("/extensions/:name/inventory", handlers.ExtensionInventory)
 		engine.GET("/extensions/:name/preview", handlers.PreviewExtensionEnable)
@@ -736,7 +820,11 @@ func TestExtensionKitHandlersReturnDedicatedPayloads(t *testing.T) {
 			path string
 			want any
 		}{
-			{name: "Should return the inventory payload", path: "/extensions/kit/inventory", want: inventory},
+			{
+				name: "Should return the inventory payload",
+				path: "/extensions/kit/inventory?profile=marketing",
+				want: inventory,
+			},
 			{name: "Should return the enable preview payload", path: "/extensions/kit/preview", want: preview},
 		} {
 			t.Run(testCase.name, func(t *testing.T) {
@@ -752,6 +840,12 @@ func TestExtensionKitHandlersReturnDedicatedPayloads(t *testing.T) {
 					t.Fatalf("GET %s body = %s, want %s", testCase.path, response.Body.String(), got)
 				}
 			})
+		}
+		if inventoryActor.ReadScope.ProfileID != "profile-marketing" {
+			t.Fatalf(
+				"InventoryScoped() profile ID = %q, want profile-marketing",
+				inventoryActor.ReadScope.ProfileID,
+			)
 		}
 	})
 
@@ -1123,7 +1217,7 @@ func TestDevelopmentExtensionHandlersBindTrustedWorkspace(t *testing.T) {
 			sessions := testutil.StubSessionManager{
 				StatusFn: func(_ context.Context, id string) (*sessionpkg.Info, error) {
 					return &sessionpkg.Info{
-						ID: id, AgentName: "coder", State: sessionpkg.StateActive,
+						ID: id, ProfileID: store.DefaultProfileID, AgentName: "coder", State: sessionpkg.StateActive,
 					}, nil
 				},
 			}
@@ -1280,7 +1374,11 @@ func TestExtensionHandlersHaveHTTPUDSParity(t *testing.T) {
 				}},
 			}, nil
 		},
-		inventoryFn: func(_ context.Context, name string) (contract.ExtensionInventoryPayload, error) {
+		inventoryFn: func(
+			_ context.Context,
+			name string,
+			_ taskpkg.ActorContext,
+		) (contract.ExtensionInventoryPayload, error) {
 			return contract.ExtensionInventoryPayload{
 				Extension: name,
 				Items:     []contract.ExtensionKitItemPayload{{Kind: "agent", Name: "writer", Live: true}},

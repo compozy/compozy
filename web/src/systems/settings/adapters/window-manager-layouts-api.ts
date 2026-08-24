@@ -42,6 +42,19 @@ function workspacePath(workspaceId: string): string {
   return `/api/workspaces/${encodeURIComponent(normalized)}/window-manager`;
 }
 
+/**
+ * Layouts are read and applied against one profile's desks, so the profile is
+ * named on every call rather than left to the daemon's `default` fallback.
+ */
+function layoutUrl(workspaceId: string, profile: string, suffix: string): string {
+  const normalizedProfile = profile.trim();
+  if (normalizedProfile === "") {
+    throw new WindowManagerLayoutsApiError("Profile is required.", 400);
+  }
+  const query = new URLSearchParams({ profile: normalizedProfile });
+  return `${workspacePath(workspaceId)}${suffix}?${query.toString()}`;
+}
+
 async function responseJson(response: Response): Promise<unknown> {
   try {
     return await response.json();
@@ -88,11 +101,15 @@ export async function updateWindowManagerSettings(
 
 export async function exportWindowManagerLayout(
   workspaceId: string,
+  profile: string,
   signal?: AbortSignal
 ): Promise<WindowManagerLayoutDocument> {
-  const response = await runtimeFetch(`${apiBaseUrl}${workspacePath(workspaceId)}/layout`, {
-    signal,
-  });
+  const response = await runtimeFetch(
+    `${apiBaseUrl}${layoutUrl(workspaceId, profile, "/layout")}`,
+    {
+      signal,
+    }
+  );
   return parseWindowManagerLayoutDocument(
     await requireJson(response, "Unable to export the current layout")
   );
@@ -100,18 +117,22 @@ export async function exportWindowManagerLayout(
 
 export async function getWindowManagerLayoutState(
   workspaceId: string,
+  profile: string,
   signal?: AbortSignal
 ): Promise<WindowManagerLayoutState> {
-  return windowManagerSnapshotToLayoutState(await fetchWindowManagerSnapshot(workspaceId, signal));
+  return windowManagerSnapshotToLayoutState(
+    await fetchWindowManagerSnapshot(workspaceId, profile, signal)
+  );
 }
 
 export async function validateWindowManagerLayout(
   workspaceId: string,
+  profile: string,
   document: WindowManagerLayoutDocument,
   signal?: AbortSignal
 ): Promise<WindowManagerLayoutValidation> {
   const response = await runtimeFetch(
-    `${apiBaseUrl}${workspacePath(workspaceId)}/layout/validate`,
+    `${apiBaseUrl}${layoutUrl(workspaceId, profile, "/layout/validate")}`,
     {
       ...jsonRequest(
         {
@@ -133,31 +154,35 @@ export async function validateWindowManagerLayout(
 
 export async function previewWindowManagerLayout(
   workspaceId: string,
+  profile: string,
   revision: number,
   document: WindowManagerLayoutDocument,
   clientId?: string,
   signal?: AbortSignal
 ): Promise<WindowManagerLayoutPreview> {
-  const response = await runtimeFetch(`${apiBaseUrl}${workspacePath(workspaceId)}/preview`, {
-    ...jsonRequest(
-      {
-        workspace_id: workspaceId,
-        command_id: "layout.replace",
-        expected_revision: revision,
-        ...(clientId ? { client_id: clientId } : {}),
-        actor: { kind: "web", id: clientId ?? "settings" },
-        origin: "web-settings",
-        payload: {
-          document: windowManagerLayoutDocumentToWire({
-            ...document,
-            workspaceId,
-          }),
+  const response = await runtimeFetch(
+    `${apiBaseUrl}${layoutUrl(workspaceId, profile, "/preview")}`,
+    {
+      ...jsonRequest(
+        {
+          workspace_id: workspaceId,
+          command_id: "layout.replace",
+          expected_revision: revision,
+          ...(clientId ? { client_id: clientId } : {}),
+          actor: { kind: "web", id: clientId ?? "settings" },
+          origin: "web-settings",
+          payload: {
+            document: windowManagerLayoutDocumentToWire({
+              ...document,
+              workspaceId,
+            }),
+          },
         },
-      },
-      signal
-    ),
-    method: "POST",
-  });
+        signal
+      ),
+      method: "POST",
+    }
+  );
   return parseWindowManagerLayoutPreview(
     await requireJson(response, "Unable to preview the layout")
   );
@@ -165,37 +190,42 @@ export async function previewWindowManagerLayout(
 
 export async function applyWindowManagerLayout(
   workspaceId: string,
+  profile: string,
   revision: number,
   document: WindowManagerLayoutDocument,
   clientId?: string,
   signal?: AbortSignal
 ): Promise<WindowManagerLayoutApplyResult> {
-  const response = await runtimeFetch(`${apiBaseUrl}${workspacePath(workspaceId)}/layout`, {
-    ...jsonRequest(
-      {
-        workspace_id: workspaceId,
-        expected_revision: revision,
-        ...(clientId ? { client_id: clientId } : {}),
-        actor: { kind: "web", id: clientId ?? "settings" },
-        origin: "web-settings",
-        document: windowManagerLayoutDocumentToWire({
-          ...document,
-          workspaceId,
-        }),
-      },
-      signal
-    ),
-    method: "PUT",
-  });
+  const response = await runtimeFetch(
+    `${apiBaseUrl}${layoutUrl(workspaceId, profile, "/layout")}`,
+    {
+      ...jsonRequest(
+        {
+          workspace_id: workspaceId,
+          expected_revision: revision,
+          ...(clientId ? { client_id: clientId } : {}),
+          actor: { kind: "web", id: clientId ?? "settings" },
+          origin: "web-settings",
+          document: windowManagerLayoutDocumentToWire({
+            ...document,
+            workspaceId,
+          }),
+        },
+        signal
+      ),
+      method: "PUT",
+    }
+  );
   return parseWindowManagerLayoutApply(await requireJson(response, "Unable to apply the layout"));
 }
 
 export async function listWindowManagerLayoutProfiles(
   workspaceId: string,
+  profile: string,
   signal?: AbortSignal
 ): Promise<WindowManagerLayoutResourceRecord[]> {
   const response = await runtimeFetch(
-    `${apiBaseUrl}${workspacePath(workspaceId)}/layout-profiles`,
+    `${apiBaseUrl}${layoutUrl(workspaceId, profile, "/layout-profiles")}`,
     {
       signal,
     }
@@ -209,6 +239,7 @@ export async function putWindowManagerLayoutProfile(
   profile: WindowManagerLayoutProfile,
   scope: WindowManagerLayoutScopeKind,
   workspaceId: string,
+  ownerProfile: string,
   expectedVersion: number,
   signal?: AbortSignal
 ): Promise<WindowManagerLayoutResourceRecord> {
@@ -217,7 +248,7 @@ export async function putWindowManagerLayoutProfile(
     workspaceId: scope === "workspace" ? workspaceId : "",
   };
   const response = await runtimeFetch(
-    `${apiBaseUrl}${workspacePath(workspaceId)}/layout-profiles/${encodeURIComponent(profile.id)}`,
+    `${apiBaseUrl}${layoutUrl(workspaceId, ownerProfile, `/layout-profiles/${encodeURIComponent(profile.id)}`)}`,
     {
       ...jsonRequest(
         {
@@ -243,12 +274,13 @@ export async function putWindowManagerLayoutProfile(
 
 export async function deleteWindowManagerLayoutProfile(
   workspaceId: string,
+  ownerProfile: string,
   id: string,
   expectedVersion: number,
   signal?: AbortSignal
 ): Promise<void> {
   const response = await runtimeFetch(
-    `${apiBaseUrl}${workspacePath(workspaceId)}/layout-profiles/${encodeURIComponent(id)}`,
+    `${apiBaseUrl}${layoutUrl(workspaceId, ownerProfile, `/layout-profiles/${encodeURIComponent(id)}`)}`,
     {
       ...jsonRequest({ expected_version: expectedVersion }, signal),
       method: "DELETE",

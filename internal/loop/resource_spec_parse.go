@@ -21,7 +21,7 @@ func ParseResource(data []byte, opts ResourceParseOptions) (ResourceSpec, dsl.De
 	}
 	if _, err := validateResourceSpec(
 		context.Background(),
-		resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		spec,
 	); err != nil {
 		return ResourceSpec{}, dsl.Definition{}, err

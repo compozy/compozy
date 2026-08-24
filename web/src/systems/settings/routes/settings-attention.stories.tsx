@@ -39,8 +39,8 @@ export const MutedWorkspace: Story = {
         compozyApiMock.get("/api/settings/attention", () =>
           HttpResponse.json({
             section: "attention",
-            scope: "global",
-            available_scopes: ["global"],
+            scope: "user",
+            available_scopes: ["user"],
             config: {
               toasts: true,
               sound: false,

@@ -16,6 +16,7 @@ func TestInitializeBridgeRuntimeValidateRejectsInvalidProviderScopedPayload(t *t
 	validManaged := InitializeBridgeManagedInstance{
 		Instance: bridges.BridgeInstance{
 			ID:            "brg-1",
+			ProfileID:     "profile-test",
 			Scope:         bridges.ScopeGlobal,
 			Platform:      "telegram",
 			ExtensionName: "telegram-reference",
@@ -56,6 +57,7 @@ func TestInitializeBridgeRuntimeValidateRejectsInvalidProviderScopedPayload(t *t
 				ManagedInstances: []InitializeBridgeManagedInstance{{
 					Instance: bridges.BridgeInstance{
 						ID:            "brg-invalid",
+						ProfileID:     "profile-test",
 						Scope:         bridges.ScopeGlobal,
 						Platform:      "telegram",
 						DisplayName:   "Telegram",
@@ -269,6 +271,7 @@ func TestInitializeBridgeManagedInstanceValidateRejectsDuplicateSecretBindings(t
 	managed := InitializeBridgeManagedInstance{
 		Instance: bridges.BridgeInstance{
 			ID:            "brg-dup",
+			ProfileID:     "profile-test",
 			Scope:         bridges.ScopeGlobal,
 			Platform:      "telegram",
 			ExtensionName: "telegram-reference",
@@ -298,6 +301,7 @@ func TestInitializeBridgeRuntimeValidateRejectsDuplicateManagedInstances(t *test
 	managed := InitializeBridgeManagedInstance{
 		Instance: bridges.BridgeInstance{
 			ID:            "brg-dup",
+			ProfileID:     "profile-test",
 			Scope:         bridges.ScopeGlobal,
 			Platform:      "telegram",
 			ExtensionName: "telegram-reference",

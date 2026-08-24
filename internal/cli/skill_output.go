@@ -16,20 +16,20 @@ const (
 const (
 	skillOutputActionValue       = "Action"
 	skillOutputDescriptionValue  = "Description"
-	skillOutputEnabledValue      = "Enabled"
+	skillOutputEnabledValue      = authoredContextEnabledValue
 	skillOutputActiveValue       = "Active"
 	skillOutputInactiveValue     = "Inactive reason"
 	skillOutputPathValue         = "Path"
 	skillOutputStatusValue       = "Status"
 	skillOutputValueValue        = "Value"
-	skillOutputActionKey         = "action"
+	skillOutputActionKey         = authoredContextActionKey
 	skillOutputCurrentVersionKey = "current_version"
 	skillOutputDescriptionKey    = "description"
-	skillOutputEnabledKey        = "enabled"
-	skillOutputActiveKey         = "active"
+	skillOutputEnabledKey        = automationEnabledKey
+	skillOutputActiveKey         = authoredContextActiveKey
 	skillOutputInactiveKey       = "inactive_reason"
 	skillOutputPathKey           = "path"
-	skillOutputStatusKey         = "status"
+	skillOutputStatusKey         = automationStatusKey
 	skillOutputValueKey          = "value"
 )
 
@@ -295,7 +295,7 @@ func skillWhereRows(record SkillShadowsRecord) [][]string {
 	for _, entry := range record.Shadows {
 		winner := "no"
 		if entry.ResolvedToWinner {
-			winner = "yes"
+			winner = yesFlagName
 		}
 		rows = append(rows, []string{
 			winner,

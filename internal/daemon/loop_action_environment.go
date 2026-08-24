@@ -100,8 +100,9 @@ func (b *loopActionSessionBinder) applyLoopActionEnvironment(
 		}
 		workspaceID := strings.TrimSpace(string(req.WorkspaceID))
 		item, materializeErr := b.worktrees.MaterializeForRun(ctx, workspaceID, worktree.RunWorktreeRequest{
-			TaskSlug: loopActionWorktreeSlug(req),
-			RunID:    loopActionWorktreeRunID(req),
+			ProfileID: strings.TrimSpace(req.ProfileID),
+			TaskSlug:  loopActionWorktreeSlug(req),
+			RunID:     loopActionWorktreeRunID(req),
 		})
 		if materializeErr != nil {
 			return nil, materializeErr

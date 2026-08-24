@@ -30,11 +30,11 @@ func daemonConfigMCPDeclarationProvider(
 		if active == nil {
 			return desired, nil
 		}
-		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+		userScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 		for _, server := range active.MCPServers {
 			desired.mcpServers = append(desired.mcpServers, mcpServerPublicationInput{
 				sourceKey: "config/global/" + strings.TrimSpace(server.Name),
-				scope:     globalScope,
+				scope:     userScope,
 				spec:      cloneDaemonMCPServer(server),
 			})
 		}
@@ -66,10 +66,10 @@ func extensionManifestToolMCPDeclarationProvider(
 	registry *extensionpkg.Registry,
 	runtime func() extensionRuntime,
 	getenv func(string) string,
-	logger *slog.Logger,
+	profiles extensionProfileCatalog,
 ) toolMCPDeclarationProvider {
 	return func(ctx context.Context) (toolMCPDesiredResources, error) {
-		return collectExtensionManifestToolMCPDeclarations(ctx, registry, runtime, getenv, logger)
+		return collectExtensionManifestToolMCPDeclarations(ctx, registry, runtime, getenv, profiles)
 	}
 }
 
@@ -78,7 +78,7 @@ func collectExtensionManifestToolMCPDeclarations(
 	registry *extensionpkg.Registry,
 	runtime func() extensionRuntime,
 	getenv func(string) string,
-	logger *slog.Logger,
+	profiles extensionProfileCatalog,
 ) (toolMCPDesiredResources, error) {
 	if err := ctx.Err(); err != nil {
 		return toolMCPDesiredResources{}, err
@@ -86,7 +86,6 @@ func collectExtensionManifestToolMCPDeclarations(
 	if registry == nil || runtime == nil {
 		return toolMCPDesiredResources{}, nil
 	}
-
 	manager := runtime()
 	if manager == nil {
 		return toolMCPDesiredResources{}, nil
@@ -101,19 +100,12 @@ func collectExtensionManifestToolMCPDeclarations(
 	})
 
 	desired := toolMCPDesiredResources{}
-	globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
-	for _, info := range infos {
-		if !info.Enabled {
-			continue
-		}
-		ext, err := loadExtensionSnapshot(registry, manager, logger, info.Name)
-		if err != nil {
-			return toolMCPDesiredResources{}, fmt.Errorf(
-				"daemon: load extension %q for tool/mcp sync: %w",
-				info.Name,
-				err,
-			)
-		}
+	snapshots, err := extensionProfileResourceSnapshots(ctx, registry, manager, infos, profiles)
+	if err != nil {
+		return toolMCPDesiredResources{}, err
+	}
+	for _, snapshot := range snapshots {
+		ext := snapshot.extension
 		if ext == nil || ext.Manifest == nil || !ext.Status.Registered {
 			continue
 		}
@@ -129,13 +121,13 @@ func collectExtensionManifestToolMCPDeclarations(
 		for _, tool := range tools {
 			desired.tools = append(desired.tools, toolPublicationInput{
 				sourceKey: "extension/" + ext.Info.Name + "/tool/" + strings.TrimSpace(tool.ID.String()),
-				scope:     globalScope,
+				scope:     snapshot.scope,
 				owner:     extensionOwner(ext.Info.Name),
 				spec:      cloneToolSpec(tool),
 			})
 		}
 
-		if err := appendExtensionMCPServerDeclarations(&desired, ext, getenv, globalScope); err != nil {
+		if err := appendExtensionMCPServerDeclarations(&desired, ext, getenv, snapshot.scope); err != nil {
 			return toolMCPDesiredResources{}, err
 		}
 	}

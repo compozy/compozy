@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	settingspkg "github.com/compozy/compozy/internal/settings"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
 )
@@ -14,12 +15,12 @@ func (h *BaseHandlers) marketplaceReadActorContext(
 	c *gin.Context,
 	action string,
 ) (*taskpkg.ActorContext, bool) {
-	scope, err := parseMarketplaceReadScope(c.Query("scope"), c.Query("workspace_id"))
+	scope, err := parseMarketplaceReadScope(c.Query("scope"), c.Query("workspace_id"), c.Query("profile"))
 	if err != nil {
 		h.respondMarketplaceError(c, err)
 		return nil, false
 	}
-	if scope.scope != settingspkg.ScopeWorkspace {
+	if scope.scope == settingspkg.ScopeUser {
 		return nil, true
 	}
 
@@ -48,6 +49,14 @@ func (h *BaseHandlers) marketplaceReadActorContext(
 		h.respondError(c, StatusForTaskError(err), err)
 		return nil, false
 	}
+	if scope.scope == settingspkg.ScopeProfile {
+		readScope, resolveErr := h.resolveProfileMutationScope(c)
+		if resolveErr != nil {
+			h.respondProfileReadScopeError(c, resolveErr)
+			return nil, false
+		}
+		actor.ReadScope = store.ReadScope{ProfileID: readScope.ProfileID}
+	}
 	if err = validateMarketplaceReadActor(scope, &actor); err != nil {
 		h.respondMarketplaceError(c, err)
 		return nil, false
@@ -59,7 +68,7 @@ func validateMarketplaceReadActor(
 	scope marketplaceReadScope,
 	actor *taskpkg.ActorContext,
 ) error {
-	if scope.scope != settingspkg.ScopeWorkspace {
+	if scope.scope == settingspkg.ScopeUser {
 		return nil
 	}
 	if actor == nil {
@@ -71,7 +80,17 @@ func validateMarketplaceReadActor(
 	if err := actor.Validate(); err != nil {
 		return fmt.Errorf("validate workspace marketplace actor: %w", err)
 	}
-	if !actor.Authority.Read || strings.TrimSpace(actor.Scope.WorkspaceID) != scope.workspaceID {
+	if !actor.Authority.Read {
+		return errors.Join(taskpkg.ErrPermissionDenied, errors.New("marketplace actor cannot read"))
+	}
+	if scope.scope == settingspkg.ScopeProfile &&
+		(strings.TrimSpace(actor.ReadScope.ProfileID) == "" || actor.ReadScope.AllProfiles) {
+		return errors.Join(
+			taskpkg.ErrPermissionDenied,
+			errors.New("profile marketplace actor does not match the requested profile"),
+		)
+	}
+	if scope.scope == settingspkg.ScopeWorkspace && strings.TrimSpace(actor.Scope.WorkspaceID) != scope.workspaceID {
 		return errors.Join(
 			taskpkg.ErrPermissionDenied,
 			errors.New("workspace marketplace actor does not match the requested workspace"),

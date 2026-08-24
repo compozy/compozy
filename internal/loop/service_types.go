@@ -22,6 +22,7 @@ type NodeID = dsl.NodeID
 
 // Inputs carries user inputs plus runtime-only start metadata.
 type Inputs struct {
+	ProfileID                  string                 `json:"-"`
 	Values                     map[string]any         `json:"values,omitempty"`
 	ParentLoopRunID            RunID                  `json:"parent_loop_run_id,omitempty"`
 	ConfigOverrides            LoopConfig             `json:"config_overrides"`
@@ -203,6 +204,7 @@ type LoopDefaults struct {
 // Run is the durable loop_run aggregate returned by the service.
 type Run struct {
 	ID                    RunID
+	ProfileID             string
 	WorkspaceID           WorkspaceID
 	LoopName              string
 	Status                Status
@@ -219,7 +221,7 @@ type Run struct {
 	DefinitionDigest      string
 	DefinitionSnapshot    json.RawMessage
 	ActiveGateID          NodeID
-	ActiveHumanCriteria   json.RawMessage
+	ActiveHumanCriteria   *json.RawMessage
 	BudgetApprovalSeq     int
 	StartMetadata         map[string]any
 	IterationCap          int
@@ -301,19 +303,20 @@ type DisplayCost struct {
 
 // DefinitionResolver resolves a loop name to a compiled definition.
 type DefinitionResolver interface {
-	ResolveLoop(ctx context.Context, ws WorkspaceID, name string) (*ResolvedDefinition, error)
+	ResolveLoop(ctx context.Context, ws WorkspaceID, profileID string, name string) (*ResolvedDefinition, error)
 }
 
 // DefinitionResolverFunc adapts a function to DefinitionResolver.
-type DefinitionResolverFunc func(context.Context, WorkspaceID, string) (*ResolvedDefinition, error)
+type DefinitionResolverFunc func(context.Context, WorkspaceID, string, string) (*ResolvedDefinition, error)
 
 // ResolveLoop implements DefinitionResolver.
 func (f DefinitionResolverFunc) ResolveLoop(
 	ctx context.Context,
 	ws WorkspaceID,
+	profileID string,
 	name string,
 ) (*ResolvedDefinition, error) {
-	return f(ctx, ws, name)
+	return f(ctx, ws, profileID, name)
 }
 
 // Store is the loop aggregate persistence contract.
@@ -412,9 +415,9 @@ type Service interface {
 	GetRequest(ctx context.Context, ws WorkspaceID, ref RequestRef) (RequestDetail, error)
 	Respond(ctx context.Context, input RespondInput) (RespondResult, error)
 	AmendNodeOutput(ctx context.Context, input AmendInput) (NodeAmendment, error)
-	Configure(ctx context.Context, ws WorkspaceID, name string, cfg LoopConfig) error
+	Configure(ctx context.Context, ws WorkspaceID, profileID string, name string, cfg LoopConfig) error
 	GetConfig(ctx context.Context, ws WorkspaceID, name string) (*LoopConfig, error)
-	GetConfigSnapshot(ctx context.Context, ws WorkspaceID, name string) (ConfigSnapshot, error)
+	GetConfigSnapshot(ctx context.Context, ws WorkspaceID, profileID string, name string) (ConfigSnapshot, error)
 	Get(ctx context.Context, ws WorkspaceID, runID RunID) (*Run, error)
 	Transition(ctx context.Context, runID RunID, to Status, cause TransitionCause) error
 }

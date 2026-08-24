@@ -45,8 +45,13 @@ export function useAutomationJobsPage(
 
   const triggerJobMutation = useTriggerAutomationJob();
   const onRunJob = (id: string) => {
+    const job = jobs.find(candidate => candidate.id === id);
+    if (!job) {
+      toast.error("This job is no longer available.");
+      return;
+    }
     runStore.trigger.runRequested({
-      execute: jobId => triggerJobMutation.mutateAsync({ id: jobId }),
+      execute: jobId => triggerJobMutation.mutateAsync({ id: jobId, profile: job.profile_name }),
       id,
       onFailure: error =>
         toast.error(error instanceof Error ? error.message : "Failed to trigger automation job"),

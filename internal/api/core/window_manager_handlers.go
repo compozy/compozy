@@ -12,11 +12,11 @@ import (
 // GetWindowManagerSnapshot returns the complete authorized workspace aggregate.
 func (h *BaseHandlers) GetWindowManagerSnapshot(c *gin.Context) {
 	workspaceID := windowManagerWorkspace(c)
-	if h.WindowManager == nil {
-		h.respondWindowManagerError(c, workspaceID, windowmanager.ErrClosed)
+	service, ok := h.windowManagerService(c, workspaceID)
+	if !ok {
 		return
 	}
-	snapshot, err := h.WindowManager.Snapshot(c.Request.Context(), workspaceID)
+	snapshot, err := service.Snapshot(c.Request.Context(), workspaceID)
 	if err != nil {
 		h.respondWindowManagerError(c, workspaceID, err)
 		return
@@ -41,8 +41,8 @@ func (h *BaseHandlers) ExecuteWindowManagerCommand(c *gin.Context) {
 
 func (h *BaseHandlers) handleWindowManagerCommand(c *gin.Context, previewOnly bool) {
 	workspaceID := windowManagerWorkspace(c)
-	if h.WindowManager == nil {
-		h.respondWindowManagerError(c, workspaceID, windowmanager.ErrClosed)
+	service, ok := h.windowManagerService(c, workspaceID)
+	if !ok {
 		return
 	}
 	var wire contract.WindowManagerCommandRequest
@@ -60,7 +60,7 @@ func (h *BaseHandlers) handleWindowManagerCommand(c *gin.Context, previewOnly bo
 		return
 	}
 	if previewOnly {
-		preview, previewErr := h.WindowManager.Preview(c.Request.Context(), request)
+		preview, previewErr := service.Preview(c.Request.Context(), request)
 		if previewErr != nil {
 			h.respondWindowManagerError(c, workspaceID, previewErr)
 			return
@@ -73,7 +73,7 @@ func (h *BaseHandlers) handleWindowManagerCommand(c *gin.Context, previewOnly bo
 		c.JSON(http.StatusOK, payload)
 		return
 	}
-	result, err := h.WindowManager.Execute(c.Request.Context(), request)
+	result, err := service.Execute(c.Request.Context(), request)
 	if err != nil {
 		h.respondWindowManagerError(c, workspaceID, err)
 		return

@@ -27,3 +27,10 @@ src: web/src/systems/onboarding/components/step-workspaces.tsx; web/src/systems/
 2026-08-13 re-walk: Lea selected the native Codex runtime, reached Workspaces, added and removed a project through the directory browser, then used Skip with zero project folders. The desktop opened in locked Global scope, the public workspace read contained only the operator-home registration, and refresh preserved the first-run completion state.
 
 2026-08-20 qa-impact: workspace-step copy density. The step subtitle, Skip paragraph, Network paragraph, and footer tutorial clause were removed; Skip/Global/Network consequences moved into the heading HelpTip. Reset for a copy walk.
+
+2026-08-23 qa-impact (Profiles): the Skip path still lands in Global, but Global now means the
+across-workspaces view rather than a pseudo-workspace, and the home directory is refused at the
+daemon rather than merely not resolved. Already `untested`, so no reset was needed. Confirm the
+first-run desktop is quiet about profiles when only `default` exists, and that finishing without a
+folder produces a usable Global view. What Global means for the data is owned by
+`MS-global-scope-no-workspace-work`.

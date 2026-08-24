@@ -3,12 +3,14 @@
 ## Contents
 
 - Desired state and apply lifecycle
+- Profile layers and credentials
 - Host update cadence
 - Gateway
 - Marketplace catalog
 - Autonomy scheduler
 - Loop defaults and observability
 - Goals
+- Profile selection environment
 - Automation schedules
 - Session compaction
 - Session attachments
@@ -18,7 +20,7 @@
 
 ## Desired State And Apply Lifecycle
 
-`config.toml` is desired state. Runtime truth advances only when the daemon applies that desired change to the active generation or records why it cannot. Global configuration lives at `$COMPOZY_HOME/config.toml`; a workspace can overlay it with `<workspace>/.compozy/config.toml`.
+`config.toml` is desired state. Runtime truth advances only when the daemon applies that desired change to the active generation or records why it cannot. Effective configuration merges user → personal profile → workspace → workspace named profile. The last layer wins and binds only when its directory name matches the active profile.
 
 Settings changes surface lifecycle status, not just file writes. The public contract names are:
 
@@ -32,6 +34,24 @@ Use `compozy config reload -o json` to reconcile edited desired state with the a
 
 Read and write scalar keys with `compozy config show|list|get|set|unset|diff|path` or the `compozy__config_*` native tools. Resolve the live `compozy__config_set` descriptor before mutating: it names the key's scope, lifecycle, and validation. Structured values (arrays, route tables) are edited through `config.toml` or the typed Settings APIs, never guessed into a scalar write.
 `compozy__config_get` reports an absent key as `config_path_not_found: config path not found`; after `compozy__config_set`, read the same path again and confirm its structured value.
+
+## Profile Layers And Credentials
+
+`default` writes `$COMPOZY_HOME/config.toml`; a non-default active profile writes
+`$COMPOZY_HOME/profiles/<name>/config.toml`. Override with `--scope user|profile|workspace`. The
+repository layer `<workspace>/.compozy/profiles/<name>/config.toml` is read-only. A successful lower
+layer write may return `ok_overridden`; inspect `winning_layer` before claiming the value is active.
+
+Profile overlays reject `http`, `daemon`, `log`, `database`, `gateway`, `shell`, `marketplace`,
+`observability`, `network`, `sandboxes`, and `window_manager.global_shortcuts` with
+`profile_config_key_denied`; write machine-only keys with `--scope user`.
+
+Write profile credentials with `compozy --profile <name> secret set
+providers/<provider>/<slot> --value-stdin` or the equivalent `extensions/<extension>/<key>` path.
+Non-default profiles use `vault:profiles/<name>/...`; `--from-env` fails with
+`profile_secret_env_forbidden` because the process environment is shared. Verify only redacted source
+metadata with `provider inspect`. For a non-default profile, `secret rm` falls back to the user
+credential and requires `--yes` for non-interactive removal when the profile owns work.
 
 ## Host update cadence
 
@@ -140,6 +160,14 @@ Loop observability is durable runtime state, not a transient UI stream. `loop_ru
 
 `[goals]` sets `max_turns = 20` and `context_nudge_ratio = 0.8` for new Goals, plus the daemon-wide durable session-event relay controls `outbox_batch_size = 50` and `outbox_poll_interval = "100ms"`. The Goal defaults are global/workspace-overridable; relay controls use global config because one relay serves every workspace. All four are agent-mutable, restart-required paths. `max_turns` must be positive; the ratio accepts `0.0` through `1.0`, with zero preserved; the relay batch accepts `1` through `200`; and its poll interval must be positive. Each Run pins its resolved ratio and every Goal checkpoint copies that value, so config reload or daemon restart cannot change an active Goal. Relay settings take effect when the daemon starts.
 
+## Profile Selection Environment
+
+Profiles add no `config.toml` key. `COMPOZY_PROFILE` selects one active profile for commands in the
+current process environment, after an explicit root `--profile` flag and before the workspace's
+remembered choice. `daemon`, `doctor`, and `update` ignore both inputs. Persist a workspace or Global
+lens choice with `compozy profile use`; read `references/profiles.md` for the complete precedence and
+lifecycle contract.
+
 ## Automation Schedules
 
 Automation schedule catch-up policy is part of the public schedule contract. Recurring schedules accept `skip_missed`, `coalesce`, `replay`, and `run_once_on_catchup`; one-time `at` schedules reject catch-up fields. Omit the policy for the target-aware default: Loop targets with a `watch-source` use `coalesce`, while other scheduled targets use `skip_missed`. `misfire_grace_seconds=0` uses the daemon jitter grace. Durable canceled runs identify `misfire_grace_exceeded` and `self_overlap` under `metadata.reason`. Catch-up starts carry structured automation-run metadata so agents can distinguish normal starts from recovered starts and reason about `concurrency: forbid|queue` outcomes.
@@ -165,6 +193,14 @@ Live desired state for later invocations at global or workspace scope. Explicit 
 or failed generation leaves the session unnamed.
 
 Other `[roles]` routing keys and the fallback-chain rules live in `references/runtime-operations.md` (Background roles).
+
+## Persona Defaults
+
+Persona defaults select the agent, provider, and sandbox used for new work. Read them through
+`GET /api/settings/persona` and update them through `PATCH /api/settings/persona`. Omit `scope` for
+the user layer; use `scope=profile&profile=<name>` for a personal profile layer. The response names
+the effective scope, profile owner, available scopes, write target, and the `agent`, `provider`, and
+`sandbox` defaults. Profile updates affect only later work started under that profile.
 
 ## Command Palette
 
@@ -205,13 +241,17 @@ intended bindings, while each Electron shell reports its own `registered`, `fail
 ## Attention
 
 `[attention]` controls operator notification delivery. `toasts` and `sound` default to `true`,
-`system` defaults to `false`, and `muted_workspaces` defaults to an empty array of workspace
-registration IDs returned by workspace list surfaces. Every `attention.*` path applies live as one validated candidate. A muted workspace receives no
-notification event, but its attention rows and counts remain unchanged. Workspace removal prunes its
-ID from `muted_workspaces`.
+and `system` defaults to `false`. Every `attention.*` config path applies live as one validated
+candidate.
 
-Use `compozy config get|set attention.<key>` or `GET/PATCH /api/settings/attention`. The title count
-is always on and is not a config key.
+Workspace mutes are profile-owned state, not `config.toml` keys. Read or replace the default
+profile's mute set with `GET/PATCH /api/settings/attention?scope=user`; use
+`scope=profile&profile=<name>` for another profile. A muted workspace receives no notification
+event, but its attention rows and counts remain unchanged. Workspace removal deletes every profile's
+mute row through the workspace foreign key.
+
+Use `compozy config get|set attention.toasts|sound|system` for global delivery controls, or the typed
+Settings route above for the complete view. The title count is always on and is not a config key.
 
 ## Shell Session Preferences
 

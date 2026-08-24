@@ -24,6 +24,7 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		loops:               s.loops,
 		bridges:             s.bridges,
 		notifications:       s.notifications,
+		profiles:            s.profiles,
 		supportBundles:      s.supportBundles,
 		tools:               s.tools,
 		toolArtifacts:       s.toolArtifacts,

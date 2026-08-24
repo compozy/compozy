@@ -13,7 +13,7 @@ import { appWindow, sessionWindow, windowTitle } from "../fixtures/os-navigation
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { browserAutomationOperatorFlowScenario } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { ensureGlobalWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { ensureProjectWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
 const automationFixture = path.resolve(
@@ -163,7 +163,7 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
   const triggersWin = appWindow(appPage, "triggers");
   const ui = automationOperatorSelectors(triggersWin, appPage);
   const shellUI = automationOperatorSelectors(appPage);
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(shellUI);
 
@@ -439,7 +439,7 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
   );
   const endpoint = endpointFor(trigger);
 
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(shellUI);
   await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
@@ -528,7 +528,7 @@ test("operator sees fire-limit rejection across browser and runtime surfaces", a
   );
   const endpoint = endpointFor(trigger);
 
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(shellUI);
   await appPage.goto(runtime.url("/triggers"), { waitUntil: "domcontentloaded" });
@@ -820,7 +820,7 @@ async function resolveAutomationWorkspaceID(
     return seeded;
   }
   if (runtime.paths?.homeDir) {
-    const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
+    const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
     return workspace.id;
   }
   const payload = await runtime.requestJSON<{ workspaces: Array<{ id: string }> }>(
@@ -1011,11 +1011,15 @@ async function readFileIfExists(filePath: string): Promise<string> {
   }
 }
 
-function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv {
+function cliEnv(paths: {
+  cliShim: string;
+  homeDir: string;
+  operatorHomeDir: string;
+}): NodeJS.ProcessEnv {
   return {
     ...process.env,
     COMPOZY_HOME: paths.homeDir,
-    HOME: paths.homeDir,
+    HOME: paths.operatorHomeDir,
     PATH: `${path.dirname(paths.cliShim)}:${process.env.PATH ?? ""}`,
   };
 }

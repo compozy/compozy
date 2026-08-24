@@ -3,15 +3,28 @@ import type { OperationQuery, OperationResponse } from "@/lib/api-contract";
 export type HomeOverview = OperationResponse<"getObserveOverview", 200>["overview"];
 export type HomeOverviewWireFilter = OperationQuery<"getObserveOverview">;
 
-export interface HomeOverviewFilter {
+interface HomeOverviewFilterBase {
   workspace?: string;
   usageWindow?: HomeUsageWindow;
 }
+
+export type HomeOverviewFilter =
+  | (HomeOverviewFilterBase & {
+      /** One profile's figures. Mutually exclusive with `allProfiles`. */
+      profile?: string;
+      allProfiles?: false;
+    })
+  | (HomeOverviewFilterBase & {
+      /** The labeled aggregate: every profile's figures, each owner named. */
+      profile?: never;
+      allProfiles: true;
+    });
 export type HomeAttention = HomeOverview["attention"];
 export type HomeAttentionItem = HomeAttention["items"][number];
 export type HomeOutcomeDay = HomeOverview["outcomes"]["days"][number];
 export type HomeUsageDay = HomeOverview["usage"]["days"][number];
 export type HomeAgentShare = HomeOverview["usage"]["agent_share"][number];
+export type HomeProfileUsage = HomeOverview["usage"]["profiles"][number];
 export type HomePulseBucket = HomeOverview["pulse"]["buckets"][number];
 
 export type HomeActivityEvent = OperationResponse<"listLogs", 200>["events"][number];

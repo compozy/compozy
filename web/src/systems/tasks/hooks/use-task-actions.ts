@@ -29,6 +29,7 @@ import type {
   ResumeTaskRequest,
   UpdateTaskRequest,
 } from "../types";
+import { useProfileReadScope } from "@/systems/profiles";
 
 interface TaskIdParams {
   id: string;
@@ -80,9 +81,11 @@ function acknowledgeMutationSettlement(error: unknown): void {
 
 export function useCreateTask() {
   const queryClient = useQueryClient();
+  // Files into the acting profile — `default` while the aggregate is on (ADR-005).
+  const { destination } = useProfileReadScope();
 
   return useMutation({
-    mutationFn: (data: CreateTaskRequest) => createTask(data),
+    mutationFn: (data: CreateTaskRequest) => createTask(data, destination),
     onSettled: () =>
       Promise.all([invalidateTaskQueries(queryClient), invalidateAggregateQueries(queryClient)]),
   });

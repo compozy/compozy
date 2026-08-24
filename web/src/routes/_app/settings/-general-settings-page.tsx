@@ -1,5 +1,5 @@
 import { AlertCircle } from "lucide-react";
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useState } from "react";
 
 import { useSettingsGeneralPage } from "@/systems/settings/hooks/use-settings-general-page";
 import {
@@ -19,22 +19,9 @@ import {
   useSettingsTopbar,
   SettingsTile,
   SettingsTiles,
-  useSettingsProviders,
-  useSettingsSandboxes,
-  type SettingsGeneralSection,
 } from "@/systems/settings";
 import { ToolApprovalGrantsSection } from "@/systems/tool-approvals";
-import {
-  Button,
-  Input,
-  NativeSelect,
-  NativeSelectOption,
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  Spinner,
-} from "@compozy/ui";
+import { Button, Sheet, SheetContent, SheetHeader, SheetTitle, Spinner } from "@compozy/ui";
 
 import { DaemonSection, RedactionSection } from "./-general-daemon-sections";
 import { GeneralUpdateSection } from "./-general-update-section";
@@ -56,8 +43,6 @@ const PERMISSION_OPTIONS = [
     description: "Agents act freely. For trusted work only.",
   },
 ];
-
-type GeneralConfig = SettingsGeneralSection["config"];
 
 function parseSessionTimeoutSeconds(raw: string): number {
   if (!raw) return 0;
@@ -166,8 +151,6 @@ export function GeneralSettingsPage() {
       }
       slug="general"
     >
-      <DefaultsGroup draft={draft} setDraft={setDraft} />
-
       <SettingsGroup data-testid="settings-page-general-permissions" title="Permissions">
         <SettingsChoiceGroup
           ariaLabel="Permission mode"
@@ -339,94 +322,5 @@ export function GeneralSettingsPage() {
         </SheetContent>
       </Sheet>
     </SettingsPageFrame>
-  );
-}
-
-interface DraftSectionProps {
-  draft: GeneralConfig;
-  setDraft: Dispatch<SetStateAction<GeneralConfig | null>>;
-}
-
-function DefaultsGroup({ draft, setDraft }: DraftSectionProps) {
-  const providers = useSettingsProviders();
-  const sandboxes = useSettingsSandboxes();
-  const providerNames = (providers.data?.providers ?? []).map(entry => entry.name);
-  const sandboxNames = (sandboxes.data?.sandboxes ?? []).map(entry => entry.name);
-
-  return (
-    <SettingsGroup data-testid="settings-page-general-defaults" title="Defaults">
-      <SettingRow
-        data-testid="settings-page-general-default-agent"
-        label="Default agent"
-        control={
-          <Input
-            className="w-52"
-            data-testid="settings-page-general-default-agent-input"
-            onChange={event =>
-              setDraft(prev => {
-                const current = prev ?? draft;
-                return { ...current, defaults: { ...current.defaults, agent: event.target.value } };
-              })
-            }
-            value={draft.defaults.agent}
-          />
-        }
-      />
-      <SettingRow
-        data-testid="settings-page-general-default-provider"
-        label="Default provider"
-        control={
-          <NativeSelect
-            className="w-52"
-            data-testid="settings-page-general-default-provider-input"
-            onChange={event =>
-              setDraft(prev => {
-                const current = prev ?? draft;
-                return {
-                  ...current,
-                  defaults: { ...current.defaults, provider: event.target.value },
-                };
-              })
-            }
-            value={draft.defaults.provider ?? ""}
-          >
-            <NativeSelectOption value="">auto</NativeSelectOption>
-            {providerNames.map(name => (
-              <NativeSelectOption key={name} value={name}>
-                {name}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        }
-      />
-      <SettingRow
-        data-testid="settings-page-general-default-sandbox"
-        help="How much of your file system new sessions can touch."
-        label="Default sandbox"
-        control={
-          <NativeSelect
-            className="w-52 font-mono"
-            data-testid="settings-page-general-default-sandbox-input"
-            onChange={event =>
-              setDraft(prev => {
-                const current = prev ?? draft;
-                return {
-                  ...current,
-                  defaults: { ...current.defaults, sandbox: event.target.value },
-                };
-              })
-            }
-            value={draft.defaults.sandbox ?? ""}
-          >
-            <NativeSelectOption value="">local</NativeSelectOption>
-            {sandboxNames.map(name => (
-              <NativeSelectOption key={name} value={name}>
-                {name}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        }
-      />
-    </SettingsGroup>
   );
 }

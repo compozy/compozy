@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 // GetTask returns one expanded task view after enforcing read authority.
@@ -23,7 +25,7 @@ func (m *Service) GetTask(ctx context.Context, id string, actor ActorContext) (*
 		return nil, err
 	}
 
-	children, err := m.listTaskSummaries(ctx, Query{ParentTaskID: trimmedID})
+	children, err := m.listTaskSummaries(ctx, Query{ReadScope: actor.ReadScope, ParentTaskID: trimmedID})
 	if err != nil {
 		return nil, err
 	}
@@ -35,6 +37,9 @@ func (m *Service) GetTask(ctx context.Context, id string, actor ActorContext) (*
 	runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: trimmedID})
 	if err != nil {
 		return nil, err
+	}
+	for index := range runs {
+		runs[index].ProfileID = record.ProfileID
 	}
 	events, err := m.store.ListTaskEvents(ctx, EventQuery{TaskID: trimmedID})
 	if err != nil {
@@ -52,19 +57,8 @@ func (m *Service) GetTask(ctx context.Context, id string, actor ActorContext) (*
 	if err != nil {
 		return nil, err
 	}
-	visibleDependencies, err := m.filterAuthorizedDependencies(ctx, actor, dependencies)
-	if err != nil {
-		return nil, err
-	}
-	visibleRuns, err := m.filterAuthorizedRuns(ctx, actor, record, runs)
-	if err != nil {
-		return nil, err
-	}
-	visibleEvents, err := m.filterAuthorizedEvents(ctx, actor, record, events)
-	if err != nil {
-		return nil, err
-	}
-	dependencyReferences, err := m.buildDependencyReferences(ctx, visibleDependencies)
+	visibleDependencies, visibleRuns, visibleEvents, dependencyReferences, err :=
+		m.authorizedTaskViewRelations(ctx, actor, record, dependencies, runs, events)
 	if err != nil {
 		return nil, err
 	}
@@ -91,6 +85,33 @@ func (m *Service) GetTask(ctx context.Context, id string, actor ActorContext) (*
 	return view, nil
 }
 
+func (m *Service) authorizedTaskViewRelations(
+	ctx context.Context,
+	actor ActorContext,
+	record Task,
+	dependencies []Dependency,
+	runs []Run,
+	events []Event,
+) ([]Dependency, []Run, []Event, []DependencyReference, error) {
+	visibleDependencies, err := m.filterAuthorizedDependencies(ctx, actor, dependencies)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	visibleRuns, err := m.filterAuthorizedRuns(ctx, actor, record, runs)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	visibleEvents, err := m.filterAuthorizedEvents(ctx, actor, record, events)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	dependencyReferences, err := m.buildDependencyReferences(ctx, visibleDependencies)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	return visibleDependencies, visibleRuns, visibleEvents, dependencyReferences, nil
+}
+
 // ListTaskRuns returns task runs for one task after enforcing read authority and
 // task existence.
 func (m *Service) ListTaskRuns(
@@ -115,11 +136,21 @@ func (m *Service) ListTaskRuns(
 
 	normalizedQuery := query
 	normalizedQuery.TaskID = trimmedID
+	if actor.ReadScope != (store.ReadScope{}) {
+		normalizedQuery.ReadScope = actor.ReadScope
+	}
 	runs, err := m.store.ListTaskRuns(ctx, normalizedQuery)
 	if err != nil {
 		return nil, err
 	}
-	return m.filterAuthorizedRuns(ctx, actor, taskRecord, runs)
+	visibleRuns, err := m.filterAuthorizedRuns(ctx, actor, taskRecord, runs)
+	if err != nil {
+		return nil, err
+	}
+	for index := range visibleRuns {
+		visibleRuns[index].ProfileID = taskRecord.ProfileID
+	}
+	return visibleRuns, nil
 }
 
 func (m *Service) filterAuthorizedTaskSummaries(
@@ -127,7 +158,7 @@ func (m *Service) filterAuthorizedTaskSummaries(
 	actor ActorContext,
 	summaries []Summary,
 ) []Summary {
-	if isTaskOperator(actor) {
+	if canBypassTaskReadAuthorization(actor) {
 		return summaries
 	}
 	visible := make([]Summary, 0, len(summaries))
@@ -145,7 +176,7 @@ func (m *Service) filterAuthorizedRuns(
 	taskRecord Task,
 	runs []Run,
 ) ([]Run, error) {
-	if isTaskOperator(actor) {
+	if canBypassTaskReadAuthorization(actor) {
 		return runs, nil
 	}
 	visible := make([]Run, 0, len(runs))
@@ -168,7 +199,7 @@ func (m *Service) filterAuthorizedEvents(
 	taskRecord Task,
 	events []Event,
 ) ([]Event, error) {
-	if isTaskOperator(actor) {
+	if canBypassTaskReadAuthorization(actor) {
 		return events, nil
 	}
 	visible := make([]Event, 0, len(events))
@@ -195,7 +226,7 @@ func (m *Service) filterAuthorizedDependencies(
 	actor ActorContext,
 	dependencies []Dependency,
 ) ([]Dependency, error) {
-	if isTaskOperator(actor) {
+	if canBypassTaskReadAuthorization(actor) {
 		return dependencies, nil
 	}
 	visible := make([]Dependency, 0, len(dependencies))
@@ -266,11 +297,14 @@ func (m *Service) ListTasks(
 	if err := requireReadAuthority(actor); err != nil {
 		return nil, err
 	}
+	if actor.ReadScope != (store.ReadScope{}) {
+		query.ReadScope = actor.ReadScope
+	}
 	summaries, err := m.listTaskSummaries(ctx, query)
 	if err != nil {
 		return nil, err
 	}
-	if isTaskOperator(actor) {
+	if canBypassTaskReadAuthorization(actor) {
 		return summaries, nil
 	}
 	visible := make([]Summary, 0, len(summaries))

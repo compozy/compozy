@@ -92,7 +92,7 @@ func testExtensionRuntimeBuiltInAndCustomMethods(t *testing.T) {
 			Permissions: compozysdk.PermissionsConfig{
 				Requires: []compozysdk.HostAPIMethod{compozysdk.HostAPIMethodSessionsList},
 			},
-			SupportedHookEvents: []string{"session.started"},
+			SupportedHookEvents: []compozysdk.DescribeHookEvent{{Event: "session.started"}},
 		},
 		compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
 		compozysdk.WithSDKVersion("test-version"),

@@ -57,7 +57,7 @@ func TestStoreListMemoryEventSummaries(t *testing.T) {
 			t,
 			globalStore.catalog,
 			memoryEventWriteCommitted,
-			"global",
+			"profile",
 			"",
 			"daemon",
 			"global write committed",
@@ -100,7 +100,7 @@ func TestStoreListMemoryEventSummaries(t *testing.T) {
 		events, err := globalStore.ListMemoryEventSummaries(
 			ctx,
 			[]string{workspaceRoot, workspaceRoot},
-			storepkg.EventSummaryQuery{},
+			storepkg.EventSummaryQuery{ReadScope: storepkg.ReadScope{AllProfiles: true}},
 		)
 		if err != nil {
 			t.Fatalf("ListMemoryEventSummaries() error = %v", err)
@@ -124,7 +124,7 @@ func TestStoreListMemoryEventSummaries(t *testing.T) {
 		limited, err := globalStore.ListMemoryEventSummaries(
 			ctx,
 			[]string{workspaceRoot},
-			storepkg.EventSummaryQuery{Limit: 1},
+			storepkg.EventSummaryQuery{ReadScope: storepkg.ReadScope{AllProfiles: true}, Limit: 1},
 		)
 		if err != nil {
 			t.Fatalf("ListMemoryEventSummaries(limit) error = %v", err)
@@ -136,7 +136,10 @@ func TestStoreListMemoryEventSummaries(t *testing.T) {
 		filtered, err := globalStore.ListMemoryEventSummaries(
 			ctx,
 			[]string{workspaceRoot},
-			storepkg.EventSummaryQuery{Type: memoryEventRecallExecuted},
+			storepkg.EventSummaryQuery{
+				ReadScope: storepkg.ReadScope{AllProfiles: true},
+				Type:      memoryEventRecallExecuted,
+			},
 		)
 		if err != nil {
 			t.Fatalf("ListMemoryEventSummaries(type) error = %v", err)
@@ -148,7 +151,10 @@ func TestStoreListMemoryEventSummaries(t *testing.T) {
 		workspaceOnly, err := globalStore.ListMemoryEventSummaries(
 			ctx,
 			[]string{workspaceRoot},
-			storepkg.EventSummaryQuery{WorkspaceID: workspaceID},
+			storepkg.EventSummaryQuery{
+				ReadScope:   storepkg.ReadScope{AllProfiles: true},
+				WorkspaceID: workspaceID,
+			},
 		)
 		if err != nil {
 			t.Fatalf("ListMemoryEventSummaries(workspace filter) error = %v", err)
@@ -173,7 +179,7 @@ func TestStoreListMemoryEventSummaries(t *testing.T) {
 		_, err := store.ListMemoryEventSummaries(
 			testutil.Context(t),
 			[]string{workspaceRoot},
-			storepkg.EventSummaryQuery{},
+			storepkg.EventSummaryQuery{ReadScope: storepkg.ReadScope{AllProfiles: true}},
 		)
 		if !errors.Is(err, storepkg.ErrLegacyDatabase) {
 			t.Fatalf("ListMemoryEventSummaries(legacy) error = %v, want ErrLegacyDatabase", err)
@@ -204,7 +210,7 @@ func TestStoreListMemoryEventSummaries(t *testing.T) {
 		_, err := store.ListMemoryEventSummaries(
 			testutil.Context(t),
 			[]string{workspaceRoot},
-			storepkg.EventSummaryQuery{},
+			storepkg.EventSummaryQuery{ReadScope: storepkg.ReadScope{AllProfiles: true}},
 		)
 		if !errors.Is(err, storepkg.ErrSchemaAhead) {
 			t.Fatalf("ListMemoryEventSummaries(ahead) error = %v, want ErrSchemaAhead", err)
@@ -342,12 +348,17 @@ func insertMemoryObservabilityEvent(
 	if err != nil {
 		t.Fatalf("json.Marshal(metadata) error = %v", err)
 	}
+	profileID := ""
+	if scope == "profile" {
+		profileID = storepkg.DefaultProfileID
+	}
 	if _, err := db.ExecContext(
 		ctx,
 		`INSERT INTO memory_events (
-			op, scope, agent_name, workspace_id, actor_kind, metadata, ts_ms
-		) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			op, profile_id, scope, agent_name, workspace_id, actor_kind, metadata, ts_ms
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		op,
+		profileID,
 		nullStringForEmpty(scope),
 		agentName,
 		nullStringForEmpty(workspaceID),

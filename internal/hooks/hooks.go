@@ -56,6 +56,7 @@ type snapshotFingerprint struct {
 
 type resolvedHookFingerprint struct {
 	Name         string            `json:"name"`
+	ProfileID    string            `json:"profile_id"`
 	Event        HookEvent         `json:"event"`
 	Source       HookSource        `json:"source"`
 	Mode         HookMode          `json:"mode"`
@@ -369,6 +370,7 @@ func fingerprintHookSnapshot(snapshot map[HookEvent][]*ResolvedHook) (string, er
 
 			entry.Hooks = append(entry.Hooks, resolvedHookFingerprint{
 				Name:         hook.Name,
+				ProfileID:    hook.ProfileID,
 				Event:        hook.Event,
 				Source:       hook.Source,
 				Mode:         hook.Mode,

@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-
 	"strings"
 
 	apicontract "github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (h *HostAPIHandler) handleAutomationJobsGet(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -161,9 +161,10 @@ func (h *HostAPIHandler) handleAutomationJobsRuns(ctx context.Context, raw json.
 		return nil, err
 	}
 	return automation.ListRuns(ctx, automationpkg.RunQuery{
-		JobID:  job.ID,
-		Status: params.Status,
-		Limit:  params.Limit,
+		ReadScope: store.ReadScope{ProfileID: job.ProfileID},
+		JobID:     job.ID,
+		Status:    params.Status,
+		Limit:     params.Limit,
 	})
 }
 
@@ -302,6 +303,7 @@ func (h *HostAPIHandler) handleAutomationTriggersRuns(ctx context.Context, raw j
 		return nil, err
 	}
 	return automation.ListRuns(ctx, automationpkg.RunQuery{
+		ReadScope: store.ReadScope{ProfileID: trigger.ProfileID},
 		TriggerID: trigger.ID,
 		Status:    params.Status,
 		Limit:     params.Limit,
@@ -355,8 +357,13 @@ func (h *HostAPIHandler) handleAutomationRuns(ctx context.Context, raw json.RawM
 	); err != nil {
 		return nil, err
 	}
+	profileID, err := hostAPIProfileID(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	return automation.ListRuns(ctx, automationpkg.RunQuery{
+		ReadScope: store.ReadScope{ProfileID: profileID},
 		JobID:     strings.TrimSpace(params.JobID),
 		TriggerID: strings.TrimSpace(params.TriggerID),
 		Status:    params.Status,

@@ -57,7 +57,7 @@ func defaultMemorySelectorScope(selector memorySelector) memcontract.Scope {
 	case strings.TrimSpace(firstNonEmptyString(selector.WorkspaceID, selector.Workspace)) != "":
 		return memcontract.ScopeWorkspace
 	default:
-		return memcontract.ScopeGlobal
+		return memcontract.ScopeProfile
 	}
 }
 
@@ -70,7 +70,11 @@ func memoryDecisionApplied(decision memcontract.Decision) bool {
 	}
 }
 
-func (h *BaseHandlers) memoryHealthWorkspaces(ctx context.Context, rawWorkspace string) ([]string, error) {
+func (h *BaseHandlers) memoryHealthWorkspaces(
+	ctx context.Context,
+	rawWorkspace string,
+	profileIDs ...string,
+) ([]string, error) {
 	if strings.TrimSpace(rawWorkspace) != "" {
 		workspace, _, err := h.resolveMemoryWorkspaceRef(ctx, rawWorkspace)
 		if err != nil {
@@ -86,8 +90,15 @@ func (h *BaseHandlers) memoryHealthWorkspaces(ctx context.Context, rawWorkspace 
 
 	workspaces := make([]string, 0, len(infos))
 	seen := make(map[string]struct{}, len(infos))
+	profileID := ""
+	if len(profileIDs) > 0 {
+		profileID = strings.TrimSpace(profileIDs[0])
+	}
 	for _, info := range infos {
 		if info == nil || strings.TrimSpace(info.Workspace) == "" {
+			continue
+		}
+		if profileID != "" && strings.TrimSpace(info.ProfileID) != profileID {
 			continue
 		}
 		workspace, err := resolveMemoryWorkspace(info.Workspace)
@@ -156,10 +167,10 @@ func parseOptionalMemoryScope(raw string) (memcontract.Scope, error) {
 	switch scope {
 	case "":
 		return "", nil
-	case memcontract.ScopeGlobal, memcontract.ScopeWorkspace, memcontract.ScopeAgent:
+	case memcontract.ScopeProfile, memcontract.ScopeWorkspace, memcontract.ScopeAgent:
 		return scope, nil
 	default:
-		return "", NewMemoryValidationError(fmt.Errorf("scope must be one of global, workspace, or agent"))
+		return "", NewMemoryValidationError(fmt.Errorf("scope must be one of profile, workspace, or agent"))
 	}
 }
 

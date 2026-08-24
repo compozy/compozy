@@ -23,6 +23,7 @@ import (
 // CreateOpts defines the inputs required to create a new session.
 type CreateOpts struct {
 	DesiredSessionID string
+	ProfileID        string
 	AgentName        string
 	Provider         string
 	Model            string
@@ -97,6 +98,7 @@ type HostedMCPLauncher interface {
 // HostedMCPLaunchRequest describes the session identity for a hosted MCP entry.
 type HostedMCPLaunchRequest struct {
 	SessionID   string
+	ProfileID   string
 	WorkspaceID string
 	AgentName   string
 }
@@ -104,6 +106,11 @@ type HostedMCPLaunchRequest struct {
 // ProviderSecretResolver resolves provider-bound secret refs at launch time.
 type ProviderSecretResolver interface {
 	ResolveRef(ctx context.Context, ref string) (string, error)
+}
+
+// ProfileNameResolver maps stable profile ids to the current vault/resource name.
+type ProfileNameResolver interface {
+	ProfileName(ctx context.Context, profileID string) (string, error)
 }
 
 // Option customizes the session manager.
@@ -143,26 +150,27 @@ type Manager struct {
 	resumeLifecycle            sessionResumeLifecycle
 	processWatchLifecycle      sessionProcessWatchLifecycle
 
-	syntheticMu           sync.Mutex
-	syntheticQueues       map[string][]queuedSyntheticPrompt
-	syntheticDispatching  map[string]bool
-	soulLocksMu           sync.Mutex
-	soulLocks             map[string]chan struct{}
-	sessionHealthHookMu   sync.Mutex
-	sessionHealthHookLast map[string]time.Time
-	streamEventsMu        sync.Mutex
-	streamEvents          *sessionEventBroadcaster
-	catalogEventsMu       sync.Mutex
-	catalogEvents         *sessionCatalogBroadcaster
-	presenceMu            sync.Mutex
-	presenceLeases        map[sessionPresenceKey]sessionPresenceLease
-	notifyMu              sync.Mutex
-	notifyConfig          compozyconfig.AttentionConfig
-	notifyLastBySession   map[string]time.Time
-	waitRegistry          *sessionWaitRegistry
-	spawnWakeMu           sync.Mutex
-	spawnWakeEventIDs     map[string]struct{}
-	spawnWakeEventOrder   []string
+	syntheticMu             sync.Mutex
+	syntheticQueues         map[string][]queuedSyntheticPrompt
+	syntheticDispatching    map[string]bool
+	soulLocksMu             sync.Mutex
+	soulLocks               map[string]chan struct{}
+	sessionHealthHookMu     sync.Mutex
+	sessionHealthHookLast   map[string]time.Time
+	streamEventsMu          sync.Mutex
+	streamEvents            *sessionEventBroadcaster
+	catalogEventsMu         sync.Mutex
+	catalogEvents           *sessionCatalogBroadcaster
+	presenceMu              sync.Mutex
+	presenceLeases          map[sessionPresenceKey]sessionPresenceLease
+	notifyMu                sync.Mutex
+	notifyConfig            compozyconfig.AttentionConfig
+	attentionWorkspaceMutes AttentionWorkspaceMuteReader
+	notifyLastBySession     map[string]time.Time
+	waitRegistry            *sessionWaitRegistry
+	spawnWakeMu             sync.Mutex
+	spawnWakeEventIDs       map[string]struct{}
+	spawnWakeEventOrder     []string
 
 	logger                       *slog.Logger
 	driver                       AgentDriver
@@ -186,6 +194,7 @@ type Manager struct {
 	sandbox                      *sandbox.Registry
 	agentResolver                AgentResolver
 	providerSecrets              ProviderSecretResolver
+	profileNames                 ProfileNameResolver
 	modelCatalog                 modelcatalog.Service
 	skillRegistry                SkillRegistry
 	toolsetCatalog               toolspkg.ToolsetCatalog

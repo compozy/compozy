@@ -106,6 +106,7 @@ func loopRunPayload(run looppkg.Run) (contract.LoopRunPayload, error) {
 	}
 	payload := contract.LoopRunPayload{
 		ID:                           string(run.ID),
+		ProfileID:                    run.ProfileID,
 		WorkspaceID:                  string(run.WorkspaceID),
 		LoopName:                     run.LoopName,
 		Status:                       contract.LoopRunStatus(run.Status),

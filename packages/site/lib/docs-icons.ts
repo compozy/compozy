@@ -139,6 +139,7 @@ export const API_TAG_ICONS: Record<string, string> = {
   onboarding: "Rocket",
   openai: "Sparkles",
   providers: "Bot",
+  profiles: "Users",
   resources: "Database",
   roles: "Users",
   sessions: "Send",

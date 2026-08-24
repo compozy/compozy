@@ -22,6 +22,7 @@ func (d *Dispatcher) dispatchPreFireHook(
 	switch {
 	case req.Job != nil:
 		payload := hookspkg.AutomationJobPreFirePayload{
+			ProfileID:   strings.TrimSpace(req.Job.ProfileID),
 			JobID:       strings.TrimSpace(req.Job.ID),
 			JobName:     strings.TrimSpace(req.Job.Name),
 			AgentName:   strings.TrimSpace(req.Job.AgentName),
@@ -41,6 +42,7 @@ func (d *Dispatcher) dispatchPreFireHook(
 		return strings.TrimSpace(next.Prompt), false, nil
 	case req.Trigger != nil:
 		payload := hookspkg.AutomationTriggerPreFirePayload{
+			ProfileID:   strings.TrimSpace(req.Trigger.ProfileID),
 			TriggerID:   strings.TrimSpace(req.Trigger.ID),
 			TriggerName: strings.TrimSpace(req.Trigger.Name),
 			Event:       strings.TrimSpace(req.Trigger.Event),
@@ -71,6 +73,7 @@ func (d *Dispatcher) dispatchPostFireHook(ctx context.Context, req DispatchReque
 	switch {
 	case req.Job != nil:
 		if _, err := d.hooks.DispatchAutomationJobPostFire(ctx, hookspkg.AutomationJobPostFirePayload{
+			ProfileID:   strings.TrimSpace(req.Job.ProfileID),
 			JobID:       strings.TrimSpace(req.Job.ID),
 			JobName:     strings.TrimSpace(req.Job.Name),
 			AgentName:   strings.TrimSpace(req.Job.AgentName),
@@ -89,6 +92,7 @@ func (d *Dispatcher) dispatchPostFireHook(ctx context.Context, req DispatchReque
 		}
 	case req.Trigger != nil:
 		if _, err := d.hooks.DispatchAutomationTriggerPostFire(ctx, hookspkg.AutomationTriggerPostFirePayload{
+			ProfileID:   strings.TrimSpace(req.Trigger.ProfileID),
 			TriggerID:   strings.TrimSpace(req.Trigger.ID),
 			TriggerName: strings.TrimSpace(req.Trigger.Name),
 			Event:       strings.TrimSpace(req.Trigger.Event),
@@ -121,6 +125,7 @@ func (d *Dispatcher) emitRunLifecycleHooks(
 	}
 	if run.Status == RunCompleted {
 		if _, err := d.hooks.DispatchAutomationRunCompleted(ctx, hookspkg.AutomationRunCompletedPayload{
+			ProfileID:   strings.TrimSpace(run.ProfileID),
 			RunID:       strings.TrimSpace(run.ID),
 			JobID:       strings.TrimSpace(run.JobID),
 			TriggerID:   strings.TrimSpace(run.TriggerID),
@@ -148,6 +153,7 @@ func (d *Dispatcher) emitRunLifecycleHooks(
 		errText = dispatchErr.Error()
 	}
 	if _, err := d.hooks.DispatchAutomationRunFailed(ctx, hookspkg.AutomationRunFailedPayload{
+		ProfileID:   strings.TrimSpace(run.ProfileID),
 		RunID:       strings.TrimSpace(run.ID),
 		JobID:       strings.TrimSpace(run.JobID),
 		TriggerID:   strings.TrimSpace(run.TriggerID),

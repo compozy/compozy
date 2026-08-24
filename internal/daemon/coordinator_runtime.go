@@ -282,6 +282,7 @@ func (r *coordinatorRuntime) recoverWorkspace(ctx context.Context, workspaceID s
 		if err != nil {
 			r.logCoordinatorError("daemon: load task for coordinator recovery", err, hookspkg.TaskRunEnqueuedPayload{
 				TaskRunContext: hookspkg.TaskRunContext{
+					ProfileID:                    strings.TrimSpace(run.ProfileID),
 					RunID:                        run.ID,
 					TaskID:                       run.TaskID,
 					ResolvedNetworkParticipation: new(run.NetworkSpecSnapshot()),
@@ -298,6 +299,7 @@ func (r *coordinatorRuntime) recoverWorkspace(ctx context.Context, workspaceID s
 				err,
 				hookspkg.TaskRunEnqueuedPayload{
 					TaskRunContext: hookspkg.TaskRunContext{
+						ProfileID:                    strings.TrimSpace(run.ProfileID),
 						RunID:                        run.ID,
 						TaskID:                       run.TaskID,
 						WorkspaceID:                  taskRecord.WorkspaceID,
@@ -327,6 +329,7 @@ func (r *coordinatorRuntime) bootstrapRun(
 	}
 
 	correlation := roleInvocationCorrelation{
+		ProfileID:   strings.TrimSpace(taskRecord.ProfileID),
 		WorkspaceID: strings.TrimSpace(preflight.WorkspaceID),
 		Event: store.EventCorrelation{
 			TaskID:          strings.TrimSpace(preflight.TaskID),

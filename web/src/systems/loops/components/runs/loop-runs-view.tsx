@@ -16,9 +16,12 @@ import {
 import { buildRunsRoster, type LoopOutcomeValue } from "../../lib/loop-runs-view";
 import type { LoopRun } from "../../types";
 import { LoopRunsTable } from "./loop-runs-table";
+import { emptyForScope, type ProfileListingScope } from "@/systems/profiles";
 
 export interface LoopRunsViewProps extends Omit<ComponentProps<"div">, "children"> {
   runs: readonly LoopRun[];
+  /** Owner tags in aggregate mode; names the listing scope when nothing has run. */
+  profileScope: ProfileListingScope;
   /** Outcome filter driven by the toolbar chip bar. */
   outcome: LoopOutcomeValue;
   /** The list read failed. Any rows below are the last good read, not fresh truth. */
@@ -114,6 +117,7 @@ function DegradedNotice({
 export function LoopRunsView({
   runs,
   outcome,
+  profileScope,
   isError = false,
   isReconnecting = false,
   onRetry,
@@ -123,6 +127,7 @@ export function LoopRunsView({
   ...props
 }: LoopRunsViewProps) {
   const roster = buildRunsRoster(runs, outcome);
+  const ownerOf = profileScope.aggregate ? profileScope.ownerOf : undefined;
   // A failed read outranks a reconnect: it is the more specific fact, and it is
   // the one the reader can act on.
   const cause: DegradedCause | null = isError
@@ -145,9 +150,12 @@ export function LoopRunsView({
       ) : null}
       <RosterBody
         degraded={degraded}
-        onEmptyAction={onEmptyAction}
-        roster={roster}
         hasRows={hasRows}
+        onEmptyAction={onEmptyAction}
+        outcome={outcome}
+        ownerOf={ownerOf}
+        profileScope={profileScope}
+        roster={roster}
       />
     </div>
   );
@@ -158,14 +166,25 @@ interface RosterBodyProps {
   hasRows: boolean;
   degraded: boolean;
   onEmptyAction?: () => void;
+  outcome: LoopOutcomeValue;
+  ownerOf?: ProfileListingScope["ownerOf"];
+  profileScope: ProfileListingScope;
 }
 
-function RosterBody({ roster, hasRows, degraded, onEmptyAction }: RosterBodyProps): ReactNode {
+function RosterBody({
+  roster,
+  hasRows,
+  degraded,
+  onEmptyAction,
+  outcome,
+  ownerOf,
+  profileScope,
+}: RosterBodyProps): ReactNode {
   if (hasRows) {
     return (
       <div className="flex flex-col gap-3">
         {roster.groups.map(group => (
-          <LoopRunsTable group={group} key={group.id} />
+          <LoopRunsTable group={group} key={group.id} ownerOf={ownerOf} />
         ))}
       </div>
     );
@@ -203,7 +222,9 @@ function RosterBody({ roster, hasRows, degraded, onEmptyAction }: RosterBodyProp
       data-testid="loop-runs-empty"
       description={roster.emptyState.body}
       icon={GitBranch}
-      title={roster.emptyState.title}
+      title={
+        outcome === "all" ? emptyForScope("runs", profileScope.scopeLabel) : roster.emptyState.title
+      }
     />
   );
 }

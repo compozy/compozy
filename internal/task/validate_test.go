@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/network/participation"
+	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 func TestOwnerKindForActor(t *testing.T) {
@@ -561,6 +562,97 @@ func TestDomainValidationHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject a task without a profile owner", func(t *testing.T) {
+		t.Parallel()
+		taskRecord := validTask()
+		taskRecord.ProfileID = ""
+		err := taskRecord.Validate()
+		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "task.profile_id is required") {
+			t.Fatalf("Task.Validate() error = %v, want profile_id validation", err)
+		}
+	})
+
+	t.Run("Should reject a query with an invalid profile read scope", func(t *testing.T) {
+		t.Parallel()
+		query := Query{ReadScope: storepkg.ReadScope{ProfileID: "   "}}
+		err := query.Validate("query")
+		if !errors.Is(err, ErrValidation) || !errors.Is(err, storepkg.ErrReadScopeInvalid) ||
+			!strings.Contains(err.Error(), "scoped read requires profile id") {
+			t.Fatalf("Query.Validate() error = %v, want profile read-scope validation", err)
+		}
+	})
+
+	t.Run("Should preserve the read-scope sentinel and a root field path", func(t *testing.T) {
+		t.Parallel()
+
+		err := (Query{ReadScope: storepkg.ReadScope{
+			ProfileID:   storepkg.DefaultProfileID,
+			AllProfiles: true,
+		}}).Validate("")
+		if !errors.Is(err, ErrValidation) || !errors.Is(err, storepkg.ErrReadScopeInvalid) {
+			t.Fatalf("Query.Validate() error = %v, want both validation sentinels", err)
+		}
+		if !strings.Contains(err.Error(), "read_scope") || strings.Contains(err.Error(), ".read_scope") {
+			t.Fatalf("Query.Validate() error = %v, want root read_scope path", err)
+		}
+	})
+
+	t.Run("Should validate task read lenses at each public DTO", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tt := range []struct {
+			name     string
+			validate func(storepkg.ReadScope) error
+		}{
+			{name: "actor", validate: func(scope storepkg.ReadScope) error {
+				actor := validActorContext()
+				actor.ReadScope = scope
+				return actor.Validate()
+			}},
+			{name: "query", validate: func(scope storepkg.ReadScope) error {
+				return (Query{ReadScope: scope}).Validate("query")
+			}},
+			{name: "run query", validate: func(scope storepkg.ReadScope) error {
+				return (RunQuery{ReadScope: scope}).Validate("run_query")
+			}},
+		} {
+			t.Run("Should accept zero internal scope for "+tt.name, func(t *testing.T) {
+				t.Parallel()
+				if err := tt.validate(storepkg.ReadScope{}); err != nil {
+					t.Fatalf("Validate(zero scope) error = %v", err)
+				}
+			})
+			t.Run("Should accept one profile for "+tt.name, func(t *testing.T) {
+				t.Parallel()
+				if err := tt.validate(storepkg.ReadScope{ProfileID: storepkg.DefaultProfileID}); err != nil {
+					t.Fatalf("Validate(profile scope) error = %v", err)
+				}
+			})
+			t.Run("Should accept the aggregate for "+tt.name, func(t *testing.T) {
+				t.Parallel()
+				if err := tt.validate(storepkg.ReadScope{AllProfiles: true}); err != nil {
+					t.Fatalf("Validate(aggregate scope) error = %v", err)
+				}
+			})
+			t.Run("Should reject a mixed scope for "+tt.name, func(t *testing.T) {
+				t.Parallel()
+				err := tt.validate(storepkg.ReadScope{ProfileID: storepkg.DefaultProfileID, AllProfiles: true})
+				if !errors.Is(err, ErrValidation) || !errors.Is(err, storepkg.ErrReadScopeInvalid) {
+					t.Fatalf("Validate(mixed scope) error = %v, want both validation sentinels", err)
+				}
+			})
+		}
+	})
+
+	t.Run("Should reject a create request without a profile owner", func(t *testing.T) {
+		t.Parallel()
+
+		err := (CreateTask{Title: "owned task"}).Validate("task")
+		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "task.profile_id is required") {
+			t.Fatalf("CreateTask.Validate() error = %v, want profile_id validation", err)
+		}
+	})
+
 	t.Run("Should draft task valid", func(t *testing.T) {
 		t.Parallel()
 		taskRecord := validTask()
@@ -692,7 +784,7 @@ func TestDomainValidationHelpers(t *testing.T) {
 			{
 				name: "raw token in result",
 				mutate: func(run *Run) {
-					run.Result = json.RawMessage(`{"claim_token":"raw"}`)
+					run.Result = rawJSONPointer(json.RawMessage(`{"claim_token":"raw"}`))
 				},
 			},
 		}
@@ -905,6 +997,7 @@ func validTask() Task {
 	now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
 	return Task{
 		ID:             "task-1",
+		ProfileID:      storepkg.DefaultProfileID,
 		Identifier:     "TASK-1",
 		Scope:          ScopeGlobal,
 		Title:          "Bootstrap internal/task",
@@ -934,7 +1027,7 @@ func validRun() Run {
 		Attempt:  1,
 		Origin:   Origin{Kind: OriginKindCLI, Ref: "compozy task run enqueue"},
 		QueuedAt: now,
-		Result:   json.RawMessage(`{"ok":true}`),
+		Result:   rawJSONPointer(json.RawMessage(`{"ok":true}`)),
 	}
 }
 
@@ -1391,6 +1484,7 @@ func TestRequestAndQueryValidation(t *testing.T) {
 			name: "create task valid",
 			run: func() error {
 				return CreateTask{
+					ProfileID:      storepkg.DefaultProfileID,
 					Scope:          ScopeWorkspace,
 					Title:          "Create task",
 					Priority:       PriorityHigh,
@@ -1406,6 +1500,7 @@ func TestRequestAndQueryValidation(t *testing.T) {
 			name: "create task invalid max attempts zero",
 			run: func() error {
 				return CreateTask{
+					ProfileID:   storepkg.DefaultProfileID,
 					Scope:       ScopeGlobal,
 					Title:       "Create task",
 					MaxAttempts: new(0),
@@ -1417,6 +1512,7 @@ func TestRequestAndQueryValidation(t *testing.T) {
 			name: "create task invalid parent self",
 			run: func() error {
 				return CreateTask{
+					ProfileID:    storepkg.DefaultProfileID,
 					ID:           "task-1",
 					Scope:        ScopeGlobal,
 					Title:        "Create task",

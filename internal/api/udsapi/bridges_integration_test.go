@@ -13,6 +13,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -168,6 +169,7 @@ func TestUDSBridgeContract(t *testing.T) {
 		// not parallel: newIntegrationRuntime temporarily mutates Gin's process-global mode.
 		runtime := newIntegrationRuntime(t)
 		instance, err := runtime.bridges.CreateInstance(testutil.Context(t), bridgepkg.CreateInstanceRequest{
+			ProfileID:        storepkg.DefaultProfileID,
 			ID:               "brg/uds+test-delivery",
 			Scope:            bridgepkg.ScopeGlobal,
 			Platform:         "telegram",

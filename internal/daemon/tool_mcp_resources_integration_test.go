@@ -12,7 +12,9 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -72,6 +74,7 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 		)
 
 		runtime := &toolMCPIntegrationRuntime{
+			registry: registry,
 			extension: &extensionpkg.Extension{
 				Info:     *info,
 				Manifest: manifest,
@@ -109,7 +112,7 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 				registry,
 				func() extensionRuntime { return runtime },
 				nil,
-				discardLogger(),
+				defaultToolMCPProfileCatalog{},
 			),
 		)
 		if err := syncer.Sync(testutil.Context(t)); err != nil {
@@ -132,11 +135,14 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 		}
 		extensionResourceOwner := extensionOwner(manifest.Name).Normalize()
 		publicationSource := toolMCPSyncActor().Source.Normalize()
-		if got, want := tools[0].ID, "extension/"+manifest.Name+"/tool/"+tools[0].Spec.ID.String(); got != want {
+		if got, want := tools[0].ID, "extension/"+manifest.Name+"/tool/"+tools[0].Spec.ID.String()+"/profile/"+store.DefaultProfileID; got != want {
 			t.Fatalf("tools[0].ID = %q, want source-key ID %q", got, want)
 		}
 		if got, want := tools[0].Owner.Normalize(), extensionResourceOwner; got != want {
 			t.Fatalf("tools[0].Owner = %#v, want extension owner %#v", got, want)
+		}
+		if got, want := tools[0].Scope, (resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: store.DefaultProfileID}); got != want {
+			t.Fatalf("tools[0].Scope = %#v, want %#v", got, want)
 		}
 		if got, want := tools[0].Source.Normalize(), publicationSource; got != want {
 			t.Fatalf("tools[0].Source = %#v, want daemon source %#v", got, want)
@@ -154,11 +160,14 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 			t.Fatalf("len(mcpStore.List()) = %d, want %d", got, want)
 		}
 		extensionServer := requireMCPServerRecord(t, servers, "kubectl")
-		if got, want := extensionServer.ID, "extension/"+manifest.Name+"/mcp_server/kubectl"; got != want {
+		if got, want := extensionServer.ID, "extension/"+manifest.Name+"/mcp_server/kubectl/profile/"+store.DefaultProfileID; got != want {
 			t.Fatalf("extension MCP ID = %q, want source-key ID %q", got, want)
 		}
 		if got, want := extensionServer.Owner.Normalize(), extensionResourceOwner; got != want {
 			t.Fatalf("extension MCP owner = %#v, want %#v", got, want)
+		}
+		if got, want := extensionServer.Scope, (resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: store.DefaultProfileID}); got != want {
+			t.Fatalf("extension MCP scope = %#v, want %#v", got, want)
 		}
 		if got, want := extensionServer.Source.Normalize(), publicationSource; got != want {
 			t.Fatalf("extension MCP source = %#v, want %#v", got, want)
@@ -172,7 +181,7 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 		configSourceKey := "config/global/git"
 		wantConfigID := contentAddressedManagedPublicationID(
 			mcpServerManagedIDPrefix,
-			resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			configSourceKey,
 			configEncoded,
 		)
@@ -272,6 +281,7 @@ func TestToolMCPStaticPublicationExtensionLifecycle(t *testing.T) {
 			t.Fatalf("registry.Get() error = %v", err)
 		}
 		runtime := &toolMCPIntegrationRuntime{
+			registry: registry,
 			extension: &extensionpkg.Extension{
 				Info:     *info,
 				Manifest: manifest,
@@ -306,7 +316,7 @@ func TestToolMCPStaticPublicationExtensionLifecycle(t *testing.T) {
 				registry,
 				func() extensionRuntime { return runtime },
 				nil,
-				discardLogger(),
+				defaultToolMCPProfileCatalog{},
 			),
 		)
 
@@ -336,6 +346,7 @@ func TestToolMCPStaticPublicationExtensionLifecycle(t *testing.T) {
 }
 
 type toolMCPIntegrationRuntime struct {
+	registry  *extensionpkg.Registry
 	extension *extensionpkg.Extension
 }
 
@@ -350,6 +361,36 @@ func (r *toolMCPIntegrationRuntime) Get(name string) (*extensionpkg.Extension, e
 		return nil, &extensionpkg.ExtensionNotFoundError{Name: name}
 	}
 	return r.extension, nil
+}
+
+func (r *toolMCPIntegrationRuntime) ProjectForProfile(
+	context.Context,
+	extensionpkg.InstanceKey,
+	extensionpkg.ProfileLens,
+) (*extensionpkg.Extension, bool, error) {
+	if r.extension == nil {
+		return nil, false, &extensionpkg.ExtensionNotFoundError{Name: "extension"}
+	}
+	projected := *r.extension
+	enabled := projected.Info.Enabled
+	if r.registry != nil {
+		resolved, err := r.registry.IsEnabledForProfile(projected.Info.Name, store.DefaultProfileID)
+		if err != nil {
+			return nil, false, err
+		}
+		enabled = resolved
+	}
+	projected.Info.Enabled = enabled
+	projected.Status.Enabled = enabled
+	return &projected, enabled, nil
+}
+
+type defaultToolMCPProfileCatalog struct{}
+
+func (defaultToolMCPProfileCatalog) List(context.Context) ([]profilepkg.WithCounts, error) {
+	return []profilepkg.WithCounts{{
+		Profile: profilepkg.Profile{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive},
+	}}, nil
 }
 
 func (r *toolMCPIntegrationRuntime) HookDeclarations(context.Context) ([]hookspkg.HookDecl, error) {
@@ -390,7 +431,7 @@ func newToolMCPIntegrationDriver(
 				Kind: resources.ResourceSourceKind("daemon"),
 				ID:   "tool-mcp-integration",
 			},
-			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		},
 		[]resources.ProjectorRegistration{toolRegistration, mcpRegistration},
 		resources.WithReconcileLogger(discardLogger()),

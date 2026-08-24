@@ -111,6 +111,7 @@ func (m *Service) taskRunHookContext(
 	}
 	wakeID, targetSessionID, ownerKey := run.NetworkWakeCorrelation()
 	return hookspkg.TaskRunContext{
+		ProfileID:                    strings.TrimSpace(run.ProfileID),
 		TaskID:                       strings.TrimSpace(run.TaskID),
 		RunID:                        strings.TrimSpace(run.ID),
 		RunKind:                      &runKind,

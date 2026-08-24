@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 var (
@@ -21,6 +23,7 @@ var (
 // An empty WorkspaceID identifies the globally installed instance.
 type InstanceKey struct {
 	Name        string `json:"name"`
+	ProfileID   string `json:"profile_id,omitempty"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
 }
 
@@ -28,6 +31,7 @@ type InstanceKey struct {
 func (k InstanceKey) Normalize() InstanceKey {
 	return InstanceKey{
 		Name:        strings.TrimSpace(k.Name),
+		ProfileID:   strings.TrimSpace(k.ProfileID),
 		WorkspaceID: strings.TrimSpace(k.WorkspaceID),
 	}
 }
@@ -46,15 +50,38 @@ func (k InstanceKey) IsGlobal() bool {
 	return strings.TrimSpace(k.WorkspaceID) == ""
 }
 
+// IsProfileScoped reports whether the runtime is isolated to one profile.
+func (k InstanceKey) IsProfileScoped() bool {
+	return strings.TrimSpace(k.ProfileID) != ""
+}
+
 // GlobalInstanceKey returns the published instance identity for name.
 func GlobalInstanceKey(name string) InstanceKey {
 	return InstanceKey{Name: strings.TrimSpace(name)}
 }
 
+// ProfileInstanceKey returns the runtime identity for one acting profile and
+// optional workspace. The permanent default profile reuses the base process.
+func ProfileInstanceKey(name, profileID, workspaceID string) InstanceKey {
+	key := InstanceKey{
+		Name:        strings.TrimSpace(name),
+		ProfileID:   strings.TrimSpace(profileID),
+		WorkspaceID: strings.TrimSpace(workspaceID),
+	}
+	if key.ProfileID == "" || key.ProfileID == store.DefaultProfileID {
+		key.ProfileID = ""
+	}
+	return key
+}
+
 func (k InstanceKey) runtimeID() string {
 	normalized := k.Normalize()
-	if normalized.WorkspaceID == "" {
-		return normalized.Name
+	id := normalized.Name
+	if normalized.ProfileID != "" {
+		id += "@profile:" + normalized.ProfileID
 	}
-	return fmt.Sprintf("%s@workspace:%s", normalized.Name, normalized.WorkspaceID)
+	if normalized.WorkspaceID != "" {
+		id += fmt.Sprintf("@workspace:%s", normalized.WorkspaceID)
+	}
+	return id
 }

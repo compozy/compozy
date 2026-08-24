@@ -47,6 +47,7 @@ func testBridgeRuntimeWithBoundSecretValue(value string) InitializeBridgeRuntime
 		ManagedInstances: []InitializeBridgeManagedInstance{{
 			Instance: bridges.BridgeInstance{
 				ID:            "brg-1",
+				ProfileID:     "profile-test",
 				Scope:         bridges.ScopeWorkspace,
 				WorkspaceID:   "ws-1",
 				Platform:      "discord",

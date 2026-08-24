@@ -111,10 +111,36 @@ func (r *Registry) externalCommandCandidateSnapshot(
 	for _, skill := range r.resourceGlobalCommandCandidates {
 		appendExternalCommandSkill(result, skill)
 	}
+	for _, skill := range r.profileCommandCandidatesForResolved(resolved) {
+		appendExternalCommandSkill(result, skill)
+	}
 	for _, skill := range r.resourceWorkspaceCommandCandidates[resourceWorkspaceKey(resolved)] {
 		appendExternalCommandSkill(result, skill)
 	}
+	for _, skill := range r.workspaceProfileCommandCandidatesForResolved(resolved) {
+		appendExternalCommandSkill(result, skill)
+	}
 	return result
+}
+
+func (r *Registry) profileCommandCandidatesForResolved(
+	resolved *workspacepkg.ResolvedWorkspace,
+) []*Skill {
+	if resolved == nil {
+		return nil
+	}
+	for _, key := range []string{resourceProfileKey(resolved), strings.TrimSpace(resolved.ProfileRoot)} {
+		if candidates := r.resourceProfileCommandCandidates[key]; len(candidates) > 0 {
+			return candidates
+		}
+	}
+	return nil
+}
+
+func (r *Registry) workspaceProfileCommandCandidatesForResolved(
+	resolved *workspacepkg.ResolvedWorkspace,
+) []*Skill {
+	return r.resourceWorkspaceProfileCommandCandidates[resourceWorkspaceProfileKey(resolved)]
 }
 
 func appendExternalCommandSkill(destination map[string]*Skill, skill *Skill) {

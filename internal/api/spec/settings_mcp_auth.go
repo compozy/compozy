@@ -10,9 +10,10 @@ func settingsMCPAuthOperations() []OperationSpec {
 		pathParam("name", "Configured MCP server name"),
 		{
 			Name: specScopeKey, In: specParameterInQuery, Description: "Exact MCP settings scope",
-			Required: true, Kind: "string", Enum: []string{specGlobalKey, specWorkspaceKey},
+			Required: true, Kind: "string", Enum: settingsLayeredScopeValues(),
 		},
 		queryParam("workspace_id", "Required when scope is workspace", false),
+		queryParam("profile", "Required when scope is profile", false),
 	}
 	responses := func(success any) []ResponseSpec {
 		return []ResponseSpec{

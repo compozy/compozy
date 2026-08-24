@@ -20,19 +20,33 @@ func (h *BaseHandlers) CancelPendingToolApproval(c *gin.Context) {
 		return
 	}
 	id := strings.TrimSpace(c.Param("id"))
-	if err := h.ApprovalCoordinator.Cancel(c.Request.Context(), id); err != nil {
+	profileLens, ok := h.resolveCmdPaletteProfileLens(c, true)
+	if !ok {
+		return
+	}
+	ctx := toolspkg.WithApprovalProfile(c.Request.Context(), string(profileLens.ID))
+	if err := h.ApprovalCoordinator.Cancel(ctx, id); err != nil {
 		h.respondPendingToolApprovalError(c, err)
 		return
 	}
-	h.writePendingToolApprovalStatus(c, id)
+	h.writePendingToolApprovalStatusForProfile(c, id, string(profileLens.ID))
 }
 
 func (h *BaseHandlers) writePendingToolApprovalStatus(c *gin.Context, id string) {
+	profileLens, ok := h.resolveCmdPaletteProfileLens(c, true)
+	if !ok {
+		return
+	}
+	h.writePendingToolApprovalStatusForProfile(c, id, string(profileLens.ID))
+}
+
+func (h *BaseHandlers) writePendingToolApprovalStatusForProfile(c *gin.Context, id string, profileID string) {
 	if h.ApprovalCoordinator == nil {
 		h.respondPendingToolApprovalError(c, errors.New("tool approval coordinator is unavailable"))
 		return
 	}
-	status, err := h.ApprovalCoordinator.Status(c.Request.Context(), id)
+	ctx := toolspkg.WithApprovalProfile(c.Request.Context(), profileID)
+	status, err := h.ApprovalCoordinator.Status(ctx, id)
 	if err != nil {
 		h.respondPendingToolApprovalError(c, err)
 		return

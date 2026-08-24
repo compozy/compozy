@@ -1,6 +1,7 @@
 -- name: GetNotificationCursor :one
 SELECT
   scope_kind,
+  profile_id,
   workspace_id,
   consumer_id,
   stream_name,
@@ -12,6 +13,7 @@ SELECT
   updated_at
 FROM notification_cursors
 WHERE scope_kind = sqlc.arg(scope_kind)
+  AND profile_id = sqlc.arg(profile_id)
   AND workspace_id = sqlc.arg(workspace_id)
   AND consumer_id = sqlc.arg(consumer_id)
   AND stream_name = sqlc.arg(stream_name)
@@ -19,6 +21,7 @@ WHERE scope_kind = sqlc.arg(scope_kind)
 
 -- name: InsertNotificationCursor :exec
 INSERT INTO notification_cursors (
+  profile_id,
   scope_kind,
   workspace_id,
   consumer_id,
@@ -30,6 +33,7 @@ INSERT INTO notification_cursors (
   last_error,
   updated_at
 ) VALUES (
+  sqlc.arg(profile_id),
   sqlc.arg(scope_kind),
   sqlc.arg(workspace_id),
   sqlc.arg(consumer_id),
@@ -50,6 +54,7 @@ SET last_sequence = sqlc.arg(last_sequence),
     last_error = '',
     updated_at = sqlc.arg(updated_at)
 WHERE consumer_id = sqlc.arg(consumer_id)
+  AND profile_id = sqlc.arg(profile_id)
   AND scope_kind = sqlc.arg(scope_kind)
   AND workspace_id = sqlc.arg(workspace_id)
   AND stream_name = sqlc.arg(stream_name)
@@ -57,6 +62,7 @@ WHERE consumer_id = sqlc.arg(consumer_id)
 
 -- name: ResetNotificationCursor :exec
 INSERT INTO notification_cursors (
+  profile_id,
   scope_kind,
   workspace_id,
   consumer_id,
@@ -68,6 +74,7 @@ INSERT INTO notification_cursors (
   last_error,
   updated_at
 ) VALUES (
+  sqlc.arg(profile_id),
   sqlc.arg(scope_kind),
   sqlc.arg(workspace_id),
   sqlc.arg(consumer_id),
@@ -79,7 +86,7 @@ INSERT INTO notification_cursors (
   '',
   sqlc.arg(updated_at)
 )
-ON CONFLICT(scope_kind, workspace_id, consumer_id, stream_name, subject_id) DO UPDATE SET
+ON CONFLICT(scope_kind, profile_id, workspace_id, consumer_id, stream_name, subject_id) DO UPDATE SET
   last_sequence = excluded.last_sequence,
   last_delivery_id = excluded.last_delivery_id,
   last_delivered_at = excluded.last_delivered_at,
@@ -88,6 +95,7 @@ ON CONFLICT(scope_kind, workspace_id, consumer_id, stream_name, subject_id) DO U
 
 -- name: RecordNotificationCursorError :exec
 INSERT INTO notification_cursors (
+  profile_id,
   scope_kind,
   workspace_id,
   consumer_id,
@@ -99,6 +107,7 @@ INSERT INTO notification_cursors (
   last_error,
   updated_at
 ) VALUES (
+  sqlc.arg(profile_id),
   sqlc.arg(scope_kind),
   sqlc.arg(workspace_id),
   sqlc.arg(consumer_id),
@@ -110,7 +119,7 @@ INSERT INTO notification_cursors (
   sqlc.arg(last_error),
   sqlc.arg(updated_at)
 )
-ON CONFLICT(scope_kind, workspace_id, consumer_id, stream_name, subject_id) DO UPDATE SET
+ON CONFLICT(scope_kind, profile_id, workspace_id, consumer_id, stream_name, subject_id) DO UPDATE SET
   last_error = excluded.last_error,
   updated_at = excluded.updated_at;
 
@@ -120,7 +129,6 @@ SELECT
   events,
   targets,
   filter,
-  enabled,
   built_in,
   default_version,
   default_hash,
@@ -137,7 +145,6 @@ INSERT INTO notification_presets (
   events,
   targets,
   filter,
-  enabled,
   built_in,
   default_version,
   default_hash,
@@ -150,7 +157,6 @@ INSERT INTO notification_presets (
   sqlc.arg(events),
   sqlc.arg(targets),
   sqlc.arg(filter),
-  sqlc.arg(enabled),
   sqlc.arg(built_in),
   sqlc.arg(default_version),
   sqlc.arg(default_hash),
@@ -165,7 +171,6 @@ UPDATE notification_presets
 SET events = sqlc.arg(events),
     targets = sqlc.arg(targets),
     filter = sqlc.arg(filter),
-    enabled = sqlc.arg(enabled),
     user_modified = sqlc.arg(user_modified),
     default_update_available = sqlc.arg(default_update_available),
     updated_at = sqlc.arg(updated_at)
@@ -181,7 +186,6 @@ INSERT INTO notification_presets (
   events,
   targets,
   filter,
-  enabled,
   built_in,
   default_version,
   default_hash,
@@ -194,7 +198,6 @@ INSERT INTO notification_presets (
   sqlc.arg(events),
   sqlc.arg(targets),
   sqlc.arg(filter),
-  sqlc.arg(enabled),
   1,
   sqlc.arg(default_version),
   sqlc.arg(default_hash),
@@ -213,9 +216,6 @@ ON CONFLICT(name) DO UPDATE SET
   filter = CASE
     WHEN notification_presets.built_in = 1 AND notification_presets.user_modified = 0
     THEN excluded.filter ELSE notification_presets.filter END,
-  enabled = CASE
-    WHEN notification_presets.built_in = 1 AND notification_presets.user_modified = 0
-    THEN excluded.enabled ELSE notification_presets.enabled END,
   built_in = CASE
     WHEN notification_presets.built_in = 1 THEN 1 ELSE notification_presets.built_in END,
   default_version = CASE
@@ -235,3 +235,19 @@ ON CONFLICT(name) DO UPDATE SET
   updated_at = CASE
     WHEN notification_presets.built_in = 1 THEN excluded.updated_at
     ELSE notification_presets.updated_at END;
+
+-- name: GetNotificationPresetEnablement :one
+SELECT enabled
+FROM notification_preset_enablement
+WHERE preset_name = sqlc.arg(preset_name)
+  AND profile_id = sqlc.arg(profile_id);
+
+-- name: SetNotificationPresetEnablement :exec
+INSERT INTO notification_preset_enablement (preset_name, profile_id, enabled)
+VALUES (sqlc.arg(preset_name), sqlc.arg(profile_id), sqlc.arg(enabled))
+ON CONFLICT(preset_name, profile_id) DO UPDATE SET enabled = excluded.enabled;
+
+-- name: DeleteNotificationPresetEnablement :exec
+DELETE FROM notification_preset_enablement
+WHERE preset_name = sqlc.arg(preset_name)
+  AND profile_id = sqlc.arg(profile_id);

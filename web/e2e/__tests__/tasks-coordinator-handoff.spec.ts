@@ -13,12 +13,13 @@ import {
   appWindow,
   ensureAppWindow,
   openAppWindow,
+  setGlobalScope,
   sessionWindow,
   switchWorkspace,
 } from "../fixtures/os-navigation";
 import { seedBrowserTasksOperatorFlow } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { ensureGlobalWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { ensureProjectWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 /**
  * (manual operator control) and (task-run coordination
@@ -80,7 +81,7 @@ test("creating a task is saved intent, no run is enqueued and labels never imply
   appPage,
   runtime,
 }) => {
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
   await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(appPage);
 
@@ -143,7 +144,7 @@ test("publishing a draft hands off to the coordinator and binds a coordination c
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-tasks-handoff-workspace-"));
   const workspace = await runtime.resolveWorkspace(workspaceRoot);
 
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
   await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(appPage);
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/tasks");
@@ -241,6 +242,8 @@ test("approving an agent-created approval task is the coordinator-handoff bounda
   });
 
   await completeOnboardingIfPrompted(appPage);
+  await switchWorkspace(appPage, seeded.workspace.id, seeded.workspace.name);
+  await setGlobalScope(appPage, true);
 
   const tasksWin = await openAppWindow(appPage, "Tasks", "tasks");
   const tasksUI = tasksOperatorSelectors(tasksWin, appPage);
@@ -293,7 +296,7 @@ test("starting a manual session is unaffected by task autonomy labels", async ({
 }) => {
   const sessionUI = sessionLifecycleSelectors(appPage);
 
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(appPage);
 

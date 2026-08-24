@@ -477,6 +477,7 @@ func TestManagedHeartbeatAuthoringServiceDeleteRollbackHistoryAndPersistence(t *
 			AgentName:     "coder",
 			Provider:      "claude",
 			WorkspaceID:   fixture.workspaceID,
+			ProfileID:     compozystore.DefaultProfileID,
 			RuntimeStatus: compozystore.SessionRuntimeUnbound,
 			State:         string(heartbeat.SessionHealthStateIdle),
 			CreatedAt:     fixture.now,
@@ -875,6 +876,7 @@ func TestManagedHeartbeatAuthoringServiceSafetyBoundaries(t *testing.T) {
 			AgentName:     "coder",
 			Provider:      "claude",
 			WorkspaceID:   fixture.workspaceID,
+			ProfileID:     compozystore.DefaultProfileID,
 			RuntimeStatus: compozystore.SessionRuntimeUnbound,
 			State:         "active",
 			CreatedAt:     fixture.now,
@@ -895,6 +897,7 @@ func TestManagedHeartbeatAuthoringServiceSafetyBoundaries(t *testing.T) {
 		origin := taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "test"}
 		taskRecord := taskpkg.Task{
 			ID:          "task-authoring",
+			ProfileID:   compozystore.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: fixture.workspaceID,
 			Title:       "Heartbeat authoring safety",
@@ -1663,6 +1666,7 @@ func registerManagedHeartbeatSession(t *testing.T, fixture heartbeatFixture, ses
 		AgentName:     "coder",
 		Provider:      "claude",
 		WorkspaceID:   fixture.workspaceID,
+		ProfileID:     compozystore.DefaultProfileID,
 		RuntimeStatus: compozystore.SessionRuntimeUnbound,
 		State:         "active",
 		CreatedAt:     fixture.now,

@@ -42,6 +42,16 @@ func (d *Daemon) bootMemorySessionRuntime(
 		return fmt.Errorf("daemon: create session manager: %w", err)
 	}
 	state.sessions = sessions
+	if state.notifier != nil {
+		state.notifier.setSessionProfileResolver(
+			daemonSessionProfileResolver(sessions, "daemon: hook session profile is unavailable"),
+		)
+	}
+	if state.harnessRecorder != nil {
+		state.harnessRecorder.SetProfileResolver(
+			daemonSessionProfileResolver(sessions, "daemon: harness session profile is unavailable"),
+		)
+	}
 	if err := d.bootWorkspaceAccess(state, sessions); err != nil {
 		return err
 	}
@@ -72,6 +82,22 @@ func (d *Daemon) bootMemorySessionRuntime(
 	return nil
 }
 
+func daemonSessionProfileResolver(
+	sessions SessionManager,
+	unavailableMessage string,
+) func(context.Context, string) (string, error) {
+	return func(ctx context.Context, sessionID string) (string, error) {
+		info, err := sessions.Status(ctx, sessionID)
+		if err != nil {
+			return "", err
+		}
+		if info == nil {
+			return "", errors.New(unavailableMessage)
+		}
+		return info.ProfileID, nil
+	}
+}
+
 func (d *Daemon) bootClarifyBridge(state *bootState, cleanup *bootCleanup) error {
 	if state == nil || state.sessions == nil {
 		return errors.New("daemon: session manager is required before clarification broker")
@@ -86,6 +112,7 @@ func (d *Daemon) bootClarifyBridge(state *bootState, cleanup *bootCleanup) error
 		extensionEventSummaryStore(state.registry),
 		state.logger,
 		withClarifyClock(d.now),
+		withClarifySessionProfileResolver(clarifySessionProfileResolver(state.sessions)),
 	)
 	if err != nil {
 		return fmt.Errorf("daemon: create clarification broker: %w", err)

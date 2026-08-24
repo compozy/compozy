@@ -425,6 +425,8 @@ function makeProvider(
 
 function makeBridge(overrides: Partial<Bridge> = {}): Bridge {
   return {
+    profile_name: "default",
+    profile_id: "00000000000000000000000000",
     created_at: "2026-07-12T12:00:00Z",
     display_name: "Setup bridge",
     enabled: false,

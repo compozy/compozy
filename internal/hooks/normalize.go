@@ -69,15 +69,16 @@ func normalizeHookDecl(decl HookDecl, resolve ExecutorResolver, bindExecutor boo
 	}
 
 	registered := RegisteredHook{
-		Name:     normalized.Name,
-		Event:    normalized.Event,
-		Source:   normalized.Source,
-		Mode:     normalized.Mode,
-		Required: normalized.Required,
-		Priority: normalized.Priority,
-		Timeout:  normalized.Timeout,
-		Matcher:  normalized.Matcher,
-		Metadata: cloneStringMap(normalized.Metadata),
+		Name:      normalized.Name,
+		ProfileID: normalized.ProfileID,
+		Event:     normalized.Event,
+		Source:    normalized.Source,
+		Mode:      normalized.Mode,
+		Required:  normalized.Required,
+		Priority:  normalized.Priority,
+		Timeout:   normalized.Timeout,
+		Matcher:   normalized.Matcher,
+		Metadata:  cloneStringMap(normalized.Metadata),
 	}
 
 	if bindExecutor {
@@ -125,26 +126,7 @@ func normalizeHookDecl(decl HookDecl, resolve ExecutorResolver, bindExecutor boo
 }
 
 func sanitizedHookDecl(decl HookDecl) (HookDecl, error) {
-	normalized := HookDecl{
-		Name:         strings.TrimSpace(decl.Name),
-		Event:        decl.Event,
-		Source:       decl.Source,
-		Mode:         decl.Mode,
-		Required:     decl.Required,
-		Priority:     decl.Priority,
-		PrioritySet:  decl.PrioritySet,
-		Timeout:      decl.Timeout,
-		Enabled:      cloneBoolPtr(decl.Enabled),
-		Matcher:      normalizeHookMatcher(decl.Matcher),
-		ExecutorKind: decl.ExecutorKind,
-		Command:      strings.TrimSpace(decl.Command),
-		Args:         append([]string(nil), decl.Args...),
-		WorkingDir:   strings.TrimSpace(decl.WorkingDir),
-		Env:          cloneStringMap(decl.Env),
-		SecretEnv:    cloneStringMap(decl.SecretEnv),
-		Metadata:     cloneStringMap(decl.Metadata),
-		SkillSource:  decl.SkillSource,
-	}
+	normalized := cloneNormalizedHookDecl(decl)
 
 	if normalized.Name == "" {
 		return HookDecl{}, fmt.Errorf("hooks: hook name is required")
@@ -158,7 +140,7 @@ func sanitizedHookDecl(decl HookDecl) (HookDecl, error) {
 	if err := normalized.SkillSource.Validate(); err != nil {
 		return HookDecl{}, err
 	}
-	if normalized.Source != HookSourceSkill && normalized.SkillSource != "" {
+	if normalized.Source != HookSourceSkill && normalized.SkillSource != HookSkillSourceUnset {
 		return HookDecl{}, fmt.Errorf(
 			"hooks: hook %q skill source is only valid for skill declarations",
 			normalized.Name,
@@ -205,6 +187,30 @@ func sanitizedHookDecl(decl HookDecl) (HookDecl, error) {
 	}
 
 	return normalized, nil
+}
+
+func cloneNormalizedHookDecl(decl HookDecl) HookDecl {
+	return HookDecl{
+		Name:         strings.TrimSpace(decl.Name),
+		ProfileID:    strings.TrimSpace(decl.ProfileID),
+		Event:        decl.Event,
+		Source:       decl.Source,
+		Mode:         decl.Mode,
+		Required:     decl.Required,
+		Priority:     decl.Priority,
+		PrioritySet:  decl.PrioritySet,
+		Timeout:      decl.Timeout,
+		Enabled:      cloneBoolPtr(decl.Enabled),
+		Matcher:      normalizeHookMatcher(decl.Matcher),
+		ExecutorKind: decl.ExecutorKind,
+		Command:      strings.TrimSpace(decl.Command),
+		Args:         append([]string(nil), decl.Args...),
+		WorkingDir:   strings.TrimSpace(decl.WorkingDir),
+		Env:          cloneStringMap(decl.Env),
+		SecretEnv:    cloneStringMap(decl.SecretEnv),
+		Metadata:     cloneStringMap(decl.Metadata),
+		SkillSource:  decl.SkillSource,
+	}
 }
 
 func defaultHookMode(_ HookSource) HookMode {

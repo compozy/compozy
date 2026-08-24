@@ -32,6 +32,8 @@ type CatalogKind string
 
 type CatalogQuery struct {
 	WorkspaceID string
+	ProfileID   string
+	ProfileName string
 	Search      string
 	Kind        CatalogKind
 	Category    string
@@ -75,6 +77,7 @@ type CatalogPage struct {
 
 type catalogFingerprint struct {
 	WorkspaceID string      `json:"workspace_id"`
+	ProfileID   string      `json:"profile_id"`
 	Search      string      `json:"q"`
 	Kind        CatalogKind `json:"kind"`
 	Category    string      `json:"category"`
@@ -99,6 +102,8 @@ const (
 
 func NormalizeCatalogQuery(query CatalogQuery) (CatalogQuery, error) {
 	query.WorkspaceID = strings.TrimSpace(query.WorkspaceID)
+	query.ProfileID = strings.TrimSpace(query.ProfileID)
+	query.ProfileName = strings.TrimSpace(query.ProfileName)
 	query.Search = strings.ToLower(strings.TrimSpace(query.Search))
 	query.Kind = CatalogKind(strings.ToLower(strings.TrimSpace(string(query.Kind))))
 	query.Category = strings.TrimSpace(query.Category)
@@ -113,6 +118,9 @@ func NormalizeCatalogQuery(query CatalogQuery) (CatalogQuery, error) {
 	}
 	if query.WorkspaceID == "" {
 		return CatalogQuery{}, fmt.Errorf("%w: workspace_id is required", ErrCatalogQueryInvalid)
+	}
+	if query.ProfileID == "" || query.ProfileName == "" {
+		return CatalogQuery{}, fmt.Errorf("%w: profile id and name are required", ErrCatalogQueryInvalid)
 	}
 	switch query.Kind {
 	case "", CatalogKindReadOnly, CatalogKindWorkspace:
@@ -250,6 +258,7 @@ func catalogItemKind(item CatalogItem) CatalogKind {
 func catalogQueryFingerprint(query CatalogQuery) (string, error) {
 	fingerprint, err := listcursor.Fingerprint(catalogFingerprint{
 		WorkspaceID: query.WorkspaceID,
+		ProfileID:   query.ProfileID,
 		Search:      query.Search,
 		Kind:        query.Kind,
 		Category:    query.Category,

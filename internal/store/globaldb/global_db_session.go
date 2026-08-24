@@ -102,6 +102,7 @@ func (g *SessionRepo) ListSessions(
 
 	sqlQuery := sessionInfoSelectQuery
 	where, args := store.BuildClauses(
+		store.ReadScopeClause("profile_id", query.ReadScope),
 		store.StringClause("id", query.ID),
 		store.StringClause("state", query.State),
 		store.StringClause("agent_name", query.AgentName),

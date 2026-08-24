@@ -23,6 +23,14 @@ stack semantics (`ET-palette-nested-views`) and the Sessions exemplar
 had no owner. Persona Sol: the palette's ARIA combobox pattern, keyboard-only reachability, and
 never-color-alone state are contract, not polish. Task 12 owns the first walk.
 
+2026-08-23 qa-impact (Profiles): every list-bearing domain view now resolves its rows under one
+explicit profile lens, so a domain's counts and chips are per-profile facts rather than
+machine-wide ones. Already `untested`, so no reset was needed. Profiles joins the view set with a
+dedicated controller rather than the generic domain search — its rows are identities with switch
+semantics, so `ET-profile-palette-view` owns it and this row keeps the generic grammar. While
+walking, confirm one domain's chip counts differ correctly between two profiles and that a profile
+switch with a view open re-fences it instead of showing the previous lens's rows.
+
 Walk (task_11 plan):
 
 1. Open the Tasks view — chips show truthful counts with single-select; pick a chip with zero

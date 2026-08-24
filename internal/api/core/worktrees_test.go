@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -20,13 +21,250 @@ import (
 )
 
 type worktreeServiceStub struct {
-	create        func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error)
-	remove        func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error)
-	inspect       func(context.Context, string, string) (*worktree.Inspection, error)
-	exitPlan      func(context.Context, string, string) (*worktree.ExitPlan, error)
-	runExit       func(context.Context, string, string, worktree.ExitActionRequest) (string, error)
-	cancelExit    func(context.Context, string, string, string) error
-	catalogEvents <-chan worktree.CatalogEvent
+	create         func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error)
+	createAccepted func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error)
+	adopt          func(context.Context, string, string, string) (*worktree.Worktree, error)
+	listDetails    func(context.Context, string, bool) (*worktree.DetailedListing, error)
+	remove         func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error)
+	inspect        func(context.Context, string, string) (*worktree.Inspection, error)
+	exitPlan       func(context.Context, string, string) (*worktree.ExitPlan, error)
+	runExit        func(context.Context, string, string, worktree.ExitActionRequest) (string, error)
+	cancelExit     func(context.Context, string, string, string) error
+	catalogEvents  <-chan worktree.CatalogEvent
+}
+
+func worktreeEventSummaryWithContent(summary store.EventSummary, content json.RawMessage) store.EventSummary {
+	summary.SetContent(content)
+	return summary
+}
+
+func TestWorktreeOwnerProjection(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should enrich handler responses with the named profile owner", func(t *testing.T) {
+		t.Parallel()
+
+		item := &worktree.Worktree{ID: "wt-profile-owner", ProfileID: "profile-marketing"}
+		handlers := &BaseHandlers{Profiles: worktreeProfileServiceStub{}}
+		if err := handlers.enrichWorktreeOwner(t.Context(), item); err != nil {
+			t.Fatalf("enrichWorktreeOwner() error = %v", err)
+		}
+		if item.ProfileID != "profile-marketing" || item.ProfileName != "marketing" {
+			t.Fatalf("enriched worktree = %#v, want marketing owner", item)
+		}
+	})
+
+	t.Run("Should project the complete owner label", func(t *testing.T) {
+		t.Parallel()
+
+		payload := WorktreePayloadFromInspection(worktree.Inspection{Worktree: worktree.Worktree{
+			ID: "wt-profile-owner", ProfileID: "profile-owner", ProfileName: "Platform",
+			ProfileColor: "#5FBF85", ProfileIcon: "circle", ProfileEmoji: "🛠️", ProfileArchived: true,
+		}})
+		if payload.ProfileID != "profile-owner" || payload.ProfileName != "Platform" ||
+			payload.ProfileColor != "#5FBF85" || payload.ProfileIcon != "circle" ||
+			payload.ProfileEmoji != "🛠️" || !payload.ProfileArchived {
+			t.Fatalf("WorktreePayloadFromInspection() owner = %#v, want complete owner label", payload)
+		}
+	})
+}
+
+func TestProfileAwareWorktreeHandlers(t *testing.T) {
+	t.Parallel()
+
+	const (
+		profileID   = "profile-marketing"
+		profileName = "marketing"
+	)
+	profiles := worktreeProfileServiceStub{state: profilepkg.StateActive}
+	workspaces := workspaceServiceStub{resolve: func(
+		_ context.Context,
+		ref string,
+	) (workspacepkg.ResolvedWorkspace, error) {
+		if ref != "alpha" {
+			t.Fatalf("Resolve() ref = %q, want alpha", ref)
+		}
+		return workspacepkg.ResolvedWorkspace{
+			Workspace:   workspacepkg.Workspace{ID: "registry-alpha", Name: "alpha"},
+			WorkspaceID: "workspace-alpha",
+		}, nil
+	}}
+	assertOwner := func(t *testing.T, payload contract.WorktreePayload, wantArchived bool) {
+		t.Helper()
+		if payload.ProfileID != profileID || payload.ProfileName != profileName ||
+			payload.ProfileColor != "#E8572A" || payload.ProfileIcon != "megaphone" ||
+			payload.ProfileEmoji != "📣" || payload.ProfileArchived != wantArchived {
+			t.Fatalf("worktree owner = %#v, want complete marketing owner", payload)
+		}
+	}
+	ownedWorktree := func(id string) worktree.Worktree {
+		return worktree.Worktree{ID: id, ProfileID: profileID, WorkspaceID: "registry-alpha"}
+	}
+
+	t.Run("Should propagate the selected profile when creating", func(t *testing.T) {
+		t.Parallel()
+		service := worktreeServiceStub{createAccepted: func(
+			_ context.Context,
+			workspaceID string,
+			opts worktree.CreateOptions,
+		) (*worktree.Worktree, error) {
+			if workspaceID != "registry-alpha" || opts.ProfileID != profileID {
+				t.Fatalf(
+					"CreateAccepted() scope = %q/%q, want registry-alpha/%s",
+					workspaceID,
+					opts.ProfileID,
+					profileID,
+				)
+			}
+			item := ownedWorktree("wt-created")
+			return &item, nil
+		}}
+		handlers := &BaseHandlers{Worktrees: service, Workspaces: workspaces, Profiles: profiles}
+		router := gin.New()
+		router.POST("/workspaces/:workspace_id/worktrees", handlers.CreateWorktree)
+		request := httptest.NewRequestWithContext(
+			t.Context(), http.MethodPost, "/workspaces/alpha/worktrees?profile=marketing",
+			strings.NewReader(`{"name":"review"}`),
+		)
+		request.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		if response.Code != http.StatusAccepted {
+			t.Fatalf("create status = %d, want %d; body=%s", response.Code, http.StatusAccepted, response.Body.String())
+		}
+		var payload contract.WorktreeResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("decode create response: %v", err)
+		}
+		assertOwner(t, payload.Worktree, false)
+	})
+
+	t.Run("Should propagate the selected profile when adopting", func(t *testing.T) {
+		t.Parallel()
+		service := worktreeServiceStub{adopt: func(
+			_ context.Context,
+			gotProfileID, workspaceID, path string,
+		) (*worktree.Worktree, error) {
+			if gotProfileID != profileID || workspaceID != "registry-alpha" || path != "/tmp/review" {
+				t.Fatalf("Adopt() scope = %q/%q/%q", gotProfileID, workspaceID, path)
+			}
+			item := ownedWorktree("wt-adopted")
+			return &item, nil
+		}}
+		handlers := &BaseHandlers{Worktrees: service, Workspaces: workspaces, Profiles: profiles}
+		router := gin.New()
+		router.POST("/workspaces/:workspace_id/worktrees/adopt", handlers.AdoptWorktree)
+		request := httptest.NewRequestWithContext(
+			t.Context(), http.MethodPost, "/workspaces/alpha/worktrees/adopt?profile=marketing",
+			strings.NewReader(`{"path":"/tmp/review"}`),
+		)
+		request.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("adopt status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+		}
+		var payload contract.WorktreeResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("decode adopt response: %v", err)
+		}
+		assertOwner(t, payload.Worktree, false)
+	})
+
+	t.Run("Should hydrate named-profile owners when inspecting and listing", func(t *testing.T) {
+		t.Parallel()
+		service := worktreeServiceStub{
+			inspect: func(_ context.Context, workspaceID, id string) (*worktree.Inspection, error) {
+				if workspaceID != "registry-alpha" || id != "wt-existing" {
+					t.Fatalf("Inspect() scope = %q/%q", workspaceID, id)
+				}
+				return &worktree.Inspection{Worktree: ownedWorktree(id)}, nil
+			},
+			listDetails: func(_ context.Context, workspaceID string, refresh bool) (*worktree.DetailedListing, error) {
+				if workspaceID != "registry-alpha" || refresh {
+					t.Fatalf("ListDetails() scope = %q refresh=%t", workspaceID, refresh)
+				}
+				return &worktree.DetailedListing{
+					Worktrees: []worktree.Inspection{{Worktree: ownedWorktree("wt-existing")}},
+				}, nil
+			},
+		}
+		handlers := &BaseHandlers{
+			Worktrees: service, Workspaces: workspaces,
+			Profiles: worktreeProfileServiceStub{state: profilepkg.StateArchived},
+		}
+		router := gin.New()
+		router.GET("/workspaces/:workspace_id/worktrees", handlers.ListWorktrees)
+		router.GET("/workspaces/:workspace_id/worktrees/:worktree_id", handlers.InspectWorktree)
+
+		inspectResponse := httptest.NewRecorder()
+		router.ServeHTTP(inspectResponse, httptest.NewRequestWithContext(
+			t.Context(), http.MethodGet, "/workspaces/alpha/worktrees/wt-existing", http.NoBody,
+		))
+		if inspectResponse.Code != http.StatusOK {
+			t.Fatalf(
+				"inspect status = %d, want %d; body=%s",
+				inspectResponse.Code,
+				http.StatusOK,
+				inspectResponse.Body.String(),
+			)
+		}
+		var inspection contract.WorktreeInspectionResponse
+		if err := json.Unmarshal(inspectResponse.Body.Bytes(), &inspection); err != nil {
+			t.Fatalf("decode inspect response: %v", err)
+		}
+		assertOwner(t, inspection.Worktree, true)
+
+		listResponse := httptest.NewRecorder()
+		router.ServeHTTP(listResponse, httptest.NewRequestWithContext(
+			t.Context(), http.MethodGet, "/workspaces/alpha/worktrees", http.NoBody,
+		))
+		if listResponse.Code != http.StatusOK {
+			t.Fatalf("list status = %d, want %d; body=%s", listResponse.Code, http.StatusOK, listResponse.Body.String())
+		}
+		var listing contract.WorktreesResponse
+		if err := json.Unmarshal(listResponse.Body.Bytes(), &listing); err != nil {
+			t.Fatalf("decode list response: %v", err)
+		}
+		if len(listing.Worktrees) != 1 {
+			t.Fatalf("list worktrees = %#v, want one", listing.Worktrees)
+		}
+		assertOwner(t, listing.Worktrees[0], true)
+	})
+}
+
+type worktreeProfileServiceStub struct {
+	ProfileService
+	state profilepkg.State
+}
+
+func (s worktreeProfileServiceStub) profileState() profilepkg.State {
+	if s.state == "" {
+		return profilepkg.StateActive
+	}
+	return s.state
+}
+
+func (s worktreeProfileServiceStub) Resolve(
+	_ context.Context,
+	input profilepkg.ResolveInput,
+) (profilepkg.Resolution, error) {
+	if input.Flag != "marketing" {
+		return profilepkg.Resolution{}, profilepkg.ErrNotFound
+	}
+	return profilepkg.Resolution{Profile: profilepkg.Profile{
+		ID: "profile-marketing", Name: "marketing", Color: "#E8572A", Icon: "megaphone", Emoji: "📣",
+		State: s.profileState(),
+	}}, nil
+}
+
+func (s worktreeProfileServiceStub) List(context.Context) ([]profilepkg.WithCounts, error) {
+	return []profilepkg.WithCounts{
+		{Profile: profilepkg.Profile{
+			ID: "profile-marketing", Name: "marketing", Color: "#E8572A", Icon: "megaphone", Emoji: "📣",
+			State: s.profileState(),
+		}},
+	}, nil
 }
 
 func (s worktreeServiceStub) Create(
@@ -92,10 +330,13 @@ func (s worktreeObserverStub) QueryEvents(
 }
 
 func (s worktreeServiceStub) CreateAccepted(
-	context.Context,
-	string,
-	worktree.CreateOptions,
+	ctx context.Context,
+	workspaceID string,
+	opts worktree.CreateOptions,
 ) (*worktree.Worktree, error) {
+	if s.createAccepted != nil {
+		return s.createAccepted(ctx, workspaceID, opts)
+	}
 	return nil, fmt.Errorf("unexpected CreateAccepted call")
 }
 
@@ -114,11 +355,24 @@ func (s worktreeServiceStub) CancelCreate(context.Context, string, string) error
 	return fmt.Errorf("unexpected CancelCreate call")
 }
 
-func (s worktreeServiceStub) Adopt(context.Context, string, string) (*worktree.Worktree, error) {
+func (s worktreeServiceStub) Adopt(
+	ctx context.Context,
+	profileID, workspaceID, path string,
+) (*worktree.Worktree, error) {
+	if s.adopt != nil {
+		return s.adopt(ctx, profileID, workspaceID, path)
+	}
 	return nil, fmt.Errorf("unexpected Adopt call")
 }
 
-func (s worktreeServiceStub) ListDetails(context.Context, string, bool) (*worktree.DetailedListing, error) {
+func (s worktreeServiceStub) ListDetails(
+	ctx context.Context,
+	workspaceID string,
+	refresh bool,
+) (*worktree.DetailedListing, error) {
+	if s.listDetails != nil {
+		return s.listDetails(ctx, workspaceID, refresh)
+	}
 	return nil, fmt.Errorf("unexpected ListDetails call")
 }
 
@@ -825,9 +1079,18 @@ func TestWorktreeStreams(t *testing.T) {
 		t.Parallel()
 
 		events := []store.EventSummary{
-			{Sequence: 1, Type: worktree.EventCreated, Content: json.RawMessage(`{"state":"ready"}`)},
-			{Sequence: 2, Type: worktree.EventStatusRefreshed, Content: json.RawMessage(`{"dirty":true}`)},
-			{Sequence: 3, Type: worktree.EventRemoved, Content: json.RawMessage(`{"state":"removed"}`)},
+			worktreeEventSummaryWithContent(
+				store.EventSummary{Sequence: 1, Type: worktree.EventCreated},
+				json.RawMessage(`{"state":"ready"}`),
+			),
+			worktreeEventSummaryWithContent(
+				store.EventSummary{Sequence: 2, Type: worktree.EventStatusRefreshed},
+				json.RawMessage(`{"dirty":true}`),
+			),
+			worktreeEventSummaryWithContent(
+				store.EventSummary{Sequence: 3, Type: worktree.EventRemoved},
+				json.RawMessage(`{"state":"removed"}`),
+			),
 		}
 		stream := func(afterSequence int64) string {
 			t.Helper()
@@ -837,6 +1100,7 @@ func TestWorktreeStreams(t *testing.T) {
 				query store.EventSummaryQuery,
 			) ([]store.EventSummary, error) {
 				if query.WorkspaceID != "registry-a" || query.WorktreeID != "wt-a" ||
+					!query.ReadScope.AllProfiles || query.ReadScope.ProfileID != "" ||
 					query.AfterSequence != afterSequence || query.Limit != worktreeReplayLimit {
 					t.Fatalf("worktree stream query = %#v", query)
 				}

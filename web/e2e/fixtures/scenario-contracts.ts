@@ -702,7 +702,7 @@ function browserRuntimeCLIEnv(paths: RuntimePaths): NodeJS.ProcessEnv {
     ...process.env,
     COMPOZY_E2E_CLI_BIN: paths.cliShim,
     COMPOZY_HOME: paths.homeDir,
-    HOME: paths.homeDir,
+    HOME: paths.operatorHomeDir,
     PATH: `${path.dirname(paths.cliShim)}:${process.env.PATH ?? ""}`,
   };
 }

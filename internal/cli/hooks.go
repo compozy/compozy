@@ -82,6 +82,7 @@ func newHooksListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&query.Event, hooksEventKey, "", "Filter by hook event")
 	cmd.Flags().StringVar(&query.Source, automationSourceKey, "", "Filter by hook source")
 	cmd.Flags().StringVar(&query.Mode, hooksModeKey, "", "Filter by hook mode")
+	configureSingleProfileReadCommand(cmd, deps)
 	return cmd
 }
 
@@ -129,6 +130,7 @@ func newHooksInfoCommand(deps commandDeps) *cobra.Command {
 
 	cmd.Flags().
 		StringVar(&workspace, "workspace", "", "Override workspace context (ID, name, or path)")
+	configureSingleProfileReadCommand(cmd, deps)
 	return cmd
 }
 
@@ -204,6 +206,7 @@ func newHooksRunsCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().IntVar(&query.Last, "last", 0, "Show only the most recent N runs")
 	cmd.Flags().
 		StringVar(&workspaceRef, "workspace", "", "Override workspace binding (ID, name, or path)")
+	configureSingleProfileReadCommand(cmd, deps)
 	return cmd
 }
 

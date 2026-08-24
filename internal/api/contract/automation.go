@@ -48,29 +48,34 @@ type AutomationHealthPayload struct {
 
 // JobPayload is the shared automation job response payload.
 type JobPayload struct {
-	ID          string                           `json:"id"`
-	Scope       automationpkg.Scope              `json:"scope"`
-	Name        string                           `json:"name"`
-	TargetKind  automationpkg.TargetKind         `json:"target_kind"`
-	AgentName   string                           `json:"agent_name"`
-	WorkspaceID string                           `json:"workspace_id,omitempty"`
-	Prompt      string                           `json:"prompt"`
-	Schedule    *automationpkg.ScheduleSpec      `json:"schedule,omitempty"`
-	Task        *automationpkg.JobTaskConfig     `json:"task,omitempty"`
-	LoopTarget  *automationpkg.LoopTarget        `json:"loop_target,omitempty"`
-	Enabled     bool                             `json:"enabled"`
-	Retry       automationpkg.RetryConfig        `json:"retry"`
-	FireLimit   automationpkg.FireLimitConfig    `json:"fire_limit"`
-	Source      automationpkg.JobSource          `json:"source"`
-	CreatedAt   time.Time                        `json:"created_at"`
-	UpdatedAt   time.Time                        `json:"updated_at"`
-	NextRun     *time.Time                       `json:"next_run,omitempty"`
-	Scheduler   *AutomationSchedulerStatePayload `json:"scheduler,omitempty"`
+	ID           string                           `json:"id"`
+	ProfileID    string                           `json:"profile_id"`
+	ProfileName  string                           `json:"profile_name"`
+	ProfileColor string                           `json:"profile_color,omitempty"`
+	ProfileIcon  string                           `json:"profile_icon,omitempty"`
+	Scope        automationpkg.Scope              `json:"scope"`
+	Name         string                           `json:"name"`
+	TargetKind   automationpkg.TargetKind         `json:"target_kind"`
+	AgentName    string                           `json:"agent_name"`
+	WorkspaceID  string                           `json:"workspace_id,omitempty"`
+	Prompt       string                           `json:"prompt"`
+	Schedule     *automationpkg.ScheduleSpec      `json:"schedule,omitempty"`
+	Task         *automationpkg.JobTaskConfig     `json:"task,omitempty"`
+	LoopTarget   *automationpkg.LoopTarget        `json:"loop_target,omitempty"`
+	Enabled      bool                             `json:"enabled"`
+	Retry        automationpkg.RetryConfig        `json:"retry"`
+	FireLimit    automationpkg.FireLimitConfig    `json:"fire_limit"`
+	Source       automationpkg.JobSource          `json:"source"`
+	CreatedAt    time.Time                        `json:"created_at"`
+	UpdatedAt    time.Time                        `json:"updated_at"`
+	NextRun      *time.Time                       `json:"next_run,omitempty"`
+	Scheduler    *AutomationSchedulerStatePayload `json:"scheduler,omitempty"`
 }
 
 // AutomationSuggestionPayload is a workspace-scoped, consent-first Job proposal.
 type AutomationSuggestionPayload struct {
 	ID          string                         `json:"id"`
+	ProfileID   string                         `json:"profile_id"`
 	WorkspaceID string                         `json:"workspace_id"`
 	Source      automationpkg.SuggestionSource `json:"source"`
 	DedupKey    string                         `json:"dedup_key"`
@@ -83,6 +88,10 @@ type AutomationSuggestionPayload struct {
 // TriggerPayload is the shared automation trigger response payload.
 type TriggerPayload struct {
 	ID                   string                        `json:"id"`
+	ProfileID            string                        `json:"profile_id"`
+	ProfileName          string                        `json:"profile_name"`
+	ProfileColor         string                        `json:"profile_color,omitempty"`
+	ProfileIcon          string                        `json:"profile_icon,omitempty"`
 	Scope                automationpkg.Scope           `json:"scope"`
 	Name                 string                        `json:"name"`
 	TargetKind           automationpkg.TargetKind      `json:"target_kind"`
@@ -111,6 +120,7 @@ func TriggerPayloadFromTrigger(trigger automationpkg.Trigger) TriggerPayload {
 	webhookSecretPresent, webhookSecretHash := webhookSecretMetadataFromRef(trigger.WebhookSecretRef)
 	return TriggerPayload{
 		ID:                   trigger.ID,
+		ProfileID:            trigger.ProfileID,
 		Scope:                trigger.Scope,
 		Name:                 trigger.Name,
 		TargetKind:           trigger.TargetKind,
@@ -164,6 +174,10 @@ func cloneTriggerFilter(source map[string]string) map[string]string {
 // RunPayload is the shared automation run response payload.
 type RunPayload struct {
 	ID                   string                  `json:"id"`
+	ProfileID            string                  `json:"profile_id"`
+	ProfileName          string                  `json:"profile_name"`
+	ProfileColor         string                  `json:"profile_color,omitempty"`
+	ProfileIcon          string                  `json:"profile_icon,omitempty"`
 	JobID                string                  `json:"job_id,omitempty"`
 	TriggerID            string                  `json:"trigger_id,omitempty"`
 	SessionID            string                  `json:"session_id,omitempty"`

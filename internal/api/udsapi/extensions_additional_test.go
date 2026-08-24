@@ -177,52 +177,47 @@ func TestInstallExtensionHandler(t *testing.T) {
 	})
 }
 
-func TestEnableDisableExtensionHandlers(t *testing.T) {
+func TestExtensionEnablementHandlers(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should enable and disable extensions", func(t *testing.T) {
+	t.Run("Should list and set profile enablement", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := newTestHomePaths(t)
 		handlers := newTestHandlersWithExtensions(t, stubSessionManager{}, stubObserver{}, stubExtensionService{
-			EnableFn: func(
-				_ context.Context,
-				name string,
-				_ contract.EnableExtensionRequest,
-				_ taskpkg.ActorContext,
-			) (contract.ExtensionEnableResult, error) {
+			ListEnablementFn: func(_ context.Context, name string) ([]contract.ExtensionEnablementPayload, error) {
 				if name != "ext-a" {
-					t.Fatalf("Enable() name = %q, want ext-a", name)
+					t.Fatalf("ListEnablement() name = %q, want ext-a", name)
 				}
-				return contract.ExtensionEnableResult{
-					Extension: contract.ExtensionPayload{Name: name, Enabled: true, State: "active"},
-				}, nil
+				return []contract.ExtensionEnablementPayload{{Profile: "default", Enabled: true}}, nil
 			},
-			DisableFn: func(
+			SetEnablementFn: func(
 				_ context.Context,
 				name string,
+				req contract.SetExtensionEnablementRequest,
 				_ taskpkg.ActorContext,
-			) (contract.ExtensionPayload, error) {
-				if name != "ext-a" {
-					t.Fatalf("Disable() name = %q, want ext-a", name)
+			) (contract.ExtensionEnablementPayload, error) {
+				if name != "ext-a" || req.Profile != "finance" || req.Enabled {
+					t.Fatalf("SetEnablement() name = %q req = %#v", name, req)
 				}
-				return contract.ExtensionPayload{Name: name, Enabled: false, State: "inactive"}, nil
+				return contract.ExtensionEnablementPayload(req), nil
 			},
 		}, homePaths)
 		engine := newTestRouter(t, handlers)
 
-		enableResp := performRequest(t, engine, http.MethodPost, "/api/extensions/%20ext-a%20/enable", nil)
-		if enableResp.Code != http.StatusOK {
-			t.Fatalf("enable status = %d, want %d; body=%s", enableResp.Code, http.StatusOK, enableResp.Body.String())
+		listResp := performRequest(t, engine, http.MethodGet, "/api/extensions/%20ext-a%20/enablement", nil)
+		if listResp.Code != http.StatusOK {
+			t.Fatalf("list status = %d, want %d; body=%s", listResp.Code, http.StatusOK, listResp.Body.String())
 		}
 
-		disableResp := performRequest(t, engine, http.MethodPost, "/api/extensions/%20ext-a%20/disable", nil)
-		if disableResp.Code != http.StatusOK {
+		setResp := performRequest(t, engine, http.MethodPut, "/api/extensions/%20ext-a%20/enablement",
+			[]byte(`{"profile":"finance","enabled":false}`))
+		if setResp.Code != http.StatusOK {
 			t.Fatalf(
-				"disable status = %d, want %d; body=%s",
-				disableResp.Code,
+				"set status = %d, want %d; body=%s",
+				setResp.Code,
 				http.StatusOK,
-				disableResp.Body.String(),
+				setResp.Body.String(),
 			)
 		}
 	})
@@ -236,7 +231,8 @@ func TestEnableDisableExtensionHandlers(t *testing.T) {
 			newTestHandlersWithExtensions(t, stubSessionManager{}, stubObserver{}, stubExtensionService{}, homePaths),
 		)
 
-		blankName := performRequest(t, engine, http.MethodPost, "/api/extensions/%20%20/enable", nil)
+		blankName := performRequest(t, engine, http.MethodPut, "/api/extensions/%20%20/enablement",
+			[]byte(`{"profile":"default","enabled":true}`))
 		if blankName.Code != http.StatusBadRequest {
 			t.Fatalf(
 				"blank name status = %d, want %d; body=%s",

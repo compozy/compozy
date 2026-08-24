@@ -56,9 +56,9 @@ func TestWindowManagerRepository(t *testing.T) {
 				t.Errorf("Engine.Close(reopened) error = %v", err)
 			}
 		})
-		repository, err := newWindowManagerRepository(reopened)
+		repository, err := newWindowManagerRepository(reopened, testWindowManagerProfileID)
 		if err != nil {
-			t.Fatalf("newWindowManagerRepository(reopened) error = %v", err)
+			t.Fatalf("newWindowManagerRepository(reopened, testWindowManagerProfileID) error = %v", err)
 		}
 		got, err := repository.Load(ctx, workspaceID)
 		if err != nil {
@@ -66,6 +66,117 @@ func TestWindowManagerRepository(t *testing.T) {
 		}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("Load() = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should key desktop arrangements by workspace and profile [IT-057]", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDaemonWindowManagerFixture(t)
+		ctx := testutil.Context(t)
+		workspaceID := windowmanager.WorkspaceID(fixture.workspace.ID)
+		const (
+			dev       = "01JQPROFILEDEV0000000000000"
+			marketing = "01JQPROFILEMARKETING000000"
+			fresh     = "01JQPROFILEFRESH0000000000"
+		)
+
+		devManager, err := fixture.registry.For(dev)
+		if err != nil {
+			t.Fatalf("For(dev) error = %v", err)
+		}
+		marketingManager, err := fixture.registry.For(marketing)
+		if err != nil {
+			t.Fatalf("For(marketing) error = %v", err)
+		}
+		devResult := executeDaemonDesktopCreate(t, devManager, workspaceID, "desktop-dev", "Dev")
+		marketingResult := executeDaemonDesktopCreate(
+			t, marketingManager, workspaceID, "desktop-marketing", "Marketing",
+		)
+
+		// Isolated: each profile's arrangement holds only its own desktops, and the
+		// revision each one counts is its own.
+		assertDaemonDesktopNames(t, devResult.Snapshot, []string{"Desktop 1", "Dev"})
+		assertDaemonDesktopNames(t, marketingResult.Snapshot, []string{"Desktop 1", "Marketing"})
+
+		// Restored on switch: re-entering a profile returns exactly what it left,
+		// which is what the shell rebinding to another partition then back does.
+		restored, err := devManager.Snapshot(ctx, workspaceID)
+		if err != nil {
+			t.Fatalf("Snapshot(dev) error = %v", err)
+		}
+		assertDaemonDesktopNames(t, restored, []string{"Desktop 1", "Dev"})
+
+		// New profile clean: an untouched profile starts on the seeded default desk
+		// rather than inheriting a neighbour's arrangement.
+		freshManager, err := fixture.registry.For(fresh)
+		if err != nil {
+			t.Fatalf("For(fresh) error = %v", err)
+		}
+		freshSnapshot, err := freshManager.Snapshot(ctx, workspaceID)
+		if err != nil {
+			t.Fatalf("Snapshot(fresh) error = %v", err)
+		}
+		assertDaemonDesktopNames(t, freshSnapshot, []string{"Desktop 1"})
+
+		// Retained: archiving removes no window state, so the stored partition
+		// survives everything short of deletion — including a daemon restart.
+		if err := fixture.registry.Close(); err != nil {
+			t.Fatalf("windowManagerRegistry.Close() error = %v", err)
+		}
+		reopened, err := newWindowManagerRepository(fixture.engine, marketing)
+		if err != nil {
+			t.Fatalf("newWindowManagerRepository(marketing) error = %v", err)
+		}
+		retained, err := reopened.Load(ctx, workspaceID)
+		if err != nil {
+			t.Fatalf("Load(marketing) error = %v", err)
+		}
+		assertDaemonDesktopNames(t, retained, []string{"Desktop 1", "Marketing"})
+	})
+
+	t.Run("Should count and purge only the deleted profile's desktops [IT-038]", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDaemonWindowManagerFixture(t)
+		ctx := testutil.Context(t)
+		workspaceID := windowmanager.WorkspaceID(fixture.workspace.ID)
+		const (
+			doomed   = "01JQPROFILEDOOMED000000000"
+			survivor = "01JQPROFILESURVIVOR000000"
+		)
+		for _, profileID := range []string{doomed, survivor} {
+			manager, err := fixture.registry.For(profileID)
+			if err != nil {
+				t.Fatalf("For(%s) error = %v", profileID, err)
+			}
+			executeDaemonDesktopCreate(t, manager, workspaceID, "desktop-second", "Second")
+		}
+
+		count, err := fixture.registry.CountDesktopPartitions(ctx, doomed)
+		if err != nil {
+			t.Fatalf("CountDesktopPartitions() error = %v", err)
+		}
+		if count != 1 {
+			t.Fatalf("CountDesktopPartitions() = %d, want 1", count)
+		}
+		if err := fixture.registry.PurgeDesktopPartitions(ctx, doomed); err != nil {
+			t.Fatalf("PurgeDesktopPartitions() error = %v", err)
+		}
+		if err := fixture.registry.PurgeDesktopPartitions(ctx, doomed); err != nil {
+			t.Fatalf("PurgeDesktopPartitions(repeat) error = %v", err)
+		}
+		remaining, err := fixture.registry.CountDesktopPartitions(ctx, doomed)
+		if err != nil {
+			t.Fatalf("CountDesktopPartitions(after purge) error = %v", err)
+		}
+		if remaining != 0 {
+			t.Fatalf("CountDesktopPartitions(after purge) = %d, want 0", remaining)
+		}
+		survivorCount, err := fixture.registry.CountDesktopPartitions(ctx, survivor)
+		if err != nil {
+			t.Fatalf("CountDesktopPartitions(survivor) error = %v", err)
+		}
+		if survivorCount != 1 {
+			t.Fatalf("CountDesktopPartitions(survivor) = %d, want 1", survivorCount)
 		}
 	})
 
@@ -86,7 +197,7 @@ func TestWindowManagerRepository(t *testing.T) {
 			windowManagerStateDomain,
 			[]clientstate.Op{{
 				Kind:  clientstate.OpPut,
-				Key:   windowManagerSnapshotKey,
+				Key:   windowManagerSnapshotKey(testWindowManagerProfileID),
 				Value: encoded,
 			}},
 			clientstate.ApplyOptions{},
@@ -149,7 +260,13 @@ func TestWindowManagerRepository(t *testing.T) {
 					ctx,
 					workspaceID,
 					windowManagerStateDomain,
-					[]clientstate.Op{{Kind: clientstate.OpPut, Key: windowManagerSnapshotKey, Value: value}},
+					[]clientstate.Op{
+						{
+							Kind:  clientstate.OpPut,
+							Key:   windowManagerSnapshotKey(testWindowManagerProfileID),
+							Value: value,
+						},
+					},
 					clientstate.ApplyOptions{},
 				); err != nil {
 					t.Fatalf("Apply(raw document) error = %v", err)
@@ -164,7 +281,7 @@ func TestWindowManagerRepository(t *testing.T) {
 					ctx,
 					workspaceID,
 					windowManagerStateDomain,
-					windowManagerSnapshotKey,
+					windowManagerSnapshotKey(testWindowManagerProfileID),
 				); !errors.Is(err, clientstate.ErrNotFound) {
 					t.Fatalf("Get(after discard) error = %v, want ErrNotFound", err)
 				}
@@ -188,7 +305,9 @@ func TestWindowManagerRepository(t *testing.T) {
 				ctx,
 				workspaceID,
 				windowManagerStateDomain,
-				[]clientstate.Op{{Kind: clientstate.OpPut, Key: windowManagerSnapshotKey, Value: legacy}},
+				[]clientstate.Op{
+					{Kind: clientstate.OpPut, Key: windowManagerSnapshotKey(testWindowManagerProfileID), Value: legacy},
+				},
 				clientstate.ApplyOptions{},
 			); err != nil {
 				t.Fatalf("Apply(v2 snapshot) error = %v", err)
@@ -268,7 +387,13 @@ func TestWindowManagerRepository(t *testing.T) {
 						ctx,
 						workspaceID,
 						windowManagerStateDomain,
-						[]clientstate.Op{{Kind: clientstate.OpPut, Key: windowManagerSnapshotKey, Value: value}},
+						[]clientstate.Op{
+							{
+								Kind:  clientstate.OpPut,
+								Key:   windowManagerSnapshotKey(testWindowManagerProfileID),
+								Value: value,
+							},
+						},
 						clientstate.ApplyOptions{},
 					); err != nil {
 						t.Fatalf("Apply(raw snapshot) error = %v", err)
@@ -281,7 +406,7 @@ func TestWindowManagerRepository(t *testing.T) {
 						ctx,
 						workspaceID,
 						windowManagerStateDomain,
-						windowManagerSnapshotKey,
+						windowManagerSnapshotKey(testWindowManagerProfileID),
 					)
 					if testCase.wantDeleted {
 						if !errors.Is(getErr, clientstate.ErrNotFound) {

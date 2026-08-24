@@ -256,6 +256,7 @@ export {
   sessionRecapOptions,
   sessionUsageOptions,
   sessionTranscriptOptions,
+  sessionScopedDetailOptions,
   sessionsListOptions,
   sessionsCompleteListOptions,
 } from "./lib/query-options";
@@ -303,6 +304,10 @@ export {
   useSessionUsage,
   useSessions,
 } from "./hooks/use-sessions";
+export {
+  useForeignProfileSession,
+  type ForeignProfileSessionState,
+} from "./hooks/use-foreign-profile-session";
 export {
   useAnswerSessionClarification,
   useSessionClarifications,

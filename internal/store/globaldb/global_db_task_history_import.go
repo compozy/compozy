@@ -61,7 +61,7 @@ func (g *TaskRepo) terminalRunHistoryEvent(
 	payload, err := json.Marshal(terminalRunHistoryPayload{
 		Status:     runStatus,
 		TaskStatus: taskStatus,
-		Result:     run.Result,
+		Result:     run.ResultValue(),
 		Historical: true,
 	})
 	if err != nil {

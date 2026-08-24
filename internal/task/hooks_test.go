@@ -10,6 +10,7 @@ import (
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/participation"
+	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 func TestNoopRunHookDispatcherPreservesRunLifecycle(t *testing.T) {
@@ -22,8 +23,9 @@ func TestNoopRunHookDispatcherPreservesRunLifecycle(t *testing.T) {
 		actor := validActorContext()
 
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "No-op hook task",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "No-op hook task",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -86,8 +88,9 @@ func TestTaskStatusChangedHookShouldReflectOnlyRealTransitions(t *testing.T) {
 		}))
 		actor := validActorContext()
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "No-op status hook task",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "No-op status hook task",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -122,8 +125,9 @@ func TestTaskStatusChangedHookShouldReflectOnlyRealTransitions(t *testing.T) {
 		}))
 		actor := validActorContext()
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Real status hook task",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Real status hook task",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -166,8 +170,9 @@ func TestTaskRunPreClaimHookDenialPreservesQueuedRun(t *testing.T) {
 		actor := validActorContext()
 
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Denied claim task",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Denied claim task",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -222,8 +227,9 @@ func TestTaskRunEnqueuedHookIncludesActorAndOrigin(t *testing.T) {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Hook context task",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Hook context task",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -277,8 +283,9 @@ func TestTaskRunObservationHooksDetachFromCallerCancellation(t *testing.T) {
 	}))
 	actor := validActorContext()
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Observation hook context task",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Observation hook context task",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -341,8 +348,9 @@ func TestTaskRunPreClaimHookUsesCallerCancellation(t *testing.T) {
 		}))
 		actor := validActorContext()
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Pre-claim hook context task",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Pre-claim hook context task",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -437,6 +445,7 @@ func TestTokenFencedLeaseTransitionsDispatchTaskRunHooks(t *testing.T) {
 		maxAttempts := 4
 
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			ProfileID:   storepkg.DefaultProfileID,
 			Scope:       ScopeGlobal,
 			Title:       "Hooked lease task",
 			MaxAttempts: &maxAttempts,
@@ -582,6 +591,7 @@ func TestTokenFencedLeaseTransitionsDispatchTaskRunHooks(t *testing.T) {
 		now := time.Date(2026, 7, 19, 0, 0, 0, 0, time.UTC)
 		maxAttempts := 1
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			ProfileID:   storepkg.DefaultProfileID,
 			Scope:       ScopeGlobal,
 			Title:       "Exhausted lease task",
 			MaxAttempts: &maxAttempts,
@@ -667,6 +677,7 @@ func TestTaskLevelHooksDispatchAtServiceCallSites(t *testing.T) {
 		operator := validActorContext()
 		agent := agentActorContextForTest("sess-task-hooks", "ws-task-hooks")
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			ProfileID:   storepkg.DefaultProfileID,
 			Scope:       ScopeWorkspace,
 			WorkspaceID: "ws-task-hooks",
 			Title:       "Task hook dispatch",
@@ -845,13 +856,15 @@ func TestTaskHookContextCarriesParentTaskID(t *testing.T) {
 		}))
 		actor := validActorContext()
 		parent, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope: ScopeGlobal,
-			Title: "Root task",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Root task",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask(parent) error = %v", err)
 		}
 		child, err := manager.CreateChildTask(context.Background(), parent.ID, CreateTask{
+			ProfileID:   storepkg.DefaultProfileID,
 			Scope:       ScopeWorkspace,
 			WorkspaceID: "ws-child",
 			Title:       "Child task",

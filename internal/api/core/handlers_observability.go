@@ -17,6 +17,11 @@ import (
 
 // HookCatalog returns the resolved hook catalog for the supplied workspace and agent view.
 func (h *BaseHandlers) HookCatalog(c *gin.Context) {
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	filter, err := ParseHookCatalogFilter(c)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
@@ -32,6 +37,9 @@ func (h *BaseHandlers) HookCatalog(c *gin.Context) {
 		filter.WorkspaceID = strings.TrimSpace(resolved.WorkspaceID)
 		filter.WorkspaceRoot = strings.TrimSpace(resolved.RootDir)
 	}
+	if !readScope.AllProfiles {
+		filter.ProfileID = readScope.ProfileID
+	}
 
 	entries, err := h.Observer.QueryHookCatalog(c.Request.Context(), filter)
 	if err != nil {
@@ -44,6 +52,11 @@ func (h *BaseHandlers) HookCatalog(c *gin.Context) {
 
 // HookRuns returns persisted hook execution history for a session.
 func (h *BaseHandlers) HookRuns(c *gin.Context) {
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	query, err := ParseHookRunsQuery(c)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
@@ -58,12 +71,16 @@ func (h *BaseHandlers) HookRuns(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if _, err := h.requireSessionInWorkspace(
+	info, err := h.requireSessionInWorkspace(
 		c.Request.Context(),
 		scope.SessionWorkspaceID(),
 		query.SessionID,
-	); err != nil {
+	)
+	if err != nil {
 		h.respondError(c, statusForWorkspaceScopedResourceError(err), err)
+		return
+	}
+	if !h.requireSessionInProfile(c, info, readScope) {
 		return
 	}
 
@@ -99,11 +116,17 @@ func (h *BaseHandlers) ListLogs(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: observer is required"))
 		return
 	}
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	query, err := ParseLogsQuery(c)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
+	query.ReadScope = readScope
 
 	events, err := h.Observer.QueryEvents(c.Request.Context(), query)
 	if err != nil {

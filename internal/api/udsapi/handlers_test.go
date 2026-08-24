@@ -51,6 +51,21 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		sort.Strings(got)
 
 		want := []string{
+			"DELETE /api/profiles/:name",
+			"GET /api/profiles",
+			"GET /api/profiles/:name",
+			"GET /api/profiles/:name/archive-plan",
+			"GET /api/profiles/:name/delete-plan",
+			"GET /api/profiles/:name/rename-plan",
+			"GET /api/profiles/ops",
+			"GET /api/profiles/selection",
+			"PATCH /api/profiles/:name",
+			"POST /api/profiles",
+			"POST /api/profiles/:name/archive",
+			"POST /api/profiles/:name/rename",
+			"POST /api/profiles/:name/unarchive",
+			"POST /api/profiles/ops/:op_id/retry",
+			"PUT /api/profiles/selection",
 			"DELETE /api/cmd-palette/personalization",
 			"DELETE /api/cmd-palette/pins/:id",
 			"DELETE /api/cmd-palette/view-sessions/:session",
@@ -139,8 +154,9 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/extensions/search",
 			"GET /api/extensions/:name",
 			"GET /api/extensions/:name/inventory",
-			"GET /api/extensions/:name/logs",
 			"GET /api/extensions/:name/preview",
+			"GET /api/extensions/:name/enablement",
+			"GET /api/extensions/:name/logs",
 			"GET /api/extensions/:name/provenance",
 			"GET /api/extensions/:name/secrets",
 			"GET /api/hooks/catalog",
@@ -239,6 +255,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/settings/sandboxes",
 			"GET /api/settings/sandboxes/:name",
 			"GET /api/settings/general",
+			"GET /api/settings/persona",
 			"GET /api/settings/update",
 			"GET /api/settings/hooks",
 			"GET /api/settings/hooks-extensions",
@@ -325,6 +342,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"PATCH /api/settings/shell",
 			"PATCH /api/settings/cmd-palette",
 			"PATCH /api/settings/general",
+			"PATCH /api/settings/persona",
 			"PATCH /api/settings/hooks-extensions",
 			"PATCH /api/settings/memory",
 			"PATCH /api/settings/network",
@@ -376,9 +394,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/agents/:name/soul/rollback",
 			"POST /api/agents/:name/soul/validate",
 			"POST /api/extensions",
+			"POST /api/extensions/preview-install",
 			"POST /api/extensions/:name/reload",
-			"POST /api/extensions/:name/disable",
-			"POST /api/extensions/:name/enable",
 			"POST /api/extensions/dev",
 			"POST /api/extensions/update",
 			"POST /api/notifications/presets",
@@ -511,8 +528,10 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"PUT /api/agents/:name",
 			"PUT /api/bridges/:id/secret-bindings/:binding_name",
 			"PUT /api/extensions/:name",
+			"PUT /api/extensions/:name/enablement",
 			"PUT /api/extensions/:name/secrets",
 			"PUT /api/notifications/presets/:name",
+			"PUT /api/notifications/presets/:name/enablement",
 			"PUT /api/settings/sandboxes/:name",
 			"PUT /api/settings/hooks/:name",
 			"PUT /api/settings/mcp-servers/:name",
@@ -732,9 +751,11 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			req settingspkg.SectionRequest,
 		) (settingspkg.SectionEnvelope, error) {
 			envelope := settingsTestSectionEnvelope(req.Section, req.Scope, req.WorkspaceID)
+			envelope.ProfileName = req.ProfileName
 			switch req.Section {
 			case settingspkg.SectionAttention:
-				envelope.Attention = &settingspkg.AttentionSection{Config: compozyconfig.AttentionConfig{
+				envelope.AvailableScopes = []settingspkg.ScopeKind{settingspkg.ScopeUser, settingspkg.ScopeProfile}
+				envelope.Attention = &settingspkg.AttentionSection{Config: settingspkg.AttentionSettings{
 					Toasts: true, Sound: true,
 				}}
 			case settingspkg.SectionShell:
@@ -806,8 +827,7 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			wantStatus: http.StatusOK,
 			body: mustJSONBody(t, contract.UpdateSettingsGeneralRequest{
 				Config: contract.SettingsGeneralConfigPayload{
-					Defaults: contract.SettingsDefaultsPayload{Agent: "coder"},
-					Limits:   contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
+					Limits: contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
 					Permissions: contract.SettingsPermissionsPayload{
 						Mode: contract.SettingsPermissionModeApproveReads,
 					},
@@ -819,7 +839,7 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				t.Helper()
 
-				var response contract.SettingsGlobalSectionMutationResult
+				var response contract.SettingsUserSectionMutationResult
 				decodeJSONResponse(t, recorder, &response)
 				if response.Section != contract.SettingsSectionGeneral {
 					t.Fatalf("response.Section = %q, want %q", response.Section, contract.SettingsSectionGeneral)
@@ -832,7 +852,7 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 					)
 				}
 				if settingsService.LastUpdateSectionRequest.General == nil ||
-					settingsService.LastUpdateSectionRequest.General.Defaults.Agent != "coder" {
+					settingsService.LastUpdateSectionRequest.General.Limits.MaxConcurrentAgents != 2 {
 					t.Fatalf(
 						"LastUpdateSectionRequest.General = %#v, want parsed payload",
 						settingsService.LastUpdateSectionRequest.General,
@@ -843,7 +863,7 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 		{
 			name:       "Should get attention section",
 			method:     http.MethodGet,
-			path:       "/api/settings/attention",
+			path:       "/api/settings/attention?scope=profile&profile=marketing",
 			wantStatus: http.StatusOK,
 			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				t.Helper()
@@ -851,10 +871,13 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 				var response contract.SettingsAttentionResponse
 				decodeJSONResponse(t, recorder, &response)
 				if response.Section != contract.SettingsSectionAttention ||
+					response.Scope != contract.SettingsLayeredScopeProfile || response.Profile != "marketing" ||
 					!response.Config.Toasts || !response.Config.Sound {
 					t.Fatalf("attention response = %#v, want enabled defaults", response)
 				}
-				if settingsService.LastGetSectionRequest.Section != settingspkg.SectionAttention {
+				if settingsService.LastGetSectionRequest.Section != settingspkg.SectionAttention ||
+					settingsService.LastGetSectionRequest.Scope != settingspkg.ScopeProfile ||
+					settingsService.LastGetSectionRequest.ProfileName != "marketing" {
 					t.Fatalf(
 						"LastGetSectionRequest.Section = %q, want %q",
 						settingsService.LastGetSectionRequest.Section,
@@ -868,22 +891,26 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			method:     http.MethodPatch,
 			path:       "/api/settings/attention",
 			wantStatus: http.StatusOK,
-			body: mustJSONBody(t, contract.UpdateSettingsAttentionRequest{
-				Config: contract.SettingsAttentionPayload{
-					Toasts: false, Sound: false, System: true,
-					MutedWorkspaces: []string{"ws_0123456789abcdef"},
-				},
-			}),
+			body: func() []byte {
+				mutedWorkspaces := []string{"ws_0123456789abcdef"}
+				return mustJSONBody(t, contract.UpdateSettingsAttentionRequest{
+					Config: contract.UpdateSettingsAttentionPayload{
+						Toasts: false, Sound: false, System: true,
+						MutedWorkspaces: &mutedWorkspaces,
+					},
+				})
+			}(),
 			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				t.Helper()
 
-				var response contract.SettingsGlobalSectionMutationResult
+				var response contract.SettingsUserSectionMutationResult
 				decodeJSONResponse(t, recorder, &response)
 				if response.Section != contract.SettingsSectionAttention {
 					t.Fatalf("response.Section = %q, want attention", response.Section)
 				}
 				request := settingsService.LastUpdateSectionRequest
 				if request.Section != settingspkg.SectionAttention || request.Attention == nil ||
+					!request.ReplaceAttentionWorkspaceMutes ||
 					request.Attention.Toasts || request.Attention.Sound || !request.Attention.System ||
 					!reflect.DeepEqual(
 						request.Attention.MutedWorkspaces,
@@ -931,7 +958,7 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				t.Helper()
 
-				var response contract.SettingsGlobalSectionMutationResult
+				var response contract.SettingsUserSectionMutationResult
 				decodeJSONResponse(t, recorder, &response)
 				if response.Section != contract.SettingsSectionShell {
 					t.Fatalf("response.Section = %q, want shell", response.Section)
@@ -978,7 +1005,7 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				t.Helper()
 
-				var response contract.SettingsGlobalSectionMutationResult
+				var response contract.SettingsUserSectionMutationResult
 				decodeJSONResponse(t, recorder, &response)
 				if response.Section != contract.SettingsSectionWindowManager {
 					t.Fatalf(
@@ -1011,10 +1038,10 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 
 				var response contract.SettingsMCPServersResponse
 				decodeJSONResponse(t, recorder, &response)
-				if response.Scope != contract.SettingsWorkspaceScopeWorkspace || response.WorkspaceID != "ws-1" {
+				if response.Scope != contract.SettingsLayeredScopeWorkspace || response.WorkspaceID != "ws-1" {
 					t.Fatalf(
 						"response meta = %#v, want workspace ws-1",
-						response.SettingsGlobalWorkspaceCollectionResponseMetaPayload,
+						response.SettingsLayeredCollectionResponseMetaPayload,
 					)
 				}
 				if settingsService.LastListCollectionRequest.Collection != settingspkg.CollectionMCPServers ||
@@ -1035,9 +1062,9 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				t.Helper()
 
-				var response contract.SettingsGlobalWorkspaceCollectionMutationResult
+				var response contract.SettingsLayeredCollectionMutationResult
 				decodeJSONResponse(t, recorder, &response)
-				if response.Scope != contract.SettingsWorkspaceScopeWorkspace || response.WorkspaceID != "ws-1" {
+				if response.Scope != contract.SettingsLayeredScopeWorkspace || response.WorkspaceID != "ws-1" {
 					t.Fatalf("response = %#v, want workspace mutation metadata", response)
 				}
 				if settingsService.LastPutCollectionRequest.Collection != settingspkg.CollectionMCPServers ||
@@ -1063,7 +1090,7 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			body: mustJSONBody(t, contract.InstallSettingsMCPServerRequest{
 				EntryID:     "github",
 				Name:        "github-workspace",
-				Scope:       contract.SettingsWorkspaceScopeWorkspace,
+				Scope:       contract.SettingsLayeredScopeWorkspace,
 				WorkspaceID: "ws-1",
 				Values:      &contract.SettingsMCPCatalogInstallValuesPayload{},
 			}),
@@ -1089,9 +1116,9 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				t.Helper()
 
-				var response contract.SettingsGlobalWorkspaceCollectionMutationResult
+				var response contract.SettingsLayeredCollectionMutationResult
 				decodeJSONResponse(t, recorder, &response)
-				if response.Scope != contract.SettingsWorkspaceScopeWorkspace || response.WorkspaceID != "ws-1" {
+				if response.Scope != contract.SettingsLayeredScopeWorkspace || response.WorkspaceID != "ws-1" {
 					t.Fatalf("response = %#v, want workspace mutation metadata", response)
 				}
 				if settingsService.LastDeleteCollectionRequest.Collection != settingspkg.CollectionMCPServers ||
@@ -1465,7 +1492,7 @@ func TestListSessionsHandlerReturnsAllSessions(t *testing.T) {
 	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
 	engine := newTestRouter(t, handlers)
 
-	recorder := performRequest(t, engine, http.MethodGet, "/api/sessions", nil)
+	recorder := performRequest(t, engine, http.MethodGet, "/api/sessions?all_workspaces=true", nil)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
 	}
@@ -1505,7 +1532,7 @@ func TestListSessionsHandlerFiltersByWorkspace(t *testing.T) {
 	}
 	engine := newTestRouter(t, newTestHandlersWithWorkspace(t, manager, stubObserver{}, workspaces, homePaths))
 
-	recorder := performRequest(t, engine, http.MethodGet, "/api/sessions?workspace=alpha", nil)
+	recorder := performRequest(t, engine, http.MethodGet, "/api/sessions?workspace_id=alpha", nil)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
@@ -2997,17 +3024,6 @@ func TestExtensionKitAndSecretsRoutesReachUDSService(t *testing.T) {
 				if payload.Extension != "kit" || len(payload.Items) != 1 ||
 					payload.Items[0].Kind != "agent" || payload.Items[0].Name != "writer" || !payload.Items[0].Live {
 					t.Fatalf("inventory payload = %#v, want live kit writer", payload)
-				}
-			},
-		},
-		{
-			name: "Should return the typed enable preview",
-			path: "/api/extensions/kit/preview",
-			assert: func(t *testing.T, response *httptest.ResponseRecorder) {
-				var payload contract.ExtensionEnablePreviewPayload
-				decodeJSONResponse(t, response, &payload)
-				if payload.Extension != "kit" || !slices.Equal(payload.AutomationStarting, []string{"kit/daily"}) {
-					t.Fatalf("preview payload = %#v, want kit/daily automation", payload)
 				}
 			},
 		},

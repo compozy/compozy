@@ -11,6 +11,7 @@ import (
 func (d *Dispatcher) createOpts(req DispatchRequest) session.CreateOpts {
 	opts := session.CreateOpts{
 		AgentName: req.agentName(),
+		ProfileID: req.profileID(),
 		Provider:  "",
 		Name:      req.name(),
 		Type:      session.SessionTypeSystem,
@@ -90,6 +91,13 @@ func (r DispatchRequest) workspaceID() string {
 		return strings.TrimSpace(r.Job.WorkspaceID)
 	}
 	return strings.TrimSpace(r.Trigger.WorkspaceID)
+}
+
+func (r DispatchRequest) profileID() string {
+	if r.Job != nil {
+		return strings.TrimSpace(r.Job.ProfileID)
+	}
+	return strings.TrimSpace(r.Trigger.ProfileID)
 }
 
 func (r DispatchRequest) envelopeData() map[string]any {

@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,6 +21,7 @@ type hooksNotifier struct {
 	agentEventNotify          session.Notifier
 	subprocessHealthRuntime   subprocessHealthRuntimeNotifier
 	eventSummaries            hookEventSummaryWriter
+	profileForSession         func(context.Context, string) (string, error)
 	taskRunEnqueuedHooks      []taskRunEnqueuedObserver
 	taskRunTerminalHooks      []taskRunTerminalObserver
 	loopStartedHooks          []loopStartedObserver
@@ -82,6 +84,42 @@ func (n *hooksNotifier) setRuntime(
 	if len(eventSummaries) > 0 {
 		n.eventSummaries = eventSummaries[0]
 	}
+}
+
+func (n *hooksNotifier) setSessionProfileResolver(
+	resolve func(context.Context, string) (string, error),
+) {
+	if n == nil {
+		return
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.profileForSession = resolve
+}
+
+func (n *hooksNotifier) sessionProfile(
+	ctx context.Context,
+	sessionID string,
+) (string, error) {
+	if n == nil {
+		return "", nil
+	}
+	n.mu.RLock()
+	resolve := n.profileForSession
+	n.mu.RUnlock()
+	if resolve == nil || strings.TrimSpace(sessionID) == "" {
+		return "", nil
+	}
+	return resolve(ctx, strings.TrimSpace(sessionID))
+}
+
+func (n *hooksNotifier) hasSessionProfileResolver() bool {
+	if n == nil {
+		return false
+	}
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.profileForSession != nil
 }
 
 func (n *hooksNotifier) setSubprocessHealthRuntime(runtime subprocessHealthRuntimeNotifier) {

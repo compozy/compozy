@@ -17,9 +17,11 @@ import (
 func TestBridgeListRendersScopePlatformAndStatusInHumanOutput(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{
+	result := testBridgeListRecord(t)
+	result.Bridges[0].ProfileName = "marketing"
+	deps := newDefaultProfileTestDeps(t, &stubClient{
 		listBridgesFn: func(context.Context, BridgeListQuery) (BridgeListRecord, error) {
-			return testBridgeListRecord(t), nil
+			return result, nil
 		},
 	})
 
@@ -28,10 +30,18 @@ func TestBridgeListRendersScopePlatformAndStatusInHumanOutput(t *testing.T) {
 		t.Fatalf("bridge list human error = %v", err)
 	}
 
-	for _, token := range []string{"Bridges", "Platform", "Scope", "Status", "telegram", "workspace", "ready", "peer, thread"} {
+	for _, token := range []string{"Bridges", "marketing", "Platform", "Scope", "Status", "telegram", "workspace", "ready", "peer, thread"} {
 		if !strings.Contains(stdout, token) {
 			t.Fatalf("bridge list human output missing %q: %s", token, stdout)
 		}
+	}
+
+	toon, _, err := executeRootCommand(t, deps, "bridge", "list", "-o", "toon")
+	if err != nil {
+		t.Fatalf("bridge list TOON error = %v", err)
+	}
+	if !strings.Contains(toon, "bridges[1]{id,profile_name,") || !strings.Contains(toon, "marketing") {
+		t.Fatalf("bridge list TOON output = %q, want marketing profile value", toon)
 	}
 }
 
@@ -1210,7 +1220,7 @@ func TestBridgeBundleAndHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bridgeBundle().human() error = %v", err)
 	}
-	if !strings.Contains(human, "Delivery Defaults") ||
+	if !strings.Contains(human, "Delivery Defaults") || !strings.Contains(human, "default") ||
 		!strings.Contains(human, `{"mode":"reply","peer_id":"peer-default"}`) {
 		t.Fatalf("bridgeBundle().human() = %q, want delivery defaults", human)
 	}
@@ -1221,7 +1231,7 @@ func TestBridgeBundleAndHelpers(t *testing.T) {
 	}
 	if !strings.Contains(
 		toon,
-		"bridge{id,display_name,platform,extension_name,scope,workspace_id,enabled,status,routing,include_peer,include_thread,include_group,notification_suppress,delivery_defaults,created_at,updated_at}:",
+		"bridge{id,profile_name,display_name,platform,extension_name,scope,workspace_id,enabled,status,routing,include_peer,include_thread,include_group,notification_suppress,delivery_defaults,created_at,updated_at}:",
 	) {
 		t.Fatalf("bridgeBundle().toon() = %q, want bridge TOON object", toon)
 	}
@@ -1310,6 +1320,7 @@ func testBridgeRecord(t *testing.T) BridgeRecord {
 
 	return BridgeRecord{
 		ID:            "brg-1",
+		ProfileName:   "default",
 		Scope:         bridgepkg.ScopeWorkspace,
 		WorkspaceID:   "ws-alpha",
 		Platform:      "telegram",
@@ -1337,6 +1348,7 @@ func testBridgeListRecord(t *testing.T) BridgeListRecord {
 	return BridgeListRecord{
 		Bridges: []contract.BridgePayload{{
 			ID:                   item.ID,
+			ProfileName:          "default",
 			Scope:                item.Scope,
 			WorkspaceID:          item.WorkspaceID,
 			Platform:             item.Platform,

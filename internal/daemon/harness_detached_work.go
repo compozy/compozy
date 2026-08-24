@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -93,6 +94,7 @@ type harnessDetachedWorkBridge struct {
 
 type normalizedDetachedHarnessSubmitRequest struct {
 	TaskID           string
+	ProfileID        string
 	SubmissionKey    string
 	Scope            taskpkg.Scope
 	WorkspaceID      string
@@ -223,6 +225,18 @@ func (b *harnessDetachedWorkBridge) normalizeSubmitRequest(
 	if err != nil {
 		return normalizedDetachedHarnessSubmitRequest{}, err
 	}
+	ownerProfileID := strings.TrimSpace(ownerInfo.ProfileID)
+	if ownerProfileID == "" {
+		return normalizedDetachedHarnessSubmitRequest{}, errors.New(
+			"daemon: detached harness owner session has no profile",
+		)
+	}
+	if wakeProfileID := strings.TrimSpace(wakeInfo.ProfileID); wakeProfileID != ownerProfileID {
+		return normalizedDetachedHarnessSubmitRequest{}, &profilepkg.Error{
+			Code: "profile_session_conflict", Message: "detached work sessions belong to different profiles",
+			Action: "submit detached work within one profile", Cause: profilepkg.ErrSessionConflict,
+		}
+	}
 
 	scope := req.Scope.Normalize()
 	workspaceID, err := normalizeDetachedHarnessWorkspace(
@@ -237,6 +251,7 @@ func (b *harnessDetachedWorkBridge) normalizeSubmitRequest(
 
 	return normalizedDetachedHarnessSubmitRequest{
 		TaskID:           detachedHarnessTaskID(ownerInfo.ID, submissionKey),
+		ProfileID:        ownerProfileID,
 		SubmissionKey:    submissionKey,
 		Scope:            scope,
 		WorkspaceID:      workspaceID,

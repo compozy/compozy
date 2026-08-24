@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestAutomationListPage(t *testing.T) {
@@ -124,6 +126,41 @@ func TestAutomationListPage(t *testing.T) {
 		})
 		if !errors.Is(err, ErrListCursorInvalid) {
 			t.Fatalf("BuildJobListPage(changed query) error = %v, want ErrListCursorInvalid", err)
+		}
+	})
+
+	t.Run("Should canonicalize profile ids before binding list cursors", func(t *testing.T) {
+		t.Parallel()
+		position := ListCursorPosition{Source: JobSourceDynamic, Name: "Alpha", ID: "item-a"}
+		paddedScope := store.ReadScope{ProfileID: "  profile-marketing  "}
+		canonicalScope := store.ReadScope{ProfileID: "profile-marketing"}
+
+		paddedJobCursor, err := EncodeJobListCursor(JobListQuery{ReadScope: paddedScope}, position)
+		if err != nil {
+			t.Fatalf("EncodeJobListCursor(padded profile) error = %v", err)
+		}
+		canonicalJobCursor, err := EncodeJobListCursor(JobListQuery{ReadScope: canonicalScope}, position)
+		if err != nil {
+			t.Fatalf("EncodeJobListCursor(canonical profile) error = %v", err)
+		}
+		if paddedJobCursor != canonicalJobCursor {
+			t.Fatalf("job cursors differ for equivalent profile ids: %q != %q", paddedJobCursor, canonicalJobCursor)
+		}
+
+		paddedTriggerCursor, err := EncodeTriggerListCursor(TriggerListQuery{ReadScope: paddedScope}, position)
+		if err != nil {
+			t.Fatalf("EncodeTriggerListCursor(padded profile) error = %v", err)
+		}
+		canonicalTriggerCursor, err := EncodeTriggerListCursor(TriggerListQuery{ReadScope: canonicalScope}, position)
+		if err != nil {
+			t.Fatalf("EncodeTriggerListCursor(canonical profile) error = %v", err)
+		}
+		if paddedTriggerCursor != canonicalTriggerCursor {
+			t.Fatalf(
+				"trigger cursors differ for equivalent profile ids: %q != %q",
+				paddedTriggerCursor,
+				canonicalTriggerCursor,
+			)
 		}
 	})
 

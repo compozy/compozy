@@ -56,6 +56,7 @@ func (o *Observer) loadTaskSnapshotTasksAndRuns(
 	query TaskSummaryQuery,
 ) ([]taskpkg.Summary, []taskpkg.Run, error) {
 	tasks, err := o.registry.ListTasks(ctx, taskpkg.Query{
+		ReadScope:   query.ReadScope,
 		Scope:       query.Scope,
 		WorkspaceID: strings.TrimSpace(query.WorkspaceID),
 		OwnerKind:   query.OwnerKind.Normalize(),
@@ -67,7 +68,7 @@ func (o *Observer) loadTaskSnapshotTasksAndRuns(
 	}
 	tasks = filterTasksByOrigin(tasks, query.OriginKind)
 	tasks = filterTasksByCreatedBy(tasks, query.ExcludeCreatedBy)
-	runs, err := o.registry.ListTaskRuns(ctx, taskpkg.RunQuery{})
+	runs, err := o.registry.ListTaskRuns(ctx, taskpkg.RunQuery{ReadScope: query.ReadScope})
 	if err != nil {
 		return nil, nil, fmt.Errorf("observe: list task runs for summary: %w", err)
 	}
@@ -108,6 +109,7 @@ func (o *Observer) loadTaskSnapshotAudits(
 ) ([]store.NetworkAuditEntry, error) {
 	workspaceID := strings.TrimSpace(query.WorkspaceID)
 	audits, err := o.registry.ListNetworkAudit(ctx, store.NetworkAuditQuery{
+		ReadScope:   query.ReadScope,
 		WorkspaceID: workspaceID,
 		Global:      workspaceID == "",
 		Channel:     strings.TrimSpace(query.ParticipationChannel),

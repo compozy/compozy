@@ -21,6 +21,7 @@ import (
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/resources"
 	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/toolruntime"
@@ -152,12 +153,14 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 		t.Fatalf("initialize extension services = %#v, want memory backend methods", request.Methods.ExtensionServices)
 	}
 
-	decls, err := manager.HookDeclarations(testutil.Context(t))
+	decls, err := manager.HookDeclarationsForProfiles(testutil.Context(t), []ProfileLens{{
+		ID: store.DefaultProfileID, Name: "default",
+	}})
 	if err != nil {
-		t.Fatalf("HookDeclarations() error = %v", err)
+		t.Fatalf("HookDeclarationsForProfiles() error = %v", err)
 	}
 	if len(decls) != 1 {
-		t.Fatalf("len(HookDeclarations()) = %d, want 1", len(decls))
+		t.Fatalf("len(HookDeclarationsForProfiles()) = %d, want 1", len(decls))
 	}
 	if got, want := decls[0].Name, "ext-runtime-hook"; got != want {
 		t.Fatalf("HookDeclarations()[0].Name = %q, want %q", got, want)
@@ -199,6 +202,405 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 	if got, want := loaded.Status.Phase, ExtensionPhaseActivate; got != want {
 		t.Fatalf("Get(ext-runtime).Status.Phase = %q, want %q", got, want)
 	}
+}
+
+func TestManagerProfileRuntimeIsolation(t *testing.T) {
+	t.Parallel()
+
+	withDaemonVersion(t, "0.5.0")
+	env := newRegistryTestEnv(t)
+	fixture := createManagerTestExtension(t, managerTestManifest("ext-profile-secret", managerManifestOptions{
+		command:      "fake-extension",
+		requiresEnv:  []string{"BOUND_SECRET"},
+		capabilities: []string{extensionprotocol.CapabilityToolProvider},
+	}), nil)
+	installManagerFixture(t, env.registry, fixture, SourceUser, true)
+	bindings := &envResolutionBindingStore{bindings: map[string][]EnvBinding{
+		envResolutionBindingKey(fixture.manifest.Name, "", ""): {{
+			ExtensionName: fixture.manifest.Name,
+			EnvName:       "BOUND_SECRET",
+			SecretRef:     "vault:shared",
+		}},
+		envResolutionBindingKey(fixture.manifest.Name, "profile-marketing", ""): {{
+			ExtensionName: fixture.manifest.Name,
+			ProfileID:     "profile-marketing",
+			EnvName:       "BOUND_SECRET",
+			SecretRef:     "vault:marketing",
+		}},
+	}}
+	launcher := &fakeLauncher{queue: []*fakeProcess{
+		newFakeProcess(101), newFakeProcess(202), newFakeProcess(303),
+	}}
+	manager := NewManager(
+		env.registry,
+		WithEnvBindingStore(bindings),
+		WithSecretResolver(envResolutionSecretResolver{values: map[string]string{
+			"vault:shared":            "shared-value",
+			"vault:marketing":         "marketing-value",
+			"vault:marketing-updated": "updated-marketing-value",
+		}}),
+		WithProfileNameResolver(fixedProfileNameResolver{"profile-marketing": "marketing"}),
+		withProcessLauncher(launcher.launch),
+	)
+	if err := manager.Start(testutil.Context(t)); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Stop(testutil.Context(t)); err != nil {
+			t.Fatalf("Stop() cleanup error = %v", err)
+		}
+	})
+
+	profileKey := ProfileInstanceKey(fixture.manifest.Name, "profile-marketing", "")
+	if _, err := manager.ProvideToolsForInstance(testutil.Context(t), profileKey); err != nil {
+		t.Fatalf("ProvideToolsForInstance(marketing) error = %v", err)
+	}
+	launcher.mu.Lock()
+	configs := slices.Clone(launcher.config)
+	launcher.mu.Unlock()
+	if len(configs) != 2 {
+		t.Fatalf("launch configs = %d, want base and marketing runtimes", len(configs))
+	}
+	if got := launchEnvValue(configs[0].Env, "BOUND_SECRET"); got != "shared-value" {
+		t.Fatalf("default runtime BOUND_SECRET = %q, want shared-value", got)
+	}
+	if got := launchEnvValue(configs[1].Env, "BOUND_SECRET"); got != "marketing-value" {
+		t.Fatalf("marketing runtime BOUND_SECRET = %q, want marketing-value", got)
+	}
+	if configs[0].ProcessRecord.Owner.ExtensionName == configs[1].ProcessRecord.Owner.ExtensionName {
+		t.Fatalf("runtime owners = %q, want profile-specific identity", configs[0].ProcessRecord.Owner.ExtensionName)
+	}
+
+	bindings.bindings[envResolutionBindingKey(fixture.manifest.Name, "profile-marketing", "")][0].SecretRef =
+		"vault:marketing-updated"
+	if err := manager.InvalidateProfileRuntime(testutil.Context(t), profileKey); err != nil {
+		t.Fatalf("InvalidateProfileRuntime(marketing) error = %v", err)
+	}
+	if _, err := manager.ProvideToolsForInstance(testutil.Context(t), profileKey); err != nil {
+		t.Fatalf("ProvideToolsForInstance(updated marketing) error = %v", err)
+	}
+	launcher.mu.Lock()
+	configs = slices.Clone(launcher.config)
+	launcher.mu.Unlock()
+	if len(configs) != 3 {
+		t.Fatalf("launch configs after binding update = %d, want three", len(configs))
+	}
+	if got := launchEnvValue(configs[2].Env, "BOUND_SECRET"); got != "updated-marketing-value" {
+		t.Fatalf("updated marketing runtime BOUND_SECRET = %q, want updated-marketing-value", got)
+	}
+}
+
+type fixedProfileNameResolver map[string]string
+
+func (r fixedProfileNameResolver) ProfileName(_ context.Context, profileID string) (string, error) {
+	name := strings.TrimSpace(r[strings.TrimSpace(profileID)])
+	if name == "" {
+		return "", fmt.Errorf("profile %q is unavailable", profileID)
+	}
+	return name, nil
+}
+
+func launchEnvValue(values []string, name string) string {
+	prefix := strings.TrimSpace(name) + "="
+	for _, value := range values {
+		if result, ok := strings.CutPrefix(value, prefix); ok {
+			return result
+		}
+	}
+	return ""
+}
+
+// Invariant: a live extension projection contains shared resources plus only
+// the selected profile's placements, and a placement update moves ownership
+// without copying resource content.
+// Owner: extension manager profile projection.
+// Canonical suite: extension manager tests.
+// Covers IT-053 and IT-054.
+func TestManagerProjectsLiveResourcesByProfile(t *testing.T) {
+	t.Parallel()
+	t.Run("Should project every profile resource family without cross-profile leakage", func(t *testing.T) {
+		t.Parallel()
+		testManagerProjectsLiveResourcesByProfile(t)
+	})
+	t.Run("Should filter every manifest resource family through one profile lens", func(t *testing.T) {
+		t.Parallel()
+		testProjectManifestResourcesForProfile(t)
+	})
+}
+
+func testProjectManifestResourcesForProfile(t *testing.T) {
+	t.Helper()
+
+	paths := []ManifestResourcePath{
+		{Path: "shared"},
+		{Path: "x", Profile: "x"},
+		{Path: "y", Profile: "y"},
+	}
+	resources := ResourcesConfig{
+		Skills:     slices.Clone(paths),
+		Loops:      slices.Clone(paths),
+		Agents:     slices.Clone(paths),
+		Automation: slices.Clone(paths),
+		Layouts:    slices.Clone(paths),
+		Hooks: []HookConfig{
+			{Name: "shared"},
+			{Name: "x", Profile: "x"},
+			{Name: "y", Profile: "y"},
+		},
+		Tools: map[string]ToolConfig{
+			"shared": {},
+			"x":      {Profile: "x"},
+			"y":      {Profile: "y"},
+		},
+		MCPServers: map[string]MCPServerConfig{
+			"shared": {},
+			"x":      {Profile: "x"},
+			"y":      {Profile: "y"},
+		},
+		CommandGroups: []manifestCommandGroupSpec{
+			{Path: "shared"},
+			{Path: "x", Profile: "x"},
+			{Path: "y", Profile: "y"},
+		},
+		CmdPalette: CmdPaletteConfig{
+			Commands: []CmdPaletteCommand{
+				{ID: "shared", Action: CmdPaletteAction{Kind: "navigate"}},
+				{ID: "x", Profile: "x", Action: CmdPaletteAction{Kind: "navigate"}},
+				{ID: "y", Profile: "y", Action: CmdPaletteAction{Kind: "navigate"}},
+				{ID: "x-tool", Action: CmdPaletteAction{Kind: "tool", Tool: "x"}},
+				{ID: "y-tool", Action: CmdPaletteAction{Kind: "tool", Tool: "y"}},
+			},
+			Views: []CmdPaletteView{
+				{ID: "shared"},
+				{ID: "x", Profile: "x"},
+				{ID: "y", Profile: "y"},
+				{ID: "x-tool", Source: &CmdPaletteViewSource{Tool: "x"}},
+				{ID: "y-tool", Source: &CmdPaletteViewSource{Tool: "y"}},
+			},
+		},
+	}
+
+	projectManifestResourcesForProfile(&resources, "x")
+	for family, values := range map[string][]ManifestResourcePath{
+		"skills": resources.Skills, "loops": resources.Loops, "agents": resources.Agents,
+		"automation": resources.Automation, "layouts": resources.Layouts,
+	} {
+		if !slices.Equal(values, paths[:2]) {
+			t.Fatalf("%s projection = %#v, want shared and x", family, values)
+		}
+	}
+	if len(resources.Hooks) != 2 {
+		t.Fatalf("hook projection = %#v, want shared and x", resources.Hooks)
+	}
+	if got := []string{resources.Hooks[0].Name, resources.Hooks[1].Name}; !slices.Equal(got, []string{"shared", "x"}) {
+		t.Fatalf("hook projection = %#v, want shared and x", resources.Hooks)
+	}
+	for family, values := range map[string][]string{
+		"tools":       sortedMapKeys(resources.Tools),
+		"mcp_servers": sortedMapKeys(resources.MCPServers),
+	} {
+		if !slices.Equal(values, []string{"shared", "x"}) {
+			t.Fatalf("%s projection = %#v, want shared and x", family, values)
+		}
+	}
+	if len(resources.CommandGroups) != 2 {
+		t.Fatalf("command group projection = %#v, want shared and x", resources.CommandGroups)
+	}
+	if got := []string{
+		resources.CommandGroups[0].Path,
+		resources.CommandGroups[1].Path,
+	}; !slices.Equal(
+		got,
+		[]string{"shared", "x"},
+	) {
+		t.Fatalf("command group projection = %#v, want shared and x", resources.CommandGroups)
+	}
+	commandIDs := make([]string, 0, len(resources.CmdPalette.Commands))
+	for _, command := range resources.CmdPalette.Commands {
+		commandIDs = append(commandIDs, command.ID)
+	}
+	if !slices.Equal(commandIDs, []string{"shared", "x", "x-tool"}) {
+		t.Fatalf("command palette commands = %#v, want shared, x, and x-tool", commandIDs)
+	}
+	viewIDs := make([]string, 0, len(resources.CmdPalette.Views))
+	for _, view := range resources.CmdPalette.Views {
+		viewIDs = append(viewIDs, view.ID)
+	}
+	if !slices.Equal(viewIDs, []string{"shared", "x", "x-tool"}) {
+		t.Fatalf("command palette views = %#v, want shared, x, and x-tool", viewIDs)
+	}
+}
+
+func testManagerProjectsLiveResourcesByProfile(t *testing.T) {
+	t.Helper()
+
+	withDaemonVersion(t, "0.6.0")
+	env := newRegistryTestEnv(t)
+	fixture := createManagerTestExtension(t, `[extension]
+name = "profile-kit"
+version = "1.0.0"
+min_compozy_version = "0.5.0"
+
+[[resources.skills]]
+path = "skills/shared"
+
+[[resources.skills]]
+path = "skills/x-one"
+profile = "x"
+
+[[resources.skills]]
+path = "skills/x-two"
+profile = "x"
+
+[[resources.skills]]
+path = "skills/y-one"
+profile = "y"
+
+[[resources.hooks]]
+name = "shared-hook"
+event = "turn.start"
+command = "/bin/sh"
+
+[[resources.hooks]]
+name = "x-hook"
+event = "turn.start"
+command = "/bin/sh"
+profile = "x"
+
+[[resources.hooks]]
+name = "y-hook"
+event = "turn.start"
+command = "/bin/sh"
+profile = "y"
+`, map[string]string{
+		"skills/shared/SKILL.md": managerSkillFile("shared", "Shared"),
+		"skills/x-one/SKILL.md":  managerSkillFile("x-one", "X one"),
+		"skills/x-two/SKILL.md":  managerSkillFile("x-two", "X two"),
+		"skills/y-one/SKILL.md":  managerSkillFile("y-one", "Y one"),
+	})
+	installManagerFixture(t, env.registry, fixture, SourceUser, true)
+	const (
+		xProfileID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+		yProfileID = "01BX5ZZKBKACTAV9WEVGEMMVRZ"
+	)
+	now := store.FormatTimestamp(time.Now().UTC())
+	if _, err := env.db.ExecContext(t.Context(), `INSERT INTO profiles (id, name, color, icon, state, created_at) VALUES
+		(?, 'x', '#112233', 'x', 'active', ?),
+		(?, 'y', '#334455', 'y', 'active', ?)`, xProfileID, now, yProfileID, now); err != nil {
+		t.Fatalf("insert profile fixtures error = %v", err)
+	}
+	info, err := env.registry.Get(fixture.manifest.Name)
+	if err != nil {
+		t.Fatalf("registry.Get() error = %v", err)
+	}
+	manager := NewManager(env.registry)
+	manager.extensions[fixture.manifest.Name] = &managedExtension{
+		key: GlobalInstanceKey(fixture.manifest.Name), info: *info,
+		rootDir: fixture.dir, manifest: fixture.manifest, registered: true, active: true,
+	}
+
+	project := func(t *testing.T, id, name string) (*Extension, bool) {
+		t.Helper()
+		projected, enabled, projectErr := manager.ProjectForProfile(
+			testutil.Context(t),
+			GlobalInstanceKey(fixture.manifest.Name),
+			ProfileLens{ID: id, Name: name},
+		)
+		if projectErr != nil {
+			t.Fatalf("ProjectForProfile(%s) error = %v", name, projectErr)
+		}
+		return projected, enabled
+	}
+	assertSkills := func(t *testing.T, extension *Extension, want []string) {
+		t.Helper()
+		got := make([]string, 0, len(extension.Skills))
+		for _, skill := range extension.Skills {
+			got = append(got, skill.Meta.Name)
+		}
+		slices.Sort(got)
+		slices.Sort(want)
+		if !slices.Equal(got, want) {
+			t.Fatalf("projected skills = %#v, want %#v", got, want)
+		}
+	}
+
+	xProjection, enabled := project(t, xProfileID, "x")
+	if !enabled {
+		t.Fatal("ProjectForProfile(x) enabled = false, want true")
+	}
+	assertSkills(t, xProjection, []string{"shared", "x-one", "x-two"})
+	yProjection, enabled := project(t, yProfileID, "y")
+	if !enabled {
+		t.Fatal("ProjectForProfile(y) enabled = false, want true")
+	}
+	assertSkills(t, yProjection, []string{"shared", "y-one"})
+	profileHooks, err := manager.HookDeclarationsForProfiles(testutil.Context(t), []ProfileLens{
+		{ID: xProfileID, Name: "x"},
+		{ID: yProfileID, Name: "y"},
+	})
+	if err != nil {
+		t.Fatalf("HookDeclarationsForProfiles() error = %v", err)
+	}
+	ownersByHook := make(map[string][]string)
+	for _, declaration := range profileHooks {
+		ownersByHook[declaration.Name] = append(ownersByHook[declaration.Name], declaration.ProfileID)
+	}
+	if !slices.Equal(ownersByHook["shared-hook"], []string{xProfileID, yProfileID}) ||
+		!slices.Equal(ownersByHook["x-hook"], []string{xProfileID}) ||
+		!slices.Equal(ownersByHook["y-hook"], []string{yProfileID}) {
+		t.Fatalf("profile hook owners = %#v, want shared plus isolated x/y declarations", ownersByHook)
+	}
+
+	if err := env.registry.SetEnabledForProfile(fixture.manifest.Name, xProfileID, false); err != nil {
+		t.Fatalf("SetEnabledForProfile(x disabled) error = %v", err)
+	}
+	liveExtension := manager.extensions[fixture.manifest.Name]
+	delete(manager.extensions, fixture.manifest.Name)
+	xProjection, enabled = project(t, xProfileID, "x")
+	if enabled {
+		t.Fatal("ProjectForProfile(x disabled) enabled = true, want false [IT-053]")
+	}
+	assertSkills(t, xProjection, []string{"shared", "x-one", "x-two"})
+	manager.extensions[fixture.manifest.Name] = liveExtension
+
+	if err := env.registry.SetEnabledForProfile(fixture.manifest.Name, xProfileID, true); err != nil {
+		t.Fatalf("SetEnabledForProfile(x enabled) error = %v", err)
+	}
+	manager.extensions[fixture.manifest.Name].manifest.Resources.Skills[2].Profile = "y"
+	xProjection, _ = project(t, xProfileID, "x")
+	yProjection, _ = project(t, yProfileID, "y")
+	assertSkills(t, xProjection, []string{"shared", "x-one"})
+	assertSkills(t, yProjection, []string{"shared", "x-two", "y-one"})
+
+	t.Run("Should filter every declarative resource family", func(t *testing.T) {
+		t.Parallel()
+		resources := ResourcesConfig{
+			Skills:     []ManifestResourcePath{{Path: "shared"}, {Path: "x", Profile: "x"}, {Path: "y", Profile: "y"}},
+			Loops:      []ManifestResourcePath{{Path: "x-loop", Profile: "x"}, {Path: "y-loop", Profile: "y"}},
+			Agents:     []ManifestResourcePath{{Path: "x-agent", Profile: "x"}, {Path: "y-agent", Profile: "y"}},
+			Automation: []ManifestResourcePath{{Path: "x-job", Profile: "x"}, {Path: "y-job", Profile: "y"}},
+			Layouts:    []ManifestResourcePath{{Path: "x-layout", Profile: "x"}, {Path: "y-layout", Profile: "y"}},
+			Hooks:      []HookConfig{{Name: "x-hook", Profile: "x"}, {Name: "y-hook", Profile: "y"}},
+			Tools: map[string]ToolConfig{
+				"x-tool": {Profile: "x"}, "y-tool": {Profile: "y"},
+			},
+			MCPServers: map[string]MCPServerConfig{
+				"x-mcp": {Profile: "x"}, "y-mcp": {Profile: "y"},
+			},
+			CommandGroups: []manifestCommandGroupSpec{{Path: "x-group", Profile: "x"}, {Path: "y-group", Profile: "y"}},
+			CmdPalette: CmdPaletteConfig{
+				Commands: []CmdPaletteCommand{{ID: "x-command", Profile: "x"}, {ID: "y-command", Profile: "y"}},
+				Views:    []CmdPaletteView{{ID: "x-view", Profile: "x"}, {ID: "y-view", Profile: "y"}},
+			},
+		}
+		projectManifestResourcesForProfile(&resources, "x")
+		if len(resources.Skills) != 2 || len(resources.Loops) != 1 || len(resources.Agents) != 1 ||
+			len(resources.Automation) != 1 || len(resources.Layouts) != 1 || len(resources.Hooks) != 1 ||
+			len(resources.Tools) != 1 || len(resources.MCPServers) != 1 || len(resources.CommandGroups) != 1 ||
+			len(resources.CmdPalette.Commands) != 1 || len(resources.CmdPalette.Views) != 1 {
+			t.Fatalf("profile resource projection = %#v, want one x resource per family plus shared skill", resources)
+		}
+	})
 }
 
 func TestManagerInitializeRuntimeRequestEncodesEmptyCapabilitiesAsArrays(t *testing.T) {
@@ -528,9 +930,9 @@ func TestManagerWorkspaceScopedResourceSessionBindsOwningWorkspace(t *testing.T)
 		if err != nil {
 			t.Fatalf("newHostAPIResourceSession() error = %v", err)
 		}
-		if got := resourceSession.Actor.MaxScope; got.Kind != resources.ResourceScopeKindGlobal ||
+		if got := resourceSession.Actor.MaxScope; got.Kind != resources.ResourceScopeKindUser ||
 			got.ID != "" {
-			t.Fatalf("resource session max scope = %#v, want global", got)
+			t.Fatalf("resource session max scope = %#v, want user scope", got)
 		}
 	})
 }
@@ -774,12 +1176,14 @@ func TestManagerDisablesExtensionAfterConsecutiveFailures(t *testing.T) {
 		t.Fatalf("launch count = %d, want 5 before disable", got)
 	}
 
-	decls, err := manager.HookDeclarations(testutil.Context(t))
+	decls, err := manager.HookDeclarationsForProfiles(testutil.Context(t), []ProfileLens{{
+		ID: store.DefaultProfileID, Name: "default",
+	}})
 	if err != nil {
-		t.Fatalf("HookDeclarations() error = %v", err)
+		t.Fatalf("HookDeclarationsForProfiles() error = %v", err)
 	}
 	if len(decls) != 0 {
-		t.Fatalf("HookDeclarations() = %#v, want resources removed after disable", decls)
+		t.Fatalf("HookDeclarationsForProfiles() = %#v, want resources removed after disable", decls)
 	}
 	checker.mu.RLock()
 	grantCount := len(checker.grants)
@@ -1387,7 +1791,7 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 			Name:    "snapshot",
 			Version: "1.0.0",
 			Resources: ResourcesConfig{
-				Skills: []string{"skills/"},
+				Skills: []ManifestResourcePath{{Path: "skills/"}},
 				Publish: ResourceGrantRequest{
 					Families: []string{"tools"},
 					MaxScope: resources.ResourceScopeKindWorkspace,
@@ -1452,7 +1856,7 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 
 	clone.Info.Capabilities.Provides[0] = "changed"
 	clone.Info.Permissions.Requires[0] = "changed"
-	clone.Manifest.Resources.Skills[0] = "changed"
+	clone.Manifest.Resources.Skills[0].Path = "changed"
 	clone.Manifest.Subprocess.Env["TOKEN"] = "changed"
 	clone.Manifest.Resources.Publish.Families[0] = "changed"
 	clone.Skills[0].Meta.Name = "changed"
@@ -1464,7 +1868,7 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 	clone.Skills[0].MCPServers[0].Env["ROOT"] = "/tmp/changed"
 	clone.Skills[0].Provenance.Hash = "hash-changed"
 	clone.GrantedResourceKinds[0] = resources.ResourceKind("changed")
-	clone.GrantedResourceScopes[0] = resources.ResourceScopeKindGlobal
+	clone.GrantedResourceScopes[0] = resources.ResourceScopeKindUser
 	clone.InitializeResult.ImplementedMethods[0] = "changed"
 	clone.InitializeResult.AcceptedCapabilities.Provides[0] = "changed"
 
@@ -1474,7 +1878,7 @@ func TestManagerCloneExtensionReturnsIsolatedSnapshot(t *testing.T) {
 	if ext.info.Permissions.Requires[0] != "sessions/list" {
 		t.Fatalf("original permissions mutated to %#v", ext.info.Permissions.Requires)
 	}
-	if ext.manifest.Resources.Skills[0] != "skills/" {
+	if ext.manifest.Resources.Skills[0].Path != "skills/" {
 		t.Fatalf("original manifest resources mutated to %#v", ext.manifest.Resources.Skills)
 	}
 	if ext.manifest.Resources.Publish.Families[0] != "tools" {
@@ -1648,7 +2052,7 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 			Version:           "1.0.0",
 			MinCompozyVersion: "0.5.0",
 			Resources: ResourcesConfig{
-				Skills: []string{"skills"},
+				Skills: []ManifestResourcePath{{Path: "skills"}},
 			},
 		},
 	}
@@ -1689,9 +2093,9 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 				Kind: resources.ResourceSourceKind("extension"),
 				ID:   "ext-host",
 			},
-			MaxScope:      resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			MaxScope:      resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			GrantedKinds:  []resources.ResourceKind{"tool.definition"},
-			GrantedScopes: []resources.ResourceScopeKind{resources.ResourceScopeKindGlobal},
+			GrantedScopes: []resources.ResourceScopeKind{resources.ResourceScopeKindUser},
 		},
 	}
 	bridgeRuntime := &subprocess.InitializeBridgeRuntime{
@@ -1792,6 +2196,7 @@ type managerManifestOptions struct {
 	command           string
 	args              []string
 	withEnv           map[string]string
+	requiresEnv       []string
 	withSkills        bool
 	withAgents        bool
 	withHooks         bool
@@ -2593,15 +2998,21 @@ name = %q
 version = "0.2.1"
 description = "Extension manager test fixture"
 min_compozy_version = %q
-
-[resources]
 `, name, minVersion)
+	if len(opts.requiresEnv) > 0 {
+		builder.WriteString("requires_env = " + tomlStringArray(opts.requiresEnv) + "\n")
+	}
+	builder.WriteString(`
+[resources]
+`)
 	if opts.withSkills {
-		builder.WriteString(`skills = ["skills/"]
+		builder.WriteString(`[[resources.skills]]
+path = "skills/"
 `)
 	}
 	if opts.withAgents {
-		builder.WriteString(`agents = ["agents/"]
+		builder.WriteString(`[[resources.agents]]
+path = "agents/"
 `)
 	}
 	if opts.withHooks {
@@ -2769,6 +3180,7 @@ func waitForManagerCondition(t *testing.T, timeout time.Duration, fn func() bool
 
 func testBridgeRuntimeInstance(extensionName string, instanceID string) bridgepkg.BridgeInstance {
 	return bridgepkg.BridgeInstance{
+		ProfileID:     store.DefaultProfileID,
 		ID:            instanceID,
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",

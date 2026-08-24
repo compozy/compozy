@@ -13,6 +13,31 @@ import (
 func TestRegistryInvoke(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should fail closed without a lens and keep profile management local [UT-097][UT-098]", func(t *testing.T) {
+		t.Parallel()
+		descriptor := testDescriptor("profile.use")
+		executor := &testExecutor{}
+		service := testRegistry(staticTestProvider{commands: []Descriptor{descriptor}}, nil, nil, executor)
+		_, err := service.Invoke(t.Context(), InvokeRequest{WorkspaceID: "ws-1", CommandID: descriptor.ID})
+		requireErrorContains(t, err, "profile lens is required")
+		if executor.callCount() != 0 {
+			t.Fatalf("Invoke(missing lens) calls = %d, want fail closed", executor.callCount())
+		}
+		_, err = service.Invoke(t.Context(), InvokeRequest{
+			ProfileLens: testProfileLens, WorkspaceID: "ws-1", CommandID: descriptor.ID,
+		})
+		if !errors.Is(err, ErrProfileManagementForbidden) || executor.callCount() != 0 {
+			t.Fatalf("Invoke(remote profile action) error/calls = %v/%d", err, executor.callCount())
+		}
+		_, err = service.Invoke(t.Context(), InvokeRequest{
+			ProfileLens: testProfileLens, WorkspaceID: "ws-1", CommandID: descriptor.ID,
+			ManagementLocal: true,
+		})
+		if err != nil || executor.callCount() != 1 {
+			t.Fatalf("Invoke(local profile action) error/calls = %v/%d", err, executor.callCount())
+		}
+	})
+
 	t.Run("Should return the catalog-identical unavailability reason [UT-006]", func(t *testing.T) {
 		t.Parallel()
 		descriptor := testDescriptor("window.close")
@@ -28,11 +53,14 @@ func TestRegistryInvoke(t *testing.T) {
 			},
 		}
 		service := testRegistry(staticTestProvider{commands: []Descriptor{descriptor}}, directory, nil, &testExecutor{})
-		catalog, err := service.Catalog(t.Context(), "ws-1", "client-a")
+		catalog, err := service.Catalog(t.Context(), testCatalogRequest("ws-1", "client-a"))
 		if err != nil {
 			t.Fatalf("Catalog() error = %v", err)
 		}
-		_, err = service.Invoke(t.Context(), InvokeRequest{WorkspaceID: "ws-1", CommandID: descriptor.ID})
+		_, err = service.Invoke(
+			t.Context(),
+			InvokeRequest{ProfileLens: testProfileLens, WorkspaceID: "ws-1", CommandID: descriptor.ID},
+		)
 		var unavailable *UnavailableError
 		if !errors.As(err, &unavailable) {
 			t.Fatalf("Invoke() error = %v, want UnavailableError", err)
@@ -52,7 +80,10 @@ func TestRegistryInvoke(t *testing.T) {
 		descriptor.Arguments = []Argument{{Name: "title", Type: ArgumentTypeText, Required: true}}
 		executor := &testExecutor{}
 		service := testRegistry(staticTestProvider{commands: []Descriptor{descriptor}}, nil, nil, executor)
-		_, err := service.Invoke(t.Context(), InvokeRequest{WorkspaceID: "ws-1", CommandID: descriptor.ID})
+		_, err := service.Invoke(
+			t.Context(),
+			InvokeRequest{ProfileLens: testProfileLens, WorkspaceID: "ws-1", CommandID: descriptor.ID},
+		)
 		var invalid *InvalidArgumentsError
 		if !errors.As(err, &invalid) || invalid.Fields["title"] != "required" {
 			t.Fatalf("Invoke() error = %#v, want required title field", err)
@@ -67,7 +98,10 @@ func TestRegistryInvoke(t *testing.T) {
 		descriptor := testDescriptor("note.capture")
 		executor := &testExecutor{}
 		service := testRegistry(staticTestProvider{commands: []Descriptor{descriptor}}, nil, nil, executor)
-		_, err := service.Invoke(t.Context(), InvokeRequest{WorkspaceID: "ws-1", CommandID: "note.captur"})
+		_, err := service.Invoke(
+			t.Context(),
+			InvokeRequest{ProfileLens: testProfileLens, WorkspaceID: "ws-1", CommandID: "note.captur"},
+		)
 		if !errors.Is(err, ErrCommandNotFound) {
 			t.Fatalf("Invoke() error = %v, want ErrCommandNotFound", err)
 		}
@@ -92,11 +126,17 @@ func TestRegistryInvoke(t *testing.T) {
 			service := testRegistry(staticTestProvider{commands: []Descriptor{descriptor}}, nil, nil, executor)
 			firstDone := make(chan error, 1)
 			go func() {
-				_, err := service.Invoke(t.Context(), InvokeRequest{WorkspaceID: "ws-1", CommandID: descriptor.ID})
+				_, err := service.Invoke(
+					t.Context(),
+					InvokeRequest{ProfileLens: testProfileLens, WorkspaceID: "ws-1", CommandID: descriptor.ID},
+				)
 				firstDone <- err
 			}()
 			<-started
-			_, err := service.Invoke(t.Context(), InvokeRequest{WorkspaceID: "ws-1", CommandID: descriptor.ID})
+			_, err := service.Invoke(
+				t.Context(),
+				InvokeRequest{ProfileLens: testProfileLens, WorkspaceID: "ws-1", CommandID: descriptor.ID},
+			)
 			if !errors.Is(err, ErrAlreadyRunning) {
 				t.Fatalf("second Invoke() error = %v, want ErrAlreadyRunning", err)
 			}
@@ -118,7 +158,10 @@ func TestRegistryInvoke(t *testing.T) {
 			var wait sync.WaitGroup
 			for range 2 {
 				wait.Go(func() {
-					_, err := service.Invoke(t.Context(), InvokeRequest{WorkspaceID: "ws-1", CommandID: descriptor.ID})
+					_, err := service.Invoke(
+						t.Context(),
+						InvokeRequest{ProfileLens: testProfileLens, WorkspaceID: "ws-1", CommandID: descriptor.ID},
+					)
 					errorsByCall <- err
 				})
 			}
@@ -147,14 +190,20 @@ func TestRegistryInvoke(t *testing.T) {
 			result:   ExecutionResult{ApprovalID: "apr_test", Completion: completion},
 		}
 		service := testRegistry(staticTestProvider{commands: []Descriptor{descriptor}}, nil, nil, executor)
-		result, err := service.Invoke(t.Context(), InvokeRequest{WorkspaceID: "ws-1", CommandID: descriptor.ID})
+		result, err := service.Invoke(
+			t.Context(),
+			InvokeRequest{ProfileLens: testProfileLens, WorkspaceID: "ws-1", CommandID: descriptor.ID},
+		)
 		if err != nil {
 			t.Fatalf("Invoke() error = %v", err)
 		}
 		if result.Status != InvokeStatusApprovalPending || result.ApprovalID != "apr_test" {
 			t.Fatalf("Invoke() result = %#v, want approval_pending", result)
 		}
-		_, err = service.Invoke(t.Context(), InvokeRequest{WorkspaceID: "ws-1", CommandID: descriptor.ID})
+		_, err = service.Invoke(
+			t.Context(),
+			InvokeRequest{ProfileLens: testProfileLens, WorkspaceID: "ws-1", CommandID: descriptor.ID},
+		)
 		if !errors.Is(err, ErrAlreadyRunning) {
 			t.Fatalf("duplicate pending Invoke() error = %v, want ErrAlreadyRunning", err)
 		}
@@ -167,12 +216,12 @@ func TestRegistryInvoke(t *testing.T) {
 		descriptor.Policy = ExecutionPolicy{SingleFlight: true, RetrySafe: true}
 		executor := &flakyInvokeExecutor{}
 		service := testRegistry(staticTestProvider{commands: []Descriptor{descriptor}}, nil, nil, executor)
-		if _, err := service.Invoke(t.Context(), InvokeRequest{
+		if _, err := service.Invoke(t.Context(), InvokeRequest{ProfileLens: testProfileLens,
 			WorkspaceID: "ws-1", CommandID: descriptor.ID,
 		}); !errors.Is(err, errFlakyInvoke) {
 			t.Fatalf("first Invoke() error = %v, want errFlakyInvoke", err)
 		}
-		result, err := service.Invoke(t.Context(), InvokeRequest{
+		result, err := service.Invoke(t.Context(), InvokeRequest{ProfileLens: testProfileLens,
 			WorkspaceID: "ws-1", CommandID: descriptor.ID,
 		})
 		if err != nil || result.Status != InvokeStatusOK || executor.callCount() != 2 {
@@ -189,7 +238,7 @@ func TestRegistryInvoke(t *testing.T) {
 			staticTestProvider{commands: []Descriptor{descriptor}}, nil, nil, &testExecutor{},
 			WithPersonalizationStore(store),
 		)
-		result, err := service.Invoke(t.Context(), InvokeRequest{
+		result, err := service.Invoke(t.Context(), InvokeRequest{ProfileLens: testProfileLens,
 			WorkspaceID: "workspace-a",
 			CommandID:   descriptor.ID,
 			Args:        map[string]any{"password": "never-persist-this"},
@@ -218,7 +267,7 @@ func TestRegistryInvoke(t *testing.T) {
 			})),
 		)
 
-		result, err := service.Invoke(t.Context(), InvokeRequest{
+		result, err := service.Invoke(t.Context(), InvokeRequest{ProfileLens: testProfileLens,
 			WorkspaceID: "workspace-a", CommandID: descriptor.ID,
 		})
 		if err != nil || result.Status != InvokeStatusOK {
@@ -251,7 +300,7 @@ func TestRegistryInvoke(t *testing.T) {
 					staticTestProvider{commands: []Descriptor{descriptor}}, nil, nil, executor,
 					WithEventRecorder(recorder),
 				)
-				if _, err := service.Invoke(t.Context(), InvokeRequest{
+				if _, err := service.Invoke(t.Context(), InvokeRequest{ProfileLens: testProfileLens,
 					WorkspaceID: "ws-1", CommandID: descriptor.ID,
 				}); err != nil {
 					t.Fatalf("first Invoke() error = %v", err)
@@ -268,7 +317,7 @@ func TestRegistryInvoke(t *testing.T) {
 				}
 				deadline := time.Now().Add(time.Second)
 				for {
-					_, err := service.Invoke(t.Context(), InvokeRequest{
+					_, err := service.Invoke(t.Context(), InvokeRequest{ProfileLens: testProfileLens,
 						WorkspaceID: "ws-1", CommandID: descriptor.ID,
 					})
 					if !errors.Is(err, ErrAlreadyRunning) {
@@ -305,7 +354,10 @@ func TestRegistryInvoke(t *testing.T) {
 			staticTestProvider{commands: []Descriptor{descriptor}}, nil, nil, executor,
 			WithEventRecorder(recorder), WithClock(func() time.Time { return now }),
 		)
-		result, err := service.Invoke(t.Context(), InvokeRequest{WorkspaceID: "ws-1", CommandID: descriptor.ID})
+		result, err := service.Invoke(
+			t.Context(),
+			InvokeRequest{ProfileLens: testProfileLens, WorkspaceID: "ws-1", CommandID: descriptor.ID},
+		)
 		if err != nil {
 			t.Fatalf("Invoke() error = %v", err)
 		}
@@ -343,7 +395,10 @@ func TestRegistryInvoke(t *testing.T) {
 			staticTestProvider{commands: []Descriptor{descriptor}}, nil, nil, executor,
 			WithPersonalizationStore(store), WithEventRecorder(recorder),
 		)
-		result, err := service.Invoke(t.Context(), InvokeRequest{WorkspaceID: "workspace-a", CommandID: descriptor.ID})
+		result, err := service.Invoke(
+			t.Context(),
+			InvokeRequest{ProfileLens: testProfileLens, WorkspaceID: "workspace-a", CommandID: descriptor.ID},
+		)
 		if err != nil {
 			t.Fatalf("Invoke() error = %v", err)
 		}

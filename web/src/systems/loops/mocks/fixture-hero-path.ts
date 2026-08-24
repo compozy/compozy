@@ -29,6 +29,8 @@ export const heroEffectiveLifecycle: NonNullable<LoopDetail["effective_lifecycle
 
 export const heroRunFixtures: LoopRun[] = [
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     workspace_id: "ws_default",
     id: "looprun_canceled",
     loop_name: "implement-tasks",

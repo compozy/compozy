@@ -14,17 +14,24 @@ func (h *BaseHandlers) sessionPayloadsWithOptionalHealth(
 	infos []*session.Info,
 	includeHealth bool,
 ) ([]contract.SessionPayload, error) {
+	var payloads []contract.SessionPayload
+	var err error
 	if !includeHealth {
-		return SessionPayloadsFromInfos(infos), nil
+		payloads = SessionPayloadsFromInfos(infos)
+	} else {
+		if h.SessionHealth == nil {
+			return nil, errSessionHealthMissing
+		}
+		pageReader, ok := h.SessionHealth.(SessionHealthPageReader)
+		if !ok {
+			return nil, errSessionHealthMissing
+		}
+		payloads, err = SessionPayloadsWithPageHealth(ctx, infos, pageReader)
+		if err != nil {
+			return nil, err
+		}
 	}
-	if h.SessionHealth == nil {
-		return nil, errSessionHealthMissing
-	}
-	pageReader, ok := h.SessionHealth.(SessionHealthPageReader)
-	if !ok {
-		return nil, errSessionHealthMissing
-	}
-	return SessionPayloadsWithPageHealth(ctx, infos, pageReader)
+	return h.decorateSessionOwners(ctx, payloads)
 }
 
 // SessionPayloadsWithPageHealth decorates one bounded session page from one

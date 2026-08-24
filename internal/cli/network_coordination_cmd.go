@@ -143,6 +143,7 @@ func newNetworkInvitationCommand(deps commandDeps, workspaceRef *string) *cobra.
 		Use:   "invitation",
 		Short: "Dismiss or reset the coordination invitation",
 	}
+	hideProfileFlag(cmd, false)
 	cmd.AddCommand(newNetworkInvitationDismissCommand(deps, workspaceRef))
 	cmd.AddCommand(newNetworkInvitationResetCommand(deps, workspaceRef))
 	return cmd
@@ -218,6 +219,7 @@ func newNetworkInvitationMutationCommand(
 		},
 	}
 	addNetworkCoordinationScopeFlags(cmd, &scope, &taskID, &runID)
+	configureProfileIndependentFlag(cmd, "network invitations are scoped by workspace or task")
 	return cmd
 }
 

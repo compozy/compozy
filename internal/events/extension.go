@@ -8,6 +8,8 @@ const (
 	ExtensionRemoved             = "extension.removed"
 	ExtensionEnabled             = "extension.enabled"
 	ExtensionDisabled            = "extension.disabled"
+	ExtensionEnablementChanged   = "extension.enablement_changed"
+	ExtensionProfileCreated      = "extension.profile_created"
 	ExtensionNetworkConfirmed    = "extension.network.confirmed"
 	ExtensionSecretsUpdated      = "extension.secrets.updated"
 	ExtensionSecretsUpdateFailed = "extension.secrets.update_failed"

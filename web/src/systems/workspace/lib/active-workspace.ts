@@ -20,9 +20,12 @@ export interface ActiveWorkspaceResolution {
   /** Project workspace when `scope` is workspace; never the home row. */
   activeWorkspace: WorkspacePayload | undefined;
   activeWorkspaceId: string | null;
-  /** Daemon binding: home row when Global, else the selected project. */
+  /** Data binding: selected project in workspace scope; no workspace in Global. */
   runtimeWorkspace: WorkspacePayload | undefined;
   runtimeWorkspaceId: string | null;
+  /** Layout binding: the remembered project remains mounted while Global is active. */
+  desktopWorkspace: WorkspacePayload | undefined;
+  desktopWorkspaceId: string | null;
   chip: WorkspaceChipIdentity;
   toggleLocked: boolean;
   canDisableGlobal: boolean;
@@ -53,6 +56,8 @@ export function resolveActiveWorkspace(input: {
       activeWorkspaceId: null,
       runtimeWorkspace: undefined,
       runtimeWorkspaceId: null,
+      desktopWorkspace: undefined,
+      desktopWorkspaceId: null,
       chip:
         input.scope === "global"
           ? { name: GLOBAL_SCOPE_COPY.chipLabel, monogram: GLOBAL_SCOPE_COPY.chipMonogram }
@@ -77,7 +82,11 @@ export function resolveActiveWorkspace(input: {
   }
 
   const activeWorkspace = scope === "workspace" ? rememberedWorkspace : undefined;
-  const runtimeWorkspace = scope === "global" ? homeWorkspace : activeWorkspace;
+  const runtimeWorkspace = activeWorkspace;
+  // Global still needs a durable window-layout partition. Prefer the operator's
+  // remembered project; on first entry, bind only the layout to the first project
+  // while keeping the data scope workspace-free.
+  const desktopWorkspace = rememberedWorkspace ?? projectWorkspaces[0];
 
   return {
     scope,
@@ -90,6 +99,8 @@ export function resolveActiveWorkspace(input: {
     activeWorkspaceId: activeWorkspace?.id ?? null,
     runtimeWorkspace,
     runtimeWorkspaceId: runtimeWorkspace?.id ?? null,
+    desktopWorkspace,
+    desktopWorkspaceId: desktopWorkspace?.id ?? null,
     chip:
       scope === "global"
         ? { name: GLOBAL_SCOPE_COPY.chipLabel, monogram: GLOBAL_SCOPE_COPY.chipMonogram }

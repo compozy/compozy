@@ -5,6 +5,7 @@ import { CatalogEmptyPanel, CatalogEmptyState } from "@/components/catalog-empty
 import { Button, CatalogEmptyDisclosureRow, type CatalogEmptyTone, Pill } from "@compozy/ui";
 
 import { getTaskTemplate, type TaskTemplate, type TaskTemplateId } from "../lib/task-templates";
+import { emptyForScope } from "@/systems/profiles";
 
 interface TemplateSlot {
   id: TaskTemplateId;
@@ -25,6 +26,11 @@ const TEMPLATE_SLOTS: TemplateSlot[] = [
 
 export interface TasksEmptyStateProps {
   workspaceName?: string | null;
+  /**
+   * The profile the list is bounded by. `null` means the aggregate and
+   * `undefined` means no profile context. Never the create target.
+   */
+  profileScopeLabel?: string | null;
   onSelectTemplate: (templateId: TaskTemplateId) => void;
   onCopyCli?: () => void;
 }
@@ -57,10 +63,20 @@ function templateDescription(template: TaskTemplate): string {
 
 export function TasksEmptyState({
   workspaceName,
+  profileScopeLabel,
   onSelectTemplate,
   onCopyCli,
 }: TasksEmptyStateProps) {
-  const headline = workspaceName ? `No tasks yet in ${workspaceName}` : "No tasks yet";
+  // The profile axis is the narrower question, so it wins when it is known: an
+  // operator in Marketing is being told this project is empty for Marketing, and
+  // one looking at every profile is told the machine is empty — never that it is
+  // empty in `default`, which is only where a new task would land.
+  const headline =
+    profileScopeLabel !== undefined
+      ? emptyForScope("tasks", profileScopeLabel)
+      : workspaceName
+        ? `No tasks yet in ${workspaceName}`
+        : "No tasks yet";
 
   return (
     <CatalogEmptyState

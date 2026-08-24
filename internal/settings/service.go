@@ -27,6 +27,17 @@ type WorkspaceResolver interface {
 	List(ctx context.Context) ([]workspacepkg.Workspace, error)
 }
 
+// ProfileResolver resolves an active profile name to its stable owner id.
+type ProfileResolver interface {
+	AvailableProfileID(ctx context.Context, name string) (string, error)
+}
+
+// AttentionWorkspaceMuteStore persists workspace mutes by stable profile owner.
+type AttentionWorkspaceMuteStore interface {
+	ListAttentionWorkspaceMutes(ctx context.Context, profileID string) ([]string, error)
+	ReplaceAttentionWorkspaceMutes(ctx context.Context, profileID string, workspaceIDs []string) error
+}
+
 // GeneralRuntimeProvider returns general daemon runtime metadata.
 type GeneralRuntimeProvider interface {
 	GeneralRuntimeStatus(ctx context.Context) (DaemonRuntimeStatus, error)
@@ -83,9 +94,9 @@ type TransportParityProvider interface {
 	TransportParityStatus(ctx context.Context) (TransportParityStatus, error)
 }
 
-// CmdPaletteCatalog returns the workspace command catalog used by shortcut settings.
+// CmdPaletteCatalog returns the profile/workspace/client command catalog used by shortcut settings.
 type CmdPaletteCatalog interface {
-	Catalog(context.Context, cmdpalette.WorkspaceID, cmdpalette.ClientID) (cmdpalette.Catalog, error)
+	Catalog(context.Context, cmdpalette.CatalogRequest) (cmdpalette.Catalog, error)
 }
 
 // MCPAuthRuntimeProvider owns daemon-mediated MCP OAuth sessions and status.
@@ -177,6 +188,8 @@ type MCPDefinitionRetirer interface {
 // Dependencies captures the runtime dependencies required by the settings service.
 type Dependencies struct {
 	WorkspaceResolver           WorkspaceResolver
+	ProfileResolver             ProfileResolver
+	AttentionWorkspaceMutes     AttentionWorkspaceMuteStore
 	GeneralRuntime              GeneralRuntimeProvider
 	MemoryRuntime               MemoryRuntimeProvider
 	SkillsRuntime               SkillsRuntime
@@ -208,6 +221,8 @@ type Dependencies struct {
 type service struct {
 	homePaths                   compozyconfig.HomePaths
 	workspaceResolver           WorkspaceResolver
+	profileResolver             ProfileResolver
+	attentionWorkspaceMutes     AttentionWorkspaceMuteStore
 	generalRuntime              GeneralRuntimeProvider
 	memoryRuntime               MemoryRuntimeProvider
 	skillsRuntime               SkillsRuntime
@@ -229,6 +244,7 @@ type service struct {
 	eventSummaries              store.EventSummaryStore
 	applyRecords                ApplyRecordStore
 	activeConfig                activeConfigState
+	attentionMu                 sync.RWMutex
 	applyMu                     sync.Mutex
 	restartActionAvailable      bool
 	consolidateActionAvailable  bool
@@ -244,6 +260,12 @@ var _ Service = (*service)(nil)
 func NewService(homePaths compozyconfig.HomePaths, deps Dependencies) (Service, error) {
 	if strings.TrimSpace(homePaths.HomeDir) == "" {
 		return nil, errors.New("settings: home paths are required")
+	}
+	if deps.ProfileResolver == nil {
+		return nil, errors.New("settings: profile resolver is required")
+	}
+	if deps.AttentionWorkspaceMutes == nil {
+		return nil, errors.New("settings: attention workspace mute store is required")
 	}
 
 	commandLookPath := deps.CommandLookPath
@@ -266,6 +288,8 @@ func NewService(homePaths compozyconfig.HomePaths, deps Dependencies) (Service, 
 	return &service{
 		homePaths:                   homePaths,
 		workspaceResolver:           deps.WorkspaceResolver,
+		profileResolver:             deps.ProfileResolver,
+		attentionWorkspaceMutes:     deps.AttentionWorkspaceMutes,
 		generalRuntime:              deps.GeneralRuntime,
 		memoryRuntime:               deps.MemoryRuntime,
 		skillsRuntime:               deps.SkillsRuntime,
@@ -298,14 +322,14 @@ func NewService(homePaths compozyconfig.HomePaths, deps Dependencies) (Service, 
 func (s *service) normalizeReadScope(scope ScopeKind, workspaceID string) (ScopeKind, string, error) {
 	normalized := scope
 	if normalized == "" {
-		normalized = ScopeGlobal
+		normalized = ScopeUser
 	}
 	if err := normalized.Validate(); err != nil {
 		return "", "", validationError(err)
 	}
 
 	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
-	if normalized == ScopeGlobal && trimmedWorkspaceID != "" {
+	if normalized == ScopeUser && trimmedWorkspaceID != "" {
 		return "", "", conflictError(errors.New("settings: workspace_id requires workspace scope"))
 	}
 	return normalized, trimmedWorkspaceID, nil
@@ -328,7 +352,10 @@ func (s *service) resolveWorkspace(
 	workspaceID string,
 ) (*workspacepkg.ResolvedWorkspace, error) {
 	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
-	if scope != ScopeWorkspace && (scope != ScopeAgent || trimmedWorkspaceID == "") {
+	if scope != ScopeWorkspace && scope != ScopeProfile && (scope != ScopeAgent || trimmedWorkspaceID == "") {
+		return nil, nil
+	}
+	if scope == ScopeProfile && trimmedWorkspaceID == "" {
 		return nil, nil
 	}
 	if trimmedWorkspaceID == "" {
@@ -349,8 +376,13 @@ func (s *service) loadConfig(
 	ctx context.Context,
 	scope ScopeKind,
 	workspaceID string,
+	profileName string,
 ) (compozyconfig.Config, *workspacepkg.ResolvedWorkspace, error) {
 	normalizedScope, normalizedWorkspaceID, err := s.normalizeReadScope(scope, workspaceID)
+	if err != nil {
+		return compozyconfig.Config{}, nil, err
+	}
+	profileName, err = normalizeSettingsProfileName(normalizedScope, profileName)
 	if err != nil {
 		return compozyconfig.Config{}, nil, err
 	}
@@ -361,11 +393,19 @@ func (s *service) loadConfig(
 	}
 
 	if resolved != nil {
-		cfg, loadErr := compozyconfig.LoadForHome(s.homePaths, compozyconfig.WithWorkspaceRoot(resolved.RootDir))
+		options := []compozyconfig.LoadOption{compozyconfig.WithWorkspaceRoot(resolved.RootDir)}
+		if profileName != "" {
+			options = append(options, compozyconfig.WithProfile(profileName))
+		}
+		cfg, loadErr := compozyconfig.LoadForHome(s.homePaths, options...)
 		return cfg, resolved, loadErr
 	}
 
-	cfg, loadErr := compozyconfig.LoadForHome(s.homePaths)
+	options := make([]compozyconfig.LoadOption, 0, 1)
+	if profileName != "" {
+		options = append(options, compozyconfig.WithProfile(profileName))
+	}
+	cfg, loadErr := compozyconfig.LoadForHome(s.homePaths, options...)
 	return cfg, nil, loadErr
 }
 

@@ -558,7 +558,7 @@ async function resolveSessionWorkspaceID(
   }
 
   if (runtime.paths?.homeDir) {
-    return (await runtime.resolveWorkspace(runtime.paths.homeDir)).id;
+    return (await runtime.resolveWorkspace(runtime.paths.workspaceDir)).id;
   }
 
   throw new Error(`delete session ${sessionID} requires workspace_id`);
@@ -788,11 +788,15 @@ async function readFileIfExists(filePath: string): Promise<string> {
   }
 }
 
-function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv {
+function cliEnv(paths: {
+  cliShim: string;
+  homeDir: string;
+  operatorHomeDir: string;
+}): NodeJS.ProcessEnv {
   return {
     ...process.env,
     COMPOZY_HOME: paths.homeDir,
-    HOME: paths.homeDir,
+    HOME: paths.operatorHomeDir,
     PATH: [path.dirname(paths.cliShim), process.env.PATH ?? ""]
       .filter(Boolean)
       .join(path.delimiter),

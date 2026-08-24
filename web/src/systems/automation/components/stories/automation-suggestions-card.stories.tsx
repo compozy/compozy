@@ -7,10 +7,13 @@ import type { AutomationSuggestion } from "../../types";
 import { AutomationSuggestionsCard } from "../automation-suggestions-card";
 
 const suggestion: AutomationSuggestion = {
+  profile_id: "00000000000000000000000000",
   created_at: "2026-07-18T12:00:00Z",
   dedup_key: "daily-review",
   id: "suggestion_daily_review",
   payload: {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     agent_name: "reviewer",
     created_at: "2026-07-18T12:00:00Z",
     enabled: true,

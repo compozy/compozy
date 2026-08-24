@@ -7,6 +7,7 @@ import type {
 
 function selectorTuple(selector?: KnowledgeSelector) {
   return [
+    selector?.profile ?? "",
     selector?.scope ?? "",
     selector?.workspaceId ?? "",
     selector?.agentName ?? "",

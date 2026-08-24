@@ -207,6 +207,7 @@ func runtimeGateInput(
 		JudgeRuntime:         effective.RuntimeDefaults.Judge,
 		NetworkParticipation: new(run.NetworkSpecSnapshot()),
 		ToolScope: tools.Scope{
+			ProfileID:   strings.TrimSpace(run.ProfileID),
 			WorkspaceID: string(run.WorkspaceID),
 			ActorKind:   startLoopMetaKey,
 		},

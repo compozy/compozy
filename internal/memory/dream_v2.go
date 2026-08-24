@@ -157,7 +157,7 @@ func (s *Store) dreamCandidates(
 		return nil, nil
 	}
 
-	rows, err := queryDreamCandidateRows(ctx, db, workspaceID, config)
+	rows, err := queryDreamCandidateRows(ctx, db, s.profileID, workspaceID, config)
 	if err != nil {
 		return nil, err
 	}
@@ -192,6 +192,7 @@ func (s *Store) dreamCandidates(
 func queryDreamCandidateRows(
 	ctx context.Context,
 	db *sql.DB,
+	profileID string,
 	workspaceID string,
 	config DreamGateConfig,
 ) (*sql.Rows, error) {
@@ -221,7 +222,7 @@ func queryDreamCandidateRows(
 		`  AND e.injection = 1`,
 	}, "\n")
 	args := []any{config.MinRecallCount}
-	base, args = appendDreamVisibilityFilter(base, args, workspaceID)
+	base, args = appendDreamVisibilityFilter(base, args, profileID, workspaceID)
 	base += "\nORDER BY sig.recall_score DESC, sig.last_recalled_at DESC, sig.chunk_id ASC\nLIMIT ?"
 	args = append(args, max(config.CandidateLimit*4, config.CandidateLimit))
 
@@ -232,13 +233,20 @@ func queryDreamCandidateRows(
 	return rows, nil
 }
 
-func appendDreamVisibilityFilter(base string, args []any, workspaceID string) (string, []any) {
+func appendDreamVisibilityFilter(
+	base string,
+	args []any,
+	profileID string,
+	workspaceID string,
+) (string, []any) {
+	profileID = strings.TrimSpace(profileID)
 	workspaceID = strings.TrimSpace(workspaceID)
 	if workspaceID == "" {
-		return base + "\n  AND e.scope = 'global'", args
+		return base + "\n  AND e.scope = 'profile' AND e.profile_id = ?", append(args, profileID)
 	}
-	return base + "\n  AND (e.scope = 'global' OR (e.scope IN ('workspace', 'agent') AND e.workspace_id = ?))",
-		append(args, workspaceID)
+	return base + "\n  AND ((e.scope = 'profile' AND e.profile_id = ?)" +
+			" OR (e.scope IN ('workspace', 'agent') AND e.workspace_id = ?))",
+		append(args, profileID, workspaceID)
 }
 
 func scanDreamCandidate(scanner interface{ Scan(dest ...any) error }) (DreamCandidate, error) {

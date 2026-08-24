@@ -96,8 +96,11 @@ func newNetworkCommand(deps commandDeps) *cobra.Command {
 		Use:   networkNetworkKey,
 		Short: "Operate the daemon-owned network runtime",
 	}
+	hideProfileFlag(cmd, false)
 
-	cmd.AddCommand(newNetworkStatusCommand(deps, &workspaceRef))
+	status := newNetworkStatusCommand(deps, &workspaceRef)
+	configureProfileIndependentFlag(status, "network status is shared across profiles")
+	cmd.AddCommand(status)
 	cmd.PersistentFlags().
 		StringVar(&workspaceRef, "workspace", "", "Override workspace binding (ID, name, or path)")
 	cmd.AddCommand(newNetworkPeersCommand(deps, &workspaceRef))
@@ -105,8 +108,12 @@ func newNetworkCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newNetworkThreadsCommand(deps, &workspaceRef))
 	cmd.AddCommand(newNetworkDirectsCommand(deps, &workspaceRef))
 	cmd.AddCommand(newNetworkWorkCommand(deps, &workspaceRef))
-	cmd.AddCommand(newNetworkSendCommand(deps, &workspaceRef))
-	cmd.AddCommand(newNetworkInboxCommand(deps, &workspaceRef))
+	send := newNetworkSendCommand(deps, &workspaceRef)
+	configureProfileIndependentFlag(send, "network delivery is bound to the selected session")
+	cmd.AddCommand(send)
+	inbox := newNetworkInboxCommand(deps, &workspaceRef)
+	configureProfileIndependentFlag(inbox, "network delivery is bound to the selected session")
+	cmd.AddCommand(inbox)
 	cmd.AddCommand(newNetworkSubscriptionsCommand(deps, &workspaceRef))
 	cmd.AddCommand(
 		newNetworkSubscriptionModeCommand(
@@ -199,7 +206,7 @@ func newNetworkStatusCommand(deps commandDeps, workspaceRef *string) *cobra.Comm
 }
 
 func newNetworkPeersCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "peers [channel]",
 		Short: "List visible local peers and their capability cards",
 		Args:  cobra.MaximumNArgs(1),
@@ -225,6 +232,8 @@ func newNetworkPeersCommand(deps commandDeps, workspaceRef *string) *cobra.Comma
 			return writeCommandOutput(cmd, networkPeersBundle(peers))
 		},
 	}
+	configureProfileIndependentFlag(cmd, "network peers are machine-level")
+	return cmd
 }
 
 func newNetworkChannelsCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
@@ -250,6 +259,7 @@ func newNetworkChannelsCommand(deps commandDeps, workspaceRef *string) *cobra.Co
 	}
 	cmd.AddCommand(newNetworkChannelsCreateCommand(deps, workspaceRef))
 	cmd.AddCommand(newNetworkChannelsUpdateCommand(deps, workspaceRef))
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 

@@ -350,16 +350,16 @@ func (r *toolParityRegistry) GetToolset(
 func toolParityView(id toolspkg.ToolID, visibility toolspkg.Visibility, callable bool) toolspkg.ToolView {
 	return toolspkg.ToolView{
 		Descriptor: toolspkg.Descriptor{
-			ID:           id,
-			Backend:      toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: id.String()},
-			DisplayTitle: id.String(),
-			Description:  "Skill registry test tool",
-			InputSchema:  json.RawMessage(`{"type":"object"}`),
-			Source:       toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: "compozy"},
-			Visibility:   visibility,
-			Risk:         toolspkg.RiskRead,
-			ReadOnly:     true,
-			Toolsets:     []toolspkg.ToolsetID{"compozy__catalog"},
+			ID:               id,
+			Backend:          toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: id.String()},
+			ToolPresentation: toolspkg.NewToolPresentation(id.String(), "", ""),
+			Description:      "Skill registry test tool",
+			InputSchema:      json.RawMessage(`{"type":"object"}`),
+			Source:           toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: "compozy"},
+			Visibility:       visibility,
+			Risk:             toolspkg.RiskRead,
+			ReadOnly:         true,
+			Toolsets:         []toolspkg.ToolsetID{"compozy__catalog"},
 		},
 		Availability: toolspkg.Availability{
 			Registered: true,

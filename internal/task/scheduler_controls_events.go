@@ -120,9 +120,9 @@ func (m *Service) recordSchedulerEventBestEffort(
 		return
 	}
 	summary := store.EventSummary{
+		ProfileID: store.DefaultProfileID,
 		Type:      eventType,
 		Outcome:   string(eventspkg.OutcomeFor(eventType)),
-		Content:   content,
 		Summary:   schedulerEventSummary(eventType, payload),
 		Timestamp: m.now().UTC(),
 		EventCorrelation: store.EventCorrelation{
@@ -131,6 +131,7 @@ func (m *Service) recordSchedulerEventBestEffort(
 			SchedulerReason: payload.Reason,
 		},
 	}
+	summary.SetContent(content)
 	eventCtx := context.WithoutCancel(ctx)
 	if err := writer.WriteEventSummary(eventCtx, summary); err != nil {
 		return

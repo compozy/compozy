@@ -51,8 +51,12 @@ type mcpReliabilityState struct {
 	descriptors []Descriptor
 }
 
-func (p *MCPProvider) listSourceDescriptors(ctx context.Context, source SourceRef) ([]Descriptor, error) {
-	key, tracked := mcpDeadEntityKey(source)
+func (p *MCPProvider) listSourceDescriptors(
+	ctx context.Context,
+	source SourceRef,
+	profileID string,
+) ([]Descriptor, error) {
+	key, tracked := mcpDeadEntityKey(source, profileID)
 	var reliabilityState *mcpReliabilityState
 	if tracked && p.reliability != nil {
 		reliabilityState = p.reliability.stateFor(key)
@@ -108,14 +112,7 @@ func (p *MCPProvider) ForgetMCPServer(workspaceID string, serverName string) {
 	if p == nil || p.reliability == nil {
 		return
 	}
-	key, tracked := mcpDeadEntityKey(SourceRef{
-		WorkspaceID:   workspaceID,
-		RawServerName: serverName,
-	})
-	if !tracked {
-		return
-	}
-	p.reliability.forget(key)
+	p.reliability.forgetSource(workspaceID, serverName)
 }
 
 // ForgetWorkspace retires cached MCP descriptors owned by one workspace.
@@ -126,11 +123,11 @@ func (p *MCPProvider) ForgetWorkspace(workspaceID string) {
 	p.reliability.forgetWorkspace(workspaceID)
 }
 
-func (r *mcpReliability) dead(ctx context.Context, source SourceRef) bool {
+func (r *mcpReliability) dead(ctx context.Context, source SourceRef, profileID string) bool {
 	if r == nil || isNilInterface(r.service) {
 		return false
 	}
-	key, tracked := mcpDeadEntityKey(source)
+	key, tracked := mcpDeadEntityKey(source, profileID)
 	if !tracked {
 		return false
 	}
@@ -183,11 +180,27 @@ func (r *mcpReliability) store(
 	state.descriptors = cloned
 }
 
-func (r *mcpReliability) forget(key store.DeadEntityKey) {
+func (r *mcpReliability) forgetSource(workspaceID string, serverName string) {
+	workspaceID = strings.TrimSpace(workspaceID)
+	serverName = strings.TrimSpace(serverName)
+	if workspaceID == "" || serverName == "" {
+		return
+	}
+	retired := make([]store.DeadEntityKey, 0)
 	r.mu.Lock()
-	delete(r.states, key)
+	for key := range r.states {
+		if key.WorkspaceID != workspaceID ||
+			key.Kind != store.DeadEntityKindMCPSidecar ||
+			key.EntityID != serverName {
+			continue
+		}
+		delete(r.states, key)
+		retired = append(retired, key)
+	}
 	r.mu.Unlock()
-	r.service.ForgetEntity(key)
+	for _, key := range retired {
+		r.service.ForgetEntity(key)
+	}
 }
 
 func (r *mcpReliability) forgetWorkspace(workspaceID string) {
@@ -212,16 +225,20 @@ func (r *mcpReliability) retainActiveSources(scope Scope, sources []SourceRef) {
 	if workspaceID == "" {
 		return
 	}
+	profileID := strings.TrimSpace(scope.ProfileID)
+	if profileID == "" {
+		profileID = store.DefaultProfileID
+	}
 	active := make(map[store.DeadEntityKey]struct{}, len(sources))
 	for _, source := range sources {
-		if key, tracked := mcpDeadEntityKey(source); tracked {
+		if key, tracked := mcpDeadEntityKey(source, scope.ProfileID); tracked {
 			active[key] = struct{}{}
 		}
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for key := range r.states {
-		if key.WorkspaceID != workspaceID {
+		if key.WorkspaceID != workspaceID || key.ProfileID != profileID {
 			continue
 		}
 		if _, ok := active[key]; !ok {
@@ -230,11 +247,16 @@ func (r *mcpReliability) retainActiveSources(scope Scope, sources []SourceRef) {
 	}
 }
 
-func mcpDeadEntityKey(source SourceRef) (store.DeadEntityKey, bool) {
+func mcpDeadEntityKey(source SourceRef, profileID string) (store.DeadEntityKey, bool) {
 	if source.WorkspaceID == "" {
 		return store.DeadEntityKey{}, false
 	}
+	profileID = strings.TrimSpace(profileID)
+	if profileID == "" {
+		profileID = store.DefaultProfileID
+	}
 	key := store.DeadEntityKey{
+		ProfileID:   profileID,
 		WorkspaceID: source.WorkspaceID,
 		Kind:        store.DeadEntityKindMCPSidecar,
 		EntityID:    firstNonEmpty(source.RawServerName, source.Owner),

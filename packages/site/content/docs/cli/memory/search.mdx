@@ -28,7 +28,7 @@ compozy memory search <query> [flags]
       --agent-tier string   Agent memory tier: workspace or global
   -h, --help                help for search
       --include-system      Include _system memory entries
-      --scope string        Memory scope: global, workspace, or agent
+      --scope string        Memory scope: profile, workspace, or agent
       --top-k int           Maximum number of recalled entries
       --workspace string    Override workspace binding (ID, name, or path)
 ```
@@ -36,8 +36,9 @@ compozy memory search <query> [flags]
 ### Options inherited from parent commands
 
 ```
-      --json            Emit JSON output
-  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
 ```
 
 ## Output Formats

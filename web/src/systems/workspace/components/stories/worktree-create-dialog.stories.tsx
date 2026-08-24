@@ -41,6 +41,7 @@ function useHarnessModel(overrides: Partial<WorktreeCreateDialogModel>): Worktre
     advancedOpen,
     setAdvancedOpen,
     generatedName: GENERATED_NAME,
+    profileDestination: null,
     preview: buildWorktreeCreatePreview(effectiveName, draft.branch, PARENT_DIR),
     branchCandidates: worktreeListingFixture.worktrees.map(worktree => ({
       branch: worktree.branch,
@@ -109,6 +110,16 @@ type Story = StoryObj<typeof meta>;
 export const Simple: Story = {
   args: {},
   render: () => <Harness preview={{ branch: GENERATED_NAME, path: LONG_WORKTREE_PATH }} />,
+};
+
+export const AggregateDestination: Story = {
+  args: {},
+  render: () => (
+    <Harness
+      preview={{ branch: GENERATED_NAME, path: LONG_WORKTREE_PATH }}
+      profileDestination="marketing"
+    />
+  ),
 };
 
 /**

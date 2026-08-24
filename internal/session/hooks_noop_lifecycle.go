@@ -77,8 +77,8 @@ type noopSandboxHooks struct{}
 
 func (noopSandboxHooks) DispatchSandboxPrepare(
 	_ context.Context,
-	payload hookspkg.SandboxPreparePayload,
-) (hookspkg.SandboxPreparePayload, error) {
+	payload *hookspkg.SandboxPreparePayload,
+) (*hookspkg.SandboxPreparePayload, error) {
 	return payload, nil
 }
 

@@ -399,6 +399,62 @@ func TestProviderAuthStatusCommand(t *testing.T) {
 	})
 }
 
+func TestProviderInspectCommand(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should inspect credentials for the selected profile", func(t *testing.T) {
+		t.Parallel()
+
+		client := &profileAwareStubClient{
+			stubClient: withWorkspaceResolution(&stubClient{}),
+			profileClientStub: &profileClientStub{profiles: []contract.Profile{
+				{Name: "default", State: "active"},
+				{Name: "marketing", State: "active"},
+			}},
+		}
+		deps := newTestDeps(t, client)
+		deps.loadConfig = func() (compozyconfig.Config, error) {
+			cfg := compozyconfig.DefaultWithHome(mustTestHomePaths(t))
+			cfg.Providers["custom"] = compozyconfig.ProviderConfig{
+				Command:  "custom acp",
+				AuthMode: compozyconfig.ProviderAuthModeBoundSecret,
+				CredentialSlots: []compozyconfig.ProviderCredentialSlot{
+					{
+						Name:      "api_key",
+						TargetEnv: "CUSTOM_API_KEY",
+						SecretRef: "vault:providers/custom/api_key",
+						Kind:      "api_key",
+						Required:  true,
+					},
+				},
+			}
+			return cfg, nil
+		}
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"--profile",
+			"marketing",
+			"provider",
+			"inspect",
+			"custom",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("provider inspect error = %v", err)
+		}
+		var record providerAuthStatusRecord
+		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
+			t.Fatalf("json.Unmarshal(provider inspect) error = %v", err)
+		}
+		if len(record.Credentials) != 1 || record.Credentials[0].Source != "user (default)" {
+			t.Fatalf("Credentials = %#v, want selected-profile source labels", record.Credentials)
+		}
+	})
+}
+
 func TestProviderDaemonCommands(t *testing.T) {
 	t.Parallel()
 
@@ -811,4 +867,24 @@ func providerTestEnvValue(env []string, key string) string {
 		}
 	}
 	return ""
+}
+
+func TestProviderCredentialSourceLabels(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should distinguish profile overrides from user fallback [E2E-007]", func(t *testing.T) {
+		t.Parallel()
+
+		statuses := []providerCredentialStatusItem{
+			{SecretRef: "vault:profiles/marketing/providers/openai/api_key"},
+			{SecretRef: "vault:providers/openai/organization"},
+		}
+		labelProviderCredentialSources(statuses, "marketing")
+		if got, want := statuses[0].Source, "profile marketing (override)"; got != want {
+			t.Fatalf("override source = %q, want %q", got, want)
+		}
+		if got, want := statuses[1].Source, "user (default)"; got != want {
+			t.Fatalf("fallback source = %q, want %q", got, want)
+		}
+	})
 }

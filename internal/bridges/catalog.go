@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/listcursor"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const (
@@ -33,6 +34,7 @@ var (
 
 // BridgeCatalogQuery describes one bounded public bridge catalog page.
 type BridgeCatalogQuery struct {
+	ReadScope   store.ReadScope
 	Scope       string
 	WorkspaceID string
 	Search      string
@@ -66,6 +68,8 @@ type BridgeCatalogPage struct {
 }
 
 type bridgeCatalogFingerprint struct {
+	ProfileID   string       `json:"profile_id,omitempty"`
+	AllProfiles bool         `json:"all_profiles,omitempty"`
 	Scope       string       `json:"scope"`
 	WorkspaceID string       `json:"workspace_id"`
 	Search      string       `json:"q"`
@@ -99,6 +103,9 @@ func BuildBridgeCatalogPage(
 
 // NormalizeBridgeCatalogQuery validates and canonicalizes one public catalog query.
 func NormalizeBridgeCatalogQuery(query BridgeCatalogQuery) (BridgeCatalogQuery, error) {
+	if err := query.ReadScope.Validate(); err != nil {
+		return BridgeCatalogQuery{}, fmt.Errorf("%w: invalid profile read scope: %w", ErrBridgeCatalogQueryInvalid, err)
+	}
 	query.Scope = strings.ToLower(strings.TrimSpace(query.Scope))
 	query.Search = strings.ToLower(strings.TrimSpace(query.Search))
 	query.Platform = strings.ToLower(strings.TrimSpace(query.Platform))
@@ -166,6 +173,8 @@ func NormalizeBridgeCatalogQuery(query BridgeCatalogQuery) (BridgeCatalogQuery, 
 
 func bridgeCatalogQueryFingerprint(query BridgeCatalogQuery) (string, error) {
 	fingerprint, err := listcursor.Fingerprint(bridgeCatalogFingerprint{
+		ProfileID:   query.ReadScope.ProfileID,
+		AllProfiles: query.ReadScope.AllProfiles,
 		Scope:       query.Scope,
 		WorkspaceID: query.WorkspaceID,
 		Search:      query.Search,

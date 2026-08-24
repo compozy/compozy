@@ -70,7 +70,11 @@ export function useAutomationJobDetailPage(jobId: string) {
   const handleToggleEnabled = async (enabled: boolean) => {
     if (!job) return;
     try {
-      await updateMutation.mutateAsync({ data: { enabled }, id: job.id });
+      await updateMutation.mutateAsync({
+        data: { enabled },
+        id: job.id,
+        profile: job.profile_name,
+      });
       toast.success(`${enabled ? "Enabled" : "Disabled"} ${job.name}.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to update automation state");
@@ -80,7 +84,7 @@ export function useAutomationJobDetailPage(jobId: string) {
   const handleTriggerNow = async () => {
     if (!job || runtimeUnavailableMessage) return;
     try {
-      const run = await triggerMutation.mutateAsync({ id: job.id });
+      const run = await triggerMutation.mutateAsync({ id: job.id, profile: job.profile_name });
       setQueuedRun(run);
       toast.success(`Queued run ${run.id}.`);
     } catch (error) {
@@ -90,7 +94,7 @@ export function useAutomationJobDetailPage(jobId: string) {
 
   const handleDelete = async () => {
     if (!job) throw new Error("This job is no longer available.");
-    await deleteMutation.mutateAsync({ id: job.id });
+    await deleteMutation.mutateAsync({ id: job.id, profile: job.profile_name });
     toast.success(`Deleted ${job.name}.`);
     void navigate({ to: "/jobs", replace: true });
   };

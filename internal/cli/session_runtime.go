@@ -62,7 +62,7 @@ func newSessionRuntimeSetCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, sessionBundle(info, deps.now))
+			return writeCommandOutput(cmd, sessionBundle(&info, deps.now))
 		},
 	}
 	cmd.Flags().StringVar(&flags.provider, sessionProviderKey, "", "Runtime provider")
@@ -92,7 +92,7 @@ func newSessionRuntimeClearCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, sessionBundle(info, deps.now))
+			return writeCommandOutput(cmd, sessionBundle(&info, deps.now))
 		},
 	}
 	cmd.Flags().Int64Var(&expectedRevision, "expected-revision", 0, "Current runtime selection revision")

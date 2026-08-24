@@ -6,7 +6,7 @@ import "context"
 type NetworkAcceptanceStore interface {
 	AcceptNetworkMessage(
 		ctx context.Context,
-		req AcceptNetworkMessageRequest,
+		req *AcceptNetworkMessageRequest,
 	) (AcceptNetworkMessageResult, error)
 }
 

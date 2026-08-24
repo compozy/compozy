@@ -95,7 +95,10 @@ func TestQueryTaskSummaryAggregatesByScopeOriginChannelAndOwner(t *testing.T) {
 		EndedAt:         h.now.Add(18 * time.Minute),
 	})
 
-	summary, err := h.observer.QueryTaskSummary(testutil.Context(t), TaskSummaryQuery{})
+	summary, err := h.observer.QueryTaskSummary(
+		testutil.Context(t),
+		TaskSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}},
+	)
 	if err != nil {
 		t.Fatalf("QueryTaskSummary() error = %v", err)
 	}
@@ -125,11 +128,14 @@ func TestQueryTaskSummaryAggregatesByScopeOriginChannelAndOwner(t *testing.T) {
 		t.Fatalf("summary.QueueDepth = %#v, want unbound queue depth 1", summary.QueueDepth)
 	}
 
-	filtered, err := h.observer.QueryTaskSummary(testutil.Context(t), TaskSummaryQuery{
-		OwnerKind:            taskpkg.OwnerKindHuman,
-		OwnerRef:             "alice",
-		ParticipationChannel: "ops",
-	})
+	filtered, err := h.observer.QueryTaskSummary(
+		testutil.Context(t),
+		TaskSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
+			OwnerKind:            taskpkg.OwnerKindHuman,
+			OwnerRef:             "alice",
+			ParticipationChannel: "ops",
+		},
+	)
 	if err != nil {
 		t.Fatalf("QueryTaskSummary(filtered) error = %v", err)
 	}
@@ -142,6 +148,92 @@ func TestQueryTaskSummaryAggregatesByScopeOriginChannelAndOwner(t *testing.T) {
 	if !containsRunTotal(filtered.RunTotals, taskpkg.TaskRunStatusRunning, taskpkg.OriginKindNetwork, "ops", 1) {
 		t.Fatalf("filtered.RunTotals = %#v, want running/network/ops count 1", filtered.RunTotals)
 	}
+}
+
+func TestQueryTaskSummaryKeepsProfileReadsIsolated(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return only tasks and runs owned by the requested profile", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		const (
+			profileA = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+			profileB = "01ARZ3NDEKTSV4RRFFQ69G5FAW"
+		)
+		seedObserveProfile(t, h.registry, profileA, h.now)
+		seedObserveProfile(t, h.registry, profileB, h.now)
+		for _, fixture := range []struct {
+			profile string
+			taskID  string
+			runID   string
+		}{
+			{profile: profileA, taskID: "task-profile-a", runID: "run-profile-a"},
+			{profile: profileB, taskID: "task-profile-b", runID: "run-profile-b"},
+		} {
+			createObserveTask(t, h, taskpkg.Task{
+				ID: fixture.taskID, ProfileID: fixture.profile, Scope: taskpkg.ScopeGlobal,
+				Title: fixture.taskID, Status: taskpkg.TaskStatusReady,
+				CreatedBy: taskActor(taskpkg.ActorKindHuman, "tester"),
+				Origin:    taskOrigin(taskpkg.OriginKindCLI, "test"), CreatedAt: h.now, UpdatedAt: h.now,
+			})
+			createObserveRun(t, h, taskpkg.Run{
+				ID: fixture.runID, ProfileID: fixture.profile, TaskID: fixture.taskID,
+				Status: taskpkg.TaskRunStatusQueued, Attempt: 1, QueuedAt: h.now,
+				Origin: taskOrigin(taskpkg.OriginKindCLI, "test"),
+			})
+		}
+
+		summary, err := h.observer.QueryTaskSummary(testutil.Context(t), TaskSummaryQuery{
+			ReadScope: store.ReadScope{ProfileID: profileA},
+		})
+		if err != nil {
+			t.Fatalf("QueryTaskSummary(profile A) error = %v", err)
+		}
+		if summary.TotalTasks != 1 || summary.TotalRuns != 1 {
+			t.Fatalf("profile A summary = %+v, want one task and one run", summary)
+		}
+		if len(summary.TaskTotals) != 1 || summary.TaskTotals[0].Count != 1 {
+			t.Fatalf("profile A task totals = %#v, want one task bucket", summary.TaskTotals)
+		}
+		aggregate, err := h.observer.QueryTaskSummary(testutil.Context(t), TaskSummaryQuery{
+			ReadScope: store.ReadScope{AllProfiles: true},
+		})
+		if err != nil {
+			t.Fatalf("QueryTaskSummary(all profiles) error = %v", err)
+		}
+		if aggregate.TotalTasks != 2 || aggregate.TotalRuns != 2 {
+			t.Fatalf("aggregate summary = %+v, want both profile owners", aggregate)
+		}
+
+		metrics, err := h.observer.QueryTaskMetrics(testutil.Context(t), TaskMetricsQuery{
+			ReadScope: store.ReadScope{ProfileID: profileA},
+		})
+		if err != nil {
+			t.Fatalf("QueryTaskMetrics(profile A) error = %v", err)
+		}
+		if !containsRunTotal(metrics.TaskRunsTotal, taskpkg.TaskRunStatusQueued, taskpkg.OriginKindCLI, "", 1) {
+			t.Fatalf("profile A run totals = %#v, want one queued CLI run", metrics.TaskRunsTotal)
+		}
+
+		dashboard, err := h.observer.QueryTaskDashboard(testutil.Context(t), TaskDashboardQuery{
+			ReadScope: store.ReadScope{ProfileID: profileA},
+		})
+		if err != nil {
+			t.Fatalf("QueryTaskDashboard(profile A) error = %v", err)
+		}
+		if dashboard.Totals.TasksTotal != 1 || dashboard.Totals.RunsTotal != 1 {
+			t.Fatalf("profile A dashboard totals = %+v, want one task and run", dashboard.Totals)
+		}
+		aggregateDashboard, err := h.observer.QueryTaskDashboard(testutil.Context(t), TaskDashboardQuery{
+			ReadScope: store.ReadScope{AllProfiles: true},
+		})
+		if err != nil {
+			t.Fatalf("QueryTaskDashboard(all profiles) error = %v", err)
+		}
+		if aggregateDashboard.Totals.TasksTotal != 2 || aggregateDashboard.Totals.RunsTotal != 2 {
+			t.Fatalf("aggregate dashboard totals = %+v, want both profile owners", aggregateDashboard.Totals)
+		}
+	})
 }
 
 func TestTaskHealthFlagsStuckRunsByConfiguredThresholds(t *testing.T) {
@@ -389,10 +481,13 @@ func TestQueryTaskMetricsCountsDuplicateIngressAndChannelMismatch(t *testing.T) 
 		Timestamp:   h.now.Add(5 * time.Minute),
 	})
 
-	metrics, err := h.observer.QueryTaskMetrics(testutil.Context(t), TaskMetricsQuery{
-		Since:                h.now,
-		ParticipationChannel: "ops",
-	})
+	metrics, err := h.observer.QueryTaskMetrics(
+		testutil.Context(t),
+		TaskMetricsQuery{ReadScope: store.ReadScope{AllProfiles: true},
+			Since:                h.now,
+			ParticipationChannel: "ops",
+		},
+	)
 	if err != nil {
 		t.Fatalf("QueryTaskMetrics() error = %v", err)
 	}
@@ -410,10 +505,13 @@ func TestQueryTaskMetricsCountsDuplicateIngressAndChannelMismatch(t *testing.T) 
 		t.Fatalf("metrics.TaskQueueDepth = %#v, want ops queue depth 1", metrics.TaskQueueDepth)
 	}
 
-	engMetrics, err := h.observer.QueryTaskMetrics(testutil.Context(t), TaskMetricsQuery{
-		Since:                h.now,
-		ParticipationChannel: "eng",
-	})
+	engMetrics, err := h.observer.QueryTaskMetrics(
+		testutil.Context(t),
+		TaskMetricsQuery{ReadScope: store.ReadScope{AllProfiles: true},
+			Since:                h.now,
+			ParticipationChannel: "eng",
+		},
+	)
 	if err != nil {
 		t.Fatalf("QueryTaskMetrics(eng filter) error = %v", err)
 	}
@@ -421,11 +519,14 @@ func TestQueryTaskMetricsCountsDuplicateIngressAndChannelMismatch(t *testing.T) 
 		t.Fatalf("engMetrics.TaskForcedStopsTotal = %d, want 0 from the ops run snapshot", got)
 	}
 
-	cliMetrics, err := h.observer.QueryTaskMetrics(testutil.Context(t), TaskMetricsQuery{
-		Since:                h.now,
-		ParticipationChannel: "ops",
-		OriginKind:           taskpkg.OriginKindCLI,
-	})
+	cliMetrics, err := h.observer.QueryTaskMetrics(
+		testutil.Context(t),
+		TaskMetricsQuery{ReadScope: store.ReadScope{AllProfiles: true},
+			Since:                h.now,
+			ParticipationChannel: "ops",
+			OriginKind:           taskpkg.OriginKindCLI,
+		},
+	)
 	if err != nil {
 		t.Fatalf("QueryTaskMetrics(cli filter) error = %v", err)
 	}
@@ -595,7 +696,10 @@ func TestQueryTaskDashboardAggregatesCardsAndBreakdown(t *testing.T) {
 			EndedAt:         now.Add(-time.Minute),
 		})
 
-		dashboard, err := h.observer.QueryTaskDashboard(testutil.Context(t), TaskDashboardQuery{})
+		dashboard, err := h.observer.QueryTaskDashboard(
+			testutil.Context(t),
+			TaskDashboardQuery{ReadScope: store.ReadScope{AllProfiles: true}},
+		)
 		if err != nil {
 			t.Fatalf("QueryTaskDashboard() error = %v", err)
 		}
@@ -739,7 +843,10 @@ func TestQueryTaskDashboardFlagsBacklogAndStaleSnapshots(t *testing.T) {
 			QueuedAt: now.Add(-20 * time.Minute),
 		})
 
-		dashboard, err := h.observer.QueryTaskDashboard(testutil.Context(t), TaskDashboardQuery{})
+		dashboard, err := h.observer.QueryTaskDashboard(
+			testutil.Context(t),
+			TaskDashboardQuery{ReadScope: store.ReadScope{AllProfiles: true}},
+		)
 		if err != nil {
 			t.Fatalf("QueryTaskDashboard() error = %v", err)
 		}
@@ -766,7 +873,10 @@ func TestQueryTaskDashboardFlagsBacklogAndStaleSnapshots(t *testing.T) {
 
 		h := newHarness(t)
 
-		dashboard, err := h.observer.QueryTaskDashboard(testutil.Context(t), TaskDashboardQuery{})
+		dashboard, err := h.observer.QueryTaskDashboard(
+			testutil.Context(t),
+			TaskDashboardQuery{ReadScope: store.ReadScope{AllProfiles: true}},
+		)
 		if err != nil {
 			t.Fatalf("QueryTaskDashboard() error = %v", err)
 		}
@@ -819,13 +929,15 @@ func TestQueryTaskDashboardSelectsRecentActiveRunsAndFiltersWorkspaces(t *testin
 		now := h.observer.now()
 		worktrees := []worktreepkg.Worktree{
 			{
-				ID: "wt-observe-alpha", WorkspaceID: h.workspaceID, Name: "alpha", Branch: "feature/alpha",
+				ProfileID: store.DefaultProfileID,
+				ID:        "wt-observe-alpha", WorkspaceID: h.workspaceID, Name: "alpha", Branch: "feature/alpha",
 				Path: filepath.Join(t.TempDir(), "alpha"), State: worktreepkg.StateReady,
 				Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
 				CreatedAt: now, UpdatedAt: now,
 			},
 			{
-				ID: "wt-observe-beta", WorkspaceID: h.workspaceID, Name: "beta", Branch: "feature/beta",
+				ProfileID: store.DefaultProfileID,
+				ID:        "wt-observe-beta", WorkspaceID: h.workspaceID, Name: "beta", Branch: "feature/beta",
 				Path: filepath.Join(t.TempDir(), "beta"), State: worktreepkg.StateReady,
 				Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
 				CreatedAt: now, UpdatedAt: now,
@@ -924,10 +1036,13 @@ func TestQueryTaskDashboardSelectsRecentActiveRunsAndFiltersWorkspaces(t *testin
 			QueuedAt: now.Add(-2 * time.Minute),
 		})
 
-		dashboard, err := h.observer.QueryTaskDashboard(testutil.Context(t), TaskDashboardQuery{
-			Scope:       taskpkg.ScopeWorkspace,
-			WorkspaceID: h.workspaceID,
-		})
+		dashboard, err := h.observer.QueryTaskDashboard(
+			testutil.Context(t),
+			TaskDashboardQuery{ReadScope: store.ReadScope{AllProfiles: true},
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: h.workspaceID,
+			},
+		)
 		if err != nil {
 			t.Fatalf("QueryTaskDashboard(filtered) error = %v", err)
 		}
@@ -963,11 +1078,14 @@ func TestQueryTaskDashboardSelectsRecentActiveRunsAndFiltersWorkspaces(t *testin
 			StartedAt:          now.Add(-30 * time.Second),
 		})
 
-		worktreeDashboard, err := h.observer.QueryTaskDashboard(testutil.Context(t), TaskDashboardQuery{
-			Scope:       taskpkg.ScopeWorkspace,
-			WorkspaceID: h.workspaceID,
-			WorktreeID:  worktrees[0].ID,
-		})
+		worktreeDashboard, err := h.observer.QueryTaskDashboard(
+			testutil.Context(t),
+			TaskDashboardQuery{ReadScope: store.ReadScope{AllProfiles: true},
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: h.workspaceID,
+				WorktreeID:  worktrees[0].ID,
+			},
+		)
 		if err != nil {
 			t.Fatalf("QueryTaskDashboard(worktree filtered) error = %v", err)
 		}
@@ -997,11 +1115,14 @@ func TestTaskObserveQueryValidationAndConfigOption(t *testing.T) {
 		t.Fatalf("observer.taskHealthConfig = %#v, want %#v", observer.taskHealthConfig, cfg)
 	}
 
-	if err := (TaskSummaryQuery{Scope: taskpkg.Scope("bogus")}).Validate(); !errors.Is(err, taskpkg.ErrValidation) ||
+	if err := (TaskSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, Scope: taskpkg.Scope("bogus")}).Validate(); !errors.Is(
+		err,
+		taskpkg.ErrValidation,
+	) ||
 		!strings.Contains(err.Error(), "scope") {
 		t.Fatalf("TaskSummaryQuery.Validate(invalid scope) error = %v, want ErrValidation mentioning scope", err)
 	}
-	if err := (TaskSummaryQuery{OwnerKind: taskpkg.OwnerKind("bogus")}).Validate(); !errors.Is(
+	if err := (TaskSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, OwnerKind: taskpkg.OwnerKind("bogus")}).Validate(); !errors.Is(
 		err,
 		taskpkg.ErrValidation,
 	) ||
@@ -1011,7 +1132,7 @@ func TestTaskObserveQueryValidationAndConfigOption(t *testing.T) {
 			err,
 		)
 	}
-	if err := (TaskMetricsQuery{OriginKind: taskpkg.OriginKind("bogus")}).Validate(); !errors.Is(
+	if err := (TaskMetricsQuery{ReadScope: store.ReadScope{AllProfiles: true}, OriginKind: taskpkg.OriginKind("bogus")}).Validate(); !errors.Is(
 		err,
 		taskpkg.ErrValidation,
 	) ||
@@ -1021,7 +1142,7 @@ func TestTaskObserveQueryValidationAndConfigOption(t *testing.T) {
 			err,
 		)
 	}
-	if err := (TaskDashboardQuery{OwnerKind: taskpkg.OwnerKind("bogus")}).Validate(); !errors.Is(
+	if err := (TaskDashboardQuery{ReadScope: store.ReadScope{AllProfiles: true}, OwnerKind: taskpkg.OwnerKind("bogus")}).Validate(); !errors.Is(
 		err,
 		taskpkg.ErrValidation,
 	) ||
@@ -1031,7 +1152,9 @@ func TestTaskObserveQueryValidationAndConfigOption(t *testing.T) {
 			err,
 		)
 	}
-	if err := (TaskInboxQuery{Lane: TaskInboxLane("bogus")}).Validate(); !errors.Is(err, taskpkg.ErrValidation) ||
+	if err := (TaskInboxQuery{
+		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, Lane: TaskInboxLane("bogus"),
+	}).Validate(); !errors.Is(err, taskpkg.ErrValidation) ||
 		!strings.Contains(err.Error(), "lane") {
 		t.Fatalf("TaskInboxQuery.Validate(invalid lane) error = %v, want ErrValidation mentioning lane", err)
 	}
@@ -1202,7 +1325,9 @@ func TestQueryTaskInboxAssignsLanesAndSupportsFilters(t *testing.T) {
 			UpdatedAt:          now.Add(-5 * time.Minute),
 		})
 
-		inbox, err := h.observer.QueryTaskInbox(testutil.Context(t), TaskInboxQuery{}, alice)
+		inbox, err := h.observer.QueryTaskInbox(testutil.Context(t), TaskInboxQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+		}, alice)
 		if err != nil {
 			t.Fatalf("QueryTaskInbox() error = %v", err)
 		}
@@ -1276,7 +1401,9 @@ func TestQueryTaskInboxAssignsLanesAndSupportsFilters(t *testing.T) {
 
 		approvalsOnly, err := h.observer.QueryTaskInbox(
 			testutil.Context(t),
-			TaskInboxQuery{Lane: TaskInboxLaneApprovals},
+			TaskInboxQuery{
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, Lane: TaskInboxLaneApprovals,
+			},
 			alice,
 		)
 		if err != nil {
@@ -1290,7 +1417,9 @@ func TestQueryTaskInboxAssignsLanesAndSupportsFilters(t *testing.T) {
 		}
 
 		unread := true
-		unreadOnly, err := h.observer.QueryTaskInbox(testutil.Context(t), TaskInboxQuery{Unread: &unread}, alice)
+		unreadOnly, err := h.observer.QueryTaskInbox(testutil.Context(t), TaskInboxQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, Unread: &unread,
+		}, alice)
 		if err != nil {
 			t.Fatalf("QueryTaskInbox(unread) error = %v", err)
 		}
@@ -1304,7 +1433,9 @@ func TestQueryTaskInboxAssignsLanesAndSupportsFilters(t *testing.T) {
 			)
 		}
 
-		searchOnly, err := h.observer.QueryTaskInbox(testutil.Context(t), TaskInboxQuery{Search: "resurfaced"}, alice)
+		searchOnly, err := h.observer.QueryTaskInbox(testutil.Context(t), TaskInboxQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, Search: "resurfaced",
+		}, alice)
 		if err != nil {
 			t.Fatalf("QueryTaskInbox(search) error = %v", err)
 		}
@@ -1337,6 +1468,9 @@ func TestObserverHealthWrapsTaskHealthErrors(t *testing.T) {
 
 func createObserveTask(t *testing.T, h *harness, record taskpkg.Task) {
 	t.Helper()
+	if record.ProfileID == "" {
+		record.ProfileID = store.DefaultProfileID
+	}
 	if err := h.registry.CreateTask(testutil.Context(t), record); err != nil {
 		t.Fatalf("CreateTask(%q) error = %v", record.ID, err)
 	}
@@ -1384,6 +1518,7 @@ func createObserveEvent(t *testing.T, h *harness, event taskpkg.Event) {
 func createObserveNetworkChannel(t *testing.T, h *harness, channel string) {
 	t.Helper()
 	if err := h.registry.WriteNetworkChannel(testutil.Context(t), store.NetworkChannelEntry{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: h.workspaceID,
 		Channel:     channel,
 		Purpose:     "observe task test",
@@ -1404,6 +1539,9 @@ func createObserveTriage(t *testing.T, h *harness, state taskpkg.TriageState) {
 
 func createObserveAudit(t *testing.T, h *harness, entry store.NetworkAuditEntry) {
 	t.Helper()
+	if entry.ProfileID == "" {
+		entry.ProfileID = store.DefaultProfileID
+	}
 	if err := h.registry.WriteNetworkAudit(testutil.Context(t), entry); err != nil {
 		t.Fatalf("WriteNetworkAudit(%q) error = %v", entry.ID, err)
 	}

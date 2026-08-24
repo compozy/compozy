@@ -93,9 +93,15 @@ const toolApprovalsRevokeInputSchema = `{
 
 const toolApprovalGrantOutputObjectSchema = `{
 	"type":"object",
-	"required":["id","workspace_id","tool_id","decision","created_at","last_used_at"],
+	"required":["id","profile_id","workspace_id","tool_id","decision","created_at","last_used_at"],
 	"properties":{
 		"id":{"type":"string"},
+		"profile_id":{"type":"string"},
+		"profile_name":{"type":"string"},
+		"profile_color":{"type":"string"},
+		"profile_icon":{"type":"string"},
+		"profile_emoji":{"type":"string"},
+		"profile_archived":{"type":"boolean"},
 		"workspace_id":{"type":"string"},
 		"agent_name":{"type":"string"},
 		"tool_id":{"type":"string"},

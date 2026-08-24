@@ -73,6 +73,7 @@ function renderProfiles(draftDirty: boolean) {
     () =>
       useWindowManagerLayoutProfiles({
         workspaceId: "workspace-a",
+        profileId: "marketing",
         document: DOCUMENT,
         profiles: [RECORD],
         draftDirty,
@@ -98,7 +99,9 @@ describe("useWindowManagerLayoutProfiles", () => {
     const pendingSave = deferred<WindowManagerLayoutResourceRecord>();
     apiMocks.putProfile.mockReturnValue(pendingSave.promise);
     const { result, queryClient } = renderProfiles(false);
-    queryClient.setQueryData(settingsKeys.windowManagerLayoutProfiles("workspace-a"), [RECORD]);
+    queryClient.setQueryData(settingsKeys.windowManagerLayoutProfiles("workspace-a", "marketing"), [
+      RECORD,
+    ]);
 
     act(() => {
       result.current.selectProfile(RECORD);
@@ -113,7 +116,9 @@ describe("useWindowManagerLayoutProfiles", () => {
 
     await waitFor(() => {
       expect(
-        queryClient.getQueryData(settingsKeys.windowManagerLayoutProfiles("workspace-a"))
+        queryClient.getQueryData(
+          settingsKeys.windowManagerLayoutProfiles("workspace-a", "marketing")
+        )
       ).toEqual([savedRecord]);
     });
     expect(result.current.displayName).toBe("A newer name");
@@ -253,7 +258,12 @@ describe("useWindowManagerLayoutProfiles", () => {
     });
 
     await waitFor(() => {
-      expect(apiMocks.deleteProfile).toHaveBeenCalledWith("workspace-a", "two-up-review", 4);
+      expect(apiMocks.deleteProfile).toHaveBeenCalledWith(
+        "workspace-a",
+        "marketing",
+        "two-up-review",
+        4
+      );
       expect(result.current.id).toBe("");
       expect(result.current.displayName).toBe("");
       expect(result.current.scope).toBe("workspace");
@@ -271,7 +281,9 @@ describe("useWindowManagerLayoutProfiles", () => {
     };
     apiMocks.putProfile.mockResolvedValue(workspaceRecord);
     const { result, queryClient } = renderProfiles(false);
-    queryClient.setQueryData(settingsKeys.windowManagerLayoutProfiles("workspace-a"), [RECORD]);
+    queryClient.setQueryData(settingsKeys.windowManagerLayoutProfiles("workspace-a", "marketing"), [
+      RECORD,
+    ]);
 
     act(() => {
       result.current.selectProfile(RECORD);
@@ -287,10 +299,13 @@ describe("useWindowManagerLayoutProfiles", () => {
         expect.objectContaining({ id: "two-up-review" }),
         "workspace",
         "workspace-a",
+        "marketing",
         4
       );
       expect(
-        queryClient.getQueryData(settingsKeys.windowManagerLayoutProfiles("workspace-a"))
+        queryClient.getQueryData(
+          settingsKeys.windowManagerLayoutProfiles("workspace-a", "marketing")
+        )
       ).toEqual([workspaceRecord]);
     });
   });

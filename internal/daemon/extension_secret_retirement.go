@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/vault"
 )
 
@@ -25,9 +27,17 @@ func (s *daemonExtensionService) retireExtensionSecretBindings(
 	if s.envBindings == nil || s.secretVault == nil {
 		return nil, errors.New("daemon: extension secret storage is incomplete")
 	}
-	bindings, err := s.envBindings.ListEnvBindings(ctx, key.Name, key.WorkspaceID)
+	profileIDs, err := s.extensionSecretProfileIDs(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("daemon: snapshot retiring extension bindings: %w", err)
+		return nil, err
+	}
+	bindings := make([]extensionpkg.EnvBinding, 0)
+	for _, profileID := range profileIDs {
+		profileBindings, listErr := s.envBindings.ListEnvBindings(ctx, key.Name, profileID, key.WorkspaceID)
+		if listErr != nil {
+			return nil, fmt.Errorf("daemon: snapshot retiring extension bindings: %w", listErr)
+		}
+		bindings = append(bindings, profileBindings...)
 	}
 	retirement := &extensionSecretRetirement{bindings: slices.Clone(bindings)}
 	instanceBindingCountByRef := make(map[string]int, len(bindings))
@@ -56,8 +66,13 @@ func (s *daemonExtensionService) retireExtensionSecretBindings(
 		}
 		retirement.ownedSecretSnapshots = append(retirement.ownedSecretSnapshots, snapshot)
 	}
-	if err := s.envBindings.DeleteEnvBindings(ctx, key.Name, key.WorkspaceID); err != nil {
-		return nil, fmt.Errorf("daemon: retire extension bindings: %w", err)
+	for _, profileID := range profileIDs {
+		if err := s.envBindings.DeleteEnvBindings(ctx, key.Name, profileID, key.WorkspaceID); err != nil {
+			return nil, errors.Join(
+				fmt.Errorf("daemon: retire extension bindings for profile %q: %w", profileID, err),
+				retirement.rollback(ctx, s),
+			)
+		}
 	}
 	for _, ref := range refs {
 		if err := s.gcOwnedExtensionSecret(ctx, ref); err != nil {
@@ -65,6 +80,33 @@ func (s *daemonExtensionService) retireExtensionSecretBindings(
 		}
 	}
 	return retirement, nil
+}
+
+func (s *daemonExtensionService) extensionSecretProfileIDs(
+	ctx context.Context,
+) ([]string, error) {
+	profileIDs := []string{store.DefaultProfileID}
+	if s.profiles == nil {
+		return profileIDs, nil
+	}
+	profiles, err := s.profiles.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: list profiles for extension secret retirement: %w", err)
+	}
+	seen := map[string]struct{}{store.DefaultProfileID: {}}
+	for _, profile := range profiles {
+		profileID := strings.TrimSpace(profile.ID)
+		if profileID == "" {
+			continue
+		}
+		if _, exists := seen[profileID]; exists {
+			continue
+		}
+		seen[profileID] = struct{}{}
+		profileIDs = append(profileIDs, profileID)
+	}
+	slices.Sort(profileIDs)
+	return profileIDs, nil
 }
 
 func (r *extensionSecretRetirement) rollback(ctx context.Context, s *daemonExtensionService) error {

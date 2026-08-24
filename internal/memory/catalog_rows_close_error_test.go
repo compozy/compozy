@@ -31,21 +31,21 @@ func TestCatalogListRowsCloseErrors(t *testing.T) {
 		{
 			name: "Should join dream-run scan and rows-close errors",
 			list: func(ctx context.Context, catalog *catalog) error {
-				_, err := catalog.listDreamRuns(ctx, DreamRunListQuery{})
+				_, err := catalog.listDreamRuns(ctx, "", DreamRunListQuery{})
 				return err
 			},
 		},
 		{
 			name: "Should join daily-log scan and rows-close errors",
 			list: func(ctx context.Context, catalog *catalog) error {
-				_, err := catalog.listDailyLogs(ctx, DailyLogListQuery{})
+				_, err := catalog.listDailyLogs(ctx, "", DailyLogListQuery{})
 				return err
 			},
 		},
 		{
 			name: "Should join decision scan and rows-close errors",
 			list: func(ctx context.Context, catalog *catalog) error {
-				_, err := catalog.listDecisions(ctx, DecisionListQuery{})
+				_, err := catalog.listDecisions(ctx, "", DecisionListQuery{})
 				return err
 			},
 		},

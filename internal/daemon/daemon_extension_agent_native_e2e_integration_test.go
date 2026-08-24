@@ -17,6 +17,8 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	builtintools "github.com/compozy/compozy/internal/tools/builtin"
@@ -58,9 +60,15 @@ func testDaemonE2EAgentCompletesExtensionAuthoringThroughNativeTools(t *testing.
 		}
 	})
 
+	sessions := &fakeSessionManager{infos: []*session.Info{{
+		ID: "session-agent-native-e2e", ProfileID: store.DefaultProfileID, WorkspaceID: workspaceID,
+	}}}
+	deps.Sessions = sessions
 	service, ok := newDaemonExtensionService(&daemonExtensionServiceDeps{
 		Registry:  extensionRegistry,
 		Runtime:   manager,
+		Sessions:  sessions,
+		Profiles:  deps.ProfileManager,
 		HomePaths: deps.HomePaths,
 	},
 		withDaemonExtensionMarketplace(deps.ExtensionConfig, deps.ExtensionSources),
@@ -77,6 +85,7 @@ func testDaemonE2EAgentCompletesExtensionAuthoringThroughNativeTools(t *testing.
 	approvals := &agentNativeExtensionApprovalBridge{}
 	registry := newAgentNativeExtensionRegistry(t, deps, extensionRegistry, manager, resolver, approvals)
 	scope := toolspkg.Scope{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: workspaceID,
 		SessionID:   "session-agent-native-e2e",
 		ActorKind:   string(taskpkg.ActorKindAgentSession),
@@ -267,7 +276,7 @@ func callAgentNativeExtensionTool(
 	}
 	result, err := registry.Call(ctx, scope, toolspkg.CallRequest{ToolID: id, Input: encoded})
 	if err != nil {
-		t.Fatalf("Registry.Call(%s) error = %v", id, err)
+		t.Fatalf("Registry.Call(%s) error = %v; cause = %v", id, err, errors.Unwrap(err))
 	}
 	if !json.Valid(result.Structured) || result.Preview == "" {
 		t.Fatalf("Registry.Call(%s) result = %#v, want structured JSON and preview", id, result)

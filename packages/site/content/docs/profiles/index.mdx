@@ -1,0 +1,150 @@
+---
+title: Profiles
+description: Keep unrelated work separate on one CompozyOS installation — what a profile owns, what stays shared, and where its settings live.
+---
+
+One machine, one daemon, and several kinds of work that have nothing to do with each other: product
+development in the morning, launch copy in the afternoon, invoices on Friday. Without profiles every
+list mixes all of it.
+
+A **profile** is a named context you work in. Each piece of work — a session, a task, a loop run, an
+automation and the runs it produces — is filed under exactly one profile the moment it is created,
+and it stays there. Switch profile and the owned-work lists, counters, and badges show only that
+context. The daemon does the filtering, so nothing depends on remembering which window you are in.
+A few surfaces are ruled exceptions, and the table below names them.
+
+Every installation has the permanent `default` profile. Until you create a second one, nothing
+changes: work you already have belongs to `default`, and creating another profile never moves it.
+
+New to profiles? [Create your first one](/docs/profiles/quickstart). It takes about ten minutes.
+
+## What follows the profile, and what stays shared
+
+| Follows the active profile                                        | Stays shared across every profile                               |
+| ----------------------------------------------------------------- | --------------------------------------------------------------- |
+| Sessions, tasks, loop runs, automations, and automation runs      | Workspaces — the project folders you registered                 |
+| Bridge instances and the unattended work they deliver             | Worktrees — visible everywhere, each row labeled with its owner |
+| Network channels, threads, and conversations started on this side | Network peers and the transport that carries their messages     |
+| Usage and spend attribution                                       | Installed extensions — each profile chooses which ones are on   |
+| Config, MCP, agent, and skill layers under `profiles/<name>/`     | The notification preset library — same per-profile choice       |
+| Provider and extension credential overrides in the Vault          | Your user credentials, used until a profile overrides them      |
+| Desktops and window arrangements                                  | Native provider CLI logins                                      |
+| Tool approval grants                                              | Repository-committed workspace memory                           |
+| [Profile-scope memory](/docs/memory/scopes)                       | Daemon identity: ports, database, logs, gateway                 |
+
+Two entries are worth reading twice. **Worktrees appear in every profile** because they describe
+filesystem state that belongs to a workspace, not to a context; each row still carries the profile
+that created it. And **agents in different profiles can talk to each other** over Compozy Network,
+because peers are a fact about the machine. Cross-context conversation is intentional, not a leak.
+
+## Separation, not security
+
+Profiles organize work. They do not restrict access.
+
+Any profile can be selected at any time, the aggregate view shows everything at once, and there is
+no permission, grant, lock, or hidden-from vocabulary between profiles. CompozyOS runs as a single
+operator on one machine, so a boundary between profiles would have nothing to enforce itself
+against.
+
+If you need real confidentiality between two contexts, a profile is not the mechanism. Access
+control for more than one person is a separate program and is not part of this feature.
+
+## Which "profile" this means
+
+Unqualified **Profile** in CompozyOS names only the concept on this page. Several older compound
+names keep their own meaning and are unrelated to it:
+
+| Name                                                        | What it actually means                                                                        |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| [Task execution profile](/docs/autonomy/execution-profiles) | A typed overlay on one task that selects coordinator, worker, reviewer, and sandbox behavior. |
+| [Sandbox profile](/docs/sandbox/profiles)                   | An execution boundary configured under `[sandboxes.<name>]`.                                  |
+| [Layout profile](/docs/workspaces/window-management)        | A saved window arrangement in the desktop shell.                                              |
+| [Trust Profile](/docs/network/protocol/ed25519-jcs)         | The Compozy Network signature and fingerprint suite.                                          |
+| [Connection profile](/docs/gateway/remote-access)           | A named remote daemon the CLI can reach through the gateway.                                  |
+
+## Naming rules
+
+A profile name is lowercase letters, digits, and hyphens, starts with a letter, and is at most 32
+characters. `default`, `all`, and `global` are reserved. Names are unique across active and archived
+profiles, so archiving keeps a name taken.
+
+Names are short on purpose: the same string becomes a folder name inside a repository and a binding
+key that extensions place resources into.
+
+## In this section
+
+- [Create your first profile](/docs/profiles/quickstart) — the guided walkthrough.
+- [Select a profile](/docs/profiles/selection) — `--profile`, `COMPOZY_PROFILE`, remembered choices, and session binding.
+- [Scoped and aggregate reads](/docs/profiles/reads) — profile-filtered results, `--all-profiles`, and owner labels.
+- [Credentials](/docs/profiles/credentials) — per-profile provider and extension Vault overrides.
+- [Manage the profile lifecycle](/docs/profiles/lifecycle) — create, rename, archive, delete, plans, and recovery.
+- [Profile errors](/docs/profiles/errors) — the failure contract and the next safe action.
+
+## Where profiles show up elsewhere
+
+<RouteList>
+  <RouteRow
+    href="/docs/configuration#profile-layer-precedence"
+    label="Config"
+    title="Profile layer precedence"
+    description="The four config layers, which one a write lands in, and the keys a profile layer cannot change."
+    meta="Precedence"
+  />
+  <RouteRow
+    href="/docs/configuration/file-locations#profile-files"
+    label="Files"
+    title="Profile file locations"
+    description="Every path a profile owns, on the machine and inside a repository."
+    meta="Paths"
+  />
+  <RouteRow
+    href="/docs/configuration/mcp-json"
+    label="MCP"
+    title="Profile MCP sidecars"
+    description="Where a profile mcp.json is read from and how its auth identity stays scope-qualified."
+    meta="Sidecars"
+  />
+  <RouteRow
+    href="/docs/extensions/install"
+    label="Extensions"
+    title="Per-profile enablement"
+    description="One install per machine, one on/off choice per profile, and the profiles an extension declares."
+    meta="Install"
+  />
+  <RouteRow
+    href="/docs/extensions/manifest"
+    label="Manifest"
+    title="Resource placement"
+    description="Binding a contributed skill, agent, or command to a named profile."
+    meta="Authoring"
+  />
+  <RouteRow
+    href="/docs/autonomy/notification-presets"
+    label="Notifications"
+    title="Preset enablement"
+    description="A shared preset library where each profile decides what is on."
+    meta="Delivery"
+  />
+  <RouteRow
+    href="/docs/memory/scopes"
+    label="Memory"
+    title="Profile memory scope"
+    description="How profile memory relates to workspace memory and to the agent tiers."
+    meta="Scopes"
+  />
+  <RouteRow
+    href="/docs/extensions/cmd-palette"
+    label="Palette"
+    title="Palette contributions"
+    description="Why a contributed command appears in one profile and not another."
+    meta="Contributions"
+  />
+</RouteList>
+
+Exact syntax lives in the generated references: [`compozy profile`](/docs/cli/profile) for commands
+and flags, [Profiles API](/docs/api/profiles) for the routes HTTP and UDS both serve. Reads are
+available on an enabled remote surface; every profile-state write is local-only.
+
+Agents operate the same surfaces. Inside a session, `compozy__profile_list` and
+`compozy__profile_current` report the catalog and the session's bound profile; resolve each live
+descriptor before calling it.

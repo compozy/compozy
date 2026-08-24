@@ -53,6 +53,24 @@ func (c *daemonClient) InstallExtension(
 	return response.Extension, nil
 }
 
+func (c *daemonClient) PreviewExtensionInstall(
+	ctx context.Context,
+	request InstallExtensionRequest,
+) (ExtensionInstallPreviewRecord, error) {
+	var response ExtensionInstallPreviewRecord
+	if err := c.doJSON(
+		ctx,
+		http.MethodPost,
+		"/api/extensions/preview-install",
+		nil,
+		request,
+		&response,
+	); err != nil {
+		return ExtensionInstallPreviewRecord{}, err
+	}
+	return response, nil
+}
+
 func (c *daemonClient) UpdateExtension(
 	ctx context.Context,
 	name string,
@@ -117,6 +135,20 @@ func (c *daemonClient) EnableExtension(
 
 func (c *daemonClient) DisableExtension(ctx context.Context, name string) (ExtensionRecord, error) {
 	return c.extensionAction(ctx, strings.TrimSpace(name), "disable")
+}
+
+func (c *daemonClient) SetExtensionEnablement(
+	ctx context.Context,
+	name string,
+	profile string,
+	enabled bool,
+) (ExtensionEnablementRecord, error) {
+	var response ExtensionEnablementRecord
+	request := contract.SetExtensionEnablementRequest{Profile: strings.TrimSpace(profile), Enabled: enabled}
+	if err := c.doJSON(ctx, http.MethodPut, extensionPath(name, "enablement"), nil, request, &response); err != nil {
+		return ExtensionEnablementRecord{}, err
+	}
+	return response, nil
 }
 
 func (c *daemonClient) ExtensionStatus(ctx context.Context, name string) (ExtensionRecord, error) {

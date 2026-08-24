@@ -14,6 +14,7 @@ compozy loop runs [flags]
 ### Options
 
 ```
+      --all-profiles            Read across every profile and include owner labels
       --cursor string           Resume after an opaque server-order cursor
   -h, --help                    help for runs
       --limit int               Page size from 1 to 500 (default 50)
@@ -27,8 +28,9 @@ compozy loop runs [flags]
 ### Options inherited from parent commands
 
 ```
-      --json            Emit JSON output
-  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
 ```
 
 ## Output Formats

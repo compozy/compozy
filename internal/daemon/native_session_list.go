@@ -52,7 +52,12 @@ func (n *daemonNativeTools) sessionList(
 	if !ok {
 		return toolspkg.ToolResult{}, errors.New("daemon: paged session catalog is required")
 	}
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	page, err := pager.ListPage(ctx, session.ListQuery{
+		ReadScope:       readScope,
 		WorkspaceID:     workspaceID,
 		WorktreeID:      strings.TrimSpace(input.Worktree),
 		State:           strings.TrimSpace(input.State),

@@ -73,8 +73,8 @@ func (m *Service) requireSessionExecutor(action string) error {
 	return nil
 }
 
-func (m *Service) collectTaskTree(ctx context.Context, rootTaskID string) ([]Task, error) {
-	root, err := m.store.GetTask(ctx, rootTaskID)
+func (m *Service) collectTaskTree(ctx context.Context, rootTaskID string, actor ActorContext) ([]Task, error) {
+	root, err := m.loadAuthorizedTask(ctx, m.store, rootTaskID, actor)
 	if err != nil {
 		return nil, err
 	}

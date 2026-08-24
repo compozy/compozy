@@ -231,8 +231,8 @@ func TestDocumentDescribesAgentNameRequestConstraints(t *testing.T) {
 			compozyconfig.OptionalAgentNamePattern,
 		)
 
-		updateGeneral := jsonRequestSchema(t, operationFor(t, doc, "/api/settings/general", http.MethodPatch))
-		defaults := propertySchema(t, propertySchema(t, updateGeneral, "config"), "defaults")
+		updatePersona := jsonRequestSchema(t, operationFor(t, doc, "/api/settings/persona", http.MethodPatch))
+		defaults := propertySchema(t, updatePersona, "config")
 		assertRequired(t, defaults, "agent")
 		assertAgentNameRequestSchema(
 			t,
@@ -250,6 +250,25 @@ func TestDocumentDescribesAgentNameRequestConstraints(t *testing.T) {
 			propertySchema(t, dreamRole, "agent"),
 			compozyconfig.OptionalAgentNamePattern,
 		)
+	})
+}
+
+func TestDocumentDescribesWorkspaceProfileHints(t *testing.T) {
+	t.Parallel()
+	t.Run("Should describe workspace profile hints", func(t *testing.T) {
+		t.Parallel()
+
+		doc, err := Document()
+		if err != nil {
+			t.Fatalf("Document() error = %v", err)
+		}
+		workspace := jsonResponseSchema(t, operationFor(t, doc, "/api/workspaces/{id}", http.MethodGet), http.StatusOK)
+		hints := propertySchema(t, workspace, "profile_hints")
+		if hints.Type == nil || !hints.Type.Is("array") || hints.Items == nil || hints.Items.Value == nil {
+			t.Fatalf("profile_hints schema = %#v, want array items", hints)
+		}
+		hint := hints.Items.Value
+		assertRequired(t, hint, "name", "path", "message", "action")
 	})
 }
 
@@ -407,6 +426,173 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertRequired(t, steerRequest, "text", "message_id", "idempotency_key")
 				assertPropertyAbsent(t, steerRequest, "messageId")
 				assertResponseStatus(t, steer, http.StatusConflict)
+			},
+		},
+		{
+			name: "ShouldDescribeLogProfileReadModes",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				for _, path := range []string{"/api/logs", "/api/logs/stream"} {
+					operation := operationFor(t, doc, path, http.MethodGet)
+					assertParameter(t, operation, "profile", openapi3.ParameterInQuery, false)
+					assertParameter(t, operation, "all_profiles", openapi3.ParameterInQuery, false)
+				}
+			},
+		},
+		{
+			name: "ShouldDescribeBridgeProfileContracts",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				for _, path := range []string{
+					"/api/bridges",
+					"/api/bridges/{id}",
+					"/api/bridges/{id}/routes",
+					"/api/bridges/{id}/targets",
+					"/api/bridges/health/stream",
+				} {
+					operation := operationFor(t, doc, path, http.MethodGet)
+					assertParameter(t, operation, "profile", openapi3.ParameterInQuery, false)
+					assertParameter(t, operation, "all_profiles", openapi3.ParameterInQuery, false)
+				}
+				resolveTarget := operationFor(t, doc, "/api/bridges/{id}/resolve", http.MethodPost)
+				assertParameter(t, resolveTarget, "profile", openapi3.ParameterInQuery, false)
+				assertParameter(t, resolveTarget, "all_profiles", openapi3.ParameterInQuery, false)
+
+				create := operationFor(t, doc, "/api/bridges", http.MethodPost)
+				assertParameter(t, create, "profile", openapi3.ParameterInQuery, false)
+				assertParameterAbsent(t, create, "all_profiles", openapi3.ParameterInQuery)
+
+				for _, endpoint := range []struct {
+					path   string
+					method string
+				}{
+					{path: "/api/bridges/{id}", method: http.MethodPatch},
+					{path: "/api/bridges/{id}/enable", method: http.MethodPost},
+					{path: "/api/bridges/{id}/disable", method: http.MethodPost},
+					{path: "/api/bridges/{id}/restart", method: http.MethodPost},
+				} {
+					operation := operationFor(t, doc, endpoint.path, endpoint.method)
+					assertParameter(t, operation, "profile", openapi3.ParameterInQuery, false)
+					assertParameterAbsent(t, operation, "all_profiles", openapi3.ParameterInQuery)
+				}
+			},
+		},
+		{
+			name: "ShouldDescribeAutomationProfileContracts",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				reads := []struct {
+					path   string
+					method string
+				}{
+					{path: "/api/automation/jobs", method: http.MethodGet},
+					{path: "/api/automation/jobs/{id}", method: http.MethodGet},
+					{path: "/api/automation/jobs/{id}/runs", method: http.MethodGet},
+					{path: "/api/automation/triggers", method: http.MethodGet},
+					{path: "/api/automation/triggers/{id}", method: http.MethodGet},
+					{path: "/api/automation/triggers/{id}/runs", method: http.MethodGet},
+					{path: "/api/automation/runs", method: http.MethodGet},
+					{path: "/api/automation/runs/{id}", method: http.MethodGet},
+				}
+				for _, endpoint := range reads {
+					operation := operationFor(t, doc, endpoint.path, endpoint.method)
+					assertParameter(t, operation, "profile", openapi3.ParameterInQuery, false)
+					assertParameter(t, operation, "all_profiles", openapi3.ParameterInQuery, false)
+				}
+
+				mutations := []struct {
+					path   string
+					method string
+				}{
+					{path: "/api/automation/jobs", method: http.MethodPost},
+					{path: "/api/automation/jobs/{id}", method: http.MethodPatch},
+					{path: "/api/automation/jobs/{id}", method: http.MethodDelete},
+					{path: "/api/automation/jobs/{id}/trigger", method: http.MethodPost},
+					{path: "/api/automation/triggers", method: http.MethodPost},
+					{path: "/api/automation/triggers/{id}", method: http.MethodPatch},
+					{path: "/api/automation/triggers/{id}", method: http.MethodDelete},
+				}
+				for _, endpoint := range mutations {
+					operation := operationFor(t, doc, endpoint.path, endpoint.method)
+					assertParameter(t, operation, "profile", openapi3.ParameterInQuery, false)
+					assertParameterAbsent(t, operation, "all_profiles", openapi3.ParameterInQuery)
+				}
+			},
+		},
+		{
+			name: "ShouldDescribeSessionAndNetworkProfileContracts",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				profileReads := []struct {
+					path   string
+					method string
+				}{
+					{path: "/api/workspaces/{workspace_id}/sessions/{session_id}", method: http.MethodGet},
+					{path: "/api/workspaces/{workspace_id}/network/peers/{peer_id}", method: http.MethodGet},
+					{path: "/api/workspaces/{workspace_id}/network/channels", method: http.MethodGet},
+					{path: "/api/workspaces/{workspace_id}/network/channels/{channel}", method: http.MethodGet},
+					{
+						path:   "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions",
+						method: http.MethodGet,
+					},
+					{path: "/api/workspaces/{workspace_id}/network/channels/{channel}/threads", method: http.MethodGet},
+					{
+						path:   "/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}",
+						method: http.MethodGet,
+					},
+					{
+						path:   "/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}/messages",
+						method: http.MethodGet,
+					},
+					{path: "/api/workspaces/{workspace_id}/network/channels/{channel}/directs", method: http.MethodGet},
+					{
+						path:   "/api/workspaces/{workspace_id}/network/channels/{channel}/directs/{direct_id}",
+						method: http.MethodGet,
+					},
+					{
+						path:   "/api/workspaces/{workspace_id}/network/channels/{channel}/directs/{direct_id}/messages",
+						method: http.MethodGet,
+					},
+					{path: "/api/workspaces/{workspace_id}/network/work/{work_id}", method: http.MethodGet},
+				}
+				for _, endpoint := range profileReads {
+					operation := operationFor(t, doc, endpoint.path, endpoint.method)
+					assertParameter(t, operation, "profile", openapi3.ParameterInQuery, false)
+					assertParameter(t, operation, "all_profiles", openapi3.ParameterInQuery, false)
+				}
+
+				profileMutations := []struct {
+					path   string
+					method string
+				}{
+					{path: "/api/workspaces/{workspace_id}/network/channels", method: http.MethodPost},
+					{path: "/api/workspaces/{workspace_id}/network/channels/{channel}", method: http.MethodPatch},
+					{
+						path:   "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions",
+						method: http.MethodPut,
+					},
+					{
+						path:   "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions/{session_id}",
+						method: http.MethodDelete,
+					},
+					{
+						path:   "/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}/promote-task",
+						method: http.MethodPost,
+					},
+					{
+						path:   "/api/workspaces/{workspace_id}/network/channels/{channel}/directs/resolve",
+						method: http.MethodPost,
+					},
+				}
+				for _, endpoint := range profileMutations {
+					operation := operationFor(t, doc, endpoint.path, endpoint.method)
+					assertParameter(t, operation, "profile", openapi3.ParameterInQuery, false)
+					assertParameterAbsent(t, operation, "all_profiles", openapi3.ParameterInQuery)
+				}
 			},
 		},
 		{
@@ -1100,6 +1286,16 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
 
+				memoryOperations := append(
+					registryMemoryOperations(),
+					registryMemoryLifecycleOperations()...,
+				)
+				for _, operationSpec := range memoryOperations {
+					operation := operationFor(t, doc, operationSpec.Path, operationSpec.Method)
+					assertParameter(t, operation, specProfileKey, openapi3.ParameterInQuery, false)
+					assertParameterAbsent(t, operation, "all_profiles", openapi3.ParameterInQuery)
+				}
+
 				writeMemory := operationFor(t, doc, "/api/memory", "POST")
 				writeMemorySchema := jsonRequestSchema(t, writeMemory)
 				assertRequired(t, writeMemorySchema, "scope", "type", "name", "content")
@@ -1113,7 +1309,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"idempotency_key",
 					"dry_run",
 				)
-				assertEnumValues(t, propertySchema(t, writeMemorySchema, "scope"), "global", "workspace", "agent")
+				assertEnumValues(t, propertySchema(t, writeMemorySchema, "scope"), "profile", "workspace", "agent")
 				assertEnumValues(t, propertySchema(t, writeMemorySchema, "agent_tier"), "workspace", "global")
 				assertEnumValues(
 					t,
@@ -1145,7 +1341,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				memorySchema := propertySchema(t, readMemorySchema, "memory")
 				assertRequired(t, memorySchema, "summary", "content")
 				summarySchema := propertySchema(t, memorySchema, "summary")
-				assertEnumValues(t, propertySchema(t, summarySchema, "scope"), "global", "workspace", "agent")
+				assertEnumValues(t, propertySchema(t, summarySchema, "scope"), "profile", "workspace", "agent")
 				assertEnumValues(t, propertySchema(t, summarySchema, "agent_tier"), "workspace", "global")
 
 				searchMemory := operationFor(t, doc, "/api/memory/search", "POST")

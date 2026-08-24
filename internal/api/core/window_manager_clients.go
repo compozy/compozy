@@ -13,11 +13,11 @@ import (
 // ListWindowManagerClients returns client-local views in one workspace partition.
 func (h *BaseHandlers) ListWindowManagerClients(c *gin.Context) {
 	workspaceID := windowManagerWorkspace(c)
-	if h.WindowManager == nil {
-		h.respondWindowManagerError(c, workspaceID, windowmanager.ErrClosed)
+	service, ok := h.windowManagerService(c, workspaceID)
+	if !ok {
 		return
 	}
-	clients, err := h.WindowManager.Clients(c.Request.Context(), workspaceID)
+	clients, err := service.Clients(c.Request.Context(), workspaceID)
 	if err != nil {
 		h.respondWindowManagerError(c, workspaceID, err)
 		return
@@ -40,8 +40,8 @@ func (h *BaseHandlers) ListWindowManagerClients(c *gin.Context) {
 // RegisterWindowManagerClient creates or refreshes one explicit client-local view.
 func (h *BaseHandlers) RegisterWindowManagerClient(c *gin.Context) {
 	workspaceID := windowManagerWorkspace(c)
-	if h.WindowManager == nil {
-		h.respondWindowManagerError(c, workspaceID, windowmanager.ErrClosed)
+	profileID, ok := h.windowManagerProfile(c, workspaceID)
+	if !ok {
 		return
 	}
 	var request contract.WindowManagerClientRegistration
@@ -66,11 +66,18 @@ func (h *BaseHandlers) RegisterWindowManagerClient(c *gin.Context) {
 		)
 		return
 	}
-	client, err := h.WindowManager.RegisterClient(c.Request.Context(), windowmanager.ClientRegistration{
-		WorkspaceID: workspaceID, ClientID: canonicalClientID, Kind: request.Kind,
-		ActiveDesktopID: request.ActiveDesktopID,
-		Context:         windowManagerRegistrationContext(request.Context),
-	})
+	// One client id belongs to one profile at a time. The claim is one operation so
+	// that two registrations racing for different profiles cannot both succeed and
+	// leave an attachment nobody can disambiguate (US-026).
+	client, err := h.WindowManager.ClaimClient(
+		c.Request.Context(),
+		profileID,
+		windowmanager.ClientRegistration{
+			WorkspaceID: workspaceID, ClientID: canonicalClientID, Kind: request.Kind,
+			ActiveDesktopID: request.ActiveDesktopID,
+			Context:         windowManagerRegistrationContext(request.Context),
+		},
+	)
 	if err != nil {
 		h.respondWindowManagerError(c, workspaceID, err)
 		return
@@ -86,8 +93,8 @@ func (h *BaseHandlers) RegisterWindowManagerClient(c *gin.Context) {
 // UnregisterWindowManagerClient removes transient presentation state only.
 func (h *BaseHandlers) UnregisterWindowManagerClient(c *gin.Context) {
 	workspaceID := windowManagerWorkspace(c)
-	if h.WindowManager == nil {
-		h.respondWindowManagerError(c, workspaceID, windowmanager.ErrClosed)
+	service, ok := h.windowManagerService(c, workspaceID)
+	if !ok {
 		return
 	}
 	clientID, err := windowManagerClientID(c)
@@ -95,7 +102,7 @@ func (h *BaseHandlers) UnregisterWindowManagerClient(c *gin.Context) {
 		h.respondWindowManagerError(c, workspaceID, err)
 		return
 	}
-	if err := h.WindowManager.UnregisterClient(c.Request.Context(), workspaceID, clientID); err != nil {
+	if err := service.UnregisterClient(c.Request.Context(), workspaceID, clientID); err != nil {
 		h.respondWindowManagerError(c, workspaceID, err)
 		return
 	}

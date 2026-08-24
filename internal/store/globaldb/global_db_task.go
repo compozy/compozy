@@ -58,6 +58,14 @@ const taskRunSelectColumnsSQL = `
 	review_round, continuation_reason, missing_work_json, next_round_guidance,
 	network_wake_id, network_target_session_id, network_owner_key`
 
+const taskRecordSelectColumnsSQL = `
+	id, profile_id, identifier, scope, workspace_id, parent_task_id, title, description,
+	priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
+	owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
+	created_at, updated_at, closed_at, current_run_id, ` + taskLatestEventSeqSelectSQL + `,
+	paused, paused_by, paused_at, paused_reason, needs_attention_reason, needs_attention_at,
+	needs_attention_by_kind, needs_attention_by_ref, wake_creator, metadata_json`
+
 const taskLatestEventSeqSelectSQL = `COALESCE((
 	SELECT MAX(te.event_seq)
 	FROM task_events te
@@ -221,6 +229,42 @@ func (g *TaskRepo) GetTask(ctx context.Context, id string) (taskpkg.Task, error)
 	return taskFromGenerated(&row)
 }
 
+// GetTaskInReadScope returns one task only when its immutable owner matches the
+// explicit profile lens. Aggregate reads remain explicit through AllProfiles.
+func (g *TaskRepo) GetTaskInReadScope(
+	ctx context.Context,
+	id string,
+	readScope store.ReadScope,
+) (taskpkg.Task, error) {
+	if err := g.checkReady(ctx, "get task in read scope"); err != nil {
+		return taskpkg.Task{}, err
+	}
+	trimmedID, err := requireTaskValue(id, "task id")
+	if err != nil {
+		return taskpkg.Task{}, err
+	}
+	if err := readScope.Validate(); err != nil {
+		return taskpkg.Task{}, err
+	}
+	where, args := store.BuildClauses(
+		store.StringClause("id", trimmedID),
+		store.ReadScopeClause("profile_id", readScope),
+	)
+	row := g.db.QueryRowContext(
+		ctx,
+		store.AppendWhere("SELECT "+taskRecordSelectColumnsSQL+" FROM tasks", where),
+		args...,
+	)
+	record, err := scanTaskRecord(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return taskpkg.Task{}, taskpkg.ErrTaskNotFound
+		}
+		return taskpkg.Task{}, err
+	}
+	return record, nil
+}
+
 // ListTasks returns durable task summaries that match the supplied filters.
 func (g *TaskRepo) ListTasks(
 	ctx context.Context,
@@ -235,16 +279,13 @@ func (g *TaskRepo) ListTasks(
 
 	normalized := normalizeTaskQuery(query)
 	// dynamic-sql: optional task filters, full-text matching, activity ordering, and limit alter the query shape.
-	sqlQuery := `SELECT
-		id, identifier, scope, workspace_id, parent_task_id, title, description,
-		priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
-		owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
-		created_at, updated_at, closed_at, current_run_id, ` + taskLatestEventSeqSelectSQL + `,
-		paused, paused_by, paused_at, paused_reason, needs_attention_reason,
-		needs_attention_at, needs_attention_by_kind, needs_attention_by_ref, wake_creator,
-		metadata_json
-		FROM tasks`
+	sqlQuery := `SELECT ` + taskRecordSelectColumnsSQL + ` FROM tasks`
+	profileClause := store.Clause{}
+	if normalized.ReadScope != (store.ReadScope{}) {
+		profileClause = store.ReadScopeClause("profile_id", normalized.ReadScope)
+	}
 	where, args := store.BuildClauses(
+		profileClause,
 		store.StringClause("scope", string(normalized.Scope)),
 		store.StringClause("workspace_id", normalized.WorkspaceID),
 		store.StringClause("status", string(normalized.Status)),

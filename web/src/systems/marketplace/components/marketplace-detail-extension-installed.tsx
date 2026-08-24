@@ -7,7 +7,6 @@ import {
   ScrollText,
   Shield,
   Stethoscope,
-  Zap,
 } from "lucide-react";
 
 import { Empty, MonoId } from "@compozy/ui";
@@ -32,6 +31,7 @@ import { MarketplaceDetailWarnings } from "./marketplace-detail-warnings";
 import { MarketplaceDetailManageFallbackCard } from "./marketplace-detail-manage-state";
 import {
   type ExtensionEntry,
+  ExtensionDeclaredProfiles,
   ExtensionKitInventoryPanel,
   type ExtensionLogEventSource,
   ExtensionLogPanel,
@@ -95,10 +95,11 @@ function MarketplaceDetailExtensionInstalled({
       <MarketplaceDetailColumns
         main={
           <>
-            {state.enableResult?.automation_started.length ? (
-              <MarketplaceExtensionAutomationSection
-                started={state.enableResult.automation_started}
-              />
+            {(extension.declared_profiles?.length ?? 0) > 0 ||
+            (extension.placements?.length ?? 0) > 0 ? (
+              <MarketplaceDetailSection icon={CircleCheck} title="Profiles and placement">
+                <ExtensionDeclaredProfiles extension={extension} />
+              </MarketplaceDetailSection>
             ) : null}
             {state.workspaceId === null ? <MarketplaceExtensionKitSection state={state} /> : null}
             <MarketplaceExtensionAccessSection extension={extension} />
@@ -130,7 +131,6 @@ function MarketplaceDetailExtensionInstalled({
       />
       {state.networkConfirm ? (
         <ExtensionNetworkConfirmDialog
-          action={state.networkConfirm.action}
           digest={state.networkConfirm.digest}
           extensionName={extension.name}
           onConfirm={state.submitNetworkConfirm}
@@ -138,11 +138,7 @@ function MarketplaceDetailExtensionInstalled({
             if (!open) state.dismissNetworkConfirm();
           }}
           open
-          pending={
-            state.networkConfirm.action === "enable"
-              ? state.toggle.isPending
-              : state.update.isPending
-          }
+          pending={state.update.isPending}
         />
       ) : null}
       <ExtensionProvenanceDialog
@@ -189,25 +185,6 @@ function MarketplaceExtensionKitSection({ state }: { state: ExtensionDetailState
       {settled ? (
         <ExtensionSkippedComponents diagnostics={skippedDiagnostics} ingestedCount={total} />
       ) : null}
-    </MarketplaceDetailSection>
-  );
-}
-
-function MarketplaceExtensionAutomationSection({ started }: { started: string[] }) {
-  return (
-    <MarketplaceDetailSection
-      data-testid="extension-automation-started"
-      icon={Zap}
-      summary={String(started.length)}
-      title="Automation started"
-    >
-      <ul className="divide-y divide-line-soft">
-        {[...started].sort().map(startedName => (
-          <li className="px-4 py-2.5" key={startedName}>
-            <MonoId value={startedName} />
-          </li>
-        ))}
-      </ul>
     </MarketplaceDetailSection>
   );
 }

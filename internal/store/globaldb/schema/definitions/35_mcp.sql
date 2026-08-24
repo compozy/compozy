@@ -1,5 +1,5 @@
 CREATE TABLE mcp_auth_tokens (
-			scope          TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
+			scope          TEXT NOT NULL CHECK (scope IN ('user', 'workspace', 'profile', 'workspace_profile')),
 			workspace_id   TEXT NOT NULL DEFAULT '',
 			server_name    TEXT NOT NULL CHECK (trim(server_name) <> ''),
 			definition_fingerprint TEXT NOT NULL DEFAULT '',
@@ -14,8 +14,8 @@ CREATE TABLE mcp_auth_tokens (
 			updated_at     TEXT NOT NULL,
 			PRIMARY KEY (scope, workspace_id, server_name),
 			CHECK (
-				(scope = 'global' AND workspace_id = '') OR
-				(scope = 'workspace' AND trim(workspace_id) <> '')
+				(scope = 'user' AND workspace_id = '') OR
+				(scope IN ('workspace', 'profile', 'workspace_profile') AND trim(workspace_id) <> '')
 			)
 		);
 
@@ -23,7 +23,7 @@ CREATE INDEX idx_mcp_auth_tokens_updated_at
 			ON mcp_auth_tokens(updated_at);
 
 CREATE TABLE mcp_oauth_registrations (
-			scope                         TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
+			scope                         TEXT NOT NULL CHECK (scope IN ('user', 'workspace', 'profile', 'workspace_profile')),
 			workspace_id                  TEXT NOT NULL DEFAULT '',
 			server_name                   TEXT NOT NULL CHECK (trim(server_name) <> ''),
 			definition_fingerprint        TEXT NOT NULL CHECK (trim(definition_fingerprint) <> ''),
@@ -41,8 +41,8 @@ CREATE TABLE mcp_oauth_registrations (
 			updated_at                    TEXT NOT NULL CHECK (trim(updated_at) <> ''),
 			PRIMARY KEY (scope, workspace_id, server_name),
 			CHECK (
-				(scope = 'global' AND workspace_id = '') OR
-				(scope = 'workspace' AND trim(workspace_id) <> '')
+				(scope = 'user' AND workspace_id = '') OR
+				(scope IN ('workspace', 'profile', 'workspace_profile') AND trim(workspace_id) <> '')
 			),
 			CHECK (
 				(registration_access_token_ref = '' AND registration_client_uri = '') OR

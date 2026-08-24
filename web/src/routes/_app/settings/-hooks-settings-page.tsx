@@ -60,13 +60,14 @@ export function HooksSettingsPage() {
         pendingHookName={page.pendingHookName}
       />
       <NotificationPresetsPanel
-        canMutate
+        canMutate={page.canMutateHooks}
         error={page.notificationPresetsError ?? page.notificationPresetActionError}
         isLoading={page.notificationPresetsLoading}
         onCreate={page.createNotificationPreset}
         onDelete={page.deleteNotificationPreset}
         onToggle={page.toggleNotificationPreset}
         pendingName={page.pendingNotificationPresetName}
+        profile={page.notificationPresetProfile}
         presets={page.notificationPresets}
       />
     </SettingsPageFrame>

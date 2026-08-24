@@ -10,7 +10,7 @@ import { appWindow } from "../fixtures/os-navigation";
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { ensureGlobalWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { ensureProjectWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
 
@@ -33,7 +33,7 @@ test("operator applies Memory, Network, Automation, and Observability settings w
 }) => {
   assertLaunchRuntime(runtime, "settings parity");
 
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
   await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
 
   const memoryBefore = await runtime.requestJSON<{ config: { recall: { top_k: number } } }>(
@@ -215,7 +215,7 @@ test("operator sees restart failure and active-session warning without losing re
   browserArtifacts,
   runtime,
 }) => {
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
   await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
   await appPage.goto(runtime.url("/settings/general"), { waitUntil: "domcontentloaded" });
   await expect(appPage.getByTestId("settings-page-general-session-timeout-input")).toBeVisible();
@@ -362,7 +362,7 @@ function cliEnv(paths: RuntimePaths): NodeJS.ProcessEnv {
   return {
     ...process.env,
     COMPOZY_HOME: paths.homeDir,
-    HOME: paths.homeDir,
+    HOME: paths.operatorHomeDir,
     PATH: [path.dirname(paths.cliShim), process.env.PATH ?? ""]
       .filter(Boolean)
       .join(path.delimiter),

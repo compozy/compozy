@@ -26,6 +26,7 @@ compozy session list [flags]
 ```
       --agent string       Filter by exact agent definition name
       --all                Include every session state when --state is omitted
+      --all-profiles       Read across every profile and include owner labels
       --all-workspaces     List sessions across every workspace
       --archived           Show only archived sessions
       --attention          Show only sessions that need operator attention
@@ -50,8 +51,9 @@ compozy session list [flags]
 ### Options inherited from parent commands
 
 ```
-      --json            Emit JSON output
-  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
 ```
 
 ## Output Formats

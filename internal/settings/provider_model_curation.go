@@ -51,7 +51,7 @@ func (s *service) ApplyProviderModelCuration(
 	if _, err := s.ensureActiveConfigState(ctx); err != nil {
 		return ProviderModelCurationResult{}, err
 	}
-	currentConfig, _, err := s.loadConfig(ctx, ScopeGlobal, "")
+	currentConfig, _, err := s.loadConfig(ctx, ScopeUser, "", "")
 	if err != nil {
 		return ProviderModelCurationResult{}, err
 	}
@@ -72,7 +72,7 @@ func (s *service) ApplyProviderModelCuration(
 	if len(values) != 1 {
 		return ProviderModelCurationResult{}, errors.New("settings: provider model curation produced no config row")
 	}
-	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeGlobal)
+	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeUser, "")
 	if err != nil {
 		return ProviderModelCurationResult{}, err
 	}

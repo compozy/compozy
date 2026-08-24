@@ -17,15 +17,15 @@ import (
 func TestAssemblerAssemble(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should global index only", func(t *testing.T) {
+	t.Run("Should profile index only", func(t *testing.T) {
 		t.Parallel()
 
 		env := newAssemblerTestEnv(t)
-		env.writeGlobalIndex(t, "- [Global](global.md) - global note")
+		env.writeProfileIndex(t, "- [Profile](profile.md) - profile note")
 
 		got := env.assemble(t)
-		if !strings.Contains(got, "## Global MEMORY.md Index") {
-			t.Fatalf("assembled prompt missing global section: %q", got)
+		if !strings.Contains(got, "## Profile MEMORY.md Index") {
+			t.Fatalf("assembled prompt missing profile section: %q", got)
 		}
 		if strings.Contains(got, "## Workspace MEMORY.md Index") {
 			t.Fatalf("assembled prompt unexpectedly included workspace section: %q", got)
@@ -42,8 +42,8 @@ func TestAssemblerAssemble(t *testing.T) {
 		if !strings.Contains(got, "## Workspace MEMORY.md Index") {
 			t.Fatalf("assembled prompt missing workspace section: %q", got)
 		}
-		if strings.Contains(got, "## Global MEMORY.md Index") {
-			t.Fatalf("assembled prompt unexpectedly included global section: %q", got)
+		if strings.Contains(got, "## Profile MEMORY.md Index") {
+			t.Fatalf("assembled prompt unexpectedly included profile section: %q", got)
 		}
 	})
 
@@ -51,11 +51,11 @@ func TestAssemblerAssemble(t *testing.T) {
 		t.Parallel()
 
 		env := newAssemblerTestEnv(t)
-		env.writeGlobalIndex(t, "- [Global](global.md) - global note")
+		env.writeProfileIndex(t, "- [Profile](profile.md) - profile note")
 		env.writeWorkspaceIndex(t, "- [Workspace](workspace.md) - workspace note")
 
 		got := env.assemble(t)
-		if !strings.Contains(got, "## Global MEMORY.md Index") ||
+		if !strings.Contains(got, "## Profile MEMORY.md Index") ||
 			!strings.Contains(got, "## Workspace MEMORY.md Index") {
 			t.Fatalf("assembled prompt missing expected sections: %q", got)
 		}
@@ -75,7 +75,7 @@ func TestAssemblerAssemble(t *testing.T) {
 		t.Parallel()
 
 		env := newAssemblerTestEnv(t)
-		env.writeGlobalIndex(t, "- [Global](global.md) - global note")
+		env.writeProfileIndex(t, "- [Profile](profile.md) - profile note")
 
 		got := env.assemble(t)
 		for _, want := range []string{"## Memory Taxonomy", "`user`", "`feedback`", "`project`", "`reference`"} {
@@ -89,7 +89,7 @@ func TestAssemblerAssemble(t *testing.T) {
 		t.Parallel()
 
 		env := newAssemblerTestEnv(t)
-		env.writeGlobalIndex(t, "- [Global](global.md) - global note")
+		env.writeProfileIndex(t, "- [Profile](profile.md) - profile note")
 
 		got := env.assemble(t)
 		for _, want := range []string{
@@ -110,7 +110,7 @@ func TestAssemblerAssemble(t *testing.T) {
 		t.Parallel()
 
 		env := newAssemblerTestEnv(t)
-		env.writeGlobalIndex(t, "- [Global](global.md) - global note")
+		env.writeProfileIndex(t, "- [Profile](profile.md) - profile note")
 
 		got := env.assemble(t)
 		if !strings.Contains(got, "## Staleness Policy") ||
@@ -123,7 +123,7 @@ func TestAssemblerAssemble(t *testing.T) {
 		t.Parallel()
 
 		env := newAssemblerTestEnv(t)
-		env.writeGlobalIndex(t, "- [Global](global.md) - global note")
+		env.writeProfileIndex(t, "- [Profile](profile.md) - profile note")
 
 		got := env.assemble(t)
 		memoryIndex := strings.Index(got, "# Persistent Memory")
@@ -144,18 +144,18 @@ func TestAssemblerAssemble(t *testing.T) {
 func TestAssemblerPromptSection(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should returns memory block for global and workspace indexes only", func(t *testing.T) {
+	t.Run("Should return memory block for profile and workspace indexes only", func(t *testing.T) {
 		t.Parallel()
 
 		env := newAssemblerTestEnv(t)
-		env.writeGlobalIndex(t, "- [Global](global.md) - global note")
+		env.writeProfileIndex(t, "- [Profile](profile.md) - profile note")
 		env.writeWorkspaceIndex(t, "- [Workspace](workspace.md) - workspace note")
 
 		got := env.promptSection(context.Background(), t)
 		for _, want := range []string{
 			memoryPromptIntro,
 			"Compozy memory snapshot v1 blocks=2 hash=",
-			"## Global MEMORY.md Index\n\n- [Global](global.md) - global note",
+			"## Profile MEMORY.md Index\n\n- [Profile](profile.md) - profile note",
 			"## Workspace MEMORY.md Index\n\n- [Workspace](workspace.md) - workspace note",
 			memoryTaxonomySection,
 			memoryCommandsSection,
@@ -185,7 +185,7 @@ func TestAssemblerPromptSection(t *testing.T) {
 		t.Parallel()
 
 		env := newAssemblerTestEnv(t)
-		env.writeGlobalIndex(t, "- [Global](global.md) - global note")
+		env.writeProfileIndex(t, "- [Profile](profile.md) - profile note")
 
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
@@ -246,7 +246,7 @@ func TestAssemblerAssembleRegressionMatchesPromptSectionAndBasePrompt(t *testing
 
 	env := newAssemblerTestEnv(t)
 	env.agent.Prompt = "  You are a coding assistant.\n"
-	env.writeGlobalIndex(t, "- [Global](global.md) - global note")
+	env.writeProfileIndex(t, "- [Profile](profile.md) - profile note")
 	env.writeWorkspaceIndex(t, "- [Workspace](workspace.md) - workspace note")
 
 	section := env.promptSection(context.Background(), t)
@@ -265,14 +265,14 @@ func TestSnapshotServiceCapture(t *testing.T) {
 		t.Parallel()
 
 		env := newAssemblerTestEnv(t)
-		env.writeGlobalIndex(t, "- [Original](global.md) - old note")
+		env.writeProfileIndex(t, "- [Original](profile.md) - old note")
 		service := NewSnapshotService(env.store, WithSnapshotClock(fixedSnapshotNow))
 
 		first, err := service.Capture(context.Background(), PromptSnapshotRequest{SessionID: "sess-1"})
 		if err != nil {
 			t.Fatalf("Capture(first) error = %v", err)
 		}
-		env.writeGlobalIndex(t, "- [Updated](global.md) - new note")
+		env.writeProfileIndex(t, "- [Updated](profile.md) - new note")
 		generation := service.InvalidateNextBoot()
 
 		if !strings.Contains(first.Section, "old note") || strings.Contains(first.Section, "new note") {
@@ -294,7 +294,7 @@ func TestSnapshotServiceCapture(t *testing.T) {
 		t.Parallel()
 
 		env := newAssemblerTestEnv(t)
-		env.writeGlobalIndex(t, "- [Original](global.md) - stable prefix note")
+		env.writeProfileIndex(t, "- [Original](profile.md) - stable prefix note")
 		service := NewSnapshotService(env.store, WithSnapshotClock(fixedSnapshotNow))
 		request := PromptSnapshotRequest{SessionID: "sess-prefix-stability"}
 
@@ -312,7 +312,7 @@ func TestSnapshotServiceCapture(t *testing.T) {
 		}
 
 		if err := env.store.Write(t.Context(),
-			memcontract.ScopeGlobal,
+			memcontract.ScopeProfile,
 			"user_prefix_change.md",
 			mustMemoryContent(t, testMemoryMeta{
 				Name:        "Prefix Change",
@@ -353,7 +353,7 @@ func TestSnapshotServiceCapture(t *testing.T) {
 		t.Parallel()
 
 		env := newAssemblerTestEnv(t)
-		env.writeGlobalIndex(t, "- [Global](global.md) - global note")
+		env.writeProfileIndex(t, "- [Profile](profile.md) - profile note")
 		env.writeWorkspaceIndex(t, "- [Workspace](workspace.md) - workspace note")
 		env.writeAgentIndex(t, memcontract.AgentTierGlobal, "- [Agent Global](feedback_agent_global.md) - agent global")
 		env.writeAgentIndex(
@@ -373,7 +373,7 @@ func TestSnapshotServiceCapture(t *testing.T) {
 		}
 
 		wantOrder := []string{
-			"## Global MEMORY.md Index",
+			"## Profile MEMORY.md Index",
 			"## Workspace MEMORY.md Index",
 			"## Agent Global MEMORY.md Index",
 			"## Agent Workspace MEMORY.md Index",
@@ -388,11 +388,11 @@ func TestSnapshotServiceCapture(t *testing.T) {
 		t.Parallel()
 
 		env := newAssemblerTestEnv(t)
-		env.writeGlobalIndex(t, "- [Very Old](global.md) - "+strings.Repeat("memory ", 100))
+		env.writeProfileIndex(t, "- [Very Old](profile.md) - "+strings.Repeat("memory ", 100))
 		oldTime := fixedSnapshotNow().Add(-72 * time.Hour)
-		globalFile := filepath.Join(env.store.globalDir, "global.md")
-		if err := os.Chtimes(globalFile, oldTime, oldTime); err != nil {
-			t.Fatalf("Chtimes(%q) error = %v", globalFile, err)
+		profileFile := filepath.Join(env.store.globalDir, "profile.md")
+		if err := os.Chtimes(profileFile, oldTime, oldTime); err != nil {
+			t.Fatalf("Chtimes(%q) error = %v", profileFile, err)
 		}
 		service := NewSnapshotService(
 			env.store,
@@ -419,7 +419,7 @@ func TestSnapshotServiceCapture(t *testing.T) {
 		t.Parallel()
 
 		env := newAssemblerTestEnv(t)
-		env.writeGlobalIndex(t, "- [Parent](global.md) - parent note")
+		env.writeProfileIndex(t, "- [Parent](profile.md) - parent note")
 		service := NewSnapshotService(env.store, WithSnapshotClock(fixedSnapshotNow))
 		parent, err := service.Capture(context.Background(), PromptSnapshotRequest{
 			SessionID:   "parent",
@@ -465,7 +465,7 @@ func TestSnapshotServiceCapture(t *testing.T) {
 
 		provider := &snapshotProviderStub{
 			results: map[string]memcontract.SnapshotResult{
-				"global/": {
+				"profile/": {
 					Markdown: "- [Provider Global](global.md) - provider global",
 					AgeMs:    int64((48 * time.Hour) / time.Millisecond),
 				},
@@ -560,10 +560,10 @@ func resolvedWorkspacePtr(root string) *workspacepkg.ResolvedWorkspace {
 	return &workspace
 }
 
-func (e assemblerTestEnv) writeGlobalIndex(t *testing.T, content string) {
+func (e assemblerTestEnv) writeProfileIndex(t *testing.T, content string) {
 	t.Helper()
 	writeAssemblerFileForTest(t, filepath.Join(e.store.globalDir, indexFilename), content)
-	e.writeIndexBackedDocuments(t, memcontract.ScopeGlobal, "", content)
+	e.writeIndexBackedDocuments(t, memcontract.ScopeProfile, "", content)
 }
 
 func (e assemblerTestEnv) writeWorkspaceIndex(t *testing.T, content string) {

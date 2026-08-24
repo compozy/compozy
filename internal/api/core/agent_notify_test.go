@@ -16,6 +16,7 @@ import (
 	apitestutil "github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
 
@@ -37,7 +38,7 @@ func TestBaseHandlersAgentNotify(t *testing.T) {
 		if response.Code != http.StatusOK {
 			t.Fatalf("status/body = %d/%s, want 200", response.Code, response.Body.String())
 		}
-		if got.SessionID != "sess-parent" || got.WorkspaceID != "ws-1" ||
+		if got.SessionID != "sess-parent" || got.ProfileID != store.DefaultProfileID || got.WorkspaceID != "ws-1" ||
 			got.Title != "Done" || got.Body != "No blockers" {
 			t.Fatalf("notify request = %#v, want trusted identity plus body", got)
 		}
@@ -59,7 +60,10 @@ func TestBaseHandlersAgentNotify(t *testing.T) {
 		assertAgentNotifyOutcome(t, noClient, session.NotifyOutcomeNoClient)
 
 		deliveredRuntime := newNotifyRuntimeManager(t)
-		events, cancel, err := deliveredRuntime.SubscribeSessionCatalogEvents(context.Background())
+		events, cancel, err := deliveredRuntime.SubscribeSessionCatalogEvents(
+			context.Background(),
+			session.CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
+		)
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 		}
@@ -153,11 +157,22 @@ func newNotifyRuntimeManager(t *testing.T) *session.Manager {
 	manager, err := session.NewManager(
 		session.WithHomePaths(homePaths),
 		session.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+		session.WithAttentionWorkspaceMuteReader(unmutedAttentionWorkspaceReader{}),
 	)
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)
 	}
 	return manager
+}
+
+type unmutedAttentionWorkspaceReader struct{}
+
+func (unmutedAttentionWorkspaceReader) IsAttentionWorkspaceMuted(
+	context.Context,
+	string,
+	string,
+) (bool, error) {
+	return false, nil
 }
 
 func notifyRouteManager(runtime *session.Manager) *notifyStubSessionManager {

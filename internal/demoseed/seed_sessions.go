@@ -74,6 +74,7 @@ func writeSessionRecords(
 	stopDetail := story.StopDetail
 	meta := store.SessionMeta{
 		ID: story.ID, Name: story.Name, AgentName: story.AgentName, Provider: story.Provider,
+		ProfileID:   store.DefaultProfileID,
 		Model:       story.Model,
 		WorkspaceID: record.ID, CWD: record.RootDir,
 		SessionType: story.SessionType, State: string(session.StateStopped),
@@ -89,7 +90,8 @@ func writeSessionRecords(
 		return fmt.Errorf("demo seed: write metadata for session %q: %w", story.ID, err)
 	}
 	if err := db.RegisterSession(ctx, store.SessionInfo{
-		ID: story.ID, Name: story.Name, AgentName: story.AgentName, Provider: story.Provider,
+		ID: story.ID, ProfileID: store.DefaultProfileID,
+		Name: story.Name, AgentName: story.AgentName, Provider: story.Provider,
 		Model: story.Model, WorkspaceID: record.ID, SessionType: story.SessionType,
 		Lineage:             lineage,
 		SessionNetworkState: &store.SessionNetworkState{NetworkSpec: networkSpec},

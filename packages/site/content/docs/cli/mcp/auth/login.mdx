@@ -18,7 +18,7 @@ compozy mcp auth login <server> [flags]
       --approved-scope stringArray   Approve one additional OAuth scope (repeatable)
   -h, --help                         help for login
       --manual                       Paste the full authorization redirect URL
-      --scope string                 MCP server scope: global or workspace (default "global")
+      --scope string                 MCP server scope: user, profile, or workspace (default "user")
       --timeout duration             Authorization timeout (default 5m0s)
       --workspace string             Override workspace (ID, name, or path)
 ```
@@ -26,8 +26,9 @@ compozy mcp auth login <server> [flags]
 ### Options inherited from parent commands
 
 ```
-      --json            Emit JSON output
-  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
 ```
 
 ## Output Formats

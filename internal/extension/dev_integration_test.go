@@ -747,7 +747,7 @@ func TestManagerDevelopmentLifecycle(t *testing.T) {
 			if firstLink.Format != FormatAgentPlugin || len(firstLink.IngestDiagnostics) != 0 {
 				t.Fatalf("first dev link = %#v, want portable without diagnostics", firstLink)
 			}
-			wantDataDir, err := homePaths.ExtensionDataPath(key.Name, key.WorkspaceID)
+			wantDataDir, err := homePaths.ExtensionDataPath(key.Name, key.WorkspaceID, "")
 			if err != nil {
 				t.Fatalf("ExtensionDataPath() error = %v", err)
 			}
@@ -1691,7 +1691,9 @@ func extensionToolPaletteManifestJSON(
 
 func assertCmdPaletteTitle(t *testing.T, manager *Manager, workspaceID, want string) {
 	t.Helper()
-	projection, err := manager.CmdPalette(workspaceID)
+	projection, err := manager.CmdPalette(workspaceID, ProfileLens{
+		ID: "00000000000000000000000000", Name: "default",
+	})
 	if err != nil {
 		t.Fatalf("Manager.CmdPalette() error = %v", err)
 	}

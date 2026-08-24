@@ -14,21 +14,30 @@ import (
 )
 
 type catalogFilter struct {
+	profileID     string
 	scope         memcontract.Scope
 	workspaceRoot string
 	workspaceID   string
 }
 
-func catalogFiltersAllow(filters []catalogFilter, scope memcontract.Scope, workspaceID string) bool {
+func catalogFiltersAllow(
+	filters []catalogFilter,
+	profileID string,
+	scope memcontract.Scope,
+	workspaceID string,
+) bool {
 	if len(filters) == 0 {
 		return true
 	}
 	normalizedScope := scope.Normalize()
 	normalizedWorkspaceID := strings.TrimSpace(workspaceID)
 	for _, filter := range filters {
+		if strings.TrimSpace(profileID) != strings.TrimSpace(filter.profileID) {
+			continue
+		}
 		switch filter.scope.Normalize() {
-		case memcontract.ScopeGlobal:
-			if normalizedScope == "" || normalizedScope == memcontract.ScopeGlobal {
+		case memcontract.ScopeProfile:
+			if normalizedScope == "" || normalizedScope == memcontract.ScopeProfile {
 				return true
 			}
 		case memcontract.ScopeWorkspace:
@@ -48,8 +57,8 @@ func catalogFiltersAllow(filters []catalogFilter, scope memcontract.Scope, works
 
 func appendCatalogScopeFilter(base string, args []any, scope memcontract.Scope, workspaceID string) (string, []any) {
 	switch scope.Normalize() {
-	case memcontract.ScopeGlobal:
-		return base + "\nAND e.scope = 'global'", args
+	case memcontract.ScopeProfile:
+		return base + "\nAND e.scope = 'profile'", args
 	case memcontract.ScopeWorkspace:
 		return base + "\nAND e.scope = 'workspace' AND e.workspace_id = ?", append(
 			args,
@@ -63,9 +72,9 @@ func appendCatalogScopeFilter(base string, args []any, scope memcontract.Scope, 
 	default:
 		trimmedWorkspace := strings.TrimSpace(workspaceID)
 		if trimmedWorkspace == "" {
-			return base + "\nAND e.scope = 'global'", args
+			return base + "\nAND e.scope = 'profile'", args
 		}
-		return base + "\nAND (e.scope = 'global' OR (e.scope = 'workspace' AND e.workspace_id = ?))",
+		return base + "\nAND (e.scope = 'profile' OR (e.scope = 'workspace' AND e.workspace_id = ?))",
 			append(args, trimmedWorkspace)
 	}
 }
@@ -82,6 +91,7 @@ func scanCatalogEntry(scanner interface{ Scan(dest ...any) error }) (catalogDocu
 		&doc.ID,
 		&scopeRaw,
 		&doc.WorkspaceID,
+		&doc.ProfileID,
 		&doc.AgentName,
 		&agentTierRaw,
 		&doc.Filename,

@@ -9,6 +9,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PropsWithChildren } from "react";
 
 import { useMarketplaceMCPEditor } from "../use-marketplace-mcp-editor";
+import { mcpManagementServerFixtures } from "@/systems/settings/mocks";
+import type { SettingsMCPServerEntry } from "@/systems/settings";
 
 const mocks = vi.hoisted(() => ({
   mutateAsync: vi.fn(),
@@ -71,7 +73,7 @@ describe("useMarketplaceMCPEditor", () => {
       () =>
         useMarketplaceMCPEditor({
           enabled: true,
-          scope: "global",
+          scope: "user",
           servers: [],
         }),
       { wrapper }
@@ -91,7 +93,7 @@ describe("useMarketplaceMCPEditor", () => {
     expect(mocks.mutateAsync).toHaveBeenCalledOnce();
     expect(mocks.mutateAsync).toHaveBeenCalledWith({
       body: { server: { command: "npx", name: "github", transport: "stdio" } },
-      filter: { scope: "global", target: "auto" },
+      filter: { scope: "user", target: "auto" },
       name: "github",
     });
   });
@@ -106,7 +108,7 @@ describe("useMarketplaceMCPEditor", () => {
       () =>
         useMarketplaceMCPEditor({
           enabled: true,
-          scope: "global",
+          scope: "user",
           servers: [],
         }),
       { wrapper }
@@ -136,5 +138,97 @@ describe("useMarketplaceMCPEditor", () => {
 
     act(() => result.current.editorProps?.onClose());
     expect(mocks.reset).toHaveBeenCalledOnce();
+  });
+
+  it("Should carry the active profile into a profile save", async () => {
+    mocks.mutateAsync.mockResolvedValue(undefined);
+    const { result } = renderHook(
+      () =>
+        useMarketplaceMCPEditor({
+          enabled: true,
+          profileName: "marketing",
+          scope: "profile",
+          servers: [],
+          workspaceId: "workspace:alpha",
+        }),
+      { wrapper }
+    );
+
+    act(() => result.current.openCreate());
+    act(() =>
+      result.current.editorProps?.onChange(draft => ({
+        ...draft,
+        command: "npx",
+        name: "github",
+      }))
+    );
+    act(() => result.current.editorProps?.onSave());
+
+    await waitFor(() => expect(mocks.mutateAsync).toHaveBeenCalledOnce());
+    expect(mocks.mutateAsync).toHaveBeenCalledWith({
+      body: { server: { command: "npx", name: "github", transport: "stdio" } },
+      filter: {
+        profile: "marketing",
+        scope: "profile",
+        target: "auto",
+        workspace_id: "workspace:alpha",
+      },
+      name: "github",
+    });
+  });
+
+  it("Should preserve profile context when editing and refuse an unnamed create", async () => {
+    const profileEntry = {
+      ...mcpManagementServerFixtures[0]!,
+      name: "profile-github",
+      profile: "marketing",
+      scope: "profile",
+      source_metadata: {
+        available_targets: ["profile-config"],
+        effective_source: {
+          kind: "profile-config",
+          profile: "marketing",
+          scope: "profile",
+          workspace_id: "workspace:alpha",
+        },
+        shadowed_sources: [],
+      },
+    } as SettingsMCPServerEntry;
+    const { result } = renderHook(
+      () =>
+        useMarketplaceMCPEditor({
+          enabled: true,
+          profileName: "marketing",
+          scope: "profile",
+          servers: [profileEntry],
+          workspaceId: "workspace:alpha",
+        }),
+      { wrapper }
+    );
+
+    act(() => result.current.openEdit(profileEntry));
+    expect(result.current.editorProps).toMatchObject({
+      scope: "profile",
+    });
+    act(() => result.current.editorProps?.onChange(draft => ({ ...draft, name: "edited" })));
+    act(() => result.current.editorProps?.onSave());
+    await waitFor(() => expect(mocks.mutateAsync).toHaveBeenCalledOnce());
+    expect(mocks.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ filter: expect.objectContaining({ profile: "marketing" }) })
+    );
+
+    const missingProfile = renderHook(
+      () =>
+        useMarketplaceMCPEditor({
+          enabled: true,
+          profileName: null,
+          scope: "profile",
+          servers: [],
+          workspaceId: "workspace:alpha",
+        }),
+      { wrapper }
+    );
+    act(() => missingProfile.result.current.openCreate());
+    expect(missingProfile.result.current.editorProps).toBeNull();
   });
 });

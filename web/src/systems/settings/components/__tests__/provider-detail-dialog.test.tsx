@@ -41,7 +41,7 @@ const nativeProvider: SettingsProviderEntry = {
   },
   source_metadata: {
     available_targets: ["global-config"],
-    effective_source: { kind: "global-config", scope: "global" },
+    effective_source: { kind: "global-config", scope: "user" },
   },
 };
 
@@ -79,7 +79,7 @@ const boundSecretProvider: SettingsProviderEntry = {
   ],
   source_metadata: {
     available_targets: ["global-config"],
-    effective_source: { kind: "global-config", scope: "global" },
+    effective_source: { kind: "global-config", scope: "user" },
   },
 };
 

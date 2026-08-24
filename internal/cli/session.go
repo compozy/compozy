@@ -69,7 +69,7 @@ func newSessionStopCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, sessionBundle(info, deps.now))
+			return writeCommandOutput(cmd, sessionBundle(&info, deps.now))
 		},
 	}
 }
@@ -93,7 +93,7 @@ func newSessionRemoveCommand(deps commandDeps) *cobra.Command {
 			if err := client.DeleteSession(cmd.Context(), args[0]); err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, sessionBundle(info, deps.now))
+			return writeCommandOutput(cmd, sessionBundle(&info, deps.now))
 		},
 	}
 }
@@ -180,7 +180,7 @@ func newSessionResumeCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, sessionBundle(info, deps.now))
+			return writeCommandOutput(cmd, sessionBundle(&info, deps.now))
 		},
 	}
 	cmd.Flags().BoolVar(&latest, "latest", false, "Attach to the latest eligible session")

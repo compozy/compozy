@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"errors"
-	"slices"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
@@ -45,6 +44,5 @@ func (a daemonSettingsRuntimeApplier) applyAttentionConfigChange(
 func attentionConfigsEqual(left compozyconfig.AttentionConfig, right compozyconfig.AttentionConfig) bool {
 	return left.Toasts == right.Toasts &&
 		left.Sound == right.Sound &&
-		left.System == right.System &&
-		slices.Equal(left.MutedWorkspaces, right.MutedWorkspaces)
+		left.System == right.System
 }

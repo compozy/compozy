@@ -40,7 +40,12 @@ func (h *BaseHandlers) NetworkChannelMessages(c *gin.Context) {
 	if !ok {
 		return
 	}
-	query, err := parseNetworkMessageQuery(c)
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	query, err := parseNetworkMessageQuery(c, readScope)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
@@ -74,6 +79,7 @@ func (h *BaseHandlers) NetworkChannelMessages(c *gin.Context) {
 	if err := h.ensureNetworkChannelTimelineExists(
 		c.Request.Context(),
 		networkStore,
+		query.ReadScope,
 		scope.NetworkChannelRef(channel),
 		sessions,
 		peers,
@@ -122,12 +128,13 @@ func (h *BaseHandlers) networkChannelMessagesResponse(
 func (h *BaseHandlers) ensureNetworkChannelTimelineExists(
 	ctx context.Context,
 	networkStore NetworkStore,
+	readScope store.ReadScope,
 	ref store.NetworkChannelRef,
 	sessions []*session.Info,
 	peers []network.PeerInfo,
 	messages []store.NetworkMessageEntry,
 ) error {
-	metadata, err := h.loadNetworkChannelMetadata(ctx, networkStore, ref)
+	metadata, err := h.loadNetworkChannelMetadata(ctx, networkStore, readScope, ref)
 	if err != nil {
 		return fmt.Errorf("load network channel metadata: %w", err)
 	}
@@ -147,17 +154,22 @@ func (h *BaseHandlers) ensureNetworkChannelTimelineExists(
 func (h *BaseHandlers) networkChannelMetadataForUpdate(
 	ctx context.Context,
 	networkStore NetworkStore,
+	readScope store.ReadScope,
 	ref store.NetworkChannelRef,
 ) (store.NetworkChannelEntry, error) {
-	metadata, err := h.loadNetworkChannelMetadata(ctx, networkStore, ref)
+	metadata, err := h.loadNetworkChannelMetadata(ctx, networkStore, readScope, ref)
 	if err != nil {
 		return store.NetworkChannelEntry{}, err
 	}
 	if metadata != nil {
+		if err := h.decorateNetworkChannelOwner(ctx, metadata); err != nil {
+			return store.NetworkChannelEntry{}, err
+		}
 		return *metadata, nil
 	}
 	now := h.nowUTC()
-	return store.NetworkChannelEntry{
+	created := store.NetworkChannelEntry{
+		ProfileID:    readScope.ProfileID,
 		WorkspaceID:  strings.TrimSpace(ref.WorkspaceID),
 		Channel:      strings.TrimSpace(ref.Channel),
 		Purpose:      "network_channel",
@@ -165,7 +177,11 @@ func (h *BaseHandlers) networkChannelMetadataForUpdate(
 		CreatedBy:    "api",
 		CreatedAt:    now,
 		UpdatedAt:    now,
-	}, nil
+	}
+	if err := h.decorateNetworkChannelOwner(ctx, &created); err != nil {
+		return store.NetworkChannelEntry{}, err
+	}
+	return created, nil
 }
 
 // NetworkPeerMessages returns the directed message timeline for one network peer.
@@ -187,7 +203,12 @@ func (h *BaseHandlers) NetworkPeerMessages(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	query, err := parseNetworkMessageQuery(c)
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	query, err := parseNetworkMessageQuery(c, readScope)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
@@ -198,13 +219,9 @@ func (h *BaseHandlers) NetworkPeerMessages(c *gin.Context) {
 		return
 	}
 	networkWorkspaceID := scope.NetworkWorkspaceID()
-	peers, err := service.ListPeers(c.Request.Context(), networkWorkspaceID, "")
+	peers, err := requireNetworkPeer(c.Request.Context(), service, networkWorkspaceID, peerID)
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
-		return
-	}
-	if _, ok := findPeerInfo(peers, peerID); !ok {
-		h.respondError(c, http.StatusNotFound, fmt.Errorf("api: network peer not found: %s", peerID))
 		return
 	}
 
@@ -249,6 +266,22 @@ func (h *BaseHandlers) NetworkPeerMessages(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.NetworkPeerMessagesResponse{Messages: payload, Page: page})
 }
 
+func requireNetworkPeer(
+	ctx context.Context,
+	service NetworkService,
+	workspaceID string,
+	peerID string,
+) ([]network.PeerInfo, error) {
+	peers, err := service.ListPeers(ctx, workspaceID, "")
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := findPeerInfo(peers, peerID); !ok {
+		return nil, fmt.Errorf("%w: %s", network.ErrTargetPeerNotFound, peerID)
+	}
+	return peers, nil
+}
+
 // NetworkPeer returns one selected peer detail payload.
 func (h *BaseHandlers) NetworkPeer(c *gin.Context) {
 	service, err := h.networkServiceRequired()
@@ -273,6 +306,11 @@ func (h *BaseHandlers) NetworkPeer(c *gin.Context) {
 	if !ok {
 		return
 	}
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	peers, err := service.ListPeers(c.Request.Context(), scope.NetworkWorkspaceID(), "")
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
@@ -290,7 +328,7 @@ func (h *BaseHandlers) NetworkPeer(c *gin.Context) {
 		return
 	}
 
-	auditEntries, err := h.loadPeerAuditEntries(c.Request.Context(), networkStore, peer)
+	auditEntries, err := h.loadPeerAuditEntries(c.Request.Context(), networkStore, peer, readScope)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return

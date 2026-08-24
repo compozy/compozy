@@ -26,6 +26,7 @@ type GlobalDB struct {
 	*MarketplaceRepo
 	*ObserveRepo
 	*NotificationRepo
+	*AttentionRepo
 	*ToolRuntimeRepo
 	*VaultRepo
 	*ExtensionEnvRepo

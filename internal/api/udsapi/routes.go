@@ -11,6 +11,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerFilesystemRoutes(api, handlers)
 	registerBridgeRoutes(api, handlers)
 	registerNotificationRoutes(api, handlers)
+	registerProfileRoutes(api, handlers)
 	registerWorkspaceRoutes(api, handlers)
 	registerWorktreeRoutes(api, handlers)
 	registerWindowManagerRoutes(api, handlers)
@@ -74,6 +75,7 @@ func registerNotificationRoutes(api gin.IRouter, handlers *Handlers) {
 	presets.GET("/:name", handlers.GetNotificationPreset)
 	presets.PUT("/:name", handlers.UpdateNotificationPreset)
 	presets.DELETE("/:name", handlers.DeleteNotificationPreset)
+	presets.PUT("/:name/enablement", handlers.SetNotificationPresetEnablement)
 }
 
 func registerWorkspaceRoutes(api gin.IRouter, handlers *Handlers) {
@@ -309,6 +311,7 @@ func registerMarketplaceRoutes(api gin.IRouter, handlers *Handlers) {
 
 func registerMemoryRoutes(api gin.IRouter, handlers *Handlers) {
 	memoryGroup := api.Group("/memory")
+	memoryGroup.Use(handlers.BindMemoryProfile)
 	{
 		memoryGroup.GET("", handlers.ListMemory)
 		memoryGroup.GET("/health", handlers.MemoryHealth)
@@ -348,6 +351,7 @@ func registerMemoryRoutes(api gin.IRouter, handlers *Handlers) {
 		memoryGroup.DELETE("/:filename", handlers.DeleteMemory)
 	}
 	workspaceMemorySessions := api.Group("/workspaces/:workspace_id/memory/sessions")
+	workspaceMemorySessions.Use(handlers.BindMemoryProfile)
 	{
 		workspaceMemorySessions.GET("/:session_id/ledger", handlers.GetMemorySessionLedger)
 		workspaceMemorySessions.POST("/:session_id/replay", handlers.ReplayMemorySession)
@@ -399,10 +403,12 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.GET("/apply", handlers.ListSettingsApplyRecords)
 	settings.POST("/reload", handlers.ReloadSettings)
 	settings.GET("/general", handlers.GetSettingsGeneral)
+	settings.GET("/persona", handlers.GetSettingsPersona)
 	settings.GET("/update", handlers.GetSettingsUpdate)
 	settings.POST("/update/apply", handlers.ApplySettingsUpdate)
 	settings.POST("/update/cancel", handlers.CancelSettingsUpdate)
 	settings.PATCH("/general", handlers.UpdateSettingsGeneral)
+	settings.PATCH("/persona", handlers.UpdateSettingsPersona)
 	settings.GET("/memory", handlers.GetSettingsMemory)
 	settings.PATCH("/memory", handlers.UpdateSettingsMemory)
 	settings.GET("/roles", handlers.GetSettingsRoles)

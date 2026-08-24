@@ -80,6 +80,7 @@ func renderTaskInspectHuman(record *TaskInspectRecord) (string, error) {
 		renderHumanSection("Task Inspect", []keyValue{
 			{Label: automationTargetValue, Value: stringOrDash(record.Target)},
 			{Label: taskTaskValue, Value: stringOrDash(record.Task.ID)},
+			{Label: cliProfileHeader, Value: stringOrDash(record.Task.ProfileName)},
 			{Label: taskTitleValue, Value: stringOrDash(record.Task.Title)},
 			{Label: taskStatusValue, Value: stringOrDash(string(record.Task.Status))},
 			{Label: "Current Run", Value: stringOrDash(taskInspectCurrentRunID(record.CurrentRun))},
@@ -140,6 +141,7 @@ func renderTaskInspectToon(record *TaskInspectRecord) (string, error) {
 		renderToonObject("task_inspect", []string{
 			automationTargetKey,
 			taskTaskIDKey,
+			profileNameOutputKey,
 			taskTitleKey,
 			taskStatusKey,
 			"current_run_id",
@@ -148,6 +150,7 @@ func renderTaskInspectToon(record *TaskInspectRecord) (string, error) {
 		}, []string{
 			record.Target,
 			record.Task.ID,
+			record.Task.ProfileName,
 			record.Task.Title,
 			string(record.Task.Status),
 			taskInspectCurrentRunID(record.CurrentRun),
@@ -327,6 +330,7 @@ func renderTaskDetailHuman(detail *TaskDetailRecord) (string, error) {
 			"Child Tasks",
 			[]string{
 				"ID",
+				cliProfileHeader,
 				taskIdentifierValue,
 				taskScopeValue,
 				taskWorkspaceValue,
@@ -345,6 +349,7 @@ func renderTaskDetailHuman(detail *TaskDetailRecord) (string, error) {
 			"Task Runs",
 			[]string{
 				"ID",
+				cliProfileHeader,
 				taskStatusValue,
 				taskAttemptValue,
 				taskSessionValue,
@@ -376,6 +381,7 @@ func renderTaskDetailToon(detail *TaskDetailRecord) (string, error) {
 			"task_children",
 			[]string{
 				"id",
+				profileNameOutputKey,
 				taskIdentifierKey,
 				taskScopeKey,
 				taskWorkspaceIDKey,
@@ -394,6 +400,7 @@ func renderTaskDetailToon(detail *TaskDetailRecord) (string, error) {
 			"task_runs",
 			[]string{
 				"id",
+				profileNameOutputKey,
 				taskStatusKey,
 				taskAttemptKey,
 				taskSessionIDKey,

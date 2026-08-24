@@ -2,16 +2,17 @@ package tools
 
 // ToolPresentation carries optional, non-executable descriptor presentation hints.
 type ToolPresentation struct {
+	DisplayTitle string `json:"display_title,omitempty"`
 	FriendlyVerb string `json:"friendly_verb,omitempty"`
 	Preview      string `json:"preview,omitempty"`
 }
 
-// NewToolPresentation returns nil when both optional presentation fields are empty.
-func NewToolPresentation(friendlyVerb string, preview string) *ToolPresentation {
-	if friendlyVerb == "" && preview == "" {
+// NewToolPresentation returns nil when all optional presentation fields are empty.
+func NewToolPresentation(displayTitle string, friendlyVerb string, preview string) *ToolPresentation {
+	if displayTitle == "" && friendlyVerb == "" && preview == "" {
 		return nil
 	}
-	return &ToolPresentation{FriendlyVerb: friendlyVerb, Preview: preview}
+	return &ToolPresentation{DisplayTitle: displayTitle, FriendlyVerb: friendlyVerb, Preview: preview}
 }
 
 // CloneToolPresentation returns an independent presentation payload.

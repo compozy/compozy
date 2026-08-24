@@ -158,12 +158,36 @@ func parsePutSettingsHookRequest(c *gin.Context) (settingspkg.CollectionItemPutR
 func parseSettingsScope(rawScope string, rawWorkspaceID string) (settingspkg.ScopeKind, string, error) {
 	scope := settingspkg.ScopeKind(strings.TrimSpace(rawScope))
 	if scope == "" {
-		scope = settingspkg.ScopeGlobal
+		scope = settingspkg.ScopeUser
 	}
 	if err := scope.Validate(); err != nil {
 		return "", "", NewSettingsValidationError(err)
 	}
 	return scope, strings.TrimSpace(rawWorkspaceID), nil
+}
+
+func parseSettingsOwner(c *gin.Context) (settingspkg.ScopeKind, string, string, error) {
+	rawScope := strings.TrimSpace(c.Query("scope"))
+	profileName := strings.TrimSpace(c.Query("profile"))
+	if rawScope == "" && profileName != "" && profileName != profileDefaultName {
+		rawScope = string(settingspkg.ScopeProfile)
+	}
+	scope, workspaceID, err := parseSettingsScope(rawScope, c.Query("workspace_id"))
+	if err != nil {
+		return "", "", "", err
+	}
+	if scope == settingspkg.ScopeProfile {
+		if profileName == "" || profileName == profileDefaultName {
+			return "", "", "", NewSettingsValidationError(
+				errors.New("settings.profile is required for profile scope"),
+			)
+		}
+		if err := compozyconfig.ValidateResourceProfileName(profileName); err != nil {
+			return "", "", "", NewSettingsValidationError(err)
+		}
+		return scope, workspaceID, profileName, nil
+	}
+	return scope, workspaceID, "", nil
 }
 
 func parseSettingsTarget(raw string) (settingspkg.TargetSelector, error) {

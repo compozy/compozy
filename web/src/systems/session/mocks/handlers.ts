@@ -116,7 +116,9 @@ function createSessionCatalogStreamResponse(): Response {
 export const handlers: HttpHandler[] = [
   compozyApiMock.get("/api/sessions", ({ request }) => {
     const url = new URL(request.url);
-    const workspace = url.searchParams.get("workspace")?.trim();
+    const workspace = url.searchParams.get("workspace_id")?.trim();
+    const allProfiles = url.searchParams.get("all_profiles") === "true";
+    const profile = url.searchParams.get("profile")?.trim() || "default";
     const agent = url.searchParams.get("agent")?.trim();
     const state = url.searchParams.get("state")?.trim();
     const resumable = url.searchParams.get("resumable");
@@ -131,6 +133,7 @@ export const handlers: HttpHandler[] = [
     const archive = url.searchParams.get("archive");
     const limit = Math.max(1, Number(url.searchParams.get("limit") ?? 50));
     const sessions = [...sessionById.values()].filter(session => {
+      if (!allProfiles && session.profile_name !== profile) return false;
       if (workspace && session.workspace_id !== workspace && session.workspace_path !== workspace) {
         return false;
       }

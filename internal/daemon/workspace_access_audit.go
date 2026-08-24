@@ -68,20 +68,20 @@ func (e *workspaceAccessAuditEmitter) EmitWorkspaceAccess(
 	}
 	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), workspaceAccessAuditWriteTimeout)
 	defer cancel()
-	if err := e.store.WriteEventSummary(writeCtx, store.EventSummary{
+	if err := e.store.WriteEventSummary(writeCtx, daemonEventSummary(store.EventSummary{
+		ProfileID:   store.DefaultProfileID,
 		SessionID:   strings.TrimSpace(record.Actor.SessionID),
 		WorkspaceID: strings.TrimSpace(record.Actor.WorkspaceID),
 		Type:        eventType,
 		AgentName:   strings.TrimSpace(record.Actor.AgentName),
 		Outcome:     string(eventspkg.OutcomeFor(eventType)),
-		Content:     content,
 		EventCorrelation: store.EventCorrelation{
 			ActorKind: string(record.Actor.Kind),
 			ActorID:   strings.TrimSpace(record.Actor.SessionID),
 		},
 		Summary:   summary,
 		Timestamp: e.now().UTC(),
-	}); err != nil {
+	}, content)); err != nil {
 		return fmt.Errorf("daemon: write workspace access audit event: %w", err)
 	}
 	return nil

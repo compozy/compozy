@@ -23,6 +23,7 @@ export function buildRegisteredTool<TInput>(
       ? undefined
       : normalizeSchema(options.outputSchema, "outputSchema");
   const descriptor: ExtensionToolRuntimeDescriptor = {
+    ...(options.profile?.trim() ? { profile: options.profile.trim() } : {}),
     id: options.id ?? canonicalExtensionToolID(extensionName, handler),
     handler,
     ...(options.description?.trim() ? { description: options.description.trim() } : {}),

@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -79,13 +80,12 @@ func TestLogEventPayloadScrubsMemoryContext(t *testing.T) {
 	t.Run("Should scrub observe summaries and content before response shaping", func(t *testing.T) {
 		t.Parallel()
 
-		payload := core.LogEventPayloadFromSummary(store.EventSummary{
+		payload := core.LogEventPayloadFromSummary(testEventSummaryWithContent(store.EventSummary{
 			ID:        "memevt-workspace-1",
 			Type:      "memory.recall.executed",
-			Content:   []byte(`{"text":"<memory-context>content secret</memory-context>"}`),
 			Summary:   "summary <memory-context>summary secret</memory-context>",
 			Timestamp: time.Date(2026, 5, 5, 10, 0, 0, 0, time.UTC),
-		})
+		}, json.RawMessage(`{"text":"<memory-context>content secret</memory-context>"}`)))
 		if strings.Contains(string(payload.Content), "content secret") {
 			t.Fatalf("LogEventPayload.Content leaked memory context: %s", payload.Content)
 		}

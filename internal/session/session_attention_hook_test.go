@@ -108,7 +108,8 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 		cleanupTestManager(t, manager)
 		manager.attentionStore = attentionStore
 		target := &Session{
-			ID: "sess-transcript-failure", AgentName: "coder", WorkspaceID: "ws-hook", State: StateActive,
+			ID: "sess-transcript-failure", ProfileID: store.DefaultProfileID,
+			AgentName: "coder", WorkspaceID: "ws-hook", State: StateActive,
 			PendingInteractions: []store.PendingInteraction{},
 		}
 		target.setRecorder(&attentionTranscriptFailingRecorder{
@@ -118,7 +119,10 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 		manager.mu.Lock()
 		manager.sessions[target.ID] = target
 		manager.mu.Unlock()
-		events, cancel, err := manager.SubscribeSessionCatalogEvents(ctx)
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(
+			ctx,
+			CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
+		)
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 		}

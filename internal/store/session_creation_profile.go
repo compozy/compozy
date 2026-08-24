@@ -13,7 +13,7 @@ import (
 	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
-const SessionCreationProfileVersion = 3
+const SessionCreationProfileVersion = 4
 
 const (
 	SessionCreationSandboxNone = "none"
@@ -29,6 +29,7 @@ type SessionCreationProfile struct {
 	Model           string         `json:"model,omitempty"`
 	ReasoningEffort string         `json:"reasoning_effort,omitempty"`
 	Speed           speedpkg.Speed `json:"speed"`
+	ProfileID       string         `json:"profile_id"`
 	WorkspaceID     string         `json:"workspace_id"`
 	CWD             string         `json:"cwd"`
 	WorktreeRef     string         `json:"worktree_ref,omitempty"`
@@ -64,6 +65,7 @@ func NormalizeSessionCreationProfile(profile SessionCreationProfile) SessionCrea
 	if profile.Speed == "" {
 		profile.Speed = speedpkg.SpeedNormal
 	}
+	profile.ProfileID = strings.TrimSpace(profile.ProfileID)
 	profile.WorkspaceID = strings.TrimSpace(profile.WorkspaceID)
 	profile.CWD = strings.TrimSpace(profile.CWD)
 	profile.WorktreeRef = strings.TrimSpace(profile.WorktreeRef)
@@ -95,6 +97,7 @@ func (p SessionCreationProfile) Validate() error {
 	}{
 		{name: "agent_name", value: p.AgentName},
 		{name: "provider", value: p.Provider},
+		{name: "profile_id", value: p.ProfileID},
 		{name: "workspace_id", value: p.WorkspaceID},
 		{name: "cwd", value: p.CWD},
 	}

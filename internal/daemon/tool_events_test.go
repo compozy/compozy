@@ -27,6 +27,7 @@ func TestDaemonToolEventSink(t *testing.T) {
 			Kind:        toolspkg.ToolCallFailed,
 			ToolID:      toolspkg.ToolIDConfigSet,
 			SourceKind:  toolspkg.SourceBuiltin,
+			ProfileID:   "profile-tools",
 			WorkspaceID: "ws-1",
 			SessionID:   "sess-1",
 			AgentName:   "agent-1",
@@ -39,7 +40,7 @@ func TestDaemonToolEventSink(t *testing.T) {
 			t.Fatalf("summaries = %#v, want one summary", writer.summaries)
 		}
 		summary := writer.summaries[0]
-		if summary.Type != eventspkg.ToolCallFailed ||
+		if summary.ProfileID != "profile-tools" || summary.Type != eventspkg.ToolCallFailed ||
 			summary.Outcome != string(eventspkg.OutcomeFailure) ||
 			summary.Provider != "" ||
 			!summary.Timestamp.Equal(now) {

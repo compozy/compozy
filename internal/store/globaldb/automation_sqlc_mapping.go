@@ -86,55 +86,6 @@ func automationRunUpdateParams(
 	}
 }
 
-func automationRunFromGenerated(row sqlcgen.AutomationRun) (automation.Run, error) {
-	run := automation.Run{
-		ID:        row.ID,
-		JobID:     automationNullStringValue(row.JobID),
-		TriggerID: automationNullStringValue(row.TriggerID),
-		SessionID: automationNullStringValue(row.SessionID),
-		TaskID:    automationNullStringValue(row.TaskID),
-		TaskRunID: automationNullStringValue(row.TaskRunID),
-		FireID:    automationNullStringValue(row.FireID),
-		LoopRunID: automationNullStringValue(
-			row.LoopRunID,
-		),
-		Status:  automation.RunStatus(strings.TrimSpace(row.Status)),
-		Attempt: int(row.Attempt),
-	}
-	if err := assignAutomationRunTimestamps(
-		&run,
-		row.ScheduledAt,
-		row.StartedAt,
-		row.EndedAt,
-		row.DeliveryErrorAt,
-	); err != nil {
-		return automation.Run{}, err
-	}
-	assignAutomationRunErrors(&run, row.Error, row.DeliveryError)
-	if err := decodeOptionalAutomationJSON(
-		row.NetworkParticipation,
-		&run.NetworkParticipation,
-		"run.network_participation",
-	); err != nil {
-		return automation.Run{}, err
-	}
-	if err := decodeAutomationRunMetadata(row.MetadataJson, &run.Metadata); err != nil {
-		return automation.Run{}, err
-	}
-	return run, nil
-}
-
-func automationRunFromGetGenerated(row sqlcgen.GetAutomationRunRow) (automation.Run, error) {
-	return automationRunFromGenerated(sqlcgen.AutomationRun{
-		ID: row.ID, JobID: row.JobID, TriggerID: row.TriggerID, SessionID: row.SessionID,
-		TaskID: row.TaskID, TaskRunID: row.TaskRunID, FireID: row.FireID, Status: row.Status,
-		Attempt: row.Attempt, ScheduledAt: row.ScheduledAt, StartedAt: row.StartedAt,
-		EndedAt: row.EndedAt, Error: row.Error, DeliveryError: row.DeliveryError,
-		DeliveryErrorAt: row.DeliveryErrorAt, LoopRunID: row.LoopRunID,
-		NetworkParticipation: row.NetworkParticipation, MetadataJson: row.MetadataJson,
-	})
-}
-
 func automationJobParams(job automation.Job) (sqlcgen.InsertAutomationJobParams, error) {
 	scheduleJSON, taskJSON, retryJSON, fireLimitJSON, loopTarget, err := encodeJobRecord(job)
 	if err != nil {
@@ -167,6 +118,7 @@ func automationJobParams(job automation.Job) (sqlcgen.InsertAutomationJobParams,
 		return sqlcgen.InsertAutomationJobParams{}, err
 	}
 	return sqlcgen.InsertAutomationJobParams{
+		ProfileID:   job.ProfileID,
 		ID:          job.ID,
 		Scope:       string(job.Scope),
 		Name:        job.Name,
@@ -210,7 +162,7 @@ func automationJobUpdateParams(job automation.Job) (sqlcgen.UpdateAutomationJobP
 
 func automationJobFromGenerated(row sqlcgen.AutomationJob) (automation.Job, error) {
 	job := automation.Job{
-		ID: row.ID, Scope: automation.Scope(strings.TrimSpace(row.Scope)), Name: row.Name,
+		ID: row.ID, ProfileID: row.ProfileID, Scope: automation.Scope(strings.TrimSpace(row.Scope)), Name: row.Name,
 		AgentName: row.AgentName, WorkspaceID: automationNullStringValue(row.WorkspaceID), Prompt: row.Prompt,
 		Enabled: row.Enabled, Source: automation.JobSource(strings.TrimSpace(row.Source)),
 		TargetKind: automation.TargetKind(strings.TrimSpace(row.TargetKind)),
@@ -279,6 +231,7 @@ func automationTriggerParams(trigger automation.Trigger) (sqlcgen.InsertAutomati
 		return sqlcgen.InsertAutomationTriggerParams{}, err
 	}
 	return sqlcgen.InsertAutomationTriggerParams{
+		ProfileID:   trigger.ProfileID,
 		ID:          trigger.ID,
 		Scope:       string(trigger.Scope),
 		Name:        trigger.Name,
@@ -326,7 +279,7 @@ func automationTriggerUpdateParams(trigger automation.Trigger) (sqlcgen.UpdateAu
 
 func automationTriggerFromGenerated(row sqlcgen.AutomationTrigger) (automation.Trigger, error) {
 	trigger := automation.Trigger{
-		ID: row.ID, Scope: automation.Scope(strings.TrimSpace(row.Scope)), Name: row.Name,
+		ID: row.ID, ProfileID: row.ProfileID, Scope: automation.Scope(strings.TrimSpace(row.Scope)), Name: row.Name,
 		AgentName: row.AgentName, WorkspaceID: automationNullStringValue(row.WorkspaceID), Prompt: row.Prompt,
 		Event: row.Event, Enabled: row.Enabled, Source: automation.JobSource(strings.TrimSpace(row.Source)),
 		WebhookID: automationNullStringValue(row.WebhookID), EndpointSlug: automationNullStringValue(row.EndpointSlug),

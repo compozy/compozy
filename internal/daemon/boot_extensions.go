@@ -33,6 +33,8 @@ func (d *Daemon) newBootExtensionService(
 		AgentSkill:   state.agentSkillResources,
 		ToolMCP:      state.toolMCPResources,
 		Loops:        state.loopResources,
+		Sessions:     state.sessions,
+		Profiles:     state.profiles,
 		HomePaths:    d.homePaths,
 		Logger:       state.logger,
 		Now:          d.now,

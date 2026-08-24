@@ -10,14 +10,18 @@ import {
   setGlobalScope,
   switchWorkspace,
 } from "../fixtures/os-navigation";
-import { settingsOperatorSelectors, sessionLifecycleSelectors } from "../fixtures/selectors";
+import {
+  profilesOperatorSelectors,
+  settingsOperatorSelectors,
+  sessionLifecycleSelectors,
+} from "../fixtures/selectors";
 import {
   browserSettingsOperatorFlowScenario,
   cleanupBrowserSettingsFixtures,
   seedBrowserSettingsFixtures,
 } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { ensureGlobalWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { ensureProjectWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 import {
   settingsUpdateApplyingFixture,
   settingsUpdateBothAvailableFixture,
@@ -52,7 +56,7 @@ test("operator can navigate the settings shell and complete a restart-aware gene
 }) => {
   const sessionUI = sessionLifecycleSelectors(appPage);
 
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
   await completeOnboardingIfPrompted(sessionUI);
   await appPage.goto(runtime.url("/settings/general"), { waitUntil: "domcontentloaded" });
   const settingsWin = appWindow(appPage, "settings");
@@ -167,7 +171,7 @@ test("Herdr E2E-017: shortcut alternates persist and refresh the live cheatsheet
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-shortcuts-settings-"));
   const workspace = await runtime.resolveWorkspace(workspaceRoot);
 
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
   await completeOnboardingIfPrompted(sessionUI);
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await switchWorkspace(appPage, workspace.id, workspace.name);
@@ -224,7 +228,7 @@ test("Herdr E2E-018: Terminal preset previews, applies, reverts, and re-applies 
   }>("/api/settings/window-manager");
 
   try {
-    await ensureGlobalWorkspace(runtime);
+    await ensureProjectWorkspace(appPage, runtime);
     await completeOnboardingIfPrompted(sessionUI);
     await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
     await switchWorkspace(appPage, workspace.id, workspace.name);
@@ -281,6 +285,51 @@ test("Herdr E2E-018: Terminal preset previews, applies, reverts, and re-applies 
   }
 });
 
+// Invariant: preset definitions are shared, but each active profile reads and
+// persists its own default-on enablement exception.
+// Owner: notification Settings browser journey.
+// Canonical suite: Settings Playwright tests.
+test("E2E-026: notification preset enablement follows the active profile", async ({
+  appPage,
+  runtime,
+}) => {
+  await runtime.requestJSON("/api/profiles", {
+    body: JSON.stringify({ color: "#c26ad6", icon: "megaphone", name: "marketing" }),
+    method: "POST",
+  });
+  await ensureProjectWorkspace(appPage, runtime);
+  await completeOnboardingIfPrompted(appPage);
+  await appPage.goto(runtime.url("/settings/hooks"), { waitUntil: "domcontentloaded" });
+
+  const settingsWin = appWindow(appPage, "settings");
+  const profileLabel = settingsWin.getByTestId("settings-page-hooks-notification-preset-profile");
+  const taskTerminalToggle = settingsWin.getByTestId(
+    "settings-page-hooks-notification-preset-row-task_terminal-toggle"
+  );
+  await expect(profileLabel).toContainText("default");
+  await expect(taskTerminalToggle).toBeChecked();
+
+  const disabled = appPage.waitForResponse(
+    response =>
+      response.request().method() === "PUT" &&
+      new URL(response.url()).pathname === "/api/notifications/presets/task_terminal/enablement"
+  );
+  await taskTerminalToggle.click();
+  expect((await disabled).ok()).toBe(true);
+  await expect(taskTerminalToggle).not.toBeChecked();
+
+  const profiles = profilesOperatorSelectors(appPage);
+  await profiles.switcher.click();
+  await profiles.switcherOption("marketing").click();
+  await expect(profileLabel).toContainText("marketing");
+  await expect(taskTerminalToggle).toBeChecked();
+
+  await profiles.switcher.click();
+  await profiles.switcherOption("default").click();
+  await expect(profileLabel).toContainText("default");
+  await expect(taskTerminalToggle).not.toBeChecked();
+});
+
 test("operator can distinguish skills actions that apply now from policy changes that require restart", async ({
   appPage,
   browserArtifacts,
@@ -292,7 +341,7 @@ test("operator can distinguish skills actions that apply now from policy changes
   });
 
   try {
-    await ensureGlobalWorkspace(runtime);
+    await ensureProjectWorkspace(appPage, runtime);
     await completeOnboardingIfPrompted(sessionUI);
     await appPage.goto(runtime.url("/settings/skills"), { waitUntil: "domcontentloaded" });
     const settingsWin = appWindow(appPage, "settings");
@@ -346,7 +395,7 @@ test("operator can replace a builtin provider with a config overlay and delete i
   const sessionUI = sessionLifecycleSelectors(appPage);
   const builtinProviderName = await pickBuiltinProviderName(runtime);
 
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
   await completeOnboardingIfPrompted(sessionUI);
   await appPage.goto(runtime.url("/settings/providers"), { waitUntil: "domcontentloaded" });
   const settingsWin = appWindow(appPage, "settings");
@@ -407,7 +456,7 @@ test("operator can manage MCP servers across global and workspace scopes with vi
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-settings-mcp-workspace-"));
   const workspace = await runtime.resolveWorkspace(workspaceRoot);
 
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
   await completeOnboardingIfPrompted(sessionUI);
   await appPage.goto(runtime.url("/marketplace/mcps"), {
     waitUntil: "domcontentloaded",
@@ -508,7 +557,7 @@ test("operator can manage restart-aware hooks and extension policy on split sett
   });
 
   try {
-    await ensureGlobalWorkspace(runtime);
+    await ensureProjectWorkspace(appPage, runtime);
     await completeOnboardingIfPrompted(sessionUI);
     await appPage.goto(runtime.url("/settings/hooks"), {
       waitUntil: "domcontentloaded",
@@ -568,7 +617,7 @@ test("operator routes a background role, persists it across reload, and keeps bu
   const nextModel = "claude-haiku-4-5";
   const nextModelLabel = "Claude Haiku 4.5";
 
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
   await completeOnboardingIfPrompted(sessionUI);
   await appPage.goto(runtime.url("/settings/roles"), { waitUntil: "domcontentloaded" });
 
@@ -639,7 +688,7 @@ test("browser operator reads both update tracks, a managed runtime, and a headle
   runtime,
 }) => {
   const sessionUI = sessionLifecycleSelectors(appPage);
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
   await completeOnboardingIfPrompted(sessionUI);
 
   let updatePayload: unknown = updateFixtures.bothAvailable;
@@ -689,7 +738,7 @@ test("browser operator applies the runtime update and reads staged progress and 
   runtime,
 }) => {
   const sessionUI = sessionLifecycleSelectors(appPage);
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
   await completeOnboardingIfPrompted(sessionUI);
 
   let updatePayload: unknown = updateFixtures.bothAvailable;

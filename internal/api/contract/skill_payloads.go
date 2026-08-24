@@ -106,9 +106,18 @@ type SkillActionResponse struct {
 
 // WorkspaceDetailPayload is the shared resolved workspace detail response payload.
 type WorkspaceDetailPayload struct {
-	Workspace WorkspacePayload               `json:"workspace"`
-	Sessions  []SessionPayload               `json:"sessions,omitempty"`
-	Agents    []AgentPayload                 `json:"agents,omitempty"`
-	Skills    []WorkspaceSkillPayload        `json:"skills,omitempty"`
-	Providers []SessionProviderOptionPayload `json:"providers,omitempty"`
+	Workspace    WorkspacePayload               `json:"workspace"`
+	Sessions     []SessionPayload               `json:"sessions,omitempty"`
+	Agents       []AgentPayload                 `json:"agents,omitempty"`
+	Skills       []WorkspaceSkillPayload        `json:"skills,omitempty"`
+	Providers    []SessionProviderOptionPayload `json:"providers,omitempty"`
+	ProfileHints []WorkspaceProfileHintPayload  `json:"profile_hints,omitempty"`
+}
+
+// WorkspaceProfileHintPayload reports dormant repository content for an absent profile name.
+type WorkspaceProfileHintPayload struct {
+	Name    string `json:"name"`
+	Path    string `json:"path"`
+	Message string `json:"message"`
+	Action  string `json:"action"`
 }

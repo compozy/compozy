@@ -20,6 +20,7 @@ type PayloadBase struct {
 
 // SessionContext carries the common session-scoped hook attributes.
 type SessionContext struct {
+	ProfileID   string `json:"profile_id,omitempty"`
 	SessionID   string `json:"session_id,omitempty"`
 	SessionName string `json:"session_name,omitempty"`
 	SessionType string `json:"session_type,omitempty"`
@@ -32,6 +33,9 @@ type SessionContext struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
+
+// HookProfileID returns the durable owner used to isolate profile-scoped declarations.
+func (c SessionContext) HookProfileID() string { return strings.TrimSpace(c.ProfileID) }
 
 // SessionRuntimeContext carries optional runtime bindings on session-scoped hooks.
 // Embedding preserves the flat hook payload JSON contract.

@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	apitestutil "github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -23,6 +24,7 @@ func TestAgentMeRejectsInvalidCallerIdentity(t *testing.T) {
 
 	active := &session.Info{
 		ID:          "sess-1",
+		ProfileID:   store.DefaultProfileID,
 		AgentName:   "coder",
 		Provider:    "test-provider",
 		WorkspaceID: "ws-1",
@@ -124,6 +126,7 @@ func TestAgentMeReturnsValidatedCallerIdentity(t *testing.T) {
 				now := time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC)
 				return &session.Info{
 					ID:                   "sess-1",
+					ProfileID:            store.DefaultProfileID,
 					Name:                 "worker",
 					AgentName:            "coder",
 					Provider:             "test-provider",
@@ -203,6 +206,7 @@ func TestAgentCrossWorkspaceUDSIdentityMapping(t *testing.T) {
 				}
 				return &session.Info{
 					ID:          id,
+					ProfileID:   store.DefaultProfileID,
 					AgentName:   "coder",
 					WorkspaceID: sourceWorkspaceID,
 					Workspace:   "/workspace/source",

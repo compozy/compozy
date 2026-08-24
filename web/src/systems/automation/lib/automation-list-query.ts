@@ -28,6 +28,9 @@ export function normalizeAutomationJobFilter(
     q: normalizeOptionalText(filters.q),
     limit: filters.limit,
     loop: normalizeOptionalText(filters.loop),
+    // Profile scope rides the filter, so it lands in both request and key.
+    profile: normalizeOptionalText(filters.profile),
+    all_profiles: filters.all_profiles,
   };
 }
 
@@ -43,6 +46,9 @@ export function normalizeAutomationTriggerFilter(
     q: normalizeOptionalText(filters.q),
     limit: filters.limit,
     loop: normalizeOptionalText(filters.loop),
+    // Profile scope rides the filter, so it lands in both request and key.
+    profile: normalizeOptionalText(filters.profile),
+    all_profiles: filters.all_profiles,
   };
 }
 

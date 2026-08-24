@@ -36,11 +36,11 @@ import { useAgents } from "@/systems/agent";
 
 type JobEditorState =
   | { draft: CreateAutomationJobRequest; mode: "create" }
-  | { draft: CreateAutomationJobRequest; id: string; mode: "edit" };
+  | { draft: CreateAutomationJobRequest; id: string; mode: "edit"; profile: string };
 
 type TriggerEditorState =
   | { draft: CreateAutomationTriggerRequest; mode: "create" }
-  | { draft: CreateAutomationTriggerRequest; id: string; mode: "edit" };
+  | { draft: CreateAutomationTriggerRequest; id: string; mode: "edit"; profile: string };
 
 interface JobEditorParams {
   activeWorkspaceId?: string | null;
@@ -115,7 +115,12 @@ export function useAutomationJobEditor({
     });
   const openEdit = (job: AutomationJob) =>
     store.trigger.editorOpened({
-      editor: { draft: automationJobToDraft(job), id: job.id, mode: "edit" },
+      editor: {
+        draft: automationJobToDraft(job),
+        id: job.id,
+        mode: "edit",
+        profile: job.profile_name,
+      },
       workspaceId: activeWorkspaceId,
     });
   const close = () => store.trigger.editorClosed();
@@ -132,6 +137,7 @@ export function useAutomationJobEditor({
           : updateMutation.mutateAsync({
               data: automationJobUpdateFromDraft(payload),
               id: currentEditor.id,
+              profile: currentEditor.profile,
             });
       },
       successMessage: (mode, result) =>
@@ -209,7 +215,12 @@ export function useAutomationTriggerEditor({
   };
   const openEdit = (trigger: AutomationTrigger) => {
     store.trigger.editorOpened({
-      editor: { draft: automationTriggerToDraft(trigger), id: trigger.id, mode: "edit" },
+      editor: {
+        draft: automationTriggerToDraft(trigger),
+        id: trigger.id,
+        mode: "edit",
+        profile: trigger.profile_name,
+      },
       workspaceId: activeWorkspaceId,
     });
   };
@@ -229,6 +240,7 @@ export function useAutomationTriggerEditor({
           : updateMutation.mutateAsync({
               data: automationTriggerUpdateFromDraft(payload),
               id: currentEditor.id,
+              profile: currentEditor.profile,
             });
       },
       successMessage: (mode, result) =>

@@ -7,7 +7,7 @@ import (
 )
 
 func registryMemoryOperations() []OperationSpec {
-	return []OperationSpec{
+	operations := []OperationSpec{
 		listMemoryOperationSpec(),
 		getMemoryHealthOperationSpec(),
 		getMemoryConfigMetadataOperationSpec(),
@@ -27,6 +27,10 @@ func registryMemoryOperations() []OperationSpec {
 		revertMemoryDecisionOperationSpec(),
 		getMemoryRecallTraceOperationSpec(),
 	}
+	for index := range operations {
+		operations[index].Parameters = ensureProfileParameters(operations[index].Parameters, false)
+	}
+	return operations
 }
 func listMemoryOperationSpec() OperationSpec {
 	return OperationSpec{

@@ -15,11 +15,13 @@ const {
   getSettingsCmdPalette,
   resetCmdPalettePersonalization,
   updateSettingsCmdPalette,
+  profile,
   workspace,
 } = vi.hoisted(() => ({
   getSettingsCmdPalette: vi.fn(),
   resetCmdPalettePersonalization: vi.fn(),
   updateSettingsCmdPalette: vi.fn(),
+  profile: { destination: "default" },
   workspace: {
     scope: "global" as "global" | "workspace",
     activeWorkspaceId: null as string | null,
@@ -39,6 +41,15 @@ vi.mock("../../adapters/settings-sections-api", () => ({
   updateSettingsCmdPalette,
 }));
 vi.mock("@/systems/workspace", () => ({ useActiveWorkspace: () => workspace }));
+// Personalization is per profile; which profile is the shell's business, not
+// this page's, so the acting one is stubbed at its own seam.
+vi.mock("@/systems/profiles", () => ({
+  useProfileReadScope: () => ({
+    destination: profile.destination,
+    key: profile.destination,
+    aggregate: false,
+  }),
+}));
 vi.mock("@/systems/os", () => ({
   cmdPaletteKeys: { all: ["cmd-palette"] },
   resetCmdPalettePersonalization,
@@ -50,11 +61,11 @@ vi.mock("../use-settings-page", () => ({
 import { settingsKeys } from "../../lib/query-keys";
 import { useSettingsPalettePage } from "../use-settings-palette-page";
 
-function section(personalization: boolean, scope: "global" | "workspace" = "global") {
+function section(personalization: boolean, scope: "user" | "profile" | "workspace" = "user") {
   return {
     section: "cmd-palette",
     scope,
-    available_scopes: ["global", "workspace"],
+    available_scopes: ["user", "profile", "workspace"],
     fallback_agent_enabled: true,
     personalization,
   };
@@ -72,6 +83,7 @@ describe("useSettingsPalettePage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     workspace.scope = "global";
+    profile.destination = "default";
     workspace.activeWorkspaceId = null;
     workspace.hasHydrated = true;
     workspace.isLoading = false;
@@ -91,7 +103,7 @@ describe("useSettingsPalettePage", () => {
     {
       // The catalog can be loaded while `$HOME` is still unknown, and the
       // resolver settles nothing until both land — so a requested workspace
-      // still reads as global here.
+      // still reads as user scope here.
       label: "the resolver is still pending on $HOME",
       mutate: () => {
         workspace.pending = true;
@@ -106,18 +118,18 @@ describe("useSettingsPalettePage", () => {
     expect(getSettingsCmdPalette).not.toHaveBeenCalled();
   });
 
-  it("Should read and write global scope when no workspace is active", async () => {
+  it("Should read and write user scope when no workspace is active", async () => {
     const { result } = renderPage();
 
     await waitFor(() => expect(result.current.section?.personalization).toBe(true));
-    expect(getSettingsCmdPalette).toHaveBeenCalledWith({ scope: "global" }, expect.anything());
+    expect(getSettingsCmdPalette).toHaveBeenCalledWith({ scope: "user" }, expect.anything());
 
     act(() => result.current.setPersonalization(false));
 
     await waitFor(() => expect(updateSettingsCmdPalette).toHaveBeenCalledTimes(1));
     expect(updateSettingsCmdPalette).toHaveBeenCalledWith(
       { personalization: false },
-      { scope: "global" }
+      { scope: "user" }
     );
   });
 
@@ -130,7 +142,28 @@ describe("useSettingsPalettePage", () => {
     await waitFor(() => expect(updateSettingsCmdPalette).toHaveBeenCalledTimes(1));
     expect(updateSettingsCmdPalette).toHaveBeenCalledWith(
       { fallback_agent_enabled: false },
-      { scope: "global" }
+      { scope: "user" }
+    );
+  });
+
+  it("Should read and write the active profile before workspace scope", async () => {
+    profile.destination = "marketing";
+    workspace.scope = "workspace";
+    workspace.activeWorkspaceId = "workspace:alpha";
+    const { result } = renderPage();
+
+    await waitFor(() => expect(result.current.section?.personalization).toBe(true));
+    expect(getSettingsCmdPalette).toHaveBeenCalledWith(
+      { scope: "profile", profile: "marketing" },
+      expect.anything()
+    );
+
+    act(() => result.current.setPersonalization(false));
+
+    await waitFor(() => expect(updateSettingsCmdPalette).toHaveBeenCalledTimes(1));
+    expect(updateSettingsCmdPalette).toHaveBeenCalledWith(
+      { personalization: false },
+      { scope: "profile", profile: "marketing" }
     );
   });
 
@@ -142,7 +175,50 @@ describe("useSettingsPalettePage", () => {
 
     await act(async () => result.current.resetPersonalization());
 
-    expect(resetCmdPalettePersonalization).toHaveBeenCalledWith("workspace:home");
+    // A reset acts as one profile — the aggregate keeps its own history and is
+    // refused server-side, so the acting profile rides the call.
+    expect(resetCmdPalettePersonalization).toHaveBeenCalledWith("workspace:home", "default");
+  });
+
+  it("Should disable profile reset until the runtime workspace is ready", async () => {
+    profile.destination = "marketing";
+    workspace.runtimeWorkspaceId = null;
+    const { result } = renderPage();
+
+    await waitFor(() => expect(result.current.section).not.toBeNull());
+    expect(result.current.canResetPersonalization).toBe(false);
+    await act(async () => result.current.resetPersonalization());
+    expect(resetCmdPalettePersonalization).not.toHaveBeenCalled();
+  });
+
+  it("Should keep reset pending state and errors on the profile that started them", async () => {
+    let rejectReset: ((error: Error) => void) | undefined;
+    resetCmdPalettePersonalization.mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectReset = reject;
+        })
+    );
+    profile.destination = "marketing";
+    const { rerender, result } = renderPage();
+    await waitFor(() => expect(result.current.section).not.toBeNull());
+
+    let request: Promise<void> | undefined;
+    act(() => {
+      request = result.current.resetPersonalization();
+    });
+    await waitFor(() => expect(result.current.isResetting).toBe(true));
+
+    profile.destination = "sales";
+    rerender();
+    expect(result.current.isResetting).toBe(false);
+    expect(result.current.resetError).toBeNull();
+
+    await act(async () => {
+      rejectReset?.(new Error("marketing reset failed"));
+      await request?.catch(() => undefined);
+    });
+    expect(result.current.resetError).toBeNull();
   });
 
   it("Should read and write the active workspace when that is the effective scope", async () => {
@@ -182,9 +258,7 @@ describe("useSettingsPalettePage", () => {
     });
     expect(client.getQueryData(scoped)).toMatchObject({ personalization: false });
     // The scope the operator was not in keeps whatever it had — here, nothing.
-    expect(
-      client.getQueryData(settingsKeys.cmdPaletteSection({ scope: "global" }))
-    ).toBeUndefined();
+    expect(client.getQueryData(settingsKeys.cmdPaletteSection({ scope: "user" }))).toBeUndefined();
   });
 
   it("Should file a late write under the scope it was made in [regression]", async () => {

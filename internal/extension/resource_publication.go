@@ -103,9 +103,9 @@ func resolveManifestToolDescriptor(
 		concurrencySafe = true
 	}
 	tool := toolspkg.Tool{
-		ID:           id,
-		DisplayTitle: manifestToolDisplayTitle(trimmedName, cfg.DisplayTitle),
+		ID: id,
 		ToolPresentation: toolspkg.NewToolPresentation(
+			manifestToolDisplayTitle(trimmedName, cfg.DisplayTitle),
 			strings.TrimSpace(cfg.FriendlyVerb),
 			strings.TrimSpace(cfg.Preview),
 		),

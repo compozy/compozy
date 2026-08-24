@@ -11,6 +11,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const createWorktreeMock = vi.fn();
 const cancelWorktreeCreateMock = vi.fn();
 
+// Which lens the shell is on is the shell's business; only the acting scope it
+// hands down matters here, so that is the single seam this suite drives.
+const profileScope = vi.hoisted(() => ({ aggregate: false, destination: "default" }));
+vi.mock("@/systems/profiles", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/profiles")>()),
+  useAggregateDestination: () => (profileScope.aggregate ? profileScope.destination : null),
+  useProfileReadScope: () => profileScope,
+}));
+
 vi.mock("../../adapters/worktree-api", async () => {
   const actual = await vi.importActual<object>("../../adapters/worktree-api");
   return {
@@ -45,6 +54,8 @@ function setup(listing = createReadyListing) {
 describe("useWorktreeCreateDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    profileScope.aggregate = false;
+    profileScope.destination = "default";
   });
 
   it("Should preview the generated name while the field is untouched", () => {
@@ -113,6 +124,24 @@ describe("useWorktreeCreateDialog", () => {
 
     // The 202 payload is durable, so the row exists before materialization ends.
     await waitFor(() => expect(result.current.pendingWorktree?.id).toBe(pendingRow.id));
+  });
+
+  it("Should offer a destination to state only while the aggregate is on", async () => {
+    createWorktreeMock.mockResolvedValue(pendingRow);
+    // Scoped: the view already answers where a worktree lands, so the model
+    // offers nothing for the dialog to state.
+    const { result } = setup();
+    expect(result.current.profileDestination).toBeNull();
+
+    profileScope.aggregate = true;
+    profileScope.destination = "marketing";
+    const aggregate = setup();
+    expect(aggregate.result.current.profileDestination).toBe("marketing");
+
+    act(() => aggregate.result.current.submit());
+    // The acting profile still rides the create itself either way.
+    await waitFor(() => expect(createWorktreeMock).toHaveBeenCalled());
+    expect(createWorktreeMock).toHaveBeenLastCalledWith(WORKSPACE, expect.anything(), "marketing");
   });
 
   it("Should reject a second submit while the accepted worktree is materializing", async () => {

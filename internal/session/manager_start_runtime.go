@@ -24,6 +24,7 @@ func (m *Manager) resolveSessionStartRuntime(
 	if err != nil {
 		return sessionStartRuntime{}, fmt.Errorf("session: resolve session agent %q: %w", spec.agentName, err)
 	}
+	resolved.ProfileName = strings.TrimSpace(spec.workspace.ProfileName)
 	if err := spec.validateRuntimeOverrides(); err != nil {
 		return sessionStartRuntime{}, fmt.Errorf("session: validate runtime overrides for %q: %w", spec.sessionID, err)
 	}

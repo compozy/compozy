@@ -182,6 +182,57 @@ export const cmdPaletteStoryCommands: CmdPaletteCommand[] = [
     icon: "square-terminal",
     action: { kind: "view", view: "sessions" },
   }),
+  baseCommand({
+    id: "palette.view.profiles",
+    title: "Profiles",
+    section: "Views",
+    icon: "users-round",
+    action: { kind: "view", view: "profiles" },
+  }),
+  baseCommand({
+    id: "profile.create",
+    title: "Create profile",
+    section: "Profiles",
+    icon: "plus",
+    action: {
+      kind: "navigate",
+      app: "settings",
+      args: { pathname: "/settings/profiles", flow: "create" },
+    },
+  }),
+  baseCommand({
+    id: "profile.rename",
+    title: "Rename profile",
+    section: "Profiles",
+    icon: "text-cursor-input",
+    action: {
+      kind: "navigate",
+      app: "settings",
+      args: { pathname: "/settings/profiles", flow: "rename", profile: "default" },
+    },
+  }),
+  baseCommand({
+    id: "profile.archive",
+    title: "Archive profile",
+    section: "Profiles",
+    icon: "archive",
+    action: {
+      kind: "navigate",
+      app: "settings",
+      args: { pathname: "/settings/profiles", flow: "archive" },
+    },
+  }),
+  baseCommand({
+    id: "profile.unarchive",
+    title: "Unarchive profile",
+    section: "Profiles",
+    icon: "archive-restore",
+    action: {
+      kind: "navigate",
+      app: "settings",
+      args: { pathname: "/settings/profiles", flow: "unarchive" },
+    },
+  }),
   {
     ...baseCommand({ id: "ext.notes.capture", title: "Capture note" }),
     section: "Notes",
@@ -194,7 +245,17 @@ export const cmdPaletteStoryCommands: CmdPaletteCommand[] = [
   },
 ];
 
+export const cmdPaletteProfileExtensionCommand: CmdPaletteCommand = {
+  ...baseCommand({ id: "ext.campaigns.draft", title: "Draft campaign brief" }),
+  section: "Campaigns",
+  icon: "notebook-pen",
+  source: "ext.campaigns",
+  action: { kind: "tool", tool: "ext__campaigns__draft" },
+  execution: { retry_safe: false, single_flight: true },
+};
+
 export const cmdPaletteCatalogFixture: CmdPaletteCatalogResponse = {
+  profile_lens: { profile_lens_id: "00000000000000000000000000", profile_name: "default" },
   catalog_revision: "sha256:story-catalog-1",
   context_revision: "12",
   commands: cmdPaletteStoryCommands,

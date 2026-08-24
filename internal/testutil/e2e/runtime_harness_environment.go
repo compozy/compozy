@@ -18,10 +18,14 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 )
 
-func runtimeEnv(homePaths compozyconfig.HomePaths, extra map[string]string) []string {
+func runtimeEnv(
+	homePaths compozyconfig.HomePaths,
+	operatorHomeDir string,
+	extra map[string]string,
+) []string {
 	base := testutil.HermeticProcessEnv(os.Environ())
 	base = setEnvValue(base, "COMPOZY_HOME", homePaths.HomeDir)
-	base = setEnvValue(base, "HOME", homePaths.HomeDir)
+	base = setEnvValue(base, "HOME", operatorHomeDir)
 
 	keys := make([]string, 0, len(extra))
 	for key := range extra {
@@ -35,7 +39,7 @@ func runtimeEnv(homePaths compozyconfig.HomePaths, extra map[string]string) []st
 		base = setEnvValue(base, key, extra[key])
 	}
 	base = setEnvValue(base, "COMPOZY_HOME", homePaths.HomeDir)
-	base = setEnvValue(base, "HOME", homePaths.HomeDir)
+	base = setEnvValue(base, "HOME", operatorHomeDir)
 	return base
 }
 

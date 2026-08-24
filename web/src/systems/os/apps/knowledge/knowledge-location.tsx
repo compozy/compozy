@@ -28,7 +28,7 @@ export function KnowledgeLocation({ windowId }: { windowId: string }) {
   const search = useDesktop(state => state.windows[windowId]?.route.search ?? EMPTY_SEARCH);
   const scope = search.scope;
   const routeScope: KnowledgeScope | null =
-    scope === "global" || scope === "workspace" || scope === "agent" ? scope : null;
+    scope === "profile" || scope === "workspace" || scope === "agent" ? scope : null;
   const page = useKnowledgePage({
     routeMemory: typeof search.memory === "string" ? search.memory : null,
     routeScope,
@@ -40,7 +40,7 @@ export function KnowledgeLocation({ windowId }: { windowId: string }) {
       aria-label="Knowledge scope"
       data-testid="tab-pills"
       items={[
-        { value: "global", label: "Global", testId: "tab-global" },
+        { value: "profile", label: "Profile", testId: "tab-profile" },
         { value: "workspace", label: "Workspace", testId: "tab-workspace" },
         { value: "agent", label: "Agent", testId: "tab-agent" },
       ]}

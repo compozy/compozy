@@ -9,12 +9,12 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	memorypkg "github.com/compozy/compozy/internal/memory"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	sessionpkg "github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -38,6 +38,11 @@ type extensionPublishSecretResolver interface {
 	ResolveRef(context.Context, string) (string, error)
 }
 
+type nativeProfileReader interface {
+	List(context.Context) ([]profilepkg.WithCounts, error)
+	ProfileName(context.Context, string) (string, error)
+}
+
 type daemonNativeToolsDeps struct {
 	Registry                   func() toolspkg.Registry
 	CmdPalette                 func() cmdpalette.Registry
@@ -45,6 +50,8 @@ type daemonNativeToolsDeps struct {
 	Config                     compozyconfig.Config
 	Skills                     daemonNativeSkillsRegistry
 	Sessions                   core.SessionManager
+	Profiles                   nativeProfileReader
+	ProfileManager             *profilepkg.Manager
 	SessionAttachments         attachmentspkg.Store
 	Workspaces                 core.WorkspaceService
 	Worktrees                  core.WorktreeService
@@ -96,7 +103,7 @@ type daemonNativeToolsDeps struct {
 	LoopResources              loopResourcePublisher
 	Loops                      func() core.LoopService
 	Resources                  core.ResourceService
-	WindowManager              windowmanager.Service
+	WindowManagers             windowManagerProvider
 }
 
 func (d *daemonNativeToolsDeps) agentSkills() agentSkillPublisher {

@@ -92,8 +92,8 @@ func (m *Manager) loadSkillResources(ext *managedExtension) ([]*skillspkg.Skill,
 
 	source := skillSourceForExtension(ext.info.Source)
 	loaded := make(map[string]*skillspkg.Skill)
-	for _, resourcePath := range ext.manifest.Resources.Skills {
-		resourceRoot, err := resolveResourcePath(ext.rootDir, resourcePath)
+	for _, resource := range ext.manifest.Resources.Skills {
+		resourceRoot, err := resolveResourcePath(ext.rootDir, resource.Path)
 		if err != nil {
 			return nil, err
 		}
@@ -137,8 +137,8 @@ func (m *Manager) loadLoopResources(ext *managedExtension) ([]looppkg.ResourceSp
 
 	source := loopSourceForExtension(ext.info.Source)
 	loaded := make(map[string]looppkg.ResourceSpec)
-	for _, resourcePath := range ext.manifest.Resources.Loops {
-		resourceRoot, err := resolveResourcePath(ext.rootDir, resourcePath)
+	for _, resource := range ext.manifest.Resources.Loops {
+		resourceRoot, err := resolveResourcePath(ext.rootDir, resource.Path)
 		if err != nil {
 			return nil, err
 		}
@@ -189,7 +189,7 @@ func (m *Manager) loadAgentResources(ext *managedExtension) ([]StaticAgent, erro
 	if ext.manifest == nil {
 		return nil, nil
 	}
-	return LoadAgentResources(ext.rootDir, ext.manifest.Resources.Agents)
+	return LoadAgentResources(ext.rootDir, manifestResourcePaths(ext.manifest.Resources.Agents))
 }
 
 func (m *Manager) loadAutomationResources(
@@ -202,7 +202,7 @@ func (m *Manager) loadAutomationResources(
 	jobs, triggers, err := LoadAutomationResources(
 		ext.rootDir,
 		ext.info.Name,
-		ext.manifest.Resources.Automation,
+		manifestResourcePaths(ext.manifest.Resources.Automation),
 	)
 	if err != nil {
 		return nil, nil, err
@@ -220,7 +220,7 @@ func (m *Manager) loadLayoutResources(
 	if ext == nil || ext.manifest == nil {
 		return nil, nil
 	}
-	return LoadLayoutResources(ctx, ext.rootDir, ext.manifest.Resources.Layouts)
+	return LoadLayoutResources(ctx, ext.rootDir, manifestResourcePaths(ext.manifest.Resources.Layouts))
 }
 
 func (m *Manager) loadHookResources(ext *managedExtension) ([]hookspkg.HookDecl, error) {

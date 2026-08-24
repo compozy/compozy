@@ -38,12 +38,14 @@ func normalizeLoopRunForCreate(run looppkg.Run) (looppkg.Run, error) {
 		return looppkg.Run{}, fmt.Errorf("%w: definition snapshot version changed", looppkg.ErrValidation)
 	}
 	run.ActiveGateID = looppkg.NodeID(strings.TrimSpace(string(run.ActiveGateID)))
-	if len(run.ActiveHumanCriteria) == 0 {
-		run.ActiveHumanCriteria = json.RawMessage(`[]`)
+	activeHumanCriteria := run.ActiveHumanCriteriaValue()
+	if len(activeHumanCriteria) == 0 {
+		activeHumanCriteria = json.RawMessage(`[]`)
 	}
-	if !json.Valid(run.ActiveHumanCriteria) {
+	if !json.Valid(activeHumanCriteria) {
 		return looppkg.Run{}, fmt.Errorf("%w: active_human_criteria_json must be valid JSON", looppkg.ErrValidation)
 	}
+	run.SetActiveHumanCriteria(activeHumanCriteria)
 	if run.ReattemptStrategy == "" {
 		run.ReattemptStrategy = looppkg.ReattemptFailedOnly
 	}

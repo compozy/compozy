@@ -68,7 +68,7 @@ func TestHostedMCPProjectionStreamGenerationCache(t *testing.T) {
 			}
 			return "stable", true
 		}
-		router, service, peer := newHostedMCPRouteTestHarnessWithConfig(t, mcppkg.HostedConfig{
+		router, service, peer := newHostedMCPRouteTestHarnessWithConfig(t, &mcppkg.HostedConfig{
 			Registry: func() toolspkg.Registry {
 				return countingRegistry
 			},
@@ -301,7 +301,7 @@ func newHostedMCPRouteTestHarnessWithRegistry(
 ) (*gin.Engine, *mcppkg.HostedService, mcppkg.PeerInfo) {
 	t.Helper()
 
-	return newHostedMCPRouteTestHarnessWithConfig(t, mcppkg.HostedConfig{
+	return newHostedMCPRouteTestHarnessWithConfig(t, &mcppkg.HostedConfig{
 		Registry: func() toolspkg.Registry {
 			return registry
 		},
@@ -310,7 +310,7 @@ func newHostedMCPRouteTestHarnessWithRegistry(
 
 func newHostedMCPRouteTestHarnessWithConfig(
 	t *testing.T,
-	config mcppkg.HostedConfig,
+	config *mcppkg.HostedConfig,
 	baseConfig *core.BaseHandlerConfig,
 ) (*gin.Engine, *mcppkg.HostedService, mcppkg.PeerInfo) {
 	t.Helper()
@@ -319,9 +319,10 @@ func newHostedMCPRouteTestHarnessWithConfig(
 	if err != nil {
 		t.Fatalf("Executable() error = %v", err)
 	}
-	config.Enabled = true
-	config.ExpectedBinary = executable
-	service, err := mcppkg.NewHostedService(config)
+	ownedConfig := *config
+	ownedConfig.Enabled = true
+	ownedConfig.ExpectedBinary = executable
+	service, err := mcppkg.NewHostedService(&ownedConfig)
 	if err != nil {
 		t.Fatalf("NewHostedService() error = %v", err)
 	}
@@ -435,11 +436,11 @@ func newDeniedHostedMCPToolRegistry(t *testing.T) toolspkg.Registry {
 
 	source := toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: toolspkg.BuiltinSourceOwner}
 	descriptor := toolspkg.Descriptor{
-		ID:           "compozy__hosted_denied",
-		DisplayTitle: "Hosted Denied",
-		Description:  "Denied hosted test tool.",
-		InputSchema:  json.RawMessage(`{"type":"object","additionalProperties":false}`),
-		OutputSchema: json.RawMessage(`{"type":"object","properties":{"ok":{"type":"boolean"}}}`),
+		ID:               "compozy__hosted_denied",
+		ToolPresentation: toolspkg.NewToolPresentation("Hosted Denied", "", ""),
+		Description:      "Denied hosted test tool.",
+		InputSchema:      json.RawMessage(`{"type":"object","additionalProperties":false}`),
+		OutputSchema:     json.RawMessage(`{"type":"object","properties":{"ok":{"type":"boolean"}}}`),
 		Backend: toolspkg.BackendRef{
 			Kind:       toolspkg.BackendNativeGo,
 			NativeName: "hosted_denied",
@@ -487,17 +488,17 @@ func newApprovalRequiredHostedMCPToolRegistry(t *testing.T) toolspkg.Registry {
 
 	source := toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: toolspkg.BuiltinSourceOwner}
 	descriptor := toolspkg.Descriptor{
-		ID:              "compozy__hosted_approval",
-		DisplayTitle:    "Hosted Approval",
-		Description:     "Approval-gated hosted test tool.",
-		InputSchema:     json.RawMessage(`{"type":"object","additionalProperties":false}`),
-		OutputSchema:    json.RawMessage(`{"type":"object","properties":{"ok":{"type":"boolean"}}}`),
-		Backend:         toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: "hosted_approval"},
-		Source:          source,
-		Visibility:      toolspkg.VisibilityModel,
-		Risk:            toolspkg.RiskMutating,
-		ConcurrencySafe: true,
-		Toolsets:        []toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
+		ID:               "compozy__hosted_approval",
+		ToolPresentation: toolspkg.NewToolPresentation("Hosted Approval", "", ""),
+		Description:      "Approval-gated hosted test tool.",
+		InputSchema:      json.RawMessage(`{"type":"object","additionalProperties":false}`),
+		OutputSchema:     json.RawMessage(`{"type":"object","properties":{"ok":{"type":"boolean"}}}`),
+		Backend:          toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: "hosted_approval"},
+		Source:           source,
+		Visibility:       toolspkg.VisibilityModel,
+		Risk:             toolspkg.RiskMutating,
+		ConcurrencySafe:  true,
+		Toolsets:         []toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
 	}
 	provider, err := toolspkg.NewNativeProvider(source, toolspkg.NativeTool{
 		Descriptor: descriptor,

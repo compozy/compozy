@@ -73,7 +73,7 @@ func TestCodecRegistryExternalContract(t *testing.T) {
 			context.Background(),
 			registry,
 			kind,
-			resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			[]byte(`{"name":"  alpha  "}`),
 		)
 		if err != nil {

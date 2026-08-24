@@ -1,40 +1,43 @@
 ---
 title: Memory scopes
-description: How CompozyOS resolves the three memory scopes — global, workspace, and agent — selects the agent tier, applies read precedence, and shadows entries by identity.
+description: How CompozyOS resolves the three memory scopes — profile, workspace, and agent — selects the agent tier, applies read precedence, and shadows entries by identity.
 ---
 
 CompozyOS memory has three scopes:
 
-- **global** — user-wide context available across workspaces.
-- **workspace** — project context bound to a specific workspace ID.
+- **profile** — context that follows one [profile](/docs/profiles) across every workspace.
+- **workspace** — project context bound to a specific workspace ID, shared by every profile.
 - **agent** — per-agent context, with two tiers:
   - `agent-workspace` — workspace-private agent state.
   - `agent-global` — cross-workspace agent baseline.
 
+The agent tier keeps the word `global` because it names a different axis: how far one agent's memory
+reaches, not which profile owns it.
+
 The runtime composes a frozen snapshot from these scopes at session start. Read precedence is:
 
 ```text
-agent-workspace ▸ agent-global ▸ workspace ▸ global
+agent-workspace ▸ agent-global ▸ workspace ▸ profile
 ```
 
 A deeper scope shadows a shallower scope when both contain the same identity `(type, slug)`.
 Shadowed entries are never silently merged. The packaged recall block lists scope blocks
-**least-specific first** so agents see global context, then workspace, then agent baseline, then
+**least-specific first** so agents see profile context, then workspace, then agent baseline, then
 agent-workspace overrides.
 
 ## File locations
 
-| Scope                 | Default location                              | Notes                                                                    |
-| --------------------- | --------------------------------------------- | ------------------------------------------------------------------------ |
-| `global`              | `$COMPOZY_HOME/memory/`                       | Default `$COMPOZY_HOME` is `~/.compozy`.                                 |
-| `workspace`           | `<workspace>/.compozy/memory/`                | Resolved by the workspace ID from `<workspace>/.compozy/workspace.toml`. |
-| `agent` (`workspace`) | `<workspace>/.compozy/agents/<agent>/memory/` | Default tier when `--scope agent` is selected.                           |
-| `agent` (`global`)    | `$COMPOZY_HOME/agents/<agent>/memory/`        | Cross-workspace agent baseline.                                          |
+| Scope                 | Default location                              | Notes                                                                                                           |
+| --------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `profile`             | `$COMPOZY_HOME/profiles/<name>/memory/`       | Default `$COMPOZY_HOME` is `~/.compozy`. Pre-Profiles entries live under `profiles/default/`.                   |
+| `workspace`           | `<workspace>/.compozy/memory/`                | Resolved by the workspace ID from `<workspace>/.compozy/workspace.toml`. Committed and shared by every profile. |
+| `agent` (`workspace`) | `<workspace>/.compozy/agents/<agent>/memory/` | Default tier when `--scope agent` is selected.                                                                  |
+| `agent` (`global`)    | `$COMPOZY_HOME/agents/<agent>/memory/`        | Cross-workspace agent baseline.                                                                                 |
 
 Typical layout:
 
 ```text
-~/.compozy/memory/
+~/.compozy/profiles/marketing/memory/
   MEMORY.md
   user_review-style.md
   feedback_test-integrity.md
@@ -66,17 +69,20 @@ workspace directory. Memory keying never uses `workspace_root` paths. See
 
 | Question                                                           | Likely scope          |
 | ------------------------------------------------------------------ | --------------------- |
-| Would this still help in any other repository?                     | `global`              |
+| Would this still help this profile in any other repository?        | `profile`             |
 | Is this a workspace-private decision, command, or constraint?      | `workspace`           |
 | Is this how a specific agent should behave anywhere?               | `agent` / `global`    |
 | Is this how a specific agent should behave in this workspace only? | `agent` / `workspace` |
+
+A `profile` entry does not travel to another profile. If a preference should hold everywhere, write
+it in each profile that needs it, or keep it at `workspace` scope when it belongs to the repository.
 
 Examples:
 
 | Memory                                                                 | Type       | Scope       | Agent tier  |
 | ---------------------------------------------------------------------- | ---------- | ----------- | ----------- |
-| "User prefers terse status updates while commands run."                | `user`     | `global`    | n/a         |
-| "Never weaken a failing test to preserve a broken implementation."     | `feedback` | `global`    | n/a         |
+| "User prefers terse status updates while commands run."                | `user`     | `profile`   | n/a         |
+| "Never weaken a failing test to preserve a broken implementation."     | `feedback` | `profile`   | n/a         |
 | "The docs site package is `@compozy/site`."                            | `project`  | `workspace` | n/a         |
 | "Reviewer keeps blocking findings first and cites file:line."          | `feedback` | `agent`     | `global`    |
 | "In this repo, reviewer must call out release-risk on bridge changes." | `feedback` | `agent`     | `workspace` |
@@ -86,7 +92,7 @@ Examples:
 The default write posture is conservative.
 
 - **CLI / HTTP / UDS operator writes.** When `--scope` is omitted, the controller falls back to a
-  type-driven default for `global`/`workspace` scopes: `user` and `feedback` → `global`,
+  type-driven default for `profile`/`workspace` scopes: `user` and `feedback` → `profile`,
   `project` and `reference` → `workspace`. Agent scope is **never** the default — `--scope agent`
   must be explicit and requires `--agent <name>` plus a validated `--agent-tier {workspace,
 global}`. The agent tier defaults to `workspace` when omitted.
@@ -107,7 +113,7 @@ compozy memory promote feedback_repo-reviewer-rules.md \
 
 ```bash
 compozy memory write \
-  --scope global \
+  --scope profile \
   --type user \
   --name "Review Style" \
   --description "User wants concise review findings" \
@@ -135,8 +141,9 @@ compozy memory write \
 ```
 
 Sessions without an active workspace cannot write `--scope workspace` or `--scope agent
---agent-tier workspace`. The controller rejects those calls with `memory.scope.workspace_required`
-instead of silently routing them to `global`.
+--agent-tier workspace`. The controller rejects those calls with the error code `memory.validation`
+and the message `workspace is required for workspace scope`, instead of silently routing them to
+`profile`.
 
 ## Show, edit, and delete resolution
 
@@ -153,7 +160,7 @@ current snapshot when it is unambiguous.
 Use explicit selectors for repeatable automation:
 
 ```bash
-compozy memory show user_review-style.md --scope global
+compozy memory show user_review-style.md --scope profile
 compozy memory delete project_docs-package.md --scope workspace
 compozy memory show user_pedro-style.md --scope agent --agent reviewer --agent-tier global
 ```
@@ -210,3 +217,4 @@ Shadow events are observable through `compozy memory decisions list` and the eve
 - [Dream](/docs/memory/dream) explains gated dreaming runs and signal-based promotion.
 - [Workspace Resolver](/docs/workspaces/resolver) explains how workspace_id is derived.
 - [Agent Definitions](/docs/agents/definitions) documents agent memory binding.
+- [Profiles](/docs/profiles) explains which profile owns the `profile` scope and how you switch it.

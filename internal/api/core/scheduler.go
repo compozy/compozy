@@ -46,7 +46,12 @@ func (h *BaseHandlers) PauseTask(c *gin.Context) {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.TaskResponse{Task: TaskPayloadFromTask(taskRecord)})
+	payload := TaskPayloadFromTask(taskRecord)
+	if err := h.decorateTaskOwner(c.Request.Context(), &payload); err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.TaskResponse{Task: payload})
 }
 
 // ResumeTask keeps pause recovery on the same service path that owns claim eligibility.
@@ -84,7 +89,12 @@ func (h *BaseHandlers) ResumeTask(c *gin.Context) {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.TaskResponse{Task: TaskPayloadFromTask(taskRecord)})
+	payload := TaskPayloadFromTask(taskRecord)
+	if err := h.decorateTaskOwner(c.Request.Context(), &payload); err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.TaskResponse{Task: payload})
 }
 
 // GetScheduler exposes service-owned scheduler state without deriving queue pressure in the API.

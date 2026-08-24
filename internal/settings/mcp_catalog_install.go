@@ -37,6 +37,7 @@ type MCPCatalogInstallRequest struct {
 	Name        string
 	Scope       ScopeKind
 	WorkspaceID string
+	ProfileName string
 	Values      MCPCatalogInstallValues
 }
 
@@ -63,7 +64,7 @@ func (s *service) InstallMCPCatalog(
 	}
 	if _, err := s.prepareMCPSecretWrites(
 		normalized.Scope,
-		normalized.WorkspaceID,
+		mcpScopeIdentifier(normalized.Scope, normalized.WorkspaceID, normalized.ProfileName),
 		server.Name,
 		&server,
 		secrets,
@@ -75,6 +76,7 @@ func (s *service) InstallMCPCatalog(
 			Collection:  CollectionMCPServers,
 			Scope:       normalized.Scope,
 			WorkspaceID: normalized.WorkspaceID,
+			ProfileName: normalized.ProfileName,
 		},
 		Name:       server.Name,
 		Target:     TargetAuto,
@@ -165,6 +167,10 @@ func (s *service) prepareMCPCatalogInstall(
 	normalized.EntryID = entryID
 	normalized.Scope = scope
 	normalized.WorkspaceID = workspaceID
+	normalized.ProfileName, err = normalizeSettingsProfileName(scope, req.ProfileName)
+	if err != nil {
+		return MCPCatalogInstallRequest{}, nil, nil, err
+	}
 	normalized.Name = strings.TrimSpace(req.Name)
 	if normalized.Name == "" {
 		normalized.Name = strings.TrimSpace(entry.Name)

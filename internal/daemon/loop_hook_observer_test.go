@@ -12,6 +12,11 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
+func daemonTaskRunWithResult(run taskpkg.Run, result json.RawMessage) taskpkg.Run {
+	run.SetResult(result)
+	return run
+}
+
 func TestLoopNativeHookObserverShouldProtectDurableNodeTerminalWake(t *testing.T) {
 	t.Parallel()
 
@@ -188,14 +193,13 @@ func TestLoopNativeHookObserverShouldEmitGoalTerminalAfterSettlement(t *testing.
 				TaskRunID:  "run-goal-blocked",
 			}},
 			runs: map[string]taskpkg.Run{
-				"run-goal-blocked": {
+				"run-goal-blocked": daemonTaskRunWithResult(taskpkg.Run{
 					ID:        "run-goal-blocked",
 					TaskID:    "task-goal-blocked",
 					RunKind:   taskpkg.RunKindWorker,
 					Status:    taskpkg.TaskRunStatusCompleted,
 					LoopRunID: "loop-goal-blocked",
-					Result:    result,
-				},
+				}, result),
 			},
 			tasks: map[string]taskpkg.Task{
 				"task-goal-blocked": {ID: "task-goal-blocked", Status: taskpkg.TaskStatusCompleted},
@@ -270,14 +274,13 @@ func TestLoopNativeHookObserverShouldSnapshotGoalSuppressionBeforeBackstop(t *te
 				TaskRunID:  "run-goal-sync",
 			}},
 			runs: map[string]taskpkg.Run{
-				"run-goal-sync": {
+				"run-goal-sync": daemonTaskRunWithResult(taskpkg.Run{
 					ID:        "run-goal-sync",
 					TaskID:    "task-goal-sync",
 					RunKind:   taskpkg.RunKindWorker,
 					Status:    taskpkg.TaskRunStatusCompleted,
 					LoopRunID: "loop-goal-sync",
-					Result:    result,
-				},
+				}, result),
 			},
 			tasks: map[string]taskpkg.Task{
 				"task-goal-sync": {ID: "task-goal-sync", Status: taskpkg.TaskStatusCompleted},

@@ -6,6 +6,7 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/notifications"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type StubBridgeService struct {
@@ -92,11 +93,38 @@ func (s StubBridgeService) GetInstance(ctx context.Context, id string) (*bridgep
 	return nil, bridgepkg.ErrBridgeInstanceNotFound
 }
 
+func (s StubBridgeService) GetInstanceScoped(
+	ctx context.Context,
+	readScope store.ReadScope,
+	id string,
+) (*bridgepkg.BridgeInstance, error) {
+	instance, err := s.GetInstance(ctx, id)
+	if err != nil || instance == nil {
+		return nil, bridgepkg.ErrBridgeInstanceNotFound
+	}
+	if !bridgeInstanceVisible(instance, readScope) {
+		return nil, bridgepkg.ErrBridgeInstanceNotFound
+	}
+	*instance = normalizeBridgeInstanceProfile(*instance)
+	return instance, nil
+}
+
 func (s StubBridgeService) ListInstances(ctx context.Context) ([]bridgepkg.BridgeInstance, error) {
 	if s.ListInstancesFn != nil {
 		return s.ListInstancesFn(ctx)
 	}
 	return nil, nil
+}
+
+func (s StubBridgeService) ListInstancesScoped(
+	ctx context.Context,
+	readScope store.ReadScope,
+) ([]bridgepkg.BridgeInstance, error) {
+	instances, err := s.ListInstances(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return filterBridgeInstancesByScope(instances, readScope), nil
 }
 
 func (s StubBridgeService) ListCatalogRecords(
@@ -139,6 +167,18 @@ func (s StubBridgeService) ListInstancesByIDs(
 		}
 	}
 	return selected, nil
+}
+
+func (s StubBridgeService) ListInstancesByIDsScoped(
+	ctx context.Context,
+	readScope store.ReadScope,
+	bridgeInstanceIDs []string,
+) ([]bridgepkg.BridgeInstance, error) {
+	instances, err := s.ListInstancesByIDs(ctx, bridgeInstanceIDs)
+	if err != nil {
+		return nil, err
+	}
+	return filterBridgeInstancesByScope(instances, readScope), nil
 }
 
 func (s StubBridgeService) ListProviders(ctx context.Context) ([]bridgepkg.BridgeProvider, error) {
@@ -268,6 +308,19 @@ func (s StubBridgeService) ListRoutes(ctx context.Context, bridgeInstanceID stri
 	return nil, nil
 }
 
+func (s StubBridgeService) ListRoutesScoped(
+	ctx context.Context,
+	readScope store.ReadScope,
+	bridgeInstanceID string,
+) ([]bridgepkg.BridgeRoute, error) {
+	if s.GetInstanceFn != nil {
+		if _, err := s.GetInstanceScoped(ctx, readScope, bridgeInstanceID); err != nil {
+			return nil, err
+		}
+	}
+	return s.ListRoutes(ctx, bridgeInstanceID)
+}
+
 func (s StubBridgeService) PutBridgeTaskSubscription(
 	ctx context.Context,
 	subscription bridgepkg.BridgeTaskSubscription,
@@ -280,10 +333,21 @@ func (s StubBridgeService) PutBridgeTaskSubscription(
 
 func (s StubBridgeService) GetBridgeTaskSubscription(
 	ctx context.Context,
+	readScope store.ReadScope,
 	subscriptionID string,
 ) (bridgepkg.BridgeTaskSubscription, error) {
 	if s.GetTaskSubscriptionFn != nil {
-		return s.GetTaskSubscriptionFn(ctx, subscriptionID)
+		subscription, err := s.GetTaskSubscriptionFn(ctx, subscriptionID)
+		if err != nil {
+			return bridgepkg.BridgeTaskSubscription{}, err
+		}
+		if subscription.ProfileID == "" {
+			subscription.ProfileID = store.DefaultProfileID
+		}
+		if !readScope.Matches(subscription.ProfileID) {
+			return bridgepkg.BridgeTaskSubscription{}, bridgepkg.ErrBridgeTaskSubscriptionNotFound
+		}
+		return subscription, nil
 	}
 	return bridgepkg.BridgeTaskSubscription{}, bridgepkg.ErrBridgeTaskSubscriptionNotFound
 }

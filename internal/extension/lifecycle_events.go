@@ -19,6 +19,8 @@ const (
 	lifecycleEventConfirmedByKey         = "confirmed_by"
 	lifecycleEventBoundCountKey          = "bound_count"
 	lifecycleEventAutomationCountKey     = "automation_started_count"
+	lifecycleEventProfileIDKey           = "profile_id"
+	lifecycleEventProfileNameKey         = "profile_name"
 )
 
 // LifecycleEventSink records one closed-shape extension lifecycle event.
@@ -38,6 +40,8 @@ type LifecycleEvent struct {
 	ConfirmedBy         string
 	BoundCount          *int
 	AutomationCount     *int
+	ProfileID           string
+	ProfileName         string
 }
 
 // RequiredFields returns the exact payload shape for the event type.
@@ -49,29 +53,24 @@ func (e LifecycleEvent) RequiredFields() (map[string]any, error) {
 	fields := map[string]any{lifecycleEventExtensionNameKey: name}
 	switch strings.TrimSpace(e.Type) {
 	case eventspkg.ExtensionInstallCompleted, eventspkg.ExtensionInstallFailed:
-		if source := strings.TrimSpace(e.SourceKind); source != "" {
-			fields[lifecycleEventSourceKindKey] = source
-		} else {
-			return nil, errors.New("extension: install lifecycle event source kind is required")
+		if err := requireLifecycleStringField(
+			fields, lifecycleEventSourceKindKey, e.SourceKind,
+			"extension: install lifecycle event source kind is required",
+		); err != nil {
+			return nil, err
 		}
 		fields[lifecycleEventDigestMatchedKey] = e.DigestMatched
 	case eventspkg.ExtensionUpdateCompleted, eventspkg.ExtensionUpdateFailed:
-		if source := strings.TrimSpace(e.SourceKind); source != "" {
-			fields[lifecycleEventSourceKindKey] = source
-		} else {
-			return nil, errors.New("extension: update lifecycle event source kind is required")
+		if err := requireLifecycleStringField(
+			fields, lifecycleEventSourceKindKey, e.SourceKind,
+			"extension: update lifecycle event source kind is required",
+		); err != nil {
+			return nil, err
 		}
 	case eventspkg.ExtensionDevLinked, eventspkg.ExtensionDevUnlinked,
 		eventspkg.ExtensionReloadCompleted, eventspkg.ExtensionReloadFailed:
-		if workspaceID := strings.TrimSpace(e.WorkspaceID); workspaceID != "" {
-			fields[lifecycleEventWorkspaceIDKey] = workspaceID
-		} else {
-			return nil, errors.New("extension: development lifecycle event workspace id is required")
-		}
-		if generation := strings.TrimSpace(e.ExtensionGeneration); generation != "" {
-			fields[lifecycleEventExtensionGenerationKey] = generation
-		} else {
-			return nil, errors.New("extension: development lifecycle event extension generation is required")
+		if err := addDevelopmentLifecycleFields(fields, e); err != nil {
+			return nil, err
 		}
 	case eventspkg.ExtensionPublishCompleted, eventspkg.ExtensionPublishFailed:
 	case eventspkg.ExtensionCrashLoopBackoff:
@@ -79,34 +78,90 @@ func (e LifecycleEvent) RequiredFields() (map[string]any, error) {
 			fields[lifecycleEventWorkspaceIDKey] = workspaceID
 		}
 	case eventspkg.ExtensionNetworkConfirmed:
-		fields[lifecycleEventWorkspaceIDKey] = strings.TrimSpace(e.WorkspaceID)
-		if digest := strings.TrimSpace(e.Digest); digest != "" {
-			fields[lifecycleEventDigestKey] = digest
-		} else {
-			return nil, errors.New("extension: network confirmation digest is required")
-		}
-		if actor := strings.TrimSpace(e.ConfirmedBy); actor != "" {
-			fields[lifecycleEventConfirmedByKey] = actor
-		} else {
-			return nil, errors.New("extension: network confirmation actor is required")
+		if err := addNetworkConfirmationLifecycleFields(fields, e); err != nil {
+			return nil, err
 		}
 	case eventspkg.ExtensionSecretsUpdated:
-		fields[lifecycleEventWorkspaceIDKey] = strings.TrimSpace(e.WorkspaceID)
-		if e.BoundCount == nil {
-			return nil, errors.New("extension: secrets updated bound count is required")
+		if err := addSecretsUpdatedLifecycleFields(fields, e); err != nil {
+			return nil, err
 		}
-		fields[lifecycleEventBoundCountKey] = *e.BoundCount
 	case eventspkg.ExtensionSecretsUpdateFailed:
 		fields[lifecycleEventWorkspaceIDKey] = strings.TrimSpace(e.WorkspaceID)
 	case eventspkg.ExtensionEnabled:
-		if e.AutomationCount == nil {
-			return nil, errors.New("extension: enabled automation count is required")
+		if err := addExtensionEnabledLifecycleFields(fields, e); err != nil {
+			return nil, err
 		}
-		fields[lifecycleEventAutomationCountKey] = *e.AutomationCount
+	case eventspkg.ExtensionProfileCreated:
+		if err := addProfileCreatedLifecycleFields(fields, e); err != nil {
+			return nil, err
+		}
 	default:
 		return nil, fmt.Errorf("extension: unsupported lifecycle event type %q", e.Type)
 	}
 	return fields, nil
+}
+
+func requireLifecycleStringField(fields map[string]any, key string, value string, message string) error {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return errors.New(message)
+	}
+	fields[key] = trimmed
+	return nil
+}
+
+func addDevelopmentLifecycleFields(fields map[string]any, event LifecycleEvent) error {
+	if err := requireLifecycleStringField(
+		fields, lifecycleEventWorkspaceIDKey, event.WorkspaceID,
+		"extension: development lifecycle event workspace id is required",
+	); err != nil {
+		return err
+	}
+	return requireLifecycleStringField(
+		fields, lifecycleEventExtensionGenerationKey, event.ExtensionGeneration,
+		"extension: development lifecycle event extension generation is required",
+	)
+}
+
+func addNetworkConfirmationLifecycleFields(fields map[string]any, event LifecycleEvent) error {
+	fields[lifecycleEventWorkspaceIDKey] = strings.TrimSpace(event.WorkspaceID)
+	if err := requireLifecycleStringField(
+		fields, lifecycleEventDigestKey, event.Digest, "extension: network confirmation digest is required",
+	); err != nil {
+		return err
+	}
+	return requireLifecycleStringField(
+		fields, lifecycleEventConfirmedByKey, event.ConfirmedBy,
+		"extension: network confirmation actor is required",
+	)
+}
+
+func addSecretsUpdatedLifecycleFields(fields map[string]any, event LifecycleEvent) error {
+	fields[lifecycleEventWorkspaceIDKey] = strings.TrimSpace(event.WorkspaceID)
+	if event.BoundCount == nil {
+		return errors.New("extension: secrets updated bound count is required")
+	}
+	fields[lifecycleEventBoundCountKey] = *event.BoundCount
+	return nil
+}
+
+func addExtensionEnabledLifecycleFields(fields map[string]any, event LifecycleEvent) error {
+	if event.AutomationCount == nil {
+		return errors.New("extension: enabled automation count is required")
+	}
+	fields[lifecycleEventAutomationCountKey] = *event.AutomationCount
+	return nil
+}
+
+func addProfileCreatedLifecycleFields(fields map[string]any, event LifecycleEvent) error {
+	profileID := strings.TrimSpace(event.ProfileID)
+	profileName := strings.TrimSpace(event.ProfileName)
+	if profileID == "" || profileName == "" {
+		return errors.New("extension: profile created event profile id and name are required")
+	}
+	fields[lifecycleEventProfileIDKey] = profileID
+	fields[lifecycleEventProfileNameKey] = profileName
+	return nil
 }
 
 func recordExtensionLifecycleEvent(

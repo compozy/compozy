@@ -5,6 +5,7 @@ import (
 	"time"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -57,6 +58,7 @@ func TestBridgeRuntimeResolveBoundSecretsContract(t *testing.T) {
 			vaultBridgeSecretResolver{service: refStore},
 		)
 		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ProfileID:     storepkg.DefaultProfileID,
 			ID:            "brg-secret-vault",
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",

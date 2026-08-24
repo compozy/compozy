@@ -34,7 +34,7 @@ func removeAgentPluginDataForInstall(
 	if normalizeExtensionFormat(info.Format) != FormatAgentPlugin {
 		return extensionDataCleanup{}, nil
 	}
-	dataPath, err := homePaths.ExtensionDataPath(info.Name, "")
+	dataPath, err := homePaths.ExtensionDataPath(info.Name, "", "")
 	if err != nil {
 		return extensionDataCleanup{}, fmt.Errorf("extension: resolve data path for %q: %w", info.Name, err)
 	}

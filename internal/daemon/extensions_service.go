@@ -11,6 +11,7 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -27,6 +28,7 @@ type daemonExtensionService struct {
 	agentSkill         agentSkillPublisher
 	toolMCP            toolMCPPublisher
 	loops              loopResourcePublisher
+	sessions           SessionManager
 	extensionKit       extensionKitResourcePublisher
 	homePaths          compozyconfig.HomePaths
 	logger             *slog.Logger
@@ -46,6 +48,7 @@ type daemonExtensionService struct {
 	resourceCodecs     *resources.CodecRegistry
 	mcpRuntimeHealth   *mcppkg.RuntimeHealthRegistry
 	paletteNotifier    *extensionPaletteNotifier
+	profiles           *profilepkg.Manager
 }
 
 var _ udsapi.ExtensionService = (*daemonExtensionService)(nil)
@@ -57,6 +60,8 @@ type daemonExtensionServiceDeps struct {
 	AgentSkill   agentSkillPublisher
 	ToolMCP      toolMCPPublisher
 	Loops        loopResourcePublisher
+	Sessions     SessionManager
+	Profiles     *profilepkg.Manager
 	HomePaths    compozyconfig.HomePaths
 	Logger       *slog.Logger
 	Now          func() time.Time
@@ -167,6 +172,8 @@ func newDaemonExtensionService(
 		agentSkill: normalized.AgentSkill,
 		toolMCP:    normalized.ToolMCP,
 		loops:      normalized.Loops,
+		sessions:   normalized.Sessions,
+		profiles:   normalized.Profiles,
 		homePaths:  normalized.HomePaths,
 		logger:     normalized.Logger,
 		now:        normalized.Now,

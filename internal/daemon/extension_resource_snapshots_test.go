@@ -226,7 +226,7 @@ func TestExtensionResourceSnapshotsPreserveGlobalResourcesWithoutScopedRuntime(t
 			t.Fatalf("extensionResourceSnapshots() error = %v", err)
 		}
 		if len(snapshots) != 1 || snapshots[0].extension != global ||
-			snapshots[0].scope.Kind != resources.ResourceScopeKindGlobal {
+			snapshots[0].scope.Kind != resources.ResourceScopeKindUser {
 			t.Fatalf("extensionResourceSnapshots() = %#v, want preserved global snapshot", snapshots)
 		}
 	})
@@ -294,7 +294,7 @@ func TestExtensionKitResourcesBindWorkspaceScope(t *testing.T) {
 		layouts := make(map[string]managedResourceValue[windowmanager.LayoutResource])
 
 		if err := syncer.collectDesiredExtensionKitResources(
-			context.Background(), ext, scope, jobs, triggers, layouts,
+			context.Background(), ext, scope, "", jobs, triggers, layouts,
 		); err != nil {
 			t.Fatalf("collectDesiredExtensionKitResources() error = %v", err)
 		}
@@ -331,7 +331,7 @@ func TestExtensionKitResourcesBindWorkspaceScope(t *testing.T) {
 
 func TestManagedPublicationIDSeparatesExtensionWorkspaceScopes(t *testing.T) {
 	t.Parallel()
-	t.Run("Should preserve global IDs and separate workspace publications", testManagedPublicationIDScopes)
+	t.Run("Should preserve user IDs and separate every scoped publication", testManagedPublicationIDScopes)
 }
 
 func testManagedPublicationIDScopes(t *testing.T) {
@@ -340,7 +340,7 @@ func testManagedPublicationIDScopes(t *testing.T) {
 	owner := extensionOwner("resource-only-kit")
 	global := managedPublicationID(
 		"daemon.sync.test.",
-		resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		"extension/resource-only-kit/agent/writer",
 		nil,
 		owner,
@@ -352,11 +352,34 @@ func testManagedPublicationIDScopes(t *testing.T) {
 		nil,
 		owner,
 	)
+	profile := managedPublicationID(
+		"daemon.sync.test.",
+		resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: "profile-marketing"},
+		"extension/resource-only-kit/agent/writer",
+		nil,
+		owner,
+	)
+	workspaceProfile := managedPublicationID(
+		"daemon.sync.test.",
+		resources.ResourceScope{
+			Kind: resources.ResourceScopeKindWorkspaceProfile,
+			ID:   "workspace-a@pf:marketing",
+		},
+		"extension/resource-only-kit/agent/writer",
+		nil,
+		owner,
+	)
 	if global != "extension/resource-only-kit/agent/writer" {
 		t.Fatalf("global publication ID = %q, want stable source key", global)
 	}
 	if workspace == global {
 		t.Fatalf("workspace publication ID = global publication ID %q", global)
+	}
+	if profile == global || profile == workspace {
+		t.Fatalf("profile publication ID = %q, want an independent scoped key", profile)
+	}
+	if workspaceProfile == global || workspaceProfile == workspace || workspaceProfile == profile {
+		t.Fatalf("workspace-profile publication ID = %q, want an independent scoped key", workspaceProfile)
 	}
 }
 
@@ -373,7 +396,7 @@ func TestAgentSidecarsResolveAgentsWithinTheSameResourceScope(t *testing.T) {
 		if err != nil {
 			t.Fatalf("soul.NewResourceCodec() error = %v", err)
 		}
-		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 		workspaceScope := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "workspace-a"}
 		const sourceKey = "extension/resource-only-kit/agent/writer"
 		declarations := agentSkillDeclarations{

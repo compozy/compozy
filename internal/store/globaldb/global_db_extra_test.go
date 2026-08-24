@@ -104,16 +104,21 @@ func TestGlobalDBGuardClauses(t *testing.T) {
 	t.Parallel()
 
 	globalDB := openTestGlobalDB(t)
-	if err := globalDB.RegisterSession(nilGlobalContext(), SessionInfo{}); err == nil {
+	if err := globalDB.RegisterSession(nilGlobalContext(), SessionInfo{ProfileID: store.DefaultProfileID}); err == nil {
 		t.Fatal("RegisterSession(nil ctx) error = nil, want non-nil")
 	}
-	if _, err := globalDB.ListSessions(nilGlobalContext(), SessionListQuery{}); err == nil {
+	if _, err := globalDB.ListSessions(nilGlobalContext(), SessionListQuery{
+		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+	}); err == nil {
 		t.Fatal("ListSessions(nil ctx) error = nil, want non-nil")
 	}
 	if err := globalDB.WriteEventSummary(nilGlobalContext(), EventSummary{}); err == nil {
 		t.Fatal("WriteEventSummary(nil ctx) error = nil, want non-nil")
 	}
-	if _, err := globalDB.ListEventSummaries(nilGlobalContext(), EventSummaryQuery{}); err == nil {
+	if _, err := globalDB.ListEventSummaries(
+		nilGlobalContext(),
+		EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}},
+	); err == nil {
 		t.Fatal("ListEventSummaries(nil ctx) error = nil, want non-nil")
 	}
 	if err := globalDB.UpdateTokenStats(nilGlobalContext(), TokenStatsUpdate{}); err == nil {
@@ -152,11 +157,11 @@ func TestGlobalDBWorkspaceAndAutomationGuardClauses(t *testing.T) {
 	assertErr("CreateJob(nil ctx)", err)
 	_, err = globalDB.CreateTrigger(nilGlobalContext(), Trigger{})
 	assertErr("CreateTrigger(nil ctx)", err)
-	_, err = globalDB.CreateRun(nilGlobalContext(), Run{})
+	_, err = globalDB.CreateRun(nilGlobalContext(), Run{ProfileID: store.DefaultProfileID})
 	assertErr("CreateRun(nil ctx)", err)
 	_, err = globalDB.ReserveRun(nilGlobalContext(), automation.RunReservation{})
 	assertErr("ReserveRun(nil ctx)", err)
-	_, err = globalDB.CountRuns(nilGlobalContext(), RunQuery{})
+	_, err = globalDB.CountRuns(nilGlobalContext(), RunQuery{ReadScope: automationAllProfiles})
 	assertErr("CountRuns(nil ctx)", err)
 }
 
@@ -178,6 +183,7 @@ func TestGlobalDBDefaultsAndFilteredListings(t *testing.T) {
 		filepath.Join(t.TempDir(), "filtered-workspace"),
 	)
 	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "sess-defaults",
 		AgentName:     "coder",
 		RuntimeStatus: store.SessionRuntimeUnbound,
@@ -187,6 +193,7 @@ func TestGlobalDBDefaultsAndFilteredListings(t *testing.T) {
 		t.Fatalf("RegisterSession(defaults) error = %v", err)
 	}
 	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "sess-reviewer",
 		AgentName:     "reviewer",
 		RuntimeStatus: store.SessionRuntimeUnbound,
@@ -198,7 +205,11 @@ func TestGlobalDBDefaultsAndFilteredListings(t *testing.T) {
 		t.Fatalf("RegisterSession(reviewer) error = %v", err)
 	}
 
-	sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{AgentName: "coder", Limit: 1})
+	sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{
+		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+		AgentName: "coder",
+		Limit:     1,
+	})
 	if err != nil {
 		t.Fatalf("ListSessions(filtered) error = %v", err)
 	}
@@ -210,6 +221,7 @@ func TestGlobalDBDefaultsAndFilteredListings(t *testing.T) {
 	}
 
 	if err := globalDB.WriteEventSummary(testutil.Context(t), EventSummary{
+		ProfileID: store.DefaultProfileID,
 		SessionID: "sess-defaults",
 		Type:      "agent_message",
 		AgentName: "coder",
@@ -217,6 +229,7 @@ func TestGlobalDBDefaultsAndFilteredListings(t *testing.T) {
 		t.Fatalf("WriteEventSummary(default timestamp) error = %v", err)
 	}
 	if err := globalDB.WriteEventSummary(testutil.Context(t), EventSummary{
+		ProfileID: store.DefaultProfileID,
 		SessionID: "sess-reviewer",
 		Type:      "tool_call",
 		AgentName: "reviewer",
@@ -225,12 +238,15 @@ func TestGlobalDBDefaultsAndFilteredListings(t *testing.T) {
 		t.Fatalf("WriteEventSummary(explicit timestamp) error = %v", err)
 	}
 
-	summaries, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{
-		AgentName: "coder",
-		Type:      "agent_message",
-		Since:     base,
-		Limit:     1,
-	})
+	summaries, err := globalDB.ListEventSummaries(
+		testutil.Context(t),
+		EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
+			AgentName: "coder",
+			Type:      "agent_message",
+			Since:     base,
+			Limit:     1,
+		},
+	)
 	if err != nil {
 		t.Fatalf("ListEventSummaries(filtered) error = %v", err)
 	}
@@ -316,6 +332,7 @@ func TestListEventSummariesPreservesHarnessFiltersAndRecentOrdering(t *testing.T
 		filepath.Join(t.TempDir(), "harness-observe-workspace"),
 	)
 	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "sess-harness",
 		AgentName:     "coder",
 		RuntimeStatus: store.SessionRuntimeUnbound,
@@ -329,6 +346,7 @@ func TestListEventSummariesPreservesHarnessFiltersAndRecentOrdering(t *testing.T
 
 	summaries := []EventSummary{
 		{
+			ProfileID: store.DefaultProfileID,
 			SessionID: "sess-harness",
 			Type:      "harness.context_resolved",
 			AgentName: "coder",
@@ -336,6 +354,7 @@ func TestListEventSummariesPreservesHarnessFiltersAndRecentOrdering(t *testing.T
 			Timestamp: base,
 		},
 		{
+			ProfileID: store.DefaultProfileID,
 			SessionID: "sess-harness",
 			Type:      "harness.section_selected",
 			AgentName: "coder",
@@ -343,6 +362,7 @@ func TestListEventSummariesPreservesHarnessFiltersAndRecentOrdering(t *testing.T
 			Timestamp: base.Add(time.Second),
 		},
 		{
+			ProfileID: store.DefaultProfileID,
 			SessionID: "sess-harness",
 			Type:      "harness.augmenter_applied",
 			AgentName: "coder",
@@ -356,10 +376,13 @@ func TestListEventSummariesPreservesHarnessFiltersAndRecentOrdering(t *testing.T
 		}
 	}
 
-	filtered, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{
-		SessionID: "sess-harness",
-		Type:      "harness.context_resolved",
-	})
+	filtered, err := globalDB.ListEventSummaries(
+		testutil.Context(t),
+		EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
+			SessionID: "sess-harness",
+			Type:      "harness.context_resolved",
+		},
+	)
 	if err != nil {
 		t.Fatalf("ListEventSummaries(filtered) error = %v", err)
 	}
@@ -370,10 +393,13 @@ func TestListEventSummariesPreservesHarnessFiltersAndRecentOrdering(t *testing.T
 		t.Fatalf("filtered[0].Summary = %q, want %q", got, want)
 	}
 
-	recent, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{
-		SessionID: "sess-harness",
-		Limit:     2,
-	})
+	recent, err := globalDB.ListEventSummaries(
+		testutil.Context(t),
+		EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
+			SessionID: "sess-harness",
+			Limit:     2,
+		},
+	)
 	if err != nil {
 		t.Fatalf("ListEventSummaries(recent) error = %v", err)
 	}
@@ -388,6 +414,46 @@ func TestListEventSummariesPreservesHarnessFiltersAndRecentOrdering(t *testing.T
 	}
 	if !recent[0].Timestamp.Before(recent[1].Timestamp) {
 		t.Fatalf("recent timestamps = [%v %v], want ascending recent order", recent[0].Timestamp, recent[1].Timestamp)
+	}
+
+	foreignProfileID := "eeeeeeeeeeeeeeeeeeeeeeeeee"
+	if _, err := globalDB.DB().ExecContext(testutil.Context(t), `
+		INSERT INTO profiles (id, name, color, icon, state, created_at)
+		VALUES (?, 'events-foreign', '#5FBF85', 'circle', 'active', ?)`,
+		foreignProfileID,
+		store.FormatTimestamp(base),
+	); err != nil {
+		t.Fatalf("insert foreign profile error = %v", err)
+	}
+	if err := globalDB.WriteEventSummary(testutil.Context(t), EventSummary{
+		ProfileID: foreignProfileID,
+		ID:        "sum-foreign-profile",
+		Type:      "settings.changed",
+		Timestamp: base.Add(3 * time.Second),
+	}); err != nil {
+		t.Fatalf("WriteEventSummary(foreign profile) error = %v", err)
+	}
+	scoped, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{
+		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+	})
+	if err != nil {
+		t.Fatalf("ListEventSummaries(scoped) error = %v", err)
+	}
+	for _, summary := range scoped {
+		if summary.ProfileID == foreignProfileID {
+			t.Fatalf("ListEventSummaries(scoped) leaked foreign event: %+v", summary)
+		}
+	}
+	aggregate, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{
+		ReadScope: store.ReadScope{AllProfiles: true},
+		Type:      "settings.changed",
+	})
+	if err != nil {
+		t.Fatalf("ListEventSummaries(aggregate) error = %v", err)
+	}
+	if len(aggregate) != 1 || aggregate[0].ProfileName != "events-foreign" ||
+		aggregate[0].ProfileColor != "#5FBF85" {
+		t.Fatalf("ListEventSummaries(aggregate) = %+v, want owner-labeled foreign event", aggregate)
 	}
 }
 

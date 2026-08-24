@@ -84,35 +84,53 @@ type ActionExecutor interface {
 
 // ActionExecutionInput is the loop-owned execution context for one node instance.
 type ActionExecutionInput struct {
-	WorkspaceID               WorkspaceID
-	LoopRunID                 RunID
-	Generation                int
-	NodeID                    dsl.NodeID
-	ItemIndex                 int
-	Attempt                   int
-	CellEpoch                 int64
-	SessionSharedKey          string
-	DeathResume               *DeathResumeContext
-	RetryFailure              *ClassifiedFailure
-	RepairFailures            []ActionRepairFailure
-	Namespace                 map[string]any
-	Contract                  *dsl.Contract
-	ToolScope                 tools.Scope
-	Actor                     task.ActorContext
-	CorrelationID             string
-	RuntimeSelection          *ActionRuntimeSelection
-	Environment               *dsl.EnvironmentSpec
-	OriginSessionID           string
+	WorkspaceID      WorkspaceID
+	LoopRunID        RunID
+	Generation       int
+	NodeID           dsl.NodeID
+	ItemIndex        int
+	Attempt          int
+	CellEpoch        int64
+	SessionSharedKey string
+	DeathResume      *DeathResumeContext
+	RetryFailure     *ClassifiedFailure
+	RepairFailures   []ActionRepairFailure
+	Namespace        map[string]any
+	Contract         *dsl.Contract
+	ToolScope        tools.Scope
+	Actor            task.ActorContext
+	CorrelationID    string
+	RuntimeSelection *ActionRuntimeSelection
+	Environment      *dsl.EnvironmentSpec
+	OriginSessionID  string
+	*ActionExecutionProvenance
 	ProvenanceParentSessionID string
-	OriginCreationProfileRef  string
-	OriginPolicySpecDigest    string
-	OriginCreationDigest      string
 	GoalContextNudgeRatio     *float64
 	UsageReporter             ActionUsageReporter
 	PersistedTaskTokensUsed   int64
 	GoalSegmentEpoch          int64
 	NetworkParticipation      *participation.Spec
 	AdmittedParams            dsl.NodeParams
+}
+
+// ActionExecutionProvenance keeps optional immutable origin digests compact.
+type ActionExecutionProvenance struct {
+	OriginCreationProfileRef string
+	OriginPolicySpecDigest   string
+	OriginCreationDigest     string
+}
+
+// SetOriginProvenance replaces the optional immutable origin snapshot.
+func (in *ActionExecutionInput) SetOriginProvenance(profileRef string, policyDigest string, creationDigest string) {
+	if profileRef == "" && policyDigest == "" && creationDigest == "" {
+		in.ActionExecutionProvenance = nil
+		return
+	}
+	in.ActionExecutionProvenance = &ActionExecutionProvenance{
+		OriginCreationProfileRef: profileRef,
+		OriginPolicySpecDigest:   policyDigest,
+		OriginCreationDigest:     creationDigest,
+	}
 }
 
 // ActionRuntimeSelection carries the runtime inputs shared by runtime-aware action executors.
@@ -246,6 +264,7 @@ type ActionSessionBinder interface {
 
 // ActionSessionBindRequest describes shared-default or isolated run-agent binding.
 type ActionSessionBindRequest struct {
+	ProfileID                      string
 	WorkspaceID                    WorkspaceID
 	LoopRunID                      RunID
 	Generation                     int

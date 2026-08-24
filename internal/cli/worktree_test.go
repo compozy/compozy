@@ -19,19 +19,44 @@ func TestWorktreeListCommand(t *testing.T) {
 		dirty, ahead, behind := true, 2, 1
 		items := []WorktreeRecord{
 			{
-				ID: "wt-pending", WorkspaceID: "workspace-a", Name: "pending", Branch: "feature/pending",
-				Path: "/repo/.compozy/worktrees/pending", State: "pending", Origin: "manual",
-				Dirty: nil, Ahead: nil, Behind: nil, AgentActivity: "idle",
+				ID:            "wt-pending",
+				ProfileName:   "default",
+				WorkspaceID:   "workspace-a",
+				Name:          "pending",
+				Branch:        "feature/pending",
+				Path:          "/repo/.compozy/worktrees/pending",
+				State:         "pending",
+				Origin:        "manual",
+				Dirty:         nil,
+				Ahead:         nil,
+				Behind:        nil,
+				AgentActivity: "idle",
 			},
 			{
-				ID: "wt-missing", WorkspaceID: "workspace-a", Name: "missing", Branch: "feature/missing",
-				Path: "/repo/.compozy/worktrees/missing", State: "missing", Origin: "adopted",
-				Dirty: &dirty, Ahead: &ahead, Behind: &behind, AgentActivity: "running",
+				ID:            "wt-missing",
+				ProfileName:   "default",
+				WorkspaceID:   "workspace-a",
+				Name:          "missing",
+				Branch:        "feature/missing",
+				Path:          "/repo/.compozy/worktrees/missing",
+				State:         "missing",
+				Origin:        "adopted",
+				Dirty:         &dirty,
+				Ahead:         &ahead,
+				Behind:        &behind,
+				AgentActivity: "running",
 			},
 			{
-				ID: "wt-failed", WorkspaceID: "workspace-a", Name: "failed", Branch: "feature/failed",
-				Path: "/repo/.compozy/worktrees/failed", State: "failed", Origin: "manual",
-				SetupError: "setup failed", AgentActivity: "idle",
+				ID:            "wt-failed",
+				ProfileName:   "default",
+				WorkspaceID:   "workspace-a",
+				Name:          "failed",
+				Branch:        "feature/failed",
+				Path:          "/repo/.compozy/worktrees/failed",
+				State:         "failed",
+				Origin:        "manual",
+				SetupError:    "setup failed",
+				AgentActivity: "idle",
 			},
 		}
 		client := withWorkspaceResolution(&stubClient{listWorktreesFn: func(
@@ -61,6 +86,7 @@ func TestWorktreeListCommand(t *testing.T) {
 		}
 		for index := range items {
 			if got[index].ID != items[index].ID ||
+				got[index].ProfileName != items[index].ProfileName ||
 				got[index].Name != items[index].Name ||
 				got[index].Branch != items[index].Branch ||
 				got[index].Path != items[index].Path ||
@@ -69,6 +95,30 @@ func TestWorktreeListCommand(t *testing.T) {
 				got[index].AgentActivity != items[index].AgentActivity {
 				t.Fatalf("worktree[%d] = %#v, want HTTP item %#v", index, got[index], items[index])
 			}
+		}
+
+		human, _, err := executeRootCommand(
+			t,
+			newWorkspaceTestDeps(t, client),
+			"worktree", "list", "--workspace", "workspace-a", "-o", "human",
+		)
+		if err != nil {
+			t.Fatalf("worktree human list error = %v", err)
+		}
+		if !strings.Contains(human, "Profile") || !strings.Contains(human, "default") {
+			t.Fatalf("worktree human list = %q, want profile column and value", human)
+		}
+
+		toon, _, err := executeRootCommand(
+			t,
+			newWorkspaceTestDeps(t, client),
+			"worktree", "list", "--workspace", "workspace-a", "-o", "toon",
+		)
+		if err != nil {
+			t.Fatalf("worktree TOON list error = %v", err)
+		}
+		if !strings.Contains(toon, "worktrees[3]{id,profile_name") || !strings.Contains(toon, "default") {
+			t.Fatalf("worktree TOON list = %q, want profile_name column and value", toon)
 		}
 	})
 

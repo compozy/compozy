@@ -50,7 +50,12 @@ func (h *BaseHandlers) ListTaskRuns(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.TaskRunsResponse{Runs: TaskRunPayloadsFromRuns(runs)})
+	payloads := TaskRunPayloadsFromRuns(runs)
+	if err := h.decorateTaskRunOwners(c.Request.Context(), payloads); err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.TaskRunsResponse{Runs: payloads})
 }
 
 // GetTaskRun returns one run-detail view.
@@ -83,6 +88,12 @@ func (h *BaseHandlers) GetTaskRun(c *gin.Context) {
 	}
 
 	payload := TaskRunDetailPayloadFromView(view)
+	runPayloads := []contract.TaskRunPayload{payload.Run}
+	if err := h.decorateTaskRunOwners(c.Request.Context(), runPayloads); err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	payload.Run = runPayloads[0]
 	payload.Network, err = h.taskRunNetworkPayload(c.Request.Context(), view.Run)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
@@ -224,13 +235,18 @@ func (h *BaseHandlers) TaskDashboard(c *gin.Context) {
 	if !ok {
 		return
 	}
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 
 	transportQuery, err := ParseTaskDashboardQuery(c)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
-	query, err := h.taskDashboardDomainQuery(c.Request.Context(), transportQuery)
+	query, err := h.taskDashboardDomainQuery(c.Request.Context(), readScope, transportQuery)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
@@ -251,19 +267,19 @@ func (h *BaseHandlers) TaskInbox(c *gin.Context) {
 	if !ok {
 		return
 	}
-
 	actor, err := h.taskActorContext(c, taskActionInbox)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
+	readScope := actor.ReadScope
 
 	transportQuery, err := ParseTaskInboxQuery(c)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
-	query, err := h.taskInboxDomainQuery(c.Request.Context(), transportQuery)
+	query, err := h.taskInboxDomainQuery(c.Request.Context(), readScope, transportQuery)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return

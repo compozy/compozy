@@ -34,6 +34,13 @@ func AgentCatalogEntryFromDef(
 // AgentPayloadFromEntry converts an origin-aware catalog entry into the shared payload.
 func AgentPayloadFromEntry(entry AgentCatalogEntry) contract.AgentPayload {
 	agent := entry.Def
+	shadows := make([]contract.AgentDefinitionShadowPayload, 0, len(agent.ShadowedDefinitions))
+	for _, shadow := range agent.ShadowedDefinitions {
+		shadows = append(shadows, contract.AgentDefinitionShadowPayload{
+			Layer: shadow.Layer,
+			Path:  shadow.Path,
+		})
+	}
 	mcpServers := make([]contract.AgentMCPServerJSON, 0, len(agent.MCPServers))
 	for _, server := range agent.MCPServers {
 		redacted := compozyconfig.RedactedMCPServer(server)
@@ -72,6 +79,8 @@ func AgentPayloadFromEntry(entry AgentCatalogEntry) contract.AgentPayload {
 		MCPServers:       mcpServers,
 		Origin:           entry.Origin,
 		WorkspaceID:      entry.WorkspaceID,
+		Layer:            agent.SourceLayer,
+		Shadows:          shadows,
 		Skills:           &contract.CreateAgentSkillsConfig{Disabled: disabledSkills},
 		DefinitionDigest: digest,
 		Prompt:           agent.Prompt,

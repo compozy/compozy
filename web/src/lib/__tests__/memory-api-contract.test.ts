@@ -34,7 +34,7 @@ describe("memory API generated contract types", () => {
     type RecallTracePath = OperationPath<"getMemoryRecallTrace">;
 
     expectTypeOf<ListQuery>().toMatchTypeOf<{
-      scope?: "global" | "workspace" | "agent";
+      scope?: "profile" | "workspace" | "agent";
       workspace_id?: string;
       agent_name?: string;
       agent_tier?: "workspace" | "global";
@@ -42,7 +42,7 @@ describe("memory API generated contract types", () => {
     expectTypeOf<Extract<keyof ListQuery, "workspace">>().toEqualTypeOf<never>();
 
     expectTypeOf<WriteRequest>().toMatchTypeOf<{
-      scope: "global" | "workspace" | "agent";
+      scope: "profile" | "workspace" | "agent";
       type: "user" | "feedback" | "project" | "reference";
       name: string;
       content: string;

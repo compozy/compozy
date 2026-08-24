@@ -8,11 +8,12 @@ import (
 	"strings"
 
 	modelpkg "github.com/compozy/compozy/internal/automation/model"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // Jobs returns overlay-aware job definitions from persistence.
 func (m *Manager) Jobs(ctx context.Context) ([]Job, error) {
-	return m.loadEffectiveJobs(ctx, JobListQuery{})
+	return m.loadEffectiveJobs(ctx, JobListQuery{ReadScope: store.ReadScope{AllProfiles: true}})
 }
 
 // ListJobs returns overlay-aware job definitions using the supplied filters.

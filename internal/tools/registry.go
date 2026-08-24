@@ -459,7 +459,7 @@ func toolViewMatches(view *ToolView, needle string) bool {
 	d := &view.Descriptor
 	values := []string{
 		d.ID.String(),
-		d.DisplayTitle,
+		d.Presentation().DisplayTitle,
 		d.Description,
 		d.Source.Owner,
 		d.Source.RawServerName,

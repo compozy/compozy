@@ -16,6 +16,7 @@ import (
 func upsertDreamConsolidationTx(
 	ctx context.Context,
 	tx *storepkg.WriteTx,
+	profileID string,
 	run dreamSignalGateResult,
 	workspace dreamRunWorkspace,
 	status string,
@@ -31,9 +32,9 @@ func upsertDreamConsolidationTx(
 	if _, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO memory_consolidations (
-			id, workspace_id, scope, agent_name, agent_tier, started_at, finished_at,
+			id, workspace_id, profile_id, scope, agent_name, agent_tier, started_at, finished_at,
 			status, input_count, promoted_count, error, metadata
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			finished_at = excluded.finished_at,
 			status = excluded.status,
@@ -42,6 +43,7 @@ func upsertDreamConsolidationTx(
 			metadata = excluded.metadata`,
 		strings.TrimSpace(run.runID),
 		nullStringForEmpty(workspace.id),
+		strings.TrimSpace(profileID),
 		string(workspace.scope.Normalize()),
 		catalogEventAgentName,
 		nil,
@@ -61,6 +63,7 @@ func upsertDreamConsolidationTx(
 func insertDreamEventTx(
 	ctx context.Context,
 	tx *storepkg.WriteTx,
+	profileID string,
 	run dreamSignalGateResult,
 	workspace dreamRunWorkspace,
 	status string,
@@ -87,10 +90,11 @@ func insertDreamEventTx(
 	if _, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO memory_events (
-			op, scope, agent_name, agent_tier, workspace_id, session_id, actor_kind,
+			op, profile_id, scope, agent_name, agent_tier, workspace_id, session_id, actor_kind,
 			decision_id, target_id, metadata, ts_ms
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		op,
+		strings.TrimSpace(profileID),
 		nullStringForEmpty(workspace.scope.Normalize()),
 		catalogEventAgentName,
 		nil,

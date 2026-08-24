@@ -18,24 +18,29 @@ func (m *Manager) validateJobLoopTarget(ctx context.Context, job Job) error {
 	if !job.IsLoopTarget() {
 		return nil
 	}
-	return m.validateLoopTarget(ctx, job.LoopTarget, loopStartKindForAutomation(&job, nil))
+	return m.validateLoopTarget(ctx, job.ProfileID, job.LoopTarget, loopStartKindForAutomation(&job, nil))
 }
 
 func (m *Manager) validateTriggerLoopTarget(ctx context.Context, trigger Trigger) error {
 	if !trigger.IsLoopTarget() {
 		return nil
 	}
-	return m.validateLoopTarget(ctx, trigger.LoopTarget, loopStartKindForAutomation(nil, &trigger))
+	return m.validateLoopTarget(ctx, trigger.ProfileID, trigger.LoopTarget, loopStartKindForAutomation(nil, &trigger))
 }
 
-func (m *Manager) validateLoopTarget(ctx context.Context, target *LoopTarget, kind LoopStartKind) error {
+func (m *Manager) validateLoopTarget(
+	ctx context.Context,
+	profileID string,
+	target *LoopTarget,
+	kind LoopStartKind,
+) error {
 	if target == nil {
 		return nil
 	}
 	if m == nil || m.loopStarter == nil {
 		return fmt.Errorf("%w: loop target validation requires loop starter", ErrManagerNotRunning)
 	}
-	return validateLoopTargetWithStarter(ctx, m.loopStarter, target, kind)
+	return validateLoopTargetWithStarter(ctx, m.loopStarter, profileID, target, kind)
 }
 
 func (m *Manager) defaultSchedulerCatchUpPolicy(
@@ -50,6 +55,7 @@ func (m *Manager) defaultSchedulerCatchUpPolicy(
 		return SchedulerCatchUpPolicySkipMissed, nil
 	}
 	return resolver.DefaultLoopCatchUpPolicy(ctx, LoopCatchUpPolicyRequest{
+		ProfileID:   strings.TrimSpace(job.ProfileID),
 		WorkspaceID: strings.TrimSpace(job.LoopTarget.WorkspaceID),
 		LoopName:    strings.TrimSpace(job.LoopTarget.LoopName),
 		Kind:        loopStartKindForAutomation(&job, nil),

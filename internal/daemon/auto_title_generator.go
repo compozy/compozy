@@ -33,6 +33,7 @@ type autoTitleGenerator interface {
 
 type autoTitleRequest struct {
 	SessionID      string
+	ProfileID      string
 	AgentName      string
 	WorkspaceID    string
 	UserMessage    string
@@ -74,6 +75,7 @@ func (g *forkedAutoTitleGenerator) Generate(
 		return "", errors.New("daemon: automatic title role resolver is not configured")
 	}
 	correlation := roleInvocationCorrelation{
+		ProfileID:   strings.TrimSpace(request.ProfileID),
 		WorkspaceID: strings.TrimSpace(request.WorkspaceID),
 		SessionID:   strings.TrimSpace(request.SessionID),
 		AgentName:   strings.TrimSpace(request.AgentName),

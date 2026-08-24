@@ -43,7 +43,7 @@ func TestHostedOAuthAdapterPersistsDCRBeforeHandoff(t *testing.T) {
 		state, err := service.BeginLogin(
 			t.Context(),
 			ServerConfig{
-				Target:       Target{Scope: ScopeGlobal, ServerName: "fixture"},
+				Target:       Target{Scope: ScopeUser, ServerName: "fixture"},
 				Type:         authTypeOAuth,
 				RemoteURL:    fixture.Endpoints.MCPURL,
 				Registration: RegistrationAuto,
@@ -93,7 +93,7 @@ func TestCatalogOAuthBlocksLoopbackDiscovery(t *testing.T) {
 		_, err = service.BeginLogin(
 			t.Context(),
 			ServerConfig{
-				Target:       Target{Scope: ScopeGlobal, ServerName: "fixture"},
+				Target:       Target{Scope: ScopeUser, ServerName: "fixture"},
 				Type:         authTypeOAuth,
 				RemoteURL:    server.URL + "/mcp",
 				CatalogEntry: "fixture-catalog",
@@ -133,7 +133,7 @@ func TestCatalogOAuthBlocksLoopbackCredentialEndpoints(t *testing.T) {
 			t.Fatalf("NewService() error = %v", err)
 		}
 		cfg := ServerConfig{
-			Target:       Target{Scope: ScopeGlobal, ServerName: "fixture"},
+			Target:       Target{Scope: ScopeUser, ServerName: "fixture"},
 			Type:         authTypeOAuth,
 			CatalogEntry: "fixture-catalog",
 			ClientID:     "client",
@@ -178,7 +178,7 @@ func TestManagerExchangeSupportsRFC9207Issuer(t *testing.T) {
 			t.Fatalf("NewManager() error = %v", err)
 		}
 		cfg := ServerConfig{
-			Target:       Target{Scope: ScopeGlobal, ServerName: "fixture"},
+			Target:       Target{Scope: ScopeUser, ServerName: "fixture"},
 			Type:         authTypeOAuth,
 			RemoteURL:    fixture.Endpoints.MCPURL,
 			Registration: RegistrationAuto,
@@ -228,7 +228,7 @@ func TestPreRegisteredAuthorizationBindsResource(t *testing.T) {
 		state, err := service.BeginLogin(
 			t.Context(),
 			ServerConfig{
-				Target:       Target{Scope: ScopeGlobal, ServerName: "fixture"},
+				Target:       Target{Scope: ScopeUser, ServerName: "fixture"},
 				Type:         authTypeOAuth,
 				RemoteURL:    fixture.Endpoints.MCPURL,
 				IssuerURL:    fixture.Endpoints.IssuerURL,
@@ -274,7 +274,7 @@ func TestDynamicRegistrationReuseValidatesBindings(t *testing.T) {
 			t.Fatalf("NewService() error = %v", err)
 		}
 		cfg := ServerConfig{
-			Target:       Target{Scope: ScopeGlobal, ServerName: "fixture"},
+			Target:       Target{Scope: ScopeUser, ServerName: "fixture"},
 			Type:         authTypeOAuth,
 			RemoteURL:    fixture.Endpoints.MCPURL,
 			Registration: RegistrationAuto,
@@ -347,7 +347,7 @@ func TestTokenEndpointClientAuthentication(t *testing.T) {
 			t.Fatalf("NewService() error = %v", err)
 		}
 		cfg := ServerConfig{
-			Target:                  Target{Scope: ScopeGlobal, ServerName: "fixture"},
+			Target:                  Target{Scope: ScopeUser, ServerName: "fixture"},
 			Type:                    authTypeOAuth,
 			ClientID:                "client",
 			ClientSecret:            "secret",
@@ -496,7 +496,7 @@ func TestAuthorizationMetadataErrorsRedactRedirectSecrets(t *testing.T) {
 		_, err = service.BeginLogin(
 			t.Context(),
 			ServerConfig{
-				Target:       Target{Scope: ScopeGlobal, ServerName: "fixture"},
+				Target:       Target{Scope: ScopeUser, ServerName: "fixture"},
 				Type:         authTypeOAuth,
 				IssuerURL:    server.URL,
 				ClientID:     "client",
@@ -536,7 +536,7 @@ func TestManagerExchangeRejectsMismatchedRedirectURL(t *testing.T) {
 			t.Fatalf("NewManager() error = %v", err)
 		}
 		cfg := ServerConfig{
-			Target:       Target{Scope: ScopeGlobal, ServerName: "fixture"},
+			Target:       Target{Scope: ScopeUser, ServerName: "fixture"},
 			Type:         authTypeOAuth,
 			RemoteURL:    fixture.Endpoints.MCPURL,
 			Registration: RegistrationAuto,
@@ -597,7 +597,7 @@ func TestManagerStepUpPreservesApprovedScopes(t *testing.T) {
 				t.Fatalf("NewManager() error = %v", err)
 			}
 			cfg := ServerConfig{
-				Target:       Target{Scope: ScopeGlobal, ServerName: "fixture"},
+				Target:       Target{Scope: ScopeUser, ServerName: "fixture"},
 				Type:         authTypeOAuth,
 				RemoteURL:    fixture.Endpoints.MCPURL,
 				Registration: RegistrationAuto,
@@ -653,7 +653,7 @@ func TestAuthorizationTokenRequiresBaselineScopes(t *testing.T) {
 			t.Fatalf("NewService() error = %v", err)
 		}
 		cfg := ServerConfig{
-			Target:       Target{Scope: ScopeGlobal, ServerName: "fixture"},
+			Target:       Target{Scope: ScopeUser, ServerName: "fixture"},
 			Type:         authTypeOAuth,
 			IssuerURL:    "https://issuer.example",
 			ClientID:     "client",
@@ -695,7 +695,7 @@ func TestOAuthTokenResponseLifecycleContract(t *testing.T) {
 		t.Fatalf("NewService() error = %v", err)
 	}
 	cfg := ServerConfig{
-		Target:       Target{Scope: ScopeGlobal, ServerName: "fixture"},
+		Target:       Target{Scope: ScopeUser, ServerName: "fixture"},
 		Type:         authTypeOAuth,
 		IssuerURL:    "https://issuer.example",
 		ClientID:     "client",
@@ -1057,7 +1057,7 @@ func TestRegisterClientDiscardsIncompleteDCRManagementCredentials(t *testing.T) 
 			}
 			_, _, err = service.persistDynamicRegistration(
 				t.Context(),
-				ServerConfig{Target: Target{Scope: ScopeGlobal, ServerName: "linear"}},
+				ServerConfig{Target: Target{Scope: ScopeUser, ServerName: "linear"}},
 				server.URL+"/mcp",
 				"http://127.0.0.1:2123/api/mcp/oauth/callback",
 				server.URL,
@@ -1091,7 +1091,7 @@ func TestLogoutDeletesAuthorizationStateAtomically(t *testing.T) {
 		_, err = service.Logout(
 			t.Context(),
 			ServerConfig{
-				Target:       Target{Scope: ScopeGlobal, ServerName: "fixture"},
+				Target:       Target{Scope: ScopeUser, ServerName: "fixture"},
 				Type:         authTypeOAuth,
 				RemoteURL:    "https://fixture.example/mcp",
 				Registration: RegistrationAuto,
@@ -1199,7 +1199,7 @@ func newPreRegisteredTestService(
 		t.Fatalf("NewService() error = %v", err)
 	}
 	return service, ServerConfig{
-		Target:       Target{Scope: ScopeGlobal, ServerName: "fixture"},
+		Target:       Target{Scope: ScopeUser, ServerName: "fixture"},
 		Type:         authTypeOAuth,
 		RemoteURL:    server.URL + "/mcp",
 		IssuerURL:    server.URL,

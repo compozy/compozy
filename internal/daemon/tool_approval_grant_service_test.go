@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -21,6 +22,7 @@ func TestToolApprovalGrantServiceEmitsCanonicalTransitions(t *testing.T) {
 	t.Run("Should emit one put event after durable storage", func(t *testing.T) {
 		stored, err := service.PutApprovalGrant(t.Context(), toolspkg.ApprovalGrant{
 			ApprovalGrantKey: toolspkg.ApprovalGrantKey{
+				ProfileID:   store.DefaultProfileID,
 				WorkspaceID: "ws-1",
 				AgentName:   "codex",
 				ToolID:      "compozy__approval_probe",
@@ -50,17 +52,21 @@ func TestToolApprovalGrantServiceEmitsCanonicalTransitions(t *testing.T) {
 	})
 
 	t.Run("Should emit one revoke event and no event for a repeated revoke", func(t *testing.T) {
-		grants, err := service.ListApprovalGrants(t.Context(), "ws-1")
+		grants, err := service.ListApprovalGrants(
+			t.Context(), store.ReadScope{ProfileID: store.DefaultProfileID}, "ws-1",
+		)
 		if err != nil || len(grants) != 1 {
 			t.Fatalf("ListApprovalGrants() = %#v, %v, want one grant", grants, err)
 		}
-		if err := service.RevokeApprovalGrant(t.Context(), "ws-1", grants[0].ID); err != nil {
+		if err := service.RevokeApprovalGrant(
+			t.Context(), store.DefaultProfileID, "ws-1", grants[0].ID,
+		); err != nil {
 			t.Fatalf("RevokeApprovalGrant() error = %v", err)
 		}
 		if len(eventStore.summaries) != 2 || eventStore.summaries[1].Type != events.ToolApprovalGrantRevoked {
 			t.Fatalf("event summaries = %#v, want one put and one revoke", eventStore.summaries)
 		}
-		err = service.RevokeApprovalGrant(t.Context(), "ws-1", grants[0].ID)
+		err = service.RevokeApprovalGrant(t.Context(), store.DefaultProfileID, "ws-1", grants[0].ID)
 		if !errors.Is(err, toolspkg.ErrApprovalGrantNotFound) {
 			t.Fatalf("repeated RevokeApprovalGrant() error = %v, want ErrApprovalGrantNotFound", err)
 		}

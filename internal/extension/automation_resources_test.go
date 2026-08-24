@@ -233,7 +233,8 @@ event = "ext.task.completed"
 			info:    ExtensionInfo{Name: "kit"},
 			rootDir: rootDir,
 			manifest: &Manifest{Resources: ResourcesConfig{
-				Agents: []string{"agents"}, Automation: []string{"automation"},
+				Agents:     []ManifestResourcePath{{Path: "agents"}},
+				Automation: []ManifestResourcePath{{Path: "automation"}},
 			}},
 		}
 		manager := NewManager(nil)

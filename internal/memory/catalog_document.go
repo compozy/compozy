@@ -78,19 +78,30 @@ func cleanSnippet(value string) string {
 	return strings.Join(strings.Fields(replacer.Replace(strings.TrimSpace(value))), " ")
 }
 
-func catalogDocID(scope memcontract.Scope, workspaceID string, filename string) string {
+func catalogDocID(profileID string, scope memcontract.Scope, workspaceID string, filename string) string {
 	return strings.Join(
-		[]string{string(scope.Normalize()), strings.TrimSpace(workspaceID), strings.TrimSpace(filename)},
+		[]string{
+			strings.TrimSpace(profileID),
+			string(scope.Normalize()),
+			strings.TrimSpace(workspaceID),
+			strings.TrimSpace(filename),
+		},
 		"::",
 	)
 }
 
-func catalogDocIDForHeader(scope memcontract.Scope, workspaceID string, header memcontract.Header) string {
+func catalogDocIDForHeader(
+	profileID string,
+	scope memcontract.Scope,
+	workspaceID string,
+	header memcontract.Header,
+) string {
 	if scope.Normalize() != memcontract.ScopeAgent {
-		return catalogDocID(scope, workspaceID, header.Filename)
+		return catalogDocID(profileID, scope, workspaceID, header.Filename)
 	}
 	return strings.Join(
 		[]string{
+			strings.TrimSpace(profileID),
 			string(scope.Normalize()),
 			strings.TrimSpace(workspaceID),
 			strings.TrimSpace(header.AgentName),
@@ -107,6 +118,7 @@ func hashMemoryContent(content []byte) string {
 }
 
 func buildCatalogDocument(
+	profileID string,
 	scope memcontract.Scope,
 	workspaceID string,
 	header memcontract.Header,
@@ -117,7 +129,8 @@ func buildCatalogDocument(
 		return catalogDocument{}, fmt.Errorf("memory: parse memory body for %q: %w", header.Filename, err)
 	}
 	return catalogDocument{
-		ID:          catalogDocIDForHeader(scope, workspaceID, header),
+		ID:          catalogDocIDForHeader(profileID, scope, workspaceID, header),
+		ProfileID:   strings.TrimSpace(profileID),
 		Scope:       scope.Normalize(),
 		WorkspaceID: strings.TrimSpace(workspaceID),
 		AgentName:   strings.TrimSpace(header.AgentName),

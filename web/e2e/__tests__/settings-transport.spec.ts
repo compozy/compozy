@@ -105,7 +105,7 @@ function cliEnv(paths: RuntimePaths): NodeJS.ProcessEnv {
   return {
     ...process.env,
     COMPOZY_HOME: paths.homeDir,
-    HOME: paths.homeDir,
+    HOME: paths.operatorHomeDir,
     PATH: `${path.dirname(paths.cliShim)}:${process.env.PATH ?? ""}`,
   };
 }

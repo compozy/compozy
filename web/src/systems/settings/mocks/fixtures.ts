@@ -7,7 +7,6 @@ import type {
   SettingsSandboxEntry,
   SettingsApplyResponse,
   SettingsGeneralSection,
-  SettingsHookCollection,
   SettingsHookEntry,
   SettingsHooksExtensionsSection,
   SettingsMCPServerCollection,
@@ -27,8 +26,8 @@ import { storyAgentNames, storyCompany, storyWorkspacePaths } from "@/storybook/
 
 export const settingsGeneralSectionFixture: SettingsGeneralSection = {
   section: "general",
-  scope: "global",
-  available_scopes: ["global"],
+  scope: "user",
+  available_scopes: ["user"],
   actions: {
     restart: { available: true, behavior: "action_trigger", name: "restart" },
   },
@@ -38,7 +37,6 @@ export const settingsGeneralSectionFixture: SettingsGeneralSection = {
       reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },
       socket: "/tmp/compozy.sock",
     },
-    defaults: { agent: storyAgentNames.product, provider: "claude", sandbox: "local" },
     http: { host: "127.0.0.1", port: 2123 },
     limits: { max_concurrent_agents: 20 },
     permissions: { mode: "approve-all" },
@@ -66,8 +64,8 @@ export const settingsGeneralSectionFixture: SettingsGeneralSection = {
 
 export const settingsNetworkSectionFixture: SettingsNetworkSection = {
   section: "network",
-  scope: "global",
-  available_scopes: ["global"],
+  scope: "user",
+  available_scopes: ["user"],
   config: {
     enabled: true,
     max_replay_age: 300,
@@ -108,8 +106,8 @@ export const settingsNetworkSectionFixture: SettingsNetworkSection = {
 
 export const settingsAttentionSectionFixture: SettingsAttentionSection = {
   section: "attention",
-  scope: "global",
-  available_scopes: ["global"],
+  scope: "user",
+  available_scopes: ["user"],
   config: {
     toasts: true,
     sound: true,
@@ -120,8 +118,9 @@ export const settingsAttentionSectionFixture: SettingsAttentionSection = {
 
 export const settingsCmdPaletteSectionFixture: SettingsCmdPaletteSection = {
   section: "cmd-palette",
-  scope: "global",
-  available_scopes: ["global", "workspace"],
+  scope: "user",
+  available_scopes: ["user", "profile", "workspace"],
+  aliases: {},
   fallback_agent_enabled: true,
   personalization: true,
 };
@@ -129,6 +128,7 @@ export const settingsCmdPaletteSectionFixture: SettingsCmdPaletteSection = {
 export const settingsNotificationPresetCollectionFixture: SettingsNotificationPresetCollection = {
   presets: [
     {
+      profile: "default",
       name: "task_terminal",
       events: ["task.run_*"],
       targets: [
@@ -150,6 +150,7 @@ export const settingsNotificationPresetCollectionFixture: SettingsNotificationPr
       updated_at: "2026-04-17T11:00:00Z",
     },
     {
+      profile: "default",
       name: "session_unhealthy",
       events: ["session.unhealthy", "session.hung", "session.recovered"],
       targets: [],
@@ -164,6 +165,7 @@ export const settingsNotificationPresetCollectionFixture: SettingsNotificationPr
       updated_at: "2026-04-17T09:00:00Z",
     },
     {
+      profile: "default",
       name: "provider_failure",
       events: [
         "provider.auth_required",
@@ -189,8 +191,8 @@ export const settingsNotificationPresetCollectionFixture: SettingsNotificationPr
 
 export const settingsAutomationSectionFixture: SettingsAutomationSection = {
   section: "automation",
-  scope: "global",
-  available_scopes: ["global"],
+  scope: "user",
+  available_scopes: ["user"],
   config: {
     enabled: true,
     timezone: "UTC",
@@ -323,8 +325,8 @@ export const settingsMemoryConfigFixture: SettingsMemorySection["config"] = {
 
 export const settingsMemorySectionFixture: SettingsMemorySection = {
   section: "memory",
-  scope: "global",
-  available_scopes: ["global"],
+  scope: "user",
+  available_scopes: ["user"],
   actions: {
     consolidate: {
       available: true,
@@ -343,8 +345,8 @@ export const settingsMemorySectionFixture: SettingsMemorySection = {
 
 export const settingsObservabilitySectionFixture: SettingsObservabilitySection = {
   section: "observability",
-  scope: "global",
-  available_scopes: ["global"],
+  scope: "user",
+  available_scopes: ["user"],
   config: {
     enabled: true,
     max_global_bytes: 1024 * 1024 * 1024,
@@ -372,8 +374,8 @@ export const settingsObservabilitySectionFixture: SettingsObservabilitySection =
 
 export const settingsSkillsSectionFixture: SettingsSkillsSection = {
   section: "skills",
-  scope: "global",
-  available_scopes: ["global"],
+  scope: "user",
+  available_scopes: ["user"],
   runtime_available: true,
   discovered_count: 12,
   disabled_count: 2,
@@ -393,8 +395,8 @@ export const settingsSkillsSectionFixture: SettingsSkillsSection = {
 
 export const settingsHooksExtensionsSectionFixture: SettingsHooksExtensionsSection = {
   section: "hooks-extensions",
-  scope: "global",
-  available_scopes: ["global"],
+  scope: "user",
+  available_scopes: ["user"],
   config: {
     trust: {
       allow_unverified: false,
@@ -427,7 +429,7 @@ export const settingsHooksExtensionsSectionFixture: SettingsHooksExtensionsSecti
       },
       source_metadata: {
         available_targets: ["global-config"],
-        effective_source: { kind: "global-config", scope: "global" },
+        effective_source: { kind: "global-config", scope: "user" },
       },
     },
     {
@@ -443,7 +445,7 @@ export const settingsHooksExtensionsSectionFixture: SettingsHooksExtensionsSecti
       },
       source_metadata: {
         available_targets: ["global-config"],
-        effective_source: { kind: "global-config", scope: "global" },
+        effective_source: { kind: "global-config", scope: "user" },
       },
     },
   ],
@@ -564,8 +566,8 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     },
     source_metadata: {
       available_targets: ["global-config"],
-      effective_source: { kind: "global-config", scope: "global" },
-      shadowed_sources: [{ kind: "builtin-provider", scope: "global" }],
+      effective_source: { kind: "global-config", scope: "user" },
+      shadowed_sources: [{ kind: "builtin-provider", scope: "user" }],
     },
     fallback: {
       settings: {
@@ -584,7 +586,7 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
         env_policy: "filtered",
         home_policy: "operator",
       },
-      source: { kind: "builtin-provider", scope: "global" },
+      source: { kind: "builtin-provider", scope: "user" },
     },
   },
   {
@@ -642,7 +644,7 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     },
     source_metadata: {
       available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "global" },
+      effective_source: { kind: "builtin-provider", scope: "user" },
     },
   },
   {
@@ -700,7 +702,7 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     ],
     source_metadata: {
       available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "global" },
+      effective_source: { kind: "builtin-provider", scope: "user" },
     },
   },
   {
@@ -731,7 +733,7 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     },
     source_metadata: {
       available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "global" },
+      effective_source: { kind: "builtin-provider", scope: "user" },
     },
   },
   {
@@ -741,7 +743,7 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     settings: { command: "npx -y cline@latest --acp", display_name: "Cline", harness: "acp" },
     source_metadata: {
       available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "global" },
+      effective_source: { kind: "builtin-provider", scope: "user" },
     },
   },
   {
@@ -751,7 +753,7 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     settings: { command: "goose acp", display_name: "Goose", harness: "acp" },
     source_metadata: {
       available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "global" },
+      effective_source: { kind: "builtin-provider", scope: "user" },
     },
   },
   {
@@ -761,7 +763,7 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     settings: { command: "hermes acp", display_name: "Hermes", harness: "acp" },
     source_metadata: {
       available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "global" },
+      effective_source: { kind: "builtin-provider", scope: "user" },
     },
   },
   {
@@ -775,7 +777,7 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     },
     source_metadata: {
       available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "global" },
+      effective_source: { kind: "builtin-provider", scope: "user" },
     },
   },
   {
@@ -806,7 +808,7 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     },
     source_metadata: {
       available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "global" },
+      effective_source: { kind: "builtin-provider", scope: "user" },
     },
   },
   {
@@ -816,7 +818,7 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     settings: { command: "openclaw acp", display_name: "OpenClaw", harness: "acp" },
     source_metadata: {
       available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "global" },
+      effective_source: { kind: "builtin-provider", scope: "user" },
     },
   },
   {
@@ -826,7 +828,7 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     settings: { command: "openhands acp", display_name: "OpenHands", harness: "acp" },
     source_metadata: {
       available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "global" },
+      effective_source: { kind: "builtin-provider", scope: "user" },
     },
   },
   {
@@ -857,7 +859,7 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     },
     source_metadata: {
       available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "global" },
+      effective_source: { kind: "builtin-provider", scope: "user" },
     },
   },
   {
@@ -872,7 +874,7 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
     },
     source_metadata: {
       available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "global" },
+      effective_source: { kind: "builtin-provider", scope: "user" },
     },
   },
 ];
@@ -895,7 +897,7 @@ export const settingsSandboxFixtures: SettingsSandboxEntry[] = [
     },
     source_metadata: {
       available_targets: ["global-config"],
-      effective_source: { kind: "global-config", scope: "global" },
+      effective_source: { kind: "global-config", scope: "user" },
     },
   },
   {
@@ -923,7 +925,7 @@ export const settingsSandboxFixtures: SettingsSandboxEntry[] = [
     },
     source_metadata: {
       available_targets: ["global-config"],
-      effective_source: { kind: "global-config", scope: "global" },
+      effective_source: { kind: "global-config", scope: "user" },
     },
   },
   {
@@ -937,7 +939,7 @@ export const settingsSandboxFixtures: SettingsSandboxEntry[] = [
     },
     source_metadata: {
       available_targets: ["global-config"],
-      effective_source: { kind: "builtin-provider", scope: "global" },
+      effective_source: { kind: "builtin-provider", scope: "user" },
     },
   },
 ];
@@ -948,11 +950,11 @@ export const settingsMCPServerFixtures: SettingsMCPServerEntry[] = [
     transport: "stdio",
     command: "npx -y @modelcontextprotocol/server-filesystem",
     args: [storyWorkspacePaths.risk],
-    scope: "global",
+    scope: "user",
     source_metadata: {
       available_targets: ["global-mcp-sidecar", "global-config"],
-      effective_source: { kind: "global-mcp-sidecar", scope: "global" },
-      shadowed_sources: [{ kind: "global-config", scope: "global" }],
+      effective_source: { kind: "global-mcp-sidecar", scope: "user" },
+      shadowed_sources: [{ kind: "global-config", scope: "user" }],
     },
   },
   {
@@ -960,10 +962,10 @@ export const settingsMCPServerFixtures: SettingsMCPServerEntry[] = [
     transport: "stdio",
     command: "npx -y @modelcontextprotocol/server-github",
     env_keys: ["GITHUB_TOKEN"],
-    scope: "global",
+    scope: "user",
     source_metadata: {
       available_targets: ["global-mcp-sidecar"],
-      effective_source: { kind: "global-mcp-sidecar", scope: "global" },
+      effective_source: { kind: "global-mcp-sidecar", scope: "user" },
     },
   },
 ];
@@ -972,36 +974,29 @@ export const settingsHookFixtures: SettingsHookEntry[] =
   settingsHooksExtensionsSectionFixture.hooks ?? [];
 
 export const settingsProvidersCollectionFixture = {
-  available_scopes: ["global"],
+  available_scopes: ["user"],
   collection: "providers",
   providers: settingsProviderFixtures,
-  scope: "global",
+  scope: "user",
 } satisfies SettingsProviderCollection;
 
 export const settingsSandboxesCollectionFixture = {
-  available_scopes: ["global"],
+  available_scopes: ["user"],
   collection: "sandboxes",
   sandboxes: settingsSandboxFixtures,
-  scope: "global",
+  scope: "user",
 } satisfies SettingsSandboxCollection;
 
-export const settingsHooksCollectionFixture = {
-  available_scopes: ["global"],
-  collection: "hooks",
-  hooks: settingsHookFixtures,
-  scope: "global",
-} satisfies SettingsHookCollection;
-
 export const settingsMCPServersCollectionFixture = {
-  available_scopes: ["global", "workspace"],
+  available_scopes: ["user", "profile", "workspace"],
   collection: "mcp-servers",
   mcp_servers: settingsMCPServerFixtures,
-  scope: "global",
+  scope: "user",
 } satisfies SettingsMCPServerCollection;
 
 // The reference visual-contract matrix: nine servers exercising every auth x
 // runtime x probe cell (docs/design/opendesign/mcp-management.html SERVERS).
-function mcpConfigSource(kind: string, scope: "global" | "workspace") {
+function mcpConfigSource(kind: string, scope: "user" | "profile" | "workspace") {
   return {
     available_targets: [kind] as SettingsMCPServerEntry["source_metadata"]["available_targets"],
     effective_source:
@@ -1124,7 +1119,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     },
     auth_status: {
       server_name: "grafana",
-      scope: "global",
+      scope: "user",
       status: "invalid",
       token_present: true,
       refreshable: false,
@@ -1137,8 +1132,8 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
       probe: "skipped",
       tool_count: 0,
     },
-    scope: "global",
-    source_metadata: mcpConfigSource("global-config", "global"),
+    scope: "user",
+    source_metadata: mcpConfigSource("global-config", "user"),
   },
   {
     name: "github-remote",
@@ -1150,7 +1145,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     },
     auth_status: {
       server_name: "github-remote",
-      scope: "global",
+      scope: "user",
       status: "authenticated",
       token_present: true,
       refreshable: true,
@@ -1163,8 +1158,8 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
       probe: "skipped",
       tool_count: 0,
     },
-    scope: "global",
-    source_metadata: mcpConfigSource("global-config", "global"),
+    scope: "user",
+    source_metadata: mcpConfigSource("global-config", "user"),
   },
   {
     name: "filesystem",
@@ -1219,7 +1214,7 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
     },
     auth_status: {
       server_name: "buildkite",
-      scope: "global",
+      scope: "user",
       status: "authenticated",
       token_present: true,
       refreshable: true,
@@ -1232,13 +1227,13 @@ export const mcpManagementServerFixtures: SettingsMCPServerEntry[] = [
       probe: "failed",
       tool_count: 0,
     },
-    scope: "global",
-    source_metadata: mcpConfigSource("global-config", "global"),
+    scope: "user",
+    source_metadata: mcpConfigSource("global-config", "user"),
   },
 ];
 
 export const mcpManagementCollectionFixture = {
-  available_scopes: ["global", "workspace"],
+  available_scopes: ["user", "workspace"],
   collection: "mcp-servers",
   mcp_servers: mcpManagementServerFixtures,
   scope: "workspace",
@@ -1288,7 +1283,7 @@ export const settingsAppliedMutationFixture: SettingsMutationResult = {
   applied: true,
   apply_record_id: "cfg_apply_live",
   section: "general",
-  scope: "global",
+  scope: "user",
   lifecycle: "live",
   next_action: "none",
   restart_required: false,
@@ -1303,7 +1298,7 @@ export const settingsRestartRequiredMutationFixture: SettingsMutationResult = {
   applied: true,
   apply_record_id: "cfg_apply_blocked",
   section: "general",
-  scope: "global",
+  scope: "user",
   lifecycle: "restart-required",
   next_action: "restart-daemon",
   restart_required: true,

@@ -99,6 +99,42 @@ const kitExtensionFixture = {
   enabled: false,
   missing_env: ["DEP_KIT_WEBHOOK"],
   name: "dep-kit-ops",
+  declared_profiles: [
+    {
+      created_by_extension: true,
+      credential_requirements: [
+        {
+          missing: true,
+          provider: "openai",
+          slot: "api_key",
+          source_extension: "dep-kit-ops",
+        },
+      ],
+      exists: true,
+      name: "growth",
+      needs_setup: true,
+    },
+    {
+      created_by_extension: true,
+      credential_requirements: [],
+      exists: true,
+      name: "operations",
+      needs_setup: false,
+    },
+  ],
+  placements: [
+    { dormant: false, kind: "skill", profile: "growth", resource: "campaign-brief" },
+    { dormant: false, kind: "agent", resource: "release-reviewer" },
+  ],
+  dormant_placements: [
+    {
+      create_action: "Create studio profile",
+      dormant: true,
+      kind: "layout",
+      profile: "studio",
+      resource: "campaign-board",
+    },
+  ],
   network_confirmation_required: true,
   network_requirement_digest: "sha256:6f1c0a94d3b27e58",
   remote_version: undefined,
@@ -115,7 +151,7 @@ const kitInventoryItems = [
 ];
 
 /** One MSW group set per story: a second `storybookMswParameters` spread would replace the first. */
-function kitDetailHandlers(refuseEnable = false) {
+function kitDetailHandlers(refuseUpdate = false) {
   return storybookMswParameters({
     marketplace: [
       compozyApiMock.get("/api/marketplace/{kind}/{entry_id}", () =>
@@ -129,14 +165,22 @@ function kitDetailHandlers(refuseEnable = false) {
             kind: "extension",
             name: "dep-kit-ops",
             source: "registry",
-            update_available: false,
+            update_available: refuseUpdate,
+            ...(refuseUpdate ? { version: "1.1.0" } : {}),
           },
         })
       ),
     ],
     extensions: [
       compozyApiMock.get("/api/extensions", () =>
-        HttpResponse.json({ extensions: [kitExtensionFixture] })
+        HttpResponse.json({
+          extensions: [
+            {
+              ...kitExtensionFixture,
+              ...(refuseUpdate ? { remote_version: "1.1.0", update_available: true } : {}),
+            },
+          ],
+        })
       ),
       compozyApiMock.get("/api/extensions/{name}/inventory", () =>
         HttpResponse.json({
@@ -146,14 +190,14 @@ function kitDetailHandlers(refuseEnable = false) {
           items: kitInventoryItems,
         })
       ),
-      ...(refuseEnable
+      ...(refuseUpdate
         ? [
-            compozyApiMock.post("/api/extensions/{name}/enable", ({ response }) =>
+            compozyApiMock.put("/api/extensions/{name}", ({ response }) =>
               response(409).json({
                 code: "extension_network_confirmation_required",
                 current_digest: "sha256:6f1c0a94d3b27e58",
                 error:
-                  "dep-kit-ops declares Live network participation that has not been confirmed",
+                  "dep-kit-ops update changes Live network participation that has not been confirmed",
               })
             ),
           ]
@@ -318,6 +362,53 @@ export const DetailExtensionKitInventory: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
+/** Declared profiles, active-profile enablement, and the placement matrix on the real detail page. */
+export const DetailExtensionProfilesPlacement: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/marketplace/extension/dep-kit-ops"),
+    ...kitDetailHandlers(),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole("button", { name: "Placement matrix" }));
+    const matrix = await canvas.findByText("campaign-brief");
+    matrix.scrollIntoView({ block: "center" });
+  },
+};
+
+/** A declared profile with an unfilled credential ask carries the real needs-setup signal. */
+export const DetailExtensionProfileNeedsSetup: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/marketplace/extension/dep-kit-ops"),
+    ...kitDetailHandlers(),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const badge = await within(canvasElement).findByText("Needs setup");
+    badge.scrollIntoView({ block: "center" });
+  },
+};
+
+/** An absent profile leaves its placed resource dormant and offers the canonical create flow. */
+export const DetailExtensionDormantPlacement: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/marketplace/extension/dep-kit-ops"),
+    ...kitDetailHandlers(),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const dormant = await within(canvasElement).findByTestId("extension-dormant-studio");
+    dormant.scrollIntoView({ block: "center" });
+  },
+};
+
 /** Enabled kit with a catalog update pending: body carries the kit, rail carries management. */
 export const DetailExtensionEnabledUpdate: Story = {
   args: {},
@@ -381,7 +472,7 @@ export const DetailExtensionNetworkConfirm: Story = {
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("extension-enabled-switch"));
+    await userEvent.click(await canvas.findByRole("button", { name: "Update" }));
     const dialog = within(document.body);
     await expect(dialog.findByTestId("extension-network-confirm-dialog")).resolves.toBeDefined();
     await expect(

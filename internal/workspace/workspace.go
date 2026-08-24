@@ -34,6 +34,8 @@ var (
 	ErrWorkspaceIdentityPermissionDenied = errors.New("workspace identity permission denied")
 	// ErrWorkspaceValidation reports an invalid mutable workspace field.
 	ErrWorkspaceValidation = errors.New("workspace validation failed")
+	// ErrOperatorHomeWorkspace reports that the operator home cannot be registered as a workspace.
+	ErrOperatorHomeWorkspace = errors.New("the home folder cannot be registered as a workspace")
 )
 
 // Workspace is the persisted workspace registration stored in the global database.
@@ -51,13 +53,23 @@ type Workspace struct {
 // ResolvedWorkspace is the computed workspace snapshot returned by a resolver.
 type ResolvedWorkspace struct {
 	Workspace
-	WorkspaceID      string
-	Config           compozyconfig.Config
-	Agents           []compozyconfig.AgentDef
-	AgentDiagnostics []AgentDiagnostic
-	Skills           []SkillPath
-	Sandbox          sandbox.Resolved
-	ResolvedAt       time.Time
+	WorkspaceID         string
+	ProfileID           string
+	ProfileName         string
+	ProfileRoot         string
+	ProfileDeclarations []ProfileDeclaration
+	Config              compozyconfig.Config
+	Agents              []compozyconfig.AgentDef
+	AgentDiagnostics    []AgentDiagnostic
+	Skills              []SkillPath
+	Sandbox             sandbox.Resolved
+	ResolvedAt          time.Time
+}
+
+// ProfileDeclaration identifies committed workspace content bound by profile name.
+type ProfileDeclaration struct {
+	Name string
+	Path string
 }
 
 // AgentDiagnostic reports one workspace-visible AGENT.md file that could not be loaded.
@@ -79,4 +91,17 @@ type SkillPath struct {
 type RuntimeResolver interface {
 	Resolve(ctx context.Context, idOrPath string) (ResolvedWorkspace, error)
 	ResolveOrRegister(ctx context.Context, path string) (ResolvedWorkspace, error)
+}
+
+// ProfileRuntimeResolver resolves a workspace with profile-bound resource layers.
+type ProfileRuntimeResolver interface {
+	RuntimeResolver
+	ResolveForProfile(ctx context.Context, idOrPath string, profileName string) (ResolvedWorkspace, error)
+}
+
+// ProfileRegistrationResolver resolves or registers a workspace path while
+// applying profile-bound resource layers in the same resolution pass.
+type ProfileRegistrationResolver interface {
+	ProfileRuntimeResolver
+	ResolveOrRegisterForProfile(ctx context.Context, path string, profileName string) (ResolvedWorkspace, error)
 }

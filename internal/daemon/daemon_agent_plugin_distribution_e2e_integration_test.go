@@ -71,26 +71,26 @@ func testDaemonE2EAgentPluginCLIGoldenPath(t *testing.T) {
 		"extension", "install", "github:acme/hello", "--allow-unverified", "--yes",
 	)
 	assertAgentPluginTranscriptOrder(t, installOut,
+		"acme.tools will:",
 		"✓ install acme.tools",
 		"Format: agent plugin",
 		"Ingested",
 		"skill",
 		"Skipped",
 		"legacy-events",
-		"next: compozy extension enable acme.tools",
+		"next: compozy extension status acme.tools",
 		"Extension",
 		"Name:",
 		"acme.tools",
 		"Summary:",
-		"disabled",
+		"running",
 	)
 
 	enableOut := runAgentPluginHumanCLI(
 		t, ctx, harness, true, "extension", "enable", "acme.tools",
 	)
 	assertAgentPluginTranscriptOrder(t, enableOut,
-		"✓ Enabled acme.tools",
-		"next: compozy extension status acme.tools",
+		"Enabled in profile default.",
 	)
 
 	statusOut := runAgentPluginHumanCLI(
@@ -124,7 +124,7 @@ func testDaemonE2EAgentPluginCLIGoldenPath(t *testing.T) {
 		"WARN",
 	)
 
-	dataPath, err := harness.HomePaths.ExtensionDataPath("acme.tools", "")
+	dataPath, err := harness.HomePaths.ExtensionDataPath("acme.tools", "", "")
 	if err != nil {
 		t.Fatalf("ExtensionDataPath(acme.tools) error = %v", err)
 	}
@@ -277,10 +277,10 @@ func testDaemonE2EAgentPluginRuntimeDistribution(t *testing.T) {
 	if installed.Name != "acme.tools" || installed.Version != "1.2.0" {
 		t.Fatalf("installed portable package = %#v, want acme.tools@1.2.0", installed)
 	}
-	if installed.Enabled {
-		t.Fatalf("installed portable package = %#v, want inert before enable", installed)
+	if !installed.Enabled {
+		t.Fatalf("installed portable package = %#v, want default-on enablement", installed)
 	}
-	dataPath, err := harness.HomePaths.ExtensionDataPath(installed.Name, "")
+	dataPath, err := harness.HomePaths.ExtensionDataPath(installed.Name, "", "")
 	if err != nil {
 		t.Fatalf("ExtensionDataPath(%q) error = %v", installed.Name, err)
 	}
@@ -288,9 +288,16 @@ func testDaemonE2EAgentPluginRuntimeDistribution(t *testing.T) {
 		t.Fatalf("portable data path before first MCP launch stat error = %v, want not-exist", err)
 	}
 
-	enabled, err := harness.EnableExtension(ctx, installed.Name)
+	disabled, err := harness.SetExtensionEnablement(ctx, installed.Name, "default", false)
 	if err != nil {
-		t.Fatalf("EnableExtension(%q) error = %v", installed.Name, err)
+		t.Fatalf("SetExtensionEnablement(%q, false) error = %v", installed.Name, err)
+	}
+	if disabled.Enabled {
+		t.Fatalf("disabled portable package = %#v, want disabled", disabled)
+	}
+	enabled, err := harness.SetExtensionEnablement(ctx, installed.Name, "default", true)
+	if err != nil {
+		t.Fatalf("SetExtensionEnablement(%q, true) error = %v", installed.Name, err)
 	}
 	if !enabled.Enabled {
 		t.Fatalf("enabled portable package = %#v, want enabled", enabled)
@@ -390,6 +397,13 @@ func runAgentPluginHumanCLI(
 	if wantSuccess {
 		if err != nil {
 			t.Fatalf("CLI %q error = %v; stdout=%s stderr=%s", strings.Join(args, " "), err, stdout, stderr)
+		}
+		isInstall := len(args) >= 2 && args[0] == "extension" && args[1] == "install"
+		if isInstall {
+			if strings.TrimSpace(stderr) == "" {
+				t.Fatalf("CLI %q stderr is empty, want install preview", strings.Join(args, " "))
+			}
+			return stderr + stdout
 		}
 		if strings.TrimSpace(stderr) != "" {
 			t.Fatalf("CLI %q stderr = %q, want empty", strings.Join(args, " "), stderr)

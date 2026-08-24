@@ -184,6 +184,7 @@ func settingsMCPDeadEntityKey(target mcpauth.Target, serverName string) (store.D
 		return store.DeadEntityKey{}, false
 	}
 	key := store.DeadEntityKey{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: normalizedTarget.WorkspaceID,
 		Kind:        store.DeadEntityKindMCPSidecar,
 		EntityID:    serverName,

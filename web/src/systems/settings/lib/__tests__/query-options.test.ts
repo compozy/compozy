@@ -1,18 +1,41 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const adapterMocks = vi.hoisted(() => ({
+  getSettingsAttention: vi.fn(),
+  getSettingsPersona: vi.fn(),
+  listSettingsHooks: vi.fn(),
+}));
+
+vi.mock("../../adapters/settings-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("../../adapters/settings-api")>()),
+  getSettingsAttention: adapterMocks.getSettingsAttention,
+  getSettingsPersona: adapterMocks.getSettingsPersona,
+  listSettingsHooks: adapterMocks.listSettingsHooks,
+}));
 
 import {
   SETTINGS_QUERY_INTERVALS,
   shouldRetrySettingsQuery,
+  settingsAttentionOptions,
   settingsAutomationOptions,
   settingsSandboxDetailOptions,
   settingsGeneralOptions,
+  settingsHooksListOptions,
   settingsMCPServersListOptions,
   settingsProviderDetailOptions,
+  settingsPersonaOptions,
   settingsProvidersListOptions,
   settingsRestartStatusOptions,
   settingsUpdateOptions,
 } from "../query-options";
 import { SettingsApiError } from "../../adapters/settings-api";
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  adapterMocks.getSettingsAttention.mockResolvedValue({});
+  adapterMocks.getSettingsPersona.mockResolvedValue({});
+  adapterMocks.listSettingsHooks.mockResolvedValue({ hooks: [] });
+});
 
 describe("settings section options", () => {
   it("uses the configured stale and refetch intervals for sections", () => {
@@ -37,6 +60,37 @@ describe("settings section options", () => {
     expect(shouldRetrySettingsQuery(0, new Error("temporary failure"))).toBe(true);
     expect(shouldRetrySettingsQuery(2, new Error("temporary failure"))).toBe(false);
   });
+
+  it("binds persona cache identity and transport to the selected profile", async () => {
+    const filter = { scope: "profile" as const, profile: "marketing" };
+    const options = settingsPersonaOptions(filter);
+    const signal = new AbortController().signal;
+
+    expect(options.queryKey).toEqual([
+      "settings",
+      "section",
+      "persona",
+      "profile",
+      "",
+      "marketing",
+    ]);
+    if (typeof options.queryFn !== "function") throw new Error("persona query function missing");
+    await options.queryFn({ signal } as never);
+    expect(adapterMocks.getSettingsPersona).toHaveBeenCalledWith(filter, signal);
+    expect(options.staleTime).toBe(SETTINGS_QUERY_INTERVALS.sectionStaleTime);
+    expect(options.retry).toBe(shouldRetrySettingsQuery);
+  });
+
+  it("binds attention cache identity and transport to the selected profile", async () => {
+    const filter = { scope: "profile" as const, profile: "marketing" };
+    const options = settingsAttentionOptions(filter);
+    const signal = new AbortController().signal;
+
+    expect(options.queryKey).toEqual(["settings", "section", "attention", "profile", "marketing"]);
+    if (typeof options.queryFn !== "function") throw new Error("attention query function missing");
+    await options.queryFn({ signal } as never);
+    expect(adapterMocks.getSettingsAttention).toHaveBeenCalledWith(filter, signal);
+  });
 });
 
 describe("settings collection options", () => {
@@ -55,7 +109,7 @@ describe("settings collection options", () => {
   });
 
   it("includes scope and workspace filters in MCP list query keys", () => {
-    const global = settingsMCPServersListOptions({ scope: "global" });
+    const global = settingsMCPServersListOptions({ scope: "user" });
     const scoped = settingsMCPServersListOptions({
       scope: "workspace",
       workspace_id: "ws_alpha",
@@ -67,7 +121,8 @@ describe("settings collection options", () => {
       "collection",
       "mcp-servers",
       "list",
-      "global",
+      "user",
+      "",
       "",
     ]);
     expect(scoped.queryKey).toEqual([
@@ -77,14 +132,40 @@ describe("settings collection options", () => {
       "list",
       "workspace",
       "ws_alpha",
+      "",
     ]);
     expect(disabled.enabled).toBe(false);
   });
 
   it("uses an auth-flow polling interval when the caller requests one", () => {
-    const authorizing = settingsMCPServersListOptions({ scope: "global" }, true, 1_000);
+    const authorizing = settingsMCPServersListOptions({ scope: "user" }, true, 1_000);
 
     expect(authorizing.refetchInterval).toBe(1_000);
+  });
+
+  it("binds hook cache identity and transport to the selected profile", async () => {
+    const filter = {
+      scope: "profile" as const,
+      profile: "marketing",
+      workspace_id: "ws_alpha",
+    };
+    const options = settingsHooksListOptions(filter);
+    const signal = new AbortController().signal;
+
+    expect(options.queryKey).toEqual([
+      "settings",
+      "collection",
+      "hooks",
+      "list",
+      "profile",
+      "ws_alpha",
+      "marketing",
+    ]);
+    if (typeof options.queryFn !== "function") throw new Error("hooks query function missing");
+    await options.queryFn({ signal } as never);
+    expect(adapterMocks.listSettingsHooks).toHaveBeenCalledWith(filter, signal);
+    expect(options.refetchInterval).toBe(SETTINGS_QUERY_INTERVALS.collectionRefetchInterval);
+    expect(options.retry).toBe(shouldRetrySettingsQuery);
   });
 });
 

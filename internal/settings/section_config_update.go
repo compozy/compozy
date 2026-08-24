@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
@@ -17,6 +18,8 @@ func (s *service) updateConfigBackedSection(
 	switch req.Section {
 	case SectionGeneral:
 		return s.updateGeneralSection(ctx, req)
+	case SectionPersona:
+		return s.updatePersonaSection(ctx, req)
 	case SectionMemory:
 		return s.updateMemorySection(ctx, req)
 	case SectionRoles:
@@ -167,27 +170,6 @@ func (s *service) updateGatewaySection(
 	})
 }
 
-func (s *service) updateAttentionSection(
-	ctx context.Context,
-	req SectionUpdateRequest,
-) (MutationResult, error) {
-	cfg, target, err := s.loadGlobalSectionUpdate(ctx, req.Section, req.Scope, req.WorkspaceID)
-	if err != nil {
-		return MutationResult{}, err
-	}
-	if req.Attention == nil {
-		return MutationResult{}, validationError(errors.New("settings: attention section payload is required"))
-	}
-	desired := cloneAttentionConfig(*req.Attention)
-	if err := desired.Validate(); err != nil {
-		return MutationResult{}, validationError(err)
-	}
-	changed := diffAttentionSettings(cfg.Attention, desired)
-	return s.updateConfigSection(req.Section, changed, target, func(editor *compozyconfig.OverlayEditor) error {
-		return applyAttentionSettings(editor, desired)
-	})
-}
-
 func (s *service) updateShellSection(
 	ctx context.Context,
 	req SectionUpdateRequest,
@@ -253,7 +235,7 @@ func (s *service) loadGlobalSectionUpdate(
 	scope ScopeKind,
 	workspaceID string,
 ) (compozyconfig.Config, compozyconfig.WriteTarget, error) {
-	loaded, err := s.loadScopedSectionUpdate(ctx, section, scope, workspaceID, ScopeGlobal)
+	loaded, err := s.loadScopedSectionUpdate(ctx, section, scope, workspaceID, ScopeUser)
 	if err != nil {
 		return compozyconfig.Config{}, compozyconfig.WriteTarget{}, err
 	}
@@ -265,6 +247,7 @@ type scopedSectionUpdate struct {
 	target        compozyconfig.WriteTarget
 	scope         ScopeKind
 	workspaceID   string
+	profileName   string
 	workspaceRoot string
 }
 
@@ -275,13 +258,26 @@ func (s *service) loadScopedSectionUpdate(
 	workspaceID string,
 	allowedScopes ...ScopeKind,
 ) (scopedSectionUpdate, error) {
+	return s.loadScopedSectionUpdateForProfile(
+		ctx, section, scope, workspaceID, "", allowedScopes...,
+	)
+}
+
+func (s *service) loadScopedSectionUpdateForProfile(
+	ctx context.Context,
+	section SectionName,
+	scope ScopeKind,
+	workspaceID string,
+	profileName string,
+	allowedScopes ...ScopeKind,
+) (scopedSectionUpdate, error) {
 	normalizedScope, normalizedWorkspaceID, err := s.normalizeReadScope(scope, workspaceID)
 	if err != nil {
 		return scopedSectionUpdate{}, fmt.Errorf("settings: update section %q: %w", section, err)
 	}
 	supported := slices.Contains(allowedScopes, normalizedScope)
 	if !supported {
-		if len(allowedScopes) == 1 && allowedScopes[0] == ScopeGlobal {
+		if len(allowedScopes) == 1 && allowedScopes[0] == ScopeUser {
 			return scopedSectionUpdate{}, conflictError(
 				fmt.Errorf("settings: section %q does not support workspace scope", section),
 			)
@@ -291,7 +287,7 @@ func (s *service) loadScopedSectionUpdate(
 		)
 	}
 
-	cfg, resolved, err := s.loadConfig(ctx, normalizedScope, normalizedWorkspaceID)
+	cfg, resolved, err := s.loadConfig(ctx, normalizedScope, normalizedWorkspaceID, profileName)
 	if err != nil {
 		return scopedSectionUpdate{}, fmt.Errorf(
 			"settings: load section %q config: %w",
@@ -300,16 +296,21 @@ func (s *service) loadScopedSectionUpdate(
 		)
 	}
 
-	writeScope := compozyconfig.WriteScopeGlobal
+	writeScope := compozyconfig.WriteScopeUser
 	workspaceRoot := ""
+	if resolved != nil {
+		workspaceRoot = resolved.RootDir
+	}
 	if normalizedScope == ScopeWorkspace {
 		if resolved == nil {
 			return scopedSectionUpdate{}, errors.New("settings: resolved workspace is required for section update")
 		}
 		writeScope = compozyconfig.WriteScopeWorkspace
-		workspaceRoot = resolved.RootDir
 	}
-	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, writeScope)
+	if normalizedScope == ScopeProfile {
+		writeScope = compozyconfig.WriteScopeProfile
+	}
+	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, writeScope, profileName)
 	if err != nil {
 		return scopedSectionUpdate{}, fmt.Errorf(
 			"settings: resolve section %q write target: %w",
@@ -323,6 +324,7 @@ func (s *service) loadScopedSectionUpdate(
 		target:        target,
 		scope:         normalizedScope,
 		workspaceID:   normalizedWorkspaceID,
+		profileName:   strings.TrimSpace(profileName),
 		workspaceRoot: workspaceRoot,
 	}, nil
 }
@@ -332,7 +334,7 @@ func (s *service) loadRolesSectionUpdate(
 	scope ScopeKind,
 	workspaceID string,
 ) (scopedSectionUpdate, error) {
-	return s.loadScopedSectionUpdate(ctx, SectionRoles, scope, workspaceID, ScopeGlobal, ScopeWorkspace)
+	return s.loadScopedSectionUpdate(ctx, SectionRoles, scope, workspaceID, ScopeUser, ScopeWorkspace)
 }
 
 func (s *service) updateConfigSection(
@@ -341,7 +343,7 @@ func (s *service) updateConfigSection(
 	target compozyconfig.WriteTarget,
 	mutate func(*compozyconfig.OverlayEditor) error,
 ) (MutationResult, error) {
-	return s.updateScopedConfigSection(section, changed, target, ScopeGlobal, "", "", mutate)
+	return s.updateScopedConfigSection(section, changed, target, ScopeUser, "", "", mutate)
 }
 
 func (s *service) updateScopedConfigSection(
@@ -353,16 +355,34 @@ func (s *service) updateScopedConfigSection(
 	workspaceRoot string,
 	mutate func(*compozyconfig.OverlayEditor) error,
 ) (MutationResult, error) {
+	return s.updateScopedConfigSectionForProfile(
+		section, changed, target, scope, workspaceID, "", workspaceRoot, mutate,
+	)
+}
+
+func (s *service) updateScopedConfigSectionForProfile(
+	section SectionName,
+	changed []string,
+	target compozyconfig.WriteTarget,
+	scope ScopeKind,
+	workspaceID string,
+	profileName string,
+	workspaceRoot string,
+	mutate func(*compozyconfig.OverlayEditor) error,
+) (MutationResult, error) {
 	if len(changed) == 0 {
 		return MutationResult{
 			Section:     section,
 			Scope:       scope,
+			WriteTarget: target.Kind(),
 			WorkspaceID: workspaceID,
+			ProfileName: strings.TrimSpace(profileName),
 			Behavior:    MutationBehaviorAppliedNow,
 			Applied:     true,
 			Warnings:    []string{sectionsNoChangesValue},
 			Lifecycle:   lifecycle.Live,
 			DiffClass:   lifecycle.DiffClassForRoot(string(section)),
+			writePath:   target.Path(),
 		}, nil
 	}
 
@@ -380,11 +400,13 @@ func (s *service) updateScopedConfigSection(
 		Scope:           scope,
 		WriteTarget:     target.Kind(),
 		WorkspaceID:     workspaceID,
+		ProfileName:     strings.TrimSpace(profileName),
 		Behavior:        classification.Behavior,
 		Applied:         classification.Applied,
 		RestartRequired: classification.RestartRequired,
 		RestartScope:    classification.RestartScope,
 		Lifecycle:       classification.Lifecycle,
 		DiffClass:       classification.DiffClass,
+		writePath:       target.Path(),
 	}, nil
 }

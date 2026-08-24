@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/testutil"
 	automationpkg "github.com/compozy/compozy/internal/automation"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestAutomationEndpointsAdditionalCoverage(t *testing.T) {
@@ -18,6 +19,7 @@ func TestAutomationEndpointsAdditionalCoverage(t *testing.T) {
 	now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
 	job := automationpkg.Job{
 		ID:        "job-1",
+		ProfileID: store.DefaultProfileID,
 		Scope:     automationpkg.AutomationScopeWorkspace,
 		Name:      "nightly-review",
 		AgentName: "coder",
@@ -31,6 +33,7 @@ func TestAutomationEndpointsAdditionalCoverage(t *testing.T) {
 	}
 	trigger := automationpkg.Trigger{
 		ID:        "trigger-1",
+		ProfileID: store.DefaultProfileID,
 		Scope:     automationpkg.AutomationScopeWorkspace,
 		Name:      "deploy-review",
 		AgentName: "coder",
@@ -184,6 +187,9 @@ func TestAutomationEndpointsAdditionalCoverage(t *testing.T) {
 				if got, want := payload.Job.Name, job.Name; got != want {
 					t.Fatalf("job payload name = %v, want %q", got, want)
 				}
+				if payload.Job.ProfileID != store.DefaultProfileID || payload.Job.ProfileName != "default" {
+					t.Fatalf("job owner = %#v, want default profile", payload.Job)
+				}
 			case "/automation/triggers":
 				var payload contract.TriggersResponse
 				if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
@@ -194,6 +200,10 @@ func TestAutomationEndpointsAdditionalCoverage(t *testing.T) {
 				}
 				if got, want := payload.Triggers[0].ID, trigger.ID; got != want {
 					t.Fatalf("trigger list id = %v, want %q", got, want)
+				}
+				if payload.Triggers[0].ProfileID != store.DefaultProfileID ||
+					payload.Triggers[0].ProfileName != "default" {
+					t.Fatalf("trigger owner = %#v, want default profile", payload.Triggers[0])
 				}
 			case "/automation/triggers/trigger-1":
 				var payload contract.TriggerResponse
@@ -206,6 +216,9 @@ func TestAutomationEndpointsAdditionalCoverage(t *testing.T) {
 				if got, want := payload.Trigger.Event, trigger.Event; got != want {
 					t.Fatalf("trigger payload event = %v, want %q", got, want)
 				}
+				if payload.Trigger.ProfileID != store.DefaultProfileID || payload.Trigger.ProfileName != "default" {
+					t.Fatalf("trigger owner = %#v, want default profile", payload.Trigger)
+				}
 			case "/automation/jobs/job-1/runs", "/automation/triggers/trigger-1/runs", "/automation/runs?limit=1":
 				var payload contract.RunsResponse
 				if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
@@ -217,6 +230,9 @@ func TestAutomationEndpointsAdditionalCoverage(t *testing.T) {
 				if got, want := payload.Runs[0].ID, run.ID; got != want {
 					t.Fatalf("run list id = %v, want %q", got, want)
 				}
+				if payload.Runs[0].ProfileID != store.DefaultProfileID || payload.Runs[0].ProfileName != "default" {
+					t.Fatalf("run owner = %#v, want default profile", payload.Runs[0])
+				}
 			case "/automation/runs/run-1":
 				var payload contract.RunResponse
 				if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
@@ -227,6 +243,9 @@ func TestAutomationEndpointsAdditionalCoverage(t *testing.T) {
 				}
 				if got, want := payload.Run.Status, run.Status; got != want {
 					t.Fatalf("run payload status = %v, want %q", got, want)
+				}
+				if payload.Run.ProfileID != store.DefaultProfileID || payload.Run.ProfileName != "default" {
+					t.Fatalf("run owner = %#v, want default profile", payload.Run)
 				}
 			}
 		})

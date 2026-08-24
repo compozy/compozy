@@ -94,7 +94,7 @@ describe("fetchSessions", () => {
 
     expect(result).toEqual(response);
     expect(result.page.total).toBe(205);
-    await expectFetchRequest({ path: "/api/sessions" });
+    await expectFetchRequest({ path: "/api/sessions?all_workspaces=true" });
   });
 
   it("passes abort signal to fetch", async () => {
@@ -104,7 +104,7 @@ describe("fetchSessions", () => {
     await fetchSessions({}, controller.signal);
 
     await expectFetchRequest({
-      path: "/api/sessions",
+      path: "/api/sessions?all_workspaces=true",
       signal: controller.signal,
     });
   });
@@ -113,7 +113,7 @@ describe("fetchSessions", () => {
     mockJsonResponse({ sessions: [], page: { has_more: false, limit: 25, total: 0 } });
 
     await fetchSessions({
-      workspace: "ws_alpha",
+      workspace_id: "ws_alpha",
       agent: "claude-agent",
       state: "active",
       resumable: true,
@@ -133,16 +133,16 @@ describe("fetchSessions", () => {
       resumable: "true",
       sort: "last_activity",
       state: "active",
-      workspace: "ws_alpha",
+      workspace_id: "ws_alpha",
     });
   });
 
   it("omits blank and undefined filters", async () => {
     mockJsonResponse({ sessions: [], page: { has_more: false, limit: 50, total: 0 } });
 
-    await fetchSessions({ workspace: "   ", q: undefined });
+    await fetchSessions({ workspace_id: "   ", q: undefined });
 
-    await expectFetchRequest({ path: "/api/sessions" });
+    await expectFetchRequest({ path: "/api/sessions?all_workspaces=true" });
   });
 
   it("throws on non-ok response", async () => {

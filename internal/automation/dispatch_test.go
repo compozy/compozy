@@ -27,55 +27,62 @@ import (
 func TestDispatchWorkspaceAutomationUsesWorkspaceCreateOpts(t *testing.T) {
 	t.Parallel()
 
-	store := newMemoryRunStore()
-	creator := newRecordingSessionCreator()
-	dispatcher := newTestDispatcher(t, creator, store)
+	t.Run("Should preserve the automation profile on the created run", func(t *testing.T) {
+		t.Parallel()
 
-	job := testJob(AutomationScopeWorkspace, "job-workspace", "ws_alpha")
-	run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
-		Kind: DispatchKindSchedule,
-		Job:  &job,
+		store := newMemoryRunStore()
+		creator := newRecordingSessionCreator()
+		dispatcher := newTestDispatcher(t, creator, store)
+
+		job := testJob(AutomationScopeWorkspace, "job-workspace", "ws_alpha")
+		run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
+			Kind: DispatchKindSchedule,
+			Job:  &job,
+		})
+		if err != nil {
+			t.Fatalf("Dispatch() error = %v", err)
+		}
+
+		if got, want := len(creator.createCalls()), 1; got != want {
+			t.Fatalf("len(Create calls) = %d, want %d", got, want)
+		}
+		createCall := creator.createCalls()[0]
+		if got, want := createCall.AgentName, job.AgentName; got != want {
+			t.Fatalf("Create().AgentName = %q, want %q", got, want)
+		}
+		if got, want := createCall.Name, job.Name; got != want {
+			t.Fatalf("Create().Name = %q, want %q", got, want)
+		}
+		if got, want := createCall.Workspace, job.WorkspaceID; got != want {
+			t.Fatalf("Create().Workspace = %q, want %q", got, want)
+		}
+		if got := createCall.Provider; got != "" {
+			t.Fatalf("Create().Provider = %q, want explicit empty provider", got)
+		}
+		if got := createCall.WorkspacePath; got != "" {
+			t.Fatalf("Create().WorkspacePath = %q, want empty", got)
+		}
+		if got, want := createCall.Type, session.SessionTypeSystem; got != want {
+			t.Fatalf("Create().Type = %q, want %q", got, want)
+		}
+
+		if got, want := len(creator.promptCalls()), 1; got != want {
+			t.Fatalf("len(Prompt calls) = %d, want %d", got, want)
+		}
+		if got, want := creator.promptCalls()[0].message, job.Prompt; got != want {
+			t.Fatalf("Prompt().message = %q, want %q", got, want)
+		}
+
+		if got, want := run.Status, RunCompleted; got != want {
+			t.Fatalf("run.Status = %q, want %q", got, want)
+		}
+		if got, want := run.JobID, job.ID; got != want {
+			t.Fatalf("run.JobID = %q, want %q", got, want)
+		}
+		if got, want := run.ProfileID, job.ProfileID; got != want {
+			t.Fatalf("run.ProfileID = %q, want %q", got, want)
+		}
 	})
-	if err != nil {
-		t.Fatalf("Dispatch() error = %v", err)
-	}
-
-	if got, want := len(creator.createCalls()), 1; got != want {
-		t.Fatalf("len(Create calls) = %d, want %d", got, want)
-	}
-	createCall := creator.createCalls()[0]
-	if got, want := createCall.AgentName, job.AgentName; got != want {
-		t.Fatalf("Create().AgentName = %q, want %q", got, want)
-	}
-	if got, want := createCall.Name, job.Name; got != want {
-		t.Fatalf("Create().Name = %q, want %q", got, want)
-	}
-	if got, want := createCall.Workspace, job.WorkspaceID; got != want {
-		t.Fatalf("Create().Workspace = %q, want %q", got, want)
-	}
-	if got := createCall.Provider; got != "" {
-		t.Fatalf("Create().Provider = %q, want explicit empty provider", got)
-	}
-	if got := createCall.WorkspacePath; got != "" {
-		t.Fatalf("Create().WorkspacePath = %q, want empty", got)
-	}
-	if got, want := createCall.Type, session.SessionTypeSystem; got != want {
-		t.Fatalf("Create().Type = %q, want %q", got, want)
-	}
-
-	if got, want := len(creator.promptCalls()), 1; got != want {
-		t.Fatalf("len(Prompt calls) = %d, want %d", got, want)
-	}
-	if got, want := creator.promptCalls()[0].message, job.Prompt; got != want {
-		t.Fatalf("Prompt().message = %q, want %q", got, want)
-	}
-
-	if got, want := run.Status, RunCompleted; got != want {
-		t.Fatalf("run.Status = %q, want %q", got, want)
-	}
-	if got, want := run.JobID, job.ID; got != want {
-		t.Fatalf("run.JobID = %q, want %q", got, want)
-	}
 }
 
 func TestDispatchGlobalAutomationUsesGlobalWorkspacePath(t *testing.T) {
@@ -187,6 +194,9 @@ func TestDispatchTaskBackedJobDelegatesToTaskServiceWithoutSessionRuntime(t *tes
 	if got, want := createCall.spec.WorkspaceID, "ws_alpha"; got != want {
 		t.Fatalf("CreateTask().workspace_id = %q, want %q", got, want)
 	}
+	if got, want := createCall.spec.ProfileID, job.ProfileID; got != want {
+		t.Fatalf("CreateTask().profile_id = %q, want %q", got, want)
+	}
 	assertNamedParticipation(t, createCall.spec.NetworkParticipation, "ops-automation")
 	if got, want := len(tasks.enqueueCalls), 1; got != want {
 		t.Fatalf("len(EnqueueRun calls) = %d, want %d", got, want)
@@ -208,92 +218,100 @@ func TestDispatchTaskBackedJobDelegatesToTaskServiceWithoutSessionRuntime(t *tes
 func TestDispatchLoopTargetJobDelegatesToLoopStarterWithoutSessionRuntime(t *testing.T) {
 	t.Parallel()
 
-	store := newMemoryRunStore()
-	creator := newRecordingSessionCreator()
-	starter := &recordingLoopStarter{runID: "looprun-schedule", suppressed: true, suppressedCount: 3}
-	dispatcher := newTestDispatcher(t, creator, store, WithDispatcherLoopStarter(starter))
+	t.Run("Should preserve the automation profile when delegating a Loop target", func(t *testing.T) {
+		t.Parallel()
 
-	job := testJob(AutomationScopeWorkspace, "job-loop-backed", "ws_alpha")
-	job.AgentName = ""
-	job.Prompt = ""
-	job.TargetKind = TargetKindLoop
-	job.LoopTarget = &LoopTarget{
-		WorkspaceID: "ws_alpha",
-		LoopName:    "triage",
-		Inputs: map[string]any{
-			"tasks": "task-ref",
-		},
-	}
+		store := newMemoryRunStore()
+		creator := newRecordingSessionCreator()
+		starter := &recordingLoopStarter{runID: "looprun-schedule", suppressed: true, suppressedCount: 3}
+		dispatcher := newTestDispatcher(t, creator, store, WithDispatcherLoopStarter(starter))
 
-	run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
-		Kind: DispatchKindSchedule,
-		Job:  &job,
+		job := testJob(AutomationScopeWorkspace, "job-loop-backed", "ws_alpha")
+		job.ProfileID = "profile-marketing"
+		job.AgentName = ""
+		job.Prompt = ""
+		job.TargetKind = TargetKindLoop
+		job.LoopTarget = &LoopTarget{
+			WorkspaceID: "ws_alpha",
+			LoopName:    "triage",
+			Inputs: map[string]any{
+				"tasks": "task-ref",
+			},
+		}
+
+		run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
+			Kind: DispatchKindSchedule,
+			Job:  &job,
+		})
+		if err != nil {
+			t.Fatalf("Dispatch() error = %v", err)
+		}
+
+		if got := len(creator.createCalls()); got != 0 {
+			t.Fatalf("len(Create calls) = %d, want 0", got)
+		}
+		if got := len(creator.promptCalls()); got != 0 {
+			t.Fatalf("len(Prompt calls) = %d, want 0", got)
+		}
+		if got, want := run.Status, RunDelegated; got != want {
+			t.Fatalf("run.Status = %q, want %q", got, want)
+		}
+		if got, want := run.LoopRunID, "looprun-schedule"; got != want {
+			t.Fatalf("run.LoopRunID = %q, want %q", got, want)
+		}
+		if got, want := run.Metadata["loop_suppressed"], true; got != want {
+			t.Fatalf("run.Metadata[loop_suppressed] = %#v, want %#v", got, want)
+		}
+		if got, want := run.Metadata["loop_suppressed_count"], 3; got != want {
+			t.Fatalf("run.Metadata[loop_suppressed_count] = %#v, want %#v", got, want)
+		}
+		if got := run.TaskID; got != "" {
+			t.Fatalf("run.TaskID = %q, want empty", got)
+		}
+		if got := run.TaskRunID; got != "" {
+			t.Fatalf("run.TaskRunID = %q, want empty", got)
+		}
+
+		startCalls := starter.startCallSnapshot()
+		if got, want := len(startCalls), 1; got != want {
+			t.Fatalf("len(StartLoop calls) = %d, want %d", got, want)
+		}
+		call := startCalls[0]
+		if got, want := call.ProfileID, "profile-marketing"; got != want {
+			t.Fatalf("StartLoop().ProfileID = %q, want %q", got, want)
+		}
+		if got, want := call.Kind, LoopStartKindSchedule; got != want {
+			t.Fatalf("StartLoop().Kind = %q, want %q", got, want)
+		}
+		if got, want := call.WorkspaceID, "ws_alpha"; got != want {
+			t.Fatalf("StartLoop().WorkspaceID = %q, want %q", got, want)
+		}
+		if got, want := call.LoopName, "triage"; got != want {
+			t.Fatalf("StartLoop().LoopName = %q, want %q", got, want)
+		}
+		if got, want := call.AutomationRunID, run.ID; got != want {
+			t.Fatalf("StartLoop().AutomationRunID = %q, want %q", got, want)
+		}
+		if got, want := call.Actor.Actor.Kind, taskpkg.ActorKindAutomation; got != want {
+			t.Fatalf("StartLoop().Actor.Actor.Kind = %q, want %q", got, want)
+		}
+		if got, want := call.Actor.Actor.Ref, job.ID; got != want {
+			t.Fatalf("StartLoop().Actor.Actor.Ref = %q, want %q", got, want)
+		}
+		if got, want := call.Actor.Origin.Ref, "run:"+run.ID; got != want {
+			t.Fatalf("StartLoop().Actor.Origin.Ref = %q, want %q", got, want)
+		}
+		if got, want := call.Inputs["tasks"], "task-ref"; got != want {
+			t.Fatalf("StartLoop().Inputs[tasks] = %v, want %v", got, want)
+		}
+		if call.NetworkParticipation != nil || run.NetworkParticipation != nil {
+			t.Fatalf(
+				"participation = call:%#v run:%#v, want no declaration and no implicit enrollment",
+				call.NetworkParticipation,
+				run.NetworkParticipation,
+			)
+		}
 	})
-	if err != nil {
-		t.Fatalf("Dispatch() error = %v", err)
-	}
-
-	if got := len(creator.createCalls()); got != 0 {
-		t.Fatalf("len(Create calls) = %d, want 0", got)
-	}
-	if got := len(creator.promptCalls()); got != 0 {
-		t.Fatalf("len(Prompt calls) = %d, want 0", got)
-	}
-	if got, want := run.Status, RunDelegated; got != want {
-		t.Fatalf("run.Status = %q, want %q", got, want)
-	}
-	if got, want := run.LoopRunID, "looprun-schedule"; got != want {
-		t.Fatalf("run.LoopRunID = %q, want %q", got, want)
-	}
-	if got, want := run.Metadata["loop_suppressed"], true; got != want {
-		t.Fatalf("run.Metadata[loop_suppressed] = %#v, want %#v", got, want)
-	}
-	if got, want := run.Metadata["loop_suppressed_count"], 3; got != want {
-		t.Fatalf("run.Metadata[loop_suppressed_count] = %#v, want %#v", got, want)
-	}
-	if got := run.TaskID; got != "" {
-		t.Fatalf("run.TaskID = %q, want empty", got)
-	}
-	if got := run.TaskRunID; got != "" {
-		t.Fatalf("run.TaskRunID = %q, want empty", got)
-	}
-
-	startCalls := starter.startCallSnapshot()
-	if got, want := len(startCalls), 1; got != want {
-		t.Fatalf("len(StartLoop calls) = %d, want %d", got, want)
-	}
-	call := startCalls[0]
-	if got, want := call.Kind, LoopStartKindSchedule; got != want {
-		t.Fatalf("StartLoop().Kind = %q, want %q", got, want)
-	}
-	if got, want := call.WorkspaceID, "ws_alpha"; got != want {
-		t.Fatalf("StartLoop().WorkspaceID = %q, want %q", got, want)
-	}
-	if got, want := call.LoopName, "triage"; got != want {
-		t.Fatalf("StartLoop().LoopName = %q, want %q", got, want)
-	}
-	if got, want := call.AutomationRunID, run.ID; got != want {
-		t.Fatalf("StartLoop().AutomationRunID = %q, want %q", got, want)
-	}
-	if got, want := call.Actor.Actor.Kind, taskpkg.ActorKindAutomation; got != want {
-		t.Fatalf("StartLoop().Actor.Actor.Kind = %q, want %q", got, want)
-	}
-	if got, want := call.Actor.Actor.Ref, job.ID; got != want {
-		t.Fatalf("StartLoop().Actor.Actor.Ref = %q, want %q", got, want)
-	}
-	if got, want := call.Actor.Origin.Ref, "run:"+run.ID; got != want {
-		t.Fatalf("StartLoop().Actor.Origin.Ref = %q, want %q", got, want)
-	}
-	if got, want := call.Inputs["tasks"], "task-ref"; got != want {
-		t.Fatalf("StartLoop().Inputs[tasks] = %v, want %v", got, want)
-	}
-	if call.NetworkParticipation != nil || run.NetworkParticipation != nil {
-		t.Fatalf(
-			"participation = call:%#v run:%#v, want no declaration and no implicit enrollment",
-			call.NetworkParticipation,
-			run.NetworkParticipation,
-		)
-	}
 }
 
 func TestDispatchLoopTargetWebhookTriggerPassesPayloadToLoopStarter(t *testing.T) {
@@ -1979,6 +1997,7 @@ func cloneLoopTargetValidationRequest(req LoopTargetValidationRequest) LoopTarge
 
 func cloneLoopStartRequest(req LoopStartRequest) LoopStartRequest {
 	return LoopStartRequest{
+		ProfileID:            strings.TrimSpace(req.ProfileID),
 		WorkspaceID:          strings.TrimSpace(req.WorkspaceID),
 		LoopName:             strings.TrimSpace(req.LoopName),
 		Kind:                 req.Kind,
@@ -2199,6 +2218,7 @@ func newTestDispatcher(t *testing.T, creator SessionCreator, store RunStore, opt
 func testJob(scope Scope, name string, workspaceID string) Job {
 	return Job{
 		ID:          "job-" + name,
+		ProfileID:   store.DefaultProfileID,
 		Scope:       scope,
 		Name:        name,
 		AgentName:   "researcher",
@@ -2218,6 +2238,7 @@ func testJob(scope Scope, name string, workspaceID string) Job {
 func testTrigger(scope Scope, name string, workspaceID string) Trigger {
 	return Trigger{
 		ID:               "trigger-" + name,
+		ProfileID:        store.DefaultProfileID,
 		Scope:            scope,
 		Name:             name,
 		AgentName:        "reviewer",

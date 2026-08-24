@@ -21,6 +21,7 @@ import (
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -161,6 +162,7 @@ func TestHealthFallsBackToRegistryWithoutSessionSource(t *testing.T) {
 		{ID: "sess-stopped", AgentName: "coder", WorkspaceID: h.workspaceID, State: "stopped", RuntimeStatus: store.SessionRuntimeUnbound, CreatedAt: now, UpdatedAt: now},
 		{ID: "sess-orphaned", AgentName: "coder", WorkspaceID: h.workspaceID, State: "orphaned", RuntimeStatus: store.SessionRuntimeUnbound, CreatedAt: now, UpdatedAt: now},
 	} {
+		info.ProfileID = store.DefaultProfileID
 		if err := h.observer.registry.RegisterSession(testutil.Context(t), info); err != nil {
 			t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
 		}
@@ -234,6 +236,7 @@ func TestLoadSessionMetadataSkipsMissingMetaAndKeepsStoppedState(t *testing.T) {
 	sessionDir := filepath.Join(h.home.SessionsDir, "sess-stopped")
 	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
 		ID:                   "sess-stopped",
+		ProfileID:            store.DefaultProfileID,
 		Name:                 "Stopped",
 		AgentName:            "coder",
 		Provider:             "claude",
@@ -269,6 +272,7 @@ func TestLoadSessionMetadataLogsInvalidProviderSessionID(t *testing.T) {
 	sessionDir := filepath.Join(h.home.SessionsDir, "sess-without-provider")
 	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
 		ID:                   "sess-without-provider",
+		ProfileID:            store.DefaultProfileID,
 		Name:                 "Missing Provider",
 		AgentName:            "coder",
 		WorkspaceID:          h.workspaceID,
@@ -296,6 +300,15 @@ func TestLoadSessionMetadataLogsInvalidProviderSessionID(t *testing.T) {
 
 func TestHelperFunctions(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve the profile owner when projecting a session", func(t *testing.T) {
+		t.Parallel()
+		info := &session.Info{ID: "sess-profile", ProfileID: "profile-observe"}
+		projected := sessionInfoFromSession(info)
+		if projected.ProfileID != info.ProfileID {
+			t.Fatalf("sessionInfoFromSession().ProfileID = %q, want %q", projected.ProfileID, info.ProfileID)
+		}
+	})
 
 	if got := sessionInfoFromSession(nil); got != (store.SessionInfo{}) {
 		t.Fatalf("sessionInfoFromSession(nil) = %#v, want zero value", got)
@@ -396,4 +409,18 @@ func (r *fakeObserveWorkspaceResolver) ResolveOrRegister(
 		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("unexpected workspace ref %q, want %q", ref, want)
 	}
 	return r.resolved, nil
+}
+
+func seedObserveProfile(t testing.TB, registry *globaldb.GlobalDB, profileID string, createdAt time.Time) {
+	t.Helper()
+	if _, err := registry.DB().ExecContext(
+		testutil.Context(t),
+		`INSERT INTO profiles (id, name, color, icon, state, created_at)
+		 VALUES (?, ?, '#8E8EB5', 'circle', 'active', ?)`,
+		profileID,
+		profileID,
+		store.FormatTimestamp(createdAt),
+	); err != nil {
+		t.Fatalf("insert observe profile %q: %v", profileID, err)
+	}
 }

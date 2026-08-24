@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -130,6 +131,7 @@ func TestObserveTaskLifecycleSummaryAndMetrics(t *testing.T) {
 	}
 
 	created, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: h.workspaceID,
 		Title:       "Implement observe lifecycle coverage",
@@ -166,7 +168,10 @@ func TestObserveTaskLifecycleSummaryAndMetrics(t *testing.T) {
 		t.Fatalf("CompleteRun() error = %v", err)
 	}
 
-	summary, err := h.observer.QueryTaskSummary(testutil.Context(t), TaskSummaryQuery{})
+	summary, err := h.observer.QueryTaskSummary(
+		testutil.Context(t),
+		TaskSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}},
+	)
 	if err != nil {
 		t.Fatalf("QueryTaskSummary() error = %v", err)
 	}
@@ -186,7 +191,10 @@ func TestObserveTaskLifecycleSummaryAndMetrics(t *testing.T) {
 		t.Fatalf("summary.RunTotals = %#v, want completed/network/engineering count 1", summary.RunTotals)
 	}
 
-	metrics, err := h.observer.QueryTaskMetrics(testutil.Context(t), TaskMetricsQuery{})
+	metrics, err := h.observer.QueryTaskMetrics(
+		testutil.Context(t),
+		TaskMetricsQuery{ReadScope: store.ReadScope{AllProfiles: true}},
+	)
 	if err != nil {
 		t.Fatalf("QueryTaskMetrics() error = %v", err)
 	}
@@ -232,6 +240,7 @@ func TestObserveHealthReflectsRecoveryAndForcedStopOutcomes(t *testing.T) {
 	}
 
 	cancelTask, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: h.workspaceID,
 		Title:       "Cancel running work",
@@ -240,6 +249,7 @@ func TestObserveHealthReflectsRecoveryAndForcedStopOutcomes(t *testing.T) {
 		t.Fatalf("CreateTask(cancelTask) error = %v", err)
 	}
 	recoveryTask, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: h.workspaceID,
 		Title:       "Recover orphaned run",
@@ -344,10 +354,13 @@ func TestObserveTaskDashboardRejectsInvalidScopeWorkspaceBinding(t *testing.T) {
 
 	h := newHarness(t)
 
-	_, err := h.observer.QueryTaskDashboard(testutil.Context(t), TaskDashboardQuery{
-		Scope:       taskpkg.ScopeGlobal,
-		WorkspaceID: h.workspaceID,
-	})
+	_, err := h.observer.QueryTaskDashboard(
+		testutil.Context(t),
+		TaskDashboardQuery{ReadScope: store.ReadScope{AllProfiles: true},
+			Scope:       taskpkg.ScopeGlobal,
+			WorkspaceID: h.workspaceID,
+		},
+	)
 	if !errors.Is(err, taskpkg.ErrInvalidScopeBinding) {
 		t.Fatalf("QueryTaskDashboard() error = %v, want %v", err, taskpkg.ErrInvalidScopeBinding)
 	}
@@ -412,7 +425,10 @@ func TestObserveTaskDashboardLoadsDependencyCountsWithoutPerTaskCalls(t *testing
 		CreatedAt:       h.now.Add(2 * time.Minute),
 	})
 
-	dashboard, err := h.observer.QueryTaskDashboard(testutil.Context(t), TaskDashboardQuery{})
+	dashboard, err := h.observer.QueryTaskDashboard(
+		testutil.Context(t),
+		TaskDashboardQuery{ReadScope: store.ReadScope{AllProfiles: true}},
+	)
 	if err != nil {
 		t.Fatalf("QueryTaskDashboard() error = %v", err)
 	}
@@ -443,6 +459,7 @@ func TestObserveTaskDashboardAggregatesPersistedLifecycleState(t *testing.T) {
 		}
 
 		queuedTask, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: h.workspaceID,
 			Title:       "Queued task",
@@ -451,6 +468,7 @@ func TestObserveTaskDashboardAggregatesPersistedLifecycleState(t *testing.T) {
 			t.Fatalf("CreateTask(queuedTask) error = %v", err)
 		}
 		if _, err = manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+			ProfileID:      store.DefaultProfileID,
 			Scope:          taskpkg.ScopeWorkspace,
 			WorkspaceID:    h.workspaceID,
 			Title:          "Approval gate",
@@ -459,6 +477,7 @@ func TestObserveTaskDashboardAggregatesPersistedLifecycleState(t *testing.T) {
 			t.Fatalf("CreateTask(blockedTask) error = %v", err)
 		}
 		runningTask, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: h.workspaceID,
 			Title:       "Running task",
@@ -467,6 +486,7 @@ func TestObserveTaskDashboardAggregatesPersistedLifecycleState(t *testing.T) {
 			t.Fatalf("CreateTask(runningTask) error = %v", err)
 		}
 		failedTask, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: h.workspaceID,
 			Title:       "Failed task",
@@ -476,6 +496,7 @@ func TestObserveTaskDashboardAggregatesPersistedLifecycleState(t *testing.T) {
 			t.Fatalf("CreateTask(failedTask) error = %v", err)
 		}
 		completedTask, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: h.workspaceID,
 			Title:       "Completed task",
@@ -580,7 +601,10 @@ func TestObserveTaskDashboardAggregatesPersistedLifecycleState(t *testing.T) {
 			t.Fatalf("CompleteRun(completedTask) error = %v", err)
 		}
 
-		dashboard, err := h.observer.QueryTaskDashboard(testutil.Context(t), TaskDashboardQuery{})
+		dashboard, err := h.observer.QueryTaskDashboard(
+			testutil.Context(t),
+			TaskDashboardQuery{ReadScope: store.ReadScope{AllProfiles: true}},
+		)
 		if err != nil {
 			t.Fatalf("QueryTaskDashboard() error = %v", err)
 		}
@@ -643,6 +667,7 @@ func TestObserveTaskDashboardRefreshesAfterPersistedTransitions(t *testing.T) {
 		}
 
 		taskRecord, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: h.workspaceID,
 			Title:       "Transitioning task",
@@ -661,7 +686,10 @@ func TestObserveTaskDashboardRefreshesAfterPersistedTransitions(t *testing.T) {
 		}
 		clock.Advance(6 * time.Minute)
 
-		queuedDashboard, err := h.observer.QueryTaskDashboard(testutil.Context(t), TaskDashboardQuery{})
+		queuedDashboard, err := h.observer.QueryTaskDashboard(
+			testutil.Context(t),
+			TaskDashboardQuery{ReadScope: store.ReadScope{AllProfiles: true}},
+		)
 		if err != nil {
 			t.Fatalf("QueryTaskDashboard(queued) error = %v", err)
 		}
@@ -686,7 +714,10 @@ func TestObserveTaskDashboardRefreshesAfterPersistedTransitions(t *testing.T) {
 			t.Fatalf("StartRun() error = %v", err)
 		}
 
-		runningDashboard, err := h.observer.QueryTaskDashboard(testutil.Context(t), TaskDashboardQuery{})
+		runningDashboard, err := h.observer.QueryTaskDashboard(
+			testutil.Context(t),
+			TaskDashboardQuery{ReadScope: store.ReadScope{AllProfiles: true}},
+		)
 		if err != nil {
 			t.Fatalf("QueryTaskDashboard(running) error = %v", err)
 		}
@@ -708,7 +739,10 @@ func TestObserveTaskDashboardRefreshesAfterPersistedTransitions(t *testing.T) {
 			t.Fatalf("CompleteRun() error = %v", err)
 		}
 
-		completedDashboard, err := h.observer.QueryTaskDashboard(testutil.Context(t), TaskDashboardQuery{})
+		completedDashboard, err := h.observer.QueryTaskDashboard(
+			testutil.Context(t),
+			TaskDashboardQuery{ReadScope: store.ReadScope{AllProfiles: true}},
+		)
 		if err != nil {
 			t.Fatalf("QueryTaskDashboard(completed) error = %v", err)
 		}
@@ -748,6 +782,7 @@ func TestObserveTaskInboxReflectsApprovalAndTriageTransitions(t *testing.T) {
 		}
 
 		myWork, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: h.workspaceID,
 			Title:       "My work",
@@ -758,6 +793,7 @@ func TestObserveTaskInboxReflectsApprovalAndTriageTransitions(t *testing.T) {
 		}
 		clock.Advance(time.Minute)
 		approveTask, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+			ProfileID:      store.DefaultProfileID,
 			Scope:          taskpkg.ScopeWorkspace,
 			WorkspaceID:    h.workspaceID,
 			Title:          "Approve me",
@@ -769,6 +805,7 @@ func TestObserveTaskInboxReflectsApprovalAndTriageTransitions(t *testing.T) {
 		}
 		clock.Advance(time.Minute)
 		rejectTask, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+			ProfileID:      store.DefaultProfileID,
 			Scope:          taskpkg.ScopeWorkspace,
 			WorkspaceID:    h.workspaceID,
 			Title:          "Reject me",
@@ -780,6 +817,7 @@ func TestObserveTaskInboxReflectsApprovalAndTriageTransitions(t *testing.T) {
 		}
 		clock.Advance(time.Minute)
 		archiveTask, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: h.workspaceID,
 			Title:       "Archive me",
@@ -790,6 +828,7 @@ func TestObserveTaskInboxReflectsApprovalAndTriageTransitions(t *testing.T) {
 		}
 		clock.Advance(time.Minute)
 		failTask, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: h.workspaceID,
 			Title:       "Fail me",
@@ -826,7 +865,9 @@ func TestObserveTaskInboxReflectsApprovalAndTriageTransitions(t *testing.T) {
 			t.Fatalf("FailRun(failTask) error = %v", err)
 		}
 
-		initial, err := h.observer.QueryTaskInbox(testutil.Context(t), TaskInboxQuery{}, alice.Actor)
+		initial, err := h.observer.QueryTaskInbox(testutil.Context(t), TaskInboxQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+		}, alice.Actor)
 		if err != nil {
 			t.Fatalf("QueryTaskInbox(initial) error = %v", err)
 		}
@@ -868,7 +909,9 @@ func TestObserveTaskInboxReflectsApprovalAndTriageTransitions(t *testing.T) {
 			t.Fatalf("RejectTask(rejectTask) error = %v", err)
 		}
 
-		updated, err := h.observer.QueryTaskInbox(testutil.Context(t), TaskInboxQuery{}, alice.Actor)
+		updated, err := h.observer.QueryTaskInbox(testutil.Context(t), TaskInboxQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+		}, alice.Actor)
 		if err != nil {
 			t.Fatalf("QueryTaskInbox(updated) error = %v", err)
 		}
@@ -916,7 +959,9 @@ func TestObserveTaskInboxReflectsApprovalAndTriageTransitions(t *testing.T) {
 		unread := true
 		unreadOnly, err := h.observer.QueryTaskInbox(
 			testutil.Context(t),
-			TaskInboxQuery{Unread: &unread},
+			TaskInboxQuery{
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, Unread: &unread,
+			},
 			alice.Actor,
 		)
 		if err != nil {

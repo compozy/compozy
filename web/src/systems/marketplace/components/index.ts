@@ -1,5 +1,6 @@
 export { ExtensionInstallDialog } from "./extension-install-dialog";
 export type { ExtensionInstallDialogProps } from "./extension-install-dialog";
+export { ExtensionInstallSummaryDialog } from "./extension-install-summary-dialog";
 export {
   buildExtensionInstallRequest,
   createExtensionInstallForm,

@@ -57,6 +57,8 @@ export const bridgesListFixture: BridgesListResponse = {
   },
   bridges: [
     {
+      profile_id: "00000000000000000000000000",
+      profile_name: "default",
       created_at: "2026-04-17T14:00:00Z",
       dm_policy: "open",
       display_name: "Launch room dispatch",

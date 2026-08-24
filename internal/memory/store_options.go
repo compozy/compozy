@@ -3,25 +3,30 @@ package memory
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	memoryrecall "github.com/compozy/compozy/internal/memory/recall"
+	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 // NewStore constructs a Store for the provided global memory directory.
 func NewStore(globalDir string, opts ...StoreOption) *Store {
 	store := &Store{
-		globalDir:        cleanDirPath(globalDir),
-		maxIndexLines:    defaultIndexLines,
-		maxIndexBytes:    defaultIndexBytes,
-		maxFileLines:     defaultIndexLines,
-		maxFileBytes:     defaultIndexBytes,
-		logger:           slog.Default(),
-		mu:               &sync.Mutex{},
-		decisionMu:       &sync.Mutex{},
-		mutationRevision: &storeMutationRevision{},
+		globalDir:                 cleanDirPath(globalDir),
+		profileID:                 storepkg.DefaultProfileID,
+		profileMaintenancePending: &atomic.Bool{},
+		maxIndexLines:             defaultIndexLines,
+		maxIndexBytes:             defaultIndexBytes,
+		maxFileLines:              defaultIndexLines,
+		maxFileBytes:              defaultIndexBytes,
+		logger:                    slog.Default(),
+		mu:                        &sync.Mutex{},
+		decisionMu:                &sync.Mutex{},
+		mutationRevision:          &storeMutationRevision{},
 		recallSignals: recallSignalRecorderConfig{
 			queueCapacity:  256,
 			workerRetryMax: 3,
@@ -39,6 +44,15 @@ func NewStore(globalDir string, opts ...StoreOption) *Store {
 
 // StoreOption customizes a Store instance.
 type StoreOption func(*Store)
+
+// WithProfileID binds profile-tier memory to one durable profile owner.
+func WithProfileID(profileID string) StoreOption {
+	return func(store *Store) {
+		if store != nil {
+			store.profileID = strings.TrimSpace(profileID)
+		}
+	}
+}
 
 // WithRecallSignalLifecycle binds asynchronous recall-signal work to a subsystem owner.
 func WithRecallSignalLifecycle(ctx context.Context) StoreOption {
@@ -99,7 +113,7 @@ func (s *Store) RecallSignalRecorderStats(workspaceID string) memoryrecall.Signa
 	if s == nil || s.recallRecorders == nil {
 		return memoryrecall.SignalRecorderStats{}
 	}
-	key := recallSignalRecorderKey(workspaceID)
+	key := recallSignalRecorderKey(s.profileID, workspaceID)
 	return s.recallRecorders.stats(key)
 }
 

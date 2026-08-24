@@ -3,6 +3,14 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// Which lens the shell is on is the shell's business; the acting scope it hands
+// the run form is the only part this suite drives.
+const profileScope = vi.hoisted(() => ({ aggregate: false, destination: "default" }));
+vi.mock("@/systems/profiles", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/profiles")>()),
+  useProfileReadScope: () => profileScope,
+}));
+
 import { createMswFetch } from "@/test/msw-fetch";
 import { buildLocalNetworkParticipationFixture } from "@/test/network-participation-fixtures";
 import { storyWorkspaceIds } from "@/storybook/fintech-scenario";
@@ -54,20 +62,31 @@ function renderForm(
   return { onRunStarted };
 }
 
-async function runRequestBody(): Promise<Record<string, unknown>> {
+function runRequest(): [RequestInfo | URL, RequestInit | undefined] {
   const call = fetchMock.mock.calls.find(([input]) => {
     const url = input instanceof Request ? input.url : String(input);
     return url.includes(`/api/workspaces/${WS}/loops/implement-tasks/run`);
   });
   if (!call) throw new Error("run request was not issued");
-  const [input, init] = call;
+  return [call[0], call[1]];
+}
+
+async function runRequestBody(): Promise<Record<string, unknown>> {
+  const [input, init] = runRequest();
   const request = input instanceof Request ? input.clone() : new Request(input, init);
   return request.json() as Promise<Record<string, unknown>>;
+}
+
+function runRequestUrl(): string {
+  const [input] = runRequest();
+  return input instanceof Request ? input.url : String(input);
 }
 
 describe("LoopRunForm", () => {
   beforeEach(() => {
     fetchMock = stubFetch();
+    profileScope.aggregate = false;
+    profileScope.destination = "default";
   });
 
   afterEach(() => {
@@ -153,12 +172,15 @@ describe("LoopRunForm", () => {
   });
 
   it("Should render the gen-1 plan on Dry run without navigating", async () => {
+    profileScope.aggregate = true;
+    profileScope.destination = "default";
     const { onRunStarted } = renderForm();
     fireEvent.change(screen.getByTestId("loop-run-field-input-slug"), {
       target: { value: "billing-webhooks" },
     });
     fireEvent.click(screen.getByTestId("loop-run-dry-button"));
     await waitFor(() => expect(screen.getByTestId("loop-run-plan")).toBeInTheDocument());
+    expect(new URL(runRequestUrl()).searchParams.get("profile")).toBe("default");
     expect(screen.getAllByTestId("loop-run-plan-node").length).toBeGreaterThan(0);
     expect(screen.getByTestId("loop-run-plan")).toHaveTextContent("billing-webhooks");
     expect(screen.getByTestId("loop-run-plan")).not.toHaveTextContent("{{ .inputs.slug }}");
@@ -173,6 +195,34 @@ describe("LoopRunForm", () => {
     fireEvent.click(screen.getByTestId("loop-run-submit-button"));
     await waitFor(() => expect(onRunStarted).toHaveBeenCalledWith("looprun_running"));
     await expect(runRequestBody()).resolves.not.toHaveProperty("network_participation");
+    // A run is owned work: it is started as the acting profile, never left for
+    // the daemon to resolve to `default`.
+    expect(new URL(runRequestUrl()).searchParams.get("profile")).toBe("default");
+  });
+
+  it("Should state where the run will be filed only while the aggregate is on", async () => {
+    profileScope.aggregate = true;
+    profileScope.destination = "default";
+    const { onRunStarted } = renderForm();
+
+    // Fixed text beside the action, not a picker — the chip states the
+    // destination, and the owner-naming confirmation catches a misfile (ADR-005).
+    const chip = screen.getByTestId("profile-destination-chip");
+    expect(chip).toHaveTextContent("default");
+    expect(chip.querySelector("button, select, input, a")).toBeNull();
+
+    fireEvent.change(screen.getByTestId("loop-run-field-input-slug"), {
+      target: { value: "billing-webhooks" },
+    });
+    fireEvent.click(screen.getByTestId("loop-run-submit-button"));
+    await waitFor(() => expect(onRunStarted).toHaveBeenCalled());
+    expect(new URL(runRequestUrl()).searchParams.get("profile")).toBe("default");
+  });
+
+  it("Should stay chip-free under a scoped view", () => {
+    renderForm();
+    // A scoped view already answers "where does this land" on screen.
+    expect(screen.queryByTestId("profile-destination-chip")).not.toBeInTheDocument();
   });
 
   it("Should return canonical immutable snapshots from dry-run and run mock responses", async () => {

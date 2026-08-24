@@ -590,7 +590,37 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
-	t.Run("Should validate exact Loop lifecycle schemas", func(t *testing.T) {
+	t.Run("Should accept profile-owned tool approval output contracts", func(t *testing.T) {
+		t.Parallel()
+
+		descriptors := descriptorMap(NativeDescriptors())
+		grant := `{
+			"id":"grant-1",
+			"profile_id":"01JPROFILEMARKETING0000000",
+			"profile_name":"marketing",
+			"profile_color":"#E8572A",
+			"profile_icon":"briefcase",
+			"profile_archived":false,
+			"workspace_id":"ws-1",
+			"agent_name":"codex",
+			"tool_id":"compozy__approval_probe",
+			"decision":"allow",
+			"created_at":"2026-08-23T12:00:00Z",
+			"last_used_at":"2026-08-23T12:00:00Z"
+		}`
+		assertNativeOutputSchemaAccepts(
+			t,
+			descriptors[toolspkg.ToolIDToolApprovalsSet],
+			`{"grant":`+grant+`}`,
+		)
+		assertNativeOutputSchemaAccepts(
+			t,
+			descriptors[toolspkg.ToolIDToolApprovalsList],
+			`{"grants":[`+grant+`],"total":1}`,
+		)
+	})
+
+	t.Run("Should validate exact Loop lifecycle output schemas", func(t *testing.T) {
 		t.Parallel()
 
 		descriptors := descriptorMap(NativeDescriptors())
@@ -755,7 +785,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		descriptors := descriptorMap(NativeDescriptors())
 		inventory := descriptors[toolspkg.ToolIDExtensionsInventory]
 		logs := descriptors[toolspkg.ToolIDExtensionsLogs]
-		preview := descriptors[toolspkg.ToolIDExtensionsPreview]
 		assertNativeOutputSchemaAccepts(t, logs, `{
 			"stream_epoch":"epoch-a",
 			"logs":[{
@@ -777,21 +806,8 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			"extension":"kit","enabled":true,
 			"items":[{"kind":"skill","id":"review","name":"Review","live":true,"extra":1}]
 		}`)
-		assertNativeOutputSchemaAccepts(t, preview, `{
-			"extension":"kit",
-			"changes":[{"kind":"skill","id":"review","name":"Review","change":"changed"}],
-			"agent_conflicts":[],"missing_env":["API_KEY"],"automation_starting":["daily"],
-			"network_requirement_digest":"","network_confirmation_required":false
-		}`)
-		assertNativeOutputSchemaRejects(t, preview, `{
-			"extension":"kit",
-			"changes":[{"kind":"skill","id":"review","name":"Review","change":"updated"}],
-			"agent_conflicts":[],"missing_env":[],"automation_starting":[],
-			"network_requirement_digest":"","network_confirmation_required":false
-		}`)
-
 		for _, id := range []toolspkg.ToolID{
-			toolspkg.ToolIDExtensionsEnable,
+			toolspkg.ToolIDExtensionsInstall,
 			toolspkg.ToolIDExtensionsUpdate,
 		} {
 			var schema struct {
@@ -1192,8 +1208,6 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__extensions_logs", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__extensions_preview", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__extensions_provenance", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__extensions_publish", risk: toolspkg.RiskOpenWorld,
@@ -1437,6 +1451,10 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 		{id: "compozy__provider_models_refresh", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__provider_models_status", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__profile_current", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__profile_list", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__resources_info", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},

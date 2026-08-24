@@ -56,6 +56,28 @@ func TestStoreSQLHelpers(t *testing.T) {
 	if got, want := len(invalidArgs), 0; got != want {
 		t.Fatalf("len(invalidArgs) = %d, want %d", got, want)
 	}
+	t.Run("Should accept qualified column references", func(t *testing.T) {
+		t.Parallel()
+
+		qualifiedWhere, qualifiedArgs := BuildClauses(StringClause("jobs.profile_id", "profile-a"))
+		if got, want := qualifiedWhere, []string{"jobs.profile_id = ?"}; !testutil.EqualStringSlices(got, want) {
+			t.Fatalf("qualified where = %#v, want %#v", got, want)
+		}
+		if got, want := qualifiedArgs, []any{"profile-a"}; len(got) != 1 || got[0] != want[0] {
+			t.Fatalf("qualified args = %#v, want %#v", got, want)
+		}
+	})
+	t.Run("Should reject injected qualified column references without retaining arguments", func(t *testing.T) {
+		t.Parallel()
+
+		unsafeWhere, unsafeArgs := BuildClauses(StringClause("jobs.profile_id OR 1=1", "profile-a"))
+		if got, want := unsafeWhere, []string{"1 = 0"}; !testutil.EqualStringSlices(got, want) {
+			t.Fatalf("unsafe qualified where = %#v, want %#v", got, want)
+		}
+		if len(unsafeArgs) != 0 {
+			t.Fatalf("unsafe qualified args = %#v, want none", unsafeArgs)
+		}
+	})
 
 	limitedQuery, limitedArgs := AppendLimit(query, args, 5)
 	if !strings.HasSuffix(limitedQuery, " LIMIT ?") {
@@ -66,6 +88,25 @@ func TestStoreSQLHelpers(t *testing.T) {
 	}
 	if got, want := AppendWhere("SELECT 1", nil), "SELECT 1"; got != want {
 		t.Fatalf("AppendWhere(no clauses) = %q, want %q", got, want)
+	}
+	composed, composedArgs := BuildWhereQuery(
+		"SELECT * FROM events",
+		" ORDER BY sequence",
+		StringClause("type", "agent_message"),
+	)
+	if composed != "SELECT * FROM events WHERE type = ? ORDER BY sequence" ||
+		len(composedArgs) != 1 || composedArgs[0] != "agent_message" {
+		t.Fatalf("BuildWhereQuery() = %q, %#v", composed, composedArgs)
+	}
+	coalescedWhere, coalescedArgs := BuildClauses(ReadScopeCoalescedClause(
+		[]string{"thread.profile_id", "session.profile_id"},
+		ReadScope{ProfileID: "profile-a"},
+	))
+	if got, want := coalescedWhere, []string{
+		"COALESCE(thread.profile_id, session.profile_id) = ?",
+	}; !testutil.EqualStringSlices(got, want) || len(coalescedArgs) != 1 ||
+		coalescedArgs[0] != "profile-a" {
+		t.Fatalf("ReadScopeCoalescedClause() = %#v, %#v", coalescedWhere, coalescedArgs)
 	}
 	if gotQuery, gotArgs := AppendLimit("SELECT 1", nil, 0); gotQuery != "SELECT 1" || gotArgs != nil {
 		t.Fatalf("AppendLimit(no limit) = (%q, %#v), want (%q, nil)", gotQuery, gotArgs, "SELECT 1")

@@ -11,7 +11,9 @@ import (
 
 	apitest "github.com/compozy/compozy/internal/api/testutil"
 	automationpkg "github.com/compozy/compozy/internal/automation"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func TestDaemonNativeAutomationTools(t *testing.T) {
@@ -26,6 +28,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		run := automationpkg.Run{
 			ID:        "run-1",
 			JobID:     job.ID,
+			ProfileID: store.DefaultProfileID,
 			Status:    automationpkg.RunCompleted,
 			Attempt:   1,
 			StartedAt: &now,
@@ -493,6 +496,10 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		foreignJob := nativeAutomationJobFixture("job-b", automationpkg.JobSourceDynamic)
 		foreignJob.Scope = automationpkg.AutomationScopeWorkspace
 		foreignJob.WorkspaceID = "ws-b"
+		foreignProfileJob := nativeAutomationJobFixture("job-profile-b", automationpkg.JobSourceDynamic)
+		foreignProfileJob.ProfileID = strings.Repeat("b", 26)
+		foreignProfileJob.Scope = automationpkg.AutomationScopeWorkspace
+		foreignProfileJob.WorkspaceID = "ws-a"
 		foreignTrigger := nativeAutomationTriggerFixture("trigger-b", automationpkg.JobSourceDynamic)
 		foreignTrigger.Scope = automationpkg.AutomationScopeWorkspace
 		foreignTrigger.WorkspaceID = "ws-b"
@@ -500,6 +507,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 			ID:        "run-b",
 			JobID:     foreignJob.ID,
 			TriggerID: foreignTrigger.ID,
+			ProfileID: store.DefaultProfileID,
 			Status:    automationpkg.RunCompleted,
 		}
 		callbackAssertionErr := errors.New("automation manager callback assertion failed")
@@ -528,6 +536,8 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 					switch id {
 					case foreignJob.ID:
 						return foreignJob, nil
+					case foreignProfileJob.ID:
+						return foreignProfileJob, nil
 					case "job-missing":
 						return automationpkg.Job{}, automationpkg.ErrJobNotFound
 					default:
@@ -647,6 +657,18 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 			}
 		})
 
+		t.Run("Should hide an automation owned by another profile in the same workspace", func(t *testing.T) {
+			_, err := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDAutomationJobsGet,
+					Input:  json.RawMessage(`{"job_id":"job-profile-b"}`),
+				},
+			)
+			requireToolReason(t, err, toolspkg.ErrToolNotFound, toolspkg.ReasonToolUnknown)
+		})
+
 		t.Run("Should reject mutating a foreign workspace job before the update", func(t *testing.T) {
 			_, err := registry.Call(
 				t.Context(),
@@ -759,14 +781,15 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		}
 		tools := &daemonNativeTools{deps: &daemonNativeToolsDeps{Automation: manager}}
 
-		jobs, err := tools.nativeAutomationJobsForWorkspace(t.Context(), "ws-a")
+		readScope := store.ReadScope{AllProfiles: true}
+		jobs, err := tools.nativeAutomationJobsForWorkspace(t.Context(), "ws-a", readScope)
 		if err != nil {
 			t.Fatalf("nativeAutomationJobsForWorkspace() error = %v", err)
 		}
 		if len(jobs) != 2 || jobCalls != 2 {
 			t.Fatalf("jobs/calls = %d/%d, want 2/2", len(jobs), jobCalls)
 		}
-		triggers, err := tools.nativeAutomationTriggersForWorkspace(t.Context(), "ws-a")
+		triggers, err := tools.nativeAutomationTriggersForWorkspace(t.Context(), "ws-a", readScope)
 		if err != nil {
 			t.Fatalf("nativeAutomationTriggersForWorkspace() error = %v", err)
 		}
@@ -786,6 +809,7 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		job.WorkspaceID = workspaceID
 		suggestion := automationpkg.Suggestion{
 			ID:          suggestionID,
+			ProfileID:   store.DefaultProfileID,
 			WorkspaceID: workspaceID,
 			Source:      automationpkg.SuggestionSourceCatalog,
 			DedupKey:    "catalog:v1:daily-workspace-briefing",
@@ -797,20 +821,25 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 			Automation: apitest.StubAutomationManager{
 				ListSuggestionsFn: func(
 					_ context.Context,
+					readScope store.ReadScope,
 					gotWorkspace string,
 					status automationpkg.SuggestionStatus,
 				) ([]automationpkg.Suggestion, error) {
-					if gotWorkspace != workspaceID || status != automationpkg.SuggestionStatusPending {
+					if readScope.ProfileID != store.DefaultProfileID ||
+						gotWorkspace != workspaceID || status != automationpkg.SuggestionStatusPending {
 						t.Fatalf("ListSuggestions(%q, %q), want workspace-1/pending", gotWorkspace, status)
 					}
 					return []automationpkg.Suggestion{suggestion}, nil
 				},
 				AcceptSuggestionFn: func(
 					_ context.Context,
+					profileID string,
 					gotWorkspace string,
 					gotSuggestion string,
 				) (automationpkg.SuggestionAcceptance, error) {
-					if gotWorkspace != workspaceID || gotSuggestion != suggestionID {
+					if profileID != store.DefaultProfileID ||
+						gotWorkspace != workspaceID ||
+						gotSuggestion != suggestionID {
 						t.Fatalf(
 							"AcceptSuggestion(%q, %q), want workspace-1/suggestion-1",
 							gotWorkspace,
@@ -824,10 +853,13 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 				},
 				DismissSuggestionFn: func(
 					_ context.Context,
+					profileID string,
 					gotWorkspace string,
 					gotSuggestion string,
 				) (automationpkg.Suggestion, error) {
-					if gotWorkspace != workspaceID || gotSuggestion != suggestionID {
+					if profileID != store.DefaultProfileID ||
+						gotWorkspace != workspaceID ||
+						gotSuggestion != suggestionID {
 						t.Fatalf(
 							"DismissSuggestion(%q, %q), want workspace-1/suggestion-1",
 							gotWorkspace,
@@ -1332,10 +1364,118 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 	})
 }
 
+func TestDaemonNativeAutomationToolsShouldForwardProfileScope(t *testing.T) {
+	t.Parallel()
+
+	const (
+		profileID = "01PROFILEAUTOMATION00000000"
+		workspace = "ws-profile-automation"
+	)
+	trigger := nativeAutomationTriggerFixture("trigger-profile", automationpkg.JobSourceDynamic)
+	trigger.ProfileID = profileID
+	trigger.Scope = automationpkg.AutomationScopeWorkspace
+	trigger.WorkspaceID = workspace
+	run := automationpkg.Run{ID: "run-profile", TriggerID: trigger.ID, ProfileID: profileID}
+	foreignProfileID := strings.Repeat("f", 26)
+	foreignTrigger := trigger
+	foreignTrigger.ID = "trigger-foreign-profile"
+	foreignTrigger.ProfileID = foreignProfileID
+	foreignRun := run
+	foreignRun.ID = "run-foreign-profile"
+	foreignRun.ProfileID = foreignProfileID
+	var triggerListQuery automationpkg.TriggerListQuery
+	var runQuery automationpkg.RunQuery
+	manager := apitest.StubAutomationManager{
+		ListTriggersFn: func(_ context.Context, query automationpkg.TriggerListQuery) (automationpkg.TriggerListPage, error) {
+			triggerListQuery = query
+			return automationpkg.TriggerListPage{Triggers: []automationpkg.Trigger{trigger}, Limit: query.Limit}, nil
+		},
+		GetTriggerFn: func(_ context.Context, id string) (automationpkg.Trigger, error) {
+			if id == foreignTrigger.ID {
+				return foreignTrigger, nil
+			}
+			if id != trigger.ID {
+				return automationpkg.Trigger{}, automationpkg.ErrTriggerNotFound
+			}
+			return trigger, nil
+		},
+		GetRunFn: func(_ context.Context, id string) (automationpkg.Run, error) {
+			if id == foreignRun.ID {
+				return foreignRun, nil
+			}
+			if id != run.ID {
+				return automationpkg.Run{}, automationpkg.ErrRunNotFound
+			}
+			return run, nil
+		},
+		ListRunsFn: func(_ context.Context, query automationpkg.RunQuery) ([]automationpkg.Run, error) {
+			runQuery = query
+			return []automationpkg.Run{run}, nil
+		},
+		StatusFn: func(context.Context) (automationpkg.ManagerStatus, error) {
+			return automationpkg.ManagerStatus{}, nil
+		},
+	}
+	registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+		Automation: manager,
+	}, nativeApproveAllPolicyInputs())
+	scope := toolspkg.Scope{
+		ActorKind:   string(workspaceaccess.ActorDaemon),
+		ProfileID:   profileID,
+		WorkspaceID: workspace,
+	}
+	triggerList, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDAutomationTriggersList,
+		Input:  json.RawMessage(`{"scope":"workspace","workspace":"ws-profile-automation"}`),
+	})
+	if err != nil {
+		t.Fatalf("Registry.Call(automation_triggers_list) error = %v", err)
+	}
+	requireNativeStructuredContains(t, triggerList, []byte(`"trigger-profile"`))
+	if triggerListQuery.ReadScope.ProfileID != profileID {
+		t.Fatalf("trigger list ReadScope.ProfileID = %q, want %q", triggerListQuery.ReadScope.ProfileID, profileID)
+	}
+
+	_, err = registry.Call(t.Context(), scope, toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDAutomationTriggersHistory,
+		Input:  json.RawMessage(`{"trigger_id":"trigger-profile","workspace":"ws-profile-automation"}`),
+	})
+	if err != nil {
+		t.Fatalf("Registry.Call(automation_triggers_history) error = %v", err)
+	}
+	if runQuery.ReadScope.ProfileID != profileID || runQuery.TriggerID != trigger.ID {
+		t.Fatalf("trigger history query = %#v, want trigger %q/profile %q", runQuery, trigger.ID, profileID)
+	}
+
+	_, err = registry.Call(t.Context(), scope, toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDAutomationRunsList,
+		Input:  json.RawMessage(`{"trigger_id":"trigger-profile","workspace":"ws-profile-automation"}`),
+	})
+	if err != nil {
+		t.Fatalf("Registry.Call(automation_runs_list) error = %v", err)
+	}
+	if runQuery.ReadScope.ProfileID != profileID || runQuery.TriggerID != trigger.ID {
+		t.Fatalf("run list query = %#v, want trigger %q/profile %q", runQuery, trigger.ID, profileID)
+	}
+
+	_, err = registry.Call(t.Context(), scope, toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDAutomationTriggersGet,
+		Input:  json.RawMessage(`{"trigger_id":"trigger-foreign-profile","workspace":"ws-profile-automation"}`),
+	})
+	requireToolCode(t, err, toolspkg.ErrorCodeNotFound)
+
+	_, err = registry.Call(t.Context(), scope, toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDAutomationRunsGet,
+		Input:  json.RawMessage(`{"run_id":"run-foreign-profile","workspace":"ws-profile-automation"}`),
+	})
+	requireToolCode(t, err, toolspkg.ErrorCodeNotFound)
+}
+
 func nativeAutomationJobFixture(id string, source automationpkg.JobSource) automationpkg.Job {
 	now := time.Date(2026, 4, 30, 12, 0, 0, 0, time.UTC)
 	return automationpkg.Job{
 		ID:        id,
+		ProfileID: store.DefaultProfileID,
 		Scope:     automationpkg.AutomationScopeGlobal,
 		Name:      "daily",
 		AgentName: "codex",
@@ -1357,6 +1497,7 @@ func nativeAutomationTriggerFixture(id string, source automationpkg.JobSource) a
 	now := time.Date(2026, 4, 30, 12, 0, 0, 0, time.UTC)
 	return automationpkg.Trigger{
 		ID:        id,
+		ProfileID: store.DefaultProfileID,
 		Scope:     automationpkg.AutomationScopeGlobal,
 		Name:      "on-session",
 		AgentName: "codex",

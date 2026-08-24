@@ -25,6 +25,7 @@ import {
   useRevertMemoryDecision,
   useWriteMemory,
 } from "@/systems/knowledge";
+import { useProfileReadScope } from "@/systems/profiles";
 import { useActiveWorkspace, useCreateDestination } from "@/systems/workspace";
 
 import { resolveKnowledgeSelectedKey } from "./knowledge-route-selection";
@@ -53,8 +54,9 @@ function decorateKnowledgeMemories(
   });
 }
 
-function selectorFromMemory(memory: KnowledgeMemoryItem): KnowledgeSelector {
+function selectorFromMemory(memory: KnowledgeMemoryItem, profile: string): KnowledgeSelector {
   return {
+    profile,
     scope: memory.scope,
     workspaceId: memory.workspace_id,
     agentName: memory.agent_name,
@@ -76,8 +78,9 @@ function useKnowledgePage(options?: {
 }) {
   const { activeWorkspaceId } = useActiveWorkspace();
   const destination = useCreateDestination();
+  const { destination: profile } = useProfileReadScope();
 
-  const [activeScope, setActiveScope] = useState<KnowledgeScope>(options?.routeScope ?? "global");
+  const [activeScope, setActiveScope] = useState<KnowledgeScope>(options?.routeScope ?? "profile");
   const [agentName, setAgentName] = useState("");
   const [agentTier, setAgentTier] = useState<KnowledgeAgentTier>("workspace");
   const searchInput = useDebouncedInput({
@@ -113,12 +116,15 @@ function useKnowledgePage(options?: {
   const trimmedSearchQuery = searchInput.committedValue.trim();
 
   const listWorkspaceId = routeWorkspaceId || activeWorkspaceId;
-  let selector: KnowledgeSelector | null = { scope: "global" };
+  let selector: KnowledgeSelector | null = { profile, scope: "profile" };
   if (activeScope === "workspace") {
-    selector = listWorkspaceId ? { scope: "workspace", workspaceId: listWorkspaceId } : null;
+    selector = listWorkspaceId
+      ? { profile, scope: "workspace", workspaceId: listWorkspaceId }
+      : null;
   } else if (activeScope === "agent") {
     selector = trimmedAgentName
       ? {
+          profile,
           scope: "agent",
           agentName: trimmedAgentName,
           agentTier,
@@ -131,8 +137,8 @@ function useKnowledgePage(options?: {
     activeScope === "agent"
       ? selector
       : destination.scope === "workspace" && destination.workspaceId
-        ? { scope: "workspace", workspaceId: destination.workspaceId }
-        : { scope: "global" };
+        ? { profile, scope: "workspace", workspaceId: destination.workspaceId }
+        : { profile, scope: "profile" };
   const createDestinationLabel =
     activeScope === "agent" ? trimmedAgentName || "Agent" : destination.destinationLabel;
 
@@ -211,7 +217,7 @@ function useKnowledgePage(options?: {
     memory => knowledgeMemoryKey(memory) === effectiveSelectedMemoryKey
   );
 
-  const detailSelector = selectedMemory ? selectorFromMemory(selectedMemory) : null;
+  const detailSelector = selectedMemory ? selectorFromMemory(selectedMemory, profile) : null;
   const memoryDetailQuery = useMemory(detailSelector ?? undefined, selectedMemory?.filename, {
     enabled: Boolean(detailSelector && selectedMemory),
   });
@@ -314,7 +320,7 @@ function useKnowledgePage(options?: {
       agent_name: createSelector.agentName,
       agent_tier: createSelector.agentTier,
     };
-    const response = await writeMemoryMutate(body);
+    const response = await writeMemoryMutate({ body, profile: createSelector.profile });
     const filename = response.decision.target_filename ?? response.decision.frontmatter.filename;
     searchInput.clear();
     if (activeScope !== "agent") {
@@ -325,7 +331,7 @@ function useKnowledgePage(options?: {
   };
 
   const handleDelete = async (memory: KnowledgeMemoryItem) => {
-    const memorySelector = selectorFromMemory(memory);
+    const memorySelector = selectorFromMemory(memory, profile);
     if (memorySelector.scope === "workspace" && !memorySelector.workspaceId) {
       return;
     }
@@ -353,7 +359,7 @@ function useKnowledgePage(options?: {
       agent_name: memory.agent_name,
       agent_tier: memory.agent_tier,
     };
-    const params: EditMemoryParams = { filename: memory.filename, body };
+    const params: EditMemoryParams = { filename: memory.filename, body, profile };
     await editMemoryMutate(params);
     setActionTargetKey(prev => (prev === memoryKey ? null : prev));
   };
@@ -369,6 +375,7 @@ function useKnowledgePage(options?: {
       await revertMemoryDecisionMutate({
         decisionID: decision.id,
         body: { reason: "operator reverted from Knowledge" },
+        profile,
       });
       const filename = decision.target_filename ?? decision.frontmatter.filename;
       setSelectedMemoryKey(`${decision.scope}:${filename}`);
@@ -454,11 +461,11 @@ function useKnowledgePage(options?: {
         ? "workspace"
         : activeScope === "agent"
           ? "agent"
-          : "global"
+          : "profile"
     ),
     canCreateMemory: Boolean(createSelector),
     createDestinationLabel,
-    createScope: createSelector?.scope ?? "global",
+    createScope: createSelector?.scope ?? "profile",
     decisions: decisionsForSelected,
     decisionsError: decisionsQuery.error,
     isDecisionsLoading: decisionsQuery.isLoading && Boolean(selectedMemory),

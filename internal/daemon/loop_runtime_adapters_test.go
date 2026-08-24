@@ -24,6 +24,30 @@ import (
 	worktreepkg "github.com/compozy/compozy/internal/worktree"
 )
 
+func TestLoopCreationProfile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should retain profile ownership in the immutable creation identity", func(t *testing.T) {
+		t.Parallel()
+
+		profile := profileFromPolicyResolution(
+			session.CreateOpts{ProfileID: "profile-marketing", CWD: "/workspace"},
+			&loopSessionPolicyResolution{
+				workspace: workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "workspace-1"}},
+				agent: compozyconfig.ResolvedAgent{
+					Name: "reviewer", Provider: "codex", Model: "gpt-5", Permissions: "workspace-write",
+				},
+			},
+		)
+		if profile.ProfileID != "profile-marketing" {
+			t.Fatalf("profileFromPolicyResolution().ProfileID = %q, want profile-marketing", profile.ProfileID)
+		}
+		if _, err := profile.Ref(); err != nil {
+			t.Fatalf("profileFromPolicyResolution().Ref() error = %v", err)
+		}
+	})
+}
+
 func TestLoopCancellationSessionControllerShouldTreatMissingSessionsAsStopped(t *testing.T) {
 	t.Parallel()
 
@@ -213,7 +237,8 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 		_, opts, _, err := binder.resolveRunOwnedBindingProfile(
 			context.Background(),
 			looppkg.ActionSessionBindRequest{
-				WorkspaceID: "ws-loop", LoopRunID: "loop-run-goal", Agent: "task-worker",
+				ProfileID: store.DefaultProfileID, WorkspaceID: "ws-loop",
+				LoopRunID: "loop-run-goal", Agent: "task-worker",
 				ProvenanceParentSessionID: "sess-orchestrator",
 			},
 			goalpkg.SessionBinding{},
@@ -285,6 +310,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 
 		for itemIndex := range 3 {
 			_, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
+				ProfileID:   "profile-marketing",
 				WorkspaceID: "ws-loop",
 				LoopRunID:   "loop-run-worktree",
 				Generation:  2,
@@ -303,7 +329,8 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 		}
 		for itemIndex, call := range worktrees.materializeCalls {
 			wantRunID := fmt.Sprintf("loop:loop-run-worktree:2:review:%d", itemIndex)
-			if call.workspaceID != "ws-loop" || call.request.RunID != wantRunID {
+			if call.workspaceID != "ws-loop" || call.request.RunID != wantRunID ||
+				call.request.ProfileID != "profile-marketing" {
 				t.Fatalf("MaterializeForRun() call[%d] = %#v, want %s", itemIndex, call, wantRunID)
 			}
 		}
@@ -561,7 +588,8 @@ func TestValidatePinnedRuntimeShouldRejectRuntimeDivergence(t *testing.T) {
 	t.Parallel()
 
 	profile := store.SessionCreationProfile{
-		Provider: "claude", Model: "opus", ReasoningEffort: "high",
+		ProfileID: store.DefaultProfileID,
+		Provider:  "claude", Model: "opus", ReasoningEffort: "high",
 	}
 	cases := []struct {
 		name    string

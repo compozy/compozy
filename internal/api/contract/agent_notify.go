@@ -15,6 +15,8 @@ type AgentNotifyResponse struct {
 type OperatorNotificationEventPayload struct {
 	NotificationID string    `json:"notification_id"`
 	SessionID      string    `json:"session_id"`
+	ProfileID      string    `json:"profile_id"`
+	ProfileName    string    `json:"profile_name"`
 	WorkspaceID    string    `json:"workspace_id"`
 	Title          string    `json:"title"`
 	Body           string    `json:"body"`

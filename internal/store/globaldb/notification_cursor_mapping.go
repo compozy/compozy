@@ -20,6 +20,7 @@ func scanNotificationCursor(scanner notificationCursorScanner) (notifications.Cu
 	)
 	if err := scanner.Scan(
 		&row.ScopeKind,
+		&row.ProfileID,
 		&row.WorkspaceID,
 		&row.ConsumerID,
 		&row.StreamName,
@@ -39,6 +40,7 @@ func scanNotificationCursor(scanner notificationCursorScanner) (notifications.Cu
 func notificationCursorFromGenerated(row sqlcgen.NotificationCursor) (notifications.Cursor, error) {
 	cursor := notifications.Cursor{
 		Key: notifications.CursorKey{
+			ProfileID: row.ProfileID,
 			Scope: notifications.ScopeRef{
 				Kind:        notifications.ScopeKind(row.ScopeKind),
 				WorkspaceID: row.WorkspaceID,

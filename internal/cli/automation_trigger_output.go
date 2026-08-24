@@ -7,26 +7,7 @@ func automationTriggerBundle(item TriggerRecord) outputBundle {
 		jsonValue: item,
 		human: func() (string, error) {
 			return renderHumanBlocks(
-				renderHumanSection("Automation Trigger", []keyValue{
-					{Label: "ID", Value: stringOrDash(item.ID)},
-					{Label: automationNameValue, Value: stringOrDash(item.Name)},
-					{Label: automationScopeValue, Value: stringOrDash(string(item.Scope))},
-					{Label: automationWorkspaceValue, Value: stringOrDash(item.WorkspaceID)},
-					{Label: automationAgentValue, Value: stringOrDash(item.AgentName)},
-					{Label: automationEventValue, Value: stringOrDash(item.Event)},
-					{Label: automationEnabledValue, Value: strconv.FormatBool(item.Enabled)},
-					{Label: automationSourceValue, Value: stringOrDash(string(item.Source))},
-					{Label: "Retry", Value: stringOrDash(formatAutomationRetry(item.Retry))},
-					{
-						Label: "Fire Limit",
-						Value: stringOrDash(formatAutomationFireLimit(item.FireLimit)),
-					},
-					{Label: "Webhook ID", Value: stringOrDash(item.WebhookID)},
-					{Label: "Endpoint Slug", Value: stringOrDash(item.EndpointSlug)},
-					{Label: "Webhook Path", Value: stringOrDash(displayTriggerEndpoint(item))},
-					{Label: automationCreatedValue, Value: stringOrDash(formatTime(item.CreatedAt))},
-					{Label: automationUpdatedValue, Value: stringOrDash(formatTime(item.UpdatedAt))},
-				}),
+				renderHumanSection("Automation Trigger", automationTriggerHumanValues(item)),
 				renderHumanSection(
 					"Prompt",
 					[]keyValue{{Label: automationBodyValue, Value: stringOrDash(item.Prompt)}},
@@ -40,41 +21,9 @@ func automationTriggerBundle(item TriggerRecord) outputBundle {
 		},
 		toon: func() (string, error) {
 			return renderHumanBlocks(
-				renderToonObject("automation_trigger", []string{
-					"id",
-					automationNameKey,
-					automationScopeKey,
-					automationWorkspaceIDKey,
-					automationAgentNameKey,
-					automationEventKey,
-					automationEnabledKey,
-					automationSourceKey,
-					automationRetryKey,
-					"fire_limit",
-					"webhook_id",
-					"endpoint_slug",
-					bridgeSetupWebhookPathKey,
-					automationCreatedAtKey,
-					automationUpdatedAtKey,
-					automationPromptKey,
-				}, []string{
-					item.ID,
-					item.Name,
-					string(item.Scope),
-					item.WorkspaceID,
-					item.AgentName,
-					item.Event,
-					strconv.FormatBool(item.Enabled),
-					string(item.Source),
-					formatAutomationRetry(item.Retry),
-					formatAutomationFireLimit(item.FireLimit),
-					item.WebhookID,
-					item.EndpointSlug,
-					displayTriggerEndpoint(item),
-					formatTime(item.CreatedAt),
-					formatTime(item.UpdatedAt),
-					item.Prompt,
-				}),
+				renderToonObject(
+					"automation_trigger", automationTriggerToonFields(), automationTriggerToonValues(item),
+				),
 				renderToonArray(
 					"filters",
 					[]string{automationPathKey, hooksValueKey},
@@ -82,6 +31,45 @@ func automationTriggerBundle(item TriggerRecord) outputBundle {
 				),
 			), nil
 		},
+	}
+}
+
+func automationTriggerHumanValues(item TriggerRecord) []keyValue {
+	return []keyValue{
+		{Label: "ID", Value: stringOrDash(item.ID)},
+		{Label: sessionProfileValue, Value: stringOrDash(item.ProfileName)},
+		{Label: automationNameValue, Value: stringOrDash(item.Name)},
+		{Label: automationScopeValue, Value: stringOrDash(string(item.Scope))},
+		{Label: automationWorkspaceValue, Value: stringOrDash(item.WorkspaceID)},
+		{Label: automationAgentValue, Value: stringOrDash(item.AgentName)},
+		{Label: automationEventValue, Value: stringOrDash(item.Event)},
+		{Label: automationEnabledValue, Value: strconv.FormatBool(item.Enabled)},
+		{Label: automationSourceValue, Value: stringOrDash(string(item.Source))},
+		{Label: "Retry", Value: stringOrDash(formatAutomationRetry(item.Retry))},
+		{Label: "Fire Limit", Value: stringOrDash(formatAutomationFireLimit(item.FireLimit))},
+		{Label: "Webhook ID", Value: stringOrDash(item.WebhookID)},
+		{Label: "Endpoint Slug", Value: stringOrDash(item.EndpointSlug)},
+		{Label: "Webhook Path", Value: stringOrDash(displayTriggerEndpoint(item))},
+		{Label: automationCreatedValue, Value: stringOrDash(formatTime(item.CreatedAt))},
+		{Label: automationUpdatedValue, Value: stringOrDash(formatTime(item.UpdatedAt))},
+	}
+}
+
+func automationTriggerToonFields() []string {
+	return []string{
+		"id", profileNameOutputKey, automationNameKey, automationScopeKey, automationWorkspaceIDKey,
+		automationAgentNameKey, automationEventKey, automationEnabledKey, automationSourceKey, automationRetryKey,
+		"fire_limit", "webhook_id", "endpoint_slug", bridgeSetupWebhookPathKey, automationCreatedAtKey,
+		automationUpdatedAtKey, automationPromptKey,
+	}
+}
+
+func automationTriggerToonValues(item TriggerRecord) []string {
+	return []string{
+		item.ID, item.ProfileName, item.Name, string(item.Scope), item.WorkspaceID, item.AgentName, item.Event,
+		strconv.FormatBool(item.Enabled), string(item.Source), formatAutomationRetry(item.Retry),
+		formatAutomationFireLimit(item.FireLimit), item.WebhookID, item.EndpointSlug, displayTriggerEndpoint(item),
+		formatTime(item.CreatedAt), formatTime(item.UpdatedAt), item.Prompt,
 	}
 }
 
@@ -93,6 +81,7 @@ func automationTriggerListBundle(page AutomationTriggerListRecord) outputBundle 
 		"Automation Triggers",
 		[]string{
 			"ID",
+			sessionProfileValue,
 			automationNameValue,
 			automationEventValue,
 			automationScopeValue,
@@ -104,6 +93,7 @@ func automationTriggerListBundle(page AutomationTriggerListRecord) outputBundle 
 		"automation_triggers",
 		[]string{
 			"id",
+			profileNameOutputKey,
 			automationNameKey,
 			automationEventKey,
 			automationScopeKey,
@@ -115,6 +105,7 @@ func automationTriggerListBundle(page AutomationTriggerListRecord) outputBundle 
 		func(item TriggerRecord) []string {
 			return []string{
 				stringOrDash(item.ID),
+				stringOrDash(item.ProfileName),
 				stringOrDash(item.Name),
 				stringOrDash(item.Event),
 				stringOrDash(string(item.Scope)),
@@ -127,6 +118,7 @@ func automationTriggerListBundle(page AutomationTriggerListRecord) outputBundle 
 		func(item TriggerRecord) []string {
 			return []string{
 				item.ID,
+				item.ProfileName,
 				item.Name,
 				item.Event,
 				string(item.Scope),

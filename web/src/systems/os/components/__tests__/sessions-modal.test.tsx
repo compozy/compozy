@@ -26,6 +26,8 @@ vi.mock("../../hooks/use-attention-jump", () => ({
 
 function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
   return {
+    profile_name: "default",
+    profile_id: "00000000000000000000000000",
     id: "session-1",
     name: "Web shell polish",
     agent_name: "codex",
@@ -75,6 +77,9 @@ function listView(overrides: Partial<SessionListViewModel> = {}): SessionListVie
     setSort: vi.fn(),
     setArchived: vi.fn(),
     workspaceGroups: [],
+    aggregate: false,
+    scopeLabel: "default",
+    ownerOf: () => ({ id: "00000000000000000000000000", name: "default", archived: false }),
     collapsedWorkspaceIds: new Set<string>(),
     toggleWorkspace: vi.fn(),
     ...overrides,
@@ -96,14 +101,15 @@ function renderModal(
   shell: OsShellHandle,
   open = true,
   view: SessionListViewModel = listView(),
-  onNewSession: () => void = vi.fn()
+  onNewSession: () => void = vi.fn(),
+  sessions: readonly SessionPayload[] = SESSIONS
 ) {
   return render(
     <OsShellContext.Provider value={shell}>
       <OsSessionsModal
         open={open}
         onOpenChange={() => {}}
-        sessions={SESSIONS}
+        sessions={sessions}
         disconnected={false}
         view={view}
         onNewSession={onNewSession}
@@ -298,6 +304,25 @@ describe("OsSessionsModal", () => {
 
     await user.clear(filter);
     expect(screen.getAllByTestId("os-sessions-modal-session-session-3")).not.toHaveLength(0);
+  });
+
+  it("Should name the active profile in filtered and archived empty states", async () => {
+    const shell = createShell();
+    renderModal(shell, true, listView({ scopeLabel: "marketing" }));
+
+    fireEvent.change(screen.getByLabelText("Filter sessions"), {
+      target: { value: "does-not-exist" },
+    });
+    expect(screen.getByText("No matching sessions in marketing yet.")).toBeInTheDocument();
+
+    renderModal(
+      createShell(),
+      true,
+      listView({ archived: true, scopeLabel: "marketing" }),
+      vi.fn(),
+      []
+    );
+    expect(screen.getByText("No archived sessions in marketing yet.")).toBeInTheDocument();
   });
 
   it("Should write the widest breadth through the globe toggle (UT-068)", async () => {

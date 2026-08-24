@@ -1,7 +1,7 @@
 /**
- * The daemon keys extension instances by `(name, workspace)`: a workspace dev overlay and the
- * global published row are different rows behind the same name. Every cached read therefore
- * carries the normalized workspace identity so a projection is never reused across workspaces.
+ * The daemon keys extension instances by `(name, workspace, profile)`: a workspace dev overlay and
+ * the global published row are different rows, and profile placement changes the inventory answer.
+ * Every cached list therefore carries both normalized identity axes.
  */
 export const EXTENSION_GLOBAL_WORKSPACE_KEY = "__global__";
 
@@ -10,11 +10,20 @@ export function extensionWorkspaceKey(workspaceId?: string | null): string {
   return normalized === "" ? EXTENSION_GLOBAL_WORKSPACE_KEY : normalized;
 }
 
+export function extensionProfileKey(profileName?: string | null): string {
+  const normalized = typeof profileName === "string" ? profileName.trim() : "";
+  return normalized === "" ? "default" : normalized;
+}
+
 export const extensionKeys = {
   all: ["extensions"] as const,
   lists: () => [...extensionKeys.all, "list"] as const,
-  list: (workspaceId?: string | null) =>
-    [...extensionKeys.lists(), extensionWorkspaceKey(workspaceId)] as const,
+  list: (workspaceId?: string | null, profileName?: string | null) =>
+    [
+      ...extensionKeys.lists(),
+      extensionWorkspaceKey(workspaceId),
+      extensionProfileKey(profileName),
+    ] as const,
   provenance: (name: string) => [...extensionKeys.all, "provenance", name] as const,
   logs: (name: string, workspaceId?: string | null) =>
     [...extensionKeys.all, "logs", extensionWorkspaceKey(workspaceId), name.trim()] as const,

@@ -240,7 +240,7 @@ func (m *Manager) dispatchSandboxPrepare(
 		Permissions:         strings.TrimSpace(req.Permissions),
 		ResumeACPState:      strings.TrimSpace(req.ResumeACPState),
 	}
-	patched, err := m.hooks.sandbox().DispatchSandboxPrepare(ctx, payload)
+	patched, err := m.hooks.sandbox().DispatchSandboxPrepare(ctx, &payload)
 	if err != nil {
 		return req, err
 	}

@@ -346,7 +346,7 @@ func (r *secretGuardRuntime) handleInitialize(params json.RawMessage) (any, erro
 			),
 		},
 		ImplementedMethods:  []string{"health_check", "shutdown"},
-		SupportedHookEvents: []string{string(hookspkg.HookInputPreSubmit)},
+		SupportedHookEvents: []compozysdk.DescribeHookEvent{{Event: string(hookspkg.HookInputPreSubmit)}},
 		Supports: subprocess.InitializeSupports{
 			HealthCheck: true,
 		},

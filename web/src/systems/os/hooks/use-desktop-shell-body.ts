@@ -9,6 +9,7 @@ import {
   type SessionListViewModel,
   type SessionPayload,
 } from "@/systems/session";
+import { useProfileLens, useSwitchProfile } from "@/systems/profiles";
 import { useWorktreeListings } from "@/systems/workspace";
 
 import { frameSeamEdits } from "../lib/frame-seams";
@@ -188,6 +189,8 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
   const transition = useDesktopTransitionIntent();
   const { manager, coordinator } = useOsShell();
   const paletteRegistry = usePaletteRegistry();
+  const profileLens = useProfileLens();
+  const switchProfile = useSwitchProfile(profileLens);
   const { collapsedThreadIds } = useSessionSidebarState();
   const shortcutLabels = useDesktop(state => {
     const effective = state.windowManagerConfig?.effectiveShortcuts;
@@ -228,6 +231,9 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     toggleSessions: () => overlays.toggleOverlay("sessions"),
     toggleSidebar: toggleSessionSidebar,
     toggleGlobalScope: model.toggleGlobalScope,
+    useProfile: profile => {
+      if (profile !== "") switchProfile.mutate({ kind: "profile", profile });
+    },
     cycleWorkspace: direction => {
       const target = adjacentShortcutItem(model.workspaces, model.activeWorkspaceId, direction);
       if (target) model.setActiveWorkspaceId(target.id);

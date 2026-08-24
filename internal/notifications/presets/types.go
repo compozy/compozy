@@ -70,7 +70,6 @@ type CreateRequest struct {
 	Events  []string `json:"events"`
 	Targets []Target `json:"targets,omitempty"`
 	Filter  string   `json:"filter,omitempty"`
-	Enabled bool     `json:"enabled,omitempty"`
 }
 
 // UpdateRequest captures mutable preset fields.
@@ -78,13 +77,13 @@ type UpdateRequest struct {
 	Events  *[]string `json:"events,omitempty"`
 	Targets *[]Target `json:"targets,omitempty"`
 	Filter  *string   `json:"filter,omitempty"`
-	Enabled *bool     `json:"enabled,omitempty"`
 	Now     time.Time `json:"-"`
 }
 
 // Event is the normalized runtime event shape consumed by preset dispatch.
 type Event struct {
 	ID        string                 `json:"id"`
+	ProfileID string                 `json:"profile_id"`
 	Type      string                 `json:"type"`
 	Scope     notifications.ScopeRef `json:"scope"`
 	AgentName string                 `json:"agent,omitempty"`
@@ -216,7 +215,7 @@ func (r CreateRequest) Normalize(now time.Time) (Preset, error) {
 		Events:    normalizePresetEvents(r.Events),
 		Targets:   normalizePresetTargets(r.Targets),
 		Filter:    strings.TrimSpace(r.Filter),
-		Enabled:   r.Enabled,
+		Enabled:   true,
 		CreatedAt: createdAt,
 		UpdatedAt: createdAt,
 	}
@@ -227,12 +226,13 @@ func (r CreateRequest) Normalize(now time.Time) (Preset, error) {
 }
 
 func (r UpdateRequest) HasMutableField() bool {
-	return r.Events != nil || r.Targets != nil || r.Filter != nil || r.Enabled != nil
+	return r.Events != nil || r.Targets != nil || r.Filter != nil
 }
 
 func (e Event) Normalize(now time.Time) Event {
 	normalized := e
 	normalized.ID = e.ID
+	normalized.ProfileID = strings.TrimSpace(e.ProfileID)
 	normalized.Type = e.Type
 	normalized.Scope = e.Scope.Normalize()
 	normalized.AgentName = strings.TrimSpace(e.AgentName)
@@ -256,6 +256,9 @@ func (e Event) Validate() error {
 	normalized := e.Normalize(time.Now())
 	if normalized.ID == "" {
 		return fmt.Errorf("%w: event id is required", ErrInvalidPreset)
+	}
+	if normalized.ProfileID == "" {
+		return fmt.Errorf("%w: event profile id is required", ErrInvalidPreset)
 	}
 	if normalized.Type == "" {
 		return fmt.Errorf("%w: event type is required", ErrInvalidPreset)
@@ -364,13 +367,11 @@ func MutableHash(p Preset) string {
 		Events  []string `json:"events"`
 		Targets []Target `json:"targets"`
 		Filter  string   `json:"filter"`
-		Enabled bool     `json:"enabled"`
 	}{
 		Name:    normalized.Name,
 		Events:  normalized.Events,
 		Targets: normalized.Targets,
 		Filter:  normalized.Filter,
-		Enabled: normalized.Enabled,
 	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {

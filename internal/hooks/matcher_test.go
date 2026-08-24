@@ -266,7 +266,7 @@ func TestHookMatcherMatchesSandbox(t *testing.T) {
 		SandboxBackend: "daytona",
 		SandboxProfile: "daytona-dev",
 	}
-	if !prepareMatcher.MatchesSandboxPrepare(SandboxPreparePayload{
+	if !prepareMatcher.MatchesSandboxPrepare(&SandboxPreparePayload{
 		SessionContext: SessionContext{
 			AgentName:   "codex",
 			WorkspaceID: "ws-1",

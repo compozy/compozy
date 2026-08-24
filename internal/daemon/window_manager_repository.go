@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"sync"
 
 	"github.com/compozy/compozy/internal/clientstate"
@@ -15,20 +16,62 @@ import (
 )
 
 const (
-	windowManagerStateDomain = "window_manager"
-	windowManagerSnapshotKey = "snapshot"
+	windowManagerStateDomain     = "window_manager"
+	windowManagerSnapshotKeyStem = "snapshot"
 )
 
-// windowManagerRepository persists one typed aggregate per workspace.
+// windowManagerSnapshotKey partitions the per-workspace aggregate by profile:
+// desktops are per-profile working state, so one workspace holds one document
+// per profile rather than one document overall (US-026).
+func windowManagerSnapshotKey(profileID string) string {
+	return windowManagerSnapshotKeyStem + ":" + profileID
+}
+
+// windowManagerSnapshotProfile reports the profile a stored aggregate key owns.
+func windowManagerSnapshotProfile(key string) (string, bool) {
+	profileID, partitioned := strings.CutPrefix(key, windowManagerSnapshotKeyStem+":")
+	if !partitioned || profileID == "" {
+		return "", false
+	}
+	return profileID, true
+}
+
+// windowManagerRepository persists one typed aggregate per workspace, for one profile.
 type windowManagerRepository struct {
-	service clientstate.Service
-	logger  *slog.Logger
+	service   clientstate.Service
+	profileID string
+	logger    *slog.Logger
 
 	mu    sync.Mutex
 	locks map[windowmanager.WorkspaceID]*sync.Mutex
+
+	// writeMu guards the durable-write section, not just the flag: a commit holds
+	// it shared from before its seal check until after its store write returns, so
+	// sealing — which takes it exclusively — cannot overtake a write already in
+	// flight.
+	writeMu sync.RWMutex
+	sealed  bool
 }
 
 var errWindowManagerSnapshotDiscardable = errors.New("daemon: discardable window-manager snapshot")
+
+// errWindowManagerProfileDeleted refuses durable writes for a profile whose
+// desktops are being removed.
+var errWindowManagerProfileDeleted = errors.New("daemon: window-manager profile was deleted")
+
+// seal closes this profile's write path for good and waits for the writes already
+// inside it.
+//
+// Deletion enumerates and removes stored arrangements, so a commit that is midway
+// through its store write must finish before the enumeration starts — otherwise it
+// lands afterwards and resurrects the partition that was just removed. Taking the
+// write lock exclusively is that barrier: it returns only once every earlier commit
+// has left the section, and every later one fails before it writes.
+func (r *windowManagerRepository) seal() {
+	r.writeMu.Lock()
+	r.sealed = true
+	r.writeMu.Unlock()
+}
 
 type windowManagerRepositoryOption func(*windowManagerRepository)
 
@@ -44,15 +87,21 @@ var _ windowmanager.Repository = (*windowManagerRepository)(nil)
 
 func newWindowManagerRepository(
 	service clientstate.Service,
+	profileID string,
 	options ...windowManagerRepositoryOption,
 ) (*windowManagerRepository, error) {
 	if service == nil {
 		return nil, errors.New("daemon: window-manager client-state service is required")
 	}
+	profileID = strings.TrimSpace(profileID)
+	if profileID == "" {
+		return nil, errors.New("daemon: window-manager profile is required")
+	}
 	repository := &windowManagerRepository{
-		service: service,
-		logger:  slog.Default(),
-		locks:   make(map[windowmanager.WorkspaceID]*sync.Mutex),
+		service:   service,
+		profileID: profileID,
+		logger:    slog.Default(),
+		locks:     make(map[windowmanager.WorkspaceID]*sync.Mutex),
 	}
 	for _, option := range options {
 		if option != nil {
@@ -69,11 +118,23 @@ func (r *windowManagerRepository) Load(
 	lock := r.lockFor(workspaceID)
 	lock.Lock()
 	defer lock.Unlock()
+	// Shared for the whole body: the discard path below writes, and a sealed
+	// profile has no arrangement left to read anyway. Reporting it as absent is
+	// what the stack-activation coalescer needs to drop its pending flush quietly
+	// while the manager closes.
+	r.writeMu.RLock()
+	defer r.writeMu.RUnlock()
+	if r.sealed {
+		return windowmanager.Snapshot{}, fmt.Errorf(
+			"daemon: load snapshot: %w",
+			windowmanager.ErrSnapshotNotFound,
+		)
+	}
 	entry, err := r.service.Get(
 		ctx,
 		clientstate.WorkspaceID(workspaceID),
 		windowManagerStateDomain,
-		windowManagerSnapshotKey,
+		windowManagerSnapshotKey(r.profileID),
 	)
 	if err != nil {
 		return windowmanager.Snapshot{}, mapWindowManagerStoreError("load snapshot", err)
@@ -108,6 +169,13 @@ func (r *windowManagerRepository) Commit(ctx context.Context, commit *windowmana
 	lock := r.lockFor(commit.WorkspaceID)
 	lock.Lock()
 	defer lock.Unlock()
+	// Held shared across the whole durable write below, so a seal cannot slip
+	// between this check and the store write it guards.
+	r.writeMu.RLock()
+	defer r.writeMu.RUnlock()
+	if r.sealed {
+		return errWindowManagerProfileDeleted
+	}
 
 	current, entryRevision, exists, err := r.loadCurrent(ctx, commit.WorkspaceID)
 	if err != nil {
@@ -134,7 +202,7 @@ func (r *windowManagerRepository) Commit(ctx context.Context, commit *windowmana
 		windowManagerStateDomain,
 		[]clientstate.Op{{
 			Kind:  clientstate.OpPut,
-			Key:   windowManagerSnapshotKey,
+			Key:   windowManagerSnapshotKey(r.profileID),
 			Value: encoded,
 			IfRev: entryRevision,
 		}},
@@ -162,12 +230,18 @@ func (r *windowManagerRepository) DeleteWorkspace(
 	lock := r.lockFor(workspaceID)
 	lock.Lock()
 	defer lock.Unlock()
+	r.writeMu.RLock()
+	defer r.writeMu.RUnlock()
+	// Deleting a workspace's copy of an already-removed profile is a no-op.
+	if r.sealed {
+		return nil
+	}
 
 	entry, err := r.service.Get(
 		ctx,
 		clientstate.WorkspaceID(workspaceID),
 		windowManagerStateDomain,
-		windowManagerSnapshotKey,
+		windowManagerSnapshotKey(r.profileID),
 	)
 	if errors.Is(err, clientstate.ErrNotFound) {
 		return nil
@@ -188,7 +262,7 @@ func (r *windowManagerRepository) deleteSnapshotEntry(
 		ctx,
 		clientstate.WorkspaceID(workspaceID),
 		windowManagerStateDomain,
-		[]clientstate.Op{{Kind: clientstate.OpDelete, Key: windowManagerSnapshotKey, IfRev: revision}},
+		[]clientstate.Op{{Kind: clientstate.OpDelete, Key: windowManagerSnapshotKey(r.profileID), IfRev: revision}},
 		clientstate.ApplyOptions{Origin: origin},
 	)
 	return mapWindowManagerStoreError("delete snapshot", err)
@@ -202,7 +276,7 @@ func (r *windowManagerRepository) loadCurrent(
 		ctx,
 		clientstate.WorkspaceID(workspaceID),
 		windowManagerStateDomain,
-		windowManagerSnapshotKey,
+		windowManagerSnapshotKey(r.profileID),
 	)
 	if errors.Is(err, clientstate.ErrNotFound) {
 		return windowmanager.Snapshot{}, 0, false, nil

@@ -7,6 +7,7 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -17,46 +18,58 @@ type LoopService interface {
 		workspaceID string,
 		query looppkg.CatalogQuery,
 	) (contract.LoopsResponse, error)
-	CreateLoop(ctx context.Context, workspaceID string, req contract.CreateLoopRequest) (contract.LoopResponse, error)
-	GetLoop(ctx context.Context, workspaceID string, name string) (contract.LoopResponse, error)
+	CreateLoop(
+		ctx context.Context,
+		workspaceID string,
+		profileID string,
+		req contract.CreateLoopRequest,
+	) (contract.LoopResponse, error)
+	GetLoop(ctx context.Context, workspaceID string, profileID string, name string) (contract.LoopResponse, error)
 	PatchLoop(
 		ctx context.Context,
 		workspaceID string,
+		profileID string,
 		name string,
 		req contract.PatchLoopRequest,
 	) (contract.LoopResponse, error)
 	ValidateLoop(
 		ctx context.Context,
 		workspaceID string,
+		profileID string,
 		name string,
 		req contract.ValidateLoopRequest,
 	) (contract.LoopValidationResponse, error)
-	DeleteLoop(ctx context.Context, workspaceID string, name string) error
+	DeleteLoop(ctx context.Context, workspaceID string, profileID string, name string) error
 	RunLoop(
 		ctx context.Context,
 		workspaceID string,
 		name string,
-		req contract.RunLoopRequest,
-		startKind dsl.StartKind,
-		actor taskpkg.ActorContext,
-		dry bool,
+		input LoopRunInput,
 	) (contract.RunLoopResponse, error)
-	GetLoopConfig(ctx context.Context, workspaceID string, name string) (contract.LoopConfigResponse, error)
+	GetLoopConfig(
+		ctx context.Context,
+		workspaceID string,
+		profileID string,
+		name string,
+	) (contract.LoopConfigResponse, error)
 	PutLoopConfig(
 		ctx context.Context,
 		workspaceID string,
+		profileID string,
 		name string,
 		req contract.PutLoopConfigRequest,
 	) (contract.LoopConfigResponse, error)
 	GetLoopInputDefaults(
 		ctx context.Context,
 		workspaceID string,
+		profileID string,
 		name string,
 		scope contract.LoopInputDefaultsScope,
 	) (contract.LoopInputDefaultsResponse, error)
 	GetLoopInputDefault(
 		ctx context.Context,
 		workspaceID string,
+		profileID string,
 		name string,
 		key string,
 		scope contract.LoopInputDefaultsScope,
@@ -64,12 +77,14 @@ type LoopService interface {
 	PutLoopInputDefaults(
 		ctx context.Context,
 		workspaceID string,
+		profileID string,
 		name string,
 		req contract.PutLoopInputDefaultsRequest,
 	) (contract.LoopInputDefaultsResponse, error)
 	PutLoopInputDefault(
 		ctx context.Context,
 		workspaceID string,
+		profileID string,
 		name string,
 		key string,
 		req contract.PutLoopInputDefaultRequest,
@@ -77,14 +92,21 @@ type LoopService interface {
 	DeleteLoopInputDefault(
 		ctx context.Context,
 		workspaceID string,
+		profileID string,
 		name string,
 		key string,
 		scope contract.LoopInputDefaultsScope,
 	) (contract.DeleteLoopInputDefaultResponse, error)
-	GetLoopAnnotations(ctx context.Context, workspaceID string, name string) (contract.LoopAnnotationsResponse, error)
+	GetLoopAnnotations(
+		ctx context.Context,
+		workspaceID string,
+		profileID string,
+		name string,
+	) (contract.LoopAnnotationsResponse, error)
 	PutLoopAnnotations(
 		ctx context.Context,
 		workspaceID string,
+		profileID string,
 		name string,
 		req contract.PutLoopAnnotationsRequest,
 	) (contract.LoopAnnotationsResponse, error)
@@ -206,6 +228,7 @@ type LoopService interface {
 		workspaceID string,
 		runID string,
 		afterSeq int64,
+		readScope store.ReadScope,
 	) ([]contract.LoopRunEventPayload, error)
 }
 
@@ -216,8 +239,18 @@ type LoopRunReadService interface {
 	GetLoopRunTimeline(context.Context, string, string, looppkg.TimelineQuery) (contract.LoopTimelineResponse, error)
 }
 
+// LoopRunInput carries the resolved owner and transport context for one Loop start.
+type LoopRunInput struct {
+	Request   contract.RunLoopRequest
+	ProfileID string
+	StartKind dsl.StartKind
+	Actor     taskpkg.ActorContext
+	Dry       bool
+}
+
 // LoopRunListQuery contains HTTP/UDS list filters for loop runs.
 type LoopRunListQuery struct {
+	ReadScope     store.ReadScope
 	LoopName      string
 	Status        string
 	Origin        string

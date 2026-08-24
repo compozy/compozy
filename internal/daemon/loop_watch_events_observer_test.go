@@ -55,6 +55,11 @@ func TestLoopWatchEventsObserverShouldMatchAndWake(t *testing.T) {
 		), 2; got != want {
 			t.Fatalf("wake_enqueued summaries = %d, want %d", got, want)
 		}
+		for _, summary := range watchStore.snapshotSummaries() {
+			if got, want := summary.ProfileID, "profile-marketing"; got != want {
+				t.Fatalf("summary profile = %q, want %q", got, want)
+			}
+		}
 	})
 
 	t.Run("Should resume an event wait without enqueueing a parallel wake", func(t *testing.T) {
@@ -801,6 +806,7 @@ func watchEventsParkedSubscriptionForKindForTest(
 ) looppkg.ParkedWatchEventSubscription {
 	return looppkg.ParkedWatchEventSubscription{
 		WorkspaceID: "ws-1",
+		ProfileID:   "profile-marketing",
 		LoopRunID:   "loop-run-1",
 		LoopName:    "delivery",
 		NodeID:      "watch_tasks",

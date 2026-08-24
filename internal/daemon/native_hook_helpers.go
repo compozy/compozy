@@ -13,13 +13,20 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
+const nativeSecretAPIKey = "api_key"
+
 func (n *daemonNativeTools) hookCatalogFilter(
 	ctx context.Context,
 	input hooksListInput,
 	scope toolspkg.Scope,
 ) (hookspkg.CatalogFilter, error) {
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return hookspkg.CatalogFilter{}, err
+	}
 	workspaceRef := nativeCallerWorkspaceInput(input.Workspace, scope)
 	filter := hookspkg.CatalogFilter{
+		ProfileID: readScope.ProfileID,
 		AgentName: strings.TrimSpace(input.Agent),
 	}
 	if strings.TrimSpace(workspaceRef) != "" {
@@ -329,7 +336,7 @@ func secretLikeText(value string) bool {
 		"secret",
 		nativeConfigHookToolsTokenKey,
 		"password",
-		"api_key",
+		nativeSecretAPIKey,
 		"apikey",
 		"authorization",
 		"bearer",

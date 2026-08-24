@@ -30,6 +30,7 @@ func taskBridgeNotificationSubscriptionListBundle(
 		"Task Bridge Notification Subscriptions",
 		[]string{
 			taskSubscriptionValue,
+			sessionProfileValue,
 			taskTaskValue,
 			taskBridgeValue,
 			taskScopeValue,
@@ -46,6 +47,7 @@ func taskBridgeNotificationSubscriptionListBundle(
 		"task_bridge_notification_subscriptions",
 		[]string{
 			"subscription_id",
+			profileNameOutputKey,
 			taskTaskIDKey,
 			taskBridgeInstanceIDKey,
 			taskScopeKey,
@@ -62,6 +64,7 @@ func taskBridgeNotificationSubscriptionListBundle(
 		func(item TaskBridgeNotificationSubscriptionRecord) []string {
 			return []string{
 				stringOrDash(item.SubscriptionID),
+				stringOrDash(item.ProfileName),
 				stringOrDash(item.TaskID),
 				stringOrDash(item.BridgeInstanceID),
 				stringOrDash(string(item.Scope)),
@@ -79,6 +82,7 @@ func taskBridgeNotificationSubscriptionListBundle(
 		func(item TaskBridgeNotificationSubscriptionRecord) []string {
 			return []string{
 				item.SubscriptionID,
+				item.ProfileName,
 				item.TaskID,
 				item.BridgeInstanceID,
 				string(item.Scope),
@@ -99,6 +103,7 @@ func taskBridgeNotificationSubscriptionListBundle(
 func taskBridgeNotificationRows(subscription *TaskBridgeNotificationSubscriptionRecord) []keyValue {
 	return []keyValue{
 		{Label: taskSubscriptionValue, Value: stringOrDash(subscription.SubscriptionID)},
+		{Label: sessionProfileValue, Value: stringOrDash(subscription.ProfileName)},
 		{Label: taskTaskValue, Value: stringOrDash(subscription.TaskID)},
 		{Label: taskBridgeValue, Value: stringOrDash(subscription.BridgeInstanceID)},
 		{Label: taskScopeValue, Value: stringOrDash(string(subscription.Scope))},
@@ -220,6 +225,7 @@ func taskRunReviewVerdictBundle(record *TaskRunReviewVerdictRecord) outputBundle
 func taskRunReviewRows(review *TaskRunReviewRecord) []keyValue {
 	return []keyValue{
 		{Label: taskReviewValue, Value: stringOrDash(review.ReviewID)},
+		{Label: sessionProfileValue, Value: stringOrDash(review.ProfileName)},
 		{Label: taskTaskValue, Value: stringOrDash(review.TaskID)},
 		{Label: taskRunValue, Value: stringOrDash(review.RunID)},
 		{Label: taskStatusValue, Value: stringOrDash(string(review.Status))},
@@ -243,6 +249,7 @@ func taskRunReviewListBundle(items []TaskRunReviewRecord) outputBundle {
 		"Task Run Reviews",
 		[]string{
 			taskReviewValue,
+			sessionProfileValue,
 			taskTaskValue,
 			taskRunValue,
 			taskStatusValue,
@@ -253,6 +260,7 @@ func taskRunReviewListBundle(items []TaskRunReviewRecord) outputBundle {
 		"task_run_reviews",
 		[]string{
 			"review_id",
+			profileNameOutputKey,
 			taskTaskIDKey,
 			taskRunIDKey,
 			taskStatusKey,
@@ -263,6 +271,7 @@ func taskRunReviewListBundle(items []TaskRunReviewRecord) outputBundle {
 		func(item TaskRunReviewRecord) []string {
 			return []string{
 				stringOrDash(item.ReviewID),
+				stringOrDash(item.ProfileName),
 				stringOrDash(item.TaskID),
 				stringOrDash(item.RunID),
 				stringOrDash(string(item.Status)),
@@ -274,6 +283,7 @@ func taskRunReviewListBundle(items []TaskRunReviewRecord) outputBundle {
 		func(item TaskRunReviewRecord) []string {
 			return []string{
 				item.ReviewID,
+				item.ProfileName,
 				item.TaskID,
 				item.RunID,
 				string(item.Status),

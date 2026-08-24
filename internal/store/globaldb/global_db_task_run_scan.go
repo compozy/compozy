@@ -174,9 +174,11 @@ func (fields *taskRunScanFields) record(run taskpkg.Run) (taskpkg.Run, error) {
 	if err := assignTaskMetadata(&run.Metadata, fields.metadataJSON, "task_run.metadata_json"); err != nil {
 		return taskpkg.Run{}, err
 	}
-	if err := assignTaskMetadata(&run.Result, fields.resultJSON, "task_run.result_json"); err != nil {
+	var result json.RawMessage
+	if err := assignTaskMetadata(&result, fields.resultJSON, "task_run.result_json"); err != nil {
 		return taskpkg.Run{}, err
 	}
+	run.SetResult(result)
 	run.TokensUsed = fields.tokensUsed
 	run.Review = taskRunReviewLineageFromScan(fields)
 	run = normalizeTaskRunRecord(run)

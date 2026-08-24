@@ -8,13 +8,15 @@ import { resolveActiveWorkspaceId } from "./-route-preload";
 import {
   cachedForeignSessionOwner,
   resolveForeignSessionOwner,
-  type SessionDeepLinkSearch,
   sessionDetailOptions,
+  type SessionDeepLinkSearch,
+  sessionScopedDetailOptions,
   SessionNotFoundError,
   type SessionOwnerDialogState,
   type SessionPayload,
   sessionTranscriptOptions,
 } from "@/systems/session";
+import { readProfileLens, readProfileScopeParams } from "@/systems/profiles";
 
 export interface SessionPermalinkRouteContext {
   topbar: TopbarRouteContext;
@@ -97,7 +99,13 @@ export async function resolveSessionPermalink({
 
   let session: SessionPayload;
   try {
-    session = await queryClient.ensureQueryData(sessionDetailOptions(workspaceId, sessionId));
+    // The profile-aware by-id endpoint does not enforce workspace ownership.
+    // Prove the active workspace first so a permalink cannot jump across
+    // workspaces without the operator's confirmation.
+    await queryClient.ensureQueryData(sessionDetailOptions(workspaceId, sessionId));
+    session = await queryClient.ensureQueryData(
+      sessionScopedDetailOptions(sessionId, readProfileScopeParams(queryClient, readProfileLens()))
+    );
   } catch (error) {
     if (error instanceof SessionNotFoundError) {
       return resolveForeignPermalink(queryClient, sessionId, workspaceId);

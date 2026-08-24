@@ -53,9 +53,10 @@ func buildToolCallEvent(
 	event := ToolCallEvent{
 		Kind:          kind,
 		ToolID:        descriptor.ID,
-		DisplayTitle:  descriptor.DisplayTitle,
+		DisplayTitle:  descriptor.Presentation().DisplayTitle,
 		SourceKind:    descriptor.Source.Kind,
 		SourceOwner:   descriptor.Source.Owner,
+		ProfileID:     req.ProfileID,
 		WorkspaceID:   req.WorkspaceID,
 		SessionID:     req.SessionID,
 		AgentName:     req.AgentName,

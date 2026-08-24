@@ -316,6 +316,7 @@ type BrowserBridgeOperatorSeedRuntime = Pick<
   Partial<Pick<BrowserRuntimeSeedClient, "resolveWorkspace">> & {
     paths?: {
       homeDir: string;
+      workspaceDir?: string;
     };
     seeded?: BrowserRuntimeSeedResult;
   };
@@ -323,7 +324,7 @@ type BrowserBridgeOperatorSeedRuntime = Pick<
 type BrowserAutomationOperatorSeedRuntime = Pick<BrowserRuntimeSeedClient, "requestJSON"> &
   Partial<Pick<BrowserRuntimeSeedClient, "resolveWorkspace">> & {
     paths?: {
-      homeDir: string;
+      workspaceDir: string;
     };
     seeded?: BrowserRuntimeSeedResult;
   };
@@ -489,7 +490,7 @@ interface NetworkStatusSeedPayload {
 type BrowserTasksOperatorSeedRuntime = Pick<BrowserRuntimeSeedClient, "requestJSON"> &
   Partial<Pick<BrowserRuntimeSeedClient, "resolveWorkspace">> & {
     paths?: {
-      homeDir: string;
+      workspaceDir: string;
     };
     seeded?: BrowserRuntimeSeedResult;
   };
@@ -818,14 +819,15 @@ function formatSeedFileMode(mode: number): string {
 
 export async function applyBrowserRuntimeSeed(
   runtime: BrowserRuntimeSeedClient,
-  seed: BrowserRuntimeSeed | undefined
+  seed: BrowserRuntimeSeed | undefined,
+  fallbackWorkspaceRootDir?: string
 ): Promise<BrowserRuntimeSeedResult> {
-  if (seed === undefined) {
+  if (seed === undefined && !fallbackWorkspaceRootDir?.trim()) {
     return {};
   }
 
-  let workspace = await resolveSeedWorkspace(runtime, seed);
-  if (seed.session === undefined) {
+  let workspace = await resolveSeedWorkspace(runtime, seed, fallbackWorkspaceRootDir);
+  if (seed?.session === undefined) {
     return { workspace };
   }
 
@@ -1873,10 +1875,10 @@ async function resolveBrowserBridgeWorkspace(
   }
 
   const resolveWorkspace = runtime.resolveWorkspace?.bind(runtime);
-  const homeDir = runtime.paths?.homeDir;
-  if (resolveWorkspace && homeDir) {
+  const workspaceDir = runtime.paths?.workspaceDir;
+  if (resolveWorkspace && workspaceDir) {
     return await waitForSeedCondition(
-      async () => await resolveWorkspace(homeDir),
+      async () => await resolveWorkspace(workspaceDir),
       "browser bridge workspace",
       timeoutMs
     );
@@ -1915,10 +1917,10 @@ async function resolveBrowserTasksWorkspace(
   }
 
   const resolveWorkspace = runtime.resolveWorkspace?.bind(runtime);
-  const homeDir = runtime.paths?.homeDir;
-  if (resolveWorkspace && homeDir) {
+  const workspaceDir = runtime.paths?.workspaceDir;
+  if (resolveWorkspace && workspaceDir) {
     return await waitForSeedCondition(
-      async () => await resolveWorkspace(homeDir),
+      async () => await resolveWorkspace(workspaceDir),
       "browser tasks workspace",
       timeoutMs
     );
@@ -1953,10 +1955,10 @@ async function resolveBrowserAutomationWorkspaceID(
   }
 
   const resolveWorkspace = runtime.resolveWorkspace?.bind(runtime);
-  const homeDir = runtime.paths?.homeDir;
-  if (resolveWorkspace && homeDir) {
+  const workspaceDir = runtime.paths?.workspaceDir;
+  if (resolveWorkspace && workspaceDir) {
     const workspace = await waitForSeedCondition(
-      async () => await resolveWorkspace(homeDir),
+      async () => await resolveWorkspace(workspaceDir),
       "browser automation workspace",
       timeoutMs
     );
@@ -2058,9 +2060,13 @@ export async function triggerBrowserBridgeIngress(
 
 async function resolveSeedWorkspace(
   runtime: BrowserRuntimeSeedClient,
-  seed: BrowserRuntimeSeed
+  seed: BrowserRuntimeSeed | undefined,
+  fallbackWorkspaceRootDir: string | undefined
 ): Promise<WorkspacePayload | undefined> {
-  const rootDir = seed.workspace?.rootDir?.trim();
+  const rootDir =
+    seed?.workspace?.rootDir?.trim() ||
+    seed?.session?.workspaceRootDir?.trim() ||
+    fallbackWorkspaceRootDir?.trim();
   if (!rootDir) {
     return undefined;
   }

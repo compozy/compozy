@@ -80,7 +80,7 @@ describe("useSettingsNetworkPage", () => {
   it("save persists draft via the mutation and stores the restart-required applied label", async () => {
     vi.mocked(updateSettingsNetwork).mockResolvedValue({
       section: "network",
-      scope: "global",
+      scope: "user",
       applied: true,
       active_config_hash: "sha256:test-active",
       active_generation: 1,

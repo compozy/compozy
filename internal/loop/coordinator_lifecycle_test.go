@@ -904,7 +904,7 @@ func runLifecyclePayloadFailurePlan(
 	loopRun := controlLoopRun("looprun-lifecycle-route-preterminal", nil)
 	coordinatorRun := controlCoordinatorRun(loopRun, 1)
 	workerRun := lifecycleWorkerRun(loopRun, "work", task.TaskRunStatusCompleted, now)
-	workerRun.Result = json.RawMessage(`{"summary":"failed","error":"provider unavailable"}`)
+	workerRun.SetResult(json.RawMessage(`{"summary":"failed","error":"provider unavailable"}`))
 	firstScheduledAt := now.Add(-time.Second)
 	outputRows := make([]GenerationOutput, 0, len(def.Graph.Nodes))
 	for _, node := range def.Graph.Nodes {
@@ -916,7 +916,7 @@ func runLifecyclePayloadFailurePlan(
 		}
 		if node.ID == "work" {
 			output.Status = generationOutputSucceeded
-			output.OutputRef = string(workerRun.Result)
+			output.OutputRef = string(workerRun.ResultValue())
 			output.TaskRunID = workerRun.ID
 			output.FirstScheduledAt = &firstScheduledAt
 		}

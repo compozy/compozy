@@ -4,7 +4,7 @@ import path from "node:path";
 import { appWindow, openAppWindow } from "../fixtures/os-navigation";
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
-import { ensureGlobalWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { ensureProjectWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const browserLifecycleFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -23,13 +23,16 @@ const reasoningCatalogModelLabel = "QA Browser Model Alt";
 
 test.use({ viewport: { width: 1440, height: 900 } });
 
+test.beforeEach(async ({ appPage, runtime }) => {
+  await ensureProjectWorkspace(appPage, runtime);
+});
+
 test("agent navigation renders the managed default agent after first-run setup", async ({
   appPage,
   runtime,
 }) => {
   const ui = sessionLifecycleSelectors(appPage);
 
-  await ensureGlobalWorkspace(runtime);
   await appPage.goto(runtime.url("/agents"), { waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(ui);
 
@@ -200,8 +203,7 @@ test.describe("seeded agent detail", () => {
       throw new Error("agent create browser test requires launch-mode runtime paths");
     }
 
-    await ensureGlobalWorkspace(runtime);
-    const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
+    const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
     await appPage.goto(runtime.url("/agents"), { waitUntil: "domcontentloaded" });
     await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
 
@@ -377,7 +379,6 @@ test.describe("empty-fleet first-contact journey", () => {
         body: JSON.stringify({ agents: [] }),
       });
     });
-    await ensureGlobalWorkspace(runtime);
     await appPage.goto(runtime.url("/agents"), { waitUntil: "domcontentloaded" });
     const ui = sessionLifecycleSelectors(appPage);
     await completeOnboardingIfPrompted(ui);

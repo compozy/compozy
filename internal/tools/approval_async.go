@@ -78,9 +78,23 @@ func (c *asyncApprovalCoordinator) Resolve(
 	if err := validateApprovalOutcome(outcome); err != nil {
 		return err
 	}
+	profileID, err := ApprovalProfile(ctx)
+	if err != nil {
+		return err
+	}
+	current, err := c.store.GetApproval(ctx, approvalID)
+	if err != nil {
+		return fmt.Errorf("resolve tool approval %q: %w", approvalID, err)
+	}
+	if current.ProfileID != profileID {
+		return ErrApprovalNotFound
+	}
 	status, err := c.store.ResolveApproval(ctx, approvalID, outcome, c.now().UTC())
 	if err != nil {
 		return fmt.Errorf("resolve tool approval %q: %w", approvalID, err)
+	}
+	if status.ProfileID != profileID {
+		return ErrApprovalNotFound
 	}
 	c.stopExpiry(approvalID)
 	if outcome == ApprovalApproved {
@@ -92,9 +106,16 @@ func (c *asyncApprovalCoordinator) Resolve(
 }
 
 func (c *asyncApprovalCoordinator) Status(ctx context.Context, approvalID string) (ApprovalStatus, error) {
+	profileID, err := ApprovalProfile(ctx)
+	if err != nil {
+		return ApprovalStatus{}, err
+	}
 	status, err := c.store.GetApproval(ctx, approvalID)
 	if err != nil {
 		return ApprovalStatus{}, fmt.Errorf("get tool approval %q: %w", approvalID, err)
+	}
+	if status.ProfileID != profileID {
+		return ApprovalStatus{}, ErrApprovalNotFound
 	}
 	return cloneApprovalStatus(status), nil
 }
@@ -170,6 +191,7 @@ func (c *asyncApprovalCoordinator) armExpiry(status ApprovalStatus) {
 	c.timers[status.ApprovalID] = time.AfterFunc(delay, func() {
 		ctx, cancel := context.WithTimeout(c.ctx, time.Minute)
 		defer cancel()
+		ctx = WithApprovalProfile(ctx, status.ProfileID)
 		if err := c.Resolve(ctx, status.ApprovalID, ApprovalTimedOut); err != nil &&
 			!errors.Is(err, ErrApprovalTerminal) {
 			c.logger.Error("expire tool approval", "approval_id", status.ApprovalID, "error", err)

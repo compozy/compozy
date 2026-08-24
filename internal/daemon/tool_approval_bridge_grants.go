@@ -130,6 +130,7 @@ func toolApprovalGrantKey(
 		return toolspkg.ApprovalGrantKey{}, err
 	}
 	key := toolspkg.ApprovalGrantKey{
+		ProfileID:   strings.TrimSpace(scope.ProfileID),
 		WorkspaceID: workspaceID,
 		AgentName:   agentName,
 		ToolID:      toolID,

@@ -12,13 +12,48 @@ describe("settingsKeys", () => {
     ]);
   });
 
+  it("isolates persona, attention, and palette keys by profile", () => {
+    expect(settingsKeys.personaSection({ scope: "profile", profile: "marketing" })).toEqual([
+      "settings",
+      "section",
+      "persona",
+      "profile",
+      "",
+      "marketing",
+    ]);
+    expect(settingsKeys.cmdPaletteSection({ scope: "profile", profile: "marketing" })).toEqual([
+      "settings",
+      "section",
+      "cmd-palette",
+      "profile",
+      "",
+      "marketing",
+    ]);
+    expect(settingsKeys.attentionSection({ scope: "profile", profile: "marketing" })).toEqual([
+      "settings",
+      "section",
+      "attention",
+      "profile",
+      "marketing",
+    ]);
+  });
+
+  it("Should isolate window-manager layout reviews by profile", () => {
+    const marketing = settingsKeys.windowManagerLayoutReview("workspace-a", "marketing", 7, "same");
+    const research = settingsKeys.windowManagerLayoutReview("workspace-a", "research", 7, "same");
+
+    expect(marketing).not.toEqual(research);
+    expect(marketing).toContain("marketing");
+    expect(research).toContain("research");
+  });
+
   it("isolates provider collection keys from section keys", () => {
     const detail = settingsKeys.providerDetail("openai");
     expect(detail).toEqual(["settings", "collection", "providers", "detail", "openai"]);
     expect(settingsKeys.providersList()).toEqual(["settings", "collection", "providers", "list"]);
   });
 
-  it("isolates sandboxes and hooks collection keys", () => {
+  it("isolates sandboxes and layered hooks collection keys", () => {
     expect(settingsKeys.sandboxesList()).toEqual(["settings", "collection", "sandboxes", "list"]);
     expect(settingsKeys.sandboxDetail("prod")).toEqual([
       "settings",
@@ -27,10 +62,27 @@ describe("settingsKeys", () => {
       "detail",
       "prod",
     ]);
-    expect(settingsKeys.hooksList()).toEqual(["settings", "collection", "hooks", "list"]);
+    expect(settingsKeys.hooksList()).toEqual([
+      "settings",
+      "collection",
+      "hooks",
+      "list",
+      "",
+      "",
+      "",
+    ]);
+    expect(settingsKeys.hooksList({ scope: "profile", profile: "marketing" })).toEqual([
+      "settings",
+      "collection",
+      "hooks",
+      "list",
+      "profile",
+      "",
+      "marketing",
+    ]);
   });
 
-  it("scopes MCP list keys by scope and workspace identifier", () => {
+  it("scopes MCP list keys by scope, workspace, and profile identity", () => {
     expect(settingsKeys.mcpList()).toEqual([
       "settings",
       "collection",
@@ -38,14 +90,16 @@ describe("settingsKeys", () => {
       "list",
       "",
       "",
+      "",
     ]);
 
-    expect(settingsKeys.mcpList({ scope: "global" })).toEqual([
+    expect(settingsKeys.mcpList({ scope: "user" })).toEqual([
       "settings",
       "collection",
       "mcp-servers",
       "list",
-      "global",
+      "user",
+      "",
       "",
     ]);
 
@@ -56,6 +110,17 @@ describe("settingsKeys", () => {
       "list",
       "workspace",
       "ws_alpha",
+      "",
+    ]);
+
+    expect(settingsKeys.mcpList({ scope: "profile", profile: "marketing" })).toEqual([
+      "settings",
+      "collection",
+      "mcp-servers",
+      "list",
+      "profile",
+      "",
+      "marketing",
     ]);
   });
 

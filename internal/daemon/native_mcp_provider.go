@@ -38,8 +38,8 @@ func (d *Daemon) newDaemonMCPToolProvider(
 		return nil, nil, err
 	}
 	provider, err := toolspkg.NewMCPProvider(
-		toolspkg.MCPSourceListerFunc(func(context.Context) ([]toolspkg.SourceRef, error) {
-			return daemonMCPSources(state), nil
+		toolspkg.MCPSourceListerFunc(func(ctx context.Context) ([]toolspkg.SourceRef, error) {
+			return daemonMCPSources(ctx, state)
 		}),
 		executor,
 		executor,

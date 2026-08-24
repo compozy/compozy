@@ -12,6 +12,7 @@ import type {
 } from "../types";
 import { taskInboxStableFilter } from "./task-inbox-query";
 import { taskListStableFilter } from "./task-list-query";
+import { PROFILE_AGGREGATE, type ProfileScopeParams } from "@/systems/profiles";
 
 function normalizeText(value?: string | null): string {
   return typeof value === "string" ? value : "";
@@ -23,6 +24,10 @@ function normalizeFlag(value?: boolean): string {
 
 function normalizeNumber(value?: number): string {
   return value === undefined ? "" : String(value);
+}
+
+function profileLens(scope: { profile?: string | null; all_profiles?: boolean | null }): string {
+  return scope.all_profiles ? PROFILE_AGGREGATE : normalizeText(scope.profile);
 }
 
 export const tasksKeys = {
@@ -54,11 +59,15 @@ export const tasksKeys = {
       normalizeText(normalized.query),
       normalizeText(normalized.sort),
       normalizeNumber(normalized.limit),
+      profileLens(normalized),
     ] as const;
   },
 
   details: () => [...tasksKeys.all, "detail"] as const,
-  detail: (id: string) => [...tasksKeys.details(), id] as const,
+  detail: (id: string, scope?: ProfileScopeParams) =>
+    scope === undefined
+      ? ([...tasksKeys.details(), id] as const)
+      : ([...tasksKeys.details(), id, profileLens(scope)] as const),
 
   inspectRoot: () => [...tasksKeys.all, "inspect"] as const,
   inspectTask: (id: string) => [...tasksKeys.inspectRoot(), "task", id] as const,
@@ -100,6 +109,8 @@ export const tasksKeys = {
       normalizeText(filters.owner_ref),
       normalizeText(filters.participation_channel),
       normalizeText(filters.origin_kind),
+      // The profile axis: a dashboard scoped to one profile is not the machine's.
+      profileLens(filters),
     ] as const,
 
   inboxRoot: () => [...tasksKeys.all, "inbox"] as const,
@@ -118,6 +129,7 @@ export const tasksKeys = {
       normalizeFlag(normalized.unread),
       normalizeText(normalized.query),
       normalizeNumber(normalized.limit),
+      profileLens(normalized),
     ] as const;
   },
 

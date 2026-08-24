@@ -44,6 +44,7 @@ func (d *Daemon) applyAutomationManagerFactoryDefault() {
 			deps.ParticipationResolver,
 			deps.LoopInputEntities,
 			deps.LoopRuntimeCatalog,
+			deps.Profiles,
 		)
 		if err != nil {
 			return nil, err
@@ -296,6 +297,6 @@ func resourceReconcileActor() resources.MutationActor {
 			Kind: resources.ResourceSourceKind("daemon"),
 			ID:   string(SessionClassSystem),
 		},
-		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 	}
 }

@@ -64,11 +64,32 @@ func TestHookSourceInvalid(t *testing.T) {
 func TestHookSkillSourceValidate(t *testing.T) {
 	t.Parallel()
 
-	if err := HookSkillSourceWorkspace.Validate(); err != nil {
-		t.Fatalf("HookSkillSourceWorkspace.Validate() error = %v, want nil", err)
+	for _, source := range []HookSkillSource{
+		HookSkillSourceProfile,
+		HookSkillSourceWorkspaceProfile,
+		HookSkillSourceWorkspace,
+	} {
+		if err := source.Validate(); err != nil {
+			t.Fatalf("%s.Validate() error = %v, want nil", source, err)
+		}
+		encoded, err := source.MarshalText()
+		if err != nil {
+			t.Fatalf("%s.MarshalText() error = %v, want nil", source, err)
+		}
+		var decoded HookSkillSource
+		if err := decoded.UnmarshalText(encoded); err != nil {
+			t.Fatalf("HookSkillSource.UnmarshalText(%q) error = %v, want nil", encoded, err)
+		}
+		if decoded != source {
+			t.Fatalf("HookSkillSource.UnmarshalText(%q) = %s, want %s", encoded, decoded, source)
+		}
 	}
-	if err := HookSkillSource("remote").Validate(); err == nil {
+	if err := HookSkillSource(255).Validate(); err == nil {
 		t.Fatal("invalid HookSkillSource.Validate() error = nil, want non-nil")
+	}
+	var source HookSkillSource
+	if err := source.UnmarshalText([]byte("remote")); err == nil {
+		t.Fatal("HookSkillSource.UnmarshalText(remote) error = nil, want non-nil")
 	}
 }
 

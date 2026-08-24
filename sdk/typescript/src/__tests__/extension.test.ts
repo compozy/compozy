@@ -41,6 +41,11 @@ import {
 } from "../view-provider.js";
 import { ViewSessionRegistry } from "../view-session-registry.js";
 
+const DEFAULT_PROFILE_LENS = {
+  profile_lens_id: "00000000000000000000000000",
+  profile_name: "default",
+};
+
 interface SchemaDigestFixture {
   name: string;
   schema: JSONValue;
@@ -238,6 +243,7 @@ describe("Extension", () => {
             {
               instance: {
                 id: "chan-1",
+                profile_id: DEFAULT_PROFILE_LENS.profile_lens_id,
                 scope: "global",
                 platform: "telegram",
                 extension_name: "bridge-adapter",
@@ -431,12 +437,32 @@ describe("Extension", () => {
         description: "Describe fixture",
         subprocess: { command: "node", args: ["index.js"] },
         permissions: { requires: ["sessions/list"] },
+        profiles: [
+          {
+            name: " finance ",
+            color: " #d6a647 ",
+            defaults: { agent: " analyst " },
+            credentials: [{ provider: " openai ", slot: " api_key " }],
+          },
+        ],
         resources: {
-          skills: [" skills/zeta ", "skills/alpha", "skills/zeta"],
-          loops: [" loops/zeta ", "loops/alpha", "loops/zeta"],
-          agents: [" agents/zeta ", "agents/alpha", "agents/zeta"],
-          automation: [" automation/zeta ", "automation/alpha", "automation/zeta"],
-          layouts: [" layouts/zeta ", "layouts/alpha", "layouts/zeta"],
+          skills: [
+            { path: " skills/zeta ", profile: " finance " },
+            { path: "skills/alpha" },
+            { path: "skills/zeta", profile: "finance" },
+          ],
+          loops: [{ path: " loops/zeta " }, { path: "loops/alpha" }, { path: "loops/zeta" }],
+          agents: [{ path: " agents/zeta " }, { path: "agents/alpha" }, { path: "agents/zeta" }],
+          automation: [
+            { path: " automation/zeta " },
+            { path: "automation/alpha" },
+            { path: "automation/zeta" },
+          ],
+          layouts: [
+            { path: " layouts/zeta " },
+            { path: "layouts/alpha" },
+            { path: "layouts/zeta" },
+          ],
           cmd_palette: {
             commands: [
               {
@@ -450,13 +476,14 @@ describe("Extension", () => {
             views: [{ id: "browser", title: "Notes", kind: "list", program: true }],
           },
         },
-        supported_hook_events: ["prompt.post_assemble"],
+        supported_hook_events: [{ event: "prompt.post_assemble", profile: "finance" }],
       },
       { describeProcess: harness.captureDescribeProcess() }
     );
     extension.tool<{ query: string }>(
       "search",
       {
+        profile: "finance",
         description: "Search extension data",
         readOnly: true,
         requiresInteraction: true,
@@ -485,11 +512,11 @@ describe("Extension", () => {
     expect(result.stdout.trim().split("\n")).toHaveLength(1);
     const payload = JSON.parse(result.stdout) as DescribePayload;
     expect(payload.resources).toEqual({
-      skills: ["skills/alpha", "skills/zeta"],
-      loops: ["loops/alpha", "loops/zeta"],
-      agents: ["agents/alpha", "agents/zeta"],
-      automation: ["automation/alpha", "automation/zeta"],
-      layouts: ["layouts/alpha", "layouts/zeta"],
+      skills: [{ path: "skills/alpha" }, { path: "skills/zeta", profile: "finance" }],
+      loops: [{ path: "loops/alpha" }, { path: "loops/zeta" }],
+      agents: [{ path: "agents/alpha" }, { path: "agents/zeta" }],
+      automation: [{ path: "automation/alpha" }, { path: "automation/zeta" }],
+      layouts: [{ path: "layouts/alpha" }, { path: "layouts/zeta" }],
       cmd_palette: {
         commands: [
           {
@@ -510,9 +537,18 @@ describe("Extension", () => {
       description: "Describe fixture",
       provides: ["loop.watch_source", "tool.provider"],
       permissions: ["sessions/list"],
+      profiles: [
+        {
+          name: "finance",
+          color: "#d6a647",
+          defaults: { agent: "analyst" },
+          credentials: [{ provider: "openai", slot: "api_key" }],
+        },
+      ],
       subprocess: { command: "node", args: ["index.js"] },
       tools: [
         {
+          profile: "finance",
           id: "ext__describe_fixture__search",
           handler: "search",
           description: "Search extension data",
@@ -535,7 +571,7 @@ describe("Extension", () => {
         },
       ],
       command_groups: [{ path: "review", summary: "Review commands" }],
-      hook_events: ["prompt.post_assemble"],
+      hook_events: [{ event: "prompt.post_assemble", profile: "finance" }],
       watch_source_kinds: ["reviews"],
       sdk: {
         name: "@compozy/extension-sdk",
@@ -709,8 +745,17 @@ describe("Extension", () => {
 
     await expect(
       harness.call(VIEW_OPEN_METHOD, {
+        view_session: "vs_invalid",
+        view: "notes.browser",
+        workspace: "ws_1",
+        client: "client_1",
+      })
+    ).rejects.toBeInstanceOf(InvalidParamsError);
+    await expect(
+      harness.call(VIEW_OPEN_METHOD, {
         view_session: "vs_1",
         view: "notes.browser",
+        profile_lens: DEFAULT_PROFILE_LENS,
         workspace: "ws_1",
         client: "client_1",
       })
@@ -744,9 +789,26 @@ describe("Extension", () => {
       })
     ).rejects.toBeInstanceOf(InvalidParamsError);
 
-    await expect(harness.call(VIEW_CLOSE_METHOD, { view_session: "vs_1" })).resolves.toEqual({});
-    await expect(harness.call(VIEW_CLOSE_METHOD, { view_session: "vs_1" })).resolves.toEqual({});
+    await expect(harness.call(VIEW_CLOSE_METHOD, { view_session: "vs_1" })).rejects.toBeInstanceOf(
+      InvalidParamsError
+    );
+    await expect(
+      harness.call(VIEW_CLOSE_METHOD, {
+        view_session: "vs_1",
+        profile_lens: DEFAULT_PROFILE_LENS,
+      })
+    ).resolves.toEqual({});
+    await expect(
+      harness.call(VIEW_CLOSE_METHOD, {
+        view_session: "vs_1",
+        profile_lens: DEFAULT_PROFILE_LENS,
+      })
+    ).resolves.toEqual({});
     expect(close).toHaveBeenCalledTimes(1);
+    expect(close).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ profile_lens: DEFAULT_PROFILE_LENS })
+    );
     expect(registry.size).toBe(0);
     expect(signals).toHaveLength(2);
     expect(signals.every(signal => signal instanceof AbortSignal)).toBe(true);
@@ -773,6 +835,7 @@ describe("Extension", () => {
       harness.call(VIEW_OPEN_METHOD, {
         view_session: "vs_failed",
         view: "notes.browser",
+        profile_lens: DEFAULT_PROFILE_LENS,
         workspace: "ws_1",
         client: "client_1",
       })

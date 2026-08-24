@@ -1,6 +1,7 @@
 package globaldb
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -44,7 +45,7 @@ func TestGlobalDBTerminalRunHistoryImport(t *testing.T) {
 			storedRun.SessionID != run.SessionID ||
 			!storedRun.StartedAt.Equal(run.StartedAt) ||
 			!storedRun.EndedAt.Equal(run.EndedAt) ||
-			string(storedRun.Result) != string(run.Result) {
+			string(storedRun.ResultValue()) != string(run.ResultValue()) {
 			t.Fatalf("stored run = %#v, want completed history %#v", storedRun, run)
 		}
 		storedTask, err := globalDB.GetTask(ctx, taskRecord.ID)
@@ -219,6 +220,6 @@ func completedHistoryRunForTest(suffix string, taskRecord taskpkg.Task) taskpkg.
 	run.Status = taskpkg.TaskRunStatusCompleted
 	run.StartedAt = run.QueuedAt.Add(time.Minute)
 	run.EndedAt = run.StartedAt.Add(5 * time.Minute)
-	run.Result = []byte(`{"ok":true}`)
+	run.SetResult(json.RawMessage(`{"ok":true}`))
 	return run
 }

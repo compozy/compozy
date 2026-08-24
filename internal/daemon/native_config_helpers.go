@@ -48,7 +48,7 @@ func (n *daemonNativeTools) nativeConfigWriteTarget(
 			return compozyconfig.WriteTarget{}, "", nativeConfigScopeError(id, err)
 		}
 	}
-	target, err := compozyconfig.ResolveConfigWriteTarget(n.deps.HomePaths, workspaceRoot, scope)
+	target, err := compozyconfig.ResolveConfigWriteTarget(n.deps.HomePaths, workspaceRoot, scope, "")
 	if err != nil {
 		return compozyconfig.WriteTarget{}, "", nativeConfigScopeError(id, err)
 	}
@@ -122,7 +122,7 @@ func nativeConfigScopeError(id toolspkg.ToolID, err error) error {
 func nativeWriteScope(raw string) (compozyconfig.WriteScope, error) {
 	scope := compozyconfig.WriteScope(strings.ToLower(strings.TrimSpace(raw)))
 	if scope == "" {
-		scope = compozyconfig.WriteScopeGlobal
+		scope = compozyconfig.WriteScopeUser
 	}
 	if err := scope.Validate(); err != nil {
 		return "", err
@@ -146,7 +146,7 @@ func nativeRequiredWorkspaceRoot(raw string) (string, error) {
 
 func nativeScopeForWorkspace(workspaceRoot string) string {
 	if strings.TrimSpace(workspaceRoot) == "" {
-		return string(compozyconfig.WriteScopeGlobal)
+		return string(compozyconfig.WriteScopeUser)
 	}
 	return string(compozyconfig.WriteScopeWorkspace)
 }

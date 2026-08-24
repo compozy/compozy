@@ -209,7 +209,7 @@ describe("marketplace acquisition transport", () => {
     ["refresh", () => refreshMarketplaceCatalog()],
     [
       "MCP install",
-      () => installMarketplaceMCP({ entry_id: "github", scope: "global", values: null }),
+      () => installMarketplaceMCP({ entry_id: "github", scope: "user", values: null }),
     ],
     ["skill install", () => installMarketplaceSkill({ slug: "@compozy/reviewer" })],
     ["skill update", () => updateMarketplaceSkill({ name: "reviewer" })],

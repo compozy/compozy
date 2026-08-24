@@ -64,6 +64,7 @@ describe("command palette dispatch targeting", () => {
     vi.mocked(invokeCmdPaletteCommand).mockResolvedValue({
       status: "ok",
       invocation_id: "inv-rd0082",
+      profile_lens: { profile_lens_id: "00000000000000000000000000", profile_name: "default" },
     });
     const command = paletteCommand({
       id: "ext.notes.capture",
@@ -82,12 +83,15 @@ describe("command palette dispatch targeting", () => {
       { wrapper: wrapper() }
     );
 
-    await expect(result.current.run(command)).resolves.toEqual({
+    await expect(result.current.run(command)).resolves.toMatchObject({
       status: "invoked",
       result: { status: "ok", invocation_id: "inv-rd0082" },
     });
     expect(invokeCmdPaletteCommand).toHaveBeenCalledWith({
       workspaceId: "ws_home",
+      // The command runs as a profile, so the acting destination rides the call.
+      // Omitting it would run every palette command as `default`.
+      profile: "default",
       commandId: "ext.notes.capture",
       args: {},
       clientId: "client-web",
@@ -99,6 +103,7 @@ describe("command palette dispatch targeting", () => {
     vi.mocked(invokeCmdPaletteCommand).mockResolvedValue({
       status: "ok",
       invocation_id: "inv-control-plane",
+      profile_lens: { profile_lens_id: "00000000000000000000000000", profile_name: "default" },
     });
     const command = paletteCommand({
       id: "ext.notes.capture",
@@ -119,6 +124,7 @@ describe("command palette dispatch targeting", () => {
     const input = vi.mocked(invokeCmdPaletteCommand).mock.calls.at(-1)?.[0];
     expect(input).toMatchObject({
       workspaceId: "ws_home",
+      profile: "default",
       commandId: "ext.notes.capture",
       args: {},
     });

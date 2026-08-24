@@ -19,10 +19,22 @@ import {
 } from "../lib/bridge-formatters";
 import { effectiveBridgeStatus } from "../lib/bridge-list-filters";
 import type { BridgeHealthMap, BridgeSummary } from "../types";
+import {
+  emptyForScope,
+  ProfileOwnerTag,
+  type ProfileListingScope,
+  type ProfileOwner,
+} from "@/systems/profiles";
 
 export interface BridgeListPanelProps {
   bridgeHealth: BridgeHealthMap;
   bridges: BridgeSummary[];
+  /**
+   * The lens this list is read through. Owner tags appear only under the
+   * aggregate, where the list mixes owners; a scoped list already answers
+   * "whose" in its own heading.
+   */
+  profile: ProfileListingScope;
   view: ListingViewMode;
   emptyState?: "default" | "filtered";
   paginationStatus?: "available" | "loading";
@@ -35,9 +47,11 @@ export interface BridgeListPanelProps {
 interface BridgeRowProps {
   bridge: BridgeSummary;
   health?: BridgeHealthMap[string];
+  /** Present only under the aggregate — the row's owner, named. */
+  owner?: ProfileOwner;
 }
 
-function BridgeMetaFacts({ bridge, health }: BridgeRowProps) {
+function BridgeMetaFacts({ bridge, health, owner }: BridgeRowProps) {
   const facts: Array<{ id: string; label: string }> = [];
   const relative = formatBridgeRelativeTime(health?.last_success_at);
   if (relative) {
@@ -48,10 +62,6 @@ function BridgeMetaFacts({ bridge, health }: BridgeRowProps) {
     facts.push({ id: "routes", label: `${health.route_count} routes` });
   }
 
-  if (facts.length === 0) {
-    return null;
-  }
-
   return (
     <ListingRow.Meta>
       {facts.map((fact, index) => (
@@ -60,6 +70,12 @@ function BridgeMetaFacts({ bridge, health }: BridgeRowProps) {
           <span className="font-mono text-badge text-subtle">{fact.label}</span>
         </span>
       ))}
+      {owner ? (
+        <>
+          <ListingRow.MetaDot />
+          <ProfileOwnerTag data-testid={`bridge-profile-${bridge.id}`} owner={owner} />
+        </>
+      ) : null}
     </ListingRow.Meta>
   );
 }
@@ -78,7 +94,7 @@ function BridgeStatusTrail({ bridge, health }: BridgeRowProps) {
   );
 }
 
-function BridgeListingRow({ bridge, health }: BridgeRowProps) {
+function BridgeListingRow({ bridge, health, owner }: BridgeRowProps) {
   return (
     <ListingRow data-bridge={bridge.id} data-testid={`bridge-item-${bridge.id}`}>
       <ListingRow.Link
@@ -98,7 +114,7 @@ function BridgeListingRow({ bridge, health }: BridgeRowProps) {
             <ListingRow.Title>{bridge.display_name}</ListingRow.Title>
             <ListingRow.Slug>{bridge.extension_name}</ListingRow.Slug>
           </ListingRow.Name>
-          <BridgeMetaFacts bridge={bridge} health={health} />
+          <BridgeMetaFacts bridge={bridge} health={health} owner={owner} />
         </ListingRow.Main>
       </ListingRow.Link>
       <ListingRow.Trail>
@@ -108,7 +124,7 @@ function BridgeListingRow({ bridge, health }: BridgeRowProps) {
   );
 }
 
-function BridgeCatalogCard({ bridge, health }: BridgeRowProps) {
+function BridgeCatalogCard({ bridge, health, owner }: BridgeRowProps) {
   const status = effectiveBridgeStatus(bridge, health);
   const relative = formatBridgeRelativeTime(health?.last_success_at);
 
@@ -130,6 +146,9 @@ function BridgeCatalogCard({ bridge, health }: BridgeRowProps) {
               {relative ? <span>{relative}</span> : null}
               <span>{bridge.scope}</span>
               {health?.route_count !== undefined ? <span>{health.route_count} routes</span> : null}
+              {owner ? (
+                <ProfileOwnerTag data-testid={`bridge-card-profile-${bridge.id}`} owner={owner} />
+              ) : null}
             </CatalogCard.Meta>
           </div>
         </div>
@@ -149,6 +168,7 @@ function BridgeCatalogCard({ bridge, health }: BridgeRowProps) {
 function BridgeListPanel({
   bridgeHealth,
   bridges,
+  profile,
   view,
   emptyState = "default",
   paginationStatus,
@@ -206,7 +226,13 @@ function BridgeListPanel({
               : "No bridges are configured yet."
           }
           icon={Waypoints}
-          title={emptyState === "filtered" ? "No bridges match" : "No bridges yet"}
+          title={
+            emptyState === "filtered"
+              ? "No bridges match"
+              : // A scoped list answers "empty for whom"; the aggregate is bounded
+                // by no single profile, so it must not name the create target.
+                emptyForScope("bridges", profile.scopeLabel)
+          }
         />
       </div>
     );
@@ -219,7 +245,12 @@ function BridgeListPanel({
         data-testid="bridge-list-card-grid"
       >
         {bridges.map(bridge => (
-          <BridgeCatalogCard bridge={bridge} health={bridgeHealth[bridge.id]} key={bridge.id} />
+          <BridgeCatalogCard
+            bridge={bridge}
+            health={bridgeHealth[bridge.id]}
+            key={bridge.id}
+            owner={profile.aggregate ? profile.ownerOf(bridge) : undefined}
+          />
         ))}
       </div>
     ) : (
@@ -228,7 +259,12 @@ function BridgeListPanel({
         data-testid="bridge-list-rows"
       >
         {bridges.map(bridge => (
-          <BridgeListingRow bridge={bridge} health={bridgeHealth[bridge.id]} key={bridge.id} />
+          <BridgeListingRow
+            bridge={bridge}
+            health={bridgeHealth[bridge.id]}
+            key={bridge.id}
+            owner={profile.aggregate ? profile.ownerOf(bridge) : undefined}
+          />
         ))}
       </div>
     );

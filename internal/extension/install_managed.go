@@ -182,9 +182,7 @@ func InstallLocalManaged(
 		)
 	}
 
-	installOpts := []InstallOption{WithInstallEnabled(false)}
-	installOpts = append(installOpts, opts...)
-	if err := registry.Install(manifest, finalDir, installedChecksum, installOpts...); err != nil {
+	if err := registry.Install(manifest, finalDir, installedChecksum, opts...); err != nil {
 		return removeManagedInstallOnError(
 			finalDir,
 			fmt.Errorf("extension: persist managed extension %q: %w", manifest.Name, err),

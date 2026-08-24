@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -276,7 +277,7 @@ func TestAgentTaskResponsesProjectImmutableParticipationSnapshots(t *testing.T) 
 							capture.actorContext = actor
 							run := agentTaskRun(taskpkg.TaskRunStatusCompleted)
 							run.SetNetworkState(udsTestLiveParticipation("ws-1", participationChannel), "", "", "")
-							run.Result = completion.Result.Value
+							run.SetResult(completion.Result.Value)
 							return &run, nil
 						},
 					}
@@ -403,6 +404,7 @@ func newParticipationAgentTaskHandlers(t *testing.T, channelID string, tasks *st
 				now := time.Date(2026, 4, 28, 8, 15, 0, 0, time.UTC)
 				return &session.Info{
 					ID:                   "sess-agent",
+					ProfileID:            store.DefaultProfileID,
 					Name:                 "worker",
 					AgentName:            "coder",
 					Provider:             "test-provider",

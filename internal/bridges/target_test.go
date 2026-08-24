@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -165,6 +166,7 @@ func TestRegistryResolveDeliveryTargetUsesServiceSeam(t *testing.T) {
 
 		registry, _ := newRegistryTestHarness(t)
 		instance := createTestBridgeInstance(t, registry, bridgepkg.CreateInstanceRequest{
+			ProfileID:        store.DefaultProfileID,
 			ID:               "brg-target-service",
 			Scope:            bridgepkg.ScopeGlobal,
 			Platform:         "telegram",
@@ -199,6 +201,7 @@ func TestRegistryResolveDeliveryTargetUsesServiceSeam(t *testing.T) {
 
 func testBridgeInstanceForTargets() bridgepkg.BridgeInstance {
 	return bridgepkg.BridgeInstance{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-targets",
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "telegram",

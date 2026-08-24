@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/network"
 
 	observepkg "github.com/compozy/compozy/internal/observe"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
@@ -117,10 +118,12 @@ type HostAPIHandler struct {
 	networkStore     store.NetworkConversationStore
 	networkUsage     store.NetworkUsageStore
 	memory           *memory.Store
+	memoryForProfile memory.RecallStoreResolver
 	observer         hostAPIObserver
 	skills           hostAPISkillsRegistry
 	modelCatalog     hostAPIModelCatalogService
 	workspaces       workspacepkg.RuntimeResolver
+	profiles         hostAPIProfileReader
 	bridges          hostAPIBridgeRegistry
 	dedupStore       hostAPIBridgeDedupStore
 	deliveryBroker   hostAPIDeliveryBroker
@@ -165,6 +168,10 @@ type hostAPISessionManager interface {
 	Stop(ctx context.Context, id string) error
 	Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error)
 	ExecSandbox(ctx context.Context, req session.SandboxExecRequest) (session.SandboxExecResult, error)
+}
+
+type hostAPIProfileReader interface {
+	List(context.Context) ([]profilepkg.WithCounts, error)
 }
 
 type hostAPISessionAcceptanceManager interface {

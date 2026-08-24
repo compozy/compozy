@@ -46,6 +46,7 @@ func newAutomationLoopStarter(
 	participationResolver participation.Resolver,
 	inputEntities looppkg.InputEntityCatalog,
 	runtimeCatalog looppkg.WorkspaceRuntimeCatalog,
+	profiles loopProfileNameResolver,
 ) (automationpkg.LoopStarter, error) {
 	if catalog == nil {
 		return nil, nil
@@ -57,6 +58,7 @@ func newAutomationLoopStarter(
 	resolver := &daemonLoopDefinitionResolver{
 		catalog:         catalog,
 		compilerFactory: newLoopCompilerFactory(toolRegistry),
+		profiles:        profiles,
 	}
 	options := []looppkg.Option{
 		looppkg.WithDefaultsResolver(newLoopDefaultsResolver(homePaths, workspaceResolver)),
@@ -98,6 +100,7 @@ func (s *automationLoopStarter) ValidateLoopTarget(
 	}
 	validation := looppkg.StartTargetValidation{
 		WorkspaceID:  looppkg.WorkspaceID(strings.TrimSpace(req.WorkspaceID)),
+		ProfileID:    strings.TrimSpace(req.ProfileID),
 		LoopName:     strings.TrimSpace(req.LoopName),
 		Kind:         kind,
 		Inputs:       req.Inputs,
@@ -106,7 +109,12 @@ func (s *automationLoopStarter) ValidateLoopTarget(
 	if err := looppkg.ValidateStartTarget(ctx, s.resolver, validation); err != nil {
 		return err
 	}
-	resolved, err := s.resolver.ResolveLoop(ctx, validation.WorkspaceID, validation.LoopName)
+	resolved, err := s.resolver.ResolveLoop(
+		ctx,
+		validation.WorkspaceID,
+		validation.ProfileID,
+		validation.LoopName,
+	)
 	if err != nil {
 		return err
 	}
@@ -137,6 +145,7 @@ func (s *automationLoopStarter) DefaultLoopCatchUpPolicy(
 	resolved, err := s.resolver.ResolveLoop(
 		ctx,
 		looppkg.WorkspaceID(strings.TrimSpace(req.WorkspaceID)),
+		strings.TrimSpace(req.ProfileID),
 		strings.TrimSpace(req.LoopName),
 	)
 	if err != nil {
@@ -163,6 +172,7 @@ func (s *automationLoopStarter) StartLoop(
 	values, err := looppkg.ResolveStartTargetInputs(ctx, s.resolver, looppkg.StartTargetResolution{
 		StartTargetValidation: looppkg.StartTargetValidation{
 			WorkspaceID:  workspaceID,
+			ProfileID:    strings.TrimSpace(req.ProfileID),
 			LoopName:     loopName,
 			Kind:         kind,
 			Inputs:       req.Inputs,
@@ -174,6 +184,7 @@ func (s *automationLoopStarter) StartLoop(
 		return automationpkg.LoopStartResult{}, err
 	}
 	run, err := s.service.Start(ctx, workspaceID, loopName, looppkg.Inputs{
+		ProfileID:                  strings.TrimSpace(req.ProfileID),
 		Values:                     values,
 		StartMetadata:              automationLoopStartMetadata(req),
 		NetworkParticipation:       req.NetworkParticipation,

@@ -198,6 +198,7 @@ func scanAutomationRun(scanner rowScanner) (automation.Run, error) {
 	)
 	if err := scanner.Scan(
 		&run.ID,
+		&run.ProfileID,
 		&jobID,
 		&triggerID,
 		&sessionID,

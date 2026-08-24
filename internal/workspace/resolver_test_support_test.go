@@ -738,6 +738,15 @@ func skillNames(skills []SkillPath) []string {
 	return names
 }
 
+func skillPathSourceByName(skills []SkillPath, name string) string {
+	for _, skill := range skills {
+		if skill.Name == name {
+			return skill.Source
+		}
+	}
+	return ""
+}
+
 func nilTestContext() context.Context {
 	return nil
 }

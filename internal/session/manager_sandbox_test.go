@@ -1745,18 +1745,18 @@ type recordingSandboxHooks struct {
 
 func (h *recordingSandboxHooks) DispatchSandboxPrepare(
 	ctx context.Context,
-	payload hookspkg.SandboxPreparePayload,
-) (hookspkg.SandboxPreparePayload, error) {
-	result := payload
+	payload *hookspkg.SandboxPreparePayload,
+) (*hookspkg.SandboxPreparePayload, error) {
+	result := *payload
 	var err error
 	if h.prepareFn != nil {
-		result, err = h.prepareFn(ctx, payload)
+		result, err = h.prepareFn(ctx, *payload)
 	}
 	h.mu.Lock()
 	h.events = append(h.events, string(hookspkg.HookSandboxPrepare))
-	h.prepare = append(h.prepare, cloneSandboxPreparePayload(result))
+	h.prepare = append(h.prepare, cloneSandboxPreparePayload(&result))
 	h.mu.Unlock()
-	return result, err
+	return &result, err
 }
 
 func (h *recordingSandboxHooks) DispatchSandboxReady(
@@ -1957,9 +1957,9 @@ func cloneSyncResult(result sandbox.SyncResult) sandbox.SyncResult {
 }
 
 func cloneSandboxPreparePayload(
-	payload hookspkg.SandboxPreparePayload,
+	payload *hookspkg.SandboxPreparePayload,
 ) hookspkg.SandboxPreparePayload {
-	cloned := payload
+	cloned := *payload
 	cloned.LocalAdditionalDirs = append([]string(nil), payload.LocalAdditionalDirs...)
 	cloned.AgentEnv = append([]string(nil), payload.AgentEnv...)
 	cloned.EnvOverrides = cloneStringMapForSandboxTests(payload.EnvOverrides)

@@ -12,13 +12,11 @@ import type {
   SettingsMCPAuthFilter,
   SettingsMCPAuthStatusResponse,
 } from "../types";
-import { normalizeOptionalText, SettingsApiError } from "./settings-api";
+import { SettingsApiError } from "./settings-api-error";
+import { normalizeSettingsLayerFilter } from "./settings-layer-filter";
 
 function normalizeMCPAuthFilter(filter: SettingsMCPAuthFilter) {
-  return {
-    scope: filter.scope,
-    workspace_id: normalizeOptionalText(filter.workspace_id),
-  };
+  return normalizeSettingsLayerFilter(filter);
 }
 
 export async function beginSettingsMCPAuth(

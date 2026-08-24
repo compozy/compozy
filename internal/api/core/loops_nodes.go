@@ -146,6 +146,9 @@ func (h *BaseHandlers) ListLoopNodes(c *gin.Context) {
 		h.respondLoopError(c, fmt.Errorf("%w: loop node inventory query: %v", looppkg.ErrValidation, err))
 		return
 	}
+	if strings.TrimSpace(query.RunID) != "" && !h.requireLoopRunProfileByID(c, service, query.RunID, false) {
+		return
+	}
 	response, err := service.ListLoopNodes(c.Request.Context(), c.Param("workspace_id"), query)
 	if err != nil {
 		h.respondLoopError(c, err)
@@ -199,6 +202,9 @@ func (h *BaseHandlers) mutateLoopLifecycle(
 ) {
 	service, ok := h.requireLoopService(c)
 	if !ok {
+		return
+	}
+	if !h.requireLoopRunProfile(c, service, true) {
 		return
 	}
 	response, err := mutate(service)

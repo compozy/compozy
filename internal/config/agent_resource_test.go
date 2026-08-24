@@ -17,7 +17,7 @@ func TestAgentResourceCodecRejectsInvalidSpecs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewAgentResourceCodec() error = %v", err)
 	}
-	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 
 	tests := []struct {
 		name    string

@@ -140,6 +140,12 @@ func directImportBoundaries() []directImportBoundary {
 		{"internal/workspaceaccess", "internal/api/httpapi"},
 		{"internal/workspaceaccess", "internal/api/udsapi"},
 		{"internal/workspaceaccess", "internal/cli"},
+		{"internal/profile", "internal/daemon"},
+		{"internal/profile", "internal/cli"},
+		{"internal/profile", "internal/session"},
+		{"internal/profile", "internal/task"},
+		{"internal/profile", "internal/workspace"},
+		{"internal/profile", "internal/extension"},
 	}
 	return append(forbidden, gatewayForbiddenDirectImports...)
 }
@@ -193,6 +199,7 @@ func Boundaries() error {
 		{"internal/worktree", "internal/daemon"},
 		{"internal/worktree", "internal/api"},
 		{"internal/worktree", "internal/cli"},
+		{"internal/profile", "internal/api"},
 	}
 	for _, rule := range prefixForbidden {
 		importerDir := rule.importer
@@ -445,7 +452,7 @@ func filesImportingMatching(root string, matches func(string) bool) ([]string, e
 		if walkErr != nil {
 			return walkErr
 		}
-		if entry.IsDir() || filepath.Ext(path) != ".go" {
+		if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
 		parsed, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)

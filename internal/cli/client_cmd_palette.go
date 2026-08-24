@@ -43,7 +43,7 @@ func (c *daemonClient) GetCmdPaletteBindings(
 	workspace string,
 ) (contract.SettingsWindowManagerResponse, error) {
 	query := url.Values{
-		automationScopeKey:       {string(contract.SettingsWorkspaceScopeWorkspace)},
+		automationScopeKey:       {string(contract.SettingsLayeredScopeWorkspace)},
 		automationWorkspaceIDKey: {workspace},
 	}
 	var response contract.SettingsWindowManagerResponse
@@ -59,7 +59,7 @@ func (c *daemonClient) UpdateCmdPaletteBindings(
 	request contract.UpdateSettingsWindowManagerRequest,
 ) (contract.SettingsWindowManagerResponse, error) {
 	query := url.Values{
-		automationScopeKey:       {string(contract.SettingsWorkspaceScopeWorkspace)},
+		automationScopeKey:       {string(contract.SettingsLayeredScopeWorkspace)},
 		automationWorkspaceIDKey: {workspace},
 	}
 	var response contract.SettingsWindowManagerResponse

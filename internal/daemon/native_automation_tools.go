@@ -19,7 +19,7 @@ const (
 
 func (n *daemonNativeTools) automationJobsGet(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input automationJobIDInput
@@ -30,7 +30,11 @@ func (n *daemonNativeTools) automationJobsGet(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	job, err := n.nativeAutomationJobForWorkspace(ctx, input.WorkspaceID, jobID)
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	job, err := n.nativeAutomationJobForWorkspace(ctx, input.WorkspaceID, jobID, readScope)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -43,7 +47,7 @@ func (n *daemonNativeTools) automationJobsGet(
 
 func (n *daemonNativeTools) automationJobsCreate(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input automationJobCreateInput
@@ -54,6 +58,11 @@ func (n *daemonNativeTools) automationJobsCreate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	job.ProfileID = readScope.ProfileID
 	created, err := n.automationManager().CreateJob(ctx, job)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
@@ -64,7 +73,7 @@ func (n *daemonNativeTools) automationJobsCreate(
 
 func (n *daemonNativeTools) automationJobsUpdate(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input automationJobUpdateInput
@@ -82,7 +91,11 @@ func (n *daemonNativeTools) automationJobsUpdate(
 			errors.New("automation job update must include at least one field"),
 		)
 	}
-	current, err := n.nativeAutomationJobForWorkspace(ctx, input.WorkspaceID, jobID)
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	current, err := n.nativeAutomationJobForWorkspace(ctx, input.WorkspaceID, jobID, readScope)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -109,7 +122,7 @@ func (n *daemonNativeTools) automationJobsUpdate(
 
 func (n *daemonNativeTools) automationJobsDelete(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input automationJobIDInput
@@ -120,7 +133,11 @@ func (n *daemonNativeTools) automationJobsDelete(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	current, err := n.nativeAutomationJobForWorkspace(ctx, input.WorkspaceID, jobID)
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	current, err := n.nativeAutomationJobForWorkspace(ctx, input.WorkspaceID, jobID, readScope)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -143,23 +160,23 @@ func (n *daemonNativeTools) automationJobsDelete(
 
 func (n *daemonNativeTools) automationJobsEnable(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	return n.automationSetJobEnabled(ctx, req, true)
+	return n.automationSetJobEnabled(ctx, scope, req, true)
 }
 
 func (n *daemonNativeTools) automationJobsDisable(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	return n.automationSetJobEnabled(ctx, req, false)
+	return n.automationSetJobEnabled(ctx, scope, req, false)
 }
 
 func (n *daemonNativeTools) automationJobsTrigger(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input automationJobIDInput
@@ -170,7 +187,11 @@ func (n *daemonNativeTools) automationJobsTrigger(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	job, err := n.nativeAutomationJobForWorkspace(ctx, input.WorkspaceID, jobID)
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	job, err := n.nativeAutomationJobForWorkspace(ctx, input.WorkspaceID, jobID, readScope)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -184,7 +205,7 @@ func (n *daemonNativeTools) automationJobsTrigger(
 
 func (n *daemonNativeTools) automationJobsHistory(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input automationJobHistoryInput
@@ -195,7 +216,11 @@ func (n *daemonNativeTools) automationJobsHistory(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	job, err := n.nativeAutomationJobForWorkspace(ctx, input.WorkspaceID, jobID)
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	job, err := n.nativeAutomationJobForWorkspace(ctx, input.WorkspaceID, jobID, readScope)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
@@ -205,5 +230,6 @@ func (n *daemonNativeTools) automationJobsHistory(
 	}
 	query.JobID = job.ID
 	query.TriggerID = ""
+	query.ReadScope = readScope
 	return n.automationRunsForQuery(ctx, req.ToolID, input.WorkspaceID, query)
 }

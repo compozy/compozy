@@ -364,6 +364,7 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 			t.Fatalf("FencePreparedPrompt(control) error = %v", err)
 		}
 		events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: key.WorkspaceID,
 			RunID:       key.LoopRunID,
 		})
@@ -561,6 +562,7 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 		assertGoalRuntimeEventCount(t, globalDB, key.LoopRunID, loopRunEventGoalTurnStarted, 1)
 		assertGoalRuntimeEventCount(t, globalDB, key.LoopRunID, loopRunEventGoalTurnCompleted, 1)
 		events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: key.WorkspaceID,
 			RunID:       key.LoopRunID,
 		})
@@ -1348,6 +1350,7 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 			}
 			assertGoalRuntimeTurn(t, globalDB, key, promptID, "ambiguous", "")
 			events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+				ReadScope:   store.ReadScope{AllProfiles: true},
 				WorkspaceID: key.WorkspaceID,
 				RunID:       key.LoopRunID,
 			})
@@ -2026,6 +2029,7 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 			t.Fatalf("paused turn actor = %q/%q, want dispatch actor", turnActorKind, turnActorID)
 		}
 		events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: key.WorkspaceID,
 			RunID:       key.LoopRunID,
 		})
@@ -2242,6 +2246,7 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 		assertGoalRuntimeEventCount(t, globalDB, key.LoopRunID, loopRunEventGoalTurnCompleted, 1)
 		assertGoalRuntimeEventCount(t, globalDB, key.LoopRunID, loopRunEventGoalStatusChanged, 1)
 		events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: key.WorkspaceID,
 			RunID:       key.LoopRunID,
 		})

@@ -4,9 +4,9 @@ area: MS
 title: Route background work by global and workspace role
 persona: Dora
 journey: J-route-background-work
-expected: New coordinator, dream, extractor, auto-title, checkpoint-summary, and memory-controller work resolves the configured global or workspace identity and model without changing role policy or leaking across workspaces.
-entry_points: config.toml; compozy config set roles.<role>.<key> <value>; compozy config set roles '<table-json>'; compozy config set --scope workspace --workspace <root> roles '<table-json>'; compozy__config_list|get|set|unset over exact roles.* leaves or the structured roles table (compozy__config_path proves the selected scope target only); docs runtime/core/configuration/config-toml [roles]
-qa_status: blocked-verify
+expected: New coordinator, dream, extractor, auto-title, checkpoint-summary, and memory-controller work resolves the most-specific configured identity and model across user, personal-profile, workspace, and workspace-profile layers without changing role policy or leaking across workspaces; each shadowed read exposes its winning source.
+entry_points: config.toml; active `--profile <name>` config context; compozy config set roles.<role>.<key> <value>; compozy config set roles '<table-json>'; compozy config set --scope profile roles '<table-json>'; compozy config set --scope workspace --workspace <root> roles '<table-json>'; workspace named-profile config layer; compozy__config_list|get|set|unset over exact roles.* leaves or the structured roles table (compozy__config_path proves the selected scope target only); docs runtime/core/configuration/config-toml [roles]
+qa_status: untested
 bug_ids: BUG-20260724-coordinator-config-list-path;BUG-20260724-inherited-role-provider-resolution
 fix_status: fixed
 retest_status: pass
@@ -15,6 +15,14 @@ evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-roles-devtool-oss-launch-2
 last_report: docs/qa/reports/2026-07-28-untested-full.md
 overlaps: MS-026; RT-033; RT-session-auto-title; MS-workspace-checkpoint-continuity
 ---
+
+QA impact 2026-08-22: role routing now participates in personal and repository named-profile config
+layers. Reset for the Task 13 precedence and provenance walk.
+
+Walk: write distinct role values at the user, personal-profile, workspace, and matching
+workspace-profile layers. Read the effective role through CLI, HTTP, UDS, Web, and native config
+surfaces; verify the most-specific value wins, each shadowed value names its source, and switching
+profiles or workspaces cannot reuse another layer's identity.
 
 QA impact 2026-07-23: the six daemon-owned background roles moved to the live `[roles]` routing model with global defaults, workspace overlays, builtin identities, and strict rejection of the deleted role-bearing keys. Planning update only; the next QA cycle owns the real-user walk.
 

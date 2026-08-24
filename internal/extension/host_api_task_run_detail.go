@@ -33,13 +33,19 @@ func (h *HostAPIHandler) taskRunDetailPayloadFromView(
 		return apicontract.TaskRunDetailPayload{}, err
 	}
 
-	return apicontract.TaskRunDetailPayload{
+	payload := apicontract.TaskRunDetailPayload{
 		Run:     taskRunPayloadFromRun(&view.Run),
 		Task:    task,
 		Session: taskRunSessionPayloadFromSession(view.Session),
 		Summary: taskRunOperationalSummaryPayloadFromSummary(view.Summary),
 		Network: networkPayload,
-	}, nil
+	}
+	runs := []apicontract.TaskRunPayload{payload.Run}
+	if err := h.decorateTaskRuns(ctx, runs); err != nil {
+		return apicontract.TaskRunDetailPayload{}, err
+	}
+	payload.Run = runs[0]
+	return payload, nil
 }
 
 func (h *HostAPIHandler) taskRunNetworkPayload(

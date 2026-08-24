@@ -38,6 +38,7 @@ func (m *Service) dispatchCoordinatorTerminal(
 			Timestamp: m.now().UTC(),
 		},
 		LoopContext: hookspkg.LoopContext{
+			ProfileID:                    strings.TrimSpace(result.Run.ProfileID),
 			LoopRunID:                    strings.TrimSpace(result.LoopRunID),
 			ParentLoopRunID:              strings.TrimSpace(loopContext.ParentRunID),
 			WorkspaceID:                  strings.TrimSpace(loopContext.WorkspaceID),

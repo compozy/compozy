@@ -66,10 +66,12 @@ function MarketplaceKindPageBody({ kind, page, searchInputRef }: MarketplaceKind
     scope: page.mcpConfigScope,
     servers: page.mcpEditorServers,
     workspaceId: page.workspaceId,
+    profileName: page.profileName,
   });
   const actions = useMarketplaceActionController(page.workspaceId, {
     installedItems: page.installedItems,
     mcpScope: page.mcpConfigScope,
+    profileName: page.profileName,
     workspaceName: page.workspaceName,
     onViewInstalled: () => page.setScope("installed"),
   });

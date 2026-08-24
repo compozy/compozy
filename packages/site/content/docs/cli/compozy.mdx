@@ -25,9 +25,10 @@ compozy [flags]
 ### Options
 
 ```
-  -h, --help            help for compozy
-      --json            Emit JSON output
-  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+  -h, --help             help for compozy
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
 ```
 
 ## Output Formats
@@ -43,60 +44,62 @@ This command displays human-readable help and its subcommand list. The inherited
 
 ## Subcommands
 
-| Command                                            | Description                                                           |
-| -------------------------------------------------- | --------------------------------------------------------------------- |
-| [compozy agent](/docs/cli/agent)                   | Inspect CompozyOS agent definitions                                   |
-| [compozy app](/docs/cli/app)                       | Manage the CompozyOS desktop app                                      |
-| [compozy approvals](/docs/cli/approvals)           | Inspect or cancel pending tool approvals                              |
-| [compozy automation](/docs/cli/automation)         | Manage automation jobs, triggers, suggestions, and runs               |
-| [compozy bridge](/docs/cli/bridge)                 | Manage bridge instances                                               |
-| [compozy ch](/docs/cli/ch)                         | Use agent-facing coordination channels                                |
-| [compozy cmd-palette](/docs/cli/cmd-palette)       | List, inspect, and invoke command palette commands                    |
-| [compozy completion](/docs/cli/completion)         | Generate the autocompletion script for the specified shell            |
-| [compozy config](/docs/cli/config)                 | Inspect and mutate CompozyOS configuration                            |
-| [compozy connect](/docs/cli/connect)               | Manage CLI connection profiles                                        |
-| [compozy daemon](/docs/cli/daemon)                 | Manage the CompozyOS daemon                                           |
-| [compozy desktop](/docs/cli/desktop)               | Manage virtual desktops in a workspace                                |
-| [compozy device](/docs/cli/device)                 | Manage paired gateway devices                                         |
-| [compozy doctor](/docs/cli/doctor)                 | Run runtime diagnostics                                               |
-| [compozy drain](/docs/cli/drain)                   | Stop admitting new work while in-flight work completes                |
-| [compozy extension](/docs/cli/extension)           | Manage CompozyOS extensions                                           |
-| [compozy gateway](/docs/cli/gateway)               | Manage remote gateway exposure                                        |
-| [compozy hooks](/docs/cli/hooks)                   | Inspect configured and executed hooks                                 |
-| [compozy install](/docs/cli/install)               | Bootstrap CompozyOS and create the default general agent              |
-| [compozy layout](/docs/cli/layout)                 | Inspect, preview, and change workspace layouts                        |
-| [compozy layout-profile](/docs/cli/layout-profile) | List, read, save, and delete saved layouts                            |
-| [compozy logs](/docs/cli/logs)                     | Read cross-session runtime logs                                       |
-| [compozy loop](/docs/cli/loop)                     | Manage Loop definitions and runs                                      |
-| [compozy marketplace](/docs/cli/marketplace)       | Discover installable CompozyOS capabilities                           |
-| [compozy mcp](/docs/cli/mcp)                       | Manage MCP integrations                                               |
-| [compozy me](/docs/cli/me)                         | Inspect the current CompozyOS-managed agent session                   |
-| [compozy memory](/docs/cli/memory)                 | Show, write, search, and operate Memory v2 durable context            |
-| [compozy network](/docs/cli/network)               | Operate the daemon-owned network runtime                              |
-| [compozy notifications](/docs/cli/notifications)   | Manage notification presets                                           |
-| [compozy notify](/docs/cli/notify)                 | Send the operator a notification                                      |
-| [compozy observe](/docs/cli/observe)               | Inspect runtime observability read models                             |
-| [compozy onboarding](/docs/cli/onboarding)         | Inspect and manage first-run onboarding state                         |
-| [compozy open](/docs/cli/open)                     | Open the CompozyOS web UI in the default browser                      |
-| [compozy pair](/docs/cli/pair)                     | Pair remote clients with a gateway                                    |
-| [compozy provider](/docs/cli/provider)             | Inspect and manage provider authentication                            |
-| [compozy resource](/docs/cli/resource)             | Manage desired-state resources                                        |
-| [compozy roles](/docs/cli/roles)                   | Inspect effective background role configuration                       |
-| [compozy scheduler](/docs/cli/scheduler)           | Inspect and control task scheduler dispatch                           |
-| [compozy session](/docs/cli/session)               | Manage CompozyOS sessions                                             |
-| [compozy skill](/docs/cli/skill)                   | Manage local AgentSkills                                              |
-| [compozy spawn](/docs/cli/spawn)                   | Spawn a bounded child agent session                                   |
-| [compozy status](/docs/cli/status)                 | Show consolidated runtime status                                      |
-| [compozy support](/docs/cli/support)               | Create daemon-owned support artifacts                                 |
-| [compozy task](/docs/cli/task)                     | Manage tasks and task runs                                            |
-| [compozy tool](/docs/cli/tool)                     | Inspect and invoke registry tools                                     |
-| [compozy toolsets](/docs/cli/toolsets)             | Inspect registry toolsets                                             |
-| [compozy undrain](/docs/cli/undrain)               | Resume admission of new work                                          |
-| [compozy uninstall](/docs/cli/uninstall)           | Stop CompozyOS and remove runtime launch artifacts                    |
-| [compozy update](/docs/cli/update)                 | Check for and apply CompozyOS runtime and app updates                 |
-| [compozy vault](/docs/cli/vault)                   | Manage encrypted daemon vault metadata and write-only secrets         |
-| [compozy version](/docs/cli/version)               | Print the CompozyOS version                                           |
-| [compozy whoami](/docs/cli/whoami)                 | Print the current CompozyOS agent identity from environment variables |
-| [compozy window](/docs/cli/window)                 | Manage windows in virtual desktops                                    |
-| [compozy workspace](/docs/cli/workspace)           | Manage registered workspaces                                          |
-| [compozy worktree](/docs/cli/worktree)             | Manage workspace worktrees                                            |
+| Command                                                      | Description                                                           |
+| ------------------------------------------------------------ | --------------------------------------------------------------------- |
+| [compozy agent](/docs/cli/agent)                             | Inspect CompozyOS agent definitions                                   |
+| [compozy app](/docs/cli/app)                                 | Manage the CompozyOS desktop app                                      |
+| [compozy approvals](/docs/cli/approvals)                     | Inspect or cancel pending tool approvals                              |
+| [compozy automation](/docs/cli/automation)                   | Manage automation jobs, triggers, suggestions, and runs               |
+| [compozy bridge](/docs/cli/bridge)                           | Manage bridge instances                                               |
+| [compozy ch](/docs/cli/ch)                                   | Use agent-facing coordination channels                                |
+| [compozy cmd-palette](/docs/cli/cmd-palette)                 | List, inspect, and invoke command palette commands                    |
+| [compozy completion](/docs/cli/completion)                   | Generate the autocompletion script for the specified shell            |
+| [compozy config](/docs/cli/config)                           | Inspect and mutate CompozyOS configuration                            |
+| [compozy connect](/docs/cli/connect)                         | Manage CLI connection profiles                                        |
+| [compozy daemon](/docs/cli/daemon)                           | Manage the CompozyOS daemon                                           |
+| [compozy desktop](/docs/cli/desktop)                         | Manage virtual desktops in a workspace                                |
+| [compozy device](/docs/cli/device)                           | Manage paired gateway devices                                         |
+| [compozy doctor](/docs/cli/doctor)                           | Run runtime diagnostics                                               |
+| [compozy drain](/docs/cli/drain)                             | Stop admitting new work while in-flight work completes                |
+| [compozy extension](/docs/cli/extension)                     | Manage CompozyOS extensions                                           |
+| [compozy gateway](/docs/cli/gateway)                         | Manage remote gateway exposure                                        |
+| [compozy hooks](/docs/cli/hooks)                             | Inspect configured and executed hooks                                 |
+| [compozy install](/docs/cli/install)                         | Bootstrap CompozyOS and create the default general agent              |
+| [compozy layout](/docs/cli/layout)                           | Inspect, preview, and change workspace layouts                        |
+| [compozy layout-profile](/docs/cli/layout-profile)           | List, read, save, and delete saved layouts                            |
+| [compozy logs](/docs/cli/logs)                               | Read cross-session runtime logs                                       |
+| [compozy loop](/docs/cli/loop)                               | Manage Loop definitions and runs                                      |
+| [compozy marketplace](/docs/cli/marketplace)                 | Discover installable CompozyOS capabilities                           |
+| [compozy mcp](/docs/cli/mcp)                                 | Manage MCP integrations                                               |
+| [compozy me](/docs/cli/me)                                   | Inspect the current CompozyOS-managed agent session                   |
+| [compozy memory](/docs/cli/memory)                           | Show, write, search, and operate Memory v2 durable context            |
+| [compozy network](/docs/cli/network)                         | Operate the daemon-owned network runtime                              |
+| [compozy notification-preset](/docs/cli/notification-preset) | Manage notification presets                                           |
+| [compozy notify](/docs/cli/notify)                           | Send the operator a notification                                      |
+| [compozy observe](/docs/cli/observe)                         | Inspect runtime observability read models                             |
+| [compozy onboarding](/docs/cli/onboarding)                   | Inspect and manage first-run onboarding state                         |
+| [compozy open](/docs/cli/open)                               | Open the CompozyOS web UI in the default browser                      |
+| [compozy pair](/docs/cli/pair)                               | Pair remote clients with a gateway                                    |
+| [compozy profile](/docs/cli/profile)                         | Manage profiles                                                       |
+| [compozy provider](/docs/cli/provider)                       | Inspect and manage provider authentication                            |
+| [compozy resource](/docs/cli/resource)                       | Manage desired-state resources                                        |
+| [compozy roles](/docs/cli/roles)                             | Inspect effective background role configuration                       |
+| [compozy scheduler](/docs/cli/scheduler)                     | Inspect and control task scheduler dispatch                           |
+| [compozy secret](/docs/cli/secret)                           | Manage credentials for the active profile                             |
+| [compozy session](/docs/cli/session)                         | Manage CompozyOS sessions                                             |
+| [compozy skill](/docs/cli/skill)                             | Manage local AgentSkills                                              |
+| [compozy spawn](/docs/cli/spawn)                             | Spawn a bounded child agent session                                   |
+| [compozy status](/docs/cli/status)                           | Show consolidated runtime status                                      |
+| [compozy support](/docs/cli/support)                         | Create daemon-owned support artifacts                                 |
+| [compozy task](/docs/cli/task)                               | Manage tasks and task runs                                            |
+| [compozy tool](/docs/cli/tool)                               | Inspect and invoke registry tools                                     |
+| [compozy toolsets](/docs/cli/toolsets)                       | Inspect registry toolsets                                             |
+| [compozy undrain](/docs/cli/undrain)                         | Resume admission of new work                                          |
+| [compozy uninstall](/docs/cli/uninstall)                     | Stop CompozyOS and remove runtime launch artifacts                    |
+| [compozy update](/docs/cli/update)                           | Check for and apply CompozyOS runtime and app updates                 |
+| [compozy vault](/docs/cli/vault)                             | Manage encrypted daemon vault metadata and write-only secrets         |
+| [compozy version](/docs/cli/version)                         | Print the CompozyOS version                                           |
+| [compozy whoami](/docs/cli/whoami)                           | Print the current CompozyOS agent identity from environment variables |
+| [compozy window](/docs/cli/window)                           | Manage windows in virtual desktops                                    |
+| [compozy workspace](/docs/cli/workspace)                     | Manage registered workspaces                                          |
+| [compozy worktree](/docs/cli/worktree)                       | Manage workspace worktrees                                            |

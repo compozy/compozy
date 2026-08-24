@@ -82,6 +82,7 @@ func newObserveOverviewCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(&workspace, "workspace", "", "Override workspace filter (ID, name, or path)")
 	cmd.Flags().IntVar(&usageWindow, "usage-window", 0, "Usage window in days: 7, 30, or 90 (default 30)")
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 

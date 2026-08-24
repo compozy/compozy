@@ -10,12 +10,14 @@ import { sessionsListOptions } from "@/systems/session";
 import { taskDashboardOptions } from "@/systems/tasks/lib/query-options";
 
 import { resolveActiveWorkspaceSelection, settleRouteQueries } from "./-route-preload";
+import { readProfileLens, readProfileScopeParams } from "@/systems/profiles";
 
 export async function preloadHomeRoute(queryClient: QueryClient): Promise<void> {
   await preloadHomeWorkspace(queryClient);
 }
 
 export async function preloadHomeWorkspace(queryClient: QueryClient): Promise<void> {
+  const profileScope = readProfileScopeParams(queryClient, readProfileLens());
   const usageWindow = homePrefsStore.getSnapshot().context.usageWindow;
   let resolution: Awaited<ReturnType<typeof resolveActiveWorkspaceSelection>>;
   try {
@@ -36,16 +38,25 @@ export async function preloadHomeWorkspace(queryClient: QueryClient): Promise<vo
     queryClient.ensureInfiniteQueryData(
       sessionsListOptions({
         ...homeWorkingNowSessionFilters(),
-        ...(scope.workspaceParam ? { workspace: scope.workspaceParam } : {}),
+        ...(scope.workspaceParam
+          ? { workspace_id: scope.workspaceParam }
+          : { all_workspaces: true }),
+        ...profileScope,
       })
     ),
     queryClient.ensureQueryData(
-      homeOverviewOptions({ workspace: scope.workspaceParam || undefined, usageWindow })
+      homeOverviewOptions({
+        workspace: scope.workspaceParam || undefined,
+        usageWindow,
+        ...("all_profiles" in profileScope
+          ? { allProfiles: true }
+          : { profile: profileScope.profile }),
+      })
     ),
     queryClient.ensureQueryData(
-      homeActivityOptions({ workspace_id: scope.workspaceParam || undefined })
+      homeActivityOptions({ workspace_id: scope.workspaceParam || undefined, ...profileScope })
     ),
-    queryClient.ensureQueryData(taskDashboardOptions(scope.taskScope)),
+    queryClient.ensureQueryData(taskDashboardOptions({ ...scope.taskScope, ...profileScope })),
     queryClient.ensureQueryData(networkStatusOptions()),
   ]);
 }

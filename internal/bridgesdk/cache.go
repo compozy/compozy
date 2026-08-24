@@ -20,13 +20,18 @@ type InstanceCache struct {
 	provider       string
 	platform       string
 	allowedMethods []string
-	managed        map[string]subprocess.InitializeBridgeManagedInstance
+	managed        map[instanceCacheKey]subprocess.InitializeBridgeManagedInstance
+}
+
+type instanceCacheKey struct {
+	ProfileID  string
+	InstanceID string
 }
 
 // NewInstanceCache constructs a cache seeded from the negotiated bridge runtime.
 func NewInstanceCache(runtime *subprocess.InitializeBridgeRuntime) *InstanceCache {
 	cache := &InstanceCache{
-		managed: make(map[string]subprocess.InitializeBridgeManagedInstance),
+		managed: make(map[instanceCacheKey]subprocess.InitializeBridgeManagedInstance),
 	}
 	cache.Reset(runtime)
 	return cache
@@ -41,7 +46,7 @@ func (c *InstanceCache) Reset(runtime *subprocess.InitializeBridgeRuntime) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.managed = make(map[string]subprocess.InitializeBridgeManagedInstance)
+	c.managed = make(map[instanceCacheKey]subprocess.InitializeBridgeManagedInstance)
 	c.runtimeVersion = ""
 	c.purpose = ""
 	c.provider = ""
@@ -63,11 +68,12 @@ func (c *InstanceCache) Reset(runtime *subprocess.InitializeBridgeRuntime) {
 	c.platform = cloned.Platform
 	c.allowedMethods = append([]string(nil), cloned.AllowedMethods...)
 	for _, managed := range cloned.ManagedInstances {
-		c.managed[strings.TrimSpace(managed.Instance.ID)] = managed
+		c.managed[managedInstanceCacheKey(managed.Instance)] = managed
 	}
 }
 
-// Snapshot returns the current managed-runtime snapshot.
+// Snapshot returns the current managed-runtime snapshot ordered by profile and
+// then instance id.
 func (c *InstanceCache) Snapshot() *subprocess.InitializeBridgeRuntime {
 	if c == nil {
 		return nil
@@ -84,13 +90,14 @@ func (c *InstanceCache) Snapshot() *subprocess.InitializeBridgeRuntime {
 		AllowedMethods:   append([]string(nil), c.allowedMethods...),
 		ManagedInstances: make([]subprocess.InitializeBridgeManagedInstance, 0, len(c.managed)),
 	}
-	for _, id := range c.idsLocked() {
-		runtime.ManagedInstances = append(runtime.ManagedInstances, cloneManagedInstance(c.managed[id]))
+	for _, key := range c.keysLocked() {
+		runtime.ManagedInstances = append(runtime.ManagedInstances, cloneManagedInstance(c.managed[key]))
 	}
 	return runtime
 }
 
-// Get returns one managed instance snapshot by id.
+// Get returns one managed instance snapshot by id when that id is unique
+// across profiles; callers with a shared id must use GetForProfile.
 func (c *InstanceCache) Get(id string) (*subprocess.InitializeBridgeManagedInstance, bool) {
 	if c == nil {
 		return nil, false
@@ -99,7 +106,7 @@ func (c *InstanceCache) Get(id string) (*subprocess.InitializeBridgeManagedInsta
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	managed, ok := c.managed[strings.TrimSpace(id)]
+	managed, ok := c.uniqueInstanceLocked(id)
 	if !ok {
 		return nil, false
 	}
@@ -107,7 +114,27 @@ func (c *InstanceCache) Get(id string) (*subprocess.InitializeBridgeManagedInsta
 	return &cloned, true
 }
 
-// List returns every managed instance snapshot in stable id order.
+// GetForProfile returns one managed instance owned by the exact profile and id.
+func (c *InstanceCache) GetForProfile(
+	profileID string,
+	instanceID string,
+) (*subprocess.InitializeBridgeManagedInstance, bool) {
+	if c == nil {
+		return nil, false
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	managed, ok := c.managed[profileInstanceCacheKey(profileID, instanceID)]
+	if !ok {
+		return nil, false
+	}
+	cloned := cloneManagedInstance(managed)
+	return &cloned, true
+}
+
+// List returns every managed instance snapshot ordered by profile and then
+// instance id.
 func (c *InstanceCache) List() []subprocess.InitializeBridgeManagedInstance {
 	if c == nil {
 		return nil
@@ -117,13 +144,14 @@ func (c *InstanceCache) List() []subprocess.InitializeBridgeManagedInstance {
 	defer c.mu.RUnlock()
 
 	items := make([]subprocess.InitializeBridgeManagedInstance, 0, len(c.managed))
-	for _, id := range c.idsLocked() {
-		items = append(items, cloneManagedInstance(c.managed[id]))
+	for _, key := range c.keysLocked() {
+		items = append(items, cloneManagedInstance(c.managed[key]))
 	}
 	return items
 }
 
-// BoundSecretValue returns one launch-time bound secret value for the managed instance.
+// BoundSecretValue returns a launch-time bound secret only when the instance
+// id is unique across profiles; use BoundSecretValueForProfile for shared ids.
 func (c *InstanceCache) BoundSecretValue(instanceID string, bindingName string) (string, bool) {
 	if c == nil {
 		return "", false
@@ -132,10 +160,36 @@ func (c *InstanceCache) BoundSecretValue(instanceID string, bindingName string) 
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	managed, ok := c.managed[strings.TrimSpace(instanceID)]
+	managed, ok := c.uniqueInstanceLocked(instanceID)
 	if !ok {
 		return "", false
 	}
+	return boundSecretValue(managed, bindingName)
+}
+
+// BoundSecretValueForProfile returns one secret only for the exact profile-owned instance.
+func (c *InstanceCache) BoundSecretValueForProfile(
+	profileID string,
+	instanceID string,
+	bindingName string,
+) (string, bool) {
+	if c == nil {
+		return "", false
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	managed, ok := c.managed[profileInstanceCacheKey(profileID, instanceID)]
+	if !ok {
+		return "", false
+	}
+	return boundSecretValue(managed, bindingName)
+}
+
+func boundSecretValue(
+	managed subprocess.InitializeBridgeManagedInstance,
+	bindingName string,
+) (string, bool) {
 	trimmedName := strings.TrimSpace(bindingName)
 	for _, secret := range managed.BoundSecrets {
 		if strings.TrimSpace(secret.BindingName) != trimmedName {
@@ -167,30 +221,64 @@ func (c *InstanceCache) Sync(
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	next := make(map[string]subprocess.InitializeBridgeManagedInstance, len(instances))
+	next := make(map[instanceCacheKey]subprocess.InitializeBridgeManagedInstance, len(instances))
 	for _, instance := range instances {
 		managed := subprocess.InitializeBridgeManagedInstance{Instance: instance}
-		if existing, ok := c.managed[strings.TrimSpace(instance.ID)]; ok {
+		key := managedInstanceCacheKey(instance)
+		if existing, ok := c.managed[key]; ok {
 			managed.BoundSecrets = append([]subprocess.InitializeBridgeBoundSecret(nil), existing.BoundSecrets...)
 		}
-		next[strings.TrimSpace(instance.ID)] = managed
+		next[key] = managed
 	}
 	c.managed = next
 
 	items := make([]subprocess.InitializeBridgeManagedInstance, 0, len(c.managed))
-	for _, id := range c.idsLocked() {
-		items = append(items, cloneManagedInstance(c.managed[id]))
+	for _, key := range c.keysLocked() {
+		items = append(items, cloneManagedInstance(c.managed[key]))
 	}
 	return items, nil
 }
 
-func (c *InstanceCache) idsLocked() []string {
-	ids := make([]string, 0, len(c.managed))
-	for id := range c.managed {
-		ids = append(ids, id)
+func (c *InstanceCache) keysLocked() []instanceCacheKey {
+	keys := make([]instanceCacheKey, 0, len(c.managed))
+	for key := range c.managed {
+		keys = append(keys, key)
 	}
-	slicesSortStrings(ids)
-	return ids
+	sort.Slice(keys, func(left, right int) bool {
+		if keys[left].ProfileID == keys[right].ProfileID {
+			return keys[left].InstanceID < keys[right].InstanceID
+		}
+		return keys[left].ProfileID < keys[right].ProfileID
+	})
+	return keys
+}
+
+func (c *InstanceCache) uniqueInstanceLocked(instanceID string) (subprocess.InitializeBridgeManagedInstance, bool) {
+	trimmedID := strings.TrimSpace(instanceID)
+	var match subprocess.InitializeBridgeManagedInstance
+	found := false
+	for key, managed := range c.managed {
+		if key.InstanceID != trimmedID {
+			continue
+		}
+		if found {
+			return subprocess.InitializeBridgeManagedInstance{}, false
+		}
+		match = managed
+		found = true
+	}
+	return match, found
+}
+
+func profileInstanceCacheKey(profileID string, instanceID string) instanceCacheKey {
+	return instanceCacheKey{
+		ProfileID:  strings.TrimSpace(profileID),
+		InstanceID: strings.TrimSpace(instanceID),
+	}
+}
+
+func managedInstanceCacheKey(instance bridgepkg.BridgeInstance) instanceCacheKey {
+	return profileInstanceCacheKey(instance.ProfileID, instance.ID)
 }
 
 func cloneManagedInstance(src subprocess.InitializeBridgeManagedInstance) subprocess.InitializeBridgeManagedInstance {
@@ -213,11 +301,4 @@ func cloneBridgeInstance(instance bridgepkg.BridgeInstance) bridgepkg.BridgeInst
 		cloned.Degradation = &degradation
 	}
 	return cloned
-}
-
-func slicesSortStrings(values []string) {
-	if len(values) < 2 {
-		return
-	}
-	sort.Strings(values)
 }

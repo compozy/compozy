@@ -339,6 +339,9 @@ func (s SchedulerState) Validate(path string) error {
 
 // Validate ensures a scheduled fire claim can be persisted atomically.
 func (c SchedulerClaim) Validate(path string) error {
+	if strings.TrimSpace(c.ProfileID) == "" {
+		return errors.New(nestedPath(path, "profile_id") + " is required")
+	}
 	if strings.TrimSpace(c.JobID) == "" {
 		return errors.New(nestedPath(path, "job_id") + " is required")
 	}

@@ -74,7 +74,7 @@ func TestMemoryProviderRegistry(t *testing.T) {
 			t.Fatalf("summary.Type = %q, want %q", summary.Type, memoryProviderCollisionEvent)
 		}
 		var payload memoryProviderCollisionPayload
-		if err := json.Unmarshal(summary.Content, &payload); err != nil {
+		if err := json.Unmarshal(summary.ContentValue(), &payload); err != nil {
 			t.Fatalf("json.Unmarshal(summary.Content) error = %v", err)
 		}
 		if payload.Provider != "local" || payload.Reason != memoryProviderNameCollision {
@@ -154,7 +154,10 @@ func TestMemoryProviderCollisionEventSummaryValidation(t *testing.T) {
 	t.Run("Should allow provider collision as global observability", func(t *testing.T) {
 		t.Parallel()
 
-		if err := (store.EventSummary{Type: memoryProviderCollisionEvent}).Validate(); err != nil {
+		if err := (store.EventSummary{
+			ProfileID: store.DefaultProfileID,
+			Type:      memoryProviderCollisionEvent,
+		}).Validate(); err != nil {
 			t.Fatalf("EventSummary.Validate(provider collision) error = %v", err)
 		}
 	})

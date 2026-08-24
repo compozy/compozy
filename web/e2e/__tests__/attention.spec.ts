@@ -12,7 +12,7 @@ import {
   waitForSeedSessionActive,
 } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { completeOnboardingIfPrompted, ensureProjectWorkspace } from "../fixtures/workspace";
 
 /**
  * Browser journeys for the attention program (E2E-009..E2E-015).
@@ -88,7 +88,8 @@ test.use({
   },
 });
 
-test.beforeEach(async ({ appPage: page }) => {
+test.beforeEach(async ({ appPage: page, runtime }) => {
+  await ensureProjectWorkspace(page, runtime);
   await completeOnboardingIfPrompted(page);
 });
 
@@ -408,7 +409,7 @@ async function globalWorkspace(runtime: BrowserRuntime): Promise<WorkspacePayloa
   if (!runtime.paths?.homeDir) {
     throw new Error("attention E2E requires a launch-mode runtime");
   }
-  return await runtime.resolveWorkspace(runtime.paths.homeDir);
+  return await runtime.resolveWorkspace(runtime.paths.workspaceDir);
 }
 
 async function createWorkspace(runtime: BrowserRuntime, label: string): Promise<WorkspacePayload> {
@@ -516,7 +517,7 @@ async function reloadShell(page: Page): Promise<void> {
 async function failWorkspaceSessionCatalog(page: Page, workspaceID: string): Promise<void> {
   await page.route("**/api/sessions?*", async route => {
     const url = new URL(route.request().url());
-    if (url.searchParams.get("workspace") === workspaceID) {
+    if (url.searchParams.get("workspace_id") === workspaceID) {
       await route.fulfill({ status: 500, json: { error: "workspace unreachable" } });
       return;
     }
@@ -533,7 +534,7 @@ async function overrideSessionBadge(
   await page.route("**/api/sessions?*", async route => {
     const url = new URL(route.request().url());
     if (
-      url.searchParams.get("workspace") !== workspaceID ||
+      url.searchParams.get("workspace_id") !== workspaceID ||
       url.searchParams.has("attention") ||
       url.searchParams.has("archive") ||
       url.searchParams.has("badge")

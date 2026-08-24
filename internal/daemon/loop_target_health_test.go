@@ -41,11 +41,12 @@ func TestBootDeadEntityRegistryShouldIsolateLoopTargetPolicy(t *testing.T) {
 
 		ctx := context.Background()
 		loopKey := store.DeadEntityKey{
-			WorkspaceID: "ws-1", Kind: store.DeadEntityKindLoopTarget,
+			ProfileID: store.DefaultProfileID, WorkspaceID: "ws-1", Kind: store.DeadEntityKindLoopTarget,
 			EntityID: "toolcall:compozy__search",
 		}
 		sharedKey := store.DeadEntityKey{
-			WorkspaceID: "ws-1", Kind: store.DeadEntityKindMCPSidecar, EntityID: "github",
+			ProfileID: store.DefaultProfileID, WorkspaceID: "ws-1",
+			Kind: store.DeadEntityKindMCPSidecar, EntityID: "github",
 		}
 		for range 2 {
 			if err := state.loopTargetHealth.RecordFailure(

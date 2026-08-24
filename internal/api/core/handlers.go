@@ -72,13 +72,19 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		)
 		return
 	}
-	worktreeTarget, err := h.resolveCreateSessionWorktree(c, req)
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	worktreeTarget, err := h.resolveCreateSessionWorktree(c, mutationScope.ProfileID, req)
 	if err != nil {
 		h.respondError(c, StatusForWorktreeError(err), err)
 		return
 	}
 
 	opts := session.CreateOpts{
+		ProfileID:            mutationScope.ProfileID,
 		AgentName:            req.AgentName,
 		Name:                 req.Name,
 		Workspace:            req.Workspace,
@@ -88,6 +94,14 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		Type:                 session.SessionTypeUser,
 	}
 	if parentSessionID != "" {
+		parent, statusErr := h.Sessions.Status(c.Request.Context(), parentSessionID)
+		if statusErr != nil {
+			h.respondError(c, StatusForSessionError(statusErr), statusErr)
+			return
+		}
+		if !h.requireSessionInProfile(c, parent, mutationScope) {
+			return
+		}
 		opts.Lineage = &store.SessionLineage{ParentSessionID: parentSessionID}
 	}
 	info, err := h.SessionAcceptance.CreateAccepted(c.Request.Context(), session.CreateAcceptedOpts{Session: opts})
@@ -98,11 +112,17 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, contract.SessionResponse{Session: SessionPayloadFromInfo(info)})
+	payload, err := h.sessionPayloadWithOptionalHealth(c.Request.Context(), info, false)
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+	c.JSON(http.StatusCreated, contract.SessionResponse{Session: payload})
 }
 
 func (h *BaseHandlers) resolveCreateSessionWorktree(
 	c *gin.Context,
+	profileID string,
 	req contract.CreateSessionRequest,
 ) (materializedSessionWorktree, error) {
 	if ref := strings.TrimSpace(req.Worktree); ref != "" {
@@ -119,8 +139,9 @@ func (h *BaseHandlers) resolveCreateSessionWorktree(
 		return materializedSessionWorktree{}, err
 	}
 	item, err := h.Worktrees.CreateReady(c.Request.Context(), workspaceID, worktree.CreateOptions{
-		Name:   strings.TrimSpace(req.NewWorktree.Name),
-		Origin: worktree.OriginManual,
+		ProfileID: profileID,
+		Name:      strings.TrimSpace(req.NewWorktree.Name),
+		Origin:    worktree.OriginManual,
 	})
 	if err != nil {
 		return materializedSessionWorktree{}, err
@@ -154,6 +175,15 @@ func (h *BaseHandlers) GetSession(c *gin.Context) {
 	if !ok {
 		return
 	}
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	if !readScope.Matches(info.ProfileID) {
+		h.respondError(c, http.StatusNotFound, errors.New("session not found"))
+		return
+	}
 	includeHealth, err := parseBoolQuery(c, "include_health")
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
@@ -170,8 +200,16 @@ func (h *BaseHandlers) GetSession(c *gin.Context) {
 
 // DeleteSession removes one session from the runtime catalog and persisted history.
 func (h *BaseHandlers) DeleteSession(c *gin.Context) {
-	_, sessionID, _, ok := h.routeSessionInWorkspace(c)
+	_, sessionID, info, ok := h.routeSessionInWorkspace(c)
 	if !ok {
+		return
+	}
+	scope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	if !h.requireSessionInProfile(c, info, scope) {
 		return
 	}
 	if err := h.Sessions.Delete(c.Request.Context(), sessionID); err != nil {
@@ -184,8 +222,16 @@ func (h *BaseHandlers) DeleteSession(c *gin.Context) {
 
 // StopSession stops a running session without deleting persisted history.
 func (h *BaseHandlers) StopSession(c *gin.Context) {
-	_, sessionID, _, ok := h.routeSessionInWorkspace(c)
+	_, sessionID, info, ok := h.routeSessionInWorkspace(c)
 	if !ok {
+		return
+	}
+	scope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	if !h.requireSessionInProfile(c, info, scope) {
 		return
 	}
 	if err := h.Sessions.Stop(c.Request.Context(), sessionID); err != nil {

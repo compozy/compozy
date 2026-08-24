@@ -12,6 +12,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/vault"
@@ -105,6 +106,44 @@ func TestAutomationResourceCodecsRejectInvalidSpecs(t *testing.T) {
 	} else if !strings.Contains(err.Error(), "automation: validate trigger resource spec") {
 		t.Fatalf("webhook trigger error = %v, want validate trigger resource spec context", err)
 	}
+
+	t.Run("Should bind profile ownership from profile resource scopes", func(t *testing.T) {
+		t.Parallel()
+
+		profileJob := testJob(AutomationScopeGlobal, "profile-resource-job", "")
+		profileJob.ProfileID = ""
+		boundJob, err := jobCodec.DecodeAndValidate(
+			ctx,
+			resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: "profile-marketing"},
+			mustAutomationJSON(t, profileJob),
+		)
+		if err != nil {
+			t.Fatalf("jobCodec.DecodeAndValidate(profile scope) error = %v", err)
+		}
+		if got, want := boundJob.ProfileID, "profile-marketing"; got != want {
+			t.Fatalf("boundJob.ProfileID = %q, want %q", got, want)
+		}
+
+		workspaceProfileTrigger := validTrigger
+		workspaceProfileTrigger.ProfileID = "profile-marketing"
+		boundTrigger, err := triggerCodec.DecodeAndValidate(
+			ctx,
+			resources.ResourceScope{
+				Kind: resources.ResourceScopeKindWorkspaceProfile,
+				ID:   "ws-resource@pf:marketing",
+			},
+			mustAutomationJSON(t, workspaceProfileTrigger),
+		)
+		if err != nil {
+			t.Fatalf("triggerCodec.DecodeAndValidate(workspace profile scope) error = %v", err)
+		}
+		if got, want := boundTrigger.ProfileID, "profile-marketing"; got != want {
+			t.Fatalf("boundTrigger.ProfileID = %q, want %q", got, want)
+		}
+		if got, want := boundTrigger.WorkspaceID, "ws-resource"; got != want {
+			t.Fatalf("boundTrigger.WorkspaceID = %q, want %q", got, want)
+		}
+	})
 
 	t.Run("Should canonicalize authored participation for every resource target", func(t *testing.T) {
 		t.Parallel()
@@ -313,7 +352,9 @@ func TestManagerResourceListsSearchSortAndPage(t *testing.T) {
 			}
 		})
 		disabled := false
-		jobQuery := JobListQuery{Search: "needle", Enabled: &disabled, Limit: 1}
+		jobQuery := JobListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, Search: "needle", Enabled: &disabled, Limit: 1,
+		}
 		jobPage, err := manager.ListJobs(h.ctx, jobQuery)
 		if err != nil {
 			t.Fatalf("manager.ListJobs(first) error = %v", err)
@@ -331,7 +372,9 @@ func TestManagerResourceListsSearchSortAndPage(t *testing.T) {
 			t.Fatalf("manager.ListJobs(second) = %#v, want package terminal page", jobPage)
 		}
 
-		triggerQuery := TriggerListQuery{Search: "needle", Enabled: &disabled, Limit: 1}
+		triggerQuery := TriggerListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, Search: "needle", Enabled: &disabled, Limit: 1,
+		}
 		triggerPage, err := manager.ListTriggers(h.ctx, triggerQuery)
 		if err != nil {
 			t.Fatalf("manager.ListTriggers(first) error = %v", err)
@@ -397,7 +440,7 @@ func TestManagerResourceListsSearchSortAndPage(t *testing.T) {
 		})
 
 		SortJobsForList(expectedJobs)
-		jobQuery := JobListQuery{Search: " NeEdLe ", Limit: 4}
+		jobQuery := JobListQuery{ReadScope: store.ReadScope{AllProfiles: true}, Search: " NeEdLe ", Limit: 4}
 		walkedJobIDs := make([]string, 0, len(expectedJobs))
 		for {
 			page, err := manager.ListJobs(h.ctx, jobQuery)
@@ -422,7 +465,7 @@ func TestManagerResourceListsSearchSortAndPage(t *testing.T) {
 		}
 
 		SortTriggersForList(expectedTriggers)
-		triggerQuery := TriggerListQuery{Search: "needle", Limit: 5}
+		triggerQuery := TriggerListQuery{ReadScope: store.ReadScope{AllProfiles: true}, Search: "needle", Limit: 5}
 		walkedTriggerIDs := make([]string, 0, len(expectedTriggers))
 		for {
 			page, err := manager.ListTriggers(h.ctx, triggerQuery)
@@ -1490,7 +1533,7 @@ func newManagerResourceHarness(t *testing.T) *managerResourceHarness {
 				Kind: resources.ResourceSourceKind("daemon"),
 				ID:   "automation-resource-test",
 			},
-			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		},
 	}
 }

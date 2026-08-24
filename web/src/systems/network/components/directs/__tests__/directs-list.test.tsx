@@ -36,6 +36,8 @@ const WORKSPACE_ID = "ws_alpha";
 
 const directs: NetworkDirectRoomSummary[] = [
   {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     channel: "ops",
     direct_id: "direct-1",
     last_activity_at: "2026-04-17T18:00:00Z",

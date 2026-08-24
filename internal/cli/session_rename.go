@@ -22,7 +22,7 @@ func newSessionRenameCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, sessionBundle(record, deps.now))
+			return writeCommandOutput(cmd, sessionBundle(&record, deps.now))
 		},
 	}
 }

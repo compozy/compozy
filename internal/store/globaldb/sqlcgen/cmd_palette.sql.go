@@ -10,116 +10,167 @@ import (
 )
 
 const deleteCmdPalettePersonalization = `-- name: DeleteCmdPalettePersonalization :exec
-DELETE FROM cmd_palette_usage WHERE workspace_id = ?1
+DELETE FROM cmd_palette_usage
+WHERE profile_lens_id = ?1
+  AND workspace_id = ?2
 `
 
-func (q *Queries) DeleteCmdPalettePersonalization(ctx context.Context, workspaceID string) error {
-	_, err := q.db.ExecContext(ctx, deleteCmdPalettePersonalization, workspaceID)
+type DeleteCmdPalettePersonalizationParams struct {
+	ProfileLensID string `json:"profile_lens_id"`
+	WorkspaceID   string `json:"workspace_id"`
+}
+
+func (q *Queries) DeleteCmdPalettePersonalization(ctx context.Context, arg DeleteCmdPalettePersonalizationParams) error {
+	_, err := q.db.ExecContext(ctx, deleteCmdPalettePersonalization, arg.ProfileLensID, arg.WorkspaceID)
 	return err
 }
 
 const deleteCmdPalettePin = `-- name: DeleteCmdPalettePin :exec
 DELETE FROM cmd_palette_pins
-WHERE workspace_id = ?1
-  AND command_id = ?2
+WHERE profile_lens_id = ?1
+  AND workspace_id = ?2
+  AND command_id = ?3
 `
 
 type DeleteCmdPalettePinParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	CommandID   string `json:"command_id"`
+	ProfileLensID string `json:"profile_lens_id"`
+	WorkspaceID   string `json:"workspace_id"`
+	CommandID     string `json:"command_id"`
 }
 
 func (q *Queries) DeleteCmdPalettePin(ctx context.Context, arg DeleteCmdPalettePinParams) error {
-	_, err := q.db.ExecContext(ctx, deleteCmdPalettePin, arg.WorkspaceID, arg.CommandID)
+	_, err := q.db.ExecContext(ctx, deleteCmdPalettePin, arg.ProfileLensID, arg.WorkspaceID, arg.CommandID)
 	return err
 }
 
 const deleteCmdPalettePins = `-- name: DeleteCmdPalettePins :exec
-DELETE FROM cmd_palette_pins WHERE workspace_id = ?1
+DELETE FROM cmd_palette_pins
+WHERE profile_lens_id = ?1
+  AND workspace_id = ?2
 `
 
-func (q *Queries) DeleteCmdPalettePins(ctx context.Context, workspaceID string) error {
-	_, err := q.db.ExecContext(ctx, deleteCmdPalettePins, workspaceID)
+type DeleteCmdPalettePinsParams struct {
+	ProfileLensID string `json:"profile_lens_id"`
+	WorkspaceID   string `json:"workspace_id"`
+}
+
+func (q *Queries) DeleteCmdPalettePins(ctx context.Context, arg DeleteCmdPalettePinsParams) error {
+	_, err := q.db.ExecContext(ctx, deleteCmdPalettePins, arg.ProfileLensID, arg.WorkspaceID)
 	return err
 }
 
 const deleteCmdPaletteQueryHistory = `-- name: DeleteCmdPaletteQueryHistory :exec
-DELETE FROM cmd_palette_query_hits WHERE workspace_id = ?1
+DELETE FROM cmd_palette_query_hits
+WHERE profile_lens_id = ?1
+  AND workspace_id = ?2
 `
 
-func (q *Queries) DeleteCmdPaletteQueryHistory(ctx context.Context, workspaceID string) error {
-	_, err := q.db.ExecContext(ctx, deleteCmdPaletteQueryHistory, workspaceID)
+type DeleteCmdPaletteQueryHistoryParams struct {
+	ProfileLensID string `json:"profile_lens_id"`
+	WorkspaceID   string `json:"workspace_id"`
+}
+
+func (q *Queries) DeleteCmdPaletteQueryHistory(ctx context.Context, arg DeleteCmdPaletteQueryHistoryParams) error {
+	_, err := q.db.ExecContext(ctx, deleteCmdPaletteQueryHistory, arg.ProfileLensID, arg.WorkspaceID)
 	return err
 }
 
 const deleteCmdPaletteQueryHit = `-- name: DeleteCmdPaletteQueryHit :exec
 DELETE FROM cmd_palette_query_hits
-WHERE workspace_id = ?1
-  AND query = ?2
-  AND command_id = ?3
+WHERE profile_lens_id = ?1
+  AND workspace_id = ?2
+  AND query = ?3
+  AND command_id = ?4
 `
 
 type DeleteCmdPaletteQueryHitParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	Query       string `json:"query"`
-	CommandID   string `json:"command_id"`
+	ProfileLensID string `json:"profile_lens_id"`
+	WorkspaceID   string `json:"workspace_id"`
+	Query         string `json:"query"`
+	CommandID     string `json:"command_id"`
 }
 
 func (q *Queries) DeleteCmdPaletteQueryHit(ctx context.Context, arg DeleteCmdPaletteQueryHitParams) error {
-	_, err := q.db.ExecContext(ctx, deleteCmdPaletteQueryHit, arg.WorkspaceID, arg.Query, arg.CommandID)
+	_, err := q.db.ExecContext(ctx, deleteCmdPaletteQueryHit,
+		arg.ProfileLensID,
+		arg.WorkspaceID,
+		arg.Query,
+		arg.CommandID,
+	)
 	return err
 }
 
 const deleteCmdPaletteQueryHitsByCommand = `-- name: DeleteCmdPaletteQueryHitsByCommand :exec
 DELETE FROM cmd_palette_query_hits
-WHERE workspace_id = ?1
-  AND command_id = ?2
+WHERE profile_lens_id = ?1
+  AND workspace_id = ?2
+  AND command_id = ?3
 `
 
 type DeleteCmdPaletteQueryHitsByCommandParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	CommandID   string `json:"command_id"`
+	ProfileLensID string `json:"profile_lens_id"`
+	WorkspaceID   string `json:"workspace_id"`
+	CommandID     string `json:"command_id"`
 }
 
 func (q *Queries) DeleteCmdPaletteQueryHitsByCommand(ctx context.Context, arg DeleteCmdPaletteQueryHitsByCommandParams) error {
-	_, err := q.db.ExecContext(ctx, deleteCmdPaletteQueryHitsByCommand, arg.WorkspaceID, arg.CommandID)
+	_, err := q.db.ExecContext(ctx, deleteCmdPaletteQueryHitsByCommand, arg.ProfileLensID, arg.WorkspaceID, arg.CommandID)
 	return err
 }
 
 const deleteCmdPaletteUsage = `-- name: DeleteCmdPaletteUsage :exec
 DELETE FROM cmd_palette_usage
-WHERE workspace_id = ?1
-  AND command_id = ?2
+WHERE profile_lens_id = ?1
+  AND workspace_id = ?2
+  AND command_id = ?3
 `
 
 type DeleteCmdPaletteUsageParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	CommandID   string `json:"command_id"`
+	ProfileLensID string `json:"profile_lens_id"`
+	WorkspaceID   string `json:"workspace_id"`
+	CommandID     string `json:"command_id"`
 }
 
 func (q *Queries) DeleteCmdPaletteUsage(ctx context.Context, arg DeleteCmdPaletteUsageParams) error {
-	_, err := q.db.ExecContext(ctx, deleteCmdPaletteUsage, arg.WorkspaceID, arg.CommandID)
+	_, err := q.db.ExecContext(ctx, deleteCmdPaletteUsage, arg.ProfileLensID, arg.WorkspaceID, arg.CommandID)
 	return err
 }
 
 const getCmdPaletteQueryHit = `-- name: GetCmdPaletteQueryHit :one
-SELECT workspace_id, query, command_id, weight, last_used_at
+SELECT profile_lens_id, workspace_id, query, command_id, weight, last_used_at
 FROM cmd_palette_query_hits
-WHERE workspace_id = ?1
-  AND query = ?2
-  AND command_id = ?3
+WHERE profile_lens_id = ?1
+  AND workspace_id = ?2
+  AND query = ?3
+  AND command_id = ?4
 `
 
 type GetCmdPaletteQueryHitParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	Query       string `json:"query"`
-	CommandID   string `json:"command_id"`
+	ProfileLensID string `json:"profile_lens_id"`
+	WorkspaceID   string `json:"workspace_id"`
+	Query         string `json:"query"`
+	CommandID     string `json:"command_id"`
 }
 
-func (q *Queries) GetCmdPaletteQueryHit(ctx context.Context, arg GetCmdPaletteQueryHitParams) (CmdPaletteQueryHit, error) {
-	row := q.db.QueryRowContext(ctx, getCmdPaletteQueryHit, arg.WorkspaceID, arg.Query, arg.CommandID)
-	var i CmdPaletteQueryHit
+type GetCmdPaletteQueryHitRow struct {
+	ProfileLensID string  `json:"profile_lens_id"`
+	WorkspaceID   string  `json:"workspace_id"`
+	Query         string  `json:"query"`
+	CommandID     string  `json:"command_id"`
+	Weight        float64 `json:"weight"`
+	LastUsedAt    int64   `json:"last_used_at"`
+}
+
+func (q *Queries) GetCmdPaletteQueryHit(ctx context.Context, arg GetCmdPaletteQueryHitParams) (GetCmdPaletteQueryHitRow, error) {
+	row := q.db.QueryRowContext(ctx, getCmdPaletteQueryHit,
+		arg.ProfileLensID,
+		arg.WorkspaceID,
+		arg.Query,
+		arg.CommandID,
+	)
+	var i GetCmdPaletteQueryHitRow
 	err := row.Scan(
+		&i.ProfileLensID,
 		&i.WorkspaceID,
 		&i.Query,
 		&i.CommandID,
@@ -130,21 +181,34 @@ func (q *Queries) GetCmdPaletteQueryHit(ctx context.Context, arg GetCmdPaletteQu
 }
 
 const getCmdPaletteUsage = `-- name: GetCmdPaletteUsage :one
-SELECT workspace_id, command_id, use_count, frecency_weight, last_used_at, updated_at
+SELECT profile_lens_id, workspace_id, command_id, use_count, frecency_weight, last_used_at, updated_at
 FROM cmd_palette_usage
-WHERE workspace_id = ?1
-  AND command_id = ?2
+WHERE profile_lens_id = ?1
+  AND workspace_id = ?2
+  AND command_id = ?3
 `
 
 type GetCmdPaletteUsageParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	CommandID   string `json:"command_id"`
+	ProfileLensID string `json:"profile_lens_id"`
+	WorkspaceID   string `json:"workspace_id"`
+	CommandID     string `json:"command_id"`
 }
 
-func (q *Queries) GetCmdPaletteUsage(ctx context.Context, arg GetCmdPaletteUsageParams) (CmdPaletteUsage, error) {
-	row := q.db.QueryRowContext(ctx, getCmdPaletteUsage, arg.WorkspaceID, arg.CommandID)
-	var i CmdPaletteUsage
+type GetCmdPaletteUsageRow struct {
+	ProfileLensID  string  `json:"profile_lens_id"`
+	WorkspaceID    string  `json:"workspace_id"`
+	CommandID      string  `json:"command_id"`
+	UseCount       int64   `json:"use_count"`
+	FrecencyWeight float64 `json:"frecency_weight"`
+	LastUsedAt     int64   `json:"last_used_at"`
+	UpdatedAt      int64   `json:"updated_at"`
+}
+
+func (q *Queries) GetCmdPaletteUsage(ctx context.Context, arg GetCmdPaletteUsageParams) (GetCmdPaletteUsageRow, error) {
+	row := q.db.QueryRowContext(ctx, getCmdPaletteUsage, arg.ProfileLensID, arg.WorkspaceID, arg.CommandID)
+	var i GetCmdPaletteUsageRow
 	err := row.Scan(
+		&i.ProfileLensID,
 		&i.WorkspaceID,
 		&i.CommandID,
 		&i.UseCount,
@@ -156,22 +220,40 @@ func (q *Queries) GetCmdPaletteUsage(ctx context.Context, arg GetCmdPaletteUsage
 }
 
 const listCmdPalettePins = `-- name: ListCmdPalettePins :many
-SELECT workspace_id, command_id, pinned_at
+SELECT profile_lens_id, workspace_id, command_id, pinned_at
 FROM cmd_palette_pins
-WHERE workspace_id = ?1
+WHERE profile_lens_id = ?1
+  AND workspace_id = ?2
 ORDER BY pinned_at ASC, command_id
 `
 
-func (q *Queries) ListCmdPalettePins(ctx context.Context, workspaceID string) ([]CmdPalettePin, error) {
-	rows, err := q.db.QueryContext(ctx, listCmdPalettePins, workspaceID)
+type ListCmdPalettePinsParams struct {
+	ProfileLensID string `json:"profile_lens_id"`
+	WorkspaceID   string `json:"workspace_id"`
+}
+
+type ListCmdPalettePinsRow struct {
+	ProfileLensID string `json:"profile_lens_id"`
+	WorkspaceID   string `json:"workspace_id"`
+	CommandID     string `json:"command_id"`
+	PinnedAt      int64  `json:"pinned_at"`
+}
+
+func (q *Queries) ListCmdPalettePins(ctx context.Context, arg ListCmdPalettePinsParams) ([]ListCmdPalettePinsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCmdPalettePins, arg.ProfileLensID, arg.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []CmdPalettePin{}
+	items := []ListCmdPalettePinsRow{}
 	for rows.Next() {
-		var i CmdPalettePin
-		if err := rows.Scan(&i.WorkspaceID, &i.CommandID, &i.PinnedAt); err != nil {
+		var i ListCmdPalettePinsRow
+		if err := rows.Scan(
+			&i.ProfileLensID,
+			&i.WorkspaceID,
+			&i.CommandID,
+			&i.PinnedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -186,22 +268,38 @@ func (q *Queries) ListCmdPalettePins(ctx context.Context, workspaceID string) ([
 }
 
 const listCmdPaletteQueryHits = `-- name: ListCmdPaletteQueryHits :many
-SELECT workspace_id, query, command_id, weight, last_used_at
+SELECT profile_lens_id, workspace_id, query, command_id, weight, last_used_at
 FROM cmd_palette_query_hits
-WHERE workspace_id = ?1
+WHERE profile_lens_id = ?1
+  AND workspace_id = ?2
 ORDER BY query, last_used_at DESC, command_id
 `
 
-func (q *Queries) ListCmdPaletteQueryHits(ctx context.Context, workspaceID string) ([]CmdPaletteQueryHit, error) {
-	rows, err := q.db.QueryContext(ctx, listCmdPaletteQueryHits, workspaceID)
+type ListCmdPaletteQueryHitsParams struct {
+	ProfileLensID string `json:"profile_lens_id"`
+	WorkspaceID   string `json:"workspace_id"`
+}
+
+type ListCmdPaletteQueryHitsRow struct {
+	ProfileLensID string  `json:"profile_lens_id"`
+	WorkspaceID   string  `json:"workspace_id"`
+	Query         string  `json:"query"`
+	CommandID     string  `json:"command_id"`
+	Weight        float64 `json:"weight"`
+	LastUsedAt    int64   `json:"last_used_at"`
+}
+
+func (q *Queries) ListCmdPaletteQueryHits(ctx context.Context, arg ListCmdPaletteQueryHitsParams) ([]ListCmdPaletteQueryHitsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCmdPaletteQueryHits, arg.ProfileLensID, arg.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []CmdPaletteQueryHit{}
+	items := []ListCmdPaletteQueryHitsRow{}
 	for rows.Next() {
-		var i CmdPaletteQueryHit
+		var i ListCmdPaletteQueryHitsRow
 		if err := rows.Scan(
+			&i.ProfileLensID,
 			&i.WorkspaceID,
 			&i.Query,
 			&i.CommandID,
@@ -222,22 +320,39 @@ func (q *Queries) ListCmdPaletteQueryHits(ctx context.Context, workspaceID strin
 }
 
 const listCmdPaletteUsage = `-- name: ListCmdPaletteUsage :many
-SELECT workspace_id, command_id, use_count, frecency_weight, last_used_at, updated_at
+SELECT profile_lens_id, workspace_id, command_id, use_count, frecency_weight, last_used_at, updated_at
 FROM cmd_palette_usage
-WHERE workspace_id = ?1
+WHERE profile_lens_id = ?1
+  AND workspace_id = ?2
 ORDER BY last_used_at DESC, command_id
 `
 
-func (q *Queries) ListCmdPaletteUsage(ctx context.Context, workspaceID string) ([]CmdPaletteUsage, error) {
-	rows, err := q.db.QueryContext(ctx, listCmdPaletteUsage, workspaceID)
+type ListCmdPaletteUsageParams struct {
+	ProfileLensID string `json:"profile_lens_id"`
+	WorkspaceID   string `json:"workspace_id"`
+}
+
+type ListCmdPaletteUsageRow struct {
+	ProfileLensID  string  `json:"profile_lens_id"`
+	WorkspaceID    string  `json:"workspace_id"`
+	CommandID      string  `json:"command_id"`
+	UseCount       int64   `json:"use_count"`
+	FrecencyWeight float64 `json:"frecency_weight"`
+	LastUsedAt     int64   `json:"last_used_at"`
+	UpdatedAt      int64   `json:"updated_at"`
+}
+
+func (q *Queries) ListCmdPaletteUsage(ctx context.Context, arg ListCmdPaletteUsageParams) ([]ListCmdPaletteUsageRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCmdPaletteUsage, arg.ProfileLensID, arg.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []CmdPaletteUsage{}
+	items := []ListCmdPaletteUsageRow{}
 	for rows.Next() {
-		var i CmdPaletteUsage
+		var i ListCmdPaletteUsageRow
 		if err := rows.Scan(
+			&i.ProfileLensID,
 			&i.WorkspaceID,
 			&i.CommandID,
 			&i.UseCount,
@@ -259,44 +374,52 @@ func (q *Queries) ListCmdPaletteUsage(ctx context.Context, workspaceID string) (
 }
 
 const putCmdPalettePin = `-- name: PutCmdPalettePin :exec
-INSERT INTO cmd_palette_pins (workspace_id, command_id, pinned_at)
-VALUES (?1, ?2, ?3)
-ON CONFLICT(workspace_id, command_id) DO NOTHING
+INSERT INTO cmd_palette_pins (profile_lens_id, workspace_id, command_id, pinned_at)
+VALUES (?1, ?2, ?3, ?4)
+ON CONFLICT(profile_lens_id, workspace_id, command_id) DO NOTHING
 `
 
 type PutCmdPalettePinParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	CommandID   string `json:"command_id"`
-	PinnedAt    int64  `json:"pinned_at"`
+	ProfileLensID string `json:"profile_lens_id"`
+	WorkspaceID   string `json:"workspace_id"`
+	CommandID     string `json:"command_id"`
+	PinnedAt      int64  `json:"pinned_at"`
 }
 
 func (q *Queries) PutCmdPalettePin(ctx context.Context, arg PutCmdPalettePinParams) error {
-	_, err := q.db.ExecContext(ctx, putCmdPalettePin, arg.WorkspaceID, arg.CommandID, arg.PinnedAt)
+	_, err := q.db.ExecContext(ctx, putCmdPalettePin,
+		arg.ProfileLensID,
+		arg.WorkspaceID,
+		arg.CommandID,
+		arg.PinnedAt,
+	)
 	return err
 }
 
 const putCmdPaletteQueryHit = `-- name: PutCmdPaletteQueryHit :exec
 INSERT INTO cmd_palette_query_hits (
-  workspace_id, query, command_id, weight, last_used_at
+  profile_lens_id, workspace_id, query, command_id, weight, last_used_at
 ) VALUES (
-  ?1, ?2, ?3,
-  ?4, ?5
+  ?1, ?2, ?3, ?4,
+  ?5, ?6
 )
-ON CONFLICT(workspace_id, query, command_id) DO UPDATE SET
+ON CONFLICT(profile_lens_id, workspace_id, query, command_id) DO UPDATE SET
   weight = excluded.weight,
   last_used_at = excluded.last_used_at
 `
 
 type PutCmdPaletteQueryHitParams struct {
-	WorkspaceID string  `json:"workspace_id"`
-	Query       string  `json:"query"`
-	CommandID   string  `json:"command_id"`
-	Weight      float64 `json:"weight"`
-	LastUsedAt  int64   `json:"last_used_at"`
+	ProfileLensID string  `json:"profile_lens_id"`
+	WorkspaceID   string  `json:"workspace_id"`
+	Query         string  `json:"query"`
+	CommandID     string  `json:"command_id"`
+	Weight        float64 `json:"weight"`
+	LastUsedAt    int64   `json:"last_used_at"`
 }
 
 func (q *Queries) PutCmdPaletteQueryHit(ctx context.Context, arg PutCmdPaletteQueryHitParams) error {
 	_, err := q.db.ExecContext(ctx, putCmdPaletteQueryHit,
+		arg.ProfileLensID,
 		arg.WorkspaceID,
 		arg.Query,
 		arg.CommandID,
@@ -308,12 +431,12 @@ func (q *Queries) PutCmdPaletteQueryHit(ctx context.Context, arg PutCmdPaletteQu
 
 const putCmdPaletteUsage = `-- name: PutCmdPaletteUsage :exec
 INSERT INTO cmd_palette_usage (
-  workspace_id, command_id, use_count, frecency_weight, last_used_at, updated_at
+  profile_lens_id, workspace_id, command_id, use_count, frecency_weight, last_used_at, updated_at
 ) VALUES (
-  ?1, ?2, ?3,
-  ?4, ?5, ?6
+  ?1, ?2, ?3, ?4,
+  ?5, ?6, ?7
 )
-ON CONFLICT(workspace_id, command_id) DO UPDATE SET
+ON CONFLICT(profile_lens_id, workspace_id, command_id) DO UPDATE SET
   use_count = excluded.use_count,
   frecency_weight = excluded.frecency_weight,
   last_used_at = excluded.last_used_at,
@@ -321,6 +444,7 @@ ON CONFLICT(workspace_id, command_id) DO UPDATE SET
 `
 
 type PutCmdPaletteUsageParams struct {
+	ProfileLensID  string  `json:"profile_lens_id"`
 	WorkspaceID    string  `json:"workspace_id"`
 	CommandID      string  `json:"command_id"`
 	UseCount       int64   `json:"use_count"`
@@ -331,6 +455,7 @@ type PutCmdPaletteUsageParams struct {
 
 func (q *Queries) PutCmdPaletteUsage(ctx context.Context, arg PutCmdPaletteUsageParams) error {
 	_, err := q.db.ExecContext(ctx, putCmdPaletteUsage,
+		arg.ProfileLensID,
 		arg.WorkspaceID,
 		arg.CommandID,
 		arg.UseCount,

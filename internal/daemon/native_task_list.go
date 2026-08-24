@@ -45,6 +45,7 @@ func (n *daemonNativeTools) taskList(
 	}
 	query := input.query()
 	core.ApplyTaskLoopCatalogFilters(&query, input.IncludeLoop, input.LoopRunID)
+	query.ReadScope = actor.ReadScope
 	if strings.TrimSpace(scope.WorkspaceID) != "" {
 		workspaceID := nativeCallerWorkspaceInput(input.WorkspaceID, scope)
 		query.Scope = taskpkg.CatalogScopeWorkspace

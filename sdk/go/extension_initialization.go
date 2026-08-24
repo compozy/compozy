@@ -60,7 +60,7 @@ func (e *Extension) handleInitialize(params json.RawMessage) (InitializeResponse
 			Permissions: requestedPermissions,
 		},
 		ImplementedMethods:  implemented,
-		SupportedHookEvents: normalizeStrings(e.definition.SupportedHookEvents),
+		SupportedHookEvents: describedHookEventNames(e.definition.SupportedHookEvents),
 		WatchSourceKinds:    e.watchSourceKindsLocked(),
 		CmdPaletteViews:     cmdPaletteViewIDs(e.definition.Resources.CmdPalette),
 		Supports:            InitializeSupports{HealthCheck: true},

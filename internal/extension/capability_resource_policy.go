@@ -62,7 +62,7 @@ func effectiveResourceGrants(
 	if err != nil {
 		return nil, nil, err
 	}
-	grantedScopes := intersectScopes(requested.Scopes, scopesThrough(finalMaxScope))
+	grantedScopes := intersectScopes(requested.Scopes, resources.ScopesThrough(finalMaxScope))
 	if len(grantedScopes) == 0 {
 		return nil, nil, nil
 	}
@@ -74,7 +74,7 @@ func sourceTierMaxScope(source ExtensionSource) resources.ResourceScopeKind {
 	case SourceWorkspace:
 		return resources.ResourceScopeKindWorkspace
 	case SourceBundled, SourceUser, SourceMarketplace:
-		return resources.ResourceScopeKindGlobal
+		return resources.ResourceScopeKindUser
 	default:
 		return ""
 	}
@@ -86,55 +86,12 @@ func narrowScopeCeiling(
 	operator resources.ResourceScopeKind,
 	session resources.ResourceScopeKind,
 ) (resources.ResourceScopeKind, error) {
-	candidates := []resources.ResourceScopeKind{
+	return resources.MeetScopeCeilings(
 		requested.Normalize(),
 		sourceTier.Normalize(),
 		operator.Normalize(),
 		session.Normalize(),
-	}
-	result := resources.ResourceScopeKindGlobal
-	seen := false
-	for _, candidate := range candidates {
-		if candidate == "" {
-			continue
-		}
-		if err := candidate.Validate("resource scope"); err != nil {
-			return "", err
-		}
-		if !seen || scopeRank(candidate) < scopeRank(result) {
-			result = candidate
-			seen = true
-		}
-	}
-	if !seen {
-		return "", nil
-	}
-	return result, nil
-}
-
-func scopeRank(scope resources.ResourceScopeKind) int {
-	switch scope.Normalize() {
-	case resources.ResourceScopeKindWorkspace:
-		return 0
-	case resources.ResourceScopeKindGlobal:
-		return 1
-	default:
-		return 2
-	}
-}
-
-func scopesThrough(maxScope resources.ResourceScopeKind) []resources.ResourceScopeKind {
-	switch maxScope.Normalize() {
-	case resources.ResourceScopeKindGlobal:
-		return []resources.ResourceScopeKind{
-			resources.ResourceScopeKindGlobal,
-			resources.ResourceScopeKindWorkspace,
-		}
-	case resources.ResourceScopeKindWorkspace:
-		return []resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace}
-	default:
-		return nil
-	}
+	)
 }
 
 func intersectKinds(
@@ -183,7 +140,6 @@ func intersectScopes(
 	if len(scopes) == 0 {
 		return nil
 	}
-	slices.Sort(scopes)
 	return scopes
 }
 

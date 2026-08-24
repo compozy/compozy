@@ -90,6 +90,7 @@ func overviewUsagePayload(usage observe.OverviewUsage) contract.OverviewUsagePay
 		CostStatus:    usage.CostStatus,
 		Days:          make([]contract.OverviewUsageDayPayload, 0, len(usage.Days)),
 		AgentShare:    make([]contract.OverviewAgentSharePayload, 0, len(usage.AgentShare)),
+		Profiles:      make([]contract.OverviewProfileUsagePayload, 0, len(usage.Profiles)),
 	}
 	for _, day := range usage.Days {
 		payload.Days = append(payload.Days, contract.OverviewUsageDayPayload{
@@ -102,6 +103,13 @@ func overviewUsagePayload(usage observe.OverviewUsage) contract.OverviewUsagePay
 			AgentName: share.AgentName,
 			Tokens:    share.Tokens,
 			Fraction:  share.Fraction,
+		})
+	}
+	for _, profileUsage := range usage.Profiles {
+		payload.Profiles = append(payload.Profiles, contract.OverviewProfileUsagePayload{
+			ProfileID: profileUsage.ProfileID, ProfileName: profileUsage.ProfileName,
+			Color: profileUsage.Color, Icon: profileUsage.Icon, Emoji: profileUsage.Emoji,
+			Archived: profileUsage.Archived, Tokens: profileUsage.Tokens,
 		})
 	}
 	return payload

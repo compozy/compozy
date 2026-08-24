@@ -7,11 +7,12 @@ import {
   MCPAuthorizeDialog,
   type SettingsMCPServerEntry,
   useMCPAuthorize,
+  type SettingsLayeredScope,
 } from "@/systems/settings";
 
 interface MarketplaceActionDialogsProps {
   authorize: ReturnType<typeof useMCPAuthorize>;
-  authScope: "global" | "workspace";
+  authScope: SettingsLayeredScope;
   authServer: SettingsMCPServerEntry | null;
   mcpDetail: MarketplaceEntryResponse | null;
   onConfirmTrust: () => void;
@@ -22,7 +23,8 @@ interface MarketplaceActionDialogsProps {
   trustError: string | null;
   trustPending: boolean;
   workspaceId?: string | null;
-  scope?: "global" | "workspace";
+  scope?: SettingsLayeredScope;
+  profileName?: string | null;
   workspaceName?: string | null;
 }
 
@@ -40,6 +42,7 @@ function MarketplaceActionDialogs({
   trustPending,
   workspaceId,
   scope,
+  profileName,
   workspaceName,
 }: MarketplaceActionDialogsProps) {
   return (
@@ -47,13 +50,14 @@ function MarketplaceActionDialogs({
       {mcpDetail ? (
         <MCPInstallDialog
           data={mcpDetail}
-          key={`${mcpDetail.entry.entry_id}:${scope ?? "derived"}:${workspaceId ?? "none"}`}
+          key={`${mcpDetail.entry.entry_id}:${scope ?? "derived"}:${profileName ?? "default"}:${workspaceId ?? "none"}`}
           onInstall={onInstallMCP}
           onOpenChange={open => {
             if (!open) onMCPClose();
           }}
           open
           scope={scope}
+          profileName={profileName}
           workspaceId={workspaceId}
           workspaceName={workspaceName}
         />

@@ -9,6 +9,7 @@ const PROCESS_KILL_TIMEOUT_MS = 5_000;
 interface RegisteredDaemonCleanup {
   cliShim: string;
   homeDir: string;
+  operatorHomeDir: string;
   repoRoot: string;
 }
 
@@ -52,7 +53,7 @@ async function stopRegisteredDaemon(
       env: {
         ...process.env,
         COMPOZY_HOME: cleanup.homeDir,
-        HOME: cleanup.homeDir,
+        HOME: cleanup.operatorHomeDir,
       },
       timeout: DAEMON_STOP_TIMEOUT_MS,
     });
@@ -70,22 +71,14 @@ async function stopBrowserDaemonProcess(
   cleanup: RegisteredDaemonCleanup,
   dependencies: BrowserDaemonStopDependencies = {}
 ): Promise<void> {
-  const errors: Error[] = [];
-  try {
-    await stopRegisteredDaemon(cleanup, dependencies.executeFile ?? executeFile);
-  } catch (error) {
-    errors.push(errorFromUnknown(error));
-  }
-
-  try {
+  if (child.exitCode === null) {
     await (dependencies.stopSpawned ?? stopSpawnedDaemonProcess)(child);
-  } catch (error) {
-    errors.push(errorFromUnknown(error));
+    return;
   }
 
-  if (errors.length > 0) {
-    throw new AggregateError(errors, "browser runtime daemon cleanup failed");
-  }
+  // A restart replaces the process originally spawned by the fixture. Only in
+  // that case must cleanup follow the daemon's discovery record through the CLI.
+  await stopRegisteredDaemon(cleanup, dependencies.executeFile ?? executeFile);
 }
 
 async function stopSpawnedDaemonProcess(child: ChildProcessWithoutNullStreams): Promise<void> {
@@ -135,10 +128,6 @@ function commandErrorText(error: unknown): string {
     .map(value => String(value ?? "").trim())
     .filter(Boolean)
     .join("\n");
-}
-
-function errorFromUnknown(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error));
 }
 
 export {

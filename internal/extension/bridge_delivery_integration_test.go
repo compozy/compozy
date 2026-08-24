@@ -24,6 +24,7 @@ import (
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/store"
 	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/subprocess"
@@ -449,6 +450,7 @@ func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 			)
 
 			instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+				ProfileID:        store.DefaultProfileID,
 				ID:               tc.instanceID,
 				ExtensionName:    env.extensionName,
 				Platform:         tc.platform,
@@ -600,8 +602,9 @@ func TestBridgeDeliveryIntegrationShouldReconcileFreshBrokerOverSameStore(t *tes
 		firstBroker.Close()
 
 		active, err := db.ListBridgeDeliveries(ctx, bridgepkg.DeliveryLedgerQuery{
-			Scope: instance.Scope,
-			State: bridgepkg.DeliveryLedgerStateActive,
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Scope:     instance.Scope,
+			State:     bridgepkg.DeliveryLedgerStateActive,
 		})
 		if err != nil {
 			t.Fatalf("ListBridgeDeliveries(active) error = %v", err)
@@ -621,7 +624,9 @@ func TestBridgeDeliveryIntegrationShouldReconcileFreshBrokerOverSameStore(t *tes
 			bridgepkg.WithDeliveryBrokerNow(func() time.Time { return now.Add(time.Minute) }),
 		)
 		t.Cleanup(restartedBroker.Close)
-		query := bridgepkg.DeliveryLedgerQuery{Scope: instance.Scope}
+		query := bridgepkg.DeliveryLedgerQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, Scope: instance.Scope,
+		}
 		if err := restartedBroker.LoadDeliveryMetrics(ctx, query); err != nil {
 			t.Fatalf("LoadDeliveryMetrics() error = %v", err)
 		}
@@ -653,8 +658,9 @@ func TestBridgeDeliveryIntegrationShouldReconcileFreshBrokerOverSameStore(t *tes
 		}
 
 		terminal, err := db.ListBridgeDeliveries(ctx, bridgepkg.DeliveryLedgerQuery{
-			Scope: instance.Scope,
-			State: bridgepkg.DeliveryLedgerStateTerminalError,
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Scope:     instance.Scope,
+			State:     bridgepkg.DeliveryLedgerStateTerminalError,
 		})
 		if err != nil {
 			t.Fatalf("ListBridgeDeliveries(terminal error) error = %v", err)
@@ -679,8 +685,7 @@ func newDeliveryIntegrationToolRegistry(t *testing.T) *toolspkg.RuntimeRegistry 
 	provider, err := toolspkg.NewNativeProvider(source, toolspkg.NativeTool{
 		Descriptor: toolspkg.Descriptor{
 			ID:               "vendor__deploy",
-			DisplayTitle:     "Deploy service",
-			ToolPresentation: toolspkg.NewToolPresentation("Deploying service", "arg:command"),
+			ToolPresentation: toolspkg.NewToolPresentation("Deploy service", "Deploying service", "arg:command"),
 			Description:      "Deploy one service",
 			InputSchema:      json.RawMessage(`{"type":"object"}`),
 			Backend: toolspkg.BackendRef{

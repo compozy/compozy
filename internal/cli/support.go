@@ -363,7 +363,7 @@ func supportBundleResultBundle(result supportBundleResult) outputBundle {
 				daemonStatusKey,
 				supportDownloadPathKey,
 				supportSizeBytesKey,
-				"created_at",
+				automationCreatedAtKey,
 				"completed_at",
 			}, []string{
 				operation.OperationID,

@@ -23,6 +23,8 @@ function normalizeDashboardFilter(filters: TaskDashboardFilter = {}): TaskDashbo
     owner_ref: normalizeOptionalText(filters.owner_ref),
     participation_channel: normalizeOptionalText(filters.participation_channel),
     origin_kind: filters.origin_kind,
+    profile: normalizeOptionalText(filters.profile),
+    all_profiles: filters.all_profiles,
   };
 }
 

@@ -106,4 +106,76 @@ describe("cmd-palette registry projection", () => {
     expect(registry.stale).toBe(true);
     expect(registry.daemonReachable).toBe(true);
   });
+
+  it("Should expose the Profiles view and the stable profile.* actions (UT-096)", () => {
+    // Membership is the daemon's; this asserts the projection keeps the ids and
+    // routes them by kind — switch is a client op, every mutation navigates to
+    // the canonical lifecycle flow rather than executing here.
+    const registry = buildPaletteRegistry({
+      ...base,
+      catalog: catalog([
+        {
+          id: "palette.view.profiles",
+          title: "Profiles",
+          section: "Views",
+          action: { kind: "view", view: "profiles" },
+        },
+        {
+          id: "profile.use",
+          title: "Use profile",
+          section: "Profiles",
+          action: { kind: "client_op", op: "profile.use" },
+        },
+        {
+          id: "profile.archive",
+          title: "Archive profile",
+          section: "Profiles",
+          action: {
+            kind: "navigate",
+            app: "settings",
+            args: { pathname: "/settings/profiles", flow: "archive" },
+          },
+        },
+      ]),
+    });
+    expect(registry.byId.get("palette.view.profiles")).toMatchObject({
+      available: true,
+      action: { kind: "view", view: "profiles" },
+    });
+    expect(registry.byId.get("profile.use")).toMatchObject({
+      available: true,
+      action: { kind: "client_op", op: "profile.use" },
+    });
+    expect(registry.byId.get("profile.archive")?.action).toMatchObject({
+      kind: "navigate",
+      app: "settings",
+      args: { pathname: "/settings/profiles", flow: "archive" },
+    });
+  });
+
+  it("Should keep an unavailable profile row with its verbatim reason (UT-096)", () => {
+    const registry = buildPaletteRegistry({
+      ...base,
+      catalog: catalog([
+        {
+          id: "profile.use",
+          title: "Use profile",
+          section: "Profiles",
+          action: { kind: "client_op", op: "profile.use" },
+          when: [
+            {
+              key: "profile.available",
+              operator: "equals",
+              value: true,
+              reason: "needs setup",
+            },
+          ],
+        },
+      ]),
+    });
+    expect(registry.byId.get("profile.use")).toMatchObject({
+      available: false,
+      reason: "needs setup",
+    });
+  });
 });

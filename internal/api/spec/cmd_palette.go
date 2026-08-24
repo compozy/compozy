@@ -21,10 +21,10 @@ var (
 			Method: httpMethodGet, Path: "/api/cmd-palette/commands",
 			OperationID: "listCmdPaletteCommands", Summary: "List command palette commands",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
-			Parameters: []ParameterSpec{
+			Parameters: withProfileScope(
 				queryParam("workspace", "Workspace id, name, or path", true),
 				queryParam("client", "Attached client whose context resolves availability", false),
-			},
+			),
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.CmdPaletteCommandsResponse{}},
 				{Status: 400, Description: cmdPaletteInvalidWorkspaceDescription, Body: contract.CmdPaletteError{}},
@@ -46,7 +46,7 @@ var (
 			Method: httpMethodGet, Path: "/api/cmd-palette/rank-signals",
 			OperationID: "getCmdPaletteRankSignals", Summary: "Get command palette rank signals",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
-			Parameters: []ParameterSpec{queryParam("workspace", "Workspace id, name, or path", true)},
+			Parameters: withProfileScope(queryParam("workspace", "Workspace id, name, or path", true)),
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.CmdPaletteRankSignalsResponse{}},
 				{Status: 400, Description: cmdPaletteInvalidWorkspaceDescription, Body: contract.CmdPaletteError{}},
@@ -57,6 +57,7 @@ var (
 			Method: httpMethodPost, Path: "/api/cmd-palette/usage",
 			OperationID: "recordCmdPaletteUsage", Summary: "Record command palette usage",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
+			Parameters:  withProfileScope(),
 			RequestBody: contract.CmdPaletteUsageRequest{},
 			Responses: []ResponseSpec{
 				{Status: 204, Description: "Recorded"},
@@ -69,10 +70,10 @@ var (
 			Method: httpMethodPut, Path: "/api/cmd-palette/pins/{id}",
 			OperationID: "pinCmdPaletteCommand", Summary: "Pin one command palette command",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
-			Parameters: []ParameterSpec{
+			Parameters: withProfileSelector(
 				pathParam("id", "Canonical command id"),
 				queryParam("workspace", "Workspace id, name, or path", true),
-			},
+			),
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "Pinned", Body: contract.CmdPalettePinResponse{}},
 				{Status: 400, Description: cmdPaletteInvalidWorkspaceDescription, Body: contract.CmdPaletteError{}},
@@ -84,10 +85,10 @@ var (
 			Method: httpMethodDelete, Path: "/api/cmd-palette/pins/{id}",
 			OperationID: "unpinCmdPaletteCommand", Summary: "Unpin one command palette command",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
-			Parameters: []ParameterSpec{
+			Parameters: withProfileSelector(
 				pathParam("id", "Canonical command id"),
 				queryParam("workspace", "Workspace id, name, or path", true),
-			},
+			),
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "Unpinned", Body: contract.CmdPalettePinResponse{}},
 				{Status: 400, Description: cmdPaletteInvalidWorkspaceDescription, Body: contract.CmdPaletteError{}},
@@ -99,7 +100,7 @@ var (
 			Method: httpMethodGet, Path: "/api/cmd-palette/personalization",
 			OperationID: "getCmdPalettePersonalization", Summary: "Get command palette personalization summary",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
-			Parameters: []ParameterSpec{queryParam("workspace", "Workspace id, name, or path", true)},
+			Parameters: withProfileScope(queryParam("workspace", "Workspace id, name, or path", true)),
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.CmdPalettePersonalizationResponse{}},
 				{Status: 400, Description: cmdPaletteInvalidWorkspaceDescription, Body: contract.CmdPaletteError{}},
@@ -110,7 +111,7 @@ var (
 			Method: httpMethodDelete, Path: "/api/cmd-palette/personalization",
 			OperationID: "resetCmdPalettePersonalization", Summary: "Reset command palette personalization",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
-			Parameters: []ParameterSpec{queryParam("workspace", "Workspace id, name, or path", true)},
+			Parameters: withProfileSelector(queryParam("workspace", "Workspace id, name, or path", true)),
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "Reset", Body: contract.CmdPalettePersonalizationResetResponse{}},
 				{Status: 400, Description: cmdPaletteInvalidWorkspaceDescription, Body: contract.CmdPaletteError{}},
@@ -121,10 +122,10 @@ var (
 			Method: httpMethodPost, Path: "/api/cmd-palette/commands/{id}/invoke",
 			OperationID: cmdPaletteInvokeOperationID, Summary: "Invoke one command palette command",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
-			Parameters: []ParameterSpec{
+			Parameters: withProfileSelector(
 				pathParam("id", "Canonical command id"),
 				headerParam("X-Compozy-Client-Token", "Attached client identity token"),
-			},
+			),
 			RequestBody: contract.CmdPaletteInvokeRequest{},
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "Completed", Body: contract.CmdPaletteInvokeResult{}},
@@ -142,10 +143,10 @@ var (
 			Method: httpMethodGet, Path: "/api/cmd-palette/views/{id}",
 			OperationID: "getCmdPaletteView", Summary: "Get one declarative command palette view",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
-			Parameters: []ParameterSpec{
+			Parameters: withProfileScope(
 				pathParam("id", "Canonical view id"),
 				queryParam("workspace", "Workspace id, name, or path", true),
-			},
+			),
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.CmdPaletteViewEnvelope{}},
 				{Status: 400, Description: cmdPaletteInvalidWorkspaceDescription, Body: contract.CmdPaletteError{}},
@@ -158,12 +159,12 @@ var (
 			Method: httpMethodGet, Path: "/api/cmd-palette/views/{id}/stream",
 			OperationID: "streamCmdPaletteView", Summary: "Stream declarative command palette view patches",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
-			Parameters: []ParameterSpec{
+			Parameters: withProfileScope(
 				pathParam("id", "Canonical view id"),
 				queryParam("workspace", "Workspace id, name, or path", true),
 				queryParam("after", "Last applied patch sequence", false),
 				queryParam("stream_epoch", "Stream epoch required when after is greater than zero", false),
-			},
+			),
 			Responses: []ResponseSpec{
 				{
 					Status: 200, Description: "Revision-fenced view patch stream",
@@ -179,10 +180,10 @@ var (
 			Method: httpMethodPost, Path: "/api/cmd-palette/views/{id}/open",
 			OperationID: cmdPaletteOpenViewOperationID, Summary: "Open one programmable command palette view",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
-			Parameters: []ParameterSpec{
+			Parameters: withProfileSelector(
 				pathParam("id", "Canonical view id"),
 				headerParam("X-Compozy-Client-Token", "Attached client identity token"),
-			},
+			),
 			RequestBody: contract.CmdPaletteViewSessionOpenRequest{},
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "Opened", Body: contract.CmdPaletteViewSessionOpenResponse{}},
@@ -244,7 +245,7 @@ var (
 			Method: httpMethodGet, Path: "/api/cmd-palette/stream",
 			OperationID: "streamCmdPalette", Summary: "Stream command palette catalog invalidations",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
-			Parameters: []ParameterSpec{queryParam("workspace", "Workspace id, name, or path", true)},
+			Parameters: withProfileScope(queryParam("workspace", "Workspace id, name, or path", true)),
 			Responses: []ResponseSpec{
 				{
 					Status: 200, Description: "Catalog invalidation stream",

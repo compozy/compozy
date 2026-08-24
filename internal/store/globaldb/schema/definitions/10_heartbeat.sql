@@ -1,6 +1,6 @@
 CREATE TABLE agent_heartbeat_revisions (
 			id TEXT PRIMARY KEY,
-			workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+			workspace_id TEXT NOT NULL,
 			agent_name TEXT NOT NULL,
 			source_path TEXT NOT NULL,
 			operation TEXT NOT NULL CHECK (operation IN ('write', 'delete', 'rollback')),
@@ -15,7 +15,7 @@ CREATE TABLE agent_heartbeat_revisions (
 
 CREATE TABLE agent_heartbeat_snapshots (
 			id TEXT PRIMARY KEY,
-			workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+			workspace_id TEXT NOT NULL,
 			agent_name TEXT NOT NULL,
 			source_path TEXT NOT NULL,
 			schema_version INTEGER NOT NULL DEFAULT 1,
@@ -31,7 +31,7 @@ CREATE TABLE agent_heartbeat_snapshots (
 
 CREATE TABLE agent_heartbeat_wake_events (
 			id TEXT PRIMARY KEY,
-			workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+			workspace_id TEXT NOT NULL,
 			agent_name TEXT NOT NULL,
 			session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
 			policy_snapshot_id TEXT REFERENCES agent_heartbeat_snapshots(id) ON DELETE SET NULL,
@@ -64,7 +64,7 @@ CREATE TABLE agent_heartbeat_wake_events (
 		);
 
 CREATE TABLE agent_heartbeat_wake_state (
-			workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+			workspace_id TEXT NOT NULL,
 			agent_name TEXT NOT NULL,
 			session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
 			policy_snapshot_id TEXT REFERENCES agent_heartbeat_snapshots(id) ON DELETE SET NULL,

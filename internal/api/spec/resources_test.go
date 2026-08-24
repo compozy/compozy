@@ -77,7 +77,7 @@ func TestDocumentDescribesResourceCRUDSchemas(t *testing.T) {
 		assertRequired(t, putSchema, "scope", "spec")
 		assertNotRequired(t, putSchema, "expected_version")
 		scopeSchema := propertySchema(t, putSchema, "scope")
-		assertEnumValues(t, propertySchema(t, scopeSchema, "kind"), "global", "workspace")
+		assertEnumValues(t, propertySchema(t, scopeSchema, "kind"), "user", "workspace")
 
 		deleteResource := operationFor(t, doc, "/api/resources/{kind}/{id}", "DELETE")
 		deleteSchema := jsonRequestSchema(t, deleteResource)

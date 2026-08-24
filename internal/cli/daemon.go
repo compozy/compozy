@@ -44,9 +44,11 @@ type daemonProcess interface {
 
 func newDaemonCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   daemonDaemonKey,
-		Short: "Manage the CompozyOS daemon",
+		Use:               daemonDaemonKey,
+		Short:             "Manage the CompozyOS daemon",
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error { return rejectMachineProfileFlag(cmd) },
 	}
+	configureMachineProfileFlag(cmd, true)
 
 	cmd.AddCommand(newDaemonStartCommand(deps))
 	cmd.AddCommand(newDaemonBootstrapCommand(deps))
@@ -186,7 +188,7 @@ func newDaemonRelaunchCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			return deps.runRelaunchHelper(cmd.Context(), compozydaemon.RelaunchHelperConfig{
+			return deps.runRelaunchHelper(cmd.Context(), &compozydaemon.RelaunchHelperConfig{
 				HomePaths:   homePaths,
 				OperationID: strings.TrimSpace(os.Getenv(compozydaemon.RestartOperationEnvKey)),
 				Executable:  deps.executable,

@@ -3,6 +3,7 @@ import { expect, userEvent, within } from "storybook/test";
 
 import { PanelSurface } from "@/storybook/story-layout";
 import { bridgesListFixture } from "@/systems/bridges/mocks";
+import { scopedListingScopeFixture } from "@/systems/profiles/mocks";
 import type { BridgeSummary } from "@/systems/bridges/types";
 
 import { BridgeListPanel } from "../bridge-list-panel";
@@ -37,6 +38,7 @@ const defaultProps = {
   bridges: defaultBridges,
   hasActiveFilters: false,
   onClearFilters: () => undefined,
+  profile: scopedListingScopeFixture,
   view: "rows" as const,
 };
 

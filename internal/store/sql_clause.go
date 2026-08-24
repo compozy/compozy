@@ -22,11 +22,23 @@ func StringClause(column string, value string) Clause {
 	if value == "" {
 		return Clause{}
 	}
-	if _, err := NormalizeSQLiteIdentifier(column); err != nil {
+	if err := validateSQLiteColumnReference(column); err != nil {
 		return alwaysFalseClause()
 	}
 
 	return Clause{sql: fmt.Sprintf("%s = ?", column), arg: value, ok: true, hasArg: true}
+}
+
+// StringCompareClause builds a validated string comparison when the value is non-empty.
+func StringCompareClause(column string, op string, value string) Clause {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return Clause{}
+	}
+	if err := validateSQLiteColumnReference(column); err != nil || !isAllowedSQLOperator(op) {
+		return alwaysFalseClause()
+	}
+	return Clause{sql: fmt.Sprintf("%s %s ?", column, op), arg: value, ok: true, hasArg: true}
 }
 
 // OpaqueStringClause builds an equality clause without rewriting the value.
@@ -34,7 +46,7 @@ func OpaqueStringClause(column string, value string) Clause {
 	if value == "" {
 		return Clause{}
 	}
-	if _, err := NormalizeSQLiteIdentifier(column); err != nil {
+	if err := validateSQLiteColumnReference(column); err != nil {
 		return alwaysFalseClause()
 	}
 
@@ -47,7 +59,7 @@ func NotStringClause(column string, value string) Clause {
 	if value == "" {
 		return Clause{}
 	}
-	if _, err := NormalizeSQLiteIdentifier(column); err != nil {
+	if err := validateSQLiteColumnReference(column); err != nil {
 		return alwaysFalseClause()
 	}
 
@@ -59,7 +71,7 @@ func TimeClause(column string, op string, value time.Time) Clause {
 	if value.IsZero() {
 		return Clause{}
 	}
-	if _, err := NormalizeSQLiteIdentifier(column); err != nil || !isAllowedSQLOperator(op) {
+	if err := validateSQLiteColumnReference(column); err != nil || !isAllowedSQLOperator(op) {
 		return alwaysFalseClause()
 	}
 
@@ -71,7 +83,7 @@ func Int64Clause(column string, op string, value int64) Clause {
 	if value <= 0 {
 		return Clause{}
 	}
-	if _, err := NormalizeSQLiteIdentifier(column); err != nil || !isAllowedSQLOperator(op) {
+	if err := validateSQLiteColumnReference(column); err != nil || !isAllowedSQLOperator(op) {
 		return alwaysFalseClause()
 	}
 
@@ -94,6 +106,25 @@ func BuildClauses(input ...Clause) ([]string, []any) {
 	return where, args
 }
 
+// BuildWhereQuery composes validated clauses after a new WHERE boundary.
+func BuildWhereQuery(prefix string, suffix string, input ...Clause) (string, []any) {
+	where, args := BuildClauses(input...)
+	return composeConditionQuery(prefix, " WHERE ", where, suffix), args
+}
+
+// BuildAndQuery composes validated clauses after an existing WHERE boundary.
+func BuildAndQuery(prefix string, suffix string, input ...Clause) (string, []any) {
+	where, args := BuildClauses(input...)
+	return composeConditionQuery(prefix, " AND ", where, suffix), args
+}
+
+func composeConditionQuery(prefix string, separator string, where []string, suffix string) string {
+	if len(where) == 0 {
+		return prefix + suffix
+	}
+	return prefix + separator + strings.Join(where, " AND ") + suffix
+}
+
 // AppendWhere appends a WHERE block when any clauses are present.
 func AppendWhere(query string, where []string) string {
 	if len(where) == 0 {
@@ -112,6 +143,19 @@ func AppendLimit(query string, args []any, limit int) (string, []any) {
 
 func alwaysFalseClause() Clause {
 	return Clause{sql: sqlFalsePredicate, ok: true}
+}
+
+func validateSQLiteColumnReference(value string) error {
+	parts := strings.Split(strings.TrimSpace(value), ".")
+	if len(parts) > 2 {
+		return fmt.Errorf("store: invalid sqlite column reference %q", value)
+	}
+	for _, part := range parts {
+		if _, err := NormalizeSQLiteIdentifier(part); err != nil {
+			return fmt.Errorf("store: invalid sqlite column reference %q: %w", value, err)
+		}
+	}
+	return nil
 }
 
 func isAllowedSQLOperator(value string) bool {

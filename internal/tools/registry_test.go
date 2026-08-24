@@ -124,11 +124,11 @@ func TestRuntimeRegistryIndexingAndCollisions(t *testing.T) {
 		t.Parallel()
 
 		first := validDescriptor()
-		first.ToolPresentation = NewToolPresentation("Reading skill", "arg:name")
+		first.ToolPresentation = NewToolPresentation(first.DisplayTitle, "Reading skill", "arg:name")
 		second := validDescriptor()
 		second.ID = "compozy__skill_search"
 		second.Backend.NativeName = "skill_search"
-		second.ToolPresentation = NewToolPresentation("Searching skills", "query")
+		second.ToolPresentation = NewToolPresentation(second.DisplayTitle, "Searching skills", "query")
 		descriptors := []Descriptor{first, second}
 		provider := registryTestProvider{
 			source: first.Source,
@@ -172,17 +172,17 @@ func TestRuntimeRegistryIndexingAndCollisions(t *testing.T) {
 				scoped := cloneDescriptor(descriptor)
 				switch scope.WorkspaceID {
 				case "":
-					scoped.ToolPresentation = NewToolPresentation("Global lookup", "arg:query")
+					scoped.ToolPresentation = NewToolPresentation(scoped.DisplayTitle, "Global lookup", "arg:query")
 					scoped.Source.Scope = "global"
 				case "ws-a":
 					if removedFromWorkspaceA {
 						return nil
 					}
-					scoped.ToolPresentation = NewToolPresentation("Workspace A lookup", "arg:a")
+					scoped.ToolPresentation = NewToolPresentation(scoped.DisplayTitle, "Workspace A lookup", "arg:a")
 					scoped.Source.Scope = "workspace"
 					scoped.Source.WorkspaceID = "ws-a"
 				case "ws-b":
-					scoped.ToolPresentation = NewToolPresentation("Workspace B lookup", "arg:b")
+					scoped.ToolPresentation = NewToolPresentation(scoped.DisplayTitle, "Workspace B lookup", "arg:b")
 					scoped.Source.Scope = "workspace"
 					scoped.Source.WorkspaceID = "ws-b"
 				default:
@@ -259,7 +259,11 @@ func TestRuntimeRegistryIndexingAndCollisions(t *testing.T) {
 		t.Parallel()
 
 		descriptor := validDescriptor()
-		descriptor.ToolPresentation = NewToolPresentation("Workspace A secret lookup", "arg:private")
+		descriptor.ToolPresentation = NewToolPresentation(
+			descriptor.DisplayTitle,
+			"Workspace A secret lookup",
+			"arg:private",
+		)
 		descriptor.Source.Scope = "workspace"
 		descriptor.Source.WorkspaceID = "ws-a"
 		registry, err := NewRegistry(WithProviders(registryTestProvider{
@@ -518,7 +522,7 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 
 		local := descriptorWithID(ToolIDTaskRead, "Read Task", ToolsetIDTasks)
 		remote := mcpDescriptor("mcp__github__search", "github", "search")
-		remote.ToolPresentation = NewToolPresentation("Searching GitHub", "query")
+		remote.ToolPresentation = NewToolPresentation(remote.DisplayTitle, "Searching GitHub", "query")
 		remoteProvider := providerWithDescriptors(SourceRef{Kind: SourceDynamic, Owner: "mcp"}, remote)
 		remoteProvider.deferred = true
 		registry, err := NewRegistry(

@@ -142,6 +142,11 @@ type DaemonClient interface {
 		name string,
 		request UpdateNotificationPresetRequest,
 	) (NotificationPresetRecord, error)
+	SetNotificationPresetEnablement(
+		ctx context.Context,
+		name string,
+		request contract.SetNotificationPresetEnablementRequest,
+	) (contract.NotificationPresetEnablementPayload, error)
 	DeleteNotificationPreset(ctx context.Context, name string) error
 	sessionClientAPI
 	CreateWorkspace(ctx context.Context, request WorkspaceCreateRequest) (WorkspaceRecord, error)

@@ -205,6 +205,7 @@ func TestSchedulerClaimValidate(t *testing.T) {
 
 	now := time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC)
 	valid := SchedulerClaim{
+		ProfileID:   "profile-default",
 		JobID:       "job-daily",
 		RunID:       "run-1",
 		FireID:      "fire-1",
@@ -221,8 +222,20 @@ func TestSchedulerClaimValidate(t *testing.T) {
 			claim: valid,
 		},
 		{
+			name: "Should reject missing profile id",
+			claim: SchedulerClaim{
+				JobID:       "job-daily",
+				RunID:       "run-1",
+				FireID:      "fire-1",
+				ScheduledAt: now,
+				ClaimedAt:   now,
+			},
+			wantErr: "profile_id",
+		},
+		{
 			name: "Should reject missing job id",
 			claim: SchedulerClaim{
+				ProfileID:   "profile-default",
 				RunID:       "run-1",
 				FireID:      "fire-1",
 				ScheduledAt: now,
@@ -233,6 +246,7 @@ func TestSchedulerClaimValidate(t *testing.T) {
 		{
 			name: "Should reject missing run id",
 			claim: SchedulerClaim{
+				ProfileID:   "profile-default",
 				JobID:       "job-daily",
 				FireID:      "fire-1",
 				ScheduledAt: now,
@@ -243,6 +257,7 @@ func TestSchedulerClaimValidate(t *testing.T) {
 		{
 			name: "Should reject missing fire id",
 			claim: SchedulerClaim{
+				ProfileID:   "profile-default",
 				JobID:       "job-daily",
 				RunID:       "run-1",
 				ScheduledAt: now,
@@ -253,6 +268,7 @@ func TestSchedulerClaimValidate(t *testing.T) {
 		{
 			name: "Should reject missing scheduled time",
 			claim: SchedulerClaim{
+				ProfileID: "profile-default",
 				JobID:     "job-daily",
 				RunID:     "run-1",
 				FireID:    "fire-1",
@@ -263,6 +279,7 @@ func TestSchedulerClaimValidate(t *testing.T) {
 		{
 			name: "Should reject missing claimed time",
 			claim: SchedulerClaim{
+				ProfileID:   "profile-default",
 				JobID:       "job-daily",
 				RunID:       "run-1",
 				FireID:      "fire-1",

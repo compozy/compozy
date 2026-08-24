@@ -49,6 +49,18 @@ func (s *Service) RecoverCreations(ctx context.Context) error {
 		recoverErr = errors.Join(recoverErr, fmt.Errorf("worktree: fail interrupted exit operations: %w", err))
 	} else {
 		for _, operation := range running {
+			item, itemErr := s.store.Get(ctx, operation.WorkspaceID, operation.WorktreeID)
+			if itemErr != nil || item == nil {
+				if itemErr == nil {
+					itemErr = ErrNotFound
+				}
+				recoverErr = errors.Join(
+					recoverErr,
+					fmt.Errorf("worktree: resolve interrupted exit owner: %w", itemErr),
+				)
+				continue
+			}
+			operation.ProfileID = item.ProfileID
 			s.emitExit(ctx, EventExitActionFailed, operation, ExitEventPayload{
 				OperationID: operation.ID, Action: ExitAction(operation.Action), State: exitStepFailed,
 				Message: "Exit action interrupted by daemon restart.",

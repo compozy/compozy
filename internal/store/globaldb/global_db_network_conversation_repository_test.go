@@ -22,6 +22,177 @@ import (
 func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 	t.Parallel()
 
+	t.Run(
+		"Should deliver across profiles while keeping conversation ownership on the creating side",
+		func(t *testing.T) {
+			t.Parallel()
+
+			globalDB := openNetworkConversationRepositoryTestDB(t)
+			ctx := testutil.Context(t)
+			now := time.Date(2026, 8, 21, 15, 0, 0, 0, time.UTC)
+			foreignProfileID := strings.Repeat("b", 26)
+			if _, err := globalDB.db.ExecContext(ctx, `
+			INSERT INTO profiles (id, name, color, icon, state, created_at)
+			VALUES (?, 'network-foreign', '#5FBF85', 'circle', 'active', ?)`,
+				foreignProfileID,
+				store.FormatTimestamp(now),
+			); err != nil {
+				t.Fatalf("insert foreign profile error = %v", err)
+			}
+			const recipientSessionID = "reviewer.sess-foreign-profile"
+			if err := globalDB.RegisterSession(ctx, SessionInfo{
+				ID: recipientSessionID, ProfileID: foreignProfileID, AgentName: "reviewer", Provider: "claude",
+				RuntimeStatus: store.SessionRuntimeUnbound, WorkspaceID: networkStoreTestWorkspaceID,
+				State: "active", CreatedAt: now, UpdatedAt: now,
+			}); err != nil {
+				t.Fatalf("RegisterSession(foreign profile recipient) error = %v", err)
+			}
+			if err := globalDB.WriteNetworkChannel(ctx, store.NetworkChannelEntry{
+				ProfileID: store.DefaultProfileID, WorkspaceID: networkStoreTestWorkspaceID,
+				Channel: "builders", Purpose: "Cross-profile delivery", CreatedBy: "test",
+				CreatedAt: now, UpdatedAt: now,
+			}); err != nil {
+				t.Fatalf("WriteNetworkChannel() error = %v", err)
+			}
+
+			message := threadMessage(
+				"msg-cross-profile",
+				"thread_cross_profile",
+				"coder.sess-abc",
+				"Cross-profile delivery remains allowed",
+				now,
+			)
+			message.ProfileID = store.DefaultProfileID
+			result, err := globalDB.AcceptNetworkMessage(ctx, &store.AcceptNetworkMessageRequest{
+				Message: message,
+				Dispositions: []store.NetworkMessageDisposition{{
+					RecipientSessionID: recipientSessionID,
+					Decision:           store.NetworkDispositionDeliver,
+				}},
+			})
+			if err != nil {
+				t.Fatalf("AcceptNetworkMessage() error = %v", err)
+			}
+			if len(result.Dispositions) != 1 || result.Dispositions[0].Decision != store.NetworkDispositionDeliver {
+				t.Fatalf("acceptance dispositions = %#v, want cross-profile delivery", result.Dispositions)
+			}
+			inbox, err := globalDB.ListNetworkInbox(
+				ctx,
+				networkStoreTestWorkspaceID,
+				recipientSessionID,
+				"builders",
+				10,
+			)
+			if err != nil {
+				t.Fatalf("ListNetworkInbox() error = %v", err)
+			}
+			if len(inbox) != 1 || inbox[0].MessageID != message.MessageID {
+				t.Fatalf("foreign recipient inbox = %#v, want delivered message", inbox)
+			}
+
+			ref := store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"}
+			owned, err := globalDB.ListThreads(ctx, ref, store.NetworkThreadQuery{
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Limit:     10,
+			})
+			if err != nil {
+				t.Fatalf("ListThreads(owner) error = %v", err)
+			}
+			if len(owned.Threads) != 1 || owned.Threads[0].ProfileID != store.DefaultProfileID {
+				t.Fatalf("owner threads = %#v, want creating profile ownership", owned.Threads)
+			}
+			foreign, err := globalDB.ListThreads(ctx, ref, store.NetworkThreadQuery{
+				ReadScope: store.ReadScope{ProfileID: foreignProfileID},
+				Limit:     10,
+			})
+			if err != nil {
+				t.Fatalf("ListThreads(recipient) error = %v", err)
+			}
+			if len(foreign.Threads) != 0 {
+				t.Fatalf("recipient threads = %#v, want no foreign-owned conversation", foreign.Threads)
+			}
+			aggregate, err := globalDB.ListThreads(ctx, ref, store.NetworkThreadQuery{
+				ReadScope: store.ReadScope{AllProfiles: true},
+				Limit:     10,
+			})
+			if err != nil {
+				t.Fatalf("ListThreads(aggregate) error = %v", err)
+			}
+			if len(aggregate.Threads) != 1 || aggregate.Threads[0].ProfileName != "default" {
+				t.Fatalf("aggregate threads = %#v, want owner-labeled row", aggregate.Threads)
+			}
+			aggregateThread, err := globalDB.GetThread(
+				ctx,
+				store.ReadScope{AllProfiles: true},
+				ref,
+				message.ThreadID,
+			)
+			if err != nil {
+				t.Fatalf("GetThread(aggregate) error = %v", err)
+			}
+			if aggregateThread.ProfileID != store.DefaultProfileID || aggregateThread.ProfileName != "default" {
+				t.Fatalf("GetThread(aggregate) = %#v, want owner-labeled row", aggregateThread)
+			}
+
+			messages, err := globalDB.ListConversationMessages(ctx, store.NetworkConversationRef{
+				WorkspaceID: networkStoreTestWorkspaceID,
+				Channel:     "builders",
+				Surface:     store.NetworkSurfaceThread,
+				ThreadID:    message.ThreadID,
+			}, store.NetworkConversationMessageQuery{
+				ReadScope: store.ReadScope{AllProfiles: true},
+				Limit:     10,
+			})
+			if err != nil {
+				t.Fatalf("ListConversationMessages(aggregate) error = %v", err)
+			}
+			if len(messages) != 1 || messages[0].ProfileID != store.DefaultProfileID ||
+				messages[0].ProfileName != "default" {
+				t.Fatalf("aggregate messages = %#v, want owner-labeled row", messages)
+			}
+			foreignMessages, err := globalDB.ListConversationMessages(ctx, store.NetworkConversationRef{
+				WorkspaceID: networkStoreTestWorkspaceID,
+				Channel:     "builders",
+				Surface:     store.NetworkSurfaceThread,
+				ThreadID:    message.ThreadID,
+			}, store.NetworkConversationMessageQuery{
+				ReadScope: store.ReadScope{ProfileID: foreignProfileID},
+				Limit:     10,
+			})
+			if err != nil {
+				t.Fatalf("ListConversationMessages(recipient) error = %v", err)
+			}
+			if len(foreignMessages) != 0 {
+				t.Fatalf("recipient messages = %#v, want no foreign-owned timeline", foreignMessages)
+			}
+
+			audit, err := globalDB.ListNetworkAudit(ctx, store.NetworkAuditQuery{
+				ReadScope:   store.ReadScope{AllProfiles: true},
+				WorkspaceID: networkStoreTestWorkspaceID,
+				Channel:     "builders",
+				Limit:       20,
+			})
+			if err != nil {
+				t.Fatalf("ListNetworkAudit(aggregate) error = %v", err)
+			}
+			if len(audit) == 0 || audit[0].ProfileID != store.DefaultProfileID || audit[0].ProfileName != "default" {
+				t.Fatalf("aggregate audit = %#v, want owner-labeled entries", audit)
+			}
+			foreignAudit, err := globalDB.ListNetworkAudit(ctx, store.NetworkAuditQuery{
+				ReadScope:   store.ReadScope{ProfileID: foreignProfileID},
+				WorkspaceID: networkStoreTestWorkspaceID,
+				Channel:     "builders",
+				Limit:       20,
+			})
+			if err != nil {
+				t.Fatalf("ListNetworkAudit(recipient) error = %v", err)
+			}
+			if len(foreignAudit) != 0 {
+				t.Fatalf("recipient audit = %#v, want no foreign-owned audit rows", foreignAudit)
+			}
+		},
+	)
+
 	t.Run("Should persist sender and delivered thread recipients as durable participants", func(t *testing.T) {
 		t.Parallel()
 
@@ -34,7 +205,7 @@ func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 			"Please review",
 			now,
 		)
-		_, err := globalDB.AcceptNetworkMessage(testutil.Context(t), store.AcceptNetworkMessageRequest{
+		_, err := globalDB.AcceptNetworkMessage(testutil.Context(t), &store.AcceptNetworkMessageRequest{
 			Message: message,
 			Dispositions: []store.NetworkMessageDisposition{
 				{RecipientSessionID: "other.sess-peer", Decision: store.NetworkDispositionIgnore},
@@ -60,10 +231,15 @@ func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 		if !sameStrings(got, want) {
 			t.Fatalf("thread participants = %#v, want delivered evidence %#v", got, want)
 		}
-		thread, err := globalDB.GetThread(testutil.Context(t), store.NetworkChannelRef{
-			WorkspaceID: networkStoreTestWorkspaceID,
-			Channel:     "builders",
-		}, message.ThreadID)
+		thread, err := globalDB.GetThread(
+			testutil.Context(t),
+			store.ReadScope{AllProfiles: true},
+			store.NetworkChannelRef{
+				WorkspaceID: networkStoreTestWorkspaceID,
+				Channel:     "builders",
+			},
+			message.ThreadID,
+		)
 		if err != nil {
 			t.Fatalf("GetThread() error = %v", err)
 		}
@@ -80,7 +256,7 @@ func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 		globalDB.now = func() time.Time { return now }
 		req := networkWakeAcceptanceRequest(t, "msg-accept-1", "wake-1", "run-wake-1", now)
 
-		result, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+		result, err := globalDB.AcceptNetworkMessage(testutil.Context(t), &req)
 		if err != nil {
 			t.Fatalf("AcceptNetworkMessage() error = %v", err)
 		}
@@ -109,7 +285,7 @@ func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 		}
 		assertNetworkAcceptanceRowCounts(t, globalDB, "msg-accept-1", "session:reviewer.sess-xyz", 1, 1)
 
-		duplicate, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+		duplicate, err := globalDB.AcceptNetworkMessage(testutil.Context(t), &req)
 		if err != nil {
 			t.Fatalf("AcceptNetworkMessage(duplicate) error = %v", err)
 		}
@@ -127,7 +303,7 @@ func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 		base := time.Date(2026, 7, 14, 2, 10, 0, 0, time.UTC)
 		globalDB.now = func() time.Time { return base }
 		first := networkWakeAcceptanceRequest(t, "msg-coalesce-1", "wake-coalesced", "run-coalesced", base)
-		if _, err := globalDB.AcceptNetworkMessage(testutil.Context(t), first); err != nil {
+		if _, err := globalDB.AcceptNetworkMessage(testutil.Context(t), &first); err != nil {
 			t.Fatalf("AcceptNetworkMessage(first) error = %v", err)
 		}
 
@@ -139,7 +315,7 @@ func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 			base.Add(100*time.Millisecond),
 		)
 		second.Admissions[0].RootID = first.Admissions[0].RootID
-		coalesced, err := globalDB.AcceptNetworkMessage(testutil.Context(t), second)
+		coalesced, err := globalDB.AcceptNetworkMessage(testutil.Context(t), &second)
 		if err != nil {
 			t.Fatalf("AcceptNetworkMessage(coalesced) error = %v", err)
 		}
@@ -158,7 +334,7 @@ func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 			base.Add(time.Second),
 		)
 		third.Admissions[0].RootID = first.Admissions[0].RootID
-		accumulated, err := globalDB.AcceptNetworkMessage(testutil.Context(t), third)
+		accumulated, err := globalDB.AcceptNetworkMessage(testutil.Context(t), &third)
 		if err != nil {
 			t.Fatalf("AcceptNetworkMessage(after cutoff) error = %v", err)
 		}
@@ -174,7 +350,7 @@ func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 		globalDB := openNetworkConversationRepositoryTestDB(t)
 		base := time.Date(2026, 7, 14, 2, 15, 0, 0, time.UTC)
 		first := networkWakeAcceptanceRequest(t, "msg-claimed-1", "wake-claimed", "run-claimed", base)
-		if _, err := globalDB.AcceptNetworkMessage(testutil.Context(t), first); err != nil {
+		if _, err := globalDB.AcceptNetworkMessage(testutil.Context(t), &first); err != nil {
 			t.Fatalf("AcceptNetworkMessage(first) error = %v", err)
 		}
 		if _, err := globalDB.ClaimNextRun(testutil.Context(t), taskpkg.ClaimCriteria{
@@ -192,7 +368,7 @@ func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 			base.Add(100*time.Millisecond),
 		)
 		second.Admissions[0].RootID = first.Admissions[0].RootID
-		result, err := globalDB.AcceptNetworkMessage(testutil.Context(t), second)
+		result, err := globalDB.AcceptNetworkMessage(testutil.Context(t), &second)
 		if err != nil {
 			t.Fatalf("AcceptNetworkMessage(after claim) error = %v", err)
 		}
@@ -223,7 +399,7 @@ func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 		)
 		now := time.Date(2026, 7, 14, 2, 20, 0, 0, time.UTC)
 		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
-			ID: "sess-foreign-recipient", AgentName: "coder", Provider: "claude",
+			ID: "sess-foreign-recipient", ProfileID: store.DefaultProfileID, AgentName: "coder", Provider: "claude",
 			RuntimeStatus: store.SessionRuntimeUnbound,
 			WorkspaceID:   foreignWorkspaceID, State: "active", CreatedAt: now, UpdatedAt: now,
 		}); err != nil {
@@ -233,7 +409,7 @@ func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 		req.Dispositions[0].RecipientSessionID = "sess-foreign-recipient"
 		req.Admissions[0].RecipientSessionID = "sess-foreign-recipient"
 
-		if _, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req); err == nil {
+		if _, err := globalDB.AcceptNetworkMessage(testutil.Context(t), &req); err == nil {
 			t.Fatal("AcceptNetworkMessage(foreign recipient) error = nil, want non-nil")
 		}
 		assertNoTimelineOrAuditRows(t, globalDB, req.Message.MessageID)
@@ -276,7 +452,7 @@ func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 					time.Date(2026, 7, 14, 2, 25+index, 0, 0, time.UTC),
 				)
 				test.mutate(&req, token)
-				_, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+				_, err := globalDB.AcceptNetworkMessage(testutil.Context(t), &req)
 				assertRawClaimTokenRejected(t, err, token)
 				assertNoTimelineOrAuditRows(t, globalDB, req.Message.MessageID)
 				if got := networkRowCount(t, globalDB, "task_runs", "id", req.Admissions[0].TaskRunID); got != 0 {
@@ -339,7 +515,7 @@ func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 					now,
 				)
 				test.mutate(&req)
-				result, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+				result, err := globalDB.AcceptNetworkMessage(testutil.Context(t), &req)
 				if err != nil {
 					t.Fatalf("AcceptNetworkMessage() error = %v", err)
 				}
@@ -371,7 +547,7 @@ func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 			t.Fatalf("SetNetworkAvailability(false) error = %v", err)
 		}
 		req := networkWakeAcceptanceRequest(t, "msg-disabled", "wake-disabled", "run-disabled", now)
-		result, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+		result, err := globalDB.AcceptNetworkMessage(testutil.Context(t), &req)
 		if err != nil {
 			t.Fatalf("AcceptNetworkMessage(disabled) error = %v", err)
 		}
@@ -382,7 +558,7 @@ func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 		if _, err := globalDB.SetNetworkAvailability(testutil.Context(t), true, "test:enable"); err != nil {
 			t.Fatalf("SetNetworkAvailability(true) error = %v", err)
 		}
-		replayed, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+		replayed, err := globalDB.AcceptNetworkMessage(testutil.Context(t), &req)
 		if err != nil {
 			t.Fatalf("AcceptNetworkMessage(re-enabled replay) error = %v", err)
 		}
@@ -457,7 +633,7 @@ func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 				<-start
 				result, err := connections[index].AcceptNetworkMessage(
 					context.Background(),
-					requests[index],
+					&requests[index],
 				)
 				admissions <- admissionOutcome{index: index, result: result, err: err}
 			}(index)
@@ -557,7 +733,7 @@ func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 			"session:reviewer.sess-xyz",
 		)
 		for index, req := range requests {
-			replayed, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+			replayed, err := globalDB.AcceptNetworkMessage(testutil.Context(t), &req)
 			if err != nil {
 				t.Fatalf("AcceptNetworkMessage(replay %d) error = %v", index, err)
 			}
@@ -605,7 +781,7 @@ func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 				defer waitGroup.Done()
 				ready.Done()
 				<-start
-				result, err := globalDB.AcceptNetworkMessage(context.Background(), requests[index])
+				result, err := globalDB.AcceptNetworkMessage(context.Background(), &requests[index])
 				if err != nil {
 					errs <- err
 					return
@@ -658,7 +834,7 @@ func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 		})
 		base := time.Date(2026, 7, 14, 3, 15, 0, 0, time.UTC)
 		first := networkWakeAcceptanceRequest(t, "msg-claim-race-1", "wake-claim-race", "run-claim-race", base)
-		if _, err := globalDB.AcceptNetworkMessage(testutil.Context(t), first); err != nil {
+		if _, err := globalDB.AcceptNetworkMessage(testutil.Context(t), &first); err != nil {
 			t.Fatalf("AcceptNetworkMessage(first) error = %v", err)
 		}
 		second := networkWakeAcceptanceRequest(
@@ -679,7 +855,7 @@ func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 		go func() {
 			defer waitGroup.Done()
 			<-start
-			result, err := globalDB.AcceptNetworkMessage(context.Background(), second)
+			result, err := globalDB.AcceptNetworkMessage(context.Background(), &second)
 			if err != nil {
 				errs <- err
 				return
@@ -777,7 +953,7 @@ func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
 				defer waitGroup.Done()
 				ready.Done()
 				<-start
-				result, err := globalDB.AcceptNetworkMessage(context.Background(), requests[index])
+				result, err := globalDB.AcceptNetworkMessage(context.Background(), &requests[index])
 				if err != nil {
 					errs <- err
 					return
@@ -825,9 +1001,10 @@ func TestGlobalDBSettleNetworkWake(t *testing.T) {
 		globalDB := openNetworkConversationRepositoryTestDB(t)
 		now := time.Date(2026, 7, 14, 2, 30, 0, 0, time.UTC)
 		globalDB.now = func() time.Time { return now }
+		request := networkWakeAcceptanceRequest(t, "msg-settle", "wake-settle", "run-settle", now)
 		accepted, err := globalDB.AcceptNetworkMessage(
 			testutil.Context(t),
-			networkWakeAcceptanceRequest(t, "msg-settle", "wake-settle", "run-settle", now),
+			&request,
 		)
 		if err != nil {
 			t.Fatalf("AcceptNetworkMessage() error = %v", err)
@@ -876,9 +1053,10 @@ func TestGlobalDBSettleNetworkWake(t *testing.T) {
 
 		globalDB := openNetworkConversationRepositoryTestDB(t)
 		now := time.Date(2026, 7, 14, 2, 40, 0, 0, time.UTC)
+		request := networkWakeAcceptanceRequest(t, "msg-unknown-usage", "wake-unknown", "run-unknown", now)
 		accepted, err := globalDB.AcceptNetworkMessage(
 			testutil.Context(t),
-			networkWakeAcceptanceRequest(t, "msg-unknown-usage", "wake-unknown", "run-unknown", now),
+			&request,
 		)
 		if err != nil {
 			t.Fatalf("AcceptNetworkMessage() error = %v", err)
@@ -901,7 +1079,7 @@ func TestGlobalDBSettleNetworkWake(t *testing.T) {
 		globalDB := openNetworkConversationRepositoryTestDB(t)
 		now := time.Date(2026, 7, 14, 2, 41, 0, 0, time.UTC)
 		req := networkWakeAcceptanceRequest(t, "msg-canceled", "wake-canceled", "run-canceled", now)
-		accepted, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+		accepted, err := globalDB.AcceptNetworkMessage(testutil.Context(t), &req)
 		if err != nil {
 			t.Fatalf("AcceptNetworkMessage() error = %v", err)
 		}
@@ -917,7 +1095,7 @@ func TestGlobalDBSettleNetworkWake(t *testing.T) {
 		assertNetworkWakeUsage(t, globalDB, "wake-canceled", "canceled", 25, 20, 10, "actual")
 		assertNetworkWakeBudget(t, globalDB, accepted.Admitted[0].OwnerKey, 1, 25, 20, 10)
 
-		replayed, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+		replayed, err := globalDB.AcceptNetworkMessage(testutil.Context(t), &req)
 		if err != nil {
 			t.Fatalf("AcceptNetworkMessage(canceled replay) error = %v", err)
 		}
@@ -934,7 +1112,7 @@ func TestGlobalDBSettleNetworkWake(t *testing.T) {
 		const ownerRunID = "parent-run-usage"
 		first := networkWakeAcceptanceRequest(t, "msg-usage-1", "wake-usage-1", "run-usage-1", now)
 		first.Admissions[0].OwnerKey = "task_run:" + ownerRunID
-		accepted, err := globalDB.AcceptNetworkMessage(testutil.Context(t), first)
+		accepted, err := globalDB.AcceptNetworkMessage(testutil.Context(t), &first)
 		if err != nil {
 			t.Fatalf("AcceptNetworkMessage(first usage) error = %v", err)
 		}
@@ -954,7 +1132,7 @@ func TestGlobalDBSettleNetworkWake(t *testing.T) {
 			now.Add(time.Second),
 		)
 		second.Admissions[0].OwnerKey = "task_run:" + ownerRunID
-		accepted, err = globalDB.AcceptNetworkMessage(testutil.Context(t), second)
+		accepted, err = globalDB.AcceptNetworkMessage(testutil.Context(t), &second)
 		if err != nil {
 			t.Fatalf("AcceptNetworkMessage(second usage) error = %v", err)
 		}
@@ -1054,7 +1232,7 @@ func TestGlobalDBSettleNetworkWake(t *testing.T) {
 				now.Add(time.Duration(index)*time.Nanosecond),
 			)
 			request.Admissions[0].Spec.Bounds.MaxWakes = 205
-			accepted, err := globalDB.AcceptNetworkMessage(testutil.Context(t), request)
+			accepted, err := globalDB.AcceptNetworkMessage(testutil.Context(t), &request)
 			if err != nil {
 				t.Fatalf("AcceptNetworkMessage(page %d) error = %v", index, err)
 			}
@@ -1181,7 +1359,7 @@ func TestGlobalDBSettleNetworkWake(t *testing.T) {
 					UsageState: store.NetworkWakeUsageActual,
 				}
 				test.configure(&first.Admissions[0].Spec.Bounds, &outcome)
-				accepted, err := globalDB.AcceptNetworkMessage(testutil.Context(t), first)
+				accepted, err := globalDB.AcceptNetworkMessage(testutil.Context(t), &first)
 				if err != nil {
 					t.Fatalf("AcceptNetworkMessage(first) error = %v", err)
 				}
@@ -1202,7 +1380,7 @@ func TestGlobalDBSettleNetworkWake(t *testing.T) {
 					now.Add(time.Second),
 				)
 				second.Admissions[0].Spec.Bounds = first.Admissions[0].Spec.Bounds
-				result, err := globalDB.AcceptNetworkMessage(testutil.Context(t), second)
+				result, err := globalDB.AcceptNetworkMessage(testutil.Context(t), &second)
 				if err != nil {
 					t.Fatalf("AcceptNetworkMessage(exhausted) error = %v", err)
 				}
@@ -1262,6 +1440,7 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 					WorkspaceID: networkStoreTestWorkspaceID,
 					Channel:     "builders",
 					SessionA:    peerA,
+					ProfileID:   store.DefaultProfileID,
 					SessionB:    peerB,
 				})
 				if resolveErr != nil {
@@ -1286,7 +1465,7 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 		rooms, err := globalDB.ListDirectRooms(
 			testutil.Context(t),
 			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
-			store.NetworkDirectRoomQuery{Limit: 10},
+			store.NetworkDirectRoomQuery{Limit: 10, ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}},
 		)
 		if err != nil {
 			t.Fatalf("ListDirectRooms() error = %v", err)
@@ -1318,6 +1497,7 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 			WorkspaceID: networkStoreTestWorkspaceID,
 			Channel:     "builders",
 			SessionA:    "coder.sess-abc",
+			ProfileID:   store.DefaultProfileID,
 			SessionB:    "reviewer.sess-xyz",
 		})
 		if !errors.Is(err, store.ErrNetworkDirectRoomCollision) {
@@ -1337,6 +1517,7 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 			SessionA:       "coder.sess-abc",
 			SessionB:       "reviewer.sess-xyz",
 			OpenedAt:       openedAt,
+			ProfileID:      store.DefaultProfileID,
 			LastActivityAt: openedAt,
 		})
 		if err != nil {
@@ -1355,6 +1536,7 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 			SessionA:       "coder.sess-abc",
 			SessionB:       "planner.sess-123",
 			OpenedAt:       openedAt.Add(time.Minute),
+			ProfileID:      store.DefaultProfileID,
 			LastActivityAt: openedAt.Add(time.Minute),
 		}); err != nil {
 			t.Fatalf("ResolveDirectRoom(second empty room) error = %v", err)
@@ -1362,7 +1544,11 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 		firstPage, err := globalDB.ListDirectRooms(
 			ctx,
 			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
-			store.NetworkDirectRoomQuery{Sort: store.NetworkConversationSortCreated, Limit: 1},
+			store.NetworkDirectRoomQuery{
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Sort:      store.NetworkConversationSortCreated,
+				Limit:     1,
+			},
 		)
 		if err != nil {
 			t.Fatalf("ListDirectRooms(first empty-room page) error = %v", err)
@@ -1375,9 +1561,10 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 			ctx,
 			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
 			store.NetworkDirectRoomQuery{
-				Sort:  store.NetworkConversationSortCreated,
-				Limit: 1,
-				After: firstPage.NextCursor,
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Sort:      store.NetworkConversationSortCreated,
+				Limit:     1,
+				After:     firstPage.NextCursor,
 			},
 		)
 		if err != nil {
@@ -1409,9 +1596,10 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 			ctx,
 			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
 			store.NetworkDirectRoomQuery{
-				Sort:  store.NetworkConversationSortCreated,
-				Limit: 1,
-				After: firstPage.NextCursor,
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Sort:      store.NetworkConversationSortCreated,
+				Limit:     1,
+				After:     firstPage.NextCursor,
 			},
 		)
 		if err != nil {
@@ -1437,6 +1625,9 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 		}
 		persisted, err := globalDB.GetDirectRoom(
 			ctx,
+			store.ReadScope{
+				AllProfiles: true,
+			},
 			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
 			directID,
 		)
@@ -1499,6 +1690,9 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 
 		thread, err := globalDB.GetThread(
 			testutil.Context(t),
+			store.ReadScope{
+				AllProfiles: true,
+			},
 			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
 			"thread_store_counts",
 		)
@@ -1521,7 +1715,7 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 		threads, err := globalDB.ListThreads(
 			testutil.Context(t),
 			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
-			store.NetworkThreadQuery{Limit: 10},
+			store.NetworkThreadQuery{Limit: 10, ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}},
 		)
 		if err != nil {
 			t.Fatalf("ListThreads() error = %v", err)
@@ -1562,7 +1756,10 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 				Surface:     store.NetworkSurfaceThread,
 				ThreadID:    "thread_store_counts",
 			},
-			store.NetworkConversationMessageQuery{Limit: 10},
+			store.NetworkConversationMessageQuery{
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Limit:     10,
+			},
 		)
 		if err != nil {
 			t.Fatalf("ListConversationMessages(thread) error = %v", err)
@@ -1572,6 +1769,7 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 		}
 
 		auditRows, err := globalDB.ListNetworkAudit(testutil.Context(t), store.NetworkAuditQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: networkStoreTestWorkspaceID,
 			MessageID:   "msg_thread_root",
 			Limit:       10,
@@ -1666,6 +1864,9 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 
 		summary, err := globalDB.GetThread(
 			testutil.Context(t),
+			store.ReadScope{
+				AllProfiles: true,
+			},
 			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
 			"thread_store_cost",
 		)
@@ -1716,6 +1917,7 @@ func TestGlobalDBWriteConversationMessageDirectIsolationAndWorkLookup(t *testing
 			Text:        "please review privately",
 			PreviewText: "please review privately",
 			Body:        []byte(`{"text":"please review privately"}`),
+			ProfileID:   store.DefaultProfileID,
 			Timestamp:   startedAt,
 		}
 		if _, err := globalDB.WriteConversationMessage(testutil.Context(t), direct); err != nil {
@@ -1736,6 +1938,9 @@ func TestGlobalDBWriteConversationMessageDirectIsolationAndWorkLookup(t *testing
 
 		directSummary, err := globalDB.GetDirectRoom(
 			testutil.Context(t),
+			store.ReadScope{
+				AllProfiles: true,
+			},
 			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
 			directID,
 		)
@@ -1757,7 +1962,10 @@ func TestGlobalDBWriteConversationMessageDirectIsolationAndWorkLookup(t *testing
 				Surface:     store.NetworkSurfaceDirect,
 				DirectID:    directID,
 			},
-			store.NetworkConversationMessageQuery{Limit: 10},
+			store.NetworkConversationMessageQuery{
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Limit:     10,
+			},
 		)
 		if err != nil {
 			t.Fatalf("ListConversationMessages(direct) error = %v", err)
@@ -1777,7 +1985,10 @@ func TestGlobalDBWriteConversationMessageDirectIsolationAndWorkLookup(t *testing
 				Surface:     store.NetworkSurfaceThread,
 				ThreadID:    "thread_store_isolation",
 			},
-			store.NetworkConversationMessageQuery{Limit: 10},
+			store.NetworkConversationMessageQuery{
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Limit:     10,
+			},
 		)
 		if err != nil {
 			t.Fatalf("ListConversationMessages(thread) error = %v", err)
@@ -1789,7 +2000,12 @@ func TestGlobalDBWriteConversationMessageDirectIsolationAndWorkLookup(t *testing
 			t.Fatalf("threadMessages[0].MessageID = %q, want %q", got, want)
 		}
 
-		work, err := globalDB.GetWork(testutil.Context(t), networkStoreTestWorkspaceID, "work_direct_review")
+		work, err := globalDB.GetWork(
+			testutil.Context(t),
+			store.ReadScope{AllProfiles: true},
+			networkStoreTestWorkspaceID,
+			"work_direct_review",
+		)
 		if err != nil {
 			t.Fatalf("GetWork() error = %v", err)
 		}
@@ -1811,10 +2027,11 @@ func TestGlobalDBWriteConversationMessageDirectIsolationAndWorkLookup(t *testing
 			"network-store-foreign",
 			filepath.Join(t.TempDir(), "foreign-workspace"),
 		)
+		registerNetworkChannelForGlobalTests(t, globalDB, foreignWorkspaceID, "builders")
 		startedAt := time.Date(2026, 7, 14, 15, 0, 0, 0, time.UTC)
 		for _, sessionID := range []string{"foreign.coder", "foreign.reviewer"} {
 			if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
-				ID: sessionID, AgentName: "coder", Provider: "claude",
+				ID: sessionID, ProfileID: store.DefaultProfileID, AgentName: "coder", Provider: "claude",
 				RuntimeStatus: store.SessionRuntimeUnbound,
 				WorkspaceID:   foreignWorkspaceID, State: "active",
 				CreatedAt: startedAt, UpdatedAt: startedAt,
@@ -1871,6 +2088,7 @@ func TestGlobalDBWriteConversationMessageDirectIsolationAndWorkLookup(t *testing
 		}
 		for name, message := range map[string]store.NetworkConversationMessage{
 			"main direct": {
+				ProfileID: store.DefaultProfileID,
 				MessageID: directMsg, SessionID: "coder.sess-abc",
 				WorkspaceID: networkStoreTestWorkspaceID, Channel: channel,
 				Surface: store.NetworkSurfaceDirect, DirectID: mainDirectID,
@@ -1880,6 +2098,7 @@ func TestGlobalDBWriteConversationMessageDirectIsolationAndWorkLookup(t *testing
 				Body: []byte(`{"text":"main direct"}`), Timestamp: startedAt.Add(2 * time.Minute),
 			},
 			"foreign direct": {
+				ProfileID: store.DefaultProfileID,
 				MessageID: directMsg, SessionID: "foreign.coder",
 				WorkspaceID: foreignWorkspaceID, Channel: channel,
 				Surface: store.NetworkSurfaceDirect, DirectID: foreignDirectID,
@@ -1915,7 +2134,7 @@ func TestGlobalDBWriteConversationMessageDirectIsolationAndWorkLookup(t *testing
 		}
 		for _, test := range workspaceCases {
 			ref := store.NetworkChannelRef{WorkspaceID: test.workspaceID, Channel: channel}
-			thread, err := globalDB.GetThread(testutil.Context(t), ref, threadID)
+			thread, err := globalDB.GetThread(testutil.Context(t), store.ReadScope{AllProfiles: true}, ref, threadID)
 			if err != nil {
 				t.Fatalf("GetThread(%s) error = %v", test.name, err)
 			}
@@ -1928,7 +2147,10 @@ func TestGlobalDBWriteConversationMessageDirectIsolationAndWorkLookup(t *testing
 					test.threadPreview,
 				)
 			}
-			threads, err := globalDB.ListThreads(testutil.Context(t), ref, store.NetworkThreadQuery{Limit: 10})
+			threads, err := globalDB.ListThreads(testutil.Context(t), ref, store.NetworkThreadQuery{
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Limit:     10,
+			})
 			if err != nil {
 				t.Fatalf("ListThreads(%s) error = %v", test.name, err)
 			}
@@ -1937,7 +2159,12 @@ func TestGlobalDBWriteConversationMessageDirectIsolationAndWorkLookup(t *testing
 				t.Fatalf("ListThreads(%s) = %#v, want only workspace-scoped thread", test.name, threads)
 			}
 
-			direct, err := globalDB.GetDirectRoom(testutil.Context(t), ref, test.directID)
+			direct, err := globalDB.GetDirectRoom(
+				testutil.Context(t),
+				store.ReadScope{AllProfiles: true},
+				ref,
+				test.directID,
+			)
 			if err != nil {
 				t.Fatalf("GetDirectRoom(%s) error = %v", test.name, err)
 			}
@@ -1953,7 +2180,10 @@ func TestGlobalDBWriteConversationMessageDirectIsolationAndWorkLookup(t *testing
 			directs, err := globalDB.ListDirectRooms(
 				testutil.Context(t),
 				ref,
-				store.NetworkDirectRoomQuery{SessionID: test.sessionID, Limit: 10},
+				store.NetworkDirectRoomQuery{
+					ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+					SessionID: test.sessionID, Limit: 10,
+				},
 			)
 			if err != nil {
 				t.Fatalf("ListDirectRooms(%s) error = %v", test.name, err)
@@ -1976,7 +2206,10 @@ func TestGlobalDBWriteConversationMessageDirectIsolationAndWorkLookup(t *testing
 				messages, err := globalDB.ListConversationMessages(
 					testutil.Context(t),
 					conversationRef,
-					store.NetworkConversationMessageQuery{Limit: 10},
+					store.NetworkConversationMessageQuery{
+						Limit:     10,
+						ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+					},
 				)
 				if err != nil {
 					t.Fatalf("ListConversationMessages(%s, %s) error = %v", test.name, surface, err)
@@ -1996,7 +2229,12 @@ func TestGlobalDBWriteConversationMessageDirectIsolationAndWorkLookup(t *testing
 				}
 			}
 
-			work, err := globalDB.GetWork(testutil.Context(t), test.workspaceID, workID)
+			work, err := globalDB.GetWork(
+				testutil.Context(t),
+				store.ReadScope{AllProfiles: true},
+				test.workspaceID,
+				workID,
+			)
 			if err != nil {
 				t.Fatalf("GetWork(%s) error = %v", test.name, err)
 			}
@@ -2055,7 +2293,7 @@ func TestGlobalDBConversationQueriesSupportCursorsAndFilters(t *testing.T) {
 
 		firstThreadPage, err := globalDB.ListThreads(
 			testutil.Context(t), store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
-			store.NetworkThreadQuery{Limit: 1},
+			store.NetworkThreadQuery{Limit: 1, ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}},
 		)
 		if err != nil {
 			t.Fatalf("ListThreads(first page) error = %v", err)
@@ -2071,8 +2309,9 @@ func TestGlobalDBConversationQueriesSupportCursorsAndFilters(t *testing.T) {
 			testutil.Context(t),
 			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
 			store.NetworkThreadQuery{
-				Limit: 1,
-				After: firstThreadPage.NextCursor,
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Limit:     1,
+				After:     firstThreadPage.NextCursor,
 			},
 		)
 		if err != nil {
@@ -2095,6 +2334,7 @@ func TestGlobalDBConversationQueriesSupportCursorsAndFilters(t *testing.T) {
 			testutil.Context(t),
 			ref,
 			store.NetworkConversationMessageQuery{
+				ReadScope:       store.ReadScope{AllProfiles: true},
 				BeforeMessageID: "msg_query_three",
 				Limit:           10,
 			},
@@ -2106,6 +2346,7 @@ func TestGlobalDBConversationQueriesSupportCursorsAndFilters(t *testing.T) {
 			t.Fatalf("before message IDs = %v, want %v", got, want)
 		}
 		after, err := globalDB.ListConversationMessages(testutil.Context(t), ref, store.NetworkConversationMessageQuery{
+			ReadScope:      store.ReadScope{AllProfiles: true},
 			AfterMessageID: "msg_query_one",
 			Limit:          10,
 		})
@@ -2119,8 +2360,9 @@ func TestGlobalDBConversationQueriesSupportCursorsAndFilters(t *testing.T) {
 			testutil.Context(t),
 			ref,
 			store.NetworkConversationMessageQuery{
-				WorkID: "work_query_filter",
-				Limit:  10,
+				ReadScope: store.ReadScope{AllProfiles: true},
+				WorkID:    "work_query_filter",
+				Limit:     10,
 			},
 		)
 		if err != nil {
@@ -2159,6 +2401,7 @@ func TestGlobalDBConversationQueriesSupportCursorsAndFilters(t *testing.T) {
 			testutil.Context(t),
 			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
 			store.NetworkDirectRoomQuery{
+				ReadScope: store.ReadScope{AllProfiles: true},
 				SessionID: "coder.sess-abc",
 				Limit:     1,
 			},
@@ -2181,6 +2424,7 @@ func TestGlobalDBConversationQueriesSupportCursorsAndFilters(t *testing.T) {
 			testutil.Context(t),
 			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
 			store.NetworkDirectRoomQuery{
+				ReadScope: store.ReadScope{AllProfiles: true},
 				SessionID: "coder.sess-abc",
 				Limit:     1,
 				After:     firstDirectPage.NextCursor,
@@ -2226,8 +2470,9 @@ func TestGlobalDBConversationQueriesUseStableCompleteOrdering(t *testing.T) {
 
 		ref := store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"}
 		firstPage, err := globalDB.ListThreads(testutil.Context(t), ref, store.NetworkThreadQuery{
-			Sort:  store.NetworkConversationSortAlphabetical,
-			Limit: 2,
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Sort:      store.NetworkConversationSortAlphabetical,
+			Limit:     2,
 		})
 		if err != nil {
 			t.Fatalf("ListThreads(first alphabetical page) error = %v", err)
@@ -2237,9 +2482,10 @@ func TestGlobalDBConversationQueriesUseStableCompleteOrdering(t *testing.T) {
 			t.Fatalf("first alphabetical page = %#v, want total=%d limit=2 has_more cursor", firstPage, want)
 		}
 		secondPage, err := globalDB.ListThreads(testutil.Context(t), ref, store.NetworkThreadQuery{
-			Sort:  store.NetworkConversationSortAlphabetical,
-			Limit: 2,
-			After: firstPage.NextCursor,
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Sort:      store.NetworkConversationSortAlphabetical,
+			Limit:     2,
+			After:     firstPage.NextCursor,
 		})
 		if err != nil {
 			t.Fatalf("ListThreads(second alphabetical page) error = %v", err)
@@ -2261,8 +2507,9 @@ func TestGlobalDBConversationQueriesUseStableCompleteOrdering(t *testing.T) {
 
 		hasWork := true
 		work, err := globalDB.ListThreads(testutil.Context(t), ref, store.NetworkThreadQuery{
-			HasWork: &hasWork,
-			Limit:   10,
+			ReadScope: store.ReadScope{AllProfiles: true},
+			HasWork:   &hasWork,
+			Limit:     10,
 		})
 		if err != nil {
 			t.Fatalf("ListThreads(has_work) error = %v", err)
@@ -2275,8 +2522,9 @@ func TestGlobalDBConversationQueriesUseStableCompleteOrdering(t *testing.T) {
 		}
 
 		search, err := globalDB.ListThreads(testutil.Context(t), ref, store.NetworkThreadQuery{
-			Search: "ALP",
-			Limit:  10,
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Search:    "ALP",
+			Limit:     10,
 		})
 		if err != nil {
 			t.Fatalf("ListThreads(search) error = %v", err)
@@ -2291,17 +2539,22 @@ func TestGlobalDBConversationQueriesUseStableCompleteOrdering(t *testing.T) {
 		_, err = globalDB.ListThreads(
 			testutil.Context(t),
 			store.NetworkChannelRef{WorkspaceID: "ws-other", Channel: "builders"},
-			store.NetworkThreadQuery{After: firstPage.NextCursor, Limit: 2},
+			store.NetworkThreadQuery{
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				After:     firstPage.NextCursor,
+				Limit:     2,
+			},
 		)
 		if !errors.Is(err, store.ErrNetworkCursorInvalid) {
 			t.Fatalf("ListThreads(cross-workspace cursor) error = %v, want ErrNetworkCursorInvalid", err)
 		}
 
 		_, err = globalDB.ListThreads(testutil.Context(t), ref, store.NetworkThreadQuery{
-			Sort:   store.NetworkConversationSortAlphabetical,
-			Search: "alpha",
-			Limit:  2,
-			After:  firstPage.NextCursor,
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Sort:      store.NetworkConversationSortAlphabetical,
+			Search:    "alpha",
+			Limit:     2,
+			After:     firstPage.NextCursor,
 		})
 		if !errors.Is(err, store.ErrNetworkCursorInvalid) {
 			t.Fatalf("ListThreads(reused filtered cursor) error = %v, want ErrNetworkCursorInvalid", err)
@@ -2310,7 +2563,7 @@ func TestGlobalDBConversationQueriesUseStableCompleteOrdering(t *testing.T) {
 		empty, err := globalDB.ListThreads(
 			testutil.Context(t),
 			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "empty"},
-			store.NetworkThreadQuery{},
+			store.NetworkThreadQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}},
 		)
 		if err != nil {
 			t.Fatalf("ListThreads(empty default page) error = %v", err)
@@ -2341,8 +2594,9 @@ func TestGlobalDBConversationQueriesUseStableCompleteOrdering(t *testing.T) {
 
 		ref := store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"}
 		first, err := globalDB.ListThreads(testutil.Context(t), ref, store.NetworkThreadQuery{
-			Search: "THREAD_MUTATION",
-			Limit:  2,
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Search:    "THREAD_MUTATION",
+			Limit:     2,
 		})
 		if err != nil {
 			t.Fatalf("ListThreads(first mutation page) error = %v", err)
@@ -2366,9 +2620,10 @@ func TestGlobalDBConversationQueriesUseStableCompleteOrdering(t *testing.T) {
 		}
 
 		second, err := globalDB.ListThreads(testutil.Context(t), ref, store.NetworkThreadQuery{
-			Search: "thread_mutation",
-			Limit:  2,
-			After:  first.NextCursor,
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Search:    "thread_mutation",
+			Limit:     2,
+			After:     first.NextCursor,
 		})
 		if err != nil {
 			t.Fatalf("ListThreads(second mutation page) error = %v", err)
@@ -2404,7 +2659,10 @@ func TestGlobalDBConversationQueriesUseStableCompleteOrdering(t *testing.T) {
 		latest, err := globalDB.ListConversationMessages(
 			testutil.Context(t),
 			ref,
-			store.NetworkConversationMessageQuery{Limit: 2},
+			store.NetworkConversationMessageQuery{
+				Limit:     2,
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			},
 		)
 		if err != nil {
 			t.Fatalf("ListConversationMessages(latest) error = %v", err)
@@ -2416,7 +2674,11 @@ func TestGlobalDBConversationQueriesUseStableCompleteOrdering(t *testing.T) {
 		older, err := globalDB.ListConversationMessages(
 			testutil.Context(t),
 			ref,
-			store.NetworkConversationMessageQuery{BeforeMessageID: "msg_tail_whiskey", Limit: 2},
+			store.NetworkConversationMessageQuery{
+				ReadScope:       store.ReadScope{ProfileID: store.DefaultProfileID},
+				BeforeMessageID: "msg_tail_whiskey",
+				Limit:           2,
+			},
 		)
 		if err != nil {
 			t.Fatalf("ListConversationMessages(older) error = %v", err)
@@ -2428,7 +2690,11 @@ func TestGlobalDBConversationQueriesUseStableCompleteOrdering(t *testing.T) {
 		newer, err := globalDB.ListConversationMessages(
 			testutil.Context(t),
 			ref,
-			store.NetworkConversationMessageQuery{AfterMessageID: "msg_tail_xray", Limit: 2},
+			store.NetworkConversationMessageQuery{
+				ReadScope:      store.ReadScope{ProfileID: store.DefaultProfileID},
+				AfterMessageID: "msg_tail_xray",
+				Limit:          2,
+			},
 		)
 		if err != nil {
 			t.Fatalf("ListConversationMessages(newer) error = %v", err)
@@ -2467,6 +2733,7 @@ func TestGlobalDBNetworkChannelProjectionTracksTimelineWrites(t *testing.T) {
 			PeerFrom:    "peer.presence",
 			Kind:        store.NetworkKindGreet,
 			Body:        []byte(`{"display_name":"Presence"}`),
+			ProfileID:   store.DefaultProfileID,
 			Timestamp:   startedAt.Add(time.Minute),
 		}
 		if err := globalDB.WriteNetworkMessage(testutil.Context(t), presence); err != nil {
@@ -2544,7 +2811,11 @@ func TestGlobalDBNetworkChannelProjectionTracksTimelineWrites(t *testing.T) {
 
 		recents, err := globalDB.ListNetworkRecents(
 			testutil.Context(t),
-			store.NetworkRecentQuery{WorkspaceID: networkStoreTestWorkspaceID, Limit: 2},
+			store.NetworkRecentQuery{
+				ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+				WorkspaceID: networkStoreTestWorkspaceID,
+				Limit:       2,
+			},
 		)
 		if err != nil {
 			t.Fatalf("ListNetworkRecents() error = %v", err)
@@ -2597,7 +2868,12 @@ func TestGlobalDBWriteConversationMessageWorkReceiptTransitions(t *testing.T) {
 		if !result.WorkTransitioned || result.WorkState != store.NetworkWorkStateFailed {
 			t.Fatalf("rejected receipt result = %#v, want failed transition", result)
 		}
-		failedWork, err := globalDB.GetWork(testutil.Context(t), networkStoreTestWorkspaceID, "work_receipt_failed")
+		failedWork, err := globalDB.GetWork(
+			testutil.Context(t),
+			store.ReadScope{AllProfiles: true},
+			networkStoreTestWorkspaceID,
+			"work_receipt_failed",
+		)
 		if err != nil {
 			t.Fatalf("GetWork(failed) error = %v", err)
 		}
@@ -2650,7 +2926,12 @@ func TestGlobalDBWriteConversationMessageWorkReceiptTransitions(t *testing.T) {
 		if !resumeResult.WorkTransitioned || resumeResult.WorkState != store.NetworkWorkStateWorking {
 			t.Fatalf("resume result = %#v, want working transition", resumeResult)
 		}
-		resumedWork, err := globalDB.GetWork(testutil.Context(t), networkStoreTestWorkspaceID, "work_needs_input")
+		resumedWork, err := globalDB.GetWork(
+			testutil.Context(t),
+			store.ReadScope{AllProfiles: true},
+			networkStoreTestWorkspaceID,
+			"work_needs_input",
+		)
 		if err != nil {
 			t.Fatalf("GetWork(resumed) error = %v", err)
 		}
@@ -2661,7 +2942,7 @@ func TestGlobalDBWriteConversationMessageWorkReceiptTransitions(t *testing.T) {
 		reopened := openGlobalDBForTest(t, globalDB.path)
 		reopenedWork, err := reopened.GetWork(
 			testutil.Context(t),
-			networkStoreTestWorkspaceID,
+			store.ReadScope{AllProfiles: true}, networkStoreTestWorkspaceID,
 			"work_needs_input",
 		)
 		if err != nil {
@@ -2857,6 +3138,9 @@ func TestGlobalDBConversationQueryErrors(t *testing.T) {
 
 		_, err = globalDB.GetThread(
 			testutil.Context(t),
+			store.ReadScope{
+				AllProfiles: true,
+			},
 			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
 			"thread_missing",
 		)
@@ -2865,17 +3149,30 @@ func TestGlobalDBConversationQueryErrors(t *testing.T) {
 		}
 		_, err = globalDB.GetDirectRoom(
 			testutil.Context(t),
+			store.ReadScope{
+				AllProfiles: true,
+			},
 			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
 			"direct_missing",
 		)
 		if err == nil {
 			t.Fatal("GetDirectRoom(invalid id) error = nil, want non-nil")
 		}
-		_, err = globalDB.GetWork(testutil.Context(t), networkStoreTestWorkspaceID, "")
+		_, err = globalDB.GetWork(
+			testutil.Context(t),
+			store.ReadScope{AllProfiles: true},
+			networkStoreTestWorkspaceID,
+			"",
+		)
 		if err == nil {
 			t.Fatal("GetWork(empty) error = nil, want non-nil")
 		}
-		_, err = globalDB.GetWork(testutil.Context(t), networkStoreTestWorkspaceID, "work_missing")
+		_, err = globalDB.GetWork(
+			testutil.Context(t),
+			store.ReadScope{AllProfiles: true},
+			networkStoreTestWorkspaceID,
+			"work_missing",
+		)
 		if !errors.Is(err, store.ErrNetworkConversationNotFound) {
 			t.Fatalf("GetWork(missing) error = %v, want ErrNetworkConversationNotFound", err)
 		}
@@ -2884,8 +3181,9 @@ func TestGlobalDBConversationQueryErrors(t *testing.T) {
 			testutil.Context(t),
 			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
 			store.NetworkThreadQuery{
-				Limit: 10,
-				After: "thread_missing",
+				ReadScope: store.ReadScope{AllProfiles: true},
+				Limit:     10,
+				After:     "thread_missing",
 			},
 		)
 		if err == nil {
@@ -2895,6 +3193,7 @@ func TestGlobalDBConversationQueryErrors(t *testing.T) {
 			testutil.Context(t),
 			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
 			store.NetworkDirectRoomQuery{
+				ReadScope: store.ReadScope{AllProfiles: true},
 				SessionID: "other.sess-peer",
 				Limit:     10,
 				After:     directID,
@@ -2910,6 +3209,7 @@ func TestGlobalDBConversationQueryErrors(t *testing.T) {
 			ThreadID:    "thread_query_error",
 		}
 		_, err = globalDB.ListConversationMessages(testutil.Context(t), ref, store.NetworkConversationMessageQuery{
+			ReadScope:       store.ReadScope{AllProfiles: true},
 			BeforeMessageID: "msg_missing",
 			Limit:           10,
 		})
@@ -2917,6 +3217,7 @@ func TestGlobalDBConversationQueryErrors(t *testing.T) {
 			t.Fatalf("ListConversationMessages(missing cursor) error = %v, want ErrNetworkCursorInvalid", err)
 		}
 		_, err = globalDB.ListConversationMessages(testutil.Context(t), ref, store.NetworkConversationMessageQuery{
+			ReadScope:       store.ReadScope{AllProfiles: true},
 			BeforeMessageID: "msg_query_error",
 			AfterMessageID:  "msg_query_error",
 			Limit:           10,
@@ -2998,6 +3299,9 @@ func TestGlobalDBWriteConversationMessageIdempotencyAndRollback(t *testing.T) {
 
 			thread, err := globalDB.GetThread(
 				testutil.Context(t),
+				store.ReadScope{
+					AllProfiles: true,
+				},
 				store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
 				"thread_store_work",
 			)
@@ -3058,6 +3362,7 @@ func TestGlobalDBWriteConversationMessageIdempotencyAndRollback(t *testing.T) {
 			Text:        "wrong room",
 			PreviewText: "wrong room",
 			Body:        []byte(`{"text":"wrong room"}`),
+			ProfileID:   store.DefaultProfileID,
 			Timestamp:   time.Date(2026, 5, 5, 16, 30, 0, 0, time.UTC),
 		}
 
@@ -3150,6 +3455,7 @@ func TestGlobalDBWriteConversationMessageRejectsRawClaimTokens(t *testing.T) {
 			PeerFrom:    "coder.sess-abc",
 			MessageID:   "msg_audit_token",
 			Reason:      "compozy_claim_NET05TOKEN123",
+			ProfileID:   store.DefaultProfileID,
 			Size:        1,
 		})
 		assertRawClaimTokenRejected(t, err, "compozy_claim_NET05TOKEN123")
@@ -3179,6 +3485,7 @@ func threadMessage(
 		Text:        text,
 		PreviewText: text,
 		Body:        []byte(`{"text":"` + text + `"}`),
+		ProfileID:   store.DefaultProfileID,
 		Timestamp:   timestamp,
 	}
 }
@@ -3218,7 +3525,8 @@ func networkWakeAcceptanceRequest(
 			Surface: store.NetworkSurfaceDirect, DirectID: directID,
 			Direction: "sent", PeerFrom: "coder.sess-abc", PeerTo: "reviewer.sess-xyz",
 			Kind: store.NetworkKindSay, Text: "Please review", PreviewText: "Please review",
-			Body: []byte(`{"text":"Please review"}`), Timestamp: timestamp,
+			ProfileID: store.DefaultProfileID,
+			Body:      []byte(`{"text":"Please review"}`), Timestamp: timestamp,
 		},
 		Dispositions: []store.NetworkMessageDisposition{{
 			RecipientSessionID: "reviewer.sess-xyz", Decision: store.NetworkDispositionDeliver,
@@ -3394,6 +3702,7 @@ func threadTraceMessage(
 		WorkID:      workID,
 		PreviewText: state,
 		Body:        []byte(`{"state":"` + state + `"}`),
+		ProfileID:   store.DefaultProfileID,
 		Timestamp:   timestamp,
 	}
 }
@@ -3419,6 +3728,7 @@ func threadReceiptMessage(
 		WorkID:      workID,
 		PreviewText: status,
 		Body:        []byte(`{"status":"` + status + `"}`),
+		ProfileID:   store.DefaultProfileID,
 		Timestamp:   timestamp,
 	}
 }
@@ -3452,6 +3762,7 @@ func writeDirectMessage(
 		Text:        text,
 		PreviewText: text,
 		Body:        []byte(`{"text":"` + text + `"}`),
+		ProfileID:   store.DefaultProfileID,
 		Timestamp:   timestamp,
 	})
 	return directID, result, err
@@ -3495,6 +3806,7 @@ func openNetworkConversationRepositoryTestDB(t *testing.T) *GlobalDB {
 	} {
 		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
 			ID:            sessionID,
+			ProfileID:     store.DefaultProfileID,
 			AgentName:     "coder",
 			Provider:      "claude",
 			RuntimeStatus: store.SessionRuntimeUnbound,
@@ -3506,6 +3818,7 @@ func openNetworkConversationRepositoryTestDB(t *testing.T) *GlobalDB {
 			t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
 		}
 	}
+	registerNetworkChannelForGlobalTests(t, globalDB, workspaceID, "builders")
 	return globalDB
 }
 

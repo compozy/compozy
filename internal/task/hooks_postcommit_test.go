@@ -9,6 +9,7 @@ import (
 	"time"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 func TestTaskRunPostCommitHookFailuresDoNotFailCommittedMutations(t *testing.T) {
@@ -239,8 +240,9 @@ func enqueueRunForPostCommitHookTest(
 	t.Helper()
 
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-		Scope: ScopeGlobal,
-		Title: "Post-commit hook task",
+		ProfileID: storepkg.DefaultProfileID,
+		Scope:     ScopeGlobal,
+		Title:     "Post-commit hook task",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)

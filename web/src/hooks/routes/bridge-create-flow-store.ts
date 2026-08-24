@@ -18,6 +18,7 @@ import {
 interface PersistedBridge {
   displayName: string;
   id: string;
+  profileName: string;
 }
 
 export interface BridgeSecretBindingOutcome {
@@ -32,7 +33,8 @@ export type BridgeSecretBindingExecution = (
   provider: BridgeProvider,
   draft: BridgeCreateDraft,
   alreadyBound?: string[],
-  expectedSlotNames?: readonly string[]
+  expectedSlotNames?: readonly string[],
+  profileName?: string
 ) => Promise<BridgeSecretBindingOutcome>;
 export type BridgeNavigationExecution = (bridge: PersistedBridge) => Promise<void>;
 
@@ -51,6 +53,7 @@ export type BridgeCreateFlow =
       draft: BridgeCreateDraft;
       mode: EntityMode;
       provider: BridgeProvider;
+      aggregate: boolean;
     }
   | {
       phase: "retrying-secrets";
@@ -95,6 +98,7 @@ type BridgeCreateEvents = {
     create: BridgeCreateExecution;
     navigate: BridgeNavigationExecution;
     provider?: BridgeProvider;
+    aggregate?: boolean;
   };
   createCompleted: {
     attempt: number;
@@ -171,7 +175,14 @@ export function createBridgeCreateFlowLogic() {
         enqueue.effect(async ({ trigger }) => {
           try {
             const result = await event.create(request.data);
-            const bindOutcome = await event.bindSecrets(result.bridge.id, provider, draft);
+            const bindOutcome = await event.bindSecrets(
+              result.bridge.id,
+              provider,
+              draft,
+              [],
+              undefined,
+              result.bridge.profile_name
+            );
             trigger.createCompleted({ attempt, bindOutcome, navigate: event.navigate, result });
           } catch (error) {
             trigger.createFailed({
@@ -180,13 +191,21 @@ export function createBridgeCreateFlowLogic() {
             });
           }
         });
-        return { attempt, draft, mode: context.mode, phase: "creating", provider };
+        return {
+          attempt,
+          aggregate: event.aggregate ?? false,
+          draft,
+          mode: context.mode,
+          phase: "creating",
+          provider,
+        };
       },
       createCompleted: (context, event, enqueue) => {
         if (context.phase !== "creating" || context.attempt !== event.attempt) return;
         const bridge = {
           displayName: event.result.bridge.display_name,
           id: event.result.bridge.id,
+          profileName: event.result.bridge.profile_name,
         };
         const draft = clearSecretSlots(context.draft, event.bindOutcome.clearedSlotNames);
         if (Object.keys(event.bindOutcome.failures).length > 0) {
@@ -194,11 +213,12 @@ export function createBridgeCreateFlowLogic() {
             bridgeId: bridge.id,
             bound: event.bindOutcome.bound,
             failures: event.bindOutcome.failures,
+            profileName: bridge.profileName,
             provider: context.provider,
           };
           enqueue.effect(() =>
             notifyUser({
-              message: `Created bridge ${bridge.displayName}, but some credentials failed to bind.`,
+              message: `Created bridge ${bridge.displayName} in ${bridge.profileName}, but some credentials failed to bind.`,
               tone: "error",
             })
           );
@@ -214,7 +234,7 @@ export function createBridgeCreateFlowLogic() {
         if (getBridgeSetupProfile(context.provider.platform)?.manifest === "slack") {
           enqueue.effect(() =>
             notifyUser({
-              message: `Created bridge ${bridge.displayName}. Continue with its Slack manifest.`,
+              message: `Created bridge ${bridge.displayName} in ${bridge.profileName}. Continue with its Slack manifest.`,
               tone: "success",
             })
           );
@@ -226,7 +246,9 @@ export function createBridgeCreateFlowLogic() {
           bridge,
           fallback: { kind: "closed" },
           phase: "navigating",
-          successMessage: `Created bridge ${bridge.displayName}.`,
+          successMessage: context.aggregate
+            ? `Created bridge ${bridge.displayName} in ${bridge.profileName}.`
+            : `Created bridge ${bridge.displayName}.`,
         };
       },
       createFailed: (context, event, enqueue) => {
@@ -245,7 +267,8 @@ export function createBridgeCreateFlowLogic() {
                 context.recovery.provider,
                 context.draft,
                 context.recovery.bound,
-                Object.keys(context.recovery.failures)
+                Object.keys(context.recovery.failures),
+                context.bridge.profileName
               ),
               navigate: event.navigate,
             });

@@ -9,8 +9,9 @@ import { isTaskLifecycleEvent } from "../lib/activity-classes";
 import { homeActivityEventSchema } from "../lib/home-activity-schema";
 import { dashboardKeys } from "../lib/query-keys";
 import { HOME_ACTIVITY_LIMIT, homeActivityOptions } from "../lib/query-options";
-import type { HomeActivityEvent } from "../types";
+import type { HomeActivityEvent, HomeActivityFilter } from "../types";
 import { homeLiveRefreshLogic } from "./home-live-refresh-store";
+import { PROFILE_AGGREGATE, type ProfileScopeParams } from "@/systems/profiles";
 import { tasksKeys } from "@/systems/tasks";
 
 const PULSE_INVALIDATE_MIN_INTERVAL_MS = 60_000;
@@ -25,9 +26,28 @@ type HomeLiveEventSourceFactory = (url: string) => HomeLiveEventSource;
 
 interface UseHomeLiveOptions {
   workspaceId?: string;
+  /**
+   * The lens the home surface is reading. Required rather than defaulted: a
+   * stream that guesses its scope would quietly feed one profile's events into
+   * another's list.
+   */
+  scope: ProfileScopeParams;
   enabled?: boolean;
   eventSourceFactory?: HomeLiveEventSourceFactory;
   onError?: (error: unknown) => void;
+}
+
+function lensKeyOf(scope: ProfileScopeParams): string {
+  return "all_profiles" in scope ? PROFILE_AGGREGATE : scope.profile;
+}
+
+/** The exact filter the activity query uses, so the stream writes into the
+ * entry the list is reading rather than a sibling of it. */
+function activityFilterFor(workspaceId: string, lensKey: string): HomeActivityFilter {
+  return {
+    workspace_id: workspaceId || undefined,
+    ...(lensKey === PROFILE_AGGREGATE ? { all_profiles: true } : { profile: lensKey }),
+  };
 }
 
 function defaultEventSourceFactory(url: string): HomeLiveEventSource {
@@ -38,10 +58,10 @@ type QueryClient = ReturnType<typeof useQueryClient>;
 
 function prependHomeActivityEvent(
   queryClient: QueryClient,
-  workspaceId: string,
+  filters: HomeActivityFilter,
   event: HomeActivityEvent
 ) {
-  const key = homeActivityOptions({ workspace_id: workspaceId || undefined }).queryKey;
+  const key = homeActivityOptions(filters).queryKey;
   queryClient.setQueryData<HomeActivityEvent[]>(key, current => {
     if (!current) {
       return current;
@@ -69,11 +89,14 @@ function invalidateTaskAggregates(queryClient: QueryClient): Promise<unknown[]> 
  */
 export function useHomeLive({
   workspaceId = "",
+  scope,
   enabled = true,
   eventSourceFactory: customEventSourceFactory,
   onError,
-}: UseHomeLiveOptions = {}) {
+}: UseHomeLiveOptions) {
   const queryClient = useQueryClient();
+  const lensKey = lensKeyOf(scope);
+  const url = buildHomeLogsStreamUrl(workspaceId, scope);
   const refreshStore = useStore(homeLiveRefreshLogic);
   const notifyError = useEffectEvent((error: unknown, fallback: string) => {
     if (onError) {
@@ -92,9 +115,11 @@ export function useHomeLive({
       return undefined;
     }
 
-    const url = buildHomeLogsStreamUrl(workspaceId);
     const source = (customEventSourceFactory ?? defaultEventSourceFactory)(url);
-    refreshStore.trigger.scopeActivated({ scope: workspaceId });
+    const activityFilter = activityFilterFor(workspaceId, lensKey);
+    // The url identifies workspace and lens together, so a frame still in flight
+    // from the source a switch just replaced is fenced out by its own scope.
+    refreshStore.trigger.scopeActivated({ scope: url });
 
     source.onmessage = (event: MessageEvent) => {
       if (typeof event.data !== "string") {
@@ -107,7 +132,7 @@ export function useHomeLive({
           notifyError(validation.error, "Rejected malformed home activity stream payload");
           return;
         }
-        prependHomeActivityEvent(queryClient, workspaceId, payload);
+        prependHomeActivityEvent(queryClient, activityFilter, payload);
         refreshStore.trigger.activityReceived({
           at: Date.now(),
           invalidateOverview: () =>
@@ -115,7 +140,7 @@ export function useHomeLive({
           invalidateTaskAggregates: () => invalidateTaskAggregates(queryClient),
           lifecycle: isTaskLifecycleEvent(payload),
           minimumIntervalMs: PULSE_INVALIDATE_MIN_INTERVAL_MS,
-          scope: workspaceId,
+          scope: url,
         });
       } catch (error) {
         notifyError(error, "Failed to parse home activity stream payload");
@@ -130,7 +155,9 @@ export function useHomeLive({
       source.onerror = null;
       source.close();
     };
-  }, [customEventSourceFactory, enabled, queryClient, refreshStore, workspaceId]);
+    // `url` is the stream's identity: changing lens or workspace rebuilds it,
+    // which tears the previous source down before the next one opens.
+  }, [customEventSourceFactory, enabled, lensKey, queryClient, refreshStore, url, workspaceId]);
 }
 
 export type { HomeLiveEventSource, HomeLiveEventSourceFactory, UseHomeLiveOptions };

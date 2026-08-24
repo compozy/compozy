@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/gin-gonic/gin"
 )
@@ -315,7 +316,7 @@ func toolDescriptorPayload(d toolspkg.Descriptor) contract.ToolDescriptorPayload
 	return contract.ToolDescriptorPayload{
 		ToolID:              d.ID,
 		Backend:             toolBackendPayload(d.Backend),
-		DisplayTitle:        d.DisplayTitle,
+		DisplayTitle:        presentation.DisplayTitle,
 		FriendlyVerb:        presentation.FriendlyVerb,
 		Preview:             presentation.Preview,
 		Description:         d.Description,
@@ -425,6 +426,7 @@ func (h *BaseHandlers) toolIDParam(c *gin.Context) (toolspkg.ToolID, bool) {
 // operatorToolScope builds privileged projections from query parameters only.
 func (h *BaseHandlers) operatorToolScope(c *gin.Context) toolspkg.Scope {
 	return toolspkg.Scope{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: strings.TrimSpace(firstNonEmpty(c.Query("workspace_id"), c.Query("workspace"))),
 		SessionID:   strings.TrimSpace(c.Query("session_id")),
 		AgentName:   strings.TrimSpace(c.Query("agent_name")),

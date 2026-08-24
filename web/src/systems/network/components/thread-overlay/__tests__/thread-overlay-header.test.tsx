@@ -37,6 +37,8 @@ function renderWithClient(children: ReactNode) {
 }
 
 const detail: NetworkThreadDetail = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   channel: "ops",
   last_activity_at: "2026-04-17T18:16:00Z",
   last_message_preview: "Ship status is ready.",

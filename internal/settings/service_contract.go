@@ -12,7 +12,6 @@ type Service interface {
 	GetSection(ctx context.Context, req SectionRequest) (SectionEnvelope, error)
 	UpdateSection(ctx context.Context, req SectionUpdateRequest) (MutationResult, error)
 	ApplySection(ctx context.Context, req SectionUpdateRequest) (ApplyResult, error)
-	SetAttentionWorkspaceMuted(ctx context.Context, workspaceID string, muted bool) (bool, error)
 	ListCollection(ctx context.Context, req CollectionRequest) (CollectionEnvelope, error)
 	PutCollectionItem(ctx context.Context, req CollectionItemPutRequest) (MutationResult, error)
 	ApplyCollectionItem(ctx context.Context, req CollectionItemPutRequest) (ApplyResult, error)

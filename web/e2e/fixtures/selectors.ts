@@ -1752,3 +1752,169 @@ export function tasksOperatorSelectors(
     taskCardPublish: (taskId: string) => page.getByTestId(`task-card-publish-${taskId}`),
   };
 }
+
+/**
+ * Profiles — the menubar switcher, the Settings page, and the lifecycle dialogs.
+ *
+ * Dialogs render into the window's overlay layer, so a caller scopes them to the
+ * owning window exactly as it does for every other windowed surface.
+ */
+export const profilesTestIds = {
+  switcher: "os-menubar-profile",
+  switcherMenu: "os-menubar-profile-menu",
+  switcherAll: "profile-switcher-all",
+  switcherCreate: "profile-switcher-create",
+  switcherSettingsLink: "profile-switcher-settings-link",
+  page: "settings-page-profiles",
+  pageLine: "settings-page-profiles-line",
+  pageArchived: "settings-page-profiles-archived",
+  pageSelectionMap: "settings-page-profiles-selection-map",
+  activeList: "profiles-active-list",
+  archivedList: "profiles-archived-list",
+  createOpen: "profile-create-open",
+  createDialog: "profile-create-dialog",
+  createName: "profile-create-name-input",
+  createConfirm: "profile-create-confirm",
+  createPicker: "profile-create-symbol-picker",
+  identityDialog: "profile-identity-dialog",
+  identityConfirm: "profile-identity-confirm",
+  identityPicker: "profile-identity-symbol-picker",
+  renameDialog: "profile-rename-dialog",
+  renameName: "profile-rename-name-input",
+  renameConfirm: "profile-rename-confirm",
+  renamePlan: "profile-rename-plan",
+  renameDormant: "profile-rename-dormant",
+  archiveDialog: "profile-archive-dialog",
+  archiveConfirm: "profile-archive-confirm",
+  archivePaused: "profile-archive-paused",
+  archiveBlocked: "profile-archive-blocked",
+  unarchiveDialog: "profile-unarchive-dialog",
+  unarchiveConfirm: "profile-unarchive-confirm",
+  unarchivePaused: "profile-unarchive-paused",
+  deleteDialog: "profile-delete-dialog",
+  deleteConfirm: "profile-delete-confirm",
+  deleteEnumeration: "profile-delete-enumeration",
+  deleteArchiveInstead: "profile-delete-archive-instead",
+} as const;
+
+export interface ProfilesOperatorSelectors {
+  switcher: Locator;
+  switcherMenu: Locator;
+  switcherAll: Locator;
+  switcherCreate: Locator;
+  switcherOption: (name: string) => Locator;
+  page: Locator;
+  pageLine: Locator;
+  pageArchived: Locator;
+  pageSelectionMap: Locator;
+  activeList: Locator;
+  archivedList: Locator;
+  row: (name: string) => Locator;
+  editIdentityRow: (name: string) => Locator;
+  renameRow: (name: string) => Locator;
+  archiveRow: (name: string) => Locator;
+  unarchiveRow: (name: string) => Locator;
+  deleteRow: (name: string) => Locator;
+  needsSetup: (name: string) => Locator;
+  createOpen: Locator;
+  createDialog: Locator;
+  createName: Locator;
+  createConfirm: Locator;
+  createPicker: Locator;
+  identityDialog: Locator;
+  identityConfirm: Locator;
+  identityPicker: Locator;
+  renameDialog: Locator;
+  renameName: Locator;
+  renameConfirm: Locator;
+  renamePlan: Locator;
+  renameDormant: Locator;
+  renameRepo: (workspaceId: string) => Locator;
+  archiveDialog: Locator;
+  archiveConfirm: Locator;
+  archivePaused: Locator;
+  archiveBlocked: Locator;
+  unarchiveDialog: Locator;
+  unarchiveConfirm: Locator;
+  unarchivePaused: Locator;
+  deleteDialog: Locator;
+  deleteConfirm: Locator;
+  deleteEnumeration: Locator;
+  deleteArchiveInstead: Locator;
+  paletteRow: (name: string) => Locator;
+  paletteCreate: Locator;
+  paletteAggregate: Locator;
+  /** Owner tags — present only in aggregate mode, except on worktree rows. */
+  ownerTag: (name: string) => Locator;
+  ownerTags: Locator;
+  /** The fixed "→ default" chip on a shared creation surface (ADR-005). */
+  destinationChip: Locator;
+  ownerBanner: Locator;
+  ownerBannerSwitch: Locator;
+  usageProfileShare: Locator;
+}
+
+/**
+ * `page` addresses menubar and palette chrome; `scope` addresses the windowed
+ * Settings surface and the dialogs it owns. They differ because the menubar is
+ * page-level and a settings window is not.
+ */
+export function profilesOperatorSelectors(
+  page: Page,
+  scope: Page | Locator = page
+): ProfilesOperatorSelectors {
+  return {
+    switcher: page.getByTestId(profilesTestIds.switcher),
+    switcherMenu: page.getByTestId(profilesTestIds.switcherMenu),
+    switcherAll: page.getByTestId(profilesTestIds.switcherAll),
+    switcherCreate: page.getByTestId(profilesTestIds.switcherCreate),
+    switcherOption: (name: string) => page.getByTestId(`profile-switcher-option-${name}`),
+    page: scope.getByTestId(profilesTestIds.page),
+    pageLine: scope.getByTestId(profilesTestIds.pageLine),
+    pageArchived: scope.getByTestId(profilesTestIds.pageArchived),
+    pageSelectionMap: scope.getByTestId(profilesTestIds.pageSelectionMap),
+    activeList: scope.getByTestId(profilesTestIds.activeList),
+    archivedList: scope.getByTestId(profilesTestIds.archivedList),
+    row: (name: string) => scope.getByTestId(`profile-row-${name}`),
+    editIdentityRow: (name: string) => scope.getByTestId(`profile-edit-identity-${name}`),
+    renameRow: (name: string) => scope.getByTestId(`profile-rename-${name}`),
+    archiveRow: (name: string) => scope.getByTestId(`profile-archive-${name}`),
+    unarchiveRow: (name: string) => scope.getByTestId(`profile-unarchive-${name}`),
+    deleteRow: (name: string) => scope.getByTestId(`profile-delete-${name}`),
+    needsSetup: (name: string) => scope.getByTestId(`profile-needs-setup-${name}`),
+    createOpen: scope.getByTestId(profilesTestIds.createOpen),
+    createDialog: page.getByTestId(profilesTestIds.createDialog),
+    createName: page.getByTestId(profilesTestIds.createName),
+    createConfirm: page.getByTestId(profilesTestIds.createConfirm),
+    createPicker: page.getByTestId(profilesTestIds.createPicker),
+    identityDialog: page.getByTestId(profilesTestIds.identityDialog),
+    identityConfirm: page.getByTestId(profilesTestIds.identityConfirm),
+    identityPicker: page.getByTestId(profilesTestIds.identityPicker),
+    renameDialog: page.getByTestId(profilesTestIds.renameDialog),
+    renameName: page.getByTestId(profilesTestIds.renameName),
+    renameConfirm: page.getByTestId(profilesTestIds.renameConfirm),
+    renamePlan: page.getByTestId(profilesTestIds.renamePlan),
+    renameDormant: page.getByTestId(profilesTestIds.renameDormant),
+    renameRepo: (workspaceId: string) => page.getByTestId(`profile-rename-repo-${workspaceId}`),
+    archiveDialog: page.getByTestId(profilesTestIds.archiveDialog),
+    archiveConfirm: page.getByTestId(profilesTestIds.archiveConfirm),
+    archivePaused: page.getByTestId(profilesTestIds.archivePaused),
+    archiveBlocked: page.getByTestId(profilesTestIds.archiveBlocked),
+    unarchiveDialog: page.getByTestId(profilesTestIds.unarchiveDialog),
+    unarchiveConfirm: page.getByTestId(profilesTestIds.unarchiveConfirm),
+    unarchivePaused: page.getByTestId(profilesTestIds.unarchivePaused),
+    deleteDialog: page.getByTestId(profilesTestIds.deleteDialog),
+    deleteConfirm: page.getByTestId(profilesTestIds.deleteConfirm),
+    deleteEnumeration: page.getByTestId(profilesTestIds.deleteEnumeration),
+    deleteArchiveInstead: page.getByTestId(profilesTestIds.deleteArchiveInstead),
+    paletteRow: (name: string) => page.getByTestId(`os-palette-profile-${name}`),
+    paletteCreate: page.getByTestId("os-palette-profile-create"),
+    paletteAggregate: page.getByTestId("os-palette-profile-aggregate"),
+    ownerTag: (name: string) => scope.getByTestId("profile-owner-tag").filter({ hasText: name }),
+    ownerTags: scope.getByTestId("profile-owner-tag"),
+    destinationChip: scope.getByTestId("profile-destination-chip"),
+    ownerBanner: page.getByTestId("profile-owner-banner"),
+    ownerBannerSwitch: page.getByTestId("profile-owner-banner-switch"),
+    usageProfileShare: scope.getByTestId("home-profile-share"),
+  };
+}

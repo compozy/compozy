@@ -15,6 +15,26 @@ import (
 	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
+const (
+	automationOwnerProfileJobResourceSQL = `(SELECT CAST(json_extract(spec_json, '$.profile_id') AS TEXT)
+	 FROM resource_records WHERE kind = 'automation.job' AND id = `
+	automationOwnerProfileJobTableSQL        = `(SELECT profile_id FROM automation_jobs WHERE id = `
+	automationOwnerProfileTriggerResourceSQL = `(SELECT CAST(json_extract(spec_json, '$.profile_id') AS TEXT)
+	 FROM resource_records WHERE kind = 'automation.trigger' AND id = `
+	automationOwnerProfileTriggerTableSQL = `(SELECT profile_id FROM automation_triggers WHERE id = `
+
+	automationRunProfileIDSQL = `COALESCE(` +
+		automationOwnerProfileJobResourceSQL + `automation_runs.job_id),` +
+		automationOwnerProfileJobTableSQL + `automation_runs.job_id),` +
+		automationOwnerProfileTriggerResourceSQL + `automation_runs.trigger_id),` +
+		automationOwnerProfileTriggerTableSQL + `automation_runs.trigger_id))`
+	automationWatchEventProfileIDSQL = `COALESCE(` +
+		automationOwnerProfileJobResourceSQL + `awe.job_id),` +
+		automationOwnerProfileJobTableSQL + `awe.job_id),` +
+		automationOwnerProfileTriggerResourceSQL + `awe.trigger_id),` +
+		automationOwnerProfileTriggerTableSQL + `awe.trigger_id))`
+)
+
 func encodeJobRecord(job automation.Job) (string, any, string, string, automationLoopTargetEncoded, error) {
 	scheduleJSON, err := encodeAutomationJSON(job.Schedule, "job.schedule")
 	if err != nil {
@@ -62,6 +82,9 @@ func encodeTriggerRecord(trigger automation.Trigger) (any, string, string, autom
 }
 
 func validateAutomationRunQuery(query automation.RunQuery) error {
+	if err := query.ReadScope.Validate(); err != nil {
+		return fmt.Errorf("store: invalid automation run read scope: %w", err)
+	}
 	if query.Limit < 0 {
 		return fmt.Errorf("store: invalid automation run limit %d", query.Limit)
 	}
@@ -114,6 +137,10 @@ func buildAutomationRunClauses(query automation.RunQuery) ([]string, []any) {
 		store.TimeClause("started_at", ">=", query.Since),
 		store.TimeClause("started_at", "<=", query.Until),
 	)
+	if !query.ReadScope.AllProfiles {
+		where = append(where, automationRunProfileIDSQL+` = ?`)
+		args = append(args, query.ReadScope.ProfileID)
+	}
 	return where, args
 }
 

@@ -24,7 +24,12 @@ func (h *BaseHandlers) GetSlackBridgeManifest(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, errors.New("bridge instance query parameter is required"))
 		return
 	}
-	instance, err := bridges.GetInstance(c.Request.Context(), instanceID)
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	instance, err := bridges.GetInstanceScoped(c.Request.Context(), readScope, instanceID)
 	if err != nil {
 		h.respondError(c, StatusForBridgeError(err), err)
 		return

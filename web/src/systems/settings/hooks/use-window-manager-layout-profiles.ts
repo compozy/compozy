@@ -19,12 +19,15 @@ import { windowManagerLayoutProfileEditorLogic } from "../stores/window-manager-
 
 export function useWindowManagerLayoutProfiles({
   workspaceId,
+  profileId,
   document,
   profiles,
   draftDirty,
   onLoad,
 }: {
   workspaceId: string;
+  /** The profile whose desks these layout profiles belong to (US-026). */
+  profileId: string;
   document: WindowManagerLayoutDocument;
   profiles: readonly WindowManagerLayoutResourceRecord[];
   draftDirty: boolean;
@@ -38,7 +41,7 @@ export function useWindowManagerLayoutProfiles({
   useEffect(() => {
     const deleted = store.on("profileDeleted", event => {
       queryClient.setQueryData<WindowManagerLayoutResourceRecord[]>(
-        settingsKeys.windowManagerLayoutProfiles(workspaceId),
+        settingsKeys.windowManagerLayoutProfiles(workspaceId, profileId),
         current =>
           (current ?? []).filter(
             item => layoutProfileResourceKey(item) !== layoutProfileResourceKey(event.record)
@@ -51,7 +54,7 @@ export function useWindowManagerLayoutProfiles({
     const saved = store.on("profileSaved", event => {
       const previousKey = event.previous ? layoutProfileResourceKey(event.previous) : null;
       queryClient.setQueryData<WindowManagerLayoutResourceRecord[]>(
-        settingsKeys.windowManagerLayoutProfiles(workspaceId),
+        settingsKeys.windowManagerLayoutProfiles(workspaceId, profileId),
         current => [
           ...(current ?? []).filter(item => {
             const key = layoutProfileResourceKey(item);
@@ -66,7 +69,7 @@ export function useWindowManagerLayoutProfiles({
       loaded.unsubscribe();
       saved.unsubscribe();
     };
-  }, [onLoad, queryClient, store, workspaceId]);
+  }, [onLoad, profileId, queryClient, store, workspaceId]);
 
   const saveProfile = () =>
     store.trigger.saveRequested({
@@ -85,6 +88,7 @@ export function useWindowManagerLayoutProfiles({
           },
           input.draft.scope,
           input.workspaceId,
+          profileId,
           input.expectedVersion
         ),
     });
@@ -98,7 +102,8 @@ export function useWindowManagerLayoutProfiles({
   };
   const confirmDelete = () =>
     store.trigger.deleteConfirmed({
-      execute: record => deleteWindowManagerLayoutProfile(workspaceId, record.id, record.version),
+      execute: record =>
+        deleteWindowManagerLayoutProfile(workspaceId, profileId, record.id, record.version),
     });
 
   return {

@@ -23,6 +23,7 @@ type MCPServerItem struct {
 	RuntimeStatus          *MCPServerRuntimeStatus
 	Scope                  ScopeKind
 	WorkspaceID            string
+	ProfileName            string
 	CatalogEntry           string
 	CatalogVersion         string
 	SourceMetadata         SourceMetadata
@@ -33,7 +34,9 @@ func baseMCPServerItem(
 	entries []mcpSourceEntry,
 	scope ScopeKind,
 	workspaceID string,
+	profileName string,
 ) MCPServerItem {
+	profileName = strings.TrimSpace(profileName)
 	shadowed := make([]SourceRef, 0, len(entries)-1)
 	for idx := len(entries) - 2; idx >= 0; idx-- {
 		shadowed = append(shadowed, entries[idx].Source)
@@ -53,6 +56,7 @@ func baseMCPServerItem(
 		ClientSecretConfigured: clientSecretConfigured,
 		Scope:                  scope,
 		WorkspaceID:            workspaceID,
+		ProfileName:            profileName,
 		CatalogEntry:           strings.TrimSpace(effective.Server.CatalogEntry),
 		CatalogVersion:         strings.TrimSpace(effective.Server.CatalogVersion),
 		SourceMetadata: SourceMetadata{
@@ -121,11 +125,12 @@ func committedMCPServerItem(
 	server compozyconfig.MCPServer,
 	scope ScopeKind,
 	workspaceID string,
+	profileName string,
 	target WriteTargetKind,
 	sources map[string][]mcpSourceEntry,
 ) MCPServerItem {
 	committed := mcpSourceEntry{
-		Source: sourceRefForWriteTarget(target, workspaceID),
+		Source: sourceRefForWriteTarget(target, workspaceID, profileName),
 		Target: target,
 		Server: server,
 	}
@@ -144,7 +149,7 @@ func committedMCPServerItem(
 	sort.SliceStable(entries, func(left, right int) bool {
 		return mcpSourcePrecedence(entries[left].Target) < mcpSourcePrecedence(entries[right].Target)
 	})
-	return baseMCPServerItem(entries[len(entries)-1], entries, scope, workspaceID)
+	return baseMCPServerItem(entries[len(entries)-1], entries, scope, workspaceID, profileName)
 }
 
 func mcpSourcePrecedence(target WriteTargetKind) int {
@@ -153,10 +158,18 @@ func mcpSourcePrecedence(target WriteTargetKind) int {
 		return 0
 	case WriteTargetGlobalMCPSidecar:
 		return 1
-	case WriteTargetWorkspaceConfig:
+	case WriteTargetProfileConfig:
 		return 2
-	case WriteTargetWorkspaceMCPSidecar:
+	case WriteTargetProfileMCPSidecar:
 		return 3
+	case WriteTargetWorkspaceConfig:
+		return 4
+	case WriteTargetWorkspaceMCPSidecar:
+		return 5
+	case WriteTargetWorkspaceProfileConfig:
+		return 6
+	case WriteTargetWorkspaceProfileMCPSidecar:
+		return 7
 	default:
 		return -1
 	}

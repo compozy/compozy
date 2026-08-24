@@ -188,6 +188,7 @@ func (h *BaseHandlers) resolveAgentReplySource(
 
 	if h != nil && h.NetworkStore != nil {
 		entries, lookupErr := h.NetworkStore.ListNetworkMessages(ctx, store.NetworkMessageQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: callerWorkspaceID,
 			SessionID:   callerSessionID,
 			MessageID:   messageID,

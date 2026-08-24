@@ -127,9 +127,13 @@ func (n *daemonNativeTools) memoryListLocations(
 	scope memcontract.Scope,
 	selector memoryToolSelector,
 ) ([]memoryToolLocation, error) {
-	locations := []memoryToolLocation{{Store: n.deps.MemoryStore, Scope: memcontract.ScopeGlobal}}
+	profileStore, err := n.profileMemoryStore(ctx, callerScope)
+	if err != nil {
+		return nil, err
+	}
+	locations := []memoryToolLocation{{Store: profileStore, Scope: memcontract.ScopeProfile}}
 	switch scope {
-	case memcontract.ScopeGlobal:
+	case memcontract.ScopeProfile:
 		return locations[:1], nil
 	case memcontract.ScopeWorkspace, memcontract.ScopeAgent:
 		location, err := n.memoryStoreFor(ctx, callerScope, toolspkg.ToolIDMemoryList, selector, scope)

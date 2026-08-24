@@ -5,6 +5,7 @@ import { LoopRunsView } from "../runs/loop-runs-view";
 import type { LoopNodeInventoryItem, LoopNodeInventoryState, LoopRun } from "../../types";
 import { loopRunFixtures } from "../../mocks/fixtures";
 import { STORY_NOW } from "./loop-run-page-fixture-world";
+import { scopedListingScopeFixture } from "@/systems/profiles/mocks";
 
 /**
  * Visual Contract capture target for the workspace node inventories (VC-R5).
@@ -250,7 +251,11 @@ export const RunsRosterCanceled: Story = {
   args: {},
   render: () => (
     <div className="min-h-dvh bg-canvas p-6">
-      <LoopRunsView outcome="canceled" runs={[...loopRunFixtures, ...CANCELED_RUNS]} />
+      <LoopRunsView
+        profileScope={scopedListingScopeFixture}
+        outcome="canceled"
+        runs={[...loopRunFixtures, ...CANCELED_RUNS]}
+      />
     </div>
   ),
 };

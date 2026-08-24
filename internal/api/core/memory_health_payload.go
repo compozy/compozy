@@ -67,14 +67,15 @@ func (h *BaseHandlers) memoryHealthSnapshot(
 			payload.LastConsolidation = &lastConsolidation
 		}
 	}
-	if h.MemoryStore == nil {
+	store, err := h.memoryBoundStore(ctx)
+	if err != nil {
 		payload.Status = memoryHealthStatusUnavailable
 		payload.Configured = false
-		payload.Reason = "memory store is not configured"
+		payload.Reason = err.Error()
 		return payload, nil
 	}
 
-	globalCount, err := h.MemoryStore.SourceHeaderCount(ctx, memcontract.ScopeGlobal)
+	globalCount, err := store.SourceHeaderCount(ctx, memcontract.ScopeProfile)
 	if err != nil {
 		payload.Status = memoryHealthStatusUnavailable
 		payload.Reason = err.Error()
@@ -82,17 +83,15 @@ func (h *BaseHandlers) memoryHealthSnapshot(
 	}
 	payload.GlobalFiles = globalCount
 
-	workspaces, err := h.memoryHealthWorkspaces(
-		ctx,
-		rawWorkspace,
-	)
+	binding := memoryProfileBindingFromContext(ctx)
+	workspaces, err := h.memoryHealthWorkspaces(ctx, rawWorkspace, binding.ID)
 	if err != nil {
 		return contract.MemoryHealthPayload{}, err
 	}
 	payload.WorkspaceCount = len(workspaces)
 	for _, workspace := range workspaces {
-		store := h.MemoryStore.ForWorkspace(workspace)
-		count, err := store.SourceHeaderCount(ctx, memcontract.ScopeWorkspace)
+		workspaceStore := store.ForWorkspace(workspace)
+		count, err := workspaceStore.SourceHeaderCount(ctx, memcontract.ScopeWorkspace)
 		if err != nil {
 			payload.Status = memoryHealthStatusDegraded
 			payload.Reason = err.Error()
@@ -101,7 +100,7 @@ func (h *BaseHandlers) memoryHealthSnapshot(
 		payload.WorkspaceFiles += count
 	}
 
-	stats, err := h.MemoryStore.HealthStats(ctx, workspaces)
+	stats, err := store.HealthStats(ctx, workspaces)
 	if err != nil {
 		payload.Status = memoryHealthStatusDegraded
 		payload.Reason = err.Error()

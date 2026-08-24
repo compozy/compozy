@@ -381,8 +381,8 @@ func normalizeLoopRunForHistoryImport(run looppkg.Run) (looppkg.Run, error) {
 	}
 	run.DefinitionDigest = strings.TrimSpace(run.DefinitionDigest)
 	run.ActiveGateID = looppkg.NodeID(strings.TrimSpace(string(run.ActiveGateID)))
-	if len(run.ActiveHumanCriteria) == 0 {
-		run.ActiveHumanCriteria = json.RawMessage(`[]`)
+	if len(run.ActiveHumanCriteriaValue()) == 0 {
+		run.SetActiveHumanCriteria(json.RawMessage(`[]`))
 	}
 	if run.ReattemptStrategy == "" {
 		run.ReattemptStrategy = looppkg.ReattemptFailedOnly

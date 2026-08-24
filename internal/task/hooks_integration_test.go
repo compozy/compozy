@@ -9,6 +9,7 @@ import (
 	"time"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	storepkg "github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -47,8 +48,9 @@ func TestTaskRunHooksDispatchAfterAuditEventsIntegration(t *testing.T) {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
 		taskRecord, err := manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Post-claim hook ordering",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     "Post-claim hook ordering",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -106,8 +108,9 @@ func TestTaskRunHooksDispatchAfterAuditEventsIntegration(t *testing.T) {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
 		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Post-release hook ordering",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     "Post-release hook ordering",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -196,8 +199,9 @@ func TestTaskRunHooksDispatchAfterAuditEventsIntegration(t *testing.T) {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
 		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Post-failure hook ordering",
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     "Post-failure hook ordering",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)

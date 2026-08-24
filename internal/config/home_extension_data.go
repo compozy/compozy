@@ -4,15 +4,22 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
 // ExtensionDataDirName is the dedicated root for extension-owned runtime data.
 const ExtensionDataDirName = "extension-data"
 
-// ExtensionDataPath returns the deterministic data path for one global or
-// workspace-local extension instance without creating it.
-func (p HomePaths) ExtensionDataPath(name string, workspaceID string) (string, error) {
+var extensionDataProfileIDPattern = regexp.MustCompile(`^[0-9A-HJKMNP-TV-Z]{26}$`)
+
+// ExtensionDataPath returns the deterministic data path for one extension
+// instance, optionally partitioned by workspace and stable profile id.
+func (p HomePaths) ExtensionDataPath(
+	name string,
+	workspaceID string,
+	profileID string,
+) (string, error) {
 	root := strings.TrimSpace(p.ExtensionDataRoot)
 	if root == "" {
 		return "", errors.New("config: extension data root is required")
@@ -28,6 +35,13 @@ func (p HomePaths) ExtensionDataPath(name string, workspaceID string) (string, e
 			return "", err
 		}
 		segment += "@ws-" + workspace
+	}
+	profileID = strings.TrimSpace(profileID)
+	if profileID != "" {
+		if !extensionDataProfileIDPattern.MatchString(profileID) {
+			return "", errors.New("config: profile id must be a 26-character ULID")
+		}
+		segment += "@pf-" + profileID
 	}
 	path := filepath.Join(root, segment)
 	relative, err := filepath.Rel(root, path)

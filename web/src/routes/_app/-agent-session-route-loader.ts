@@ -5,15 +5,22 @@ import {
   cachedForeignSessionOwner,
   resolveForeignSessionOwner,
   sessionDetailOptions,
+  sessionScopedDetailOptions,
   SessionNotFoundError,
   type SessionOwnerDialogState,
   sessionTranscriptOptions,
 } from "@/systems/session";
+import { readProfileLens, readProfileScopeParams } from "@/systems/profiles";
 
 /**
  * A deep link either loads under the active workspace, belongs to another workspace (the operator
  * confirms the switch — ADR-004), or exists nowhere. Only the `loaded` branch reads session data;
  * the `foreign` branch carries the owner projection and nothing else.
+ *
+ * This loader decides the *workspace* axis only. The profile axis is resolved when the window
+ * mounts, against the by-id route that enforces it — reading it here would make a workspace miss
+ * and a profile miss indistinguishable, and this route's confirm dialog depends on telling them
+ * apart.
  */
 export type AgentSessionRouteLoaderData =
   | { status: "loaded"; workspaceId: string }
@@ -38,7 +45,13 @@ export async function prefetchAgentSessionRoute({
   }
 
   try {
+    // Prove workspace ownership before the profile-aware by-id read. The by-id
+    // endpoint enforces the profile lens but is intentionally workspace-agnostic;
+    // using it alone would silently open a foreign workspace's session.
     await queryClient.ensureQueryData(sessionDetailOptions(workspaceId, sessionId));
+    await queryClient.ensureQueryData(
+      sessionScopedDetailOptions(sessionId, readProfileScopeParams(queryClient, readProfileLens()))
+    );
   } catch (error) {
     if (error instanceof SessionNotFoundError) {
       return resolveForeignSession(queryClient, sessionId, workspaceId);

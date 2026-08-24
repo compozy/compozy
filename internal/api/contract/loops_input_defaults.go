@@ -4,7 +4,7 @@ package contract
 type LoopInputDefaultsScope string
 
 const (
-	LoopInputDefaultsScopeGlobal    LoopInputDefaultsScope = "global"
+	LoopInputDefaultsScopeUser      LoopInputDefaultsScope = "user"
 	LoopInputDefaultsScopeWorkspace LoopInputDefaultsScope = "workspace"
 )
 

@@ -14,6 +14,7 @@ const managerChannelKey = "channel"
 
 type joinChannelRequest struct {
 	sessionID            string
+	profileID            string
 	peerID               string
 	workspaceID          string
 	displayName          string
@@ -55,7 +56,7 @@ func (m *Manager) JoinChannel(ctx context.Context, join sessionpkg.NetworkPeerJo
 		return err
 	}
 	runtime := &managedSession{
-		sessionID: local.SessionID, peerID: local.PeerID,
+		sessionID: local.SessionID, profileID: request.profileID, peerID: local.PeerID,
 		workspaceID: local.WorkspaceID, channel: local.Channel,
 		ownerKey: request.ownerKey, networkParticipation: request.networkParticipation,
 	}
@@ -101,6 +102,7 @@ func normalizeJoinChannelRequest(
 	}
 	request := joinChannelRequest{
 		sessionID: strings.TrimSpace(join.SessionID), peerID: strings.TrimSpace(join.PeerID),
+		profileID:   strings.TrimSpace(join.ProfileID),
 		workspaceID: strings.TrimSpace(join.WorkspaceID), displayName: strings.TrimSpace(join.DisplayName),
 		channel: strings.TrimSpace(join.Channel), ownerKey: strings.TrimSpace(join.OwnerKey),
 		networkParticipation: join.NetworkParticipation,
@@ -108,6 +110,9 @@ func normalizeJoinChannelRequest(
 	}
 	if request.sessionID == "" {
 		return joinChannelRequest{}, fmt.Errorf("%w: session id is required", ErrMissingField)
+	}
+	if request.profileID == "" {
+		return joinChannelRequest{}, fmt.Errorf("%w: profile id is required", ErrMissingField)
 	}
 	if request.peerID == "" {
 		return joinChannelRequest{}, fmt.Errorf("%w: peer id is required", ErrMissingField)

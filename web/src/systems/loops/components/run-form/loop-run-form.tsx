@@ -13,6 +13,7 @@ import { LoopRunInputField } from "./loop-run-input-field";
 import { LoopRunOverrides } from "./loop-run-overrides";
 import { LoopRunPlan } from "./loop-run-plan";
 import { NetworkParticipationFields } from "@/systems/network";
+import { ProfileDestinationChip } from "@/systems/profiles";
 import { useWorktrees } from "@/systems/workspace";
 import { LoopRunEnvironment } from "./loop-run-environment";
 import { loopInputCatalogNeeds } from "../../lib/loop-input-catalogs";
@@ -53,6 +54,7 @@ function LoopRunFormActions({
   onDryRun,
   onRun,
   pendingKind,
+  profileDestination,
   valid,
 }: {
   busy: boolean;
@@ -60,6 +62,8 @@ function LoopRunFormActions({
   onDryRun: () => void;
   onRun: () => void;
   pendingKind: "dry-run" | "run" | null;
+  /** Where the run will be filed, stated only while the aggregate is on. */
+  profileDestination: string | null;
   valid: boolean;
 }) {
   return (
@@ -79,6 +83,7 @@ function LoopRunFormActions({
         ) : null}
         {note.text}
       </span>
+      {profileDestination ? <ProfileDestinationChip profile={profileDestination} /> : null}
       <Button
         type="button"
         variant="secondary"
@@ -237,6 +242,7 @@ export function LoopRunForm({
           onDryRun={form.handleDryRun}
           onRun={form.handleRun}
           pendingKind={form.pendingKind}
+          profileDestination={form.profileDestination}
           valid={form.valid}
         />
 

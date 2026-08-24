@@ -29,6 +29,8 @@ describe("attentionJumpTargetFor", () => {
         kind: "agent",
         key: "agent:ntf-1",
         notification: {
+          profile_id: "00000000000000000000000000",
+          profile_name: "default",
           notification_id: "ntf-1",
           session_id: "sess-alpha",
           workspace_id: "ws-alpha",

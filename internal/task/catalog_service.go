@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 // ListTaskCatalog returns one batched public catalog page after enforcing read authority.
@@ -14,6 +16,9 @@ func (m *Service) ListTaskCatalog(
 ) (CatalogPage, error) {
 	if err := requireReadAuthority(actor); err != nil {
 		return CatalogPage{}, err
+	}
+	if actor.ReadScope != (store.ReadScope{}) {
+		query.ReadScope = actor.ReadScope
 	}
 	if !isTaskOperator(actor) {
 		workspaceID := strings.TrimSpace(actor.Scope.WorkspaceID)

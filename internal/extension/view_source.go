@@ -22,6 +22,7 @@ func (m *Manager) OpenProgram(
 ) (cmdpalette.ViewFrame, uint64, error) {
 	process, name, generation, release, err := m.viewProgramProcess(
 		ctx,
+		request.ProfileLens,
 		request.Workspace,
 		extensionName,
 		extensionprotocol.ExtensionServiceMethodViewOpen,
@@ -47,12 +48,14 @@ func (m *Manager) OpenProgram(
 // HandleProgramEvent calls view/event and permits an acknowledgement-only response.
 func (m *Manager) HandleProgramEvent(
 	ctx context.Context,
+	profile cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	extensionName string,
 	event cmdpalette.ViewEvent,
 ) (*cmdpalette.ViewFrame, error) {
 	process, name, _, release, err := m.viewProgramProcess(
 		ctx,
+		profile,
 		workspaceID,
 		extensionName,
 		extensionprotocol.ExtensionServiceMethodViewEvent,
@@ -86,12 +89,14 @@ func (m *Manager) HandleProgramEvent(
 // CloseProgram calls view/close through the same gate as open and event.
 func (m *Manager) CloseProgram(
 	ctx context.Context,
+	profile cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	extensionName string,
 	request cmdpalette.ViewCloseRequest,
 ) error {
 	process, name, _, release, err := m.viewProgramProcess(
 		ctx,
+		profile,
 		workspaceID,
 		extensionName,
 		extensionprotocol.ExtensionServiceMethodViewClose,
@@ -119,11 +124,12 @@ func (m *Manager) CloseProgram(
 
 func (m *Manager) viewProgramProcess(
 	ctx context.Context,
+	profile cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	extensionName string,
 	method extensionprotocol.ExtensionServiceMethod,
 ) (processHandle, string, uint64, func(), error) {
-	key := InstanceKey{Name: extensionName, WorkspaceID: string(workspaceID)}
+	key := ProfileInstanceKey(extensionName, string(profile.ID), string(workspaceID))
 	release, err := m.viewCallGates.acquire(ctx, key)
 	if err != nil {
 		return nil, key.Name, 0, nil, fmt.Errorf("extension: wait for view call slot: %w", err)

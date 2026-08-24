@@ -196,7 +196,7 @@ describe("session MSW handlers", () => {
     const agent = sample.agent_name!;
 
     const filtered = await fetch(
-      `${API}/api/sessions?workspace=${encodeURIComponent(workspace)}&agent=${encodeURIComponent(agent)}`
+      `${API}/api/sessions?workspace_id=${encodeURIComponent(workspace)}&agent=${encodeURIComponent(agent)}`
     );
     expect(filtered.status).toBe(200);
     const body = (await filtered.json()) as {
@@ -207,13 +207,30 @@ describe("session MSW handlers", () => {
     expect(body.sessions.every(session => session.agent_name === agent)).toBe(true);
 
     const workspaceOnly = await fetch(
-      `${API}/api/sessions?workspace=${encodeURIComponent(workspace)}`
+      `${API}/api/sessions?workspace_id=${encodeURIComponent(workspace)}`
     );
     const workspaceBody = (await workspaceOnly.json()) as {
       sessions: Array<{ workspace_id: string }>;
     };
     expect(workspaceBody.sessions.every(session => session.workspace_id === workspace)).toBe(true);
     expect(workspaceBody.sessions.length).toBeGreaterThanOrEqual(body.sessions.length);
+  });
+
+  it("Should filter listSessions by a named profile and widen only for aggregate reads", async () => {
+    const marketingResponse = await fetch(`${API}/api/sessions?profile=marketing`);
+    const marketing = (await marketingResponse.json()) as {
+      sessions: Array<{ profile_name: string }>;
+    };
+    expect(marketing.sessions.length).toBeGreaterThan(0);
+    expect(marketing.sessions.every(session => session.profile_name === "marketing")).toBe(true);
+
+    const aggregateResponse = await fetch(`${API}/api/sessions?all_profiles=true`);
+    const aggregate = (await aggregateResponse.json()) as {
+      sessions: Array<{ profile_name: string }>;
+    };
+    expect(new Set(aggregate.sessions.map(session => session.profile_name))).toEqual(
+      new Set(["default", "marketing"])
+    );
   });
 
   it("Should expose canonical attention filters, summary, interactions, and presence", async () => {

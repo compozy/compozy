@@ -16,8 +16,10 @@ func headerParam(name string, description string) ParameterSpec {
 	return ParameterSpec{Name: name, In: openapi3.ParameterInHeader, Description: description, Required: true}
 }
 
-func optionalHeaderParam(name string, description string) ParameterSpec {
-	return ParameterSpec{Name: name, In: openapi3.ParameterInHeader, Description: description, Required: false}
+func optionalLastEventIDHeaderParam(description string) ParameterSpec {
+	return ParameterSpec{
+		Name: specLastEventIDHeader, In: openapi3.ParameterInHeader, Description: description, Required: false,
+	}
 }
 
 func queryParam(name string, description string, required bool) ParameterSpec {
@@ -59,6 +61,49 @@ func requiredIntQueryParam(name string, description string) ParameterSpec {
 	parameter := intQueryParam(name, description)
 	parameter.Required = true
 	return parameter
+}
+
+func requiredEnumQueryParam(name string, description string, values []string) ParameterSpec {
+	parameter := enumQueryParam(name, description, values)
+	parameter.Required = true
+	return parameter
+}
+
+// withProfileScope documents the two — and only two — profile read modes every
+// work-read surface accepts: scoped to one profile, or the explicit owner-labeled
+// aggregate. Sending both is rejected with `profile_selection_conflict`; sending
+// neither resolves the caller's profile rather than widening (ADR-005, ADR-015).
+func withProfileScope(params ...ParameterSpec) []ParameterSpec {
+	return append(params,
+		queryParam(specProfileKey, "Read one profile's rows by name", false),
+		boolQueryParam("all_profiles", "Read the owner-labeled all-profiles aggregate"),
+	)
+}
+
+// withProfileSelector documents the scoped selector alone. Mutating surfaces resolve
+// an owner rather than a view, so the aggregate is refused there and is not offered.
+func withProfileSelector(params ...ParameterSpec) []ParameterSpec {
+	return append(params, queryParam(specProfileKey, "Act as this profile by name", false))
+}
+
+func ensureProfileParameters(params []ParameterSpec, read bool) []ParameterSpec {
+	for _, parameter := range params {
+		if parameter.In == specParameterInQuery && parameter.Name == specProfileKey {
+			return params
+		}
+	}
+	if read {
+		return withProfileScope(params...)
+	}
+	return withProfileSelector(params...)
+}
+
+func settingsLayeredParameters() []ParameterSpec {
+	return []ParameterSpec{
+		enumQueryParam(specScopeKey, "Select the settings scope", settingsLayeredScopeValues()),
+		queryParam("workspace_id", "Select the workspace context", false),
+		queryParam(specProfileKey, "Select the profile layer", false),
+	}
 }
 
 func memorySelectorQueryParams() []ParameterSpec {

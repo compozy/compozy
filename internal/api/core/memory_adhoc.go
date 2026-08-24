@@ -121,7 +121,7 @@ func memoryAdhocSelector(req contract.MemoryAdhocNoteRequest) memorySelector {
 		case strings.TrimSpace(req.WorkspaceID) != "":
 			scope = memcontract.ScopeWorkspace
 		default:
-			scope = memcontract.ScopeGlobal
+			scope = memcontract.ScopeProfile
 		}
 	}
 	return memorySelector{

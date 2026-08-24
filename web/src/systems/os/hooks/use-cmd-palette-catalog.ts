@@ -9,6 +9,7 @@ import type {
   CmdPaletteCatalogResponse,
   CmdPaletteStructuralCatalog,
 } from "../lib/cmd-palette-types";
+import { useProfileReadScope } from "@/systems/profiles";
 
 export interface CmdPaletteCatalogState {
   /** Structure only; availability is the evaluator's job, never the cache's. */
@@ -43,41 +44,51 @@ export function useCmdPaletteCatalog({
   enabled = true,
 }: UseCmdPaletteCatalogOptions): CmdPaletteCatalogState {
   const workspace = workspaceId?.trim() ?? "";
+  // The catalog answers differently per profile — an extension enabled in one is
+  // absent in another — so the lens keys the query and the offline record alike.
+  const { key: profileKey } = useProfileReadScope();
   const queryClient = useQueryClient();
-  const query = useQuery(cmdPaletteCatalogOptions(workspace, clientId, enabled));
+  const query = useQuery(cmdPaletteCatalogOptions(workspace, profileKey, clientId, enabled));
   const [cached, setCached] = useState<{
     workspaceId: string;
     record: CmdPaletteCatalogRecord | null;
+    profileKey: string;
   } | null>(null);
 
   // IndexedDB is an external store, so reading it is effect work. Keyed by the
-  // workspace: switching workspaces must never show the previous one's rows.
+  // workspace and the profile: switching either must never show the previous
+  // one's rows.
   useEffect(() => {
     if (!enabled || workspace === "") return undefined;
     let active = true;
-    void readCatalogRecord(workspace).then(record => {
-      if (active) setCached({ workspaceId: workspace, record });
+    void readCatalogRecord(workspace, profileKey).then(record => {
+      if (active) setCached({ workspaceId: workspace, profileKey, record });
     });
     return () => {
       active = false;
     };
-  }, [enabled, workspace]);
+  }, [enabled, profileKey, workspace]);
 
   const served = query.data;
   const workspaceCatalog =
     clientId !== null && query.isPending
-      ? queryClient.getQueryData<CmdPaletteCatalogResponse>(cmdPaletteKeys.catalog(workspace, null))
+      ? queryClient.getQueryData<CmdPaletteCatalogResponse>(
+          cmdPaletteKeys.catalog(workspace, profileKey, null)
+        )
       : undefined;
   const activeCatalog = served ?? workspaceCatalog;
   useEffect(() => {
     if (workspace === "" || served === undefined) return;
-    void writeCatalogRecord(toCatalogRecord(workspace, served));
-  }, [served, workspace]);
+    void writeCatalogRecord(toCatalogRecord(workspace, profileKey, served));
+  }, [profileKey, served, workspace]);
 
-  const cacheHydrated = enabled && cached?.workspaceId === workspace;
+  const cacheHydrated =
+    enabled && cached?.workspaceId === workspace && cached.profileKey === profileKey;
   const cachedRecord = cacheHydrated ? cached.record : null;
   const catalog: CmdPaletteStructuralCatalog | null =
-    activeCatalog !== undefined ? toCatalogRecord(workspace, activeCatalog) : cachedRecord;
+    activeCatalog !== undefined
+      ? toCatalogRecord(workspace, profileKey, activeCatalog)
+      : cachedRecord;
   // A daemon that goes away mid-session leaves its last answer in the query
   // cache. Structure is still the best thing to render, but the *reachability*
   // it was resolved under is gone — reporting otherwise would leave action rows

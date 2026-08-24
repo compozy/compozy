@@ -14,8 +14,9 @@ import (
 )
 
 type daemonToolEventSink struct {
-	writer store.EventSummaryStore
-	now    func() time.Time
+	writer            store.EventSummaryStore
+	now               func() time.Time
+	profileForSession func(context.Context, string) (string, error)
 }
 
 var _ toolspkg.ToolEventSink = (*daemonToolEventSink)(nil)
@@ -39,14 +40,29 @@ func (s *daemonToolEventSink) EmitToolEvent(ctx context.Context, event toolspkg.
 	if s.now != nil {
 		timestamp = s.now().UTC()
 	}
-	return s.writer.WriteEventSummary(context.WithoutCancel(ctx), store.EventSummary{
+	profileID := strings.TrimSpace(event.ProfileID)
+	if profileID == "" {
+		profileID = store.DefaultProfileID
+	}
+	if sessionID := strings.TrimSpace(event.SessionID); strings.TrimSpace(event.ProfileID) == "" &&
+		sessionID != "" && s.profileForSession != nil {
+		profileID, err = s.profileForSession(ctx, sessionID)
+		if err != nil {
+			return fmt.Errorf("daemon: resolve tool event session profile: %w", err)
+		}
+		profileID = strings.TrimSpace(profileID)
+		if profileID == "" {
+			return errors.New("daemon: tool event session profile is required")
+		}
+	}
+	return s.writer.WriteEventSummary(context.WithoutCancel(ctx), daemonEventSummary(store.EventSummary{
+		ProfileID:   profileID,
 		Type:        eventType,
 		WorkspaceID: event.WorkspaceID,
 		SessionID:   event.SessionID,
 		AgentName:   event.AgentName,
 		Outcome:     string(eventspkg.OutcomeFor(eventType)),
-		Content:     content,
 		Summary:     fmt.Sprintf("%s %s", event.ToolID, event.Kind),
 		Timestamp:   timestamp,
-	})
+	}, content))
 }

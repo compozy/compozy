@@ -4,6 +4,8 @@ import type {
   AutomationRunListFilter,
   AutomationTriggerStableFilter,
 } from "../types";
+import { PROFILE_AGGREGATE } from "@/systems/profiles";
+import type { ProfileScopeParams } from "@/systems/profiles";
 import {
   normalizeAutomationJobFilter,
   normalizeAutomationTriggerFilter,
@@ -19,6 +21,14 @@ function normalizeNumber(value?: number): string {
 
 function normalizeBoolean(value?: boolean): string {
   return value === undefined ? "" : String(value);
+}
+
+function profileLens(profile?: string, allProfiles?: boolean): string {
+  return allProfiles === true ? PROFILE_AGGREGATE : normalizeText(profile);
+}
+
+function readScopeLens(scope: ProfileScopeParams): string {
+  return "all_profiles" in scope ? PROFILE_AGGREGATE : normalizeText(scope.profile);
 }
 
 export const automationKeys = {
@@ -37,19 +47,24 @@ export const automationKeys = {
       normalizeText(normalized.q),
       normalizeNumber(normalized.limit),
       normalizeText(normalized.loop),
+      profileLens(normalized.profile, normalized.all_profiles),
     ] as const;
   },
   jobDetails: () => [...automationKeys.jobs(), "detail"] as const,
-  jobDetail: (id: string) => [...automationKeys.jobDetails(), id] as const,
+  jobDetail: (id: string, scope?: ProfileScopeParams) =>
+    scope === undefined
+      ? ([...automationKeys.jobDetails(), id] as const)
+      : ([...automationKeys.jobDetails(), id, readScopeLens(scope)] as const),
   jobRunsRoot: () => [...automationKeys.jobs(), "runs"] as const,
+  jobRunsFor: (id: string) => [...automationKeys.jobRunsRoot(), id] as const,
   jobRuns: (id: string, filters: AutomationRunHistoryFilter = {}) =>
     [
-      ...automationKeys.jobRunsRoot(),
-      id,
+      ...automationKeys.jobRunsFor(id),
       filters.status ?? "",
       normalizeText(filters.since),
       normalizeText(filters.until),
       normalizeNumber(filters.limit),
+      profileLens(filters.profile, filters.all_profiles),
     ] as const,
 
   triggers: () => [...automationKeys.all, "triggers"] as const,
@@ -66,19 +81,24 @@ export const automationKeys = {
       normalizeText(normalized.q),
       normalizeNumber(normalized.limit),
       normalizeText(normalized.loop),
+      profileLens(normalized.profile, normalized.all_profiles),
     ] as const;
   },
   triggerDetails: () => [...automationKeys.triggers(), "detail"] as const,
-  triggerDetail: (id: string) => [...automationKeys.triggerDetails(), id] as const,
+  triggerDetail: (id: string, scope?: ProfileScopeParams) =>
+    scope === undefined
+      ? ([...automationKeys.triggerDetails(), id] as const)
+      : ([...automationKeys.triggerDetails(), id, readScopeLens(scope)] as const),
   triggerRunsRoot: () => [...automationKeys.triggers(), "runs"] as const,
+  triggerRunsFor: (id: string) => [...automationKeys.triggerRunsRoot(), id] as const,
   triggerRuns: (id: string, filters: AutomationRunHistoryFilter = {}) =>
     [
-      ...automationKeys.triggerRunsRoot(),
-      id,
+      ...automationKeys.triggerRunsFor(id),
       filters.status ?? "",
       normalizeText(filters.since),
       normalizeText(filters.until),
       normalizeNumber(filters.limit),
+      profileLens(filters.profile, filters.all_profiles),
     ] as const,
 
   runs: () => [...automationKeys.all, "runs"] as const,
@@ -92,6 +112,7 @@ export const automationKeys = {
       normalizeText(filters.since),
       normalizeText(filters.until),
       normalizeNumber(filters.limit),
+      profileLens(filters.profile, filters.all_profiles),
     ] as const,
 
   suggestions: () => [...automationKeys.all, "suggestions"] as const,

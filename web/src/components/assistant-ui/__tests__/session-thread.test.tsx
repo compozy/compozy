@@ -349,6 +349,7 @@ function renderThreadState({
   sessionState,
   failure = null,
   durableMessageIds = [],
+  readOnly = false,
 }: {
   messages?: readonly ThreadMessage[];
   status: SessionTranscriptThreadStatus;
@@ -360,6 +361,7 @@ function renderThreadState({
   sessionState?: SessionState;
   failure?: SessionFailurePayload | null;
   durableMessageIds?: string[];
+  readOnly?: boolean;
 }) {
   const queryClient = createQueryClient();
   if (durableMessageIds.length > 0) {
@@ -412,6 +414,7 @@ function renderThreadState({
             acpSessionId={acpSessionId}
             sessionState={sessionState}
             failure={failure}
+            readOnly={readOnly}
           />
         </SessionTranscriptThreadProvider>
       </SessionChatRuntimeProvider>
@@ -669,6 +672,21 @@ describe("SessionThread transcript states", () => {
     const rewind = await screen.findByRole("button", { name: "Rewind to here" });
     await waitFor(() => expect(rewind).toBeEnabled());
     expect(screen.getAllByTestId("user-message-rewind")).toHaveLength(1);
+  });
+
+  it("Should hide transcript actions and goal prefill controls in read-only mode", async () => {
+    const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
+
+    renderThreadState({
+      status: "success",
+      messages,
+      durableMessageIds: ["transcript_user_001"],
+      readOnly: true,
+    });
+
+    expect(await screen.findByTestId("thread-messages")).toBeInTheDocument();
+    expect(screen.queryByTestId("user-message-rewind")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("composer-input")).not.toBeInTheDocument();
   });
 
   it("Should render verified skill invocation tokens from persisted user-message metadata", async () => {

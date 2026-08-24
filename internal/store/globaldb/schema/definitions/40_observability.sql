@@ -1,5 +1,6 @@
 CREATE TABLE event_summaries (
 			id                     TEXT PRIMARY KEY,
+			profile_id             TEXT NOT NULL REFERENCES profiles(id),
 			session_id             TEXT NOT NULL DEFAULT '',
 			workspace_id           TEXT NOT NULL DEFAULT '',
 			worktree_id            TEXT NOT NULL DEFAULT '',

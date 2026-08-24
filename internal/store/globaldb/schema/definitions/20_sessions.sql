@@ -6,7 +6,7 @@ CREATE TABLE session_creation_profiles (
 
 CREATE TABLE session_health (
 			session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
-			workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+			workspace_id TEXT NOT NULL,
 			agent_name TEXT NOT NULL,
 			state TEXT NOT NULL CHECK (state IN ('idle', 'prompting', 'stopped', 'detached')),
 			health TEXT NOT NULL CHECK (health IN ('healthy', 'degraded', 'stale', 'dead', 'unknown')),
@@ -88,6 +88,7 @@ CREATE TABLE session_health (
 
 CREATE TABLE sessions (
 		id             TEXT PRIMARY KEY,
+		profile_id     TEXT NOT NULL REFERENCES profiles(id),
 		name           TEXT,
 		agent_name     TEXT NOT NULL,
 		provider       TEXT NOT NULL DEFAULT '',
@@ -106,7 +107,8 @@ CREATE TABLE sessions (
 		selected_reasoning_effort TEXT NOT NULL DEFAULT '',
 		selected_speed TEXT NOT NULL DEFAULT '',
 		runtime_selection_revision INTEGER NOT NULL DEFAULT 0,
-		workspace_id   TEXT NOT NULL REFERENCES workspaces(id),
+		workspace_id   TEXT NOT NULL,
+		scope          TEXT NOT NULL DEFAULT 'workspace' CHECK (scope IN ('global', 'workspace')),
 		worktree_id    TEXT,
 		session_type   TEXT NOT NULL DEFAULT 'user',
 		state          TEXT NOT NULL,
@@ -153,6 +155,7 @@ CREATE TABLE sessions (
 				)),
 		FOREIGN KEY (workspace_id, worktree_id)
 			REFERENCES worktrees(workspace_id, id),
+		CHECK ((scope = 'workspace') = (workspace_id <> '')),
 		UNIQUE (workspace_id, id));
 
 CREATE TABLE session_pending_interactions (
@@ -190,6 +193,7 @@ CREATE TABLE token_stats (
 
 CREATE TABLE token_usage_daily (
 		day           TEXT NOT NULL CHECK (length(day) = 10),
+		profile_id    TEXT NOT NULL REFERENCES profiles(id),
 		workspace_id  TEXT NOT NULL DEFAULT '',
 		agent_name    TEXT NOT NULL DEFAULT '',
 		input_tokens  INTEGER NOT NULL DEFAULT 0 CHECK (input_tokens >= 0),
@@ -203,8 +207,11 @@ CREATE TABLE token_usage_daily (
 			CHECK (cost_source IN ('agent_reported', 'catalog_config', 'models_dev', 'builtin', 'none')),
 		turn_count    INTEGER NOT NULL DEFAULT 0 CHECK (turn_count >= 0),
 		updated_at    TEXT NOT NULL,
-		PRIMARY KEY (day, workspace_id, agent_name)
+		PRIMARY KEY (day, profile_id, workspace_id, agent_name)
 	);
+
+CREATE INDEX idx_token_usage_daily_profile_day
+	ON token_usage_daily (profile_id, day);
 
 CREATE INDEX idx_session_health_wake
 			ON session_health(workspace_id, agent_name, eligible_for_wake, active_prompt, attachable);
@@ -237,12 +244,26 @@ CREATE INDEX idx_sessions_catalog_activity
 				updated_at DESC, created_at DESC, id DESC
 			);
 
+CREATE INDEX idx_sessions_profile_catalog_activity
+			ON sessions(
+				profile_id, workspace_id, state, COALESCE(last_update_at, updated_at) DESC,
+				updated_at DESC, created_at DESC, id DESC
+			);
+
 CREATE INDEX idx_sessions_catalog_recent
 			ON sessions(workspace_id, state, updated_at DESC, created_at DESC, id DESC);
+
+CREATE INDEX idx_sessions_profile_catalog_recent
+			ON sessions(profile_id, workspace_id, state, updated_at DESC, created_at DESC, id DESC);
 
 CREATE INDEX idx_sessions_catalog_archive_recent
 			ON sessions(
 				workspace_id, archived_at, state, updated_at DESC, created_at DESC, id DESC
+			);
+
+CREATE INDEX idx_sessions_profile_catalog_archive_recent
+			ON sessions(
+				profile_id, workspace_id, archived_at, state, updated_at DESC, created_at DESC, id DESC
 			);
 
 CREATE INDEX idx_sessions_parent ON sessions(parent_session_id);

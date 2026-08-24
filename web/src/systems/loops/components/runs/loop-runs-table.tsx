@@ -1,12 +1,15 @@
 import type { ComponentProps } from "react";
 
 import { cn, Eyebrow, Table, TableBody, TableHead, TableHeader, TableRow } from "@compozy/ui";
+import type { ProfileOwner, ProfileOwnerLabel } from "@/systems/profiles";
 
 import type { LoopRunGroup } from "../../lib/loop-runs-view";
 import { LoopRunRow } from "./loop-run-row";
 
 interface LoopRunsTableProps extends Omit<ComponentProps<"section">, "children"> {
   group: LoopRunGroup;
+  /** Resolves each run's owner. Absent in a scoped list — no tags there. */
+  ownerOf?: (run: ProfileOwnerLabel) => ProfileOwner;
 }
 
 /** The roster's closed column set; a sixth column is a design decision, not a typo. */
@@ -38,7 +41,7 @@ const COLUMNS: readonly LoopRunColumn[] = [
  * every group heading is decoration rather than wayfinding. Groups arrive
  * already ranked by the daemon, so this renders the order it is handed.
  */
-export function LoopRunsTable({ group, className, ...props }: LoopRunsTableProps) {
+export function LoopRunsTable({ group, ownerOf, className, ...props }: LoopRunsTableProps) {
   const headingId = `loop-runs-group-${group.id}-heading`;
   return (
     <section
@@ -72,7 +75,7 @@ export function LoopRunsTable({ group, className, ...props }: LoopRunsTableProps
           </TableHeader>
           <TableBody>
             {group.rows.map(row => (
-              <LoopRunRow key={row.run.id} row={row} />
+              <LoopRunRow key={row.run.id} owner={ownerOf?.(row.run)} row={row} />
             ))}
           </TableBody>
         </Table>

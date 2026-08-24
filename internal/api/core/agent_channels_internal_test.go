@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -247,6 +248,64 @@ func TestAgentChannelCoreHandlersUseIdentityAndCoordinationMetadata(t *testing.T
 		}
 		if len(sent) != 2 {
 			t.Fatalf("sent request count after bad reply kind = %d, want unchanged 2", len(sent))
+		}
+	})
+
+	t.Run("Should hide runtime channels without caller-profile metadata", func(t *testing.T) {
+		t.Parallel()
+
+		engine := newAgentCoreTestRouterWithNetworkStore(t, &agentCoreNetworkService{
+			ListChannelsFn: func(_ context.Context, workspaceID string) ([]network.ChannelInfo, error) {
+				if workspaceID != "ws-1" {
+					t.Fatalf("ListChannels() workspaceID = %q, want ws-1", workspaceID)
+				}
+				return []network.ChannelInfo{
+					{Channel: "builders", PeerCount: 1},
+					{Channel: "foreign-profile", PeerCount: 2},
+				}, nil
+			},
+		}, agentCoreNetworkStore{
+			ListNetworkChannelsFn: func(_ context.Context, query store.NetworkChannelQuery) ([]store.NetworkChannelEntry, error) {
+				if query.ReadScope.ProfileID != store.DefaultProfileID || query.WorkspaceID != "ws-1" {
+					t.Fatalf("ListNetworkChannels() query = %#v, want caller profile in ws-1", query)
+				}
+				return nil, nil
+			},
+		})
+
+		response := performAgentCoreRequest(t, engine, http.MethodGet, "/agent/channels", nil, agentCoreHeaders())
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+		}
+		var payload contract.AgentChannelsResponse
+		decodeAgentCoreResponse(t, response, &payload)
+		if len(payload.Channels) != 1 || payload.Channels[0].ID != "builders" {
+			t.Fatalf("channels = %#v, want only the caller's current channel", payload.Channels)
+		}
+	})
+
+	t.Run("Should fail channel reads when caller-profile metadata lookup fails", func(t *testing.T) {
+		t.Parallel()
+
+		lookupErr := errors.New("profile channel metadata unavailable")
+		engine := newAgentCoreTestRouterWithNetworkStore(t, &agentCoreNetworkService{
+			ListChannelsFn: func(context.Context, string) ([]network.ChannelInfo, error) {
+				return []network.ChannelInfo{{Channel: "builders", PeerCount: 1}}, nil
+			},
+		}, agentCoreNetworkStore{
+			ListNetworkChannelsFn: func(context.Context, store.NetworkChannelQuery) ([]store.NetworkChannelEntry, error) {
+				return nil, lookupErr
+			},
+		})
+
+		response := performAgentCoreRequest(t, engine, http.MethodGet, "/agent/channels", nil, agentCoreHeaders())
+		if response.Code != http.StatusInternalServerError ||
+			!strings.Contains(response.Body.String(), lookupErr.Error()) {
+			t.Fatalf(
+				"response = status %d body %s, want 500 with metadata lookup error",
+				response.Code,
+				response.Body.String(),
+			)
 		}
 	})
 }
@@ -763,6 +822,7 @@ func (s *agentCoreNetworkService) WaitInbox(
 
 type agentCoreNetworkStore struct {
 	ListNetworkMessagesFn func(context.Context, store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error)
+	ListNetworkChannelsFn func(context.Context, store.NetworkChannelQuery) ([]store.NetworkChannelEntry, error)
 }
 
 func (s agentCoreNetworkStore) ResolveDirectRoom(
@@ -789,6 +849,7 @@ func (s agentCoreNetworkStore) ListThreads(
 
 func (s agentCoreNetworkStore) GetThread(
 	context.Context,
+	store.ReadScope,
 	store.NetworkChannelRef,
 	string,
 ) (store.NetworkThreadSummary, error) {
@@ -827,6 +888,7 @@ func (s agentCoreNetworkStore) ListDirectRooms(
 
 func (s agentCoreNetworkStore) GetDirectRoom(
 	context.Context,
+	store.ReadScope,
 	store.NetworkChannelRef,
 	string,
 ) (store.NetworkDirectRoomSummary, error) {
@@ -841,7 +903,12 @@ func (s agentCoreNetworkStore) ListConversationMessages(
 	return nil, nil
 }
 
-func (s agentCoreNetworkStore) GetWork(context.Context, string, string) (store.NetworkWorkEntry, error) {
+func (s agentCoreNetworkStore) GetWork(
+	context.Context,
+	store.ReadScope,
+	string,
+	string,
+) (store.NetworkWorkEntry, error) {
 	return store.NetworkWorkEntry{}, nil
 }
 
@@ -858,15 +925,19 @@ func (s agentCoreNetworkStore) WriteNetworkAudit(context.Context, store.NetworkA
 
 func (s agentCoreNetworkStore) GetNetworkChannel(
 	context.Context,
+	store.ReadScope,
 	store.NetworkChannelRef,
 ) (store.NetworkChannelEntry, error) {
 	return store.NetworkChannelEntry{}, nil
 }
 
 func (s agentCoreNetworkStore) ListNetworkChannels(
-	context.Context,
-	store.NetworkChannelQuery,
+	ctx context.Context,
+	query store.NetworkChannelQuery,
 ) ([]store.NetworkChannelEntry, error) {
+	if s.ListNetworkChannelsFn != nil {
+		return s.ListNetworkChannelsFn(ctx, query)
+	}
 	return nil, nil
 }
 
@@ -880,6 +951,7 @@ func (s agentCoreNetworkStore) CreateNetworkChannel(context.Context, store.Netwo
 
 func (s agentCoreNetworkStore) PatchNetworkChannel(
 	context.Context,
+	store.ReadScope,
 	store.NetworkChannelRef,
 	store.NetworkChannelPatch,
 ) error {
@@ -1039,6 +1111,7 @@ func agentCoreSessionManager(t *testing.T) sessionManagerStub {
 			now := time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC)
 			return &session.Info{
 				ID:                   "sess-agent",
+				ProfileID:            store.DefaultProfileID,
 				Name:                 "worker",
 				AgentName:            "coder",
 				Provider:             "test-provider",

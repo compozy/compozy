@@ -10,13 +10,15 @@ func cloneSessionLifecyclePayload(payload SessionLifecyclePayload) SessionLifecy
 	return payload
 }
 
+//nolint:gocritic // Cloning must return an independent value for async hook dispatch.
 func cloneSandboxPreparePayload(payload SandboxPreparePayload) SandboxPreparePayload {
-	payload.SessionContext = cloneSessionContext(payload.SessionContext)
-	payload.Profile = cloneSandboxProfilePayload(payload.Profile)
-	payload.LocalAdditionalDirs = cloneStringSlice(payload.LocalAdditionalDirs)
-	payload.AgentEnv = cloneStringSlice(payload.AgentEnv)
-	payload.EnvOverrides = cloneStringMap(payload.EnvOverrides)
-	return payload
+	cloned := payload
+	cloned.SessionContext = cloneSessionContext(cloned.SessionContext)
+	cloned.Profile = cloneSandboxProfilePayload(cloned.Profile)
+	cloned.LocalAdditionalDirs = cloneStringSlice(cloned.LocalAdditionalDirs)
+	cloned.AgentEnv = cloneStringSlice(cloned.AgentEnv)
+	cloned.EnvOverrides = cloneStringMap(cloned.EnvOverrides)
+	return cloned
 }
 
 func cloneSandboxReadyPayload(payload SandboxReadyPayload) SandboxReadyPayload {

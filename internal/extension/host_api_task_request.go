@@ -2,7 +2,6 @@ package extensionpkg
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
 	"strings"
@@ -27,11 +26,16 @@ func (h *HostAPIHandler) createTaskSpecFromRequest(
 	if err != nil {
 		return taskpkg.CreateTask{}, err
 	}
+	profileID, err := hostAPIProfileID(ctx)
+	if err != nil {
+		return taskpkg.CreateTask{}, invalidParamsRPCError(err)
+	}
 
 	spec := taskpkg.CreateTask{
 		ID:                   strings.TrimSpace(req.ID),
 		Identifier:           strings.TrimSpace(req.Identifier),
 		Scope:                scope,
+		ProfileID:            profileID,
 		WorkspaceID:          workspaceID,
 		Title:                strings.TrimSpace(req.Title),
 		Description:          strings.TrimSpace(req.Description),
@@ -51,6 +55,8 @@ func (h *HostAPIHandler) createTaskSpecFromRequest(
 	return spec, nil
 }
 
+// hostAPIProfileID resolves the bridge-owned profile for every profile-scoped
+// Host API read and write.
 func taskPatchFromRequest(req apicontract.UpdateTaskRequest) (taskpkg.Patch, error) {
 	patch := taskpkg.Patch{
 		Title:                trimStringPtr(req.Title),

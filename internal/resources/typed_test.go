@@ -169,7 +169,7 @@ func TestJSONCodecValidationClassification(t *testing.T) {
 
 			_, err := codec.DecodeAndValidate(
 				testutil.Context(t),
-				ResourceScope{Kind: ResourceScopeKindGlobal},
+				ResourceScope{Kind: ResourceScopeKindUser},
 				tc.input,
 			)
 			if !errors.Is(err, tc.wantErr) {
@@ -212,7 +212,7 @@ func TestTypedStoreReadAuthorityBoundaries(t *testing.T) {
 				Records: []RawDraft{{
 					Kind:            testResourceKind,
 					ID:              "foreign-tool",
-					Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+					Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 					ExpectedVersion: 0,
 					SpecJSON:        []byte(`{"name":"alpha"}`),
 				}},
@@ -247,7 +247,7 @@ func TestTypedStoreReadAuthorityBoundaries(t *testing.T) {
 		ctx := testutil.Context(t)
 		record, err := store.Put(ctx, testDaemonActor(), Draft[testTypedSpec]{
 			ID:    "kind-check",
-			Scope: ResourceScope{Kind: ResourceScopeKindGlobal},
+			Scope: ResourceScope{Kind: ResourceScopeKindUser},
 			Spec:  testTypedSpec{Name: "alpha"},
 		})
 		if err != nil {
@@ -256,7 +256,7 @@ func TestTypedStoreReadAuthorityBoundaries(t *testing.T) {
 
 		actor := testExtensionActor("session-kind", "ext-kind", "nonce-kind")
 		actor.GrantedKinds = []ResourceKind{ResourceKind("other.kind")}
-		actor.GrantedScopes = []ResourceScopeKind{ResourceScopeKindGlobal}
+		actor.GrantedScopes = []ResourceScopeKind{ResourceScopeKindUser}
 
 		if _, err := store.Get(ctx, actor, record.ID); !errors.Is(err, ErrPermissionDenied) {
 			t.Fatalf("Get(denied kind) error = %v, want ErrPermissionDenied", err)
@@ -278,7 +278,7 @@ func TestTypedStoreReadAuthorityBoundaries(t *testing.T) {
 		ctx := testutil.Context(t)
 		record, err := store.Put(ctx, testDaemonActor(), Draft[testTypedSpec]{
 			ID:    "scope-check",
-			Scope: ResourceScope{Kind: ResourceScopeKindGlobal},
+			Scope: ResourceScope{Kind: ResourceScopeKindUser},
 			Spec:  testTypedSpec{Name: "alpha"},
 		})
 		if err != nil {
@@ -294,7 +294,7 @@ func TestTypedStoreReadAuthorityBoundaries(t *testing.T) {
 			t.Fatalf("Get(scope boundary) error = %v, want ErrPermissionDenied", err)
 		}
 		if _, err := store.List(ctx, workspaceActor, ResourceFilter{
-			Scope: &ResourceScope{Kind: ResourceScopeKindGlobal},
+			Scope: &ResourceScope{Kind: ResourceScopeKindUser},
 		}); !errors.Is(err, ErrPermissionDenied) {
 			t.Fatalf("List(scope boundary) error = %v, want ErrPermissionDenied", err)
 		}
@@ -315,7 +315,7 @@ func TestTypedStoreDecodeFailureRejectsInvalidRawPayloads(t *testing.T) {
 	if _, err := kernel.PutRaw(ctx, testDaemonActor(), RawDraft{
 		Kind:            testResourceKind,
 		ID:              "decode-failure",
-		Scope:           ResourceScope{Kind: ResourceScopeKindGlobal},
+		Scope:           ResourceScope{Kind: ResourceScopeKindUser},
 		ExpectedVersion: 0,
 		SpecJSON:        []byte(`{"name":"   "}`),
 	}); err != nil {
@@ -406,7 +406,7 @@ func TestTypedProjectorRegistrationDecodesPrimaryKindOnce(t *testing.T) {
 			{
 				Kind:     testResourceKind,
 				ID:       "alpha",
-				Scope:    ResourceScope{Kind: ResourceScopeKindGlobal},
+				Scope:    ResourceScope{Kind: ResourceScopeKindUser},
 				SpecJSON: []byte(`{"name":"alpha"}`),
 			},
 			{

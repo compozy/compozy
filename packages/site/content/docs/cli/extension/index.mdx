@@ -16,8 +16,9 @@ Manage CompozyOS extensions
 ### Options inherited from parent commands
 
 ```
-      --json            Emit JSON output
-  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
 ```
 
 ## Output Formats
@@ -46,7 +47,6 @@ This command displays human-readable help and its subcommand list. The inherited
 | [compozy extension inventory](/docs/cli/extension/inventory)   | Show shipped and live resources for an extension                |
 | [compozy extension list](/docs/cli/extension/list)             | List installed extensions                                       |
 | [compozy extension logs](/docs/cli/extension/logs)             | Read redacted logs for one extension instance                   |
-| [compozy extension preview](/docs/cli/extension/preview)       | Preview enabling an extension without changing state            |
 | [compozy extension provenance](/docs/cli/extension/provenance) | Show extension provenance and trust report                      |
 | [compozy extension publish](/docs/cli/extension/publish)       | Publish an immutable extension generation to GitHub Releases    |
 | [compozy extension reload](/docs/cli/extension/reload)         | Build and atomically reload a dev-linked extension              |

@@ -86,6 +86,7 @@ type AutomationJobCreateParams struct {
 }
 
 type AutomationJobPostFirePayload struct {
+	ProfileID   string `json:"profile_id,omitempty"`
 	JobID       string `json:"job_id"`
 	JobName     string `json:"job_name,omitempty"`
 	AgentName   string `json:"agent_name,omitempty"`
@@ -95,6 +96,7 @@ type AutomationJobPostFirePayload struct {
 }
 
 type AutomationJobPreFirePayload struct {
+	ProfileID   string                     `json:"profile_id,omitempty"`
 	JobID       string                     `json:"job_id"`
 	JobName     string                     `json:"job_name,omitempty"`
 	AgentName   string                     `json:"agent_name,omitempty"`
@@ -145,6 +147,7 @@ type AutomationJobsResult struct {
 type AutomationObservationPatch struct{}
 
 type AutomationRunCompletedPayload struct {
+	ProfileID   string `json:"profile_id,omitempty"`
 	RunID       string `json:"run_id"`
 	JobID       string `json:"job_id,omitempty"`
 	TriggerID   string `json:"trigger_id,omitempty"`
@@ -156,6 +159,7 @@ type AutomationRunCompletedPayload struct {
 }
 
 type AutomationRunFailedPayload struct {
+	ProfileID   string `json:"profile_id,omitempty"`
 	RunID       string `json:"run_id"`
 	JobID       string `json:"job_id,omitempty"`
 	TriggerID   string `json:"trigger_id,omitempty"`

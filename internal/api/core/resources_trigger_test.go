@@ -54,7 +54,7 @@ func TestResourceContractTriggerFailures(t *testing.T) {
 			t,
 			http.MethodPut,
 			"/api/resources/test.resource/demo",
-			[]byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
+			[]byte(`{"scope":{"kind":"user"},"spec":{"enabled":true}}`),
 			gin.Params{{Key: "kind", Value: string(genericKind)}, {Key: "id", Value: "demo"}},
 		)
 

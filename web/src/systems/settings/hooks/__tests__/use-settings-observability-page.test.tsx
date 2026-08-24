@@ -27,8 +27,8 @@ import { useSettingsObservabilityPage } from "../use-settings-observability-page
 
 const envelope: SettingsObservabilitySection = {
   section: "observability",
-  scope: "global",
-  available_scopes: ["global"],
+  scope: "user",
+  available_scopes: ["user"],
   config: {
     enabled: true,
     max_global_bytes: 1024 * 1024 * 1024,

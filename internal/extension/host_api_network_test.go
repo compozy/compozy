@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -375,9 +376,11 @@ func TestHostAPIHandlerNetworkSendShouldForwardOptionalMetadata(t *testing.T) {
 func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) {
 	t.Parallel()
 
+	const marketingProfileID = "01JMARKETINGPROFILE0000000"
 	storeDB := openHostAPINetworkTestStore(t)
 	baseTime := time.Date(2026, 4, 10, 20, 0, 0, 0, time.UTC)
 	_, err := storeDB.WriteConversationMessage(testutil.Context(t), store.NetworkConversationMessage{
+		ProfileID:   store.DefaultProfileID,
 		MessageID:   "msg-thread-root",
 		SessionID:   "sess-local",
 		WorkspaceID: hostAPINetworkWorkspaceID,
@@ -406,7 +409,44 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 	if err != nil {
 		t.Fatalf("DirectRoomIdentity() error = %v", err)
 	}
+	if _, err := storeDB.DB().ExecContext(
+		testutil.Context(t),
+		`INSERT INTO profiles (id, name, color, icon, state, created_at)
+		 VALUES (?, ?, ?, ?, 'active', ?)`,
+		marketingProfileID,
+		"marketing",
+		"#8e8eb5",
+		"briefcase",
+		baseTime.Format(time.RFC3339Nano),
+	); err != nil {
+		t.Fatalf("Insert profile fixture error = %v", err)
+	}
+	if err := storeDB.RegisterSession(testutil.Context(t), store.SessionInfo{
+		ProfileID:           marketingProfileID,
+		ID:                  "sess-marketing",
+		AgentName:           "marketing",
+		RuntimeStatus:       store.SessionRuntimeUnbound,
+		WorkspaceID:         hostAPINetworkWorkspaceID,
+		SessionNetworkState: &store.SessionNetworkState{NetworkSpec: participation.LocalSpec()},
+		SessionType:         "system",
+		State:               "stopped",
+		CreatedAt:           baseTime,
+		UpdatedAt:           baseTime,
+	}); err != nil {
+		t.Fatalf("RegisterSession(profile) error = %v", err)
+	}
+	if err := storeDB.WriteNetworkChannel(testutil.Context(t), store.NetworkChannelEntry{
+		ProfileID:   marketingProfileID,
+		WorkspaceID: hostAPINetworkWorkspaceID,
+		Channel:     "marketing-builders",
+		Purpose:     "Profile-scoped Host API test coordination",
+		CreatedAt:   baseTime,
+		UpdatedAt:   baseTime,
+	}); err != nil {
+		t.Fatalf("WriteNetworkChannel(profile) error = %v", err)
+	}
 	_, err = storeDB.WriteConversationMessage(testutil.Context(t), store.NetworkConversationMessage{
+		ProfileID:   store.DefaultProfileID,
 		MessageID:   "msg-direct-one",
 		SessionID:   "sess-local",
 		WorkspaceID: hostAPINetworkWorkspaceID,
@@ -622,6 +662,48 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 	if work.WorkID != "work-alpha" || work.ThreadID != "thread_alpha01" ||
 		work.State != store.NetworkWorkStateSubmitted {
 		t.Fatalf("network/work/get = %#v, want submitted thread work", work)
+	}
+
+	_, err = storeDB.WriteConversationMessage(testutil.Context(t), store.NetworkConversationMessage{
+		ProfileID:   marketingProfileID,
+		MessageID:   "msg-profile-thread",
+		SessionID:   "sess-marketing",
+		WorkspaceID: hostAPINetworkWorkspaceID,
+		Channel:     "marketing-builders",
+		Surface:     store.NetworkSurfaceThread,
+		ThreadID:    "thread_profile",
+		Direction:   "sent",
+		PeerFrom:    "agent.marketing",
+		PeerTo:      "sess-remote",
+		Kind:        store.NetworkKindSay,
+		Text:        "profile message",
+		PreviewText: "profile message",
+		Body:        json.RawMessage(`{"text":"profile message"}`),
+		Timestamp:   baseTime.Add(2 * time.Minute),
+	})
+	if err != nil {
+		t.Fatalf("WriteConversationMessage(profile) error = %v", err)
+	}
+	profileCtx := withHostAPIBridgeRuntime(ctx, &subprocess.InitializeBridgeRuntime{
+		ManagedInstances: []subprocess.InitializeBridgeManagedInstance{{
+			Instance: bridgepkg.BridgeInstanceToContract(bridgepkg.BridgeInstance{
+				ID: "bridge-marketing", ProfileID: marketingProfileID,
+			}),
+		}},
+	})
+	profileThreadsResult, err := handler.Handle(
+		profileCtx,
+		"ext-network",
+		string(extensioncontract.HostAPIMethodNetworkThreads),
+		json.RawMessage(`{"workspace_id":"ws-host-network","channel":"marketing-builders","limit":10}`),
+	)
+	if err != nil {
+		t.Fatalf("Handle(network/threads profile) error = %v, want nil", err)
+	}
+	var profileThreads apicontract.NetworkThreadsResponse
+	decodeResult(t, profileThreadsResult, &profileThreads)
+	if len(profileThreads.Threads) != 1 || profileThreads.Threads[0].ThreadID != "thread_profile" {
+		t.Fatalf("profile network/threads = %#v, want only profile-marketing thread", profileThreads)
 	}
 }
 
@@ -860,7 +942,10 @@ func TestHostAPIHandlerNetworkDirectResolveShouldBeIdempotentUnderRace(t *testin
 	directs, err := storeDB.ListDirectRooms(testutil.Context(t), store.NetworkChannelRef{
 		WorkspaceID: hostAPINetworkWorkspaceID,
 		Channel:     "builders",
-	}, store.NetworkDirectRoomQuery{Limit: 10})
+	}, store.NetworkDirectRoomQuery{
+		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+		Limit:     10,
+	})
 	if err != nil {
 		t.Fatalf("ListDirectRooms() error = %v", err)
 	}
@@ -875,6 +960,7 @@ func TestHostAPIHandlerNetworkThreadMessagesShouldUseConversationStore(t *testin
 	storeDB := openHostAPINetworkTestStore(t)
 	baseTime := time.Date(2026, 4, 10, 18, 30, 0, 0, time.UTC)
 	_, err := storeDB.WriteConversationMessage(testutil.Context(t), store.NetworkConversationMessage{
+		ProfileID:   store.DefaultProfileID,
 		MessageID:   "msg-thread-root",
 		SessionID:   "sess-local",
 		WorkspaceID: hostAPINetworkWorkspaceID,
@@ -1156,6 +1242,7 @@ func openHostAPINetworkTestStore(t testing.TB) *globaldb.GlobalDB {
 	}
 	for _, sessionInfo := range []store.SessionInfo{
 		{
+			ProfileID:           store.DefaultProfileID,
 			ID:                  "sess-local",
 			AgentName:           "local",
 			RuntimeStatus:       store.SessionRuntimeUnbound,
@@ -1167,6 +1254,7 @@ func openHostAPINetworkTestStore(t testing.TB) *globaldb.GlobalDB {
 			UpdatedAt:           now,
 		},
 		{
+			ProfileID:           store.DefaultProfileID,
 			ID:                  "sess-remote",
 			AgentName:           "remote",
 			RuntimeStatus:       store.SessionRuntimeUnbound,
@@ -1183,6 +1271,7 @@ func openHostAPINetworkTestStore(t testing.TB) *globaldb.GlobalDB {
 		}
 	}
 	if err := db.WriteNetworkChannel(testutil.Context(t), store.NetworkChannelEntry{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: hostAPINetworkWorkspaceID,
 		Channel:     "builders",
 		Purpose:     "Host API test coordination",

@@ -150,6 +150,7 @@ func TestGlobalDBCoordinatorCompletionShouldCommitCanonicalEventAtomically(t *te
 			t.Fatalf("completion state = %q, want %q", stored.CompletionStateSnapshot(), looppkg.CompletionPartial)
 		}
 		events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: loopRun.WorkspaceID, RunID: loopRun.ID,
 		})
 		if err != nil {
@@ -1113,9 +1114,10 @@ func TestTaskExecutionCommandShouldRollbackPublishWhenEnqueuedEventFails(t *test
 	actor := operatorActorContextForTest("operator")
 	actor.Authority.CreateGlobal = true
 	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Atomic publish rollback",
-		Draft: true,
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Atomic publish rollback",
+		Draft:     true,
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -1365,7 +1367,8 @@ func seedTaskStatusProjectionForTest(
 	workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "projection-"+suffix, t.TempDir())
 	for _, sessionID := range []string{"sess-origin-" + suffix, "sess-full-" + suffix, "sess-muted-" + suffix} {
 		if err := globalDB.RegisterSession(ctx, store.SessionInfo{
-			ID: sessionID, AgentName: "agent-" + sessionID, WorkspaceID: workspaceID,
+			ProfileID: store.DefaultProfileID,
+			ID:        sessionID, AgentName: "agent-" + sessionID, WorkspaceID: workspaceID,
 			RuntimeStatus:       store.SessionRuntimeUnbound,
 			SessionNetworkState: &store.SessionNetworkState{NetworkSpec: participation.LocalSpec()},
 			SessionType:         "agent", State: "running", CreatedAt: now, UpdatedAt: now,
@@ -1375,6 +1378,7 @@ func seedTaskStatusProjectionForTest(
 	}
 	if err := globalDB.WriteNetworkChannel(ctx, store.NetworkChannelEntry{
 		WorkspaceID: workspaceID, Channel: "builders", Purpose: "Task projection",
+		ProfileID: store.DefaultProfileID,
 		CreatedBy: "test", CreatedAt: now, UpdatedAt: now,
 	}); err != nil {
 		t.Fatalf("WriteNetworkChannel() error = %v", err)
@@ -1386,6 +1390,7 @@ func seedTaskStatusProjectionForTest(
 		Channel: "builders", Surface: store.NetworkSurfaceThread, ThreadID: threadID,
 		Direction: "received", PeerFrom: "agent.origin", Kind: store.NetworkKindSay,
 		Text: "promote this thread", Body: json.RawMessage(`{"text":"promote this thread"}`),
+		ProfileID: store.DefaultProfileID,
 		SizeBytes: 20, Timestamp: now,
 	}); err != nil {
 		t.Fatalf("WriteConversationMessage() error = %v", err)
@@ -1564,7 +1569,8 @@ func TestGlobalDBTaskEventAppendFailureShouldRollbackOwningState(t *testing.T) {
 		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "force-release-rollback", t.TempDir())
 		sessionID := "sess-force-release-event-rollback"
 		if err := globalDB.RegisterSession(ctx, store.SessionInfo{
-			ID: sessionID, AgentName: "worker", WorkspaceID: workspaceID,
+			ProfileID: store.DefaultProfileID,
+			ID:        sessionID, AgentName: "worker", WorkspaceID: workspaceID,
 			RuntimeStatus: store.SessionRuntimeUnbound, State: "active",
 		}); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
@@ -2151,8 +2157,9 @@ func TestGlobalDBTaskEventAppendFailureShouldRollbackOwningState(t *testing.T) {
 		actor := operatorActorContextForTest("operator:direct-admission-rollback")
 		actor.Authority.CreateGlobal = true
 		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Direct execution admission rollback",
+			ProfileID: store.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     "Direct execution admission rollback",
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -3481,7 +3488,7 @@ func TestGlobalDBNonLeaseTerminalRunCommandsShouldFenceAndRecover(t *testing.T) 
 			t.Fatalf("RecoverTerminalRunCommandOnBoot() error = %v", err)
 		}
 		if completed.Status != taskpkg.TaskRunStatusCompleted ||
-			string(completed.Result) != `{"boot":true}` {
+			string(completed.ResultValue()) != `{"boot":true}` {
 			t.Fatalf("recovered run = %#v, want original completion intent", completed)
 		}
 		if got := len(recoveryExecutor.requestCalls) + len(recoveryExecutor.forceCalls); got != 0 {
@@ -4414,11 +4421,14 @@ func TestTaskCoordinationCommandShouldCommitProfileAndEventsAtomically(t *testin
 		if len(events) != 1 || events[0].EventType != eventspkg.TaskExecutionProfileUpdated {
 			t.Fatalf("task events = %#v, want one execution profile event", events)
 		}
-		summaries, err := globalDB.ListEventSummaries(ctx, EventSummaryQuery{
-			WorkspaceID: workspaceID,
-			TaskID:      taskRecord.ID,
-			Type:        eventspkg.NetworkCoordinationSettingChanged,
-		})
+		summaries, err := globalDB.ListEventSummaries(
+			ctx,
+			EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
+				WorkspaceID: workspaceID,
+				TaskID:      taskRecord.ID,
+				Type:        eventspkg.NetworkCoordinationSettingChanged,
+			},
+		)
 		if err != nil {
 			t.Fatalf("ListEventSummaries() error = %v", err)
 		}
@@ -4498,11 +4508,14 @@ func TestTaskCoordinationCommandShouldCommitProfileAndEventsAtomically(t *testin
 		) {
 			t.Fatalf("GetExecutionProfile() error = %v, want rolled-back profile", err)
 		}
-		summaries, err := globalDB.ListEventSummaries(ctx, EventSummaryQuery{
-			WorkspaceID: workspaceID,
-			TaskID:      taskRecord.ID,
-			Type:        eventspkg.NetworkCoordinationSettingChanged,
-		})
+		summaries, err := globalDB.ListEventSummaries(
+			ctx,
+			EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
+				WorkspaceID: workspaceID,
+				TaskID:      taskRecord.ID,
+				Type:        eventspkg.NetworkCoordinationSettingChanged,
+			},
+		)
 		if err != nil {
 			t.Fatalf("ListEventSummaries() error = %v", err)
 		}

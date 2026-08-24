@@ -15,6 +15,7 @@ import (
 
 func (c *catalog) deleteDocument(
 	ctx context.Context,
+	profileID string,
 	scope memcontract.Scope,
 	workspaceID string,
 	agentName string,
@@ -27,8 +28,9 @@ func (c *catalog) deleteDocument(
 			`DELETE FROM memory_chunks
 			 WHERE file_id IN (
 				SELECT id FROM memory_catalog_entries
-				WHERE scope = ? AND workspace_id = ? AND agent_name = ? AND agent_tier = ? AND filename = ?
+				WHERE profile_id = ? AND scope = ? AND workspace_id = ? AND agent_name = ? AND agent_tier = ? AND filename = ?
 			 )`,
+			strings.TrimSpace(profileID),
 			string(scope.Normalize()),
 			strings.TrimSpace(workspaceID),
 			strings.TrimSpace(agentName),
@@ -40,7 +42,8 @@ func (c *catalog) deleteDocument(
 		if _, err := tx.ExecContext(
 			ctx,
 			`DELETE FROM memory_catalog_entries
-			 WHERE scope = ? AND workspace_id = ? AND agent_name = ? AND agent_tier = ? AND filename = ?`,
+			 WHERE profile_id = ? AND scope = ? AND workspace_id = ? AND agent_name = ? AND agent_tier = ? AND filename = ?`,
+			strings.TrimSpace(profileID),
 			string(scope.Normalize()),
 			strings.TrimSpace(workspaceID),
 			strings.TrimSpace(agentName),
@@ -52,7 +55,7 @@ func (c *catalog) deleteDocument(
 		if err := c.upsertCatalogIdentityStateTx(
 			ctx,
 			tx,
-			newCatalogIdentity(scope, workspaceID, agentName, agentTier),
+			newCatalogIdentity(profileID, scope, workspaceID, agentName, agentTier),
 		); err != nil {
 			return err
 		}
@@ -113,7 +116,7 @@ func (c *catalog) listEntries(
 
 	rows, err := db.QueryContext(
 		ctx,
-		`SELECT id, scope, workspace_id, agent_name, agent_tier, filename, type, name,
+		`SELECT id, scope, workspace_id, profile_id, agent_name, agent_tier, filename, type, name,
 			description, content, content_hash, updated_at
 		 FROM memory_catalog_entries
 		 ORDER BY updated_at DESC, filename ASC`,
@@ -129,7 +132,7 @@ func (c *catalog) listEntries(
 		if scanErr != nil {
 			return nil, scanErr
 		}
-		if !catalogFiltersAllow(filters, entry.Scope, entry.WorkspaceID) {
+		if !catalogFiltersAllow(filters, entry.ProfileID, entry.Scope, entry.WorkspaceID) {
 			continue
 		}
 		entries = append(entries, entry)
@@ -143,6 +146,7 @@ func (c *catalog) listEntries(
 func (c *catalog) search(
 	ctx context.Context,
 	query string,
+	profileID string,
 	scope memcontract.Scope,
 	workspaceID string,
 	limit int,
@@ -178,6 +182,11 @@ func (c *catalog) search(
 	}, "\n")
 
 	args := []any{match}
+	// Profile and agent documents are owned by the profile that produced them.
+	// Keep the owner predicate in SQL so another profile's agent memory cannot
+	// leak through search before any in-memory filtering occurs.
+	base += "\nAND (e.scope NOT IN ('profile', 'agent') OR e.profile_id = ?)"
+	args = append(args, strings.TrimSpace(profileID))
 	base, args = appendCatalogScopeFilter(base, args, scope, workspaceID)
 	base += "\nORDER BY bm25(memory_catalog_fts) ASC, e.updated_at DESC, e.filename ASC\nLIMIT ?"
 	args = append(args, limit)

@@ -14,7 +14,7 @@ func (g *WatchEventsRepo) readLoopWatchEventsCursor(
 	ctx context.Context,
 	query normalizedWatchEventsQuery,
 ) (int64, error) {
-	placeholders, args := loopWatchEventsEligibility(query.workspaceID, query.kinds)
+	placeholders, scopeSQL, args := loopWatchEventsEligibility(query)
 	// #nosec G202 -- IN placeholders are generated from normalized kind count; values are parameterized.
 	return scanWatchEventCursor(
 		g.db.QueryRowContext(
@@ -25,7 +25,7 @@ func (g *WatchEventsRepo) readLoopWatchEventsCursor(
 				  JOIN loop_runs lr
 				    ON lr.id = lre.loop_run_id
 				   AND lr.workspace_id = lre.workspace_id
-				 WHERE `+loopWatchEventsEligibilitySQL(placeholders)+`
+				 WHERE `+loopWatchEventsEligibilitySQL(placeholders, scopeSQL)+`
 				 ORDER BY lre.watch_seq DESC
 				 LIMIT 1
 			), 0)`,
@@ -41,7 +41,7 @@ func (g *WatchEventsRepo) readLoopWatchEvents(
 	ctx context.Context,
 	query normalizedWatchEventsQuery,
 ) ([]looppkg.WatchEvent, error) {
-	placeholders, args := loopWatchEventsEligibility(query.workspaceID, query.kinds)
+	placeholders, scopeSQL, args := loopWatchEventsEligibility(query)
 	args = append(args, query.streams[looppkg.WatchEventsLoopStream], query.limit)
 	// #nosec G202 -- IN placeholders are generated from normalized kind count; values are parameterized.
 	rows, err := g.db.QueryContext(
@@ -58,7 +58,7 @@ func (g *WatchEventsRepo) readLoopWatchEvents(
 		   JOIN loop_runs lr
 		     ON lr.id = lre.loop_run_id
 		    AND lr.workspace_id = lre.workspace_id
-		  WHERE `+loopWatchEventsEligibilitySQL(placeholders)+`
+		  WHERE `+loopWatchEventsEligibilitySQL(placeholders, scopeSQL)+`
 		    AND lre.watch_seq > ?
 		  ORDER BY lre.watch_seq ASC
 		  LIMIT ?`,
@@ -90,9 +90,11 @@ func (g *WatchEventsRepo) readLoopWatchEvents(
 
 // loopWatchEventsEligibility is shared by cursor and row reads so a row that
 // advances the gap cursor is always readable by the replay path.
-func loopWatchEventsEligibility(workspaceID string, kinds []string) (string, []any) {
-	placeholders, kindArgs := sqlInPlaceholders(kinds)
-	args := append([]any{workspaceID}, kindArgs...)
+func loopWatchEventsEligibility(query normalizedWatchEventsQuery) (string, string, []any) {
+	placeholders, kindArgs := sqlInPlaceholders(query.kinds)
+	scopeSQL, scopeArgs := watchEventsScopeClause("lr.profile_id", query.readScope)
+	args := append([]any{query.workspaceID}, scopeArgs...)
+	args = append(args, kindArgs...)
 	args = append(args,
 		loopRunEventStatusChanged,
 		string(looppkg.StatusDone),
@@ -103,11 +105,12 @@ func loopWatchEventsEligibility(workspaceID string, kinds []string) (string, []a
 		string(looppkg.StatusStalled),
 		string(looppkg.StatusCanceled),
 	)
-	return placeholders, args
+	return placeholders, scopeSQL, args
 }
 
-func loopWatchEventsEligibilitySQL(placeholders string) string {
+func loopWatchEventsEligibilitySQL(placeholders string, scopeSQL string) string {
 	return `lre.workspace_id = ?
+	    AND ` + scopeSQL + `
 	    AND lre.kind IN (` + placeholders + `)
 	    AND (
 		lre.kind <> ?

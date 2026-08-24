@@ -254,7 +254,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		aggregate, err := looppkg.NewService(
 			fixture.goalStore,
 			looppkg.DefinitionResolverFunc(
-				func(context.Context, looppkg.WorkspaceID, string) (*looppkg.ResolvedDefinition, error) {
+				func(context.Context, looppkg.WorkspaceID, string, string) (*looppkg.ResolvedDefinition, error) {
 					return nil, looppkg.ErrDefinitionNotFound
 				},
 			),
@@ -386,6 +386,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			looppkg.DefinitionResolverFunc(func(
 				context.Context,
 				looppkg.WorkspaceID,
+				string,
 				string,
 			) (*looppkg.ResolvedDefinition, error) {
 				return nil, looppkg.ErrDefinitionNotFound
@@ -533,6 +534,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			looppkg.DefinitionResolverFunc(func(
 				context.Context,
 				looppkg.WorkspaceID,
+				string,
 				string,
 			) (*looppkg.ResolvedDefinition, error) {
 				return nil, looppkg.ErrDefinitionNotFound

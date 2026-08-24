@@ -44,13 +44,14 @@ func (n *daemonNativeTools) loopList(
 		return toolspkg.ToolResult{}, err
 	}
 	response, err := n.loopService().ListLoops(ctx, workspaceID, looppkg.CatalogQuery{
-		Search:   input.Q,
-		Kind:     input.Kind,
-		Category: input.Category,
-		Status:   input.Status,
-		Sort:     input.Sort,
-		Cursor:   input.Cursor,
-		Limit:    input.Limit,
+		ProfileID: scope.ProfileID,
+		Search:    input.Q,
+		Kind:      input.Kind,
+		Category:  input.Category,
+		Status:    input.Status,
+		Sort:      input.Sort,
+		Cursor:    input.Cursor,
+		Limit:     input.Limit,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
@@ -75,7 +76,7 @@ func (n *daemonNativeTools) loopInspect(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	response, err := n.loopService().GetLoop(ctx, workspaceID, name)
+	response, err := n.loopService().GetLoop(ctx, workspaceID, scope.ProfileID, name)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}
@@ -109,6 +110,7 @@ func (n *daemonNativeTools) loopValidate(
 	response, err := n.loopService().ValidateLoop(
 		ctx,
 		workspaceID,
+		scope.ProfileID,
 		strings.TrimSpace(input.Name),
 		contract.ValidateLoopRequest{Definition: document},
 	)
@@ -176,7 +178,7 @@ func (n *daemonNativeTools) loopCreate(
 		if err != nil {
 			return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 		}
-		response, err := n.loopService().PatchLoop(ctx, workspaceID, name, contract.PatchLoopRequest{
+		response, err := n.loopService().PatchLoop(ctx, workspaceID, scope.ProfileID, name, contract.PatchLoopRequest{
 			ExpectedVersion: input.ExpectedVersion,
 			Definition:      document,
 		})
@@ -194,7 +196,7 @@ func (n *daemonNativeTools) loopCreate(
 		}
 		document = &converted
 	}
-	response, err := n.loopService().CreateLoop(ctx, workspaceID, contract.CreateLoopRequest{
+	response, err := n.loopService().CreateLoop(ctx, workspaceID, scope.ProfileID, contract.CreateLoopRequest{
 		Definition:   document,
 		ForkFromName: strings.TrimSpace(input.ForkFromName),
 	})
@@ -226,12 +228,14 @@ func (n *daemonNativeTools) loopRun(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}
-	response, err := n.loopService().RunLoop(ctx, workspaceID, name, contract.RunLoopRequest{
-		Inputs:               input.Inputs,
-		ParentLoopRunID:      strings.TrimSpace(input.ParentLoopRunID),
-		ConfigOverrides:      configOverrides,
-		NetworkParticipation: participation.CloneRequest(input.NetworkParticipation),
-	}, dsl.StartNativeTool, actor, input.Dry)
+	response, err := n.loopService().RunLoop(ctx, workspaceID, name, core.LoopRunInput{
+		Request: contract.RunLoopRequest{
+			Inputs: input.Inputs, ParentLoopRunID: strings.TrimSpace(input.ParentLoopRunID),
+			ConfigOverrides:      configOverrides,
+			NetworkParticipation: participation.CloneRequest(input.NetworkParticipation),
+		},
+		ProfileID: scope.ProfileID, StartKind: dsl.StartNativeTool, Actor: actor, Dry: input.Dry,
+	})
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}
@@ -275,11 +279,16 @@ func (n *daemonNativeTools) loopRuns(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	response, err := n.loopService().ListLoopRuns(ctx, workspaceID, core.LoopRunListQuery{
-		LoopName: strings.TrimSpace(input.LoopName),
-		Status:   strings.TrimSpace(input.Status),
-		Cursor:   strings.TrimSpace(input.Cursor),
-		Limit:    input.Limit,
+		ReadScope: readScope,
+		LoopName:  strings.TrimSpace(input.LoopName),
+		Status:    strings.TrimSpace(input.Status),
+		Cursor:    strings.TrimSpace(input.Cursor),
+		Limit:     input.Limit,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
@@ -320,9 +329,10 @@ func (n *daemonNativeTools) loopConfigure(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}
-	response, err := n.loopService().PutLoopConfig(ctx, workspaceID, name, contract.PutLoopConfigRequest{
-		Config: *config,
-	})
+	response, err := n.loopService().
+		PutLoopConfig(ctx, workspaceID, scope.ProfileID, name, contract.PutLoopConfigRequest{
+			Config: *config,
+		})
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}
@@ -383,7 +393,7 @@ func (n *daemonNativeTools) loopDelete(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if err := n.loopService().DeleteLoop(ctx, workspaceID, name); err != nil {
+	if err := n.loopService().DeleteLoop(ctx, workspaceID, scope.ProfileID, name); err != nil {
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}
 	return structuredResult(map[string]any{nativeLoopOKKey: true}, fmt.Sprintf("loop %s deleted", name))

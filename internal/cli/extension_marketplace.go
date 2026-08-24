@@ -78,7 +78,7 @@ func extensionPortableUpdatePresentation(
 	if err != nil {
 		return extensionPortableUpdateOutput{}, false
 	}
-	dataPath, err := homePaths.ExtensionDataPath(item.Name, "")
+	dataPath, err := homePaths.ExtensionDataPath(item.Name, "", "")
 	if err != nil {
 		return extensionPortableUpdateOutput{}, false
 	}

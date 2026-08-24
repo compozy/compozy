@@ -14,7 +14,7 @@ const INVENTORY_STALE_TIME = 30_000;
 
 export const extensionsListOptions = (scope: ExtensionInstanceScope = {}, enabled = true) =>
   queryOptions({
-    queryKey: extensionKeys.list(scope.workspaceId),
+    queryKey: extensionKeys.list(scope.workspaceId, scope.profileName),
     queryFn: ({ signal }) => listExtensions(scope, signal),
     staleTime: INVENTORY_STALE_TIME,
     enabled,

@@ -38,6 +38,7 @@ func SortTriggersForList(triggers []Trigger) {
 }
 
 func normalizeJobListQuery(query JobListQuery) JobListQuery {
+	query.ReadScope.ProfileID = strings.TrimSpace(query.ReadScope.ProfileID)
 	query.Scope = Scope(strings.TrimSpace(string(query.Scope)))
 	query.WorkspaceID = strings.TrimSpace(query.WorkspaceID)
 	query.Source = JobSource(strings.TrimSpace(string(query.Source)))
@@ -48,6 +49,7 @@ func normalizeJobListQuery(query JobListQuery) JobListQuery {
 }
 
 func normalizeTriggerListQuery(query TriggerListQuery) TriggerListQuery {
+	query.ReadScope.ProfileID = strings.TrimSpace(query.ReadScope.ProfileID)
 	query.Scope = Scope(strings.TrimSpace(string(query.Scope)))
 	query.WorkspaceID = strings.TrimSpace(query.WorkspaceID)
 	query.Event = strings.TrimSpace(query.Event)
@@ -59,6 +61,9 @@ func normalizeTriggerListQuery(query TriggerListQuery) TriggerListQuery {
 }
 
 func jobMatchesListQuery(job Job, query JobListQuery) bool {
+	if !query.ReadScope.Matches(job.ProfileID) {
+		return false
+	}
 	if query.Scope != "" && job.Scope != query.Scope {
 		return false
 	}
@@ -102,6 +107,9 @@ func JobMatchesListQuery(job Job, query JobListQuery) bool {
 }
 
 func triggerMatchesListQuery(trigger Trigger, query TriggerListQuery) bool {
+	if !query.ReadScope.Matches(trigger.ProfileID) {
+		return false
+	}
 	if query.Scope != "" && trigger.Scope != query.Scope {
 		return false
 	}

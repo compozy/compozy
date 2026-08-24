@@ -6,6 +6,7 @@ import { groupTasksForList, taskStatusFacetTotal } from "../lib/task-grouping";
 import type { TaskListItem, TaskRecordsFilter, TaskStatus } from "../types";
 import { TaskCard } from "./task-card";
 import { TaskGroup } from "./task-group";
+import { emptyForScope, type ProfileListingScope } from "@/systems/profiles";
 
 const TASK_LIST_SKELETON_IDS = [
   "task-list-skeleton-1",
@@ -17,6 +18,8 @@ const TASK_LIST_SKELETON_IDS = [
 
 export interface TasksListSurfaceProps {
   tasks: TaskListItem[];
+  /** Owner tags in aggregate mode; names the profile in the empty state. */
+  profile: Pick<ProfileListingScope, "aggregate" | "ownerOf" | "scopeLabel">;
   statusCounts: Record<TaskStatus, number>;
   isLoading?: boolean;
   errorMessage?: string | null;
@@ -34,6 +37,7 @@ export interface TasksListSurfaceProps {
 
 export function TasksListSurface({
   tasks,
+  profile,
   statusCounts,
   isLoading = false,
   errorMessage = null,
@@ -118,7 +122,11 @@ export function TasksListSurface({
                 : "Open a new task contract from the topbar to populate this list."
             }
             icon={hasFilters ? Search : ListChecks}
-            title={hasFilters ? "No tasks match the current filters" : "No tasks yet"}
+            title={
+              hasFilters
+                ? "No tasks match the current filters"
+                : emptyForScope("tasks", profile.scopeLabel)
+            }
           />
         ) : (
           buckets.map(bucket => (
@@ -130,7 +138,12 @@ export function TasksListSurface({
               totalCount={taskStatusFacetTotal(bucket.group.statuses, statusCounts)}
             >
               {bucket.tasks.map(task => (
-                <TaskCard key={task.id} onOpenLoopRun={onOpenLoopRun} task={task} />
+                <TaskCard
+                  key={task.id}
+                  onOpenLoopRun={onOpenLoopRun}
+                  profileOwner={profile.aggregate ? profile.ownerOf(task) : undefined}
+                  task={task}
+                />
               ))}
             </TaskGroup>
           ))

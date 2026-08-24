@@ -28,6 +28,7 @@ func (r *RuntimeRegistry) normalizeDispatchCallRequest(
 		trusted  string
 		supplied *string
 	}{
+		{field: "profile_id", trusted: scope.ProfileID, supplied: &req.ProfileID},
 		{field: "session_id", trusted: scope.SessionID, supplied: &req.SessionID},
 		{field: "agent_name", trusted: scope.AgentName, supplied: &req.AgentName},
 		{field: "actor_kind", trusted: scope.ActorKind, supplied: &req.ActorKind},

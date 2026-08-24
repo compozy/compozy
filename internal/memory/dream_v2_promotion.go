@@ -19,7 +19,7 @@ func dreamPromotionCandidate(
 ) memcontract.Candidate {
 	scope := workspace.scope.Normalize()
 	if scope == "" {
-		scope = memcontract.ScopeGlobal
+		scope = memcontract.ScopeProfile
 	}
 	nameDate := at.UTC().Format("2006-01-02")
 	content := renderDreamPromotionContent(run, artifactPath)

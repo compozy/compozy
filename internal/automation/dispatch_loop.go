@@ -24,6 +24,7 @@ const (
 
 // LoopTargetValidationRequest validates an automation loop target without firing it.
 type LoopTargetValidationRequest struct {
+	ProfileID    string
 	WorkspaceID  string
 	LoopName     string
 	Kind         LoopStartKind
@@ -33,6 +34,7 @@ type LoopTargetValidationRequest struct {
 
 // LoopCatchUpPolicyRequest asks the composition root for a target-aware schedule default.
 type LoopCatchUpPolicyRequest struct {
+	ProfileID   string
 	WorkspaceID string
 	LoopName    string
 	Kind        LoopStartKind
@@ -40,6 +42,7 @@ type LoopCatchUpPolicyRequest struct {
 
 // LoopStartRequest starts one loop target from an automation fire.
 type LoopStartRequest struct {
+	ProfileID            string
 	WorkspaceID          string
 	LoopName             string
 	Kind                 LoopStartKind
@@ -108,6 +111,7 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 		return d.finishRun(ctx, scheduledRun, RunFailed, err)
 	}
 	result, err := d.loopStarter.StartLoop(ctx, LoopStartRequest{
+		ProfileID:            req.profileID(),
 		WorkspaceID:          strings.TrimSpace(target.WorkspaceID),
 		LoopName:             strings.TrimSpace(target.LoopName),
 		Kind:                 req.loopStartKind(),
@@ -241,6 +245,7 @@ func (r DispatchRequest) definitionID() string {
 func validateLoopTargetWithStarter(
 	ctx context.Context,
 	starter LoopStarter,
+	profileID string,
 	target *LoopTarget,
 	kind LoopStartKind,
 ) error {
@@ -248,6 +253,7 @@ func validateLoopTargetWithStarter(
 		return nil
 	}
 	return starter.ValidateLoopTarget(ctx, LoopTargetValidationRequest{
+		ProfileID:    strings.TrimSpace(profileID),
 		WorkspaceID:  strings.TrimSpace(target.WorkspaceID),
 		LoopName:     strings.TrimSpace(target.LoopName),
 		Kind:         kind,

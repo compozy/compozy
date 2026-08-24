@@ -15,15 +15,16 @@ compozy config path [flags]
 
 ```
   -h, --help               help for path
-      --scope string       Path scope: global or workspace (default "global")
+      --scope string       Path scope: user, profile, or workspace (defaults to active owner)
       --workspace string   Override workspace binding (ID, name, or path)
 ```
 
 ### Options inherited from parent commands
 
 ```
-      --json            Emit JSON output
-  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
 ```
 
 ## Output Formats

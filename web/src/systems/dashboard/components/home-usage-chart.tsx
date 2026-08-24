@@ -7,8 +7,11 @@ import {
   type HomeUsageWindow,
 } from "../types";
 import { formatHomeTokens } from "../lib/home-formatters";
+import { HomeProfileShare } from "./home-profile-share";
 
 export interface HomeUsageChartProps {
+  /** The aggregate read is on — the labeled per-profile breakdown belongs. */
+  profileAggregate?: boolean;
   usage: HomeOverview["usage"];
   window: HomeUsageWindow;
   onWindowChange: (window: HomeUsageWindow) => void;
@@ -34,7 +37,12 @@ function usageFigure(usage: HomeOverview["usage"]): string {
  * from truthful provenance; the retention footnote appears when the window
  * outruns pruned history.
  */
-export function HomeUsageChart({ usage, window, onWindowChange }: HomeUsageChartProps) {
+export function HomeUsageChart({
+  usage,
+  window,
+  onWindowChange,
+  profileAggregate = false,
+}: HomeUsageChartProps) {
   const hasData = usage.days.some(day => day.tokens > 0);
   const costPerToken =
     usage.estimated_cost !== undefined && usage.estimated_cost !== null && usage.total_tokens > 0
@@ -99,6 +107,9 @@ export function HomeUsageChart({ usage, window, onWindowChange }: HomeUsageChart
           <p className="text-micro leading-relaxed text-faint">{footnotes.join(" ")}</p>
         ) : null}
         <HomeAgentShare share={usage.agent_share} />
+        {profileAggregate ? (
+          <HomeProfileShare profiles={usage.profiles} windowDays={usage.window_days} />
+        ) : null}
       </Panel>
     </Section>
   );

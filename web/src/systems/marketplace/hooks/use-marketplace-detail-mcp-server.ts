@@ -1,14 +1,12 @@
 import type { MarketplaceEntryResponse } from "../types";
 import {
   SETTINGS_QUERY_INTERVALS,
+  type SettingsLayeredScope,
+  type SettingsMCPServerListFilter,
   type SettingsMCPServerEntry,
   useSettingsMCPServers,
 } from "@/systems/settings";
 import { useActiveWorkspace } from "@/systems/workspace";
-
-type SettingsMCPServersFilter =
-  | { scope: "global" }
-  | { scope: "workspace"; workspace_id: string | undefined };
 
 function findInstalledMCPServer(
   entry: MarketplaceEntryResponse["entry"],
@@ -32,19 +30,24 @@ function findInstalledMCPServer(
  */
 function useMarketplaceDetailMCPServer(
   entry: MarketplaceEntryResponse["entry"],
-  scope?: "global" | "workspace",
+  scope?: SettingsLayeredScope,
   workspaceId?: string,
+  profileName?: string,
   liveDataEnabled = true
 ) {
   const { activeWorkspaceId } = useActiveWorkspace();
   const resolvedWorkspaceId = workspaceId ?? activeWorkspaceId ?? undefined;
-  const resolvedScope = scope ?? (resolvedWorkspaceId ? "workspace" : "global");
-  const queryFilter: SettingsMCPServersFilter =
+  const resolvedScope = scope ?? (resolvedWorkspaceId ? "workspace" : "user");
+  const queryFilter: SettingsMCPServerListFilter =
     resolvedScope === "workspace"
       ? { scope: "workspace", workspace_id: resolvedWorkspaceId }
-      : { scope: "global" };
+      : resolvedScope === "profile" && profileName
+        ? { scope: "profile", profile: profileName, workspace_id: resolvedWorkspaceId }
+        : { scope: "user" };
   const queryEnabled =
-    entry.installed && (resolvedScope === "global" || Boolean(resolvedWorkspaceId));
+    entry.installed &&
+    (resolvedScope === "user" ||
+      (resolvedScope === "profile" ? Boolean(profileName) : Boolean(resolvedWorkspaceId)));
   const query = useSettingsMCPServers(queryFilter, {
     enabled: queryEnabled && liveDataEnabled,
     refetchInterval: SETTINGS_QUERY_INTERVALS.collectionRefetchInterval,
@@ -54,4 +57,3 @@ function useMarketplaceDetailMCPServer(
 }
 
 export { findInstalledMCPServer, useMarketplaceDetailMCPServer };
-export type { SettingsMCPServersFilter };

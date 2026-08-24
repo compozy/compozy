@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 type bridgeDeliveryScope struct {
@@ -77,6 +78,7 @@ func (r *bridgeRuntime) reconcileBridgeDeliveryScope(
 	instanceByID map[string]bridgepkg.BridgeInstance,
 ) error {
 	query := bridgepkg.DeliveryLedgerQuery{
+		ReadScope:   storepkg.ReadScope{AllProfiles: true},
 		Scope:       scope.scope,
 		WorkspaceID: scope.workspaceID,
 	}

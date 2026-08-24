@@ -4,6 +4,43 @@ package contracts
 
 import "time"
 
+type ForgePRCreateRequest struct {
+	RemoteURLs []string `json:"remote_urls"`
+	Head       string   `json:"head"`
+	Base       string   `json:"base"`
+	Title      string   `json:"title"`
+	Body       string   `json:"body,omitempty"`
+	Draft      bool     `json:"draft,omitempty"`
+}
+
+type ForgePRCreateResponse struct {
+	Status string `json:"status"`
+	Number int    `json:"number,omitempty"`
+	URL    string `json:"url,omitempty"`
+	Cause  string `json:"cause,omitempty"`
+}
+
+type ForgeStatusRequest struct {
+	RemoteURLs []string `json:"remote_urls"`
+	Branch     string   `json:"branch"`
+}
+
+type ForgeStatusResponse struct {
+	Provider  string    `json:"provider"`
+	PRNumber  *int      `json:"pr_number,omitempty"`
+	PRState   *string   `json:"pr_state,omitempty"`
+	PRURL     string    `json:"pr_url,omitempty"`
+	Merged    *bool     `json:"merged,omitempty"`
+	FetchedAt time.Time `json:"fetched_at"`
+	Cause     string    `json:"cause,omitempty"`
+}
+
+type FormBody struct {
+	Fields   []FormField `json:"fields"`
+	Submit   *RowAction  `json:"submit,omitempty"`
+	OnSubmit string      `json:"on_submit,omitempty"`
+}
+
 type FormField struct {
 	ID          string            `json:"id"`
 	Type        string            `json:"type"`
@@ -165,43 +202,4 @@ type HeartbeatPromptContributionPayload struct {
 	MaxBodyBytes     int64                              `json:"max_body_bytes"`
 	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
 	Context          HeartbeatContextProjectionPayload  `json:"context"`
-}
-
-type HeartbeatPutRequest struct {
-	WorkspaceID    string `json:"workspace_id,omitempty"`
-	AgentName      string `json:"agent_name"`
-	Body           string `json:"body"`
-	ExpectedDigest string `json:"expected_digest"`
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
-}
-
-type HeartbeatRevisionOperation string
-
-type HeartbeatRevisionPayload struct {
-	ID             string                     `json:"id"`
-	AgentName      string                     `json:"agent_name"`
-	SourcePath     string                     `json:"source_path"`
-	Operation      HeartbeatRevisionOperation `json:"operation"`
-	PreviousDigest string                     `json:"previous_digest,omitempty"`
-	NewDigest      string                     `json:"new_digest,omitempty"`
-	NewSnapshotID  string                     `json:"new_snapshot_id,omitempty"`
-	Actor          HeartbeatActorPayload      `json:"actor"`
-	CreatedAt      time.Time                  `json:"created_at"`
-}
-
-type HeartbeatRollbackRequest struct {
-	WorkspaceID    string `json:"workspace_id,omitempty"`
-	AgentName      string `json:"agent_name"`
-	RevisionID     string `json:"revision_id,omitempty"`
-	TargetDigest   string `json:"target_digest,omitempty"`
-	ExpectedDigest string `json:"expected_digest"`
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
-}
-
-type HeartbeatStatusRequest struct {
-	WorkspaceID             string `json:"workspace_id,omitempty"`
-	AgentName               string `json:"agent_name"`
-	SessionID               string `json:"session_id,omitempty"`
-	IncludeSessionHealth    bool   `json:"include_session_health,omitempty"`
-	IncludeRecentWakeEvents bool   `json:"include_recent_wake_events,omitempty"`
 }

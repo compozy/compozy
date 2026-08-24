@@ -81,12 +81,12 @@ func TestDaemonE2EExtensionCommandPaletteFixture(t *testing.T) {
 			t, ctx, harness, &installed,
 			"extension", "install", build.GenerationDir, "--allow-unverified", "--yes", "-o", "json",
 		)
-		var enabled compozycontract.ExtensionEnableResult
+		var enabled compozycontract.ExtensionEnablementPayload
 		runExtensionAuthoringCLI(
 			t, ctx, harness, &enabled,
 			"extension", "enable", paletteFixtureExtensionName, "-o", "json",
 		)
-		if !enabled.Extension.Enabled {
+		if !enabled.Enabled || enabled.Profile != "default" {
 			t.Fatalf("enabled palette fixture = %#v, want active extension", enabled)
 		}
 
@@ -106,12 +106,12 @@ func TestDaemonE2EExtensionCommandPaletteFixture(t *testing.T) {
 			t.Fatalf("palette fixture view = %#v, want validated recent list", view)
 		}
 
-		var disabled compozycontract.ExtensionPayload
+		var disabled compozycontract.ExtensionEnablementPayload
 		runExtensionAuthoringCLI(
 			t, ctx, harness, &disabled,
 			"extension", "disable", paletteFixtureExtensionName, "-o", "json",
 		)
-		if disabled.Enabled {
+		if disabled.Enabled || disabled.Profile != "default" {
 			t.Fatalf("disabled palette fixture = %#v, want inactive extension", disabled)
 		}
 		after := getPaletteFixtureCatalog(t, ctx, harness)
@@ -237,19 +237,8 @@ func testDaemonE2EExtensionContributedCommandsPreserveToolPolicy(t *testing.T) {
 		&installed,
 		"extension", "install", build.GenerationDir, "--allow-unverified", "--yes", "-o", "json",
 	)
-	if installed.Name != commandFixtureExtensionName || installed.Enabled {
-		t.Fatalf("installed command fixture = %#v, want inert extension", installed)
-	}
-	var enabled compozycontract.ExtensionEnableResult
-	runExtensionAuthoringCLI(
-		t,
-		ctx,
-		harness,
-		&enabled,
-		"extension", "enable", commandFixtureExtensionName, "-o", "json",
-	)
-	if !enabled.Extension.Enabled {
-		t.Fatalf("enabled command fixture = %#v, want active extension", enabled)
+	if installed.Name != commandFixtureExtensionName || !installed.Enabled {
+		t.Fatalf("installed command fixture = %#v, want default-on extension", installed)
 	}
 
 	assertCommandFixtureDiscovery(t, ctx, harness)

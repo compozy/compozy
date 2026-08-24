@@ -114,6 +114,7 @@ func (e *loopGoalJudgeEvaluator) EvaluateGoal(
 		Revision:               req.Turn - 1,
 		BrokenJudgeStreakLimit: gate.DefaultBrokenJudgeStreakLimit,
 		ToolScope: tools.Scope{
+			ProfileID:   strings.TrimSpace(run.ProfileID),
 			WorkspaceID: string(req.Key.WorkspaceID),
 			ActorKind:   harnessSummaryDefaultAgentName,
 		},

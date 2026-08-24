@@ -111,6 +111,61 @@ func TestGlobalDBClaimNextRunConcurrentSingleWinner(t *testing.T) {
 	)
 }
 
+func TestGlobalDBClaimNextRunProfileEligibility(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should skip archived owners and admit them after unarchive", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+		profileID := strings.Repeat("P", 26)
+		if _, err := globalDB.DB().ExecContext(ctx, `
+			INSERT INTO profiles (id, name, color, icon, state, created_at)
+			VALUES (?, 'claim-owner', '#8e8eb5', 'circle', 'active', ?)`,
+			profileID, store.FormatTimestamp(now),
+		); err != nil {
+			t.Fatalf("insert claim profile error = %v", err)
+		}
+		taskRecord := taskRecordForTest("task-profile-eligibility")
+		taskRecord.ProfileID = profileID
+		taskRecord.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := taskRunForTest("run-profile-eligibility", taskRecord.ID)
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		if _, err := globalDB.DB().ExecContext(ctx, `
+			UPDATE profiles SET state = 'archived', archived_at = ? WHERE id = ?`,
+			store.FormatTimestamp(now), profileID,
+		); err != nil {
+			t.Fatalf("archive profile error = %v", err)
+		}
+		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope: taskpkg.ScopeGlobal, ClaimerSessionID: "sess-archived", Now: now,
+		}); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+			t.Fatalf("ClaimNextRun(archived) error = %v, want ErrNoClaimableRun", err)
+		}
+		if _, err := globalDB.DB().ExecContext(ctx, `
+			UPDATE profiles SET state = 'active', archived_at = NULL WHERE id = ?`, profileID,
+		); err != nil {
+			t.Fatalf("unarchive profile error = %v", err)
+		}
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope: taskpkg.ScopeGlobal, ClaimerSessionID: "sess-active", Now: now.Add(time.Minute),
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun(active) error = %v", err)
+		}
+		if claim.Run.ID != run.ID {
+			t.Fatalf("ClaimNextRun(active).Run.ID = %q, want %q", claim.Run.ID, run.ID)
+		}
+	})
+}
+
 func TestGlobalDBClaimNextRunExactRunID(t *testing.T) {
 	t.Parallel()
 
@@ -694,7 +749,8 @@ func networkWakeRunForClaimTest(
 		ID: runID, RunKind: taskpkg.RunKindNetworkWake, Status: taskpkg.TaskRunStatusQueued,
 		WorkspaceID: "ws-wake",
 		Attempt:     1, Origin: taskpkg.Origin{Kind: taskpkg.OriginKindNetwork, Ref: "network.accept"},
-		QueuedAt: queuedAt,
+		ProfileID: store.DefaultProfileID,
+		QueuedAt:  queuedAt,
 	}
 	run.SetNetworkState(participation.Spec{
 		Version:         participation.SpecVersion,
@@ -764,7 +820,8 @@ func registerNetworkWakeRunSessionsForClaimTest(
 	)
 	for _, sessionID := range sessionIDs {
 		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
-			ID: sessionID, AgentName: "coder", Provider: "claude", RuntimeStatus: store.SessionRuntimeUnbound,
+			ProfileID: store.DefaultProfileID,
+			ID:        sessionID, AgentName: "coder", Provider: "claude", RuntimeStatus: store.SessionRuntimeUnbound,
 			WorkspaceID: workspaceID, State: "active", CreatedAt: now, UpdatedAt: now,
 		}); err != nil {
 			t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
@@ -892,6 +949,7 @@ func TestGlobalDBClaimNextRunScopesCoordinationMetadataToRunWorkspace(t *testing
 				Purpose:     "Workspace A operations",
 				CreatedBy:   "agent-a",
 				CreatedAt:   now,
+				ProfileID:   store.DefaultProfileID,
 				UpdatedAt:   now,
 			},
 			{
@@ -900,6 +958,7 @@ func TestGlobalDBClaimNextRunScopesCoordinationMetadataToRunWorkspace(t *testing
 				Purpose:     "Workspace B operations",
 				CreatedBy:   "agent-b",
 				CreatedAt:   now,
+				ProfileID:   store.DefaultProfileID,
 				UpdatedAt:   now,
 			},
 		} {
@@ -3056,7 +3115,7 @@ func assertRunLeaseUnchangedAfterHallucinationRejection(
 		!got.LeaseUntil.Equal(want.LeaseUntil) ||
 		!got.HeartbeatAt.Equal(want.HeartbeatAt) ||
 		!got.EndedAt.Equal(want.EndedAt) ||
-		string(got.Result) != string(want.Result) {
+		string(got.ResultValue()) != string(want.ResultValue()) {
 		t.Fatalf("run after rejection = %#v, want lease/state unchanged from %#v", got, want)
 	}
 }
@@ -3149,6 +3208,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRollbackWhenFinalizerFai
 			t.Fatalf("effect outbox = %#v, want no pre-commit delivery after rollback", outbox)
 		}
 		events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: loopRun.WorkspaceID, RunID: loopRun.ID,
 		})
 		if err != nil {
@@ -4077,6 +4137,7 @@ func TestGlobalDBGenerationSuccessionObservabilityCoverageMatrix(t *testing.T) {
 			}
 
 			events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+				ReadScope:   store.ReadScope{AllProfiles: true},
 				WorkspaceID: loopRun.WorkspaceID,
 				RunID:       loopRun.ID,
 			})
@@ -5955,6 +6016,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRefreshTokensAndApplyBud
 					t.Fatalf("loop budget_approval_seq = %d, want 1", storedLoop.BudgetApprovalSeq)
 				}
 				events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+					ReadScope:   store.ReadScope{AllProfiles: true},
 					WorkspaceID: loopRun.WorkspaceID,
 					RunID:       loopRun.ID,
 				})
@@ -7113,6 +7175,7 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 				t.Fatalf("loop tokens_used = %d, want %d", storedLoop.TokensUsed, tc.tokensUsed)
 			}
 			events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+				ReadScope:   store.ReadScope{AllProfiles: true},
 				WorkspaceID: loopRun.WorkspaceID,
 				RunID:       loopRun.ID,
 			})
@@ -7169,6 +7232,7 @@ func TestGlobalDBCompleteRunLeaseShouldCommitCoordinatorControlWithoutNodeSucces
 			Metadata: json.RawMessage(
 				`{"generation":1,"node_id":"converge","item_index":0,"attempt":1,"epoch":1}`,
 			),
+			ProfileID: store.DefaultProfileID,
 		}
 		err = recordCompletedRunLoopOutput(
 			ctx,
@@ -7332,7 +7396,7 @@ func TestGlobalDBCompleteRunLeaseShouldCommitCoordinatorControlWithoutNodeSucces
 			t.Fatalf("CompleteRunLease() error = %v", err)
 		}
 		var storedControl taskpkg.CoordinatorControlResult
-		if err := json.Unmarshal(completed.Result, &storedControl); err != nil {
+		if err := json.Unmarshal(completed.ResultValue(), &storedControl); err != nil {
 			t.Fatalf("json.Unmarshal(completed.Result) error = %v", err)
 		}
 		if got, want := storedControl.Kind, "loop_action"; got != want {
@@ -7351,6 +7415,7 @@ func TestGlobalDBCompleteRunLeaseShouldCommitCoordinatorControlWithoutNodeSucces
 			t.Fatalf("generation output status = %q, want %q", got, want)
 		}
 		loopEvents, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: loopRun.WorkspaceID,
 			RunID:       loopRun.ID,
 		})
@@ -7545,6 +7610,7 @@ func TestGlobalDBHeartbeatRunLeaseShouldPersistCoalescedLoopTokenTicks(t *testin
 		t.Fatalf("loop tokens_used = %d, want 4300", storedLoop.TokensUsed)
 	}
 	events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+		ReadScope:   store.ReadScope{AllProfiles: true},
 		WorkspaceID: loopRun.WorkspaceID,
 		RunID:       loopRun.ID,
 	})
@@ -7860,8 +7926,8 @@ func TestGlobalDBCompleteRunLeaseShouldStoreLargeLoopOutputByRef(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CompleteRunLease() error = %v", err)
 		}
-		if len(updated.Result) != 0 {
-			t.Fatalf("updated Result = %s, want empty inline result", updated.Result)
+		if len(updated.ResultValue()) != 0 {
+			t.Fatalf("updated Result = %s, want empty inline result", updated.ResultValue())
 		}
 
 		var resultJSON sql.NullString
@@ -8358,6 +8424,7 @@ func TestGlobalDBLoopGenerationOutputWritersShouldFenceStaleEpochs(t *testing.T)
 			Metadata: json.RawMessage(
 				`{"generation":1,"node_id":"work","item_index":0,"attempt":2,"epoch":4}`,
 			),
+			ProfileID: store.DefaultProfileID,
 		}
 		recorded, err := updateLoopNodeOutputStatusWithExecutor(
 			ctx,
@@ -8493,6 +8560,7 @@ func TestGlobalDBCoordinatorCompletionShouldPersistRetryAttemptAndEventAtomicall
 			t.Fatalf("retry attempts = %#v, want one classified retry", attempts)
 		}
 		events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: loopRun.WorkspaceID, RunID: loopRun.ID,
 		})
 		if err != nil {

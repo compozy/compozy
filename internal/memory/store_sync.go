@@ -41,7 +41,7 @@ func (s *Store) syncScopeAfterWriteErr(
 	if err != nil {
 		return err
 	}
-	doc, err := buildCatalogDocument(scope, workspaceID, header, content)
+	doc, err := buildCatalogDocument(s.profileIDForScope(scope), scope, workspaceID, header, content)
 	if err != nil {
 		return err
 	}
@@ -78,6 +78,7 @@ func (s *Store) syncScopeAfterDeleteErr(
 	}
 	return s.catalog.deleteDocument(
 		ctx,
+		s.profileIDForScope(scope),
 		scope,
 		workspaceID,
 		s.catalogAgentName(scope),
@@ -106,12 +107,7 @@ func (s *Store) needsFullSyncAfterMutation(
 	if err != nil {
 		return false, err
 	}
-	ready, err := s.catalog.identityReady(ctx, newCatalogIdentity(
-		scope,
-		workspaceID,
-		s.catalogAgentName(scope),
-		s.catalogAgentTier(scope),
-	))
+	ready, err := s.catalog.identityReady(ctx, s.catalogIdentity(scope, workspaceID))
 	if err != nil {
 		return false, err
 	}

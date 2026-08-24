@@ -39,27 +39,33 @@ type WorktreeForgeStatusPayload struct {
 }
 
 type WorktreePayload struct {
-	ID            string    `json:"id"`
-	WorkspaceID   string    `json:"workspace_id"`
-	Name          string    `json:"name"`
-	Branch        string    `json:"branch"`
-	Path          string    `json:"path"`
-	State         string    `json:"state"`
-	PendingPhase  string    `json:"pending_phase,omitempty"`
-	Origin        string    `json:"origin"`
-	SetupState    string    `json:"setup_state"`
-	SetupError    string    `json:"setup_error,omitempty"`
-	BaseRef       string    `json:"base_ref,omitempty"`
-	CreatedBranch bool      `json:"created_branch"`
-	RunNamespace  string    `json:"run_namespace,omitempty"`
-	CreatedHead   string    `json:"created_head,omitempty"`
-	RunID         string    `json:"run_id,omitempty"`
-	Dirty         *bool     `json:"dirty"`
-	Ahead         *int      `json:"ahead"`
-	Behind        *int      `json:"behind"`
-	AgentActivity string    `json:"agent_activity"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ID              string    `json:"id"`
+	ProfileID       string    `json:"profile_id"`
+	ProfileName     string    `json:"profile_name"`
+	ProfileColor    string    `json:"profile_color,omitempty"`
+	ProfileIcon     string    `json:"profile_icon,omitempty"`
+	ProfileEmoji    string    `json:"profile_emoji,omitempty"`
+	ProfileArchived bool      `json:"profile_archived"`
+	WorkspaceID     string    `json:"workspace_id"`
+	Name            string    `json:"name"`
+	Branch          string    `json:"branch"`
+	Path            string    `json:"path"`
+	State           string    `json:"state"`
+	PendingPhase    string    `json:"pending_phase,omitempty"`
+	Origin          string    `json:"origin"`
+	SetupState      string    `json:"setup_state"`
+	SetupError      string    `json:"setup_error,omitempty"`
+	BaseRef         string    `json:"base_ref,omitempty"`
+	CreatedBranch   bool      `json:"created_branch"`
+	RunNamespace    string    `json:"run_namespace,omitempty"`
+	CreatedHead     string    `json:"created_head,omitempty"`
+	RunID           string    `json:"run_id,omitempty"`
+	Dirty           *bool     `json:"dirty"`
+	Ahead           *int      `json:"ahead"`
+	Behind          *int      `json:"behind"`
+	AgentActivity   string    `json:"agent_activity"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 type DiscoveredWorktreePayload struct {

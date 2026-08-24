@@ -17,6 +17,57 @@ import (
 func TestGlobalDBWorktreeStore(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should keep worktrees visible across profiles with immutable owner tags", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "worktree-profiles", t.TempDir())
+		foreignProfileID := "bbbbbbbbbbbbbbbbbbbbbbbbbb"
+		now := time.Date(2026, 8, 21, 16, 0, 0, 0, time.UTC)
+		if _, err := globalDB.db.ExecContext(ctx, `
+			INSERT INTO profiles (id, name, color, icon, state, created_at)
+			VALUES (?, 'foreign-worktree-owner', '#5FBF85', 'circle', 'active', ?)`,
+			foreignProfileID,
+			store.FormatTimestamp(now),
+		); err != nil {
+			t.Fatalf("insert foreign profile error = %v", err)
+		}
+		for _, item := range []worktreepkg.Worktree{
+			{
+				ID: "wt_profile_default", ProfileID: store.DefaultProfileID, WorkspaceID: workspaceID,
+				Name: "default-owned", Path: filepath.Join(t.TempDir(), "default-owned"),
+				State: worktreepkg.StateReady, Origin: worktreepkg.OriginManual,
+				SetupState: worktreepkg.SetupNone, CreatedAt: now, UpdatedAt: now,
+			},
+			{
+				ID: "wt_profile_foreign", ProfileID: foreignProfileID, WorkspaceID: workspaceID,
+				Name: "foreign-owned", Path: filepath.Join(t.TempDir(), "foreign-owned"),
+				State: worktreepkg.StateReady, Origin: worktreepkg.OriginManual,
+				SetupState: worktreepkg.SetupNone, CreatedAt: now.Add(time.Second), UpdatedAt: now.Add(time.Second),
+			},
+		} {
+			if err := globalDB.Worktrees.Insert(ctx, item); err != nil {
+				t.Fatalf("Insert(%s) error = %v", item.ID, err)
+			}
+		}
+
+		items, err := globalDB.Worktrees.List(ctx, workspaceID)
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		if len(items) != 2 || items[0].ProfileID != store.DefaultProfileID ||
+			items[1].ProfileID != foreignProfileID {
+			t.Fatalf("List() = %#v, want both owner-tagged worktrees", items)
+		}
+		foreign, err := globalDB.Worktrees.Get(ctx, workspaceID, "wt_profile_foreign")
+		if err != nil {
+			t.Fatalf("Get(foreign owner) error = %v", err)
+		}
+		if foreign.ProfileID != foreignProfileID {
+			t.Fatalf("Get(foreign owner).ProfileID = %q, want %q", foreign.ProfileID, foreignProfileID)
+		}
+	})
+
 	t.Run("Should isolate every repository read and side-table mutation by workspace", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)
@@ -25,7 +76,8 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		workspaceB := registerWorkspaceForGlobalTests(t, globalDB, "worktree-b", filepath.Join(t.TempDir(), "b"))
 		now := time.Date(2026, 8, 12, 17, 0, 0, 0, time.UTC)
 		item := worktreepkg.Worktree{
-			ID: "wt_store_a", WorkspaceID: workspaceA, Name: "store-a", Branch: "feature/a",
+			ProfileID: store.DefaultProfileID,
+			ID:        "wt_store_a", WorkspaceID: workspaceA, Name: "store-a", Branch: "feature/a",
 			Path: filepath.Join(t.TempDir(), "store-a"), State: worktreepkg.StateReady,
 			Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
 			CreatedAt: now, UpdatedAt: now,
@@ -138,25 +190,44 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		globalDB := openTestGlobalDB(t)
 		workspaceA := registerWorkspaceForGlobalTests(t, globalDB, "event-a", filepath.Join(t.TempDir(), "a"))
 		workspaceB := registerWorkspaceForGlobalTests(t, globalDB, "event-b", filepath.Join(t.TempDir(), "b"))
+		profileID := "cccccccccccccccccccccccccc"
+		if _, err := globalDB.db.ExecContext(ctx, `
+			INSERT INTO profiles (id, name, color, icon, state, created_at)
+			VALUES (?, 'event-owner', '#5FBF85', 'circle', 'active', ?)`,
+			profileID,
+			store.FormatTimestamp(time.Date(2026, 8, 22, 18, 0, 0, 0, time.UTC)),
+		); err != nil {
+			t.Fatalf("insert event owner profile error = %v", err)
+		}
 		event := worktreepkg.LifecycleEvent{
-			Name: worktreepkg.EventCreated, WorkspaceID: workspaceA, WorktreeID: "wt_event_a",
+			Name: worktreepkg.EventCreated, ProfileID: profileID,
+			WorkspaceID: workspaceA, WorktreeID: "wt_event_a",
 			Payload: json.RawMessage(`{"worktree_id":"wt_event_a"}`),
 		}
 		if err := globalDB.PublishWorktreeEvent(ctx, event); err != nil {
 			t.Fatalf("PublishWorktreeEvent() error = %v", err)
 		}
-		summaries, err := globalDB.ListEventSummaries(ctx, store.EventSummaryQuery{
-			WorkspaceID: workspaceA, WorktreeID: event.WorktreeID, Type: event.Name,
-		})
+		summaries, err := globalDB.ListEventSummaries(
+			ctx,
+			store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
+				WorkspaceID: workspaceA, WorktreeID: event.WorktreeID, Type: event.Name,
+			},
+		)
 		if err != nil || len(summaries) != 1 {
 			t.Fatalf("ListEventSummaries(owner) = %#v, %v, want one", summaries, err)
 		}
 		if summaries[0].WorkspaceID != workspaceA || summaries[0].WorktreeID != event.WorktreeID {
 			t.Fatalf("event projections = %#v, want workspace/worktree correlation", summaries[0])
 		}
-		crossWorkspace, err := globalDB.ListEventSummaries(ctx, store.EventSummaryQuery{
-			WorkspaceID: workspaceB, WorktreeID: event.WorktreeID,
-		})
+		if summaries[0].ProfileID != profileID {
+			t.Fatalf("event profile = %q, want %q", summaries[0].ProfileID, profileID)
+		}
+		crossWorkspace, err := globalDB.ListEventSummaries(
+			ctx,
+			store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
+				WorkspaceID: workspaceB, WorktreeID: event.WorktreeID,
+			},
+		)
 		if err != nil || len(crossWorkspace) != 0 {
 			t.Fatalf("ListEventSummaries(cross-workspace) = %#v, %v, want empty", crossWorkspace, err)
 		}
@@ -168,8 +239,18 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		globalDB := openTestGlobalDB(t)
 		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "terminal-event", t.TempDir())
 		now := time.Date(2026, 8, 12, 17, 30, 0, 0, time.UTC)
+		profileID := "dddddddddddddddddddddddddd"
+		if _, err := globalDB.db.ExecContext(ctx, `
+			INSERT INTO profiles (id, name, color, icon, state, created_at)
+			VALUES (?, 'terminal-event-owner', '#5FBF85', 'circle', 'active', ?)`,
+			profileID,
+			store.FormatTimestamp(now),
+		); err != nil {
+			t.Fatalf("insert terminal event profile error = %v", err)
+		}
 		item := worktreepkg.Worktree{
-			ID: "wt_terminal_event", WorkspaceID: workspaceID, Name: "terminal-event",
+			ProfileID: profileID,
+			ID:        "wt_terminal_event", WorkspaceID: workspaceID, Name: "terminal-event",
 			Branch: "feature/terminal", Path: filepath.Join(t.TempDir(), "terminal"),
 			State: worktreepkg.StateReady, Origin: worktreepkg.OriginManual,
 			SetupState: worktreepkg.SetupNone, CreatedAt: now, UpdatedAt: now,
@@ -185,7 +266,8 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 			t.Fatalf("InsertExitOperation() error = %v", err)
 		}
 		event := worktreepkg.LifecycleEvent{
-			Name: worktreepkg.EventExitActionCompleted, WorkspaceID: workspaceID, WorktreeID: item.ID,
+			Name: worktreepkg.EventExitActionCompleted, ProfileID: profileID,
+			WorkspaceID: workspaceID, WorktreeID: item.ID,
 			Payload: json.RawMessage(`{"op_id":"op-terminal","state":"completed"}`),
 		}
 		if _, err := globalDB.FinishExitOperationWithEvent(
@@ -197,9 +279,12 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		if err != nil || len(running) != 1 {
 			t.Fatalf("running after rollback = %#v, %v, want original operation", running, err)
 		}
-		summaries, err := globalDB.ListEventSummaries(ctx, store.EventSummaryQuery{
-			WorkspaceID: workspaceID, WorktreeID: item.ID, Type: event.Name,
-		})
+		summaries, err := globalDB.ListEventSummaries(
+			ctx,
+			store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
+				WorkspaceID: workspaceID, WorktreeID: item.ID, Type: event.Name,
+			},
+		)
 		if err != nil || len(summaries) != 0 {
 			t.Fatalf("events after rollback = %#v, %v, want none", summaries, err)
 		}
@@ -213,11 +298,17 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		if err != nil || len(running) != 0 {
 			t.Fatalf("running after commit = %#v, %v, want none", running, err)
 		}
-		summaries, err = globalDB.ListEventSummaries(ctx, store.EventSummaryQuery{
-			WorkspaceID: workspaceID, WorktreeID: item.ID, Type: event.Name,
-		})
+		summaries, err = globalDB.ListEventSummaries(
+			ctx,
+			store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
+				WorkspaceID: workspaceID, WorktreeID: item.ID, Type: event.Name,
+			},
+		)
 		if err != nil || len(summaries) != 1 {
 			t.Fatalf("events after commit = %#v, %v, want one", summaries, err)
+		}
+		if summaries[0].ProfileID != profileID || summaries[0].ProfileName != "terminal-event-owner" {
+			t.Fatalf("terminal event owner = %#v, want profile %q", summaries[0], profileID)
 		}
 	})
 
@@ -229,7 +320,8 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		workspaceB := registerWorkspaceForGlobalTests(t, globalDB, "constraint-b", filepath.Join(t.TempDir(), "b"))
 		now := time.Date(2026, 8, 12, 18, 0, 0, 0, time.UTC)
 		item := worktreepkg.Worktree{
-			ID: "wt_constraints", WorkspaceID: workspaceB, Name: "constraints", Branch: "feature/c",
+			ProfileID: store.DefaultProfileID,
+			ID:        "wt_constraints", WorkspaceID: workspaceB, Name: "constraints", Branch: "feature/c",
 			Path: filepath.Join(t.TempDir(), "constraints"), State: worktreepkg.StateReady,
 			Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
 			CreatedAt: now, UpdatedAt: now,
@@ -297,7 +389,8 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		)
 		now := time.Date(2026, 8, 12, 19, 0, 0, 0, time.UTC)
 		item := worktreepkg.Worktree{
-			ID: "wt_session_constraints", WorkspaceID: workspaceB, Name: "session-constraints",
+			ProfileID: store.DefaultProfileID,
+			ID:        "wt_session_constraints", WorkspaceID: workspaceB, Name: "session-constraints",
 			Path: filepath.Join(t.TempDir(), "session"), State: worktreepkg.StateReady,
 			Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
 			CreatedAt: now, UpdatedAt: now,
@@ -326,7 +419,8 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		insertReady := func(id string) {
 			t.Helper()
 			if err := globalDB.Worktrees.Insert(ctx, worktreepkg.Worktree{
-				ID: id, WorkspaceID: workspaceID, Name: id, Branch: "feature/" + id,
+				ProfileID: store.DefaultProfileID,
+				ID:        id, WorkspaceID: workspaceID, Name: id, Branch: "feature/" + id,
 				Path: filepath.Join(t.TempDir(), id), State: worktreepkg.StateReady,
 				Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
 				CreatedAt: now, UpdatedAt: now,
@@ -382,7 +476,8 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 			)
 			now := time.Date(2026, 8, 12, 19, 15, 0, 0, time.UTC)
 			item := worktreepkg.Worktree{
-				ID: "wt_session_removal_fence", WorkspaceID: workspaceID, Name: "session-removal-fence",
+				ProfileID: store.DefaultProfileID,
+				ID:        "wt_session_removal_fence", WorkspaceID: workspaceID, Name: "session-removal-fence",
 				Path: filepath.Join(t.TempDir(), "worktree"), State: worktreepkg.StateReady,
 				Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
 				CreatedAt: now, UpdatedAt: now,
@@ -391,7 +486,8 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 				t.Fatalf("Insert() error = %v", err)
 			}
 			bound := store.SessionInfo{
-				ID: "session-before-removal", AgentName: "coder", Provider: "claude",
+				ID: "session-before-removal", ProfileID: store.DefaultProfileID,
+				AgentName: "coder", Provider: "claude",
 				RuntimeStatus: store.SessionRuntimeUnbound, WorkspaceID: workspaceID, WorktreeID: item.ID,
 				State: "active", CreatedAt: now, UpdatedAt: now,
 			}
@@ -415,7 +511,10 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 			if err := globalDB.RegisterSession(ctx, newBinding); !errors.Is(err, worktreepkg.ErrNotReady) {
 				t.Fatalf("RegisterSession(new binding) error = %v, want %v", err, worktreepkg.ErrNotReady)
 			}
-			rows, err := globalDB.ListSessions(ctx, store.SessionListQuery{ID: newBinding.ID})
+			rows, err := globalDB.ListSessions(ctx, store.SessionListQuery{
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				ID:        newBinding.ID,
+			})
 			if err != nil {
 				t.Fatalf("ListSessions(new binding) error = %v", err)
 			}
@@ -433,7 +532,8 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		workspaceID := registerSessionForGlobalTests(t, globalDB, sessionID)
 		now := time.Date(2026, 8, 12, 19, 30, 0, 0, time.UTC)
 		item := worktreepkg.Worktree{
-			ID: "wt_history", WorkspaceID: workspaceID, Name: "history",
+			ProfileID: store.DefaultProfileID,
+			ID:        "wt_history", WorkspaceID: workspaceID, Name: "history",
 			Path: filepath.Join(t.TempDir(), "history"), State: worktreepkg.StateMissing,
 			Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
 			CreatedAt: now, UpdatedAt: now,
@@ -593,7 +693,8 @@ func TestGlobalDBWorktreeNameReservationMigration(t *testing.T) {
 		}
 		now := time.Date(2026, 8, 14, 12, 3, 0, 0, time.UTC)
 		replacement := worktreepkg.Worktree{
-			ID: "wt-name-migration-live", WorkspaceID: workspaceID, Name: reusedName,
+			ProfileID: store.DefaultProfileID,
+			ID:        "wt-name-migration-live", WorkspaceID: workspaceID, Name: reusedName,
 			Branch: "feature/reusable-name-v2", Path: filepath.Join(t.TempDir(), reusedName),
 			State: worktreepkg.StateReady, Origin: worktreepkg.OriginManual,
 			SetupState: worktreepkg.SetupNone, CreatedAt: now, UpdatedAt: now,

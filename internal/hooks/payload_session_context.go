@@ -10,6 +10,7 @@ func (p SessionMessagePersistedPayload) hookSessionContext() SessionContext { re
 
 func (p SessionRuntimeRecoveryPayload) hookSessionContext() SessionContext { return p.SessionContext }
 
+//nolint:gocritic // Session correlation uses the same value-carrier contract as every hook payload.
 func (p SandboxPreparePayload) hookSessionContext() SessionContext { return p.SessionContext }
 
 func (p SandboxReadyPayload) hookSessionContext() SessionContext { return p.SessionContext }

@@ -10,7 +10,7 @@ Do not use memory as a transcript, scratchpad, or replacement for task state. If
 
 Use the narrowest durable scope that still makes the information reusable:
 
-- global applies across workspaces.
+- profile applies across workspaces.
 - workspace belongs to one repository or worktree.
 - agent belongs to one agent tier or definition when supported by the current memory surface.
 
@@ -19,7 +19,7 @@ Common memory types include user, feedback, project, and reference. Choose the t
 ## CLI Operations
 
     compozy memory list
-    compozy memory list --scope global
+    compozy memory list --scope profile
     compozy memory list --scope workspace --type project --sort name --limit 50 -o json
     compozy memory show architecture.md --scope workspace
 
@@ -88,7 +88,7 @@ The search path prefers the derived catalog and falls back to deterministic lexi
 
 Promote durable entries across scopes through the daemon so provenance and controller decisions stay auditable:
 
-    compozy memory promote architecture.md --from workspace --to global --dry-run -o json
+    compozy memory promote architecture.md --from workspace --to profile --dry-run -o json
     compozy memory promote review.md --from agent:workspace --to agent:global --agent reviewer -o json
 
 Invalidate frozen memory snapshots for future session boots with reload:

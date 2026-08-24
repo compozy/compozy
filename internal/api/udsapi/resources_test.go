@@ -120,7 +120,7 @@ func TestGetResourceHandlerPreservesKindAndID(t *testing.T) {
 						Kind:    kind,
 						ID:      id,
 						Version: 5,
-						Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+						Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 						Owner: resources.ResourceOwner{
 							Kind: resources.ResourceOwnerKind("daemon"),
 							ID:   "daemon-control",
@@ -159,10 +159,10 @@ func TestPutResourceHandlerPreservesExpectedVersionAndStatusSemantics(t *testing
 	}{
 		{
 			name:            "create",
-			body:            []byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
+			body:            []byte(`{"scope":{"kind":"user"},"spec":{"enabled":true}}`),
 			wantStatus:      http.StatusCreated,
 			wantVersion:     1,
-			wantScopeKind:   resources.ResourceScopeKindGlobal,
+			wantScopeKind:   resources.ResourceScopeKindUser,
 			wantExpectedVer: 0,
 		},
 		{
@@ -286,7 +286,7 @@ func TestPutResourceHandlerMapsResourceErrors(t *testing.T) {
 				engine,
 				http.MethodPut,
 				fixtureResourceAPIPath("demo"),
-				[]byte(`{"scope":{"kind":"global"},"spec":{"enabled":true}}`),
+				[]byte(`{"scope":{"kind":"user"},"spec":{"enabled":true}}`),
 			)
 			if resp.Code != tt.want {
 				t.Fatalf("status = %d, want %d; body=%s", resp.Code, tt.want, resp.Body.String())

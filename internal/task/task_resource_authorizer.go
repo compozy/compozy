@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -97,6 +98,9 @@ func (m *Service) authorizeTaskResource(
 	actor ActorContext,
 	taskRecord Task,
 ) error {
+	if actor.ReadScope != (store.ReadScope{}) && !actor.ReadScope.Matches(taskRecord.ProfileID) {
+		return ErrTaskNotFound
+	}
 	authorizer := m.taskAuthorizer
 	if authorizer == nil {
 		authorizer = scopedTaskResourceAuthorizer{workspaceAccess: m.workspaceAccess}
@@ -144,6 +148,7 @@ func (m *Service) loadAuthorizedRunWithTask(
 	if err := m.authorizeRunResource(ctx, actor, run, taskRecord); err != nil {
 		return Run{}, Task{}, err
 	}
+	run.ProfileID = taskRecord.ProfileID
 	return run, taskRecord, nil
 }
 
@@ -166,13 +171,30 @@ type taskResourceReader interface {
 	GetTask(ctx context.Context, id string) (Task, error)
 }
 
+type profileScopedTaskResourceReader interface {
+	GetTaskInReadScope(ctx context.Context, id string, readScope store.ReadScope) (Task, error)
+}
+
 func (m *Service) loadAuthorizedTask(
 	ctx context.Context,
 	reader taskResourceReader,
 	id string,
 	actor ActorContext,
 ) (Task, error) {
-	taskRecord, err := reader.GetTask(ctx, id)
+	var taskRecord Task
+	var err error
+	if actor.ReadScope != (store.ReadScope{}) {
+		if scopedReader, ok := reader.(profileScopedTaskResourceReader); ok {
+			taskRecord, err = scopedReader.GetTaskInReadScope(ctx, id, actor.ReadScope)
+		} else {
+			taskRecord, err = reader.GetTask(ctx, id)
+			if err == nil && !actor.ReadScope.Matches(taskRecord.ProfileID) {
+				err = ErrTaskNotFound
+			}
+		}
+	} else {
+		taskRecord, err = reader.GetTask(ctx, id)
+	}
 	if err != nil {
 		return Task{}, err
 	}
@@ -184,4 +206,8 @@ func (m *Service) loadAuthorizedTask(
 
 func isTaskOperator(actor ActorContext) bool {
 	return actor.Scope.Operator || actor.Actor.Kind.Normalize() == ActorKindDaemon
+}
+
+func canBypassTaskReadAuthorization(actor ActorContext) bool {
+	return isTaskOperator(actor) && actor.ReadScope.AllProfiles
 }

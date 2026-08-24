@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -32,6 +33,7 @@ func (o *Observer) QueryTaskMetrics(ctx context.Context, query TaskMetricsQuery)
 	}
 
 	snapshot, err := o.loadTaskSnapshot(ctx, TaskSummaryQuery{
+		ReadScope:            query.ReadScope,
 		ParticipationChannel: query.ParticipationChannel,
 	})
 	if err != nil {
@@ -69,12 +71,15 @@ func (o *Observer) collectTaskHealth(ctx context.Context) (TaskHealth, error) {
 		return TaskHealth{}, errors.New("observe: task health context is required")
 	}
 
-	snapshot, err := o.loadTaskSnapshot(ctx, TaskSummaryQuery{})
+	snapshot, err := o.loadTaskSnapshot(ctx, TaskSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}})
 	if err != nil {
 		return TaskHealth{}, err
 	}
 	summary := taskSummaryFromSnapshot(snapshot, o.now)
-	metrics := taskMetricsFromSnapshot(snapshot, TaskMetricsQuery{Since: o.startedAt}, o.now)
+	metrics := taskMetricsFromSnapshot(snapshot, TaskMetricsQuery{
+		ReadScope: store.ReadScope{AllProfiles: true},
+		Since:     o.startedAt,
+	}, o.now)
 	return o.taskHealthFromSnapshot(ctx, snapshot, summary, metrics)
 }
 

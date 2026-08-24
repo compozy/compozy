@@ -19,6 +19,7 @@ import (
 func sessionInfoFromAgentCaller(caller agentidentity.Caller) *session.Info {
 	return &session.Info{
 		ID:                   strings.TrimSpace(caller.Session.ID),
+		ProfileID:            strings.TrimSpace(caller.Session.ProfileID),
 		Name:                 strings.TrimSpace(caller.Session.Name),
 		AgentName:            strings.TrimSpace(caller.Session.AgentName),
 		Provider:             strings.TrimSpace(caller.Session.Provider),

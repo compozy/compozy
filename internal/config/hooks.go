@@ -314,7 +314,7 @@ func parsedHookDeclarationFromHookDecl(
 	if strings.TrimSpace(decl.WorkingDir) != "" {
 		return parsedHookDeclaration{}, errors.New("working_dir cannot be stored in AGENT.md hooks")
 	}
-	if decl.SkillSource != "" {
+	if decl.SkillSource != hookspkg.HookSkillSourceUnset {
 		return parsedHookDeclaration{}, errors.New("skill_source cannot be stored in AGENT.md hooks")
 	}
 

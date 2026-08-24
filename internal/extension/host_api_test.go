@@ -32,6 +32,7 @@ import (
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/network/participation"
 	observepkg "github.com/compozy/compozy/internal/observe"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/sandbox"
 	sandboxlocal "github.com/compozy/compozy/internal/sandbox/local"
@@ -1605,7 +1606,7 @@ func TestHostAPIHandlerResourcesListAndGetEnforceSameSourceAndGrantedKinds(t *te
 			Kind: resources.ResourceSourceKind("daemon"),
 			ID:   "host-api-tests",
 		},
-		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 	}, resources.RawDraft{
 		Kind:  resources.ResourceKind("tool"),
 		ID:    "foreign",
@@ -1734,6 +1735,7 @@ func TestHostAPIHandlerResourcesMethodsCoexistWithBridgeOperationalMethods(t *te
 	}
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-coexist",
 		ExtensionName: "telegram-adapter",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
@@ -1771,7 +1773,7 @@ func TestHostAPIHandlerMemoryStorePersistsContentWithTags(t *testing.T) {
 		t.Fatalf("Handle(memory/store) error = %v", err)
 	}
 
-	content, err := env.memory.Read(t.Context(), memcontract.ScopeGlobal, "deploy-script.md")
+	content, err := env.memory.Read(t.Context(), memcontract.ScopeProfile, "deploy-script.md")
 	if err != nil {
 		t.Fatalf("memory.Read() error = %v", err)
 	}
@@ -1816,6 +1818,39 @@ func TestHostAPIHandlerMemoryRecallReturnsRankedMatches(t *testing.T) {
 	if entries[0].Score <= 0 {
 		t.Fatalf("memory/recall first score = %f, want > 0", entries[0].Score)
 	}
+
+	t.Run("Should isolate profile memory by the bridge owner", func(t *testing.T) {
+		t.Parallel()
+
+		profileEnv := newHostAPITestEnv(t)
+		profileEnv.grant(
+			"ext-memory",
+			[]string{"memory/store", "memory/recall"},
+			[]string{"memory.write", "memory.read"},
+		)
+		ctx := profileEnv.bridgeContext(t, &bridgepkg.BridgeInstance{
+			ID: "bridge-marketing-memory", ExtensionName: "ext-memory", ProfileID: profileEnv.marketingID,
+		})
+		if _, err := profileEnv.callWithContext(ctx, t, "ext-memory", "memory/store", map[string]any{
+			"key": "campaign", "content": "The marketing campaign uses the aurora launch message.",
+		}); err != nil {
+			t.Fatalf("Handle(marketing memory/store) error = %v", err)
+		}
+		if _, err := profileEnv.memory.Read(t.Context(), memcontract.ScopeProfile, "campaign.md"); err == nil {
+			t.Fatal("default profile memory contains marketing campaign, want isolation")
+		}
+		result, err := profileEnv.callWithContext(ctx, t, "ext-memory", "memory/recall", map[string]any{
+			"query": "aurora launch campaign", "limit": 5,
+		})
+		if err != nil {
+			t.Fatalf("Handle(marketing memory/recall) error = %v", err)
+		}
+		var profileEntries []hostAPIMemoryRecallEntry
+		decodeResult(t, result, &profileEntries)
+		if len(profileEntries) == 0 || !strings.Contains(profileEntries[0].Content, "aurora") {
+			t.Fatalf("marketing memory/recall entries = %#v, want isolated campaign", profileEntries)
+		}
+	})
 }
 
 func TestHostAPIHandlerMemoryRecallUsesActiveProvider(t *testing.T) {
@@ -1908,7 +1943,7 @@ func TestHostAPIHandlerMemoryForgetRemovesEntries(t *testing.T) {
 		t.Fatalf("Handle(memory/forget) error = %v", err)
 	}
 
-	if _, err := env.memory.Read(t.Context(), memcontract.ScopeGlobal, "scratch.md"); !errors.Is(err, os.ErrNotExist) {
+	if _, err := env.memory.Read(t.Context(), memcontract.ScopeProfile, "scratch.md"); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("memory.Read() error = %v, want os.ErrNotExist", err)
 	}
 }
@@ -2013,6 +2048,7 @@ func TestHostAPIHandlerBridgesMessagesIngestRejectsInvalidPayloads(t *testing.T)
 	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-ingest-invalid",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
@@ -2077,6 +2113,7 @@ func TestHostAPIHandlerBridgesMessagesIngestRejectsDisabledOrUnknownInstances(t 
 	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
 	disabled := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-ingest-disabled",
 		Enabled:       false,
 		Status:        bridgepkg.BridgeStatusDisabled,
@@ -2101,6 +2138,7 @@ func TestHostAPIHandlerBridgesMessagesIngestRejectsDisabledOrUnknownInstances(t 
 	}
 
 	ready := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-ingest-ready",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
@@ -2129,6 +2167,7 @@ func TestHostAPIHandlerBridgesMessagesIngestSuppressesDuplicateWebhookRetries(t 
 	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-ingest-dedup",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
@@ -2201,6 +2240,7 @@ func TestHostAPIHandlerBridgesInstancesReportStateRejectsInvalidUpdates(t *testi
 	env.grant("telegram-adapter", []string{"bridges/instances/report_state"}, []string{"bridge.write"})
 
 	ready := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-report-state-ready",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
@@ -2234,6 +2274,7 @@ func TestHostAPIHandlerBridgesInstancesReportStateRejectsConflictingDegradationC
 	env.grant("telegram-adapter", []string{"bridges/instances/report_state"}, []string{"bridge.write"})
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-report-state-conflict",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
@@ -2262,9 +2303,10 @@ func TestHostAPIHandlerBridgesInstancesReportStateClearsDegradationOnRecovery(t 
 	)
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
-		ID:      "brg-report-state-recovery",
-		Enabled: true,
-		Status:  bridgepkg.BridgeStatusAuthRequired,
+		ProfileID: store.DefaultProfileID,
+		ID:        "brg-report-state-recovery",
+		Enabled:   true,
+		Status:    bridgepkg.BridgeStatusAuthRequired,
 		Degradation: &bridgepkg.BridgeDegradation{
 			Reason:  bridgepkg.BridgeDegradationReasonAuthFailed,
 			Message: "expired",
@@ -2308,6 +2350,7 @@ func TestHostAPIHandlerBridgesInstancesGetRejectsMismatchedRuntimeOwnership(t *t
 	env.grant("telegram-adapter", []string{"bridges/instances/get"}, []string{"bridge.read"})
 
 	other := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-other-owner",
 		ExtensionName: "discord-adapter",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
@@ -2327,6 +2370,7 @@ func TestHostAPIHandlerMethodHandlersExposeBridgeRuntimeAwareInstanceLookup(t *t
 	env.grant("telegram-adapter", []string{"bridges/instances/get"}, []string{"bridge.read"})
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-method-handler",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
@@ -2359,14 +2403,17 @@ func TestHostAPIHandlerBridgesInstancesListReturnsOwnedInstancesForProviderRunti
 	env.grant("telegram-adapter", []string{"bridges/instances/list", "bridges/instances/get"}, []string{"bridge.read"})
 
 	first := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-owned-a",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
 	second := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-owned-b",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
 	_ = env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-foreign",
 		ExtensionName: "discord-adapter",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
@@ -2435,6 +2482,7 @@ func TestHostAPIHandlerBridgesMessagesIngestConcurrentSameRoutingKeyCreatesOneSe
 	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-ingest-concurrent",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
@@ -2504,6 +2552,7 @@ func TestHostAPIHandlerBridgesMessagesIngestRebindsStaleRouteToReplacementSessio
 	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-ingest-rebind",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
@@ -2568,6 +2617,7 @@ func TestHostAPIHandlerBridgesMessagesIngestExpiredDedupAllowsReingest(t *testin
 	env.grant("telegram-adapter", []string{"bridges/messages/ingest"}, []string{"bridge.write"})
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-ingest-expiry",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
@@ -2637,6 +2687,7 @@ func TestHostAPIHandlerBridgesMessagesIngestRegistersPromptDelivery(t *testing.T
 	)
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-ingest-register",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
@@ -2744,6 +2795,7 @@ func TestHostAPIHandlerRegisterPromptDeliveryReplaysStoredPromptEvents(t *testin
 	}
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            "brg-register-replay",
 		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 	})
@@ -3341,9 +3393,9 @@ func TestHostAPIContextHelpersCloneBridgeAndResourceSession(t *testing.T) {
 				Kind: resources.ResourceSourceKind("extension"),
 				ID:   "ext-runtime",
 			},
-			MaxScope:      resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			MaxScope:      resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			GrantedKinds:  []resources.ResourceKind{"tool.definition"},
-			GrantedScopes: []resources.ResourceScopeKind{resources.ResourceScopeKindGlobal},
+			GrantedScopes: []resources.ResourceScopeKind{resources.ResourceScopeKindUser},
 		},
 	}
 
@@ -3731,6 +3783,133 @@ func TestHostAPIHandlerAutomationJobCRUDAndRunQueries(t *testing.T) {
 	}
 }
 
+// Invariant: profile-scoped automation reads and writes use the bridge-owned
+// profile identity, so resources never cross profile boundaries.
+// Owner: Host API automation handlers.
+// Canonical suite: extension Host API integration tests.
+func TestHostAPIHandlerAutomationUsesBridgeProfile(t *testing.T) {
+	t.Parallel()
+	t.Run("Should list only automation resources for the bridge profile", func(t *testing.T) {
+		t.Parallel()
+		env := newHostAPITestEnv(t)
+		env.grant(
+			"ext-automation",
+			[]string{
+				"automation/jobs",
+				"automation/jobs/create",
+				"automation/triggers",
+				"automation/triggers/create",
+			},
+			[]string{"automation.read", "automation.write"},
+		)
+		for _, profileID := range []string{store.DefaultProfileID, env.marketingID} {
+			_, err := env.automation.CreateJob(testutil.Context(t), automationpkg.Job{
+				ProfileID: profileID,
+				Scope:     automationpkg.AutomationScopeGlobal,
+				AgentName: "coder",
+				Prompt:    "profile job",
+				Name:      "profile-job-" + profileID,
+				Schedule:  &automationpkg.ScheduleSpec{Mode: automationpkg.ScheduleModeEvery, Interval: "1h"},
+				Enabled:   true,
+				Retry:     automationpkg.DefaultRetryConfig(),
+				FireLimit: automationpkg.DefaultFireLimitConfig(),
+				Source:    automationpkg.JobSourceDynamic,
+			})
+			if err != nil {
+				t.Fatalf("CreateJob(%q) error = %v", profileID, err)
+			}
+			_, err = env.automation.CreateTrigger(testutil.Context(t), automationpkg.Trigger{
+				ProfileID: profileID,
+				Scope:     automationpkg.AutomationScopeGlobal,
+				AgentName: "coder",
+				Name:      "profile-trigger-" + profileID,
+				Event:     "ext.profile." + profileID,
+				Prompt:    "profile trigger",
+				Enabled:   true,
+				Retry:     automationpkg.DefaultRetryConfig(),
+				FireLimit: automationpkg.DefaultFireLimitConfig(),
+				Source:    automationpkg.JobSourceDynamic,
+			}, automationpkg.WebhookSecretWrite{})
+			if err != nil {
+				t.Fatalf("CreateTrigger(%q) error = %v", profileID, err)
+			}
+		}
+
+		ctx := env.bridgeContext(t, &bridgepkg.BridgeInstance{
+			ID: "bridge-marketing", ExtensionName: "ext-automation", ProfileID: env.marketingID,
+		})
+		jobsResult, err := env.callWithContext(ctx, t, "ext-automation", "automation/jobs", map[string]any{
+			"scope": "global",
+		})
+		if err != nil {
+			t.Fatalf("Handle(automation/jobs profile) error = %v", err)
+		}
+		var jobs extensioncontract.AutomationJobsResult
+		decodeResult(t, jobsResult, &jobs)
+		if len(jobs.Jobs) != 1 || jobs.Jobs[0].ProfileID != env.marketingID {
+			t.Fatalf("profile automation/jobs = %#v, want only profile-marketing", jobs.Jobs)
+		}
+
+		triggersResult, err := env.callWithContext(ctx, t, "ext-automation", "automation/triggers", map[string]any{
+			"scope": "global",
+		})
+		if err != nil {
+			t.Fatalf("Handle(automation/triggers profile) error = %v", err)
+		}
+		var triggers extensioncontract.AutomationTriggersResult
+		decodeResult(t, triggersResult, &triggers)
+		if len(triggers.Triggers) != 1 || triggers.Triggers[0].ProfileID != env.marketingID {
+			t.Fatalf("profile automation/triggers = %#v, want only profile-marketing", triggers.Triggers)
+		}
+
+		createdJobResult, err := env.callWithContext(
+			ctx,
+			t,
+			"ext-automation",
+			"automation/jobs/create",
+			map[string]any{
+				"name":       "marketing-created-job",
+				"scope":      "global",
+				"agent_name": "coder",
+				"prompt":     "marketing job",
+				"schedule": map[string]any{
+					"mode": "every", "interval": "1h",
+				},
+			},
+		)
+		if err != nil {
+			t.Fatalf("Handle(automation/jobs/create profile) error = %v", err)
+		}
+		var createdJob automationpkg.Job
+		decodeResult(t, createdJobResult, &createdJob)
+		if got, want := createdJob.ProfileID, env.marketingID; got != want {
+			t.Fatalf("created job ProfileID = %q, want %q", got, want)
+		}
+
+		createdTriggerResult, err := env.callWithContext(
+			ctx,
+			t,
+			"ext-automation",
+			"automation/triggers/create",
+			map[string]any{
+				"name":       "marketing-created-trigger",
+				"scope":      "global",
+				"agent_name": "coder",
+				"event":      "ext.profile.created",
+				"prompt":     "marketing trigger",
+			},
+		)
+		if err != nil {
+			t.Fatalf("Handle(automation/triggers/create profile) error = %v", err)
+		}
+		var createdTrigger automationpkg.Trigger
+		decodeResult(t, createdTriggerResult, &createdTrigger)
+		if got, want := createdTrigger.ProfileID, env.marketingID; got != want {
+			t.Fatalf("created trigger ProfileID = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestHostAPIHandlerAutomationCreateTargetParity(t *testing.T) {
 	t.Parallel()
 
@@ -3936,6 +4115,7 @@ func TestHostAPIHandlerAutomationTriggerCRUDAndConfigGuardrails(t *testing.T) {
 		}
 
 		configJob, err := env.registry.CreateJob(testutil.Context(t), automationpkg.Job{
+			ProfileID:   store.DefaultProfileID,
 			ID:          "job-config-host-api",
 			Scope:       automationpkg.AutomationScopeWorkspace,
 			Name:        "config-host-api-job",
@@ -3969,6 +4149,7 @@ func TestHostAPIHandlerAutomationTriggerCRUDAndConfigGuardrails(t *testing.T) {
 		assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
 
 		configTrigger, err := env.registry.CreateTrigger(testutil.Context(t), automationpkg.Trigger{
+			ProfileID:   store.DefaultProfileID,
 			ID:          "trigger-config-host-api",
 			Scope:       automationpkg.AutomationScopeWorkspace,
 			Name:        "config-host-api-trigger",
@@ -4293,6 +4474,33 @@ func TestHostAPIHandlerTasksCreateUsesTrustedExtensionIdentity(t *testing.T) {
 			t.Fatalf("stored.Origin.Ref = %q, want %q", got, want)
 		}
 	})
+
+	// Invariant: a Host API task response carries the identity of the profile
+	// bound to the calling bridge. Owner: extension Host API task responses.
+	// Canonical suite: extension Host API integration tests.
+	t.Run("Should return the bridge-bound profile identity", func(t *testing.T) {
+		t.Parallel()
+
+		env := newHostAPITestEnv(t)
+		env.grant("ext-profile-task", []string{"tasks/create"}, []string{"task.write"})
+		ctx := env.bridgeContext(t, &bridgepkg.BridgeInstance{
+			ID: "bridge-profile-task", ExtensionName: "ext-profile-task", ProfileID: env.marketingID,
+		})
+		result, err := env.callWithContext(ctx, t, "ext-profile-task", "tasks/create", map[string]any{
+			"scope": taskpkg.ScopeGlobal,
+			"title": "Marketing task",
+		})
+		if err != nil {
+			t.Fatalf("Handle(tasks/create profile) error = %v", err)
+		}
+
+		var created apicontract.TaskPayload
+		decodeResult(t, result, &created)
+		if created.ProfileID != env.marketingID || created.ProfileName != "marketing" ||
+			created.ProfileColor != "#e8572a" || created.ProfileIcon != "megaphone" {
+			t.Fatalf("tasks/create profile owner = %#v, want marketing identity", created)
+		}
+	})
 }
 
 func TestHostAPIHandlerTaskRunStartAdmitsDirectExecutionWithoutClaimToken(t *testing.T) {
@@ -4356,6 +4564,7 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 	actor := mustExtensionTaskActorContext(t, "seed-writer", env.workspaceID)
 	maxAttempts := 3
 	parent, err := env.tasks.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: env.workspaceID,
 		Title:       "Parent task",
@@ -4369,6 +4578,7 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 	}
 
 	child, err := env.tasks.CreateChildTask(testutil.Context(t), parent.ID, taskpkg.CreateTask{
+		ProfileID:      store.DefaultProfileID,
 		Scope:          taskpkg.ScopeWorkspace,
 		WorkspaceID:    env.workspaceID,
 		Title:          "Filtered child",
@@ -4385,6 +4595,7 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 	}
 
 	if _, err := env.tasks.CreateChildTask(testutil.Context(t), parent.ID, taskpkg.CreateTask{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: env.workspaceID,
 		Title:       "Draft child",
@@ -4398,6 +4609,7 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 	}
 
 	if _, err := env.tasks.CreateChildTask(testutil.Context(t), parent.ID, taskpkg.CreateTask{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: env.workspaceID,
 		Title:       "Other child",
@@ -4410,6 +4622,7 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 	}
 
 	blocker, err := env.tasks.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: env.workspaceID,
 		Title:       "Blocking task",
@@ -4610,6 +4823,7 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 
 	actor := mustExtensionTaskActorContext(t, "seed-writer", env.workspaceID)
 	root, err := env.tasks.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: env.workspaceID,
 		Title:       "Root task",
@@ -4619,6 +4833,7 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 	}
 
 	child, err := env.tasks.CreateChildTask(testutil.Context(t), root.ID, taskpkg.CreateTask{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: env.workspaceID,
 		Title:       "Child task",
@@ -4633,6 +4848,7 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 	}
 
 	approvalTask, err := env.tasks.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		ProfileID:      store.DefaultProfileID,
 		Scope:          taskpkg.ScopeWorkspace,
 		WorkspaceID:    env.workspaceID,
 		Title:          "Approval needed",
@@ -5805,6 +6021,11 @@ func TestHostAPITaskHelpersHandleZeroAndUnavailableCases(t *testing.T) {
 func TestHostAPITaskPayloadsRedactRawClaimTokens(t *testing.T) {
 	t.Parallel()
 
+	run := taskpkg.Run{
+		Error:    "run failed with compozy_claim_error-secret",
+		Metadata: json.RawMessage(`{"claim_token":"compozy_claim_run-field","keep":"run-safe"}`),
+	}
+	run.SetResult(json.RawMessage(`{"note":"compozy_claim_result-secret"}`))
 	view := taskpkg.View{
 		Summary: taskpkg.Summary{Title: "summary compozy_claim_summary-secret"},
 		Task: taskpkg.Task{
@@ -5814,11 +6035,7 @@ func TestHostAPITaskPayloadsRedactRawClaimTokens(t *testing.T) {
 				`{"keep":"safe","claim_token":"compozy_claim_task-field","note":"compozy_claim_task-value"}`,
 			),
 		},
-		Runs: []taskpkg.Run{{
-			Error:    "run failed with compozy_claim_error-secret",
-			Metadata: json.RawMessage(`{"claim_token":"compozy_claim_run-field","keep":"run-safe"}`),
-			Result:   json.RawMessage(`{"note":"compozy_claim_result-secret"}`),
-		}},
+		Runs: []taskpkg.Run{run},
 		Events: []taskpkg.Event{{
 			Payload: json.RawMessage(`{"note":"compozy_claim_event-secret"}`),
 		}},
@@ -6080,6 +6297,8 @@ type hostAPITestEnv struct {
 	resources      *resources.Kernel
 	checker        *CapabilityChecker
 	handler        *HostAPIHandler
+	profiles       hostAPIProfileReader
+	marketingID    string
 }
 
 type hostAPITestEnvConfig struct {
@@ -6432,6 +6651,20 @@ Review the workspace changes carefully.
 	if err := registry.InsertWorkspace(testutil.Context(t), resolvedWorkspace.Workspace); err != nil {
 		t.Fatalf("registry.InsertWorkspace() error = %v", err)
 	}
+	profileManager, err := profilepkg.NewManager(
+		profilepkg.WithStore(registry),
+		profilepkg.WithHomePaths(homePaths),
+		profilepkg.WithClock(func() time.Time { return env.currentTime() }),
+	)
+	if err != nil {
+		t.Fatalf("profile.NewManager() error = %v", err)
+	}
+	marketingProfile, err := profileManager.Create(testutil.Context(t), profilepkg.CreateInput{
+		Name: "marketing", Color: "#E8572A", Icon: "megaphone",
+	})
+	if err != nil {
+		t.Fatalf("profiles.Create(marketing) error = %v", err)
+	}
 	bridgeRegistry := bridgepkg.NewRegistry(registry, bridgepkg.WithNow(func() time.Time { return env.currentTime() }))
 	resourceKernel, err := resources.NewKernel(
 		registry.DB(),
@@ -6573,7 +6806,6 @@ Review the workspace changes carefully.
 	if err != nil {
 		t.Fatalf("task.NewManager() error = %v", err)
 	}
-
 	handler := NewHostAPIHandler(
 		sessions,
 		memoryStore,
@@ -6582,6 +6814,22 @@ Review the workspace changes carefully.
 		WithHostAPIAutomationManager(automationManager),
 		WithHostAPITaskManager(taskManager),
 		WithHostAPITaskCatalogFilterMapper(hostAPITestTaskCatalogFilterMapper),
+		WithHostAPIProfileReader(profileManager),
+		WithHostAPIMemoryStoreResolver(func(ctx context.Context, profileID string) (*memory.Store, error) {
+			profiles, err := profileManager.List(ctx)
+			if err != nil {
+				return nil, err
+			}
+			for _, profile := range profiles {
+				if profile.ID == profileID {
+					return memoryStore.ForProfile(
+						profileID,
+						filepath.Join(homePaths.ProfilesDir, profile.Name, compozyconfig.MemoryDirName),
+					), nil
+				}
+			}
+			return nil, fmt.Errorf("test profile %q was not found", profileID)
+		}),
 		WithHostAPICapabilityChecker(checker),
 		WithHostAPIWorkspaceResolver(workspaces),
 		WithHostAPIBridgeRegistry(bridgeRegistry),
@@ -6609,6 +6857,8 @@ Review the workspace changes carefully.
 	env.resources = resourceKernel
 	env.checker = checker
 	env.handler = handler
+	env.profiles = profileManager
+	env.marketingID = marketingProfile.ID
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -6719,7 +6969,7 @@ func (e *hostAPITestEnv) grantWithResources(
 				MaxScope: maxScope,
 			},
 		},
-	}, resources.ResourceScopeKindGlobal)
+	}, resources.ResourceScopeKindUser)
 	if err != nil {
 		t.Fatalf("RegisterForSession(%q) error = %v", extName, err)
 	}
@@ -6819,7 +7069,7 @@ func (e *hostAPITestEnv) resourceContext(t testing.TB, extName string, sessionNo
 				Kind: resources.ResourceSourceKind("extension"),
 				ID:   extName,
 			},
-			MaxScope:      resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			MaxScope:      resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			GrantedKinds:  append([]resources.ResourceKind(nil), grant.ResourceKinds...),
 			GrantedScopes: append([]resources.ResourceScopeKind(nil), grant.ResourceScopes...),
 		},
@@ -6839,7 +7089,7 @@ func (e *hostAPITestEnv) activateResourceSession(t testing.TB, extName string, s
 			Kind: resources.ResourceSourceKind("daemon"),
 			ID:   "host-api-tests",
 		},
-		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 	}, resources.ResourceSource{
 		Kind: resources.ResourceSourceKind("extension"),
 		ID:   extName,
@@ -7083,6 +7333,7 @@ func (e *hostAPITestEnv) useSessionsWithoutObserver(t *testing.T) {
 		e.skills,
 		WithHostAPITaskManager(e.tasks),
 		WithHostAPITaskCatalogFilterMapper(hostAPITestTaskCatalogFilterMapper),
+		WithHostAPIProfileReader(e.profiles),
 		WithHostAPICapabilityChecker(e.checker),
 		WithHostAPIWorkspaceResolver(e.workspaces),
 		WithHostAPIBridgeRegistry(e.bridges),

@@ -26,8 +26,13 @@ const mocks = vi.hoisted(() => ({
   disableSkillError: null as Error | null,
   extensionBoundEnvKeys: [] as string[],
   extensionConsecutiveFailures: 0,
+  extensionDeclaredProfiles: [] as Array<{
+    created_by_extension: boolean;
+    exists: boolean;
+    name: string;
+    needs_setup: boolean;
+  }>,
   extensionDev: false,
-  extensionEnableResult: null as { automation_started: string[] } | null,
   extensionFormat: "compozy",
   extensionInventory: [] as Array<{ id: string; kind: string; live: boolean; name: string }>,
   extensionInventoryDiagnostics: [] as Array<{
@@ -40,7 +45,7 @@ const mocks = vi.hoisted(() => ({
     severity: string;
     title: string;
   }>,
-  extensionNetworkConfirm: null as { action: "enable" | "update"; digest: string } | null,
+  extensionNetworkConfirm: null as { digest: string } | null,
   extensionNetworkConfirmationRequired: false,
   extensionNetworkDigest: undefined as string | undefined,
   extensionLogs: [] as Array<{
@@ -57,6 +62,14 @@ const mocks = vi.hoisted(() => ({
   extensionRequestUpdate: vi.fn(),
   extensionRestartBackoffMs: 0,
   extensionToggle: vi.fn(),
+  extensionPlacements: [] as Array<{
+    create_action?: string;
+    dormant: boolean;
+    kind: string;
+    profile?: string;
+    resource: string;
+  }>,
+  openProfileDialog: vi.fn(),
   extensionUpdateAvailable: false,
   extensionWorkspaceId: null as string | null,
   skillContent: "# Bundled skill\n\nFollow the incident checklist.",
@@ -81,6 +94,11 @@ const mocks = vi.hoisted(() => ({
     isLoading: false,
     refetch: vi.fn(),
   },
+}));
+
+vi.mock("@/systems/profiles", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/profiles")>()),
+  openProfileDialog: mocks.openProfileDialog,
 }));
 
 // The settings barrel participates in cross-system module cycles, so barrel-level
@@ -253,7 +271,6 @@ function extensionDetailStateStub() {
     submitUpdate: vi.fn(),
     workspaceId: mocks.extensionWorkspaceId,
     dismissNetworkConfirm: vi.fn(),
-    enableResult: mocks.extensionEnableResult,
     inventory: {
       data: {
         diagnostics: mocks.extensionInventoryDiagnostics,
@@ -285,6 +302,8 @@ function extensionDetailStateStub() {
                   title: "Healthy",
                 },
               ],
+              declared_profiles: mocks.extensionDeclaredProfiles,
+              dormant_placements: mocks.extensionPlacements.filter(item => item.dormant),
               enabled: true,
               capabilities: ["tool.provider"],
               consecutive_failures: mocks.extensionConsecutiveFailures,
@@ -299,6 +318,7 @@ function extensionDetailStateStub() {
               origin_path: mocks.extensionOriginPath,
               overrides_published: mocks.extensionDev,
               permissions: ["network/send"],
+              placements: mocks.extensionPlacements,
               pid: 4242,
               provenance: {
                 checksum_sha256: "a".repeat(64),
@@ -392,13 +412,14 @@ describe("Marketplace installed-detail management", () => {
     mocks.extensionDetailOptions = undefined;
     mocks.extensionRestartBackoffMs = 0;
     mocks.extensionBoundEnvKeys = [];
-    mocks.extensionEnableResult = null;
+    mocks.extensionDeclaredProfiles = [];
     mocks.extensionFormat = "compozy";
     mocks.extensionInventory = [];
     mocks.extensionInventoryDiagnostics = [];
     mocks.extensionNetworkConfirm = null;
     mocks.extensionNetworkConfirmationRequired = false;
     mocks.extensionNetworkDigest = undefined;
+    mocks.extensionPlacements = [];
     mocks.extensionUpdateAvailable = false;
     mocks.extensionWorkspaceId = null;
     mocks.authorizePhase = "idle";
@@ -541,19 +562,35 @@ describe("Marketplace installed-detail management", () => {
   });
 
   it("Should mount the shared confirm dialog while a confirmation is pending", () => {
-    mocks.extensionNetworkConfirm = { action: "enable", digest: "sha256:6f1c0a94d3b27e58" };
+    mocks.extensionNetworkConfirm = { digest: "sha256:6f1c0a94d3b27e58" };
     render(<MarketplaceDetailExtensionInstalled data={extensionDetailData()} />);
 
     expect(screen.getByTestId("extension-network-confirm-dialog")).toBeInTheDocument();
   });
 
-  it("Should enumerate the automation an enable actually started", () => {
-    mocks.extensionEnableResult = { automation_started: ["weekly-audit", "dep-sweep"] };
+  it("Should show declared profile setup and dormant placement recovery", async () => {
+    const user = userEvent.setup();
+    mocks.extensionDeclaredProfiles = [
+      { created_by_extension: true, exists: true, name: "operations", needs_setup: true },
+      { created_by_extension: false, exists: false, name: "growth", needs_setup: false },
+    ];
+    mocks.extensionPlacements = [
+      {
+        create_action: "profile.create",
+        dormant: true,
+        kind: "skill",
+        profile: "growth",
+        resource: "weekly-audit",
+      },
+    ];
     render(<MarketplaceDetailExtensionInstalled data={extensionDetailData()} />);
 
-    const started = screen.getByTestId("extension-automation-started");
-    expect(within(started).getByText("dep-sweep")).toBeInTheDocument();
-    expect(within(started).getByText("weekly-audit")).toBeInTheDocument();
+    const profiles = screen.getByTestId("extension-declared-profiles");
+    expect(within(profiles).getByText("operations")).toBeInTheDocument();
+    expect(within(profiles).getByText("Needs setup")).toBeInTheDocument();
+    expect(within(profiles).getByText("Dormant")).toBeInTheDocument();
+    await user.click(within(profiles).getByRole("button", { name: "Create profile" }));
+    expect(mocks.openProfileDialog).toHaveBeenCalledWith({ flow: "create", profile: "growth" });
   });
 
   it("Should report crash-loop counters, integrity evidence, and the log stream state", async () => {
@@ -669,12 +706,12 @@ describe("Marketplace installed-detail management", () => {
       },
     };
     mocks.globalMCP.data = {
-      available_scopes: ["global", "workspace"],
+      available_scopes: ["user", "workspace"],
       collection: "mcp-servers",
       mcp_servers: [
         {
           ...base,
-          scope: "global",
+          scope: "user",
           runtime_status: {
             configured: true,
             initialized: true,
@@ -684,14 +721,14 @@ describe("Marketplace installed-detail management", () => {
           },
           source_metadata: {
             ...base.source_metadata,
-            effective_source: { kind: "global-config", scope: "global" },
+            effective_source: { kind: "global-config", scope: "user" },
           },
         },
       ],
-      scope: "global",
+      scope: "user",
     };
     mocks.workspaceMCP.data = {
-      available_scopes: ["global", "workspace"],
+      available_scopes: ["user", "workspace"],
       collection: "mcp-servers",
       mcp_servers: [
         {
@@ -756,7 +793,7 @@ describe("Marketplace installed-detail management", () => {
       },
     };
     mocks.workspaceMCP.data = {
-      available_scopes: ["global", "workspace"],
+      available_scopes: ["user", "workspace"],
       collection: "mcp-servers",
       mcp_servers: [
         {
@@ -841,7 +878,7 @@ describe("Marketplace installed-detail management", () => {
       },
       auth_status: {
         refreshable: true,
-        scope: "global",
+        scope: "user",
         server_name: "oauth-server",
         status: "needs_login",
         token_present: false,
@@ -862,13 +899,13 @@ describe("Marketplace installed-detail management", () => {
         available_targets: ["global-config"],
         effective_source: {
           kind: "global-config",
-          scope: "global",
+          scope: "user",
         },
         shadowed_sources: [],
       },
     };
     mocks.workspaceMCP.data = {
-      available_scopes: ["global", "workspace"],
+      available_scopes: ["user", "workspace"],
       collection: "mcp-servers",
       mcp_servers: [server],
       scope: "workspace",
@@ -910,14 +947,14 @@ describe("Marketplace installed-detail management", () => {
     await user.click(screen.getByTestId("mcp-authorize-btn"));
 
     expect(screen.getByRole("status", { name: "Detail authorization scope" })).toHaveTextContent(
-      "global"
+      "user"
     );
-    expect(mocks.requestAuthorize).toHaveBeenCalledWith({ scope: "global" }, server);
+    expect(mocks.requestAuthorize).toHaveBeenCalledWith({ scope: "user" }, server);
 
     mocks.authorizePhase = "waiting";
     server.auth_status = {
       refreshable: true,
-      scope: "global",
+      scope: "user",
       server_name: "oauth-server",
       status: "authenticated",
       token_present: true,

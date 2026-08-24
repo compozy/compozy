@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -625,6 +626,7 @@ func newAgentTaskHandlers(t *testing.T, tasks *stubTaskManager) *Handlers {
 func agentTaskRecord() taskpkg.Task {
 	return taskpkg.Task{
 		ID:          "task-1",
+		ProfileID:   store.DefaultProfileID,
 		Identifier:  "AUTO-1",
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: "ws-1",
@@ -638,6 +640,7 @@ func agentTaskRun(status taskpkg.RunStatus) taskpkg.Run {
 	now := time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC)
 	run := taskpkg.Run{
 		ID:         "run-1",
+		ProfileID:  store.DefaultProfileID,
 		TaskID:     "task-1",
 		Status:     status,
 		Attempt:    1,

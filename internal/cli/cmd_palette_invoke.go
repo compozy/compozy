@@ -124,7 +124,7 @@ func cmdPaletteInvokeOutput(record cmdPaletteInvokeOutputRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(
 				"invocation",
-				[]string{automationStatusKey, configCommandKey, "approval_id", "invocation_id", "message"},
+				[]string{automationStatusKey, configCommandKey, "approval_id", "invocation_id", bridgeMessageKey},
 				[]string{
 					string(record.Status), record.Command, record.ApprovalID, record.InvocationID, record.Message,
 				},

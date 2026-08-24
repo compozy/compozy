@@ -138,11 +138,13 @@ func hookOutcomeValues() []string {
 
 func hookSkillSourceValues() []string {
 	return []string{
-		string(hooks.HookSkillSourceBundled),
-		string(hooks.HookSkillSourceMarketplace),
-		string(hooks.HookSkillSourceUser),
-		string(hooks.HookSkillSourceAdditional),
-		string(hooks.HookSkillSourceWorkspace),
+		hooks.HookSkillSourceBundled.String(),
+		hooks.HookSkillSourceMarketplace.String(),
+		hooks.HookSkillSourceUser.String(),
+		hooks.HookSkillSourceProfile.String(),
+		hooks.HookSkillSourceAdditional.String(),
+		hooks.HookSkillSourceWorkspace.String(),
+		hooks.HookSkillSourceWorkspaceProfile.String(),
 	}
 }
 
@@ -168,7 +170,11 @@ func memoryTypeValues() []string {
 }
 
 func memoryScopeValues() []string {
-	return []string{string(memcontract.ScopeGlobal), string(memcontract.ScopeWorkspace), string(memcontract.ScopeAgent)}
+	return []string{
+		string(memcontract.ScopeProfile),
+		string(memcontract.ScopeWorkspace),
+		string(memcontract.ScopeAgent),
+	}
 }
 
 func sessionStateValues() []string {

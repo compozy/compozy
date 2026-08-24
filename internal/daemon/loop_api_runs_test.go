@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -185,7 +186,7 @@ func TestDaemonLoopAPIServiceShouldBuildRunWebURLFromEffectiveConfig(t *testing.
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	target, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeGlobal)
+	target, err := compozyconfig.ResolveConfigWriteTarget(homePaths, "", compozyconfig.WriteScopeUser, "")
 	if err != nil {
 		t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
 	}
@@ -215,41 +216,135 @@ func TestDaemonLoopAPIServiceShouldBuildRunWebURLFromEffectiveConfig(t *testing.
 	}
 }
 
+func TestDaemonLoopAPIServiceListLoopRunsForwardsProfileScope(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should pass the selected profile read scope to persistence", func(t *testing.T) {
+		t.Parallel()
+		const profileID = "01JQLOOPPROFILE00000000000"
+		persistence := &loopRunScopePersistenceStub{runs: []looppkg.Run{{
+			ID: "run-profile", ProfileID: profileID, WorkspaceID: "ws-profile", LoopName: "review",
+		}}}
+		service := &daemonLoopAPIService{persistence: persistence}
+		response, err := service.ListLoopRuns(t.Context(), "ws-profile", core.LoopRunListQuery{
+			ReadScope: storepkg.ReadScope{ProfileID: profileID},
+		})
+		if err != nil {
+			t.Fatalf("ListLoopRuns() error = %v", err)
+		}
+		if persistence.query.ReadScope.ProfileID != profileID || persistence.query.ReadScope.AllProfiles {
+			t.Fatalf("ListLoopRuns() query scope = %#v, want profile %q", persistence.query.ReadScope, profileID)
+		}
+		if len(response.Runs) != 1 || response.Runs[0].ProfileID != profileID {
+			t.Fatalf("ListLoopRuns() response = %#v, want one profile-owned run", response.Runs)
+		}
+	})
+}
+
 func TestDaemonLoopAPIServiceShouldResolveRunWebEndpointBeforeStarting(t *testing.T) {
 	t.Parallel()
 
-	errResolve := errors.New("resolve effective config")
-	startCalled := false
-	aggregate := &loopApprovalAggregateStub{startFn: func(
-		context.Context,
-		looppkg.WorkspaceID,
-		string,
-		looppkg.Inputs,
-		task.ActorContext,
-	) (*looppkg.Run, error) {
-		startCalled = true
-		return nil, errors.New("unexpected Start call")
-	}}
-	service := &daemonLoopAPIService{
-		aggregate:         aggregate,
-		workspaceResolver: &loopAPIWorkspaceResolverErrorStub{err: errResolve},
-	}
+	t.Run("Should resolve the run URL before creating durable state", func(t *testing.T) {
+		t.Parallel()
 
-	_, err := service.RunLoop(
-		t.Context(),
-		"ws-1",
-		"delivery",
-		contract.RunLoopRequest{},
-		dsl.StartHTTP,
-		task.ActorContext{},
-		false,
-	)
-	if !errors.Is(err, errResolve) {
-		t.Fatalf("RunLoop() error = %v, want effective-config resolution error", err)
-	}
-	if startCalled {
-		t.Fatal("RunLoop() called Start before resolving the run web endpoint")
-	}
+		errResolve := errors.New("resolve effective config")
+		startCalled := false
+		aggregate := &loopApprovalAggregateStub{startFn: func(
+			context.Context,
+			looppkg.WorkspaceID,
+			string,
+			looppkg.Inputs,
+			task.ActorContext,
+		) (*looppkg.Run, error) {
+			startCalled = true
+			return nil, errors.New("unexpected Start call")
+		}}
+		service := &daemonLoopAPIService{
+			aggregate:         aggregate,
+			workspaceResolver: &loopAPIWorkspaceResolverErrorStub{err: errResolve},
+		}
+
+		_, err := service.RunLoop(
+			t.Context(),
+			"ws-1",
+			"delivery",
+			core.LoopRunInput{
+				Request: contract.RunLoopRequest{}, ProfileID: storepkg.DefaultProfileID,
+				StartKind: dsl.StartHTTP, Actor: task.ActorContext{},
+			},
+		)
+		if !errors.Is(err, errResolve) {
+			t.Fatalf("RunLoop() error = %v, want effective-config resolution error", err)
+		}
+		if startCalled {
+			t.Fatal("RunLoop() called Start before resolving the run web endpoint")
+		}
+	})
+}
+
+func TestDaemonLoopAPIServiceRunLoopForwardsProfileOwner(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve a non-default profile through the aggregate start boundary", func(t *testing.T) {
+		t.Parallel()
+		const profileID = "01JQLOOPPROFILE00000000000"
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		resolver := loopCatalogWorkspaceResolverForTest(t, "ws-profile", t.TempDir(), time.Now().UTC())
+		var started looppkg.Inputs
+		aggregate := &loopApprovalAggregateStub{startFn: func(
+			_ context.Context,
+			ws looppkg.WorkspaceID,
+			name string,
+			inputs looppkg.Inputs,
+			_ task.ActorContext,
+		) (*looppkg.Run, error) {
+			if ws != "ws-profile" || name != "review" {
+				t.Fatalf("Start() target = %s/%s, want ws-profile/review", ws, name)
+			}
+			started = inputs
+			return &looppkg.Run{ID: "run-profile", ProfileID: inputs.ProfileID, WorkspaceID: ws}, nil
+		}}
+		service := &daemonLoopAPIService{
+			aggregate: aggregate, resolver: looppkg.DefinitionResolverFunc(func(
+				context.Context, looppkg.WorkspaceID, string, string,
+			) (*looppkg.ResolvedDefinition, error) {
+				return &looppkg.ResolvedDefinition{
+					Definition: dsl.Definition{
+						Meta: dsl.Meta{Name: "review"},
+						DefinitionExtensionState: &dsl.DefinitionExtensionState{
+							Start: []dsl.StartBinding{{Kind: dsl.StartHTTP}},
+						},
+					},
+				}, nil
+			}),
+			workspaceResolver: resolver, homePaths: homePaths,
+		}
+		actor, err := task.DeriveHumanActorContext("operator", task.OriginKindHTTP, "loop.run")
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		response, err := service.RunLoop(t.Context(), "ws-profile", "review", core.LoopRunInput{
+			Request:   contract.RunLoopRequest{},
+			ProfileID: profileID,
+			StartKind: dsl.StartHTTP,
+			Actor:     actor,
+		})
+		if err != nil {
+			t.Fatalf("RunLoop() error = %v", err)
+		}
+		if started.ProfileID != profileID {
+			t.Fatalf("Start() inputs.ProfileID = %q, want %q", started.ProfileID, profileID)
+		}
+		if response.Run == nil || response.Run.ProfileID != profileID {
+			t.Fatalf("RunLoop() response = %#v, want profile %q", response.Run, profileID)
+		}
+	})
 }
 
 func TestDaemonLoopAPIServiceShouldAssembleGenerationDetailFromLineage(t *testing.T) {
@@ -414,7 +509,7 @@ func TestDaemonLoopAPIServiceAnnotationsRequireDefinition(t *testing.T) {
 			persistence: db,
 		}
 
-		_, err := service.GetLoopAnnotations(t.Context(), "ws-missing", "missing-loop")
+		_, err := service.GetLoopAnnotations(t.Context(), "ws-missing", storepkg.DefaultProfileID, "missing-loop")
 		if !errors.Is(err, looppkg.ErrDefinitionNotFound) {
 			t.Fatalf("GetLoopAnnotations(missing definition) error = %v, want ErrDefinitionNotFound", err)
 		}
@@ -434,7 +529,9 @@ func TestDaemonLoopAPIServiceAnnotationsRequireDefinition(t *testing.T) {
 			Y:      34,
 		}}}
 
-		_, err := service.PutLoopAnnotations(t.Context(), "ws-missing", "missing-loop", request)
+		_, err := service.PutLoopAnnotations(
+			t.Context(), "ws-missing", storepkg.DefaultProfileID, "missing-loop", request,
+		)
 		if !errors.Is(err, looppkg.ErrDefinitionNotFound) {
 			t.Fatalf("PutLoopAnnotations(missing definition) error = %v, want ErrDefinitionNotFound", err)
 		}
@@ -468,6 +565,7 @@ func TestDaemonLoopAPIServiceShouldManageScopedInputDefaultsWithoutCollapsingPre
 			context.Context,
 			looppkg.WorkspaceID,
 			string,
+			string,
 		) (*looppkg.ResolvedDefinition, error) {
 			return &looppkg.ResolvedDefinition{Definition: dsl.Definition{
 				Meta: dsl.Meta{Name: "review-and-fix"},
@@ -481,22 +579,24 @@ func TestDaemonLoopAPIServiceShouldManageScopedInputDefaultsWithoutCollapsingPre
 		}),
 	}
 
-	global, err := service.PutLoopInputDefault(
+	user, err := service.PutLoopInputDefault(
 		t.Context(),
 		"ws-input-defaults",
+		storepkg.DefaultProfileID,
 		"review-and-fix",
 		"auto_commit",
-		contract.PutLoopInputDefaultRequest{Scope: contract.LoopInputDefaultsScopeGlobal, Value: false},
+		contract.PutLoopInputDefaultRequest{Scope: contract.LoopInputDefaultsScopeUser, Value: false},
 	)
 	if err != nil {
-		t.Fatalf("PutLoopInputDefault(global) error = %v", err)
+		t.Fatalf("PutLoopInputDefault(user) error = %v", err)
 	}
-	if !global.Present || global.Value != false {
-		t.Fatalf("global input default = %#v, want present explicit false", global)
+	if !user.Present || user.Value != false {
+		t.Fatalf("user input default = %#v, want present explicit false", user)
 	}
 	emptyRuntime, err := service.PutLoopInputDefault(
 		t.Context(),
 		"ws-input-defaults",
+		storepkg.DefaultProfileID,
 		"review-and-fix",
 		"runtime",
 		contract.PutLoopInputDefaultRequest{
@@ -514,6 +614,7 @@ func TestDaemonLoopAPIServiceShouldManageScopedInputDefaultsWithoutCollapsingPre
 	workspace, err := service.PutLoopInputDefaults(
 		t.Context(),
 		"ws-input-defaults",
+		storepkg.DefaultProfileID,
 		"review-and-fix",
 		contract.PutLoopInputDefaultsRequest{
 			Scope: contract.LoopInputDefaultsScopeWorkspace,
@@ -551,22 +652,24 @@ func TestDaemonLoopAPIServiceShouldManageScopedInputDefaultsWithoutCollapsingPre
 		t.Fatalf("workspace runtime = %#v, want typed runtime object", workspace.Values["runtime"])
 	}
 
-	globalLayer, err := service.GetLoopInputDefaults(
+	userLayer, err := service.GetLoopInputDefaults(
 		t.Context(),
 		"ws-input-defaults",
+		storepkg.DefaultProfileID,
 		"review-and-fix",
-		contract.LoopInputDefaultsScopeGlobal,
+		contract.LoopInputDefaultsScopeUser,
 	)
 	if err != nil {
-		t.Fatalf("GetLoopInputDefaults(global) error = %v", err)
+		t.Fatalf("GetLoopInputDefaults(user) error = %v", err)
 	}
-	if value, present := globalLayer.Values["auto_commit"]; !present || value != false {
-		t.Fatalf("global layer after workspace override = %#v, want explicit false preserved", globalLayer.Values)
+	if value, present := userLayer.Values["auto_commit"]; !present || value != false {
+		t.Fatalf("user layer after workspace override = %#v, want explicit false preserved", userLayer.Values)
 	}
 
 	deleted, err := service.DeleteLoopInputDefault(
 		t.Context(),
 		"ws-input-defaults",
+		storepkg.DefaultProfileID,
 		"review-and-fix",
 		"auto_commit",
 		contract.LoopInputDefaultsScopeWorkspace,
@@ -580,6 +683,7 @@ func TestDaemonLoopAPIServiceShouldManageScopedInputDefaultsWithoutCollapsingPre
 	missing, err := service.GetLoopInputDefault(
 		t.Context(),
 		"ws-input-defaults",
+		storepkg.DefaultProfileID,
 		"review-and-fix",
 		"auto_commit",
 		contract.LoopInputDefaultsScopeWorkspace,
@@ -710,6 +814,20 @@ type loopRunHistoryPersistenceStub struct {
 	outputErr      error
 	verdictErr     error
 	routeCauseErr  error
+}
+
+type loopRunScopePersistenceStub struct {
+	loopAPIPersistence
+	query looppkg.RunListQuery
+	runs  []looppkg.Run
+}
+
+func (s *loopRunScopePersistenceStub) ListLoopRuns(
+	_ context.Context,
+	query looppkg.RunListQuery,
+) ([]looppkg.Run, error) {
+	s.query = query
+	return append([]looppkg.Run(nil), s.runs...), nil
 }
 
 func (s *loopRunHistoryPersistenceStub) ListGenerations(
@@ -956,6 +1074,7 @@ func (s *loopApprovalAggregateStub) Configure(
 	context.Context,
 	looppkg.WorkspaceID,
 	string,
+	string,
 	looppkg.LoopConfig,
 ) error {
 	return errors.New("unexpected Configure call")
@@ -972,6 +1091,7 @@ func (s *loopApprovalAggregateStub) GetConfig(
 func (s *loopApprovalAggregateStub) GetConfigSnapshot(
 	context.Context,
 	looppkg.WorkspaceID,
+	string,
 	string,
 ) (looppkg.ConfigSnapshot, error) {
 	return looppkg.ConfigSnapshot{}, errors.New("unexpected GetConfigSnapshot call")

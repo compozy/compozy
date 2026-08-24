@@ -23,7 +23,9 @@ func (s *Service) priorRunSummaries(
 	if store == nil {
 		return []taskpkg.RunSummary{}, nil
 	}
-	runs, err := store.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: taskRecord.ID})
+	runs, err := store.ListTaskRuns(ctx, taskpkg.RunQuery{
+		ReadScope: profileReadScope(taskRecord.ProfileID), TaskID: taskRecord.ID,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +70,9 @@ func (s *Service) recentTaskEvents(
 	if err != nil {
 		return nil, err
 	}
-	runs, err := store.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: taskRecord.ID})
+	runs, err := store.ListTaskRuns(ctx, taskpkg.RunQuery{
+		ReadScope: profileReadScope(taskRecord.ProfileID), TaskID: taskRecord.ID,
+	})
 	if err != nil {
 		return nil, err
 	}

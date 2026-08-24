@@ -79,6 +79,17 @@ const (
 	RoleFallbackUsed = "role.fallback.used"
 	RoleResolveError = "role.resolve.error"
 
+	ProfileCreated              = "profile.created"
+	ProfileRenamed              = "profile.renamed"
+	ProfileIdentityUpdated      = "profile.identity_updated"
+	ProfileArchived             = "profile.archived"
+	ProfileUnarchived           = "profile.unarchived"
+	ProfileDeleted              = "profile.deleted"
+	ProfileSelectionChanged     = "profile.selection_changed"
+	ProfilePlanStale            = "profile.plan_stale"
+	ProfileLifecycleOpRecovered = "profile.lifecycle_op_recovered"
+	ProfileLifecycleOpFailed    = "profile.lifecycle_op_failed"
+
 	SkillShadowed   = "skill.shadowed"
 	SkillLoadFailed = "skills.load_failed"
 
@@ -179,10 +190,11 @@ const (
 	NetworkPeerJoined            = "network.peer.joined"
 	NetworkPeerLeft              = "network.peer.left"
 
-	NotificationPresetCreated        = "notification.preset_created"
-	NotificationPresetUpdated        = "notification.preset_updated"
-	NotificationPresetDeleted        = "notification.preset_deleted"
-	NotificationPresetDispatchFailed = "notification.preset_dispatch_failed"
+	NotificationPresetCreated           = "notification.preset_created"
+	NotificationPresetUpdated           = "notification.preset_updated"
+	NotificationPresetDeleted           = "notification.preset_deleted"
+	NotificationPresetDispatchFailed    = "notification.preset_dispatch_failed"
+	NotificationPresetEnablementChanged = "notification_preset.enablement_changed"
 
 	WorktreeCreated             = "worktree.created"
 	WorktreeAdopted             = "worktree.adopted"

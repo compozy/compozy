@@ -30,6 +30,7 @@ type CmdPaletteCommand struct {
 }
 
 type CmdPaletteCommandsResponse struct {
+	ProfileLens     cmdpalette.ProfileLens    `json:"profile_lens"`
 	Commands        []CmdPaletteCommand       `json:"commands"`
 	Sources         []cmdpalette.SourceStatus `json:"sources"`
 	CatalogRevision string                    `json:"catalog_revision"`
@@ -43,6 +44,7 @@ type CmdPaletteInvokeRequest struct {
 }
 
 type CmdPaletteInvokeResult struct {
+	ProfileLens  cmdpalette.ProfileLens  `json:"profile_lens"`
 	Status       cmdpalette.InvokeStatus `json:"status"`
 	Result       json.RawMessage         `json:"result,omitempty"`
 	ApprovalID   string                  `json:"approval_id,omitempty"`
@@ -57,6 +59,7 @@ type CmdPaletteClient struct {
 }
 
 type CmdPaletteCatalogChangedEvent struct {
+	ProfileLens     cmdpalette.ProfileLens `json:"profile_lens"`
 	Workspace       cmdpalette.WorkspaceID `json:"workspace"`
 	CatalogRevision string                 `json:"catalog_revision"`
 }
@@ -72,14 +75,16 @@ type CmdPalettePinResponse struct {
 }
 
 type CmdPaletteRankSignalsResponse struct {
-	Weights   cmdpalette.Weights       `json:"weights"`
-	Usage     []cmdpalette.UsageSignal `json:"usage"`
-	QueryHits []cmdpalette.QueryHit    `json:"query_hits"`
-	Pins      []cmdpalette.CommandID   `json:"pins"`
-	Revision  string                   `json:"revision"`
+	ProfileLens cmdpalette.ProfileLens   `json:"profile_lens"`
+	Weights     cmdpalette.Weights       `json:"weights"`
+	Usage       []cmdpalette.UsageSignal `json:"usage"`
+	QueryHits   []cmdpalette.QueryHit    `json:"query_hits"`
+	Pins        []cmdpalette.CommandID   `json:"pins"`
+	Revision    string                   `json:"revision"`
 }
 
 type CmdPalettePersonalizationResponse struct {
+	ProfileLens       cmdpalette.ProfileLens `json:"profile_lens"`
 	Workspace         cmdpalette.WorkspaceID `json:"workspace"`
 	Pins              []cmdpalette.CommandID `json:"pins"`
 	Recents           int                    `json:"recents"`
@@ -100,6 +105,7 @@ type CmdPaletteError struct {
 }
 
 type CmdPaletteViewEnvelope struct {
+	ProfileLens cmdpalette.ProfileLens `json:"profile_lens"`
 	ViewID      string                 `json:"view_id"`
 	Title       string                 `json:"title"`
 	Kind        cmdpalette.ViewKind    `json:"kind"`
@@ -123,9 +129,10 @@ type CmdPaletteViewSessionOpenRequest struct {
 }
 
 type CmdPaletteViewSessionOpenResponse struct {
-	ViewSession string               `json:"view_session"`
-	StreamToken string               `json:"stream_token"`
-	FirstFrame  cmdpalette.ViewFrame `json:"first_frame"`
+	ProfileLens cmdpalette.ProfileLens `json:"profile_lens"`
+	ViewSession string                 `json:"view_session"`
+	StreamToken string                 `json:"stream_token"`
+	FirstFrame  cmdpalette.ViewFrame   `json:"first_frame"`
 }
 
 type CmdPaletteViewSessionEventRequest struct {
@@ -171,7 +178,8 @@ func CmdPaletteCommandsFromDomain(catalog cmdpalette.Catalog) CmdPaletteCommands
 		})
 	}
 	return CmdPaletteCommandsResponse{
-		Commands: commands, Sources: append([]cmdpalette.SourceStatus{}, catalog.Sources...),
+		ProfileLens: catalog.ProfileLens,
+		Commands:    commands, Sources: append([]cmdpalette.SourceStatus{}, catalog.Sources...),
 		CatalogRevision: catalog.Revision, ContextRevision: catalog.ContextRevision,
 	}
 }
@@ -202,7 +210,8 @@ func CmdPaletteRankSignalsFromDomain(snapshot cmdpalette.Snapshot) CmdPaletteRan
 	weights := snapshot.Weights
 	weights.GroupOrder = append([]string{}, snapshot.Weights.GroupOrder...)
 	return CmdPaletteRankSignalsResponse{
-		Weights: weights, Usage: append([]cmdpalette.UsageSignal{}, snapshot.Usage...),
+		ProfileLens: snapshot.ProfileLens,
+		Weights:     weights, Usage: append([]cmdpalette.UsageSignal{}, snapshot.Usage...),
 		QueryHits: append([]cmdpalette.QueryHit{}, snapshot.QueryHits...),
 		Pins:      pins, Revision: snapshot.Revision,
 	}
@@ -212,7 +221,8 @@ func CmdPalettePersonalizationFromDomain(
 	summary cmdpalette.PersonalizationSummary,
 ) CmdPalettePersonalizationResponse {
 	return CmdPalettePersonalizationResponse{
-		Workspace: summary.Workspace, Pins: append([]cmdpalette.CommandID{}, summary.Pins...),
+		ProfileLens: summary.ProfileLens,
+		Workspace:   summary.Workspace, Pins: append([]cmdpalette.CommandID{}, summary.Pins...),
 		Recents: summary.Recents, FrecencyEntries: summary.FrecencyEntries,
 		QueryAssociations: summary.QueryAssociations,
 	}
@@ -220,14 +230,16 @@ func CmdPalettePersonalizationFromDomain(
 
 func CmdPaletteInvokeFromDomain(result cmdpalette.InvokeResult) CmdPaletteInvokeResult {
 	return CmdPaletteInvokeResult{
-		Status: result.Status, Result: append(json.RawMessage(nil), result.Result...),
+		ProfileLens: result.ProfileLens,
+		Status:      result.Status, Result: append(json.RawMessage(nil), result.Result...),
 		ApprovalID: result.ApprovalID, InvocationID: result.InvocationID,
 	}
 }
 
 func CmdPaletteViewFromDomain(snapshot cmdpalette.ViewSnapshot) CmdPaletteViewEnvelope {
 	return CmdPaletteViewEnvelope{
-		ViewID: snapshot.Descriptor.ID, Title: snapshot.Descriptor.Title,
+		ProfileLens: snapshot.ProfileLens,
+		ViewID:      snapshot.Descriptor.ID, Title: snapshot.Descriptor.Title,
 		Kind: snapshot.Descriptor.Kind, Revision: snapshot.Revision,
 		StreamEpoch: snapshot.StreamEpoch, Payload: snapshot.Payload,
 	}

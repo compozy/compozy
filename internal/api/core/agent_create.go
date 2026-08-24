@@ -148,6 +148,7 @@ func createAgentDefinitionTargetFor(
 	globalConfig *compozyconfig.Config,
 	workspaces WorkspaceService,
 	transportName string,
+	profileNames ...string,
 ) (createAgentDefinitionTarget, error) {
 	name := compozyconfig.NormalizeAgentName(req.Agent.Name)
 	switch req.Scope {
@@ -175,7 +176,11 @@ func createAgentDefinitionTargetFor(
 				workspacepkg.ErrWorkspaceResolverUnavailable,
 			)
 		}
-		resolved, err := workspaces.Resolve(ctx, workspaceRef)
+		profileName := ""
+		if len(profileNames) > 0 {
+			profileName = strings.TrimSpace(profileNames[0])
+		}
+		resolved, err := resolveWorkspaceAgentProfile(ctx, workspaces, workspaceRef, profileName)
 		if err != nil {
 			return createAgentDefinitionTarget{}, err
 		}
@@ -187,10 +192,19 @@ func createAgentDefinitionTargetFor(
 				workspacepkg.ErrWorkspaceRootMissing,
 			)
 		}
+		profileName = strings.TrimSpace(resolved.ProfileName)
+		if profileName == "" {
+			return createAgentDefinitionTarget{}, fmt.Errorf(
+				"%s: resolved workspace profile is empty",
+				transportName,
+			)
+		}
 		return createAgentDefinitionTarget{
 			Path: filepath.Join(
 				rootDir,
 				compozyconfig.DirName,
+				compozyconfig.ProfilesDirName,
+				profileName,
 				compozyconfig.AgentsDirName,
 				name,
 				compozyconfig.AgentDefinitionFileName,

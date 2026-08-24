@@ -63,6 +63,11 @@ func cmdPaletteErrorPayload(err error) (int, contract.CmdPaletteError) {
 		return http.StatusUnauthorized, contract.CmdPaletteError{
 			Error: "client_unauthorized", Message: "client attachment token is invalid",
 		}
+	case errors.Is(err, cmdpalette.ErrProfileManagementForbidden):
+		return http.StatusForbidden, contract.CmdPaletteError{
+			Error:   profileRemoteManagementForbiddenCode,
+			Message: "profile management is available only on the local Compozy surface",
+		}
 	default:
 		return http.StatusServiceUnavailable, contract.CmdPaletteError{
 			Error: runtimeUnavailableErrorCode, Message: "cmd palette runtime is unavailable",

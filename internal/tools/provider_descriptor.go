@@ -10,6 +10,7 @@ import (
 
 // ExtensionToolRuntimeDescriptor is the runtime reconciliation proof for an extension tool.
 type ExtensionToolRuntimeDescriptor struct {
+	Profile             string                `json:"profile,omitempty"`
 	ID                  ToolID                `json:"id"`
 	Handler             string                `json:"handler"`
 	Description         string                `json:"description,omitempty"`

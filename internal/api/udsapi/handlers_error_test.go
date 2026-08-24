@@ -214,7 +214,7 @@ func TestListAndSessionHandlersRejectBadQueryAndHeaderValues(t *testing.T) {
 		},
 	}, stubObserver{}, homePaths))
 
-	listResp := performRequest(t, listEngine, http.MethodGet, "/api/sessions", nil)
+	listResp := performRequest(t, listEngine, http.MethodGet, "/api/sessions?all_workspaces=true", nil)
 	if listResp.Code != http.StatusInternalServerError {
 		t.Fatalf("list status = %d, want %d", listResp.Code, http.StatusInternalServerError)
 	}
@@ -229,7 +229,7 @@ func TestListAndSessionHandlersRejectBadQueryAndHeaderValues(t *testing.T) {
 	}
 	engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, homePaths))
 
-	filterResp := performRequest(t, engine, http.MethodGet, "/api/sessions?workspace=missing", nil)
+	filterResp := performRequest(t, engine, http.MethodGet, "/api/sessions?workspace_id=missing", nil)
 	if filterResp.Code != http.StatusNotFound {
 		t.Fatalf("filtered list status = %d, want %d", filterResp.Code, http.StatusNotFound)
 	}

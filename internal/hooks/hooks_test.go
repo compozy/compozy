@@ -191,6 +191,20 @@ func TestHooksRebuildBumpsVersionOnSwap(t *testing.T) {
 	if hooks.snapshot[HookInputPreSubmit][0].Name != "v2-input" {
 		t.Fatalf("snapshot hook = %q, want %q", hooks.snapshot[HookInputPreSubmit][0].Name, "v2-input")
 	}
+
+	profiled := testSubprocessDecl("v2-input", HookInputPreSubmit)
+	profiled.ProfileID = "profile-marketing"
+	configDecls = []HookDecl{profiled}
+	if err := hooks.Rebuild(t.Context()); err != nil {
+		t.Fatalf("profile-owner Rebuild() error = %v, want nil", err)
+	}
+
+	if got, want := hooks.version.Load(), int64(3); got != want {
+		t.Fatalf("version = %d, want %d", got, want)
+	}
+	if got, want := hooks.snapshot[HookInputPreSubmit][0].ProfileID, "profile-marketing"; got != want {
+		t.Fatalf("snapshot profile = %q, want %q", got, want)
+	}
 }
 
 func TestHooksConcurrentRebuildAndDispatch(t *testing.T) {
@@ -409,7 +423,7 @@ func TestDispatchMethodsSmokeNoHooks(t *testing.T) {
 			run: func(ctx context.Context, hooks *Hooks) error {
 				_, err := hooks.DispatchSandboxPrepare(
 					ctx,
-					SandboxPreparePayload{PayloadBase: PayloadBase{Event: HookSandboxPrepare}},
+					&SandboxPreparePayload{PayloadBase: PayloadBase{Event: HookSandboxPrepare}},
 				)
 				return err
 			},
@@ -751,6 +765,82 @@ func TestDispatchInputPreSubmitAppliesMatchingHooksInOrder(t *testing.T) {
 	if seen[0] != "seed-" || seen[1] != "seed-a" {
 		t.Fatalf("seen = %#v, want [seed- seed-a]", seen)
 	}
+
+	t.Run("Should execute only declarations owned by the payload profile", func(t *testing.T) {
+		t.Parallel()
+
+		var executed []string
+		profileHooks := newTestHooks(
+			t,
+			WithNativeDeclarations([]HookDecl{
+				{
+					Name: "default-profile", ProfileID: "profile-default", Event: HookInputPreSubmit,
+					Mode: HookModeSync, ExecutorKind: HookExecutorNative,
+				},
+				{
+					Name: "marketing-profile", ProfileID: "profile-marketing", Event: HookInputPreSubmit,
+					Mode: HookModeSync, ExecutorKind: HookExecutorNative,
+				},
+				{
+					Name: "default-coordinator", ProfileID: "profile-default", Event: HookCoordinatorPreSpawn,
+					Mode: HookModeSync, ExecutorKind: HookExecutorNative,
+				},
+				{
+					Name: "marketing-coordinator", ProfileID: "profile-marketing", Event: HookCoordinatorPreSpawn,
+					Mode: HookModeSync, ExecutorKind: HookExecutorNative,
+				},
+			}),
+			WithExecutorResolver(testExecutorResolver(map[string]Executor{
+				"default-profile": NewTypedNativeExecutor(
+					func(context.Context, RegisteredHook, InputPreSubmitPayload) (InputPreSubmitPatch, error) {
+						executed = append(executed, "default")
+						return InputPreSubmitPatch{}, nil
+					},
+				),
+				"marketing-profile": NewTypedNativeExecutor(
+					func(context.Context, RegisteredHook, InputPreSubmitPayload) (InputPreSubmitPatch, error) {
+						executed = append(executed, "marketing")
+						return InputPreSubmitPatch{}, nil
+					},
+				),
+				"default-coordinator": NewTypedNativeExecutor(
+					func(context.Context, RegisteredHook, CoordinatorPreSpawnPayload) (CoordinatorSpawnPatch, error) {
+						executed = append(executed, "default-coordinator")
+						return CoordinatorSpawnPatch{}, nil
+					},
+				),
+				"marketing-coordinator": NewTypedNativeExecutor(
+					func(context.Context, RegisteredHook, CoordinatorPreSpawnPayload) (CoordinatorSpawnPatch, error) {
+						executed = append(executed, "marketing-coordinator")
+						return CoordinatorSpawnPatch{}, nil
+					},
+				),
+			})),
+		)
+		if err := profileHooks.Rebuild(t.Context()); err != nil {
+			t.Fatalf("Rebuild() error = %v", err)
+		}
+		if _, err := profileHooks.DispatchInputPreSubmit(t.Context(), InputPreSubmitPayload{
+			PayloadBase:    PayloadBase{Event: HookInputPreSubmit},
+			SessionContext: SessionContext{ProfileID: "profile-marketing"},
+		}); err != nil {
+			t.Fatalf("DispatchInputPreSubmit() error = %v", err)
+		}
+		if !reflect.DeepEqual(executed, []string{"marketing"}) {
+			t.Fatalf("executed hooks = %#v, want only marketing", executed)
+		}
+		if _, err := profileHooks.DispatchCoordinatorPreSpawn(t.Context(), CoordinatorPreSpawnPayload{
+			PayloadBase: PayloadBase{Event: HookCoordinatorPreSpawn},
+			CoordinatorContext: CoordinatorContext{
+				ProfileID: "profile-marketing", WorkspaceID: "ws-marketing",
+			},
+		}); err != nil {
+			t.Fatalf("DispatchCoordinatorPreSpawn() error = %v", err)
+		}
+		if !reflect.DeepEqual(executed, []string{"marketing", "marketing-coordinator"}) {
+			t.Fatalf("executed hooks = %#v, want marketing input and coordinator hooks", executed)
+		}
+	})
 }
 
 func TestDispatchSessionPreCreateAppliesPatch(t *testing.T) {
@@ -1004,7 +1094,7 @@ func TestDispatchSandboxPrepareAppliesEnvOverridesAndDeny(t *testing.T) {
 		t.Fatalf("Rebuild() error = %v, want nil", err)
 	}
 
-	result, err := hooks.DispatchSandboxPrepare(t.Context(), SandboxPreparePayload{
+	result, err := hooks.DispatchSandboxPrepare(t.Context(), &SandboxPreparePayload{
 		PayloadBase: PayloadBase{Event: HookSandboxPrepare},
 		SessionContext: SessionContext{
 			AgentName: "codex",

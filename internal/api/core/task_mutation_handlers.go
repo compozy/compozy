@@ -122,7 +122,12 @@ func (h *BaseHandlers) mutateTaskApproval(
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.TaskResponse{Task: TaskPayloadFromTask(record)})
+	payload := TaskPayloadFromTask(record)
+	if err := h.decorateTaskOwner(c.Request.Context(), &payload); err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.TaskResponse{Task: payload})
 }
 
 func (h *BaseHandlers) mutateTaskTriage(

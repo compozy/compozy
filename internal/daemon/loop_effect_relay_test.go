@@ -378,6 +378,7 @@ func TestLoopEffectRelayShouldDrainRealSQLiteOutboxEndToEnd(t *testing.T) {
 		t.Fatalf("effect outbox = %#v, want one delivered attempt", outbox)
 	}
 	events, err := db.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+		ReadScope:   store.ReadScope{AllProfiles: true},
 		WorkspaceID: created.WorkspaceID,
 		RunID:       created.ID,
 	})

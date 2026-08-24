@@ -12,6 +12,9 @@ func selectMatchingHooks[P any](
 		if hook == nil {
 			continue
 		}
+		if hook.ProfileID != "" && hook.ProfileID != hookPayloadProfileID(payload) {
+			continue
+		}
 		if match != nil && !match(hook.Matcher, payload) {
 			continue
 		}
@@ -26,6 +29,18 @@ func selectMatchingHooks[P any](
 	return syncHooks, asyncHooks
 }
 
+type profileOwnedHookPayload interface {
+	HookProfileID() string
+}
+
+func hookPayloadProfileID(payload any) string {
+	owned, ok := payload.(profileOwnedHookPayload)
+	if !ok {
+		return ""
+	}
+	return owned.HookProfileID()
+}
+
 func matchSessionPreCreate(matcher HookMatcher, payload SessionPreCreatePayload) bool {
 	return matcher.MatchesSession(payload.SessionContext)
 }
@@ -38,7 +53,7 @@ func matchSessionRuntimeRecovery(matcher HookMatcher, payload SessionRuntimeReco
 	return matcher.MatchesSession(payload.SessionContext)
 }
 
-func matchSandboxPrepare(matcher HookMatcher, payload SandboxPreparePayload) bool {
+func matchSandboxPrepare(matcher HookMatcher, payload *SandboxPreparePayload) bool {
 	return matcher.MatchesSandboxPrepare(payload)
 }
 

@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
 )
@@ -32,19 +33,20 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 			_ context.Context,
 			workspaceID string,
 			name string,
-			req contract.RunLoopRequest,
-			startKind dsl.StartKind,
-			actor taskpkg.ActorContext,
-			dry bool,
+			input core.LoopRunInput,
 		) (contract.RunLoopResponse, error) {
+			req := input.Request
 			if workspaceID != "ws-1" || name != "alpha" {
 				t.Fatalf("RunLoop() target = %s/%s", workspaceID, name)
 			}
-			if startKind != dsl.StartHTTP {
-				t.Fatalf("RunLoop() startKind = %q, want %q", startKind, dsl.StartHTTP)
+			if input.ProfileID != store.DefaultProfileID {
+				t.Fatalf("RunLoop() profile = %q, want %q", input.ProfileID, store.DefaultProfileID)
 			}
-			if actor.Origin.Kind != taskpkg.OriginKindHTTP {
-				t.Fatalf("RunLoop() actor origin = %q, want %q", actor.Origin.Kind, taskpkg.OriginKindHTTP)
+			if input.StartKind != dsl.StartHTTP {
+				t.Fatalf("RunLoop() startKind = %q, want %q", input.StartKind, dsl.StartHTTP)
+			}
+			if input.Actor.Origin.Kind != taskpkg.OriginKindHTTP {
+				t.Fatalf("RunLoop() actor origin = %q, want %q", input.Actor.Origin.Kind, taskpkg.OriginKindHTTP)
 			}
 			if got := req.Inputs["ticket"]; got != "Compozy-14" {
 				t.Fatalf("RunLoop() input ticket = %#v, want Compozy-14", got)
@@ -54,7 +56,7 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 				*req.NetworkParticipation.Mode != participation.ModeLocal {
 				t.Fatalf("RunLoop() network participation = %#v, want local request", req.NetworkParticipation)
 			}
-			if dry {
+			if input.Dry {
 				return contract.RunLoopResponse{DryRun: &contract.LoopPlanPayload{
 					LoopName:       "alpha",
 					ResolvedInputs: map[string]any{"ticket": "Compozy-14"},
@@ -68,7 +70,11 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 			workspaceID string,
 			runID string,
 			afterSeq int64,
+			readScope store.ReadScope,
 		) ([]contract.LoopRunEventPayload, error) {
+			if readScope.ProfileID != store.DefaultProfileID {
+				t.Fatalf("ListLoopRunEvents() scope = %#v, want default profile", readScope)
+			}
 			if workspaceID != "ws-1" || runID != "run-1" {
 				t.Fatalf("ListLoopRunEvents() = workspace=%s run=%s after=%d", workspaceID, runID, afterSeq)
 			}
@@ -356,10 +362,7 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 			context.Context,
 			string,
 			string,
-			contract.RunLoopRequest,
-			dsl.StartKind,
-			taskpkg.ActorContext,
-			bool,
+			core.LoopRunInput,
 		) (contract.RunLoopResponse, error) {
 			t.Fatal("RunLoop() should not be called for a removed channel field")
 			return contract.RunLoopResponse{}, nil
@@ -657,7 +660,7 @@ func TestLoopInputDefaultsHandlersExposeScopedLifecycleOverHTTPAndUDS(t *testing
 				req contract.PutLoopInputDefaultsRequest,
 			) (contract.LoopInputDefaultsResponse, error) {
 				if workspaceID != "ws-1" || name != "alpha" ||
-					req.Scope != contract.LoopInputDefaultsScopeGlobal || req.Values["retries"] != float64(0) {
+					req.Scope != contract.LoopInputDefaultsScopeUser || req.Values["retries"] != float64(0) {
 					t.Fatalf("PutLoopInputDefaults() = %s/%s/%#v", workspaceID, name, req)
 				}
 				return contract.LoopInputDefaultsResponse{LoopName: name, Scope: req.Scope, Values: req.Values}, nil
@@ -685,7 +688,7 @@ func TestLoopInputDefaultsHandlersExposeScopedLifecycleOverHTTPAndUDS(t *testing
 				scope contract.LoopInputDefaultsScope,
 			) (contract.DeleteLoopInputDefaultResponse, error) {
 				if workspaceID != "ws-1" || name != "alpha" || key != "reviewer" ||
-					scope != contract.LoopInputDefaultsScopeGlobal {
+					scope != contract.LoopInputDefaultsScopeUser {
 					t.Fatalf("DeleteLoopInputDefault() = %s/%s/%s/%s", workspaceID, name, key, scope)
 				}
 				return contract.DeleteLoopInputDefaultResponse{
@@ -719,7 +722,7 @@ func TestLoopInputDefaultsHandlersExposeScopedLifecycleOverHTTPAndUDS(t *testing
 			response = performRequest(
 				t, engine, http.MethodPut,
 				"/workspaces/ws-1/loops/alpha/input-defaults",
-				[]byte(`{"scope":"global","values":{"retries":0}}`),
+				[]byte(`{"scope":"user","values":{"retries":0}}`),
 			)
 			assertLoopStatus(t, response.Code, http.StatusOK, response.Body.String())
 
@@ -732,7 +735,7 @@ func TestLoopInputDefaultsHandlersExposeScopedLifecycleOverHTTPAndUDS(t *testing
 
 			response = performRequest(
 				t, engine, http.MethodDelete,
-				"/workspaces/ws-1/loops/alpha/input-defaults/reviewer?scope=global", nil,
+				"/workspaces/ws-1/loops/alpha/input-defaults/reviewer?scope=user", nil,
 			)
 			assertLoopStatus(t, response.Code, http.StatusOK, response.Body.String())
 			var deleted contract.DeleteLoopInputDefaultResponse
@@ -821,18 +824,15 @@ func TestLoopHandlersExposeUDSStartKind(t *testing.T) {
 			_ context.Context,
 			_ string,
 			_ string,
-			_ contract.RunLoopRequest,
-			startKind dsl.StartKind,
-			actor taskpkg.ActorContext,
-			dry bool,
+			input core.LoopRunInput,
 		) (contract.RunLoopResponse, error) {
-			if startKind != dsl.StartUDS {
-				t.Fatalf("RunLoop() startKind = %q, want %q", startKind, dsl.StartUDS)
+			if input.StartKind != dsl.StartUDS {
+				t.Fatalf("RunLoop() startKind = %q, want %q", input.StartKind, dsl.StartUDS)
 			}
-			if actor.Origin.Kind != taskpkg.OriginKindUDS {
-				t.Fatalf("RunLoop() actor origin = %q, want %q", actor.Origin.Kind, taskpkg.OriginKindUDS)
+			if input.Actor.Origin.Kind != taskpkg.OriginKindUDS {
+				t.Fatalf("RunLoop() actor origin = %q, want %q", input.Actor.Origin.Kind, taskpkg.OriginKindUDS)
 			}
-			if dry {
+			if input.Dry {
 				t.Fatal("RunLoop() dry = true, want false")
 			}
 			return contract.RunLoopResponse{Run: loopRunPayload("run-uds", looppkg.StatusRunning)}, nil
@@ -1333,10 +1333,7 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 			context.Context,
 			string,
 			string,
-			contract.RunLoopRequest,
-			dsl.StartKind,
-			taskpkg.ActorContext,
-			bool,
+			core.LoopRunInput,
 		) (contract.RunLoopResponse, error) {
 			return contract.RunLoopResponse{}, looppkg.ErrAncestryRejected
 		}
@@ -1357,10 +1354,7 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 			context.Context,
 			string,
 			string,
-			contract.RunLoopRequest,
-			dsl.StartKind,
-			taskpkg.ActorContext,
-			bool,
+			core.LoopRunInput,
 		) (contract.RunLoopResponse, error) {
 			t.Fatal("RunLoop() should not be called when actor resolution fails")
 			return contract.RunLoopResponse{}, nil
@@ -1514,10 +1508,7 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 					context.Context,
 					string,
 					string,
-					contract.RunLoopRequest,
-					dsl.StartKind,
-					taskpkg.ActorContext,
-					bool,
+					core.LoopRunInput,
 				) (contract.RunLoopResponse, error) {
 					return contract.RunLoopResponse{}, &looppkg.InputValidationError{
 						Loop: "review-and-fix", Field: "reviewer", Kind: "agent", Value: "missing-agent",
@@ -1751,7 +1742,7 @@ type stubLoopService struct {
 	patchLoopFn          func(context.Context, string, string, contract.PatchLoopRequest) (contract.LoopResponse, error)
 	validateLoopFn       func(context.Context, string, string, contract.ValidateLoopRequest) (contract.LoopValidationResponse, error)
 	deleteLoopFn         func(context.Context, string, string) error
-	runLoopFn            func(context.Context, string, string, contract.RunLoopRequest, dsl.StartKind, taskpkg.ActorContext, bool) (contract.RunLoopResponse, error)
+	runLoopFn            func(context.Context, string, string, core.LoopRunInput) (contract.RunLoopResponse, error)
 	getLoopConfigFn      func(context.Context, string, string) (contract.LoopConfigResponse, error)
 	putLoopConfigFn      func(context.Context, string, string, contract.PutLoopConfigRequest) (contract.LoopConfigResponse, error)
 	getInputDefaultsFn   func(context.Context, string, string, contract.LoopInputDefaultsScope) (contract.LoopInputDefaultsResponse, error)
@@ -1818,7 +1809,13 @@ type stubLoopService struct {
 	pauseLoopRunFn      func(context.Context, string, string) error
 	resumeLoopRunFn     func(context.Context, string, string) error
 	approveLoopRunFn    func(context.Context, string, string, contract.ApproveLoopRunRequest, taskpkg.ActorContext) error
-	listLoopRunEventsFn func(context.Context, string, string, int64) ([]contract.LoopRunEventPayload, error)
+	listLoopRunEventsFn func(
+		context.Context,
+		string,
+		string,
+		int64,
+		store.ReadScope,
+	) ([]contract.LoopRunEventPayload, error)
 }
 
 func happyLoopService(t testing.TB) *stubLoopService {
@@ -1874,7 +1871,7 @@ func happyLoopService(t testing.TB) *stubLoopService {
 		deleteLoopFn: func(context.Context, string, string) error {
 			return nil
 		},
-		runLoopFn: func(context.Context, string, string, contract.RunLoopRequest, dsl.StartKind, taskpkg.ActorContext, bool) (contract.RunLoopResponse, error) {
+		runLoopFn: func(context.Context, string, string, core.LoopRunInput) (contract.RunLoopResponse, error) {
 			return contract.RunLoopResponse{Run: loopRunPayload("run-1", looppkg.StatusRunning)}, nil
 		},
 		getLoopConfigFn: func(context.Context, string, string) (contract.LoopConfigResponse, error) {
@@ -1992,7 +1989,13 @@ func happyLoopService(t testing.TB) *stubLoopService {
 		approveLoopRunFn: func(context.Context, string, string, contract.ApproveLoopRunRequest, taskpkg.ActorContext) error {
 			return nil
 		},
-		listLoopRunEventsFn: func(context.Context, string, string, int64) ([]contract.LoopRunEventPayload, error) {
+		listLoopRunEventsFn: func(
+			context.Context,
+			string,
+			string,
+			int64,
+			store.ReadScope,
+		) ([]contract.LoopRunEventPayload, error) {
 			return nil, nil
 		},
 	}
@@ -2009,18 +2012,25 @@ func (s *stubLoopService) ListLoops(
 func (s *stubLoopService) CreateLoop(
 	ctx context.Context,
 	workspaceID string,
+	_ string,
 	req contract.CreateLoopRequest,
 ) (contract.LoopResponse, error) {
 	return s.createLoopFn(ctx, workspaceID, req)
 }
 
-func (s *stubLoopService) GetLoop(ctx context.Context, workspaceID string, name string) (contract.LoopResponse, error) {
+func (s *stubLoopService) GetLoop(
+	ctx context.Context,
+	workspaceID string,
+	_ string,
+	name string,
+) (contract.LoopResponse, error) {
 	return s.getLoopFn(ctx, workspaceID, name)
 }
 
 func (s *stubLoopService) PatchLoop(
 	ctx context.Context,
 	workspaceID string,
+	_ string,
 	name string,
 	req contract.PatchLoopRequest,
 ) (contract.LoopResponse, error) {
@@ -2030,13 +2040,14 @@ func (s *stubLoopService) PatchLoop(
 func (s *stubLoopService) ValidateLoop(
 	ctx context.Context,
 	workspaceID string,
+	_ string,
 	name string,
 	req contract.ValidateLoopRequest,
 ) (contract.LoopValidationResponse, error) {
 	return s.validateLoopFn(ctx, workspaceID, name, req)
 }
 
-func (s *stubLoopService) DeleteLoop(ctx context.Context, workspaceID string, name string) error {
+func (s *stubLoopService) DeleteLoop(ctx context.Context, workspaceID string, _ string, name string) error {
 	return s.deleteLoopFn(ctx, workspaceID, name)
 }
 
@@ -2044,17 +2055,15 @@ func (s *stubLoopService) RunLoop(
 	ctx context.Context,
 	workspaceID string,
 	name string,
-	req contract.RunLoopRequest,
-	startKind dsl.StartKind,
-	actor taskpkg.ActorContext,
-	dry bool,
+	input core.LoopRunInput,
 ) (contract.RunLoopResponse, error) {
-	return s.runLoopFn(ctx, workspaceID, name, req, startKind, actor, dry)
+	return s.runLoopFn(ctx, workspaceID, name, input)
 }
 
 func (s *stubLoopService) GetLoopConfig(
 	ctx context.Context,
 	workspaceID string,
+	_ string,
 	name string,
 ) (contract.LoopConfigResponse, error) {
 	return s.getLoopConfigFn(ctx, workspaceID, name)
@@ -2063,6 +2072,7 @@ func (s *stubLoopService) GetLoopConfig(
 func (s *stubLoopService) PutLoopConfig(
 	ctx context.Context,
 	workspaceID string,
+	_ string,
 	name string,
 	req contract.PutLoopConfigRequest,
 ) (contract.LoopConfigResponse, error) {
@@ -2072,6 +2082,7 @@ func (s *stubLoopService) PutLoopConfig(
 func (s *stubLoopService) GetLoopInputDefaults(
 	ctx context.Context,
 	workspaceID string,
+	_ string,
 	name string,
 	scope contract.LoopInputDefaultsScope,
 ) (contract.LoopInputDefaultsResponse, error) {
@@ -2081,6 +2092,7 @@ func (s *stubLoopService) GetLoopInputDefaults(
 func (s *stubLoopService) GetLoopInputDefault(
 	ctx context.Context,
 	workspaceID string,
+	_ string,
 	name string,
 	key string,
 	scope contract.LoopInputDefaultsScope,
@@ -2091,6 +2103,7 @@ func (s *stubLoopService) GetLoopInputDefault(
 func (s *stubLoopService) PutLoopInputDefaults(
 	ctx context.Context,
 	workspaceID string,
+	_ string,
 	name string,
 	req contract.PutLoopInputDefaultsRequest,
 ) (contract.LoopInputDefaultsResponse, error) {
@@ -2100,6 +2113,7 @@ func (s *stubLoopService) PutLoopInputDefaults(
 func (s *stubLoopService) PutLoopInputDefault(
 	ctx context.Context,
 	workspaceID string,
+	_ string,
 	name string,
 	key string,
 	req contract.PutLoopInputDefaultRequest,
@@ -2110,6 +2124,7 @@ func (s *stubLoopService) PutLoopInputDefault(
 func (s *stubLoopService) DeleteLoopInputDefault(
 	ctx context.Context,
 	workspaceID string,
+	_ string,
 	name string,
 	key string,
 	scope contract.LoopInputDefaultsScope,
@@ -2120,6 +2135,7 @@ func (s *stubLoopService) DeleteLoopInputDefault(
 func (s *stubLoopService) GetLoopAnnotations(
 	ctx context.Context,
 	workspaceID string,
+	_ string,
 	name string,
 ) (contract.LoopAnnotationsResponse, error) {
 	return s.getAnnotationsFn(ctx, workspaceID, name)
@@ -2128,6 +2144,7 @@ func (s *stubLoopService) GetLoopAnnotations(
 func (s *stubLoopService) PutLoopAnnotations(
 	ctx context.Context,
 	workspaceID string,
+	_ string,
 	name string,
 	req contract.PutLoopAnnotationsRequest,
 ) (contract.LoopAnnotationsResponse, error) {
@@ -2387,8 +2404,9 @@ func (s *stubLoopService) ListLoopRunEvents(
 	workspaceID string,
 	runID string,
 	afterSeq int64,
+	readScope store.ReadScope,
 ) ([]contract.LoopRunEventPayload, error) {
-	return s.listLoopRunEventsFn(ctx, workspaceID, runID, afterSeq)
+	return s.listLoopRunEventsFn(ctx, workspaceID, runID, afterSeq, readScope)
 }
 
 func loopDefinition() dsl.Definition {
@@ -2509,6 +2527,7 @@ func loopLifecycleValidateRequestBody() []byte {
 func loopRunPayload(id string, status looppkg.Status) *contract.LoopRunPayload {
 	return &contract.LoopRunPayload{
 		ID:                           id,
+		ProfileID:                    store.DefaultProfileID,
 		WorkspaceID:                  "ws-1",
 		LoopName:                     "alpha",
 		Status:                       contract.LoopRunStatus(status),

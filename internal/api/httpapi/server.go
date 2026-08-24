@@ -58,6 +58,7 @@ type Server struct {
 	loops               core.LoopService
 	bridges             core.BridgeService
 	notifications       core.NotificationPresetService
+	profiles            core.ProfileService
 	supportBundles      core.SupportBundleService
 	tools               core.ToolRegistry
 	toolArtifacts       toolspkg.ToolArtifactStore

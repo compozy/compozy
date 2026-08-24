@@ -46,7 +46,8 @@ describe("resolveActiveWorkspace", () => {
     expect(resolved.toggleLocked).toBe(true);
     expect(resolved.activeWorkspace).toBeUndefined();
     expect(resolved.chip).toEqual({ name: "Global", monogram: "~" });
-    expect(resolved.runtimeWorkspaceId).toBe("ws_home");
+    expect(resolved.runtimeWorkspaceId).toBeNull();
+    expect(resolved.desktopWorkspaceId).toBeNull();
   });
 
   it("Should stay Global when the remembered project is missing instead of falling back", () => {
@@ -61,6 +62,8 @@ describe("resolveActiveWorkspace", () => {
     expect(resolved.rememberedWorkspace).toBeUndefined();
     expect(resolved.canDisableGlobal).toBe(false);
     expect(resolved.chip).toEqual({ name: "Global", monogram: "~" });
+    expect(resolved.runtimeWorkspaceId).toBeNull();
+    expect(resolved.desktopWorkspaceId).toBe("ws_alpha");
   });
 
   it("Should remember the project workspace while Global is on", () => {
@@ -74,6 +77,8 @@ describe("resolveActiveWorkspace", () => {
     expect(resolved.rememberedWorkspace?.id).toBe("ws_alpha");
     expect(resolved.canDisableGlobal).toBe(true);
     expect(resolved.chip).toEqual({ name: "Global", monogram: "~" });
+    expect(resolved.runtimeWorkspaceId).toBeNull();
+    expect(resolved.desktopWorkspaceId).toBe("ws_alpha");
   });
 
   it("Should claim nothing while resolution is pending", () => {
@@ -89,6 +94,7 @@ describe("resolveActiveWorkspace", () => {
     expect(resolved.projectWorkspaces).toEqual([]);
     expect(resolved.activeWorkspaceId).toBeNull();
     expect(resolved.runtimeWorkspaceId).toBeNull();
+    expect(resolved.desktopWorkspaceId).toBeNull();
     expect(resolved.toggleLocked).toBe(true);
     expect(resolved.canDisableGlobal).toBe(false);
     expect(resolved.scope).toBe("workspace");

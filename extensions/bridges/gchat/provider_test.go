@@ -3654,6 +3654,7 @@ func testBridgeRuntime(t *testing.T, now time.Time, instanceID string) subproces
 	return subprocess.InitializeBridgeManagedInstance{
 		Instance: bridgepkg.BridgeInstance{
 			ID:            instanceID,
+			ProfileID:     "profile-test",
 			Scope:         bridgepkg.ScopeWorkspace,
 			WorkspaceID:   "ws-gchat",
 			Platform:      "gchat",

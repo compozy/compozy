@@ -80,6 +80,11 @@ type DeliveryTarget struct {
 
 type DependencyKind string
 
+type DescribeHookEvent struct {
+	Event   HookEvent `json:"event"`
+	Profile string    `json:"profile,omitempty"`
+}
+
 type DescribeNetworkParticipation struct {
 	Required      bool     `json:"required"`
 	Mode          string   `json:"mode"`
@@ -93,24 +98,50 @@ type DescribePayload struct {
 	Provides             []string                         `json:"provides"`
 	Permissions          []string                         `json:"permissions"`
 	RequiresEnv          []string                         `json:"requires_env,omitempty"`
+	Profiles             []DescribeProfile                `json:"profiles,omitempty"`
 	Resources            DescribeResources                `json:"resources"`
 	Subprocess           DescribeSubprocess               `json:"subprocess"`
 	NetworkParticipation *DescribeNetworkParticipation    `json:"network_participation,omitempty"`
 	Tools                []ExtensionToolRuntimeDescriptor `json:"tools,omitempty"`
-	HookEvents           []string                         `json:"hook_events,omitempty"`
+	HookEvents           []DescribeHookEvent              `json:"hook_events,omitempty"`
 	WatchSourceKinds     []string                         `json:"watch_source_kinds,omitempty"`
 	CmdPaletteViews      []string                         `json:"cmd_palette_views,omitempty"`
 	CommandGroups        []ExtensionCommandGroupSpec      `json:"command_groups,omitempty"`
 	SDK                  DescribeSDKInfo                  `json:"sdk"`
 }
 
+type DescribeProfile struct {
+	Name        string                      `json:"name"`
+	Color       string                      `json:"color,omitempty"`
+	Icon        string                      `json:"icon,omitempty"`
+	Emoji       string                      `json:"emoji,omitempty"`
+	Defaults    DescribeProfileDefaults     `json:"defaults,omitzero"`
+	Credentials []DescribeProfileCredential `json:"credentials,omitempty"`
+}
+
+type DescribeProfileCredential struct {
+	Provider string `json:"provider"`
+	Slot     string `json:"slot"`
+}
+
+type DescribeProfileDefaults struct {
+	Agent    string `json:"agent,omitempty"`
+	Provider string `json:"provider,omitempty"`
+	Sandbox  string `json:"sandbox,omitempty"`
+}
+
+type DescribeResourcePath struct {
+	Path    string `json:"path"`
+	Profile string `json:"profile,omitempty"`
+}
+
 type DescribeResources struct {
-	Skills     []string         `json:"skills,omitempty"`
-	Loops      []string         `json:"loops,omitempty"`
-	Agents     []string         `json:"agents,omitempty"`
-	Automation []string         `json:"automation,omitempty"`
-	Layouts    []string         `json:"layouts,omitempty"`
-	CmdPalette CmdPaletteConfig `json:"cmd_palette,omitzero"`
+	Skills     []DescribeResourcePath `json:"skills,omitempty"`
+	Loops      []DescribeResourcePath `json:"loops,omitempty"`
+	Agents     []DescribeResourcePath `json:"agents,omitempty"`
+	Automation []DescribeResourcePath `json:"automation,omitempty"`
+	Layouts    []DescribeResourcePath `json:"layouts,omitempty"`
+	CmdPalette CmdPaletteConfig       `json:"cmd_palette,omitzero"`
 }
 
 type DescribeSDKInfo struct {
@@ -145,40 +176,4 @@ type Effect struct {
 type EffectResult struct {
 	EffectID string          `json:"effect_id"`
 	Payload  json.RawMessage `json:"payload,omitempty"`
-}
-
-type Effort string
-
-type EmptyResult struct{}
-
-type EmptyState struct {
-	Title string `json:"title"`
-	Hint  string `json:"hint,omitempty"`
-	Icon  string `json:"icon,omitempty"`
-}
-
-type EventPostRecordPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
-}
-
-type EventPostRecordPayload struct {
-	Event          HookEvent       `json:"event"`
-	Timestamp      time.Time       `json:"timestamp"`
-	SessionID      string          `json:"session_id,omitempty"`
-	SessionName    string          `json:"session_name,omitempty"`
-	SessionType    string          `json:"session_type,omitempty"`
-	AgentName      string          `json:"agent_name,omitempty"`
-	WorkspaceID    string          `json:"workspace_id,omitempty"`
-	Workspace      string          `json:"workspace,omitempty"`
-	WorktreeID     string          `json:"worktree_id,omitempty"`
-	ACPSessionID   string          `json:"acp_session_id,omitempty"`
-	State          string          `json:"state,omitempty"`
-	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string          `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	TurnID         string          `json:"turn_id,omitempty"`
-	RecordType     string          `json:"record_type,omitempty"`
-	Sequence       int64           `json:"sequence,omitempty"`
-	Content        json.RawMessage `json:"content,omitempty"`
 }

@@ -15,6 +15,7 @@ type marketplaceCursor struct {
 	Query       string `json:"query,omitempty"`
 	Scope       string `json:"scope"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
+	ProfileName string `json:"profile_name,omitempty"`
 	Fence       string `json:"fence"`
 	Offset      int    `json:"offset"`
 }
@@ -32,7 +33,8 @@ func marketplaceNextCursor(
 	}
 	payload, err := json.Marshal(marketplaceCursor{
 		Version: marketplaceCursorVersion, Kind: kind, Query: strings.TrimSpace(query),
-		Scope: string(scope.scope), WorkspaceID: scope.workspaceID, Fence: fence, Offset: nextOffset,
+		Scope: string(scope.scope), WorkspaceID: scope.workspaceID, ProfileName: scope.profileName,
+		Fence: fence, Offset: nextOffset,
 	})
 	if err != nil {
 		return "", fmt.Errorf("marketplace: encode cursor: %w", err)
@@ -60,7 +62,8 @@ func marketplaceCursorOffset(
 	}
 	if cursor.Version != marketplaceCursorVersion || cursor.Offset < 0 || cursor.Fence == "" ||
 		cursor.Kind != kind || cursor.Query != strings.TrimSpace(query) ||
-		cursor.Scope != string(scope.scope) || cursor.WorkspaceID != scope.workspaceID {
+		cursor.Scope != string(scope.scope) || cursor.WorkspaceID != scope.workspaceID ||
+		cursor.ProfileName != scope.profileName {
 		return 0, "", marketplaceValidationf("cursor does not match the marketplace request")
 	}
 	if cursor.Offset == 0 {

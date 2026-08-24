@@ -708,6 +708,7 @@ func inlineGoalRunForTest(
 		DefinitionDigest:  digest, DefinitionSnapshot: snapshot,
 		ActiveHumanCriteria: []byte(`[]`), StartMetadata: map[string]any{},
 		IterationCap: effective.IterationCap, BudgetOnExceeded: effective.BudgetOnExceeded,
+		ProfileID:             store.DefaultProfileID,
 		GoalContextNudgeRatio: 0.8, Origin: &origin, Inputs: map[string]any{},
 	}
 }

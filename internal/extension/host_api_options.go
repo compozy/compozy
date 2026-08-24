@@ -14,6 +14,13 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+// WithHostAPIProfileReader injects profile identity lookup for owner-aware Host API payloads.
+func WithHostAPIProfileReader(reader hostAPIProfileReader) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.profiles = reader
+	}
+}
+
 // WithHostAPICapabilityChecker injects the capability checker used for Host API authorization.
 func WithHostAPICapabilityChecker(checker *CapabilityChecker) HostAPIOption {
 	return func(handler *HostAPIHandler) {
@@ -185,6 +192,13 @@ func WithHostAPIBridgeIngressConfig(dedupTTL time.Duration, cleanupInterval time
 func WithHostAPIMemoryProviderRegistry(registry *MemoryProviderRegistry) HostAPIOption {
 	return func(handler *HostAPIHandler) {
 		handler.memoryProviders = registry
+	}
+}
+
+// WithHostAPIMemoryStoreResolver injects profile-owned memory-store resolution.
+func WithHostAPIMemoryStoreResolver(resolver memory.RecallStoreResolver) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.memoryForProfile = resolver
 	}
 }
 

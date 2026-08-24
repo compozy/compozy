@@ -67,7 +67,10 @@ func TestObserverIntegrationFullFlow(t *testing.T) {
 	sess.UpdatedAt = h.now.Add(4 * time.Minute)
 	h.observer.OnSessionStopped(testutil.Context(t), sess)
 
-	events, err := h.observer.QueryEvents(testutil.Context(t), store.EventSummaryQuery{SessionID: sess.ID})
+	events, err := h.observer.QueryEvents(
+		testutil.Context(t),
+		store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, SessionID: sess.ID},
+	)
 	if err != nil {
 		t.Fatalf("QueryEvents() error = %v", err)
 	}

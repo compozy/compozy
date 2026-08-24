@@ -156,6 +156,7 @@ func TestRegistryEventSummaries(t *testing.T) {
 				ID:      "ws-shadow",
 				RootDir: workspaceRoot,
 			},
+			ProfileID: "01ARZ3NDEKTSV4RRFFQ69G5FAV",
 			Skills: []workspacepkg.SkillPath{{
 				Dir:    filepath.Join(workspaceRoot, ".compozy", "skills", "review"),
 				Source: "workspace",
@@ -175,9 +176,12 @@ func TestRegistryEventSummaries(t *testing.T) {
 		if got, want := summaries[0].WorkspaceID, "ws-shadow"; got != want {
 			t.Fatalf("summaries[0].WorkspaceID = %q, want %q", got, want)
 		}
+		if got, want := summaries[0].ProfileID, "01ARZ3NDEKTSV4RRFFQ69G5FAV"; got != want {
+			t.Fatalf("summaries[0].ProfileID = %q, want %q", got, want)
+		}
 
 		var content skillShadowContent
-		if err := json.Unmarshal(summaries[0].Content, &content); err != nil {
+		if err := json.Unmarshal(summaries[0].ContentValue(), &content); err != nil {
 			t.Fatalf("Unmarshal(content) error = %v", err)
 		}
 		if got, want := content.SkillID, "review"; got != want {
@@ -243,6 +247,7 @@ func TestRegistryEventSummaries(t *testing.T) {
 
 		_, err := registry.ForAgent(context.Background(), &workspacepkg.ResolvedWorkspace{
 			Workspace: workspacepkg.Workspace{ID: "ws-load-failed"},
+			ProfileID: "01ARZ3NDEKTSV4RRFFQ69G5FAV",
 			Agents: []compozyconfig.AgentDef{{
 				Name:       "writer",
 				SourcePath: writeFilePath,
@@ -265,9 +270,12 @@ func TestRegistryEventSummaries(t *testing.T) {
 		if got, want := summaries[0].WorkspaceID, "ws-load-failed"; got != want {
 			t.Fatalf("summaries[0].WorkspaceID = %q, want %q", got, want)
 		}
+		if got, want := summaries[0].ProfileID, "01ARZ3NDEKTSV4RRFFQ69G5FAV"; got != want {
+			t.Fatalf("summaries[0].ProfileID = %q, want %q", got, want)
+		}
 
 		var content map[string]string
-		if err := json.Unmarshal(summaries[0].Content, &content); err != nil {
+		if err := json.Unmarshal(summaries[0].ContentValue(), &content); err != nil {
 			t.Fatalf("Unmarshal(content) error = %v", err)
 		}
 		if got, want := content["agent_name"], "writer"; got != want {
@@ -330,7 +338,7 @@ func TestRegistryEventSummaries(t *testing.T) {
 		}
 
 		var content map[string]string
-		if err := json.Unmarshal(summaries[0].Content, &content); err != nil {
+		if err := json.Unmarshal(summaries[0].ContentValue(), &content); err != nil {
 			t.Fatalf("Unmarshal(content) error = %v", err)
 		}
 		if got, want := content["error_code"], "verification"; got != want {
@@ -460,6 +468,7 @@ func TestRegistryForWorkspaceMergesGlobalAndWorkspaceSkills(t *testing.T) {
 	userDir := filepath.Join(root, "user")
 	workspace := filepath.Join(root, "workspace")
 	additional := filepath.Join(root, "additional")
+	profileRoot := filepath.Join(root, "profiles", "marketing")
 
 	writeSkillFile(
 		t,
@@ -467,17 +476,35 @@ func TestRegistryForWorkspaceMergesGlobalAndWorkspaceSkills(t *testing.T) {
 		filepath.Join("global", skillFileName),
 		skillWithDescription("global", "Global skill"),
 	)
-	workspaceDir := writeSkillFile(
+	writeSkillFile(
 		t,
 		filepath.Join(workspace, ".compozy", "skills"),
 		filepath.Join("local", skillFileName),
 		skillWithDescription("local", "Workspace skill"),
 	)
-	additionalDir := writeSkillFile(
+	writeSkillFile(
 		t,
 		filepath.Join(additional, ".compozy", "skills"),
 		filepath.Join("shared", skillFileName),
 		skillWithDescription("shared", "Additional skill"),
+	)
+	writeSkillFile(
+		t,
+		filepath.Join(profileRoot, "skills"),
+		filepath.Join("personal", skillFileName),
+		skillWithDescription("personal", "Profile skill"),
+	)
+	writeSkillFile(
+		t,
+		filepath.Join(workspace, ".compozy", "profiles", "marketing", "skills"),
+		filepath.Join("personal", skillFileName),
+		skillWithDescription("personal", "Workspace profile override"),
+	)
+	writeSkillFile(
+		t,
+		filepath.Join(workspace, ".compozy", "profiles", "marketing", "skills"),
+		filepath.Join("project-profile", skillFileName),
+		skillWithDescription("project-profile", "Workspace profile skill"),
 	)
 
 	registry := newTestRegistry(t, RegistryConfig{
@@ -489,18 +516,20 @@ func TestRegistryForWorkspaceMergesGlobalAndWorkspaceSkills(t *testing.T) {
 	}
 
 	got, err := registry.ForWorkspace(context.Background(), &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: "ws_1", RootDir: workspace},
-		Skills: []workspacepkg.SkillPath{
-			{Dir: filepath.Dir(workspaceDir), Source: "workspace"},
-			{Dir: filepath.Dir(additionalDir), Source: "additional"},
+		Workspace: workspacepkg.Workspace{
+			ID:             "ws_1",
+			RootDir:        workspace,
+			AdditionalDirs: []string{additional},
 		},
+		ProfileName: "marketing",
+		ProfileRoot: profileRoot,
 	})
 	if err != nil {
 		t.Fatalf("ForWorkspace() error = %v", err)
 	}
 
-	if len(got) != 3 {
-		t.Fatalf("ForWorkspace() len = %d, want 3", len(got))
+	if len(got) != 5 {
+		t.Fatalf("ForWorkspace() len = %d, want 5", len(got))
 	}
 	if findSkill(t, got, "global").Source != SourceUser {
 		t.Fatalf("global Source = %v, want %v", findSkill(t, got, "global").Source, SourceUser)
@@ -513,6 +542,28 @@ func TestRegistryForWorkspaceMergesGlobalAndWorkspaceSkills(t *testing.T) {
 			"shared Source = %v, want %v",
 			findSkill(t, got, "shared").Source,
 			SourceAdditional,
+		)
+	}
+	if findSkill(t, got, "personal").Source != SourceWorkspaceProfile {
+		personal := findSkill(t, got, "personal")
+		t.Fatalf("personal Source = %v, want %v", personal.Source, SourceWorkspaceProfile)
+	}
+	personal := findSkill(t, got, "personal")
+	if personal.Source != SourceWorkspaceProfile || personal.Meta.Description != "Workspace profile override" {
+		t.Fatalf("personal winner = %#v, want workspace-profile override", personal)
+	}
+	if len(personal.Diagnostics.ShadowedDefinitions) == 0 ||
+		personal.Diagnostics.ShadowedDefinitions[0].Source != "profile" {
+		t.Fatalf(
+			"personal shadow diagnostics = %#v, want profile definition",
+			personal.Diagnostics.ShadowedDefinitions,
+		)
+	}
+	if findSkill(t, got, "project-profile").Source != SourceWorkspaceProfile {
+		t.Fatalf(
+			"project-profile Source = %v, want %v",
+			findSkill(t, got, "project-profile").Source,
+			SourceWorkspaceProfile,
 		)
 	}
 }
@@ -711,7 +762,7 @@ func TestRegistryWorkspaceOverrideAudits(t *testing.T) {
 				Kind: SkillResourceKind,
 				ID:   "global:cool-skill",
 				Scope: resources.ResourceScope{
-					Kind: resources.ResourceScopeKindGlobal,
+					Kind: resources.ResourceScopeKindUser,
 				},
 				Spec: SkillResourceSpec{
 					Name:        "cool-skill",
@@ -859,6 +910,57 @@ func TestRegistryForWorkspaceReturnsCachedResultWhenUnchanged(t *testing.T) {
 	).Meta.Description {
 		t.Fatalf("cached skill description mismatch between calls")
 	}
+}
+
+func TestRegistryForWorkspaceSeparatesProfilesWithSharedWorkspaceIdentity(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep profile skill catalogs isolated", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		workspace := filepath.Join(root, "workspace")
+		marketingRoot := filepath.Join(root, "profiles", "marketing")
+		salesRoot := filepath.Join(root, "profiles", "sales")
+		writeSkillFile(
+			t,
+			filepath.Join(marketingRoot, "skills"),
+			filepath.Join("profile-only", skillFileName),
+			skillWithDescription("profile-only", "Marketing profile"),
+		)
+		writeSkillFile(
+			t,
+			filepath.Join(salesRoot, "skills"),
+			filepath.Join("profile-only", skillFileName),
+			skillWithDescription("profile-only", "Sales profile"),
+		)
+
+		registry := newTestRegistry(t, RegistryConfig{})
+		marketing := resolvedWorkspaceForTest("ws_shared", workspace)
+		marketing.ProfileName = "marketing"
+		marketing.ProfileRoot = marketingRoot
+		sales := marketing
+		sales.ProfileName = "sales"
+		sales.ProfileRoot = salesRoot
+
+		marketingSkills, err := registry.ForWorkspace(context.Background(), &marketing)
+		if err != nil {
+			t.Fatalf("ForWorkspace(marketing) error = %v", err)
+		}
+		salesSkills, err := registry.ForWorkspace(context.Background(), &sales)
+		if err != nil {
+			t.Fatalf("ForWorkspace(sales) error = %v", err)
+		}
+		if got := findSkill(t, marketingSkills, "profile-only").Meta.Description; got != "Marketing profile" {
+			t.Fatalf("marketing profile skill = %q, want Marketing profile", got)
+		}
+		if got := findSkill(t, salesSkills, "profile-only").Meta.Description; got != "Sales profile" {
+			t.Fatalf("sales profile skill = %q, want Sales profile", got)
+		}
+		marketingEntry := cacheEntryForWorkspace(t, registry, &marketing)
+		salesEntry := cacheEntryForWorkspace(t, registry, &sales)
+		if marketingEntry == nil || salesEntry == nil || marketingEntry == salesEntry {
+			t.Fatalf("profile cache entries = marketing:%p sales:%p, want distinct entries", marketingEntry, salesEntry)
+		}
+	})
 }
 
 func TestRegistryForWorkspaceRescansWhenChanged(t *testing.T) {
@@ -1775,6 +1877,16 @@ func TestSkillTypesSupportMarketplaceDeclarations(t *testing.T) {
 func TestSkillSourceMarketplacePrecedenceAndNaming(t *testing.T) {
 	t.Parallel()
 
+	if got, want := []SkillSource{
+		SourceBundled,
+		SourceMarketplace,
+		SourceUser,
+		SourceAdditional,
+		SourceWorkspace,
+		SourceAgentLocal,
+	}, []SkillSource{0, 1, 2, 3, 4, 5}; !slices.Equal(got, want) {
+		t.Fatalf("persisted SkillSource values = %v, want %v", got, want)
+	}
 	if SourceBundled >= SourceMarketplace || SourceMarketplace >= SourceUser {
 		t.Fatalf(
 			"SourceMarketplace ordering = [%d %d %d], want bundled < marketplace < user",
@@ -1802,6 +1914,29 @@ func TestSkillSourceMarketplacePrecedenceAndNaming(t *testing.T) {
 			"skillSourceFromWorkspacePath(marketplace) include = true, want false for global marketplace source",
 		)
 	}
+
+	t.Run("Should rank appended profile sources without enum ordering", func(t *testing.T) {
+		t.Parallel()
+
+		ordered := []SkillSource{
+			SourceBundled,
+			SourceMarketplace,
+			SourceUser,
+			SourceProfile,
+			SourceAdditional,
+			SourceWorkspace,
+			SourceWorkspaceProfile,
+			SourceAgentLocal,
+		}
+		for index := 1; index < len(ordered); index++ {
+			if SkillPrecedenceRank(ordered[index-1]) >= SkillPrecedenceRank(ordered[index]) {
+				t.Fatalf("SkillPrecedenceRank ordering = %v", ordered)
+			}
+		}
+		if SourceProfile < SourceAgentLocal || SourceWorkspaceProfile < SourceAgentLocal {
+			t.Fatal("profile sources were inserted into the persisted enum")
+		}
+	})
 }
 
 func TestCloneSkillDeepCopiesExtendedFields(t *testing.T) {
@@ -2049,7 +2184,7 @@ func TestRegistryCommandCandidatesRespectScopeSourceAndActivation(t *testing.T) 
 		records := []resources.Record[SkillResourceSpec]{
 			{
 				ID:    "global:base",
-				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				Spec: SkillResourceSpec{
 					Name:        "base",
 					Description: "Global base",
@@ -2059,7 +2194,7 @@ func TestRegistryCommandCandidatesRespectScopeSourceAndActivation(t *testing.T) 
 			},
 			{
 				ID:    "global:extension-review",
-				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				Spec: SkillResourceSpec{
 					Name:        "review",
 					Description: "Extension review",
@@ -2071,7 +2206,7 @@ func TestRegistryCommandCandidatesRespectScopeSourceAndActivation(t *testing.T) 
 			{
 				ID: "global:marketplace-review",
 				Scope: resources.ResourceScope{
-					Kind: resources.ResourceScopeKindGlobal,
+					Kind: resources.ResourceScopeKindUser,
 				},
 				Spec: SkillResourceSpec{
 					Name:        "review",
@@ -2444,7 +2579,7 @@ func TestRegistrySetEnabledPreservesDisabledOverlayDuringResourceRediscovery(t *
 		if err := registry.ApplyResourceRecords(context.Background(), 1, []resources.Record[SkillResourceSpec]{
 			{
 				ID:    "skill.global-skill",
-				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				Spec:  SkillToResourceSpec(findSkill(t, discovered, "global-skill")),
 			},
 		}); err != nil {
@@ -2664,7 +2799,7 @@ func (r *recordingSkillEventSummaryStore) WriteEventSummary(
 ) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	summary.Content = append([]byte(nil), summary.Content...)
+	summary.SetContent(summary.ContentValue())
 	r.summaries = append(r.summaries, summary)
 	return nil
 }
@@ -2682,7 +2817,7 @@ func (r *recordingSkillEventSummaryStore) Summaries() []store.EventSummary {
 	cloned := make([]store.EventSummary, 0, len(r.summaries))
 	for _, summary := range r.summaries {
 		next := summary
-		next.Content = append([]byte(nil), summary.Content...)
+		next.SetContent(summary.ContentValue())
 		cloned = append(cloned, next)
 	}
 	return cloned

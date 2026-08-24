@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 // Validate reports whether the actor identity contains a supported kind and non-empty reference.
@@ -134,6 +136,11 @@ func (a ActorContext) Validate() error {
 	if err := a.Scope.Validate(a.Actor); err != nil {
 		return err
 	}
+	if a.ReadScope != (store.ReadScope{}) {
+		if _, err := normalizeTaskReadScope(a.ReadScope); err != nil {
+			return fmt.Errorf("%w: %s: %w", ErrValidation, nestedPath("actor", "read_scope"), err)
+		}
+	}
 	return nil
 }
 
@@ -141,6 +148,9 @@ func (a ActorContext) Validate() error {
 func (t Task) Validate() error {
 	if strings.TrimSpace(t.ID) == "" {
 		return fmt.Errorf("%w: task.id is required", ErrValidation)
+	}
+	if strings.TrimSpace(t.ProfileID) == "" {
+		return fmt.Errorf("%w: task.profile_id is required", ErrValidation)
 	}
 	if err := ValidateScopeBinding(t.Scope, t.WorkspaceID, "task", "workspace_id"); err != nil {
 		return err
@@ -168,15 +178,7 @@ func (t Task) Validate() error {
 	if err := validateTaskMaxAttempts(t.MaxAttempts, "task.max_attempts", true); err != nil {
 		return err
 	}
-	approvalPolicy := normalizeApprovalPolicyOrDefault(t.ApprovalPolicy)
-	if err := approvalPolicy.Validate("task.approval_policy"); err != nil {
-		return err
-	}
-	approvalState := normalizeApprovalStateOrDefault(approvalPolicy, t.ApprovalState)
-	if err := approvalState.Validate("task.approval_state"); err != nil {
-		return err
-	}
-	if err := ValidateApprovalSemantics(approvalPolicy, approvalState, "task"); err != nil {
+	if err := validateTaskApproval(t); err != nil {
 		return err
 	}
 	if err := t.CreatedBy.Validate("task.created_by"); err != nil {
@@ -197,6 +199,18 @@ func (t Task) Validate() error {
 		return err
 	}
 	return nil
+}
+
+func validateTaskApproval(task Task) error {
+	policy := normalizeApprovalPolicyOrDefault(task.ApprovalPolicy)
+	if err := policy.Validate("task.approval_policy"); err != nil {
+		return err
+	}
+	state := normalizeApprovalStateOrDefault(policy, task.ApprovalState)
+	if err := state.Validate("task.approval_state"); err != nil {
+		return err
+	}
+	return ValidateApprovalSemantics(policy, state, "task")
 }
 
 func validateNeedsAttention(attention *NeedsAttention) error {

@@ -7,6 +7,8 @@ import { buildSessionTree, filterThreadSessions } from "../../lib/session-hierar
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
 import type { SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
+import { emptyForScope } from "@/systems/profiles";
+
 import { SessionListThread } from "./session-list-thread";
 import { SessionListToolbar } from "./session-list-toolbar";
 import { SessionListWorkspaceGroups } from "./session-list-workspace-groups";
@@ -80,14 +82,15 @@ export function SessionList({
   );
   const collapsedThreads = new Set(collapsedThreadIds);
   const allWorkspaces = view.scope === "all-workspaces";
-  // Say what is actually empty: an archived list with no rows is not the same
-  // claim as an active list with no rows.
+  const ownerOf = view.aggregate ? view.ownerOf : undefined;
+  // Say what is empty AND for whom: an operator in Marketing needs to know the
+  // list is empty in Marketing, not on the machine (US-009.EC-3).
   const emptyMessage =
     normalizedFilter !== ""
-      ? "No sessions match."
+      ? `${emptyForScope("matching sessions", view.scopeLabel)}.`
       : view.archived
-        ? "No archived sessions."
-        : "No sessions yet.";
+        ? `${emptyForScope("archived sessions", view.scopeLabel)}.`
+        : `${emptyForScope("sessions", view.scopeLabel)}.`;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid={`${testIdPrefix}-content`}>
@@ -129,6 +132,9 @@ export function SessionList({
             groups={view.workspaceGroups}
             collapsedWorkspaceIds={view.collapsedWorkspaceIds}
             currentSessionId={currentSessionId}
+            ownerOf={ownerOf}
+            scopeLabel={view.scopeLabel}
+            archived={view.archived}
             onToggleWorkspace={view.toggleWorkspace}
             onSelectSession={onSelectSession}
             sessionActions={sessionActions}
@@ -142,6 +148,8 @@ export function SessionList({
                 session={thread.session}
                 childSessions={thread.childSessions}
                 currentSessionId={currentSessionId}
+                owner={ownerOf?.(thread.session)}
+                ownerOf={ownerOf}
                 collapsed={collapsedThreads.has(thread.session.id)}
                 onToggleThread={onToggleThread}
                 onSelectSession={onSelectSession}

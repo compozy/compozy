@@ -12,7 +12,7 @@ export function useCmdPaletteFallbackSettings(input: {
   const filter =
     input.scope === "workspace" && input.activeWorkspaceId !== null
       ? { scope: "workspace" as const, workspace_id: input.activeWorkspaceId }
-      : { scope: "global" as const };
+      : { scope: "user" as const };
   const query = useQuery({
     ...settingsCmdPaletteOptions(filter),
     enabled: input.open && input.settled,

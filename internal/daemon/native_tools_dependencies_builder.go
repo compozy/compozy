@@ -11,10 +11,7 @@ func (d *Daemon) nativeToolsDeps(
 	state *bootState,
 	registryRef func() toolspkg.Registry,
 ) daemonNativeToolsDeps {
-	agentCatalog := agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
-		soul:      state.soulCatalog,
-		heartbeat: state.heartbeatCatalog,
-	})
+	agentCatalog := nativeAgentCatalogDependency(state)
 	marketplaceSkills := d.nativeMarketplaceSkills(state)
 	return daemonNativeToolsDeps{
 		Registry:                   registryRef,
@@ -23,6 +20,8 @@ func (d *Daemon) nativeToolsDeps(
 		Config:                     state.cfg,
 		Skills:                     skillsRegistryAPI(state.skillsRegistry),
 		Sessions:                   state.sessions,
+		Profiles:                   state.profiles,
+		ProfileManager:             state.profiles,
 		SessionAttachments:         state.sessionAttachments,
 		Workspaces:                 state.workspaceResolver,
 		Worktrees:                  state.worktrees,
@@ -85,9 +84,15 @@ func (d *Daemon) nativeToolsDeps(
 		Loops: func() core.LoopService {
 			return state.deps.Loops
 		},
-		Resources:     state.deps.Resources,
-		WindowManager: state.windowManager,
+		Resources:      state.deps.Resources,
+		WindowManagers: state.windowManagers,
 	}
+}
+
+func nativeAgentCatalogDependency(state *bootState) *resourceAgentCatalog {
+	return agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
+		soul: state.soulCatalog, heartbeat: state.heartbeatCatalog,
+	})
 }
 
 func (d *Daemon) nativeMarketplaceSkills(state *bootState) *skillmarketplace.Service {

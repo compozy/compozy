@@ -109,6 +109,25 @@ func (s *Store) catalogAgentTier(scope memcontract.Scope) memcontract.AgentTier 
 	return s.agentTier.Normalize()
 }
 
+func (s *Store) profileIDForScope(scope memcontract.Scope) string {
+	switch scope.Normalize() {
+	case memcontract.ScopeProfile, memcontract.ScopeAgent:
+		return strings.TrimSpace(s.profileID)
+	default:
+		return ""
+	}
+}
+
+func (s *Store) catalogIdentity(scope memcontract.Scope, workspaceID string) catalogIdentity {
+	return newCatalogIdentity(
+		s.profileIDForScope(scope),
+		scope,
+		workspaceID,
+		s.catalogAgentName(scope),
+		s.catalogAgentTier(scope),
+	)
+}
+
 func (s *Store) collectSearchDocuments(
 	ctx context.Context,
 	scope memcontract.Scope,
@@ -119,7 +138,7 @@ func (s *Store) collectSearchDocuments(
 		scope       memcontract.Scope
 		workspace   string
 		workspaceID string
-	}{{scope: memcontract.ScopeGlobal}}
+	}{{scope: memcontract.ScopeProfile}}
 	switch scope.Normalize() {
 	case memcontract.ScopeWorkspace:
 		scopes = []struct {
@@ -169,7 +188,7 @@ func (s *Store) collectActualCatalogIDs(
 			return nil, err
 		}
 		for _, header := range headers {
-			actual[catalogDocIDForHeader(filter.scope, filter.workspaceID, header)] = struct{}{}
+			actual[catalogDocIDForHeader(filter.profileID, filter.scope, filter.workspaceID, header)] = struct{}{}
 		}
 	}
 	return actual, nil
@@ -182,7 +201,11 @@ func (s *Store) logCatalogEvent(ctx context.Context, record memcontract.Operatio
 	if ctx == nil {
 		return errors.New("memory: catalog event context is required")
 	}
-	return s.catalog.logEvent(ctx, record)
+	profileID := s.profileIDForScope(record.Scope)
+	if record.Scope.Normalize() == "" {
+		profileID = strings.TrimSpace(s.profileID)
+	}
+	return s.catalog.logEvent(ctx, profileID, record)
 }
 
 func (s *Store) logMutationEvent(

@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -22,6 +24,43 @@ import (
 type fakeProviderSecretResolver struct {
 	values map[string]string
 	errs   map[string]error
+}
+
+type mutableProviderSecretResolver struct {
+	mu     sync.RWMutex
+	values map[string]string
+}
+
+func (r *mutableProviderSecretResolver) ResolveRef(ctx context.Context, ref string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	value, ok := r.values[ref]
+	if !ok {
+		return "", vault.ErrSecretNotFound
+	}
+	return value, nil
+}
+
+func (r *mutableProviderSecretResolver) delete(ref string) {
+	r.mu.Lock()
+	delete(r.values, ref)
+	r.mu.Unlock()
+}
+
+type profileNameResolverMap map[string]string
+
+func (r profileNameResolverMap) ProfileName(ctx context.Context, profileID string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	name, ok := r[profileID]
+	if !ok {
+		return "", fmt.Errorf("unknown profile id %q", profileID)
+	}
+	return name, nil
 }
 
 func TestProviderRuntimeEnvironmentLookupUsesPlatformSemantics(t *testing.T) {
@@ -66,6 +105,23 @@ func TestProviderRuntimeEnvironmentLookupUsesPlatformSemantics(t *testing.T) {
 			t.Fatalf("providerHomeIdentity(USERPROFILE) = %q, want %q", got, wantUserProfile)
 		}
 	})
+
+	t.Run("Should retain workspace and profile ownership without a sandbox", func(t *testing.T) {
+		t.Parallel()
+
+		const profileID = "01PROFILEMARKETING000000000"
+		scope := providerPreStartScopeForSession(&Session{
+			WorkspaceID: "ws-marketing",
+			ProfileID:   profileID,
+		}, []string{"HOME=/provider-home"})
+		if scope.WorkspaceID != "ws-marketing" || scope.ProfileID != profileID ||
+			scope.HomeIdentity != "/provider-home" {
+			t.Fatalf("provider pre-start scope = %#v, want workspace/profile/home ownership", scope)
+		}
+		if scope.SandboxID != "" || scope.SandboxBackend != "" || scope.SandboxProfile != "" {
+			t.Fatalf("provider pre-start sandbox scope = %#v, want empty no-sandbox fields", scope)
+		}
+	})
 }
 
 func (r fakeProviderSecretResolver) ResolveRef(ctx context.Context, ref string) (string, error) {
@@ -82,6 +138,128 @@ func (r fakeProviderSecretResolver) ResolveRef(ctx context.Context, ref string) 
 		return value, nil
 	}
 	return "", vault.ErrSecretNotFound
+}
+
+func TestProviderCredentialOverrideSurvivesInflightRemovalAndFallsBackOnNextRunIT047IT048(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve in-flight profile credentials and fall back on the next run", func(t *testing.T) {
+		t.Parallel()
+		testProviderCredentialOverrideSurvivesInflightRemovalAndFallsBackOnNextRunIT047IT048(t)
+	})
+}
+
+func testProviderCredentialOverrideSurvivesInflightRemovalAndFallsBackOnNextRunIT047IT048(t *testing.T) {
+	const marketingProfileID = "01PROFILEMARKETING000000000"
+	profileRef := "vault:profiles/marketing/providers/openrouter/api_key"
+	userRef := "vault:providers/openrouter/api_key"
+	secrets := &mutableProviderSecretResolver{values: map[string]string{
+		profileRef: "profile-secret",
+		userRef:    "user-secret",
+	}}
+	h := newHarness(
+		t,
+		WithProviderSecretResolver(secrets),
+		WithProfileNameResolver(profileNameResolverMap{
+			store.DefaultProfileID: "default",
+			marketingProfileID:     "marketing",
+		}),
+	)
+	resolved, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+	if err != nil {
+		t.Fatalf("Resolve(workspace) error = %v", err)
+	}
+	resolved.Config.Providers["openrouter"] = compozyconfig.ProviderConfig{
+		Command:  "acpmock-openrouter",
+		Harness:  compozyconfig.ProviderHarnessACP,
+		AuthMode: compozyconfig.ProviderAuthModeBoundSecret,
+		CredentialSlots: []compozyconfig.ProviderCredentialSlot{{
+			Name: "api_key", TargetEnv: "OPENROUTER_API_KEY", SecretRef: userRef, Required: true,
+		}},
+	}
+	resolved.Agents = []compozyconfig.AgentDef{{
+		Name: "credential-agent", Provider: "openrouter", Prompt: "Use the configured credential.",
+	}}
+	h.resolver.upsert(&resolved)
+
+	startOptions := make(chan acp.StartOpts, 3)
+	releaseFirstStart := make(chan struct{})
+	h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
+		startOptions <- opts
+		if sequence == 1 {
+			<-releaseFirstStart
+		}
+		return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-credential-%d", sequence)), nil
+	}
+	type createResult struct {
+		session *Session
+		err     error
+	}
+	firstResult := make(chan createResult, 1)
+	go func() {
+		session, createErr := h.manager.Create(t.Context(), CreateOpts{
+			ProfileID: marketingProfileID,
+			AgentName: "credential-agent",
+			Name:      "marketing-inflight",
+			Workspace: h.workspaceID,
+		})
+		firstResult <- createResult{session: session, err: createErr}
+	}()
+	firstOpts := <-startOptions
+	if got := envValue(firstOpts.Env, "OPENROUTER_API_KEY"); got != "profile-secret" {
+		t.Fatalf("marketing in-flight credential = %q, want profile-secret", got)
+	}
+	secrets.delete(profileRef)
+	close(releaseFirstStart)
+	first := <-firstResult
+	if first.err != nil {
+		t.Fatalf("Create(marketing in-flight) error = %v", first.err)
+	}
+	if first.session.ProfileID != marketingProfileID {
+		t.Fatalf("marketing in-flight owner = %q, want %q", first.session.ProfileID, marketingProfileID)
+	}
+	if err := h.manager.Stop(t.Context(), first.session.ID); err != nil {
+		t.Fatalf("Stop(marketing in-flight) error = %v", err)
+	}
+
+	next, err := h.manager.Create(t.Context(), CreateOpts{
+		ProfileID: marketingProfileID,
+		AgentName: "credential-agent",
+		Name:      "marketing-fallback",
+		Workspace: h.workspaceID,
+	})
+	if err != nil {
+		t.Fatalf("Create(marketing fallback) error = %v", err)
+	}
+	nextOpts := <-startOptions
+	if got := envValue(nextOpts.Env, "OPENROUTER_API_KEY"); got != "user-secret" {
+		t.Fatalf("marketing next-run credential = %q, want user-secret", got)
+	}
+	if next.ProfileID != marketingProfileID {
+		t.Fatalf("marketing fallback owner = %q, want %q", next.ProfileID, marketingProfileID)
+	}
+	if err := h.manager.Stop(t.Context(), next.ID); err != nil {
+		t.Fatalf("Stop(marketing fallback) error = %v", err)
+	}
+
+	defaultSession, err := h.manager.Create(t.Context(), CreateOpts{
+		ProfileID: store.DefaultProfileID,
+		AgentName: "credential-agent",
+		Name:      "default-user-credential",
+		Workspace: h.workspaceID,
+	})
+	if err != nil {
+		t.Fatalf("Create(default credential) error = %v", err)
+	}
+	defaultOpts := <-startOptions
+	if got := envValue(defaultOpts.Env, "OPENROUTER_API_KEY"); got != "user-secret" {
+		t.Fatalf("default credential = %q, want user-secret", got)
+	}
+	if defaultSession.ProfileID != store.DefaultProfileID {
+		t.Fatalf("default owner = %q, want %q", defaultSession.ProfileID, store.DefaultProfileID)
+	}
+	if err := h.manager.Stop(t.Context(), defaultSession.ID); err != nil {
+		t.Fatalf("Stop(default credential) error = %v", err)
+	}
 }
 
 func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T) {
@@ -340,6 +518,41 @@ func TestResolveProviderNativeCLIUsesFinalLaunchEnvironment(t *testing.T) {
 
 func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should prefer the active profile credential and retain user fallback semantics", func(t *testing.T) {
+		t.Parallel()
+
+		profileRef := "vault:profiles/marketing/providers/openrouter/api_key"
+		userRef := "vault:providers/openrouter/api_key"
+		manager := &Manager{providerSecrets: fakeProviderSecretResolver{values: map[string]string{
+			profileRef: "profile-secret",
+			userRef:    "user-secret",
+		}}}
+		resolved := compozyconfig.ResolvedAgent{
+			ProfileName: "marketing",
+			Provider:    "openrouter",
+			Harness:     compozyconfig.ProviderHarnessACP,
+			AuthMode:    compozyconfig.ProviderAuthModeBoundSecret,
+			CredentialSlots: []compozyconfig.ProviderCredentialSlot{{
+				Name: "api_key", TargetEnv: "OPENROUTER_API_KEY", SecretRef: userRef, Required: true,
+			}},
+		}
+		opts, err := manager.prepareProviderForStart(
+			t.Context(),
+			&Session{sessionDir: t.TempDir()},
+			resolved,
+			acp.StartOpts{},
+		)
+		if err != nil {
+			t.Fatalf("prepareProviderForStart(profile override) error = %v", err)
+		}
+		if got := envValue(opts.Env, "OPENROUTER_API_KEY"); got != "profile-secret" {
+			t.Fatalf("OPENROUTER_API_KEY = %q, want profile-secret", got)
+		}
+		if opts.ProviderConfig == nil || opts.ProviderConfig.CredentialSlots[0].SecretRef != profileRef {
+			t.Fatalf("ProviderConfig credentials = %#v, want profile ref %q", opts.ProviderConfig, profileRef)
+		}
+	})
 
 	t.Run("Should inject resolved provider secrets and redact dynamic values", func(t *testing.T) {
 		t.Parallel()

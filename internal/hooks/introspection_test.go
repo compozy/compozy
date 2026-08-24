@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"context"
+	"reflect"
 	"testing"
 )
 
@@ -64,7 +65,7 @@ func TestHooksCatalogFiltersByWorkspaceAndAgent(t *testing.T) {
 			t.Fatalf("Catalog() error = %v", err)
 		}
 		if got, want := len(entries), 2; got != want {
-			t.Fatalf("len(entries) = %d, want %d", got, want)
+			t.Fatalf("len(entries) = %d, want %d; entries=%#v", got, want, entries)
 		}
 		if entries[0].Name != "matching-session" {
 			t.Fatalf("entries[0].Name = %q, want matching-session", entries[0].Name)
@@ -77,6 +78,55 @@ func TestHooksCatalogFiltersByWorkspaceAndAgent(t *testing.T) {
 		}
 		if entries[1].Matcher.ToolReadOnly == nil || !*entries[1].Matcher.ToolReadOnly {
 			t.Fatalf("entries[1].Matcher.ToolReadOnly = %#v, want true", entries[1].Matcher.ToolReadOnly)
+		}
+	})
+}
+
+func TestHooksCatalogFiltersByProfile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return only hooks owned by the selected profile", func(t *testing.T) {
+		t.Parallel()
+
+		hooks := newTestHooks(
+			t,
+			WithConfigDeclarations([]HookDecl{
+				{
+					Name: "shared-hook", Event: HookSessionPostCreate,
+					Mode: HookModeSync, Command: "/bin/sh", Args: []string{"-c", "printf '{}'"},
+				},
+				{
+					Name: "default-hook", ProfileID: "profile-default", Event: HookSessionPostCreate,
+					Mode: HookModeSync, Command: "/bin/sh", Args: []string{"-c", "printf '{}'"},
+				},
+				{
+					Name: "marketing-hook", ProfileID: "profile-marketing", Event: HookSessionPostCreate,
+					Mode: HookModeSync, Command: "/bin/sh", Args: []string{"-c", "printf '{}'"},
+				},
+			}),
+		)
+		if err := hooks.Rebuild(t.Context()); err != nil {
+			t.Fatalf("Rebuild() error = %v", err)
+		}
+
+		entries, err := hooks.Catalog(CatalogFilter{ProfileID: "profile-marketing"})
+		if err != nil {
+			t.Fatalf("Catalog() error = %v", err)
+		}
+		if got, want := len(entries), 2; got != want {
+			t.Fatalf("len(entries) = %d, want %d", got, want)
+		}
+		if got, want := []string{
+			entries[0].Name,
+			entries[1].Name,
+		}, []string{
+			"marketing-hook",
+			"shared-hook",
+		}; !reflect.DeepEqual(
+			got,
+			want,
+		) {
+			t.Fatalf("entry names = %#v, want %#v", got, want)
 		}
 	})
 }

@@ -33,7 +33,7 @@ func (h *BaseHandlers) AgentNotify(c *gin.Context) {
 		return
 	}
 	result, err := publisher.PublishOperatorNotification(c.Request.Context(), session.NotifyRequest{
-		SessionID: caller.Session.ID, WorkspaceID: caller.Session.WorkspaceID,
+		SessionID: caller.Session.ID, ProfileID: caller.Session.ProfileID, WorkspaceID: caller.Session.WorkspaceID,
 		Title: req.Title, Body: req.Body,
 	})
 	if err != nil {

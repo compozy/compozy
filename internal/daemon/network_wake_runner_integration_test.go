@@ -32,9 +32,10 @@ func TestNetworkWakeRunnerWithDurableTaskService(t *testing.T) {
 	acceptedAt := time.Date(2026, 7, 14, 9, 0, 0, 0, time.UTC)
 	seedDB := openNetworkWakeIntegrationDB(t, databasePath)
 	seedNetworkWakeIntegrationScope(t, seedDB, workspaceDir, acceptedAt)
+	acceptance := networkWakeIntegrationAcceptance(t, acceptedAt)
 	accepted, err := seedDB.AcceptNetworkMessage(
 		ctx,
-		networkWakeIntegrationAcceptance(t, acceptedAt),
+		&acceptance,
 	)
 	if err != nil {
 		t.Fatalf("AcceptNetworkMessage() error = %v", err)
@@ -168,12 +169,19 @@ func seedNetworkWakeIntegrationScope(
 	}
 	for _, sessionID := range []string{"session-sender", "session-target", "session-foreign"} {
 		if err := db.RegisterSession(t.Context(), store.SessionInfo{
-			ID: sessionID, AgentName: "coder", Provider: "test",
+			ProfileID: store.DefaultProfileID, ID: sessionID, AgentName: "coder", Provider: "test",
 			WorkspaceID: "workspace-network", State: "active",
 			RuntimeStatus: store.SessionRuntimeUnbound,
 			CreatedAt:     now, UpdatedAt: now,
 		}); err != nil {
 			t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
 		}
+	}
+	if err := db.CreateNetworkChannel(t.Context(), store.NetworkChannelEntry{
+		ProfileID: store.DefaultProfileID, WorkspaceID: "workspace-network", Channel: "builders",
+		Purpose: "Network wake fixture", FanoutPolicy: store.NetworkFanoutPolicyAllMembers,
+		CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("CreateNetworkChannel(builders) error = %v", err)
 	}
 }

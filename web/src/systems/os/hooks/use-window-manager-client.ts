@@ -13,6 +13,20 @@ import {
   windowManagerRetryDelay,
 } from "./window-manager-client-registration-store";
 
+interface ClientScope {
+  workspaceId: string;
+  profileId: string;
+}
+
+function clientScope(workspaceId: string | null, profileId: string | null): ClientScope | null {
+  if (workspaceId === null || profileId === null) return null;
+  return { workspaceId, profileId };
+}
+
+function bindingScope(scope: ClientScope | null): string | null {
+  return scope === null ? null : `${scope.workspaceId}\u0000${scope.profileId}`;
+}
+
 export interface WindowManagerClientRegistrationState {
   clientId: string;
   registrationEpoch: number;
@@ -23,11 +37,17 @@ export interface WindowManagerClientRegistrationState {
 }
 
 export function useWindowManagerClient(
-  workspaceId: string | null
+  workspaceId: string | null,
+  profileId: string | null
 ): WindowManagerClientRegistrationState {
   const [clientId] = useState(stableWindowManagerClientId);
   const documentVisible = useDocumentVisible();
-  const { store } = useStoreBinding(workspaceId, () =>
+  const scope = clientScope(workspaceId, profileId);
+  // The registration belongs to one (workspace, profile) pair: switching either
+  // rebinds the store, which re-registers this client against the desks it is
+  // about to present. Registering is all this side does — the daemon's claim moves
+  // the attachment, so no unregister races the switch it follows (US-026).
+  const { store } = useStoreBinding(bindingScope(scope), () =>
     windowManagerClientRegistrationLogic.createStore({
       clientId,
       documentVisible,
@@ -49,8 +69,10 @@ export function useWindowManagerClient(
     if (phase !== "registering" || selectedWorkspaceId === null) return undefined;
     const controller = new AbortController();
     const kind = isDesktopShell() ? "shell" : "browser";
+    if (profileId === null) return undefined;
     void registerWindowManagerClient(
       selectedWorkspaceId,
+      profileId,
       clientId,
       undefined,
       kind,
@@ -72,7 +94,7 @@ export function useWindowManagerClient(
         });
       });
     return () => controller.abort();
-  }, [clientId, epoch, phase, selectedWorkspaceId, store]);
+  }, [clientId, epoch, phase, profileId, selectedWorkspaceId, store]);
 
   useEffect(() => {
     if (phase !== "waiting-retry") return undefined;

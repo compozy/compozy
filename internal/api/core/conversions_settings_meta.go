@@ -7,13 +7,13 @@ import (
 	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
-func settingsGlobalSectionMetaPayload(
+func settingsUserSectionMetaPayload(
 	envelope settingspkg.SectionEnvelope,
-) contract.SettingsGlobalSectionResponseMetaPayload {
-	return contract.SettingsGlobalSectionResponseMetaPayload{
+) contract.SettingsUserSectionResponseMetaPayload {
+	return contract.SettingsUserSectionResponseMetaPayload{
 		Section:         contract.SettingsSectionName(envelope.Section),
-		Scope:           contract.SettingsGlobalScopeKind(envelope.Scope),
-		AvailableScopes: settingsGlobalScopeKindsPayload(envelope.AvailableScopes),
+		Scope:           contract.SettingsUserScopeKind(envelope.Scope),
+		AvailableScopes: settingsUserScopeKindsPayload(envelope.AvailableScopes),
 	}
 }
 
@@ -29,34 +29,47 @@ func settingsSkillsSectionMetaPayload(
 	}
 }
 
-func settingsGlobalWorkspaceSectionMetaPayload(
+func settingsLayeredSectionMetaPayload(
 	envelope settingspkg.SectionEnvelope,
-) contract.SettingsGlobalWorkspaceSectionResponseMetaPayload {
-	return contract.SettingsGlobalWorkspaceSectionResponseMetaPayload{
+) contract.SettingsLayeredSectionResponseMetaPayload {
+	return contract.SettingsLayeredSectionResponseMetaPayload{
 		Section:         contract.SettingsSectionName(envelope.Section),
-		Scope:           contract.SettingsWorkspaceScopeKind(envelope.Scope),
+		Scope:           contract.SettingsLayeredScopeKind(envelope.Scope),
 		WorkspaceID:     strings.TrimSpace(envelope.WorkspaceID),
+		Profile:         strings.TrimSpace(envelope.ProfileName),
 		AvailableScopes: settingsWorkspaceScopeKindsPayload(envelope.AvailableScopes),
 	}
 }
 
-func settingsGlobalCollectionMetaPayload(
-	envelope settingspkg.CollectionEnvelope,
-) contract.SettingsGlobalCollectionResponseMetaPayload {
-	return contract.SettingsGlobalCollectionResponseMetaPayload{
-		Collection:      contract.SettingsCollectionName(envelope.Collection),
-		Scope:           contract.SettingsGlobalScopeKind(envelope.Scope),
-		AvailableScopes: settingsGlobalScopeKindsPayload(envelope.AvailableScopes),
+func settingsUserWorkspaceSectionMetaPayload(
+	envelope settingspkg.SectionEnvelope,
+) contract.SettingsWorkspaceSectionResponseMetaPayload {
+	return contract.SettingsWorkspaceSectionResponseMetaPayload{
+		Section:         contract.SettingsSectionName(envelope.Section),
+		Scope:           contract.SettingsWorkspaceScopeKind(envelope.Scope),
+		WorkspaceID:     strings.TrimSpace(envelope.WorkspaceID),
+		AvailableScopes: settingsUserWorkspaceScopeKindsPayload(envelope.AvailableScopes),
 	}
 }
 
-func settingsGlobalWorkspaceCollectionMetaPayload(
+func settingsUserCollectionMetaPayload(
 	envelope settingspkg.CollectionEnvelope,
-) contract.SettingsGlobalWorkspaceCollectionResponseMetaPayload {
-	return contract.SettingsGlobalWorkspaceCollectionResponseMetaPayload{
+) contract.SettingsUserCollectionResponseMetaPayload {
+	return contract.SettingsUserCollectionResponseMetaPayload{
 		Collection:      contract.SettingsCollectionName(envelope.Collection),
-		Scope:           contract.SettingsWorkspaceScopeKind(envelope.Scope),
+		Scope:           contract.SettingsUserScopeKind(envelope.Scope),
+		AvailableScopes: settingsUserScopeKindsPayload(envelope.AvailableScopes),
+	}
+}
+
+func settingsLayeredCollectionMetaPayload(
+	envelope settingspkg.CollectionEnvelope,
+) contract.SettingsLayeredCollectionResponseMetaPayload {
+	return contract.SettingsLayeredCollectionResponseMetaPayload{
+		Collection:      contract.SettingsCollectionName(envelope.Collection),
+		Scope:           contract.SettingsLayeredScopeKind(envelope.Scope),
 		WorkspaceID:     strings.TrimSpace(envelope.WorkspaceID),
+		Profile:         strings.TrimSpace(envelope.ProfileName),
 		AvailableScopes: settingsWorkspaceScopeKindsPayload(envelope.AvailableScopes),
 	}
 }

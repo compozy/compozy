@@ -15,7 +15,7 @@ describe("KnowledgeDeleteDialog", () => {
           onConfirm={vi.fn()}
           onOpenChange={vi.fn()}
           open={false}
-          scope="global"
+          scope="profile"
         />
       </UIProvider>
     );
@@ -51,7 +51,7 @@ describe("KnowledgeDeleteDialog", () => {
           onConfirm={onConfirm}
           onOpenChange={vi.fn()}
           open
-          scope="global"
+          scope="profile"
         />
       </UIProvider>
     );
@@ -71,7 +71,7 @@ describe("KnowledgeDeleteDialog", () => {
           onConfirm={onConfirm}
           onOpenChange={vi.fn()}
           open
-          scope="global"
+          scope="profile"
         />
       </UIProvider>
     );
@@ -94,7 +94,7 @@ describe("KnowledgeDeleteDialog", () => {
           onConfirm={vi.fn()}
           onOpenChange={onOpenChange}
           open
-          scope="global"
+          scope="profile"
         />
       </UIProvider>
     );
@@ -114,7 +114,7 @@ describe("KnowledgeDeleteDialog", () => {
           onConfirm={vi.fn()}
           onOpenChange={vi.fn()}
           open
-          scope="global"
+          scope="profile"
         />
       </UIProvider>
     );

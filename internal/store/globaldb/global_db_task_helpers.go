@@ -131,7 +131,7 @@ func normalizeTaskRunRecord(run taskpkg.Run) taskpkg.Run {
 	normalized.Review = normalizeTaskRunReviewLineage(normalized.Review)
 	normalized.Error = strings.TrimSpace(normalized.Error)
 	normalized.Metadata = normalizeTaskJSON(normalized.Metadata)
-	normalized.Result = normalizeTaskJSON(normalized.Result)
+	normalized.SetResult(normalizeTaskJSON(normalized.ResultValue()))
 	if !normalized.QueuedAt.IsZero() {
 		normalized.QueuedAt = normalized.QueuedAt.UTC()
 	}
@@ -240,6 +240,7 @@ func normalizeTaskRunCapabilityIDs(values []string) []string {
 
 func normalizeTaskQuery(query taskpkg.Query) taskpkg.Query {
 	normalized := query
+	normalized.ReadScope.ProfileID = strings.TrimSpace(normalized.ReadScope.ProfileID)
 	normalized.Scope = normalized.Scope.Normalize()
 	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
 	normalized.Status = normalized.Status.Normalize()
@@ -256,6 +257,7 @@ func normalizeTaskQuery(query taskpkg.Query) taskpkg.Query {
 
 func normalizeTaskRunQuery(query taskpkg.RunQuery) taskpkg.RunQuery {
 	normalized := query
+	normalized.ReadScope.ProfileID = strings.TrimSpace(normalized.ReadScope.ProfileID)
 	normalized.TaskID = strings.TrimSpace(normalized.TaskID)
 	normalized.Status = normalized.Status.Normalize()
 	normalized.SessionID = strings.TrimSpace(normalized.SessionID)
@@ -267,6 +269,7 @@ func normalizeTaskRunQuery(query taskpkg.RunQuery) taskpkg.RunQuery {
 func taskSummaryFromRecord(record taskpkg.Task) taskpkg.Summary {
 	return taskpkg.Summary{
 		ID:                 record.ID,
+		ProfileID:          record.ProfileID,
 		Identifier:         record.Identifier,
 		Scope:              record.Scope,
 		WorkspaceID:        record.WorkspaceID,

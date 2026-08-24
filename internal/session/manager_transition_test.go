@@ -198,7 +198,7 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		register := func(id string) {
 			t.Helper()
 			if err := catalog.RegisterSession(ctx, store.SessionInfo{
-				ID: id, Name: id, AgentName: "coder", WorkspaceID: h.workspaceID,
+				ID: id, Name: id, AgentName: "coder", ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID,
 				SessionType: string(SessionTypeUser), State: string(StateActive),
 				RuntimeStatus: store.SessionRuntimeReady, CreatedAt: baseAt, UpdatedAt: baseAt,
 			}); err != nil {
@@ -800,7 +800,10 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		h := newHarness(t, WithSessionCatalog(catalog))
 		active := createSession(t, h)
 		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
-		events, cancel, err := h.manager.SubscribeSessionCatalogEvents(testutil.Context(t))
+		events, cancel, err := h.manager.SubscribeSessionCatalogEvents(
+			testutil.Context(t),
+			CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
+		)
 		if err != nil {
 			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
 		}

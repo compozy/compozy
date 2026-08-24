@@ -15,7 +15,7 @@ The current implementation is intentionally hybrid:
 - `memory_events` is the canonical observability log for memory operations
 - `memory_catalog_entries`, `memory_chunks`, and FTS5 indexes are derived projections
 - `memory_recall_signals` and `memory_consolidations` carry live runtime state for dreaming
-- there are three scopes: `global`, `workspace`, and `agent` — agent has two tiers
+- there are three scopes: `profile`, `workspace`, and `agent` — agent has two tiers
 - normal session prompts receive a **frozen startup snapshot** plus the workspace checkpoint;
   degraded resume replay receives the same checkpoint before persisted transcript context
 
@@ -25,7 +25,7 @@ The current implementation is intentionally hybrid:
   replacement verbs are `compozy memory show` and `compozy memory dream trigger`.
 </OperatorNote>
 
-## Runtime Flow
+## Runtime flow
 
 <Mermaid
   chart={`flowchart TD
@@ -54,23 +54,23 @@ checkpoint, prepends the assembled memory section to the agent prompt, and hands
 ACP subprocess. Writes during the session are durable immediately but only become visible to the
 **next** session via a fresh snapshot.
 
-## Scopes And Authorities
+## Scopes and authorities
 
 | Scope                 | Storage root                                  | Authority                                                    |
 | --------------------- | --------------------------------------------- | ------------------------------------------------------------ |
-| `global`              | `$COMPOZY_HOME/memory/`                       | Cross-workspace user-wide facts.                             |
-| `workspace`           | `<workspace>/.compozy/memory/`                | Workspace-private project facts.                             |
+| `profile`             | `$COMPOZY_HOME/profiles/<name>/memory/`       | Cross-workspace facts owned by one profile.                  |
+| `workspace`           | `<workspace>/.compozy/memory/`                | Workspace-private project facts, shared by every profile.    |
 | `agent` (`workspace`) | `<workspace>/.compozy/agents/<agent>/memory/` | Default agent tier. Workspace-private agent state.           |
 | `agent` (`global`)    | `$COMPOZY_HOME/agents/<agent>/memory/`        | Cross-workspace agent state. Explicit `--agent-tier global`. |
 
-Read precedence is `agent-workspace ▸ agent-global ▸ workspace ▸ global`. Identity is keyed by
+Read precedence is `agent-workspace ▸ agent-global ▸ workspace ▸ profile`. Identity is keyed by
 `(type, slug)` per scope, and a deeper scope shadows a shallower scope with the same identity. The
 runtime never silently merges shadowed entries — see [Scopes](/docs/memory/scopes).
 
 Scope is selected explicitly. `--scope agent` requires `--agent <name>` and a validated
 `--agent-tier {workspace, global}`; the agent tier defaults to `workspace` when omitted. CLI/HTTP/UDS
 operator writes that omit `--scope` fall back to a conservative type-driven default for the
-non-agent scopes only: `user` and `feedback` → `global`, `project` and `reference` → `workspace`.
+non-agent scopes only: `user` and `feedback` → `profile`, `project` and `reference` → `workspace`.
 Agent scope must be explicit.
 
 ## Workspace Identity
@@ -102,7 +102,7 @@ Every curated memory file declares one of four types:
 
 The taxonomy is closed. Unsupported types are rejected at the controller boundary.
 
-## Memory File Format
+## Memory file format
 
 Memory files are Markdown with strict YAML frontmatter. The canonical YAML key for the agent name
 is `agent`; JSON and HTTP payloads use `agent_name`.
@@ -112,7 +112,7 @@ is `agent`; JSON and HTTP payloads use `agent_name`.
 | `name`        | yes                  | Human-readable title shown in list output and useful in index entries. |
 | `description` | yes                  | One concise discovery sentence used by recall and indexing.            |
 | `type`        | yes                  | One of `user`, `feedback`, `project`, or `reference`.                  |
-| `scope`       | yes                  | One of `global`, `workspace`, `agent`.                                 |
+| `scope`       | yes                  | One of `profile`, `workspace`, `agent`.                                |
 | `agent`       | when `scope = agent` | Producer agent name.                                                   |
 | `agent_tier`  | when `scope = agent` | One of `workspace`, `global`.                                          |
 | `provenance`  | optional             | Source actor, source sessions, confidence, supersession, timestamps.   |
@@ -124,7 +124,7 @@ Example `feedback` memory written through the controller:
 name: Test Integrity
 description: Production bugs must be fixed instead of weakening tests
 type: feedback
-scope: global
+scope: profile
 provenance:
   source_actor: extractor
   source_sessions:
@@ -138,13 +138,13 @@ If a test reveals incorrect behavior, fix the production code. Do not relax asse
 the suite green.
 ```
 
-## Storage Layout
+## Storage layout
 
 Each scope has a `MEMORY.md` index next to its memory documents and a structurally-excluded
 `_system/` namespace for machine-managed artifacts:
 
 ```text
-$COMPOZY_HOME/memory/
+$COMPOZY_HOME/profiles/<name>/memory/
   MEMORY.md
   user_review-style.md
   feedback_test-integrity.md
@@ -237,9 +237,9 @@ land by itself. Retrying the same payload returns the existing decision and mark
 `content` fields. Batch support is currently agent-manageable through `compozy__memory_propose`; the
 CLI and HTTP/UDS entry-write shapes remain single-document replacements.
 
-## Frozen Snapshot And Recall
+## Frozen snapshot and recall
 
-At session start, CompozyOS captures a **frozen snapshot** of the resolved memory context (global,
+At session start, CompozyOS captures a **frozen snapshot** of the resolved memory context (profile,
 workspace, and the agent's two tiers when applicable). The snapshot includes:
 
 - the per-scope `MEMORY.md` index after staleness banners
@@ -298,7 +298,7 @@ covered by the checkpoint. A successful provider `session/load` keeps using prov
 If a daemon stops after checkpoint coverage but before archive, the original events remain
 unarchived and readable; CompozyOS never archives first and hopes a later summary succeeds.
 
-## Operator And Agent Surfaces
+## Operator and agent surfaces
 
 Memory is reachable from CLI, HTTP, UDS, and native tools with parity. The Slice 1 verbs are:
 
@@ -352,7 +352,7 @@ CLI verbs accept `-o json` and `-o jsonl` for structured output. Errors are dete
 `{code, message, details}` payloads with stable codes such as `memory.scope.invalid`,
 `memory.controller.timeout`, and `memory.provider.collision`.
 
-## MEMORY.md Indexes
+## MEMORY.md indexes
 
 The per-scope `MEMORY.md` is the prompt-safe table of contents. `[memory.file] max_lines = 200` and
 `max_bytes = 25600` cap both a controller-authored document body and the index content included in
@@ -399,13 +399,13 @@ carry `candidate_count`, and controller write decisions remain under `memory.wri
 compatibility view over `memory_events`. Use `compozy memory decisions list` when you need
 controller-level detail.
 
-## Basic Usage
+## Basic usage
 
-Write a global preference (operator-only):
+Write a profile preference (operator-only):
 
 ```bash
 compozy memory write \
-  --scope global \
+  --scope profile \
   --type user \
   --name "Review Style" \
   --description "User wants concise review findings with file references first" \

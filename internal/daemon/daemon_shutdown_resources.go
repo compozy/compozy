@@ -9,8 +9,8 @@ func (d *Daemon) shutdownPersistentResources(ctx context.Context, targets *shutd
 	if targets.viewPatches != nil {
 		targets.viewPatches.CloseViewPatches()
 	}
-	if targets.windowManager != nil {
-		appendWrappedError(errs, "daemon: close window manager", targets.windowManager.Close())
+	if targets.windowManagers != nil {
+		appendWrappedError(errs, "daemon: close window managers", targets.windowManagers.Close())
 	}
 	if targets.windowManagerStore != nil {
 		appendWrappedError(errs, "daemon: close window-manager store", targets.windowManagerStore.Close())

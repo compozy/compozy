@@ -137,6 +137,7 @@ export function BridgesCatalogLocation({ search }: { search: BridgesRouteSearch 
             }
             onClearFilters={page.clearFilters}
             onLoadMore={() => void page.loadMore()}
+            profile={page.profile}
             status={page.isInitialLoading ? "loading" : "ready"}
             view={page.view}
           />

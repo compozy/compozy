@@ -382,18 +382,21 @@ func TestCapabilityCheckerResolveShouldApplyOperatorResourcePolicy(t *testing.T)
 		Resources: ResourcesConfig{
 			Publish: ResourceGrantRequest{
 				Families: []string{"tools", "mcp_servers"},
-				MaxScope: resources.ResourceScopeKindGlobal,
+				MaxScope: resources.ResourceScopeKindUser,
 			},
 		},
-	}, resources.ResourceScopeKindGlobal)
+	}, resources.ResourceScopeKindUser)
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
 	}
 	if !slices.Equal(grant.ResourceKinds, []resources.ResourceKind{resources.ResourceKind("tool")}) {
 		t.Fatalf("Resolve().ResourceKinds = %#v, want [tool]", grant.ResourceKinds)
 	}
-	if !slices.Equal(grant.ResourceScopes, []resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace}) {
-		t.Fatalf("Resolve().ResourceScopes = %#v, want [workspace]", grant.ResourceScopes)
+	if !slices.Equal(grant.ResourceScopes, []resources.ResourceScopeKind{
+		resources.ResourceScopeKindWorkspace,
+		resources.ResourceScopeKindWorkspaceProfile,
+	}) {
+		t.Fatalf("Resolve().ResourceScopes = %#v, want workspace closure", grant.ResourceScopes)
 	}
 }
 
@@ -405,15 +408,18 @@ func TestCapabilityCheckerResolveShouldApplySourceTierScopeCeiling(t *testing.T)
 		Resources: ResourcesConfig{
 			Publish: ResourceGrantRequest{
 				Families: []string{"tools"},
-				MaxScope: resources.ResourceScopeKindGlobal,
+				MaxScope: resources.ResourceScopeKindUser,
 			},
 		},
-	}, resources.ResourceScopeKindGlobal)
+	}, resources.ResourceScopeKindUser)
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
 	}
-	if !slices.Equal(grant.ResourceScopes, []resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace}) {
-		t.Fatalf("Resolve().ResourceScopes = %#v, want [workspace]", grant.ResourceScopes)
+	if !slices.Equal(grant.ResourceScopes, []resources.ResourceScopeKind{
+		resources.ResourceScopeKindWorkspace,
+		resources.ResourceScopeKindWorkspaceProfile,
+	}) {
+		t.Fatalf("Resolve().ResourceScopes = %#v, want workspace closure", grant.ResourceScopes)
 	}
 }
 
@@ -425,15 +431,18 @@ func TestCapabilityCheckerResolveShouldApplySessionModeScopeNarrowing(t *testing
 		Resources: ResourcesConfig{
 			Publish: ResourceGrantRequest{
 				Families: []string{"tools"},
-				MaxScope: resources.ResourceScopeKindGlobal,
+				MaxScope: resources.ResourceScopeKindUser,
 			},
 		},
 	}, resources.ResourceScopeKindWorkspace)
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
 	}
-	if !slices.Equal(grant.ResourceScopes, []resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace}) {
-		t.Fatalf("Resolve().ResourceScopes = %#v, want [workspace]", grant.ResourceScopes)
+	if !slices.Equal(grant.ResourceScopes, []resources.ResourceScopeKind{
+		resources.ResourceScopeKindWorkspace,
+		resources.ResourceScopeKindWorkspaceProfile,
+	}) {
+		t.Fatalf("Resolve().ResourceScopes = %#v, want workspace closure", grant.ResourceScopes)
 	}
 }
 
@@ -445,15 +454,18 @@ func TestCapabilityCheckerRegisterForSessionStoresGrantSnapshot(t *testing.T) {
 		Resources: ResourcesConfig{
 			Publish: ResourceGrantRequest{
 				Families: []string{"tools"},
-				MaxScope: resources.ResourceScopeKindGlobal,
+				MaxScope: resources.ResourceScopeKindUser,
 			},
 		},
 	}, resources.ResourceScopeKindWorkspace)
 	if err != nil {
 		t.Fatalf("RegisterForSession() error = %v", err)
 	}
-	if !slices.Equal(grant.ResourceScopes, []resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace}) {
-		t.Fatalf("RegisterForSession().ResourceScopes = %#v, want [workspace]", grant.ResourceScopes)
+	if !slices.Equal(grant.ResourceScopes, []resources.ResourceScopeKind{
+		resources.ResourceScopeKindWorkspace,
+		resources.ResourceScopeKindWorkspaceProfile,
+	}) {
+		t.Fatalf("RegisterForSession().ResourceScopes = %#v, want workspace closure", grant.ResourceScopes)
 	}
 
 	stored := checker.Grant("ext")
@@ -475,10 +487,10 @@ func TestCapabilityCheckerRegisterForSessionRejectsInvalidManifestResourceReques
 		Resources: ResourcesConfig{
 			Publish: ResourceGrantRequest{
 				Families: []string{"bridge_instances"},
-				MaxScope: resources.ResourceScopeKindGlobal,
+				MaxScope: resources.ResourceScopeKindUser,
 			},
 		},
-	}, resources.ResourceScopeKindGlobal)
+	}, resources.ResourceScopeKindUser)
 	if err == nil {
 		t.Fatal("RegisterForSession() error = nil, want invalid manifest request")
 	}
@@ -488,7 +500,7 @@ func TestCapabilityCheckerNilResolveReturnsEmptyGrant(t *testing.T) {
 	t.Parallel()
 
 	var checker *CapabilityChecker
-	grant, err := checker.Resolve(SourceUser, nil, resources.ResourceScopeKindGlobal)
+	grant, err := checker.Resolve(SourceUser, nil, resources.ResourceScopeKindUser)
 	if err != nil {
 		t.Fatalf("Resolve(nil) error = %v, want nil", err)
 	}
@@ -509,14 +521,14 @@ func TestSourceTierResourceHelpers(t *testing.T) {
 		wantScope resources.ResourceScopeKind
 	}{
 		{
-			name:      "Should grant bundled sources a global ceiling",
+			name:      "Should grant bundled sources a user ceiling",
 			source:    SourceBundled,
-			wantScope: resources.ResourceScopeKindGlobal,
+			wantScope: resources.ResourceScopeKindUser,
 		},
 		{
-			name:      "Should grant user sources a global ceiling",
+			name:      "Should grant user sources a user ceiling",
 			source:    SourceUser,
-			wantScope: resources.ResourceScopeKindGlobal,
+			wantScope: resources.ResourceScopeKindUser,
 		},
 		{
 			name:      "Should grant workspace sources a workspace ceiling",
@@ -524,9 +536,9 @@ func TestSourceTierResourceHelpers(t *testing.T) {
 			wantScope: resources.ResourceScopeKindWorkspace,
 		},
 		{
-			name:      "Should grant marketplace sources a global read ceiling",
+			name:      "Should grant marketplace sources a user read ceiling",
 			source:    SourceMarketplace,
-			wantScope: resources.ResourceScopeKindGlobal,
+			wantScope: resources.ResourceScopeKindUser,
 		},
 		{name: "Should reject an unknown source ceiling", source: ExtensionSource(99), wantScope: ""},
 	}
@@ -541,44 +553,90 @@ func TestSourceTierResourceHelpers(t *testing.T) {
 		})
 	}
 
-	t.Run("Should project scopes through each valid ceiling", func(t *testing.T) {
+	t.Run("Should project every downward scope closure", func(t *testing.T) {
 		t.Parallel()
 
-		if !slices.Equal(scopesThrough(resources.ResourceScopeKindGlobal), []resources.ResourceScopeKind{
-			resources.ResourceScopeKindGlobal,
-			resources.ResourceScopeKindWorkspace,
-		}) {
-			t.Fatalf(
-				"scopesThrough(global) = %#v, want global+workspace",
-				scopesThrough(resources.ResourceScopeKindGlobal),
-			)
+		cases := []struct {
+			ceiling resources.ResourceScopeKind
+			want    []resources.ResourceScopeKind
+		}{
+			{resources.ResourceScopeKindUser, []resources.ResourceScopeKind{
+				resources.ResourceScopeKindUser,
+				resources.ResourceScopeKindWorkspace,
+				resources.ResourceScopeKindProfile,
+				resources.ResourceScopeKindWorkspaceProfile,
+			}},
+			{resources.ResourceScopeKindWorkspace, []resources.ResourceScopeKind{
+				resources.ResourceScopeKindWorkspace,
+				resources.ResourceScopeKindWorkspaceProfile,
+			}},
+			{resources.ResourceScopeKindProfile, []resources.ResourceScopeKind{
+				resources.ResourceScopeKindProfile,
+				resources.ResourceScopeKindWorkspaceProfile,
+			}},
+			{resources.ResourceScopeKindWorkspaceProfile, []resources.ResourceScopeKind{
+				resources.ResourceScopeKindWorkspaceProfile,
+			}},
 		}
-		if !slices.Equal(scopesThrough(resources.ResourceScopeKindWorkspace), []resources.ResourceScopeKind{
-			resources.ResourceScopeKindWorkspace,
-		}) {
-			t.Fatalf(
-				"scopesThrough(workspace) = %#v, want [workspace]",
-				scopesThrough(resources.ResourceScopeKindWorkspace),
-			)
+		for _, tc := range cases {
+			if got := resources.ScopesThrough(tc.ceiling); !slices.Equal(got, tc.want) {
+				t.Fatalf("ScopesThrough(%q) = %#v, want %#v", tc.ceiling, got, tc.want)
+			}
 		}
-		if got := scopesThrough(resources.ResourceScopeKind("invalid")); got != nil {
-			t.Fatalf("scopesThrough(invalid) = %#v, want nil", got)
+		if got := resources.ScopesThrough(resources.ResourceScopeKind("invalid")); got != nil {
+			t.Fatalf("ScopesThrough(invalid) = %#v, want nil", got)
 		}
 	})
 
-	t.Run("Should rank workspace before global and unknown scopes", func(t *testing.T) {
+	t.Run("Should narrow every pair to its lattice meet", func(t *testing.T) {
 		t.Parallel()
 
-		if got, want := scopeRank(resources.ResourceScopeKindWorkspace), 0; got != want {
-			t.Fatalf("scopeRank(workspace) = %d, want %d", got, want)
+		all := []resources.ResourceScopeKind{
+			resources.ResourceScopeKindUser,
+			resources.ResourceScopeKindWorkspace,
+			resources.ResourceScopeKindProfile,
+			resources.ResourceScopeKindWorkspaceProfile,
 		}
-		if got, want := scopeRank(resources.ResourceScopeKindGlobal), 1; got != want {
-			t.Fatalf("scopeRank(global) = %d, want %d", got, want)
+		for _, left := range all {
+			for _, right := range all {
+				got, err := resources.MeetScopeCeilings(left, right)
+				if err != nil {
+					t.Fatalf("MeetScopeCeilings(%q, %q) error = %v", left, right, err)
+				}
+				wantClosure := intersectResourceScopes(
+					resources.ScopesThrough(left),
+					resources.ScopesThrough(right),
+				)
+				if gotClosure := resources.ScopesThrough(got); !slices.Equal(gotClosure, wantClosure) {
+					t.Fatalf(
+						"MeetScopeCeilings(%q, %q) = %q with closure %#v, want closure %#v",
+						left,
+						right,
+						got,
+						gotClosure,
+						wantClosure,
+					)
+				}
+			}
 		}
-		if got, want := scopeRank(resources.ResourceScopeKind("")), 2; got != want {
-			t.Fatalf("scopeRank(unknown) = %d, want %d", got, want)
+		got, err := resources.MeetScopeCeilings(
+			resources.ResourceScopeKindWorkspace,
+			resources.ResourceScopeKindProfile,
+		)
+		if err != nil || got != resources.ResourceScopeKindWorkspaceProfile {
+			t.Fatalf("MeetScopeCeilings(workspace, profile) = (%q, %v), want workspace_profile", got, err)
 		}
 	})
+}
+
+func intersectResourceScopes(left, right []resources.ResourceScopeKind) []resources.ResourceScopeKind {
+	intersection := make([]resources.ResourceScopeKind, 0, len(left))
+	for _, scope := range left {
+		if slices.Contains(right, scope) {
+			intersection = append(intersection, scope)
+		}
+	}
+	return intersection
 }
 
 func TestCapabilityHelperPoliciesAndCeilings(t *testing.T) {
@@ -595,30 +653,30 @@ func TestCapabilityHelperPoliciesAndCeilings(t *testing.T) {
 		}
 	})
 
-	t.Run("Should restrict marketplace permissions while preserving the global read ceiling", func(t *testing.T) {
+	t.Run("Should restrict marketplace permissions while preserving the user read ceiling", func(t *testing.T) {
 		t.Parallel()
 
 		marketplace := sourcePolicy(SourceMarketplace)
 		if marketplace.allowAllPermissions {
 			t.Fatalf("marketplace policy = %#v, want narrowed permissions", marketplace)
 		}
-		if marketplace.maxResourceScope != resources.ResourceScopeKindGlobal {
-			t.Fatalf("marketplace maxResourceScope = %q, want global", marketplace.maxResourceScope)
+		if marketplace.maxResourceScope != resources.ResourceScopeKindUser {
+			t.Fatalf("marketplace maxResourceScope = %q, want user scope", marketplace.maxResourceScope)
 		}
 		if len(marketplace.allowedConsent) == 0 {
 			t.Fatalf("marketplace policy = %#v, want populated ceilings", marketplace)
 		}
 	})
 
-	t.Run("Should grant bundled extensions their full global ceiling", func(t *testing.T) {
+	t.Run("Should grant bundled extensions their full user ceiling", func(t *testing.T) {
 		t.Parallel()
 
 		bundled := sourcePolicy(SourceBundled)
 		if !bundled.allowAllPermissions {
 			t.Fatalf("bundled policy = %#v, want full permission grants", bundled)
 		}
-		if bundled.maxResourceScope != resources.ResourceScopeKindGlobal {
-			t.Fatalf("bundled maxResourceScope = %q, want global", bundled.maxResourceScope)
+		if bundled.maxResourceScope != resources.ResourceScopeKindUser {
+			t.Fatalf("bundled maxResourceScope = %q, want user scope", bundled.maxResourceScope)
 		}
 	})
 

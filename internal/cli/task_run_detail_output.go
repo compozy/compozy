@@ -32,6 +32,7 @@ func taskRunDetailBundle(detail *TaskRunDetailRecord) outputBundle {
 			}
 			return renderToonObject("task_run_detail", []string{
 				"id",
+				profileNameOutputKey,
 				taskTaskIDKey,
 				taskStatusKey,
 				taskAttemptKey,
@@ -46,6 +47,7 @@ func taskRunDetailBundle(detail *TaskRunDetailRecord) outputBundle {
 				"cost_source",
 			}, []string{
 				detail.Run.ID,
+				detail.Run.ProfileName,
 				detail.Run.TaskID,
 				detail.Run.Status.String(),
 				strconv.Itoa(detail.Run.Attempt),
@@ -70,6 +72,7 @@ func taskRunDetailBundle(detail *TaskRunDetailRecord) outputBundle {
 func taskRunDetailTaskBlock(detail *TaskRunDetailRecord) string {
 	return renderHumanSection(taskTaskValue, []keyValue{
 		{Label: "ID", Value: stringOrDash(detail.Task.ID)},
+		{Label: sessionProfileValue, Value: stringOrDash(detail.Run.ProfileName)},
 		{Label: taskIdentifierValue, Value: stringOrDash(detail.Task.Identifier)},
 		{Label: taskTitleValue, Value: stringOrDash(detail.Task.Title)},
 		{Label: taskStatusValue, Value: stringOrDash(string(detail.Task.Status))},

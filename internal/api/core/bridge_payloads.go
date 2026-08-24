@@ -74,6 +74,12 @@ func BridgePayloadFromBridgeInstance(instance bridgepkg.BridgeInstance) contract
 	}
 	return contract.BridgePayload{
 		ID:                   instance.ID,
+		ProfileID:            instance.ProfileID,
+		ProfileName:          instance.ProfileName,
+		ProfileColor:         instance.ProfileColor,
+		ProfileIcon:          instance.ProfileIcon,
+		ProfileEmoji:         instance.ProfileEmoji,
+		ProfileArchived:      instance.ProfileArchived,
 		Scope:                instance.Scope,
 		WorkspaceID:          instance.WorkspaceID,
 		Platform:             instance.Platform,
@@ -112,6 +118,12 @@ func TaskBridgeNotificationSubscriptionPayloadFromSubscription(
 	}
 	return contract.TaskBridgeNotificationSubscriptionPayload{
 		SubscriptionID:   normalized.SubscriptionID,
+		ProfileID:        normalized.ProfileID,
+		ProfileName:      normalized.ProfileName,
+		ProfileColor:     normalized.ProfileColor,
+		ProfileIcon:      normalized.ProfileIcon,
+		ProfileEmoji:     normalized.ProfileEmoji,
+		ProfileArchived:  normalized.ProfileArchived,
 		TaskID:           normalized.TaskID,
 		BridgeInstanceID: normalized.BridgeInstanceID,
 		Scope:            normalized.Scope,

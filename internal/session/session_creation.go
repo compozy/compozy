@@ -300,6 +300,7 @@ func creationProfileFromStart(
 		Model:           resolved.Model,
 		ReasoningEffort: spec.reasoningEffort,
 		Speed:           spec.speed,
+		ProfileID:       spec.profileID,
 		WorkspaceID:     spec.workspace.ID,
 		CWD:             spec.cwd,
 		WorktreeRef:     spec.worktreeID,

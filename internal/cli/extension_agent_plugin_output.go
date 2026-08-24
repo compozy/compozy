@@ -101,7 +101,7 @@ func extensionDiagnosticReason(item contract.DiagnosticItem, scope string) strin
 	return message
 }
 
-func extensionInstallSuccessBundle(item ExtensionRecord, report *extensionpkg.ValidationReport) outputBundle {
+func extensionInstallSuccessBundle(item *ExtensionRecord, report *extensionpkg.ValidationReport) outputBundle {
 	bundle := extensionBundle(item)
 	bundle.human = func() (string, error) {
 		portable := strings.TrimSpace(item.Format) == string(extensionpkg.FormatAgentPlugin)
@@ -117,7 +117,7 @@ func extensionInstallSuccessBundle(item ExtensionRecord, report *extensionpkg.Va
 					"(native manifest wins)")
 		}
 		next := "next: compozy extension status " + strings.TrimSpace(item.Name)
-		if portable {
+		if portable && !item.Enabled {
 			next = "next: compozy extension enable " + strings.TrimSpace(item.Name)
 		}
 		blocks = append(blocks, next, extensionHumanDetail(item, portable))

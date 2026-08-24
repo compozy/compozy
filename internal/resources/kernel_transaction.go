@@ -61,7 +61,7 @@ func recordsEqual(left RawRecord, right RawRecord) bool {
 }
 
 func nullableScopeID(scope ResourceScope) any {
-	if scope.Kind == ResourceScopeKindGlobal {
+	if scope.Kind == ResourceScopeKindUser {
 		return nil
 	}
 	return scope.ID

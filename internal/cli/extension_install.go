@@ -64,7 +64,7 @@ func installExtension(
 func extensionInstallValidationReport(
 	deps commandDeps,
 	plan extensionInstallPlan,
-	item ExtensionRecord,
+	item *ExtensionRecord,
 ) *extensionpkg.ValidationReport {
 	for _, request := range plan.Attempts {
 		if request.Source != contract.InstallExtensionSourceLocalPath {
@@ -106,19 +106,29 @@ func executeExtensionInstallPlan(
 	deps commandDeps,
 	plan extensionInstallPlan,
 ) (ExtensionRecord, error) {
-	if len(plan.Attempts) == 0 {
-		return ExtensionRecord{}, errors.New("cli: extension install plan has no attempts")
+	return runExtensionInstallAttempts(plan.Attempts, func(request InstallExtensionRequest) (ExtensionRecord, error) {
+		return installExtension(ctx, deps, request)
+	})
+}
+
+func runExtensionInstallAttempts[T any](
+	attempts []InstallExtensionRequest,
+	run func(InstallExtensionRequest) (T, error),
+) (T, error) {
+	var zero T
+	if len(attempts) == 0 {
+		return zero, errors.New("cli: extension install plan has no attempts")
 	}
-	for index, request := range plan.Attempts {
-		item, err := installExtension(ctx, deps, request)
+	for index, request := range attempts {
+		value, err := run(request)
 		if err == nil {
-			return item, nil
+			return value, nil
 		}
-		if index == len(plan.Attempts)-1 || !extensionInstallFallbackAllowed(err) {
-			return ExtensionRecord{}, err
+		if index == len(attempts)-1 || !extensionInstallFallbackAllowed(err) {
+			return zero, err
 		}
 	}
-	return ExtensionRecord{}, errors.New("cli: extension install plan exhausted")
+	return zero, errors.New("cli: extension install plan exhausted")
 }
 
 func extensionInstallFallbackAllowed(err error) bool {

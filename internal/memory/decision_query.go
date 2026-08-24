@@ -41,7 +41,7 @@ func (s *Store) ListDecisionRecords(ctx context.Context, query DecisionListQuery
 	if err := s.ensureDecisionCatalog(ctx); err != nil {
 		return nil, err
 	}
-	stored, err := s.catalog.listDecisions(ctx, query)
+	stored, err := s.catalog.listDecisions(ctx, s.profileID, query)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +52,11 @@ func (s *Store) ListDecisionRecords(ctx context.Context, query DecisionListQuery
 	return records, nil
 }
 
-func (c *catalog) listDecisions(ctx context.Context, query DecisionListQuery) (decisions []storedDecision, err error) {
+func (c *catalog) listDecisions(
+	ctx context.Context,
+	profileID string,
+	query DecisionListQuery,
+) (decisions []storedDecision, err error) {
 	db, err := c.ensureDB(ctx)
 	if err != nil {
 		return nil, err
@@ -67,7 +71,7 @@ func (c *catalog) listDecisions(ctx context.Context, query DecisionListQuery) (d
 		`reason, prompt_version, applied_at, decided_at`,
 		`FROM memory_decisions`,
 	}, "\n")
-	clauses, args, err := decisionListWhere(query)
+	clauses, args, err := decisionListWhere(profileID, query)
 	if err != nil {
 		return nil, err
 	}
@@ -84,9 +88,9 @@ func (c *catalog) listDecisions(ctx context.Context, query DecisionListQuery) (d
 	return scanStoredDecisionRows(rows)
 }
 
-func decisionListWhere(query DecisionListQuery) ([]string, []any, error) {
-	clauses := make([]string, 0, 8)
-	args := make([]any, 0, 8)
+func decisionListWhere(profileID string, query DecisionListQuery) ([]string, []any, error) {
+	clauses := []string{`(profile_id = ? OR (profile_id = '' AND scope <> 'profile'))`}
+	args := []any{strings.TrimSpace(profileID)}
 	if scope := query.Scope.Normalize(); scope != "" {
 		if err := scope.Validate(); err != nil {
 			return nil, nil, wrapValidationError("list decisions scope", string(query.Scope), err)

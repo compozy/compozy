@@ -118,11 +118,12 @@ func newAutomationJobsCreateCommand(deps commandDeps) *cobra.Command {
 	mustMarkFlagRequired(cmd, automationNameKey)
 	mustMarkFlagRequired(cmd, automationScopeKey)
 	mustMarkFlagRequired(cmd, automationScheduleKey)
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
 func newAutomationJobsGetCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   automationGetIDValue,
 		Short: "Show one automation job",
 		Args:  exactOneNonBlankArg(),
@@ -139,6 +140,8 @@ func newAutomationJobsGetCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, automationJobBundle(job))
 		},
 	}
+	configureProfileReadCommand(cmd, deps)
+	return cmd
 }
 
 func newAutomationJobsUpdateCommand(deps commandDeps) *cobra.Command {
@@ -198,6 +201,7 @@ func newAutomationJobsUpdateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(&retryRaw, automationRetryKey, "", `Update retry policy: "none", "backoff", or "backoff:<max_retries>:<base_delay>"`)
 	cmd.Flags().BoolVar(&enabled, automationEnabledKey, false, "Update the enabled state")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -275,7 +279,7 @@ func buildAutomationJobUpdateRequest(
 }
 
 func newAutomationJobsDeleteCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   automationDeleteIDValue,
 		Short: "Delete an automation job",
 		Args:  exactOneNonBlankArg(),
@@ -295,10 +299,12 @@ func newAutomationJobsDeleteCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, automationJobBundle(current))
 		},
 	}
+	configureProfileMutationCommand(cmd, deps)
+	return cmd
 }
 
 func newAutomationJobsTriggerCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "trigger <id>",
 		Short: "Force an immediate automation job run",
 		Args:  exactOneNonBlankArg(),
@@ -315,6 +321,8 @@ func newAutomationJobsTriggerCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, automationRunBundle(run))
 		},
 	}
+	configureProfileMutationCommand(cmd, deps)
+	return cmd
 }
 
 func newAutomationJobsHistoryCommand(deps commandDeps) *cobra.Command {
@@ -353,5 +361,6 @@ func newAutomationJobsHistoryCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(&untilRaw, "until", "", "Show runs until an RFC3339 timestamp or relative duration")
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N runs")
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }

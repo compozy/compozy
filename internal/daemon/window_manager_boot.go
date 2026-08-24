@@ -19,6 +19,7 @@ const windowManagerMaxSnapshotBytes = 16 * 1024 * 1024
 type globalHotkeyFailureNotifier interface {
 	NotifyGlobalHotkeyRegistrationFailed(
 		context.Context,
+		cmdpalette.ProfileLens,
 		cmdpalette.WorkspaceID,
 		cmdpalette.ClientID,
 		cmdpalette.CommandID,
@@ -29,15 +30,11 @@ type globalHotkeyFailureNotifier interface {
 
 var _ globalHotkeyFailureNotifier = (*cmdpalette.Service)(nil)
 
-func (d *Daemon) bootDefaultWorkspaceAndWindowManager(
+func (d *Daemon) bootWindowManager(
 	ctx context.Context,
 	state *bootState,
 	cleanup *bootCleanup,
-	operatorHome string,
 ) error {
-	if err := d.ensureDefaultWorkspace(ctx, state, operatorHome); err != nil {
-		return err
-	}
 	resolver, err := newWindowManagerStoreWorkspaceResolver(state.workspaceResolver, state.logger)
 	if err != nil {
 		return err
@@ -56,18 +53,16 @@ func (d *Daemon) bootDefaultWorkspaceAndWindowManager(
 		return fmt.Errorf("daemon: open window-manager store: %w", err)
 	}
 	cleanup.add(func(context.Context) error { return engine.Close() })
-	repository, err := newWindowManagerRepository(engine, withWindowManagerRepositoryLogger(state.logger))
-	if err != nil {
-		return err
-	}
 	if state.windowLayoutCatalog == nil {
 		state.windowLayoutCatalog = newResourceCatalog(windowmanager.CloneLayoutResource)
 	}
-	manager, err := windowmanager.NewService(
-		repository,
+	registry, err := newWindowManagerRegistry(
+		engine,
 		windowManagerWorkspaceAuthorizer{resolver: resolver},
 		newWindowManagerLayoutRegistry(state.windowLayoutCatalog),
+		state.workspaceResolver,
 		windowManagerDefaults(state.cfg.WindowManager),
+		state.logger,
 		windowmanager.WithLifecycleContext(ctx),
 		windowmanager.WithEventObserver(newWindowManagerHookObserver(state)),
 		windowmanager.WithClientUnregisteredObserver(closeCmdPaletteClientViews(state)),
@@ -77,13 +72,12 @@ func (d *Daemon) bootDefaultWorkspaceAndWindowManager(
 		),
 	)
 	if err != nil {
-		return fmt.Errorf("daemon: create window manager: %w", err)
+		return fmt.Errorf("daemon: create window managers: %w", err)
 	}
-	cleanup.add(func(context.Context) error { return manager.Close() })
+	cleanup.add(func(context.Context) error { return registry.Close() })
 	state.windowManagerStoreResolver = resolver
 	state.windowManagerStore = engine
-	state.windowManagerRepository = repository
-	state.windowManager = manager
+	state.windowManagers = registry
 	return nil
 }
 
@@ -99,6 +93,7 @@ func closeCmdPaletteClientViews(state *bootState) func(
 		}
 		return views.CloseClientSessions(
 			ctx,
+			cmdpalette.AggregateProfileLens(),
 			cmdpalette.WorkspaceID(workspaceID),
 			cmdpalette.ClientID(clientID),
 		)
@@ -123,6 +118,7 @@ func notifyGlobalHotkeyRegistrationFailure(state *bootState) func(
 		}
 		notifier.NotifyGlobalHotkeyRegistrationFailed(
 			ctx,
+			cmdpalette.AggregateProfileLens(),
 			cmdpalette.WorkspaceID(workspaceID),
 			cmdpalette.ClientID(clientID),
 			cmdpalette.CommandID(registration.CommandID),
@@ -138,15 +134,11 @@ func installWorkspaceRemovalPreparer(state *bootState, sessions SessionManager) 
 		return errMissingWorkspaceRemovalPreparation
 	}
 	if state.windowManagerStoreResolver == nil || state.windowManagerStore == nil ||
-		state.windowManagerRepository == nil || state.windowManager == nil {
+		state.windowManagers == nil {
 		return errors.New("daemon: window-manager removal dependencies are required")
 	}
 	state.workspaceResolver.SetUnregisterPreparer(
 		func(ctx context.Context, workspace workspacepkg.Workspace) (workspacepkg.UnregisterPreparation, error) {
-			attentionPreparation, err := prepareAttentionWorkspaceRemoval(state, workspace.ID)
-			if err != nil {
-				return nil, err
-			}
 			sessionPreparation, err := preparer.PrepareWorkspaceRemoval(ctx, workspace.ID)
 			if err != nil {
 				return nil, err
@@ -157,8 +149,7 @@ func installWorkspaceRemovalPreparer(state *bootState, sessions SessionManager) 
 			windowPreparation, err := state.windowManagerStoreResolver.prepareRemoval(
 				workspace,
 				state.windowManagerStore,
-				state.windowManager,
-				state.windowManagerRepository,
+				state.windowManagers,
 			)
 			if err != nil {
 				rollbackErr := sessionPreparation.Rollback(context.WithoutCancel(ctx))
@@ -167,7 +158,6 @@ func installWorkspaceRemovalPreparer(state *bootState, sessions SessionManager) 
 			return workspaceRemovalPreparation{
 				windowManager: windowPreparation,
 				session:       sessionPreparation,
-				attention:     attentionPreparation,
 				deadEntities:  state.deadEntities,
 				mcpTools:      state.mcpToolProvider,
 				workspaceID:   workspace.ID,
@@ -180,7 +170,6 @@ func installWorkspaceRemovalPreparer(state *bootState, sessions SessionManager) 
 type workspaceRemovalPreparation struct {
 	windowManager workspacepkg.UnregisterPreparation
 	session       workspacepkg.UnregisterPreparation
-	attention     workspacepkg.UnregisterPreparation
 	deadEntities  *deadentity.Service
 	mcpTools      workspaceMCPStateRetirer
 	workspaceID   string
@@ -197,25 +186,23 @@ func (p workspaceRemovalPreparation) BeforeDelete(ctx context.Context) error {
 	if err := p.session.BeforeDelete(ctx); err != nil {
 		return err
 	}
-	return p.attention.BeforeDelete(ctx)
+	return nil
 }
 
 func (p workspaceRemovalPreparation) Commit(ctx context.Context) error {
 	windowManagerErr := p.windowManager.Commit(ctx)
 	sessionErr := p.session.Commit(ctx)
-	attentionErr := p.attention.Commit(ctx)
 	if p.deadEntities != nil {
 		p.deadEntities.ForgetWorkspace(p.workspaceID)
 	}
 	if p.mcpTools != nil {
 		p.mcpTools.ForgetWorkspace(p.workspaceID)
 	}
-	return errors.Join(windowManagerErr, sessionErr, attentionErr)
+	return errors.Join(windowManagerErr, sessionErr)
 }
 
 func (p workspaceRemovalPreparation) Rollback(ctx context.Context) error {
 	return errors.Join(
-		p.attention.Rollback(ctx),
 		p.session.Rollback(ctx),
 		p.windowManager.Rollback(ctx),
 	)

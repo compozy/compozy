@@ -21,6 +21,8 @@ import type {
 
 export interface WindowManagerBinding {
   readonly workspaceId: string;
+  /** The profile whose desks this client is presenting (US-026). */
+  readonly profileId: string;
   readonly clientId: string;
 }
 

@@ -8,7 +8,6 @@ import { sessionKeys } from "../../lib/query-keys";
 import { useSession, useSessionById, useSessions } from "../use-sessions";
 
 vi.mock("../../adapters/session-api", () => ({
-  fetchSession: vi.fn(),
   fetchSessionLedger: vi.fn(),
   fetchSessionRecap: vi.fn(),
   fetchSessions: vi.fn(),
@@ -35,7 +34,12 @@ vi.mock("../../adapters/session-api", () => ({
   },
 }));
 
-import { fetchSession, fetchSessions } from "../../adapters/session-api";
+vi.mock("../../adapters/session-owner-api", () => ({
+  fetchSessionById: vi.fn(),
+}));
+
+import { fetchSessions } from "../../adapters/session-api";
+import { fetchSessionById } from "../../adapters/session-owner-api";
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -48,6 +52,8 @@ function createWrapper() {
 
 function makeSession(overrides: Partial<SessionPayload> = {}): SessionPayload {
   return {
+    profile_name: "default",
+    profile_id: "00000000000000000000000000",
     id: "sess-001",
     agent_name: "claude-agent",
     runtime: {
@@ -96,7 +102,12 @@ describe("useSessions", () => {
 
     expect(result.current.data?.[0]?.runtime.effective?.provider).toBe("claude");
     expect(result.current.total).toBe(1);
-    expect(fetchSessions).toHaveBeenCalledWith({ workspace: "ws_alpha" }, expect.any(AbortSignal));
+    // Every session read carries its profile scope: the daemon has exactly two
+    // read modes and an omitted scope silently resolves to `default`.
+    expect(fetchSessions).toHaveBeenCalledWith(
+      { profile: "default", workspace_id: "ws_alpha" },
+      expect.any(AbortSignal)
+    );
   });
 
   it("appends cursor pages while keeping stable filters in the base query key", async () => {
@@ -138,8 +149,9 @@ describe("useSessions", () => {
       {
         agent: "claude-agent",
         limit: 1,
+        profile: "default",
         sort: "last_activity",
-        workspace: "ws_alpha",
+        workspace_id: "ws_alpha",
       },
       expect.any(AbortSignal)
     );
@@ -149,8 +161,9 @@ describe("useSessions", () => {
         agent: "claude-agent",
         cursor: "cursor-1",
         limit: 1,
+        profile: "default",
         sort: "last_activity",
-        workspace: "ws_alpha",
+        workspace_id: "ws_alpha",
       },
       expect.any(AbortSignal)
     );
@@ -163,8 +176,9 @@ describe("useSessions", () => {
       sessionKeys.list({
         agent: "claude-agent",
         limit: 1,
+        profile: "default",
         sort: "last_activity",
-        workspace: "ws_alpha",
+        workspace_id: "ws_alpha",
       })
     );
   });
@@ -288,7 +302,9 @@ function createWrapperWithClient(queryClient: QueryClient) {
 
 describe("useSession", () => {
   it("loads a single session detail", async () => {
-    vi.mocked(fetchSession).mockResolvedValue({
+    vi.mocked(fetchSessionById).mockResolvedValue({
+      profile_id: "00000000000000000000000000",
+      profile_name: "default",
       id: "sess-001",
       agent_name: "claude-agent",
       runtime: {
@@ -309,7 +325,7 @@ describe("useSession", () => {
       updated_at: "2026-04-06T10:00:00Z",
     });
 
-    const { result } = renderHook(() => useSession("sess-001", "ws_alpha"), {
+    const { result } = renderHook(() => useSession("sess-001"), {
       wrapper: createWrapper(),
     });
 
@@ -318,7 +334,11 @@ describe("useSession", () => {
     });
 
     expect(result.current.data?.runtime.effective?.provider).toBe("claude");
-    expect(fetchSession).toHaveBeenCalledWith("ws_alpha", "sess-001", expect.any(AbortSignal));
+    expect(fetchSessionById).toHaveBeenCalledWith(
+      "sess-001",
+      { profile: "default" },
+      expect.any(AbortSignal)
+    );
   });
 });
 
@@ -332,7 +352,7 @@ describe("useSessionById", () => {
   });
 
   it("resolves session detail without issuing a full session-list request", async () => {
-    vi.mocked(fetchSession).mockResolvedValue(
+    vi.mocked(fetchSessionById).mockResolvedValue(
       makeSession({ id: "sess-001", workspace_id: "ws_alpha", name: "Detailed session" })
     );
 
@@ -345,11 +365,15 @@ describe("useSessionById", () => {
     });
 
     expect(fetchSessions).not.toHaveBeenCalled();
-    expect(fetchSession).toHaveBeenCalledWith("ws_alpha", "sess-001", expect.any(AbortSignal));
+    expect(fetchSessionById).toHaveBeenCalledWith(
+      "sess-001",
+      { profile: "default" },
+      expect.any(AbortSignal)
+    );
   });
 
   it("reports detail not found without falling back to the full session list", async () => {
-    vi.mocked(fetchSession).mockRejectedValue(new Error("Session not found: missing-session"));
+    vi.mocked(fetchSessionById).mockRejectedValue(new Error("Session not found: missing-session"));
 
     const { result } = renderHook(() => useSessionById("missing-session", "ws_alpha"), {
       wrapper: createWrapper(),
@@ -360,9 +384,9 @@ describe("useSessionById", () => {
     });
 
     expect(fetchSessions).not.toHaveBeenCalled();
-    expect(fetchSession).toHaveBeenCalledWith(
-      "ws_alpha",
+    expect(fetchSessionById).toHaveBeenCalledWith(
       "missing-session",
+      { profile: "default" },
       expect.any(AbortSignal)
     );
   });

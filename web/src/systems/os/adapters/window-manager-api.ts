@@ -35,6 +35,25 @@ function managerPath(workspaceId: string): string {
   return `/api/workspaces/${encodeURIComponent(normalized)}/window-manager`;
 }
 
+/**
+ * Desks belong to one profile, so every window-manager call names the profile it
+ * acts as. Omitting it would resolve `default` at the daemon boundary rather than
+ * the profile this client is in, and quietly rearrange the wrong desk.
+ */
+function managerUrl(
+  workspaceId: string,
+  profile: string,
+  suffix = "",
+  params: Record<string, string> = {}
+): string {
+  const normalizedProfile = profile.trim();
+  if (normalizedProfile === "") {
+    throw new WindowManagerApiError("Profile is required.", 400, null);
+  }
+  const query = new URLSearchParams({ ...params, profile: normalizedProfile });
+  return `${managerPath(workspaceId)}${suffix}?${query.toString()}`;
+}
+
 async function responseJson(response: Response): Promise<unknown> {
   try {
     return await response.json();
@@ -65,42 +84,50 @@ function jsonRequest(body: unknown, signal?: AbortSignal): RequestInit {
 
 export async function fetchWindowManagerSnapshot(
   workspaceId: string,
+  profile: string,
   signal?: AbortSignal
 ): Promise<WindowManagerSnapshot> {
-  const response = await runtimeFetch(`${apiBaseUrl}${managerPath(workspaceId)}`, { signal });
+  const response = await runtimeFetch(`${apiBaseUrl}${managerUrl(workspaceId, profile)}`, {
+    signal,
+  });
   return parseWindowManagerSnapshot(await requireSuccess(response));
 }
 
 export async function registerWindowManagerClient(
   workspaceId: string,
+  profile: string,
   clientId: string,
   activeDesktopId?: string,
   kind: WindowManagerClientKind = "browser",
   signal?: AbortSignal
 ): Promise<WindowManagerRegisteredClientView> {
-  const response = await runtimeFetch(`${apiBaseUrl}${managerPath(workspaceId)}/clients`, {
-    ...jsonRequest(
-      {
-        workspace_id: workspaceId,
-        client_id: clientId,
-        kind,
-        ...(activeDesktopId ? { active_desktop_id: activeDesktopId } : {}),
-        context: { workspace_trusted: true },
-      },
-      signal
-    ),
-    method: "POST",
-  });
+  const response = await runtimeFetch(
+    `${apiBaseUrl}${managerUrl(workspaceId, profile, "/clients")}`,
+    {
+      ...jsonRequest(
+        {
+          workspace_id: workspaceId,
+          client_id: clientId,
+          kind,
+          ...(activeDesktopId ? { active_desktop_id: activeDesktopId } : {}),
+          context: { workspace_trusted: true },
+        },
+        signal
+      ),
+      method: "POST",
+    }
+  );
   return parseWindowManagerRegisteredClientView(await requireSuccess(response));
 }
 
 export async function unregisterWindowManagerClient(
   workspaceId: string,
+  profile: string,
   clientId: string,
   signal?: AbortSignal
 ): Promise<void> {
   const response = await runtimeFetch(
-    `${apiBaseUrl}${managerPath(workspaceId)}/clients/${encodeURIComponent(clientId)}`,
+    `${apiBaseUrl}${managerUrl(workspaceId, profile, `/clients/${encodeURIComponent(clientId)}`)}`,
     { method: "DELETE", signal }
   );
   if (response.status === 204) return;
@@ -139,23 +166,30 @@ function commandBody(
 
 export async function executeWindowManagerCommand(
   workspaceId: string,
+  profile: string,
   clientId: string,
   revision: LayoutRevision,
   command: WindowManagerCommandInput,
   signal?: AbortSignal
 ): Promise<WindowManagerCommandResult> {
-  const response = await runtimeFetch(`${apiBaseUrl}${managerPath(workspaceId)}/commands`, {
-    ...jsonRequest(commandBody(workspaceId, clientId, revision, command), signal),
-    method: "POST",
-  });
+  const response = await runtimeFetch(
+    `${apiBaseUrl}${managerUrl(workspaceId, profile, "/commands")}`,
+    {
+      ...jsonRequest(commandBody(workspaceId, clientId, revision, command), signal),
+      method: "POST",
+    }
+  );
   return parseWindowManagerCommandResult(await requireSuccess(response));
 }
 
 export function buildWindowManagerStreamUrl(
   workspaceId: string,
+  profile: string,
   clientId: string,
   afterRevision: LayoutRevision
 ): string {
-  const path = `${managerPath(workspaceId)}/stream`;
-  return `${path}?after_revision=${encodeURIComponent(String(afterRevision))}&client_id=${encodeURIComponent(clientId)}`;
+  return managerUrl(workspaceId, profile, "/stream", {
+    after_revision: String(afterRevision),
+    client_id: clientId,
+  });
 }

@@ -11,6 +11,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
@@ -476,7 +477,9 @@ func TestToolApprovalBridgePersistsDurableOutcomes(t *testing.T) {
 		)
 		call := toolApprovalTestCall(view.Descriptor.ID, "ws-1")
 		for attempt := range 2 {
-			if err := bridge.RequestToolApproval(t.Context(), toolspkg.Scope{}, call, &view); err != nil {
+			if err := bridge.RequestToolApproval(
+				t.Context(), toolspkg.Scope{ProfileID: store.DefaultProfileID}, call, &view,
+			); err != nil {
 				t.Fatalf("RequestToolApproval(%d) error = %v, want nil", attempt, err)
 			}
 		}
@@ -486,7 +489,8 @@ func TestToolApprovalBridgePersistsDurableOutcomes(t *testing.T) {
 		if got := len(grants.grants); got != 1 || grants.grants[0].Decision != toolspkg.ApprovalGrantAllow {
 			t.Fatalf("durable grants = %#v, want one allow", grants.grants)
 		}
-		if grants.grants[0].WorkspaceID != "ws-1" || grants.grants[0].AgentName != "codex" ||
+		if grants.grants[0].ProfileID != store.DefaultProfileID ||
+			grants.grants[0].WorkspaceID != "ws-1" || grants.grants[0].AgentName != "codex" ||
 			grants.grants[0].InputDigest == "" {
 			t.Fatalf("durable grant key = %#v, want exact prompt context", grants.grants[0].ApprovalGrantKey)
 		}
@@ -506,7 +510,9 @@ func TestToolApprovalBridgePersistsDurableOutcomes(t *testing.T) {
 		)
 		call := toolApprovalTestCall(view.Descriptor.ID, "ws-1")
 		for attempt := range 2 {
-			err := bridge.RequestToolApproval(t.Context(), toolspkg.Scope{}, call, &view)
+			err := bridge.RequestToolApproval(
+				t.Context(), toolspkg.Scope{ProfileID: store.DefaultProfileID}, call, &view,
+			)
 			requireToolApprovalReason(t, err, toolspkg.ReasonApprovalRequired)
 			if len(requester.requests) != 1 {
 				t.Fatalf("permission requests after attempt %d = %d, want 1", attempt, len(requester.requests))
@@ -531,7 +537,9 @@ func TestToolApprovalBridgePersistsDurableOutcomes(t *testing.T) {
 		)
 		call := toolApprovalTestCall(view.Descriptor.ID, "ws-1")
 		for attempt := range 2 {
-			if err := bridge.RequestToolApproval(t.Context(), toolspkg.Scope{}, call, &view); err != nil {
+			if err := bridge.RequestToolApproval(
+				t.Context(), toolspkg.Scope{ProfileID: store.DefaultProfileID}, call, &view,
+			); err != nil {
 				t.Fatalf("RequestToolApproval(%d) error = %v, want nil", attempt, err)
 			}
 		}
@@ -557,7 +565,7 @@ func TestToolApprovalBridgePersistsDurableOutcomes(t *testing.T) {
 		)
 		if err := bridge.RequestToolApproval(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{ProfileID: store.DefaultProfileID},
 			toolApprovalTestCall(view.Descriptor.ID, "ws-1"),
 			&view,
 		); err != nil {
@@ -574,7 +582,9 @@ func TestToolApprovalBridgePersistsDurableOutcomes(t *testing.T) {
 		requester := selectedPermissionRequester(toolApprovalAllowOnceID)
 		grants := &recordingApprovalGrantStore{}
 		callA := toolApprovalTestCall(view.Descriptor.ID, "ws-a")
-		keyA, err := toolApprovalGrantKey(toolspkg.Scope{}, callA, view.Descriptor.ID)
+		keyA, err := toolApprovalGrantKey(
+			toolspkg.Scope{ProfileID: store.DefaultProfileID}, callA, view.Descriptor.ID,
+		)
 		if err != nil {
 			t.Fatalf("toolApprovalGrantKey() error = %v", err)
 		}
@@ -588,7 +598,7 @@ func TestToolApprovalBridgePersistsDurableOutcomes(t *testing.T) {
 		)
 		if err := bridge.RequestToolApproval(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{ProfileID: store.DefaultProfileID},
 			toolApprovalTestCall(view.Descriptor.ID, "ws-b"),
 			&view,
 		); err != nil {
@@ -613,7 +623,7 @@ func TestToolApprovalBridgePersistsDurableOutcomes(t *testing.T) {
 		)
 		err := bridge.RequestToolApproval(
 			t.Context(),
-			toolspkg.Scope{},
+			toolspkg.Scope{ProfileID: store.DefaultProfileID},
 			toolApprovalTestCall(view.Descriptor.ID, "ws-1"),
 			&view,
 		)
@@ -642,17 +652,17 @@ func requireToolApprovalReason(t *testing.T, err error, want toolspkg.ReasonCode
 func toolApprovalTestView() toolspkg.ToolView {
 	return toolspkg.ToolView{
 		Descriptor: toolspkg.Descriptor{
-			ID:           "compozy__approval_probe",
-			Backend:      toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: "approval_probe"},
-			Description:  "approval probe",
-			InputSchema:  []byte(`{"type":"object"}`),
-			Source:       toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: "daemon"},
-			Visibility:   toolspkg.VisibilityModel,
-			Risk:         toolspkg.RiskMutating,
-			Destructive:  false,
-			ReadOnly:     false,
-			OpenWorld:    false,
-			DisplayTitle: "Approval Probe",
+			ID:               "compozy__approval_probe",
+			Backend:          toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: "approval_probe"},
+			Description:      "approval probe",
+			InputSchema:      []byte(`{"type":"object"}`),
+			Source:           toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: "daemon"},
+			Visibility:       toolspkg.VisibilityModel,
+			Risk:             toolspkg.RiskMutating,
+			Destructive:      false,
+			ReadOnly:         false,
+			OpenWorld:        false,
+			ToolPresentation: toolspkg.NewToolPresentation("Approval Probe", "", ""),
 		},
 		Decision: toolspkg.EffectiveToolDecision{
 			VisibleToSession: true,
@@ -768,11 +778,12 @@ func (s *recordingApprovalGrantStore) PutApprovalGrant(
 
 func (s *recordingApprovalGrantStore) ListApprovalGrants(
 	_ context.Context,
+	readScope store.ReadScope,
 	workspaceID string,
 ) ([]toolspkg.ApprovalGrant, error) {
 	grants := make([]toolspkg.ApprovalGrant, 0, len(s.grants))
 	for _, grant := range s.grants {
-		if grant.WorkspaceID == workspaceID {
+		if grant.WorkspaceID == workspaceID && readScope.Matches(grant.ProfileID) {
 			grants = append(grants, grant)
 		}
 	}
@@ -781,11 +792,12 @@ func (s *recordingApprovalGrantStore) ListApprovalGrants(
 
 func (s *recordingApprovalGrantStore) RevokeApprovalGrant(
 	_ context.Context,
+	profileID string,
 	workspaceID string,
 	id string,
 ) error {
 	for index, grant := range s.grants {
-		if grant.WorkspaceID == workspaceID && grant.ID == id {
+		if grant.ProfileID == profileID && grant.WorkspaceID == workspaceID && grant.ID == id {
 			s.grants = append(s.grants[:index], s.grants[index+1:]...)
 			return nil
 		}
@@ -799,6 +811,9 @@ func materializedApprovalGrant(
 	decision toolspkg.ApprovalGrantDecision,
 ) toolspkg.ApprovalGrant {
 	now := time.Date(2026, time.July, 15, 12, 0, 0, 0, time.UTC)
+	if key.ProfileID == "" {
+		key.ProfileID = store.DefaultProfileID
+	}
 	return toolspkg.ApprovalGrant{
 		ID:               id,
 		ApprovalGrantKey: key,

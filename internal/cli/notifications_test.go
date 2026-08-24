@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/api/contract"
 )
 
 func TestNotificationPresetCommands(t *testing.T) {
@@ -15,7 +17,7 @@ func TestNotificationPresetCommands(t *testing.T) {
 		t.Parallel()
 
 		var captured NotificationPresetQuery
-		deps := newTestDeps(t, &stubClient{
+		deps := newDefaultProfileTestDeps(t, &stubClient{
 			listNotificationPresetsFn: func(
 				_ context.Context,
 				query NotificationPresetQuery,
@@ -31,7 +33,7 @@ func TestNotificationPresetCommands(t *testing.T) {
 		stdout, _, err := executeRootCommand(
 			t,
 			deps,
-			"notifications", "presets", "list", "--enabled", "--built-in", "--name", "task_terminal", "-o", "json",
+			"notification-preset", "list", "--enabled", "--built-in", "--name", "task_terminal", "-o", "json",
 		)
 		if err != nil {
 			t.Fatalf("notifications presets list error = %v", err)
@@ -53,7 +55,7 @@ func TestNotificationPresetCommands(t *testing.T) {
 		t.Parallel()
 
 		var captured CreateNotificationPresetRequest
-		deps := newTestDeps(t, &stubClient{
+		deps := newDefaultProfileTestDeps(t, &stubClient{
 			createNotificationPresetFn: func(
 				_ context.Context,
 				request CreateNotificationPresetRequest,
@@ -63,7 +65,7 @@ func TestNotificationPresetCommands(t *testing.T) {
 				record.Events = request.Events
 				record.Targets = request.Targets
 				record.Filter = request.Filter
-				record.Enabled = request.Enabled
+				record.Enabled = true
 				return record, nil
 			},
 		})
@@ -71,11 +73,10 @@ func TestNotificationPresetCommands(t *testing.T) {
 		stdout, _, err := executeRootCommand(
 			t,
 			deps,
-			"notifications", "preset", "create", "provider_failure_copy",
+			"notification-preset", "create", "provider_failure_copy",
 			"--event", "provider.*",
 			"--target", " brg-1 : #ops ",
 			"--filter", "severity >= warning",
-			"--enabled",
 			"-o", "json",
 		)
 		if err != nil {
@@ -83,8 +84,7 @@ func TestNotificationPresetCommands(t *testing.T) {
 		}
 		if captured.Name != "provider_failure_copy" || len(captured.Events) != 1 ||
 			len(captured.Targets) != 1 || captured.Targets[0].BridgeID != " brg-1 " ||
-			captured.Targets[0].CanonicalRoute != " #ops " || captured.Filter != "severity >= warning" ||
-			!captured.Enabled {
+			captured.Targets[0].CanonicalRoute != " #ops " || captured.Filter != "severity >= warning" {
 			t.Fatalf("captured request = %#v", captured)
 		}
 		var payload NotificationPresetRecord
@@ -101,7 +101,7 @@ func TestNotificationPresetCommands(t *testing.T) {
 
 		var capturedName string
 		var captured UpdateNotificationPresetRequest
-		deps := newTestDeps(t, &stubClient{
+		deps := newDefaultProfileTestDeps(t, &stubClient{
 			updateNotificationPresetFn: func(
 				_ context.Context,
 				name string,
@@ -119,7 +119,7 @@ func TestNotificationPresetCommands(t *testing.T) {
 				if request.Filter != nil {
 					record.Filter = *request.Filter
 				}
-				record.Enabled = request.Enabled != nil && *request.Enabled
+				record.Enabled = true
 				return record, nil
 			},
 		})
@@ -127,11 +127,10 @@ func TestNotificationPresetCommands(t *testing.T) {
 		stdout, _, err := executeRootCommand(
 			t,
 			deps,
-			"notifications", "preset", "update", "task_terminal",
+			"notification-preset", "update", "task_terminal",
 			"--event", "task.run_failed",
 			"--target", "brg-1:slack:channel:ops",
 			"--filter", "outcome = failure",
-			"--enabled",
 			"-o", "json",
 		)
 		if err != nil {
@@ -146,9 +145,7 @@ func TestNotificationPresetCommands(t *testing.T) {
 			(*captured.Targets)[0].BridgeID != "brg-1" ||
 			(*captured.Targets)[0].CanonicalRoute != "slack:channel:ops" ||
 			captured.Filter == nil ||
-			*captured.Filter != "outcome = failure" ||
-			captured.Enabled == nil ||
-			!*captured.Enabled {
+			*captured.Filter != "outcome = failure" {
 			t.Fatalf("captured update = name %q request %#v", capturedName, captured)
 		}
 		var payload NotificationPresetRecord
@@ -160,14 +157,14 @@ func TestNotificationPresetCommands(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject update without changed fields or with conflicting enable flags", func(t *testing.T) {
+	t.Run("Should reject update without changed fields and removed enable flags", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{})
+		deps := newDefaultProfileTestDeps(t, &stubClient{})
 		if _, _, err := executeRootCommand(
 			t,
 			deps,
-			"notifications", "preset", "update", "task_terminal",
+			"notification-preset", "update", "task_terminal",
 		); err == nil {
 			t.Fatal("notifications preset update without flags error = nil, want error")
 		} else if !strings.Contains(err.Error(), "at least one update flag is required") {
@@ -176,48 +173,58 @@ func TestNotificationPresetCommands(t *testing.T) {
 		if _, _, err := executeRootCommand(
 			t,
 			deps,
-			"notifications", "preset", "update", "task_terminal",
+			"notification-preset", "update", "task_terminal",
 			"--enabled",
-			"--disabled",
 		); err == nil {
-			t.Fatal("notifications preset update --enabled --disabled error = nil, want error")
-		} else if !strings.Contains(err.Error(), "use either --enabled or --disabled, not both") {
-			t.Fatalf("notifications preset update --enabled --disabled error = %v, want conflict validation", err)
+			t.Fatal("notifications preset update --enabled error = nil, want removed flag error")
+		} else if !strings.Contains(err.Error(), "unknown flag") {
+			t.Fatalf("notifications preset update --enabled error = %v, want removed flag", err)
 		}
 	})
 
-	t.Run("Should enable preset with replacement targets", func(t *testing.T) {
+	t.Run("Should enable preset for the resolved profile", func(t *testing.T) {
 		t.Parallel()
 
 		var capturedName string
-		var captured UpdateNotificationPresetRequest
-		deps := newTestDeps(t, &stubClient{
-			updateNotificationPresetFn: func(
+		var capturedProfile string
+		var capturedEnabled bool
+		deps := newDefaultProfileTestDeps(t, &stubClient{
+			listProfilesFn: func(context.Context) ([]contract.Profile, error) {
+				return []contract.Profile{{
+					ID: "00000000000000000000000000", Name: "default", State: "active",
+				}}, nil
+			},
+			listProfileSelectionsFn: func(context.Context) ([]contract.ProfileSelection, error) {
+				return nil, nil
+			},
+			setNotificationPresetEnablementFn: func(
 				_ context.Context,
 				name string,
-				request UpdateNotificationPresetRequest,
-			) (NotificationPresetRecord, error) {
+				request contract.SetNotificationPresetEnablementRequest,
+			) (contract.NotificationPresetEnablementPayload, error) {
 				capturedName = name
-				captured = request
-				record := notificationPresetRecordForTest(name)
-				record.Enabled = request.Enabled != nil && *request.Enabled
-				if request.Targets != nil {
-					record.Targets = *request.Targets
-				}
-				return record, nil
+				capturedProfile = request.Profile
+				capturedEnabled = request.Enabled
+				return contract.NotificationPresetEnablementPayload{
+					Name: name, Profile: request.Profile, Enabled: request.Enabled,
+				}, nil
 			},
 		})
 
 		if _, _, err := executeRootCommand(
 			t,
 			deps,
-			"notifications", "preset", "enable", "task_terminal", "--target", "brg-1:#ops", "-o", "json",
+			"notification-preset", "enable", "task_terminal", "-o", "json",
 		); err != nil {
 			t.Fatalf("notifications preset enable error = %v", err)
 		}
-		if capturedName != "task_terminal" || captured.Enabled == nil || !*captured.Enabled ||
-			captured.Targets == nil || len(*captured.Targets) != 1 {
-			t.Fatalf("captured update = name %q request %#v", capturedName, captured)
+		if capturedName != "task_terminal" || capturedProfile != "default" || !capturedEnabled {
+			t.Fatalf(
+				"captured enablement = name %q profile %q enabled %t",
+				capturedName,
+				capturedProfile,
+				capturedEnabled,
+			)
 		}
 	})
 }

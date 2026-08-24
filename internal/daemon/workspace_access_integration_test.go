@@ -389,11 +389,17 @@ func workspaceAccessIntegrationSummaries(
 ) []store.EventSummary {
 	t.Helper()
 	summaries, err := db.ListEventSummaries(ctx, store.EventSummaryQuery{
+		ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 		WorkspaceID: workspaceAccessIntegrationHome,
 		Limit:       100,
 	})
 	if err != nil {
 		t.Fatalf("ListEventSummaries() error = %v", err)
+	}
+	for _, summary := range summaries {
+		if summary.ProfileID != store.DefaultProfileID {
+			t.Fatalf("event summary profile = %q, want %q", summary.ProfileID, store.DefaultProfileID)
+		}
 	}
 	return summaries
 }

@@ -23,6 +23,8 @@ function buildReleaseTrainRun(
   overrides: Partial<LoopRun> & Pick<LoopRun, "id" | "status">
 ): LoopRun {
   return {
+    profile_name: "default",
+    profile_id: "00000000000000000000000000",
     workspace_id: WORKSPACE_ID,
     loop_name: RELEASE_TRAIN_LOOP_NAME,
     completion_state: "complete",

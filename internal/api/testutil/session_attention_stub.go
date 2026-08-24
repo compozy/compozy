@@ -12,7 +12,7 @@ import (
 type StubSessionAttention struct {
 	PresenceFn func(context.Context, string, string, bool) (string, error)
 	PendingFn  func(context.Context, string, []string) ([]store.PendingInteraction, error)
-	SummaryFn  func(context.Context) (store.SessionAttentionSummary, error)
+	SummaryFn  func(context.Context, store.ReadScope) (store.SessionAttentionSummary, error)
 	WaitFn     func(context.Context, session.WaitRequest) (session.WaitOutcome, error)
 }
 
@@ -42,9 +42,12 @@ func (s StubSessionManager) PendingInteractions(
 }
 
 // AttentionSummary returns the configured exact test aggregate.
-func (s StubSessionManager) AttentionSummary(ctx context.Context) (store.SessionAttentionSummary, error) {
+func (s StubSessionManager) AttentionSummary(
+	ctx context.Context,
+	readScope store.ReadScope,
+) (store.SessionAttentionSummary, error) {
 	if s.Attention.SummaryFn != nil {
-		return s.Attention.SummaryFn(ctx)
+		return s.Attention.SummaryFn(ctx, readScope)
 	}
 	return store.SessionAttentionSummary{}, nil
 }

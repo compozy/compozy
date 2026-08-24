@@ -21,6 +21,10 @@ vi.mock("@/systems/knowledge/hooks/use-knowledge-actions", () => ({
   useTriggerMemoryDream: () => triggerDreamMock,
 }));
 
+vi.mock("@/systems/profiles", () => ({
+  useProfileReadScope: () => ({ destination: "marketing" }),
+}));
+
 const triggerDreamMock = {
   mutate: vi.fn(),
   isPending: false,
@@ -35,8 +39,8 @@ import type { SettingsMemorySection } from "@/systems/settings";
 
 const memoryEnvelope: SettingsMemorySection = {
   section: "memory",
-  scope: "global",
-  available_scopes: ["global"],
+  scope: "user",
+  available_scopes: ["user"],
   actions: {
     consolidate: { available: true, behavior: "action_trigger", name: "consolidate" },
   },
@@ -108,7 +112,7 @@ describe("useSettingsMemoryPage", () => {
   it("save persists draft via the mutation and stores the applied label", async () => {
     vi.mocked(updateSettingsMemory).mockResolvedValue({
       section: "memory",
-      scope: "global",
+      scope: "user",
       applied: true,
       active_config_hash: "sha256:test-active",
       active_generation: 1,
@@ -148,6 +152,9 @@ describe("useSettingsMemoryPage", () => {
       result.current.handleTriggerDream();
     });
 
-    expect(triggerDreamMock.mutate).toHaveBeenCalled();
+    expect(triggerDreamMock.mutate).toHaveBeenCalledWith(
+      { profile: "marketing" },
+      expect.any(Object)
+    );
   });
 });

@@ -66,7 +66,7 @@ func (m *Manager) recordAuditRejected(
 }
 
 type committedSentAuditWriter interface {
-	RecordCommittedSent(context.Context, string, Envelope) error
+	RecordCommittedSent(context.Context, string, string, Envelope) error
 }
 
 func (m *Manager) recordProtocolAudit(
@@ -79,20 +79,21 @@ func (m *Manager) recordProtocolAudit(
 	if m == nil || m.auditor == nil {
 		return
 	}
+	profileID := m.senderProfileID(sessionID)
 	var err error
 	switch direction {
 	case AuditDirectionSent:
 		if writer, ok := m.auditor.(committedSentAuditWriter); ok {
-			err = writer.RecordCommittedSent(ctx, sessionID, envelope)
+			err = writer.RecordCommittedSent(ctx, profileID, sessionID, envelope)
 		} else {
-			err = m.auditor.RecordSent(ctx, sessionID, envelope)
+			err = m.auditor.RecordSent(ctx, profileID, sessionID, envelope)
 		}
 	case AuditDirectionReceived:
-		err = m.auditor.RecordReceived(ctx, sessionID, envelope)
+		err = m.auditor.RecordReceived(ctx, profileID, sessionID, envelope)
 	case AuditDirectionRejected:
-		err = m.auditor.RecordRejected(ctx, sessionID, envelope, reason)
+		err = m.auditor.RecordRejected(ctx, profileID, sessionID, envelope, reason)
 	case AuditDirectionDelivered:
-		err = m.auditor.RecordDelivered(ctx, sessionID, envelope)
+		err = m.auditor.RecordDelivered(ctx, profileID, sessionID, envelope)
 	default:
 		return
 	}

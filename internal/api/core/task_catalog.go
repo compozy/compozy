@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -86,9 +87,11 @@ func ParseTaskInboxQuery(c *gin.Context) (contract.TaskInboxQuery, error) {
 
 func (h *BaseHandlers) taskListDomainQuery(
 	ctx context.Context,
+	readScope store.ReadScope,
 	query contract.TaskListQuery,
 ) (taskpkg.CatalogQuery, error) {
 	domainQuery := taskpkg.CatalogQuery{
+		ReadScope:            readScope,
 		Scope:                query.Scope,
 		Status:               query.Status,
 		Priority:             query.Priority,
@@ -124,9 +127,11 @@ func (h *BaseHandlers) taskListDomainQuery(
 
 func (h *BaseHandlers) taskInboxDomainQuery(
 	ctx context.Context,
+	readScope store.ReadScope,
 	query contract.TaskInboxQuery,
 ) (observe.TaskInboxQuery, error) {
 	domainQuery := observe.TaskInboxQuery{
+		ReadScope:        readScope,
 		Scope:            query.Scope,
 		WorktreeID:       query.Worktree,
 		OwnerKind:        query.OwnerKind,

@@ -16,7 +16,8 @@ export function normalizeKnowledgeListFilter(
   filters: KnowledgeListFilter | undefined
 ): KnowledgeListFilter {
   return {
-    scope: filters?.scope ?? "global",
+    profile: normalizeOptionalText(filters?.profile),
+    scope: filters?.scope ?? "profile",
     workspaceId: normalizeOptionalText(filters?.workspaceId),
     agentName: normalizeOptionalText(filters?.agentName),
     agentTier: filters?.agentTier,
@@ -33,6 +34,7 @@ export function knowledgeListStableFilter(
 ): Omit<KnowledgeListFilter, "cursor"> {
   const normalized = normalizeKnowledgeListFilter(filters);
   return {
+    profile: normalized.profile,
     scope: normalized.scope,
     workspaceId: normalized.workspaceId,
     agentName: normalized.agentName,

@@ -333,6 +333,7 @@ func TestBootWiresTaskRuntimeWithDedicatedSessionBridge(t *testing.T) {
 	}
 
 	taskRecord, err := d.tasks.manager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
+		ProfileID:   store.DefaultProfileID,
 		Scope:       taskpkg.ScopeWorkspace,
 		WorkspaceID: resolved.ID,
 		Title:       "Bridge task",
@@ -1144,8 +1145,9 @@ func TestBootRecoversOrphanedTaskRunsAndRecordsAudit(t *testing.T) {
 
 	createTask := func(title string) taskpkg.Task {
 		taskRecord, err := seedManager.CreateTask(testutil.Context(t), taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: title,
+			ProfileID: store.DefaultProfileID,
+			Scope:     taskpkg.ScopeGlobal,
+			Title:     title,
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask(%q) error = %v", title, err)
@@ -1608,7 +1610,7 @@ func TestBridgeResourceProjectionReconcilesWritesAndBootRebuild(t *testing.T) {
 	spec := bridgeResourceIntegrationSpec("Projected Bridge", true)
 	record, err := bridgeStore.Put(testutil.Context(t), operator, resources.Draft[bridgepkg.BridgeInstanceSpec]{
 		ID:              "brg-resource",
-		Scope:           resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		Scope:           resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		ExpectedVersion: 0,
 		Spec:            spec,
 	})
@@ -1657,7 +1659,7 @@ func TestBridgeResourceProjectionReconcilesWritesAndBootRebuild(t *testing.T) {
 
 	bootRecord, err := bridgeStore.Put(testutil.Context(t), operator, resources.Draft[bridgepkg.BridgeInstanceSpec]{
 		ID:              "brg-boot",
-		Scope:           resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		Scope:           resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 		ExpectedVersion: 0,
 		Spec:            bridgeResourceIntegrationSpec("Boot Bridge", true),
 	})
@@ -1934,6 +1936,7 @@ func TestBootNetworkEnabledDeliversInboundAndShutsDownCleanly(t *testing.T) {
 		t.Fatal("network lifecycle binding = nil, want boot-time late binding")
 	}
 	if err := lifecycle.JoinChannel(testutil.Context(t), session.NetworkPeerJoin{
+		ProfileID:            store.DefaultProfileID,
 		SessionID:            "sess-net",
 		WorkspaceID:          "ws-integration",
 		PeerID:               "coder.sess-net",
@@ -1944,6 +1947,7 @@ func TestBootNetworkEnabledDeliversInboundAndShutsDownCleanly(t *testing.T) {
 		t.Fatalf("JoinChannel() error = %v", err)
 	}
 	if err := lifecycle.JoinChannel(testutil.Context(t), session.NetworkPeerJoin{
+		ProfileID:            store.DefaultProfileID,
 		SessionID:            "sess-sender",
 		WorkspaceID:          "ws-integration",
 		PeerID:               "coder.sess-sender",
@@ -2053,6 +2057,7 @@ func TestBootNetworkShutdownPreservesCommittedDelivery(t *testing.T) {
 		t.Fatal("network lifecycle binding = nil, want boot-time late binding")
 	}
 	if err := lifecycle.JoinChannel(testutil.Context(t), session.NetworkPeerJoin{
+		ProfileID:            store.DefaultProfileID,
 		SessionID:            "sess-net",
 		WorkspaceID:          "ws-integration",
 		PeerID:               "coder.sess-net",
@@ -2063,6 +2068,7 @@ func TestBootNetworkShutdownPreservesCommittedDelivery(t *testing.T) {
 		t.Fatalf("JoinChannel() error = %v", err)
 	}
 	if err := lifecycle.JoinChannel(testutil.Context(t), session.NetworkPeerJoin{
+		ProfileID:            store.DefaultProfileID,
 		SessionID:            "sess-sender",
 		WorkspaceID:          "ws-integration",
 		PeerID:               "coder.sess-sender",
@@ -2193,12 +2199,23 @@ func TestBootLoadsExtensionsRebuildsHooksAndStopsOnShutdown(t *testing.T) {
 	if d.extensions == nil {
 		t.Fatal("boot() did not publish the extension runtime")
 	}
-	extensionHooks, err := d.extensions.HookDeclarations(testutil.Context(t))
+	projector, ok := d.extensions.(profiledExtensionHookRuntime)
+	if !ok {
+		t.Fatal("boot() extension runtime does not support profile hook projection")
+	}
+	profiles, err := d.profiles.List(testutil.Context(t))
 	if err != nil {
-		t.Fatalf("HookDeclarations() error = %v", err)
+		t.Fatalf("profiles.List() error = %v", err)
+	}
+	extensionHooks, err := projector.HookDeclarationsForProfiles(
+		testutil.Context(t),
+		activeExtensionProfileLenses(profiles),
+	)
+	if err != nil {
+		t.Fatalf("HookDeclarationsForProfiles() error = %v", err)
 	}
 	if len(extensionHooks) != 1 {
-		t.Fatalf("HookDeclarations() count = %d, want 1", len(extensionHooks))
+		t.Fatalf("HookDeclarationsForProfiles() count = %d, want 1", len(extensionHooks))
 	}
 	if extensionHooks[0].Source != hookspkg.HookSourceExtension || extensionHooks[0].Priority != 300 {
 		t.Fatalf("extension hook = %#v, want source extension with priority 300", extensionHooks[0])
@@ -3359,6 +3376,7 @@ func TestBootStartsBridgeExtensionWithBoundRuntime(t *testing.T) {
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
 	instance := seedDaemonBridgeInstanceFixture(t, registry, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            instanceID,
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "slack",
@@ -3466,6 +3484,7 @@ func TestBootStartsBridgeExtensionWithDefaultVaultSecretResolver(t *testing.T) {
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
 	instance := seedDaemonBridgeInstanceFixture(t, registry, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            instanceID,
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "slack",
@@ -3563,6 +3582,7 @@ func TestBootFailsWhenDefaultBridgeSecretVaultValueIsMissing(t *testing.T) {
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
 	instance := seedDaemonBridgeInstanceFixture(t, registry, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            instanceID,
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "slack",
@@ -3649,6 +3669,7 @@ func TestBootStartsBridgeExtensionWithMultipleOwnedInstances(t *testing.T) {
 	for _, req := range []bridgepkg.CreateInstanceRequest{
 		{
 			ID:            firstID,
+			ProfileID:     store.DefaultProfileID,
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
 			ExtensionName: extensionName,
@@ -3659,6 +3680,7 @@ func TestBootStartsBridgeExtensionWithMultipleOwnedInstances(t *testing.T) {
 		},
 		{
 			ID:            secondID,
+			ProfileID:     store.DefaultProfileID,
 			Scope:         bridgepkg.ScopeGlobal,
 			Platform:      "slack",
 			ExtensionName: extensionName,
@@ -3823,6 +3845,7 @@ func TestCreateEnabledBridgeAfterBootReloadsErroredExtension(t *testing.T) {
 	}
 
 	created, err := d.bridges.CreateInstance(testutil.Context(t), bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            instanceID,
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "slack",
@@ -3884,6 +3907,7 @@ func TestBridgeRuntimeRestartPreservesRouteContinuity(t *testing.T) {
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
 	seedDaemonBridgeInstanceFixture(t, registry, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            instanceID,
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "slack",
@@ -4035,6 +4059,7 @@ func TestDaemonShutdownClosesBridgeRuntimeCleanly(t *testing.T) {
 
 	registry := openDaemonIntegrationGlobalDB(t, homePaths.DatabaseFile)
 	seedDaemonBridgeInstanceFixture(t, registry, bridgepkg.CreateInstanceRequest{
+		ProfileID:     store.DefaultProfileID,
 		ID:            instanceID,
 		Scope:         bridgepkg.ScopeGlobal,
 		Platform:      "slack",
@@ -4382,6 +4407,7 @@ func findAutomationTriggerByName(triggers []automationpkg.Trigger, name string) 
 
 func bridgeResourceIntegrationSpec(displayName string, enabled bool) bridgepkg.BridgeInstanceSpec {
 	return bridgepkg.BridgeInstanceSpec{
+		ProfileID:        store.DefaultProfileID,
 		Scope:            bridgepkg.ScopeGlobal,
 		Platform:         "telegram",
 		ExtensionName:    "ext-bridge",

@@ -267,6 +267,6 @@ func mcpServeResourceManagerActor() resources.MutationActor {
 			Kind: "daemon",
 			ID:   "mcp-serve",
 		},
-		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 	}
 }

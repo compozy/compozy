@@ -37,6 +37,7 @@ import { useTasksPageActions } from "./use-tasks-page-actions";
 import { taskScopeForActiveWorkspace } from "../lib/workspace-scope";
 import { useActiveWorkspace, useActiveWorktree, useWorktrees } from "@/systems/workspace";
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
+import { useProfileReadScope } from "@/systems/profiles";
 
 type InboxLaneFilter = InboxLaneFilterId;
 const SEARCH_DEBOUNCE_MS = 200;
@@ -110,6 +111,9 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
   // This window's worktree scope. Filtering happens server-side on the derived
   // active-run worktree id — a loaded page is never trimmed client-side.
   // Global cannot bind a worktree; the scope helper drops it on that branch.
+  // The listing's profile axis: owner tags under the aggregate, and the profile
+  // the empty state names.
+  const profile = useProfileReadScope();
   const worktreeScopeId = useWorktreeScopeId();
   const worktreesQuery = useWorktrees(activeWorkspaceId, {
     enabled: liveDataEnabled && activeWorkspaceId !== null,
@@ -228,6 +232,7 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
   return {
     ...actions,
     ...dashboard,
+    profile,
     activeWorkspaceName: activeWorkspace?.name ?? null,
     dashboardError: scopeError ?? dashboard.dashboardError,
     dashboardLoading: scopeLoading || dashboard.dashboardLoading,

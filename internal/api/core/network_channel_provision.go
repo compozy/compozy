@@ -22,6 +22,7 @@ func (h *BaseHandlers) provisionNetworkChannel(
 
 	createdIDs, err := h.createNetworkChannelSessions(
 		ctx,
+		entry.ProfileID,
 		entry.Channel,
 		entry.WorkspaceID,
 		agentNames,
@@ -31,7 +32,9 @@ func (h *BaseHandlers) provisionNetworkChannel(
 		return contract.NetworkChannelDetailPayload{}, StatusForSessionError(err), err
 	}
 
-	detail, err := h.networkChannelDetailPayload(ctx, service, entry.WorkspaceID, entry.Channel)
+	detail, err := h.networkChannelDetailPayload(
+		ctx, service, store.ReadScope{ProfileID: entry.ProfileID}, entry.WorkspaceID, entry.Channel,
+	)
 	if err != nil {
 		err = rollbackCreatedNetworkChannel(ctx, h.Sessions, networkStore, ref, createdIDs, err)
 		return contract.NetworkChannelDetailPayload{}, http.StatusInternalServerError, err

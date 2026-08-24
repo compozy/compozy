@@ -283,8 +283,15 @@ func (e *Executor) actionSessionBindRequest(
 	if err != nil {
 		return loop.ActionSessionBindRequest{}, err
 	}
+	var creationProfileRef, creationDigest, policySpecDigest string
+	if provenance := segment.input.ActionExecutionProvenance; provenance != nil {
+		creationProfileRef = strings.TrimSpace(provenance.OriginCreationProfileRef)
+		creationDigest = strings.TrimSpace(provenance.OriginCreationDigest)
+		policySpecDigest = strings.TrimSpace(provenance.OriginPolicySpecDigest)
+	}
 	runtimeRequest := segment.resolvedRuntime.Runtime
 	return loop.ActionSessionBindRequest{
+		ProfileID:                      segment.input.ToolScope.ProfileID,
 		WorkspaceID:                    segment.key.WorkspaceID,
 		LoopRunID:                      segment.key.LoopRunID,
 		Generation:                     segment.key.Generation,
@@ -308,9 +315,9 @@ func (e *Executor) actionSessionBindRequest(
 		ReseedGrantID:                  activeReseedGrant(segment.checkpoint),
 		BindingAttemptID:               bindingAttemptID,
 		DesiredSessionID:               desiredSessionID,
-		PinnedCreationProfileRef:       strings.TrimSpace(segment.input.OriginCreationProfileRef),
-		PinnedCreationDigest:           strings.TrimSpace(segment.input.OriginCreationDigest),
-		StaticPolicySpecDigest:         strings.TrimSpace(segment.input.OriginPolicySpecDigest),
+		PinnedCreationProfileRef:       creationProfileRef,
+		PinnedCreationDigest:           creationDigest,
+		StaticPolicySpecDigest:         policySpecDigest,
 		Isolated:                       segment.node.Session != nil && segment.node.Session.Isolated,
 		Runtime:                        &runtimeRequest,
 		MaxTurns:                       segment.params.MaxTurns,

@@ -17,6 +17,7 @@ export class WindowManagerSnapshotRefresher {
 
   async refresh(
     workspaceId: string,
+    profileId: string,
     bindingIsCurrent: () => boolean
   ): Promise<SnapshotRefreshResult> {
     this.controller?.abort();
@@ -24,7 +25,7 @@ export class WindowManagerSnapshotRefresher {
     this.controller = controller;
 
     try {
-      const snapshot = await fetchWindowManagerSnapshot(workspaceId, controller.signal);
+      const snapshot = await fetchWindowManagerSnapshot(workspaceId, profileId, controller.signal);
       if (this.isStale(controller, bindingIsCurrent)) return { status: "stale" };
       return { status: "applied", snapshot };
     } catch (error) {

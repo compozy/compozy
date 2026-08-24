@@ -92,6 +92,8 @@ function sessionsQuery({
 /** `badge` is what puts a session in the needs-you class (see session-badge.ts). */
 function waitingSession(id: string): SessionPayload {
   return {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     id,
     agent_name: "atlas",
     runtime: {

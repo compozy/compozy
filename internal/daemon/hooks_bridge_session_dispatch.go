@@ -158,8 +158,8 @@ func (n *hooksNotifier) DispatchSessionRuntimeRecoveryExhausted(
 
 func (n *hooksNotifier) DispatchSandboxPrepare(
 	ctx context.Context,
-	payload hookspkg.SandboxPreparePayload,
-) (hookspkg.SandboxPreparePayload, error) {
+	payload *hookspkg.SandboxPreparePayload,
+) (*hookspkg.SandboxPreparePayload, error) {
 	return dispatchRuntime(
 		ctx,
 		n,

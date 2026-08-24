@@ -105,15 +105,17 @@ func memoryEventSummaryVisibilityClause(filters []catalogFilter) (string, []any)
 	}
 	for _, filter := range filters {
 		switch filter.scope.Normalize() {
-		case memcontract.ScopeGlobal:
+		case memcontract.ScopeProfile:
 			if hasWorkspaceFilter {
 				clauses = append(
 					clauses,
-					"((COALESCE(scope, '') = '' AND COALESCE(workspace_id, '') = '') OR scope = 'global')",
+					"((COALESCE(scope, '') = '' AND COALESCE(workspace_id, '') = '') OR (scope = 'profile' AND profile_id = ?))",
 				)
+				args = append(args, strings.TrimSpace(filter.profileID))
 				continue
 			}
-			clauses = append(clauses, "(COALESCE(scope, '') = '' OR scope = 'global')")
+			clauses = append(clauses, "(COALESCE(scope, '') = '' OR (scope = 'profile' AND profile_id = ?))")
+			args = append(args, strings.TrimSpace(filter.profileID))
 		case memcontract.ScopeWorkspace:
 			workspaceID := strings.TrimSpace(filter.workspaceID)
 			if workspaceID == "" {
@@ -126,8 +128,8 @@ func memoryEventSummaryVisibilityClause(filters []catalogFilter) (string, []any)
 			if workspaceID == "" {
 				continue
 			}
-			clauses = append(clauses, "(scope = 'agent' AND workspace_id = ?)")
-			args = append(args, workspaceID)
+			clauses = append(clauses, "(scope = 'agent' AND profile_id = ? AND workspace_id = ?)")
+			args = append(args, strings.TrimSpace(filter.profileID), workspaceID)
 		}
 	}
 	if len(clauses) == 0 {

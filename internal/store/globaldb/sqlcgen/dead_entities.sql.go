@@ -12,18 +12,25 @@ import (
 const deleteDeadEntity = `-- name: DeleteDeadEntity :execrows
 DELETE FROM dead_entities
 WHERE workspace_id = ?1
-  AND kind = ?2
-  AND entity_id = ?3
+	AND profile_id = ?2
+  AND kind = ?3
+  AND entity_id = ?4
 `
 
 type DeleteDeadEntityParams struct {
 	WorkspaceID string `json:"workspace_id"`
+	ProfileID   string `json:"profile_id"`
 	Kind        string `json:"kind"`
 	EntityID    string `json:"entity_id"`
 }
 
 func (q *Queries) DeleteDeadEntity(ctx context.Context, arg DeleteDeadEntityParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteDeadEntity, arg.WorkspaceID, arg.Kind, arg.EntityID)
+	result, err := q.db.ExecContext(ctx, deleteDeadEntity,
+		arg.WorkspaceID,
+		arg.ProfileID,
+		arg.Kind,
+		arg.EntityID,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -31,23 +38,31 @@ func (q *Queries) DeleteDeadEntity(ctx context.Context, arg DeleteDeadEntityPara
 }
 
 const getDeadEntity = `-- name: GetDeadEntity :one
-SELECT workspace_id, kind, entity_id, reason, marked_at
+SELECT profile_id, workspace_id, kind, entity_id, reason, marked_at
 FROM dead_entities
 WHERE workspace_id = ?1
-  AND kind = ?2
-  AND entity_id = ?3
+	AND profile_id = ?2
+  AND kind = ?3
+  AND entity_id = ?4
 `
 
 type GetDeadEntityParams struct {
 	WorkspaceID string `json:"workspace_id"`
+	ProfileID   string `json:"profile_id"`
 	Kind        string `json:"kind"`
 	EntityID    string `json:"entity_id"`
 }
 
 func (q *Queries) GetDeadEntity(ctx context.Context, arg GetDeadEntityParams) (DeadEntity, error) {
-	row := q.db.QueryRowContext(ctx, getDeadEntity, arg.WorkspaceID, arg.Kind, arg.EntityID)
+	row := q.db.QueryRowContext(ctx, getDeadEntity,
+		arg.WorkspaceID,
+		arg.ProfileID,
+		arg.Kind,
+		arg.EntityID,
+	)
 	var i DeadEntity
 	err := row.Scan(
+		&i.ProfileID,
 		&i.WorkspaceID,
 		&i.Kind,
 		&i.EntityID,
@@ -58,7 +73,7 @@ func (q *Queries) GetDeadEntity(ctx context.Context, arg GetDeadEntityParams) (D
 }
 
 const listDeadEntities = `-- name: ListDeadEntities :many
-SELECT workspace_id, kind, entity_id, reason, marked_at
+SELECT profile_id, workspace_id, kind, entity_id, reason, marked_at
 FROM dead_entities
 WHERE workspace_id = ?1
 ORDER BY marked_at DESC, kind, entity_id
@@ -74,6 +89,7 @@ func (q *Queries) ListDeadEntities(ctx context.Context, workspaceID string) ([]D
 	for rows.Next() {
 		var i DeadEntity
 		if err := rows.Scan(
+			&i.ProfileID,
 			&i.WorkspaceID,
 			&i.Kind,
 			&i.EntityID,
@@ -95,16 +111,20 @@ func (q *Queries) ListDeadEntities(ctx context.Context, workspaceID string) ([]D
 
 const upsertDeadEntity = `-- name: UpsertDeadEntity :exec
 INSERT INTO dead_entities (
+  profile_id,
   workspace_id, kind, entity_id, reason, marked_at
 ) VALUES (
-  ?1, ?2, ?3, ?4, ?5
+  ?1,
+  ?2, ?3, ?4, ?5, ?6
 )
-ON CONFLICT(workspace_id, kind, entity_id) DO UPDATE SET
+ON CONFLICT(profile_id, workspace_id, kind, entity_id) DO UPDATE SET
   reason = excluded.reason,
   marked_at = excluded.marked_at
+WHERE dead_entities.profile_id = excluded.profile_id
 `
 
 type UpsertDeadEntityParams struct {
+	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id"`
 	Kind        string `json:"kind"`
 	EntityID    string `json:"entity_id"`
@@ -114,6 +134,7 @@ type UpsertDeadEntityParams struct {
 
 func (q *Queries) UpsertDeadEntity(ctx context.Context, arg UpsertDeadEntityParams) error {
 	_, err := q.db.ExecContext(ctx, upsertDeadEntity,
+		arg.ProfileID,
 		arg.WorkspaceID,
 		arg.Kind,
 		arg.EntityID,

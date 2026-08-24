@@ -208,6 +208,7 @@ func (g *AutomationRepo) normalizeSchedulerState(state automation.SchedulerState
 }
 
 func (g *AutomationRepo) normalizeSchedulerClaim(claim automation.SchedulerClaim) (automation.SchedulerClaim, error) {
+	claim.ProfileID = strings.TrimSpace(claim.ProfileID)
 	claim.JobID = strings.TrimSpace(claim.JobID)
 	claim.RunID = strings.TrimSpace(claim.RunID)
 	claim.FireID = strings.TrimSpace(claim.FireID)
@@ -361,6 +362,7 @@ func scheduledRunAfterClaim(
 	activeRunID string,
 ) automation.Run {
 	run := automation.Run{
+		ProfileID:   claim.ProfileID,
 		ID:          claim.RunID,
 		JobID:       claim.JobID,
 		FireID:      claim.FireID,

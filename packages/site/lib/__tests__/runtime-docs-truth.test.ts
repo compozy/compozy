@@ -357,8 +357,8 @@ describe("runtime docs truth", () => {
     expect(fileLocations).toContain("<workspace>/.compozy/workspace.toml");
     expect(fileLocations).toContain("<workspace>/.compozy/agents/<name>/memory/");
     expect(fileLocations).toContain("$COMPOZY_HOME/agents/<name>/memory/");
-    expect(fileLocations).toContain("$COMPOZY_HOME/memory/_inbox/");
-    expect(fileLocations).toContain("$COMPOZY_HOME/memory/_system/");
+    expect(fileLocations).toContain("$COMPOZY_HOME/profiles/<name>/memory/_inbox/");
+    expect(fileLocations).toContain("$COMPOZY_HOME/profiles/<name>/memory/_system/");
   });
 
   it("keeps the generated memory CLI reference aligned with the Slice 1 verbs", () => {

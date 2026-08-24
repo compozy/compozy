@@ -10,7 +10,7 @@ import (
 type Scope string
 
 const (
-	ScopeGlobal    Scope = "global"
+	ScopeProfile   Scope = "profile"
 	ScopeWorkspace Scope = "workspace"
 	ScopeAgent     Scope = "agent"
 )
@@ -23,7 +23,7 @@ func (s Scope) Normalize() Scope {
 // Validate reports whether the scope belongs to the closed taxonomy.
 func (s Scope) Validate() error {
 	switch s.Normalize() {
-	case ScopeGlobal, ScopeWorkspace, ScopeAgent:
+	case ScopeProfile, ScopeWorkspace, ScopeAgent:
 		return nil
 	case "":
 		return fmt.Errorf("scope is required")
@@ -119,7 +119,7 @@ func (t Type) Validate() error {
 func DefaultScopeForType(t Type) (Scope, error) {
 	switch t.Normalize() {
 	case TypeUser, TypeFeedback:
-		return ScopeGlobal, nil
+		return ScopeProfile, nil
 	case TypeProject, TypeReference:
 		return ScopeWorkspace, nil
 	case "":

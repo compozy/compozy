@@ -31,6 +31,7 @@ func normalizeCmdPaletteCommand(command CmdPaletteCommand) CmdPaletteCommand {
 	normalized.Title = strings.TrimSpace(command.Title)
 	normalized.Section = strings.TrimSpace(command.Section)
 	normalized.Icon = strings.TrimSpace(command.Icon)
+	normalized.Profile = strings.TrimSpace(command.Profile)
 	normalized.Keywords = normalizeStrings(command.Keywords)
 	normalized.DefaultShortcut = strings.TrimSpace(command.DefaultShortcut)
 	normalized.Arguments = make([]CmdPaletteArgument, 0, len(command.Arguments))
@@ -74,6 +75,7 @@ func normalizeCmdPaletteView(view CmdPaletteView) CmdPaletteView {
 	normalized.ID = strings.TrimSpace(view.ID)
 	normalized.Title = strings.TrimSpace(view.Title)
 	normalized.Kind = strings.TrimSpace(view.Kind)
+	normalized.Profile = strings.TrimSpace(view.Profile)
 	if view.Source != nil {
 		normalized.Source = &CmdPaletteViewSource{Tool: strings.TrimSpace(view.Source.Tool)}
 	}

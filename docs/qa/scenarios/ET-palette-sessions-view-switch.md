@@ -47,6 +47,15 @@ daemon was not started. The current Task 12 walk is `untested` and is scheduled 
 `CH-palette-sessions-landing-canary` (BR-20 adjacent canary). It must run in an isolated QA lab
 with a live daemon so the persona walk meets the qa-execution evidence standard.
 
+2026-08-23 qa-impact (Profiles): the Sessions view's rows are now profile-scoped, its chip counts
+are per-profile facts, and the globe (workspace breadth) composes with the profile lens instead of
+replacing it — the two axes are independent. Already `untested`, so no reset was needed. During the
+re-walk, confirm the globe round trip still agrees across palette, sidebar, and
+`compozy config get shell.sessions.scope` in a non-default profile, and that widening workspaces
+never widens profiles. The cross-profile equivalent is owned by
+`ET-profile-palette-lens-isolation`; the aggregate-labeled session read is owned by
+`ET-profile-stream-isolation`.
+
 Walk (task_11 plan):
 
 1. ⌘E opens the palette already inside the Sessions view; the root Views entry pushes the same

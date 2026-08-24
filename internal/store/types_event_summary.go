@@ -10,15 +10,21 @@ import (
 )
 
 type EventSummary struct {
-	ID          string
-	SessionID   string
-	WorkspaceID string
-	Sequence    int64
-	Type        string
-	AgentName   string
-	Provider    string
-	Outcome     string
-	Content     json.RawMessage
+	ID              string
+	ProfileID       string
+	ProfileName     string
+	ProfileColor    string
+	ProfileIcon     string
+	ProfileEmoji    string
+	ProfileArchived bool
+	SessionID       string
+	WorkspaceID     string
+	Sequence        int64
+	Type            string
+	AgentName       string
+	Provider        string
+	Outcome         string
+	*EventSummaryContentState
 	EventCorrelation
 	ParentSessionID string
 	RootSessionID   string
@@ -27,8 +33,17 @@ type EventSummary struct {
 	Timestamp       time.Time
 }
 
+// EventSummaryContentState keeps the optional payload compact while preserving
+// EventSummary's value-oriented Content field for readers.
+type EventSummaryContentState struct {
+	Content json.RawMessage
+}
+
 // Validate ensures the summary contains the required identifying fields.
 func (s EventSummary) Validate() error {
+	if err := requireField(s.ProfileID, "event summary profile_id"); err != nil {
+		return err
+	}
 	eventType := strings.TrimSpace(s.Type)
 	if err := requireField(eventType, "event summary type"); err != nil {
 		return err
@@ -63,8 +78,10 @@ func eventSummaryAllowsGlobalScope(eventType string) bool {
 	return eventspkg.AllowsGlobalScope(eventType)
 }
 
-// EventSummaryQuery filters global event summary queries.
+// EventSummaryQuery filters event summaries through one explicit profile or the
+// AllProfiles aggregate.
 type EventSummaryQuery struct {
+	ReadScope     ReadScope
 	SessionID     string
 	WorkspaceID   string
 	WorktreeID    string
@@ -83,8 +100,11 @@ type EventSummaryQuery struct {
 	Limit         int
 }
 
-// Validate ensures the query uses sane bounds.
+// Validate rejects an implicit profile lens before checking query bounds.
 func (q EventSummaryQuery) Validate() error {
+	if err := q.ReadScope.Validate(); err != nil {
+		return err
+	}
 	if err := requirePositiveLimit(q.Limit, "event summary limit"); err != nil {
 		return err
 	}

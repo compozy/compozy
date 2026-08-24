@@ -13,13 +13,14 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/resources"
+	storepkg "github.com/compozy/compozy/internal/store"
 )
 
 // ResourceProjectionStore is the bridge desired-runtime surface updated by resource projection.
 // ReplaceBridgeInstances must preserve newer provider-owned operational state
 // when the desired projection still targets the same enabled runtime.
 type ResourceProjectionStore interface {
-	ListBridgeInstances(ctx context.Context) ([]BridgeInstance, error)
+	ListBridgeInstances(ctx context.Context, readScope storepkg.ReadScope) ([]BridgeInstance, error)
 	ReplaceBridgeInstances(ctx context.Context, instances []BridgeInstance) error
 }
 
@@ -112,7 +113,7 @@ func BuildResourceState(
 		return nil, errors.New("bridges: bridge resource projection store is required")
 	}
 
-	previous, err := store.ListBridgeInstances(ctx)
+	previous, err := store.ListBridgeInstances(ctx, storepkg.ReadScope{AllProfiles: true})
 	if err != nil {
 		return nil, fmt.Errorf("bridges: build bridge resource state: list existing instances: %w", err)
 	}

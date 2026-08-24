@@ -135,9 +135,17 @@ export function authorizeLabel(server: SettingsMCPServerEntry): MCPAuthorizeLabe
 export function deriveMCPAuthFilter(server: SettingsMCPServerEntry): SettingsMCPAuthFilter | null {
   const management = deriveMCPManagementFilter(server);
   if (!management) return null;
-  return management.scope === "workspace"
-    ? { scope: "workspace", workspace_id: management.workspace_id }
-    : { scope: "global" };
+  if (management.scope === "workspace") {
+    return { scope: "workspace", workspace_id: management.workspace_id };
+  }
+  if (management.scope === "profile") {
+    return {
+      scope: "profile",
+      profile: management.profile,
+      workspace_id: management.workspace_id,
+    };
+  }
+  return { scope: "user" };
 }
 
 /**

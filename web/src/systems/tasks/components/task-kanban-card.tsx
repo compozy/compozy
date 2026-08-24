@@ -13,12 +13,14 @@ import {
   taskStatusTone,
 } from "../lib/task-formatters";
 import type { TaskListItem } from "../types";
+import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 
 export interface TaskKanbanCardProps {
   task: TaskListItem;
   selected?: boolean;
   onSelect?: (taskId: string) => void;
   onRetry?: (runId: string) => void;
+  profileOwner?: ProfileOwner;
 }
 
 const STATUS_LABELS: Partial<Record<TaskListItem["status"], string>> = {
@@ -37,7 +39,13 @@ function statusLabel(status: TaskListItem["status"]): string {
   return STATUS_LABELS[status] ?? status;
 }
 
-export function TaskKanbanCard({ task, selected = false, onSelect, onRetry }: TaskKanbanCardProps) {
+export function TaskKanbanCard({
+  task,
+  selected = false,
+  onSelect,
+  onRetry,
+  profileOwner,
+}: TaskKanbanCardProps) {
   const activeRun = task.active_run ?? null;
   const isFailed = task.status === "failed";
   const failedError = isFailed && activeRun?.error ? activeRun.error : null;
@@ -121,6 +129,12 @@ export function TaskKanbanCard({ task, selected = false, onSelect, onRetry }: Ta
             size="sm"
           />
           <span className="min-w-0 truncate text-eyebrow text-muted">{ownerLabel}</span>
+          {profileOwner ? (
+            <ProfileOwnerTag
+              data-testid={`tasks-kanban-card-profile-${task.id}`}
+              owner={profileOwner}
+            />
+          ) : null}
         </div>
         <span
           className="shrink-0 font-mono text-badge tabular-nums text-faint"

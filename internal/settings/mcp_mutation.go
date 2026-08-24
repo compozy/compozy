@@ -13,6 +13,7 @@ func (s *service) putMCPServer(
 	ctx context.Context,
 	scope ScopeKind,
 	workspaceID string,
+	profileName string,
 	name string,
 	selector TargetSelector,
 	server compozyconfig.MCPServer,
@@ -20,27 +21,30 @@ func (s *service) putMCPServer(
 	preservation MCPSecretPreservation,
 	envPreservation []string,
 ) (MutationResult, error) {
-	root, sources, err := s.resolveMCPTargetContext(ctx, scope, workspaceID)
+	root, sources, err := s.resolveMCPTargetContext(ctx, scope, workspaceID, profileName)
 	if err != nil {
 		return MutationResult{}, err
 	}
-	target, err := s.resolveMCPPutTarget(scope, root, name, selector, sources)
+	target, err := s.resolveMCPPutTarget(scope, root, profileName, name, selector, sources)
 	if err != nil {
 		return MutationResult{}, err
 	}
 
 	normalized, err := s.normalizeAndValidateMCPServerWrite(
-		ctx, scope, workspaceID, name, target.Kind(), sources, server, preservation, envPreservation,
+		ctx, scope, workspaceID, profileName, name, target.Kind(), sources, server, preservation, envPreservation,
 	)
 	if err != nil {
 		return MutationResult{}, err
 	}
-	secretWrites, err := s.prepareMCPSecretWrites(scope, workspaceID, name, &normalized, secrets)
+	scopeID := mcpScopeIdentifier(scope, workspaceID, profileName)
+	secretWrites, err := s.prepareMCPSecretWrites(
+		scope, scopeID, name, &normalized, secrets,
+	)
 	if err != nil {
 		return MutationResult{}, err
 	}
 	secretCleanup, err := s.prepareMCPSecretCleanupPlan(
-		ctx, scope, workspaceID, name, target.Kind(), sources, normalized,
+		ctx, scope, scopeID, name, target.Kind(), sources, normalized,
 	)
 	if err != nil {
 		return MutationResult{}, err
@@ -50,7 +54,7 @@ func (s *service) putMCPServer(
 		return MutationResult{}, err
 	}
 	mutationOutcome, err := s.commitMCPServerDefinition(
-		ctx, scope, workspaceID, root, name, target, sources, normalized,
+		ctx, scope, workspaceID, profileName, root, name, target, sources, normalized,
 	)
 	if err != nil {
 		var rollbackErr error
@@ -63,6 +67,7 @@ func (s *service) putMCPServer(
 		ctx,
 		scope,
 		workspaceID,
+		profileName,
 		root,
 		name,
 		target,
@@ -74,8 +79,10 @@ func (s *service) putMCPServer(
 	}
 
 	result := mutationResultForCollection(CollectionMCPServers, scope, workspaceID, target.Kind())
+	result.ProfileName = profileName
+	result = mutationResultAtPath(result, target.Path())
 	result.Warnings = append(result.Warnings, cleanupWarnings...)
-	item := committedMCPServerItem(normalized, scope, workspaceID, target.Kind(), sources)
+	item := committedMCPServerItem(normalized, scope, workspaceID, profileName, target.Kind(), sources)
 	result.MCPServer = &item
 	return result, nil
 }
@@ -84,6 +91,7 @@ func (s *service) commitMCPServerDefinition(
 	ctx context.Context,
 	scope ScopeKind,
 	workspaceID string,
+	profileName string,
 	root string,
 	name string,
 	target compozyconfig.WriteTarget,
@@ -101,6 +109,7 @@ func (s *service) commitMCPServerDefinition(
 		ctx,
 		scope,
 		workspaceID,
+		profileName,
 		name,
 		func() error { return s.writeMCPServer(root, name, target, server) },
 		rollback,
@@ -111,6 +120,7 @@ func (s *service) normalizeAndValidateMCPServerWrite(
 	ctx context.Context,
 	scope ScopeKind,
 	workspaceID string,
+	profileName string,
 	name string,
 	target WriteTargetKind,
 	sources map[string][]mcpSourceEntry,
@@ -135,7 +145,16 @@ func (s *service) normalizeAndValidateMCPServerWrite(
 	if err := preserveMCPSecretBindings(name, target, sources, &server, preservation); err != nil {
 		return compozyconfig.MCPServer{}, err
 	}
-	if err := s.validateMCPServerWrite(ctx, scope, workspaceID, name, target, sources, server); err != nil {
+	if err := s.validateMCPServerWrite(
+		ctx,
+		scope,
+		workspaceID,
+		profileName,
+		name,
+		target,
+		sources,
+		server,
+	); err != nil {
 		return compozyconfig.MCPServer{}, fmt.Errorf("settings: write MCP server %q: %w", name, err)
 	}
 	return server, nil
@@ -160,7 +179,7 @@ func writeMCPDefinition(
 	target compozyconfig.WriteTarget,
 	server compozyconfig.MCPServer,
 ) error {
-	if target.Kind() == WriteTargetGlobalMCPSidecar || target.Kind() == WriteTargetWorkspaceMCPSidecar {
+	if isMCPDefinitionSidecarTarget(target.Kind()) {
 		if _, err := compozyconfig.PutMCPSidecarServer(homePaths, root, target, server); err != nil {
 			return err
 		}
@@ -183,12 +202,13 @@ func (s *service) validateMCPServerWrite(
 	ctx context.Context,
 	scope ScopeKind,
 	workspaceID string,
+	profileName string,
 	name string,
 	target WriteTargetKind,
 	sources map[string][]mcpSourceEntry,
 	server compozyconfig.MCPServer,
 ) error {
-	cfg, _, err := s.loadConfig(ctx, scope, workspaceID)
+	cfg, _, err := s.loadConfig(ctx, scope, workspaceID, profileName)
 	if err != nil {
 		return err
 	}
@@ -210,6 +230,7 @@ func projectedMCPServerForValidation(
 	}
 	effective := entries[len(entries)-1]
 	if (target == WriteTargetGlobalConfig && effective.Target == WriteTargetGlobalMCPSidecar) ||
+		(target == WriteTargetProfileConfig && effective.Target == WriteTargetProfileMCPSidecar) ||
 		(target == WriteTargetWorkspaceConfig && effective.Target == WriteTargetWorkspaceMCPSidecar) {
 		return compozyconfig.MCPServer{}, false
 	}
@@ -232,21 +253,24 @@ func (s *service) deleteMCPServer(
 	ctx context.Context,
 	scope ScopeKind,
 	workspaceID string,
+	profileName string,
 	name string,
 	selector TargetSelector,
 ) (MutationResult, error) {
-	root, sources, err := s.resolveMCPTargetContext(ctx, scope, workspaceID)
+	root, sources, err := s.resolveMCPTargetContext(ctx, scope, workspaceID, profileName)
 	if err != nil {
 		return MutationResult{}, err
 	}
-	target, err := s.resolveMCPDeleteTarget(scope, root, name, selector, sources)
+	target, err := s.resolveMCPDeleteTarget(scope, root, profileName, name, selector, sources)
 	if err != nil {
 		return MutationResult{}, err
 	}
 	deletedSource, sourceFound := mcpSourceForTarget(name, target.Kind(), sources)
 	var ownedSecrets []ownedMCPSecretSnapshot
 	if sourceFound {
-		ownedSecrets, err = s.prepareOwnedMCPSecretDeletes(ctx, scope, workspaceID, deletedSource.Server)
+		ownedSecrets, err = s.prepareOwnedMCPSecretDeletes(
+			ctx, scope, mcpScopeIdentifier(scope, workspaceID, profileName), deletedSource.Server,
+		)
 		if err != nil {
 			return MutationResult{}, fmt.Errorf("settings: prepare MCP server %q secret cleanup: %w", name, err)
 		}
@@ -268,6 +292,7 @@ func (s *service) deleteMCPServer(
 		ctx,
 		scope,
 		workspaceID,
+		profileName,
 		name,
 		func() error { return s.deleteMCPServerDefinition(root, name, target) },
 		rollbackDefinition,
@@ -284,6 +309,7 @@ func (s *service) deleteMCPServer(
 		ctx,
 		scope,
 		workspaceID,
+		profileName,
 		name,
 		root,
 		target,
@@ -296,6 +322,7 @@ func (s *service) finishMCPServerDeletion(
 	ctx context.Context,
 	scope ScopeKind,
 	workspaceID string,
+	profileName string,
 	name string,
 	root string,
 	target compozyconfig.WriteTarget,
@@ -303,6 +330,8 @@ func (s *service) finishMCPServerDeletion(
 	ownedSecrets []ownedMCPSecretSnapshot,
 ) (MutationResult, error) {
 	result := mutationResultForCollection(CollectionMCPServers, scope, workspaceID, target.Kind())
+	result.ProfileName = profileName
+	result = mutationResultAtPath(result, target.Path())
 	if len(ownedSecrets) == 0 {
 		return result, nil
 	}
@@ -333,12 +362,12 @@ func (s *service) finishMCPServerDeletion(
 		}
 		return result, nil
 	}
-	invalidateErr := s.invalidateMCPAuthAfterDefinitionRestore(scope, workspaceID, name)
+	invalidateErr := s.invalidateMCPAuthAfterDefinitionRestore(scope, workspaceID, profileName, name)
 	return MutationResult{}, errors.Join(cleanupFailure, invalidateErr)
 }
 
 func (s *service) deleteMCPServerDefinition(root string, name string, target compozyconfig.WriteTarget) error {
-	if target.Kind() == WriteTargetGlobalMCPSidecar || target.Kind() == WriteTargetWorkspaceMCPSidecar {
+	if isMCPDefinitionSidecarTarget(target.Kind()) {
 		_, deleted, err := compozyconfig.DeleteMCPSidecarServer(s.homePaths, root, target, name)
 		if err != nil {
 			return fmt.Errorf("settings: delete MCP server %q: %w", name, err)
@@ -366,93 +395,6 @@ func (s *service) deleteMCPServerDefinition(root string, name string, target com
 		},
 	); err != nil {
 		return fmt.Errorf("settings: delete MCP server %q: %w", name, err)
-	}
-	return nil
-}
-
-type mcpDefinitionMutationOutcome uint8
-
-const (
-	mcpDefinitionMutationUnchanged mcpDefinitionMutationOutcome = iota
-	mcpDefinitionMutationRestored
-	mcpDefinitionMutationCommitted
-)
-
-func (s *service) withMCPAuthDefinitionMutation(
-	ctx context.Context,
-	scope ScopeKind,
-	workspaceID string,
-	name string,
-	mutate func() error,
-	rollback func() error,
-) (mcpDefinitionMutationOutcome, error) {
-	if mutate == nil {
-		return mcpDefinitionMutationUnchanged, errors.New("settings: MCP definition mutation is required")
-	}
-	if rollback == nil {
-		return mcpDefinitionMutationUnchanged, errors.New("settings: MCP definition rollback is required")
-	}
-	if s.mcpAuth == nil {
-		if err := mutate(); err != nil {
-			return mcpDefinitionMutationUnchanged, err
-		}
-		return mcpDefinitionMutationCommitted, nil
-	}
-	target, err := normalizeMCPAuthTarget(MCPAuthTargetRequest{
-		Scope: scope, WorkspaceID: workspaceID, Name: name,
-	})
-	if err != nil {
-		return mcpDefinitionMutationUnchanged, err
-	}
-	if err := s.mcpAuth.MCPAuthInvalidate(target); err != nil {
-		return mcpDefinitionMutationUnchanged, fmt.Errorf(
-			"settings: invalidate pending MCP auth before definition mutation: %w",
-			err,
-		)
-	}
-	mutationErr := mutate()
-	if mutationErr != nil {
-		return mcpDefinitionMutationUnchanged, mutationErr
-	}
-	deleteStateErr := s.mcpAuth.MCPAuthDeleteState(ctx, target)
-	if deleteStateErr != nil {
-		deleteStateErr = fmt.Errorf("settings: delete MCP auth state after definition mutation: %w", deleteStateErr)
-	}
-	if deleteStateErr == nil {
-		return mcpDefinitionMutationCommitted, nil
-	}
-
-	rollbackErr := rollback()
-	if rollbackErr != nil {
-		rollbackErr = fmt.Errorf("settings: roll back MCP definition mutation: %w", rollbackErr)
-		return mcpDefinitionMutationCommitted, errors.Join(deleteStateErr, rollbackErr)
-	}
-	rollbackInvalidateErr := s.mcpAuth.MCPAuthInvalidate(target)
-	if rollbackInvalidateErr != nil {
-		rollbackInvalidateErr = fmt.Errorf(
-			"settings: invalidate pending MCP auth after definition rollback: %w",
-			rollbackInvalidateErr,
-		)
-	}
-	return mcpDefinitionMutationRestored, errors.Join(deleteStateErr, rollbackInvalidateErr)
-}
-
-func (s *service) invalidateMCPAuthAfterDefinitionRestore(
-	scope ScopeKind,
-	workspaceID string,
-	name string,
-) error {
-	if s.mcpAuth == nil {
-		return nil
-	}
-	target, err := normalizeMCPAuthTarget(MCPAuthTargetRequest{
-		Scope: scope, WorkspaceID: workspaceID, Name: name,
-	})
-	if err != nil {
-		return err
-	}
-	if err := s.mcpAuth.MCPAuthInvalidate(target); err != nil {
-		return fmt.Errorf("settings: invalidate pending MCP auth after definition restore: %w", err)
 	}
 	return nil
 }

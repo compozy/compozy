@@ -189,6 +189,7 @@ func immutableTaskStatusContext(
 		agentName = strings.TrimSpace(actor.Actor.Ref)
 	}
 	return hookspkg.TaskContext{
+		ProfileID:    strings.TrimSpace(record.ProfileID),
 		TaskID:       strings.TrimSpace(record.ID),
 		ParentTaskID: strings.TrimSpace(record.ParentTaskID),
 		WorkspaceID:  strings.TrimSpace(record.WorkspaceID),

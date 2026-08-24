@@ -3,7 +3,13 @@ import type { ExtensionContext } from "./extension-contract.js";
 import { InvalidParamsError } from "./errors.js";
 import { registerProvideSurface } from "./extension-provide-surface.js";
 import { isRequestRecord, requestRecord, requiredString } from "./protocol-params.js";
-import type { ViewCloseRequest, ViewEvent, ViewFrame, ViewOpenRequest } from "./types.js";
+import type {
+  ProfileLens,
+  ViewCloseRequest,
+  ViewEvent,
+  ViewFrame,
+  ViewOpenRequest,
+} from "./types.js";
 import { ViewSessionRegistry } from "./view-session-registry.js";
 
 export const VIEW_PROVIDER_CAPABILITY = "view.provider";
@@ -93,10 +99,21 @@ function parseOpenRequest(params: unknown): ViewOpenRequest {
   return {
     view_session: requiredString(VIEW_OPEN_METHOD, record, "view_session"),
     view: requiredString(VIEW_OPEN_METHOD, record, "view"),
+    profile_lens: parseProfileLens(VIEW_OPEN_METHOD, record),
     workspace: requiredString(VIEW_OPEN_METHOD, record, "workspace"),
     client: requiredString(VIEW_OPEN_METHOD, record, "client"),
-    ...(args === undefined ? {} : { args }),
-  } as ViewOpenRequest;
+    ...(args === undefined ? {} : { args: args as NonNullable<ViewOpenRequest["args"]> }),
+  };
+}
+
+function parseProfileLens(method: string, record: Record<string, unknown>): ProfileLens {
+  if (!isRequestRecord(record.profile_lens)) {
+    throw new InvalidParamsError(`${method} profile_lens must be an object`);
+  }
+  return {
+    profile_lens_id: requiredString(method, record.profile_lens, "profile_lens_id"),
+    profile_name: requiredString(method, record.profile_lens, "profile_name"),
+  };
 }
 
 function parseEvent(params: unknown): ViewEvent {
@@ -127,6 +144,7 @@ function parseCloseRequest(params: unknown): ViewCloseRequest {
   }
   return {
     view_session: requiredString(VIEW_CLOSE_METHOD, record, "view_session"),
+    profile_lens: parseProfileLens(VIEW_CLOSE_METHOD, record),
     ...(reason === undefined ? {} : { reason }),
   };
 }

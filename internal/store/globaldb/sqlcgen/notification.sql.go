@@ -16,7 +16,6 @@ INSERT INTO notification_presets (
   events,
   targets,
   filter,
-  enabled,
   built_in,
   default_version,
   default_hash,
@@ -35,8 +34,7 @@ INSERT INTO notification_presets (
   ?8,
   ?9,
   ?10,
-  ?11,
-  ?12
+  ?11
 )
 `
 
@@ -45,7 +43,6 @@ type CreateNotificationPresetParams struct {
 	Events                 string `json:"events"`
 	Targets                string `json:"targets"`
 	Filter                 string `json:"filter"`
-	Enabled                bool   `json:"enabled"`
 	BuiltIn                bool   `json:"built_in"`
 	DefaultVersion         string `json:"default_version"`
 	DefaultHash            string `json:"default_hash"`
@@ -61,7 +58,6 @@ func (q *Queries) CreateNotificationPreset(ctx context.Context, arg CreateNotifi
 		arg.Events,
 		arg.Targets,
 		arg.Filter,
-		arg.Enabled,
 		arg.BuiltIn,
 		arg.DefaultVersion,
 		arg.DefaultHash,
@@ -86,9 +82,26 @@ func (q *Queries) DeleteNotificationPreset(ctx context.Context, name string) (in
 	return result.RowsAffected()
 }
 
+const deleteNotificationPresetEnablement = `-- name: DeleteNotificationPresetEnablement :exec
+DELETE FROM notification_preset_enablement
+WHERE preset_name = ?1
+  AND profile_id = ?2
+`
+
+type DeleteNotificationPresetEnablementParams struct {
+	PresetName string `json:"preset_name"`
+	ProfileID  string `json:"profile_id"`
+}
+
+func (q *Queries) DeleteNotificationPresetEnablement(ctx context.Context, arg DeleteNotificationPresetEnablementParams) error {
+	_, err := q.db.ExecContext(ctx, deleteNotificationPresetEnablement, arg.PresetName, arg.ProfileID)
+	return err
+}
+
 const getNotificationCursor = `-- name: GetNotificationCursor :one
 SELECT
   scope_kind,
+  profile_id,
   workspace_id,
   consumer_id,
   stream_name,
@@ -100,14 +113,16 @@ SELECT
   updated_at
 FROM notification_cursors
 WHERE scope_kind = ?1
-  AND workspace_id = ?2
-  AND consumer_id = ?3
-  AND stream_name = ?4
-  AND subject_id = ?5
+  AND profile_id = ?2
+  AND workspace_id = ?3
+  AND consumer_id = ?4
+  AND stream_name = ?5
+  AND subject_id = ?6
 `
 
 type GetNotificationCursorParams struct {
 	ScopeKind   string `json:"scope_kind"`
+	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id"`
 	ConsumerID  string `json:"consumer_id"`
 	StreamName  string `json:"stream_name"`
@@ -117,6 +132,7 @@ type GetNotificationCursorParams struct {
 func (q *Queries) GetNotificationCursor(ctx context.Context, arg GetNotificationCursorParams) (NotificationCursor, error) {
 	row := q.db.QueryRowContext(ctx, getNotificationCursor,
 		arg.ScopeKind,
+		arg.ProfileID,
 		arg.WorkspaceID,
 		arg.ConsumerID,
 		arg.StreamName,
@@ -125,6 +141,7 @@ func (q *Queries) GetNotificationCursor(ctx context.Context, arg GetNotification
 	var i NotificationCursor
 	err := row.Scan(
 		&i.ScopeKind,
+		&i.ProfileID,
 		&i.WorkspaceID,
 		&i.ConsumerID,
 		&i.StreamName,
@@ -144,7 +161,6 @@ SELECT
   events,
   targets,
   filter,
-  enabled,
   built_in,
   default_version,
   default_hash,
@@ -164,7 +180,6 @@ func (q *Queries) GetNotificationPreset(ctx context.Context, name string) (Notif
 		&i.Events,
 		&i.Targets,
 		&i.Filter,
-		&i.Enabled,
 		&i.BuiltIn,
 		&i.DefaultVersion,
 		&i.DefaultHash,
@@ -176,8 +191,28 @@ func (q *Queries) GetNotificationPreset(ctx context.Context, name string) (Notif
 	return i, err
 }
 
+const getNotificationPresetEnablement = `-- name: GetNotificationPresetEnablement :one
+SELECT enabled
+FROM notification_preset_enablement
+WHERE preset_name = ?1
+  AND profile_id = ?2
+`
+
+type GetNotificationPresetEnablementParams struct {
+	PresetName string `json:"preset_name"`
+	ProfileID  string `json:"profile_id"`
+}
+
+func (q *Queries) GetNotificationPresetEnablement(ctx context.Context, arg GetNotificationPresetEnablementParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getNotificationPresetEnablement, arg.PresetName, arg.ProfileID)
+	var enabled int64
+	err := row.Scan(&enabled)
+	return enabled, err
+}
+
 const insertNotificationCursor = `-- name: InsertNotificationCursor :exec
 INSERT INTO notification_cursors (
+  profile_id,
   scope_kind,
   workspace_id,
   consumer_id,
@@ -197,12 +232,14 @@ INSERT INTO notification_cursors (
   ?6,
   ?7,
   ?8,
+  ?9,
   '',
-  ?9
+  ?10
 )
 `
 
 type InsertNotificationCursorParams struct {
+	ProfileID       string         `json:"profile_id"`
 	ScopeKind       string         `json:"scope_kind"`
 	WorkspaceID     string         `json:"workspace_id"`
 	ConsumerID      string         `json:"consumer_id"`
@@ -216,6 +253,7 @@ type InsertNotificationCursorParams struct {
 
 func (q *Queries) InsertNotificationCursor(ctx context.Context, arg InsertNotificationCursorParams) error {
 	_, err := q.db.ExecContext(ctx, insertNotificationCursor,
+		arg.ProfileID,
 		arg.ScopeKind,
 		arg.WorkspaceID,
 		arg.ConsumerID,
@@ -231,6 +269,7 @@ func (q *Queries) InsertNotificationCursor(ctx context.Context, arg InsertNotifi
 
 const recordNotificationCursorError = `-- name: RecordNotificationCursorError :exec
 INSERT INTO notification_cursors (
+  profile_id,
   scope_kind,
   workspace_id,
   consumer_id,
@@ -247,18 +286,20 @@ INSERT INTO notification_cursors (
   ?3,
   ?4,
   ?5,
+  ?6,
   0,
   '',
   NULL,
-  ?6,
-  ?7
+  ?7,
+  ?8
 )
-ON CONFLICT(scope_kind, workspace_id, consumer_id, stream_name, subject_id) DO UPDATE SET
+ON CONFLICT(scope_kind, profile_id, workspace_id, consumer_id, stream_name, subject_id) DO UPDATE SET
   last_error = excluded.last_error,
   updated_at = excluded.updated_at
 `
 
 type RecordNotificationCursorErrorParams struct {
+	ProfileID   string `json:"profile_id"`
 	ScopeKind   string `json:"scope_kind"`
 	WorkspaceID string `json:"workspace_id"`
 	ConsumerID  string `json:"consumer_id"`
@@ -270,6 +311,7 @@ type RecordNotificationCursorErrorParams struct {
 
 func (q *Queries) RecordNotificationCursorError(ctx context.Context, arg RecordNotificationCursorErrorParams) error {
 	_, err := q.db.ExecContext(ctx, recordNotificationCursorError,
+		arg.ProfileID,
 		arg.ScopeKind,
 		arg.WorkspaceID,
 		arg.ConsumerID,
@@ -283,6 +325,7 @@ func (q *Queries) RecordNotificationCursorError(ctx context.Context, arg RecordN
 
 const resetNotificationCursor = `-- name: ResetNotificationCursor :exec
 INSERT INTO notification_cursors (
+  profile_id,
   scope_kind,
   workspace_id,
   consumer_id,
@@ -302,10 +345,11 @@ INSERT INTO notification_cursors (
   ?6,
   ?7,
   ?8,
+  ?9,
   '',
-  ?9
+  ?10
 )
-ON CONFLICT(scope_kind, workspace_id, consumer_id, stream_name, subject_id) DO UPDATE SET
+ON CONFLICT(scope_kind, profile_id, workspace_id, consumer_id, stream_name, subject_id) DO UPDATE SET
   last_sequence = excluded.last_sequence,
   last_delivery_id = excluded.last_delivery_id,
   last_delivered_at = excluded.last_delivered_at,
@@ -314,6 +358,7 @@ ON CONFLICT(scope_kind, workspace_id, consumer_id, stream_name, subject_id) DO U
 `
 
 type ResetNotificationCursorParams struct {
+	ProfileID       string         `json:"profile_id"`
 	ScopeKind       string         `json:"scope_kind"`
 	WorkspaceID     string         `json:"workspace_id"`
 	ConsumerID      string         `json:"consumer_id"`
@@ -327,6 +372,7 @@ type ResetNotificationCursorParams struct {
 
 func (q *Queries) ResetNotificationCursor(ctx context.Context, arg ResetNotificationCursorParams) error {
 	_, err := q.db.ExecContext(ctx, resetNotificationCursor,
+		arg.ProfileID,
 		arg.ScopeKind,
 		arg.WorkspaceID,
 		arg.ConsumerID,
@@ -346,7 +392,6 @@ INSERT INTO notification_presets (
   events,
   targets,
   filter,
-  enabled,
   built_in,
   default_version,
   default_hash,
@@ -359,14 +404,13 @@ INSERT INTO notification_presets (
   ?2,
   ?3,
   ?4,
-  ?5,
   1,
+  ?5,
   ?6,
+  0,
+  0,
   ?7,
-  0,
-  0,
-  ?8,
-  ?9
+  ?8
 )
 ON CONFLICT(name) DO UPDATE SET
   events = CASE
@@ -378,9 +422,6 @@ ON CONFLICT(name) DO UPDATE SET
   filter = CASE
     WHEN notification_presets.built_in = 1 AND notification_presets.user_modified = 0
     THEN excluded.filter ELSE notification_presets.filter END,
-  enabled = CASE
-    WHEN notification_presets.built_in = 1 AND notification_presets.user_modified = 0
-    THEN excluded.enabled ELSE notification_presets.enabled END,
   built_in = CASE
     WHEN notification_presets.built_in = 1 THEN 1 ELSE notification_presets.built_in END,
   default_version = CASE
@@ -407,7 +448,6 @@ type SeedNotificationPresetDefaultParams struct {
 	Events         string `json:"events"`
 	Targets        string `json:"targets"`
 	Filter         string `json:"filter"`
-	Enabled        bool   `json:"enabled"`
 	DefaultVersion string `json:"default_version"`
 	DefaultHash    string `json:"default_hash"`
 	CreatedAt      string `json:"created_at"`
@@ -420,12 +460,28 @@ func (q *Queries) SeedNotificationPresetDefault(ctx context.Context, arg SeedNot
 		arg.Events,
 		arg.Targets,
 		arg.Filter,
-		arg.Enabled,
 		arg.DefaultVersion,
 		arg.DefaultHash,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
+	return err
+}
+
+const setNotificationPresetEnablement = `-- name: SetNotificationPresetEnablement :exec
+INSERT INTO notification_preset_enablement (preset_name, profile_id, enabled)
+VALUES (?1, ?2, ?3)
+ON CONFLICT(preset_name, profile_id) DO UPDATE SET enabled = excluded.enabled
+`
+
+type SetNotificationPresetEnablementParams struct {
+	PresetName string `json:"preset_name"`
+	ProfileID  string `json:"profile_id"`
+	Enabled    int64  `json:"enabled"`
+}
+
+func (q *Queries) SetNotificationPresetEnablement(ctx context.Context, arg SetNotificationPresetEnablementParams) error {
+	_, err := q.db.ExecContext(ctx, setNotificationPresetEnablement, arg.PresetName, arg.ProfileID, arg.Enabled)
 	return err
 }
 
@@ -437,10 +493,11 @@ SET last_sequence = ?1,
     last_error = '',
     updated_at = ?4
 WHERE consumer_id = ?5
-  AND scope_kind = ?6
-  AND workspace_id = ?7
-  AND stream_name = ?8
-  AND subject_id = ?9
+  AND profile_id = ?6
+  AND scope_kind = ?7
+  AND workspace_id = ?8
+  AND stream_name = ?9
+  AND subject_id = ?10
 `
 
 type UpdateNotificationCursorParams struct {
@@ -449,6 +506,7 @@ type UpdateNotificationCursorParams struct {
 	LastDeliveredAt sql.NullString `json:"last_delivered_at"`
 	UpdatedAt       string         `json:"updated_at"`
 	ConsumerID      string         `json:"consumer_id"`
+	ProfileID       string         `json:"profile_id"`
 	ScopeKind       string         `json:"scope_kind"`
 	WorkspaceID     string         `json:"workspace_id"`
 	StreamName      string         `json:"stream_name"`
@@ -462,6 +520,7 @@ func (q *Queries) UpdateNotificationCursor(ctx context.Context, arg UpdateNotifi
 		arg.LastDeliveredAt,
 		arg.UpdatedAt,
 		arg.ConsumerID,
+		arg.ProfileID,
 		arg.ScopeKind,
 		arg.WorkspaceID,
 		arg.StreamName,
@@ -475,18 +534,16 @@ UPDATE notification_presets
 SET events = ?1,
     targets = ?2,
     filter = ?3,
-    enabled = ?4,
-    user_modified = ?5,
-    default_update_available = ?6,
-    updated_at = ?7
-WHERE name = ?8
+    user_modified = ?4,
+    default_update_available = ?5,
+    updated_at = ?6
+WHERE name = ?7
 `
 
 type UpdateNotificationPresetParams struct {
 	Events                 string `json:"events"`
 	Targets                string `json:"targets"`
 	Filter                 string `json:"filter"`
-	Enabled                bool   `json:"enabled"`
 	UserModified           bool   `json:"user_modified"`
 	DefaultUpdateAvailable bool   `json:"default_update_available"`
 	UpdatedAt              string `json:"updated_at"`
@@ -498,7 +555,6 @@ func (q *Queries) UpdateNotificationPreset(ctx context.Context, arg UpdateNotifi
 		arg.Events,
 		arg.Targets,
 		arg.Filter,
-		arg.Enabled,
 		arg.UserModified,
 		arg.DefaultUpdateAvailable,
 		arg.UpdatedAt,

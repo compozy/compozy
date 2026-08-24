@@ -14,18 +14,20 @@ compozy extension install <source> [flags]
 ### Options
 
 ```
-      --allow-unverified   Allow install when the extension checksum is not registry-verified
-      --asset string       Select a specific registry asset when multiple archives exist
-  -h, --help               help for install
-      --version string     Install a specific registry version
-      --yes                Skip confirmation when using --allow-unverified
+      --allow-unverified                     Allow install when the extension checksum is not registry-verified
+      --asset string                         Select a specific registry asset when multiple archives exist
+      --confirm-network-requirement string   Confirm the candidate extension network requirement digest
+  -h, --help                                 help for install
+      --version string                       Install a specific registry version
+      --yes                                  Skip confirmation when using --allow-unverified
 ```
 
 ### Options inherited from parent commands
 
 ```
-      --json            Emit JSON output
-  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
 ```
 
 ## Output Formats

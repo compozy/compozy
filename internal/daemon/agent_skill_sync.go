@@ -74,7 +74,7 @@ func agentSkillSyncActor() resources.MutationActor {
 			Kind: resources.ResourceSourceKind("daemon"),
 			ID:   "agent-skill-sync",
 		},
-		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 	}
 }
 

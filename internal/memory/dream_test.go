@@ -500,6 +500,98 @@ func TestServiceRunDreamSignalGatePromotesEligibleSignals(t *testing.T) {
 	})
 }
 
+func TestDreamCandidatesShouldRespectProfileConsolidationBoundaryIT059(t *testing.T) {
+	t.Parallel()
+	t.Run("Should isolate alpha and beta profile candidates", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
+		baseDir := t.TempDir()
+		catalogPath := filepath.Join(baseDir, "compozy.db")
+		profileA := newOpenTestStore(
+			t,
+			filepath.Join(baseDir, "profiles", "alpha", memoryDirName),
+			WithProfileID("01PROFILEALPHA000000000001"),
+			WithCatalogDatabasePath(catalogPath),
+		)
+		profileB := profileA.ForProfile(
+			"01PROFILEBETA0000000000002",
+			filepath.Join(baseDir, "profiles", "beta", memoryDirName),
+		)
+		for _, profileStore := range []*Store{profileA, profileB} {
+			if err := profileStore.EnsureDirs(); err != nil {
+				t.Fatalf("Store.EnsureDirs() error = %v", err)
+			}
+		}
+		seedProfileSignal := func(profileStore *Store, filename string, name string) {
+			t.Helper()
+			if err := profileStore.Write(
+				t.Context(),
+				memcontract.ScopeProfile,
+				filename,
+				mustMemoryContent(t, testMemoryMeta{
+					Name: name, Description: "Profile consolidation fixture", Type: memcontract.TypeUser,
+				}, "recurring profile preference for consolidation"),
+			); err != nil {
+				t.Fatalf("Store.Write(%q) error = %v", filename, err)
+			}
+			var chunkID string
+			if err := profileStore.catalog.db.QueryRowContext(
+				t.Context(),
+				`SELECT c.id
+			 FROM memory_chunks c
+			 JOIN memory_catalog_entries e ON e.id = c.file_id
+			 WHERE e.profile_id = ? AND e.scope = 'profile' AND e.filename = ?`,
+				profileStore.profileID,
+				filename,
+			).Scan(&chunkID); err != nil {
+				t.Fatalf("query profile chunk %q error = %v", filename, err)
+			}
+			for sequence := range 2 {
+				if err := profileStore.RecordRecall(t.Context(), []memoryrecall.Signal{{
+					ChunkID: chunkID, SurfaceID: fmt.Sprintf("%s-%d", filename, sequence),
+					Score: 0.99, SurfacedAt: now.Add(time.Duration(sequence) * time.Minute),
+					SessionID: fmt.Sprintf("session-%d", sequence),
+				}}); err != nil {
+					t.Fatalf("RecordRecall(%q) error = %v", filename, err)
+				}
+			}
+		}
+		seedProfileSignal(profileA, "alpha.md", "Alpha signal")
+		seedProfileSignal(profileB, "beta.md", "Beta signal")
+
+		for _, test := range []struct {
+			profileStore *Store
+			wantTitle    string
+		}{
+			{profileStore: profileA, wantTitle: "Alpha signal"},
+			{profileStore: profileB, wantTitle: "Beta signal"},
+		} {
+			t.Run("Should return only "+test.wantTitle+" candidates", func(t *testing.T) {
+				t.Parallel()
+
+				candidates, err := test.profileStore.dreamCandidates(
+					t.Context(),
+					"",
+					DreamGateConfig{MinCandidates: 1, MinRecallCount: 2, MinScore: 0.75, CandidateLimit: 10},
+					now.Add(time.Hour),
+				)
+				if err != nil {
+					t.Fatalf("dreamCandidates(%q) error = %v", test.profileStore.profileID, err)
+				}
+				if len(candidates) != 1 || candidates[0].Title != test.wantTitle {
+					t.Fatalf(
+						"dreamCandidates(%q) = %#v, want only %q",
+						test.profileStore.profileID,
+						candidates,
+						test.wantTitle,
+					)
+				}
+			})
+		}
+	})
+}
+
 func TestServiceRunSkipsWorkspaceDisabledDreamWithoutPromotion(t *testing.T) {
 	t.Parallel()
 
@@ -761,7 +853,7 @@ func TestDreamSystemPathValidation(t *testing.T) {
 		t.Parallel()
 
 		store := newOpenTestStore(t, filepath.Join(t.TempDir(), "memory"))
-		if _, err := store.dreamSystemPath(memcontract.ScopeGlobal, "dreaming", "../bad.json"); err == nil {
+		if _, err := store.dreamSystemPath(memcontract.ScopeProfile, "dreaming", "../bad.json"); err == nil {
 			t.Fatal("dreamSystemPath() error = nil, want unsafe segment error")
 		}
 	})
@@ -771,7 +863,7 @@ func TestDreamSystemPathValidation(t *testing.T) {
 
 		root := filepath.Join(t.TempDir(), "memory")
 		store := newOpenTestStore(t, root)
-		path, err := store.dreamSystemPath(memcontract.ScopeGlobal, "dream", "failures", "run.json")
+		path, err := store.dreamSystemPath(memcontract.ScopeProfile, "dream", "failures", "run.json")
 		if err != nil {
 			t.Fatalf("dreamSystemPath() error = %v", err)
 		}

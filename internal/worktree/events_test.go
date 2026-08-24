@@ -28,7 +28,9 @@ func TestServiceLifecycleHooks(t *testing.T) {
 			}
 			return HookVerdict{}, nil
 		}})(fixture.service)
-		_, err := fixture.service.Create(context.Background(), fixture.workspace.ID, CreateOptions{Name: "denied"})
+		_, err := fixture.service.Create(context.Background(), fixture.workspace.ID, CreateOptions{
+			ProfileID: testWorktreeProfileID, Name: "denied",
+		})
 		if !errors.Is(err, ErrDeniedByHook) || !strings.Contains(err.Error(), "protect-main") {
 			t.Fatalf("Create(denied) error = %v, want named hook denial", err)
 		}
@@ -55,7 +57,7 @@ func TestServiceLifecycleHooks(t *testing.T) {
 		item, err := fixture.service.Create(
 			context.Background(),
 			fixture.workspace.ID,
-			CreateOptions{Name: "hook-fail-open"},
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "hook-fail-open"},
 		)
 		if err != nil || item.State != StateReady {
 			t.Fatalf("Create(fail-open) = %#v, %v, want ready", item, err)

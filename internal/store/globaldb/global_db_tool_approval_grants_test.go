@@ -31,8 +31,9 @@ func TestGlobalDBToolApprovalGrants(t *testing.T) {
 		if err != nil {
 			t.Fatalf("PutApprovalGrant() error = %v", err)
 		}
-		if created.ID == "" || !created.CreatedAt.Equal(current) || !created.LastUsedAt.Equal(current) {
-			t.Fatalf("PutApprovalGrant() = %#v, want materialized identity and timestamps", created)
+		if created.ID == "" || !created.CreatedAt.Equal(current) || !created.LastUsedAt.Equal(current) ||
+			created.ProfileName != "default" || created.ProfileColor == "" || created.ProfileIcon == "" {
+			t.Fatalf("PutApprovalGrant() = %#v, want materialized identity, owner, and timestamps", created)
 		}
 
 		current = current.Add(time.Minute)
@@ -55,12 +56,52 @@ func TestGlobalDBToolApprovalGrants(t *testing.T) {
 		if replaced.ID != created.ID || replaced.Decision != toolspkg.ApprovalGrantReject {
 			t.Fatalf("PutApprovalGrant(replace) = %#v, want stable id and reject decision", replaced)
 		}
-		listed, err := globalDB.ListApprovalGrants(ctx, workspaceID)
+		listed, err := globalDB.ListApprovalGrants(
+			ctx, store.ReadScope{ProfileID: store.DefaultProfileID}, workspaceID,
+		)
 		if err != nil {
 			t.Fatalf("ListApprovalGrants() error = %v", err)
 		}
 		if len(listed) != 1 || listed[0].ID != created.ID {
 			t.Fatalf("ListApprovalGrants() = %#v, want one upserted row", listed)
+		}
+
+		foreignProfileID := "gggggggggggggggggggggggggg"
+		if _, err := globalDB.db.ExecContext(ctx, `
+			INSERT INTO profiles (id, name, color, icon, state, created_at)
+			VALUES (?, 'approvals-foreign', '#E0635A', 'shield', 'active', ?)`,
+			foreignProfileID, store.FormatTimestamp(current),
+		); err != nil {
+			t.Fatalf("insert foreign profile error = %v", err)
+		}
+		foreignKey := key
+		foreignKey.ProfileID = foreignProfileID
+		if _, err := globalDB.PutApprovalGrant(ctx, toolspkg.ApprovalGrant{
+			ApprovalGrantKey: foreignKey,
+			Decision:         toolspkg.ApprovalGrantAllow,
+		}); err != nil {
+			t.Fatalf("PutApprovalGrant(foreign profile) error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `UPDATE profiles
+			SET state = 'archived', archived_at = ? WHERE id = ?`,
+			store.FormatTimestamp(current.Add(time.Minute)), foreignProfileID,
+		); err != nil {
+			t.Fatalf("archive foreign profile error = %v", err)
+		}
+		scoped, err := globalDB.ListApprovalGrants(
+			ctx, store.ReadScope{ProfileID: store.DefaultProfileID}, workspaceID,
+		)
+		if err != nil || len(scoped) != 1 || scoped[0].ProfileID != store.DefaultProfileID {
+			t.Fatalf("ListApprovalGrants(scoped) = %#v, %v, want default only", scoped, err)
+		}
+		aggregate, err := globalDB.ListApprovalGrants(
+			ctx, store.ReadScope{AllProfiles: true}, workspaceID,
+		)
+		if err != nil {
+			t.Fatalf("ListApprovalGrants(aggregate) error = %v", err)
+		}
+		if len(aggregate) != 2 || !hasApprovalGrantOwner(aggregate, foreignProfileID, true) {
+			t.Fatalf("ListApprovalGrants(aggregate) = %#v, want same-key archived owner-labeled row", aggregate)
 		}
 	})
 
@@ -133,27 +174,31 @@ func TestGlobalDBToolApprovalGrants(t *testing.T) {
 			Decision:         toolspkg.ApprovalGrantReject,
 		})
 
-		listedA, err := globalDB.ListApprovalGrants(ctx, workspaceA)
+		listedA, err := globalDB.ListApprovalGrants(
+			ctx, store.ReadScope{ProfileID: store.DefaultProfileID}, workspaceA,
+		)
 		if err != nil {
 			t.Fatalf("ListApprovalGrants(workspace A) error = %v", err)
 		}
-		listedB, err := globalDB.ListApprovalGrants(ctx, workspaceB)
+		listedB, err := globalDB.ListApprovalGrants(
+			ctx, store.ReadScope{ProfileID: store.DefaultProfileID}, workspaceB,
+		)
 		if err != nil {
 			t.Fatalf("ListApprovalGrants(workspace B) error = %v", err)
 		}
 		if len(listedA) != 1 || len(listedB) != 1 || listedA[0].WorkspaceID == listedB[0].WorkspaceID {
 			t.Fatalf("workspace lists = %#v / %#v, want isolated rows", listedA, listedB)
 		}
-		if err := globalDB.RevokeApprovalGrant(ctx, workspaceB, grantA.ID); !errors.Is(
+		if err := globalDB.RevokeApprovalGrant(ctx, store.DefaultProfileID, workspaceB, grantA.ID); !errors.Is(
 			err,
 			toolspkg.ErrApprovalGrantNotFound,
 		) {
 			t.Fatalf("RevokeApprovalGrant(cross-workspace) error = %v, want not found", err)
 		}
-		if err := globalDB.RevokeApprovalGrant(ctx, workspaceA, grantA.ID); err != nil {
+		if err := globalDB.RevokeApprovalGrant(ctx, store.DefaultProfileID, workspaceA, grantA.ID); err != nil {
 			t.Fatalf("RevokeApprovalGrant() error = %v", err)
 		}
-		if err := globalDB.RevokeApprovalGrant(ctx, workspaceA, grantA.ID); !errors.Is(
+		if err := globalDB.RevokeApprovalGrant(ctx, store.DefaultProfileID, workspaceA, grantA.ID); !errors.Is(
 			err,
 			toolspkg.ErrApprovalGrantNotFound,
 		) {
@@ -179,6 +224,15 @@ func TestGlobalDBToolApprovalGrants(t *testing.T) {
 			t.Fatalf("approval grant cascade count = %d, want 0", count)
 		}
 	})
+}
+
+func hasApprovalGrantOwner(grants []toolspkg.ApprovalGrant, profileID string, archived bool) bool {
+	for _, grant := range grants {
+		if grant.ProfileID == profileID && grant.ProfileArchived == archived {
+			return true
+		}
+	}
+	return false
 }
 
 func TestGlobalDBToolApprovalGrantMigration(t *testing.T) {
@@ -221,7 +275,9 @@ func TestGlobalDBToolApprovalGrantMigration(t *testing.T) {
 				t.Errorf("reopened.Close() error = %v", err)
 			}
 		})
-		listed, err := reopened.ListApprovalGrants(ctx, workspaceID)
+		listed, err := reopened.ListApprovalGrants(
+			ctx, store.ReadScope{ProfileID: store.DefaultProfileID}, workspaceID,
+		)
 		if err != nil {
 			t.Fatalf("ListApprovalGrants(reopen) error = %v", err)
 		}
@@ -293,6 +349,7 @@ func assertApprovalGrantLookup(
 
 func approvalGrantTestKey(workspaceID, agentName, digest string) toolspkg.ApprovalGrantKey {
 	return toolspkg.ApprovalGrantKey{
+		ProfileID:   store.DefaultProfileID,
 		WorkspaceID: workspaceID,
 		AgentName:   agentName,
 		ToolID:      toolspkg.ToolIDWorkspaceList,

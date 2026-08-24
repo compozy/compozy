@@ -93,7 +93,7 @@ func mapSlackBlockActions(
 	}
 	items := make([]slackMappedInbound, 0, len(payload.Actions))
 	for idx := range payload.Actions {
-		item, err := buildSlackBlockActionItem(ctx, payload, payload.Actions[idx])
+		item, err := buildSlackBlockActionItem(&ctx, payload, payload.Actions[idx])
 		if err != nil {
 			return nil, err
 		}
@@ -158,7 +158,7 @@ func newSlackBlockActionContext(
 }
 
 func buildSlackBlockActionItem(
-	ctx slackBlockActionContext,
+	ctx *slackBlockActionContext,
 	payload slackBlockActionsPayload,
 	action slackBlockAction,
 ) (slackMappedInbound, error) {
@@ -219,7 +219,7 @@ func slackBlockActionValue(action slackBlockAction) string {
 func slackBlockActionMetadata(
 	payload slackBlockActionsPayload,
 	action slackBlockAction,
-	ctx slackBlockActionContext,
+	ctx *slackBlockActionContext,
 ) ([]byte, error) {
 	return json.Marshal(map[string]any{
 		"action_ts":            strings.TrimSpace(action.ActionTS),

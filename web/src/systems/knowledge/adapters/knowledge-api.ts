@@ -36,6 +36,7 @@ export class KnowledgeApiError extends Error {
 }
 
 interface SelectorParams {
+  profile?: string;
   scope?: KnowledgeSelector["scope"];
   workspace_id?: string;
   agent_name?: string;
@@ -44,7 +45,11 @@ interface SelectorParams {
 
 function selectorToQuery(selector: KnowledgeSelector | undefined): SelectorParams {
   if (!selector) return {};
-  const params: SelectorParams = { scope: selector.scope };
+  const params: SelectorParams = {};
+  if (selector.profile) {
+    params.profile = selector.profile;
+  }
+  params.scope = selector.scope;
   if (selector.workspaceId) {
     params.workspace_id = selector.workspaceId;
   }
@@ -55,6 +60,11 @@ function selectorToQuery(selector: KnowledgeSelector | undefined): SelectorParam
     params.agent_tier = selector.agentTier;
   }
   return params;
+}
+
+function profileToQuery(profile: string | undefined): Pick<SelectorParams, "profile"> {
+  const normalized = profile?.trim();
+  return normalized ? { profile: normalized } : {};
 }
 
 function listFilterToQuery(filters: KnowledgeListFilter | undefined): MemoryListQuery {
@@ -113,9 +123,11 @@ export async function readMemory(
 
 export async function writeMemory(
   body: MemoryWriteRequest,
+  profile?: string,
   signal?: AbortSignal
 ): Promise<MemoryWriteResponse> {
   const { data, error, response } = await apiClient.POST("/api/memory", {
+    params: { query: profileToQuery(profile) },
     body,
     signal,
   });
@@ -131,10 +143,11 @@ export async function writeMemory(
 export async function editMemory(
   filename: string,
   body: MemoryEditRequest,
+  profile?: string,
   signal?: AbortSignal
 ): Promise<MemoryEditResponse> {
   const { data, error, response } = await apiClient.PATCH("/api/memory/{filename}", {
-    params: { path: { filename } },
+    params: { path: { filename }, query: profileToQuery(profile) },
     body,
     signal,
   });
@@ -176,9 +189,11 @@ export async function deleteMemory(
 
 export async function searchMemory(
   body: MemorySearchRequest,
+  profile?: string,
   signal?: AbortSignal
 ): Promise<MemorySearchResponse> {
   const { data, error, response } = await apiClient.POST("/api/memory/search", {
+    params: { query: profileToQuery(profile) },
     body,
     signal,
   });
@@ -220,12 +235,16 @@ export async function listMemoryDecisions(
 export async function revertMemoryDecision(
   decisionID: string,
   body: MemoryDecisionRevertRequest = {},
+  profile?: string,
   signal?: AbortSignal
 ): Promise<MemoryDecisionRevertResponse> {
   const { data, error, response } = await apiClient.POST(
     "/api/memory/decisions/{decision_id}/revert",
     {
-      params: { path: { decision_id: decisionID } },
+      params: {
+        path: { decision_id: decisionID },
+        query: profileToQuery(profile),
+      },
       body,
       signal,
     }
@@ -244,9 +263,11 @@ export async function revertMemoryDecision(
 
 export async function triggerMemoryDream(
   workspaceID?: string,
+  profile?: string,
   signal?: AbortSignal
 ): Promise<MemoryDreamTriggerResponse> {
   const { data, error, response } = await apiClient.POST("/api/memory/dreams/trigger", {
+    params: { query: profileToQuery(profile) },
     body: { workspace_id: workspaceID },
     signal,
   });

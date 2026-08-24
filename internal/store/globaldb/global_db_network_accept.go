@@ -14,7 +14,7 @@ var _ store.NetworkAcceptanceStore = (*NetworkRepo)(nil)
 // AcceptNetworkMessage commits conversation evidence, recipient decisions, and wake work atomically.
 func (g *NetworkRepo) AcceptNetworkMessage(
 	ctx context.Context,
-	req store.AcceptNetworkMessageRequest,
+	req *store.AcceptNetworkMessageRequest,
 ) (result store.AcceptNetworkMessageResult, err error) {
 	if err := g.checkReady(ctx, "accept network message"); err != nil {
 		return store.AcceptNetworkMessageResult{}, err
@@ -158,7 +158,7 @@ func upsertDeliveredNetworkThreadParticipants(
 }
 
 func (g *NetworkRepo) normalizeNetworkAcceptance(
-	req store.AcceptNetworkMessageRequest,
+	req *store.AcceptNetworkMessageRequest,
 ) (store.AcceptNetworkMessageRequest, error) {
 	message, err := g.normalizeConversationMessage(req.Message)
 	if err != nil {

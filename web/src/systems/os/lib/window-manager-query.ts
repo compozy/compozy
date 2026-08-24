@@ -25,16 +25,19 @@ export const windowManagerKeys = {
       clientId?.trim() || null,
     ] as const,
   snapshots: () => [...windowManagerKeys.all, "snapshot"] as const,
-  snapshot: (workspaceId: string) =>
-    [...windowManagerKeys.snapshots(), workspaceId.trim()] as const,
+  // One arrangement per (workspace, profile): the profile is part of the key or a
+  // switch would show the previous profile's desks from cache (US-026).
+  snapshot: (workspaceId: string, profile: string) =>
+    [...windowManagerKeys.snapshots(), workspaceId.trim(), profile.trim()] as const,
 };
 
-export function windowManagerSnapshotOptions(workspaceId: string) {
+export function windowManagerSnapshotOptions(workspaceId: string, profile: string) {
   const normalized = workspaceId.trim();
+  const normalizedProfile = profile.trim();
   return queryOptions({
-    queryKey: windowManagerKeys.snapshot(normalized),
-    queryFn: ({ signal }) => fetchWindowManagerSnapshot(normalized, signal),
-    enabled: normalized !== "",
+    queryKey: windowManagerKeys.snapshot(normalized, normalizedProfile),
+    queryFn: ({ signal }) => fetchWindowManagerSnapshot(normalized, normalizedProfile, signal),
+    enabled: normalized !== "" && normalizedProfile !== "",
     staleTime: Number.POSITIVE_INFINITY,
     retry: 1,
   });

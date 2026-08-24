@@ -21,8 +21,9 @@ const (
 
 var ErrInvalidDeadEntity = errors.New("store: invalid dead entity")
 
-// DeadEntityKey identifies one workspace-scoped external runtime.
+// DeadEntityKey identifies one profile- and workspace-scoped external runtime.
 type DeadEntityKey struct {
+	ProfileID   string
 	WorkspaceID string
 	Kind        DeadEntityKind
 	EntityID    string
@@ -31,15 +32,19 @@ type DeadEntityKey struct {
 // Normalize returns the canonical dead-entity key.
 func (k DeadEntityKey) Normalize() DeadEntityKey {
 	return DeadEntityKey{
+		ProfileID:   strings.TrimSpace(k.ProfileID),
 		WorkspaceID: strings.TrimSpace(k.WorkspaceID),
 		Kind:        DeadEntityKind(strings.TrimSpace(string(k.Kind))),
 		EntityID:    strings.TrimSpace(k.EntityID),
 	}
 }
 
-// Validate ensures the key is workspace-scoped and uses a closed kind.
+// Validate ensures the key is profile- and workspace-scoped and uses a closed kind.
 func (k DeadEntityKey) Validate() error {
 	normalized := k.Normalize()
+	if normalized.ProfileID == "" {
+		return fmt.Errorf("%w: profile_id is required", ErrInvalidDeadEntity)
+	}
 	if normalized.WorkspaceID == "" {
 		return fmt.Errorf("%w: workspace_id is required", ErrInvalidDeadEntity)
 	}
@@ -57,8 +62,13 @@ func (k DeadEntityKey) Validate() error {
 // DeadEntity is one durable confirmed-dead external runtime.
 type DeadEntity struct {
 	DeadEntityKey
-	Reason   string
-	MarkedAt time.Time
+	ProfileName     string
+	ProfileColor    string
+	ProfileIcon     string
+	ProfileEmoji    string
+	ProfileArchived bool
+	Reason          string
+	MarkedAt        time.Time
 }
 
 // Normalize returns the canonical durable row.

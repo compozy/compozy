@@ -19,28 +19,30 @@ type StubSessionManager struct {
 	ListFn                       func() []*session.Info
 	ListAllFn                    func(context.Context) ([]*session.Info, error)
 	ListPageFn                   func(context.Context, session.ListQuery) (session.ListPage, error)
-	SubscribeCatalogFn           func(context.Context) (<-chan session.CatalogEvent, func(), error)
-	MetricsByAgentFn             func(context.Context, string) (map[string]session.AgentSessionMetrics, error)
-	ListSessionsFn               func(context.Context, store.SessionListQuery) ([]store.SessionInfo, error)
-	StatusFn                     func(context.Context, string) (*session.Info, error)
-	EventsFn                     func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
-	LatestEventFn                func(context.Context, string, string) (*store.SessionEvent, error)
-	HistoryFn                    func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
-	TranscriptPageFn             func(context.Context, string, transcript.PageQuery) (transcript.Page, error)
-	TranscriptChangesFn          func(context.Context, string, transcript.ChangeQuery) (transcript.ChangePage, error)
-	RepairFn                     func(context.Context, session.RepairOpts) (*session.RepairResult, error)
-	DeleteFn                     func(context.Context, string) error
-	StopFn                       func(context.Context, string) error
-	ArchiveFn                    func(context.Context, string, string) (*session.Info, error)
-	UnarchiveFn                  func(context.Context, string, string) (*session.Info, error)
-	RenameFn                     func(context.Context, string, string, string) (*session.Info, error)
-	StopWithCauseFn              func(context.Context, string, session.StopCause, string) error
-	ResumeFn                     func(context.Context, string) (*session.Session, error)
-	AttachSessionFn              func(context.Context, store.SessionAttachRequest) (store.SessionAttach, error)
-	SetRuntimeSelectionFn        func(context.Context, string, session.RuntimeSelection, int64) (*session.Info, error)
-	ClearRuntimeSelectionFn      func(context.Context, string, int64) (*session.Info, error)
-	ClearFn                      func(context.Context, string) (*session.Session, error)
-	RewindFn                     func(
+	SubscribeCatalogFn           func(context.Context, session.CatalogScope) (<-chan session.CatalogEvent, func(), error)
+	MetricsByAgentFn             func(
+		context.Context, store.ReadScope, string,
+	) (map[string]session.AgentSessionMetrics, error)
+	ListSessionsFn          func(context.Context, store.SessionListQuery) ([]store.SessionInfo, error)
+	StatusFn                func(context.Context, string) (*session.Info, error)
+	EventsFn                func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
+	LatestEventFn           func(context.Context, string, string) (*store.SessionEvent, error)
+	HistoryFn               func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
+	TranscriptPageFn        func(context.Context, string, transcript.PageQuery) (transcript.Page, error)
+	TranscriptChangesFn     func(context.Context, string, transcript.ChangeQuery) (transcript.ChangePage, error)
+	RepairFn                func(context.Context, session.RepairOpts) (*session.RepairResult, error)
+	DeleteFn                func(context.Context, string) error
+	StopFn                  func(context.Context, string) error
+	ArchiveFn               func(context.Context, string, string) (*session.Info, error)
+	UnarchiveFn             func(context.Context, string, string) (*session.Info, error)
+	RenameFn                func(context.Context, string, string, string) (*session.Info, error)
+	StopWithCauseFn         func(context.Context, string, session.StopCause, string) error
+	ResumeFn                func(context.Context, string) (*session.Session, error)
+	AttachSessionFn         func(context.Context, store.SessionAttachRequest) (store.SessionAttach, error)
+	SetRuntimeSelectionFn   func(context.Context, string, session.RuntimeSelection, int64) (*session.Info, error)
+	ClearRuntimeSelectionFn func(context.Context, string, int64) (*session.Info, error)
+	ClearFn                 func(context.Context, string) (*session.Session, error)
+	RewindFn                func(
 		context.Context,
 		string,
 		session.ConversationRewindOptions,
@@ -133,9 +135,10 @@ func (s StubSessionManager) ListPage(ctx context.Context, query session.ListQuer
 
 func (s StubSessionManager) SubscribeSessionCatalogEvents(
 	ctx context.Context,
+	scope session.CatalogScope,
 ) (<-chan session.CatalogEvent, func(), error) {
 	if s.SubscribeCatalogFn != nil {
-		return s.SubscribeCatalogFn(ctx)
+		return s.SubscribeCatalogFn(ctx, scope)
 	}
 	events := make(chan session.CatalogEvent)
 	close(events)
@@ -144,10 +147,11 @@ func (s StubSessionManager) SubscribeSessionCatalogEvents(
 
 func (s StubSessionManager) AggregateSessionsByAgent(
 	ctx context.Context,
+	readScope store.ReadScope,
 	workspaceID string,
 ) (map[string]session.AgentSessionMetrics, error) {
 	if s.MetricsByAgentFn != nil {
-		return s.MetricsByAgentFn(ctx, workspaceID)
+		return s.MetricsByAgentFn(ctx, readScope, workspaceID)
 	}
 	infos, err := s.ListAll(ctx)
 	if err != nil {
@@ -155,7 +159,8 @@ func (s StubSessionManager) AggregateSessionsByAgent(
 	}
 	metrics := make(map[string]session.AgentSessionMetrics)
 	for _, info := range infos {
-		if info == nil || info.WorkspaceID != workspaceID || info.Type == session.SessionTypeDream {
+		if info == nil || info.WorkspaceID != workspaceID || info.Type == session.SessionTypeDream ||
+			!readScope.Matches(info.ProfileID) {
 			continue
 		}
 		if info.Lineage != nil && session.IsInternalSpawnRole(info.Lineage.SpawnRole) {

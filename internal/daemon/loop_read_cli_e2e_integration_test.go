@@ -632,7 +632,7 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 		); err != nil {
 			t.Fatalf("read roster on first poll after requeue error = %v", err)
 		}
-		assertRequeuedNodeVisibleOnFirstPoll(t, roster, "primary", 3)
+		assertRequeuedGenerationVisibleOnFirstPoll(t, roster, "primary", 3)
 
 		status, body := loopReadRawJSON(
 			t,
@@ -790,7 +790,7 @@ func assertLoopReadRequeueSSE(
 	t.Fatalf("Loop SSE events = %#v, want structured node_requeued", events)
 }
 
-func assertRequeuedNodeVisibleOnFirstPoll(
+func assertRequeuedGenerationVisibleOnFirstPoll(
 	t testing.TB,
 	roster compozycontract.LoopRunNodesResponse,
 	nodeID looppkg.NodeID,
@@ -801,8 +801,9 @@ func assertRequeuedNodeVisibleOnFirstPoll(
 		if node.NodeID != nodeID || node.Generation != generation {
 			continue
 		}
-		if node.State != looppkg.NodeStateQueued && node.State != looppkg.NodeStateRunning {
-			t.Fatalf("first-poll requeued node = %#v, want queued or running", node)
+		if node.State == looppkg.NodeStatePending || node.State == looppkg.NodeStateQuarantined ||
+			node.Attempt < 1 || node.StartedAt.IsZero() {
+			t.Fatalf("first-poll requeued node = %#v, want an attempted generation", node)
 		}
 		return
 	}

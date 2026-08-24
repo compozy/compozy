@@ -5,6 +5,7 @@ import {
   createNetworkChannelFixture,
   networkChannelFixture,
   networkChannelsFixture,
+  DEFAULT_NETWORK_OWNER,
   networkDirectRoomDetailFixture,
   networkDirectRoomMessagesFixture,
   networkDirectRoomsFixture,
@@ -129,6 +130,8 @@ export const handlers: HttpHandler[] = [
       HttpResponse.json({
         subscriptions: [
           {
+            profile_id: DEFAULT_NETWORK_OWNER.profile_id,
+            profile_name: DEFAULT_NETWORK_OWNER.profile_name,
             channel: String(params.channel),
             created_at: "2026-04-17T18:10:00Z",
             mode: "full",
@@ -153,6 +156,8 @@ export const handlers: HttpHandler[] = [
 
       return HttpResponse.json({
         subscription: {
+          profile_id: DEFAULT_NETWORK_OWNER.profile_id,
+          profile_name: DEFAULT_NETWORK_OWNER.profile_name,
           channel: String(params.channel),
           created_at: "2026-04-17T18:10:00Z",
           mode,
@@ -237,6 +242,8 @@ export const handlers: HttpHandler[] = [
             workspace_id: String(params.workspace_id),
           },
           task: {
+            profile_id: DEFAULT_NETWORK_OWNER.profile_id,
+            profile_name: DEFAULT_NETWORK_OWNER.profile_name,
             created_at: now,
             created_by: { kind: "network_peer", ref: "peer_northstar_launch_control" },
             description:

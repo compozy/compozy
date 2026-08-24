@@ -73,6 +73,7 @@ func newAutomationJobsCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newAutomationJobsDeleteCommand(deps))
 	cmd.AddCommand(newAutomationJobsTriggerCommand(deps))
 	cmd.AddCommand(newAutomationJobsHistoryCommand(deps))
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 
@@ -146,6 +147,7 @@ func newAutomationTriggersCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newAutomationTriggersUpdateCommand(deps))
 	cmd.AddCommand(newAutomationTriggersDeleteCommand(deps))
 	cmd.AddCommand(newAutomationTriggersHistoryCommand(deps))
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 

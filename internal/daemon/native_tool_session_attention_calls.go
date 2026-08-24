@@ -55,7 +55,7 @@ func (n *daemonNativeTools) notifyOperator(
 		return toolspkg.ToolResult{}, errors.New("daemon: operator notification service is required")
 	}
 	result, err := publisher.PublishOperatorNotification(ctx, session.NotifyRequest{
-		SessionID: info.ID, WorkspaceID: info.WorkspaceID,
+		SessionID: info.ID, ProfileID: info.ProfileID, WorkspaceID: info.WorkspaceID,
 		Title: input.Title, Body: input.Body,
 	})
 	if err != nil {

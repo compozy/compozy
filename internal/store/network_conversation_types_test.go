@@ -212,6 +212,7 @@ func TestNetworkChannelEntryValidation(t *testing.T) {
 		{
 			name: "Should accept coordinator fanout with a coordinator peer",
 			entry: NetworkChannelEntry{
+				ProfileID:         DefaultProfileID,
 				WorkspaceID:       networkConversationTestWorkspaceID,
 				Channel:           "builders",
 				Purpose:           "Pair reviews",
@@ -222,6 +223,7 @@ func TestNetworkChannelEntryValidation(t *testing.T) {
 		{
 			name: "Should reject coordinator fanout without a coordinator peer",
 			entry: NetworkChannelEntry{
+				ProfileID:    DefaultProfileID,
 				WorkspaceID:  networkConversationTestWorkspaceID,
 				Channel:      "builders",
 				Purpose:      "Pair reviews",
@@ -232,6 +234,7 @@ func TestNetworkChannelEntryValidation(t *testing.T) {
 		{
 			name: "Should reject coordinator peers on non coordinator fanout",
 			entry: NetworkChannelEntry{
+				ProfileID:         DefaultProfileID,
 				WorkspaceID:       networkConversationTestWorkspaceID,
 				Channel:           "builders",
 				Purpose:           "Pair reviews",
@@ -370,6 +373,7 @@ func TestNetworkDirectRoomEntryValidation(t *testing.T) {
 
 		now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
 		entry := NetworkDirectRoomEntry{
+			ProfileID:      DefaultProfileID,
 			WorkspaceID:    networkConversationTestWorkspaceID,
 			Channel:        "builders",
 			DirectID:       "direct_0123456789abcdef0123456789abcdef",
@@ -394,6 +398,7 @@ func TestNetworkWorkEntryValidation(t *testing.T) {
 
 	now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
 	valid := NetworkWorkEntry{
+		ProfileID:         DefaultProfileID,
 		WorkspaceID:       networkConversationTestWorkspaceID,
 		WorkID:            "work_patch_42",
 		Channel:           "builders",
@@ -471,10 +476,11 @@ func TestNetworkConversationQueryValidation(t *testing.T) {
 	t.Run("Should reject invalid summary limits", func(t *testing.T) {
 		t.Parallel()
 
-		if err := (NetworkThreadQuery{Limit: -1}).Validate(); err == nil || !strings.Contains(err.Error(), "limit") {
+		if err := (NetworkThreadQuery{ReadScope: ReadScope{AllProfiles: true}, Limit: -1}).Validate(); err == nil ||
+			!strings.Contains(err.Error(), "limit") {
 			t.Fatalf("Validate(thread query) error = %v, want limit rejection", err)
 		}
-		if err := (NetworkDirectRoomQuery{Limit: -1}).Validate(); err == nil ||
+		if err := (NetworkDirectRoomQuery{ReadScope: ReadScope{AllProfiles: true}, Limit: -1}).Validate(); err == nil ||
 			!strings.Contains(err.Error(), "limit") {
 			t.Fatalf("Validate(direct query) error = %v, want limit rejection", err)
 		}
@@ -499,6 +505,7 @@ func TestNetworkConversationQueryValidation(t *testing.T) {
 		t.Parallel()
 
 		query := NetworkConversationMessageQuery{
+			ReadScope:       ReadScope{AllProfiles: true},
 			BeforeMessageID: "msg_before",
 			AfterMessageID:  "msg_after",
 			Limit:           10,
@@ -519,6 +526,7 @@ func TestNetworkConversationMessageValidation(t *testing.T) {
 	t.Parallel()
 
 	valid := NetworkConversationMessage{
+		ProfileID:   DefaultProfileID,
 		WorkspaceID: networkConversationTestWorkspaceID,
 		MessageID:   "msg_patch_42",
 		Channel:     "builders",

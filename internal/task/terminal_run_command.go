@@ -64,9 +64,13 @@ type TerminalRunCommand struct {
 	fence       RunMutationFence
 	intent      terminalRunCommandIntent
 	actor       ActorContext
-	commandAt   time.Time
-	admittedAt  time.Time
-	updatedAt   time.Time
+	*terminalRunCommandTimestamps
+}
+
+type terminalRunCommandTimestamps struct {
+	commandAt  time.Time
+	admittedAt time.Time
+	updatedAt  time.Time
 }
 
 // TerminalRunCommandRecord is the store-facing serialized representation.
@@ -105,9 +109,9 @@ func newTerminalRunCommand(
 		fence:       NewRunMutationFence(previous),
 		intent:      cloneTerminalRunCommandIntent(intent),
 		actor:       actor,
-		commandAt:   commandAt.UTC(),
-		admittedAt:  commandAt.UTC(),
-		updatedAt:   commandAt.UTC(),
+		terminalRunCommandTimestamps: &terminalRunCommandTimestamps{
+			commandAt: commandAt.UTC(), admittedAt: commandAt.UTC(), updatedAt: commandAt.UTC(),
+		},
 	}
 	if err := command.validate(); err != nil {
 		return TerminalRunCommand{}, err
@@ -234,11 +238,11 @@ func RestoreTerminalRunCommand(record TerminalRunCommandRecord) (TerminalRunComm
 			ClaimTokenHash: record.SourceClaimHash,
 			LeaseUntil:     record.SourceLeaseUntil,
 		}),
-		intent:     cloneTerminalRunCommandIntent(intent),
-		actor:      actor,
-		commandAt:  record.CommandAt.UTC(),
-		admittedAt: record.AdmittedAt.UTC(),
-		updatedAt:  record.UpdatedAt.UTC(),
+		intent: cloneTerminalRunCommandIntent(intent),
+		actor:  actor,
+		terminalRunCommandTimestamps: &terminalRunCommandTimestamps{
+			commandAt: record.CommandAt.UTC(), admittedAt: record.AdmittedAt.UTC(), updatedAt: record.UpdatedAt.UTC(),
+		},
 	}
 	if err := command.validate(); err != nil {
 		return TerminalRunCommand{}, err
@@ -321,6 +325,9 @@ func (c TerminalRunCommand) validate() error {
 	}
 	if err := validateTerminalRunCommandCredentialFields(c); err != nil {
 		return err
+	}
+	if c.terminalRunCommandTimestamps == nil {
+		return fmt.Errorf("%w: terminal run command timestamps are required", ErrValidation)
 	}
 	if c.commandAt.IsZero() || c.admittedAt.IsZero() || c.updatedAt.IsZero() {
 		return fmt.Errorf("%w: terminal run command timestamps are required", ErrValidation)
@@ -406,7 +413,12 @@ func (c TerminalRunCommand) Fence() RunMutationFence { return c.fence }
 func (c TerminalRunCommand) Actor() ActorContext { return c.actor }
 
 // CommandAt reports the immutable command timestamp.
-func (c TerminalRunCommand) CommandAt() time.Time { return c.commandAt }
+func (c TerminalRunCommand) CommandAt() time.Time {
+	if c.terminalRunCommandTimestamps == nil {
+		return time.Time{}
+	}
+	return c.commandAt
+}
 
 // StopRequired reports whether settlement depends on a physical session stop.
 func (c TerminalRunCommand) StopRequired() bool { return c.intent.StopRequired }
@@ -431,7 +443,7 @@ func (c TerminalRunCommand) Advance(
 	phase TerminalRunCommandPhase,
 	updatedAt time.Time,
 ) (TerminalRunCommand, error) {
-	if !c.StopRequired() ||
+	if c.terminalRunCommandTimestamps == nil || !c.StopRequired() ||
 		(c.phase == TerminalRunCommandPhaseAdmitted && phase != TerminalRunCommandPhaseStopRequested) ||
 		(c.phase == TerminalRunCommandPhaseStopRequested && phase != TerminalRunCommandPhaseStopConfirmed) ||
 		c.phase == TerminalRunCommandPhaseStopConfirmed {
@@ -443,6 +455,10 @@ func (c TerminalRunCommand) Advance(
 		)
 	}
 	cloned := c
+	if c.terminalRunCommandTimestamps != nil {
+		timestamps := *c.terminalRunCommandTimestamps
+		cloned.terminalRunCommandTimestamps = &timestamps
+	}
 	cloned.phase = phase
 	cloned.updatedAt = updatedAt.UTC()
 	if err := cloned.validate(); err != nil {

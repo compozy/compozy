@@ -23,6 +23,7 @@ func (s *Store) CatalogHeaders(ctx context.Context, scope memcontract.Scope) ([]
 		return nil, err
 	}
 	identity := newCatalogIdentity(
+		s.profileIDForScope(normalizedScope),
 		normalizedScope,
 		workspaceID,
 		s.catalogAgentName(normalizedScope),
@@ -39,6 +40,7 @@ func (s *Store) CatalogHeaders(ctx context.Context, scope memcontract.Scope) ([]
 	}
 
 	if err := s.ensureCatalogFilterReady(ctx, catalogFilter{
+		profileID:     identity.profileID,
 		scope:         identity.scope,
 		workspaceRoot: workspaceRoot,
 		workspaceID:   identity.workspaceID,
@@ -64,8 +66,9 @@ func (c *catalog) listHeaders(
 		ctx,
 		`SELECT scope, workspace_id, agent_name, agent_tier, filename, type, name, description, mtime_ms
 		 FROM memory_catalog_entries
-		 WHERE scope = ? AND workspace_id = ? AND agent_name = ? AND agent_tier = ?
+		 WHERE profile_id = ? AND scope = ? AND workspace_id = ? AND agent_name = ? AND agent_tier = ?
 		 ORDER BY mtime_ms DESC, filename ASC`,
+		identity.profileID,
 		string(identity.scope),
 		identity.workspaceID,
 		identity.agentName,

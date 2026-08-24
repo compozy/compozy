@@ -24,6 +24,9 @@ func loadExtensionRecords(cmd *cobra.Command, deps commandDeps, workspaceRef str
 		return nil, err
 	}
 	if running {
+		if err := prepareExtensionProfileRead(cmd, deps, client); err != nil {
+			return nil, err
+		}
 		if strings.TrimSpace(workspaceRef) == "" {
 			return client.ListExtensions(cmd.Context())
 		}
@@ -55,27 +58,6 @@ func loadExtensionRecords(cmd *cobra.Command, deps commandDeps, workspaceRef str
 	)
 }
 
-func enableExtension(
-	ctx context.Context,
-	deps commandDeps,
-	name string,
-	request EnableExtensionRequest,
-) (ExtensionEnableRecord, error) {
-	client, err := requireExtensionDaemonClient(ctx, deps)
-	if err != nil {
-		return ExtensionEnableRecord{}, err
-	}
-	return client.EnableExtension(ctx, name, request)
-}
-
-func disableExtension(ctx context.Context, deps commandDeps, name string) (ExtensionRecord, error) {
-	client, err := requireExtensionDaemonClient(ctx, deps)
-	if err != nil {
-		return ExtensionRecord{}, err
-	}
-	return client.DisableExtension(ctx, name)
-}
-
 func extensionStatus(
 	cmd *cobra.Command,
 	deps commandDeps,
@@ -86,6 +68,9 @@ func extensionStatus(
 	if err != nil {
 		return ExtensionRecord{}, err
 	}
+	if err := prepareExtensionProfileRead(cmd, deps, client); err != nil {
+		return ExtensionRecord{}, err
+	}
 	if strings.TrimSpace(workspaceRef) == "" {
 		return client.ExtensionStatus(cmd.Context(), name)
 	}
@@ -94,6 +79,21 @@ func extensionStatus(
 		return ExtensionRecord{}, err
 	}
 	return client.ExtensionStatusScoped(cmd.Context(), workspaceID, name)
+}
+
+func prepareExtensionProfileRead(cmd *cobra.Command, deps commandDeps, client workspaceLookupClient) error {
+	requested, err := commandProfileSelectionRequested(cmd, deps)
+	if err != nil {
+		return err
+	}
+	if !requested {
+		return nil
+	}
+	profiles := optionalProfileResolutionClient(client)
+	if err := prepareProfileReadSelection(cmd, deps, profiles, client, false); err != nil {
+		return fmt.Errorf("cli: resolve extension profile: %w", err)
+	}
+	return nil
 }
 
 func extensionProvenance(ctx context.Context, deps commandDeps, name string) (ExtensionProvenanceRecord, error) {

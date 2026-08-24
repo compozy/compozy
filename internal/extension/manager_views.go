@@ -12,7 +12,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
-	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 // Get returns the current snapshot for one installed extension.
@@ -33,7 +32,14 @@ func (m *Manager) GetForInstance(key InstanceKey) (*Extension, error) {
 
 	m.mu.RLock()
 	ext := m.instanceLocked(key)
-	if ext == nil && !key.IsGlobal() {
+	if ext == nil && key.IsProfileScoped() {
+		baseKey := key
+		baseKey.ProfileID = ""
+		ext = m.instanceLocked(baseKey)
+		if ext == nil && !baseKey.IsGlobal() {
+			ext = m.extensions[baseKey.Name]
+		}
+	} else if ext == nil && !key.IsGlobal() {
 		ext = m.extensions[key.Name]
 	}
 	m.mu.RUnlock()
@@ -191,40 +197,6 @@ func cloneBridgeTargetSnapshots(values []bridgepkg.BridgeTargetSnapshot) []bridg
 		}
 	}
 	return cloned
-}
-
-// HookDeclarations returns the manifest-declared hook resources from loaded extensions.
-func (m *Manager) HookDeclarations(ctx context.Context) ([]hookspkg.HookDecl, error) {
-	if ctx == nil {
-		return nil, ErrContextRequired
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	if m == nil {
-		return nil, ErrManagerRequired
-	}
-
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	decls := make([]hookspkg.HookDecl, 0)
-	names := make([]string, 0, len(m.extensions))
-	for name := range m.extensions {
-		names = append(names, name)
-	}
-	slices.Sort(names)
-
-	for _, name := range names {
-		ext := m.extensions[name]
-		if !ext.registered {
-			continue
-		}
-		for _, decl := range ext.hooks {
-			decls = append(decls, cloneHookDecl(decl))
-		}
-	}
-	return decls, nil
 }
 
 // AgentDefinitions returns the currently registered extension agent definitions.

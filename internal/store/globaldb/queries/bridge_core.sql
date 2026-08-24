@@ -1,10 +1,12 @@
 -- name: InsertBridgeInstance :exec
 INSERT INTO bridge_instances (
+  profile_id,
   id, scope, workspace_id, platform, extension_name, display_name,
   source, enabled, status, dm_policy, routing_policy, provider_config,
   delivery_defaults, notification_suppress, degradation_reason, degradation_message,
   created_at, updated_at
 ) VALUES (
+  sqlc.arg(profile_id),
   sqlc.arg(id), sqlc.arg(scope), sqlc.narg(workspace_id), sqlc.arg(platform),
   sqlc.arg(extension_name), sqlc.arg(display_name), sqlc.arg(source), sqlc.arg(enabled),
   sqlc.arg(status), sqlc.arg(dm_policy), sqlc.arg(routing_policy), sqlc.narg(provider_config),
@@ -14,11 +16,13 @@ INSERT INTO bridge_instances (
 
 -- name: UpsertBridgeInstance :exec
 INSERT INTO bridge_instances (
+  profile_id,
   id, scope, workspace_id, platform, extension_name, display_name,
   source, enabled, status, dm_policy, routing_policy, provider_config,
   delivery_defaults, notification_suppress, degradation_reason, degradation_message,
   created_at, updated_at
 ) VALUES (
+  sqlc.arg(profile_id),
   sqlc.arg(id), sqlc.arg(scope), sqlc.narg(workspace_id), sqlc.arg(platform),
   sqlc.arg(extension_name), sqlc.arg(display_name), sqlc.arg(source), sqlc.arg(enabled),
   sqlc.arg(status), sqlc.arg(dm_policy), sqlc.arg(routing_policy), sqlc.narg(provider_config),
@@ -77,14 +81,14 @@ WHERE id = sqlc.arg(id);
 DELETE FROM bridge_instances WHERE id = sqlc.arg(id);
 
 -- name: GetBridgeInstance :one
-SELECT id, scope, workspace_id, platform, extension_name, display_name,
+SELECT id, profile_id, scope, workspace_id, platform, extension_name, display_name,
        source, enabled, status, dm_policy, routing_policy, provider_config,
        delivery_defaults, notification_suppress, degradation_reason, degradation_message,
        created_at, updated_at
 FROM bridge_instances WHERE id = sqlc.arg(id);
 
 -- name: ListBridgeInstances :many
-SELECT id, scope, workspace_id, platform, extension_name, display_name,
+SELECT id, profile_id, scope, workspace_id, platform, extension_name, display_name,
        source, enabled, status, dm_policy, routing_policy, provider_config,
        delivery_defaults, notification_suppress, degradation_reason, degradation_message,
        created_at, updated_at

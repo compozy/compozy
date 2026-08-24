@@ -37,6 +37,7 @@ var marketplaceKindOrder = []contract.MarketplaceKind{
 type marketplaceReadScope struct {
 	scope       settingspkg.ScopeKind
 	workspaceID string
+	profileName string
 	actor       *taskpkg.ActorContext
 }
 
@@ -46,6 +47,7 @@ type MarketplaceSearchRequest struct {
 	Limit       int
 	Scope       string
 	WorkspaceID string
+	ProfileName string
 	Actor       *taskpkg.ActorContext
 }
 
@@ -57,6 +59,7 @@ type MarketplaceKindRequest struct {
 	Limit       int
 	Scope       string
 	WorkspaceID string
+	ProfileName string
 	Actor       *taskpkg.ActorContext
 }
 
@@ -67,6 +70,7 @@ type MarketplaceEntryRequest struct {
 	InstalledName string
 	Scope         string
 	WorkspaceID   string
+	ProfileName   string
 	Actor         *taskpkg.ActorContext
 }
 
@@ -86,6 +90,7 @@ func (h *BaseHandlers) SearchMarketplace(c *gin.Context) {
 		Limit:       limit,
 		Scope:       c.Query("scope"),
 		WorkspaceID: c.Query("workspace_id"),
+		ProfileName: c.Query("profile"),
 		Actor:       actor,
 	})
 	if err != nil {
@@ -104,7 +109,7 @@ func (h *BaseHandlers) MarketplaceSearch(
 	if err != nil {
 		return contract.MarketplaceSearchResponse{}, err
 	}
-	scope, err := parseMarketplaceReadScope(request.Scope, request.WorkspaceID)
+	scope, err := parseMarketplaceReadScope(request.Scope, request.WorkspaceID, request.ProfileName)
 	if err != nil {
 		return contract.MarketplaceSearchResponse{}, err
 	}
@@ -155,6 +160,7 @@ func (h *BaseHandlers) BrowseMarketplaceKind(c *gin.Context) {
 		Limit:       limit,
 		Scope:       c.Query("scope"),
 		WorkspaceID: c.Query("workspace_id"),
+		ProfileName: c.Query("profile"),
 		Actor:       actor,
 	})
 	if err != nil {
@@ -177,7 +183,7 @@ func (h *BaseHandlers) MarketplaceKind(
 	if err != nil {
 		return contract.MarketplaceKindResponse{}, err
 	}
-	scope, err := parseMarketplaceReadScope(request.Scope, request.WorkspaceID)
+	scope, err := parseMarketplaceReadScope(request.Scope, request.WorkspaceID, request.ProfileName)
 	if err != nil {
 		return contract.MarketplaceKindResponse{}, err
 	}
@@ -220,6 +226,7 @@ func (h *BaseHandlers) GetMarketplaceEntry(c *gin.Context) {
 		InstalledName: c.Query("installed_name"),
 		Scope:         c.Query("scope"),
 		WorkspaceID:   c.Query("workspace_id"),
+		ProfileName:   c.Query("profile"),
 		Actor:         actor,
 	})
 	if err != nil {
@@ -242,7 +249,7 @@ func (h *BaseHandlers) MarketplaceEntry(
 	if entryID == "" {
 		return contract.MarketplaceEntryResponse{}, marketplaceValidationf("entry_id is required")
 	}
-	scope, err := parseMarketplaceReadScope(request.Scope, request.WorkspaceID)
+	scope, err := parseMarketplaceReadScope(request.Scope, request.WorkspaceID, request.ProfileName)
 	if err != nil {
 		return contract.MarketplaceEntryResponse{}, err
 	}
@@ -302,21 +309,41 @@ func marketplaceLimitValue(limit int) (int, error) {
 	return limit, nil
 }
 
-func parseMarketplaceReadScope(rawScope string, rawWorkspaceID string) (marketplaceReadScope, error) {
+func parseMarketplaceReadScope(
+	rawScope string,
+	rawWorkspaceID string,
+	rawProfileName string,
+) (marketplaceReadScope, error) {
 	scope := strings.ToLower(strings.TrimSpace(rawScope))
 	workspaceID := strings.TrimSpace(rawWorkspaceID)
+	profileName := strings.TrimSpace(rawProfileName)
 	if scope == "" {
 		scope = contract.MarketplaceScopeGlobal
 	}
 	switch scope {
 	case contract.MarketplaceScopeGlobal:
-		if workspaceID != "" {
-			return marketplaceReadScope{}, marketplaceValidationf("global scope must not include workspace_id")
+		if workspaceID != "" || profileName != "" {
+			return marketplaceReadScope{}, marketplaceValidationf(
+				"global scope must not include workspace_id or profile",
+			)
 		}
-		return marketplaceReadScope{scope: settingspkg.ScopeGlobal}, nil
+		return marketplaceReadScope{scope: settingspkg.ScopeUser}, nil
+	case contract.MarketplaceScopeProfile:
+		if workspaceID != "" {
+			return marketplaceReadScope{}, marketplaceValidationf("profile scope must not include workspace_id")
+		}
+		if profileName == "" || profileName == profileDefaultName {
+			return marketplaceReadScope{}, marketplaceValidationf(
+				"profile scope requires a non-default profile",
+			)
+		}
+		return marketplaceReadScope{scope: settingspkg.ScopeProfile, profileName: profileName}, nil
 	case contract.MarketplaceScopeWorkspace:
 		if workspaceID == "" {
 			return marketplaceReadScope{}, marketplaceValidationf("workspace scope requires workspace_id")
+		}
+		if profileName != "" {
+			return marketplaceReadScope{}, marketplaceValidationf("workspace scope must not include profile")
 		}
 		return marketplaceReadScope{scope: settingspkg.ScopeWorkspace, workspaceID: workspaceID}, nil
 	default:

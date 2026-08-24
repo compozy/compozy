@@ -39,6 +39,7 @@ Match the task to the row. Read the listed files in full before producing output
 | Create or manage automation jobs, triggers, schedules, or suggestions                                                          | references/native-tools.md + references/configuration.md           |
 | Create, inspect, bind sessions to, exit, publish, remove, or recover workspace worktrees                                       | references/worktrees.md + references/native-tools.md               |
 | Inspect or manage Gateway posture, tier surfaces, device pairing, connection profiles, SSH forwards, or stream tickets         | references/runtime-operations.md + references/configuration.md     |
+| List, select, create, update, rename, archive, unarchive, delete, or retry profile lifecycle operations                        | references/profiles.md + references/native-tools.md                |
 | Read or change CompozyOS configuration: config.toml keys, defaults, scopes, and the settings apply lifecycle                   | references/configuration.md                                        |
 
 ## Reference Index
@@ -55,8 +56,9 @@ Match the task to the row. Read the listed files in full before producing output
 - references/loops.md - Loop and Goal authoring/operation, `/goal` commands, native tools, terminal and context states, approval/recovery semantics, reference grammar, hooks, and watch behavior.
 - references/extensions.md - extension kits, install trust, the authoring and dev loop, instance scoping, dev overlays, logs, and hook management.
 - references/extension-authoring.md - code-backed and resource-only extension authoring: templates, SDK declarations, static manifests, permissions, provide surfaces, contributed commands, command palette entries, and structured workflows.
-- references/configuration.md - config.toml desired state, the settings apply lifecycle, and the key reference for gateway, scheduler, Loop, Goal, automation, compaction, role, and window-manager settings.
+- references/configuration.md - layered config.toml desired state, profile credentials, the settings apply lifecycle, and the key reference for gateway, scheduler, Loop, Goal, automation, compaction, role, and window-manager settings.
 - references/worktrees.md - workspace worktree lifecycle, session binding, exit plans and actions, forge integration, cleanup evidence, and public management surfaces.
+- references/profiles.md - operator-profile selection, immutable session binding, lifecycle plans, local-only mutations, errors, events, and public management surfaces.
 
 ## Operating Loop
 

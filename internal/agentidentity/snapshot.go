@@ -13,6 +13,7 @@ import (
 // SessionSnapshot is the daemon-authoritative session subset needed for identity validation.
 type SessionSnapshot struct {
 	ID                   string
+	ProfileID            string
 	Name                 string
 	AgentName            string
 	Provider             string
@@ -38,8 +39,10 @@ func SessionSnapshotFromInfo(info *session.Info) SessionSnapshot {
 	if info == nil {
 		return SessionSnapshot{}
 	}
+	profileID := strings.TrimSpace(info.ProfileID)
 	return SessionSnapshot{
 		ID:                   info.ID,
+		ProfileID:            profileID,
 		Name:                 info.Name,
 		AgentName:            info.AgentName,
 		Provider:             info.Provider,
@@ -68,6 +71,7 @@ func (s SessionSnapshot) NetworkSpecSnapshot() participation.Spec {
 
 func normalizeSessionSnapshot(snapshot SessionSnapshot) SessionSnapshot {
 	snapshot.ID = strings.TrimSpace(snapshot.ID)
+	snapshot.ProfileID = strings.TrimSpace(snapshot.ProfileID)
 	snapshot.Name = strings.TrimSpace(snapshot.Name)
 	snapshot.AgentName = strings.TrimSpace(snapshot.AgentName)
 	snapshot.Provider = strings.TrimSpace(snapshot.Provider)

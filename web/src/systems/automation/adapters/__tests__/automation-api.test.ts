@@ -102,6 +102,8 @@ describe("listAutomationJobs", () => {
       q: " review ",
       scope: "workspace",
       workspace_id: "ws_alpha",
+      profile: " marketing ",
+      all_profiles: false,
       source: "package",
       limit: 10,
     });
@@ -109,7 +111,7 @@ describe("listAutomationJobs", () => {
     expect(result.jobs).toEqual([jobFixture]);
     expect(result.page.total).toBe(12);
     await expectFetchRequest({
-      path: "/api/automation/jobs?scope=workspace&workspace_id=ws_alpha&source=package&enabled=false&q=review&cursor=job-cursor-1&limit=10&loop=release-loop",
+      path: "/api/automation/jobs?scope=workspace&workspace_id=ws_alpha&source=package&enabled=false&q=review&cursor=job-cursor-1&limit=10&loop=release-loop&profile=marketing&all_profiles=false",
     });
   });
 
@@ -213,30 +215,54 @@ describe("createAutomationJob", () => {
       path: "/api/automation/jobs",
     });
   });
+
+  it("serializes a normalized profile owner when creating a job", async () => {
+    mockJsonResponse({ job: jobFixture }, { status: 201 });
+
+    await createAutomationJob(
+      {
+        name: "daily-review",
+        agent_name: "reviewer",
+        prompt: "Review recent changes.",
+        scope: "workspace",
+        workspace_id: "ws_alpha",
+        enabled: true,
+        schedule: { mode: "cron", expr: "0 9 * * *" },
+        retry: { strategy: "none", max_retries: 3, base_delay: "2s" },
+        fire_limit: { max: 12, window: "1h" },
+      },
+      " growth "
+    );
+
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/automation/jobs?profile=growth",
+    });
+  });
 });
 
 describe("job detail endpoints", () => {
   it("gets one automation job by id", async () => {
     mockJsonResponse({ job: jobFixture });
 
-    const result = await getAutomationJob("job_daily_review");
+    const result = await getAutomationJob("job_daily_review", { profile: "marketing" });
 
     expect(result).toEqual(jobFixture);
     await expectFetchRequest({
-      path: "/api/automation/jobs/job_daily_review",
+      path: "/api/automation/jobs/job_daily_review?profile=marketing",
     });
   });
 
   it("patches one job and returns the updated record", async () => {
     mockJsonResponse({ job: { ...jobFixture, enabled: false } });
 
-    const result = await updateAutomationJob("job_daily_review", { enabled: false });
+    const result = await updateAutomationJob("job_daily_review", { enabled: false }, " marketing ");
 
     expect(result.enabled).toBe(false);
     await expectFetchRequest({
       body: { enabled: false },
       method: "PATCH",
-      path: "/api/automation/jobs/job_daily_review",
+      path: "/api/automation/jobs/job_daily_review?profile=marketing",
     });
   });
 
@@ -244,11 +270,11 @@ describe("job detail endpoints", () => {
     mockEmptyResponse({ status: 204 });
 
     const controller = new AbortController();
-    await deleteAutomationJob("job_daily_review", controller.signal);
+    await deleteAutomationJob("job_daily_review", "marketing", controller.signal);
 
     await expectFetchRequest({
       method: "DELETE",
-      path: "/api/automation/jobs/job_daily_review",
+      path: "/api/automation/jobs/job_daily_review?profile=marketing",
       signal: controller.signal,
     });
   });
@@ -256,8 +282,10 @@ describe("job detail endpoints", () => {
   it("throws a not-found error for missing jobs", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
-    await expect(getAutomationJob("missing")).rejects.toThrow("Automation job not found: missing");
-    await expect(deleteAutomationJob("missing")).rejects.toThrow(
+    await expect(getAutomationJob("missing", { profile: "marketing" })).rejects.toThrow(
+      "Automation job not found: missing"
+    );
+    await expect(deleteAutomationJob("missing", "marketing")).rejects.toThrow(
       "Automation job not found: missing"
     );
   });
@@ -267,12 +295,12 @@ describe("triggerAutomationJob", () => {
   it("posts to the trigger endpoint and returns the queued run", async () => {
     mockJsonResponse({ run: runFixture });
 
-    const result = await triggerAutomationJob("job_daily_review");
+    const result = await triggerAutomationJob("job_daily_review", "marketing");
 
     expect(result).toEqual(runFixture);
     await expectFetchRequest({
       method: "POST",
-      path: "/api/automation/jobs/job_daily_review/trigger",
+      path: "/api/automation/jobs/job_daily_review/trigger?profile=marketing",
     });
   });
 });
@@ -292,6 +320,8 @@ describe("listAutomationTriggers", () => {
       event: "ext.github.push",
       loop: " release-loop ",
       q: " main ",
+      profile: " marketing ",
+      all_profiles: false,
       source: "package",
       limit: 5,
     });
@@ -299,7 +329,7 @@ describe("listAutomationTriggers", () => {
     expect(result.triggers).toEqual([triggerFixture]);
     expect(result.page.total).toBe(1);
     await expectFetchRequest({
-      path: "/api/automation/triggers?scope=workspace&workspace_id=ws_alpha&source=package&enabled=true&event=ext.github.push&q=main&cursor=trigger-cursor-1&limit=5&loop=release-loop",
+      path: "/api/automation/triggers?scope=workspace&workspace_id=ws_alpha&source=package&enabled=true&event=ext.github.push&q=main&cursor=trigger-cursor-1&limit=5&loop=release-loop&profile=marketing&all_profiles=false",
     });
   });
 });
@@ -308,11 +338,11 @@ describe("trigger detail endpoints", () => {
   it("gets one automation trigger by id", async () => {
     mockJsonResponse({ trigger: triggerFixture });
 
-    const result = await getAutomationTrigger("trg_push_review");
+    const result = await getAutomationTrigger("trg_push_review", { all_profiles: true });
 
     expect(result).toEqual(triggerFixture);
     await expectFetchRequest({
-      path: "/api/automation/triggers/trg_push_review",
+      path: "/api/automation/triggers/trg_push_review?all_profiles=true",
     });
   });
 
@@ -344,24 +374,51 @@ describe("trigger detail endpoints", () => {
     });
   });
 
+  it("serializes a normalized profile owner when creating a trigger", async () => {
+    mockJsonResponse({ trigger: triggerFixture }, { status: 201 });
+
+    await createAutomationTrigger(
+      {
+        name: "push-review",
+        agent_name: "reviewer",
+        prompt: "Review push event {{ .Data.branch }}.",
+        event: "webhook",
+        filter: { "data.branch": "main" },
+        scope: "workspace",
+        workspace_id: "ws_alpha",
+        enabled: true,
+        retry: { strategy: "backoff", max_retries: 4, base_delay: "5s" },
+        fire_limit: { max: 12, window: "1h" },
+        endpoint_slug: "push-review",
+        webhook_id: "wbh_push_review",
+      },
+      " growth "
+    );
+
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/automation/triggers?profile=growth",
+    });
+  });
+
   it("deletes one trigger", async () => {
     mockEmptyResponse({ status: 204 });
 
-    await deleteAutomationTrigger("trg_push_review");
+    await deleteAutomationTrigger("trg_push_review", "marketing");
 
     await expectFetchRequest({
       method: "DELETE",
-      path: "/api/automation/triggers/trg_push_review",
+      path: "/api/automation/triggers/trg_push_review?profile=marketing",
     });
   });
 
   it("throws a not-found error for missing triggers", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
-    await expect(getAutomationTrigger("missing")).rejects.toThrow(
+    await expect(getAutomationTrigger("missing", { profile: "marketing" })).rejects.toThrow(
       "Automation trigger not found: missing"
     );
-    await expect(deleteAutomationTrigger("missing")).rejects.toThrow(
+    await expect(deleteAutomationTrigger("missing", "marketing")).rejects.toThrow(
       "Automation trigger not found: missing"
     );
   });
@@ -371,16 +428,20 @@ describe("updateAutomationTrigger", () => {
   it("patches one trigger and returns the updated record", async () => {
     mockJsonResponse({ trigger: { ...triggerFixture, enabled: false } });
 
-    const result = await updateAutomationTrigger("trg_push_review", {
-      enabled: false,
-      webhook_secret_value: "next-secret",
-    });
+    const result = await updateAutomationTrigger(
+      "trg_push_review",
+      {
+        enabled: false,
+        webhook_secret_value: "next-secret",
+      },
+      " marketing "
+    );
 
     expect(result.enabled).toBe(false);
     await expectFetchRequest({
       body: { enabled: false, webhook_secret_value: "next-secret" },
       method: "PATCH",
-      path: "/api/automation/triggers/trg_push_review",
+      path: "/api/automation/triggers/trg_push_review?profile=marketing",
     });
   });
 });
@@ -392,11 +453,13 @@ describe("run history endpoints", () => {
     const result = await listAutomationJobRuns("job_daily_review", {
       status: "running",
       limit: 3,
+      profile: " marketing ",
+      all_profiles: false,
     });
 
     expect(result).toEqual([runFixture]);
     await expectFetchRequest({
-      path: "/api/automation/jobs/job_daily_review/runs?status=running&limit=3",
+      path: "/api/automation/jobs/job_daily_review/runs?status=running&limit=3&profile=marketing&all_profiles=false",
     });
   });
 
@@ -408,11 +471,12 @@ describe("run history endpoints", () => {
     const result = await listAutomationTriggerRuns("trg_push_review", {
       status: "running",
       limit: 2,
+      all_profiles: true,
     });
 
     expect(result[0]?.trigger_id).toBe("trg_push_review");
     await expectFetchRequest({
-      path: "/api/automation/triggers/trg_push_review/runs?status=running&limit=2",
+      path: "/api/automation/triggers/trg_push_review/runs?status=running&limit=2&all_profiles=true",
     });
   });
 
@@ -426,12 +490,38 @@ describe("run history endpoints", () => {
       since: " 2026-04-11T09:00:00Z ",
       until: "",
       limit: 10,
+      profile: " marketing ",
     });
 
     expect(result).toEqual([runFixture]);
     await expectFetchRequest({
-      path: "/api/automation/runs?job_id=job_daily_review&status=running&since=2026-04-11T09%3A00%3A00Z&limit=10",
+      path: "/api/automation/runs?job_id=job_daily_review&status=running&since=2026-04-11T09%3A00%3A00Z&limit=10&profile=marketing",
     });
+  });
+});
+
+describe("profile-scoped automation mutations", () => {
+  it.each([
+    {
+      name: "update job",
+      execute: () => updateAutomationJob("job_daily_review", { enabled: false }, "   "),
+    },
+    { name: "delete job", execute: () => deleteAutomationJob("job_daily_review", "   ") },
+    { name: "trigger job", execute: () => triggerAutomationJob("job_daily_review", "   ") },
+    {
+      name: "update trigger",
+      execute: () => updateAutomationTrigger("trg_push_review", { enabled: false }, "   "),
+    },
+    {
+      name: "delete trigger",
+      execute: () => deleteAutomationTrigger("trg_push_review", "   "),
+    },
+  ])("rejects a missing owner before $name", async ({ execute }) => {
+    await expect(execute()).rejects.toMatchObject({
+      message: "Automation profile is required",
+      status: 400,
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 });
 

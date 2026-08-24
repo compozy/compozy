@@ -12,7 +12,6 @@ import (
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
@@ -29,11 +28,12 @@ type handlerConfig struct {
 	observer            core.Observer
 	schemaStreams       core.SchemaStreamStatusReader
 	resources           core.ResourceService
-	windowManager       windowmanager.Service
+	windowManager       core.WindowManagerProvider
 	automation          core.AutomationManager
 	loops               core.LoopService
 	bridges             core.BridgeService
 	notifications       core.NotificationPresetService
+	profiles            core.ProfileService
 	supportBundles      core.SupportBundleService
 	tools               core.ToolRegistry
 	toolArtifacts       toolspkg.ToolArtifactStore

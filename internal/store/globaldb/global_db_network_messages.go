@@ -113,36 +113,27 @@ func (g *NetworkRepo) buildNetworkMessageListQuery(
 ) (string, []any, bool, error) {
 	// dynamic-sql: optional envelope filters, cursor direction, sort order, and limit change the statement shape.
 	sqlQuery := `SELECT
-			sequence,
-			message_id,
-			session_id,
-			workspace_id,
-			channel,
-		surface,
-		thread_id,
-		direct_id,
-		direction,
-		peer_from,
-		peer_to,
-		kind,
-		work_id,
-		reply_to,
-		trace_id,
-		causation_id,
-		intent,
-		text,
-		preview_text,
-		mentions_json,
-		ext_json,
-		body_json,
+		owner_profile.id, owner_profile.name, owner_profile.color, COALESCE(owner_profile.icon, ''),
+		COALESCE(owner_profile.emoji, ''), owner_profile.archived_at IS NOT NULL,
+		network_timeline_log.sequence, network_timeline_log.message_id,
+		network_timeline_log.session_id, network_timeline_log.workspace_id,
+		network_timeline_log.channel, network_timeline_log.surface,
+		network_timeline_log.thread_id, network_timeline_log.direct_id,
+		network_timeline_log.direction, network_timeline_log.peer_from,
+		network_timeline_log.peer_to, network_timeline_log.kind,
+		network_timeline_log.work_id, network_timeline_log.reply_to,
+		network_timeline_log.trace_id, network_timeline_log.causation_id,
+		network_timeline_log.intent, network_timeline_log.text,
+		network_timeline_log.preview_text, network_timeline_log.mentions_json,
+		network_timeline_log.ext_json, network_timeline_log.body_json,
 		COALESCE((
 			SELECT MAX(audit.size)
 			FROM network_audit_log AS audit
 			WHERE audit.workspace_id = network_timeline_log.workspace_id
 				AND audit.message_id = network_timeline_log.message_id
 		), 0),
-		timestamp
-	FROM network_timeline_log`
+		network_timeline_log.timestamp
+	` + networkTimelineOwnerFromClause()
 
 	where, args := networkMessageFilterClauses(query, true)
 
@@ -183,35 +174,36 @@ func networkMessageFilterClauses(query store.NetworkMessageQuery, includeMessage
 		messageID = query.MessageID
 	}
 	where, args := store.BuildClauses(
-		store.StringClause("workspace_id", query.WorkspaceID),
-		store.StringClause("session_id", query.SessionID),
-		store.StringClause("channel", query.Channel),
-		store.StringClause("peer_from", query.PeerFrom),
-		store.StringClause("peer_to", query.PeerTo),
-		store.StringClause("kind", query.Kind),
-		store.StringClause("direction", query.Direction),
-		store.StringClause("message_id", messageID),
-		store.TimeClause("timestamp", ">=", query.Since),
+		store.ReadScopeClause("owner_profile.id", query.ReadScope),
+		store.StringClause("network_timeline_log.workspace_id", query.WorkspaceID),
+		store.StringClause("network_timeline_log.session_id", query.SessionID),
+		store.StringClause("network_timeline_log.channel", query.Channel),
+		store.StringClause("network_timeline_log.peer_from", query.PeerFrom),
+		store.StringClause("network_timeline_log.peer_to", query.PeerTo),
+		store.StringClause("network_timeline_log.kind", query.Kind),
+		store.StringClause("network_timeline_log.direction", query.Direction),
+		store.StringClause("network_timeline_log.message_id", messageID),
+		store.TimeClause("network_timeline_log.timestamp", ">=", query.Since),
 	)
 	if peerID := strings.TrimSpace(query.PeerID); peerID != "" {
-		where = append(where, "(peer_from = ? OR peer_to = ?)")
+		where = append(where, "(network_timeline_log.peer_from = ? OR network_timeline_log.peer_to = ?)")
 		args = append(args, peerID, peerID)
 	}
-	directed := `(COALESCE(TRIM(peer_to), '') <> ''
-		OR COALESCE(TRIM(direct_id), '') <> ''
-		OR COALESCE(TRIM(surface), '') = 'direct')`
-	public := `(COALESCE(TRIM(peer_to), '') = ''
-		AND COALESCE(TRIM(direct_id), '') = ''
-		AND COALESCE(TRIM(surface), '') <> 'direct')`
+	directed := `(COALESCE(TRIM(network_timeline_log.peer_to), '') <> ''
+		OR COALESCE(TRIM(network_timeline_log.direct_id), '') <> ''
+		OR COALESCE(TRIM(network_timeline_log.surface), '') = 'direct')`
+	public := `(COALESCE(TRIM(network_timeline_log.peer_to), '') = ''
+		AND COALESCE(TRIM(network_timeline_log.direct_id), '') = ''
+		AND COALESCE(TRIM(network_timeline_log.surface), '') <> 'direct')`
 	switch {
 	case query.PublicOnly && query.IncludePresence:
-		where = append(where, "(kind = 'greet' OR "+public+")")
+		where = append(where, "(network_timeline_log.kind = 'greet' OR "+public+")")
 	case query.PublicOnly:
-		where = append(where, "kind <> 'greet' AND "+public)
+		where = append(where, "network_timeline_log.kind <> 'greet' AND "+public)
 	case query.DirectedOnly && query.IncludePresence:
-		where = append(where, "(kind = 'greet' OR "+directed+")")
+		where = append(where, "(network_timeline_log.kind = 'greet' OR "+directed+")")
 	case query.DirectedOnly:
-		where = append(where, "kind <> 'greet' AND "+directed)
+		where = append(where, "network_timeline_log.kind <> 'greet' AND "+directed)
 	}
 	return where, args
 }
@@ -248,14 +240,14 @@ func (g *NetworkRepo) lookupNetworkMessageCursor(
 	}
 
 	where, args := networkMessageFilterClauses(query, false)
-	where = append([]string{"message_id = ?"}, where...)
+	where = append([]string{"network_timeline_log.message_id = ?"}, where...)
 	args = append([]any{trimmed}, args...)
 
 	var cursor networkMessageCursor
 	// dynamic-sql: the cursor must reuse every optional list filter to prove membership in the requested page.
 	err := g.db.QueryRowContext(
 		ctx,
-		store.AppendWhere(`SELECT sequence FROM network_timeline_log`, where),
+		store.AppendWhere(`SELECT network_timeline_log.sequence `+networkTimelineOwnerFromClause(), where),
 		args...,
 	).Scan(&cursor.Sequence)
 	if err != nil {
@@ -273,6 +265,12 @@ func scanNetworkMessage(scanner rowScanner) (store.NetworkMessageEntry, error) {
 		nullable networkMessageNullableFields
 	)
 	if err := scanner.Scan(
+		&entry.ProfileID,
+		&entry.ProfileName,
+		&entry.ProfileColor,
+		&entry.ProfileIcon,
+		&entry.ProfileEmoji,
+		&entry.ProfileArchived,
 		&entry.Sequence,
 		&entry.MessageID,
 		&nullable.sessionID,
@@ -309,6 +307,23 @@ func scanNetworkMessage(scanner rowScanner) (store.NetworkMessageEntry, error) {
 	}
 	entry.Timestamp = timestamp
 	return entry, nil
+}
+
+func networkTimelineOwnerFromClause() string {
+	return `FROM network_timeline_log
+	LEFT JOIN network_threads AS owner_thread
+		ON owner_thread.workspace_id = network_timeline_log.workspace_id
+		AND owner_thread.channel = network_timeline_log.channel
+		AND owner_thread.thread_id = network_timeline_log.thread_id
+	LEFT JOIN network_direct_rooms AS owner_direct
+		ON owner_direct.workspace_id = network_timeline_log.workspace_id
+		AND owner_direct.channel = network_timeline_log.channel
+		AND owner_direct.direct_id = network_timeline_log.direct_id
+	JOIN network_channels AS owner_channel
+		ON owner_channel.workspace_id = network_timeline_log.workspace_id
+		AND owner_channel.channel = network_timeline_log.channel
+	JOIN profiles AS owner_profile
+		ON owner_profile.id = COALESCE(owner_thread.profile_id, owner_direct.profile_id, owner_channel.profile_id)`
 }
 
 func applyNetworkMessageNullableFields(entry *store.NetworkMessageEntry, nullable networkMessageNullableFields) {

@@ -20,6 +20,8 @@ function treeSession(
   options: { parent?: string; badge?: string; sessionType?: SessionPayload["type"] } = {}
 ): SessionPayload {
   return {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     id,
     name: `Session ${id}`,
     agent_name: "coder",

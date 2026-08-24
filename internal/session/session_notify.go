@@ -32,6 +32,7 @@ const (
 
 type NotifyRequest struct {
 	SessionID   string
+	ProfileID   string
 	WorkspaceID string
 	Title       string
 	Body        string
@@ -45,10 +46,16 @@ type NotifyResult struct {
 type OperatorNotification struct {
 	NotificationID string
 	SessionID      string
+	ProfileID      string
 	WorkspaceID    string
 	Title          string
 	Body           string
 	At             time.Time
+}
+
+// AttentionWorkspaceMuteReader reads the typed profile/workspace mute relation.
+type AttentionWorkspaceMuteReader interface {
+	IsAttentionWorkspaceMuted(ctx context.Context, profileID string, workspaceID string) (bool, error)
 }
 
 // SetAttentionConfig applies the live notification policy.
@@ -56,13 +63,8 @@ func (m *Manager) SetAttentionConfig(cfg compozyconfig.AttentionConfig) error {
 	if m == nil {
 		return errors.New("session: manager is required")
 	}
-	if err := cfg.Validate(); err != nil {
-		return fmt.Errorf("session: validate attention config: %w", err)
-	}
-	cloned := cfg
-	cloned.MutedWorkspaces = append([]string(nil), cfg.MutedWorkspaces...)
 	m.notifyMu.Lock()
-	m.notifyConfig = cloned
+	m.notifyConfig = cfg
 	m.notifyMu.Unlock()
 	return nil
 }
@@ -85,7 +87,17 @@ func (m *Manager) PublishOperatorNotification(
 	if err != nil {
 		return NotifyResult{}, err
 	}
-
+	if m.attentionWorkspaceMutes == nil {
+		return NotifyResult{}, errors.New("session: attention workspace mute reader is required")
+	}
+	muted, err := m.attentionWorkspaceMutes.IsAttentionWorkspaceMuted(
+		ctx,
+		notification.ProfileID,
+		notification.WorkspaceID,
+	)
+	if err != nil {
+		return NotifyResult{}, fmt.Errorf("session: read attention workspace mute: %w", err)
+	}
 	m.notifyMu.Lock()
 	if retryAfter := m.notificationRetryAfterLocked(notification.SessionID, notification.At); retryAfter > 0 {
 		m.notifyMu.Unlock()
@@ -96,7 +108,6 @@ func (m *Manager) PublishOperatorNotification(
 		return result, nil
 	}
 	m.notifyLastBySession[notification.SessionID] = notification.At
-	muted := notificationWorkspaceMuted(m.notifyConfig.MutedWorkspaces, notification.WorkspaceID)
 	m.notifyMu.Unlock()
 	if muted {
 		result := NotifyResult{Outcome: NotifyOutcomeMutedWorkspace}
@@ -106,6 +117,7 @@ func (m *Manager) PublishOperatorNotification(
 
 	delivered := m.publishSessionCatalogEventCount(CatalogEvent{
 		Name:                 CatalogEventNameOperatorNotification,
+		ProfileID:            notification.ProfileID,
 		WorkspaceID:          notification.WorkspaceID,
 		SessionID:            notification.SessionID,
 		OperatorNotification: &notification,
@@ -122,9 +134,13 @@ func (m *Manager) PublishOperatorNotification(
 
 func (m *Manager) sanitizedOperatorNotification(req NotifyRequest) (OperatorNotification, error) {
 	sessionID := strings.TrimSpace(req.SessionID)
+	profileID := strings.TrimSpace(req.ProfileID)
 	workspaceID := strings.TrimSpace(req.WorkspaceID)
 	if sessionID == "" {
 		return OperatorNotification{}, invalidNotification("session_id", "is required")
+	}
+	if profileID == "" {
+		return OperatorNotification{}, invalidNotification("profile_id", "is required")
 	}
 	if workspaceID == "" {
 		return OperatorNotification{}, invalidNotification("workspace_id", "is required")
@@ -154,7 +170,7 @@ func (m *Manager) sanitizedOperatorNotification(req NotifyRequest) (OperatorNoti
 	}
 	return OperatorNotification{
 		NotificationID: notificationID,
-		SessionID:      sessionID, WorkspaceID: workspaceID,
+		SessionID:      sessionID, ProfileID: profileID, WorkspaceID: workspaceID,
 		Title: title, Body: body, At: m.now().UTC(),
 	}, nil
 }
@@ -193,15 +209,6 @@ func (m *Manager) logNotificationOutcome(
 		"retry_after_ms", result.RetryAfterMS,
 		"delivered_subscribers", deliveredSubscribers,
 	)
-}
-
-func notificationWorkspaceMuted(workspaceIDs []string, workspaceID string) bool {
-	for _, candidate := range workspaceIDs {
-		if strings.TrimSpace(candidate) == workspaceID {
-			return true
-		}
-	}
-	return false
 }
 
 func invalidNotification(field string, detail string) error {

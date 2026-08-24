@@ -110,7 +110,7 @@ func seedObserveRunSnapshot(t *testing.T, registry *globaldb.GlobalDB, target ta
 	switch targetStatus {
 	case taskpkg.TaskRunStatusCompleted:
 		completed, completeErr := manager.CompleteRun(ctx, current.ID, taskpkg.RunResult{
-			Value:      target.Result,
+			Value:      target.ResultValue(),
 			TokensUsed: target.TokensUsed,
 		}, actor)
 		if completeErr != nil {

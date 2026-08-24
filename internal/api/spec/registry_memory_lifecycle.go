@@ -3,7 +3,7 @@ package spec
 import "github.com/compozy/compozy/internal/api/contract"
 
 func registryMemoryLifecycleOperations() []OperationSpec {
-	return []OperationSpec{
+	operations := []OperationSpec{
 		listMemoryDreamsOperationSpec(),
 		getMemoryDreamOperationSpec(),
 		triggerMemoryDreamOperationSpec(),
@@ -25,6 +25,10 @@ func registryMemoryLifecycleOperations() []OperationSpec {
 		pruneMemorySessionsOperationSpec(),
 		repairMemorySessionsOperationSpec(),
 	}
+	for index := range operations {
+		operations[index].Parameters = ensureProfileParameters(operations[index].Parameters, false)
+	}
+	return operations
 }
 func listMemoryDreamsOperationSpec() OperationSpec {
 	return OperationSpec{

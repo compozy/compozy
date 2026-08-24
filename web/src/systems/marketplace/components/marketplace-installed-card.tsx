@@ -63,6 +63,7 @@ function MarketplaceInstalledCard({
     ...(isMcp && mcpManagement
       ? {
           scope: mcpManagement.scope,
+          ...(mcpManagement.scope === "profile" ? { profile: mcpManagement.profile } : {}),
           workspace_id:
             mcpManagement.scope === "workspace" ? mcpManagement.workspace_id : undefined,
         }

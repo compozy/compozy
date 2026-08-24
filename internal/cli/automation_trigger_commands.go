@@ -35,12 +35,13 @@ func newAutomationTriggersCreateCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, automationTriggerBundle(created))
 		},
 	}
-	bindAutomationTriggerCreateFlags(cmd, &input)
+	bindAutomationTriggerCreateFlags(cmd, deps, &input)
 	return cmd
 }
 
 func bindAutomationTriggerCreateFlags(
 	cmd *cobra.Command,
+	deps commandDeps,
 	input *automationTriggerCommandInput,
 ) {
 	cmd.Flags().StringVar(&input.Name, automationNameKey, "", "Trigger name")
@@ -69,10 +70,11 @@ func bindAutomationTriggerCreateFlags(
 	mustMarkFlagRequired(cmd, automationNameKey)
 	mustMarkFlagRequired(cmd, automationScopeKey)
 	mustMarkFlagRequired(cmd, automationEventKey)
+	configureProfileMutationCommand(cmd, deps)
 }
 
 func newAutomationTriggersGetCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   automationGetIDValue,
 		Short: "Show one automation trigger",
 		Args:  exactOneNonBlankArg(),
@@ -89,6 +91,8 @@ func newAutomationTriggersGetCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, automationTriggerBundle(trigger))
 		},
 	}
+	configureProfileReadCommand(cmd, deps)
+	return cmd
 }
 
 func newAutomationTriggersUpdateCommand(deps commandDeps) *cobra.Command {
@@ -151,11 +155,12 @@ func newAutomationTriggersUpdateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&endpointSlug, "endpoint-slug", "", "Update the webhook endpoint slug")
 	cmd.Flags().
 		StringVar(&webhookSecretValue, "webhook-secret-value", "", "Write-only webhook secret value")
+	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
 func newAutomationTriggersDeleteCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   automationDeleteIDValue,
 		Short: "Delete an automation trigger",
 		Args:  exactOneNonBlankArg(),
@@ -175,6 +180,8 @@ func newAutomationTriggersDeleteCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, automationTriggerBundle(current))
 		},
 	}
+	configureProfileMutationCommand(cmd, deps)
+	return cmd
 }
 
 func newAutomationTriggersHistoryCommand(deps commandDeps) *cobra.Command {
@@ -213,5 +220,6 @@ func newAutomationTriggersHistoryCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(&untilRaw, "until", "", "Show runs until an RFC3339 timestamp or relative duration")
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N runs")
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }

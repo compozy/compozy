@@ -101,6 +101,7 @@ func (d *Dispatcher) reserveRun(ctx context.Context, req DispatchRequest, attemp
 
 	now := d.now()
 	run := Run{
+		ProfileID:            req.profileID(),
 		Status:               RunScheduled,
 		Attempt:              attempt,
 		StartedAt:            timePointer(now),

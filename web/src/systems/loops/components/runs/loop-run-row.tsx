@@ -6,9 +6,12 @@ import { cn, MonoId, Pill, PillDot, TableCell, TableRow, Time } from "@compozy/u
 import { formatClockDuration } from "../../lib/loop-run-usage";
 import type { LoopRunRow as LoopRunRowModel } from "../../lib/loop-runs-view";
 import type { LoopRun } from "../../types";
+import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 
 interface LoopRunRowProps {
   row: LoopRunRowModel;
+  /** The run's profile, supplied only in aggregate mode. */
+  owner?: ProfileOwner;
 }
 
 /**
@@ -33,7 +36,7 @@ const META_CELL = "font-mono text-mono-id tabular-nums text-muted";
  * Spend (generations, best score, budget) is deliberately absent: it is demoted
  * to the run page, where there is room to say what it means.
  */
-export function LoopRunRow({ row }: LoopRunRowProps) {
+export function LoopRunRow({ row, owner }: LoopRunRowProps) {
   const { run } = row;
   return (
     <TableRow
@@ -45,14 +48,17 @@ export function LoopRunRow({ row }: LoopRunRowProps) {
     >
       <TableCell className="w-full max-w-0 py-2.5">
         <span className="flex min-w-0 flex-col gap-0.5">
-          <Link
-            className="truncate text-ws-name font-medium text-fg-strong underline-offset-3 hover:underline"
-            data-testid="loop-run-name"
-            params={{ runId: run.id }}
-            to="/loop-runs/$runId"
-          >
-            {run.loop_name}
-          </Link>
+          <span className="flex min-w-0 items-center gap-2">
+            <Link
+              className="min-w-0 truncate text-ws-name font-medium text-fg-strong underline-offset-3 hover:underline"
+              data-testid="loop-run-name"
+              params={{ runId: run.id }}
+              to="/loop-runs/$runId"
+            >
+              {run.loop_name}
+            </Link>
+            {owner ? <ProfileOwnerTag className="shrink-0" owner={owner} /> : null}
+          </span>
           {row.summaryLine ? (
             <span className="truncate text-small-body text-subtle" data-testid="loop-run-summary">
               {row.summaryLine}

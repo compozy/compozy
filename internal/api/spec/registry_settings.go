@@ -24,6 +24,8 @@ func registrySettingsOperations() []OperationSpec {
 		deleteSettingsSandboxOperationSpec(),
 		getSettingsGeneralOperationSpec(),
 		updateSettingsGeneralOperationSpec(),
+		getSettingsPersonaOperationSpec(),
+		updateSettingsPersonaOperationSpec(),
 		listSettingsHooksOperationSpec(),
 		putSettingsHookOperationSpec(),
 		deleteSettingsHookOperationSpec(),
@@ -306,6 +308,7 @@ func listSettingsHooksOperationSpec() OperationSpec {
 		Summary:     "List settings-backed hook declarations",
 		Tags:        []string{specSettingsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters:  settingsLayeredParameters(),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SettingsHooksResponse{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
@@ -320,9 +323,9 @@ func putSettingsHookOperationSpec() OperationSpec {
 		Summary:     "Create or replace one settings-backed hook declaration",
 		Tags:        []string{specSettingsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("name", "Hook name"),
-		},
+		Parameters: append(
+			[]ParameterSpec{pathParam("name", "Hook name")}, settingsLayeredParameters()...,
+		),
 		RequestBody: contract.PutSettingsHookRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
@@ -341,9 +344,9 @@ func deleteSettingsHookOperationSpec() OperationSpec {
 		Summary:     "Delete one settings-backed hook declaration",
 		Tags:        []string{specSettingsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("name", "Hook name"),
-		},
+		Parameters: append(
+			[]ParameterSpec{pathParam("name", "Hook name")}, settingsLayeredParameters()...,
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
@@ -392,10 +395,7 @@ func listSettingsMCPServersOperationSpec() OperationSpec {
 		Summary:     "List settings-backed MCP servers",
 		Tags:        []string{specSettingsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			enumQueryParam(specScopeKey, "Select the settings scope", settingsWorkspaceScopeValues()),
-			queryParam("workspace_id", "Select the workspace id for workspace scope", false),
-		},
+		Parameters:  settingsLayeredParameters(),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SettingsMCPServersResponse{}},
 			{Status: 400, Description: specInvalidSettingsScopeDescription, Body: contract.ErrorPayload{}},
@@ -412,12 +412,7 @@ func putSettingsMCPServerOperationSpec() OperationSpec {
 		Summary:     "Create or replace one settings-backed MCP server",
 		Tags:        []string{specSettingsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("name", "MCP server name"),
-			enumQueryParam(specScopeKey, "Select the settings scope", settingsWorkspaceScopeValues()),
-			queryParam("workspace_id", "Select the workspace id for workspace scope", false),
-			enumQueryParam("target", "Select the persistence target", settingsTargetSelectorValues()),
-		},
+		Parameters:  settingsMCPServerParameters(),
 		RequestBody: contract.PutSettingsMCPServerRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
@@ -437,12 +432,7 @@ func deleteSettingsMCPServerOperationSpec() OperationSpec {
 		Summary:     "Delete one settings-backed MCP server",
 		Tags:        []string{specSettingsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("name", "MCP server name"),
-			enumQueryParam(specScopeKey, "Select the settings scope", settingsWorkspaceScopeValues()),
-			queryParam("workspace_id", "Select the workspace id for workspace scope", false),
-			enumQueryParam("target", "Select the persistence target", settingsTargetSelectorValues()),
-		},
+		Parameters:  settingsMCPServerParameters(),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
 			{Status: 400, Description: "Invalid MCP server request", Body: contract.ErrorPayload{}},
@@ -452,4 +442,14 @@ func deleteSettingsMCPServerOperationSpec() OperationSpec {
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}
+}
+
+func settingsMCPServerParameters() []ParameterSpec {
+	parameters := []ParameterSpec{pathParam("name", "MCP server name")}
+	parameters = append(parameters, settingsLayeredParameters()...)
+	return append(parameters, enumQueryParam(
+		"target",
+		"Select the persistence target",
+		settingsTargetSelectorValues(),
+	))
 }

@@ -11,15 +11,13 @@ import type {
   SettingsUpdateCmdPaletteFilter,
   SettingsUpdateCmdPaletteRequest,
 } from "../types";
-import { normalizeOptionalText, SettingsApiError } from "./settings-api-error";
+import { SettingsApiError } from "./settings-api-error";
+import { normalizeSettingsLayerFilter } from "./settings-layer-filter";
 
 function normalizeSettingsCmdPaletteFilter(
   filter: SettingsCmdPaletteFilter | SettingsUpdateCmdPaletteFilter = {}
 ) {
-  return {
-    scope: filter.scope,
-    workspace_id: normalizeOptionalText(filter.workspace_id),
-  };
+  return normalizeSettingsLayerFilter(filter);
 }
 
 export async function getSettingsCmdPalette(

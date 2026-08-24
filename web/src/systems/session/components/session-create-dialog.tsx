@@ -23,9 +23,11 @@ import { SessionCreateFirstMessage } from "./session-create-first-message";
 import { SessionEnvironmentField } from "./session-environment-field";
 import { SessionCreateSimpleSection } from "./session-create-simple-section";
 import type { AgentPayload } from "@/systems/agent";
-import { WorkspaceScopeStatement, type WorkspaceScopeMode } from "@/systems/workspace";
+import { CreateDestinationStatement, type WorkspaceScopeMode } from "@/systems/workspace";
 
 export interface SessionCreateDialogProps {
+  /** The profile a creation lands in while the aggregate is on (ADR-005). */
+  profileDestination?: string | null;
   open: boolean;
   restoreFocusOnClose: boolean;
   onOpenChange: (open: boolean) => void;
@@ -83,6 +85,7 @@ function SessionCreateDialog({
   isAwaitingEnvironment,
   onCancelEnvironment,
   submitError,
+  profileDestination,
 }: SessionCreateDialogProps) {
   const restoreFocusOnCloseRef = useRef(restoreFocusOnClose);
   useLayoutEffect(() => {
@@ -202,7 +205,8 @@ function SessionCreateDialog({
 
           <EntityDialogFooter
             hint={
-              <WorkspaceScopeStatement
+              <CreateDestinationStatement
+                profileDestination={profileDestination}
                 destination={destinationLabel}
                 kind="session"
                 root={sessionRoot}

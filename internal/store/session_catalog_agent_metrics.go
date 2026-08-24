@@ -7,10 +7,12 @@ import (
 	"time"
 )
 
-// SessionAgentMetricsQuery describes one workspace-scoped grouped catalog read.
+// SessionAgentMetricsQuery describes one workspace-scoped grouped catalog read
+// through one explicit profile or the AllProfiles aggregate.
 // Active runtime session IDs are excluded before the session manager overlays
 // their current snapshots.
 type SessionAgentMetricsQuery struct {
+	ReadScope           ReadScope
 	WorkspaceID         string
 	ExcludeIDs          []string
 	ExcludeSessionTypes []string
@@ -19,6 +21,9 @@ type SessionAgentMetricsQuery struct {
 
 // Validate ensures grouped metrics cannot cross workspace boundaries.
 func (q SessionAgentMetricsQuery) Validate() error {
+	if err := q.ReadScope.Validate(); err != nil {
+		return err
+	}
 	if strings.TrimSpace(q.WorkspaceID) == "" {
 		return fmt.Errorf("store: session agent metrics workspace id is required")
 	}

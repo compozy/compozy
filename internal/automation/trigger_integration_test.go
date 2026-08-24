@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -52,7 +53,10 @@ func TestTriggerEngineIntegrationSessionStoppedViaObserverBoundaryDispatchesOneR
 		t.Fatalf("Prompt().message = %q, want %q", got, want)
 	}
 
-	runs, err := db.ListRuns(ctx, RunQuery{TriggerID: trigger.ID})
+	runs, err := db.ListRuns(ctx, RunQuery{
+		ReadScope: store.ReadScope{ProfileID: trigger.ProfileID},
+		TriggerID: trigger.ID,
+	})
 	if err != nil {
 		t.Fatalf("ListRuns() error = %v", err)
 	}
@@ -103,7 +107,10 @@ func TestTriggerEngineIntegrationMemoryConsolidatedDispatchesOneRun(t *testing.T
 		t.Fatalf("Prompt().message = %q, want %q", got, want)
 	}
 
-	runs, err := db.ListRuns(ctx, RunQuery{TriggerID: trigger.ID})
+	runs, err := db.ListRuns(ctx, RunQuery{
+		ReadScope: store.ReadScope{ProfileID: trigger.ProfileID},
+		TriggerID: trigger.ID,
+	})
 	if err != nil {
 		t.Fatalf("ListRuns() error = %v", err)
 	}
@@ -171,7 +178,10 @@ func TestTriggerEngineIntegrationWebhookDispatchesExactlyOnce(t *testing.T) {
 		t.Fatalf("Prompt().message = %q, want %q", got, want)
 	}
 
-	runs, err := db.ListRuns(ctx, RunQuery{TriggerID: trigger.ID})
+	runs, err := db.ListRuns(ctx, RunQuery{
+		ReadScope: store.ReadScope{ProfileID: trigger.ProfileID},
+		TriggerID: trigger.ID,
+	})
 	if err != nil {
 		t.Fatalf("ListRuns() error = %v", err)
 	}

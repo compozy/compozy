@@ -1023,7 +1023,7 @@ func TestWorkspaceDiscoveryRootsReturnsWorkspaceAdditionalGlobalOrder(t *testing
 	additionalOne := t.TempDir()
 	additionalTwo := t.TempDir()
 
-	roots := WorkspaceDiscoveryRoots(root, []string{additionalOne, additionalTwo}, homePaths)
+	roots := WorkspaceDiscoveryRoots(root, []string{additionalOne, additionalTwo}, homePaths, "")
 	if got, want := len(roots), 4; got != want {
 		t.Fatalf("len(WorkspaceDiscoveryRoots()) = %d, want %d", got, want)
 	}
@@ -1064,6 +1064,45 @@ func TestWorkspaceDiscoveryRootsReturnsWorkspaceAdditionalGlobalOrder(t *testing
 	}
 	if got, want := roots[3].LoopsDir(), filepath.Join(homePaths.HomeDir, LoopsDirName); got != want {
 		t.Fatalf("roots[3].LoopsDir() = %q, want %q", got, want)
+	}
+
+	profileRoots := WorkspaceDiscoveryRoots(
+		root,
+		[]string{additionalOne, additionalTwo},
+		homePaths,
+		"marketing",
+	)
+	if got, want := len(profileRoots), 6; got != want {
+		t.Fatalf("len(profile roots) = %d, want %d", got, want)
+	}
+	wantSources := []WorkspaceDiscoverySource{
+		WorkspaceDiscoverySourceWorkspaceProfile,
+		WorkspaceDiscoverySourceWorkspace,
+		WorkspaceDiscoverySourceAdditional,
+		WorkspaceDiscoverySourceAdditional,
+		WorkspaceDiscoverySourceProfile,
+		WorkspaceDiscoverySourceGlobal,
+	}
+	for index, want := range wantSources {
+		if got := profileRoots[index].Source; got != want {
+			t.Fatalf("profileRoots[%d].Source = %q, want %q", index, got, want)
+		}
+	}
+	if got, want := profileRoots[0].AgentsDir(), filepath.Join(
+		root,
+		DirName,
+		ProfilesDirName,
+		"marketing",
+		AgentsDirName,
+	); got != want {
+		t.Fatalf("project profile agents dir = %q, want %q", got, want)
+	}
+	if got, want := profileRoots[4].SkillsDir(), filepath.Join(
+		homePaths.ProfilesDir,
+		"marketing",
+		SkillsDirName,
+	); got != want {
+		t.Fatalf("personal profile skills dir = %q, want %q", got, want)
 	}
 }
 
@@ -1118,8 +1157,37 @@ func TestLoadWorkspaceAgentDefsAppliesDocumentedPrecedence(t *testing.T) {
 		"claude",
 		"workspace",
 	)
+	writeAgentDefinition(
+		t,
+		filepath.Join(homePaths.ProfilesDir, "marketing", AgentsDirName, "coder", agentDefName),
+		"coder",
+		"claude",
+		"profile",
+	)
+	writeAgentDefinition(
+		t,
+		filepath.Join(homePaths.ProfilesDir, "marketing", AgentsDirName, "personal", agentDefName),
+		"personal",
+		"claude",
+		"profile-only",
+	)
+	writeAgentDefinition(
+		t,
+		filepath.Join(
+			root,
+			DirName,
+			ProfilesDirName,
+			"marketing",
+			AgentsDirName,
+			"coder",
+			agentDefName,
+		),
+		"coder",
+		"claude",
+		"workspace-profile",
+	)
 
-	agents, err := LoadWorkspaceAgentDefs(root, []string{additionalOne, additionalTwo}, homePaths)
+	agents, err := LoadWorkspaceAgentDefs(root, []string{additionalOne, additionalTwo}, homePaths, "")
 	if err != nil {
 		t.Fatalf("LoadWorkspaceAgentDefs() error = %v", err)
 	}
@@ -1132,6 +1200,45 @@ func TestLoadWorkspaceAgentDefsAppliesDocumentedPrecedence(t *testing.T) {
 	}
 	if got, want := agentModel(agents, "reviewer"), "additional-review"; got != want {
 		t.Fatalf("reviewer model = %q, want %q", got, want)
+	}
+
+	profileAgents, err := LoadWorkspaceAgentDefs(
+		root,
+		[]string{additionalOne, additionalTwo},
+		homePaths,
+		"marketing",
+	)
+	if err != nil {
+		t.Fatalf("LoadWorkspaceAgentDefs(profile) error = %v", err)
+	}
+	if got, want := agentModel(profileAgents, "coder"), "workspace-profile"; got != want {
+		t.Fatalf("profile coder model = %q, want %q", got, want)
+	}
+	var coder AgentDef
+	for _, agent := range profileAgents {
+		if agent.Name == "coder" {
+			coder = agent
+			break
+		}
+	}
+	if got, want := coder.SourceLayer, "project_profile"; got != want {
+		t.Fatalf("coder source layer = %q, want %q", got, want)
+	}
+	wantShadowLayers := []string{"project", "additional", "profile", "user"}
+	shadowLayers := make([]string, 0, len(coder.ShadowedDefinitions))
+	for _, shadow := range coder.ShadowedDefinitions {
+		shadowLayers = append(shadowLayers, shadow.Layer)
+	}
+	if !slices.Equal(shadowLayers, wantShadowLayers) {
+		t.Fatalf("coder shadow layers = %#v, want %#v", shadowLayers, wantShadowLayers)
+	}
+	if got, want := agentModel(profileAgents, "personal"), "profile-only"; got != want {
+		t.Fatalf("personal model = %q, want %q", got, want)
+	}
+	if _, err := LoadWorkspaceAgentDefs(root, nil, homePaths, "../escape"); err == nil {
+		t.Fatal("LoadWorkspaceAgentDefs(unsafe profile) error = nil, want validation error")
+	} else if !strings.Contains(err.Error(), "resource profile name") {
+		t.Fatalf("LoadWorkspaceAgentDefs(unsafe profile) error = %v, want resource profile validation", err)
 	}
 }
 

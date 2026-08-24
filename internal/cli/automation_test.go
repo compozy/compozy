@@ -17,7 +17,7 @@ func TestAutomationJobsCreateParsesWorkspaceScopeAndRetry(t *testing.T) {
 	t.Parallel()
 
 	var request AutomationJobCreateRequest
-	deps := newTestDeps(t, &stubClient{
+	deps := newDefaultProfileTestDeps(t, &stubClient{
 		getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
 			if ref != "alpha" {
 				t.Fatalf("GetWorkspace ref = %q, want %q", ref, "alpha")
@@ -81,7 +81,7 @@ func TestAutomationCreateSupportsLoopTargets(t *testing.T) {
 		t.Parallel()
 
 		var request AutomationJobCreateRequest
-		deps := newTestDeps(t, &stubClient{
+		deps := newDefaultProfileTestDeps(t, &stubClient{
 			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
 				if ref != "alpha" {
 					t.Fatalf("GetWorkspace ref = %q, want alpha", ref)
@@ -134,12 +134,19 @@ func TestAutomationCreateSupportsLoopTargets(t *testing.T) {
 		t.Parallel()
 
 		var request AutomationTriggerCreateRequest
-		deps := newTestDeps(t, &stubClient{
+		var workspaceRefs []string
+		deps := newDefaultProfileTestDeps(t, &stubClient{
 			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
-				if ref != "alpha" {
-					t.Fatalf("GetWorkspace ref = %q, want alpha", ref)
+				workspaceRefs = append(workspaceRefs, ref)
+				switch ref {
+				case "/workspace/project":
+					return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-current"}}, nil
+				case "alpha":
+					return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-alpha"}}, nil
+				default:
+					t.Fatalf("GetWorkspace ref = %q, want current workspace or alpha", ref)
+					return WorkspaceDetailRecord{}, nil
 				}
-				return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-alpha"}}, nil
 			},
 			createAutomationTriggerFn: func(
 				_ context.Context,
@@ -164,6 +171,9 @@ func TestAutomationCreateSupportsLoopTargets(t *testing.T) {
 		)
 		if err != nil {
 			t.Fatalf("automation triggers create Loop target error = %v", err)
+		}
+		if len(workspaceRefs) != 2 || workspaceRefs[0] != "/workspace/project" || workspaceRefs[1] != "alpha" {
+			t.Fatalf("workspace resolution order = %v, want current profile context then Loop target", workspaceRefs)
 		}
 		if request.TargetKind != automationpkg.TargetKindLoop || request.WorkspaceID != "" ||
 			request.AgentName != "" || request.Prompt != "" {
@@ -226,7 +236,7 @@ func TestAutomationCreateSupportsLoopTargets(t *testing.T) {
 			t.Parallel()
 
 			createCalls := 0
-			deps := newTestDeps(t, &stubClient{
+			deps := newDefaultProfileTestDeps(t, &stubClient{
 				getWorkspaceFn: func(_ context.Context, _ string) (WorkspaceDetailRecord, error) {
 					return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-alpha"}}, nil
 				},
@@ -266,7 +276,7 @@ func TestAutomationSuggestionsResolveWorkspaceAndPreserveStructuredOutput(t *tes
 	dismissed.Status = automationpkg.SuggestionStatusDismissed
 	dismissed.ResolvedAt = &resolvedAt
 	workspaceLookups := 0
-	deps := newTestDeps(t, &stubClient{
+	deps := newDefaultProfileTestDeps(t, &stubClient{
 		getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
 			workspaceLookups++
 			if ref != "alpha" {
@@ -363,7 +373,7 @@ func TestAutomationJobsUpdateScheduleReliability(t *testing.T) {
 		t.Parallel()
 
 		var request AutomationJobUpdateRequest
-		deps := newTestDeps(t, &stubClient{
+		deps := newDefaultProfileTestDeps(t, &stubClient{
 			getAutomationJobFn: func(context.Context, string) (JobRecord, error) {
 				job := sampleAutomationJobRecord()
 				job.Schedule.CatchUpPolicy = automationpkg.SchedulerCatchUpPolicyReplay
@@ -404,7 +414,7 @@ func TestAutomationJobsUpdateScheduleReliability(t *testing.T) {
 		t.Parallel()
 
 		var request AutomationJobUpdateRequest
-		deps := newTestDeps(t, &stubClient{
+		deps := newDefaultProfileTestDeps(t, &stubClient{
 			getAutomationJobFn: func(_ context.Context, id string) (JobRecord, error) {
 				if id != "job-1" {
 					t.Fatalf("GetAutomationJob id = %q, want job-1", id)
@@ -454,7 +464,7 @@ func TestAutomationJobsUpdateScheduleReliability(t *testing.T) {
 		t.Parallel()
 
 		var request AutomationJobUpdateRequest
-		deps := newTestDeps(t, &stubClient{
+		deps := newDefaultProfileTestDeps(t, &stubClient{
 			getAutomationJobFn: func(context.Context, string) (JobRecord, error) {
 				job := sampleAutomationJobRecord()
 				job.Schedule.CatchUpPolicy = automationpkg.SchedulerCatchUpPolicyReplay
@@ -499,7 +509,7 @@ func TestAutomationJobsCreateInfersWorkspaceForWorkspaceScope(t *testing.T) {
 		var captured AutomationJobCreateRequest
 		_, _, err := executeRootCommand(
 			t,
-			newTestDeps(t, &stubClient{
+			newDefaultProfileTestDeps(t, &stubClient{
 				getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
 					if ref != "/workspace/project" {
 						t.Fatalf("GetWorkspace() ref = %q, want cwd", ref)
@@ -533,7 +543,7 @@ func TestAutomationJobsCreateInfersWorkspaceForWorkspaceScope(t *testing.T) {
 func TestAutomationJobsCreateSupportsHumanAndJSONOutput(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{
+	deps := newDefaultProfileTestDeps(t, &stubClient{
 		createAutomationJobFn: func(context.Context, AutomationJobCreateRequest) (JobRecord, error) {
 			return sampleAutomationJobRecord(), nil
 		},
@@ -553,7 +563,8 @@ func TestAutomationJobsCreateSupportsHumanAndJSONOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("automation jobs create human error = %v", err)
 	}
-	if !strings.Contains(humanOut, "Automation Job") || !strings.Contains(humanOut, "nightly-review") {
+	if !strings.Contains(humanOut, "Automation Job") || !strings.Contains(humanOut, "nightly-review") ||
+		!strings.Contains(humanOut, "default") {
 		t.Fatalf("human output = %q, want Automation Job details", humanOut)
 	}
 
@@ -585,7 +596,7 @@ func TestAutomationTriggersCreateParsesFilters(t *testing.T) {
 	t.Parallel()
 
 	var request AutomationTriggerCreateRequest
-	deps := newTestDeps(t, &stubClient{
+	deps := newDefaultProfileTestDeps(t, &stubClient{
 		getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
 			if ref != "alpha" {
 				t.Fatalf("GetWorkspace ref = %q, want %q", ref, "alpha")
@@ -636,7 +647,7 @@ func TestAutomationTriggersCreateRejectsMalformedFilter(t *testing.T) {
 
 	_, _, err := executeRootCommand(
 		t,
-		newTestDeps(t, &stubClient{}),
+		newDefaultProfileTestDeps(t, &stubClient{}),
 		"automation", "triggers", "create",
 		"--name", "branch-review",
 		"--scope", "global",
@@ -654,7 +665,7 @@ func TestAutomationJobUpdateSurfacesConfigBackedMutationError(t *testing.T) {
 	t.Parallel()
 
 	expected := "automation validation error: config-backed automation jobs only accept enabled updates"
-	deps := newTestDeps(t, &stubClient{
+	deps := newDefaultProfileTestDeps(t, &stubClient{
 		updateAutomationJobFn: func(context.Context, string, AutomationJobUpdateRequest) (JobRecord, error) {
 			return JobRecord{}, errors.New(expected)
 		},
@@ -677,14 +688,21 @@ func TestAutomationJobsListAndUpdateCommands(t *testing.T) {
 	var (
 		listQuery     AutomationJobQuery
 		updateRequest AutomationJobUpdateRequest
+		workspaceRefs []string
 	)
 
-	deps := newTestDeps(t, &stubClient{
+	deps := newDefaultProfileTestDeps(t, &stubClient{
 		getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
-			if ref != "alpha" {
-				t.Fatalf("GetWorkspace ref = %q, want %q", ref, "alpha")
+			workspaceRefs = append(workspaceRefs, ref)
+			switch ref {
+			case "alpha":
+				return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-alpha"}}, nil
+			case "/workspace/project":
+				return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-current"}}, nil
+			default:
+				t.Fatalf("GetWorkspace ref = %q, want alpha or current workspace", ref)
+				return WorkspaceDetailRecord{}, nil
 			}
-			return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-alpha"}}, nil
 		},
 		listAutomationJobsFn: func(_ context.Context, query AutomationJobQuery) (AutomationJobListRecord, error) {
 			listQuery = query
@@ -785,12 +803,15 @@ func TestAutomationJobsListAndUpdateCommands(t *testing.T) {
 	if updateRequest.Enabled == nil || *updateRequest.Enabled {
 		t.Fatalf("updateRequest.Enabled = %#v, want false pointer", updateRequest.Enabled)
 	}
+	if len(workspaceRefs) != 2 || workspaceRefs[0] != "alpha" || workspaceRefs[1] != "/workspace/project" {
+		t.Fatalf("workspace resolution order = %v, want list override then update profile context", workspaceRefs)
+	}
 }
 
 func TestAutomationCommandsSupportToonOutput(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{
+	deps := newDefaultProfileTestDeps(t, &stubClient{
 		listAutomationJobsFn: func(_ context.Context, query AutomationJobQuery) (AutomationJobListRecord, error) {
 			return AutomationJobListRecord{
 				Jobs: []JobRecord{sampleAutomationJobRecord()},
@@ -811,8 +832,8 @@ func TestAutomationCommandsSupportToonOutput(t *testing.T) {
 	}
 	if !strings.Contains(
 		jobsToon,
-		"automation_jobs[1]{id,name,scope,workspace_id,schedule,agent_name,enabled,source,next_run}:",
-	) {
+		"automation_jobs[1]{id,profile_name,name,scope,workspace_id,schedule,agent_name,enabled,source,next_run}:",
+	) || !strings.Contains(jobsToon, "default") {
 		t.Fatalf("jobs toon output = %q, want automation_jobs TOON array", jobsToon)
 	}
 
@@ -822,8 +843,8 @@ func TestAutomationCommandsSupportToonOutput(t *testing.T) {
 	}
 	if !strings.Contains(
 		triggerToon,
-		"automation_trigger{id,name,scope,workspace_id,agent_name,event,enabled,source,retry,fire_limit,webhook_id,endpoint_slug,webhook_path,created_at,updated_at,prompt}:",
-	) {
+		"automation_trigger{id,profile_name,name,scope,workspace_id,agent_name,event,enabled,source,retry,fire_limit,webhook_id,endpoint_slug,webhook_path,created_at,updated_at,prompt}:",
+	) || !strings.Contains(triggerToon, "default") {
 		t.Fatalf("trigger toon output = %q, want automation_trigger TOON object", triggerToon)
 	}
 
@@ -833,8 +854,8 @@ func TestAutomationCommandsSupportToonOutput(t *testing.T) {
 	}
 	if !strings.Contains(
 		runsToon,
-		"automation_runs[1]{id,target,status,attempt,session_id,scheduled_at,started_at,ended_at,error,delivery_error}:",
-	) {
+		"automation_runs[1]{id,profile_name,target,status,attempt,session_id,scheduled_at,started_at,ended_at,error,delivery_error}:",
+	) || !strings.Contains(runsToon, "default") {
 		t.Fatalf("runs toon output = %q, want automation_runs TOON array", runsToon)
 	}
 }
@@ -849,12 +870,17 @@ func TestAutomationAdditionalCommandsAndQueries(t *testing.T) {
 		runsQuery            AutomationRunQuery
 	)
 
-	deps := newTestDeps(t, &stubClient{
+	deps := newDefaultProfileTestDeps(t, &stubClient{
 		getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
-			if ref != "alpha" {
-				t.Fatalf("GetWorkspace ref = %q, want %q", ref, "alpha")
+			switch ref {
+			case "alpha":
+				return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-alpha"}}, nil
+			case "/workspace/project":
+				return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-project"}}, nil
+			default:
+				t.Fatalf("GetWorkspace ref = %q, want alpha or the current workspace", ref)
+				return WorkspaceDetailRecord{}, nil
 			}
-			return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-alpha"}}, nil
 		},
 		listAutomationTriggersFn: func(_ context.Context, query AutomationTriggerQuery) (AutomationTriggerListRecord, error) {
 			listTriggerQuery = query
@@ -1176,7 +1202,8 @@ func TestAutomationHelperFormattingAndParsing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("automationRunBundle().human() error = %v", err)
 	}
-	if !strings.Contains(runBundleHuman, "Automation Run") || !strings.Contains(runBundleHuman, "job:job-1") {
+	if !strings.Contains(runBundleHuman, "Automation Run") || !strings.Contains(runBundleHuman, "job:job-1") ||
+		!strings.Contains(runBundleHuman, "default") {
 		t.Fatalf("run bundle human output = %q, want Automation Run details", runBundleHuman)
 	}
 
@@ -1205,6 +1232,7 @@ func sampleAutomationJobRecord() JobRecord {
 	nextRun := fixedTestNow.Add(time.Hour)
 	return JobRecord{
 		ID:          "job-1",
+		ProfileName: "default",
 		Scope:       automationpkg.AutomationScopeWorkspace,
 		Name:        "nightly-review",
 		AgentName:   "coder",
@@ -1304,6 +1332,7 @@ func automationTriggerCursorForTest(t *testing.T, query AutomationTriggerQuery) 
 func sampleAutomationTriggerRecord() TriggerRecord {
 	return TriggerRecord{
 		ID:           "trg-1",
+		ProfileName:  "default",
 		Scope:        automationpkg.AutomationScopeWorkspace,
 		Name:         "branch-review",
 		AgentName:    "coder",
@@ -1326,12 +1355,13 @@ func sampleAutomationRunRecord() RunRecord {
 	started := fixedTestNow
 	ended := fixedTestNow.Add(2 * time.Minute)
 	return RunRecord{
-		ID:        "run-1",
-		JobID:     "job-1",
-		SessionID: "sess-1",
-		Status:    automationpkg.RunCompleted,
-		Attempt:   1,
-		StartedAt: &started,
-		EndedAt:   &ended,
+		ID:          "run-1",
+		ProfileName: "default",
+		JobID:       "job-1",
+		SessionID:   "sess-1",
+		Status:      automationpkg.RunCompleted,
+		Attempt:     1,
+		StartedAt:   &started,
+		EndedAt:     &ended,
 	}
 }

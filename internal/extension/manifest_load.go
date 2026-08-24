@@ -73,7 +73,7 @@ func defaultAgentPluginDataDir(manifestDir string, name string) (string, error) 
 	if err != nil {
 		return "", fmt.Errorf("extension: resolve Agent Plugins data home: %w", err)
 	}
-	dataDir, err := homePaths.ExtensionDataPath(name, "")
+	dataDir, err := homePaths.ExtensionDataPath(name, "", "")
 	if err != nil {
 		return "", fmt.Errorf("extension: resolve Agent Plugins data path: %w", err)
 	}

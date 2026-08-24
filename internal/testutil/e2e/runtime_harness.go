@@ -69,12 +69,13 @@ type RuntimeHarnessOptions struct {
 }
 
 type runtimeLayout struct {
-	HomePaths     compozyconfig.HomePaths
-	Config        compozyconfig.Config
-	WorkspaceRoot string
-	Artifacts     *ArtifactCollector
-	MockAgents    map[string]acpmock.Registration
-	Env           []string
+	HomePaths       compozyconfig.HomePaths
+	OperatorHomeDir string
+	Config          compozyconfig.Config
+	WorkspaceRoot   string
+	Artifacts       *ArtifactCollector
+	MockAgents      map[string]acpmock.Registration
+	Env             []string
 }
 
 // RuntimeHarness exposes the started daemon and its public product surfaces.
@@ -332,6 +333,7 @@ func prepareRuntimeLayout(t testing.TB, opts *RuntimeHarnessOptions) runtimeLayo
 	if strings.TrimSpace(homePaths.HomeDir) == "" {
 		homePaths = NewHomePaths(t)
 	}
+	operatorHomeDir := t.TempDir()
 	configSeed := opts.ConfigSeed
 	originalMutate := configSeed.Mutate
 	configSeed.Mutate = func(cfg *compozyconfig.Config) {
@@ -351,11 +353,12 @@ func prepareRuntimeLayout(t testing.TB, opts *RuntimeHarnessOptions) runtimeLayo
 	mockAgents := registerMockAgents(t, homePaths, artifacts, opts.MockAgents)
 
 	return runtimeLayout{
-		HomePaths:     homePaths,
-		Config:        config,
-		WorkspaceRoot: workspaceRoot,
-		Artifacts:     artifacts,
-		MockAgents:    mockAgents,
-		Env:           runtimeEnv(homePaths, opts.Env),
+		HomePaths:       homePaths,
+		OperatorHomeDir: operatorHomeDir,
+		Config:          config,
+		WorkspaceRoot:   workspaceRoot,
+		Artifacts:       artifacts,
+		MockAgents:      mockAgents,
+		Env:             runtimeEnv(homePaths, operatorHomeDir, opts.Env),
 	}
 }

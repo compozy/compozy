@@ -32,6 +32,10 @@ func TestDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 		"Should publish install update and remove across isolated homes",
 		testDaemonE2EExtensionDistributionAcrossIsolatedHomes,
 	)
+	t.Run(
+		"Should install a declared profile and clear its setup requirement [E2E-008]",
+		testDaemonE2EExtensionDeclaredProfileSetup,
+	)
 }
 
 func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
@@ -99,27 +103,17 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 		ctx,
 		consumer,
 		&installed,
-		"extension", "install", "github:acme/hello", "--allow-unverified", "--yes", "-o", "json",
+		"extension", "install", "github:acme/hello", "--allow-unverified", "--yes",
+		"--confirm-network-requirement", firstNetworkDigest, "-o", "json",
 	)
 	if installed.Name != "hello" || installed.Provenance == nil || !installed.Provenance.DigestMatched ||
 		installed.Provenance.ChecksumVerified || installed.Provenance.InstalledFrom != extensionpkg.ExtensionInstalledFromGitHub {
 		t.Fatalf("installed extension = %#v, want digest-verified integrity-only GitHub provenance", installed)
 	}
-	if installed.Enabled {
-		t.Fatalf("installed extension = %#v, want inert before explicit enable", installed)
+	if !installed.Enabled {
+		t.Fatalf("installed extension = %#v, want default-on enablement", installed)
 	}
 	setExtensionKitE2ESecret(t, ctx, consumer, "hello")
-	var enabled compozycontract.ExtensionEnableResult
-	runExtensionAuthoringCLI(
-		t,
-		ctx,
-		consumer,
-		&enabled,
-		"extension", "enable", "hello", "--confirm-network-requirement", firstNetworkDigest, "-o", "json",
-	)
-	if !enabled.Extension.Enabled || len(enabled.AutomationStarted) != 2 {
-		t.Fatalf("extension enable result = %#v, want enabled extension and started job plus trigger", enabled)
-	}
 	assertDistributionExtensionInventory(t, ctx, consumer, "hello", true, "daily", true)
 	assertDistributionExtensionInvocation(t, ctx, consumer, "published-v1:alpha")
 	assertDistributionHostedExtensionInvocation(t, ctx, consumer, "published-v1:alpha")
@@ -177,9 +171,9 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 	assertDistributionExtensionInventory(t, ctx, consumer, "hello", true, "hourly", true)
 	assertDistributionExtensionInvocation(t, ctx, consumer, "published-v2:alpha")
 
-	var disabled compozycontract.ExtensionPayload
+	var disabled compozycontract.ExtensionEnablementPayload
 	runExtensionAuthoringCLI(t, ctx, consumer, &disabled, "extension", "disable", "hello", "-o", "json")
-	if disabled.Enabled {
+	if disabled.Enabled || disabled.Profile != "default" {
 		t.Fatalf("extension disable result = %#v, want disabled", disabled)
 	}
 	assertDistributionExtensionInventory(t, ctx, consumer, "hello", false, "hourly", false)
@@ -392,28 +386,18 @@ func assertDistributionNativeKitJourney(
 		ctx,
 		harness,
 		toolspkg.ToolIDExtensionsInstall,
-		map[string]any{"source": "github", "ref": "acme/hello", "allow_unverified": true},
+		map[string]any{
+			"source": "github", "ref": "acme/hello", "allow_unverified": true,
+			"confirm_network_digest": networkDigest,
+		},
 	))
 	setExtensionKitE2ESecret(t, ctx, harness, "hello")
-	preview := invokeDistributionNativeTool(
-		t,
-		ctx,
-		harness,
-		toolspkg.ToolIDExtensionsPreview,
-		map[string]any{"name": "hello"},
-	)
-	if !strings.Contains(string(preview), `"network_confirmation_required":true`) ||
-		!strings.Contains(string(preview), networkDigest) ||
-		!strings.Contains(string(preview), `"change":"added"`) {
-		t.Fatalf("extensions_preview structured output = %s, want candidate digest and added kit resources", preview)
-	}
-	transcript = append(transcript, preview)
 	transcript = append(transcript, invokeDistributionNativeTool(
 		t,
 		ctx,
 		harness,
 		toolspkg.ToolIDExtensionsEnable,
-		map[string]any{"name": "hello", "confirm_network_digest": networkDigest},
+		map[string]any{"name": "hello"},
 	))
 	inventory := invokeDistributionNativeTool(
 		t,
@@ -462,6 +446,15 @@ func invokeDistributionNativeTool(
 		compozycontract.ToolInvokeRequest{WorkspaceID: harness.WorkspaceID, Input: rawInput},
 		&response,
 	); err != nil {
+		if manifest, manifestErr := harness.RuntimeManifest(); manifestErr == nil {
+			if processLog, readErr := os.ReadFile(manifest.Logs.ProcessLogFile); readErr == nil {
+				t.Logf("native extension tool daemon process log:\n%s", processLog)
+			} else {
+				t.Logf("read native extension tool daemon process log error = %v", readErr)
+			}
+		} else {
+			t.Logf("read native extension tool runtime manifest error = %v", manifestErr)
+		}
 		t.Fatalf("invoke native tool %q error = %v", toolID, err)
 	}
 	if !json.Valid(response.Result.Structured) || response.Result.Preview == "" {

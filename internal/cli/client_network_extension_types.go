@@ -74,6 +74,9 @@ type PromoteNetworkThreadTaskRecord = contract.PromoteNetworkThreadTaskResponse
 // InstallExtensionRequest captures the shared extension install payload.
 type InstallExtensionRequest = contract.InstallExtensionRequest
 
+// ExtensionInstallPreviewRecord is the mutation-free install summary.
+type ExtensionInstallPreviewRecord = contract.ExtensionInstallPreviewPayload
+
 // ExtensionSearchRequest captures source-union discovery filters.
 type ExtensionSearchRequest = contract.ExtensionSearchRequest
 
@@ -97,6 +100,9 @@ type EnableExtensionRequest = contract.EnableExtensionRequest
 
 // ExtensionEnableRecord is the committed enable action result.
 type ExtensionEnableRecord = contract.ExtensionEnableResult
+
+// ExtensionEnablementRecord is one effective profile-specific state.
+type ExtensionEnablementRecord = contract.ExtensionEnablementPayload
 
 // ExtensionKitItemRecord is one shipped or live extension resource.
 type ExtensionKitItemRecord = contract.ExtensionKitItemPayload

@@ -24,6 +24,7 @@ import type {
   AutomationSuggestionStatus,
   AutomationTriggerStableFilter,
 } from "../types";
+import type { ProfileScopeParams } from "@/systems/profiles";
 
 const DEFAULT_STALE_TIME = 15_000;
 const DEFAULT_REFETCH_INTERVAL = 30_000;
@@ -53,10 +54,10 @@ export function automationJobsListOptions(filters: AutomationJobStableFilter = {
   });
 }
 
-export function automationJobDetailOptions(id: string, enabled = true) {
+export function automationJobDetailOptions(id: string, scope: ProfileScopeParams, enabled = true) {
   return queryOptions({
-    queryKey: automationKeys.jobDetail(id),
-    queryFn: ({ signal }) => getAutomationJob(id, signal),
+    queryKey: automationKeys.jobDetail(id, scope),
+    queryFn: ({ signal }) => getAutomationJob(id, scope, signal),
     staleTime: DEFAULT_STALE_TIME,
     refetchInterval: DEFAULT_REFETCH_INTERVAL,
     enabled: Boolean(id) && enabled,
@@ -89,10 +90,14 @@ export function automationTriggersListOptions(filters: AutomationTriggerStableFi
   });
 }
 
-export function automationTriggerDetailOptions(id: string, enabled = true) {
+export function automationTriggerDetailOptions(
+  id: string,
+  scope: ProfileScopeParams,
+  enabled = true
+) {
   return queryOptions({
-    queryKey: automationKeys.triggerDetail(id),
-    queryFn: ({ signal }) => getAutomationTrigger(id, signal),
+    queryKey: automationKeys.triggerDetail(id, scope),
+    queryFn: ({ signal }) => getAutomationTrigger(id, scope, signal),
     staleTime: DEFAULT_STALE_TIME,
     refetchInterval: DEFAULT_REFETCH_INTERVAL,
     enabled: Boolean(id) && enabled,

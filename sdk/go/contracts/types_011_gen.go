@@ -4,6 +4,45 @@ package contracts
 
 import "time"
 
+type HeartbeatPutRequest struct {
+	WorkspaceID    string `json:"workspace_id,omitempty"`
+	AgentName      string `json:"agent_name"`
+	Body           string `json:"body"`
+	ExpectedDigest string `json:"expected_digest"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+type HeartbeatRevisionOperation string
+
+type HeartbeatRevisionPayload struct {
+	ID             string                     `json:"id"`
+	AgentName      string                     `json:"agent_name"`
+	SourcePath     string                     `json:"source_path"`
+	Operation      HeartbeatRevisionOperation `json:"operation"`
+	PreviousDigest string                     `json:"previous_digest,omitempty"`
+	NewDigest      string                     `json:"new_digest,omitempty"`
+	NewSnapshotID  string                     `json:"new_snapshot_id,omitempty"`
+	Actor          HeartbeatActorPayload      `json:"actor"`
+	CreatedAt      time.Time                  `json:"created_at"`
+}
+
+type HeartbeatRollbackRequest struct {
+	WorkspaceID    string `json:"workspace_id,omitempty"`
+	AgentName      string `json:"agent_name"`
+	RevisionID     string `json:"revision_id,omitempty"`
+	TargetDigest   string `json:"target_digest,omitempty"`
+	ExpectedDigest string `json:"expected_digest"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+type HeartbeatStatusRequest struct {
+	WorkspaceID             string `json:"workspace_id,omitempty"`
+	AgentName               string `json:"agent_name"`
+	SessionID               string `json:"session_id,omitempty"`
+	IncludeSessionHealth    bool   `json:"include_session_health,omitempty"`
+	IncludeRecentWakeEvents bool   `json:"include_recent_wake_events,omitempty"`
+}
+
 type HeartbeatStatusResponse struct {
 	AgentName        string                             `json:"agent_name"`
 	SourcePath       string                             `json:"source_path,omitempty"`
@@ -95,6 +134,7 @@ type HeartbeatWakeStatePayload struct {
 
 type HookDecl struct {
 	Name         string            `json:"name"`
+	ProfileID    string            `json:"profile_id,omitempty"`
 	Event        HookEvent         `json:"event"`
 	Mode         HookMode          `json:"mode,omitempty"`
 	Matcher      HookMatcher       `json:"matcher"`
@@ -151,34 +191,6 @@ type HookMode string
 
 type HookRunOutcome string
 
-type HookSkillSource string
+type HookSkillSource uint8
 
 type HookSource uint8
-
-type Image struct {
-	URL   string `json:"url,omitempty"`
-	Token string `json:"token,omitempty"`
-	Emoji string `json:"emoji,omitempty"`
-}
-
-type InboundAction struct {
-	ActionID  string `json:"action_id"`
-	MessageID string `json:"message_id,omitempty"`
-	Value     string `json:"value,omitempty"`
-	TriggerID string `json:"trigger_id,omitempty"`
-}
-
-type InboundCommand struct {
-	Command   string `json:"command"`
-	Text      string `json:"text,omitempty"`
-	TriggerID string `json:"trigger_id,omitempty"`
-}
-
-type InboundEdit struct {
-	MessageID         string               `json:"message_id"`
-	NewText           string               `json:"new_text"`
-	OriginalTimestamp time.Time            `json:"original_timestamp"`
-	Operation         InboundEditOperation `json:"operation"`
-}
-
-type InboundEditOperation string

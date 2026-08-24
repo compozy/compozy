@@ -84,8 +84,13 @@ func managedPublicationID(
 	}
 	id := extensionSourceKeyPublicationID(sourceKey)
 	normalizedScope := scope.Normalize()
-	if normalizedScope.Kind == resources.ResourceScopeKindWorkspace {
+	switch normalizedScope.Kind {
+	case resources.ResourceScopeKindWorkspace:
 		return id + "/workspace/" + normalizedScope.ID
+	case resources.ResourceScopeKindProfile:
+		return id + "/profile/" + normalizedScope.ID
+	case resources.ResourceScopeKindWorkspaceProfile:
+		return id + "/workspace_profile/" + normalizedScope.ID
 	}
 	return id
 }

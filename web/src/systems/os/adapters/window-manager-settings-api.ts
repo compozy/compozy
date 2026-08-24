@@ -19,7 +19,7 @@ import type {
 
 /** Reads and writes address one scope; mixing them would split binding truth. */
 export interface WindowManagerSettingsScopeInput {
-  /** Empty or null reads global scope — the daemon then answers for core ids only. */
+  /** Empty or null reads user scope — the daemon then answers for core ids only. */
   workspaceId: string | null;
   /** Shell attachment whose registration truth should be projected. */
   clientId?: string;
@@ -68,7 +68,7 @@ function scopeQuery({ workspaceId, clientId }: WindowManagerSettingsScopeInput) 
   const normalizedClientId = clientId?.trim();
   if (normalized === "") {
     return {
-      scope: "global",
+      scope: "user",
       ...(normalizedClientId ? { client_id: normalizedClientId } : {}),
     } as const;
   }

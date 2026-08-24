@@ -1,6 +1,10 @@
 package hooks
 
-import "github.com/compozy/compozy/internal/network/participation"
+import (
+	"strings"
+
+	"github.com/compozy/compozy/internal/network/participation"
+)
 
 // ContextCompactPayload is shared by context compaction hooks.
 type ContextCompactPayload struct {
@@ -40,6 +44,7 @@ type AutonomyObservationPatch struct {
 
 // CoordinatorContext carries the coordinator identifiers shared across coordinator hooks.
 type CoordinatorContext struct {
+	ProfileID                    string              `json:"profile_id,omitempty"`
 	WorkspaceID                  string              `json:"workspace_id,omitempty"`
 	Workspace                    string              `json:"workspace,omitempty"`
 	AgentName                    string              `json:"agent_name,omitempty"`
@@ -51,6 +56,9 @@ type CoordinatorContext struct {
 	Provider                     string              `json:"provider,omitempty"`
 	Model                        string              `json:"model,omitempty"`
 }
+
+// HookProfileID returns the durable owner used to isolate profile-scoped declarations.
+func (c CoordinatorContext) HookProfileID() string { return strings.TrimSpace(c.ProfileID) }
 
 // CoordinatorPreSpawnPayload is delivered before the daemon creates a coordinator session.
 type CoordinatorPreSpawnPayload struct {

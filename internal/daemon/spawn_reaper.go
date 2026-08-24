@@ -380,7 +380,11 @@ func (r *spawnReaper) spawnLifecyclePayload(
 		StopReason:       candidate.reason,
 		ReapReason:       candidate.reason,
 	}
+	if candidate.parent != nil {
+		payload.ProfileID = strings.TrimSpace(candidate.parent.ProfileID)
+	}
 	if child != nil {
+		payload.ProfileID = strings.TrimSpace(child.ProfileID)
 		payload.ChildSessionID = child.ID
 		payload.AgentName = child.AgentName
 		payload.WorkspaceID = child.WorkspaceID

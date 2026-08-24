@@ -56,6 +56,12 @@ func (h *BaseHandlers) AgentSpawn(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
+	sessionPayload, err := h.sessionPayloadWithOptionalHealth(c.Request.Context(), child.Info(), false)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	payload.Session = sessionPayload
 	c.JSON(http.StatusCreated, contract.AgentSpawnResponse{Spawn: payload})
 }
 

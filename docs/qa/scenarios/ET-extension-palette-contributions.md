@@ -25,6 +25,17 @@ an unhealthy runtime, disable and re-enable, one valid reload, and one invalid r
 navigation, cancellation, pushed patches, and bounded degradation. Keep this scenario `untested` and
 walk the `view-program-ts` fixture in the Task 12 QA pass.
 
+2026-08-23 qa-impact (Profiles): effective visibility of a contribution is now enablement in this
+profile AND a matching placement, evaluated before the projection and included in the catalog
+revision — so the same installed extension can contribute in one profile and contribute nothing in
+another, and toggling enablement must invalidate the revision rather than wait for a reload.
+Already `untested`, so no reset was needed. Extend the walk: after step 1, disable the fixture in
+one profile only and confirm its commands, views, aliases, and default chords disappear there while
+staying live in the other, that the catalog revision changes, and that a user-authored override on
+a contributed command survives as dormant and reactivates on re-enable in that same profile.
+`ET-extension-profile-enablement` owns the enablement contract across surfaces; this row owns what
+the palette does with it.
+
 Walk (task_11 plan):
 
 1. Enable the Go `notes` fixture — its namespaced commands, declarative view, and free default

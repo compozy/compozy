@@ -44,6 +44,26 @@ afterEach(() => {
 });
 
 describe("browser runtime seed helpers", () => {
+  it("registers the isolated project fallback when no explicit seed exists", async () => {
+    const resolveWorkspace = vi.fn(async rootDir => ({
+      id: "ws_default",
+      root_dir: rootDir,
+      name: "Default project",
+    }));
+
+    const seeded = await applyBrowserRuntimeSeed(
+      {
+        requestJSON: vi.fn() as BrowserRuntimeSeedClient["requestJSON"],
+        resolveWorkspace: resolveWorkspace as BrowserRuntimeSeedClient["resolveWorkspace"],
+      },
+      undefined,
+      "/tmp/compozy-browser-workspace"
+    );
+
+    expect(resolveWorkspace).toHaveBeenCalledWith("/tmp/compozy-browser-workspace");
+    expect(seeded.workspace?.id).toBe("ws_default");
+  });
+
   it("writes fixture-backed mock agent definitions into the isolated browser runtime home", async () => {
     const homeDir = await mkdtemp(path.join(os.tmpdir(), "compozy-browser-runtime-home-"));
     await mkdir(path.join(homeDir, "agents"), { recursive: true });
@@ -952,7 +972,9 @@ describe("browser runtime seed helpers", () => {
 
     const seeded = await seedBrowserTasksOperatorFlow(
       {
-        paths: { homeDir: "/tmp/compozy-browser-home" },
+        paths: {
+          workspaceDir: "/tmp/compozy-browser-workspace",
+        },
         requestJSON: requestJSON as BrowserRuntimeSeedClient["requestJSON"],
         resolveWorkspace,
       },
@@ -961,7 +983,7 @@ describe("browser runtime seed helpers", () => {
       }
     );
 
-    expect(resolveWorkspace).toHaveBeenCalledWith("/tmp/compozy-browser-home");
+    expect(resolveWorkspace).toHaveBeenCalledWith("/tmp/compozy-browser-workspace");
     expect(seeded.referenceTask.id).toBe("task_browser_reference");
     expect(seeded.approvalTask.id).toBe("task_browser_approval");
     expect(seeded.runningTask.id).toBe("task_browser_running");

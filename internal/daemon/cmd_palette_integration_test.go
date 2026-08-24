@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -206,7 +207,7 @@ func TestCmdPaletteDaemonIntegration(t *testing.T) {
 		registry := newCmdPaletteIntegrationRegistry(
 			t,
 			descriptor,
-			&cmdPaletteClientDirectory{windowManager: manager},
+			&cmdPaletteClientDirectory{windowManagers: cmdPaletteIntegrationWindowManagers{manager: manager}},
 			executor,
 		)
 		engine := newCmdPaletteIntegrationEngine(registry)
@@ -347,10 +348,125 @@ func TestCmdPaletteDaemonIntegration(t *testing.T) {
 			t.Fatalf("workspace B catalog = status %d %#v", responseB.Code, catalogB)
 		}
 	})
+
+	t.Run("Should project command view alias and default only into the effective profile [IT-093]", func(t *testing.T) {
+		t.Parallel()
+
+		provider := cmdPaletteProfileContributionProvider{}
+		service, err := cmdpalette.NewRegistry(
+			[]cmdpalette.ProviderRegistration{{
+				Source:   cmdpalette.Source{Kind: cmdpalette.SourceKindExtension, Extension: "notes"},
+				Provider: provider,
+			}},
+			nil,
+			cmdPaletteIntegrationBindings{},
+			&cmdPaletteIntegrationExecutor{},
+			cmdpalette.WithDynamicViewProvider(provider),
+		)
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+		finance := cmdpalette.ScopedProfileLens("01ARZ3NDEKTSV4RRFFQ69G5FAV", "finance")
+		marketing := cmdpalette.ScopedProfileLens("01BX5ZZKBKACTAV9WEVGEMMVRZ", "marketing")
+		financeCatalog, err := service.Catalog(t.Context(), cmdpalette.CatalogRequest{
+			ProfileLens: finance, WorkspaceID: "workspace-acme",
+		})
+		if err != nil {
+			t.Fatalf("Catalog(finance) error = %v", err)
+		}
+		marketingCatalog, err := service.Catalog(t.Context(), cmdpalette.CatalogRequest{
+			ProfileLens: marketing, WorkspaceID: "workspace-acme",
+		})
+		if err != nil {
+			t.Fatalf("Catalog(marketing) error = %v", err)
+		}
+		if len(financeCatalog.Commands) != 1 || financeCatalog.Commands[0].Alias == nil ||
+			*financeCatalog.Commands[0].Alias != "capture-note" ||
+			len(financeCatalog.Commands[0].Bindings) != 1 {
+			t.Fatalf("finance catalog = %#v, want command with alias and default binding", financeCatalog)
+		}
+		if len(marketingCatalog.Commands) != 0 || financeCatalog.Revision == marketingCatalog.Revision {
+			t.Fatalf(
+				"profile catalogs = finance %#v marketing %#v, want filtered membership and distinct revisions",
+				financeCatalog,
+				marketingCatalog,
+			)
+		}
+		financeDefaults, err := service.ExtensionDefaults(t.Context(), finance, "workspace-acme")
+		if err != nil {
+			t.Fatalf("ExtensionDefaults(finance) error = %v", err)
+		}
+		marketingDefaults, err := service.ExtensionDefaults(t.Context(), marketing, "workspace-acme")
+		if err != nil {
+			t.Fatalf("ExtensionDefaults(marketing) error = %v", err)
+		}
+		if len(financeDefaults) != 1 || len(marketingDefaults) != 0 {
+			t.Fatalf("profile defaults = finance %#v marketing %#v", financeDefaults, marketingDefaults)
+		}
+		if _, err := service.ResolveView(t.Context(), finance, "workspace-acme", "ext.notes.recent"); err != nil {
+			t.Fatalf("ResolveView(finance) error = %v", err)
+		}
+		if _, err := service.ResolveView(t.Context(), marketing, "workspace-acme", "ext.notes.recent"); err == nil {
+			t.Fatal("ResolveView(marketing) error = nil, want placed view absent")
+		} else {
+			var notFound *cmdpalette.ViewNotFoundError
+			if !errors.As(err, &notFound) || notFound.ViewID != "ext.notes.recent" {
+				t.Fatalf("ResolveView(marketing) error = %v, want ViewNotFoundError for ext.notes.recent", err)
+			}
+		}
+	})
 }
 
 type cmdPaletteIntegrationStaticProvider struct {
 	commands []cmdpalette.Descriptor
+}
+
+type cmdPaletteProfileContributionProvider struct{}
+
+func (cmdPaletteProfileContributionProvider) ProvideContribution(
+	_ context.Context,
+	request cmdpalette.CatalogRequest,
+) (cmdpalette.Contribution, error) {
+	if request.ProfileLens.Name != "finance" {
+		return cmdpalette.Contribution{}, nil
+	}
+	return cmdpalette.Contribution{
+		Commands: []cmdpalette.Descriptor{integrationToolDescriptor()},
+		Defaults: []cmdpalette.ExtensionDefaultShortcut{{
+			CommandID: "ext.notes.capture", Chord: "meta+shift+KeyN", Source: "ext.notes", Active: true,
+		}},
+		Sources: []cmdpalette.SourceStatus{{Source: "ext.notes", Status: cmdpalette.SourceHealthy}},
+	}, nil
+}
+
+func (p cmdPaletteProfileContributionProvider) ProvideCommands(
+	ctx context.Context,
+	request cmdpalette.CatalogRequest,
+) ([]cmdpalette.Descriptor, error) {
+	contribution, err := p.ProvideContribution(ctx, request)
+	return contribution.Commands, err
+}
+
+func (cmdPaletteProfileContributionProvider) ProvideViews(
+	_ context.Context,
+	request cmdpalette.CatalogRequest,
+) ([]cmdpalette.ViewDescriptor, error) {
+	if request.ProfileLens.Name != "finance" {
+		return nil, nil
+	}
+	return []cmdpalette.ViewDescriptor{{
+		ID: "ext.notes.recent", Title: "Recent notes", Kind: cmdpalette.ViewKindList,
+		Source: &cmdpalette.ViewToolSource{Tool: "notes.list", ReadOnly: true}, Extension: "notes",
+	}}, nil
+}
+
+func (cmdPaletteProfileContributionProvider) OpenSource(
+	context.Context,
+	cmdpalette.ProfileLens,
+	cmdpalette.WorkspaceID,
+	string,
+) (cmdpalette.ViewPayload, error) {
+	return cmdpalette.ViewPayload{View: cmdpalette.ViewContractVersion}, nil
 }
 
 type cmdPaletteWorkspaceProvider struct {
@@ -359,15 +475,16 @@ type cmdPaletteWorkspaceProvider struct {
 
 func (p cmdPaletteWorkspaceProvider) ProvideCommands(
 	_ context.Context,
-	workspaceID cmdpalette.WorkspaceID,
+	request cmdpalette.CatalogRequest,
 ) ([]cmdpalette.Descriptor, error) {
-	return append([]cmdpalette.Descriptor(nil), p.commands[workspaceID]...), nil
+	return append([]cmdpalette.Descriptor(nil), p.commands[request.WorkspaceID]...), nil
 }
 
 type cmdPaletteIntegrationBindings struct{}
 
 func (cmdPaletteIntegrationBindings) Bindings(
 	context.Context,
+	cmdpalette.ProfileLens,
 	cmdpalette.WorkspaceID,
 ) (map[cmdpalette.CommandID][]string, map[cmdpalette.CommandID]string, error) {
 	return map[cmdpalette.CommandID][]string{
@@ -379,7 +496,7 @@ func (cmdPaletteIntegrationBindings) Bindings(
 
 func (p cmdPaletteIntegrationStaticProvider) ProvideCommands(
 	context.Context,
-	cmdpalette.WorkspaceID,
+	cmdpalette.CatalogRequest,
 ) ([]cmdpalette.Descriptor, error) {
 	return append([]cmdpalette.Descriptor(nil), p.commands...), nil
 }
@@ -518,6 +635,34 @@ func newCmdPaletteIntegrationWindowManager(t *testing.T) *windowmanager.Manager 
 		}
 	})
 	return manager
+}
+
+type cmdPaletteIntegrationWindowManagers struct {
+	manager *windowmanager.Manager
+}
+
+func (d cmdPaletteIntegrationWindowManagers) ClientsInWorkspace(
+	ctx context.Context,
+	workspaceID windowmanager.WorkspaceID,
+) ([]windowmanager.ClientView, error) {
+	return d.manager.Clients(ctx, workspaceID)
+}
+
+func (d cmdPaletteIntegrationWindowManagers) ManagerForClient(
+	ctx context.Context,
+	workspaceID windowmanager.WorkspaceID,
+	clientID windowmanager.ClientID,
+) (*windowmanager.Manager, error) {
+	clients, err := d.manager.Clients(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	for _, client := range clients {
+		if client.ClientID == clientID {
+			return d.manager, nil
+		}
+	}
+	return nil, windowmanager.ErrClientNotFound
 }
 
 func performCmdPaletteIntegrationRequest(

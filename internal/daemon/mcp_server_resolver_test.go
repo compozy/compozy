@@ -74,7 +74,7 @@ func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T)
 		})
 	}
 
-	t.Run("Should fall back to global scope without a resource identity", func(t *testing.T) {
+	t.Run("Should fall back to user scope without a resource identity", func(t *testing.T) {
 		t.Parallel()
 
 		global, err := resolveDaemonMCPServer(t.Context(), state, toolspkg.SourceRef{
@@ -83,7 +83,7 @@ func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T)
 		if err != nil {
 			t.Fatalf("resolveDaemonMCPServer(global) error = %v", err)
 		}
-		if string(global.Target.Scope) != "global" || global.Target.WorkspaceID != "" ||
+		if string(global.Target.Scope) != "user" || global.Target.WorkspaceID != "" ||
 			global.Server.URL != "https://global.linear.example/mcp" {
 			t.Fatalf("resolveDaemonMCPServer(global) = %#v", global)
 		}
@@ -92,7 +92,10 @@ func TestDaemonMCPServerResolverPreservesWorkspaceResourceIdentity(t *testing.T)
 	t.Run("Should preserve workspace identities in daemon MCP sources", func(t *testing.T) {
 		t.Parallel()
 
-		sources := daemonMCPSources(state)
+		sources, err := daemonMCPSources(t.Context(), state)
+		if err != nil {
+			t.Fatalf("daemonMCPSources() error = %v", err)
+		}
 		seen := map[string]string{}
 		for _, source := range sources {
 			if source.ResourceID != "" {
@@ -212,7 +215,7 @@ func TestDaemonMCPProviderRecordsExtensionLaunchFailures(t *testing.T) {
 		catalog.Replace(1, []resources.Record[compozyconfig.MCPServer]{
 			{
 				ID: "mcp-kit-broken", Version: 1,
-				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				Owner: resources.ResourceOwner{Kind: extensionResourceOwnerKind, ID: "kit"},
 				Spec: compozyconfig.MCPServer{
 					Name: "broken", Transport: compozyconfig.MCPServerTransportStdio,

@@ -19,6 +19,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 		lock:                   state.lock,
 		harnessResolver:        state.harnessResolver,
 		registry:               state.registry,
+		profiles:               state.profiles,
 		memoryStore:            state.memoryStore,
 		memoryProviderRegistry: state.memoryProviderRegistry,
 		memoryExtractor:        state.memoryExtractor,
@@ -58,7 +59,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 		sandboxRegistry:        state.sandboxRegistry,
 		windowManagerRuntime: windowManagerRuntime{
 			windowManagerStore: state.windowManagerStore,
-			windowManager:      state.windowManager,
+			windowManagers:     state.windowManagers,
 		},
 		skillsRegistry:    state.skillsRegistry,
 		modelCatalog:      state.modelCatalog,

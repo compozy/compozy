@@ -199,6 +199,7 @@ func TestSchedulerHeartbeatWakeIntegration(t *testing.T) {
 			infos: []*session.Info{
 				{
 					ID:          "sess-batch-a",
+					ProfileID:   store.DefaultProfileID,
 					AgentName:   agentName,
 					WorkspaceID: workspaceID,
 					State:       session.StateActive,
@@ -206,6 +207,7 @@ func TestSchedulerHeartbeatWakeIntegration(t *testing.T) {
 				},
 				{
 					ID:          "sess-batch-b",
+					ProfileID:   store.DefaultProfileID,
 					AgentName:   agentName,
 					WorkspaceID: workspaceID,
 					State:       session.StateActive,
@@ -589,6 +591,7 @@ func seedDaemonHeartbeatWakePolicyWithConfig(
 		t.Fatalf("InsertWorkspace() error = %v", err)
 	}
 	if err := db.RegisterSession(ctx, store.SessionInfo{
+		ProfileID:     store.DefaultProfileID,
 		ID:            sessionID,
 		AgentName:     agentName,
 		WorkspaceID:   workspaceID,
@@ -646,6 +649,7 @@ func registerDaemonHeartbeatSession(
 
 	if err := db.RegisterSession(ctx, store.SessionInfo{
 		ID:            sessionID,
+		ProfileID:     store.DefaultProfileID,
 		AgentName:     agentName,
 		WorkspaceID:   workspaceID,
 		State:         string(session.StateActive),

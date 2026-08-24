@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import type { WorkspaceSessionGroup } from "../../hooks/use-workspace-session-groups";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import type { SessionPayload } from "../../types";
+import type { ProfileOwner, ProfileOwnerLabel } from "@/systems/profiles";
+import { emptyForScope } from "@/systems/profiles";
 import { SessionListRow } from "./session-list-row";
 
 function GroupNote({ children }: { children: React.ReactNode }) {
@@ -20,12 +22,18 @@ function GroupNote({ children }: { children: React.ReactNode }) {
 function GroupBody({
   group,
   currentSessionId,
+  ownerOf,
+  scopeLabel,
+  archived,
   onSelectSession,
   sessionActions,
   testIdPrefix,
 }: {
   group: WorkspaceSessionGroup;
   currentSessionId?: string;
+  ownerOf?: (session: ProfileOwnerLabel) => ProfileOwner;
+  scopeLabel: string | null;
+  archived: boolean;
   onSelectSession: (session: SessionPayload) => void;
   sessionActions: SessionLifecycleActionHandlers;
   testIdPrefix: string;
@@ -50,13 +58,20 @@ function GroupBody({
     );
   }
   if (group.loading) return <GroupNote>Loading sessions…</GroupNote>;
-  if (group.sessions.length === 0) return <GroupNote>No sessions</GroupNote>;
+  if (group.sessions.length === 0) {
+    return (
+      <GroupNote>
+        {emptyForScope(archived ? "archived sessions" : "sessions", scopeLabel)}.
+      </GroupNote>
+    );
+  }
   return (
     <div className="flex flex-col gap-0.5 pl-2.5">
       {group.sessions.map(session => (
         <SessionListRow
           key={session.id}
           session={session}
+          owner={ownerOf?.(session)}
           current={session.id === currentSessionId}
           onSelect={() => onSelectSession(session)}
           sessionActions={sessionActions}
@@ -72,6 +87,10 @@ export interface SessionListWorkspaceGroupsProps {
   groups: readonly WorkspaceSessionGroup[];
   collapsedWorkspaceIds: ReadonlySet<string>;
   currentSessionId?: string;
+  scopeLabel: string | null;
+  archived: boolean;
+  /** Resolves each row's owner. Absent in a scoped list — no tags there. */
+  ownerOf?: (session: ProfileOwnerLabel) => ProfileOwner;
   onToggleWorkspace: (workspaceId: string) => void;
   onSelectSession: (session: SessionPayload) => void;
   sessionActions: SessionLifecycleActionHandlers;
@@ -88,13 +107,20 @@ export function SessionListWorkspaceGroups({
   groups,
   collapsedWorkspaceIds,
   currentSessionId,
+  ownerOf,
+  scopeLabel,
+  archived,
   onToggleWorkspace,
   onSelectSession,
   sessionActions,
   testIdPrefix,
 }: SessionListWorkspaceGroupsProps) {
   if (groups.length === 0) {
-    return <p className="px-3 py-8 text-center text-small-body text-muted">No workspaces.</p>;
+    return (
+      <p className="px-3 py-8 text-center text-small-body text-muted">
+        {emptyForScope(archived ? "archived sessions" : "sessions", scopeLabel)}.
+      </p>
+    );
   }
   return (
     <div className="flex flex-col gap-1">
@@ -123,6 +149,9 @@ export function SessionListWorkspaceGroups({
               <GroupBody
                 group={group}
                 currentSessionId={currentSessionId}
+                ownerOf={ownerOf}
+                scopeLabel={scopeLabel}
+                archived={archived}
                 onSelectSession={onSelectSession}
                 sessionActions={sessionActions}
                 testIdPrefix={testIdPrefix}

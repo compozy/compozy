@@ -41,6 +41,7 @@ func (s *HostedService) bindLaunch(
 	record := &hostedBindRecord{
 		bindID:        bindID,
 		sessionID:     launch.sessionID,
+		profileID:     launch.profileID,
 		workspaceID:   launch.workspaceID,
 		agentName:     launch.agentName,
 		expectedBin:   launch.expectedBin,
@@ -143,6 +144,7 @@ func (r *hostedBindRecord) scope() tools.Scope {
 		return tools.Scope{}
 	}
 	return tools.Scope{
+		ProfileID:   r.profileID,
 		SessionID:   r.sessionID,
 		WorkspaceID: r.workspaceID,
 		AgentName:   r.agentName,

@@ -8,24 +8,69 @@ const specExtensionWorkspaceParamDescription = "Operator workspace reference; " 
 	"omit for the global instance"
 
 func registryExtensionOperations() []OperationSpec {
-	return []OperationSpec{
+	operations := []OperationSpec{
 		listExtensionsOperationSpec(),
 		listExtensionCommandsOperationSpec(),
+		previewExtensionInstallOperationSpec(),
+		previewExtensionEnableOperationSpec(),
 		installExtensionOperationSpec(),
 		getExtensionOperationSpec(),
 		getExtensionInventoryOperationSpec(),
-		previewExtensionEnableOperationSpec(),
 		listExtensionSecretsOperationSpec(),
 		setExtensionSecretsOperationSpec(),
 		deleteExtensionSecretOperationSpec(),
 		updateExtensionOperationSpec(),
 		removeExtensionOperationSpec(),
 		getExtensionProvenanceOperationSpec(),
-		enableExtensionOperationSpec(),
-		disableExtensionOperationSpec(),
+		listExtensionEnablementOperationSpec(),
+		setExtensionEnablementOperationSpec(),
 		devExtensionOperationSpec(),
 		reloadDevExtensionOperationSpec(),
 		getExtensionLogsOperationSpec(),
+	}
+	for index := range operations {
+		operations[index].Parameters = ensureProfileParameters(
+			operations[index].Parameters,
+			operations[index].Method == httpMethodGet,
+		)
+	}
+	return operations
+}
+
+func previewExtensionEnableOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodGet,
+		Path:        specAPIExtensionsNamePath + "/preview",
+		OperationID: "previewExtensionEnable",
+		Summary:     "Preview one extension enablement change",
+		Tags:        []string{specExtensionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters:  withProfileScope(pathParam("name", "Extension name")),
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ExtensionEnablePreviewPayload{}},
+			{Status: 400, Description: "Invalid extension profile selection", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func previewExtensionInstallOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodPost,
+		Path:        specAPIExtensionsPreviewInstallPath,
+		OperationID: "previewExtensionInstall",
+		Summary:     "Preview an extension install without changing state",
+		Tags:        []string{specExtensionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.InstallExtensionRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ExtensionInstallPreviewPayload{}},
+			{Status: 400, Description: "Invalid install request", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Package validation failure", Body: contract.ExtensionValidationErrorPayload{}},
+			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+		},
 	}
 }
 
@@ -108,23 +153,6 @@ func getExtensionInventoryOperationSpec() OperationSpec {
 		Parameters:  []ParameterSpec{pathParam("name", "Extension name")},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ExtensionInventoryPayload{}},
-			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
-			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-
-func previewExtensionEnableOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodGet,
-		Path:        specAPIExtensionsNamePreviewPath,
-		OperationID: "previewExtensionEnable",
-		Summary:     "Preview enabling one extension without changing state",
-		Tags:        []string{specExtensionsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters:  []ParameterSpec{pathParam("name", "Extension name")},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.ExtensionEnablePreviewPayload{}},
 			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 		},
@@ -237,6 +265,7 @@ func listExtensionsOperationSpec() OperationSpec {
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			queryParam("workspace", specExtensionWorkspaceParamDescription, false),
+			queryParam("profile", "Profile whose effective extension state is returned", false),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ExtensionsResponse{}},
@@ -283,12 +312,50 @@ func getExtensionOperationSpec() OperationSpec {
 		Parameters: []ParameterSpec{
 			pathParam("name", "Extension name"),
 			queryParam("workspace", specExtensionWorkspaceParamDescription, false),
+			queryParam("profile", "Profile whose effective extension state is returned", false),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ExtensionResponse{}},
 			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func listExtensionEnablementOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodGet,
+		Path:        specAPIExtensionsNameEnablementPath,
+		OperationID: "listExtensionEnablement",
+		Summary:     "List one extension's effective state for every profile",
+		Tags:        []string{specExtensionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters:  []ParameterSpec{pathParam("name", "Extension name")},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: []contract.ExtensionEnablementPayload{}},
+			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func setExtensionEnablementOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodPut,
+		Path:        specAPIExtensionsNameEnablementPath,
+		OperationID: "setExtensionEnablement",
+		Summary:     "Set one extension's effective state for a profile",
+		Tags:        []string{specExtensionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters:  []ParameterSpec{pathParam("name", "Extension name")},
+		RequestBody: contract.SetExtensionEnablementRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ExtensionEnablementPayload{}},
+			{Status: 400, Description: "Invalid profile or enablement state", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 		},
 	}
 }
@@ -355,52 +422,6 @@ func getExtensionProvenanceOperationSpec() OperationSpec {
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ExtensionProvenanceResponse{}},
-			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
-			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-func enableExtensionOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodPost,
-		Path:        specAPIExtensionsNameEnablePath,
-		OperationID: "enableExtension",
-		Summary:     "Enable an installed extension",
-		Tags:        []string{specExtensionsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("name", "Extension name"),
-		},
-		RequestBody: contract.EnableExtensionRequest{},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.ExtensionEnableResult{}},
-			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
-			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
-			{
-				Status:      409,
-				Description: "Network confirmation required or shipped agent conflict",
-				Body:        contract.ExtensionOperationErrorPayload{},
-			},
-			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-func disableExtensionOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodPost,
-		Path:        specAPIExtensionsNameDisablePath,
-		OperationID: "disableExtension",
-		Summary:     "Disable an installed extension",
-		Tags:        []string{specExtensionsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("name", "Extension name"),
-		},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.ExtensionResponse{}},
-			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},

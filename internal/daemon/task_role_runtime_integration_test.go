@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/hooks"
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/workspace"
@@ -52,6 +53,7 @@ func TestTaskRoleRuntimeWorktreeReuseIntegrationIT030(t *testing.T) {
 		enqueue := func(id string, policy task.WorktreePolicy) task.Run {
 			t.Helper()
 			record, createErr := manager.CreateTask(ctx, task.CreateTask{
+				ProfileID:   storepkg.DefaultProfileID,
 				ID:          id,
 				Scope:       task.ScopeWorkspace,
 				WorkspaceID: "ws-task-role-worktrees",

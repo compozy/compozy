@@ -12,6 +12,7 @@ export const notificationKeys = {
       ...notificationKeys.presetsRoot(),
       filter.enabled ?? "",
       filter.built_in ?? "",
+      normalizeText(filter.profile),
       normalizeText(filter.name),
       filter.limit ?? "",
     ] as const,

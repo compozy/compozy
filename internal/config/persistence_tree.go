@@ -32,6 +32,19 @@ func validateEffectiveConfigWrite(
 	if err := applyConfigMCPSidecarContent(globalMCPJSONFile(homePaths), target, rendered, &cfg); err != nil {
 		return Config{}, fmt.Errorf("load global MCP JSON: %w", err)
 	}
+	profileName := strings.TrimSpace(target.profileName)
+	if profileName != "" {
+		if err := applyProfileWriteLayer(
+			&cfg,
+			profileMCPJSONFile(homePaths, profileName),
+			profileConfigFile(homePaths, profileName),
+			target,
+			rendered,
+			RoleFieldSourceProfile,
+		); err != nil {
+			return Config{}, err
+		}
+	}
 
 	resolvedWorkspaceRoot, err := resolveWorkspaceRoot(workspaceRoot)
 	if err != nil {
@@ -40,6 +53,18 @@ func validateEffectiveConfigWrite(
 	if hasDistinctWorkspaceOverlay(homePaths, resolvedWorkspaceRoot) {
 		if err := applyWorkspaceConfigWrite(resolvedWorkspaceRoot, target, rendered, &cfg); err != nil {
 			return Config{}, err
+		}
+		if profileName != "" {
+			if err := applyProfileWriteLayer(
+				&cfg,
+				workspaceProfileMCPJSONFile(resolvedWorkspaceRoot, profileName),
+				workspaceProfileConfigFile(resolvedWorkspaceRoot, profileName),
+				target,
+				rendered,
+				RoleFieldSourceWorkspaceProfile,
+			); err != nil {
+				return Config{}, err
+			}
 		}
 	}
 
@@ -54,6 +79,30 @@ func validateEffectiveConfigWrite(
 		return Config{}, fmt.Errorf("validate config write for %q: %w", target.Kind(), err)
 	}
 	return cfg, nil
+}
+
+func applyProfileWriteLayer(
+	cfg *Config,
+	mcpPath string,
+	configPath string,
+	target WriteTarget,
+	rendered []byte,
+	source string,
+) error {
+	if cfg == nil {
+		return errors.New("config: config is required")
+	}
+	overlay, err := loadProfileConfigOverlayForWrite(configPath, target, rendered)
+	if err != nil {
+		return err
+	}
+	if err := applyConfigOverlay(cfg, &overlay, source); err != nil {
+		return fmt.Errorf("apply %s config overlay: %w", source, err)
+	}
+	if err := applyConfigMCPSidecarContent(mcpPath, target, rendered, cfg); err != nil {
+		return fmt.Errorf("load %s MCP JSON: %w", source, err)
+	}
+	return nil
 }
 
 func loadConfigOverlayForWrite(path string, target WriteTarget, rendered []byte) (configOverlay, error) {

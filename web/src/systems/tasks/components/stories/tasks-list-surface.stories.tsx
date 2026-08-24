@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { UIProvider, useTopbarSlot } from "@compozy/ui";
 import { OsWindowFrame } from "@/systems/os/components";
+import { ownerFromRow } from "@/systems/profiles";
 
 import { TasksListSurface } from "../tasks-list-surface";
 import type { TasksListSurfaceProps } from "../tasks-list-surface";
@@ -17,7 +18,12 @@ import type {
   TaskRecordsFilter,
   TaskStatus,
 } from "../../types";
-import { LOOP_TASK_FIXTURES, buildTaskFixture, loopRunGoneTaskFixture } from "./fixtures";
+import {
+  LOOP_TASK_FIXTURES,
+  aggregateProfileTaskFixture,
+  buildTaskFixture,
+  loopRunGoneTaskFixture,
+} from "./fixtures";
 
 const FIXTURE_TASKS = [
   buildTaskFixture({
@@ -67,6 +73,19 @@ interface TasksListStoryProps extends Omit<Partial<TasksListSurfaceProps>, "task
   tasks?: TaskListItem[];
   initialRecordsFilter?: TaskRecordsFilter;
 }
+
+const STORY_PROFILE_SCOPE = {
+  aggregate: false,
+  destination: "default",
+  scopeLabel: "default",
+  ownerOf: () => ({ id: "00000000000000000000000000", name: "default", archived: false }),
+};
+
+const AGGREGATE_PROFILE_SCOPE = {
+  aggregate: true,
+  scopeLabel: null,
+  ownerOf: ownerFromRow,
+};
 
 function Stateful(props: TasksListStoryProps) {
   const [statusFilter, setStatusFilter] = useState<TaskStatus | null>(null);
@@ -161,6 +180,7 @@ function TasksListStoryRoute({
 
   return (
     <TasksListSurface
+      profile={STORY_PROFILE_SCOPE}
       filterState={
         statusFilter || ownerFilter || priorityFilter || searchQuery ? "active" : "inactive"
       }
@@ -236,4 +256,14 @@ export const RevealedEmpty: Story = {
 export const RevealedRunDeleted: Story = {
   args: {},
   render: () => <Stateful initialRecordsFilter="loop" tasks={[loopRunGoneTaskFixture]} />,
+};
+
+export const AggregateOwners: Story = {
+  args: {},
+  render: () => (
+    <Stateful
+      profile={AGGREGATE_PROFILE_SCOPE}
+      tasks={[FIXTURE_TASKS[0]!, aggregateProfileTaskFixture]}
+    />
+  ),
 };

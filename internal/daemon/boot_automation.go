@@ -72,6 +72,7 @@ func (d *Daemon) automationManagerDependencies(
 		ToolRegistry:          state.deps.ToolRegistry,
 		ParticipationResolver: state.participationResolver,
 		LoopInputEntities:     daemonLoopInputEntityCatalog{state: state},
+		Profiles:              state.profiles,
 		LoopRuntimeCatalog: loopRuntimeCatalogFactory{
 			homePaths: d.homePaths, workspaceResolver: state.workspaceResolver,
 		},

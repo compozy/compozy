@@ -7,63 +7,74 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 func TestHooksListCommandPassesFiltersAndRendersJSON(t *testing.T) {
 	t.Parallel()
+	t.Run("Should pass filters and the selected profile while rendering JSON", func(t *testing.T) {
+		t.Parallel()
 
-	var seenQuery HookCatalogQuery
-	deps := newWorkspaceTestDeps(t, &stubClient{
-		hookCatalogFn: func(_ context.Context, query HookCatalogQuery) ([]HookCatalogRecord, error) {
-			seenQuery = query
-			return []HookCatalogRecord{{
-				Order:        1,
-				Name:         "permission-guard",
-				Event:        "tool.pre_call",
-				Source:       "config",
-				SkillSource:  "review-skill",
-				Mode:         "sync",
-				Required:     true,
-				Priority:     10,
-				ExecutorKind: "subprocess",
-			}}, nil
-		},
+		var seenQuery HookCatalogQuery
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			listProfilesFn: func(context.Context) ([]contract.Profile, error) {
+				return []contract.Profile{{ID: "profile-marketing", Name: "marketing", State: "active"}}, nil
+			},
+			hookCatalogFn: func(ctx context.Context, query HookCatalogQuery) ([]HookCatalogRecord, error) {
+				if got := profileQueryValues(ctx, nil).Get(profileFlagName); got != "marketing" {
+					t.Fatalf("HookCatalog() profile query = %q, want marketing", got)
+				}
+				seenQuery = query
+				return []HookCatalogRecord{{
+					Order:        1,
+					Name:         "permission-guard",
+					Event:        "tool.pre_call",
+					Source:       "config",
+					SkillSource:  "review-skill",
+					Mode:         "sync",
+					Required:     true,
+					Priority:     10,
+					ExecutorKind: "subprocess",
+				}}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(t, deps,
+			"hooks", "list",
+			"--workspace", "alpha",
+			"--agent", "coder",
+			"--event", "tool.pre_call",
+			"--source", "config",
+			"--mode", "sync",
+			"--profile", "marketing",
+			"-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(hooks list) error = %v", err)
+		}
+
+		if seenQuery != (HookCatalogQuery{
+			Workspace: "alpha",
+			Agent:     "coder",
+			Event:     "tool.pre_call",
+			Source:    "config",
+			Mode:      "sync",
+		}) {
+			t.Fatalf("HookCatalog() query = %#v, want expected filters", seenQuery)
+		}
+
+		var decoded []HookCatalogRecord
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(hooks list) error = %v", err)
+		}
+		if got, want := len(decoded), 1; got != want {
+			t.Fatalf("len(decoded) = %d, want %d", got, want)
+		}
+		if decoded[0].Name != "permission-guard" || decoded[0].ExecutorKind != "subprocess" {
+			t.Fatalf("decoded[0] = %#v, want hook catalog payload", decoded[0])
+		}
 	})
-
-	stdout, _, err := executeRootCommand(t, deps,
-		"hooks", "list",
-		"--workspace", "alpha",
-		"--agent", "coder",
-		"--event", "tool.pre_call",
-		"--source", "config",
-		"--mode", "sync",
-		"-o", "json",
-	)
-	if err != nil {
-		t.Fatalf("executeRootCommand(hooks list) error = %v", err)
-	}
-
-	if seenQuery != (HookCatalogQuery{
-		Workspace: "alpha",
-		Agent:     "coder",
-		Event:     "tool.pre_call",
-		Source:    "config",
-		Mode:      "sync",
-	}) {
-		t.Fatalf("HookCatalog() query = %#v, want expected filters", seenQuery)
-	}
-
-	var decoded []HookCatalogRecord
-	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
-		t.Fatalf("json.Unmarshal(hooks list) error = %v", err)
-	}
-	if got, want := len(decoded), 1; got != want {
-		t.Fatalf("len(decoded) = %d, want %d", got, want)
-	}
-	if decoded[0].Name != "permission-guard" || decoded[0].ExecutorKind != "subprocess" {
-		t.Fatalf("decoded[0] = %#v, want hook catalog payload", decoded[0])
-	}
 }
 
 func TestHooksListCommandRendersHumanAndToon(t *testing.T) {
@@ -103,99 +114,131 @@ func TestHooksListCommandRendersHumanAndToon(t *testing.T) {
 
 func TestHooksInfoCommandReturnsAllMatchesAcrossFormats(t *testing.T) {
 	t.Parallel()
+	t.Run("Should return every selected-profile match across formats", func(t *testing.T) {
+		t.Parallel()
 
-	var seenQuery HookCatalogQuery
-	deps := newWorkspaceTestDeps(t, &stubClient{
-		hookCatalogFn: func(_ context.Context, query HookCatalogQuery) ([]HookCatalogRecord, error) {
-			seenQuery = query
-			return []HookCatalogRecord{
-				{
-					Order:        1,
-					Name:         "permission-guard",
-					Event:        "permission.request",
-					Source:       "config",
-					Mode:         "sync",
-					Required:     true,
-					Priority:     10,
-					TimeoutMS:    500,
-					ExecutorKind: "subprocess",
-					Matcher: hookspkg.HookMatcher{
-						ToolName: "shell",
+		var seenQuery HookCatalogQuery
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			listProfilesFn: func(context.Context) ([]contract.Profile, error) {
+				return []contract.Profile{{ID: "profile-marketing", Name: "marketing", State: "active"}}, nil
+			},
+			hookCatalogFn: func(ctx context.Context, query HookCatalogQuery) ([]HookCatalogRecord, error) {
+				if got := profileQueryValues(ctx, nil).Get(profileFlagName); got != "marketing" {
+					t.Fatalf("HookCatalog() profile query = %q, want marketing", got)
+				}
+				seenQuery = query
+				return []HookCatalogRecord{
+					{
+						Order:        1,
+						Name:         "permission-guard",
+						Event:        "permission.request",
+						Source:       "config",
+						Mode:         "sync",
+						Required:     true,
+						Priority:     10,
+						TimeoutMS:    500,
+						ExecutorKind: "subprocess",
+						Matcher: hookspkg.HookMatcher{
+							ToolName: "shell",
+						},
+						Metadata: map[string]string{"origin": "config"},
 					},
-					Metadata: map[string]string{"origin": "config"},
-				},
-				{
-					Order:        1,
-					Name:         "permission-guard",
-					Event:        "tool.pre_call",
-					Source:       "skill",
-					SkillSource:  "review-skill",
-					Mode:         "async",
-					Priority:     20,
-					ExecutorKind: "native",
-					Matcher: hookspkg.HookMatcher{
-						AgentName: "coder",
+					{
+						Order:        1,
+						Name:         "permission-guard",
+						Event:        "tool.pre_call",
+						Source:       "skill",
+						SkillSource:  "review-skill",
+						Mode:         "async",
+						Priority:     20,
+						ExecutorKind: "native",
+						Matcher: hookspkg.HookMatcher{
+							AgentName: "coder",
+						},
+						Metadata: map[string]string{"owner": "team"},
 					},
-					Metadata: map[string]string{"owner": "team"},
-				},
-				{
-					Order: 1,
-					Name:  "other-hook",
-					Event: "tool.pre_call",
-					Mode:  "sync",
-				},
-			}, nil
-		},
+					{
+						Order: 1,
+						Name:  "other-hook",
+						Event: "tool.pre_call",
+						Mode:  "sync",
+					},
+				}, nil
+			},
+		})
+
+		jsonOut, _, err := executeRootCommand(
+			t,
+			deps,
+			"hooks",
+			"info",
+			"permission-guard",
+			"--workspace",
+			"alpha",
+			"--profile",
+			"marketing",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(hooks info json) error = %v", err)
+		}
+		if seenQuery.Workspace != "alpha" {
+			t.Fatalf("HookCatalog() workspace query = %q, want alpha", seenQuery.Workspace)
+		}
+
+		var decoded []HookCatalogRecord
+		if err := json.Unmarshal([]byte(jsonOut), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(hooks info) error = %v", err)
+		}
+		if got, want := len(decoded), 2; got != want {
+			t.Fatalf("len(decoded) = %d, want %d", got, want)
+		}
+
+		humanOut, _, err := executeRootCommand(
+			t,
+			deps,
+			"hooks",
+			"info",
+			"permission-guard",
+			"--profile",
+			"marketing",
+			"-o",
+			"human",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(hooks info human) error = %v", err)
+		}
+		if !strings.Contains(humanOut, "Matcher") || !strings.Contains(humanOut, "Metadata") ||
+			!strings.Contains(humanOut, "Executor Kind") {
+			t.Fatalf("human output = %q, want detail sections", humanOut)
+		}
+
+		toonOut, _, err := executeRootCommand(
+			t,
+			deps,
+			"hooks",
+			"info",
+			"permission-guard",
+			"--profile",
+			"marketing",
+			"-o",
+			"toon",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(hooks info toon) error = %v", err)
+		}
+		if !strings.Contains(
+			toonOut,
+			"hooks[2]{name,order,event,source,skill_source,mode,required,priority,timeout_ms,executor_kind}:",
+		) {
+			t.Fatalf("toon output = %q, want hooks array", toonOut)
+		}
+		if !strings.Contains(toonOut, "matcher[1]{field,value}:") ||
+			!strings.Contains(toonOut, "metadata[1]{key,value}:") {
+			t.Fatalf("toon output = %q, want matcher/metadata blocks", toonOut)
+		}
 	})
-
-	jsonOut, _, err := executeRootCommand(
-		t,
-		deps,
-		"hooks",
-		"info",
-		"permission-guard",
-		"--workspace",
-		"alpha",
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("executeRootCommand(hooks info json) error = %v", err)
-	}
-	if seenQuery.Workspace != "alpha" {
-		t.Fatalf("HookCatalog() workspace query = %q, want alpha", seenQuery.Workspace)
-	}
-
-	var decoded []HookCatalogRecord
-	if err := json.Unmarshal([]byte(jsonOut), &decoded); err != nil {
-		t.Fatalf("json.Unmarshal(hooks info) error = %v", err)
-	}
-	if got, want := len(decoded), 2; got != want {
-		t.Fatalf("len(decoded) = %d, want %d", got, want)
-	}
-
-	humanOut, _, err := executeRootCommand(t, deps, "hooks", "info", "permission-guard", "-o", "human")
-	if err != nil {
-		t.Fatalf("executeRootCommand(hooks info human) error = %v", err)
-	}
-	if !strings.Contains(humanOut, "Matcher") || !strings.Contains(humanOut, "Metadata") ||
-		!strings.Contains(humanOut, "Executor Kind") {
-		t.Fatalf("human output = %q, want detail sections", humanOut)
-	}
-
-	toonOut, _, err := executeRootCommand(t, deps, "hooks", "info", "permission-guard", "-o", "toon")
-	if err != nil {
-		t.Fatalf("executeRootCommand(hooks info toon) error = %v", err)
-	}
-	if !strings.Contains(
-		toonOut,
-		"hooks[2]{name,order,event,source,skill_source,mode,required,priority,timeout_ms,executor_kind}:",
-	) {
-		t.Fatalf("toon output = %q, want hooks array", toonOut)
-	}
-	if !strings.Contains(toonOut, "matcher[1]{field,value}:") || !strings.Contains(toonOut, "metadata[1]{key,value}:") {
-		t.Fatalf("toon output = %q, want matcher/metadata blocks", toonOut)
-	}
 }
 
 func TestHookMatcherRowsIncludesNetworkFields(t *testing.T) {
@@ -294,92 +337,106 @@ func TestHooksRunsCommandRequiresSession(t *testing.T) {
 
 func TestHooksRunsCommandParsesSinceAndRendersFormats(t *testing.T) {
 	t.Parallel()
+	t.Run("Should pass the selected profile and render parsed runs across formats", func(t *testing.T) {
+		t.Parallel()
 
-	var seenQuery HookRunsQuery
-	var seenWorkspace string
-	deps := newWorkspaceTestDeps(t, &stubClient{
-		hookRunsFn: func(_ context.Context, workspaceRef string, query HookRunsQuery) ([]HookRunRecord, error) {
-			seenWorkspace = workspaceRef
-			seenQuery = query
-			return []HookRunRecord{{
-				HookName:   "permission-guard",
-				Event:      "permission.request",
-				Outcome:    "failed",
-				DurationMS: 12,
-				Error:      "boom",
-				RecordedAt: time.Date(2026, 4, 3, 11, 59, 0, 0, time.UTC),
-			}}, nil
-		},
+		var seenQuery HookRunsQuery
+		var seenWorkspace string
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			listProfilesFn: func(context.Context) ([]contract.Profile, error) {
+				return []contract.Profile{{ID: "profile-marketing", Name: "marketing", State: "active"}}, nil
+			},
+			hookRunsFn: func(ctx context.Context, workspaceRef string, query HookRunsQuery) ([]HookRunRecord, error) {
+				if got := profileQueryValues(ctx, nil).Get(profileFlagName); got != "marketing" {
+					t.Fatalf("HookRuns() profile query = %q, want marketing", got)
+				}
+				seenWorkspace = workspaceRef
+				seenQuery = query
+				return []HookRunRecord{{
+					HookName:   "permission-guard",
+					Event:      "permission.request",
+					Outcome:    "failed",
+					DurationMS: 12,
+					Error:      "boom",
+					RecordedAt: time.Date(2026, 4, 3, 11, 59, 0, 0, time.UTC),
+				}}, nil
+			},
+		})
+
+		jsonOut, _, err := executeRootCommand(t, deps,
+			"hooks", "runs",
+			"--workspace", "ws-workspace",
+			"--session", "sess-1",
+			"--event", "permission.request",
+			"--outcome", "failed",
+			"--since", "5m",
+			"--last", "2",
+			"--profile", "marketing",
+			"-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(hooks runs json) error = %v", err)
+		}
+		if seenQuery.Session != "sess-1" || seenQuery.Event != "permission.request" || seenQuery.Outcome != "failed" ||
+			seenQuery.Last != 2 {
+			t.Fatalf("HookRuns() query = %#v, want session/event/outcome/last", seenQuery)
+		}
+		if seenWorkspace != "ws-workspace" {
+			t.Fatalf("HookRuns() workspace = %q, want ws-workspace", seenWorkspace)
+		}
+		if want := fixedTestNow.Add(-5 * time.Minute).UTC().Format(time.RFC3339Nano); seenQuery.Since != want {
+			t.Fatalf("HookRuns() since = %q, want %q", seenQuery.Since, want)
+		}
+
+		var decoded []HookRunRecord
+		if err := json.Unmarshal([]byte(jsonOut), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(hooks runs) error = %v", err)
+		}
+		if got, want := len(decoded), 1; got != want {
+			t.Fatalf("len(decoded) = %d, want %d", got, want)
+		}
+
+		humanOut, _, err := executeRootCommand(
+			t,
+			deps,
+			"hooks",
+			"runs",
+			"--workspace",
+			"ws-workspace",
+			"--session",
+			"sess-1",
+			"--profile",
+			"marketing",
+			"-o",
+			"human",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(hooks runs human) error = %v", err)
+		}
+		if !strings.Contains(humanOut, "Hook Runs") || !strings.Contains(humanOut, "permission-guard") ||
+			!strings.Contains(humanOut, "12ms") {
+			t.Fatalf("human output = %q, want runs table", humanOut)
+		}
+
+		toonOut, _, err := executeRootCommand(
+			t,
+			deps,
+			"hooks",
+			"runs",
+			"--workspace",
+			"ws-workspace",
+			"--session",
+			"sess-1",
+			"--profile",
+			"marketing",
+			"-o",
+			"toon",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(hooks runs toon) error = %v", err)
+		}
+		if !strings.Contains(toonOut, "runs[1]{hook_name,event,outcome,duration_ms,error,recorded_at}:") {
+			t.Fatalf("toon output = %q, want TOON header", toonOut)
+		}
 	})
-
-	jsonOut, _, err := executeRootCommand(t, deps,
-		"hooks", "runs",
-		"--workspace", "ws-workspace",
-		"--session", "sess-1",
-		"--event", "permission.request",
-		"--outcome", "failed",
-		"--since", "5m",
-		"--last", "2",
-		"-o", "json",
-	)
-	if err != nil {
-		t.Fatalf("executeRootCommand(hooks runs json) error = %v", err)
-	}
-	if seenQuery.Session != "sess-1" || seenQuery.Event != "permission.request" || seenQuery.Outcome != "failed" ||
-		seenQuery.Last != 2 {
-		t.Fatalf("HookRuns() query = %#v, want session/event/outcome/last", seenQuery)
-	}
-	if seenWorkspace != "ws-workspace" {
-		t.Fatalf("HookRuns() workspace = %q, want ws-workspace", seenWorkspace)
-	}
-	if want := fixedTestNow.Add(-5 * time.Minute).UTC().Format(time.RFC3339Nano); seenQuery.Since != want {
-		t.Fatalf("HookRuns() since = %q, want %q", seenQuery.Since, want)
-	}
-
-	var decoded []HookRunRecord
-	if err := json.Unmarshal([]byte(jsonOut), &decoded); err != nil {
-		t.Fatalf("json.Unmarshal(hooks runs) error = %v", err)
-	}
-	if got, want := len(decoded), 1; got != want {
-		t.Fatalf("len(decoded) = %d, want %d", got, want)
-	}
-
-	humanOut, _, err := executeRootCommand(
-		t,
-		deps,
-		"hooks",
-		"runs",
-		"--workspace",
-		"ws-workspace",
-		"--session",
-		"sess-1",
-		"-o",
-		"human",
-	)
-	if err != nil {
-		t.Fatalf("executeRootCommand(hooks runs human) error = %v", err)
-	}
-	if !strings.Contains(humanOut, "Hook Runs") || !strings.Contains(humanOut, "permission-guard") ||
-		!strings.Contains(humanOut, "12ms") {
-		t.Fatalf("human output = %q, want runs table", humanOut)
-	}
-
-	toonOut, _, err := executeRootCommand(
-		t,
-		deps,
-		"hooks",
-		"runs",
-		"--workspace",
-		"ws-workspace",
-		"--session",
-		"sess-1",
-		"-o",
-		"toon",
-	)
-	if err != nil {
-		t.Fatalf("executeRootCommand(hooks runs toon) error = %v", err)
-	}
-	if !strings.Contains(toonOut, "runs[1]{hook_name,event,outcome,duration_ms,error,recorded_at}:") {
-		t.Fatalf("toon output = %q, want TOON header", toonOut)
-	}
 }

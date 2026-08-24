@@ -11,7 +11,11 @@ import (
 	"github.com/compozy/compozy/internal/fileutil"
 )
 
-func (s *Service) Adopt(ctx context.Context, workspaceID, candidatePath string) (*Worktree, error) {
+func (s *Service) Adopt(ctx context.Context, profileID, workspaceID, candidatePath string) (*Worktree, error) {
+	profileID = strings.TrimSpace(profileID)
+	if profileID == "" {
+		return nil, refusal(ErrRefInvalid, "profile_id is required")
+	}
 	if _, err := s.capability.Check(ctx); err != nil {
 		return nil, err
 	}
@@ -53,11 +57,12 @@ func (s *Service) Adopt(ctx context.Context, workspaceID, candidatePath string) 
 	if getErr != nil && !errors.Is(getErr, ErrNotFound) {
 		return nil, fmt.Errorf("worktree: inspect adopted path: %w", getErr)
 	}
-	return s.insertAdoptedWorktree(ctx, workspaceID, canonicalCandidate, identity.adminGitDir, *matched)
+	return s.insertAdoptedWorktree(ctx, profileID, workspaceID, canonicalCandidate, identity.adminGitDir, *matched)
 }
 
 func (s *Service) insertAdoptedWorktree(
 	ctx context.Context,
+	profileID string,
 	workspaceID string,
 	candidatePath string,
 	adminGitDir string,
@@ -85,7 +90,8 @@ func (s *Service) insertAdoptedWorktree(
 	}
 	now := s.now().UTC()
 	item := Worktree{
-		ID: id, WorkspaceID: workspaceID, Name: name, Branch: entry.Branch,
+		ProfileID: profileID,
+		ID:        id, WorkspaceID: workspaceID, Name: name, Branch: entry.Branch,
 		Path: candidatePath, GitDir: adminGitDir, State: StateReady,
 		Origin: OriginAdopted, SetupState: SetupNone, CreatedAt: now, UpdatedAt: now,
 	}

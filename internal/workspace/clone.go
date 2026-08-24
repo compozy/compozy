@@ -16,8 +16,15 @@ func cloneResolvedWorkspace(src *ResolvedWorkspace) ResolvedWorkspace {
 	return ResolvedWorkspace{
 		Workspace:   cloneWorkspace(src.Workspace),
 		WorkspaceID: src.WorkspaceID,
-		Config:      compozyconfig.CloneConfig(&src.Config),
-		Agents:      cloneAgentDefs(src.Agents),
+		ProfileID:   src.ProfileID,
+		ProfileName: src.ProfileName,
+		ProfileRoot: src.ProfileRoot,
+		ProfileDeclarations: append(
+			[]ProfileDeclaration(nil),
+			src.ProfileDeclarations...,
+		),
+		Config: compozyconfig.CloneConfig(&src.Config),
+		Agents: cloneAgentDefs(src.Agents),
 		AgentDiagnostics: append(
 			[]AgentDiagnostic(nil),
 			src.AgentDiagnostics...,

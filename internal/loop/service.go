@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -96,7 +97,7 @@ func (s *service) DryRun(
 	name string,
 	inputs Inputs,
 ) (*PlanPreview, error) {
-	resolved, loopName, err := s.resolveDefinition(ctx, ws, name)
+	resolved, loopName, err := s.resolveDefinition(ctx, ws, inputs.ProfileID, name)
 	if err != nil {
 		return nil, err
 	}
@@ -170,10 +171,11 @@ func cloneStartMetadata(metadata map[string]any) map[string]any {
 func (s *service) Configure(
 	ctx context.Context,
 	ws WorkspaceID,
+	profileID string,
 	name string,
 	cfg LoopConfig,
 ) error {
-	_, loopName, err := s.resolveDefinition(ctx, ws, name)
+	_, loopName, err := s.resolveDefinition(ctx, ws, profileID, name)
 	if err != nil {
 		return err
 	}
@@ -202,9 +204,10 @@ func (s *service) GetConfig(ctx context.Context, ws WorkspaceID, name string) (*
 func (s *service) GetConfigSnapshot(
 	ctx context.Context,
 	ws WorkspaceID,
+	profileID string,
 	name string,
 ) (ConfigSnapshot, error) {
-	resolved, loopName, err := s.resolveDefinition(ctx, ws, name)
+	resolved, loopName, err := s.resolveDefinition(ctx, ws, profileID, name)
 	if err != nil {
 		return ConfigSnapshot{}, err
 	}
@@ -289,13 +292,18 @@ func (s *service) Transition(
 func (s *service) resolveDefinition(
 	ctx context.Context,
 	ws WorkspaceID,
+	profileID string,
 	name string,
 ) (*ResolvedDefinition, string, error) {
 	loopName, err := normalizeLoopName(name)
 	if err != nil {
 		return nil, "", err
 	}
-	resolved, err := s.resolver.ResolveLoop(ctx, ws, loopName)
+	profileID = strings.TrimSpace(profileID)
+	if profileID == "" {
+		return nil, "", fmt.Errorf("%w: profile id is required", ErrValidation)
+	}
+	resolved, err := s.resolver.ResolveLoop(ctx, ws, profileID, loopName)
 	if err != nil {
 		return nil, "", err
 	}

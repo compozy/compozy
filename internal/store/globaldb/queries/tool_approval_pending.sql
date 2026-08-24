@@ -1,8 +1,10 @@
 -- name: CreatePendingToolApproval :one
 INSERT INTO tool_approval_pending (
+  profile_id,
   approval_id, workspace_id, invocation_id, target_kind, tool_id, target_json,
   command_id, args_json, approval_status, requested_at, expires_at
 ) VALUES (
+  sqlc.arg(profile_id),
   sqlc.arg(approval_id), sqlc.arg(workspace_id), sqlc.arg(invocation_id),
   sqlc.arg(target_kind), sqlc.narg(tool_id), sqlc.arg(target_json),
   sqlc.narg(command_id), sqlc.arg(args_json), 'pending',

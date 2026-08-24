@@ -18,6 +18,7 @@ import (
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	extractorpkg "github.com/compozy/compozy/internal/memory/extractor"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -61,7 +62,7 @@ func TestDaemonMemoryProposalSinkTargetStore(t *testing.T) {
 			t.Fatalf("EnsureIdentity() error = %v", err)
 		}
 		memoryStore := memory.NewStore(
-			filepath.Join(baseDir, "global", "memory"),
+			filepath.Join(baseDir, "profiles", store.DefaultProfileID, "memory"),
 			memory.WithCatalogDatabasePath(filepath.Join(baseDir, "compozy.db")),
 		)
 		openDaemonMemoryCatalog(t, memoryStore)
@@ -179,7 +180,7 @@ func TestCollectMemoryExtractorOutput(t *testing.T) {
 			WorkspaceID: "ws-test",
 		}
 		candidates, err := parseMemoryExtractorCandidates(
-			`{"type":"reference","scope":"global","agent_tier":"global","content":"Release artifacts use checksums.","evidence":"seq=7"}`,
+			`{"type":"reference","scope":"profile","agent_tier":"global","content":"Release artifacts use checksums.","evidence":"seq=7"}`,
 			turn,
 			"/workspace/test",
 			time.Date(2026, 7, 24, 11, 25, 0, 0, time.UTC),

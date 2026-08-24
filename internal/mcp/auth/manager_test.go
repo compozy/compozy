@@ -285,7 +285,7 @@ func newManagerRaceHarness(
 		t.Fatalf("NewManager() error = %v", err)
 	}
 	cfg := ServerConfig{
-		Target:       Target{Scope: ScopeGlobal, ServerName: "race"},
+		Target:       Target{Scope: ScopeUser, ServerName: "race"},
 		Type:         authTypeOAuth,
 		RemoteURL:    server.URL + "/mcp",
 		IssuerURL:    server.URL,

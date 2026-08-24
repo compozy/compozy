@@ -64,7 +64,8 @@ func newUpdateCommand(deps commandDeps) *cobra.Command {
   compozy update --cancel
   compozy update -o json
 		`),
-		Args: cobra.NoArgs,
+		Args:    cobra.NoArgs,
+		PreRunE: func(cmd *cobra.Command, _ []string) error { return rejectMachineProfileFlag(cmd) },
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if checkOnly && cancel {
 				return errors.New("cli: --check and --cancel cannot be combined")
@@ -72,6 +73,7 @@ func newUpdateCommand(deps commandDeps) *cobra.Command {
 			return runUpdateCommand(cmd, deps, checkOnly, cancel)
 		},
 	}
+	configureMachineProfileFlag(cmd, false)
 	cmd.Flags().BoolVar(&checkOnly, "check", false, "Check without changing files")
 	cmd.Flags().BoolVar(&cancel, "cancel", false, "Cancel a dormant update operation")
 	return cmd
@@ -302,9 +304,13 @@ func updateCancelBundle(record updateCancelRecord) outputBundle {
 			}), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject(updateUpdateKey, []string{automationStatusKey, "operation_id", "message"}, []string{
-				string(record.Status), record.OperationID, record.Message,
-			}), nil
+			return renderToonObject(
+				updateUpdateKey,
+				[]string{automationStatusKey, "operation_id", bridgeMessageKey},
+				[]string{
+					string(record.Status), record.OperationID, record.Message,
+				},
+			), nil
 		},
 	}
 }

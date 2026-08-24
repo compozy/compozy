@@ -25,40 +25,42 @@ export function windowManagerLayoutFingerprint(document: WindowManagerLayoutDocu
   return JSON.stringify(windowManagerLayoutDocumentToWire(document));
 }
 
-export function windowManagerLayoutOptions(workspaceId: string) {
+export function windowManagerLayoutOptions(workspaceId: string, profile: string) {
   const normalized = workspaceId.trim();
-  const snapshot = windowManagerSnapshotOptions(normalized);
+  const snapshot = windowManagerSnapshotOptions(normalized, profile);
   return queryOptions({
     ...snapshot,
     select: windowManagerSnapshotToLayoutState,
   });
 }
 
-export function windowManagerLayoutProfilesOptions(workspaceId: string) {
+export function windowManagerLayoutProfilesOptions(workspaceId: string, profile: string) {
   const normalized = workspaceId.trim();
   return queryOptions({
-    queryKey: settingsKeys.windowManagerLayoutProfiles(normalized),
-    queryFn: ({ signal }) => listWindowManagerLayoutProfiles(normalized, signal),
-    enabled: normalized !== "",
+    queryKey: settingsKeys.windowManagerLayoutProfiles(normalized, profile),
+    queryFn: ({ signal }) => listWindowManagerLayoutProfiles(normalized, profile, signal),
+    enabled: normalized !== "" && profile.trim() !== "",
     staleTime: 15_000,
   });
 }
 
 export function windowManagerLayoutReviewOptions(
   workspaceId: string,
+  profile: string,
   revision: number,
   document: WindowManagerLayoutDocument
 ) {
   const normalized = workspaceId.trim();
   const fingerprint = windowManagerLayoutFingerprint(document);
   return queryOptions({
-    queryKey: settingsKeys.windowManagerLayoutReview(normalized, revision, fingerprint),
+    queryKey: settingsKeys.windowManagerLayoutReview(normalized, profile, revision, fingerprint),
     queryFn: async ({ signal }): Promise<WindowManagerLayoutReview> => {
       const candidate = structuredClone(document);
-      const validation = await validateWindowManagerLayout(normalized, candidate, signal);
+      const validation = await validateWindowManagerLayout(normalized, profile, candidate, signal);
       if (!validation.valid) return { fingerprint, preview: null, validation };
       const preview = await previewWindowManagerLayout(
         normalized,
+        profile,
         revision,
         candidate,
         undefined,

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -8,6 +9,68 @@ import (
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
+
+func TestProfileConfigHookDispatchIsBoundToOwningProfileIT045(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	profilePath := filepath.Join(homePaths.ProfilesDir, "marketing", ConfigName)
+	profileConfig := `[[hooks.declarations]]
+name = "marketing-message"
+event = "input.pre_submit"
+mode = "sync"
+
+[hooks.declarations.executor]
+command = "/bin/sh"
+args = ["-c", "printf '{\"message\":\"marketing\"}'"]
+`
+	writeFile(t, profilePath, profileConfig)
+
+	dispatch := func(profileName string) string {
+		t.Helper()
+		options := make([]LoadOption, 0, 1)
+		if profileName != "default" {
+			options = append(options, WithProfile(profileName))
+		}
+		cfg, err := LoadForHome(homePaths, options...)
+		if err != nil {
+			t.Fatalf("LoadForHome(%s) error = %v", profileName, err)
+		}
+		declarations, err := HookDeclarations(cfg.Hooks, nil)
+		if err != nil {
+			t.Fatalf("HookDeclarations(%s) error = %v", profileName, err)
+		}
+		dispatcher := hookspkg.NewHooks(hookspkg.WithConfigDeclarations(declarations))
+		t.Cleanup(dispatcher.Close)
+		if err := dispatcher.Rebuild(t.Context()); err != nil {
+			t.Fatalf("Rebuild(%s) error = %v", profileName, err)
+		}
+		result, err := dispatcher.DispatchInputPreSubmit(t.Context(), hookspkg.InputPreSubmitPayload{
+			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookInputPreSubmit},
+			Message:     "original",
+		})
+		if err != nil {
+			t.Fatalf("DispatchInputPreSubmit(%s) error = %v", profileName, err)
+		}
+		return result.Message
+	}
+	if got := dispatch("default"); got != "original" {
+		t.Fatalf("default dispatch message = %q, want original", got)
+	}
+	if got := dispatch("marketing"); got != "marketing" {
+		t.Fatalf("marketing dispatch message = %q, want marketing", got)
+	}
+
+	writeFile(t, profilePath, profileConfig+"\n[sandboxes.dev]\nbackend = \"host\"\n")
+	_, err = LoadForHome(homePaths, WithProfile("marketing"))
+	var validation ValidationError
+	if !errors.As(err, &validation) || validation.Code != "profile_config_key_denied" {
+		t.Fatalf("LoadForHome(profile sandbox) error = %#v, want profile_config_key_denied", err)
+	}
+}
 
 func TestLoadParsesConfigHookDeclarationWithAllFields(t *testing.T) {
 	workspaceRoot, homePaths := prepareHookConfigTestEnv(t)

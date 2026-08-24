@@ -67,6 +67,7 @@ func TestGlobalDBReactivateGoalRunShouldEnqueueOneEpochScopedSuccessor(t *testin
 		}
 		if err := globalDB.RegisterSession(ctx, SessionInfo{
 			ID:            "session-goal-reentry",
+			ProfileID:     store.DefaultProfileID,
 			AgentName:     "codex",
 			RuntimeStatus: store.SessionRuntimeUnbound,
 			WorkspaceID:   string(loopRun.WorkspaceID),

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { useSettingsPage } from "./use-settings-page";
 
@@ -8,83 +8,140 @@ import {
   useCreateNotificationPreset,
   useDeleteNotificationPreset,
   useNotificationPresets,
-  useUpdateNotificationPreset,
+  useSetNotificationPresetEnablement,
 } from "@/systems/notifications";
 import {
   SettingsApiError,
   type SettingsHookEntry,
   type SettingsHookRequest,
   usePutSettingsHook,
+  useSettingsHooks,
   useSettingsHooksExtensions,
 } from "@/systems/settings";
+import { useProfileReadScope } from "@/systems/profiles";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 function errorMessage(error: unknown): string | null {
   if (error instanceof SettingsApiError || error instanceof Error) return error.message;
   return null;
 }
 
+interface PendingProfileItem {
+  profile: string;
+  name: string;
+  requestId: number;
+  workspaceId: string | null;
+}
+
 export function useSettingsHooksPage() {
-  const query = useSettingsHooksExtensions();
+  const { destination, destinationOwner } = useProfileReadScope();
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const filter =
+    destination === "default"
+      ? ({ scope: "user" } as const)
+      : ({
+          scope: "profile",
+          profile: destination,
+          workspace_id: activeWorkspaceId ?? undefined,
+        } as const);
+  const query = useSettingsHooks(filter);
+  const capabilityQuery = useSettingsHooksExtensions();
   const hookMutation = usePutSettingsHook();
-  const presetsQuery = useNotificationPresets();
+  const presetsQuery = useNotificationPresets({ profile: destination });
   const createPreset = useCreateNotificationPreset();
-  const updatePreset = useUpdateNotificationPreset();
+  const setPresetEnablement = useSetNotificationPresetEnablement();
   const deletePreset = useDeleteNotificationPreset();
   const page = useSettingsPage({ currentSlug: "hooks" });
-  const [pendingHookName, setPendingHookName] = useState<string | null>(null);
-  const [pendingPresetName, setPendingPresetName] = useState<string | null>(null);
+  const [pendingHook, setPendingHook] = useState<PendingProfileItem | null>(null);
+  const [pendingPreset, setPendingPreset] = useState<PendingProfileItem | null>(null);
+  const nextPendingRequestId = useRef(0);
+  const pendingWorkspaceId = filter.scope === "profile" ? (filter.workspace_id ?? null) : null;
+
+  const pendingItem = (name: string): PendingProfileItem => ({
+    name,
+    profile: destination,
+    requestId: ++nextPendingRequestId.current,
+    workspaceId: pendingWorkspaceId,
+  });
+  const isPendingInCurrentScope = (pending: PendingProfileItem | null) =>
+    pending?.profile === destination && pending.workspaceId === pendingWorkspaceId;
 
   const hooks: SettingsHookEntry[] = query.data?.hooks ?? [];
   const toggleHookEnabled = (entry: SettingsHookEntry, enabled: boolean) => {
-    setPendingHookName(entry.name);
+    const pending = pendingItem(entry.name);
+    setPendingHook(pending);
     const declaration: SettingsHookRequest["declaration"] = {
       ...entry.declaration,
       enabled,
     };
     hookMutation.mutate(
-      { name: entry.name, body: { declaration } },
-      { onSettled: () => setPendingHookName(null) }
+      { name: entry.name, body: { declaration }, filter },
+      {
+        onSettled: () =>
+          setPendingHook(current => (current?.requestId === pending.requestId ? null : current)),
+      }
     );
   };
   const createNotificationPreset = (body: CreateNotificationPresetRequest) => {
-    setPendingPresetName(body.name ?? null);
-    createPreset.mutate(body, { onSettled: () => setPendingPresetName(null) });
+    const name = body.name ?? null;
+    const pending = name === null ? null : pendingItem(name);
+    setPendingPreset(pending);
+    createPreset.mutate(
+      { body, profile: destination },
+      {
+        onSettled: () =>
+          setPendingPreset(current =>
+            pending !== null && current?.requestId === pending.requestId ? null : current
+          ),
+      }
+    );
   };
   const toggleNotificationPreset = (preset: NotificationPresetEntry, enabled: boolean) => {
-    setPendingPresetName(preset.name);
-    updatePreset.mutate(
-      { name: preset.name, body: { enabled } },
-      { onSettled: () => setPendingPresetName(null) }
+    const pending = pendingItem(preset.name);
+    setPendingPreset(pending);
+    setPresetEnablement.mutate(
+      { name: preset.name, body: { profile: destination, enabled } },
+      {
+        onSettled: () =>
+          setPendingPreset(current => (current?.requestId === pending.requestId ? null : current)),
+      }
     );
   };
   const deleteNotificationPreset = (preset: NotificationPresetEntry) => {
-    setPendingPresetName(preset.name);
-    deletePreset.mutate(preset.name, { onSettled: () => setPendingPresetName(null) });
+    const pending = pendingItem(preset.name);
+    setPendingPreset(pending);
+    deletePreset.mutate(preset.name, {
+      onSettled: () =>
+        setPendingPreset(current => (current?.requestId === pending.requestId ? null : current)),
+    });
   };
   const mutationError =
     errorMessage(createPreset.error) ??
-    errorMessage(updatePreset.error) ??
+    errorMessage(setPresetEnablement.error) ??
     errorMessage(deletePreset.error);
   return {
-    canMutateHooks: query.data?.transport_parity?.settings_http !== false,
+    canMutateHooks: capabilityQuery.data?.transport_parity?.settings_http !== false,
     createNotificationPreset,
     deleteNotificationPreset,
     envelope: query.data ?? null,
-    error: query.error,
-    handleRetry: () => void Promise.all([query.refetch(), presetsQuery.refetch()]),
+    error: query.error ?? capabilityQuery.error ?? presetsQuery.error,
+    handleRetry: () =>
+      void Promise.all([query.refetch(), capabilityQuery.refetch(), presetsQuery.refetch()]),
     hookError: errorMessage(hookMutation.error),
     hooks,
     hooksCounts: {
       enabled: hooks.filter(entry => entry.declaration.enabled !== false).length,
       total: hooks.length,
     },
-    isLoading: query.isLoading,
+    isLoading: query.isLoading || capabilityQuery.isLoading || presetsQuery.isLoading,
     notificationPresetActionError: mutationError,
     notificationPresets: presetsQuery.data?.presets ?? [],
     notificationPresetsError: errorMessage(presetsQuery.error),
     notificationPresetsLoading: presetsQuery.isLoading,
-    pendingHookName,
-    pendingNotificationPresetName: pendingPresetName,
+    pendingHookName: pendingHook && isPendingInCurrentScope(pendingHook) ? pendingHook.name : null,
+    pendingNotificationPresetName:
+      pendingPreset && isPendingInCurrentScope(pendingPreset) ? pendingPreset.name : null,
+    notificationPresetProfile: destinationOwner,
     restart: page.restart,
     toggleHookEnabled,
     toggleNotificationPreset,

@@ -23,6 +23,7 @@ func LocalDayStart(value time.Time, daysBack int) time.Time {
 // TokenUsageDailyUpdate merges one turn of token usage into the daily rollup.
 type TokenUsageDailyUpdate struct {
 	Day          string
+	ProfileID    string
 	WorkspaceID  string
 	AgentName    string
 	InputTokens  *int64
@@ -39,6 +40,9 @@ type TokenUsageDailyUpdate struct {
 // Validate ensures the rollup update carries a canonical day bucket, non-negative
 // token deltas, and a valid cost shape.
 func (u TokenUsageDailyUpdate) Validate() error {
+	if err := requireField(u.ProfileID, "token usage profile_id"); err != nil {
+		return err
+	}
 	if _, err := time.Parse(time.DateOnly, strings.TrimSpace(u.Day)); err != nil {
 		return fmt.Errorf("store: token usage day must be a YYYY-MM-DD bucket: %w", err)
 	}
@@ -50,32 +54,53 @@ func (u TokenUsageDailyUpdate) Validate() error {
 	return validateTokenCostShape(u.CostStatus, u.CostSource, u.CostAmount, u.CostCurrency)
 }
 
-// OverviewSinceQuery bounds one overview aggregate by timestamp and optional workspace.
+// OverviewSinceQuery bounds one overview aggregate by timestamp, optional
+// workspace, and an explicit profile or AllProfiles lens.
 type OverviewSinceQuery struct {
+	ReadScope   ReadScope
 	WorkspaceID string
 	Since       time.Time
 }
 
-// Validate ensures the aggregate window carries an explicit lower bound.
+// Validate rejects an implicit profile lens before checking the lower bound.
 func (q OverviewSinceQuery) Validate() error {
+	if err := q.ReadScope.Validate(); err != nil {
+		return err
+	}
 	if q.Since.IsZero() {
 		return errors.New("store: overview since bound is required")
 	}
 	return nil
 }
 
-// OverviewDayQuery bounds one daily-rollup aggregate by day bucket and optional workspace.
+// OverviewDayQuery bounds one daily-rollup aggregate by day bucket, optional
+// workspace, and an explicit profile or AllProfiles lens.
 type OverviewDayQuery struct {
+	ReadScope   ReadScope
 	WorkspaceID string
 	SinceDay    string
 }
 
-// Validate ensures the rollup window starts on a canonical day bucket.
+// Validate rejects an implicit profile lens before checking the day bucket.
 func (q OverviewDayQuery) Validate() error {
+	if err := q.ReadScope.Validate(); err != nil {
+		return err
+	}
 	if _, err := time.Parse(time.DateOnly, strings.TrimSpace(q.SinceDay)); err != nil {
 		return fmt.Errorf("store: overview since day must be a YYYY-MM-DD bucket: %w", err)
 	}
 	return nil
+}
+
+// OverviewWorkspaceQuery scopes one workspace-optional overview projection by profile.
+type OverviewWorkspaceQuery struct {
+	ReadScope   ReadScope
+	WorkspaceID string
+}
+
+// Validate rejects an implicit profile lens before the projection runs.
+func (q OverviewWorkspaceQuery) Validate() error {
+	return q.ReadScope.Validate()
 }
 
 // TokenUsageDay is one daemon-local day of summed token usage.
@@ -89,6 +114,17 @@ type TokenUsageDay struct {
 // TokenUsageAgentTotal is one agent's summed token usage inside a rollup window.
 type TokenUsageAgentTotal struct {
 	AgentName   string
+	TotalTokens int64
+}
+
+// TokenUsageProfileTotal is one owner-labeled profile bucket inside a usage window.
+type TokenUsageProfileTotal struct {
+	ProfileID   string
+	ProfileName string
+	Color       string
+	Icon        string
+	Emoji       string
+	Archived    bool
 	TotalTokens int64
 }
 

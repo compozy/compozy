@@ -3,6 +3,7 @@ import { AlertCircle } from "lucide-react";
 
 import { Button, Empty, useTopbarSlot } from "@compozy/ui";
 
+import { useMarketplaceDetailScope } from "./hooks/use-marketplace-detail-scope";
 import type { MarketplaceDetailSearch } from "./marketplace-detail-search";
 import {
   MarketplaceApiError,
@@ -17,7 +18,6 @@ import {
   useMarketplaceActionController,
   useMarketplaceEntry,
 } from "@/systems/marketplace";
-import { useActiveWorkspace } from "@/systems/workspace";
 
 export function MarketplaceDetailLocation({
   kind,
@@ -52,16 +52,17 @@ function MarketplaceDetailRouteBody({
   liveDataEnabled: boolean;
 }) {
   const navigate = useNavigate();
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = search.scope === "global" ? null : (search.workspace_id ?? activeWorkspaceId);
-  const managementScope = search.scope ?? (workspaceId ? "workspace" : "global");
+  const { managementScope, profileName, workspaceId } = useMarketplaceDetailScope(search);
   const query = useMarketplaceEntry({
     entryId,
     installedName: search.installed_name,
     kind,
     workspaceId,
   });
-  const actions = useMarketplaceActionController(workspaceId);
+  const actions = useMarketplaceActionController(workspaceId, {
+    mcpScope: managementScope,
+    profileName,
+  });
   const entry = query.data?.entry;
   const entryName = entry?.name ?? entryId;
   const catalogPath = `/marketplace/${marketplaceRouteKindFor(kind)}` as const;
@@ -83,6 +84,7 @@ function MarketplaceDetailRouteBody({
           onAction={actions.handleAction}
           pending={actions.isEntryPending(entry)}
           scope={managementScope}
+          profileName={profileName ?? undefined}
           workspaceId={workspaceId ?? undefined}
         />
       ) : (
@@ -122,6 +124,7 @@ function MarketplaceDetailRouteBody({
         liveDataEnabled={liveDataEnabled}
         managementScope={managementScope}
         managementWorkspaceId={workspaceId ?? undefined}
+        managementProfileName={profileName ?? undefined}
       />
       {actions.dialogs}
     </>

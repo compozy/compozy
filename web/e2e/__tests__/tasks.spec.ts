@@ -14,6 +14,7 @@ import {
 import {
   appWindow,
   openAppWindow,
+  setGlobalScope,
   sessionWindow,
   switchWorkspace,
 } from "../fixtures/os-navigation";
@@ -93,6 +94,8 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
   });
 
   await completeOnboardingIfPrompted(appPage);
+  await switchWorkspace(appPage, seeded.workspace.id, seeded.workspace.name);
+  await setGlobalScope(appPage, true);
 
   await expect(sessionUI.osDesktop).toBeVisible();
   const tasksWin = await openAppWindow(appPage, "Tasks", "tasks");

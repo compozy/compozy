@@ -33,8 +33,19 @@ type SessionFixtureInput = Omit<SessionPayload, "pending_interactions"> & {
   pending_interactions?: SessionPayload["pending_interactions"];
 };
 
+const DEFAULT_PROFILE_LABEL = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
+} satisfies Pick<SessionPayload, "profile_id" | "profile_name">;
+
+const MARKETING_PROFILE_LABEL = {
+  profile_id: "01J9MARKETING00000000000000",
+  profile_name: "marketing",
+} satisfies Pick<SessionPayload, "profile_id" | "profile_name">;
+
 const sessionFixtureRows: SessionFixtureInput[] = [
   {
+    ...DEFAULT_PROFILE_LABEL,
     id: storySessionIds.frontend,
     name: "Landing page launch QA",
     agent_name: storyAgentNames.frontend,
@@ -79,6 +90,7 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     updated_at: "2026-04-17T18:09:00Z",
   },
   {
+    ...DEFAULT_PROFILE_LABEL,
     id: storySessionIds.cto,
     name: "Executive launch review",
     agent_name: storyAgentNames.cto,
@@ -111,6 +123,7 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     updated_at: "2026-04-17T18:11:00Z",
   },
   {
+    ...DEFAULT_PROFILE_LABEL,
     id: storySessionIds.cfo,
     name: "Launch revenue watch",
     agent_name: storyAgentNames.cfo,
@@ -143,6 +156,7 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     updated_at: "2026-04-17T18:13:00Z",
   },
   {
+    ...DEFAULT_PROFILE_LABEL,
     id: storySessionIds.product,
     name: "Launch room command brief",
     agent_name: storyAgentNames.product,
@@ -163,6 +177,7 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     updated_at: "2026-04-17T18:14:00Z",
   },
   {
+    ...MARKETING_PROFILE_LABEL,
     id: storySessionIds.marketing,
     name: "CRM launch timing",
     agent_name: storyAgentNames.marketing,
@@ -182,6 +197,7 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     updated_at: "2026-04-17T17:58:00Z",
   },
   {
+    ...DEFAULT_PROFILE_LABEL,
     id: storySessionIds.copywriter,
     name: "Headline claim polish",
     agent_name: storyAgentNames.copywriter,
@@ -201,6 +217,7 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     updated_at: "2026-04-17T18:06:00Z",
   },
   {
+    ...DEFAULT_PROFILE_LABEL,
     id: storySessionIds.support,
     name: "Launch support swarm",
     agent_name: storyAgentNames.support,
@@ -220,6 +237,7 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     updated_at: "2026-04-17T18:08:00Z",
   },
   {
+    ...DEFAULT_PROFILE_LABEL,
     id: storySessionIds.fraud,
     name: "Reserve spike monitor",
     agent_name: storyAgentNames.fraud,
@@ -239,6 +257,7 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     updated_at: "2026-04-17T18:07:00Z",
   },
   {
+    ...DEFAULT_PROFILE_LABEL,
     id: storySessionIds.compliance,
     name: "Claim compliance review",
     agent_name: storyAgentNames.compliance,
@@ -258,6 +277,7 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     updated_at: "2026-04-17T18:04:00Z",
   },
   {
+    ...DEFAULT_PROFILE_LABEL,
     id: storySessionIds.release,
     name: "Release control canary",
     agent_name: storyAgentNames.release,
@@ -277,6 +297,7 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     updated_at: "2026-04-17T18:03:00Z",
   },
   {
+    ...DEFAULT_PROFILE_LABEL,
     id: storySessionIds.platform,
     name: "Partner webhook stability",
     agent_name: storyAgentNames.platform,
@@ -305,12 +326,14 @@ export const sessionFixtures: SessionPayload[] = sessionFixtureRows.map(session 
 export const primarySessionFixture: SessionPayload = sessionFixtures[0]!;
 
 export const sessionCatalogChangedFixture: SessionCatalogEventPayload = {
+  ...DEFAULT_PROFILE_LABEL,
   kind: "upserted",
   session_id: storySessionIds.cto,
   workspace_id: storyWorkspaceIds.hq,
 };
 
 export const sessionAttentionChangedFixture: SessionAttentionEventPayload = {
+  ...DEFAULT_PROFILE_LABEL,
   session_id: storySessionIds.cto,
   workspace_id: storyWorkspaceIds.hq,
   from: "running",
@@ -320,6 +343,7 @@ export const sessionAttentionChangedFixture: SessionAttentionEventPayload = {
 };
 
 export const operatorNotificationFixture: OperatorNotificationEventPayload = {
+  ...DEFAULT_PROFILE_LABEL,
   notification_id: "ntf_story_launch_ready",
   session_id: storySessionIds.cto,
   workspace_id: storyWorkspaceIds.hq,

@@ -4,6 +4,7 @@ import {
   defaultApiErrorMessage,
   requireResponseData,
 } from "@/lib/api-client";
+import type { ProfileMutationScopeParams, ProfileScopeParams } from "@/systems/profiles";
 
 import { BridgesApiError } from "./bridges-api";
 import type {
@@ -16,10 +17,11 @@ import type {
 
 export async function getSlackBridgeManifest(
   instanceID: string,
+  scope: ProfileScopeParams,
   signal?: AbortSignal
 ): Promise<SlackBridgeManifestResponse> {
   const { data, error, response } = await apiClient.GET("/api/bridges/providers/slack/manifest", {
-    params: { query: { instance: instanceID } },
+    params: { query: { instance: instanceID, ...scope } },
     signal,
   });
 
@@ -43,10 +45,11 @@ export async function getSlackBridgeManifest(
 
 export async function verifyBridge(
   id: string,
+  scope: ProfileScopeParams,
   signal?: AbortSignal
 ): Promise<BridgeVerifyResponse> {
   const { data, error, response } = await apiClient.POST("/api/bridges/{id}/verify", {
-    params: { path: { id } },
+    params: { path: { id }, query: { ...scope } },
     signal,
   });
 
@@ -63,11 +66,12 @@ export async function verifyBridge(
 export async function sendBridgeTest(
   id: string,
   body: SendBridgeTestRequest,
+  scope: ProfileMutationScopeParams,
   signal?: AbortSignal
 ): Promise<SendBridgeTestResponse> {
   const { data, error, response } = await apiClient.POST("/api/bridges/{id}/send-test", {
     body,
-    params: { path: { id } },
+    params: { path: { id }, query: { ...scope } },
     signal,
   });
 
@@ -83,10 +87,11 @@ export async function sendBridgeTest(
 
 export async function registerBridgeWebhook(
   id: string,
+  scope: ProfileMutationScopeParams,
   signal?: AbortSignal
 ): Promise<BridgeWebhookRegistrationResponse> {
   const { data, error, response } = await apiClient.POST("/api/bridges/{id}/webhook/register", {
-    params: { path: { id } },
+    params: { path: { id }, query: { ...scope } },
     signal,
   });
 

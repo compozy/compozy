@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/internal/hooks"
 	watchpkg "github.com/compozy/compozy/internal/loop/watch"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // WatchEventsLedger reads durable replay streams for watch-events evaluation.
@@ -21,6 +22,7 @@ type WatchEventsCursorReader interface {
 // WatchEventsQuery selects replay rows strictly after each stream cursor.
 type WatchEventsQuery struct {
 	WorkspaceID string
+	ReadScope   store.ReadScope
 	Streams     map[string]int64
 	Kinds       []string
 	Limit       int
@@ -30,6 +32,7 @@ type WatchEventsQuery struct {
 // persisted loop generation output state.
 type ParkedWatchEventSubscription struct {
 	WorkspaceID   string
+	ProfileID     string
 	LoopRunID     string
 	LoopName      string
 	NodeID        string

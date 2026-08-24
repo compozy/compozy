@@ -21,8 +21,10 @@ var (
 type WriteScope string
 
 const (
-	// WriteScopeGlobal targets the global Compozy home config.
-	WriteScopeGlobal WriteScope = "global"
+	// WriteScopeUser targets the user-wide Compozy home config.
+	WriteScopeUser WriteScope = "user"
+	// WriteScopeProfile targets the active profile's personal config.
+	WriteScopeProfile WriteScope = "profile"
 	// WriteScopeWorkspace targets a workspace-local Compozy overlay.
 	WriteScopeWorkspace WriteScope = "workspace"
 )
@@ -30,7 +32,7 @@ const (
 // Validate ensures the write scope is supported.
 func (s WriteScope) Validate() error {
 	switch s {
-	case WriteScopeGlobal, WriteScopeWorkspace:
+	case WriteScopeUser, WriteScopeProfile, WriteScopeWorkspace:
 		return nil
 	default:
 		return fmt.Errorf("config: invalid write scope %q", s)
@@ -44,10 +46,14 @@ type WriteTargetKind string
 const (
 	// WriteTargetGlobalConfig writes `~/.compozy/config.toml`.
 	WriteTargetGlobalConfig WriteTargetKind = "global-config"
+	// WriteTargetProfileConfig writes `~/.compozy/profiles/<name>/config.toml`.
+	WriteTargetProfileConfig WriteTargetKind = "profile-config"
 	// WriteTargetWorkspaceConfig writes `<workspace>/.compozy/config.toml`.
 	WriteTargetWorkspaceConfig WriteTargetKind = "workspace-config"
 	// WriteTargetGlobalMCPSidecar writes `~/.compozy/mcp.json`.
 	WriteTargetGlobalMCPSidecar WriteTargetKind = "global-mcp-sidecar"
+	// WriteTargetProfileMCPSidecar writes `~/.compozy/profiles/<name>/mcp.json`.
+	WriteTargetProfileMCPSidecar WriteTargetKind = "profile-mcp-sidecar"
 	// WriteTargetWorkspaceMCPSidecar writes `<workspace>/.compozy/mcp.json`.
 	WriteTargetWorkspaceMCPSidecar WriteTargetKind = "workspace-mcp-sidecar"
 )
@@ -59,6 +65,7 @@ type WriteTarget struct {
 	scope         WriteScope
 	path          string
 	workspaceRoot string
+	profileName   string
 }
 
 // Kind returns the semantic destination identifier for the write target.
@@ -77,23 +84,35 @@ func (t WriteTarget) Path() string {
 }
 
 func (t WriteTarget) isConfigTarget() bool {
-	return t.kind == WriteTargetGlobalConfig || t.kind == WriteTargetWorkspaceConfig
+	return t.kind == WriteTargetGlobalConfig || t.kind == WriteTargetProfileConfig ||
+		t.kind == WriteTargetWorkspaceConfig
 }
 
 func (t WriteTarget) isMCPSidecarTarget() bool {
-	return t.kind == WriteTargetGlobalMCPSidecar || t.kind == WriteTargetWorkspaceMCPSidecar
+	return t.kind == WriteTargetGlobalMCPSidecar || t.kind == WriteTargetProfileMCPSidecar ||
+		t.kind == WriteTargetWorkspaceMCPSidecar
 }
 
 // ResolveConfigWriteTarget resolves the canonical config overlay destination for
 // the requested scope.
-func ResolveConfigWriteTarget(homePaths HomePaths, workspaceRoot string, scope WriteScope) (WriteTarget, error) {
-	return resolveWriteTarget(homePaths, workspaceRoot, scope, false)
+func ResolveConfigWriteTarget(
+	homePaths HomePaths,
+	workspaceRoot string,
+	scope WriteScope,
+	profileName string,
+) (WriteTarget, error) {
+	return resolveWriteTarget(homePaths, workspaceRoot, scope, false, profileName)
 }
 
 // ResolveMCPSidecarWriteTarget resolves the canonical MCP sidecar destination
 // for the requested scope.
-func ResolveMCPSidecarWriteTarget(homePaths HomePaths, workspaceRoot string, scope WriteScope) (WriteTarget, error) {
-	return resolveWriteTarget(homePaths, workspaceRoot, scope, true)
+func ResolveMCPSidecarWriteTarget(
+	homePaths HomePaths,
+	workspaceRoot string,
+	scope WriteScope,
+	profileName string,
+) (WriteTarget, error) {
+	return resolveWriteTarget(homePaths, workspaceRoot, scope, true, profileName)
 }
 
 func resolveWriteTarget(
@@ -101,24 +120,43 @@ func resolveWriteTarget(
 	workspaceRoot string,
 	scope WriteScope,
 	sidecar bool,
+	profileName string,
 ) (WriteTarget, error) {
 	if err := scope.Validate(); err != nil {
 		return WriteTarget{}, err
 	}
 
 	switch scope {
-	case WriteScopeGlobal:
+	case WriteScopeUser:
+		profileName = strings.TrimSpace(profileName)
 		if sidecar {
 			return WriteTarget{
-				kind:  WriteTargetGlobalMCPSidecar,
-				scope: scope,
-				path:  globalMCPJSONFile(homePaths),
+				kind:        WriteTargetGlobalMCPSidecar,
+				scope:       scope,
+				path:        globalMCPJSONFile(homePaths),
+				profileName: profileName,
 			}, nil
 		}
 		return WriteTarget{
-			kind:  WriteTargetGlobalConfig,
-			scope: scope,
-			path:  homePaths.ConfigFile,
+			kind:        WriteTargetGlobalConfig,
+			scope:       scope,
+			path:        homePaths.ConfigFile,
+			profileName: profileName,
+		}, nil
+	case WriteScopeProfile:
+		profileName = strings.TrimSpace(profileName)
+		if err := ValidateResourceProfileName(profileName); err != nil {
+			return WriteTarget{}, fmt.Errorf("config: profile write target: %w", err)
+		}
+		if sidecar {
+			return WriteTarget{
+				kind: WriteTargetProfileMCPSidecar, scope: scope,
+				path: profileMCPJSONFile(homePaths, profileName), profileName: profileName,
+			}, nil
+		}
+		return WriteTarget{
+			kind: WriteTargetProfileConfig, scope: scope,
+			path: profileConfigFile(homePaths, profileName), profileName: profileName,
 		}, nil
 	case WriteScopeWorkspace:
 		resolvedRoot, err := resolveWorkspaceRoot(workspaceRoot)
@@ -134,6 +172,7 @@ func resolveWriteTarget(
 				scope:         scope,
 				path:          workspaceMCPJSONFile(resolvedRoot),
 				workspaceRoot: resolvedRoot,
+				profileName:   strings.TrimSpace(profileName),
 			}, nil
 		}
 		return WriteTarget{
@@ -141,6 +180,7 @@ func resolveWriteTarget(
 			scope:         scope,
 			path:          workspaceConfigFile(resolvedRoot),
 			workspaceRoot: resolvedRoot,
+			profileName:   strings.TrimSpace(profileName),
 		}, nil
 	default:
 		return WriteTarget{}, fmt.Errorf("config: invalid write scope %q", scope)

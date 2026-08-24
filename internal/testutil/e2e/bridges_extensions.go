@@ -58,40 +58,26 @@ func (h *RuntimeHarness) InstallExtension(
 	return response.Extension, nil
 }
 
-// EnableExtension enables one installed extension.
-func (h *RuntimeHarness) EnableExtension(
+// SetExtensionEnablement changes one installed extension in a named profile.
+func (h *RuntimeHarness) SetExtensionEnablement(
 	ctx context.Context,
 	name string,
-) (compozycontract.ExtensionPayload, error) {
-	var response compozycontract.ExtensionResponse
+	profile string,
+	enabled bool,
+) (compozycontract.ExtensionEnablementPayload, error) {
+	var response compozycontract.ExtensionEnablementPayload
 	if err := h.UDSJSON(
 		ctx,
-		http.MethodPost,
-		"/api/extensions/"+url.PathEscape(strings.TrimSpace(name))+"/enable",
-		nil,
+		http.MethodPut,
+		"/api/extensions/"+url.PathEscape(strings.TrimSpace(name))+"/enablement",
+		compozycontract.SetExtensionEnablementRequest{
+			Profile: strings.TrimSpace(profile), Enabled: enabled,
+		},
 		&response,
 	); err != nil {
-		return compozycontract.ExtensionPayload{}, err
+		return compozycontract.ExtensionEnablementPayload{}, err
 	}
-	return response.Extension, nil
-}
-
-// DisableExtension disables one installed extension.
-func (h *RuntimeHarness) DisableExtension(
-	ctx context.Context,
-	name string,
-) (compozycontract.ExtensionPayload, error) {
-	var response compozycontract.ExtensionResponse
-	if err := h.UDSJSON(
-		ctx,
-		http.MethodPost,
-		"/api/extensions/"+url.PathEscape(strings.TrimSpace(name))+"/disable",
-		nil,
-		&response,
-	); err != nil {
-		return compozycontract.ExtensionPayload{}, err
-	}
-	return response.Extension, nil
+	return response, nil
 }
 
 // CreateBridge persists one bridge instance through the daemon operator surface.

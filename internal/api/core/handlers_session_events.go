@@ -30,14 +30,27 @@ func (h *BaseHandlers) ClearSessionConversation(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.SessionResponse{Session: SessionPayloadFromInfo(sess.Info())})
+	payload, err := h.sessionPayloadWithOptionalHealth(c.Request.Context(), sess.Info(), false)
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.SessionResponse{Session: payload})
 }
 
 // RewindSessionConversation cuts the active transcript before one durable user
 // message and restarts the same session with a fresh ACP context.
 func (h *BaseHandlers) RewindSessionConversation(c *gin.Context) {
-	_, sessionID, _, ok := h.routeSessionInWorkspace(c)
+	_, sessionID, info, ok := h.routeSessionInWorkspace(c)
 	if !ok {
+		return
+	}
+	scope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	if !h.requireSessionInProfile(c, info, scope) {
 		return
 	}
 	var req contract.SessionConversationRewindRequest
@@ -62,8 +75,13 @@ func (h *BaseHandlers) RewindSessionConversation(c *gin.Context) {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
+	payload, err := h.sessionPayloadWithOptionalHealth(c.Request.Context(), result.Session.Info(), false)
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
 	c.JSON(http.StatusOK, contract.SessionConversationRewindResponse{
-		Session: SessionPayloadFromInfo(result.Session.Info()),
+		Session: payload,
 		Rewind: contract.SessionConversationRewindPayload{
 			TranscriptEpoch: result.TranscriptEpoch, TargetMessageID: result.TargetMessageID,
 			ArchivedFrom: result.ArchivedFrom, ArchivedThrough: result.ArchivedThrough,

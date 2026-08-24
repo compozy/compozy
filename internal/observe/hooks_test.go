@@ -361,6 +361,7 @@ func registerObserverHookSessionOwner(
 
 	now := time.Date(2026, 4, 9, 18, 55, 0, 0, time.UTC)
 	if err := registry.RegisterSession(testutil.Context(t), store.SessionInfo{
+		ProfileID:     store.DefaultProfileID,
 		ID:            sessionID,
 		AgentName:     "coder",
 		Provider:      "codex",

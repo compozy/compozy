@@ -64,6 +64,8 @@ func configSetBundle(record configSetRecord) outputBundle {
 		{Label: cliActiveGenerationValue, Value: strconv.FormatInt(record.ActiveGeneration, 10)},
 		{Label: "Restart Required", Value: strconv.FormatBool(record.RestartRequired)},
 		{Label: "Restart Scope", Value: stringOrDash(record.RestartScope)},
+		{Label: configStatusValue, Value: stringOrDash(record.Status)},
+		{Label: "Winning Layer", Value: stringOrDash(record.WinningLayer)},
 	}
 	return outputBundle{
 		jsonValue: record,
@@ -84,6 +86,8 @@ func configSetBundle(record configSetRecord) outputBundle {
 				cliActiveGenerationKey,
 				"restart_required",
 				"restart_scope",
+				configStatusKey,
+				"winning_layer",
 			}, []string{
 				record.Path,
 				formatConfigValue(record.Value),
@@ -97,6 +101,8 @@ func configSetBundle(record configSetRecord) outputBundle {
 				strconv.FormatInt(record.ActiveGeneration, 10),
 				strconv.FormatBool(record.RestartRequired),
 				record.RestartScope,
+				record.Status,
+				record.WinningLayer,
 			}), nil
 		},
 	}

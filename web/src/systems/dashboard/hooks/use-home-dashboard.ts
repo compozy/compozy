@@ -19,9 +19,12 @@ import { useHomeSystem, type HomeSystemModel } from "./use-home-system";
 import { useHomeWorkingNow } from "./use-home-working-now";
 import { useDaemonHealth } from "@/systems/status";
 import { useActiveWorkspace } from "@/systems/workspace";
+import { useProfileReadScope } from "@/systems/profiles";
 
 export interface HomeDashboardModel {
   scope: HomeScope;
+  /** The per-profile usage breakdown belongs to the aggregate read alone (S10). */
+  profileAggregate: boolean;
   connectionStatus: ConnectionStatus;
   usageWindow: HomeUsageWindow;
   setUsageWindow: (window: HomeUsageWindow) => void;
@@ -67,6 +70,7 @@ export function useHomeDashboard({
   const usageWindow = useHomeUsageWindow();
   const systemOpen = useHomeSystemOpen();
 
+  const { aggregate, params: profileScope } = useProfileReadScope();
   const resolvedScope = homeScopeForActiveWorkspace(workspaceScope, activeWorkspaceId);
   const scopeSettled = resolvedScope !== null;
   const scope = resolvedScope ?? UNSETTLED_HOME_SCOPE;
@@ -76,15 +80,29 @@ export function useHomeDashboard({
       {
         workspace: scope.workspaceParam || undefined,
         usageWindow,
+        // Usage follows the active view: a scoped profile sees only its own
+        // figures, and the aggregate sees every owner labelled (US-013).
+        ...("all_profiles" in profileScope
+          ? { allProfiles: true }
+          : { profile: profileScope.profile }),
       },
       scopeSettled
     )
   );
   const activityQuery = useQuery(
-    homeActivityOptions({ workspace_id: scope.workspaceParam || undefined }, scopeSettled)
+    homeActivityOptions(
+      // Activity is owned work, not machine state: the feed shows one profile's
+      // events or the labeled aggregate, never an unscoped mix.
+      { workspace_id: scope.workspaceParam || undefined, ...profileScope },
+      scopeSettled
+    )
   );
 
-  useHomeLive({ workspaceId: scope.workspaceParam, enabled: scopeSettled && liveEnabled });
+  useHomeLive({
+    workspaceId: scope.workspaceParam,
+    scope: profileScope,
+    enabled: scopeSettled && liveEnabled,
+  });
 
   const workingNow = useHomeWorkingNow(scope, scopeSettled && liveEnabled);
   const overview = overviewQuery.data;
@@ -98,6 +116,7 @@ export function useHomeDashboard({
 
   return {
     scope,
+    profileAggregate: aggregate,
     connectionStatus,
     usageWindow,
     setUsageWindow: usageWindow => homePrefsStore.trigger.usageWindowSelected({ usageWindow }),

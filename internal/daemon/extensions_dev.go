@@ -37,61 +37,69 @@ func (s *daemonExtensionService) Dev(
 	}
 	key := extensionpkg.InstanceKey{Name: generation.Name, WorkspaceID: workspaceID}
 	var item contract.ExtensionPayload
+	profile, err := s.extensionReadProfile(ctx, actor)
+	if err != nil {
+		return contract.ExtensionPayload{}, err
+	}
 	err = s.lifecycle.withInstance(ctx, key, func() error {
-		snapshot, snapshotErr := s.snapshotDevLink(key)
-		if snapshotErr != nil {
-			return snapshotErr
-		}
-		staged, linkErr := runtime.StageDevelopmentLink(
-			ctx,
-			key,
-			generation.OriginPath,
-			generation.GenerationHash,
-		)
-		if linkErr != nil {
-			return linkErr
-		}
-		var confirmation *extensionpkg.NetworkConfirmation
-		if devCandidateConfirmationRequired(staged, generation.NetworkRequirementDigest) {
-			confirmation, linkErr = s.confirmDevCandidateNetwork(
-				key,
-				generation.NetworkRequirementDigest,
-				req.ConfirmNetworkDigest,
-				actor,
-			)
-			if linkErr != nil {
-				return errors.Join(linkErr, s.restoreStagedDevLink(key, snapshot))
-			}
-		}
-		ext, linkErr := runtime.ActivateDevelopmentLink(ctx, key)
-		if linkErr != nil {
-			return s.rollbackDevLifecycle(ctx, runtime, key, snapshot, linkErr)
-		}
-		if syncErr := s.syncExtensionConsumers(ctx); syncErr != nil {
-			return s.rollbackDevLifecycle(ctx, runtime, key, snapshot, syncErr)
-		}
-		item, linkErr = s.payloadFromExtension(ctx, ext)
-		if linkErr != nil {
-			return s.rollbackDevLifecycle(ctx, runtime, key, snapshot, linkErr)
-		}
-		events := make([]extensionpkg.LifecycleEvent, 0, 2)
-		if confirmation != nil {
-			events = append(events, extensionpkg.LifecycleEvent{
-				Type: eventspkg.ExtensionNetworkConfirmed, ExtensionName: key.Name,
-				WorkspaceID: key.WorkspaceID, Digest: confirmation.Digest, ConfirmedBy: confirmation.ConfirmedBy,
-			})
-		}
-		events = append(events, extensionpkg.LifecycleEvent{
-			Type: eventspkg.ExtensionDevLinked, ExtensionName: item.Name,
-			WorkspaceID: item.WorkspaceID, ExtensionGeneration: item.GenerationHash,
-		})
-		linkErr = s.recordCanonicalExtensionLifecycleEvents(ctx, actor, events...)
-		if linkErr != nil {
-			return s.rollbackDevLifecycle(ctx, runtime, key, snapshot, linkErr)
-		}
-		return nil
+		return s.linkDevelopmentExtension(ctx, runtime, key, generation, req, actor, profile, &item)
 	})
 	return item, err
+}
+
+func (s *daemonExtensionService) linkDevelopmentExtension(
+	ctx context.Context,
+	runtime extensionDevRuntime,
+	key extensionpkg.InstanceKey,
+	generation extensionpkg.DevelopmentGeneration,
+	req contract.DevLinkExtensionRequest,
+	actor taskpkg.ActorContext,
+	profile extensionpkg.ProfileLens,
+	item *contract.ExtensionPayload,
+) error {
+	snapshot, err := s.snapshotDevLink(key)
+	if err != nil {
+		return err
+	}
+	staged, err := runtime.StageDevelopmentLink(ctx, key, generation.OriginPath, generation.GenerationHash)
+	if err != nil {
+		return err
+	}
+	var confirmation *extensionpkg.NetworkConfirmation
+	if devCandidateConfirmationRequired(staged, generation.NetworkRequirementDigest) {
+		confirmation, err = s.confirmDevCandidateNetwork(
+			key, generation.NetworkRequirementDigest, req.ConfirmNetworkDigest, actor,
+		)
+		if err != nil {
+			return errors.Join(err, s.restoreStagedDevLink(key, snapshot))
+		}
+	}
+	extension, err := runtime.ActivateDevelopmentLink(ctx, key)
+	if err != nil {
+		return s.rollbackDevLifecycle(ctx, runtime, key, snapshot, err)
+	}
+	if err := s.syncExtensionConsumers(ctx); err != nil {
+		return s.rollbackDevLifecycle(ctx, runtime, key, snapshot, err)
+	}
+	*item, err = s.payloadFromExtension(ctx, extension, profile)
+	if err != nil {
+		return s.rollbackDevLifecycle(ctx, runtime, key, snapshot, err)
+	}
+	events := make([]extensionpkg.LifecycleEvent, 0, 2)
+	if confirmation != nil {
+		events = append(events, extensionpkg.LifecycleEvent{
+			Type: eventspkg.ExtensionNetworkConfirmed, ExtensionName: key.Name,
+			WorkspaceID: key.WorkspaceID, Digest: confirmation.Digest, ConfirmedBy: confirmation.ConfirmedBy,
+		})
+	}
+	events = append(events, extensionpkg.LifecycleEvent{
+		Type: eventspkg.ExtensionDevLinked, ExtensionName: item.Name,
+		WorkspaceID: item.WorkspaceID, ExtensionGeneration: item.GenerationHash,
+	})
+	if err := s.recordCanonicalExtensionLifecycleEvents(ctx, actor, events...); err != nil {
+		return s.rollbackDevLifecycle(ctx, runtime, key, snapshot, err)
+	}
+	return nil
 }
 
 func (s *daemonExtensionService) ReloadDev(
@@ -205,7 +213,11 @@ func (s *daemonExtensionService) applyDevReload(
 	if err := s.syncExtensionConsumers(ctx); err != nil {
 		return contract.ExtensionPayload{}, s.rollbackDevLifecycle(ctx, runtime, key, snapshot, err)
 	}
-	item, err := s.payloadFromExtension(ctx, ext)
+	profile, err := s.extensionReadProfile(ctx, actor)
+	if err != nil {
+		return contract.ExtensionPayload{}, s.rollbackDevLifecycle(ctx, runtime, key, snapshot, err)
+	}
+	item, err := s.payloadFromExtension(ctx, ext, profile)
 	if err != nil {
 		return contract.ExtensionPayload{}, s.rollbackDevLifecycle(ctx, runtime, key, snapshot, err)
 	}
@@ -260,6 +272,10 @@ func (s *daemonExtensionService) ExtensionLogs(
 	if err != nil {
 		return contract.ExtensionLogsResponse{}, err
 	}
+	profile, err := s.extensionReadProfile(ctx, actor)
+	if err != nil {
+		return contract.ExtensionLogsResponse{}, err
+	}
 	if !actor.Scope.Operator && workspaceID == "" {
 		return contract.ExtensionLogsResponse{}, extensionpkg.ErrExtensionWorkspaceDenied
 	}
@@ -268,7 +284,7 @@ func (s *daemonExtensionService) ExtensionLogs(
 		return contract.ExtensionLogsResponse{}, err
 	}
 	snapshot, err := runtime.Logs(
-		extensionpkg.InstanceKey{Name: name, WorkspaceID: workspaceID},
+		extensionpkg.ProfileInstanceKey(name, profile.ID, workspaceID),
 		extensionpkg.ExtensionLogCursor{Sequence: after, StreamEpoch: strings.TrimSpace(streamEpoch)},
 	)
 	if err != nil {
@@ -308,17 +324,22 @@ func (s *daemonExtensionService) ListScoped(
 	if err != nil {
 		return nil, err
 	}
+	profile, err := s.extensionReadProfile(ctx, actor)
+	if err != nil {
+		return nil, err
+	}
 	infos := runtime.ListForWorkspace(workspaceID)
 	items := make([]contract.ExtensionPayload, 0, len(infos))
 	for _, info := range infos {
-		ext, getErr := runtime.GetForInstance(extensionpkg.InstanceKey{
+		key := extensionpkg.InstanceKey{
 			Name:        info.Name,
 			WorkspaceID: workspaceID,
-		})
+		}
+		ext, getErr := s.projectExtensionReadProfile(ctx, runtime, key, profile)
 		if getErr != nil {
 			return nil, getErr
 		}
-		item, payloadErr := s.payloadFromExtension(ctx, ext)
+		item, payloadErr := s.payloadFromExtension(ctx, ext, profile)
 		if payloadErr != nil {
 			return nil, payloadErr
 		}
@@ -349,14 +370,18 @@ func (s *daemonExtensionService) StatusScoped(
 	if err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	ext, err := runtime.GetForInstance(extensionpkg.InstanceKey{
-		Name:        name,
-		WorkspaceID: workspaceID,
-	})
+	profile, err := s.extensionReadProfile(ctx, actor)
 	if err != nil {
 		return contract.ExtensionPayload{}, err
 	}
-	return s.payloadFromExtension(ctx, ext)
+	ext, err := s.projectExtensionReadProfile(ctx, runtime, extensionpkg.InstanceKey{
+		Name:        name,
+		WorkspaceID: workspaceID,
+	}, profile)
+	if err != nil {
+		return contract.ExtensionPayload{}, err
+	}
+	return s.payloadFromExtension(ctx, ext, profile)
 }
 
 func (s *daemonExtensionService) RemoveScoped(

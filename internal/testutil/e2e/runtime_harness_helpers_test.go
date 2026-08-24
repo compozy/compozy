@@ -141,20 +141,24 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 		t.Fatalf("gotExtension.State = %q, want %q", got, want)
 	}
 
-	enabledExtension, err := harness.EnableExtension(testContext(t), "telegram-reference")
+	enabledExtension, err := harness.SetExtensionEnablement(
+		testContext(t), "telegram-reference", "default", true,
+	)
 	if err != nil {
-		t.Fatalf("EnableExtension() error = %v", err)
+		t.Fatalf("SetExtensionEnablement(enabled) error = %v", err)
 	}
-	if got, want := enabledExtension.Health, "healthy"; got != want {
-		t.Fatalf("enabledExtension.Health = %q, want %q", got, want)
+	if !enabledExtension.Enabled || enabledExtension.Profile != "default" {
+		t.Fatalf("enabledExtension = %#v, want default enabled", enabledExtension)
 	}
 
-	disabledExtension, err := harness.DisableExtension(testContext(t), "telegram-reference")
+	disabledExtension, err := harness.SetExtensionEnablement(
+		testContext(t), "telegram-reference", "default", false,
+	)
 	if err != nil {
-		t.Fatalf("DisableExtension() error = %v", err)
+		t.Fatalf("SetExtensionEnablement(disabled) error = %v", err)
 	}
-	if disabledExtension.Enabled {
-		t.Fatalf("disabledExtension.Enabled = %v, want false", disabledExtension.Enabled)
+	if disabledExtension.Enabled || disabledExtension.Profile != "default" {
+		t.Fatalf("disabledExtension = %#v, want default disabled", disabledExtension)
 	}
 
 	session, err := harness.CreateSession(testContext(t), compozycontract.CreateSessionRequest{
@@ -1552,37 +1556,17 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			},
 		})
 	})
-	mux.HandleFunc("/api/extensions/telegram-reference/enable", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, compozycontract.ExtensionResponse{
-			Extension: compozycontract.ExtensionPayload{
-				Name:          "telegram-reference",
-				Version:       "0.1.0",
-				Type:          "local",
-				Source:        "user",
-				Enabled:       true,
-				State:         "active",
-				Capabilities:  []string{"bridge.adapter"},
-				Permissions:   []string{"bridges/messages/ingest", "bridges/instances/report_state"},
-				Health:        "healthy",
-				DaemonRunning: true,
-			},
-		})
-	})
-	mux.HandleFunc("/api/extensions/telegram-reference/disable", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, compozycontract.ExtensionResponse{
-			Extension: compozycontract.ExtensionPayload{
-				Name:          "telegram-reference",
-				Version:       "0.1.0",
-				Type:          "local",
-				Source:        "user",
-				Enabled:       false,
-				State:         "registered",
-				Capabilities:  []string{"bridge.adapter"},
-				Permissions:   []string{"bridges/messages/ingest", "bridges/instances/report_state"},
-				Health:        "idle",
-				DaemonRunning: true,
-			},
-		})
+	mux.HandleFunc("/api/extensions/telegram-reference/enablement", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		var request compozycontract.SetExtensionEnablementRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			reportHarnessHandlerError(w, handlerErrs, http.StatusBadRequest, "decode enablement: %v", err)
+			return
+		}
+		writeJSON(w, compozycontract.ExtensionEnablementPayload(request))
 	})
 	mux.HandleFunc("/api/bridges", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

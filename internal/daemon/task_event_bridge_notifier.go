@@ -10,6 +10,7 @@ import (
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	"github.com/compozy/compozy/internal/notifications"
 	presetspkg "github.com/compozy/compozy/internal/notifications/presets"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -76,8 +77,11 @@ type bridgeTerminalTaskNotificationObserver struct {
 	notifier *bridgepkg.TerminalTaskNotifier
 	presets  notificationPresetDispatcher
 	tasks    bridgepkg.TerminalTaskEventReader
+	permits  notifications.DeliveryPermitReader
 	logger   *slog.Logger
 	timeout  time.Duration
+	retry    time.Duration
+	now      func() time.Time
 	ctx      context.Context
 	cancel   context.CancelFunc
 	wg       sync.WaitGroup
@@ -94,12 +98,14 @@ type notificationPresetDispatcher interface {
 var _ taskpkg.EventObserver = (*bridgeTerminalTaskNotificationObserver)(nil)
 
 type bridgeTerminalTaskNotificationWake struct {
-	taskID     string
-	pendingKey bridgeTerminalTaskNotificationPendingKey
-	eventID    string
-	runID      string
-	eventType  string
-	record     taskpkg.EventRecord
+	taskID           string
+	pendingKey       bridgeTerminalTaskNotificationPendingKey
+	eventID          string
+	runID            string
+	eventType        string
+	record           taskpkg.EventRecord
+	terminalDispatch bool
+	presetDispatch   bool
 }
 
 type bridgeTerminalTaskNotificationPendingKey struct {
@@ -162,10 +168,15 @@ func newBridgeTerminalTaskNotificationObserver(
 	if timeout <= 0 {
 		timeout = 10 * time.Second
 	}
+	if now == nil {
+		now = time.Now
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	observer := &bridgeTerminalTaskNotificationObserver{
 		logger:  logger,
 		timeout: timeout,
+		retry:   timeout,
+		now:     now,
 		tasks:   taskEvents,
 		ctx:     ctx,
 		cancel:  cancel,
@@ -174,6 +185,9 @@ func newBridgeTerminalTaskNotificationObserver(
 			chan bridgeTerminalTaskNotificationWake,
 			defaultBridgeTerminalNotificationQueueSize,
 		),
+	}
+	if permitReader, ok := cursors.(notifications.DeliveryPermitReader); ok {
+		observer.permits = permitReader
 	}
 	if subscriptions != nil && instances != nil {
 		observer.notifier = bridgepkg.NewTerminalTaskNotifier(bridgepkg.TerminalTaskNotifierConfig{
@@ -206,14 +220,12 @@ func (o *bridgeTerminalTaskNotificationObserver) OnTaskEvent(
 	if o.notifier == nil && o.presets == nil {
 		return
 	}
-	if o.notifier != nil && isBridgeTerminalNotificationWake(record.Event.EventType) {
-		o.enqueue(record)
+	terminalDispatch := o.notifier != nil && isBridgeTerminalNotificationWake(record.Event.EventType)
+	presetDispatch := o.presets != nil
+	if !terminalDispatch && !presetDispatch {
 		return
 	}
-	if o.presets == nil {
-		return
-	}
-	o.enqueue(record)
+	o.enqueueRecord(record, terminalDispatch, presetDispatch)
 }
 
 func (o *bridgeTerminalTaskNotificationObserver) shutdown() {
@@ -231,33 +243,48 @@ func (o *bridgeTerminalTaskNotificationObserver) start() {
 		return
 	}
 	o.wg.Go(func() {
+		retry := o.retry
+		if retry <= 0 {
+			retry = 10 * time.Second
+		}
+		ticker := time.NewTicker(retry)
+		defer ticker.Stop()
+		o.replayDeliveryPermits()
 		for {
 			select {
 			case <-o.ctx.Done():
 				return
 			case wake := <-o.queue:
 				o.processWake(wake)
+			case <-ticker.C:
+				o.replayDeliveryPermits()
 			}
 		}
 	})
 }
 
-func (o *bridgeTerminalTaskNotificationObserver) enqueue(record taskpkg.EventRecord) {
+func (o *bridgeTerminalTaskNotificationObserver) enqueueRecord(
+	record taskpkg.EventRecord,
+	terminalDispatch bool,
+	presetDispatch bool,
+) {
 	if o == nil {
 		return
 	}
 	wake := bridgeTerminalTaskNotificationWake{
-		taskID:    record.Event.TaskID,
-		eventID:   record.Event.ID,
-		runID:     record.Event.RunID,
-		eventType: record.Event.EventType,
-		record:    record,
+		taskID:           record.Event.TaskID,
+		eventID:          record.Event.ID,
+		runID:            record.Event.RunID,
+		eventType:        record.Event.EventType,
+		record:           record,
+		terminalDispatch: terminalDispatch,
+		presetDispatch:   presetDispatch,
 	}
 	if wake.taskID == "" {
 		return
 	}
 	wake.pendingKey = bridgeTerminalTaskNotificationPendingKey{taskID: wake.taskID}
-	if o.presets != nil {
+	if presetDispatch {
 		wake.pendingKey = bridgeTerminalTaskNotificationPendingKey{
 			presetDispatch: true,
 			taskID:         wake.taskID,
@@ -265,6 +292,15 @@ func (o *bridgeTerminalTaskNotificationObserver) enqueue(record taskpkg.EventRec
 			runID:          wake.runID,
 			eventType:      wake.eventType,
 		}
+	}
+	o.enqueueWake(wake)
+}
+
+func (o *bridgeTerminalTaskNotificationObserver) enqueueWake(
+	wake bridgeTerminalTaskNotificationWake,
+) {
+	if o == nil || wake.taskID == "" {
+		return
 	}
 	o.mu.Lock()
 	if _, exists := o.pending[wake.pendingKey]; exists {
@@ -316,10 +352,10 @@ func (o *bridgeTerminalTaskNotificationObserver) processWake(
 	}
 	defer cancel()
 
-	if o.notifier != nil && isBridgeTerminalNotificationWake(wake.eventType) {
+	if wake.terminalDispatch && o.notifier != nil {
 		o.processTerminalWake(notifyCtx, wake)
 	}
-	if o.presets != nil {
+	if wake.presetDispatch && o.presets != nil {
 		o.processPresetWake(notifyCtx, wake)
 	}
 }
@@ -330,7 +366,9 @@ func (o *bridgeTerminalTaskNotificationObserver) processTerminalWake(
 ) {
 	sweep, err := o.notifier.DeliverDue(
 		ctx,
-		bridgepkg.BridgeTaskSubscriptionQuery{TaskID: wake.taskID},
+		bridgepkg.BridgeTaskSubscriptionQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, TaskID: wake.taskID,
+		},
 	)
 	if err != nil {
 		o.logTerminalWakeFailure(wake, sweep, err)

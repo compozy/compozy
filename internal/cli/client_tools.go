@@ -392,7 +392,7 @@ func sensitiveToolFieldName(key string) bool {
 		clientToolsAPIKeyKey,
 		"authorization",
 		"password",
-		"secret",
+		appDiagnosticBundleSecretTerm,
 		"pkce",
 	} {
 		if strings.Contains(normalized, marker) {
@@ -443,7 +443,7 @@ func benignTokenMetric(parts []string) bool {
 		return false
 	}
 	switch parts[0] {
-	case "completion", clientToolsPromptKey, listTotalField:
+	case completionCommandKey, clientToolsPromptKey, listTotalField:
 		return parts[1] == "tokens"
 	default:
 		return false

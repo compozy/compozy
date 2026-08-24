@@ -7,34 +7,7 @@ func automationJobBundle(item JobRecord) outputBundle {
 		jsonValue: item,
 		human: func() (string, error) {
 			return renderHumanBlocks(
-				renderHumanSection("Automation Job", []keyValue{
-					{Label: "ID", Value: stringOrDash(item.ID)},
-					{Label: automationNameValue, Value: stringOrDash(item.Name)},
-					{Label: automationScopeValue, Value: stringOrDash(string(item.Scope))},
-					{Label: automationWorkspaceValue, Value: stringOrDash(item.WorkspaceID)},
-					{Label: automationAgentValue, Value: stringOrDash(item.AgentName)},
-					{Label: automationEnabledValue, Value: strconv.FormatBool(item.Enabled)},
-					{Label: automationSourceValue, Value: stringOrDash(string(item.Source))},
-					{
-						Label: automationScheduleValue,
-						Value: stringOrDash(formatAutomationSchedule(item.Schedule)),
-					},
-					{Label: "Retry", Value: stringOrDash(formatAutomationRetry(item.Retry))},
-					{
-						Label: "Fire Limit",
-						Value: stringOrDash(formatAutomationFireLimit(item.FireLimit)),
-					},
-					{Label: "Next Run", Value: stringOrDash(formatOptionalTime(item.NextRun))},
-					{
-						Label: "Last Scheduled",
-						Value: stringOrDash(formatOptionalTime(automationJobLastScheduledAt(item))),
-					},
-					{Label: "Last Fire ID", Value: stringOrDash(automationJobLastFireID(item))},
-					{Label: "Catch-up Policy", Value: stringOrDash(automationJobCatchUpPolicy(item))},
-					{Label: "Misfires", Value: strconv.Itoa(automationJobMisfireCount(item))},
-					{Label: automationCreatedValue, Value: stringOrDash(formatTime(item.CreatedAt))},
-					{Label: automationUpdatedValue, Value: stringOrDash(formatTime(item.UpdatedAt))},
-				}),
+				renderHumanSection("Automation Job", automationJobHumanValues(item)),
 				renderHumanSection(
 					"Prompt",
 					[]keyValue{{Label: automationBodyValue, Value: stringOrDash(item.Prompt)}},
@@ -42,46 +15,51 @@ func automationJobBundle(item JobRecord) outputBundle {
 			), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("automation_job", []string{
-				"id",
-				automationNameKey,
-				automationScopeKey,
-				automationWorkspaceIDKey,
-				automationAgentNameKey,
-				automationEnabledKey,
-				automationSourceKey,
-				automationScheduleKey,
-				automationRetryKey,
-				"fire_limit",
-				"next_run",
-				"last_scheduled_at",
-				"last_fire_id",
-				"catch_up_policy",
-				"misfire_count",
-				automationCreatedAtKey,
-				automationUpdatedAtKey,
-				automationPromptKey,
-			}, []string{
-				item.ID,
-				item.Name,
-				string(item.Scope),
-				item.WorkspaceID,
-				item.AgentName,
-				strconv.FormatBool(item.Enabled),
-				string(item.Source),
-				formatAutomationSchedule(item.Schedule),
-				formatAutomationRetry(item.Retry),
-				formatAutomationFireLimit(item.FireLimit),
-				formatOptionalTime(item.NextRun),
-				formatOptionalTime(automationJobLastScheduledAt(item)),
-				automationJobLastFireID(item),
-				automationJobCatchUpPolicy(item),
-				strconv.Itoa(automationJobMisfireCount(item)),
-				formatTime(item.CreatedAt),
-				formatTime(item.UpdatedAt),
-				item.Prompt,
-			}), nil
+			return renderToonObject("automation_job", automationJobToonFields(), automationJobToonValues(item)), nil
 		},
+	}
+}
+
+func automationJobHumanValues(item JobRecord) []keyValue {
+	return []keyValue{
+		{Label: "ID", Value: stringOrDash(item.ID)},
+		{Label: sessionProfileValue, Value: stringOrDash(item.ProfileName)},
+		{Label: automationNameValue, Value: stringOrDash(item.Name)},
+		{Label: automationScopeValue, Value: stringOrDash(string(item.Scope))},
+		{Label: automationWorkspaceValue, Value: stringOrDash(item.WorkspaceID)},
+		{Label: automationAgentValue, Value: stringOrDash(item.AgentName)},
+		{Label: automationEnabledValue, Value: strconv.FormatBool(item.Enabled)},
+		{Label: automationSourceValue, Value: stringOrDash(string(item.Source))},
+		{Label: automationScheduleValue, Value: stringOrDash(formatAutomationSchedule(item.Schedule))},
+		{Label: "Retry", Value: stringOrDash(formatAutomationRetry(item.Retry))},
+		{Label: "Fire Limit", Value: stringOrDash(formatAutomationFireLimit(item.FireLimit))},
+		{Label: "Next Run", Value: stringOrDash(formatOptionalTime(item.NextRun))},
+		{Label: "Last Scheduled", Value: stringOrDash(formatOptionalTime(automationJobLastScheduledAt(item)))},
+		{Label: "Last Fire ID", Value: stringOrDash(automationJobLastFireID(item))},
+		{Label: "Catch-up Policy", Value: stringOrDash(automationJobCatchUpPolicy(item))},
+		{Label: "Misfires", Value: strconv.Itoa(automationJobMisfireCount(item))},
+		{Label: automationCreatedValue, Value: stringOrDash(formatTime(item.CreatedAt))},
+		{Label: automationUpdatedValue, Value: stringOrDash(formatTime(item.UpdatedAt))},
+	}
+}
+
+func automationJobToonFields() []string {
+	return []string{
+		"id", profileNameOutputKey, automationNameKey, automationScopeKey, automationWorkspaceIDKey,
+		automationAgentNameKey, automationEnabledKey, automationSourceKey, automationScheduleKey,
+		automationRetryKey, "fire_limit", "next_run", "last_scheduled_at", "last_fire_id", "catch_up_policy",
+		"misfire_count", automationCreatedAtKey, automationUpdatedAtKey, automationPromptKey,
+	}
+}
+
+func automationJobToonValues(item JobRecord) []string {
+	return []string{
+		item.ID, item.ProfileName, item.Name, string(item.Scope), item.WorkspaceID, item.AgentName,
+		strconv.FormatBool(item.Enabled), string(item.Source), formatAutomationSchedule(item.Schedule),
+		formatAutomationRetry(item.Retry), formatAutomationFireLimit(item.FireLimit), formatOptionalTime(item.NextRun),
+		formatOptionalTime(automationJobLastScheduledAt(item)), automationJobLastFireID(item),
+		automationJobCatchUpPolicy(item), strconv.Itoa(automationJobMisfireCount(item)), formatTime(item.CreatedAt),
+		formatTime(item.UpdatedAt), item.Prompt,
 	}
 }
 
@@ -93,6 +71,7 @@ func automationJobListBundle(page AutomationJobListRecord) outputBundle {
 		"Automation Jobs",
 		[]string{
 			"ID",
+			sessionProfileValue,
 			automationNameValue,
 			automationScopeValue,
 			automationWorkspaceValue,
@@ -105,6 +84,7 @@ func automationJobListBundle(page AutomationJobListRecord) outputBundle {
 		"automation_jobs",
 		[]string{
 			"id",
+			profileNameOutputKey,
 			automationNameKey,
 			automationScopeKey,
 			automationWorkspaceIDKey,
@@ -117,6 +97,7 @@ func automationJobListBundle(page AutomationJobListRecord) outputBundle {
 		func(item JobRecord) []string {
 			return []string{
 				stringOrDash(item.ID),
+				stringOrDash(item.ProfileName),
 				stringOrDash(item.Name),
 				stringOrDash(string(item.Scope)),
 				stringOrDash(item.WorkspaceID),
@@ -130,6 +111,7 @@ func automationJobListBundle(page AutomationJobListRecord) outputBundle {
 		func(item JobRecord) []string {
 			return []string{
 				item.ID,
+				item.ProfileName,
 				item.Name,
 				string(item.Scope),
 				item.WorkspaceID,

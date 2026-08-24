@@ -8,33 +8,42 @@ import (
 
 func resourceScopeKindValues() []string {
 	return []string{
-		string(resources.ResourceScopeKindGlobal),
+		string(resources.ResourceScopeKindUser),
 		string(resources.ResourceScopeKindWorkspace),
 	}
 }
 
 func settingsScopeValues() []string {
 	return []string{
-		string(contract.SettingsScopeGlobal),
+		string(contract.SettingsScopeUser),
+		string(contract.SettingsScopeProfile),
 		string(contract.SettingsScopeWorkspace),
 		string(contract.SettingsScopeAgent),
 	}
 }
 
-func settingsGlobalScopeValues() []string {
-	return []string{string(contract.SettingsGlobalScope)}
+func settingsUserScopeValues() []string {
+	return []string{string(contract.SettingsUserScope)}
 }
 
 func settingsAgentScopeValues() []string {
 	return []string{
-		string(contract.SettingsAgentScopeGlobal),
+		string(contract.SettingsAgentScopeUser),
 		string(contract.SettingsAgentScopeAgent),
 	}
 }
 
-func settingsWorkspaceScopeValues() []string {
+func settingsLayeredScopeValues() []string {
 	return []string{
-		string(contract.SettingsWorkspaceScopeGlobal),
+		string(contract.SettingsLayeredScopeUser),
+		string(contract.SettingsLayeredScopeProfile),
+		string(contract.SettingsLayeredScopeWorkspace),
+	}
+}
+
+func settingsUserWorkspaceScopeValues() []string {
+	return []string{
+		string(contract.SettingsWorkspaceScopeUser),
 		string(contract.SettingsWorkspaceScopeWorkspace),
 	}
 }
@@ -42,6 +51,7 @@ func settingsWorkspaceScopeValues() []string {
 func settingsSectionValues() []string {
 	return []string{
 		string(contract.SettingsSectionGeneral),
+		string(contract.SettingsSectionPersona),
 		string(contract.SettingsSectionMemory),
 		string(contract.SettingsSectionRoles),
 		string(contract.SettingsSectionSkills),
@@ -59,6 +69,7 @@ func settingsSectionValues() []string {
 func settingsApplyTargetValues() []string {
 	return []string{
 		string(contract.SettingsApplyTargetGeneral),
+		string(contract.SettingsApplyTargetPersona),
 		string(contract.SettingsApplyTargetMemory),
 		string(contract.SettingsApplyTargetRoles),
 		string(contract.SettingsApplyTargetSkills),
@@ -89,8 +100,10 @@ func settingsCollectionValues() []string {
 func settingsWriteTargetValues() []string {
 	return []string{
 		string(contract.SettingsWriteTargetGlobalConfig),
+		string(contract.SettingsWriteTargetProfileConfig),
 		string(contract.SettingsWriteTargetWorkspaceConfig),
 		string(contract.SettingsWriteTargetGlobalMCPSidecar),
+		string(contract.SettingsWriteTargetProfileMCPSidecar),
 		string(contract.SettingsWriteTargetWorkspaceMCPSidecar),
 		string(contract.SettingsWriteTargetGlobalAgentFile),
 		string(contract.SettingsWriteTargetWorkspaceAgentFile),
@@ -153,9 +166,13 @@ func settingsSourceKindValues() []string {
 	return []string{
 		string(contract.SettingsSourceBuiltinProvider),
 		string(contract.SettingsSourceGlobalConfig),
+		string(contract.SettingsSourceProfileConfig),
 		string(contract.SettingsSourceWorkspaceConfig),
+		string(contract.SettingsSourceWorkspaceProfileConfig),
 		string(contract.SettingsSourceGlobalMCPSidecar),
+		string(contract.SettingsSourceProfileMCPSidecar),
 		string(contract.SettingsSourceWorkspaceMCPSidecar),
+		string(contract.SettingsSourceWorkspaceProfileMCPSidecar),
 		string(contract.SettingsSourceGlobalAgentFile),
 		string(contract.SettingsSourceWorkspaceAgentFile),
 	}

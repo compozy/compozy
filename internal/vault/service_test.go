@@ -358,6 +358,22 @@ func TestSecretRefValidationSupportsSessionNamespace(t *testing.T) {
 		}
 	})
 
+	t.Run("Should accept profile credential refs and return profiles namespace [UT-035]", func(t *testing.T) {
+		t.Parallel()
+
+		ref := "vault:profiles/marketing/providers/openai/api_key"
+		if err := ValidateSecretRef(ref); err != nil {
+			t.Fatalf("ValidateSecretRef() error = %v", err)
+		}
+		namespace, err := SecretRefNamespace(ref)
+		if err != nil {
+			t.Fatalf("SecretRefNamespace() error = %v", err)
+		}
+		if namespace != "profiles" {
+			t.Fatalf("SecretRefNamespace() = %q, want profiles", namespace)
+		}
+	})
+
 	t.Run("Should match exact refs or slash-delimited children for prefixes", func(t *testing.T) {
 		t.Parallel()
 

@@ -166,10 +166,12 @@ func (s *Store) upsertDreamRun(
 	if err != nil {
 		return err
 	}
+	profileID := s.profileIDForScope(workspace.scope)
 	return s.catalog.withCatalogWriteTx(ctx, "dream run upsert", func(tx *storepkg.WriteTx) error {
 		if err := upsertDreamConsolidationTx(
 			ctx,
 			tx,
+			profileID,
 			run,
 			workspace,
 			status,
@@ -180,7 +182,18 @@ func (s *Store) upsertDreamRun(
 		); err != nil {
 			return err
 		}
-		return insertDreamEventTx(ctx, tx, run, workspace, status, promoted, errorText, metadata, at)
+		return insertDreamEventTx(
+			ctx,
+			tx,
+			profileID,
+			run,
+			workspace,
+			status,
+			promoted,
+			errorText,
+			metadata,
+			at,
+		)
 	})
 }
 

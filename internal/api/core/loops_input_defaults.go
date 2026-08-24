@@ -21,8 +21,12 @@ func (h *BaseHandlers) GetLoopInputDefaults(c *gin.Context) {
 		h.respondLoopError(c, err)
 		return
 	}
+	profileID, ok := h.loopDefinitionReadProfileID(c)
+	if !ok {
+		return
+	}
 	response, err := service.GetLoopInputDefaults(
-		c.Request.Context(), c.Param("workspace_id"), c.Param("name"), scope,
+		c.Request.Context(), c.Param("workspace_id"), profileID, c.Param("name"), scope,
 	)
 	if err != nil {
 		h.respondLoopError(c, err)
@@ -42,8 +46,12 @@ func (h *BaseHandlers) GetLoopInputDefault(c *gin.Context) {
 		h.respondLoopError(c, err)
 		return
 	}
+	profileID, ok := h.loopDefinitionReadProfileID(c)
+	if !ok {
+		return
+	}
 	response, err := service.GetLoopInputDefault(
-		c.Request.Context(), c.Param("workspace_id"), c.Param("name"), c.Param("key"), scope,
+		c.Request.Context(), c.Param("workspace_id"), profileID, c.Param("name"), c.Param("key"), scope,
 	)
 	if err != nil {
 		h.respondLoopError(c, err)
@@ -63,8 +71,12 @@ func (h *BaseHandlers) PutLoopInputDefaults(c *gin.Context) {
 		h.respondLoopError(c, fmt.Errorf("%w: decode Loop input defaults request: %v", looppkg.ErrValidation, err))
 		return
 	}
+	profileID, ok := h.loopDefinitionMutationProfileID(c)
+	if !ok {
+		return
+	}
 	response, err := service.PutLoopInputDefaults(
-		c.Request.Context(), c.Param("workspace_id"), c.Param("name"), req,
+		c.Request.Context(), c.Param("workspace_id"), profileID, c.Param("name"), req,
 	)
 	if err != nil {
 		h.respondLoopError(c, err)
@@ -84,8 +96,12 @@ func (h *BaseHandlers) PutLoopInputDefault(c *gin.Context) {
 		h.respondLoopError(c, fmt.Errorf("%w: decode Loop input default request: %v", looppkg.ErrValidation, err))
 		return
 	}
+	profileID, ok := h.loopDefinitionMutationProfileID(c)
+	if !ok {
+		return
+	}
 	response, err := service.PutLoopInputDefault(
-		c.Request.Context(), c.Param("workspace_id"), c.Param("name"), c.Param("key"), req,
+		c.Request.Context(), c.Param("workspace_id"), profileID, c.Param("name"), c.Param("key"), req,
 	)
 	if err != nil {
 		h.respondLoopError(c, err)
@@ -105,8 +121,12 @@ func (h *BaseHandlers) DeleteLoopInputDefault(c *gin.Context) {
 		h.respondLoopError(c, err)
 		return
 	}
+	profileID, ok := h.loopDefinitionMutationProfileID(c)
+	if !ok {
+		return
+	}
 	response, err := service.DeleteLoopInputDefault(
-		c.Request.Context(), c.Param("workspace_id"), c.Param("name"), c.Param("key"), scope,
+		c.Request.Context(), c.Param("workspace_id"), profileID, c.Param("name"), c.Param("key"), scope,
 	)
 	if err != nil {
 		h.respondLoopError(c, err)
@@ -118,11 +138,11 @@ func (h *BaseHandlers) DeleteLoopInputDefault(c *gin.Context) {
 func parseLoopInputDefaultsScope(raw string) (contract.LoopInputDefaultsScope, error) {
 	scope := contract.LoopInputDefaultsScope(strings.ToLower(strings.TrimSpace(raw)))
 	switch scope {
-	case contract.LoopInputDefaultsScopeGlobal, contract.LoopInputDefaultsScopeWorkspace:
+	case contract.LoopInputDefaultsScopeUser, contract.LoopInputDefaultsScopeWorkspace:
 		return scope, nil
 	default:
 		return "", fmt.Errorf(
-			"%w: input-default scope must be global or workspace",
+			"%w: input-default scope must be user or workspace",
 			looppkg.ErrValidation,
 		)
 	}

@@ -11,9 +11,9 @@ func bridgeLifecycleOperations() []OperationSpec {
 			Summary:     "Enable a bridge instance",
 			Tags:        []string{specBridgesKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters: []ParameterSpec{
+			Parameters: withProfileSelector(
 				pathParam("id", "Bridge instance id"),
-			},
+			),
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.BridgeResponse{}},
 				{Status: 404, Description: specBridgeInstanceNotFoundDescription, Body: contract.ErrorPayload{}},
@@ -29,9 +29,9 @@ func bridgeLifecycleOperations() []OperationSpec {
 			Summary:     "Disable a bridge instance",
 			Tags:        []string{specBridgesKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters: []ParameterSpec{
+			Parameters: withProfileSelector(
 				pathParam("id", "Bridge instance id"),
-			},
+			),
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.BridgeResponse{}},
 				{Status: 404, Description: specBridgeInstanceNotFoundDescription, Body: contract.ErrorPayload{}},
@@ -47,9 +47,9 @@ func bridgeLifecycleOperations() []OperationSpec {
 			Summary:     "Restart a bridge instance",
 			Tags:        []string{specBridgesKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters: []ParameterSpec{
+			Parameters: withProfileSelector(
 				pathParam("id", "Bridge instance id"),
-			},
+			),
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.BridgeResponse{}},
 				{Status: 404, Description: specBridgeInstanceNotFoundDescription, Body: contract.ErrorPayload{}},

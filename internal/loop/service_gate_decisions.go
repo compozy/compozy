@@ -21,7 +21,7 @@ func gateDecisionRecords(
 	actor task.ActorContext,
 	decidedAt time.Time,
 ) ([]GateDecisionRecord, error) {
-	criterionIDs, err := activeHumanCriterionIDs(run.ActiveHumanCriteria)
+	criterionIDs, err := activeHumanCriterionIDs(run.ActiveHumanCriteriaValue())
 	if err != nil {
 		return nil, err
 	}

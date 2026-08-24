@@ -377,6 +377,7 @@ func TestWorkValidationAndTraceMatrix(t *testing.T) {
 
 	valid := Work{
 		ID:        "work_patch_42",
+		ProfileID: testWorkProfileID,
 		Ref:       testDirectRef(),
 		Initiator: "coder.sess-abc",
 		Target:    "reviewer.sess-xyz",
@@ -404,7 +405,14 @@ func TestWorkValidationAndTraceMatrix(t *testing.T) {
 		TS:          time.Now().Unix(),
 		Body:        mustRawJSON(t, map[string]any{"state": "working"}),
 	}
-	if _, err := OpenWork(withDirectSurface(openErrEnv), time.Time{}); !errors.Is(err, ErrInvalidField) {
+	if _, err := OpenWork(
+		testWorkProfileID,
+		withDirectSurface(openErrEnv),
+		time.Time{},
+	); !errors.Is(
+		err,
+		ErrInvalidField,
+	) {
 		t.Fatalf("OpenWork(non-opener) error = %v, want ErrInvalidField", err)
 	}
 
@@ -571,12 +579,21 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 		TS:          now.Unix(),
 		Body:        mustRawJSON(t, map[string]any{"state": "working"}),
 	}
-	if _, err := ApplyWorkEnvelope(nil, withDirectSurface(traceEnv), now); !errors.Is(err, ErrWorkNotFound) {
+	if _, err := ApplyWorkEnvelope(
+		nil,
+		testWorkProfileID,
+		withDirectSurface(traceEnv),
+		now,
+	); !errors.Is(
+		err,
+		ErrWorkNotFound,
+	) {
 		t.Fatalf("ApplyWorkEnvelope(nil trace) error = %v, want ErrWorkNotFound", err)
 	}
 
 	terminal := &Work{
 		ID:        "work_patch_42",
+		ProfileID: testWorkProfileID,
 		Ref:       testDirectRef(),
 		Initiator: "coder.sess-abc",
 		Target:    "reviewer.sess-xyz",
@@ -599,7 +616,7 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 			"status": "canceled",
 		}),
 	}
-	got, err := ApplyWorkEnvelope(terminal, withDirectSurface(receiptEnv), now.Add(time.Second))
+	got, err := ApplyWorkEnvelope(terminal, testWorkProfileID, withDirectSurface(receiptEnv), now.Add(time.Second))
 	if err != nil {
 		t.Fatalf("ApplyWorkEnvelope(terminal receipt) error = %v", err)
 	}

@@ -51,4 +51,5 @@ type automationManagerDeps struct {
 	ParticipationResolver participation.Resolver
 	LoopInputEntities     looppkg.InputEntityCatalog
 	LoopRuntimeCatalog    looppkg.WorkspaceRuntimeCatalog
+	Profiles              loopProfileNameResolver
 }

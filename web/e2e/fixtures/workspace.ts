@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
+import { switchWorkspace } from "./os-navigation";
 import type { BrowserRuntime } from "./runtime";
 
 export interface WorkspaceShellSelectors {
@@ -14,11 +15,16 @@ interface WorkspaceShell {
 
 type WorkspaceShellInput = Page | WorkspaceShellSelectors;
 
-export async function ensureGlobalWorkspace(runtime: BrowserRuntime): Promise<void> {
-  if (runtime.seeded.workspace || !runtime.paths?.homeDir) {
-    return;
-  }
-  await runtime.resolveWorkspace(runtime.paths.homeDir);
+export async function ensureProjectWorkspace(page: Page, runtime: BrowserRuntime): Promise<void> {
+  const workspace =
+    runtime.seeded.workspace ??
+    (runtime.paths?.workspaceDir
+      ? await runtime.resolveWorkspace(runtime.paths.workspaceDir)
+      : undefined);
+  if (!workspace) return;
+
+  await completeOnboardingIfPrompted(page);
+  await switchWorkspace(page, workspace.id, workspace.name);
 }
 
 export async function completeOnboardingIfPrompted(input: WorkspaceShellInput): Promise<void> {

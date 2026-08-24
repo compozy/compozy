@@ -1,5 +1,5 @@
 -- name: ListParkedWatchEventSubscriptions :many
-SELECT lr.workspace_id, lr.id, lr.loop_name, lr.generation, lr.inputs_json,
+SELECT lr.workspace_id, lr.profile_id, lr.id, lr.loop_name, lr.generation, lr.inputs_json,
        lr.definition_digest, lds.definition_json, lgo.node_id,
        COALESCE(lgo.output_ref, '') AS output_ref
 FROM loop_runs lr
@@ -14,7 +14,7 @@ WHERE lr.status = sqlc.arg(status)
 ORDER BY lr.workspace_id ASC, lr.id ASC, lgo.node_id ASC;
 
 -- name: ListParkedWatchEventSubscriptionsForLoopRun :many
-SELECT lr.workspace_id, lr.id, lr.loop_name, lr.generation, lr.inputs_json,
+SELECT lr.workspace_id, lr.profile_id, lr.id, lr.loop_name, lr.generation, lr.inputs_json,
        lr.definition_digest, lds.definition_json, lgo.node_id,
        COALESCE(lgo.output_ref, '') AS output_ref
 FROM loop_runs lr
@@ -30,7 +30,7 @@ WHERE lr.status = sqlc.arg(status)
 ORDER BY lr.workspace_id ASC, lr.id ASC, lgo.node_id ASC;
 
 -- name: ListParkedWatchEventSubscriptionsPage :many
-SELECT lr.workspace_id, lr.id, lr.loop_name, lr.generation, lr.inputs_json,
+SELECT lr.workspace_id, lr.profile_id, lr.id, lr.loop_name, lr.generation, lr.inputs_json,
        lr.definition_digest, lds.definition_json, lgo.node_id,
        COALESCE(lgo.output_ref, '') AS output_ref
 FROM loop_runs lr

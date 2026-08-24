@@ -8,9 +8,29 @@ import type {
   SessionPayload,
 } from "@/systems/session";
 import { SessionList } from "@/systems/session/components/session-list/session-list";
+import { ownerFromRow } from "@/systems/profiles";
 
-function session(id: string, title: string, workspaceId: string): SessionPayload {
+type SessionOwner = Pick<
+  SessionPayload,
+  "profile_id" | "profile_name" | "profile_color" | "profile_icon" | "profile_archived"
+>;
+
+const DEFAULT_OWNER: SessionOwner = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
+  profile_color: "#8a8f98",
+  profile_icon: "user-round",
+  profile_archived: false,
+};
+
+function session(
+  id: string,
+  title: string,
+  workspaceId: string,
+  owner: SessionOwner = DEFAULT_OWNER
+): SessionPayload {
   return {
+    ...owner,
     id,
     name: title,
     agent_name: "codex",
@@ -43,16 +63,37 @@ const ACTIONS: SessionLifecycleActionHandlers = {
   onUnarchive: fn(),
 };
 
-type CatalogState = "sort" | "group-failure" | "group-collapsed";
+type CatalogState = "sort" | "group-failure" | "group-collapsed" | "aggregate" | "empty-scoped";
 
 function SessionCatalogContract({ state }: { state: CatalogState }) {
-  const allWorkspaces = state !== "sort";
+  const allWorkspaces = state !== "sort" && state !== "empty-scoped";
+  const aggregate = state === "aggregate";
+  const emptyScoped = state === "empty-scoped";
+  const aggregateSessions = [
+    session("session-runtime", "Runtime parity pass", "workspace-compozy"),
+    session("session-campaign", "Launch campaign", "workspace-compozy", {
+      profile_id: "01J9MARKETING00000000000000",
+      profile_name: "marketing",
+      profile_color: "#c26ad6",
+      profile_icon: "megaphone",
+      profile_archived: false,
+    }),
+    session("session-archive", "Agency handoff", "workspace-compozy", {
+      profile_id: "01J9OLDAGENCY0000000000000",
+      profile_name: "old-agency",
+      profile_color: "#b58e5f",
+      profile_icon: "folder",
+      profile_archived: true,
+    }),
+  ];
   const workspaceGroups: SessionListViewModel["workspaceGroups"] = [
     {
       workspaceId: "workspace-compozy",
       workspaceName: "compozy",
-      sessions: [session("session-runtime", "Runtime parity pass", "workspace-compozy")],
-      total: 1,
+      sessions: aggregate
+        ? aggregateSessions
+        : [session("session-runtime", "Runtime parity pass", "workspace-compozy")],
+      total: aggregate ? aggregateSessions.length : 1,
       loading: false,
       failed: false,
       retry: fn(),
@@ -75,6 +116,9 @@ function SessionCatalogContract({ state }: { state: CatalogState }) {
     setScope: fn(),
     setSort: fn(),
     setArchived: fn(),
+    aggregate,
+    scopeLabel: aggregate ? null : emptyScoped ? "Marketing" : "default",
+    ownerOf: ownerFromRow,
     workspaceGroups,
     collapsedWorkspaceIds: state === "group-collapsed" ? new Set(["workspace-infra"]) : new Set(),
     toggleWorkspace: fn(),
@@ -82,7 +126,9 @@ function SessionCatalogContract({ state }: { state: CatalogState }) {
   return (
     <div className="flex h-160 w-120 overflow-hidden rounded-lg border border-line bg-canvas-soft">
       <SessionList
-        sessions={allWorkspaces ? [] : workspaceGroups.flatMap(group => group.sessions)}
+        sessions={
+          allWorkspaces || emptyScoped ? [] : workspaceGroups.flatMap(group => group.sessions)
+        }
         disconnected={false}
         collapsedThreadIds={[]}
         view={view}
@@ -127,4 +173,14 @@ export const WorkspaceGroupFailure: Story = {
 
 export const WorkspaceGroupCollapsed: Story = {
   args: { state: "group-collapsed" },
+};
+
+/** All profiles is a read lens: mixed-owner rows stay labeled and archived ownership is muted. */
+export const AggregateProfiles: Story = {
+  args: { state: "aggregate" },
+};
+
+/** A scoped empty catalog says which active profile has no sessions. */
+export const ScopedProfileEmpty: Story = {
+  args: { state: "empty-scoped" },
 };

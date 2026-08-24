@@ -25,7 +25,10 @@ func (s *Store) dirForScope(scope memcontract.Scope) (string, error) {
 	}
 
 	switch normalized {
-	case memcontract.ScopeGlobal:
+	case memcontract.ScopeProfile:
+		if s.profileMaintenancePending != nil && s.profileMaintenancePending.Load() {
+			return "", errors.New("memory: profile memory maintenance is pending")
+		}
 		if s.globalDir == "" {
 			return "", wrapValidationError("resolve scope", string(scope), errors.New("global directory is required"))
 		}
@@ -92,6 +95,9 @@ func globalHomeFromMemoryDir(globalDir string) (string, error) {
 			"global",
 			errors.New("global directory is required"),
 		)
+	}
+	if _, ok := legacyMemorySourceForTarget(dir); ok {
+		return filepath.Dir(filepath.Dir(filepath.Dir(dir))), nil
 	}
 	return filepath.Dir(dir), nil
 }
@@ -214,6 +220,7 @@ func (s *Store) syncCatalogScope(ctx context.Context, scope memcontract.Scope, h
 	}
 	if err := s.catalog.replaceScope(
 		ctx,
+		s.profileIDForScope(scope),
 		scope,
 		workspaceID,
 		s.catalogAgentName(scope),

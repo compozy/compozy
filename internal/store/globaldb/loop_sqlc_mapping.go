@@ -21,6 +21,7 @@ func loopRunInsertParams(
 		return sqlcgen.InsertLoopRunParams{}, err
 	}
 	return sqlcgen.InsertLoopRunParams{
+		ProfileID:               run.ProfileID,
 		ID:                      string(run.ID),
 		WorkspaceID:             string(run.WorkspaceID),
 		LoopName:                run.LoopName,
@@ -34,7 +35,7 @@ func loopRunInsertParams(
 		DefinitionVersion:       int64(run.DefinitionVersion),
 		DefinitionDigest:        run.DefinitionDigest,
 		ActiveGateID:            string(run.ActiveGateID),
-		ActiveHumanCriteriaJson: string(run.ActiveHumanCriteria),
+		ActiveHumanCriteriaJson: string(run.ActiveHumanCriteriaValue()),
 		BudgetApprovalSeq:       int64(run.BudgetApprovalSeq),
 		StartMetadataJson:       string(metadataJSON),
 		IterationCap:            int64(run.IterationCap),
@@ -73,7 +74,8 @@ func loopRunFromGenerated(row *sqlcgen.LoopRun) (looppkg.Run, error) {
 	}
 	values := loopRunScanValues{
 		run: looppkg.Run{
-			LoopName: row.LoopName, Historical: row.Historical != 0, Generation: int(row.Generation),
+			ProfileID: row.ProfileID,
+			LoopName:  row.LoopName, Historical: row.Historical != 0, Generation: int(row.Generation),
 			DefinitionVersion: int(row.DefinitionVersion),
 			DefinitionDigest:  row.DefinitionDigest, ActiveGateID: looppkg.NodeID(row.ActiveGateID),
 			BudgetApprovalSeq: int(row.BudgetApprovalSeq),

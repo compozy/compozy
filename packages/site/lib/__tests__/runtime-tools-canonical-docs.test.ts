@@ -125,7 +125,6 @@ describe("tool-first canonical surface docs", () => {
       "`compozy__extensions_install`",
       "`compozy__extensions_remove`",
       "`compozy__extensions_inventory`",
-      "`compozy__extensions_preview`",
       "`compozy__resources_snapshot`",
       "`resources/list`",
       "`resources/get`",
@@ -133,6 +132,7 @@ describe("tool-first canonical surface docs", () => {
       "EXTENSION_SOURCE_FORBIDDEN",
       "EXTENSION_APPROVAL_REQUIRED",
     ]);
+    expect(extensionsInstall).not.toContain("`compozy__extensions_preview`");
     expectExcludesAll(extensionsInstall, ["compozy__bundles", "compozy__bundles_activate"]);
   });
 

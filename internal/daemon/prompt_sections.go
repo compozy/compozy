@@ -35,7 +35,7 @@ const (
 	startupSoulSectionBudget      = 16_000
 	startupSkillsSectionBudget    = 16_000
 	// Keep enough headroom to avoid truncating canonical tool guidance.
-	startupToolsSectionBudget   = 48_000
+	startupToolsSectionBudget   = 52_000
 	startupNetworkSectionBudget = 512
 )
 

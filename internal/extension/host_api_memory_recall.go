@@ -11,6 +11,7 @@ import (
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 
 	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type hostAPIMemoryRecallSelection struct {
@@ -28,7 +29,7 @@ func (h *HostAPIHandler) recallMemory(
 	if err != nil {
 		return memcontract.Packaged{}, err
 	}
-	if selection.Scope.Normalize() == memcontract.ScopeGlobal {
+	if selection.Scope.Normalize() == memcontract.ScopeProfile {
 		workspaceID = ""
 	}
 	if providerRecall, ok, err := h.recallMemoryFromProvider(
@@ -109,19 +110,36 @@ func (h *HostAPIHandler) memoryStoreFor(
 		if workspaceRoot != "" {
 			scope = memcontract.ScopeWorkspace
 		} else {
-			scope = memcontract.ScopeGlobal
+			scope = memcontract.ScopeProfile
 		}
 	}
 
 	switch scope {
-	case memcontract.ScopeGlobal:
-		return h.memory, memcontract.ScopeGlobal, nil
+	case memcontract.ScopeProfile:
+		profileID, profileErr := hostAPIProfileID(ctx)
+		if profileErr != nil {
+			return nil, "", invalidParamsRPCError(profileErr)
+		}
+		if profileID == store.DefaultProfileID {
+			return h.memory, memcontract.ScopeProfile, nil
+		}
+		if h.memoryForProfile == nil {
+			return nil, "", errors.New("extension: profile memory store resolver is not configured")
+		}
+		profileStore, resolveErr := h.memoryForProfile(ctx, profileID)
+		if resolveErr != nil {
+			return nil, "", fmt.Errorf("extension: resolve profile memory store: %w", resolveErr)
+		}
+		if profileStore == nil {
+			return nil, "", errors.New("extension: profile memory store resolver returned no store")
+		}
+		return profileStore, memcontract.ScopeProfile, nil
 	case memcontract.ScopeWorkspace:
 		if workspaceRoot == "" {
 			return nil, "", invalidParamsRPCError(errors.New("workspace is required for workspace memory scope"))
 		}
 		return h.memory.ForWorkspace(workspaceRoot), memcontract.ScopeWorkspace, nil
 	default:
-		return nil, "", invalidParamsRPCError(fmt.Errorf("memory scope must be one of global or workspace"))
+		return nil, "", invalidParamsRPCError(fmt.Errorf("memory scope must be one of profile or workspace"))
 	}
 }

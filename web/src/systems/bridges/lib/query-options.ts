@@ -9,6 +9,7 @@ import {
   listBridges,
 } from "../adapters/bridges-api";
 import { getSlackBridgeManifest } from "../adapters/bridge-setup-api";
+import type { ProfileScopeParams } from "@/systems/profiles";
 import { bridgeKeys } from "./query-keys";
 import { bridgeListRequest, normalizeBridgeCatalogFilter } from "./bridge-list-query";
 import type { BridgeCatalogFilter, BridgeTargetsQuery } from "../types";
@@ -38,29 +39,33 @@ export function bridgeProvidersOptions() {
   });
 }
 
-export function slackBridgeManifestOptions(instanceID: string, enabled = true) {
+export function slackBridgeManifestOptions(
+  instanceID: string,
+  scope: ProfileScopeParams,
+  enabled = true
+) {
   return queryOptions({
-    queryKey: bridgeKeys.slackManifest(instanceID),
-    queryFn: ({ signal }) => getSlackBridgeManifest(instanceID, signal),
+    queryKey: bridgeKeys.slackManifest(instanceID, scope),
+    queryFn: ({ signal }) => getSlackBridgeManifest(instanceID, scope, signal),
     staleTime: DEFAULT_STALE_TIME,
     enabled: Boolean(instanceID) && enabled,
   });
 }
 
-export function bridgeDetailOptions(id: string, enabled = true) {
+export function bridgeDetailOptions(id: string, scope: ProfileScopeParams, enabled = true) {
   return queryOptions({
-    queryKey: bridgeKeys.detail(id),
-    queryFn: ({ signal }) => getBridge(id, signal),
+    queryKey: bridgeKeys.detail(id, scope),
+    queryFn: ({ signal }) => getBridge(id, scope, signal),
     staleTime: DEFAULT_STALE_TIME,
     refetchInterval: DEFAULT_REFETCH_INTERVAL,
     enabled: Boolean(id) && enabled,
   });
 }
 
-export function bridgeRoutesOptions(id: string, enabled = true) {
+export function bridgeRoutesOptions(id: string, scope: ProfileScopeParams, enabled = true) {
   return queryOptions({
-    queryKey: bridgeKeys.routes(id),
-    queryFn: ({ signal }) => listBridgeRoutes(id, signal),
+    queryKey: bridgeKeys.routes(id, scope),
+    queryFn: ({ signal }) => listBridgeRoutes(id, scope, signal),
     staleTime: DEFAULT_STALE_TIME,
     refetchInterval: DEFAULT_REFETCH_INTERVAL,
     enabled: Boolean(id) && enabled,
@@ -77,10 +82,10 @@ export function bridgeTargetsOptions(id: string, query: BridgeTargetsQuery = {},
   });
 }
 
-export function bridgeSecretBindingsOptions(id: string, enabled = true) {
+export function bridgeSecretBindingsOptions(id: string, scope: ProfileScopeParams, enabled = true) {
   return queryOptions({
-    queryKey: bridgeKeys.secretBindings(id),
-    queryFn: ({ signal }) => listBridgeSecretBindings(id, signal),
+    queryKey: bridgeKeys.secretBindings(id, scope),
+    queryFn: ({ signal }) => listBridgeSecretBindings(id, scope, signal),
     staleTime: DEFAULT_STALE_TIME,
     refetchInterval: DEFAULT_REFETCH_INTERVAL,
     enabled: Boolean(id) && enabled,

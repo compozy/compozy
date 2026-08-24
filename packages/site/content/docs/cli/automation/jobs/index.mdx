@@ -14,6 +14,7 @@ compozy automation jobs [flags]
 ### Options
 
 ```
+      --all-profiles       Read across every profile and include owner labels
       --cursor string      Continue after this automation job cursor
       --enabled            Filter by enabled state; use --enabled=false for disabled jobs
   -h, --help               help for jobs
@@ -28,8 +29,9 @@ compozy automation jobs [flags]
 ### Options inherited from parent commands
 
 ```
-      --json            Emit JSON output
-  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
 ```
 
 ## Output Formats

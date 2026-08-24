@@ -296,10 +296,13 @@ func seedRemoteMarketplaceProjection(t *testing.T, catalogStore marketplace.Stor
 
 func assertMarketplaceRefreshEvent(t *testing.T, registry *globaldb.GlobalDB) {
 	t.Helper()
-	summaries, err := registry.ListEventSummaries(testutil.Context(t), store.EventSummaryQuery{
-		Type:  eventspkg.MarketplaceCatalogRefresh,
-		Limit: 10,
-	})
+	summaries, err := registry.ListEventSummaries(
+		testutil.Context(t),
+		store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
+			Type:  eventspkg.MarketplaceCatalogRefresh,
+			Limit: 10,
+		},
+	)
 	if err != nil {
 		t.Fatalf("ListEventSummaries() error = %v", err)
 	}
@@ -314,10 +317,13 @@ func assertMarketplaceRefreshEvent(t *testing.T, registry *globaldb.GlobalDB) {
 
 func assertMarketplaceInstallEvent(t *testing.T, registry *globaldb.GlobalDB) {
 	t.Helper()
-	summaries, err := registry.ListEventSummaries(testutil.Context(t), store.EventSummaryQuery{
-		Type:  eventspkg.MarketplaceInstall,
-		Limit: 10,
-	})
+	summaries, err := registry.ListEventSummaries(
+		testutil.Context(t),
+		store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true},
+			Type:  eventspkg.MarketplaceInstall,
+			Limit: 10,
+		},
+	)
 	if err != nil {
 		t.Fatalf("ListEventSummaries(marketplace.install) error = %v", err)
 	}

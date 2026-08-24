@@ -20,6 +20,80 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 
 	now := time.Date(2026, 4, 3, 20, 0, 0, 0, time.UTC)
 
+	for _, tt := range []struct {
+		name  string
+		scope ReadScope
+		valid bool
+	}{
+		{name: "Should accept one explicit profile", scope: ReadScope{ProfileID: DefaultProfileID}, valid: true},
+		{name: "Should accept the explicit aggregate", scope: ReadScope{AllProfiles: true}, valid: true},
+		{name: "Should reject an implicit read lens", scope: ReadScope{}},
+		{name: "Should reject a mixed read lens", scope: ReadScope{ProfileID: DefaultProfileID, AllProfiles: true}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tt.scope.Validate()
+			if tt.valid && err != nil {
+				t.Fatalf("ReadScope.Validate() error = %v", err)
+			}
+			if !tt.valid && !errors.Is(err, ErrReadScopeInvalid) {
+				t.Fatalf("ReadScope.Validate() error = %v, want ErrReadScopeInvalid", err)
+			}
+		})
+	}
+
+	for _, tt := range []struct {
+		name     string
+		validate func() error
+	}{
+		{name: "Should require an event summary profile owner", validate: func() error { return (EventSummary{}).Validate() }},
+		{name: "Should require a dead entity profile owner", validate: func() error { return (DeadEntity{}).Validate() }},
+		{name: "Should require a network channel profile owner", validate: func() error { return (NetworkChannelEntry{}).Validate() }},
+		{name: "Should require a direct room profile owner", validate: func() error { return (NetworkDirectRoomEntry{}).Validate() }},
+		{name: "Should require a network work profile owner", validate: func() error { return (NetworkWorkEntry{}).Validate() }},
+		{name: "Should require a network message profile owner", validate: func() error { return (NetworkConversationMessage{}).Validate() }},
+		{name: "Should require a token usage profile owner", validate: func() error { return (TokenUsageDailyUpdate{}).Validate() }},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tt.validate()
+			if err == nil || !strings.Contains(err.Error(), "profile_id") {
+				t.Fatalf("Validate() error = %v, want profile_id requirement", err)
+			}
+		})
+	}
+
+	for _, tt := range []struct {
+		name     string
+		validate func(ReadScope) error
+	}{
+		{name: "event summary query", validate: func(scope ReadScope) error { return (EventSummaryQuery{ReadScope: scope}).Validate() }},
+		{name: "network audit query", validate: func(scope ReadScope) error { return (NetworkAuditQuery{ReadScope: scope}).Validate() }},
+		{name: "network channel query", validate: func(scope ReadScope) error { return (NetworkChannelQuery{ReadScope: scope}).Validate() }},
+		{name: "overview since query", validate: func(scope ReadScope) error { return (OverviewSinceQuery{ReadScope: scope}).Validate() }},
+		{name: "overview day query", validate: func(scope ReadScope) error { return (OverviewDayQuery{ReadScope: scope}).Validate() }},
+		{name: "overview workspace query", validate: func(scope ReadScope) error { return (OverviewWorkspaceQuery{ReadScope: scope}).Validate() }},
+		{name: "session list query", validate: func(scope ReadScope) error { return (SessionListQuery{ReadScope: scope}).Validate() }},
+	} {
+		t.Run("Should reject an implicit read lens for "+tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if err := tt.validate(ReadScope{}); !errors.Is(err, ErrReadScopeInvalid) {
+				t.Fatalf("Validate() error = %v, want ErrReadScopeInvalid", err)
+			}
+		})
+		t.Run("Should reject a mixed read lens for "+tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			scope := ReadScope{ProfileID: DefaultProfileID, AllProfiles: true}
+			if err := tt.validate(scope); !errors.Is(err, ErrReadScopeInvalid) {
+				t.Fatalf("Validate() error = %v, want ErrReadScopeInvalid", err)
+			}
+		})
+	}
+
 	tests := []struct {
 		name              string
 		validate          func() error
@@ -86,6 +160,7 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 					ID:            "sess-1",
 					AgentName:     "coder",
 					WorkspaceID:   "ws-1",
+					ProfileID:     DefaultProfileID,
 					State:         "active",
 					RuntimeStatus: SessionRuntimeReady,
 				}).Validate()
@@ -105,6 +180,7 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 					ID:          "sess-1",
 					AgentName:   "coder",
 					WorkspaceID: "ws-1",
+					ProfileID:   DefaultProfileID,
 					State:       "active",
 				}).Validate()
 			},
@@ -180,6 +256,7 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 					ID:                "sess-1",
 					AgentName:         "coder",
 					WorkspaceID:       "ws-1",
+					ProfileID:         DefaultProfileID,
 					State:             "active",
 					RuntimeStatus:     SessionRuntimeFailed,
 					RuntimeTransition: SessionRuntimeTransitionInitialBind,
@@ -205,6 +282,7 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			name: "event summary valid",
 			validate: func() error {
 				return (EventSummary{
+					ProfileID:   DefaultProfileID,
 					SessionID:   "sess-1",
 					WorkspaceID: "ws-store-helpers",
 					Type:        "agent_message",
@@ -247,13 +325,13 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 		{
 			name: "global event summary settings changed",
 			validate: func() error {
-				return (EventSummary{Type: "settings.changed"}).Validate()
+				return (EventSummary{ProfileID: DefaultProfileID, Type: "settings.changed"}).Validate()
 			},
 		},
 		{
 			name: "global event summary skill shadowed",
 			validate: func() error {
-				return (EventSummary{Type: "skill.shadowed"}).Validate()
+				return (EventSummary{ProfileID: DefaultProfileID, Type: "skill.shadowed"}).Validate()
 			},
 		},
 		{
@@ -271,31 +349,31 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 		{
 			name: "global event summary skills load failed",
 			validate: func() error {
-				return (EventSummary{Type: "skills.load_failed"}).Validate()
+				return (EventSummary{ProfileID: DefaultProfileID, Type: "skills.load_failed"}).Validate()
 			},
 		},
 		{
 			name: "global event summary hook dispatch start",
 			validate: func() error {
-				return (EventSummary{Type: "hook.dispatch.start"}).Validate()
+				return (EventSummary{ProfileID: DefaultProfileID, Type: "hook.dispatch.start"}).Validate()
 			},
 		},
 		{
 			name: "global event summary hook dispatch complete",
 			validate: func() error {
-				return (EventSummary{Type: "hook.dispatch.complete"}).Validate()
+				return (EventSummary{ProfileID: DefaultProfileID, Type: "hook.dispatch.complete"}).Validate()
 			},
 		},
 		{
 			name: "global event summary memory provider collision",
 			validate: func() error {
-				return (EventSummary{Type: "memory.provider.collision"}).Validate()
+				return (EventSummary{ProfileID: DefaultProfileID, Type: "memory.provider.collision"}).Validate()
 			},
 		},
 		{
 			name: "event summary query invalid",
 			validate: func() error {
-				return (EventSummaryQuery{Limit: -1}).Validate()
+				return (EventSummaryQuery{ReadScope: ReadScope{AllProfiles: true}, Limit: -1}).Validate()
 			},
 			wantError: true,
 		},
@@ -410,6 +488,7 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			name: "network audit entry valid",
 			validate: func() error {
 				return (NetworkAuditEntry{
+					ProfileID:   DefaultProfileID,
 					SessionID:   "sess-1",
 					WorkspaceID: "ws-store-helpers",
 					Direction:   "rejected",
@@ -426,6 +505,7 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			name: "network audit entry invalid direction",
 			validate: func() error {
 				return (NetworkAuditEntry{
+					ProfileID:   DefaultProfileID,
 					SessionID:   "sess-1",
 					WorkspaceID: "ws-store-helpers",
 					Direction:   "replayed",
@@ -441,6 +521,7 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			name: "network audit entry rejected requires reason",
 			validate: func() error {
 				return (NetworkAuditEntry{
+					ProfileID:   DefaultProfileID,
 					SessionID:   "sess-1",
 					WorkspaceID: "ws-store-helpers",
 					Direction:   "rejected",
@@ -463,6 +544,7 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			name: "network message entry valid",
 			validate: func() error {
 				return (NetworkMessageEntry{
+					ProfileID:   DefaultProfileID,
 					WorkspaceID: "ws-store-helpers",
 					MessageID:   "msg-1",
 					Channel:     "builders",
@@ -497,6 +579,7 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 					ID:                   "sess-meta",
 					AgentName:            "coder",
 					WorkspaceID:          "ws-meta",
+					ProfileID:            DefaultProfileID,
 					NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
 					State:                "active",
 					RuntimeStatus:        SessionRuntimeReady,

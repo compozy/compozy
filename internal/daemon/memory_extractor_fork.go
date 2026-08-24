@@ -71,9 +71,9 @@ func (s *daemonMemoryProposalSink) targetStore(
 		scope = candidate.Frontmatter.Scope.Normalize()
 	}
 	switch scope {
-	case "", memcontract.ScopeGlobal:
-		candidate.Scope = memcontract.ScopeGlobal
-		candidate.Frontmatter.Scope = memcontract.ScopeGlobal
+	case "", memcontract.ScopeProfile:
+		candidate.Scope = memcontract.ScopeProfile
+		candidate.Frontmatter.Scope = memcontract.ScopeProfile
 		return s.base, candidate, nil
 	case memcontract.ScopeWorkspace, memcontract.ScopeAgent:
 		workspaceRoot, workspaceID, err := s.resolveWorkspace(ctx, candidate)

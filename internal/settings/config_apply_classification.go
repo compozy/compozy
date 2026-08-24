@@ -10,7 +10,7 @@ func (s *service) classifyHooksExtensionsRequest(
 	ctx context.Context,
 	req SectionUpdateRequest,
 ) lifecycle.Lifecycle {
-	cfg, _, err := s.loadGlobalSectionUpdate(ctx, req.Section, req.Scope, req.WorkspaceID)
+	cfg, _, err := s.loadGlobalSectionUpdate(ctx, req.Section, ScopeUser, "")
 	if err != nil {
 		return lifecycle.RestartRequired
 	}
@@ -29,7 +29,7 @@ func (s *service) classifySkillsRequest(ctx context.Context, req SectionUpdateRe
 	if scope == ScopeAgent {
 		return lifecycle.Live
 	}
-	cfg, _, err := s.loadConfig(ctx, scope, workspaceID)
+	cfg, _, err := s.loadConfig(ctx, scope, workspaceID, "")
 	if err != nil {
 		return lifecycle.Live
 	}
@@ -44,6 +44,24 @@ func (s *service) classifyGeneralRequest(ctx context.Context, req SectionUpdateR
 	}
 	changed := diffGeneralSettings(&cfg, *req.General)
 	return lifecycleForChangedPaths(changed, lifecycle.RestartRequired)
+}
+
+func (s *service) classifyPersonaRequest(ctx context.Context, req SectionUpdateRequest) lifecycle.Lifecycle {
+	loaded, err := s.loadScopedSectionUpdateForProfile(
+		ctx,
+		req.Section,
+		req.Scope,
+		req.WorkspaceID,
+		req.ProfileName,
+		ScopeUser,
+		ScopeProfile,
+		ScopeWorkspace,
+	)
+	if err != nil {
+		return lifecycle.Live
+	}
+	changed := diffPersonaSettings(loaded.config.Defaults, *req.Persona)
+	return lifecycleForChangedPaths(changed, lifecycle.Live)
 }
 
 func (s *service) classifyRolesRequest(ctx context.Context, req SectionUpdateRequest) lifecycle.Lifecycle {
@@ -78,7 +96,7 @@ func (s *service) classifyWindowManagerRequest(
 	req SectionUpdateRequest,
 ) lifecycle.Lifecycle {
 	loaded, err := s.loadScopedSectionUpdate(
-		ctx, req.Section, req.Scope, req.WorkspaceID, ScopeGlobal, ScopeWorkspace,
+		ctx, req.Section, req.Scope, req.WorkspaceID, ScopeUser, ScopeWorkspace,
 	)
 	if err != nil {
 		return lifecycle.Live
@@ -101,12 +119,14 @@ func (s *service) classifyCmdPaletteRequest(
 	ctx context.Context,
 	req SectionUpdateRequest,
 ) lifecycle.Lifecycle {
-	loaded, err := s.loadScopedSectionUpdate(
+	loaded, err := s.loadScopedSectionUpdateForProfile(
 		ctx,
 		req.Section,
 		req.Scope,
 		req.WorkspaceID,
-		ScopeGlobal,
+		req.ProfileName,
+		ScopeUser,
+		ScopeProfile,
 		ScopeWorkspace,
 	)
 	if err != nil {
@@ -125,6 +145,6 @@ func (s *service) classifyAttentionRequest(
 	if err != nil {
 		return lifecycle.Live
 	}
-	changed := diffAttentionSettings(cfg.Attention, *req.Attention)
+	changed := diffAttentionRequest(cfg.Attention, *req.Attention)
 	return lifecycleForChangedPaths(changed, lifecycle.Live)
 }

@@ -133,6 +133,7 @@ type SettingsMCPAuthStatusPayload struct {
 	ServerName   string     `json:"server_name"`
 	Scope        string     `json:"scope"`
 	WorkspaceID  string     `json:"workspace_id,omitempty"`
+	Profile      string     `json:"profile,omitempty"`
 	Status       string     `json:"status"`
 	RemoteURL    string     `json:"remote_url,omitempty"`
 	AuthType     string     `json:"auth_type,omitempty"`
@@ -170,6 +171,7 @@ type SettingsMCPServerItemPayload struct {
 	RuntimeStatus  *SettingsMCPServerRuntimeStatusPayload `json:"runtime_status,omitempty"`
 	Scope          SettingsScopeKind                      `json:"scope"`
 	WorkspaceID    string                                 `json:"workspace_id,omitempty"`
+	Profile        string                                 `json:"profile,omitempty"`
 	CatalogEntry   string                                 `json:"catalog_entry,omitempty"`
 	CatalogVersion string                                 `json:"catalog_version,omitempty"`
 	SourceMetadata SettingsSourceMetadataPayload          `json:"source_metadata"`

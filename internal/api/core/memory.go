@@ -48,6 +48,8 @@ var (
 
 // MemoryLocation identifies the storage location for a memory document.
 type MemoryLocation struct {
+	ProfileID   string
+	ProfileName string
 	Scope       memcontract.Scope
 	Workspace   string
 	WorkspaceID string
@@ -57,6 +59,8 @@ type MemoryLocation struct {
 }
 
 type memorySelector struct {
+	ProfileID     string
+	ProfileName   string
 	Scope         memcontract.Scope
 	Workspace     string
 	WorkspaceID   string
@@ -88,8 +92,9 @@ func (h *BaseHandlers) MemoryConfigMetadata(c *gin.Context) {
 
 // MemoryHistory returns bounded, redacted memory operation history.
 func (h *BaseHandlers) MemoryHistory(c *gin.Context) {
-	if h.MemoryStore == nil {
-		h.respondMemoryError(c, http.StatusInternalServerError, errors.New("memory store is not configured"), nil)
+	store, err := h.memoryBoundStore(c.Request.Context())
+	if err != nil {
+		h.respondMemoryError(c, http.StatusInternalServerError, err, nil)
 		return
 	}
 
@@ -98,7 +103,7 @@ func (h *BaseHandlers) MemoryHistory(c *gin.Context) {
 		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
 		return
 	}
-	records, err := h.MemoryStore.History(c.Request.Context(), query)
+	records, err := store.History(c.Request.Context(), query)
 	if err != nil {
 		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
 		return
@@ -221,19 +226,23 @@ func (h *BaseHandlers) memoryExplicitSearchFallback(
 	queryText string,
 	limit int,
 ) ([]memcontract.SearchResult, error) {
-	if h.MemoryStore == nil {
-		return nil, errors.New("memory store is not configured")
+	store, err := h.memoryProfileStore(selector)
+	if err != nil {
+		return nil, err
 	}
 	workspace := ""
 	switch selector.Scope.Normalize() {
 	case memcontract.ScopeWorkspace:
 		workspace = strings.TrimSpace(selector.Workspace)
-	case memcontract.ScopeGlobal:
+	case memcontract.ScopeProfile:
 		workspace = ""
 	default:
 		return nil, nil
 	}
-	return h.MemoryStore.Search(ctx, queryText, memcontract.SearchOptions{
+	if scope := selector.Scope.Normalize(); scope == memcontract.ScopeWorkspace {
+		store = store.ForWorkspace(selector.Workspace)
+	}
+	return store.Search(ctx, queryText, memcontract.SearchOptions{
 		Scope:     selector.Scope,
 		Workspace: workspace,
 		Limit:     limit,

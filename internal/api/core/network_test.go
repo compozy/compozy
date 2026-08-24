@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -678,6 +679,7 @@ func networkTestSessionManager(
 			}
 			return &session.Info{
 				ID:          trimmedID,
+				ProfileID:   store.DefaultProfileID,
 				WorkspaceID: strings.TrimSpace(workspaceID),
 				State:       session.StateActive,
 			}, nil
@@ -1103,6 +1105,7 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 		nil,
 	)
 	fixture.Handlers.Config.Network.Enabled = true
+	fixture.Handlers.Profiles = sessionProfileServiceStub{}
 
 	fixedNow := time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC)
 	fixture.Handlers.Network = testutil.StubNetworkService{
@@ -1230,6 +1233,7 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 	}
 	networkChannels := map[string]store.NetworkChannelEntry{
 		networkChannelKey("ws-workspace", "builders"): {
+			ProfileID:    store.DefaultProfileID,
 			WorkspaceID:  "ws-workspace",
 			Channel:      "builders",
 			Purpose:      "Build coordination",
@@ -1240,6 +1244,7 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 		},
 	}
 	networkSubscriptions := make([]store.NetworkSubscriptionEntry, 0)
+	var networkSubscriptionDeleted atomic.Bool
 	var networkStateMu sync.Mutex
 	fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
 		GetDirectRoomFn: func(_ context.Context, ref store.NetworkChannelRef, gotDirectID string) (store.NetworkDirectRoomSummary, error) {
@@ -1253,6 +1258,7 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 				)
 			}
 			return store.NetworkDirectRoomSummary{
+				ProfileID:   store.DefaultProfileID,
 				WorkspaceID: "ws-workspace",
 				Channel:     "builders",
 				DirectID:    directID,
@@ -1275,19 +1281,40 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 			networkChannels[networkChannelKey(entry.WorkspaceID, entry.Channel)] = entry
 			return nil
 		},
-		PatchNetworkChannelFn: func(_ context.Context, ref store.NetworkChannelRef, patch store.NetworkChannelPatch) error {
+		PatchNetworkChannelFn: func(
+			_ context.Context,
+			readScope store.ReadScope,
+			ref store.NetworkChannelRef,
+			patch store.NetworkChannelPatch,
+		) error {
 			networkStateMu.Lock()
 			defer networkStateMu.Unlock()
 			key := networkChannelKey(ref.WorkspaceID, ref.Channel)
 			entry, ok := networkChannels[key]
-			if !ok {
+			if !ok || !readScope.Matches(entry.ProfileID) {
 				return sql.ErrNoRows
 			}
 			networkChannels[key] = patch.Apply(entry)
 			return nil
 		},
-		ListNetworkChannelsFn: func(context.Context, store.NetworkChannelQuery) ([]store.NetworkChannelEntry, error) {
-			return nil, nil
+		ListNetworkChannelsFn: func(_ context.Context, query store.NetworkChannelQuery) ([]store.NetworkChannelEntry, error) {
+			networkStateMu.Lock()
+			defer networkStateMu.Unlock()
+			if query.ReadScope.ProfileID == "profile-marketing" {
+				return []store.NetworkChannelEntry{{
+					ProfileID:   "profile-marketing",
+					WorkspaceID: "ws-workspace",
+					Channel:     "marketing-builders",
+					Purpose:     "Marketing build coordination",
+				}}, nil
+			}
+			entries := make([]store.NetworkChannelEntry, 0, len(networkChannels))
+			for _, entry := range networkChannels {
+				if entry.WorkspaceID == query.WorkspaceID && query.ReadScope.Matches(entry.ProfileID) {
+					entries = append(entries, entry)
+				}
+			}
+			return entries, nil
 		},
 		ListNetworkMessagesFn: func(context.Context, store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
 			return nil, nil
@@ -1331,6 +1358,10 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 				out = append(out, entry)
 			}
 			return out, nil
+		},
+		DeleteNetworkSubscriptionFn: func(_ context.Context, _ store.NetworkSubscriptionRef) error {
+			networkSubscriptionDeleted.Store(true)
+			return nil
 		},
 	}
 
@@ -1405,6 +1436,29 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 			channelsPayload.Channels[0].Channel != "builders" ||
 			channelsPayload.Channels[0].PeerCount != 2 {
 			t.Fatalf("channels payload = %#v", channelsPayload.Channels)
+		}
+
+		marketingResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/network/channels?profile=marketing",
+			nil,
+		)
+		if marketingResp.Code != http.StatusOK {
+			t.Fatalf(
+				"marketing channels code = %d, want %d; body=%s",
+				marketingResp.Code,
+				http.StatusOK,
+				marketingResp.Body.String(),
+			)
+		}
+		var marketingPayload contract.NetworkChannelsResponse
+		testutil.DecodeJSONResponse(t, marketingResp, &marketingPayload)
+		if len(marketingPayload.Channels) != 1 ||
+			marketingPayload.Channels[0].ProfileID != "profile-marketing" ||
+			marketingPayload.Channels[0].Channel != "marketing-builders" {
+			t.Fatalf("marketing channels payload = %#v, want marketing profile channel", marketingPayload.Channels)
 		}
 	})
 
@@ -1493,6 +1547,8 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 		if upsertPayload.Subscription.Channel != "quiet" ||
 			upsertPayload.Subscription.ThreadID != "thread_quiet" ||
 			upsertPayload.Subscription.SessionID != "sess-reviewer" ||
+			upsertPayload.Subscription.ProfileID != store.DefaultProfileID ||
+			upsertPayload.Subscription.ProfileName != "default" ||
 			upsertPayload.Subscription.Mode != store.NetworkSubscriptionModeMute {
 			t.Fatalf("upsert subscription payload = %#v", upsertPayload.Subscription)
 		}
@@ -1522,6 +1578,8 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 		testutil.DecodeJSONResponse(t, listResp, &listPayload)
 		if len(listPayload.Subscriptions) != 1 ||
 			listPayload.Subscriptions[0].SessionID != "sess-reviewer" ||
+			listPayload.Subscriptions[0].ProfileID != store.DefaultProfileID ||
+			listPayload.Subscriptions[0].ProfileName != "default" ||
 			listPayload.Subscriptions[0].Mode != store.NetworkSubscriptionModeMute {
 			t.Fatalf("list subscriptions payload = %#v", listPayload.Subscriptions)
 		}
@@ -1547,6 +1605,34 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 				http.StatusBadRequest,
 				body,
 			)
+		}
+	})
+
+	t.Run("Should reject aggregate network subscription deletion", func(t *testing.T) {
+		t.Parallel()
+
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodDelete,
+			"/workspaces/ws-workspace/network/channels/builders/subscriptions/sess-a?all_profiles=true",
+			nil,
+		)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf(
+				"aggregate delete code = %d, want %d; body=%s",
+				response.Code,
+				http.StatusBadRequest,
+				response.Body.String(),
+			)
+		}
+		var payload contract.ProfileErrorPayload
+		testutil.DecodeJSONResponse(t, response, &payload)
+		if payload.Error.Code != "profile_selection_conflict" {
+			t.Fatalf("aggregate delete error = %#v, want profile_selection_conflict", payload.Error)
+		}
+		if networkSubscriptionDeleted.Load() {
+			t.Fatal("DeleteNetworkSubscription() called for aggregate mutation")
 		}
 	})
 
@@ -3347,7 +3433,11 @@ func TestBaseHandlersNetworkChannelsHideDirectedTrafficFromPublicTimeline(t *tes
 			}
 			fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
 				ListNetworkChannelsFn: func(context.Context, store.NetworkChannelQuery) ([]store.NetworkChannelEntry, error) {
-					return nil, nil
+					return []store.NetworkChannelEntry{{
+						ProfileID:   store.DefaultProfileID,
+						WorkspaceID: "ws-workspace",
+						Channel:     channel,
+					}}, nil
 				},
 				ListNetworkMessagesFn: func(_ context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
 					switch {
@@ -5717,6 +5807,15 @@ func TestBaseHandlersCreateNetworkChannelCreatesSessionsPerAgent(t *testing.T) {
 			testutil.DecodeJSONResponse(t, resp, &payload)
 			if got, want := payload.Channel.SessionCount, 2; got != want {
 				t.Fatalf("payload.Channel.SessionCount = %d, want %d", got, want)
+			}
+			for index, sessionPayload := range payload.Channel.Sessions {
+				if sessionPayload.ProfileID != store.DefaultProfileID || sessionPayload.ProfileName != "default" {
+					t.Fatalf(
+						"payload.Channel.Sessions[%d] profile owner = %#v, want default identity",
+						index,
+						sessionPayload,
+					)
+				}
 			}
 			if got, want := len(payload.Channel.Peers), 2; got != want {
 				t.Fatalf("len(payload.Channel.Peers) = %d, want %d", got, want)

@@ -236,6 +236,7 @@ func (c *daemonClient) doRequestWithReaderAndClient(
 	if err := c.validateTargetOperation(options.Method, options.Path); err != nil {
 		return nil, err
 	}
+	options.Query = profileQueryValues(ctx, options.Query)
 
 	target := c.target.requestBaseURL() + options.Path
 	if len(options.Query) > 0 {

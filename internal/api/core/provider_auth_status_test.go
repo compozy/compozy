@@ -27,8 +27,8 @@ func TestSettingsProviderAuthStatusPayload(t *testing.T) {
 			) (settingspkg.CollectionEnvelope, error) {
 				return settingspkg.CollectionEnvelope{
 					Collection:      req.Collection,
-					Scope:           settingspkg.ScopeGlobal,
-					AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
+					Scope:           settingspkg.ScopeUser,
+					AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
 					Providers: []settingspkg.ProviderItem{{
 						Name: "codex",
 						Settings: settingspkg.ProviderSettings{
@@ -53,7 +53,7 @@ func TestSettingsProviderAuthStatusPayload(t *testing.T) {
 						SourceMetadata: settingspkg.SourceMetadata{
 							EffectiveSource: settingspkg.SourceRef{
 								Kind:  settingspkg.SourceKindBuiltinProvider,
-								Scope: settingspkg.ScopeGlobal,
+								Scope: settingspkg.ScopeUser,
 							},
 							AvailableTargets: []settingspkg.WriteTargetKind{settingspkg.WriteTargetGlobalConfig},
 						},

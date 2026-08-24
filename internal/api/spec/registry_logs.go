@@ -10,7 +10,7 @@ func registryLogOperations() []OperationSpec {
 		Summary:     "List runtime logs",
 		Tags:        []string{specLogsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters:  logFilterQueryParams(),
+		Parameters:  withProfileScope(logFilterQueryParams()...),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.LogsListResponse{}},
 			{Status: 400, Description: specInvalidFilterDescription, Body: contract.ErrorPayload{}},
@@ -24,7 +24,7 @@ func registryLogOperations() []OperationSpec {
 			Summary:     "Stream runtime logs",
 			Tags:        []string{specLogsKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters:  logStreamQueryParams(),
+			Parameters:  withProfileScope(logStreamQueryParams()...),
 			Responses: []ResponseSpec{
 				{
 					Status:      200,

@@ -1,8 +1,13 @@
 // @vitest-environment node
 
+import { access, mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
+  cleanupBrowserRuntimePaths,
   closeSkillMarketplaceServer,
   resolveBrowserRuntimeEnv,
   startSkillMarketplaceServer,
@@ -24,6 +29,37 @@ import {
 } from "../runtime-helpers";
 
 describe("runtime helpers", () => {
+  it("removes every launch-owned path during runtime cleanup", async () => {
+    const testRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-runtime-cleanup-test-"));
+    const paths = {
+      cliShim: path.join(testRoot, "home", "bin", "compozy"),
+      configFile: path.join(testRoot, "home", "config.toml"),
+      daemonLog: path.join(testRoot, "home", "logs", "daemon.log"),
+      daemonSocket: path.join(testRoot, "daemon.sock"),
+      homeDir: path.join(testRoot, "home"),
+      operatorHomeDir: path.join(testRoot, "operator-home"),
+      workspaceDir: path.join(testRoot, "workspace"),
+    };
+    try {
+      await Promise.all([
+        mkdir(paths.homeDir, { recursive: true }),
+        mkdir(paths.operatorHomeDir, { recursive: true }),
+        mkdir(paths.workspaceDir, { recursive: true }),
+        writeFile(paths.daemonSocket, "socket placeholder"),
+      ]);
+
+      await cleanupBrowserRuntimePaths(paths);
+
+      await Promise.all(
+        [paths.homeDir, paths.operatorHomeDir, paths.workspaceDir, paths.daemonSocket].map(
+          async ownedPath => await expect(access(ownedPath)).rejects.toThrow()
+        )
+      );
+    } finally {
+      await rm(testRoot, { force: true, recursive: true });
+    }
+  });
+
   it("preserves lane control variables without leaking unrelated ambient variables", () => {
     expect(
       resolveBrowserRuntimeEnv(
@@ -47,15 +83,16 @@ describe("runtime helpers", () => {
     });
   });
 
-  it("stops the registered restart replacement before the originally spawned daemon", async () => {
+  it("stops the registered restart replacement after the originally spawned daemon exited", async () => {
     const calls: string[] = [];
-    const child = {} as Parameters<typeof stopBrowserDaemonProcess>[0];
+    const child = { exitCode: 0 } as Parameters<typeof stopBrowserDaemonProcess>[0];
 
     await stopBrowserDaemonProcess(
       child,
       {
         cliShim: "/tmp/compozy-home/bin/compozy",
         homeDir: "/tmp/compozy-home",
+        operatorHomeDir: "/tmp/operator-home",
         repoRoot: "/tmp/repo",
       },
       {
@@ -65,9 +102,34 @@ describe("runtime helpers", () => {
           expect(args).toEqual(["daemon", "stop", "-o", "json"]);
           expect(options).toMatchObject({
             cwd: "/tmp/repo",
-            env: { COMPOZY_HOME: "/tmp/compozy-home", HOME: "/tmp/compozy-home" },
+            env: { COMPOZY_HOME: "/tmp/compozy-home", HOME: "/tmp/operator-home" },
           });
           return { stderr: "", stdout: "{}" };
+        },
+        stopSpawned: async () => {
+          throw new Error("the exited original process must not be stopped twice");
+        },
+      }
+    );
+
+    expect(calls).toEqual(["registered"]);
+  });
+
+  it("stops the owned live process without issuing a duplicate CLI stop", async () => {
+    const calls: string[] = [];
+    const child = { exitCode: null } as Parameters<typeof stopBrowserDaemonProcess>[0];
+
+    await stopBrowserDaemonProcess(
+      child,
+      {
+        cliShim: "/tmp/compozy-home/bin/compozy",
+        homeDir: "/tmp/compozy-home",
+        operatorHomeDir: "/tmp/operator-home",
+        repoRoot: "/tmp/repo",
+      },
+      {
+        executeFile: async () => {
+          throw new Error("the live owned process must not receive a duplicate CLI stop");
         },
         stopSpawned: async receivedChild => {
           expect(receivedChild).toBe(child);
@@ -76,7 +138,7 @@ describe("runtime helpers", () => {
       }
     );
 
-    expect(calls).toEqual(["registered", "spawned"]);
+    expect(calls).toEqual(["spawned"]);
   });
 
   it("treats an already stopped registered daemon as idempotent cleanup", async () => {
@@ -85,6 +147,7 @@ describe("runtime helpers", () => {
         {
           cliShim: "/tmp/compozy-home/bin/compozy",
           homeDir: "/tmp/compozy-home",
+          operatorHomeDir: "/tmp/operator-home",
           repoRoot: "/tmp/repo",
         },
         async () => {

@@ -26,8 +26,11 @@ var (
 		ToolCallID: "tool-call-42",
 	}
 	benchmarkSnapshot     = buildBenchmarkTaskSnapshot(1024)
-	benchmarkMetricsQuery = TaskMetricsQuery{Since: benchmarkObserveNow.Add(-24 * time.Hour)}
-	benchmarkObserver     = buildBenchmarkBridgeObserver(256, 4)
+	benchmarkMetricsQuery = TaskMetricsQuery{
+		ReadScope: store.ReadScope{AllProfiles: true},
+		Since:     benchmarkObserveNow.Add(-24 * time.Hour),
+	}
+	benchmarkObserver = buildBenchmarkBridgeObserver(256, 4)
 )
 
 func BenchmarkSummarizeEventPermission(b *testing.B) {

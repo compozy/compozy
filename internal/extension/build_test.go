@@ -14,7 +14,9 @@ import (
 	"time"
 
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/testutil"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"golang.org/x/mod/modfile"
 )
 
@@ -129,8 +131,8 @@ required = true
 mode = "live"
 channel_scopes = ["builders"]
 
-[resources]
-skills = ["skills"]
+[[resources.skills]]
+path = "skills"
 `)
 		runner := newBuildTestRunner(validDescribePayloadPointer())
 
@@ -195,8 +197,8 @@ required = true
 mode = "live"
 channel_scopes = ["release"]
 
-[resources]
-skills = ["skills"]
+[[resources.skills]]
+path = "skills"
 `)
 		networkChanged, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, runner)
 		if err != nil {
@@ -246,8 +248,8 @@ name = "executable"
 version = "0.1.0"
 min_compozy_version = "0.0.0"
 
-[resources]
-skills = ["skills"]
+[[resources.skills]]
+path = "skills"
 
 [subprocess]
 command = "./bin/extension"
@@ -263,8 +265,8 @@ name = "capability"
 version = "0.1.0"
 min_compozy_version = "0.0.0"
 
-[resources]
-skills = ["skills"]
+[[resources.skills]]
+path = "skills"
 
 [capabilities]
 provides = ["tool.provider"]
@@ -280,8 +282,8 @@ name = "hook"
 version = "0.1.0"
 min_compozy_version = "0.0.0"
 
-[resources]
-skills = ["skills"]
+[[resources.skills]]
+path = "skills"
 
 [[resources.hooks]]
 name = "observe"
@@ -301,8 +303,8 @@ name = "tool"
 version = "0.1.0"
 min_compozy_version = "0.0.0"
 
-[resources]
-skills = ["skills"]
+[[resources.skills]]
+path = "skills"
 
 [resources.tools.lookup]
 description = "Look up content"
@@ -323,8 +325,8 @@ name = "mcp"
 version = "0.1.0"
 min_compozy_version = "0.0.0"
 
-[resources]
-skills = ["skills"]
+[[resources.skills]]
+path = "skills"
 
 [resources.mcp_servers.local]
 command = "mcp-server"
@@ -341,8 +343,8 @@ name = "custom-build"
 version = "0.1.0"
 min_compozy_version = "0.0.0"
 
-[resources]
-skills = ["skills"]
+[[resources.skills]]
+path = "skills"
 `,
 				buildCmd:  []string{"make", "extension"},
 				resources: true,
@@ -449,10 +451,10 @@ expr = "0 * * * *"
 		}
 		writeLayoutJSONFile(t, filepath.Join(dir, "layouts", "two-up.json"), testLayoutResource("two-up"))
 		payload := validDescribePayload()
-		payload.Resources.Agents = []string{"agents"}
-		payload.Resources.Skills = []string{"skills"}
-		payload.Resources.Automation = []string{"automation"}
-		payload.Resources.Layouts = []string{"layouts/two-up.json"}
+		payload.Resources.Agents = describePaths("agents")
+		payload.Resources.Skills = describePaths("skills")
+		payload.Resources.Automation = describePaths("automation")
+		payload.Resources.Layouts = describePaths("layouts/two-up.json")
 
 		first, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, newBuildTestRunner(&payload))
 		if err != nil {
@@ -462,7 +464,8 @@ expr = "0 * * * *"
 		if err != nil {
 			t.Fatalf("os.ReadFile(copied skill) error = %v", err)
 		}
-		if string(copied) != "# Writer\n" || !reflect.DeepEqual(first.Manifest.Resources.Skills, []string{"skills"}) {
+		if string(copied) != "# Writer\n" ||
+			!reflect.DeepEqual(manifestResourcePaths(first.Manifest.Resources.Skills), []string{"skills"}) {
 			t.Fatalf("copied = %q resources = %#v", copied, first.Manifest.Resources.Skills)
 		}
 		for _, relativePath := range []string{
@@ -481,10 +484,10 @@ expr = "0 * * * *"
 			t.Fatalf("os.ReadFile(first manifest) error = %v", err)
 		}
 		for _, declaration := range []string{
-			"agents = [\"agents\"]",
-			"skills = [\"skills\"]",
-			"automation = [\"automation\"]",
-			"layouts = [\"layouts/two-up.json\"]",
+			"[[resources.agents]]\n    path = \"agents\"",
+			"[[resources.skills]]\n    path = \"skills\"",
+			"[[resources.automation]]\n    path = \"automation\"",
+			"[[resources.layouts]]\n    path = \"layouts/two-up.json\"",
 		} {
 			if !strings.Contains(string(firstManifest), declaration) {
 				t.Fatalf("manifest = %s, want declaration %q", firstManifest, declaration)
@@ -517,7 +520,7 @@ mode = "cron"
 expr = "not-a-cron"
 `)
 		payload := validDescribePayload()
-		payload.Resources.Automation = []string{"automation"}
+		payload.Resources.Automation = describePaths("automation")
 		_, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, newBuildTestRunner(&payload))
 		if err == nil || !strings.Contains(err.Error(), "automation/jobs.toml") ||
 			!strings.Contains(err.Error(), "expr is invalid") {
@@ -544,8 +547,8 @@ expr = "not-a-cron"
 				t.Fatalf("os.MkdirAll(resources) error = %v", err)
 			}
 			payload := validDescribePayload()
-			payload.Resources.Skills = []string{"resources"}
-			payload.Resources.Loops = []string{"resources/nested"}
+			payload.Resources.Skills = describePaths("resources")
+			payload.Resources.Loops = describePaths("resources/nested")
 			_, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, newBuildTestRunner(&payload))
 			if !errors.Is(err, ErrManifestInvalid) || !strings.Contains(err.Error(), "overlap") {
 				t.Fatalf("buildBundle() error = %v, want overlap rejection", err)
@@ -567,7 +570,7 @@ expr = "not-a-cron"
 				t.Fatalf("os.Symlink() error = %v", err)
 			}
 			payload := validDescribePayload()
-			payload.Resources.Skills = []string{"skills"}
+			payload.Resources.Skills = describePaths("skills")
 			_, err := buildBundle(testutil.Context(t), BuildRequest{SourceDir: dir}, newBuildTestRunner(&payload))
 			if !errors.Is(err, ErrManifestInvalid) || !strings.Contains(err.Error(), "symlink") {
 				t.Fatalf("buildBundle() error = %v, want symlink rejection", err)
@@ -684,11 +687,11 @@ func TestManifestFromDescribeResources(t *testing.T) {
 
 		payload := validDescribePayload()
 		payload.Resources = extensioncontract.DescribeResources{
-			Skills:     []string{"skills/z", "skills/a"},
-			Loops:      []string{"loops"},
-			Agents:     []string{"agents"},
-			Automation: []string{"automation/z.toml", "automation/a.toml"},
-			Layouts:    []string{"layouts"},
+			Skills:     describePaths("skills/z", "skills/a"),
+			Loops:      describePaths("loops"),
+			Agents:     describePaths("agents"),
+			Automation: describePaths("automation/z.toml", "automation/a.toml"),
+			Layouts:    describePaths("layouts"),
 			CmdPalette: extensioncontract.CmdPaletteConfig{
 				Commands: []extensioncontract.CmdPaletteCommand{{
 					ID: "open", Title: "Open fixture", Icon: "terminal",
@@ -701,11 +704,11 @@ func TestManifestFromDescribeResources(t *testing.T) {
 			t.Fatalf("manifestFromDescribe() error = %v", err)
 		}
 		want := ResourcesConfig{
-			Skills:     []string{"skills/a", "skills/z"},
-			Loops:      []string{"loops"},
-			Agents:     []string{"agents"},
-			Automation: []string{"automation/a.toml", "automation/z.toml"},
-			Layouts:    []string{"layouts"},
+			Skills:     []ManifestResourcePath{{Path: "skills/a"}, {Path: "skills/z"}},
+			Loops:      []ManifestResourcePath{{Path: "loops"}},
+			Agents:     []ManifestResourcePath{{Path: "agents"}},
+			Automation: []ManifestResourcePath{{Path: "automation/a.toml"}, {Path: "automation/z.toml"}},
+			Layouts:    []ManifestResourcePath{{Path: "layouts"}},
 			CmdPalette: extensioncontract.CmdPaletteConfig{
 				Commands: []extensioncontract.CmdPaletteCommand{{
 					ID: "open", Title: "Open fixture", Icon: "terminal",
@@ -715,6 +718,55 @@ func TestManifestFromDescribeResources(t *testing.T) {
 		}
 		if !reflect.DeepEqual(manifest.Resources, want) {
 			t.Fatalf("manifest.Resources = %#v, want %#v", manifest.Resources, want)
+		}
+	})
+
+	t.Run("Should preserve profile declarations and placed resources", func(t *testing.T) {
+		t.Parallel()
+
+		inputSchema := json.RawMessage(`{"type":"object"}`)
+		inputDigest, err := toolspkg.SchemaDigest(inputSchema)
+		if err != nil {
+			t.Fatalf("toolspkg.SchemaDigest() error = %v", err)
+		}
+		payload := validDescribePayload()
+		payload.Provides = []string{extensionprotocol.CapabilityToolProvider}
+		payload.Profiles = []extensioncontract.DescribeProfile{{
+			Name: " finance ", Color: " #d6a647 ",
+			Defaults:    extensioncontract.DescribeProfileDefaults{Agent: " analyst "},
+			Credentials: []extensioncontract.DescribeProfileCredential{{Provider: " openai ", Slot: " api_key "}},
+		}}
+		payload.Resources.Skills = []extensioncontract.DescribeResourcePath{{
+			Path: " skills/analyst ", Profile: " finance ",
+		}}
+		payload.Tools = []toolspkg.ExtensionToolRuntimeDescriptor{{
+			Profile: " finance ", ID: "ext__fixture__review", Handler: "review",
+			InputSchema: inputSchema, InputSchemaDigest: inputDigest, ReadOnly: true, Risk: toolspkg.RiskRead,
+		}}
+		payload.HookEvents = []extensioncontract.DescribeHookEvent{{
+			Event: " prompt.post_assemble ", Profile: " finance ",
+		}}
+
+		manifest, err := manifestFromDescribe(&payload)
+		if err != nil {
+			t.Fatalf("manifestFromDescribe() error = %v", err)
+		}
+		if len(manifest.Profiles) != 1 || manifest.Profiles[0].Name != "finance" ||
+			manifest.Profiles[0].Defaults.Agent != "analyst" ||
+			len(manifest.Profiles[0].Credentials) != 1 || manifest.Profiles[0].Credentials[0].Slot != "api_key" {
+			t.Fatalf("manifest.Profiles = %#v, want normalized finance declaration", manifest.Profiles)
+		}
+		if got := manifest.Resources.Skills; !reflect.DeepEqual(
+			got,
+			[]ManifestResourcePath{{Path: "skills/analyst", Profile: "finance"}},
+		) {
+			t.Fatalf("manifest.Resources.Skills = %#v, want profile placement", got)
+		}
+		if got := manifest.Resources.Tools["review"].Profile; got != "finance" {
+			t.Fatalf("manifest.Resources.Tools[review].Profile = %q, want finance", got)
+		}
+		if got := manifest.Resources.Hooks[0].Profile; got != "finance" {
+			t.Fatalf("manifest.Resources.Hooks[0].Profile = %q, want finance", got)
 		}
 	})
 
@@ -765,9 +817,11 @@ name = "resource-only"
 version = "0.1.0"
 min_compozy_version = "0.3.0-beta.1"
 
-[resources]
-automation = ["automation"]
-layouts = ["layouts"]
+[[resources.automation]]
+path = "automation"
+
+[[resources.layouts]]
+path = "layouts"
 
 [subprocess]
 command = "./bin"
@@ -1087,6 +1141,14 @@ func validDescribePayload() extensioncontract.DescribePayload {
 			MinCompozyVersion: "0.3.0-beta.1",
 		},
 	}
+}
+
+func describePaths(paths ...string) []extensioncontract.DescribeResourcePath {
+	resources := make([]extensioncontract.DescribeResourcePath, 0, len(paths))
+	for _, path := range paths {
+		resources = append(resources, extensioncontract.DescribeResourcePath{Path: path})
+	}
+	return resources
 }
 
 func writeGoBuildFixture(t *testing.T, dir string) {

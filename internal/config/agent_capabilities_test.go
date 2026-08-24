@@ -202,7 +202,7 @@ outcome = "A prioritized copy review."
   ]
 }`)
 
-	agents, err := LoadWorkspaceAgentDefs(root, []string{additional}, homePaths)
+	agents, err := LoadWorkspaceAgentDefs(root, []string{additional}, homePaths, "")
 	if err != nil {
 		t.Fatalf("LoadWorkspaceAgentDefs() error = %v", err)
 	}
@@ -288,7 +288,7 @@ func TestLoadWorkspaceAgentDefsLoadsAgentsWithoutCapabilityCatalog(t *testing.T)
 		"workspace",
 	)
 
-	agents, err := LoadWorkspaceAgentDefs(root, nil, homePaths)
+	agents, err := LoadWorkspaceAgentDefs(root, nil, homePaths, "")
 	if err != nil {
 		t.Fatalf("LoadWorkspaceAgentDefs() error = %v", err)
 	}

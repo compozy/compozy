@@ -80,6 +80,7 @@ func (e *TriggerEngine) claimPersistentWebhookDelivery(
 	now := e.now()
 	runID := webhookDeliveryRunID(trigger.ID, deliveryID)
 	run := Run{
+		ProfileID:            strings.TrimSpace(trigger.ProfileID),
 		ID:                   runID,
 		TriggerID:            strings.TrimSpace(trigger.ID),
 		FireID:               webhookDeliveryFireID(trigger.ID, deliveryID),

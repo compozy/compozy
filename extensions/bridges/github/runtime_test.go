@@ -120,6 +120,7 @@ func githubProgressManagedInstance() subprocess.InitializeBridgeManagedInstance 
 	now := time.Date(2026, 7, 12, 12, 0, 0, 0, time.UTC)
 	return subprocess.InitializeBridgeManagedInstance{Instance: bridgepkg.BridgeInstance{
 		ID:            "brg-github-progress-noop",
+		ProfileID:     "profile-test",
 		Scope:         bridgepkg.ScopeWorkspace,
 		WorkspaceID:   "ws-github",
 		Platform:      "github",

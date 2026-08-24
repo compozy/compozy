@@ -44,7 +44,7 @@ func windowManagerStateOperations(
 		{
 			Method: httpMethodGet, Path: windowManagerPath,
 			OperationID: "getWindowManagerSnapshot", Summary: "Read one workspace window-manager snapshot",
-			Tags: []string{specWorkspacesKey}, Transports: transports, Parameters: []ParameterSpec{workspaceParam},
+			Tags: []string{specWorkspacesKey}, Transports: transports, Parameters: withProfileSelector(workspaceParam),
 			Responses: append(
 				[]ResponseSpec{{Status: 200, Description: "OK", Body: contract.WindowManagerSnapshot{}}},
 				readErrors...,
@@ -84,7 +84,7 @@ func windowManagerClientOperations(
 		{
 			Method: httpMethodGet, Path: windowManagerPath + "/clients",
 			OperationID: "listWindowManagerClients", Summary: "List connected window-manager clients",
-			Tags: []string{specWorkspacesKey}, Transports: transports, Parameters: []ParameterSpec{workspaceParam},
+			Tags: []string{specWorkspacesKey}, Transports: transports, Parameters: withProfileSelector(workspaceParam),
 			Responses: append(
 				[]ResponseSpec{{Status: 200, Description: "OK", Body: contract.WindowManagerClientsResponse{}}},
 				readErrors...,
@@ -93,7 +93,7 @@ func windowManagerClientOperations(
 		{
 			Method: httpMethodPost, Path: windowManagerPath + "/clients",
 			OperationID: "registerWindowManagerClient", Summary: "Register a window-manager client view",
-			Tags: []string{specWorkspacesKey}, Transports: transports, Parameters: []ParameterSpec{workspaceParam},
+			Tags: []string{specWorkspacesKey}, Transports: transports, Parameters: withProfileSelector(workspaceParam),
 			RequestBody: contract.WindowManagerClientRegistration{},
 			Responses: append(
 				[]ResponseSpec{{Status: 201, Description: "Registered", Body: contract.WindowManagerClientView{}}},
@@ -107,7 +107,7 @@ func windowManagerClientOperations(
 			Summary:     "Unregister a window-manager client view",
 			Tags:        []string{specWorkspacesKey},
 			Transports:  transports,
-			Parameters:  []ParameterSpec{workspaceParam, clientParam},
+			Parameters:  withProfileSelector(workspaceParam, clientParam),
 			Responses: append(
 				[]ResponseSpec{{Status: 204, Description: specNoContentDescription}},
 				mutationErrors...,
@@ -126,7 +126,7 @@ func windowManagerLayoutOperations(
 		{
 			Method: httpMethodGet, Path: windowManagerPath + "/layout",
 			OperationID: "exportWindowManagerLayout", Summary: "Export one declarative window layout",
-			Tags: []string{specWorkspacesKey}, Transports: transports, Parameters: []ParameterSpec{workspaceParam},
+			Tags: []string{specWorkspacesKey}, Transports: transports, Parameters: withProfileSelector(workspaceParam),
 			Responses: append(
 				[]ResponseSpec{{Status: 200, Description: "OK", Body: contract.WindowManagerLayoutDocument{}}},
 				readErrors...,
@@ -135,7 +135,7 @@ func windowManagerLayoutOperations(
 		{
 			Method: httpMethodPost, Path: windowManagerPath + "/layout/validate",
 			OperationID: "validateWindowManagerLayout", Summary: "Validate one declarative window layout",
-			Tags: []string{specWorkspacesKey}, Transports: transports, Parameters: []ParameterSpec{workspaceParam},
+			Tags: []string{specWorkspacesKey}, Transports: transports, Parameters: withProfileSelector(workspaceParam),
 			RequestBody: contract.WindowManagerLayoutValidationRequest{},
 			Responses: append(
 				[]ResponseSpec{
@@ -151,7 +151,7 @@ func windowManagerLayoutOperations(
 		{
 			Method: httpMethodPut, Path: windowManagerPath + "/layout",
 			OperationID: "replaceWindowManagerLayout", Summary: "Replace one declarative window layout",
-			Tags: []string{specWorkspacesKey}, Transports: transports, Parameters: []ParameterSpec{workspaceParam},
+			Tags: []string{specWorkspacesKey}, Transports: transports, Parameters: withProfileSelector(workspaceParam),
 			RequestBody: contract.WindowManagerLayoutReplaceRequest{},
 			Responses: append(
 				[]ResponseSpec{{Status: 200, Description: "Applied", Body: contract.WindowManagerResult{}}},
@@ -193,7 +193,7 @@ func listWindowManagerLayoutProfilesOperation(
 		Summary:     "List layout profiles visible to one workspace",
 		Tags:        []string{specWorkspacesKey},
 		Transports:  transports,
-		Parameters:  []ParameterSpec{workspaceParam},
+		Parameters:  withProfileSelector(workspaceParam),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ResourcesResponse{}},
 			{
@@ -226,7 +226,7 @@ func putWindowManagerLayoutProfileOperation(
 		Summary:     "Create or replace one workspace-visible layout profile",
 		Tags:        []string{specWorkspacesKey},
 		Transports:  transports,
-		Parameters:  []ParameterSpec{workspaceParam, profileParam},
+		Parameters:  withProfileSelector(workspaceParam, profileParam),
 		RequestBody: contract.PutResourceRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: specUpdatedDescription, Body: contract.ResourceResponse{}},
@@ -267,7 +267,7 @@ func deleteWindowManagerLayoutProfileOperation(
 		Summary:     "Delete one workspace-visible layout profile",
 		Tags:        []string{specWorkspacesKey},
 		Transports:  transports,
-		Parameters:  []ParameterSpec{workspaceParam, profileParam},
+		Parameters:  withProfileSelector(workspaceParam, profileParam),
 		RequestBody: contract.DeleteResourceRequest{},
 		Responses: []ResponseSpec{
 			{Status: 204, Description: specNoContentDescription},
@@ -301,7 +301,7 @@ func windowManagerMutationOperation(
 ) OperationSpec {
 	return OperationSpec{
 		Method: method, Path: path, OperationID: operationID, Summary: summary,
-		Tags: []string{specWorkspacesKey}, Transports: transports, Parameters: []ParameterSpec{workspaceParam},
+		Tags: []string{specWorkspacesKey}, Transports: transports, Parameters: withProfileSelector(workspaceParam),
 		RequestBody: contract.WindowManagerCommandRequest{},
 		Responses:   append([]ResponseSpec{{Status: 200, Description: "OK", Body: response}}, errors...),
 	}
@@ -321,7 +321,7 @@ func windowManagerStreamOperation(
 		Method: httpMethodGet, Path: windowManagerPath + "/stream",
 		OperationID: "streamWindowManager", Summary: "Stream a topology and optional client presentation fence",
 		Tags: []string{specWorkspacesKey}, Transports: transports,
-		Parameters: []ParameterSpec{workspaceParam, after, clientID},
+		Parameters: withProfileSelector(workspaceParam, after, clientID),
 		Responses: []ResponseSpec{
 			{
 				Status:      101,

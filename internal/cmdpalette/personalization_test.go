@@ -15,6 +15,52 @@ import (
 	"time"
 )
 
+// Invariant: personalization accepts only a real profile ULID or the reserved aggregate lens.
+// The existing personalization suite owns the lens contract because every ranking operation consumes it.
+func TestProfileLensIDValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept real profile and aggregate identifiers", func(t *testing.T) {
+		t.Parallel()
+		for _, lens := range []ProfileLensID{DefaultProfileLensID, AggregateProfileLensID, "01ARZ3NDEKTSV4RRFFQ69G5FAV"} {
+			if err := lens.Validate(); err != nil {
+				t.Fatalf("ProfileLensID(%q).Validate() error = %v", lens, err)
+			}
+		}
+	})
+	t.Run("Should reject missing and malformed identifiers", func(t *testing.T) {
+		t.Parallel()
+		for _, lens := range []ProfileLensID{"", "default", "@unknown"} {
+			if err := lens.Validate(); err == nil {
+				t.Fatalf("ProfileLensID(%q).Validate() error = nil, want non-nil", lens)
+			}
+		}
+	})
+	t.Run("Should accept correctly labeled lenses", func(t *testing.T) {
+		t.Parallel()
+		for name, lens := range map[string]ProfileLens{
+			"scoped":    ScopedProfileLens(DefaultProfileLensID, "default"),
+			"aggregate": AggregateProfileLens(),
+		} {
+			if err := lens.Validate(); err != nil {
+				t.Fatalf("%s ProfileLens.Validate() error = %v", name, err)
+			}
+		}
+	})
+	t.Run("Should reject unlabeled or mislabelled lenses", func(t *testing.T) {
+		t.Parallel()
+		for name, lens := range map[string]ProfileLens{
+			"missing":               {},
+			"unlabeled aggregate":   {ID: AggregateProfileLensID},
+			"mislabelled aggregate": {ID: AggregateProfileLensID, Name: "default"},
+		} {
+			if err := lens.Validate(); err == nil {
+				t.Fatalf("%s ProfileLens.Validate() error = nil, want non-nil", name)
+			}
+		}
+	})
+}
+
 func TestPersonalization(t *testing.T) {
 	t.Parallel()
 
@@ -36,13 +82,14 @@ func TestPersonalization(t *testing.T) {
 		t.Parallel()
 		store := &personalizationStoreStub{}
 		service := personalizationTestRegistry(t, store, nil)
-		if err := service.RecordUsage(t.Context(), Usage{
+		if err := service.RecordUsage(t.Context(), Usage{ProfileLens: testProfileLens,
 			WorkspaceID: "workspace-a", CommandID: "session.new", Query: "  Séssão   NOVA  ",
 		}); err != nil {
 			t.Fatalf("RecordUsage() error = %v", err)
 		}
 		if recorded := store.lastUsage(); recorded.Query != "sessao nova" ||
-			recorded.WorkspaceID != "workspace-a" || recorded.CommandID != "session.new" {
+			recorded.WorkspaceID != "workspace-a" || recorded.CommandID != "session.new" ||
+			recorded.ProfileLens != testProfileLens {
 			t.Fatalf("recorded usage = %#v, want normalized query and identifiers only", recorded)
 		}
 	})
@@ -64,7 +111,7 @@ func TestPersonalization(t *testing.T) {
 			})),
 		)
 
-		if err := service.RecordUsage(t.Context(), Usage{
+		if err := service.RecordUsage(t.Context(), Usage{ProfileLens: testProfileLens,
 			WorkspaceID: "workspace-a", CommandID: "session.new", Query: "new",
 		}); err != nil {
 			t.Fatalf("RecordUsage() error = %v", err)
@@ -98,7 +145,7 @@ func TestPersonalization(t *testing.T) {
 			},
 		}}
 		service := personalizationTestRegistry(t, store, func() time.Time { return now })
-		snapshot, err := service.Personalization(t.Context(), "workspace-a")
+		snapshot, err := service.Personalization(t.Context(), testProfileLens, "workspace-a")
 		if err != nil {
 			t.Fatalf("Personalization() error = %v", err)
 		}
@@ -115,6 +162,14 @@ func TestPersonalization(t *testing.T) {
 				store.prunedHits,
 			)
 		}
+		if store.readProfileLens != testProfileLens.ID || store.pruneProfileLens != testProfileLens.ID {
+			t.Fatalf(
+				"personalization profile lenses = read:%q prune:%q, want %q",
+				store.readProfileLens,
+				store.pruneProfileLens,
+				testProfileLens.ID,
+			)
+		}
 	})
 
 	t.Run("Should degrade corrupt reads to stable empty signals and log once", func(t *testing.T) {
@@ -123,17 +178,20 @@ func TestPersonalization(t *testing.T) {
 		var logs bytes.Buffer
 		logger := slog.New(slog.NewTextHandler(&logs, nil))
 		service := personalizationTestRegistryWithLogger(t, store, nil, logger)
-		first, err := service.Personalization(t.Context(), "workspace-a")
+		first, err := service.Personalization(t.Context(), testProfileLens, "workspace-a")
 		if err != nil {
 			t.Fatalf("Personalization(first) error = %v", err)
 		}
-		second, err := service.Personalization(t.Context(), "workspace-a")
+		second, err := service.Personalization(t.Context(), testProfileLens, "workspace-a")
 		if err != nil {
 			t.Fatalf("Personalization(second) error = %v", err)
 		}
 		if len(first.Usage) != 0 || len(first.QueryHits) != 0 || len(first.Pins) != 0 ||
 			first.Revision == "" || first.Revision != second.Revision {
 			t.Fatalf("degraded snapshots = %#v / %#v", first, second)
+		}
+		if store.readProfileLens != testProfileLens.ID {
+			t.Fatalf("read profile lens = %q, want %q", store.readProfileLens, testProfileLens.ID)
 		}
 		if count := strings.Count(logs.String(), "personalization degraded to empty signals"); count != 1 {
 			t.Fatalf("degradation log count = %d, want 1; logs=%s", count, logs.String())
@@ -170,14 +228,22 @@ func TestPersonalization(t *testing.T) {
 			WithClock(func() time.Time { return now }),
 		)
 
-		if err := service.Pin(t.Context(), "workspace-a", "session.new"); err != nil {
+		if err := service.Pin(t.Context(), testProfileLens, "workspace-a", "session.new"); err != nil {
 			t.Fatalf("Pin() error = %v", err)
 		}
-		if err := service.ResetPersonalization(t.Context(), "workspace-a"); err != nil {
+		if err := service.ResetPersonalization(t.Context(), testProfileLens, "workspace-a"); err != nil {
 			t.Fatalf("ResetPersonalization() error = %v", err)
 		}
 		if !store.pinned || store.resetWorkspace != "workspace-a" {
 			t.Fatalf("persisted pin/reset = %v/%q", store.pinned, store.resetWorkspace)
+		}
+		if store.pinProfileLens != testProfileLens.ID || store.resetProfileLens != testProfileLens.ID {
+			t.Fatalf(
+				"pin/reset profile lenses = %q/%q, want %q",
+				store.pinProfileLens,
+				store.resetProfileLens,
+				testProfileLens.ID,
+			)
 		}
 		events := recorder.recorded()
 		if len(events) != 4 || events[0].Name != EventPinChanged || events[0].Pinned == nil ||
@@ -199,6 +265,7 @@ type personalizationPolicyFunc func(context.Context, WorkspaceID) (bool, error)
 
 func (f personalizationPolicyFunc) PersonalizationEnabled(
 	ctx context.Context,
+	_ ProfileLens,
 	workspaceID WorkspaceID,
 ) (bool, error) {
 	return f(ctx, workspaceID)
@@ -234,16 +301,20 @@ func personalizationTestRegistryWithLogger(
 }
 
 type personalizationStoreStub struct {
-	mu             sync.Mutex
-	recorded       Usage
-	recordErr      error
-	rows           PersonalizationRows
-	readErr        error
-	prunedCommands []CommandID
-	prunedUsage    []CommandID
-	prunedHits     []string
-	pinned         bool
-	resetWorkspace WorkspaceID
+	mu               sync.Mutex
+	recorded         Usage
+	recordErr        error
+	rows             PersonalizationRows
+	readErr          error
+	prunedCommands   []CommandID
+	prunedUsage      []CommandID
+	prunedHits       []string
+	readProfileLens  ProfileLensID
+	pinProfileLens   ProfileLensID
+	resetProfileLens ProfileLensID
+	pruneProfileLens ProfileLensID
+	pinned           bool
+	resetWorkspace   WorkspaceID
 }
 
 func (s *personalizationStoreStub) RecordCmdPaletteUsage(
@@ -264,58 +335,76 @@ func (s *personalizationStoreStub) lastUsage() Usage {
 }
 
 func (s *personalizationStoreStub) CmdPalettePersonalization(
-	context.Context,
-	WorkspaceID,
+	_ context.Context,
+	profileLensID ProfileLensID,
+	_ WorkspaceID,
 ) (PersonalizationRows, error) {
+	s.readProfileLens = profileLensID
 	return s.rows, s.readErr
 }
 
 func (s *personalizationStoreStub) PutCmdPalettePin(
 	_ context.Context,
+	profileLensID ProfileLensID,
 	_ WorkspaceID,
 	_ CommandID,
 	_ time.Time,
 ) error {
+	s.pinProfileLens = profileLensID
 	s.pinned = true
 	return nil
 }
 
-func (s *personalizationStoreStub) DeleteCmdPalettePin(context.Context, WorkspaceID, CommandID) error {
+func (s *personalizationStoreStub) DeleteCmdPalettePin(
+	_ context.Context,
+	profileLensID ProfileLensID,
+	_ WorkspaceID,
+	_ CommandID,
+) error {
+	s.pinProfileLens = profileLensID
 	return nil
 }
 
 func (s *personalizationStoreStub) PruneCmdPaletteCommand(
 	_ context.Context,
+	profileLensID ProfileLensID,
 	_ WorkspaceID,
 	commandID CommandID,
 ) error {
+	s.pruneProfileLens = profileLensID
 	s.prunedCommands = append(s.prunedCommands, commandID)
 	return nil
 }
 
 func (s *personalizationStoreStub) PruneCmdPaletteUsage(
 	_ context.Context,
+	profileLensID ProfileLensID,
 	_ WorkspaceID,
 	commandID CommandID,
 ) error {
+	s.pruneProfileLens = profileLensID
 	s.prunedUsage = append(s.prunedUsage, commandID)
 	return nil
 }
 
 func (s *personalizationStoreStub) PruneCmdPaletteQueryHit(
 	_ context.Context,
+	profileLensID ProfileLensID,
 	_ WorkspaceID,
 	query string,
 	commandID CommandID,
 ) error {
+	s.pruneProfileLens = profileLensID
 	s.prunedHits = append(s.prunedHits, query+"\x00"+string(commandID))
 	return nil
 }
 
 func (s *personalizationStoreStub) ResetCmdPalettePersonalization(
 	_ context.Context,
+	profileLensID ProfileLensID,
 	workspaceID WorkspaceID,
 ) error {
+	s.resetProfileLens = profileLensID
 	s.resetWorkspace = workspaceID
 	return nil
 }

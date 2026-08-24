@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestCreateBridgeHandlerReturnsPersistedPayload(t *testing.T) {
@@ -17,9 +18,12 @@ func TestCreateBridgeHandlerReturnsPersistedPayload(t *testing.T) {
 		t.Parallel()
 
 		homePaths := newTestHomePaths(t)
+		var created *bridgepkg.BridgeInstance
 		bridges := stubBridgeService{
 			CreateInstanceFn: func(_ context.Context, req bridgepkg.CreateInstanceRequest) (*bridgepkg.BridgeInstance, error) {
-				if req.Scope != bridgepkg.ScopeGlobal || req.Platform != "telegram" ||
+				if req.ProfileID != store.DefaultProfileID ||
+					req.Scope != bridgepkg.ScopeGlobal ||
+					req.Platform != "telegram" ||
 					req.ExtensionName != "ext-telegram" ||
 					req.DisplayName != "Support" {
 					t.Fatalf("CreateInstance() req = %#v", req)
@@ -36,8 +40,9 @@ func TestCreateBridgeHandlerReturnsPersistedPayload(t *testing.T) {
 				if got, want := string(req.DeliveryDefaults), `{"mode":"reply","peer_id":"peer-default"}`; got != want {
 					t.Fatalf("CreateInstance().DeliveryDefaults = %s, want %s", got, want)
 				}
-				return &bridgepkg.BridgeInstance{
+				created = &bridgepkg.BridgeInstance{
 					ID:               "brg-uds",
+					ProfileID:        req.ProfileID,
 					Scope:            req.Scope,
 					Platform:         req.Platform,
 					ExtensionName:    req.ExtensionName,
@@ -50,7 +55,15 @@ func TestCreateBridgeHandlerReturnsPersistedPayload(t *testing.T) {
 					DeliveryDefaults: req.DeliveryDefaults,
 					CreatedAt:        time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC),
 					UpdatedAt:        time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC),
-				}, nil
+				}
+				return created, nil
+			},
+			GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+				if created == nil || id != created.ID {
+					t.Fatalf("GetInstance(%q) created = %#v, want persisted brg-uds", id, created)
+				}
+				persisted := *created
+				return &persisted, nil
 			},
 		}
 

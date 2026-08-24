@@ -5,7 +5,11 @@ description = "Batuta, the conductor: routes CompozyOS spec-cycle work to the ch
 # Manifest grammar floor only; scripts/check-compozy-version.sh enforces the operational floor.
 min_compozy_version = "0.3.0-beta.13"
 
-[resources]
-agents = ["agents"]
-skills = ["resources/skills"]
-loops = ["loops"]
+[[resources.agents]]
+path = "agents"
+
+[[resources.skills]]
+path = "resources/skills"
+
+[[resources.loops]]
+path = "loops"

@@ -7,6 +7,23 @@ import (
 	"time"
 )
 
+type OpenAppEffect struct {
+	App string `json:"app"`
+}
+
+type OpenURLEffect struct {
+	URL string `json:"url"`
+}
+
+type Origin struct {
+	Kind OriginKind `json:"kind"`
+	Ref  string     `json:"ref"`
+}
+
+type OriginKind string
+
+type OwnerKind string
+
 type OwnerRef struct {
 	WorkspaceID string                 `json:"workspace_id"`
 	Kind        ParticipationOwnerKind `json:"kind"`
@@ -63,6 +80,7 @@ type PermissionDeniedPatch struct{}
 type PermissionDeniedPayload struct {
 	Event          HookEvent          `json:"event"`
 	Timestamp      time.Time          `json:"timestamp"`
+	ProfileID      string             `json:"profile_id,omitempty"`
 	SessionID      string             `json:"session_id,omitempty"`
 	SessionName    string             `json:"session_name,omitempty"`
 	SessionType    string             `json:"session_type,omitempty"`
@@ -103,6 +121,7 @@ type PermissionRequestPatch struct {
 type PermissionRequestPayload struct {
 	Event          HookEvent          `json:"event"`
 	Timestamp      time.Time          `json:"timestamp"`
+	ProfileID      string             `json:"profile_id,omitempty"`
 	SessionID      string             `json:"session_id,omitempty"`
 	SessionName    string             `json:"session_name,omitempty"`
 	SessionType    string             `json:"session_type,omitempty"`
@@ -130,6 +149,7 @@ type PermissionRequestPayload struct {
 type PermissionResolutionPayload struct {
 	Event          HookEvent          `json:"event"`
 	Timestamp      time.Time          `json:"timestamp"`
+	ProfileID      string             `json:"profile_id,omitempty"`
 	SessionID      string             `json:"session_id,omitempty"`
 	SessionName    string             `json:"session_name,omitempty"`
 	SessionType    string             `json:"session_type,omitempty"`
@@ -158,6 +178,7 @@ type PermissionResolvedPatch struct{}
 type PermissionResolvedPayload struct {
 	Event          HookEvent          `json:"event"`
 	Timestamp      time.Time          `json:"timestamp"`
+	ProfileID      string             `json:"profile_id,omitempty"`
 	SessionID      string             `json:"session_id,omitempty"`
 	SessionName    string             `json:"session_name,omitempty"`
 	SessionType    string             `json:"session_type,omitempty"`
@@ -203,24 +224,3 @@ type PersistenceHealth struct {
 	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`
 	SessionDBSizeBytes int64  `json:"session_db_size_bytes"`
 }
-
-type PickFilesEffect struct {
-	Directories bool `json:"directories,omitempty"`
-}
-
-type Priority string
-
-type ProbeResult struct {
-	AgentName  string    `json:"agent_name,omitempty"`
-	Provider   string    `json:"provider,omitempty"`
-	Command    string    `json:"command,omitempty"`
-	Executable string    `json:"executable,omitempty"`
-	Status     string    `json:"status"`
-	Error      string    `json:"error,omitempty"`
-	CheckedAt  time.Time `json:"checked_at"`
-	DurationMS int64     `json:"duration_ms"`
-}
-
-type PromptDelivery string
-
-type PromptMode string

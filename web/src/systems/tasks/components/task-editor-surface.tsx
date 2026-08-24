@@ -28,7 +28,7 @@ import { TemplateCards } from "./task-form/template-cards";
 import { useTasksCreateModalForm } from "./use-tasks-create-modal-form";
 import { NetworkParticipationFields } from "@/systems/network";
 import {
-  WorkspaceScopeStatement,
+  CreateDestinationStatement,
   destinationLabel,
   type WorkspaceCommandSelectOption,
 } from "@/systems/workspace";
@@ -36,6 +36,8 @@ import {
 export type TaskEditorSurfaceMode = "new" | "edit";
 
 export interface TaskEditorSurfaceProps {
+  /** The profile a creation lands in while the aggregate is on (ADR-005). */
+  profileDestination?: string | null;
   mode: TaskEditorSurfaceMode;
   /**
    * Dialog chrome supplied by the modal host. `EntityDialogHeader` renders
@@ -63,6 +65,7 @@ function resolveSubmitLabel(mode: TaskEditorSurfaceMode, saveAsDraft: boolean): 
 }
 
 export function TaskEditorSurface({
+  profileDestination,
   mode,
   header,
   draft,
@@ -116,7 +119,8 @@ export function TaskEditorSurface({
     workspaces?.find(workspace => workspace.id === draft.workspaceId)?.name
   );
   const scopeStatement = (
-    <WorkspaceScopeStatement
+    <CreateDestinationStatement
+      profileDestination={profileDestination}
       destination={destination}
       kind={isNewMode ? "create" : "edit"}
       scope={draft.scope}

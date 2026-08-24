@@ -78,6 +78,7 @@ type HookStoreOpener func(ctx context.Context, owner store.SessionDBOwner, path 
 type Option func(*Observer)
 
 type observedSession struct {
+	profileID            string
 	agentName            string
 	provider             string
 	model                string

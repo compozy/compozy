@@ -10,6 +10,7 @@ import {
   type TaskKanbanColumnId,
 } from "../lib/task-grouping";
 import type { TaskStatus } from "../types";
+import { type ProfileListingScope } from "@/systems/profiles";
 
 import type { PillTone } from "@compozy/ui";
 
@@ -42,6 +43,7 @@ export interface TasksKanbanBoardProps {
   isLoadingMore?: boolean;
   onLoadMore?: () => void;
   onRetryLoad?: () => void;
+  profile?: ProfileListingScope;
 }
 
 export function TasksKanbanBoard({
@@ -57,6 +59,7 @@ export function TasksKanbanBoard({
   isLoadingMore = false,
   onLoadMore,
   onRetryLoad,
+  profile,
 }: TasksKanbanBoardProps) {
   const loadedTaskCount = columns.reduce((count, column) => count + column.tasks.length, 0);
   if (errorMessage && loadedTaskCount === 0) {
@@ -113,6 +116,7 @@ export function TasksKanbanBoard({
                     key={task.id}
                     onRetry={onRetryTask}
                     onSelect={onSelectTask}
+                    profileOwner={profile?.aggregate ? profile.ownerOf(task) : undefined}
                     selected={task.id === selectedTaskId}
                     task={task}
                   />

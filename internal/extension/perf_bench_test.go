@@ -195,7 +195,7 @@ func extensionBenchmarkTaskRuns(count int) []taskpkg.Run {
 		fmt.Sprintf(`{"summary":%q,"scores":[1,2,3,4],"ok":true}`, extensionBenchmarkText(1024)),
 	)
 	for i := range count {
-		runs = append(runs, taskpkg.Run{
+		run := taskpkg.Run{
 			ID:             fmt.Sprintf("run-%03d", i),
 			TaskID:         fmt.Sprintf("task-%03d", i),
 			Status:         taskpkg.TaskRunStatusRunning,
@@ -216,8 +216,9 @@ func extensionBenchmarkTaskRuns(count int) []taskpkg.Run {
 			StartedAt: now.Add(time.Duration(i+2) * time.Second),
 			EndedAt:   time.Time{},
 			Error:     "",
-			Result:    append(json.RawMessage(nil), result...),
-		})
+		}
+		run.SetResult(result)
+		runs = append(runs, run)
 	}
 	return runs
 }

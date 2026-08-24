@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const (
@@ -37,7 +38,7 @@ func ResourceScopeForAutomation(scope Scope, workspaceID string) resources.Resou
 			ID:   strings.TrimSpace(workspaceID),
 		}
 	default:
-		return resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+		return resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 	}
 }
 
@@ -58,7 +59,13 @@ func validateJobResourceSpec(_ context.Context, scope resources.ResourceScope, s
 	if err := normalizeLoopTargetParticipation(next.LoopTarget); err != nil {
 		return Job{}, fmt.Errorf("automation: normalize job loop participation: %w", err)
 	}
-	if err := bindAutomationScope(&next.Scope, &next.WorkspaceID, normalizedScope, "job"); err != nil {
+	if err := bindAutomationScope(
+		&next.Scope,
+		&next.WorkspaceID,
+		&next.ProfileID,
+		normalizedScope,
+		"job",
+	); err != nil {
 		return Job{}, fmt.Errorf("automation: bind job resource scope: %w", err)
 	}
 	if err := next.Validate("job"); err != nil {
@@ -80,7 +87,13 @@ func validateTriggerResourceSpec(_ context.Context, scope resources.ResourceScop
 	if err := normalizeLoopTargetParticipation(next.LoopTarget); err != nil {
 		return Trigger{}, fmt.Errorf("automation: normalize trigger loop participation: %w", err)
 	}
-	if err := bindAutomationScope(&next.Scope, &next.WorkspaceID, normalizedScope, "trigger"); err != nil {
+	if err := bindAutomationScope(
+		&next.Scope,
+		&next.WorkspaceID,
+		&next.ProfileID,
+		normalizedScope,
+		"trigger",
+	); err != nil {
 		return Trigger{}, fmt.Errorf("automation: bind trigger resource scope: %w", err)
 	}
 	if err := next.Validate("trigger"); err != nil {
@@ -112,6 +125,7 @@ func normalizeJobResourceSpec(spec Job) Job {
 	next := cloneJob(spec)
 	next.ID = strings.TrimSpace(next.ID)
 	next.Name = strings.TrimSpace(next.Name)
+	next.ProfileID = strings.TrimSpace(next.ProfileID)
 	next.AgentName = strings.TrimSpace(next.AgentName)
 	next.WorkspaceID = strings.TrimSpace(next.WorkspaceID)
 	next.Prompt = strings.TrimSpace(next.Prompt)
@@ -133,6 +147,7 @@ func normalizeTriggerResourceSpec(spec Trigger) Trigger {
 	next := cloneTrigger(spec)
 	next.ID = strings.TrimSpace(next.ID)
 	next.Name = strings.TrimSpace(next.Name)
+	next.ProfileID = strings.TrimSpace(next.ProfileID)
 	next.AgentName = strings.TrimSpace(next.AgentName)
 	next.WorkspaceID = strings.TrimSpace(next.WorkspaceID)
 	next.Prompt = strings.TrimSpace(next.Prompt)
@@ -156,59 +171,153 @@ func normalizeTriggerResourceSpec(spec Trigger) Trigger {
 func bindAutomationScope(
 	domainScope *Scope,
 	workspaceID *string,
+	profileID *string,
 	resourceScope resources.ResourceScope,
 	path string,
 ) error {
 	switch resourceScope.Kind {
-	case resources.ResourceScopeKindGlobal:
-		if *domainScope == "" {
-			*domainScope = AutomationScopeGlobal
+	case resources.ResourceScopeKindUser:
+		if err := bindGlobalAutomationScope(domainScope, workspaceID, resourceScope, path); err != nil {
+			return err
 		}
-		if *domainScope != AutomationScopeGlobal {
-			return fmt.Errorf(
-				"%w: %s.scope %q does not match resource scope %q",
-				resources.ErrInvalidScopeBinding,
-				path,
-				*domainScope,
-				resourceScope.Kind,
-			)
-		}
-		if strings.TrimSpace(*workspaceID) != "" {
-			return fmt.Errorf(
-				"%w: %s.workspace_id must be empty for global resource scope",
-				resources.ErrInvalidScopeBinding,
-				path,
-			)
-		}
-		*workspaceID = ""
+		bindDefaultAutomationProfileID(profileID)
 	case resources.ResourceScopeKindWorkspace:
-		if *domainScope == "" {
-			*domainScope = AutomationScopeWorkspace
+		if err := bindWorkspaceAutomationScope(
+			domainScope,
+			workspaceID,
+			resourceScope.ID,
+			resourceScope,
+			path,
+		); err != nil {
+			return err
 		}
-		if *domainScope != AutomationScopeWorkspace {
+		bindDefaultAutomationProfileID(profileID)
+	case resources.ResourceScopeKindProfile:
+		if err := bindGlobalAutomationScope(domainScope, workspaceID, resourceScope, path); err != nil {
+			return err
+		}
+		return bindAutomationProfileID(profileID, resourceScope.ID, path)
+	case resources.ResourceScopeKindWorkspaceProfile:
+		workspaceScopeID, _, ok := strings.Cut(resourceScope.ID, "@pf:")
+		if !ok {
 			return fmt.Errorf(
-				"%w: %s.scope %q does not match resource scope %q",
+				"%w: %s resource scope %q does not contain a profile binding",
 				resources.ErrInvalidScopeBinding,
 				path,
-				*domainScope,
-				resourceScope.Kind,
-			)
-		}
-		trimmedWorkspaceID := strings.TrimSpace(*workspaceID)
-		switch {
-		case trimmedWorkspaceID == "":
-			*workspaceID = resourceScope.ID
-		case trimmedWorkspaceID != resourceScope.ID:
-			return fmt.Errorf(
-				"%w: %s.workspace_id %q does not match resource scope %q",
-				resources.ErrInvalidScopeBinding,
-				path,
-				trimmedWorkspaceID,
 				resourceScope.ID,
 			)
-		default:
-			*workspaceID = trimmedWorkspaceID
 		}
+		if err := bindWorkspaceAutomationScope(
+			domainScope,
+			workspaceID,
+			workspaceScopeID,
+			resourceScope,
+			path,
+		); err != nil {
+			return err
+		}
+		if strings.TrimSpace(*profileID) == "" {
+			return fmt.Errorf(
+				"%w: %s.profile_id is required for resource scope %q",
+				resources.ErrInvalidScopeBinding,
+				path,
+				resourceScope.Kind,
+			)
+		}
+		*profileID = strings.TrimSpace(*profileID)
+	default:
+		return fmt.Errorf(
+			"%w: unsupported %s resource scope %q",
+			resources.ErrInvalidScopeBinding,
+			path,
+			resourceScope.Kind,
+		)
 	}
 	return nil
+}
+
+func bindGlobalAutomationScope(
+	domainScope *Scope,
+	workspaceID *string,
+	resourceScope resources.ResourceScope,
+	path string,
+) error {
+	if *domainScope == "" {
+		*domainScope = AutomationScopeGlobal
+	}
+	if *domainScope != AutomationScopeGlobal {
+		return fmt.Errorf(
+			"%w: %s.scope %q does not match resource scope %q",
+			resources.ErrInvalidScopeBinding,
+			path,
+			*domainScope,
+			resourceScope.Kind,
+		)
+	}
+	if strings.TrimSpace(*workspaceID) != "" {
+		return fmt.Errorf(
+			"%w: %s.workspace_id must be empty for global resource scope",
+			resources.ErrInvalidScopeBinding,
+			path,
+		)
+	}
+	*workspaceID = ""
+	return nil
+}
+
+func bindWorkspaceAutomationScope(
+	domainScope *Scope,
+	workspaceID *string,
+	wantWorkspaceID string,
+	resourceScope resources.ResourceScope,
+	path string,
+) error {
+	if *domainScope == "" {
+		*domainScope = AutomationScopeWorkspace
+	}
+	if *domainScope != AutomationScopeWorkspace {
+		return fmt.Errorf(
+			"%w: %s.scope %q does not match resource scope %q",
+			resources.ErrInvalidScopeBinding,
+			path,
+			*domainScope,
+			resourceScope.Kind,
+		)
+	}
+	trimmedWorkspaceID := strings.TrimSpace(*workspaceID)
+	wantWorkspaceID = strings.TrimSpace(wantWorkspaceID)
+	if trimmedWorkspaceID != "" && trimmedWorkspaceID != wantWorkspaceID {
+		return fmt.Errorf(
+			"%w: %s.workspace_id %q does not match resource scope %q",
+			resources.ErrInvalidScopeBinding,
+			path,
+			trimmedWorkspaceID,
+			resourceScope.ID,
+		)
+	}
+	*workspaceID = wantWorkspaceID
+	return nil
+}
+
+func bindAutomationProfileID(profileID *string, wantProfileID string, path string) error {
+	trimmedProfileID := strings.TrimSpace(*profileID)
+	wantProfileID = strings.TrimSpace(wantProfileID)
+	if trimmedProfileID != "" && trimmedProfileID != wantProfileID {
+		return fmt.Errorf(
+			"%w: %s.profile_id %q does not match resource profile %q",
+			resources.ErrInvalidScopeBinding,
+			path,
+			trimmedProfileID,
+			wantProfileID,
+		)
+	}
+	*profileID = wantProfileID
+	return nil
+}
+
+func bindDefaultAutomationProfileID(profileID *string) {
+	*profileID = strings.TrimSpace(*profileID)
+	if *profileID == "" {
+		*profileID = store.DefaultProfileID
+	}
 }

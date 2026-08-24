@@ -8,6 +8,14 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+// ForProfile returns the global skill set overlaid with one personal profile's skills.
+func (r *Registry) ForProfile(ctx context.Context, profileName string, profileRoot string) ([]*Skill, error) {
+	return r.ForWorkspace(ctx, &workspacepkg.ResolvedWorkspace{
+		ProfileName: profileName,
+		ProfileRoot: profileRoot,
+	})
+}
+
 // ForWorkspace returns the global skill set overlaid with resolver-provided workspace skills.
 func (r *Registry) ForWorkspace(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*Skill, error) {
 	skills, err := r.workspaceSkills(ctx, resolved)

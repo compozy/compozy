@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	watchpkg "github.com/compozy/compozy/internal/loop/watch"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/task"
 )
 
@@ -42,6 +43,7 @@ func recoverWatchEventsState(
 	}
 	cursors, err := runtime.cursorReader.ReadCursors(ctx, WatchEventsQuery{
 		WorkspaceID: string(run.WorkspaceID),
+		ReadScope:   store.ReadScope{ProfileID: strings.TrimSpace(run.ProfileID)},
 		Streams:     streams,
 		Kinds:       kinds,
 		Limit:       LoopWatchEventPageLimit,
@@ -228,6 +230,7 @@ func watchEventsQuery(
 	}
 	return WatchEventsQuery{
 		WorkspaceID: string(run.WorkspaceID),
+		ReadScope:   store.ReadScope{ProfileID: strings.TrimSpace(run.ProfileID)},
 		Streams:     cloneInt64Map(state.Cursors),
 		Kinds:       kinds,
 		Limit:       LoopWatchEventPageLimit,

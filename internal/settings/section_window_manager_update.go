@@ -16,7 +16,7 @@ func (s *service) updateWindowManagerSection(
 		req.Section,
 		req.Scope,
 		req.WorkspaceID,
-		ScopeGlobal,
+		ScopeUser,
 		ScopeWorkspace,
 	)
 	if err != nil {

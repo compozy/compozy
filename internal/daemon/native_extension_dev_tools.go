@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -202,26 +203,40 @@ func nativeExtensionScopedActorContext(
 		if workspaceID == "" {
 			return taskpkg.ActorContext{}, extensionpkg.ErrExtensionWorkspaceDenied
 		}
-		return taskpkg.DeriveAgentSessionActorContextForOrigin(
+		if strings.TrimSpace(scope.ProfileID) == "" {
+			return taskpkg.ActorContext{}, errors.New("daemon: extension actor profile is required")
+		}
+		actor, err := taskpkg.DeriveAgentSessionActorContextForOrigin(
 			sessionID,
 			workspaceID,
 			taskpkg.OriginKindAgentSession,
 			strings.TrimSpace(string(req.ToolID)),
 		)
+		if err != nil {
+			return taskpkg.ActorContext{}, err
+		}
+		actor.ReadScope = store.ReadScope{ProfileID: strings.TrimSpace(scope.ProfileID)}
+		return actor, actor.Validate()
 	}
 	if scope.Operator {
-		return taskpkg.DeriveHumanActorContextForWorkspace(
+		actor, err := taskpkg.DeriveHumanActorContextForWorkspace(
 			"native-tools",
 			workspaceID,
 			taskpkg.OriginKindCLI,
 			strings.TrimSpace(string(req.ToolID)),
 		)
+		if err != nil {
+			return taskpkg.ActorContext{}, err
+		}
+		actor.ReadScope = store.ReadScope{ProfileID: strings.TrimSpace(scope.ProfileID)}
+		return actor, actor.Validate()
 	}
 	actor, err := taskpkg.DeriveDaemonActorContext("native-tools", strings.TrimSpace(string(req.ToolID)))
 	if err != nil {
 		return taskpkg.ActorContext{}, err
 	}
 	actor.Scope.WorkspaceID = workspaceID
+	actor.ReadScope = store.ReadScope{ProfileID: strings.TrimSpace(scope.ProfileID)}
 	if err := actor.Validate(); err != nil {
 		return taskpkg.ActorContext{}, errors.Join(err, extensionpkg.ErrExtensionWorkspaceDenied)
 	}

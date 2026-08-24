@@ -65,15 +65,27 @@ type OverviewOutcomeDayPayload struct {
 
 // OverviewUsagePayload summarizes token usage and estimated cost for the selected window.
 type OverviewUsagePayload struct {
-	WindowDays    int                         `json:"window_days"`
-	RetentionDays int                         `json:"retention_days"`
-	Truncated     bool                        `json:"truncated"`
-	TotalTokens   int64                       `json:"total_tokens"`
-	EstimatedCost *float64                    `json:"estimated_cost,omitempty"`
-	CostCurrency  string                      `json:"cost_currency,omitempty"`
-	CostStatus    string                      `json:"cost_status,omitempty"`
-	Days          []OverviewUsageDayPayload   `json:"days"`
-	AgentShare    []OverviewAgentSharePayload `json:"agent_share"`
+	WindowDays    int                           `json:"window_days"`
+	RetentionDays int                           `json:"retention_days"`
+	Truncated     bool                          `json:"truncated"`
+	TotalTokens   int64                         `json:"total_tokens"`
+	EstimatedCost *float64                      `json:"estimated_cost,omitempty"`
+	CostCurrency  string                        `json:"cost_currency,omitempty"`
+	CostStatus    string                        `json:"cost_status,omitempty"`
+	Days          []OverviewUsageDayPayload     `json:"days"`
+	AgentShare    []OverviewAgentSharePayload   `json:"agent_share"`
+	Profiles      []OverviewProfileUsagePayload `json:"profiles"`
+}
+
+// OverviewProfileUsagePayload is one owner-labeled profile usage bucket.
+type OverviewProfileUsagePayload struct {
+	ProfileID   string `json:"profile_id"`
+	ProfileName string `json:"profile_name"`
+	Color       string `json:"profile_color"`
+	Icon        string `json:"profile_icon,omitempty"`
+	Emoji       string `json:"profile_emoji,omitempty"`
+	Archived    bool   `json:"profile_archived"`
+	Tokens      int64  `json:"tokens"`
 }
 
 // OverviewUsageDayPayload is one daemon-local day of token usage.

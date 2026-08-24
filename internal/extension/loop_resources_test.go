@@ -29,11 +29,13 @@ func TestLoopResourcesShouldLoadFromManifestResources(t *testing.T) {
 			t.Fatalf("os.WriteFile(sidecarPath) error = %v", err)
 		}
 
-		normalized := normalizeResourcesConfig(ResourcesConfig{Loops: []string{" loops "}})
+		normalized := normalizeResourcesConfig(ResourcesConfig{
+			Loops: []ManifestResourcePath{{Path: " loops "}},
+		})
 		if got, want := len(normalized.Loops), 1; got != want {
 			t.Fatalf("len(normalized.Loops) = %d, want %d", got, want)
 		}
-		if got, want := normalized.Loops[0], "loops"; got != want {
+		if got, want := normalized.Loops[0].Path, "loops"; got != want {
 			t.Fatalf("normalized.Loops[0] = %q, want %q", got, want)
 		}
 
@@ -88,7 +90,7 @@ func TestLoopResourcesShouldLoadFromManifestResources(t *testing.T) {
 				Source: SourceMarketplace,
 			},
 			manifest: &Manifest{
-				Resources: ResourcesConfig{Loops: []string{"loops-a", "loops-b"}},
+				Resources: ResourcesConfig{Loops: []ManifestResourcePath{{Path: "loops-a"}, {Path: "loops-b"}}},
 			},
 		})
 		if err == nil {

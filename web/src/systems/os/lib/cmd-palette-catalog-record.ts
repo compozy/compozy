@@ -42,6 +42,7 @@ const structuralCommandSchema = z
 const catalogRecordSchema = z.strictObject({
   contractVersion: z.literal(CMD_PALETTE_CATALOG_CONTRACT_VERSION),
   workspaceId: z.string().min(1),
+  profileKey: z.string().min(1),
   catalogRevision: z.string().min(1),
   commands: z.array(structuralCommandSchema),
   sources: z.array(
@@ -52,11 +53,14 @@ const catalogRecordSchema = z.strictObject({
 export interface CmdPaletteCatalogRecord extends CmdPaletteStructuralCatalog {
   readonly contractVersion: typeof CMD_PALETTE_CATALOG_CONTRACT_VERSION;
   readonly workspaceId: string;
+  /** The lens the daemon projected this catalog under — a name, or `@all`. */
+  readonly profileKey: string;
 }
 
 /** Strips the resolved half of a served catalog so only structure is persisted. */
 export function toCatalogRecord(
   workspaceId: string,
+  profileKey: string,
   catalog: CmdPaletteCatalogResponse
 ): CmdPaletteCatalogRecord {
   const commands = catalog.commands.map(command => {
@@ -67,6 +71,7 @@ export function toCatalogRecord(
   return {
     contractVersion: CMD_PALETTE_CATALOG_CONTRACT_VERSION,
     workspaceId,
+    profileKey,
     catalogRevision: catalog.catalog_revision,
     commands,
     sources: catalog.sources,

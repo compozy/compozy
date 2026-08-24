@@ -20,9 +20,9 @@ var (
 
 func testToolSpec(id toolspkg.ToolID) toolspkg.Tool {
 	return toolspkg.Tool{
-		ID:           id,
-		DisplayTitle: "lookup",
-		Description:  "Search extension data",
+		ID:               id,
+		ToolPresentation: toolspkg.NewToolPresentation("lookup", "", ""),
+		Description:      "Search extension data",
 		Backend: toolspkg.BackendRef{
 			Kind:        toolspkg.BackendExtensionHost,
 			ExtensionID: "linear",
@@ -62,7 +62,7 @@ func TestResourceCatalogProjectorBuildAndApply(t *testing.T) {
 			ID:      "lookup",
 			Version: 3,
 			Scope: resources.ResourceScope{
-				Kind: resources.ResourceScopeKindGlobal,
+				Kind: resources.ResourceScopeKindUser,
 			},
 			Spec: testToolSpec("ext__linear__lookup"),
 		}}
@@ -165,7 +165,7 @@ func TestToolMCPComparisonAndNilHelpers(t *testing.T) {
 			t.Fatalf("compozyconfig.NewMCPServerResourceCodec() error = %v", err)
 		}
 
-		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+		userScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 		workspaceScope := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"}
 
 		toolSpec := testToolSpec("ext__linear__lookup")
@@ -174,16 +174,16 @@ func TestToolMCPComparisonAndNilHelpers(t *testing.T) {
 			t.Fatalf("toolCodec.Encode() error = %v", err)
 		}
 		toolRecord := resources.RawRecord{
-			Scope:    globalScope,
+			Scope:    userScope,
 			SpecJSON: toolEncoded,
 		}
-		if !sameManagedRawRecord(toolRecord, globalScope, toolEncoded) {
+		if !sameManagedRawRecord(toolRecord, userScope, toolEncoded) {
 			t.Fatal("sameManagedRawRecord(tool) = false, want true for matching scope and spec")
 		}
 		if sameManagedRawRecord(toolRecord, workspaceScope, toolEncoded) {
 			t.Fatal("sameManagedRawRecord(tool) = true, want false for mismatched scope")
 		}
-		if sameManagedRawRecord(toolRecord, globalScope, []byte(`{"bad":true}`)) {
+		if sameManagedRawRecord(toolRecord, userScope, []byte(`{"bad":true}`)) {
 			t.Fatal("sameManagedRawRecord(tool) = true, want false for mismatched encoding")
 		}
 
@@ -197,16 +197,16 @@ func TestToolMCPComparisonAndNilHelpers(t *testing.T) {
 			t.Fatalf("mcpCodec.Encode() error = %v", err)
 		}
 		mcpRecord := resources.RawRecord{
-			Scope:    globalScope,
+			Scope:    userScope,
 			SpecJSON: mcpEncoded,
 		}
-		if !sameManagedRawRecord(mcpRecord, globalScope, mcpEncoded) {
+		if !sameManagedRawRecord(mcpRecord, userScope, mcpEncoded) {
 			t.Fatal("sameManagedRawRecord(mcp) = false, want true for matching scope and spec")
 		}
 		if sameManagedRawRecord(mcpRecord, workspaceScope, mcpEncoded) {
 			t.Fatal("sameManagedRawRecord(mcp) = true, want false for mismatched scope")
 		}
-		if sameManagedRawRecord(mcpRecord, globalScope, []byte(`{"bad":true}`)) {
+		if sameManagedRawRecord(mcpRecord, userScope, []byte(`{"bad":true}`)) {
 			t.Fatal("sameManagedRawRecord(mcp) = true, want false for mismatched encoding")
 		}
 
@@ -215,17 +215,17 @@ func TestToolMCPComparisonAndNilHelpers(t *testing.T) {
 		attributed := toolRecord
 		attributed.Owner = owner
 		attributed.Source = source
-		if !sameManagedRawRecord(attributed, globalScope, toolEncoded, managedRecordAttribution{
+		if !sameManagedRawRecord(attributed, userScope, toolEncoded, managedRecordAttribution{
 			owner: owner, source: source,
 		}) {
 			t.Fatal("sameManagedRawRecord(attributed) = false, want matching owner and source")
 		}
-		if sameManagedRawRecord(toolRecord, globalScope, toolEncoded, managedRecordAttribution{
+		if sameManagedRawRecord(toolRecord, userScope, toolEncoded, managedRecordAttribution{
 			owner: owner, source: source,
 		}) {
 			t.Fatal("sameManagedRawRecord(unowned) = true, want first reconcile rewrite")
 		}
-		if sameManagedRawRecord(attributed, globalScope, toolEncoded, managedRecordAttribution{
+		if sameManagedRawRecord(attributed, userScope, toolEncoded, managedRecordAttribution{
 			owner: owner,
 			source: resources.ResourceSource{
 				Kind: "daemon", ID: "different-sync",
@@ -312,7 +312,7 @@ func TestToolMCPSourceSyncerHandlesNilReceiverAndTriggerFailures(t *testing.T) {
 				return toolMCPDesiredResources{
 					tools: []toolPublicationInput{{
 						sourceKey: "test/tool/lookup",
-						scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+						scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 						spec:      testToolSpec("ext__linear__lookup"),
 					}},
 				}, nil
@@ -370,12 +370,12 @@ func TestToolMCPSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 		desired := toolMCPDesiredResources{
 			tools: []toolPublicationInput{{
 				sourceKey: "test/tool/lookup",
-				scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				spec:      testToolSpec("ext__linear__lookup"),
 			}},
 			mcpServers: []mcpServerPublicationInput{{
 				sourceKey: "test/mcp/git",
-				scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				spec: compozyconfig.MCPServer{
 					Name:    "git",
 					Command: "npx",
@@ -567,7 +567,7 @@ func TestValidateAndEncodeToolAndMCPServer(t *testing.T) {
 			t.Fatalf("toolspkg.NewResourceCodec() error = %v", err)
 		}
 
-		toolScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+		toolScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 		toolSpec := testToolSpec("ext__linear__lookup")
 		toolSpec.Description = " Search extension data "
 		toolSpec.InputSchema = json.RawMessage(`{"required":["query"],"type":"object"}`)

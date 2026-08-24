@@ -51,7 +51,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * Default general settings page with runtime status and editable defaults.
+ * Default general settings page with runtime status and machine settings.
  * Represents the idle shell state for the route story.
  */
 export const Default: Story = {
@@ -126,7 +126,7 @@ export const Error: Story = {
 };
 
 /**
- * Dirty shell state -- the default-agent field has been edited so the save-bar
+ * Dirty shell state -- the memory-report interval has been edited so the save-bar
  * reads Unsaved changes + the Save button enables.
  */
 export const Dirty: Story = {

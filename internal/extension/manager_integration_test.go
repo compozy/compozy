@@ -15,6 +15,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -156,10 +157,12 @@ func TestManagerIntegrationResourceRegistration(t *testing.T) {
 	if len(loaded.Skills) != 1 || loaded.Skills[0].Meta.Name != "resource-skill" {
 		t.Fatalf("Get(ext-resources).Skills = %#v, want resource-skill extension snapshot", loaded.Skills)
 	}
-	if decls, err := manager.HookDeclarations(testutil.Context(t)); err != nil {
-		t.Fatalf("HookDeclarations() error = %v", err)
+	if decls, err := manager.HookDeclarationsForProfiles(testutil.Context(t), []ProfileLens{{
+		ID: store.DefaultProfileID, Name: "default",
+	}}); err != nil {
+		t.Fatalf("HookDeclarationsForProfiles() error = %v", err)
 	} else if len(decls) != 1 || decls[0].Name != "ext-resources-hook" {
-		t.Fatalf("HookDeclarations() = %#v, want ext-resources-hook", decls)
+		t.Fatalf("HookDeclarationsForProfiles() = %#v, want ext-resources-hook", decls)
 	}
 }
 

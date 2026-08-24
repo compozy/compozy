@@ -66,11 +66,18 @@ func newOverviewFixture(t *testing.T) *overviewFixture {
 }
 
 func (f *overviewFixture) query() OverviewQuery {
-	return OverviewQuery{TaskScope: taskpkg.CatalogScopeGlobal, Actor: f.actor}
+	return OverviewQuery{
+		ReadScope: store.ReadScope{AllProfiles: true},
+		TaskScope: taskpkg.CatalogScopeGlobal,
+		Actor:     f.actor,
+	}
 }
 
 func (f *overviewFixture) seedTask(t *testing.T, record taskpkg.Task) {
 	t.Helper()
+	if record.ProfileID == "" {
+		record.ProfileID = store.DefaultProfileID
+	}
 	if record.CreatedAt.IsZero() {
 		record.CreatedAt = f.now.Add(-24 * time.Hour)
 	}
@@ -116,8 +123,21 @@ func (f *overviewFixture) seedUsage(
 	status string,
 	source string,
 ) {
+	f.seedUsageForProfile(t, store.DefaultProfileID, day, agent, tokens, status, source)
+}
+
+func (f *overviewFixture) seedUsageForProfile(
+	t *testing.T,
+	profileID string,
+	day string,
+	agent string,
+	tokens int64,
+	status string,
+	source string,
+) {
 	t.Helper()
 	update := store.TokenUsageDailyUpdate{
+		ProfileID:   profileID,
 		Day:         day,
 		AgentName:   agent,
 		TotalTokens: new(tokens),
@@ -137,6 +157,7 @@ func (f *overviewFixture) seedUsage(
 func (f *overviewFixture) seedEvent(t *testing.T, id string, timestamp time.Time) {
 	t.Helper()
 	if err := f.registry.WriteEventSummary(observeTestContext(t), store.EventSummary{
+		ProfileID:   store.DefaultProfileID,
 		ID:          id,
 		SessionID:   "sess-overview",
 		AgentName:   "coder",
@@ -311,6 +332,56 @@ func TestQueryObserveOverviewComposition(t *testing.T) {
 		last := view.Usage.AgentShare[3]
 		if last.AgentName != "other" || last.Tokens != 80 {
 			t.Fatalf("AgentShare tail = %+v, want other with 80 tokens", last)
+		}
+	})
+
+	t.Run("Should preserve profile ownership in usage breakdown rows", func(t *testing.T) {
+		t.Parallel()
+		fixture := newOverviewFixture(t)
+		day := store.LocalDay(fixture.now)
+		const (
+			profileA = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+			profileB = "01ARZ3NDEKTSV4RRFFQ69G5FAW"
+		)
+		seedObserveProfile(t, fixture.registry, profileA, fixture.now)
+		seedObserveProfile(t, fixture.registry, profileB, fixture.now)
+		fixture.seedUsageForProfile(t, profileA, day, "writer", 125, "included", "none")
+		fixture.seedUsageForProfile(t, profileB, day, "writer", 275, "included", "none")
+
+		view, err := fixture.observer.QueryObserveOverview(observeTestContext(t), fixture.query())
+		if err != nil {
+			t.Fatalf("QueryObserveOverview() error = %v", err)
+		}
+		if len(view.Usage.Profiles) != 2 {
+			t.Fatalf("Usage.Profiles = %#v, want two profile rows", view.Usage.Profiles)
+		}
+		byProfile := make(map[string]int64, len(view.Usage.Profiles))
+		var profileTokens int64
+		for _, profile := range view.Usage.Profiles {
+			if profile.ProfileName != profile.ProfileID || profile.Color != "#8E8EB5" || profile.Icon != "circle" {
+				t.Fatalf("Usage profile owner = %#v, want seeded owner metadata", profile)
+			}
+			byProfile[profile.ProfileID] = profile.Tokens
+			profileTokens += profile.Tokens
+		}
+		if byProfile[profileA] != 125 || byProfile[profileB] != 275 {
+			t.Fatalf("Usage.Profiles = %#v, want profile token totals", view.Usage.Profiles)
+		}
+		if profileTokens != view.Usage.TotalTokens {
+			t.Fatalf("profile tokens = %d, want overview total %d", profileTokens, view.Usage.TotalTokens)
+		}
+
+		for profileID, wantTokens := range map[string]int64{profileA: 125, profileB: 275} {
+			query := fixture.query()
+			query.ReadScope = store.ReadScope{ProfileID: profileID}
+			scoped, err := fixture.observer.QueryObserveOverview(observeTestContext(t), query)
+			if err != nil {
+				t.Fatalf("QueryObserveOverview(%s) error = %v", profileID, err)
+			}
+			if len(scoped.Usage.Profiles) != 1 || scoped.Usage.Profiles[0].ProfileID != profileID ||
+				scoped.Usage.Profiles[0].Tokens != wantTokens || scoped.Usage.TotalTokens != wantTokens {
+				t.Fatalf("scoped usage for %s = %#v, want only %d tokens", profileID, scoped.Usage, wantTokens)
+			}
 		}
 	})
 

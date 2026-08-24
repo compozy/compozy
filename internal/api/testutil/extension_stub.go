@@ -24,6 +24,18 @@ type StubExtensionService struct {
 		contract.InstallExtensionRequest,
 		taskpkg.ActorContext,
 	) (contract.ExtensionPayload, error)
+	PreviewInstallFn func(
+		context.Context,
+		contract.InstallExtensionRequest,
+		taskpkg.ActorContext,
+	) (contract.ExtensionInstallPreviewPayload, error)
+	ListEnablementFn func(context.Context, string) ([]contract.ExtensionEnablementPayload, error)
+	SetEnablementFn  func(
+		context.Context,
+		string,
+		contract.SetExtensionEnablementRequest,
+		taskpkg.ActorContext,
+	) (contract.ExtensionEnablementPayload, error)
 	UpdateFn func(
 		context.Context,
 		string,
@@ -117,6 +129,39 @@ func (s StubExtensionService) Install(
 	return s.InstallFn(ctx, req, actor)
 }
 
+func (s StubExtensionService) PreviewInstall(
+	ctx context.Context,
+	req contract.InstallExtensionRequest,
+	actor taskpkg.ActorContext,
+) (contract.ExtensionInstallPreviewPayload, error) {
+	if s.PreviewInstallFn == nil {
+		return contract.ExtensionInstallPreviewPayload{}, nil
+	}
+	return s.PreviewInstallFn(ctx, req, actor)
+}
+
+func (s StubExtensionService) ListEnablement(
+	ctx context.Context,
+	name string,
+) ([]contract.ExtensionEnablementPayload, error) {
+	if s.ListEnablementFn == nil {
+		return nil, nil
+	}
+	return s.ListEnablementFn(ctx, name)
+}
+
+func (s StubExtensionService) SetEnablement(
+	ctx context.Context,
+	name string,
+	req contract.SetExtensionEnablementRequest,
+	actor taskpkg.ActorContext,
+) (contract.ExtensionEnablementPayload, error) {
+	if s.SetEnablementFn == nil {
+		return contract.ExtensionEnablementPayload{}, nil
+	}
+	return s.SetEnablementFn(ctx, name, req, actor)
+}
+
 func (s StubExtensionService) Update(
 	ctx context.Context,
 	name string,
@@ -191,9 +236,10 @@ func (s StubExtensionService) Provenance(
 	return s.ProvenanceFn(ctx, name)
 }
 
-func (s StubExtensionService) Inventory(
+func (s StubExtensionService) InventoryScoped(
 	ctx context.Context,
 	name string,
+	_ taskpkg.ActorContext,
 ) (contract.ExtensionInventoryPayload, error) {
 	if s.InventoryFn == nil {
 		return contract.ExtensionInventoryPayload{}, nil

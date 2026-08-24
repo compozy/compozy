@@ -20,8 +20,9 @@ func (s *service) providerSettingsFromConfig(
 		return settings, nil
 	}
 	models, err := s.modelCatalog.ListModels(ctx, modelcatalog.ListOptions{
-		ProviderID: name,
-		View:       modelcatalog.CatalogViewCurated,
+		ProviderID:         name,
+		View:               modelcatalog.CatalogViewCurated,
+		SkipRefreshIfEmpty: true,
 	})
 	if err != nil {
 		if errors.Is(err, modelcatalog.ErrAllSourcesFailed) {

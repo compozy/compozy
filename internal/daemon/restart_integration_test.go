@@ -111,7 +111,7 @@ func TestRelaunchHelperFailurePersistsAfterOldDaemonExit(t *testing.T) {
 	var oldAlive atomic.Bool
 	oldAlive.Store(true)
 
-	helper := newRelaunchHelper(RelaunchHelperConfig{
+	helper := newRelaunchHelper(&RelaunchHelperConfig{
 		HomePaths:      homePaths,
 		OperationID:    operation.OperationID,
 		PollInterval:   10 * time.Millisecond,

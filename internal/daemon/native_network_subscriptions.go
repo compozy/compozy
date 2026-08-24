@@ -2,6 +2,8 @@ package daemon
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -27,6 +29,13 @@ func (n *daemonNativeTools) networkSubscriptions(
 	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
+	}
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	if err := n.validateNativeNetworkChannelProfile(ctx, readScope, workspaceID, channel); err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
 	}
 	query := store.NetworkSubscriptionQuery{
 		WorkspaceID: workspaceID,
@@ -86,6 +95,15 @@ func (n *daemonNativeTools) networkSetSubscription(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	if err := n.validateNativeNetworkChannelProfile(ctx, readScope, workspaceID, channel); err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	effectiveScope := scope
+	effectiveScope.ProfileID = readScope.ProfileID
 	now := time.Now().UTC()
 	entry := store.NetworkSubscriptionEntry{
 		WorkspaceID: workspaceID,
@@ -99,7 +117,7 @@ func (n *daemonNativeTools) networkSetSubscription(
 	if err := entry.Validate(); err != nil {
 		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
 	}
-	channelEntry, err := nativeNetworkSubscriptionChannel(scope, entry)
+	channelEntry, err := nativeNetworkSubscriptionChannel(effectiveScope, entry)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
 	}
@@ -123,6 +141,7 @@ func nativeNetworkSubscriptionChannel(
 	}
 	now := time.Now().UTC()
 	return store.NetworkChannelEntry{
+		ProfileID:    scope.ProfileID,
 		WorkspaceID:  ref.WorkspaceID,
 		Channel:      ref.Channel,
 		Purpose:      "network_channel",
@@ -150,6 +169,13 @@ func (n *daemonNativeTools) networkUnmute(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	readScope, err := n.nativeProfileReadScope(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	if err := n.validateNativeNetworkChannelProfile(ctx, readScope, workspaceID, channel); err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
 	ref := store.NetworkSubscriptionRef{
 		WorkspaceID: workspaceID,
 		Channel:     channel,
@@ -163,4 +189,32 @@ func (n *daemonNativeTools) networkUnmute(
 		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
 	}
 	return structuredNetworkResult(map[string]any{"deleted": true}, "deleted")
+}
+
+func (n *daemonNativeTools) validateNativeNetworkChannelProfile(
+	ctx context.Context,
+	readScope store.ReadScope,
+	workspaceID string,
+	channel string,
+) error {
+	if n == nil || n.deps == nil || n.deps.NetworkStore == nil {
+		return errors.New("daemon: network store is unavailable")
+	}
+	entry, err := n.deps.NetworkStore.GetNetworkChannel(
+		ctx,
+		store.ReadScope{AllProfiles: true},
+		store.NetworkChannelRef{
+			WorkspaceID: strings.TrimSpace(workspaceID), Channel: strings.TrimSpace(channel),
+		},
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return fmt.Errorf("daemon: resolve network channel profile: %w", err)
+	}
+	if strings.TrimSpace(entry.ProfileID) != strings.TrimSpace(readScope.ProfileID) {
+		return fmt.Errorf("daemon: network channel belongs to another profile")
+	}
+	return nil
 }

@@ -30,7 +30,11 @@ func LookupSessionDBOwner(
 	if target == "" {
 		return SessionDBOwner{}, errors.New("store: session id is required")
 	}
-	entries, err := catalog.ListSessions(ctx, SessionListQuery{ID: target, Limit: 2})
+	entries, err := catalog.ListSessions(ctx, SessionListQuery{
+		ReadScope: ReadScope{AllProfiles: true},
+		ID:        target,
+		Limit:     2,
+	})
 	if err != nil {
 		return SessionDBOwner{}, fmt.Errorf("store: read catalog owner for session %q: %w", target, err)
 	}

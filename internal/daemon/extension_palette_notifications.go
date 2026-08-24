@@ -13,7 +13,7 @@ import (
 )
 
 type cmdPaletteCatalogNotifier interface {
-	NotifyCatalogChanged(context.Context, cmdpalette.WorkspaceID) error
+	NotifyCatalogChanged(context.Context, cmdpalette.ProfileLens, cmdpalette.WorkspaceID) error
 }
 
 type extensionPaletteNotifier struct {
@@ -49,6 +49,37 @@ func (n *extensionPaletteNotifier) NotifyExtensionChanged(
 	workspaceID string,
 	extension string,
 ) error {
+	return n.notifyExtensionChanged(
+		ctx,
+		workspaceID,
+		extension,
+		cmdpalette.AggregateProfileLens(),
+	)
+}
+
+// NotifyExtensionProfileChanged invalidates only the catalog and view sessions
+// owned by the profile whose effective extension membership changed.
+func (n *extensionPaletteNotifier) NotifyExtensionProfileChanged(
+	ctx context.Context,
+	workspaceID string,
+	extension string,
+	profileLens cmdpalette.ProfileLens,
+) error {
+	if err := profileLens.Validate(); err != nil {
+		return err
+	}
+	if profileLens.IsAggregate() {
+		return errors.New("daemon: scoped extension palette notification requires a profile")
+	}
+	return n.notifyExtensionChanged(ctx, workspaceID, extension, profileLens)
+}
+
+func (n *extensionPaletteNotifier) notifyExtensionChanged(
+	ctx context.Context,
+	workspaceID string,
+	extension string,
+	profileLens cmdpalette.ProfileLens,
+) error {
 	if n == nil {
 		return nil
 	}
@@ -57,8 +88,8 @@ func (n *extensionPaletteNotifier) NotifyExtensionChanged(
 		return err
 	}
 	return errors.Join(
-		n.notifyCatalogs(ctx, workspaces),
-		n.invalidateViewSessions(ctx, workspaces, extension),
+		n.notifyCatalogs(ctx, profileLens, workspaces),
+		n.invalidateViewSessions(ctx, profileLens, workspaces, extension),
 	)
 }
 
@@ -86,6 +117,7 @@ func (n *extensionPaletteNotifier) targetWorkspaces(
 
 func (n *extensionPaletteNotifier) notifyCatalogs(
 	ctx context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaces []cmdpalette.WorkspaceID,
 ) error {
 	if n.catalog == nil {
@@ -97,7 +129,9 @@ func (n *extensionPaletteNotifier) notifyCatalogs(
 	}
 	var notifyErr error
 	for _, workspaceID := range workspaces {
-		if err := notifier.NotifyCatalogChanged(ctx, workspaceID); err != nil {
+		if err := notifier.NotifyCatalogChanged(
+			ctx, profileLens, workspaceID,
+		); err != nil {
 			notifyErr = errors.Join(notifyErr, fmt.Errorf(
 				"notify workspace %q: %w",
 				workspaceID,
@@ -113,6 +147,7 @@ func (n *extensionPaletteNotifier) notifyCatalogs(
 
 func (n *extensionPaletteNotifier) invalidateViewSessions(
 	ctx context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaces []cmdpalette.WorkspaceID,
 	extension string,
 ) error {
@@ -125,7 +160,9 @@ func (n *extensionPaletteNotifier) invalidateViewSessions(
 	}
 	var invalidateErr error
 	for _, workspaceID := range workspaces {
-		if err := views.InvalidateInstance(ctx, workspaceID, extension, 0); err != nil {
+		if err := views.InvalidateInstance(
+			ctx, profileLens, workspaceID, extension, 0,
+		); err != nil {
 			invalidateErr = errors.Join(invalidateErr, fmt.Errorf(
 				"invalidate %q in workspace %q: %w",
 				extension,

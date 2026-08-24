@@ -12,11 +12,11 @@ type staticResourcePathGroup struct {
 
 func staticResourcePathGroups(resources ResourcesConfig) []staticResourcePathGroup {
 	return []staticResourcePathGroup{
-		{label: "skill resource", paths: resources.Skills},
-		{label: "loop resource", paths: resources.Loops},
-		{label: "agent resource", paths: resources.Agents},
-		{label: "automation resource", paths: resources.Automation},
-		{label: "layout resource", paths: resources.Layouts},
+		{label: "skill resource", paths: manifestResourcePaths(resources.Skills)},
+		{label: "loop resource", paths: manifestResourcePaths(resources.Loops)},
+		{label: "agent resource", paths: manifestResourcePaths(resources.Agents)},
+		{label: "automation resource", paths: manifestResourcePaths(resources.Automation)},
+		{label: "layout resource", paths: manifestResourcePaths(resources.Layouts)},
 	}
 }
 
@@ -27,18 +27,20 @@ func validateStaticKitResources(ctx context.Context, rootDir string, manifest *M
 	if err := validateStaticResourcePaths(rootDir, manifest.Resources); err != nil {
 		return err
 	}
-	agents, err := LoadAgentResources(rootDir, manifest.Resources.Agents)
+	agents, err := LoadAgentResources(rootDir, manifestResourcePaths(manifest.Resources.Agents))
 	if err != nil {
 		return err
 	}
-	jobs, triggers, err := LoadAutomationResources(rootDir, manifest.Name, manifest.Resources.Automation)
+	jobs, triggers, err := LoadAutomationResources(
+		rootDir, manifest.Name, manifestResourcePaths(manifest.Resources.Automation),
+	)
 	if err != nil {
 		return err
 	}
 	if err := validateAutomationAgentTargets(jobs, triggers, agents); err != nil {
 		return err
 	}
-	if _, err := LoadLayoutResources(ctx, rootDir, manifest.Resources.Layouts); err != nil {
+	if _, err := LoadLayoutResources(ctx, rootDir, manifestResourcePaths(manifest.Resources.Layouts)); err != nil {
 		return err
 	}
 	return nil

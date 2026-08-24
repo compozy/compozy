@@ -583,7 +583,7 @@ func TestInbox(t *testing.T) {
 		if decision.Op != memcontract.OpAdd {
 			t.Fatalf("decision op = %s, want add", decision.Op.String())
 		}
-		content, err := memStore.Read(t.Context(), memcontract.ScopeGlobal, decision.TargetFilename)
+		content, err := memStore.Read(t.Context(), memcontract.ScopeProfile, decision.TargetFilename)
 		if err != nil {
 			t.Fatalf("Store.Read(%q) error = %v", decision.TargetFilename, err)
 		}
@@ -630,7 +630,7 @@ func TestInbox(t *testing.T) {
 			t.Fatalf("bad inbox file stat error = %v, want not exist after DLQ move", err)
 		}
 		memStore := memory.NewStore(root)
-		headers, err := memStore.Scan(t.Context(), memcontract.ScopeGlobal)
+		headers, err := memStore.Scan(t.Context(), memcontract.ScopeProfile)
 		if err != nil {
 			t.Fatalf("Store.Scan() error = %v", err)
 		}
@@ -836,7 +836,7 @@ func TestInbox(t *testing.T) {
 			t.Fatalf("replay result = %#v, want both candidates accepted idempotently", replayResult)
 		}
 		if _, err := memStore.Read(
-			t.Context(), memcontract.ScopeGlobal, replayResult.Decisions[1].TargetFilename,
+			t.Context(), memcontract.ScopeProfile, replayResult.Decisions[1].TargetFilename,
 		); err != nil {
 			t.Fatalf("Store.Read(second replay target) error = %v", err)
 		}
@@ -954,13 +954,13 @@ func testPersistedPayload(sessionID string, seq int64) hooks.SessionMessagePersi
 
 func testCandidate(content string) memcontract.Candidate {
 	return memcontract.Candidate{
-		Scope:   memcontract.ScopeGlobal,
+		Scope:   memcontract.ScopeProfile,
 		Origin:  memcontract.OriginExtractor,
 		Content: content,
 		Frontmatter: memcontract.Header{
 			Name:  "Pedro preference",
 			Type:  memcontract.TypeUser,
-			Scope: memcontract.ScopeGlobal,
+			Scope: memcontract.ScopeProfile,
 		},
 		Entity:    "pedro",
 		Attribute: "preference",

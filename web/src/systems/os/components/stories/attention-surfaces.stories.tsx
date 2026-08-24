@@ -27,6 +27,8 @@ function session(
   badge: SessionPayload["badge"]
 ): SessionPayload {
   return {
+    profile_id: "00000000000000000000000000",
+    profile_name: "default",
     id,
     name,
     agent_name: agentName,
@@ -77,6 +79,9 @@ const SESSION_LIST_VIEW: SessionListViewModel = {
   setScope: fn(),
   setSort: fn(),
   setArchived: fn(),
+  aggregate: false,
+  scopeLabel: "default",
+  ownerOf: () => ({ id: "00000000000000000000000000", name: "default", archived: false }),
   workspaceGroups: [],
   collapsedWorkspaceIds: new Set<string>(),
   toggleWorkspace: fn(),

@@ -32,7 +32,7 @@ func (s *service) updateSkillsSection(
 		return MutationResult{}, fmt.Errorf("settings: update section %q: %w", SectionSkills, err)
 	}
 
-	cfg, resolved, err := s.loadConfig(ctx, scope, workspaceID)
+	cfg, resolved, err := s.loadConfig(ctx, scope, workspaceID, "")
 	if err != nil {
 		return MutationResult{}, fmt.Errorf("settings: load section %q config: %w", SectionSkills, err)
 	}
@@ -44,7 +44,7 @@ func (s *service) updateSkillsSection(
 		return s.updateAgentSkillsSection(cfg.Skills, resolved, workspaceID, agentName, next)
 	}
 
-	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeGlobal)
+	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", compozyconfig.WriteScopeUser, "")
 	if err != nil {
 		return MutationResult{}, fmt.Errorf("settings: resolve section %q write target: %w", SectionSkills, err)
 	}
@@ -54,12 +54,13 @@ func (s *service) updateSkillsSection(
 	if len(changed) == 0 {
 		return MutationResult{
 			Section:   SectionSkills,
-			Scope:     ScopeGlobal,
+			Scope:     ScopeUser,
 			Behavior:  MutationBehaviorAppliedNow,
 			Applied:   true,
 			Warnings:  []string{sectionsNoChangesValue},
 			Lifecycle: lifecycle.Live,
 			DiffClass: lifecycle.DiffClassLive,
+			writePath: target.Path(),
 		}, nil
 	}
 
@@ -83,7 +84,7 @@ func (s *service) updateSkillsSection(
 
 	return MutationResult{
 		Section:         SectionSkills,
-		Scope:           ScopeGlobal,
+		Scope:           ScopeUser,
 		WriteTarget:     target.Kind(),
 		Behavior:        classification.Behavior,
 		Applied:         classification.Applied,
@@ -91,6 +92,7 @@ func (s *service) updateSkillsSection(
 		RestartScope:    classification.RestartScope,
 		Lifecycle:       classification.Lifecycle,
 		DiffClass:       classification.DiffClass,
+		writePath:       target.Path(),
 	}, nil
 }
 
@@ -144,6 +146,7 @@ func (s *service) updateAgentSkillsSection(
 			Warnings:    []string{sectionsNoChangesValue},
 			Lifecycle:   lifecycle.Live,
 			DiffClass:   lifecycle.DiffClassLive,
+			writePath:   agent.SourcePath,
 		}, nil
 	}
 
@@ -174,5 +177,6 @@ func (s *service) updateAgentSkillsSection(
 		RestartScope:    classification.RestartScope,
 		Lifecycle:       classification.Lifecycle,
 		DiffClass:       classification.DiffClass,
+		writePath:       agent.SourcePath,
 	}, nil
 }

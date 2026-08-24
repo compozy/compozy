@@ -68,7 +68,8 @@ func (m *Service) inspectTaskRecord(
 	if err != nil {
 		return nil, err
 	}
-	runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: taskRecord.ID})
+	readScope := store.ReadScope{ProfileID: taskRecord.ProfileID}
+	runs, err := m.store.ListTaskRuns(ctx, RunQuery{ReadScope: readScope, TaskID: taskRecord.ID})
 	if err != nil {
 		return nil, err
 	}
@@ -89,6 +90,7 @@ func (m *Service) inspectTaskRecord(
 		ctx,
 		taskRecord,
 		currentRunSummary,
+		readScope,
 	)
 	if err != nil {
 		return nil, err
@@ -97,7 +99,7 @@ func (m *Service) inspectTaskRecord(
 	if err != nil {
 		return nil, err
 	}
-	recentEvents, err := m.inspectRecentEvents(ctx, taskRecord.ID, focusedRunID)
+	recentEvents, err := m.inspectRecentEvents(ctx, readScope, taskRecord.ID, focusedRunID)
 	if err != nil {
 		return nil, err
 	}
@@ -133,6 +135,7 @@ func (m *Service) inspectSessionState(
 	ctx context.Context,
 	taskRecord Task,
 	currentRun *InspectRunSummary,
+	readScope store.ReadScope,
 ) (*InspectSessionSummary, bool, int, error) {
 	if m.inspectReader == nil {
 		return nil, false, 0, nil
@@ -140,14 +143,17 @@ func (m *Service) inspectSessionState(
 
 	var boundSession *InspectSessionSummary
 	if currentRun != nil && strings.TrimSpace(currentRun.BoundSessionID) != "" {
-		session, err := m.inspectSession(ctx, currentRun.BoundSessionID)
+		session, err := m.inspectSession(ctx, readScope, currentRun.BoundSessionID)
 		if err != nil {
 			return nil, false, 0, err
 		}
 		boundSession = session
 	}
 
-	query := store.SessionListQuery{Limit: inspectEligibleSessionLimit}
+	query := store.SessionListQuery{
+		ReadScope: readScope,
+		Limit:     inspectEligibleSessionLimit,
+	}
 	if taskRecord.Scope.Normalize() == ScopeWorkspace {
 		query.WorkspaceID = taskRecord.WorkspaceID
 	}
@@ -164,12 +170,20 @@ func (m *Service) inspectSessionState(
 	return boundSession, true, eligible, nil
 }
 
-func (m *Service) inspectSession(ctx context.Context, sessionID string) (*InspectSessionSummary, error) {
+func (m *Service) inspectSession(
+	ctx context.Context,
+	readScope store.ReadScope,
+	sessionID string,
+) (*InspectSessionSummary, error) {
 	trimmedID := strings.TrimSpace(sessionID)
 	if trimmedID == "" {
 		return nil, nil
 	}
-	sessions, err := m.inspectReader.ListSessions(ctx, store.SessionListQuery{ID: trimmedID, Limit: 1})
+	sessions, err := m.inspectReader.ListSessions(ctx, store.SessionListQuery{
+		ReadScope: readScope,
+		ID:        trimmedID,
+		Limit:     1,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -187,11 +201,16 @@ func (m *Service) inspectSchedulerState(ctx context.Context) (InspectSchedulerSt
 	return m.inspectReader.GetSchedulerPauseState(ctx)
 }
 
-func (m *Service) inspectRecentEvents(ctx context.Context, taskID string, runID string) ([]InspectEventSummary, error) {
+func (m *Service) inspectRecentEvents(
+	ctx context.Context,
+	readScope store.ReadScope,
+	taskID string,
+	runID string,
+) ([]InspectEventSummary, error) {
 	if m.inspectReader == nil {
 		return nil, nil
 	}
-	query := store.EventSummaryQuery{TaskID: taskID, Limit: inspectRecentEventLimit}
+	query := store.EventSummaryQuery{ReadScope: readScope, TaskID: taskID, Limit: inspectRecentEventLimit}
 	if strings.TrimSpace(runID) != "" {
 		query.RunID = strings.TrimSpace(runID)
 	}

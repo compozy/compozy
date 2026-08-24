@@ -10,14 +10,20 @@ import (
 )
 
 const listApprovalGrants = `-- name: ListApprovalGrants :many
-SELECT id, workspace_id, agent_name, tool_id, input_digest, decision, created_at, last_used_at
+SELECT id, profile_id, workspace_id, agent_name, tool_id, input_digest, decision, created_at, last_used_at
 FROM tool_approval_grants
-WHERE workspace_id = ?1
+WHERE profile_id = ?1
+	AND workspace_id = ?2
 ORDER BY created_at DESC, id
 `
 
-func (q *Queries) ListApprovalGrants(ctx context.Context, workspaceID string) ([]ToolApprovalGrant, error) {
-	rows, err := q.db.QueryContext(ctx, listApprovalGrants, workspaceID)
+type ListApprovalGrantsParams struct {
+	ProfileID   string `json:"profile_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+func (q *Queries) ListApprovalGrants(ctx context.Context, arg ListApprovalGrantsParams) ([]ToolApprovalGrant, error) {
+	rows, err := q.db.QueryContext(ctx, listApprovalGrants, arg.ProfileID, arg.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -27,6 +33,7 @@ func (q *Queries) ListApprovalGrants(ctx context.Context, workspaceID string) ([
 		var i ToolApprovalGrant
 		if err := rows.Scan(
 			&i.ID,
+			&i.ProfileID,
 			&i.WorkspaceID,
 			&i.AgentName,
 			&i.ToolID,
@@ -54,10 +61,11 @@ SET last_used_at = ?1
 WHERE id = (
   SELECT candidate.id
   FROM tool_approval_grants AS candidate
-  WHERE candidate.workspace_id = ?2
-    AND candidate.tool_id = ?3
-    AND (candidate.agent_name = '' OR candidate.agent_name = ?4)
-    AND (candidate.input_digest = '' OR candidate.input_digest = ?5)
+  WHERE candidate.profile_id = ?2
+	AND candidate.workspace_id = ?3
+    AND candidate.tool_id = ?4
+    AND (candidate.agent_name = '' OR candidate.agent_name = ?5)
+    AND (candidate.input_digest = '' OR candidate.input_digest = ?6)
   ORDER BY CASE
     WHEN candidate.agent_name <> '' AND candidate.input_digest <> '' THEN 4
     WHEN candidate.agent_name <> '' THEN 3
@@ -66,11 +74,12 @@ WHERE id = (
   END DESC
   LIMIT 1
 )
-RETURNING id, workspace_id, agent_name, tool_id, input_digest, decision, created_at, last_used_at
+RETURNING id, profile_id, workspace_id, agent_name, tool_id, input_digest, decision, created_at, last_used_at
 `
 
 type LookupApprovalGrantParams struct {
 	LastUsedAt  string `json:"last_used_at"`
+	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id"`
 	ToolID      string `json:"tool_id"`
 	AgentName   string `json:"agent_name"`
@@ -80,6 +89,7 @@ type LookupApprovalGrantParams struct {
 func (q *Queries) LookupApprovalGrant(ctx context.Context, arg LookupApprovalGrantParams) (ToolApprovalGrant, error) {
 	row := q.db.QueryRowContext(ctx, lookupApprovalGrant,
 		arg.LastUsedAt,
+		arg.ProfileID,
 		arg.WorkspaceID,
 		arg.ToolID,
 		arg.AgentName,
@@ -88,6 +98,7 @@ func (q *Queries) LookupApprovalGrant(ctx context.Context, arg LookupApprovalGra
 	var i ToolApprovalGrant
 	err := row.Scan(
 		&i.ID,
+		&i.ProfileID,
 		&i.WorkspaceID,
 		&i.AgentName,
 		&i.ToolID,
@@ -101,19 +112,23 @@ func (q *Queries) LookupApprovalGrant(ctx context.Context, arg LookupApprovalGra
 
 const putApprovalGrant = `-- name: PutApprovalGrant :one
 INSERT INTO tool_approval_grants (
+  profile_id,
   id, workspace_id, agent_name, tool_id, input_digest, decision, created_at, last_used_at
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7, ?8
+  ?1,
+  ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8, ?9
 )
-ON CONFLICT(workspace_id, agent_name, tool_id, input_digest) DO UPDATE SET
+ON CONFLICT DO UPDATE SET
   decision = excluded.decision,
   created_at = excluded.created_at,
   last_used_at = excluded.last_used_at
-RETURNING id, workspace_id, agent_name, tool_id, input_digest, decision, created_at, last_used_at
+WHERE tool_approval_grants.profile_id = excluded.profile_id
+RETURNING id, profile_id, workspace_id, agent_name, tool_id, input_digest, decision, created_at, last_used_at
 `
 
 type PutApprovalGrantParams struct {
+	ProfileID   string `json:"profile_id"`
 	ID          string `json:"id"`
 	WorkspaceID string `json:"workspace_id"`
 	AgentName   string `json:"agent_name"`
@@ -126,6 +141,7 @@ type PutApprovalGrantParams struct {
 
 func (q *Queries) PutApprovalGrant(ctx context.Context, arg PutApprovalGrantParams) (ToolApprovalGrant, error) {
 	row := q.db.QueryRowContext(ctx, putApprovalGrant,
+		arg.ProfileID,
 		arg.ID,
 		arg.WorkspaceID,
 		arg.AgentName,
@@ -138,6 +154,7 @@ func (q *Queries) PutApprovalGrant(ctx context.Context, arg PutApprovalGrantPara
 	var i ToolApprovalGrant
 	err := row.Scan(
 		&i.ID,
+		&i.ProfileID,
 		&i.WorkspaceID,
 		&i.AgentName,
 		&i.ToolID,
@@ -151,17 +168,19 @@ func (q *Queries) PutApprovalGrant(ctx context.Context, arg PutApprovalGrantPara
 
 const revokeApprovalGrant = `-- name: RevokeApprovalGrant :execrows
 DELETE FROM tool_approval_grants
-WHERE workspace_id = ?1
-  AND id = ?2
+WHERE profile_id = ?1
+	AND workspace_id = ?2
+  AND id = ?3
 `
 
 type RevokeApprovalGrantParams struct {
+	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id"`
 	ID          string `json:"id"`
 }
 
 func (q *Queries) RevokeApprovalGrant(ctx context.Context, arg RevokeApprovalGrantParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, revokeApprovalGrant, arg.WorkspaceID, arg.ID)
+	result, err := q.db.ExecContext(ctx, revokeApprovalGrant, arg.ProfileID, arg.WorkspaceID, arg.ID)
 	if err != nil {
 		return 0, err
 	}

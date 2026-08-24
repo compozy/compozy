@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
 
@@ -511,7 +512,11 @@ func TestGatewayIngressAgentCallerBoundary(t *testing.T) {
 			TransportName: "uds-api",
 			Sessions: sessionManagerStub{status: func(_ context.Context, id string) (*session.Info, error) {
 				return &session.Info{
-					ID: id, AgentName: "coder", WorkspaceID: "ws-agent", State: session.StateActive,
+					ID:          id,
+					ProfileID:   store.DefaultProfileID,
+					AgentName:   "coder",
+					WorkspaceID: "ws-agent",
+					State:       session.StateActive,
 				}, nil
 			}},
 			Gateway: gatewayServiceStub{
@@ -558,7 +563,11 @@ func TestGatewayIngressAgentCallerBoundary(t *testing.T) {
 				TransportName: "uds-api",
 				Sessions: sessionManagerStub{status: func(_ context.Context, id string) (*session.Info, error) {
 					return &session.Info{
-						ID: id, AgentName: "coder", WorkspaceID: "ws-agent", State: session.StateActive,
+						ID:          id,
+						ProfileID:   store.DefaultProfileID,
+						AgentName:   "coder",
+						WorkspaceID: "ws-agent",
+						State:       session.StateActive,
 					}, nil
 				}},
 				Gateway: gatewayServiceStub{

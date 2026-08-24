@@ -1,10 +1,12 @@
 package skills
 
 import (
+	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -27,8 +29,15 @@ func (r *Registry) resourceBackedWorkspaceSkills(resolved *workspacepkg.Resolved
 	if !r.resourceAuthority {
 		return nil, false
 	}
+	profileSkills := resourceProfileSkills(r.resourceProfiles, resolved)
 	workspaceSkills := r.resourceWorkspaces[resourceWorkspaceKey(resolved)]
-	return mergedSkillList(r.globalSkills, workspaceSkills), true
+	workspaceProfileKey := resourceWorkspaceProfileKey(resolved)
+	workspaceProfileSkills := r.resourceWorkspaceProfiles[workspaceProfileKey]
+	skills := mergedSkillLayers(r.globalSkills, profileSkills, workspaceSkills, workspaceProfileSkills)
+	applyDisabledSkillList(skills, r.profileDisabled[resourceProfileKey(resolved)])
+	applyDisabledSkillList(skills, r.workspaceDisabled[resourceWorkspaceKey(resolved)])
+	applyDisabledSkillList(skills, r.workspaceProfileDisabled[workspaceProfileKey])
+	return skills, true
 }
 
 func (r *Registry) resourceSkillTargetLocked(
@@ -38,6 +47,16 @@ func (r *Registry) resourceSkillTargetLocked(
 	if r == nil || !r.resourceAuthority {
 		return skillToggleScopeGlobal, "", nil
 	}
+	if profileSkills := resourceProfileSkills(r.resourceProfiles, resolved); profileSkills != nil {
+		if skill := profileSkills[name]; skill != nil {
+			return skillToggleScopeProfile, resourceProfileKey(resolved), skill
+		}
+	}
+	if profileSkills := r.resourceWorkspaceProfiles[resourceWorkspaceProfileKey(resolved)]; profileSkills != nil {
+		if skill := profileSkills[name]; skill != nil {
+			return skillToggleScopeWorkspaceProfile, resourceWorkspaceProfileKey(resolved), skill
+		}
+	}
 	if key := resourceWorkspaceKey(resolved); key != "" {
 		if workspaceSkills := r.resourceWorkspaces[key]; workspaceSkills != nil {
 			if skill := workspaceSkills[name]; skill != nil {
@@ -46,6 +65,70 @@ func (r *Registry) resourceSkillTargetLocked(
 		}
 	}
 	return skillToggleScopeGlobal, "", r.globalSkills[name]
+}
+
+func resourceProfileKey(resolved *workspacepkg.ResolvedWorkspace) string {
+	if resolved == nil {
+		return ""
+	}
+	if profileID := strings.TrimSpace(resolved.ProfileID); profileID != "" {
+		return profileID
+	}
+	if profileName := strings.TrimSpace(resolved.ProfileName); profileName != "" {
+		return profileName
+	}
+	return store.DefaultProfileID
+}
+
+func resourceProfileSkills(
+	profiles map[string]map[string]*Skill,
+	resolved *workspacepkg.ResolvedWorkspace,
+) map[string]*Skill {
+	if resolved == nil {
+		return nil
+	}
+	profileID := strings.TrimSpace(resolved.ProfileID)
+	profileName := strings.TrimSpace(resolved.ProfileName)
+	if profileID == "" && profileName == "" {
+		profileID = store.DefaultProfileID
+		profileName = "default"
+	}
+	keys := []string{
+		profileID,
+		profileName,
+		strings.TrimSpace(resolved.ProfileRoot),
+	}
+	for _, key := range keys {
+		if key == "" {
+			continue
+		}
+		if skillMap := profiles[key]; skillMap != nil {
+			return skillMap
+		}
+		base := filepath.Base(key)
+		if base != "." && base != string(filepath.Separator) {
+			if skillMap := profiles[base]; skillMap != nil {
+				return skillMap
+			}
+		}
+	}
+	return nil
+}
+
+func resourceWorkspaceProfileKey(resolved *workspacepkg.ResolvedWorkspace) string {
+	if resolved == nil {
+		return ""
+	}
+	workspaceID := strings.TrimSpace(resolved.ID)
+	profileName := strings.TrimSpace(resolved.ProfileName)
+	profileID := strings.TrimSpace(resolved.ProfileID)
+	if profileName == "" && (profileID == "" || profileID == store.DefaultProfileID) {
+		profileName = "default"
+	}
+	if workspaceID == "" || profileName == "" {
+		return ""
+	}
+	return workspaceID + "@pf:" + profileName
 }
 
 func (r *Registry) lookupSkillLocked(name string) (*Skill, bool) {

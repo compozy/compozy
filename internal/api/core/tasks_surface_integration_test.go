@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
@@ -21,6 +22,7 @@ import (
 func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 	t.Parallel()
 
+	const taskProfileID = "profile-marketing"
 	now := time.Date(2026, 4, 17, 14, 0, 0, 0, time.UTC)
 	lastActivity := now.Add(-time.Minute)
 	loopMetadata := []byte(
@@ -48,6 +50,7 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 			return taskpkg.CatalogPage{
 				Tasks: []taskpkg.Summary{{
 					ID:             "task-1",
+					ProfileID:      taskProfileID,
 					Identifier:     "TASK-1",
 					Title:          "Review handlers",
 					Scope:          taskpkg.ScopeWorkspace,
@@ -73,6 +76,7 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 			return &taskpkg.View{
 				Summary: taskpkg.Summary{
 					ID:          id,
+					ProfileID:   taskProfileID,
 					Identifier:  "TASK-1",
 					Title:       "Review handlers",
 					Scope:       taskpkg.ScopeWorkspace,
@@ -85,6 +89,7 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 				},
 				Task: taskpkg.Task{
 					ID:          id,
+					ProfileID:   taskProfileID,
 					Identifier:  "TASK-1",
 					Title:       "Review handlers",
 					Scope:       taskpkg.ScopeWorkspace,
@@ -107,12 +112,13 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 			runDetailActor = actor
 			return &taskpkg.RunDetailView{
 				Run: taskpkg.Run{
-					ID:       id,
-					TaskID:   "task-1",
-					Status:   taskpkg.TaskRunStatusRunning,
-					Attempt:  1,
-					Origin:   actor.Origin,
-					QueuedAt: now.Add(-5 * time.Minute),
+					ID:        id,
+					ProfileID: taskProfileID,
+					TaskID:    "task-1",
+					Status:    taskpkg.TaskRunStatusRunning,
+					Attempt:   1,
+					Origin:    actor.Origin,
+					QueuedAt:  now.Add(-5 * time.Minute),
 				},
 				Task: &taskpkg.Reference{
 					ID:          "task-1",
@@ -202,6 +208,7 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 	}
 
 	fixture := newHandlerFixtureWithTasks(t, testutil.StubSessionManager{}, observer, tasks, workspaces, nil, nil)
+	fixture.Handlers.Profiles = sessionProfileServiceStub{}
 	fixture.Handlers.TaskActorContextResolver = func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
 		return taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindHTTP, "tasks."+action)
 	}
@@ -210,7 +217,7 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 		t,
 		fixture.Engine,
 		http.MethodGet,
-		"/tasks?scope=workspace&workspace=alpha&priority=high&approval_state=pending&query=review&include_drafts=false&limit=2",
+		"/tasks?scope=workspace&workspace=alpha&profile=marketing&priority=high&approval_state=pending&query=review&include_drafts=false&limit=2",
 		nil,
 	)
 	if listResp.Code != http.StatusOK {
@@ -218,7 +225,11 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 	}
 	var listPayload contract.TasksResponse
 	testutil.DecodeJSONResponse(t, listResp, &listPayload)
-	if len(listPayload.Tasks) != 1 || listPayload.Tasks[0].ID != "task-1" {
+	if len(listPayload.Tasks) != 1 || listPayload.Tasks[0].ID != "task-1" ||
+		listPayload.Tasks[0].ProfileID != taskProfileID ||
+		listPayload.Tasks[0].ProfileName != "marketing" ||
+		listPayload.Tasks[0].ProfileColor != "#E8572A" ||
+		listPayload.Tasks[0].ProfileIcon != "megaphone" {
 		t.Fatalf("list payload = %#v", listPayload)
 	}
 	if listPayload.Tasks[0].Loop == nil || listPayload.Tasks[0].Loop.RunID != "looprun-alpha" ||
@@ -256,9 +267,21 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 		t.Fatalf("Loop run list query IT-012 = %#v", listQuery)
 	}
 
-	detailResp := performRequest(t, fixture.Engine, http.MethodGet, "/tasks/task-1", nil)
+	detailResp := performRequest(t, fixture.Engine, http.MethodGet, "/tasks/task-1?profile=marketing", nil)
 	if detailResp.Code != http.StatusOK {
 		t.Fatalf("detail status = %d, want %d; body=%s", detailResp.Code, http.StatusOK, detailResp.Body.String())
+	}
+	var detailPayload contract.TaskDetailResponse
+	testutil.DecodeJSONResponse(t, detailResp, &detailPayload)
+	if detailPayload.Task.Summary.ProfileID != taskProfileID ||
+		detailPayload.Task.Summary.ProfileName != "marketing" ||
+		detailPayload.Task.Summary.ProfileColor != "#E8572A" ||
+		detailPayload.Task.Summary.ProfileIcon != "megaphone" ||
+		detailPayload.Task.Task.ProfileID != taskProfileID ||
+		detailPayload.Task.Task.ProfileName != "marketing" ||
+		detailPayload.Task.Task.ProfileColor != "#E8572A" ||
+		detailPayload.Task.Task.ProfileIcon != "megaphone" {
+		t.Fatalf("detail payload owners = %#v", detailPayload.Task)
 	}
 	if detailActor.Origin.Ref != "tasks.get" {
 		t.Fatalf("detail actor = %#v", detailActor)
@@ -340,6 +363,56 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 		len(inboxQuery.ExcludeCreatedBy) != 1 || inboxQuery.ExcludeCreatedBy[0].Ref != "loop-coordinator" ||
 		inboxActor.Ref != "user-1" {
 		t.Fatalf("inbox query/actor = %#v / %#v", inboxQuery, inboxActor)
+	}
+}
+
+func TestExpandedTaskReadsRejectForeignNamedProfile(t *testing.T) {
+	t.Parallel()
+
+	tasks := &testutil.StubTaskManager{
+		GetTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.View, error) {
+			return &taskpkg.View{
+				Summary: taskpkg.Summary{
+					ID:        id,
+					ProfileID: store.DefaultProfileID,
+					Scope:     taskpkg.ScopeGlobal,
+					Status:    taskpkg.TaskStatusReady,
+					CreatedBy: actor.Actor,
+					Origin:    actor.Origin,
+				},
+				Task: taskpkg.Task{
+					ID:        id,
+					ProfileID: store.DefaultProfileID,
+					Scope:     taskpkg.ScopeGlobal,
+					Status:    taskpkg.TaskStatusReady,
+					CreatedBy: actor.Actor,
+					Origin:    actor.Origin,
+				},
+			}, nil
+		},
+	}
+	fixture := newHandlerFixtureWithTasks(
+		t,
+		testutil.StubSessionManager{},
+		testutil.StubObserver{},
+		tasks,
+		testutil.StubWorkspaceService{},
+		nil,
+		nil,
+	)
+	fixture.Handlers.Profiles = sessionProfileServiceStub{}
+	fixture.Handlers.TaskActorContextResolver = func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
+		return taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindHTTP, "tasks."+action)
+	}
+
+	response := performRequest(t, fixture.Engine, http.MethodGet, "/tasks/task-foreign?profile=marketing", nil)
+	if response.Code != http.StatusNotFound {
+		t.Fatalf(
+			"foreign profile task status = %d, want %d; body=%s",
+			response.Code,
+			http.StatusNotFound,
+			response.Body.String(),
+		)
 	}
 }
 

@@ -16,6 +16,7 @@ func normalizeMCPServers(src map[string]MCPServerConfig) map[string]MCPServerCon
 
 		server := src[name]
 		dst[trimmedName] = MCPServerConfig{
+			Profile:   strings.TrimSpace(server.Profile),
 			Command:   strings.TrimSpace(server.Command),
 			CWD:       strings.TrimSpace(server.CWD),
 			Args:      normalizeStrings(server.Args),
@@ -46,6 +47,7 @@ func normalizeTools(src map[string]ToolConfig) map[string]ToolConfig {
 
 		tool := src[name]
 		dst[trimmedName] = ToolConfig{
+			Profile:      strings.TrimSpace(tool.Profile),
 			ID:           strings.TrimSpace(tool.ID),
 			DisplayTitle: strings.TrimSpace(tool.DisplayTitle),
 			FriendlyVerb: strings.TrimSpace(tool.FriendlyVerb),

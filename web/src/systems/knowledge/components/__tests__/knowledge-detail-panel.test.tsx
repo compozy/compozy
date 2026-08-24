@@ -11,7 +11,7 @@ const MEMORY: MemoryHeader = {
   filename: "user-role.md",
   mod_time: "2026-04-09T10:00:00Z",
   name: "User Role",
-  scope: "global",
+  scope: "profile",
   type: "user",
   recall_count: 4,
   injection: true,
@@ -40,7 +40,7 @@ const SAMPLE_DECISION: MemoryDecision = {
   id: "dec_001",
   candidate_hash: "h",
   op: "update",
-  scope: "global",
+  scope: "profile",
   source: "rule",
   confidence: 0.93,
   decided_at: "2026-04-09T11:00:00Z",
@@ -59,7 +59,7 @@ function renderDetail(props: Partial<React.ComponentProps<typeof KnowledgeDetail
   const merged: React.ComponentProps<typeof KnowledgeDetailPanel> = {
     memory: MEMORY,
     content: "# User Role\n\nBody content.",
-    scope: "global",
+    scope: "profile",
     status: {
       isDecisionsLoading: false,
       isDeletePending: false,
@@ -112,7 +112,7 @@ describe("KnowledgeDetailPanel", () => {
     renderDetail();
     const header = screen.getByTestId("knowledge-detail-header");
     expect(header.querySelector("[data-slot='page-head']")).toBeNull();
-    expect(within(header).getByTestId("detail-scope-badge")).toHaveTextContent("Global");
+    expect(within(header).getByTestId("detail-scope-badge")).toHaveTextContent("Profile");
     expect(within(header).getByTestId("detail-age-badge")).toBeInTheDocument();
     // The header must NOT carry type/tier/staleness pills.
     expect(within(header).queryByTestId("detail-type-badge")).toBeNull();

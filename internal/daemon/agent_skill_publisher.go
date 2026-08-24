@@ -35,6 +35,16 @@ func (d *Daemon) newAgentSkillPublisher(
 	if err != nil {
 		return nil, err
 	}
+	extensionProfileCatalogs := make([]extensionProfileCatalog, 0, 1)
+	if state.deps.Profiles != nil {
+		extensionProfileCatalogs = append(extensionProfileCatalogs, state.deps.Profiles)
+	}
+	extensionProvider := extensionAgentSkillDeclarationProvider(
+		registry,
+		state.currentExtensionRuntime,
+		state.logger,
+		extensionProfileCatalogs...,
+	)
 
 	syncer := newAgentSkillSourceSyncer(agentSkillSourceSyncerDeps{
 		raw:            state.resourceKernel,
@@ -67,7 +77,7 @@ func (d *Daemon) newAgentSkillPublisher(
 				state.skillsRegistry,
 				state.logger,
 			),
-			extensionAgentSkillDeclarationProvider(registry, state.currentExtensionRuntime, state.logger),
+			extensionProvider,
 		},
 	})
 	if syncer == nil {
@@ -144,8 +154,8 @@ func daemonAgentSkillDeclarationProvider(
 ) agentSkillDeclarationProvider {
 	return func(ctx context.Context) (agentSkillDeclarations, error) {
 		desired := agentSkillDeclarations{}
-		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
-		globalAgents, err := compozyconfig.LoadWorkspaceAgentDefs("", nil, homePaths)
+		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
+		globalAgents, err := compozyconfig.LoadWorkspaceAgentDefs("", nil, homePaths, "")
 		if err != nil {
 			return agentSkillDeclarations{}, fmt.Errorf("daemon: discover global agents: %w", err)
 		}
@@ -197,6 +207,7 @@ func extensionAgentSkillDeclarationProvider(
 	registry *extensionpkg.Registry,
 	runtime func() extensionRuntime,
 	logger *slog.Logger,
+	profileCatalogs ...extensionProfileCatalog,
 ) agentSkillDeclarationProvider {
 	return func(ctx context.Context) (agentSkillDeclarations, error) {
 		if err := ctx.Err(); err != nil {
@@ -211,7 +222,15 @@ func extensionAgentSkillDeclarationProvider(
 		}
 
 		desired := agentSkillDeclarations{}
-		snapshots, err := extensionResourceSnapshots(registry, manager, logger)
+		var snapshots []scopedExtensionResourceSnapshot
+		var err error
+		if len(profileCatalogs) > 0 && profileCatalogs[0] != nil {
+			snapshots, err = extensionResourceSnapshotsForProfiles(
+				ctx, registry, manager, profileCatalogs[0],
+			)
+		} else {
+			snapshots, err = extensionResourceSnapshots(registry, manager, logger)
+		}
 		if err != nil {
 			return agentSkillDeclarations{}, err
 		}
@@ -220,7 +239,10 @@ func extensionAgentSkillDeclarationProvider(
 			if ext == nil || ext.Manifest == nil || !ext.Status.Registered {
 				continue
 			}
-			agents, err := extensionpkg.LoadAgentResources(ext.RootDir, ext.Manifest.Resources.Agents)
+			agents, err := extensionpkg.LoadAgentResources(
+				ext.RootDir,
+				extensionpkg.ResourcePaths(ext.Manifest.Resources.Agents),
+			)
 			if err != nil {
 				return agentSkillDeclarations{}, fmt.Errorf(
 					"daemon: load extension %q agents for sync: %w",

@@ -17,6 +17,10 @@ const (
 )
 
 func (h *BaseHandlers) ListCmdPaletteCommands(c *gin.Context) {
+	profileLens, ok := h.resolveCmdPaletteProfileLens(c, false)
+	if !ok {
+		return
+	}
 	workspaceID, ok := h.resolveCmdPaletteWorkspace(c, c.Query("workspace"))
 	if !ok {
 		return
@@ -25,9 +29,11 @@ func (h *BaseHandlers) ListCmdPaletteCommands(c *gin.Context) {
 		h.respondCmdPaletteError(c, workspaceID, errCmdPaletteServiceUnavailable)
 		return
 	}
-	catalog, err := h.CmdPalette.Catalog(
-		c.Request.Context(), workspaceID, cmdpalette.ClientID(strings.TrimSpace(c.Query("client"))),
-	)
+	catalog, err := h.CmdPalette.Catalog(c.Request.Context(), cmdpalette.CatalogRequest{
+		ProfileLens: profileLens,
+		WorkspaceID: workspaceID,
+		ClientID:    cmdpalette.ClientID(strings.TrimSpace(c.Query("client"))),
+	})
 	if err != nil {
 		h.respondCmdPaletteError(c, workspaceID, err)
 		return
@@ -69,15 +75,21 @@ func (h *BaseHandlers) InvokeCmdPaletteCommand(c *gin.Context) {
 	if !ok {
 		return
 	}
+	profileLens, ok := h.resolveCmdPaletteProfileLens(c, true)
+	if !ok {
+		return
+	}
 	token := strings.TrimSpace(c.GetHeader(cmdPaletteClientAttachmentHeader))
 	caller := cmdpalette.CallerControlPlane
 	if token != "" {
 		caller = cmdpalette.CallerAttachedClient
 	}
 	result, err := h.CmdPalette.Invoke(c.Request.Context(), cmdpalette.InvokeRequest{
+		ProfileLens: profileLens,
 		WorkspaceID: workspaceID, CommandID: cmdpalette.CommandID(strings.TrimSpace(c.Param("id"))),
 		Args: body.Args, ClientID: cmdpalette.ClientID(strings.TrimSpace(body.Client)),
 		ClientToken: token, Caller: caller,
+		ManagementLocal: token != "" || h.transportName() == transportNameUDSAPI,
 	})
 	if err != nil {
 		h.respondCmdPaletteError(c, workspaceID, err)

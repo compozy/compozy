@@ -4,16 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 )
 
-// MCPAuthTargetRequest selects one exact global or workspace MCP definition.
+// MCPAuthTargetRequest selects one exact user, profile, or workspace MCP definition.
 type MCPAuthTargetRequest struct {
 	Scope       ScopeKind
 	WorkspaceID string
+	ProfileName string
 	Name        string
 }
 
@@ -141,9 +143,21 @@ func classifyMCPAuthExchangeError(err error) error {
 
 func mcpAuthTargetRequest(target mcpauth.Target) MCPAuthTargetRequest {
 	target = target.Normalize()
-	return MCPAuthTargetRequest{
+	request := MCPAuthTargetRequest{
 		Scope: ScopeKind(target.Scope), WorkspaceID: target.WorkspaceID, Name: target.ServerName,
 	}
+	switch target.Scope {
+	case mcpauth.ScopeProfile:
+		request.ProfileName = target.WorkspaceID
+		request.WorkspaceID = ""
+		request.Scope = ScopeProfile
+	case mcpauth.ScopeWorkspaceProfile:
+		workspaceID, profileName, _ := strings.Cut(target.WorkspaceID, "@pf:")
+		request.Scope = ScopeProfile
+		request.WorkspaceID = strings.TrimSpace(workspaceID)
+		request.ProfileName = strings.TrimSpace(profileName)
+	}
+	return request
 }
 
 // LogoutMCPAuth revokes and removes one exact scoped credential set.
@@ -175,13 +189,14 @@ func (s *service) resolveMCPAuthTarget(
 	}
 	_, sources, err := s.resolveMCPTargetContext(
 		ctx,
-		ScopeKind(target.Scope),
-		target.WorkspaceID,
+		req.Scope,
+		req.WorkspaceID,
+		req.ProfileName,
 	)
 	if err != nil {
 		return mcpauth.Target{}, compozyconfig.MCPServer{}, err
 	}
-	targetKind, ok := preferredMCPDeleteTarget(ScopeKind(target.Scope), target.ServerName, sources)
+	targetKind, ok := preferredMCPAuthTarget(req, target.ServerName, sources)
 	if !ok {
 		return mcpauth.Target{}, compozyconfig.MCPServer{}, notFoundError(
 			fmt.Errorf("settings: MCP server %q has no definition in %s scope", target.ServerName, target.Scope),
@@ -196,16 +211,46 @@ func (s *service) resolveMCPAuthTarget(
 	return target, entry.Server, nil
 }
 
+func preferredMCPAuthTarget(
+	req MCPAuthTargetRequest,
+	name string,
+	sources map[string][]mcpSourceEntry,
+) (WriteTargetKind, bool) {
+	if req.Scope != ScopeProfile || strings.TrimSpace(req.WorkspaceID) == "" {
+		return preferredMCPDeleteTarget(req.Scope, name, sources)
+	}
+	for _, entry := range slices.Backward(sources[strings.TrimSpace(name)]) {
+		switch entry.Target {
+		case WriteTargetWorkspaceProfileMCPSidecar, WriteTargetWorkspaceProfileConfig:
+			return entry.Target, true
+		}
+	}
+	return "", false
+}
+
 func normalizeMCPAuthTarget(req MCPAuthTargetRequest) (mcpauth.Target, error) {
 	scope := req.Scope
 	if scope == "" {
 		return mcpauth.Target{}, validationError(errors.New("settings: MCP auth scope is required"))
 	}
-	if scope != ScopeGlobal && scope != ScopeWorkspace {
+	if scope != ScopeUser && scope != ScopeProfile && scope != ScopeWorkspace {
 		return mcpauth.Target{}, validationError(fmt.Errorf("settings: MCP auth scope %q is unsupported", scope))
 	}
+	scopeID := strings.TrimSpace(req.WorkspaceID)
+	if scope == ScopeProfile {
+		profileName := strings.TrimSpace(req.ProfileName)
+		if scopeID == "" {
+			scopeID = profileName
+		} else {
+			scopeID += "@pf:" + profileName
+		}
+	}
+	authScope := mcpauth.Scope(scope)
+	if scope == ScopeProfile && strings.TrimSpace(req.WorkspaceID) != "" {
+		authScope = mcpauth.ScopeWorkspaceProfile
+	}
 	target := mcpauth.Target{
-		Scope: mcpauth.Scope(scope), WorkspaceID: strings.TrimSpace(req.WorkspaceID),
+		Scope: authScope, WorkspaceID: scopeID,
 		ServerName: strings.TrimSpace(req.Name),
 	}
 	if err := target.Validate(); err != nil {
@@ -218,10 +263,17 @@ func mcpAuthTargetForSource(entry mcpSourceEntry) (mcpauth.Target, error) {
 	target := mcpauth.Target{ServerName: strings.TrimSpace(entry.Server.Name)}
 	switch entry.Target {
 	case WriteTargetGlobalConfig, WriteTargetGlobalMCPSidecar:
-		target.Scope = mcpauth.ScopeGlobal
+		target.Scope = mcpauth.ScopeUser
+	case WriteTargetProfileConfig, WriteTargetProfileMCPSidecar:
+		target.Scope = mcpauth.ScopeProfile
+		target.WorkspaceID = strings.TrimSpace(entry.Source.ProfileName)
 	case WriteTargetWorkspaceConfig, WriteTargetWorkspaceMCPSidecar:
 		target.Scope = mcpauth.ScopeWorkspace
 		target.WorkspaceID = strings.TrimSpace(entry.Source.WorkspaceID)
+	case WriteTargetWorkspaceProfileConfig, WriteTargetWorkspaceProfileMCPSidecar:
+		target.Scope = mcpauth.ScopeWorkspaceProfile
+		target.WorkspaceID = strings.TrimSpace(entry.Source.WorkspaceID) + "@pf:" +
+			strings.TrimSpace(entry.Source.ProfileName)
 	default:
 		return mcpauth.Target{}, fmt.Errorf("settings: unsupported MCP auth source %q", entry.Target)
 	}

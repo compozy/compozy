@@ -4,7 +4,7 @@ import toolspkg "github.com/compozy/compozy/internal/tools"
 
 func (n *daemonNativeTools) windowManagerAvailability() toolspkg.NativeAvailabilityFunc {
 	return n.dependencyAvailability(func() bool {
-		return n.deps.WindowManager != nil && n.deps.Workspaces != nil
+		return n.deps.WindowManagers != nil && n.deps.Workspaces != nil
 	})
 }
 

@@ -10,5 +10,6 @@ import (
 type SessionCatalogEventSubscriber interface {
 	SubscribeSessionCatalogEvents(
 		ctx context.Context,
+		scope session.CatalogScope,
 	) (<-chan session.CatalogEvent, func(), error)
 }

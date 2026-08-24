@@ -7,10 +7,7 @@ func getSettingsCmdPaletteOperationSpec() OperationSpec {
 		Method: httpMethodGet, Path: specAPISettingsCmdPalettePath,
 		OperationID: "getSettingsCmdPalette", Summary: "Read command-palette settings",
 		Tags: []string{specSettingsKey}, Transports: []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			enumQueryParam(specScopeKey, "Select the settings scope", settingsWorkspaceScopeValues()),
-			queryParam("workspace_id", "Select the workspace id for workspace scope", false),
-		},
+		Parameters: settingsLayeredParameters(),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SettingsCmdPaletteResponse{}},
 			{Status: 400, Description: specInvalidSettingsScopeDescription, Body: contract.ErrorPayload{}},
@@ -25,10 +22,7 @@ func updateSettingsCmdPaletteOperationSpec() OperationSpec {
 		Method: httpMethodPatch, Path: specAPISettingsCmdPalettePath,
 		OperationID: "updateSettingsCmdPalette", Summary: "Update command-palette settings",
 		Tags: []string{specSettingsKey}, Transports: []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			enumQueryParam(specScopeKey, "Select the settings scope", settingsWorkspaceScopeValues()),
-			queryParam("workspace_id", "Select the workspace id for workspace scope", false),
-		},
+		Parameters:  settingsLayeredParameters(),
 		RequestBody: contract.UpdateSettingsCmdPaletteRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SettingsCmdPaletteResponse{}},

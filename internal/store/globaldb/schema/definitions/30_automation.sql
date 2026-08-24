@@ -26,6 +26,7 @@ CREATE TABLE automation_job_overlays (
 
 CREATE TABLE automation_jobs (
 		id           TEXT PRIMARY KEY,
+		profile_id   TEXT NOT NULL REFERENCES profiles(id),
 		scope        TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
 		name         TEXT NOT NULL,
 		agent_name   TEXT NOT NULL,
@@ -55,7 +56,8 @@ CREATE TABLE automation_jobs (
 
 CREATE TABLE automation_suggestions (
 		id           TEXT PRIMARY KEY,
-		workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+		profile_id   TEXT NOT NULL REFERENCES profiles(id),
+		workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
 		source       TEXT NOT NULL CHECK (source IN ('catalog', 'usage', 'integration')),
 		dedup_key    TEXT NOT NULL,
 		status       TEXT NOT NULL CHECK (status IN ('pending', 'accepted', 'dismissed')),
@@ -139,6 +141,7 @@ CREATE TABLE automation_trigger_overlays (
 
 CREATE TABLE automation_triggers (
 		id            TEXT PRIMARY KEY,
+		profile_id    TEXT NOT NULL REFERENCES profiles(id),
 		scope         TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
 		name          TEXT NOT NULL,
 		agent_name    TEXT NOT NULL,
@@ -193,6 +196,8 @@ CREATE INDEX idx_automation_job_catalog_workspace_order
 
 CREATE INDEX idx_automation_jobs_enabled ON automation_jobs(enabled);
 
+CREATE INDEX idx_automation_jobs_profile ON automation_jobs(profile_id, id);
+
 CREATE INDEX idx_automation_jobs_loop_target
 			ON automation_jobs(loop_name, loop_workspace_id) WHERE target_kind = 'loop';
 
@@ -212,11 +217,11 @@ CREATE INDEX idx_automation_scheduler_misfire
 CREATE INDEX idx_automation_scheduler_next_run
 			ON automation_scheduler_state(next_run_at);
 
-CREATE INDEX idx_automation_suggestions_workspace_status
-			ON automation_suggestions(workspace_id, status, created_at, id);
+CREATE INDEX idx_automation_suggestions_profile_workspace_status
+			ON automation_suggestions(profile_id, workspace_id, status, created_at, id);
 
-CREATE UNIQUE INDEX automation_suggestions_workspace_id_dedup_key
-			ON automation_suggestions(workspace_id, dedup_key);
+CREATE UNIQUE INDEX automation_suggestions_profile_workspace_dedup_key
+			ON automation_suggestions(profile_id, workspace_id, dedup_key);
 
 CREATE INDEX idx_automation_trigger_catalog_order
 			ON automation_trigger_catalog_entries(source_rank, name, trigger_id);
@@ -227,6 +232,8 @@ CREATE INDEX idx_automation_trigger_catalog_workspace_order
 CREATE INDEX idx_automation_triggers_enabled ON automation_triggers(enabled);
 
 CREATE INDEX idx_automation_triggers_event ON automation_triggers(event);
+
+CREATE INDEX idx_automation_triggers_profile ON automation_triggers(profile_id, id);
 
 CREATE INDEX idx_automation_triggers_loop_target
 			ON automation_triggers(loop_name, loop_workspace_id) WHERE target_kind = 'loop';

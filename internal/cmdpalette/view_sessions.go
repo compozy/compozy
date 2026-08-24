@@ -13,6 +13,7 @@ const viewSessionFrameBuffer = 16
 type viewSession struct {
 	id                 string
 	streamToken        string
+	profileLens        ProfileLens
 	workspace          WorkspaceID
 	client             ClientID
 	view               string
@@ -106,25 +107,33 @@ func (s *Service) CloseSession(ctx context.Context, token SessionToken, reason s
 // CloseClientSessions tears down every programmable view owned by a detached client.
 func (s *Service) CloseClientSessions(
 	ctx context.Context,
+	profileLens ProfileLens,
 	workspace WorkspaceID,
 	client ClientID,
 ) error {
 	if ctx == nil {
 		return errors.New("cmd palette view: context is required")
 	}
+	if err := profileLens.Validate(); err != nil {
+		return err
+	}
 	s.viewSessionMu.Lock()
 	closed := s.detachViewSessionsLocked(func(session *viewSession) bool {
-		return session.workspace == workspace && session.client == client
+		return (profileLens.IsAggregate() || session.profileLens.ID == profileLens.ID) &&
+			session.workspace == workspace && session.client == client
 	})
 	s.viewSessionMu.Unlock()
 
 	var closeErr error
 	for _, session := range closed {
 		s.emitViewSessionEvent(ctx, EventViewSessionClosed, session)
-		if err := s.closeViewProgram(ctx, session.workspace, session.extension, ViewCloseRequest{
-			ViewSession: session.id,
-			Reason:      "client_disconnected",
-		}); err != nil {
+		if err := s.closeViewProgram(
+			ctx, session.profileLens, session.workspace, session.extension, ViewCloseRequest{
+				ViewSession: session.id,
+				ProfileLens: session.profileLens,
+				Reason:      "client_disconnected",
+			},
+		); err != nil {
 			closeErr = errors.Join(closeErr, fmt.Errorf("close session %q: %w", session.id, err))
 		}
 	}
@@ -137,6 +146,7 @@ func (s *Service) CloseClientSessions(
 // InvalidateInstance disposes sessions from every replaced process generation.
 func (s *Service) InvalidateInstance(
 	ctx context.Context,
+	profileLens ProfileLens,
 	workspace WorkspaceID,
 	extension string,
 	generation uint64,
@@ -144,10 +154,14 @@ func (s *Service) InvalidateInstance(
 	if ctx == nil {
 		return errors.New("cmd palette view: context is required")
 	}
+	if err := profileLens.Validate(); err != nil {
+		return err
+	}
 	extension = strings.TrimSpace(extension)
 	s.viewSessionMu.Lock()
 	invalidated := s.detachViewSessionsLocked(func(session *viewSession) bool {
-		if session.workspace != workspace || session.extension != extension {
+		if (!profileLens.IsAggregate() && session.profileLens.ID != profileLens.ID) ||
+			session.workspace != workspace || session.extension != extension {
 			return false
 		}
 		return generation == 0 || session.instanceGeneration != generation
@@ -216,10 +230,13 @@ func (s *Service) removeViewSession(id string, session *viewSession, reason stri
 	if s.viewPrograms == nil {
 		return nil
 	}
-	if err := s.closeViewProgram(session.ctx, session.workspace, session.extension, ViewCloseRequest{
-		ViewSession: id,
-		Reason:      strings.TrimSpace(reason),
-	}); err != nil {
+	if err := s.closeViewProgram(
+		session.ctx, session.profileLens, session.workspace, session.extension, ViewCloseRequest{
+			ViewSession: id,
+			ProfileLens: session.profileLens,
+			Reason:      strings.TrimSpace(reason),
+		},
+	); err != nil {
 		return fmt.Errorf("cmd palette view: close program session: %w", err)
 	}
 	return nil

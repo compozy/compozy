@@ -44,7 +44,7 @@ func (d *Daemon) buildHostedMCPService(state *bootState) (*mcppkg.HostedService,
 	if err != nil {
 		return nil, fmt.Errorf("daemon: resolve hosted MCP executable: %w", err)
 	}
-	return mcppkg.NewHostedService(mcppkg.HostedConfig{
+	return mcppkg.NewHostedService(&mcppkg.HostedConfig{
 		Enabled:        true,
 		BindNonceTTL:   state.cfg.Tools.HostedMCP.BindNonceTTL(),
 		ExpectedBinary: executable,
@@ -77,6 +77,7 @@ func (l hostedMCPLauncherAdapter) Launch(
 	}
 	return l.service.Launch(ctx, mcppkg.HostedLaunchRequest{
 		SessionID:   req.SessionID,
+		ProfileID:   req.ProfileID,
 		WorkspaceID: req.WorkspaceID,
 		AgentName:   req.AgentName,
 	})

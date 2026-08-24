@@ -19,6 +19,7 @@ import type {
   AutomationRunListFilter,
   AutomationTriggerStableFilter,
 } from "../types";
+import { useProfileReadScope } from "@/systems/profiles";
 
 interface QueryHookOptions {
   enabled?: boolean;
@@ -28,8 +29,10 @@ export function useAutomationJobs(
   filters: AutomationJobStableFilter = {},
   options: QueryHookOptions = {}
 ) {
+  // Scope applied at the single list hook, so a switch moves every consumer.
+  const { params } = useProfileReadScope();
   const query = useInfiniteQuery({
-    ...automationJobsListOptions(filters),
+    ...automationJobsListOptions({ ...filters, ...params }),
     enabled: options.enabled ?? true,
   });
   return {
@@ -40,7 +43,8 @@ export function useAutomationJobs(
 }
 
 export function useAutomationJob(id: string, options: QueryHookOptions = {}) {
-  return useQuery(automationJobDetailOptions(id, options.enabled ?? true));
+  const { params } = useProfileReadScope();
+  return useQuery(automationJobDetailOptions(id, params, options.enabled ?? true));
 }
 
 export function useAutomationJobRuns(
@@ -48,15 +52,17 @@ export function useAutomationJobRuns(
   filters: AutomationRunHistoryFilter = {},
   options: QueryHookOptions = {}
 ) {
-  return useQuery(automationJobRunsOptions(id, filters, options.enabled ?? true));
+  const { params } = useProfileReadScope();
+  return useQuery(automationJobRunsOptions(id, { ...filters, ...params }, options.enabled ?? true));
 }
 
 export function useAutomationTriggers(
   filters: AutomationTriggerStableFilter = {},
   options: QueryHookOptions = {}
 ) {
+  const { params } = useProfileReadScope();
   const query = useInfiniteQuery({
-    ...automationTriggersListOptions(filters),
+    ...automationTriggersListOptions({ ...filters, ...params }),
     enabled: options.enabled ?? true,
   });
   return {
@@ -67,7 +73,8 @@ export function useAutomationTriggers(
 }
 
 export function useAutomationTrigger(id: string, options: QueryHookOptions = {}) {
-  return useQuery(automationTriggerDetailOptions(id, options.enabled ?? true));
+  const { params } = useProfileReadScope();
+  return useQuery(automationTriggerDetailOptions(id, params, options.enabled ?? true));
 }
 
 export function useAutomationTriggerRuns(
@@ -75,12 +82,16 @@ export function useAutomationTriggerRuns(
   filters: AutomationRunHistoryFilter = {},
   options: QueryHookOptions = {}
 ) {
-  return useQuery(automationTriggerRunsOptions(id, filters, options.enabled ?? true));
+  const { params } = useProfileReadScope();
+  return useQuery(
+    automationTriggerRunsOptions(id, { ...filters, ...params }, options.enabled ?? true)
+  );
 }
 
 export function useAutomationRuns(
   filters: AutomationRunListFilter = {},
   options: QueryHookOptions = {}
 ) {
-  return useQuery(automationRunsListOptions(filters, options.enabled ?? true));
+  const { params } = useProfileReadScope();
+  return useQuery(automationRunsListOptions({ ...filters, ...params }, options.enabled ?? true));
 }

@@ -85,7 +85,7 @@ export function PaletteSettingsPage() {
           control={
             <Button
               data-testid="settings-palette-reset"
-              disabled={page.isResetting}
+              disabled={!page.canResetPersonalization || page.isResetting}
               size="sm"
               type="button"
               variant="outline"

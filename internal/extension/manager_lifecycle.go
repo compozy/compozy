@@ -40,7 +40,9 @@ func (m *Manager) startLocked(ctx context.Context) error {
 	m.devOperationsDone = nil
 	m.extensions = make(map[string]*managedExtension)
 	m.devExtensions = make(map[InstanceKey]*managedExtension)
+	m.profileExtensions = make(map[InstanceKey]*managedExtension)
 	m.devCoordinators = make(map[InstanceKey]*sync.Mutex)
+	m.profileCoordinators = make(map[InstanceKey]*sync.Mutex)
 	m.devLogs = make(map[InstanceKey]*ExtensionLogRing)
 	m.mu.Unlock()
 
@@ -55,7 +57,9 @@ func (m *Manager) startLocked(ctx context.Context) error {
 		m.devOperationsDone = nil
 		m.extensions = make(map[string]*managedExtension)
 		m.devExtensions = make(map[InstanceKey]*managedExtension)
+		m.profileExtensions = make(map[InstanceKey]*managedExtension)
 		m.devCoordinators = make(map[InstanceKey]*sync.Mutex)
+		m.profileCoordinators = make(map[InstanceKey]*sync.Mutex)
 		m.devLogs = make(map[InstanceKey]*ExtensionLogRing)
 		m.mu.Unlock()
 		return fmt.Errorf("extension: list registry entries: %w", err)
@@ -151,9 +155,9 @@ func (m *Manager) stopLocked(ctx context.Context) error {
 	}
 	pendingCleanupErr := m.retryPendingCleanups(ctx)
 
-	names, devKeys := m.stopTargets()
+	names, instanceKeys := m.stopTargets()
 
-	errCh := make(chan error, len(names)+len(devKeys))
+	errCh := make(chan error, len(names)+len(instanceKeys))
 	var stopWG sync.WaitGroup
 	for _, name := range names {
 		ext, ok := m.lookupManaged(name)
@@ -170,7 +174,7 @@ func (m *Manager) stopLocked(ctx context.Context) error {
 			}
 		}(ext)
 	}
-	for _, key := range devKeys {
+	for _, key := range instanceKeys {
 		ext, ok := m.lookupInstance(key)
 		if !ok {
 			continue
@@ -213,12 +217,15 @@ func (m *Manager) stopTargets() ([]string, []InstanceKey) {
 		names = append(names, name)
 	}
 	slices.Sort(names)
-	devKeys := make([]InstanceKey, 0, len(m.devExtensions))
+	instanceKeys := make([]InstanceKey, 0, len(m.devExtensions)+len(m.profileExtensions))
 	for key := range m.devExtensions {
-		devKeys = append(devKeys, key)
+		instanceKeys = append(instanceKeys, key)
 	}
-	slices.SortFunc(devKeys, compareInstanceKeys)
-	return names, devKeys
+	for key := range m.profileExtensions {
+		instanceKeys = append(instanceKeys, key)
+	}
+	slices.SortFunc(instanceKeys, compareInstanceKeys)
+	return names, instanceKeys
 }
 
 func (m *Manager) stopManagedExtension(ctx context.Context, item *managedExtension) error {

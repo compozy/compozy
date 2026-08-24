@@ -5,6 +5,7 @@ package settings
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -126,7 +127,7 @@ func TestMCPCatalogInstallPersistsEncryptedSecretAndExecutorResolvesIt(t *testin
 			{"id":"helper_mode","prompt":"Helper mode","type":"string","required":false,"default":"1","binding":{"type":"env","name":"` + settingsCatalogMCPHelperEnv + `"}},
 			{"id":"catalog_token","prompt":"Catalog token","type":"secret","required":true,"binding":{"type":"env","name":"CATALOG_TOKEN"}}
 		],
-		"default_scope":"global"
+		"default_scope":"user"
 	}`)
 		service := testService(t, homePaths, Dependencies{
 			MCPCatalog:      fakeMCPCatalog{entry: entry},
@@ -135,7 +136,7 @@ func TestMCPCatalogInstallPersistsEncryptedSecretAndExecutorResolvesIt(t *testin
 
 		installed, err := service.InstallMCPCatalog(ctx, MCPCatalogInstallRequest{
 			EntryID: "github",
-			Scope:   ScopeGlobal,
+			Scope:   ScopeUser,
 			Values: MCPCatalogInstallValues{Inputs: map[string]MCPSecretInput{
 				"catalog_token": {Value: "executor-secret"},
 			}},
@@ -144,7 +145,7 @@ func TestMCPCatalogInstallPersistsEncryptedSecretAndExecutorResolvesIt(t *testin
 			t.Fatalf("InstallMCPCatalog() error = %v", err)
 		}
 		assertMCPSecretKeys(t, installed.Item, "CATALOG_TOKEN")
-		ref := "vault:mcp/global/catalog-helper/env/CATALOG_TOKEN"
+		ref := "vault:mcp/user/catalog-helper/env/CATALOG_TOKEN"
 		record, err := store.GetVaultSecret(ctx, ref)
 		if err != nil {
 			t.Fatalf("GetVaultSecret(%q) error = %v", ref, err)
@@ -181,7 +182,7 @@ func TestMCPCatalogInstallPersistsEncryptedSecretAndExecutorResolvesIt(t *testin
 				return mcppkg.ResolvedServer{
 					Server: server,
 					Target: mcpauth.Target{
-						Scope:      mcpauth.ScopeGlobal,
+						Scope:      mcpauth.ScopeUser,
 						ServerName: installed.Item.Name,
 					},
 				}, nil
@@ -334,6 +335,191 @@ func TestMutationResultExposesSemanticWriteTarget(t *testing.T) {
 	}
 	if strings.Contains(string(result.WriteTarget), "/") {
 		t.Fatalf("provider write target = %q, want semantic identifier not path", result.WriteTarget)
+	}
+}
+
+func TestProfilePaletteSettingsPreserveMachineShortcutIdentityIT092(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve profile palette identity while rejecting empty alias updates", func(t *testing.T) {
+		t.Parallel()
+		testProfilePaletteSettingsPreserveMachineShortcutIdentityIT092(t)
+	})
+}
+
+func testProfilePaletteSettingsPreserveMachineShortcutIdentityIT092(t *testing.T) {
+	t.Helper()
+
+	ctx := t.Context()
+	homePaths := testHomePaths(t)
+	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+	writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+`
+
+[cmd_palette]
+fallback_targets = ["agent"]
+personalization = true
+
+[cmd_palette.aliases]
+review = "agent:user"
+
+[window_manager.global_shortcuts]
+"palette.summon.global" = "meta+shift+Space"
+`)
+	service := testService(t, homePaths, Dependencies{WorkspaceResolver: fakeWorkspaceResolver{
+		resolved: map[string]workspacepkg.ResolvedWorkspace{
+			"ws-1": {Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot}},
+		},
+	}})
+
+	writeProfilePalette := func(profileName string, enabled bool, personalized bool, alias string) {
+		t.Helper()
+		aliases := map[string]string{"review": alias}
+		result, err := service.UpdateSection(ctx, SectionUpdateRequest{
+			SectionRequest: SectionRequest{
+				Section: SectionCmdPalette, Scope: ScopeProfile, ProfileName: profileName,
+			},
+			CmdPalette: &CmdPaletteUpdate{
+				FallbackAgentEnabled: &enabled, Personalization: &personalized, Aliases: &aliases,
+			},
+		})
+		if err != nil {
+			t.Fatalf("UpdateSection(cmd palette profile %q) error = %v", profileName, err)
+		}
+		if result.WriteTarget != WriteTargetProfileConfig || result.ProfileName != profileName {
+			t.Fatalf("profile %q palette result = %#v", profileName, result)
+		}
+	}
+	writeProfilePalette("marketing", false, false, "agent:marketing")
+	writeProfilePalette("sales", true, true, "agent:sales")
+	emptyAliases := map[string]string{}
+	if _, err := service.UpdateSection(ctx, SectionUpdateRequest{
+		SectionRequest: SectionRequest{Section: SectionCmdPalette, Scope: ScopeProfile, ProfileName: "marketing"},
+		CmdPalette:     &CmdPaletteUpdate{Aliases: &emptyAliases},
+	}); err == nil || !errors.Is(err, ErrValidation) {
+		t.Fatalf("UpdateSection(empty profile aliases) error = %v, want validation error", err)
+	}
+
+	assertPalette := func(label string, cfg compozyconfig.Config, enabled bool, personalized bool, alias string) {
+		t.Helper()
+		if got := slices.Contains(
+			cfg.CmdPalette.FallbackTargets,
+			compozyconfig.CmdPaletteFallbackAgent,
+		); got != enabled ||
+			cfg.CmdPalette.Personalization != personalized ||
+			cfg.CmdPalette.Aliases["review"] != alias {
+			t.Fatalf(
+				"%s palette = %#v, want enabled=%v personalized=%v alias=%q",
+				label,
+				cfg.CmdPalette,
+				enabled,
+				personalized,
+				alias,
+			)
+		}
+	}
+	for _, test := range []struct {
+		name         string
+		enabled      bool
+		personalized bool
+		alias        string
+	}{
+		{name: "marketing", enabled: false, personalized: false, alias: "agent:marketing"},
+		{name: "sales", enabled: true, personalized: true, alias: "agent:sales"},
+	} {
+		test := test
+		t.Run("Should preserve "+test.name+" profile palette", func(t *testing.T) {
+			t.Parallel()
+			cfg, err := compozyconfig.LoadForHome(homePaths, compozyconfig.WithProfile(test.name))
+			if err != nil {
+				t.Fatalf("LoadForHome(profile %q) error = %v", test.name, err)
+			}
+			assertPalette(test.name, cfg, test.enabled, test.personalized, test.alias)
+		})
+	}
+
+	workspaceAliases := map[string]string{"review": "agent:workspace"}
+	workspaceEnabled, workspacePersonalized := true, false
+	workspaceResult, err := service.UpdateSection(ctx, SectionUpdateRequest{
+		SectionRequest: SectionRequest{
+			Section: SectionCmdPalette, Scope: ScopeWorkspace, WorkspaceID: "ws-1",
+		},
+		CmdPalette: &CmdPaletteUpdate{
+			FallbackAgentEnabled: &workspaceEnabled,
+			Personalization:      &workspacePersonalized,
+			Aliases:              &workspaceAliases,
+		},
+	})
+	if err != nil {
+		t.Fatalf("UpdateSection(cmd palette workspace) error = %v", err)
+	}
+	if workspaceResult.WriteTarget != WriteTargetWorkspaceConfig {
+		t.Fatalf("workspace palette write target = %q", workspaceResult.WriteTarget)
+	}
+	workspaceConfig, err := compozyconfig.LoadForHome(
+		homePaths,
+		compozyconfig.WithWorkspaceRoot(workspaceRoot),
+		compozyconfig.WithProfile("marketing"),
+	)
+	if err != nil {
+		t.Fatalf("LoadForHome(workspace marketing) error = %v", err)
+	}
+	assertPalette("workspace marketing", workspaceConfig, true, false, "agent:workspace")
+
+	shortcutAttempt := map[string]string{"session.new": "meta+shift+Space"}
+	_, err = service.UpdateSection(ctx, SectionUpdateRequest{
+		SectionRequest: SectionRequest{
+			Section: SectionWindowManager, Scope: ScopeProfile, ProfileName: "marketing",
+		},
+		WindowManagerGlobalShortcuts: &shortcutAttempt,
+	})
+	if !errors.Is(err, ErrConflict) {
+		t.Fatalf("profile shortcut Settings write error = %v, want scope conflict", err)
+	}
+
+	profileConfigPath := filepath.Join(homePaths.ProfilesDir, "marketing", compozyconfig.ConfigName)
+	profileConfig := readFile(t, profileConfigPath)
+	writeFile(t, profileConfigPath, profileConfig+`
+
+[window_manager.global_shortcuts]
+"session.new" = "meta+shift+Space"
+`)
+	if _, loadErr := compozyconfig.LoadForHome(homePaths, compozyconfig.WithProfile("marketing")); loadErr == nil {
+		t.Fatal("personal profile shortcut load error = nil, want profile_config_key_denied")
+	} else {
+		var validation compozyconfig.ValidationError
+		if !errors.As(loadErr, &validation) || validation.Code != "profile_config_key_denied" {
+			t.Fatalf("personal profile shortcut load error = %v", loadErr)
+		}
+	}
+	writeFile(t, profileConfigPath, profileConfig)
+
+	workspaceProfilePath := filepath.Join(
+		workspaceRoot, compozyconfig.DirName, compozyconfig.ProfilesDirName, "marketing", compozyconfig.ConfigName,
+	)
+	writeFile(t, workspaceProfilePath, `[window_manager.global_shortcuts]
+"session.new" = "meta+shift+Space"
+`)
+	if _, loadErr := compozyconfig.LoadForHome(
+		homePaths,
+		compozyconfig.WithWorkspaceRoot(workspaceRoot),
+		compozyconfig.WithProfile("marketing"),
+	); loadErr == nil {
+		t.Fatal("workspace profile shortcut load error = nil, want profile_config_key_denied")
+	} else {
+		var validation compozyconfig.ValidationError
+		if !errors.As(loadErr, &validation) || validation.Code != "profile_config_key_denied" {
+			t.Fatalf("workspace profile shortcut load error = %v", loadErr)
+		}
+	}
+	if removeErr := os.Remove(workspaceProfilePath); removeErr != nil {
+		t.Fatalf("remove workspace profile shortcut fixture: %v", removeErr)
+	}
+
+	machineConfig, err := compozyconfig.LoadForHome(homePaths)
+	if err != nil {
+		t.Fatalf("LoadForHome(machine config) error = %v", err)
+	}
+	if got, want := machineConfig.WindowManager.GlobalShortcuts["palette.summon.global"], "meta+shift+Space"; got != want {
+		t.Fatalf("machine global shortcut = %q, want %q", got, want)
 	}
 }
 

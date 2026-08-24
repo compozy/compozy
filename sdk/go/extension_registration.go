@@ -97,6 +97,7 @@ func (e *Extension) registerTool(
 		}
 	}
 	descriptor := ExtensionToolRuntimeDescriptor{
+		Profile:             strings.TrimSpace(options.Profile),
 		ID:                  toolID,
 		Handler:             cleanHandler,
 		Description:         strings.TrimSpace(options.Description),

@@ -75,7 +75,7 @@ type extensionSecretUnsetRecord struct {
 }
 
 func newExtensionSecretsCommand(deps commandDeps) *cobra.Command {
-	command := &cobra.Command{Use: "secrets", Short: "Manage write-only extension environment bindings"}
+	command := &cobra.Command{Use: extensionSecretsKey, Short: "Manage write-only extension environment bindings"}
 	command.AddCommand(newExtensionSecretsSetCommand(deps))
 	command.AddCommand(newExtensionSecretsBindCommand(deps))
 	command.AddCommand(newExtensionSecretsListCommand(deps))
@@ -119,6 +119,7 @@ func newExtensionSecretsSetCommand(deps commandDeps) *cobra.Command {
 	command.Flags().StringVar(&envName, "env", "", "Declared environment variable name")
 	command.Flags().StringVar(&workspaceRef, workspaceFlagName, "", "Override workspace context")
 	command.Flags().BoolVar(&valueStdin, extensionSecretValueStdinFlag, false, "Read the secret value from stdin")
+	configureProfileMutationCommand(command, deps)
 	return command
 }
 
@@ -166,6 +167,7 @@ func newExtensionSecretsBindCommand(deps commandDeps) *cobra.Command {
 		"Bind to one remote MCP server header as <server>:<header>",
 	)
 	command.Flags().StringVar(&workspaceRef, workspaceFlagName, "", "Override workspace context")
+	configureProfileMutationCommand(command, deps)
 	return command
 }
 
@@ -219,6 +221,7 @@ func newExtensionSecretsListCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	command.Flags().StringVar(&workspaceRef, workspaceFlagName, "", "Override workspace context")
+	configureSingleProfileReadCommand(command, deps)
 	return command
 }
 
@@ -248,6 +251,7 @@ func newExtensionSecretsUnsetCommand(deps commandDeps) *cobra.Command {
 	}
 	command.Flags().StringVar(&envName, "env", "", "Bound environment variable name")
 	command.Flags().StringVar(&workspaceRef, workspaceFlagName, "", "Override workspace context")
+	configureProfileMutationCommand(command, deps)
 	return command
 }
 

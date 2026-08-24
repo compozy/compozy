@@ -49,6 +49,9 @@ func manifestTOMLDocument(manifest *Manifest) (map[string]any, error) {
 		putNonEmptyStrings(networkParticipation, "channel_scopes", requirement.ChannelScopes)
 		document[manifestFieldNetworkParticipation] = networkParticipation
 	}
+	if len(manifest.Profiles) > 0 {
+		document["profiles"] = manifest.Profiles
+	}
 
 	resources, err := resourcesTOMLTable(manifest.Resources)
 	if err != nil {
@@ -69,11 +72,11 @@ func subprocessTOMLTable(process SubprocessConfig) map[string]any {
 
 func resourcesTOMLTable(resources ResourcesConfig) (map[string]any, error) {
 	table := make(map[string]any)
-	putNonEmptyStrings(table, manifestSkillsKey, resources.Skills)
-	putNonEmptyStrings(table, manifestLoopsKey, resources.Loops)
-	putNonEmptyStrings(table, manifestAgentsKey, resources.Agents)
-	putNonEmptyStrings(table, manifestAutomationKey, resources.Automation)
-	putNonEmptyStrings(table, manifestLayoutsKey, resources.Layouts)
+	putNonEmptyResourcePaths(table, manifestSkillsKey, resources.Skills)
+	putNonEmptyResourcePaths(table, manifestLoopsKey, resources.Loops)
+	putNonEmptyResourcePaths(table, manifestAgentsKey, resources.Agents)
+	putNonEmptyResourcePaths(table, manifestAutomationKey, resources.Automation)
+	putNonEmptyResourcePaths(table, manifestLayoutsKey, resources.Layouts)
 	if len(resources.Tools) > 0 {
 		tools := make(map[string]any, len(resources.Tools))
 		for name, config := range resources.Tools {
@@ -95,10 +98,12 @@ func resourcesTOMLTable(resources ResourcesConfig) (map[string]any, error) {
 	if len(resources.CommandGroups) > 0 {
 		groups := make([]map[string]any, 0, len(resources.CommandGroups))
 		for _, group := range resources.CommandGroups {
-			groups = append(groups, map[string]any{
+			item := map[string]any{
 				manifestPathKey:    group.Path,
 				manifestSummaryKey: group.Summary,
-			})
+			}
+			putNonEmpty(item, "profile", group.Profile)
+			groups = append(groups, item)
 		}
 		table[manifestCommandGroupsKey] = groups
 	}
@@ -122,6 +127,7 @@ func toolTOMLTable(tool ToolConfig) (map[string]any, error) {
 		},
 	}
 	putNonEmpty(table, manifestDescriptionKey, tool.Description)
+	putNonEmpty(table, "profile", tool.Profile)
 	putNonEmpty(table, "friendly_verb", tool.FriendlyVerb)
 	putNonEmpty(table, "preview", tool.Preview)
 	putNonEmpty(table, manifestVisibilityKey, tool.Visibility)
@@ -171,6 +177,7 @@ func hookTOMLTable(hook *HookConfig) map[string]any {
 	}
 	putNonEmptyStrings(executor, manifestArgsKey, hook.Executor.Args)
 	putNonEmptyMap(executor, manifestEnvKey, hook.Executor.Env)
+	putNonEmpty(table, "profile", hook.Profile)
 	return table
 }
 
@@ -189,6 +196,12 @@ func putNonEmpty(table map[string]any, key, value string) {
 }
 
 func putNonEmptyStrings(table map[string]any, key string, values []string) {
+	if len(values) > 0 {
+		table[key] = values
+	}
+}
+
+func putNonEmptyResourcePaths(table map[string]any, key string, values []ManifestResourcePath) {
 	if len(values) > 0 {
 		table[key] = values
 	}

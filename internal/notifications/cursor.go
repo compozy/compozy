@@ -22,6 +22,7 @@ type CursorStore interface {
 
 // CursorKey identifies one durable delivery cursor.
 type CursorKey struct {
+	ProfileID  string   `json:"profile_id"`
 	Scope      ScopeRef `json:"scope"`
 	ConsumerID string   `json:"consumer_id"`
 	StreamName string   `json:"stream_name"`
@@ -67,6 +68,7 @@ type CursorError struct {
 // CursorQuery filters cursor diagnostics. An omitted scope is valid only for an
 // administrative aggregate list; scoped reads must carry a complete ScopeRef.
 type CursorQuery struct {
+	ProfileID  string   `json:"profile_id,omitempty"`
 	Scope      ScopeRef `json:"scope"`
 	ConsumerID string   `json:"consumer_id,omitempty"`
 	StreamName string   `json:"stream_name,omitempty"`
@@ -147,6 +149,7 @@ func (s *Service) RecordError(ctx context.Context, report CursorError) (Cursor, 
 // Normalize preserves and validates cursor identity.
 func (k CursorKey) Normalize() (CursorKey, error) {
 	normalized := CursorKey{
+		ProfileID:  strings.TrimSpace(k.ProfileID),
 		Scope:      k.Scope.Normalize(),
 		ConsumerID: k.ConsumerID,
 		StreamName: k.StreamName,
@@ -168,6 +171,8 @@ func (k CursorKey) Normalize() (CursorKey, error) {
 		}
 	}
 	switch {
+	case normalized.ProfileID == "":
+		return CursorKey{}, fmt.Errorf("%w: profile id is required", ErrInvalidCursor)
 	case normalized.ConsumerID == "":
 		return CursorKey{}, fmt.Errorf("%w: consumer id is required", ErrInvalidCursor)
 	case normalized.StreamName == "":
@@ -257,6 +262,7 @@ func (e CursorError) Normalize(fallbackNow time.Time) (CursorError, error) {
 // Normalize validates query filters without changing opaque identity values.
 func (q CursorQuery) Normalize() (CursorQuery, error) {
 	normalized := CursorQuery{
+		ProfileID:  strings.TrimSpace(q.ProfileID),
 		Scope:      q.Scope.Normalize(),
 		ConsumerID: q.ConsumerID,
 		StreamName: q.StreamName,

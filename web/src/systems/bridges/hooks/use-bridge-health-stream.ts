@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
 
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
+import { useProfileReadScope } from "@/systems/profiles";
 
 import { bridgeKeys } from "../lib/query-keys";
 import type {
@@ -64,6 +65,12 @@ function buildBridgeHealthStreamUrl(bridgeIds: readonly string[], filters: Bridg
   if (workspace) {
     params.set("workspace", workspace);
   }
+  if (filters.profile) {
+    params.set("profile", filters.profile);
+  }
+  if (filters.all_profiles === true) {
+    params.set("all_profiles", "true");
+  }
 
   const query = params.toString();
   return query ? `${BRIDGE_HEALTH_STREAM_URL}?${query}` : BRIDGE_HEALTH_STREAM_URL;
@@ -78,14 +85,19 @@ function invalidateBridgeRoutesWhenCountChanges(
     return;
   }
 
-  const cachedRoutes = queryClient.getQueryData<BridgeRoute[] | undefined>(
-    bridgeKeys.routes(bridgeID)
-  );
-  if (cachedRoutes !== undefined && cachedRoutes.length === nextRouteCount) {
+  // Route count is the same fact under every lens, so agreement has to hold for
+  // all of them before the reread can be skipped.
+  const cached = queryClient.getQueriesData<BridgeRoute[] | undefined>({
+    queryKey: bridgeKeys.routesFor(bridgeID),
+  });
+  const settled =
+    cached.length > 0 &&
+    cached.every(([, routes]) => routes !== undefined && routes.length === nextRouteCount);
+  if (settled) {
     return;
   }
 
-  void queryClient.invalidateQueries({ queryKey: bridgeKeys.routes(bridgeID) });
+  void queryClient.invalidateQueries({ queryKey: bridgeKeys.routesFor(bridgeID) });
 }
 
 function mergeBridgeHealthSnapshotPage(
@@ -129,16 +141,15 @@ export function applyBridgeHealthSnapshot(
   }
 
   for (const [bridgeID, health] of Object.entries(snapshot.bridge_health)) {
-    queryClient.setQueryData<BridgeDetailResponse | undefined>(
-      bridgeKeys.detail(bridgeID),
-      current =>
-        current
-          ? {
-              ...current,
-              health,
-            }
-          : current
-    );
+    // Health is lens-independent, so every lens that already holds this bridge
+    // gets the same update rather than one going stale behind the other.
+    for (const [queryKey] of queryClient.getQueriesData<BridgeDetailResponse | undefined>({
+      queryKey: bridgeKeys.detailFor(bridgeID),
+    })) {
+      queryClient.setQueryData<BridgeDetailResponse | undefined>(queryKey, current =>
+        current ? { ...current, health } : current
+      );
+    }
     invalidateBridgeRoutesWhenCountChanges(queryClient, bridgeID, health.route_count);
   }
 }
@@ -163,6 +174,9 @@ export function useBridgeHealthStream({
   eventSourceFactory: customEventSourceFactory,
   filters: { scope, workspace_id: workspaceId, workspace } = {},
 }: UseBridgeHealthStreamOptions = {}) {
+  const { params: profileScope } = useProfileReadScope();
+  const profile = "profile" in profileScope ? profileScope.profile : undefined;
+  const allProfiles = "all_profiles" in profileScope ? profileScope.all_profiles : undefined;
   const bridgeIdsKey = JSON.stringify([...new Set(bridgeIds)].filter(bridgeId => bridgeId !== ""));
   const queryClient = useQueryClient();
 
@@ -198,7 +212,13 @@ export function useBridgeHealthStream({
     for (let index = 0; index < bridgeIds.length; index += MAX_BRIDGE_IDS_PER_STREAM) {
       const chunk = bridgeIds.slice(index, index + MAX_BRIDGE_IDS_PER_STREAM);
       const source = (customEventSourceFactory ?? defaultEventSourceFactory)(
-        buildBridgeHealthStreamUrl(chunk, { scope, workspace_id: workspaceId, workspace })
+        buildBridgeHealthStreamUrl(chunk, {
+          scope,
+          workspace_id: workspaceId,
+          workspace,
+          profile,
+          all_profiles: allProfiles,
+        })
       );
       detachSources.push(attachBridgeHealthSource(source, handleSnapshot, handleError));
     }
@@ -206,5 +226,15 @@ export function useBridgeHealthStream({
     return () => {
       for (const detach of detachSources) detach();
     };
-  }, [bridgeIdsKey, customEventSourceFactory, enabled, queryClient, scope, workspaceId, workspace]);
+  }, [
+    bridgeIdsKey,
+    customEventSourceFactory,
+    enabled,
+    allProfiles,
+    queryClient,
+    profile,
+    scope,
+    workspaceId,
+    workspace,
+  ]);
 }

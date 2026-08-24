@@ -106,11 +106,14 @@ cross-workspace catalog reads are operator surfaces and reject agent identity wi
 `403 agent_scope_denied`. Interaction discovery accepts a validated agent identity only for that
 agent's workspace.
 
-Browser clients can subscribe once to `GET /api/sessions/catalog-stream`. Each
+Browser clients can subscribe once to
+`GET /api/sessions/catalog-stream?all_workspaces=true`, or use `workspace_id=<id>` for one
+workspace. Exactly one scope is required. The server applies the same scope to replayed and live
+events, so a workspace subscriber cannot receive another workspace's session. Each
 `session_catalog_changed` event identifies an `upserted` or `deleted` session and includes its
 authoritative `workspace_id`. The event is a wake signal, not a row delta: reconcile the counted
-catalog page for that workspace after every event. Catalog caches remain workspace-scoped, so an
-event must invalidate only keys owned by its `workspace_id`.
+catalog page after every event. `Last-Event-ID` resumes from a non-negative stream sequence within
+the selected scope.
 
 The same stream emits `session_attention_changed` after a committed badge edge. Its payload carries
 the old and new badge, the new attention class, `workspace_id`, and the canonical transition time.

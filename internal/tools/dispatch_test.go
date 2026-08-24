@@ -159,7 +159,7 @@ func TestRuntimeRegistryDispatchValidationAndPolicy(t *testing.T) {
 		})
 		registry := mustDispatchRegistry(t, provider, WithToolEventSink(events))
 
-		_, err := registry.Call(t.Context(), Scope{}, CallRequest{
+		_, err := registry.Call(t.Context(), Scope{ProfileID: "profile-a"}, CallRequest{
 			ToolID: descriptor.ID,
 			Input:  json.RawMessage(`{"query":42}`),
 		})
@@ -171,6 +171,11 @@ func TestRuntimeRegistryDispatchValidationAndPolicy(t *testing.T) {
 		}
 		if got, want := events.kinds(), []ToolCallEventKind{ToolCallStarted, ToolCallFailed}; !slices.Equal(got, want) {
 			t.Fatalf("event kinds = %#v, want %#v", got, want)
+		}
+		for _, event := range events.snapshot() {
+			if event.ProfileID != "profile-a" {
+				t.Fatalf("event profile id = %q, want profile-a", event.ProfileID)
+			}
 		}
 	})
 
@@ -965,6 +970,7 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 					`{"password":"secret","token_present":true,"canonical_token":"/review",` +
 						`"max_input_tokens":1050000,` +
 						`"max_output_tokens":128000,"visible":"ok",` +
+						`"credential_requirements":[{"provider":"openai","slot":"api_key","missing":true}],` +
 						`"inputs":{` +
 						`"token":{"type":"string","required":true,"description":"Public deployment token name",` +
 						`"enum":["staging","production"],"default":"staging"},` +
@@ -1062,6 +1068,12 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 		if !strings.Contains(string(data), `"max_input_tokens":1050000`) ||
 			!strings.Contains(string(data), `"max_output_tokens":128000`) {
 			t.Fatalf("result = %s, want public model token limits preserved", data)
+		}
+		if !strings.Contains(
+			string(data),
+			`"credential_requirements":[{"missing":true,"provider":"openai","slot":"api_key"}]`,
+		) {
+			t.Fatalf("result = %s, want public credential requirement metadata preserved", data)
 		}
 		wantTokenDeclaration :=
 			`"token":{"default":"staging","description":"Public deployment token name",` +

@@ -34,7 +34,7 @@ func (s *Store) applyDecision(ctx context.Context, decision memcontract.Decision
 	if err != nil {
 		return DecisionApplyResult{}, err
 	}
-	existing, found, err := s.catalog.loadDecisionByIdempotencyKey(ctx, normalized.IdempotencyKey)
+	existing, found, err := s.catalog.loadDecisionByIdempotencyKey(ctx, s.profileID, normalized.IdempotencyKey)
 	if err != nil {
 		return DecisionApplyResult{}, err
 	}
@@ -44,7 +44,12 @@ func (s *Store) applyDecision(ctx context.Context, decision memcontract.Decision
 		if existing.AppliedAt != nil {
 			return DecisionApplyResult{Decision: normalized, Applied: false}, nil
 		}
-	} else if err := s.catalog.insertDecision(ctx, normalized, workspaceID); err != nil {
+	} else if err := s.catalog.insertDecision(
+		ctx,
+		s.profileIDForScope(decisionScope(normalized)),
+		normalized,
+		workspaceID,
+	); err != nil {
 		return DecisionApplyResult{}, err
 	}
 
@@ -78,7 +83,13 @@ func (s *Store) applyDecision(ctx context.Context, decision memcontract.Decision
 	if err := s.catalog.markDecisionApplied(ctx, normalized.ID); err != nil {
 		return DecisionApplyResult{}, err
 	}
-	if err := s.catalog.logDecisionEvent(ctx, normalized, workspaceID, applied); err != nil {
+	if err := s.catalog.logDecisionEvent(
+		ctx,
+		s.profileIDForScope(decisionScope(normalized)),
+		normalized,
+		workspaceID,
+		applied,
+	); err != nil {
 		return DecisionApplyResult{}, err
 	}
 	return DecisionApplyResult{Decision: normalized, Applied: applied}, nil

@@ -118,7 +118,7 @@ func (s *Store) normalizeBatchProposal(
 	if err != nil {
 		return BatchProposal{}, "", "", err
 	}
-	idempotencyKey, err := memoryBatchIdempotencyKey(normalized, workspaceID)
+	idempotencyKey, err := memoryBatchIdempotencyKey(s.profileID, normalized, workspaceID)
 	if err != nil {
 		return BatchProposal{}, "", "", err
 	}
@@ -131,7 +131,7 @@ func (s *Store) replayBatchDecision(
 	workspaceID string,
 	idempotencyKey string,
 ) (BatchApplyResult, bool, error) {
-	stored, found, err := s.catalog.loadDecisionByIdempotencyKey(ctx, idempotencyKey)
+	stored, found, err := s.catalog.loadDecisionByIdempotencyKey(ctx, s.profileID, idempotencyKey)
 	if err != nil || !found {
 		return BatchApplyResult{}, found, err
 	}
@@ -214,8 +214,9 @@ func (s *Store) decideBatch(
 	return decision, nil
 }
 
-func memoryBatchIdempotencyKey(proposal BatchProposal, workspaceID string) (string, error) {
+func memoryBatchIdempotencyKey(profileID string, proposal BatchProposal, workspaceID string) (string, error) {
 	payload := struct {
+		ProfileID   string             `json:"profile_id"`
 		WorkspaceID string             `json:"workspace_id"`
 		Scope       memcontract.Scope  `json:"scope"`
 		Filename    string             `json:"filename"`
@@ -223,6 +224,7 @@ func memoryBatchIdempotencyKey(proposal BatchProposal, workspaceID string) (stri
 		Operations  []BatchOperation   `json:"operations"`
 		Origin      memcontract.Origin `json:"origin"`
 	}{
+		ProfileID:   strings.TrimSpace(profileID),
 		WorkspaceID: workspaceID,
 		Scope:       proposal.Scope,
 		Filename:    proposal.Filename,

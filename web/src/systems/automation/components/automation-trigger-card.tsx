@@ -11,13 +11,16 @@ import {
 } from "../lib/automation-formatters";
 import { describeAutomationTarget, projectAutomationTarget } from "../lib/automation-target";
 import type { AutomationTrigger } from "../types";
+import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 
 export interface AutomationTriggerCardProps {
   trigger: AutomationTrigger;
+  /** The trigger's profile, supplied only in aggregate mode. */
+  owner?: ProfileOwner;
 }
 
 /** Card presentation for a trigger in the Triggers catalog (cards view). */
-function AutomationTriggerCard({ trigger }: AutomationTriggerCardProps) {
+function AutomationTriggerCard({ trigger, owner }: AutomationTriggerCardProps) {
   const enabledTone = automationStatusTone(trigger.enabled ? "enabled" : "disabled");
   const target = projectAutomationTarget(trigger);
   const description =
@@ -43,6 +46,9 @@ function AutomationTriggerCard({ trigger }: AutomationTriggerCardProps) {
             <CatalogCard.Title>{trigger.name}</CatalogCard.Title>
             <CatalogCard.Meta>
               <span>{trigger.event}</span>
+              {owner ? (
+                <ProfileOwnerTag data-testid={`automation-profile-${trigger.id}`} owner={owner} />
+              ) : null}
             </CatalogCard.Meta>
           </div>
         </div>

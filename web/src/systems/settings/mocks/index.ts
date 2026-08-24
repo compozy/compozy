@@ -6,7 +6,6 @@ export {
   settingsSandboxesCollectionFixture,
   settingsSandboxFixtures,
   settingsGeneralSectionFixture,
-  settingsHooksCollectionFixture,
   settingsHooksExtensionsSectionFixture,
   settingsHookFixtures,
   mcpAuthBeginFixture,
@@ -17,6 +16,7 @@ export {
   settingsMCPServerFixtures,
   settingsMemorySectionFixture,
   settingsNetworkSectionFixture,
+  settingsNotificationPresetCollectionFixture,
   settingsObservabilitySectionFixture,
   settingsProvidersCollectionFixture,
   settingsProviderFixtures,
@@ -25,6 +25,7 @@ export {
   settingsRestartStatusFixture,
   settingsSkillsSectionFixture,
 } from "./fixtures";
+export { settingsHooksCollectionFixture, settingsPersonaSectionFixture } from "./layered-fixtures";
 export {
   rolesStatusFixture,
   rolesStatusWithDiagnosticFixture,

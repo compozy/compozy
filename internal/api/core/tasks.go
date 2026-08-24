@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
 )
@@ -18,6 +19,7 @@ const (
 	// #nosec G101 -- This is an HTTP header name, not a credential value.
 	taskClaimTokenHeader       = "X-Compozy-Claim-Token"
 	taskActionCreate           = "create"
+	taskActionList             = "list"
 	taskActionGet              = "get"
 	taskActionInspect          = "inspect"
 	taskActionDelete           = "delete"
@@ -113,27 +115,82 @@ func (h *BaseHandlers) taskActorContextForWorkspace(
 	action string,
 	expectedWorkspaceRef string,
 ) (taskpkg.ActorContext, error) {
+	readScope, err := h.resolveTaskActionProfileScope(c, action)
+	if err != nil {
+		return taskpkg.ActorContext{}, err
+	}
+	var actor taskpkg.ActorContext
 	if h.TaskActorContextResolver != nil {
-		return h.TaskActorContextResolver(c, action)
+		actor, err = h.TaskActorContextResolver(c, action)
+		if err != nil {
+			return taskpkg.ActorContext{}, err
+		}
+		actor.ReadScope = readScope
+		return actor, actor.Validate()
 	}
 	credentials := agentCallerCredentialsFromRequest(c)
 	if hasAgentCallerIdentityCredentials(credentials) {
-		caller, err := h.resolveAgentCallerForWorkspace(
+		caller, resolveErr := h.resolveAgentCallerForWorkspace(
 			c.Request.Context(),
 			credentials,
 			"tasks."+strings.TrimSpace(action),
 			expectedWorkspaceRef,
 		)
-		if err != nil {
-			return taskpkg.ActorContext{}, err
+		if resolveErr != nil {
+			return taskpkg.ActorContext{}, resolveErr
 		}
-		return caller.Actor, nil
+		actor = caller.Actor
+		actor.ReadScope = readScope
+		return actor, actor.Validate()
 	}
-	return taskpkg.DeriveHumanActorContext(
+	actor, err = taskpkg.DeriveHumanActorContext(
 		defaultTaskActorRef,
 		taskOriginKindForTransport(h.transportName()),
 		"tasks."+strings.TrimSpace(action),
 	)
+	if err != nil {
+		return taskpkg.ActorContext{}, err
+	}
+	actor.ReadScope = readScope
+	return actor, actor.Validate()
+}
+
+func (h *BaseHandlers) resolveTaskActionProfileScope(
+	c *gin.Context,
+	action string,
+) (store.ReadScope, error) {
+	if isTaskReadAction(action) {
+		return h.resolveProfileReadScope(c)
+	}
+	return h.resolveProfileMutationScope(c)
+}
+
+func isTaskReadAction(action string) bool {
+	switch strings.TrimSpace(action) {
+	case taskActionList,
+		taskActionGet,
+		taskActionInspect,
+		taskActionListBlocks,
+		taskActionListRuns,
+		taskActionGetRun,
+		taskActionTimeline,
+		taskActionStream,
+		taskActionTree,
+		taskActionGetProfile,
+		taskActionListReviews,
+		taskActionGetReview,
+		taskActionListBridgeSubs,
+		taskActionGetBridgeSub,
+		taskActionDashboard,
+		taskActionInbox,
+		taskActionOverview,
+		taskActionTriageRead,
+		taskActionSchedulerStatus,
+		taskActionSchedulerBacklog:
+		return true
+	default:
+		return false
+	}
 }
 
 func taskOriginKindForTransport(name string) taskpkg.OriginKind {

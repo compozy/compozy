@@ -103,7 +103,7 @@ func TestHookParsersAndPayloadConverters(t *testing.T) {
 	if got, want := len(catalogPayloads), 1; got != want {
 		t.Fatalf("len(catalogPayloads) = %d, want %d", got, want)
 	}
-	if catalogPayloads[0].SkillSource != string(hookspkg.HookSkillSourceWorkspace) ||
+	if catalogPayloads[0].SkillSource != hookspkg.HookSkillSourceWorkspace.String() ||
 		catalogPayloads[0].TimeoutMS != 1500 ||
 		catalogPayloads[0].Metadata["origin"] != "workspace" {
 		t.Fatalf("catalog payload = %#v", catalogPayloads[0])
@@ -161,13 +161,15 @@ func TestHookHandlers(t *testing.T) {
 				t.Fatalf("Status() id = %q, want sess-1", id)
 			}
 			info := testutil.NewSessionInfo(id)
+			info.ProfileID = store.DefaultProfileID
 			info.WorkspaceID = "ws-alpha"
 			return info, nil
 		},
 	}
 	observer := testutil.StubObserver{
 		QueryHookCatalogFn: func(_ context.Context, filter hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error) {
-			if filter.WorkspaceID != "ws-alpha" || filter.WorkspaceRoot != "/workspace/alpha" ||
+			if filter.ProfileID != store.DefaultProfileID ||
+				filter.WorkspaceID != "ws-alpha" || filter.WorkspaceRoot != "/workspace/alpha" ||
 				filter.AgentName != "coder" ||
 				filter.Event != hookspkg.HookToolPreCall ||
 				filter.Source == nil ||
@@ -256,7 +258,7 @@ func TestHookHandlers(t *testing.T) {
 	if got, want := len(catalog.Hooks), 1; got != want {
 		t.Fatalf("len(catalog.Hooks) = %d, want %d", got, want)
 	}
-	if catalog.Hooks[0].SkillSource != string(hookspkg.HookSkillSourceWorkspace) ||
+	if catalog.Hooks[0].SkillSource != hookspkg.HookSkillSourceWorkspace.String() ||
 		catalog.Hooks[0].Metadata["origin"] != "workspace" {
 		t.Fatalf("catalog hook = %#v", catalog.Hooks[0])
 	}
@@ -279,6 +281,20 @@ func TestHookHandlers(t *testing.T) {
 	if string(runs.Runs[0].PatchApplied) != `{"allow":true}` || runs.Runs[0].DurationMS != 250 {
 		t.Fatalf("hook run = %#v", runs.Runs[0])
 	}
+
+	t.Run("Should hide hook runs owned by another profile", func(t *testing.T) {
+		fixture.Handlers.Profiles = sessionProfileServiceStub{}
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/alpha/hooks/runs?profile=marketing&session=sess-1",
+			nil,
+		)
+		if got, want := resp.Code, http.StatusNotFound; got != want {
+			t.Fatalf("runs status = %d, want %d; body=%s", got, want, resp.Body.String())
+		}
+	})
 
 	eventsResp := performRequest(t, fixture.Engine, http.MethodGet, "/hooks/events?family=tool&sync_only=true", nil)
 	if eventsResp.Code != http.StatusOK {

@@ -35,6 +35,48 @@ type extensionSecretTestWriter struct {
 	err       error
 }
 
+type extensionSecretsProfileTestClient struct {
+	*stubClient
+	profilesByOperation map[string]string
+}
+
+func (c *extensionSecretsProfileTestClient) recordProfile(ctx context.Context, operation string) {
+	c.profilesByOperation[operation] = profileQueryValues(ctx, nil).Get(profileFlagName)
+}
+
+func (c *extensionSecretsProfileTestClient) ListExtensionSecrets(
+	ctx context.Context,
+	_ string,
+	_ string,
+) (ExtensionSecretsRecord, error) {
+	c.recordProfile(ctx, "list")
+	return ExtensionSecretsRecord{DeclaredEnv: []string{"API_KEY"}}, nil
+}
+
+func (c *extensionSecretsProfileTestClient) SetExtensionSecrets(
+	ctx context.Context,
+	_ string,
+	_ string,
+	request SetExtensionSecretsRequest,
+) (ExtensionSecretsRecord, error) {
+	operation := "bind"
+	if len(request.Bindings) == 1 && request.Bindings[0].Value != nil {
+		operation = "set"
+	}
+	c.recordProfile(ctx, operation)
+	return ExtensionSecretsRecord{DeclaredEnv: []string{"API_KEY"}}, nil
+}
+
+func (c *extensionSecretsProfileTestClient) DeleteExtensionSecret(
+	ctx context.Context,
+	_ string,
+	_ string,
+	_ string,
+) error {
+	c.recordProfile(ctx, "unset")
+	return nil
+}
+
 func TestParseExtensionRemoteHeader(t *testing.T) {
 	t.Parallel()
 
@@ -94,6 +136,74 @@ func TestParseExtensionRemoteHeader(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestExtensionSecretsCommands(t *testing.T) {
+	t.Parallel()
+	t.Run("Should carry the selected profile through every binding operation", func(t *testing.T) {
+		t.Parallel()
+
+		client := &extensionSecretsProfileTestClient{
+			stubClient: &stubClient{
+				getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+					return WorkspaceDetailRecord{}, &workspacePathNotRegisteredError{path: ref}
+				},
+				listProfilesFn: func(context.Context) ([]contract.Profile, error) {
+					return []contract.Profile{{ID: "profile-marketing", Name: "marketing", State: "active"}}, nil
+				},
+			},
+			profilesByOperation: make(map[string]string),
+		}
+		deps, _ := newExtensionLocalDeps(t, client)
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{PID: 999, StartedAt: fixedTestNow}, nil
+		}
+		deps.processAlive = func(int) bool { return true }
+
+		commands := []struct {
+			name  string
+			stdin string
+			args  []string
+		}{
+			{
+				name:  "set",
+				stdin: "secret-value",
+				args: []string{
+					"extension", "secrets", "set", "kit", "--env", "API_KEY", "--value-stdin",
+					"--profile", "marketing", "-o", "json",
+				},
+			},
+			{
+				name: "bind",
+				args: []string{
+					"extension", "secrets", "bind", "kit", "--env", "API_KEY",
+					"--vault-ref", "vault:extensions/global/kit/profiles/profile-marketing/env/API_KEY",
+					"--profile", "marketing", "-o", "json",
+				},
+			},
+			{
+				name: "list",
+				args: []string{
+					"extension", "secrets", "list", "kit", "--profile", "marketing", "-o", "json",
+				},
+			},
+			{
+				name: "unset",
+				args: []string{
+					"extension", "secrets", "unset", "kit", "--env", "API_KEY",
+					"--profile", "marketing", "-o", "json",
+				},
+			},
+		}
+		for _, testCase := range commands {
+			if _, _, err := executeRootCommandWithInput(t, deps, testCase.stdin, testCase.args...); err != nil {
+				t.Fatalf("extension secrets %s error = %v", testCase.name, err)
+			}
+			if got := client.profilesByOperation[testCase.name]; got != "marketing" {
+				t.Fatalf("extension secrets %s profile query = %q, want marketing", testCase.name, got)
+			}
+		}
+	})
 }
 
 // Invariant: every embedded extension scaffold is discoverable from `extension init --help`.
@@ -418,8 +528,8 @@ func TestExtensionInstallOfflinePersistsExtension(t *testing.T) {
 	}
 
 	info := getInstalledExtension(t, homePaths, "alpha-ext")
-	if info.Enabled {
-		t.Fatal("installed extension enabled = true, want inert install")
+	if !info.Enabled {
+		t.Fatal("installed extension enabled = false, want default-on install")
 	}
 	if !info.Provenance.AllowUnverified {
 		t.Fatalf("installed provenance allow_unverified = false, want true")
@@ -654,10 +764,52 @@ func TestExtensionEnableUnknownReturnsNotFound(t *testing.T) {
 func TestExtensionScopedReadsResolveStableWorkspaceID(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should carry the selected profile through unscoped list and status reads", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{
+			listProfilesFn: func(context.Context) ([]contract.Profile, error) {
+				return []contract.Profile{{ID: "profile-marketing", Name: "marketing", State: "active"}}, nil
+			},
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				return WorkspaceDetailRecord{}, &workspacePathNotRegisteredError{path: ref}
+			},
+			listExtensionsFn: func(ctx context.Context) ([]ExtensionRecord, error) {
+				if got, want := profileQueryValues(ctx, nil).Get(profileFlagName), "marketing"; got != want {
+					t.Fatalf("ListExtensions() profile query = %q, want %q", got, want)
+				}
+				return []ExtensionRecord{{Name: "kit", State: "active"}}, nil
+			},
+			extensionStatusFn: func(ctx context.Context, name string) (ExtensionRecord, error) {
+				if got, want := profileQueryValues(ctx, nil).Get(profileFlagName), "marketing"; got != want {
+					t.Fatalf("ExtensionStatus() profile query = %q, want %q", got, want)
+				}
+				return ExtensionRecord{Name: name, State: "active"}, nil
+			},
+		}
+		deps, _ := newExtensionLocalDeps(t, client)
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{PID: 101, StartedAt: fixedTestNow}, nil
+		}
+		deps.processAlive = func(int) bool { return true }
+
+		for _, args := range [][]string{
+			{"extension", "list", "--profile", "marketing", "-o", "json"},
+			{"extension", "status", "kit", "--profile", "marketing", "-o", "json"},
+		} {
+			if _, _, err := executeRootCommand(t, deps, args...); err != nil {
+				t.Fatalf("executeRootCommand(%v) error = %v", args, err)
+			}
+		}
+	})
+
 	t.Run("Should list the resolved workspace extension overlay", func(t *testing.T) {
 		t.Parallel()
 
 		client := &stubClient{
+			listProfilesFn: func(context.Context) ([]contract.Profile, error) {
+				return []contract.Profile{{ID: "profile-marketing", Name: "marketing", State: "active"}}, nil
+			},
 			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
 				if got, want := ref, "workspace-alias"; got != want {
 					t.Fatalf("GetWorkspace() ref = %q, want %q", got, want)
@@ -666,7 +818,10 @@ func TestExtensionScopedReadsResolveStableWorkspaceID(t *testing.T) {
 					ID: "workspace-stable", Name: "workspace-alias", RootDir: t.TempDir(),
 				}}, nil
 			},
-			listExtensionsScopedFn: func(_ context.Context, workspaceRef string) ([]ExtensionRecord, error) {
+			listExtensionsScopedFn: func(ctx context.Context, workspaceRef string) ([]ExtensionRecord, error) {
+				if got := profileQueryValues(ctx, nil).Get(profileFlagName); got != "marketing" {
+					t.Fatalf("ListExtensionsScoped() profile query = %q, want marketing", got)
+				}
 				if got, want := workspaceRef, "workspace-stable"; got != want {
 					t.Fatalf("ListExtensionsScoped() workspace = %q, want %q", got, want)
 				}
@@ -688,6 +843,8 @@ func TestExtensionScopedReadsResolveStableWorkspaceID(t *testing.T) {
 			"list",
 			"--workspace",
 			"workspace-alias",
+			"--profile",
+			"marketing",
 			"-o",
 			"json",
 		)
@@ -707,6 +864,9 @@ func TestExtensionScopedReadsResolveStableWorkspaceID(t *testing.T) {
 		t.Parallel()
 
 		client := &stubClient{
+			listProfilesFn: func(context.Context) ([]contract.Profile, error) {
+				return []contract.Profile{{ID: "profile-marketing", Name: "marketing", State: "active"}}, nil
+			},
 			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
 				if got, want := ref, "workspace-alias"; got != want {
 					t.Fatalf("GetWorkspace() ref = %q, want %q", got, want)
@@ -716,10 +876,13 @@ func TestExtensionScopedReadsResolveStableWorkspaceID(t *testing.T) {
 				}}, nil
 			},
 			extensionStatusScopedFn: func(
-				_ context.Context,
+				ctx context.Context,
 				workspaceRef string,
 				name string,
 			) (ExtensionRecord, error) {
+				if got := profileQueryValues(ctx, nil).Get(profileFlagName); got != "marketing" {
+					t.Fatalf("ExtensionStatusScoped() profile query = %q, want marketing", got)
+				}
 				if got, want := workspaceRef, "workspace-stable"; got != want {
 					t.Fatalf("ExtensionStatusScoped() workspace = %q, want %q", got, want)
 				}
@@ -745,6 +908,8 @@ func TestExtensionScopedReadsResolveStableWorkspaceID(t *testing.T) {
 			"dev-extension",
 			"--workspace",
 			"workspace-alias",
+			"--profile",
+			"marketing",
 			"-o",
 			"json",
 		)
@@ -757,6 +922,55 @@ func TestExtensionScopedReadsResolveStableWorkspaceID(t *testing.T) {
 		}
 		if item.Name != "dev-extension" || !item.Dev || item.State != "active" {
 			t.Fatalf("scoped status = %#v, want active dev extension overlay", item)
+		}
+	})
+
+	t.Run("Should read inventory through the selected profile", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{
+			listProfilesFn: func(context.Context) ([]contract.Profile, error) {
+				return []contract.Profile{{ID: "profile-marketing", Name: "marketing", State: "active"}}, nil
+			},
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				return WorkspaceDetailRecord{}, &workspacePathNotRegisteredError{path: ref}
+			},
+			extensionInventoryFn: func(ctx context.Context, name string) (ExtensionInventoryRecord, error) {
+				if got := profileQueryValues(ctx, nil).Get(profileFlagName); got != "marketing" {
+					t.Fatalf("ExtensionInventory() profile query = %q, want marketing", got)
+				}
+				if name != "dev-extension" {
+					t.Fatalf("ExtensionInventory() name = %q, want dev-extension", name)
+				}
+				return ExtensionInventoryRecord{Extension: name, Enabled: true}, nil
+			},
+		}
+		deps, _ := newExtensionLocalDeps(t, client)
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{PID: 101, StartedAt: fixedTestNow}, nil
+		}
+		deps.processAlive = func(int) bool { return true }
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"extension",
+			"inventory",
+			"dev-extension",
+			"--profile",
+			"marketing",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("extension inventory --profile error = %v", err)
+		}
+		var inventory ExtensionInventoryRecord
+		if err := json.Unmarshal([]byte(stdout), &inventory); err != nil {
+			t.Fatalf("json.Unmarshal(inventory) error = %v", err)
+		}
+		if inventory.Extension != "dev-extension" || !inventory.Enabled {
+			t.Fatalf("inventory = %#v, want enabled dev-extension", inventory)
 		}
 	})
 }
@@ -924,6 +1138,84 @@ func TestExtensionInstallUsesDaemonClientWhenRunning(t *testing.T) {
 		!captured.AllowUnverified {
 		t.Fatalf("captured install request = %#v, want local_path ref and allow_unverified", captured)
 	}
+
+	t.Run("Should print the declared-profile preview before installing [UT-058][E2E-008]", func(t *testing.T) {
+		var previewed bool
+		var previewRequest InstallExtensionRequest
+		var installRequest InstallExtensionRequest
+		client := &stubClient{
+			previewExtensionInstallFn: func(
+				_ context.Context,
+				request InstallExtensionRequest,
+			) (ExtensionInstallPreviewRecord, error) {
+				previewed = true
+				previewRequest = request
+				return ExtensionInstallPreviewRecord{
+					Name: "growth-kit",
+					DeclaredProfiles: []contract.ExtensionInstallDeclaredProfilePayload{{
+						Name: "growth", Create: true,
+						Credentials: []contract.ProfileCredentialRequirement{{Provider: "openai", Slot: "api_key"}},
+					}},
+					Placements: []contract.ExtensionPlacementPayload{{
+						Kind: "skill", Resource: "tweet-writer", Profile: "growth",
+					}},
+				}, nil
+			},
+			installExtensionFn: func(
+				_ context.Context,
+				request InstallExtensionRequest,
+			) (ExtensionRecord, error) {
+				installRequest = request
+				if !previewed {
+					t.Fatal("InstallExtension called before PreviewExtensionInstall")
+				}
+				return ExtensionRecord{Name: "growth-kit", Enabled: true}, nil
+			},
+		}
+		previewDeps, _ := newExtensionLocalDeps(t, client)
+		previewDeps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{PID: 102, StartedAt: fixedTestNow}, nil
+		}
+		previewDeps.processAlive = func(int) bool { return true }
+
+		_, stderr, err := executeRootCommand(
+			t,
+			previewDeps,
+			"extension",
+			"install",
+			dir,
+			"--allow-unverified",
+			"--yes",
+			"--confirm-network-requirement",
+			"sha256:fixture",
+		)
+		if err != nil {
+			t.Fatalf("extension install human preview error = %v", err)
+		}
+		if previewRequest.ConfirmNetworkDigest != "sha256:fixture" ||
+			installRequest.ConfirmNetworkDigest != "sha256:fixture" ||
+			previewRequest.Source != contract.InstallExtensionSourceLocalPath ||
+			installRequest.Source != contract.InstallExtensionSourceLocalPath ||
+			previewRequest.Ref != filepath.Clean(dir) ||
+			installRequest.Ref != filepath.Clean(dir) ||
+			!previewRequest.AllowUnverified ||
+			!installRequest.AllowUnverified {
+			t.Fatalf(
+				"extension install requests = preview %#v install %#v, want identical trust fields",
+				previewRequest,
+				installRequest,
+			)
+		}
+		for _, want := range []string{
+			"growth-kit will:",
+			"create profile growth (needs openai api_key)",
+			"add skill tweet-writer to profile growth",
+		} {
+			if !strings.Contains(stderr, want) {
+				t.Fatalf("extension install preview = %q, want %q", stderr, want)
+			}
+		}
+	})
 }
 
 func TestExtensionDevBindsResolvedCurrentWorkspace(t *testing.T) {
@@ -1034,8 +1326,8 @@ version = "0.1.0"
 description = "Resource-only watch fixture"
 min_compozy_version = "0.5.0"
 
-[resources]
-skills = ["skills"]
+[[resources.skills]]
+path = "skills"
 `)
 			skillPath := filepath.Join(skillDir, "SKILL.md")
 			writeExtensionManifest(t, skillPath, `---
@@ -1157,7 +1449,7 @@ func TestExtensionBundleAndHelpers(t *testing.T) {
 		DaemonRunning: true,
 	}
 
-	bundle := extensionBundle(item)
+	bundle := extensionBundle(&item)
 	human, err := bundle.human()
 	if err != nil {
 		t.Fatalf("bundle.human() error = %v", err)

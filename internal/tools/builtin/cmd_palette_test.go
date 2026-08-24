@@ -37,8 +37,10 @@ func TestCmdPaletteDescriptors(t *testing.T) {
 			t.Fatalf("Expand(catalog) error = %v", err)
 		}
 		if !slices.Contains(expanded, toolspkg.ToolIDCmdPaletteList) ||
-			!slices.Contains(expanded, toolspkg.ToolIDCmdPaletteInvoke) {
-			t.Fatalf("catalog tools = %#v, want command palette list and invoke", expanded)
+			!slices.Contains(expanded, toolspkg.ToolIDCmdPaletteInvoke) ||
+			!slices.Contains(expanded, toolspkg.ToolIDProfileList) ||
+			!slices.Contains(expanded, toolspkg.ToolIDProfileCurrent) {
+			t.Fatalf("catalog tools = %#v, want command palette and profile tools", expanded)
 		}
 		if !bytes.Contains(list.OutputSchema, []byte(`"commands"`)) {
 			t.Fatalf("list output schema = %s, want commands", list.OutputSchema)

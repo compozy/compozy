@@ -65,22 +65,25 @@ func (q *Queries) GetEventSummarySessionProjection(ctx context.Context, sessionI
 
 const insertEventSummary = `-- name: InsertEventSummary :exec
 INSERT INTO event_summaries (
+  profile_id,
   id, session_id, workspace_id, worktree_id, type, agent_name, content_json, task_id, run_id,
   workflow_id, claim_token_hash, lease_until, coordinator_session_id, scheduler_reason,
   hook_event, hook_name, actor_kind, actor_id, release_reason, parent_session_id,
   root_session_id, spawn_depth, provider, outcome, summary, timestamp
 ) VALUES (
-  ?1, ?2, ?3, ?4, ?5,
-  ?6, ?7, ?8, ?9,
-  ?10, ?11, ?12,
-  ?13, ?14, ?15,
-  ?16, ?17, ?18, ?19,
-  ?20, ?21, ?22,
-  ?23, ?24, ?25, ?26
+  ?1,
+  ?2, ?3, ?4, ?5, ?6,
+  ?7, ?8, ?9, ?10,
+  ?11, ?12, ?13,
+  ?14, ?15, ?16,
+  ?17, ?18, ?19, ?20,
+  ?21, ?22, ?23,
+  ?24, ?25, ?26, ?27
 )
 `
 
 type InsertEventSummaryParams struct {
+	ProfileID            string         `json:"profile_id"`
 	ID                   string         `json:"id"`
 	SessionID            string         `json:"session_id"`
 	WorkspaceID          string         `json:"workspace_id"`
@@ -111,6 +114,7 @@ type InsertEventSummaryParams struct {
 
 func (q *Queries) InsertEventSummary(ctx context.Context, arg InsertEventSummaryParams) error {
 	_, err := q.db.ExecContext(ctx, insertEventSummary,
+		arg.ProfileID,
 		arg.ID,
 		arg.SessionID,
 		arg.WorkspaceID,

@@ -66,7 +66,7 @@ func newBridgeCommand(deps commandDeps) *cobra.Command {
 }
 
 func newBridgeGetCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   bridgeGetIDValue,
 		Short: "Show one bridge instance",
 		Args:  exactOneNonBlankArg(),
@@ -83,6 +83,8 @@ func newBridgeGetCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, bridgeBundle(item))
 		},
 	}
+	configureProfileReadCommand(cmd, deps)
+	return cmd
 }
 
 func newBridgeEnableCommand(deps commandDeps) *cobra.Command {

@@ -32,7 +32,7 @@ compozy memory write --type <type> --name <name> --content <@file|text> [flags]
       --dry-run              Ask the controller for a decision without applying it
   -h, --help                 help for write
       --name string          Memory display name
-      --scope string         Memory scope: global, workspace, or agent
+      --scope string         Memory scope: profile, workspace, or agent
       --type string          Memory type: user, feedback, project, or reference
       --workspace string     Override workspace binding (ID, name, or path)
 ```
@@ -40,8 +40,9 @@ compozy memory write --type <type> --name <name> --content <@file|text> [flags]
 ### Options inherited from parent commands
 
 ```
-      --json            Emit JSON output
-  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
 ```
 
 ## Output Formats

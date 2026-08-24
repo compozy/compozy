@@ -12,6 +12,7 @@ import (
 	automationmodel "github.com/compozy/compozy/internal/automation/model"
 	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
@@ -92,6 +93,10 @@ func gatewayIngressSubject(
 	workspaceID sql.NullString,
 	callbackPath string,
 ) (gateway.IngressSubject, error) {
+	scope, workspaceID, err := gatewayIngressDomainScope(scope, workspaceID)
+	if err != nil {
+		return gateway.IngressSubject{}, err
+	}
 	subject := gateway.IngressSubject{
 		IngressSubjectRef: ref,
 		Scope:             gateway.IngressScopeKind(scope),
@@ -111,6 +116,27 @@ func gatewayIngressSubject(
 		return gateway.IngressSubject{}, fmt.Errorf("store: invalid ingress subject scope %q", subject.Scope)
 	}
 	return subject, nil
+}
+
+func gatewayIngressDomainScope(scope string, workspaceID sql.NullString) (string, sql.NullString, error) {
+	switch resources.ResourceScopeKind(scope) {
+	case resources.ResourceScopeKindUser, resources.ResourceScopeKindProfile:
+		return string(gateway.IngressScopeGlobal), sql.NullString{}, nil
+	case resources.ResourceScopeKindWorkspace:
+		return string(gateway.IngressScopeWorkspace), workspaceID, nil
+	case resources.ResourceScopeKindWorkspaceProfile:
+		resourceScope := resources.ResourceScope{
+			Kind: resources.ResourceScopeKindWorkspaceProfile,
+			ID:   workspaceID.String,
+		}.Normalize()
+		if err := resourceScope.Validate("ingress_subject.scope"); err != nil {
+			return "", sql.NullString{}, fmt.Errorf("store: invalid ingress resource scope: %w", err)
+		}
+		workspace, _, _ := strings.Cut(resourceScope.ID, "@pf:")
+		return string(gateway.IngressScopeWorkspace), sql.NullString{String: workspace, Valid: true}, nil
+	default:
+		return scope, workspaceID, nil
+	}
 }
 
 // GetIngressEndpoint loads the durable address identity for one tier.

@@ -30,7 +30,7 @@ type gatewayProfileMutationRecord struct {
 func gatewayStatusOutput(record contract.GatewayStatusPayload) outputBundle {
 	return simpleGatewayOutput(record, func() string {
 		return renderHumanSection("Gateway", []keyValue{
-			{Label: "Enabled", Value: strconv.FormatBool(record.Enabled)},
+			{Label: authoredContextEnabledValue, Value: strconv.FormatBool(record.Enabled)},
 			{Label: "Tiers", Value: strconv.Itoa(len(record.Tiers))},
 			{Label: "Surfaces", Value: strconv.Itoa(len(record.Surfaces))},
 			{Label: "Providers", Value: strconv.Itoa(len(record.Providers))},

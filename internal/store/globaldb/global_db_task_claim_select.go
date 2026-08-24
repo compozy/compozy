@@ -12,6 +12,12 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
+const profileClaimEligibilitySQL = `p.state = 'active'
+	AND NOT EXISTS (
+		SELECT 1 FROM profile_lifecycle_ops plo
+		WHERE plo.profile_id = p.id AND plo.status <> 'done'
+	)`
+
 func (g *TaskRunRepo) ensureClaimerHasNoActiveLease(
 	ctx context.Context,
 	exec taskSQLExecutor,
@@ -169,6 +175,7 @@ func (g *TaskRunRepo) selectClaimableRunID(
 	query := `SELECT tr.id
 		FROM task_runs tr
 		JOIN tasks t ON t.id = tr.task_id
+		JOIN profiles p ON p.id = t.profile_id
 		WHERE ` + strings.Join(where, " AND ") + `
 		ORDER BY ` + taskPriorityValueSQL + ` DESC,
 		         ` + preferredCapabilityOrder(criteria.RequiredCapabilities) + `
@@ -188,8 +195,9 @@ func (g *TaskRunRepo) selectClaimableRunID(
 
 func baseClaimPredicates(criteria taskpkg.ClaimCriteria) ([]string, []any) {
 	where := []string{
-		"tr.status = ?",
+		globalDBTaskRunStatusFilter,
 		"COALESCE(t.paused, 0) = 0",
+		profileClaimEligibilitySQL,
 		`NOT EXISTS (SELECT 1 FROM scheduler_pause sp WHERE sp.id = 1 AND sp.paused = 1)`,
 		`NOT EXISTS (
 			WITH RECURSIVE ancestors(id, parent_task_id, paused) AS (
@@ -254,10 +262,10 @@ func (g *TaskRunRepo) selectClaimableNetworkWakeRunID(
 	criteria taskpkg.ClaimCriteria,
 ) (string, error) {
 	where := []string{
-		"run_kind = ?",
-		"status = ?",
-		"workspace_id = ?",
-		"network_target_session_id = ?",
+		"tr.run_kind = ?",
+		globalDBTaskRunStatusFilter,
+		"tr.workspace_id = ?",
+		"tr.network_target_session_id = ?",
 		`NOT EXISTS (SELECT 1 FROM scheduler_pause sp WHERE sp.id = 1 AND sp.paused = 1)`,
 	}
 	args := []any{
@@ -267,11 +275,16 @@ func (g *TaskRunRepo) selectClaimableNetworkWakeRunID(
 		strings.TrimSpace(criteria.TargetSessionID),
 	}
 	if runID := strings.TrimSpace(criteria.RunID); runID != "" {
-		where = append(where, "id = ?")
+		where = append(where, "tr.id = ?")
 		args = append(args, runID)
 	}
-	query := `SELECT id FROM task_runs WHERE ` + strings.Join(where, " AND ") +
-		` ORDER BY queued_at ASC, id ASC LIMIT 1`
+	query := `SELECT tr.id
+		FROM task_runs tr
+		JOIN sessions s ON s.id = tr.network_target_session_id
+		JOIN profiles p ON p.id = s.profile_id
+		WHERE ` + strings.Join(where, " AND ") + `
+		  AND ` + profileClaimEligibilitySQL + `
+		ORDER BY tr.queued_at ASC, tr.id ASC LIMIT 1`
 	var runID string
 	if err := exec.QueryRowContext(ctx, query, args...).Scan(&runID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

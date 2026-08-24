@@ -4,6 +4,12 @@ import "time"
 
 // NetworkRecentPayload is one cross-channel recent thread/direct projection.
 type NetworkRecentPayload struct {
+	ProfileID          string     `json:"profile_id"`
+	ProfileName        string     `json:"profile_name"`
+	ProfileColor       string     `json:"profile_color,omitempty"`
+	ProfileIcon        string     `json:"profile_icon,omitempty"`
+	ProfileEmoji       string     `json:"profile_emoji,omitempty"`
+	ProfileArchived    bool       `json:"profile_archived,omitempty"`
 	Channel            string     `json:"channel"`
 	Surface            string     `json:"surface"`
 	ContainerID        string     `json:"container_id"`

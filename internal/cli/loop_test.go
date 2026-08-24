@@ -20,6 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -274,6 +275,7 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 			getSessionFn: func(context.Context, string) (SessionRecord, error) {
 				return SessionRecord{
 					ID:          "sess-author",
+					ProfileID:   store.DefaultProfileID,
 					AgentName:   "coder",
 					WorkspaceID: "ws-alpha",
 					State:       session.StateActive,
@@ -668,6 +670,7 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 			getSessionFn: func(context.Context, string) (SessionRecord, error) {
 				return SessionRecord{
 					ID:          "sess-author",
+					ProfileID:   store.DefaultProfileID,
 					AgentName:   "coder",
 					WorkspaceID: "ws-alpha",
 					State:       session.StateActive,
@@ -1158,6 +1161,115 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 	})
 }
 
+func TestLoopListCommandsProfileReadScope(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		args      []string
+		configure func(*stubClient, func(context.Context, string))
+		wantOwner bool
+	}{
+		{
+			name: "catalog", args: []string{"loop", "list", "--workspace", "workspace-a"},
+			configure: func(client *stubClient, assertScope func(context.Context, string)) {
+				client.listLoopsFn = func(ctx context.Context, workspaceID string, _ LoopListQuery) (contract.LoopsResponse, error) {
+					assertScope(ctx, workspaceID)
+					return contract.LoopsResponse{}, nil
+				}
+			},
+		},
+		{
+			name: "nodes", args: []string{"loop", "nodes", "--workspace", "workspace-a", "--state", "waiting"},
+			configure: func(client *stubClient, assertScope func(context.Context, string)) {
+				client.listLoopNodesFn = func(ctx context.Context, workspaceID string, _ LoopNodeListQuery) (contract.LoopNodeInventoryResponse, error) {
+					assertScope(ctx, workspaceID)
+					return contract.LoopNodeInventoryResponse{}, nil
+				}
+			},
+		},
+		{
+			name: "runs", args: []string{"loop", "runs", "--workspace", "workspace-a"}, wantOwner: true,
+			configure: func(client *stubClient, assertScope func(context.Context, string)) {
+				client.listLoopRunsFn = func(ctx context.Context, workspaceID string, _ LoopRunListQuery) (contract.LoopRunsResponse, error) {
+					assertScope(ctx, workspaceID)
+					return contract.LoopRunsResponse{Runs: []contract.LoopRunPayload{{
+						ID: "run-1", ProfileID: "profile-marketing", ProfileName: "marketing", WorkspaceID: workspaceID,
+					}}}, nil
+				}
+			},
+		},
+		{
+			name: "turns", args: []string{"loop", "turns", "--workspace", "workspace-a", "--run", "run-1"},
+			configure: func(client *stubClient, assertScope func(context.Context, string)) {
+				client.listGoalTurnsFn = func(ctx context.Context, workspaceID, _ string, _ GoalTurnListQuery) (contract.GoalTurnPage, error) {
+					assertScope(ctx, workspaceID)
+					return contract.GoalTurnPage{}, nil
+				}
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run("Should propagate profile lenses through "+test.name+" listings", func(t *testing.T) {
+			t.Parallel()
+			call := 0
+			assertScope := func(ctx context.Context, workspaceID string) {
+				t.Helper()
+				if workspaceID != "workspace-a" {
+					t.Fatalf("workspace = %q, want workspace-a", workspaceID)
+				}
+				values := profileQueryValues(ctx, nil)
+				if call == 0 && (values.Get(profileFlagName) != "marketing" || values.Get("all_profiles") != "") {
+					t.Fatalf("selected profile query = %v, want marketing only", values)
+				}
+				if call == 1 && (values.Get("all_profiles") != "true" || values.Get(profileFlagName) != "") {
+					t.Fatalf("aggregate profile query = %v, want all_profiles only", values)
+				}
+				call++
+			}
+			stub := &stubClient{}
+			test.configure(stub, assertScope)
+			client := &profileAwareStubClient{
+				stubClient: withWorkspaceResolution(stub),
+				profileClientStub: &profileClientStub{profiles: []contract.Profile{
+					{Name: "default", State: "active"},
+					{Name: "marketing", State: "active"},
+				}},
+			}
+			deps := newTestDeps(t, client)
+
+			selectedArgs := append([]string{"--profile", "marketing"}, test.args...)
+			selectedArgs = append(selectedArgs, "-o", "json")
+			selected, _, err := executeRootCommand(t, deps, selectedArgs...)
+			if err != nil {
+				t.Fatalf("selected profile listing error = %v", err)
+			}
+			if test.wantOwner {
+				var response contract.LoopRunsResponse
+				if err := json.Unmarshal([]byte(selected), &response); err != nil {
+					t.Fatalf("decode selected profile output: %v", err)
+				}
+				if len(response.Runs) != 1 || response.Runs[0].ProfileName != "marketing" {
+					t.Fatalf("selected profile output = %#v, want marketing owner", response)
+				}
+			}
+
+			aggregateArgs := append(append([]string(nil), test.args...), "--all-profiles", "-o", "jsonl")
+			aggregate, _, err := executeRootCommand(t, deps, aggregateArgs...)
+			if err != nil {
+				t.Fatalf("aggregate profile listing error = %v", err)
+			}
+			if !strings.Contains(aggregate, `"kind":"workspace_resolution","workspace":"workspace-a","source":"flag"`) {
+				t.Fatalf("aggregate profile output = %q, want workspace resolution frame", aggregate)
+			}
+			if call != 2 {
+				t.Fatalf("list callback count = %d, want 2", call)
+			}
+		})
+	}
+}
+
 func TestLoopRunInputsShouldNormalizeRuntimeAndRespectPromptMode(t *testing.T) {
 	t.Parallel()
 
@@ -1249,7 +1361,7 @@ func TestLoopRunInputsShouldNormalizeRuntimeAndRespectPromptMode(t *testing.T) {
 				t.Fatalf("GetLoopInputDefaults target = %s/%s", workspaceID, name)
 			}
 			values := map[string]any{}
-			if scope == contract.LoopInputDefaultsScopeGlobal {
+			if scope == contract.LoopInputDefaultsScopeUser {
 				values["target"] = "configured"
 			}
 			return contract.LoopInputDefaultsResponse{LoopName: name, Scope: scope, Values: values}, nil

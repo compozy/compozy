@@ -41,7 +41,11 @@ function copyBinding(binding: WindowManagerBinding): WindowManagerBinding {
 }
 
 function sameBinding(left: WindowManagerBinding | null, right: WindowManagerBinding): boolean {
-  return left?.workspaceId === right.workspaceId && left.clientId === right.clientId;
+  return (
+    left?.workspaceId === right.workspaceId &&
+    left.profileId === right.profileId &&
+    left.clientId === right.clientId
+  );
 }
 
 function fencedBinding(state: WindowManagerStoreState, binding?: WindowManagerBinding): boolean {

@@ -208,7 +208,7 @@ func (m *Service) recordCompletionHallucinationSuspected(
 }
 
 func (m *Service) suspectedCompletionTaskIDs(ctx context.Context, run Run) []string {
-	candidates := canonicalTaskIDTokens(run.Result)
+	candidates := canonicalTaskIDTokens(rawJSONValue(run.Result))
 	if len(candidates) == 0 {
 		return nil
 	}

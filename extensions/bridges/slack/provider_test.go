@@ -3481,6 +3481,7 @@ func testBridgeRuntime(now time.Time, instanceID string) subprocess.InitializeBr
 	return subprocess.InitializeBridgeManagedInstance{
 		Instance: bridgepkg.BridgeInstance{
 			ID:            instanceID,
+			ProfileID:     "profile-test",
 			Scope:         bridgepkg.ScopeWorkspace,
 			WorkspaceID:   "ws-slack",
 			Platform:      "slack",

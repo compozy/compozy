@@ -1091,45 +1091,88 @@ func TestCreateNotifiesSessionCreationBeforeImmediateExit(t *testing.T) {
 func TestCreateWithWorkspacePathUsesResolveOrRegister(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t)
-	workspacePath := filepath.Join(t.TempDir(), "path-workspace")
-	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
-		t.Fatalf("MkdirAll(path workspace) error = %v", err)
-	}
+	t.Run("Should resolve or register a default-profile workspace path once", func(t *testing.T) {
+		t.Parallel()
 
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName:     "coder",
-		Name:          "path-session",
-		WorkspacePath: workspacePath,
-	})
-	if err != nil {
-		t.Fatalf("Create(workspace path) error = %v", err)
-	}
-	t.Cleanup(func() {
-		reportSessionStop(t, h, session.ID)
+		h := newHarness(t)
+		workspacePath := filepath.Join(t.TempDir(), "path-workspace")
+		if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+			t.Fatalf("MkdirAll(path workspace) error = %v", err)
+		}
+
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName:     "coder",
+			Name:          "path-session",
+			WorkspacePath: workspacePath,
+		})
+		if err != nil {
+			t.Fatalf("Create(workspace path) error = %v", err)
+		}
+		t.Cleanup(func() {
+			reportSessionStop(t, h, session.ID)
+		})
+
+		if got := len(h.resolver.resolveCalls); got != 1 {
+			t.Fatalf("resolver Resolve() calls = %d, want 1", got)
+		}
+		if got, want := h.resolver.resolveCalls[0], session.Info().WorkspaceID; got != want {
+			t.Fatalf("resolver Resolve() arg = %q, want %q", got, want)
+		}
+		if got := len(h.resolver.resolveOrRegisterCalls); got != 1 {
+			t.Fatalf("resolver ResolveOrRegister() calls = %d, want 1", got)
+		}
+		if got, want := h.resolver.resolveOrRegisterCalls[0], normalizeResolverPath(workspacePath); got != want {
+			t.Fatalf("resolver ResolveOrRegister() arg = %q, want %q", got, want)
+		}
+		if got, want := session.Info().Workspace, normalizeResolverPath(workspacePath); got != want {
+			t.Fatalf("session workspace = %q, want %q", got, want)
+		}
+		if !strings.HasPrefix(session.Info().WorkspaceID, "ws-auto-") {
+			t.Fatalf("session workspace id = %q, want ws-auto-*", session.Info().WorkspaceID)
+		}
+		if meta := readMeta(t, session.MetaPath()); meta.WorkspaceID != session.Info().WorkspaceID {
+			t.Fatalf("meta workspace id = %q, want %q", meta.WorkspaceID, session.Info().WorkspaceID)
+		}
 	})
 
-	if got := len(h.resolver.resolveCalls); got != 1 {
-		t.Fatalf("resolver Resolve() calls = %d, want 1", got)
-	}
-	if got, want := h.resolver.resolveCalls[0], session.Info().WorkspaceID; got != want {
-		t.Fatalf("resolver Resolve() arg = %q, want %q", got, want)
-	}
-	if got := len(h.resolver.resolveOrRegisterCalls); got != 1 {
-		t.Fatalf("resolver ResolveOrRegister() calls = %d, want 1", got)
-	}
-	if got, want := h.resolver.resolveOrRegisterCalls[0], normalizeResolverPath(workspacePath); got != want {
-		t.Fatalf("resolver ResolveOrRegister() arg = %q, want %q", got, want)
-	}
-	if got, want := session.Info().Workspace, normalizeResolverPath(workspacePath); got != want {
-		t.Fatalf("session workspace = %q, want %q", got, want)
-	}
-	if !strings.HasPrefix(session.Info().WorkspaceID, "ws-auto-") {
-		t.Fatalf("session workspace id = %q, want ws-auto-*", session.Info().WorkspaceID)
-	}
-	if meta := readMeta(t, session.MetaPath()); meta.WorkspaceID != session.Info().WorkspaceID {
-		t.Fatalf("meta workspace id = %q, want %q", meta.WorkspaceID, session.Info().WorkspaceID)
-	}
+	t.Run("Should resolve or register a profile workspace path without a second lookup", func(t *testing.T) {
+		t.Parallel()
+
+		const profileID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+		h := newHarness(t, WithProfileNameResolver(profileNameResolverMap{
+			profileID: "marketing",
+		}))
+		workspacePath := filepath.Join(t.TempDir(), "profile-path-workspace")
+		if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+			t.Fatalf("MkdirAll(profile path workspace) error = %v", err)
+		}
+
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			ProfileID:     profileID,
+			AgentName:     "coder",
+			Name:          "profile-path-session",
+			WorkspacePath: workspacePath,
+		})
+		if err != nil {
+			t.Fatalf("Create(profile workspace path) error = %v", err)
+		}
+		t.Cleanup(func() {
+			reportSessionStop(t, h, session.ID)
+		})
+
+		if got := len(h.resolver.resolveCalls); got != 1 {
+			t.Fatalf("resolver Resolve() calls = %d, want only the lifecycle lookup", got)
+		}
+		if got := len(h.resolver.resolveOrRegisterCalls); got != 1 {
+			t.Fatalf("resolver ResolveOrRegisterForProfile() calls = %d, want 1", got)
+		}
+		if got := len(h.resolver.profileRegisterNames); got != 1 {
+			t.Fatalf("resolver profile registrations = %d, want 1", got)
+		}
+		if got, want := h.resolver.profileRegisterNames[0], "marketing"; got != want {
+			t.Fatalf("resolved profile name = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestJoinNetworkPeerHandlesNoOpConditionsAndCapabilityProjection(t *testing.T) {
@@ -1465,9 +1508,10 @@ func TestCreateInjectsOnlyHostedMCPServerWhenLauncherConfigured(t *testing.T) {
 	if len(requests) != 1 {
 		t.Fatalf("hosted launch requests = %#v, want one launch request", requests)
 	}
-	if requests[0].SessionID != session.ID || requests[0].WorkspaceID != h.workspaceID ||
+	if requests[0].SessionID != session.ID || requests[0].ProfileID != store.DefaultProfileID ||
+		requests[0].WorkspaceID != h.workspaceID ||
 		requests[0].AgentName != "coder" {
-		t.Fatalf("hosted launch request = %#v, want session/workspace/agent scope", requests[0])
+		t.Fatalf("hosted launch request = %#v, want profile/session/workspace/agent scope", requests[0])
 	}
 	if armed := hosted.armedSessionIDs(); !slices.Equal(armed, []string{session.ID}) {
 		t.Fatalf("hosted armed sessions = %#v, want [%q]", armed, session.ID)

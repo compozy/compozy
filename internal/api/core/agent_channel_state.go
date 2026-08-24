@@ -26,7 +26,10 @@ func (h *BaseHandlers) agentChannelPayloads(
 		return nil, err
 	}
 
-	metadata := h.agentChannelMetadata(ctx, caller.Session.WorkspaceID)
+	metadata, err := h.agentChannelMetadata(ctx, caller.Session.WorkspaceID, caller.Session.ProfileID)
+	if err != nil {
+		return nil, fmt.Errorf("api: resolve agent channel metadata: %w", err)
+	}
 	payloadByID := make(map[string]contract.CoordinationChannelPayload, len(infos)+len(metadata))
 	for _, info := range infos {
 		channel := strings.TrimSpace(info.Channel)
@@ -34,8 +37,7 @@ func (h *BaseHandlers) agentChannelPayloads(
 			continue
 		}
 		entry, hasEntry := metadata[channel]
-		if len(metadata) > 0 && !hasEntry &&
-			channel != strings.TrimSpace(caller.Session.NetworkSpecSnapshot().ChannelID) {
+		if !hasEntry && channel != strings.TrimSpace(caller.Session.NetworkSpecSnapshot().ChannelID) {
 			continue
 		}
 		payloadByID[channel] = coordinationChannelFromNetwork(channel, caller.Session.WorkspaceID, entry)
@@ -94,18 +96,17 @@ func mergeCoordinationChannels(
 func (h *BaseHandlers) agentChannelMetadata(
 	ctx context.Context,
 	workspaceID string,
-) map[string]store.NetworkChannelEntry {
+	profileID string,
+) (map[string]store.NetworkChannelEntry, error) {
 	if h == nil || h.NetworkStore == nil || strings.TrimSpace(workspaceID) == "" {
-		return nil
+		return nil, nil
 	}
 	entries, err := h.NetworkStore.ListNetworkChannels(ctx, store.NetworkChannelQuery{
+		ReadScope:   store.ReadScope{ProfileID: strings.TrimSpace(profileID)},
 		WorkspaceID: strings.TrimSpace(workspaceID),
 	})
 	if err != nil {
-		if h.Logger != nil {
-			h.Logger.Warn("api: skip agent channel metadata", "error", err)
-		}
-		return nil
+		return nil, fmt.Errorf("list network channels: %w", err)
 	}
 	metadata := make(map[string]store.NetworkChannelEntry, len(entries))
 	for _, entry := range entries {
@@ -114,7 +115,7 @@ func (h *BaseHandlers) agentChannelMetadata(
 			metadata[channel] = entry
 		}
 	}
-	return metadata
+	return metadata, nil
 }
 
 func coordinationChannelFromNetwork(

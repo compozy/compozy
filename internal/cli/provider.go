@@ -80,8 +80,41 @@ func newProviderCommand(deps commandDeps) *cobra.Command {
 		Short: "Inspect and manage provider authentication",
 	}
 	cmd.AddCommand(newProviderAuthCommand(deps))
+	cmd.AddCommand(newProviderInspectCommand(deps))
 	cmd.AddCommand(newProviderListCommand(deps))
 	cmd.AddCommand(newProviderModelsCommand(deps))
+	return cmd
+}
+
+func newProviderInspectCommand(deps commandDeps) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "inspect <provider>",
+		Short: "Inspect effective provider authentication and credential sources",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			profiles, client, err := profileResolutionClientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			resolution, err := resolveCommandProfile(cmd.Context(), cmd, deps, profiles, client)
+			if err != nil {
+				return err
+			}
+			runtime, err := providerAuthRuntime(deps)
+			if err != nil {
+				return err
+			}
+			record, err := buildProviderAuthStatus(cmd.Context(), deps, runtime, providerAuthStatusOptions{
+				providerRef: args[0],
+				profileName: resolution.Profile.Name,
+				probe:       false,
+			})
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, providerAuthStatusBundle(record))
+		},
+	}
 	return cmd
 }
 

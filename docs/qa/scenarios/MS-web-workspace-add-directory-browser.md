@@ -35,3 +35,9 @@ inventory: Needs QA
 2026-08-12 walk: blocked-verify. This implementation cycle captured Storybook visual-contract evidence (`.compozy/tasks/global-workspace-menubar/evidence/visual/menubar-toggle/VC-01`–`VC-04`) and unit/typecheck coverage. An isolated QA lab with a live daemon (`COMPOZY_HOME`, production-parity web) was not started, so a persona walk through public entry points could not meet the qa-execution evidence standard.
 
 2026-08-20 qa-impact: density cleanup removed the Location and Session defaults helper paragraphs, the empty-root hint, the default-agent helper, and the footer registration one-liner. Display name default, sandbox isolation, and extra-roots copy moved behind HelpTip. Reset to untested.
+
+2026-08-23 qa-impact (Profiles): the browser must not offer the home directory as a registrable
+root, and registration of it is now refused by the daemon rather than only omitted from the UI.
+Already `untested`, so no reset was needed. Add one attempt to reach the home folder through the
+browser and confirm the refusal is honest and leaves the draft intact. The daemon-side rule is
+owned by `RT-home-workspace-not-registrable`.

@@ -21,8 +21,9 @@ func marketplaceEntryOperation() OperationSpec {
 			enumQueryParam(
 				specScopeKey,
 				"Installed-state projection scope",
-				[]string{specGlobalKey, specWorkspaceKey},
+				[]string{specGlobalKey, specProfileKey, specWorkspaceKey},
 			),
+			queryParam(specProfileKey, "Required for profile installed-state projection", false),
 			queryParam("workspace_id", "Required for workspace installed-state projection", false),
 		},
 		Responses: []ResponseSpec{

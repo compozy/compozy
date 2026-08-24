@@ -68,7 +68,7 @@ const INITIAL: WindowManagerLayoutState = {
 };
 
 function Harness() {
-  const editor = useWindowManagerLayoutEditor("workspace-a", INITIAL);
+  const editor = useWindowManagerLayoutEditor("workspace-a", "marketing", INITIAL);
   return (
     <>
       <button
@@ -143,10 +143,13 @@ describe("LayoutReviewBar", () => {
 
     fireEvent.click(screen.getByTestId("layout-review-check"));
     await waitFor(() => expect(screen.getByTestId("layout-review-apply")).toBeEnabled());
+    expect(apiMocks.validate.mock.calls.at(-1)?.[1]).toBe("marketing");
+    expect(apiMocks.preview.mock.calls.at(-1)?.[1]).toBe("marketing");
     fireEvent.click(screen.getByTestId("layout-review-apply"));
 
     await waitFor(() => expect(apiMocks.apply).toHaveBeenCalledTimes(1));
-    const [, revision, document] = apiMocks.apply.mock.calls[0] ?? [];
+    const [, profile, revision, document] = apiMocks.apply.mock.calls[0] ?? [];
+    expect(profile).toBe("marketing");
     expect(revision).toBe(7);
     expect(document.desktops[0].name).toBe("Build!!");
   });

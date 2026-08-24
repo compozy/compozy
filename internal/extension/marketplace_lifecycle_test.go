@@ -63,7 +63,7 @@ func TestManagedAgentPluginDataLifecycle(t *testing.T) {
 		if err := InstallLocalManaged(homePaths, env.registry, manifest, root, checksum); err != nil {
 			t.Fatalf("InstallLocalManaged() error = %v", err)
 		}
-		dataPath, err := homePaths.ExtensionDataPath(manifest.Name, "")
+		dataPath, err := homePaths.ExtensionDataPath(manifest.Name, "", "")
 		if err != nil {
 			t.Fatalf("ExtensionDataPath() error = %v", err)
 		}
@@ -150,7 +150,7 @@ func TestManagedAgentPluginDataLifecycle(t *testing.T) {
 		if err := InstallLocalManaged(homePaths, env.registry, manifest, root, checksum); err != nil {
 			t.Fatalf("InstallLocalManaged() error = %v", err)
 		}
-		dataPath, err := homePaths.ExtensionDataPath(manifest.Name, "")
+		dataPath, err := homePaths.ExtensionDataPath(manifest.Name, "", "")
 		if err != nil {
 			t.Fatalf("ExtensionDataPath() error = %v", err)
 		}
@@ -208,7 +208,7 @@ func TestManagedAgentPluginDataLifecycle(t *testing.T) {
 		if err := InstallLocalManaged(homePaths, env.registry, manifest, root, checksum); err != nil {
 			t.Fatalf("InstallLocalManaged() error = %v", err)
 		}
-		dataPath, err := homePaths.ExtensionDataPath(manifest.Name, "")
+		dataPath, err := homePaths.ExtensionDataPath(manifest.Name, "", "")
 		if err != nil {
 			t.Fatalf("ExtensionDataPath() error = %v", err)
 		}
@@ -369,7 +369,7 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 				t.Fatalf("installed portable metadata = %#v, want format and first diagnostic", installed)
 			}
 			firstDiagnostics := cloneDiagnosticItems(installed.IngestDiagnostics)
-			dataPath, err := homePaths.ExtensionDataPath(installed.Name, "")
+			dataPath, err := homePaths.ExtensionDataPath(installed.Name, "", "")
 			if err != nil {
 				t.Fatalf("ExtensionDataPath() error = %v", err)
 			}
@@ -378,7 +378,7 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 			}
 			dataFile := filepath.Join(dataPath, "state.db")
 			writeFile(t, dataFile, "portable-state")
-			siblingDataPath, err := homePaths.ExtensionDataPath("sibling", "")
+			siblingDataPath, err := homePaths.ExtensionDataPath("sibling", "", "")
 			if err != nil {
 				t.Fatalf("ExtensionDataPath(sibling) error = %v", err)
 			}
@@ -406,9 +406,9 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 			if err != nil {
 				t.Fatalf("registry.Get(updated) error = %v", err)
 			}
-			if updated.Enabled || updated.Format != FormatAgentPlugin || len(updated.IngestDiagnostics) != 1 ||
+			if !updated.Enabled || updated.Format != FormatAgentPlugin || len(updated.IngestDiagnostics) != 1 ||
 				reflect.DeepEqual(updated.IngestDiagnostics, firstDiagnostics) {
-				t.Fatalf("updated portable metadata = %#v, want disabled with replaced diagnostic", updated)
+				t.Fatalf("updated portable metadata = %#v, want default-on with replaced diagnostic", updated)
 			}
 			if data, readErr := os.ReadFile(dataFile); readErr != nil || string(data) != "portable-state" {
 				t.Fatalf("portable data after update = %q, %v; want preserved", data, readErr)
@@ -488,8 +488,8 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 		if err != nil {
 			t.Fatalf("InstallMarketplaceManaged() error = %v", err)
 		}
-		if installed.Enabled {
-			t.Fatalf("installed.Enabled = true, want false")
+		if !installed.Enabled {
+			t.Fatalf("installed.Enabled = false, want default-on")
 		}
 		if installed.Source != SourceMarketplace ||
 			dereferenceOptionalString(installed.RegistrySlug) != "acme/lifecycle-ext" ||

@@ -71,14 +71,15 @@ contract.
 
 Use `compozy__marketplace_search` for read-only MCP, extension, and skill discovery. Results carry
 stable `entry_id` values and scoped installed state. CLI fallback:
-`compozy marketplace search [query] [--kind mcp|extension|skill] [--scope global|workspace]
-[--workspace <id>] [--cursor <opaque>] -o json`. Continuation requires one kind and unchanged query,
-scope, and workspace. Curated cursors fence the source; remote-skill cursors validate the prior
+`compozy marketplace search [query] [--kind mcp|extension|skill] [--scope user|profile|workspace]
+[--workspace <id>] [--profile <name>] [--cursor <opaque>] -o json`. Continuation requires one kind
+and unchanged query, scope, profile, and workspace. Curated cursors fence the source; remote-skill cursors validate the prior
 page boundary; grouped search omits cursors. Restart from page one after rejection. Human/TOON output
 adds a Page block; JSONL adds a `type: "page"` record after items.
 
 Exact detail is `compozy marketplace info <kind> <entry_id> [--installed-name <name>]`; installed identity
-applies to MCPs, extensions, and skills. Global is default; workspace requires an ID.
+applies to MCPs, extensions, and skills. User is default; profile uses the active profile and workspace
+requires an ID.
 Refresh with `compozy marketplace refresh [--kind]` or `POST /api/marketplace/refresh`.
 Read each kind's `stale`, `error_class`, and `error`: failed refreshes preserve the last good rows.
 Installed HTTP/UDS and structured CLI rows use `installed_name` for lifecycle mutations; `name` is
@@ -92,7 +93,7 @@ daemon installs that exact feed-owned archive instead of guessing among GitHub r
 gate, not a marketplace row.
 
 Install MCP catalog entries with
-`compozy mcp install <entry> --scope global|workspace [--workspace <id>] -o json` or
+`compozy mcp install <entry> --scope user|profile|workspace [--workspace <id>] -o json` or
 `POST /api/settings/mcp-servers/install`; no mutating native install tool exists. Catalog inputs are
 typed and entry-owned. Use `--set id=value` for a non-secret value, `--secret id` for a secret
 entered through stdin or a hidden prompt, or `--vault-ref id=vault:mcp/...` to bind a present ref.
@@ -108,8 +109,9 @@ partial secret/definition restoration retains the commit and returns a residual-
 
 When `next_step=authorize`, run `compozy mcp auth login <name>` to start the daemon-owned PKCE flow.
 Use `--manual` to paste the complete redirect URL, especially for a remote operator or non-loopback
-HTTP bind. Workspace targets always carry both
-`--scope workspace --workspace <id>`. Treat authorization as complete only when redacted status is
+HTTP bind. Use `--scope user` for the user layer, `--scope profile --profile <name>` for a personal
+profile layer, `--scope workspace --workspace <id>` for a workspace layer, and combine
+`--scope profile --profile <name> --workspace <id>` for a workspace-profile layer. Treat authorization as complete only when redacted status is
 `authenticated` with `token_present=true`. `--timeout` bounds the whole attempt, including manual
 input and exchange, and the active PKCE session expiry may shorten it.
 
@@ -179,8 +181,10 @@ that session. `/run` is reserved and absent.
 
 Daemon and ACP controls are standalone prompts. Skill tokens can appear after any whitespace boundary,
 including in the middle of a prompt; repeated references to one exact skill activate it once. Bare
-tokens name the effective bundled, global, additional, workspace, or agent-local winner. Extension
-skills use `/extension-id:skill`; Marketplace skills use `/registry-id:skill`.
+tokens name the effective bundled, user, profile, additional, workspace, workspace-profile, or
+agent-local winner. The active profile and workspace-profile layers follow the selection rules in
+`references/profiles.md`. Extension skills use `/extension-id:skill`; Marketplace skills use
+`/registry-id:skill`.
 
 Slash activation belongs to authenticated operator prompt ingress. Agent-authored prompts and
 `compozy__session_prompt` keep slash-shaped text literal. When a catalog row identifies a skill, pass

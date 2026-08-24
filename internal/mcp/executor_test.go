@@ -322,7 +322,7 @@ func TestMCPCallExecutor(t *testing.T) {
 		}))
 		t.Cleanup(server.Close)
 		configuredServer := authEnabledServer("rejected-token", compozyconfig.MCPServerTransportHTTP, server.URL)
-		target := globalMCPExecutorTarget("rejected-token")
+		target := userMCPExecutorTarget("rejected-token")
 		store := newMemoryTokenStore()
 		if err := store.SaveMCPAuthToken(t.Context(), mcpauth.TokenRecord{
 			Target:                target,
@@ -395,7 +395,7 @@ func TestMCPCallExecutor(t *testing.T) {
 		t.Cleanup(testServer.Close)
 
 		configuredServer := authEnabledServer("secure", compozyconfig.MCPServerTransportHTTP, testServer.URL)
-		target := globalMCPExecutorTarget("secure")
+		target := userMCPExecutorTarget("secure")
 		store := newMemoryTokenStore()
 		if err := store.SaveMCPAuthToken(context.Background(), mcpauth.TokenRecord{
 			Target:                target,
@@ -446,7 +446,7 @@ func TestMCPCallExecutor(t *testing.T) {
 				Scopes:       []string{"tools.read"},
 			},
 		}
-		target := globalMCPExecutorTarget("fixture")
+		target := userMCPExecutorTarget("fixture")
 		cfg, err := mcpauth.ServerConfigFromMCP(t.Context(), target, server, nil)
 		if err != nil {
 			t.Fatalf("ServerConfigFromMCP() error = %v", err)
@@ -520,7 +520,7 @@ func TestMCPCallExecutor(t *testing.T) {
 	t.Run("Should never send a token bound to a replaced server definition", func(t *testing.T) {
 		t.Parallel()
 
-		target := globalMCPExecutorTarget("secure")
+		target := userMCPExecutorTarget("secure")
 		original := authEnabledServer(
 			"secure",
 			compozyconfig.MCPServerTransportHTTP,
@@ -686,7 +686,7 @@ func TestMCPCallExecutor(t *testing.T) {
 		t.Parallel()
 
 		server := authEnabledServer("secure", compozyconfig.MCPServerTransportHTTP, "http://127.0.0.1:1/mcp")
-		target := globalMCPExecutorTarget("secure")
+		target := userMCPExecutorTarget("secure")
 		store := newMemoryTokenStore()
 		if err := store.SaveMCPAuthToken(context.Background(), mcpauth.TokenRecord{
 			Target:                target,
@@ -907,7 +907,7 @@ func TestMCPRequestSecretLifecycle(t *testing.T) {
 					compozyconfig.MCPServerTransportHTTP,
 					server.URL,
 				)
-				target := globalMCPExecutorTarget(configuredServer.Name)
+				target := userMCPExecutorTarget(configuredServer.Name)
 				store := newMemoryTokenStore()
 				if err := store.SaveMCPAuthToken(t.Context(), mcpauth.TokenRecord{
 					Target:                target,
@@ -1011,7 +1011,7 @@ func TestMCPRequestSecretLifecycle(t *testing.T) {
 			compozyconfig.MCPServerTransportHTTP,
 			server.URL,
 		)
-		target := globalMCPExecutorTarget(configuredServer.Name)
+		target := userMCPExecutorTarget(configuredServer.Name)
 		store := newMemoryTokenStore()
 		if err := store.SaveMCPAuthToken(t.Context(), mcpauth.TokenRecord{
 			Target:                target,
@@ -1612,7 +1612,7 @@ func TestMCPToolListCache(t *testing.T) {
 			compozyconfig.MCPServerTransportHTTP,
 			server.URL,
 		)
-		target := globalMCPExecutorTarget(configuredServer.Name)
+		target := userMCPExecutorTarget(configuredServer.Name)
 		firstToken := mcpauth.TokenRecord{
 			Target:                target,
 			DefinitionFingerprint: definitionFingerprint(t, target, configuredServer),
@@ -2033,7 +2033,7 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 		executor, err := NewMCPCallExecutor(
 			ServerResolverFunc(func(context.Context, toolspkg.SourceRef) (ResolvedServer, error) {
 				return ResolvedServer{
-					Server: server, Target: globalMCPExecutorTarget(server.Name), HealthKey: healthKey,
+					Server: server, Target: userMCPExecutorTarget(server.Name), HealthKey: healthKey,
 				}, nil
 			}),
 			WithRuntimeHealthRegistry(registry),
@@ -2069,7 +2069,7 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 		executor, err := NewMCPCallExecutor(
 			ServerResolverFunc(func(context.Context, toolspkg.SourceRef) (ResolvedServer, error) {
 				return ResolvedServer{
-					Server: server, Target: globalMCPExecutorTarget(server.Name), HealthKey: healthKey,
+					Server: server, Target: userMCPExecutorTarget(server.Name), HealthKey: healthKey,
 				}, nil
 			}),
 			WithRuntimeHealthRegistry(registry),
@@ -2117,7 +2117,7 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 				resolved := server
 				serverMu.RUnlock()
 				return ResolvedServer{
-					Server: resolved, Target: globalMCPExecutorTarget(resolved.Name), HealthKey: healthKey,
+					Server: resolved, Target: userMCPExecutorTarget(resolved.Name), HealthKey: healthKey,
 				}, nil
 			}),
 			WithRuntimeHealthRegistry(registry),
@@ -2164,7 +2164,7 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 					Name: "fixture", Transport: compozyconfig.MCPServerTransportHTTP, URL: server.URL,
 				}
 				return ResolvedServer{
-					Server: resolved, Target: globalMCPExecutorTarget(resolved.Name), HealthKey: healthKey,
+					Server: resolved, Target: userMCPExecutorTarget(resolved.Name), HealthKey: healthKey,
 				}, nil
 			}),
 			WithRuntimeHealthRegistry(health),
@@ -2194,8 +2194,8 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 			Transport: compozyconfig.MCPServerTransportStdio,
 			Command:   os.Args[0],
 		}
-		firstTarget := globalMCPExecutorTarget("first")
-		secondTarget := globalMCPExecutorTarget("second")
+		firstTarget := userMCPExecutorTarget("first")
+		secondTarget := userMCPExecutorTarget("second")
 		first, err := executor.newMCPStdioLaunch(t.Context(), server, firstTarget)
 		if err != nil {
 			t.Fatalf("newMCPStdioLaunch(first) error = %v", err)
@@ -2386,7 +2386,7 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 			},
 		}
 		executor := newTestMCPExecutor(t, server, WithSecretLookup(os.Getenv))
-		resolved := ResolvedServer{Server: server, Target: globalMCPExecutorTarget(server.Name)}
+		resolved := ResolvedServer{Server: server, Target: userMCPExecutorTarget(server.Name)}
 		client, err := executor.openClient(ctx, resolved, "")
 		if err != nil {
 			t.Fatalf("openClient() error = %v", err)
@@ -2445,7 +2445,7 @@ func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 		launch, err := executor.newMCPStdioLaunch(
 			t.Context(),
 			server,
-			globalMCPExecutorTarget(server.Name),
+			userMCPExecutorTarget(server.Name),
 		)
 		if err != nil {
 			t.Fatalf("newMCPStdioLaunch() error = %v", err)
@@ -2837,7 +2837,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 			},
 		}
 		executor := newTestMCPExecutor(t, server, withAuthService(fakeAuth))
-		resolved := ResolvedServer{Server: server, Target: globalMCPExecutorTarget("secure")}
+		resolved := ResolvedServer{Server: server, Target: userMCPExecutorTarget("secure")}
 		if err := executor.ensureAuthorized(testContext(t), resolved); err != nil {
 			t.Fatalf("ensureAuthorized(refresh success) error = %v", err)
 		}
@@ -2869,7 +2869,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 
 		store := newMemoryTokenStore()
 		if err := store.SaveMCPAuthToken(context.Background(), mcpauth.TokenRecord{
-			Target:      globalMCPExecutorTarget("github"),
+			Target:      userMCPExecutorTarget("github"),
 			AccessToken: "token",
 			TokenType:   "mac",
 		}); err != nil {
@@ -2886,7 +2886,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 		)
 		resolved := ResolvedServer{
 			Server: compozyconfig.MCPServer{Name: "github"},
-			Target: globalMCPExecutorTarget("github"),
+			Target: userMCPExecutorTarget("github"),
 		}
 		if got := executor.authorizationHeader(testContext(t), resolved); got != "" {
 			t.Fatalf("authorizationHeader(non-bearer) = %q, want empty", got)
@@ -2909,7 +2909,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 		t.Parallel()
 
 		server := authEnabledServer("secure", compozyconfig.MCPServerTransportHTTP, "https://mcp.example.test/mcp")
-		target := globalMCPExecutorTarget("secure")
+		target := userMCPExecutorTarget("secure")
 		for _, fixture := range []struct {
 			name   string
 			mutate func(*mcpauth.TokenRecord)
@@ -3446,7 +3446,7 @@ func newTestMCPExecutor(
 
 	executor, err := NewMCPCallExecutor(
 		ServerResolverFunc(func(context.Context, toolspkg.SourceRef) (ResolvedServer, error) {
-			return ResolvedServer{Server: server, Target: globalMCPExecutorTarget(server.Name)}, nil
+			return ResolvedServer{Server: server, Target: userMCPExecutorTarget(server.Name)}, nil
 		}),
 		options...,
 	)
@@ -3882,6 +3882,6 @@ func (f secretRefResolverFunc) ResolveRef(ctx context.Context, ref string) (stri
 	return f(ctx, ref)
 }
 
-func globalMCPExecutorTarget(serverName string) mcpauth.Target {
-	return mcpauth.Target{Scope: mcpauth.ScopeGlobal, ServerName: serverName}
+func userMCPExecutorTarget(serverName string) mcpauth.Target {
+	return mcpauth.Target{Scope: mcpauth.ScopeUser, ServerName: serverName}
 }

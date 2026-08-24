@@ -6,6 +6,7 @@
 - Discovery and catalog toolsets
 - Command palette tools
 - Runtime and workspace tools
+- Profile tools
 - Workspace boundary
 - Window management tools
 - Skills and memory tools
@@ -59,8 +60,9 @@ Add `--global` to `bind|unbind` for desktop-global hotkeys. Read the complete
 shell `client_id` when reading `/api/settings/window-manager` to receive that shell's confirmed
 registration state; an intended chord without `active_chord` is not active.
 
-Palette personalization is workspace-scoped and management-only. Inspect or reset it with
-`compozy cmd-palette personalization show|reset --workspace <workspace>`. HTTP/UDS clients use
+Palette personalization is profile-owned within a workspace and management-only. Inspect or reset
+the selected profile's state with `compozy --profile <profile> cmd-palette personalization
+show|reset --workspace <workspace>`. HTTP/UDS clients use
 `GET /api/cmd-palette/rank-signals`, `POST /api/cmd-palette/usage`, `PUT|DELETE
 /api/cmd-palette/pins/{id}`, and `GET|DELETE /api/cmd-palette/personalization`; keep rank signals in
 session memory and report only the normalized pre-selection query.
@@ -147,10 +149,12 @@ workspace boundary. Adopt, creation cancel, exit planning/actions, exit cancel, 
 CLI/HTTP/UDS-only; read `references/worktrees.md` before using either path.
 
 Remembered approvals: `compozy__tool_approvals_set`, `compozy__tool_approvals_list`, and
-`compozy__tool_approvals_revoke`. `allow-always` or `reject-always` creates an exact workspace + agent +
-tool + input-digest decision. Explicit set accepts only `agent` or `tool` scope and no input digest;
-an agent-wide set requires `agent_name`. Wider allows remain below the configured tool-policy
-ceiling. CLI: `compozy tool approvals set|list|revoke --workspace <workspace>`.
+`compozy__tool_approvals_revoke`. `allow-always` or `reject-always` creates an exact profile +
+workspace + agent + tool + input-digest decision. Explicit set accepts only `agent` or `tool` scope
+and no input digest; an agent-wide set requires `agent_name`. Wider allows remain below the
+configured tool-policy ceiling. List and revoke use the acting session's immutable profile, or the
+root `--profile` selection outside a session. CLI:
+`compozy --profile <profile> tool approvals set|list|revoke --workspace <workspace>`.
 
 Clarification: `compozy__clarify` asks one active-session question with at most four choices and returns
 zero-based `{choice,text,fallback}`. It is not approval. CLI: `compozy session clarify pending|answer`
@@ -214,6 +218,19 @@ writes do not invoke the provider.
 Model-list and curation results may include a `cost` object with independent `input_per_million`, `output_per_million`, `cache_read_per_million`, `cache_write_per_million`, and `reasoning_per_million` fields. A missing field means that bucket is unpriced; never infer it from another field.
 
 Provider authentication is a management surface. Write `providers.<id>.auth_login_command` only through `config.toml`, `compozy config set`, or `compozy__config_set`; it is write-only and redacted from config show, list, get, diff, and set reads. Provider status, doctor, API/UDS, Settings, and Web expose for it only `{configured, source, executable, presence, recommended_action}`, where `executable` is the basename. `compozy provider auth login <provider>` executes the configured login command internally and never returns the raw command.
+
+## Profile Tools
+
+`compozy__profile_list` returns the active and archived profile catalog and marks the profile bound to
+the caller session, or the permanent default outside a bound session.
+`compozy__profile_current` returns that immutable session profile with
+`source: "session"`; outside a bound session it returns the permanent default with
+`source: "default"`. Both are read-only catalog tools with empty input. Resolve their live descriptors
+before calling them.
+
+Profile selection and lifecycle mutations remain management surfaces. Use `compozy profile`, local
+HTTP/UDS `/api/profiles` routes, the desktop, or the stable `profile.*` command-palette actions. Remote
+profile-state writes are forbidden. Read `references/profiles.md` before changing profile state.
 
 ## Workspace Boundary
 
@@ -388,8 +405,11 @@ CLI/HTTP/UDS unless the live descriptor exposes a scoped native tool.
 
 CLI/HTTP/UDS owns diagnostics (`compozy status`, `compozy doctor`), session repair/recap/approval/inspect/soul
 refresh, task inspection/control, schedulers, config reload/history, notification presets, and support
-bundles. Task notification subscriptions are native; presets are not. Use management surfaces unless
-the live registry exposes a matching `compozy__*` descriptor.
+bundles. Task notification subscriptions are native; presets are not. Preset definitions are shared,
+while enablement is per profile and an absent profile row means enabled. Use
+`compozy --profile <profile> notifications preset enable|disable <name> -o json`,
+`GET /api/notifications/presets?profile=<profile>`, and
+`PUT /api/notifications/presets/{name}/enablement` over HTTP or UDS for profile control.
 
 ## Descriptor Discipline
 

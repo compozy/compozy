@@ -57,6 +57,7 @@ func ValidStopReason(r StopReason) bool {
 // SessionInfo is the canonical session index row stored in the global database.
 type SessionInfo struct {
 	ID                       string
+	ProfileID                string
 	Name                     string
 	AgentName                string
 	Provider                 string
@@ -120,6 +121,9 @@ func (s SessionInfo) Validate() error {
 	if err := requireField(s.ID, "session id"); err != nil {
 		return err
 	}
+	if err := requireField(s.ProfileID, "session profile id"); err != nil {
+		return err
+	}
 	if err := requireField(s.AgentName, "session agent name"); err != nil {
 		return err
 	}
@@ -161,8 +165,10 @@ func (s SessionInfo) Validate() error {
 	return nil
 }
 
-// SessionListQuery filters global session index queries.
+// SessionListQuery filters session index queries through one explicit profile or
+// the AllProfiles aggregate.
 type SessionListQuery struct {
+	ReadScope       ReadScope
 	ID              string
 	State           string
 	AgentName       string
@@ -195,8 +201,11 @@ func (u SessionTranscriptEpochUpdate) Validate() error {
 	return nil
 }
 
-// Validate ensures the query uses sane bounds.
+// Validate rejects an implicit profile lens before checking query bounds.
 func (q SessionListQuery) Validate() error {
+	if err := q.ReadScope.Validate(); err != nil {
+		return err
+	}
 	if err := requirePositiveLimit(q.Limit, "session limit"); err != nil {
 		return err
 	}

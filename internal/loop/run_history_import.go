@@ -233,7 +233,8 @@ func validateRunHistoryRun(run Run) error {
 	if resolved.DefinitionVersion != run.DefinitionVersion {
 		return fmt.Errorf("%w: definition snapshot version does not match the run", ErrValidation)
 	}
-	if len(run.ActiveHumanCriteria) > 0 && !json.Valid(run.ActiveHumanCriteria) {
+	activeHumanCriteria := run.ActiveHumanCriteriaValue()
+	if len(activeHumanCriteria) > 0 && !json.Valid(activeHumanCriteria) {
 		return fmt.Errorf("%w: active_human_criteria must be valid JSON", ErrValidation)
 	}
 	return nil

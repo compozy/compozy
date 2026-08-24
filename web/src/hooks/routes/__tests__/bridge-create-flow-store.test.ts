@@ -84,6 +84,57 @@ describe("bridge create flow store", () => {
     });
   });
 
+  it("Should bind initial and retried secrets to the committed bridge profile", async () => {
+    const store = createBridgeCreateFlowLogic().createStore();
+    const draft = {
+      ...createBridgeCreateDraft([provider]),
+      secretSlotValues: { api_key: "plaintext" },
+    };
+    const bindInitialSecrets = vi.fn().mockResolvedValue({
+      bound: [],
+      clearedSlotNames: [],
+      failures: { api_key: "binding failed" },
+    });
+    store.trigger.createOpened({ draft });
+    store.trigger.createSubmitted({
+      activeWorkspaceId: bridge.workspace_id,
+      bindSecrets: bindInitialSecrets,
+      create: async () => createBridgeFixture,
+      navigate: async () => undefined,
+      provider,
+    });
+
+    await vi.waitFor(() => expect(store.getSnapshot().context.phase).toBe("secret-recovery"));
+    expect(bindInitialSecrets).toHaveBeenCalledWith(
+      createBridgeFixture.bridge.id,
+      provider,
+      draft,
+      [],
+      undefined,
+      createBridgeFixture.bridge.profile_name
+    );
+
+    const bindRetriedSecrets = vi.fn().mockResolvedValue({
+      bound: ["api_key"],
+      clearedSlotNames: ["api_key"],
+      failures: {},
+    });
+    store.trigger.secretRetrySubmitted({
+      bindSecrets: bindRetriedSecrets,
+      navigate: async () => undefined,
+    });
+
+    await vi.waitFor(() => expect(bindRetriedSecrets).toHaveBeenCalledOnce());
+    expect(bindRetriedSecrets).toHaveBeenCalledWith(
+      createBridgeFixture.bridge.id,
+      provider,
+      expect.any(Object),
+      [],
+      ["api_key"],
+      createBridgeFixture.bridge.profile_name
+    );
+  });
+
   it("Should not offer create again after a committed bridge fails to open", () => {
     const store = createBridgeCreateFlowLogic().createStore();
     const directProvider = { ...provider, platform: "test" };

@@ -8,16 +8,18 @@ import (
 )
 
 const (
-	mcpNamespace               = "mcp"
-	mcpProviderOwner           = "mcp"
-	mcpAuthStatusUnconfigured  = "unconfigured"
-	mcpAuthStatusNeedsLogin    = "needs_login"
-	mcpAuthStatusAuthenticated = "authenticated"
-	mcpAuthStatusExpired       = "expired"
-	mcpAuthStatusInvalid       = "invalid"
-	mcpAuthStatusRefreshFailed = "refresh_failed"
-	mcpSourceScopeGlobal       = "global"
-	mcpSourceScopeWorkspace    = "workspace"
+	mcpNamespace                   = "mcp"
+	mcpProviderOwner               = "mcp"
+	mcpAuthStatusUnconfigured      = "unconfigured"
+	mcpAuthStatusNeedsLogin        = "needs_login"
+	mcpAuthStatusAuthenticated     = "authenticated"
+	mcpAuthStatusExpired           = "expired"
+	mcpAuthStatusInvalid           = "invalid"
+	mcpAuthStatusRefreshFailed     = "refresh_failed"
+	mcpSourceScopeUser             = "user"
+	mcpSourceScopeProfile          = "profile"
+	mcpSourceScopeWorkspace        = "workspace"
+	mcpSourceScopeWorkspaceProfile = "workspace_profile"
 )
 
 // MCPSourceLister returns configured MCP server sources for dynamic discovery.
@@ -119,7 +121,7 @@ func (p *MCPProvider) List(ctx context.Context, scope Scope) ([]Descriptor, erro
 	}
 	descriptors := make([]Descriptor, 0)
 	for _, source := range sources {
-		sourceDescriptors, err := p.listSourceDescriptors(ctx, source)
+		sourceDescriptors, err := p.listSourceDescriptors(ctx, source, scope.ProfileID)
 		if err != nil {
 			return nil, err
 		}
@@ -132,33 +134,48 @@ func (p *MCPProvider) List(ctx context.Context, scope Scope) ([]Descriptor, erro
 }
 
 func mcpSourcesForScope(sources []SourceRef, scope Scope) []SourceRef {
+	profileID := strings.TrimSpace(scope.ProfileID)
 	workspaceID := strings.TrimSpace(scope.WorkspaceID)
-	workspaceSources := make([]SourceRef, 0)
-	workspaceServerNames := make(map[string]struct{})
-	if workspaceID != "" {
-		for _, source := range sources {
-			if strings.TrimSpace(source.Scope) != mcpSourceScopeWorkspace ||
-				strings.TrimSpace(source.WorkspaceID) != workspaceID {
-				continue
-			}
-			workspaceSources = append(workspaceSources, source)
-			workspaceServerNames[mcpSourceServerName(source)] = struct{}{}
+	bestRank := make(map[string]int)
+	for _, source := range sources {
+		rank, visible := mcpSourceProjectionRank(source, profileID, workspaceID)
+		if !visible {
+			continue
+		}
+		name := mcpSourceServerName(source)
+		if current, exists := bestRank[name]; !exists || rank > current {
+			bestRank[name] = rank
 		}
 	}
 
 	projected := make([]SourceRef, 0, len(sources))
 	for _, source := range sources {
-		sourceScope := strings.TrimSpace(source.Scope)
-		if (sourceScope != "" && sourceScope != mcpSourceScopeGlobal) ||
-			strings.TrimSpace(source.WorkspaceID) != "" {
+		rank, visible := mcpSourceProjectionRank(source, profileID, workspaceID)
+		if !visible || bestRank[mcpSourceServerName(source)] != rank {
 			continue
 		}
-		if _, shadowed := workspaceServerNames[mcpSourceServerName(source)]; shadowed {
-			continue
-		}
+		source.ProfileID = profileID
 		projected = append(projected, source)
 	}
-	return append(projected, workspaceSources...)
+	return projected
+}
+
+func mcpSourceProjectionRank(source SourceRef, profileID, workspaceID string) (int, bool) {
+	sourceProfileID := strings.TrimSpace(source.ProfileID)
+	sourceWorkspaceID := strings.TrimSpace(source.WorkspaceID)
+	switch strings.TrimSpace(source.Scope) {
+	case "", mcpSourceScopeUser:
+		return 0, sourceProfileID == "" && sourceWorkspaceID == ""
+	case mcpSourceScopeProfile:
+		return 1, profileID != "" && sourceProfileID == profileID && sourceWorkspaceID == ""
+	case mcpSourceScopeWorkspace:
+		return 2, workspaceID != "" && sourceWorkspaceID == workspaceID && sourceProfileID == ""
+	case mcpSourceScopeWorkspaceProfile:
+		return 3, profileID != "" && workspaceID != "" &&
+			sourceProfileID == profileID && sourceWorkspaceID == workspaceID
+	default:
+		return 0, false
+	}
 }
 
 func mcpSourceServerName(source SourceRef) string {
@@ -206,11 +223,11 @@ func (h *mcpHandle) Descriptor() Descriptor {
 	return cloneDescriptor(h.descriptor)
 }
 
-func (h *mcpHandle) Availability(ctx context.Context, _ Scope) Availability {
+func (h *mcpHandle) Availability(ctx context.Context, scope Scope) Availability {
 	if h == nil || isNilInterface(h.exec) {
 		return Unavailable(ReasonBackendNotExecutable)
 	}
-	if h.reliability != nil && h.reliability.dead(ctx, h.descriptor.Source) {
+	if h.reliability != nil && h.reliability.dead(ctx, h.descriptor.Source, scope.ProfileID) {
 		return Unavailable(ReasonBackendDead)
 	}
 	if isNilInterface(h.auth) {
@@ -352,10 +369,10 @@ func mcpRegistryDescriptor(source SourceRef, desc MCPToolDescriptor) (Descriptor
 		displayTitle = rawTool
 	}
 	descriptor := Descriptor{
-		ID:           id,
-		Backend:      BackendRef{Kind: BackendMCP, MCPServer: owner, MCPTool: rawTool},
-		DisplayTitle: displayTitle,
+		ID:      id,
+		Backend: BackendRef{Kind: BackendMCP, MCPServer: owner, MCPTool: rawTool},
 		ToolPresentation: NewToolPresentation(
+			displayTitle,
 			strings.TrimSpace(desc.FriendlyVerb),
 			strings.TrimSpace(desc.Preview),
 		),

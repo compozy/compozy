@@ -68,7 +68,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, sessionBundle(created, deps.now))
+			return writeCommandOutput(cmd, sessionBundle(&created, deps.now))
 		},
 	}
 	cmd.Flags().StringVar(&agentName, "agent", "", "Agent definition name (defaults to config default)")

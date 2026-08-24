@@ -1019,6 +1019,7 @@ func networkWakeIntegrationAcceptance(
 	}
 	return store.AcceptNetworkMessageRequest{
 		Message: store.NetworkConversationMessage{
+			ProfileID:   store.DefaultProfileID,
 			MessageID:   "message-network-runner",
 			SessionID:   "session-sender",
 			WorkspaceID: "workspace-network",
@@ -2783,7 +2784,7 @@ func TestLoopCoordinatorRunnerShouldPollThroughExtensionRuntime(t *testing.T) {
 		catalog.Replace(1, []resources.Record[looppkg.ResourceSpec]{{
 			ID:      loopName,
 			Version: 1,
-			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			Spec:    watchSpec,
 		}})
 		definition, err := daemonLoopDefinitionFromSpec(watchSpec)
@@ -2935,6 +2936,7 @@ func TestBootTasksSchedulerStatusUsesDurableStarvationEpisodes(t *testing.T) {
 		}
 		withinThresholdManager := managerAt(thresholdNow.Add(-30 * time.Minute))
 		withinThresholdTask, err := withinThresholdManager.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: workspaceRecord.ID,
 			Title:       "Verify scheduler status within threshold",
@@ -2958,6 +2960,7 @@ func TestBootTasksSchedulerStatusUsesDurableStarvationEpisodes(t *testing.T) {
 
 		ageOnlyManager := managerAt(thresholdNow.Add(-2 * time.Hour))
 		ageOnlyTask, err := ageOnlyManager.CreateTask(ctx, taskpkg.CreateTask{
+			ProfileID:   store.DefaultProfileID,
 			Scope:       taskpkg.ScopeWorkspace,
 			WorkspaceID: workspaceRecord.ID,
 			Title:       "Verify scheduler status without starvation episode",
@@ -3057,9 +3060,16 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("InsertWorkspace(global) error = %v", err)
 	}
+	if err := db.CreateNetworkChannel(testutil.Context(t), store.NetworkChannelEntry{
+		ProfileID: store.DefaultProfileID, WorkspaceID: "global", Channel: "builders",
+		Purpose: "Boot recovery fixture", FanoutPolicy: store.NetworkFanoutPolicyAllMembers,
+		CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("CreateNetworkChannel(builders) error = %v", err)
+	}
 	for _, sessionID := range []string{"sess-wake-live", "sess-wake-sender"} {
 		if err := db.RegisterSession(testutil.Context(t), store.SessionInfo{
-			ID: sessionID, AgentName: "coder", Provider: "test",
+			ProfileID: store.DefaultProfileID, ID: sessionID, AgentName: "coder", Provider: "test",
 			WorkspaceID: "global", State: string(session.StateActive), CreatedAt: now, UpdatedAt: now,
 			RuntimeStatus: store.SessionRuntimeUnbound,
 		}); err != nil {
@@ -3095,8 +3105,9 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 		t.Fatalf("DeriveDaemonActorContext(seed) error = %v", err)
 	}
 	taskRecord, err := seedManager.CreateTask(context.Background(), taskpkg.CreateTask{
-		Scope: taskpkg.ScopeGlobal,
-		Title: "Recover boot task",
+		ProfileID: store.DefaultProfileID,
+		Scope:     taskpkg.ScopeGlobal,
+		Title:     "Recover boot task",
 	}, seedActor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -3138,7 +3149,7 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 	acceptance.Admissions[0].WakeID = "wake-boot-recovery"
 	acceptance.Admissions[0].TaskRunID = wakeRunID
 	wantWakeParticipation := acceptance.Admissions[0].Spec
-	acceptedWake, err := db.AcceptNetworkMessage(context.Background(), acceptance)
+	acceptedWake, err := db.AcceptNetworkMessage(context.Background(), &acceptance)
 	if err != nil {
 		t.Fatalf("AcceptNetworkMessage(network wake) error = %v", err)
 	}
@@ -3276,7 +3287,7 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 	followUp.Admissions[0].RootID = followUp.Message.MessageID
 	followUp.Admissions[0].WakeID = "wake-after-boot-recovery"
 	followUp.Admissions[0].TaskRunID = "run-wake-after-boot-recovery"
-	followUpResult, err := db.AcceptNetworkMessage(context.Background(), followUp)
+	followUpResult, err := db.AcceptNetworkMessage(context.Background(), &followUp)
 	if err != nil {
 		t.Fatalf("AcceptNetworkMessage(after boot recovery) error = %v", err)
 	}
@@ -3464,6 +3475,7 @@ func TestTaskRuntimeDetachedHarnessSubmissionPersistsMetadataAndReusesIdempotenc
 	sessions.infos = []*session.Info{
 		{
 			ID:                   "sess-owner",
+			ProfileID:            store.DefaultProfileID,
 			Type:                 session.SessionTypeSystem,
 			State:                session.StateActive,
 			WorkspaceID:          workspace.ID,
@@ -3472,6 +3484,7 @@ func TestTaskRuntimeDetachedHarnessSubmissionPersistsMetadataAndReusesIdempotenc
 		},
 		{
 			ID:                   "sess-wake",
+			ProfileID:            store.DefaultProfileID,
 			Type:                 session.SessionTypeSystem,
 			State:                session.StateActive,
 			WorkspaceID:          workspace.ID,
@@ -3767,6 +3780,7 @@ func TestRecoverTaskRunsOnBootPreservesDetachedHarnessMetadata(t *testing.T) {
 	sessions.infos = []*session.Info{
 		{
 			ID:                   "sess-owner",
+			ProfileID:            store.DefaultProfileID,
 			Type:                 session.SessionTypeSystem,
 			State:                session.StateActive,
 			WorkspaceID:          workspace.ID,
@@ -3775,6 +3789,7 @@ func TestRecoverTaskRunsOnBootPreservesDetachedHarnessMetadata(t *testing.T) {
 		},
 		{
 			ID:                   "sess-wake",
+			ProfileID:            store.DefaultProfileID,
 			Type:                 session.SessionTypeSystem,
 			State:                session.StateActive,
 			WorkspaceID:          workspace.ID,
@@ -3783,6 +3798,7 @@ func TestRecoverTaskRunsOnBootPreservesDetachedHarnessMetadata(t *testing.T) {
 		},
 		{
 			ID:                   "sess-runtime",
+			ProfileID:            store.DefaultProfileID,
 			Type:                 session.SessionTypeSystem,
 			State:                session.StateActive,
 			WorkspaceID:          workspace.ID,
@@ -3861,6 +3877,7 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 
 	ownerInfo := &session.Info{
 		ID:                   "sess-owner",
+		ProfileID:            store.DefaultProfileID,
 		Type:                 session.SessionTypeSystem,
 		State:                session.StateActive,
 		WorkspaceID:          workspace.ID,
@@ -3869,6 +3886,7 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 	}
 	wakeInfo := &session.Info{
 		ID:                   "sess-wake",
+		ProfileID:            store.DefaultProfileID,
 		Type:                 session.SessionTypeSystem,
 		State:                session.StateActive,
 		WorkspaceID:          workspace.ID,
@@ -3877,6 +3895,7 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 	}
 	liveInfo := &session.Info{
 		ID:                   "sess-live",
+		ProfileID:            store.DefaultProfileID,
 		Type:                 session.SessionTypeSystem,
 		State:                session.StateActive,
 		WorkspaceID:          workspace.ID,
@@ -3885,6 +3904,7 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 	}
 	failedInfo := &session.Info{
 		ID:                   "sess-fail",
+		ProfileID:            store.DefaultProfileID,
 		Type:                 session.SessionTypeSystem,
 		State:                session.StateActive,
 		WorkspaceID:          workspace.ID,
@@ -4062,6 +4082,7 @@ func TestTaskRuntimeDetachedHarnessSubmissionRejectsExistingMismatches(t *testin
 	sessions.infos = []*session.Info{
 		{
 			ID:                   "sess-owner",
+			ProfileID:            store.DefaultProfileID,
 			Type:                 session.SessionTypeSystem,
 			State:                session.StateActive,
 			WorkspaceID:          workspace.ID,
@@ -4070,6 +4091,7 @@ func TestTaskRuntimeDetachedHarnessSubmissionRejectsExistingMismatches(t *testin
 		},
 		{
 			ID:                   "sess-wake",
+			ProfileID:            store.DefaultProfileID,
 			Type:                 session.SessionTypeSystem,
 			State:                session.StateActive,
 			WorkspaceID:          workspace.ID,
@@ -4129,6 +4151,7 @@ func TestTaskRuntimeDetachedHarnessSubmissionRejectsExistingMismatches(t *testin
 	}
 	conflictingTask := taskpkg.Task{
 		ID:             detachedHarnessTaskID("sess-owner", "detached-conflict"),
+		ProfileID:      store.DefaultProfileID,
 		Scope:          taskpkg.ScopeWorkspace,
 		WorkspaceID:    workspace.ID,
 		Title:          "Conflicting stored task",
@@ -5109,7 +5132,7 @@ func eventSummaryTypesForRunSession(t *testing.T, runtime *taskRuntime, sessionI
 	}
 	summaries, err := summaryStore.ListEventSummaries(
 		testutil.Context(t),
-		store.EventSummaryQuery{SessionID: sessionID},
+		store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, SessionID: sessionID},
 	)
 	if err != nil {
 		t.Fatalf("ListEventSummaries() error = %v", err)
@@ -5169,6 +5192,7 @@ func waitForTaskRuntimeCondition(t *testing.T, timeout time.Duration, check func
 
 func daemonTaskRecordForTest(id string, now time.Time) taskpkg.Task {
 	return taskpkg.Task{
+		ProfileID:      store.DefaultProfileID,
 		ID:             id,
 		Identifier:     "identifier-" + id,
 		Scope:          taskpkg.ScopeGlobal,
@@ -5317,6 +5341,9 @@ func newDetachedHarnessTaskRuntimeForTest(
 		if info == nil {
 			continue
 		}
+		if strings.TrimSpace(info.ProfileID) == "" {
+			info.ProfileID = store.DefaultProfileID
+		}
 		workspaceID := strings.TrimSpace(info.WorkspaceID)
 		if workspaceID == "" {
 			workspaceID = "global"
@@ -5338,6 +5365,7 @@ func newDetachedHarnessTaskRuntimeForTest(
 			agentName = "daemon-test-agent"
 		}
 		storedInfo := store.SessionInfo{
+			ProfileID:     info.ProfileID,
 			ID:            info.ID,
 			Name:          info.Name,
 			AgentName:     agentName,

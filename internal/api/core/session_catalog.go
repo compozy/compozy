@@ -21,6 +21,10 @@ func (h *BaseHandlers) ListSessions(c *gin.Context) {
 	}
 	query, includeHealth, err := h.parseSessionListQuery(c)
 	if err != nil {
+		if isProfileDomainError(err) {
+			respondProfileError(c, err)
+			return
+		}
 		status := http.StatusBadRequest
 		if isSessionListWorkspaceError(err) {
 			status = StatusForWorkspaceError(err)
@@ -63,6 +67,16 @@ func isSessionListWorkspaceError(err error) bool {
 }
 
 func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery, bool, error) {
+	readScope, allWorkspaces, workspaceID, err := h.parseSessionCatalogReadScope(c)
+	if err != nil {
+		if errors.Is(err, session.ErrCatalogScopeInvalid) {
+			return session.ListQuery{}, false, fmt.Errorf("%w: %v", session.ErrListQueryInvalid, err)
+		}
+		if isProfileDomainError(err) {
+			return session.ListQuery{}, false, err
+		}
+		return session.ListQuery{}, false, fmt.Errorf("%w: %w", errSessionListWorkspaceResolution, err)
+	}
 	includeHealth, err := parseBoolQuery(c, "include_health")
 	if err != nil {
 		return session.ListQuery{}, false, err
@@ -83,19 +97,14 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 	if err != nil {
 		return session.ListQuery{}, false, err
 	}
-	workspaceID := ""
-	if workspaceRef := strings.TrimSpace(c.Query("workspace")); workspaceRef != "" {
-		workspaceID, err = h.lookupWorkspaceID(c.Request.Context(), workspaceRef)
-		if err != nil {
-			return session.ListQuery{}, false, fmt.Errorf("%w: %w", errSessionListWorkspaceResolution, err)
-		}
-	}
 	sessionType, err := parseSessionListType(c.Query("type"))
 	if err != nil {
 		return session.ListQuery{}, false, err
 	}
 	query := session.ListQuery{
+		ReadScope:       readScope,
 		WorkspaceID:     workspaceID,
+		AllWorkspaces:   allWorkspaces,
 		WorktreeID:      strings.TrimSpace(c.Query("worktree")),
 		State:           strings.TrimSpace(c.Query("state")),
 		SessionType:     sessionType,

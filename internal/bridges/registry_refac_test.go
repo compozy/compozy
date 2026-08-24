@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -53,7 +54,7 @@ func TestRegistryContextRefacs(t *testing.T) {
 					storeCalled = true
 					return bridgepkg.BridgeInstance{}, errors.New("store should not be called")
 				},
-				listBridgeInstancesFn: func(context.Context) ([]bridgepkg.BridgeInstance, error) {
+				listBridgeInstancesFn: func(context.Context, storepkg.ReadScope) ([]bridgepkg.BridgeInstance, error) {
 					storeCalled = true
 					return nil, errors.New("store should not be called")
 				},
@@ -130,6 +131,7 @@ func TestBridgeProviderConfigRejectsOperatorOwnedDestinations(t *testing.T) {
 
 func providerConfigRefacCreateRequest(config json.RawMessage) bridgepkg.CreateInstanceRequest {
 	return bridgepkg.CreateInstanceRequest{
+		ProfileID:      storepkg.DefaultProfileID,
 		ID:             "brg-provider-create",
 		Scope:          bridgepkg.ScopeGlobal,
 		Platform:       "slack",

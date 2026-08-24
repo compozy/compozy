@@ -9,9 +9,8 @@ import (
 
 // Tool is the cold desired-state resource spec for a registry tool.
 type Tool struct {
-	ID           ToolID     `json:"id"`
-	Backend      BackendRef `json:"backend"`
-	DisplayTitle string     `json:"display_title,omitempty"`
+	ID      ToolID     `json:"id"`
+	Backend BackendRef `json:"backend"`
 	*ToolPresentation
 	Description         string          `json:"description"`
 	InputSchema         json.RawMessage `json:"input_schema"`
@@ -34,9 +33,8 @@ type Tool struct {
 
 // Descriptor is the normalized runtime metadata used for indexing and dispatch.
 type Descriptor struct {
-	ID           ToolID     `json:"id"`
-	Backend      BackendRef `json:"backend"`
-	DisplayTitle string     `json:"display_title,omitempty"`
+	ID      ToolID     `json:"id"`
+	Backend BackendRef `json:"backend"`
 	*ToolPresentation
 	Description         string          `json:"description"`
 	InputSchema         json.RawMessage `json:"input_schema"`
@@ -62,7 +60,6 @@ func (t Tool) Descriptor() Descriptor {
 	return Descriptor{
 		ID:                  t.ID,
 		Backend:             t.Backend,
-		DisplayTitle:        t.DisplayTitle,
 		ToolPresentation:    CloneToolPresentation(t.ToolPresentation),
 		Description:         t.Description,
 		InputSchema:         cloneRawMessage(t.InputSchema),
@@ -89,7 +86,6 @@ func (d Descriptor) Tool() Tool {
 	return Tool{
 		ID:                  d.ID,
 		Backend:             d.Backend,
-		DisplayTitle:        d.DisplayTitle,
 		ToolPresentation:    CloneToolPresentation(d.ToolPresentation),
 		Description:         d.Description,
 		InputSchema:         cloneRawMessage(d.InputSchema),

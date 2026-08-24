@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -243,6 +245,11 @@ func TestWorkspaceListInfoAndRemove(t *testing.T) {
 						Dir:    "/workspace/project/.compozy/skills/review",
 						Source: "workspace",
 					}},
+					ProfileHints: []contract.WorkspaceProfileHintPayload{{
+						Name: "dev", Path: "/workspace/project/.compozy/profiles/dev",
+						Message: "This workspace declares content for profile \"dev\".",
+						Action:  "compozy profile create dev",
+					}},
 				}, nil
 			},
 			deleteWorkspaceFn: func(_ context.Context, ref string) error {
@@ -272,8 +279,14 @@ func TestWorkspaceListInfoAndRemove(t *testing.T) {
 			t.Fatalf("json.Unmarshal(workspace info) error = %v", err)
 		}
 		if detail.Workspace.ID != "ws_alpha" || len(detail.Sessions) != 1 || len(detail.Agents) != 1 ||
-			len(detail.Skills) != 1 {
+			len(detail.Skills) != 1 || len(detail.ProfileHints) != 1 {
 			t.Fatalf("detail = %#v, want workspace detail payload", detail)
+		}
+		if hint := detail.ProfileHints[0]; hint.Name != "dev" ||
+			hint.Path != "/workspace/project/.compozy/profiles/dev" ||
+			hint.Message != "This workspace declares content for profile \"dev\"." ||
+			hint.Action != "compozy profile create dev" {
+			t.Fatalf("profile hint = %#v, want complete hint payload", hint)
 		}
 		if got, want := strings.Join(detail.Agents[0].CategoryPath, ","), "Engineering,Tools"; got != want {
 			t.Fatalf("detail.Agents[0].CategoryPath = %#v, want %q", detail.Agents[0].CategoryPath, want)
@@ -377,6 +390,7 @@ func TestWorkspaceInfoResolvesReferenceSources(t *testing.T) {
 					}
 					return SessionRecord{
 						ID:            id,
+						ProfileID:     store.DefaultProfileID,
 						AgentName:     tt.agentName,
 						WorkspaceID:   tt.sessionWorkspaceID,
 						WorkspacePath: "/workspace/identity",
@@ -456,6 +470,7 @@ func TestWorkspaceInfoResolvesReferenceSources(t *testing.T) {
 				getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
 					return SessionRecord{
 						ID:          id,
+						ProfileID:   store.DefaultProfileID,
 						AgentName:   "coder",
 						WorkspaceID: "ws-session",
 						State:       "active",

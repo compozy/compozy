@@ -213,13 +213,13 @@ func memoryPrecedencePayloads(selector memorySelector) []contract.MemoryScopeSel
 			WorkspaceID: strings.TrimSpace(selector.WorkspaceID),
 		})
 	}
-	preference = append(preference, contract.MemoryScopeSelectorPayload{Scope: memcontract.ScopeGlobal})
+	preference = append(preference, contract.MemoryScopeSelectorPayload{Scope: memcontract.ScopeProfile})
 	return preference
 }
 
 func (h *BaseHandlers) memorySelectorRoots(selector memorySelector) map[string]string {
 	roots := map[string]string{
-		string(memcontract.ScopeGlobal): strings.TrimSpace(h.Config.Memory.GlobalDir),
+		string(memcontract.ScopeProfile): strings.TrimSpace(h.Config.Memory.GlobalDir),
 	}
 	if selector.Workspace != "" {
 		roots[string(memcontract.ScopeWorkspace)] = selector.Workspace

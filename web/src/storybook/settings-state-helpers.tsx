@@ -105,8 +105,8 @@ export function StorybookSettingsUpdateRefreshErrorSetup({
 }
 
 /**
- * Dirties the general settings draft by programmatically typing into the
- * default-agent input. Uses RAF polling because the route tree mounts after
+ * Dirties the general settings draft by programmatically changing the daemon
+ * memory-report interval. Uses RAF polling because the route tree mounts after
  * the story render fragment.
  */
 export function StorybookGeneralDraftDirtySetup() {
@@ -124,10 +124,10 @@ export function StorybookGeneralDraftDirtySetup() {
     const tryDirty = () => {
       if (cancelled) return;
       const input = document.querySelector<HTMLInputElement>(
-        '[data-testid="settings-page-general-default-agent-input"]'
+        '[data-testid="settings-page-general-memory-report-interval-input"]'
       );
       if (input) {
-        setValue(input, "dirty-agent");
+        setValue(input, "10m");
         return;
       }
       requestAnimationFrame(tryDirty);
@@ -196,10 +196,10 @@ export function StorybookGeneralSavingSetup() {
       if (cancelled) return;
       if (stage === "dirty") {
         const input = document.querySelector<HTMLInputElement>(
-          '[data-testid="settings-page-general-default-agent-input"]'
+          '[data-testid="settings-page-general-memory-report-interval-input"]'
         );
         if (input) {
-          setValue(input, "dirty-agent");
+          setValue(input, "10m");
           stage = "save";
         }
       } else if (stage === "save") {

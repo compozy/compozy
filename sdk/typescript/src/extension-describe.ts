@@ -7,6 +7,9 @@ import { normalizeHostMethodList, normalizeStringList } from "./extension-runtim
 import type {
   CmdPaletteConfig,
   DescribePayload,
+  DescribeHookEvent,
+  DescribeProfile,
+  DescribeResourcePath,
   ExtensionDefinition,
   ExtensionCommandGroupSpec,
   ExtensionToolRuntimeDescriptor,
@@ -81,12 +84,13 @@ export function buildExtensionDescribePayload(input: ExtensionDescribeInput): De
     provides: normalizeStringList(input.definition.capabilities?.provides),
     permissions: normalizeHostMethodList(input.definition.permissions?.requires),
     requires_env: normalizeStringList(input.definition.requires_env),
+    profiles: normalizeDescribeProfiles(input.definition.profiles),
     resources: {
-      skills: normalizeStringList(input.definition.resources?.skills),
-      loops: normalizeStringList(input.definition.resources?.loops),
-      agents: normalizeStringList(input.definition.resources?.agents),
-      automation: normalizeStringList(input.definition.resources?.automation),
-      layouts: normalizeStringList(input.definition.resources?.layouts),
+      skills: normalizeDescribeResourcePaths(input.definition.resources?.skills),
+      loops: normalizeDescribeResourcePaths(input.definition.resources?.loops),
+      agents: normalizeDescribeResourcePaths(input.definition.resources?.agents),
+      automation: normalizeDescribeResourcePaths(input.definition.resources?.automation),
+      layouts: normalizeDescribeResourcePaths(input.definition.resources?.layouts),
       ...(input.definition.resources?.cmd_palette === undefined
         ? {}
         : { cmd_palette: structuredClone(input.definition.resources.cmd_palette) }),
@@ -109,7 +113,7 @@ export function buildExtensionDescribePayload(input: ExtensionDescribeInput): De
         }),
     tools: [...input.tools].sort((left, right) => left.handler.localeCompare(right.handler)),
     command_groups: input.commandGroups.map(group => ({ ...group })),
-    hook_events: normalizeStringList(input.definition.supported_hook_events),
+    hook_events: normalizeDescribeHookEvents(input.definition.supported_hook_events),
     watch_source_kinds: input.watchSourceKinds,
     ...(viewIDs.length === 0 ? {} : { cmd_palette_views: viewIDs }),
     sdk: {
@@ -119,4 +123,63 @@ export function buildExtensionDescribePayload(input: ExtensionDescribeInput): De
       min_compozy_version: SDK_MIN_COMPOZY_VERSION,
     },
   };
+}
+
+function normalizeDescribeResourcePaths(
+  resources: DescribeResourcePath[] | undefined
+): DescribeResourcePath[] {
+  const unique = new Map<string, DescribeResourcePath>();
+  for (const resource of resources ?? []) {
+    const normalized = { path: resource.path.trim(), profile: resource.profile?.trim() };
+    unique.set(`${normalized.path}\u0000${normalized.profile ?? ""}`, {
+      path: normalized.path,
+      ...(normalized.profile ? { profile: normalized.profile } : {}),
+    });
+  }
+  return [...unique.values()].sort(
+    (left, right) =>
+      left.path.localeCompare(right.path) || (left.profile ?? "").localeCompare(right.profile ?? "")
+  );
+}
+
+function normalizeDescribeHookEvents(events: DescribeHookEvent[] | undefined): DescribeHookEvent[] {
+  const unique = new Map<string, DescribeHookEvent>();
+  for (const item of events ?? []) {
+    const event = item.event.trim() as DescribeHookEvent["event"];
+    const profile = item.profile?.trim();
+    unique.set(`${event}\u0000${profile ?? ""}`, { event, ...(profile ? { profile } : {}) });
+  }
+  return [...unique.values()].sort(
+    (left, right) =>
+      left.event.localeCompare(right.event) ||
+      (left.profile ?? "").localeCompare(right.profile ?? "")
+  );
+}
+
+function normalizeDescribeProfiles(profiles: DescribeProfile[] | undefined): DescribeProfile[] {
+  return [...(profiles ?? [])]
+    .map(profile => {
+      const defaults = profile.defaults ?? {};
+      return {
+        name: profile.name.trim(),
+        ...(profile.color?.trim() ? { color: profile.color.trim() } : {}),
+        ...(profile.icon?.trim() ? { icon: profile.icon.trim() } : {}),
+        ...(profile.emoji?.trim() ? { emoji: profile.emoji.trim() } : {}),
+        defaults: {
+          ...(defaults.agent?.trim() ? { agent: defaults.agent.trim() } : {}),
+          ...(defaults.provider?.trim() ? { provider: defaults.provider.trim() } : {}),
+          ...(defaults.sandbox?.trim() ? { sandbox: defaults.sandbox.trim() } : {}),
+        },
+        credentials: [...(profile.credentials ?? [])]
+          .map(credential => ({
+            provider: credential.provider.trim(),
+            slot: credential.slot.trim(),
+          }))
+          .sort(
+            (left, right) =>
+              left.provider.localeCompare(right.provider) || left.slot.localeCompare(right.slot)
+          ),
+      };
+    })
+    .sort((left, right) => left.name.localeCompare(right.name));
 }

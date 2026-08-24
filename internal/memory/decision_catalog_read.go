@@ -13,7 +13,7 @@ import (
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 )
 
-func (c *catalog) loadDecision(ctx context.Context, id string) (storedDecision, error) {
+func (c *catalog) loadDecision(ctx context.Context, profileID string, id string) (storedDecision, error) {
 	db, err := c.ensureDB(ctx)
 	if err != nil {
 		return storedDecision{}, err
@@ -28,8 +28,10 @@ func (c *catalog) loadDecision(ctx context.Context, id string) (storedDecision, 
 			post_content_hash, prior_content, confidence, source, rule_trace, llm_trace,
 			reason, prompt_version, applied_at, decided_at
 		 FROM memory_decisions
-		 WHERE id = ?`,
+		 WHERE id = ?
+		 AND (profile_id = ? OR (profile_id = '' AND scope <> 'profile'))`,
 		strings.TrimSpace(id),
+		strings.TrimSpace(profileID),
 	)
 	decision, err := scanStoredDecision(row)
 	if err != nil {
@@ -43,6 +45,7 @@ func (c *catalog) loadDecision(ctx context.Context, id string) (storedDecision, 
 
 func (c *catalog) loadDecisionByIdempotencyKey(
 	ctx context.Context,
+	profileID string,
 	idempotencyKey string,
 ) (storedDecision, bool, error) {
 	key := strings.TrimSpace(idempotencyKey)
@@ -63,8 +66,10 @@ func (c *catalog) loadDecisionByIdempotencyKey(
 			post_content_hash, prior_content, confidence, source, rule_trace, llm_trace,
 			reason, prompt_version, applied_at, decided_at
 		 FROM memory_decisions
-		 WHERE idempotency_key = ?`,
+		 WHERE idempotency_key = ?
+		 AND (profile_id = ? OR (profile_id = '' AND scope <> 'profile'))`,
 		key,
+		strings.TrimSpace(profileID),
 	)
 	decision, err := scanStoredDecision(row)
 	if err != nil {

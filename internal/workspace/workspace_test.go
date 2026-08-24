@@ -213,6 +213,10 @@ func TestWorkspaceStructSurface(t *testing.T) {
 			fields: []fieldSpec{
 				{name: "Workspace", fieldType: reflect.TypeFor[workspace.Workspace](), embedded: true},
 				{name: "WorkspaceID", fieldType: reflect.TypeFor[string]()},
+				{name: "ProfileID", fieldType: reflect.TypeFor[string]()},
+				{name: "ProfileName", fieldType: reflect.TypeFor[string]()},
+				{name: "ProfileRoot", fieldType: reflect.TypeFor[string]()},
+				{name: "ProfileDeclarations", fieldType: reflect.TypeFor[[]workspace.ProfileDeclaration]()},
 				{name: "Config", fieldType: reflect.TypeFor[compozyconfig.Config]()},
 				{name: "Agents", fieldType: reflect.TypeFor[[]compozyconfig.AgentDef]()},
 				{name: "AgentDiagnostics", fieldType: reflect.TypeFor[[]workspace.AgentDiagnostic]()},

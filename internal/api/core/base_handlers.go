@@ -56,6 +56,7 @@ type BaseHandlerConfig struct {
 	Tasks                        TaskService
 	Bridges                      BridgeService
 	Notifications                NotificationPresetService
+	Profiles                     ProfileService
 	SupportBundles               SupportBundleService
 	Settings                     SettingsService
 	SettingsRestart              SettingsRestartController
@@ -64,7 +65,7 @@ type BaseHandlerConfig struct {
 	Workspaces                   WorkspaceService
 	Worktrees                    WorktreeService
 	WorkspaceAccess              workspaceaccess.Policy
-	WindowManager                WindowManagerService
+	WindowManager                WindowManagerProvider
 	Onboarding                   OnboardingStore
 	AgentCatalog                 AgentCatalog
 	AgentDefinitionSync          AgentDefinitionSync
@@ -141,6 +142,7 @@ type BaseHandlers struct {
 	Tasks                        TaskService
 	Bridges                      BridgeService
 	Notifications                NotificationPresetService
+	Profiles                     ProfileService
 	SupportBundles               SupportBundleService
 	Settings                     SettingsService
 	SettingsRestart              SettingsRestartController
@@ -149,7 +151,7 @@ type BaseHandlers struct {
 	Workspaces                   WorkspaceService
 	Worktrees                    WorktreeService
 	WorkspaceAccess              workspaceaccess.Policy
-	WindowManager                WindowManagerService
+	WindowManager                WindowManagerProvider
 	Onboarding                   OnboardingStore
 	AgentCatalog                 AgentCatalog
 	AgentDefinitionSync          AgentDefinitionSync
@@ -244,6 +246,7 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		Tasks:                        cfg.Tasks,
 		Bridges:                      cfg.Bridges,
 		Notifications:                cfg.Notifications,
+		Profiles:                     cfg.Profiles,
 		SupportBundles:               cfg.SupportBundles,
 		Settings:                     cfg.Settings,
 		SettingsRestart:              cfg.SettingsRestart,

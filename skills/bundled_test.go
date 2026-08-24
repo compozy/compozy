@@ -21,6 +21,7 @@ var expectedCompozyReferences = []string{
 	"references/memory.md",
 	"references/native-tools.md",
 	"references/network.md",
+	"references/profiles.md",
 	"references/runtime-operations.md",
 	"references/tasks-and-orchestration.md",
 	"references/tools-and-skills.md",

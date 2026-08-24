@@ -51,7 +51,7 @@ func TestMemoryHandlersListAndFilters(t *testing.T) {
 	t.Parallel()
 
 	store, workspace := newTestMemoryStore(t)
-	mustWriteMemory(t, store, memcontract.ScopeGlobal, "", "global.md", memcontract.TypeUser, "global memory")
+	mustWriteMemory(t, store, memcontract.ScopeProfile, "", "profile.md", memcontract.TypeUser, "profile memory")
 	mustWriteMemory(
 		t,
 		store,
@@ -64,7 +64,7 @@ func TestMemoryHandlersListAndFilters(t *testing.T) {
 	mustWriteMemory(
 		t,
 		store,
-		memcontract.ScopeGlobal,
+		memcontract.ScopeProfile,
 		"",
 		"_system-hidden.md",
 		memcontract.TypeReference,
@@ -74,7 +74,7 @@ func TestMemoryHandlersListAndFilters(t *testing.T) {
 	handlers := newTestMemoryHandlers(t, stubSessionManager{}, stubObserver{}, store, &stubDreamTrigger{})
 	engine := newTestRouter(t, handlers)
 
-	t.Run("Should default list returns global scope", func(t *testing.T) {
+	t.Run("Should default list returns profile scope", func(t *testing.T) {
 		resp := performRequest(t, engine, http.MethodGet, "/api/memory", nil)
 		if resp.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
@@ -82,21 +82,21 @@ func TestMemoryHandlersListAndFilters(t *testing.T) {
 
 		var payload memoryListResponse
 		decodeJSONResponse(t, resp, &payload)
-		if len(payload.Memories) != 1 || payload.Memories[0].Filename != "global.md" {
-			t.Fatalf("memories = %#v, want only global memory", payload.Memories)
+		if len(payload.Memories) != 1 || payload.Memories[0].Filename != "profile.md" {
+			t.Fatalf("memories = %#v, want only profile memory", payload.Memories)
 		}
 	})
 
-	t.Run("Should scope global filters to global", func(t *testing.T) {
-		resp := performRequest(t, engine, http.MethodGet, "/api/memory?scope=global", nil)
+	t.Run("Should scope profile filters to the active profile", func(t *testing.T) {
+		resp := performRequest(t, engine, http.MethodGet, "/api/memory?scope=profile", nil)
 		if resp.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d", resp.Code, http.StatusOK)
 		}
 
 		var payload memoryListResponse
 		decodeJSONResponse(t, resp, &payload)
-		if len(payload.Memories) != 1 || payload.Memories[0].Filename != "global.md" {
-			t.Fatalf("memories = %#v, want only global memory", payload.Memories)
+		if len(payload.Memories) != 1 || payload.Memories[0].Filename != "profile.md" {
+			t.Fatalf("memories = %#v, want only profile memory", payload.Memories)
 		}
 	})
 
@@ -139,7 +139,7 @@ func TestMemoryHandlersListAndFilters(t *testing.T) {
 	})
 
 	t.Run("Should include_system returns system-managed entries", func(t *testing.T) {
-		resp := performRequest(t, engine, http.MethodGet, "/api/memory?scope=global&include_system=true", nil)
+		resp := performRequest(t, engine, http.MethodGet, "/api/memory?scope=profile&include_system=true", nil)
 		if resp.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 		}
@@ -160,11 +160,11 @@ func TestMemoryHandlersReadAndNotFound(t *testing.T) {
 	t.Parallel()
 
 	store, _ := newTestMemoryStore(t)
-	mustWriteMemory(t, store, memcontract.ScopeGlobal, "", "readme.md", memcontract.TypeUser, "hello world")
+	mustWriteMemory(t, store, memcontract.ScopeProfile, "", "readme.md", memcontract.TypeUser, "hello world")
 	mustWriteMemory(
 		t,
 		store,
-		memcontract.ScopeGlobal,
+		memcontract.ScopeProfile,
 		"",
 		"_system-hidden.md",
 		memcontract.TypeReference,
@@ -174,7 +174,7 @@ func TestMemoryHandlersReadAndNotFound(t *testing.T) {
 	handlers := newTestMemoryHandlers(t, stubSessionManager{}, stubObserver{}, store, &stubDreamTrigger{})
 	engine := newTestRouter(t, handlers)
 
-	resp := performRequest(t, engine, http.MethodGet, "/api/memory/readme.md?scope=global", nil)
+	resp := performRequest(t, engine, http.MethodGet, "/api/memory/readme.md?scope=profile", nil)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 	}
@@ -185,12 +185,12 @@ func TestMemoryHandlersReadAndNotFound(t *testing.T) {
 		t.Fatalf("content = %q, want stored body", payload.Memory.Content)
 	}
 
-	missing := performRequest(t, engine, http.MethodGet, "/api/memory/missing.md?scope=global", nil)
+	missing := performRequest(t, engine, http.MethodGet, "/api/memory/missing.md?scope=profile", nil)
 	if missing.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d; body=%s", missing.Code, http.StatusNotFound, missing.Body.String())
 	}
 
-	systemHidden := performRequest(t, engine, http.MethodGet, "/api/memory/_system-hidden.md?scope=global", nil)
+	systemHidden := performRequest(t, engine, http.MethodGet, "/api/memory/_system-hidden.md?scope=profile", nil)
 	if systemHidden.Code != http.StatusNotFound {
 		t.Fatalf(
 			"status = %d, want %d for hidden system memory; body=%s",
@@ -204,7 +204,7 @@ func TestMemoryHandlersReadAndNotFound(t *testing.T) {
 		t,
 		engine,
 		http.MethodGet,
-		"/api/memory/_system-hidden.md?scope=global&include_system=true",
+		"/api/memory/_system-hidden.md?scope=profile&include_system=true",
 		nil,
 	)
 	if systemVisible.Code != http.StatusOK {
@@ -234,7 +234,7 @@ func TestMemoryHandlersWriteValidationAndScopeResolution(t *testing.T) {
 		engine,
 		http.MethodPost,
 		"/api/memory",
-		[]byte(`{"scope":"global","type":"user","name":"Valid","description":"desc","content":"hello"}`),
+		[]byte(`{"scope":"profile","type":"user","name":"Valid","description":"desc","content":"hello"}`),
 	)
 	if valid.Code != http.StatusOK {
 		t.Fatalf("valid status = %d, want %d; body=%s", valid.Code, http.StatusOK, valid.Body.String())
@@ -244,7 +244,7 @@ func TestMemoryHandlersWriteValidationAndScopeResolution(t *testing.T) {
 	if !validPayload.Applied || validPayload.Decision.TargetFilename == "" {
 		t.Fatalf("valid payload = %#v, want applied decision with target filename", validPayload)
 	}
-	if _, err := store.Read(t.Context(), memcontract.ScopeGlobal, validPayload.Decision.TargetFilename); err != nil {
+	if _, err := store.Read(t.Context(), memcontract.ScopeProfile, validPayload.Decision.TargetFilename); err != nil {
 		t.Fatalf("store.Read(valid) error = %v", err)
 	}
 
@@ -253,13 +253,13 @@ func TestMemoryHandlersWriteValidationAndScopeResolution(t *testing.T) {
 		engine,
 		http.MethodPost,
 		"/api/memory",
-		[]byte(`{"scope":"global","type":"user","name":"Invalid"}`),
+		[]byte(`{"scope":"profile","type":"user","name":"Invalid"}`),
 	)
 	if invalid.Code != http.StatusBadRequest {
 		t.Fatalf("invalid status = %d, want %d; body=%s", invalid.Code, http.StatusBadRequest, invalid.Body.String())
 	}
 
-	missing := performRequest(t, engine, http.MethodPost, "/api/memory", []byte(`{"scope":"global"}`))
+	missing := performRequest(t, engine, http.MethodPost, "/api/memory", []byte(`{"scope":"profile"}`))
 	if missing.Code != http.StatusBadRequest {
 		t.Fatalf("missing status = %d, want %d; body=%s", missing.Code, http.StatusBadRequest, missing.Body.String())
 	}
@@ -282,7 +282,7 @@ func TestMemoryHandlersWriteValidationAndScopeResolution(t *testing.T) {
 	var userDefaultPayload memoryMutationDecisionResponse
 	decodeJSONResponse(t, userDefault, &userDefaultPayload)
 	if _, err := store.Read(
-		t.Context(), memcontract.ScopeGlobal, userDefaultPayload.Decision.TargetFilename,
+		t.Context(), memcontract.ScopeProfile, userDefaultPayload.Decision.TargetFilename,
 	); err != nil {
 		t.Fatalf("store.Read(global inferred) error = %v", err)
 	}
@@ -317,20 +317,20 @@ func TestMemoryHandlersDeleteAndNotFound(t *testing.T) {
 	t.Parallel()
 
 	store, _ := newTestMemoryStore(t)
-	mustWriteMemory(t, store, memcontract.ScopeGlobal, "", "delete-me.md", memcontract.TypeUser, "bye")
+	mustWriteMemory(t, store, memcontract.ScopeProfile, "", "delete-me.md", memcontract.TypeUser, "bye")
 
 	handlers := newTestMemoryHandlers(t, stubSessionManager{}, stubObserver{}, store, &stubDreamTrigger{})
 	engine := newTestRouter(t, handlers)
 
-	resp := performRequest(t, engine, http.MethodDelete, "/api/memory/delete-me.md?scope=global", nil)
+	resp := performRequest(t, engine, http.MethodDelete, "/api/memory/delete-me.md?scope=profile", nil)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 	}
-	if _, err := store.Read(t.Context(), memcontract.ScopeGlobal, "delete-me.md"); err == nil {
+	if _, err := store.Read(t.Context(), memcontract.ScopeProfile, "delete-me.md"); err == nil {
 		t.Fatal("expected file to be deleted")
 	}
 
-	missing := performRequest(t, engine, http.MethodDelete, "/api/memory/missing.md?scope=global", nil)
+	missing := performRequest(t, engine, http.MethodDelete, "/api/memory/missing.md?scope=profile", nil)
 	if missing.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d; body=%s", missing.Code, http.StatusNotFound, missing.Body.String())
 	}
@@ -343,7 +343,7 @@ func TestMemoryHandlersSearchAndReindex(t *testing.T) {
 	mustWriteMemory(
 		t,
 		store,
-		memcontract.ScopeGlobal,
+		memcontract.ScopeProfile,
 		"",
 		"prefs.md",
 		memcontract.TypeUser,
@@ -384,7 +384,7 @@ func TestMemoryHandlersSearchAndReindex(t *testing.T) {
 		engine,
 		http.MethodPost,
 		"/api/memory/search",
-		[]byte(`{"scope":"global","workspace_id":"`+escapeJSON(t, workspace)+`","query_text":"sessions"}`),
+		[]byte(`{"scope":"profile","workspace_id":"`+escapeJSON(t, workspace)+`","query_text":"sessions"}`),
 	)
 	if globalOnly.Code != http.StatusOK {
 		t.Fatalf(
@@ -491,7 +491,7 @@ func TestHealthIncludesMemoryStats(t *testing.T) {
 	t.Parallel()
 
 	store, workspace := newTestMemoryStore(t)
-	mustWriteMemory(t, store, memcontract.ScopeGlobal, "", "health-global.md", memcontract.TypeUser, "global")
+	mustWriteMemory(t, store, memcontract.ScopeProfile, "", "health-global.md", memcontract.TypeUser, "global")
 	mustWriteMemory(
 		t,
 		store,
@@ -547,7 +547,7 @@ func TestMemoryHelpersResolveLocationAndScope(t *testing.T) {
 	t.Parallel()
 
 	store, workspace := newTestMemoryStore(t)
-	mustWriteMemory(t, store, memcontract.ScopeGlobal, "", "shared.md", memcontract.TypeUser, "global")
+	mustWriteMemory(t, store, memcontract.ScopeProfile, "", "shared.md", memcontract.TypeUser, "global")
 	mustWriteMemory(t, store, memcontract.ScopeWorkspace, workspace, "shared.md", memcontract.TypeProject, "workspace")
 	mustWriteMemory(
 		t,
@@ -682,15 +682,15 @@ func TestMemoryHandlersReturnInternalErrorWithoutConfiguredStore(t *testing.T) {
 		body   []byte
 	}{
 		{method: http.MethodGet, path: "/api/memory"},
-		{method: http.MethodGet, path: "/api/memory/valid.md?scope=global"},
+		{method: http.MethodGet, path: "/api/memory/valid.md?scope=profile"},
 		{
 			method: http.MethodPost,
 			path:   "/api/memory",
 			body: []byte(
-				`{"scope":"global","type":"user","name":"Valid","content":"` + document + `"}`,
+				`{"scope":"profile","type":"user","name":"Valid","content":"` + document + `"}`,
 			),
 		},
-		{method: http.MethodDelete, path: "/api/memory/valid.md?scope=global"},
+		{method: http.MethodDelete, path: "/api/memory/valid.md?scope=profile"},
 	}
 
 	for _, request := range requests {

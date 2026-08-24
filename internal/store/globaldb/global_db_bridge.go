@@ -182,6 +182,7 @@ func (g *BridgeRepo) DeleteBridgeInstance(ctx context.Context, id string) (err e
 // GetBridgeInstance loads one persisted bridge instance by primary key.
 func (g *BridgeRepo) GetBridgeInstance(
 	ctx context.Context,
+	readScope store.ReadScope,
 	id string,
 ) (bridges.BridgeInstance, error) {
 	if err := g.checkReady(ctx, "get bridge instance"); err != nil {
@@ -192,15 +193,26 @@ func (g *BridgeRepo) GetBridgeInstance(
 	if trimmedID == "" {
 		return bridges.BridgeInstance{}, errors.New("store: bridge instance id is required")
 	}
-
-	row, err := g.queries.GetBridgeInstance(ctx, trimmedID)
+	if err := readScope.Validate(); err != nil {
+		return bridges.BridgeInstance{}, fmt.Errorf("store: invalid bridge instance read scope: %w", err)
+	}
+	statement := `SELECT ` + bridgeInstanceSelectWithOwner + `
+		FROM bridge_instances bi JOIN profiles p ON p.id = bi.profile_id
+		WHERE bi.id = ?`
+	args := []any{trimmedID}
+	if !readScope.AllProfiles {
+		statement += globalDBBridgeProfileClause
+		args = append(args, readScope.ProfileID)
+	}
+	row := g.db.QueryRowContext(ctx, statement, args...)
+	instance, err := scanBridgeInstance(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return bridges.BridgeInstance{}, bridges.ErrBridgeInstanceNotFound
 		}
 		return bridges.BridgeInstance{}, err
 	}
-	return bridgeInstanceFromGenerated(row)
+	return instance, nil
 }
 
 // ReplaceBridgeInstances atomically swaps desired bridge fields while preserving

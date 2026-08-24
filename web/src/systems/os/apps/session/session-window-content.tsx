@@ -1,7 +1,7 @@
 import { lazy, Suspense, use, useRef } from "react";
 import { toast } from "sonner";
 
-import { loadSessionThread } from "./session-window-module-loader";
+import { SessionThread } from "./session-thread-lazy";
 import { useSessionWindowController } from "./use-session-window-controller";
 import { WorktreeDialogActionsContext } from "../../contexts/worktree-dialog-actions-context";
 import { sessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";
@@ -17,9 +17,6 @@ import {
   useCreateSession,
 } from "@/systems/session";
 
-const SessionThread = lazy(() =>
-  loadSessionThread().then(module => ({ default: module.SessionThread }))
-);
 const SessionClearDialog = lazy(() =>
   import("./session-window-dialogs").then(module => ({ default: module.SessionClearDialog }))
 );

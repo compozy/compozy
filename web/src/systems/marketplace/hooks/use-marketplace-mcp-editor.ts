@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useSelector, useStore } from "@xstate/store-react";
 
 import { marketplaceMCPEditorLogic } from "./marketplace-mcp-editor-logic";
-import type { MCPConfigScope } from "./marketplace-mcp-scope";
 import {
   deriveMCPManagementFilter,
   emptyDraft,
@@ -10,6 +9,7 @@ import {
   type MCPServerEditorProps,
   SettingsApiError,
   type SettingsMCPServerEntry,
+  type SettingsLayeredScope,
   type SettingsMCPServerTarget,
   toDraft,
   toRequest,
@@ -20,9 +20,10 @@ import { vaultSecretsListOptions } from "@/systems/vault";
 
 interface UseMarketplaceMCPEditorOptions {
   enabled: boolean;
-  scope: MCPConfigScope;
+  scope: SettingsLayeredScope;
   servers: readonly SettingsMCPServerEntry[];
   workspaceId?: string | null;
+  profileName?: string | null;
 }
 
 function errorMessage(error: unknown): string | null {
@@ -30,11 +31,27 @@ function errorMessage(error: unknown): string | null {
   return error instanceof Error ? error.message : null;
 }
 
+function resolveMCPEditorWriteFilter(
+  scope: SettingsLayeredScope,
+  target: SettingsMCPServerTarget,
+  workspaceId?: string | null,
+  profileName?: string | null
+) {
+  if (scope === "user") return { scope, target };
+  if (scope === "workspace") {
+    return workspaceId ? { scope, target, workspace_id: workspaceId } : null;
+  }
+  return profileName
+    ? { profile: profileName, scope, target, workspace_id: workspaceId ?? undefined }
+    : null;
+}
+
 function useMarketplaceMCPEditor({
   enabled,
   scope: createScope,
   servers,
   workspaceId,
+  profileName,
 }: UseMarketplaceMCPEditorOptions) {
   const putMutation = usePutSettingsMCPServer();
   const resetPutMutation = putMutation.reset;
@@ -49,7 +66,8 @@ function useMarketplaceMCPEditor({
   });
 
   const openCreate = () => {
-    if (!enabled || (createScope === "workspace" && !workspaceId)) return;
+    if (!enabled || !resolveMCPEditorWriteFilter(createScope, "auto", workspaceId, profileName))
+      return;
     resetPutMutation();
     editorLogic.trigger.editorOpened({
       editor: {
@@ -58,6 +76,7 @@ function useMarketplaceMCPEditor({
         scope: createScope,
         target: "auto",
         workspaceId: workspaceId ?? undefined,
+        profileName: profileName ?? undefined,
       },
     });
   };
@@ -74,7 +93,8 @@ function useMarketplaceMCPEditor({
         mode: "edit",
         scope: management.scope,
         target: management.target,
-        workspaceId: management.scope === "workspace" ? management.workspace_id : undefined,
+        workspaceId: management.scope === "user" ? undefined : management.workspace_id,
+        profileName: management.scope === "profile" ? management.profile : undefined,
       },
     });
   };
@@ -116,11 +136,13 @@ function useMarketplaceMCPEditor({
 
   const saveEditor = () => {
     if (editor.mode === "closed" || !isValid) return;
-    if (editor.scope === "workspace" && !editor.workspaceId) return;
-    const filter =
-      editor.scope === "workspace"
-        ? { scope: editor.scope, workspace_id: editor.workspaceId, target: editor.target }
-        : { scope: editor.scope, target: editor.target };
+    const filter = resolveMCPEditorWriteFilter(
+      editor.scope,
+      editor.target,
+      editor.workspaceId,
+      editor.profileName
+    );
+    if (!filter) return;
     const name = editor.draft.name.trim();
     const body = toRequest(editor.draft);
     editorLogic.trigger.saveRequested({
@@ -173,5 +195,4 @@ function useMarketplaceMCPEditor({
 }
 
 export { useMarketplaceMCPEditor };
-export type { MCPConfigScope } from "./marketplace-mcp-scope";
 export type { UseMarketplaceMCPEditorOptions };

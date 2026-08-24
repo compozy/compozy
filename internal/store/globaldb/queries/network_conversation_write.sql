@@ -1,8 +1,10 @@
 -- name: InsertNetworkDirectRoom :execrows
 INSERT OR IGNORE INTO network_direct_rooms (
+  profile_id,
   workspace_id, channel, direct_id, session_a, session_b, opened_at, last_activity_at,
   message_count, open_work_count, last_message_preview
 ) VALUES (
+  sqlc.arg(profile_id),
   sqlc.arg(workspace_id), sqlc.arg(channel), sqlc.arg(direct_id), sqlc.arg(session_a), sqlc.arg(session_b),
   sqlc.arg(opened_at), sqlc.arg(last_activity_at), 0, 0, ''
 );
@@ -36,10 +38,12 @@ WHERE workspace_id = sqlc.arg(workspace_id) AND message_id = sqlc.arg(message_id
 
 -- name: InsertNetworkThread :execrows
 INSERT OR IGNORE INTO network_threads (
+  profile_id,
   workspace_id, channel, thread_id, root_message_id, title, opened_by_peer_id, opened_session_id,
   opened_at, opened_sequence, last_activity_at, last_activity_sequence,
   message_count, participant_count, open_work_count, last_message_preview
 ) VALUES (
+  sqlc.arg(profile_id),
   sqlc.arg(workspace_id), sqlc.arg(channel), sqlc.arg(thread_id), sqlc.arg(root_message_id),
   sqlc.arg(title), sqlc.arg(opened_by_peer_id), sqlc.arg(opened_session_id), sqlc.arg(opened_at),
   sqlc.arg(opened_sequence), sqlc.arg(last_activity_at), sqlc.arg(last_activity_sequence), 0, 0, 0, ''
@@ -130,9 +134,11 @@ WHERE workspace_id = sqlc.arg(workspace_id) AND work_id = sqlc.arg(work_id);
 
 -- name: InsertNetworkWork :exec
 INSERT INTO network_work (
+  profile_id,
   work_id, workspace_id, channel, surface, thread_id, direct_id, opened_by_session_id,
   target_session_id, state, opened_at, last_activity_at, terminal_at
 ) VALUES (
+  sqlc.arg(profile_id),
   sqlc.arg(work_id), sqlc.arg(workspace_id), sqlc.arg(channel), sqlc.arg(surface),
   sqlc.narg(thread_id), sqlc.narg(direct_id), sqlc.arg(opened_by_session_id),
   sqlc.narg(target_session_id), sqlc.arg(state),
@@ -140,7 +146,7 @@ INSERT INTO network_work (
 );
 
 -- name: GetNetworkWork :one
-SELECT work_id, workspace_id, channel, surface, thread_id, direct_id, opened_by_session_id,
+SELECT work_id, profile_id, workspace_id, channel, surface, thread_id, direct_id, opened_by_session_id,
        target_session_id, state, opened_at, last_activity_at, terminal_at
 FROM network_work
 WHERE workspace_id = sqlc.arg(workspace_id) AND work_id = sqlc.arg(work_id);

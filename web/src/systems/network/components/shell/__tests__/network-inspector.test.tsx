@@ -7,6 +7,8 @@ import { NetworkInspector } from "../network-inspector";
 import type { NetworkChannelSummary } from "@/systems/network";
 
 const sampleChannel: NetworkChannelSummary = {
+  profile_id: "00000000000000000000000000",
+  profile_name: "default",
   channel: "ops",
   peer_count: 4,
   purpose: "Operational coordination.",

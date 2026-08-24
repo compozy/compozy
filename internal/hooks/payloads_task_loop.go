@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"encoding/json"
+	"strings"
 
 	"time"
 
@@ -10,6 +11,7 @@ import (
 
 // TaskContext carries task-level identifiers shared across task lifecycle hooks.
 type TaskContext struct {
+	ProfileID                    string              `json:"profile_id,omitempty"`
 	TaskID                       string              `json:"task_id,omitempty"`
 	ParentTaskID                 string              `json:"parent_task_id,omitempty"`
 	WorkspaceID                  string              `json:"workspace_id,omitempty"`
@@ -25,6 +27,9 @@ type TaskContext struct {
 	ReleaseReason                string              `json:"release_reason,omitempty"`
 	ClaimTokenHash               string              `json:"claim_token_hash,omitempty"`
 }
+
+// HookProfileID returns the durable owner used to isolate profile-scoped declarations.
+func (c TaskContext) HookProfileID() string { return strings.TrimSpace(c.ProfileID) }
 
 // TaskStatusChangedPayload is delivered after a task status transition is committed.
 type TaskStatusChangedPayload struct {
@@ -72,6 +77,7 @@ type TaskObservationPatch = AutonomyObservationPatch
 
 // LoopContext carries identifiers shared by loop lifecycle hooks.
 type LoopContext struct {
+	ProfileID                    string              `json:"profile_id,omitempty"`
 	LoopRunID                    string              `json:"loop_run_id,omitempty"`
 	ParentLoopRunID              string              `json:"parent_loop_run_id,omitempty"`
 	WorkspaceID                  string              `json:"workspace_id,omitempty"`
@@ -90,6 +96,9 @@ type LoopContext struct {
 	OriginKind                   string              `json:"origin_kind,omitempty"`
 	OriginRef                    string              `json:"origin_ref,omitempty"`
 }
+
+// HookProfileID returns the durable owner used to isolate profile-scoped declarations.
+func (c LoopContext) HookProfileID() string { return strings.TrimSpace(c.ProfileID) }
 
 // LoopLifecyclePayload is shared by loop started and terminal events.
 type LoopLifecyclePayload struct {

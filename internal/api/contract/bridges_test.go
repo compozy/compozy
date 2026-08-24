@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestCreateBridgeRequestValidation(t *testing.T) {
@@ -56,7 +57,7 @@ func TestCreateBridgeRequestValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if _, err := tt.req.ToCreateInstanceRequest(); err == nil {
+			if _, err := tt.req.ToCreateInstanceRequest(store.DefaultProfileID); err == nil {
 				t.Fatal("ToCreateInstanceRequest() error = nil, want non-nil")
 			}
 		})
@@ -82,7 +83,8 @@ func TestCreateBridgeRequestPreservesNormalizedFieldsAndDefaults(t *testing.T) {
 			DeliveryDefaults: contract.BridgeDeliveryDefaultsPayload(`{"mode":"reply","peer_id":"peer-1"}`),
 		}
 
-		mapped, err := req.ToCreateInstanceRequest()
+		const profileID = "profile-marketing"
+		mapped, err := req.ToCreateInstanceRequest(profileID)
 		if err != nil {
 			t.Fatalf("ToCreateInstanceRequest() error = %v", err)
 		}
@@ -101,6 +103,9 @@ func TestCreateBridgeRequestPreservesNormalizedFieldsAndDefaults(t *testing.T) {
 		}
 		if mapped.Status != bridgepkg.BridgeStatusStarting {
 			t.Fatalf("mapped.Status = %q, want %q", mapped.Status, bridgepkg.BridgeStatusStarting)
+		}
+		if mapped.ProfileID != profileID {
+			t.Fatalf("mapped.ProfileID = %q, want %q", mapped.ProfileID, profileID)
 		}
 
 		req.DeliveryDefaults[0] = '['
@@ -145,7 +150,7 @@ func TestCreateBridgeRequestInitialStatus(t *testing.T) {
 				DisplayName:   "Support",
 				Enabled:       tt.enabled,
 				RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-			}.ToCreateInstanceRequest()
+			}.ToCreateInstanceRequest(store.DefaultProfileID)
 			if err != nil {
 				t.Fatalf("ToCreateInstanceRequest() error = %v", err)
 			}
@@ -390,7 +395,7 @@ func TestBridgeRequestsKeepProviderConfigDistinctFromDeliveryDefaults(t *testing
 			DeliveryDefaults: contract.BridgeDeliveryDefaultsPayload(`{"peer_id":"peer-default","mode":"reply"}`),
 		}
 
-		createMapped, err := createReq.ToCreateInstanceRequest()
+		createMapped, err := createReq.ToCreateInstanceRequest(store.DefaultProfileID)
 		if err != nil {
 			t.Fatalf("ToCreateInstanceRequest() error = %v", err)
 		}
@@ -439,7 +444,7 @@ func TestBridgeRequestsRejectUnsupportedProviderConfigAndDeliveryDefaultsShapes(
 			RoutingPolicy:  bridgepkg.RoutingPolicy{IncludePeer: true},
 			ProviderConfig: contract.BridgeProviderConfigPayload(`"bot"`),
 		}
-		if _, err := badProviderConfig.ToCreateInstanceRequest(); err == nil {
+		if _, err := badProviderConfig.ToCreateInstanceRequest(store.DefaultProfileID); err == nil {
 			t.Fatal("ToCreateInstanceRequest(provider_config string) error = nil, want non-nil")
 		}
 	})
@@ -497,7 +502,12 @@ func TestBridgeProviderConfigRejectsUnsafeSecretMaterial(t *testing.T) {
 			RoutingPolicy:  bridgepkg.RoutingPolicy{IncludePeer: true},
 			ProviderConfig: contract.BridgeProviderConfigPayload(`{"access_token":"sk-secret"}`),
 		}
-		if _, err := req.ToCreateInstanceRequest(); !errors.Is(err, contract.ErrUnsafeBridgeProviderConfigPayload) {
+		if _, err := req.ToCreateInstanceRequest(
+			store.DefaultProfileID,
+		); !errors.Is(
+			err,
+			contract.ErrUnsafeBridgeProviderConfigPayload,
+		) {
 			t.Fatalf("ToCreateInstanceRequest() error = %v, want ErrUnsafeBridgeProviderConfigPayload", err)
 		}
 	})

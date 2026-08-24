@@ -2,7 +2,10 @@ package tools
 
 import (
 	"errors"
+	"strings"
 	"testing"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestApprovalGrantSetRequestBuildGrant(t *testing.T) {
@@ -16,11 +19,12 @@ func TestApprovalGrantSetRequestBuildGrant(t *testing.T) {
 			Decision:  ApprovalGrantAllow,
 			Scope:     ApprovalGrantScopeAgent,
 			AgentName: " codex ",
-		}).BuildGrant(" ws-1 ")
+		}).BuildGrant(store.DefaultProfileID, " ws-1 ")
 		if err != nil {
 			t.Fatalf("BuildGrant() error = %v", err)
 		}
-		if grant.WorkspaceID != "ws-1" || grant.AgentName != "codex" || grant.InputDigest != "" {
+		if grant.ProfileID != store.DefaultProfileID || grant.WorkspaceID != "ws-1" || grant.AgentName != "codex" ||
+			grant.InputDigest != "" {
 			t.Fatalf("BuildGrant() key = %#v, want agent-wide ws-1/codex with no digest", grant.ApprovalGrantKey)
 		}
 		if grant.ToolID != ToolIDWorkspaceList || grant.Decision != ApprovalGrantAllow {
@@ -35,11 +39,11 @@ func TestApprovalGrantSetRequestBuildGrant(t *testing.T) {
 			ToolID:   ToolIDWorkspaceList,
 			Decision: ApprovalGrantReject,
 			Scope:    ApprovalGrantScopeTool,
-		}).BuildGrant("ws-1")
+		}).BuildGrant(store.DefaultProfileID, "ws-1")
 		if err != nil {
 			t.Fatalf("BuildGrant() error = %v", err)
 		}
-		if grant.AgentName != "" || grant.InputDigest != "" {
+		if grant.ProfileID != store.DefaultProfileID || grant.AgentName != "" || grant.InputDigest != "" {
 			t.Fatalf("BuildGrant() key = %#v, want tool-wide key", grant.ApprovalGrantKey)
 		}
 		if grant.Decision != ApprovalGrantReject {
@@ -78,11 +82,23 @@ func TestApprovalGrantSetRequestBuildGrant(t *testing.T) {
 			t.Run("Should reject "+test.name, func(t *testing.T) {
 				t.Parallel()
 
-				_, err := test.request.BuildGrant("ws-1")
+				_, err := test.request.BuildGrant(store.DefaultProfileID, "ws-1")
 				if !errors.Is(err, ErrApprovalGrantInvalid) {
 					t.Fatalf("BuildGrant() error = %v, want ErrApprovalGrantInvalid", err)
 				}
 			})
+		}
+	})
+
+	t.Run("Should reject a grant without a profile", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := (ApprovalGrantSetRequest{
+			ToolID: ToolIDWorkspaceList, Decision: ApprovalGrantAllow, Scope: ApprovalGrantScopeTool,
+		}).BuildGrant("", "ws-1")
+		if err == nil || !errors.Is(err, ErrApprovalGrantInvalid) ||
+			!strings.Contains(err.Error(), "profile_id is required") {
+			t.Fatalf("BuildGrant(missing profile) error = %v, want profile_id is required", err)
 		}
 	})
 }

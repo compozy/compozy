@@ -25,16 +25,21 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 		t.Parallel()
 
 		agent := AgentRecord{
-			Name:             "coder",
-			Provider:         "fake",
-			Command:          "codex",
-			Model:            "gpt-5.4",
-			ReasoningEffort:  "max",
-			Tools:            []string{"shell", "git"},
-			Permissions:      "standard",
-			CategoryPath:     []string{"Marketing", "Sales"},
-			Origin:           contract.AgentOriginWorkspace,
-			WorkspaceID:      "ws-1",
+			Name:            "coder",
+			Provider:        "fake",
+			Command:         "codex",
+			Model:           "gpt-5.4",
+			ReasoningEffort: "max",
+			Tools:           []string{"shell", "git"},
+			Permissions:     "standard",
+			CategoryPath:    []string{"Marketing", "Sales"},
+			Origin:          contract.AgentOriginWorkspace,
+			WorkspaceID:     "ws-1",
+			Layer:           "project_profile",
+			Shadows: []contract.AgentDefinitionShadowPayload{
+				{Layer: "profile", Path: "/profiles/marketing/agents/coder/AGENT.md"},
+				{Layer: "user", Path: "/agents/coder/AGENT.md"},
+			},
 			Skills:           &contract.CreateAgentSkillsConfig{Disabled: []string{"legacy-review"}},
 			DefinitionDigest: "digest-coder",
 			Prompt:           "You are coder.",
@@ -75,6 +80,15 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 		if len(listed) != 1 || listed[0].Name != agent.Name {
 			t.Fatalf("listed agents = %#v, want one %q record", listed, agent.Name)
 		}
+		if listed[0].Layer != agent.Layer || !slices.Equal(listed[0].Shadows, agent.Shadows) {
+			t.Fatalf(
+				"listed agent provenance = %#v/%#v, want %q/%#v",
+				listed[0].Layer,
+				listed[0].Shadows,
+				agent.Layer,
+				agent.Shadows,
+			)
+		}
 		if got, want := strings.Join(listed[0].CategoryPath, ","), "Marketing,Sales"; got != want {
 			t.Fatalf("listed agent category_path = %#v, want %q", listed[0].CategoryPath, want)
 		}
@@ -84,7 +98,9 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 			t.Fatalf("agent list human error = %v", err)
 		}
 		if !strings.Contains(listHuman, "Category") || !strings.Contains(listHuman, "Marketing / Sales") ||
-			!strings.Contains(listHuman, "Origin") || !strings.Contains(listHuman, "workspace") {
+			!strings.Contains(listHuman, "Origin") || !strings.Contains(listHuman, "workspace") ||
+			!strings.Contains(listHuman, "Layer") || !strings.Contains(listHuman, "project_profile") ||
+			!strings.Contains(listHuman, "Shadows") || !strings.Contains(listHuman, "profile, user") {
 			t.Fatalf("agent list human output = %q, want category column", listHuman)
 		}
 
@@ -93,7 +109,7 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 			t.Fatalf("agent list toon error = %v", err)
 		}
 		const wantHeader = "agents[1]{name,provider,model,category,origin,workspace_id," +
-			"disabled_skills,definition_digest,tool_count,permissions}:"
+			"disabled_skills,layer,shadows,definition_digest,tool_count,permissions}:"
 		if !strings.Contains(listToon, wantHeader) ||
 			!strings.Contains(listToon, "Marketing / Sales") {
 			t.Fatalf("agent list toon output = %q, want category key", listToon)
@@ -119,10 +135,11 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 		}
 		if !strings.Contains(
 			toon,
-			"agent{name,provider,command,model,reasoning_effort,category,origin,workspace_id,disabled_skills,definition_digest,tools,permissions,prompt}:",
+			"agent{name,provider,command,model,reasoning_effort,category,origin,workspace_id,disabled_skills,layer,shadows,definition_digest,tools,permissions,prompt}:",
 		) ||
 			!strings.Contains(toon, agent.Name) ||
-			!strings.Contains(toon, "max") {
+			!strings.Contains(toon, "max") || !strings.Contains(toon, "project_profile") ||
+			!strings.Contains(toon, "profile, user") {
 			t.Fatalf("agent info toon output = %q, want TOON agent object", toon)
 		}
 	})
@@ -178,6 +195,36 @@ func TestAgentCommandsPassWorkspaceQuery(t *testing.T) {
 		}
 		if !strings.Contains(stdout, agent.Name) {
 			t.Fatalf("agent info --workspace output = %q, want %q", stdout, agent.Name)
+		}
+	})
+
+	t.Run("Should carry the selected profile through agent reads", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{
+			listProfilesFn: func(context.Context) ([]contract.Profile, error) {
+				return []contract.Profile{{ID: "profile-marketing", Name: "marketing", State: "active"}}, nil
+			},
+			listAgentsFn: func(ctx context.Context, _ AgentQuery) ([]AgentRecord, error) {
+				if got, want := profileQueryValues(ctx, nil).Get(profileFlagName), "marketing"; got != want {
+					t.Fatalf("ListAgents() profile query = %q, want %q", got, want)
+				}
+				return []AgentRecord{{Name: "marketer"}}, nil
+			},
+		}
+		deps := newWorkspaceTestDeps(t, client)
+
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"agent",
+			"list",
+			"--profile",
+			"marketing",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("agent list --profile error = %v", err)
 		}
 	})
 }

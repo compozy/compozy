@@ -21,6 +21,7 @@ func (r *bridgeRuntime) forgetRemovedBridgeEntities(plan *bridgepkg.ResourceProj
 			continue
 		}
 		r.deadEntities.ForgetEntity(store.DeadEntityKey{
+			ProfileID:   instance.ProfileID,
 			WorkspaceID: instance.WorkspaceID,
 			Kind:        store.DeadEntityKindBridge,
 			EntityID:    instance.ID,

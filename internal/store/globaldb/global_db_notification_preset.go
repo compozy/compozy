@@ -14,18 +14,27 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
-func (n *NotificationRepo) ListPresets(
+// ListPresetsForProfile returns preset definitions with enablement projected
+// for the explicit profile owner. Preset definitions are user-scoped, while
+// disabled exceptions are isolated by stable profile ID.
+func (n *NotificationRepo) ListPresetsForProfile(
 	ctx context.Context,
 	query presetspkg.Query,
+	profileID string,
 ) (items []presetspkg.Preset, err error) {
 	if err := n.checkReady(ctx, "list notification presets"); err != nil {
 		return nil, err
 	}
+	profileID = strings.TrimSpace(profileID)
+	if profileID == "" {
+		return nil, errors.New("store: notification preset profile id is required")
+	}
 	normalized := query.Normalize()
-	args := make([]any, 0, 3)
+	args := make([]any, 0, 4)
 	clauses := make([]string, 0, 3)
+	args = append(args, profileID)
 	if normalized.Enabled != nil {
-		clauses = append(clauses, "enabled = ?")
+		clauses = append(clauses, "COALESCE(enablement.enabled, 1) = ?")
 		args = append(args, *normalized.Enabled)
 	}
 	if normalized.BuiltIn != nil {
@@ -48,9 +57,12 @@ func (n *NotificationRepo) ListPresets(
 	// dynamic-sql: optional preset filters and the limit change the query structure.
 	rows, err := n.db.QueryContext(
 		ctx,
-		`SELECT name, events, targets, filter, enabled, built_in, default_version,
-		       default_hash, user_modified, default_update_available, created_at, updated_at
-		  FROM notification_presets`+where+`
+		`SELECT notification_presets.name, events, targets, filter, built_in, default_version,
+		       default_hash, user_modified, default_update_available, created_at, updated_at,
+		       COALESCE(enablement.enabled, 1)
+		  FROM notification_presets
+		  LEFT JOIN notification_preset_enablement AS enablement
+		    ON enablement.preset_name = notification_presets.name AND enablement.profile_id = ?`+where+`
 		 ORDER BY built_in DESC, name ASC`+limit,
 		args...,
 	)
@@ -64,7 +76,7 @@ func (n *NotificationRepo) ListPresets(
 	}()
 	items = make([]presetspkg.Preset, 0)
 	for rows.Next() {
-		preset, scanErr := scanNotificationPreset(rows)
+		preset, scanErr := scanNotificationPresetWithEnablement(rows)
 		if scanErr != nil {
 			return nil, scanErr
 		}
@@ -74,6 +86,42 @@ func (n *NotificationRepo) ListPresets(
 		return nil, fmt.Errorf("store: iterate notification presets: %w", err)
 	}
 	return items, nil
+}
+
+// SetPresetEnabled changes one preset's enabled state for exactly one profile.
+// Enabling removes the profile exception so the user-scoped default applies.
+func (n *NotificationRepo) SetPresetEnabled(
+	ctx context.Context,
+	name string,
+	profileID string,
+	enabled bool,
+) error {
+	if err := n.checkReady(ctx, "set notification preset enablement"); err != nil {
+		return err
+	}
+	name, profileID = strings.TrimSpace(name), strings.TrimSpace(profileID)
+	if name == "" || profileID == "" {
+		return errors.New("store: notification preset name and profile id are required")
+	}
+	if enabled {
+		if err := n.queries.DeleteNotificationPresetEnablement(
+			ctx,
+			sqlcgen.DeleteNotificationPresetEnablementParams{PresetName: name, ProfileID: profileID},
+		); err != nil {
+			return fmt.Errorf("store: enable notification preset %q: %w", name, err)
+		}
+		if _, err := getNotificationPreset(ctx, n.queries, name); err != nil {
+			return err
+		}
+		return nil
+	}
+	if err := n.queries.SetNotificationPresetEnablement(
+		ctx,
+		sqlcgen.SetNotificationPresetEnablementParams{PresetName: name, ProfileID: profileID, Enabled: 0},
+	); err != nil {
+		return fmt.Errorf("store: disable notification preset %q: %w", name, err)
+	}
+	return nil
 }
 
 func (n *NotificationRepo) GetPreset(ctx context.Context, name string) (presetspkg.Preset, error) {
@@ -113,7 +161,6 @@ func (n *NotificationRepo) CreatePreset(
 		Events:                 eventsJSON,
 		Targets:                targetsJSON,
 		Filter:                 normalized.Filter,
-		Enabled:                normalized.Enabled,
 		BuiltIn:                normalized.BuiltIn,
 		DefaultVersion:         normalized.DefaultVersion,
 		DefaultHash:            normalized.DefaultHash,
@@ -162,9 +209,6 @@ func (n *NotificationRepo) UpdatePreset(
 	if req.Filter != nil {
 		updated.Filter = strings.TrimSpace(*req.Filter)
 	}
-	if req.Enabled != nil {
-		updated.Enabled = *req.Enabled
-	}
 	updated.UpdatedAt = req.Now
 	if updated.UpdatedAt.IsZero() {
 		updated.UpdatedAt = n.now()
@@ -181,7 +225,6 @@ func (n *NotificationRepo) UpdatePreset(
 		Events:                 eventsJSON,
 		Targets:                targetsJSON,
 		Filter:                 updated.Filter,
-		Enabled:                updated.Enabled,
 		UserModified:           updated.UserModified,
 		DefaultUpdateAvailable: updated.DefaultUpdateAvailable,
 		UpdatedAt:              store.FormatTimestamp(updated.UpdatedAt),
@@ -296,7 +339,6 @@ func seedNotificationPresetDefault(
 		Events:         eventsJSON,
 		Targets:        targetsJSON,
 		Filter:         normalized.Filter,
-		Enabled:        normalized.Enabled,
 		DefaultVersion: normalized.DefaultVersion,
 		DefaultHash:    normalized.DefaultHash,
 		CreatedAt:      timestamp,

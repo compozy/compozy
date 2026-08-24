@@ -30,7 +30,7 @@ func (o *Observer) QueryEvents(ctx context.Context, query store.EventSummaryQuer
 		return events, nil
 	}
 
-	workspaces, err := o.memoryEventWorkspaces(ctx, query.WorkspaceID)
+	workspaces, err := o.memoryEventWorkspaces(ctx, query.ReadScope, query.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,11 @@ func (o *Observer) QueryTokenStats(ctx context.Context, query store.TokenStatsQu
 	return o.registry.ListTokenStats(ctx, query)
 }
 
-func (o *Observer) memoryEventWorkspaces(ctx context.Context, workspaceID string) ([]string, error) {
+func (o *Observer) memoryEventWorkspaces(
+	ctx context.Context,
+	readScope store.ReadScope,
+	workspaceID string,
+) ([]string, error) {
 	if o.workspaceResolver == nil {
 		return nil, nil
 	}
@@ -67,7 +71,7 @@ func (o *Observer) memoryEventWorkspaces(ctx context.Context, workspaceID string
 		}
 		return nil, nil
 	}
-	sessions, err := o.registry.ListSessions(ctx, store.SessionListQuery{})
+	sessions, err := o.registry.ListSessions(ctx, store.SessionListQuery{ReadScope: readScope})
 	if err != nil {
 		return nil, fmt.Errorf("observe: list sessions for memory event workspaces: %w", err)
 	}

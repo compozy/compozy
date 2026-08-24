@@ -502,12 +502,12 @@ func (h *daemonExtensionHandleStub) Descriptor() toolspkg.Descriptor {
 			ExtensionID: "spec-cycle",
 			Handler:     "import_tasks",
 		},
-		DisplayTitle: "Import tasks",
-		Description:  "Import task files",
-		InputSchema:  json.RawMessage(`{"type":"object","properties":{"pattern":{"type":"string"}}}`),
-		ReadOnly:     true,
-		Risk:         toolspkg.RiskRead,
-		Visibility:   toolspkg.VisibilitySession,
+		ToolPresentation: toolspkg.NewToolPresentation("Import tasks", "", ""),
+		Description:      "Import task files",
+		InputSchema:      json.RawMessage(`{"type":"object","properties":{"pattern":{"type":"string"}}}`),
+		ReadOnly:         true,
+		Risk:             toolspkg.RiskRead,
+		Visibility:       toolspkg.VisibilitySession,
 	}
 }
 

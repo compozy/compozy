@@ -1745,6 +1745,7 @@ func TestAutomationTriggerPayloadJSONShape(t *testing.T) {
 		sourceFilter := map[string]string{"branch": "main"}
 		payload := contract.TriggerPayloadFromTrigger(automationpkg.Trigger{
 			ID:               "trigger-1",
+			ProfileID:        "profile-marketing",
 			Scope:            automationpkg.AutomationScopeWorkspace,
 			Name:             "deploy-review",
 			AgentName:        "coder",
@@ -1766,6 +1767,9 @@ func TestAutomationTriggerPayloadJSONShape(t *testing.T) {
 
 		if !payload.WebhookSecretPresent || !strings.HasPrefix(payload.WebhookSecretHash, "sha256:") {
 			t.Fatalf("webhook secret metadata = %#v, want redacted metadata", payload)
+		}
+		if payload.ProfileID != "profile-marketing" {
+			t.Fatalf("payload.ProfileID = %q, want profile-marketing", payload.ProfileID)
 		}
 		if got, want := payload.Filter["branch"], "main"; got != want {
 			t.Fatalf("payload.Filter[branch] = %q, want %q", got, want)

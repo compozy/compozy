@@ -4,14 +4,14 @@ import "strconv"
 
 const networkCoordinatorKey = "coordinator"
 
-func sessionResolvedChannel(info SessionRecord) string {
+func sessionResolvedChannel(info *SessionRecord) string {
 	if info.ResolvedNetworkParticipation == nil {
 		return ""
 	}
 	return stringOrDash(info.ResolvedNetworkParticipation.ChannelID)
 }
 
-func sessionResolvedChannelRaw(info SessionRecord) string {
+func sessionResolvedChannelRaw(info *SessionRecord) string {
 	if info.ResolvedNetworkParticipation == nil {
 		return ""
 	}

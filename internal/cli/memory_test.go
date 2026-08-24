@@ -275,7 +275,7 @@ func TestMemoryDecisionCommands(t *testing.T) {
 			"decisions",
 			"list",
 			"--scope",
-			"global",
+			"profile",
 			"--filename",
 			"prefs.md",
 			"--limit",
@@ -286,8 +286,8 @@ func TestMemoryDecisionCommands(t *testing.T) {
 		if err != nil {
 			t.Fatalf("memory decisions list error = %v", err)
 		}
-		if seen.Scope != memcontract.ScopeGlobal || seen.TargetFilename != "prefs.md" || seen.Limit != 1 {
-			t.Fatalf("memory decision query = %#v, want global prefs.md limit 1", seen)
+		if seen.Scope != memcontract.ScopeProfile || seen.TargetFilename != "prefs.md" || seen.Limit != 1 {
+			t.Fatalf("memory decision query = %#v, want profile prefs.md limit 1", seen)
 		}
 		if !strings.Contains(stdout, "dec-filtered") {
 			t.Fatalf("memory decisions list output = %q, want filtered decision", stdout)
@@ -365,7 +365,7 @@ func TestMemoryWriteEditDeleteAndReindexUsePublicPayloads(t *testing.T) {
 	var editRequest MemoryEditRequest
 	var deleteSelector MemorySelectorQuery
 	var reindexRequest MemoryReindexRequest
-	deps := newWorkspaceTestDeps(t, &stubClient{
+	deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{
 		createMemoryFn: func(_ context.Context, request MemoryCreateRequest) (MemoryMutationRecord, error) {
 			createRequest = request
 			return MemoryMutationRecord{
@@ -480,7 +480,7 @@ func TestMemoryNestedOperationsCallDaemonClient(t *testing.T) {
 	t.Parallel()
 
 	calls := make(map[string]bool)
-	deps := newWorkspaceTestDeps(t, &stubClient{
+	deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{
 		memoryHealthFn: func(_ context.Context, workspace string) (MemoryHealthRecord, error) {
 			calls["health"] = workspace == "/workspace/project"
 			return MemoryHealthRecord{Status: "ok", Enabled: true, Configured: true}, nil

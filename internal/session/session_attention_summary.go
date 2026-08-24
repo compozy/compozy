@@ -10,7 +10,10 @@ import (
 )
 
 // AttentionSummary derives exact counts with the same badge authority used by row payloads.
-func (m *Manager) AttentionSummary(ctx context.Context) (store.SessionAttentionSummary, error) {
+func (m *Manager) AttentionSummary(
+	ctx context.Context,
+	readScope store.ReadScope,
+) (store.SessionAttentionSummary, error) {
 	if m == nil {
 		return store.SessionAttentionSummary{}, errors.New("session: manager is required")
 	}
@@ -22,9 +25,11 @@ func (m *Manager) AttentionSummary(ctx context.Context) (store.SessionAttentionS
 		return store.SessionAttentionSummary{}, errors.New("session: paged session catalog is required")
 	}
 	query, err := normalizeListQuery(ListQuery{
-		Archive: ArchiveExclude,
-		Sort:    ListSortAttention,
-		Limit:   MaxListLimit,
+		ReadScope:     readScope,
+		AllWorkspaces: true,
+		Archive:       ArchiveExclude,
+		Sort:          ListSortAttention,
+		Limit:         MaxListLimit,
 	})
 	if err != nil {
 		return store.SessionAttentionSummary{}, err

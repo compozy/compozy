@@ -70,6 +70,7 @@ export function memorySearchOptions(
           include_system: options?.includeSystem,
           explain: options?.explain,
         },
+        selector.profile,
         signal
       );
     },

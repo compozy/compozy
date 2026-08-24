@@ -218,6 +218,42 @@ func TestSpawnWorkspaceAccess(t *testing.T) {
 func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should inherit the parent profile ownership", func(t *testing.T) {
+		t.Parallel()
+
+		const profileID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+		h := newHarness(t, WithProfileNameResolver(profileNameResolverMap{profileID: "marketing"}))
+		parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			ProfileID: profileID,
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+			Type:      SessionTypeUser,
+			Lineage: &store.SessionLineage{
+				SpawnBudget: store.SessionSpawnBudget{MaxChildren: 1, MaxDepth: 1},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Create(profile parent) error = %v", err)
+		}
+		cleanupSessionStop(t, h, parent.ID)
+
+		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: parent.ID,
+			AgentName:       "coder",
+			TTL:             time.Minute,
+		})
+		if err != nil {
+			t.Fatalf("Spawn(profile child) error = %v", err)
+		}
+		cleanupSessionStop(t, h, child.ID)
+		if got := child.Info().ProfileID; got != profileID {
+			t.Fatalf("child profile = %q, want inherited %q", got, profileID)
+		}
+		if got := readMeta(t, child.MetaPath()).ProfileID; got != profileID {
+			t.Fatalf("persisted child profile = %q, want inherited %q", got, profileID)
+		}
+	})
+
 	t.Run("Should create child with durable lineage and narrowed permissions", func(t *testing.T) {
 		t.Parallel()
 

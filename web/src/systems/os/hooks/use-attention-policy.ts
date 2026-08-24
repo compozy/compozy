@@ -1,4 +1,5 @@
-import { useSettingsAttention } from "@/systems/settings";
+import { settingsAttentionFilterForProfile, useSettingsAttention } from "@/systems/settings";
+import { useProfileReadScope } from "@/systems/profiles";
 
 export interface OsAttentionPolicy {
   toasts: boolean;
@@ -17,7 +18,8 @@ export interface OsAttentionPolicy {
  * which is why this hook feeds rendering and never filters the summary.
  */
 export function useAttentionPolicy(): OsAttentionPolicy {
-  const query = useSettingsAttention();
+  const profile = useProfileReadScope();
+  const query = useSettingsAttention(settingsAttentionFilterForProfile(profile.destination));
   const config = query.data?.config;
   return {
     toasts: config?.toasts ?? true,

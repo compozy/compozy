@@ -311,8 +311,8 @@ func effectiveConfiguredLoopInputs(
 	workspaceID string,
 	loopName string,
 ) (map[string]any, error) {
-	global, err := client.GetLoopInputDefaults(
-		ctx, workspaceID, loopName, contract.LoopInputDefaultsScopeGlobal,
+	user, err := client.GetLoopInputDefaults(
+		ctx, workspaceID, loopName, contract.LoopInputDefaultsScopeUser,
 	)
 	if err != nil {
 		return nil, err
@@ -323,8 +323,8 @@ func effectiveConfiguredLoopInputs(
 	if err != nil {
 		return nil, err
 	}
-	values := make(map[string]any, len(global.Values)+len(workspace.Values))
-	maps.Copy(values, global.Values)
+	values := make(map[string]any, len(user.Values)+len(workspace.Values))
+	maps.Copy(values, user.Values)
 	maps.Copy(values, workspace.Values)
 	return values, nil
 }
@@ -366,8 +366,8 @@ func listAllSessionInputChoices(
 		if err != nil {
 			return nil, err
 		}
-		for _, item := range page.Sessions {
-			values = append(values, item.ID)
+		for index := range page.Sessions {
+			values = append(values, page.Sessions[index].ID)
 		}
 		if !page.Page.HasMore || page.Page.NextCursor == "" {
 			return sortedUniqueStrings(values), nil

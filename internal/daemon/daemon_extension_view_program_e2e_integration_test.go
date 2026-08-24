@@ -53,12 +53,12 @@ func TestDaemonE2EExtensionViewProgramFixture(t *testing.T) {
 			t, ctx, harness, &installed,
 			"extension", "install", build.GenerationDir, "--allow-unverified", "--yes", "-o", "json",
 		)
-		var enabled compozycontract.ExtensionEnableResult
+		var enabled compozycontract.ExtensionEnablementPayload
 		runExtensionAuthoringCLI(
 			t, ctx, harness, &enabled,
 			"extension", "enable", viewProgramFixtureExtensionName, "-o", "json",
 		)
-		if !enabled.Extension.Enabled {
+		if !enabled.Enabled || enabled.Profile != "default" {
 			t.Fatalf("enabled view fixture = %#v, want active extension", enabled)
 		}
 
@@ -127,7 +127,7 @@ func TestDaemonE2EExtensionViewProgramFixture(t *testing.T) {
 		closeViewProgram(t, ctx, harness, openedA.ViewSession, clientA.AttachmentToken)
 		assertViewProgramSessionGone(t, ctx, harness, openedA)
 
-		var disabled compozycontract.ExtensionPayload
+		var disabled compozycontract.ExtensionEnablementPayload
 		runExtensionAuthoringCLI(
 			t, ctx, harness, &disabled,
 			"extension", "disable", viewProgramFixtureExtensionName, "-o", "json",

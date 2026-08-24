@@ -34,90 +34,6 @@ func (h *BaseHandlers) requireLoopService(c *gin.Context) (LoopService, bool) {
 	return h.Loops, true
 }
 
-// CreateLoop creates or forks one writable Loop definition.
-func (h *BaseHandlers) CreateLoop(c *gin.Context) {
-	service, ok := h.requireLoopService(c)
-	if !ok {
-		return
-	}
-	var req contract.CreateLoopRequest
-	if err := decodeStrictLoopJSONBody(c, &req); err != nil {
-		h.respondLoopError(c, loopDecodeError("create", err))
-		return
-	}
-	response, err := service.CreateLoop(c.Request.Context(), c.Param("workspace_id"), req)
-	if err != nil {
-		h.respondLoopError(c, err)
-		return
-	}
-	c.JSON(http.StatusCreated, response)
-}
-
-// GetLoop inspects one resolved Loop definition.
-func (h *BaseHandlers) GetLoop(c *gin.Context) {
-	service, ok := h.requireLoopService(c)
-	if !ok {
-		return
-	}
-	response, err := service.GetLoop(c.Request.Context(), c.Param("workspace_id"), c.Param("name"))
-	if err != nil {
-		h.respondLoopError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, response)
-}
-
-// PatchLoop atomically lints, compiles, and publishes one Loop definition.
-func (h *BaseHandlers) PatchLoop(c *gin.Context) {
-	service, ok := h.requireLoopService(c)
-	if !ok {
-		return
-	}
-	var req contract.PatchLoopRequest
-	if err := decodeStrictLoopJSONBody(c, &req); err != nil {
-		h.respondLoopError(c, loopDecodeError("patch", err))
-		return
-	}
-	response, err := service.PatchLoop(c.Request.Context(), c.Param("workspace_id"), c.Param("name"), req)
-	if err != nil {
-		h.respondLoopError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, response)
-}
-
-// ValidateLoop lints and compiles one Loop definition without saving it.
-func (h *BaseHandlers) ValidateLoop(c *gin.Context) {
-	service, ok := h.requireLoopService(c)
-	if !ok {
-		return
-	}
-	var req contract.ValidateLoopRequest
-	if err := decodeStrictLoopJSONBody(c, &req); err != nil {
-		h.respondLoopError(c, loopDecodeError("validate", err))
-		return
-	}
-	response, err := service.ValidateLoop(c.Request.Context(), c.Param("workspace_id"), c.Param("name"), req)
-	if err != nil {
-		h.respondLoopError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, response)
-}
-
-// DeleteLoop deletes one writable Loop definition.
-func (h *BaseHandlers) DeleteLoop(c *gin.Context) {
-	service, ok := h.requireLoopService(c)
-	if !ok {
-		return
-	}
-	if err := service.DeleteLoop(c.Request.Context(), c.Param("workspace_id"), c.Param("name")); err != nil {
-		h.respondLoopError(c, err)
-		return
-	}
-	c.Status(http.StatusNoContent)
-}
-
 // RunLoop starts or dry-runs a Loop.
 func (h *BaseHandlers) RunLoop(c *gin.Context) {
 	service, ok := h.requireLoopService(c)
@@ -134,6 +50,11 @@ func (h *BaseHandlers) RunLoop(c *gin.Context) {
 		h.respondLoopError(c, fmt.Errorf("%w: dry query: %v", looppkg.ErrValidation, err))
 		return
 	}
+	mutationScope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	actor, err := h.taskActorContextForWorkspace(c, loopActionRun, c.Param("workspace_id"))
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
@@ -143,10 +64,10 @@ func (h *BaseHandlers) RunLoop(c *gin.Context) {
 		c.Request.Context(),
 		c.Param("workspace_id"),
 		c.Param("name"),
-		req,
-		loopStartKindForTransport(h.transportName()),
-		actor,
-		dry,
+		LoopRunInput{
+			Request: req, ProfileID: mutationScope.ProfileID,
+			StartKind: loopStartKindForTransport(h.transportName()), Actor: actor, Dry: dry,
+		},
 	)
 	if err != nil {
 		h.respondLoopError(c, err)
@@ -157,83 +78,6 @@ func (h *BaseHandlers) RunLoop(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, response)
-}
-
-// GetLoopConfig returns one no-fork Loop config override.
-func (h *BaseHandlers) GetLoopConfig(c *gin.Context) {
-	service, ok := h.requireLoopService(c)
-	if !ok {
-		return
-	}
-	response, err := service.GetLoopConfig(c.Request.Context(), c.Param("workspace_id"), c.Param("name"))
-	if err != nil {
-		h.respondLoopError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, response)
-}
-
-// PutLoopConfig replaces one no-fork Loop config override.
-func (h *BaseHandlers) PutLoopConfig(c *gin.Context) {
-	service, ok := h.requireLoopService(c)
-	if !ok {
-		return
-	}
-	var req contract.PutLoopConfigRequest
-	if err := decodeStrictLoopJSONBody(c, &req); err != nil {
-		h.respondLoopError(c, loopDecodeError("config", err))
-		return
-	}
-	response, err := service.PutLoopConfig(c.Request.Context(), c.Param("workspace_id"), c.Param("name"), req)
-	if err != nil {
-		h.respondLoopError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, response)
-}
-
-func loopDecodeError(operation string, err error) error {
-	message := fmt.Sprintf("decode %s loop request: %v", operation, err)
-	if strings.Contains(message, `unknown field "model_defaults"`) ||
-		strings.Contains(message, `unknown field "model"`) ||
-		strings.Contains(message, "unknown_field: model_defaults") ||
-		strings.Contains(message, "unknown_field: model") {
-		message += "; see MIGRATION_GUIDE.md#per-task-runtime-selection"
-	}
-	return fmt.Errorf("%w: %s", looppkg.ErrValidation, message)
-}
-
-// GetLoopAnnotations returns editor node positions for one Loop.
-func (h *BaseHandlers) GetLoopAnnotations(c *gin.Context) {
-	service, ok := h.requireLoopService(c)
-	if !ok {
-		return
-	}
-	response, err := service.GetLoopAnnotations(c.Request.Context(), c.Param("workspace_id"), c.Param("name"))
-	if err != nil {
-		h.respondLoopError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, response)
-}
-
-// PutLoopAnnotations replaces editor node positions for one Loop.
-func (h *BaseHandlers) PutLoopAnnotations(c *gin.Context) {
-	service, ok := h.requireLoopService(c)
-	if !ok {
-		return
-	}
-	var req contract.PutLoopAnnotationsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		h.respondLoopError(c, fmt.Errorf("%w: decode loop annotations request: %v", looppkg.ErrValidation, err))
-		return
-	}
-	response, err := service.PutLoopAnnotations(c.Request.Context(), c.Param("workspace_id"), c.Param("name"), req)
-	if err != nil {
-		h.respondLoopError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, response)
 }
 
 // ListLoopRuns returns workspace-scoped Loop runs.
@@ -247,12 +91,21 @@ func (h *BaseHandlers) ListLoopRuns(c *gin.Context) {
 		h.respondLoopError(c, fmt.Errorf("%w: %v", looppkg.ErrValidation, err))
 		return
 	}
+	query.ReadScope, err = h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	response, err := service.ListLoopRuns(c.Request.Context(), c.Param("workspace_id"), query)
 	if err != nil {
 		if errors.Is(err, looppkg.ErrInvalidRunListCursor) {
 			c.JSON(http.StatusBadRequest, gin.H{bridgesErrorKey: loopInvalidCursor})
 			return
 		}
+		h.respondLoopError(c, err)
+		return
+	}
+	if err := h.decorateLoopRunOwners(c.Request.Context(), &response); err != nil {
 		h.respondLoopError(c, err)
 		return
 	}
@@ -265,8 +118,21 @@ func (h *BaseHandlers) GetLoopRun(c *gin.Context) {
 	if !ok {
 		return
 	}
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	response, err := service.GetLoopRun(c.Request.Context(), c.Param("workspace_id"), c.Param("run_id"))
 	if err != nil {
+		h.respondLoopError(c, err)
+		return
+	}
+	if !readScope.Matches(response.Run.ProfileID) {
+		h.respondLoopError(c, looppkg.ErrRunNotFound)
+		return
+	}
+	if err := h.decorateLoopRunOwner(c.Request.Context(), &response.Run); err != nil {
 		h.respondLoopError(c, err)
 		return
 	}
@@ -308,6 +174,9 @@ func (h *BaseHandlers) ApproveLoopRun(c *gin.Context) {
 		h.respondLoopError(c, fmt.Errorf("%w: decode approve loop request: %v", looppkg.ErrValidation, err))
 		return
 	}
+	if !h.requireLoopRunProfile(c, service, true) {
+		return
+	}
 	workspaceID := c.Param("workspace_id")
 	actor, err := h.taskActorContextForWorkspace(c, loopActionApprove, workspaceID)
 	if err != nil {
@@ -325,6 +194,14 @@ func (h *BaseHandlers) ApproveLoopRun(c *gin.Context) {
 func (h *BaseHandlers) StreamLoopRunEvents(c *gin.Context) {
 	service, ok := h.requireLoopService(c)
 	if !ok {
+		return
+	}
+	if !h.requireLoopRunProfile(c, service, false) {
+		return
+	}
+	readScope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
 		return
 	}
 	afterSeq, err := parseLastEventID(c.GetHeader("Last-Event-ID"), h.transportName())
@@ -356,6 +233,7 @@ func (h *BaseHandlers) StreamLoopRunEvents(c *gin.Context) {
 			c.Param("workspace_id"),
 			c.Param("run_id"),
 			afterSeq,
+			readScope,
 		)
 		if err != nil {
 			h.logSSEWriteFailure("loop_events", err)
@@ -399,38 +277,14 @@ func (h *BaseHandlers) mutateLoopRun(c *gin.Context, mutate func(LoopService) er
 	if !ok {
 		return
 	}
+	if !h.requireLoopRunProfile(c, service, true) {
+		return
+	}
 	if err := mutate(service); err != nil {
 		h.respondLoopError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
-}
-
-// ParseLoopRunListQuery parses shared Loop run list filters.
-func ParseLoopRunListQuery(c *gin.Context) (LoopRunListQuery, error) {
-	limit, err := ParseOptionalInt(c.Query("limit"))
-	if err != nil {
-		return LoopRunListQuery{}, err
-	}
-	query := LoopRunListQuery{
-		LoopName:      strings.TrimSpace(c.Query("loop")),
-		Status:        strings.TrimSpace(c.Query("status")),
-		Origin:        strings.TrimSpace(c.Query("origin")),
-		OriginSession: strings.TrimSpace(c.Query("origin_session")),
-		Cursor:        strings.TrimSpace(c.Query("cursor")),
-		Limit:         limit,
-	}
-	if raw, present := c.GetQuery("live"); present {
-		if strings.TrimSpace(raw) == "" {
-			return LoopRunListQuery{}, errors.New("live must be nonempty")
-		}
-		live, err := ParseOptionalBool(raw)
-		if err != nil {
-			return LoopRunListQuery{}, err
-		}
-		query.Live = &live
-	}
-	return query, nil
 }
 
 func (h *BaseHandlers) respondLoopError(c *gin.Context, err error) {

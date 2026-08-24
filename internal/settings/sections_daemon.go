@@ -9,15 +9,6 @@ const (
 
 func diffGeneralSettings(cfg *compozyconfig.Config, desired GeneralSettings) []string {
 	var changed []string
-	if cfg.Defaults.Agent != desired.Defaults.Agent {
-		changed = append(changed, "defaults.agent")
-	}
-	if cfg.Defaults.Provider != desired.Defaults.Provider {
-		changed = append(changed, "defaults.provider")
-	}
-	if cfg.Defaults.Sandbox != desired.Defaults.Sandbox {
-		changed = append(changed, "defaults.sandbox")
-	}
 	if cfg.Limits.MaxConcurrentAgents != desired.Limits.MaxConcurrentAgents {
 		changed = append(changed, "limits.max_concurrent_agents")
 	}
@@ -59,9 +50,6 @@ func applyGeneralSettings(editor *compozyconfig.OverlayEditor, settings GeneralS
 		path  []string
 		value any
 	}{
-		{path: []string{sectionsDefaultsKey, string(ScopeAgent)}, value: settings.Defaults.Agent},
-		{path: []string{sectionsDefaultsKey, sectionsProviderKey}, value: settings.Defaults.Provider},
-		{path: []string{sectionsDefaultsKey, "sandbox"}, value: settings.Defaults.Sandbox},
 		{path: []string{"limits", "max_concurrent_agents"}, value: settings.Limits.MaxConcurrentAgents},
 		{path: []string{sectionsSessionKey, "limits", sectionsTimeoutKey}, value: settings.SessionTimeout.String()},
 		{path: []string{"permissions", sectionsModeKey}, value: string(settings.Permissions.Mode)},

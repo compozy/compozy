@@ -3,6 +3,7 @@ package network
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -26,6 +27,7 @@ var (
 // Work tracks one directed work inside one channel.
 type Work struct {
 	ID         string
+	ProfileID  string
 	Ref        ConversationRef
 	Initiator  string
 	Target     string
@@ -39,6 +41,9 @@ type Work struct {
 func (i Work) Validate() error {
 	if i.ID == "" {
 		return fmt.Errorf("%w: work id is required", ErrMissingField)
+	}
+	if strings.TrimSpace(i.ProfileID) == "" {
+		return fmt.Errorf("%w: work profile id is required", ErrMissingField)
 	}
 	if err := ValidateWorkID(i.ID); err != nil {
 		return fmt.Errorf("validate work id: %w", err)
@@ -112,7 +117,7 @@ type LifecycleResult struct {
 }
 
 // OpenWork opens a new work from the first directed message.
-func OpenWork(env Envelope, at time.Time) (Work, error) {
+func OpenWork(profileID string, env Envelope, at time.Time) (Work, error) {
 	if env.Kind != KindSay && env.Kind != KindCapability {
 		return Work{}, fmt.Errorf("%w: opening message kind=%q", ErrInvalidField, env.Kind)
 	}
@@ -133,6 +138,7 @@ func OpenWork(env Envelope, at time.Time) (Work, error) {
 
 	work := Work{
 		ID:        *env.WorkID,
+		ProfileID: strings.TrimSpace(profileID),
 		Ref:       ref,
 		Initiator: env.From,
 		Target:    *env.To,
@@ -150,11 +156,11 @@ func OpenWork(env Envelope, at time.Time) (Work, error) {
 
 // ApplyWorkEnvelope applies one validated lifecycle envelope to the
 // current work state and returns the router-facing decision.
-func ApplyWorkEnvelope(current *Work, env Envelope, at time.Time) (LifecycleResult, error) {
+func ApplyWorkEnvelope(current *Work, profileID string, env Envelope, at time.Time) (LifecycleResult, error) {
 	at = normalizeWorkTime(at)
 
 	if current == nil {
-		return openWorkResult(env, at)
+		return openWorkResult(profileID, env, at)
 	}
 
 	work, err := validateWorkEnvelope(*current, env)
@@ -175,8 +181,8 @@ func normalizeWorkTime(at time.Time) time.Time {
 	return at
 }
 
-func openWorkResult(env Envelope, at time.Time) (LifecycleResult, error) {
-	opened, err := OpenWork(env, at)
+func openWorkResult(profileID string, env Envelope, at time.Time) (LifecycleResult, error) {
+	opened, err := OpenWork(profileID, env, at)
 	if err != nil {
 		if env.Kind != KindSay && env.Kind != KindCapability {
 			return LifecycleResult{}, fmt.Errorf("%w: kind=%q", ErrWorkNotFound, env.Kind)

@@ -19,6 +19,7 @@ func (s *service) putMCPCollectionItem(
 		ctx,
 		scope,
 		workspaceID,
+		req.ProfileName,
 		name,
 		req.Target,
 		*req.MCPServer,

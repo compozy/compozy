@@ -106,7 +106,7 @@ func (n *daemonNativeTools) memoryAdminDefaultScope(
 	if strings.TrimSpace(firstNonEmpty(input.WorkspaceID, callerScope.WorkspaceID)) != "" {
 		return memcontract.ScopeWorkspace
 	}
-	return memcontract.ScopeGlobal
+	return memcontract.ScopeProfile
 }
 
 func memoryAdminSelectorPayload(location memoryToolLocation) contract.MemoryScopeSelectorPayload {
@@ -119,7 +119,7 @@ func memoryAdminSelectorPayload(location memoryToolLocation) contract.MemoryScop
 }
 
 func memoryAdminPrecedencePayloads(location memoryToolLocation) []contract.MemoryScopeSelectorPayload {
-	payloads := []contract.MemoryScopeSelectorPayload{{Scope: memcontract.ScopeGlobal}}
+	payloads := []contract.MemoryScopeSelectorPayload{{Scope: memcontract.ScopeProfile}}
 	if strings.TrimSpace(location.WorkspaceID) != "" {
 		payloads = append(payloads, contract.MemoryScopeSelectorPayload{
 			Scope:       memcontract.ScopeWorkspace,

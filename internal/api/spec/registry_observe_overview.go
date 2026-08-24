@@ -10,14 +10,14 @@ func getObserveOverviewOperationSpec() OperationSpec {
 		Summary:     "Get the observer-backed home overview",
 		Tags:        []string{specObserveKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileScope(
 			queryParam(
 				specWorkspaceKey,
 				"Scope aggregates to one workspace; empty selects the global home scope",
 				false,
 			),
 			enumQueryParam("usage_window", "Usage window in days (default 30)", []string{"7", "30", "90"}),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ObserveOverviewResponse{}},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},

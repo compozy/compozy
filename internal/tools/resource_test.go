@@ -26,7 +26,7 @@ func TestToolResourceCodecCanonicalizesInputSchema(t *testing.T) {
 
 		codec := mustToolResourceCodec(t)
 
-		scope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+		scope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 		spec, err := codec.DecodeAndValidate(testutil.Context(t), scope, []byte(`{
 			"id": "ext__linear__search",
 			"display_title": " Search ",
@@ -130,7 +130,7 @@ func TestToolResourceCodecRejectsInvalidSchema(t *testing.T) {
 		codec := mustToolResourceCodec(t)
 		_, err := codec.DecodeAndValidate(
 			testutil.Context(t),
-			resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			[]byte(`{
 				"id": "ext__linear__search",
 				"backend": {"kind": "extension_host", "extension_id": "linear", "handler": "search"},
@@ -152,7 +152,7 @@ func TestToolResourceCodecRejectsInvalidSchema(t *testing.T) {
 		codec := mustToolResourceCodec(t)
 		_, err := codec.DecodeAndValidate(
 			testutil.Context(t),
-			resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			[]byte(`{
 				"id": "ext__linear__search",
 				"backend": {"kind": "extension_host", "extension_id": "linear", "handler": "search"},
@@ -173,7 +173,7 @@ func TestToolResourceCodecRejectsInvalidSchema(t *testing.T) {
 		codec := mustToolResourceCodec(t)
 		_, err := codec.DecodeAndValidate(
 			testutil.Context(t),
-			resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 			[]byte(`{
 				"id": "ext__linear__search",
 				"backend": {"kind": "extension_host", "extension_id": "linear", "handler": "search"},

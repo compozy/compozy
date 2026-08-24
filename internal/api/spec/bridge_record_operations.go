@@ -6,14 +6,14 @@ func bridgeRecordOperations() []OperationSpec {
 	return []OperationSpec{
 		{
 			Method:      httpMethodGet,
-			Path:        "/api/bridges/{id}",
+			Path:        specBridgeRecordPath,
 			OperationID: "getBridge",
 			Summary:     "Get one bridge instance",
 			Tags:        []string{specBridgesKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters: []ParameterSpec{
+			Parameters: withProfileScope(
 				pathParam("id", "Bridge instance id"),
-			},
+			),
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.BridgeResponse{}},
 				{Status: 404, Description: specBridgeInstanceNotFoundDescription, Body: contract.ErrorPayload{}},
@@ -23,14 +23,14 @@ func bridgeRecordOperations() []OperationSpec {
 		},
 		{
 			Method:      httpMethodPatch,
-			Path:        "/api/bridges/{id}",
+			Path:        specBridgeRecordPath,
 			OperationID: "updateBridge",
 			Summary:     "Update mutable bridge instance fields",
 			Tags:        []string{specBridgesKey},
 			Transports:  []Transport{TransportHTTP, TransportUDS},
-			Parameters: []ParameterSpec{
+			Parameters: withProfileSelector(
 				pathParam("id", "Bridge instance id"),
-			},
+			),
 			RequestBody: contract.UpdateBridgeRequest{},
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: contract.BridgeResponse{}},

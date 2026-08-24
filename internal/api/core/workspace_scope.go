@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -117,6 +118,18 @@ func (h *BaseHandlers) requireSessionInWorkspace(
 		return nil, errWorkspaceScopedResourceNotFound
 	}
 	return info, nil
+}
+
+func (h *BaseHandlers) requireSessionInProfile(
+	c *gin.Context,
+	info *session.Info,
+	scope profilepkg.ReadScope,
+) bool {
+	if info == nil || !scope.Matches(info.ProfileID) {
+		h.respondError(c, http.StatusNotFound, errWorkspaceScopedResourceNotFound)
+		return false
+	}
+	return true
 }
 
 func statusForWorkspaceScopedResourceError(err error) int {

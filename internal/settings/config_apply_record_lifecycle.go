@@ -16,6 +16,8 @@ type applyRecordInput struct {
 	desiredHash  string
 	activeHash   string
 	generation   int64
+	writeTarget  WriteTargetKind
+	writePath    string
 	lifecycle    lifecycle.Lifecycle
 	status       lifecycle.Status
 	diagnostics  []diagnosticcontract.DiagnosticItem
@@ -126,6 +128,8 @@ func (s *service) createPendingApplyRecord(
 		ActiveHash:  input.activeHash,
 		Generation:  input.generation,
 		Actor:       mutationSourceFromContext(ctx),
+		WriteTarget: input.writeTarget,
+		WritePath:   input.writePath,
 		DiffClass:   lifecycle.DiffClass(input.lifecycle),
 		Status:      lifecycle.StatusPendingApply,
 		CreatedAt:   now,

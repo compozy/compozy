@@ -65,11 +65,16 @@ func (s extensionLifecycleEventStoreSink) summary(
 	if now == nil {
 		now = time.Now
 	}
-	return store.EventSummary{
-		Type: event.Type, Outcome: string(eventspkg.OutcomeFor(event.Type)), Content: content,
+	profileID := strings.TrimSpace(event.ProfileID)
+	if profileID == "" {
+		profileID = store.DefaultProfileID
+	}
+	return daemonEventSummary(store.EventSummary{
+		ProfileID: profileID,
+		Type:      event.Type, Outcome: string(eventspkg.OutcomeFor(event.Type)),
 		Summary: event.Type + " " + event.ExtensionName, Timestamp: now().UTC(),
 		EventCorrelation: store.EventCorrelation{ActorKind: s.actorKind, ActorID: s.actorID},
-	}, nil
+	}, content), nil
 }
 
 func (s *daemonExtensionService) recordCanonicalExtensionLifecycleEvent(
@@ -162,7 +167,7 @@ func (s *daemonExtensionService) recordExtensionEvent(
 	ctx context.Context,
 	eventType string,
 	actor taskpkg.ActorContext,
-	item contract.ExtensionPayload,
+	item *contract.ExtensionPayload,
 ) error {
 	payload := extensionEventPayload(item)
 	return s.recordExtensionLifecycleEvent(ctx, eventType, actor, payload)
@@ -173,7 +178,7 @@ func (s *daemonExtensionService) recordExtensionEnableEvents(
 	actor taskpkg.ActorContext,
 	key extensionpkg.InstanceKey,
 	confirmation *extensionpkg.NetworkConfirmation,
-	result contract.ExtensionEnableResult,
+	result *contract.ExtensionEnableResult,
 ) error {
 	key = key.Normalize()
 	events := make([]extensionpkg.LifecycleEvent, 0, 2)
@@ -190,7 +195,7 @@ func (s *daemonExtensionService) recordExtensionEnableEvents(
 	return s.recordCanonicalExtensionLifecycleEvents(ctx, actor, events...)
 }
 
-func extensionEventPayload(item contract.ExtensionPayload) extensionLifecycleEventPayload {
+func extensionEventPayload(item *contract.ExtensionPayload) extensionLifecycleEventPayload {
 	payload := extensionLifecycleEventPayload{
 		Name:           item.Name,
 		Version:        item.Version,
@@ -309,11 +314,12 @@ func (s *daemonExtensionService) writeExtensionEvent(
 	if err != nil {
 		return fmt.Errorf("daemon: encode extension event: %w", err)
 	}
-	if err := s.eventWriter.WriteEventSummary(context.WithoutCancel(ctx), store.EventSummary{
-		Type: eventType, Outcome: string(outcome), Content: content,
+	if err := s.eventWriter.WriteEventSummary(context.WithoutCancel(ctx), daemonEventSummary(store.EventSummary{
+		ProfileID: store.DefaultProfileID,
+		Type:      eventType, Outcome: string(outcome),
 		Summary: summary, Timestamp: s.now().UTC(),
 		EventCorrelation: store.EventCorrelation{ActorKind: actorKind, ActorID: actorID},
-	}); err != nil {
+	}, content)); err != nil {
 		return fmt.Errorf("daemon: record extension event: %w", err)
 	}
 	return nil

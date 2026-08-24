@@ -17,7 +17,9 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	registrypkg "github.com/compozy/compozy/internal/registry"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -93,6 +95,190 @@ func TestDaemonExtensionServiceConsumerSync(t *testing.T) {
 		close(firstRelease)
 		if err := requireLifecycleResult(t, firstResult, "first resource consumer sync"); err != nil {
 			t.Fatalf("first sync error = %v", err)
+		}
+	})
+}
+
+func TestDaemonExtensionProfileReads(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should resolve the selected profile name", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		profiles, err := profilepkg.NewManager(
+			profilepkg.WithStore(db),
+			profilepkg.WithHomePaths(testHomePaths(t)),
+			profilepkg.WithLogger(discardLogger()),
+		)
+		if err != nil {
+			t.Fatalf("profile.NewManager() error = %v", err)
+		}
+		created, err := profiles.Create(t.Context(), profilepkg.CreateInput{Name: "marketing"})
+		if err != nil {
+			t.Fatalf("profiles.Create() error = %v", err)
+		}
+
+		service := &daemonExtensionService{profiles: profiles}
+		got, err := service.extensionReadProfile(t.Context(), taskpkg.ActorContext{
+			ReadScope: store.ReadScope{ProfileID: created.ID},
+		})
+		if err != nil {
+			t.Fatalf("extensionReadProfile() error = %v", err)
+		}
+		if got.ID != created.ID || got.Name != created.Name {
+			t.Fatalf("extensionReadProfile() = %#v, want profile %#v", got, created)
+		}
+	})
+
+	t.Run("Should reject aggregate reads", func(t *testing.T) {
+		t.Parallel()
+
+		service := &daemonExtensionService{}
+		_, err := service.extensionReadProfile(t.Context(), taskpkg.ActorContext{
+			ReadScope: store.ReadScope{AllProfiles: true},
+		})
+		if err == nil || !strings.Contains(err.Error(), "one extension read profile is required") {
+			t.Fatalf("extensionReadProfile(aggregate) error = %v, want aggregate rejection", err)
+		}
+	})
+
+	t.Run("Should resolve the default profile without a manager", func(t *testing.T) {
+		t.Parallel()
+
+		service := &daemonExtensionService{}
+		got, err := service.extensionReadProfile(t.Context(), taskpkg.ActorContext{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+		})
+		if err != nil {
+			t.Fatalf("extensionReadProfile(default) error = %v", err)
+		}
+		if got.ID != store.DefaultProfileID || got.Name != "default" {
+			t.Fatalf("extensionReadProfile(default) = %#v, want default profile lens", got)
+		}
+	})
+
+	t.Run("Should require a manager for non-default profiles", func(t *testing.T) {
+		t.Parallel()
+
+		service := &daemonExtensionService{}
+		_, err := service.extensionReadProfile(t.Context(), taskpkg.ActorContext{
+			ReadScope: store.ReadScope{ProfileID: "profile-marketing"},
+		})
+		if err == nil || !strings.Contains(err.Error(), "profile manager is required") {
+			t.Fatalf("extensionReadProfile(non-default) error = %v, want manager requirement", err)
+		}
+	})
+
+	t.Run("Should pass the selected profile to a profile-aware runtime", func(t *testing.T) {
+		t.Parallel()
+
+		ext := &extensionpkg.Extension{Info: extensionpkg.ExtensionInfo{Name: "profile-aware"}}
+		runtime := &profileReadProjectedRuntime{
+			profileReadDevRuntime: &profileReadDevRuntime{ext: ext},
+		}
+		profile := extensionpkg.ProfileLens{ID: "profile-marketing", Name: "marketing"}
+		service := &daemonExtensionService{}
+		got, err := service.projectExtensionReadProfile(
+			t.Context(), runtime, extensionpkg.InstanceKey{Name: "profile-aware"}, profile,
+		)
+		if err != nil {
+			t.Fatalf("projectExtensionReadProfile(profile-aware) error = %v", err)
+		}
+		if got != ext || runtime.lastProfile != profile {
+			t.Fatalf(
+				"projectExtensionReadProfile(profile-aware) = %#v, profile = %#v; want original extension and %#v",
+				got,
+				runtime.lastProfile,
+				profile,
+			)
+		}
+	})
+
+	t.Run("Should apply profile enablement when the runtime is not profile-aware", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		const name = "profile-read-kit"
+		installDaemonTestExtension(t, db, name, daemonTestExtensionOptions{}, true)
+		ext := &extensionpkg.Extension{
+			Info:   extensionpkg.ExtensionInfo{Name: name, Enabled: true},
+			Status: extensionpkg.ExtensionStatus{Name: name, Enabled: true, Registered: true},
+		}
+		runtime := &profileReadDevRuntime{ext: ext}
+		service := &daemonExtensionService{registry: extensionpkg.NewRegistry(db.DB())}
+		profile := extensionpkg.ProfileLens{ID: store.DefaultProfileID, Name: "default"}
+		got, err := service.projectExtensionReadProfile(
+			t.Context(), runtime, extensionpkg.InstanceKey{Name: name}, profile,
+		)
+		if err != nil {
+			t.Fatalf("projectExtensionReadProfile(fallback) error = %v", err)
+		}
+		if got.Info.Enabled != true || got.Status.Enabled != true {
+			t.Fatalf("projectExtensionReadProfile(fallback) = %#v, want enabled extension", got)
+		}
+	})
+
+	t.Run("Should preserve the selected profile through scoped list and status reads", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		profiles, err := profilepkg.NewManager(
+			profilepkg.WithStore(db),
+			profilepkg.WithHomePaths(testHomePaths(t)),
+			profilepkg.WithLogger(discardLogger()),
+		)
+		if err != nil {
+			t.Fatalf("profile.NewManager() error = %v", err)
+		}
+		created, err := profiles.Create(t.Context(), profilepkg.CreateInput{Name: "marketing"})
+		if err != nil {
+			t.Fatalf("profiles.Create() error = %v", err)
+		}
+		ext := &extensionpkg.Extension{
+			Info: extensionpkg.ExtensionInfo{Name: "profile-aware", Enabled: true},
+			Status: extensionpkg.ExtensionStatus{
+				Name: "profile-aware", Enabled: true, Registered: true,
+			},
+		}
+		runtime := &profileReadProjectedRuntime{
+			profileReadDevRuntime: &profileReadDevRuntime{ext: ext},
+		}
+		service := &daemonExtensionService{profiles: profiles, runtime: runtime}
+		actor := taskpkg.ActorContext{
+			Actor:     taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "operator"},
+			Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "extensions read"},
+			Authority: taskpkg.Authority{Read: true},
+			Scope:     taskpkg.CallerScope{Operator: true},
+			ReadScope: store.ReadScope{ProfileID: created.ID},
+		}
+
+		listed, err := service.ListScoped(t.Context(), actor)
+		if err != nil {
+			t.Fatalf("ListScoped() error = %v", err)
+		}
+		if len(listed) != 1 || listed[0].Profile != created.Name ||
+			runtime.lastProfile.ID != created.ID || runtime.lastProfile.Name != created.Name {
+			t.Fatalf(
+				"ListScoped() = %#v, projected profile = %#v; want owner %#v",
+				listed,
+				runtime.lastProfile,
+				created,
+			)
+		}
+
+		status, err := service.StatusScoped(t.Context(), ext.Info.Name, actor)
+		if err != nil {
+			t.Fatalf("StatusScoped() error = %v", err)
+		}
+		if status.Profile != created.Name || runtime.lastProfile.ID != created.ID ||
+			runtime.lastProfile.Name != created.Name {
+			t.Fatalf(
+				"StatusScoped() = %#v, projected profile = %#v; want owner %#v",
+				status,
+				runtime.lastProfile,
+				created,
+			)
 		}
 	})
 }
@@ -542,12 +728,13 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		source.downloads["1.0.0"] = lifecycleNetworkExtensionDownloadResult(t, "1.0.0", "builders")
 		source.downloads["2.0.0"] = lifecycleNetworkExtensionDownloadResult(t, "2.0.0", "reviewers")
 		source.latestVersion = "1.0.0"
+		firstDigest := lifecycleNetworkDigest(t, "builders")
 		if _, err := service.Install(t.Context(), contract.InstallExtensionRequest{
 			Source: contract.InstallExtensionSourceGitHub, Ref: "acme/tool-ext", AllowUnverified: true,
+			ConfirmNetworkDigest: firstDigest,
 		}, actor); err != nil {
 			t.Fatalf("Install(v1) error = %v", err)
 		}
-		firstDigest := lifecycleNetworkDigest(t, "builders")
 		if _, err := service.Enable(
 			t.Context(),
 			"tool-ext",
@@ -649,7 +836,7 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 			{
 				name: "registry mutation",
 				configure: func(t *testing.T, harness *lifecycleFailureHarness) {
-					harness.installFailureTrigger(t, "enabled", "NEW.enabled = 1")
+					harness.installEnablementDeleteFailureTrigger(t)
 				},
 				wantError: "injected lifecycle failure",
 			},
@@ -847,6 +1034,119 @@ type rollbackDevRuntime struct {
 	activateErr   error
 	stageCalls    int
 	activateCalls int
+}
+
+type profileReadDevRuntime struct {
+	ext *extensionpkg.Extension
+}
+
+var _ extensionDevRuntime = (*profileReadDevRuntime)(nil)
+var _ extensionRuntime = (*profileReadDevRuntime)(nil)
+
+func (*profileReadDevRuntime) Start(context.Context) error { return nil }
+
+func (*profileReadDevRuntime) Stop(context.Context) error { return nil }
+
+func (*profileReadDevRuntime) Reload(context.Context) error { return nil }
+
+func (r *profileReadDevRuntime) Get(string) (*extensionpkg.Extension, error) {
+	if r.ext == nil {
+		return nil, extensionpkg.ErrExtensionNotFound
+	}
+	return r.ext, nil
+}
+
+func (r *profileReadDevRuntime) InspectPackageResources(
+	context.Context,
+	string,
+) (*extensionpkg.Extension, error) {
+	if r.ext == nil {
+		return nil, extensionpkg.ErrExtensionNotFound
+	}
+	return r.ext, nil
+}
+
+func (r *profileReadDevRuntime) GetForInstance(extensionpkg.InstanceKey) (*extensionpkg.Extension, error) {
+	if r.ext == nil {
+		return nil, extensionpkg.ErrExtensionNotFound
+	}
+	return r.ext, nil
+}
+
+func (r *profileReadDevRuntime) ListForWorkspace(string) []extensionpkg.ExtensionInfo {
+	if r.ext == nil {
+		return nil
+	}
+	return []extensionpkg.ExtensionInfo{r.ext.Info}
+}
+
+func (*profileReadDevRuntime) InspectDevelopmentGeneration(
+	context.Context,
+	string,
+	string,
+	string,
+) (extensionpkg.DevelopmentGeneration, error) {
+	return extensionpkg.DevelopmentGeneration{}, nil
+}
+
+func (*profileReadDevRuntime) LinkDevelopmentFromOrigin(
+	context.Context,
+	string,
+	string,
+	string,
+) (*extensionpkg.Extension, error) {
+	return nil, nil
+}
+
+func (*profileReadDevRuntime) StageDevelopmentLink(
+	context.Context,
+	extensionpkg.InstanceKey,
+	string,
+	string,
+) (*extensionpkg.DevLink, error) {
+	return nil, nil
+}
+
+func (*profileReadDevRuntime) ActivateDevelopmentLink(
+	context.Context,
+	extensionpkg.InstanceKey,
+) (*extensionpkg.Extension, error) {
+	return nil, nil
+}
+
+func (*profileReadDevRuntime) ReloadExtension(
+	context.Context,
+	extensionpkg.InstanceKey,
+	string,
+) (*extensionpkg.Extension, error) {
+	return nil, nil
+}
+
+func (*profileReadDevRuntime) UnlinkDevelopment(context.Context, extensionpkg.InstanceKey) error {
+	return nil
+}
+
+func (*profileReadDevRuntime) Logs(
+	extensionpkg.InstanceKey,
+	extensionpkg.ExtensionLogCursor,
+) (extensionpkg.ExtensionLogSnapshot, error) {
+	return extensionpkg.ExtensionLogSnapshot{}, nil
+}
+
+type profileReadProjectedRuntime struct {
+	*profileReadDevRuntime
+	lastProfile extensionpkg.ProfileLens
+}
+
+var _ profiledExtensionRuntime = (*profileReadProjectedRuntime)(nil)
+
+func (r *profileReadProjectedRuntime) ProjectForProfile(
+	_ context.Context,
+	_ extensionpkg.InstanceKey,
+	profile extensionpkg.ProfileLens,
+) (*extensionpkg.Extension, bool, error) {
+	r.lastProfile = profile
+	return r.ext, true, nil
 }
 
 var _ extensionDevRuntime = (*rollbackDevRuntime)(nil)
@@ -1136,6 +1436,17 @@ func (h *lifecycleFailureHarness) installFailureTrigger(t *testing.T, column str
 		" BEGIN SELECT RAISE(ABORT, 'injected lifecycle failure'); END"
 	if _, err := h.registry.DB().ExecContext(t.Context(), statement); err != nil {
 		t.Fatalf("install lifecycle failure trigger error = %v", err)
+	}
+}
+
+func (h *lifecycleFailureHarness) installEnablementDeleteFailureTrigger(t *testing.T) {
+	t.Helper()
+	statement := "CREATE TEMP TRIGGER fail_extension_lifecycle_enablement" +
+		" BEFORE DELETE ON extension_profile_enablement" +
+		" WHEN OLD.extension_name = '" + h.name + "'" +
+		" BEGIN SELECT RAISE(ABORT, 'injected lifecycle failure'); END"
+	if _, err := h.registry.DB().ExecContext(t.Context(), statement); err != nil {
+		t.Fatalf("install lifecycle enablement failure trigger error = %v", err)
 	}
 }
 
