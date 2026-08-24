@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Session Calls panel — inspector tab and timeline · Agent comms · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="agent-comms.css">
+<!--
+  agent-comms-session-calls-panel · S5 — session detail: the Calls inspector
+  tab, timeline call rows, and the completion wake.
+  Spec: .compozy/tasks/agent-comms/_uiux.md S5 · US-017/029 · task_06/VC-20–21.
+  Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — session-inspector.tsx tab strip (usage | memory | files |
+                 vault); session-timeline-render.tsx Marker/MarkerMeta rows;
+                 runtime-activity-notice.tsx wake causes; detail inspector
+                 rail 320px pixel-true
+    spec — both directions render (made / received); the wake row answers
+           "why did this session wake" with call identity + bounded preview;
+           counts are daemon-projected, pagination never fakes a total;
+           pruned counterparts keep identity and lose only the link
+    authorized delta — lab scaffold copied into agent-comms.css (graph-eng
+                       retired); transcript body reduced to the rows this
+                       spec owns — neighboring turns are elided
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="sp-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Agent comms</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Session Calls panel</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="agent-comms-in-session.html">← In the session</a>
+      <a class="btn btn--sm" href="agent-comms-attention.html">Attention →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="lab-sec" data-od-id="sp-tab">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">The Calls tab — both directions, one session</h2>
+        <span class="lab-sec__gist">task_06/VC-20</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>One tab lists every hand-off</b>Calls sits beside usage, memory, files, and vault. Help this session asked for and help it was asked for differ by arrow direction, never by color. Each row: who, the state chip, and how long ago — Enter opens the full record. <span class="mono">US-029.AC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="sp-tab-stage">
+            <section class="win is-focused" data-od-id="sp-tab-win">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="terminal"></svg></span>
+                  <span class="w2-title">loop-retry-fix</span>
+                  <span class="w2-meta">ses_01JBD7ZZAAAA</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+              </header>
+              <div class="win-body"><div class="app">
+                <div class="layout">
+                  <div style="min-width:0;display:flex;flex-direction:column;gap:12px" data-od-id="sp-tab-transcript">
+                    <div>
+                      <div class="msg-role">Agent</div>
+                      <div class="msg-text">The retry fix is in — asking <b>reviewer</b> to look it over before we merge.</div>
+                    </div>
+                    <div class="ac-marker"><span class="ac-marker__rule"></span><span class="ac-marker__label"><svg data-lucide="corner-up-right"></svg>call created · reviewer <span class="mono">call_01JBD8G2K7Q9</span></span><span class="ac-marker__rule"></span></div>
+                    <details class="ac-turn-call">
+                      <summary class="ac-turn-call__head">
+                        <svg class="ac-turn-call__caret" data-lucide="chevron-right"></svg>
+                        <span class="agent-chip">RV</span>
+                        <span class="ac-turn-call__verb">Asked</span>
+                        <span class="ac-turn-call__agent">reviewer</span>
+                        <span class="ac-state" data-state="completed"><svg data-lucide="check"></svg>completed</span>
+                        <span class="ac-turn-call__age">2m</span>
+                      </summary>
+                      <div class="ac-turn-call__body">
+                        <div class="ac-turn-call__ask">Review the diff in HEAD~1..HEAD of this repo</div>
+                        <div class="ac-turn-call__result">
+                          <span class="ac-turn-call__preview">{"verdict":"needs-changes"} · 1 finding</span>
+                          <a href="agent-comms-call-detail.html">Open call</a>
+                        </div>
+                      </div>
+                    </details>
+                    <div class="ac-marker"><span class="ac-marker__rule"></span><span class="ac-marker__label"><svg data-lucide="corner-down-left"></svg>result arrived · <span class="mono">completed · returned</span></span><span class="ac-marker__rule"></span></div>
+                    <div class="ac-wake" data-od-id="sp-tab-wake">
+                      <div class="ac-wake__head"><svg data-lucide="bell"></svg>Woke because a call completed</div>
+                      <div class="ac-wake__preview">Call completed: reviewer (call_01JBD8G2K7Q9) → completed.
+Result preview: {"verdict":"needs-changes"} (312 B, contract sha256:9f2c…)</div>
+                      <div class="ac-wake__meta"><span>delivered with the outcome — one delivery</span><a href="agent-comms-call-detail.html" style="color:var(--fg);margin-left:auto">open call</a></div>
+                    </div>
+                    <div>
+                      <div class="msg-role">Agent</div>
+                      <div class="msg-text">reviewer flagged one thing at <code>action.go:88</code> — fixing it now.</div>
+                    </div>
+                  </div>
+                  <aside class="railbox" data-od-id="sp-tab-rail">
+                    <div class="rail-sec" style="padding-top:10px;padding-bottom:0">
+                      <nav class="tabbar" aria-label="Inspector panels" style="border-bottom:1px solid var(--line)">
+                        <button class="tab" type="button">Usage</button>
+                        <button class="tab" type="button">Memory</button>
+                        <button class="tab" type="button">Files</button>
+                        <button class="tab" type="button">Vault</button>
+                        <button class="tab is-on" type="button" aria-current="true">Calls</button>
+                      </nav>
+                    </div>
+                    <div class="rail-sec" data-od-id="sp-tab-made">
+                      <div class="rail-sec__t"><svg data-lucide="arrow-up-right"></svg><span class="eyebrow">Made</span><span class="count-chip" style="margin-left:auto">3</span></div>
+                      <div class="ac-call-li" tabindex="0"><span class="ac-call-li__dir"><svg data-lucide="arrow-up-right"></svg></span><span class="ac-call-li__agent">reviewer</span><span class="ac-state" data-state="completed"><svg data-lucide="check"></svg>completed</span><span class="ac-call-li__age">2m</span></div>
+                      <div class="ac-call-li" tabindex="0"><span class="ac-call-li__dir"><svg data-lucide="arrow-up-right"></svg></span><span class="ac-call-li__agent">reviewer</span><span class="ac-state" data-state="running"><svg data-lucide="circle"></svg>running</span><span class="ac-call-li__age">40s</span></div>
+                      <div class="ac-call-li" tabindex="0"><span class="ac-call-li__dir"><svg data-lucide="arrow-up-right"></svg></span><span class="ac-call-li__agent">scout</span><span class="ac-state" data-state="canceled"><svg data-lucide="ban"></svg>canceled</span><span class="ac-call-li__age">18m</span></div>
+                    </div>
+                    <div class="rail-sec" data-od-id="sp-tab-received">
+                      <div class="rail-sec__t"><svg data-lucide="arrow-down-left"></svg><span class="eyebrow">Received</span><span class="count-chip" style="margin-left:auto">1</span></div>
+                      <div class="ac-call-li" tabindex="0"><span class="ac-call-li__dir"><svg data-lucide="arrow-down-left"></svg></span><span class="ac-call-li__agent">operator</span><span class="ac-state" data-state="running"><svg data-lucide="circle"></svg>running</span><span class="ac-call-li__age">1h</span></div>
+                    </div>
+                  </aside>
+                </div>
+              </div></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="sp-volume">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Hundreds of calls — bounded pages, truthful counts</h2>
+        <span class="lab-sec__gist">task_06/VC-21</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Big numbers stay honest</b>247 calls render 25 at a time. The total always comes from the runtime's own count — never from whatever happens to be loaded — and the pager never claims more precision than it has. <span class="mono">US-029.EC-1</span></div>
+        <div class="spec__demo">
+          <div class="plain" style="max-width:var(--ac-rail-w)" data-od-id="sp-volume-demo">
+            <div class="rail-sec" style="border-top:0;padding:0 0 10px">
+              <div class="rail-sec__t"><svg data-lucide="arrow-up-right"></svg><span class="eyebrow">Made</span><span class="count-chip" style="margin-left:auto">247</span></div>
+              <div class="ac-call-li" tabindex="0"><span class="ac-call-li__dir"><svg data-lucide="arrow-up-right"></svg></span><span class="ac-call-li__agent">bench-runner</span><span class="ac-state" data-state="completed"><svg data-lucide="check"></svg>completed</span><span class="ac-call-li__age">1m</span></div>
+              <div class="ac-call-li" tabindex="0"><span class="ac-call-li__dir"><svg data-lucide="arrow-up-right"></svg></span><span class="ac-call-li__agent">bench-runner</span><span class="ac-state" data-state="completed"><svg data-lucide="check"></svg>completed</span><span class="ac-call-li__age">2m</span></div>
+              <div class="ac-call-li" tabindex="0"><span class="ac-call-li__dir"><svg data-lucide="arrow-up-right"></svg></span><span class="ac-call-li__agent">bench-runner</span><span class="ac-state" data-state="timeout"><svg data-lucide="timer-off"></svg>timeout</span><span class="ac-call-li__age">4m</span></div>
+              <div style="display:flex;align-items:center;gap:8px;min-height:32px;padding:6px 2px 0;font-size:var(--text-form);color:var(--subtle)">
+                25 of 247 loaded
+                <button class="btn btn--xs" type="button" style="margin-left:auto">Load older</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="sp-pruned">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Pruned counterpart — identity stays, the link degrades</h2>
+        <span class="lab-sec__gist">task_06/VC-21</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>History is never rewritten</b>When the other session of an old call has been cleaned up, the row keeps what happened and who did it; only the jump link goes away, and the row says why. Nothing renders as a dead link or a guessed state. <span class="mono">US-029.EC-2</span></div>
+        <div class="spec__demo">
+          <div class="plain" style="max-width:520px" data-od-id="sp-pruned-demo">
+            <div class="ac-call-li" tabindex="0">
+              <span class="ac-call-li__dir"><svg data-lucide="arrow-up-right"></svg></span>
+              <span class="ac-call-li__agent">docs-writer</span>
+              <span class="ac-state" data-state="completed"><svg data-lucide="check"></svg>completed</span>
+              <span class="ac-verdict">returned</span>
+              <span class="ac-call-li__preview">child session pruned — record retained</span>
+              <span class="ac-call-li__age">6d</span>
+            </div>
+            <div style="height:8px"></div>
+            <div style="font-size:var(--text-form);color:var(--subtle);padding:0 2px">The call record and its stored result stay fetchable; "open child session" is absent because the session no longer exists.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="sp-child">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">The child side — bound call context</h2>
+        <span class="lab-sec__gist">task_06/VC-20</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The helper sees its own assignment</b>Inside the helper's session, the call it was given renders as context: who asked, what shape the answer must have, how much further it may delegate. Sending the answer back is what closes the call. <span class="mono">US-002 · US-007</span></div>
+        <div class="spec__demo">
+          <div class="plain" style="max-width:520px" data-od-id="sp-child-demo">
+            <div class="ac-block">
+              <div class="ac-block__head"><span class="eyebrow">Bound call</span><span class="mono-id" style="margin-left:auto">call_01JBD8G2K7Q9</span></div>
+              <div class="ac-result__rows">
+                <div class="ac-result__row"><span class="ac-result__k">caller</span><span class="ac-result__v mono">ses_01JBD7ZZAAAA (session)</span></div>
+                <div class="ac-result__row"><span class="ac-result__k">contract</span><span class="ac-result__v mono">sha256:9f2c… · 2 required keys</span></div>
+                <div class="ac-result__row"><span class="ac-result__k">remaining depth</span><span class="ac-result__v mono">2</span></div>
+              </div>
+              <div class="ac-block__foot">Answering closes the call — one retry if the answer doesn't match. <span class="mono">compozy__call_return</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">Spec: .compozy/tasks/agent-comms/_uiux.md S5 · contract: DESIGN-NOTES.md · production seams: session-inspector.tsx, session-timeline-render.tsx, runtime-activity-notice.tsx. Wake copy is the _dx.md shape verbatim. Content illustrative; runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>(function(){ if(window.lucide) window.lucide.createIcons(); })();</script>
+</body>
+</html>

@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>skill-sources · Sharing states &amp; repair</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="skill-sources.css">
+<!--
+  skill-sources-expose-states · S3 — four statuses, repair, target picker, partial failure.
+  Spec: .compozy/tasks/skill-sources/_uiux.md S3 states ·
+        US-010.EC-1..EC-3 · US-011.EC-3/EC-4/EC-5/EC-7 · E2E-011.
+  Contract: DESIGN-NOTES.md.
+  2026-08-23 plain-language + parity pass (review feedback) — shares the "Share" UI-verb
+  proposal with board 05 (API/CLI keep `expose`; daemon status enum and error codes
+  untouched). Status sentences (authorized deltas over the earlier operator literals):
+    healthy          → "active"
+    missing          → "the link was deleted"          (repair: Share again)
+    broken           → "the skill's folder moved"      (repair: Share again)
+    foreign_conflict → "another app's file is there"   (information only)
+  Error rows lead with a plain sentence; the verbatim daemon code is demoted to micro
+  mono, never paraphrased away.
+  Provenance:
+    production — .menu + .cbx composition for the multi-select picker; ghost buttons
+                 for repair; .notice--danger for the failure envelope.
+    spec S3 — status enum exact: healthy | missing | broken | foreign_conflict.
+              missing/broken are OUR links and get repair actions; foreign_conflict is
+              information only, ZERO affordances — CompozyOS never touches foreign
+              entries. Target picker lists enabled presets only. Partial failure
+              renders results[] per target; compensated targets are marked rolled back.
+    authorized delta — all fragments staged at rail/panel width.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="exp-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Skill sources</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Sharing states &amp; repair</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="skill-sources-settings-sources.html">Settings sources →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL — FOUR STATUSES IN ONE LEDGER ===== -->
+    <section class="lab-sec" data-od-id="exp-final">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">01</span>
+        <h2 class="lab-sec__t">The Sharing ledger — all four statuses</h2>
+        <span class="lab-sec__gist">US-011.EC-3/EC-4/EC-7 · exposures[].status</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Ours gets repaired, foreign gets respected</b>When
+          our link was deleted or the skill&rsquo;s folder moved, the row says so in
+          danger ink and offers the fix. When another app&rsquo;s file sits in the
+          target spot, the row states the fact and offers nothing — Compozy never
+          touches files it didn&rsquo;t create. The dot and the sentence always agree.
+          <span class="mono">US-011.EC-5 · never touch foreign</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="exp-final-demo">
+          <div class="railbox">
+            <div class="rail-sec">
+              <div class="rail-sec__t"><svg data-lucide="link"></svg>Sharing</div>
+              <div class="sks-expo">
+                <div class="sks-expo__row" data-status="healthy" data-od-id="exp-row-healthy">
+                  <span class="d d--ok"></span>
+                  <div class="sks-expo__main">
+                    <span class="sks-expo__target"><b>Universal</b><span class="sks-expo__status">active</span></span>
+                    <span class="sks-expo__path">~/.agents/skills/review-checklist</span>
+                  </div>
+                  <span class="sks-expo__acts"><button class="btn btn--xs btn--ghost">Stop sharing</button></span>
+                </div>
+                <div class="sks-expo__row" data-status="missing" data-od-id="exp-row-missing">
+                  <span class="d d--fail"></span>
+                  <div class="sks-expo__main">
+                    <span class="sks-expo__target"><b>Claude</b><span class="sks-expo__status">the link was deleted</span></span>
+                    <span class="sks-expo__path">~/.claude/skills/review-checklist</span>
+                  </div>
+                  <span class="sks-expo__acts">
+                    <button class="btn btn--xs btn--ghost">Share again</button>
+                    <button class="btn btn--xs btn--ghost">Stop sharing</button>
+                  </span>
+                </div>
+                <div class="sks-expo__row" data-status="broken" data-od-id="exp-row-broken">
+                  <span class="d d--fail"></span>
+                  <div class="sks-expo__main">
+                    <span class="sks-expo__target"><b>Universal</b><span class="sks-expo__status">the skill&rsquo;s folder moved</span></span>
+                    <span class="sks-expo__path">~/.agents/skills/deploy-runbook</span>
+                  </div>
+                  <span class="sks-expo__acts">
+                    <button class="btn btn--xs btn--ghost">Share again</button>
+                    <button class="btn btn--xs btn--ghost">Stop sharing</button>
+                  </span>
+                </div>
+                <div class="sks-expo__row" data-status="foreign_conflict" data-od-id="exp-row-foreign">
+                  <span class="d d--idle"></span>
+                  <div class="sks-expo__main">
+                    <span class="sks-expo__target"><b>Claude</b><span class="sks-expo__status">another app&rsquo;s file is there</span></span>
+                    <span class="sks-expo__path">~/.claude/skills/deploy-runbook</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="rail-sec">
+              <button class="btn btn--sm"><svg data-lucide="link"></svg>Share to…</button>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · REPAIR, WALKED ===== -->
+    <section class="lab-sec" data-od-id="exp-repair">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">02</span>
+        <h2 class="lab-sec__t">Repair — one action back to active</h2>
+        <span class="lab-sec__gist">US-011.EC-3 · US-011.EC-4 · E2E-011</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Deleted link → share again → active</b>Someone removed
+          our link on disk. The record persists, so repair is deterministic:
+          &ldquo;Share again&rdquo; recreates the same link at the same path. The struck
+          path shows what&rsquo;s gone without pretending it&rsquo;s there.
+          <span class="mono">US-011.EC-3 · filesystem-reconciled</span></div>
+        <div class="spec__demo"><div class="sks-minis">
+          <div class="plain sks-plainw" data-od-id="exp-repair-missing">
+            <p class="sks-mini-cap">before repair — link deleted</p>
+            <div class="sks-expo__row" data-status="missing">
+              <span class="d d--fail"></span>
+              <div class="sks-expo__main">
+                <span class="sks-expo__target"><b>Claude</b><span class="sks-expo__status">the link was deleted</span></span>
+                <span class="sks-expo__path">~/.claude/skills/review-checklist</span>
+              </div>
+              <span class="sks-expo__acts">
+                <button class="btn btn--xs btn--ghost">Share again</button>
+                <button class="btn btn--xs btn--ghost">Stop sharing</button>
+              </span>
+            </div>
+          </div>
+          <div class="plain sks-plainw" data-od-id="exp-repair-healthy">
+            <p class="sks-mini-cap">after — active again</p>
+            <div class="sks-expo__row" data-status="healthy">
+              <span class="d d--ok"></span>
+              <div class="sks-expo__main">
+                <span class="sks-expo__target"><b>Claude</b><span class="sks-expo__status">active</span></span>
+                <span class="sks-expo__path">~/.claude/skills/review-checklist</span>
+              </div>
+              <span class="sks-expo__acts"><button class="btn btn--xs btn--ghost">Stop sharing</button></span>
+            </div>
+          </div>
+        </div></div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Foreign file — information only</b>A file Compozy
+          never created occupies the target spot. No repair, no removal, no override:
+          the row states the fact and stops. The CLI reports the same situation in the
+          same words. <span class="mono">US-011.EC-7 · zero affordances</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="exp-foreign-demo">
+          <div class="sks-expo__row" data-status="foreign_conflict">
+            <span class="d d--idle"></span>
+            <div class="sks-expo__main">
+              <span class="sks-expo__target"><b>Claude</b><span class="sks-expo__status">another app&rsquo;s file is there</span></span>
+              <span class="sks-expo__path">~/.claude/skills/deploy-runbook</span>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · TARGET PICKER + IN-FLIGHT ===== -->
+    <section class="lab-sec" data-od-id="exp-picker">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">03</span>
+        <h2 class="lab-sec__t">Share to… — enabled sources only, then pending</h2>
+        <span class="lab-sec__gist">US-010 · picker over enabled presets</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>The picker can&rsquo;t offer a dead end</b>It lists
+          only sources that are turned on — a source that&rsquo;s off is absent from
+          the list, not grayed out. Compozy itself never appears: it is the
+          skill&rsquo;s home, not a target.
+          <span class="mono">US-010 · targets ⊆ enabled presets</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="exp-picker-menu">
+          <div class="menu sks-target-menu">
+            <div class="menu-label eyebrow">Share to</div>
+            <button class="menu-item" role="menuitemcheckbox" aria-checked="true">
+              <span class="cbx is-on"><svg data-lucide="check"></svg></span>
+              <span class="lbl">Universal</span>
+              <span class="slug">.agents</span>
+            </button>
+            <button class="menu-item" role="menuitemcheckbox" aria-checked="false">
+              <span class="cbx"></span>
+              <span class="lbl">Claude</span>
+              <span class="slug">.claude</span>
+            </button>
+            <div class="sks-target-menu__foot">
+              <button class="btn btn--sm btn--ghost">Cancel</button>
+              <button class="btn btn--sm btn--primary">Share</button>
+            </div>
+          </div>
+        </div></div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>In-flight</b>While the daemon works, the row-to-be
+          renders pending — dimmed name, quiet &ldquo;sharing…&rdquo;, no premature
+          success word. The ledger updates only from the operation result.
+          <span class="mono">pending until results[] lands</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="exp-picker-pending">
+          <div class="sks-expo__row" data-status="healthy" data-pending="true">
+            <span class="d d--run d--pulse"></span>
+            <div class="sks-expo__main">
+              <span class="sks-expo__target"><b>Universal</b><span class="sks-expo__status">sharing…</span></span>
+              <span class="sks-expo__path">~/.agents/skills/review-checklist</span>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · PARTIAL FAILURE ===== -->
+    <section class="lab-sec" data-od-id="exp-partial">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">04</span>
+        <h2 class="lab-sec__t">Partial failure — every target accounted for</h2>
+        <span class="lab-sec__gist">US-010.EC-1..EC-3 · expose_failed envelope</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Nothing half-done is left behind</b>Sharing to two
+          targets where Claude&rsquo;s spot is already taken: the whole operation stops,
+          the target that had completed is undone, and each line explains itself in a
+          sentence — with the daemon&rsquo;s exact code kept in micro mono for support.
+          <span class="mono">US-010.EC-2 · rolled_back per envelope, marker per target</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="exp-partial-demo">
+          <div class="notice notice--danger" data-od-id="exp-partial-notice">
+            <svg data-lucide="circle-alert"></svg>
+            <span><b>Couldn&rsquo;t share to Claude.</b> Nothing was changed — the
+              target that had finished was undone.</span>
+            <span class="notice__actions"><button class="btn btn--sm">Retry</button></span>
+          </div>
+          <div class="sks-results sks-sec-gap" data-od-id="exp-partial-results">
+            <div class="sks-result" data-ok="false">
+              <svg data-lucide="x"></svg>
+              <span class="sks-result__target">Claude</span>
+              <span class="sks-result__msg"><span>a file with this name is already there</span>
+                <span class="sks-result__code">expose_name_conflict</span></span>
+            </div>
+            <div class="sks-result" data-ok="true" data-rolled-back="true">
+              <svg data-lucide="undo-2"></svg>
+              <span class="sks-result__target">Universal</span>
+              <span class="sks-result__msg"><span>completed, then undone</span>
+                <span class="sks-result__code">rolled_back</span></span>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="exp-foot">Spec <code>_uiux.md</code> S3 states · contract
+      <code>DESIGN-NOTES.md</code> · daemon codes render verbatim in micro mono, never
+      paraphrased away: <code>skill_not_exposable</code>, <code>expose_target_disabled</code>,
+      <code>expose_target_invalid</code>, <code>expose_name_conflict</code>,
+      <code>expose_link_unsupported</code>, <code>expose_foreign_link</code>,
+      <code>unsafe_skill_name</code>. UI verb &ldquo;Share&rdquo; is a flagged proposal —
+      API/CLI keep <code>expose</code>.</p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>(function(){ if (window.lucide) window.lucide.createIcons(); })();</script>
+</body>
+</html>

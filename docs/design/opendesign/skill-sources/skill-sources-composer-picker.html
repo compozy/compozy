@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>skill-sources · Composer / picker — origin labels</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="skill-sources.css">
+<!--
+  skill-sources-composer-picker · S2 — origin labels in the session `/` picker.
+  Spec: .compozy/tasks/skill-sources/_uiux.md S2 · US-008.AC-2/AC-4/EC-1 · US-006.
+  Contract: DESIGN-NOTES.md.
+  2026-08-23 plain-language + parity pass (review feedback): the earlier board invented
+  a 560px command panel with its own input — production truth
+  (session-composer-command-menu.tsx) is a popover spanning the composer width,
+  anchored above it, with NO input of its own (typing happens in the composer).
+  Row anatomy now mirrors CommandMenuItemRow exactly: 14px lane icon in a 16px well ·
+  skill NAME in sans (not the / token) · description inline on the same baseline,
+  truncating · trailing slot = scope in sans for skills, token in mono for built-ins.
+  Transcript rebuilt on the canonical .msg grammar (roles You / Claude Code) with the
+  real .composer input carrying the typed "/".
+  Provenance:
+    production — popover chrome (border-line, shadow-overlay, p-1, group eyebrow,
+                 hairline between groups); trailing slot semantics from
+                 commandTrailing(); lane icon from commandIcon() (skills → blocks,
+                 /status → info); selection = elevated plate + fg-strong.
+    spec S2 — foreign-origin skill rows gain one neutral mono Pill in the trailing
+              slot (agents, claude, custom slug); compozy-native rows are unchanged;
+              homonyms list qualified forms distinguishably (agents:frontend-qa);
+              labels come from the daemon catalog — zero client-side derivation.
+    authorized delta — transcript condensed to two turns; menu rendered in-flow above
+              the composer (stage staging, not a popover contract change).
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="pick-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Skill sources</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Composer / picker — origin labels</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="skill-sources-catalog-origin.html">Catalog &amp; sharing →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL — PICKER OPEN IN A SESSION ===== -->
+    <section class="lab-sec" data-od-id="pick-final">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">01</span>
+        <h2 class="lab-sec__t">Session composer — `/` open, mixed origins</h2>
+        <span class="lab-sec__gist">US-008.AC-2 · US-006 · E2E-010</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Origin is a whisper, not a banner</b>Skills that came
+          from another tool carry one small neutral chip in the slot the row already
+          owns. Compozy&rsquo;s own skills look exactly as they do today. Everything
+          else — icons, one-line rows, the popover over the composer — is the menu
+          users already know. <span class="mono">US-008.AC-2 · US-008.EC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="pick-final-stage">
+            <section class="win is-focused win--sksn" data-od-id="pick-final-win">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" aria-label="Close"></button>
+                  <button class="wc wc-min" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="messages-square"></svg></span>
+                  <span class="w2-title">release prep</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail"><span class="w2-status" data-tone="run"><svg data-lucide="circle-dot"></svg>running</span></div>
+              </header>
+              <div class="win-body">
+                <div class="transcript" data-od-id="pick-final-transcript">
+                  <div class="msg msg-user">
+                    <p class="msg-role">You</p>
+                    <p class="msg-text">Walk the release checklist for 0.3.1 before I tag it.</p>
+                  </div>
+                  <div class="msg">
+                    <p class="msg-role">Claude Code</p>
+                    <p class="msg-text">Starting with the changelog diff. Two entries reference PRs that haven&rsquo;t merged — checking those first.</p>
+                  </div>
+                </div>
+                <div class="sks-menu-anchor" data-od-id="pick-final-menu">
+                  <div class="sks-cmd-menu">
+                    <div class="sks-cmd-group">Built-in</div>
+                    <div class="sks-cmd">
+                      <span class="ico"><svg data-lucide="info"></svg></span>
+                      <span class="sks-cmd__main">
+                        <span class="sks-cmd__name">Status</span>
+                        <span class="sks-cmd__desc">Show what this session is doing</span>
+                      </span>
+                      <span class="sks-cmd__trail"><span class="sks-cmd__token">/status</span></span>
+                    </div>
+                    <div class="sks-cmd-div"></div>
+                    <div class="sks-cmd-group">Skills</div>
+                    <div class="sks-cmd is-active" data-od-id="pick-row-native">
+                      <span class="ico"><svg data-lucide="blocks"></svg></span>
+                      <span class="sks-cmd__main">
+                        <span class="sks-cmd__name">review-checklist</span>
+                        <span class="sks-cmd__desc">Pre-merge review checklist</span>
+                      </span>
+                      <span class="sks-cmd__trail"><span class="sks-cmd__scope">Workspace</span></span>
+                    </div>
+                    <div class="sks-cmd" data-od-id="pick-row-agents">
+                      <span class="ico"><svg data-lucide="blocks"></svg></span>
+                      <span class="sks-cmd__main">
+                        <span class="sks-cmd__name">commit-hygiene</span>
+                        <span class="sks-cmd__desc">Commit message and branch hygiene</span>
+                      </span>
+                      <span class="sks-cmd__trail"><span class="pill pill--xs" data-mono="true">agents</span><span class="sks-cmd__scope">User</span></span>
+                    </div>
+                    <div class="sks-cmd" data-od-id="pick-row-claude">
+                      <span class="ico"><svg data-lucide="blocks"></svg></span>
+                      <span class="sks-cmd__main">
+                        <span class="sks-cmd__name">release-notes</span>
+                        <span class="sks-cmd__desc">Draft release notes from merged PRs</span>
+                      </span>
+                      <span class="sks-cmd__trail"><span class="pill pill--xs" data-mono="true">claude</span><span class="sks-cmd__scope">User</span></span>
+                    </div>
+                    <div class="sks-cmd" data-od-id="pick-row-winner">
+                      <span class="ico"><svg data-lucide="blocks"></svg></span>
+                      <span class="sks-cmd__main">
+                        <span class="sks-cmd__name">frontend-qa</span>
+                        <span class="sks-cmd__desc">Run frontend QA pass</span>
+                      </span>
+                      <span class="sks-cmd__trail"><span class="sks-cmd__scope">Workspace</span></span>
+                    </div>
+                    <div class="sks-cmd" data-od-id="pick-row-qualified">
+                      <span class="ico"><svg data-lucide="blocks"></svg></span>
+                      <span class="sks-cmd__main">
+                        <span class="sks-cmd__name">frontend-qa</span>
+                        <span class="sks-cmd__desc"><code>agents:frontend-qa</code> · Run frontend QA pass</span>
+                      </span>
+                      <span class="sks-cmd__trail"><span class="pill pill--xs" data-mono="true">agents</span><span class="sks-cmd__scope">User</span></span>
+                    </div>
+                  </div>
+                </div>
+                <div class="composer" data-od-id="pick-final-composer">
+                  <input value="/" aria-label="Message Claude Code">
+                  <button class="btn btn--primary composer-send" aria-label="Send"><svg data-lucide="arrow-up"></svg></button>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · ROW ANATOMY — NATIVE VS FOREIGN ===== -->
+    <section class="lab-sec" data-od-id="pick-anatomy">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">02</span>
+        <h2 class="lab-sec__t">Row anatomy — native unchanged, foreign labeled</h2>
+        <span class="lab-sec__gist">US-008.AC-2 · US-013 vocabulary</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Native row — no label</b>A Compozy-origin skill keeps
+          today&rsquo;s exact anatomy: name, description on the same line, scope in the
+          trailing slot. <code>origin</code> comes back empty and renders as nothing.
+          <span class="mono">US-008.AC-2 inverse</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="pick-anatomy-native">
+          <div class="sks-cmd">
+            <span class="ico"><svg data-lucide="blocks"></svg></span>
+            <span class="sks-cmd__main">
+              <span class="sks-cmd__name">review-checklist</span>
+              <span class="sks-cmd__desc">Pre-merge review checklist</span>
+            </span>
+            <span class="sks-cmd__trail"><span class="sks-cmd__scope">Workspace</span></span>
+          </div>
+        </div></div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Foreign row — one neutral chip</b>The origin label is
+          the source&rsquo;s short name in a neutral mono Pill — never colored, because
+          origin says where a skill came from, not whether something is wrong. It joins
+          the trailing slot; nothing else moves.
+          <span class="mono">origin: "agents" · neutral mono Pill</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="pick-anatomy-foreign">
+          <div class="sks-cmd">
+            <span class="ico"><svg data-lucide="blocks"></svg></span>
+            <span class="sks-cmd__main">
+              <span class="sks-cmd__name">commit-hygiene</span>
+              <span class="sks-cmd__desc">Commit message and branch hygiene</span>
+            </span>
+            <span class="sks-cmd__trail"><span class="pill pill--xs" data-mono="true">agents</span><span class="sks-cmd__scope">User</span></span>
+          </div>
+        </div></div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Custom origin — the folder&rsquo;s name</b>Skills from
+          a folder you added are labeled with that folder&rsquo;s name, suffix included
+          when the daemon minted one. Long labels truncate; the skill name never yields
+          width to the chip. <span class="mono">US-003 slug rules · truncation</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="pick-anatomy-custom">
+          <div class="sks-cmd">
+            <span class="ico"><svg data-lucide="blocks"></svg></span>
+            <span class="sks-cmd__main">
+              <span class="sks-cmd__name">deploy-runbook</span>
+              <span class="sks-cmd__desc">Staged deploy with rollback gates for the acme-api production cluster</span>
+            </span>
+            <span class="sks-cmd__trail"><span class="pill pill--xs" data-mono="true">team-skills-3f2a</span><span class="sks-cmd__scope">User</span></span>
+          </div>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · HOMONYMS — QUALIFIED FORMS ===== -->
+    <section class="lab-sec" data-od-id="pick-homonyms">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">03</span>
+        <h2 class="lab-sec__t">Same name twice — winner plain, the other qualified</h2>
+        <span class="lab-sec__gist">US-008.EC-1 · US-006</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Zero ambiguity</b>When two sources define the same
+          skill name, the winning copy keeps the plain row. The other stays usable —
+          its row shows the longer form to type (<code>agents:frontend-qa</code>) and
+          the origin chip says where it lives. Picking either row inserts the right
+          token for you. <span class="mono">US-006 · qualified form is daemon-issued</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="pick-homonyms-demo">
+          <div class="sks-cmd">
+            <span class="ico"><svg data-lucide="blocks"></svg></span>
+            <span class="sks-cmd__main">
+              <span class="sks-cmd__name">frontend-qa</span>
+              <span class="sks-cmd__desc">Run frontend QA pass</span>
+            </span>
+            <span class="sks-cmd__trail"><span class="sks-cmd__scope">Workspace</span></span>
+          </div>
+          <div class="sks-cmd">
+            <span class="ico"><svg data-lucide="blocks"></svg></span>
+            <span class="sks-cmd__main">
+              <span class="sks-cmd__name">frontend-qa</span>
+              <span class="sks-cmd__desc"><code>agents:frontend-qa</code> · Run frontend QA pass</span>
+            </span>
+            <span class="sks-cmd__trail"><span class="pill pill--xs" data-mono="true">agents</span><span class="sks-cmd__scope">User</span></span>
+          </div>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · CATALOG REFRESH — ROWS DROP, NEVER LINGER ===== -->
+    <section class="lab-sec" data-od-id="pick-refresh">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">04</span>
+        <h2 class="lab-sec__t">Source turned off mid-session — rows drop on refresh</h2>
+        <span class="lab-sec__gist">US-002.AC-2 · US-008.AC-4 inverse</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>The picker tracks the catalog</b>Turning the Claude
+          source off removes its rows on the next catalog refresh — no stale entries,
+          no restart. If a pick races the refresh, the daemon rejects it with a clear
+          error instead of silently running something else.
+          <span class="mono">US-002.AC-2 · drift rejection owns the race</span></div>
+        <div class="spec__demo"><div class="sks-minis">
+          <div class="plain sks-plainw" data-od-id="pick-refresh-before">
+            <p class="sks-mini-cap">before — Claude source on</p>
+            <div class="sks-cmd">
+              <span class="ico"><svg data-lucide="blocks"></svg></span>
+              <span class="sks-cmd__main">
+                <span class="sks-cmd__name">commit-hygiene</span>
+                <span class="sks-cmd__desc">Commit message and branch hygiene</span>
+              </span>
+              <span class="sks-cmd__trail"><span class="pill pill--xs" data-mono="true">agents</span><span class="sks-cmd__scope">User</span></span>
+            </div>
+            <div class="sks-cmd">
+              <span class="ico"><svg data-lucide="blocks"></svg></span>
+              <span class="sks-cmd__main">
+                <span class="sks-cmd__name">release-notes</span>
+                <span class="sks-cmd__desc">Draft release notes from merged PRs</span>
+              </span>
+              <span class="sks-cmd__trail"><span class="pill pill--xs" data-mono="true">claude</span><span class="sks-cmd__scope">User</span></span>
+            </div>
+          </div>
+          <div class="plain sks-plainw" data-od-id="pick-refresh-after">
+            <p class="sks-mini-cap">after — Claude source off, next refresh</p>
+            <div class="sks-cmd">
+              <span class="ico"><svg data-lucide="blocks"></svg></span>
+              <span class="sks-cmd__main">
+                <span class="sks-cmd__name">commit-hygiene</span>
+                <span class="sks-cmd__desc">Commit message and branch hygiene</span>
+              </span>
+              <span class="sks-cmd__trail"><span class="pill pill--xs" data-mono="true">agents</span><span class="sks-cmd__scope">User</span></span>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="pick-foot">Spec <code>_uiux.md</code> S2 · contract
+      <code>DESIGN-NOTES.md</code> · production seams <code>session-composer-command-menu.tsx</code>,
+      <code>session-command-menu-model.ts</code> (commandTrailing / commandIcon),
+      <code>use-session-commands.ts</code> (lanes). Origin labels arrive on the daemon
+      command catalog — the menu model derives nothing.</p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>(function(){ if (window.lucide) window.lucide.createIcons(); })();</script>
+</body>
+</html>

@@ -1,0 +1,720 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>skill-sources · Settings — Sources section</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="skill-sources.css">
+<!--
+  skill-sources-settings-sources · S1 — Settings > Skills — Sources section (default read).
+  Spec: .compozy/tasks/skill-sources/_uiux.md S1 · US-001..005, US-013.
+  Contract: DESIGN-NOTES.md.
+  2026-08-23 collapsible-rows pass (review feedback: always-open folder lists were too
+  dense — 10–20 sources would be a wall): one source = ONE 44px collapsible line
+  (details/summary). Closed = name · tone pill when degraded · total count · control.
+  Folder paths render only on expand. Section 02 stages the scale case: 14 sources.
+  Production mapping: Collapsible from @compozy/ui wraps each source row; controls in
+  the summary stop propagation so they never toggle the disclosure.
+  Provenance:
+    production — settings page grammar (-skills-settings-page.tsx): .sgroup/.panelbox/.srow
+                 vocabulary, Switch 32×18, inline save "Saved · applied immediately".
+    spec S1 — preset rows first after Engine: compozy always-on (no Switch), agents on,
+              claude off; per-root paths (mono) + daemon-reported counts from
+              sources[].roots[]; custom directories editor; defaults-only Empty state.
+    authorized delta — settings nav rail omitted from the stage; counts, paths, and the
+              scale-list names are canonical fixtures, daemon truth owns values.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="src-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Skill sources</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Settings — Sources section</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="skill-sources-settings-states.html">States &amp; diagnostics →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL — SETTINGS > SKILLS WITH SOURCES ===== -->
+    <section class="lab-sec" data-od-id="src-final">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">01</span>
+        <h2 class="lab-sec__t">Settings → Skills — one line per source</h2>
+        <span class="lab-sec__gist">US-001.AC-3 · US-002 · US-013.AC-1</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>The default read is a list of closed lines</b>Each
+          source is one calm line: name, how many skills it brings, on or off. Folder
+          paths appear only when a line is expanded — here Universal is open. A closed
+          line still tells you everything that matters.
+          <span class="mono">US-001.AC-3 · US-013.AC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="src-final-stage">
+            <section class="win is-focused win--sks" data-od-id="src-final-win">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" aria-label="Close"></button>
+                  <button class="wc wc-min" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="settings-2"></svg></span>
+                  <span class="w2-title">Settings</span>
+                </div>
+                <nav class="w2-crumbs"><span class="w2-sep">/</span><span class="w2-crumb">Skills</span></nav>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail"><span class="w2-meta">19 skills · scope global</span></div>
+              </header>
+              <div class="win-body"><div class="app">
+
+                <div class="sgroup">
+                  <div class="sgroup__t">Skills engine</div>
+                </div>
+                <div class="panelbox">
+                  <div class="srow">
+                    <div class="srow__main"><div class="srow__label">Use skills</div></div>
+                    <div class="srow__ctl">
+                      <button class="switch is-on" role="switch" aria-checked="true" aria-label="Use skills"><span class="knob"></span></button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sgroup sks-sec-gap">
+                  <div class="sgroup__t">Sources</div>
+                  <div class="sgroup__d">Where Compozy looks for skills.</div>
+                </div>
+                <div class="panelbox" data-od-id="src-final-sources">
+                  <details class="sks-src" data-enabled="true" data-od-id="src-row-compozy">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">Compozy</span>
+                      <span class="sks-src__ctl">
+                        <span class="count-chip">12 skills</span>
+                        <span class="pill pill--xs" data-form="hollow">always on</span>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">.compozy/skills</span>
+                        <span class="sks-root__trail"><span class="sks-root__count">8 skills</span></span>
+                      </div>
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/.compozy/skills</span>
+                        <span class="sks-root__trail"><span class="sks-root__count">4 skills</span></span>
+                      </div>
+                    </div>
+                  </details>
+                  <details class="sks-src" data-enabled="true" open data-od-id="src-row-agents">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">Universal</span>
+                      <span class="sks-src__ctl">
+                        <span class="count-chip">7 skills</span>
+                        <button class="switch is-on" role="switch" aria-checked="true" aria-label="Enable Universal source"><span class="knob"></span></button>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">.agents/skills</span>
+                        <span class="sks-root__trail"><span class="sks-root__count">5 skills</span></span>
+                      </div>
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/.agents/skills</span>
+                        <span class="sks-root__trail"><span class="sks-root__count">2 skills</span></span>
+                      </div>
+                    </div>
+                  </details>
+                  <details class="sks-src" data-enabled="false" data-od-id="src-row-claude">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">Claude</span>
+                      <span class="sks-src__ctl">
+                        <button class="switch" role="switch" aria-checked="false" aria-label="Enable Claude source"><span class="knob"></span></button>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">.claude/skills</span>
+                      </div>
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/.claude/skills</span>
+                      </div>
+                    </div>
+                  </details>
+                  <details class="sks-src" data-enabled="true" data-od-id="src-row-custom">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">team-skills</span>
+                      <span class="pill pill--xs">custom</span>
+                      <span class="sks-src__ctl">
+                        <span class="count-chip">3 skills</span>
+                        <button class="btn btn--xs btn--icon btn--ghost" aria-label="Remove team-skills"><svg data-lucide="x"></svg></button>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/team-skills</span>
+                      </div>
+                    </div>
+                  </details>
+                  <div class="srow" data-od-id="src-final-add">
+                    <div class="srow__main"><div class="srow__label">Add your own folder</div></div>
+                    <div class="srow__ctl">
+                      <div class="field sks-field-add">
+                        <svg data-lucide="folder-plus"></svg>
+                        <input type="text" placeholder="~/path/to/skills" aria-label="Folder to add">
+                      </div>
+                      <button class="btn btn--sm">Add</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="savebar" data-od-id="src-final-savebar">
+                  <div class="savebar__state"><span class="d d--ok"></span><span>Saved · applied immediately</span></div>
+                  <button class="btn" disabled>Discard</button>
+                  <button class="btn btn--primary" disabled>Apply</button>
+                </div>
+
+              </div></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · SCALE — 14 SOURCES ===== -->
+    <section class="lab-sec" data-od-id="src-scale">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">02</span>
+        <h2 class="lab-sec__t">Scale — 14 sources stay one screen</h2>
+        <span class="lab-sec__gist">US-003 · collapsible rows scale flat</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Twenty folders would still read like a list</b>Every
+          line costs 44px whether it holds one folder or five. Degraded sources stay
+          visible while closed — the tone pill on the line is enough (<code>partial
+          scan</code>, <code>can&rsquo;t read</code>); the sentence waits inside the
+          disclosure. Nothing needs paging or search at this size.
+          <span class="mono">closed row still informs · one open (client-acme)</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="src-scale-stage">
+            <section class="win is-focused win--sks" data-od-id="src-scale-win">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" aria-label="Close"></button>
+                  <button class="wc wc-min" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="settings-2"></svg></span>
+                  <span class="w2-title">Settings</span>
+                </div>
+                <nav class="w2-crumbs"><span class="w2-sep">/</span><span class="w2-crumb">Skills</span></nav>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail"><span class="w2-meta">14 sources · scope global</span></div>
+              </header>
+              <div class="win-body"><div class="app">
+
+                <div class="sgroup">
+                  <div class="sgroup__t">Sources</div>
+                  <div class="sgroup__d">Where Compozy looks for skills.</div>
+                </div>
+                <div class="panelbox" data-od-id="src-scale-sources">
+                  <details class="sks-src" data-enabled="true">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">Compozy</span>
+                      <span class="sks-src__ctl">
+                        <span class="count-chip">12 skills</span>
+                        <span class="pill pill--xs" data-form="hollow">always on</span>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">.compozy/skills</span>
+                        <span class="sks-root__trail"><span class="sks-root__count">8 skills</span></span>
+                      </div>
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/.compozy/skills</span>
+                        <span class="sks-root__trail"><span class="sks-root__count">4 skills</span></span>
+                      </div>
+                    </div>
+                  </details>
+                  <details class="sks-src" data-enabled="true">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">Universal</span>
+                      <span class="sks-src__ctl">
+                        <span class="count-chip">7 skills</span>
+                        <button class="switch is-on" role="switch" aria-checked="true" aria-label="Enable Universal source"><span class="knob"></span></button>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">.agents/skills</span>
+                        <span class="sks-root__trail"><span class="sks-root__count">5 skills</span></span>
+                      </div>
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/.agents/skills</span>
+                        <span class="sks-root__trail"><span class="sks-root__count">2 skills</span></span>
+                      </div>
+                    </div>
+                  </details>
+                  <details class="sks-src" data-enabled="false">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">Claude</span>
+                      <span class="sks-src__ctl">
+                        <button class="switch" role="switch" aria-checked="false" aria-label="Enable Claude source"><span class="knob"></span></button>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">.claude/skills</span>
+                      </div>
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/.claude/skills</span>
+                      </div>
+                    </div>
+                  </details>
+                  <details class="sks-src" data-enabled="true" open data-od-id="src-scale-open">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">client-acme</span>
+                      <span class="pill pill--xs">custom</span>
+                      <span class="sks-src__ctl">
+                        <span class="count-chip">6 skills</span>
+                        <button class="btn btn--xs btn--icon btn--ghost" aria-label="Remove client-acme"><svg data-lucide="x"></svg></button>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/clients/acme/skills</span>
+                      </div>
+                    </div>
+                  </details>
+                  <details class="sks-src" data-enabled="true">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">client-nova</span>
+                      <span class="pill pill--xs">custom</span>
+                      <span class="sks-src__ctl">
+                        <span class="count-chip">4 skills</span>
+                        <button class="btn btn--xs btn--icon btn--ghost" aria-label="Remove client-nova"><svg data-lucide="x"></svg></button>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/clients/nova/skills</span>
+                      </div>
+                    </div>
+                  </details>
+                  <details class="sks-src" data-enabled="true">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">data-pipelines</span>
+                      <span class="pill pill--xs">custom</span>
+                      <span class="sks-src__ctl">
+                        <span class="count-chip">5 skills</span>
+                        <button class="btn btn--xs btn--icon btn--ghost" aria-label="Remove data-pipelines"><svg data-lucide="x"></svg></button>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/data-pipelines</span>
+                      </div>
+                    </div>
+                  </details>
+                  <details class="sks-src" data-enabled="true">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">design-reviews</span>
+                      <span class="pill pill--xs">custom</span>
+                      <span class="sks-src__ctl">
+                        <span class="count-chip">2 skills</span>
+                        <button class="btn btn--xs btn--icon btn--ghost" aria-label="Remove design-reviews"><svg data-lucide="x"></svg></button>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/design-reviews</span>
+                      </div>
+                    </div>
+                  </details>
+                  <details class="sks-src" data-enabled="true">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">growth-playbooks</span>
+                      <span class="pill pill--xs">custom</span>
+                      <span class="sks-src__ctl">
+                        <span class="count-chip">3 skills</span>
+                        <button class="btn btn--xs btn--icon btn--ghost" aria-label="Remove growth-playbooks"><svg data-lucide="x"></svg></button>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/growth-playbooks</span>
+                      </div>
+                    </div>
+                  </details>
+                  <details class="sks-src" data-enabled="true">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">marketing-ops</span>
+                      <span class="pill pill--xs">custom</span>
+                      <span class="sks-src__ctl">
+                        <span class="count-chip">4 skills</span>
+                        <button class="btn btn--xs btn--icon btn--ghost" aria-label="Remove marketing-ops"><svg data-lucide="x"></svg></button>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/marketing-ops</span>
+                      </div>
+                    </div>
+                  </details>
+                  <details class="sks-src" data-enabled="true">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">ml-corpus</span>
+                      <span class="pill pill--xs">custom</span>
+                      <span class="sks-src__ctl">
+                        <span class="pill pill--xs" data-tone="warning">partial scan</span>
+                        <span class="count-chip">214 skills</span>
+                        <button class="btn btn--xs btn--icon btn--ghost" aria-label="Remove ml-corpus"><svg data-lucide="x"></svg></button>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root" data-state="truncated">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/ml-corpus</span>
+                        <span class="sks-root__trail">
+                          <span class="sks-root__state">large folder — first 300 scanned</span>
+                        </span>
+                      </div>
+                    </div>
+                  </details>
+                  <details class="sks-src" data-enabled="true">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">onboarding-kits</span>
+                      <span class="pill pill--xs">custom</span>
+                      <span class="sks-src__ctl">
+                        <span class="count-chip">2 skills</span>
+                        <button class="btn btn--xs btn--icon btn--ghost" aria-label="Remove onboarding-kits"><svg data-lucide="x"></svg></button>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/onboarding-kits</span>
+                      </div>
+                    </div>
+                  </details>
+                  <details class="sks-src" data-enabled="true">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">release-kits</span>
+                      <span class="pill pill--xs">custom</span>
+                      <span class="sks-src__ctl">
+                        <span class="count-chip">5 skills</span>
+                        <button class="btn btn--xs btn--icon btn--ghost" aria-label="Remove release-kits"><svg data-lucide="x"></svg></button>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/release-kits</span>
+                      </div>
+                    </div>
+                  </details>
+                  <details class="sks-src" data-enabled="true">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">security-audits</span>
+                      <span class="pill pill--xs">custom</span>
+                      <span class="sks-src__ctl">
+                        <span class="count-chip">3 skills</span>
+                        <button class="btn btn--xs btn--icon btn--ghost" aria-label="Remove security-audits"><svg data-lucide="x"></svg></button>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/security-audits</span>
+                      </div>
+                    </div>
+                  </details>
+                  <details class="sks-src" data-enabled="true">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">team-skills</span>
+                      <span class="pill pill--xs">custom</span>
+                      <span class="sks-src__ctl">
+                        <span class="pill pill--xs" data-tone="danger">can&rsquo;t read</span>
+                        <button class="btn btn--xs btn--icon btn--ghost" aria-label="Remove team-skills"><svg data-lucide="x"></svg></button>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root" data-state="unreadable">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/team-skills</span>
+                        <span class="sks-root__trail"><span class="sks-root__state">can&rsquo;t read this folder</span></span>
+                      </div>
+                    </div>
+                  </details>
+                  <div class="srow" data-od-id="src-scale-add">
+                    <div class="srow__main"><div class="srow__label">Add your own folder</div></div>
+                    <div class="srow__ctl">
+                      <div class="field sks-field-add">
+                        <svg data-lucide="folder-plus"></svg>
+                        <input type="text" placeholder="~/path/to/skills" aria-label="Folder to add">
+                      </div>
+                      <button class="btn btn--sm">Add</button>
+                    </div>
+                  </div>
+                </div>
+
+              </div></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · ROW ANATOMY — CLOSED VS OPEN ===== -->
+    <section class="lab-sec" data-od-id="src-anatomy">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">03</span>
+        <h2 class="lab-sec__t">Row anatomy — closed line, open disclosure</h2>
+        <span class="lab-sec__gist">US-001.AC-3 · US-013.AC-1 · ADR-002</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Closed — everything that matters</b>Chevron, name,
+          total count, and the control. Compozy never renders a switch — the affordance
+          is absent, not disabled; a quiet pill says <code>always on</code>.
+          <span class="mono">US-013.EC-5 · kind: builtin</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="src-anatomy-closed">
+          <details class="sks-src sks-src--bare" data-enabled="true">
+            <summary class="sks-src__sum">
+              <svg class="chev" data-lucide="chevron-right"></svg>
+              <span class="sks-src__name">Compozy</span>
+              <span class="sks-src__ctl">
+                <span class="count-chip">12 skills</span>
+                <span class="pill pill--xs" data-form="hollow">always on</span>
+              </span>
+            </summary>
+            <div class="sks-src__roots">
+              <div class="sks-root">
+                <svg data-lucide="folder"></svg>
+                <span class="sks-root__path">.compozy/skills</span>
+                <span class="sks-root__trail"><span class="sks-root__count">8 skills</span></span>
+              </div>
+              <div class="sks-root">
+                <svg data-lucide="folder"></svg>
+                <span class="sks-root__path">~/.compozy/skills</span>
+                <span class="sks-root__trail"><span class="sks-root__count">4 skills</span></span>
+              </div>
+            </div>
+          </details>
+        </div></div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Open — folders on demand</b>Expanding reveals each
+          folder with its own faint count. The chevron rotates; nothing else on the
+          line moves. Counts come from <code>sources[].roots[]</code> — the UI renders,
+          never derives. <span class="mono">US-001.AC-3 · default: true</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="src-anatomy-open">
+          <details class="sks-src sks-src--bare" data-enabled="true" open>
+            <summary class="sks-src__sum">
+              <svg class="chev" data-lucide="chevron-right"></svg>
+              <span class="sks-src__name">Universal</span>
+              <span class="sks-src__ctl">
+                <span class="count-chip">7 skills</span>
+                <button class="switch is-on" role="switch" aria-checked="true" aria-label="Enable Universal source"><span class="knob"></span></button>
+              </span>
+            </summary>
+            <div class="sks-src__roots">
+              <div class="sks-root">
+                <svg data-lucide="folder"></svg>
+                <span class="sks-root__path">.agents/skills</span>
+                <span class="sks-root__trail"><span class="sks-root__count">5 skills</span></span>
+              </div>
+              <div class="sks-root">
+                <svg data-lucide="folder"></svg>
+                <span class="sks-root__path">~/.agents/skills</span>
+                <span class="sks-root__trail"><span class="sks-root__count">2 skills</span></span>
+              </div>
+            </div>
+          </details>
+        </div></div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Off — dimmed, no counts</b>Off is a token swap (name
+          dims one step), never opacity. No counts render while a source is off —
+          nothing is scanned, so nothing is claimed. The switch stays fully operable.
+          <span class="mono">US-002 · truthful counts</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="src-anatomy-claude">
+          <details class="sks-src sks-src--bare" data-enabled="false">
+            <summary class="sks-src__sum">
+              <svg class="chev" data-lucide="chevron-right"></svg>
+              <span class="sks-src__name">Claude</span>
+              <span class="sks-src__ctl">
+                <button class="switch" role="switch" aria-checked="false" aria-label="Enable Claude source"><span class="knob"></span></button>
+              </span>
+            </summary>
+            <div class="sks-src__roots">
+              <div class="sks-root">
+                <svg data-lucide="folder"></svg>
+                <span class="sks-root__path">.claude/skills</span>
+              </div>
+              <div class="sks-root">
+                <svg data-lucide="folder"></svg>
+                <span class="sks-root__path">~/.claude/skills</span>
+              </div>
+            </div>
+          </details>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · CUSTOM DIRECTORIES EDITOR ===== -->
+    <section class="lab-sec" data-od-id="src-custom">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">04</span>
+        <h2 class="lab-sec__t">Your own folders — add, see, remove</h2>
+        <span class="lab-sec__gist">US-003 · US-004 · ADR-003</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>An added folder is a line like any other</b>It takes
+          the folder&rsquo;s name, a small <code>custom</code> pill, and the daemon
+          count. Remove is a quiet ghost action — it removes the entry from this list,
+          never the folder itself. <span class="mono">US-003.AC-1 · US-004</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="src-custom-row">
+          <details class="sks-src sks-src--bare" data-enabled="true" open>
+            <summary class="sks-src__sum">
+              <svg class="chev" data-lucide="chevron-right"></svg>
+              <span class="sks-src__name">team-skills</span>
+              <span class="pill pill--xs">custom</span>
+              <span class="sks-src__ctl">
+                <span class="count-chip">3 skills</span>
+                <button class="btn btn--xs btn--icon btn--ghost" aria-label="Remove team-skills"><svg data-lucide="x"></svg></button>
+              </span>
+            </summary>
+            <div class="sks-src__roots">
+              <div class="sks-root">
+                <svg data-lucide="folder"></svg>
+                <span class="sks-root__path">~/team-skills</span>
+              </div>
+            </div>
+          </details>
+        </div></div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Add affordance</b>One input, one quiet button. When
+          two folders share a name, the daemon appends a short suffix
+          (<code>team-skills-3f2a</code>) so both stay distinct — the line shows
+          whatever name the daemon settled on. Validation states live on the next
+          board. <span class="mono">US-003 · ADR-003 slug rules</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="src-custom-add">
+          <div class="srow sks-srow--bare">
+            <div class="srow__main"><div class="srow__label">Add your own folder</div></div>
+            <div class="srow__ctl">
+              <div class="field sks-field-add">
+                <svg data-lucide="folder-plus"></svg>
+                <input type="text" placeholder="~/path/to/skills" aria-label="Folder to add">
+              </div>
+              <button class="btn btn--sm">Add</button>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · DEFAULTS ONLY ===== -->
+    <section class="lab-sec" data-od-id="src-defaults">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">05</span>
+        <h2 class="lab-sec__t">Defaults only — zero optional sources, no custom entries</h2>
+        <span class="lab-sec__gist">US-002.EC-4 · US-013.EC-2</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>An explicit state, not an error</b>When every optional
+          preset is off and no folder was added, the optional region says so with the
+          Empty primitive. The Compozy line stays — its folders keep working, and the
+          sentence never pretends something is broken.
+          <span class="mono">US-002.EC-4 · US-013.EC-2</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="src-defaults-demo">
+          <details class="sks-src sks-src--bare" data-enabled="true">
+            <summary class="sks-src__sum">
+              <svg class="chev" data-lucide="chevron-right"></svg>
+              <span class="sks-src__name">Compozy</span>
+              <span class="sks-src__ctl">
+                <span class="count-chip">12 skills</span>
+                <span class="pill pill--xs" data-form="hollow">always on</span>
+              </span>
+            </summary>
+            <div class="sks-src__roots">
+              <div class="sks-root">
+                <svg data-lucide="folder"></svg>
+                <span class="sks-root__path">.compozy/skills</span>
+                <span class="sks-root__trail"><span class="sks-root__count">8 skills</span></span>
+              </div>
+              <div class="sks-root">
+                <svg data-lucide="folder"></svg>
+                <span class="sks-root__path">~/.compozy/skills</span>
+                <span class="sks-root__trail"><span class="sks-root__count">4 skills</span></span>
+              </div>
+            </div>
+          </details>
+          <div class="empty sks-empty-inline" data-od-id="src-defaults-empty">
+            <div class="empty__well"><svg data-lucide="folder-open"></svg></div>
+            <b class="empty__title">Defaults only</b>
+            <p>Only Compozy&rsquo;s built-in folders are on. Turn on a source above,
+              or add your own folder.</p>
+          </div>
+        </div></div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="src-foot">Spec <code>_uiux.md</code> S1 · contract
+      <code>DESIGN-NOTES.md</code> · production seams <code>-skills-settings-page.tsx</code>,
+      <code>settings-disabled-skills-section.tsx</code>, <code>settings-taglist-field.tsx</code>;
+      row disclosure maps to <code>Collapsible</code> from <code>@compozy/ui</code>.
+      Counts, paths, and names are the set&rsquo;s canonical fixtures; runtime truth owns final values.</p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>(function(){ if (window.lucide) window.lucide.createIcons(); })();</script>
+</body>
+</html>

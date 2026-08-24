@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>skill-sources · Settings — workspace &amp; agent scope</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="skill-sources.css">
+<!--
+  skill-sources-settings-scopes · S1 — workspace override model + agent read-only.
+  Spec: .compozy/tasks/skill-sources/_uiux.md S1 workspace/agent rows ·
+        US-005.AC-2/AC-4/EC-3 · US-013.EC-3 · ADR-006 tri-state override.
+  Contract: DESIGN-NOTES.md.
+  2026-08-23 plain-language + parity pass (review feedback): the interleaved per-key
+  table header (.sks-key) read as one confusing table — each key now gets its own
+  sgroup heading (.sks-keyhead: title + posture chip + one quiet action) above its own
+  panelbox. Config-key mono ids (skills.sources) and the CLI-mirror footer sentence
+  were removed from product chrome — provenance lives in the Advanced fold, CLI parity
+  in the CLI. Posture vocabulary (authorized deltas):
+    inherited from global → "same as global"        · button "Override"  → "Customize"
+    overridden            → "custom for this workspace" · button "Inherit global" → "Use global"
+  Tri-state contract unchanged underneath: absent = inherit, array = override,
+  null = clear override (ADR-006).
+  2026-08-23 collapsible-rows pass: source rows share board 01's single-line
+  details/summary grammar — closed by default here; folder paths on expand.
+  Provenance:
+    production — scope selector PillGroup (-skills-settings-page.tsx:249); scope-notice
+                 pattern for agent-scope read-only; workspace context select.
+    spec S1 — workspace scope gains per-key inherit/override for presets and custom
+              folders; agent scope renders the section read-only, affordances absent.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="sco-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Skill sources</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Settings — workspace &amp; agent scope</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="skill-sources-composer-picker.html">Composer picker →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL — WORKSPACE SCOPE, ONE KEY OVERRIDDEN ===== -->
+    <section class="lab-sec" data-od-id="sco-final">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">01</span>
+        <h2 class="lab-sec__t">Workspace scope — presets customized, custom folders shared</h2>
+        <span class="lab-sec__gist">US-005.AC-2 · ADR-006 · E2E-009</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Per setting, not per page</b>This workspace turned
+          Claude on for itself while its custom folders still follow the global list.
+          Each group states its posture with a quiet chip and offers exactly one way
+          to change it. <span class="mono">US-005.AC-2 · inherits{sources:false, custom_sources:true}</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="sco-final-stage">
+            <section class="win is-focused win--sks" data-od-id="sco-final-win">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" aria-label="Close"></button>
+                  <button class="wc wc-min" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="settings-2"></svg></span>
+                  <span class="w2-title">Settings</span>
+                </div>
+                <nav class="w2-crumbs"><span class="w2-sep">/</span><span class="w2-crumb">Skills</span></nav>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail"><span class="w2-meta">23 skills · scope workspace</span></div>
+              </header>
+              <div class="win-body"><div class="app">
+
+                <div class="sgroup">
+                  <div class="sgroup__t">Scope</div>
+                </div>
+                <div class="panelbox">
+                  <div class="srow">
+                    <div class="srow__main"><div class="srow__label">Configure for</div></div>
+                    <div class="srow__ctl">
+                      <div class="pill-group" role="radiogroup" aria-label="Settings scope" data-od-id="sco-final-scope">
+                        <button class="pill-group__item" role="radio" aria-checked="false">Global</button>
+                        <button class="pill-group__item is-on" role="radio" aria-checked="true">Workspace</button>
+                        <button class="pill-group__item" role="radio" aria-checked="false">Agent</button>
+                      </div>
+                      <select class="ctl" aria-label="Workspace context">
+                        <option selected>acme-api</option>
+                        <option>marketing-site</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sgroup sks-sec-gap" data-od-id="sco-key-sources">
+                  <div class="sks-keyhead">
+                    <div class="sgroup__t">Sources</div>
+                    <span class="sks-keyhead__trail">
+                      <span class="pill pill--xs" data-form="hollow">custom for this workspace</span>
+                      <button class="btn btn--xs btn--ghost">Use global</button>
+                    </span>
+                  </div>
+                </div>
+                <div class="panelbox">
+                  <details class="sks-src" data-enabled="true">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">Compozy</span>
+                      <span class="sks-src__ctl">
+                        <span class="count-chip">12 skills</span>
+                        <span class="pill pill--xs" data-form="hollow">always on</span>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">.compozy/skills</span>
+                        <span class="sks-root__trail"><span class="sks-root__count">8 skills</span></span>
+                      </div>
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/.compozy/skills</span>
+                        <span class="sks-root__trail"><span class="sks-root__count">4 skills</span></span>
+                      </div>
+                    </div>
+                  </details>
+                  <details class="sks-src" data-enabled="true">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">Universal</span>
+                      <span class="sks-src__ctl">
+                        <span class="count-chip">7 skills</span>
+                        <button class="switch is-on" role="switch" aria-checked="true" aria-label="Enable Universal source"><span class="knob"></span></button>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">.agents/skills</span>
+                        <span class="sks-root__trail"><span class="sks-root__count">5 skills</span></span>
+                      </div>
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/.agents/skills</span>
+                        <span class="sks-root__trail"><span class="sks-root__count">2 skills</span></span>
+                      </div>
+                    </div>
+                  </details>
+                  <details class="sks-src" data-enabled="true">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">Claude</span>
+                      <span class="sks-src__ctl">
+                        <span class="count-chip">1 skill</span>
+                        <button class="switch is-on" role="switch" aria-checked="true" aria-label="Enable Claude source"><span class="knob"></span></button>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root" data-state="absent">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">.claude/skills</span>
+                        <span class="sks-root__trail"><span class="sks-root__state">no folder yet</span></span>
+                      </div>
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/.claude/skills</span>
+                        <span class="sks-root__trail"><span class="sks-root__count">1 skill</span></span>
+                      </div>
+                    </div>
+                  </details>
+                </div>
+
+                <div class="sgroup sks-sec-gap" data-od-id="sco-key-custom">
+                  <div class="sks-keyhead">
+                    <div class="sgroup__t">Your folders</div>
+                    <span class="sks-keyhead__trail">
+                      <span class="pill pill--xs" data-form="absent">same as global</span>
+                      <button class="btn btn--xs btn--ghost">Customize</button>
+                    </span>
+                  </div>
+                </div>
+                <div class="panelbox">
+                  <details class="sks-src" data-enabled="true">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">team-skills</span>
+                      <span class="pill pill--xs">custom</span>
+                      <span class="sks-src__ctl">
+                        <span class="count-chip">3 skills</span>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/team-skills</span>
+                      </div>
+                    </div>
+                  </details>
+                </div>
+
+                <div class="savebar" data-od-id="sco-final-savebar">
+                  <div class="savebar__state"><span class="d d--ok"></span><span>Saved · applied immediately</span></div>
+                  <button class="btn" disabled>Discard</button>
+                  <button class="btn btn--primary" disabled>Apply</button>
+                </div>
+
+              </div></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · INHERITED READ ===== -->
+    <section class="lab-sec" data-od-id="sco-inherited">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">02</span>
+        <h2 class="lab-sec__t">Fully inheriting — the workspace default read</h2>
+        <span class="lab-sec__gist">US-005.AC-4 · tri-state: both keys absent</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Following the global setup says so</b>Before any
+          workspace edit, both groups carry the quiet chip and show the effective global
+          values. The first edit inside a group is what makes it custom — there is no
+          separate arm switch. <span class="mono">US-005.AC-4 · E2E-009 step 1</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="sco-inherited-demo">
+          <div class="sks-keyhead">
+            <div class="sgroup__t">Sources</div>
+            <span class="sks-keyhead__trail">
+              <span class="pill pill--xs" data-form="absent">same as global</span>
+            </span>
+          </div>
+          <details class="sks-src sks-src--bare sks-sec-gap" data-enabled="true">
+            <summary class="sks-src__sum">
+              <svg class="chev" data-lucide="chevron-right"></svg>
+              <span class="sks-src__name">Universal</span>
+              <span class="sks-src__ctl">
+                <span class="count-chip">7 skills</span>
+                <button class="switch is-on" role="switch" aria-checked="true" aria-label="Enable Universal source"><span class="knob"></span></button>
+              </span>
+            </summary>
+            <div class="sks-src__roots">
+              <div class="sks-root">
+                <svg data-lucide="folder"></svg>
+                <span class="sks-root__path">.agents/skills</span>
+                <span class="sks-root__trail"><span class="sks-root__count">5 skills</span></span>
+              </div>
+              <div class="sks-root">
+                <svg data-lucide="folder"></svg>
+                <span class="sks-root__path">~/.agents/skills</span>
+                <span class="sks-root__trail"><span class="sks-root__count">2 skills</span></span>
+              </div>
+            </div>
+          </details>
+          <div class="sks-keyhead sks-sec-gap">
+            <div class="sgroup__t">Your folders</div>
+            <span class="sks-keyhead__trail">
+              <span class="pill pill--xs" data-form="absent">same as global</span>
+            </span>
+          </div>
+          <details class="sks-src sks-src--bare" data-enabled="true">
+            <summary class="sks-src__sum">
+              <svg class="chev" data-lucide="chevron-right"></svg>
+              <span class="sks-src__name">team-skills</span>
+              <span class="pill pill--xs">custom</span>
+              <span class="sks-src__ctl">
+                <span class="count-chip">3 skills</span>
+              </span>
+            </summary>
+            <div class="sks-src__roots">
+              <div class="sks-root">
+                <svg data-lucide="folder"></svg>
+                <span class="sks-root__path">~/team-skills</span>
+              </div>
+            </div>
+          </details>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · SWITCH BACK TO INHERIT ===== -->
+    <section class="lab-sec" data-od-id="sco-switchback">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">03</span>
+        <h2 class="lab-sec__t">Back to global — one action clears the customization</h2>
+        <span class="lab-sec__gist">US-005.EC-3 · PATCH override: {sources: null}</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>The way back is one click</b>&ldquo;Use global&rdquo;
+          drops the workspace&rsquo;s own list and the global values flow again. No
+          confirmation dialog — the change applies live and the savebar narrates it.
+          Underneath, the client sends <code>null</code> for the key.
+          <span class="mono">US-005.EC-3 · applied live</span></div>
+        <div class="spec__demo"><div class="sks-minis">
+          <div class="plain sks-plainw" data-od-id="sco-switchback-before">
+            <p class="sks-mini-cap">before — customized</p>
+            <div class="sks-keyhead">
+              <div class="sgroup__t">Sources</div>
+              <span class="sks-keyhead__trail">
+                <span class="pill pill--xs" data-form="hollow">custom for this workspace</span>
+                <button class="btn btn--xs btn--ghost">Use global</button>
+              </span>
+            </div>
+          </div>
+          <div class="plain sks-plainw" data-od-id="sco-switchback-after">
+            <p class="sks-mini-cap">after — following global again</p>
+            <div class="sks-keyhead">
+              <div class="sgroup__t">Sources</div>
+              <span class="sks-keyhead__trail">
+                <span class="pill pill--xs" data-form="absent">same as global</span>
+              </span>
+            </div>
+            <div class="savebar sks-sec-gap">
+              <div class="savebar__state"><span class="d d--ok"></span><span>Saved · applied immediately</span></div>
+              <button class="btn" disabled>Discard</button>
+              <button class="btn btn--primary" disabled>Apply</button>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · AGENT SCOPE — READ ONLY ===== -->
+    <section class="lab-sec" data-od-id="sco-agent">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">04</span>
+        <h2 class="lab-sec__t">Agent scope — read-only, affordances absent</h2>
+        <span class="lab-sec__gist">US-013.EC-3</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Nothing to press, on purpose</b>Sources are decided
+          globally or per workspace — an agent only inherits them. At agent scope the
+          section turns informational: plain on/off words stand where switches would.
+          Absent, not disabled. <span class="mono">US-013.EC-3 · scope-policy notice</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="sco-agent-demo">
+          <div class="notice notice--info" data-od-id="sco-agent-notice">
+            <svg data-lucide="info"></svg>
+            <span><b>Viewing one agent.</b> Skill sources are set for everyone or per
+              workspace. Switch to Global or Workspace scope to change them.</span>
+          </div>
+          <div class="sks-keyhead sks-sec-gap">
+            <div class="sgroup__t">Sources</div>
+          </div>
+          <details class="sks-src sks-src--bare sks-sec-gap" data-enabled="true">
+            <summary class="sks-src__sum">
+              <svg class="chev" data-lucide="chevron-right"></svg>
+              <span class="sks-src__name">Compozy</span>
+              <span class="sks-src__ctl">
+                <span class="pill pill--xs" data-form="hollow">always on</span>
+              </span>
+            </summary>
+            <div class="sks-src__roots">
+              <div class="sks-root">
+                <svg data-lucide="folder"></svg>
+                <span class="sks-root__path">.compozy/skills</span>
+              </div>
+              <div class="sks-root">
+                <svg data-lucide="folder"></svg>
+                <span class="sks-root__path">~/.compozy/skills</span>
+              </div>
+            </div>
+          </details>
+          <details class="sks-src sks-src--bare" data-enabled="true">
+            <summary class="sks-src__sum">
+              <svg class="chev" data-lucide="chevron-right"></svg>
+              <span class="sks-src__name">Universal</span>
+              <span class="sks-src__ctl">
+                <span class="pill pill--xs" data-form="hollow">on</span>
+              </span>
+            </summary>
+            <div class="sks-src__roots">
+              <div class="sks-root">
+                <svg data-lucide="folder"></svg>
+                <span class="sks-root__path">.agents/skills</span>
+              </div>
+              <div class="sks-root">
+                <svg data-lucide="folder"></svg>
+                <span class="sks-root__path">~/.agents/skills</span>
+              </div>
+            </div>
+          </details>
+          <details class="sks-src sks-src--bare" data-enabled="false">
+            <summary class="sks-src__sum">
+              <svg class="chev" data-lucide="chevron-right"></svg>
+              <span class="sks-src__name">Claude</span>
+              <span class="sks-src__ctl">
+                <span class="pill pill--xs" data-form="absent">off</span>
+              </span>
+            </summary>
+            <div class="sks-src__roots">
+              <div class="sks-root">
+                <svg data-lucide="folder"></svg>
+                <span class="sks-root__path">.claude/skills</span>
+              </div>
+              <div class="sks-root">
+                <svg data-lucide="folder"></svg>
+                <span class="sks-root__path">~/.claude/skills</span>
+              </div>
+            </div>
+          </details>
+        </div></div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="sco-foot">Spec <code>_uiux.md</code> S1 workspace/agent ·
+      contract <code>DESIGN-NOTES.md</code> · tri-state override per ADR-006: absent = follow
+      global, array = customize, <code>null</code> = back to global. Posture chips are
+      info-neutral — the signal palette never marks scope posture.</p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>(function(){ if (window.lucide) window.lucide.createIcons(); })();</script>
+</body>
+</html>

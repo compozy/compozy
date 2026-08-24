@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "agent-comms/agent-comms-roster.html",
+  "entry": "agent-comms/agent-comms-roster.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-23T18:19:02.994Z",
+  "updatedAt": "2026-08-23T18:19:02.994Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

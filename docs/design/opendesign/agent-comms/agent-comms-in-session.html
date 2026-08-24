@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>In the session — calls inside the conversation · Agent comms · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="agent-comms.css">
+<!--
+  agent-comms-in-session · revision 2026-08-23 — how calls and messages
+  actually read inside a session conversation, among the messages.
+  Spec: .compozy/tasks/agent-comms/_uiux.md S5 (transcript half) · US-002/
+  007/017/029. Contract: DESIGN-NOTES.md (revision block).
+  Provenance:
+    production — ds-core .transcript/.msg-*/.composer grammar
+                 (ChatMessageBubble/StreamMarkdown seams); .toolcall
+                 geometry for the inline card (tool-call-card.tsx)
+    spec — the wake copy is the _dx.md shape verbatim; state chips keep
+           the exact CLI word; ids and digests stay in the drill-in
+    authorized delta — inline call card (.ac-turn-call) is this set's
+                       composition of the toolcall geometry; conversation
+                       copy is illustrative fixture content
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="is-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Agent comms</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">In the session</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="agent-comms-session-calls-panel.html">← Calls panel</a>
+      <a class="btn btn--sm" href="agent-comms-call-detail.html">Call detail →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="lab-sec" data-od-id="is-start">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Help gets asked for — right in the conversation</h2>
+        <span class="lab-sec__gist">US-001 · US-029</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>One quiet row, closed by default</b>You ask for something, the agent brings in a helper, and the hand-off is a single closed row between the messages: who was asked, the state, the moving dots. What was asked and what came back stay behind the caret — the conversation never fills with open panels. <span class="mono">task_06/VC-20</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="is-start-stage">
+            <section class="win is-focused" data-od-id="is-start-win">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="terminal"></svg></span>
+                  <span class="w2-title">loop-retry-fix</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+              </header>
+              <div class="win-body">
+                <div class="transcript" data-od-id="is-start-transcript">
+                  <div class="msg-user">
+                    <div class="msg-role">You</div>
+                    <div class="msg-text">Can you fix the retry bug in the loop package and get the change reviewed before we merge?</div>
+                  </div>
+                  <div>
+                    <div class="msg-role">Agent</div>
+                    <div class="msg-text">Done — the retry path no longer swallows the timeout error. I'll have <b>reviewer</b> look over the change before you merge.</div>
+                  </div>
+                  <details class="ac-turn-call" data-od-id="is-card-running">
+                    <summary class="ac-turn-call__head">
+                      <svg class="ac-turn-call__caret" data-lucide="chevron-right"></svg>
+                      <span class="agent-chip">RV</span>
+                      <span class="ac-turn-call__verb">Asked</span>
+                      <span class="ac-turn-call__agent">reviewer</span>
+                      <span class="ac-state" data-state="running"><svg data-lucide="circle"></svg>running</span>
+                      <span class="ac-typing" aria-label="reviewer is working"><i></i><i></i><i></i></span>
+                      <span class="ac-turn-call__age">40s</span>
+                    </summary>
+                    <div class="ac-turn-call__body">
+                      <div class="ac-turn-call__ask">Review the diff in HEAD~1..HEAD of this repo</div>
+                    </div>
+                  </details>
+                  <div>
+                    <div class="msg-role">Agent</div>
+                    <div class="msg-text">While that runs, I'm updating the changelog entry.<span class="caret"></span></div>
+                  </div>
+                </div>
+                <div class="composer">
+                  <input type="text" placeholder="Message this session…" aria-label="Message this session">
+                  <button class="btn btn--primary composer-send" type="button" aria-label="Send"><svg data-lucide="arrow-up"></svg></button>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="is-result">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">The answer comes back — and the conversation moves on</h2>
+        <span class="lab-sec__gist">US-017.AC-1 · task_06/VC-20</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Same row, now settled</b>When the helper finishes, the chip turns green — that's all the conversation shows. Opening the caret (staged open here) reveals the ask and the one-line answer; the wake note below says why the session woke, in the runtime's own words. <span class="mono">_dx.md wake shape</span></div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="is-result-demo">
+            <div class="transcript" style="padding:4px 2px">
+              <details class="ac-turn-call" open data-od-id="is-card-completed">
+                <summary class="ac-turn-call__head">
+                  <svg class="ac-turn-call__caret" data-lucide="chevron-right"></svg>
+                  <span class="agent-chip">RV</span>
+                  <span class="ac-turn-call__verb">Asked</span>
+                  <span class="ac-turn-call__agent">reviewer</span>
+                  <span class="ac-state" data-state="completed"><svg data-lucide="check"></svg>completed</span>
+                  <span class="ac-turn-call__age">2m</span>
+                </summary>
+                <div class="ac-turn-call__body">
+                  <div class="ac-turn-call__ask">Review the diff in HEAD~1..HEAD of this repo</div>
+                  <div class="ac-turn-call__result">
+                    <span class="ac-turn-call__preview">{"verdict":"needs-changes"} · 1 finding</span>
+                    <a href="agent-comms-call-detail.html">Open call</a>
+                  </div>
+                </div>
+              </details>
+              <div class="ac-wake" data-od-id="is-result-wake">
+                <div class="ac-wake__head"><svg data-lucide="bell"></svg>Woke because a call completed</div>
+                <div class="ac-wake__preview">Call completed: reviewer (call_01JBD8G2K7Q9) → completed.
+Result preview: {"verdict":"needs-changes"} (312 B, contract sha256:9f2c…)</div>
+              </div>
+              <div>
+                <div class="msg-role">Agent</div>
+                <div class="msg-text">reviewer flagged one thing: the retry path still swallows an error at <code>internal/loop/action.go:88</code>. Fixing that now, then we're good to merge.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="is-fanout">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Many helpers at once — still one card</h2>
+        <span class="lab-sec__gist">US-028.EC-2 · US-030.EC-2</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>A fan-out never floods the conversation</b>When an agent hands work to many helpers at the same time, the transcript gets one closed card, not twelve: the faces, the count, live tallies, and the worst state raised to the front — same chip grammar as everywhere. Opening it shows one compact row per helper; the full list lives in the Calls panel. <span class="mono">childSessionSignalTone</span></div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="is-fanout-demo">
+            <div class="transcript" style="padding:4px 2px">
+              <div>
+                <div class="msg-role">Agent</div>
+                <div class="msg-text">Splitting the audit across 12 helpers — one per package. I'll collect the verdicts as they land.</div>
+              </div>
+              <details class="ac-turn-fan" data-od-id="is-fan-closed">
+                <summary class="ac-turn-fan__head">
+                  <svg class="ac-turn-call__caret" data-lucide="chevron-right"></svg>
+                  <span class="ac-chips">
+                    <span class="agent-chip">RV</span>
+                    <span class="agent-chip">SC</span>
+                    <span class="agent-chip">AA</span>
+                    <span class="ac-chips__more">+9</span>
+                  </span>
+                  <span class="ac-turn-fan__label">Asked 12 helpers</span>
+                  <span class="ac-turn-fan__sum">9 done · 2 running · 1 needs a look</span>
+                  <span class="ac-state" data-state="invalid-result"><svg data-lucide="file-x"></svg>invalid-result</span>
+                  <span class="ac-turn-fan__age">4m</span>
+                </summary>
+              </details>
+              <div style="display:flex;align-items:center;gap:8px;color:var(--faint);font-size:11px;padding-left:4px"><svg data-lucide="arrow-down" style="width:12px;height:12px"></svg>the same card, opened</div>
+              <details class="ac-turn-fan" open data-od-id="is-fan-open">
+                <summary class="ac-turn-fan__head">
+                  <svg class="ac-turn-call__caret" data-lucide="chevron-right"></svg>
+                  <span class="ac-chips">
+                    <span class="agent-chip">RV</span>
+                    <span class="agent-chip">SC</span>
+                    <span class="agent-chip">AA</span>
+                    <span class="ac-chips__more">+9</span>
+                  </span>
+                  <span class="ac-turn-fan__label">Asked 12 helpers</span>
+                  <span class="ac-turn-fan__sum">9 done · 2 running · 1 needs a look</span>
+                  <span class="ac-turn-fan__age">4m</span>
+                </summary>
+                <div class="ac-turn-fan__body">
+                  <div class="ac-call-li" tabindex="0"><span class="ac-call-li__dir"><svg data-lucide="arrow-up-right"></svg></span><span class="ac-call-li__agent">reviewer · internal/loop</span><span class="ac-state" data-state="invalid-result"><svg data-lucide="file-x"></svg>invalid-result</span><span class="ac-call-li__age">1m</span></div>
+                  <div class="ac-call-li" tabindex="0"><span class="ac-call-li__dir"><svg data-lucide="arrow-up-right"></svg></span><span class="ac-call-li__agent">reviewer · internal/api</span><span class="ac-state" data-state="running"><svg data-lucide="circle"></svg>running</span><span class="ac-call-li__age">4m</span></div>
+                  <div class="ac-call-li" tabindex="0"><span class="ac-call-li__dir"><svg data-lucide="arrow-up-right"></svg></span><span class="ac-call-li__agent">scout · internal/config</span><span class="ac-state" data-state="running"><svg data-lucide="circle"></svg>running</span><span class="ac-call-li__age">4m</span></div>
+                  <div class="ac-call-li" tabindex="0"><span class="ac-call-li__dir"><svg data-lucide="arrow-up-right"></svg></span><span class="ac-call-li__agent">api-auditor · internal/network</span><span class="ac-state" data-state="completed"><svg data-lucide="check"></svg>completed</span><span class="ac-call-li__age">2m</span></div>
+                  <div class="ac-call-li" tabindex="0"><span class="ac-call-li__dir"><svg data-lucide="arrow-up-right"></svg></span><span class="ac-call-li__agent">reviewer · internal/store</span><span class="ac-state" data-state="completed"><svg data-lucide="check"></svg>completed</span><span class="ac-call-li__age">3m</span></div>
+                  <div class="ac-turn-fan__foot">5 of 12 shown · <a href="agent-comms-session-calls-panel.html" style="color:var(--subtle);text-decoration:underline;text-underline-offset:2px">see all in the Calls panel</a></div>
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="is-variants">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">One card, every moment it can have</h2>
+        <span class="lab-sec__gist">nine states, closed set · task_06/VC-02</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>What each state looks like in the flow</b>Waiting its turn, working, done, done-but-wrong, and stopped — the same closed row, only the chip changes. Red always means "this needs your look"; opening the row (staged open on the red one) reveals the details and the fix right next to the problem. <span class="mono">US-005 · US-008</span></div>
+        <div class="spec__demo">
+          <div class="plain" style="display:flex;flex-direction:column;gap:12px" data-od-id="is-variants-demo">
+            <details class="ac-turn-call" data-od-id="is-var-queued">
+              <summary class="ac-turn-call__head">
+                <svg class="ac-turn-call__caret" data-lucide="chevron-right"></svg>
+                <span class="agent-chip">DW</span>
+                <span class="ac-turn-call__verb">Asked</span>
+                <span class="ac-turn-call__agent">docs-writer</span>
+                <span class="ac-state" data-state="queued"><svg data-lucide="clock"></svg>queued</span>
+                <span class="ac-turn-call__age">4s</span>
+              </summary>
+              <div class="ac-turn-call__body">
+                <div class="ac-turn-call__ask">Write the release note for the retry fix — waiting its turn</div>
+              </div>
+            </details>
+            <details class="ac-turn-call" data-od-id="is-var-extracted">
+              <summary class="ac-turn-call__head">
+                <svg class="ac-turn-call__caret" data-lucide="chevron-right"></svg>
+                <span class="agent-chip">SC</span>
+                <span class="ac-turn-call__verb">Asked</span>
+                <span class="ac-turn-call__agent">scout</span>
+                <span class="ac-state" data-state="completed"><svg data-lucide="check"></svg>completed</span>
+                <span class="ac-verdict">extracted</span>
+                <span class="ac-turn-call__age">9m</span>
+              </summary>
+              <div class="ac-turn-call__body">
+                <div class="ac-turn-call__ask">Map the extension registry area</div>
+                <div class="ac-turn-call__result">
+                  <span class="ac-turn-call__preview">{"summary":"3 entry points"} · answer recovered from prose</span>
+                  <a href="agent-comms-call-detail.html">Open call</a>
+                </div>
+              </div>
+            </details>
+            <details class="ac-turn-call" open data-od-id="is-var-invalid">
+              <summary class="ac-turn-call__head">
+                <svg class="ac-turn-call__caret" data-lucide="chevron-right"></svg>
+                <span class="agent-chip">RV</span>
+                <span class="ac-turn-call__verb">Asked</span>
+                <span class="ac-turn-call__agent">reviewer</span>
+                <span class="ac-state" data-state="invalid-result"><svg data-lucide="file-x"></svg>invalid-result</span>
+                <span class="ac-turn-call__age">6m</span>
+              </summary>
+              <div class="ac-turn-call__body">
+                <div class="ac-turn-call__ask">Review the release-notes draft</div>
+                <div class="ac-turn-call__flag" data-od-id="is-var-invalid-flag">
+                  <svg data-lucide="octagon-alert"></svg>
+                  <span>The answer didn't match what was asked, even after one retry. <span class="mono">call_expect_invalid</span></span>
+                  <span class="act"><button class="btn btn--xs" type="button">Ask again</button></span>
+                </div>
+              </div>
+            </details>
+            <details class="ac-turn-call" data-od-id="is-var-canceled">
+              <summary class="ac-turn-call__head">
+                <svg class="ac-turn-call__caret" data-lucide="chevron-right"></svg>
+                <span class="agent-chip">RV</span>
+                <span class="ac-turn-call__verb">Asked</span>
+                <span class="ac-turn-call__agent">reviewer</span>
+                <span class="ac-state" data-state="canceled"><svg data-lucide="ban"></svg>canceled</span>
+                <span class="ac-turn-call__age">18m</span>
+              </summary>
+              <div class="ac-turn-call__body">
+                <div class="ac-turn-call__ask">Review rev-01 — stopped when rev-02 replaced it</div>
+              </div>
+            </details>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="is-message">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">A helper speaks up mid-conversation</h2>
+        <span class="lab-sec__gist">US-016.AC-1 · task_06/VC-14</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Framed, stamped, never mistaken for you</b>When a helper sends a note back before finishing, it lands between the turns inside a dashed frame that names who wrote it. Anything it asks for stays inert — reading it never runs it. <span class="mono">.ac-untrusted</span></div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="is-message-demo">
+            <div class="transcript" style="padding:4px 2px">
+              <div>
+                <div class="msg-role">Agent</div>
+                <div class="msg-text">reviewer is still on the diff — writing the changelog entry meanwhile.</div>
+              </div>
+              <div class="ac-turn-msg" data-od-id="is-message-note">
+                <div class="ac-turn-msg__meta">
+                  <span class="agent-chip">RV</span>
+                  <span class="ac-turn-msg__from">reviewer</span>
+                  <span class="ac-delivery" data-delivery="woke"><svg data-lucide="bell"></svg>woke</span>
+                  <span class="ac-turn-msg__age">44s</span>
+                </div>
+                <div class="ac-untrusted">
+                  <div class="ac-untrusted__stamp"><svg data-lucide="shield"></svg>from agent reviewer — not the operator</div>
+                  Blocked: repo has no tests for internal/loop — proceed reviewing anyway?
+                </div>
+              </div>
+              <div>
+                <div class="msg-role">Agent</div>
+                <div class="msg-text">Told reviewer to proceed — the loop package tests land in the next task.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="is-child">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Inside the helper's own session</h2>
+        <span class="lab-sec__gist">US-002 · US-007 · task_06/VC-20</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The helper knows what it owes</b>Open the helper's session and its side of the story reads the same way: who asked, what shape the answer must have, and — at the end — the moment the answer went back. Answering is what closes the call. <span class="mono">compozy__call_return</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="is-child-stage">
+            <section class="win is-focused" data-od-id="is-child-win">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="bot"></svg></span>
+                  <span class="w2-title">reviewer</span>
+                  <span class="w2-meta">helping loop-retry-fix</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+              </header>
+              <div class="win-body">
+                <div class="transcript" data-od-id="is-child-transcript">
+                  <div class="ac-turn-bound" data-od-id="is-child-bound">
+                    <b>Asked by loop-retry-fix</b> — review the diff and answer with findings and a verdict.
+                    <span class="mono">contract sha256:9f2c… · 2 required keys</span>
+                  </div>
+                  <div>
+                    <div class="msg-role">reviewer</div>
+                    <div class="msg-text">Reading the diff — two files changed in <code>internal/loop</code>.</div>
+                  </div>
+                  <div class="toolcall">
+                    <button class="toolcall-head" type="button" aria-expanded="false">
+                      <svg class="tc-caret" data-lucide="chevron-right"></svg>
+                      <span class="tc-name">Read</span>
+                      <span class="tc-file">internal/loop/action.go</span>
+                    </button>
+                  </div>
+                  <div>
+                    <div class="msg-role">reviewer</div>
+                    <div class="msg-text">One problem: the retry path still swallows the timeout error at line 88. Everything else looks right.</div>
+                  </div>
+                  <div class="ac-turn-return" data-od-id="is-child-return">
+                    <svg data-lucide="corner-down-left"></svg>
+                    <span>Answer sent back to <b>loop-retry-fix</b> — verdict: needs-changes</span>
+                    <span class="ac-turn-return__age">2m</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="is-calm">
+      <div class="lab-sec__head"><span class="lab-sec__num">07</span><h2 class="lab-sec__t">A long session stays calm</h2>
+        <span class="lab-sec__gist">US-029.EC-1</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Settled work folds away</b>After hours of delegation the conversation doesn't fill with cards: settled calls collapse into one quiet stack, the one still running keeps its own card, and the full list lives in the Calls panel. <span class="mono">task_06/VC-21</span></div>
+        <div class="spec__demo">
+          <div class="plain" style="display:flex;flex-direction:column;gap:12px" data-od-id="is-calm-demo">
+            <div class="ac-turn-stack" data-od-id="is-calm-stack">
+              <div class="ac-call-li" tabindex="0"><span class="ac-call-li__dir"><svg data-lucide="arrow-up-right"></svg></span><span class="ac-call-li__agent">reviewer</span><span class="ac-state" data-state="completed"><svg data-lucide="check"></svg>completed</span><span class="ac-call-li__age">2m</span></div>
+              <div class="ac-call-li" tabindex="0"><span class="ac-call-li__dir"><svg data-lucide="arrow-up-right"></svg></span><span class="ac-call-li__agent">scout</span><span class="ac-state" data-state="completed"><svg data-lucide="check"></svg>completed</span><span class="ac-call-li__age">9m</span></div>
+              <div class="ac-call-li" tabindex="0"><span class="ac-call-li__dir"><svg data-lucide="arrow-up-right"></svg></span><span class="ac-call-li__agent">docs-writer</span><span class="ac-state" data-state="canceled"><svg data-lucide="ban"></svg>canceled</span><span class="ac-call-li__age">18m</span></div>
+              <div class="ac-turn-stack__foot">3 settled calls · <a href="agent-comms-session-calls-panel.html" style="color:var(--subtle);text-decoration:underline;text-underline-offset:2px">see all in the Calls panel</a></div>
+            </div>
+            <details class="ac-turn-call">
+              <summary class="ac-turn-call__head">
+                <svg class="ac-turn-call__caret" data-lucide="chevron-right"></svg>
+                <span class="agent-chip">RV</span>
+                <span class="ac-turn-call__verb">Asked</span>
+                <span class="ac-turn-call__agent">reviewer</span>
+                <span class="ac-state" data-state="running"><svg data-lucide="circle"></svg>running</span>
+                <span class="ac-typing" aria-label="reviewer is working"><i></i><i></i><i></i></span>
+                <span class="ac-turn-call__age">40s</span>
+              </summary>
+              <div class="ac-turn-call__body">
+                <div class="ac-turn-call__ask">Review rev-02 of the retry fix</div>
+              </div>
+            </details>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">Revision 2026-08-23 · spec: .compozy/tasks/agent-comms/_uiux.md S5 · contract: DESIGN-NOTES.md revision block. Inline cards ride the ds-core .toolcall geometry; state chips keep the exact CLI word; ids and digests stay in the drill-in. Wake copy is the _dx.md shape verbatim. Content illustrative; runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>(function(){ if(window.lucide) window.lucide.createIcons(); })();</script>
+</body>
+</html>

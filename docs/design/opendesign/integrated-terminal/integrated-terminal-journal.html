@@ -1,0 +1,612 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Journal · Integrated terminal · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="integrated-terminal.css">
+<!--
+  integrated-terminal-journal · S7 — the per-project command journal
+  inside the Terminal app, its detail rail, and recording replay.
+  Spec: .compozy/tasks/integrated-terminal/_uiux.md S7 · US-023, 024.
+  Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — the journal is a TABLE by the ds-core definition
+      (fixed columns, values compared across rows) and rides the
+      canonical ladder from design-system/components.html §09: the
+      command cell is the title / sub / mono-id stack, outcome and
+      confidence are .pill, hover is the .045 glaze, selection an
+      --elevated plate. Chrome is ds-shell .win/.deck; the journal
+      is a PINNED deck tab, because S7 puts it inside the Terminal
+      app, not in a window of its own. Toolbar is .listing-toolbar
+      + .filter-chip; the detail rail is the DetailInspector
+      anatomy (.rail-sec/.prow); empties are .empty.
+    spec — ordering started_at DESC, cursor-paged, NO total
+      (retention is unbounded; a truthful total would be a full
+      scan); filters actor/since/failed/terminal; empty journal is
+      an honest empty state, not an error (US-023.EC-3); heuristic
+      rows carry a visible estimated mark and are never presented
+      as exact (US-023.AC-3); exit cause `unknown` renders as
+      unknown; recordings are opt-in asciicast v2 with timing
+      replay (US-024); redacted input never appears — only the
+      length marker.
+    authorized delta — (a) the working directory renders as the
+      demoted sub-line of the command cell instead of its own
+      column: the seven facts and their reading order survive, but
+      the web row is SCANNED, not parsed, so it gets one title and
+      six demoted attributes; the CLI keeps its column order.
+      (b) filtered-empty counts only the loaded rows ("in the 50
+      loaded rows"), because the server never reports a total.
+      (c) opening the detail rail drops the permission/confidence
+      columns — they reappear as rows in the rail rather than
+      fighting the command for width (production
+      DetailInspector inline breakpoint).
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="tj-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Integrated terminal</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Journal</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="index.html">Back to set →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL — THE JOURNAL ===== -->
+    <section class="lab-sec" data-od-id="tj-final">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">01</span>
+        <h2 class="lab-sec__t">The journal — every command, in one place</h2>
+        <span class="lab-sec__gist">US-023.AC-1..3</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>The command is the row.</b> It reads as a title, with the
+          folder and the terminal it ran in demoted beneath — the same
+          three-line stack every table in the product uses for its name
+          cell. Everything else is an attribute: when, who, how it ended,
+          who allowed it, how sure the record is. Rows are calm at rest;
+          the one warning on this screen marks a guess. The journal lives
+          as a pinned tab in the Terminal app, next to the terminals it
+          records.
+          <span class="mono">US-023 · TerminalJournalPanel</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="tj-final-stage">
+            <section class="win is-focused tm-demo-win tm-demo-win--wide" data-od-id="tj-final-win">
+              <div class="deck" role="tablist" aria-label="Terminal tabs">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="deck-scroll">
+                  <button class="deck-tab" role="tab" aria-selected="false">
+                    <span class="deck-tab__dot" data-s="running"></span>
+                    <span class="deck-tab__label">dev server</span>
+                    <span class="deck-tab__x" aria-label="Close terminal tab"><i data-lucide="x"></i></span>
+                  </button>
+                  <button class="deck-tab" role="tab" aria-selected="false" data-mode="pipe">
+                    <i data-lucide="file-text" class="deck-tab__glyph"></i>
+                    <span class="deck-tab__label">make gate</span>
+                    <span class="deck-tab__x" aria-label="Close terminal tab"><i data-lucide="x"></i></span>
+                  </button>
+                  <button class="deck-tab" role="tab" aria-selected="false">
+                    <span class="deck-tab__dot" data-s="running"></span>
+                    <span class="deck-tab__label">psql</span>
+                    <span class="deck-tab__x" aria-label="Close terminal tab"><i data-lucide="x"></i></span>
+                  </button>
+                </div>
+                <button class="deck-add" aria-label="Open a new terminal"><i data-lucide="plus"></i></button>
+                <span class="deck-gutter" aria-hidden="true"></span>
+                <!-- the journal is a pinned tab: one per project, never closable -->
+                <button class="deck-tab deck-tab--pinned is-on" role="tab" aria-selected="true" data-od-id="tj-final-tab">
+                  <i data-lucide="scroll-text" class="deck-tab__glyph"></i>
+                  <span class="deck-tab__label">Journal</span>
+                </button>
+              </div>
+              <header class="win-head">
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="scroll-text"></svg></span>
+                  <span class="w2-title">Journal</span>
+                  <span class="w2-meta">atlas-api</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+              </header>
+              <div class="win-body">
+                <div class="tm-journal" data-od-id="tj-final-table">
+                  <div class="jr-bar">
+                    <div class="listing-toolbar">
+                      <div class="listing-toolbar__leading">
+                        <span class="filter-chip">
+                          <span class="filter-chip__label">who</span>
+                          <span class="filter-chip__op">is</span>
+                          <span class="filter-chip__val">Claude Code</span>
+                          <button class="filter-chip__x" aria-label="Clear who filter"><svg data-lucide="x"></svg></button>
+                        </span>
+                        <button class="btn btn--sm btn--ghost" type="button"><svg data-lucide="list-filter"></svg>Filter</button>
+                      </div>
+                      <div class="listing-toolbar__trailing">
+                        <span class="toolbar-meta">Newest first</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="jr-scroll">
+                    <table class="table">
+                      <colgroup>
+                        <col class="jr-c-when"><col class="jr-c-who"><col>
+                        <col class="jr-c-result"><col class="jr-c-perm"><col class="jr-c-conf"><col class="jr-c-act">
+                      </colgroup>
+                      <thead>
+                        <tr>
+                          <th>When</th><th>Who</th><th>Command</th>
+                          <th>Result</th><th>Permission</th><th>Confidence</th>
+                          <th aria-label="Recording"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr data-od-id="tj-row-gate">
+                          <td><span class="jr-when">12:47</span></td>
+                          <td><span class="jr-who"><span class="agent-chip">CC</span><span class="jr-who__name">Claude Code</span></span></td>
+                          <td>
+                            <span class="jr-cmd">make gate</span>
+                            <span class="jr-where">~/dev/atlas-api · term-a03b558d21f0</span>
+                          </td>
+                          <td>
+                            <span class="pill" data-tone="success">Succeeded</span>
+                            <span class="jr-code">exit 0</span>
+                          </td>
+                          <td><span class="jr-perm">always allowed</span></td>
+                          <td><span class="pill pill--xs">verified</span></td>
+                          <td><button class="btn btn--sm btn--icon btn--ghost jr-act" type="button" aria-label="Replay this recording" title="Replay recording"><svg data-lucide="play"></svg></button></td>
+                        </tr>
+                        <tr data-od-id="tj-row-psql">
+                          <td><span class="jr-when">12:44</span></td>
+                          <td><span class="jr-who"><span class="agent-chip">CC</span><span class="jr-who__name">Claude Code</span></span></td>
+                          <td>
+                            <span class="jr-cmd">psql -h staging.internal -U atlas atlas_api</span>
+                            <span class="jr-where">~/dev/atlas-api · term-9cd7e14b2a66</span>
+                          </td>
+                          <td>
+                            <span class="pill" data-tone="success">Succeeded</span>
+                            <span class="jr-code">exit 0</span>
+                          </td>
+                          <td><span class="jr-perm">approved by you</span></td>
+                          <td><span class="pill pill--xs">exact</span></td>
+                          <td></td>
+                        </tr>
+                        <tr data-od-id="tj-row-rebase">
+                          <td><span class="jr-when">12:41</span></td>
+                          <td><span class="jr-who"><span class="agent-chip" data-kind="human">PN</span><span class="jr-who__name">Pedro</span></span></td>
+                          <td>
+                            <span class="jr-cmd">git rebase --continue</span>
+                            <span class="jr-where">~/dev/atlas-api · term-4f21c9a03b7e</span>
+                          </td>
+                          <td>
+                            <span class="pill" data-tone="success">Succeeded</span>
+                            <span class="jr-code">exit 0</span>
+                          </td>
+                          <td><span class="jr-perm">not needed</span></td>
+                          <td><span class="pill pill--xs" data-tone="warning"><i data-lucide="triangle-alert"></i>estimated</span></td>
+                          <td></td>
+                        </tr>
+                        <tr data-od-id="tj-row-test">
+                          <td><span class="jr-when">12:38</span></td>
+                          <td><span class="jr-who"><span class="agent-chip">CC</span><span class="jr-who__name">Claude Code</span></span></td>
+                          <td>
+                            <span class="jr-cmd">bun run test --filter terminal</span>
+                            <span class="jr-where">~/dev/atlas-api · term-a03b558d21f0</span>
+                          </td>
+                          <td>
+                            <!-- non-zero exit is NEUTRAL, never danger: a failing test is an answer -->
+                            <span class="pill">Finished with errors</span>
+                            <span class="jr-code">exit 1</span>
+                          </td>
+                          <td><span class="jr-perm">approved once</span></td>
+                          <td><span class="pill pill--xs">verified</span></td>
+                          <td><button class="btn btn--sm btn--icon btn--ghost jr-act" type="button" aria-label="Replay this recording" title="Replay recording"><svg data-lucide="play"></svg></button></td>
+                        </tr>
+                        <tr data-od-id="tj-row-ssh">
+                          <td><span class="jr-when">12:31</span></td>
+                          <td><span class="jr-who"><span class="agent-chip" data-kind="human">PN</span><span class="jr-who__name">Pedro</span></span></td>
+                          <td>
+                            <span class="jr-cmd">ssh staging</span>
+                            <span class="jr-where">~/dev · term-1e8f7a55c402</span>
+                          </td>
+                          <td>
+                            <span class="pill" data-form="hollow">Stopped</span>
+                            <span class="jr-code">signal TERM</span>
+                          </td>
+                          <td><span class="jr-perm">not needed</span></td>
+                          <td><span class="pill pill--xs" data-tone="warning"><i data-lucide="triangle-alert"></i>estimated</span></td>
+                          <td></td>
+                        </tr>
+                        <tr data-od-id="tj-row-build">
+                          <td><span class="jr-when">12:26</span></td>
+                          <td><span class="jr-who"><span class="agent-chip" data-kind="human">MS</span><span class="jr-who__name">Marina</span></span></td>
+                          <td>
+                            <span class="jr-cmd">bun run build</span>
+                            <span class="jr-where">~/dev/atlas-api · term-77c1d0e94ab3</span>
+                          </td>
+                          <td>
+                            <!-- unknown renders as unknown — the UI never guesses a cause -->
+                            <span class="pill" data-form="hollow">Ended</span>
+                            <span class="jr-code">cause unknown</span>
+                          </td>
+                          <td><span class="jr-perm">not needed</span></td>
+                          <td><span class="pill pill--xs" data-tone="warning"><i data-lucide="triangle-alert"></i>estimated</span></td>
+                          <td></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="jr-foot">
+                    <!-- cursor paging: rows LOADED, never a total the server can't count -->
+                    <span class="jr-foot__meta">50 rows loaded · newest first</span>
+                    <button class="btn btn--sm btn--ghost" type="button" data-od-id="tj-loadmore">Load older rows</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · ROW DETAIL ===== -->
+    <section class="lab-sec" data-od-id="tj-detail">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">02</span>
+        <h2 class="lab-sec__t">A row, answered</h2>
+        <span class="lab-sec__gist">US-023.AC-1 · DetailInspector</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>Picking a row opens the whole record.</b> The full command, the
+          exact times, and the last thing the screen showed. Opening the
+          panel puts the attribute columns away — they read better as rows
+          here than as columns fighting the command for width. Hidden input
+          stayed hidden: the record keeps the length, never the characters.
+          <span class="mono">US-023 · rec-9f21ac</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="tj-detail-stage">
+            <section class="win is-focused tm-demo-win tm-demo-win--wide" data-od-id="tj-detail-win">
+              <header class="win-head">
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="scroll-text"></svg></span>
+                  <span class="w2-title">Journal</span>
+                  <span class="w2-meta">atlas-api</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+              </header>
+              <div class="win-body">
+                <div class="tm-journal">
+                  <div class="jr-split">
+                    <div class="jr-scroll">
+                      <table class="table">
+                        <colgroup><col class="jr-c-when"><col class="jr-c-who"><col><col class="jr-c-result"></colgroup>
+                        <thead><tr><th>When</th><th>Who</th><th>Command</th><th>Result</th></tr></thead>
+                        <tbody>
+                          <tr>
+                            <td><span class="jr-when">12:47</span></td>
+                            <td><span class="jr-who"><span class="agent-chip">CC</span><span class="jr-who__name">Claude Code</span></span></td>
+                            <td><span class="jr-cmd">make gate</span><span class="jr-where">~/dev/atlas-api</span></td>
+                            <td><span class="pill" data-tone="success">Succeeded</span><span class="jr-code">exit 0</span></td>
+                          </tr>
+                          <tr data-selected data-od-id="tj-detail-selected">
+                            <td><span class="jr-when">12:44</span></td>
+                            <td><span class="jr-who"><span class="agent-chip">CC</span><span class="jr-who__name">Claude Code</span></span></td>
+                            <td><span class="jr-cmd">psql -h staging.internal -U atlas atlas_api</span><span class="jr-where">~/dev/atlas-api</span></td>
+                            <td><span class="pill" data-tone="success">Succeeded</span><span class="jr-code">exit 0</span></td>
+                          </tr>
+                          <tr>
+                            <td><span class="jr-when">12:41</span></td>
+                            <td><span class="jr-who"><span class="agent-chip" data-kind="human">PN</span><span class="jr-who__name">Pedro</span></span></td>
+                            <td><span class="jr-cmd">git rebase --continue</span><span class="jr-where">~/dev/atlas-api</span></td>
+                            <td><span class="pill" data-tone="success">Succeeded</span><span class="jr-code">exit 0</span></td>
+                          </tr>
+                          <tr>
+                            <td><span class="jr-when">12:38</span></td>
+                            <td><span class="jr-who"><span class="agent-chip">CC</span><span class="jr-who__name">Claude Code</span></span></td>
+                            <td><span class="jr-cmd">bun run test --filter terminal</span><span class="jr-where">~/dev/atlas-api</span></td>
+                            <td><span class="pill">Finished with errors</span><span class="jr-code">exit 1</span></td>
+                          </tr>
+                          <tr>
+                            <td><span class="jr-when">12:31</span></td>
+                            <td><span class="jr-who"><span class="agent-chip" data-kind="human">PN</span><span class="jr-who__name">Pedro</span></span></td>
+                            <td><span class="jr-cmd">ssh staging</span><span class="jr-where">~/dev</span></td>
+                            <td><span class="pill" data-form="hollow">Stopped</span><span class="jr-code">signal TERM</span></td>
+                          </tr>
+                          <tr>
+                            <td><span class="jr-when">12:26</span></td>
+                            <td><span class="jr-who"><span class="agent-chip" data-kind="human">MS</span><span class="jr-who__name">Marina</span></span></td>
+                            <td><span class="jr-cmd">bun run build</span><span class="jr-where">~/dev/atlas-api</span></td>
+                            <td><span class="pill" data-form="hollow">Ended</span><span class="jr-code">cause unknown</span></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <aside class="jr-detail" data-od-id="tj-detail-rail" aria-label="Command record">
+                      <div class="jr-detail__head">
+                        <span class="jr-detail__t">Command record</span>
+                        <button class="btn btn--sm btn--icon btn--ghost" type="button" aria-label="Close record"><svg data-lucide="x"></svg></button>
+                      </div>
+                      <div class="rail-sec">
+                        <div class="tm-cmd">psql -h staging.internal -U atlas atlas_api</div>
+                        <span class="mono-id">term-9cd7e14b2a66</span>
+                      </div>
+                      <div class="rail-sec">
+                        <div class="rail-sec__t"><svg data-lucide="info"></svg>Record</div>
+                        <div class="prow"><span class="prow__k">Started</span><span class="prow__v mono">12:44:09</span></div>
+                        <div class="prow"><span class="prow__k">Ran for</span><span class="prow__v mono">3.1s</span></div>
+                        <div class="prow"><span class="prow__k">Where</span><span class="prow__v mono">~/dev/atlas-api</span></div>
+                        <div class="prow"><span class="prow__k">Permission</span><span class="prow__v">approved by you</span></div>
+                        <div class="prow"><span class="prow__k">Confidence</span><span class="prow__v"><span class="pill pill--xs">exact</span></span></div>
+                      </div>
+                      <div class="rail-sec">
+                        <div class="rail-sec__t"><svg data-lucide="square-terminal"></svg>Last output</div>
+                        <div class="jr-out">
+<span class="tm-ln">Password for user atlas: </span>
+<span class="tm-ln"><span class="tm-redact-marker"><svg data-lucide="asterisk"></svg>hidden input · 18 characters</span></span>
+<span class="tm-ln">psql (16.4)</span>
+<span class="tm-ln">atlas_api=&gt; \q</span>
+                        </div>
+                      </div>
+                      <div class="rail-sec">
+                        <div class="jr-detail__acts">
+                          <button class="btn btn--sm btn--outline" type="button">Open terminal</button>
+                          <button class="btn btn--sm btn--ghost" type="button">Copy command</button>
+                        </div>
+                      </div>
+                    </aside>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · DETECTION CONFIDENCE ===== -->
+    <section class="lab-sec" data-od-id="tj-confidence">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">03</span>
+        <h2 class="lab-sec__t">Confidence — guesses are marked</h2>
+        <span class="lab-sec__gist">US-023.AC-3 · exact / verified / estimated</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>Certainty is quiet; guesswork is marked.</b> Two of the three
+          chips are neutral, because being sure is the normal case and
+          normal cases don't get a color. Only the guess carries the
+          warning mark — and it is never dressed up as a fact.
+          <span class="mono">detected_by · US-023.AC-3</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="tj-confidence-stage">
+            <div class="tm-demo-col jr-legend">
+              <div class="plain plain--flush">
+                <table class="table">
+                  <colgroup><col class="jr-legend__c"><col></colgroup>
+                  <thead><tr><th>Confidence</th><th>What it means</th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td><span class="pill pill--xs">exact</span></td>
+                      <td><p>CompozyOS started this command itself, so the record is first-hand — the command, the times and the result all come from the run.</p></td>
+                    </tr>
+                    <tr>
+                      <td><span class="pill pill--xs">verified</span></td>
+                      <td><p>Someone typed it, and the shell confirmed the start and the end with a signature you never see on screen. Trusted the same way.</p></td>
+                    </tr>
+                    <tr>
+                      <td><span class="pill pill--xs" data-tone="warning"><i data-lucide="triangle-alert"></i>estimated</span></td>
+                      <td><p>The shell said nothing, so CompozyOS worked the boundaries out from pauses in the output. Treat the timing and the result as close, not exact.</p></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · RECORDING REPLAY ===== -->
+    <section class="lab-sec" data-od-id="tj-replay">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">04</span>
+        <h2 class="lab-sec__t">Replay — the screen, played back</h2>
+        <span class="lab-sec__gist">US-024 · asciicast v2 · 30-day retention</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>The replay is the live screen, replayed.</b> Secrets were
+          filtered out before anything was saved, so what plays back is
+          exactly what people saw at the time. It opens in the same window
+          frame as a terminal, because that is what it is: one transport
+          bar under a screen, and the record it belongs to named in the
+          header.
+          <span class="mono">US-024 · rec-9f21ac</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="tj-replay-stage">
+            <section class="win is-focused tm-demo-win" data-od-id="tj-replay-player">
+              <header class="win-head">
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="play"></svg></span>
+                  <span class="w2-title">make gate</span>
+                  <span class="mono-id">rec-9f21ac</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <span class="w2-meta">12:47 · kept for 30 days</span>
+                  <span class="w2-vsep" aria-hidden="true"></span>
+                  <div class="w2-actions">
+                    <button class="btn btn--sm btn--ghost" type="button">Open in journal</button>
+                  </div>
+                </div>
+              </header>
+              <div class="win-body">
+                <div class="tm-replay">
+                  <div class="tm-surface">
+                    <div class="tm-grid" role="log" aria-label="Recording replay">
+<span class="tm-ln"><span class="a2">$</span> make gate</span>
+<span class="tm-ln"><span class="tm-ln--dim">gate: classifying diff vs merge-base…</span></span>
+<span class="tm-ln">gate: go lane → <span class="a3">go-lint</span> + <span class="a3">go test -race</span> (scoped)</span>
+<span class="tm-ln">ok   internal/terminal            2.148s</span>
+<span class="tm-ln">ok   internal/terminal/journal    0.914s</span>
+<span class="tm-ln"><span class="tm-ln--dim">gate: web lane → turbo --filter …</span></span>
+                    </div>
+                  </div>
+                  <div class="tm-replay__bar">
+                    <button class="btn btn--icon" type="button" aria-label="Pause"><svg data-lucide="pause"></svg></button>
+                    <div class="jr-scrub" role="slider" tabindex="0" aria-label="Playback position"
+                         aria-valuemin="0" aria-valuemax="149" aria-valuenow="51" aria-valuetext="0:51 of 2:29">
+                      <span class="jr-scrub__track">
+                        <span class="jr-scrub__fill" style="width:34%"></span>
+                        <span class="jr-scrub__thumb" style="left:34%"></span>
+                      </span>
+                    </div>
+                    <span class="tm-replay__time">0:51 / 2:29</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · EMPTY ===== -->
+    <section class="lab-sec" data-od-id="tj-empty">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">05</span>
+        <h2 class="lab-sec__t">Empty — nothing has run yet</h2>
+        <span class="lab-sec__gist">US-023.EC-3</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>An empty journal is a fact, not a failure.</b> Same window,
+          same tab, no error styling — nothing is wrong. One pointer at the
+          thing that fills it, and that pointer is the only accent on the
+          screen.
+          <span class="mono">US-023.EC-3</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad" data-od-id="tj-empty-stage">
+            <section class="win is-focused tm-demo-win tm-demo-win--wide" data-od-id="tj-empty-win">
+              <header class="win-head">
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="scroll-text"></svg></span>
+                  <span class="w2-title">Journal</span>
+                  <span class="w2-meta">atlas-api</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+              </header>
+              <div class="win-body">
+                <div class="empty" data-od-id="tj-empty-body">
+                  <svg data-lucide="scroll-text"></svg>
+                  <b>Nothing has run here yet</b>
+                  <p>Commands from every terminal in this project land here — who ran them, where, and how they ended.</p>
+                  <div class="empty__acts">
+                    <button class="btn btn--primary" type="button">Open a terminal</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · FILTERED EMPTY ===== -->
+    <section class="lab-sec" data-od-id="tj-filtered">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">06</span>
+        <h2 class="lab-sec__t">Filtered empty — honest about scope</h2>
+        <span class="lab-sec__gist">US-023 filters · cursor paging, no totals</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>Zero matches, said truthfully.</b> The message counts only the
+          rows already loaded, because nothing upstream counts the rest —
+          history is kept indefinitely and a real total would mean reading
+          all of it. So the screen offers the two honest ways out: load
+          older rows, or loosen the filters.
+          <span class="mono">cursor paging · 50-row pages</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad" data-od-id="tj-filtered-stage">
+            <section class="win is-focused tm-demo-win tm-demo-win--wide" data-od-id="tj-filtered-win">
+              <header class="win-head">
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="scroll-text"></svg></span>
+                  <span class="w2-title">Journal</span>
+                  <span class="w2-meta">atlas-api</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+              </header>
+              <div class="win-body">
+                <div class="tm-journal">
+                  <div class="jr-bar">
+                    <div class="listing-toolbar">
+                      <div class="listing-toolbar__leading">
+                        <span class="filter-chip">
+                          <span class="filter-chip__label">result</span>
+                          <span class="filter-chip__op">is</span>
+                          <span class="filter-chip__val">errors</span>
+                          <button class="filter-chip__x" aria-label="Clear result filter"><svg data-lucide="x"></svg></button>
+                        </span>
+                        <span class="filter-chip">
+                          <span class="filter-chip__label">who</span>
+                          <span class="filter-chip__op">is</span>
+                          <span class="filter-chip__val">Marina</span>
+                          <button class="filter-chip__x" aria-label="Clear who filter"><svg data-lucide="x"></svg></button>
+                        </span>
+                        <button class="btn btn--sm btn--ghost" type="button"><svg data-lucide="list-filter"></svg>Filter</button>
+                      </div>
+                      <div class="listing-toolbar__trailing">
+                        <span class="toolbar-meta">Newest first</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="empty" data-od-id="tj-filtered-body">
+                    <b>No matches in the 50 rows loaded</b>
+                    <p>Older rows load on demand, so a match may still be further back.</p>
+                    <div class="empty__acts">
+                      <button class="btn btn--sm btn--outline" type="button">Load older rows</button>
+                      <button class="btn btn--sm btn--ghost" type="button">Clear filters</button>
+                    </div>
+                  </div>
+                  <div class="jr-foot">
+                    <span class="jr-foot__meta">50 rows loaded · 2 filters</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

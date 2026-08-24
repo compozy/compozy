@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "agent-comms/index.html",
+  "entry": "agent-comms/index.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-23T18:22:31.488Z",
+  "updatedAt": "2026-08-23T18:22:31.488Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

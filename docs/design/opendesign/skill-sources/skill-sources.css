@@ -1,0 +1,293 @@
+/* ============================================================================
+   SKILL-SOURCES SET LANE — skill-sources.css
+   Companion boards:
+     skill-sources-settings-sources.html   (S1 default read)
+     skill-sources-settings-states.html    (S1 diagnostics + save states)
+     skill-sources-settings-scopes.html    (S1 workspace/agent scope)
+     skill-sources-composer-picker.html    (S2 origin labels)
+     skill-sources-catalog-origin.html     (S3 catalog + exposures healthy)
+     skill-sources-expose-states.html      (S3 exposure states + repair)
+   Link order per board (own lane LAST):
+     ../design-system/ds-core.css → ../design-system/ds-shell.css → skill-sources.css
+   NOTE: the graph-eng lab scaffold retired to _done/graph-eng/, so chapter 31
+   carries a verbatim copy instead of a link (sanctioned by GUIDE.md).
+   Authority chain on conflict:
+     production (packages/ui tokens + web/src) > design-system/ > this lane > older sets
+   Chapter allocation: graph-eng 1–12 · loop-legibility 13–19 · profiles 20–30 ·
+   SKILL-SOURCES 31–36 (this file).
+
+   Reuse before create (board element → class → owner):
+     settings page frame        .app/.sgroup/.panelbox/.srow      ds-core
+     preset enable toggle       .switch (32×18)                   ds-core
+     per-source count           .count-chip                       ds-core
+     origin label               .pill.pill--xs[data-mono]         ds-core (neutral, never colored)
+     always-on marker           .pill[data-form="hollow"]         ds-core
+     truncated marker           .pill[data-tone="warning"]        ds-core
+     custom source chips        .chip/.chip-list                  ds-core
+     inline save controls       .savebar (in-panel variant)       ds-core
+     scope selector             .pill-group                       ds-core
+     agent-scope notice         .notice/.notice--info             ds-core
+     save-rejected notice       .notice--danger                   ds-core
+     defaults-only state        .empty                            ds-core
+     exposure status dot        .d/.status-dot                    ds-core
+     repair actions             .btn--ghost .btn--sm              ds-core
+     target picker              .menu/.menu-item + .cbx           ds-core
+     skill catalog cards        .listing-card/.listing-card-grid  ds-core
+     detail rail                .layout/.railbox/.rail-sec/.prow  ds-core
+     resolution table           .table                            ds-core
+     composer command menu      popover parity (see ch. 36)       production (session-composer-command-menu.tsx)
+     window chrome              .win/.win-head/.win-toolbar       ds-shell
+   Deleted with reason (2026-08-23 plain-language + parity pass):
+     .sks-src__slug        — mono slug beside every source name was dev noise; custom
+                             rows carry a neutral "custom" pill instead
+     .sks-key/.sks-key__*  — per-key header interleaved inside one panelbox read as
+                             one confusing table; replaced by .sks-keyhead above a
+                             panelbox per key
+     .sks-scope-line       — CLI-mirror mono footer inside the settings window;
+                             CLI parity lives in the CLI, not in product chrome
+     .sks-cmd-input        — fake command input; the composer's real input carries
+                             the typed "/" (production: popover above composer)
+     .sks-diag__v .reason  — plain sentences replaced the mono key/value dump
+     --sks-menu-w          — menu now spans the composer width (production parity)
+   Deleted with reason (2026-08-23 collapsible-rows pass):
+     .sks-src__head        — always-open two-zone grid row; a source is now ONE
+                             44px <summary> line, folders render only on expand
+                             (scales flat to 10–20 sources)
+     .sks-src--flat        — no grid to flatten anymore
+     .sks-src--padb        — roots own their padding inside the disclosure
+   ============================================================================ */
+
+:root{
+  --sks-set-w:960px;      /* settings window stage width (container-settings-page-wide) */
+  --sks-detail-w:1080px;  /* marketplace detail window stage width */
+  --sks-session-w:820px;  /* session window for the composer picker board */
+  --sks-panel-w:640px;    /* bare panel fragments in .plain containers */
+}
+
+/* ============================================================
+   31 · LAB SCAFFOLD — copied verbatim from graph-eng.css
+   (graph-eng retired to _done/; scaffold now owned per-set)
+   ============================================================ */
+.shell{height:100vh}
+.main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+.w2head{min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;flex:none;
+  background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+.w2head .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+.w2head .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+.w2head .w2-back svg{width:14px;height:14px}
+.w2head .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+.w2head .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);padding:1px 5px}
+.w2head .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+.w2head .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+.w2head .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;padding-left:3px}
+.w2head .w2-flex{flex:1;min-width:8px}
+.w2head .w2-actions{display:flex;align-items:center;gap:6px;flex:none}
+.scroll{flex:1;min-height:0;overflow-y:auto}
+.page{max-width:none;width:100%;margin:0;padding:24px 36px 80px}
+.lab-sec{margin:0 0 40px}
+.lab-sec__head{display:flex;align-items:baseline;gap:10px;padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.lab-sec__num{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.lab-sec__t{font-size:13px;font-weight:600;letter-spacing:-.01em;color:var(--fg-strong)}
+.lab-sec__gist{font-size:11.5px;color:var(--subtle);margin-left:auto}
+.spec{display:grid;grid-template-columns:200px minmax(0,1fr);gap:14px;align-items:start;padding:14px 0;border-top:1px solid var(--line-soft)}
+.spec:first-of-type{border-top:0;padding-top:0}
+.spec__note{font-size:11px;line-height:1.55;color:var(--subtle)}
+.spec__note b{font-weight:600;color:var(--fg)}
+.spec__note > b:first-child{display:block;font-size:11.5px;margin-bottom:2px}
+.spec__note code{font-family:var(--font-mono);font-size:9.5px;color:var(--muted);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:0 3px}
+.spec__demo{min-width:0}
+@media (max-width:760px){
+  .spec{grid-template-columns:1fr}
+  .lab-sec__gist{display:none}
+  .page{padding-left:20px;padding-right:20px}
+}
+/* demo stage — wallpapered, not a product window */
+.stage{
+  position:relative;min-height:400px;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;
+  background:
+    radial-gradient(1.5px 1.5px at 50% 50%, rgba(255,255,255,.035) 40%, transparent 41%) 0 0 / 26px 26px,
+    radial-gradient(520px 280px at 12% 110%, var(--accent-tint-strong), transparent 62%),
+    radial-gradient(480px 260px at 92% -12%, color-mix(in oklab, var(--teal) 38%, transparent), transparent 60%),
+    linear-gradient(180deg, var(--canvas-soft), var(--rail) 60%);
+}
+.stage--short{min-height:260px}
+.stage--tall{min-height:520px}
+.stage--pad{display:flex;align-items:flex-start;justify-content:center;padding:28px 20px 32px}
+.stage--center{display:flex;align-items:center;justify-content:center;padding:24px 20px}
+/* demo overrides: floating chrome renders in-flow inside stages */
+.stage .popover,.stage .toasts{position:absolute}
+.stage .palette-overlay{position:absolute;inset:0;padding-top:36px}
+.stage .overlay{position:absolute;inset:0}
+.stage .win{position:relative;animation:none}
+.plain{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);padding:16px}
+
+/* ============================================================
+   32 · LAB FIT — staged widths + board furniture (lab only)
+   ============================================================ */
+.stage--auto{min-height:0}
+.win--sks{width:min(var(--sks-set-w),100%);min-height:0;resize:none}
+.win--sksd{width:min(var(--sks-detail-w),100%);min-height:0;resize:none}
+.win--sksn{width:min(var(--sks-session-w),100%);min-height:0;resize:none}
+.sks-minis{display:flex;flex-direction:column;gap:16px;width:100%}
+.sks-mini-cap{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);margin:0 0 8px}
+.sks-plainw{max-width:var(--sks-panel-w)}
+.lab-foot{margin-top:8px;font-size:11px;line-height:1.6;color:var(--faint);max-width:78ch}
+.lab-foot code{font-family:var(--font-mono);font-size:10px;color:var(--subtle)}
+/* bare fragments inside .plain containers (no panelbox chrome) */
+.sks-src--bare{border-top:0}
+.sks-src--bare > .sks-src__sum{padding:0 2px;min-height:36px}
+.sks-src--bare > .sks-src__roots{padding:2px 2px 4px 23px}
+.sks-srow--bare{border-top:0;padding:0;min-height:0}
+.sks-sec-gap{margin-top:18px}
+.sks-field-add{width:280px}
+.sks-empty-inline{padding:28px 24px;border-top:1px solid var(--line-soft)}
+
+/* ============================================================
+   33 · SOURCE ROWS (S1) — single-line collapsible rows, inside .panelbox
+   Production mapping: SettingsSkillSourcesSection →
+   Section + Collapsible + Switch + Pill + count; states bind sources[]
+   One source = one 44px summary line (name · signal pill when degraded ·
+   total count · control). Folder paths render only on expand, so the panel
+   scales flat to 10–20 sources. Closed rows still inform: count, on/off,
+   and a tone pill when something needs attention.
+   NOTE: controls inside <summary> (switch, remove) stop propagation in
+   production so they never toggle the disclosure.
+   ============================================================ */
+.sks-src{border-top:1px solid var(--line-soft)}
+.sks-src:first-child{border-top:0}
+.sks-src__sum{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;
+  cursor:pointer;list-style:none}
+.sks-src__sum::-webkit-details-marker{display:none}
+.sks-src__sum:hover{background:var(--row-hover)}
+.sks-src__sum:focus-visible{box-shadow:var(--focus-ring-inset);outline:none}
+.sks-src__sum > .chev{width:13px;height:13px;color:var(--faint);flex:none;
+  transition:rotate var(--dur-fast) var(--ease)}
+.sks-src[open] > .sks-src__sum > .chev{rotate:90deg}
+.sks-src__name{font-size:13.5px;font-weight:510;color:var(--fg-strong);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.sks-src__ctl{margin-left:auto;display:flex;align-items:center;gap:10px;flex:none}
+/* root lines on expand: path · state word · faint count (no chip — one
+   count-chip per source keeps the line calm). Left inset aligns under the name. */
+.sks-src__roots{display:flex;flex-direction:column;gap:4px;padding:0 16px 12px 37px}
+.sks-root{display:grid;grid-template-columns:14px minmax(0,1fr) auto;align-items:center;gap:8px;min-height:24px}
+.sks-root > svg{width:12px;height:12px;color:var(--faint);justify-self:center}
+.sks-root__path{font-family:var(--font-mono);font-size:11px;letter-spacing:0;color:var(--muted);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sks-root__trail{display:flex;align-items:center;gap:8px;flex:none}
+.sks-root__count{font-family:var(--font-mono);font-size:10.5px;letter-spacing:0;color:var(--faint);white-space:nowrap}
+.sks-root__state{font-size:11px;color:var(--subtle);white-space:nowrap}
+/* per-root state words — color + word together, never color alone */
+.sks-root[data-state="absent"] .sks-root__path{color:var(--subtle)}
+.sks-root[data-state="absent"] .sks-root__state{color:var(--faint)}
+.sks-root[data-state="truncated"] .sks-root__state{color:var(--warning)}
+.sks-root[data-state="unreadable"] .sks-root__state{color:var(--danger)}
+/* disabled source: token swap, never opacity */
+.sks-src[data-enabled="false"] .sks-src__name{color:var(--muted)}
+.sks-src[data-enabled="false"] .sks-root__path{color:var(--subtle)}
+/* workspace scope: key heading above its own panelbox — sgroup title + posture
+   chip + one quiet action. Replaces the interleaved per-key table header. */
+.sks-keyhead{display:flex;align-items:center;gap:10px}
+.sks-keyhead .sgroup__t{flex:none}
+.sks-keyhead__trail{margin-left:auto;display:flex;align-items:center;gap:8px}
+
+/* ============================================================
+   34 · ROOT DIAGNOSTICS — daemon-reported detail, rendered never derived
+   Binds roots[]{scanned_count,skill_count,truncated,skipped_links,collisions}
+   ============================================================ */
+.sks-diag{grid-column:1 / -1;margin:6px 0 2px;border:1px solid var(--line-soft);
+  border-radius:var(--radius-md);background:var(--canvas-tint);overflow:hidden}
+.sks-diag summary{display:flex;align-items:center;gap:7px;min-height:28px;padding:0 10px;
+  list-style:none;cursor:pointer;font-size:11.5px;color:var(--muted)}
+.sks-diag summary::-webkit-details-marker{display:none}
+.sks-diag summary svg{width:12px;height:12px;color:var(--warning);flex:none}
+.sks-diag summary .chev{width:12px;height:12px;color:var(--faint);margin-left:auto;transition:rotate var(--dur-fast) var(--ease)}
+.sks-diag[open] summary .chev{rotate:90deg}
+.sks-diag__body{padding:2px 10px 10px;display:flex;flex-direction:column;gap:3px}
+.sks-diag__row{display:grid;grid-template-columns:88px minmax(0,1fr);gap:10px;
+  min-height:22px;align-items:baseline}
+.sks-diag__k{font-size:11px;color:var(--faint)}
+/* plain sentences; mono reserved for names and paths */
+.sks-diag__v{font-size:11.5px;line-height:1.5;color:var(--muted);min-width:0}
+.sks-diag__v b{font-weight:600;color:var(--fg)}
+.sks-diag__v code{font-family:var(--font-mono);font-size:10.5px;letter-spacing:0;color:var(--fg);
+  background:var(--badge-fill);border-radius:var(--radius-xxs);padding:0 3px}
+
+/* ============================================================
+   35 · EXPOSURES (S3) — SkillExposePanel rows + expose results
+   Binds exposures[]{target,path,status} + expose results[]
+   ============================================================ */
+.sks-expo{display:flex;flex-direction:column}
+.sks-expo__row{display:grid;grid-template-columns:14px minmax(0,1fr) auto;align-items:center;
+  gap:9px;min-height:34px;padding:5px 0;border-top:1px solid var(--line-soft)}
+.sks-expo__row:first-child{border-top:0}
+.sks-expo__main{display:flex;flex-direction:column;gap:1px;min-width:0}
+.sks-expo__target{display:flex;align-items:baseline;gap:7px;min-width:0}
+.sks-expo__target b{font-size:12.5px;font-weight:510;color:var(--fg)}
+.sks-expo__status{font-size:11px;color:var(--subtle)}
+.sks-expo__path{font-family:var(--font-mono);font-size:10.5px;letter-spacing:0;color:var(--faint);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sks-expo__acts{display:flex;align-items:center;gap:5px;flex:none}
+/* four public statuses — dot shape + word carry state together */
+.sks-expo__row[data-status="healthy"] .sks-expo__status{color:var(--success)}
+.sks-expo__row[data-status="missing"] .sks-expo__status,
+.sks-expo__row[data-status="broken"] .sks-expo__status{color:var(--danger)}
+.sks-expo__row[data-status="missing"] .sks-expo__path,
+.sks-expo__row[data-status="broken"] .sks-expo__path{color:var(--subtle);text-decoration:line-through;text-decoration-color:var(--line-strong)}
+.sks-expo__row[data-status="foreign_conflict"] .sks-expo__status{color:var(--info)}
+/* pending / in-flight: token swap on the row while the daemon works */
+.sks-expo__row[data-pending="true"] .sks-expo__target b{color:var(--muted)}
+.sks-expo__row[data-pending="true"] .sks-expo__status{color:var(--faint)}
+/* per-target expose results (expose_failed envelope) */
+.sks-results{display:flex;flex-direction:column;border:1px solid var(--line-soft);
+  border-radius:var(--radius-md);background:var(--canvas);overflow:hidden}
+.sks-result{display:grid;grid-template-columns:14px 84px minmax(0,1fr);align-items:center;gap:9px;
+  min-height:30px;padding:4px 12px;border-top:1px solid var(--line-soft);font-size:12px}
+.sks-result:first-child{border-top:0}
+.sks-result > svg{width:12px;height:12px;justify-self:center}
+.sks-result__target{font-family:var(--font-mono);font-size:11px;letter-spacing:0;color:var(--fg)}
+.sks-result__msg{display:flex;align-items:baseline;gap:7px;min-width:0;color:var(--muted)}
+.sks-result__code{font-family:var(--font-mono);font-size:10.5px;letter-spacing:0;
+  background:var(--badge-fill);border-radius:var(--radius-xxs);padding:0 4px}
+.sks-result[data-ok="true"] > svg{color:var(--success)}
+.sks-result[data-ok="false"] > svg{color:var(--danger)}
+.sks-result[data-ok="false"] .sks-result__code{color:var(--danger)}
+.sks-result[data-rolled-back="true"] > svg{color:var(--subtle)}
+.sks-result[data-rolled-back="true"] .sks-result__msg{color:var(--subtle)}
+
+/* share target picker — .menu composition, enabled presets only.
+   Display label leads; the machine slug is demoted to faint mono trailing. */
+.sks-target-menu{width:260px}
+.sks-target-menu .menu-item{gap:9px}
+.sks-target-menu .menu-item .lbl{font-size:12.5px;color:var(--fg)}
+.sks-target-menu .menu-item .slug{font-family:var(--font-mono);font-size:10.5px;letter-spacing:0;color:var(--faint);margin-left:auto}
+.sks-target-menu__foot{display:flex;justify-content:flex-end;gap:7px;padding:8px 6px 4px;
+  border-top:1px solid var(--line);margin-top:4px}
+
+/* ============================================================
+   36 · COMPOSER PICKER (S2) — production-parity popover
+   Mirrors SessionComposerCommandMenu: popover spans the composer width,
+   anchored above it; one line per row (name · inline description · trailing);
+   group header = eyebrow; groups split by a hairline; icon 14px in a 16px well;
+   skill trailing = scope in sans, builtin trailing = token in mono.
+   ============================================================ */
+.sks-menu-anchor{padding:0 20px;margin-top:8px}
+.sks-cmd-menu{border:1px solid var(--line);border-radius:var(--radius-md);
+  background:var(--canvas-soft);box-shadow:var(--shadow-overlay);overflow:hidden;padding:4px}
+.sks-cmd-group{font-size:12px;font-weight:510;color:var(--muted);padding:8px 8px 4px}
+.sks-cmd-div{height:1px;background:var(--line);margin:4px -4px}
+.sks-cmd{display:flex;align-items:center;gap:8px;min-height:30px;padding:5px 8px;
+  border-radius:var(--radius);font-size:13px;color:var(--fg)}
+.sks-cmd .ico{width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--muted)}
+.sks-cmd .ico svg{width:14px;height:14px}
+.sks-cmd:hover{background:var(--row-hover)}
+.sks-cmd.is-active{background:var(--elevated);color:var(--fg-strong)}
+.sks-cmd.is-active .ico{color:var(--fg-strong)}
+.sks-cmd__main{display:flex;align-items:baseline;gap:6px;min-width:0;flex:1}
+.sks-cmd__name{font-weight:510;flex:none}
+.sks-cmd__desc{font-size:12px;color:var(--subtle);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.sks-cmd__desc code{font-family:var(--font-mono);font-size:10.5px;letter-spacing:0;color:var(--muted)}
+.sks-cmd__trail{margin-left:auto;display:flex;align-items:center;gap:6px;flex:none}
+.sks-cmd__scope{font-size:10.5px;color:var(--faint)}
+.sks-cmd__token{font-family:var(--font-mono);font-size:10.5px;letter-spacing:0;color:var(--faint)}
+
+/* ==== APPEND POINT — later runs add chapters after this line ==== */

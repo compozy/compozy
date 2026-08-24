@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>App window · Integrated terminal · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="integrated-terminal.css">
+<!--
+  integrated-terminal-app-window · S1 + S2 — the Terminal OS app window
+  (deck tabs, lease chrome, grid) and the dock launcher.
+  Spec: .compozy/tasks/integrated-terminal/_uiux.md S1/S2 · US-001..010, 029 · ADR set.
+  Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — ds-shell window/deck/dock anatomy (design-system/os-shell.html
+      chapter 02/03/05); buttons/pills ds-core; app catalog
+      web/src/systems/os/lib/app-catalog.ts (descriptor pattern).
+    spec — hollow cursor = watching (US-007); one Take control affordance
+      (US-008); presence always visible (US-010); size follows smallest
+      controlling viewer, watchers never vote (US-007.EC-3); pipe terminals
+      render as a read-only log pane (exec-yield, US-013); human-vs-human
+      displacement confirms by name (US-008.AC-3).
+    authorized delta — .a1..a15 spans stand in for emulator cell attributes
+      (production paints via the TerminalView theme object, not CSS classes);
+      recording dot reuses the danger hue as the universal record convention
+      (DESIGN-NOTES §Signals).
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="taw-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Integrated terminal</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">App window</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="integrated-terminal-states.html">Next: States →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL — you control ===== -->
+    <section class="lab-sec" data-od-id="taw-final">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">01</span>
+        <h2 class="lab-sec__t">Terminal window — you control</h2>
+        <span class="lab-sec__gist">US-002.AC-1 · US-005 · US-010.AC-1</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>The dark screen is the window.</b> Tabs list this project's
+          terminals; each one gets a 44px head — the name once, a chip
+          saying who's in control, who's watching — and at most two
+          trailing actions. The screen sits full-bleed on
+          <code>--term-bg</code>, one step darker than the canvas. A solid
+          cursor means you can type. Nothing is highlighted at rest —
+          being in control is the quiet default, not an event.
+          <span class="mono">US-002 · US-005 · ADR-002</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="taw-final-stage">
+            <section class="win is-focused tm-demo-win" data-od-id="taw-final-win">
+              <div class="deck" role="tablist" aria-label="Terminal tabs">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="deck-scroll">
+                  <button class="deck-tab is-on" role="tab" aria-selected="true">
+                    <span class="deck-tab__dot" data-s="running"></span>
+                    <span class="deck-tab__label">dev server</span>
+                    <span class="deck-tab__x" aria-label="Close terminal tab"><i data-lucide="x"></i></span>
+                  </button>
+                  <button class="deck-tab" role="tab" aria-selected="false" data-mode="pipe">
+                    <i data-lucide="file-text" class="deck-tab__glyph"></i>
+                    <span class="deck-tab__label">make gate</span>
+                    <span class="deck-tab__x" aria-label="Close terminal tab"><i data-lucide="x"></i></span>
+                  </button>
+                  <button class="deck-tab" role="tab" aria-selected="false">
+                    <span class="deck-tab__dot" data-s="running"></span>
+                    <span class="deck-tab__label">psql</span>
+                    <span class="tm-tab-attn" aria-label="Input requested"></span>
+                    <span class="deck-tab__x" aria-label="Close terminal tab"><i data-lucide="x"></i></span>
+                  </button>
+                </div>
+                <button class="deck-add" aria-label="Open a new terminal"><i data-lucide="plus"></i></button>
+                <span class="deck-gutter" aria-hidden="true"></span>
+              </div>
+              <header class="win-head">
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="terminal"></svg></span>
+                  <span class="w2-title">dev server</span>
+                  <span class="mono-id">term-4f21c9a03b7e</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <!-- lease truth: GET /terminals/:id → controller {kind,id} + lease -->
+                  <span class="tm-lease" data-lease="me" data-od-id="taw-final-lease"><svg data-lucide="keyboard"></svg>You're in control</span>
+                  <span class="tm-viewers" title="2 watching" data-od-id="taw-final-viewers"><svg data-lucide="eye"></svg>2</span>
+                  <span class="w2-vsep" aria-hidden="true"></span>
+                  <div class="w2-actions">
+                    <button class="btn btn--sm btn--ghost" type="button" data-od-id="taw-final-release">Release control</button>
+                    <!-- stop = danger verb: POST /terminals/:id/kill · record lives in §08 (≤2 head actions) -->
+                    <button class="btn btn--sm btn--icon btn--ghost" type="button" aria-label="Stop" title="Stop"><svg data-lucide="circle-stop"></svg></button>
+                  </div>
+                </div>
+              </header>
+              <div class="tm-winbody">
+                <div class="tm-surface">
+                  <div class="tm-grid" role="log" aria-label="Terminal output">
+<span class="tm-ln"><span class="a2">$</span> bun run dev</span>
+<span class="tm-ln"><span class="ab a2">  VITE v6.0.3</span>  ready in <span class="ab">412 ms</span></span>
+<span class="tm-ln"></span>
+<span class="tm-ln">  <span class="a2">➜</span>  <span class="ab">Local:</span>   <span class="a6">http://localhost:5173/</span></span>
+<span class="tm-ln">  <span class="a2">➜</span>  <span class="ab">Network:</span> <span class="a6">http://192.168.0.14:5173/</span></span>
+<span class="tm-ln"></span>
+<span class="tm-ln"><span class="tm-ln--dim">12:41:03</span> <span class="a6">[vite]</span> hmr update <span class="a4">/src/systems/terminal/terminal-pane.tsx</span></span>
+<span class="tm-ln"><span class="tm-ln--dim">12:41:09</span> <span class="a6">[vite]</span> page reload <span class="a4">src/routes/_app/terminal/index.tsx</span></span>
+<span class="tm-ln"><span class="a2">$</span> <span class="tm-cur" aria-hidden="true"></span></span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · WATCHING — agent controls ===== -->
+    <section class="lab-sec" data-od-id="taw-watching">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">02</span>
+        <h2 class="lab-sec__t">Watching — the agent controls</h2>
+        <span class="lab-sec__gist">US-007.AC-1 · US-010.AC-1 · US-008.AC-1</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>The hollow cursor says you're watching.</b> Read-only shows in
+          the cursor shape and the missing input line — never in a helper
+          sentence. The chip names who is in control; <b>Take control</b> is
+          the one highlighted action, and taking over from an agent is
+          instant and never fails. Every viewer sees the change at the same
+          moment.
+          <span class="mono">US-007 · US-008.AC-1 · ADR-005</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="taw-watching-stage">
+            <section class="win is-focused tm-demo-win" data-od-id="taw-watching-win">
+              <header class="win-head">
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="terminal"></svg></span>
+                  <span class="w2-title">dev server</span>
+                  <span class="mono-id">term-4f21c9a03b7e</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <span class="tm-lease" data-lease="agent" data-od-id="taw-watching-lease"><span class="agent-chip">CC</span><b>Claude Code</b> is in control</span>
+                  <span class="tm-viewers" title="You and 1 other watching"><svg data-lucide="eye"></svg>2</span>
+                  <span class="w2-vsep" aria-hidden="true"></span>
+                  <div class="w2-actions">
+                    <!-- the ONE accent affordance: POST /terminals/:id/takeover -->
+                    <button class="btn btn--sm btn--primary" type="button" data-od-id="taw-take-control">Take control</button>
+                  </div>
+                </div>
+              </header>
+              <div class="tm-winbody">
+                <div class="tm-surface">
+                  <div class="tm-grid" role="log" aria-label="Terminal output — watching">
+<span class="tm-ln"><span class="a2">$</span> git rebase --continue</span>
+<span class="tm-ln"><span class="tm-ln--dim">Executing: git rebase --continue</span></span>
+<span class="tm-ln">Successfully rebased and updated refs/heads/<span class="a6">terminal-app</span>.</span>
+<span class="tm-ln"><span class="a2">$</span> make gate</span>
+<span class="tm-ln"><span class="tm-ln--dim">gate: classifying diff vs merge-base…</span></span>
+<span class="tm-ln">gate: go lane → <span class="a3">go-lint</span> + <span class="a3">go test -race</span> (scoped)</span>
+<span class="tm-ln">ok   internal/terminal  2.148s</span>
+<span class="tm-ln">ok   internal/terminal/journal  0.912s</span>
+<span class="tm-ln"><span class="a2">$</span> <span class="tm-cur tm-cur--hollow" aria-hidden="true"></span></span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · TAKEOVER — human vs human ===== -->
+    <section class="lab-sec" data-od-id="taw-takeover">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">03</span>
+        <h2 class="lab-sec__t">Takeover — displacing another person</h2>
+        <span class="lab-sec__gist">US-008.AC-3 · EC write_owner_held</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>Displacement confirms by name.</b> Taking over an agent never
+          asks. Taking over another person does — full dialog anatomy, the
+          current controller named, one neutral confirm. If two people race,
+          exactly one wins and the other sees who holds control now.
+          <span class="mono">US-008.AC-3 · write_owner_held</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--center" data-od-id="taw-takeover-stage">
+            <div class="dialog dialog--sm" role="alertdialog" aria-labelledby="taw-to-title" data-od-id="taw-takeover-dialog">
+              <div class="dialog__head">
+                <div class="dialog__head-main">
+                  <h3 class="dialog__title" id="taw-to-title">Take control from Marina?</h3>
+                  <p class="dialog__desc">Marina is typing in dev server right now. Taking control disconnects her input immediately.</p>
+                </div>
+              </div>
+              <div class="dialog__foot">
+                <span class="dialog__foot-note mono-id">term-4f21c9a03b7e</span>
+                <button class="btn btn--sm btn--ghost" type="button">Cancel</button>
+                <button class="btn btn--sm" type="button" data-od-id="taw-takeover-confirm">Take control</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · PIPE MODE — read-only log pane ===== -->
+    <section class="lab-sec" data-od-id="taw-pipe">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">04</span>
+        <h2 class="lab-sec__t">Read-only log — output, not a prompt</h2>
+        <span class="lab-sec__gist">US-013 · exec-yield promotion</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>Born from a command, never interactive.</b> A long-running
+          command becomes a read-only log: the tab wears the log glyph, the
+          pane shows numbered lines, and there is nothing to type into —
+          no cursor, no control actions, no record. What remains is honest:
+          wait, signal, close. Typing here isn't a disabled option; it
+          doesn't exist.
+          <span class="mono">US-013 · terminal_not_interactive</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="taw-pipe-stage">
+            <section class="win is-focused tm-demo-win" data-od-id="taw-pipe-win">
+              <header class="win-head">
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="file-text"></svg></span>
+                  <span class="w2-title">make gate</span>
+                  <span class="mono-id">term-a03b558d21f0</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <span class="pill pill--xs" data-tone="neutral">read-only log</span>
+                  <span class="tm-lease" data-lease="agent"><span class="agent-chip">CC</span><b>Claude Code</b> ran this</span>
+                  <span class="w2-vsep" aria-hidden="true"></span>
+                  <div class="w2-actions">
+                    <!-- pipe verbs only: read/wait/signal/close -->
+                    <button class="btn btn--sm btn--ghost" type="button">Close</button>
+                  </div>
+                </div>
+              </header>
+              <div class="tm-winbody">
+                <div class="tm-surface tm-surface--pipe">
+                  <div class="tm-grid" role="log" aria-label="Command output — read-only">
+<span class="tm-pipe-ln"><i>412</i><span>ok   internal/store  4.021s</span></span>
+<span class="tm-pipe-ln"><i>413</i><span>ok   internal/osquery  1.116s</span></span>
+<span class="tm-pipe-ln"><i>414</i><span><span class="tm-ln--dim">gate: web lane → turbo --filter web…</span></span></span>
+<span class="tm-pipe-ln"><i>415</i><span>web:typecheck: <span class="a2">cache hit</span>, replaying logs</span></span>
+<span class="tm-pipe-ln"><i>416</i><span>web:test: <span class="a2">227 passed</span> (14.2s)</span></span>
+<span class="tm-pipe-ln"><i>417</i><span><span class="tm-ln--dim">gate: recording evidence → .cache/gate/…</span></span></span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · DECK GRAMMAR ===== -->
+    <section class="lab-sec" data-od-id="taw-deck">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">05</span>
+        <h2 class="lab-sec__t">Deck grammar — tab states and the cap</h2>
+        <span class="lab-sec__gist">US-004 · US-029 scale · cap 8/project</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>State on the tab, nothing else.</b> Running dot; warning dot
+          only while input is requested; the pipe glyph replaces the dot;
+          an exited tab keeps its code as micro mono. At the 8-terminal
+          project cap the strip scrolls behind the caret — tabs never
+          shrink below the 96px floor and zero pending renders nothing.
+          <span class="mono">US-004 · terminal_limit_reached</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="taw-deck-stage">
+            <section class="win is-focused tm-demo-win" data-od-id="taw-deck-win">
+              <div class="deck" role="tablist" aria-label="Terminal tabs — at the cap">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="deck-scroll">
+                  <button class="deck-tab is-on" role="tab" aria-selected="true">
+                    <span class="deck-tab__dot" data-s="running"></span>
+                    <span class="deck-tab__label">dev server</span>
+                    <span class="deck-tab__x" aria-label="Close terminal tab"><i data-lucide="x"></i></span>
+                  </button>
+                  <button class="deck-tab" role="tab" aria-selected="false">
+                    <span class="deck-tab__dot" data-s="running"></span>
+                    <span class="deck-tab__label">psql</span>
+                    <span class="tm-tab-attn" aria-label="Input requested"></span>
+                    <span class="deck-tab__x" aria-label="Close terminal tab"><i data-lucide="x"></i></span>
+                  </button>
+                  <button class="deck-tab" role="tab" aria-selected="false" data-mode="pipe">
+                    <i data-lucide="file-text" class="deck-tab__glyph"></i>
+                    <span class="deck-tab__label">make gate</span>
+                    <span class="deck-tab__x" aria-label="Close terminal tab"><i data-lucide="x"></i></span>
+                  </button>
+                  <button class="deck-tab" role="tab" aria-selected="false">
+                    <span class="deck-tab__dot"></span>
+                    <span class="deck-tab__label">ssh staging</span>
+                    <span class="tm-tab-exit">0</span>
+                    <span class="deck-tab__x" aria-label="Close terminal tab"><i data-lucide="x"></i></span>
+                  </button>
+                  <button class="deck-tab" role="tab" aria-selected="false">
+                    <span class="deck-tab__dot" data-s="running"></span>
+                    <span class="deck-tab__label">tail api log</span>
+                    <span class="deck-tab__x" aria-label="Close terminal tab"><i data-lucide="x"></i></span>
+                  </button>
+                  <button class="deck-tab" role="tab" aria-selected="false">
+                    <span class="deck-tab__dot" data-s="running"></span>
+                    <span class="deck-tab__label">worker</span>
+                    <span class="deck-tab__x" aria-label="Close terminal tab"><i data-lucide="x"></i></span>
+                  </button>
+                </div>
+                <button class="deck-caret" aria-label="More terminals"><i data-lucide="chevron-right"></i></button>
+                <button class="deck-add" aria-label="Open a new terminal"><i data-lucide="plus"></i></button>
+                <span class="deck-gutter" aria-hidden="true"></span>
+              </div>
+              <header class="win-head">
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="terminal"></svg></span>
+                  <span class="w2-title">dev server</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <span class="w2-meta">8 of 8 terminals</span>
+                </div>
+              </header>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · DOCK — launcher + attention (S2) ===== -->
+    <section class="lab-sec" data-od-id="taw-dock">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">06</span>
+        <h2 class="lab-sec__t">Dock — launcher and attention badge</h2>
+        <span class="lab-sec__gist">US-004 · US-017 · US-019</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>One item, three truths.</b> Idle terminal item; a running dot
+          while any terminal is alive; the badge counts questions and
+          approvals waiting on you in this project — zero shows nothing.
+          The count comes from the runtime, never invented.
+          <span class="mono">app-catalog badge:"terminal"</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--center" data-od-id="taw-dock-stage">
+            <div class="tm-demo-row">
+              <nav class="dock-seg dock" aria-label="Dock — idle">
+                <button class="dock-item" aria-label="Sessions"><i data-lucide="messages-square"></i><span class="run-dot"></span><span class="tip">Sessions</span></button>
+                <button class="dock-item" aria-label="Terminal"><i data-lucide="terminal"></i><span class="run-dot"></span><span class="tip">Terminal</span></button>
+                <button class="dock-item" aria-label="Tasks"><i data-lucide="list-checks"></i><span class="run-dot"></span><span class="tip">Tasks</span></button>
+              </nav>
+              <nav class="dock-seg dock" aria-label="Dock — running, one request">
+                <button class="dock-item" aria-label="Sessions"><i data-lucide="messages-square"></i><span class="run-dot"></span><span class="tip">Sessions</span></button>
+                <button class="dock-item is-open" aria-label="Terminal — 1 needs you"><i data-lucide="terminal"></i><span class="run-dot"></span><span class="dk-badge">1</span><span class="tip">Terminal</span></button>
+                <button class="dock-item" aria-label="Tasks"><i data-lucide="list-checks"></i><span class="run-dot"></span><span class="tip">Tasks</span></button>
+              </nav>
+              <nav class="dock-seg dock" aria-label="Dock — running, several pending">
+                <button class="dock-item" aria-label="Sessions"><i data-lucide="messages-square"></i><span class="run-dot"></span><span class="tip">Sessions</span></button>
+                <button class="dock-item is-open" aria-label="Terminal — 3 need you"><i data-lucide="terminal"></i><span class="run-dot"></span><span class="dk-badge">3</span><span class="tip">Terminal</span></button>
+                <button class="dock-item" aria-label="Tasks"><i data-lucide="list-checks"></i><span class="run-dot"></span><span class="tip">Tasks</span></button>
+              </nav>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 07 · CONNECTING ===== -->
+    <section class="lab-sec" data-od-id="taw-connecting">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">07</span>
+        <h2 class="lab-sec__t">Connecting — brief and truthful</h2>
+        <span class="lab-sec__gist">US-003 · attach ticket, 30s TTL</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>Brief, quiet, truthful.</b> Connecting uses a one-time pass
+          behind the scenes; on screen it's a single quiet line over the
+          empty area, and on reconnect the current screen paints first with
+          history behind it. Failures live on the States board — connecting
+          never pretends to be content.
+          <span class="mono">US-003 · ATTACHED first frame</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad" data-od-id="taw-connecting-stage">
+            <section class="win is-focused tm-demo-win" data-od-id="taw-connecting-win">
+              <header class="win-head">
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="terminal"></svg></span>
+                  <span class="w2-title">dev server</span>
+                  <span class="mono-id">term-4f21c9a03b7e</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <span class="tm-lease" data-lease="available">No one in control</span>
+                </div>
+              </header>
+              <div class="tm-winbody">
+                <div class="tm-surface">
+                  <div class="tm-connecting" role="status"><span class="spin" aria-hidden="true"></span>Connecting…</div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 08 · SIZE VOTE · RECORDING ===== -->
+    <section class="lab-sec" data-od-id="taw-chrome">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">08</span>
+        <h2 class="lab-sec__t">Screen size and recording</h2>
+        <span class="lab-sec__gist">US-007.EC-3 · US-024</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>Watchers never shrink the screen.</b> The terminal is sized by
+          the smallest window among people who can type — watching from a
+          small laptop never squeezes anyone. That fact renders as small
+          print, and recording is always announced: a pulsing dot with
+          elapsed time sits in the head while the capture runs.
+          <span class="mono">US-007.EC-3 · RESIZED · asciicast v2</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad" data-od-id="taw-chrome-stage">
+            <section class="win is-focused tm-demo-win" data-od-id="taw-chrome-win">
+              <header class="win-head">
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="terminal"></svg></span>
+                  <span class="w2-title">psql</span>
+                  <span class="mono-id">term-9cd7e14b2a66</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <span class="tm-rec" data-od-id="taw-rec"><i aria-hidden="true"></i>rec 02:14</span>
+                  <span class="tm-lease" data-lease="me"><svg data-lucide="keyboard"></svg>You're in control</span>
+                  <span class="tm-viewers" title="1 watching"><svg data-lucide="eye"></svg>1</span>
+                  <span class="w2-vsep" aria-hidden="true"></span>
+                  <div class="w2-actions">
+                    <button class="btn btn--sm btn--ghost" type="button">Stop recording</button>
+                  </div>
+                </div>
+              </header>
+              <div class="tm-winbody">
+                <div class="tm-surface">
+                  <div class="tm-grid" role="log" aria-label="Terminal output">
+<span class="tm-ln">atlas_api=# <span class="a3">select</span> count(*) <span class="a3">from</span> journal_rows;</span>
+<span class="tm-ln"> count</span>
+<span class="tm-ln">-------</span>
+<span class="tm-ln">  4821</span>
+<span class="tm-ln">(1 row)</span>
+<span class="tm-ln"></span>
+<span class="tm-ln">atlas_api=# <span class="tm-cur" aria-hidden="true"></span></span>
+                  </div>
+                  <div class="tm-exitbar" data-od-id="taw-sizevote-bar">
+                    <span class="tm-sizevote"><svg data-lucide="scaling" aria-hidden="true"></svg>sized to <b>Marina's window</b> — the smallest that can type · 96×28</span>
+                    <time>attached 12:38</time>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

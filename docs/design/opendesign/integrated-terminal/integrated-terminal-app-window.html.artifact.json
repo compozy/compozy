@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "integrated-terminal/integrated-terminal-app-window.html",
+  "entry": "integrated-terminal/integrated-terminal-app-window.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-23T18:16:06.424Z",
+  "updatedAt": "2026-08-23T18:16:06.424Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

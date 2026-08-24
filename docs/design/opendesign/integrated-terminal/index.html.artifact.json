@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "integrated-terminal/index.html",
+  "entry": "integrated-terminal/index.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-23T18:24:36.136Z",
+  "updatedAt": "2026-08-23T18:24:36.136Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

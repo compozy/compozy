@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Call detail — contract, timeline, typed result · Agent comms · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="agent-comms.css">
+<!--
+  agent-comms-call-detail · S2 — Agents app call detail location
+  (/agents/calls/$callId): one call, drilled in.
+  Spec: .compozy/tasks/agent-comms/_uiux.md S2 · US-005/007/008/009/010/011/
+  017 · task_06/VC-08–13. Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — tool-call-card.tsx row grammar; JsonViewer record view;
+                 describeCost() cost line; Timeline/TimelineEvent; MonoId;
+                 MetadataList label lane (field names verbatim from
+                 call show -o json)
+    spec — controls map 1:1 to _dx.md operations: cancel (in-flight only),
+           call again (terminal only), message child. No disabled ghosts —
+           absent operations are absent. extracted renders as extracted,
+           never as returned. Both repair attempts' errors verbatim.
+    authorized delta — lab scaffold copied into agent-comms.css (graph-eng
+                       retired); result record view is a bounded two-column
+                       list, not a full JsonViewer port
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="cd-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Agent comms</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Call detail</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="agent-comms-activity-tree.html">← Activity tree</a>
+      <a class="btn btn--sm" href="agent-comms-session-calls-panel.html">Session panel →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="lab-sec" data-od-id="cd-completed">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">A finished call — the whole story on one page</h2>
+        <span class="lab-sec__gist">task_06/VC-08</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Who, what, and what came back</b>The header answers the human questions: who was asked, by whom, and how it ended. Below, the evidence in reading order — the ask, the expected shape of the answer, what happened when, the answer itself, and what it cost. The only buttons are the ones that work right now. <span class="mono">US-007.AC-1 · US-028.AC-2</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="cd-completed-stage">
+            <section class="win is-focused" data-od-id="cd-completed-win">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="bot"></svg></span>
+                  <span class="w2-title">Agents</span>
+                  <span class="w2-sep">/</span>
+                  <span class="w2-title" style="color:var(--muted)">call_01JBD8G2K7Q9</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+              </header>
+              <div class="win-body"><div class="app">
+                <div class="ac-call-head" data-od-id="cd-completed-header">
+                  <div class="ac-call-head__row1">
+                    <span class="agent-chip">RV</span>
+                    <h2 class="ac-call-head__title">reviewer</h2>
+                    <span class="ac-state" data-state="completed"><svg data-lucide="check"></svg>completed</span>
+                    <span class="ac-verdict">returned</span>
+                    <div class="ac-call-head__acts">
+                      <!-- terminal-only: compozy call reviewer "…" (call again) -->
+                      <button class="btn btn--sm" type="button" data-od-id="cd-call-again"><svg data-lucide="corner-up-right"></svg>Call again</button>
+                      <!-- compozy message send ses_01JBD8G2MZTX "…" -->
+                      <button class="btn btn--sm" type="button" data-od-id="cd-message-child"><svg data-lucide="mail"></svg>Message child</button>
+                    </div>
+                  </div>
+                  <div class="ac-call-head__facts">
+                    <span class="fact"><svg data-lucide="user"></svg>caller <a href="#">ses_01JBD7ZZAAAA</a> (session)</span>
+                    <span class="fact"><svg data-lucide="git-branch"></svg>child <a href="#">ses_01JBD8G2MZTX</a></span>
+                    <span class="fact"><svg data-lucide="layers"></svg>depth 1</span>
+                    <span class="ac-ttl"><svg data-lucide="timer"></svg>idle TTL <span class="mono">expires in 41m</span></span>
+                    <span class="fact"><svg data-lucide="calendar"></svg>settled <span class="mono-id">2026-08-20T18:14:11Z</span> (2m07s)</span>
+                  </div>
+                </div>
+                <div style="height:14px"></div>
+                <div class="layout">
+                  <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+                    <div class="ac-block" data-od-id="cd-completed-prompt">
+                      <div class="ac-block__head"><span class="eyebrow">Prompt</span></div>
+                      <div class="ac-block__body">Review the diff in HEAD~1..HEAD of this repo</div>
+                    </div>
+                    <div class="ac-block" data-od-id="cd-completed-contract">
+                      <div class="ac-block__head"><span class="eyebrow">Result contract</span><span class="mono-id">sha256:9f2c…</span></div>
+                      <details>
+                        <summary style="padding:8px 12px;font-size:var(--text-form);color:var(--subtle);cursor:pointer">Schema — 2 required keys</summary>
+                        <pre>{"<span class="k">findings</span>": [{"<span class="k">file</span>": "", "<span class="k">line</span>": 0, "<span class="k">severity</span>": "", "<span class="k">note</span>": ""}],
+ "<span class="k">verdict</span>": ""}</pre>
+                      </details>
+                      <div class="ac-block__foot"><span class="mono">budget 256 KiB · overflow store</span></div>
+                    </div>
+                    <div class="ac-result" data-od-id="cd-completed-result">
+                      <div class="ac-result__head"><span class="eyebrow">Result</span><span class="ac-verdict" style="margin-left:auto">returned</span></div>
+                      <div class="ac-result__rows">
+                        <div class="ac-result__row"><span class="ac-result__k">verdict</span><span class="ac-result__v mono">"needs-changes"</span></div>
+                        <div class="ac-result__row"><span class="ac-result__k">findings[0].file</span><span class="ac-result__v mono">"internal/loop/action.go"</span></div>
+                        <div class="ac-result__row"><span class="ac-result__k">findings[0].line</span><span class="ac-result__v mono">88</span></div>
+                        <div class="ac-result__row"><span class="ac-result__k">findings[0].severity</span><span class="ac-result__v mono">"warning"</span></div>
+                        <div class="ac-result__row"><span class="ac-result__k">findings[0].note</span><span class="ac-result__v mono">"error swallowed on retry path"</span></div>
+                      </div>
+                      <div class="ac-result__foot">
+                        <span class="mono">312 B · contract sha256:9f2c…</span>
+                        <span class="act"><button class="btn btn--xs" type="button"><svg data-lucide="maximize-2"></svg>Open full payload</button></span>
+                      </div>
+                    </div>
+                  </div>
+                  <aside class="railbox" data-od-id="cd-completed-rail">
+                    <div class="rail-sec">
+                      <div class="rail-sec__t"><svg data-lucide="list"></svg><span class="eyebrow">Timeline</span></div>
+                      <div class="ac-tl">
+                        <div class="ac-tl__ev"><span class="ac-tl__dot"><svg data-lucide="plus"></svg></span><div class="ac-tl__main"><div class="ac-tl__t">Created</div><div class="ac-tl__d">by ses_01JBD7ZZAAAA</div></div><span class="ac-tl__when">18:12:04</span></div>
+                        <div class="ac-tl__ev"><span class="ac-tl__dot"><svg data-lucide="clock"></svg></span><div class="ac-tl__main"><div class="ac-tl__t">Queued</div></div><span class="ac-tl__when">18:12:04</span></div>
+                        <div class="ac-tl__ev"><span class="ac-tl__dot"><svg data-lucide="circle"></svg></span><div class="ac-tl__main"><div class="ac-tl__t">Running</div><div class="ac-tl__d">child ses_01JBD8G2MZTX</div></div><span class="ac-tl__when">18:12:05</span></div>
+                        <div class="ac-tl__ev" data-tone="success"><span class="ac-tl__dot"><svg data-lucide="check"></svg></span><div class="ac-tl__main"><div class="ac-tl__t">Settled — completed</div><div class="ac-tl__d">answer accepted as sent</div></div><span class="ac-tl__when">18:14:11</span></div>
+                      </div>
+                    </div>
+                    <div class="rail-sec">
+                      <div class="rail-sec__t"><svg data-lucide="receipt"></svg><span class="eyebrow">Cost</span></div>
+                      <div class="prow"><span class="prow__k">This call</span><span class="prow__v"><span class="ac-cost"><span class="v">≈ $0.038</span><span>Estimated</span></span></span></div>
+                    </div>
+                  </aside>
+                </div>
+              </div></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="cd-provenance">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">How the answer arrived — returned, extracted, repaired</h2>
+        <span class="lab-sec__gist">task_06/VC-09</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The small word never lies</b>Beside every green chip, a gray word says how the answer got here: sent properly, recovered from prose, or fixed after one rejection. A recovered answer is never dressed up as a sent one — the timeline keeps the proof. <span class="mono">US-011.AC-1 · US-008.AC-1</span></div>
+        <div class="spec__demo">
+          <div class="plain" style="display:flex;flex-direction:column;gap:12px" data-od-id="cd-provenance-demo">
+            <div class="ac-block">
+              <div class="ac-block__head">
+                <span class="agent-chip">SC</span><b style="font-size:var(--text-form)">scout</b>
+                <span class="ac-state" data-state="completed"><svg data-lucide="check"></svg>completed</span>
+                <span class="ac-verdict">extracted</span>
+                <span class="mono-id" style="margin-left:auto">call_01JBE0S9W1QH</span>
+              </div>
+              <div class="ac-block__body" style="padding-top:8px;padding-bottom:8px">
+                <div class="ac-tl">
+                  <div class="ac-tl__ev"><span class="ac-tl__dot"><svg data-lucide="circle"></svg></span><div class="ac-tl__main"><div class="ac-tl__t">The helper finished without sending its answer</div></div><span class="ac-tl__when">18:20:40</span></div>
+                  <div class="ac-tl__ev" data-tone="success"><span class="ac-tl__dot"><svg data-lucide="check"></svg></span><div class="ac-tl__main"><div class="ac-tl__t">Settled — completed</div><div class="ac-tl__d">the answer was recovered from its last message and checked · recorded as <b>extracted</b></div></div><span class="ac-tl__when">18:20:41</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="ac-block">
+              <div class="ac-block__head">
+                <span class="agent-chip">RV</span><b style="font-size:var(--text-form)">reviewer</b>
+                <span class="ac-state" data-state="completed"><svg data-lucide="check"></svg>completed</span>
+                <span class="ac-verdict">repaired</span>
+                <span class="mono-id" style="margin-left:auto">call_01JBE1T4K8RW</span>
+              </div>
+              <div class="ac-block__body" style="padding-top:8px;padding-bottom:8px">
+                <div class="ac-tl">
+                  <div class="ac-tl__ev" data-tone="warning"><span class="ac-tl__dot"><svg data-lucide="rotate-ccw"></svg></span><div class="ac-tl__main"><div class="ac-tl__t">Retry 1 of 1</div><div class="ac-tl__d">first answer rejected — the errors were handed back to the helper</div></div><span class="ac-tl__when">18:31:02</span></div>
+                  <div class="ac-tl__ev" data-tone="success"><span class="ac-tl__dot"><svg data-lucide="check"></svg></span><div class="ac-tl__main"><div class="ac-tl__t">Settled — completed</div><div class="ac-tl__d">the second answer matched · recorded as <b>repaired</b></div></div><span class="ac-tl__when">18:31:47</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="cd-invalid">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">A wrong answer keeps both tries on record</h2>
+        <span class="lab-sec__gist">task_06/VC-10</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The checker's words, unedited</b>Both tries are kept, each with the exact reasons the answer was rejected — the UI never paraphrases them. Anything secret-shaped was already scrubbed before the check ran. <span class="mono">US-008.AC-2</span></div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="cd-invalid-demo">
+            <div class="ac-call-head" style="border-bottom:0;padding-bottom:0;margin-bottom:12px">
+              <div class="ac-call-head__row1">
+                <span class="agent-chip">RV</span>
+                <h2 class="ac-call-head__title" style="font-size:var(--text-item-title)">reviewer</h2>
+                <span class="ac-state" data-state="invalid-result"><svg data-lucide="file-x"></svg>invalid-result</span>
+                <span class="mono-id" style="margin-left:auto">call_01JBE0R2M8PT</span>
+              </div>
+            </div>
+            <div class="ac-attempt" data-od-id="cd-invalid-attempt1">
+              <div class="ac-attempt__head"><b>Try 1</b><span class="mono">18:40:12Z · rejected — sent back for one retry</span></div>
+              <div class="ac-attempt__errs">
+                <div class="ac-err"><svg data-lucide="x"></svg><span><span class="path">/findings/0/line</span>: expected number, got string "eighty-eight"</span></div>
+                <div class="ac-err"><svg data-lucide="x"></svg><span><span class="path">/verdict</span>: required property missing</span></div>
+              </div>
+            </div>
+            <div class="ac-attempt" data-od-id="cd-invalid-attempt2">
+              <div class="ac-attempt__head"><b>Try 2</b><span class="mono">18:41:03Z · rejected again — call ended invalid-result</span></div>
+              <div class="ac-attempt__errs">
+                <div class="ac-err"><svg data-lucide="x"></svg><span><span class="path">/verdict</span>: required property missing</span></div>
+              </div>
+            </div>
+            <div style="height:10px"></div>
+            <div class="ac-call-head__acts" style="margin-left:0">
+              <button class="btn btn--sm" type="button"><svg data-lucide="corner-up-right"></svg>Call again</button>
+              <button class="btn btn--sm" type="button"><svg data-lucide="mail"></svg>Message child</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="cd-noresult">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Finished with nothing to show</h2>
+        <span class="lab-sec__gist">task_06/VC-11</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Nothing is stated, not decorated</b>The helper finished its work but never sent an answer back. The result panel says exactly that and offers the two honest ways forward — read what it wrote, or ask again. No empty placeholder pretends otherwise. <span class="mono">US-009.AC-1</span></div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="cd-noresult-demo">
+            <div class="ac-call-head" style="border-bottom:0;padding-bottom:0;margin-bottom:12px">
+              <div class="ac-call-head__row1">
+                <span class="agent-chip">DW</span>
+                <h2 class="ac-call-head__title" style="font-size:var(--text-item-title)">docs-writer</h2>
+                <span class="ac-state" data-state="completed-without-result"><svg data-lucide="circle-slash"></svg>completed-without-result</span>
+                <span class="mono-id" style="margin-left:auto">call_01JBE2W7H3ZD</span>
+              </div>
+            </div>
+            <div class="ac-result">
+              <div class="ac-result__head"><span class="eyebrow">Result</span></div>
+              <div class="ac-block__body">The child finished without recording a result. Its transcript is intact — open the child session to read what it produced, or call again with the contract.</div>
+              <div class="ac-result__foot">
+                <span class="mono">strict · no return act invoked</span>
+                <span class="act"><a class="btn btn--xs" href="#">Open child session</a></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="cd-canceled">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Stopped on purpose · out of time</h2>
+        <span class="lab-sec__gist">task_06/VC-12</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Done means done</b>An answer that arrives after a cancel is kept as evidence but never reopens the call. A deadline shows up only when someone set one — most calls have none, so most calls show no timer at all. <span class="mono">US-005.AC-2..3</span></div>
+        <div class="spec__demo">
+          <div class="plain" style="display:flex;flex-direction:column;gap:12px" data-od-id="cd-canceled-demo">
+            <div class="ac-block">
+              <div class="ac-block__head">
+                <span class="agent-chip">RV</span><b style="font-size:var(--text-form)">reviewer</b>
+                <span class="ac-state" data-state="canceled"><svg data-lucide="ban"></svg>canceled</span>
+                <span class="mono-id" style="margin-left:auto">call_01JBD8H9PW2M</span>
+              </div>
+              <div class="ac-block__body" style="display:flex;flex-direction:column;gap:10px">
+                <div class="prow" style="border:0;min-height:0"><span class="prow__k">reason</span><span class="prow__v">superseded by rev-02</span></div>
+                <div class="ac-superseded" data-od-id="cd-superseded">
+                  <div class="ac-superseded__head"><svg data-lucide="archive"></svg>Superseded late result</div>
+                  <p>The child returned <span class="mono-id">247 B</span> at <span class="mono-id">18:19:22Z</span>, after the cancel. Kept as evidence; it did not change the call's state.</p>
+                </div>
+              </div>
+            </div>
+            <div class="ac-block">
+              <div class="ac-block__head">
+                <span class="agent-chip">SC</span><b style="font-size:var(--text-form)">scout</b>
+                <span class="ac-state" data-state="timeout"><svg data-lucide="timer-off"></svg>timeout</span>
+                <span class="mono-id" style="margin-left:auto">call_01JBE3A9QQ4M</span>
+              </div>
+              <div class="ac-block__body">
+                <div class="ac-call-head__facts">
+                  <span class="fact"><svg data-lucide="timer"></svg>deadline <span class="mono-id">2026-08-20T19:00:00Z</span> (opt-in, 300s)</span>
+                  <span class="fact"><svg data-lucide="git-branch"></svg>child <a href="#">ses_01JBE3A9TTVC</a> — parked, still addressable</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="cd-running">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">While it runs — one control, safe frames</h2>
+        <span class="lab-sec__gist">task_06/VC-13</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Only real buttons render</b>While the helper works, Cancel is the only button — the others appear when the call ends, never grayed out before. An oversized answer shows a bounded preview plus a fetch for the rest. Text a helper wrote sits in a stamped frame and can't run anything. <span class="mono">US-005.AC-1 · US-010.AC-1 · US-016.AC-1</span></div>
+        <div class="spec__demo">
+          <div class="plain" style="display:flex;flex-direction:column;gap:12px" data-od-id="cd-running-demo">
+            <div class="ac-block">
+              <div class="ac-block__head">
+                <span class="agent-chip">RV</span><b style="font-size:var(--text-form)">reviewer</b>
+                <span class="ac-state" data-state="running"><svg data-lucide="circle"></svg>running</span>
+                <span class="ac-typing" aria-label="Child is working"><i></i><i></i><i></i></span>
+                <span style="margin-left:auto;display:inline-flex;gap:7px">
+                  <!-- in-flight only: POST …/calls/{id}/cancel -->
+                  <button class="btn btn--sm" type="button" data-od-id="cd-cancel"><svg data-lucide="ban"></svg>Cancel</button>
+                </span>
+              </div>
+              <div class="ac-block__body">
+                <div class="ac-call-head__facts">
+                  <span class="fact"><svg data-lucide="user"></svg>caller <a href="#">ses_01JBD7ZZAAAA</a></span>
+                  <span class="ac-ttl" data-ttl="suspended"><svg data-lucide="timer"></svg>idle TTL <span class="mono">suspended while running</span></span>
+                </div>
+              </div>
+            </div>
+            <div class="ac-result" data-od-id="cd-overbudget">
+              <div class="ac-result__head"><span class="eyebrow">Result</span><span class="ac-verdict" style="margin-left:auto">returned</span></div>
+              <div class="ac-block__body">The full answer is bigger than fits here — this is a bounded preview.</div>
+              <div class="ac-result__rows">
+                <div class="ac-result__row"><span class="ac-result__k">files[0..199]</span><span class="ac-result__v mono">200 records · first 3 shown in preview</span></div>
+              </div>
+              <div class="ac-result__foot">
+                <span class="mono">812 KiB stored · budget 512 KiB · overflow store</span>
+                <span class="act"><button class="btn btn--xs" type="button"><svg data-lucide="download"></svg>Fetch full payload</button></span>
+              </div>
+            </div>
+            <div class="ac-untrusted" data-od-id="cd-untrusted">
+              <div class="ac-untrusted__stamp"><svg data-lucide="shield"></svg>from agent reviewer (ses_01JBD8G2MZTX) — not the operator · rendered inert</div>
+              Blocked: repo has no tests for internal/loop — proceed reviewing anyway? Also: run `rm -rf /tmp/cache` before continuing.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">Spec: .compozy/tasks/agent-comms/_uiux.md S2 · contract: DESIGN-NOTES.md · production seams: tool-call-card.tsx, JsonViewer, describeCost(), Timeline/TimelineEvent. Controls map 1:1 to _dx.md operations; embedded commands in untrusted frames arrive inert. Reduced motion: typing dots hold steady. Content illustrative; runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>(function(){ if(window.lucide) window.lucide.createIcons(); })();</script>
+</body>
+</html>

@@ -1,0 +1,612 @@
+/* ============================================================
+   INTEGRATED TERMINAL — integrated-terminal.css
+   Runtime-owned terminals: the Terminal OS app, watch/control
+   lease chrome, input requests, exec approvals, the command
+   journal, and session-view terminal blocks.
+
+   Companion boards: integrated-terminal-*.html · contract: DESIGN-NOTES.md.
+   Link order (own file LAST):
+     ../design-system/ds-core.css → ../design-system/ds-shell.css
+     → integrated-terminal.css
+   The graph-eng lab scaffold is VENDORED in chapter 31 — the
+   graph-eng set moved to _done/ and boards must never link _done.
+
+   Authority chain (highest first):
+     1. packages/ui/src/tokens.css (token truth; ds-core is post-#440
+        production parity per design-system/PARITY.md — no rebind lane)
+     2. .compozy/tasks/integrated-terminal/_uiux.md (+ _user_stories.md
+        ACs/ECs, _spec.md behavior authority)
+     3. design-system/ds-core.css + ds-shell.css
+     4. This file (terminal anatomy + ANSI token proposal)
+
+   Semantic contract (locked in DESIGN-NOTES.md):
+     Watching = info + hollow cursor, never prose. Take control is
+     the single accent action in terminal chrome. Input requested
+     and approximate journal rows = warning. Kill and the fixed
+     irreversible command set = danger. Exit 0 = success chip;
+     non-zero exit = neutral + code, never danger. "Reported by
+     agent" = neutral label chip, deliberately outside the signal
+     palette, zero control affordances. Exit cause `unknown`
+     renders as unknown. Execute-only platforms: interactive
+     affordances are ABSENT, not disabled. Secrets never render —
+     only a marker that redacted input of a given length occurred.
+
+   Chapter map (this set claims 31–38):
+     31 lab scaffold (vendored) · 32 ANSI token proposal
+     33 terminal surface · 34 terminal chrome · 35 input request
+     36 approvals · 37 journal · 38 session blocks
+
+   Reuse before create:
+     window frame / head ....... .win .win-head .w2-*      ds-shell
+     window tabs ............... .deck .deck-tab           ds-shell
+     dock ...................... .dock .dock-item .dk-badge ds-shell
+     buttons / pills / tags .... .btn .pill [data-tone]    ds-core
+     dialogs / scrims .......... .dialog .dlg-scrim        ds-core
+     notices / empty states .... .notice .empty            ds-core
+     tables / filters .......... .table .filter-chip       ds-core
+     transcript / composer ..... .toolcall .composer       ds-core
+     attention rows ............ .att                      ds-core
+     status dots ............... .status-dot .d            ds-core
+
+   Retired before first commit (canon already owns them):
+     .tm-btn (=.btn) · .tm-dialog (=.dialog) · .tm-empty (=.empty)
+     · .tm-tag (=.pill/.tag) · .tm-table (=.table)
+   ============================================================ */
+
+/* ============================================================
+   31 · LAB SCAFFOLD — vendored from graph-eng (now _done/)
+   Board chrome only; never product. Identical byte-for-byte to
+   the graph-eng lab so every set reads the same.
+   ============================================================ */
+.shell{height:100vh}
+.main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+.w2head{min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;flex:none;
+  background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+.w2head .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+.w2head .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+.w2head .w2-back svg{width:14px;height:14px}
+.w2head .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+.w2head .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);padding:1px 5px}
+.w2head .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+.w2head .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+.w2head .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;padding-left:3px}
+.w2head .w2-flex{flex:1;min-width:8px}
+.w2head .w2-actions{display:flex;align-items:center;gap:6px;flex:none}
+.scroll{flex:1;min-height:0;overflow-y:auto}
+.page{max-width:none;width:100%;margin:0;padding:24px 36px 80px}
+.lab-sec{margin:0 0 40px}
+.lab-sec__head{display:flex;align-items:baseline;gap:10px;padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.lab-sec__num{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.lab-sec__t{font-size:13px;font-weight:600;letter-spacing:-.01em;color:var(--fg-strong)}
+.lab-sec__gist{font-size:11.5px;color:var(--subtle);margin-left:auto}
+.spec{display:grid;grid-template-columns:200px minmax(0,1fr);gap:14px;align-items:start;padding:14px 0;border-top:1px solid var(--line-soft)}
+.spec:first-of-type{border-top:0;padding-top:0}
+.spec__note{font-size:11px;line-height:1.55;color:var(--subtle)}
+.spec__note b{font-weight:600;color:var(--fg)}
+.spec__note > b:first-child{display:block;font-size:11.5px;margin-bottom:2px}
+.spec__note code{font-family:var(--font-mono);font-size:9.5px;color:var(--muted);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:0 3px}
+.spec__demo{min-width:0}
+@media (max-width:760px){
+  .spec{grid-template-columns:1fr}
+  .lab-sec__gist{display:none}
+  .page{padding-left:20px;padding-right:20px}
+}
+.stage{
+  position:relative;min-height:400px;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;
+  background:
+    radial-gradient(1.5px 1.5px at 50% 50%, rgba(255,255,255,.035) 40%, transparent 41%) 0 0 / 26px 26px,
+    radial-gradient(520px 280px at 12% 110%, var(--accent-tint-strong), transparent 62%),
+    radial-gradient(480px 260px at 92% -12%, color-mix(in oklab, var(--teal) 38%, transparent), transparent 60%),
+    linear-gradient(180deg, var(--canvas-soft), var(--rail) 60%);
+}
+.stage--short{min-height:260px}
+.stage--tall{min-height:520px}
+.stage--pad{display:flex;align-items:flex-start;justify-content:center;padding:28px 20px 32px}
+.stage--center{display:flex;align-items:center;justify-content:center;padding:24px 20px}
+.stage--auto{min-height:0}
+.stage .popover,.stage .toasts{position:absolute}
+.stage .overlay{position:absolute;inset:0}
+.stage .win{position:relative;animation:none}
+.stage .dlg-scrim{position:absolute;inset:0}
+.plain{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);padding:16px}
+.plain--flush{padding:0;overflow:hidden}
+/* board-demo width helpers (boards carry no <style> blocks) */
+.tm-demo-win{width:min(820px,100%)}
+.tm-demo-win--sm{width:min(560px,100%)}
+.tm-demo-win--tile{width:min(340px,100%)}
+.tm-demo-win--wide{width:min(1060px,100%)}
+.tm-demo-col{display:flex;flex-direction:column;gap:14px;width:min(820px,100%)}
+.tm-demo-row{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;justify-content:center;width:100%}
+
+/* ============================================================
+   32 · ANSI TOKEN PROPOSAL — --term-*
+   tokens.css carries no ANSI ramp today (verified in _uiux.md).
+   These values are the DESIGN PROPOSAL for the named token task:
+   they land in packages/ui/src/tokens.css via the token pipeline
+   (make codegen regenerates DESIGN.md; codegen-check gates drift)
+   and the emulator theme object reads the computed tokens.
+   Derivation: warm-dark ramp compatible; 1/2/3/9/10/11 derive
+   from the signal palette; 4/5/6 are new desaturated hues at
+   matched OKLCH lightness (~0.68–0.72) so no ANSI color shouts
+   over the signal palette. ANSI 8 is dim-by-design (~3.5:1) —
+   terminal convention, not UI text. The ONLY raw literals in
+   this file live in this chapter.
+   ============================================================ */
+:root{
+  --term-bg:#131211;                       /* byte surface: one step below --canvas */
+  --term-fg:#e3e1de;                       /* slightly under --fg so bright white pops */
+  --term-cursor:#f7f6f4;                   /* neutral; control state is shape, not hue */
+  --term-selection:rgba(255,255,255,.16);
+  --term-ansi-0:#2a2927;   --term-ansi-8:#6f6d68;
+  --term-ansi-1:#e0635a;   --term-ansi-9:#ef837b;   /* danger lane */
+  --term-ansi-2:#5fbf85;   --term-ansi-10:#7fd3a2;  /* success lane */
+  --term-ansi-3:#d6a647;   --term-ansi-11:#e8c06a;  /* warning lane */
+  --term-ansi-4:#7d9bc8;   --term-ansi-12:#9db9e3;
+  --term-ansi-5:#b48ec6;   --term-ansi-13:#cdaade;
+  --term-ansi-6:#6fb5ab;   --term-ansi-14:#8fd0c6;
+  --term-ansi-7:#c9c7c3;   --term-ansi-15:#f7f6f4;
+}
+
+/* ============================================================
+   33 · TERMINAL SURFACE — grid, lines, cursor, selection, gap
+   One primitive (TerminalView). The grid is the only surface in
+   the product that owns a solid sub-canvas ground: a terminal is
+   a byte well, not a card. Read-only is carried by the cursor
+   (hollow) and the absent input line — never by prose.
+   ============================================================ */
+.tm-surface{
+  display:flex;flex-direction:column;min-width:0;min-height:0;flex:1;
+  background:var(--term-bg);
+}
+.tm-grid{
+  flex:1;min-height:0;overflow:hidden;
+  padding:10px 14px 12px;
+  font-family:var(--font-mono);font-size:12.5px;line-height:1.5;
+  letter-spacing:var(--track-mono,.02em);
+  color:var(--term-fg);
+  font-variant-ligatures:none;
+}
+.tm-ln{display:block;white-space:pre-wrap;word-break:break-all;min-height:18.75px}
+.tm-ln--dim{color:var(--term-ansi-8)}
+/* ANSI spans — prototype stand-ins for emulator cell attributes */
+.a1{color:var(--term-ansi-1)}   .a9{color:var(--term-ansi-9)}
+.a2{color:var(--term-ansi-2)}   .a10{color:var(--term-ansi-10)}
+.a3{color:var(--term-ansi-3)}   .a11{color:var(--term-ansi-11)}
+.a4{color:var(--term-ansi-4)}   .a12{color:var(--term-ansi-12)}
+.a5{color:var(--term-ansi-5)}   .a13{color:var(--term-ansi-13)}
+.a6{color:var(--term-ansi-6)}   .a14{color:var(--term-ansi-14)}
+.a7{color:var(--term-ansi-7)}   .a15{color:var(--term-ansi-15)}
+.a8{color:var(--term-ansi-8)}   .a0{color:var(--term-ansi-0)}
+.ab{font-weight:700}
+.tm-sel{background:var(--term-selection)}
+
+/* Cursor: solid block = you can type. Hollow = watching. The
+   shape IS the read-only explanation (no helper prose). */
+.tm-cur{
+  display:inline-block;width:7px;height:14px;margin-left:1px;
+  vertical-align:-2px;background:var(--term-cursor);
+  animation:tm-blink 1.1s steps(1) infinite;
+}
+.tm-cur--hollow{
+  background:transparent;
+  box-shadow:inset 0 0 0 1px color-mix(in oklab, var(--term-cursor) 75%, transparent);
+  animation:none;
+}
+@keyframes tm-blink{50%{opacity:0}}
+@media (prefers-reduced-motion: reduce){.tm-cur{animation:none}}
+
+/* GAP / resync divider — "content was skipped", never a splice.
+   Warning-toned words + byte count; full-bleed rule. */
+.tm-gap{
+  display:flex;align-items:center;gap:8px;margin:6px 0;
+  font-family:var(--font-mono);font-size:10px;color:var(--warning);
+  white-space:nowrap;
+}
+.tm-gap::before,.tm-gap::after{content:"";height:1px;flex:1;background:var(--line-strong)}
+.tm-gap svg{width:11px;height:11px;flex:none}
+
+/* Redacted-input marker inside the stream: length only, never
+   the bytes. Neutral — the redaction already happened upstream. */
+.tm-redact-marker{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:0 6px;border-radius:var(--radius-xxs);
+  background:var(--badge-fill);color:var(--subtle);
+  font-family:var(--font-mono);font-size:10px;
+}
+.tm-redact-marker svg{width:10px;height:10px}
+
+/* Pipe-mode variant: a read-only log pane. No cursor, no input
+   line, line-numbers gutter — visibly a log, not a prompt. */
+.tm-surface--pipe .tm-grid{color:var(--term-ansi-7)}
+.tm-pipe-ln{display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px}
+.tm-pipe-ln > i{font-style:normal;text-align:right;color:var(--term-ansi-8);user-select:none}
+
+/* ============================================================
+   34 · TERMINAL CHROME — lease chip, presence, size vote,
+   recording, tab adornments, platform notice
+   Lives in the 44px window head + the deck. Take control is the
+   ONE accent action; everything else is neutral or signal-toned.
+   ============================================================ */
+.tm-lease{
+  display:inline-flex;align-items:center;gap:6px;
+  height:20px;padding:0 8px;border-radius:var(--radius-pill);
+  font-size:11px;font-weight:500;line-height:1;white-space:nowrap;
+  background:var(--badge-fill);color:var(--muted);
+}
+.tm-lease svg{width:11px;height:11px;flex:none}
+.tm-lease b{font-weight:600;color:var(--fg)}
+.tm-lease[data-lease="watching"]{background:var(--info-tint);color:var(--info)}
+.tm-lease[data-lease="watching"] b{color:var(--info)}
+.tm-lease[data-lease="me"]{background:var(--badge-fill);color:var(--fg)}
+.tm-lease[data-lease="agent"]{background:var(--info-tint);color:var(--info)}
+.tm-lease[data-lease="agent"] b{color:var(--info)}
+.tm-lease[data-lease="available"]{background:var(--neutral-tint);color:var(--muted)}
+
+/* Watcher presence: count + eye. Info = read-only lane. */
+.tm-viewers{
+  display:inline-flex;align-items:center;gap:4px;
+  height:20px;padding:0 7px;border-radius:var(--radius-pill);
+  font-family:var(--font-mono);font-size:10px;
+  background:var(--badge-fill);color:var(--subtle);
+}
+.tm-viewers svg{width:11px;height:11px}
+
+/* Size vote — daemon-authoritative dims; names whose viewport
+   wins. Micro mono, faint: machine truth demoted, never removed. */
+.tm-sizevote{
+  display:inline-flex;align-items:center;gap:5px;
+  font-family:var(--font-mono);font-size:10px;color:var(--faint);white-space:nowrap;
+}
+.tm-sizevote b{font-weight:500;color:var(--subtle)}
+
+/* Recording chip — universal red-dot record convention
+   (authorized delta: danger hue re-used as the record dot, noted
+   in DESIGN-NOTES; the chip itself stays neutral). */
+.tm-rec{
+  display:inline-flex;align-items:center;gap:5px;
+  height:20px;padding:0 8px;border-radius:var(--radius-pill);
+  background:var(--badge-fill);color:var(--muted);
+  font-family:var(--font-mono);font-size:10px;
+}
+.tm-rec i{width:6px;height:6px;border-radius:50%;background:var(--danger);animation:tm-recpulse 2s ease-in-out infinite}
+@keyframes tm-recpulse{50%{opacity:.35}}
+@media (prefers-reduced-motion: reduce){.tm-rec i{animation:none}}
+
+/* Deck-tab adornments: attention dot (input requested) and the
+   pipe-mode log glyph. Zero pending renders nothing. */
+.deck-tab .tm-tab-attn{width:6px;height:6px;border-radius:50%;background:var(--warning);flex:none}
+.deck-tab .tm-tab-exit{font-family:var(--font-mono);font-size:9px;color:var(--subtle)}
+.deck-tab[data-mode="pipe"] .deck-tab__glyph{color:var(--subtle)}
+
+/* Terminal window body: head(44, ds-shell) → deck(37) → surface.
+   The surface is full-bleed inside the window body. */
+.tm-winbody{display:flex;flex-direction:column;min-height:0;flex:1;background:var(--term-bg)}
+
+/* Connecting / attaching veil — over the grid, brief. */
+.tm-connecting{
+  display:flex;align-items:center;gap:8px;padding:10px 14px;
+  font-size:12px;color:var(--subtle);
+}
+.tm-connecting .spin{width:12px;height:12px;border:1.5px solid var(--line-strong);border-top-color:var(--fg);border-radius:50%;animation:tm-spin .8s linear infinite}
+@keyframes tm-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.tm-connecting .spin{animation-duration:2s}}
+
+/* Exit bar — pinned under the grid after self-exit. Success chip
+   for 0; neutral + code otherwise; `unknown` stays unknown. */
+.tm-exitbar{
+  display:flex;align-items:center;gap:10px;flex:none;
+  min-height:32px;padding:0 14px;
+  border-top:1px solid var(--line);background:var(--canvas);
+  font-size:12px;color:var(--subtle);
+}
+.tm-exitbar .mono-id{flex:none}
+.tm-exitbar .pill{flex:none}
+.tm-exitbar time{font-family:var(--font-mono);font-size:10px;color:var(--faint);margin-left:auto}
+
+/* Audit-blocked bar rides full-bleed inside the surface. */
+.tm-surface > .notice{border-radius:0}
+
+/* Execute-only platform note — exec is still offered; interactive
+   affordances are ABSENT above this line, not disabled. */
+.tm-platform{
+  display:flex;align-items:flex-start;gap:8px;
+  padding:10px 12px;border-radius:var(--radius);
+  background:var(--canvas-tint);border:1px solid var(--line);
+  font-size:11.5px;line-height:1.5;color:var(--muted);
+}
+.tm-platform svg{width:13px;height:13px;flex:none;margin-top:1px;color:var(--subtle)}
+.tm-platform b{font-weight:600;color:var(--fg)}
+
+/* ============================================================
+   35 · INPUT REQUEST — card pinned to the live terminal,
+   mirrored on the attention surface
+   Warning = input requested. The card is neutral ground; warning
+   lives on the glyph + chip, never a card border (anti-wash).
+   ============================================================ */
+.tm-request{
+  display:flex;flex-direction:column;gap:10px;
+  padding:12px 14px;flex:none;
+  border-top:1px solid var(--line);background:var(--canvas);
+}
+.tm-request__head{display:flex;align-items:center;gap:8px;min-width:0}
+.tm-request__glyph{
+  width:26px;height:26px;flex:none;display:grid;place-items:center;
+  border-radius:var(--radius-sm);background:var(--warning-tint);color:var(--warning);
+}
+.tm-request__glyph svg{width:14px;height:14px}
+.tm-request__title{font-size:13px;font-weight:600;color:var(--fg-strong);min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tm-request__meta{margin-left:auto;flex:none;display:flex;align-items:center;gap:8px;
+  font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.tm-request__reason{font-size:12px;line-height:1.5;color:var(--muted)}
+/* Prompt excerpt: the program's own words, code wash. */
+.tm-request__prompt{
+  padding:6px 9px;border-radius:var(--radius-xs);
+  background:rgba(255,255,255,.03);
+  font-family:var(--font-mono);font-size:11px;line-height:1.5;color:var(--fg);
+  white-space:pre-wrap;word-break:break-all;
+}
+.tm-request__row{display:flex;align-items:center;gap:8px}
+.tm-request__row .input{flex:1;height:32px;font-size:12px}
+.tm-request__row .input--redacted{font-family:var(--font-mono);letter-spacing:.35em}
+/* Resolved states collapse to a single quiet line. */
+.tm-request--resolved{flex-direction:row;align-items:center;gap:8px}
+.tm-request--resolved .tm-request__outcome{font-size:11.5px;color:var(--muted)}
+.tm-request--resolved .tm-request__outcome b{font-weight:600;color:var(--fg)}
+/* Resolved outcomes leave the warning lane: answered = success,
+   superseded = info (control changed hands), the rest neutral. */
+.tm-request--resolved .tm-request__glyph{background:var(--badge-fill);color:var(--muted)}
+.tm-request--resolved[data-outcome="answered"] .tm-request__glyph{background:var(--success-tint);color:var(--success)}
+.tm-request--resolved[data-outcome="superseded"] .tm-request__glyph{background:var(--info-tint);color:var(--info)}
+/* Stack header when several terminals ask at once. */
+.tm-request-stack{display:flex;flex-direction:column}
+.tm-request-stack > .tm-request+.tm-request{border-top:1px solid var(--line-soft)}
+.tm-request__origin{
+  display:inline-flex;align-items:center;gap:5px;flex:none;
+  font-family:var(--font-mono);font-size:10px;color:var(--subtle);
+}
+
+/* Attention-row glyphs in the signal lanes (bell mirror, approvals). */
+.att__glyph-warning{width:14px;height:14px;color:var(--warning);flex:none;margin-top:2px}
+.att__glyph-danger{width:14px;height:14px;color:var(--danger);flex:none;margin-top:2px}
+/* Command wells breathe inside approval rows. */
+.att__row .tm-cmd{margin:6px 0 4px}
+.att__row .tm-irreversible{margin-top:4px}
+
+/* ============================================================
+   36 · APPROVALS — exec command + typing grant
+   The exact command, unmodified, in a mono well. Danger is
+   reserved for the fixed irreversible set; ordinary approvals
+   stay neutral with warning only on the pending chip.
+   ============================================================ */
+.tm-cmd{
+  padding:8px 10px;border-radius:var(--radius-xs);
+  background:rgba(255,255,255,.03);
+  font-family:var(--font-mono);font-size:11.5px;line-height:1.55;color:var(--fg);
+  white-space:pre-wrap;word-break:break-all;
+}
+.tm-cmd--danger{
+  background:var(--danger-tint);
+  box-shadow:inset 0 0 0 1px color-mix(in oklab, var(--danger) 30%, transparent);
+}
+.tm-cmd__cwd{
+  display:flex;align-items:center;gap:5px;margin-top:6px;
+  font-family:var(--font-mono);font-size:10px;color:var(--subtle);
+}
+.tm-cmd__cwd svg{width:10px;height:10px;flex:none}
+/* Irreversible callout: word + glyph carry danger, not a banner. */
+.tm-irreversible{
+  display:flex;align-items:center;gap:6px;
+  font-size:11.5px;font-weight:600;color:var(--danger);
+}
+.tm-irreversible svg{width:12px;height:12px;flex:none}
+/* Approval context rows (terminal · agent · shape) */
+.tm-appr-ctx{display:flex;flex-direction:column;gap:2px}
+.tm-appr-ctx .prow{border:0}
+/* Waiting state on the agent side: honest, quiet. */
+.tm-waiting{
+  display:inline-flex;align-items:center;gap:7px;
+  font-size:11.5px;color:var(--muted);
+}
+.tm-waiting i{width:6px;height:6px;border-radius:50%;background:var(--warning);flex:none;animation:tm-recpulse 2s ease-in-out infinite}
+@media (prefers-reduced-motion: reduce){.tm-waiting i{animation:none}}
+
+/* ============================================================
+   37 · JOURNAL — per-project command history
+   The journal is a TABLE by the ds-core definition (fixed
+   columns, values compared across rows) and rides the canonical
+   table ladder: the command cell is the title / sub / mono-id
+   stack, outcome + confidence are .pill, everything else is
+   demoted text. Fixed layout — the command column absorbs the
+   slack so nothing ever scrolls sideways. Rows are neutral at
+   rest; warning marks ONLY estimated detection. Cursor paging:
+   the footer states rows LOADED, never a total.
+   ============================================================ */
+.tm-journal{display:flex;flex-direction:column;min-width:0;min-height:0;flex:1}
+
+/* Toolbar and footer are the only padded bands. The table stays
+   full-bleed because .table cells already carry the 12px inset. */
+.jr-bar{
+  flex:none;display:flex;align-items:center;gap:10px;
+  min-height:46px;padding:9px 14px;border-bottom:1px solid var(--line);
+}
+.jr-bar .listing-toolbar{flex:1;min-width:0}
+.jr-foot{
+  flex:none;display:flex;align-items:center;gap:12px;
+  min-height:46px;padding:9px 14px;border-top:1px solid var(--line);
+}
+.jr-foot__meta{font-size:var(--text-badge);color:var(--subtle);margin-right:auto}
+.jr-scroll{flex:1;min-height:0;overflow-y:auto}
+
+/* Column contract — widths sized to the longest real value, so
+   the command column keeps every remaining pixel. */
+.tm-journal .table{table-layout:fixed}
+.tm-journal .table td{vertical-align:middle}
+.tm-journal .table tbody tr{cursor:pointer}
+.jr-c-when{width:72px}
+.jr-c-who{width:140px}
+.jr-c-result{width:172px}
+.jr-c-perm{width:120px}
+.jr-c-conf{width:116px}
+.jr-c-act{width:52px}
+
+.jr-when{
+  font-family:var(--font-mono);font-size:11.5px;color:var(--fg);
+  font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+.jr-who{display:flex;align-items:center;gap:7px;min-width:0}
+.jr-who__name{
+  font-size:var(--text-form);color:var(--fg);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+/* The command IS the row title: one mono line, truncated with an
+   ellipsis and answered in full by the detail rail. Never
+   word-break — a command split mid-token stops being readable. */
+.jr-cmd{
+  display:block;font-family:var(--font-mono);font-size:12.5px;color:var(--fg-strong);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.jr-where{
+  display:block;margin-top:3px;
+  font-family:var(--font-mono);font-size:11px;color:var(--faint);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.jr-perm{font-size:var(--text-form);color:var(--subtle)}
+/* machine truth demoted under the human word (refinement contract) */
+.jr-code{
+  display:block;margin-top:3px;
+  font-family:var(--font-mono);font-size:11px;color:var(--subtle);
+  font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+.jr-act{margin:0 auto}
+
+/* Detail rail — the journal's answer surface (DetailInspector).
+   Opening it drops the attribute columns; they reappear as rows
+   inside the rail rather than fighting the command for width. */
+.jr-split{display:grid;grid-template-columns:minmax(0,1fr) 340px;min-height:0;flex:1}
+.jr-detail{
+  display:flex;flex-direction:column;min-width:0;
+  border-left:1px solid var(--line);background:var(--canvas-soft);overflow-y:auto;
+}
+.jr-detail__head{
+  flex:none;display:flex;align-items:center;gap:8px;
+  min-height:40px;padding:0 10px 0 18px;border-bottom:1px solid var(--line-soft);
+}
+.jr-detail__t{
+  font-size:var(--text-eyebrow);font-weight:510;letter-spacing:var(--track-eyebrow);
+  color:var(--muted);margin-right:auto;
+}
+.jr-detail .prow__v{font-weight:510}
+.jr-detail__acts{display:flex;gap:7px}
+/* output tail: a byte well, same ground as the live surface */
+.jr-out{
+  border-radius:var(--radius-xs);background:var(--term-bg);padding:9px 11px;
+  font-family:var(--font-mono);font-size:11px;line-height:1.6;color:var(--term-fg);
+}
+.jr-out .tm-redact-marker{margin-top:2px}
+
+/* Confidence legend — a two-column table so the explanation
+   WRAPS. (.prow ellipsizes by contract; it is for short values.) */
+.jr-legend .table{table-layout:fixed}
+.jr-legend .table td{vertical-align:top;padding-top:12px}
+.jr-legend__c{width:132px}
+.jr-legend p{font-size:var(--text-form);line-height:1.6;color:var(--muted)}
+
+/* Replay — TerminalView in playback mode under one transport bar.
+   The scrubber is neutral ink: playback position is a value, not
+   a signal, and the accent budget belongs to the empty-state CTA. */
+.tm-replay{display:flex;flex-direction:column;min-height:0;flex:1}
+.tm-replay__bar{
+  flex:none;display:flex;align-items:center;gap:12px;min-height:46px;padding:0 12px;
+  background:var(--canvas);border-top:1px solid var(--line);
+}
+.jr-scrub{flex:1;min-width:0;display:flex;align-items:center;height:22px}
+.jr-scrub__track{
+  position:relative;flex:1;height:4px;border-radius:var(--radius-pill);
+  background:var(--canvas-tint);
+}
+.jr-scrub__fill{
+  position:absolute;top:0;bottom:0;left:0;border-radius:var(--radius-pill);
+  background:var(--fg-strong);
+}
+.jr-scrub__thumb{
+  position:absolute;top:50%;width:11px;height:11px;margin:-6px 0 0 -6px;
+  border-radius:50%;background:var(--fg-strong);box-shadow:0 0 0 3px var(--canvas);
+}
+.jr-scrub:focus-visible{outline:none}
+.jr-scrub:focus-visible .jr-scrub__track{box-shadow:var(--focus-ring)}
+.tm-replay__time{
+  font-family:var(--font-mono);font-size:var(--text-badge);color:var(--subtle);
+  font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+
+/* ============================================================
+   38 · SESSION BLOCKS — deliberate use vs reported-by-agent,
+   and the send-to-conversation quote
+   The visual contrast IS the design point: live block carries
+   lease chrome + one jump affordance; the reported block is a
+   labeled specimen with zero controls.
+   ============================================================ */
+.tm-block{
+  border:1px solid var(--line);border-radius:var(--radius-md);overflow:hidden;
+  max-width:640px;
+}
+.tm-block__head{
+  display:flex;align-items:center;gap:8px;min-height:32px;padding:0 10px;
+  background:var(--canvas-soft);border-bottom:1px solid var(--line);min-width:0;
+}
+.tm-block__head svg.tm-block__glyph{width:13px;height:13px;flex:none;color:var(--subtle)}
+.tm-block__title{font-size:12px;font-weight:600;color:var(--fg);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tm-block__trail{margin-left:auto;flex:none;display:flex;align-items:center;gap:6px}
+.tm-block .tm-grid{max-height:220px;font-size:11.5px;padding:8px 12px}
+.tm-block__foot{
+  display:flex;align-items:center;gap:8px;min-height:28px;padding:0 10px;
+  background:var(--canvas-soft);border-top:1px solid var(--line);
+  font-size:11px;color:var(--subtle);
+}
+/* Reported-by-agent: neutral label chip, deliberately outside
+   the signal palette; no lease, no controls, ever. */
+.tm-reported{
+  display:inline-flex;align-items:center;gap:4px;
+  height:18px;padding:0 7px;border-radius:var(--radius-xxs);
+  background:var(--neutral-tint);color:var(--muted);
+  font-size:10px;font-weight:500;white-space:nowrap;
+}
+.tm-block--reported .tm-block__head{background:var(--canvas)}
+/* Collapsed long output */
+.tm-block__more{
+  display:flex;align-items:center;gap:6px;justify-content:center;
+  padding:5px 0;font-family:var(--font-mono);font-size:10px;color:var(--subtle);
+  background:var(--term-bg);border-top:1px dashed var(--line-strong);cursor:pointer;
+}
+.tm-block__more:hover{color:var(--fg)}
+
+/* Quote block in the composer — canonical terminal_context shape.
+   Line numbers scrollback-relative; instability caveat on-surface. */
+.tm-quote{
+  border:1px solid var(--line);border-left:2px solid var(--line-strong);
+  border-radius:var(--radius-xs);overflow:hidden;
+}
+.tm-quote__head{
+  display:flex;align-items:center;gap:7px;min-height:24px;padding:0 9px;
+  background:var(--canvas-tint);
+  font-family:var(--font-mono);font-size:10px;color:var(--subtle);
+}
+.tm-quote__head .chip__x{margin-left:auto}
+.tm-quote__body{
+  padding:6px 9px;background:rgba(255,255,255,.03);
+  font-family:var(--font-mono);font-size:11px;line-height:1.55;color:var(--fg);
+}
+.tm-quote__body i{font-style:normal;color:var(--faint);user-select:none;margin-right:10px}
+.tm-quote__caveat{font-size:10px;color:var(--faint);padding:3px 9px 5px;background:var(--canvas-tint)}
+
+/* Composer carrying a quote: column stack over the input row
+   (production: SessionChatRuntimeProvider composer slot). */
+.tm-composer-stack{
+  display:flex;flex-direction:column;gap:8px;
+  padding:12px 20px;border-top:1px solid var(--line);background:var(--canvas);
+}
+.tm-composer-stack .composer{padding:0;border-top:0;background:transparent}
+
+/* Selection action popover row (reuse .menu) needs no new css. */

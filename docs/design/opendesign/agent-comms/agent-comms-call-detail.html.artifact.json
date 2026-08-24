@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "agent-comms/agent-comms-call-detail.html",
+  "entry": "agent-comms/agent-comms-call-detail.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-23T18:16:01.333Z",
+  "updatedAt": "2026-08-23T18:16:01.333Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

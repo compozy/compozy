@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "integrated-terminal/integrated-terminal-journal.html",
+  "entry": "integrated-terminal/integrated-terminal-journal.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-23T18:23:52.044Z",
+  "updatedAt": "2026-08-23T18:23:52.044Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

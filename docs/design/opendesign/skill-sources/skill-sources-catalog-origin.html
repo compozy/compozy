@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>skill-sources · Catalog origin &amp; sharing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="skill-sources.css">
+<!--
+  skill-sources-catalog-origin · S3 — origin attribution + sharing block (default/healthy).
+  Spec: .compozy/tasks/skill-sources/_uiux.md S3 · US-010, US-011.AC-1/AC-5, US-013.
+  Contract: DESIGN-NOTES.md.
+  2026-08-23 plain-language + parity pass (review feedback) — PROPOSAL flagged for
+  COPY.md sign-off: the user-facing verb for the expose feature reads "Share" here
+  ("Sharing" block · "Share to…" · "Stop sharing"). The API/CLI verb stays `expose`
+  (routes, payloads, error codes untouched) — this is a UI-vocabulary split only.
+  Target rows lead with display labels (Universal, Claude); machine paths stay micro
+  mono; healthy reads "active".
+  Provenance:
+    production — Marketplace window (marketplace-kind-page.tsx): toolbar scope
+                 PillGroup, card grid, CatalogCard anatomy; detail rail cards
+                 (marketplace-detail-shell.tsx): .railbox/.rail-sec/.prow vocabulary;
+                 tier strings render lowercase verbatim (bundled/workspace/user).
+    spec S3 — listing rows gain the S2 origin vocabulary (neutral mono Pill); eligible
+              physical-dir skill detail gains the sharing block: no-links default is
+              action only; healthy entries list target + link path + per-link status;
+              bundled skills show no share affordance — absent, not disabled.
+    authorized delta — detail rail rendered as an isolated fragment (rail width);
+              card grid cropped to one row of four.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="cat-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Skill sources</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Catalog origin &amp; sharing</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="skill-sources-expose-states.html">Sharing states →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL — MARKETPLACE SKILLS WITH ORIGIN ===== -->
+    <section class="lab-sec" data-od-id="cat-final">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">01</span>
+        <h2 class="lab-sec__t">Marketplace → Skills — installed grid with origin</h2>
+        <span class="lab-sec__gist">US-013 · S2 label vocabulary shared</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Origin joins the card foot</b>Skills that came from
+          another tool carry the same neutral chip as the picker; Compozy&rsquo;s own
+          cards are untouched. Neither the chip nor the tier word ever takes signal
+          color — where a skill came from is a fact, not a warning.
+          <span class="mono">US-013 · origin ≠ tier</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="cat-final-stage">
+            <section class="win is-focused win--sksd" data-od-id="cat-final-win">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" aria-label="Close"></button>
+                  <button class="wc wc-min" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="store"></svg></span>
+                  <span class="w2-title">Marketplace</span>
+                  <span class="w2-count">19</span>
+                </div>
+                <nav class="w2-crumbs"><span class="w2-sep">/</span><span class="w2-crumb">Skills</span></nav>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <div class="w2-actions"><button class="btn btn--sm btn--ghost"><svg data-lucide="refresh-cw"></svg>Refresh</button></div>
+                </div>
+              </header>
+              <div class="win-toolbar">
+                <div class="app-toolbar">
+                  <div class="field field-search">
+                    <svg data-lucide="search"></svg>
+                    <input type="text" placeholder="Search skills…" aria-label="Search skills">
+                  </div>
+                  <div class="w2-flex"></div>
+                  <div class="pill-group" role="radiogroup" aria-label="Marketplace scope">
+                    <button class="pill-group__item is-on" role="radio" aria-checked="true"><svg data-lucide="package"></svg>Installed</button>
+                    <button class="pill-group__item" role="radio" aria-checked="false"><svg data-lucide="shopping-bag"></svg>Marketplace</button>
+                  </div>
+                </div>
+              </div>
+              <div class="win-body"><div class="app">
+                <p class="toolbar-meta" data-od-id="cat-final-meta"><span class="mono-id">19</span> installed
+                  <span class="dotsep"></span><span class="mono-id">7</span> from other tools</p>
+                <div class="listing-card-grid" data-od-id="cat-final-grid">
+                  <div class="listing-card" data-od-id="cat-card-review">
+                    <div class="listing-card__head">
+                      <span class="listing-card__icon"><svg data-lucide="wrench"></svg></span>
+                      <div>
+                        <div class="listing-card__title"><b>review-checklist</b></div>
+                        <div class="listing-card__eyebrow"><span class="mono-slug">v1.2.0</span> · workspace</div>
+                      </div>
+                    </div>
+                    <div class="listing-card__desc">Pre-merge review checklist with evidence gates for every claim.</div>
+                    <div class="listing-card__foot">
+                      <span class="mkt-installed"><svg data-lucide="check"></svg>Active</span>
+                    </div>
+                  </div>
+                  <div class="listing-card" data-od-id="cat-card-commit">
+                    <div class="listing-card__head">
+                      <span class="listing-card__icon"><svg data-lucide="wrench"></svg></span>
+                      <div>
+                        <div class="listing-card__title"><b>commit-hygiene</b></div>
+                        <div class="listing-card__eyebrow"><span class="mono-slug">v0.4.1</span> · user</div>
+                      </div>
+                    </div>
+                    <div class="listing-card__desc">Commit message and branch hygiene for shared repositories.</div>
+                    <div class="listing-card__foot">
+                      <span class="pill pill--xs" data-mono="true">agents</span>
+                      <span class="mkt-installed"><svg data-lucide="check"></svg>Active</span>
+                    </div>
+                  </div>
+                  <div class="listing-card" data-od-id="cat-card-release">
+                    <div class="listing-card__head">
+                      <span class="listing-card__icon"><svg data-lucide="wrench"></svg></span>
+                      <div>
+                        <div class="listing-card__title"><b>release-notes</b></div>
+                        <div class="listing-card__eyebrow"><span class="mono-slug">v2.0.0</span> · user</div>
+                      </div>
+                    </div>
+                    <div class="listing-card__desc">Draft release notes from merged pull requests and closed issues.</div>
+                    <div class="listing-card__foot">
+                      <span class="pill pill--xs" data-mono="true">claude</span>
+                      <span class="mkt-installed"><svg data-lucide="check"></svg>Active</span>
+                    </div>
+                  </div>
+                  <div class="listing-card" data-od-id="cat-card-deploy">
+                    <div class="listing-card__head">
+                      <span class="listing-card__icon"><svg data-lucide="wrench"></svg></span>
+                      <div>
+                        <div class="listing-card__title"><b>deploy-runbook</b></div>
+                        <div class="listing-card__eyebrow"><span class="mono-slug">v1.0.3</span> · user</div>
+                      </div>
+                    </div>
+                    <div class="listing-card__desc">Staged deploy with rollback gates for production clusters.</div>
+                    <div class="listing-card__foot">
+                      <span class="pill pill--xs" data-mono="true">team-skills</span>
+                      <span class="mkt-installed"><svg data-lucide="check"></svg>Active</span>
+                    </div>
+                  </div>
+                </div>
+              </div></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · CARD ANATOMY ===== -->
+    <section class="lab-sec" data-od-id="cat-anatomy">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">02</span>
+        <h2 class="lab-sec__t">Card anatomy — native vs foreign</h2>
+        <span class="lab-sec__gist">US-013 · origin chip in the foot, never the title</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Two cards, one difference</b>The native card&rsquo;s
+          foot holds only live state. The foreign card adds the origin chip beside it —
+          a quiet fact in neutral mono. Reading order: tier → origin → state.
+          <span class="mono">origin: "" renders nothing</span></div>
+        <div class="spec__demo"><div class="sks-minis">
+          <div class="plain sks-plainw" data-od-id="cat-anatomy-native">
+            <p class="sks-mini-cap">native — made in Compozy</p>
+            <div class="listing-card">
+              <div class="listing-card__head">
+                <span class="listing-card__icon"><svg data-lucide="wrench"></svg></span>
+                <div>
+                  <div class="listing-card__title"><b>review-checklist</b></div>
+                  <div class="listing-card__eyebrow"><span class="mono-slug">v1.2.0</span> · workspace</div>
+                </div>
+              </div>
+              <div class="listing-card__desc">Pre-merge review checklist with evidence gates for every claim.</div>
+              <div class="listing-card__foot">
+                <span class="mkt-installed"><svg data-lucide="check"></svg>Active</span>
+              </div>
+            </div>
+          </div>
+          <div class="plain sks-plainw" data-od-id="cat-anatomy-foreign">
+            <p class="sks-mini-cap">foreign — found in the .agents folders</p>
+            <div class="listing-card">
+              <div class="listing-card__head">
+                <span class="listing-card__icon"><svg data-lucide="wrench"></svg></span>
+                <div>
+                  <div class="listing-card__title"><b>commit-hygiene</b></div>
+                  <div class="listing-card__eyebrow"><span class="mono-slug">v0.4.1</span> · user</div>
+                </div>
+              </div>
+              <div class="listing-card__desc">Commit message and branch hygiene for shared repositories.</div>
+              <div class="listing-card__foot">
+                <span class="pill pill--xs" data-mono="true">agents</span>
+                <span class="mkt-installed"><svg data-lucide="check"></svg>Active</span>
+              </div>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · SHARING — HEALTHY ===== -->
+    <section class="lab-sec" data-od-id="cat-exposures">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">03</span>
+        <h2 class="lab-sec__t">Skill detail — Sharing block, all links active</h2>
+        <span class="lab-sec__gist">US-011.AC-1 · US-011.AC-5 · E2E-011</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>A quiet ledger of links</b>Sharing puts a skill into
+          another tool&rsquo;s folder so that tool can use it too. Each row is one
+          target: its name, the word <code>active</code>, and the link&rsquo;s path in
+          micro mono. Stop sharing rides each row as a ghost action; the daemon&rsquo;s
+          <code>exposures[]</code> is the only data source.
+          <span class="mono">US-011.AC-1/AC-5 · GET /api/skills/review-checklist</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="cat-exposures-demo">
+          <div class="railbox">
+            <div class="rail-sec">
+              <div class="rail-sec__t"><svg data-lucide="link"></svg>Sharing</div>
+              <div class="sks-expo">
+                <div class="sks-expo__row" data-status="healthy" data-od-id="cat-expo-agents">
+                  <span class="d d--ok"></span>
+                  <div class="sks-expo__main">
+                    <span class="sks-expo__target"><b>Universal</b><span class="sks-expo__status">active</span></span>
+                    <span class="sks-expo__path">~/.agents/skills/review-checklist</span>
+                  </div>
+                  <span class="sks-expo__acts"><button class="btn btn--xs btn--ghost">Stop sharing</button></span>
+                </div>
+                <div class="sks-expo__row" data-status="healthy" data-od-id="cat-expo-claude">
+                  <span class="d d--ok"></span>
+                  <div class="sks-expo__main">
+                    <span class="sks-expo__target"><b>Claude</b><span class="sks-expo__status">active</span></span>
+                    <span class="sks-expo__path">~/.claude/skills/review-checklist</span>
+                  </div>
+                  <span class="sks-expo__acts"><button class="btn btn--xs btn--ghost">Stop sharing</button></span>
+                </div>
+              </div>
+            </div>
+            <div class="rail-sec">
+              <button class="btn btn--sm" data-od-id="cat-exposures-action"><svg data-lucide="link"></svg>Share to…</button>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · NOT SHARED — ACTION ONLY ===== -->
+    <section class="lab-sec" data-od-id="cat-noexpo">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">04</span>
+        <h2 class="lab-sec__t">Not shared yet — the default is just the action</h2>
+        <span class="lab-sec__gist">US-010 · action only, no empty ceremony</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Nothing to list, nothing listed</b>An eligible skill
+          that isn&rsquo;t shared anywhere shows the action and stops. No placeholder
+          rows, no explainer card — the block earns rows only when the daemon reports
+          links. <span class="mono">exposures: [] · action only</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="cat-noexpo-demo">
+          <div class="railbox">
+            <div class="rail-sec">
+              <div class="rail-sec__t"><svg data-lucide="link"></svg>Sharing</div>
+              <button class="btn btn--sm" data-od-id="cat-noexpo-action"><svg data-lucide="link"></svg>Share to…</button>
+            </div>
+          </div>
+        </div></div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Bundled skill — affordance absent</b>Skills built into
+          Compozy have no folder of their own to link, so the Sharing block simply does
+          not render. Absent, not disabled: no grayed button, no tooltip apology.
+          <span class="mono">US-011 · bundled → not shareable</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="cat-bundled-demo">
+          <div class="railbox">
+            <div class="rail-sec">
+              <div class="rail-sec__t"><svg data-lucide="sliders-horizontal"></svg>Manage</div>
+              <div class="prow"><span class="prow__k">Enabled</span>
+                <span class="prow__v"><button class="switch switch--sm is-on" role="switch" aria-checked="true" aria-label="Skill enabled"><span class="knob"></span></button></span></div>
+              <div class="prow"><span class="prow__k">Tier</span><span class="prow__v mono">bundled</span></div>
+              <div class="prow"><span class="prow__k">Version</span><span class="prow__v mono">v0.3.0</span></div>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="cat-foot">Spec <code>_uiux.md</code> S3 · contract
+      <code>DESIGN-NOTES.md</code> · production seams <code>marketplace.skills.tsx</code>,
+      <code>marketplace-detail-skill-installed.tsx</code>, <code>use-skill-actions.ts</code>.
+      Rows bind <code>exposures[]{target, path, status}</code>; the panel never invents a
+      link the daemon didn&rsquo;t report. UI verb &ldquo;Share&rdquo; is a flagged
+      proposal — API/CLI keep <code>expose</code>.</p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>(function(){ if (window.lucide) window.lucide.createIcons(); })();</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "integrated-terminal/integrated-terminal-states.html",
+  "entry": "integrated-terminal/integrated-terminal-states.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-23T18:18:20.839Z",
+  "updatedAt": "2026-08-23T18:18:20.839Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

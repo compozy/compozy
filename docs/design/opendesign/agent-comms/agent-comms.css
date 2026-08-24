@@ -1,0 +1,564 @@
+/* ============================================================
+   AGENT COMMS — agent-comms.css
+   Typed calls, lineage mailbox, subagents: activity trees, call
+   detail, in-session turns, roster compose, session Calls panel,
+   attention.
+   Companion to design-system/ds-core.css + ds-shell.css
+   (link core → shell → this file).
+
+   Authority chain (highest first):
+     1. packages/ui/src/tokens.css + production seams:
+        session-badge.ts (signal dictionary), attention-model.ts
+        (counts + staleness), session-hierarchy.ts (tree),
+        tool-call-card.tsx, session-inspector.tsx,
+        cost-provenance.ts (describeCost)
+     2. .compozy/tasks/agent-comms/_uiux.md (+ _dx.md vocabulary,
+        _user_stories.md ACs/ECs)
+     3. design-system/ds-core.css + ds-shell.css (+ GUIDE.md)
+     4. This file (call/message vocabulary only)
+
+   Reuse before create — canon owners for board elements:
+     state pill        → ds-core .pill[data-tone]
+     roster row        → ds-core .listing-row family
+     property row      → ds-core .prow (rail: .railbox/.rail-sec)
+     tabs              → ds-core .tabbar/.tab (fg underline)
+     inline banner     → ds-core .notice (tint, no tone border)
+     empty state       → ds-core .empty family
+     buttons/inputs    → ds-core .btn/.input/.textarea/.field-search
+     toasts/bell shell → ds-shell .toasts/.toast, .popover
+     window chrome     → ds-shell .win/.win-head/.deck/.dock-*
+     id chips          → ds-core .mono-id, .agent-chip
+   This file adds ONLY the agent-comms domain grammar (.ac-*).
+
+   Semantic contract (locked in DESIGN-NOTES.md):
+     Nine call states, closed set. queued/running = NEUTRAL (liveness
+     is motion — typing dots — never accent; accent budget stays with
+     the one primary action). completed = SUCCESS. invalid-result /
+     failed / expired / completed-without-result = DANGER (contract
+     expectations unmet; needs-you class shares the tone and differs
+     by glyph, session-badge.ts rule). canceled / timeout = WARNING.
+     parked child = NEUTRAL + moon glyph. Verdict provenance
+     (extracted / repaired) is a neutral kind word, never a second
+     signal color. Delivery receipts: delivered-into-turn / woke =
+     SUCCESS, queued = NEUTRAL, failed = DANGER. Tone never travels
+     without glyph + literal state word. No read/seen anywhere; no
+     Revive control; absent operations render as absent, not gray.
+   ============================================================ */
+
+/* ---- domain tokens (derived from ds-core only; no new hues) ---- */
+:root{
+  --ac-rail-w:320px;          /* production inspector rail, pixel-true */
+  --ac-win-w:1240px;          /* run-page content column, fluid ceiling */
+  --ac-indent:22px;           /* one delegation depth step (≤3) */
+  --ac-chip-h:20px;           /* state chip tracks the 19–22px band */
+  --ac-msg-w:640px;           /* message body ceiling (bubble max) */
+}
+
+/* ============ LAB SCAFFOLD ============
+   Provenance: copied verbatim from _done/graph-eng/graph-eng.css
+   (set retired 2026-08-23; the scaffold moved with it). agent-comms
+   owns its copy so boards never link into _done/. */
+.shell{height:100vh}
+.main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+.w2head{min-height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;flex:none;
+  background:var(--canvas);border-bottom:1px solid var(--line);min-width:0}
+.w2head .w2-back{width:24px;height:24px;flex:none;display:grid;place-items:center;border-radius:var(--radius);color:var(--muted)}
+.w2head .w2-back:hover{background:var(--btn-fill);color:var(--fg-strong)}
+.w2head .w2-back svg{width:14px;height:14px}
+.w2head .w2-crumbs{display:flex;align-items:center;gap:2px;min-width:0}
+.w2head .w2-crumb{font-size:13px;font-weight:500;color:var(--subtle);white-space:nowrap;border-radius:var(--radius-sm);padding:1px 5px}
+.w2head .w2-crumb:hover{color:var(--fg);background:var(--row-hover)}
+.w2head .w2-sep{flex:none;font-size:12px;color:var(--faint)}
+.w2head .w2-title{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;padding-left:3px}
+.w2head .w2-flex{flex:1;min-width:8px}
+.w2head .w2-actions{display:flex;align-items:center;gap:6px;flex:none}
+.scroll{flex:1;min-height:0;overflow-y:auto}
+.page{max-width:none;width:100%;margin:0;padding:24px 36px 80px}
+.lab-sec{margin:0 0 40px}
+.lab-sec__head{display:flex;align-items:baseline;gap:10px;padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.lab-sec__num{font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+.lab-sec__t{font-size:13px;font-weight:600;letter-spacing:-.01em;color:var(--fg-strong)}
+.lab-sec__gist{font-size:11.5px;color:var(--subtle);margin-left:auto}
+.spec{display:grid;grid-template-columns:200px minmax(0,1fr);gap:14px;align-items:start;padding:14px 0;border-top:1px solid var(--line-soft)}
+.spec:first-of-type{border-top:0;padding-top:0}
+.spec__note{font-size:11px;line-height:1.55;color:var(--subtle)}
+.spec__note b{font-weight:600;color:var(--fg)}
+.spec__note > b:first-child{display:block;font-size:11.5px;margin-bottom:2px}
+.spec__note code{font-family:var(--font-mono);font-size:9.5px;color:var(--muted);background:var(--badge-fill);border-radius:var(--radius-xxs);padding:0 3px}
+.spec__demo{min-width:0}
+@media (max-width:760px){
+  .spec{grid-template-columns:1fr}
+  .lab-sec__gist{display:none}
+  .page{padding-left:20px;padding-right:20px}
+}
+.stage{
+  position:relative;min-height:400px;border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;
+  background:
+    radial-gradient(1.5px 1.5px at 50% 50%, rgba(255,255,255,.035) 40%, transparent 41%) 0 0 / 26px 26px,
+    radial-gradient(520px 280px at 12% 110%, var(--accent-tint-strong), transparent 62%),
+    radial-gradient(480px 260px at 92% -12%, color-mix(in oklab, var(--teal) 38%, transparent), transparent 60%),
+    linear-gradient(180deg, var(--canvas-soft), var(--rail) 60%);
+}
+.stage--short{min-height:260px}
+.stage--tall{min-height:520px}
+.stage--pad{display:flex;align-items:flex-start;justify-content:center;padding:28px 20px 32px}
+.stage--center{display:flex;align-items:center;justify-content:center;padding:24px 20px}
+.stage .popover,.stage .toasts{position:absolute}
+.stage .overlay{position:absolute;inset:0}
+.stage .win{position:relative;animation:none}
+.stage--pad > .win{width:min(var(--ac-win-w),100%)}
+.plain{border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);padding:16px}
+.lab-foot{font-size:11px;line-height:1.6;color:var(--faint);border-top:1px solid var(--line-soft);padding-top:14px;max-width:72ch}
+
+/* ============================================================
+   1 · CALL-STATE DICTIONARY — chip = tone + glyph + state word
+   Nine states, closed set (_dx.md). The word is the exact CLI
+   vocabulary and is always present; color is never alone.
+   ============================================================ */
+.ac-state{
+  display:inline-flex;align-items:center;gap:5px;
+  height:var(--ac-chip-h);padding:0 8px 0 6px;
+  border-radius:var(--radius-xs);
+  font-family:var(--font-mono);font-size:10.5px;font-weight:500;letter-spacing:0;line-height:1;
+  background:var(--neutral-tint);color:var(--muted);white-space:nowrap;
+}
+.ac-state svg{width:11px;height:11px;flex:none}
+.ac-state[data-state="queued"]{background:transparent;box-shadow:inset 0 0 0 1px var(--line-strong);color:var(--muted)}
+.ac-state[data-state="running"]{background:var(--neutral-tint);color:var(--fg)}
+.ac-state[data-state="completed"]{background:var(--success-tint);color:var(--success)}
+.ac-state[data-state="invalid-result"],
+.ac-state[data-state="failed"],
+.ac-state[data-state="expired"],
+.ac-state[data-state="completed-without-result"]{background:var(--danger-tint);color:var(--danger)}
+.ac-state[data-state="canceled"],
+.ac-state[data-state="timeout"]{background:var(--warning-tint);color:var(--warning)}
+
+/* child-session states (exactly three: running / parked / gone) */
+.ac-child{
+  display:inline-flex;align-items:center;gap:5px;height:18px;padding:0 6px;
+  border-radius:var(--radius-xs);font-size:10.5px;font-weight:500;line-height:1;
+  background:var(--neutral-tint);color:var(--muted);white-space:nowrap;
+}
+.ac-child svg{width:10px;height:10px;flex:none}
+.ac-child[data-child="gone"]{background:transparent;color:var(--faint);box-shadow:inset 0 0 0 1px var(--line)}
+
+/* verdict provenance — a kind word, never a second signal color */
+.ac-verdict{
+  display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;
+  border-radius:var(--radius-xs);background:var(--badge-fill);
+  font-family:var(--font-mono);font-size:10px;color:var(--muted);white-space:nowrap;
+}
+
+/* delivery receipts — transport facts, mono word + tone */
+.ac-delivery{
+  display:inline-flex;align-items:center;gap:5px;height:18px;padding:0 6px;
+  border-radius:var(--radius-xs);
+  font-family:var(--font-mono);font-size:10px;line-height:1;white-space:nowrap;
+  background:var(--neutral-tint);color:var(--muted);
+}
+.ac-delivery svg{width:10px;height:10px;flex:none}
+.ac-delivery[data-delivery="delivered-into-turn"],
+.ac-delivery[data-delivery="woke"]{background:var(--success-tint);color:var(--success)}
+.ac-delivery[data-delivery="failed"]{background:var(--danger-tint);color:var(--danger)}
+
+/* typing dots — liveness is motion, not accent (component plan) */
+.ac-typing{display:inline-flex;align-items:center;gap:3px;height:10px}
+.ac-typing i{width:4px;height:4px;border-radius:50%;background:var(--muted);animation:ac-typing 1.2s var(--ease) infinite}
+.ac-typing i:nth-child(2){animation-delay:.15s}
+.ac-typing i:nth-child(3){animation-delay:.3s}
+@keyframes ac-typing{0%,60%,100%{opacity:.35;transform:translateY(0)}30%{opacity:1;transform:translateY(-1.5px)}}
+@media (prefers-reduced-motion: reduce){.ac-typing i{animation:none;opacity:.7}}
+
+/* legend rows (dictionary section on the tree board) */
+.ac-legend{display:flex;flex-direction:column}
+.ac-legend__row{
+  display:grid;grid-template-columns:186px 64px minmax(0,1fr);
+  align-items:center;gap:12px;min-height:38px;padding:5px 4px;
+  border-top:1px solid var(--line-soft);
+}
+.ac-legend__row:first-child{border-top:0}
+.ac-legend__tone{font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);white-space:nowrap}
+.ac-legend__tone[data-tone="success"]{color:var(--success)}
+.ac-legend__tone[data-tone="danger"]{color:var(--danger)}
+.ac-legend__tone[data-tone="warning"]{color:var(--warning)}
+.ac-legend__when{font-size:11px;color:var(--subtle);line-height:1.45}
+
+/* ============================================================
+   2 · ACTIVITY TREE — delegation trees, depth ≤ 3
+   Row = toggle · identity (chip+glyph) · state · age · trailing
+   result/cost. Ids live in the root header and the drill-in
+   (revision 2026-08-23). Urgency escalates to a collapsed
+   toggle (childSessionSignalTone rule). Keyboard: ↑↓ ←→ Enter.
+   ============================================================ */
+.ac-tree{border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;background:var(--canvas-soft)}
+.ac-tree__group{border-top:1px solid var(--line)}
+.ac-tree__group:first-child{border-top:0}
+
+/* root header row of one delegation tree */
+.ac-root{
+  display:flex;align-items:center;gap:8px;min-height:40px;padding:0 14px 0 10px;
+  background:var(--surface-glaze);
+}
+.ac-root__toggle{
+  width:22px;height:22px;flex:none;display:grid;place-items:center;
+  border-radius:var(--radius-xs);color:var(--muted);background:transparent;border:0;cursor:pointer;
+}
+.ac-root__toggle:hover{background:var(--btn-fill);color:var(--fg-strong)}
+.ac-root__toggle:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.ac-root__toggle svg{width:13px;height:13px;transition:transform var(--dur-fast) var(--ease)}
+.ac-tree__group[data-collapsed] .ac-root__toggle svg{transform:rotate(-90deg)}
+.ac-root__name{font-size:var(--text-card-title);font-weight:510;letter-spacing:var(--track-row-title);color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ac-root__id{font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--faint)}
+.ac-root__sum{display:flex;align-items:center;gap:8px;margin-left:auto;flex:none;font-size:var(--text-form);color:var(--subtle)}
+/* collapsed escalation: worst child state surfaces on the toggle line */
+.ac-root__esc{display:none;align-items:center;gap:5px}
+.ac-tree__group[data-collapsed] .ac-root__esc{display:inline-flex}
+
+/* one call row */
+.ac-row{
+  position:relative;display:flex;align-items:center;gap:8px;min-height:36px;
+  padding:0 14px 0 calc(10px + (var(--depth,0) * var(--ac-indent)));
+  border-top:1px solid var(--line-soft);cursor:pointer;
+}
+.ac-row:hover{background:var(--row-hover)}
+.ac-row[data-selected]{background:var(--row-selected)}
+.ac-row:focus-visible{outline:none;box-shadow:var(--focus-ring-inset)}
+/* depth guides — one hairline per ancestor level */
+.ac-row::before{
+  content:"";position:absolute;top:0;bottom:0;left:calc(20px + ((var(--depth,1) - 1) * var(--ac-indent)));
+  width:1px;background:var(--line-soft);
+}
+.ac-row[data-depth="0"]::before{display:none}
+.ac-row__glyph{
+  width:22px;height:22px;flex:none;display:grid;place-items:center;
+  border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--muted);
+}
+.ac-row__glyph svg{width:12px;height:12px}
+.ac-row__agent{font-size:var(--text-form);font-weight:510;color:var(--fg);white-space:nowrap}
+.ac-row__flex{flex:1;min-width:12px}
+.ac-row__age{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);font-variant-numeric:tabular-nums;flex:none}
+.ac-row__stat{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);white-space:nowrap;flex:none}
+.ac-row--gone .ac-row__agent{color:var(--subtle)}
+.ac-row--gone .ac-row__glyph{color:var(--faint);background:transparent;box-shadow:inset 0 0 0 1px var(--line)}
+
+/* drained-subtree summary line (session stop --subtree receipt) */
+.ac-drained{
+  display:flex;align-items:center;gap:8px;min-height:34px;
+  padding:0 14px 0 calc(10px + var(--ac-indent));
+  border-top:1px solid var(--line-soft);
+  font-size:var(--text-form);color:var(--subtle);
+}
+.ac-drained svg{width:12px;height:12px;color:var(--muted);flex:none}
+.ac-drained .mono{font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
+
+/* stale overlay state — rows render, counts contribute zero */
+.ac-stale-bar{
+  display:flex;align-items:center;gap:8px;min-height:32px;padding:0 14px;
+  background:var(--neutral-tint);font-size:var(--text-form);color:var(--muted);
+  border-bottom:1px solid var(--line);
+}
+.ac-stale-bar svg{width:12px;height:12px;flex:none}
+.ac-tree[data-stale] .ac-row{opacity:.82}
+.ac-tree[data-stale] .ac-row:hover{opacity:1}
+
+/* ============================================================
+   3 · CALL DETAIL — header facts, contract, timeline, result
+   ============================================================ */
+.ac-call-head{display:flex;flex-direction:column;gap:10px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.ac-call-head__row1{display:flex;align-items:center;gap:10px;min-width:0}
+.ac-call-head__title{font-size:var(--text-detail-h1);font-weight:600;letter-spacing:var(--track-detail);line-height:1.25;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ac-call-head__facts{display:flex;align-items:center;flex-wrap:wrap;gap:6px 14px;font-size:var(--text-form);color:var(--subtle)}
+.ac-call-head__facts .fact{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.ac-call-head__facts .fact svg{width:12px;height:12px;color:var(--muted)}
+.ac-call-head__facts .fact a{color:var(--fg);border-radius:var(--radius-xxs)}
+.ac-call-head__facts .fact a:hover{color:var(--fg-strong);text-decoration:underline;text-underline-offset:2px}
+.ac-call-head__facts .fact a:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.ac-call-head__acts{display:flex;align-items:center;gap:7px;margin-left:auto;flex:none}
+
+/* prompt + contract blocks */
+.ac-block{border:1px solid var(--line);border-radius:var(--radius-md);background:var(--canvas-soft);overflow:hidden}
+.ac-block__head{display:flex;align-items:center;gap:8px;min-height:34px;padding:0 12px;border-bottom:1px solid var(--line-soft)}
+.ac-block__head .eyebrow{color:var(--subtle)}
+.ac-block__head .mono-id{margin-left:auto}
+.ac-block__body{padding:12px 14px;font-size:var(--text-small-body);line-height:1.55;color:var(--fg)}
+.ac-block__body.mono,.ac-block pre{
+  font-family:var(--font-mono);font-size:var(--text-code);line-height:1.6;color:var(--fg);
+  margin:0;padding:12px 14px;overflow-x:auto;white-space:pre;
+}
+.ac-block pre .k{color:var(--info)}
+.ac-block pre .s{color:var(--success)}
+.ac-block pre .n{color:var(--warning)}
+.ac-block__foot{display:flex;align-items:center;gap:10px;min-height:32px;padding:0 12px;border-top:1px solid var(--line-soft);font-size:var(--text-form);color:var(--subtle)}
+.ac-block__foot .mono{font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
+
+/* untrusted text frame — inert, bounded, provenance-stamped */
+.ac-untrusted{
+  border:1px dashed var(--line-strong);border-radius:var(--radius-xs);
+  background:var(--canvas);padding:8px 10px;
+  font-size:var(--text-small-body);line-height:1.5;color:var(--fg);
+}
+.ac-untrusted__stamp{display:flex;align-items:center;gap:5px;margin-bottom:5px;font-size:var(--text-badge);color:var(--subtle)}
+.ac-untrusted__stamp svg{width:10px;height:10px;color:var(--muted)}
+
+/* state timeline — created → queued → running → settled */
+.ac-tl{display:flex;flex-direction:column}
+.ac-tl__ev{position:relative;display:flex;align-items:flex-start;gap:10px;padding:7px 0 7px 2px}
+.ac-tl__ev::before{content:"";position:absolute;left:8.5px;top:24px;bottom:-4px;width:1px;background:var(--line-soft)}
+.ac-tl__ev:last-child::before{display:none}
+.ac-tl__dot{
+  width:14px;height:14px;flex:none;display:grid;place-items:center;margin-top:2px;
+  border-radius:50%;background:var(--canvas-soft);box-shadow:inset 0 0 0 1.4px var(--line-strong);
+}
+.ac-tl__dot svg{width:8px;height:8px;color:var(--muted)}
+.ac-tl__ev[data-tone="success"] .ac-tl__dot{box-shadow:inset 0 0 0 1.4px var(--success)}
+.ac-tl__ev[data-tone="success"] .ac-tl__dot svg{color:var(--success)}
+.ac-tl__ev[data-tone="danger"] .ac-tl__dot{box-shadow:inset 0 0 0 1.4px var(--danger)}
+.ac-tl__ev[data-tone="danger"] .ac-tl__dot svg{color:var(--danger)}
+.ac-tl__ev[data-tone="warning"] .ac-tl__dot{box-shadow:inset 0 0 0 1.4px var(--warning)}
+.ac-tl__ev[data-tone="warning"] .ac-tl__dot svg{color:var(--warning)}
+.ac-tl__main{min-width:0;flex:1}
+.ac-tl__t{font-size:var(--text-form);font-weight:510;color:var(--fg)}
+.ac-tl__d{font-size:var(--text-form);line-height:1.5;color:var(--subtle);margin-top:1px}
+.ac-tl__when{font-family:var(--font-mono);font-size:10px;color:var(--faint);flex:none;margin-top:3px;font-variant-numeric:tabular-nums}
+
+/* invalid-result: both attempts, errors verbatim */
+.ac-attempt{border:1px solid var(--line);border-radius:var(--radius-md);background:var(--canvas-soft);overflow:hidden}
+.ac-attempt + .ac-attempt{margin-top:8px}
+.ac-attempt__head{display:flex;align-items:center;gap:8px;min-height:32px;padding:0 12px;border-bottom:1px solid var(--line-soft)}
+.ac-attempt__head b{font-size:var(--text-form);font-weight:600;color:var(--fg)}
+.ac-attempt__head .mono{font-family:var(--font-mono);font-size:10px;color:var(--faint);margin-left:auto}
+.ac-attempt__errs{padding:8px 12px;display:flex;flex-direction:column;gap:6px}
+.ac-err{display:flex;align-items:flex-start;gap:7px;font-family:var(--font-mono);font-size:var(--text-code);line-height:1.5;color:var(--fg)}
+.ac-err svg{width:11px;height:11px;color:var(--danger);flex:none;margin-top:2px}
+.ac-err .path{color:var(--info)}
+
+/* typed result — schema-aware record view */
+.ac-result{border:1px solid var(--line);border-radius:var(--radius-md);background:var(--canvas-soft);overflow:hidden}
+.ac-result__head{display:flex;align-items:center;gap:8px;min-height:34px;padding:0 12px;border-bottom:1px solid var(--line-soft)}
+.ac-result__rows{display:flex;flex-direction:column}
+.ac-result__row{display:grid;grid-template-columns:var(--w-kv-label) minmax(0,1fr);gap:12px;min-height:30px;align-items:center;padding:0 12px;border-top:1px solid var(--line-soft)}
+.ac-result__row:first-child{border-top:0}
+.ac-result__k{font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--subtle)}
+.ac-result__v{font-size:var(--text-form);color:var(--fg);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ac-result__v.mono{font-family:var(--font-mono);font-size:var(--text-code)}
+.ac-result__foot{display:flex;align-items:center;gap:10px;min-height:34px;padding:0 12px;border-top:1px solid var(--line-soft);font-size:var(--text-form);color:var(--subtle)}
+.ac-result__foot .mono{font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
+.ac-result__foot .act{margin-left:auto}
+
+/* superseded late evidence (canceled call) */
+.ac-superseded{border:1px dashed var(--line-strong);border-radius:var(--radius-md);background:transparent;padding:10px 12px}
+.ac-superseded__head{display:flex;align-items:center;gap:7px;margin-bottom:6px;font-size:var(--text-form);font-weight:510;color:var(--muted)}
+.ac-superseded__head svg{width:12px;height:12px;flex:none}
+.ac-superseded p{margin:0;font-size:var(--text-form);line-height:1.5;color:var(--subtle)}
+
+/* ============================================================
+   4 · COMPOSE — shared compose shell
+   (roster Call compose · call-detail message compose)
+   Inbox rows retired with the S3 surface cut (2026-08-23);
+   in-session message turns live in chapter 9.
+   ============================================================ */
+.ac-compose{border:1px solid var(--line);border-radius:var(--radius-md);background:var(--canvas-soft);overflow:hidden}
+.ac-compose__head{display:flex;align-items:center;gap:8px;min-height:38px;padding:0 12px;border-bottom:1px solid var(--line-soft)}
+.ac-compose__head .eyebrow{color:var(--subtle)}
+.ac-compose__body{padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.ac-compose__foot{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border-top:1px solid var(--line-soft)}
+.ac-compose__hint{font-size:var(--text-form);color:var(--subtle)}
+.ac-compose__foot .spacer{flex:1}
+
+/* ============================================================
+   5 · ROSTER — catalog rows + call compose
+   Scope is taxonomy → neutral chip; shadowed = hollow. Live
+   instance count renders only when nonzero (zero renders nothing).
+   ============================================================ */
+.ac-scope{
+  display:inline-flex;align-items:center;height:18px;padding:0 6px;
+  border-radius:var(--radius-xs);background:var(--neutral-tint);
+  font-size:10px;font-weight:500;color:var(--muted);white-space:nowrap;
+}
+.ac-scope[data-scope="shadowed"]{background:transparent;box-shadow:inset 0 0 0 1px var(--line-strong);color:var(--faint)}
+.ac-desc-absent{font-size:var(--text-small-body);color:var(--faint);font-style:normal}
+
+/* contract editor inside call compose */
+.ac-contract-ed{border:1px solid var(--line);border-radius:var(--radius-xs);background:var(--canvas);overflow:hidden}
+.ac-contract-ed__bar{display:flex;align-items:center;gap:8px;min-height:28px;padding:0 10px;border-bottom:1px solid var(--line-soft);font-size:var(--text-badge);color:var(--subtle)}
+.ac-contract-ed pre{margin:0;padding:10px 12px;font-family:var(--font-mono);font-size:var(--text-code);line-height:1.6;color:var(--fg);overflow-x:auto}
+.ac-contract-ed[data-invalid]{border-color:var(--danger)}
+.ac-contract-ed__err{display:flex;align-items:flex-start;gap:7px;padding:8px 10px;border-top:1px solid var(--line-soft);background:var(--danger-tint);font-family:var(--font-mono);font-size:10.5px;line-height:1.5;color:var(--danger)}
+.ac-contract-ed__err svg{width:11px;height:11px;flex:none;margin-top:2px}
+
+/* ============================================================
+   6 · SESSION CALLS PANEL — inspector list + timeline markers
+   ============================================================ */
+.ac-call-li{display:flex;align-items:center;gap:8px;min-height:34px;padding:0 12px;border-top:1px solid var(--line-soft);cursor:pointer}
+.ac-call-li:first-child{border-top:0}
+.ac-call-li:hover{background:var(--row-hover)}
+.ac-call-li:focus-visible{outline:none;box-shadow:var(--focus-ring-inset)}
+.ac-call-li__dir{width:18px;height:18px;flex:none;display:grid;place-items:center;border-radius:var(--radius-xxs);background:var(--badge-fill);color:var(--muted)}
+.ac-call-li__dir svg{width:10px;height:10px}
+.ac-call-li__agent{font-size:var(--text-form);font-weight:510;color:var(--fg);white-space:nowrap}
+.ac-call-li__preview{font-family:var(--font-mono);font-size:10px;color:var(--subtle);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ac-call-li__age{font-family:var(--font-mono);font-size:10px;color:var(--faint);margin-left:auto;flex:none;font-variant-numeric:tabular-nums}
+
+/* timeline marker rows (Marker/MarkerMeta grammar) */
+.ac-marker{display:flex;align-items:center;gap:8px;min-height:22px;padding:2px 0}
+.ac-marker__rule{flex:1;height:1px;background:var(--line-soft)}
+.ac-marker__label{display:inline-flex;align-items:center;gap:6px;font-size:var(--text-badge);color:var(--subtle);white-space:nowrap}
+.ac-marker__label svg{width:11px;height:11px;color:var(--muted)}
+.ac-marker__label .mono{font-family:var(--font-mono);font-size:10px;color:var(--muted)}
+/* wake row — why this session woke, with the result preview */
+.ac-wake{
+  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--canvas-soft);
+  padding:10px 12px;max-width:var(--ac-msg-w);
+}
+.ac-wake__head{display:flex;align-items:center;gap:7px;margin-bottom:5px;font-size:var(--text-form);font-weight:510;color:var(--fg)}
+.ac-wake__head svg{width:12px;height:12px;color:var(--muted);flex:none}
+.ac-wake__preview{font-family:var(--font-mono);font-size:var(--text-code);line-height:1.5;color:var(--fg);background:var(--canvas);border:1px solid var(--line-soft);border-radius:var(--radius-xxs);padding:6px 8px;overflow-x:auto;white-space:pre}
+.ac-wake__meta{display:flex;align-items:center;gap:10px;margin-top:6px;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+
+/* ============================================================
+   7 · ATTENTION — bell rows + coalesced tree row + dock badge
+   Bell shell, sections, toasts come from ds-shell/os patterns;
+   this adds only the call-row internals.
+   ============================================================ */
+.ac-bell-row{display:flex;align-items:flex-start;gap:9px;padding:8px 10px;border-radius:var(--radius);cursor:pointer}
+.ac-bell-row:hover{background:var(--row-hover)}
+.ac-bell-row:focus-visible{outline:none;box-shadow:var(--focus-ring-inset)}
+.ac-bell-row__glyph{
+  width:18px;height:18px;flex:none;display:grid;place-items:center;margin-top:1px;
+  border-radius:50%;
+}
+.ac-bell-row__glyph svg{width:11px;height:11px}
+.ac-bell-row__glyph[data-tone="danger"]{background:var(--danger-tint);color:var(--danger)}
+.ac-bell-row__glyph[data-tone="info"]{background:var(--info-tint);color:var(--info)}
+.ac-bell-row__main{min-width:0;flex:1}
+.ac-bell-row__t{font-size:var(--text-form);font-weight:510;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ac-bell-row__d{font-size:var(--text-badge);color:var(--subtle);margin-top:1px;line-height:1.45}
+.ac-bell-row__d .mono{font-family:var(--font-mono);font-size:10px;color:var(--muted)}
+.ac-bell-row__when{font-family:var(--font-mono);font-size:10px;color:var(--faint);flex:none;margin-top:2px}
+/* coalesced tree row — one row per tree under signal storm */
+.ac-bell-row--tree .ac-bell-row__t{display:flex;align-items:center;gap:6px}
+.ac-bell-row--tree .count-chip{flex:none}
+
+/* bell section header (shared two-section grammar) */
+.ac-bell-sec{display:flex;align-items:center;gap:7px;padding:8px 10px 4px}
+.ac-bell-sec .eyebrow{color:var(--subtle)}
+.ac-bell-sec .count-chip{margin-left:auto}
+
+/* ============================================================
+   8 · SHARED SMALL PARTS
+   ============================================================ */
+/* cost line — describeCost() output verbatim, never derived */
+.ac-cost{display:inline-flex;align-items:baseline;gap:5px;font-size:var(--text-form);color:var(--subtle)}
+.ac-cost .v{font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--fg);font-variant-numeric:tabular-nums}
+/* idle-TTL fact — suspended while running, counting while parked */
+.ac-ttl{display:inline-flex;align-items:center;gap:5px;font-size:var(--text-form);color:var(--subtle);white-space:nowrap}
+.ac-ttl svg{width:12px;height:12px;color:var(--muted)}
+.ac-ttl .mono{font-family:var(--font-mono);font-size:10.5px;color:var(--fg);font-variant-numeric:tabular-nums}
+.ac-ttl[data-ttl="suspended"] .mono{color:var(--muted)}
+
+/* ============================================================
+   9 · IN-SESSION — calls and messages inside the conversation
+   Revision 2026-08-23: the transcript is where most people meet
+   this feature. Inline call card rides the ds-core .toolcall
+   geometry (32–34px head, canvas-soft, radius-md) with the call
+   grammar on top. Plain sentence first; ids and digests live in
+   the drill-in, not in the flow.
+   ============================================================ */
+/* one call, inline between turns — COLLAPSED BY DEFAULT (revision 2).
+   The resting card is its head row alone: caret · identity · state ·
+   liveness · age. The ask and the answer live behind the caret —
+   a closed card still informs (chip grammar), it just stays quiet. */
+details.ac-turn-call{
+  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--canvas-soft);
+  overflow:hidden;max-width:var(--ac-msg-w);
+}
+.ac-turn-call__head{display:flex;align-items:center;gap:8px;min-height:34px;padding:0 10px;cursor:pointer;list-style:none}
+.ac-turn-call__head::-webkit-details-marker{display:none}
+.ac-turn-call__head:hover{background:var(--row-hover)}
+.ac-turn-call__head:focus-visible{outline:none;box-shadow:var(--focus-ring-inset)}
+.ac-turn-call__caret{width:12px;height:12px;flex:none;color:var(--faint);transition:transform var(--dur-fast) var(--ease)}
+details[open]>.ac-turn-call__head .ac-turn-call__caret{transform:rotate(90deg)}
+.ac-turn-call__body{border-top:1px solid var(--line-soft)}
+.ac-turn-call__verb{font-size:var(--text-form);color:var(--subtle);white-space:nowrap}
+.ac-turn-call__agent{font-size:var(--text-form);font-weight:510;color:var(--fg);white-space:nowrap}
+.ac-turn-call__age{margin-left:auto;flex:none;font-family:var(--font-mono);font-size:10px;color:var(--faint);font-variant-numeric:tabular-nums}
+/* the ask, revealed on expand — plain words, full wrap */
+.ac-turn-call__ask{padding:9px 12px;font-size:var(--text-form);line-height:1.5;color:var(--subtle)}
+/* result strip — bounded preview, one link out (revealed on expand) */
+.ac-turn-call__result{
+  display:flex;align-items:center;gap:8px;min-height:32px;padding:0 10px;
+  border-top:1px solid var(--line-soft);background:var(--canvas);
+}
+.ac-turn-call__preview{font-family:var(--font-mono);font-size:10.5px;color:var(--fg);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ac-turn-call__result a{margin-left:auto;flex:none;font-size:var(--text-badge);color:var(--subtle);border-radius:var(--radius-xxs)}
+.ac-turn-call__result a:hover{color:var(--fg-strong);text-decoration:underline;text-underline-offset:2px}
+.ac-turn-call__result a:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+/* needs-a-look strip — same slot, danger ink, plain words first */
+.ac-turn-call__flag{
+  display:flex;align-items:flex-start;gap:7px;padding:8px 10px;
+  border-top:1px solid var(--line-soft);background:var(--danger-tint);
+  font-size:var(--text-form);line-height:1.5;color:var(--fg);
+}
+.ac-turn-call__flag svg{width:12px;height:12px;color:var(--danger);flex:none;margin-top:1.5px}
+.ac-turn-call__flag .mono{font-family:var(--font-mono);font-size:10px;color:var(--muted)}
+.ac-turn-call__flag .act{margin-left:auto;flex:none}
+
+/* a message landing inside the conversation */
+.ac-turn-msg{max-width:var(--ac-msg-w)}
+.ac-turn-msg__meta{display:flex;align-items:center;gap:7px;margin-bottom:4px}
+.ac-turn-msg__from{font-size:var(--text-form);font-weight:510;color:var(--fg)}
+.ac-turn-msg__age{margin-left:auto;flex:none;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+
+/* the child's side: what it owes, and the moment it answers */
+.ac-turn-bound{
+  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--canvas-soft);
+  padding:9px 12px;max-width:var(--ac-msg-w);
+  font-size:var(--text-form);line-height:1.5;color:var(--subtle);
+}
+.ac-turn-bound b{font-weight:510;color:var(--fg)}
+.ac-turn-bound .mono{font-family:var(--font-mono);font-size:10px;color:var(--muted)}
+.ac-turn-return{
+  display:flex;align-items:center;gap:8px;min-height:34px;padding:0 12px;
+  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--canvas-soft);
+  max-width:var(--ac-msg-w);font-size:var(--text-form);color:var(--fg);
+}
+.ac-turn-return svg{width:12px;height:12px;color:var(--success);flex:none}
+.ac-turn-return .mono{font-family:var(--font-mono);font-size:10px;color:var(--muted)}
+.ac-turn-return .ac-turn-return__age{margin-left:auto;flex:none;font-family:var(--font-mono);font-size:10px;color:var(--faint)}
+
+/* fan-out — many helpers asked at once, one card (revision 2).
+   Collapsed: overlapping identity chips · "Asked N helpers" · live
+   summary counts · the worst state escalated as a chip (tone + glyph
+   + word, same dictionary) · age. Expanded: compact per-call rows,
+   capped, with the Calls panel as the full list. */
+details.ac-turn-fan{
+  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--canvas-soft);
+  overflow:hidden;max-width:var(--ac-msg-w);
+}
+.ac-turn-fan__head{display:flex;align-items:center;gap:8px;min-height:36px;padding:0 10px;cursor:pointer;list-style:none}
+.ac-turn-fan__head::-webkit-details-marker{display:none}
+.ac-turn-fan__head:hover{background:var(--row-hover)}
+.ac-turn-fan__head:focus-visible{outline:none;box-shadow:var(--focus-ring-inset)}
+.ac-turn-fan__head .ac-turn-call__caret{margin-right:-2px}
+details[open]>.ac-turn-fan__head .ac-turn-call__caret{transform:rotate(90deg)}
+.ac-chips{display:flex;flex:none}
+.ac-chips .agent-chip{margin-left:-7px;box-shadow:0 0 0 2px var(--canvas-soft)}
+.ac-chips .agent-chip:first-child{margin-left:0}
+.ac-chips__more{
+  width:22px;height:22px;flex:none;display:grid;place-items:center;margin-left:-7px;
+  border-radius:var(--radius-xs);background:var(--badge-fill);box-shadow:0 0 0 2px var(--canvas-soft);
+  font-family:var(--font-mono);font-size:9px;color:var(--muted);
+}
+.ac-turn-fan__label{font-size:var(--text-form);font-weight:510;color:var(--fg);white-space:nowrap}
+.ac-turn-fan__sum{font-size:var(--text-form);color:var(--subtle);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ac-turn-fan__age{margin-left:auto;flex:none;font-family:var(--font-mono);font-size:10px;color:var(--faint);font-variant-numeric:tabular-nums}
+.ac-turn-fan__body{border-top:1px solid var(--line-soft)}
+.ac-turn-fan__body .ac-call-li{border-top:1px solid var(--line-soft)}
+.ac-turn-fan__body .ac-call-li:first-child{border-top:0}
+.ac-turn-fan__foot{display:flex;align-items:center;gap:8px;min-height:30px;padding:0 12px;border-top:1px solid var(--line-soft);font-size:var(--text-badge);color:var(--subtle)}
+
+/* compact stack — many settled calls in a long conversation */
+.ac-turn-stack{border:1px solid var(--line);border-radius:var(--radius-md);background:var(--canvas-soft);overflow:hidden;max-width:var(--ac-msg-w)}
+.ac-turn-stack .ac-call-li{border-top:1px solid var(--line-soft)}
+.ac-turn-stack .ac-call-li:first-child{border-top:0}
+.ac-turn-stack__foot{display:flex;align-items:center;gap:8px;min-height:30px;padding:0 12px;border-top:1px solid var(--line-soft);font-size:var(--text-badge);color:var(--subtle)}

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "skill-sources/skill-sources-catalog-origin.html",
+  "entry": "skill-sources/skill-sources-catalog-origin.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-23T18:23:18.747Z",
+  "updatedAt": "2026-08-23T18:23:18.747Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

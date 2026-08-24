@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "agent-comms/agent-comms-attention.html",
+  "entry": "agent-comms/agent-comms-attention.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-23T18:21:31.109Z",
+  "updatedAt": "2026-08-23T18:21:31.109Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

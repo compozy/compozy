@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Input request · Integrated terminal · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="integrated-terminal.css">
+<!--
+  integrated-terminal-input-request · S5 — the agent asks a human for
+  terminal input; card pinned to the live terminal, mirrored in attention.
+  Spec: .compozy/tasks/integrated-terminal/_uiux.md S5 · US-017, 021.
+  Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — .notice/.att/.popover anatomy (ds-core, ds-shell);
+      attention surfaces web/src/systems/notifications/.
+    spec — request carries the agent's reason + prompt excerpt (US-017);
+      redacted entry shows dots and only a length marker ever lands in the
+      stream (US-018/redaction); outcomes answered/rejected/superseded/
+      expired (US-017.EC-2..4); watcher answer is ONE gesture riding the
+      atomic answer-handoff — takeover + answer both recorded
+      (US-017.EC-5); caps 4/terminal · 32/project · TTL 15m; on answer,
+      control returns to the agent automatically (answer_return).
+    authorized delta — the watcher gesture renders as a neutral button:
+      the accent take-control affordance stays unique to the terminal
+      header (accent budget, DESIGN-NOTES §Signals).
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="tir-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Integrated terminal</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Input request</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="integrated-terminal-approvals.html">Next: Approvals →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL — REDACTED ===== -->
+    <section class="lab-sec" data-od-id="tir-redacted">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">01</span>
+        <h2 class="lab-sec__t">Open request — redacted entry</h2>
+        <span class="lab-sec__gist">US-017.AC-1 · US-018 redaction</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>Pinned to the terminal it belongs to.</b> The card sits under
+          the live screen: warning glyph, the agent's reason in its own
+          words, the program's exact question, and a field that hides what
+          you type. The secret never renders, is never stored, and never
+          reaches the agent — the record only says hidden input of a given
+          length happened.
+          <span class="mono">US-017 · redact:true</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="tir-redacted-stage">
+            <section class="win is-focused tm-demo-win">
+              <header class="win-head">
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="terminal"></svg></span>
+                  <span class="w2-title">psql</span>
+                  <span class="mono-id">term-9cd7e14b2a66</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <span class="tm-lease" data-lease="agent"><span class="agent-chip">CC</span><b>Claude Code</b> is in control</span>
+                  <span class="tm-viewers" title="You are watching"><svg data-lucide="eye"></svg>1</span>
+                  <span class="w2-vsep" aria-hidden="true"></span>
+                  <div class="w2-actions">
+                    <button class="btn btn--sm btn--primary" type="button">Take control</button>
+                  </div>
+                </div>
+              </header>
+              <div class="tm-winbody">
+                <div class="tm-surface">
+                  <div class="tm-grid" role="log" aria-label="Terminal output">
+<span class="tm-ln"><span class="a2">$</span> psql -h staging.internal -U atlas atlas_api</span>
+<span class="tm-ln">Password for user atlas: <span class="tm-cur tm-cur--hollow" aria-hidden="true"></span></span>
+                  </div>
+                  <div class="tm-request" data-od-id="tir-redacted-card">
+                    <div class="tm-request__head">
+                      <span class="tm-request__glyph"><svg data-lucide="key-round"></svg></span>
+                      <span class="tm-request__title">Claude Code needs a password</span>
+                      <span class="tm-request__meta">expires in 14m</span>
+                    </div>
+                    <p class="tm-request__reason">I need the staging database password to run the journal migration check.</p>
+                    <div class="tm-request__prompt">Password for user atlas:</div>
+                    <div class="tm-request__row">
+                      <input class="input input--redacted" type="password" value="••••••••••" aria-label="Redacted input — never shown, stored, or sent to the agent">
+                      <button class="btn btn--sm" type="button" data-od-id="tir-deliver">Send</button>
+                      <button class="btn btn--sm btn--ghost" type="button">Decline</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · OPEN — PLAIN ===== -->
+    <section class="lab-sec" data-od-id="tir-plain">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">02</span>
+        <h2 class="lab-sec__t">Open request — plain entry</h2>
+        <span class="lab-sec__gist">US-017.AC-1</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>The prompt speaks for itself.</b> A visible-echo request keeps
+          the same anatomy without the hidden field. What you type is what
+          the program receives, and it lands in the stream like any other
+          input.
+          <span class="mono">US-017 · redact:false</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="tir-plain-stage">
+            <div class="tm-demo-win plain plain--flush">
+              <div class="tm-request" data-od-id="tir-plain-card">
+                <div class="tm-request__head">
+                  <span class="tm-request__glyph"><svg data-lucide="message-circle-question-mark"></svg></span>
+                  <span class="tm-request__title">Claude Code needs an answer</span>
+                  <span class="tm-request__meta">expires in 12m</span>
+                </div>
+                <p class="tm-request__reason">The migration would overwrite an existing file — your call.</p>
+                <div class="tm-request__prompt">Overwrite migration 00078_terminal_journal.sql? [y/N]</div>
+                <div class="tm-request__row">
+                  <input class="input" type="text" value="y" aria-label="Your answer">
+                  <button class="btn btn--sm" type="button">Send</button>
+                  <button class="btn btn--sm btn--ghost" type="button">Decline</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · RESOLVED OUTCOMES ===== -->
+    <section class="lab-sec" data-od-id="tir-outcomes">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">03</span>
+        <h2 class="lab-sec__t">Resolved — four quiet outcomes</h2>
+        <span class="lab-sec__gist">US-017.EC-2..4 · answered / declined / superseded / expired</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>Resolution collapses to one line.</b> Answered notes the length
+          of hidden input; declined and expired name themselves; superseded
+          says who took over. A request answered by someone else says so
+          instead of failing silently.
+          <span class="mono">input outcomes · US-017.EC-4</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="tir-outcomes-stage">
+            <div class="tm-demo-col">
+              <div class="plain plain--flush">
+                <div class="tm-request tm-request--resolved" data-outcome="answered" data-od-id="tir-out-answered">
+                  <span class="tm-request__glyph"><svg data-lucide="check"></svg></span>
+                  <span class="tm-request__outcome"><b>Answered by you</b> · hidden input, 10 characters · 12:44</span>
+                </div>
+              </div>
+              <div class="plain plain--flush">
+                <div class="tm-request tm-request--resolved" data-od-id="tir-out-rejected">
+                  <span class="tm-request__glyph"><svg data-lucide="x"></svg></span>
+                  <span class="tm-request__outcome"><b>Declined by you</b> · the agent was told no input is coming · 12:41</span>
+                </div>
+              </div>
+              <div class="plain plain--flush">
+                <div class="tm-request tm-request--resolved" data-outcome="superseded" data-od-id="tir-out-superseded">
+                  <span class="tm-request__glyph"><svg data-lucide="keyboard"></svg></span>
+                  <span class="tm-request__outcome"><b>Superseded</b> · Marina took control of the terminal · 12:39</span>
+                </div>
+              </div>
+              <div class="plain plain--flush">
+                <div class="tm-request tm-request--resolved" data-od-id="tir-out-expired">
+                  <span class="tm-request__glyph"><svg data-lucide="clock"></svg></span>
+                  <span class="tm-request__outcome"><b>Expired</b> · unanswered for 15 minutes · 12:20</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · WATCHER — ONE GESTURE ===== -->
+    <section class="lab-sec" data-od-id="tir-watcher">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">04</span>
+        <h2 class="lab-sec__t">Watcher — take control and answer, one gesture</h2>
+        <span class="lab-sec__gist">US-017.EC-5 · atomic answer-handoff</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>Answering needs the keyboard.</b> A read-only watcher doesn't
+          get a plain Send — the one gesture offered takes control and
+          sends in a single step, and both are recorded. Control returns to
+          the agent by itself once the answer lands.
+          <span class="mono">answer_handoff → answer_return</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="tir-watcher-stage">
+            <div class="tm-demo-win plain plain--flush">
+              <div class="tm-request" data-od-id="tir-watcher-card">
+                <div class="tm-request__head">
+                  <span class="tm-request__glyph"><svg data-lucide="key-round"></svg></span>
+                  <span class="tm-request__title">Claude Code needs a password</span>
+                  <span class="tm-request__meta">expires in 14m</span>
+                </div>
+                <p class="tm-request__reason">I need the staging database password to run the journal migration check.</p>
+                <div class="tm-request__prompt">Password for user atlas:</div>
+                <div class="tm-request__row">
+                  <input class="input input--redacted" type="password" value="••••••••••" aria-label="Redacted input">
+                  <button class="btn btn--sm" type="button" data-od-id="tir-watcher-answer">Take control &amp; send</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · STACKED REQUESTS ===== -->
+    <section class="lab-sec" data-od-id="tir-stacked">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">05</span>
+        <h2 class="lab-sec__t">Stacked — several terminals ask at once</h2>
+        <span class="lab-sec__gist">US-021.EC-1 · individually attributable</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>One card per request, origin named.</b> Requests stack in
+          arrival order, each bound to its terminal by id — answering one
+          never answers another. The caps hold the stack honest: 4 per
+          terminal, 32 per project.
+          <span class="mono">US-021.EC-1 · caps 4/32</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="tir-stacked-stage">
+            <div class="tm-demo-win plain plain--flush">
+              <div class="tm-request-stack" data-od-id="tir-stack">
+                <div class="tm-request">
+                  <div class="tm-request__head">
+                    <span class="tm-request__glyph"><svg data-lucide="key-round"></svg></span>
+                    <span class="tm-request__title">Claude Code needs a password</span>
+                    <span class="tm-request__origin"><svg data-lucide="terminal"></svg>psql · term-9cd7e14b2a66</span>
+                    <span class="tm-request__meta">14m</span>
+                  </div>
+                  <div class="tm-request__row">
+                    <input class="input input--redacted" type="password" value="" placeholder="••••••••" aria-label="Redacted input">
+                    <button class="btn btn--sm" type="button">Send</button>
+                    <button class="btn btn--sm btn--ghost" type="button">Decline</button>
+                  </div>
+                </div>
+                <div class="tm-request">
+                  <div class="tm-request__head">
+                    <span class="tm-request__glyph"><svg data-lucide="message-circle-question-mark"></svg></span>
+                    <span class="tm-request__title">Claude Code needs an answer</span>
+                    <span class="tm-request__origin"><svg data-lucide="terminal"></svg>ssh staging · term-1e8f7a55c402</span>
+                    <span class="tm-request__meta">9m</span>
+                  </div>
+                  <div class="tm-request__prompt">Are you sure you want to continue connecting (yes/no/[fingerprint])?</div>
+                  <div class="tm-request__row">
+                    <input class="input" type="text" placeholder="yes" aria-label="Your answer">
+                    <button class="btn btn--sm" type="button">Send</button>
+                    <button class="btn btn--sm btn--ghost" type="button">Decline</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · ATTENTION MIRROR ===== -->
+    <section class="lab-sec" data-od-id="tir-attention">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">06</span>
+        <h2 class="lab-sec__t">Attention mirror — discoverable on return</h2>
+        <span class="lab-sec__gist">US-017.AC-2 · US-019.EC away-flow</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>The bell holds what the terminal asked.</b> Every open request
+          mirrors into the attention surface with its origin and age; the
+          row jumps to the pinned card, never answers in place with less
+          context than the terminal offers.
+          <span class="mono">US-017.AC-2</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--center" data-od-id="tir-attention-stage">
+            <div class="popover" data-od-id="tir-bell-pop">
+              <div class="pop-eyebrow">Needs you</div>
+              <div class="att">
+                <div class="att__row">
+                  <i data-lucide="key-round" class="att__glyph-warning"></i>
+                  <div>
+                    <p class="att__head"><b>Password requested</b> · Claude Code</p>
+                    <p class="att__text">psql — staging database password</p>
+                    <p class="att__meta">psql · asked 2m ago · expires in 13m</p>
+                  </div>
+                  <div class="att__actions"><button class="btn btn--xs" type="button">Open terminal</button></div>
+                </div>
+                <div class="att__row">
+                  <i data-lucide="message-circle-question-mark" class="att__glyph-warning"></i>
+                  <div>
+                    <p class="att__head"><b>Answer requested</b> · Claude Code</p>
+                    <p class="att__text">ssh staging — host key confirmation</p>
+                    <p class="att__meta">ssh staging · asked 7m ago · expires in 8m</p>
+                  </div>
+                  <div class="att__actions"><button class="btn btn--xs" type="button">Open terminal</button></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

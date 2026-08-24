@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "skill-sources/skill-sources-settings-states.html",
+  "entry": "skill-sources/skill-sources-settings-states.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-23T18:18:47.827Z",
+  "updatedAt": "2026-08-23T18:18:47.827Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

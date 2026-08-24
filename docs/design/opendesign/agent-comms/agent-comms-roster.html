@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Roster — catalog, scope, call compose · Agent comms · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="agent-comms.css">
+<!--
+  agent-comms-roster · S4 — Agents app catalog + agent detail (/agents,
+  /agents/$name): descriptions, scope badges, live instance counts, the
+  operator Call compose.
+  Spec: .compozy/tasks/agent-comms/_uiux.md S4 · US-001/019/021/022/024 ·
+  task_06/VC-17–19. Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — agents-catalog-location.tsx + use-agents-catalog.ts listing;
+                 agent-detail-location.tsx; ListingRow/KindChip/MonoId;
+                 ActionResultBanner acceptance
+    spec — description is a new definition field (500-char authoring max,
+           roster display truncates at 120); scope is workspace/global,
+           shadowed rows are inactive name collisions; live instance count
+           renders only when nonzero; compose errors are the deterministic
+           codes with the validator/roster text verbatim
+    authorized delta — lab scaffold copied into agent-comms.css (graph-eng
+                       retired); compose flow states staged side by side
+                       instead of one stateful form
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="ro-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Agent comms</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Roster — catalog and call compose</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="agent-comms-activity-tree.html">← Activity tree</a>
+      <a class="btn btn--sm" href="agent-comms-call-detail.html">Call detail →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="lab-sec" data-od-id="ro-catalog">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Who's available, and what each one does</h2>
+        <span class="lab-sec__gist">task_06/VC-17</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The same list agents read when they choose a helper</b>Each row: the name, what it does in one sentence, where it's defined, and — only when someone is actually working — a live count. A grayed row is a name taken over by a more local definition. A missing description says so plainly instead of hiding. <span class="mono">US-021.AC-2..3 · US-024.EC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="ro-catalog-stage">
+            <section class="win is-focused" data-od-id="ro-catalog-win">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="bot"></svg></span>
+                  <span class="w2-title">Agents</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+              </header>
+              <div class="win-body"><div class="app">
+                <nav class="tabbar" data-od-id="ro-catalog-tabs" aria-label="Agents app locations">
+                  <a class="tab is-on" href="#" aria-current="page">Catalog</a>
+                  <a class="tab" href="agent-comms-activity-tree.html">Activity</a>
+                </nav>
+                <div style="height:14px"></div>
+                <div class="list-shell" data-od-id="ro-catalog-list">
+                  <div class="listing-row" tabindex="0" data-od-id="ro-row-reviewer">
+                    <span class="listing-row__icon"><svg data-lucide="bot"></svg></span>
+                    <div class="listing-row__main">
+                      <div class="listing-row__name"><b>reviewer</b><span class="ac-scope" data-scope="workspace">workspace</span></div>
+                      <div class="listing-row__desc">Reviews a diff and returns structured findings with severity.</div>
+                    </div>
+                    <div class="listing-row__trail">
+                      <span class="pill pill--xs"><span class="dot"></span>2 running</span>
+                    </div>
+                  </div>
+                  <div class="listing-row" tabindex="0" data-od-id="ro-row-scout">
+                    <span class="listing-row__icon"><svg data-lucide="bot"></svg></span>
+                    <div class="listing-row__main">
+                      <div class="listing-row__name"><b>scout</b><span class="ac-scope" data-scope="global">global</span></div>
+                      <div class="listing-row__desc">Maps a codebase area and returns entry points.</div>
+                    </div>
+                    <div class="listing-row__trail">
+                      <span class="pill pill--xs"><span class="dot"></span>1 parked</span>
+                    </div>
+                  </div>
+                  <div class="listing-row" tabindex="0" data-od-id="ro-row-docs-writer">
+                    <span class="listing-row__icon"><svg data-lucide="bot"></svg></span>
+                    <div class="listing-row__main">
+                      <div class="listing-row__name"><b>docs-writer</b><span class="ac-scope" data-scope="workspace">workspace</span></div>
+                      <div class="listing-row__desc">Writes user-facing docs from a merged change, tutorial-first.</div>
+                    </div>
+                    <div class="listing-row__trail">
+                    </div>
+                  </div>
+                  <div class="listing-row" tabindex="0" data-od-id="ro-row-shadowed">
+                    <span class="listing-row__icon" style="color:var(--faint)"><svg data-lucide="bot"></svg></span>
+                    <div class="listing-row__main">
+                      <div class="listing-row__name"><b style="color:var(--subtle)">docs-writer</b><span class="ac-scope" data-scope="shadowed">global · shadowed</span></div>
+                      <div class="listing-row__desc">Inactive — the workspace definition with this name wins.</div>
+                    </div>
+                    <div class="listing-row__trail">
+                    </div>
+                  </div>
+                  <div class="listing-row" tabindex="0" data-od-id="ro-row-nodesc">
+                    <span class="listing-row__icon"><svg data-lucide="bot"></svg></span>
+                    <div class="listing-row__main">
+                      <div class="listing-row__name"><b>triage</b><span class="ac-scope" data-scope="workspace">workspace</span></div>
+                      <div class="listing-row__desc"><span class="ac-desc-absent">No description yet — this is how everyone sees it until AGENT.md gets one.</span></div>
+                    </div>
+                    <div class="listing-row__trail">
+                    </div>
+                  </div>
+                </div>
+              </div></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="ro-detail">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Agent detail — recent calls and the Call action</h2>
+        <span class="lab-sec__gist">task_06/VC-17 · operator path to US-001</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>One agent, up close</b>The detail page keeps what the agent is, and adds what it has been doing — its recent calls, each with its state. The Call button opens a ready-to-edit ask: you use the exact same path the agents use. <span class="mono">US-024.AC-1</span></div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="ro-detail-demo">
+            <div class="ac-call-head" style="border-bottom:0;padding-bottom:2px;margin-bottom:10px">
+              <div class="ac-call-head__row1">
+                <span class="agent-chip">RV</span>
+                <h2 class="ac-call-head__title" style="font-size:var(--text-item-title)">reviewer</h2>
+                <span class="ac-scope" data-scope="workspace">workspace</span>
+                <div class="ac-call-head__acts">
+                  <button class="btn btn--sm btn--primary" type="button" data-od-id="ro-detail-call"><svg data-lucide="corner-up-right"></svg>Call</button>
+                </div>
+              </div>
+              <div class="ac-call-head__facts">
+                <span class="fact">Reviews a diff and returns structured findings with severity.</span>
+                <span class="fact"><svg data-lucide="fingerprint"></svg><span class="mono-id">sha256:2b8e…</span></span>
+              </div>
+            </div>
+            <div class="ac-block">
+              <div class="ac-block__head"><span class="eyebrow">Recent calls</span><span class="count-chip" style="margin-left:auto">4</span></div>
+              <div class="ac-result__rows">
+                <div class="ac-call-li" tabindex="0"><span class="ac-call-li__dir"><svg data-lucide="arrow-down-right"></svg></span><span class="ac-call-li__agent">loop-retry-fix</span><span class="ac-state" data-state="completed"><svg data-lucide="check"></svg>completed</span><span class="ac-verdict">returned</span><span class="ac-call-li__preview">{"verdict":"needs-changes"}</span><span class="ac-call-li__age">2m</span></div>
+                <div class="ac-call-li" tabindex="0"><span class="ac-call-li__dir"><svg data-lucide="arrow-down-right"></svg></span><span class="ac-call-li__agent">loop-retry-fix</span><span class="ac-state" data-state="running"><svg data-lucide="circle"></svg>running</span><span class="ac-call-li__preview">—</span><span class="ac-call-li__age">40s</span></div>
+                <div class="ac-call-li" tabindex="0"><span class="ac-call-li__dir"><svg data-lucide="arrow-down-right"></svg></span><span class="ac-call-li__agent">release-notes-v0-3</span><span class="ac-state" data-state="invalid-result"><svg data-lucide="file-x"></svg>invalid-result</span><span class="ac-call-li__preview">2 issues recorded</span><span class="ac-call-li__age">6m</span></div>
+                <div class="ac-call-li" tabindex="0"><span class="ac-call-li__dir"><svg data-lucide="arrow-down-right"></svg></span><span class="ac-call-li__agent">operator</span><span class="ac-state" data-state="completed"><svg data-lucide="check"></svg>completed</span><span class="ac-verdict">repaired</span><span class="ac-call-li__preview">{"summary":"3 entry points"}</span><span class="ac-call-li__age">1h</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="ro-empty">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">No agents yet · hundreds of agents</h2>
+        <span class="lab-sec__gist">task_06/VC-18</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Both ends of scale, truthfully</b>With none, the empty state names the file that creates the first one. With hundreds, the list shows a page at a time and states the real total — the number comes from the runtime, never from what happens to be on screen. <span class="mono">US-022.EC-1..2</span></div>
+        <div class="spec__demo">
+          <div class="plain" style="display:flex;flex-direction:column;gap:12px" data-od-id="ro-empty-demo">
+            <div class="empty empty--framed" style="width:100%" data-od-id="ro-empty-zero">
+              <span class="empty__well"><svg data-lucide="bot"></svg></span>
+              <b>No agents defined in this workspace</b>
+              <p>Add a definition and any session here can delegate to it.</p>
+              <p class="hint"><span style="font-family:var(--font-mono);font-size:10.5px">.compozy/agents/&lt;name&gt;/AGENT.md</span></p>
+            </div>
+            <div class="list-shell" data-od-id="ro-empty-bounded">
+              <div class="listing-row" tabindex="0">
+                <span class="listing-row__icon"><svg data-lucide="bot"></svg></span>
+                <div class="listing-row__main">
+                  <div class="listing-row__name"><b>api-auditor</b><span class="ac-scope" data-scope="workspace">workspace</span></div>
+                  <div class="listing-row__desc">Audits public route contracts against the OpenAPI source.</div>
+                </div>
+                <div class="listing-row__trail"></div>
+              </div>
+              <div class="listing-row" tabindex="0">
+                <span class="listing-row__icon"><svg data-lucide="bot"></svg></span>
+                <div class="listing-row__main">
+                  <div class="listing-row__name"><b>bench-runner</b><span class="ac-scope" data-scope="global">global</span></div>
+                  <div class="listing-row__desc">Runs the benchmark lanes and returns deltas against baseline.</div>
+                </div>
+                <div class="listing-row__trail"></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;min-height:36px;padding:0 14px;border-top:1px solid var(--line-soft);font-size:var(--text-form);color:var(--subtle)">
+                Showing 50 of 212 definitions
+                <button class="btn btn--xs" type="button" style="margin-left:auto">Load more</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="ro-compose">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Asking an agent — write it, see it fail honestly, see it land</h2>
+        <span class="lab-sec__gist">task_06/VC-19</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Four moments of one form</b>You write the ask and, if you want, describe the shape the answer must have. A broken shape fails right there with the checker's exact words; a helper that already left points you at asking fresh. When it lands, the confirmation links straight to the new call. One primary button throughout. <span class="mono">US-001.AC-1 · US-001.EC-1 · US-019.AC-1</span></div>
+        <div class="spec__demo">
+          <div class="plain" style="display:flex;flex-direction:column;gap:14px" data-od-id="ro-compose-demo">
+
+            <div class="ac-compose" data-od-id="ro-compose-editing">
+              <div class="ac-compose__head"><span class="eyebrow">Call reviewer</span></div>
+              <div class="ac-compose__body">
+                <textarea class="textarea" rows="2" aria-label="Prompt">Review the diff in HEAD~1..HEAD of this repo</textarea>
+                <div class="ac-contract-ed" data-od-id="ro-compose-contract">
+                  <div class="ac-contract-ed__bar"><svg data-lucide="braces" style="width:11px;height:11px"></svg>What the answer must look like (optional) — an example or a JSON Schema</div>
+                  <pre>{"findings": [{"file": "", "line": 0, "severity": "", "note": ""}], "verdict": ""}</pre>
+                </div>
+              </div>
+              <div class="ac-compose__foot">
+                <span class="ac-compose__hint">the helper rests up to 1h after finishing · no deadline unless you set one</span>
+                <span class="spacer"></span>
+                <button class="btn btn--primary" type="button" data-od-id="ro-compose-submit"><svg data-lucide="corner-up-right"></svg>Call</button>
+              </div>
+            </div>
+
+            <div class="ac-compose" data-od-id="ro-compose-invalid">
+              <div class="ac-compose__head"><span class="eyebrow">Call reviewer</span></div>
+              <div class="ac-compose__body">
+                <textarea class="textarea" rows="1" aria-label="Prompt">Review the diff in HEAD~1..HEAD</textarea>
+                <div class="ac-contract-ed" data-invalid>
+                  <div class="ac-contract-ed__bar"><svg data-lucide="braces" style="width:11px;height:11px"></svg>Result contract</div>
+                  <pre>{"findings": "many", "verdict": tru}</pre>
+                  <div class="ac-contract-ed__err"><svg data-lucide="x"></svg><span>call_expect_invalid: invalid JSON at position 34 — unexpected token 'tru'. Provide an example shape or a full JSON Schema.</span></div>
+                </div>
+              </div>
+              <div class="ac-compose__foot">
+                <span class="spacer"></span>
+                <button class="btn btn--primary" type="button"><svg data-lucide="corner-up-right"></svg>Call</button>
+              </div>
+            </div>
+
+            <div class="notice notice--danger" data-od-id="ro-compose-expired">
+              <svg data-lucide="octagon-alert"></svg>
+              <span><b>That helper already left.</b> It sat idle past its limit 3 days ago — ask docs-writer again to start a fresh one. <span class="mono" style="font-family:var(--font-mono);font-size:10px">call_target_expired</span></span>
+              <span class="notice__actions"><button class="btn btn--xs" type="button">Call docs-writer fresh</button></span>
+            </div>
+
+            <div class="ac-compose" data-od-id="ro-compose-submitting">
+              <div class="ac-compose__head"><span class="eyebrow">Call reviewer</span></div>
+              <div class="ac-compose__foot" style="border-top:0">
+                <span class="ac-compose__hint">Submitting…</span>
+                <span class="ac-typing" aria-hidden="true"><i></i><i></i><i></i></span>
+                <span class="spacer"></span>
+                <button class="btn btn--primary" type="button" aria-busy="true"><svg data-lucide="loader-circle"></svg>Call</button>
+              </div>
+            </div>
+
+            <div class="notice notice--success" data-od-id="ro-compose-accepted">
+              <svg data-lucide="check"></svg>
+              <span><b>Call accepted.</b> reviewer is working in <span class="mono" style="font-family:var(--font-mono);font-size:10px">ses_01JBD8G2MZTX</span>.</span>
+              <span class="notice__actions"><a class="btn btn--xs" href="agent-comms-call-detail.html">Open call_01JBD8G2K7Q9</a></span>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">Spec: .compozy/tasks/agent-comms/_uiux.md S4 · contract: DESIGN-NOTES.md · production seams: agents-catalog-location.tsx, agent-detail-location.tsx, ListingRow, ActionResultBanner. Error copy carries the deterministic codes from _dx.md verbatim. Content illustrative; runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>(function(){ if(window.lucide) window.lucide.createIcons(); })();</script>
+</body>
+</html>

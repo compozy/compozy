@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Activity tree — delegation live · Agent comms · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="agent-comms.css">
+<!--
+  agent-comms-activity-tree · S1 — Agents app Activity location, delegation
+  trees across the workspace, live.
+  Spec: .compozy/tasks/agent-comms/_uiux.md S1 · US-001/003/005/018/019/020/
+  028 · task_06/VC-01–07. Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — session-hierarchy.ts cycle-guarded parent→child tree +
+                 session-list-thread.tsx renderer; session-badge.ts signal
+                 dictionary (tone+glyph+word, needs-you shares danger);
+                 attention-model.ts staleness (stale counts zero, rows click);
+                 agent-chip identity; describeCost() trailing cost
+    spec — one row per call, nine states closed set; depth ≤ 3; urgency
+           escalates to the collapsed toggle; revival IS call-again/message
+           (no Revive control); stop subtree is the only subtree verb
+    authorized delta — lab scaffold classes are copied into agent-comms.css
+                       (graph-eng set retired to _done/ 2026-08-23); the
+                       nine-state spectrum is staged as one dictionary list
+                       instead of nine separate lab sections
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="at-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Agent comms</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Activity tree — delegation live</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="agent-comms-call-detail.html">Call detail →</a>
+      <a class="btn btn--sm" href="agent-comms-attention.html">Attention →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="lab-sec" data-od-id="at-dict">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">The nine states a call can be in</h2>
+        <span class="lab-sec__gist">task_06/VC-02</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Color, icon, and word always travel together</b>Green means it worked, red means it needs your look, amber means someone stopped it on purpose. Waiting and working stay gray — the moving dots, not a color, say something is alive. The word in the chip is the runtime's exact term, so screen and CLI never disagree. <span class="mono">US-001 · US-005 · US-008 · US-019</span></div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="at-dict-legend">
+            <div class="ac-legend">
+              <div class="ac-legend__row"><span class="ac-state" data-state="queued"><svg data-lucide="clock"></svg>queued</span><span class="ac-legend__tone">neutral</span><span class="ac-legend__when">In line, waiting to start. Nothing waits invisibly — even when the system is busy, the wait shows up here.</span></div>
+              <div class="ac-legend__row"><span class="ac-state" data-state="running"><svg data-lucide="circle"></svg>running</span><span class="ac-legend__tone">neutral</span><span class="ac-legend__when">The helper is working right now. The moving dots show it — color never does.</span></div>
+              <div class="ac-legend__row"><span class="ac-state" data-state="completed"><svg data-lucide="check"></svg>completed</span><span class="ac-legend__tone" data-tone="success">success</span><span class="ac-legend__when">The answer came back and matched what was asked. The small gray word beside it says how it arrived.</span></div>
+              <div class="ac-legend__row"><span class="ac-state" data-state="invalid-result"><svg data-lucide="file-x"></svg>invalid-result</span><span class="ac-legend__tone" data-tone="danger">danger</span><span class="ac-legend__when">The answer didn't match what was asked, even after one retry. Both tries are kept for you to read.</span></div>
+              <div class="ac-legend__row"><span class="ac-state" data-state="completed-without-result"><svg data-lucide="circle-slash"></svg>completed-without-result</span><span class="ac-legend__tone" data-tone="danger">danger</span><span class="ac-legend__when">The helper finished but sent nothing back. Needs your look, same as a wrong answer.</span></div>
+              <div class="ac-legend__row"><span class="ac-state" data-state="failed"><svg data-lucide="x"></svg>failed</span><span class="ac-legend__tone" data-tone="danger">danger</span><span class="ac-legend__when">Something broke along the way. The reason is kept with the record.</span></div>
+              <div class="ac-legend__row"><span class="ac-state" data-state="canceled"><svg data-lucide="ban"></svg>canceled</span><span class="ac-legend__tone" data-tone="warning">warning</span><span class="ac-legend__when">Someone stopped it on purpose. An answer arriving late is kept as evidence — it never reopens the call.</span></div>
+              <div class="ac-legend__row"><span class="ac-state" data-state="timeout"><svg data-lucide="timer-off"></svg>timeout</span><span class="ac-legend__tone" data-tone="warning">warning</span><span class="ac-legend__when">It ran past a deadline someone chose to set. No deadline set, no timer anywhere.</span></div>
+              <div class="ac-legend__row"><span class="ac-state" data-state="expired"><svg data-lucide="hourglass"></svg>expired</span><span class="ac-legend__tone" data-tone="danger">danger</span><span class="ac-legend__when">The helper sat idle too long and left. Ask the agent again to start fresh.</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>A helper is working, resting, or gone</b>A resting helper (moon) is still reachable — writing to it or asking again is what brings it back, so there is no Revive button anywhere. A gone helper keeps its history; its buttons are simply absent, never grayed out. <span class="mono">US-018.AC-3</span></div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="at-dict-child">
+            <div class="ac-legend">
+              <div class="ac-legend__row"><span class="ac-child" data-child="running"><svg data-lucide="circle"></svg>running</span><span class="ac-legend__tone">neutral</span><span class="ac-legend__when">Busy with an assignment right now.</span></div>
+              <div class="ac-legend__row"><span class="ac-child" data-child="parked"><svg data-lucide="moon"></svg>parked</span><span class="ac-legend__tone">neutral</span><span class="ac-legend__when">Finished and resting, still reachable. The idle clock only runs while resting.</span></div>
+              <div class="ac-legend__row"><span class="ac-child" data-child="gone"><svg data-lucide="circle-off"></svg>gone</span><span class="ac-legend__tone">neutral</span><span class="ac-legend__when">Left for good. The row keeps who it was; the buttons are simply not there.</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="at-default">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Who is helping whom, live</h2>
+        <span class="lab-sec__gist">task_06/VC-01</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Each session and the helpers it brought in</b>One group per session; each row below it is one hand-off, indented one step per level (three levels at most). A row keeps to five facts: who, the state, how it arrived, size, and how long ago — everything else lives one click deeper. <span class="mono">US-028.AC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="at-default-stage">
+            <section class="win is-focused" data-od-id="at-default-win">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" tabindex="-1" aria-label="Close"></button>
+                  <button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="bot"></svg></span>
+                  <span class="w2-title">Agents</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <div class="w2-actions">
+                    <button class="btn btn--sm btn--icon" type="button" aria-label="Refresh"><svg data-lucide="refresh-cw"></svg></button>
+                  </div>
+                </div>
+              </header>
+              <div class="win-body"><div class="app">
+                <nav class="tabbar" data-od-id="at-default-tabs" aria-label="Agents app locations">
+                  <a class="tab" href="agent-comms-roster.html">Catalog</a>
+                  <a class="tab is-on" href="#" aria-current="page">Activity</a>
+                </nav>
+                <div style="height:14px"></div>
+                <div class="ac-tree" data-od-id="at-default-tree">
+
+                  <div class="ac-tree__group" data-od-id="at-tree-loop-retry">
+                    <div class="ac-root">
+                      <button class="ac-root__toggle" type="button" aria-expanded="true" aria-label="Collapse tree loop-retry-fix"><svg data-lucide="chevron-down"></svg></button>
+                      <span class="agent-chip">PL</span>
+                      <span class="ac-root__name">loop-retry-fix</span>
+                      <span class="ac-root__id">ses_01JBD7ZZAAAA</span>
+                      <div class="ac-root__sum">
+                        <span class="ac-root__esc"></span>
+                        <span>3 calls · 2 running</span>
+                        <!-- invokes POST /sessions/{id}/stop {"subtree":true} -->
+                        <button class="btn btn--xs" type="button" data-od-id="at-stop-subtree"><svg data-lucide="square"></svg>Stop subtree</button>
+                      </div>
+                    </div>
+                    <div class="ac-row" style="--depth:1" data-depth="1" tabindex="0" data-od-id="at-row-completed">
+                      <span class="agent-chip">RV</span>
+                      <span class="ac-row__agent">reviewer</span>
+                      <span class="ac-state" data-state="completed"><svg data-lucide="check"></svg>completed</span>
+                      <span class="ac-verdict">returned</span>
+                      <span class="ac-row__flex"></span>
+                      <span class="ac-row__stat">312 B</span>
+                      <span class="ac-row__age">2m</span>
+                    </div>
+                    <div class="ac-row" style="--depth:1" data-depth="1" tabindex="0" data-selected data-od-id="at-row-running">
+                      <span class="agent-chip">RV</span>
+                      <span class="ac-row__agent">reviewer</span>
+                      <span class="ac-state" data-state="running"><svg data-lucide="circle"></svg>running</span>
+                      <span class="ac-typing" aria-label="Child is working"><i></i><i></i><i></i></span>
+                      <span class="ac-row__flex"></span>
+                      <span class="ac-row__stat">—</span>
+                      <span class="ac-row__age">40s</span>
+                    </div>
+                    <div class="ac-row" style="--depth:1" data-depth="1" tabindex="0" data-od-id="at-row-scout">
+                      <span class="agent-chip">SC</span>
+                      <span class="ac-row__agent">scout</span>
+                      <span class="ac-state" data-state="running"><svg data-lucide="circle"></svg>running</span>
+                      <span class="ac-typing" aria-label="Child is working"><i></i><i></i><i></i></span>
+                      <span class="ac-row__flex"></span>
+                      <span class="ac-row__stat">—</span>
+                      <span class="ac-row__age">12s</span>
+                    </div>
+                    <div class="ac-row" style="--depth:2" data-depth="2" tabindex="0" data-od-id="at-row-grandchild">
+                      <span class="agent-chip">DW</span>
+                      <span class="ac-row__agent">docs-writer</span>
+                      <span class="ac-state" data-state="queued"><svg data-lucide="clock"></svg>queued</span>
+                      <span class="ac-row__flex"></span>
+                      <span class="ac-row__stat">—</span>
+                      <span class="ac-row__age">4s</span>
+                    </div>
+                  </div>
+
+                  <div class="ac-tree__group" data-od-id="at-tree-release-notes">
+                    <div class="ac-root">
+                      <button class="ac-root__toggle" type="button" aria-expanded="true" aria-label="Collapse tree release-notes-v0-3"><svg data-lucide="chevron-down"></svg></button>
+                      <span class="agent-chip">PL</span>
+                      <span class="ac-root__name">release-notes-v0-3</span>
+                      <span class="ac-root__id">ses_01JBE0Q7RRKA</span>
+                      <div class="ac-root__sum">
+                        <span>2 calls · 1 needs a look</span>
+                        <button class="btn btn--xs" type="button"><svg data-lucide="square"></svg>Stop subtree</button>
+                      </div>
+                    </div>
+                    <div class="ac-row" style="--depth:1" data-depth="1" tabindex="0" data-od-id="at-row-invalid">
+                      <span class="agent-chip">RV</span>
+                      <span class="ac-row__agent">reviewer</span>
+                      <span class="ac-state" data-state="invalid-result"><svg data-lucide="file-x"></svg>invalid-result</span>
+                      <span class="ac-row__flex"></span>
+                      <span class="ac-row__stat">2 issues</span>
+                      <span class="ac-row__age">6m</span>
+                    </div>
+                    <div class="ac-row" style="--depth:1" data-depth="1" tabindex="0" data-od-id="at-row-extracted">
+                      <span class="agent-chip">SC</span>
+                      <span class="ac-row__agent">scout</span>
+                      <span class="ac-state" data-state="completed"><svg data-lucide="check"></svg>completed</span>
+                      <span class="ac-verdict">extracted</span>
+                      <span class="ac-row__flex"></span>
+                      <span class="ac-row__stat">1.2 KiB</span>
+                      <span class="ac-row__age">9m</span>
+                    </div>
+                  </div>
+
+                </div>
+              </div></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="at-parked">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Working, resting, gone — and no Revive button</h2>
+        <span class="lab-sec__gist">task_06/VC-03</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Contacting a resting helper is what wakes it</b>A resting helper keeps its two buttons — ask again and message — because using either brings it back. A gone helper keeps its name and history; its buttons are simply not there. The idle countdown only runs while resting. <span class="mono">US-018.AC-1..3</span></div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="at-parked-list">
+            <div class="ac-tree">
+              <div class="ac-tree__group">
+                <div class="ac-row" style="--depth:0" data-depth="0" tabindex="0" data-od-id="at-parked-running">
+                  <span class="agent-chip">RV</span>
+                  <span class="ac-row__agent">reviewer</span>
+                  <span class="ac-child" data-child="running"><svg data-lucide="circle"></svg>running</span>
+                  <span class="ac-typing" aria-label="Child is working"><i></i><i></i><i></i></span>
+                  <span class="ac-row__flex"></span>
+                  <span class="ac-ttl" data-ttl="suspended"><svg data-lucide="timer"></svg><span class="mono">TTL suspended</span></span>
+                </div>
+                <div class="ac-row" style="--depth:0" data-depth="0" tabindex="0" data-od-id="at-parked-parked">
+                  <span class="agent-chip">SC</span>
+                  <span class="ac-row__agent">scout</span>
+                  <span class="ac-child" data-child="parked"><svg data-lucide="moon"></svg>parked</span>
+                  <span class="ac-row__flex"></span>
+                  <span class="ac-ttl"><svg data-lucide="timer"></svg><span class="mono">expires in 41m</span></span>
+                  <!-- revival path: compozy call ses_… / compozy message send ses_… -->
+                  <button class="btn btn--xs" type="button"><svg data-lucide="corner-up-right"></svg>Call again</button>
+                  <button class="btn btn--xs" type="button"><svg data-lucide="mail"></svg>Message</button>
+                </div>
+                <div class="ac-row ac-row--gone" style="--depth:0" data-depth="0" tabindex="0" data-od-id="at-parked-gone">
+                  <span class="agent-chip">DW</span>
+                  <span class="ac-row__agent">docs-writer</span>
+                  <span class="ac-child" data-child="gone"><svg data-lucide="circle-off"></svg>gone</span>
+                  <span class="ac-row__flex"></span>
+                  <span class="ac-row__stat">left 3d ago</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="at-drained">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Stopping a whole branch leaves a receipt</h2>
+        <span class="lab-sec__gist">task_06/VC-04</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>One button stops everything below</b>Stop subtree halts every helper under a session and leaves a receipt with the runtime's own numbers: how many stopped, how many open calls were closed, and that finished answers were kept. Pressing it twice does no extra harm. <span class="mono">US-020.AC-1..2</span></div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="at-drained-tree">
+            <div class="ac-tree">
+              <div class="ac-tree__group">
+                <div class="ac-root">
+                  <button class="ac-root__toggle" type="button" aria-expanded="true" aria-label="Collapse tree loop-retry-fix"><svg data-lucide="chevron-down"></svg></button>
+                  <span class="agent-chip">PL</span>
+                  <span class="ac-root__name">loop-retry-fix</span>
+                  <span class="ac-root__id">ses_01JBD7ZZAAAA</span>
+                  <div class="ac-root__sum"><span class="ac-child" data-child="gone"><svg data-lucide="circle-off"></svg>gone</span></div>
+                </div>
+                <div class="ac-drained" data-od-id="at-drained-receipt">
+                  <svg data-lucide="square"></svg>
+                  <span>Subtree drained — <span class="mono">3 children stopped · 2 open calls closed (parent-terminal) · 1 completed result preserved</span></span>
+                </div>
+                <div class="ac-row" style="--depth:1" data-depth="1" tabindex="0">
+                  <span class="agent-chip">RV</span>
+                  <span class="ac-row__agent">reviewer</span>
+                  <span class="ac-state" data-state="completed"><svg data-lucide="check"></svg>completed</span>
+                  <span class="ac-verdict">returned</span>
+                  <span class="ac-row__flex"></span>
+                  <span class="ac-row__stat">312 B</span>
+                  <span class="ac-row__age">14m</span>
+                </div>
+                <div class="ac-row" style="--depth:1" data-depth="1" tabindex="0">
+                  <span class="agent-chip">RV</span>
+                  <span class="ac-row__agent">reviewer</span>
+                  <span class="ac-state" data-state="canceled"><svg data-lucide="ban"></svg>canceled</span>
+                  <span class="ac-row__flex"></span>
+                  <span class="ac-row__stat">parent stopped</span>
+                  <span class="ac-row__age">3m</span>
+                </div>
+                <div class="ac-row" style="--depth:1" data-depth="1" tabindex="0">
+                  <span class="agent-chip">SC</span>
+                  <span class="ac-row__agent">scout</span>
+                  <span class="ac-state" data-state="canceled"><svg data-lucide="ban"></svg>canceled</span>
+                  <span class="ac-row__flex"></span>
+                  <span class="ac-row__stat">parent stopped</span>
+                  <span class="ac-row__age">3m</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="at-collapsed">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Big trees fold — the worst news stays visible</h2>
+        <span class="lab-sec__gist">task_06/VC-05 · 150-call fixture, virtualization threshold is an authorized difference</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Folding never hides a problem</b>A folded tree shows its size and carries its most urgent state up to the header — color, icon, and word together, even in summary. Keyboard: ↑↓ move, ←→ fold and unfold, Enter opens the record. <span class="mono">US-028.EC-2</span></div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="at-collapsed-list">
+            <div class="ac-tree">
+              <div class="ac-tree__group" data-collapsed data-od-id="at-collapsed-danger">
+                <div class="ac-root">
+                  <button class="ac-root__toggle" type="button" aria-expanded="false" aria-label="Expand tree migration-sweep"><svg data-lucide="chevron-down"></svg></button>
+                  <span class="agent-chip">PL</span>
+                  <span class="ac-root__name">migration-sweep</span>
+                  <span class="ac-root__id">ses_01JBE2H1VVNC</span>
+                  <div class="ac-root__sum">
+                    <span class="ac-root__esc"><span class="ac-state" data-state="invalid-result"><svg data-lucide="file-x"></svg>invalid-result</span></span>
+                    <span>148 calls · depth 3 · 12 running</span>
+                    <button class="btn btn--xs" type="button"><svg data-lucide="square"></svg>Stop subtree</button>
+                  </div>
+                </div>
+              </div>
+              <div class="ac-tree__group" data-collapsed data-od-id="at-collapsed-calm">
+                <div class="ac-root">
+                  <button class="ac-root__toggle" type="button" aria-expanded="false" aria-label="Expand tree docs-refresh"><svg data-lucide="chevron-down"></svg></button>
+                  <span class="agent-chip">DW</span>
+                  <span class="ac-root__name">docs-refresh</span>
+                  <span class="ac-root__id">ses_01JBE2J8QSTB</span>
+                  <div class="ac-root__sum">
+                    <span class="ac-root__esc"><span class="ac-child" data-child="running"><svg data-lucide="circle"></svg>running</span></span>
+                    <span>6 calls · depth 2</span>
+                    <button class="btn btn--xs" type="button"><svg data-lucide="square"></svg>Stop subtree</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="at-empty">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">Empty state — teaches by naming the next action</h2>
+        <span class="lab-sec__gist">task_06/VC-06</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Plain words first, canonical term one step deeper</b>The primary line carries zero runtime nouns; the mechanism (the call verb) waits in the hint lane in mono. No welcome copy, no illustration. <span class="mono">US-028.EC-1</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--center" data-od-id="at-empty-stage">
+            <div class="empty empty--framed" style="background:var(--canvas-soft);border-radius:var(--radius-lg);width:min(520px,100%)" data-od-id="at-empty-body">
+              <span class="empty__well"><svg data-lucide="git-branch"></svg></span>
+              <b>No agent is delegating work right now</b>
+              <p>When an agent hands work to a specialist, the whole exchange shows up here, live.</p>
+              <p class="hint"><span class="mono" style="font-family:var(--font-mono);font-size:10.5px">compozy call reviewer "…" --expect @contract.json</span></p>
+              <div class="empty__acts">
+                <a class="btn btn--sm" href="agent-comms-roster.html"><svg data-lucide="bot"></svg>Browse agents</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="at-stale">
+      <div class="lab-sec__head"><span class="lab-sec__num">07</span><h2 class="lab-sec__t">Connection lost — the list says so</h2>
+        <span class="lab-sec__gist">task_06/VC-07</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Out of date is stated, never silent</b>When live updates drop, the list says it is showing the last known state. Rows stay clickable, but their numbers stop counting toward badges. Acting on an old row answers truthfully — the runtime is asked again and reports what actually happened. <span class="mono">US-028.EC-3..4</span></div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="at-stale-demo">
+            <div class="ac-tree" data-stale>
+              <div class="ac-stale-bar" data-od-id="at-stale-bar">
+                <svg data-lucide="wifi-off"></svg>
+                <span>Live updates disconnected — showing the last known state. Rows still open.</span>
+              </div>
+              <div class="ac-tree__group">
+                <div class="ac-row" style="--depth:0" data-depth="0" tabindex="0">
+                  <span class="agent-chip">RV</span>
+                  <span class="ac-row__agent">reviewer</span>
+                  <span class="ac-state" data-state="running"><svg data-lucide="circle"></svg>running</span>
+                  <span class="ac-row__flex"></span>
+                  <span class="ac-row__stat">as of 18:14:11Z</span>
+                  <span class="ac-row__age">2m</span>
+                </div>
+              </div>
+            </div>
+            <div style="height:10px"></div>
+            <div class="notice notice--info" data-od-id="at-stale-feedback">
+              <svg data-lucide="info"></svg>
+              <span><b>That call already settled.</b> Refreshed — reviewer's call finished while you were disconnected and is now <span class="mono" style="font-family:var(--font-mono);font-size:10.5px">completed</span>.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">Spec: .compozy/tasks/agent-comms/_uiux.md S1 · contract: DESIGN-NOTES.md · production seams: session-hierarchy.ts, session-badge.ts, attention-model.ts, describeCost(). Reduced motion: typing dots hold at 70% opacity; no other animation on this surface. Content illustrative; runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>(function(){ if(window.lucide) window.lucide.createIcons(); })();</script>
+</body>
+</html>

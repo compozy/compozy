@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Attention — bell, toasts, dock badge · Agent comms · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="agent-comms.css">
+<!--
+  agent-comms-attention · S6/S7 — attention surfaces: bell rows for call
+  needs-you states, coalescing, auto-resolve, the dock `calls` badge.
+  Spec: .compozy/tasks/agent-comms/_uiux.md S6/S7 · US-017/030 ·
+  task_06/VC-22. Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — attention-bell.tsx two-section grammar (needs-you /
+                 finished, no empty headers); session-badge.ts (needs-you
+                 shares danger, identity by glyph, 18px roundels; done=info);
+                 attention-model.ts (counts daemon-projected; stale counts
+                 zero); dock-badges.ts + ds-shell .dk-badge
+    spec — needs-you causes are exactly three: invalid-result,
+           completed-without-result, child blocked on a decision. Finished
+           holds completed calls awaiting a look. Signals coalesce per tree.
+           No dismissal mechanics — rows clear when their cause resolves.
+           (No budget-exhausted state exists: completions are never
+           admission-denied, ADR-011.)
+    authorized delta — lab scaffold copied into agent-comms.css (graph-eng
+                       retired); popover staged in-flow inside the stage
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="an-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Agent comms</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Attention — bell, toasts, dock</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="agent-comms-activity-tree.html">← Activity tree</a>
+      <a class="btn btn--sm" href="agent-comms-session-calls-panel.html">Session panel →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="lab-sec" data-od-id="an-bell">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">The bell — call rows among session and task rows</h2>
+        <span class="lab-sec__gist">task_06/VC-22</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>One red, many icons</b>Everything that needs you shares the same red; the icon says which kind of thing it is. Exactly three call situations can land here: a wrong answer, an empty answer, or a helper waiting on your decision. Good news sits below in Finished, blue, never counted as urgent. <span class="mono">US-030.AC-1 · US-017</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--center" data-od-id="an-bell-stage">
+            <div class="popover" style="position:relative;width:min(384px,100%);animation:none" data-od-id="an-bell-pop">
+              <div class="ac-bell-sec"><span class="eyebrow">Needs you</span><span class="count-chip">4</span></div>
+              <div class="ac-bell-row" tabindex="0" data-od-id="an-bell-invalid">
+                <span class="ac-bell-row__glyph" data-tone="danger"><svg data-lucide="file-x"></svg></span>
+                <div class="ac-bell-row__main">
+                  <div class="ac-bell-row__t">reviewer · release-notes-v0-3</div>
+                  <div class="ac-bell-row__d">the answer didn't match what was asked, even after a retry</div>
+                </div>
+                <span class="ac-bell-row__when">6m</span>
+              </div>
+              <div class="ac-bell-row" tabindex="0" data-od-id="an-bell-noresult">
+                <span class="ac-bell-row__glyph" data-tone="danger"><svg data-lucide="circle-slash"></svg></span>
+                <div class="ac-bell-row__main">
+                  <div class="ac-bell-row__t">docs-writer · loop-retry-fix</div>
+                  <div class="ac-bell-row__d">finished but sent nothing back</div>
+                </div>
+                <span class="ac-bell-row__when">11m</span>
+              </div>
+              <div class="ac-bell-row" tabindex="0" data-od-id="an-bell-blocked">
+                <span class="ac-bell-row__glyph" data-tone="danger"><svg data-lucide="circle-help"></svg></span>
+                <div class="ac-bell-row__main">
+                  <div class="ac-bell-row__t">reviewer · loop-retry-fix</div>
+                  <div class="ac-bell-row__d">waiting on your decision to continue</div>
+                </div>
+                <span class="ac-bell-row__when">3m</span>
+              </div>
+              <div class="ac-bell-row" tabindex="0" data-od-id="an-bell-session">
+                <span class="ac-bell-row__glyph" data-tone="danger"><svg data-lucide="circle-help"></svg></span>
+                <div class="ac-bell-row__main">
+                  <div class="ac-bell-row__t">imersao-demo</div>
+                  <div class="ac-bell-row__d">waiting-for-input</div>
+                </div>
+                <span class="ac-bell-row__when">1m</span>
+              </div>
+              <div class="menu-sep"></div>
+              <div class="ac-bell-sec"><span class="eyebrow">Finished</span><span class="count-chip">2</span></div>
+              <div class="ac-bell-row" tabindex="0" data-od-id="an-bell-finished-call">
+                <span class="ac-bell-row__glyph" data-tone="info"><svg data-lucide="check"></svg></span>
+                <div class="ac-bell-row__main">
+                  <div class="ac-bell-row__t">reviewer · loop-retry-fix</div>
+                  <div class="ac-bell-row__d">answer ready to read · <span class="mono">{"verdict":"needs-changes"}</span></div>
+                </div>
+                <span class="ac-bell-row__when">2m</span>
+              </div>
+              <div class="ac-bell-row" tabindex="0" data-od-id="an-bell-finished-session">
+                <span class="ac-bell-row__glyph" data-tone="info"><svg data-lucide="check"></svg></span>
+                <div class="ac-bell-row__main">
+                  <div class="ac-bell-row__t">docs-refresh</div>
+                  <div class="ac-bell-row__d">finished while you were away</div>
+                </div>
+                <span class="ac-bell-row__when">24m</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="an-coalesced">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Signal storm — one row per tree</h2>
+        <span class="lab-sec__gist">task_06/VC-22</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Twelve problems, one row</b>When many calls in the same tree go wrong at once, the bell shows one row with the real count instead of twelve alarms. Opening it lands on that tree, unfolded. <span class="mono">US-030.EC-2</span></div>
+        <div class="spec__demo">
+          <div class="plain" style="max-width:384px" data-od-id="an-coalesced-demo">
+            <div class="ac-bell-row ac-bell-row--tree" tabindex="0">
+              <span class="ac-bell-row__glyph" data-tone="danger"><svg data-lucide="git-branch"></svg></span>
+              <div class="ac-bell-row__main">
+                <div class="ac-bell-row__t">migration-sweep <span class="count-chip">12</span></div>
+                <div class="ac-bell-row__d">12 calls need your look in this tree</div>
+              </div>
+              <span class="ac-bell-row__when">2m</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="an-autoresolve">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Auto-resolve — the cause clears, the row leaves</h2>
+        <span class="lab-sec__gist">task_06/VC-22</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Rows leave when the problem does</b>There is no dismiss, snooze, or clear-all. Fix the cause — ask again and get a good answer — and the red row retires itself. Staged as before/after. <span class="mono">US-030.EC-1</span></div>
+        <div class="spec__demo">
+          <div class="plain" style="display:flex;flex-direction:column;gap:10px;max-width:384px" data-od-id="an-autoresolve-demo">
+            <div>
+              <div class="ac-bell-sec" style="padding-left:0"><span class="eyebrow">Needs you</span><span class="count-chip">1</span></div>
+              <div class="ac-bell-row" tabindex="0">
+                <span class="ac-bell-row__glyph" data-tone="danger"><svg data-lucide="file-x"></svg></span>
+                <div class="ac-bell-row__main">
+                  <div class="ac-bell-row__t">reviewer · release-notes-v0-3</div>
+                  <div class="ac-bell-row__d">the answer didn't match what was asked</div>
+                </div>
+                <span class="ac-bell-row__when">6m</span>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;color:var(--faint);font-size:11px;padding-left:4px"><svg data-lucide="arrow-down" style="width:12px;height:12px"></svg>the call-again completed — the cause resolved</div>
+            <div>
+              <div class="ac-bell-sec" style="padding-left:0"><span class="eyebrow">Finished</span><span class="count-chip">1</span></div>
+              <div class="ac-bell-row" tabindex="0">
+                <span class="ac-bell-row__glyph" data-tone="info"><svg data-lucide="check"></svg></span>
+                <div class="ac-bell-row__main">
+                  <div class="ac-bell-row__t">reviewer · release-notes-v0-3</div>
+                  <div class="ac-bell-row__d">the new answer came back clean</div>
+                </div>
+                <span class="ac-bell-row__when">just now</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="an-toast">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Toasts — the wake, surfaced once</h2>
+        <span class="lab-sec__gist">task_06/VC-22</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Same words as the wake</b>A toast repeats the completion wake's first line and points at the call — it never invents a softer or louder phrasing. Danger toasts carry the typed reason. <span class="mono">US-017.AC-1</span></div>
+        <div class="spec__demo">
+          <div class="plain" style="display:flex;flex-direction:column;gap:10px;max-width:384px" data-od-id="an-toast-demo">
+            <div class="toast" style="position:relative" data-od-id="an-toast-completed">
+              <div class="toast-head" data-tone="success"><svg data-lucide="check"></svg><strong>Call completed</strong></div>
+              <div class="toast-body">reviewer (<code>call_01JBD8G2K7Q9</code>) → completed · <code>{"verdict":"needs-changes"}</code> (312 B)</div>
+              <div class="toast-actions"><a class="btn btn--xs" href="agent-comms-call-detail.html">Open call</a></div>
+            </div>
+            <div class="toast" style="position:relative" data-od-id="an-toast-invalid">
+              <div class="toast-head" data-tone="danger"><svg data-lucide="file-x"></svg><strong>Call failed</strong></div>
+              <div class="toast-body">reviewer (<code>call_01JBE0R2M8PT</code>) → invalid-result · the answer didn't match after 1 retry (2 issues)</div>
+              <div class="toast-actions"><a class="btn btn--xs" href="agent-comms-call-detail.html">Inspect</a></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lab-sec" data-od-id="an-dock">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Dock — the calls badge on the existing Agents tile</h2>
+        <span class="lab-sec__gist">task_06/VC-22</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>No new tile, no new glyph</b>The badge union widens with <code>calls</code>; needs-you call states light the Agents app exactly the way sessions and tasks light theirs. Zero renders nothing. <span class="mono">US-028 · US-030</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--center" data-od-id="an-dock-stage">
+            <div class="dock-seg" style="pointer-events:auto" data-od-id="an-dock-strip">
+              <div class="dock-item is-open" title="Sessions"><svg data-lucide="terminal"></svg><span class="run-dot"></span></div>
+              <div class="dock-item is-open" title="Agents" data-od-id="an-dock-agents"><svg data-lucide="bot"></svg><span class="dk-badge">3</span><span class="run-dot"></span></div>
+              <div class="dock-item" title="Tasks"><svg data-lucide="list-checks"></svg></div>
+              <div class="dock-item" title="Loops"><svg data-lucide="repeat-2"></svg></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">Spec: .compozy/tasks/agent-comms/_uiux.md S6/S7 · contract: DESIGN-NOTES.md · production seams: attention-bell.tsx, session-badge.ts, attention-model.ts, dock-badges.ts. Counts are daemon summary projections; stale sources contribute zero but rows stay clickable. Content illustrative; runtime truth owns final values.</p>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>(function(){ if(window.lucide) window.lucide.createIcons(); })();</script>
+</body>
+</html>

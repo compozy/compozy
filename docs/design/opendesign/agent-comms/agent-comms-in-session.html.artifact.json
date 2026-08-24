@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "agent-comms/agent-comms-in-session.html",
+  "entry": "agent-comms/agent-comms-in-session.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-23T21:55:37.940Z",
+  "updatedAt": "2026-08-23T21:55:37.940Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

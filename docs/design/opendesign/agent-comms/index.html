@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Agent comms · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="agent-comms.css">
+<!--
+  agent-comms-index · set map — typed calls, lineage mailbox, subagents.
+  Spec: .compozy/tasks/agent-comms/_uiux.md (S1–S7; S3 retired 2026-08-23 —
+  no standalone inbox, messages read in context) · contract: DESIGN-NOTES.md.
+  Provenance:
+    production — opendesign index pattern (profiles / loop-legibility)
+    spec — `_uiux.md` surface map
+    authorized delta — lab scaffold copied into agent-comms.css
+                       (graph-eng retired to _done/ 2026-08-23)
+-->
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-size:15px;line-height:1.55;letter-spacing:-.006em;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  .mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+  .page{max-width:880px;margin:0 auto;padding:52px 36px 80px}
+  h1{font-size:20px;font-weight:560;letter-spacing:-.025em;color:var(--fg-strong)}
+  .lede{margin-top:8px;font-size:13px;line-height:1.6;color:var(--muted);max-width:66ch}
+  .lede code{font-family:var(--font-mono);font-size:11.5px;color:var(--subtle)}
+  .grp{margin-top:36px}
+  .grp__t{font-size:12px;font-weight:510;letter-spacing:-.005em;color:var(--subtle);padding-bottom:10px}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .card{display:flex;flex-direction:column;gap:5px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius-lg);
+    background:var(--canvas-soft);transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  a.card:hover{border-color:var(--line-strong);background:var(--elevated)}
+  a.card:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  .card__top{display:flex;align-items:center;gap:8px}
+  .card__name{font-size:13.5px;font-weight:560;color:var(--fg-strong)}
+  .card__file{margin-left:auto;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+  .card__sub{font-size:12px;line-height:1.5;color:var(--muted)}
+  .tag{font-family:var(--font-mono);font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+    padding:2px 6px;border-radius:var(--radius-xs);background:var(--badge-fill);color:var(--subtle);flex:none}
+  .tag--final{background:var(--success-tint);color:var(--success)}
+  .tag--none{background:var(--neutral-tint);color:var(--subtle)}
+  .foot{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);font-size:11.5px;line-height:1.6;color:var(--faint);max-width:70ch}
+  @media (max-width:760px){.cards{grid-template-columns:1fr}.page{padding:36px 20px 64px}}
+</style>
+</head>
+<body>
+<div class="page" data-od-id="ac-index">
+  <h1>Agent comms</h1>
+  <p class="lede">Six boards from <code>.compozy/tasks/agent-comms/_uiux.md</code>. An agent asks a helper for work and the answer comes back with a promised shape; a finished helper rests, still reachable. Nine call states, four delivery receipts, three verdicts — closed sets, exact CLI words. No read state, no standalone inbox (messages read in context), no Revive button, no dismissal mechanics. The semantic contract is in <a href="DESIGN-NOTES.md" style="text-decoration:underline;color:var(--muted)"><span class="mono">DESIGN-NOTES.md</span></a>.</p>
+
+  <div class="grp" data-od-id="ac-index-conversation">
+    <div class="grp__t">In the conversation</div>
+    <div class="cards">
+      <a class="card" href="agent-comms-in-session.html" data-od-id="card-in-session">
+        <span class="card__top"><span class="card__name">In the session</span><span class="tag tag--final">final + lab</span><span class="card__file">agent-comms-in-session.html</span></span>
+        <span class="card__sub">Revision 2026-08-23 — how calls and messages read inside the conversation: the collapsed-by-default card through every state, a 12-helper fan-out as one card, the helper's own side, the calm long-session stack. The in-context home of the mailbox. task_06/VC-14.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="ac-index-delegation">
+    <div class="grp__t">Delegation</div>
+    <div class="cards">
+      <a class="card" href="agent-comms-activity-tree.html" data-od-id="card-activity-tree">
+        <span class="card__top"><span class="card__name">Activity tree</span><span class="tag tag--final">final + lab</span><span class="card__file">agent-comms-activity-tree.html</span></span>
+        <span class="card__sub">S1 — state dictionary, live trees, parked/running/gone, drained subtree, collapse with urgency escalation, empty, SSE-stale. task_06/VC-01–07.</span>
+      </a>
+      <a class="card" href="agent-comms-call-detail.html" data-od-id="card-call-detail">
+        <span class="card__top"><span class="card__name">Call detail</span><span class="tag tag--final">final + lab</span><span class="card__file">agent-comms-call-detail.html</span></span>
+        <span class="card__sub">S2 — header facts, contract, timeline, typed result; verdict provenance, invalid-result verbatim, superseded evidence, over-budget, untrusted frames. task_06/VC-08–13.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="ac-index-roster">
+    <div class="grp__t">Roster</div>
+    <div class="cards">
+      <a class="card" href="agent-comms-roster.html" data-od-id="card-roster">
+        <span class="card__top"><span class="card__name">Roster</span><span class="tag tag--final">final + lab</span><span class="card__file">agent-comms-roster.html</span></span>
+        <span class="card__sub">S4 — descriptions, scope + shadowing, live instances, agent detail with recent calls, the Call compose flow. task_06/VC-17–19.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="ac-index-session">
+    <div class="grp__t">Session &amp; attention</div>
+    <div class="cards">
+      <a class="card" href="agent-comms-session-calls-panel.html" data-od-id="card-session-panel">
+        <span class="card__top"><span class="card__name">Session Calls panel</span><span class="tag tag--final">final + lab</span><span class="card__file">agent-comms-session-calls-panel.html</span></span>
+        <span class="card__sub">S5 — fifth inspector tab, timeline markers, the completion wake, bounded pagination, pruned counterpart, child-side context. task_06/VC-20–21.</span>
+      </a>
+      <a class="card" href="agent-comms-attention.html" data-od-id="card-attention">
+        <span class="card__top"><span class="card__name">Attention</span><span class="tag tag--final">final + lab</span><span class="card__file">agent-comms-attention.html</span></span>
+        <span class="card__sub">S6 + S7 — bell rows for the three call causes, coalesced tree, auto-resolve, toasts, the dock calls badge. task_06/VC-22.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="ac-index-none">
+    <div class="grp__t">No dedicated board</div>
+    <div class="cards">
+      <div class="card" data-od-id="card-s7">
+        <span class="card__top"><span class="card__name">Dock badge</span><span class="tag tag--none">S7</span></span>
+        <span class="card__sub">The calls badge widens the existing union on the existing Agents tile — one section on the attention board owns it; no new glyph, no new app, nothing else to draw.</span>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot">Tokens from <span class="mono">packages/ui/src/tokens.css</span> through <span class="mono">ds-core.css</span> + <span class="mono">ds-shell.css</span> (post-#440 parity), domain layer in <span class="mono">agent-comms.css</span> (lab scaffold copied from the retired graph-eng set). Content illustrative; runtime truth owns values. Fixture: <span class="mono">reviewer · scout · docs-writer · loop-retry-fix (ses_01JBD7ZZAAAA) · call_01JBD8G2K7Q9</span>.</p>
+</div>
+</body>
+</html>

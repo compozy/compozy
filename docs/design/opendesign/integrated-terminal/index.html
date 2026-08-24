@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Integrated terminal · Open Design · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<style>
+  /* set hub — the one page allowed a style block */
+  body{background:var(--canvas);color:var(--fg)}
+  .page{max-width:880px;margin:0 auto;padding:52px 36px 80px}
+  h1{font-size:22px;font-weight:620;letter-spacing:var(--track-detail);color:var(--fg-strong);margin:0 0 6px}
+  .lede{font-size:13.5px;line-height:1.6;color:var(--muted);max-width:56ch;margin:0 0 34px}
+  .lede code{font-family:var(--font-mono);font-size:11.5px;color:var(--subtle)}
+  .grp{margin:0 0 30px}
+  .grp__t{font-size:12px;font-weight:510;letter-spacing:var(--track-eyebrow);color:var(--subtle);margin:0 0 10px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+  .card{display:flex;flex-direction:column;gap:6px;padding:13px 14px;border:1px solid var(--line);
+    border-radius:var(--radius-md);background:var(--canvas-soft);text-decoration:none;color:inherit}
+  .card:hover{background:var(--canvas-tint);border-color:var(--line-strong)}
+  .card:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  .card__top{display:flex;align-items:center;gap:7px;min-width:0}
+  .card__name{font-size:13px;font-weight:600;color:var(--fg-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .card__file{margin-left:auto;flex:none;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+  .card__sub{font-size:11.5px;line-height:1.5;color:var(--muted)}
+  .tag{flex:none}
+  .tag--final{background:var(--success-tint);color:var(--success)}
+  .foot{margin-top:38px;padding-top:14px;border-top:1px solid var(--line-soft);
+    font-size:11px;line-height:1.6;color:var(--subtle);max-width:64ch}
+  .foot code{font-family:var(--font-mono);font-size:10px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="page" data-od-id="itset-index">
+  <h1>Integrated terminal</h1>
+  <p class="lede">Runtime-owned terminals for every project: agents run work you can watch live,
+  control changes hands explicitly, prompts route to you, and everything that ran stays answerable
+  in the journal. Visual contracts for <code>.compozy/tasks/integrated-terminal</code> — surfaces
+  S1–S8 of <code>_uiux.md</code>.</p>
+
+  <div class="grp" data-od-id="itset-grp-app">
+    <div class="grp__t">The Terminal app</div>
+    <div class="cards">
+      <a class="card" href="integrated-terminal-app-window.html" data-od-id="itset-card-app-window">
+        <span class="card__top"><span class="card__name">App window</span><span class="tag tag--final">final</span><span class="card__file">S1 · S2</span></span>
+        <span class="card__sub">Tabs, who's-in-control chrome, the live screen; watching, takeover, read-only logs, the dock.</span>
+      </a>
+      <a class="card" href="integrated-terminal-states.html" data-od-id="itset-card-states">
+        <span class="card__top"><span class="card__name">States</span><span class="card__file">S1</span></span>
+        <span class="card__sub">Empty, can't-connect, skipped content, how runs end, cleanup, restarts, limits, platforms.</span>
+      </a>
+      <a class="card" href="integrated-terminal-journal.html" data-od-id="itset-card-journal">
+        <span class="card__top"><span class="card__name">Journal</span><span class="card__file">S7</span></span>
+        <span class="card__sub">Every command that ran — who, where, how it ended — plus replays and honest paging.</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grp" data-od-id="itset-grp-flows">
+    <div class="grp__t">Asking and answering</div>
+    <div class="cards">
+      <a class="card" href="integrated-terminal-input-request.html" data-od-id="itset-card-input">
+        <span class="card__top"><span class="card__name">Input request</span><span class="card__file">S5</span></span>
+        <span class="card__sub">The agent asks, you answer — hidden typing for secrets, quiet outcomes, one-gesture takeover.</span>
+      </a>
+      <a class="card" href="integrated-terminal-approvals.html" data-od-id="itset-card-approvals">
+        <span class="card__top"><span class="card__name">Approvals</span><span class="card__file">S6</span></span>
+        <span class="card__sub">Approving commands — the exact command shown, dangerous ones marked, typing permissions.</span>
+      </a>
+      <a class="card" href="integrated-terminal-session-blocks.html" data-od-id="itset-card-blocks">
+        <span class="card__top"><span class="card__name">Session blocks</span><span class="card__file">S3 · S4 · S8</span></span>
+        <span class="card__sub">Live terminal previews in chat vs "reported by agent", and quoting output into the conversation.</span>
+      </a>
+    </div>
+  </div>
+
+  <p class="foot">Tokens resolve to <code>packages/ui/src/tokens.css</code> via
+  <code>../design-system/ds-core.css</code> (post-#440 parity). The ANSI ramp
+  (<code>--term-ansi-0..15</code> + bg/fg/cursor/selection) is this set's token proposal — it lands in
+  the canonical source through the token pipeline, never inline. One data story across all boards:
+  project <code>atlas-api</code>, terminals <code>term-4f21c9a03b7e</code> (dev server) ·
+  <code>term-9cd7e14b2a66</code> (psql) · <code>term-a03b558d21f0</code> (make gate, pipe) ·
+  <code>term-1e8f7a55c402</code> (ssh staging, exited); actors Claude Code and Pedro. Contract and
+  authorized deltas: <code>DESIGN-NOTES.md</code>. Iterate these boards — never regenerate.</p>
+</div>
+</body>
+</html>

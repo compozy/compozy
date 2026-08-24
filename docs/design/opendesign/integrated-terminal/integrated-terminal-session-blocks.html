@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Session blocks · Integrated terminal · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="integrated-terminal.css">
+<!--
+  integrated-terminal-session-blocks · S3 + S4 + S8 — terminal blocks in
+  the session transcript, and send-to-conversation.
+  Spec: .compozy/tasks/integrated-terminal/_uiux.md S3/S4/S8 ·
+  US-011, 012, 025, 026. Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — transcript/toolcall/composer anatomy from ds-core
+      (components chapter 14); assistant-ui thread hosts these blocks
+      (web/src/systems/session/components/assistant-ui/).
+    spec — deliberate terminal use renders a live preview + one jump
+      affordance (US-011); agent-reported blocks carry the label and ZERO
+      controls, never listed in the app, never journaled (US-025); the
+      S3-vs-S4 contrast is the design point (_uiux.md S4); quotes carry
+      terminal id + line range, line numbers are scrollback-relative and
+      the instability caveat is stated on the surface (US-026); no active
+      session degrades to copy (US-026.EC-2).
+    authorized delta — none.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="tsb-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Integrated terminal</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Session blocks</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="integrated-terminal-input-request.html">Next: Input request →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · DELIBERATE — RUNNING ===== -->
+    <section class="lab-sec" data-od-id="tsb-live">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">01</span>
+        <h2 class="lab-sec__t">Deliberate terminal use — running</h2>
+        <span class="lab-sec__gist">US-011.AC-1 · US-012</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>A window into the terminal, not a second transcript.</b> When an
+          agent deliberately runs work in a terminal, the conversation shows
+          a compact live preview — the last lines, streaming — with the
+          who's-in-control chip and one jump action. The terminal stays the
+          truth; the block is a view of it.
+          <span class="mono">US-011 · bound_run</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="tsb-live-stage">
+            <div class="tm-block" data-od-id="tsb-live-block">
+              <div class="tm-block__head">
+                <svg data-lucide="terminal" class="tm-block__glyph"></svg>
+                <span class="tm-block__title">dev server</span>
+                <span class="mono-id">term-4f21c9a03b7e</span>
+                <div class="tm-block__trail">
+                  <span class="tm-lease" data-lease="agent"><span class="agent-chip">CC</span><b>Claude Code</b></span>
+                  <button class="btn btn--xs btn--ghost" type="button" data-od-id="tsb-live-open">Open terminal</button>
+                </div>
+              </div>
+              <div class="tm-surface">
+                <div class="tm-grid" role="log" aria-label="Live terminal preview">
+<span class="tm-ln"><span class="a2">$</span> bun run dev</span>
+<span class="tm-ln"><span class="ab a2">  VITE v6.0.3</span>  ready in <span class="ab">412 ms</span></span>
+<span class="tm-ln">  <span class="a2">➜</span>  <span class="ab">Local:</span>   <span class="a6">http://localhost:5173/</span></span>
+<span class="tm-ln"><span class="tm-ln--dim">12:41:03</span> <span class="a6">[vite]</span> hmr update <span class="a4">/src/systems/terminal/terminal-pane.tsx</span><span class="tm-cur tm-cur--hollow" aria-hidden="true"></span></span>
+                </div>
+              </div>
+              <div class="tm-block__foot">
+                <span class="d d--run d--pulse" aria-hidden="true"></span>
+                <span>running · started 12:40</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · DELIBERATE — FINISHED ===== -->
+    <section class="lab-sec" data-od-id="tsb-finished">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">02</span>
+        <h2 class="lab-sec__t">Deliberate terminal use — finished</h2>
+        <span class="lab-sec__gist">US-011.AC-2</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>The final screen, then the outcome.</b> Finished blocks freeze
+          the last screen and put the result in the foot — a success chip
+          when it succeeded, neutral for everything else. The jump action
+          survives while the terminal is still readable.
+          <span class="mono">US-011.AC-2 · exit_retention</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="tsb-finished-stage">
+            <div class="tm-block" data-od-id="tsb-finished-block">
+              <div class="tm-block__head">
+                <svg data-lucide="terminal" class="tm-block__glyph"></svg>
+                <span class="tm-block__title">make gate</span>
+                <span class="mono-id">term-a03b558d21f0</span>
+                <div class="tm-block__trail">
+                  <button class="btn btn--xs btn--ghost" type="button">Open terminal</button>
+                </div>
+              </div>
+              <div class="tm-surface">
+                <div class="tm-grid" role="log" aria-label="Final terminal screen">
+<span class="tm-ln">web:test: <span class="a2">227 passed</span> (14.2s)</span>
+<span class="tm-ln">go: ok  internal/terminal  2.148s</span>
+<span class="tm-ln"><span class="ab a2">gate: PASS</span> · evidence .cache/gate/7f31c0</span>
+                </div>
+              </div>
+              <div class="tm-block__foot">
+                <span class="pill pill--xs" data-tone="success">Succeeded</span>
+                <span class="mono-id">exit 0</span>
+                <span>2m 41s · finished 12:47</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · STILL-RUNNING HANDOFF ===== -->
+    <section class="lab-sec" data-od-id="tsb-handoff">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">03</span>
+        <h2 class="lab-sec__t">Still running — the agent moved on</h2>
+        <span class="lab-sec__gist">US-011.EC-2 · still_running</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>Honest handoff.</b> Past its wait budget the agent continues,
+          and the block says exactly that: the command is still running in
+          the terminal, unfinished. No fake completion state — the foot
+          carries the live dot and the block keeps streaming.
+          <span class="mono">US-011.EC-2 · {still_running:true}</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="tsb-handoff-stage">
+            <div class="tm-block" data-od-id="tsb-handoff-block">
+              <div class="tm-block__head">
+                <svg data-lucide="terminal" class="tm-block__glyph"></svg>
+                <span class="tm-block__title">e2e suite</span>
+                <span class="mono-id">term-77c1d0e94ab3</span>
+                <div class="tm-block__trail">
+                  <button class="btn btn--xs btn--ghost" type="button">Open terminal</button>
+                </div>
+              </div>
+              <div class="tm-surface">
+                <div class="tm-grid" role="log" aria-label="Live terminal preview">
+<span class="tm-ln">Running 42 visual contracts…</span>
+<span class="tm-ln"><span class="a2">✓</span> VC-01 app-window (1.8s)</span>
+<span class="tm-ln"><span class="a2">✓</span> VC-02 states (2.1s)<span class="tm-cur tm-cur--hollow" aria-hidden="true"></span></span>
+                </div>
+              </div>
+              <div class="tm-block__foot">
+                <span class="d d--run d--pulse" aria-hidden="true"></span>
+                <span>still running — the agent continued without waiting</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · REPORTED BY AGENT ===== -->
+    <section class="lab-sec" data-od-id="tsb-reported">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">04</span>
+        <h2 class="lab-sec__t">Reported by agent — zero controls</h2>
+        <span class="lab-sec__gist">US-025 · the S3/S4 contrast is the point</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>A specimen, not a window.</b> Agent-internal command output is
+          terminal-styled but explicitly labeled — neutral chip, deliberately
+          outside the signal palette. No lease, no jump, no journal link:
+          this content never grows control affordances, is not listed in the
+          Terminal app, and long output collapses.
+          <span class="mono">US-025.AC-1..3</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="tsb-reported-stage">
+            <div class="tm-demo-col">
+              <div class="tm-block tm-block--reported" data-od-id="tsb-reported-block">
+                <div class="tm-block__head">
+                  <svg data-lucide="terminal" class="tm-block__glyph"></svg>
+                  <span class="tm-block__title">git status</span>
+                  <div class="tm-block__trail">
+                    <span class="tm-reported">reported by agent</span>
+                  </div>
+                </div>
+                <div class="tm-surface">
+                  <div class="tm-grid" role="log" aria-label="Command output reported by the agent">
+<span class="tm-ln">On branch <span class="a6">terminal-app</span></span>
+<span class="tm-ln">Changes not staged for commit:</span>
+<span class="tm-ln">  <span class="a1">modified:   web/src/systems/terminal/terminal-pane.tsx</span></span>
+<span class="tm-ln">  <span class="a1">modified:   packages/ui/src/tokens.css</span></span>
+                  </div>
+                </div>
+              </div>
+              <div class="tm-block tm-block--reported" data-od-id="tsb-reported-collapsed">
+                <div class="tm-block__head">
+                  <svg data-lucide="terminal" class="tm-block__glyph"></svg>
+                  <span class="tm-block__title">bun install</span>
+                  <div class="tm-block__trail">
+                    <span class="tm-reported">reported by agent</span>
+                  </div>
+                </div>
+                <div class="tm-surface">
+                  <div class="tm-grid" role="log" aria-label="Command output reported by the agent — collapsed">
+<span class="tm-ln"><span class="tm-ln--dim">bun install v1.2.4</span></span>
+<span class="tm-ln"> + @xterm/xterm@6.0.1</span>
+                  </div>
+                </div>
+                <button class="tm-block__more" type="button" data-od-id="tsb-reported-more">show 214 more lines</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · SELECTION ACTION ===== -->
+    <section class="lab-sec" data-od-id="tsb-select">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">05</span>
+        <h2 class="lab-sec__t">Send to conversation — the selection</h2>
+        <span class="lab-sec__gist">US-026.AC-1 · the one UI-only gesture</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>Select, then one action.</b> Any terminal grid supports select →
+          send: the context row offers the conversation, copy stays the
+          fallback. This gesture is the feature's single UI-only carve-out;
+          everything else has CLI parity via <code>terminal quote</code>.
+          <span class="mono">US-026 · terminal quote</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--short stage--pad" data-od-id="tsb-select-stage">
+            <section class="win is-focused tm-demo-win">
+              <header class="win-head">
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="terminal"></svg></span>
+                  <span class="w2-title">dev server</span>
+                </div>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail">
+                  <span class="tm-lease" data-lease="me"><svg data-lucide="keyboard"></svg>You're in control</span>
+                </div>
+              </header>
+              <div class="tm-winbody">
+                <div class="tm-surface">
+                  <div class="tm-grid" role="log" aria-label="Terminal output with a selection">
+<span class="tm-ln"><span class="tm-ln--dim">12:41:03</span> <span class="a6">[vite]</span> hmr update <span class="a4">/src/systems/terminal/terminal-pane.tsx</span></span>
+<span class="tm-ln"><span class="tm-sel"><span class="a1">12:41:04 [vite] Internal server error: Failed to resolve import</span></span></span>
+<span class="tm-ln"><span class="tm-sel"><span class="a1">"@compozy/ui/terminal-view" from "src/systems/terminal/terminal-pane.tsx"</span></span></span>
+<span class="tm-ln"><span class="a2">$</span> <span class="tm-cur" aria-hidden="true"></span></span>
+                  </div>
+                </div>
+                <div class="menu" role="menu" aria-label="Selection actions" data-od-id="tsb-select-menu">
+                  <button class="menu-item" role="menuitem"><svg data-lucide="message-square-share"></svg>Send to conversation</button>
+                  <button class="menu-item" role="menuitem"><svg data-lucide="copy"></svg>Copy</button>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · QUOTE IN THE COMPOSER ===== -->
+    <section class="lab-sec" data-od-id="tsb-quote">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">06</span>
+        <h2 class="lab-sec__t">The quote lands in the composer</h2>
+        <span class="lab-sec__gist">US-026.AC-2 · sourced, annotatable</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>Sourced and honest about drift.</b> The quote carries terminal
+          identity and line range in the canonical
+          <code>terminal_context</code> shape, waits in the composer for
+          annotation, and states the caveat: line numbers are
+          scrollback-relative and can shift as old output is trimmed.
+          <span class="mono">US-026.AC-2 · lines A–B</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="tsb-quote-stage">
+            <div class="tm-demo-win plain plain--flush">
+              <div class="tm-composer-stack" data-od-id="tsb-quote-composer">
+                <div class="tm-quote" data-od-id="tsb-quote-block">
+                  <div class="tm-quote__head">
+                    <svg data-lucide="terminal" aria-hidden="true"></svg>
+                    <span>term-4f21c9a03b7e · lines 214–215</span>
+                    <button class="chip__x" type="button" aria-label="Remove quote"><svg data-lucide="x"></svg></button>
+                  </div>
+                  <div class="tm-quote__body">
+<i>214</i>12:41:04 [vite] Internal server error: Failed to resolve import<br>
+<i>215</i>"@compozy/ui/terminal-view" from "src/systems/terminal/terminal-pane.tsx"
+                  </div>
+                  <div class="tm-quote__caveat">Line numbers can shift as old output is trimmed.</div>
+                </div>
+                <div class="composer">
+                  <input placeholder="Add context for Claude Code">
+                  <button class="btn btn--primary composer-send" aria-label="Send"><i data-lucide="arrow-up"></i></button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 07 · NO-SESSION FALLBACK ===== -->
+    <section class="lab-sec" data-od-id="tsb-nosession">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">07</span>
+        <h2 class="lab-sec__t">No session — degrade to copy</h2>
+        <span class="lab-sec__gist">US-026.EC-2</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>The gesture never dead-ends.</b> With no active session the
+          menu offers picking or starting one; declining degrades to a
+          plain copy of the same sourced block. Nothing is silently
+          dropped.
+          <span class="mono">US-026.EC-2</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--center" data-od-id="tsb-nosession-stage">
+            <div class="menu" role="menu" aria-label="Selection actions — no active session" data-od-id="tsb-nosession-menu">
+              <div class="menu-label">No active session</div>
+              <button class="menu-item" role="menuitem"><svg data-lucide="messages-square"></svg>Choose a session…</button>
+              <button class="menu-item" role="menuitem"><svg data-lucide="plus"></svg>Start a session with this quote</button>
+              <div class="menu-sep" role="separator"></div>
+              <button class="menu-item" role="menuitem"><svg data-lucide="copy"></svg>Copy as quoted block</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

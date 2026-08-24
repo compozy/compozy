@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Approvals · Integrated terminal · CompozyOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="integrated-terminal.css">
+<!--
+  integrated-terminal-approvals · S6 — exec approvals, the typing grant,
+  and grant administration inside the existing tool-approvals surface.
+  Spec: .compozy/tasks/integrated-terminal/_uiux.md S6 · US-019..022.
+  Contract: DESIGN-NOTES.md.
+  Provenance:
+    production — approval row anatomy from the permission pattern
+      (design-system/patterns.html needs-you rows; PermissionDataPart,
+      ToolApprovalGrantRow/GrantsSection in web/src/systems/);
+      .srow settings-row anatomy from ds-core.
+    spec — the exact command renders unmodified, always (US-019.AC-1);
+      choices allow once / always-allow its shape / reject (US-019.AC-3);
+      unclassifiable commands always prompt (US-019.EC); the fixed
+      irreversible set always prompts with danger marking even at the
+      autonomous tier (US-022); typing grant prompts once with context,
+      choices allow once / allow for this terminal / reject (US-021);
+      grants list and revoke in the EXISTING tool-approvals surface — no
+      new admin surface (US-021.AC-3, US-030.AC-4); away-flow shows an
+      honest still-waiting state (US-019.EC).
+    authorized delta — none.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="tap-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Integrated terminal</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Approvals</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="integrated-terminal-journal.html">Next: Journal →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · EXEC APPROVAL ===== -->
+    <section class="lab-sec" data-od-id="tap-exec">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">01</span>
+        <h2 class="lab-sec__t">Exec approval — the exact command</h2>
+        <span class="lab-sec__gist">US-019.AC-1..3</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>What runs is what you read.</b> The command renders unmodified
+          in a mono well with its folder — no summary, no paraphrase.
+          Three choices, one plain default: allow once, always allow
+          commands like this, or don't. The remembered pattern binds to
+          this project and this agent.
+          <span class="mono">US-019 · approved_once / approved_always</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="tap-exec-stage">
+            <div class="tm-demo-win plain">
+              <div class="att" data-od-id="tap-exec-card">
+                <div class="att__row">
+                  <i data-lucide="terminal" class="att__glyph-warning"></i>
+                  <div>
+                    <p class="att__head"><b>Claude Code wants to run</b> · dev server</p>
+                    <div class="tm-cmd">bun add @xterm/xterm @xterm/addon-fit</div>
+                    <div class="tm-cmd__cwd"><svg data-lucide="folder"></svg>~/dev/atlas-api</div>
+                    <p class="att__meta">asked just now · term-4f21c9a03b7e</p>
+                  </div>
+                  <div class="att__actions">
+                    <button class="btn btn--xs btn--primary" type="button" data-od-id="tap-exec-once">Allow once</button>
+                    <button class="btn btn--xs" type="button">Always allow commands like this</button>
+                    <button class="btn btn--xs btn--ghost" type="button">Don't allow</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · IRREVERSIBLE ===== -->
+    <section class="lab-sec" data-od-id="tap-danger">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">02</span>
+        <h2 class="lab-sec__t">Irreversible — always prompts, danger marked</h2>
+        <span class="lab-sec__gist">US-022 · no tier skips this</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>Some commands always ask.</b> Deleting whole folders,
+          overwriting disks and the like prompt every time, at every
+          autonomy level. Danger marks the word, the glyph, and the command
+          well — and there is no "always allow" here by design.
+          <span class="mono">US-022 · fixed irreversible set</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="tap-danger-stage">
+            <div class="tm-demo-win plain">
+              <div class="att" data-od-id="tap-danger-card">
+                <div class="att__row">
+                  <i data-lucide="triangle-alert" class="att__glyph-danger"></i>
+                  <div>
+                    <p class="att__head"><b>Claude Code wants to run</b> · dev server</p>
+                    <span class="tm-irreversible"><svg data-lucide="octagon-alert"></svg>This can't be undone</span>
+                    <div class="tm-cmd tm-cmd--danger">rm -rf /var/lib/atlas/journal-backups</div>
+                    <div class="tm-cmd__cwd"><svg data-lucide="folder"></svg>~/dev/atlas-api</div>
+                    <p class="att__meta">asked just now · term-4f21c9a03b7e</p>
+                  </div>
+                  <div class="att__actions">
+                    <button class="btn btn--xs btn--destructive" type="button" data-od-id="tap-danger-once">Allow once</button>
+                    <button class="btn btn--xs btn--ghost" type="button">Don't allow</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · UNCLASSIFIABLE ===== -->
+    <section class="lab-sec" data-od-id="tap-unclass">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">03</span>
+        <h2 class="lab-sec__t">Can't be read — so it always asks</h2>
+        <span class="lab-sec__gist">US-019.EC · honest uncertainty</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>What can't be read can't be remembered.</b> A command CompozyOS
+          can't take apart always asks, says why in one clause, and offers
+          no pattern to remember — allow once or don't, nothing in
+          between.
+          <span class="mono">US-019.EC · unclassifiable</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="tap-unclass-stage">
+            <div class="tm-demo-win plain">
+              <div class="att" data-od-id="tap-unclass-card">
+                <div class="att__row">
+                  <i data-lucide="terminal" class="att__glyph-warning"></i>
+                  <div>
+                    <p class="att__head"><b>Claude Code wants to run</b> · dev server</p>
+                    <div class="tm-cmd">eval "$(curl -fsSL https://mise.run)" &amp;&amp; mise trust</div>
+                    <div class="tm-cmd__cwd"><svg data-lucide="folder"></svg>~/dev/atlas-api</div>
+                    <p class="att__meta">couldn't be classified, so it always asks · term-4f21c9a03b7e</p>
+                  </div>
+                  <div class="att__actions">
+                    <button class="btn btn--xs btn--primary" type="button">Allow once</button>
+                    <button class="btn btn--xs btn--ghost" type="button">Don't allow</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · TYPING GRANT ===== -->
+    <section class="lab-sec" data-od-id="tap-typing">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">04</span>
+        <h2 class="lab-sec__t">Typing permission — the first keystroke asks</h2>
+        <span class="lab-sec__gist">US-018 · US-021 · no tier covers typing</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>Typing is its own permission.</b> The first agent keystroke in
+          a terminal asks once, with context — which terminal, what the
+          agent is doing. The permission ends when you take over, the run
+          ends, or you revoke it — and no autonomy level ever skips this
+          question.
+          <span class="mono">US-021 · typing grant</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="tap-typing-stage">
+            <div class="tm-demo-win plain">
+              <div class="att" data-od-id="tap-typing-card">
+                <div class="att__row">
+                  <i data-lucide="keyboard" class="att__glyph-warning"></i>
+                  <div>
+                    <p class="att__head"><b>Claude Code wants to type</b> · psql</p>
+                    <p class="att__text">Wants to answer the migration prompt it hit while checking the journal schema.</p>
+                    <p class="att__meta">term-9cd7e14b2a66 · ends when you take over, the run ends, or you revoke it</p>
+                  </div>
+                  <div class="att__actions">
+                    <button class="btn btn--xs btn--primary" type="button">Allow once</button>
+                    <button class="btn btn--xs" type="button">Allow for this terminal</button>
+                    <button class="btn btn--xs btn--ghost" type="button">Don't allow</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · GRANT ROWS ===== -->
+    <section class="lab-sec" data-od-id="tap-grants">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">05</span>
+        <h2 class="lab-sec__t">Permissions — listed where they already live</h2>
+        <span class="lab-sec__gist">US-021.AC-3 · US-030.AC-4 · no new surface</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>One policy surface.</b> Typing permissions and remembered
+          command patterns appear in the existing tool-approvals section,
+          each named and revocable on its own. The administrator allowlist
+          stays in permissions settings — this list never grows into a
+          second policy editor.
+          <span class="mono">ToolApprovalGrantsSection</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="tap-grants-stage">
+            <div class="tm-demo-win plain plain--flush">
+              <div class="sgroup" data-od-id="tap-grants-group">
+                <div class="sgroup__t">Terminal</div>
+                <div class="srow">
+                  <div class="srow__main">
+                    <div class="srow__label">Can type in psql</div>
+                    <div class="srow__desc mono-id">term-9cd7e14b2a66 · Claude Code · granted 12:44</div>
+                  </div>
+                  <div class="srow__ctl"><button class="btn btn--xs btn--ghost" type="button">Revoke</button></div>
+                </div>
+                <div class="srow">
+                  <div class="srow__main">
+                    <div class="srow__label">Always allowed: bun add …</div>
+                    <div class="srow__desc mono-id">atlas-api · Claude Code · remembered 12:12</div>
+                  </div>
+                  <div class="srow__ctl"><button class="btn btn--xs btn--ghost" type="button">Revoke</button></div>
+                </div>
+                <div class="srow">
+                  <div class="srow__main">
+                    <div class="srow__label">Always allowed: make gate</div>
+                    <div class="srow__desc mono-id">atlas-api · Claude Code · remembered 11:58</div>
+                  </div>
+                  <div class="srow__ctl"><button class="btn btn--xs btn--ghost" type="button">Revoke</button></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · WAITING + REJECTED ===== -->
+    <section class="lab-sec" data-od-id="tap-outcomes">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">06</span>
+        <h2 class="lab-sec__t">While you're away — waiting, and not allowed</h2>
+        <span class="lab-sec__gist">US-019.EC · discoverable on return</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note">
+          <b>Waiting is a state, not a spinner story.</b> While you're away
+          the agent shows an honest still-waiting line and the request sits
+          in attention for your return. A "don't allow" lands in the
+          conversation as a plain outcome — the agent was told, and moved
+          on.
+          <span class="mono">US-019.EC · approval_rejected</span>
+        </div>
+        <div class="spec__demo">
+          <div class="stage stage--auto stage--pad" data-od-id="tap-outcomes-stage">
+            <div class="tm-demo-col">
+              <div class="plain">
+                <span class="tm-waiting" data-od-id="tap-waiting"><i aria-hidden="true"></i>Waiting for your approval to run <span class="mono">bun add @xterm/xterm</span> — asked 4m ago</span>
+              </div>
+              <div class="plain">
+                <div class="tm-request tm-request--resolved" data-od-id="tap-rejected">
+                  <span class="tm-request__glyph"><svg data-lucide="x"></svg></span>
+                  <span class="tm-request__outcome"><b>Not allowed by you</b> · <span class="mono">rm -rf /var/lib/atlas/journal-backups</span> did not run · 12:51</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

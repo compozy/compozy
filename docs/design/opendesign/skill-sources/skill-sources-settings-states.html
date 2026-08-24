@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>skill-sources · Settings — states &amp; diagnostics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="skill-sources.css">
+<!--
+  skill-sources-settings-states · S1 — per-root states, diagnostics, save lifecycle.
+  Spec: .compozy/tasks/skill-sources/_uiux.md S1 states · US-001.EC-1, US-003.EC-1..EC-6,
+        US-013.EC-1/EC-4, US-014.AC-1/AC-4/EC-1, US-002.EC-3/AC-4.
+  Contract: DESIGN-NOTES.md.
+  2026-08-23 plain-language + parity pass (review feedback): every state word and
+  error is a plain sentence first; daemon error codes are demoted to micro mono and
+  never lead. State vocabulary (authorized deltas over the earlier CLI literals):
+    not present  → "no folder yet"
+    not readable → "can't read this folder"
+    scanned N · M effective → "N found · M usable"
+    scanned 300 · cap reached → "large folder — first 300 scanned"
+  Diagnostics disclosure renders sentences, not a mono key/value dump; each line still
+  binds one roots[] diagnostic field — the UI renders, never derives.
+  2026-08-23 collapsible-rows pass: source rows share board 01's single-line
+  details/summary grammar. On this board degraded rows render open (the states are the
+  subject); a closed degraded row still informs via its tone pill (partial scan /
+  can't read) on the summary line.
+  Provenance:
+    production — .notice tones (fill tint, never border), savebar states, aria-invalid
+                 input treatment, .ferr inline errors.
+    spec S1 — three never-lie states: absent renders a word with no signal color;
+              unreadable omits every count (never zeros); runtime unavailable suppresses
+              counts, keeps toggles editable. Truncated = warning tint + daemon
+              diagnostic binding. Save rejected keeps the draft, offers retry.
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="sst-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs">
+      <a class="w2-crumb" href="index.html">Skill sources</a>
+      <span class="w2-sep">/</span>
+      <h1 class="w2-title">Settings — states &amp; diagnostics</h1>
+    </nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions">
+      <a class="btn btn--sm" href="skill-sources-settings-scopes.html">Scopes →</a>
+    </div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <!-- ===== 01 · FINAL — SOURCES PANEL UNDER DEGRADATION ===== -->
+    <section class="lab-sec" data-od-id="sst-final">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">01</span>
+        <h2 class="lab-sec__t">Sources panel under degradation — mixed root states</h2>
+        <span class="lab-sec__gist">US-001.EC-1 · US-003.EC-6 · US-014.AC-1</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Counts never lie</b>One panel, three truths at once:
+          a huge folder warns that only part of it was scanned, a folder that
+          doesn&rsquo;t exist yet says so calmly, and a folder Compozy can&rsquo;t open
+          shows no numbers at all. Degraded lines are expanded here to show the
+          sentences; team-skills stays closed to show that the tone pill alone carries
+          the alarm. Switches keep working through all of it.
+          <span class="mono">US-013.EC-4 · US-014.AC-4</span></div>
+        <div class="spec__demo">
+          <div class="stage stage--tall stage--pad" data-od-id="sst-final-stage">
+            <section class="win is-focused win--sks" data-od-id="sst-final-win">
+              <header class="win-head">
+                <div class="win-controls">
+                  <button class="wc wc-close" aria-label="Close"></button>
+                  <button class="wc wc-min" aria-label="Minimize"></button>
+                  <button class="wc wc-zoom" aria-label="Zoom"></button>
+                </div>
+                <div class="w2-id">
+                  <span class="w2-glyph"><svg data-lucide="settings-2"></svg></span>
+                  <span class="w2-title">Settings</span>
+                </div>
+                <nav class="w2-crumbs"><span class="w2-sep">/</span><span class="w2-crumb">Skills</span></nav>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail"><span class="w2-meta">21 skills · scope global</span></div>
+              </header>
+              <div class="win-body"><div class="app">
+
+                <div class="sgroup">
+                  <div class="sgroup__t">Sources</div>
+                  <div class="sgroup__d">Where Compozy looks for skills.</div>
+                </div>
+                <div class="panelbox" data-od-id="sst-final-sources">
+                  <details class="sks-src" data-enabled="true" open data-od-id="sst-row-agents">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">Universal</span>
+                      <span class="sks-src__ctl">
+                        <span class="count-chip">5 skills</span>
+                        <button class="switch is-on" role="switch" aria-checked="true" aria-label="Enable Universal source"><span class="knob"></span></button>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">.agents/skills</span>
+                        <span class="sks-root__trail">
+                          <span class="sks-root__state">5 found · 3 usable</span>
+                        </span>
+                      </div>
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/.agents/skills</span>
+                        <span class="sks-root__trail"><span class="sks-root__count">2 skills</span></span>
+                      </div>
+                    </div>
+                  </details>
+                  <details class="sks-src" data-enabled="true" open data-od-id="sst-row-claude">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">Claude</span>
+                      <span class="sks-src__ctl">
+                        <span class="count-chip">1 skill</span>
+                        <button class="switch is-on" role="switch" aria-checked="true" aria-label="Enable Claude source"><span class="knob"></span></button>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root" data-state="absent">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">.claude/skills</span>
+                        <span class="sks-root__trail"><span class="sks-root__state">no folder yet</span></span>
+                      </div>
+                      <div class="sks-root">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/.claude/skills</span>
+                        <span class="sks-root__trail"><span class="sks-root__count">1 skill</span></span>
+                      </div>
+                    </div>
+                  </details>
+                  <details class="sks-src" data-enabled="true" open data-od-id="sst-row-mlcorpus">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">ml-corpus</span>
+                      <span class="pill pill--xs">custom</span>
+                      <span class="sks-src__ctl">
+                        <span class="pill pill--xs" data-tone="warning">partial scan</span>
+                        <span class="count-chip">214 skills</span>
+                        <button class="btn btn--xs btn--icon btn--ghost" aria-label="Remove ml-corpus"><svg data-lucide="x"></svg></button>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root" data-state="truncated">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/ml-corpus</span>
+                        <span class="sks-root__trail">
+                          <span class="sks-root__state">large folder — first 300 scanned</span>
+                        </span>
+                      </div>
+                    </div>
+                  </details>
+                  <details class="sks-src" data-enabled="true" data-od-id="sst-row-teamskills">
+                    <summary class="sks-src__sum">
+                      <svg class="chev" data-lucide="chevron-right"></svg>
+                      <span class="sks-src__name">team-skills</span>
+                      <span class="pill pill--xs">custom</span>
+                      <span class="sks-src__ctl">
+                        <span class="pill pill--xs" data-tone="danger">can&rsquo;t read</span>
+                        <button class="btn btn--xs btn--icon btn--ghost" aria-label="Remove team-skills"><svg data-lucide="x"></svg></button>
+                      </span>
+                    </summary>
+                    <div class="sks-src__roots">
+                      <div class="sks-root" data-state="unreadable">
+                        <svg data-lucide="folder"></svg>
+                        <span class="sks-root__path">~/team-skills</span>
+                        <span class="sks-root__trail"><span class="sks-root__state">can&rsquo;t read this folder</span></span>
+                      </div>
+                    </div>
+                  </details>
+                </div>
+
+                <div class="savebar" data-od-id="sst-final-savebar">
+                  <div class="savebar__state"><span class="d d--ok"></span><span>Saved · applied immediately</span></div>
+                  <button class="btn" disabled>Discard</button>
+                  <button class="btn btn--primary" disabled>Apply</button>
+                </div>
+
+              </div></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · PER-ROOT STATES, ONE BY ONE ===== -->
+    <section class="lab-sec" data-od-id="sst-roots">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">02</span>
+        <h2 class="lab-sec__t">Per-root states — missing · partial · unreadable</h2>
+        <span class="lab-sec__gist">US-001.EC-1 · US-014.AC-1/EC-1 · US-003.EC-6</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>No folder yet</b>A normal state, not an error: the
+          path dims one step and <code>no folder yet</code> sits where a count would.
+          No signal color — creating the folder later just makes skills appear.
+          <span class="mono">US-001.EC-1 · US-013.EC-4</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="sst-roots-absent">
+          <div class="sks-root" data-state="absent">
+            <svg data-lucide="folder"></svg>
+            <span class="sks-root__path">.claude/skills</span>
+            <span class="sks-root__trail"><span class="sks-root__state">no folder yet</span></span>
+          </div>
+        </div></div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Partial scan</b>The folder is too big, so Compozy
+          scanned the first 300 entries and stopped. The warning is the sentence; the
+          count stays neutral because it is real — it just isn&rsquo;t everything.
+          Trimming the folder clears the state on the next refresh.
+          <span class="mono">US-014.AC-1 · EC-1 · cap 300 candidates</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="sst-roots-truncated">
+          <div class="sks-root" data-state="truncated">
+            <svg data-lucide="folder"></svg>
+            <span class="sks-root__path">~/ml-corpus</span>
+            <span class="sks-root__trail">
+              <span class="sks-root__state">large folder — first 300 scanned</span>
+              <span class="sks-root__count">214 skills</span>
+            </span>
+          </div>
+        </div></div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Can&rsquo;t read</b>The folder exists but Compozy
+          doesn&rsquo;t have permission to open it. The sentence is danger ink and every
+          count is omitted — a folder we can&rsquo;t read must never look empty. Other
+          folders are unaffected. <span class="mono">US-003.EC-6 · readable: false</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="sst-roots-unreadable">
+          <div class="sks-root" data-state="unreadable">
+            <svg data-lucide="folder"></svg>
+            <span class="sks-root__path">~/team-skills</span>
+            <span class="sks-root__trail"><span class="sks-root__state">can&rsquo;t read this folder</span></span>
+          </div>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · DIAGNOSTICS DISCLOSURE ===== -->
+    <section class="lab-sec" data-od-id="sst-diag">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">03</span>
+        <h2 class="lab-sec__t">Root diagnostics — "5 found, 3 usable" is always explainable</h2>
+        <span class="lab-sec__gist">US-014.AC-4 · roots[].skipped_links · roots[].collisions</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Sentences, not a log</b>The disclosure under a root
+          explains the gap in plain words — what was skipped and why, and which names
+          clash. Each line binds one field of the daemon&rsquo;s per-root report; names
+          and paths stay mono, everything else reads like a sentence. Closed by default;
+          the state word alone still tells the story.
+          <span class="mono">US-014.AC-4 · US-006 qualified forms</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="sst-diag-demo">
+          <div class="sks-root" data-state="truncated">
+            <svg data-lucide="folder"></svg>
+            <span class="sks-root__path">.agents/skills</span>
+            <span class="sks-root__trail">
+              <span class="sks-root__state">5 found · 3 usable</span>
+            </span>
+          </div>
+          <details class="sks-diag" open data-od-id="sst-diag-disclosure">
+            <summary>
+              <svg data-lucide="triangle-alert"></svg>
+              <span>Why only 3 of 5?</span>
+              <svg class="chev" data-lucide="chevron-right"></svg>
+            </summary>
+            <div class="sks-diag__body">
+              <div class="sks-diag__row">
+                <span class="sks-diag__k">skipped</span>
+                <span class="sks-diag__v"><code>review-old</code> — its shortcut points to a folder that no longer exists</span>
+              </div>
+              <div class="sks-diag__row">
+                <span class="sks-diag__k"></span>
+                <span class="sks-diag__v"><code>vendor-link</code> — points outside this source, so it isn&rsquo;t loaded</span>
+              </div>
+              <div class="sks-diag__row">
+                <span class="sks-diag__k">name clash</span>
+                <span class="sks-diag__v"><code>frontend-qa</code> also exists in Compozy — that copy wins.
+                  This one stays available as <code>agents:frontend-qa</code></span>
+              </div>
+              <div class="sks-diag__row">
+                <span class="sks-diag__k">checks</span>
+                <span class="sks-diag__v"><b>1</b> warning · nothing blocked</span>
+              </div>
+            </div>
+          </details>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · SAVE LIFECYCLE ===== -->
+    <section class="lab-sec" data-od-id="sst-save">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">04</span>
+        <h2 class="lab-sec__t">Save lifecycle — pending · applying · saved · rejected</h2>
+        <span class="lab-sec__gist">US-002.AC-4 · US-002.EC-3 · US-013.AC-5</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Changes apply live</b>The savebar walks
+          pending → applying → saved. No restart is ever required for these settings —
+          the sentence says so the moment a save lands.
+          <span class="mono">US-002.AC-4 · US-013.AC-5</span></div>
+        <div class="spec__demo"><div class="sks-minis">
+          <div class="plain sks-plainw" data-od-id="sst-save-pending">
+            <p class="sks-mini-cap">pending — 1 change</p>
+            <div class="savebar">
+              <div class="savebar__state"><span class="d d--idle"></span><span>1 change pending</span></div>
+              <button class="btn">Discard</button>
+              <button class="btn btn--primary">Apply</button>
+            </div>
+          </div>
+          <div class="plain sks-plainw" data-od-id="sst-save-applying">
+            <p class="sks-mini-cap">applying</p>
+            <div class="savebar">
+              <div class="savebar__state"><span class="d d--run d--pulse"></span><span>Applying…</span></div>
+              <button class="btn" disabled>Discard</button>
+              <button class="btn btn--primary" disabled>Apply</button>
+            </div>
+          </div>
+          <div class="plain sks-plainw" data-od-id="sst-save-saved">
+            <p class="sks-mini-cap">saved — live keys</p>
+            <div class="savebar">
+              <div class="savebar__state"><span class="d d--ok"></span><span>Saved · applied immediately</span></div>
+              <button class="btn" disabled>Discard</button>
+              <button class="btn btn--primary" disabled>Apply</button>
+            </div>
+          </div>
+        </div></div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Save rejected</b>The message leads with what happened
+          and what to do; the daemon&rsquo;s machine code is kept, demoted to micro mono
+          for support and logs. The draft is preserved — nothing was applied — and retry
+          is one action away. <span class="mono">US-002.EC-3 · code kept verbatim, demoted</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="sst-save-rejected">
+          <div class="notice notice--danger">
+            <svg data-lucide="circle-alert"></svg>
+            <span><b>Couldn&rsquo;t save.</b> &ldquo;cluade&rdquo; isn&rsquo;t a source
+              name — did you mean claude? Your changes are still here.
+              <code class="mono-id">unknown_skill_source</code></span>
+            <span class="notice__actions"><button class="btn btn--sm">Retry</button></span>
+          </div>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · CUSTOM EDITOR VALIDATION ===== -->
+    <section class="lab-sec" data-od-id="sst-custom">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">05</span>
+        <h2 class="lab-sec__t">Adding a folder — inline validation</h2>
+        <span class="lab-sec__gist">US-003.EC-2 · US-003.EC-3</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Already added</b>The error sits next to the input that
+          caused it and names the existing entry. The field takes
+          <code>aria-invalid</code>; the rest of the panel is untouched.
+          <span class="mono">US-003.EC-2 · duplicate_skill_source</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="sst-custom-duplicate">
+          <div class="srow sks-srow--bare">
+            <div class="srow__main"><div class="srow__label">Add your own folder</div></div>
+            <div class="srow__ctl">
+              <div class="field sks-field-add">
+                <svg data-lucide="folder-plus"></svg>
+                <input type="text" value="~/team-skills" aria-invalid="true" aria-label="Folder to add">
+              </div>
+              <button class="btn btn--sm">Add</button>
+            </div>
+          </div>
+          <p class="ferr">This folder is already on the list as team-skills.
+            <code class="mono-id">duplicate_skill_source</code></p>
+        </div></div>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Wrong scope for the path</b>A folder inside a project
+          only makes sense for that workspace. The message says where to do it instead;
+          the draft stays editable. <span class="mono">US-003.EC-3 · invalid_source_path</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="sst-custom-invalid">
+          <div class="srow sks-srow--bare">
+            <div class="srow__main"><div class="srow__label">Add your own folder</div></div>
+            <div class="srow__ctl">
+              <div class="field sks-field-add">
+                <svg data-lucide="folder-plus"></svg>
+                <input type="text" value="./vendor/skills" aria-invalid="true" aria-label="Folder to add">
+              </div>
+              <button class="btn btn--sm">Add</button>
+            </div>
+          </div>
+          <p class="ferr">Folders inside a project can only be added in Workspace scope —
+            switch the scope above. <code class="mono-id">invalid_source_path</code></p>
+        </div></div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · RUNTIME UNAVAILABLE ===== -->
+    <section class="lab-sec" data-od-id="sst-runtime">
+      <div class="lab-sec__head">
+        <span class="lab-sec__num">06</span>
+        <h2 class="lab-sec__t">Runtime unavailable — settings stay editable</h2>
+        <span class="lab-sec__gist">US-013.EC-1</span>
+      </div>
+      <div class="spec">
+        <div class="spec__note"><b>Degrade explicitly, never guess</b>With the runtime
+          down, counts and folder states disappear — they weren&rsquo;t measured, so
+          they aren&rsquo;t shown. Switches and the folder editor keep working, because
+          these are preferences, not live state.
+          <span class="mono">US-013.EC-1</span></div>
+        <div class="spec__demo"><div class="plain sks-plainw" data-od-id="sst-runtime-demo">
+          <div class="notice notice--info" data-od-id="sst-runtime-notice">
+            <svg data-lucide="info"></svg>
+            <span><b>Compozy isn&rsquo;t reachable right now.</b> Skill counts are hidden
+              until it&rsquo;s back. You can still change these settings.</span>
+          </div>
+          <details class="sks-src sks-src--bare sks-sec-gap" data-enabled="true" open>
+            <summary class="sks-src__sum">
+              <svg class="chev" data-lucide="chevron-right"></svg>
+              <span class="sks-src__name">Universal</span>
+              <span class="sks-src__ctl">
+                <button class="switch is-on" role="switch" aria-checked="true" aria-label="Enable Universal source"><span class="knob"></span></button>
+              </span>
+            </summary>
+            <div class="sks-src__roots">
+              <div class="sks-root">
+                <svg data-lucide="folder"></svg>
+                <span class="sks-root__path">.agents/skills</span>
+              </div>
+              <div class="sks-root">
+                <svg data-lucide="folder"></svg>
+                <span class="sks-root__path">~/.agents/skills</span>
+              </div>
+            </div>
+          </details>
+        </div></div>
+      </div>
+    </section>
+
+    <p class="lab-foot" data-od-id="sst-foot">Spec <code>_uiux.md</code> S1 states · contract
+      <code>DESIGN-NOTES.md</code> · every state sentence binds a <code>roots[]</code> diagnostic
+      field (<code>exists</code>, <code>readable</code>, <code>truncated</code>,
+      <code>scanned_count</code>, <code>skill_count</code>, <code>skipped_links</code>,
+      <code>collisions</code>). The UI renders; it never derives.</p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>(function(){ if (window.lucide) window.lucide.createIcons(); })();</script>
+</body>
+</html>
