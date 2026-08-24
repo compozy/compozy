@@ -126,7 +126,7 @@ test("first document navigation to a canonical session route loads the app shell
     throw new Error("cold session-route E2E requires launch-mode runtime paths.");
   }
 
-  const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
+  const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
   await runtime.requestJSON("/api/onboarding/complete", { method: "POST" });
   const session = await createSession(runtime, permissionAgent, workspace.id);
   const sessionRequestPath = sessionAPIPath(workspace.id, session.id);
@@ -746,7 +746,7 @@ async function prepareSessionRuntime(
   if (!runtime.paths?.homeDir) {
     throw new Error("session hardening E2E requires launch-mode runtime paths.");
   }
-  const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
+  const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
   const ui = sessionLifecycleSelectors(page);
   await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(ui);
@@ -847,11 +847,15 @@ async function repairSessionViaCLI(runtime: BrowserRuntime, sessionID: string): 
   return JSON.parse(stdout) as unknown;
 }
 
-function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv {
+function cliEnv(paths: {
+  cliShim: string;
+  homeDir: string;
+  operatorHomeDir: string;
+}): NodeJS.ProcessEnv {
   return {
     ...process.env,
     COMPOZY_HOME: paths.homeDir,
-    HOME: paths.homeDir,
+    HOME: paths.operatorHomeDir,
     PATH: [path.dirname(paths.cliShim), process.env.PATH ?? ""]
       .filter(Boolean)
       .join(path.delimiter),

@@ -7,11 +7,21 @@ import (
 )
 
 func (m *Manager) recordEvent(name string, profile Profile, opID string) {
+	m.recordEventWithPreviousName(name, profile, "", opID)
+}
+
+func (m *Manager) recordEventWithPreviousName(
+	name string,
+	profile Profile,
+	previousProfileName string,
+	opID string,
+) {
 	if m == nil || m.events == nil {
 		return
 	}
 	m.events.RecordProfileEvent(Event{
-		Name: name, ProfileID: profile.ID, ProfileName: profile.Name, OperationID: opID,
+		Name: name, ProfileID: profile.ID, ProfileName: profile.Name,
+		PreviousProfileName: previousProfileName, OperationID: opID,
 	})
 }
 

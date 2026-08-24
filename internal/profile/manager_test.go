@@ -856,6 +856,22 @@ func TestManagerProfileLifecycle(t *testing.T) {
 		if wire["profile_name"] != "marketing" {
 			t.Fatalf("event profile_name = %q, want %q", wire["profile_name"], "marketing")
 		}
+		renamePlan, err := manager.PrepareRename(ctx, "marketing", "growth")
+		if err != nil {
+			t.Fatalf("PrepareRename() error = %v", err)
+		}
+		if _, err := manager.Rename(ctx, "marketing", RenameOptions{
+			NewName: "growth", Repos: RepoChoice{None: true}, PlanRevision: renamePlan.Revision,
+		}); err != nil {
+			t.Fatalf("Rename() error = %v", err)
+		}
+		renamed, ok := recorder.find("profile.renamed")
+		if !ok {
+			t.Fatalf("recorded events = %v, want profile.renamed", recorder.names())
+		}
+		if renamed.ProfileName != "growth" || renamed.PreviousProfileName != "marketing" {
+			t.Fatalf("rename event = %#v, want growth with previous name marketing", renamed)
+		}
 		// An empty error must not reach the wire at all — clients branch on presence.
 		if _, present := wire["error"]; present {
 			t.Fatalf("event payload = %v, want no error key when the event succeeded", wire)

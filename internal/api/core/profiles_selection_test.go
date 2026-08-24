@@ -35,11 +35,11 @@ func TestGetProfileSelectionsReturnsOneStableShape(t *testing.T) {
 		}{
 			{
 				name: "full selection map", path: "/profiles/selection",
-				wantScope: contract.ProfileSelectionScopeWorkspace, wantProfile: "marketing",
+				wantScope: contract.ProfileSelectionScopeWorkspace, wantProfile: "default",
 			},
 			{
-				name: "stored workspace lens", path: "/profiles/selection?scope=workspace&workspace_id=ws-marketing",
-				wantScope: contract.ProfileSelectionScopeWorkspace, wantProfile: "marketing",
+				name: "archived remembered workspace lens", path: "/profiles/selection?scope=workspace&workspace_id=ws-marketing",
+				wantScope: contract.ProfileSelectionScopeWorkspace, wantProfile: "default",
 			},
 			{
 				name: "unstored global lens", path: "/profiles/selection?scope=global",

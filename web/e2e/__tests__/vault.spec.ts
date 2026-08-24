@@ -9,7 +9,7 @@ import type { Page } from "@playwright/test";
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { ensureGlobalWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { ensureProjectWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
 
@@ -33,7 +33,7 @@ test("operator can inspect and delete a session-scoped vault secret from the vau
   });
 
   try {
-    await ensureGlobalWorkspace(runtime);
+    await ensureProjectWorkspace(appPage, runtime);
     await appPage.goto(runtime.url("/vault"), { waitUntil: "domcontentloaded" });
     await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
 
@@ -73,7 +73,7 @@ test("operator stores and deletes a vault secret without plaintext readback", as
   const secretRef = `vault:providers/browser-settings-secret-${Date.now()}`;
   const secretValue = "browser-settings-secret-value-11";
 
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
   await appPage.goto(runtime.url("/vault"), { waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
   await expect(appPage.getByTestId("vault-shell")).toBeVisible({ timeout: 20_000 });
@@ -260,7 +260,7 @@ function cliEnv(paths: RuntimePaths): NodeJS.ProcessEnv {
   return {
     ...process.env,
     COMPOZY_HOME: paths.homeDir,
-    HOME: paths.homeDir,
+    HOME: paths.operatorHomeDir,
     PATH: [path.dirname(paths.cliShim), process.env.PATH ?? ""]
       .filter(Boolean)
       .join(path.delimiter),

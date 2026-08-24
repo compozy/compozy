@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createStreamEventSource, type StreamEventSource } from "@/lib/ticketed-event-source";
 
 import { profileKeys } from "./query-keys";
+import { sweepProfileView } from "../stores/profile-view-store";
 
 /**
  * Live delivery for profile lifecycle events.
@@ -45,6 +46,7 @@ const profileEventSchema = z.object({
     .object({
       name: z.string().optional(),
       profile_name: z.string().optional(),
+      previous_profile_name: z.string().optional(),
     })
     .optional(),
 });
@@ -52,6 +54,7 @@ const profileEventSchema = z.object({
 export interface ProfileEvent {
   name: ProfileEventName;
   profileName: string;
+  previousProfileName: string;
 }
 
 export type ProfileEventSourceFactory = (url: string) => StreamEventSource;
@@ -64,12 +67,14 @@ export interface ProfileStreamHandlers {
 }
 
 /**
- * Profile events are global scope and carry no workspace, and the daemon filters
- * `workspace_id` by exact match — passing one here would silently drop every
- * profile row. `replay=false` keeps a reconnect from re-announcing history.
+ * Profile events are global scope and carry no workspace. The lifecycle host
+ * reconciles the complete profile catalog, so its read scope must also be the
+ * all-profiles aggregate; otherwise the daemon's default-profile scope drops
+ * lifecycle events owned by the profile being created or changed.
+ * `replay=false` keeps a reconnect from re-announcing history.
  */
 export function profileEventStreamUrl(): string {
-  return "/api/logs/stream?component=profile&replay=false";
+  return "/api/logs/stream?component=profile&all_profiles=true&replay=false";
 }
 
 export function parseProfileEvent(event: Event): ProfileEvent | null {
@@ -80,7 +85,11 @@ export function parseProfileEvent(event: Event): ProfileEvent | null {
     const name = parsed.data.content?.name?.trim() || parsed.data.type.trim();
     const eventName = PROFILE_EVENT_NAMES.find(candidate => candidate === name);
     if (eventName === undefined) return null;
-    return { name: eventName, profileName: parsed.data.content?.profile_name?.trim() ?? "" };
+    return {
+      name: eventName,
+      profileName: parsed.data.content?.profile_name?.trim() ?? "",
+      previousProfileName: parsed.data.content?.previous_profile_name?.trim() ?? "",
+    };
   } catch {
     return null;
   }
@@ -139,6 +148,11 @@ export function openProfileEventStream(
 export function applyProfileEvent(queryClient: QueryClient, event: ProfileEvent): void {
   void queryClient.invalidateQueries({ queryKey: profileKeys.selections() });
   if (event.name === PROFILE_SELECTION_CHANGED_EVENT) return;
+  if (event.name === "profile.archived" || event.name === "profile.deleted") {
+    sweepProfileView(event.profileName);
+  } else if (event.name === "profile.renamed") {
+    sweepProfileView(event.previousProfileName);
+  }
   void queryClient.invalidateQueries({ queryKey: profileKeys.lists() });
   if (event.profileName !== "") {
     void queryClient.invalidateQueries({ queryKey: profileKeys.detail(event.profileName) });

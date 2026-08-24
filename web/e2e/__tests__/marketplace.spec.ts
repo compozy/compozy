@@ -37,7 +37,7 @@ import {
   sensitiveArtifactPattern,
 } from "../fixtures/scenario-contracts";
 import { expect, test } from "../fixtures/test";
-import { ensureGlobalWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { ensureProjectWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 test.describe("Marketplace acquisition", () => {
   const skillEntryID = "browser-marketplace-skill";
@@ -159,7 +159,7 @@ test.describe("Marketplace acquisition", () => {
     appPage,
     runtime,
   }) => {
-    await ensureGlobalWorkspace(runtime);
+    await ensureProjectWorkspace(appPage, runtime);
     await appPage.reload({ waitUntil: "domcontentloaded" });
     await completeOnboardingIfPrompted(appPage);
 
@@ -210,7 +210,7 @@ test.describe("Marketplace acquisition", () => {
       method: "PUT",
     });
 
-    await ensureGlobalWorkspace(runtime);
+    await ensureProjectWorkspace(appPage, runtime);
     await appPage.reload({ waitUntil: "domcontentloaded" });
     await completeOnboardingIfPrompted(appPage);
 
@@ -763,8 +763,8 @@ test.describe("Skills marketplace management", () => {
         .first();
     const enabledLabel = appPage.locator("#marketplace-skill-enabled-label");
     const enabledSwitch = appPage.getByTestId("skill-enabled-switch");
-    await ensureGlobalWorkspace(runtime);
-    const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
+    await ensureProjectWorkspace(appPage, runtime);
+    const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
     await appPage.reload({ waitUntil: "domcontentloaded" });
     await completeOnboardingIfPrompted(appPage);
 
@@ -1315,11 +1315,15 @@ test.describe("Skills marketplace management", () => {
     }
   }
 
-  function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv {
+  function cliEnv(paths: {
+    cliShim: string;
+    homeDir: string;
+    operatorHomeDir: string;
+  }): NodeJS.ProcessEnv {
     return {
       ...process.env,
       COMPOZY_HOME: paths.homeDir,
-      HOME: paths.homeDir,
+      HOME: paths.operatorHomeDir,
       PATH: `${path.dirname(paths.cliShim)}:${process.env.PATH ?? ""}`,
     };
   }
@@ -1363,7 +1367,7 @@ test.describe("MCP marketplace authorization", () => {
         ],
       });
 
-      await ensureGlobalWorkspace(runtime);
+      await ensureProjectWorkspace(appPage, runtime);
       await completeOnboardingIfPrompted(sessionUI);
 
       await appPage.goto(runtime.url("/marketplace/mcps"), {
@@ -1458,7 +1462,7 @@ test.describe("MCP marketplace authorization", () => {
         ],
       });
 
-      await ensureGlobalWorkspace(runtime);
+      await ensureProjectWorkspace(appPage, runtime);
       await completeOnboardingIfPrompted(sessionUI);
       await appPage.goto(runtime.url("/marketplace/mcps"), {
         waitUntil: "domcontentloaded",
@@ -2306,7 +2310,7 @@ test.describe("Extension marketplace runtime", () => {
     runtime: BrowserRuntime,
     page: Page
   ): Promise<WorkspacePayload> {
-    const workspace = await runtime.resolveWorkspace(runtime.paths?.homeDir ?? process.cwd());
+    const workspace = await runtime.resolveWorkspace(runtime.paths?.workspaceDir ?? process.cwd());
     await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
     await completeOnboardingIfPrompted(page);
     return workspace;
@@ -2499,7 +2503,7 @@ test.describe("Extension marketplace runtime", () => {
       ...process.env,
       COMPOZY_E2E_CLI_BIN: paths.cliShim,
       COMPOZY_HOME: paths.homeDir,
-      HOME: paths.homeDir,
+      HOME: paths.operatorHomeDir,
       PATH: [path.dirname(paths.cliShim), process.env.PATH ?? ""]
         .filter(Boolean)
         .join(path.delimiter),
@@ -2670,7 +2674,7 @@ test.describe("Agent Plugins marketplace journeys", () => {
       appPage,
       runtime,
     }) => {
-      await ensureGlobalWorkspace(runtime);
+      await ensureProjectWorkspace(appPage, runtime);
       await appPage.reload({ waitUntil: "domcontentloaded" });
       await completeOnboardingIfPrompted(appPage);
       await appPage.goto(runtime.url("/marketplace/extensions?tab=market"), {
@@ -2774,7 +2778,7 @@ test.describe("Agent Plugins marketplace journeys", () => {
       appPage,
       runtime,
     }) => {
-      await ensureGlobalWorkspace(runtime);
+      await ensureProjectWorkspace(appPage, runtime);
       await appPage.reload({ waitUntil: "domcontentloaded" });
       await completeOnboardingIfPrompted(appPage);
       await appPage.goto(runtime.url("/marketplace/extensions?tab=market"), {

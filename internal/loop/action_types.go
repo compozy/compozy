@@ -84,25 +84,25 @@ type ActionExecutor interface {
 
 // ActionExecutionInput is the loop-owned execution context for one node instance.
 type ActionExecutionInput struct {
-	WorkspaceID               WorkspaceID
-	LoopRunID                 RunID
-	Generation                int
-	NodeID                    dsl.NodeID
-	ItemIndex                 int
-	Attempt                   int
-	CellEpoch                 int64
-	SessionSharedKey          string
-	DeathResume               *DeathResumeContext
-	RetryFailure              *ClassifiedFailure
-	RepairFailures            []ActionRepairFailure
-	Namespace                 map[string]any
-	Contract                  *dsl.Contract
-	ToolScope                 tools.Scope
-	Actor                     task.ActorContext
-	CorrelationID             string
-	RuntimeSelection          *ActionRuntimeSelection
-	Environment               *dsl.EnvironmentSpec
-	OriginSessionID           string
+	WorkspaceID      WorkspaceID
+	LoopRunID        RunID
+	Generation       int
+	NodeID           dsl.NodeID
+	ItemIndex        int
+	Attempt          int
+	CellEpoch        int64
+	SessionSharedKey string
+	DeathResume      *DeathResumeContext
+	RetryFailure     *ClassifiedFailure
+	RepairFailures   []ActionRepairFailure
+	Namespace        map[string]any
+	Contract         *dsl.Contract
+	ToolScope        tools.Scope
+	Actor            task.ActorContext
+	CorrelationID    string
+	RuntimeSelection *ActionRuntimeSelection
+	Environment      *dsl.EnvironmentSpec
+	OriginSessionID  string
 	*ActionExecutionProvenance
 	ProvenanceParentSessionID string
 	GoalContextNudgeRatio     *float64

@@ -24,7 +24,7 @@ import type { Page } from "@playwright/test";
 
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { ensureGlobalWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { ensureProjectWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 interface GatewayStatusPayload {
   addresses: { address: string; live: boolean; tier: string }[];
@@ -55,7 +55,7 @@ test("E2E-001 (local legs) operator mints a pairing, the daemon redeems it once,
   runtime,
 }) => {
   assertLaunchRuntime(runtime, "gateway pairing");
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
   await completeOnboardingIfPrompted(appPage);
 
   await openGatewaySettings(appPage, runtime);
@@ -142,7 +142,7 @@ test("E2E-005 (local legs) public operator access requires fresh consent, revoca
   runtime,
 }) => {
   assertLaunchRuntime(runtime, "gateway consent and revocation");
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
   await completeOnboardingIfPrompted(appPage);
 
   await openGatewaySettings(appPage, runtime);
@@ -225,7 +225,7 @@ test("E2E-006 (local legs) the self-audit reports a ranked finding with actionab
   runtime,
 }) => {
   assertLaunchRuntime(runtime, "gateway self-audit");
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
   await completeOnboardingIfPrompted(appPage);
 
   await openGatewaySettings(appPage, runtime);

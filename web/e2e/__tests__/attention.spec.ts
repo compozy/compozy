@@ -12,7 +12,7 @@ import {
   waitForSeedSessionActive,
 } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { completeOnboardingIfPrompted, ensureProjectWorkspace } from "../fixtures/workspace";
 
 /**
  * Browser journeys for the attention program (E2E-009..E2E-015).
@@ -88,7 +88,8 @@ test.use({
   },
 });
 
-test.beforeEach(async ({ appPage: page }) => {
+test.beforeEach(async ({ appPage: page, runtime }) => {
+  await ensureProjectWorkspace(page, runtime);
   await completeOnboardingIfPrompted(page);
 });
 
@@ -408,7 +409,7 @@ async function globalWorkspace(runtime: BrowserRuntime): Promise<WorkspacePayloa
   if (!runtime.paths?.homeDir) {
     throw new Error("attention E2E requires a launch-mode runtime");
   }
-  return await runtime.resolveWorkspace(runtime.paths.homeDir);
+  return await runtime.resolveWorkspace(runtime.paths.workspaceDir);
 }
 
 async function createWorkspace(runtime: BrowserRuntime, label: string): Promise<WorkspacePayload> {

@@ -134,6 +134,12 @@ func (h *BaseHandlers) profileSelections(c *gin.Context) ([]profilepkg.Selection
 	}
 	names := make(map[string]string, len(profiles))
 	for _, item := range profiles {
+		if item.State == profilepkg.StateArchived {
+			// Archive keeps the durable selection row for fallback provenance, but
+			// public selection reads expose the effective acting profile.
+			names[item.ID] = profileDefaultName
+			continue
+		}
 		names[item.ID] = item.Name
 	}
 	return selections, names, nil

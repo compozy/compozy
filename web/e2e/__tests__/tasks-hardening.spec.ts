@@ -8,14 +8,14 @@ import { promisify } from "node:util";
 
 import { captureRouteState } from "../fixtures/browser-artifact-session";
 import { tasksOperatorSelectors } from "../fixtures/selectors";
-import { ensureAppWindow, switchWorkspace } from "../fixtures/os-navigation";
+import { ensureAppWindow, setGlobalScope, switchWorkspace } from "../fixtures/os-navigation";
 import {
   seedBrowserTasksOperatorFlow,
   waitForSeedSessionActive,
   type BrowserRuntime,
 } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { ensureGlobalWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { ensureProjectWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
 const browserLifecycleFixture = path.resolve(
@@ -62,6 +62,8 @@ test("operator cancels a running task run and sees matching HTTP, UDS, CLI, and 
     sessionAgentName: tasksSessionAgentName,
   });
   await completeOnboardingIfPrompted(ui);
+  await switchWorkspace(appPage, seeded.workspace.id, seeded.workspace.name);
+  await setGlobalScope(appPage, true);
 
   const runPath = `/tasks/${encodeURIComponent(seeded.runningTask.id)}/runs/${encodeURIComponent(seeded.runningRun.id)}`;
   await appPage.goto(runtime.url(runPath), { waitUntil: "domcontentloaded" });
@@ -117,6 +119,8 @@ test("operator rejects a manual approval task without creating hidden work", asy
     sessionAgentName: tasksSessionAgentName,
   });
   await completeOnboardingIfPrompted(ui);
+  await switchWorkspace(appPage, seeded.workspace.id, seeded.workspace.name);
+  await setGlobalScope(appPage, true);
 
   await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
   await ui.modeInbox.click();
@@ -346,7 +350,7 @@ test("operator inspects child and dependency graph, edits the task, and deletes 
   runtime,
 }) => {
   const ui = tasksOperatorSelectors(appPage);
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
 
   const parent = await createTask(runtime, {
     description: "Parent task for graph hardening.",
@@ -547,6 +551,8 @@ test("tasks list, inbox, detail, and run detail stay usable across responsive br
     sessionAgentName: tasksSessionAgentName,
   });
   await completeOnboardingIfPrompted(ui);
+  await switchWorkspace(appPage, seeded.workspace.id, seeded.workspace.name);
+  await setGlobalScope(appPage, true);
 
   for (const viewport of [
     { height: 820, name: "mobile", width: 375 },
@@ -611,7 +617,7 @@ test("task detail renders blocked_reasons bands for dependency, approval, and bl
   runtime,
 }) => {
   const ui = tasksOperatorSelectors(appPage);
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
 
   const dependencyTask = await createTask(runtime, {
     scope: "global",
@@ -660,7 +666,7 @@ test("task detail exposes the needs_attention badge and a Recover action that cl
   runtime,
 }) => {
   const ui = tasksOperatorSelectors(appPage);
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
 
   const task = await createTask(runtime, {
     scope: "global",
@@ -730,7 +736,7 @@ test("task detail reflects the wake_creator opt-out on agent-created tasks", asy
   runtime,
 }) => {
   const ui = tasksOperatorSelectors(appPage);
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
   const homeDir = runtime.paths?.homeDir;
   if (!homeDir) {
     throw new Error("wake indicator e2e requires launch-mode runtime paths.");
@@ -785,7 +791,7 @@ test("tasks list and kanban surface needs_attention as a distinct status", async
   runtime,
 }) => {
   const ui = tasksOperatorSelectors(appPage);
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
 
   const task = await createTask(runtime, {
     scope: "global",
@@ -1213,11 +1219,15 @@ function findRun(runs: TaskRun[], runID: string): TaskRun | undefined {
   return runs.find(run => run.id === runID);
 }
 
-function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv {
+function cliEnv(paths: {
+  cliShim: string;
+  homeDir: string;
+  operatorHomeDir: string;
+}): NodeJS.ProcessEnv {
   return {
     ...process.env,
     COMPOZY_HOME: paths.homeDir,
-    HOME: paths.homeDir,
+    HOME: paths.operatorHomeDir,
     PATH: [path.dirname(paths.cliShim), process.env.PATH ?? ""]
       .filter(Boolean)
       .join(path.delimiter),

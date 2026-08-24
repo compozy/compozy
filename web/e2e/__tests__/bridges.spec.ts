@@ -716,12 +716,16 @@ function assertNoSensitiveText(label: string, text: string | null | undefined): 
   }
 }
 
-function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv {
+function cliEnv(paths: {
+  cliShim: string;
+  homeDir: string;
+  operatorHomeDir: string;
+}): NodeJS.ProcessEnv {
   return {
     ...process.env,
     COMPOZY_HOME: paths.homeDir,
     COMPOZY_E2E_CLI_BIN: paths.cliShim,
-    HOME: paths.homeDir,
+    HOME: paths.operatorHomeDir,
     PATH: [path.dirname(paths.cliShim), process.env.PATH ?? ""]
       .filter(Boolean)
       .join(path.delimiter),

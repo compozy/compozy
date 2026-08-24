@@ -25,7 +25,7 @@ import { slackBridgeManifestFixture } from "@/systems/bridges/mocks";
 
 import { bridgeOperatorSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
-import { ensureGlobalWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { ensureProjectWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const DEFAULT_PROFILE_ID = "00000000000000000000000000";
 const NOW = "2026-07-12T12:00:00Z";
@@ -406,9 +406,9 @@ async function installBridgeDaemonRoutes(page: Page, daemon: BridgeDaemonScenari
 async function openBridgesPage(
   page: Page,
   targetURL: string,
-  runtime: Parameters<typeof ensureGlobalWorkspace>[0]
+  runtime: Parameters<typeof ensureProjectWorkspace>[1]
 ): Promise<void> {
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(page, runtime);
   await page.goto(targetURL, { waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(page);
   await expect(page.getByTestId("os-desktop")).toBeVisible();
@@ -416,7 +416,7 @@ async function openBridgesPage(
 
 async function openBridgeDetail(
   page: Page,
-  runtime: Parameters<typeof ensureGlobalWorkspace>[0],
+  runtime: Parameters<typeof ensureProjectWorkspace>[1],
   bridgeID: string
 ): Promise<void> {
   await openBridgesPage(page, runtime.url("/bridges"), runtime);

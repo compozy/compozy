@@ -25,7 +25,7 @@ import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
 import { waitForSeedSessionActive } from "../fixtures/runtime";
 import { sessionLifecycleTestIds } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
-import { completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { completeOnboardingIfPrompted, ensureProjectWorkspace } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
 const homeAgentAlpha = "home-agent-alpha";
@@ -95,6 +95,7 @@ test("operator sees truthful Home overview, navigation, artifacts, and transport
   runtime,
 }) => {
   const workspace = await prepareHomeRuntime(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
   await completeOnboardingIfPrompted(workspaceShell(appPage));
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   const home = await ensureAppWindow(appPage, "Home", "dashboard");
@@ -179,6 +180,7 @@ test("Home reports an overview failure without misreporting daemon connectivity"
     });
   });
 
+  await ensureProjectWorkspace(page, runtime);
   await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(workspaceShell(page));
   const home = await ensureAppWindow(page, "Home", "dashboard");
@@ -198,6 +200,7 @@ test("Home preserves its loaded overview and recovers when health requests resum
   runtime,
 }) => {
   await prepareHomeRuntime(runtime);
+  await ensureProjectWorkspace(page, runtime);
   await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(workspaceShell(page));
   const home = await ensureAppWindow(page, "Home", "dashboard");
@@ -233,6 +236,7 @@ test("Home recovers after a daemon restart without retaining a stale overview", 
   runtime,
 }) => {
   await prepareHomeRuntime(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
   await completeOnboardingIfPrompted(workspaceShell(appPage));
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   const home = await ensureAppWindow(appPage, "Home", "dashboard");
@@ -271,6 +275,7 @@ test("Home scope follows the active workspace", async ({ appPage, runtime }) => 
   }
 
   await prepareHomeRuntime(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
   const betaRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-home-workspace-beta-"));
   const beta = await runtime.resolveWorkspace(betaRoot);
 
@@ -298,7 +303,7 @@ async function prepareHomeRuntime(runtime: BrowserRuntime): Promise<WorkspacePay
     throw new Error("Home E2E requires launch-mode runtime paths.");
   }
 
-  const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
+  const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
   const sessions = await runtime.requestJSON<{ sessions: SessionSummary[] }>(
     `/api/sessions?workspace_id=${encodeURIComponent(workspace.id)}`
   );
@@ -362,7 +367,11 @@ async function runCLIJSON<T>(runtime: BrowserRuntime, args: string[]): Promise<T
     throw new Error(`CLI snapshot ${args.join(" ")} requires launch-mode runtime paths.`);
   }
   const { stdout } = await execFileAsync(runtime.paths.cliShim, args, {
-    env: { ...process.env, COMPOZY_HOME: runtime.paths.homeDir, HOME: runtime.paths.homeDir },
+    env: {
+      ...process.env,
+      COMPOZY_HOME: runtime.paths.homeDir,
+      HOME: runtime.paths.operatorHomeDir,
+    },
     maxBuffer: 10 * 1024 * 1024,
   });
   return JSON.parse(stdout) as T;

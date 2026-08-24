@@ -14,7 +14,7 @@ import {
   type WorkspacePayload,
 } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { ensureGlobalWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { ensureProjectWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
 const networkCollaborationFixture = path.resolve(
@@ -67,7 +67,7 @@ test.describe("network disabled state", () => {
     browserArtifacts,
     runtime,
   }) => {
-    await ensureGlobalWorkspace(runtime);
+    await ensureProjectWorkspace(appPage, runtime);
 
     await appPage.goto(runtime.url("/network"), { waitUntil: "domcontentloaded" });
     await completeOnboardingIfPrompted(appPage);
@@ -395,7 +395,7 @@ async function prepareNetworkRuntime(
   if (!runtime.paths?.homeDir) {
     throw new Error("network e2e requires launch-mode runtime paths.");
   }
-  const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
+  const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
   const ui = networkOperatorSelectors(page);
   await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(ui);
@@ -658,11 +658,15 @@ async function networkCLI(runtime: BrowserRuntime, args: string[]): Promise<unkn
   return JSON.parse(stdout) as unknown;
 }
 
-function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv {
+function cliEnv(paths: {
+  cliShim: string;
+  homeDir: string;
+  operatorHomeDir: string;
+}): NodeJS.ProcessEnv {
   return {
     ...process.env,
     COMPOZY_HOME: paths.homeDir,
-    HOME: paths.homeDir,
+    HOME: paths.operatorHomeDir,
     PATH: [path.dirname(paths.cliShim), process.env.PATH ?? ""]
       .filter(Boolean)
       .join(path.delimiter),

@@ -540,7 +540,7 @@ async function seedRun(
   options: SeedOptions = {}
 ): Promise<SeededRun> {
   const paths = requirePaths(runtime);
-  const workspace = await runtime.resolveWorkspace(paths.homeDir);
+  const workspace = await runtime.resolveWorkspace(paths.workspaceDir);
   await completeOnboardingIfPrompted(appPage);
   const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
   await runtime.requestJSON(`${workspacePath}/loops`, {
@@ -655,12 +655,16 @@ async function readAllTimelineSequences(
   throw new Error("The timeline did not terminate within 200 pages");
 }
 
-function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv {
+function cliEnv(paths: {
+  cliShim: string;
+  homeDir: string;
+  operatorHomeDir: string;
+}): NodeJS.ProcessEnv {
   return {
     ...process.env,
     COMPOZY_E2E_CLI_BIN: paths.cliShim,
     COMPOZY_HOME: paths.homeDir,
-    HOME: paths.homeDir,
+    HOME: paths.operatorHomeDir,
     PATH: [path.dirname(paths.cliShim), process.env.PATH ?? ""]
       .filter(Boolean)
       .join(path.delimiter),
@@ -1513,7 +1517,7 @@ test.describe("Loop run page — two registers", () => {
     runtime,
   }) => {
     const paths = requirePaths(runtime);
-    await runtime.resolveWorkspace(paths.homeDir);
+    await runtime.resolveWorkspace(paths.workspaceDir);
     await completeOnboardingIfPrompted(appPage);
 
     await appPage.goto(runtime.url("/loop-runs"), { waitUntil: "domcontentloaded" });

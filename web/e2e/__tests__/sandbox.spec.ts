@@ -469,11 +469,15 @@ async function runCLIJSON(runtime: BrowserRuntime, args: string[]): Promise<unkn
   return JSON.parse(stdout) as unknown;
 }
 
-function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv {
+function cliEnv(paths: {
+  cliShim: string;
+  homeDir: string;
+  operatorHomeDir: string;
+}): NodeJS.ProcessEnv {
   return {
     ...process.env,
     COMPOZY_HOME: paths.homeDir,
-    HOME: paths.homeDir,
+    HOME: paths.operatorHomeDir,
     PATH: `${path.dirname(paths.cliShim)}:${process.env.PATH ?? ""}`,
   };
 }

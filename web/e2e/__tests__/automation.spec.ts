@@ -9,7 +9,7 @@ import {
 } from "../fixtures/runtime";
 import { openAppWindow, sessionWindow, windowTitle } from "../fixtures/os-navigation";
 import { expect, test } from "../fixtures/test";
-import { completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { completeOnboardingIfPrompted, ensureProjectWorkspace } from "../fixtures/workspace";
 
 const automationTaskFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -53,6 +53,7 @@ test("operator can inspect automation, trigger a real run, and inspect the linke
     agentName: automationAgentName,
   });
 
+  await ensureProjectWorkspace(appPage, runtime);
   await completeOnboardingIfPrompted(automationUI);
 
   await expect(automationUI.osDesktop).toBeVisible();

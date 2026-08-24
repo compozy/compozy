@@ -183,7 +183,7 @@ func seedSettlementAutomation(ctx context.Context, db *globaldb.GlobalDB, state 
 	clock := state.clock
 	job, err := db.CreateJob(ctx, automation.Job{
 		ProfileID: store.DefaultProfileID,
-		ID: digestAutomationID, Scope: automation.AutomationScopeWorkspace,
+		ID:        digestAutomationID, Scope: automation.AutomationScopeWorkspace,
 		Name: "Settlement retry watch", TargetKind: automation.TargetKindAgent,
 		AgentName: agentPlatformEngineer, WorkspaceID: record.ID,
 		Prompt:   "Report settlement workers that exhausted their retry budget in the last hour.",

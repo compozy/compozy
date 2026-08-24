@@ -13,7 +13,7 @@ import {
   switchWorkspace,
 } from "../fixtures/os-navigation";
 import { profilesOperatorSelectors } from "../fixtures/selectors";
-import { completeOnboardingIfPrompted, ensureGlobalWorkspace } from "../fixtures/workspace";
+import { completeOnboardingIfPrompted, ensureProjectWorkspace } from "../fixtures/workspace";
 import type { BrowserRuntime } from "../fixtures/runtime";
 
 /**
@@ -138,7 +138,7 @@ test.describe("Profiles", () => {
     appPage,
     runtime,
   }) => {
-    await ensureGlobalWorkspace(runtime);
+    await ensureProjectWorkspace(appPage, runtime);
     await completeOnboardingIfPrompted(appPage);
     const ui = profilesOperatorSelectors(appPage);
 
@@ -166,15 +166,20 @@ test.describe("Profiles", () => {
     const workspaceControl = appPage.locator('[data-slot="os-menubar-workspace"]');
     await workspaceControl.click();
     const workspaceOptions = appPage.locator('[data-testid^="os-workspace-option-"]');
+    await expect(workspaceOptions.first()).toBeVisible();
     const marketingWorkspaces = await workspaceOptions.allTextContents();
     await appPage.keyboard.press("Escape");
+    await expect(workspaceOptions).toHaveCount(0);
 
     await ui.switcher.click();
     await ui.switcherOption("default").click();
     await workspaceControl.click();
+    await expect(workspaceOptions.first()).toBeVisible();
     expect(await workspaceOptions.allTextContents()).toEqual(marketingWorkspaces);
     await appPage.keyboard.press("Escape");
+    await expect(workspaceOptions).toHaveCount(0);
 
+    await ui.switcher.click();
     const selectionResponse = appPage.waitForResponse(
       response =>
         response.request().method() === "PUT" && response.url().endsWith("/api/profiles/selection")
@@ -197,7 +202,7 @@ test.describe("Profiles", () => {
     appPage,
     runtime,
   }) => {
-    await ensureGlobalWorkspace(runtime);
+    await ensureProjectWorkspace(appPage, runtime);
     await completeOnboardingIfPrompted(appPage);
     await createProfile(runtime, "consulting", "#4ea7fc", "briefcase");
 
@@ -246,7 +251,13 @@ test.describe("Profiles", () => {
     await ui.createName.fill("research");
     await ui.createConfirm.click();
     expect((await created).ok()).toBe(true);
-    await expect(ui.row("research")).toBeVisible();
+    // Creation activates the new profile immediately. Desktops are profile
+    // partitions, so reopen Settings in research instead of asserting against
+    // the now-inactive consulting window.
+    await expect(profilesOperatorSelectors(appPage).switcher).toContainText("research");
+    const researchSettings = await openProfilesSettings(appPage);
+    const researchUI = profilesOperatorSelectors(appPage, researchSettings);
+    await expect(researchUI.row("research")).toBeVisible();
 
     // Archived profiles are demoted to a disclosure, not shown by default.
     await archiveProfile(runtime, "research");
@@ -262,7 +273,7 @@ test.describe("Profiles", () => {
     appPage,
     runtime,
   }) => {
-    await ensureGlobalWorkspace(runtime);
+    await ensureProjectWorkspace(appPage, runtime);
     await completeOnboardingIfPrompted(appPage);
     await createProfile(runtime, "dev", "#4cb782", "wrench");
 
@@ -301,7 +312,7 @@ test.describe("Profiles", () => {
     appPage,
     runtime,
   }) => {
-    await ensureGlobalWorkspace(runtime);
+    await ensureProjectWorkspace(appPage, runtime);
     await completeOnboardingIfPrompted(appPage);
     await createProfile(runtime, "finance", "#e8b04a", "gem");
 
@@ -343,7 +354,7 @@ test.describe("Profiles", () => {
     appPage,
     runtime,
   }) => {
-    await ensureGlobalWorkspace(runtime);
+    await ensureProjectWorkspace(appPage, runtime);
     await completeOnboardingIfPrompted(appPage);
     await createProfile(runtime, "marketing", "#c26ad6", "megaphone");
     await appPage.reload({ waitUntil: "domcontentloaded" });
@@ -379,7 +390,7 @@ test.describe("Profiles", () => {
     appPage,
     runtime,
   }) => {
-    await ensureGlobalWorkspace(runtime);
+    await ensureProjectWorkspace(appPage, runtime);
     await completeOnboardingIfPrompted(appPage);
     await createProfile(runtime, "marketing", "#c26ad6", "megaphone");
     await createProfile(runtime, "old-agency", "#b58e5f", "folder");
@@ -418,7 +429,7 @@ test.describe("Profiles", () => {
     appPage,
     runtime,
   }) => {
-    await ensureGlobalWorkspace(runtime);
+    await ensureProjectWorkspace(appPage, runtime);
     await completeOnboardingIfPrompted(appPage);
     await createProfile(runtime, "consulting", "#4ea7fc", "briefcase");
     const foreign = await runtime.requestJSON<{ session: { id: string; agent_name: string } }>(
@@ -440,7 +451,7 @@ test.describe("Profiles", () => {
     appPage,
     runtime,
   }) => {
-    await ensureGlobalWorkspace(runtime);
+    await ensureProjectWorkspace(appPage, runtime);
     await completeOnboardingIfPrompted(appPage);
     await createProfile(runtime, "marketing", "#c26ad6", "megaphone");
     await appPage.reload({ waitUntil: "domcontentloaded" });
@@ -457,7 +468,7 @@ test.describe("Profiles", () => {
     appPage,
     runtime,
   }) => {
-    await ensureGlobalWorkspace(runtime);
+    await ensureProjectWorkspace(appPage, runtime);
     await completeOnboardingIfPrompted(appPage);
     await createProfile(runtime, "marketing", "#c26ad6", "megaphone");
     await appPage.reload({ waitUntil: "domcontentloaded" });
@@ -526,7 +537,7 @@ test.describe("Profiles", () => {
     appPage,
     runtime,
   }) => {
-    await ensureGlobalWorkspace(runtime);
+    await ensureProjectWorkspace(appPage, runtime);
     await completeOnboardingIfPrompted(appPage);
     await createProfile(runtime, "marketing", "#c26ad6", "megaphone");
     await appPage.reload({ waitUntil: "domcontentloaded" });
@@ -559,7 +570,7 @@ test.describe("Profiles", () => {
     appPage,
     runtime,
   }) => {
-    await ensureGlobalWorkspace(runtime);
+    await ensureProjectWorkspace(appPage, runtime);
     await completeOnboardingIfPrompted(appPage);
     await createProfile(runtime, "marketing", "#c26ad6", "megaphone");
     await appPage.reload({ waitUntil: "domcontentloaded" });
@@ -589,7 +600,7 @@ test.describe("Profiles", () => {
     browser,
     runtime,
   }) => {
-    await ensureGlobalWorkspace(runtime);
+    await ensureProjectWorkspace(appPage, runtime);
     await completeOnboardingIfPrompted(appPage);
     await createProfile(runtime, "marketing", "#c26ad6", "megaphone");
     await appPage.reload({ waitUntil: "domcontentloaded" });
@@ -632,7 +643,7 @@ test.describe("Profiles", () => {
     appPage,
     runtime,
   }) => {
-    await ensureGlobalWorkspace(runtime);
+    await ensureProjectWorkspace(appPage, runtime);
     await completeOnboardingIfPrompted(appPage);
     const workspaceId = await activeWorkspaceId(runtime);
     await createProfile(runtime, "marketing", "#c26ad6", "megaphone");
@@ -677,7 +688,7 @@ test.describe("Profiles", () => {
     appPage,
     runtime,
   }) => {
-    await ensureGlobalWorkspace(runtime);
+    await ensureProjectWorkspace(appPage, runtime);
     await completeOnboardingIfPrompted(appPage);
     const ui = profilesOperatorSelectors(appPage);
 

@@ -2,7 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { tasksOperatorSelectors } from "../fixtures/selectors";
-import { openAppWindow } from "../fixtures/os-navigation";
+import { openAppWindow, setGlobalScope, switchWorkspace } from "../fixtures/os-navigation";
 import { seedBrowserTasksOperatorFlow } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted } from "../fixtures/workspace";
@@ -45,6 +45,8 @@ test("operator uses the three-tab task detail, setup, inspect, and run review su
   });
 
   await completeOnboardingIfPrompted(appPage);
+  await switchWorkspace(appPage, seeded.workspace.id, seeded.workspace.name);
+  await setGlobalScope(appPage, true);
 
   const tasksWin = await openAppWindow(appPage, "Tasks", "tasks");
   const tasksUI = tasksOperatorSelectors(tasksWin, appPage);

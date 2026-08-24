@@ -17,7 +17,7 @@ import {
 } from "../fixtures/selectors";
 import { type BrowserRuntime, waitForSeedSessionActive } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { ensureGlobalWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { ensureProjectWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
 const memoryRecallFixture = path.resolve(
@@ -129,7 +129,7 @@ test("operator creates edits reverts searches recalls and deletes workspace know
     throw new Error("Knowledge browser E2E requires launch-mode runtime paths.");
   }
 
-  await ensureGlobalWorkspace(runtime);
+  await ensureProjectWorkspace(appPage, runtime);
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-browser-knowledge-"));
   const workspace = await runtime.resolveWorkspace(workspaceRoot);
   await appPage.reload({ waitUntil: "domcontentloaded" });
@@ -681,11 +681,15 @@ async function readFileIfExists(filePath: string): Promise<string> {
   }
 }
 
-function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv {
+function cliEnv(paths: {
+  cliShim: string;
+  homeDir: string;
+  operatorHomeDir: string;
+}): NodeJS.ProcessEnv {
   return {
     ...process.env,
     COMPOZY_HOME: paths.homeDir,
-    HOME: paths.homeDir,
+    HOME: paths.operatorHomeDir,
     PATH: [path.dirname(paths.cliShim), process.env.PATH ?? ""]
       .filter(Boolean)
       .join(path.delimiter),

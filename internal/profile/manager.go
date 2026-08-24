@@ -23,11 +23,12 @@ const defaultProfileID = "00000000000000000000000000"
 // marshaled form lands in the public `content` field of every log event, so it
 // follows the same snake_case shape as the rest of that wire.
 type Event struct {
-	Name        string `json:"name"`
-	ProfileID   string `json:"profile_id"`
-	ProfileName string `json:"profile_name"`
-	OperationID string `json:"operation_id,omitempty"`
-	Error       string `json:"error,omitempty"`
+	Name                string `json:"name"`
+	ProfileID           string `json:"profile_id"`
+	ProfileName         string `json:"profile_name"`
+	PreviousProfileName string `json:"previous_profile_name,omitempty"`
+	OperationID         string `json:"operation_id,omitempty"`
+	Error               string `json:"error,omitempty"`
 }
 
 type EventRecorder interface{ RecordProfileEvent(Event) }

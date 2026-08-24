@@ -84,7 +84,7 @@ function DesktopChrome({
   updateAvailable: boolean;
 }) {
   const model = useDesktopShellModel();
-  const chrome = useDesktopChrome(model.runtimeWorkspaceId);
+  const chrome = useDesktopChrome(model.desktopWorkspaceId);
   const worktreeDialogs = useWorktreeDialogTargets();
   const workspaceSetupDefaults = useWorkspaceSetupDefaults();
 
@@ -123,7 +123,10 @@ function DesktopChromeContent(props: DesktopShellBodyProps) {
   // This projection reads the desktop topology, so it must mount below the
   // shell context that owns the window-manager store.
   const paletteRegistry = useCmdPaletteRegistry({
-    workspaceId: props.model.runtimeWorkspaceId,
+    // The structural catalog belongs to the attached desktop client. Global
+    // changes the command lens, but it must not detach shell commands from the
+    // remembered project's window-manager partition.
+    workspaceId: props.model.desktopWorkspaceId,
     client: props.client,
   });
 
@@ -290,10 +293,9 @@ function DesktopShellScopedBody({
         />
         <DesktopManagerSurfaces
           model={managerSurfaces}
-          // The window manager binds to the active workspace, not to the catalog
-          // being non-empty — a loaded catalog with no selection is still unbound.
-          // While resolution is pending nothing is claimable either way.
-          unbound={!model.pending && model.runtimeWorkspaceId === null}
+          // Global changes the data lens, not the desktop layout partition. The
+          // window manager stays on the remembered project while data aggregates.
+          unbound={!model.pending && model.desktopWorkspaceId === null}
           onCreateDesktop={() => manager.createDesktop()}
           onSwitchDesktop={desktopId => manager.switchDesktop(desktopId)}
           onRenameDesktop={(desktopId, name) => manager.renameDesktop(desktopId, name)}

@@ -80,9 +80,9 @@ test("operator remembers a native-tool decision and revokes it end to end", asyn
   assertLaunchRuntime(runtime);
   const grantsUI = toolApprovalGrantsSelectors(appPage);
 
-  // The session and its remembered decision belong to the hidden operator-home runtime binding.
+  // The session and its remembered decision belong to the isolated project runtime binding.
   await completeOnboardingIfPrompted(appPage);
-  const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
+  const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
 
   const created = await runtime.requestJSON<SessionEnvelope>("/api/sessions", {
     method: "POST",

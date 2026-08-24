@@ -40,8 +40,10 @@ function selectionFrame(profileName = "marketing") {
 }
 
 describe("profileEventStreamUrl", () => {
-  it("Should filter server-side by component and skip replay", () => {
-    expect(profileEventStreamUrl()).toBe("/api/logs/stream?component=profile&replay=false");
+  it("Should observe every profile lifecycle event without replay", () => {
+    expect(profileEventStreamUrl()).toBe(
+      "/api/logs/stream?component=profile&all_profiles=true&replay=false"
+    );
   });
 
   it("Should never scope by workspace, because profile events are global", () => {
@@ -56,6 +58,7 @@ describe("parseProfileEvent", () => {
     expect(parseProfileEvent(selectionFrame())).toEqual({
       name: PROFILE_SELECTION_CHANGED_EVENT,
       profileName: "marketing",
+      previousProfileName: "",
     });
   });
 
@@ -63,6 +66,7 @@ describe("parseProfileEvent", () => {
     expect(parseProfileEvent(frame({ type: "profile.archived" }))).toEqual({
       name: "profile.archived",
       profileName: "",
+      previousProfileName: "",
     });
   });
 
@@ -101,6 +105,7 @@ describe("openProfileEventStream", () => {
     expect(onProfileEvent).toHaveBeenCalledExactlyOnceWith({
       name: "profile.archived",
       profileName: "marketing",
+      previousProfileName: "",
     });
 
     teardown();
@@ -142,6 +147,7 @@ describe("applyProfileEvent", () => {
     applyProfileEvent(queryClient, {
       name: PROFILE_SELECTION_CHANGED_EVENT,
       profileName: "marketing",
+      previousProfileName: "",
     });
     expect(invalidate).toHaveBeenCalledExactlyOnceWith({ queryKey: profileKeys.selections() });
   });
@@ -156,6 +162,7 @@ describe("applyProfileEvent", () => {
     applyProfileEvent(queryClient, {
       name: PROFILE_SELECTION_CHANGED_EVENT,
       profileName: "marketing",
+      previousProfileName: "",
     });
 
     // The remembered choice moved; what this client is looking at did not.
@@ -166,11 +173,30 @@ describe("applyProfileEvent", () => {
   it("Should refresh the list and the row for a lifecycle event", () => {
     const queryClient = new QueryClient();
     const invalidate = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue(undefined);
-    applyProfileEvent(queryClient, { name: "profile.archived", profileName: "old-agency" });
+    applyProfileEvent(queryClient, {
+      name: "profile.archived",
+      profileName: "old-agency",
+      previousProfileName: "",
+    });
     expect(invalidate.mock.calls.map(([options]) => options)).toEqual([
       { queryKey: profileKeys.selections() },
       { queryKey: profileKeys.lists() },
       { queryKey: profileKeys.detail("old-agency") },
     ]);
+  });
+
+  it("Should clear an unavailable profile view after an external lifecycle change", () => {
+    const queryClient = new QueryClient();
+    vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue(undefined);
+    const lens = { scope: "workspace", workspaceId: "ws-acme" } as const;
+    setProfileView(lens, { kind: "profile", profile: "marketing" });
+
+    applyProfileEvent(queryClient, {
+      name: "profile.renamed",
+      profileName: "growth",
+      previousProfileName: "marketing",
+    });
+
+    expect(localProfileView(lens)).toBeNull();
   });
 });

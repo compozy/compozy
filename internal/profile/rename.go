@@ -55,7 +55,7 @@ func (m *Manager) Rename(
 	}
 	result := RenameResult{DormantPlacements: plan.DormantPlacements}
 	result.RepoResults = m.applyRepoRenames(plan.RepoCandidates, name, newName, opts.Repos)
-	m.recordEvent(eventspkg.ProfileRenamed, renamed, opID)
+	m.recordEventWithPreviousName(eventspkg.ProfileRenamed, renamed, name, opID)
 	return result, nil
 }
 

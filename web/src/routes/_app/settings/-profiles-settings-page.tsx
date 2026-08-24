@@ -68,7 +68,7 @@ export function ProfilesSettingsPage({ profileFlow }: ProfilesSettingsPageProps)
 
   return (
     <SettingsPageFrame slug="profiles">
-      <div className="flex flex-col gap-4" data-testid={TEST_PREFIX}>
+      <div className="flex flex-col gap-4" data-testid={`${TEST_PREFIX}-content`}>
         <div className="flex items-center gap-2">
           <p className="flex-1 text-small-body text-subtle" data-testid={`${TEST_PREFIX}-line`}>
             {page.manageable ? PROFILE_SEPARATION_LINE : PROFILE_REMOTE_MANAGEMENT_LINE}
