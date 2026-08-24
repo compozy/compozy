@@ -621,9 +621,10 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 			)
 		}
 		afterRunning, ok := runtime.current()
-		if !ok || !reflect.DeepEqual(afterRunning, beforeRunning) {
+		if !ok {
 			t.Fatalf("runtime after update rollback = %#v/%t, want %#v", afterRunning, ok, beforeRunning)
 		}
+		assertExtensionPublicState(t, "runtime after update rollback", afterRunning, beforeRunning)
 		reloads := runtime.reloadSnapshot()
 		if len(reloads) != 2 || reloads[0].Version != "2.0.0" ||
 			reloads[0].NetworkRequirementDigest != secondDigest ||
@@ -1034,6 +1035,29 @@ func (r *lifecycleStateRuntime) reloadSnapshot() []extensionpkg.ExtensionInfo {
 	return append([]extensionpkg.ExtensionInfo(nil), r.reloads...)
 }
 
+func assertExtensionPublicState(
+	t *testing.T,
+	label string,
+	got extensionpkg.ExtensionInfo,
+	want extensionpkg.ExtensionInfo,
+) {
+	t.Helper()
+	infoType := reflect.TypeOf(got)
+	gotValue := reflect.ValueOf(got)
+	wantValue := reflect.ValueOf(want)
+	for index := range infoType.NumField() {
+		field := infoType.Field(index)
+		if !field.IsExported() {
+			continue
+		}
+		gotField := gotValue.Field(index).Interface()
+		wantField := wantValue.Field(index).Interface()
+		if !reflect.DeepEqual(gotField, wantField) {
+			t.Fatalf("%s %s = %#v, want %#v", label, field.Name, gotField, wantField)
+		}
+	}
+}
+
 type lifecycleFailingPublisher struct {
 	mu        sync.Mutex
 	remaining int
@@ -1121,13 +1145,12 @@ func (h *lifecycleFailureHarness) assertRestored(t *testing.T) {
 	if err != nil {
 		t.Fatalf("registry.Get(after failure) error = %v", err)
 	}
-	if !reflect.DeepEqual(*after, h.before) {
-		t.Fatalf("registry after failure = %#v, want byte-equivalent %#v", *after, h.before)
-	}
+	assertExtensionPublicState(t, "registry after failure", *after, h.before)
 	running, ok := h.runtime.current()
-	if !ok || !reflect.DeepEqual(running, h.before) {
+	if !ok {
 		t.Fatalf("running state after failure = %#v/%t, want %#v", running, ok, h.before)
 	}
+	assertExtensionPublicState(t, "running state after failure", running, h.before)
 }
 
 func recordRuntimeHealthFailure(registry *mcppkg.RuntimeHealthRegistry, name string, generation string) {

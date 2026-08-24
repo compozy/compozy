@@ -1562,9 +1562,9 @@ func setManagerBusyInputProviderDefault(t *testing.T, h *harness, provider strin
 	if err != nil {
 		t.Fatalf("Resolve(workspace) error = %v", err)
 	}
-	resolved.Config.Providers[provider] = compozyconfig.ProviderConfig{
-		Models: compozyconfig.ProviderModelsConfig{Default: model},
-	}
+	providerConfig := resolved.Config.Providers[provider]
+	providerConfig.Models.Default = model
+	resolved.Config.Providers[provider] = providerConfig
 	h.resolver.mu.Lock()
 	h.resolver.upsert(&resolved)
 	h.resolver.mu.Unlock()

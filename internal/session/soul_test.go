@@ -83,7 +83,8 @@ func TestManagerSoulSessionSnapshots(t *testing.T) {
 			t.Fatalf("Resolve(%q) error = %v", h.workspaceID, err)
 		}
 		resolved.Config = compozyconfig.Config{
-			Defaults: compozyconfig.DefaultsConfig{Agent: "coder"},
+			Defaults:  compozyconfig.DefaultsConfig{Agent: "coder"},
+			Providers: compozyconfig.CloneProviderConfigs(h.cfg.Providers),
 		}
 		h.resolver.upsert(&resolved)
 		writeSessionSoul(t, h.workspace, "coder", validSessionSoul("Reviewer", "Defaulted body."))

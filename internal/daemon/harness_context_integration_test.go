@@ -19,6 +19,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
+	"github.com/compozy/compozy/internal/providerexec"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/situation"
 	skillspkg "github.com/compozy/compozy/internal/skills"
@@ -676,6 +677,29 @@ func newHarnessIntegrationWorkspace(
 	root string,
 ) workspacepkg.ResolvedWorkspace {
 	t.Helper()
+	cfg.Providers = compozyconfig.CloneProviderConfigs(cfg.Providers)
+	builtinProviders := compozyconfig.BuiltinProviders()
+	for name := range builtinProviders {
+		provider, err := cfg.ResolveProvider(name)
+		if err != nil {
+			t.Fatalf("ResolveProvider(%q) error = %v", name, err)
+		}
+		if providerexec.StrategyFor(provider).Kind != providerexec.StrategyNativeCLIBridge {
+			continue
+		}
+		provider.Command = "test-acp-driver"
+		cfg.Providers[name] = provider
+	}
+	for name, provider := range cfg.Providers {
+		if _, builtin := builtinProviders[name]; builtin {
+			continue
+		}
+		if providerexec.StrategyFor(provider).Kind != providerexec.StrategyNativeCLIBridge {
+			continue
+		}
+		provider.Command = "test-acp-driver"
+		cfg.Providers[name] = provider
+	}
 
 	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)

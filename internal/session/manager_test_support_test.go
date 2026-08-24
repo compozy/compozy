@@ -20,6 +20,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/providerexec"
 	"github.com/compozy/compozy/internal/sandbox"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
@@ -179,6 +180,29 @@ func newHarness(t *testing.T, extraOpts ...Option) *harness {
 		workspace:     workspace,
 		workspaceID:   "ws-primary",
 		workspaceName: "workspace",
+	}
+	h.cfg.Providers = compozyconfig.CloneProviderConfigs(h.cfg.Providers)
+	builtinProviders := compozyconfig.BuiltinProviders()
+	for name := range builtinProviders {
+		provider, err := h.cfg.ResolveProvider(name)
+		if err != nil {
+			t.Fatalf("ResolveProvider(%q) error = %v", name, err)
+		}
+		if providerexec.StrategyFor(provider).Kind != providerexec.StrategyNativeCLIBridge {
+			continue
+		}
+		provider.Command = "test-acp-driver"
+		h.cfg.Providers[name] = provider
+	}
+	for name, provider := range h.cfg.Providers {
+		if _, builtin := builtinProviders[name]; builtin {
+			continue
+		}
+		if providerexec.StrategyFor(provider).Kind != providerexec.StrategyNativeCLIBridge {
+			continue
+		}
+		provider.Command = "test-acp-driver"
+		h.cfg.Providers[name] = provider
 	}
 	resolvedSandbox, err := h.cfg.ResolveSandbox(h.cfg.Defaults.Sandbox)
 	if err != nil {

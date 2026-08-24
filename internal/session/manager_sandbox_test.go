@@ -402,6 +402,9 @@ func testSessionSandboxUsesPreparedLauncherCommandRuntime(t *testing.T) {
 		launcher:    launcher,
 	}
 	h := newHarness(t, WithSandboxRegistry(newRegistryForProvider(t, provider)))
+	claudeProvider := h.cfg.Providers["claude"]
+	claudeProvider.Command = compozyconfig.BuiltinProviders()["claude"].Command
+	h.cfg.Providers["claude"] = claudeProvider
 	h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
 		if opts.Launcher != launcher {
 			t.Fatalf("StartOpts.Launcher = %T, want prepared launcher %T", opts.Launcher, launcher)
