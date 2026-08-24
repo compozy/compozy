@@ -371,6 +371,7 @@ func TestReconciliationPreservesWorktreeBinding(t *testing.T) {
 		worktreeID := "wt-session-reconcile"
 		worktreePath := filepath.Join(h.workspace, ".worktrees", "session-reconcile")
 		if err := h.registry.Worktrees.Insert(ctx, worktreepkg.Worktree{
+			ProfileID:   store.DefaultProfileID,
 			ID:          worktreeID,
 			WorkspaceID: h.workspaceID,
 			Name:        "session-reconcile",
@@ -387,6 +388,7 @@ func TestReconciliationPreservesWorktreeBinding(t *testing.T) {
 
 		creationProfile := store.SessionCreationProfile{
 			Version: store.SessionCreationProfileVersion, AgentName: "coder", Provider: "claude",
+			ProfileID:   store.DefaultProfileID,
 			WorkspaceID: h.workspaceID, CWD: worktreePath, WorktreeRef: worktreeID,
 			SandboxMode: store.SessionCreationSandboxNone, Permissions: "approve-reads",
 		}
@@ -415,6 +417,7 @@ func TestReconciliationPreservesWorktreeBinding(t *testing.T) {
 			CreationDigest:     creationDigest,
 		}
 		info := store.SessionInfo{
+			ProfileID:     store.DefaultProfileID,
 			ID:            sessionID,
 			Name:          creationOptions.Name,
 			AgentName:     creationProfile.AgentName,
@@ -433,13 +436,13 @@ func TestReconciliationPreservesWorktreeBinding(t *testing.T) {
 		}
 
 		meta := store.SessionMeta{
+			ProfileID:            store.DefaultProfileID,
 			ID:                   sessionID,
 			Name:                 creationOptions.Name,
 			AgentName:            creationProfile.AgentName,
 			Provider:             creationProfile.Provider,
 			RuntimeStatus:        store.SessionRuntimeUnbound,
 			WorkspaceID:          h.workspaceID,
-			CWD:                  worktreePath,
 			NetworkParticipation: participation.CloneSpec(creationOptions.NetworkParticipation),
 			SessionType:          creationOptions.SessionType,
 			State:                "stopped",
@@ -451,6 +454,7 @@ func TestReconciliationPreservesWorktreeBinding(t *testing.T) {
 			CreatedAt:            now,
 			UpdatedAt:            now,
 		}
+		meta.SetCWD(worktreePath)
 		meta.SetWorktreeID(worktreeID)
 		if err := store.WriteSessionMeta(
 			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, sessionID)),
@@ -474,7 +478,9 @@ func TestReconciliationPreservesWorktreeBinding(t *testing.T) {
 		if len(secondResult.Indexed) != 0 {
 			t.Fatalf("second Indexed = %#v, want empty for an existing session", secondResult.Indexed)
 		}
-		sessions, err := h.registry.ListSessions(ctx, store.SessionListQuery{})
+		sessions, err := h.registry.ListSessions(ctx, store.SessionListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+		})
 		if err != nil {
 			t.Fatalf("ListSessions() error = %v", err)
 		}
