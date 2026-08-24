@@ -408,8 +408,8 @@ async function openBridgesPage(
   targetURL: string,
   runtime: Parameters<typeof ensureProjectWorkspace>[1]
 ): Promise<void> {
-  await ensureProjectWorkspace(page, runtime);
   await page.goto(targetURL, { waitUntil: "domcontentloaded" });
+  await ensureProjectWorkspace(page, runtime);
   await completeOnboardingIfPrompted(page);
   await expect(page.getByTestId("os-desktop")).toBeVisible();
 }

@@ -205,6 +205,7 @@ test("operator can accept and dismiss workspace suggestions through the real dae
 }) => {
   const automationUI = automationOperatorSelectors(appPage);
 
+  await ensureProjectWorkspace(appPage, runtime);
   await completeOnboardingIfPrompted(automationUI);
   const workspaces = await runtime.requestJSON<{
     workspaces: Array<{ id: string }>;

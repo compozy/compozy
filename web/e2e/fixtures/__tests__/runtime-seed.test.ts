@@ -653,6 +653,14 @@ describe("browser runtime seed helpers", () => {
         };
       }
 
+      if (pathname === "/api/sessions/sess_browser_automation_01/owner") {
+        return {
+          session_id: "sess_browser_automation_01",
+          workspace_id: "ws_browser_automation",
+          workspace_name: "Browser Automation",
+        };
+      }
+
       if (
         pathname ===
         "/api/workspaces/ws_browser_automation/sessions/sess_browser_automation_01/transcript"
@@ -720,6 +728,7 @@ describe("browser runtime seed helpers", () => {
     expect(requestJSON).toHaveBeenCalledWith(
       "/api/automation/jobs/job_browser_deploy_review/runs?limit=10"
     );
+    expect(requestJSON).toHaveBeenCalledWith("/api/sessions/sess_browser_automation_01/owner");
     expect(requestJSON).toHaveBeenCalledWith(
       "/api/workspaces/ws_browser_automation/sessions/sess_browser_automation_01/transcript"
     );

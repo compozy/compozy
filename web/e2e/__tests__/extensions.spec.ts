@@ -246,29 +246,21 @@ test.describe("Profile-aware extension management", () => {
       })
       .toMatchObject({ enabled: false });
 
+    await fulfillGrowthProfileCredential(runtime);
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    const refreshedMarketplace = appWindow(appPage, "marketplace");
+    const refreshedDeclaredProfiles = refreshedMarketplace.getByTestId(
+      "extension-declared-profiles"
+    );
+    await expect(refreshedDeclaredProfiles).toBeVisible({ timeout: 20_000 });
+    await expect(refreshedDeclaredProfiles.getByText("Needs setup")).toHaveCount(0);
+
     const profiles = profilesOperatorSelectors(appPage);
     await profiles.switcher.click();
     await profiles.switcherOption("growth").click();
     await expect(profiles.switcher).toContainText("growth");
-    await expect(marketplaceWin.getByTestId("extension-enabled-switch")).toBeChecked();
-    await expect(marketplaceWin.getByText("growth", { exact: true }).last()).toBeVisible();
-
-    await runtime.requestJSON("/api/vault/secrets", {
-      body: JSON.stringify({
-        kind: "api_key",
-        ref: "vault:profiles/growth/providers/openai/api_key",
-        secret_value: "browser-growth-secret",
-      }),
-      method: "PUT",
-    });
-    await appPage.reload({ waitUntil: "domcontentloaded" });
-    const refreshedMarketplace = appWindow(appPage, "marketplace");
-    await expect(refreshedMarketplace.getByTestId("extension-declared-profiles")).toBeVisible({
-      timeout: 20_000,
-    });
-    await expect(
-      refreshedMarketplace.getByTestId("extension-declared-profiles").getByText("Needs setup")
-    ).toHaveCount(0);
+    await expect(refreshedMarketplace.getByTestId("extension-enabled-switch")).toBeChecked();
+    await expect(refreshedMarketplace.getByText("growth", { exact: true }).last()).toBeVisible();
   });
 
   test("E2E-030: a placed palette command follows profile enablement and catalog revision", async ({
@@ -284,6 +276,7 @@ test.describe("Profile-aware extension management", () => {
       "--allow-unverified",
       "--yes",
     ]);
+    await fulfillGrowthProfileCredential(runtime);
 
     await completeOnboardingIfPrompted(appPage);
     await switchWorkspace(appPage, workspace.id, workspace.name);
@@ -390,5 +383,18 @@ test.describe("Profile-aware extension management", () => {
       "utf8"
     );
     return rootDir;
+  }
+
+  async function fulfillGrowthProfileCredential(
+    runtime: Parameters<typeof runBrowserRuntimeCLIJSON>[0]
+  ): Promise<void> {
+    await runtime.requestJSON("/api/vault/secrets", {
+      body: JSON.stringify({
+        kind: "api_key",
+        ref: "vault:profiles/growth/providers/openai/api_key",
+        secret_value: "browser-growth-secret",
+      }),
+      method: "PUT",
+    });
   }
 });

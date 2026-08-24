@@ -132,7 +132,9 @@ test("operator can edit bridge config, enable runtime, observe status updates, a
   await expect(bridgeUI.submitBridgeCreate).toBeEnabled();
 
   const createResponsePromise = appPage.waitForResponse(response => {
-    return response.request().method() === "POST" && response.url().endsWith("/api/bridges");
+    return (
+      response.request().method() === "POST" && new URL(response.url()).pathname === "/api/bridges"
+    );
   });
   await bridgeUI.submitBridgeCreate.click();
   const createResponse = await createResponsePromise;
