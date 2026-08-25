@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	golangciLintVersion       = "v2.12.2"
+	golangciLintVersion       = "v2.13.1"
 	golangciLintTimeout       = "10m"
 	goUnitTestTimeout         = "30m"
 	goIntegrationPackageLimit = "2"

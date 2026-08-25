@@ -53,7 +53,8 @@ test-e2e-web:
 
 test-e2e-desktop: web-build desktop-build
 	@runner=""; \
-	if [ "$$(uname -s)" = "Linux" ]; then runner="xvfb-run -a"; fi; \
+	if [ "$$(uname -s)" = "Linux" ]; then runner="xvfb-run -a desktop/scripts/run-e2e-linux.sh"; fi; \
+	if [ -n "$$runner" ]; then $$runner; exit $$?; fi; \
 	$$runner bun run --cwd desktop test:e2e
 
 test-e2e:

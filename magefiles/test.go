@@ -4,7 +4,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -19,18 +21,22 @@ func Test() error {
 	if err != nil {
 		return err
 	}
-	baseArgs := []string{"--format", "pkgname", "--"}
-	baseArgs = append(baseArgs, goUnitTestSafetyArgs(
+	jsonFileDir, err := ensureGoTestJSONFileDir()
+	if err != nil {
+		return err
+	}
+	testArgs := goUnitTestSafetyArgs(
 		os.Getenv(goTestFullCheckptrEnvVar) == "1",
 		os.Getenv(goTestUncachedEnvVar) == "1",
-	)...)
-	baseArgs = append(baseArgs,
+	)
+	testArgs = append(testArgs,
 		"-p", goUnitTestPackageLimit(),
 		"-parallel="+strconv.Itoa(goUnitTestParallelism),
 		"-timeout", goUnitTestTimeout,
 	)
-	for _, invocation := range invocations {
-		args := append([]string(nil), baseArgs...)
+	for index, invocation := range invocations {
+		args := gotestsumInvocationArgs(jsonFileDir, index)
+		args = append(args, testArgs...)
 		if len(invocation.tests) > 0 {
 			args = append(args, "-run", exactGoTestRunPattern(invocation.tests))
 		}
@@ -55,6 +61,33 @@ func Test() error {
 		nil,
 		"go",
 		goSDKTestArgs(os.Getenv(goTestUncachedEnvVar) == "1")...,
+	)
+}
+
+func ensureGoTestJSONFileDir() (string, error) {
+	dir := strings.TrimSpace(os.Getenv(goTestJSONFileDirEnvVar))
+	if dir == "" {
+		return "", nil
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("create gotestsum JSON dir %q: %w", dir, err)
+	}
+	return dir, nil
+}
+
+func gotestsumInvocationArgs(jsonFileDir string, invocationIndex int) []string {
+	args := []string{"--format", "pkgname"}
+	if jsonFileDir == "" {
+		return append(args, "--")
+	}
+	stamp := strings.TrimSpace(os.Getenv(goTestShardIndexEnvVar))
+	if stamp == "" {
+		stamp = "all"
+	}
+	return append(args,
+		"--jsonfile",
+		filepath.Join(jsonFileDir, fmt.Sprintf("gotest-shard%s-%d.json", stamp, invocationIndex)),
+		"--",
 	)
 }
 

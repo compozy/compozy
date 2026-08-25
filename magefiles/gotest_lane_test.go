@@ -1,9 +1,9 @@
 //go:build mage
 
 // Suite: Hermetic Go test lane policy
-// Invariant: Unit-test shards partition every main-module package and split-package test exactly once;
-// the SDK module remains a separate, single CI lane.
-// Boundary IN: Mage package selection, concurrency policy, and environment scrubbing.
+// Invariant: Unit-test shards partition every main-module package and split-package test exactly once
+// under the duration-weighted (census) assignment; the SDK module remains a separate, single CI lane.
+// Boundary IN: Mage package selection, census weighting, concurrency policy, and environment scrubbing.
 // Boundary OUT: GitHub Actions runner orchestration in .github/workflows/ci.yml.
 
 package main
@@ -178,63 +178,33 @@ func TestShouldRunSDKGoTests(t *testing.T) {
 	})
 }
 
-func TestShardSortedStrings(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should partition the sorted package list exactly once", func(t *testing.T) {
-		t.Parallel()
-		packages := []string{"package/d", "package/a", "package/e", "package/b", "package/c"}
-		first := shardSortedStrings(packages, goTestShard{index: 0, total: 2})
-		second := shardSortedStrings(packages, goTestShard{index: 1, total: 2})
-
-		if !slices.Equal(first, []string{"package/a", "package/c", "package/e"}) {
-			t.Fatalf("first shard = %v, want [package/a package/c package/e]", first)
-		}
-		if !slices.Equal(second, []string{"package/b", "package/d"}) {
-			t.Fatalf("second shard = %v, want [package/b package/d]", second)
-		}
-		counts := make(map[string]int, len(packages))
-		for _, packagePath := range append(first, second...) {
-			counts[packagePath]++
-		}
-		for _, packagePath := range packages {
-			if counts[packagePath] != 1 {
-				t.Fatalf(
-					"package %q appears %d times across shards, want exactly once",
-					packagePath,
-					counts[packagePath],
-				)
-			}
-		}
-	})
-}
-
 func TestShardGoUnitTestInvocations(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should assign every package and split-package test to exactly one shard", func(t *testing.T) {
-		t.Parallel()
-		packages := []string{
-			"package/d",
-			goSplitTestPackage,
-			"package/a",
-			"package/c",
-			"package/b",
-		}
-		splitTests := []string{"TestDelta", "TestAlpha", "TestCharlie", "TestBravo"}
+	collectAssignments := func(
+		t *testing.T,
+		packages []string,
+		splitTests []string,
+		census *goTestCensus,
+		total int,
+	) []string {
+		t.Helper()
 		assigned := make([]string, 0, len(packages)+len(splitTests)-1)
-
-		for shardIndex := range 3 {
+		for shardIndex := range total {
 			invocations, err := shardGoUnitTestInvocations(
 				packages,
 				splitTests,
-				goTestShard{index: shardIndex, total: 3},
+				census,
+				goTestShard{index: shardIndex, total: total},
 			)
 			if err != nil {
 				t.Fatalf("shardGoUnitTestInvocations() for shard %d: %v", shardIndex, err)
 			}
 			for _, invocation := range invocations {
 				if slices.Equal(invocation.packages, []string{goSplitTestPackage}) {
+					if len(invocation.tests) == 0 {
+						t.Fatalf("split invocation without selected tests: %+v", invocation)
+					}
 					for _, testName := range invocation.tests {
 						assigned = append(assigned, "test:"+testName)
 					}
@@ -248,8 +218,21 @@ func TestShardGoUnitTestInvocations(t *testing.T) {
 				}
 			}
 		}
-
 		slices.Sort(assigned)
+		return assigned
+	}
+
+	t.Run("Should assign every package and split-package test to exactly one shard", func(t *testing.T) {
+		t.Parallel()
+		packages := []string{
+			"package/d",
+			goSplitTestPackage,
+			"package/a",
+			"package/c",
+			"package/b",
+		}
+		splitTests := []string{"TestDelta", "TestAlpha", "TestCharlie", "TestBravo"}
+		assigned := collectAssignments(t, packages, splitTests, nil, 3)
 		want := []string{
 			"package:package/a",
 			"package:package/b",
@@ -260,6 +243,75 @@ func TestShardGoUnitTestInvocations(t *testing.T) {
 			"test:TestCharlie",
 			"test:TestDelta",
 		}
+		if !slices.Equal(assigned, want) {
+			t.Fatalf("assignments across shards = %v, want %v", assigned, want)
+		}
+	})
+
+	t.Run("Should separate the heaviest packages across shards", func(t *testing.T) {
+		t.Parallel()
+		census := &goTestCensus{
+			DefaultPackageSeconds:   1,
+			DefaultSplitTestSeconds: 1,
+			Packages: map[string]float64{
+				"package/heavy-one": 100,
+				"package/heavy-two": 90,
+			},
+		}
+		packages := []string{"package/heavy-one", "package/heavy-two", "package/light", goSplitTestPackage}
+		splitTests := []string{"TestOnly"}
+
+		shardOfHeavy := make(map[string]int, 2)
+		for shardIndex := range 2 {
+			invocations, err := shardGoUnitTestInvocations(
+				packages,
+				splitTests,
+				census,
+				goTestShard{index: shardIndex, total: 2},
+			)
+			if err != nil {
+				t.Fatalf("shardGoUnitTestInvocations() for shard %d: %v", shardIndex, err)
+			}
+			for _, invocation := range invocations {
+				for _, packagePath := range invocation.packages {
+					if strings.HasPrefix(packagePath, "package/heavy-") {
+						shardOfHeavy[packagePath] = shardIndex
+					}
+				}
+			}
+		}
+		if len(shardOfHeavy) != 2 || shardOfHeavy["package/heavy-one"] == shardOfHeavy["package/heavy-two"] {
+			t.Fatalf("heavy packages share shard assignment: %v", shardOfHeavy)
+		}
+	})
+
+	t.Run("Should omit the split invocation for a shard that draws no split tests", func(t *testing.T) {
+		t.Parallel()
+		packages := []string{"package/a", "package/b", goSplitTestPackage}
+		splitTests := []string{"TestOnly"}
+
+		splitInvocations := 0
+		assigned := collectAssignments(t, packages, splitTests, nil, 2)
+		for shardIndex := range 2 {
+			invocations, err := shardGoUnitTestInvocations(
+				packages,
+				splitTests,
+				nil,
+				goTestShard{index: shardIndex, total: 2},
+			)
+			if err != nil {
+				t.Fatalf("shardGoUnitTestInvocations() for shard %d: %v", shardIndex, err)
+			}
+			for _, invocation := range invocations {
+				if len(invocation.tests) > 0 {
+					splitInvocations++
+				}
+			}
+		}
+		if splitInvocations != 1 {
+			t.Fatalf("split invocations across shards = %d, want exactly 1", splitInvocations)
+		}
+		want := []string{"package:package/a", "package:package/b", "test:TestOnly"}
 		if !slices.Equal(assigned, want) {
 			t.Fatalf("assignments across shards = %v, want %v", assigned, want)
 		}

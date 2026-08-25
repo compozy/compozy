@@ -15,13 +15,17 @@ inputs:
     required: false
     default: "false"
   cache:
-    description: "Cache Go modules and build outputs with a moving CI key"
+    description: "Cache Go modules and build outputs"
     required: false
     default: "true"
   cache-key-suffix:
     description: "Job-specific cache-key suffix, including a leading dash when set"
     required: false
     default: ""
+  save-build-cache:
+    description: "Save the Go build cache at job end; keep false outside main so pull requests stay restore-only"
+    required: false
+    default: "false"
   verify-modules:
     description: "Download and verify all modules eagerly"
     required: false
@@ -50,18 +54,34 @@ runs:
         echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
         echo "modules=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
 
-    - name: Restore moving Go cache
+    - name: Cache Go modules
       if: inputs.cache == 'true'
       uses: actions/cache@v6
       with:
-        path: |
-          ${{ steps.go-cache-paths.outputs.build }}
-          ${{ steps.go-cache-paths.outputs.modules }}
-        key: ${{ runner.os }}-${{ runner.arch }}-go-${{ steps.setup-go.outputs.go-version }}-${{ github.job }}${{ inputs.cache-key-suffix }}-${{ github.ref_name }}-${{ github.run_id }}
+        path: ${{ steps.go-cache-paths.outputs.modules }}
+        key: ${{ runner.os }}-${{ runner.arch }}-gomod-${{ hashFiles('go.sum', 'sdk/go/go.sum') }}
         restore-keys: |
-          ${{ runner.os }}-${{ runner.arch }}-go-${{ steps.setup-go.outputs.go-version }}-${{ github.job }}${{ inputs.cache-key-suffix }}-${{ github.ref_name }}-
-          ${{ runner.os }}-${{ runner.arch }}-go-${{ steps.setup-go.outputs.go-version }}-${{ github.job }}${{ inputs.cache-key-suffix }}-
-          ${{ runner.os }}-${{ runner.arch }}-go-${{ steps.setup-go.outputs.go-version }}-
+          ${{ runner.os }}-${{ runner.arch }}-gomod-
+
+    - name: Restore Go build cache
+      if: inputs.cache == 'true' && inputs.save-build-cache != 'true'
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ steps.go-cache-paths.outputs.build }}
+        key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ steps.setup-go.outputs.go-version }}-${{ github.job }}${{ inputs.cache-key-suffix }}-${{ github.run_id }}
+        restore-keys: |
+          ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ steps.setup-go.outputs.go-version }}-${{ github.job }}${{ inputs.cache-key-suffix }}-
+          ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ steps.setup-go.outputs.go-version }}-
+
+    - name: Restore and save Go build cache
+      if: inputs.cache == 'true' && inputs.save-build-cache == 'true'
+      uses: actions/cache@v6
+      with:
+        path: ${{ steps.go-cache-paths.outputs.build }}
+        key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ steps.setup-go.outputs.go-version }}-${{ github.job }}${{ inputs.cache-key-suffix }}-${{ github.run_id }}
+        restore-keys: |
+          ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ steps.setup-go.outputs.go-version }}-${{ github.job }}${{ inputs.cache-key-suffix }}-
+          ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ steps.setup-go.outputs.go-version }}-
 
     - name: Download Go modules
       if: inputs.verify-modules == 'true'
@@ -74,10 +94,27 @@ runs:
     - name: Install gotestsum
       if: inputs.install-gotestsum == 'true'
       shell: bash
-      run: go install gotest.tools/gotestsum@v1.13.0
+      env:
+        GOTESTSUM_VERSION: "1.13.0"
+        GOTESTSUM_SHA256_LINUX_AMD64: "11ccddeaf708ef228889f9fe2f68291a75b27013ddfc3b18156e094f5f40e8ee"
+      run: |
+        set -euo pipefail
+        if [[ "$(uname -s)" == "Linux" && "$(uname -m)" == "x86_64" ]]; then
+          archive="$(mktemp -t gotestsum.XXXXXX.tar.gz)"
+          curl -sSfL --retry 3 -o "$archive" \
+            "https://github.com/gotestyourself/gotestsum/releases/download/v${GOTESTSUM_VERSION}/gotestsum_${GOTESTSUM_VERSION}_linux_amd64.tar.gz"
+          echo "${GOTESTSUM_SHA256_LINUX_AMD64}  ${archive}" | sha256sum -c -
+          install_dir="$(go env GOPATH)/bin"
+          mkdir -p "$install_dir"
+          tar -xzf "$archive" -C "$install_dir" gotestsum
+          rm -f "$archive"
+        else
+          go install "gotest.tools/gotestsum@v${GOTESTSUM_VERSION}"
+        fi
+        gotestsum --version
 
     - name: Install golangci-lint
       if: inputs.install-golangci-lint == 'true'
       shell: bash
       run: |
-        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b "$(go env GOPATH)/bin" v2.12.2
+        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b "$(go env GOPATH)/bin" v2.13.1

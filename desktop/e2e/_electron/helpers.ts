@@ -8,6 +8,8 @@ export async function completeOnboarding(product: Page): Promise<void> {
   );
   expect(response.ok()).toBe(true);
   await product.reload({ waitUntil: "domcontentloaded" });
+  await expect(product.getByRole("alertdialog", { name: "Set up CompozyOS" })).toHaveCount(0);
+  await expect(product.getByTestId("os-desktop")).toBeVisible();
 }
 
 export async function readDiagnosticFile(path: string): Promise<string> {

@@ -1,0 +1,79 @@
+name: Go test census refresh
+
+on:
+  schedule:
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    name: Fold shard timings into the census
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: "1.26.4"
+
+      - name: Download latest shard timing artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gotest-json
+          run_id=""
+          while read -r candidate; do
+            if gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${candidate}/artifacts?per_page=100" \
+              --jq '.artifacts[].name' | grep -q '^gotest-json-shard-'; then
+              run_id="$candidate"
+              break
+            fi
+          done < <(gh run list --workflow CI --status success --limit 40 --json databaseId --jq '.[].databaseId')
+          if [[ -z "$run_id" ]]; then
+            echo "No successful CI run with gotest-json artifacts in the last 40; nothing to refresh."
+          else
+            gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --pattern 'gotest-json-shard-*' --dir /tmp/gotest-json
+            find /tmp/gotest-json -mindepth 2 -name '*.json' -exec mv {} /tmp/gotest-json/ \;
+          fi
+          echo "CENSUS_RUN_ID=${run_id}" >> "$GITHUB_ENV"
+
+      - name: Fold timing data into the census
+        if: env.CENSUS_RUN_ID != ''
+        run: go run github.com/magefile/mage@v1.17.2 testCensusUpdate /tmp/gotest-json
+
+      - name: Open a refresh PR when the census changed
+        if: env.CENSUS_RUN_ID != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- magefiles/gotest_census.json; then
+            echo "Census unchanged; no PR needed."
+            exit 0
+          fi
+          branch="ci/gotest-census-refresh"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          git add magefiles/gotest_census.json
+          git commit -m "ci: refresh go unit-test shard census"
+          git push --force origin "$branch"
+          if ! gh pr view "$branch" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --base main \
+              --head "$branch" \
+              --title "ci: refresh go unit-test shard census" \
+              --body "Automated weekly refresh of magefiles/gotest_census.json from the shard timing artifacts of CI run ${CENSUS_RUN_ID}."
+          fi

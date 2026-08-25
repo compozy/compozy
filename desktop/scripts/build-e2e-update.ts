@@ -53,8 +53,17 @@ async function packageTarget(output: string, version: string): Promise<void> {
     )}\n`,
     { mode: 0o600 }
   );
+  const platformTarget = process.platform === "darwin" ? ["--mac", "zip"] : ["--linux", "AppImage"];
   const build = Bun.spawn(
-    ["bunx", "electron-builder", "--config", generatedConfig, "--publish", "never"],
+    [
+      "bunx",
+      "electron-builder",
+      "--config",
+      generatedConfig,
+      ...platformTarget,
+      "--publish",
+      "never",
+    ],
     { cwd: desktopRoot, stdout: "inherit", stderr: "inherit" }
   );
   const exitCode = await build.exited;

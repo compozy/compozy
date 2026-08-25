@@ -30,8 +30,9 @@ async function jsonCommand(
 }
 
 async function firstWorkspaceID(desktop: DesktopInstance): Promise<string> {
-  const payload = await jsonCommand(desktop, ["workspace", "list", "-o", "json"]);
-  const workspaces = payload.workspaces;
+  const workspaces: unknown = JSON.parse(
+    (await desktop.cli(["workspace", "list", "-o", "json"])).stdout
+  );
   if (!Array.isArray(workspaces)) throw new Error("Workspace list did not return an array.");
   const first = workspaces[0];
   if (!first || typeof first !== "object") throw new Error("Workspace list is empty.");
@@ -596,6 +597,7 @@ test("native Edit shortcuts copy and paste editable renderer content", async ({
 }) => {
   const desktop = await launchDesktop();
   const product = await desktop.product();
+  await completeOnboarding(product);
   expect(
     await desktop.app.evaluate(({ Menu }) => {
       const edit = Menu.getApplicationMenu()?.items.find(item => item.label === "Edit");
@@ -868,7 +870,7 @@ test("E2E-013 E2E-014: running deep links navigate valid paths and collapse host
   await desktop.spawnSecondary(["compozyos://open/sessions/e2e-session"]);
   await expect(product).toHaveURL(/\/sessions\/e2e-session(?:\?|$)/u);
   await desktop.spawnSecondary(["compozyos://open/route-that-does-not-exist"]);
-  await expect(product.getByText("Route not found", { exact: true })).toBeVisible();
+  await expect(product.getByRole("heading", { name: "Page not found" })).toBeVisible();
   for (const hostile of [
     "compozyos://open/http://evil.com",
     "compozyos://open/../../etc",
@@ -883,7 +885,9 @@ test("E2E-015 E2E-025: cold-start deep links and CLI paths preserve the validati
   launchDesktop,
 }) => {
   const cold = await launchDesktop({ argv: ["compozyos://open/settings/general"] });
-  await expect(await cold.product()).toHaveURL(/\/settings\/general(?:\?|$)/u);
+  const coldProduct = await cold.product();
+  await expect(coldProduct).toHaveURL(/\/settings\/general(?:\?|$)/u);
+  await completeOnboarding(coldProduct);
   await cold.closeShell();
   const hostile = await launchDesktop({ home: cold.home, argv: ["compozyos://open/../../etc"] });
   const product = await hostile.product();
