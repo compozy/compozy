@@ -31,6 +31,14 @@ Flags (multiple may combine in one call):
                                      SHIP also sets review.ship=true
     --verify-pass                    verify.last_status=PASS, last_run=now
     --verify-fail                    verify.last_status=FAIL, last_run=now
+    --pr-url URL                     delivery PR URL; repeat for stacked PRs
+    --head-sha SHA                   matching PR head SHA; repeat in PR order
+    --ci-check NAME                  observed required check; repeat as needed
+    --ci-pending                     delivery.ci_status=PENDING
+    --ci-pass                        delivery.ci_status=PASS; requires exact-head
+                                     PR/check evidence
+    --ci-fail                        delivery.ci_status=FAIL
+    --repo-root PATH                 git checkout used for exact-head validation
     --tasks-root <path>              default .compozy/tasks
     --max-iterations N               default 50; tail-cap iterations[]
 
@@ -44,6 +52,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -57,6 +66,8 @@ class StateUpdateError(ValueError):
 
 _FRONTMATTER = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 _IN_PROGRESS_STATUSES = {"in_progress", "in-progress", "running"}
+_GITHUB_PR_URL = re.compile(r"^https://github\.com/[^/]+/[^/]+/pull/[1-9][0-9]*$")
+_GIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 
 
 def _read_frontmatter(md_path: Path) -> dict[str, str]:
@@ -103,7 +114,90 @@ def _parse_args() -> argparse.Namespace:
 
     ap.add_argument("--verify-pass", action="store_true")
     ap.add_argument("--verify-fail", action="store_true")
+    ap.add_argument("--pr-url", action="append", default=[])
+    ap.add_argument("--head-sha", action="append", default=[])
+    ap.add_argument("--ci-check", action="append", default=[])
+    ci_status = ap.add_mutually_exclusive_group()
+    ci_status.add_argument("--ci-pending", action="store_true")
+    ci_status.add_argument("--ci-pass", action="store_true")
+    ci_status.add_argument("--ci-fail", action="store_true")
+    ap.add_argument("--repo-root", default=".")
     return ap.parse_args()
+
+
+def _delivery_status_arg(args: argparse.Namespace) -> str | None:
+    if args.ci_pending:
+        return "PENDING"
+    if args.ci_pass:
+        return "PASS"
+    if args.ci_fail:
+        return "FAIL"
+    return None
+
+
+def _current_head(repo_root: str) -> str:
+    result = subprocess.run(
+        ["git", "-C", repo_root, "rev-parse", "HEAD"],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or "unknown git error"
+        raise StateUpdateError(f"cannot resolve current HEAD: {detail}")
+    return result.stdout.strip().lower()
+
+
+def _validate_delivery_args(state: dict, args: argparse.Namespace) -> None:
+    status = _delivery_status_arg(args)
+    has_metadata = bool(args.pr_url or args.head_sha or args.ci_check)
+    if has_metadata and status is None:
+        raise StateUpdateError(
+            "delivery evidence requires --ci-pending, --ci-pass, or --ci-fail"
+        )
+    if status is None:
+        return
+
+    if status == "PASS" and not args.ci_check:
+        raise StateUpdateError("CI PASS requires at least one reported check")
+    if status == "PASS" and (not args.pr_url or not args.head_sha):
+        raise StateUpdateError(
+            "CI PASS requires fresh --pr-url and --head-sha evidence"
+        )
+
+    existing = state.get("delivery", {}) or {}
+    pr_urls = list(args.pr_url or existing.get("pr_urls") or [])
+    head_shas = [sha.lower() for sha in (args.head_sha or existing.get("head_shas") or [])]
+    checks = list(args.ci_check or existing.get("checks") or [])
+
+    if not pr_urls or len(pr_urls) != len(head_shas):
+        raise StateUpdateError(
+            "CI evidence requires one --head-sha for every --pr-url"
+        )
+    invalid_url = next((url for url in pr_urls if not _GITHUB_PR_URL.fullmatch(url)), None)
+    if invalid_url:
+        raise StateUpdateError(f"invalid GitHub PR URL: {invalid_url}")
+    invalid_sha = next((sha for sha in head_shas if not _GIT_SHA.fullmatch(sha)), None)
+    if invalid_sha:
+        raise StateUpdateError(f"invalid 40-character git head SHA: {invalid_sha}")
+
+    if status == "PASS":
+        current_head = _current_head(args.repo_root)
+        if head_shas[-1] != current_head:
+            raise StateUpdateError(
+                "CI PASS head does not match current HEAD: "
+                f"reported={head_shas[-1]} current={current_head}"
+            )
+
+
+def _clear_delivery(state: dict) -> None:
+    state["delivery"] = {
+        "pr_urls": [],
+        "head_shas": [],
+        "ci_status": None,
+        "checks": [],
+        "observed_at": None,
+    }
 
 
 def _reconcile_tasks(state: dict, slug_dir: Path) -> None:
@@ -151,6 +245,8 @@ def _reconcile_tasks(state: dict, slug_dir: Path) -> None:
 
 
 def _apply(state: dict, args: argparse.Namespace, slug_dir: Path) -> None:
+    _validate_delivery_args(state, args)
+
     if args.disable_frontend:
         state["frontend_agent"] = None
 
@@ -224,10 +320,27 @@ def _apply(state: dict, args: argparse.Namespace, slug_dir: Path) -> None:
         state.setdefault("verify", {})
         state["verify"]["last_run"] = now_iso()
         state["verify"]["last_status"] = "PASS"
+        if not args.ci_pass:
+            _clear_delivery(state)
     if args.verify_fail:
         state.setdefault("verify", {})
         state["verify"]["last_run"] = now_iso()
         state["verify"]["last_status"] = "FAIL"
+        _clear_delivery(state)
+
+    delivery_status = _delivery_status_arg(args)
+    if delivery_status is not None:
+        existing = state.get("delivery", {}) or {}
+        state["delivery"] = {
+            "pr_urls": list(args.pr_url or existing.get("pr_urls") or []),
+            "head_shas": [
+                sha.lower()
+                for sha in (args.head_sha or existing.get("head_shas") or [])
+            ],
+            "ci_status": delivery_status,
+            "checks": list(args.ci_check or existing.get("checks") or []),
+            "observed_at": now_iso(),
+        }
 
 
 def _has_observation(args: argparse.Namespace) -> bool:
@@ -246,6 +359,9 @@ def _has_observation(args: argparse.Namespace) -> bool:
             args.review_round_done,
             args.verify_pass,
             args.verify_fail,
+            args.ci_pending,
+            args.ci_pass,
+            args.ci_fail,
             args.reconcile_tasks,
             args.disable_frontend,
             args.disable_stacked,

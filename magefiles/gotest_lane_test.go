@@ -1,7 +1,8 @@
 //go:build mage
 
 // Suite: Hermetic Go test lane policy
-// Invariant: Unit-test shards partition every regular package and split-package test exactly once.
+// Invariant: Unit-test shards partition every main-module package and split-package test exactly once;
+// the SDK module remains a separate, single CI lane.
 // Boundary IN: Mage package selection, concurrency policy, and environment scrubbing.
 // Boundary OUT: GitHub Actions runner orchestration in .github/workflows/ci.yml.
 
@@ -10,6 +11,7 @@ package main
 import (
 	"bytes"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -43,6 +45,37 @@ func TestGoUnitTestPackageLimitFor(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGoUnitTestSafetyArgs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should limit disabled checkptr to the modernc dependency", func(t *testing.T) {
+		t.Parallel()
+		got := goUnitTestSafetyArgs(false, false)
+		want := []string{"-race", "-gcflags=" + moderncCheckptrFlag}
+		if !slices.Equal(got, want) {
+			t.Fatalf("goUnitTestSafetyArgs(false, false) = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("Should preserve full checkptr and bypass the test cache for the audit lane", func(t *testing.T) {
+		t.Parallel()
+		got := goUnitTestSafetyArgs(true, true)
+		want := []string{"-race", "-count=1"}
+		if !slices.Equal(got, want) {
+			t.Fatalf("goUnitTestSafetyArgs(true, true) = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("Should bypass the SDK result cache in the audit lane", func(t *testing.T) {
+		t.Parallel()
+		want := []string{"test", "-race", "-parallel=4", "-count=1", "./..."}
+		if got := goSDKTestArgs(true); !slices.Equal(got, want) {
+			t.Fatalf("goSDKTestArgs(true) = %v, want %v", got, want)
+		}
+	})
+
 }
 
 func TestParseGoTestShard(t *testing.T) {
@@ -114,6 +147,34 @@ func TestParseGoTestShard(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestShouldRunSDKGoTests(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should run the SDK once in an unsharded local lane", func(t *testing.T) {
+		t.Parallel()
+		runSDK, err := shouldRunSDKGoTests("", "")
+		if err != nil {
+			t.Fatalf("shouldRunSDKGoTests() error = %v", err)
+		}
+		if !runSDK {
+			t.Fatal("unsharded unit lane must retain SDK coverage")
+		}
+	})
+
+	t.Run("Should leave the SDK to its dedicated CI job for every shard", func(t *testing.T) {
+		t.Parallel()
+		for index := range 3 {
+			runSDK, err := shouldRunSDKGoTests(strconv.Itoa(index), "3")
+			if err != nil {
+				t.Fatalf("shouldRunSDKGoTests(%d, 3) error = %v", index, err)
+			}
+			if runSDK {
+				t.Fatalf("shard %d unexpectedly selected the SDK suite", index)
+			}
+		}
+	})
 }
 
 func TestShardSortedStrings(t *testing.T) {

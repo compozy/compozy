@@ -251,7 +251,7 @@ Phase B task or slice is complete and both QA flags are true.
    deep-review's incremental state; never pass `--full` mid-loop.
 2. The loop is the deciding authority over the round: remediate **every
    confirmed finding and every nitpick** from the round's review.md in this
-   same iteration, then re-run the project's scoped gate (the full gate is
+   same iteration, then re-run the project's scoped gate (PR CI is
    Phase E's). The round's verdict is the SHIP/FIX_BEFORE_SHIP/REWORK value
    in review.md/state.json.
 3. Update `memory/peer-review.md` (a `## Round <N>` section per round), then
@@ -267,23 +267,34 @@ finding and nitpick from it is remediated (or the verdict was SHIP), and
 
 ### Phase E — done
 
-1. Run the workstream's one full gate (`make gate-full` in Compozy) and a
-   final `cy-final-verify`, then confirm `state.verify.last_status=PASS`.
-   A regression enters the repair loop and Phase E remains open until the
-   fresh full gate passes; skip the done-signature while repairing.
-2. Walk the Phase E section of `references/checklist.md`; every box must
+1. Run `make gate` and a final `cy-final-verify` for the local pre-push
+   claim, then confirm `state.verify.last_status=PASS`.
+2. Push the current head and create or update its draft PR. In stacked mode,
+   resubmit the stack and include every open layer; otherwise use the current
+   branch PR. Record pending evidence with `update-state.py <slug> --phase E
+   --action "await exact-head PR CI" --outcome partial --ci-pending --pr-url
+   <url> --head-sha <sha>`; repeat the paired URL/SHA flags in stack order.
+3. Watch every PR's checks to terminal state (`gh pr checks --watch
+   --interval 20`). A pending or red check keeps Phase E open; diagnose,
+   repair, rerun the affected local gate, checkpoint, push, and watch the new
+   head. Only green required checks at the recorded head pass. Then record
+   fresh terminal evidence with `update-state.py <slug> --phase E --action
+   "exact-head PR CI passed" --outcome completed --ci-pass --pr-url <url>
+   --head-sha <sha> --ci-check <name>` (repeat paired PR and check flags as
+   needed). The script rejects stale heads and empty check sets.
+4. Walk the Phase E section of `references/checklist.md`; every box must
    pass.
-3. Print the iteration summary block from
+5. Print the iteration summary block from
    `assets/iteration-summary.template.md` with `phase_out=E` and checkpoint
    field `n/a (phase != B/D)`, followed by every entry from
    `memory/MEMORY.md` `## Open Questions` — the decisions defaulted
    mid-loop surface to the user here, in one batch.
-4. Print the literal contents of `assets/done-signature.txt` on its own line
+6. Print the literal contents of `assets/done-signature.txt` on its own line
    — the codex-loop goal-check confirmation scans for it.
-5. Stop — Phase E is the only successful terminal.
+7. Stop — Phase E is the only successful terminal.
 
-Done when: the Phase E checklist passes, the iteration summary is printed,
-and the done-signature is the final output line.
+Done when: the local gate and exact-head PR CI are green, the Phase E
+checklist passes, and the done-signature is the final output line.
 
 **Step 3 — Self-audit, summarize, then continue.**
 
@@ -331,12 +342,11 @@ The canonical `[[CODEX_LOOP ...]]` header, the manual invocation text, and
 - Frontmatter `status:` on `task_NN.md` is the source of truth; reconcile
   `state.yaml` when they disagree.
 - Memory updates precede status flips. Always.
-- Gate map — Phase B runs only focused validation (task-named commands +
-  scoped tests) then `cy-final-verify` (narrow claim) before each checkpoint;
-  project-wide gates concentrate at the tail: one `make gate` at Phase C
-  entry (the B→C boundary), the scoped gate after each Phase D remediation,
-  the full gate exactly once at Phase E. A FAIL opens the repair loop; only
-  the final PASS closes the phase action.
+- Gate map — Phase B runs focused validation then `cy-final-verify` before
+  each checkpoint; `make gate` runs at the Phase C boundary, after Phase D
+  remediation, and once before the final push. The PR's parallel CI run owns
+  the full gate at Phase E. A FAIL opens the repair loop; only exact-head CI
+  PASS closes the phase action.
 - Peer review (`deep-review`) runs only in Phase D. Per-task peer-review
   instructions inside task files or specs are superseded by this loop's phase
   machine — note "deferred to Phase D" in the task memory and move on.

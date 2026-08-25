@@ -22,9 +22,12 @@ const (
 	goTestPackageLimitEnvVar = "COMPOZY_GO_TEST_P"
 	goTestShardIndexEnvVar   = "COMPOZY_GO_TEST_SHARD_INDEX"
 	goTestShardTotalEnvVar   = "COMPOZY_GO_TEST_SHARD_TOTAL"
+	goTestFullCheckptrEnvVar = "COMPOZY_GO_FULL_CHECKPTR"
+	goTestUncachedEnvVar     = "COMPOZY_GO_TEST_UNCACHED"
 	goSplitTestPackage       = "github.com/compozy/compozy/internal/store/globaldb"
 	goAllPackagesPattern     = "./..."
 	goUnitTestParallelism    = 4
+	moderncCheckptrFlag      = "modernc.org/...=-d=checkptr=0"
 )
 
 type goTestShard struct {
@@ -35,6 +38,25 @@ type goTestShard struct {
 type goUnitTestInvocation struct {
 	packages []string
 	tests    []string
+}
+
+func goUnitTestSafetyArgs(fullCheckptr, uncached bool) []string {
+	args := []string{"-race"}
+	if !fullCheckptr {
+		args = append(args, "-gcflags="+moderncCheckptrFlag)
+	}
+	if uncached {
+		args = append(args, "-count=1")
+	}
+	return args
+}
+
+func goSDKTestArgs(uncached bool) []string {
+	args := []string{"test", "-race", "-parallel=4"}
+	if uncached {
+		args = append(args, "-count=1")
+	}
+	return append(args, "./...")
 }
 
 // ambientRuntimeStateEnvVars are the runtime identity vars a QA lab or dev

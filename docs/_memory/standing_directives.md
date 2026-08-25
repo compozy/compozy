@@ -73,7 +73,7 @@ Ongoing engineering posture, not date-stamped per-task plans. These are perpetua
 
 ## SD-005 — Real-Scenario QA Before Release
 
-**Posture.** `make verify` is necessary but not sufficient. Real-scenario QA against a multi-agent / multi-channel / multi-task workspace catches drift `make verify` misses.
+**Posture.** Automated verification (`make gate` locally plus exact-head PR CI) is necessary but not sufficient. Real-scenario QA against a multi-agent / multi-channel / multi-task workspace catches drift automated gates miss.
 
 **Required behavior:**
 

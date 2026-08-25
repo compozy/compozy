@@ -88,6 +88,13 @@ class CyLoopTasksScriptTests(unittest.TestCase):
             "qa": {"report_done": True, "execution_done": True},
             "review": {"rounds": 1, "last_verdict": "SHIP", "ship": True},
             "verify": {"last_run": "2026-05-05T00:00:00Z", "last_status": "PASS"},
+            "delivery": {
+                "pr_urls": ["https://github.com/compozy/compozy/pull/123"],
+                "head_shas": ["a" * 40],
+                "ci_status": "PASS",
+                "checks": ["Verify", "E2E (combined lane)"],
+                "observed_at": "2026-05-05T00:00:00Z",
+            },
             "iterations": [],
         }
         state.update(overrides)
@@ -508,6 +515,127 @@ class CyLoopTasksScriptTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.strip(), "phase=E action=done")
+
+    def test_detect_phase_waits_for_ci_after_local_verification(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tasks_root = Path(tmp) / "tasks"
+            slug = "await-ci"
+            self.write_state(
+                tasks_root,
+                slug,
+                delivery={
+                    "pr_urls": ["https://github.com/compozy/compozy/pull/123"],
+                    "head_shas": ["b" * 40],
+                    "ci_status": "PENDING",
+                    "checks": [],
+                    "observed_at": "2026-05-05T00:00:00Z",
+                },
+            )
+
+            result = self.run_script(
+                "detect-phase.py",
+                slug,
+                "--tasks-root",
+                str(tasks_root),
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), "phase=E action=await_ci")
+
+    def test_update_state_rejects_ci_pass_without_reported_checks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tasks_root = Path(tmp) / "tasks"
+            slug = "ci-without-checks"
+            self.write_state(tasks_root, slug)
+
+            result = self.run_script(
+                "update-state.py",
+                slug,
+                "--tasks-root",
+                str(tasks_root),
+                "--ci-pass",
+                "--pr-url",
+                "https://github.com/compozy/compozy/pull/123",
+                "--head-sha",
+                "a" * 40,
+            )
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("at least one reported check", result.stderr)
+
+    def test_update_state_records_ci_pass_for_exact_current_head(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            repo.mkdir()
+            env = _git_env()
+            self.assertEqual(_git(repo, "init", env=env).returncode, 0)
+            (repo / "tracked.txt").write_text("head\n", encoding="utf-8")
+            self.assertEqual(_git(repo, "add", "tracked.txt", env=env).returncode, 0)
+            self.assertEqual(
+                _git(repo, "commit", "-m", "test: seed", env=env).returncode,
+                0,
+            )
+            head = _git(repo, "rev-parse", "HEAD", env=env).stdout.strip()
+            tasks_root = repo / "tasks"
+            slug = "ci-exact-head"
+            state_path = self.write_state(tasks_root, slug)
+
+            result = self.run_script(
+                "update-state.py",
+                slug,
+                "--tasks-root",
+                str(tasks_root),
+                "--repo-root",
+                str(repo),
+                "--ci-pass",
+                "--pr-url",
+                "https://github.com/compozy/compozy/pull/123",
+                "--head-sha",
+                head,
+                "--ci-check",
+                "Verify",
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            delivery = state_io.load(state_path)["delivery"]
+            self.assertEqual(delivery["ci_status"], "PASS")
+            self.assertEqual(delivery["head_shas"], [head])
+            self.assertEqual(delivery["checks"], ["Verify"])
+
+    def test_update_state_rejects_ci_pass_for_stale_head(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            repo.mkdir()
+            env = _git_env()
+            self.assertEqual(_git(repo, "init", env=env).returncode, 0)
+            (repo / "tracked.txt").write_text("head\n", encoding="utf-8")
+            self.assertEqual(_git(repo, "add", "tracked.txt", env=env).returncode, 0)
+            self.assertEqual(
+                _git(repo, "commit", "-m", "test: seed", env=env).returncode,
+                0,
+            )
+            tasks_root = repo / "tasks"
+            slug = "ci-stale-head"
+            self.write_state(tasks_root, slug)
+
+            result = self.run_script(
+                "update-state.py",
+                slug,
+                "--tasks-root",
+                str(tasks_root),
+                "--repo-root",
+                str(repo),
+                "--ci-pass",
+                "--pr-url",
+                "https://github.com/compozy/compozy/pull/123",
+                "--head-sha",
+                "b" * 40,
+                "--ci-check",
+                "Verify",
+            )
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("does not match current HEAD", result.stderr)
 
     def test_detect_phase_emits_peer_review_when_qa_done_without_ship(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

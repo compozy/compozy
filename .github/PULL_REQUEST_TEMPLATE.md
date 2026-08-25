@@ -22,7 +22,7 @@ Title format: <type>: <description> — type is one of feat | fix | refactor | p
 
 ---
 
-- [ ] `make gate` passes locally (`make gate-full` before review on larger changes)
+- [ ] `make gate` passes locally; this PR is delivered only after its required CI checks are green
 - [ ] New or changed behavior is covered by tests, or I explained above why not
 - [ ] If an agent wrote or co-wrote this, I named it above and verified the result myself
 

@@ -45,9 +45,9 @@ order; its reference owns the rules.
    `python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py <file_path>`
 2. Fix real findings; document a proven heuristic false positive without weakening the canonical rules.
 3. Run `go test -race ./<owning-package>/...` for the affected package with `CGO_ENABLED=1`, then the required scoped lint lane.
-4. Reserve the single full `make verify` for the task completion gate after source freeze.
+4. Run `make gate` after source freeze; exact-head PR CI owns full completion verification.
 
-*Done when:* the checker and scoped race/lint lanes are green and exactly one fresh full gate is scheduled or complete for the finished task.
+*Done when:* the checker, scoped race/lint lanes, and local gate are green; exact-head PR CI is scheduled or green for the enclosing workstream.
 
 ## Error Handling
 

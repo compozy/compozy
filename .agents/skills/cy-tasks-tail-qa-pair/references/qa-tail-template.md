@@ -39,7 +39,7 @@ Body content:
 - For CLI/API/agent-manageability features: exercise structured CLI output, HTTP/UDS routes, status/config discovery, deterministic errors, and compare persisted state.
 - Register every reproduced defect in `docs/qa/bugs/BUG-<YYYYMMDD>-<slug>.md` (dedup against the registry first) and link it in the affected scenario files.
 - Fixes follow the fix-loop governor: small/contained only, regression test red-before/green-after, one logical fix per commit; escalate the rest to "Decisions for a Human".
-- Update scenario-file verdicts and write the dated run report at `docs/qa/reports/<YYYY-MM-DD>-<slug>.md`. Exit gate: re-run gates (`make verify`) before Final Status.
+- Update scenario-file verdicts and write the dated run report at `docs/qa/reports/<YYYY-MM-DD>-<slug>.md`. Exit gate: run `make gate`; the enclosing workstream waits for exact-head PR CI before Final Status.
 
 ## E2E directive variants
 

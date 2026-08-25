@@ -473,9 +473,13 @@ The daemon-authoritative, workspace-scoped topology and semantic command surface
 
 ## Verification & Testing
 
-### `make verify`
+### `make gate`
 
-Blocking commit gate: `fmt → lint → test → boundaries → build`. Zero warnings, zero errors.
+Required local pre-push gate. It maps the branch diff to affected lint, test, codegen, and tooling lanes; it never runs the full monorepo gate implicitly.
+
+### PR CI / `make gate-full`
+
+PR CI is the required full delivery gate at the exact head SHA. `make gate-full` is the optional local form and retains the machine-wide capacity lock.
 
 ### `make codegen` / `make codegen-check`
 

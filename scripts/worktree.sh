@@ -8,8 +8,9 @@
 #   scripts/worktree.sh list
 #
 # `new` creates a sibling worktree (default <repo-parent>/_worktrees/<slug>),
-# copies shared dirs (.claude .codex .compozy docs), links .resources from the
-# main checkout, then bootstraps. `light` is the bare `git worktree
+# copies small local agent state plus active task/spec directories, links
+# .resources from the main checkout, then bootstraps. Archived task evidence
+# and tracked docs stay out of the copy. `light` is the bare `git worktree
 # add` — no shared-dir copy, no install; tracked dirs come from the branch,
 # so it fits Go-only work (run `bootstrap` inside it later if you need the
 # full env). `--pr <n>` points it at an open PR head: resolves the head repo
@@ -18,12 +19,14 @@
 # bun install (postinstall links .claude/skills + AGENTS.md), golangci-lint
 # cache seeded from the main checkout (the cache is per-worktree), optional
 # `make build` (--build) and Playwright chromium (--e2e). GOCACHE/GOMODCACHE
-# are shared; `make verify` and the E2E lanes queue machine-wide (L-030),
-# scoped lanes are capacity-bounded.
+# are shared; opt-in `make gate-full` and local E2E queue machine-wide (L-030),
+# scoped lanes are capacity-bounded; PR CI owns mandatory full verification.
 set -euo pipefail
 
-# Dirs wiped in the new worktree and replaced from the main checkout.
-COPIED_DIRS=(.claude .codex .compozy docs)
+# Small local dirs are replaced wholesale. Optional spec paths are ignored by
+# Git and copied individually so tracked worktree content is never overwritten.
+COPIED_DIRS=(.claude .codex)
+COPIED_SPEC_PATHS=(docs/prompts docs/rfcs docs/_refacs docs/prs docs/ideas docs/proposals docs/tweets)
 LINKED_DIRS=(.resources)
 
 usage() {
@@ -73,6 +76,29 @@ sync_shared_dirs_from_main() {
       echo "worktree: skip $name/ (not present in main)"
     fi
   done
+
+  for name in "${COPIED_SPEC_PATHS[@]}"; do
+    if [ ! -e "$src/$name" ] && [ ! -L "$src/$name" ]; then
+      continue
+    fi
+    mkdir -p "$(dirname "$dest/$name")"
+    rm -rf "$dest/$name"
+    echo "worktree: copying $name from main ($src)"
+    cp -a "$src/$name" "$dest/$name"
+  done
+
+  if [ -d "$src/.compozy/tasks" ]; then
+    mkdir -p "$dest/.compozy/tasks"
+    while IFS= read -r task_dir; do
+      name="$(basename "$task_dir")"
+      case "$name" in
+        _archived | .DS_Store) continue ;;
+      esac
+      rm -rf "$dest/.compozy/tasks/$name"
+      echo "worktree: copying active task $name from main ($src)"
+      cp -a "$task_dir" "$dest/.compozy/tasks/$name"
+    done < <(find "$src/.compozy/tasks" -mindepth 1 -maxdepth 1 -print)
+  fi
 
   for name in "${LINKED_DIRS[@]}"; do
     if [ -e "$dest/$name" ] || [ -L "$dest/$name" ]; then
@@ -189,7 +215,8 @@ bootstrap() {
   echo ""
   echo "worktree ready: $root ($(git branch --show-current))"
   echo "  scoped gates : make lint | go test -race ./internal/<pkg>/... | bunx turbo run test --filter=./web"
-  echo "  full gate    : make verify  (queues machine-wide behind other worktrees — L-030)"
+  echo "  completion   : push a draft PR and keep ownership until required CI is green"
+  echo "  optional full: make gate-full  (queues machine-wide behind other worktrees — L-030)"
   echo "  QA hygiene   : make qa-reap after any QA lab run (L-029)"
 }
 

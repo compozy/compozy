@@ -128,6 +128,13 @@ def main() -> int:
         "qa": {"report_done": False, "execution_done": False},
         "review": {"rounds": 0, "last_verdict": None, "ship": False},
         "verify": {"last_run": None, "last_status": None},
+        "delivery": {
+            "pr_urls": [],
+            "head_shas": [],
+            "ci_status": None,
+            "checks": [],
+            "observed_at": None,
+        },
         "iterations": [],
     }
     dump(state, state_path)

@@ -42,13 +42,13 @@ Skip any step = lying, not verifying
 Match the verification scope to the claim scope:
 
 - **Narrow claim** (e.g., "this test passes"): Run the specific test.
-- **Broad claim** (e.g., "task complete", "ready to commit"): Run the **full verification pipeline** — formatting, linting, all tests, and build. If the project defines a single gate command (e.g., `make verify`), run that.
+- **Broad claim** (e.g., "workstream delivered"): Run the project's required local pre-push gate, then require every PR CI check to be green for the exact head SHA. In Compozy, that is `make gate` locally plus the PR's CI run; `make gate-full` is optional local diagnostics.
 
 A narrow verification does not support a broad claim. Running `make test` alone does not justify "task complete." Running the linter alone does not justify "ready to commit." The verification scope must be equal to or broader than the claim scope.
 
-**Intermediate tasks in a multi-task loop are narrow claims by design.** When an orchestrating workflow (task loop, batch driver) owns the workstream, the per-task claim is "task implemented; affected lanes green; full gate deferred to workstream close" — run the scoped gate and state exactly that. The broad "workstream complete" claim still takes the full pipeline (or a current full-gate evidence record) at close.
+**Intermediate tasks in a multi-task loop are narrow claims by design.** When an orchestrating workflow owns the workstream, the per-task claim is "task implemented; affected lanes green; PR CI deferred to workstream close". The broad claim requires green CI at the current PR head.
 
-**If in doubt, run the full pipeline.** Over-verification wastes minutes. Under-verification wastes hours.
+**If in doubt, match the project contract.** Do not substitute a local full run for required PR CI or a narrow lane for a broad claim.
 
 **Passing pipeline != meeting requirements.** A green build proves the code compiles, lints, and passes existing tests. It does not prove the implementation matches the requirements. For "task complete" or "requirements met" claims, also verify the deliverables against the original specification — line by line, not by assumption. In a spec/PRD workflow, "the original specification" means the canonical artifacts in the spec directory (example documents, input tables, parity maps, QA seeds) — never just the task file's paraphrase of them (see "Spec Contract Parity").
 
@@ -58,7 +58,7 @@ Some projects cache gate results as machine-checkable records keyed by a content
 
 - A **passing record whose fingerprint matches the current tree is fresh evidence.** Cite it (gate id, fingerprint, log path) instead of re-running; re-running a current gate proves nothing new and saturates the machine.
 - A **missing or stale record means the gate runs now.** Any edit changes the fingerprint; commits alone do not — records key on content, not on HEAD.
-- **Scope still binds.** A scoped-lane record never supports a broad claim; "task complete" takes a current full-gate record or a full run now.
+- **Scope still binds.** A scoped local record supports the pre-push claim only. Workstream completion also needs the PR URL, exact head SHA, and green required checks; a local full record cannot replace that CI evidence when the project delegates completion to CI.
 - On a **`fail` record**, open its recorded log and follow "When Verification Fails" — never re-litigate it from memory.
 
 ## Common Failures
@@ -70,7 +70,7 @@ Some projects cache gate results as machine-checkable records keyed by a content
 | Build succeeds          | Build command: exit 0                                                      | Linter passing, logs look good                     |
 | Bug fixed               | Test original symptom: passes                                              | Code changed, assumed fixed                        |
 | Regression test works   | Red-green cycle verified                                                   | Test passes once                                   |
-| Agent completed         | VCS diff shows changes                                                     | Agent reports "success"                            |
+| Workstream delivered    | Local gate green + PR CI green at exact head SHA                           | VCS diff, local full gate, pending/red PR           |
 | Requirements met        | Line-by-line checklist                                                     | Tests passing                                      |
 | Matches spec contract   | Field-by-field diff vs canonical spec artifacts                            | Task-file paraphrase satisfied, checkboxes ticked  |
 | Matches visual contract | Complete reference/implementation evidence bundle for every state/viewport | Implementation-only screenshots, tests/build green |
@@ -130,23 +130,23 @@ Commits and PRs are permanent artifacts. They require the highest verification s
 **Before `git commit`:**
 
 1. If the `deslop` skill exists, run the deslop pass (see "Deslop Gate" above).
-2. Run the project's full gate (e.g., `make gate-full` / `make verify`) — or cite a passing full-gate evidence record current for this tree. Not a subset. The full pipeline.
+2. Run the project's required local pre-push gate (Compozy: `make gate`) or cite its current fingerprint-keyed records.
 3. Confirm zero errors, zero warnings, zero test failures in the output.
 4. If both `qa-report` and `qa-execution` skills exist and the project keeps living QA scenario files (e.g. `docs/qa/scenarios/*.md`), apply the QA impact gate — flag and walk (see "QA Tracker Impact" below).
 5. Produce a Verification Report (see template below) with verdict PASS.
 6. Only then run `git commit`.
 
-**Loop checkpoint commits are the narrow-claim exception** (see Scope of
-Verification): each per-task checkpoint rides the loop's focused validation;
-the full-gate requirement binds the workstream-closing commit/PR.
+**Loop checkpoint commits are the narrow-claim exception:** each per-task checkpoint rides the loop's focused validation; the local pre-push gate and PR CI bind workstream close.
 
 **Before creating a PR:**
 
-1. All of the above, plus:
-2. Verify the diff matches the intended changes (`git diff` review).
-3. Confirm no unrelated files are staged.
+1. Complete the pre-commit gate, review the diff, and confirm no unrelated files are staged.
+2. Push the current head and create or update a draft PR.
+3. Run `gh pr checks --watch --interval 20`; do not close or hand off while checks are pending.
+4. On red CI, inspect the failed job, repair the production source, rerun the affected local gate, commit, push, and watch the new head again.
+5. Record the PR URL and exact head SHA only after every required check is green. If no required-check rules are configured, require every reported non-skipped PR check to be green.
 
-If the full pipeline has not passed after the last code change — by fresh run or current evidence record — the commit or PR must not proceed.
+An opened PR with pending/red CI is an in-progress checkpoint, not delivery. Its author remains on the hook until green or a proven external blocker.
 
 ## QA Tracker Impact (living QA docs)
 
@@ -204,7 +204,7 @@ Every verification must be reported using this structure. Do not deviate.
 VERIFICATION REPORT
 -------------------
 Claim: [What is being claimed — e.g., "tests pass", "build succeeds", "task complete"]
-Command: [Exact command run — e.g., `make verify`]
+Command: [Exact command(s) run — e.g., `make gate`; `gh pr checks --watch --interval 20`]
 Executed: [Timestamp, "just now, after all changes", or "cached — evidence record fingerprint <hash>"]
 Exit code: [0 or non-zero]
 Output summary: [Key lines from output — pass count, error count, build result]
@@ -213,6 +213,7 @@ Errors: [Any errors, or "none"]
 Contract parity: [spec-workflow tasks: artifacts compared + PASS/mismatch; otherwise "n/a"]
 Visual contract: [named-reference UI: matrix rows passed/total + durable bundle root; otherwise "n/a — no named visual reference found"]
 QA impact: [walked scenario ids + verdicts; "none — no user-visible change"; or "n/a — no living QA tracker"]
+PR evidence: [PR URL(s), exact head SHA(s), and required check names/results; "pending" is not PASS]
 Verdict: PASS or FAIL
 ```
 
@@ -227,7 +228,7 @@ Verification failure is not a dead end. It is information. Follow this protocol:
 1. **Read the failure.** Identify the exact error: which command failed, which test, which lint rule, which build error. Quote the relevant output lines.
 2. **Diagnose the root cause.** Do not guess. Read the error message. Trace it to the source. If multiple things failed, address them one at a time starting with the first failure.
 3. **Fix the root cause.** Apply the minimal change that addresses the actual error. Do not apply workarounds, suppress warnings, or skip checks.
-4. **Re-verify from scratch.** Run the full verification command again. Do not assume the fix worked. Do not run only the previously-failing subset.
+4. **Re-verify at the owning scope.** Rerun the affected local gate, push the repaired head, then wait for the complete PR CI run again.
 5. **Report with evidence.** Use the Verification Report Template. If it passes now, the claim may proceed. If it fails again, return to step 1.
 
 **Never:**

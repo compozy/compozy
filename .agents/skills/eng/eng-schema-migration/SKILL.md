@@ -14,7 +14,7 @@ trigger: implicit
 4. Update affected static queries in the owning sqlc catalog. Keep generated `sqlcgen` types inside the owner package and map them to domain types at the repository boundary.
 5. Read `references/migration-test-patterns.md`. Extend the canonical suites for fresh apply, reopen with preserved data, ahead-version refusal, integrity failure, sequential history, and migrations-to-declarative-schema equivalence. When global or memory changes, also prove their shared-file table ownership remains disjoint.
 6. If recovery or refusal guidance changes, move the whole stopped SQLite family (`.db`, `-wal`, `-shm`, and sibling databases) to cold storage; never move or edit one live file. Prefer a newer compatible binary for `schema_ahead` when state must be preserved.
-7. Run scoped `-race` tests for the owning stream, `make codegen-check`, and `make lint`. Reserve one full `make verify` for the completion gate.
+7. Run scoped `-race` tests for the owning stream, `make codegen-check`, `make lint`, then `make gate` before push. Exact-head PR CI owns full completion verification.
 
 ## Error Handling
 

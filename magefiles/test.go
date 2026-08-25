@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -18,11 +19,16 @@ func Test() error {
 	if err != nil {
 		return err
 	}
-	baseArgs := []string{
-		"--format", "pkgname", "--", "-race", "-p", goUnitTestPackageLimit(),
-		"-parallel=" + strconv.Itoa(goUnitTestParallelism),
+	baseArgs := []string{"--format", "pkgname", "--"}
+	baseArgs = append(baseArgs, goUnitTestSafetyArgs(
+		os.Getenv(goTestFullCheckptrEnvVar) == "1",
+		os.Getenv(goTestUncachedEnvVar) == "1",
+	)...)
+	baseArgs = append(baseArgs,
+		"-p", goUnitTestPackageLimit(),
+		"-parallel="+strconv.Itoa(goUnitTestParallelism),
 		"-timeout", goUnitTestTimeout,
-	}
+	)
 	for _, invocation := range invocations {
 		args := append([]string(nil), baseArgs...)
 		if len(invocation.tests) > 0 {
@@ -33,7 +39,31 @@ func Test() error {
 			return err
 		}
 	}
-	return runRaceEnabledCommandInDir(ctx, "sdk/go", nil, "go", "test", "-race", "-parallel=4", "./...")
+	runSDK, err := shouldRunSDKGoTests(
+		os.Getenv(goTestShardIndexEnvVar),
+		os.Getenv(goTestShardTotalEnvVar),
+	)
+	if err != nil {
+		return err
+	}
+	if !runSDK {
+		return nil
+	}
+	return runRaceEnabledCommandInDir(
+		ctx,
+		"sdk/go",
+		nil,
+		"go",
+		goSDKTestArgs(os.Getenv(goTestUncachedEnvVar) == "1")...,
+	)
+}
+
+func shouldRunSDKGoTests(shardIndex, shardTotal string) (bool, error) {
+	_, sharded, err := parseGoTestShard(shardIndex, shardTotal)
+	if err != nil {
+		return false, err
+	}
+	return !sharded, nil
 }
 
 func exactGoTestRunPattern(tests []string) string {

@@ -20,7 +20,8 @@ make web-dev    # run the web UI locally
 ## Quality gates
 
 - `make gate` — runs the checks affected by your diff. Run it before every push.
-- `make gate-full` — full monorepo verification. Run it before requesting review on larger changes.
+- Required PR CI checks — run the full verification and must be green before delivery.
+- `make gate-full` — optional local full verification when you want extra pre-push certainty.
 - Lint is zero-tolerance: `make lint` (Go) and `bun run lint` (JS/TS) must pass with no warnings.
 - A pre-commit hook formats staged files for you (oxfmt for JS/TS/YAML/Markdown, `make fmt` for Go).
 

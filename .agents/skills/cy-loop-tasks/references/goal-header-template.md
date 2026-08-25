@@ -11,7 +11,7 @@ For a feature with slug `<slug>` whose spec lives at
 `.compozy/tasks/<slug>/_spec.md`:
 
 ```text
-[[CODEX_LOOP name="<slug>" goal="ship <slug> end-to-end via cy-loop-tasks: every iteration runs .agents/skills/cy-loop-tasks/scripts/detect-phase.py and executes the printed action; every Phase B checkpoint runs its focused task validation then cy-final-verify before commit; continue until qa-report and qa-execution are complete, consecutive deep-review rounds reach SHIP, and make verify is PASS"]]
+[[CODEX_LOOP name="<slug>" goal="ship <slug> end-to-end via cy-loop-tasks: every iteration runs .agents/skills/cy-loop-tasks/scripts/detect-phase.py and executes the printed action; every Phase B checkpoint runs its focused task validation then cy-final-verify before commit; continue until qa-report and qa-execution are complete, consecutive deep-review rounds reach SHIP, and required PR CI is green at the exact head"]]
 
 Use the cy-loop-tasks skill at .agents/skills/cy-loop-tasks/SKILL.md.
 The skill is a self-healing continue loop — repair command and gate failures inside the current phase action, then continue until Phase E or a proven external blocker. Slug: <slug>.

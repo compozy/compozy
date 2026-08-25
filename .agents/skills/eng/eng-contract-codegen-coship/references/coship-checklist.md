@@ -42,7 +42,7 @@ Confirm every item before committing the bundle.
 - [ ] Claim-bearing HTTP contracts return `claim_token_hash`, never raw `claim_token`.
 - [ ] All redaction tests still pass after the contract change.
 - [ ] Observability fields (`claim_token_hash`, `lease_until`, etc.) updated if shape changes affect logs/metrics.
-- [ ] `make verify` passes end-to-end.
+- [ ] `make gate` passes locally and exact-head PR CI passes end-to-end.
 
 ## Commit
 

@@ -78,7 +78,7 @@ Each step names the reference that owns its detail — read it in full when you 
 
 **Step 8 — Close the round**
 - Re-read the round-close checklist in `references/status-and-reporting.md`; map matrix verdicts to tracker enums per `../qa-report/references/state-schema.md`.
-- Exit gate: run the project's full automated suite once and record the result verbatim — a green matrix over a red suite is not ready, and Final Status must say so.
+- Exit gate: run the project's required local pre-push gate and record it verbatim. Delivery still requires exact-head PR CI; a green matrix over a red local or remote gate is not ready.
 - **Done when:** zero matrix rows are `Pending`, scenario-file verdicts and bug statuses are current, every session's debrief is in the report, and the report's Final Status states release readiness with totals by impact tier — backed by fresh evidence from the current build.
 
 ## Companion skills

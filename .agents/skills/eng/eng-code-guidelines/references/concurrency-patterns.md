@@ -27,9 +27,9 @@ error-path cancellation discipline.
 
 ## Race / cgo
 
-- `make verify` runs `-race`. Race-enabled tests need `CGO_ENABLED=1`.
+- `make test`, scoped Go gates, and the PR Go-test lanes run `-race`. Race-enabled tests need `CGO_ENABLED=1`.
 - `runRaceEnabledGoCommand` (or equivalent) clones caller env and forces `CGO_ENABLED=1` for race subprocesses. Do not trust ambient env.
-- Before claiming `make verify` complete on race-sensitive packages (`internal/session`, `internal/acp`, `internal/hooks`, `internal/subprocess`, `internal/resources`), reproduce locally with `act workflow_dispatch -W .github/workflows/ci.yml -j verify --container-architecture linux/amd64`.
+- Exact-head PR Go-test lanes own Linux-race parity for sensitive packages (`internal/session`, `internal/acp`, `internal/hooks`, `internal/subprocess`, `internal/resources`).
 
 ## Authoritative Primitives (do not replicate)
 

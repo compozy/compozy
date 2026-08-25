@@ -19,6 +19,7 @@ Output (single line, key=value space-separated):
     phase=C action=qa_report
     phase=C action=qa_execution
     phase=D action=peer_review round=<N>
+    phase=E action=await_ci
     phase=E action=done
 
 Exits:
@@ -142,9 +143,22 @@ def main() -> int:
         emit(f"phase=D action=peer_review round={next_round}")
         return 0
 
-    # Phase E: QA complete AND review SHIP AND verify PASS.
+    # Phase E: QA complete AND review SHIP AND local verify PASS. Delivery is
+    # complete only after CI evidence exists for every PR head in the stack.
     if verify_status == "PASS":
-        emit("phase=E action=done")
+        delivery = state.get("delivery", {}) or {}
+        pr_urls = list(delivery.get("pr_urls") or [])
+        head_shas = list(delivery.get("head_shas") or [])
+        checks = list(delivery.get("checks") or [])
+        if (
+            delivery.get("ci_status") == "PASS"
+            and pr_urls
+            and len(pr_urls) == len(head_shas)
+            and checks
+        ):
+            emit("phase=E action=done")
+        else:
+            emit("phase=E action=await_ci")
         return 0
     # A SHIP verdict on a tree that no longer verifies is void; re-enter
     # peer review so the next round fixes the tree and re-judges it.

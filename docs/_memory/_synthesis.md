@@ -298,11 +298,11 @@ Promote the existing soft "table-driven default" wording to a hard rule. Reviewe
 
 **P-T2.14 (interface assertions)**: *"`var \_ Interface = (*Type)(nil)` is mandatory next to every new exported type that satisfies an interface."\*
 
-**P-T2.15 (one commit per remediation batch)**: _"Each `cy-fix-reviews` round produces exactly one local commit. Run `make verify` BEFORE and AFTER the commit. Never `git commit --amend` after pre-commit hook failures — fix and create a new commit."_
+**P-T2.15 (one commit per remediation batch)**: _"Each `cy-fix-reviews` round produces exactly one local commit. Run the affected local gate before and after the commit; workstream delivery waits for exact-head PR CI. Never `git commit --amend` after pre-commit hook failures — fix and create a new commit."_
 
 **P-T2.16 (race + cgo)**: _"Race-enabled tests must self-manage `CGO_ENABLED=1`. Verification commands wrapping `go test -race` go through `runRaceEnabledGoCommand` (or equivalent). Don't trust ambient env."_
 
-**P-T2.17 (Linux-race CI parity)**: _"Before claiming `make verify` complete on race-sensitive packages (`internal/session`, `internal/acp`, `internal/hooks`, `internal/subprocess`, `internal/resources`), reproduce locally with `act workflow_dispatch -W .github/workflows/ci.yml -j verify --container-architecture linux/amd64`."_
+**P-T2.17 (Linux-race CI parity)**: _"Race-sensitive package delivery requires the Linux PR CI race lane at the exact head; local scoped race tests are pre-push evidence, not Linux parity."_
 
 **P-T2.18 (secret redaction non-negotiable)**: _"`claim_token` (`compozy*claim*_`), MCP auth tokens, OAuth codes, PKCE verifiers, and secret bindings MUST NEVER appear in logs, status APIs, settings views, error payloads, channel messages, SSE, web UI, or memory. Use hash forms (`claim_token_hash`) over the wire."\*
 
@@ -324,7 +324,7 @@ Promote the existing soft "table-driven default" wording to a hard rule. Reviewe
 
 **P-T2.27 (ledger maintenance)**: _"Read existing `.codex/ledger/` files for cross-agent awareness before starting; create a session ledger when working on a multi-step task; update Done/Now/Next as work progresses. Don't commit `.compozy/tasks/_/memory/` files in code commits — tracking artifacts stay local unstaged."\*
 
-**P-T2.28 (`make verify` is commit gate)**: _"`make verify` is the commit gate. If verification is blocked by an external/branch-side asset issue (missing test fixture, etc.), do NOT commit — report the verified blocker and hold."_
+**P-T2.28 (delegated delivery gate)**: _"`make gate` is the local commit/push gate; exact-head PR CI is the delivery gate. If either is blocked by an external asset issue, report the verified blocker and hold."_
 
 **P-T2.29 (test failures are production bugs)**: _"Test failures uncovered by verification are production bugs, not test issues. Fix production code; don't weaken assertions. The only exception is documenting an INVALID review item with concrete evidence."_
 

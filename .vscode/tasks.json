@@ -26,9 +26,9 @@
             }
         },
         {
-            "label": "Go: Verify",
+            "label": "Gate: Affected Lanes",
             "type": "shell",
-            "command": "make verify",
+            "command": "make gate",
             "group": {
                 "kind": "test",
                 "isDefault": true
