@@ -55,7 +55,7 @@ func classifyStopReason(cause StopCause, waitErr error, detail string) (store.St
 		}
 		return store.StopCompleted, trimmedDetail
 	case CauseCompleted:
-		return store.StopCompleted, ""
+		return store.StopCompleted, trimmedDetail
 	case CauseFailed:
 		return store.StopError, trimmedDetail
 	default:
@@ -199,6 +199,12 @@ func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause,
 		return errors.Join(stopErr, finalizeErr)
 	}
 	return nil
+}
+
+// StopWithSpawnTTL stops a spawned session and classifies its prompt state
+// atomically with the lifecycle transition.
+func (m *Manager) StopWithSpawnTTL(ctx context.Context, id string, detail string) error {
+	return m.StopWithCause(ctx, id, CauseSpawnTTLExpired, detail)
 }
 
 func (m *Manager) prepareStopWithCause(

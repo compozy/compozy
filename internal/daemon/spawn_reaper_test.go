@@ -13,104 +13,107 @@ import (
 
 func TestSpawnReaperSweepClassifiesReasonsReleasesLeasesAndStopsChildren(t *testing.T) {
 	t.Parallel()
+	t.Run("Should classify reasons, release leases, and stop children", func(t *testing.T) {
+		t.Parallel()
 
-	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
-	expired := now.Add(-time.Minute)
-	future := now.Add(time.Hour)
-	sequence := make([]string, 0)
-	sessions := &fakeSessionManager{
-		infos: []*session.Info{
-			rootReaperInfo("parent-live", session.StateActive),
-			rootReaperInfo("parent-stopped", session.StateStopped),
-			spawnedReaperInfo("child-ttl", "parent-live", expired, true),
-			spawnedReaperInfo("child-parent", "parent-stopped", future, true),
-			spawnedReaperInfo("child-orphan", "missing-parent", future, true),
-			rootReaperInfo("manual", session.StateActive),
-			provenanceReaperInfo("provenance-child", "parent-stopped"),
-			provenanceReaperInfo("provenance-orphan", "missing-parent"),
-		},
-		stopWithCauseErr: func(id string, _ session.StopCause, _ string) error {
-			sequence = append(sequence, "stop:"+id)
-			return nil
-		},
-	}
-	leases := &fakeSpawnLeaseReleaser{
-		resultCountBySession: map[string]int{
-			"child-ttl":    2,
-			"child-parent": 1,
-		},
-		sequence: &sequence,
-	}
-	hooks := &recordingSpawnHooks{}
+		now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+		expired := now.Add(-time.Minute)
+		future := now.Add(time.Hour)
+		sequence := make([]string, 0)
+		sessions := &fakeSessionManager{
+			infos: []*session.Info{
+				rootReaperInfo("parent-live", session.StateActive),
+				rootReaperInfo("parent-stopped", session.StateStopped),
+				spawnedReaperInfo("child-ttl", "parent-live", expired, true),
+				spawnedReaperInfo("child-parent", "parent-stopped", future, true),
+				spawnedReaperInfo("child-orphan", "missing-parent", future, true),
+				rootReaperInfo("manual", session.StateActive),
+				provenanceReaperInfo("provenance-child", "parent-stopped"),
+				provenanceReaperInfo("provenance-orphan", "missing-parent"),
+			},
+			stopWithCauseErr: func(id string, _ session.StopCause, _ string) error {
+				sequence = append(sequence, "stop:"+id)
+				return nil
+			},
+		}
+		leases := &fakeSpawnLeaseReleaser{
+			resultCountBySession: map[string]int{
+				"child-ttl":    2,
+				"child-parent": 1,
+			},
+			sequence: &sequence,
+		}
+		hooks := &recordingSpawnHooks{}
 
-	reaper, err := newSpawnReaper(
-		context.Background(),
-		sessions,
-		leases,
-		hooks,
-		discardLogger(),
-		func() time.Time { return now },
-		time.Hour,
-	)
-	if err != nil {
-		t.Fatalf("newSpawnReaper() error = %v", err)
-	}
-
-	report, err := reaper.Sweep(context.Background())
-	if err != nil {
-		t.Fatalf("Sweep() error = %v", err)
-	}
-	if report.Checked != 3 ||
-		report.Reaped != 3 ||
-		report.ReleasedLeases != 3 ||
-		report.TTLExpired != 1 ||
-		report.ParentStopped != 1 ||
-		report.Orphaned != 1 {
-		t.Fatalf("report = %#v, want three classified reaps and three released leases", report)
-	}
-	if len(sessions.stopWithCauseCalls) != 3 {
-		t.Fatalf(
-			"stop calls = %#v, want only spawned children reaped and provenance user sessions left alone",
-			sessions.stopWithCauseCalls,
+		reaper, err := newSpawnReaper(
+			context.Background(),
+			sessions,
+			leases,
+			hooks,
+			discardLogger(),
+			func() time.Time { return now },
+			time.Hour,
 		)
-	}
-	assertStopWithCause(t, sessions.stopWithCauseCalls, "child-ttl", session.CauseTimeout, "spawn_reaper:ttl_expired")
-	assertStopWithCause(
-		t,
-		sessions.stopWithCauseCalls,
-		"child-parent",
-		session.CauseUserRequested,
-		"spawn_reaper:parent_stopped",
-	)
-	assertStopWithCause(
-		t,
-		sessions.stopWithCauseCalls,
-		"child-orphan",
-		session.CauseUserRequested,
-		"spawn_reaper:orphaned",
-	)
-	if got, want := sequence, []string{
-		"release:child-ttl",
-		"stop:child-ttl",
-		"release:child-parent",
-		"stop:child-parent",
-		"release:child-orphan",
-		"stop:child-orphan",
-	}; !equalStrings(got, want) {
-		t.Fatalf("sequence = %#v, want release before stop for each child %#v", got, want)
-	}
-	assertReleaseReason(t, leases.releases, "child-ttl", spawnReapReasonTTLExpired)
-	assertReleaseReason(t, leases.releases, "child-parent", spawnReapReasonParentStopped)
-	assertReleaseReason(t, leases.releases, "child-orphan", spawnReapReasonOrphaned)
-	if len(hooks.ttlExpired) != 1 || hooks.ttlExpired[0].ChildSessionID != "child-ttl" {
-		t.Fatalf("ttl hooks = %#v, want child-ttl", hooks.ttlExpired)
-	}
-	if len(hooks.parentStopped) != 1 || hooks.parentStopped[0].ChildSessionID != "child-parent" {
-		t.Fatalf("parent stopped hooks = %#v, want child-parent", hooks.parentStopped)
-	}
-	if len(hooks.reaped) != 3 {
-		t.Fatalf("reaped hooks = %#v, want three", hooks.reaped)
-	}
+		if err != nil {
+			t.Fatalf("newSpawnReaper() error = %v", err)
+		}
+
+		report, err := reaper.Sweep(context.Background())
+		if err != nil {
+			t.Fatalf("Sweep() error = %v", err)
+		}
+		if report.Checked != 3 ||
+			report.Reaped != 3 ||
+			report.ReleasedLeases != 3 ||
+			report.TTLExpired != 1 ||
+			report.ParentStopped != 1 ||
+			report.Orphaned != 1 {
+			t.Fatalf("report = %#v, want three classified reaps and three released leases", report)
+		}
+		if len(sessions.stopWithCauseCalls) != 3 {
+			t.Fatalf(
+				"stop calls = %#v, want only spawned children reaped and provenance user sessions left alone",
+				sessions.stopWithCauseCalls,
+			)
+		}
+		assertStopWithCause(t, sessions.stopWithCauseCalls, "child-ttl", session.CauseTimeout, "spawn_reaper:ttl_expired")
+		assertStopWithCause(
+			t,
+			sessions.stopWithCauseCalls,
+			"child-parent",
+			session.CauseUserRequested,
+			"spawn_reaper:parent_stopped",
+		)
+		assertStopWithCause(
+			t,
+			sessions.stopWithCauseCalls,
+			"child-orphan",
+			session.CauseUserRequested,
+			"spawn_reaper:orphaned",
+		)
+		if got, want := sequence, []string{
+			"release:child-ttl",
+			"stop:child-ttl",
+			"release:child-parent",
+			"stop:child-parent",
+			"release:child-orphan",
+			"stop:child-orphan",
+		}; !equalStrings(got, want) {
+			t.Fatalf("sequence = %#v, want release before stop for each child %#v", got, want)
+		}
+		assertReleaseReason(t, leases.releases, "child-ttl", spawnReapReasonTTLExpired)
+		assertReleaseReason(t, leases.releases, "child-parent", spawnReapReasonParentStopped)
+		assertReleaseReason(t, leases.releases, "child-orphan", spawnReapReasonOrphaned)
+		if len(hooks.ttlExpired) != 1 || hooks.ttlExpired[0].ChildSessionID != "child-ttl" {
+			t.Fatalf("ttl hooks = %#v, want child-ttl", hooks.ttlExpired)
+		}
+		if len(hooks.parentStopped) != 1 || hooks.parentStopped[0].ChildSessionID != "child-parent" {
+			t.Fatalf("parent stopped hooks = %#v, want child-parent", hooks.parentStopped)
+		}
+		if len(hooks.reaped) != 3 {
+			t.Fatalf("reaped hooks = %#v, want three", hooks.reaped)
+		}
+	})
 }
 
 func TestSpawnReaperReapsTTLExpiredStarvationWorkers(t *testing.T) {
@@ -161,6 +164,136 @@ func TestSpawnReaperReapsTTLExpiredStarvationWorkers(t *testing.T) {
 			"spawn_reaper:ttl_expired",
 		)
 	})
+}
+
+func TestSpawnReaperTTLClassification(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 5, 28, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name      string
+		prompting bool
+		wantCause session.StopCause
+	}{
+		{
+			name:      "Should reap a settled child as completed",
+			wantCause: session.CauseCompleted,
+		},
+		{
+			name:      "Should keep an in-flight prompt as a timeout",
+			prompting: true,
+			wantCause: session.CauseTimeout,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			hooks := &recordingSpawnHooks{}
+			leases := &fakeSpawnLeaseReleaser{resultCountBySession: map[string]int{"child": 1}}
+			sessions := &spawnReaperAtomicSessionManager{
+				fakeSessionManager: &fakeSessionManager{
+					infos: []*session.Info{
+						rootReaperInfo("parent", session.StateActive),
+						spawnedReaperInfo("child", "parent", now.Add(-time.Minute), true),
+					},
+				},
+				prompting: map[string]bool{"child": tt.prompting},
+			}
+			reaper, err := newSpawnReaper(
+				context.Background(),
+				sessions,
+				leases,
+				hooks,
+				discardLogger(),
+				func() time.Time { return now },
+				time.Hour,
+			)
+			if err != nil {
+				t.Fatalf("newSpawnReaper() error = %v", err)
+			}
+
+			if _, err := reaper.Sweep(context.Background()); err != nil {
+				t.Fatalf("Sweep() error = %v", err)
+			}
+			assertStopWithCause(
+				t,
+				sessions.ttlStopCalls,
+				"child",
+				tt.wantCause,
+				"spawn_reaper:ttl_expired",
+			)
+			if got := len(sessions.ttlStopCalls); got != 1 {
+				t.Fatalf("atomic TTL stop calls = %d, want exactly one", got)
+			}
+			if got := len(sessions.stopWithCauseCalls); got != 0 {
+				t.Fatalf("fallback stop calls = %d, want zero when atomic TTL stop is available", got)
+			}
+			if got := len(leases.releases); got != 1 {
+				t.Fatalf("lease releases = %d, want exactly one", got)
+			}
+			assertReleaseReason(t, leases.releases, "child", spawnReapReasonTTLExpired)
+			if len(hooks.ttlExpired) != 1 || len(hooks.reaped) != 1 {
+				t.Fatalf("lifecycle hooks = ttl=%d reaped=%d, want one each", len(hooks.ttlExpired), len(hooks.reaped))
+			}
+		})
+	}
+}
+
+func TestSpawnReaperTTLWithoutAtomicStopperUsesTimeoutFallback(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve timeout classification without atomic stop", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 28, 12, 0, 0, 0, time.UTC)
+		sessions := &fakeSessionManager{infos: []*session.Info{
+			rootReaperInfo("parent", session.StateActive),
+			spawnedReaperInfo("child", "parent", now.Add(-time.Minute), true),
+		}}
+		reaper, err := newSpawnReaper(
+			context.Background(),
+			sessions,
+			&fakeSpawnLeaseReleaser{},
+			&recordingSpawnHooks{},
+			discardLogger(),
+			func() time.Time { return now },
+			time.Hour,
+		)
+		if err != nil {
+			t.Fatalf("newSpawnReaper() error = %v", err)
+		}
+		if _, err := reaper.Sweep(context.Background()); err != nil {
+			t.Fatalf("Sweep() error = %v", err)
+		}
+		assertStopWithCause(
+			t,
+			sessions.stopWithCauseCalls,
+			"child",
+			session.CauseTimeout,
+			"spawn_reaper:ttl_expired",
+		)
+	})
+}
+
+type spawnReaperAtomicSessionManager struct {
+	*fakeSessionManager
+	prompting    map[string]bool
+	ttlStopCalls []fakeStopWithCauseCall
+}
+
+func (m *spawnReaperAtomicSessionManager) StopWithSpawnTTL(
+	_ context.Context,
+	id string,
+	detail string,
+) error {
+	cause := session.CauseCompleted
+	if m.prompting[id] {
+		cause = session.CauseTimeout
+	}
+	m.ttlStopCalls = append(m.ttlStopCalls, fakeStopWithCauseCall{
+		id: id, cause: cause, detail: detail,
+	})
+	return nil
 }
 
 func starvationReaperInfo(id string, ttl time.Time) *session.Info {

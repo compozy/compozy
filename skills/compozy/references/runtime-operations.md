@@ -406,6 +406,10 @@ fails, or enters a needs-you state. This `notify_creator` behavior defaults to o
 `config.toml` key. Use `--no-notify-creator` in the CLI or explicit `notify_creator: false` in the
 HTTP/UDS or native-tool request to opt out for that child.
 
+TTL cleanup checks the child runtime before classifying the stop: a child whose prompt has already
+settled with `done` or `end_turn` is reaped as completed, while a prompt still in flight is reaped
+as a timeout. Both paths retain the `spawn_reaper:ttl_expired` stop origin.
+
 Loop Goal sessions also record the session that started the Loop as internal creation provenance when that origin is available. They remain `type=system`: the parent/root/depth fields are informational and do not grant safe-spawn policy, caps, TTL, or parent-stop cleanup. If the origin was deleted before Goal creation, the Goal is created as its own root; deleting an origin after creation preserves the Goal and its recorded lineage.
 
 ## MCP Serve
