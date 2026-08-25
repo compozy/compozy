@@ -20,6 +20,8 @@ export interface UseTerminalCatalogStreamOptions {
   workspaceId: string;
   /** The profile these terminals belong to, as the catalog key spells it. */
   profileKey: string;
+  /** Reads the labeled aggregate without treating its cache key as a profile name. */
+  allProfiles?: boolean;
   enabled?: boolean;
   /** Test seam; the ticketed browser source is the default. */
   eventSourceFactory?: TerminalCatalogEventSourceFactory;
@@ -42,6 +44,7 @@ function openTerminalCatalogStream(
   queryClient: QueryClient,
   workspaceId: string,
   profileKey: string,
+  allProfiles: boolean,
   eventSourceFactory: TerminalCatalogEventSourceFactory
 ): () => void {
   const queryKey = terminalKeys.catalog({ workspaceId, profileKey });
@@ -75,7 +78,9 @@ function openTerminalCatalogStream(
   };
 
   const listeners = TERMINAL_CATALOG_EVENTS.map(name => ({ name, listener: handleFrame(name) }));
-  const source = eventSourceFactory(terminalCatalogStreamPath(workspaceId, profileKey));
+  const source = eventSourceFactory(
+    terminalCatalogStreamPath(workspaceId, profileKey, allProfiles)
+  );
   const detach = () => {
     source.removeEventListener("open", handleOpen);
     for (const entry of listeners) {
@@ -112,6 +117,7 @@ function openTerminalCatalogStream(
 export function useTerminalCatalogStream({
   workspaceId,
   profileKey,
+  allProfiles = false,
   enabled = true,
   eventSourceFactory,
 }: UseTerminalCatalogStreamOptions): void {
@@ -128,7 +134,8 @@ export function useTerminalCatalogStream({
       queryClient,
       workspaceId,
       profileKey,
+      allProfiles,
       eventSourceFactory ?? defaultEventSourceFactory
     );
-  }, [canConnect, eventSourceFactory, profileKey, queryClient, workspaceId]);
+  }, [allProfiles, canConnect, eventSourceFactory, profileKey, queryClient, workspaceId]);
 }

@@ -24,7 +24,9 @@ func TestTerminalClientStreamShouldDetachWithoutReconnect(t *testing.T) {
 	done := make(chan error, 1)
 	input := strings.NewReader(string([]byte{terminalDetachByte, terminalDetachByte}))
 	go func() {
-		done <- runTerminalClientStream(context.Background(), client, "write", input, io.Discard)
+		done <- runTerminalClientStream(
+			context.Background(), client, terminalStreamModeWrite, input, io.Discard,
+		)
 	}()
 	frame := readTerminalClientTestFrame(t, server)
 	if frame.Op != terminalwire.ClientOpDetach {
@@ -37,6 +39,36 @@ func TestTerminalClientStreamShouldDetachWithoutReconnect(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("client did not finish after the detach chord")
+	}
+}
+
+func TestTerminalClientStreamShouldTakeOverBeforeWriteAttach(t *testing.T) {
+	t.Parallel()
+	client, server := newTerminalClientTestPair(t)
+	done := make(chan error, 1)
+	go func() {
+		done <- runTerminalTakeover(context.Background(), client, true)
+	}()
+	writeTerminalServerTestFrame(t, server, terminalwire.Frame{
+		Op: terminalwire.ServerOpAttached, Payload: []byte(`{"seq":0}`),
+	})
+	takeover := readTerminalClientTestFrame(t, server)
+	if takeover.Op != terminalwire.ClientOpTakeover {
+		t.Fatalf("takeover opcode = %d, want TAKEOVER", takeover.Op)
+	}
+	if string(takeover.Payload) != `{"force":true}` {
+		t.Fatalf("takeover payload = %s, want force=true", takeover.Payload)
+	}
+	writeTerminalServerTestFrame(t, server, terminalwire.Frame{
+		Op: terminalwire.ServerOpOwner, Payload: []byte(`{"lease":"human_owned"}`),
+	})
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("runTerminalTakeover() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("takeover did not finish after OWNER")
 	}
 }
 
@@ -82,7 +114,9 @@ func TestTerminalClientStreamShouldAckOnlyWrittenOutput(t *testing.T) {
 	done := make(chan error, 1)
 	var output bytes.Buffer
 	go func() {
-		done <- runTerminalClientStream(context.Background(), client, "read", nil, &output)
+		done <- runTerminalClientStream(
+			context.Background(), client, terminalStreamModeRead, nil, &output,
+		)
 	}()
 	payload := bytes.Repeat([]byte("x"), terminalwire.AckGrainBytes)
 	writeTerminalServerTestFrame(t, server, terminalwire.Frame{Op: terminalwire.ServerOpOutput, Payload: payload})
@@ -135,7 +169,9 @@ func TestTerminalClientStreamShouldPreserveTransientServerClose(t *testing.T) {
 	client, server := newTerminalClientTestPair(t)
 	done := make(chan error, 1)
 	go func() {
-		done <- runTerminalClientStream(context.Background(), client, "read", nil, io.Discard)
+		done <- runTerminalClientStream(
+			context.Background(), client, terminalStreamModeRead, nil, io.Discard,
+		)
 	}()
 	deadline := time.Now().Add(time.Second)
 	if err := server.WriteControl(
@@ -184,14 +220,16 @@ func TestTerminalClientStreamShouldAdvanceOnlyWrittenSequence(t *testing.T) {
 			}()
 			writeTerminalServerTestFrame(t, server, terminalwire.Frame{
 				Op: terminalwire.ServerOpAttached,
-				Payload: []byte(fmt.Sprintf(`{"seq":%d,"truncated":%t}`,
-					testCase.attached, testCase.attached > testCase.initial)),
+				Payload: fmt.Appendf(nil, `{"seq":%d,"truncated":%t}`,
+					testCase.attached, testCase.attached > testCase.initial),
 			})
 			writeTerminalServerTestFrame(t, server, terminalwire.Frame{
 				Op: terminalwire.ServerOpOutput, Seq: testCase.outputSeq,
 				Payload: bytes.Repeat([]byte("x"), testCase.outputBytes),
 			})
-			writeTerminalServerTestFrame(t, server, terminalwire.Frame{Op: terminalwire.ServerOpExit, Payload: []byte(`{}`)})
+			writeTerminalServerTestFrame(t, server, terminalwire.Frame{
+				Op: terminalwire.ServerOpExit, Payload: []byte(`{}`),
+			})
 			select {
 			case got := <-done:
 				if got.err != nil || got.seq != testCase.want {
@@ -276,7 +314,7 @@ func newTerminalClientTestPair(t *testing.T) (*websocket.Conn, *websocket.Conn) 
 		upgraded <- terminalClientTestUpgrade{conn: conn, err: err}
 	}))
 	t.Cleanup(httpServer.Close)
-	target := "ws" + strings.TrimPrefix(httpServer.URL, "http")
+	target := "ws" + strings.TrimPrefix(httpServer.URL, terminalClientHTTPProtocol)
 	client, response, err := websocket.DefaultDialer.Dial(target, nil)
 	if response != nil && response.Body != nil {
 		if closeErr := response.Body.Close(); closeErr != nil {

@@ -233,7 +233,7 @@ describe("terminal profile rebinding", () => {
       scopeKey: WORK_KEY,
       profileId: "profile-work",
       inputRequests: [inputRequest(), inputRequest({ id: "req-9c11" })],
-      pendingApprovals: [{ terminalId: DEV_SERVER, profileId: "profile-work" }],
+      pendingApprovals: [{ profileId: "profile-work" }],
     });
     expect(workBadge).toEqual({ scopeKey: WORK_KEY, count: 3 });
 
@@ -241,7 +241,7 @@ describe("terminal profile rebinding", () => {
       scopeKey: PERSONAL_KEY,
       profileId: "profile-personal",
       inputRequests: [inputRequest()],
-      pendingApprovals: [{ terminalId: DEV_SERVER, profileId: "profile-work" }],
+      pendingApprovals: [{ profileId: "profile-work" }],
     });
     // The switch re-keys the projection, and the previous profile's rows do not
     // survive into the new count.

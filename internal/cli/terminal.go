@@ -6,7 +6,27 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const terminalCommandKey = "terminal"
+const (
+	terminalCommandKey            = "terminal"
+	terminalOpenCommandKey        = "open"
+	terminalListCommandKey        = "list"
+	terminalStreamModeRead        = "read"
+	terminalStreamModeWrite       = "write"
+	terminalStreamFlowAck         = "ack"
+	terminalStreamFlowDrop        = "drop"
+	terminalModeKey               = "mode"
+	terminalForceKey              = "force"
+	terminalClientHTTPProtocol    = "http"
+	terminalControllerHumanKind   = "human"
+	terminalControllerAvailable   = "available"
+	terminalStateRunning          = "running"
+	terminalOutcomeAnswered       = "answered"
+	terminalOutcomeRejected       = "rejected"
+	terminalRequestIDKey          = "request_id"
+	terminalNextKey               = "next"
+	terminalRecordingStartAction  = "start"
+	terminalCurrentWorkspaceLabel = "current"
+)
 
 func newTerminalCommand(deps commandDeps) *cobra.Command {
 	command := &cobra.Command{
@@ -17,6 +37,13 @@ func newTerminalCommand(deps commandDeps) *cobra.Command {
 	command.AddCommand(newTerminalGetCommand(deps))
 	command.AddCommand(newTerminalAttachCommand(deps))
 	command.AddCommand(newTerminalKillCommand(deps))
+	command.AddCommand(newTerminalExecCommand(deps))
+	command.AddCommand(newTerminalSignalCommand(deps))
+	command.AddCommand(newTerminalInputRequestsCommand(deps))
+	command.AddCommand(newTerminalRespondCommand(deps))
+	command.AddCommand(newTerminalJournalCommand(deps))
+	command.AddCommand(newTerminalRecordCommand(deps))
+	command.AddCommand(newTerminalQuoteCommand(deps))
 	return command
 }
 

@@ -17,7 +17,7 @@ type TerminalExecRequest struct {
 	Env     map[string]string       `json:"env,omitempty"`
 	YieldMs int                     `json:"yield_ms,omitempty"`
 	Visible bool                    `json:"visible,omitempty"`
-	Output  terminalpkg.OutputShape `json:"output,omitempty"`
+	Output  terminalpkg.OutputShape `json:"output"`
 }
 
 type TerminalReadOptions struct {
@@ -47,7 +47,11 @@ type TerminalAgentClient interface {
 	ExecTerminal(context.Context, string, TerminalExecRequest) (terminalpkg.ExecResult, error)
 	ReadTerminal(context.Context, string, string, TerminalReadOptions) (terminalpkg.ReadResult, error)
 	SignalTerminal(context.Context, string, string, string) error
-	ListTerminalInputRequests(context.Context, string, TerminalInputRequestQuery) ([]terminalpkg.PendingInputRequest, error)
+	ListTerminalInputRequests(
+		context.Context,
+		string,
+		TerminalInputRequestQuery,
+	) ([]terminalpkg.PendingInputRequest, error)
 	AnswerTerminalInputRequest(context.Context, string, string, string, []byte) (int, bool, error)
 	RejectTerminalInputRequest(context.Context, string, string, string, string) error
 	QueryTerminalJournal(context.Context, string, TerminalJournalQuery) (terminalpkg.Page, error)
@@ -108,7 +112,14 @@ func (c *daemonClient) ListTerminalInputRequests(
 	var response struct {
 		Requests []terminalpkg.PendingInputRequest `json:"requests"`
 	}
-	if err := c.doJSON(ctx, http.MethodGet, terminalClientPath(workspace)+"/input-requests", query, nil, &response); err != nil {
+	if err := c.doJSON(
+		ctx,
+		http.MethodGet,
+		terminalClientPath(workspace)+"/input-requests",
+		query,
+		nil,
+		&response,
+	); err != nil {
 		return nil, err
 	}
 	return response.Requests, nil
@@ -124,7 +135,14 @@ func (c *daemonClient) AnswerTerminalInputRequest(
 		Redacted       bool `json:"redacted"`
 	}
 	path := terminalInputRequestPath(workspace, terminalID, requestID) + "/answer"
-	if err := c.doJSON(ctx, http.MethodPost, path, nil, map[string]string{"input": string(input)}, &response); err != nil {
+	if err := c.doJSON(
+		ctx,
+		http.MethodPost,
+		path,
+		nil,
+		map[string]string{"input": string(input)},
+		&response,
+	); err != nil {
 		return 0, false, err
 	}
 	return response.DeliveredBytes, response.Redacted, nil
@@ -153,7 +171,14 @@ func (c *daemonClient) QueryTerminalJournal(
 		query.Set("failed", "true")
 	}
 	var response terminalpkg.Page
-	if err := c.doJSON(ctx, http.MethodGet, terminalClientPath(workspace)+"/journal", query, nil, &response); err != nil {
+	if err := c.doJSON(
+		ctx,
+		http.MethodGet,
+		terminalClientPath(workspace)+"/journal",
+		query,
+		nil,
+		&response,
+	); err != nil {
 		return terminalpkg.Page{}, err
 	}
 	return response, nil

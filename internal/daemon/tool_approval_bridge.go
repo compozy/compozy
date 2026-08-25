@@ -189,7 +189,10 @@ func (b *toolApprovalBridge) requestSessionToolApproval(
 		approvalCtx,
 		sessionID,
 		acp.RequestPermissionRequest{
-			Meta:      map[string]any{acp.PermissionRequestIDMetaKey: requestID},
+			Meta: map[string]any{
+				acp.PermissionRequestIDMetaKey: requestID,
+				acp.PermissionToolIDMetaKey:    toolID.String(),
+			},
 			SessionId: acpsdk.SessionId(sessionID),
 			ToolCall: acpsdk.ToolCallUpdate{
 				ToolCallId: acpsdk.ToolCallId(requestID),

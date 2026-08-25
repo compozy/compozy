@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -233,6 +235,50 @@ func TestTerminalHandlersShouldKeepProfileScopesClosed(t *testing.T) {
 	}
 }
 
+func TestTerminalDownloadsShouldStreamOnlyProfileScopedArtifacts(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+	journal := &terminalDownloadJournalStub{}
+	provider := &terminalProviderStub{manager: terminalDownloadManagerStub{journal: journal}}
+	handlers := NewBaseHandlers(&BaseHandlerConfig{TransportName: "udsapi", Terminal: provider})
+	router := gin.New()
+	router.GET("/api/workspaces/:workspace_id/terminals/recordings/:id", handlers.DownloadTerminalRecording)
+	router.GET("/api/workspaces/:workspace_id/terminals/artifacts/:id", handlers.DownloadTerminalArtifact)
+
+	recording := httptest.NewRecorder()
+	router.ServeHTTP(recording, httptest.NewRequest(
+		http.MethodGet, "/api/workspaces/workspace-a/terminals/recordings/recording-a", nil,
+	))
+	if recording.Code != http.StatusOK || recording.Body.String() != "asciicast" {
+		t.Fatalf("recording status/body = %d/%q, want 200/asciicast", recording.Code, recording.Body.String())
+	}
+	if got := recording.Header().Get("Content-Type"); got != "application/x-asciicast" {
+		t.Fatalf("recording Content-Type = %q", got)
+	}
+	if journal.recordingScope.ProfileID != store.DefaultProfileID {
+		t.Fatalf("recording scope = %#v, want default profile", journal.recordingScope)
+	}
+
+	artifact := httptest.NewRecorder()
+	router.ServeHTTP(artifact, httptest.NewRequest(
+		http.MethodGet, "/api/workspaces/workspace-a/terminals/artifacts/artifact-a", nil,
+	))
+	if artifact.Code != http.StatusOK || artifact.Body.String() != "artifact bytes" {
+		t.Fatalf("artifact status/body = %d/%q, want 200/artifact bytes", artifact.Code, artifact.Body.String())
+	}
+	if journal.artifactScope.ProfileID != store.DefaultProfileID {
+		t.Fatalf("artifact scope = %#v, want default profile", journal.artifactScope)
+	}
+
+	missing := httptest.NewRecorder()
+	router.ServeHTTP(missing, httptest.NewRequest(
+		http.MethodGet, "/api/workspaces/workspace-a/terminals/recordings/foreign", nil,
+	))
+	if missing.Code != http.StatusNotFound || !strings.Contains(missing.Body.String(), `"code":"terminal_not_found"`) {
+		t.Fatalf("foreign recording status/body = %d/%s, want typed 404", missing.Code, missing.Body.String())
+	}
+}
+
 func TestTerminalAgentHandlersShouldPreserveUntrustedAndRedactedContracts(t *testing.T) { // IT-025
 	t.Parallel()
 	gin.SetMode(gin.TestMode)
@@ -325,6 +371,43 @@ func TestTerminalAgentHandlersShouldExecuteEveryUnregisteredBody(t *testing.T) {
 	}
 	if !manager.inputScope.AllProfiles || !journal.scope.AllProfiles || journal.query.Limit != 25 {
 		t.Fatalf("aggregate scopes/query = input:%#v journal:%#v query:%#v", manager.inputScope, journal.scope, journal.query)
+	}
+}
+
+func TestTerminalHandlersShouldResolveSandboxCapabilities(t *testing.T) { // IT-016
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+	manager := &terminalAgentManagerStub{
+		terminalManagerStub: terminalManagerStub{},
+		handle:              &terminalAgentHandleStub{},
+		journal:             &terminalAgentJournalStub{},
+	}
+	provider := &terminalProviderStub{manager: manager}
+	workspaces := workspaceServiceStub{get: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+		return workspacepkg.Workspace{ID: ref, SandboxRef: "daytona"}, nil
+	}}
+	handlers := NewBaseHandlers(&BaseHandlerConfig{
+		TransportName: "udsapi",
+		Terminal:      provider,
+		Workspaces:    workspaces,
+	})
+	router := gin.New()
+	router.POST("/api/workspaces/:workspace_id/terminals/exec", handlers.ExecTerminal)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/workspaces/workspace-a/terminals/exec",
+		strings.NewReader(`{"command":"pwd"}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body=%s", response.Code, response.Body.String())
+	}
+	if manager.exec.Capabilities.Interactive {
+		t.Fatalf("sandbox capabilities = %#v, want interactive disabled", manager.exec.Capabilities)
 	}
 }
 
@@ -506,6 +589,42 @@ func (m *terminalAgentManagerStub) Journal() terminalpkg.Journal { return m.jour
 type terminalAgentJournalStub struct {
 	scope store.ReadScope
 	query terminalpkg.Query
+}
+
+type terminalDownloadManagerStub struct {
+	terminalManagerStub
+	journal terminalpkg.Journal
+}
+
+func (m terminalDownloadManagerStub) Journal() terminalpkg.Journal { return m.journal }
+
+type terminalDownloadJournalStub struct {
+	terminalAgentJournalStub
+	recordingScope store.ReadScope
+	artifactScope  store.ReadScope
+}
+
+func (j *terminalDownloadJournalStub) Recording(
+	_ context.Context,
+	_ string,
+	scope store.ReadScope,
+	id string,
+) (*terminalpkg.RecordingRef, io.ReadCloser, error) {
+	j.recordingScope = scope
+	if id == "foreign" {
+		return nil, nil, os.ErrNotExist
+	}
+	return &terminalpkg.RecordingRef{ID: id, Bytes: int64(len("asciicast"))}, io.NopCloser(strings.NewReader("asciicast")), nil
+}
+
+func (j *terminalDownloadJournalStub) Artifact(
+	_ context.Context,
+	_ string,
+	scope store.ReadScope,
+	_ string,
+) (io.ReadCloser, error) {
+	j.artifactScope = scope
+	return io.NopCloser(strings.NewReader("artifact bytes")), nil
 }
 
 func (*terminalAgentJournalStub) Record(context.Context, string, terminalpkg.CommandRow) error {

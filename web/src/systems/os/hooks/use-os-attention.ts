@@ -1,6 +1,8 @@
 import { useDocumentVisible } from "@/hooks/use-document-visible";
+import { useQuery } from "@tanstack/react-query";
 
 import { useLoopNodeExists, useLoopRequestAttention } from "@/systems/loops";
+import { useProfileReadScope } from "@/systems/profiles";
 import {
   attentionCount,
   deriveAttentionBadges,
@@ -16,6 +18,11 @@ import {
   useSessions,
 } from "@/systems/session";
 import { taskScopeForActiveWorkspace, useTaskDashboard, useTasks } from "@/systems/tasks";
+import {
+  projectTerminalBadge,
+  terminalInputRequestsQuery,
+  terminalScope,
+} from "@/systems/terminal";
 import {
   useActiveWorkspace,
   useScopedWorktreeFilter,
@@ -59,6 +66,7 @@ export function useOsAttention(
   const { scope, activeWorkspaceId, workspaces } = useActiveWorkspace();
   const documentVisible = useDocumentVisible();
   const workspaceId = runtimeWorkspace?.id ?? null;
+  const profile = useProfileReadScope();
   const sessionsEnabled = workspaceId !== null;
   const taskScope = taskScopeForActiveWorkspace(scope, activeWorkspaceId);
   const tasksEnabled = taskScope !== null;
@@ -104,6 +112,12 @@ export function useOsAttention(
   const loopWaitingPresent = useLoopNodeExists(loopWorkspaceId, "waiting", sessionsEnabled);
   const loopAttentionPresent = useLoopNodeExists(loopWorkspaceId, "attention", sessionsEnabled);
   const loopRequests = useLoopRequestAttention(workspaces, true, documentVisible);
+  const terminalReadScope = terminalScope(workspaceId ?? "", profile.destination);
+  const terminalRequests = useQuery({
+    ...terminalInputRequestsQuery(terminalReadScope),
+    enabled: sessionsEnabled,
+    refetchInterval: documentVisible ? ATTENTION_REFETCH_INTERVAL_MS : false,
+  });
 
   const modalSessions = modalSessionsQuery.data ?? [];
   const dashboard = dashboardQuery.data ?? null;
@@ -125,13 +139,45 @@ export function useOsAttention(
   const taskRowsDisconnected =
     tasksDisconnected || tasksQuery.isError || tasksQuery.data === undefined;
 
-  const badges = deriveAttentionBadges({
+  const baseBadges = deriveAttentionBadges({
     summary: summary.summary,
     summaryStale: summary.stale,
     dashboard,
     tasksStale: tasksDisconnected,
     loopsPending: loopRequests.pendingCount,
   });
+  const terminalBadge =
+    terminalRequests.isError || terminalRequests.data === undefined
+      ? undefined
+      : (() => {
+          const profileId =
+            profile.destinationOwner?.id ??
+            terminalRequests.data[0]?.profile_id ??
+            "__unresolved__";
+          const pendingApprovals: Array<{ profileId: string }> = [];
+          for (const session of attention.sessions) {
+            if (session.workspace_id !== workspaceId || session.profile_id !== profileId) continue;
+            for (const interaction of session.pending_interactions) {
+              if (
+                interaction.kind === "permission" &&
+                interaction.status === "pending" &&
+                interaction.tool_id?.startsWith("compozy__terminal_")
+              ) {
+                pendingApprovals.push({ profileId });
+              }
+            }
+          }
+          return projectTerminalBadge({
+            scopeKey: `${terminalReadScope.key.workspaceId}:${terminalReadScope.key.profileKey}`,
+            profileId,
+            inputRequests: terminalRequests.data,
+            pendingApprovals,
+          }).count;
+        })();
+  const badges = {
+    ...baseBadges,
+    ...(terminalBadge === undefined ? {} : { terminal: terminalBadge }),
+  };
   const sections = deriveAttentionSections({
     sessions: attention.sessions,
     sessionRowsStale: attention.stale,
@@ -159,6 +205,7 @@ export function useOsAttention(
           attention.loading ||
           modalSessionsQuery.isLoading)) ||
       (tasksEnabled && (dashboardQuery.isLoading || tasksQuery.isLoading)) ||
+      terminalRequests.isLoading ||
       loopRequests.loading,
   };
 }

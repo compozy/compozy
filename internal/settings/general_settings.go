@@ -14,6 +14,7 @@ type GeneralSettings struct {
 	HTTP           compozyconfig.HTTPConfig
 	Daemon         compozyconfig.DaemonConfig
 	Redact         compozyconfig.RedactConfig
+	Terminal       compozyconfig.TerminalConfig
 }
 
 func generalSettingsFromConfig(cfg *compozyconfig.Config) GeneralSettings {
@@ -24,5 +25,6 @@ func generalSettingsFromConfig(cfg *compozyconfig.Config) GeneralSettings {
 		HTTP:           cfg.HTTP,
 		Daemon:         cfg.Daemon,
 		Redact:         cfg.Redact,
+		Terminal:       cfg.Terminal,
 	}
 }

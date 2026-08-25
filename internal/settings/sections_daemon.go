@@ -42,7 +42,36 @@ func diffGeneralSettings(cfg *compozyconfig.Config, desired GeneralSettings) []s
 	if cfg.Redact.Enabled != desired.Redact.Enabled {
 		changed = append(changed, "redact.enabled")
 	}
+	changed = append(changed, diffTerminalSettings(cfg.Terminal, desired.Terminal)...)
 	return changed
+}
+
+func diffTerminalSettings(current, desired compozyconfig.TerminalConfig) []string {
+	if current == desired {
+		return nil
+	}
+	paths := make([]string, 0, 10)
+	checks := []struct {
+		changed bool
+		path    string
+	}{
+		{current.DefaultShell != desired.DefaultShell, "terminal.default_shell"},
+		{current.ShellIntegration != desired.ShellIntegration, "terminal.shell_integration"},
+		{current.ScrollbackBytes != desired.ScrollbackBytes, "terminal.scrollback_bytes"},
+		{current.DetachedTTL != desired.DetachedTTL, "terminal.detached_ttl"},
+		{current.ExitRetention != desired.ExitRetention, "terminal.exit_retention"},
+		{current.Recording != desired.Recording, "terminal.recording"},
+		{current.RecordingRetentionDays != desired.RecordingRetentionDays, "terminal.recording_retention_days"},
+		{current.MaxPerWorkspace != desired.MaxPerWorkspace, "terminal.max_per_workspace"},
+		{current.MaxPerDaemon != desired.MaxPerDaemon, "terminal.max_per_daemon"},
+		{current.MaxSubscribers != desired.MaxSubscribers, "terminal.max_subscribers"},
+	}
+	for _, check := range checks {
+		if check.changed {
+			paths = append(paths, check.path)
+		}
+	}
+	return paths
 }
 
 func applyGeneralSettings(editor *compozyconfig.OverlayEditor, settings GeneralSettings) error {
@@ -73,6 +102,16 @@ func applyGeneralSettings(editor *compozyconfig.OverlayEditor, settings GeneralS
 			value: settings.Daemon.ReloadTimeouts.Bridges.String(),
 		},
 		{path: []string{"redact", sectionsEnabledKey}, value: settings.Redact.Enabled},
+		{path: []string{"terminal", "default_shell"}, value: settings.Terminal.DefaultShell},
+		{path: []string{"terminal", "shell_integration"}, value: settings.Terminal.ShellIntegration},
+		{path: []string{"terminal", "scrollback_bytes"}, value: settings.Terminal.ScrollbackBytes},
+		{path: []string{"terminal", "detached_ttl"}, value: settings.Terminal.DetachedTTL.String()},
+		{path: []string{"terminal", "exit_retention"}, value: settings.Terminal.ExitRetention.String()},
+		{path: []string{"terminal", "recording"}, value: settings.Terminal.Recording},
+		{path: []string{"terminal", "recording_retention_days"}, value: settings.Terminal.RecordingRetentionDays},
+		{path: []string{"terminal", "max_per_workspace"}, value: settings.Terminal.MaxPerWorkspace},
+		{path: []string{"terminal", "max_per_daemon"}, value: settings.Terminal.MaxPerDaemon},
+		{path: []string{"terminal", "max_subscribers"}, value: settings.Terminal.MaxSubscribers},
 	}
 	return applyValueUpdates(editor, updates)
 }

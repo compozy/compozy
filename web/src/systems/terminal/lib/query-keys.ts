@@ -15,6 +15,8 @@ export const terminalKeys = {
     ["terminal", "detail", scope.workspaceId, scope.profileKey, terminalId] as const,
   inputRequests: (scope: TerminalScopeKey) =>
     ["terminal", "input-requests", scope.workspaceId, scope.profileKey] as const,
+  journalScope: (scope: TerminalScopeKey) =>
+    ["terminal", "journal", scope.workspaceId, scope.profileKey] as const,
   journal: (scope: TerminalScopeKey, filters: TerminalJournalFilters) =>
     [
       "terminal",

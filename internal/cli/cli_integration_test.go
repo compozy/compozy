@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -171,12 +172,30 @@ func TestTerminalAgentCommandBodiesKeepProfileHelperContracts(t *testing.T) { //
 		command             *cobra.Command
 		wantAllProfilesFlag bool
 	}{
+		{name: "list aggregate read", command: newTerminalListCommand(deps), wantAllProfilesFlag: true},
 		{name: "journal aggregate read", command: newTerminalJournalCommand(deps), wantAllProfilesFlag: true},
 		{name: "input requests aggregate read", command: newTerminalInputRequestsCommand(deps), wantAllProfilesFlag: true},
+		{name: "get owner read", command: newTerminalGetCommand(deps)},
+		{name: "attach owner read", command: newTerminalAttachCommand(deps)},
 		{name: "quote owner read", command: newTerminalQuoteCommand(deps)},
+		{name: "open mutation", command: newTerminalOpenCommand(deps)},
 		{name: "exec mutation", command: newTerminalExecCommand(deps)},
+		{name: "kill mutation", command: newTerminalKillCommand(deps)},
 		{name: "signal mutation", command: newTerminalSignalCommand(deps)},
 		{name: "respond mutation", command: newTerminalRespondCommand(deps)},
+		{name: "record mutation", command: newTerminalRecordCommand(deps)},
+	}
+	commands := newTerminalCommand(deps).Commands()
+	gotNames := make([]string, 0, len(commands))
+	for _, command := range commands {
+		gotNames = append(gotNames, command.Name())
+	}
+	wantNames := []string{
+		"attach", "exec", "get", "input-requests", "journal", "kill",
+		"list", "open", "quote", "record", "respond", "signal",
+	}
+	if !reflect.DeepEqual(gotNames, wantNames) {
+		t.Fatalf("terminal commands = %#v, want %#v", gotNames, wantNames)
 	}
 	for _, testCase := range testCases {
 		t.Run("Should configure "+testCase.name, func(t *testing.T) {
@@ -187,6 +206,46 @@ func TestTerminalAgentCommandBodiesKeepProfileHelperContracts(t *testing.T) { //
 			}
 		})
 	}
+
+	t.Run("Should render the documented list table and scoped empty state", func(t *testing.T) {
+		t.Parallel()
+		fixed := time.Date(2026, time.August, 25, 12, 30, 0, 0, time.UTC)
+		command := &cobra.Command{}
+		command.SetContext(t.Context())
+		recordProfileReadSelection(command, profileReadSelection{Profile: "work"})
+		recordWorkspaceResolution(command, workspaceResolution{
+			ID: "workspace-a",
+			Detail: WorkspaceDetailRecord{Workspace: WorkspaceRecord{
+				ID: "workspace-a", Name: "acme-api",
+			}},
+			Source: workspaceResolutionFlag,
+		})
+		empty, err := terminalListBundle(command, nil, func() time.Time { return fixed }).human()
+		if err != nil {
+			t.Fatalf("empty terminalListBundle().human() error = %v", err)
+		}
+		wantEmpty := "No terminals in workspace acme-api (profile: work). Open one: compozy terminal open"
+		if empty != wantEmpty {
+			t.Fatalf("empty terminal list = %q, want %q", empty, wantEmpty)
+		}
+
+		recordProfileReadSelection(command, profileReadSelection{AllProfiles: true})
+		rows, err := terminalListBundle(command, []TerminalRecord{{
+			ID: "term-9f21c04a3b17", ProfileName: "work", Title: "zsh — status",
+			Controller: &TerminalControllerRecord{Kind: "human", ID: terminalCLIActorID},
+			State:      "running", CreatedAt: fixed.Add(-2 * time.Minute),
+		}}, func() time.Time { return fixed }).human()
+		if err != nil {
+			t.Fatalf("terminalListBundle().human() error = %v", err)
+		}
+		wantRows := strings.Join([]string{
+			"ID\tPROFILE\tTITLE\tCONTROLLER\tSTATE\tCREATED",
+			"term-9f21c04a3b17\twork\tzsh — status\tyou\trunning\t2m ago",
+		}, "\n")
+		if rows != wantRows {
+			t.Fatalf("terminal list = %q, want %q", rows, wantRows)
+		}
+	})
 
 	quote := terminalQuote("term-4aa01f22e6c3", 120, 121, "FAIL users.test.ts\nexpected 201, received 500")
 	want := strings.Join([]string{
@@ -257,6 +316,194 @@ func TestTerminalAgentCommandBodiesShouldMatchHTTPClientContracts(t *testing.T) 
 		client.journal.Limit != 25 || client.rejected != "input-a" || client.recordAction != "start" ||
 		client.readOptions.FromLine != 0 || client.readOptions.ToLine != 2 {
 		t.Fatalf("terminal command calls = %#v", client)
+	}
+}
+
+func TestTerminalCLIJSONShouldMatchHTTPAcrossProfileSelectors(t *testing.T) { // IT-020
+	t.Parallel()
+
+	fixed := time.Date(2026, time.August, 25, 12, 30, 0, 0, time.UTC)
+	exitCode := 7
+	exitSignal := "TERM"
+	next := "journal-next"
+	terminalID := terminalpkg.ID("term-a")
+	terminalPayload := contract.TerminalInfoPayload{
+		ID: terminalID, WorkspaceID: "workspace-a", ProfileID: "profile-work", ProfileName: "work",
+		Title: "Build", Shell: "/bin/zsh", Cwd: "/workspace", Mode: terminalpkg.ModePTY, State: "exited",
+		Controller: &contract.TerminalControllerPayload{Kind: terminalpkg.ActorKindAgent, ID: "atlas"},
+		Lease:      terminalpkg.LeaseAgentOwned, Viewers: 2,
+		BoundRun:     &contract.TerminalRunPayload{SessionID: "session-a", RunID: "run-a"},
+		Capabilities: terminalpkg.Capabilities{Interactive: true}, CreatedAt: fixed,
+		Exit: &contract.TerminalExitPayload{Cause: "signal", Code: &exitCode, Signal: &exitSignal, At: fixed.Add(time.Minute)},
+	}
+	journalPayload := contract.TerminalJournalResponse{
+		Entries: []terminalpkg.CommandRow{{
+			ID: "command-a", TerminalID: &terminalID, ProfileID: "profile-work", ProfileName: "work",
+			Actor:   terminalpkg.Actor{Kind: terminalpkg.ActorKindAgent, ID: "atlas", ProfileID: "profile-work"},
+			Command: "make gate", Cwd: "/workspace", StartedAt: fixed, ExitCode: &exitCode,
+			ExitCause: "exit", DetectedBy: "marker", Approval: "allowed", OutputBytes: 2048,
+		}},
+		Next: &next,
+	}
+
+	var requestMu sync.Mutex
+	terminalRequests := make([]string, 0, 8)
+	server := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		path := request.URL.Path
+		switch {
+		case request.Method == http.MethodGet && path == "/api/profiles":
+			writeRemoteCLIJSON(writer, http.StatusOK, []contract.Profile{
+				{ID: "profile-default", Name: "default", State: "active"},
+				{ID: "profile-work", Name: "work", State: "active"},
+			})
+		case request.Method == http.MethodGet && path == "/api/profiles/selection":
+			writeRemoteCLIJSON(writer, http.StatusOK, []contract.ProfileSelection{})
+		case request.Method == http.MethodGet && path == "/api/workspaces/workspace-a":
+			writeRemoteCLIJSON(writer, http.StatusOK, WorkspaceDetailRecord{Workspace: WorkspaceRecord{
+				ID: "workspace-a", Name: "workspace-a", RootDir: "/workspace", CreatedAt: fixed, UpdatedAt: fixed,
+			}})
+		case request.Method == http.MethodGet && path == "/api/workspaces/workspace-a/terminals":
+			requestMu.Lock()
+			terminalRequests = append(terminalRequests, path+"?"+request.URL.Query().Encode())
+			requestMu.Unlock()
+			writeRemoteCLIJSON(writer, http.StatusOK, contract.TerminalListResponse{Terminals: []contract.TerminalInfoPayload{terminalPayload}})
+		case request.Method == http.MethodGet && path == "/api/workspaces/workspace-a/terminals/term-a":
+			requestMu.Lock()
+			terminalRequests = append(terminalRequests, path+"?"+request.URL.Query().Encode())
+			requestMu.Unlock()
+			writeRemoteCLIJSON(writer, http.StatusOK, contract.TerminalResponse{Terminal: terminalPayload})
+		case request.Method == http.MethodGet && path == "/api/workspaces/workspace-a/terminals/journal":
+			requestMu.Lock()
+			terminalRequests = append(terminalRequests, path+"?"+request.URL.Query().Encode())
+			requestMu.Unlock()
+			writeRemoteCLIJSON(writer, http.StatusOK, journalPayload)
+		default:
+			writeRemoteCLIJSON(writer, http.StatusNotFound, contract.ErrorPayload{Error: "not found"})
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := NewClient(LocalClientTarget("/tmp/compozy-terminal-parity.sock"))
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	concrete := client.(*daemonClient)
+	concrete.httpClient.Transport = redirectRoundTripper(server)
+	concrete.streamClient.Transport = redirectRoundTripper(server)
+	deps := newTestDeps(t, concrete)
+
+	testCases := []struct {
+		name        string
+		args        []string
+		wantPayload any
+		wantRequest string
+	}{
+		{
+			name: "list with the default profile", args: []string{"terminal", "list", "--workspace", "workspace-a", "-o", "json"},
+			wantPayload: contract.TerminalListResponse{Terminals: []contract.TerminalInfoPayload{terminalPayload}},
+			wantRequest: "/api/workspaces/workspace-a/terminals?profile=default",
+		},
+		{
+			name: "list with an explicit profile", args: []string{"terminal", "list", "--workspace", "workspace-a", "--profile", "work", "-o", "json"},
+			wantPayload: contract.TerminalListResponse{Terminals: []contract.TerminalInfoPayload{terminalPayload}},
+			wantRequest: "/api/workspaces/workspace-a/terminals?profile=work",
+		},
+		{
+			name: "list across profiles", args: []string{"terminal", "list", "--workspace", "workspace-a", "--all-profiles", "-o", "json"},
+			wantPayload: contract.TerminalListResponse{Terminals: []contract.TerminalInfoPayload{terminalPayload}},
+			wantRequest: "/api/workspaces/workspace-a/terminals?all_profiles=true",
+		},
+		{
+			name: "get with the default profile", args: []string{"terminal", "get", "--workspace", "workspace-a", "term-a", "-o", "json"},
+			wantPayload: contract.TerminalResponse{Terminal: terminalPayload},
+			wantRequest: "/api/workspaces/workspace-a/terminals/term-a?profile=default",
+		},
+		{
+			name: "get with an explicit profile", args: []string{"terminal", "get", "--workspace", "workspace-a", "--profile", "work", "term-a", "-o", "json"},
+			wantPayload: contract.TerminalResponse{Terminal: terminalPayload},
+			wantRequest: "/api/workspaces/workspace-a/terminals/term-a?profile=work",
+		},
+		{
+			name: "journal with the default profile", args: []string{"terminal", "journal", "--workspace", "workspace-a", "-o", "json"},
+			wantPayload: journalPayload,
+			wantRequest: "/api/workspaces/workspace-a/terminals/journal?limit=50&profile=default",
+		},
+		{
+			name: "journal with an explicit profile", args: []string{"terminal", "journal", "--workspace", "workspace-a", "--profile", "work", "-o", "json"},
+			wantPayload: journalPayload,
+			wantRequest: "/api/workspaces/workspace-a/terminals/journal?limit=50&profile=work",
+		},
+		{
+			name: "journal across profiles", args: []string{"terminal", "journal", "--workspace", "workspace-a", "--all-profiles", "-o", "json"},
+			wantPayload: journalPayload,
+			wantRequest: "/api/workspaces/workspace-a/terminals/journal?all_profiles=true&limit=50",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run("Should preserve HTTP parity for "+testCase.name, func(t *testing.T) {
+			stdout, stderr, commandErr := executeRootCommand(t, deps, testCase.args...)
+			if commandErr != nil {
+				t.Fatalf("executeRootCommand() error = %v; stderr=%s", commandErr, stderr)
+			}
+			assertTerminalJSONParity(t, stdout, testCase.wantPayload)
+			requestMu.Lock()
+			gotRequest := terminalRequests[len(terminalRequests)-1]
+			requestMu.Unlock()
+			if gotRequest != testCase.wantRequest {
+				t.Fatalf("terminal request = %q, want %q", gotRequest, testCase.wantRequest)
+			}
+		})
+	}
+
+	t.Run("Should reject conflicting read selectors with structured JSON", func(t *testing.T) {
+		exit, stdout, stderr := executeRootCommandWithExit(
+			t, deps, "terminal", "list", "--workspace", "workspace-a", "--profile", "work", "--all-profiles", "-o", "json",
+		)
+		if exit != 1 || stdout != "" {
+			t.Fatalf("conflicting selectors exit = %d, stdout = %q; want exit 1 and empty stdout", exit, stdout)
+		}
+		var payload contract.ProfileErrorPayload
+		if err := json.Unmarshal([]byte(stderr), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(conflict) error = %v; stderr=%s", err, stderr)
+		}
+		if payload.Error.Code != "profile_selection_conflict" {
+			t.Fatalf("conflict code = %q, want profile_selection_conflict", payload.Error.Code)
+		}
+	})
+
+	t.Run("Should reject aggregate mutation selectors with structured JSON", func(t *testing.T) {
+		exit, stdout, stderr := executeRootCommandWithExit(
+			t, deps, "terminal", "open", "--workspace", "workspace-a", "--all-profiles", "--detach", "-o", "json",
+		)
+		if exit != 1 || stdout != "" {
+			t.Fatalf("aggregate mutation exit = %d, stdout = %q; want exit 1 and empty stdout", exit, stdout)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal([]byte(stderr), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(aggregate mutation) error = %v; stderr=%s", err, stderr)
+		}
+		if _, ok := payload[clientErrorKey]; !ok {
+			t.Fatalf("aggregate mutation error = %#v, want %q field", payload, clientErrorKey)
+		}
+	})
+}
+
+func assertTerminalJSONParity(t *testing.T, stdout string, want any) {
+	t.Helper()
+	var gotPayload any
+	if err := json.Unmarshal([]byte(stdout), &gotPayload); err != nil {
+		t.Fatalf("json.Unmarshal(CLI output) error = %v; output=%s", err, stdout)
+	}
+	wantJSON, err := json.Marshal(want)
+	if err != nil {
+		t.Fatalf("json.Marshal(HTTP payload) error = %v", err)
+	}
+	var wantPayload any
+	if err := json.Unmarshal(wantJSON, &wantPayload); err != nil {
+		t.Fatalf("json.Unmarshal(HTTP payload) error = %v", err)
+	}
+	if !reflect.DeepEqual(gotPayload, wantPayload) {
+		t.Fatalf("CLI JSON = %#v, want HTTP JSON %#v", gotPayload, wantPayload)
 	}
 }
 

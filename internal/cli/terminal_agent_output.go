@@ -21,7 +21,7 @@ func terminalExecBundle(result terminalpkg.ExecResult) outputBundle {
 
 func terminalSignalBundle(id, signal string) outputBundle {
 	return outputBundle{
-		jsonValue: map[string]any{"delivered": true},
+		jsonValue: map[string]any{networkDeliveredKey: true},
 		human: func() (string, error) {
 			return fmt.Sprintf("SIG%s delivered to %s.", signal, id), nil
 		},
@@ -29,8 +29,10 @@ func terminalSignalBundle(id, signal string) outputBundle {
 }
 
 func terminalInputRequestsBundle(requests []terminalpkg.PendingInputRequest) outputBundle {
+	value := map[string]any{"requests": requests}
 	return outputBundle{
-		jsonValue: map[string]any{"requests": requests},
+		jsonValue: value,
+		json:      terminalHTTPJSON(value),
 		human: func() (string, error) {
 			if len(requests) == 0 {
 				return "No pending input requests.", nil
@@ -50,7 +52,8 @@ func terminalInputRequestsBundle(requests []terminalpkg.PendingInputRequest) out
 func terminalAnsweredInputBundle(requestID string, delivered int, redacted bool) outputBundle {
 	return outputBundle{
 		jsonValue: map[string]any{
-			"request_id": requestID, "outcome": "answered", "delivered_bytes": delivered, "redacted": redacted,
+			terminalRequestIDKey: requestID, "outcome": terminalOutcomeAnswered,
+			"delivered_bytes": delivered, "redacted": redacted,
 		},
 		human: func() (string, error) {
 			label := ""
@@ -64,7 +67,7 @@ func terminalAnsweredInputBundle(requestID string, delivered int, redacted bool)
 
 func terminalRejectedInputBundle(requestID string) outputBundle {
 	return outputBundle{
-		jsonValue: map[string]any{"request_id": requestID, "outcome": "rejected"},
+		jsonValue: map[string]any{terminalRequestIDKey: requestID, "outcome": terminalOutcomeRejected},
 		human: func() (string, error) {
 			return "Rejected — the agent was notified.", nil
 		},
@@ -72,8 +75,10 @@ func terminalRejectedInputBundle(requestID string) outputBundle {
 }
 
 func terminalJournalBundle(page terminalpkg.Page) outputBundle {
+	value := map[string]any{"entries": page.Entries, terminalNextKey: nullableTerminalCursor(page.Next)}
 	return outputBundle{
-		jsonValue: map[string]any{"entries": page.Entries, "next": nullableTerminalCursor(page.Next)},
+		jsonValue: value,
+		json:      terminalHTTPJSON(value),
 		human: func() (string, error) {
 			if len(page.Entries) == 0 {
 				return "No terminal commands matched.", nil
@@ -99,7 +104,7 @@ func terminalRecordingBundle(recording terminalpkg.RecordingRef, action string) 
 	return outputBundle{
 		jsonValue: map[string]any{"recording": recording},
 		human: func() (string, error) {
-			if action == "start" {
+			if action == terminalRecordingStartAction {
 				return fmt.Sprintf("Recording %s as %s.", recording.TerminalID, recording.ID), nil
 			}
 			return fmt.Sprintf("%s saved (%d bytes).", recording.ID, recording.Bytes), nil
@@ -121,7 +126,7 @@ func terminalQuote(id string, from, to int, content string) string {
 	lines := strings.Split(strings.TrimSuffix(content, "\n"), "\n")
 	quoted := make([]string, 0, len(lines)+2)
 	quoted = append(quoted, fmt.Sprintf(
-		`<terminal_context terminal="%s" lines="%d-%d">`,
+		`<terminal_context terminal=%q lines="%d-%d">`,
 		escapeTerminalContext(id),
 		from,
 		to,

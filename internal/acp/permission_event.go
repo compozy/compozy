@@ -113,6 +113,7 @@ func buildPermissionEventRaw(
 
 	payload := permissionEventRaw{
 		RequestID: requestID,
+		ToolID:    permissionToolID(request),
 		Options:   options,
 		ToolInput: toolInput,
 		ToolCall:  toolCall,
@@ -126,4 +127,15 @@ func buildPermissionEventRaw(
 		return fallbackPermissionEventRaw(requestID, decision)
 	}
 	return data
+}
+
+func permissionToolID(request acpsdk.RequestPermissionRequest) string {
+	if request.Meta == nil {
+		return ""
+	}
+	value, ok := request.Meta[PermissionToolIDMetaKey].(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(value)
 }

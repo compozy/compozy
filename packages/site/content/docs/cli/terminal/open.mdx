@@ -1,0 +1,50 @@
+---
+title: "compozy terminal open"
+description: "Open an interactive terminal"
+---
+
+## compozy terminal open
+
+Open an interactive terminal
+
+```
+compozy terminal open [flags]
+```
+
+### Options
+
+```
+      --cols uint16        Initial columns (default 80)
+      --cwd string         Working directory under the workspace
+      --detach             Open without attaching
+  -h, --help               help for open
+      --rows uint16        Initial rows (default 24)
+      --shell string       Shell executable
+      --title string       Pinned terminal title
+      --workspace string   Override workspace (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy terminal open -o json
+```

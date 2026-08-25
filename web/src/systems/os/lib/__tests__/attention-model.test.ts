@@ -117,6 +117,7 @@ describe("OS attention badges", () => {
     expect(badges).toEqual({ sessions: 137, tasks: 4, loops: 7 });
     expect(dockBadgeFor(OS_APPS.session, badges)).toBe(137);
     expect(dockBadgeFor(OS_APPS.tasks, badges)).toBe(4);
+    expect(dockBadgeFor(OS_APPS.terminal, { ...badges, terminal: 2 })).toBe(2);
     expect(dockBadgeFor(OS_APPS.dashboard, badges)).toBeUndefined();
     expect(attentionCount(badges)).toBe(148);
   });

@@ -1,0 +1,50 @@
+---
+title: "compozy terminal exec"
+description: "Run a command in the workspace"
+---
+
+## compozy terminal exec
+
+Run a command in the workspace
+
+```
+compozy terminal exec -- <command> [args...] [flags]
+```
+
+### Options
+
+```
+      --cwd string         Working directory under the workspace
+      --env stringArray    Set an environment variable as K=V
+      --grep string        Keep matching output lines
+  -h, --help               help for exec
+      --tail int           Keep the last N output lines
+      --visible            Run in a watchable interactive terminal
+      --workspace string   Override workspace (ID, name, or path)
+      --yield string       Return control while a longer command continues (default "10s")
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy terminal exec -- <command> [args...] -o json
+```

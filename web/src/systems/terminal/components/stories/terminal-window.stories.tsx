@@ -40,7 +40,7 @@ import { TerminalVisualStage } from "./terminal-visual-stage";
  * by the protocol-client suite, not by a screenshot.
  */
 const meta: Meta<typeof TerminalWindowApp> = {
-  title: "systems/terminal/components/TerminalWindow",
+  title: "systems/terminal/routes/Terminal",
   component: TerminalWindowApp,
   parameters: { layout: "fullscreen" },
 };

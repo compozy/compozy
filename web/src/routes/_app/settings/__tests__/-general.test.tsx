@@ -93,6 +93,18 @@ const envelope = {
     permissions: { mode: "approve-all" as const },
     redact: { enabled: true },
     session_timeout: "0s",
+    terminal: {
+      default_shell: "",
+      shell_integration: true,
+      scrollback_bytes: 1_048_576,
+      detached_ttl: "24h",
+      exit_retention: "15m",
+      recording: false,
+      recording_retention_days: 30,
+      max_per_workspace: 8,
+      max_per_daemon: 32,
+      max_subscribers: 16,
+    },
   },
   config_paths: {
     daemon_info: "/tmp/daemon.json",

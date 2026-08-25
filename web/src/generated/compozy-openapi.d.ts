@@ -6896,6 +6896,280 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/terminals": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List workspace terminals */
+    get: operations["listTerminals"];
+    put?: never;
+    /** Create an interactive terminal */
+    post: operations["createTerminal"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/terminals/artifacts/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Download one terminal spill artifact */
+    get: operations["downloadTerminalArtifact"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/terminals/exec": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Execute one supervised workspace command */
+    post: operations["execTerminal"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/terminals/input-requests": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List pending terminal input requests */
+    get: operations["listTerminalInputRequests"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/terminals/journal": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Query terminal command history */
+    get: operations["queryTerminalJournal"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/terminals/recordings/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Download one terminal recording */
+    get: operations["downloadTerminalRecording"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/terminals/stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream one profile-scoped terminal catalog */
+    get: operations["streamTerminalCatalog"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/terminals/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read one terminal */
+    get: operations["getTerminal"];
+    put?: never;
+    post?: never;
+    /** Terminate one terminal */
+    delete: operations["deleteTerminal"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/terminals/{id}/attach-ticket": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Mint a single-use terminal attach ticket */
+    post: operations["mintTerminalAttachTicket"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/terminals/{id}/input-requests/{request_id}/answer": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Answer one terminal input request */
+    post: operations["answerTerminalInputRequest"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/terminals/{id}/input-requests/{request_id}/reject": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reject one terminal input request */
+    post: operations["rejectTerminalInputRequest"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/terminals/{id}/read": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read bounded untrusted terminal output */
+    get: operations["readTerminal"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/terminals/{id}/recording": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Start or stop terminal recording */
+    post: operations["controlTerminalRecording"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/terminals/{id}/signal": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Signal one running terminal */
+    post: operations["signalTerminal"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/terminals/{id}/stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Upgrade to one live terminal byte stream */
+    get: operations["streamTerminal"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/terminals/{id}/wait": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Wait for one terminal condition */
+    post: operations["waitTerminal"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/tool-artifacts/{artifact_id}": {
     parameters: {
       query?: never;
@@ -13743,6 +14017,7 @@ export interface operations {
                   resolved_by?: string;
                   status: string;
                   title?: string;
+                  tool_id?: string;
                   turn_id?: string;
                 }[];
                 profile_archived?: boolean;
@@ -57340,6 +57615,7 @@ export interface operations {
                 resolved_by?: string;
                 status: string;
                 title?: string;
+                tool_id?: string;
                 turn_id?: string;
               }[];
               profile_archived?: boolean;
@@ -57890,6 +58166,7 @@ export interface operations {
                 resolved_by?: string;
                 status: string;
                 title?: string;
+                tool_id?: string;
                 turn_id?: string;
               }[];
               profile_archived?: boolean;
@@ -58606,6 +58883,7 @@ export interface operations {
                 resolved_by?: string;
                 status: string;
                 title?: string;
+                tool_id?: string;
                 turn_id?: string;
               }[];
               profile_archived?: boolean;
@@ -60402,6 +60680,18 @@ export interface operations {
                 enabled: boolean;
               };
               session_timeout: string;
+              terminal: {
+                default_shell: string;
+                detached_ttl: string;
+                exit_retention: string;
+                max_per_daemon: number;
+                max_per_workspace: number;
+                max_subscribers: number;
+                recording: boolean;
+                recording_retention_days: number;
+                scrollback_bytes: number;
+                shell_integration: boolean;
+              };
             };
             config_paths: {
               daemon_info: string;
@@ -60513,6 +60803,18 @@ export interface operations {
               enabled: boolean;
             };
             session_timeout: string;
+            terminal: {
+              default_shell: string;
+              detached_ttl: string;
+              exit_retention: string;
+              max_per_daemon: number;
+              max_per_workspace: number;
+              max_subscribers: number;
+              recording: boolean;
+              recording_retention_days: number;
+              scrollback_bytes: number;
+              shell_integration: boolean;
+            };
           };
         };
       };
@@ -100200,6 +100502,7 @@ export interface operations {
                 resolved_by?: string;
                 status: string;
                 title?: string;
+                tool_id?: string;
                 turn_id?: string;
               }[];
               profile_archived?: boolean;
@@ -119808,6 +120111,7 @@ export interface operations {
                   resolved_by?: string;
                   status: string;
                   title?: string;
+                  tool_id?: string;
                   turn_id?: string;
                 }[];
                 profile_archived?: boolean;
@@ -120317,6 +120621,7 @@ export interface operations {
                   resolved_by?: string;
                   status: string;
                   title?: string;
+                  tool_id?: string;
                   turn_id?: string;
                 }[];
                 profile_archived?: boolean;
@@ -120833,6 +121138,7 @@ export interface operations {
                   resolved_by?: string;
                   status: string;
                   title?: string;
+                  tool_id?: string;
                   turn_id?: string;
                 }[];
                 profile_archived?: boolean;
@@ -124401,6 +124707,7 @@ export interface operations {
                 resolved_by?: string;
                 status: string;
                 title?: string;
+                tool_id?: string;
                 turn_id?: string;
               }[];
               profile_archived?: boolean;
@@ -124879,6 +125186,7 @@ export interface operations {
                 resolved_by?: string;
                 status: string;
                 title?: string;
+                tool_id?: string;
                 turn_id?: string;
               }[];
               profile_archived?: boolean;
@@ -125454,6 +125762,7 @@ export interface operations {
                 resolved_by?: string;
                 status: string;
                 title?: string;
+                tool_id?: string;
                 turn_id?: string;
               }[];
               profile_archived?: boolean;
@@ -125918,6 +126227,7 @@ export interface operations {
                 resolved_by?: string;
                 status: string;
                 title?: string;
+                tool_id?: string;
                 turn_id?: string;
               }[];
               profile_archived?: boolean;
@@ -127150,6 +127460,7 @@ export interface operations {
                 resolved_by?: string;
                 status: string;
                 title?: string;
+                tool_id?: string;
                 turn_id?: string;
               }[];
               profile_archived?: boolean;
@@ -129658,6 +129969,7 @@ export interface operations {
               resolved_by?: string;
               status: string;
               title?: string;
+              tool_id?: string;
               turn_id?: string;
             }[];
           };
@@ -132458,6 +132770,7 @@ export interface operations {
                   resolved_by?: string;
                   status: string;
                   title?: string;
+                  tool_id?: string;
                   turn_id?: string;
                 }[];
                 profile_archived?: boolean;
@@ -133057,6 +133370,7 @@ export interface operations {
                 resolved_by?: string;
                 status: string;
                 title?: string;
+                tool_id?: string;
                 turn_id?: string;
               }[];
               profile_archived?: boolean;
@@ -133555,6 +133869,7 @@ export interface operations {
                 resolved_by?: string;
                 status: string;
                 title?: string;
+                tool_id?: string;
                 turn_id?: string;
               }[];
               profile_archived?: boolean;
@@ -134006,6 +134321,7 @@ export interface operations {
                 resolved_by?: string;
                 status: string;
                 title?: string;
+                tool_id?: string;
                 turn_id?: string;
               }[];
               profile_archived?: boolean;
@@ -134633,6 +134949,7 @@ export interface operations {
               resolved_by?: string;
               status: string;
               title?: string;
+              tool_id?: string;
               turn_id?: string;
             }[];
             session_id: string;
@@ -136856,6 +137173,7 @@ export interface operations {
                 resolved_by?: string;
                 status: string;
                 title?: string;
+                tool_id?: string;
                 turn_id?: string;
               }[];
               profile_archived?: boolean;
@@ -137637,6 +137955,7 @@ export interface operations {
                 resolved_by?: string;
                 status: string;
                 title?: string;
+                tool_id?: string;
                 turn_id?: string;
               }[];
               profile_archived?: boolean;
@@ -137945,6 +138264,2182 @@ export interface operations {
       };
       /** @description New-work admission is unavailable while the daemon is draining */
       503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  listTerminals: {
+    parameters: {
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            terminals: {
+              bound_run: {
+                run_id: string;
+                session_id: string;
+              } | null;
+              capabilities: {
+                interactive: boolean;
+              };
+              controller: {
+                id: string;
+                kind: string;
+              } | null;
+              /** Format: date-time */
+              created_at: string;
+              cwd: string;
+              exit?: {
+                /** Format: date-time */
+                at: string;
+                cause: string;
+                code?: number | null;
+                signal?: string | null;
+              } | null;
+              id: string;
+              lease: string;
+              mode: string;
+              profile_id: string;
+              profile_name: string;
+              shell: string;
+              state: string;
+              title: string;
+              viewers: number;
+              workspace_id: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid profile selection */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Terminal service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  createTerminal: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          cols: number;
+          cwd: string;
+          rows: number;
+          shell: string;
+          title: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            terminal: {
+              bound_run: {
+                run_id: string;
+                session_id: string;
+              } | null;
+              capabilities: {
+                interactive: boolean;
+              };
+              controller: {
+                id: string;
+                kind: string;
+              } | null;
+              /** Format: date-time */
+              created_at: string;
+              cwd: string;
+              exit?: {
+                /** Format: date-time */
+                at: string;
+                cause: string;
+                code?: number | null;
+                signal?: string | null;
+              } | null;
+              id: string;
+              lease: string;
+              mode: string;
+              profile_id: string;
+              profile_name: string;
+              shell: string;
+              state: string;
+              title: string;
+              viewers: number;
+              workspace_id: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal limit reached */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid terminal request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Terminal service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  downloadTerminalArtifact: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Terminal or retained artifact id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Artifact bytes */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "*/*": string;
+        };
+      };
+      /** @description Terminal artifact not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Terminal journal unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  execTerminal: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          args: string[];
+          command: string;
+          cwd: string;
+          env: {
+            [key: string]: string;
+          };
+          output: {
+            grep?: string;
+            max_bytes?: number;
+            strategy?: string;
+          };
+          visible: boolean;
+          yield_ms: number;
+        };
+      };
+    };
+    responses: {
+      /** @description Command finished */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            command_id: string;
+            /** Format: int64 */
+            duration_ms: number;
+            exit_code: number | null;
+            output: string;
+            signal: string | null;
+            spill?: {
+              artifact_id: string;
+              /** Format: int64 */
+              bytes: number;
+            } | null;
+            still_running?: boolean;
+            terminal_id: string | null;
+            truncated: boolean;
+            untrusted: boolean;
+          };
+        };
+      };
+      /** @description Command continues in a terminal */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            command_id: string;
+            /** Format: int64 */
+            duration_ms: number;
+            exit_code: number | null;
+            output: string;
+            signal: string | null;
+            spill?: {
+              artifact_id: string;
+              /** Format: int64 */
+              bytes: number;
+            } | null;
+            still_running?: boolean;
+            terminal_id: string | null;
+            truncated: boolean;
+            untrusted: boolean;
+          };
+        };
+      };
+      /** @description Approval required or rejected */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid execution request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  listTerminalInputRequests: {
+    parameters: {
+      query?: {
+        /** @description Filter by terminal id */
+        terminal_id?: string;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            requests: {
+              id: string;
+              profile_id: string;
+              profile_name: string;
+              prompt_excerpt: string;
+              reason: string;
+              redacted: boolean;
+              /** Format: date-time */
+              requested_at: string;
+              terminal_id: string;
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid profile selection */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Terminal service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  queryTerminalJournal: {
+    parameters: {
+      query?: {
+        /** @description Filter by actor kind */
+        actor?: "human" | "agent";
+        /** @description Filter by relative duration */
+        since?: string;
+        /** @description Only failed commands */
+        failed?: boolean;
+        /** @description Filter by terminal id */
+        terminal_id?: string;
+        /** @description Page size */
+        limit?: number;
+        /** @description Opaque page cursor */
+        cursor?: string;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            entries: {
+              actor: {
+                /** Format: int64 */
+                generation?: number;
+                id: string;
+                kind: string;
+                profile_id: string;
+                run_id?: string;
+                session_id?: string;
+              };
+              approval: string;
+              argv_digest?: string | null;
+              command: string;
+              command_id: string;
+              cwd: string;
+              detected_by: string;
+              /** Format: int64 */
+              duration_ms: number | null;
+              exit_cause: string;
+              exit_code: number | null;
+              /** Format: int64 */
+              output_bytes: number;
+              profile_id: string;
+              profile_name: string;
+              recording?: string | null;
+              signal: string | null;
+              /** Format: date-time */
+              started_at: string;
+              terminal_id: string | null;
+              truncated: boolean;
+            }[];
+            next: string | null;
+          };
+        };
+      };
+      /** @description Invalid journal query */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Terminal journal unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  downloadTerminalRecording: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Terminal or retained artifact id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Artifact bytes */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/x-asciicast": string;
+        };
+      };
+      /** @description Terminal artifact not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Terminal journal unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  streamTerminalCatalog: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: {
+        /** @description Resume after the last terminal catalog event */
+        "Last-Event-ID"?: string;
+      };
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Terminal catalog event stream */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": {
+            terminals: {
+              bound_run: {
+                run_id: string;
+                session_id: string;
+              } | null;
+              capabilities: {
+                interactive: boolean;
+              };
+              controller: {
+                id: string;
+                kind: string;
+              } | null;
+              /** Format: date-time */
+              created_at: string;
+              cwd: string;
+              exit?: {
+                /** Format: date-time */
+                at: string;
+                cause: string;
+                code?: number | null;
+                signal?: string | null;
+              } | null;
+              id: string;
+              lease: string;
+              mode: string;
+              profile_id: string;
+              profile_name: string;
+              shell: string;
+              state: string;
+              title: string;
+              viewers: number;
+              workspace_id: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid terminal catalog cursor */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Terminal catalog unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getTerminal: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Terminal or retained artifact id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            terminal: {
+              bound_run: {
+                run_id: string;
+                session_id: string;
+              } | null;
+              capabilities: {
+                interactive: boolean;
+              };
+              controller: {
+                id: string;
+                kind: string;
+              } | null;
+              /** Format: date-time */
+              created_at: string;
+              cwd: string;
+              exit?: {
+                /** Format: date-time */
+                at: string;
+                cause: string;
+                code?: number | null;
+                signal?: string | null;
+              } | null;
+              id: string;
+              lease: string;
+              mode: string;
+              profile_id: string;
+              profile_name: string;
+              shell: string;
+              state: string;
+              title: string;
+              viewers: number;
+              workspace_id: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Terminal expired */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Terminal service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  deleteTerminal: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Terminal or retained artifact id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody?: {
+      content: {
+        "application/json": {
+          signal: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Terminated */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            exit: {
+              /** Format: date-time */
+              at: string;
+              cause: string;
+              code?: number | null;
+              signal?: string | null;
+            } | null;
+          };
+        };
+      };
+      /** @description Terminal not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Terminal state or controller conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Terminal expired */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  mintTerminalAttachTicket: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Terminal or retained artifact id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          mode: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: date-time */
+            expires_at: string;
+            ticket: string;
+          };
+        };
+      };
+      /** @description Terminal not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Subscriber limit reached */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid attach mode */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  answerTerminalInputRequest: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Terminal or retained artifact id */
+        id: string;
+        /** @description Terminal input request id */
+        request_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          input: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Delivered */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            delivered_bytes: number;
+            redacted: boolean;
+          };
+        };
+      };
+      /** @description Terminal write lease required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Input request not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Input request already answered */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  rejectTerminalInputRequest: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Terminal or retained artifact id */
+        id: string;
+        /** @description Terminal input request id */
+        request_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          reason: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Rejected */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            outcome: string;
+          };
+        };
+      };
+      /** @description Terminal write lease required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Input request not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Input request already answered */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  readTerminal: {
+    parameters: {
+      query?: {
+        /** @description Terminal read view */
+        view?: "screen" | "tail" | "lines";
+        /** @description Maximum returned bytes */
+        max_bytes?: number;
+        /** @description Optional regular expression */
+        grep?: string;
+        /** @description Read bytes after this sequence */
+        since_seq?: number;
+        /** @description First scrollback line */
+        from?: number;
+        /** @description Last scrollback line */
+        to?: number;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Terminal or retained artifact id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            busy: boolean;
+            content: string;
+            seq: number;
+            spill?: {
+              artifact_id: string;
+              /** Format: int64 */
+              bytes: number;
+            } | null;
+            truncated: boolean;
+            untrusted: boolean;
+          };
+        };
+      };
+      /** @description Terminal not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Unsupported terminal read */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  controlTerminalRecording: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Terminal or retained artifact id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          action: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Recording state */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            recording: {
+              /** Format: int64 */
+              bytes: number;
+              digest: string;
+              /** Format: date-time */
+              expires_at: string;
+              id: string;
+              profile_id: string;
+              /** Format: date-time */
+              started_at: string;
+              state?: string;
+              /** Format: date-time */
+              stopped_at?: string | null;
+              terminal_id: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Recording state conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid recording action */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  signalTerminal: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Terminal or retained artifact id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          signal: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Delivered */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            delivered: boolean;
+          };
+        };
+      };
+      /** @description Terminal not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Terminal state or controller conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid signal */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  streamTerminal: {
+    parameters: {
+      query: {
+        /** @description Single-use attach ticket */
+        ticket: string;
+        /** @description Attach mode */
+        mode?: "read" | "write";
+        /** @description Proposed terminal columns */
+        cols?: number;
+        /** @description Proposed terminal rows */
+        rows?: number;
+        /** @description Resume after the last parsed terminal byte sequence */
+        after_seq?: number;
+        /** @description Flow-control mode */
+        flow?: "ack" | "drop";
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Terminal or retained artifact id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description WebSocket upgrade using compozy.terminal.v1 */
+      101: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            opcode: number;
+            payload: string;
+            seq?: number;
+          };
+        };
+      };
+      /** @description Terminal ticket invalid or expired */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Subscriber limit reached */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  waitTerminal: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Terminal or retained artifact id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          pattern: string;
+          timeout_ms: number;
+          until: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Wait result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            exit_code?: number | null;
+            reason: string;
+            screen: string;
+            untrusted: boolean;
+          };
+        };
+      };
+      /** @description Terminal not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid wait request */
+      422: {
         headers: {
           [name: string]: unknown;
         };

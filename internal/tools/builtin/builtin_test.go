@@ -979,6 +979,17 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			{id: toolspkg.ToolIDResourcesList, capability: "resources.read"},
 			{id: toolspkg.ToolIDResourcesSnapshot, capability: "resources.read"},
 			{id: toolspkg.ToolIDProviderModelsCurate, capability: "providers.models.write"},
+			{id: toolspkg.ToolIDTerminalExec, capability: terminalExecCapability},
+			{id: toolspkg.ToolIDTerminalOpen, capability: terminalExecCapability},
+			{id: toolspkg.ToolIDTerminalWrite, capability: terminalExecCapability},
+			{id: toolspkg.ToolIDTerminalRead, capability: terminalObserveCapability},
+			{id: toolspkg.ToolIDTerminalWait, capability: terminalObserveCapability},
+			{id: toolspkg.ToolIDTerminalSignal, capability: terminalExecCapability},
+			{id: toolspkg.ToolIDTerminalClose, capability: terminalExecCapability},
+			{id: toolspkg.ToolIDTerminalList, capability: terminalObserveCapability},
+			{id: toolspkg.ToolIDTerminalRequestInput, capability: terminalExecCapability},
+			{id: toolspkg.ToolIDTerminalYield, capability: terminalExecCapability},
+			{id: toolspkg.ToolIDTerminalClaim, capability: terminalExecCapability},
 		}
 		for _, tc := range cases {
 			descriptor, ok := descriptors[tc.id]
@@ -1792,6 +1803,28 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 		{id: "compozy__task_unblock", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__task_update", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__terminal_claim", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__terminal_close", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: true},
+		{id: "compozy__terminal_exec", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: true},
+		{id: "compozy__terminal_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__terminal_open", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: true},
+		{id: "compozy__terminal_read", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__terminal_request_input", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__terminal_signal", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: true},
+		{id: "compozy__terminal_wait", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__terminal_write", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: true},
+		{id: "compozy__terminal_yield", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__tool_approvals_list", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
@@ -3486,6 +3519,26 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			!slices.Contains(resourceTools, toolspkg.ToolIDResourcesSnapshot) ||
 			slices.Contains(resourceTools, toolspkg.ToolID("compozy__resource_list")) {
 			t.Fatalf("resources toolset expansion = %#v, want plural desired-state resource tools", resourceTools)
+		}
+
+		terminalTools, err := catalog.Expand(toolspkg.ToolsetIDTerminal, universe)
+		if err != nil {
+			t.Fatalf("Expand(terminal) error = %v", err)
+		}
+		if want := []toolspkg.ToolID{
+			toolspkg.ToolIDTerminalClaim,
+			toolspkg.ToolIDTerminalClose,
+			toolspkg.ToolIDTerminalExec,
+			toolspkg.ToolIDTerminalList,
+			toolspkg.ToolIDTerminalOpen,
+			toolspkg.ToolIDTerminalRead,
+			toolspkg.ToolIDTerminalRequestInput,
+			toolspkg.ToolIDTerminalSignal,
+			toolspkg.ToolIDTerminalWait,
+			toolspkg.ToolIDTerminalWrite,
+			toolspkg.ToolIDTerminalYield,
+		}; !slices.Equal(terminalTools, want) {
+			t.Fatalf("terminal expansion = %#v, want %#v", terminalTools, want)
 		}
 
 		windowManagerTools, err := catalog.Expand(toolspkg.ToolsetIDWindowManager, universe)

@@ -59,6 +59,7 @@ func NativeDescriptors() []toolspkg.Descriptor {
 		marketplaceDescriptors(),
 		extensionDescriptors(),
 		resourceDescriptors(),
+		terminalDescriptors(),
 		windowManagerDescriptors(),
 		mcpDescriptors(),
 		mcpAuthDescriptors(),

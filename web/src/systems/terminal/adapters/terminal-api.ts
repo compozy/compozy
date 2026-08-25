@@ -372,7 +372,11 @@ export function terminalStreamPath(
 }
 
 /** The catalog SSE URL, workspace- and profile-scoped. */
-export function terminalCatalogStreamPath(workspaceId: string, profile: string): string {
-  const query = terminalScopeQuery({ profile });
+export function terminalCatalogStreamPath(
+  workspaceId: string,
+  profile: string,
+  allProfiles = false
+): string {
+  const query = terminalScopeQuery(allProfiles ? { all_profiles: true } : { profile });
   return `/api/workspaces/${encodeURIComponent(workspaceId)}/terminals/stream?${query.toString()}`;
 }

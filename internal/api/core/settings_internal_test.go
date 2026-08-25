@@ -484,6 +484,7 @@ func TestGeneralSettingsPayloadRoundTripPreservesRedactionGate(t *testing.T) {
 		t.Run(fmt.Sprintf("Should preserve enabled=%t", enabled), func(t *testing.T) {
 			t.Parallel()
 
+			terminal := compozyconfig.DefaultTerminalConfig()
 			payload := contract.SettingsGeneralConfigPayload{
 				Limits:         contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
 				Permissions:    contract.SettingsPermissionsPayload{Mode: contract.SettingsPermissionModeApproveReads},
@@ -491,6 +492,18 @@ func TestGeneralSettingsPayloadRoundTripPreservesRedactionGate(t *testing.T) {
 				HTTP:           contract.SettingsHTTPPayload{Host: "127.0.0.1", Port: 2123},
 				Daemon:         contract.SettingsDaemonPayload{Socket: "/tmp/compozy.sock"},
 				Redact:         contract.SettingsRedactPayload{Enabled: enabled},
+				Terminal: contract.SettingsTerminalPayload{
+					DefaultShell:           terminal.DefaultShell,
+					ShellIntegration:       terminal.ShellIntegration,
+					ScrollbackBytes:        terminal.ScrollbackBytes,
+					DetachedTTL:            terminal.DetachedTTL.String(),
+					ExitRetention:          terminal.ExitRetention.String(),
+					Recording:              terminal.Recording,
+					RecordingRetentionDays: terminal.RecordingRetentionDays,
+					MaxPerWorkspace:        terminal.MaxPerWorkspace,
+					MaxPerDaemon:           terminal.MaxPerDaemon,
+					MaxSubscribers:         terminal.MaxSubscribers,
+				},
 			}
 			settings, err := generalSettingsFromPayload(payload)
 			if err != nil {
@@ -501,6 +514,12 @@ func TestGeneralSettingsPayloadRoundTripPreservesRedactionGate(t *testing.T) {
 			}
 			if got := settingsGeneralConfigPayload(settings).Redact.Enabled; got != enabled {
 				t.Fatalf("settingsGeneralConfigPayload().Redact.Enabled = %t, want %t", got, enabled)
+			}
+			if settings.Terminal != terminal {
+				t.Fatalf("GeneralSettings.Terminal = %#v, want %#v", settings.Terminal, terminal)
+			}
+			if got := settingsGeneralConfigPayload(settings).Terminal; got != payload.Terminal {
+				t.Fatalf("settingsGeneralConfigPayload().Terminal = %#v, want %#v", got, payload.Terminal)
 			}
 		})
 	}

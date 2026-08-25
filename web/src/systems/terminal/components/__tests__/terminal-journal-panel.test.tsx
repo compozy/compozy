@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { terminalKeys } from "../../lib/query-keys";
 import { JOURNAL_FIXTURES } from "../../mocks/terminal-fixtures";
 import type { TerminalJournalEntry } from "../../types";
+import { TerminalJournalFilterDialog } from "../terminal-journal-filter-dialog";
 import { TerminalJournalPanel } from "../terminal-journal-panel";
 
 /**
@@ -182,5 +183,47 @@ describe("TerminalJournalPanel", () => {
 
     renderPanel({ showOwner: true });
     expect(screen.getByTestId("terminal-journal-owner-cmd-5f0a1e")).toHaveTextContent("work");
+  });
+
+  it("Should apply editable journal filters as one query input", async () => {
+    const user = userEvent.setup();
+    const onApply = vi.fn();
+    render(
+      <TerminalJournalFilterDialog
+        onApply={onApply}
+        onOpenChange={vi.fn()}
+        open
+        value={{ actor: "agent" }}
+      />
+    );
+
+    expect(screen.getByTestId("terminal-journal-filter-actor")).toHaveTextContent("agent");
+    await user.type(screen.getByTestId("terminal-journal-filter-since"), "24h");
+    await user.type(screen.getByTestId("terminal-journal-filter-terminal"), "term-7");
+    await user.click(screen.getByTestId("terminal-journal-filter-failed"));
+    await user.click(screen.getByTestId("terminal-journal-filter-apply"));
+
+    expect(onApply).toHaveBeenCalledWith({
+      actor: "agent",
+      since: "24h",
+      failed: true,
+      terminalId: "term-7",
+    });
+  });
+
+  it("Should clear every journal filter from the dialog", async () => {
+    const onApply = vi.fn();
+    render(
+      <TerminalJournalFilterDialog
+        onApply={onApply}
+        onOpenChange={vi.fn()}
+        open
+        value={{ actor: "human", failed: true, since: "1h", terminalId: "term-8" }}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+
+    expect(onApply).toHaveBeenCalledWith({});
   });
 });

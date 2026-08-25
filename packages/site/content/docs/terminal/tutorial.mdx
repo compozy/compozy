@@ -1,0 +1,103 @@
+---
+title: Open and use a terminal
+description: Open a workspace terminal, run a visible command, answer input, and inspect the result.
+---
+
+This walkthrough uses structured CLI output so each step is easy to verify. Replace `my-project`
+with a registered workspace ID, name, or path.
+
+## 1. Open without attaching
+
+```bash
+compozy terminal open --workspace my-project --title dev --detach -o json
+```
+
+Expected shape:
+
+```json
+{
+  "terminal": {
+    "id": "term-4aa01f22e6c3",
+    "workspace_id": "ws-example",
+    "profile_name": "default",
+    "title": "dev",
+    "state": "running",
+    "capabilities": { "interactive": true }
+  }
+}
+```
+
+The real response also includes the shell, working directory, controller, lease, viewer count, mode,
+creation time, and profile ID. Keep the returned terminal ID for later commands.
+
+## 2. Attach with control
+
+```bash
+compozy terminal attach term-4aa01f22e6c3 --workspace my-project --control
+```
+
+`--control` requests the write lease. Omit it for a read-only attachment. Detach from the local client
+when you are done; the terminal process keeps running until it exits or is closed.
+
+## 3. Run a visible command
+
+```bash
+compozy terminal exec --workspace my-project --visible --yield 1s -o json -- bun test
+```
+
+A command that finishes within the yield window returns its exit code and bounded output:
+
+```json
+{
+  "exit_code": 0,
+  "signal": null,
+  "output": "12 tests passed\n",
+  "truncated": false,
+  "untrusted": true,
+  "duration_ms": 842,
+  "command_id": "cmd-example",
+  "terminal_id": "term-4aa01f22e6c3"
+}
+```
+
+A longer command returns `"still_running": true` with its `terminal_id`. Open that terminal in the
+OS shell or attach through the CLI to keep watching it. See
+[`compozy terminal exec`](/docs/cli/terminal/exec) for output shaping and environment flags.
+
+## 4. Answer a requested input
+
+List requests in the selected profile:
+
+```bash
+compozy terminal input-requests --workspace my-project -o json
+```
+
+Then pipe one line to the waiting terminal:
+
+```bash
+printf 'y\n' | compozy terminal respond term-4aa01f22e6c3 \
+  --workspace my-project --request input-example -o json
+```
+
+Expected result:
+
+```json
+{
+  "request_id": "input-example",
+  "outcome": "answered",
+  "delivered_bytes": 1,
+  "redacted": false
+}
+```
+
+Use `--reject` instead of stdin when the program should not continue.
+
+## 5. Verify the journal
+
+```bash
+compozy terminal journal --workspace my-project --terminal term-4aa01f22e6c3 -o json
+```
+
+The response contains `entries` and a nullable `next` cursor. Each entry records the actor, command,
+working directory, timing, exit cause, approval, output byte count, and whether command-boundary
+detection was exact or approximate.

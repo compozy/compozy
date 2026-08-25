@@ -1055,6 +1055,81 @@ test("E2E-024: status, healthy retry, diagnose, and diagnostic bundle remain age
   }
 });
 
+test("Terminal E2E-013: packaged shell preserves terminal input, accelerators, refit, and IME", async ({
+  launchDesktop,
+}) => {
+  const desktop = await launchDesktop({
+    environment: { COMPOZY_DESKTOP_E2E_FOREGROUND: "1" },
+  });
+  const product = await desktop.product();
+  await completeOnboarding(product);
+  await firstWorkspaceID(desktop);
+
+  await product.locator('[data-slot="os-dock-item"][data-app="terminal"]').click();
+  const terminalWindow = product.getByTestId("terminal-window");
+  await expect(terminalWindow).toBeVisible();
+  await terminalWindow.getByTestId("terminal-empty-open").click();
+  const terminalGrid = terminalWindow.getByRole("log");
+  await expect(terminalGrid).toBeVisible();
+  await terminalGrid.click();
+  await product.keyboard.type("printf 'desktop-shell-echo\\n'");
+  await product.keyboard.press("Enter");
+  await expect(terminalGrid).toContainText("desktop-shell-echo");
+
+  const pasteCommand = "printf 'desktop-clipboard-paste\\n'";
+  await product.evaluate(async value => await navigator.clipboard.writeText(value), pasteCommand);
+  await terminalGrid.click();
+  await product.keyboard.press(process.platform === "darwin" ? "Meta+V" : "Control+V");
+  await product.keyboard.press("Enter");
+  const pastedRow = terminalWindow
+    .locator(".xterm-rows > div", { hasText: "desktop-clipboard-paste" })
+    .last();
+  await expect(pastedRow).toBeVisible();
+  const pastedBox = await pastedRow.boundingBox();
+  if (!pastedBox) throw new Error("Pasted terminal output has no layout box.");
+  await product.mouse.move(pastedBox.x + 4, pastedBox.y + pastedBox.height / 2);
+  await product.mouse.down();
+  await product.mouse.move(pastedBox.x + pastedBox.width - 4, pastedBox.y + pastedBox.height / 2, {
+    steps: 8,
+  });
+  await product.mouse.up();
+  await product.keyboard.press(process.platform === "darwin" ? "Meta+C" : "Control+C");
+  await expect
+    .poll(async () => await desktop.app.evaluate(({ clipboard }) => clipboard.readText()))
+    .toContain("desktop-clipboard-paste");
+
+  const cellRow = terminalWindow.locator(".xterm-rows > div").first();
+  const initialCellHeight = (await cellRow.boundingBox())?.height;
+  if (!initialCellHeight) throw new Error("Terminal cell metrics were unavailable before zoom.");
+  const initialGrid = await terminalWindow.getByTestId("terminal-grid-chip").textContent();
+  await product.keyboard.press(process.platform === "darwin" ? "Meta++" : "Control++");
+  await expect.poll(async () => (await cellRow.boundingBox())?.height).not.toBe(initialCellHeight);
+  await expect
+    .poll(async () => await terminalWindow.getByTestId("terminal-grid-chip").textContent())
+    .not.toBe(initialGrid);
+  await product.keyboard.press(process.platform === "darwin" ? "Meta+-" : "Control+-");
+
+  await product.keyboard.press(process.platform === "darwin" ? "Meta+K" : "Control+K");
+  await expect(product.getByRole("dialog", { name: "Command palette" })).toBeVisible();
+  await expect(terminalGrid).toContainText("desktop-shell-echo");
+  await product.keyboard.press("Escape");
+
+  await terminalWindow.locator(".xterm-helper-textarea").focus();
+  await product.keyboard.type("stty -echo");
+  await product.keyboard.press("Enter");
+  const cdp = await product.context().newCDPSession(product);
+  await cdp.send("Input.imeSetComposition", {
+    text: "printf '漢字'",
+    selectionStart: 11,
+    selectionEnd: 11,
+  });
+  await cdp.send("Input.insertText", { text: "printf '漢字'" });
+  await product.keyboard.press("Enter");
+  await expect(terminalGrid).toContainText("漢字");
+  const renderedCJK = await terminalWindow.locator(".xterm-rows").innerText();
+  expect(renderedCJK.match(/漢字/gu)).toHaveLength(1);
+});
+
 test("E2E-034: packaged windows enforce security boundaries and intentional debugging", async ({
   launchDesktop,
 }) => {
@@ -1175,17 +1250,38 @@ test("E2E-034: packaged windows enforce security boundaries and intentional debu
     const script = document.createElement("script");
     script.textContent = "globalThis.__compozyInlineScriptRan = true";
     document.body.append(script);
-    await fetch("https://example.com/compozy-csp-probe", { mode: "no-cors" }).catch(() => {});
+    const attemptSocket = async (url: string) => {
+      await new Promise<void>(resolveAttempt => {
+        const socket = new WebSocket(url, "compozy.terminal.v1");
+        socket.onopen = () => {
+          socket.close();
+          queueMicrotask(resolveAttempt);
+        };
+        socket.onerror = () => queueMicrotask(resolveAttempt);
+      });
+    };
+    const socketProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    await attemptSocket(
+      `${socketProtocol}//${window.location.host}/api/workspaces/csp-probe/terminals/term-probe/stream?mode=read&ticket=invalid`
+    );
+    const sameOriginSocketBlocked = directives.includes("connect-src");
+    directives.length = 0;
+    await attemptSocket(`${socketProtocol}//example.com/compozy-terminal-cross-origin`);
+    const crossOriginSocketBlocked = directives.includes("connect-src");
     await new Promise(resolveDelay => setTimeout(resolveDelay, 50));
     document.removeEventListener("securitypolicyviolation", onViolation);
     return {
       directives,
       inlineScriptRan: Reflect.get(globalThis, "__compozyInlineScriptRan") === true,
+      sameOriginSocketBlocked,
+      crossOriginSocketBlocked,
     };
   });
   expect(cspProbe.inlineScriptRan).toBe(false);
   expect(cspProbe.directives.some(directive => directive.startsWith("script-src"))).toBe(true);
   expect(cspProbe.directives).toContain("connect-src");
+  expect(cspProbe.sameOriginSocketBlocked).toBe(false);
+  expect(cspProbe.crossOriginSocketBlocked).toBe(true);
 
   await desktop.closeShell();
   const productionHome = await mkdtemp(join(tmpdir(), "compozy-electron-security-"));

@@ -42,8 +42,14 @@ func (c *daemonClient) AttachTerminal(
 	input io.Reader,
 	output io.Writer,
 ) error {
+	if options.Takeover {
+		if err := c.takeoverTerminal(ctx, workspace, id, options.Force); err != nil {
+			return err
+		}
+		options.Takeover = false
+	}
 	var inputReads <-chan terminalInputRead
-	if options.Mode == "write" && input != nil {
+	if options.Mode == terminalStreamModeWrite && input != nil {
 		inputReads = terminalInputReads(ctx, input)
 	}
 	for attempt := 0; ; attempt++ {
@@ -57,6 +63,106 @@ func (c *daemonClient) AttachTerminal(
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(delay):
+		}
+	}
+}
+
+func (c *daemonClient) takeoverTerminal(
+	ctx context.Context,
+	workspace, id string,
+	force bool,
+) (returnErr error) {
+	ticket, err := c.mintTerminalTicket(ctx, workspace, id, terminalStreamModeRead)
+	if err != nil {
+		return err
+	}
+	dialer := websocket.Dialer{
+		HandshakeTimeout: terminalClientHandshakeTimeout,
+		Subprotocols:     []string{terminalwire.Subprotocol},
+	}
+	if c.target.kind == clientTargetLocal {
+		dialer.NetDialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
+			var networkDialer net.Dialer
+			return networkDialer.DialUnix(
+				ctx,
+				clientUnixNetwork,
+				nil,
+				&net.UnixAddr{Name: c.target.socketPath, Net: clientUnixNetwork},
+			)
+		}
+	}
+	target, headers, err := c.terminalStreamTarget(workspace, id, ticket, TerminalAttachOptions{
+		Mode: terminalStreamModeRead, Flow: terminalStreamFlowDrop,
+	})
+	if err != nil {
+		return err
+	}
+	conn, response, err := dialer.DialContext(ctx, target, headers)
+	if err != nil {
+		if response != nil {
+			return readAndCloseWindowManagerHandshakeError(response)
+		}
+		if c.target.isRemoteGateway() {
+			return newGatewayReachabilityError(c.target, err)
+		}
+		return fmt.Errorf("cli: dial terminal takeover stream: %w", err)
+	}
+	defer func() {
+		closeErr := conn.Close()
+		if closeErr != nil && !errors.Is(closeErr, net.ErrClosed) {
+			returnErr = errors.Join(returnErr, fmt.Errorf("cli: close terminal takeover stream: %w", closeErr))
+		}
+	}()
+	return runTerminalTakeover(ctx, conn, force)
+}
+
+func runTerminalTakeover(ctx context.Context, conn *websocket.Conn, force bool) error {
+	var writes sync.Mutex
+	requested := false
+	for {
+		if err := conn.SetReadDeadline(time.Now().Add(terminalClientHandshakeTimeout)); err != nil {
+			return fmt.Errorf("cli: set terminal takeover deadline: %w", err)
+		}
+		messageType, encoded, err := conn.ReadMessage()
+		if err != nil {
+			return fmt.Errorf("cli: read terminal takeover stream: %w", err)
+		}
+		if messageType != websocket.BinaryMessage {
+			return terminalPermanentError(errors.New("cli: terminal server sent a non-binary frame"))
+		}
+		frame, err := terminalwire.DecodeServer(encoded)
+		if err != nil {
+			return terminalPermanentError(err)
+		}
+		switch frame.Op {
+		case terminalwire.ServerOpAttached:
+			if requested {
+				continue
+			}
+			payload, marshalErr := json.Marshal(map[string]bool{terminalForceKey: force})
+			if marshalErr != nil {
+				return fmt.Errorf("cli: encode terminal takeover: %w", marshalErr)
+			}
+			if err := writeTerminalClientFrame(conn, &writes, terminalwire.Frame{
+				Op: terminalwire.ClientOpTakeover, Payload: payload,
+			}); err != nil {
+				return err
+			}
+			requested = true
+		case terminalwire.ServerOpOwner:
+			if !requested {
+				continue
+			}
+			return nil
+		case terminalwire.ServerOpError:
+			return terminalPermanentError(fmt.Errorf("cli: terminal takeover error: %s", frame.Payload))
+		case terminalwire.ServerOpExit:
+			return terminalPermanentError(errors.New("cli: terminal exited during takeover"))
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
 		}
 	}
 }
@@ -79,7 +185,12 @@ func (c *daemonClient) attachTerminalOnce(
 	if c.target.kind == clientTargetLocal {
 		dialer.NetDialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
 			var networkDialer net.Dialer
-			return networkDialer.DialUnix(ctx, clientUnixNetwork, nil, &net.UnixAddr{Name: c.target.socketPath, Net: clientUnixNetwork})
+			return networkDialer.DialUnix(
+				ctx,
+				clientUnixNetwork,
+				nil,
+				&net.UnixAddr{Name: c.target.socketPath, Net: clientUnixNetwork},
+			)
 		}
 	}
 	target, headers, err := c.terminalStreamTarget(workspace, id, ticket, options)
@@ -110,7 +221,14 @@ func (c *daemonClient) mintTerminalTicket(ctx context.Context, workspace, id, mo
 		Ticket string `json:"ticket"`
 	}
 	path := terminalClientPath(workspace) + "/" + url.PathEscape(strings.TrimSpace(id)) + "/attach-ticket"
-	if err := c.doJSON(ctx, http.MethodPost, path, nil, map[string]string{"mode": mode}, &response); err != nil {
+	if err := c.doJSON(
+		ctx,
+		http.MethodPost,
+		path,
+		nil,
+		map[string]string{terminalModeKey: mode},
+		&response,
+	); err != nil {
 		return "", err
 	}
 	if strings.TrimSpace(response.Ticket) == "" {
@@ -128,7 +246,7 @@ func (c *daemonClient) terminalStreamTarget(
 		return "", nil, terminalPermanentError(err)
 	}
 	query := url.Values{
-		"ticket": {ticket}, "mode": {options.Mode}, "flow": {options.Flow},
+		"ticket": {ticket}, terminalModeKey: {options.Mode}, "flow": {options.Flow},
 	}
 	if options.AfterSeq > 0 {
 		query.Set("after_seq", strconv.FormatUint(options.AfterSeq, 10))
@@ -137,16 +255,17 @@ func (c *daemonClient) terminalStreamTarget(
 		query.Set("cols", strconv.FormatUint(uint64(options.Cols), 10))
 		query.Set("rows", strconv.FormatUint(uint64(options.Rows), 10))
 	}
-	target := base + terminalClientPath(workspace) + "/" + url.PathEscape(strings.TrimSpace(id)) + "/stream?" + query.Encode()
+	target := base + terminalClientPath(workspace) + "/" +
+		url.PathEscape(strings.TrimSpace(id)) + "/stream?" + query.Encode()
 	headers := http.Header{}
 	if c.target.kind != clientTargetLocal {
 		parsed, parseErr := url.Parse(target)
 		if parseErr != nil {
 			return "", nil, terminalPermanentError(parseErr)
 		}
-		scheme := "http"
+		scheme := terminalClientHTTPProtocol
 		if parsed.Scheme == "wss" {
-			scheme = "https"
+			scheme = clientHTTPSProtocol
 		}
 		headers.Set("Origin", scheme+"://"+parsed.Host)
 	}
@@ -161,7 +280,7 @@ func runTerminalClientStream(
 	output io.Writer,
 ) error {
 	var inputReads <-chan terminalInputRead
-	if mode == "write" && input != nil {
+	if mode == terminalStreamModeWrite && input != nil {
 		inputReads = terminalInputReads(ctx, input)
 	}
 	_, err := runTerminalClientStreamWithInput(ctx, conn, inputReads, output, 0)
@@ -272,7 +391,11 @@ func handleTerminalServerFrame(
 		}
 		*ackPending += written
 		for *ackPending >= terminalwire.AckGrainBytes {
-			if err := writeTerminalClientFrame(conn, writes, terminalwire.NewACK(terminalwire.AckGrainBytes)); err != nil {
+			if err := writeTerminalClientFrame(
+				conn,
+				writes,
+				terminalwire.NewACK(terminalwire.AckGrainBytes),
+			); err != nil {
 				return false, err
 			}
 			*ackPending -= terminalwire.AckGrainBytes

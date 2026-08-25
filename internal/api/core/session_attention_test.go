@@ -95,9 +95,10 @@ func TestBaseHandlersSessionAttentionSurfaces(t *testing.T) {
 			}
 			return []store.PendingInteraction{{
 				InteractionID: "interaction-1", SessionID: sessionID,
-				Kind: store.PendingInteractionKindClarify, ProviderRequestID: "request-1",
+				Kind: store.PendingInteractionKindPermission, ProviderRequestID: "request-1",
 				Title: "Deploy with compozy_claim_secret123", Payload: store.PendingInteractionPayload{
 					Choices: []string{"safe", "compozy_claim_secret123"},
+					ToolID:  "compozy__terminal_exec",
 				},
 				Status:    store.PendingInteractionStatusPending,
 				CreatedAt: time.Date(2026, 8, 15, 20, 0, 0, 0, time.UTC),
@@ -117,7 +118,8 @@ func TestBaseHandlersSessionAttentionSurfaces(t *testing.T) {
 		var payload contract.SessionInteractionsResponse
 		testutil.DecodeJSONResponse(t, response, &payload)
 		if len(payload.Interactions) != 1 || payload.Interactions[0].InteractionID != "interaction-1" ||
-			payload.Interactions[0].Status != store.PendingInteractionStatusPending {
+			payload.Interactions[0].Status != store.PendingInteractionStatusPending ||
+			payload.Interactions[0].ToolID != "compozy__terminal_exec" {
 			t.Fatalf("interactions payload = %#v, want one canonical pending row", payload)
 		}
 	})

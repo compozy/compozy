@@ -5282,6 +5282,7 @@ export interface PendingInteractionPayload {
   title?: string;
   choices?: string[];
   decisions?: string[];
+  tool_id?: string;
   status: string;
   created_at: ISODateTime;
   resolved_at?: ISODateTime;

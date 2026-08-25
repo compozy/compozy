@@ -4,45 +4,20 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"runtime"
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/gin-gonic/gin"
 )
 
-type execTerminalRequest struct {
-	Command string                  `json:"command"`
-	Args    []string                `json:"args"`
-	Cwd     string                  `json:"cwd"`
-	Env     map[string]string       `json:"env"`
-	YieldMs int                     `json:"yield_ms"`
-	Visible bool                    `json:"visible"`
-	Output  terminalpkg.OutputShape `json:"output"`
-}
-
-type waitTerminalRequest struct {
-	Until     string `json:"until"`
-	Pattern   string `json:"pattern"`
-	TimeoutMs int    `json:"timeout_ms"`
-}
-
-type signalTerminalRequest struct {
-	Signal terminalpkg.Signal `json:"signal"`
-}
-
-type answerTerminalInputRequest struct {
-	Input string `json:"input"`
-}
-
-type rejectTerminalInputRequest struct {
-	Reason string `json:"reason"`
-}
-
-type terminalRecordingRequest struct {
-	Action string `json:"action"`
-}
+type execTerminalRequest = contract.TerminalExecRequest
+type waitTerminalRequest = contract.TerminalWaitRequest
+type signalTerminalRequest = contract.TerminalSignalRequest
+type answerTerminalInputRequest = contract.TerminalAnswerInputRequest
+type rejectTerminalInputRequest = contract.TerminalRejectInputRequest
+type terminalRecordingRequest = contract.TerminalRecordingRequest
 
 type terminalInputRequestLister interface {
 	InputRequests(context.Context, string, store.ReadScope, terminalpkg.ID) ([]terminalpkg.PendingInputRequest, error)
@@ -67,10 +42,15 @@ func (h *BaseHandlers) ExecTerminal(c *gin.Context) {
 		h.respondTerminalError(c, terminalRequestError(err))
 		return
 	}
+	capabilities, err := h.terminalCapabilities(c.Request.Context(), workspaceID)
+	if err != nil {
+		h.respondError(c, StatusForWorkspaceError(err), err)
+		return
+	}
 	result, err := service.Exec(c.Request.Context(), terminalpkg.ExecRequest{
 		WS: workspaceID, Command: request.Command, Args: request.Args, Cwd: request.Cwd,
 		Env: request.Env, YieldMs: request.YieldMs, Visible: request.Visible, Output: request.Output,
-		Actor: actor, Capabilities: terminalpkg.ResolveCapabilities(runtime.GOOS, terminalpkg.WorkspaceKindLocal),
+		Actor: actor, Capabilities: capabilities,
 	})
 	if err != nil {
 		h.respondTerminalError(c, err)

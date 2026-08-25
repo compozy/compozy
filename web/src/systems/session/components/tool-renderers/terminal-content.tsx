@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, use } from "react";
 
+import { OsShellContext } from "@/systems/os";
 import { useSessionRuntimeRenderContext } from "../../hooks/use-session-runtime-render-context";
 import { sessionDetailOptions } from "../../lib/query-options";
 import type { UIMessage } from "../../types";
@@ -66,6 +67,7 @@ function readString(value: unknown): string | null {
  * outcome is stated exactly as the runtime reported it.
  */
 export function TerminalContent({ message }: { message: UIMessage }) {
+  const shell = use(OsShellContext);
   const facts = readTerminalFacts(message);
   // The terminal's scope is not in the tool result — exec and open return a
   // `terminal_id` and nothing about where it lives. It comes from the session
@@ -105,6 +107,20 @@ export function TerminalContent({ message }: { message: UIMessage }) {
           stillRunning={facts.stillRunning}
           terminalId={facts.terminalId}
           title={facts.title}
+          {...(shell
+            ? {
+                onOpenTerminal: () => {
+                  void shell.coordinator.userOpen({
+                    app: "terminal",
+                    instanceKey: facts.terminalId,
+                    route: {
+                      pathname: `/terminal/${encodeURIComponent(facts.terminalId)}`,
+                      search: {},
+                    },
+                  });
+                },
+              }
+            : {})}
           {...(scope ? { scope } : {})}
         />
       </Suspense>

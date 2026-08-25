@@ -87,6 +87,7 @@ func (a SessionAttention) Unseen() bool {
 type PendingInteractionPayload struct {
 	Choices   []string `json:"choices,omitempty"`
 	Decisions []string `json:"decisions,omitempty"`
+	ToolID    string   `json:"tool_id,omitempty"`
 }
 
 // PendingInteraction is one restart-durable operator decision request.
@@ -316,6 +317,7 @@ func normalizePendingInteractionPayload(payload PendingInteractionPayload) Pendi
 	result := PendingInteractionPayload{
 		Choices:   make([]string, 0, len(payload.Choices)),
 		Decisions: make([]string, 0, len(payload.Decisions)),
+		ToolID:    diagnostics.RedactAndBound(payload.ToolID, PendingInteractionTitleMaxBytes),
 	}
 	for _, choice := range payload.Choices {
 		if normalized := diagnostics.RedactAndBound(choice, PendingInteractionChoiceMaxBytes); normalized != "" {

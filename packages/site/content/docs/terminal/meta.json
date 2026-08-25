@@ -1,0 +1,12 @@
+{
+    "title": "Terminal",
+    "icon": "SquareTerminal",
+    "pages": [
+        "index",
+        "tutorial",
+        "agents-and-safety",
+        "journal-and-recordings",
+        "profile-segmentation",
+        "platform-support"
+    ]
+}

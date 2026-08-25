@@ -1,7 +1,15 @@
 // Public API for the terminal system. Cross-system imports come through here
 // and never reach into internals.
 
-export { TerminalApiError } from "./adapters/terminal-api";
+export {
+  TerminalApiError,
+  answerTerminalInputRequest,
+  closeTerminal,
+  controlTerminalRecording,
+  createTerminal,
+  rejectTerminalInputRequest,
+  signalTerminal,
+} from "./adapters/terminal-api";
 export type { TerminalSocket, TerminalSocketFactory } from "./adapters/terminal-socket";
 
 export { TerminalStoreProvider } from "./contexts/terminal-store-context";
@@ -100,6 +108,10 @@ export {
   TerminalInputResolvedRow,
 } from "./components/terminal-input-request";
 export { TerminalJournalDetail } from "./components/terminal-journal-detail";
+export {
+  TerminalJournalFilterDialog,
+  type TerminalJournalFilterDialogProps,
+} from "./components/terminal-journal-filter-dialog";
 export { TerminalJournalPanel } from "./components/terminal-journal-panel";
 export { TerminalLeaseBadge } from "./components/terminal-lease-badge";
 export {

@@ -138,7 +138,9 @@ func newTerminalRespondCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			if reject {
-				if err := client.RejectTerminalInputRequest(cmd.Context(), workspaceID, args[0], resolvedID, reason); err != nil {
+				if err := client.RejectTerminalInputRequest(
+					cmd.Context(), workspaceID, args[0], resolvedID, reason,
+				); err != nil {
 					return err
 				}
 				return writeCommandOutput(cmd, terminalRejectedInputBundle(resolvedID))
@@ -197,7 +199,7 @@ func newTerminalJournalCommand(deps commandDeps) *cobra.Command {
 
 func newTerminalRecordCommand(deps commandDeps) *cobra.Command {
 	command := &cobra.Command{Use: "record", Short: "Start or stop terminal recording", Args: cobra.NoArgs}
-	command.AddCommand(newTerminalRecordingActionCommand(deps, "start"))
+	command.AddCommand(newTerminalRecordingActionCommand(deps, terminalRecordingStartAction))
 	command.AddCommand(newTerminalRecordingActionCommand(deps, "stop"))
 	return command
 }
@@ -205,7 +207,9 @@ func newTerminalRecordCommand(deps commandDeps) *cobra.Command {
 func newTerminalRecordingActionCommand(deps commandDeps, action string) *cobra.Command {
 	var workspace string
 	command := &cobra.Command{
-		Use: action + " <id>", Short: strings.ToUpper(action[:1]) + action[1:] + " terminal recording", Args: cobra.ExactArgs(1),
+		Use:   action + " <id>",
+		Short: strings.ToUpper(action[:1]) + action[1:] + " terminal recording",
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, workspaceID, err := terminalAgentClientAndWorkspace(cmd, deps, workspace)
 			if err != nil {
@@ -302,7 +306,11 @@ func resolveTerminalRequestID(
 		return "", err
 	}
 	if len(requests) != 1 {
-		return "", fmt.Errorf("input_request_not_found — expected one pending request on %s, found %d", terminalID, len(requests))
+		return "", fmt.Errorf(
+			"input_request_not_found — expected one pending request on %s, found %d",
+			terminalID,
+			len(requests),
+		)
 	}
 	return string(requests[0].ID), nil
 }

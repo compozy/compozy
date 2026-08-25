@@ -67,6 +67,9 @@ func (r ApprovalGrantSetRequest) BuildGrant(profileID string, workspaceID string
 	if err := r.ToolID.Validate(); err != nil {
 		return ApprovalGrant{}, fmt.Errorf("%w: tool_id: %v", ErrApprovalGrantInvalid, err)
 	}
+	if r.ToolID == ToolIDTerminalWrite {
+		return ApprovalGrant{}, fmt.Errorf("%w: terminal_write requires an exact input grant", ErrApprovalGrantInvalid)
+	}
 	switch r.Decision {
 	case ApprovalGrantAllow, ApprovalGrantReject:
 	default:

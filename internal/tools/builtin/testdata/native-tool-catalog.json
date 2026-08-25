@@ -3204,6 +3204,182 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__terminal_claim",
+    "native_name": "terminal_claim",
+    "toolsets": [
+      "compozy__terminal"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "8a18967993509b4b659c19c1dc4d9cec5d41d66c96132839ba43b376f0bfc4b5",
+    "output_schema_digest": "9a5bc3dd684718ac47962198540b3207ff35477d4966bafbe8cfbb016f924e95",
+    "required_capabilities": [
+      "terminal.exec"
+    ]
+  },
+  {
+    "tool_id": "compozy__terminal_close",
+    "native_name": "terminal_close",
+    "toolsets": [
+      "compozy__terminal"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": true,
+    "input_schema_digest": "8a18967993509b4b659c19c1dc4d9cec5d41d66c96132839ba43b376f0bfc4b5",
+    "output_schema_digest": "9303dffd875b34c8f371006be3efd1bf0449e1fd7b36a8bb9661b4c8de438752",
+    "required_capabilities": [
+      "terminal.exec"
+    ]
+  },
+  {
+    "tool_id": "compozy__terminal_exec",
+    "native_name": "terminal_exec",
+    "toolsets": [
+      "compozy__terminal"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": true,
+    "input_schema_digest": "28c2405718ec8d1610672ad613203f06e82e60209108dedf6358d6fc19d25503",
+    "output_schema_digest": "3af893632743c35d2901ae1d03f9e60d0bab9c836f1a5d8a8d3cebb376abcee9",
+    "required_capabilities": [
+      "terminal.exec"
+    ]
+  },
+  {
+    "tool_id": "compozy__terminal_list",
+    "native_name": "terminal_list",
+    "toolsets": [
+      "compozy__terminal"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
+    "output_schema_digest": "4fd16ae51fd50dca8d0004670866f92d73babd6268eb888047bda3928c086972",
+    "required_capabilities": [
+      "terminal.observe"
+    ]
+  },
+  {
+    "tool_id": "compozy__terminal_open",
+    "native_name": "terminal_open",
+    "toolsets": [
+      "compozy__terminal"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": true,
+    "input_schema_digest": "342f43400486d813f1056e5eea4cb67f215a2c610937357eade938c5aca985c6",
+    "output_schema_digest": "24260139ad86fc2d8898cabf3736415c0f78a3bf10d02657779ea62dbd5f4780",
+    "required_capabilities": [
+      "terminal.exec"
+    ]
+  },
+  {
+    "tool_id": "compozy__terminal_read",
+    "native_name": "terminal_read",
+    "toolsets": [
+      "compozy__terminal"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "ff524af7bc38ce606e838e8f11c1ad127f7da72a0eec6cd55a733afda6988eec",
+    "output_schema_digest": "61284de5520c15f52448e3ab651e48c101c4b767a63ca29feb9ef177d2a68206",
+    "required_capabilities": [
+      "terminal.observe"
+    ]
+  },
+  {
+    "tool_id": "compozy__terminal_request_input",
+    "native_name": "terminal_request_input",
+    "toolsets": [
+      "compozy__terminal"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "8749b4fb63d06b6b3dcc5d666431d9fe8793d3ad24a817d326a6d51b0112178a",
+    "output_schema_digest": "15a23e3adb853fcad154ddafe24c7fbcc06390e30b2ae396953ad160f27671b5",
+    "required_capabilities": [
+      "terminal.exec"
+    ]
+  },
+  {
+    "tool_id": "compozy__terminal_signal",
+    "native_name": "terminal_signal",
+    "toolsets": [
+      "compozy__terminal"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": true,
+    "input_schema_digest": "f923ce1214e5d052abe8d220903970b77dee826d9c12e01040598607fb6cc84c",
+    "output_schema_digest": "4b4a84403358d391dba7405be1b2bea748ac3038c257742cdc8adb90652a7fb8",
+    "required_capabilities": [
+      "terminal.exec"
+    ]
+  },
+  {
+    "tool_id": "compozy__terminal_wait",
+    "native_name": "terminal_wait",
+    "toolsets": [
+      "compozy__terminal"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "429ad3b258b7d3fe71e57e91ba70e3cb665148e1d5650dcd7e6f11c25cbe2271",
+    "output_schema_digest": "ede92fc041eed7d6a742975152e5494a7d6d476173e1ed8beca894a9ec77c09d",
+    "required_capabilities": [
+      "terminal.observe"
+    ]
+  },
+  {
+    "tool_id": "compozy__terminal_write",
+    "native_name": "terminal_write",
+    "toolsets": [
+      "compozy__terminal"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": true,
+    "input_schema_digest": "ddbd2a385f5826d7ad63f25dafcf60e3e4bac924e268ba6d800acff905fb6752",
+    "output_schema_digest": "946364746fb5fa92a47242dab491798e2cba4c3e5cc78f382ca06ca0ba3cab49",
+    "required_capabilities": [
+      "terminal.exec"
+    ]
+  },
+  {
+    "tool_id": "compozy__terminal_yield",
+    "native_name": "terminal_yield",
+    "toolsets": [
+      "compozy__terminal"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "b67a2a42967d95b909ba01f577989d2426a67a66ad5d4902c6ab4661b7ee4300",
+    "output_schema_digest": "9a5bc3dd684718ac47962198540b3207ff35477d4966bafbe8cfbb016f924e95",
+    "required_capabilities": [
+      "terminal.exec"
+    ]
+  },
+  {
     "tool_id": "compozy__tool_approvals_list",
     "native_name": "tool_approvals_list",
     "toolsets": [

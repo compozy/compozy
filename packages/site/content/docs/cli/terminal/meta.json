@@ -1,0 +1,18 @@
+{
+    "title": "Terminal",
+    "pages": [
+        "index",
+        "attach",
+        "exec",
+        "get",
+        "input-requests",
+        "journal",
+        "kill",
+        "list",
+        "open",
+        "quote",
+        "respond",
+        "signal",
+        "record"
+    ]
+}

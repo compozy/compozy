@@ -46,6 +46,18 @@ func generalSettingsFromPayload(payload contract.SettingsGeneralConfigPayload) (
 	if err != nil {
 		return settingspkg.GeneralSettings{}, err
 	}
+	detachedTTL, err := time.ParseDuration(strings.TrimSpace(payload.Terminal.DetachedTTL))
+	if err != nil {
+		return settingspkg.GeneralSettings{}, NewSettingsValidationError(
+			fmt.Errorf("general.config.terminal.detached_ttl: %w", err),
+		)
+	}
+	exitRetention, err := time.ParseDuration(strings.TrimSpace(payload.Terminal.ExitRetention))
+	if err != nil {
+		return settingspkg.GeneralSettings{}, NewSettingsValidationError(
+			fmt.Errorf("general.config.terminal.exit_retention: %w", err),
+		)
+	}
 
 	value := settingspkg.GeneralSettings{
 		Limits:         compozyconfig.LimitsConfig{MaxConcurrentAgents: payload.Limits.MaxConcurrentAgents},
@@ -54,6 +66,18 @@ func generalSettingsFromPayload(payload contract.SettingsGeneralConfigPayload) (
 		HTTP:           compozyconfig.HTTPConfig{Host: strings.TrimSpace(payload.HTTP.Host), Port: payload.HTTP.Port},
 		Daemon:         daemonConfig,
 		Redact:         compozyconfig.RedactConfig{Enabled: payload.Redact.Enabled},
+		Terminal: compozyconfig.TerminalConfig{
+			DefaultShell:           strings.TrimSpace(payload.Terminal.DefaultShell),
+			ShellIntegration:       payload.Terminal.ShellIntegration,
+			ScrollbackBytes:        payload.Terminal.ScrollbackBytes,
+			DetachedTTL:            detachedTTL,
+			ExitRetention:          exitRetention,
+			Recording:              payload.Terminal.Recording,
+			RecordingRetentionDays: payload.Terminal.RecordingRetentionDays,
+			MaxPerWorkspace:        payload.Terminal.MaxPerWorkspace,
+			MaxPerDaemon:           payload.Terminal.MaxPerDaemon,
+			MaxSubscribers:         payload.Terminal.MaxSubscribers,
+		},
 	}
 
 	if err := value.Limits.Validate(); err != nil {
@@ -69,6 +93,9 @@ func generalSettingsFromPayload(payload contract.SettingsGeneralConfigPayload) (
 		return settingspkg.GeneralSettings{}, NewSettingsValidationError(err)
 	}
 	if err := value.Daemon.Validate(); err != nil {
+		return settingspkg.GeneralSettings{}, NewSettingsValidationError(err)
+	}
+	if err := value.Terminal.Validate(); err != nil {
 		return settingspkg.GeneralSettings{}, NewSettingsValidationError(err)
 	}
 

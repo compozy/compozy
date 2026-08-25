@@ -126,7 +126,9 @@ func writeTerminalInputFrame(conn *websocket.Conn, writes *sync.Mutex, payload [
 }
 
 func writeTerminalDetachFrame(conn *websocket.Conn, writes *sync.Mutex) error {
-	return writeTerminalClientFrame(conn, writes, terminalwire.Frame{Op: terminalwire.ClientOpDetach, Payload: json.RawMessage(`{}`)})
+	return writeTerminalClientFrame(conn, writes, terminalwire.Frame{
+		Op: terminalwire.ClientOpDetach, Payload: json.RawMessage(`{}`),
+	})
 }
 
 func resetTerminalDetachTimer(timer *time.Timer) *time.Timer {

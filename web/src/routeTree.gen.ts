@@ -25,6 +25,7 @@ import { Route as AppSandboxRouteImport } from './routes/_app/sandbox'
 import { Route as AppSessionsRouteImport } from './routes/_app/sessions'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppTasksRouteImport } from './routes/_app/tasks'
+import { Route as AppTerminalRouteImport } from './routes/_app/terminal'
 import { Route as AppTriggersRouteImport } from './routes/_app/triggers'
 import { Route as AppVaultRouteImport } from './routes/_app/vault'
 import { Route as AppAgentsIndexRouteImport } from './routes/_app/agents.index'
@@ -59,6 +60,8 @@ import { Route as AppSettingsRolesRouteImport } from './routes/_app/settings/rol
 import { Route as AppSettingsSkillsRouteImport } from './routes/_app/settings/skills'
 import { Route as AppTasksIdRouteImport } from './routes/_app/tasks.$id'
 import { Route as AppTasksNewRouteImport } from './routes/_app/tasks.new'
+import { Route as AppTerminalIndexRouteImport } from './routes/_app/terminal/index'
+import { Route as AppTerminalTerminalIdRouteImport } from './routes/_app/terminal/$terminalId'
 import { Route as AppTriggersTriggerIdRouteImport } from './routes/_app/triggers.$triggerId'
 import { Route as AppAgentsNameIndexRouteImport } from './routes/_app/agents.$name.index'
 import { Route as AppAgentsNameSettingsRouteImport } from './routes/_app/agents.$name.settings'
@@ -153,6 +156,11 @@ const AppSettingsRoute = AppSettingsRouteImport.update({
 const AppTasksRoute = AppTasksRouteImport.update({
   id: '/tasks',
   path: '/tasks',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTerminalRoute = AppTerminalRouteImport.update({
+  id: '/terminal',
+  path: '/terminal',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTriggersRoute = AppTriggersRouteImport.update({
@@ -327,6 +335,16 @@ const AppTasksNewRoute = AppTasksNewRouteImport.update({
   path: '/new',
   getParentRoute: () => AppTasksRoute,
 } as any)
+const AppTerminalIndexRoute = AppTerminalIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppTerminalRoute,
+} as any)
+const AppTerminalTerminalIdRoute = AppTerminalTerminalIdRouteImport.update({
+  id: '/$terminalId',
+  path: '/$terminalId',
+  getParentRoute: () => AppTerminalRoute,
+} as any)
 const AppTriggersTriggerIdRoute = AppTriggersTriggerIdRouteImport.update({
   id: '/$triggerId',
   path: '/$triggerId',
@@ -430,6 +448,7 @@ export interface FileRoutesByFullPath {
   '/sessions': typeof AppSessionsRoute
   '/settings': typeof AppSettingsRouteWithChildren
   '/tasks': typeof AppTasksRouteWithChildren
+  '/terminal': typeof AppTerminalRouteWithChildren
   '/triggers': typeof AppTriggersRouteWithChildren
   '/vault': typeof AppVaultRoute
   '/agents/$name': typeof AppAgentsNameRouteWithChildren
@@ -461,10 +480,12 @@ export interface FileRoutesByFullPath {
   '/settings/skills': typeof AppSettingsSkillsRoute
   '/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/tasks/new': typeof AppTasksNewRoute
+  '/terminal/$terminalId': typeof AppTerminalTerminalIdRoute
   '/triggers/$triggerId': typeof AppTriggersTriggerIdRoute
   '/agents/': typeof AppAgentsIndexRoute
   '/marketplace/': typeof AppMarketplaceIndexRoute
   '/settings/': typeof AppSettingsIndexRoute
+  '/terminal/': typeof AppTerminalIndexRoute
   '/agents/$name/settings': typeof AppAgentsNameSettingsRoute
   '/loop-runs/$runId/diff': typeof AppLoopRunsRunIdDiffRoute
   '/loops/$name/configure': typeof AppLoopsNameConfigureRoute
@@ -524,10 +545,12 @@ export interface FileRoutesByTo {
   '/settings/skills': typeof AppSettingsSkillsRoute
   '/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/tasks/new': typeof AppTasksNewRoute
+  '/terminal/$terminalId': typeof AppTerminalTerminalIdRoute
   '/triggers/$triggerId': typeof AppTriggersTriggerIdRoute
   '/agents': typeof AppAgentsIndexRoute
   '/marketplace': typeof AppMarketplaceIndexRoute
   '/settings': typeof AppSettingsIndexRoute
+  '/terminal': typeof AppTerminalIndexRoute
   '/agents/$name/settings': typeof AppAgentsNameSettingsRoute
   '/loop-runs/$runId/diff': typeof AppLoopRunsRunIdDiffRoute
   '/loops/$name/configure': typeof AppLoopsNameConfigureRoute
@@ -561,6 +584,7 @@ export interface FileRoutesById {
   '/_app/sessions': typeof AppSessionsRoute
   '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_app/tasks': typeof AppTasksRouteWithChildren
+  '/_app/terminal': typeof AppTerminalRouteWithChildren
   '/_app/triggers': typeof AppTriggersRouteWithChildren
   '/_app/vault': typeof AppVaultRoute
   '/_app/': typeof AppIndexRoute
@@ -593,10 +617,12 @@ export interface FileRoutesById {
   '/_app/settings/skills': typeof AppSettingsSkillsRoute
   '/_app/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/_app/tasks/new': typeof AppTasksNewRoute
+  '/_app/terminal/$terminalId': typeof AppTerminalTerminalIdRoute
   '/_app/triggers/$triggerId': typeof AppTriggersTriggerIdRoute
   '/_app/agents/': typeof AppAgentsIndexRoute
   '/_app/marketplace/': typeof AppMarketplaceIndexRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
+  '/_app/terminal/': typeof AppTerminalIndexRoute
   '/_app/agents/$name/settings': typeof AppAgentsNameSettingsRoute
   '/_app/loop-runs/$runId/diff': typeof AppLoopRunsRunIdDiffRoute
   '/_app/loops/$name/configure': typeof AppLoopsNameConfigureRoute
@@ -631,6 +657,7 @@ export interface FileRouteTypes {
     | '/sessions'
     | '/settings'
     | '/tasks'
+    | '/terminal'
     | '/triggers'
     | '/vault'
     | '/agents/$name'
@@ -662,10 +689,12 @@ export interface FileRouteTypes {
     | '/settings/skills'
     | '/tasks/$id'
     | '/tasks/new'
+    | '/terminal/$terminalId'
     | '/triggers/$triggerId'
     | '/agents/'
     | '/marketplace/'
     | '/settings/'
+    | '/terminal/'
     | '/agents/$name/settings'
     | '/loop-runs/$runId/diff'
     | '/loops/$name/configure'
@@ -725,10 +754,12 @@ export interface FileRouteTypes {
     | '/settings/skills'
     | '/tasks/$id'
     | '/tasks/new'
+    | '/terminal/$terminalId'
     | '/triggers/$triggerId'
     | '/agents'
     | '/marketplace'
     | '/settings'
+    | '/terminal'
     | '/agents/$name/settings'
     | '/loop-runs/$runId/diff'
     | '/loops/$name/configure'
@@ -761,6 +792,7 @@ export interface FileRouteTypes {
     | '/_app/sessions'
     | '/_app/settings'
     | '/_app/tasks'
+    | '/_app/terminal'
     | '/_app/triggers'
     | '/_app/vault'
     | '/_app/'
@@ -793,10 +825,12 @@ export interface FileRouteTypes {
     | '/_app/settings/skills'
     | '/_app/tasks/$id'
     | '/_app/tasks/new'
+    | '/_app/terminal/$terminalId'
     | '/_app/triggers/$triggerId'
     | '/_app/agents/'
     | '/_app/marketplace/'
     | '/_app/settings/'
+    | '/_app/terminal/'
     | '/_app/agents/$name/settings'
     | '/_app/loop-runs/$runId/diff'
     | '/_app/loops/$name/configure'
@@ -931,6 +965,13 @@ declare module '@tanstack/react-router' {
       path: '/tasks'
       fullPath: '/tasks'
       preLoaderRoute: typeof AppTasksRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/terminal': {
+      id: '/_app/terminal'
+      path: '/terminal'
+      fullPath: '/terminal'
+      preLoaderRoute: typeof AppTerminalRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/triggers': {
@@ -1170,6 +1211,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/tasks/new'
       preLoaderRoute: typeof AppTasksNewRouteImport
       parentRoute: typeof AppTasksRoute
+    }
+    '/_app/terminal/': {
+      id: '/_app/terminal/'
+      path: '/'
+      fullPath: '/terminal/'
+      preLoaderRoute: typeof AppTerminalIndexRouteImport
+      parentRoute: typeof AppTerminalRoute
+    }
+    '/_app/terminal/$terminalId': {
+      id: '/_app/terminal/$terminalId'
+      path: '/$terminalId'
+      fullPath: '/terminal/$terminalId'
+      preLoaderRoute: typeof AppTerminalTerminalIdRouteImport
+      parentRoute: typeof AppTerminalRoute
     }
     '/_app/triggers/$triggerId': {
       id: '/_app/triggers/$triggerId'
@@ -1535,6 +1590,20 @@ const AppTasksRouteWithChildren = AppTasksRoute._addFileChildren(
   AppTasksRouteChildren,
 )
 
+interface AppTerminalRouteChildren {
+  AppTerminalTerminalIdRoute: typeof AppTerminalTerminalIdRoute
+  AppTerminalIndexRoute: typeof AppTerminalIndexRoute
+}
+
+const AppTerminalRouteChildren: AppTerminalRouteChildren = {
+  AppTerminalTerminalIdRoute: AppTerminalTerminalIdRoute,
+  AppTerminalIndexRoute: AppTerminalIndexRoute,
+}
+
+const AppTerminalRouteWithChildren = AppTerminalRoute._addFileChildren(
+  AppTerminalRouteChildren,
+)
+
 interface AppTriggersRouteChildren {
   AppTriggersTriggerIdRoute: typeof AppTriggersTriggerIdRoute
 }
@@ -1561,6 +1630,7 @@ interface AppRouteChildren {
   AppSessionsRoute: typeof AppSessionsRoute
   AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppTasksRoute: typeof AppTasksRouteWithChildren
+  AppTerminalRoute: typeof AppTerminalRouteWithChildren
   AppTriggersRoute: typeof AppTriggersRouteWithChildren
   AppVaultRoute: typeof AppVaultRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -1581,6 +1651,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSessionsRoute: AppSessionsRoute,
   AppSettingsRoute: AppSettingsRouteWithChildren,
   AppTasksRoute: AppTasksRouteWithChildren,
+  AppTerminalRoute: AppTerminalRouteWithChildren,
   AppTriggersRoute: AppTriggersRouteWithChildren,
   AppVaultRoute: AppVaultRoute,
   AppIndexRoute: AppIndexRoute,

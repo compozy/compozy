@@ -5,29 +5,17 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"runtime"
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/gin-gonic/gin"
 )
 
-type createTerminalRequest struct {
-	Cwd   string `json:"cwd"`
-	Shell string `json:"shell"`
-	Cols  uint16 `json:"cols"`
-	Rows  uint16 `json:"rows"`
-	Title string `json:"title"`
-}
-
-type closeTerminalRequest struct {
-	Signal terminalpkg.Signal `json:"signal"`
-}
-
-type attachTicketRequest struct {
-	Mode string `json:"mode"`
-}
+type createTerminalRequest = contract.TerminalCreateRequest
+type closeTerminalRequest = contract.TerminalCloseRequest
+type attachTicketRequest = contract.TerminalAttachTicketRequest
 
 func (h *BaseHandlers) CreateTerminal(c *gin.Context) {
 	service, profileID, ok := h.terminalService(c, true)
@@ -44,10 +32,15 @@ func (h *BaseHandlers) CreateTerminal(c *gin.Context) {
 		h.respondTerminalError(c, terminalRequestError(err))
 		return
 	}
+	capabilities, err := h.terminalCapabilities(c.Request.Context(), workspaceID)
+	if err != nil {
+		h.respondError(c, StatusForWorkspaceError(err), err)
+		return
+	}
 	handle, err := service.Open(c.Request.Context(), terminalpkg.OpenRequest{
 		WS: workspaceID, Cwd: request.Cwd, Shell: request.Shell,
 		Cols: request.Cols, Rows: request.Rows, Title: terminalpkg.SanitizeTitle(request.Title),
-		Actor: actor, Capabilities: terminalpkg.ResolveCapabilities(runtime.GOOS, terminalpkg.WorkspaceKindLocal),
+		Actor: actor, Capabilities: capabilities,
 	})
 	if err != nil {
 		h.respondTerminalError(c, err)

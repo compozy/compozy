@@ -33,6 +33,7 @@ export interface OsAttentionBadges {
   sessions?: number;
   tasks?: number;
   loops?: number;
+  terminal?: number;
 }
 
 export interface OsSessionAttentionRow {

@@ -15,6 +15,7 @@ import {
   SettingsProvChip,
   SettingsSaveBar,
   SettingsRuntimeUnavailable,
+  TerminalSettingsSections,
   useSettingsSaveBarState,
   useSettingsTopbar,
   SettingsTile,
@@ -167,6 +168,18 @@ export function GeneralSettingsPage() {
       </SettingsGroup>
 
       <ToolApprovalGrantsSection />
+
+      <TerminalSettingsSections
+        draft={draft.terminal}
+        setDraft={update =>
+          setDraft(previous => {
+            const current = previous ?? draft;
+            const terminal = typeof update === "function" ? update(current.terminal) : update;
+            return terminal === null ? current : { ...current, terminal };
+          })
+        }
+        validationErrors={validationErrors}
+      />
 
       <SettingsGroup title="Sessions">
         <SettingRow

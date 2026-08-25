@@ -101,4 +101,17 @@ func TestApprovalGrantSetRequestBuildGrant(t *testing.T) {
 			t.Fatalf("BuildGrant(missing profile) error = %v, want profile_id is required", err)
 		}
 	})
+
+	t.Run("Should reject wider terminal write grants", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := (ApprovalGrantSetRequest{
+			ToolID: ToolIDTerminalWrite, Decision: ApprovalGrantAllow, Scope: ApprovalGrantScopeAgent,
+			AgentName: "codex",
+		}).BuildGrant(store.DefaultProfileID, "ws-1")
+		if !errors.Is(err, ErrApprovalGrantInvalid) ||
+			!strings.Contains(err.Error(), "requires an exact input grant") {
+			t.Fatalf("BuildGrant(terminal_write) error = %v, want exact-input refusal", err)
+		}
+	})
 }

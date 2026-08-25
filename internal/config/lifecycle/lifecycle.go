@@ -134,6 +134,7 @@ var Matrix = []Rule{
 	{Pattern: "observability.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "log.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "redact.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
+	{Pattern: "terminal.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "skills.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 }
 

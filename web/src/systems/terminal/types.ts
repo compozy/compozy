@@ -1,10 +1,7 @@
 /**
- * Terminal wire shapes, written by hand against `_dx.md` → *HTTP / UDS API*.
- *
- * The terminal routes are registered in the public-activation tranche, so the
- * generated OpenAPI module does not describe them yet. These declarations are
- * the contract until it does; a list entry is byte-identical to `get`'s
- * projection, which is why one type serves both.
+ * Terminal wire shapes corresponding to `_dx.md` and the generated OpenAPI
+ * contract. A list entry is byte-identical to `get`'s projection, which is why
+ * one type serves both.
  */
 
 /** Closed everywhere it appears — `_dx.md` → *Native Tools*. */

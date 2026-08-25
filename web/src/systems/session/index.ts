@@ -498,3 +498,4 @@ export { useSessionFirstPrompt } from "./hooks/use-session-first-prompt";
 export { sendFirstPrompt, FIRST_PROMPT_SEND_FAILED } from "./lib/session-first-prompt";
 export { useSessionPromptStaging } from "./hooks/use-session-prompt-staging";
 export type { SessionPromptStaging } from "./hooks/use-session-prompt-staging";
+export { stageSessionTerminalQuote } from "./lib/session-terminal-quote";

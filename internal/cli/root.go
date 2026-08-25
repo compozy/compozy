@@ -447,10 +447,16 @@ func marshalDaemonAPIExecutionError(args []string, payload contract.ErrorPayload
 
 func marshalDiagnosticExecutionError(args []string, err error) ([]byte, bool) {
 	item, ok := diagnosticspkg.ItemFromError(err)
-	if !ok {
+	// Terminal's public contract requires JSON even for Cobra validation errors,
+	// which do not carry a diagnostic item. Keep every other command's existing
+	// human/JSONL error contract unchanged.
+	if !ok && (requestedOutputFormat(args) != OutputJSON || len(args) == 0 || args[0] != "terminal") {
 		return nil, false
 	}
-	payload := contract.ErrorPayload{Error: diagnosticspkg.Redact(err.Error()), Diagnostic: &item}
+	payload := contract.ErrorPayload{Error: diagnosticspkg.Redact(err.Error())}
+	if ok {
+		payload.Diagnostic = &item
+	}
 	switch requestedOutputFormat(args) {
 	case OutputJSON:
 		encoded, marshalErr := json.Marshal(payload)

@@ -234,7 +234,7 @@ const TERMINAL_BADGE_STATES: { label: string; input: TerminalBadgeInput }[] = [
       profileId: "work",
       // The last row belongs to another profile and must not be counted.
       inputRequests: [{ profile_id: "work" }, { profile_id: "work" }, { profile_id: "personal" }],
-      pendingApprovals: [{ terminalId: "trm_7f21", profileId: "work" }],
+      pendingApprovals: [{ profileId: "work" }],
     },
   },
 ];

@@ -411,6 +411,7 @@ func TestHandleInboundPermissionRequest(t *testing.T) {
 	kind := acpsdk.ToolKindEdit
 	request := acpsdk.RequestPermissionRequest{
 		SessionId: "sess-direct",
+		Meta:      map[string]any{PermissionToolIDMetaKey: "compozy__terminal_exec"},
 		Options: []acpsdk.PermissionOption{
 			{OptionId: "allow-once", Name: "allow once", Kind: acpsdk.PermissionOptionKindAllowOnce},
 			{OptionId: "allow-always", Name: "allow always", Kind: acpsdk.PermissionOptionKindAllowAlways},
@@ -471,6 +472,9 @@ func TestHandleInboundPermissionRequest(t *testing.T) {
 	}
 	if got := raw.ToolInput["command"]; got != "rm -rf /tmp/demo" {
 		t.Fatalf("raw.tool_input.command = %#v, want %q", got, "rm -rf /tmp/demo")
+	}
+	if raw.ToolID != "compozy__terminal_exec" {
+		t.Fatalf("raw.tool_id = %q, want compozy__terminal_exec", raw.ToolID)
 	}
 
 	if err := proc.ResolvePermission(ApproveRequest{
@@ -1996,6 +2000,7 @@ func writeFakeCompozyBinary(t *testing.T, dir string, body string) {
 
 func decodePermissionEventRaw(t *testing.T, raw json.RawMessage) struct {
 	RequestID string                  `json:"request_id"`
+	ToolID    string                  `json:"tool_id"`
 	ToolInput map[string]any          `json:"tool_input"`
 	Options   []permissionEventOption `json:"options"`
 } {
@@ -2003,6 +2008,7 @@ func decodePermissionEventRaw(t *testing.T, raw json.RawMessage) struct {
 
 	var payload struct {
 		RequestID string                  `json:"request_id"`
+		ToolID    string                  `json:"tool_id"`
 		ToolInput map[string]any          `json:"tool_input"`
 		Options   []permissionEventOption `json:"options"`
 	}

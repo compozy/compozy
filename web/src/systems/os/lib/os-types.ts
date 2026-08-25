@@ -24,6 +24,7 @@ export type OsAppId =
   | "dashboard"
   | "new-tab"
   | "session"
+  | "terminal"
   | "tasks"
   | "agents"
   | "network"

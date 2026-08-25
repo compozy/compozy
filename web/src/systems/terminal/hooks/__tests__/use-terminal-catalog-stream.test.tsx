@@ -78,6 +78,29 @@ function renderStream(initialProfile: string) {
   return { ...view, client, opened };
 }
 
+function renderAggregateStream() {
+  const opened: string[] = [];
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  renderHook(
+    () =>
+      useTerminalCatalogStream({
+        workspaceId: WORKSPACE,
+        profileKey: "@all",
+        allProfiles: true,
+        eventSourceFactory: url => {
+          opened.push(url);
+          return createFakeSource().source as unknown as StreamEventSource;
+        },
+      }),
+    {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    }
+  );
+  return opened;
+}
+
 function catalog(client: QueryClient, profileKey: string): TerminalInfo[] | undefined {
   return client.getQueryData(terminalKeys.catalog({ workspaceId: WORKSPACE, profileKey }));
 }
@@ -90,6 +113,14 @@ describe("useTerminalCatalogStream", () => {
     expect(opened[0].url).toContain(`/api/workspaces/${WORKSPACE}/terminals/stream`);
     expect(opened[0].url).toContain("profile=work");
     expect(opened[0].fake.listenerCount()).toBeGreaterThan(0);
+  });
+
+  it("Should send the aggregate selector without treating the cache key as a profile", () => {
+    const opened = renderAggregateStream();
+
+    expect(opened).toHaveLength(1);
+    expect(opened[0]).toContain("all_profiles=true");
+    expect(opened[0]).not.toContain("profile=%40all");
   });
 
   it("Should fold a snapshot and its patches into the scope's own cache entry", () => {

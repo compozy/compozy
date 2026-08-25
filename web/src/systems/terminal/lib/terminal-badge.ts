@@ -11,7 +11,6 @@ import type { TerminalInfo, TerminalInputRequest } from "../types";
 
 /** A terminal approval still waiting for a decision. */
 export interface TerminalPendingApproval {
-  terminalId: string;
   profileId: string;
 }
 

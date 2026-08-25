@@ -1,46 +1,14 @@
 package core
 
 import (
-	"time"
-
+	"github.com/compozy/compozy/internal/api/contract"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 )
 
-type terminalControllerPayload struct {
-	Kind terminalpkg.ActorKind `json:"kind"`
-	ID   string                `json:"id"`
-}
-
-type terminalRunPayload struct {
-	SessionID string `json:"session_id"`
-	RunID     string `json:"run_id"`
-}
-
-type terminalExitPayload struct {
-	Cause  string    `json:"cause"`
-	Code   *int      `json:"code,omitempty"`
-	Signal *string   `json:"signal,omitempty"`
-	At     time.Time `json:"at"`
-}
-
-type terminalInfoPayload struct {
-	ID           terminalpkg.ID             `json:"id"`
-	WorkspaceID  string                     `json:"workspace_id"`
-	ProfileID    string                     `json:"profile_id"`
-	ProfileName  string                     `json:"profile_name"`
-	Title        string                     `json:"title"`
-	Shell        string                     `json:"shell"`
-	Cwd          string                     `json:"cwd"`
-	Mode         terminalpkg.Mode           `json:"mode"`
-	State        string                     `json:"state"`
-	Controller   *terminalControllerPayload `json:"controller"`
-	Lease        terminalpkg.LeaseState     `json:"lease"`
-	Viewers      int                        `json:"viewers"`
-	BoundRun     *terminalRunPayload        `json:"bound_run"`
-	Capabilities terminalpkg.Capabilities   `json:"capabilities"`
-	CreatedAt    time.Time                  `json:"created_at"`
-	Exit         *terminalExitPayload       `json:"exit,omitempty"`
-}
+type terminalControllerPayload = contract.TerminalControllerPayload
+type terminalRunPayload = contract.TerminalRunPayload
+type terminalExitPayload = contract.TerminalExitPayload
+type terminalInfoPayload = contract.TerminalInfoPayload
 
 func terminalInfoFromDomain(info terminalpkg.Info, profileName string) terminalInfoPayload {
 	payload := terminalInfoPayload{

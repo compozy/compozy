@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 )
 
 type TerminalControllerRecord struct {
@@ -15,19 +17,27 @@ type TerminalControllerRecord struct {
 }
 
 type TerminalRecord struct {
-	ID          string                    `json:"id"`
-	WorkspaceID string                    `json:"workspace_id"`
-	ProfileID   string                    `json:"profile_id"`
-	ProfileName string                    `json:"profile_name"`
-	Title       string                    `json:"title"`
-	Shell       string                    `json:"shell"`
-	Cwd         string                    `json:"cwd"`
-	Mode        string                    `json:"mode"`
-	State       string                    `json:"state"`
-	Controller  *TerminalControllerRecord `json:"controller"`
-	Lease       string                    `json:"lease"`
-	Viewers     int                       `json:"viewers"`
-	CreatedAt   time.Time                 `json:"created_at"`
+	ID           string                    `json:"id"`
+	WorkspaceID  string                    `json:"workspace_id"`
+	ProfileID    string                    `json:"profile_id"`
+	ProfileName  string                    `json:"profile_name"`
+	Title        string                    `json:"title"`
+	Shell        string                    `json:"shell"`
+	Cwd          string                    `json:"cwd"`
+	Mode         string                    `json:"mode"`
+	State        string                    `json:"state"`
+	Controller   *TerminalControllerRecord `json:"controller"`
+	Lease        string                    `json:"lease"`
+	Viewers      int                       `json:"viewers"`
+	BoundRun     *TerminalRunRecord        `json:"bound_run"`
+	Capabilities terminalpkg.Capabilities  `json:"capabilities"`
+	CreatedAt    time.Time                 `json:"created_at"`
+	Exit         *TerminalExitRecord       `json:"exit,omitempty"`
+}
+
+type TerminalRunRecord struct {
+	SessionID string `json:"session_id"`
+	RunID     string `json:"run_id"`
 }
 
 type TerminalCreateRequest struct {
@@ -39,9 +49,10 @@ type TerminalCreateRequest struct {
 }
 
 type TerminalExitRecord struct {
-	Cause  string  `json:"cause"`
-	Code   *int    `json:"code,omitempty"`
-	Signal *string `json:"signal,omitempty"`
+	Cause  string    `json:"cause"`
+	Code   *int      `json:"code,omitempty"`
+	Signal *string   `json:"signal,omitempty"`
+	At     time.Time `json:"at"`
 }
 
 type TerminalAttachOptions struct {
@@ -50,6 +61,8 @@ type TerminalAttachOptions struct {
 	AfterSeq uint64
 	Cols     uint16
 	Rows     uint16
+	Takeover bool
+	Force    bool
 }
 
 type TerminalClient interface {

@@ -52,10 +52,11 @@ export function PermissionDock({
   }
 
   const offersRejectOnce = decisionOptions.includes("reject-once");
-  const offersRejectAlways = decisionOptions.includes("reject-always");
   // A terminal ask carries facts the generic subject line cannot show: the exact
   // command, where it would run, and why the runtime is asking.
   const terminalDetail = terminalPermissionDetail(permission.toolName, permission.toolInput);
+  const offersRejectAlways =
+    decisionOptions.includes("reject-always") && terminalDetail?.kind !== "typing";
   const offersNoRememberedDecision =
     terminalDetail?.kind === "exec" && terminalDetail.risk !== "ordinary";
 
@@ -105,7 +106,7 @@ export function PermissionDock({
             onClick={() => decide("allow-always")}
             data-testid="permission-allow-always"
           >
-            Always allow
+            {terminalDetail?.kind === "typing" ? "This terminal" : "Always allow"}
             <Dock.Key>2</Dock.Key>
           </Button>
         ) : null}

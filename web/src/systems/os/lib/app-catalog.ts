@@ -11,6 +11,7 @@ import {
   Plus,
   Repeat2,
   Settings,
+  SquareTerminal,
   Store,
   Waypoints,
   Zap,
@@ -30,18 +31,24 @@ export interface OsAppDescriptor {
   minimumSize?: PixelSize;
   /** Dock strip group, sessions launcher, or null for menubar-only settings. */
   dock: { group: 1 | 2 | 3 | 4 } | "sessions-launcher" | null;
-  badge?: "sessions" | "tasks";
+  badge?: "sessions" | "tasks" | "terminal";
   /** Extracts the multi-instance key from a pathname (session windows). */
   matchInstance?: (pathname: string) => string | null;
 }
 
 const SESSION_PATH_PATTERN = /^\/agents\/[^/]+\/sessions\/([^/]+)/;
+const TERMINAL_PATH_PATTERN = /^\/terminal\/([^/]+)/;
 
 /** In-window landing after delete or a session window with no selected session. */
 export const SESSION_EMPTY_PATH = "/sessions";
 
 export function matchSessionInstance(pathname: string): string | null {
   const match = SESSION_PATH_PATTERN.exec(pathname);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+export function matchTerminalInstance(pathname: string): string | null {
+  const match = TERMINAL_PATH_PATTERN.exec(pathname);
   return match ? decodeURIComponent(match[1]) : null;
 }
 
@@ -61,6 +68,16 @@ export const OS_APP_DESCRIPTORS: Record<OsAppId, OsAppDescriptor> = {
     dock: "sessions-launcher",
     badge: "sessions",
     matchInstance: matchSessionInstance,
+  },
+  terminal: {
+    id: "terminal",
+    title: "Terminal",
+    icon: SquareTerminal,
+    paths: ["/terminal"],
+    minimumSize: { width: 680, height: 420 },
+    dock: { group: 1 },
+    badge: "terminal",
+    matchInstance: matchTerminalInstance,
   },
   "new-tab": {
     id: "new-tab",
