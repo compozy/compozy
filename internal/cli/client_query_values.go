@@ -234,6 +234,17 @@ func skillValues(query SkillQuery) url.Values {
 	return values
 }
 
+func skillDetailValues(query SkillQuery) url.Values {
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(query.Workspace); trimmed != "" {
+		values.Set("workspace_id", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.ForAgent); trimmed != "" {
+		values.Set("for_agent", trimmed)
+	}
+	return values
+}
+
 func resourceListValues(query ResourceListQuery) url.Values {
 	values := url.Values{}
 	if trimmed := strings.TrimSpace(string(query.Kind)); trimmed != "" {

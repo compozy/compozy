@@ -4092,6 +4092,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/skills/{name}/expose": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Expose one user- or workspace-owned skill to provider roots */
+    post: operations["exposeSkill"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/skills/{name}/shadows": {
     parameters: {
       query?: never;
@@ -4103,6 +4120,23 @@ export interface paths {
     get: operations["getSkillShadows"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/skills/{name}/unexpose": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Remove owned provider-root links for one skill */
+    post: operations["unexposeSkill"];
     delete?: never;
     options?: never;
     head?: never;
@@ -69937,10 +69971,19 @@ export interface operations {
               }[];
               dir: string;
               enabled: boolean;
+              exposures?:
+                | {
+                    path: string;
+                    /** @enum {string} */
+                    status: "healthy" | "missing" | "broken" | "foreign_conflict";
+                    target: string;
+                  }[]
+                | null;
               metadata?: {
                 [key: string]: unknown;
               };
               name: string;
+              origin: string;
               provenance?: {
                 /** Format: date-time */
                 installed_at?: string | null;
@@ -69950,6 +69993,7 @@ export interface operations {
                 shadowed_by?: {
                   /** Format: date-time */
                   detected_at: string;
+                  origin?: string;
                   path: string;
                   resolved_to_winner: boolean;
                   tier: string;
@@ -70631,8 +70675,8 @@ export interface operations {
   getSkill: {
     parameters: {
       query?: {
-        /** @description Workspace id or path for resolution context */
-        workspace?: string;
+        /** @description Canonical workspace id for resolution context */
+        workspace_id?: string;
         /** @description Logical agent name for agent-local resolution */
         for_agent?: string;
       };
@@ -70709,10 +70753,19 @@ export interface operations {
               }[];
               dir: string;
               enabled: boolean;
+              exposures?:
+                | {
+                    path: string;
+                    /** @enum {string} */
+                    status: "healthy" | "missing" | "broken" | "foreign_conflict";
+                    target: string;
+                  }[]
+                | null;
               metadata?: {
                 [key: string]: unknown;
               };
               name: string;
+              origin: string;
               provenance?: {
                 /** Format: date-time */
                 installed_at?: string | null;
@@ -70722,6 +70775,7 @@ export interface operations {
                 shadowed_by?: {
                   /** Format: date-time */
                   detected_at: string;
+                  origin?: string;
                   path: string;
                   resolved_to_winner: boolean;
                   tier: string;
@@ -71407,6 +71461,103 @@ export interface operations {
       };
     };
   };
+  exposeSkill: {
+    parameters: {
+      query?: {
+        /** @description Exact acting profile name */
+        profile?: string;
+        /** @description Logical agent name for agent-local resolution */
+        for_agent?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Skill name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          targets: string[];
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            name: string;
+            results: {
+              cleanup_error?: {
+                code: string;
+                message?: string;
+                occupied_by?: string;
+              } | null;
+              error?: {
+                code: string;
+                message?: string;
+                occupied_by?: string;
+              } | null;
+              exposure?: {
+                path: string;
+                /** @enum {string} */
+                status: "healthy" | "missing" | "broken" | "foreign_conflict";
+                target: string;
+              } | null;
+              ok: boolean;
+              target: string;
+            }[];
+            rolled_back: boolean;
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Exposure failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              message: string;
+            };
+            name: string;
+            results: {
+              cleanup_error?: {
+                code: string;
+                message?: string;
+                occupied_by?: string;
+              } | null;
+              error?: {
+                code: string;
+                message?: string;
+                occupied_by?: string;
+              } | null;
+              exposure?: {
+                path: string;
+                /** @enum {string} */
+                status: "healthy" | "missing" | "broken" | "foreign_conflict";
+                target: string;
+              } | null;
+              ok: boolean;
+              target: string;
+            }[];
+            rolled_back?: boolean | null;
+            workspace_id?: string;
+          };
+        };
+      };
+    };
+  };
   getSkillShadows: {
     parameters: {
       query?: {
@@ -71435,6 +71586,7 @@ export interface operations {
             shadows: {
               /** Format: date-time */
               detected_at: string;
+              origin?: string;
               path: string;
               resolved_to_winner: boolean;
               tier: string;
@@ -71442,6 +71594,7 @@ export interface operations {
             winner: {
               /** Format: date-time */
               detected_at: string;
+              origin?: string;
               path: string;
               resolved_to_winner: boolean;
               tier: string;
@@ -71591,6 +71744,102 @@ export interface operations {
               title: string;
             } | null;
             error: string;
+          };
+        };
+      };
+    };
+  };
+  unexposeSkill: {
+    parameters: {
+      query?: {
+        /** @description Exact acting profile name */
+        profile?: string;
+        /** @description Logical agent name for agent-local resolution */
+        for_agent?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Skill name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          targets: string[];
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            name: string;
+            results: {
+              cleanup_error?: {
+                code: string;
+                message?: string;
+                occupied_by?: string;
+              } | null;
+              error?: {
+                code: string;
+                message?: string;
+                occupied_by?: string;
+              } | null;
+              exposure?: {
+                path: string;
+                /** @enum {string} */
+                status: "healthy" | "missing" | "broken" | "foreign_conflict";
+                target: string;
+              } | null;
+              ok: boolean;
+              target: string;
+            }[];
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Removal failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              message: string;
+            };
+            name: string;
+            results: {
+              cleanup_error?: {
+                code: string;
+                message?: string;
+                occupied_by?: string;
+              } | null;
+              error?: {
+                code: string;
+                message?: string;
+                occupied_by?: string;
+              } | null;
+              exposure?: {
+                path: string;
+                /** @enum {string} */
+                status: "healthy" | "missing" | "broken" | "foreign_conflict";
+                target: string;
+              } | null;
+              ok: boolean;
+              target: string;
+            }[];
+            rolled_back?: boolean | null;
+            workspace_id?: string;
           };
         };
       };

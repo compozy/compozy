@@ -1,10 +1,17 @@
 package core_test
 
 import (
+	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,8 +20,10 @@ import (
 	"github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	registrypkg "github.com/compozy/compozy/internal/registry"
+	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/skills"
 	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
+	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -22,6 +31,99 @@ import (
 type stubSkillsRegistry = testutil.StubSkillsRegistry
 
 var _ core.SkillsRegistry = (*testutil.StubSkillsRegistry)(nil)
+
+type exposureSkillsRegistry struct {
+	*testutil.StubSkillsRegistry
+	roots []compozyconfig.SkillRootSpec
+}
+
+func (r *exposureSkillsRegistry) ExposureRoots(
+	_ *workspacepkg.ResolvedWorkspace,
+) []compozyconfig.SkillRootSpec {
+	return append([]compozyconfig.SkillRootSpec(nil), r.roots...)
+}
+
+type exposureMemoryStore struct {
+	mu      sync.Mutex
+	nextID  int64
+	records []store.SkillExposureRecord
+}
+
+func (s *exposureMemoryStore) CreateSkillExposure(
+	_ context.Context,
+	record store.SkillExposureRecord,
+) (store.SkillExposureRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.nextID++
+	record.ID = s.nextID
+	s.records = append(s.records, record)
+	return record, nil
+}
+
+func (s *exposureMemoryStore) GetSkillExposureByOwnerTarget(
+	_ context.Context,
+	name string,
+	owner store.SkillExposureOwnerScope,
+	workspaceID string,
+	target string,
+) (store.SkillExposureRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, record := range s.records {
+		if record.SkillName == name && record.OwnerScope == owner &&
+			record.WorkspaceID == workspaceID && record.TargetSlug == target {
+			return record, nil
+		}
+	}
+	return store.SkillExposureRecord{}, sql.ErrNoRows
+}
+
+func (s *exposureMemoryStore) ListSkillExposuresByOwner(
+	_ context.Context,
+	name string,
+	owner store.SkillExposureOwnerScope,
+	workspaceID string,
+) ([]store.SkillExposureRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	result := make([]store.SkillExposureRecord, 0)
+	for _, record := range s.records {
+		if record.SkillName == name && record.OwnerScope == owner && record.WorkspaceID == workspaceID {
+			result = append(result, record)
+		}
+	}
+	return result, nil
+}
+
+func (s *exposureMemoryStore) ListSkillExposuresByCanonicalDir(
+	_ context.Context,
+	dir string,
+) ([]store.SkillExposureRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	result := make([]store.SkillExposureRecord, 0)
+	for _, record := range s.records {
+		if record.CanonicalDir == dir {
+			result = append(result, record)
+		}
+	}
+	return result, nil
+}
+
+func (s *exposureMemoryStore) DeleteSkillExposure(_ context.Context, id int64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for index, record := range s.records {
+		if record.ID == id {
+			s.records = append(s.records[:index], s.records[index+1:]...)
+			return nil
+		}
+	}
+	return sql.ErrNoRows
+}
+
+var _ store.SkillExposureRepository = (*exposureMemoryStore)(nil)
 
 func globalSkillProjection(
 	t *testing.T,
@@ -204,6 +306,323 @@ func testSkillWithProvenance() *skills.Skill {
 		InstalledAt: time.Date(2026, 4, 1, 10, 0, 0, 0, time.UTC),
 	}
 	return s
+}
+
+func newSkillExposureFixture(
+	t *testing.T,
+	skill *skills.Skill,
+	roots []compozyconfig.SkillRootSpec,
+	repository store.SkillExposureRepository,
+	workspaces testutil.StubWorkspaceService,
+) *gin.Engine {
+	t.Helper()
+	registry := &exposureSkillsRegistry{
+		StubSkillsRegistry: &testutil.StubSkillsRegistry{
+			ForWorkspaceFn: func(_ context.Context, _ *workspacepkg.ResolvedWorkspace) ([]*skills.Skill, error) {
+				return []*skills.Skill{skill}, nil
+			},
+		},
+		roots: roots,
+	}
+	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+		TransportName: "skills-exposure-test", Workspaces: workspaces,
+		SkillsRegistry: registry, SkillExposures: repository,
+		Logger: testutil.DiscardLogger(), Now: time.Now,
+	})
+	engine := gin.New()
+	engine.GET("/api/skills", handlers.ListSkills)
+	engine.GET("/api/skills/:name", handlers.GetSkill)
+	engine.POST("/api/skills/:name/expose", handlers.ExposeSkill)
+	engine.POST("/api/skills/:name/unexpose", handlers.UnexposeSkill)
+	return engine
+}
+
+func exposureTestSkill(name string, dir string, scope resources.ResourceScope) *skills.Skill {
+	return &skills.Skill{
+		Meta:   skills.SkillMeta{Name: name, Description: "Exposure contract skill"},
+		Source: skills.SourceWorkspace, Dir: dir, Enabled: true, Origin: "compozy", ResourceScope: scope,
+	}
+}
+
+func performSkillExposureRequest(
+	t *testing.T,
+	engine *gin.Engine,
+	path string,
+	body string,
+) *httptest.ResponseRecorder {
+	t.Helper()
+	request := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(body))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	engine.ServeHTTP(response, request)
+	return response
+}
+
+func TestSkillExposureEndpoints(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose a workspace skill and echo only the canonical workspace id", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		skillDir := filepath.Join(root, ".compozy", "skills", "review-checklist")
+		if err := os.MkdirAll(skillDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(skill) error = %v", err)
+		}
+		workspaceID := "ws-canonical"
+		scope := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: workspaceID}
+		skill := exposureTestSkill("review-checklist", skillDir, scope)
+		agentsRoot := filepath.Join(root, ".agents", "skills")
+		workspaces := testutil.StubWorkspaceService{ResolveForProfileFn: func(
+			_ context.Context,
+			ref string,
+			profileName string,
+		) (workspacepkg.ResolvedWorkspace, error) {
+			if ref != workspaceID || profileName != "default" {
+				t.Fatalf("ResolveForProfile(%q, %q), want canonical/default", ref, profileName)
+			}
+			return workspacepkg.ResolvedWorkspace{
+				Workspace:   workspacepkg.Workspace{ID: workspaceID, RootDir: root},
+				WorkspaceID: workspaceID, ProfileName: profileName,
+			}, nil
+		}}
+		engine := newSkillExposureFixture(t, skill, []compozyconfig.SkillRootSpec{{
+			Dir: agentsRoot, SourceSlug: compozyconfig.SkillSourceAgents,
+			Kind: compozyconfig.RootKindPreset, ResourceScope: scope,
+		}}, &exposureMemoryStore{}, workspaces)
+
+		response := performSkillExposureRequest(
+			t, engine, "/api/skills/review-checklist/expose",
+			`{"targets":["agents"],"workspace_id":"ws-canonical"}`,
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+		}
+		var payload contract.SkillExposeResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("Unmarshal(expose) error = %v", err)
+		}
+		if payload.WorkspaceID != workspaceID || payload.RolledBack || len(payload.Results) != 1 ||
+			!payload.Results[0].OK || payload.Results[0].Exposure == nil ||
+			payload.Results[0].Exposure.Status != contract.SkillExposureStatus(skills.ExposureHealthy) {
+			t.Fatalf("expose payload = %#v", payload)
+		}
+	})
+
+	t.Run("Should omit workspace id for a user skill and allow an agent scoped caller", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		skillDir := filepath.Join(root, ".compozy", "skills", "review-checklist")
+		if err := os.MkdirAll(skillDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(skill) error = %v", err)
+		}
+		scope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
+		skill := exposureTestSkill("review-checklist", skillDir, scope)
+		skill.Source = skills.SourceUser
+		engine := newSkillExposureFixture(t, skill, []compozyconfig.SkillRootSpec{{
+			Dir: filepath.Join(root, ".agents", "skills"), SourceSlug: compozyconfig.SkillSourceAgents,
+			Kind: compozyconfig.RootKindPreset, ResourceScope: scope,
+		}}, &exposureMemoryStore{}, testutil.StubWorkspaceService{})
+
+		response := performSkillExposureRequest(
+			t, engine, "/api/skills/review-checklist/expose?for_agent=worker", `{"targets":["agents"]}`,
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("agent-scoped expose status = %d, body = %s", response.Code, response.Body.String())
+		}
+		if bytes.Contains(response.Body.Bytes(), []byte(`"workspace_id"`)) {
+			t.Fatalf("user exposure response contains workspace_id: %s", response.Body.String())
+		}
+
+		response = performSkillExposureRequest(
+			t, engine, "/api/skills/review-checklist/unexpose?for_agent=worker", `{"targets":["agents"]}`,
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("agent-scoped unexpose status = %d, body = %s", response.Code, response.Body.String())
+		}
+	})
+
+	t.Run("Should refuse profile owned skills before any exposure mutation", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		skillDir := filepath.Join(root, ".compozy", "skills", "review-checklist")
+		if err := os.MkdirAll(skillDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(skill) error = %v", err)
+		}
+		profileScope := resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: "profile-1"}
+		skill := exposureTestSkill("review-checklist", skillDir, profileScope)
+		skill.Source = skills.SourceProfile
+		repository := &exposureMemoryStore{}
+		targetRoot := filepath.Join(root, ".agents", "skills")
+		engine := newSkillExposureFixture(t, skill, []compozyconfig.SkillRootSpec{{
+			Dir: targetRoot, SourceSlug: compozyconfig.SkillSourceAgents,
+			Kind: compozyconfig.RootKindPreset, ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+		}}, repository, testutil.StubWorkspaceService{})
+
+		response := performSkillExposureRequest(
+			t, engine, "/api/skills/review-checklist/expose", `{"targets":["agents"]}`,
+		)
+		if response.Code != http.StatusConflict {
+			t.Fatalf("profile expose status = %d, body = %s", response.Code, response.Body.String())
+		}
+		var payload contract.SkillExposureFailureResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("Unmarshal(profile failure) error = %v", err)
+		}
+		if len(payload.Results) != 1 || payload.Results[0].Error == nil ||
+			payload.Results[0].Error.Code != skills.ExposureCodeProfileSkillNotExposable {
+			t.Fatalf("profile failure payload = %#v", payload)
+		}
+		if len(repository.records) != 0 {
+			t.Fatalf("profile refusal persisted exposure records: %#v", repository.records)
+		}
+		if _, err := os.Stat(targetRoot); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("profile refusal target root stat error = %v, want not exists", err)
+		}
+	})
+
+	t.Run("Should use the single failure envelope for a name conflict", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		skillDir := filepath.Join(root, "skills", "review-checklist")
+		targetRoot := filepath.Join(root, ".agents", "skills")
+		if err := os.MkdirAll(skillDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(skill) error = %v", err)
+		}
+		if err := os.MkdirAll(targetRoot, 0o755); err != nil {
+			t.Fatalf("MkdirAll(target) error = %v", err)
+		}
+		occupied := filepath.Join(targetRoot, "review-checklist")
+		if err := os.WriteFile(occupied, []byte("foreign"), 0o600); err != nil {
+			t.Fatalf("WriteFile(conflict) error = %v", err)
+		}
+		canonicalTargetRoot, err := filepath.EvalSymlinks(targetRoot)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(target root) error = %v", err)
+		}
+		occupied = filepath.Join(canonicalTargetRoot, "review-checklist")
+		scope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
+		skill := exposureTestSkill("review-checklist", skillDir, scope)
+		skill.Source = skills.SourceUser
+		engine := newSkillExposureFixture(t, skill, []compozyconfig.SkillRootSpec{{
+			Dir: targetRoot, SourceSlug: compozyconfig.SkillSourceAgents,
+			Kind: compozyconfig.RootKindPreset, ResourceScope: scope,
+		}}, &exposureMemoryStore{}, testutil.StubWorkspaceService{})
+
+		response := performSkillExposureRequest(
+			t, engine, "/api/skills/review-checklist/expose", `{"targets":["agents"]}`,
+		)
+		if response.Code != http.StatusConflict {
+			t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+		}
+		var payload contract.SkillExposureFailureResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("Unmarshal(failure) error = %v", err)
+		}
+		if payload.Error.Code != "expose_failed" || payload.WorkspaceID != "" ||
+			len(payload.Results) != 1 || payload.Results[0].Error == nil ||
+			payload.Results[0].Error.Code != skills.ExposureCodeNameConflict ||
+			payload.Results[0].Error.OccupiedBy != occupied {
+			t.Fatalf("failure payload = %#v", payload)
+		}
+	})
+
+	t.Run("Should project origin and reconciled exposures on detail but only origin on list", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		skillDir := filepath.Join(root, "skills", "review-checklist")
+		if err := os.MkdirAll(skillDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(skill) error = %v", err)
+		}
+		scope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
+		skill := exposureTestSkill("review-checklist", skillDir, scope)
+		skill.Source = skills.SourceUser
+		skill.Origin = "claude"
+		repository := &exposureMemoryStore{}
+		engine := newSkillExposureFixture(t, skill, []compozyconfig.SkillRootSpec{{
+			Dir: filepath.Join(root, ".agents", "skills"), SourceSlug: compozyconfig.SkillSourceAgents,
+			Kind: compozyconfig.RootKindPreset, ResourceScope: scope,
+		}}, repository, testutil.StubWorkspaceService{})
+		exposed := performSkillExposureRequest(
+			t, engine, "/api/skills/review-checklist/expose", `{"targets":["agents"]}`,
+		)
+		if exposed.Code != http.StatusOK {
+			t.Fatalf("expose status = %d, body = %s", exposed.Code, exposed.Body.String())
+		}
+
+		detailRequest := httptest.NewRequest(http.MethodGet, "/api/skills/review-checklist", nil)
+		detailResponse := httptest.NewRecorder()
+		engine.ServeHTTP(detailResponse, detailRequest)
+		var detail contract.SkillResponse
+		if err := json.Unmarshal(detailResponse.Body.Bytes(), &detail); err != nil {
+			t.Fatalf("Unmarshal(detail) error = %v", err)
+		}
+		if detail.Skill.Origin != "claude" || detail.Skill.Exposures == nil ||
+			len(*detail.Skill.Exposures) != 1 || (*detail.Skill.Exposures)[0].Status != "healthy" {
+			t.Fatalf("detail = %#v", detail)
+		}
+
+		listRequest := httptest.NewRequest(http.MethodGet, "/api/skills", nil)
+		listResponse := httptest.NewRecorder()
+		engine.ServeHTTP(listResponse, listRequest)
+		var list contract.SkillsResponse
+		if err := json.Unmarshal(listResponse.Body.Bytes(), &list); err != nil {
+			t.Fatalf("Unmarshal(list) error = %v", err)
+		}
+		if len(list.Skills) != 1 || list.Skills[0].Origin != "claude" || list.Skills[0].Exposures != nil {
+			t.Fatalf("list = %#v", list)
+		}
+	})
+
+	t.Run("Should return independent unexpose results without a rollback field", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		skillDir := filepath.Join(root, "skills", "review-checklist")
+		if err := os.MkdirAll(skillDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(skill) error = %v", err)
+		}
+		scope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
+		skill := exposureTestSkill("review-checklist", skillDir, scope)
+		skill.Source = skills.SourceUser
+		agentsRoot := filepath.Join(root, ".agents", "skills")
+		claudeRoot := filepath.Join(root, ".claude", "skills")
+		engine := newSkillExposureFixture(t, skill, []compozyconfig.SkillRootSpec{
+			{Dir: agentsRoot, SourceSlug: compozyconfig.SkillSourceAgents,
+				Kind: compozyconfig.RootKindPreset, ResourceScope: scope},
+			{Dir: claudeRoot, SourceSlug: compozyconfig.SkillSourceClaude,
+				Kind: compozyconfig.RootKindPreset, ResourceScope: scope},
+		}, &exposureMemoryStore{}, testutil.StubWorkspaceService{})
+		exposed := performSkillExposureRequest(
+			t, engine, "/api/skills/review-checklist/expose", `{"targets":["agents","claude"]}`,
+		)
+		if exposed.Code != http.StatusOK {
+			t.Fatalf("expose status = %d, body = %s", exposed.Code, exposed.Body.String())
+		}
+		claudeLink := filepath.Join(claudeRoot, "review-checklist")
+		if err := os.Remove(claudeLink); err != nil {
+			t.Fatalf("Remove(claude link) error = %v", err)
+		}
+		if err := os.WriteFile(claudeLink, []byte("foreign"), 0o600); err != nil {
+			t.Fatalf("WriteFile(foreign claude path) error = %v", err)
+		}
+
+		response := performSkillExposureRequest(
+			t, engine, "/api/skills/review-checklist/unexpose", `{"targets":["agents","claude"]}`,
+		)
+		if response.Code != http.StatusConflict {
+			t.Fatalf("unexpose status = %d, body = %s", response.Code, response.Body.String())
+		}
+		if bytes.Contains(response.Body.Bytes(), []byte(`"rolled_back"`)) {
+			t.Fatalf("unexpose body contains rolled_back: %s", response.Body.String())
+		}
+		var payload contract.SkillExposureFailureResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("Unmarshal(unexpose failure) error = %v", err)
+		}
+		if len(payload.Results) != 2 || !payload.Results[0].OK || payload.Results[0].Exposure == nil ||
+			payload.Results[1].Error == nil || payload.Results[1].Error.Code != skills.ExposureCodeForeignLink {
+			t.Fatalf("unexpose payload = %#v", payload)
+		}
+	})
 }
 
 func TestSkillPayloadFromSkill(t *testing.T) {
@@ -1008,7 +1427,7 @@ func TestGetSkill(t *testing.T) {
 		}
 	})
 
-	t.Run("Should resolve workspace-only skills when workspace query provided", func(t *testing.T) {
+	t.Run("Should resolve workspace-only skills from the canonical workspace id", func(t *testing.T) {
 		t.Parallel()
 
 		workspaceSkill := testSkill()
@@ -1042,7 +1461,7 @@ func TestGetSkill(t *testing.T) {
 		}
 
 		engine := newSkillsHandlerFixture(t, registry, workspaces)
-		rec := testutil.PerformRequest(t, engine, http.MethodGet, "/api/skills/test-skill?workspace=ws-1", nil)
+		rec := testutil.PerformRequest(t, engine, http.MethodGet, "/api/skills/test-skill?workspace_id=ws-1", nil)
 
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
@@ -1054,6 +1473,11 @@ func TestGetSkill(t *testing.T) {
 		testutil.DecodeJSONResponse(t, rec, &resp)
 		if resp.Skill.Source != "workspace" {
 			t.Errorf("skill.Source = %q, want %q", resp.Skill.Source, "workspace")
+		}
+
+		legacy := testutil.PerformRequest(t, engine, http.MethodGet, "/api/skills/test-skill?workspace=ws-1", nil)
+		if legacy.Code != http.StatusBadRequest || !strings.Contains(legacy.Body.String(), "workspace_id") {
+			t.Fatalf("legacy workspace query status = %d, body = %s", legacy.Code, legacy.Body.String())
 		}
 	})
 }

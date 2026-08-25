@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"log/slog"
 
 	core "github.com/compozy/compozy/internal/api/core"
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
@@ -44,11 +45,14 @@ type nativeProfileReader interface {
 }
 
 type daemonNativeToolsDeps struct {
+	Logger                     *slog.Logger
 	Registry                   func() toolspkg.Registry
 	CmdPalette                 func() cmdpalette.Registry
 	ToolArtifacts              toolspkg.ToolArtifactStore
 	Config                     compozyconfig.Config
 	Skills                     daemonNativeSkillsRegistry
+	SkillExposures             store.SkillExposureRepository
+	SkillExposureEvents        store.EventSummaryStore
 	Sessions                   core.SessionManager
 	Profiles                   nativeProfileReader
 	ProfileManager             *profilepkg.Manager

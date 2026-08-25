@@ -18,6 +18,7 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	eventspkg "github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/skillscan"
@@ -551,21 +552,64 @@ func TestRegistryConfigGenerationFence(t *testing.T) {
 			t.Fatalf("emitSkillScanEvents() error = %v", err)
 		}
 
-		assertSkillSourceLifecycleEvents(t, eventStore.Summaries())
+		exposureCtx := WithConfigGeneration(WithSourceEventCorrelation(t.Context(), SourceEventCorrelation{
+			Scope: "user", ProfileID: "profile-b", ActorKind: "agent", ActorID: "agent-7",
+		}), 2)
+		exposureFixture := newExposureFixture(t, "agents")
+		exposureFixture.manager.events = eventStore
+		if _, err := exposureFixture.manager.Expose(exposureCtx, exposureFixture.skill, []string{"agents"}); err != nil {
+			t.Fatalf("Expose(observability fixture) error = %v", err)
+		}
+		if err := os.RemoveAll(exposureFixture.skill.Dir); err != nil {
+			t.Fatalf("RemoveAll(canonical skill) error = %v", err)
+		}
+		if _, err := exposureFixture.manager.Exposures(exposureCtx, exposureFixture.skill); err != nil {
+			t.Fatalf("Exposures(broken fixture) error = %v", err)
+		}
+		if err := os.MkdirAll(exposureFixture.skill.Dir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(restored canonical skill) error = %v", err)
+		}
+		if _, err := exposureFixture.manager.Unexpose(exposureCtx, exposureFixture.skill, []string{"agents"}); err != nil {
+			t.Fatalf("Unexpose(observability fixture) error = %v", err)
+		}
+
+		cleanupFixture := newExposureFixture(t, "agents", "claude")
+		cleanupFixture.manager.events = eventStore
+		agentsPath, err := resolveExposeDest(cleanupFixture.root("agents"), cleanupFixture.skill.Meta.Name)
+		if err != nil {
+			t.Fatalf("resolveExposeDest(agents cleanup fixture) error = %v", err)
+		}
+		claudePath, err := resolveExposeDest(cleanupFixture.root("claude"), cleanupFixture.skill.Meta.Name)
+		if err != nil {
+			t.Fatalf("resolveExposeDest(claude cleanup fixture) error = %v", err)
+		}
+		cleanupFixture.manager.fs = &faultExposureFS{
+			exposureFS: osExposureFS{}, failSymlinkPath: claudePath, failRemovePath: agentsPath,
+		}
+		if _, err := cleanupFixture.manager.Expose(
+			exposureCtx, cleanupFixture.skill, []string{"agents", "claude"},
+		); err == nil {
+			t.Fatal("Expose(cleanup fixture) error = nil, want operation and cleanup failures")
+		}
+
+		assertSkillLifecycleObservabilityMatrix(t, eventStore.Summaries())
 	})
 }
 
-func assertSkillSourceLifecycleEvents(t *testing.T, summaries []store.EventSummary) {
+func assertSkillLifecycleObservabilityMatrix(t *testing.T, summaries []store.EventSummary) {
 	t.Helper()
 
 	counts := make(map[string]int)
+	appliedGenerations := make(map[int64]struct{})
+	discardedGenerations := make(map[int64]struct{})
 	for _, summary := range summaries {
 		counts[summary.Type]++
 		if !strings.HasPrefix(summary.Type, "skills.sources.") &&
-			!strings.HasPrefix(summary.Type, "skills.scan.") {
+			!strings.HasPrefix(summary.Type, "skills.scan.") &&
+			!strings.HasPrefix(summary.Type, "skills.exposure.") {
 			continue
 		}
-		if summary.ProfileID == "" || summary.ActorKind == "" || summary.ActorID == "" {
+		if summary.ProfileID == "" || summary.EventCorrelation.ActorKind == "" || summary.EventCorrelation.ActorID == "" {
 			t.Fatalf("source event %q correlation = %#v, want profile and actor", summary.Type, summary)
 		}
 		var content map[string]any
@@ -577,6 +621,12 @@ func assertSkillSourceLifecycleEvents(t *testing.T, summaries []store.EventSumma
 		}
 		if content["profile_id"] == "" || content["actor_kind"] == "" || content["actor_id"] == "" {
 			t.Fatalf("%s content = %#v, want full base correlation", summary.Type, content)
+		}
+		if summary.Type == eventspkg.SkillSourcesApplied {
+			appliedGenerations[int64(content["generation"].(float64))] = struct{}{}
+		}
+		if summary.Type == eventspkg.SkillSourcesSuperseded {
+			discardedGenerations[int64(content["discarded_generation"].(float64))] = struct{}{}
 		}
 	}
 	if counts["skills.sources.applied"] != 1 {
@@ -592,6 +642,22 @@ func assertSkillSourceLifecycleEvents(t *testing.T, summaries []store.EventSumma
 	} {
 		if counts[eventType] != 1 {
 			t.Fatalf("%s event count = %d, want 1", eventType, counts[eventType])
+		}
+	}
+	for _, eventType := range []string{
+		eventspkg.SkillExposureCreated,
+		eventspkg.SkillExposureRemoved,
+		eventspkg.SkillExposureOperationFailed,
+		eventspkg.SkillExposureBrokenDetected,
+		eventspkg.SkillExposureCleanupFailed,
+	} {
+		if counts[eventType] < 1 {
+			t.Fatalf("%s event count = %d, want at least 1", eventType, counts[eventType])
+		}
+	}
+	for generation := range discardedGenerations {
+		if _, incorrectlyApplied := appliedGenerations[generation]; incorrectlyApplied {
+			t.Fatalf("superseded generation %d also emitted applied", generation)
 		}
 	}
 }

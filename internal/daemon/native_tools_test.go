@@ -1658,6 +1658,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(skill_list) error = %v", err)
 		}
 		requireNativeStructuredContains(t, listResult, []byte(`"compozy"`))
+		requireNativeStructuredContains(t, listResult, []byte(`"origin":""`))
 
 		searchResult, err := registry.Call(
 			t.Context(),
@@ -1671,6 +1672,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(skill_search) error = %v", err)
 		}
 		requireNativeStructuredContains(t, searchResult, []byte(`"compozy"`))
+		requireNativeStructuredContains(t, searchResult, []byte(`"origin":""`))
 
 		viewResult, err := registry.Call(
 			t.Context(),
@@ -1701,6 +1703,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			viewResult.Content[0].Text != expectedContent {
 			t.Fatalf("skill_view did not return the resolved bundled resource")
 		}
+		requireNativeStructuredContains(t, viewResult, []byte(`"origin":""`))
+		requireNativeStructuredContains(t, viewResult, []byte(`"exposures":[]`))
 	})
 
 	t.Run("Should list workspace agents and redacted global Vault refs", func(t *testing.T) {
@@ -2140,6 +2144,12 @@ func TestDaemonNativeTools(t *testing.T) {
 			if _, exposed := viewedSkill[field]; exposed {
 				t.Fatalf("skill_view command_id exposed field %q: %#v", field, viewedSkill)
 			}
+		}
+		if origin, present := viewedSkill["origin"]; !present || origin != "" {
+			t.Fatalf("skill_view command_id origin = %#v, want explicit empty origin", origin)
+		}
+		if exposures, present := viewedSkill["exposures"].([]any); !present || len(exposures) != 0 {
+			t.Fatalf("skill_view command_id exposures = %#v, want explicit empty list", viewedSkill["exposures"])
 		}
 	})
 

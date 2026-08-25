@@ -170233,11 +170233,43 @@
                           "enabled": {
                             "type": "boolean"
                           },
+                          "exposures": {
+                            "items": {
+                              "properties": {
+                                "path": {
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "enum": [
+                                    "healthy",
+                                    "missing",
+                                    "broken",
+                                    "foreign_conflict"
+                                  ],
+                                  "type": "string"
+                                },
+                                "target": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "path",
+                                "status",
+                                "target"
+                              ],
+                              "type": "object"
+                            },
+                            "nullable": true,
+                            "type": "array"
+                          },
                           "metadata": {
                             "additionalProperties": {},
                             "type": "object"
                           },
                           "name": {
+                            "type": "string"
+                          },
+                          "origin": {
                             "type": "string"
                           },
                           "provenance": {
@@ -170262,6 +170294,9 @@
                                   "properties": {
                                     "detected_at": {
                                       "format": "date-time",
+                                      "type": "string"
+                                    },
+                                    "origin": {
                                       "type": "string"
                                     },
                                     "path": {
@@ -170309,6 +170344,7 @@
                           "dir",
                           "enabled",
                           "name",
+                          "origin",
                           "source"
                         ],
                         "type": "object"
@@ -171999,9 +172035,9 @@
             }
           },
           {
-            "description": "Workspace id or path for resolution context",
+            "description": "Canonical workspace id for resolution context",
             "in": "query",
-            "name": "workspace",
+            "name": "workspace_id",
             "schema": {
               "type": "string"
             }
@@ -172205,11 +172241,43 @@
                         "enabled": {
                           "type": "boolean"
                         },
+                        "exposures": {
+                          "items": {
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "enum": [
+                                  "healthy",
+                                  "missing",
+                                  "broken",
+                                  "foreign_conflict"
+                                ],
+                                "type": "string"
+                              },
+                              "target": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "status",
+                              "target"
+                            ],
+                            "type": "object"
+                          },
+                          "nullable": true,
+                          "type": "array"
+                        },
                         "metadata": {
                           "additionalProperties": {},
                           "type": "object"
                         },
                         "name": {
+                          "type": "string"
+                        },
+                        "origin": {
                           "type": "string"
                         },
                         "provenance": {
@@ -172234,6 +172302,9 @@
                                 "properties": {
                                   "detected_at": {
                                     "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "origin": {
                                     "type": "string"
                                   },
                                   "path": {
@@ -172281,6 +172352,7 @@
                         "dir",
                         "enabled",
                         "name",
+                        "origin",
                         "source"
                       ],
                       "type": "object"
@@ -173946,6 +174018,301 @@
         ]
       }
     },
+    "/api/skills/{name}/expose": {
+      "post": {
+        "operationId": "exposeSkill",
+        "parameters": [
+          {
+            "description": "Skill name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exact acting profile name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Logical agent name for agent-local resolution",
+            "in": "query",
+            "name": "for_agent",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "targets": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "workspace_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "targets"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "results": {
+                      "items": {
+                        "properties": {
+                          "cleanup_error": {
+                            "nullable": true,
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "occupied_by": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "code"
+                            ],
+                            "type": "object"
+                          },
+                          "error": {
+                            "nullable": true,
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "occupied_by": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "code"
+                            ],
+                            "type": "object"
+                          },
+                          "exposure": {
+                            "nullable": true,
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "enum": [
+                                  "healthy",
+                                  "missing",
+                                  "broken",
+                                  "foreign_conflict"
+                                ],
+                                "type": "string"
+                              },
+                              "target": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "status",
+                              "target"
+                            ],
+                            "type": "object"
+                          },
+                          "ok": {
+                            "type": "boolean"
+                          },
+                          "target": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "ok",
+                          "target"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "rolled_back": {
+                      "type": "boolean"
+                    },
+                    "workspace_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "results",
+                    "rolled_back"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "results": {
+                      "items": {
+                        "properties": {
+                          "cleanup_error": {
+                            "nullable": true,
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "occupied_by": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "code"
+                            ],
+                            "type": "object"
+                          },
+                          "error": {
+                            "nullable": true,
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "occupied_by": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "code"
+                            ],
+                            "type": "object"
+                          },
+                          "exposure": {
+                            "nullable": true,
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "enum": [
+                                  "healthy",
+                                  "missing",
+                                  "broken",
+                                  "foreign_conflict"
+                                ],
+                                "type": "string"
+                              },
+                              "target": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "status",
+                              "target"
+                            ],
+                            "type": "object"
+                          },
+                          "ok": {
+                            "type": "boolean"
+                          },
+                          "target": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "ok",
+                          "target"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "rolled_back": {
+                      "nullable": true,
+                      "type": "boolean"
+                    },
+                    "workspace_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "name",
+                    "results"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Exposure failed"
+          }
+        },
+        "summary": "Expose one user- or workspace-owned skill to provider roots",
+        "tags": [
+          "skills"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/skills/{name}/shadows": {
       "get": {
         "operationId": "getSkillShadows",
@@ -173992,6 +174359,9 @@
                             "format": "date-time",
                             "type": "string"
                           },
+                          "origin": {
+                            "type": "string"
+                          },
                           "path": {
                             "type": "string"
                           },
@@ -174016,6 +174386,9 @@
                       "properties": {
                         "detected_at": {
                           "format": "date-time",
+                          "type": "string"
+                        },
+                        "origin": {
                           "type": "string"
                         },
                         "path": {
@@ -174415,6 +174788,297 @@
           }
         },
         "summary": "Get resolver provenance and shadow declarations for one skill",
+        "tags": [
+          "skills"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/skills/{name}/unexpose": {
+      "post": {
+        "operationId": "unexposeSkill",
+        "parameters": [
+          {
+            "description": "Skill name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exact acting profile name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Logical agent name for agent-local resolution",
+            "in": "query",
+            "name": "for_agent",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "targets": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "workspace_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "targets"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "results": {
+                      "items": {
+                        "properties": {
+                          "cleanup_error": {
+                            "nullable": true,
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "occupied_by": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "code"
+                            ],
+                            "type": "object"
+                          },
+                          "error": {
+                            "nullable": true,
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "occupied_by": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "code"
+                            ],
+                            "type": "object"
+                          },
+                          "exposure": {
+                            "nullable": true,
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "enum": [
+                                  "healthy",
+                                  "missing",
+                                  "broken",
+                                  "foreign_conflict"
+                                ],
+                                "type": "string"
+                              },
+                              "target": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "status",
+                              "target"
+                            ],
+                            "type": "object"
+                          },
+                          "ok": {
+                            "type": "boolean"
+                          },
+                          "target": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "ok",
+                          "target"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "workspace_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "results"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "results": {
+                      "items": {
+                        "properties": {
+                          "cleanup_error": {
+                            "nullable": true,
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "occupied_by": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "code"
+                            ],
+                            "type": "object"
+                          },
+                          "error": {
+                            "nullable": true,
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "occupied_by": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "code"
+                            ],
+                            "type": "object"
+                          },
+                          "exposure": {
+                            "nullable": true,
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "enum": [
+                                  "healthy",
+                                  "missing",
+                                  "broken",
+                                  "foreign_conflict"
+                                ],
+                                "type": "string"
+                              },
+                              "target": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "status",
+                              "target"
+                            ],
+                            "type": "object"
+                          },
+                          "ok": {
+                            "type": "boolean"
+                          },
+                          "target": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "ok",
+                          "target"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "rolled_back": {
+                      "nullable": true,
+                      "type": "boolean"
+                    },
+                    "workspace_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "name",
+                    "results"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Removal failed"
+          }
+        },
+        "summary": "Remove owned provider-root links for one skill",
         "tags": [
           "skills"
         ],

@@ -183,6 +183,7 @@ const (
 // SkillDefinitionRef identifies a skill definition involved in resolution diagnostics.
 type SkillDefinitionRef struct {
 	Source     string
+	Origin     string
 	Path       string
 	DetectedAt time.Time
 }
@@ -193,6 +194,7 @@ type SkillDefinitionRef struct {
 type ShadowEntry struct {
 	Path             string
 	Tier             string
+	Origin           string
 	ResolvedToWinner bool
 	DetectedAt       time.Time
 }

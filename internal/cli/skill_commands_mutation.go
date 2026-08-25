@@ -2,10 +2,12 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/skills"
 
@@ -36,11 +38,15 @@ func newSkillWhereCommand(deps commandDeps) *cobra.Command {
 				if err != nil {
 					return err
 				}
+				detail, err := client.GetSkill(cmd.Context(), args[0], scope.query)
+				if err != nil {
+					return err
+				}
 				record, err := client.GetSkillShadows(cmd.Context(), args[0], scope.query)
 				if err != nil {
 					return err
 				}
-				return writeCommandOutput(cmd, skillWhereBundle(record))
+				return writeCommandOutput(cmd, skillWhereBundle(skillWhereItemFromRecords(detail, record)))
 			}
 
 			ctx, err := loadSkillCommandContext(cmd.Context(), deps, scope.query.ForAgent)
@@ -51,7 +57,14 @@ func newSkillWhereCommand(deps commandDeps) *cobra.Command {
 			if !ok {
 				return fmt.Errorf("skill %q not found", strings.TrimSpace(args[0]))
 			}
-			return writeCommandOutput(cmd, skillWhereBundle(skillShadowsRecordFromDomain(shadows)))
+			skill, err := findSkillByName(ctx.skills, args[0])
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, skillWhereBundle(skillWhereItemFromSkill(
+				skill,
+				skillShadowsRecordFromDomain(shadows),
+			)))
 		},
 	}
 	cmd.Flags().StringVar(
@@ -67,6 +80,7 @@ func newSkillWhereCommand(deps commandDeps) *cobra.Command {
 func newSkillCreateCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef string
 	var group string
+	var exposeTargets string
 	cmd := &cobra.Command{
 		Use:   "create [name]",
 		Short: "Scaffold a new workspace skill",
@@ -105,14 +119,53 @@ func newSkillCreateCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			return writeCommandOutput(cmd, skillCreateBundle(skillCreateItem{
+			created := skillCreateItem{
 				Name:   skillName,
 				Group:  groupPath,
 				Path:   skillDir,
 				File:   skillFilePath,
 				Source: workspaceSkillSource,
 				Status: skillCommandsCreatedKey,
-			}))
+			}
+			if !cmd.Flags().Changed("expose") {
+				return writeCommandOutput(cmd, skillCreateBundle(created))
+			}
+			targets, err := parseSkillExposureTargets(exposeTargets)
+			if err != nil {
+				return err
+			}
+			resolution, ok := commandWorkspaceResolution(cmd)
+			if !ok || strings.TrimSpace(resolution.ID) == "" {
+				return errors.New("cli: created skill workspace resolution is unavailable")
+			}
+			client, err := skillExposureClientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			response, err := client.ExposeSkill(cmd.Context(), skillName, contract.SkillExposureRequest{
+				Targets: targets, WorkspaceID: resolution.ID,
+			}, SkillQuery{Workspace: resolution.ID})
+			relativeFile, relativeErr := filepath.Rel(workspace, skillFilePath)
+			if relativeErr != nil {
+				return fmt.Errorf("cli: render created skill path: %w", relativeErr)
+			}
+			if err != nil {
+				mode, modeErr := resolveOutputFormat(cmd)
+				if modeErr != nil {
+					return modeErr
+				}
+				if mode == OutputHuman {
+					if writeErr := writeRawCommandOutput(cmd, "created "+filepath.ToSlash(relativeFile)); writeErr != nil {
+						return errors.Join(&skillCreatedExposureError{cause: err}, writeErr)
+					}
+				}
+				return &skillCreatedExposureError{cause: err}
+			}
+			return writeCommandOutput(cmd, skillCreateExposureBundle(
+				created,
+				filepath.ToSlash(relativeFile),
+				skillExposureSuccess{Name: response.Name, Action: "expose", Results: response.Results},
+			))
 		},
 	}
 	cmd.Flags().StringVar(
@@ -122,6 +175,7 @@ func newSkillCreateCommand(deps commandDeps) *cobra.Command {
 		"Override the target workspace (ID, name, or path)",
 	)
 	cmd.Flags().StringVar(&group, "group", "", "Place the skill under a relative group path")
+	cmd.Flags().StringVar(&exposeTargets, "expose", "", "Expose the created skill to comma-separated provider targets")
 	return cmd
 }
 

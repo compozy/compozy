@@ -1,28 +1,22 @@
 ---
-title: "compozy skill info"
-description: "Inspect installed skill metadata and resources"
+title: "compozy skill expose"
+description: "Expose one skill to provider roots"
 ---
 
-## compozy skill info
+## compozy skill expose
 
-Inspect installed skill metadata and resources
-
-```
-compozy skill info <name> [flags]
-```
-
-### Examples
+Expose one skill to provider roots
 
 ```
-  # Inspect an installed skill's metadata and resource list
-  compozy skill inspect code-review
+compozy skill expose <name> [flags]
 ```
 
 ### Options
 
 ```
       --for-agent string   Resolve the effective skill set for one logical agent
-  -h, --help               help for info
+  -h, --help               help for expose
+      --to string          Comma-separated provider targets
       --workspace string   Override workspace context (ID, name, or path)
 ```
 
@@ -48,5 +42,5 @@ The root `-o, --output` flag accepts these values. A renderer is supported only 
 Example:
 
 ```bash
-compozy skill info <name> -o json
+compozy skill expose <name> -o json
 ```

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/spf13/cobra"
 )
 
 var errManagedSessionSkillCLIUnsupported = errors.New(
@@ -13,9 +14,12 @@ var errManagedSessionSkillCLIUnsupported = errors.New(
 		"skill install, remove, create, enable, disable, and update require an operator shell",
 )
 
-func ensureSkillCLIUsesSupportedSurface(deps commandDeps) error {
+func ensureSkillCLIUsesSupportedSurface(cmd *cobra.Command, deps commandDeps) error {
 	if strings.TrimSpace(deps.getenv(agentidentity.EnvSessionID)) == "" &&
 		strings.TrimSpace(deps.getenv(agentidentity.EnvAgent)) == "" {
+		return nil
+	}
+	if cmd != nil && (cmd.Name() == "expose" || cmd.Name() == "unexpose") {
 		return nil
 	}
 	return errManagedSessionSkillCLIUnsupported

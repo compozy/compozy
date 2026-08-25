@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -117,7 +119,7 @@ func TestSkillWorkspaceCommandsUseDaemon(t *testing.T) {
 			t,
 			deps,
 			"skill",
-			"inspect",
+			"info",
 			record.Name,
 			"--workspace",
 			workspace,
@@ -125,11 +127,11 @@ func TestSkillWorkspaceCommandsUseDaemon(t *testing.T) {
 			"json",
 		)
 		if err != nil {
-			t.Fatalf("skill inspect --workspace error = %v", err)
+			t.Fatalf("skill info --workspace error = %v", err)
 		}
 		var info skillInfoItem
 		if err := json.Unmarshal([]byte(stdout), &info); err != nil {
-			t.Fatalf("json.Unmarshal(skill inspect) error = %v; stdout=%s", err, stdout)
+			t.Fatalf("json.Unmarshal(skill info) error = %v; stdout=%s", err, stdout)
 		}
 		if !info.Enabled || info.Activation.Active || len(info.Activation.Reasons) != 1 {
 			t.Fatalf("inspected skill = %#v, want enabled and inactive with one reason", info)
@@ -152,7 +154,7 @@ func TestSkillWorkspaceCommandsUseDaemon(t *testing.T) {
 		if err != nil {
 			t.Fatalf("skill where --workspace error = %v", err)
 		}
-		var where SkillShadowsRecord
+		var where skillWhereItem
 		if err := json.Unmarshal([]byte(stdout), &where); err != nil {
 			t.Fatalf("json.Unmarshal(skill where) error = %v; stdout=%s", err, stdout)
 		}
@@ -167,6 +169,336 @@ func TestSkillWorkspaceCommandsUseDaemon(t *testing.T) {
 		if !strings.Contains(stdout, `<skill_content name="extension-review">`) ||
 			!strings.Contains(stdout, "Use extension evidence.") {
 			t.Fatalf("skill view --workspace output = %q, want rendered daemon content", stdout)
+		}
+	})
+}
+
+func TestSkillExposureCommandsUseCanonicalDaemonEnvelope(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should render expose idempotency and unexpose paths", func(t *testing.T) {
+		t.Parallel()
+		workspaceID := "ws-exposure"
+		exposurePath := "/repo/.agents/skills/review-checklist"
+		getCalls := 0
+		client := &stubClient{
+			getSkillFn: func(_ context.Context, name string, query SkillQuery) (SkillRecord, error) {
+				getCalls++
+				if name != "review-checklist" || query.Workspace != workspaceID {
+					t.Fatalf("GetSkill(%q, %#v)", name, query)
+				}
+				exposures := []contract.SkillExposurePayload{}
+				if getCalls == 2 {
+					exposures = append(exposures, contract.SkillExposurePayload{
+						Target: "agents", Path: exposurePath, Status: "healthy",
+					})
+				}
+				return SkillRecord{Name: name, Exposures: &exposures}, nil
+			},
+			exposeSkillFn: func(
+				_ context.Context,
+				name string,
+				request contract.SkillExposureRequest,
+				query SkillQuery,
+			) (contract.SkillExposeResponse, error) {
+				if name != "review-checklist" || request.WorkspaceID != workspaceID ||
+					query.Workspace != workspaceID || !slices.Equal(request.Targets, []string{"agents"}) {
+					t.Fatalf("ExposeSkill(%q, %#v, %#v)", name, request, query)
+				}
+				return contract.SkillExposeResponse{Name: name, WorkspaceID: workspaceID,
+					Results: []contract.SkillExposureTargetResultPayload{{
+						Target: "agents", OK: true,
+						Exposure: &contract.SkillExposurePayload{Target: "agents", Path: exposurePath, Status: "healthy"},
+					}},
+				}, nil
+			},
+			unexposeSkillFn: func(
+				_ context.Context,
+				name string,
+				request contract.SkillExposureRequest,
+				_ SkillQuery,
+			) (contract.SkillUnexposeResponse, error) {
+				return contract.SkillUnexposeResponse{Name: name, WorkspaceID: request.WorkspaceID,
+					Results: []contract.SkillExposureTargetResultPayload{{
+						Target: "agents", OK: true,
+						Exposure: &contract.SkillExposurePayload{Target: "agents", Path: exposurePath, Status: "healthy"},
+					}},
+				}, nil
+			},
+		}
+		deps := newWorkspaceTestDeps(t, client)
+
+		stdout, _, err := executeRootCommand(
+			t, deps, "skill", "expose", "review-checklist", "--to", "agents", "--workspace", workspaceID,
+		)
+		if err != nil {
+			t.Fatalf("skill expose error = %v", err)
+		}
+		if strings.TrimSpace(stdout) != "exposed review-checklist → "+exposurePath {
+			t.Fatalf("first expose stdout = %q", stdout)
+		}
+
+		stdout, _, err = executeRootCommand(
+			t, deps, "skill", "expose", "review-checklist", "--to", "agents", "--workspace", workspaceID,
+		)
+		if err != nil {
+			t.Fatalf("repeat skill expose error = %v", err)
+		}
+		if strings.TrimSpace(stdout) != "already exposed: review-checklist → "+exposurePath+" (no change)" {
+			t.Fatalf("repeat expose stdout = %q", stdout)
+		}
+
+		stdout, _, err = executeRootCommand(
+			t, deps, "skill", "unexpose", "review-checklist", "--to", "agents", "--workspace", workspaceID,
+		)
+		if err != nil {
+			t.Fatalf("skill unexpose error = %v", err)
+		}
+		if strings.TrimSpace(stdout) != "unexposed review-checklist ← "+exposurePath {
+			t.Fatalf("unexpose stdout = %q", stdout)
+		}
+	})
+
+	t.Run("Should render and marshal the one expose failure envelope", func(t *testing.T) {
+		t.Parallel()
+		rolledBack := true
+		failure := contract.SkillExposureFailureResponse{
+			Error: contract.SkillExposureFailureErrorPayload{Code: "expose_failed", Message: "1 of 2 targets failed"},
+			Name:  "review-checklist",
+			Results: []contract.SkillExposureTargetResultPayload{
+				{Target: "agents", Error: &contract.SkillExposureErrorPayload{Code: "rolled_back"}},
+				{Target: "claude", Error: &contract.SkillExposureErrorPayload{
+					Code: "expose_name_conflict", OccupiedBy: "/repo/.claude/skills/review-checklist",
+				}},
+			},
+			RolledBack: &rolledBack,
+		}
+		client := &stubClient{
+			getSkillFn: func(_ context.Context, name string, _ SkillQuery) (SkillRecord, error) {
+				exposures := []contract.SkillExposurePayload{}
+				return SkillRecord{Name: name, Exposures: &exposures}, nil
+			},
+			exposeSkillFn: func(
+				context.Context,
+				string,
+				contract.SkillExposureRequest,
+				SkillQuery,
+			) (contract.SkillExposeResponse, error) {
+				return contract.SkillExposeResponse{}, &skillExposureAPIError{payload: failure}
+			},
+		}
+		deps := newWorkspaceTestDeps(t, client)
+		exitCode, _, stderr := executeRootCommandWithExit(
+			t, deps, "skill", "expose", "review-checklist", "--to", "agents,claude", "--workspace", "ws",
+		)
+		if exitCode == 0 {
+			t.Fatal("skill expose exit code = 0, want failure")
+		}
+		for _, want := range []string{
+			"Error: expose failed (1 of 2 targets; completed targets rolled back)",
+			"agents  rolled_back",
+			"claude  expose_name_conflict — occupied by /repo/.claude/skills/review-checklist",
+		} {
+			if !strings.Contains(stderr, want) {
+				t.Fatalf("stderr = %q, want %q", stderr, want)
+			}
+		}
+
+		exitCode, _, stderr = executeRootCommandWithExit(
+			t, deps, "skill", "expose", "review-checklist", "--to", "agents,claude", "--workspace", "ws",
+			"-o", "json",
+		)
+		if exitCode == 0 {
+			t.Fatal("skill expose -o json exit code = 0, want failure")
+		}
+		var got contract.SkillExposureFailureResponse
+		if err := json.Unmarshal([]byte(stderr), &got); err != nil {
+			t.Fatalf("json.Unmarshal(skill expose failure) error = %v; stderr=%s", err, stderr)
+		}
+		if got.Error.Code != failure.Error.Code || got.Name != failure.Name || len(got.Results) != len(failure.Results) ||
+			got.RolledBack == nil || !*got.RolledBack {
+			t.Fatalf("skill expose JSON failure = %#v, want canonical API envelope %#v", got, failure)
+		}
+	})
+
+	t.Run("Should keep a created skill when its requested exposure fails", func(t *testing.T) {
+		t.Parallel()
+		workspace := t.TempDir()
+		workspaceID := "ws-create-exposure"
+		client := &stubClient{
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				if ref != workspace {
+					t.Fatalf("GetWorkspace(%q), want %q", ref, workspace)
+				}
+				return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: workspaceID, RootDir: workspace}}, nil
+			},
+			exposeSkillFn: func(
+				_ context.Context,
+				name string,
+				request contract.SkillExposureRequest,
+				query SkillQuery,
+			) (contract.SkillExposeResponse, error) {
+				if name != "review-checklist" || request.WorkspaceID != workspaceID || query.Workspace != workspaceID {
+					t.Fatalf("ExposeSkill(%q, %#v, %#v)", name, request, query)
+				}
+				return contract.SkillExposeResponse{}, &skillExposureAPIError{payload: contract.SkillExposureFailureResponse{
+					Error: contract.SkillExposureFailureErrorPayload{Code: "expose_failed", Message: "1 of 1 targets failed"},
+					Name:  name, WorkspaceID: workspaceID,
+					Results: []contract.SkillExposureTargetResultPayload{{
+						Target: "claude", Error: &contract.SkillExposureErrorPayload{
+							Code: "expose_target_disabled", Message: "source not enabled (enabled targets: agents)",
+						},
+					}},
+				}}
+			},
+		}
+		deps := newWorkspaceTestDeps(t, client)
+		deps.getwd = func() (string, error) { return workspace, nil }
+
+		exitCode, stdout, stderr := executeRootCommandWithExit(
+			t, deps, "skill", "create", "review-checklist", "--expose", "claude",
+		)
+		if exitCode == 0 {
+			t.Fatal("skill create --expose exit code = 0, want partial failure")
+		}
+		if strings.TrimSpace(stdout) != "created .compozy/skills/review-checklist/SKILL.md" {
+			t.Fatalf("skill create --expose stdout = %q", stdout)
+		}
+		for _, want := range []string{
+			"Error: expose failed (1 target) — the skill was created; fix the cause and run `compozy skill expose`",
+			"claude  expose_target_disabled — source not enabled (enabled targets: agents)",
+		} {
+			if !strings.Contains(stderr, want) {
+				t.Fatalf("skill create --expose stderr = %q, want %q", stderr, want)
+			}
+		}
+		createdFile := filepath.Join(workspace, ".compozy", "skills", "review-checklist", "SKILL.md")
+		if _, err := os.Stat(createdFile); err != nil {
+			t.Fatalf("created skill %q is unavailable after exposure failure: %v", createdFile, err)
+		}
+	})
+
+	t.Run("Should render created and exposed lines after the daemon succeeds", func(t *testing.T) {
+		t.Parallel()
+		workspace := t.TempDir()
+		workspaceID := "ws-create-success"
+		exposurePath := filepath.Join(workspace, ".agents", "skills", "review-checklist")
+		client := &stubClient{
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: workspaceID, RootDir: ref}}, nil
+			},
+			exposeSkillFn: func(
+				_ context.Context,
+				name string,
+				request contract.SkillExposureRequest,
+				_ SkillQuery,
+			) (contract.SkillExposeResponse, error) {
+				return contract.SkillExposeResponse{
+					Name: name, WorkspaceID: request.WorkspaceID,
+					Results: []contract.SkillExposureTargetResultPayload{{
+						Target: "agents", OK: true,
+						Exposure: &contract.SkillExposurePayload{Target: "agents", Path: exposurePath, Status: "healthy"},
+					}},
+				}, nil
+			},
+		}
+		deps := newWorkspaceTestDeps(t, client)
+		deps.getwd = func() (string, error) { return workspace, nil }
+
+		stdout, _, err := executeRootCommand(
+			t, deps, "skill", "create", "review-checklist", "--expose", "agents",
+		)
+		if err != nil {
+			t.Fatalf("skill create --expose error = %v", err)
+		}
+		want := "created .compozy/skills/review-checklist/SKILL.md\nexposed review-checklist → " + exposurePath
+		if strings.TrimSpace(stdout) != want {
+			t.Fatalf("skill create --expose stdout = %q, want %q", stdout, want)
+		}
+	})
+}
+
+func TestSkillPublicTranscriptsMatchDXContract(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should render the list origin columns without legacy status columns", func(t *testing.T) {
+		t.Parallel()
+		got := renderSkillListTranscript([]skillListItem{
+			{Name: "compozy", Source: "bundled", Description: "Operate CompozyOS sessions, tasks, and memory"},
+			{Name: "frontend-qa", Source: "user", Origin: "agents", Description: "Audit web UIs against the team checklist"},
+			{Name: "git-hygiene", Source: "user", Origin: "agents", Description: "Keep branches, commits, and PRs clean"},
+		})
+		want := strings.Join([]string{
+			"NAME         SOURCE   ORIGIN  DESCRIPTION",
+			"compozy      bundled  —       Operate CompozyOS sessions, tasks, and memory",
+			"frontend-qa  user     agents  Audit web UIs against the team checklist",
+			"git-hygiene  user     agents  Keep branches, commits, and PRs clean",
+		}, "\n")
+		if got != want {
+			t.Fatalf("skill list transcript =\n%s\nwant:\n%s", got, want)
+		}
+	})
+
+	t.Run("Should render every exposure health state with its safe action", func(t *testing.T) {
+		t.Parallel()
+		statuses := []contract.SkillExposurePayload{
+			{Target: "agents", Path: "/repo/.agents/skills/review-checklist", Status: "healthy"},
+			{Target: "claude", Path: "/repo/.claude/skills/review-checklist", Status: "missing"},
+			{Target: "codex", Path: "/repo/.codex/skills/review-checklist", Status: "broken"},
+			{Target: "cursor", Path: "/repo/.cursor/skills/review-checklist", Status: "foreign_conflict"},
+		}
+		got := renderSkillInfoTranscript(skillInfoItem{
+			Name: "review-checklist", Source: "workspace", Path: "/repo/.compozy/skills/review-checklist",
+			Exposures: statuses,
+		})
+		want := strings.Join([]string{
+			"NAME         review-checklist",
+			"SOURCE       workspace",
+			"DIR          /repo/.compozy/skills/review-checklist",
+			"EXPOSED TO   agents → /repo/.agents/skills/review-checklist (healthy)",
+			"             claude → /repo/.claude/skills/review-checklist (missing — re-expose repairs)",
+			"             codex → /repo/.codex/skills/review-checklist (broken — unexpose or re-expose repairs)",
+			"             cursor → /repo/.cursor/skills/review-checklist (foreign conflict — not our link; no action)",
+		}, "\n")
+		if got != want {
+			t.Fatalf("skill info transcript =\n%s\nwant:\n%s", got, want)
+		}
+	})
+
+	t.Run("Should render winner shadows qualified hints and exposure links", func(t *testing.T) {
+		t.Parallel()
+		got := renderSkillWhereTranscript(skillWhereItem{
+			Name: "frontend-qa", Source: "workspace", Dir: "/repo/.compozy/skills/frontend-qa",
+			Winner: contract.SkillShadowEntryPayload{
+				Path: "/repo/.compozy/skills/frontend-qa/SKILL.md", Tier: "workspace", ResolvedToWinner: true,
+			},
+			Shadows: []contract.SkillShadowEntryPayload{
+				{Path: "/repo/.compozy/skills/frontend-qa/SKILL.md", Tier: "workspace", ResolvedToWinner: true},
+				{Path: "/repo/.agents/skills/frontend-qa/SKILL.md", Tier: "workspace", Origin: "agents"},
+				{Path: "~/.agents/skills/frontend-qa/SKILL.md", Tier: "user", Origin: "agents"},
+			},
+			Exposures: []contract.SkillExposurePayload{{
+				Target: "claude", Path: "/repo/.claude/skills/frontend-qa", Status: "healthy",
+			}},
+		})
+		want := strings.Join([]string{
+			"WINNER   /repo/.compozy/skills/frontend-qa (workspace · compozy)",
+			"ALSO     /repo/.agents/skills/frontend-qa (workspace · agents · shadowed — invoke as agents:frontend-qa)",
+			"         ~/.agents/skills/frontend-qa (user · agents · shadowed)",
+			"LINKS    /repo/.claude/skills/frontend-qa → /repo/.compozy/skills/frontend-qa (exposure · healthy)",
+		}, "\n")
+		if got != want {
+			t.Fatalf("skill where transcript =\n%s\nwant:\n%s", got, want)
+		}
+
+		empty := renderSkillWhereTranscript(skillWhereItem{
+			Name: "pdf-tools", Source: "user", Origin: "claude", Dir: "~/.claude/skills/pdf-tools",
+			Winner: contract.SkillShadowEntryPayload{
+				Path: "~/.claude/skills/pdf-tools/SKILL.md", Tier: "user", Origin: "claude", ResolvedToWinner: true,
+			},
+		})
+		if empty != "WINNER   ~/.claude/skills/pdf-tools (user · claude)\nALSO     — none —" {
+			t.Fatalf("empty skill where transcript = %q", empty)
 		}
 	})
 }
@@ -270,7 +602,9 @@ func TestSkillMarketplaceCommandsUseDaemonWhenRunning(t *testing.T) {
 		})
 		markExtensionDaemonRunning(&deps)
 
-		stdout, _, err := executeRootCommand(t, deps, "skill", "info", "skill_review", "-o", "json")
+		stdout, _, err := executeRootCommand(
+			t, deps, "marketplace", "info", "skill", "skill_review", "-o", "json",
+		)
 		if err != nil {
 			t.Fatalf("skill info error = %v", err)
 		}
@@ -428,8 +762,7 @@ func TestSkillCommandsRejectManagedSessionCLI(t *testing.T) {
 	}{
 		{name: "list", args: []string{"skill", "list"}},
 		{name: "view", args: []string{"skill", "view", "compozy"}},
-		{name: "info", args: []string{"skill", "info", "skill_compozy"}},
-		{name: "inspect", args: []string{"skill", "inspect", "compozy"}},
+		{name: "info", args: []string{"skill", "info", "compozy"}},
 		{name: "where", args: []string{"skill", "where", "compozy"}},
 		{name: "search", args: []string{"skill", "search", "review"}},
 		{name: "install", args: []string{"skill", "install", "review"}},
@@ -497,6 +830,70 @@ func TestSkillCommandsRejectManagedSessionCLI(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should allow managed agents to expose and unexpose through the daemon", func(t *testing.T) {
+		t.Parallel()
+
+		exposurePath := "/repo/.agents/skills/review"
+		client := &stubClient{
+			getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
+				return SessionRecord{
+					ID: id, ProfileID: "default", AgentName: "general", WorkspaceID: "ws-managed", State: "active",
+				}, nil
+			},
+			getSkillFn: func(_ context.Context, name string, _ SkillQuery) (SkillRecord, error) {
+				exposures := []contract.SkillExposurePayload{}
+				return SkillRecord{Name: name, Exposures: &exposures}, nil
+			},
+			exposeSkillFn: func(
+				_ context.Context,
+				name string,
+				request contract.SkillExposureRequest,
+				_ SkillQuery,
+			) (contract.SkillExposeResponse, error) {
+				return contract.SkillExposeResponse{Name: name, WorkspaceID: request.WorkspaceID,
+					Results: []contract.SkillExposureTargetResultPayload{{
+						Target: "agents", OK: true,
+						Exposure: &contract.SkillExposurePayload{Target: "agents", Path: exposurePath, Status: "healthy"},
+					}},
+				}, nil
+			},
+			unexposeSkillFn: func(
+				_ context.Context,
+				name string,
+				request contract.SkillExposureRequest,
+				_ SkillQuery,
+			) (contract.SkillUnexposeResponse, error) {
+				return contract.SkillUnexposeResponse{Name: name, WorkspaceID: request.WorkspaceID,
+					Results: []contract.SkillExposureTargetResultPayload{{
+						Target: "agents", OK: true,
+						Exposure: &contract.SkillExposurePayload{Target: "agents", Path: exposurePath, Status: "healthy"},
+					}},
+				}, nil
+			},
+		}
+		deps := newWorkspaceTestDeps(t, client)
+		deps.getenv = func(key string) string {
+			switch key {
+			case agentidentity.EnvSessionID:
+				return "sess-managed"
+			case agentidentity.EnvAgent:
+				return "general"
+			default:
+				return ""
+			}
+		}
+		if _, _, err := executeRootCommand(
+			t, deps, "skill", "expose", "review", "--to", "agents", "--workspace", "ws-managed",
+		); err != nil {
+			t.Fatalf("managed skill expose error = %v", err)
+		}
+		if _, _, err := executeRootCommand(
+			t, deps, "skill", "unexpose", "review", "--to", "agents", "--workspace", "ws-managed",
+		); err != nil {
+			t.Fatalf("managed skill unexpose error = %v", err)
+		}
+	})
 
 	t.Run("Should allow operator skill list through the daemon client", func(t *testing.T) {
 		t.Parallel()

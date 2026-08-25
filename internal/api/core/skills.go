@@ -40,6 +40,37 @@ func (h *BaseHandlers) ListSkills(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.SkillsResponse{Skills: SkillPayloadsFromSkills(skillList)})
 }
 
+func (h *BaseHandlers) resolveSkillDetailScope(
+	c *gin.Context,
+) (*workspacepkg.ResolvedWorkspace, string, error) {
+	if _, legacyWorkspace := c.GetQuery("workspace"); legacyWorkspace {
+		return nil, "", fmt.Errorf("%w: workspace is not valid here; use canonical workspace_id", ErrSkillValidation)
+	}
+	workspaceID, hasWorkspaceID := c.GetQuery("workspace_id")
+	workspaceID = strings.TrimSpace(workspaceID)
+	if hasWorkspaceID && workspaceID == "" {
+		return nil, "", fmt.Errorf("%w: workspace_id is required", ErrSkillValidation)
+	}
+	agentName, err := skillAgentScope(c)
+	if err != nil {
+		return nil, "", err
+	}
+	if !hasWorkspaceID {
+		return nil, agentName, nil
+	}
+	if h.Workspaces == nil {
+		return nil, "", errors.New("workspace resolver is not configured")
+	}
+	resolved, err := h.Workspaces.Resolve(c.Request.Context(), workspaceID)
+	if err != nil {
+		return nil, "", err
+	}
+	if canonicalResolvedWorkspaceID(resolved) != workspaceID {
+		return nil, "", fmt.Errorf("%w: workspace_id must be the canonical workspace id", ErrSkillValidation)
+	}
+	return &resolved, agentName, nil
+}
+
 // GetSkill returns one skill by name.
 func (h *BaseHandlers) GetSkill(c *gin.Context) {
 	if h.SkillsRegistry == nil {
@@ -57,13 +88,47 @@ func (h *BaseHandlers) GetSkill(c *gin.Context) {
 		return
 	}
 
-	skill, err := h.resolveSkill(c, name)
+	resolved, agentName, err := h.resolveSkillDetailScope(c)
 	if err != nil {
 		h.respondError(c, StatusForSkillError(err), err)
 		return
 	}
+	skillList, err := h.resolveScopedSkills(c, resolved, agentName)
+	if err != nil {
+		h.respondError(c, StatusForSkillError(err), err)
+		return
+	}
+	skill := findSkillByName(skillList, name)
+	if skill == nil {
+		err = fmt.Errorf("%w: %q", ErrSkillNotFound, name)
+		h.respondError(c, StatusForSkillError(err), err)
+		return
+	}
 
-	c.JSON(http.StatusOK, contract.SkillResponse{Skill: SkillPayloadFromSkill(skill)})
+	payload := SkillPayloadFromSkill(skill)
+	emptyExposures := []contract.SkillExposurePayload{}
+	payload.Exposures = &emptyExposures
+	resourceKind := skill.ResourceScope.Normalize().Kind
+	if resourceKind == "user" || resourceKind == "workspace" {
+		manager, managerErr := h.newSkillExposureManager(resolved)
+		if managerErr != nil {
+			h.respondError(c, http.StatusServiceUnavailable, managerErr)
+			return
+		}
+		exposureCtx, contextErr := h.skillExposureInspectionContext(c, skill)
+		if contextErr != nil {
+			h.respondError(c, StatusForSkillError(contextErr), contextErr)
+			return
+		}
+		states, exposureErr := manager.Exposures(exposureCtx, skill)
+		if exposureErr != nil {
+			h.respondError(c, http.StatusInternalServerError, exposureErr)
+			return
+		}
+		exposures := SkillExposurePayloadsFromDomain(states)
+		payload.Exposures = &exposures
+	}
+	c.JSON(http.StatusOK, contract.SkillResponse{Skill: payload})
 }
 
 // GetSkillContent returns the explicit body for one skill.

@@ -220,6 +220,76 @@ func TestUDSTransportSessionCommandsProjectionMatchesHTTP(t *testing.T) {
 	})
 }
 
+func TestUDSTransportSkillProjectionAndExposureErrorsMatchHTTP(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	runtimeHarness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
+	clients, err := runtimeHarness.TransportClients()
+	if err != nil {
+		t.Fatalf("TransportClients() error = %v", err)
+	}
+	tests := []struct {
+		name       string
+		method     string
+		path       string
+		body       []byte
+		wantStatus int
+	}{
+		{name: "list fields", method: http.MethodGet, path: "/api/skills", wantStatus: http.StatusOK},
+		{name: "detail fields", method: http.MethodGet, path: "/api/skills/compozy", wantStatus: http.StatusOK},
+		{name: "expose refusal", method: http.MethodPost, path: "/api/skills/compozy/expose",
+			body: []byte(`{"targets":["agents"]}`), wantStatus: http.StatusConflict},
+		{name: "unexpose refusal", method: http.MethodPost, path: "/api/skills/compozy/unexpose",
+			body: []byte(`{"targets":["agents"]}`), wantStatus: http.StatusConflict},
+	}
+	for _, test := range tests {
+		t.Run("Should preserve "+test.name, func(t *testing.T) {
+			t.Parallel()
+			httpResponse := mustUnixRequest(
+				t, clients.HTTPClient, test.method, runtimeHarness.HTTPURL(test.path), test.body, nil,
+			)
+			udsResponse := mustUnixRequest(
+				t, clients.UDSClient, test.method, runtimeHarness.UDSURL(test.path), test.body, nil,
+			)
+			httpBody := readAndCloseHTTPBody(t, httpResponse)
+			udsBody := readAndCloseHTTPBody(t, udsResponse)
+			if httpResponse.StatusCode != test.wantStatus || udsResponse.StatusCode != test.wantStatus {
+				t.Fatalf(
+					"skill status parity = HTTP %d / UDS %d, want %d; bodies=%s / %s",
+					httpResponse.StatusCode, udsResponse.StatusCode, test.wantStatus, httpBody, udsBody,
+				)
+			}
+			if !jsonEqual(httpBody, udsBody) {
+				t.Fatalf("skill payload parity differs: HTTP=%s UDS=%s", httpBody, udsBody)
+			}
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(httpBody, &fields); err != nil {
+				t.Fatalf("json.Unmarshal(skill parity fields) error = %v", err)
+			}
+			if test.wantStatus == http.StatusConflict {
+				var failure compozycontract.SkillExposureFailureResponse
+				if err := json.Unmarshal(httpBody, &failure); err != nil {
+					t.Fatalf("json.Unmarshal(skill exposure failure) error = %v", err)
+				}
+				if failure.Error.Code != "expose_failed" || len(failure.Results) != 1 {
+					t.Fatalf("skill exposure failure = %#v", failure)
+				}
+				return
+			}
+			if test.path == "/api/skills/compozy" {
+				var detail compozycontract.SkillResponse
+				if err := json.Unmarshal(httpBody, &detail); err != nil {
+					t.Fatalf("json.Unmarshal(skill detail) error = %v", err)
+				}
+				if detail.Skill.Origin != "" || detail.Skill.Exposures == nil || len(*detail.Skill.Exposures) != 0 {
+					t.Fatalf("skill detail = %#v, want explicit empty origin/exposures", detail)
+				}
+			}
+		})
+	}
+}
+
 func TestUDSTransportCmdPaletteViewRoutesMatchHTTP(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()

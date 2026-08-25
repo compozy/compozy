@@ -11,8 +11,52 @@ func registrySkillOperations() []OperationSpec {
 		getSkillOperationSpec(),
 		getSkillContentOperationSpec(),
 		getSkillShadowsOperationSpec(),
+		exposeSkillOperationSpec(),
+		unexposeSkillOperationSpec(),
 		enableSkillOperationSpec(),
 		disableSkillOperationSpec(),
+	}
+}
+
+func exposeSkillOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodPost,
+		Path:        "/api/skills/{name}/expose",
+		OperationID: "exposeSkill",
+		Summary:     "Expose one user- or workspace-owned skill to provider roots",
+		Tags:        []string{specSkillsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("name", "Skill name"),
+			queryParam("profile", "Exact acting profile name", false),
+			queryParam("for_agent", "Logical agent name for agent-local resolution", false),
+		},
+		RequestBody: contract.SkillExposureRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SkillExposeResponse{}},
+			{Status: 409, Description: "Exposure failed", Body: contract.SkillExposureFailureResponse{}},
+		},
+	}
+}
+
+func unexposeSkillOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodPost,
+		Path:        "/api/skills/{name}/unexpose",
+		OperationID: "unexposeSkill",
+		Summary:     "Remove owned provider-root links for one skill",
+		Tags:        []string{specSkillsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("name", "Skill name"),
+			queryParam("profile", "Exact acting profile name", false),
+			queryParam("for_agent", "Logical agent name for agent-local resolution", false),
+		},
+		RequestBody: contract.SkillExposureRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SkillUnexposeResponse{}},
+			{Status: 409, Description: "Removal failed", Body: contract.SkillExposureFailureResponse{}},
+		},
 	}
 }
 func listSkillsOperationSpec() OperationSpec {
@@ -105,7 +149,7 @@ func getSkillOperationSpec() OperationSpec {
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("name", "Skill name"),
-			queryParam(specWorkspaceKey, "Workspace id or path for resolution context", false),
+			queryParam("workspace_id", "Canonical workspace id for resolution context", false),
 			queryParam("for_agent", "Logical agent name for agent-local resolution", false),
 		},
 		Responses: []ResponseSpec{

@@ -22,8 +22,8 @@ func newSkillCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   skillCommandsSkillKey,
 		Short: "Manage local AgentSkills",
-		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
-			return ensureSkillCLIUsesSupportedSurface(deps)
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			return ensureSkillCLIUsesSupportedSurface(cmd, deps)
 		},
 	}
 
@@ -31,7 +31,6 @@ func newSkillCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSkillSourcesCommand(deps))
 	cmd.AddCommand(newSkillViewCommand(deps))
 	cmd.AddCommand(newSkillInfoCommand(deps))
-	cmd.AddCommand(newSkillInspectCommand(deps))
 	cmd.AddCommand(newSkillWhereCommand(deps))
 	cmd.AddCommand(newSkillSearchCommand(deps))
 	cmd.AddCommand(newSkillInstallCommand(deps))
@@ -40,6 +39,8 @@ func newSkillCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSkillCreateCommand(deps))
 	cmd.AddCommand(newSkillEnableCommand(deps))
 	cmd.AddCommand(newSkillDisableCommand(deps))
+	cmd.AddCommand(newSkillExposeCommand(deps))
+	cmd.AddCommand(newSkillUnexposeCommand(deps))
 	return cmd
 }
 

@@ -16,11 +16,14 @@ func (d *Daemon) nativeToolsDeps(
 	agentCatalog := nativeAgentCatalogDependency(state)
 	marketplaceSkills := d.nativeMarketplaceSkills(state)
 	return daemonNativeToolsDeps{
+		Logger:                     state.logger,
 		Registry:                   registryRef,
 		CmdPalette:                 func() cmdpalette.Registry { return state.cmdPalette },
 		ToolArtifacts:              state.toolArtifacts,
 		Config:                     state.cfg,
 		Skills:                     skillsRegistryAPI(state.skillsRegistry),
+		SkillExposures:             state.registry,
+		SkillExposureEvents:        state.registry,
 		Sessions:                   state.sessions,
 		Profiles:                   state.profiles,
 		ProfileManager:             state.profiles,

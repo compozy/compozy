@@ -1,48 +1,19 @@
 package cli
 
 import (
-	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/spf13/cobra"
 )
 
 const (
-	skillCommandsInfoEntryValue   = "info <entry_id>"
-	skillCommandsInspectNameValue = "inspect <name>"
+	skillCommandsInfoEntryValue = "info <name>"
 )
 
 func newSkillInfoCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
-		Use:   skillCommandsInfoEntryValue,
-		Short: "Show one Marketplace skill entry",
-		Example: `  # Inspect a Marketplace skill before installation
-  compozy skill info skill_code_review`,
-		Args: exactOneNonBlankArg(),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-			response, err := client.MarketplaceInfo(
-				cmd.Context(),
-				string(contract.MarketplaceKindSkill),
-				args[0],
-				"",
-				MarketplaceReadScope{Scope: contract.SettingsLayeredScopeUser},
-			)
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, marketplaceEntryBundle(response))
-		},
-	}
-}
-
-func newSkillInspectCommand(deps commandDeps) *cobra.Command {
 	var workspace string
 	var agentName string
 
 	cmd := &cobra.Command{
-		Use:   skillCommandsInspectNameValue,
+		Use:   skillCommandsInfoEntryValue,
 		Short: "Inspect installed skill metadata and resources",
 		Example: `  # Inspect an installed skill's metadata and resource list
   compozy skill inspect code-review`,

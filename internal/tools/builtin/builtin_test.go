@@ -957,6 +957,32 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
+	t.Run("Should pin skill projection output schema digests", func(t *testing.T) {
+		t.Parallel()
+
+		descriptors := descriptorMap(NativeDescriptors())
+		wantDigests := map[toolspkg.ToolID]string{
+			toolspkg.ToolIDSkillList:   "5271efbd3897c6e22d8f59bd49364a8f67d5986158b4c9b18d78c76dd2e4e123",
+			toolspkg.ToolIDSkillSearch: "5271efbd3897c6e22d8f59bd49364a8f67d5986158b4c9b18d78c76dd2e4e123",
+			toolspkg.ToolIDSkillView:   "a7e24d30659111d8180994085d091bc904fc4fd1fb1076ec0b63428885df461a",
+		}
+		for id, want := range wantDigests {
+			descriptor, ok := descriptors[id]
+			if !ok {
+				t.Errorf("descriptor %q missing", id)
+				continue
+			}
+			withDigests, err := toolspkg.DescriptorWithSchemaDigests(descriptor)
+			if err != nil {
+				t.Errorf("DescriptorWithSchemaDigests(%s) error = %v", id, err)
+				continue
+			}
+			if withDigests.OutputSchemaDigest != want {
+				t.Errorf("%s output schema digest = %q, want %q", id, withDigests.OutputSchemaDigest, want)
+			}
+		}
+	})
+
 	t.Run("Should publish the closed window manager contract with risk and capability gates", func(t *testing.T) {
 		t.Parallel()
 

@@ -1,6 +1,10 @@
 package builtin
 
-import toolspkg "github.com/compozy/compozy/internal/tools"
+import (
+	"encoding/json"
+
+	toolspkg "github.com/compozy/compozy/internal/tools"
+)
 
 const (
 	skillsSkillsKey = "skills"
@@ -15,7 +19,7 @@ var skillTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDSkillList,
 		"skill_list",
 		"Skill List",
-		"List skills through the existing skill registry.",
+		"List skills with source origin through the existing skill registry.",
 		skillListInputSchema,
 		toolspkg.RiskRead,
 		true,
@@ -29,7 +33,7 @@ var skillTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDSkillSearch,
 		"skill_search",
 		"Skill Search",
-		"Search skills through the existing skill registry.",
+		"Search skills with source origin through the existing skill registry.",
 		skillSearchInputSchema,
 		toolspkg.RiskRead,
 		true,
@@ -43,7 +47,7 @@ var skillTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDSkillView,
 		"skill_view",
 		"Skill View",
-		"Read one skill body or one resource file through the existing skill registry.",
+		"Read one skill body or resource with source origin and exposure health.",
 		skillViewInputSchema,
 		toolspkg.RiskRead,
 		true,
@@ -56,7 +60,18 @@ var skillTools = []toolspkg.Descriptor{
 }
 
 func skillDescriptors() []toolspkg.Descriptor {
-	return skillTools
+	descriptors := make([]toolspkg.Descriptor, 0, len(skillTools))
+	for _, descriptor := range skillTools {
+		cloned := cloneDescriptor(descriptor)
+		switch cloned.ID {
+		case toolspkg.ToolIDSkillList, toolspkg.ToolIDSkillSearch:
+			cloned.OutputSchema = json.RawMessage(skillCatalogOutputSchema)
+		case toolspkg.ToolIDSkillView:
+			cloned.OutputSchema = json.RawMessage(skillViewOutputSchema)
+		}
+		descriptors = append(descriptors, cloned)
+	}
+	return descriptors
 }
 
 const skillListInputSchema = `{
@@ -91,5 +106,57 @@ const skillViewInputSchema = `{
 		"file":{"type":"string"}
 	},
 	"not":{"required":["name","command_id"]},
+	"additionalProperties":false
+}`
+
+const skillCatalogOutputSchema = `{
+	"type":"object",
+	"required":["skills"],
+	"properties":{
+		"skills":{
+			"type":"array",
+			"items":{
+				"type":"object",
+				"required":["name","source","origin"],
+				"properties":{
+					"name":{"type":"string"},
+					"source":{"type":"string"},
+					"origin":{"type":"string"}
+				}
+			}
+		}
+	},
+	"additionalProperties":false
+}`
+
+const skillViewOutputSchema = `{
+	"type":"object",
+	"required":["skill","content"],
+	"properties":{
+		"skill":{
+			"type":"object",
+			"required":["name","source","origin","exposures"],
+			"properties":{
+				"name":{"type":"string"},
+				"source":{"type":"string"},
+				"origin":{"type":"string"},
+				"exposures":{
+					"type":"array",
+					"items":{
+						"type":"object",
+						"required":["target","path","status"],
+						"properties":{
+							"target":{"type":"string"},
+							"path":{"type":"string"},
+							"status":{"type":"string","enum":["healthy","missing","broken","foreign_conflict"]}
+						}
+					}
+				}
+			}
+		},
+		"content":{"type":"string"},
+		"command_id":{"type":"string"},
+		"file":{"type":"string"}
+	},
 	"additionalProperties":false
 }`

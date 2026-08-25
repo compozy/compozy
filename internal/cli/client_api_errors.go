@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	apiErrorBodyLimit      int64 = 1 << 20
-	responseBodyDrainLimit int64 = 64 << 10
+	apiErrorBodyLimit       int64 = 1 << 20
+	responseBodyDrainLimit  int64 = 64 << 10
+	skillExposureFailedCode       = "expose_failed"
 )
 
 type daemonAPIError struct {
@@ -52,6 +53,28 @@ type skillSourceAPIError struct {
 	statusCode int
 	status     string
 	payload    contract.SkillSourceValidationErrorResponse
+}
+
+type skillExposureAPIError struct {
+	statusCode int
+	status     string
+	payload    contract.SkillExposureFailureResponse
+}
+
+func (e *skillExposureAPIError) Error() string {
+	if e == nil {
+		return nilToolErrorString
+	}
+	return apiErrorMessage(e.payload.Error.Message, e.status)
+}
+
+func (e *skillExposureAPIError) cliExitCode() int { return 1 }
+
+func (e *skillExposureAPIError) skillExposureErrorPayload() contract.SkillExposureFailureResponse {
+	if e == nil {
+		return contract.SkillExposureFailureResponse{}
+	}
+	return e.payload
 }
 
 func (e *skillSourceAPIError) Error() string {
@@ -239,6 +262,7 @@ func readAPIErrorBody(statusCode int, status string, body []byte) error {
 	if len(body) > 0 {
 		for _, parse := range []func(int, string, []byte) (bool, error){
 			parseProfileAPIError,
+			parseSkillExposureAPIError,
 			parseSkillSourceAPIError,
 			parseCmdPaletteMutationAPIError,
 			parseCmdPaletteAPIError,
@@ -270,6 +294,25 @@ func readAPIErrorBody(statusCode int, status string, body []byte) error {
 		status:     status,
 		payload:    contract.ErrorPayload{Error: message},
 	}
+}
+
+func parseSkillExposureAPIError(statusCode int, status string, body []byte) (bool, error) {
+	var payload contract.SkillExposureFailureResponse
+	if json.Unmarshal(body, &payload) != nil || payload.Error.Code != skillExposureFailedCode {
+		return false, nil
+	}
+	payload.Error.Message = redactToolDiagnostic(payload.Error.Message)
+	for index := range payload.Results {
+		if payload.Results[index].Error != nil {
+			payload.Results[index].Error.Message = redactToolDiagnostic(payload.Results[index].Error.Message)
+		}
+		if payload.Results[index].CleanupError != nil {
+			payload.Results[index].CleanupError.Message = redactToolDiagnostic(
+				payload.Results[index].CleanupError.Message,
+			)
+		}
+	}
+	return true, &skillExposureAPIError{statusCode: statusCode, status: status, payload: payload}
 }
 
 func parseSkillSourceAPIError(statusCode int, status string, body []byte) (bool, error) {

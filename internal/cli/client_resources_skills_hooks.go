@@ -2,11 +2,11 @@ package cli
 
 import (
 	"context"
-
 	"net/http"
 	"net/url"
-
 	"strings"
+
+	"github.com/compozy/compozy/internal/api/contract"
 )
 
 func (c *daemonClient) ListResources(ctx context.Context, query ResourceListQuery) ([]ResourceRecord, error) {
@@ -74,7 +74,7 @@ func (c *daemonClient) GetSkill(ctx context.Context, name string, query SkillQue
 		ctx,
 		http.MethodGet,
 		"/api/skills/"+url.PathEscape(strings.TrimSpace(name)),
-		skillValues(query),
+		skillDetailValues(query),
 		nil,
 		&response,
 	); err != nil {
@@ -125,6 +125,42 @@ func (c *daemonClient) EnableSkill(ctx context.Context, name string, query Skill
 
 func (c *daemonClient) DisableSkill(ctx context.Context, name string, query SkillQuery) (SkillActionRecord, error) {
 	return c.skillAction(ctx, strings.TrimSpace(name), "disable", query)
+}
+
+func (c *daemonClient) ExposeSkill(
+	ctx context.Context,
+	name string,
+	request contract.SkillExposureRequest,
+	query SkillQuery,
+) (contract.SkillExposeResponse, error) {
+	var response contract.SkillExposeResponse
+	values := url.Values{}
+	if query.ForAgent != "" {
+		values.Set("for_agent", query.ForAgent)
+	}
+	path := "/api/skills/" + url.PathEscape(strings.TrimSpace(name)) + "/expose"
+	if err := c.doJSON(ctx, http.MethodPost, path, values, request, &response); err != nil {
+		return contract.SkillExposeResponse{}, err
+	}
+	return response, nil
+}
+
+func (c *daemonClient) UnexposeSkill(
+	ctx context.Context,
+	name string,
+	request contract.SkillExposureRequest,
+	query SkillQuery,
+) (contract.SkillUnexposeResponse, error) {
+	var response contract.SkillUnexposeResponse
+	values := url.Values{}
+	if query.ForAgent != "" {
+		values.Set("for_agent", query.ForAgent)
+	}
+	path := "/api/skills/" + url.PathEscape(strings.TrimSpace(name)) + "/unexpose"
+	if err := c.doJSON(ctx, http.MethodPost, path, values, request, &response); err != nil {
+		return contract.SkillUnexposeResponse{}, err
+	}
+	return response, nil
 }
 
 func (c *daemonClient) InstallSkillMarketplace(

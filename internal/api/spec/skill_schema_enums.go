@@ -30,3 +30,12 @@ func skillVerificationStatusValues() []string {
 		string(contract.SkillVerificationStatusFailed),
 	}
 }
+
+func skillExposureStatusValues() []string {
+	return []string{
+		string(contract.SkillExposureStatusHealthy),
+		string(contract.SkillExposureStatusMissing),
+		string(contract.SkillExposureStatusBroken),
+		string(contract.SkillExposureStatusForeignConflict),
+	}
+}

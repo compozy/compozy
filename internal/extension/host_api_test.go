@@ -1,6 +1,7 @@
 package extensionpkg
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -2038,6 +2039,16 @@ func TestHostAPIHandlerSkillsListReturnsWorkspaceSkills(t *testing.T) {
 	}
 	if !listed[0].Enabled || !listed[0].Activation.Active {
 		t.Fatalf("skills/list[0] = %#v, want enabled and active", listed[0])
+	}
+	if listed[0].Origin != "" {
+		t.Fatalf("skills/list[0].Origin = %q, want compozy-native empty origin", listed[0].Origin)
+	}
+	encoded, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("json.Marshal(skills/list result) error = %v", err)
+	}
+	if !bytes.Contains(encoded, []byte(`"origin":""`)) {
+		t.Fatalf("skills/list result = %s, want explicit origin field", encoded)
 	}
 }
 

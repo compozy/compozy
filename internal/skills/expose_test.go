@@ -481,7 +481,9 @@ func TestExposeManager(t *testing.T) {
 		if err := json.Unmarshal(summary.Content, &content); err != nil {
 			t.Fatalf("Unmarshal(event content) error = %v", err)
 		}
-		if content.ActorKind != "agent" || content.ActorID != "agent-7" || content.ConfigGeneration != 42 ||
+		if content.ProfileID != "profile-acting" || content.ActorKind != "agent" || content.ActorID != "agent-7" ||
+			content.ConfigGeneration != 42 || summary.EventCorrelation.ActorKind != "agent" ||
+			summary.EventCorrelation.ActorID != "agent-7" ||
 			content.OwnerScope != string(store.SkillExposureOwnerUser) || content.WorkspaceID != "" {
 			t.Fatalf("event content = %#v", content)
 		}

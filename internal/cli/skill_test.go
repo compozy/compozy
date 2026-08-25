@@ -643,7 +643,7 @@ func TestSkillViewCommandRejectsSymlinkEscape(t *testing.T) {
 	}
 }
 
-func TestSkillInspectCommandShowsMetadataSourcePathAndResources(t *testing.T) {
+func TestSkillInfoCommandShowsMetadataSourcePathResourcesAndExposures(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should show metadata source path and resources", func(t *testing.T) {
@@ -672,14 +672,14 @@ func TestSkillInspectCommandShowsMetadataSourcePathAndResources(t *testing.T) {
 			"Useful notes.\n",
 		)
 
-		stdout, _, err := executeRootCommand(t, env.deps, "skill", "inspect", "info-skill", "-o", "json")
+		stdout, _, err := executeRootCommand(t, env.deps, "skill", "info", "info-skill", "-o", "json")
 		if err != nil {
-			t.Fatalf("skill inspect json error = %v", err)
+			t.Fatalf("skill info json error = %v", err)
 		}
 
 		var payload skillInfoItem
 		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
-			t.Fatalf("json.Unmarshal(skill inspect) error = %v; stdout=%s", err, stdout)
+			t.Fatalf("json.Unmarshal(skill info) error = %v; stdout=%s", err, stdout)
 		}
 
 		if payload.Name != "info-skill" || payload.Version != "1.2.3" {
@@ -699,12 +699,13 @@ func TestSkillInspectCommandShowsMetadataSourcePathAndResources(t *testing.T) {
 			t.Fatalf("payload.Metadata = %#v, want author", payload.Metadata)
 		}
 
-		humanOut, _, err := executeRootCommand(t, env.deps, "skill", "inspect", "info-skill")
+		humanOut, _, err := executeRootCommand(t, env.deps, "skill", "info", "info-skill")
 		if err != nil {
-			t.Fatalf("skill inspect human error = %v", err)
+			t.Fatalf("skill info human error = %v", err)
 		}
-		if !strings.Contains(humanOut, "Metadata") || !strings.Contains(humanOut, "references/notes.md") {
-			t.Fatalf("skill inspect human output missing metadata/resources:\n%s", humanOut)
+		if !strings.Contains(humanOut, "NAME") || !strings.Contains(humanOut, "SOURCE") ||
+			!strings.Contains(humanOut, "DIR") || !strings.Contains(humanOut, "EXPOSED TO   — none —") {
+			t.Fatalf("skill info human output missing public transcript fields:\n%s", humanOut)
 		}
 	})
 }
@@ -1243,7 +1244,7 @@ func TestSkillCommandsWorkWithoutDaemonAndSupportToonOutput(t *testing.T) {
 		{args: []string{"skill", "list", "-o", "toon"}, contains: "skills["},
 		{args: []string{"skill", "view", "toon-skill", "-o", "toon"}, contains: `<skill_content name="toon-skill">`},
 		{
-			args:     []string{"skill", "inspect", "toon-skill", "-o", "toon"},
+			args:     []string{"skill", "info", "toon-skill", "-o", "toon"},
 			contains: "skill{name,description,version,source,path,enabled,active,inactive_reason}:",
 		},
 		{

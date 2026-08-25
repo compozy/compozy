@@ -82,6 +82,7 @@ func (m *ExposeManager) Unexpose(
 			continue
 		}
 		state := m.reconcileRecord(record)
+		results[index].Exposure = &state
 		if state.Status == ExposureForeignConflict {
 			err := newExposureError(
 				ExposureCodeForeignLink,
@@ -91,7 +92,6 @@ func (m *ExposeManager) Unexpose(
 				nil,
 			)
 			results[index].Err = err
-			results[index].Exposure = &state
 			failures = append(failures, err)
 			m.emitExposureFailure(ctx, skill, target, record.LinkPath, err)
 			continue

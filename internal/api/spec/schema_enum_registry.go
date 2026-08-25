@@ -154,6 +154,7 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[contract.SkillDiagnosticState]():        skillDiagnosticStateValues(),
 		reflect.TypeFor[contract.SkillActivationReasonCode]():   skillActivationReasonCodeValues(),
 		reflect.TypeFor[contract.SkillVerificationStatus]():     skillVerificationStatusValues(),
+		reflect.TypeFor[contract.SkillExposureStatus]():         skillExposureStatusValues(),
 		reflect.TypeFor[contract.BridgeSendTestStatus]():        contract.BridgeSendTestStatusValues(),
 		reflect.TypeFor[hooks.HookEvent]():                      hookEventValues(),
 		reflect.TypeFor[hooks.HookEventFamily]():                hookEventFamilyValues(),

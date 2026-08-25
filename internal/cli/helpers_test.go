@@ -353,6 +353,8 @@ type stubClient struct {
 	getSkillShadowsFn             func(context.Context, string, SkillQuery) (SkillShadowsRecord, error)
 	enableSkillFn                 func(context.Context, string, SkillQuery) (SkillActionRecord, error)
 	disableSkillFn                func(context.Context, string, SkillQuery) (SkillActionRecord, error)
+	exposeSkillFn                 func(context.Context, string, contract.SkillExposureRequest, SkillQuery) (contract.SkillExposeResponse, error)
+	unexposeSkillFn               func(context.Context, string, contract.SkillExposureRequest, SkillQuery) (contract.SkillUnexposeResponse, error)
 	installSkillMarketplaceFn     func(context.Context, SkillMarketplaceInstallRequest) (SkillMarketplaceInstallRecord, error)
 	updateSkillMarketplaceFn      func(context.Context, SkillMarketplaceUpdateRequest) ([]SkillMarketplaceUpdateRecord, error)
 	removeSkillMarketplaceFn      func(context.Context, string) (SkillMarketplaceRemoveRecord, error)
@@ -3035,6 +3037,30 @@ func (s *stubClient) DisableSkill(ctx context.Context, name string, query SkillQ
 		return s.disableSkillFn(ctx, name, query)
 	}
 	return SkillActionRecord{}, errors.New("unexpected DisableSkill call")
+}
+
+func (s *stubClient) ExposeSkill(
+	ctx context.Context,
+	name string,
+	request contract.SkillExposureRequest,
+	query SkillQuery,
+) (contract.SkillExposeResponse, error) {
+	if s.exposeSkillFn != nil {
+		return s.exposeSkillFn(ctx, name, request, query)
+	}
+	return contract.SkillExposeResponse{}, errors.New("unexpected ExposeSkill call")
+}
+
+func (s *stubClient) UnexposeSkill(
+	ctx context.Context,
+	name string,
+	request contract.SkillExposureRequest,
+	query SkillQuery,
+) (contract.SkillUnexposeResponse, error) {
+	if s.unexposeSkillFn != nil {
+		return s.unexposeSkillFn(ctx, name, request, query)
+	}
+	return contract.SkillUnexposeResponse{}, errors.New("unexpected UnexposeSkill call")
 }
 
 func (s *stubClient) InstallSkillMarketplace(

@@ -294,6 +294,8 @@ func registerSkillRoutes(api gin.IRouter, handlers *Handlers) {
 		skillsGroup.GET("/:name", handlers.GetSkill)
 		skillsGroup.GET("/:name/content", handlers.GetSkillContent)
 		skillsGroup.GET("/:name/shadows", handlers.GetSkillShadows)
+		skillsGroup.POST("/:name/expose", handlers.ExposeSkill)
+		skillsGroup.POST("/:name/unexpose", handlers.UnexposeSkill)
 		skillsGroup.POST("/:name/enable", handlers.EnableSkill)
 		skillsGroup.POST("/:name/disable", handlers.DisableSkill)
 	}

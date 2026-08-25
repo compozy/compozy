@@ -134,6 +134,7 @@ func skillShadowEntryRecordFromDomain(entry skills.ShadowEntry) contract.SkillSh
 	return contract.SkillShadowEntryPayload{
 		Path:             strings.TrimSpace(entry.Path),
 		Tier:             strings.TrimSpace(entry.Tier),
+		Origin:           strings.TrimSpace(entry.Origin),
 		ResolvedToWinner: entry.ResolvedToWinner,
 		DetectedAt:       entry.DetectedAt.UTC(),
 	}
