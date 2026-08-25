@@ -77,6 +77,17 @@ describe("session MSW handlers", () => {
     );
     expect(invalidOperation.status).toBe(400);
     await expect(invalidOperation.json()).resolves.toEqual({ error: "Invalid Goal operation" });
+
+    const malformedBody = await fetch(
+      `${API}/api/workspaces/${workspaceId}/sessions/${sample.id}/goal`,
+      {
+        body: "{",
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }
+    );
+    expect(malformedBody.status).toBe(400);
+    await expect(malformedBody.json()).resolves.toEqual({ error: "Invalid Goal request body" });
   });
 
   it("Should upload, read, and delete one attachment within its workspace", async () => {
