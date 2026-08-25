@@ -69,7 +69,7 @@ func TestResourceRecordRemovedKindsCleanupMigration(t *testing.T) {
 				t.Errorf("close v39 resource fixture cleanup error = %v", closeErr)
 			}
 		})
-		ctx := testutil.Context(t)
+		ctx := globalMigrationTestContext(t)
 		rows := []struct {
 			kind      string
 			id        string
@@ -160,7 +160,7 @@ func TestResourceRecordRemovedKindsCleanupMigration(t *testing.T) {
 		}
 		upgradedClosed = true
 
-		reopened, err := OpenGlobalDB(testutil.Context(t), path)
+		reopened, err := OpenGlobalDB(globalMigrationTestContext(t), path)
 		if err != nil {
 			t.Fatalf("reopen upgraded resource fixture error = %v", err)
 		}
@@ -171,7 +171,7 @@ func TestResourceRecordRemovedKindsCleanupMigration(t *testing.T) {
 		})
 		assertRemovedResourceRows(t, reopened.db)
 		assertPreservedResourceHomonym(t, reopened.db)
-		reopenedStatus, err := store.Status(testutil.Context(t), reopened.db, MigrationStream())
+		reopenedStatus, err := store.Status(globalMigrationTestContext(t), reopened.db, MigrationStream())
 		if err != nil {
 			t.Fatalf("read reopened migration status error = %v", err)
 		}

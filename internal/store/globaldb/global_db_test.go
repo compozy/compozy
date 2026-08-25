@@ -464,7 +464,7 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 				}
 			}
 		})
-		ctx := testutil.Context(t)
+		ctx := globalMigrationTestContext(t)
 		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO loop_config (
 			workspace_id, loop_name, human_gate_enabled, enabled_checks_json, iteration_cap
 		) VALUES ('ws-loop-environment', 'delivery', 0, '{}', 7)`); err != nil {

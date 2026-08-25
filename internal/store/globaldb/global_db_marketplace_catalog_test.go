@@ -69,7 +69,7 @@ func TestMarketplaceCatalogManifestV2Migration(t *testing.T) {
 			closeErr := legacy.Close()
 			t.Fatalf("Apply(global through v31) error = %v; close error = %v", err, closeErr)
 		}
-		ctx := testutil.Context(t)
+		ctx := globalMigrationTestContext(t)
 		if _, err := legacy.ExecContext(
 			ctx,
 			`INSERT INTO marketplace_catalog_state (kind, manifest_version, generated_at, fetched_at, stale, last_error)
