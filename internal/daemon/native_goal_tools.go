@@ -95,7 +95,10 @@ func (n *daemonNativeTools) goalControl(
 		return toolspkg.ToolResult{}, nativeGoalToolError(req.ToolID, err)
 	}
 	if decision.Kind != session.GoalDispatchRespond || decision.Result == nil {
-		return toolspkg.ToolResult{}, nativeGoalToolError(req.ToolID, errors.New("daemon: Goal control returned no structured result"))
+		return toolspkg.ToolResult{}, nativeGoalToolError(
+			req.ToolID,
+			errors.New("daemon: Goal control returned no structured result"),
+		)
 	}
 	payload, err := core.GoalCommandResultPayloadFromSession(decision.Result)
 	if err != nil {

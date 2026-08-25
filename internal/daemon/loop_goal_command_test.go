@@ -613,9 +613,18 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 			childID := "session-goal-child-" + string(rune('a'+index))
 			childNetwork := daemonTestLiveParticipation(fixture.workspaceID, "goal-child-"+string(rune('a'+index)))
 			child := &session.Info{
-				ID: childID, ProfileID: parent.ProfileID, AgentName: parent.AgentName, Provider: parent.Provider,
-				Model: parent.Model, WorkspaceID: parent.WorkspaceID, NetworkParticipation: childNetwork,
-				Lineage: &store.SessionLineage{ParentSessionID: parentID}, Type: parent.Type, State: session.StateActive,
+				ID:                   childID,
+				ProfileID:            parent.ProfileID,
+				AgentName:            parent.AgentName,
+				Provider:             parent.Provider,
+				Model:                parent.Model,
+				WorkspaceID:          parent.WorkspaceID,
+				NetworkParticipation: childNetwork,
+				Lineage: &store.SessionLineage{
+					ParentSessionID: parentID,
+				},
+				Type:  parent.Type,
+				State: session.StateActive,
 			}
 			status.sessions[childID] = child
 			creationDigest, err := profile.CreationDigest(store.SessionCreationOptions{
@@ -631,11 +640,19 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 				CreationDigest:     creationDigest,
 			}
 			if _, err := fixture.db.RegisterSessionWithCreationIdentity(testutil.Context(t), store.SessionInfo{
-				ProfileID: child.ProfileID, ID: childID, AgentName: child.AgentName, Provider: child.Provider,
+				ProfileID:           child.ProfileID,
+				ID:                  childID,
+				AgentName:           child.AgentName,
+				Provider:            child.Provider,
 				WorkspaceID:         child.WorkspaceID,
 				SessionNetworkState: &store.SessionNetworkState{NetworkSpec: childNetwork},
-				SessionType:         string(child.Type), State: string(child.State), RuntimeStatus: store.SessionRuntimeUnbound,
-				CreatedAt: parent.CreatedAt, UpdatedAt: parent.UpdatedAt,
+				SessionType: string(
+					child.Type,
+				),
+				State:         string(child.State),
+				RuntimeStatus: store.SessionRuntimeUnbound,
+				CreatedAt:     parent.CreatedAt,
+				UpdatedAt:     parent.UpdatedAt,
 			}, identity); err != nil {
 				t.Fatalf("RegisterSessionWithCreationIdentity(%q) error = %v", childID, err)
 			}
@@ -673,7 +690,8 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 			}
 			assertGoalCommandOutcome(t, result.decision, session.GoalOutcomeStarted, "")
 			snapshot := result.decision.Result.Snapshot
-			if snapshot == nil || snapshot.OriginSessionID != result.childID || snapshot.BoundSessionID != result.childID {
+			if snapshot == nil || snapshot.OriginSessionID != result.childID ||
+				snapshot.BoundSessionID != result.childID {
 				t.Fatalf("Goal snapshot for %q = %#v, want isolated origin/binding", result.childID, snapshot)
 			}
 			if _, exists := runIDs[snapshot.RunID]; exists {
@@ -682,13 +700,23 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 			runIDs[snapshot.RunID] = struct{}{}
 			run := fixture.mustRun(t, snapshot.RunID)
 			if run.Origin.SessionID != result.childID || run.StartedBy.Ref != parentID {
-				t.Fatalf("child Goal run %q identity = %#v, want origin %q and actor %q", snapshot.RunID, run.Origin, result.childID, parentID)
+				t.Fatalf(
+					"child Goal run %q identity = %#v, want origin %q and actor %q",
+					snapshot.RunID,
+					run.Origin,
+					result.childID,
+					parentID,
+				)
 			}
 			child := status.sessions[result.childID]
 			if got := run.NetworkSpecSnapshot(); got != child.NetworkParticipation {
 				t.Fatalf("child Goal run %q network = %#v, want %#v", snapshot.RunID, got, child.NetworkParticipation)
 			}
-			definition, err := fixture.db.GetLoopDefinitionSnapshot(testutil.Context(t), run.WorkspaceID, run.DefinitionDigest)
+			definition, err := fixture.db.GetLoopDefinitionSnapshot(
+				testutil.Context(t),
+				run.WorkspaceID,
+				run.DefinitionDigest,
+			)
 			if err != nil {
 				t.Fatalf("GetLoopDefinitionSnapshot(%q) error = %v", result.childID, err)
 			}
@@ -698,14 +726,21 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 			}
 			worker := resolved.EffectiveConfig.RuntimeDefaults.Worker
 			wantModel := "child-model-" + string(result.childID[len(result.childID)-1])
-			if worker.Provider != "cursor" || worker.Model != wantModel || worker.Reasoning != "high" || worker.Speed != speedpkg.SpeedFast {
+			if worker.Provider != "cursor" || worker.Model != wantModel || worker.Reasoning != "high" ||
+				worker.Speed != speedpkg.SpeedFast {
 				t.Fatalf("child Goal run %q runtime = %#v, want cursor/%s/high/fast", snapshot.RunID, worker, wantModel)
 			}
 		}
 
 		sibling, err := fixture.service.Handle(
-			testutil.Context(t), fixture.workspaceID, "session-goal-child-b",
-			session.PromptCaller{Kind: string(taskpkg.ActorKindAgentSession), ID: "session-goal-child-a", Source: "uds"},
+			testutil.Context(t),
+			fixture.workspaceID,
+			"session-goal-child-b",
+			session.PromptCaller{
+				Kind:   string(taskpkg.ActorKindAgentSession),
+				ID:     "session-goal-child-a",
+				Source: "uds",
+			},
 			session.GoalCommand{Verb: session.GoalCommandVerbStatus},
 		)
 		if err != nil {

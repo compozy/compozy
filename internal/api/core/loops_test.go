@@ -1037,7 +1037,9 @@ func TestGoalReadHandlersExposeSnapshotAndTurnContracts(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/workspaces/workspace-alias/sessions/sess-1/goal",
-			[]byte(`{"operation":"replace","objective":"Ship the replacement","expected_run_id":"run-1","runtime":{"provider":"cursor","model":"grok-4.5","reasoning_effort":"high","speed":"fast"}}`),
+			[]byte(
+				`{"operation":"replace","objective":"Ship the replacement","expected_run_id":"run-1","runtime":{"provider":"cursor","model":"grok-4.5","reasoning_effort":"high","speed":"fast"}}`,
+			),
 		)
 		assertLoopStatus(t, response.Code, http.StatusAccepted, response.Body.String())
 		var result contract.GoalCommandResult

@@ -21,7 +21,7 @@ var loopTools = []toolspkg.Descriptor{
 		toolspkg.RiskRead,
 		true,
 		false,
-		[]string{goalKey, descriptorKeywordStatus, "session"},
+		[]string{goalKey, descriptorKeywordStatus, descriptorKeywordSession},
 		[]string{"goal status", "current goal", "session goal"},
 	),
 	nativeLoopDescriptor(

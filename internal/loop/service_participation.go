@@ -20,7 +20,11 @@ func (s *service) resolveRunParticipation(
 ) (participation.Spec, error) {
 	if snapshot != nil {
 		if err := participation.ValidateSpec(*snapshot); err != nil {
-			return participation.Spec{}, fmt.Errorf("%w: trusted network participation snapshot: %w", ErrValidation, err)
+			return participation.Spec{}, fmt.Errorf(
+				"%w: trusted network participation snapshot: %w",
+				ErrValidation,
+				err,
+			)
 		}
 		if strings.TrimSpace(snapshot.WorkspaceID) != "" &&
 			strings.TrimSpace(snapshot.WorkspaceID) != strings.TrimSpace(string(workspaceID)) {

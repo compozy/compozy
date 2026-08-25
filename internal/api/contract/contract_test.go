@@ -2255,8 +2255,11 @@ func TestSessionGoalCommandRequestValidationShouldKeepOperationsClosed(t *testin
 		wantErr bool
 	}{
 		{
-			name:    "Should accept set with objective",
-			request: contract.SessionGoalCommandRequest{Operation: contract.SessionGoalOperationSet, Objective: "Ship it"},
+			name: "Should accept set with objective",
+			request: contract.SessionGoalCommandRequest{
+				Operation: contract.SessionGoalOperationSet,
+				Objective: "Ship it",
+			},
 		},
 		{
 			name: "Should accept replace with expected run and runtime",
@@ -2275,8 +2278,11 @@ func TestSessionGoalCommandRequestValidationShouldKeepOperationsClosed(t *testin
 			wantErr: true,
 		},
 		{
-			name:    "Should reject replace without expected run",
-			request: contract.SessionGoalCommandRequest{Operation: contract.SessionGoalOperationReplace, Objective: "Ship it"},
+			name: "Should reject replace without expected run",
+			request: contract.SessionGoalCommandRequest{
+				Operation: contract.SessionGoalOperationReplace,
+				Objective: "Ship it",
+			},
 			wantErr: true,
 		},
 		{

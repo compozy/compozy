@@ -16,7 +16,7 @@ var goalControlDescriptor = func() toolspkg.Descriptor {
 		toolspkg.RiskMutating,
 		false,
 		false,
-		[]string{goalKey, descriptorKeywordUpdate, "session"},
+		[]string{goalKey, descriptorKeywordUpdate, descriptorKeywordSession},
 		[]string{"set goal", "replace goal", "pause goal", "resume goal", "clear goal"},
 	)
 	descriptor.OutputSchema = json.RawMessage(goalControlOutputSchema)
@@ -61,7 +61,9 @@ const goalControlOutputSchema = `{
 
 const goalControlSnapshotSchema = `{
 	"type":["object","null"],
-	"required":["run_id","node_id","objective","origin_session_id","bound_session_id","status","run_status","cause","turns_used","turn_limit","live","contract_summary","last_verdict","context"],
+	"required":["run_id","node_id","objective","origin_session_id",` +
+	`"bound_session_id","status","run_status","cause","turns_used","turn_limit",` +
+	`"live","contract_summary","last_verdict","context"],
 	"additionalProperties":false,
 	"properties":{
 		"run_id":{"type":"string"},
@@ -70,7 +72,9 @@ const goalControlSnapshotSchema = `{
 		"origin_session_id":{"type":"string"},
 		"bound_session_id":{"type":"string"},
 		"status":{"type":"string","enum":["active","paused","blocked","usage-limited","budget-limited","complete"]},
-		"run_status":{"type":"string","enum":["queued","running","watching","needs-approval","paused","done","no-op","blocked","failed","exhausted","stalled","canceled"]},
+		"run_status":{"type":"string","enum":["queued","running","watching",` +
+	`"needs-approval","paused","done","no-op","blocked","failed","exhausted",` +
+	`"stalled","canceled"]},
 		"cause":{"type":["string","null"]},
 		"turns_used":{"type":"integer","minimum":0},
 		"turn_limit":{"type":"integer","minimum":0},
@@ -81,8 +85,10 @@ const goalControlSnapshotSchema = `{
 			"required":["outcome","blocking_issues","evidence_ref","evaluated_at"],
 			"additionalProperties":false,
 			"properties":{
-				"outcome":{"type":"string","enum":["approved","rejected","awaiting_approval","blocked","error","timeout","invalid_output"]},
-				"blocking_issues":{"type":"array","items":{"type":"object","required":["id","note"],"additionalProperties":false,"properties":{"id":{"type":"string"},"note":{"type":"string"}}}},
+				"outcome":{"type":"string","enum":["approved","rejected","awaiting_approval","blocked","error","timeout",` +
+	`"invalid_output"]},
+				"blocking_issues":{"type":"array","items":{"type":"object","required":["id","note"],` +
+	`"additionalProperties":false,"properties":{"id":{"type":"string"},"note":{"type":"string"}}}},
 				"evidence_ref":{"type":["string","null"]},
 				"evaluated_at":{"type":"string","format":"date-time"}
 			}
