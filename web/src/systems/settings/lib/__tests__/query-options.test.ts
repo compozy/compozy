@@ -203,7 +203,9 @@ describe("settings restart options", () => {
     }) => number | false;
 
     expect(
-      refetchInterval({ state: { error: new SettingsApiError("Restart unavailable", status) } })
+      refetchInterval({
+        state: { error: Object.assign(new Error("Restart unavailable"), { status }) },
+      })
     ).toBe(false);
   });
 });

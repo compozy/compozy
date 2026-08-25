@@ -1,7 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 
 import {
-  SettingsApiError,
   getSettingsAttention,
   getSettingsCmdPalette,
   getSettingsAutomation,
@@ -56,7 +55,7 @@ const UPDATE_OPERATION_POLL_INTERVAL = 2_000;
 const SETTINGS_QUERY_RETRY_LIMIT = 2;
 
 export function shouldRetrySettingsQuery(failureCount: number, error: Error): boolean {
-  if (error instanceof SettingsApiError && error.status === 403) {
+  if (getErrorStatus(error) === 403) {
     return false;
   }
 
@@ -306,14 +305,19 @@ export function settingsRestartStatusOptions(operationId: string | null, enabled
         : RESTART_POLL_INTERVAL,
     refetchIntervalInBackground: true,
     retry: (failureCount, error) =>
-      error instanceof SettingsApiError && error.status === 404
-        ? false
-        : shouldRetrySettingsQuery(failureCount, error),
+      getErrorStatus(error) === 404 ? false : shouldRetrySettingsQuery(failureCount, error),
   });
 }
 
 function isTerminalRestartError(error: Error | null): boolean {
-  return error instanceof SettingsApiError && (error.status === 403 || error.status === 404);
+  const status = getErrorStatus(error);
+  return status === 403 || status === 404;
+}
+
+function getErrorStatus(error: unknown): number | null {
+  if (typeof error !== "object" || error === null) return null;
+  const status = Reflect.get(error, "status");
+  return typeof status === "number" ? status : null;
 }
 
 export function settingsApplyRecordsOptions(filter: SettingsApplyRecordsFilter = {}) {
