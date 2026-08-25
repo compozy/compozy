@@ -76,7 +76,13 @@ func TestSpawnReaperSweepClassifiesReasonsReleasesLeasesAndStopsChildren(t *test
 				sessions.stopWithCauseCalls,
 			)
 		}
-		assertStopWithCause(t, sessions.stopWithCauseCalls, "child-ttl", session.CauseTimeout, "spawn_reaper:ttl_expired")
+		assertStopWithCause(
+			t,
+			sessions.stopWithCauseCalls,
+			"child-ttl",
+			session.CauseTimeout,
+			"spawn_reaper:ttl_expired",
+		)
 		assertStopWithCause(
 			t,
 			sessions.stopWithCauseCalls,
