@@ -1,0 +1,310 @@
+package terminal
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"sync"
+
+	terminalpty "github.com/compozy/compozy/internal/terminal/pty"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
+)
+
+func (m *Service) Open(ctx context.Context, request OpenRequest) (Handle, error) {
+	if ctx == nil {
+		return nil, errors.New("terminal: open context is required")
+	}
+	if err := m.admit(ctx, request.WS, request.Actor); err != nil {
+		return nil, err
+	}
+	if !request.Capabilities.Interactive {
+		return nil, &Error{
+			Code:    "terminal_interactive_unavailable",
+			Message: "Interactive terminals are not available on this platform yet — command execution is.",
+			Err:     ErrInteractive,
+		}
+	}
+	_, cwd, workspaceID, err := m.resolveOpenWorkspace(ctx, request.WS, request.Cwd, request.Actor.ProfileID)
+	if err != nil {
+		return nil, err
+	}
+	settings, err := m.settings(ctx, workspaceID, request.Actor.ProfileID)
+	if err != nil {
+		return nil, fmt.Errorf("terminal: resolve settings: %w", err)
+	}
+	if err := validateSettings(settings); err != nil {
+		return nil, err
+	}
+	request.WS = workspaceID
+	releaseAdmission, err := m.reserveAdmission(request, settings)
+	if err != nil {
+		return nil, err
+	}
+	defer releaseAdmission()
+	shell, err := resolveShell(request.Shell, settings.DefaultShell)
+	if err != nil {
+		return nil, err
+	}
+	id, err := newTerminalID(m.entropy)
+	if err != nil {
+		return nil, err
+	}
+	nonce, err := newMarkerNonce(m.entropy)
+	if err != nil {
+		return nil, err
+	}
+	cols, rows := normalizedDimensions(request.Cols, request.Rows)
+	spec := ProcSpec{
+		Argv: []string{shell}, Cwd: cwd, Cols: cols, Rows: rows,
+		Mode: terminalpty.ModePTY, Title: request.Title, MarkerNonce: nonce,
+	}
+	proc, err := m.pty.Start(ctx, spec)
+	if err != nil {
+		return nil, fmt.Errorf("terminal: start shell %q: %w", shell, err)
+	}
+	info := Info{
+		ID: id, WS: workspaceID, ProfileID: request.Actor.ProfileID,
+		Title: request.Title, Shell: shell, Cwd: cwd, Mode: ModePTY, State: "running",
+		Controller: cloneActor(&request.Actor), Capabilities: request.Capabilities, CreatedAt: m.now(),
+	}
+	if request.Actor.Kind == ActorKindAgent {
+		info.Lease = LeaseAgentOwned
+		info.BoundRun = &RunRef{SessionID: request.Actor.SessionID, RunID: request.Actor.RunID, Generation: request.Actor.Generation}
+	} else {
+		info.Lease = LeaseHumanOwned
+	}
+	item := newSession(m, proc, info, settings, nonce, cols, rows)
+	processRecord, err := m.processRegistration(ctx, item, spec)
+	if err != nil {
+		cleanupErr := cleanupUnregisteredProcess(proc)
+		return nil, errors.Join(err, cleanupErr)
+	}
+	item.processRecord = processRecord
+	key := terminalKey{workspaceID: workspaceID, profileID: request.Actor.ProfileID, id: id}
+	if err := m.insert(key, item); err != nil {
+		cleanupErr := cleanupUnregisteredProcess(proc)
+		return nil, errors.Join(err, cleanupErr)
+	}
+	opened := item.Info()
+	m.events.Emit(ctx, TerminalEvent{
+		Kind: EventKindOpened, WorkspaceID: workspaceID, ProfileID: request.Actor.ProfileID,
+		TerminalID: id, Actor: request.Actor, Info: &opened, At: m.now(),
+	})
+	item.start()
+	return item, nil
+}
+
+func (m *Service) reserveAdmission(request OpenRequest, settings Settings) (func(), error) {
+	m.mu.Lock()
+	if m.closing {
+		m.mu.Unlock()
+		return nil, &Error{Code: "terminal_shutting_down", Message: "terminal manager is shutting down", Err: ErrShuttingDown}
+	}
+	workspaceCount := 0
+	daemonCount := 0
+	workspaceIDs := make([]string, 0)
+	daemonIDs := make([]string, 0)
+	for key, item := range m.terminals {
+		if item.exited() {
+			continue
+		}
+		daemonCount++
+		daemonIDs = append(daemonIDs, string(key.id))
+		if key.workspaceID == request.WS && key.profileID == request.Actor.ProfileID {
+			workspaceCount++
+			workspaceIDs = append(workspaceIDs, string(key.id))
+		}
+	}
+	scope := terminalScope{workspaceID: request.WS, profileID: request.Actor.ProfileID}
+	workspaceCount += m.pendingByScope[scope]
+	daemonCount += m.pendingDaemon
+	if workspaceCount >= settings.MaxPerWorkspace {
+		m.mu.Unlock()
+		m.emitLimitRejected(request, "workspace", workspaceCount, settings.MaxPerWorkspace)
+		return nil, limitError(workspaceCount, settings.MaxPerWorkspace, workspaceIDs)
+	}
+	if daemonCount >= settings.MaxPerDaemon {
+		m.mu.Unlock()
+		m.emitLimitRejected(request, "daemon", daemonCount, settings.MaxPerDaemon)
+		return nil, limitError(daemonCount, settings.MaxPerDaemon, daemonIDs)
+	}
+	m.pendingByScope[scope]++
+	m.pendingDaemon++
+	m.mu.Unlock()
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			m.mu.Lock()
+			m.pendingByScope[scope]--
+			if m.pendingByScope[scope] == 0 {
+				delete(m.pendingByScope, scope)
+			}
+			m.pendingDaemon--
+			m.mu.Unlock()
+		})
+	}, nil
+}
+
+func (m *Service) insert(key terminalKey, item *session) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closing {
+		return &Error{Code: "terminal_shutting_down", Message: "terminal manager is shutting down", Err: ErrShuttingDown}
+	}
+	if _, exists := m.terminals[key]; exists {
+		return errors.New("terminal: generated duplicate id")
+	}
+	m.terminals[key] = item
+	return nil
+}
+
+func (m *Service) emitLimitRejected(request OpenRequest, limit string, current, maximum int) {
+	m.events.Emit(context.Background(), TerminalEvent{
+		Kind: EventKindLimitRejected, WorkspaceID: request.WS, ProfileID: request.Actor.ProfileID,
+		Actor: request.Actor, Detail: EventDetail{Limit: limit, Current: current, Max: maximum}, At: m.now(),
+	})
+}
+
+func limitError(current, maximum int, ids []string) error {
+	return &Error{
+		Code:    "terminal_limit_reached",
+		Message: fmt.Sprintf("terminal limit reached (%d/%d); existing terminals: %s", current, maximum, strings.Join(ids, ", ")),
+		Current: current, Max: maximum, Err: ErrLimitReached,
+	}
+}
+
+func (m *Service) resolveOpenWorkspace(
+	ctx context.Context,
+	workspaceID string,
+	cwd string,
+	profileID string,
+) (workspacepkg.ResolvedWorkspace, string, string, error) {
+	if m.workspaces == nil {
+		if strings.TrimSpace(cwd) == "" {
+			cwd = "."
+		}
+		resolved, err := filepath.Abs(cwd)
+		return workspacepkg.ResolvedWorkspace{}, resolved, workspaceID, err
+	}
+	resolved, err := m.resolveWorkspace(ctx, workspaceID, profileID)
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, "", "", fmt.Errorf("terminal: resolve workspace %q: %w", workspaceID, err)
+	}
+	canonicalID := resolved.WorkspaceID
+	if canonicalID == "" {
+		canonicalID = resolved.ID
+	}
+	if canonicalID == "" {
+		canonicalID = workspaceID
+	}
+	validCwd, err := resolveWorkspaceCwd(resolved, cwd)
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, "", "", err
+	}
+	return resolved, validCwd, canonicalID, nil
+}
+
+func (m *Service) resolveWorkspace(
+	ctx context.Context,
+	workspaceID string,
+	profileID string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	profileResolver, supportsProfiles := m.workspaces.(ProfileWorkspaceResolver)
+	if !supportsProfiles || m.profileNames == nil {
+		return m.workspaces.Resolve(ctx, workspaceID)
+	}
+	profileName, err := m.profileNames.ProfileName(ctx, profileID)
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("terminal: resolve profile name: %w", err)
+	}
+	if profileName == "" || profileName == "default" {
+		return m.workspaces.Resolve(ctx, workspaceID)
+	}
+	return profileResolver.ResolveForProfile(ctx, workspaceID, profileName)
+}
+
+func resolveWorkspaceCwd(workspace workspacepkg.ResolvedWorkspace, requested string) (string, error) {
+	root := filepath.Clean(workspace.RootDir)
+	displayPath := requested
+	if requested == "" {
+		requested = root
+		displayPath = root
+	} else if !filepath.IsAbs(requested) {
+		requested = filepath.Join(root, requested)
+	}
+	resolved, err := filepath.EvalSymlinks(filepath.Clean(requested))
+	if err != nil {
+		return "", &Error{Code: "invalid_cwd", Message: fmt.Sprintf("invalid terminal cwd %q: %v", displayPath, err), Err: ErrInvalidCwd}
+	}
+	allowed := append([]string{root}, workspace.AdditionalDirs...)
+	for _, candidate := range allowed {
+		candidateResolved, resolveErr := filepath.EvalSymlinks(filepath.Clean(candidate))
+		if resolveErr != nil {
+			continue
+		}
+		if pathWithin(candidateResolved, resolved) {
+			info, statErr := os.Stat(resolved)
+			if statErr == nil && info.IsDir() {
+				return resolved, nil
+			}
+		}
+	}
+	return "", &Error{Code: "invalid_cwd", Message: fmt.Sprintf("invalid terminal cwd %q: outside workspace", displayPath), Err: ErrInvalidCwd}
+}
+
+func pathWithin(root, path string) bool {
+	relative, err := filepath.Rel(root, path)
+	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
+}
+
+func resolveShell(requested, configured string) (string, error) {
+	candidates := []string{requested, configured, os.Getenv("SHELL"), "zsh", "bash", "sh"}
+	seen := make(map[string]struct{}, len(candidates))
+	for _, candidate := range candidates {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "" {
+			continue
+		}
+		if _, exists := seen[candidate]; exists {
+			continue
+		}
+		seen[candidate] = struct{}{}
+		resolved, err := exec.LookPath(candidate)
+		if err == nil {
+			return resolved, nil
+		}
+	}
+	return "", &Error{Code: "terminal_shell_unavailable", Message: "no terminal shell is available", Err: exec.ErrNotFound}
+}
+
+func normalizedDimensions(cols, rows uint16) (uint16, uint16) {
+	if cols < 20 {
+		cols = 80
+	}
+	if rows < 5 {
+		rows = 24
+	}
+	return min(cols, 2000), min(rows, 1000)
+}
+
+func cleanupUnregisteredProcess(proc Proc) error {
+	if proc == nil {
+		return nil
+	}
+	killErr := proc.Kill(terminalpty.SignalKILL)
+	closeErr := proc.Close()
+	_, waitErr := proc.Wait(context.Background())
+	return errors.Join(killErr, closeErr, waitErr)
+}
+
+func validateSettings(settings Settings) error {
+	if settings.ScrollbackBytes <= 0 || settings.DetachedTTL <= 0 || settings.ExitRetention <= 0 ||
+		settings.MaxPerWorkspace <= 0 || settings.MaxPerDaemon <= 0 || settings.MaxSubscribers <= 0 {
+		return errors.New("terminal: settings must contain positive limits and retention durations")
+	}
+	return nil
+}

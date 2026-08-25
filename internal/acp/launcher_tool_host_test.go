@@ -396,7 +396,6 @@ func TestLocalToolHostAuthorize(t *testing.T) {
 	for _, op := range []sandbox.PermissionOperation{
 		sandbox.PermissionOperationReadTextFile,
 		sandbox.PermissionOperationWriteTextFile,
-		sandbox.PermissionOperationCreateTerminal,
 		sandbox.PermissionOperationRequestToolGrant,
 	} {
 		if err := approveAll.Authorize(op); err != nil {
@@ -408,7 +407,6 @@ func TestLocalToolHostAuthorize(t *testing.T) {
 	for _, op := range []sandbox.PermissionOperation{
 		sandbox.PermissionOperationReadTextFile,
 		sandbox.PermissionOperationWriteTextFile,
-		sandbox.PermissionOperationCreateTerminal,
 		sandbox.PermissionOperationRequestToolGrant,
 	} {
 		if err := denyAll.Authorize(op); !errors.Is(err, ErrPermissionDenied) {
@@ -531,8 +529,8 @@ func TestLocalToolHostCreateTerminalRegistersProcess(t *testing.T) {
 		t.Fatalf("records = %d, want %d", got, want)
 	}
 	record := records[0]
-	if record.Source != toolruntime.ProcessSourceACPTerminal {
-		t.Fatalf("record.Source = %q, want acp_terminal", record.Source)
+	if record.Source != toolruntime.ProcessSourceTerminal {
+		t.Fatalf("record.Source = %q, want terminal", record.Source)
 	}
 	if record.Owner.TerminalID != response.TerminalId {
 		t.Fatalf("record.Owner.TerminalID = %q, want %q", record.Owner.TerminalID, response.TerminalId)

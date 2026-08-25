@@ -33,6 +33,9 @@ func (d *Daemon) bootRuntimeServices(
 	if err := d.bootProcessRegistry(ctx, state); err != nil {
 		return err
 	}
+	if err := d.bootTerminal(ctx, state, cleanup); err != nil {
+		return err
+	}
 	sandboxRegistry, err := d.buildSandboxRegistry(state)
 	if err != nil {
 		return err

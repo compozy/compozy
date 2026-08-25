@@ -42,6 +42,7 @@ const (
 	ProcessSourceACPAgent        ProcessSource = "acp_agent"
 	ProcessSourceACPTerminal     ProcessSource = "acp_terminal"
 	ProcessSourceSandboxTerminal ProcessSource = "sandbox_terminal"
+	ProcessSourceTerminal        ProcessSource = "terminal"
 	ProcessSourceHook            ProcessSource = "hook"
 	ProcessSourceExtension       ProcessSource = "extension"
 	ProcessSourceSubprocess      ProcessSource = "subprocess"
@@ -225,6 +226,7 @@ func (s ProcessSource) Validate() error {
 	case ProcessSourceACPAgent,
 		ProcessSourceACPTerminal,
 		ProcessSourceSandboxTerminal,
+		ProcessSourceTerminal,
 		ProcessSourceHook,
 		ProcessSourceExtension,
 		ProcessSourceSubprocess:

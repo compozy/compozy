@@ -55,14 +55,18 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 			policy,
 			d.logger,
 			WithLocalProcessRegistry(d.processRegistry),
+			WithLocalTerminalManager(d.terminals, terminalScope{
+				workspaceID: normalized.WorkspaceID,
+				profileID:   normalized.ProfileID,
+				sessionID:   normalized.CompozySessionID,
+				generation:  normalized.RuntimeGeneration,
+				actorID:     normalized.AgentName,
+			}),
 		)
 	}
 
 	process := d.newAgentProcess(procCtx, cancelProcess, normalized, command, args, handle, toolHost, policy)
 	if localHost, ok := toolHost.(*localToolHost); ok {
-		if localHost.terminals != nil && localHost.terminals.registry == nil {
-			localHost.terminals.registry = d.processRegistry
-		}
 		process.terminals = localHost.terminals
 	}
 	if localHandle, ok := handle.(*localProcessHandle); ok {
@@ -104,18 +108,26 @@ func (d *Driver) newAgentProcess(
 	policy permissionPolicy,
 ) *AgentProcess {
 	return &AgentProcess{
-		PID:                  handle.PID(),
-		AgentName:            normalized.AgentName,
-		Command:              command,
-		Args:                 append([]string(nil), args...),
-		Cwd:                  normalized.Cwd,
-		StartedAt:            timeNowUTC(),
-		handle:               handle,
-		toolHost:             toolHost,
-		toolGateway:          normalized.ToolGateway,
-		processCtx:           procCtx,
-		cancelProcess:        cancelProcess,
-		permissions:          policy,
+		PID:           handle.PID(),
+		AgentName:     normalized.AgentName,
+		Command:       command,
+		Args:          append([]string(nil), args...),
+		Cwd:           normalized.Cwd,
+		StartedAt:     timeNowUTC(),
+		handle:        handle,
+		toolHost:      toolHost,
+		toolGateway:   normalized.ToolGateway,
+		processCtx:    procCtx,
+		cancelProcess: cancelProcess,
+		permissions:   policy,
+		terminalCore:  d.terminals,
+		terminalScope: terminalScope{
+			workspaceID: normalized.WorkspaceID,
+			profileID:   normalized.ProfileID,
+			sessionID:   normalized.CompozySessionID,
+			generation:  normalized.RuntimeGeneration,
+			actorID:     normalized.AgentName,
+		},
 		done:                 make(chan struct{}),
 		pendingPermissions:   make(map[string]*pendingPermission),
 		permissionTimeout:    d.permissionWait,

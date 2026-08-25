@@ -26,6 +26,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		HTTP:          HTTPConfig{Host: "localhost", Port: 2123},
 		App:           defaultAppConfig(),
 		WindowManager: DefaultWindowManagerConfig(),
+		Terminal:      DefaultTerminalConfig(),
 		CmdPalette:    DefaultCmdPaletteConfig(),
 		Defaults: DefaultsConfig{
 			Agent: DefaultAgentName,

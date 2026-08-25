@@ -5,15 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-
-	exec "os/exec"
-
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/toolruntime"
 )
 
@@ -28,42 +25,28 @@ const (
 )
 
 type terminalManager struct {
-	ctx      context.Context
-	logger   *slog.Logger
-	registry *toolruntime.Registry
-
-	nextID atomic.Uint64
+	ctx       context.Context
+	logger    *slog.Logger
+	core      TerminalHost
+	ownedCore *terminalpkg.Service
+	coreErr   error
+	scope     terminalScope
 
 	mu        sync.RWMutex
 	terminals map[string]*managedTerminal
 }
 
 type managedTerminal struct {
-	id string
-
-	cmd           *exec.Cmd
-	processRecord *toolruntime.Handle
-	outputLimit   int
-
-	networkOwned   bool
-	ownerSessionID string
-	ownerTurnID    string
-
-	mu         sync.RWMutex
-	output     []byte
-	truncated  bool
-	exitStatus *acpsdk.TerminalExitStatus
-	done       chan struct{}
+	handle      terminalpkg.Handle
+	outputLimit int
+	ownership   terminalOwnership
+	actor       terminalpkg.Actor
 }
 
 type terminalOwnership struct {
 	networkOwned   bool
 	ownerSessionID string
 	ownerTurnID    string
-}
-
-type terminalOutputWriter struct {
-	terminal *managedTerminal
 }
 
 func (p *AgentProcess) handleCreateTerminal(
@@ -244,7 +227,6 @@ func (p *AgentProcess) handleKillTerminal(
 	if err := host.KillTerminal(request.TerminalId); err != nil {
 		return acpsdk.KillTerminalResponse{}, err
 	}
-	p.deleteTerminalOwnership(request.TerminalId)
 	p.completeExternalTerminalProcess(
 		context.Background(),
 		request.TerminalId,
@@ -360,6 +342,7 @@ func (p *AgentProcess) toolHostOrDefault() (ToolHost, error) {
 		p.permissions,
 		slog.Default(),
 		WithLocalProcessRegistry(p.processRegistry),
+		WithLocalTerminalManager(p.terminalCore, p.terminalScope),
 	)
 	if p.terminals != nil {
 		host.terminals = p.terminals

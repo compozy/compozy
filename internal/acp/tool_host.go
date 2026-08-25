@@ -47,7 +47,17 @@ type localToolHost struct {
 
 type localRuntimeConfig struct {
 	processRegistry *toolruntime.Registry
+	terminalManager TerminalHost
+	terminalScope   terminalScope
 	additionalRoots []string
+}
+
+type terminalScope struct {
+	workspaceID string
+	profileID   string
+	sessionID   string
+	generation  int64
+	actorID     string
 }
 
 // LocalRuntimeOption customizes local ACP runtime helpers.
@@ -57,6 +67,13 @@ type LocalRuntimeOption func(*localRuntimeConfig)
 func WithLocalProcessRegistry(registry *toolruntime.Registry) LocalRuntimeOption {
 	return func(cfg *localRuntimeConfig) {
 		cfg.processRegistry = registry
+	}
+}
+
+func WithLocalTerminalManager(manager TerminalHost, scope terminalScope) LocalRuntimeOption {
+	return func(cfg *localRuntimeConfig) {
+		cfg.terminalManager = manager
+		cfg.terminalScope = scope
 	}
 }
 
@@ -121,7 +138,7 @@ func newLocalToolHostFromPolicy(
 	return &localToolHost{
 		cwd:         root,
 		permissions: policy,
-		terminals:   newTerminalManager(ctx, logger, cfg.processRegistry),
+		terminals:   newTerminalManager(ctx, logger, root, cfg.terminalManager, cfg.terminalScope, cfg.processRegistry),
 	}
 }
 
@@ -248,11 +265,7 @@ func (h *localToolHost) terminalOwnership(id string) (terminalOwnership, error) 
 	if err != nil {
 		return terminalOwnership{}, err
 	}
-	return terminalOwnership{
-		networkOwned:   term.networkOwned,
-		ownerSessionID: term.ownerSessionID,
-		ownerTurnID:    term.ownerTurnID,
-	}, nil
+	return term.ownership, nil
 }
 
 func (h *localToolHost) Close() {

@@ -1,7 +1,6 @@
 package acp
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -286,7 +285,7 @@ func TestHandleWriteTextFileBlockedForNetworkTurn(t *testing.T) {
 	}
 }
 
-func TestHandleCreateTerminalBlocksNonAllowlistedCommandsForNetworkTurn(t *testing.T) {
+func assertTerminalNetworkTurnRejectsNonAllowlistedCommands(t *testing.T) {
 	t.Parallel()
 
 	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
@@ -908,7 +907,7 @@ func TestHandleInboundPermissionRequestAutoApprovesReadRequests(t *testing.T) {
 	}
 }
 
-func TestTerminalLifecycleHandlers(t *testing.T) {
+func assertTerminalLifecycleHandlers(t *testing.T) {
 	t.Parallel()
 
 	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
@@ -996,14 +995,18 @@ func TestTerminalLifecycleHandlers(t *testing.T) {
 	}
 }
 
-func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
+func assertNetworkTurnTerminalOwnershipGuards(t *testing.T) {
 	// This test mutates PATH with t.Setenv, so it must stay process-serial.
 	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 	turnSource := ""
 	proc.SetTurnSourceProvider(func() string { return turnSource })
 
 	compozyDir := t.TempDir()
-	writeFakeCompozyBinary(t, compozyDir, "printf network-ok")
+	writeFakeCompozyBinary(t, compozyDir, `
+if [ -n "${OPENAI_API_KEY-}" ]; then printf leaked-provider-secret; exit 41; fi
+if [ "${COMPOZY_HOME-}" = "/tmp/redirected" ]; then printf leaked-request-home; exit 42; fi
+if [ -n "${SAFE_NETWORK_OVERRIDE-}" ]; then printf leaked-request-env; exit 43; fi
+printf network-ok`)
 	t.Setenv("PATH", compozyDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("OPENAI_API_KEY", "sk-network-secret")
 
@@ -1031,20 +1034,11 @@ func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
 	if err != nil {
 		t.Fatalf("lookup(network terminal) error = %v", err)
 	}
-	if !networkTerm.networkOwned {
+	if !networkTerm.ownership.networkOwned {
 		t.Fatal("network terminal networkOwned = false, want true")
 	}
-	if networkTerm.ownerTurnID != "turn-network-1" {
-		t.Fatalf("network terminal ownerTurnID = %q, want %q", networkTerm.ownerTurnID, "turn-network-1")
-	}
-	if got, ok := envValue(networkTerm.cmd.Env, "OPENAI_API_KEY"); ok {
-		t.Fatalf("network terminal OPENAI_API_KEY = %q, want filtered", got)
-	}
-	if got, ok := envValue(networkTerm.cmd.Env, "COMPOZY_HOME"); ok {
-		t.Fatalf("network terminal COMPOZY_HOME = %q, want request env ignored", got)
-	}
-	if got, ok := envValue(networkTerm.cmd.Env, "SAFE_NETWORK_OVERRIDE"); ok {
-		t.Fatalf("network terminal SAFE_NETWORK_OVERRIDE = %q, want request env ignored", got)
+	if networkTerm.ownership.ownerTurnID != "turn-network-1" {
+		t.Fatalf("network terminal ownerTurnID = %q, want %q", networkTerm.ownership.ownerTurnID, "turn-network-1")
 	}
 
 	if _, err := proc.handleWaitForTerminalExit(context.Background(), acpsdk.WaitForTerminalExitRequest{
@@ -1185,14 +1179,6 @@ func TestHelperUtilities(t *testing.T) {
 		t.Fatalf("attachStderr(empty) = %v, want original error", got)
 	}
 
-	env := mergeCommandEnv(
-		[]string{"A=1", "B=2"},
-		[]acpsdk.EnvVariable{{Name: "B", Value: "3"}, {Name: "C", Value: "4"}},
-	)
-	if len(env) != 3 || env[1] != "B=3" || env[2] != "C=4" {
-		t.Fatalf("mergeCommandEnv() = %#v, want overridden env", env)
-	}
-
 	servers := toSDKMCPServers([]compozyconfig.MCPServer{{
 		Name:    "github",
 		Command: "npx",
@@ -1213,11 +1199,6 @@ func TestHelperUtilities(t *testing.T) {
 		acpsdk.ResourceLinkBlock("doc", "file:///tmp/demo.txt"),
 	); got != "file:///tmp/demo.txt" {
 		t.Fatalf("extractContentText(resource_link) = %q", got)
-	}
-
-	trimmed := trimUTF8LeadingBytes([]byte{0xff, 'h', 'i'})
-	if string(trimmed) != "hi" {
-		t.Fatalf("trimUTF8LeadingBytes() = %q, want %q", string(trimmed), "hi")
 	}
 
 	if sliceLines("a\nb\nc", new(2), new(2)) != "b\nc" {
@@ -1277,60 +1258,6 @@ func TestHelperUtilities(t *testing.T) {
 	}
 	if chooseString(nil, new("usd")) == nil {
 		t.Fatal("chooseString(nil, fallback) = nil, want fallback")
-	}
-}
-
-func TestTrimUTF8LeadingBytesPreservesTrailingPartialRune(t *testing.T) {
-	t.Parallel()
-
-	input := append([]byte("hello"), 0xE2)
-	got := trimUTF8LeadingBytes(append([]byte(nil), input...))
-	if !bytes.Equal(got, input) {
-		t.Fatalf("trimUTF8LeadingBytes() = %v, want %v", got, input)
-	}
-}
-
-func TestManagedTerminalAppendOutputOverflowPreservesTrailingPartialRune(t *testing.T) {
-	t.Parallel()
-
-	term := &managedTerminal{
-		output:      bytes.Repeat([]byte("a"), defaultTerminalOutputLimit),
-		outputLimit: defaultTerminalOutputLimit,
-	}
-
-	term.appendOutput([]byte{0xE2})
-
-	if !term.truncated {
-		t.Fatal("appendOutput() did not mark output as truncated")
-	}
-	if len(term.output) != defaultTerminalOutputLimit {
-		t.Fatalf("len(term.output) = %d, want %d", len(term.output), defaultTerminalOutputLimit)
-	}
-	if cap(term.output) > defaultTerminalOutputLimit {
-		t.Fatalf("cap(term.output) = %d, want <= %d", cap(term.output), defaultTerminalOutputLimit)
-	}
-	if term.output[len(term.output)-1] != 0xE2 {
-		t.Fatalf("last output byte = 0x%x, want 0xE2", term.output[len(term.output)-1])
-	}
-	if term.output[0] != 'a' {
-		t.Fatalf("first output byte = 0x%x, want 'a'", term.output[0])
-	}
-}
-
-func TestManagedTerminalAppendOutputUsesConfiguredLimit(t *testing.T) {
-	t.Parallel()
-
-	term := &managedTerminal{
-		outputLimit: 4,
-	}
-
-	term.appendOutput([]byte("abcdef"))
-
-	if got, want := string(term.output), "cdef"; got != want {
-		t.Fatalf("string(term.output) = %q, want %q", got, want)
-	}
-	if !term.truncated {
-		t.Fatal("appendOutput() truncated = false, want true")
 	}
 }
 
@@ -1952,13 +1879,16 @@ func newDirectProcess(t *testing.T, mode compozyconfig.PermissionMode) *AgentPro
 	}
 
 	proc := &AgentProcess{
-		AgentName:         "direct",
-		Cwd:               root,
-		SessionID:         "sess-direct",
-		StartedAt:         timeNowUTC(),
-		processCtx:        ctx,
-		permissions:       policy,
-		terminals:         newTerminalManager(ctx, slog.Default()),
+		AgentName:   "direct",
+		Cwd:         root,
+		SessionID:   "sess-direct",
+		StartedAt:   timeNowUTC(),
+		processCtx:  ctx,
+		permissions: policy,
+		terminals: newTerminalManager(
+			ctx, slog.Default(), root, nil,
+			terminalScope{workspaceID: "acp-test", profileID: "acp-test", sessionID: "sess-direct", actorID: "direct"},
+		),
 		done:              make(chan struct{}),
 		cancelProcess:     cancel,
 		stderr:            &lockedBuffer{},

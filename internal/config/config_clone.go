@@ -8,6 +8,7 @@ func CloneConfig(source *Config) Config {
 
 	cloned := *source
 	cloned.WindowManager = cloneWindowManagerConfig(source.WindowManager)
+	cloned.Terminal = cloneTerminalConfig(source.Terminal)
 	cloned.CmdPalette = CloneCmdPaletteConfig(source.CmdPalette)
 	cloned.MCPServers = cloneMCPServers(source.MCPServers)
 	cloned.Providers = cloneProviders(source.Providers)
@@ -38,6 +39,8 @@ func CloneConfig(source *Config) Config {
 	cloned.Hooks.Declarations = cloneHookDecls(source.Hooks.Declarations)
 	return cloned
 }
+
+func cloneTerminalConfig(source TerminalConfig) TerminalConfig { return source }
 
 func cloneConfigSandboxProfiles(source map[string]SandboxProfile) map[string]SandboxProfile {
 	if len(source) == 0 {

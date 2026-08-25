@@ -3,6 +3,7 @@ package daemon
 import (
 	"log/slog"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
@@ -48,6 +49,7 @@ type SessionManagerDeps struct {
 	AttentionWorkspaceMutes session.AttentionWorkspaceMuteReader
 	SessionCatalog          store.SessionCatalog
 	ProcessRegistry         *toolruntime.Registry
+	Terminals               acp.TerminalHost
 	HostedMCP               session.HostedMCPLauncher
 	ProviderSecrets         session.ProviderSecretResolver
 	ProfileNames            session.ProfileNameResolver
@@ -108,6 +110,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		AttentionWorkspaceMutes: state.registry,
 		SessionCatalog:          state.registry,
 		ProcessRegistry:         state.processRegistry,
+		Terminals:               state.terminals,
 		HostedMCP:               hostedMCPLauncher(state.hostedMCP),
 		ProviderSecrets:         sessionProviderVaultDependency(state.providerVault),
 		ProfileNames:            state.profiles,

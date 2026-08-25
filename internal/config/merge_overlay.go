@@ -7,6 +7,7 @@ type configOverlay struct {
 	Shell         *shellOverlay              `toml:"shell"`
 	Attention     attentionOverlay           `toml:"attention"`
 	WindowManager windowManagerOverlay       `toml:"window_manager"`
+	Terminal      terminalOverlay            `toml:"terminal"`
 	CmdPalette    cmdPaletteOverlay          `toml:"cmd_palette"`
 	Defaults      defaultsOverlay            `toml:"defaults"`
 	Agents        agentsOverlay              `toml:"agents"`
@@ -47,6 +48,7 @@ func (o *configOverlay) Apply(dst *Config) error {
 	}
 	o.Attention.Apply(&dst.Attention)
 	o.WindowManager.Apply(&dst.WindowManager)
+	o.Terminal.Apply(&dst.Terminal)
 	o.CmdPalette.Apply(&dst.CmdPalette)
 	o.Defaults.Apply(&dst.Defaults)
 	o.Agents.Apply(&dst.Agents)

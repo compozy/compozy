@@ -81,6 +81,7 @@ type Config struct {
 	Shell         ShellConfig               `toml:"shell"`
 	Attention     AttentionConfig           `toml:"attention"`
 	WindowManager WindowManagerConfig       `toml:"window_manager"`
+	Terminal      TerminalConfig            `toml:"terminal"`
 	CmdPalette    CmdPaletteConfig          `toml:"cmd_palette"`
 	Defaults      DefaultsConfig            `toml:"defaults"`
 	Agents        AgentsConfig              `toml:"agents"`
