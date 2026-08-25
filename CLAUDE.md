@@ -82,7 +82,7 @@ Compozy Impact Audit:
 
 | Domain                                            | Required Skills                                                                          | Conditional Skills                    |
 | ------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------- |
-| Go / Runtime                                      | `eng-code-guidelines` + `golang-master`                                                  | `context7`                            |
+| Go / Runtime                                      | `eng-code-guidelines` + `golang-master` + `use-modern-go`                                | `context7`                            |
 | Config / Logging                                  | `eng-code-guidelines` + `golang-master`                                                  |                                       |
 | TUI / CLI Bubbletea                               | `bubbletea` + `eng-code-guidelines` + `golang-master`                                    |                                       |
 | Bug fix                                           | `systematic-debugging` + `no-workarounds`                                                | `testing-boss`                        |

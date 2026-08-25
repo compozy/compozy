@@ -312,6 +312,12 @@
             "skillPath": "skills/mine/ui-craft/SKILL.md",
             "computedHash": "417f8474a809ab2d42e4131de172d1b0cc66b8cf47a4a307f3b5aa760ac36f74"
         },
+        "use-modern-go": {
+            "source": "JetBrains/go-modern-guidelines",
+            "sourceType": "github",
+            "skillPath": "plugin/skills/use-modern-go/SKILL.md",
+            "computedHash": "a965eabdf8e51c4cab6fcd08d6a7711176ac60c55a458d57f95df7115e93a6cb"
+        },
         "vercel-composition-patterns": {
             "source": "pedronauck/skills",
             "sourceType": "github",
