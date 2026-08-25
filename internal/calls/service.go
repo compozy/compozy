@@ -31,20 +31,22 @@ type serviceOptions struct {
 }
 
 type Service struct {
-	store        Store
-	directory    Directory
-	claimer      ActivationClaimer
-	canceler     ActivationRunCanceler
-	invoker      SessionInvoker
-	config       config.CallsConfig
-	resultPolicy contracts.CallsResultsConfig
-	registry     contracts.Registry
-	idleTTL      time.Duration
-	now          func() time.Time
-	newID        func(string) (string, error)
-	waitMu       sync.Mutex
-	waiters      map[string]map[uint64]chan struct{}
-	nextWaiterID uint64
+	store           Store
+	directory       Directory
+	claimer         ActivationClaimer
+	canceler        ActivationRunCanceler
+	invoker         SessionInvoker
+	config          config.CallsConfig
+	resultPolicy    contracts.CallsResultsConfig
+	registry        contracts.Registry
+	idleTTL         time.Duration
+	messageDedup    time.Duration
+	messageMaxBytes int
+	now             func() time.Time
+	newID           func(string) (string, error)
+	waitMu          sync.Mutex
+	waiters         map[string]map[uint64]chan struct{}
+	nextWaiterID    uint64
 }
 
 func WithStore(value Store) Option { return func(opts *serviceOptions) { opts.store = value } }
@@ -104,10 +106,19 @@ func NewService(options ...Option) (*Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("calls: resolve idle ttl: %w", err)
 	}
+	messageDedup, err := opts.config.Messages.DedupWindowDuration()
+	if err != nil {
+		return nil, fmt.Errorf("calls: resolve message dedup window: %w", err)
+	}
+	messageMaxBytes, err := config.ParseByteSize(opts.config.Messages.MaxBytes)
+	if err != nil {
+		return nil, fmt.Errorf("calls: resolve message byte limit: %w", err)
+	}
 	return &Service{
 		store: opts.store, directory: opts.directory, claimer: opts.claimer,
 		canceler: opts.canceler, invoker: opts.invoker, config: opts.config,
-		resultPolicy: resultPolicy, idleTTL: idleTTL, now: opts.now, newID: opts.newID,
+		resultPolicy: resultPolicy, idleTTL: idleTTL, messageDedup: messageDedup,
+		messageMaxBytes: messageMaxBytes, now: opts.now, newID: opts.newID,
 		registry: contracts.NewRegistry(opts.store),
 		waiters:  make(map[string]map[uint64]chan struct{}),
 	}, nil

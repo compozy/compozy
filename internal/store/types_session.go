@@ -92,6 +92,9 @@ type SessionInfo struct {
 	TranscriptEpoch  int64
 	Attention        *SessionAttention
 	ArchivedAt       *time.Time
+	ParkedAt         *time.Time
+	IdleExpiresAt    *time.Time
+	DrainingAt       *time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 }

@@ -1,0 +1,344 @@
+package calls
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"strings"
+	"unicode/utf8"
+
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/contracts"
+)
+
+const maxDeliveryAttempts = 3
+
+func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (MessageRecord, error) {
+	mailbox, err := s.mailboxStore()
+	if err != nil {
+		return MessageRecord{}, err
+	}
+	input.ProfileID = strings.TrimSpace(input.ProfileID)
+	input.WorkspaceID = strings.TrimSpace(input.WorkspaceID)
+	input.From.Kind = strings.TrimSpace(input.From.Kind)
+	input.From.ID = strings.TrimSpace(input.From.ID)
+	input.To = strings.TrimSpace(input.To)
+	input.CallID = strings.TrimSpace(input.CallID)
+	if input.Scope == "" {
+		if input.WorkspaceID == "" {
+			input.Scope = ScopeGlobal
+		} else {
+			input.Scope = ScopeWorkspace
+		}
+	}
+	if err := validateMessageIdentity(input); err != nil {
+		return MessageRecord{}, err
+	}
+	clean, _, reject := contracts.SanitizeText(input.Body)
+	if reject {
+		return MessageRecord{}, newError(CodeValidation, "message contains unsafe secret material", nil)
+	}
+	if strings.TrimSpace(clean) == "" {
+		return MessageRecord{}, newError(CodeValidation, "message body is required", nil)
+	}
+	if len([]byte(clean)) > s.messageMaxBytes {
+		return MessageRecord{}, newError(
+			CodeMessageTooLarge,
+			fmt.Sprintf("message is %d bytes; maximum is %d", len([]byte(clean)), s.messageMaxBytes),
+			nil,
+		)
+	}
+	messageID, err := s.newID("msg")
+	if err != nil {
+		return MessageRecord{}, fmt.Errorf("calls: generate message id: %w", err)
+	}
+	digest := sha256.Sum256([]byte(clean))
+	now := s.now().UTC()
+	return mailbox.AcceptMessage(ctx, MessageAdmission{
+		Record: MessageRecord{
+			MessageID: messageID, ProfileID: input.ProfileID, Scope: input.Scope,
+			WorkspaceID: input.WorkspaceID, From: input.From, CallID: input.CallID,
+			Body: clean, DedupHash: hex.EncodeToString(digest[:]), CreatedAt: now,
+		},
+		Target: input.To, DedupWindow: s.messageDedup,
+		RateLimit:  s.config.Messages.RateLimitPerMinute,
+		PendingCap: s.config.Messages.PendingCap,
+	})
+}
+
+func validateMessageIdentity(input SendMessageInput) error {
+	switch {
+	case input.ProfileID == "":
+		return newError(CodeValidation, "profile_id is required", nil)
+	case input.From.Kind != "session" && input.From.Kind != "operator":
+		return newError(CodeValidation, "message sender must be session or operator", nil)
+	case input.From.ID == "":
+		return newError(CodeValidation, "message sender id is required", nil)
+	case input.To == "":
+		return newError(CodeValidation, "message target is required", nil)
+	case input.Scope == ScopeWorkspace && input.WorkspaceID == "":
+		return newError(CodeValidation, "workspace scope requires workspace_id", nil)
+	case input.Scope == ScopeGlobal && input.WorkspaceID != "":
+		return newError(CodeValidation, "global scope requires an empty workspace_id", nil)
+	case input.Scope != ScopeGlobal && input.Scope != ScopeWorkspace:
+		return newError(CodeValidation, fmt.Sprintf("unsupported scope %q", input.Scope), nil)
+	default:
+		return nil
+	}
+}
+
+func (s *Service) Message(ctx context.Context, scope CallScope, messageID string) (MessageRecord, error) {
+	mailbox, err := s.mailboxStore()
+	if err != nil {
+		return MessageRecord{}, err
+	}
+	return mailbox.GetMessage(ctx, scope, strings.TrimSpace(messageID))
+}
+
+func RenderPeerMessage(message MessageRecord, maxBytes int) string {
+	agent := strings.TrimSpace(message.FromAgentName)
+	if agent == "" {
+		agent = "unknown"
+	}
+	origin := fmt.Sprintf("from agent %s (%s), not the operator", agent, strings.TrimSpace(message.From.ID))
+	body, _, reject := contracts.SanitizeText(message.Body)
+	if reject {
+		body = "[message removed: unsafe secret material]"
+	}
+	prefix := origin + "\n<untrusted-agent-message>\n"
+	suffix := "\n</untrusted-agent-message>"
+	if maxBytes <= 0 {
+		return prefix + body + suffix
+	}
+	bodyBudget := maxBytes - len([]byte(prefix)) - len([]byte(suffix))
+	if bodyBudget < 0 {
+		return truncateUTF8(origin, maxBytes)
+	}
+	return prefix + truncateUTF8(body, bodyBudget) + suffix
+}
+
+func truncateUTF8(value string, maxBytes int) string {
+	if maxBytes <= 0 {
+		return ""
+	}
+	raw := []byte(value)
+	if len(raw) <= maxBytes {
+		return value
+	}
+	raw = raw[:maxBytes]
+	for len(raw) > 0 && !utf8.Valid(raw) {
+		raw = raw[:len(raw)-1]
+	}
+	return string(raw)
+}
+
+func (s *Service) DrainDeliveries(ctx context.Context, recipientSessionID string, limit int) error {
+	if s.invoker == nil {
+		return errors.New("calls: session invoker is required for delivery")
+	}
+	mailbox, err := s.mailboxStore()
+	if err != nil {
+		return err
+	}
+	deliveries, err := mailbox.ListPendingDeliveries(ctx, strings.TrimSpace(recipientSessionID), limit)
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, item := range deliveries {
+		content, buildErr := s.deliveryContent(ctx, item)
+		if buildErr != nil {
+			errs = append(errs, s.failDelivery(ctx, item, "payload_unavailable", buildErr))
+			continue
+		}
+		outcome, deliverErr := s.invoker.DeliverAtBoundary(ctx, Delivery{
+			CallID: item.SubjectID, RecipientSessionID: item.RecipientSessionID,
+			Body: content.body, Kind: item.Kind, WakeEventID: item.WakeEventID,
+			Metadata: content.metadata,
+		})
+		if deliverErr != nil {
+			errs = append(errs, s.failDelivery(ctx, item, "delivery_error", deliverErr))
+			continue
+		}
+		if outcome.State == "pending" {
+			continue
+		}
+		if outcome.State != "injected" && outcome.State != "woken" {
+			errs = append(errs, s.failDelivery(
+				ctx,
+				item,
+				"invalid_delivery_outcome",
+				fmt.Errorf("unsupported delivery outcome %q", outcome.State),
+			))
+			continue
+		}
+		if outcome.State == "woken" {
+			if clearErr := mailbox.ClearCallChildIdleClock(
+				ctx,
+				item.RecipientSessionID,
+				s.now().UTC(),
+			); clearErr != nil {
+				errs = append(errs, clearErr)
+				continue
+			}
+		}
+		if _, updateErr := mailbox.RecordDelivery(ctx, DeliveryUpdate{
+			DeliveryID: item.DeliveryID, State: outcome.State, Reason: outcome.Reason,
+			At: s.now().UTC(), MaxAttempts: maxDeliveryAttempts,
+		}); updateErr != nil {
+			errs = append(errs, updateErr)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (s *Service) failDelivery(ctx context.Context, item DeliveryRecord, reason string, cause error) error {
+	mailbox, storeErr := s.mailboxStore()
+	if storeErr != nil {
+		return errors.Join(cause, storeErr)
+	}
+	_, err := mailbox.RecordDelivery(ctx, DeliveryUpdate{
+		DeliveryID: item.DeliveryID, State: "pending", Reason: reason,
+		At: s.now().UTC(), MaxAttempts: maxDeliveryAttempts,
+	})
+	return errors.Join(
+		fmt.Errorf("calls: deliver %q: %w", item.DeliveryID, safeDeliveryCause(cause)),
+		err,
+	)
+}
+
+func safeDeliveryCause(cause error) error {
+	if cause == nil {
+		return errors.New("unknown delivery failure")
+	}
+	if errors.Is(cause, context.Canceled) {
+		return context.Canceled
+	}
+	if errors.Is(cause, context.DeadlineExceeded) {
+		return context.DeadlineExceeded
+	}
+	clean, _, reject := contracts.SanitizeText(cause.Error())
+	if reject || strings.TrimSpace(clean) == "" {
+		return errors.New("delivery failed with unsafe diagnostic material")
+	}
+	return errors.New(clean)
+}
+
+type durableDeliveryContent struct {
+	body     string
+	metadata acp.PromptSyntheticMeta
+}
+
+func (s *Service) deliveryContent(ctx context.Context, delivery DeliveryRecord) (durableDeliveryContent, error) {
+	mailbox, err := s.mailboxStore()
+	if err != nil {
+		return durableDeliveryContent{}, err
+	}
+	switch delivery.Kind {
+	case "message":
+		message, err := mailbox.GetMessage(ctx, CallScope{}, delivery.SubjectID)
+		if err == nil {
+			return durableDeliveryContent{
+				body: RenderPeerMessage(message, s.messageMaxBytes),
+				metadata: acp.PromptSyntheticMeta{
+					MessageID: message.MessageID, CallID: message.CallID,
+					DeliveryKind: delivery.Kind, Reason: "call_message", WakeEventID: delivery.WakeEventID,
+				},
+			}, nil
+		}
+		if !IsCode(err, CodeMessageNotFound) {
+			return durableDeliveryContent{}, err
+		}
+		call, err := s.store.GetCallForSettlement(ctx, delivery.SubjectID)
+		if err != nil {
+			return durableDeliveryContent{}, err
+		}
+		prompt, err := mailbox.GetCallPayload(ctx, call.WorkspaceID, call.PromptRef)
+		if err != nil {
+			return durableDeliveryContent{}, err
+		}
+		return durableDeliveryContent{
+			body: string(prompt), metadata: deliverySyntheticMetadata(delivery, call, "call_follow_up"),
+		}, nil
+	case "completion":
+		call, err := s.store.GetCallForSettlement(ctx, delivery.SubjectID)
+		if err != nil {
+			return durableDeliveryContent{}, err
+		}
+		var payload []byte
+		if call.ResultRef != "" {
+			payload, err = mailbox.GetCallPayload(ctx, call.WorkspaceID, call.ResultRef)
+			if err != nil {
+				return durableDeliveryContent{}, err
+			}
+		}
+		return durableDeliveryContent{
+			body:     RenderCompletionWake(call, payload),
+			metadata: deliverySyntheticMetadata(delivery, call, "call_completion"),
+		}, nil
+	case "repair":
+		call, err := s.store.GetCallForSettlement(ctx, delivery.SubjectID)
+		if err != nil {
+			return durableDeliveryContent{}, err
+		}
+		body, _, reject := contracts.SanitizeText(call.FirstIssueText)
+		if reject || strings.TrimSpace(body) == "" {
+			return durableDeliveryContent{}, errors.New("calls: repair delivery has no safe issue text")
+		}
+		return durableDeliveryContent{
+			body: body, metadata: deliverySyntheticMetadata(delivery, call, "call_repair"),
+		}, nil
+	default:
+		return durableDeliveryContent{}, fmt.Errorf("calls: unsupported delivery kind %q", delivery.Kind)
+	}
+}
+
+func deliverySyntheticMetadata(
+	delivery DeliveryRecord,
+	call CallRecord,
+	reason string,
+) acp.PromptSyntheticMeta {
+	return acp.PromptSyntheticMeta{
+		CallID: call.CallID, CallState: string(call.State), ResultRef: call.ResultRef,
+		ResultBytes: call.ResultBytes, ContractDigest: call.ExpectDigest,
+		DeliveryKind: delivery.Kind, Reason: reason, WakeEventID: delivery.WakeEventID,
+	}
+}
+
+func (s *Service) mailboxStore() (MailboxStore, error) {
+	mailbox, ok := s.store.(MailboxStore)
+	if !ok {
+		return nil, errors.New("calls: store does not implement mailbox persistence")
+	}
+	return mailbox, nil
+}
+
+func (s *Service) FenceReapSession(ctx context.Context, sessionID string) (bool, error) {
+	mailbox, err := s.mailboxStore()
+	if err != nil {
+		return false, err
+	}
+	return mailbox.FenceSessionReap(ctx, strings.TrimSpace(sessionID), s.now().UTC())
+}
+
+func (s *Service) FailRecipientDeliveries(ctx context.Context, sessionID, reason string) error {
+	mailbox, err := s.mailboxStore()
+	if err != nil {
+		return err
+	}
+	return mailbox.FailPendingDeliveriesForRecipient(
+		ctx, strings.TrimSpace(sessionID), strings.TrimSpace(reason), s.now().UTC(),
+	)
+}
+
+func (s *Service) FinalizeReapedSession(ctx context.Context, sessionID, reason string) error {
+	mailbox, err := s.mailboxStore()
+	if err != nil {
+		return err
+	}
+	return mailbox.FinalizeReapedSession(
+		ctx, strings.TrimSpace(sessionID), strings.TrimSpace(reason), s.now().UTC(),
+	)
+}

@@ -38,6 +38,11 @@ func (g *CallRepo) BindActivationChild(
 		if err := requireOneCallRow(result, binding.CallID, "bind activation child"); err != nil {
 			return err
 		}
+		if _, err := exec.ExecContext(ctx, `UPDATE sessions
+			SET parked_at = NULL, idle_expires_at = NULL, updated_at = ? WHERE id = ?`,
+			store.FormatTimestamp(binding.ActivatedAt), strings.TrimSpace(binding.ChildID)); err != nil {
+			return fmt.Errorf("store: clear revived child idle state %q: %w", binding.ChildID, err)
+		}
 		var loadErr error
 		record, loadErr = getCallByIDWithExecutor(ctx, exec, binding.CallID)
 		return loadErr

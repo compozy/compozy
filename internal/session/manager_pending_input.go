@@ -10,6 +10,25 @@ import (
 	"github.com/compozy/compozy/internal/transcript"
 )
 
+// QueuedInputDeliveryStatus returns the exact durable state of one accepted queue entry.
+func (m *Manager) QueuedInputDeliveryStatus(
+	ctx context.Context,
+	sessionID string,
+	entryID string,
+) (InputDeliveryStatus, error) {
+	if m == nil || m.inputQueue == nil {
+		return InputDeliveryStatus{}, errors.New("session: input queue is not configured")
+	}
+	if ctx == nil {
+		return InputDeliveryStatus{}, errors.New("session: queued input status context is required")
+	}
+	entry, err := m.inputQueue.Get(ctx, strings.TrimSpace(sessionID), strings.TrimSpace(entryID))
+	if err != nil {
+		return InputDeliveryStatus{}, err
+	}
+	return InputDeliveryStatus{Status: entry.Status, FailureSummary: entry.FailureSummary}, nil
+}
+
 // ListPendingInputs returns the daemon-owned current-generation input queue.
 func (m *Manager) ListPendingInputs(ctx context.Context, id string) ([]PendingInput, error) {
 	if m == nil {

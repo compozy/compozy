@@ -26,6 +26,12 @@ type PendingInput struct {
 	Attachments      []AttachmentMeta
 }
 
+// InputDeliveryStatus reports the durable dispatch state of one queued prompt.
+type InputDeliveryStatus struct {
+	Status         string
+	FailureSummary string
+}
+
 // ReplacePendingInputOpts carries an atomic queued-input replacement.
 type ReplacePendingInputOpts struct {
 	Text           string
@@ -59,6 +65,7 @@ type SendPromptOpts struct {
 	Message         string
 	MessageID       string
 	IdempotencyKey  string
+	Synthetic       *acp.PromptSyntheticMeta
 	Mode            BusyInputMode
 	Runtime         *RuntimeSelection
 	ExpectedTurnID  string

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
@@ -37,6 +38,9 @@ type sessionInfoRow struct {
 	spawnBudgetJSON        string
 	permissionPolicyJSON   string
 	archivedAt             sql.NullString
+	parkedAt               sql.NullString
+	idleExpiresAt          sql.NullString
+	drainingAt             sql.NullString
 	acpSessionID           sql.NullString
 	stopReason             sql.NullString
 	stopDetail             sql.NullString
@@ -264,6 +268,9 @@ func populateSessionScanParts(session *store.SessionInfo, row *sessionInfoRow) e
 		}
 		session.ArchivedAt = &archivedAt
 	}
+	if err := assignSessionLifecycleTimes(session, row); err != nil {
+		return err
+	}
 
 	createdAt, updatedAt, err := parseSessionInfoTimestamps(row.createdAtRaw, row.updatedAtRaw)
 	if err != nil {
@@ -316,6 +323,9 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.permissionPolicyJSON,
 		&row.session.State,
 		&row.archivedAt,
+		&row.parkedAt,
+		&row.idleExpiresAt,
+		&row.drainingAt,
 		&row.acpSessionID,
 		&row.stopReason,
 		&row.stopDetail,
@@ -355,6 +365,29 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		return sessionInfoRow{}, fmt.Errorf("store: scan session info: %w", err)
 	}
 	return row, nil
+}
+
+func assignSessionLifecycleTimes(session *store.SessionInfo, row *sessionInfoRow) error {
+	values := []struct {
+		name   string
+		raw    sql.NullString
+		target **time.Time
+	}{
+		{name: "parked_at", raw: row.parkedAt, target: &session.ParkedAt},
+		{name: "idle_expires_at", raw: row.idleExpiresAt, target: &session.IdleExpiresAt},
+		{name: "draining_at", raw: row.drainingAt, target: &session.DrainingAt},
+	}
+	for _, value := range values {
+		if !value.raw.Valid || strings.TrimSpace(value.raw.String) == "" {
+			continue
+		}
+		parsed, err := store.ParseTimestamp(value.raw.String)
+		if err != nil {
+			return fmt.Errorf("store: parse session %s: %w", value.name, err)
+		}
+		*value.target = &parsed
+	}
+	return nil
 }
 
 func scanSessionSandbox(

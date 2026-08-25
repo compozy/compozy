@@ -39,15 +39,22 @@ type spawnReaperTTLStopper interface {
 var _ spawnReaperTTLStopper = (*session.Manager)(nil)
 
 type spawnReaper struct {
-	ctx      context.Context
-	cancel   context.CancelFunc
-	sessions SessionManager
-	tasks    spawnLeaseReleaser
-	hooks    session.SpawnHooks
-	logger   *slog.Logger
-	now      func() time.Time
-	interval time.Duration
-	wg       sync.WaitGroup
+	ctx           context.Context
+	cancel        context.CancelFunc
+	sessions      SessionManager
+	tasks         spawnLeaseReleaser
+	hooks         session.SpawnHooks
+	logger        *slog.Logger
+	now           func() time.Time
+	interval      time.Duration
+	callLifecycle spawnReaperCallLifecycle
+	wg            sync.WaitGroup
+}
+
+type spawnReaperCallLifecycle interface {
+	FenceReapSession(context.Context, string) (bool, error)
+	FailRecipientDeliveries(context.Context, string, string) error
+	FinalizeReapedSession(context.Context, string, string) error
 }
 
 type spawnReaperReport struct {
@@ -73,6 +80,7 @@ func newSpawnReaper(
 	logger *slog.Logger,
 	now func() time.Time,
 	interval time.Duration,
+	callLifecycle ...spawnReaperCallLifecycle,
 ) (*spawnReaper, error) {
 	if ctx == nil {
 		return nil, errors.New("daemon: spawn reaper context is required")
@@ -93,7 +101,7 @@ func newSpawnReaper(
 		interval = defaultSpawnReaperInterval
 	}
 	reaperCtx, cancel := context.WithCancel(ctx)
-	return &spawnReaper{
+	reaper := &spawnReaper{
 		ctx:      reaperCtx,
 		cancel:   cancel,
 		sessions: sessions,
@@ -102,7 +110,11 @@ func newSpawnReaper(
 		logger:   logger,
 		now:      now,
 		interval: interval,
-	}, nil
+	}
+	if len(callLifecycle) > 0 {
+		reaper.callLifecycle = callLifecycle[0]
+	}
+	return reaper, nil
 }
 
 func (r *spawnReaper) start() {
@@ -190,6 +202,16 @@ func (r *spawnReaper) Sweep(ctx context.Context) (spawnReaperReport, error) {
 		if !ok {
 			continue
 		}
+		if r.callLifecycle != nil {
+			allowed, protectErr := r.callLifecycle.FenceReapSession(ctx, info.ID)
+			if protectErr != nil {
+				errs = append(errs, fmt.Errorf("daemon: inspect call reaper protection for %q: %w", info.ID, protectErr))
+				continue
+			}
+			if !allowed {
+				continue
+			}
+		}
 		report.Checked++
 		if err := r.reap(ctx, candidate, &report); err != nil {
 			errs = append(errs, err)
@@ -202,7 +224,7 @@ func (r *spawnReaper) reapCandidate(
 	info *session.Info,
 	parents map[string]*session.Info,
 ) (spawnReapCandidate, bool) {
-	if info == nil || !spawnReaperLiveState(info.State) {
+	if info == nil || (!spawnReaperLiveState(info.State) && info.ParkedAt == nil) {
 		return spawnReapCandidate{}, false
 	}
 	switch info.Type {
@@ -245,6 +267,14 @@ func (r *spawnReaper) reapSpawnedCandidate(
 	info.Lineage = lineage
 
 	now := r.now().UTC()
+	if info.ParkedAt != nil {
+		if info.IdleExpiresAt == nil || info.IdleExpiresAt.After(now) {
+			return spawnReapCandidate{}, false
+		}
+		return spawnReapCandidate{
+			child: info, parent: parents[lineage.ParentSessionID], reason: spawnReapReasonTTLExpired,
+		}, true
+	}
 	if lineage.TTLExpiresAt != nil && !lineage.TTLExpiresAt.After(now) {
 		return spawnReapCandidate{
 			child:  info,
@@ -287,7 +317,15 @@ func (r *spawnReaper) reap(
 	}
 
 	stopErr := r.stopChild(ctx, child, reason)
-	if stopErr == nil && report != nil {
+	var deliveryErr error
+	var finalizeErr error
+	if stopErr == nil && r.callLifecycle != nil {
+		deliveryErr = r.callLifecycle.FailRecipientDeliveries(ctx, child.ID, reason)
+		if deliveryErr == nil {
+			finalizeErr = r.callLifecycle.FinalizeReapedSession(ctx, child.ID, reason)
+		}
+	}
+	if stopErr == nil && deliveryErr == nil && finalizeErr == nil && report != nil {
 		report.Reaped++
 		switch reason {
 		case spawnReapReasonTTLExpired:
@@ -298,7 +336,7 @@ func (r *spawnReaper) reap(
 			report.Orphaned++
 		}
 	}
-	r.dispatchReapedHook(ctx, candidate, errors.Join(releaseErr, stopErr))
+	r.dispatchReapedHook(ctx, candidate, errors.Join(releaseErr, stopErr, finalizeErr, deliveryErr))
 
 	var errs []error
 	if releaseErr != nil {
@@ -306,6 +344,12 @@ func (r *spawnReaper) reap(
 	}
 	if stopErr != nil {
 		errs = append(errs, fmt.Errorf("daemon: stop spawned child %q: %w", child.ID, stopErr))
+	}
+	if deliveryErr != nil {
+		errs = append(errs, fmt.Errorf("daemon: fail deliveries for reaped child %q: %w", child.ID, deliveryErr))
+	}
+	if finalizeErr != nil {
+		errs = append(errs, fmt.Errorf("daemon: finalize reaped child %q: %w", child.ID, finalizeErr))
 	}
 	return errors.Join(errs...)
 }
@@ -331,6 +375,9 @@ func (r *spawnReaper) stopChild(
 	child *session.Info,
 	reason string,
 ) error {
+	if child.ParkedAt != nil && child.State == session.StateStopped {
+		return nil
+	}
 	if reason == spawnReapReasonTTLExpired {
 		if stopper, ok := r.sessions.(spawnReaperTTLStopper); ok {
 			err := stopper.StopWithSpawnTTL(ctx, child.ID, "spawn_reaper:"+reason)

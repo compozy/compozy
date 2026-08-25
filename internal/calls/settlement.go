@@ -129,15 +129,6 @@ func (s *Service) handleInvalidResult(
 ) (Settlement, error) {
 	prompt := contracts.BuildRepairPrompt(issues)
 	if record.RepairAttempts == 0 && childLive {
-		if s.invoker == nil {
-			return Settlement{}, errors.New("calls: session invoker is required for repair")
-		}
-		if _, err := s.invoker.DeliverAtBoundary(ctx, Delivery{
-			CallID: record.CallID, RecipientSessionID: record.ChildSessionID,
-			Body: prompt, Kind: "repair",
-		}); err != nil {
-			return Settlement{}, fmt.Errorf("calls: deliver repair for %q: %w", record.CallID, err)
-		}
 		updated, err := s.store.RecordRepair(ctx, RepairMutation{
 			CallID: record.CallID, IssueText: prompt, At: s.now().UTC(),
 		})
@@ -240,8 +231,32 @@ func (s *Service) settleTerminal(
 	settled, err := s.store.SettleCall(ctx, mutation)
 	if err == nil {
 		s.notifyWaiters(record.CallID)
+		if parkErr := s.parkSettledChild(ctx, settled); parkErr != nil {
+			return settled, parkErr
+		}
 	}
 	return settled, err
+}
+
+func (s *Service) parkSettledChild(ctx context.Context, record CallRecord) error {
+	childID := strings.TrimSpace(record.ChildSessionID)
+	if childID == "" || s.invoker == nil {
+		return nil
+	}
+	mailbox, ok := s.store.(MailboxStore)
+	if !ok {
+		return nil
+	}
+	now := s.now().UTC()
+	eligible, err := mailbox.ParkCallChild(ctx, childID, now, now.Add(record.IdleTTL))
+	if err != nil || !eligible {
+		return err
+	}
+	if err := s.invoker.StopManaged(ctx, childID, "call child parked"); err != nil {
+		clearErr := mailbox.ClearCallChildIdleClock(ctx, childID, now)
+		return errors.Join(fmt.Errorf("calls: park child runtime %q: %w", childID, err), clearErr)
+	}
+	return nil
 }
 
 func (s *Service) fenceActivation(

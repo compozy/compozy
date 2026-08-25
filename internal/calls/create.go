@@ -82,6 +82,15 @@ func (s *Service) normalizeCreate(
 	in.Actor.ID = strings.TrimSpace(in.Actor.ID)
 	in.Caller.ID = strings.TrimSpace(in.Caller.ID)
 	in.Caller.WorkspaceID = strings.TrimSpace(in.Caller.WorkspaceID)
+	cleanPrompt, _, rejectPrompt := contracts.SanitizeText(in.Prompt)
+	if rejectPrompt {
+		return CreateInput{}, TargetContext{}, nil, newError(
+			CodeValidation,
+			"call prompt contains unsafe secret material",
+			nil,
+		)
+	}
+	in.Prompt = cleanPrompt
 	if in.Scope == "" {
 		if in.WorkspaceID == "" {
 			in.Scope = ScopeGlobal
@@ -192,7 +201,11 @@ func validateTargetContext(
 	if in.Target.SessionID != "" {
 		switch strings.TrimSpace(target.State) {
 		case "expired":
-			return newError(CodeTargetExpired, fmt.Sprintf("target expired at %s", target.ExpiredAt.UTC().Format(time.RFC3339Nano)), nil)
+			expiredAt := target.ExpiredAt.UTC().Format(time.RFC3339Nano)
+			return &Error{
+				Code: CodeTargetExpired, Message: fmt.Sprintf("target expired at %s; call the agent fresh", expiredAt),
+				ExpiredAt: expiredAt, Suggestion: "call the agent fresh",
+			}
 		case "missing", "":
 			return newError(CodeTargetNotFound, fmt.Sprintf("target session %q was not found", in.Target.SessionID), nil)
 		}

@@ -107,6 +107,9 @@ type Info struct {
 	AttentionChangedAt       *time.Time
 	PendingInteractions      []store.PendingInteraction
 	ArchivedAt               *time.Time
+	ParkedAt                 *time.Time
+	IdleExpiresAt            *time.Time
+	DrainingAt               *time.Time
 	CreatedAt                time.Time
 	UpdatedAt                time.Time
 }

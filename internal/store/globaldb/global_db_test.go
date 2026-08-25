@@ -3834,6 +3834,9 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 				"network_mode",
 				"network_channel",
 				"network_source",
+				"parked_at",
+				"idle_expires_at",
+				"draining_at",
 			},
 		)
 	})

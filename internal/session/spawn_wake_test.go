@@ -83,7 +83,7 @@ func TestSpawnWakeEventContract(t *testing.T) {
 func TestManagerDispatchSpawnWake(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should deliver one wake per cause episode", func(t *testing.T) {
+	t.Run("Should route each occurrence with a stable durable identity", func(t *testing.T) {
 		t.Parallel()
 
 		notifier := &recordingSpawnWakeNotifier{}
@@ -94,7 +94,7 @@ func TestManagerDispatchSpawnWake(t *testing.T) {
 		manager.dispatchSpawnWake(testutil.Context(t), info, BadgeWaitingForInput)
 
 		parents, events := notifier.calls()
-		if got, want := len(events), 1; got != want {
+		if got, want := len(events), 2; got != want {
 			t.Fatalf("wake calls = %d, want %d", got, want)
 		}
 		if parents[0] != "parent-1" || events[0].ChildSessionID != "child-1" ||
@@ -103,6 +103,9 @@ func TestManagerDispatchSpawnWake(t *testing.T) {
 		}
 		if !strings.Contains(events[0].Detail, "Include vendored packages?") {
 			t.Fatalf("wake detail = %q, want pending interaction title", events[0].Detail)
+		}
+		if events[0].WakeEventID != events[1].WakeEventID {
+			t.Fatalf("wake ids = %q and %q, want one stable downstream dedupe key", events[0].WakeEventID, events[1].WakeEventID)
 		}
 	})
 
@@ -154,10 +157,8 @@ func spawnWakeTestManager(notifier SpawnWakeNotifier, logs *bytes.Buffer) *Manag
 		logs = &bytes.Buffer{}
 	}
 	return &Manager{
-		logger:              slog.New(slog.NewTextHandler(logs, nil)),
-		spawnWakeNotifier:   notifier,
-		spawnWakeEventIDs:   make(map[string]struct{}),
-		spawnWakeEventOrder: make([]string, 0),
+		logger:            slog.New(slog.NewTextHandler(logs, nil)),
+		spawnWakeNotifier: notifier,
 	}
 }
 

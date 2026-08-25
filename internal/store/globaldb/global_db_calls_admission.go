@@ -60,6 +60,13 @@ func (g *CallRepo) AdmitCall(
 			if err := insertCallActivation(ctx, exec, g.tasks, *admission.Activation, admission.Record.CreatedAt); err != nil {
 				return err
 			}
+			if admission.Activation.Kind == "revive" {
+				if _, err := exec.ExecContext(ctx, `UPDATE sessions SET idle_expires_at = NULL, updated_at = ?
+					WHERE id = ? AND parked_at IS NOT NULL`, store.FormatTimestamp(admission.Record.CreatedAt),
+					admission.Activation.TargetSessionID); err != nil {
+					return fmt.Errorf("store: clear revived call target idle clock: %w", err)
+				}
+			}
 		}
 		if admission.FollowUp != nil {
 			if err := insertCallFollowUpDelivery(ctx, exec, admission.Record, *admission.FollowUp); err != nil {
@@ -130,6 +137,49 @@ func validateCallAdmissionFence(
 	}
 	if drainingAt.Valid {
 		return &callspkg.Error{Code: callspkg.CodeParentTerminal, Message: "governed root is draining"}
+	}
+	if strings.TrimSpace(record.ChildSessionID) != "" {
+		var targetProfileID, targetWorkspaceID string
+		var targetDrainingAt, idleExpiresAt sql.NullString
+		err := exec.QueryRowContext(ctx, `SELECT profile_id, workspace_id, draining_at, idle_expires_at
+			FROM sessions WHERE id = ?`, record.ChildSessionID).Scan(
+			&targetProfileID, &targetWorkspaceID, &targetDrainingAt, &idleExpiresAt,
+		)
+		if errors.Is(err, sql.ErrNoRows) {
+			return &callspkg.Error{Code: callspkg.CodeTargetNotFound, Message: "call target was not found"}
+		}
+		if err != nil {
+			return fmt.Errorf("store: inspect call target %q: %w", record.ChildSessionID, err)
+		}
+		if targetProfileID != record.ProfileID {
+			return &callspkg.Error{Code: callspkg.CodeTargetDenied, Message: "call target belongs to another profile"}
+		}
+		if targetWorkspaceID != record.WorkspaceID {
+			return &callspkg.Error{Code: callspkg.CodeWorkspaceDenied, Message: "call target belongs to another workspace"}
+		}
+		if targetDrainingAt.Valid {
+			return &callspkg.Error{
+				Code: callspkg.CodeTargetExpired, Message: "call target is being reaped; call the agent fresh",
+				Suggestion: "call the agent fresh",
+			}
+		}
+		if idleExpiresAt.Valid {
+			expiresAt, parseErr := store.ParseTimestamp(idleExpiresAt.String)
+			if parseErr != nil {
+				return fmt.Errorf("store: parse call target idle expiry: %w", parseErr)
+			}
+			if !expiresAt.After(record.CreatedAt) {
+				expiredAt := store.FormatTimestamp(expiresAt)
+				return &callspkg.Error{
+					Code: callspkg.CodeTargetExpired,
+					Message: fmt.Sprintf(
+						"call target expired at %s; call the agent fresh",
+						expiredAt,
+					),
+					ExpiredAt: expiredAt, Suggestion: "call the agent fresh",
+				}
+			}
+		}
 	}
 	if strings.TrimSpace(record.AgentName) == "" || admission.MaxChildren <= 0 {
 		return nil

@@ -170,9 +170,6 @@ type Manager struct {
 	attentionWorkspaceMutes AttentionWorkspaceMuteReader
 	notifyLastBySession     map[string]time.Time
 	waitRegistry            *sessionWaitRegistry
-	spawnWakeMu             sync.Mutex
-	spawnWakeEventIDs       map[string]struct{}
-	spawnWakeEventOrder     []string
 
 	logger                       *slog.Logger
 	driver                       AgentDriver

@@ -442,6 +442,12 @@ func TestServiceCreateBatchAndSessionTargets(t *testing.T) {
 			if !IsCode(err, state.code) || len(database.calls) != 0 {
 				t.Fatalf("Create() error = %v, calls=%d, want %s and no writes", err, len(database.calls), state.code)
 			}
+			if state.code == CodeTargetExpired {
+				var callErr *Error
+				if !errors.As(err, &callErr) || callErr.ExpiredAt == "" || callErr.Suggestion != "call the agent fresh" {
+					t.Fatalf("Create(expired) error = %#v, want timestamp and fresh-call suggestion", err)
+				}
+			}
 		})
 	}
 }

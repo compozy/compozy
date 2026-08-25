@@ -11,16 +11,17 @@ import (
 )
 
 type memoryCallStore struct {
-	mu          sync.Mutex
-	calls       map[string]CallRecord
-	contracts   map[string]contracts.Contract
-	payloads    map[string][]byte
-	idempotency map[string]string
-	due         []CallRecord
-	subtree     []CallRecord
-	admissions  []Admission
-	settlements []SettlementMutation
-	operators   map[string]OperatorCallerBinding
+	mu               sync.Mutex
+	calls            map[string]CallRecord
+	contracts        map[string]contracts.Contract
+	payloads         map[string][]byte
+	idempotency      map[string]string
+	due              []CallRecord
+	subtree          []CallRecord
+	admissions       []Admission
+	settlements      []SettlementMutation
+	repairDeliveries []DeliveryRecord
+	operators        map[string]OperatorCallerBinding
 }
 
 func newMemoryCallStore() *memoryCallStore {
@@ -151,6 +152,11 @@ func (s *memoryCallStore) RecordRepair(_ context.Context, mutation RepairMutatio
 	record.FirstIssueText = mutation.IssueText
 	record.UpdatedAt = mutation.At
 	s.calls[mutation.CallID] = record
+	s.repairDeliveries = append(s.repairDeliveries, DeliveryRecord{
+		DeliveryID: "delivery_repair_" + mutation.CallID,
+		Kind:       "repair", SubjectID: mutation.CallID,
+		RecipientSessionID: record.ChildSessionID, State: "pending", CreatedAt: mutation.At,
+	})
 	return record, nil
 }
 

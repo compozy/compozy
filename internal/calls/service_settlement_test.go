@@ -75,8 +75,10 @@ func TestServiceReturnSettlementPipeline(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Return(first invalid) error = %v", err)
 		}
-		if first.Call.State != StateRunning || first.Call.RepairAttempts != 1 || first.RepairPrompt == "" || len(invoker.deliveries) != 1 {
-			t.Fatalf("first invalid settlement = %#v deliveries=%#v", first, invoker.deliveries)
+		if first.Call.State != StateRunning || first.Call.RepairAttempts != 1 || first.RepairPrompt == "" ||
+			len(database.repairDeliveries) != 1 || len(invoker.deliveries) != 0 {
+			t.Fatalf("first invalid settlement = %#v durable=%#v immediate=%#v",
+				first, database.repairDeliveries, invoker.deliveries)
 		}
 		second, err := service.Return(context.Background(), ReturnInput{
 			CallID: record.CallID, Result: json.RawMessage(`{"still":"wrong"}`), ChildLive: true,
@@ -85,36 +87,26 @@ func TestServiceReturnSettlementPipeline(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Return(second invalid) error = %v", err)
 		}
-		if second.Call.State != StateInvalidResult || len(invoker.deliveries) != 1 ||
+		if second.Call.State != StateInvalidResult || len(database.repairDeliveries) != 1 ||
 			database.calls[record.CallID].FailureCode != string(CodeResultInvalid) ||
 			database.calls[record.CallID].SecondIssueText == "" {
-			t.Fatalf("second invalid settlement = %#v deliveries=%d", second, len(invoker.deliveries))
+			t.Fatalf("second invalid settlement = %#v deliveries=%d", second, len(database.repairDeliveries))
 		}
 	})
 
-	t.Run("Should not consume the repair round when delivery infrastructure fails", func(t *testing.T) {
+	t.Run("Should commit the repair before consulting delivery infrastructure", func(t *testing.T) {
 		t.Parallel()
 		service, database, _, invoker := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
 		record := createContractedCall(t, service)
 		invoker.deliverErr = errors.New("delivery unavailable")
-		_, err := service.Return(context.Background(), ReturnInput{
-			CallID: record.CallID, Result: json.RawMessage(`{"wrong":true}`), ChildLive: true,
-			Actor: SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
-		})
-		if err == nil || database.calls[record.CallID].RepairAttempts != 0 ||
-			database.calls[record.CallID].State != StateRunning {
-			t.Fatalf("Return(delivery failure) error=%v call=%#v", err, database.calls[record.CallID])
-		}
-		invoker.deliverErr = nil
 		settlement, err := service.Return(context.Background(), ReturnInput{
 			CallID: record.CallID, Result: json.RawMessage(`{"wrong":true}`), ChildLive: true,
 			Actor: SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 		})
-		if err != nil {
-			t.Fatalf("Return(retry repair) error = %v", err)
-		}
-		if settlement.Call.RepairAttempts != 1 || settlement.Call.State != StateRunning {
-			t.Fatalf("Return(retry repair) = %#v", settlement)
+		if err != nil || settlement.Call.RepairAttempts != 1 || settlement.Call.State != StateRunning ||
+			len(database.repairDeliveries) != 1 || len(invoker.deliveries) != 0 {
+			t.Fatalf("Return(durable repair) = %#v, %v durable=%#v immediate=%#v",
+				settlement, err, database.repairDeliveries, invoker.deliveries)
 		}
 	})
 }

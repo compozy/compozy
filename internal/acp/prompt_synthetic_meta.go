@@ -14,6 +14,13 @@ type PromptSyntheticMeta struct {
 	ChildSessionID       string          `json:"child_session_id,omitempty"`
 	ChildAgentName       string          `json:"child_agent_name,omitempty"`
 	Badge                string          `json:"badge,omitempty"`
+	CallID               string          `json:"call_id,omitempty"`
+	CallState            string          `json:"call_state,omitempty"`
+	ResultRef            string          `json:"result_ref,omitempty"`
+	ResultBytes          int             `json:"result_bytes,omitempty"`
+	ContractDigest       string          `json:"contract_digest,omitempty"`
+	MessageID            string          `json:"message_id,omitempty"`
+	DeliveryKind         string          `json:"delivery_kind,omitempty"`
 	Reason               string          `json:"reason,omitempty"`
 	Summary              string          `json:"summary,omitempty"`
 	WakeEventID          string          `json:"wake_event_id,omitempty"`
@@ -34,6 +41,13 @@ func (m PromptSyntheticMeta) Normalize() PromptSyntheticMeta {
 		ChildSessionID:       strings.TrimSpace(m.ChildSessionID),
 		ChildAgentName:       strings.TrimSpace(m.ChildAgentName),
 		Badge:                strings.TrimSpace(m.Badge),
+		CallID:               strings.TrimSpace(m.CallID),
+		CallState:            strings.TrimSpace(m.CallState),
+		ResultRef:            strings.TrimSpace(m.ResultRef),
+		ResultBytes:          m.ResultBytes,
+		ContractDigest:       strings.TrimSpace(m.ContractDigest),
+		MessageID:            strings.TrimSpace(m.MessageID),
+		DeliveryKind:         strings.TrimSpace(m.DeliveryKind),
 		Reason:               strings.TrimSpace(m.Reason),
 		Summary:              strings.TrimSpace(m.Summary),
 		WakeEventID:          strings.TrimSpace(m.WakeEventID),
@@ -50,7 +64,9 @@ func (m PromptSyntheticMeta) IsZero() bool {
 	return normalized.TaskID == "" && normalized.TaskRunID == "" && normalized.WorkflowID == "" &&
 		normalized.ClaimTokenHash == "" && normalized.CoordinatorSessionID == "" &&
 		normalized.ChildSessionID == "" && normalized.ChildAgentName == "" && normalized.Badge == "" &&
-		normalized.Reason == "" &&
+		normalized.CallID == "" && normalized.CallState == "" && normalized.ResultRef == "" &&
+		normalized.ResultBytes == 0 && normalized.ContractDigest == "" && normalized.MessageID == "" &&
+		normalized.DeliveryKind == "" && normalized.Reason == "" &&
 		normalized.Summary == "" && normalized.WakeEventID == "" && normalized.PolicySnapshotID == "" &&
 		normalized.PolicyDigest == "" && normalized.ConfigDigest == "" && normalized.Goal == nil
 }

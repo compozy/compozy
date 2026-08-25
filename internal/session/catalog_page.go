@@ -464,6 +464,9 @@ func sessionInfoFromCatalog(info store.SessionInfo) *Info {
 		LastSeenAt:               cloneTimePointer(attention.LastSeenAt),
 		AttentionChangedAt:       cloneTimePointer(attention.AttentionChangedAt),
 		ArchivedAt:               cloneTimePointer(info.ArchivedAt),
+		ParkedAt:                 cloneTimePointer(info.ParkedAt),
+		IdleExpiresAt:            cloneTimePointer(info.IdleExpiresAt),
+		DrainingAt:               cloneTimePointer(info.DrainingAt),
 		CreatedAt:                info.CreatedAt,
 		UpdatedAt:                info.UpdatedAt,
 	}

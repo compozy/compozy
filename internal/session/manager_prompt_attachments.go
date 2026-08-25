@@ -12,6 +12,19 @@ func (m *Manager) parseSendPromptRequest(
 	opts SendPromptOpts,
 ) (promptRequest, error) {
 	attachments := cloneAttachmentMeta(opts.Attachments)
+	if opts.Synthetic != nil {
+		if len(attachments) > 0 {
+			return promptRequest{}, errors.New("session: synthetic prompts do not accept attachments")
+		}
+		req, err := m.parseSyntheticPromptRequest(ctx, id, SyntheticPromptOpts{
+			Message: opts.Message, Metadata: *opts.Synthetic,
+		})
+		if err != nil {
+			return promptRequest{}, err
+		}
+		req.deliveryCtx = opts.DeliveryContext
+		return req, nil
+	}
 	message := strings.TrimSpace(opts.Message)
 	if message == "" && len(attachments) == 0 {
 		return promptRequest{}, errors.New("session: prompt message is required")

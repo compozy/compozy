@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/compozy/compozy/internal/acp"
 	callspkg "github.com/compozy/compozy/internal/calls"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -45,16 +46,79 @@ func TestDaemonCallSessionInvokerRecovery(t *testing.T) {
 	}
 }
 
+// Invariant: an accepted queue entry is not projected as delivered until its durable state is sent.
+func TestDaemonCallDeliveryTracksDurableQueueState(t *testing.T) {
+	t.Parallel()
+
+	manager := &callSessionManagerStub{
+		info: &session.Info{ID: "ses_parent", State: session.StateActive},
+		sendResult: session.SendPromptResult{
+			Status: "queued", Delivery: store.SessionInputDeliveryAfterTurn, QueueEntryID: "queue_wake",
+		},
+		queuedStatus: session.InputDeliveryStatus{Status: store.SessionInputQueueStatusQueued},
+	}
+	invoker := &daemonCallSessionInvoker{sessions: manager}
+	delivery := callspkg.Delivery{
+		CallID: "call_1", RecipientSessionID: "ses_parent", Body: "wake", Kind: "completion",
+		WakeEventID: "wake_1", Metadata: acp.PromptSyntheticMeta{
+			CallID: "call_1", CallState: "completed", ResultRef: "sha256:result",
+			DeliveryKind: "completion", Reason: "call_completion", WakeEventID: "wake_1",
+		},
+	}
+
+	queued, err := invoker.DeliverAtBoundary(context.Background(), delivery)
+	if err != nil || queued.State != "pending" {
+		t.Fatalf("DeliverAtBoundary(queued) = %#v, %v, want pending", queued, err)
+	}
+	if manager.sent.Synthetic == nil || manager.sent.Synthetic.CallID != "call_1" ||
+		manager.sent.Synthetic.WakeEventID != "wake_1" {
+		t.Fatalf("SendPrompt() synthetic metadata = %#v, want durable call identity", manager.sent.Synthetic)
+	}
+	manager.queuedStatus = session.InputDeliveryStatus{Status: store.SessionInputQueueStatusSent}
+	delivered, err := invoker.DeliverAtBoundary(context.Background(), delivery)
+	if err != nil || delivered.State != "injected" {
+		t.Fatalf("DeliverAtBoundary(sent) = %#v, %v, want injected", delivered, err)
+	}
+
+	sentBeforeBusy := manager.sendCalls
+	manager.prompting = true
+	busy, err := invoker.DeliverAtBoundary(context.Background(), delivery)
+	if err != nil || busy.State != "pending" || busy.Reason != "recipient_busy" {
+		t.Fatalf("DeliverAtBoundary(busy) = %#v, %v, want pending recipient_busy", busy, err)
+	}
+	if manager.sendCalls != sentBeforeBusy {
+		t.Fatalf("SendPrompt() calls while busy = %d, want %d", manager.sendCalls, sentBeforeBusy)
+	}
+
+	wakeManager := &callSessionManagerStub{
+		info: &session.Info{ID: "ses_parked", State: session.StateStopped},
+	}
+	wakeInvoker := &daemonCallSessionInvoker{sessions: wakeManager}
+	woken, err := wakeInvoker.DeliverAtBoundary(context.Background(), callspkg.Delivery{
+		CallID: "call_2", RecipientSessionID: "ses_parked", Body: "wake", Kind: "message",
+		WakeEventID: "wake_2",
+	})
+	if err != nil || woken.State != "woken" || wakeManager.resumeCalls != 1 {
+		t.Fatalf("DeliverAtBoundary(parked) = %#v, %v resumes=%d, want one wake", woken, err, wakeManager.resumeCalls)
+	}
+}
+
 type callSessionManagerStub struct {
 	info          *session.Info
 	resumeCalls   int
 	sentSessionID string
 	sent          session.SendPromptOpts
+	sendResult    session.SendPromptResult
+	queuedStatus  session.InputDeliveryStatus
+	prompting     bool
+	sendCalls     int
 }
 
 func (s *callSessionManagerStub) Status(context.Context, string) (*session.Info, error) {
 	return s.info, nil
 }
+
+func (s *callSessionManagerStub) IsPrompting(string) bool { return s.prompting }
 
 func (s *callSessionManagerStub) Resume(context.Context, string) (*session.Session, error) {
 	s.resumeCalls++
@@ -66,9 +130,21 @@ func (s *callSessionManagerStub) SendPrompt(
 	sessionID string,
 	opts session.SendPromptOpts,
 ) (session.SendPromptResult, error) {
+	s.sendCalls++
 	s.sentSessionID = sessionID
 	s.sent = opts
+	if s.sendResult.Status != "" {
+		return s.sendResult, nil
+	}
 	return session.SendPromptResult{Status: "accepted"}, nil
+}
+
+func (s *callSessionManagerStub) QueuedInputDeliveryStatus(
+	context.Context,
+	string,
+	string,
+) (session.InputDeliveryStatus, error) {
+	return s.queuedStatus, nil
 }
 
 func (s *callSessionManagerStub) StopWithCause(context.Context, string, session.StopCause, string) error {

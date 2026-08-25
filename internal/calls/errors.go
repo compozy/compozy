@@ -10,37 +10,48 @@ import (
 type ErrorCode string
 
 const (
-	CodeValidation          ErrorCode = "call_validation"
-	CodeAgentUnknown        ErrorCode = "call_agent_unknown"
-	CodeExpectInvalid       ErrorCode = "call_expect_invalid"
-	CodePromptRequired      ErrorCode = "call_prompt_required"
-	CodeChildrenCap         ErrorCode = "call_children_cap"
-	CodeWideningRejected    ErrorCode = "call_widening_rejected"
-	CodeTargetNotFound      ErrorCode = "call_target_not_found"
-	CodeTargetExpired       ErrorCode = "call_target_expired"
-	CodeTargetDenied        ErrorCode = "call_target_denied"
-	CodeWorkspaceDenied     ErrorCode = "call_workspace_denied"
-	CodeParentTerminal      ErrorCode = "call_parent_terminal"
-	CodeDepthExceeded       ErrorCode = "call_depth_exceeded"
-	CodeBatchEmpty          ErrorCode = "call_batch_empty"
-	CodeBatchOverCap        ErrorCode = "call_batch_over_cap"
-	CodeIdempotencyConflict ErrorCode = "call_idempotency_conflict"
-	CodeNotFound            ErrorCode = "call_not_found"
-	CodeAlreadySettled      ErrorCode = "call_already_settled"
-	CodeReturnUnbound       ErrorCode = "call_return_unbound"
-	CodeResultInvalid       ErrorCode = "call_result_invalid"
-	CodeResultOverBudget    ErrorCode = "call_result_over_budget"
-	CodeDeadlineInvalid     ErrorCode = "call_deadline_invalid"
-	CodeSettlementDenied    ErrorCode = "call_settlement_denied"
+	CodeValidation           ErrorCode = "call_validation"
+	CodeAgentUnknown         ErrorCode = "call_agent_unknown"
+	CodeExpectInvalid        ErrorCode = "call_expect_invalid"
+	CodePromptRequired       ErrorCode = "call_prompt_required"
+	CodeChildrenCap          ErrorCode = "call_children_cap"
+	CodeWideningRejected     ErrorCode = "call_widening_rejected"
+	CodeTargetNotFound       ErrorCode = "call_target_not_found"
+	CodeTargetExpired        ErrorCode = "call_target_expired"
+	CodeTargetDenied         ErrorCode = "call_target_denied"
+	CodeWorkspaceDenied      ErrorCode = "call_workspace_denied"
+	CodeParentTerminal       ErrorCode = "call_parent_terminal"
+	CodeDepthExceeded        ErrorCode = "call_depth_exceeded"
+	CodeBatchEmpty           ErrorCode = "call_batch_empty"
+	CodeBatchOverCap         ErrorCode = "call_batch_over_cap"
+	CodeIdempotencyConflict  ErrorCode = "call_idempotency_conflict"
+	CodeNotFound             ErrorCode = "call_not_found"
+	CodeAlreadySettled       ErrorCode = "call_already_settled"
+	CodeReturnUnbound        ErrorCode = "call_return_unbound"
+	CodeResultInvalid        ErrorCode = "call_result_invalid"
+	CodeResultOverBudget     ErrorCode = "call_result_over_budget"
+	CodeDeadlineInvalid      ErrorCode = "call_deadline_invalid"
+	CodeSettlementDenied     ErrorCode = "call_settlement_denied"
+	CodeMessageTooLarge      ErrorCode = "message_too_large"
+	CodeMessageTargetBlocked ErrorCode = "message_target_blocked"
+	CodeMessageTargetDenied  ErrorCode = "message_target_denied"
+	CodeMessageRateLimited   ErrorCode = "message_rate_limited"
+	CodeMessageDuplicate     ErrorCode = "message_duplicate"
+	CodeMessagePendingCap    ErrorCode = "message_pending_cap"
+	CodeMessageNotFound      ErrorCode = "message_not_found"
 )
 
 // Error carries a stable code plus safe diagnostic detail.
 type Error struct {
-	Code      ErrorCode          `json:"code"`
-	Message   string             `json:"message"`
-	Available []AgentRosterEntry `json:"available,omitempty"`
-	Widening  []string           `json:"widening,omitempty"`
-	Cause     error              `json:"-"`
+	Code       ErrorCode          `json:"code"`
+	Message    string             `json:"message"`
+	Available  []AgentRosterEntry `json:"available,omitempty"`
+	Widening   []string           `json:"widening,omitempty"`
+	OriginalID string             `json:"original_id,omitempty"`
+	ResetAt    string             `json:"reset_at,omitempty"`
+	ExpiredAt  string             `json:"expired_at,omitempty"`
+	Suggestion string             `json:"suggestion,omitempty"`
+	Cause      error              `json:"-"`
 }
 
 func (e *Error) Error() string {

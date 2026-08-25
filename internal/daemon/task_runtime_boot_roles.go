@@ -62,6 +62,10 @@ func (d *Daemon) bootSpawnReaper(
 	if logger == nil {
 		logger = slog.Default()
 	}
+	var callLifecycle spawnReaperCallLifecycle
+	if state.calls != nil {
+		callLifecycle = state.calls.service
+	}
 	reaper, err := newSpawnReaper(
 		ctx,
 		state.sessions,
@@ -70,6 +74,7 @@ func (d *Daemon) bootSpawnReaper(
 		logger.With("component", "spawn_reaper"),
 		d.now,
 		defaultSpawnReaperInterval,
+		callLifecycle,
 	)
 	if err != nil {
 		return err

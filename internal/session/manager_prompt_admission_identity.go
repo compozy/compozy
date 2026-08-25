@@ -11,11 +11,12 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/store"
 )
 
-const sessionPromptFingerprintVersion = "session-prompt/v4"
+const sessionPromptFingerprintVersion = "session-prompt/v5"
 
 type promptAdmissionLock struct {
 	mu   sync.Mutex
@@ -132,6 +133,7 @@ func promptAdmissionFingerprint(
 		ExpectedTurnID   string                            `json:"expected_turn_id,omitempty"`
 		SkillInvocations []commandpkg.Invocation           `json:"skill_invocations,omitempty"`
 		AttachmentIDs    []string                          `json:"attachment_ids,omitempty"`
+		PromptMeta       acp.PromptMeta                    `json:"prompt_meta,omitempty"`
 	}{
 		Version: sessionPromptFingerprintVersion, Operation: strings.TrimSpace(operation),
 		MessageID: strings.TrimSpace(req.messageID), AuthoredText: strings.TrimSpace(req.authoredMessage),
@@ -141,6 +143,7 @@ func promptAdmissionFingerprint(
 		ExpectedTurnID:   strings.TrimSpace(req.expectedTurnID),
 		SkillInvocations: append([]commandpkg.Invocation(nil), req.skillInvocations...),
 		AttachmentIDs:    attachmentIdentities,
+		PromptMeta:       req.meta.Normalize(),
 	}
 	encoded, err := json.Marshal(canonical)
 	if err != nil {

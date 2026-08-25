@@ -30,6 +30,19 @@ type Store interface {
 	ResolveCallTargetContext(context.Context, CreateInput) (TargetContext, error)
 }
 
+type MailboxStore interface {
+	AcceptMessage(context.Context, MessageAdmission) (MessageRecord, error)
+	GetMessage(context.Context, CallScope, string) (MessageRecord, error)
+	ListPendingDeliveries(context.Context, string, int) ([]DeliveryRecord, error)
+	RecordDelivery(context.Context, DeliveryUpdate) (DeliveryRecord, error)
+	ParkCallChild(context.Context, string, time.Time, time.Time) (bool, error)
+	ClearCallChildIdleClock(context.Context, string, time.Time) error
+	GetCallPayload(context.Context, string, string) ([]byte, error)
+	FailPendingDeliveriesForRecipient(context.Context, string, string, time.Time) error
+	FenceSessionReap(context.Context, string, time.Time) (bool, error)
+	FinalizeReapedSession(context.Context, string, string, time.Time) error
+}
+
 type Directory interface {
 	ResolveCallTarget(context.Context, CreateInput) (TargetContext, []AgentRosterEntry, error)
 }

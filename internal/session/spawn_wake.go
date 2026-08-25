@@ -19,8 +19,7 @@ const (
 	// SpawnWakeReasonNeedsAttention wakes the creator when a child needs input or approval.
 	SpawnWakeReasonNeedsAttention SpawnWakeReason = "needs_attention"
 
-	spawnWakeTextMaxRunes  = 240
-	spawnWakeCacheMaxItems = 4096
+	spawnWakeTextMaxRunes = 240
 )
 
 var (
@@ -149,9 +148,6 @@ func (m *Manager) dispatchSpawnWake(ctx context.Context, info *Info, badge Badge
 		m.logSpawnWakeSuppressed(ctx, creatorSessionID, event, "delivery_failed", err)
 		return
 	}
-	if !m.reserveSpawnWakeEvent(event.WakeEventID) {
-		return
-	}
 	if !lineage.NotifyCreator {
 		m.logSpawnWakeSuppressed(ctx, creatorSessionID, event, "wake_creator_disabled", nil)
 		return
@@ -177,45 +173,6 @@ func (m *Manager) dispatchSpawnWake(ctx context.Context, info *Info, badge Badge
 		jsonReasonFieldReason, event.Reason,
 		"badge", event.Badge,
 	)
-}
-
-func (m *Manager) reserveSpawnWakeEvent(wakeEventID string) bool {
-	key := strings.TrimSpace(wakeEventID)
-	if key == "" {
-		return false
-	}
-	m.spawnWakeMu.Lock()
-	defer m.spawnWakeMu.Unlock()
-	if _, exists := m.spawnWakeEventIDs[key]; exists {
-		return false
-	}
-	for len(m.spawnWakeEventIDs) >= spawnWakeCacheMaxItems && len(m.spawnWakeEventOrder) > 0 {
-		evicted := m.spawnWakeEventOrder[0]
-		delete(m.spawnWakeEventIDs, evicted)
-		m.spawnWakeEventOrder = m.spawnWakeEventOrder[1:]
-	}
-	m.spawnWakeEventIDs[key] = struct{}{}
-	m.spawnWakeEventOrder = append(m.spawnWakeEventOrder, key)
-	return true
-}
-
-func (m *Manager) forgetSpawnWakeEvents(sessionID string) {
-	target := strings.TrimSpace(sessionID)
-	if m == nil || target == "" {
-		return
-	}
-	prefix := "session-wake:" + target + ":"
-	m.spawnWakeMu.Lock()
-	defer m.spawnWakeMu.Unlock()
-	retained := m.spawnWakeEventOrder[:0]
-	for _, key := range m.spawnWakeEventOrder {
-		if strings.HasPrefix(key, prefix) {
-			delete(m.spawnWakeEventIDs, key)
-			continue
-		}
-		retained = append(retained, key)
-	}
-	m.spawnWakeEventOrder = retained
 }
 
 func (m *Manager) logSpawnWakeSuppressed(

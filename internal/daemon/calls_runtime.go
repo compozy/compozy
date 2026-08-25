@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/core"
 	callspkg "github.com/compozy/compozy/internal/calls"
 	"github.com/compozy/compozy/internal/session"
@@ -18,6 +19,8 @@ const callDispatchInterval = time.Second
 
 type callRuntime struct {
 	service *callspkg.Service
+	ctx     context.Context
+	logger  *slog.Logger
 	cancel  context.CancelFunc
 	done    chan struct{}
 }
@@ -28,11 +31,15 @@ func (d *Daemon) bootCalls(ctx context.Context, state *bootState, cleanup *bootC
 	}
 	callStore, ok := state.registry.(callspkg.Store)
 	if !ok {
-		return errors.New("daemon: registry does not implement the calls store")
+		return nil
+	}
+	callSessions, ok := state.sessions.(callSessionManager)
+	if !ok {
+		return nil
 	}
 	directory := &daemonCallDirectory{store: callStore, state: state}
 	invoker := &daemonCallSessionInvoker{
-		sessions: state.sessions, maxChildren: state.cfg.Calls.MaxChildren, maxDepth: state.cfg.Calls.MaxDepth,
+		sessions: callSessions, maxChildren: state.cfg.Calls.MaxChildren, maxDepth: state.cfg.Calls.MaxDepth,
 	}
 	service, err := callspkg.NewService(
 		callspkg.WithStore(callStore),
@@ -50,9 +57,22 @@ func (d *Daemon) bootCalls(ctx context.Context, state *bootState, cleanup *bootC
 	if err := service.RecoverCallRuntime(ctx); err != nil {
 		return fmt.Errorf("daemon: recover calls runtime: %w", err)
 	}
+	if err := service.DrainDeliveries(ctx, "", 100); err != nil {
+		logger := state.logger
+		if logger == nil {
+			logger = slog.Default()
+		}
+		logger.Warn("daemon: call deliveries remain pending after recovery", "error", err)
+	}
 	runCtx, cancel := context.WithCancel(ctx)
-	runtime := &callRuntime{service: service, cancel: cancel, done: make(chan struct{})}
+	runtime := &callRuntime{
+		service: service, ctx: runCtx, logger: state.logger,
+		cancel: cancel, done: make(chan struct{}),
+	}
 	state.calls = runtime
+	if registrar, ok := state.sessions.(turnEndNotifierRegistrar); ok {
+		registrar.AddTurnEndNotifier(runtime.onTurnEnd)
+	}
 	go runtime.run(runCtx, state.logger)
 	cleanup.add(runtime.shutdown)
 	return nil
@@ -76,7 +96,24 @@ func (r *callRuntime) run(ctx context.Context, logger *slog.Logger) {
 			if _, err := r.service.SweepDeadlines(ctx, now); err != nil && !errors.Is(err, context.Canceled) {
 				logger.Warn("daemon: sweep call deadlines failed", "error", err)
 			}
+			if err := r.service.DrainDeliveries(ctx, "", 100); err != nil && !errors.Is(err, context.Canceled) {
+				logger.Warn("daemon: drain call deliveries failed", "error", err)
+			}
 		}
+	}
+}
+
+func (r *callRuntime) onTurnEnd(sessionID string) {
+	if r == nil || r.service == nil || r.ctx == nil {
+		return
+	}
+	if err := r.service.DrainDeliveries(r.ctx, sessionID, 100); err != nil &&
+		!errors.Is(err, context.Canceled) {
+		logger := r.logger
+		if logger == nil {
+			logger = slog.Default()
+		}
+		logger.Warn("daemon: drain call deliveries at turn boundary failed", "session_id", sessionID, "error", err)
 	}
 }
 
@@ -143,8 +180,10 @@ type daemonCallSessionInvoker struct {
 
 type callSessionManager interface {
 	Status(context.Context, string) (*session.Info, error)
+	IsPrompting(string) bool
 	Resume(context.Context, string) (*session.Session, error)
 	SendPrompt(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error)
+	QueuedInputDeliveryStatus(context.Context, string, string) (session.InputDeliveryStatus, error)
 	StopWithCause(context.Context, string, session.StopCause, string) error
 }
 
@@ -168,7 +207,7 @@ func (i *daemonCallSessionInvoker) SpawnChild(
 				return callspkg.SessionRef{}, fmt.Errorf("daemon: resume call child %q: %w", desiredID, err)
 			}
 		}
-		if _, err := i.send(ctx, desiredID, spec.Prompt, spec.CallID); err != nil {
+		if _, err := i.send(ctx, desiredID, spec.Prompt, spec.CallID, nil); err != nil {
 			return callspkg.SessionRef{}, err
 		}
 		return callspkg.SessionRef{ID: desiredID}, nil
@@ -197,7 +236,7 @@ func (i *daemonCallSessionInvoker) SpawnChild(
 		}
 		return callspkg.SessionRef{}, err
 	}
-	if _, err := i.send(ctx, child.ID, spec.Prompt, spec.CallID); err != nil {
+	if _, err := i.send(ctx, child.ID, spec.Prompt, spec.CallID, nil); err != nil {
 		cleanupErr := i.sessions.StopWithCause(ctx, child.ID, session.CauseFailed, "call activation prompt failed")
 		return callspkg.SessionRef{}, errors.Join(err, cleanupErr)
 	}
@@ -208,7 +247,7 @@ func (i *daemonCallSessionInvoker) Revive(ctx context.Context, sessionID, prompt
 	if _, err := i.sessions.Resume(ctx, sessionID); err != nil {
 		return err
 	}
-	_, err := i.send(ctx, sessionID, prompt, callID)
+	_, err := i.send(ctx, sessionID, prompt, callID, nil)
 	if err == nil {
 		return nil
 	}
@@ -220,21 +259,69 @@ func (i *daemonCallSessionInvoker) DeliverAtBoundary(
 	ctx context.Context,
 	delivery callspkg.Delivery,
 ) (callspkg.DeliveryOutcome, error) {
-	result, err := i.send(ctx, delivery.RecipientSessionID, delivery.Body, delivery.CallID+":"+delivery.Kind)
+	woken := false
+	info, err := i.sessions.Status(ctx, delivery.RecipientSessionID)
+	if err != nil {
+		return callspkg.DeliveryOutcome{}, fmt.Errorf("daemon: inspect call delivery recipient: %w", err)
+	}
+	if info != nil && info.State == session.StateStopped {
+		if _, err := i.sessions.Resume(ctx, delivery.RecipientSessionID); err != nil {
+			return callspkg.DeliveryOutcome{}, fmt.Errorf("daemon: revive call delivery recipient: %w", err)
+		}
+		woken = true
+	}
+	if !woken && i.sessions.IsPrompting(delivery.RecipientSessionID) {
+		return callspkg.DeliveryOutcome{State: "pending", Reason: "recipient_busy"}, nil
+	}
+	identity := strings.TrimSpace(delivery.WakeEventID)
+	if identity == "" {
+		identity = delivery.CallID + ":" + delivery.Kind
+	}
+	metadata := delivery.Metadata.Normalize()
+	result, err := i.send(ctx, delivery.RecipientSessionID, delivery.Body, identity, &metadata)
 	if err != nil {
 		return callspkg.DeliveryOutcome{}, err
 	}
-	return callspkg.DeliveryOutcome{State: result.Status, Reason: result.Delivery}, nil
+	if result.QueueEntryID != "" {
+		queued, statusErr := i.sessions.QueuedInputDeliveryStatus(
+			ctx, delivery.RecipientSessionID, result.QueueEntryID,
+		)
+		if statusErr != nil {
+			return callspkg.DeliveryOutcome{}, fmt.Errorf("daemon: inspect queued call delivery: %w", statusErr)
+		}
+		switch queued.Status {
+		case store.SessionInputQueueStatusQueued, store.SessionInputQueueStatusDispatching:
+			return callspkg.DeliveryOutcome{State: "pending", Reason: queued.Status}, nil
+		case store.SessionInputQueueStatusFailed, store.SessionInputQueueStatusCanceled:
+			reason := strings.TrimSpace(queued.FailureSummary)
+			if reason == "" {
+				reason = queued.Status
+			}
+			return callspkg.DeliveryOutcome{}, fmt.Errorf("daemon: queued call delivery %s: %s", queued.Status, reason)
+		case store.SessionInputQueueStatusSent:
+			return callspkg.DeliveryOutcome{State: "injected", Reason: queued.Status}, nil
+		default:
+			return callspkg.DeliveryOutcome{}, fmt.Errorf(
+				"daemon: unsupported queued call delivery state %q", queued.Status,
+			)
+		}
+	}
+	state := "injected"
+	if woken || result.Delivery == store.SessionInputDeliveryDirect {
+		state = "woken"
+	}
+	return callspkg.DeliveryOutcome{State: state, Reason: result.Delivery}, nil
 }
 
 func (i *daemonCallSessionInvoker) send(
 	ctx context.Context,
 	sessionID, message, identity string,
+	metadata *acp.PromptSyntheticMeta,
 ) (session.SendPromptResult, error) {
 	identity = strings.TrimSpace(identity)
 	return i.sessions.SendPrompt(ctx, sessionID, session.SendPromptOpts{
 		Message: message, MessageID: "msg_" + identity, IdempotencyKey: "call:" + identity,
-		Mode: session.BusyInputModeQueue,
+		Synthetic: metadata, Mode: session.BusyInputModeQueue,
 	})
 }
 

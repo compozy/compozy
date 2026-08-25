@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
@@ -181,11 +182,75 @@ type Delivery struct {
 	RecipientSessionID string
 	Body               string
 	Kind               string
+	WakeEventID        string
+	Metadata           acp.PromptSyntheticMeta
 }
 
 type DeliveryOutcome struct {
 	State  string
 	Reason string
+}
+
+type MessageSender struct {
+	Kind string `json:"kind"`
+	ID   string `json:"id"`
+}
+
+type SendMessageInput struct {
+	ProfileID   string
+	Scope       Scope
+	WorkspaceID string
+	From        MessageSender
+	To          string
+	CallID      string
+	Body        string
+}
+
+type MessageAdmission struct {
+	Record      MessageRecord
+	Target      string
+	DedupWindow time.Duration
+	RateLimit   int
+	PendingCap  int
+}
+
+type MessageRecord struct {
+	MessageID        string        `json:"message_id"`
+	ProfileID        string        `json:"profile_id"`
+	Scope            Scope         `json:"scope"`
+	WorkspaceID      string        `json:"workspace_id,omitempty"`
+	From             MessageSender `json:"from"`
+	FromAgentName    string        `json:"from_agent_name,omitempty"`
+	ToSessionID      string        `json:"to_session_id"`
+	CallID           string        `json:"call_id,omitempty"`
+	Body             string        `json:"body"`
+	DedupHash        string        `json:"-"`
+	Delivery         string        `json:"delivery"`
+	DeliveryReason   string        `json:"delivery_reason,omitempty"`
+	DeliveryAttempts int           `json:"delivery_attempts"`
+	CreatedAt        time.Time     `json:"created_at"`
+	DeliveredAt      time.Time     `json:"delivered_at,omitempty"`
+}
+
+type DeliveryRecord struct {
+	DeliveryID         string
+	Kind               string
+	SubjectID          string
+	RecipientSessionID string
+	OwnerKey           string
+	WakeEventID        string
+	State              string
+	Reason             string
+	Attempts           int
+	CreatedAt          time.Time
+}
+
+type DeliveryUpdate struct {
+	DeliveryID  string
+	State       string
+	Reason      string
+	At          time.Time
+	MaxAttempts int
 }
 
 type TargetContext struct {

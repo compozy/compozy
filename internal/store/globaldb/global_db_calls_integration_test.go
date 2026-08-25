@@ -5,6 +5,7 @@ package globaldb
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1219,6 +1220,26 @@ func TestGlobalDBCallsAdmissionActivationSettlementAndReplay(t *testing.T) {
 	if !replayed.Replayed || replayed.CallID != record.CallID || invoker.spawnCount() != 1 {
 		t.Fatalf("Create(replay) = %#v, spawns=%d", replayed, invoker.spawnCount())
 	}
+	followUpInput := input
+	followUpInput.Target = callspkg.Target{SessionID: record.ChildSessionID}
+	followUpInput.Prompt = "Inspect the follow-up without interrupting the current turn."
+	followUpInput.IdempotencyKey = "calls-follow-up-boundary"
+	followUp, err := service.Create(ctx, followUpInput)
+	if err != nil {
+		t.Fatalf("Create(follow-up) error = %v", err)
+	}
+	if followUp.State != callspkg.StateRunning || followUp.ActivationRunID != "" {
+		t.Fatalf("Create(follow-up) = %#v, want durable running boundary delivery", followUp)
+	}
+	if err := service.DrainDeliveries(ctx, record.ChildSessionID, 10); err != nil {
+		t.Fatalf("DrainDeliveries(follow-up) error = %v", err)
+	}
+	delivered := invoker.recordedDeliveries()
+	if len(delivered) != 1 || delivered[0].Body != followUpInput.Prompt ||
+		delivered[0].Metadata.CallID != followUp.CallID ||
+		delivered[0].Metadata.Reason != "call_follow_up" {
+		t.Fatalf("follow-up deliveries = %#v, want persisted prompt with structured identity", delivered)
+	}
 	repair, err := service.Return(ctx, callspkg.ReturnInput{
 		CallID: record.CallID, ChildSessionID: record.ChildSessionID,
 		Result: json.RawMessage(`{"wrong":true}`), ChildLive: true,
@@ -1238,6 +1259,18 @@ func TestGlobalDBCallsAdmissionActivationSettlementAndReplay(t *testing.T) {
 	if repairDeliveries != 1 {
 		t.Fatalf("repair delivery rows = %d, want 1", repairDeliveries)
 	}
+	invoker.setDeliveryOutcome(callspkg.DeliveryOutcome{State: "injected", Reason: "turn_boundary"})
+	if err := service.DrainDeliveries(ctx, record.ChildSessionID, 10); err != nil {
+		t.Fatalf("DrainDeliveries(repair) error = %v", err)
+	}
+	followUpSettlement, err := service.Return(ctx, callspkg.ReturnInput{
+		CallID: followUp.CallID, ChildSessionID: record.ChildSessionID,
+		Result: json.RawMessage(`{"answer":7}`),
+		Actor:  callspkg.SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
+	})
+	if err != nil || followUpSettlement.Call.State != callspkg.StateCompleted {
+		t.Fatalf("Return(follow-up) = %#v, %v, want completed before final park", followUpSettlement, err)
+	}
 
 	settlement, err := service.Return(ctx, callspkg.ReturnInput{
 		CallID: record.CallID, ChildSessionID: record.ChildSessionID,
@@ -1249,6 +1282,24 @@ func TestGlobalDBCallsAdmissionActivationSettlementAndReplay(t *testing.T) {
 	}
 	if settlement.Call.State != callspkg.StateCompleted || settlement.Call.Verdict != callspkg.VerdictRepaired {
 		t.Fatalf("Return() = %#v, want completed/repaired", settlement)
+	}
+	var childState string
+	var parkedAt, idleExpiresAt sql.NullString
+	if err := database.db.QueryRowContext(ctx, `SELECT state, parked_at, idle_expires_at
+		FROM sessions WHERE id = ?`, record.ChildSessionID).Scan(&childState, &parkedAt, &idleExpiresAt); err != nil {
+		t.Fatalf("read parked call child error = %v", err)
+	}
+	wantIdleExpiry := store.FormatTimestamp(now.Add(record.IdleTTL))
+	if childState != "stopped" || !parkedAt.Valid || parkedAt.String != store.FormatTimestamp(now) ||
+		!idleExpiresAt.Valid || idleExpiresAt.String != wantIdleExpiry {
+		t.Fatalf(
+			"parked child lifecycle = state %q parked %q idle %q, want stopped/%q/%q",
+			childState,
+			parkedAt.String,
+			idleExpiresAt.String,
+			store.FormatTimestamp(now),
+			wantIdleExpiry,
+		)
 	}
 	var deliveries int
 	if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM call_deliveries
@@ -1265,6 +1316,286 @@ func registerCallSession(t *testing.T, database *GlobalDB, info store.SessionInf
 	t.Helper()
 	if err := database.RegisterSession(testutil.Context(t), info); err != nil {
 		t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
+	}
+}
+
+func TestGlobalDBCallMailboxCommitsBeforeDeliveryAndEnforcesLoopBreakers(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t)
+	database := openFreshTestGlobalDB(t)
+	workspaceID := registerWorkspaceForGlobalTests(
+		t, database, "calls-mailbox", filepath.Join(t.TempDir(), "workspace"),
+	)
+	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+	parentID, childID := "ses_mailbox_parent", "ses_mailbox_child"
+	registerCallSession(t, database, store.SessionInfo{
+		ID: parentID, ProfileID: store.DefaultProfileID, AgentName: "coordinator",
+		WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
+		Lineage: &store.SessionLineage{
+			RootSessionID: parentID, SpawnBudget: store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 3},
+		}, CreatedAt: now, UpdatedAt: now,
+	})
+	registerCallSession(t, database, store.SessionInfo{
+		ID: childID, ProfileID: store.DefaultProfileID, AgentName: "reviewer",
+		WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
+		Lineage: &store.SessionLineage{
+			ParentSessionID: parentID, RootSessionID: parentID, SpawnDepth: 1,
+			SpawnBudget: store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 3},
+		}, CreatedAt: now, UpdatedAt: now,
+	})
+	invoker := &callIntegrationInvoker{
+		database: database, workspaceID: workspaceID, now: now,
+		deliveryOutcome: callspkg.DeliveryOutcome{State: "woken", Reason: "recipient_revived"},
+	}
+	service, err := callspkg.NewService(
+		callspkg.WithStore(database),
+		callspkg.WithDirectory(callIntegrationDirectory{database: database}),
+		callspkg.WithSessionInvoker(invoker),
+		callspkg.WithConfig(config.DefaultCallsConfig()),
+		callspkg.WithClock(func() time.Time { return now }),
+		callspkg.WithIDGenerator(store.NewID),
+	)
+	if err != nil {
+		t.Fatalf("calls.NewService() error = %v", err)
+	}
+	if _, err := database.db.ExecContext(ctx, `UPDATE sessions
+		SET state = 'stopped', parked_at = ?, idle_expires_at = ? WHERE id = ?`,
+		store.FormatTimestamp(now.Add(-time.Minute)), store.FormatTimestamp(now.Add(time.Hour)), parentID); err != nil {
+		t.Fatalf("park message target error = %v", err)
+	}
+	input := callspkg.SendMessageInput{
+		ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
+		From: callspkg.MessageSender{Kind: "session", ID: childID}, To: "parent",
+		Body: "blocked on COMPOZY_CLAIM_secret-value",
+	}
+	record, err := service.SendMessage(ctx, input)
+	if err != nil {
+		t.Fatalf("SendMessage() error = %v", err)
+	}
+	if record.ToSessionID != parentID || record.Delivery != "queued" ||
+		strings.Contains(record.Body, "secret-value") {
+		t.Fatalf("SendMessage() = %#v, want sanitized durable queued receipt", record)
+	}
+	var messageRows, deliveryRows int
+	if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM call_messages WHERE message_id = ?`,
+		record.MessageID).Scan(&messageRows); err != nil {
+		t.Fatalf("count call message rows error = %v", err)
+	}
+	if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM call_deliveries
+		WHERE kind = 'message' AND subject_id = ?`, record.MessageID).Scan(&deliveryRows); err != nil {
+		t.Fatalf("count call delivery rows error = %v", err)
+	}
+	if messageRows != 1 || deliveryRows != 1 {
+		t.Fatalf("committed rows = message %d delivery %d, want 1/1", messageRows, deliveryRows)
+	}
+	var parkedAt, idleExpiresAt sql.NullString
+	if err := database.db.QueryRowContext(ctx, `SELECT parked_at, idle_expires_at FROM sessions WHERE id = ?`,
+		parentID).Scan(&parkedAt, &idleExpiresAt); err != nil {
+		t.Fatalf("read revived message target error = %v", err)
+	}
+	if !parkedAt.Valid || idleExpiresAt.Valid {
+		t.Fatalf(
+			"queued message target lifecycle = parked %q idle %q, want parked with suspended idle clock",
+			parkedAt.String,
+			idleExpiresAt.String,
+		)
+	}
+	_, err = service.SendMessage(ctx, input)
+	var duplicate *callspkg.Error
+	if !errors.As(err, &duplicate) || duplicate.Code != callspkg.CodeMessageDuplicate ||
+		duplicate.OriginalID != record.MessageID {
+		t.Fatalf("SendMessage(duplicate) error = %#v, want original %q", err, record.MessageID)
+	}
+	pending, err := database.ListPendingDeliveries(ctx, parentID, 10)
+	if err != nil || len(pending) != 1 {
+		t.Fatalf("ListPendingDeliveries() = %#v, %v, want one", pending, err)
+	}
+	if pending[0].OwnerKey != "session:"+childID {
+		t.Fatalf("message activation owner_key = %q, want sender owner", pending[0].OwnerKey)
+	}
+	if err := service.DrainDeliveries(ctx, parentID, 10); err != nil {
+		t.Fatalf("DrainDeliveries() error = %v", err)
+	}
+	receipt, err := service.Message(ctx, callspkg.CallScope{
+		ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
+	}, record.MessageID)
+	if err != nil || receipt.Delivery != "woke" {
+		t.Fatalf("Message() = %#v, %v, want woke", receipt, err)
+	}
+	if err := database.db.QueryRowContext(ctx, `SELECT parked_at, idle_expires_at FROM sessions WHERE id = ?`,
+		parentID).Scan(&parkedAt, &idleExpiresAt); err != nil {
+		t.Fatalf("read woken message target error = %v", err)
+	}
+	if parkedAt.Valid || idleExpiresAt.Valid {
+		t.Fatalf("woken message target lifecycle = parked %q idle %q, want active", parkedAt.String, idleExpiresAt.String)
+	}
+	var callWakeRows, networkWakeRows int
+	if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM call_deliveries
+		WHERE wake_event_id = ? AND state = 'woken' AND owner_key = ?`,
+		pending[0].WakeEventID, pending[0].OwnerKey).Scan(&callWakeRows); err != nil {
+		t.Fatalf("count accounted call wake rows error = %v", err)
+	}
+	if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM network_live_wakes WHERE wake_id = ?`,
+		pending[0].WakeEventID).Scan(&networkWakeRows); err != nil {
+		t.Fatalf("count double-booked network wake rows error = %v", err)
+	}
+	if callWakeRows != 1 || networkWakeRows != 0 {
+		t.Fatalf("wake accounting = call %d network %d, want one owner-keyed call row only", callWakeRows, networkWakeRows)
+	}
+	input.Body = "second distinct message"
+	second, err := service.SendMessage(ctx, input)
+	if err != nil {
+		t.Fatalf("SendMessage(second) error = %v", err)
+	}
+	pending, err = database.ListPendingDeliveries(ctx, parentID, 10)
+	if err != nil || len(pending) != 1 || pending[0].SubjectID != second.MessageID {
+		t.Fatalf("ListPendingDeliveries(second) = %#v, %v", pending, err)
+	}
+	for attempt := 1; attempt <= 3; attempt++ {
+		updated, updateErr := database.RecordDelivery(ctx, callspkg.DeliveryUpdate{
+			DeliveryID: pending[0].DeliveryID, State: "pending", Reason: "recipient_unavailable",
+			At: now.Add(time.Duration(attempt) * time.Second), MaxAttempts: 3,
+		})
+		if updateErr != nil {
+			t.Fatalf("RecordDelivery(attempt %d) error = %v", attempt, updateErr)
+		}
+		if attempt < 3 && updated.State != "pending" || attempt == 3 && updated.State != "failed" {
+			t.Fatalf("RecordDelivery(attempt %d) state = %q", attempt, updated.State)
+		}
+	}
+	failed, err := service.Message(ctx, callspkg.CallScope{
+		ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
+	}, second.MessageID)
+	if err != nil || failed.Delivery != "failed" || failed.DeliveryReason != "recipient_unavailable" {
+		t.Fatalf("Message(failed) = %#v, %v", failed, err)
+	}
+	configWithTinyBody := config.DefaultCallsConfig()
+	configWithTinyBody.Messages.MaxBytes = "4B"
+	tinyService, err := callspkg.NewService(
+		callspkg.WithStore(database),
+		callspkg.WithDirectory(callIntegrationDirectory{database: database}),
+		callspkg.WithConfig(configWithTinyBody),
+		callspkg.WithClock(func() time.Time { return now.Add(time.Minute) }),
+		callspkg.WithIDGenerator(store.NewID),
+	)
+	if err != nil {
+		t.Fatalf("calls.NewService(tiny body) error = %v", err)
+	}
+	input.Body = "12345"
+	if _, err := tinyService.SendMessage(ctx, input); !callspkg.IsCode(err, callspkg.CodeMessageTooLarge) {
+		t.Fatalf("SendMessage(too large) error = %v, want %s", err, callspkg.CodeMessageTooLarge)
+	}
+	if _, err := service.Message(ctx, callspkg.CallScope{
+		ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
+	}, "msg_missing"); !callspkg.IsCode(err, callspkg.CodeMessageNotFound) {
+		t.Fatalf("Message(missing) error = %v, want %s", err, callspkg.CodeMessageNotFound)
+	}
+	if _, err := database.db.ExecContext(ctx, `UPDATE sessions SET pending_permission_count = 1 WHERE id = ?`, parentID); err != nil {
+		t.Fatalf("mark message target blocked error = %v", err)
+	}
+	input.Body = "blocked target probe"
+	if _, err := service.SendMessage(ctx, input); !callspkg.IsCode(err, callspkg.CodeMessageTargetBlocked) {
+		t.Fatalf("SendMessage(blocked target) error = %v, want %s", err, callspkg.CodeMessageTargetBlocked)
+	}
+	if _, err := database.db.ExecContext(ctx, `UPDATE sessions SET pending_permission_count = 0 WHERE id = ?`, parentID); err != nil {
+		t.Fatalf("clear message target blocked error = %v", err)
+	}
+	outsideID := "ses_mailbox_outside"
+	registerCallSession(t, database, store.SessionInfo{
+		ID: outsideID, ProfileID: store.DefaultProfileID, AgentName: "outsider",
+		WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
+		Lineage: &store.SessionLineage{
+			RootSessionID: outsideID, SpawnBudget: store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 3},
+		}, CreatedAt: now, UpdatedAt: now,
+	})
+	input.To = outsideID
+	input.Body = "cross-lineage probe"
+	if _, err := service.SendMessage(ctx, input); !callspkg.IsCode(err, callspkg.CodeMessageTargetDenied) {
+		t.Fatalf("SendMessage(outside lineage) error = %v, want %s", err, callspkg.CodeMessageTargetDenied)
+	}
+}
+
+func TestGlobalDBCallAdmissionRacingReaperHasOneDurableWinner(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t)
+	database := openFreshTestGlobalDB(t)
+	workspaceID := registerWorkspaceForGlobalTests(
+		t, database, "calls-reaper-race", filepath.Join(t.TempDir(), "workspace"),
+	)
+	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+	parentID := "ses_reaper_race_parent"
+	registerCallSession(t, database, store.SessionInfo{
+		ID: parentID, ProfileID: store.DefaultProfileID, AgentName: "coordinator",
+		WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
+		Lineage: &store.SessionLineage{
+			RootSessionID: parentID, SpawnBudget: store.SessionSpawnBudget{MaxChildren: 100, MaxDepth: 3},
+		}, CreatedAt: now, UpdatedAt: now,
+	})
+	service, err := callspkg.NewService(
+		callspkg.WithStore(database),
+		callspkg.WithDirectory(callIntegrationDirectory{database: database}),
+		callspkg.WithConfig(config.DefaultCallsConfig()),
+		callspkg.WithClock(func() time.Time { return now }),
+		callspkg.WithIDGenerator(store.NewID),
+	)
+	if err != nil {
+		t.Fatalf("calls.NewService() error = %v", err)
+	}
+	for iteration := range 50 {
+		childID := fmt.Sprintf("ses_reaper_race_child_%02d", iteration)
+		registerCallSession(t, database, store.SessionInfo{
+			ID: childID, ProfileID: store.DefaultProfileID, AgentName: "reviewer",
+			WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
+			Lineage: &store.SessionLineage{
+				ParentSessionID: parentID, RootSessionID: parentID, SpawnDepth: 1,
+				SpawnBudget: store.SessionSpawnBudget{MaxChildren: 100, MaxDepth: 3},
+			}, CreatedAt: now, UpdatedAt: now,
+		})
+		parked, parkErr := database.ParkCallChild(ctx, childID, now, now.Add(time.Minute))
+		if parkErr != nil || !parked {
+			t.Fatalf("ParkCallChild(%d) = %v, %v", iteration, parked, parkErr)
+		}
+		if _, err := database.db.ExecContext(ctx, `UPDATE sessions SET state = 'stopped' WHERE id = ?`, childID); err != nil {
+			t.Fatalf("mark parked child stopped (%d) error = %v", iteration, err)
+		}
+		start := make(chan struct{})
+		createResult := make(chan error, 1)
+		fenceResult := make(chan struct {
+			won bool
+			err error
+		}, 1)
+		go func() {
+			<-start
+			_, createErr := service.Create(ctx, callspkg.CreateInput{
+				ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
+				Caller: participation.OwnerRef{
+					Kind: participation.OwnerKindSession, ID: parentID, WorkspaceID: workspaceID,
+				},
+				Target: callspkg.Target{SessionID: childID}, Prompt: "follow up",
+				Actor: callspkg.Actor{Kind: "agent_session", ID: parentID},
+			})
+			createResult <- createErr
+		}()
+		go func() {
+			<-start
+			won, fenceErr := database.FenceSessionReap(ctx, childID, now)
+			fenceResult <- struct {
+				won bool
+				err error
+			}{won: won, err: fenceErr}
+		}()
+		close(start)
+		createErr := <-createResult
+		fence := <-fenceResult
+		if fence.err != nil {
+			t.Fatalf("FenceSessionReap(%d) error = %v", iteration, fence.err)
+		}
+		switch {
+		case createErr == nil && !fence.won:
+		case callspkg.IsCode(createErr, callspkg.CodeTargetExpired) && fence.won:
+		default:
+			t.Fatalf("race %d = create %v fence %v, want exactly one winner", iteration, createErr, fence.won)
+		}
 	}
 }
 
@@ -1298,11 +1629,13 @@ func (d callIntegrationDirectory) ResolveCallTarget(
 }
 
 type callIntegrationInvoker struct {
-	mu          sync.Mutex
-	database    *GlobalDB
-	workspaceID string
-	now         time.Time
-	spawns      int
+	mu              sync.Mutex
+	database        *GlobalDB
+	workspaceID     string
+	now             time.Time
+	deliveryOutcome callspkg.DeliveryOutcome
+	spawns          int
+	deliveries      []callspkg.Delivery
 }
 
 func (i *callIntegrationInvoker) SpawnChild(
@@ -1331,12 +1664,47 @@ func (i *callIntegrationInvoker) SpawnChild(
 }
 
 func (i *callIntegrationInvoker) Revive(context.Context, string, string, string) error { return nil }
-func (i *callIntegrationInvoker) DeliverAtBoundary(context.Context, callspkg.Delivery) (callspkg.DeliveryOutcome, error) {
-	return callspkg.DeliveryOutcome{State: "queued"}, nil
+
+func (i *callIntegrationInvoker) DeliverAtBoundary(
+	ctx context.Context,
+	delivery callspkg.Delivery,
+) (callspkg.DeliveryOutcome, error) {
+	i.mu.Lock()
+	i.deliveries = append(i.deliveries, delivery)
+	outcome := i.deliveryOutcome
+	i.mu.Unlock()
+	if outcome.State == "woken" {
+		if _, err := i.database.db.ExecContext(
+			ctx,
+			`UPDATE sessions SET state = 'active' WHERE id = ?`,
+			delivery.RecipientSessionID,
+		); err != nil {
+			return callspkg.DeliveryOutcome{}, err
+		}
+	}
+	if outcome.State == "" {
+		outcome.State = "pending"
+	}
+	return outcome, nil
 }
-func (i *callIntegrationInvoker) StopManaged(context.Context, string, string) error { return nil }
+func (i *callIntegrationInvoker) StopManaged(ctx context.Context, sessionID string, _ string) error {
+	_, err := i.database.db.ExecContext(ctx, `UPDATE sessions SET state = 'stopped' WHERE id = ?`, sessionID)
+	return err
+}
 func (i *callIntegrationInvoker) spawnCount() int {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	return i.spawns
+}
+
+func (i *callIntegrationInvoker) recordedDeliveries() []callspkg.Delivery {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return append([]callspkg.Delivery(nil), i.deliveries...)
+}
+
+func (i *callIntegrationInvoker) setDeliveryOutcome(outcome callspkg.DeliveryOutcome) {
+	i.mu.Lock()
+	i.deliveryOutcome = outcome
+	i.mu.Unlock()
 }
