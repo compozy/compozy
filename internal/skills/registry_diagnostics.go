@@ -78,11 +78,9 @@ func (r *Registry) appendWorkspaceLoadDiagnosticsLocked(
 	if r.resourceAuthority {
 		return diagnostics
 	}
-	if paths, ok := workspaceCacheKeyPaths(resolved); ok {
-		if cacheKey := workspaceCacheKey(resolved, paths); cacheKey != "" {
-			if cached := r.wsCache[cacheKey]; cached != nil {
-				diagnostics = append(diagnostics, cloneDiagnostics(cached.diagnostics)...)
-			}
+	if cacheKey := workspaceCacheKey(resolved); cacheKey != "" {
+		if cached := r.wsCache[cacheKey]; cached != nil {
+			diagnostics = append(diagnostics, cloneDiagnostics(cached.diagnostics)...)
 		}
 	}
 	return diagnostics

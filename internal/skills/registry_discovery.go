@@ -46,8 +46,9 @@ func (r *Registry) DiscoverGlobal(ctx context.Context) ([]*Skill, map[string]fil
 	if err := checkRegistryContext(ctx); err != nil {
 		return nil, nil, err
 	}
-	disabledSkills := r.globalDisabledSkillsSnapshot()
-	loaded, snapshots, _, err := r.loadGlobalSkills(ctx, disabledSkills)
+	cfg := r.registryConfigSnapshot(ctx)
+	disabledSkills := append([]string(nil), cfg.DisabledSkills...)
+	loaded, snapshots, _, err := r.loadGlobalSkills(ctx, disabledSkills, cfg)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -70,7 +71,7 @@ func (r *Registry) DiscoverWorkspace(
 		return nil, load.snapshots, nil
 	}
 	workspaceDisabled := r.workspaceDisabledSkillsSnapshot(
-		workspaceCacheKey(resolved, load.paths),
+		workspaceCacheKey(resolved),
 		resolved.Config.Skills.DisabledSkills,
 	)
 	loaded, _, err := r.loadWorkspaceSkills(ctx, load.paths, workspaceDisabled)
@@ -97,13 +98,32 @@ func (r *Registry) ApplyResourceRecords(
 	if err != nil {
 		return err
 	}
-	r.emitResourceGlobalSkillSummaries(ctx, projection)
-	r.emitResourceWorkspaceSkillSummaries(ctx, projection)
-	r.emitResourceProfileSkillSummaries(ctx, projection)
-	r.emitResourceWorkspaceProfileSkillSummaries(ctx, projection)
-
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	generation := ConfigGenerationFromContext(ctx)
+	activeGeneration := r.configGeneration.Load()
+	if generation > 0 && generation < activeGeneration {
+		r.mu.Unlock()
+		return r.supersededGenerationError(ctx, generation, activeGeneration)
+	}
+	if generation > 0 && r.pendingGeneration > 0 && generation != r.pendingGeneration {
+		winningGeneration := r.pendingGeneration
+		r.mu.Unlock()
+		return r.supersededGenerationError(ctx, generation, winningGeneration)
+	}
+	if r.pendingConfig != nil && r.pendingGeneration == generation {
+		r.pendingProjection = &projection
+		r.pendingRevision = revision
+		r.mu.Unlock()
+		return nil
+	}
+	r.applyResourceProjectionLocked(revision, projection)
+	r.mu.Unlock()
+
+	r.emitResourceProjectionSummaries(ctx, projection)
+	return nil
+}
+
+func (r *Registry) applyResourceProjectionLocked(revision int64, projection resourceSkillProjection) {
 	r.resourceAuthority = true
 	r.resourceRevision = revision
 	r.resourceWorkspaces = projection.workspaceSkills
@@ -118,7 +138,13 @@ func (r *Registry) ApplyResourceRecords(
 	r.wsCache = make(map[string]*wsCache)
 	r.globalLoaded = true
 	r.globalVersion.Add(1)
-	return nil
+}
+
+func (r *Registry) emitResourceProjectionSummaries(ctx context.Context, projection resourceSkillProjection) {
+	r.emitResourceGlobalSkillSummaries(ctx, projection)
+	r.emitResourceWorkspaceSkillSummaries(ctx, projection)
+	r.emitResourceProfileSkillSummaries(ctx, projection)
+	r.emitResourceWorkspaceProfileSkillSummaries(ctx, projection)
 }
 
 func (r *Registry) emitResourceGlobalSkillSummaries(ctx context.Context, projection resourceSkillProjection) {
@@ -231,6 +257,7 @@ func (r *Registry) projectResourceSkillRecord(
 	if err != nil {
 		return fmt.Errorf("skills: convert resource %q: %w", record.ID, err)
 	}
+	skill.ResourceScope = record.Scope.Normalize()
 	applySkillExtensionOrigin(record, skill)
 	if strings.TrimSpace(skill.Meta.Name) == "" {
 		return nil

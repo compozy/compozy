@@ -17,6 +17,7 @@ func (d *Daemon) bootResourceWatchers(ctx context.Context, state *bootState, cle
 			state.skillsRegistry,
 			state.cfg.Skills.PollInterval,
 			workspaceSkillWatcherRoots(d.homePaths, state.registry),
+			workspaceAgentWatcherRoots(d.homePaths, state.registry),
 			func(refreshCtx context.Context) error {
 				if agentSkillResources != nil {
 					if err := agentSkillResources.Sync(refreshCtx); err != nil {

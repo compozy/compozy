@@ -34,21 +34,17 @@ func (r *Registry) workspaceSkills(ctx context.Context, resolved *workspacepkg.R
 		applyDisabledSkillList(
 			skills,
 			r.workspaceDisabledSkillsSnapshot(
-				workspaceCacheKey(resolved, nil),
+				workspaceCacheKey(resolved),
 				workspaceConfiguredDisabledSkills(resolved),
 			),
 		)
 		return skills, nil
 	}
-	if skills, ok, err := r.cachedWorkspaceSkillsFromResolved(ctx, resolved); ok || err != nil {
-		return skills, err
-	}
-
 	load, err := r.workspaceLoadFromResolved(ctx, resolved)
 	if err != nil {
 		return nil, err
 	}
-	cacheKey := workspaceCacheKey(resolved, load.paths)
+	cacheKey := workspaceCacheKey(resolved)
 	workspaceDisabled := r.workspaceDisabledSkillsSnapshot(cacheKey, workspaceConfiguredDisabledSkills(resolved))
 	if len(load.paths) == 0 {
 		skills := r.List()

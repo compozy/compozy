@@ -38,10 +38,10 @@ func loadSkillCommandContext(ctx context.Context, deps commandDeps, agentName st
 	}
 
 	registry := skills.NewRegistry(skills.RegistryConfig{
-		BundledFS:      skillbundled.FS(),
-		UserAgentsDir:  runtime.HomePaths.AgentsDir,
-		UserSkillsDir:  runtime.HomePaths.SkillsDir,
-		DisabledSkills: append([]string(nil), runtime.Config.Skills.DisabledSkills...),
+		BundledFS:        skillbundled.FS(),
+		GlobalSkillRoots: compozyconfig.ResolveGlobalSkillRoots(&runtime.Config.Skills, runtime.HomePaths),
+		GlobalAgentsDir:  runtime.HomePaths.AgentsDir,
+		DisabledSkills:   append([]string(nil), runtime.Config.Skills.DisabledSkills...),
 	})
 	if err := registry.LoadAll(ctx); err != nil {
 		return skillCommandContext{}, fmt.Errorf("cli: load skill registry: %w", err)

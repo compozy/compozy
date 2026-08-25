@@ -165799,6 +165799,22 @@
                     "discovered_count": {
                       "type": "integer"
                     },
+                    "inherits": {
+                      "nullable": true,
+                      "properties": {
+                        "custom_sources": {
+                          "type": "boolean"
+                        },
+                        "sources": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "custom_sources",
+                        "sources"
+                      ],
+                      "type": "object"
+                    },
                     "links": {
                       "items": {
                         "properties": {
@@ -165850,6 +165866,152 @@
                       ],
                       "type": "string"
                     },
+                    "sources": {
+                      "items": {
+                        "properties": {
+                          "always_on": {
+                            "type": "boolean"
+                          },
+                          "default": {
+                            "type": "boolean"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "global_path": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "roots": {
+                            "items": {
+                              "properties": {
+                                "collisions": {
+                                  "items": {
+                                    "properties": {
+                                      "name": {
+                                        "type": "string"
+                                      },
+                                      "qualified_form": {
+                                        "type": "string"
+                                      },
+                                      "winner_root_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "name",
+                                      "qualified_form",
+                                      "winner_root_id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "exists": {
+                                  "type": "boolean"
+                                },
+                                "native_readers": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "path": {
+                                  "type": "string"
+                                },
+                                "readable": {
+                                  "type": "boolean"
+                                },
+                                "root_id": {
+                                  "type": "string"
+                                },
+                                "scanned_count": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "skill_count": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "skipped_links": {
+                                  "items": {
+                                    "properties": {
+                                      "path": {
+                                        "type": "string"
+                                      },
+                                      "reason": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "path",
+                                      "reason"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "truncated": {
+                                  "type": "boolean"
+                                },
+                                "verification": {
+                                  "properties": {
+                                    "blocked": {
+                                      "type": "integer"
+                                    },
+                                    "warned": {
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "required": [
+                                    "blocked",
+                                    "warned"
+                                  ],
+                                  "type": "object"
+                                }
+                              },
+                              "required": [
+                                "collisions",
+                                "exists",
+                                "native_readers",
+                                "path",
+                                "readable",
+                                "root_id",
+                                "skipped_links",
+                                "truncated",
+                                "verification"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "slug": {
+                            "type": "string"
+                          },
+                          "workspace_path": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "always_on",
+                          "enabled",
+                          "kind",
+                          "label",
+                          "roots",
+                          "slug"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "workspace_id": {
                       "type": "string"
                     }
@@ -165861,7 +166023,8 @@
                     "discovered_count",
                     "runtime_available",
                     "scope",
-                    "section"
+                    "section",
+                    "sources"
                   ],
                   "type": "object"
                 }

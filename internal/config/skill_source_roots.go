@@ -52,7 +52,9 @@ func (r WorkspaceDiscoveryRoot) SkillsDirs(cfg *SkillsConfig) []SkillRootSpec {
 	scope := r.skillResourceScope()
 	roots := make([]SkillRootSpec, 0, len(settings.Sources)+len(settings.CustomSources)+1)
 
-	if r.Source != WorkspaceDiscoverySourceProfile && r.Source != WorkspaceDiscoverySourceWorkspaceProfile {
+	if r.Source == WorkspaceDiscoverySourceWorkspace ||
+		r.Source == WorkspaceDiscoverySourceProfile ||
+		r.Source == WorkspaceDiscoverySourceWorkspaceProfile {
 		for _, slug := range settings.Sources {
 			preset, ok := skillSourcePreset(slug)
 			if !ok || preset.AlwaysOn || strings.TrimSpace(preset.WorkspaceRel) == "" {
@@ -63,12 +65,30 @@ func (r WorkspaceDiscoveryRoot) SkillsDirs(cfg *SkillsConfig) []SkillRootSpec {
 	}
 
 	resolvedCustom := make([]string, 0, len(settings.CustomSources))
-	for _, path := range settings.CustomSources {
-		dir := resolveCustomSkillSourcePath(path, r.Dir, scope.Kind)
-		if dir == "" {
-			continue
+	if r.Source == WorkspaceDiscoverySourceWorkspace ||
+		r.Source == WorkspaceDiscoverySourceProfile ||
+		r.Source == WorkspaceDiscoverySourceWorkspaceProfile {
+		for _, path := range settings.CustomSources {
+			expanded := canonicalSkillSourcePath(path)
+			isWorkspaceRelative := !filepath.IsAbs(strings.TrimSpace(path)) &&
+				!strings.HasPrefix(strings.TrimSpace(path), "~")
+			if (isWorkspaceRelative && r.Source == WorkspaceDiscoverySourceProfile) ||
+				(!isWorkspaceRelative && r.Source != WorkspaceDiscoverySourceProfile) {
+				continue
+			}
+			base := r.WorkspaceRoot
+			if base == "" {
+				base = r.Dir
+			}
+			dir := expanded
+			if isWorkspaceRelative {
+				dir = canonicalSkillSourcePath(filepath.Join(base, path))
+			}
+			if dir == "" {
+				continue
+			}
+			resolvedCustom = append(resolvedCustom, dir)
 		}
-		resolvedCustom = append(resolvedCustom, dir)
 	}
 	slugs := CustomSourceSlugs(resolvedCustom)
 	for _, dir := range resolvedCustom {
@@ -79,7 +99,11 @@ func (r WorkspaceDiscoveryRoot) SkillsDirs(cfg *SkillsConfig) []SkillRootSpec {
 	if !r.usesHomeResourceLayout() {
 		compozyDir = filepath.Join(r.Dir, DirName, SkillsDirName)
 	}
-	return append(roots, r.skillRootSpec(compozyDir, SkillSourceCompozy, RootKindBuiltin, scope))
+	kind := RootKindBuiltin
+	if r.Source == WorkspaceDiscoverySourceAdditional {
+		kind = RootKindCustom
+	}
+	return append(roots, r.skillRootSpec(compozyDir, SkillSourceCompozy, kind, scope))
 }
 
 // ResolveGlobalSkillRoots resolves the user-owned global roots in effective config order.
@@ -161,17 +185,6 @@ func (r WorkspaceDiscoveryRoot) skillRootSpec(
 		Dir: canonicalSkillSourcePath(dir), SourceSlug: slug, Kind: kind, ResourceScope: scope,
 		ProfileID: strings.TrimSpace(r.ProfileID), WorkspaceID: strings.TrimSpace(r.WorkspaceID),
 	}
-}
-
-func resolveCustomSkillSourcePath(path string, workspaceRoot string, scope resources.ResourceScopeKind) string {
-	expanded := canonicalSkillSourcePath(path)
-	if expanded == "" {
-		return ""
-	}
-	if filepath.IsAbs(expanded) || scope == resources.ResourceScopeKindUser || scope == resources.ResourceScopeKindProfile {
-		return expanded
-	}
-	return canonicalSkillSourcePath(filepath.Join(workspaceRoot, path))
 }
 
 func canonicalSkillSourcePath(path string) string {

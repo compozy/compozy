@@ -117,7 +117,7 @@ func BenchmarkRegistryForWorkspaceCached(b *testing.B) {
 		})
 	}
 
-	registry := NewRegistry(RegistryConfig{UserSkillsDir: userDir})
+	registry := NewRegistry(RegistryConfig{GlobalSkillRoots: testGlobalSkillRoots(userDir)})
 	if err := registry.LoadAll(ctx); err != nil {
 		b.Fatalf("LoadAll() error = %v", err)
 	}

@@ -178,7 +178,7 @@ func TestSkillResourceCodecPreservesProvenanceAndSidecarMCP(t *testing.T) {
 		t.Fatalf("WriteSidecar() error = %v", err)
 	}
 
-	registry := NewRegistry(RegistryConfig{UserSkillsDir: filepath.Dir(skillDir)})
+	registry := NewRegistry(RegistryConfig{GlobalSkillRoots: testGlobalSkillRoots(filepath.Dir(skillDir))})
 	discovered, _, err := registry.DiscoverGlobal(context.Background())
 	if err != nil {
 		t.Fatalf("DiscoverGlobal() error = %v", err)
@@ -331,7 +331,7 @@ func TestResourceAuthorityKeepsFilesystemDiscoveryNonAuthoritative(t *testing.T)
 		"Loaded only before resource authority exists.",
 	}, "\n"))
 
-	registry := NewRegistry(RegistryConfig{UserSkillsDir: userDir})
+	registry := NewRegistry(RegistryConfig{GlobalSkillRoots: testGlobalSkillRoots(userDir)})
 	records := []resources.Record[SkillResourceSpec]{{
 		Kind: SkillResourceKind,
 		ID:   "global:resource-backed",
@@ -495,7 +495,7 @@ func TestDiscoverWorkspaceLoadsDefinitionsForPublication(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	skillDir := filepath.Join(root, "workspace-review")
+	skillDir := filepath.Join(root, ".compozy", "skills", "workspace-review")
 	writeSkillFile(t, skillDir, skillFileName, strings.Join([]string{
 		"---",
 		"name: workspace-review",
@@ -508,11 +508,8 @@ func TestDiscoverWorkspaceLoadsDefinitionsForPublication(t *testing.T) {
 	discovered, snapshots, err := registry.DiscoverWorkspace(
 		context.Background(),
 		&workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: "ws-discover"},
-			Skills: []workspacepkg.SkillPath{{
-				Dir:    skillDir,
-				Source: "workspace",
-			}},
+			Workspace:   workspacepkg.Workspace{ID: "ws-discover", RootDir: root},
+			WorkspaceID: "ws-discover",
 		},
 	)
 	if err != nil {

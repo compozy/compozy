@@ -6,11 +6,133 @@ import (
 	"bytes"
 	"context"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
+
+func TestRegistryIntegrationSourceIsolationAndRealpathDedup(t *testing.T) {
+	t.Parallel()
+
+	homeDir := t.TempDir()
+	agentsDir := filepath.Join(homeDir, ".agents", "skills")
+	claudeDir := filepath.Join(homeDir, ".claude", "skills")
+	agentsSkillDir := filepath.Join(agentsDir, "shared-global")
+	writeSkillFile(
+		t,
+		agentsDir,
+		filepath.Join("shared-global", skillFileName),
+		skillWithDescription("shared-global", "Global agents skill"),
+	)
+	if err := os.MkdirAll(claudeDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(claude root) error = %v", err)
+	}
+	if err := os.Symlink(agentsSkillDir, filepath.Join(claudeDir, "shared-global")); err != nil {
+		t.Skipf("Symlink(vercel-labs alias) unavailable: %v", err)
+	}
+
+	sourceConfig := compozyconfig.SkillsConfig{
+		Sources: []string{compozyconfig.SkillSourceAgents, compozyconfig.SkillSourceClaude},
+	}
+	registry := newTestRegistry(t, RegistryConfig{
+		GlobalSkillRoots: compozyconfig.ResolveGlobalSkillRoots(&sourceConfig, compozyconfig.HomePaths{
+			SkillsDir:       filepath.Join(homeDir, compozyconfig.DirName, compozyconfig.SkillsDirName),
+			OperatorHomeDir: homeDir,
+		}),
+	})
+	if err := registry.LoadAll(t.Context()); err != nil {
+		t.Fatalf("LoadAll() error = %v", err)
+	}
+	global := registry.List()
+	sharedGlobalCount := 0
+	for _, skill := range global {
+		if skill != nil && skill.Meta.Name == "shared-global" {
+			sharedGlobalCount++
+		}
+	}
+	if sharedGlobalCount != 1 {
+		t.Fatalf("shared-global count = %d, want one realpath-deduplicated skill", sharedGlobalCount)
+	}
+	if got := findSkill(t, global, "shared-global").Origin; got != compozyconfig.SkillSourceAgents {
+		t.Fatalf("shared-global origin = %q, want %q", got, compozyconfig.SkillSourceAgents)
+	}
+
+	workspaceARoot := t.TempDir()
+	workspaceBRoot := t.TempDir()
+	writeSkillFile(
+		t,
+		filepath.Join(workspaceARoot, ".agents", "skills"),
+		filepath.Join("workspace-agents", skillFileName),
+		skillWithDescription("workspace-agents", "Workspace A agents skill"),
+	)
+	writeSkillFile(
+		t,
+		filepath.Join(workspaceARoot, ".claude", "skills"),
+		filepath.Join("workspace-claude", skillFileName),
+		skillWithDescription("workspace-claude", "Workspace A claude skill"),
+	)
+	writeSkillFile(
+		t,
+		filepath.Join(workspaceBRoot, ".agents", "skills"),
+		filepath.Join("workspace-agents", skillFileName),
+		skillWithDescription("workspace-agents", "Workspace B agents skill"),
+	)
+
+	workspaceA := resolvedWorkspaceForTest("workspace-a", workspaceARoot)
+	workspaceA.Config.Skills.Sources = []string{
+		compozyconfig.SkillSourceAgents,
+		compozyconfig.SkillSourceClaude,
+	}
+	workspaceB := resolvedWorkspaceForTest("workspace-b", workspaceBRoot)
+	workspaceB.Config.Skills.Sources = []string{compozyconfig.SkillSourceAgents}
+
+	beforeA, err := registry.ForWorkspace(t.Context(), &workspaceA)
+	if err != nil {
+		t.Fatalf("ForWorkspace(A before override) error = %v", err)
+	}
+	beforeB, err := registry.ForWorkspace(t.Context(), &workspaceB)
+	if err != nil {
+		t.Fatalf("ForWorkspace(B before override) error = %v", err)
+	}
+	if got := findSkill(t, beforeA, "workspace-claude").Origin; got != compozyconfig.SkillSourceClaude {
+		t.Fatalf("workspace A claude origin = %q, want %q", got, compozyconfig.SkillSourceClaude)
+	}
+	if hasSkillNamed(beforeB, "workspace-claude") {
+		t.Fatal("workspace B contains workspace A claude skill, want isolated effective roots")
+	}
+	if got := findSkill(t, beforeB, "workspace-agents").Meta.Description; got != "Workspace B agents skill" {
+		t.Fatalf("workspace B agents skill = %q, want isolated workspace B contribution", got)
+	}
+
+	cacheA := cacheEntryForWorkspace(t, registry, &workspaceA)
+	cacheB := cacheEntryForWorkspace(t, registry, &workspaceB)
+	workspaceA.Config.Skills.Sources = []string{compozyconfig.SkillSourceAgents}
+	afterA, err := registry.ForWorkspace(t.Context(), &workspaceA)
+	if err != nil {
+		t.Fatalf("ForWorkspace(A after override) error = %v", err)
+	}
+	if hasSkillNamed(afterA, "workspace-claude") {
+		t.Fatal("workspace A contains removed claude source after generation change")
+	}
+	if got := cacheEntryForWorkspace(t, registry, &workspaceA); got == nil || got == cacheA {
+		t.Fatalf("workspace A cache entry = %p, want a new source-generation entry distinct from %p", got, cacheA)
+	}
+
+	afterB, err := registry.ForWorkspace(t.Context(), &workspaceB)
+	if err != nil {
+		t.Fatalf("ForWorkspace(B after A override) error = %v", err)
+	}
+	if got := cacheEntryForWorkspace(t, registry, &workspaceB); got != cacheB {
+		t.Fatalf("workspace B cache entry = %p, want untouched entry %p", got, cacheB)
+	}
+	if got := findSkill(t, afterB, "workspace-agents").Meta.Description; got != "Workspace B agents skill" {
+		t.Fatalf("workspace B agents skill after A override = %q, want unchanged projection", got)
+	}
+}
 
 func TestRegistryIntegrationRefreshPromotesSidecarBackedSkillToMarketplace(t *testing.T) {
 	t.Parallel()
@@ -21,7 +143,7 @@ func TestRegistryIntegrationRefreshPromotesSidecarBackedSkillToMarketplace(t *te
 	skillPath := writeSkillFile(t, userDir, filepath.Join("installed", skillFileName), content)
 
 	registry := newTestRegistry(t, RegistryConfig{
-		UserSkillsDir: userDir,
+		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	})
 
 	if err := registry.LoadAll(context.Background()); err != nil {
@@ -87,7 +209,7 @@ func TestRegistryIntegrationRefreshBlocksTamperedMarketplaceSkill(t *testing.T) 
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, nil))
 	registry := newTestRegistry(t, RegistryConfig{
-		UserSkillsDir: userDir,
+		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	}, WithLogger(logger))
 
 	if err := registry.LoadAll(context.Background()); err != nil {

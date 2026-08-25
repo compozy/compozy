@@ -20,6 +20,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/skillscan"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -70,8 +71,8 @@ func TestRegistryLoadAllLoadsUserLevelSkills(t *testing.T) {
 	)
 
 	registry := newTestRegistry(t, RegistryConfig{
-		UserSkillsDir: userDir,
-		UserAgentsDir: agentsDir,
+		GlobalSkillRoots: testGlobalSkillRoots(userDir),
+		GlobalAgentsDir:  agentsDir,
 	})
 
 	if err := registry.LoadAll(context.Background()); err != nil {
@@ -89,6 +90,101 @@ func TestRegistryLoadAllLoadsUserLevelSkills(t *testing.T) {
 	if _, ok := registry.Get("debug"); ok {
 		t.Fatal("Get(\"debug\") found legacy agent-root skill, want it ignored after the .compozy/agents hard cut")
 	}
+}
+
+func TestRegistryConfiguredRootProjection(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve configured global root provenance and precedence", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		agentsDir := filepath.Join(root, "agents")
+		customDir := filepath.Join(root, "team-skills")
+		compozyDir := filepath.Join(root, "compozy")
+		writeSkillFile(t, agentsDir, filepath.Join("agents-only", skillFileName), skillWithDescription("agents-only", "Agents"))
+		writeSkillFile(t, customDir, filepath.Join("custom-only", skillFileName), skillWithDescription("custom-only", "Custom"))
+		writeSkillFile(t, agentsDir, filepath.Join("shared", skillFileName), skillWithDescription("shared", "Agents shared"))
+		compozyPath := writeSkillFile(t, compozyDir, filepath.Join("shared", skillFileName), skillWithDescription("shared", "Compozy shared"))
+
+		registry := newTestRegistry(t, RegistryConfig{GlobalSkillRoots: []compozyconfig.SkillRootSpec{
+			{Dir: agentsDir, SourceSlug: compozyconfig.SkillSourceAgents, Kind: compozyconfig.RootKindPreset, ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}},
+			{Dir: customDir, SourceSlug: "team-skills", Kind: compozyconfig.RootKindCustom, ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}},
+			{Dir: compozyDir, SourceSlug: compozyconfig.SkillSourceCompozy, Kind: compozyconfig.RootKindBuiltin, ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}},
+		}})
+		if err := registry.LoadAll(t.Context()); err != nil {
+			t.Fatalf("LoadAll() error = %v", err)
+		}
+
+		agentsSkill := findSkill(t, registry.List(), "agents-only")
+		if agentsSkill.Source != SourceUser || agentsSkill.Origin != compozyconfig.SkillSourceAgents {
+			t.Fatalf("agents-only provenance = (%v, %q), want user/agents", agentsSkill.Source, agentsSkill.Origin)
+		}
+		customSkill := findSkill(t, registry.List(), "custom-only")
+		if customSkill.Source != SourceAdditional || customSkill.Origin != "team-skills" {
+			t.Fatalf("custom-only provenance = (%v, %q), want additional/team-skills", customSkill.Source, customSkill.Origin)
+		}
+		shared := findSkill(t, registry.List(), "shared")
+		if shared.Source != SourceUser || shared.Origin != "" || shared.FilePath != compozyPath {
+			t.Fatalf("shared winner = %#v, want compozy-root contribution", shared)
+		}
+		if len(shared.Diagnostics.ShadowedDefinitions) != 1 ||
+			shared.Diagnostics.ShadowedDefinitions[0].Path == shared.FilePath {
+			t.Fatalf("shared shadows = %#v, want inspectable agents loser", shared.Diagnostics.ShadowedDefinitions)
+		}
+	})
+
+	t.Run("Should deduplicate aliases before creating shadow records", func(t *testing.T) {
+		t.Parallel()
+
+		realRoot := t.TempDir()
+		writeSkillFile(t, realRoot, filepath.Join("aliased", skillFileName), skillWithDescription("aliased", "Aliased"))
+		aliasRoot := filepath.Join(t.TempDir(), "alias")
+		if err := os.Symlink(realRoot, aliasRoot); err != nil {
+			t.Skipf("Symlink(%q, %q) unavailable: %v", realRoot, aliasRoot, err)
+		}
+		registry := newTestRegistry(t, RegistryConfig{GlobalSkillRoots: []compozyconfig.SkillRootSpec{
+			{Dir: realRoot, SourceSlug: compozyconfig.SkillSourceAgents, Kind: compozyconfig.RootKindPreset, ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}},
+			{Dir: aliasRoot, SourceSlug: compozyconfig.SkillSourceCompozy, Kind: compozyconfig.RootKindBuiltin, ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}},
+		}})
+		if err := registry.LoadAll(t.Context()); err != nil {
+			t.Fatalf("LoadAll() error = %v", err)
+		}
+		skill := findSkill(t, registry.List(), "aliased")
+		if skill.Origin != "" || len(skill.Diagnostics.ShadowedDefinitions) != 0 {
+			t.Fatalf("aliased skill = %#v, want higher-precedence attribution without a shadow", skill)
+		}
+	})
+
+	t.Run("Should let the workspace compozy root shadow an enabled preset", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := t.TempDir()
+		agentsPath := writeSkillFile(t, filepath.Join(workspaceRoot, ".agents", "skills"), filepath.Join("shared", skillFileName), skillWithDescription("shared", "Agents workspace"))
+		compozyPath := writeSkillFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.SkillsDirName), filepath.Join("shared", skillFileName), skillWithDescription("shared", "Compozy workspace"))
+		canonicalAgentsPath, err := filepath.EvalSymlinks(agentsPath)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(agents path) error = %v", err)
+		}
+		canonicalCompozyPath, err := filepath.EvalSymlinks(compozyPath)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(compozy path) error = %v", err)
+		}
+		resolved := resolvedWorkspaceForTest("ws-configured-roots", workspaceRoot)
+		resolved.Config.Skills.Sources = []string{compozyconfig.SkillSourceAgents}
+		registry := newTestRegistry(t, RegistryConfig{})
+		skills, err := registry.ForWorkspace(t.Context(), &resolved)
+		if err != nil {
+			t.Fatalf("ForWorkspace() error = %v", err)
+		}
+		shared := findSkill(t, skills, "shared")
+		if shared.Source != SourceWorkspace || shared.Origin != "" || shared.FilePath != canonicalCompozyPath {
+			t.Fatalf("shared winner = %#v, want workspace compozy root", shared)
+		}
+		if len(shared.Diagnostics.ShadowedDefinitions) != 1 || shared.Diagnostics.ShadowedDefinitions[0].Path != canonicalAgentsPath {
+			t.Fatalf("shared shadows = %#v, want agents path %q", shared.Diagnostics.ShadowedDefinitions, canonicalAgentsPath)
+		}
+	})
 }
 
 func TestRegistryForAgentDefUsesConcretePackageAgent(t *testing.T) {
@@ -145,7 +241,7 @@ func TestRegistryEventSummaries(t *testing.T) {
 		)
 
 		registry := newTestRegistry(t, RegistryConfig{
-			UserSkillsDir: userDir,
+			GlobalSkillRoots: testGlobalSkillRoots(userDir),
 		}, WithEventSummaryStore(eventStore))
 		if err := registry.LoadAll(context.Background()); err != nil {
 			t.Fatalf("LoadAll() error = %v", err)
@@ -241,8 +337,8 @@ func TestRegistryEventSummaries(t *testing.T) {
 		}
 
 		registry := newTestRegistry(t, RegistryConfig{
-			UserSkillsDir: userDir,
-			UserAgentsDir: agentsDir,
+			GlobalSkillRoots: testGlobalSkillRoots(userDir),
+			GlobalAgentsDir:  agentsDir,
 		}, WithEventSummaryStore(eventStore))
 
 		_, err := registry.ForAgent(context.Background(), &workspacepkg.ResolvedWorkspace{
@@ -320,8 +416,8 @@ func TestRegistryEventSummaries(t *testing.T) {
 		}
 
 		registry := newTestRegistry(t, RegistryConfig{
-			UserSkillsDir: userDir,
-			UserAgentsDir: agentsDir,
+			GlobalSkillRoots: testGlobalSkillRoots(userDir),
+			GlobalAgentsDir:  agentsDir,
 		}, WithEventSummaryStore(eventStore))
 
 		_, err := registry.ForAgent(context.Background(), nil, "writer")
@@ -348,6 +444,168 @@ func TestRegistryEventSummaries(t *testing.T) {
 			t.Fatalf("content.agent_name = %q, want %q", got, want)
 		}
 	})
+}
+
+func TestRegistryConfigGenerationFence(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep the winning profile generation on every catalog surface", func(t *testing.T) {
+		t.Parallel()
+
+		eventStore := &recordingSkillEventSummaryStore{}
+		registry := newTestRegistry(t, RegistryConfig{}, WithEventSummaryStore(eventStore))
+		initialRecord := skillResourceRecord("initial", "Initial catalog")
+		if err := registry.ApplyResourceRecords(t.Context(), 1, []resources.Record[SkillResourceSpec]{initialRecord}); err != nil {
+			t.Fatalf("ApplyResourceRecords(initial) error = %v", err)
+		}
+
+		initialVersion := registry.GlobalVersion()
+		var versionAtApplied int64
+		eventStore.onWrite = func(summary store.EventSummary) {
+			if summary.Type == "skills.sources.applied" {
+				versionAtApplied = registry.GlobalVersion()
+			}
+		}
+
+		generationOneCtx := WithConfigGeneration(
+			WithSourceEventCorrelation(t.Context(), SourceEventCorrelation{
+				Scope: "profile", ProfileID: "profile-a", ActorKind: "settings", ActorID: "http",
+			}),
+			1,
+		)
+		generationTwoCtx := WithConfigGeneration(
+			WithSourceEventCorrelation(t.Context(), SourceEventCorrelation{
+				Scope: "workspace", ProfileID: "profile-b", WorkspaceID: "workspace-b",
+				ActorKind: "settings", ActorID: "uds",
+			}),
+			2,
+		)
+
+		needsPublication, err := registry.ApplyConfigGeneration(generationOneCtx, 1, RegistryConfig{})
+		if err != nil || !needsPublication {
+			t.Fatalf("ApplyConfigGeneration(1) = (%t, %v), want publication", needsPublication, err)
+		}
+		if err := registry.ApplyResourceRecords(
+			generationOneCtx,
+			2,
+			[]resources.Record[SkillResourceSpec]{skillResourceRecord("stale", "Stale catalog")},
+		); err != nil {
+			t.Fatalf("ApplyResourceRecords(1) error = %v", err)
+		}
+
+		needsPublication, err = registry.ApplyConfigGeneration(generationTwoCtx, 2, RegistryConfig{})
+		if err != nil || !needsPublication {
+			t.Fatalf("ApplyConfigGeneration(2) = (%t, %v), want publication", needsPublication, err)
+		}
+		if err := registry.ApplyResourceRecords(
+			generationTwoCtx,
+			3,
+			[]resources.Record[SkillResourceSpec]{skillResourceRecord("winning", "Winning catalog")},
+		); err != nil {
+			t.Fatalf("ApplyResourceRecords(2) error = %v", err)
+		}
+		if err := registry.CommitConfigGeneration(generationTwoCtx, 2); err != nil {
+			t.Fatalf("CommitConfigGeneration(2) error = %v", err)
+		}
+
+		if err := registry.ApplyResourceRecords(
+			generationOneCtx,
+			4,
+			[]resources.Record[SkillResourceSpec]{skillResourceRecord("stale", "Late stale catalog")},
+		); !errors.Is(err, ErrConfigGenerationSuperseded) {
+			t.Fatalf("ApplyResourceRecords(stale) error = %v, want ErrConfigGenerationSuperseded", err)
+		}
+		if err := registry.CommitConfigGeneration(generationOneCtx, 1); !errors.Is(err, ErrConfigGenerationSuperseded) {
+			t.Fatalf("CommitConfigGeneration(stale) error = %v, want ErrConfigGenerationSuperseded", err)
+		}
+
+		if got, ok := registry.Get("winning"); !ok || got.Meta.Description != "Winning catalog" {
+			t.Fatalf("Get(winning) = (%#v, %t), want winning generation", got, ok)
+		}
+		if _, ok := registry.Get("stale"); ok {
+			t.Fatal("Get(stale) found a discarded generation")
+		}
+		if got, want := registry.ConfigGeneration(), int64(2); got != want {
+			t.Fatalf("ConfigGeneration() = %d, want %d", got, want)
+		}
+		if got, want := versionAtApplied, initialVersion; got != want {
+			t.Fatalf("version at applied event = %d, want pre-broadcast version %d", got, want)
+		}
+
+		applyFailure := errors.New("publisher unavailable")
+		if err := registry.SourceApplyFailureError(generationTwoCtx, 3, applyFailure); !errors.Is(err, applyFailure) {
+			t.Fatalf("SourceApplyFailureError() = %v, want original failure", err)
+		}
+		scanRoot := compozyconfig.SkillRootSpec{
+			Dir: "/workspace-b/.agents/skills", SourceSlug: "agents", Kind: compozyconfig.RootKindPreset,
+			ResourceScope: resources.ResourceScope{
+				Kind: resources.ResourceScopeKindWorkspaceProfile,
+				ID:   "workspace-b@pf:profile-b",
+			},
+			ProfileID: "profile-b", WorkspaceID: "workspace-b",
+		}
+		if err := registry.emitSkillScanEvents(generationTwoCtx, scanRoot, skillscan.RootScanStats{
+			Exists: true, Readable: true, ScannedCount: skillscan.MaxCandidates, Truncated: true,
+			SkippedLinks: []skillscan.SkippedLink{{Path: "/workspace-b/.agents/skills/escape", Reason: "escape"}},
+		}); err != nil {
+			t.Fatalf("emitSkillScanEvents() error = %v", err)
+		}
+
+		assertSkillSourceLifecycleEvents(t, eventStore.Summaries())
+	})
+}
+
+func assertSkillSourceLifecycleEvents(t *testing.T, summaries []store.EventSummary) {
+	t.Helper()
+
+	counts := make(map[string]int)
+	for _, summary := range summaries {
+		counts[summary.Type]++
+		if !strings.HasPrefix(summary.Type, "skills.sources.") &&
+			!strings.HasPrefix(summary.Type, "skills.scan.") {
+			continue
+		}
+		if summary.ProfileID == "" || summary.ActorKind == "" || summary.ActorID == "" {
+			t.Fatalf("source event %q correlation = %#v, want profile and actor", summary.Type, summary)
+		}
+		var content map[string]any
+		if err := json.Unmarshal(summary.ContentValue(), &content); err != nil {
+			t.Fatalf("Unmarshal(%s content) error = %v", summary.Type, err)
+		}
+		if _, ok := content["config_generation"]; !ok {
+			t.Fatalf("%s content = %#v, want config_generation", summary.Type, content)
+		}
+		if content["profile_id"] == "" || content["actor_kind"] == "" || content["actor_id"] == "" {
+			t.Fatalf("%s content = %#v, want full base correlation", summary.Type, content)
+		}
+	}
+	if counts["skills.sources.applied"] != 1 {
+		t.Fatalf("applied event count = %d, want 1", counts["skills.sources.applied"])
+	}
+	if counts["skills.sources.superseded"] < 1 {
+		t.Fatalf("superseded event count = %d, want at least 1", counts["skills.sources.superseded"])
+	}
+	for _, eventType := range []string{
+		"skills.sources.apply_failed",
+		"skills.scan.truncated",
+		"skills.scan.link_skipped",
+	} {
+		if counts[eventType] != 1 {
+			t.Fatalf("%s event count = %d, want 1", eventType, counts[eventType])
+		}
+	}
+}
+
+func skillResourceRecord(name string, description string) resources.Record[SkillResourceSpec] {
+	return resources.Record[SkillResourceSpec]{
+		ID:    "skill." + name,
+		Kind:  SkillResourceKind,
+		Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+		Spec: SkillResourceSpec{
+			Name: name, Description: description, Source: skillSourceName(SourceUser),
+			FilePath: "/skills/" + name + "/SKILL.md", Enabled: true,
+		},
+	}
 }
 
 func TestRegistryLoadAllDetectsMarketplaceSidecarsAndLoadsProvenance(t *testing.T) {
@@ -382,7 +640,7 @@ func TestRegistryLoadAllDetectsMarketplaceSidecarsAndLoadsProvenance(t *testing.
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, nil))
 	registry := newTestRegistry(t, RegistryConfig{
-		UserSkillsDir: userDir,
+		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	}, WithLogger(logger))
 
 	if err := registry.LoadAll(context.Background()); err != nil {
@@ -442,7 +700,7 @@ func TestRegistryUserSkillOverridesBundledSkill(t *testing.T) {
 		BundledFS: bundledSkillFS(map[string]string{
 			"shared": "Bundled default",
 		}),
-		UserSkillsDir: userDir,
+		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	})
 
 	if err := registry.LoadAll(context.Background()); err != nil {
@@ -508,7 +766,7 @@ func TestRegistryForWorkspaceMergesGlobalAndWorkspaceSkills(t *testing.T) {
 	)
 
 	registry := newTestRegistry(t, RegistryConfig{
-		UserSkillsDir: userDir,
+		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	})
 
 	if err := registry.LoadAll(context.Background()); err != nil {
@@ -589,7 +847,7 @@ func TestRegistryWorkspaceSkillOverridesGlobalSkill(t *testing.T) {
 	)
 
 	registry := newTestRegistry(t, RegistryConfig{
-		UserSkillsDir: userDir,
+		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	})
 
 	if err := registry.LoadAll(context.Background()); err != nil {
@@ -649,7 +907,7 @@ func TestRegistryWorkspaceOverrideAudits(t *testing.T) {
 		var logs bytes.Buffer
 		logger := slog.New(slog.NewTextHandler(&logs, nil))
 		registry := newTestRegistry(t, RegistryConfig{
-			UserSkillsDir: userDir,
+			GlobalSkillRoots: testGlobalSkillRoots(userDir),
 		}, WithLogger(logger))
 
 		if err := registry.LoadAll(context.Background()); err != nil {
@@ -697,7 +955,7 @@ func TestRegistryWorkspaceOverrideAudits(t *testing.T) {
 			skillWithDescription("shared", "Workspace override"),
 		)
 
-		registry := newTestRegistry(t, RegistryConfig{UserSkillsDir: userDir})
+		registry := newTestRegistry(t, RegistryConfig{GlobalSkillRoots: testGlobalSkillRoots(userDir)})
 		if err := registry.LoadAll(context.Background()); err != nil {
 			t.Fatalf("LoadAll() error = %v", err)
 		}
@@ -935,9 +1193,11 @@ func TestRegistryForWorkspaceSeparatesProfilesWithSharedWorkspaceIdentity(t *tes
 
 		registry := newTestRegistry(t, RegistryConfig{})
 		marketing := resolvedWorkspaceForTest("ws_shared", workspace)
+		marketing.ProfileID = "profile-marketing"
 		marketing.ProfileName = "marketing"
 		marketing.ProfileRoot = marketingRoot
 		sales := marketing
+		sales.ProfileID = "profile-sales"
 		sales.ProfileName = "sales"
 		sales.ProfileRoot = salesRoot
 
@@ -959,6 +1219,26 @@ func TestRegistryForWorkspaceSeparatesProfilesWithSharedWorkspaceIdentity(t *tes
 		salesEntry := cacheEntryForWorkspace(t, registry, &sales)
 		if marketingEntry == nil || salesEntry == nil || marketingEntry == salesEntry {
 			t.Fatalf("profile cache entries = marketing:%p sales:%p, want distinct entries", marketingEntry, salesEntry)
+		}
+	})
+
+	t.Run("Should separate effective source configurations within one profile and workspace", func(t *testing.T) {
+		t.Parallel()
+
+		first := resolvedWorkspaceForTest("ws-source-generation", t.TempDir())
+		first.ProfileID = "profile-stable"
+		first.Config.Skills.Sources = []string{"agents"}
+		second := first
+		second.Config = compozyconfig.CloneConfig(&first.Config)
+		second.Config.Skills.Sources = []string{"claude"}
+
+		if firstKey, secondKey := workspaceCacheKey(&first), workspaceCacheKey(&second); firstKey == secondKey {
+			t.Fatalf("workspace cache keys = %q and %q, want source-generation isolation", firstKey, secondKey)
+		}
+		otherProfile := first
+		otherProfile.ProfileID = "profile-other"
+		if firstKey, otherKey := workspaceCacheKey(&first), workspaceCacheKey(&otherProfile); firstKey == otherKey {
+			t.Fatalf("workspace cache keys = %q and %q, want profile isolation", firstKey, otherKey)
 		}
 	})
 }
@@ -1111,10 +1391,11 @@ func TestRegistryWorkspaceCacheEvictsEntriesOlderThanTTL(t *testing.T) {
 	}
 }
 
-func TestRegistryForWorkspaceUsesResolverSkillPathsWithoutScanningWorkspaceRoot(t *testing.T) {
+func TestRegistryForWorkspaceUsesTypedWorkspaceRoots(t *testing.T) {
 	t.Parallel()
 
-	skillsRoot := t.TempDir()
+	workspaceRoot := t.TempDir()
+	skillsRoot := filepath.Join(workspaceRoot, ".compozy", "skills")
 	writeSkillFile(
 		t,
 		skillsRoot,
@@ -1125,16 +1406,15 @@ func TestRegistryForWorkspaceUsesResolverSkillPathsWithoutScanningWorkspaceRoot(
 	registry := newTestRegistry(t, RegistryConfig{})
 
 	got, err := registry.ForWorkspace(context.Background(), resolvedWorkspacePtr(
-		"ws_resolver_only",
-		filepath.Join(t.TempDir(), "missing-workspace-root"),
-		resolvedSkillPath(filepath.Join(skillsRoot, "resolver-only"), "workspace"),
+		"ws_typed_root",
+		workspaceRoot,
 	))
 	if err != nil {
 		t.Fatalf("ForWorkspace() error = %v", err)
 	}
 
 	if !hasSkill(got, "resolver-only") {
-		t.Fatalf("ForWorkspace() = %#v, want resolver-provided skill", got)
+		t.Fatalf("ForWorkspace() = %#v, want typed-root skill", got)
 	}
 }
 
@@ -1162,7 +1442,7 @@ func TestRegistryVerifyContentBlocksCriticalSkills(t *testing.T) {
 	)
 
 	registry := newTestRegistry(t, RegistryConfig{
-		UserSkillsDir: userDir,
+		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	})
 
 	if err := registry.LoadAll(context.Background()); err != nil {
@@ -1287,7 +1567,7 @@ func TestRegistryRefreshGlobalIncrementsVersionOnChange(t *testing.T) {
 	)
 
 	registry := newTestRegistry(t, RegistryConfig{
-		UserSkillsDir: userDir,
+		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	})
 
 	if err := registry.LoadAll(context.Background()); err != nil {
@@ -1336,7 +1616,7 @@ func TestRegistryRefreshGlobalDoesNotIncrementVersionWithoutChange(t *testing.T)
 	)
 
 	registry := newTestRegistry(t, RegistryConfig{
-		UserSkillsDir: userDir,
+		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	})
 
 	if err := registry.LoadAll(context.Background()); err != nil {
@@ -1378,7 +1658,7 @@ func TestRegistryRefreshGlobalCancellation(t *testing.T) {
 			skillWithDescription("refresh", "Version one"),
 		)
 		registry := newTestRegistry(t, RegistryConfig{
-			UserSkillsDir: userDir,
+			GlobalSkillRoots: testGlobalSkillRoots(userDir),
 		})
 
 		if err := registry.LoadAll(context.Background()); err != nil {
@@ -1480,7 +1760,7 @@ func TestRegistryConcurrentGetAndListDoNotDeadlock(t *testing.T) {
 	}
 
 	registry := newTestRegistry(t, RegistryConfig{
-		UserSkillsDir: userDir,
+		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	})
 
 	if err := registry.LoadAll(context.Background()); err != nil {
@@ -1546,7 +1826,7 @@ func TestRegistryOverrideCollisionLoggedWithSourceInfo(t *testing.T) {
 		BundledFS: bundledSkillFS(map[string]string{
 			"shared": "Bundled default",
 		}),
-		UserSkillsDir: userDir,
+		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	}, WithLogger(logger))
 
 	if err := registry.LoadAll(context.Background()); err != nil {
@@ -1579,8 +1859,8 @@ func TestRegistryDisabledSkillRemainsPresentButDisabled(t *testing.T) {
 	)
 
 	registry := newTestRegistry(t, RegistryConfig{
-		UserSkillsDir:  userDir,
-		DisabledSkills: []string{"disabled"},
+		GlobalSkillRoots: testGlobalSkillRoots(userDir),
+		DisabledSkills:   []string{"disabled"},
 	})
 
 	if err := registry.LoadAll(context.Background()); err != nil {
@@ -1625,7 +1905,7 @@ func TestRegistryMarketplaceHashMismatchWarnsAndBlocksTamperedSkill(t *testing.T
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, nil))
 	registry := newTestRegistry(t, RegistryConfig{
-		UserSkillsDir: userDir,
+		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	}, WithLogger(logger))
 
 	if err := registry.LoadAll(context.Background()); err != nil {
@@ -1683,7 +1963,7 @@ func TestRegistryMarketplaceHashMismatchBlocksCriticalSkill(t *testing.T) {
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, nil))
 	registry := newTestRegistry(t, RegistryConfig{
-		UserSkillsDir: userDir,
+		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	}, WithLogger(logger))
 
 	if err := registry.LoadAll(context.Background()); err != nil {
@@ -1881,10 +2161,12 @@ func TestSkillSourceMarketplacePrecedenceAndNaming(t *testing.T) {
 		SourceBundled,
 		SourceMarketplace,
 		SourceUser,
+		SourceProfile,
 		SourceAdditional,
 		SourceWorkspace,
+		SourceWorkspaceProfile,
 		SourceAgentLocal,
-	}, []SkillSource{0, 1, 2, 3, 4, 5}; !slices.Equal(got, want) {
+	}, []SkillSource{0, 1, 2, 3, 4, 5, 6, 7}; !slices.Equal(got, want) {
 		t.Fatalf("persisted SkillSource values = %v, want %v", got, want)
 	}
 	if SourceBundled >= SourceMarketplace || SourceMarketplace >= SourceUser {
@@ -1915,7 +2197,7 @@ func TestSkillSourceMarketplacePrecedenceAndNaming(t *testing.T) {
 		)
 	}
 
-	t.Run("Should rank appended profile sources without enum ordering", func(t *testing.T) {
+	t.Run("Should rank every profile-aware source in enum order", func(t *testing.T) {
 		t.Parallel()
 
 		ordered := []SkillSource{
@@ -1932,9 +2214,6 @@ func TestSkillSourceMarketplacePrecedenceAndNaming(t *testing.T) {
 			if SkillPrecedenceRank(ordered[index-1]) >= SkillPrecedenceRank(ordered[index]) {
 				t.Fatalf("SkillPrecedenceRank ordering = %v", ordered)
 			}
-		}
-		if SourceProfile < SourceAgentLocal || SourceWorkspaceProfile < SourceAgentLocal {
-			t.Fatal("profile sources were inserted into the persisted enum")
 		}
 	})
 }
@@ -2067,7 +2346,7 @@ func TestRegistryLoadContent(t *testing.T) {
 					Data: []byte(skillWithBody("bundled", "Bundled skill", "Bundled body")),
 				},
 			},
-			UserSkillsDir: userDir,
+			GlobalSkillRoots: testGlobalSkillRoots(userDir),
 		})
 		if err := registry.LoadAll(context.Background()); err != nil {
 			t.Fatalf("LoadAll() error = %v", err)
@@ -2352,7 +2631,7 @@ func TestRegistryLogsNonCriticalVerificationWarnings(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&logs, nil))
 
 	registry := newTestRegistry(t, RegistryConfig{
-		UserSkillsDir: userDir,
+		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	}, WithLogger(logger))
 
 	if err := registry.LoadAll(context.Background()); err != nil {
@@ -2397,6 +2676,9 @@ func TestRegistryRejectsCanceledContext(t *testing.T) {
 
 func TestRegistrySetEnabled(t *testing.T) {
 	t.Parallel()
+	workspaceKey := workspaceCacheKey(&workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{ID: "ws-1"},
+	})
 
 	makeRegistry := func() *Registry {
 		registry := newTestRegistry(t, RegistryConfig{
@@ -2406,7 +2688,7 @@ func TestRegistrySetEnabled(t *testing.T) {
 			Meta:    SkillMeta{Name: "test-skill", Description: "global"},
 			Enabled: true,
 		}
-		registry.wsCache["id:ws-1"] = &wsCache{
+		registry.wsCache[workspaceKey] = &wsCache{
 			skills: map[string]*Skill{
 				"test-skill": {
 					Meta:    SkillMeta{Name: "test-skill", Description: "workspace"},
@@ -2426,7 +2708,7 @@ func TestRegistrySetEnabled(t *testing.T) {
 		if registry.globalSkills["test-skill"].Enabled {
 			t.Fatal("global skill still enabled after SetEnabled(nil, false)")
 		}
-		if registry.wsCache["id:ws-1"].skills["test-skill"].Enabled != true {
+		if registry.wsCache[workspaceKey].skills["test-skill"].Enabled != true {
 			t.Fatal("workspace skill changed when disabling global skill")
 		}
 		if !slices.Contains(registry.cfg.DisabledSkills, "test-skill") {
@@ -2445,7 +2727,7 @@ func TestRegistrySetEnabled(t *testing.T) {
 		if !registry.globalSkills["test-skill"].Enabled {
 			t.Fatal("global skill disabled after SetEnabled(nil, true)")
 		}
-		if registry.wsCache["id:ws-1"].skills["test-skill"].Enabled != true {
+		if registry.wsCache[workspaceKey].skills["test-skill"].Enabled != true {
 			t.Fatal("workspace skill changed when enabling global skill")
 		}
 		if slices.Contains(registry.cfg.DisabledSkills, "test-skill") {
@@ -2463,7 +2745,7 @@ func TestRegistrySetEnabled(t *testing.T) {
 		if !registry.globalSkills["test-skill"].Enabled {
 			t.Fatal("global skill changed when disabling workspace override")
 		}
-		if registry.wsCache["id:ws-1"].skills["test-skill"].Enabled {
+		if registry.wsCache[workspaceKey].skills["test-skill"].Enabled {
 			t.Fatal("workspace skill still enabled after SetEnabled(workspace, false)")
 		}
 		if slices.Contains(registry.cfg.DisabledSkills, "test-skill") {
@@ -2472,26 +2754,26 @@ func TestRegistrySetEnabled(t *testing.T) {
 				registry.cfg.DisabledSkills,
 			)
 		}
-		if !slices.Contains(registry.workspaceDisabled["id:ws-1"], "test-skill") {
+		if !slices.Contains(registry.workspaceDisabled[workspaceKey], "test-skill") {
 			t.Fatalf(
 				"workspaceDisabled = %v, want test-skill present",
-				registry.workspaceDisabled["id:ws-1"],
+				registry.workspaceDisabled[workspaceKey],
 			)
 		}
 
 		if err := registry.SetEnabled("test-skill", &resolved, true); err != nil {
 			t.Fatalf("SetEnabled(workspace, true) error = %v", err)
 		}
-		if !registry.wsCache["id:ws-1"].skills["test-skill"].Enabled {
+		if !registry.wsCache[workspaceKey].skills["test-skill"].Enabled {
 			t.Fatal("workspace skill disabled after SetEnabled(workspace, true)")
 		}
 		if !registry.globalSkills["test-skill"].Enabled {
 			t.Fatal("global skill changed when enabling workspace override")
 		}
-		if slices.Contains(registry.workspaceDisabled["id:ws-1"], "test-skill") {
+		if slices.Contains(registry.workspaceDisabled[workspaceKey], "test-skill") {
 			t.Fatalf(
 				"workspaceDisabled = %v, did not expect test-skill",
-				registry.workspaceDisabled["id:ws-1"],
+				registry.workspaceDisabled[workspaceKey],
 			)
 		}
 	})
@@ -2528,12 +2810,8 @@ func TestRegistrySetEnabledUsesSkillOnlyWorkspaceCacheKey(t *testing.T) {
 
 	registry := newTestRegistry(t, RegistryConfig{})
 	resolved := resolvedWorkspaceForTest(
-		"",
-		"",
-		resolvedSkillPath(
-			filepath.Join(workspaceDir, ".compozy", "skills", "workspace-skill"),
-			"workspace",
-		),
+		"ws-skill-only",
+		workspaceDir,
 	)
 
 	if _, err := registry.ForWorkspace(context.Background(), &resolved); err != nil {
@@ -2571,7 +2849,7 @@ func TestRegistrySetEnabledPreservesDisabledOverlayDuringResourceRediscovery(t *
 			skillWithDescription("global-skill", "Initial global description"),
 		)
 
-		registry := newTestRegistry(t, RegistryConfig{UserSkillsDir: userDir})
+		registry := newTestRegistry(t, RegistryConfig{GlobalSkillRoots: testGlobalSkillRoots(userDir)})
 		discovered, _, err := registry.DiscoverGlobal(context.Background())
 		if err != nil {
 			t.Fatalf("DiscoverGlobal() error = %v", err)
@@ -2684,23 +2962,20 @@ func TestRegistrySetEnabledPreservesDisabledOverlayDuringResourceRediscovery(t *
 	})
 }
 
-func TestWorkspaceLoadFromResolvedWrapsWorkspaceSourceErrors(t *testing.T) {
+func TestWorkspaceLoadFromResolvedIgnoresStaleResolverSkillPaths(t *testing.T) {
 	t.Parallel()
 
 	registry := newTestRegistry(t, RegistryConfig{})
-	_, err := registry.workspaceLoadFromResolved(context.Background(), resolvedWorkspacePtr(
+	load, err := registry.workspaceLoadFromResolved(context.Background(), resolvedWorkspacePtr(
 		"ws-invalid-source",
-		"",
+		t.TempDir(),
 		resolvedSkillPath(t.TempDir(), "unknown-source"),
 	))
-	if err == nil {
-		t.Fatal("workspaceLoadFromResolved(invalid source) error = nil, want failure")
+	if err != nil {
+		t.Fatalf("workspaceLoadFromResolved(stale resolver path) error = %v", err)
 	}
-	if !strings.Contains(err.Error(), `skills: resolve workspace skill source "unknown-source"`) {
-		t.Fatalf(
-			"workspaceLoadFromResolved(invalid source) error = %v, want wrapped source context",
-			err,
-		)
+	if len(load.paths) != 0 {
+		t.Fatalf("workspaceLoadFromResolved(stale resolver path).paths = %#v, want typed roots only", load.paths)
 	}
 }
 
@@ -2745,13 +3020,21 @@ func TestWorkspaceLoadFromResolvedPreservesDuplicateWorkspaceCandidatesByPrecede
 		if got, want := len(load.paths), 2; got != want {
 			t.Fatalf("len(load.paths) = %d, want %d", got, want)
 		}
-		if got, want := load.paths[0].filePath, additionalSkillPath; got != want {
+		canonicalAdditional, err := filepath.EvalSymlinks(additionalSkillPath)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(additional skill) error = %v", err)
+		}
+		canonicalWorkspace, err := filepath.EvalSymlinks(workspaceSkillPath)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(workspace skill) error = %v", err)
+		}
+		if got, want := load.paths[0].filePath, canonicalAdditional; got != want {
 			t.Fatalf("load.paths[0].filePath = %q, want %q", got, want)
 		}
 		if got, want := load.paths[0].source, SourceAdditional; got != want {
 			t.Fatalf("load.paths[0].source = %v, want %v", got, want)
 		}
-		if got, want := load.paths[1].filePath, workspaceSkillPath; got != want {
+		if got, want := load.paths[1].filePath, canonicalWorkspace; got != want {
 			t.Fatalf("load.paths[1].filePath = %q, want %q", got, want)
 		}
 		if got, want := load.paths[1].source, SourceWorkspace; got != want {
@@ -2770,13 +3053,13 @@ func TestWorkspaceLoadFromResolvedPreservesDuplicateWorkspaceCandidatesByPrecede
 		if !ok {
 			t.Fatal("ShadowsForSkill(shared) ok = false, want true")
 		}
-		if got, want := shadows.Winner.Path, workspaceSkillPath; got != want {
+		if got, want := shadows.Winner.Path, canonicalWorkspace; got != want {
 			t.Fatalf("ShadowsForSkill(shared).Winner.Path = %q, want %q", got, want)
 		}
 		if got, want := len(shadows.Shadows), 2; got != want {
 			t.Fatalf("len(ShadowsForSkill(shared).Shadows) = %d, want %d", got, want)
 		}
-		if got, want := shadows.Shadows[1].Path, additionalSkillPath; got != want {
+		if got, want := shadows.Shadows[1].Path, canonicalAdditional; got != want {
 			t.Fatalf("ShadowsForSkill(shared).Shadows[1].Path = %q, want %q", got, want)
 		}
 	})
@@ -2791,12 +3074,16 @@ func newTestRegistry(t *testing.T, cfg RegistryConfig, opts ...Option) *Registry
 type recordingSkillEventSummaryStore struct {
 	mu        sync.Mutex
 	summaries []store.EventSummary
+	onWrite   func(store.EventSummary)
 }
 
 func (r *recordingSkillEventSummaryStore) WriteEventSummary(
 	_ context.Context,
 	summary store.EventSummary,
 ) error {
+	if r.onWrite != nil {
+		r.onWrite(summary)
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	summary.SetContent(summary.ContentValue())
@@ -2897,11 +3184,7 @@ func cacheEntryForWorkspace(
 	registry.mu.RLock()
 	defer registry.mu.RUnlock()
 
-	paths, ok := workspaceCacheKeyPaths(workspace)
-	if !ok {
-		return nil
-	}
-	return registry.wsCache[workspaceCacheKey(workspace, paths)]
+	return registry.wsCache[workspaceCacheKey(workspace)]
 }
 
 func resolvedWorkspacePtr(

@@ -32,6 +32,7 @@ import (
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
+	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -3163,6 +3164,7 @@ func TestBootSkillsWatcherRefreshesWorkspaceSkillsWithoutRestart(t *testing.T) {
 		cfg := testConfig(t, homePaths)
 		cfg.Memory.Enabled = false
 		cfg.Skills.Enabled = true
+		cfg.Skills.Sources = []string{compozyconfig.SkillSourceAgents}
 		cfg.Skills.PollInterval = 10 * time.Millisecond
 
 		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
@@ -3182,7 +3184,9 @@ func TestBootSkillsWatcherRefreshesWorkspaceSkillsWithoutRestart(t *testing.T) {
 		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
 			return &fakeObserver{}, nil
 		}
-		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+		var runtimeDeps RuntimeDeps
+		d.httpFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
+			runtimeDeps = deps
 			return &fakeServer{name: "http"}, nil
 		}
 		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
@@ -3268,7 +3272,110 @@ description: Updated workspace watched skill
 
 			return findIntegrationSkill(projectedSkills, "watched-workspace-skill") == nil
 		})
+
+		presetSkillFile := filepath.Join(
+			workspaceRoot,
+			".agents",
+			"skills",
+			"watched-preset-skill",
+			"SKILL.md",
+		)
+		writeDaemonFile(t, presetSkillFile, `---
+name: watched-preset-skill
+description: Workspace preset skill
+---
+
+# Watched Preset Skill
+`)
+		waitForCondition(t, "enabled preset skill publication", func() bool {
+			resolved, err := d.workspaceResolver.Resolve(testutil.Context(t), resolvedWorkspace.ID)
+			if err != nil {
+				return false
+			}
+			projectedSkills, err := d.skillsRegistry.ForWorkspace(testutil.Context(t), &resolved)
+			return err == nil && findIntegrationSkill(projectedSkills, "watched-preset-skill") != nil
+		})
+
+		if runtimeDeps.Settings == nil {
+			t.Fatal("boot runtime settings service = nil")
+		}
+		currentEnvelope, err := runtimeDeps.Settings.GetSection(testutil.Context(t), settingspkg.SectionRequest{
+			Section: settingspkg.SectionSkills, Scope: settingspkg.ScopeUser,
+		})
+		if err != nil {
+			t.Fatalf("GetSection(before source toggle) error = %v", err)
+		}
+		if currentEnvelope.Skills == nil {
+			t.Fatal("GetSection(before source toggle).Skills = nil")
+		}
+		disabledSources := currentEnvelope.Skills.Config
+		disabledSources.Sources = []string{}
+		disableResult, err := runtimeDeps.Settings.ApplySection(
+			settingspkg.WithMutationSource(testutil.Context(t), "http"),
+			settingspkg.SectionUpdateRequest{
+				SectionRequest: settingspkg.SectionRequest{Section: settingspkg.SectionSkills, Scope: settingspkg.ScopeUser},
+				Skills:         &disabledSources,
+			},
+		)
+		if err != nil {
+			t.Fatalf("ApplySection(disable agents) error = %v", err)
+		}
+		if !disableResult.Applied || disableResult.RestartRequired {
+			t.Fatalf("ApplySection(disable agents) = %#v, want live apply", disableResult)
+		}
+		waitForCondition(t, "disabled preset leaves registry", func() bool {
+			resolved, err := d.workspaceResolver.Resolve(testutil.Context(t), resolvedWorkspace.ID)
+			if err != nil {
+				return false
+			}
+			projectedSkills, err := d.skillsRegistry.ForWorkspace(testutil.Context(t), &resolved)
+			return err == nil && findIntegrationSkill(projectedSkills, "watched-preset-skill") == nil
+		})
+		envelope, err := runtimeDeps.Settings.GetSection(testutil.Context(t), settingspkg.SectionRequest{
+			Section: settingspkg.SectionSkills, Scope: settingspkg.ScopeUser,
+		})
+		if err != nil {
+			t.Fatalf("GetSection(disabled sources) error = %v", err)
+		}
+		if envelope.Skills == nil {
+			t.Fatal("GetSection(disabled sources).Skills = nil")
+		}
+		if source := findDaemonIntegrationSkillSource(envelope.Skills.Sources, compozyconfig.SkillSourceAgents); source == nil || source.Enabled {
+			t.Fatalf("agents source after disable = %#v, want disabled", source)
+		}
+
+		enabledSources := disabledSources
+		enabledSources.Sources = []string{compozyconfig.SkillSourceAgents}
+		if _, err := runtimeDeps.Settings.ApplySection(
+			settingspkg.WithMutationSource(testutil.Context(t), "http"),
+			settingspkg.SectionUpdateRequest{
+				SectionRequest: settingspkg.SectionRequest{Section: settingspkg.SectionSkills, Scope: settingspkg.ScopeUser},
+				Skills:         &enabledSources,
+			},
+		); err != nil {
+			t.Fatalf("ApplySection(enable agents) error = %v", err)
+		}
+		waitForCondition(t, "reenabled preset returns to registry", func() bool {
+			resolved, err := d.workspaceResolver.Resolve(testutil.Context(t), resolvedWorkspace.ID)
+			if err != nil {
+				return false
+			}
+			projectedSkills, err := d.skillsRegistry.ForWorkspace(testutil.Context(t), &resolved)
+			return err == nil && findIntegrationSkill(projectedSkills, "watched-preset-skill") != nil
+		})
 	})
+}
+
+func findDaemonIntegrationSkillSource(
+	sources []settingspkg.SkillSourceItem,
+	slug string,
+) *settingspkg.SkillSourceItem {
+	for index := range sources {
+		if sources[index].Slug == slug {
+			return &sources[index]
+		}
+	}
+	return nil
 }
 
 func TestRunDreamTickerAndSpawnerIntegration(t *testing.T) {

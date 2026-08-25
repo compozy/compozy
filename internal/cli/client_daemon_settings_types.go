@@ -70,6 +70,13 @@ type scopedSettingsSkillsClient interface {
 	) (SettingsMutationRecord, error)
 }
 
+type settingsSkillsReader interface {
+	GetSettingsSkills(
+		context.Context,
+		settingsSkillsScopeQuery,
+	) (contract.SettingsSkillsResponse, error)
+}
+
 // UpdateSettingsAttentionRequest captures the shared attention settings update payload.
 type UpdateSettingsAttentionRequest = contract.UpdateSettingsAttentionRequest
 

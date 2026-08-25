@@ -41,6 +41,7 @@ func (s *service) buildSkillsSection(
 	cfg *compozyconfig.Config,
 	resolved *workspacepkg.ResolvedWorkspace,
 	scope ScopeKind,
+	profileName string,
 	agentName string,
 ) (SkillsSection, error) {
 	section := SkillsSection{
@@ -58,20 +59,37 @@ func (s *service) buildSkillsSection(
 
 	if s.skillsRuntime == nil {
 		section.DisabledCount = len(section.Config.DisabledSkills)
+		var sourceErr error
+		section.Sources, section.Inherits, sourceErr = s.buildSkillSourceReadModel(
+			section.Config, resolved, scope, nil, false,
+		)
+		if sourceErr != nil {
+			return SkillsSection{}, sourceErr
+		}
 		return section, nil
+	}
+	projection, err := s.skillProjectionWorkspace(ctx, cfg, resolved, scope, profileName)
+	if err != nil {
+		return SkillsSection{}, err
 	}
 
 	var (
-		skills []*skillspkg.Skill
-		err    error
+		skills  []*skillspkg.Skill
+		loadErr error
 	)
 	if scope == ScopeAgent {
-		skills, err = s.skillsRuntime.ForAgent(ctx, resolved, agentName)
+		skills, loadErr = s.skillsRuntime.ForAgent(ctx, projection, agentName)
+	} else if projection != nil {
+		if workspaceRuntime, ok := s.skillsRuntime.(SkillsWorkspaceRuntime); ok {
+			skills, loadErr = workspaceRuntime.ForWorkspace(ctx, projection)
+		} else {
+			skills = s.skillsRuntime.List()
+		}
 	} else {
 		skills = s.skillsRuntime.List()
 	}
-	if err != nil {
-		return SkillsSection{}, mapSkillsSettingsError(err)
+	if loadErr != nil {
+		return SkillsSection{}, mapSkillsSettingsError(loadErr)
 	}
 	section.RuntimeAvailable = true
 	section.DiscoveredCount = len(skills)
@@ -81,11 +99,24 @@ func (s *service) buildSkillsSection(
 		}
 	}
 	if diagnosticsRuntime, ok := s.skillsRuntime.(SkillsDiagnosticsRuntime); ok {
-		diagnostics, diagnosticsErr := diagnosticsRuntime.SkillDiagnostics(ctx, resolved, agentName)
+		diagnostics, diagnosticsErr := diagnosticsRuntime.SkillDiagnostics(ctx, projection, agentName)
 		if diagnosticsErr != nil {
 			return SkillsSection{}, mapSkillsSettingsError(diagnosticsErr)
 		}
 		section.Diagnostics = diagnostics
+	}
+	var statuses []skillspkg.SkillSourceRootStatus
+	if sourcesRuntime, ok := s.skillsRuntime.(SkillsSourcesRuntime); ok {
+		statuses, err = sourcesRuntime.SkillSourceRoots(ctx, projection)
+		if err != nil {
+			return SkillsSection{}, mapSkillsSettingsError(err)
+		}
+	}
+	section.Sources, section.Inherits, err = s.buildSkillSourceReadModel(
+		section.Config, projection, scope, statuses, true,
+	)
+	if err != nil {
+		return SkillsSection{}, err
 	}
 
 	return section, nil

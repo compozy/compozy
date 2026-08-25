@@ -198,6 +198,31 @@ func (c *daemonClient) UpdateSettingsSkillsAtScope(
 	return response, nil
 }
 
+func (c *daemonClient) GetSettingsSkills(
+	ctx context.Context,
+	query settingsSkillsScopeQuery,
+) (contract.SettingsSkillsResponse, error) {
+	values := url.Values{}
+	if query.Scope != "" {
+		values.Set("scope", string(query.Scope))
+	}
+	if strings.TrimSpace(query.WorkspaceID) != "" {
+		values.Set("workspace_id", strings.TrimSpace(query.WorkspaceID))
+	}
+	if strings.TrimSpace(query.Profile) != "" {
+		values.Set("profile", strings.TrimSpace(query.Profile))
+	}
+	path := "/api/settings/skills"
+	if encoded := values.Encode(); encoded != "" {
+		path += "?" + encoded
+	}
+	var response contract.SettingsSkillsResponse
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return contract.SettingsSkillsResponse{}, err
+	}
+	return response, nil
+}
+
 func (c *daemonClient) UpdateSettingsAttention(
 	ctx context.Context,
 	request UpdateSettingsAttentionRequest,

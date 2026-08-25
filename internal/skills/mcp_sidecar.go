@@ -22,7 +22,10 @@ func mergeSkillMCPSidecarFile(dir string, skill *Skill) error {
 		if err := ensurePathWithinRoot(dir, sidecarPath); err != nil {
 			return err
 		}
-	} else if !errors.Is(err, fs.ErrNotExist) {
+	} else {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
 		return fmt.Errorf("skills: stat MCP sidecar %q: %w", sidecarPath, err)
 	}
 	servers, err := compozyconfig.LoadMCPServersJSONFile(sidecarPath)

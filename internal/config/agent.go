@@ -81,6 +81,7 @@ const (
 // WorkspaceDiscoveryRoot describes a filesystem root participating in multi-root resource discovery.
 type WorkspaceDiscoveryRoot struct {
 	Dir             string
+	WorkspaceRoot   string
 	Source          WorkspaceDiscoverySource
 	ProfileID       string
 	WorkspaceID     string
@@ -205,13 +206,13 @@ func WorkspaceDiscoveryRoots(
 	if trimmed := strings.TrimSpace(rootDir); trimmed != "" {
 		if profileName != "" {
 			roots = append(roots, WorkspaceDiscoveryRoot{
-				Dir:    filepath.Join(trimmed, DirName, ProfilesDirName, profileName),
-				Source: WorkspaceDiscoverySourceWorkspaceProfile,
+				Dir:           filepath.Join(trimmed, DirName, ProfilesDirName, profileName),
+				WorkspaceRoot: trimmed,
+				Source:        WorkspaceDiscoverySourceWorkspaceProfile,
 			})
 		}
 		roots = append(roots, WorkspaceDiscoveryRoot{
-			Dir:    trimmed,
-			Source: WorkspaceDiscoverySourceWorkspace,
+			Dir: trimmed, WorkspaceRoot: trimmed, Source: WorkspaceDiscoverySourceWorkspace,
 		})
 	}
 

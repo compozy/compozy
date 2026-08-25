@@ -24,10 +24,28 @@ var (
 )
 
 var allowedFrontmatterFields = map[string]struct{}{
-	"name":           {},
-	"description":    {},
-	loaderVersionKey: {},
-	"metadata":       {},
+	"name":                     {},
+	"description":              {},
+	loaderVersionKey:           {},
+	"metadata":                 {},
+	"license":                  {},
+	"compatibility":            {},
+	"allowed-tools":            {},
+	"when_to_use":              {},
+	"argument-hint":            {},
+	"arguments":                {},
+	"disable-model-invocation": {},
+	"user-invocable":           {},
+	"disallowed-tools":         {},
+	"model":                    {},
+	"effort":                   {},
+	"context":                  {},
+	"agent":                    {},
+	"background":               {},
+	"hooks":                    {},
+	"paths":                    {},
+	"shell":                    {},
+	"aliases":                  {},
 }
 
 // ParseSkillFile reads and parses a SKILL.md file from disk.

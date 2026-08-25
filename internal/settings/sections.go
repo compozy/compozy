@@ -180,6 +180,7 @@ func (s *service) populateSectionEnvelope(
 			cfg,
 			resolved,
 			envelope.Scope,
+			envelope.ProfileName,
 			envelope.AgentName,
 		)
 		if err != nil {

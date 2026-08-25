@@ -28,6 +28,7 @@ func newSkillCommand(deps commandDeps) *cobra.Command {
 	}
 
 	cmd.AddCommand(newSkillListCommand(deps))
+	cmd.AddCommand(newSkillSourcesCommand(deps))
 	cmd.AddCommand(newSkillViewCommand(deps))
 	cmd.AddCommand(newSkillInfoCommand(deps))
 	cmd.AddCommand(newSkillInspectCommand(deps))

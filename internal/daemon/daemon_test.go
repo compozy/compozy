@@ -5780,11 +5780,15 @@ func TestSkillsRegistryConfigUsesDaemonHomeAndDisabledSkills(t *testing.T) {
 	if registryCfg.BundledFS == nil {
 		t.Fatal("skillsRegistryConfig() BundledFS = nil")
 	}
-	if got, want := registryCfg.UserSkillsDir, homePaths.SkillsDir; got != want {
-		t.Fatalf("skillsRegistryConfig() UserSkillsDir = %q, want %q", got, want)
+	canonicalSkillsDir, err := filepath.EvalSymlinks(homePaths.SkillsDir)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(skills dir) error = %v", err)
 	}
-	if got, want := registryCfg.UserAgentsDir, homePaths.AgentsDir; got != want {
-		t.Fatalf("skillsRegistryConfig() UserAgentsDir = %q, want %q", got, want)
+	if got := registryCfg.GlobalSkillRoots; len(got) != 2 || got[1].Dir != canonicalSkillsDir {
+		t.Fatalf("skillsRegistryConfig() GlobalSkillRoots = %#v, want agents plus compozy home", got)
+	}
+	if got, want := registryCfg.GlobalAgentsDir, homePaths.AgentsDir; got != want {
+		t.Fatalf("skillsRegistryConfig() GlobalAgentsDir = %q, want %q", got, want)
 	}
 	if got := registryCfg.DisabledSkills; len(got) != 2 || got[0] != "alpha" || got[1] != "beta" {
 		t.Fatalf("skillsRegistryConfig() DisabledSkills = %#v, want [alpha beta]", got)

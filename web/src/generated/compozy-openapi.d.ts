@@ -68341,6 +68341,10 @@ export interface operations {
             }[];
             disabled_count: number;
             discovered_count: number;
+            inherits?: {
+              custom_sources: boolean;
+              sources: boolean;
+            } | null;
             links?: {
               label: string;
               path: string;
@@ -68364,6 +68368,40 @@ export interface operations {
               | "shell"
               | "observability"
               | "hooks-extensions";
+            sources: {
+              always_on: boolean;
+              default?: boolean;
+              enabled: boolean;
+              global_path?: string;
+              kind: string;
+              label: string;
+              path?: string;
+              roots: {
+                collisions: {
+                  name: string;
+                  qualified_form: string;
+                  winner_root_id: string;
+                }[];
+                exists: boolean;
+                native_readers: string[];
+                path: string;
+                readable: boolean;
+                root_id: string;
+                scanned_count?: number | null;
+                skill_count?: number | null;
+                skipped_links: {
+                  path: string;
+                  reason: string;
+                }[];
+                truncated: boolean;
+                verification: {
+                  blocked: number;
+                  warned: number;
+                };
+              }[];
+              slug: string;
+              workspace_path?: string;
+            }[];
             workspace_id?: string;
           };
         };

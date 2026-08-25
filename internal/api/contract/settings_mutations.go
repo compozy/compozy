@@ -87,12 +87,14 @@ type SettingsRolesResponse struct {
 
 type SettingsSkillsResponse struct {
 	SettingsSkillsSectionResponseMetaPayload
-	Config           SettingsSkillsConfigPayload      `json:"config"`
-	DiscoveredCount  int                              `json:"discovered_count"`
-	DisabledCount    int                              `json:"disabled_count"`
-	RuntimeAvailable bool                             `json:"runtime_available"`
-	Diagnostics      []SkillDiagnosticPayload         `json:"diagnostics,omitempty"`
-	Links            []SettingsOperationalLinkPayload `json:"links,omitempty"`
+	Config           SettingsSkillsConfigPayload            `json:"config"`
+	DiscoveredCount  int                                    `json:"discovered_count"`
+	DisabledCount    int                                    `json:"disabled_count"`
+	RuntimeAvailable bool                                   `json:"runtime_available"`
+	Diagnostics      []SkillDiagnosticPayload               `json:"diagnostics,omitempty"`
+	Sources          []SettingsSkillSourcePayload           `json:"sources"`
+	Inherits         *SettingsSkillSourceInheritancePayload `json:"inherits,omitempty"`
+	Links            []SettingsOperationalLinkPayload       `json:"links,omitempty"`
 }
 
 type SettingsAutomationResponse struct {

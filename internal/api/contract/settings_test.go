@@ -37,7 +37,7 @@ func TestSettingsMutationResultsJSONShape(t *testing.T) {
 			name: "ShouldPreserveAgentContextForSkillsMutations",
 			input: SettingsSkillsMutationResult{
 				Section:         SettingsSectionSkills,
-				Scope:           SettingsAgentScopeAgent,
+				Scope:           SettingsScopeKind(SettingsAgentScopeAgent),
 				WriteTarget:     SettingsWriteTargetWorkspaceAgentFile,
 				WorkspaceID:     "ws-alpha",
 				AgentName:       "coder",

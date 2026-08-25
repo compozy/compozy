@@ -2,9 +2,9 @@ package skills
 
 import (
 	"context"
-	"errors"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
-	"io/fs"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -13,6 +13,8 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/skillscan"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -30,13 +32,12 @@ type workspaceLoad struct {
 }
 
 type workspaceSkillPath struct {
-	filePath string
-	source   SkillSource
-}
-
-type workspaceSkillRoot struct {
-	dir    string
-	source SkillSource
+	filePath      string
+	source        SkillSource
+	origin        string
+	rootID        string
+	rootDir       string
+	resourceScope resources.ResourceScope
 }
 
 func (r *Registry) workspaceDisabledSkillsSnapshot(cacheKey string, configured []string) []string {
@@ -62,12 +63,7 @@ func (r *Registry) workspaceSkillTargetLocked(name string, resolved *workspacepk
 		return "", nil
 	}
 
-	paths, ok := workspaceCacheKeyPaths(resolved)
-	if !ok {
-		return "", nil
-	}
-
-	cacheKey := workspaceCacheKey(resolved, paths)
+	cacheKey := workspaceCacheKey(resolved)
 	if cacheKey == "" {
 		return "", nil
 	}
@@ -80,90 +76,6 @@ func (r *Registry) workspaceSkillTargetLocked(name string, resolved *workspacepk
 	return cacheKey, cached.skills[name]
 }
 
-func (r *Registry) cachedWorkspaceSkillsFromResolved(
-	ctx context.Context,
-	resolved *workspacepkg.ResolvedWorkspace,
-) ([]*Skill, bool, error) {
-	paths, ok := workspaceCacheKeyPaths(resolved)
-	if !ok || len(paths) == 0 {
-		return nil, false, nil
-	}
-	cacheKey := workspaceCacheKey(resolved, paths)
-	if cacheKey == "" {
-		return nil, false, nil
-	}
-	now := r.now()
-	currentGlobalVersion := r.GlobalVersion()
-
-	r.mu.Lock()
-	cached := r.wsCache[cacheKey]
-	if cached == nil || cached.globalVersion != currentGlobalVersion {
-		r.mu.Unlock()
-		return nil, false, nil
-	}
-	r.evictExpiredWorkspaceLocked(now)
-	cached = r.wsCache[cacheKey]
-	if cached == nil || cached.globalVersion != currentGlobalVersion {
-		r.mu.Unlock()
-		return nil, false, nil
-	}
-	r.mu.Unlock()
-
-	snapshots, complete, err := workspaceSnapshotsForExplicitPaths(ctx, paths)
-	if err != nil || !complete {
-		return nil, false, err
-	}
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	cached = r.wsCache[cacheKey]
-	if cached == nil ||
-		cached.globalVersion != currentGlobalVersion ||
-		!filesnap.Equal(cached.snapshots, snapshots) {
-		return nil, false, nil
-	}
-	cached.lastAccess = now
-	disabledSkills := mergeDisabledSkills(r.cfg.DisabledSkills, workspaceConfiguredDisabledSkills(resolved))
-	disabledSkills = mergeDisabledSkills(disabledSkills, r.workspaceDisabled[cacheKey])
-	return mergedSkillListWithDisabled(r.globalSkills, cached.skills, disabledSkills), true, nil
-}
-
-func workspaceSnapshotsForExplicitPaths(
-	ctx context.Context,
-	paths []workspaceSkillPath,
-) (map[string]filesnap.Snapshot, bool, error) {
-	snapshots := make(map[string]filesnap.Snapshot, len(paths))
-	for _, path := range paths {
-		if err := checkRegistryContext(ctx); err != nil {
-			return nil, false, err
-		}
-
-		snapshot, err := filesnap.FromPath(path.filePath)
-		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
-				return snapshots, false, nil
-			}
-			return nil, false, fmt.Errorf("skills: snapshot workspace skill %q: %w", path.filePath, err)
-		}
-		snapshots[path.filePath] = snapshot
-
-		for _, sidecarPath := range []string{
-			filepath.Join(filepath.Dir(path.filePath), sidecarFileName),
-			filepath.Join(filepath.Dir(path.filePath), compozyconfig.MCPJSONName),
-		} {
-			sidecarSnapshot, err := filesnap.FromPath(sidecarPath)
-			if err != nil {
-				if errors.Is(err, fs.ErrNotExist) {
-					continue
-				}
-				return nil, false, fmt.Errorf("skills: snapshot workspace skill sidecar %q: %w", sidecarPath, err)
-			}
-			snapshots[sidecarPath] = sidecarSnapshot
-		}
-	}
-	return snapshots, true, nil
-}
-
 func (r *Registry) workspaceLoadFromResolved(
 	ctx context.Context,
 	resolved *workspacepkg.ResolvedWorkspace,
@@ -171,231 +83,94 @@ func (r *Registry) workspaceLoadFromResolved(
 	if resolved == nil {
 		return workspaceLoad{}, nil
 	}
-
-	if load, ok, err := workspaceLoadFromRoots(ctx, resolved); ok || err != nil {
-		return load, err
-	}
-
-	load := workspaceLoad{
-		paths:     make([]workspaceSkillPath, 0, len(resolved.Skills)),
-		snapshots: make(map[string]filesnap.Snapshot, len(resolved.Skills)),
-	}
-
-	for _, skillPath := range resolved.Skills {
-		if err := checkRegistryContext(ctx); err != nil {
-			return workspaceLoad{}, fmt.Errorf("skills: check registry context while loading workspace skills: %w", err)
-		}
-
-		path, include, err := workspaceSkillLoadPath(skillPath)
-		if err != nil {
-			return workspaceLoad{}, err
-		}
-		if !include {
-			continue
-		}
-
-		snapshot, err := filesnap.FromPath(path.filePath)
-		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
-				continue
-			}
-			return workspaceLoad{}, fmt.Errorf("skills: snapshot workspace skill %q: %w", path.filePath, err)
-		}
-
-		load.snapshots[path.filePath] = snapshot
-		for _, sidecarPath := range []string{
-			filepath.Join(filepath.Dir(path.filePath), sidecarFileName),
-			filepath.Join(filepath.Dir(path.filePath), compozyconfig.MCPJSONName),
-		} {
-			sidecarSnapshot, err := filesnap.FromPath(sidecarPath)
-			if err != nil {
-				if errors.Is(err, fs.ErrNotExist) {
-					continue
-				}
-				return workspaceLoad{}, fmt.Errorf("skills: snapshot workspace skill sidecar %q: %w", sidecarPath, err)
-			}
-			load.snapshots[sidecarPath] = sidecarSnapshot
-		}
-		load.paths = append(load.paths, path)
-	}
-
-	return load, nil
+	return r.workspaceLoadFromRoots(ctx, resolved)
 }
 
-func workspaceLoadFromRoots(
+func (r *Registry) workspaceLoadFromRoots(
 	ctx context.Context,
 	resolved *workspacepkg.ResolvedWorkspace,
-) (workspaceLoad, bool, error) {
-	roots := workspaceSkillRoots(resolved)
+) (workspaceLoad, error) {
+	roots := workspaceResolvedSkillRoots(resolved)
 	if len(roots) == 0 {
-		return workspaceLoad{}, false, nil
+		return workspaceLoad{}, nil
 	}
-	if !workspaceSkillPathsMatchRoots(resolved.Skills, roots) {
-		return workspaceLoad{}, false, nil
-	}
-
 	load := workspaceLoad{
 		paths:     make([]workspaceSkillPath, 0),
 		snapshots: make(map[string]filesnap.Snapshot),
 	}
-
-	// Load lower-precedence roots first so later overlays preserve the
-	// documented workspace > additional ordering and emit shadow audits.
-	for _, root := range slices.Backward(roots) {
+	cfg := r.registryConfigSnapshot(ctx)
+	trustedRoots := make([]string, 0, len(roots)+len(cfg.GlobalSkillRoots))
+	for _, root := range cfg.GlobalSkillRoots {
+		trustedRoots = append(trustedRoots, root.Dir)
+	}
+	for _, root := range roots {
+		trustedRoots = append(trustedRoots, root.Dir)
+	}
+	scans := make([]configuredRootScan, 0, len(roots))
+	for _, root := range roots {
 		if err := checkRegistryContext(ctx); err != nil {
-			return workspaceLoad{}, true, fmt.Errorf(
+			return workspaceLoad{}, fmt.Errorf(
 				"skills: check registry context while loading workspace skill roots: %w",
 				err,
 			)
 		}
-
-		paths, dirSnapshots, err := scanDirectoryWithSnapshots(root.dir)
+		result, err := skillscan.ScanDirectoryWithin(root.Dir, trustedRoots)
 		if err != nil {
-			return workspaceLoad{}, true, err
+			return workspaceLoad{}, err
 		}
-		maps.Copy(load.snapshots, dirSnapshots)
-		if err := recordSidecarSnapshots(paths, load.snapshots); err != nil {
-			return workspaceLoad{}, true, err
+		if err := r.emitSkillScanEvents(ctx, root, result.Stats); err != nil {
+			return workspaceLoad{}, err
 		}
-		for _, path := range paths {
+		maps.Copy(load.snapshots, result.Snapshots)
+		if err := recordSidecarSnapshots(result.Paths, load.snapshots); err != nil {
+			return workspaceLoad{}, err
+		}
+		scans = append(scans, configuredRootScan{spec: root, result: result})
+	}
+	selected := selectedRootPaths(scans)
+	for index, scan := range scans {
+		for _, path := range selected[index] {
+			origin := strings.TrimSpace(scan.spec.SourceSlug)
+			if origin == compozyconfig.SkillSourceCompozy {
+				origin = ""
+			}
 			load.paths = append(load.paths, workspaceSkillPath{
-				filePath: path,
-				source:   root.source,
+				filePath:      path,
+				source:        sourceTierFor(scan.spec),
+				origin:        origin,
+				rootID:        scan.spec.RootID(),
+				rootDir:       scan.spec.Dir,
+				resourceScope: scan.spec.ResourceScope.Normalize(),
 			})
 		}
 	}
-
-	return load, true, nil
+	return load, nil
 }
 
-func workspaceSkillRoots(resolved *workspacepkg.ResolvedWorkspace) []workspaceSkillRoot {
+func workspaceResolvedSkillRoots(resolved *workspacepkg.ResolvedWorkspace) []compozyconfig.SkillRootSpec {
 	if resolved == nil {
 		return nil
 	}
-
-	profileName := strings.TrimSpace(resolved.ProfileName)
-	roots := make([]workspaceSkillRoot, 0, len(resolved.AdditionalDirs)+3)
-	if root := strings.TrimSpace(resolved.RootDir); root != "" {
-		if profileName != "" {
-			roots = append(roots, workspaceSkillRoot{
-				dir: filepath.Join(
-					root,
-					compozyconfig.DirName,
-					compozyconfig.ProfilesDirName,
-					profileName,
-					compozyconfig.SkillsDirName,
-				),
-				source: SourceWorkspaceProfile,
-			})
-		}
-		roots = append(roots, workspaceSkillRoot{
-			dir:    filepath.Join(root, compozyconfig.DirName, compozyconfig.SkillsDirName),
-			source: SourceWorkspace,
-		})
-	}
-	for _, additionalDir := range resolved.AdditionalDirs {
-		if root := strings.TrimSpace(additionalDir); root != "" {
-			roots = append(roots, workspaceSkillRoot{
-				dir:    filepath.Join(root, compozyconfig.DirName, compozyconfig.SkillsDirName),
-				source: SourceAdditional,
-			})
-		}
-	}
-	if profileRoot := strings.TrimSpace(resolved.ProfileRoot); profileRoot != "" {
-		roots = append(roots, workspaceSkillRoot{
-			dir:    filepath.Join(profileRoot, compozyconfig.SkillsDirName),
-			source: SourceProfile,
-		})
-	}
-
-	return roots
-}
-
-func workspaceSkillPathsMatchRoots(
-	paths []workspacepkg.SkillPath,
-	roots []workspaceSkillRoot,
-) bool {
-	for _, path := range paths {
-		loadPath, include, err := workspaceSkillLoadPath(path)
-		if err != nil {
-			return false
-		}
-		if !include {
+	discoveryRoots := compozyconfig.WorkspaceDiscoveryRoots(
+		resolved.RootDir,
+		resolved.AdditionalDirs,
+		compozyconfig.HomePaths{ProfilesDir: filepath.Dir(resolved.ProfileRoot)},
+		resolved.ProfileName,
+	)
+	roots := make([]compozyconfig.SkillRootSpec, 0, len(discoveryRoots)*2)
+	for _, discoveryRoot := range slices.Backward(discoveryRoots) {
+		if discoveryRoot.Source == compozyconfig.WorkspaceDiscoverySourceGlobal {
 			continue
 		}
-		if !workspaceSkillPathMatchesAnyRoot(loadPath.filePath, roots) {
-			return false
+		discoveryRoot.ProfileID = strings.TrimSpace(resolved.ProfileID)
+		discoveryRoot.WorkspaceID = strings.TrimSpace(resolved.WorkspaceID)
+		if discoveryRoot.WorkspaceID == "" {
+			discoveryRoot.WorkspaceID = strings.TrimSpace(resolved.ID)
 		}
+		discoveryRoot.ResourceScopeID = discoveryRoot.WorkspaceID + "@pf:" + strings.TrimSpace(resolved.ProfileName)
+		roots = append(roots, discoveryRoot.SkillsDirs(&resolved.Config.Skills)...)
 	}
-	return true
-}
-
-func workspaceSkillPathMatchesAnyRoot(path string, roots []workspaceSkillRoot) bool {
-	for _, root := range roots {
-		if workspaceSkillPathMatchesRoot(path, root.dir) {
-			return true
-		}
-	}
-	return false
-}
-
-func workspaceSkillPathMatchesRoot(path string, root string) bool {
-	trimmedPath := strings.TrimSpace(path)
-	trimmedRoot := strings.TrimSpace(root)
-	if trimmedPath == "" || trimmedRoot == "" {
-		return false
-	}
-
-	rel, err := filepath.Rel(trimmedRoot, trimmedPath)
-	if err != nil {
-		return false
-	}
-	rel = strings.TrimSpace(rel)
-	if rel == "" || rel == "." {
-		return false
-	}
-	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
-}
-
-func workspaceCacheKeyPaths(resolved *workspacepkg.ResolvedWorkspace) ([]workspaceSkillPath, bool) {
-	if resolved == nil {
-		return nil, true
-	}
-	paths := make([]workspaceSkillPath, 0, len(resolved.Skills))
-	for _, skillPath := range resolved.Skills {
-		path, include, err := workspaceSkillLoadPath(skillPath)
-		if err != nil {
-			return nil, false
-		}
-		if include {
-			paths = append(paths, path)
-		}
-	}
-	return paths, true
-}
-
-func workspaceSkillLoadPath(skillPath workspacepkg.SkillPath) (workspaceSkillPath, bool, error) {
-	source, include, err := skillSourceFromWorkspacePath(skillPath.Source)
-	if err != nil {
-		return workspaceSkillPath{}, false, fmt.Errorf(
-			"skills: resolve workspace skill source %q: %w",
-			skillPath.Source,
-			err,
-		)
-	}
-	if !include {
-		return workspaceSkillPath{}, false, nil
-	}
-
-	skillDir := strings.TrimSpace(skillPath.Dir)
-	if skillDir == "" {
-		return workspaceSkillPath{}, false, nil
-	}
-
-	return workspaceSkillPath{
-		filePath: filepath.Join(skillDir, skillFileName),
-		source:   source,
-	}, true, nil
+	return roots
 }
 
 func (r *Registry) evictExpiredWorkspaceLocked(now time.Time) {
@@ -407,33 +182,38 @@ func (r *Registry) evictExpiredWorkspaceLocked(now time.Time) {
 	}
 }
 
-func workspaceCacheKey(resolved *workspacepkg.ResolvedWorkspace, paths []workspaceSkillPath) string {
+func workspaceCacheKey(resolved *workspacepkg.ResolvedWorkspace) string {
 	if resolved == nil {
 		return ""
 	}
 	profileSuffix := ""
-	if profileName := strings.TrimSpace(resolved.ProfileName); profileName != "" {
-		profileSuffix = "@pf:" + profileName
+	if profileID := strings.TrimSpace(resolved.ProfileID); profileID != "" {
+		profileSuffix = "@pf:" + profileID
+	}
+	sourceGeneration := workspaceSourceConfigGeneration(resolved)
+	if workspaceID := strings.TrimSpace(resolved.WorkspaceID); workspaceID != "" {
+		return "id:" + workspaceID + profileSuffix + sourceGeneration
 	}
 	if id := strings.TrimSpace(resolved.ID); id != "" {
-		return "id:" + id + profileSuffix
+		return "id:" + id + profileSuffix + sourceGeneration
+	}
+	if profileID := strings.TrimSpace(resolved.ProfileID); profileID != "" {
+		return "profile:" + profileID + sourceGeneration
 	}
 	if root := strings.TrimSpace(resolved.RootDir); root != "" {
-		return "root:" + root + profileSuffix
+		return "root:" + root + profileSuffix + sourceGeneration
 	}
-	if len(paths) == 0 {
+	return ""
+}
+
+func workspaceSourceConfigGeneration(resolved *workspacepkg.ResolvedWorkspace) string {
+	if resolved == nil {
 		return ""
 	}
-
-	var builder strings.Builder
-	for _, path := range paths {
-		if builder.Len() > 0 {
-			builder.WriteByte('|')
-		}
-		builder.WriteString(skillSourceName(path.source))
-		builder.WriteByte(':')
-		builder.WriteString(path.filePath)
-	}
-
-	return builder.String()
+	parts := make([]string, 0, len(resolved.Config.Skills.Sources)+len(resolved.Config.Skills.CustomSources)+1)
+	parts = append(parts, resolved.Config.Skills.Sources...)
+	parts = append(parts, "\x01")
+	parts = append(parts, resolved.Config.Skills.CustomSources...)
+	digest := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
+	return "@src:" + hex.EncodeToString(digest[:8])
 }

@@ -206,7 +206,10 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 
 		var toolAvailable atomic.Bool
 		registry := skillspkg.NewRegistry(
-			skillspkg.RegistryConfig{UserSkillsDir: userDir},
+			skillspkg.RegistryConfig{GlobalSkillRoots: compozyconfig.ResolveGlobalSkillRoots(
+				&compozyconfig.SkillsConfig{},
+				compozyconfig.HomePaths{SkillsDir: userDir},
+			)},
 			skillspkg.WithActivationContextProvider(func(
 				_ context.Context,
 				target skillspkg.ActivationTarget,

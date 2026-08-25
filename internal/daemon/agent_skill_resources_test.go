@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -12,12 +13,116 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/soul"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
+
+func TestAppendProfiledSkillResources(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), ".compozy"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	profileRoot := filepath.Join(homePaths.ProfilesDir, "marketing")
+	writeDaemonSkill(t, filepath.Join(profileRoot, ".agents", "skills"), "profile-agent", "Profile agents source")
+	writeDaemonSkill(t, filepath.Join(profileRoot, "skills"), "profile-compozy", "Profile compozy source")
+
+	workspaceRoot := t.TempDir()
+	writeDaemonSkill(
+		t,
+		filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.ProfilesDirName, "marketing", ".agents", "skills"),
+		"workspace-profile-agent",
+		"Workspace profile agents source",
+	)
+	writeDaemonSkill(
+		t,
+		filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.ProfilesDirName, "marketing", "skills"),
+		"workspace-profile-compozy",
+		"Workspace profile compozy source",
+	)
+
+	profile := profilepkg.WithCounts{Profile: profilepkg.Profile{
+		ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive,
+	}}
+	resolved := workspacepkg.ResolvedWorkspace{
+		Workspace:   workspacepkg.Workspace{ID: "workspace-marketing", RootDir: workspaceRoot},
+		WorkspaceID: "workspace-marketing", ProfileID: profile.ID, ProfileName: profile.Name,
+		ProfileRoot: profileRoot, Config: compozyconfig.DefaultWithHome(homePaths),
+	}
+	registry := skillspkg.NewRegistry(skillspkg.RegistryConfig{})
+	desired := agentSkillDeclarations{}
+	if err := appendProfiledSkillResources(
+		t.Context(),
+		&desired,
+		homePaths,
+		skillProfileCatalogStub{profiles: []profilepkg.WithCounts{profile}},
+		skillProfileWorkspaceResolver{resolved: resolved},
+		[]workspacepkg.ResolvedWorkspace{{
+			Workspace:   workspacepkg.Workspace{ID: resolved.ID, RootDir: workspaceRoot},
+			WorkspaceID: resolved.WorkspaceID,
+		}},
+		registry,
+	); err != nil {
+		t.Fatalf("appendProfiledSkillResources() error = %v", err)
+	}
+
+	scopesByName := make(map[string]resources.ResourceScope)
+	originsByName := make(map[string]string)
+	for _, declaration := range desired.skills {
+		scopesByName[declaration.spec.Name] = declaration.scope
+		originsByName[declaration.spec.Name] = declaration.spec.Origin
+	}
+	for _, name := range []string{"profile-agent", "profile-compozy"} {
+		if scope := scopesByName[name]; scope.Kind != resources.ResourceScopeKindProfile || scope.ID != profile.ID {
+			t.Fatalf("%s scope = %#v, want profile owner", name, scope)
+		}
+	}
+	for _, name := range []string{"workspace-profile-agent", "workspace-profile-compozy"} {
+		if scope := scopesByName[name]; scope.Kind != resources.ResourceScopeKindWorkspaceProfile ||
+			scope.ID != "workspace-marketing@pf:marketing" {
+			t.Fatalf("%s scope = %#v, want workspace-profile owner", name, scope)
+		}
+	}
+	if originsByName["profile-agent"] != "agents" || originsByName["workspace-profile-agent"] != "agents" {
+		t.Fatalf("agents origins = %#v, want agents", originsByName)
+	}
+	if originsByName["profile-compozy"] != "" || originsByName["workspace-profile-compozy"] != "" {
+		t.Fatalf("compozy origins = %#v, want empty", originsByName)
+	}
+}
+
+type skillProfileCatalogStub struct {
+	profiles []profilepkg.WithCounts
+}
+
+func (s skillProfileCatalogStub) List(context.Context) ([]profilepkg.WithCounts, error) {
+	return append([]profilepkg.WithCounts(nil), s.profiles...), nil
+}
+
+type skillProfileWorkspaceResolver struct {
+	resolved workspacepkg.ResolvedWorkspace
+}
+
+func (s skillProfileWorkspaceResolver) Resolve(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+	return s.resolved, nil
+}
+
+func (s skillProfileWorkspaceResolver) ResolveOrRegister(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+	return s.resolved, nil
+}
+
+func (s skillProfileWorkspaceResolver) ResolveForProfile(
+	context.Context,
+	string,
+	string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	return s.resolved, nil
+}
 
 func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 	t.Parallel()

@@ -13,11 +13,47 @@ import (
 	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/providers"
+	"github.com/compozy/compozy/internal/resources"
+	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func TestDaemonSettingsRuntimeApplier(t *testing.T) {
+	t.Run("Should roll back staged skill resources when generation commit fails", func(t *testing.T) {
+		t.Parallel()
+
+		registry := skillspkg.NewRegistry(skillspkg.RegistryConfig{})
+		if err := registry.ApplyResourceRecords(t.Context(), 1, []resources.Record[skillspkg.SkillResourceSpec]{
+			{
+				Kind: skillspkg.SkillResourceKind, ID: "initial", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+				Spec: skillspkg.SkillResourceSpec{Name: "initial", Description: "Initial", Source: "user", Enabled: true},
+			},
+		}); err != nil {
+			t.Fatalf("ApplyResourceRecords(initial) error = %v", err)
+		}
+		previous := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
+		next := previous
+		next.Skills.Sources = []string{compozyconfig.SkillSourceClaude}
+		publisher := &stagedSkillPublisherStub{}
+		failures := daemonSettingsRuntimeApplier{
+			daemon: &Daemon{},
+			state:  &bootState{cfg: previous, skillsRegistry: registry, agentSkillResources: publisher},
+		}.ApplyActiveConfig(t.Context(), &next)
+		if len(failures) != 1 || failures[0].Subsystem != "skill_sources" {
+			t.Fatalf("ApplyActiveConfig() failures = %#v, want skill_sources failure", failures)
+		}
+		if publisher.stagedCalls != 1 || publisher.rollbackCalls != 1 {
+			t.Fatalf("publisher staged/rollback calls = %d/%d, want 1/1", publisher.stagedCalls, publisher.rollbackCalls)
+		}
+		if registry.ConfigGeneration() != 0 {
+			t.Fatalf("registry.ConfigGeneration() = %d, want previous generation 0", registry.ConfigGeneration())
+		}
+		if skill, ok := registry.Get("initial"); !ok || skill.Meta.Description != "Initial" {
+			t.Fatalf("registry.Get(initial) = (%#v, %t), want previous catalog", skill, ok)
+		}
+	})
+
 	t.Run("Should apply attention config before publishing active config", func(t *testing.T) {
 		t.Parallel()
 
@@ -589,6 +625,23 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		}
 		assertMarketplaceRuntimeEntry(t, runtime, "rollback-first")
 	})
+}
+
+type stagedSkillPublisherStub struct {
+	stagedCalls   int
+	rollbackCalls int
+}
+
+func (s *stagedSkillPublisherStub) Sync(context.Context) error { return nil }
+
+func (s *stagedSkillPublisherStub) SyncSkills(context.Context) error { return nil }
+
+func (s *stagedSkillPublisherStub) SyncSkillsStaged(context.Context) (func(context.Context) error, error) {
+	s.stagedCalls++
+	return func(context.Context) error {
+		s.rollbackCalls++
+		return nil
+	}, nil
 }
 
 type attentionConfigSessionManager struct {

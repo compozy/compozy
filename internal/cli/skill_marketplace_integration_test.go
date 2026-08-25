@@ -163,10 +163,11 @@ func TestSkillInstallAndRemoveIntegrationRefreshesRegistry(t *testing.T) {
 		t.Fatalf("skill install error = %v", err)
 	}
 
+	defaultSkills := compozyconfig.DefaultWithHome(env.homePaths).Skills
 	registry := skills.NewRegistry(skills.RegistryConfig{
-		BundledFS:     skillbundled.FS(),
-		UserSkillsDir: env.homePaths.SkillsDir,
-		UserAgentsDir: env.homePaths.AgentsDir,
+		BundledFS:        skillbundled.FS(),
+		GlobalSkillRoots: compozyconfig.ResolveGlobalSkillRoots(&defaultSkills, env.homePaths),
+		GlobalAgentsDir:  env.homePaths.AgentsDir,
 	})
 	if err := registry.LoadAll(testutil.Context(t)); err != nil {
 		t.Fatalf("registry.LoadAll() error = %v", err)

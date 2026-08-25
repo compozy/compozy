@@ -90,8 +90,13 @@ const (
 	ProfileLifecycleOpRecovered = "profile.lifecycle_op_recovered"
 	ProfileLifecycleOpFailed    = "profile.lifecycle_op_failed"
 
-	SkillShadowed   = "skill.shadowed"
-	SkillLoadFailed = "skills.load_failed"
+	SkillShadowed           = "skill.shadowed"
+	SkillLoadFailed         = "skills.load_failed"
+	SkillSourcesApplied     = "skills.sources.applied"
+	SkillSourcesSuperseded  = "skills.sources.superseded"
+	SkillSourcesApplyFailed = "skills.sources.apply_failed"
+	SkillScanTruncated      = "skills.scan.truncated"
+	SkillScanLinkSkipped    = "skills.scan.link_skipped"
 
 	HookDispatchStart    = "hook.dispatch.start"
 	HookDispatchComplete = "hook.dispatch.complete"

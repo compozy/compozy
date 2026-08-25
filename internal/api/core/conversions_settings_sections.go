@@ -104,6 +104,8 @@ func settingsSkillsSectionResponse(envelope settingspkg.SectionEnvelope) (any, e
 		DisabledCount:                            envelope.Skills.DisabledCount,
 		RuntimeAvailable:                         envelope.Skills.RuntimeAvailable,
 		Diagnostics:                              SkillDiagnosticPayloadsFromDiagnostics(envelope.Skills.Diagnostics),
+		Sources:                                  settingsSkillSourcePayloads(envelope.Skills.Sources),
+		Inherits:                                 settingsSkillSourceInheritancePayload(envelope.Skills.Inherits),
 		Links:                                    settingsOperationalLinkPayloads(envelope.Skills.Links),
 	}, nil
 }

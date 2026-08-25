@@ -593,7 +593,7 @@ func TestSkillRootResolutionAndIdentity(t *testing.T) {
 		}
 		workspaceConfigured := workspace.SkillsDirs(&configured)
 		if got, want := rootSlugs(workspaceConfigured), []string{
-			SkillSourceAgents, SkillSourceClaude, "team-skills", SkillSourceCompozy,
+			SkillSourceAgents, SkillSourceClaude, SkillSourceCompozy,
 		}; !slices.Equal(got, want) {
 			t.Fatalf("SkillsDirs(configured) slugs = %q, want %q", got, want)
 		}
@@ -604,6 +604,60 @@ func TestSkillRootResolutionAndIdentity(t *testing.T) {
 		}
 		if got := rootSlugs(workspace.SkillsDirs(&empty)); !slices.Equal(got, []string{SkillSourceCompozy}) {
 			t.Fatalf("SkillsDirs(empty) slugs = %q", got)
+		}
+	})
+
+	t.Run("Should resolve profile and workspace-profile source conventions", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := t.TempDir()
+		profileRoot := t.TempDir()
+		customProfileRoot := filepath.Join(t.TempDir(), "profile-tools")
+		profileConfig := SkillsConfig{
+			Sources:       []string{SkillSourceAgents, SkillSourceClaude},
+			CustomSources: []string{customProfileRoot},
+		}
+		profile := WorkspaceDiscoveryRoot{
+			Dir: profileRoot, Source: WorkspaceDiscoverySourceProfile,
+			ProfileID: "profile-marketing", ResourceScopeID: "profile-marketing",
+		}
+		profileRoots := profile.SkillsDirs(&profileConfig)
+		if got, want := rootSlugs(profileRoots), []string{
+			SkillSourceAgents, SkillSourceClaude, "profile-tools", SkillSourceCompozy,
+		}; !slices.Equal(got, want) {
+			t.Fatalf("profile root slugs = %q, want %q", got, want)
+		}
+		for _, root := range profileRoots {
+			if root.ResourceScope.Kind != resources.ResourceScopeKindProfile || root.ProfileID != "profile-marketing" {
+				t.Fatalf("profile root ownership = %#v", root)
+			}
+		}
+
+		workspaceProfileConfig := SkillsConfig{
+			Sources:       []string{SkillSourceAgents, SkillSourceClaude},
+			CustomSources: []string{"team-tools"},
+		}
+		workspaceProfile := WorkspaceDiscoveryRoot{
+			Dir:           filepath.Join(workspaceRoot, DirName, ProfilesDirName, "marketing"),
+			WorkspaceRoot: workspaceRoot,
+			Source:        WorkspaceDiscoverySourceWorkspaceProfile,
+			ProfileID:     "profile-marketing", WorkspaceID: "workspace-stable",
+			ResourceScopeID: "workspace-stable@pf:marketing",
+		}
+		workspaceProfileRoots := workspaceProfile.SkillsDirs(&workspaceProfileConfig)
+		if got, want := rootSlugs(workspaceProfileRoots), []string{
+			SkillSourceAgents, SkillSourceClaude, "team-tools", SkillSourceCompozy,
+		}; !slices.Equal(got, want) {
+			t.Fatalf("workspace-profile root slugs = %q, want %q", got, want)
+		}
+		if got, want := workspaceProfileRoots[2].Dir, canonicalSkillSourcePath(filepath.Join(workspaceRoot, "team-tools")); got != want {
+			t.Fatalf("workspace-profile custom dir = %q, want %q", got, want)
+		}
+		for _, root := range workspaceProfileRoots {
+			if root.ResourceScope.Kind != resources.ResourceScopeKindWorkspaceProfile ||
+				root.ProfileID != "profile-marketing" || root.WorkspaceID != "workspace-stable" {
+				t.Fatalf("workspace-profile root ownership = %#v", root)
+			}
 		}
 	})
 

@@ -60,9 +60,14 @@ type Registry struct {
 	workspaceProfileDisabled                  map[string][]string
 	wsCache                                   map[string]*wsCache
 
-	globalVersion atomic.Int64
+	globalVersion    atomic.Int64
+	configGeneration atomic.Int64
 
 	cfg               RegistryConfig
+	pendingConfig     *RegistryConfig
+	pendingGeneration int64
+	pendingProjection *resourceSkillProjection
+	pendingRevision   int64
 	logger            *slog.Logger
 	now               func() time.Time
 	events            store.EventSummaryStore

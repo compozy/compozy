@@ -48,6 +48,11 @@ func CustomSourceSlugs(paths []string) map[string]string {
 	return allocated
 }
 
+// CustomSourceSlug returns the stable slug allocated to path within the full custom-source set.
+func CustomSourceSlug(path string, paths []string) string {
+	return CustomSourceSlugs(paths)[canonicalSkillSourcePath(path)]
+}
+
 func sanitizeSkillSourceSlug(value string) string {
 	var builder strings.Builder
 	lastHyphen := false

@@ -73,8 +73,9 @@ func (r *Registry) reloadGlobal(ctx context.Context) error {
 		return nil
 	}
 
-	disabledSkills := r.globalDisabledSkillsSnapshot()
-	loaded, snapshots, diagnostics, err := r.loadGlobalSkills(ctx, disabledSkills)
+	cfg := r.registryConfigSnapshot(ctx)
+	disabledSkills := append([]string(nil), cfg.DisabledSkills...)
+	loaded, snapshots, diagnostics, err := r.loadGlobalSkills(ctx, disabledSkills, cfg)
 	if err != nil {
 		return err
 	}

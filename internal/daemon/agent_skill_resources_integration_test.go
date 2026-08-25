@@ -96,6 +96,22 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 		}
 
 		homePaths := agentSkillIntegrationHome(t)
+		defaultSkills := compozyconfig.DefaultWithHome(homePaths).Skills
+		globalSkillRoots := compozyconfig.ResolveGlobalSkillRoots(
+			&defaultSkills,
+			homePaths,
+		)
+		for _, root := range globalSkillRoots {
+			if root.SourceSlug == compozyconfig.SkillSourceAgents {
+				writeAgentSkillIntegrationFile(t, filepath.Join(root.Dir, "global-agent-source", "SKILL.md"), `---
+name: global-agent-source
+description: Global agents source skill
+---
+
+Use the global agents convention.
+`)
+			}
+		}
 		workspaceRoot := agentSkillIntegrationWorkspace(t)
 		now := time.Date(2026, 4, 16, 12, 0, 0, 0, time.UTC)
 		workspace := workspacepkg.Workspace{
@@ -164,6 +180,7 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 					db,
 					workspaceResolver,
 					initialSkillRegistry,
+					nil,
 					discardLogger(),
 				),
 				extensionAgentSkillDeclarationProvider(
@@ -205,7 +222,7 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 		if err != nil {
 			t.Fatalf("skillStore.List() error = %v", err)
 		}
-		if got, want := len(skills), 2; got != want {
+		if got, want := len(skills), 4; got != want {
 			t.Fatalf("len(skillStore.List()) = %d, want %d (%#v)", got, want, skills)
 		}
 		servers, err := mcpStore.List(
@@ -311,7 +328,7 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 		}
 		review := findIntegrationSkill(projectedSkills, "workspace-review")
 		if review == nil {
-			t.Fatalf("ForWorkspace() = %#v, want workspace-review", projectedSkills)
+			t.Fatalf("ForWorkspace() names = %v, want workspace-review", integrationSkillNames(projectedSkills))
 		}
 		if !skillHasMCP(review, "workspace-skill-mcp") {
 			t.Fatalf("workspace-review MCPServers = %#v, want workspace-skill-mcp", review.MCPServers)
@@ -322,6 +339,12 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 		}
 		if !skillHasMCP(extSkill, "ext-skill-mcp") {
 			t.Fatalf("ext-skill MCPServers = %#v, want ext-skill-mcp", extSkill.MCPServers)
+		}
+		for _, name := range []string{"global-agent-source", "workspace-agent-source"} {
+			skill := findIntegrationSkill(projectedSkills, name)
+			if skill == nil || skill.Origin != compozyconfig.SkillSourceAgents {
+				t.Fatalf("ForWorkspace(%s) = %#v, want resource-projected agents origin", name, skill)
+			}
 		}
 		if !mcpCatalogHas(rebuiltMCPCatalog, "workspace-agent-mcp") ||
 			!mcpCatalogHas(rebuiltMCPCatalog, "workspace-skill-mcp") ||
@@ -569,6 +592,17 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 	})
 }
 
+func integrationSkillNames(skills []*skillspkg.Skill) []string {
+	names := make([]string, 0, len(skills))
+	for _, skill := range skills {
+		if skill != nil {
+			names = append(names, skill.Meta.Name)
+		}
+	}
+	slices.Sort(names)
+	return names
+}
+
 func hasExtensionIngestDiagnostic(
 	diagnostics []diagnosticcontract.DiagnosticItem,
 	scope string,
@@ -681,7 +715,7 @@ func TestSpecCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 				return err
 			},
 			providers: []agentSkillDeclarationProvider{
-				daemonAgentSkillDeclarationProvider(homePaths, db, workspaceResolver, initialSkills, discardLogger()),
+				daemonAgentSkillDeclarationProvider(homePaths, db, workspaceResolver, initialSkills, nil, discardLogger()),
 				extensionAgentSkillDeclarationProvider(
 					extensionRegistry,
 					func() extensionRuntime { return runtime },
@@ -903,7 +937,7 @@ func TestAgentDefinitionMutationLifecycleIntegration(t *testing.T) {
 				return err
 			},
 			providers: []agentSkillDeclarationProvider{
-				daemonAgentSkillDeclarationProvider(homePaths, db, resolver, skillRegistry, discardLogger()),
+				daemonAgentSkillDeclarationProvider(homePaths, db, resolver, skillRegistry, nil, discardLogger()),
 			},
 		})
 		catalog := agentCatalogDependency(agentCatalog)
@@ -1312,9 +1346,10 @@ func agentSkillIntegrationHome(t *testing.T) compozyconfig.HomePaths {
 }
 
 func agentSkillIntegrationSkillConfig(homePaths compozyconfig.HomePaths) skillspkg.RegistryConfig {
+	defaultSkills := compozyconfig.DefaultWithHome(homePaths).Skills
 	return skillspkg.RegistryConfig{
-		UserSkillsDir: homePaths.SkillsDir,
-		UserAgentsDir: homePaths.AgentsDir,
+		GlobalSkillRoots: compozyconfig.ResolveGlobalSkillRoots(&defaultSkills, homePaths),
+		GlobalAgentsDir:  homePaths.AgentsDir,
 	}
 }
 
@@ -1322,6 +1357,13 @@ func agentSkillIntegrationWorkspace(t *testing.T) string {
 	t.Helper()
 
 	root := filepath.Join(t.TempDir(), "workspace")
+	writeAgentSkillIntegrationFile(t, filepath.Join(root, ".agents", "skills", "workspace-agent-source", "SKILL.md"), `---
+name: workspace-agent-source
+description: Workspace agents source skill
+---
+
+Use the workspace agents convention.
+`)
 	agentDir := filepath.Join(root, compozyconfig.DirName, compozyconfig.AgentsDirName, "coder")
 	writeAgentSkillIntegrationFile(t, filepath.Join(agentDir, "AGENT.md"), `---
 name: coder

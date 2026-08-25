@@ -77,18 +77,21 @@ func (d *Daemon) bootFinalize(ctx context.Context, state *bootState) error {
 }
 
 func (d *Daemon) skillsRegistryConfig(cfg *compozyconfig.Config) skills.RegistryConfig {
+	skillsConfig := compozyconfig.DefaultWithHome(d.homePaths).Skills
 	if cfg == nil {
 		return skills.RegistryConfig{
-			BundledFS:     skillbundled.FS(),
-			UserSkillsDir: d.homePaths.SkillsDir,
+			BundledFS:        skillbundled.FS(),
+			GlobalSkillRoots: compozyconfig.ResolveGlobalSkillRoots(&skillsConfig, d.homePaths),
+			GlobalAgentsDir:  d.homePaths.AgentsDir,
 		}
 	}
+	skillsConfig = cfg.Skills
 
 	return skills.RegistryConfig{
-		BundledFS:      skillbundled.FS(),
-		UserSkillsDir:  d.homePaths.SkillsDir,
-		UserAgentsDir:  d.homePaths.AgentsDir,
-		DisabledSkills: append([]string(nil), cfg.Skills.DisabledSkills...),
+		BundledFS:        skillbundled.FS(),
+		GlobalSkillRoots: compozyconfig.ResolveGlobalSkillRoots(&skillsConfig, d.homePaths),
+		GlobalAgentsDir:  d.homePaths.AgentsDir,
+		DisabledSkills:   append([]string(nil), cfg.Skills.DisabledSkills...),
 	}
 }
 
@@ -97,6 +100,7 @@ func startSkillsWatcher(
 	registry *skills.Registry,
 	interval time.Duration,
 	rootsProvider func(context.Context) ([]string, error),
+	agentRootsProvider func(context.Context) ([]string, error),
 	afterRefresh func(context.Context) error,
 ) (context.CancelFunc, chan struct{}) {
 	if registry == nil {
@@ -107,6 +111,7 @@ func startSkillsWatcher(
 	done := make(chan struct{})
 	watcher := skills.NewWatcher(registry, interval)
 	watcher.SetRootsProvider(rootsProvider)
+	watcher.SetAgentRootsProvider(agentRootsProvider)
 	watcher.SetAfterRefresh(afterRefresh)
 	go func() {
 		defer close(done)
@@ -144,10 +149,38 @@ func workspaceSkillWatcherRoots(
 				for _, skillRoot := range root.SkillsDirs(&defaultSkills) {
 					roots = append(roots, skillRoot.Dir)
 				}
-				roots = append(roots, root.AgentsDir())
 			}
 		}
 
+		return roots, nil
+	}
+}
+
+func workspaceAgentWatcherRoots(
+	homePaths compozyconfig.HomePaths,
+	registry workspaceRegistryReader,
+) func(context.Context) ([]string, error) {
+	if registry == nil {
+		return nil
+	}
+	return func(ctx context.Context) ([]string, error) {
+		workspaces, err := registry.ListWorkspaces(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("daemon: list workspaces for agent watcher: %w", err)
+		}
+		roots := make([]string, 0, len(workspaces)*3)
+		for _, workspace := range workspaces {
+			for _, root := range compozyconfig.WorkspaceDiscoveryRoots(
+				workspace.RootDir,
+				workspace.AdditionalDirs,
+				homePaths,
+				"",
+			) {
+				if root.Source != compozyconfig.WorkspaceDiscoverySourceGlobal {
+					roots = append(roots, root.AgentsDir())
+				}
+			}
+		}
 		return roots, nil
 	}
 }

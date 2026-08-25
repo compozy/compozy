@@ -231,7 +231,7 @@ func (r *Registry) resolveAgentScope(
 		return compozyconfig.AgentDef{}, fmt.Errorf("%w: %q", ErrAgentNotFound, agentName)
 	}
 
-	agentsDir := r.globalAgentsDir()
+	agentsDir := strings.TrimSpace(r.cfg.GlobalAgentsDir)
 	if strings.TrimSpace(agentsDir) == "" {
 		if builtin, ok := compozyconfig.BuiltinAgentDef(agentName); ok {
 			return builtin, nil
@@ -389,15 +389,4 @@ func cloneSkillMapFromList(skills []*Skill) map[string]*Skill {
 		cloned[strings.TrimSpace(skill.Meta.Name)] = cloneSkill(skill)
 	}
 	return cloned
-}
-
-func (r *Registry) globalAgentsDir() string {
-	if userAgentsDir := strings.TrimSpace(r.cfg.UserAgentsDir); userAgentsDir != "" {
-		return userAgentsDir
-	}
-	userSkillsDir := strings.TrimSpace(r.cfg.UserSkillsDir)
-	if userSkillsDir == "" {
-		return ""
-	}
-	return filepath.Join(filepath.Dir(userSkillsDir), compozyconfig.AgentsDirName)
 }

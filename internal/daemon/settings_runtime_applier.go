@@ -6,7 +6,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
-	"github.com/compozy/compozy/internal/diagnostics"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -54,6 +53,13 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 	}
 	if failure := a.applyAttentionConfigChange(&previous, &next); failure != nil {
 		failures := a.rollbackRuntimeDependencies(ctx, &previous, []settingspkg.ApplyFailure{*failure})
+		return a.rollbackGatewayAndNetwork(ctx, &previous, &next, failures)
+	}
+	if failures := a.applySkillSourceConfigChange(ctx, &previous, &next); len(failures) > 0 {
+		if rollback := a.applyAttentionConfigChange(&next, &previous); rollback != nil {
+			failures = append(failures, *rollback)
+		}
+		failures = a.rollbackRuntimeDependencies(ctx, &previous, failures)
 		return a.rollbackGatewayAndNetwork(ctx, &previous, &next, failures)
 	}
 
@@ -475,26 +481,4 @@ func (a daemonSettingsRuntimeApplier) persistNetworkAvailability(
 		return &failure
 	}
 	return nil
-}
-
-func configApplyFailure(
-	subsystem string,
-	category string,
-	summary string,
-	err error,
-) settingspkg.ApplyFailure {
-	return settingspkg.ApplyFailure{
-		Subsystem: subsystem,
-		Diagnostic: diagnostics.NewItem(diagnostics.ItemSpec{
-			ID:            "config.apply." + subsystem + "_sync_failed",
-			Code:          diagnosticcontract.CodeConfigPartialFailure,
-			Category:      category,
-			Title:         summary,
-			Message:       diagnostics.RedactAndBound(err.Error(), 1024),
-			Severity:      diagnosticcontract.SeverityError,
-			DataFreshness: diagnosticcontract.FreshnessLive,
-		},
-			diagnostics.WithSuggestedCommand("compozy config reload"),
-		),
-	}
 }

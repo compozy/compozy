@@ -79,7 +79,7 @@ func (r *Registry) CommandCandidatesForAgentDefSession(
 	applyDisabledSkillList(
 		external,
 		r.workspaceDisabledSkillsSnapshot(
-			workspaceCacheKey(resolved, nil),
+			workspaceCacheKey(resolved),
 			workspaceConfiguredDisabledSkills(resolved),
 		),
 	)

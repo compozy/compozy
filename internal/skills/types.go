@@ -6,7 +6,9 @@ import (
 	"io/fs"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 // SkillMeta maps YAML frontmatter fields per the AgentSkills spec.
@@ -32,6 +34,10 @@ type Skill struct {
 	InstalledFrom          string
 	InstalledFromExtension string
 	CommandScope           string
+	Origin                 string
+	RootID                 string
+	RootDir                string
+	ResourceScope          resources.ResourceScope
 	Diagnostics            SkillDiagnostics
 }
 
@@ -102,17 +108,16 @@ const (
 	SourceMarketplace
 	// SourceUser identifies skills loaded from the user-level skill directories.
 	SourceUser
+	// SourceProfile identifies personal skills under the active profile directory.
+	SourceProfile
 	// SourceAdditional identifies skills loaded from additional workspace roots.
 	SourceAdditional
 	// SourceWorkspace is the highest-precedence source from `<workspace>/.compozy/skills/`.
 	SourceWorkspace
-	// SourceAgentLocal is the final overlay from `<root>/.compozy/agents/<name>/skills/`.
-	SourceAgentLocal
-	// SourceProfile identifies personal skills under the active profile directory.
-	// Keep these values append-only: persisted skill sources use their numeric identity.
-	SourceProfile
 	// SourceWorkspaceProfile identifies project skills bound to the active profile name.
 	SourceWorkspaceProfile
+	// SourceAgentLocal is the final overlay from `<root>/.compozy/agents/<name>/skills/`.
+	SourceAgentLocal
 )
 
 // MCPServerDecl declares an MCP server dependency in skill frontmatter.
@@ -231,8 +236,8 @@ type SkillDiagnostic struct {
 
 // RegistryConfig controls how the registry discovers global skills.
 type RegistryConfig struct {
-	BundledFS      fs.FS
-	UserSkillsDir  string
-	UserAgentsDir  string
-	DisabledSkills []string
+	BundledFS        fs.FS
+	GlobalSkillRoots []compozyconfig.SkillRootSpec
+	GlobalAgentsDir  string
+	DisabledSkills   []string
 }

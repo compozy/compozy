@@ -49,7 +49,44 @@ type SkillsSection struct {
 	DisabledCount    int
 	RuntimeAvailable bool
 	Diagnostics      []skillspkg.SkillDiagnostic
+	Sources          []SkillSourceItem
+	Inherits         *SkillSourceInheritance
 	Links            []OperationalLink
+}
+
+// SkillSourceInheritance reports which workspace source keys come from a lower config layer.
+type SkillSourceInheritance struct {
+	Sources       bool
+	CustomSources bool
+}
+
+// SkillSourceItem is one configured source convention and its daemon-measured roots.
+type SkillSourceItem struct {
+	Slug          string
+	Label         string
+	Kind          string
+	Enabled       bool
+	AlwaysOn      bool
+	DefaultOn     bool
+	WorkspacePath string
+	GlobalPath    string
+	Path          string
+	Roots         []SkillSourceRootItem
+}
+
+// SkillSourceRootItem is the shared per-root discovery diagnostic read model.
+type SkillSourceRootItem struct {
+	RootID        string
+	Path          string
+	Exists        bool
+	Readable      bool
+	ScannedCount  *int
+	SkillCount    *int
+	Truncated     bool
+	SkippedLinks  []skillspkg.SkillSourceSkippedLink
+	Collisions    []skillspkg.SkillSourceCollision
+	Verification  skillspkg.SkillSourceVerification
+	NativeReaders []string
 }
 
 // AutomationSection is the automation section read model.

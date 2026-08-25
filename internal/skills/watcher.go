@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
 )
 
@@ -42,8 +41,11 @@ type Watcher struct {
 	roots    []string
 	logger   *slog.Logger
 
-	afterRefresh  func(context.Context) error
-	rootsProvider func(context.Context) ([]string, error)
+	afterRefresh       func(context.Context) error
+	rootsProvider      func(context.Context) ([]string, error)
+	agentRoots         []string
+	agentRootsProvider func(context.Context) ([]string, error)
+	configuredRoots    func() ([]string, []string)
 
 	mu          sync.Mutex
 	initialized bool
@@ -54,21 +56,41 @@ type Watcher struct {
 // directories. A non-positive interval falls back to the default poll interval.
 func NewWatcher(registry *Registry, interval time.Duration) *Watcher {
 	var roots []string
+	var agentRoots []string
 	snapshots := make(map[string]filesnap.Snapshot)
 	initialized := false
 	if registry != nil {
-		roots = watcherRoots(registry.cfg.UserSkillsDir, registry.globalAgentsDir())
+		configured := make([]string, 0, len(registry.cfg.GlobalSkillRoots)+1)
+		for _, root := range registry.cfg.GlobalSkillRoots {
+			configured = append(configured, root.Dir)
+		}
+		configured = append(configured, registry.cfg.GlobalAgentsDir)
+		roots = watcherRoots(configured...)
+		agentRoots = watcherRoots(registry.cfg.GlobalAgentsDir)
 		snapshots, initialized = registry.globalSnapshotState()
 	}
 
-	return &Watcher{
+	watcher := &Watcher{
 		registry:    registry,
 		interval:    watcherInterval(interval),
 		roots:       roots,
+		agentRoots:  agentRoots,
 		logger:      slog.Default(),
 		initialized: initialized,
 		snapshots:   snapshots,
 	}
+	if registry != nil {
+		watcher.configuredRoots = registry.watcherRootsSnapshot
+	}
+	return watcher
+}
+
+// SetAgentRootsProvider installs the explicit agent-definition roots watched on each poll.
+func (w *Watcher) SetAgentRootsProvider(provider func(context.Context) ([]string, error)) {
+	if w == nil {
+		return
+	}
+	w.agentRootsProvider = provider
 }
 
 func newWatcher(registry globalRefresher, interval time.Duration, roots []string) *Watcher {
@@ -211,7 +233,7 @@ func (w *Watcher) commitSnapshots(snapshots map[string]filesnap.Snapshot) {
 }
 
 func (w *Watcher) snapshotRoots(ctx context.Context) (map[string]filesnap.Snapshot, error) {
-	roots, err := w.currentRoots(ctx)
+	roots, agentRoots, err := w.currentRoots(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +244,8 @@ func (w *Watcher) snapshotRoots(ctx context.Context) (map[string]filesnap.Snapsh
 			return nil, err
 		}
 
-		rootSnapshots, err := watcherSnapshotRoot(root)
+		_, isAgentRoot := agentRoots[root]
+		rootSnapshots, err := watcherSnapshotRoot(root, isAgentRoot)
 		if err != nil {
 			return nil, fmt.Errorf("skills: scan watcher root %q: %w", root, err)
 		}
@@ -232,8 +255,8 @@ func (w *Watcher) snapshotRoots(ctx context.Context) (map[string]filesnap.Snapsh
 	return snapshots, nil
 }
 
-func watcherSnapshotRoot(root string) (map[string]filesnap.Snapshot, error) {
-	if filepath.Base(strings.TrimSpace(root)) != compozyconfig.AgentsDirName {
+func watcherSnapshotRoot(root string, agentRoot bool) (map[string]filesnap.Snapshot, error) {
+	if !agentRoot {
 		paths, snapshots, err := scanDirectoryWithSnapshots(root)
 		if err != nil {
 			return nil, err
@@ -244,7 +267,7 @@ func watcherSnapshotRoot(root string) (map[string]filesnap.Snapshot, error) {
 		return snapshots, nil
 	}
 
-	paths, err := watcherScanRoot(root)
+	paths, err := watcherScanRoot(root, true)
 	if err != nil {
 		return nil, err
 	}
@@ -272,8 +295,8 @@ func watcherSnapshotRoot(root string) (map[string]filesnap.Snapshot, error) {
 	return snapshots, nil
 }
 
-func watcherScanRoot(root string) ([]string, error) {
-	if filepath.Base(strings.TrimSpace(root)) != compozyconfig.AgentsDirName {
+func watcherScanRoot(root string, agentRoot bool) ([]string, error) {
+	if !agentRoot {
 		return scanDirectory(root)
 	}
 
@@ -310,20 +333,63 @@ func watcherScanRoot(root string) ([]string, error) {
 	return paths, nil
 }
 
-func (w *Watcher) currentRoots(ctx context.Context) ([]string, error) {
-	if w == nil || w.rootsProvider == nil {
-		return w.roots, nil
+func (w *Watcher) currentRoots(ctx context.Context) ([]string, map[string]struct{}, error) {
+	if w == nil {
+		return nil, nil, nil
 	}
-
-	additionalRoots, err := w.rootsProvider(ctx)
+	additionalRoots, err := resolveWatcherRootsProvider(ctx, w.rootsProvider, "skill")
 	if err != nil {
-		return nil, fmt.Errorf("skills: resolve watcher roots: %w", err)
+		return nil, nil, err
 	}
-
-	roots := make([]string, 0, len(w.roots)+len(additionalRoots))
-	roots = append(roots, w.roots...)
+	additionalAgentRoots, err := resolveWatcherRootsProvider(ctx, w.agentRootsProvider, "agent")
+	if err != nil {
+		return nil, nil, err
+	}
+	baseRoots := append([]string(nil), w.roots...)
+	baseAgentRoots := append([]string(nil), w.agentRoots...)
+	if w.configuredRoots != nil {
+		baseRoots, baseAgentRoots = w.configuredRoots()
+	}
+	agentRoots := watcherRoots(append(baseAgentRoots, additionalAgentRoots...)...)
+	roots := make([]string, 0, len(baseRoots)+len(additionalRoots)+len(agentRoots))
+	roots = append(roots, baseRoots...)
 	roots = append(roots, additionalRoots...)
-	return watcherRoots(roots...), nil
+	roots = append(roots, agentRoots...)
+	agentSet := make(map[string]struct{}, len(agentRoots))
+	for _, root := range agentRoots {
+		agentSet[root] = struct{}{}
+	}
+	return watcherRoots(roots...), agentSet, nil
+}
+
+func (r *Registry) watcherRootsSnapshot() ([]string, []string) {
+	if r == nil {
+		return nil, nil
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	skillRoots := make([]string, 0, len(r.cfg.GlobalSkillRoots)+1)
+	for _, root := range r.cfg.GlobalSkillRoots {
+		skillRoots = append(skillRoots, root.Dir)
+	}
+	agentRoots := watcherRoots(r.cfg.GlobalAgentsDir)
+	skillRoots = append(skillRoots, agentRoots...)
+	return watcherRoots(skillRoots...), agentRoots
+}
+
+func resolveWatcherRootsProvider(
+	ctx context.Context,
+	provider func(context.Context) ([]string, error),
+	kind string,
+) ([]string, error) {
+	if provider == nil {
+		return nil, nil
+	}
+	roots, err := provider(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("skills: resolve %s watcher roots: %w", kind, err)
+	}
+	return roots, nil
 }
 
 func diffSnapshots(previous, current map[string]filesnap.Snapshot) []fileChange {
