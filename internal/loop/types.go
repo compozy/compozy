@@ -179,6 +179,8 @@ const (
 	CodeReviewShapeInvalid = "review_shape_invalid"
 	// CodeReviewRespondSchemaRequired reports respond without a declared action output.
 	CodeReviewRespondSchemaRequired = "review_respond_schema_required"
+	// CodeDeclaredOutputInvalid reports a schema declared on a payload-less node.
+	CodeDeclaredOutputInvalid = "declared_output_invalid"
 	// CodeWatchIdentityRequired reports a watch source without stable event identity support.
 	CodeWatchIdentityRequired = "watch_identity_required"
 	// CodeParentCloseInvalid reports parent-close policy outside run-loop or its closed enum.

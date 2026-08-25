@@ -21,7 +21,7 @@ func historyNodeZeroValues(
 	ctx := newLintContext(definition, &DefinitionLinter{tools: historyToolSchemaSource(toolSchemas)})
 	values := make(map[dsl.NodeID]any, len(definition.Graph.Nodes))
 	for _, node := range definition.Graph.Nodes {
-		schema, ok := ctx.outputSchema(node)
+		schema, ok := ctx.declaredSchema(node)
 		if !ok {
 			values[node.ID] = map[string]any{}
 			continue

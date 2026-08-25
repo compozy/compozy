@@ -80,6 +80,17 @@ type completedRunPayload struct {
 	ClaimTokenHash string          `json:"claim_token_hash,omitempty"`
 }
 
+func completionEventResult(result json.RawMessage) json.RawMessage {
+	if len(result) == 0 {
+		return nil
+	}
+	encoded, err := json.Marshal(result)
+	if err != nil || len(encoded) > MaxPayloadBytes/2 {
+		return nil
+	}
+	return cloneRawJSON(result)
+}
+
 type completionHallucinationBlockedPayload struct {
 	Status         RunStatus `json:"status"`
 	SessionID      string    `json:"session_id,omitempty"`

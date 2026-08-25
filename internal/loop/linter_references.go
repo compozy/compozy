@@ -419,7 +419,7 @@ func (c *lintContext) namespace(allowFanout bool, allowTrigger bool) refs.Namesp
 	nodes := map[string]refs.NodeSchema{}
 	gates := map[string]struct{}{}
 	for _, node := range c.def.Graph.Nodes {
-		schema, ok := c.outputSchema(node)
+		schema, ok := c.declaredSchema(node)
 		nodes[string(node.ID)] = refs.NodeSchema{
 			Output: schema, HasOutput: ok,
 			HasProgress: isControlKind(node, dsl.ControlFanOut),

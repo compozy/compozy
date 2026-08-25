@@ -14,6 +14,9 @@ func applyReviewRejectRoutes(
 	outputs *[]GenerationOutput,
 ) {
 	for _, output := range append([]GenerationOutput(nil), (*outputs)...) {
+		if !generationOutputHasKind(output, GenerationResultReviewRejectRouted) {
+			continue
+		}
 		route, found := strings.CutPrefix(strings.TrimSpace(output.OutputRef), reviewRejectedRouteOutputRefPrefix)
 		if !found || strings.TrimSpace(route) == "" {
 			continue

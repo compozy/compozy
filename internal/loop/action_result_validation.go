@@ -10,6 +10,14 @@ import (
 // ValidateActionRunResult revalidates the exact durable result against the
 // output schema pinned into the task-run metadata before lease settlement.
 func ValidateActionRunResult(run task.Run, result task.RunResult) error {
+	return validateActionRunResultWith(run, result, validateJSONSchema)
+}
+
+func validateActionRunResultWith(
+	run task.Run,
+	result task.RunResult,
+	validate actionSchemaValidator,
+) error {
 	if !run.IsLoopWorker() {
 		return nil
 	}
@@ -27,6 +35,6 @@ func ValidateActionRunResult(run task.Run, result task.RunResult) error {
 	if len(payload) == 0 {
 		return actionInvalidOutputError(fmt.Errorf("run-agent result is empty"))
 	}
-	_, err = ValidateActionStructured(meta.OutputSchema, ActionPromptResult{Structured: payload})
+	_, err = validateActionStructuredWith(meta.OutputSchema, ActionPromptResult{Structured: payload}, validate)
 	return err
 }

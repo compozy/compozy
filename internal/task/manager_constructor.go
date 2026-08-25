@@ -31,6 +31,7 @@ func newService(options managerOptions) *Service {
 		workspaceActiveRunCap: options.workspaceActiveRunCap,
 		workAdmission:         options.workAdmission,
 		workspaceAccess:       options.workspaceAccess,
+		resultBudget:          options.resultBudgetConfig.DefaultBudget,
 		forceRateLimiter:      newForceRunRateLimiter(),
 		wakeEventIDs:          make(map[string]struct{}),
 		wakeEventOrder:        make([]string, 0, wakeEventCacheMaxEntries),

@@ -278,18 +278,6 @@ func valueAtPath(namespace map[string]any, path []string) (any, bool) {
 	return current, true
 }
 
-func outputValue(ref string) any {
-	trimmed := strings.TrimSpace(ref)
-	if trimmed == "" || outputRefRepresentsAbsentValue(trimmed) {
-		return nil
-	}
-	var value any
-	if err := decodeSingleJSONValue(strings.NewReader(trimmed), &value); err == nil {
-		return value
-	}
-	return trimmed
-}
-
 func collectionItems(value any) ([]any, error) {
 	switch typed := value.(type) {
 	case nil:

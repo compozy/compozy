@@ -91,11 +91,6 @@ func ValidatePayloadSize(payload json.RawMessage, path string) error {
 	return validateJSONSize(payload, MaxPayloadBytes, path)
 }
 
-// ValidateResultSize reports whether a persisted run result respects the shared 64 KiB guardrail.
-func ValidateResultSize(payload json.RawMessage, path string) error {
-	return validateJSONSize(payload, MaxResultBytes, path)
-}
-
 // ValidateHierarchyDepth reports whether the supplied task depth stays within the bounded hierarchy limit.
 func ValidateHierarchyDepth(depth int) error {
 	return validateBoundedCount(depth, MaxHierarchyDepth, "hierarchy depth")

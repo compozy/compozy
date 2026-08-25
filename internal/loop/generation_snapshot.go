@@ -31,20 +31,22 @@ type GenerationSnapshotPayload struct {
 
 // GenerationOutput is one loop_generation_outputs row mutation.
 type GenerationOutput struct {
-	Generation       int              `json:"generation,omitempty"`
-	NodeID           string           `json:"node_id"`
-	ItemIndex        int              `json:"item_index,omitempty"`
-	OutputID         string           `json:"output_id,omitempty"`
-	ArtifactName     string           `json:"artifact_name,omitempty"`
-	Status           string           `json:"status"`
-	OutputRef        string           `json:"output_ref,omitempty"`
-	TaskRunID        string           `json:"task_run_id,omitempty"`
-	ChildLoopRunID   string           `json:"child_loop_run_id,omitempty"`
-	ResolvedRuntime  *ResolvedRuntime `json:"resolved_runtime,omitempty"`
-	Attempt          int              `json:"attempt,omitempty"`
-	NextAttemptAt    *time.Time       `json:"next_attempt_at,omitempty"`
-	FirstScheduledAt *time.Time       `json:"first_scheduled_at,omitempty"`
-	Epoch            int64            `json:"epoch,omitempty"`
+	Generation       int                  `json:"generation,omitempty"`
+	NodeID           string               `json:"node_id"`
+	ItemIndex        int                  `json:"item_index,omitempty"`
+	OutputID         string               `json:"output_id,omitempty"`
+	ArtifactName     string               `json:"artifact_name,omitempty"`
+	Status           string               `json:"status"`
+	ResultKind       GenerationResultKind `json:"result_kind,omitempty"`
+	SchemaRef        string               `json:"schema_ref,omitempty"`
+	OutputRef        string               `json:"output_ref,omitempty"`
+	TaskRunID        string               `json:"task_run_id,omitempty"`
+	ChildLoopRunID   string               `json:"child_loop_run_id,omitempty"`
+	ResolvedRuntime  *ResolvedRuntime     `json:"resolved_runtime,omitempty"`
+	Attempt          int                  `json:"attempt,omitempty"`
+	NextAttemptAt    *time.Time           `json:"next_attempt_at,omitempty"`
+	FirstScheduledAt *time.Time           `json:"first_scheduled_at,omitempty"`
+	Epoch            int64                `json:"epoch,omitempty"`
 	// SessionID is the ACP session bound to the cell's task run; it is a
 	// read-model join and never part of snapshot state.
 	SessionID string `json:"-"`
@@ -272,6 +274,10 @@ func writeGenerationOutput(
 	if output.ExpectedEpoch != nil {
 		expectedEpoch = *output.ExpectedEpoch
 	}
+	storedResult, err := encodeGenerationOutputResult(output)
+	if err != nil {
+		return fmt.Errorf("loop: encode generation output %s/%d: %w", output.NodeID, output.ItemIndex, err)
+	}
 	result, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO loop_generation_outputs (
@@ -305,7 +311,7 @@ func writeGenerationOutput(
 		output.Status,
 		sqlNullString(output.OutputID),
 		sqlNullString(output.ArtifactName),
-		sqlNullString(output.OutputRef),
+		sqlNullString(storedResult),
 		sqlNullString(output.TaskRunID),
 		sqlNullString(output.ChildLoopRunID),
 		resolvedRuntime,

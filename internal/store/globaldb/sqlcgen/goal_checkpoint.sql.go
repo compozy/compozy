@@ -125,7 +125,7 @@ WHERE task_runs.id = ?3 AND task_runs.loop_run_id = ?4
 `
 
 type FlushGoalTaskUsageParams struct {
-	TokensReported      any            `json:"tokens_reported"`
+	TokensReported      interface{}    `json:"tokens_reported"`
 	LiveTokensUsed      int64          `json:"live_tokens_used"`
 	ID                  string         `json:"id"`
 	TaskLoopRunID       sql.NullString `json:"task_loop_run_id"`
@@ -905,7 +905,7 @@ type UpdateGoalCheckpointForReentryParams struct {
 	Phase                string         `json:"phase"`
 	TurnLimit            int64          `json:"turn_limit"`
 	SuccessorTaskRunID   sql.NullString `json:"successor_task_run_id"`
-	ClearOperation       any            `json:"clear_operation"`
+	ClearOperation       interface{}    `json:"clear_operation"`
 	ControlGrantID       int64          `json:"control_grant_id"`
 	ControlGrantKind     sql.NullString `json:"control_grant_kind"`
 	ControlGrantCause    sql.NullString `json:"control_grant_cause"`
@@ -1007,7 +1007,7 @@ WHERE id = ?5 AND loop_run_id = ?6
 type UpdateGoalPromptOwnerForReentryParams struct {
 	SuccessorTaskRunID string         `json:"successor_task_run_id"`
 	NextOwnerEpoch     sql.NullInt64  `json:"next_owner_epoch"`
-	ClearControlFence  any            `json:"clear_control_fence"`
+	ClearControlFence  interface{}    `json:"clear_control_fence"`
 	UpdatedAt          string         `json:"updated_at"`
 	ID                 string         `json:"id"`
 	LoopRunID          sql.NullString `json:"loop_run_id"`

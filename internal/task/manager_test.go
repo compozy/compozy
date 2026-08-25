@@ -1,6 +1,7 @@
 package task
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/admission"
+	"github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/diagnostics"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/participation"
@@ -8440,15 +8442,14 @@ func TestManagerTerminalRunStopsBackingSession(t *testing.T) {
 		}
 	})
 
-	// Invariant: an event payload rejected by the canonical event guard never
-	// reserves a terminal command or stops the backing session.
-	// Owning layer: task service terminal-command preflight.
+	// Invariant: an uncontracted result above the former 64 KiB ceiling is
+	// retained whole when the configured default budget uses store overflow.
+	// Owning layer: task service completion admission.
 	// Canonical suite: TestManagerTerminalRunStopsBackingSession.
-	t.Run("Should reject an oversized completion event before stopping", func(t *testing.T) {
+	t.Run("Should retain a result above the former blanket ceiling", func(t *testing.T) {
 		t.Parallel()
 
-		baseStore := newInMemoryManagerStore()
-		store := &taskMutationDeadlineStore{inMemoryManagerStore: baseStore}
+		store := newInMemoryManagerStore()
 		executor := &recordingSessionExecutor{}
 		manager := newTaskManagerForTestWithOptions(
 			t,
@@ -8458,38 +8459,47 @@ func TestManagerTerminalRunStopsBackingSession(t *testing.T) {
 		)
 		actor := validActorContext()
 		runningRun := createRunningRunForTest(t, manager, actor)
-		store.deadlines = nil
-		storedResult := json.RawMessage(`"` + strings.Repeat("<", 12*1024) + `"`)
-		if err := ValidatePayloadSize(storedResult, "test.result"); err != nil {
-			t.Fatalf("ValidatePayloadSize(storage-valid result) error = %v", err)
-		}
+		storedResult := json.RawMessage(`{"data":"` + strings.Repeat("x", 70*1024) + `"}`)
 
-		_, err := manager.CompleteRun(context.Background(), runningRun.ID, RunResult{Value: storedResult}, actor)
-		if !errors.Is(err, ErrPayloadTooLarge) {
-			t.Fatalf("CompleteRun(oversized event) error = %v, want %v", err, ErrPayloadTooLarge)
+		completed, err := manager.CompleteRun(
+			context.Background(), runningRun.ID, RunResult{Value: storedResult}, actor,
+		)
+		if err != nil {
+			t.Fatalf("CompleteRun(70 KiB result) error = %v", err)
 		}
-		stored := baseStore.runs[runningRun.ID]
-		if got, want := stored.Status.Normalize(), TaskRunStatusRunning; got != want {
-			t.Fatalf("stored run status = %q, want %q after preflight rejection", got, want)
+		if got, want := completed.Status.Normalize(), TaskRunStatusCompleted; got != want {
+			t.Fatalf("completed run status = %q, want %q", got, want)
 		}
-		if len(rawJSONValue(stored.Result)) != 0 || !stored.EndedAt.IsZero() {
-			t.Fatalf(
-				"stored run terminal fields = result:%s ended_at:%s, want rollback",
-				rawJSONValue(stored.Result),
-				stored.EndedAt,
-			)
+		if got := rawJSONValue(completed.Result); !bytes.Equal(got, storedResult) {
+			t.Fatalf("completed result bytes = %d, want exact %d-byte payload", len(got), len(storedResult))
 		}
-		if stored.Error != "" {
-			t.Fatalf("stored run error = %q, want empty", stored.Error)
+		assertSessionStopCalls(t, executor, runningRun.SessionID, StopReasonCompleted)
+	})
+
+	t.Run("Should enforce a configured rejecting result budget", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTestWithOptions(
+			t,
+			store,
+			WithSessionExecutor(&recordingSessionExecutor{}),
+			WithResultBudgetConfig(contracts.CallsResultsConfig{
+				DefaultBudget: contracts.ByteBudget{MaxBytes: 1024, Overflow: contracts.OverflowReject},
+				MaxBudget:     2048,
+			}),
+		)
+		actor := validActorContext()
+		runningRun := createRunningRunForTest(t, manager, actor)
+
+		_, err := manager.CompleteRun(context.Background(), runningRun.ID, RunResult{
+			Value: json.RawMessage(`{"data":"` + strings.Repeat("x", 1024) + `"}`),
+		}, actor)
+		if !contracts.IsCode(err, contracts.CodeResultOverBudget) {
+			t.Fatalf("CompleteRun(over budget) error = %v, want %s", err, contracts.CodeResultOverBudget)
 		}
-		if got := len(executor.requestStopCalls) + len(executor.forceStopCalls); got != 0 {
-			t.Fatalf("session stop calls = %d, want 0", got)
-		}
-		if got, want := len(store.deadlines), 0; got != want {
-			t.Fatalf("task mutation transaction contexts = %d, want %d", got, want)
-		}
-		if got := len(baseStore.terminalCommands); got != 0 {
-			t.Fatalf("terminal commands = %d, want 0", got)
+		if got := store.runs[runningRun.ID].Status.Normalize(); got != TaskRunStatusRunning {
+			t.Fatalf("stored run status = %q, want running after budget rejection", got)
 		}
 	})
 

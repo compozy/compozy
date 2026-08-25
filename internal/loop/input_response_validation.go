@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/loop/dsl"
 )
 
@@ -364,7 +365,12 @@ func responseSchemaApplies(schema map[string]any, value any) bool {
 	if err != nil {
 		return true
 	}
-	return validateJSONSchema(dsl.Schema(schema), raw) == nil
+	schemaRaw, err := json.Marshal(schema)
+	if err != nil {
+		return true
+	}
+	verdict, err := contracts.ValidateSchemaFragment(schemaRaw, raw)
+	return err == nil && verdict.Valid
 }
 
 func entityKindInput(kind dsl.EntityKind) dsl.Input {

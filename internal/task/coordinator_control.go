@@ -35,11 +35,8 @@ func (r RunResult) StoredValue() (json.RawMessage, error) {
 	return payload, nil
 }
 
-// Validate reports whether the run result respects the shared result-size guardrail.
+// Validate reports whether the run result is structurally valid and credential-safe.
 func (r RunResult) Validate(path string) error {
-	if err := ValidateResultSize(r.Value, nestedPath(path, "value")); err != nil {
-		return err
-	}
 	if hasRawClaimTokenField(r.Value) {
 		return fmt.Errorf(
 			"%w: %s must not contain raw lease credentials",
@@ -83,9 +80,6 @@ func (r CoordinatorControlResult) Validate(path string) error {
 	}
 	if len(r.Payload) == 0 {
 		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "payload"))
-	}
-	if err := ValidateResultSize(r.Payload, nestedPath(path, "payload")); err != nil {
-		return err
 	}
 	if hasRawClaimTokenField(r.Payload) {
 		return fmt.Errorf(

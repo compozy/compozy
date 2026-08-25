@@ -174,7 +174,7 @@ func applyStrategyLaneCancellations(
 		cell.ExpectedEpoch = &expectedEpoch
 		cell.Epoch++
 		cell.Status = generationOutputCanceled
-		cell.OutputRef = strategyCanceledReasonCode
+		setGenerationOutputRef(cell, strategyCanceledReasonCode)
 		cell.NextAttemptAt = nil
 		cell.TaskRunID = ""
 		payload.StrategyCancellations = append(payload.StrategyCancellations, StrategyCancellationIntent{
@@ -200,10 +200,12 @@ func applyStrategyLaneCancellations(
 			if _, inScope := scope.body[node.ID]; !inScope {
 				continue
 			}
-			*outputs = append(*outputs, GenerationOutput{
+			cell := GenerationOutput{
 				Generation: eval.generation, NodeID: string(node.ID), ItemIndex: itemIndex,
-				Status: generationOutputCanceled, OutputRef: strategyNeverStartedReasonCode, Attempt: 1,
-			})
+				Status: generationOutputCanceled, Attempt: 1,
+			}
+			setGenerationOutputRef(&cell, strategyNeverStartedReasonCode)
+			*outputs = append(*outputs, cell)
 		}
 	}
 	payload.Events = append(payload.Events,

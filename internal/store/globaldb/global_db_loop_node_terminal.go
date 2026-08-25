@@ -47,7 +47,11 @@ func recordLoopNodeTerminalWithExecutor(
 	if outcome == loopNodeOutcomeFailure {
 		status = loopNodeOutputFailed
 	}
-	recorded, err := updateLoopNodeOutputStatusWithExecutor(ctx, exec, run, loopRunID, status, outputRef)
+	storedResult, err := looppkg.EncodeGenerationResultForRef(outputRef)
+	if err != nil {
+		return fmt.Errorf("store: encode loop node terminal result: %w", err)
+	}
+	recorded, err := updateLoopNodeOutputStatusWithExecutor(ctx, exec, run, loopRunID, status, storedResult)
 	if err != nil {
 		return err
 	}
@@ -139,12 +143,11 @@ func updateLoopNodeOutputStatusWithExecutor(
 		ctx,
 		`UPDATE loop_generation_outputs
 		 SET status = ?,
-		     output_ref = CASE WHEN ? = '' THEN output_ref ELSE ? END,
+		     output_ref = NULLIF(?, ''),
 		     task_run_id = ?
 		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
 		   AND task_run_id = ? AND epoch = ?`,
 		status,
-		strings.TrimSpace(outputRef),
 		strings.TrimSpace(outputRef),
 		run.ID,
 		loopRunID,

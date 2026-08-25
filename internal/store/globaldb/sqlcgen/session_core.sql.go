@@ -141,7 +141,7 @@ ORDER BY updated_at DESC, session_id DESC
 
 func (q *Queries) ListSessionHealthByIDs(ctx context.Context, sessionIds []string) ([]SessionHealth, error) {
 	query := listSessionHealthByIDs
-	var queryParams []any
+	var queryParams []interface{}
 	if len(sessionIds) > 0 {
 		for _, v := range sessionIds {
 			queryParams = append(queryParams, v)

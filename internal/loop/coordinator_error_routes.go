@@ -1,10 +1,6 @@
 package loop
 
-import (
-	"strings"
-
-	"github.com/compozy/compozy/internal/loop/dsl"
-)
+import "github.com/compozy/compozy/internal/loop/dsl"
 
 func skipErrorRouteOnSuccess(
 	graph dsl.Graph,
@@ -94,19 +90,9 @@ func allRouteDependenciesSkipped(
 	}
 	for _, dependency := range dependencies {
 		output, found := dependencyOutputForNode(topology, outputs, nodeID, dependency, itemIndex)
-		if !found || output.OutputRef != branchSkippedOutputRef {
+		if !found || !generationOutputHasKind(output, GenerationResultSkipped) {
 			return false
 		}
 	}
 	return true
-}
-
-func outputRefRepresentsAbsentValue(outputRef string) bool {
-	trimmed := strings.TrimSpace(outputRef)
-	return trimmed == branchSkippedOutputRef || trimmed == failureAbsorbedOutputRef ||
-		isRouteNotTakenOutputRef(trimmed) ||
-		strings.HasPrefix(trimmed, errorRoutedOutputRefPrefix) ||
-		strings.HasPrefix(trimmed, waitExpiryRouteOutputRefPrefix) ||
-		strings.HasPrefix(trimmed, reviewRejectedRouteOutputRefPrefix) ||
-		trimmed == strategyCanceledReasonCode || trimmed == strategyNeverStartedReasonCode
 }

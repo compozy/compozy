@@ -1636,6 +1636,12 @@ func TestGlobalDBWatchEventsCursorMigration(t *testing.T) {
 		if got, want := state.CursorVersion, watchpkg.EventsCursorVersion; got != want {
 			t.Fatalf("migrated cursor version = %d, want %d", got, want)
 		}
+		storedMigratedRef := generationResultRefForTest(t, migratedRef)
+		if _, err := upgraded.db.ExecContext(ctx, `UPDATE loop_generation_outputs SET output_ref = ?
+			WHERE loop_run_id = ? AND generation = 1 AND node_id = 'watch_loops'`,
+			storedMigratedRef, watcher.ID); err != nil {
+			t.Fatalf("adopt typed migrated pending ref error = %v", err)
+		}
 		var migrationFence int64
 		if err := upgraded.db.QueryRowContext(
 			ctx,
@@ -2141,10 +2147,11 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EventsPendingOutputRef(poison) error = %v", err)
 		}
+		storedPoisonRef := generationResultRefForTest(t, poisonRef)
 		if _, err := globalDB.db.ExecContext(
 			ctx,
 			`UPDATE loop_generation_outputs SET output_ref = ? WHERE loop_run_id = ? AND node_id = ?`,
-			poisonRef,
+			storedPoisonRef,
 			poisonLoop.ID,
 			"watch_tasks",
 		); err != nil {

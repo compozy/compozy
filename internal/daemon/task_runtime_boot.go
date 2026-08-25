@@ -349,6 +349,11 @@ func newTaskRuntimeManager(
 		taskpkg.WithWorkspaceAccessPolicy(state.accessPolicy),
 		taskpkg.WithRuntimeViewReader(&taskRuntimeViewReader{state: state}),
 	)
+	resultBudgetConfig, err := state.cfg.Calls.Results.ContractPolicy()
+	if err != nil {
+		return nil, fmt.Errorf("daemon: resolve task result budget: %w", err)
+	}
+	options = append(options, taskpkg.WithResultBudgetConfig(resultBudgetConfig))
 	if timerArmer := newLoopRetryTimerArmer(ctx, store, state.logger, now); timerArmer != nil {
 		options = append(options, taskpkg.WithCoordinatorTimerArmer(timerArmer))
 	}

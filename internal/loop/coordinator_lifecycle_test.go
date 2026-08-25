@@ -309,7 +309,8 @@ func TestCoordinatorRunnerShouldApplyNodeFailurePrecedence(t *testing.T) {
 		payload := coordinatorSnapshotPayloadForTest(t, plan)
 		outputs := outputsByNodeAndItemForTest(payload.Outputs)
 		if got := outputs["work/0"]; got.Status != generationOutputSucceeded ||
-			got.OutputRef != failureAbsorbedOutputRef || outputValue(got.OutputRef) != nil {
+			got.OutputRef != failureAbsorbedOutputRef || got.ResultKind != GenerationResultFailureAbsorbed ||
+			generationOutputRuntimeValue(got) != nil || !generationOutputRepresentsAbsentValue(got) {
 			t.Fatalf("absorbed source = %#v, want successful absent value", got)
 		}
 		if payload.Attempts[0].Disposition != AttemptAbsorbed {

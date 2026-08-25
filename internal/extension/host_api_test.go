@@ -6146,15 +6146,10 @@ func TestHostAPITaskRequestHelpersRejectInvalidPayloads(t *testing.T) {
 	t.Parallel()
 
 	oversizedMetadata := json.RawMessage(fmt.Sprintf("%q", strings.Repeat("m", taskpkg.MaxPayloadBytes+1)))
-	oversizedResult := json.RawMessage(fmt.Sprintf("%q", strings.Repeat("r", taskpkg.MaxResultBytes+1)))
 
 	_, err := cancelTaskFromRequest(apicontract.CancelTaskRequest{Metadata: oversizedMetadata})
 	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
 	assertErrorContains(t, err, "cancel_task.metadata")
-
-	_, err = completeTaskRunFromRequest(apicontract.CompleteTaskRunRequest{Result: oversizedResult})
-	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
-	assertErrorContains(t, err, "run_result.value")
 
 	_, err = failTaskRunFromRequest(apicontract.FailTaskRunRequest{})
 	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)

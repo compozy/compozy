@@ -106,7 +106,12 @@ func loadAmendmentTarget(
 	if err != nil {
 		return "", 0, fmt.Errorf("store: load amendment target: %w", err)
 	}
-	if strings.TrimSpace(recordedRef) == "" || status != loopNodeOutputSucceeded {
+	result, err := looppkg.DecodeGenerationResultRef(recordedRef)
+	if err != nil {
+		return "", 0, fmt.Errorf("store: decode amendment target result: %w", err)
+	}
+	if result.Kind != looppkg.GenerationResultPayload || strings.TrimSpace(result.PayloadRef) == "" ||
+		status != loopNodeOutputSucceeded {
 		return "", 0, looppkg.NewRequestReasonError(
 			looppkg.ReasonCodeAmendNoOutput, looppkg.ErrAmendNoOutput, nil,
 		)
@@ -128,6 +133,8 @@ func loadAmendmentTarget(
 	}
 	if previousRef.Valid {
 		recordedRef = previousRef.String
+	} else {
+		recordedRef = result.PayloadRef
 	}
 	return recordedRef, sequence, nil
 }
@@ -207,6 +214,8 @@ func (g *LoopRepo) ApplyGenerationOutputOverlays(
 	}
 	for index := range view {
 		if ref := overlays[fmt.Sprintf("%s\x00%d", view[index].NodeID, view[index].ItemIndex)]; ref != "" {
+			view[index].ResultKind = looppkg.GenerationResultPayload
+			view[index].SchemaRef = ""
 			view[index].OutputRef = ref
 		}
 	}

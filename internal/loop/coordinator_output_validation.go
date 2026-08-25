@@ -9,6 +9,14 @@ import (
 )
 
 func completedRunAgentOutputFailure(node dsl.Node, payload json.RawMessage) *ActionFailure {
+	return completedRunAgentOutputFailureWith(node, payload, validateJSONSchema)
+}
+
+func completedRunAgentOutputFailureWith(
+	node dsl.Node,
+	payload json.RawMessage,
+	validate actionSchemaValidator,
+) *ActionFailure {
 	if node.Class != dsl.NodeClassAction || dsl.ActionKind(node.Kind) != dsl.ActionRunAgent {
 		return nil
 	}
@@ -24,7 +32,7 @@ func completedRunAgentOutputFailure(node dsl.Node, payload json.RawMessage) *Act
 	if len(params.OutputSchema) == 0 {
 		return nil
 	}
-	_, err = ValidateActionStructured(params.OutputSchema, ActionPromptResult{Structured: payload})
+	_, err = validateActionStructuredWith(params.OutputSchema, ActionPromptResult{Structured: payload}, validate)
 	if err == nil {
 		return nil
 	}

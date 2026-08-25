@@ -149,12 +149,16 @@ func insertTimeTravelOutputs(
 	outputs []looppkg.GenerationOutput,
 ) error {
 	for _, output := range outputs {
+		storedResult, encodeErr := output.EncodedResult()
+		if encodeErr != nil {
+			return fmt.Errorf("store: encode time-travel output %s/%d: %w", output.NodeID, output.ItemIndex, encodeErr)
+		}
 		_, err := exec.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
 			loop_run_id, generation, node_id, item_index, output_id, artifact_name,
 			status, output_ref, attempt, epoch
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, runID, output.Generation, output.NodeID, output.ItemIndex,
 			nullTrimmed(output.OutputID), nullTrimmed(output.ArtifactName), output.Status,
-			nullTrimmed(output.OutputRef), maxInt(output.Attempt, 1), output.Epoch)
+			nullTrimmed(storedResult), maxInt(output.Attempt, 1), output.Epoch)
 		if err != nil {
 			return fmt.Errorf("store: insert time-travel output %s/%d: %w", output.NodeID, output.ItemIndex, err)
 		}

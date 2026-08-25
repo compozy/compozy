@@ -2622,6 +2622,24 @@ func appendMetricGate(def *dsl.Definition, criterionType dsl.CriterionType, metr
 	})
 }
 
+func TestLinterShouldRejectDeclaredOutputOnPayloadlessControl(t *testing.T) {
+	t.Parallel()
+
+	// Invariant: the shared declared-output resolver rejects contracts on
+	// controls whose output is only a routing decision.
+	// Owning layer: Loop definition linter.
+	// Canonical suite: linter_test.go.
+	def := singleNodeDefinition(dsl.Node{
+		ID:        "branch",
+		Class:     dsl.NodeClassControl,
+		Kind:      string(dsl.ControlBranch),
+		Condition: "true",
+		Produces:  dsl.Schema{"value": "boolean"},
+	})
+	errs := loop.NewLinter().Lint(def)
+	requireLintCodes(t, errs, loop.CodeDeclaredOutputInvalid)
+}
+
 func requireNode(t *testing.T, def *dsl.Definition, id dsl.NodeID) *dsl.Node {
 	t.Helper()
 	for idx := range def.Graph.Nodes {

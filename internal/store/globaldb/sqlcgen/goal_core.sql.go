@@ -272,7 +272,7 @@ type SettleGoalCompactionCheckpointParams struct {
 	CompactionBaselineUsed     sql.NullInt64  `json:"compaction_baseline_used"`
 	CompactionRecoveryRequired int64          `json:"compaction_recovery_required"`
 	RecoveryStreak             int64          `json:"recovery_streak"`
-	ConsumeGrant               any            `json:"consume_grant"`
+	ConsumeGrant               interface{}    `json:"consume_grant"`
 	UpdatedAt                  string         `json:"updated_at"`
 	LoopRunID                  string         `json:"loop_run_id"`
 	Generation                 int64          `json:"generation"`

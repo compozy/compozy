@@ -99,7 +99,7 @@ func advanceFanOutWindows(
 		if !ok || output.Status != generationOutputSucceeded {
 			continue
 		}
-		if outputRefRepresentsAbsentValue(output.OutputRef) {
+		if generationOutputRepresentsAbsentValue(output) {
 			continue
 		}
 		materialization, ok, err := parseFanOutMaterialization(generationOutputRuntimePayload(output))

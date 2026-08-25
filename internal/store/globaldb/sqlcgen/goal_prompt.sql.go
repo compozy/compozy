@@ -987,7 +987,7 @@ type UpdatePreparedGoalQueueFenceParams struct {
 	FenceDisposition    sql.NullString `json:"fence_disposition"`
 	FenceReasonCode     sql.NullString `json:"fence_reason_code"`
 	FencedAt            string         `json:"fenced_at"`
-	Grantable           any            `json:"grantable"`
+	Grantable           interface{}    `json:"grantable"`
 	TerminalKind        sql.NullString `json:"terminal_kind"`
 	TerminalDisposition sql.NullString `json:"terminal_disposition"`
 	TerminalReasonCode  sql.NullString `json:"terminal_reason_code"`

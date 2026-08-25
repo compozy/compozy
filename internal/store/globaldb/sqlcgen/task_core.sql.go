@@ -580,7 +580,7 @@ ORDER BY run_id ASC, capability_id ASC
 
 func (q *Queries) ListPreferredTaskRunCapabilities(ctx context.Context, runIds []string) ([]TaskRunPreferredCapability, error) {
 	query := listPreferredTaskRunCapabilities
-	var queryParams []any
+	var queryParams []interface{}
 	if len(runIds) > 0 {
 		for _, v := range runIds {
 			queryParams = append(queryParams, v)
@@ -620,7 +620,7 @@ ORDER BY run_id ASC, capability_id ASC
 
 func (q *Queries) ListRequiredTaskRunCapabilities(ctx context.Context, runIds []string) ([]TaskRunRequiredCapability, error) {
 	query := listRequiredTaskRunCapabilities
-	var queryParams []any
+	var queryParams []interface{}
 	if len(runIds) > 0 {
 		for _, v := range runIds {
 			queryParams = append(queryParams, v)
@@ -721,7 +721,7 @@ type ListTaskRunsByStatusRow struct {
 
 func (q *Queries) ListTaskRunsByStatus(ctx context.Context, statuses []string) ([]ListTaskRunsByStatusRow, error) {
 	query := listTaskRunsByStatus
-	var queryParams []any
+	var queryParams []interface{}
 	if len(statuses) > 0 {
 		for _, v := range statuses {
 			queryParams = append(queryParams, v)

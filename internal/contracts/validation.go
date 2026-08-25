@@ -169,3 +169,28 @@ func ValidateWaitPayload(expect json.RawMessage, payload json.RawMessage) error 
 	}
 	return fmt.Errorf("wait payload does not match expect: %s", BuildRepairPrompt(verdict.Issues))
 }
+
+// ValidateSchema validates a payload directly against an authored schema.
+// Consumers without a durable registry digest use this adapter so they still
+// share canonical normalization and validation behavior.
+func ValidateSchema(schema json.RawMessage, payload json.RawMessage) (Verdict, error) {
+	canonical, err := normalizeSchema(schema)
+	if err != nil {
+		return Verdict{}, newError(CodeExpectInvalid, FaultContract, err.Error(), err)
+	}
+	compiled, err := compileSchema(Contract{Schema: canonical})
+	if err != nil {
+		return Verdict{}, newError(CodeContractCompile, FaultContract, err.Error(), err)
+	}
+	return validatePayload(compiled, payload), nil
+}
+
+// ValidateSchemaFragment validates against a nested schema fragment. Unlike a
+// top-level contract, a fragment may describe a scalar or array value.
+func ValidateSchemaFragment(schema json.RawMessage, payload json.RawMessage) (Verdict, error) {
+	compiled, err := compileSchema(Contract{Schema: cloneRaw(schema)})
+	if err != nil {
+		return Verdict{}, newError(CodeContractCompile, FaultContract, err.Error(), err)
+	}
+	return validatePayload(compiled, payload), nil
+}

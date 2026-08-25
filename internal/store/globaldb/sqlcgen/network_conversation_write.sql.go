@@ -364,9 +364,9 @@ type GetPriorNetworkTimelineWorkStateParams struct {
 	MessageID   string `json:"message_id"`
 }
 
-func (q *Queries) GetPriorNetworkTimelineWorkState(ctx context.Context, arg GetPriorNetworkTimelineWorkStateParams) (any, error) {
+func (q *Queries) GetPriorNetworkTimelineWorkState(ctx context.Context, arg GetPriorNetworkTimelineWorkStateParams) (interface{}, error) {
 	row := q.db.QueryRowContext(ctx, getPriorNetworkTimelineWorkState, arg.WorkspaceID, arg.MessageID)
-	var coalesce any
+	var coalesce interface{}
 	err := row.Scan(&coalesce)
 	return coalesce, err
 }

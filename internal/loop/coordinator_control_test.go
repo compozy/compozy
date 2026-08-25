@@ -967,6 +967,13 @@ func TestCoordinatorRunnerShouldRouteBranchCondition(t *testing.T) {
 				if got := outputs["push/0"].Status; got != tc.wantPush {
 					t.Fatalf("push status = %q, want %q", got, tc.wantPush)
 				}
+				if !tc.autoPush {
+					branch := outputs["should_route/0"]
+					if branch.ResultKind != GenerationResultBranchFalse ||
+						generationOutputRuntimeValue(branch) != branchFalseOutputRef {
+						t.Fatalf("false branch result = %#v, want typed branch_false namespace value", branch)
+					}
+				}
 			})
 		}
 	})

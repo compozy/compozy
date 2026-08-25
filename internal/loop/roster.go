@@ -442,13 +442,13 @@ func cancellationView(control NodeControl) *NodeCancellation {
 }
 
 func strategyCancellationView(output GenerationOutput) *NodeCancellation {
-	cause := strings.TrimSpace(output.OutputRef)
-	switch cause {
-	case strategyCanceledReasonCode, strategyNeverStartedReasonCode:
-		return &NodeCancellation{Disposition: nodeCancellationStrategy, Cause: cause}
-	default:
-		return nil
+	if generationOutputHasKind(output, GenerationResultStrategyCanceled) {
+		return &NodeCancellation{Disposition: nodeCancellationStrategy, Cause: strategyCanceledReasonCode}
 	}
+	if generationOutputHasKind(output, GenerationResultStrategyNotStarted) {
+		return &NodeCancellation{Disposition: nodeCancellationStrategy, Cause: strategyNeverStartedReasonCode}
+	}
+	return nil
 }
 
 func attemptState(disposition AttemptDisposition) NodeState {

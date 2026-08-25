@@ -53,7 +53,8 @@ func generationOutputRuntimeView(
 	resolved := make(map[GenerationOutputPayloadKey]json.RawMessage)
 	for index := range view {
 		ref := strings.TrimSpace(view[index].OutputRef)
-		if !OutputRefLooksContentAddressed(ref) {
+		if !generationOutputHasKind(view[index], GenerationResultPayload, GenerationResultFailure) ||
+			!OutputRefLooksContentAddressed(ref) {
 			continue
 		}
 		if reader == nil {
@@ -105,13 +106,20 @@ func generationOutputRuntimePayload(output GenerationOutput) string {
 }
 
 func generationOutputRuntimeValue(output GenerationOutput) any {
-	return outputValue(generationOutputRuntimePayload(output))
+	return generationResultValue(GenerationResultRef{
+		Kind:       output.ResultKind,
+		SchemaRef:  output.SchemaRef,
+		PayloadRef: output.OutputRef,
+	}, output.runtimePayload)
 }
 
 func setGenerationOutputRef(output *GenerationOutput, ref string) {
 	if output == nil {
 		return
 	}
-	output.OutputRef = ref
+	result := generationResultForRef(ref)
+	output.ResultKind = result.Kind
+	output.SchemaRef = result.SchemaRef
+	output.OutputRef = result.PayloadRef
 	output.runtimePayload = nil
 }

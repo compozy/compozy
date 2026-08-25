@@ -87,10 +87,14 @@ func claimRequestDecision(
 			outputRef = encoded
 		}
 	}
+	storedResult, err := looppkg.EncodeGenerationResultForRef(outputRef)
+	if err != nil {
+		return fmt.Errorf("store: encode Loop review result: %w", err)
+	}
 	result, err = exec.ExecContext(ctx, `UPDATE loop_generation_outputs SET status = ?,
 		output_ref = ?, task_run_id = NULL, next_attempt_at = NULL, first_scheduled_at = NULL,
 		epoch = epoch + 1 WHERE loop_run_id = ? AND generation = ? AND node_id = ?
-		AND item_index = ? AND status = 'waiting' AND epoch = ?`, status, outputRef,
+		AND item_index = ? AND status = 'waiting' AND epoch = ?`, status, storedResult,
 		mutation.RunID, mutation.Generation, mutation.NodeID, mutation.ItemIndex, wait.IssuedEpoch)
 	if err != nil {
 		return fmt.Errorf("store: admit Loop review decision: %w", err)

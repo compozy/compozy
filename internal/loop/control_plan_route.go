@@ -211,7 +211,7 @@ func routePathCanBeSkipped(
 			continue
 		}
 		dependencyOutput, ok := dependencyOutputForNode(topology, outputs, nodeID, dependency, itemIndex)
-		if !ok || !outputRefMarksSkippedRoute(dependencyOutput.OutputRef) {
+		if !ok || !outputMarksSkippedRoute(dependencyOutput) {
 			return false
 		}
 	}
@@ -222,10 +222,6 @@ func routeNotTakenOutputRef(sourceID dsl.NodeID) string {
 	return routeNotTakenOutputRefPrefix + string(sourceID)
 }
 
-func isRouteNotTakenOutputRef(outputRef string) bool {
-	return strings.HasPrefix(strings.TrimSpace(outputRef), routeNotTakenOutputRefPrefix)
-}
-
-func outputRefMarksSkippedRoute(outputRef string) bool {
-	return strings.TrimSpace(outputRef) == branchSkippedOutputRef || isRouteNotTakenOutputRef(outputRef)
+func outputMarksSkippedRoute(output GenerationOutput) bool {
+	return generationOutputHasKind(output, GenerationResultSkipped, GenerationResultRouteNotTaken)
 }

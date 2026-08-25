@@ -139,7 +139,13 @@ func generationOutputFromGenerated(row sqlcgen.ListLoopGenerationOutputsRow) (lo
 		output.ArtifactName = row.ArtifactName.String
 	}
 	if row.OutputRef.Valid {
-		output.OutputRef = row.OutputRef.String
+		result, err := looppkg.DecodeGenerationResultRef(row.OutputRef.String)
+		if err != nil {
+			return looppkg.GenerationOutput{}, fmt.Errorf("store: decode generation output result: %w", err)
+		}
+		output.ResultKind = result.Kind
+		output.SchemaRef = result.SchemaRef
+		output.OutputRef = result.PayloadRef
 	}
 	if row.TaskRunID.Valid {
 		output.TaskRunID = row.TaskRunID.String

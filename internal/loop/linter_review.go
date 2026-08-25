@@ -37,7 +37,7 @@ func (c *lintContext) lintReview(node dsl.Node) {
 		seen[decision] = struct{}{}
 		if decision == dsl.ReviewDecisionRespond {
 			hasRespond = true
-			if _, ok := c.outputSchema(node); !ok {
+			if _, ok := c.declaredSchema(node); !ok {
 				c.add(node.ID, CodeReviewRespondSchemaRequired,
 					"review respond requires a declared action output shape")
 			}
@@ -50,7 +50,7 @@ func (c *lintContext) lintReview(node dsl.Node) {
 		c.lintReviewEditSchema(node)
 	}
 	if hasRespond {
-		if schema, ok := c.outputSchema(node); ok {
+		if schema, ok := c.declaredSchema(node); ok {
 			c.lintEntityKindAnnotations(node.ID, map[string]any(schema))
 		}
 	}

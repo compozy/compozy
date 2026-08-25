@@ -16,9 +16,9 @@ FROM network_timeline_log
 WHERE workspace_id = ?1
 `
 
-func (q *Queries) GetNetworkWatchEventsCursor(ctx context.Context, workspaceID string) (any, error) {
+func (q *Queries) GetNetworkWatchEventsCursor(ctx context.Context, workspaceID string) (interface{}, error) {
 	row := q.db.QueryRowContext(ctx, getNetworkWatchEventsCursor, workspaceID)
-	var coalesce any
+	var coalesce interface{}
 	err := row.Scan(&coalesce)
 	return coalesce, err
 }
@@ -26,7 +26,7 @@ func (q *Queries) GetNetworkWatchEventsCursor(ctx context.Context, workspaceID s
 const listParkedWatchEventSubscriptions = `-- name: ListParkedWatchEventSubscriptions :many
 SELECT lr.workspace_id, lr.profile_id, lr.id, lr.loop_name, lr.generation, lr.inputs_json,
        lr.definition_digest, lds.definition_json, lgo.node_id,
-       COALESCE(lgo.output_ref, '') AS output_ref
+       CAST(COALESCE(json_extract(lgo.output_ref, '$.payload_ref'), '') AS TEXT) AS output_ref
 FROM loop_runs lr
 JOIN loop_definition_snapshots lds
   ON lds.workspace_id = lr.workspace_id
@@ -35,7 +35,7 @@ JOIN loop_generation_outputs lgo
   ON lgo.loop_run_id = lr.id
  AND lgo.generation = lr.generation
 WHERE lr.status = ?1
-  AND json_extract(COALESCE(lgo.output_ref, '{}'), '$.kind') = ?2
+  AND json_extract(json_extract(lgo.output_ref, '$.payload_ref'), '$.kind') = ?2
 ORDER BY lr.workspace_id ASC, lr.id ASC, lgo.node_id ASC
 `
 
@@ -94,7 +94,7 @@ func (q *Queries) ListParkedWatchEventSubscriptions(ctx context.Context, arg Lis
 const listParkedWatchEventSubscriptionsForLoopRun = `-- name: ListParkedWatchEventSubscriptionsForLoopRun :many
 SELECT lr.workspace_id, lr.profile_id, lr.id, lr.loop_name, lr.generation, lr.inputs_json,
        lr.definition_digest, lds.definition_json, lgo.node_id,
-       COALESCE(lgo.output_ref, '') AS output_ref
+       CAST(COALESCE(json_extract(lgo.output_ref, '$.payload_ref'), '') AS TEXT) AS output_ref
 FROM loop_runs lr
 JOIN loop_definition_snapshots lds
   ON lds.workspace_id = lr.workspace_id
@@ -103,7 +103,7 @@ JOIN loop_generation_outputs lgo
   ON lgo.loop_run_id = lr.id
  AND lgo.generation = lr.generation
 WHERE lr.status = ?1
-  AND json_extract(COALESCE(lgo.output_ref, '{}'), '$.kind') = ?2
+  AND json_extract(json_extract(lgo.output_ref, '$.payload_ref'), '$.kind') = ?2
   AND lr.id = ?3
 ORDER BY lr.workspace_id ASC, lr.id ASC, lgo.node_id ASC
 `
@@ -164,7 +164,7 @@ func (q *Queries) ListParkedWatchEventSubscriptionsForLoopRun(ctx context.Contex
 const listParkedWatchEventSubscriptionsPage = `-- name: ListParkedWatchEventSubscriptionsPage :many
 SELECT lr.workspace_id, lr.profile_id, lr.id, lr.loop_name, lr.generation, lr.inputs_json,
        lr.definition_digest, lds.definition_json, lgo.node_id,
-       COALESCE(lgo.output_ref, '') AS output_ref
+       CAST(COALESCE(json_extract(lgo.output_ref, '$.payload_ref'), '') AS TEXT) AS output_ref
 FROM loop_runs lr
 JOIN loop_definition_snapshots lds
   ON lds.workspace_id = lr.workspace_id
@@ -173,7 +173,7 @@ JOIN loop_generation_outputs lgo
   ON lgo.loop_run_id = lr.id
  AND lgo.generation = lr.generation
 WHERE lr.status = ?1
-  AND json_extract(COALESCE(lgo.output_ref, '{}'), '$.kind') = ?2
+  AND json_extract(json_extract(lgo.output_ref, '$.payload_ref'), '$.kind') = ?2
   AND (
     lr.workspace_id > ?3
     OR (lr.workspace_id = ?3 AND lr.id > ?4)

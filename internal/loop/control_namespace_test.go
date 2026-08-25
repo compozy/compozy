@@ -258,36 +258,56 @@ func TestRuntimeNamespaceShouldProjectFanOutProgressAndIterationNames(t *testing
 func TestOutputValueShouldProjectNamespaceValues(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: durable readers require an explicit result kind and never
+	// reinterpret a bare control sentinel as a payload.
+	// Owning layer: Loop generation-result namespace projection.
+	// Canonical suite: TestOutputValueShouldProjectNamespaceValues.
+	t.Run("Should reject bare legacy sentinels at the durable read boundary", func(t *testing.T) {
+		t.Parallel()
+
+		for _, raw := range []string{"branch:false", "error_routed:fallback"} {
+			if _, err := DecodeGenerationResultRef(raw); !errors.Is(err, ErrValidation) {
+				t.Fatalf("DecodeGenerationResultRef(%q) error = %v, want %v", raw, err, ErrValidation)
+			}
+		}
+	})
+
 	t.Run("Should preserve large JSON numbers as json.Number", func(t *testing.T) {
 		t.Parallel()
 
-		value := outputValue(`{"id":9007199254740993}`)
+		output := GenerationOutput{}
+		setGenerationOutputRef(&output, `{"id":9007199254740993}`)
+		value := generationOutputRuntimeValue(output)
 		object, ok := value.(map[string]any)
 		if !ok {
-			t.Fatalf("outputValue() = %#v, want object", value)
+			t.Fatalf("generationOutputRuntimeValue() = %#v, want object", value)
 		}
 		number, ok := object["id"].(json.Number)
 		if !ok {
-			t.Fatalf("outputValue().id = %#v, want json.Number", object["id"])
+			t.Fatalf("generation output id = %#v, want json.Number", object["id"])
 		}
 		if got, want := number.String(), "9007199254740993"; got != want {
-			t.Fatalf("outputValue().id = %q, want %q", got, want)
+			t.Fatalf("generation output id = %q, want %q", got, want)
 		}
 	})
 
 	t.Run("Should project a skipped branch marker as absent", func(t *testing.T) {
 		t.Parallel()
 
-		if value := outputValue(branchSkippedOutputRef); value != nil {
-			t.Fatalf("outputValue(branch skipped) = %#v, want nil", value)
+		output := GenerationOutput{}
+		setGenerationOutputRef(&output, branchSkippedOutputRef)
+		if value := generationOutputRuntimeValue(output); value != nil {
+			t.Fatalf("generationOutputRuntimeValue(branch skipped) = %#v, want nil", value)
 		}
 	})
 
 	t.Run("Should project a review rejection route marker as absent", func(t *testing.T) {
 		t.Parallel()
 
-		if value := outputValue(reviewRejectedRouteOutputRefPrefix + "fallback"); value != nil {
-			t.Fatalf("outputValue(review rejected route) = %#v, want nil", value)
+		output := GenerationOutput{}
+		setGenerationOutputRef(&output, reviewRejectedRouteOutputRefPrefix+"fallback")
+		if value := generationOutputRuntimeValue(output); value != nil {
+			t.Fatalf("generationOutputRuntimeValue(review rejected route) = %#v, want nil", value)
 		}
 	})
 }

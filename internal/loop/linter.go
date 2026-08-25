@@ -145,6 +145,9 @@ func (c *lintContext) lintNodeIDs() {
 
 func (c *lintContext) lintKindsAndSchemas() {
 	for _, node := range c.def.Graph.Nodes {
+		if _, _, err := resolveDeclaredOutputSchema(c.def, c.linter.tools, node); err != nil {
+			c.add(node.ID, CodeDeclaredOutputInvalid, "declared output schema is invalid: %v", err)
+		}
 		c.lintEvalErrorPolicy(node)
 		c.lintWatchEventsEnvelopeShape(node)
 		c.lintReview(node)

@@ -52,11 +52,15 @@ func (g *LoopRepo) resolveExpiredWaitRoute(
 	if err != nil {
 		return err
 	}
+	storedResult, err := looppkg.EncodeGenerationResultForRef(looppkg.WaitExpiryRouteOutputRef(route))
+	if err != nil {
+		return fmt.Errorf("store: encode expired wait route result: %w", err)
+	}
 	result, err = exec.ExecContext(ctx, `UPDATE loop_generation_outputs SET status = 'succeeded',
 		output_ref = ?, task_run_id = NULL, next_attempt_at = NULL,
 		first_scheduled_at = ?, epoch = epoch + 1
 		WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-		AND status = 'waiting' AND epoch = ?`, looppkg.WaitExpiryRouteOutputRef(route),
+		AND status = 'waiting' AND epoch = ?`, storedResult,
 		firstScheduledAt, due.wait.LoopRunID, due.wait.Generation, due.wait.NodeID,
 		due.wait.ItemIndex, due.wait.IssuedEpoch)
 	if err != nil {
@@ -114,9 +118,13 @@ func (g *LoopRepo) resolveExpiredApprovalRoute(
 	parkedFor time.Duration,
 	now time.Time,
 ) error {
+	storedResult, err := looppkg.EncodeGenerationResultForRef(looppkg.WaitExpiryRouteOutputRef(route))
+	if err != nil {
+		return fmt.Errorf("store: encode expired approval route result: %w", err)
+	}
 	result, err := exec.ExecContext(ctx, `UPDATE loop_generation_outputs SET output_ref = ?, epoch = epoch + 1
 		WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-		AND status = 'succeeded' AND epoch = ?`, looppkg.WaitExpiryRouteOutputRef(route),
+		AND status = 'succeeded' AND epoch = ?`, storedResult,
 		due.wait.LoopRunID, due.wait.Generation, due.wait.NodeID, due.wait.ItemIndex, due.wait.IssuedEpoch)
 	if err != nil {
 		return fmt.Errorf("store: resolve expired approval route cell: %w", err)

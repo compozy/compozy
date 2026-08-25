@@ -1013,9 +1013,12 @@ func TestRoutePlannerShouldSelectExactlyOnePath(t *testing.T) {
 			t.Fatalf("evaluateRouteNode() error = %v", err)
 		}
 		mapped := generationOutputMap(outputs)
+		quick := mapped[generationOutputKey{nodeID: "quick"}]
+		fallback := mapped[generationOutputKey{nodeID: "fallback"}]
 		if terminal != nil || result.Status != generationOutputSucceeded || result.OutputRef != "route:review" ||
-			!isRouteNotTakenOutputRef(mapped[generationOutputKey{nodeID: "quick"}].OutputRef) ||
-			!isRouteNotTakenOutputRef(mapped[generationOutputKey{nodeID: "fallback"}].OutputRef) ||
+			result.ResultKind != GenerationResultRouteSelected || quick.ResultKind != GenerationResultRouteNotTaken ||
+			fallback.ResultKind != GenerationResultRouteNotTaken || generationOutputRuntimeValue(quick) != nil ||
+			generationOutputRuntimeValue(fallback) != nil ||
 			mapped[generationOutputKey{nodeID: "review"}].Status != generationOutputPending ||
 			mapped[generationOutputKey{nodeID: "shared"}].Status != generationOutputPending {
 			t.Fatalf("route result = %#v outputs=%#v terminal=%#v", result, outputs, terminal)
@@ -1176,7 +1179,7 @@ func TestGateRoutePlannerShouldSelectAndRecordTarget(t *testing.T) {
 		t.Fatalf("evaluateGateNode() error = %v", err)
 	}
 	if terminal != nil || result.Status != generationOutputSucceeded ||
-		!isRouteNotTakenOutputRef(outputs[2].OutputRef) || outputs[3].Status != generationOutputPending ||
+		!generationOutputHasKind(outputs[2], GenerationResultRouteNotTaken) || outputs[3].Status != generationOutputPending ||
 		len(collector.routeDecisions) != 1 || collector.routeDecisions[0].Target != "repair" {
 		t.Fatalf(
 			"gate result = %#v outputs=%#v decisions=%#v terminal=%#v",
@@ -1223,7 +1226,7 @@ func TestGateRoutePlannerShouldSelectAndRecordTarget(t *testing.T) {
 		)
 		mapped := generationOutputMap(laneOutputs)
 		if mapped[generationOutputKey{nodeID: "publish", itemIndex: 0}].Status != generationOutputPending ||
-			!isRouteNotTakenOutputRef(mapped[generationOutputKey{nodeID: "publish", itemIndex: 1}].OutputRef) ||
+			!generationOutputHasKind(mapped[generationOutputKey{nodeID: "publish", itemIndex: 1}], GenerationResultRouteNotTaken) ||
 			mapped[generationOutputKey{nodeID: "repair", itemIndex: 1}].Status != generationOutputPending {
 			t.Fatalf("lane route outputs = %#v", laneOutputs)
 		}
@@ -5026,7 +5029,7 @@ func TestCoordinatorRunnerShouldResolveInputSourceNodes(t *testing.T) {
 		if got, want := slugInput.Status, generationOutputSucceeded; got != want {
 			t.Fatalf("slug_input status = %q, want %q", got, want)
 		}
-		if got, want := outputValue(slugInput.OutputRef), "loops-refac"; got != want {
+		if got, want := generationOutputRuntimeValue(slugInput), "loops-refac"; got != want {
 			t.Fatalf("slug_input output = %#v, want %#v", got, want)
 		}
 		if plan.Terminal == nil {

@@ -203,7 +203,7 @@ func (r *CoordinatorRunner) refreshRetryingGenerationOutput(
 func generationOutputSettledWithoutTaskRun(output GenerationOutput) bool {
 	if output.Status == generationOutputSucceeded {
 		return output.FirstScheduledAt == nil || strings.TrimSpace(output.TaskRunID) == "" ||
-			outputRefRepresentsAbsentValue(output.OutputRef)
+			generationOutputRepresentsAbsentValue(output)
 	}
 	switch output.Status {
 	case generationOutputFailed, generationOutputCanceled, generationOutputQuarantined,

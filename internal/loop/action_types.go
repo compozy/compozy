@@ -25,6 +25,7 @@ const (
 	actionKindMetaKey                 = "kind"
 	outputSchemaParamKey              = "output_schema"
 	jsonSchemaTypeKey                 = "type"
+	jsonSchemaEnumKey                 = "enum"
 	jsonSchemaObjectType              = "object"
 	jsonSchemaPropertiesKey           = "properties"
 	jsonSchemaRequiredKey             = "required"

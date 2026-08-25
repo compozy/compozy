@@ -112,7 +112,7 @@ func (c *lintContext) lintResultContract(node dsl.Node) {
 		c.add(node.ID, CodeResultContractInvalid, "result_contract.failure_field is required")
 		return
 	}
-	schema, ok := c.outputSchema(node)
+	schema, ok := c.declaredSchema(node)
 	if !ok {
 		c.add(node.ID, CodeResultContractInvalid, "result_contract requires a declared output schema")
 		return

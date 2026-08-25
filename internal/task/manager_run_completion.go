@@ -24,6 +24,9 @@ func (m *Service) CompleteRun(
 	if err != nil {
 		return nil, err
 	}
+	if err := m.enforceResultBudget(storedResult); err != nil {
+		return nil, err
+	}
 	run, taskRecord, err := m.loadAuthorizedRunWithTask(ctx, runID, actor)
 	if err != nil {
 		return nil, err
@@ -44,7 +47,7 @@ func (m *Service) CompleteRun(
 		taskEventRunCompleted,
 		actor,
 		completedRunPayload{
-			Status: TaskRunStatusCompleted, TaskStatus: taskRecord.Status, Result: cloneRawJSON(storedResult),
+			Status: TaskRunStatusCompleted, TaskStatus: taskRecord.Status, Result: completionEventResult(storedResult),
 		},
 	); err != nil {
 		return nil, err

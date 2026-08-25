@@ -13,8 +13,6 @@ const (
 	MaxMetadataBytes = 16 * 1024
 	// MaxPayloadBytes caps persisted event-style JSON payloads at 64 KiB.
 	MaxPayloadBytes = 64 * 1024
-	// MaxResultBytes caps persisted run results at 64 KiB.
-	MaxResultBytes = 64 * 1024
 	// DefaultTaskMaxAttempts is the canonical retry budget used when callers omit an explicit value.
 	DefaultTaskMaxAttempts = 3
 	// MaxTaskMaxAttempts caps task-level attempt policy at ten tries.

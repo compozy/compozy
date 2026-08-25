@@ -131,6 +131,13 @@ func (m *Service) CompleteRunLease(
 	if err != nil {
 		return nil, err
 	}
+	storedResult, err := normalized.Result.StoredValue()
+	if err != nil {
+		return nil, err
+	}
+	if err := m.enforceResultBudget(storedResult); err != nil {
+		return nil, err
+	}
 	normalized.Actor = actor
 	advisoryEventID, err := m.reserveTaskEventID()
 	if err != nil {

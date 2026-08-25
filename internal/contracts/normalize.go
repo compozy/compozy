@@ -63,6 +63,12 @@ func normalizeSchema(raw json.RawMessage) (json.RawMessage, error) {
 	return canonical, nil
 }
 
+// NormalizeSchema returns the canonical full JSON Schema for either the
+// supported shorthand object form or an authored full schema.
+func NormalizeSchema(raw json.RawMessage) (json.RawMessage, error) {
+	return normalizeSchema(raw)
+}
+
 func sortSchemaSets(value any) {
 	switch typed := value.(type) {
 	case map[string]any:
@@ -127,7 +133,12 @@ func shorthandValueSchema(value any) any {
 		}
 		return map[string]any{schemaType: "array", schemaItems: itemSchema}
 	case string:
-		return map[string]any{schemaType: "string"}
+		switch typed {
+		case "array", "boolean", "integer", "null", "number", "object", "string":
+			return map[string]any{schemaType: typed}
+		default:
+			return map[string]any{schemaType: "string"}
+		}
 	case json.Number:
 		if strings.ContainsAny(string(typed), ".eE") {
 			return map[string]any{schemaType: "number"}

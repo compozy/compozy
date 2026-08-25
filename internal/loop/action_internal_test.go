@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/tools"
@@ -504,6 +505,164 @@ func TestActionRenderingInternalsShouldNormalizeValuesAndErrors(t *testing.T) {
 			t.Fatal("timeout context has no deadline")
 		}
 	})
+}
+
+// Invariant: run-agent capture, durable settle, and wait admission share the contracts engine while
+// preserving the established Loop verdict and invalid_output mapping.
+// Owning layer: Loop contract adapters.
+// Canonical suite: action_internal_test.go.
+func TestActionContractAdaptersShouldPreserveParity(t *testing.T) {
+	t.Parallel()
+
+	schema := dsl.Schema{
+		"type":       "object",
+		"properties": map[string]any{"summary": map[string]any{"type": "string"}},
+		"required":   []any{"summary"},
+	}
+	node := dsl.Node{
+		ID: "worker", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+		Params: dsl.NodeParams{"agent": "codex", "prompt": "Return a summary", "output_schema": schema},
+	}
+	metadata := json.RawMessage(
+		`{"generation":1,"node_id":"worker","item_index":0,"attempt":1,"epoch":0,` +
+			`"output_schema":{"type":"object","properties":{"summary":{"type":"string"}},` +
+			`"required":["summary"]}}`,
+	)
+	run := task.Run{ID: "run-worker", RunKind: task.RunKindWorker, LoopRunID: "looprun-worker", Metadata: metadata}
+
+	t.Run("Should preserve invalid_output parity between capture and settle UT-017", func(t *testing.T) {
+		t.Parallel()
+
+		payload := json.RawMessage(`{"summary":12}`)
+		captureErr := ValidateActionRunResult(run, task.RunResult{Value: payload})
+		captureProvider, ok := errors.AsType[SafeActionFailureProvider](captureErr)
+		if !ok {
+			t.Fatalf("ValidateActionRunResult() error = %T, want SafeActionFailureProvider", captureErr)
+		}
+		settleFailure := completedRunAgentOutputFailure(node, payload)
+		if settleFailure == nil || captureProvider.SafeActionFailure() != *settleFailure {
+			t.Fatalf("capture failure = %#v, settle failure = %#v, want byte-identical mapping",
+				captureProvider.SafeActionFailure(), settleFailure)
+		}
+	})
+
+	t.Run("Should route capture and settle through one contracts validator IT-050", func(t *testing.T) {
+		t.Parallel()
+
+		calls := 0
+		validator := func(schema dsl.Schema, payload json.RawMessage) error {
+			calls++
+			return validateJSONSchema(schema, payload)
+		}
+		payload := json.RawMessage(`{"summary":"done"}`)
+		if err := validateActionRunResultWith(run, task.RunResult{Value: payload}, validator); err != nil {
+			t.Fatalf("validateActionRunResultWith() error = %v", err)
+		}
+		if failure := completedRunAgentOutputFailureWith(node, payload, validator); failure != nil {
+			t.Fatalf("completedRunAgentOutputFailureWith() = %#v, want nil", failure)
+		}
+		if calls != 2 {
+			t.Fatalf("contracts validator calls = %d, want capture + settle", calls)
+		}
+	})
+
+	t.Run("Should demote payload corruption discovered at settle IT-051", func(t *testing.T) {
+		t.Parallel()
+
+		if err := ValidateActionRunResult(run, task.RunResult{
+			Value: json.RawMessage(`{"summary":"captured"}`),
+		}); err != nil {
+			t.Fatalf("ValidateActionRunResult(captured) error = %v", err)
+		}
+		failure := completedRunAgentOutputFailure(node, json.RawMessage(`{"summary":7}`))
+		if failure == nil || failure.Code != string(ReasonCodeInvalidOutput) {
+			t.Fatalf("settle corruption failure = %#v, want invalid_output", failure)
+		}
+	})
+
+	t.Run("Should preserve ask and review golden acceptance UT-020", func(t *testing.T) {
+		t.Parallel()
+
+		fixtures := []struct {
+			name    string
+			expect  json.RawMessage
+			payload json.RawMessage
+			valid   bool
+		}{
+			{name: "empty contract", payload: json.RawMessage(`{"answer":true}`), valid: true},
+			{name: "shorthand valid", expect: json.RawMessage(`{"answer":"boolean"}`),
+				payload: json.RawMessage(`{"answer":true}`), valid: true},
+			{name: "full schema valid", expect: json.RawMessage(
+				`{"type":"object","required":["answer"],"properties":{"answer":{"type":"string"}}}`),
+				payload: json.RawMessage(`{"answer":"yes"}`), valid: true},
+			{name: "missing required", expect: json.RawMessage(`{"answer":"boolean"}`),
+				payload: json.RawMessage(`{}`), valid: false},
+			{name: "wrong type", expect: json.RawMessage(`{"answer":"boolean"}`),
+				payload: json.RawMessage(`{"answer":"yes"}`), valid: false},
+			{name: "invalid json", expect: json.RawMessage(`{"answer":"boolean"}`),
+				payload: json.RawMessage(`{"answer":`), valid: false},
+		}
+		for _, fixture := range fixtures {
+			fixture := fixture
+			t.Run("Should preserve "+fixture.name, func(t *testing.T) {
+				t.Parallel()
+				before := append(json.RawMessage(nil), fixture.payload...)
+				loopErr := ValidateWaitPayload(fixture.expect, fixture.payload)
+				contractsErr := contracts.ValidateWaitPayload(fixture.expect, fixture.payload)
+				if (loopErr == nil) != fixture.valid || (contractsErr == nil) != fixture.valid {
+					t.Fatalf("acceptance loop=%v contracts=%v, want valid=%t", loopErr, contractsErr, fixture.valid)
+				}
+				if string(fixture.payload) != string(before) {
+					t.Fatalf("payload changed from %q to %q", before, fixture.payload)
+				}
+			})
+		}
+	})
+}
+
+func TestDeclaredOutputResolverShouldServeLintReviewAndAmendment(t *testing.T) {
+	t.Parallel()
+
+	// Invariant: lint, review, and amendment observe exactly one declared
+	// output schema for the same node.
+	// Owning layer: Loop declared-output resolution.
+	// Canonical suite: action_internal_test.go.
+	node := dsl.Node{
+		ID:    "worker",
+		Class: dsl.NodeClassAction,
+		Kind:  string(dsl.ActionRunAgent),
+		Params: dsl.NodeParams{
+			"agent":         "codex",
+			"prompt":        "Return a result",
+			"output_schema": map[string]any{"summary": "string"},
+		},
+	}
+	definition := dsl.Definition{Graph: dsl.Graph{Nodes: []dsl.Node{node}}}
+	resolved := &ResolvedDefinition{Definition: definition, ToolSchemas: map[string]ToolSchemaSnapshot{}}
+
+	lintSchema, ok := newLintContext(definition, &DefinitionLinter{}).declaredSchema(node)
+	if !ok {
+		t.Fatal("lint declared schema = missing")
+	}
+	amendmentSchema, err := resolvedDefinitionOutputSchema(resolved, node)
+	if err != nil {
+		t.Fatalf("resolvedDefinitionOutputSchema() error = %v", err)
+	}
+	_, reviewSchema, err := reviewSchemas(resolved, node, nil, []dsl.ReviewDecision{dsl.ReviewDecisionRespond})
+	if err != nil {
+		t.Fatalf("reviewSchemas() error = %v", err)
+	}
+	lintRaw, err := json.Marshal(lintSchema)
+	if err != nil {
+		t.Fatalf("json.Marshal(lint schema) error = %v", err)
+	}
+	amendmentRaw, err := json.Marshal(amendmentSchema)
+	if err != nil {
+		t.Fatalf("json.Marshal(amendment schema) error = %v", err)
+	}
+	if string(lintRaw) != string(amendmentRaw) || string(lintRaw) != string(reviewSchema) {
+		t.Fatalf("schema mismatch: lint=%s amendment=%s review=%s", lintRaw, amendmentRaw, reviewSchema)
+	}
 }
 
 func TestReservedActionInternalsShouldCoverErrorBranches(t *testing.T) {

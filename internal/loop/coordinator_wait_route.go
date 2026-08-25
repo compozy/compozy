@@ -25,6 +25,9 @@ func applyWaitExpiryRoutes(
 	outputs *[]GenerationOutput,
 ) {
 	for _, output := range append([]GenerationOutput(nil), (*outputs)...) {
+		if !generationOutputHasKind(output, GenerationResultWaitExpiryRouted) {
+			continue
+		}
 		route, found := strings.CutPrefix(strings.TrimSpace(output.OutputRef), waitExpiryRouteOutputRefPrefix)
 		if !found || strings.TrimSpace(route) == "" {
 			continue

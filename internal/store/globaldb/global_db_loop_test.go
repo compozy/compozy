@@ -1189,13 +1189,14 @@ func TestGlobalDBLoopRequestsShouldOwnOneAtomicLifecycle(t *testing.T) {
 			run.ID, result.Request.Generation, "select", 1).Scan(&outputRef); err != nil {
 			t.Fatalf("load admitted request output ref error = %v", err)
 		}
+		storedResult := generationResultForTest(t, outputRef)
 		payload, err := globalDB.GetGenerationOutputPayload(ctx, looppkg.GenerationOutputPayloadKey{
 			WorkspaceID: run.WorkspaceID,
 			RunID:       run.ID,
 			Generation:  result.Request.Generation,
 			NodeID:      "select",
 			ItemIndex:   1,
-			OutputRef:   outputRef,
+			OutputRef:   storedResult.PayloadRef,
 		})
 		if err != nil || string(payload) != string(answer) {
 			t.Fatalf("admitted request output = %s, error = %v, want %s", payload, err, answer)
@@ -1332,13 +1333,14 @@ func TestGlobalDBLoopRequestsShouldOwnOneAtomicLifecycle(t *testing.T) {
 					t.Fatalf("review output status=%q first_scheduled=%v, want %q and unset clock",
 						status, firstScheduled, tt.wantStatus)
 				}
-				if tt.wantRefPrefix != "" && !strings.HasPrefix(outputRef, tt.wantRefPrefix) {
+				storedResult := generationResultForTest(t, outputRef)
+				if tt.wantRefPrefix != "" && !strings.HasPrefix(storedResult.PayloadRef, tt.wantRefPrefix) {
 					t.Fatalf("review output_ref = %q, want prefix %q", outputRef, tt.wantRefPrefix)
 				}
 				if len(tt.wantPayload) > 0 {
 					payload, err := globalDB.GetGenerationOutputPayload(ctx, looppkg.GenerationOutputPayloadKey{
 						WorkspaceID: run.WorkspaceID, RunID: run.ID, Generation: 1,
-						NodeID: "publish", OutputRef: outputRef,
+						NodeID: "publish", OutputRef: storedResult.PayloadRef,
 					})
 					if err != nil || string(payload) != string(tt.wantPayload) {
 						t.Fatalf("review admitted payload = %s, error = %v, want %s", payload, err, tt.wantPayload)
@@ -1629,9 +1631,10 @@ func TestGlobalDBLoopAmendmentsShouldPreserveRecordedOutputs(t *testing.T) {
 	if err := storepkg.UpsertLoopOutputBlob(ctx, globalDB.db, originalRef, original, now); err != nil {
 		t.Fatalf("UpsertLoopOutputBlob(original) error = %v", err)
 	}
+	storedOriginalRef := generationResultRefForTest(t, originalRef)
 	if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
 		loop_run_id, generation, node_id, item_index, status, output_ref, attempt, epoch
-	) VALUES (?, 1, 'repair', 2, 'succeeded', ?, 1, 7)`, run.ID, originalRef); err != nil {
+	) VALUES (?, 1, 'repair', 2, 'succeeded', ?, 1, 7)`, run.ID, storedOriginalRef); err != nil {
 		t.Fatalf("insert amendment output error = %v", err)
 	}
 	if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_node_lane_pauses (
@@ -1728,9 +1731,10 @@ func TestGlobalDBLoopAmendmentsShouldPreserveRecordedOutputs(t *testing.T) {
 		if err := storepkg.UpsertLoopOutputBlob(ctx, globalDB.db, originalRef, original, now); err != nil {
 			t.Fatalf("UpsertLoopOutputBlob(original) error = %v", err)
 		}
+		storedOriginalRef := generationResultRefForTest(t, originalRef)
 		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
 			loop_run_id, generation, node_id, item_index, status, output_ref, attempt, epoch
-		) VALUES (?, 1, 'repair', 0, 'succeeded', ?, 1, 1)`, run.ID, originalRef); err != nil {
+		) VALUES (?, 1, 'repair', 0, 'succeeded', ?, 1, 1)`, run.ID, storedOriginalRef); err != nil {
 			t.Fatalf("insert amendment race output error = %v", err)
 		}
 		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_node_lane_pauses (
@@ -1824,9 +1828,10 @@ func TestGlobalDBLoopAmendmentsShouldPreserveRecordedOutputs(t *testing.T) {
 		if err := storepkg.UpsertLoopOutputBlob(ctx, globalDB.db, outputRef, payload, now); err != nil {
 			t.Fatalf("UpsertLoopOutputBlob() error = %v", err)
 		}
+		storedOutputRef := generationResultRefForTest(t, outputRef)
 		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
 			loop_run_id, generation, node_id, item_index, status, output_ref, attempt, epoch
-		) VALUES (?, 2, 'repair', 0, 'succeeded', ?, 1, 1)`, run.ID, outputRef); err != nil {
+		) VALUES (?, 2, 'repair', 0, 'succeeded', ?, 1, 1)`, run.ID, storedOutputRef); err != nil {
 			t.Fatalf("insert generation output error = %v", err)
 		}
 		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_node_lane_pauses (
@@ -7065,9 +7070,11 @@ func TestGlobalDBLoopWaitEscalationShouldUseRelayAndHonorDecision(t *testing.T) 
 			Scan(&claimState, &claimedByKind, &claimedByID, &outputStatus, &outputRef); err != nil {
 			t.Fatalf("read routed wait expiry error = %v", err)
 		}
+		storedResult := generationResultForTest(t, outputRef)
 		if claimState != string(looppkg.WaitClaimResumed) || claimedByKind != "expiry" ||
 			claimedByID != "timeout" || outputStatus != "succeeded" ||
-			outputRef != looppkg.WaitExpiryRouteOutputRef("timeout") {
+			storedResult.Kind != looppkg.GenerationResultWaitExpiryRouted ||
+			storedResult.PayloadRef != looppkg.WaitExpiryRouteOutputRef("timeout") {
 			t.Fatalf("routed expiry = %s/%s/%s/%s/%s, want resumed expiry timeout route",
 				claimState, claimedByKind, claimedByID, outputStatus, outputRef)
 		}
@@ -7275,9 +7282,11 @@ func TestGlobalDBLoopWaitEscalationShouldUseRelayAndHonorDecision(t *testing.T) 
 			Scan(&state, &outputRef); err != nil {
 			t.Fatalf("read routed approval wait error = %v", err)
 		}
+		storedResult := generationResultForTest(t, outputRef)
 		if stored.Status != looppkg.StatusRunning || stored.ActiveGateID != "" ||
 			state != string(looppkg.WaitClaimResumed) ||
-			outputRef != looppkg.WaitExpiryRouteOutputRef("timed_out") ||
+			storedResult.Kind != looppkg.GenerationResultWaitExpiryRouted ||
+			storedResult.PayloadRef != looppkg.WaitExpiryRouteOutputRef("timed_out") ||
 			!stored.StartedAt.Equal(now.Add(2*time.Minute)) {
 			t.Fatalf("routed approval = status:%s gate:%s state:%s output:%s started:%s",
 				stored.Status, stored.ActiveGateID, state, outputRef, stored.StartedAt)
@@ -7886,6 +7895,24 @@ func countLoopEventKindForTest(events []looppkg.RunEvent, kind string) int {
 		}
 	}
 	return count
+}
+
+func generationResultRefForTest(t *testing.T, ref string) string {
+	t.Helper()
+	encoded, err := looppkg.EncodeGenerationResultForRef(ref)
+	if err != nil {
+		t.Fatalf("EncodeGenerationResultForRef(%q) error = %v", ref, err)
+	}
+	return encoded
+}
+
+func generationResultForTest(t *testing.T, raw string) looppkg.GenerationResultRef {
+	t.Helper()
+	result, err := looppkg.DecodeGenerationResultRef(raw)
+	if err != nil {
+		t.Fatalf("DecodeGenerationResultRef(%q) error = %v", raw, err)
+	}
+	return result
 }
 
 func assertExpiredWaitResumeEventPayloadForTest(

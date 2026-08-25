@@ -35,7 +35,7 @@ func (m *Service) preflightCoordinatorRunCompletion(run Run, actor ActorContext)
 		completedRunPayload{
 			Status:         TaskRunStatusCompleted,
 			TaskStatus:     TaskStatusNeedsAttention,
-			Result:         CoordinatorCompletedRunResult(),
+			Result:         completionEventResult(CoordinatorCompletedRunResult()),
 			ClaimTokenHash: run.ClaimTokenHash,
 		},
 	)

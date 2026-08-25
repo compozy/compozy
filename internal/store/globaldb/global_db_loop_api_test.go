@@ -849,7 +849,8 @@ func TestGlobalDBLoopBriefingShouldDeriveArtifactAvailabilityFromRetainedBlobs(t
 			_, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs
 			(loop_run_id, generation, node_id, item_index, status, output_ref, task_run_id, attempt)
 			VALUES (?, 1, 'finish', ?, ?, ?, ?, 1)`,
-				created.ID, output.itemIndex, output.status, output.ref, fmt.Sprintf("task-%d", output.itemIndex))
+				created.ID, output.itemIndex, output.status, generationResultRefForTest(t, output.ref),
+				fmt.Sprintf("task-%d", output.itemIndex))
 			if err != nil {
 				t.Fatalf("insert generation output %d error = %v", output.itemIndex, err)
 			}

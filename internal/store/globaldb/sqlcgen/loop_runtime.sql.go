@@ -179,7 +179,10 @@ WHERE output.loop_run_id = ?2
   AND output.node_id = ?4
   AND output.item_index = ?5
   AND (
-    output.output_ref = ?1
+    CASE WHEN json_valid(output.output_ref)
+      THEN json_extract(output.output_ref, '$.payload_ref')
+      ELSE NULL
+    END = ?1
     OR EXISTS (
       SELECT 1 FROM loop_node_amendments AS amendment
       WHERE amendment.loop_run_id = output.loop_run_id
@@ -346,13 +349,15 @@ func (q *Queries) InsertLoopGeneration(ctx context.Context, arg InsertLoopGenera
 }
 
 const listAvailableLoopOutputRefs = `-- name: ListAvailableLoopOutputRefs :many
-SELECT DISTINCT COALESCE(output.output_ref, '') AS output_ref
+SELECT DISTINCT CAST(json_extract(output.output_ref, '$.payload_ref') AS TEXT) AS output_ref
 FROM loop_generation_outputs AS output
 JOIN loop_runs AS run ON run.id = output.loop_run_id
-JOIN loop_output_blobs AS blob ON blob.output_ref = output.output_ref
+JOIN loop_output_blobs AS blob
+  ON blob.output_ref = json_extract(output.output_ref, '$.payload_ref')
 WHERE output.loop_run_id = ?1
   AND run.workspace_id = ?2
-  AND output.output_ref <> ''
+  AND json_valid(output.output_ref)
+  AND COALESCE(json_extract(output.output_ref, '$.payload_ref'), '') <> ''
 `
 
 type ListAvailableLoopOutputRefsParams struct {
@@ -398,9 +403,9 @@ GROUP BY lr.loop_name
 `
 
 type ListLoopCatalogAggregatesParams struct {
-	WorkspaceID    string `json:"workspace_id"`
-	AggregateAfter string `json:"aggregate_after"`
-	NamesJson      any    `json:"names_json"`
+	WorkspaceID    string      `json:"workspace_id"`
+	AggregateAfter string      `json:"aggregate_after"`
+	NamesJson      interface{} `json:"names_json"`
 }
 
 type ListLoopCatalogAggregatesRow struct {
@@ -455,8 +460,8 @@ FROM loop_runs AS lr JOIN latest_ids ON latest_ids.id = lr.id
 `
 
 type ListLoopCatalogLatestRunsParams struct {
-	NamesJson   any    `json:"names_json"`
-	WorkspaceID string `json:"workspace_id"`
+	NamesJson   interface{} `json:"names_json"`
+	WorkspaceID string      `json:"workspace_id"`
 }
 
 type ListLoopCatalogLatestRunsRow struct {
@@ -1086,7 +1091,7 @@ WHERE loop_run_id = ?6 AND phase NOT IN ('awaiting_control', 'terminal')
 `
 
 type ProjectLoopPauseToGoalCheckpointsParams struct {
-	Requested   any            `json:"requested"`
+	Requested   interface{}    `json:"requested"`
 	ActorKind   sql.NullString `json:"actor_kind"`
 	ActorID     sql.NullString `json:"actor_id"`
 	RequestedAt sql.NullTime   `json:"requested_at"`
@@ -1184,7 +1189,10 @@ const sweepOrphanedLoopOutputBlobs = `-- name: SweepOrphanedLoopOutputBlobs :exe
 DELETE FROM loop_output_blobs
 WHERE NOT EXISTS (
   SELECT 1 FROM loop_generation_outputs
-  WHERE loop_generation_outputs.output_ref = loop_output_blobs.output_ref
+  WHERE CASE WHEN json_valid(loop_generation_outputs.output_ref)
+    THEN json_extract(loop_generation_outputs.output_ref, '$.payload_ref')
+    ELSE NULL
+  END = loop_output_blobs.output_ref
 )
 AND NOT EXISTS (
   SELECT 1 FROM loop_goal_turns

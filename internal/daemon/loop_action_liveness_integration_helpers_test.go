@@ -604,7 +604,7 @@ func (oversizedLoopActionExecutor) Execute(
 ) (looppkg.ActionRawResult, error) {
 	return looppkg.ActionRawResult{Value: map[string]any{
 		"status": "complete",
-		"data":   strings.Repeat("x", taskpkg.MaxResultBytes),
+		"data":   strings.Repeat("x", 64*1024),
 	}}, nil
 }
 

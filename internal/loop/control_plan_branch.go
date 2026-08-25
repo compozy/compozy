@@ -138,16 +138,16 @@ func allBranchPathDependenciesSkipped(
 					fanOutID,
 					itemIndex,
 				)
-				if fanOutOK && fanOutOutput.OutputRef == branchSkippedOutputRef {
+				if fanOutOK && generationOutputHasKind(fanOutOutput, GenerationResultSkipped) {
 					continue
 				}
 			}
 			return false
 		}
-		if dependency == branchID && dependencyOutput.OutputRef == branchFalseOutputRef {
+		if dependency == branchID && generationOutputHasKind(dependencyOutput, GenerationResultBranchFalse) {
 			continue
 		}
-		if dependencyOutput.OutputRef == branchSkippedOutputRef {
+		if generationOutputHasKind(dependencyOutput, GenerationResultSkipped) {
 			continue
 		}
 		return false

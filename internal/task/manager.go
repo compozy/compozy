@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/admission"
 	configdefaults "github.com/compozy/compozy/internal/config/defaults"
+	"github.com/compozy/compozy/internal/contracts"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/network/participation"
 
@@ -104,6 +105,7 @@ type managerOptions struct {
 	workspaceActiveRunCap int
 	workAdmission         admission.Checker
 	workspaceAccess       workspaceaccess.Policy
+	resultBudgetConfig    contracts.CallsResultsConfig
 }
 
 // Service centralizes canonical task-domain creation, mutation, read, and
@@ -137,6 +139,7 @@ type Service struct {
 	workspaceActiveRunCap int
 	workAdmission         admission.Checker
 	workspaceAccess       workspaceaccess.Policy
+	resultBudget          contracts.ByteBudget
 	forceRateLimiter      *forceRunRateLimiter
 	wakeMu                sync.Mutex
 	wakeEventIDs          map[string]struct{}
@@ -292,6 +295,13 @@ func WithBlockRecurrenceLimit(limit int) Option {
 	}
 }
 
+// WithResultBudgetConfig injects the configured budget for uncontracted task results.
+func WithResultBudgetConfig(config contracts.CallsResultsConfig) Option {
+	return func(opts *managerOptions) {
+		opts.resultBudgetConfig = config
+	}
+}
+
 // NewManager constructs one task-domain manager with the supplied dependencies.
 func NewManager(opts ...Option) (*Service, error) {
 	options := managerOptions{
@@ -306,6 +316,10 @@ func NewManager(opts ...Option) (*Service, error) {
 		newID:                store.NewID,
 		starvationAge:        DefaultTaskStarvationAge,
 		blockRecurrenceLimit: configdefaults.BlockRecurrenceLimit,
+		resultBudgetConfig: contracts.CallsResultsConfig{
+			DefaultBudget: contracts.ByteBudget{MaxBytes: 256 << 10, Overflow: contracts.OverflowStore},
+			MaxBudget:     4 << 20,
+		},
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -333,6 +347,11 @@ func NewManager(opts ...Option) (*Service, error) {
 	if options.workspaceActiveRunCap < 0 {
 		return nil, fmt.Errorf("task: workspace active run cap must be zero or positive")
 	}
+	resultBudget, err := contracts.ResolveBudget(nil, options.resultBudgetConfig)
+	if err != nil {
+		return nil, fmt.Errorf("task: resolve result budget: %w", err)
+	}
+	options.resultBudgetConfig.DefaultBudget = resultBudget
 
 	return newService(options), nil
 }

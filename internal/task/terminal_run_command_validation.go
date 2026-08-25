@@ -212,9 +212,6 @@ func validateCompletionTerminalRunCommandIntent(intent terminalRunCommandIntent)
 	if intent.StopReason != StopReasonCompleted {
 		return fmt.Errorf("%w: completion command requires completed stop reason", ErrValidation)
 	}
-	if err := ValidateResultSize(intent.Result, "terminal_run_command.result"); err != nil {
-		return err
-	}
 	if hasRawClaimTokenJSON(intent.Result) {
 		return fmt.Errorf("%w: terminal run command result contains raw lease credentials", ErrValidation)
 	}

@@ -1,8 +1,11 @@
 package tools
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+
+	"github.com/compozy/compozy/internal/contracts"
 
 	"github.com/compozy/compozy/internal/toolmeta"
 )
@@ -128,10 +131,10 @@ func (d Descriptor) Validate() error {
 	if err := toolmeta.ValidateDescriptorMetadata(presentation.FriendlyVerb, presentation.Preview); err != nil {
 		return NewValidationError("presentation", ReasonSchemaInvalid, err.Error())
 	}
-	if err := ValidateJSONObject("input_schema", d.InputSchema, true); err != nil {
+	if err := validateDescriptorContractSchema("input_schema", d.InputSchema, true); err != nil {
 		return err
 	}
-	if err := ValidateJSONObject("output_schema", d.OutputSchema, false); err != nil {
+	if err := validateDescriptorContractSchema("output_schema", d.OutputSchema, false); err != nil {
 		return err
 	}
 	if d.MaxResultBytes < 0 {
@@ -152,6 +155,19 @@ func (d Descriptor) Validate() error {
 		if err := toolset.Validate(); err != nil {
 			return wrapField(err, fmt.Sprintf("toolsets[%d]", i))
 		}
+	}
+	return nil
+}
+
+func validateDescriptorContractSchema(field string, raw json.RawMessage, required bool) error {
+	if len(bytes.TrimSpace(raw)) == 0 {
+		if required {
+			return NewValidationError(field, ReasonSchemaInvalid, "JSON object is required")
+		}
+		return nil
+	}
+	if _, err := contracts.ValidateSchema(raw, json.RawMessage(`{}`)); err != nil {
+		return NewValidationError(field, ReasonSchemaInvalid, err.Error())
 	}
 	return nil
 }

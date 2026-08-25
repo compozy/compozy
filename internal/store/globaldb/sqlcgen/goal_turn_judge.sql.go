@@ -664,7 +664,7 @@ type UpdateGoalCheckpointAfterTurnParams struct {
 	ControlActorKind   sql.NullString `json:"control_actor_kind"`
 	ControlActorID     sql.NullString `json:"control_actor_id"`
 	ControlRequestedAt sql.NullString `json:"control_requested_at"`
-	ConsumeGrant       any            `json:"consume_grant"`
+	ConsumeGrant       interface{}    `json:"consume_grant"`
 	UpdatedAt          string         `json:"updated_at"`
 	LoopRunID          string         `json:"loop_run_id"`
 	Generation         int64          `json:"generation"`

@@ -274,13 +274,6 @@ func TestPayloadSizeGuards(t *testing.T) {
 			wantErr: ErrPayloadTooLarge,
 		},
 		{
-			name: "result over limit",
-			run: func() error {
-				return ValidateResultSize(jsonBlob(MaxResultBytes+1), "task_run.result")
-			},
-			wantErr: ErrPayloadTooLarge,
-		},
-		{
 			name: "invalid json",
 			run: func() error {
 				return ValidatePayloadSize(json.RawMessage(`{`), "task_event.payload")

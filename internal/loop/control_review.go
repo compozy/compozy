@@ -232,57 +232,17 @@ func reviewSchemas(
 				editSchema = encoded
 			}
 		case dsl.ReviewDecisionRespond:
-			var err error
-			respondSchema, err = actionOutputSchemaRaw(resolved, node)
+			schema, err := resolvedDefinitionOutputSchema(resolved, node)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, fmt.Errorf("%w: review output schema for %q is missing", ErrValidation, node.ID)
+			}
+			respondSchema, err = json.Marshal(schema)
+			if err != nil {
+				return nil, nil, fmt.Errorf("loop: marshal review output schema %q: %w", node.ID, err)
 			}
 		}
 	}
 	return editSchema, respondSchema, nil
-}
-
-func actionOutputSchemaRaw(resolved *ResolvedDefinition, node dsl.Node) (json.RawMessage, error) {
-	if len(node.Produces) > 0 {
-		return json.Marshal(node.Produces)
-	}
-	if !dsl.IsReservedActionKind(node.Kind) {
-		snapshot, ok := resolved.ToolSchemas[node.Kind]
-		if !ok || len(snapshot.OutputSchema) == 0 {
-			return nil, fmt.Errorf("%w: review output schema for %q is missing", ErrValidation, node.ID)
-		}
-		return cloneRawMessage(snapshot.OutputSchema), nil
-	}
-	switch dsl.ActionKind(node.Kind) {
-	case dsl.ActionRunAgent:
-		var params dsl.RunAgentParams
-		if err := node.Params.Decode(&params); err != nil || len(params.OutputSchema) == 0 {
-			return nil, fmt.Errorf("%w: review output schema for %q is missing", ErrValidation, node.ID)
-		}
-		return json.Marshal(params.OutputSchema)
-	case dsl.ActionGoal:
-		var params dsl.GoalParams
-		if err := node.Params.Decode(&params); err != nil || params.OutputSchema == nil {
-			return nil, fmt.Errorf("%w: review output schema for %q is missing", ErrValidation, node.ID)
-		}
-		return json.Marshal(*params.OutputSchema)
-	case dsl.ActionRunLoop:
-		return json.RawMessage(`{"type":"object"}`), nil
-	case dsl.ActionTransform:
-		var params dsl.TransformParams
-		if err := node.Params.Decode(&params); err != nil || len(params.Map) == 0 {
-			return nil, fmt.Errorf("%w: review output schema for %q is missing", ErrValidation, node.ID)
-		}
-		properties := make(map[string]any, len(params.Map))
-		for key := range params.Map {
-			properties[key] = map[string]any{}
-		}
-		return json.Marshal(
-			map[string]any{jsonSchemaTypeKey: jsonSchemaObjectType, jsonSchemaPropertiesKey: properties},
-		)
-	default:
-		return nil, fmt.Errorf("%w: review output schema for %q is missing", ErrValidation, node.ID)
-	}
 }
 
 func inferredReviewSchema(value any) map[string]any {

@@ -231,7 +231,7 @@ func allGenerationOutputsSucceededControlAware(
 				nodeID:    string(fanOutID),
 				itemIndex: 0,
 			}]
-			if fanOutOutputExists && outputRefMarksSkippedRoute(fanOutOutput.OutputRef) {
+			if fanOutOutputExists && outputMarksSkippedRoute(fanOutOutput) {
 				continue
 			}
 			if fanOutCollectSettled(topology, outputMap, fanOutID) {

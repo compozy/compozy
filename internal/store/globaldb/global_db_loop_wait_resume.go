@@ -228,6 +228,10 @@ func claimAndResolveWait(
 	wait looppkg.NodeWait,
 	outputRef string,
 ) error {
+	storedResult, err := looppkg.EncodeGenerationResultForRef(outputRef)
+	if err != nil {
+		return fmt.Errorf("store: encode resumed Loop wait result: %w", err)
+	}
 	result, err := exec.ExecContext(ctx, `UPDATE loop_node_waits SET claim_state = 'resumed',
 		claimed_by_kind = ?, claimed_by_id = ?, claimed_at = ?, ahead_payload_json = ?
 		WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
@@ -252,7 +256,7 @@ func claimAndResolveWait(
 		output_ref = ?, task_run_id = NULL, next_attempt_at = NULL,
 		first_scheduled_at = ?, epoch = epoch + 1
 		WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-		AND status = 'waiting' AND epoch = ?`, outputRef, firstScheduledAt, mutation.RunID, mutation.Generation,
+		AND status = 'waiting' AND epoch = ?`, storedResult, firstScheduledAt, mutation.RunID, mutation.Generation,
 		mutation.NodeID, mutation.ItemIndex, wait.IssuedEpoch)
 	if err != nil {
 		return fmt.Errorf("store: resolve Loop wait cell: %w", err)

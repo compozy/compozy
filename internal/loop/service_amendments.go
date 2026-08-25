@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-
-	"github.com/compozy/compozy/internal/loop/dsl"
 )
 
 func (s *service) AmendNodeOutput(ctx context.Context, input AmendInput) (NodeAmendment, error) {
@@ -34,49 +32,14 @@ func (s *service) AmendNodeOutput(ctx context.Context, input AmendInput) (NodeAm
 	if !found {
 		return NodeAmendment{}, fmt.Errorf("%w: node %q not found", ErrValidation, input.NodeID)
 	}
-	input.Schema, err = declaredNodeOutputSchema(resolved, node)
+	declaredSchema, err := resolvedDefinitionOutputSchema(resolved, node)
 	if err != nil {
-		return NodeAmendment{}, err
+		return NodeAmendment{}, NewRequestReasonError(ReasonCodeAmendSchemaMissing, err, nil)
+	}
+	input.Schema, err = json.Marshal(declaredSchema)
+	if err != nil {
+		return NodeAmendment{}, fmt.Errorf("loop: marshal amendment output schema: %w", err)
 	}
 	input.RequestedAt = s.now().UTC()
 	return store.AmendNodeOutput(ctx, input)
-}
-
-func declaredNodeOutputSchema(resolved *ResolvedDefinition, node dsl.Node) (json.RawMessage, error) {
-	if len(node.Produces) > 0 {
-		return marshalDeclaredSchema(node.Produces)
-	}
-	switch dsl.ActionKind(node.Kind) {
-	case dsl.ActionRunAgent:
-		var params dsl.RunAgentParams
-		if err := node.Params.Decode(&params); err != nil {
-			return nil, fmt.Errorf("loop: decode run-agent output schema: %w", err)
-		}
-		if len(params.OutputSchema) > 0 {
-			return marshalDeclaredSchema(params.OutputSchema)
-		}
-	case dsl.ActionGoal:
-		var params dsl.GoalParams
-		if err := node.Params.Decode(&params); err != nil {
-			return nil, fmt.Errorf("loop: decode Goal output schema: %w", err)
-		}
-		if params.OutputSchema != nil && len(*params.OutputSchema) > 0 {
-			return marshalDeclaredSchema(*params.OutputSchema)
-		}
-	default:
-		if resolved != nil {
-			if snapshot, ok := resolved.ToolSchemas[node.Kind]; ok && len(snapshot.OutputSchema) > 0 {
-				return cloneRawMessage(snapshot.OutputSchema), nil
-			}
-		}
-	}
-	return nil, NewRequestReasonError(ReasonCodeAmendSchemaMissing, ErrAmendSchemaMissing, nil)
-}
-
-func marshalDeclaredSchema(schema dsl.Schema) (json.RawMessage, error) {
-	raw, err := json.Marshal(schema)
-	if err != nil {
-		return nil, fmt.Errorf("loop: marshal declared output schema: %w", err)
-	}
-	return raw, nil
 }

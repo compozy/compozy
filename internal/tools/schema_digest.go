@@ -42,7 +42,7 @@ func CanonicalJSON(raw json.RawMessage) ([]byte, error) {
 
 // SchemaDigest returns the lowercase SHA-256 digest of a canonical JSON Schema subtree.
 func SchemaDigest(raw json.RawMessage) (string, error) {
-	if err := ValidateJSONObject("schema", raw, true); err != nil {
+	if err := validateDescriptorContractSchema("schema", raw, true); err != nil {
 		return "", err
 	}
 	canonical, err := CanonicalJSON(raw)

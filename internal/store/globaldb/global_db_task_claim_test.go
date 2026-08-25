@@ -7400,6 +7400,10 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 			if status != tc.wantOutputStatus {
 				t.Fatalf("output status = %q, want %q", status, tc.wantOutputStatus)
 			}
+			storedResult, err := looppkg.DecodeGenerationResultRef(outputRef.String)
+			if err != nil {
+				t.Fatalf("decode generation result error = %v; output_ref=%q", err, outputRef.String)
+			}
 			if tc.wantFailureCode != "" {
 				var failure struct {
 					Kind     string `json:"kind"`
@@ -7407,7 +7411,10 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 					Cause    string `json:"cause"`
 					Recovery string `json:"recovery"`
 				}
-				if err := json.Unmarshal([]byte(outputRef.String), &failure); err != nil {
+				if storedResult.Kind != looppkg.GenerationResultFailure {
+					t.Fatalf("generation result kind = %q, want failure", storedResult.Kind)
+				}
+				if err := json.Unmarshal([]byte(storedResult.PayloadRef), &failure); err != nil {
 					t.Fatalf("decode action failure output_ref error = %v; output_ref=%q", err, outputRef.String)
 				}
 				if failure.Kind != "action_failure" || failure.Code != tc.wantFailureCode ||
@@ -7420,8 +7427,8 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 						tc.wantRecovery,
 					)
 				}
-			} else if outputRef.String != tc.wantOutputRef {
-				t.Fatalf("output_ref = %q, want %q", outputRef.String, tc.wantOutputRef)
+			} else if storedResult.PayloadRef != tc.wantOutputRef {
+				t.Fatalf("payload_ref = %q, want %q", storedResult.PayloadRef, tc.wantOutputRef)
 			}
 			if strings.Contains(outputRef.String, "compozy_claim_SECRET123") {
 				t.Fatalf("output_ref leaked raw claim token: %q", outputRef.String)
@@ -8217,7 +8224,12 @@ func TestGlobalDBCompleteRunLeaseShouldStoreLargeLoopOutputByRef(t *testing.T) {
 		if got, want := status, "succeeded"; got != want {
 			t.Fatalf("output status = %q, want %q", got, want)
 		}
-		if !outputRef.Valid || outputRef.String != wantRef {
+		storedResult, decodeErr := looppkg.DecodeGenerationResultRef(outputRef.String)
+		if decodeErr != nil {
+			t.Fatalf("decode generation result error = %v; output_ref=%q", decodeErr, outputRef.String)
+		}
+		if !outputRef.Valid || storedResult.Kind != looppkg.GenerationResultPayload ||
+			storedResult.PayloadRef != wantRef {
 			t.Fatalf("output_ref = %#v, want %q", outputRef, wantRef)
 		}
 		owner := looppkg.GenerationOutputPayloadKey{
@@ -8327,7 +8339,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldSweepOrphanedLoopOutputB
 				loop_run_id, generation, node_id, item_index, status, output_ref
 			) VALUES (?, 1, 'load', 0, 'succeeded', ?)`,
 			string(loopRun.ID),
-			keepRef,
+			generationResultRefForTest(t, keepRef),
 		)
 		if err != nil {
 			return err
