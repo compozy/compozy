@@ -122,9 +122,17 @@ func TestResolveItemRuntimeShouldMergeFieldsByPrecedence(t *testing.T) {
 		t.Parallel()
 
 		rules := []loop.RuntimeRule{
-			{Match: loop.RuntimeMatch{Complexity: "high"}, Runtime: loop.RuntimeSpec{Reasoning: "medium", Model: "complexity"}},
+			{
+				Match:   loop.RuntimeMatch{Complexity: "high"},
+				Runtime: loop.RuntimeSpec{Reasoning: "medium", Model: "complexity"},
+			},
 			{Match: loop.RuntimeMatch{Type: "frontend"}, Runtime: loop.RuntimeSpec{Provider: "type", Model: "type"}},
-			{Match: loop.RuntimeMatch{Type: "frontend", Complexity: "high"}, Runtime: loop.RuntimeSpec{Provider: "matrix", Model: "matrix", Reasoning: "high"}},
+			{
+				Match: loop.RuntimeMatch{Type: "frontend", Complexity: "high"},
+				Runtime: loop.RuntimeSpec{
+					Provider: "matrix", Model: "matrix", Reasoning: "high",
+				},
+			},
 			{Match: loop.RuntimeMatch{ID: "task_01"}, Runtime: loop.RuntimeSpec{Provider: "exact"}},
 		}
 		got := resolveRuntimeForTest(t, loop.RuntimeLayers{ConfigRules: rules}, loop.ItemRuntime{

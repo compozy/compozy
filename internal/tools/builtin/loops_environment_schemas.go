@@ -19,7 +19,8 @@ const loopRuntimeRuleInputSchema = `{
 	"type":"object",
 	"required":["match","runtime"],
 	"additionalProperties":false,
-	"description":"One field-merged runtime override. Match specificity is id > type + complexity > type > complexity; later equal-specificity rules win per non-empty runtime field.",
+	"description":"One field-merged runtime override. Match specificity is id > type + complexity > type > ` +
+	`complexity; later equal-specificity rules win per non-empty runtime field.",
 	"properties":{
 		"match":{
 			"type":"object",

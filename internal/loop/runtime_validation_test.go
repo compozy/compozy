@@ -263,9 +263,18 @@ func TestValidateRuntimeRulesShouldAcceptTypeComplexityConjunction(t *testing.T)
 		{name: "complexity", match: dsl.RuntimeMatch{Complexity: "high"}},
 		{name: "type and complexity", match: dsl.RuntimeMatch{Type: "frontend", Complexity: "high"}},
 		{name: "empty", match: dsl.RuntimeMatch{}, wantReason: "selector_required"},
-		{name: "id and type", match: dsl.RuntimeMatch{ID: "task_01", Type: "frontend"}, wantReason: "selector_collision"},
-		{name: "id and complexity", match: dsl.RuntimeMatch{ID: "task_01", Complexity: "high"}, wantReason: "selector_collision"},
-		{name: "all", match: dsl.RuntimeMatch{ID: "task_01", Type: "frontend", Complexity: "high"}, wantReason: "selector_collision"},
+		{
+			name: "id and type", match: dsl.RuntimeMatch{ID: "task_01", Type: "frontend"},
+			wantReason: "selector_collision",
+		},
+		{
+			name: "id and complexity", match: dsl.RuntimeMatch{ID: "task_01", Complexity: "high"},
+			wantReason: "selector_collision",
+		},
+		{
+			name: "all", match: dsl.RuntimeMatch{ID: "task_01", Type: "frontend", Complexity: "high"},
+			wantReason: "selector_collision",
+		},
 	}
 	for _, tc := range tests {
 		t.Run("Should validate "+tc.name, func(t *testing.T) {

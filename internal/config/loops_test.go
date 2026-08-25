@@ -167,7 +167,7 @@ action = "pause"
 type = "frontend"
 complexity = "high"
 [loops.defaults.delivery.runtime_rules.runtime]
-provider = "cursor"
+provider = "matrix-provider"
 model = "frontier"
 reasoning = "high"
 
@@ -225,7 +225,7 @@ fixer = ""
 			!reflect.DeepEqual(rules[1], dsl.RuntimeRule{
 				Match: dsl.RuntimeMatch{Type: "frontend", Complexity: "high"},
 				Runtime: dsl.RuntimeSpec{
-					Provider:  "cursor",
+					Provider:  "matrix-provider",
 					Model:     "frontier",
 					Reasoning: "high",
 				},
