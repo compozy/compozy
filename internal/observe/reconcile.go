@@ -172,6 +172,7 @@ func recoveredSessionFromMeta(meta *store.SessionMeta) recoveredSession {
 		RuntimeTransition: meta.RuntimeTransition,
 		RuntimeFailure:    store.SessionRuntimeFailureValue(meta.RuntimeFailure),
 		WorkspaceID:       meta.WorkspaceID,
+		WorktreeID:        meta.WorktreeIDValue(),
 		SessionType:       meta.SessionType,
 		Lineage:           store.CloneSessionLineage(meta.Lineage),
 		State:             meta.State,
