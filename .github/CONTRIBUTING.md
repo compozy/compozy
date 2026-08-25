@@ -8,7 +8,7 @@ For new features, open an issue describing what you want to build **before** wri
 
 ## Dev setup
 
-You need Go 1.26.4+ (see `go.mod`) and Bun 1.3.4 (pinned in `.bun-version`).
+You need Go 1.26.4+ (see `go.mod`) and Bun 1.4.0 (pinned in `.bun-version`).
 
 ```bash
 bun install     # install JS workspace dependencies
