@@ -36,6 +36,7 @@ The prompt body is required. CompozyOS rejects an agent definition with no promp
 ## Fields
 
 - name is required. Outer whitespace is trimmed, and the result must match `^[a-z][a-z0-9_-]{0,105}$`: start with a lowercase ASCII letter, then use lowercase ASCII letters, numbers, hyphens, or underscores; the maximum length is 106 characters. Filesystem-loaded agents must also match the directory name.
+- description is optional, at most 500 characters, and is what other agents read when choosing a specialist: it feeds the roster injected into the call tool, rendered shadow-aware and trimmed to 120 characters there. Write it as a promise about the output. Omitting it leaves the roster entry as the bare name.
 - provider, model, reasoning_effort, speed, acp_options, and command can be omitted when defaults supply them.
 - reasoning_effort is `none|minimal|low|medium|high|xhigh|max`; a session override wins over AGENT.md, which wins over the selected curated model's default effort. Empty after that cascade keeps the provider/adapter default.
 - speed is `normal|fast`; prompt and durable session selection override AGENT.md. Each acp_options entry requires `id` and exactly one of `value_id` or `bool_value`.

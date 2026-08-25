@@ -69,14 +69,14 @@ as profile metadata.
 
 <Mermaid
   chart={`flowchart LR
-    CLI[Session CLI flag or spawn grant] --> Workspace[Workspace sandbox]
+    CLI[Session CLI flag or call narrowing] --> Workspace[Workspace sandbox]
     Workspace --> Defaults[defaults.sandbox]
     Defaults --> Local[local backend fallback]
     Workspace --> Profile[sandboxes.<name>]
     Defaults --> Profile
     Profile --> Backend[Provider backend]
     Backend --> Session[Session sandbox metadata]`}
-  caption="Sandbox resolution starts from explicit session or spawn input, then falls back through workspace and default profile settings."
+  caption="Sandbox resolution starts from explicit session or call input, then falls back through workspace and default profile settings."
 />
 
 CompozyOS resolves the workspace sandbox first, then `[defaults].sandbox`, then the local backend fallback.
@@ -93,21 +93,25 @@ compozy workspace edit project --sandbox local
 If no workspace sandbox is set, CompozyOS uses `[defaults].sandbox`. If that is empty, the local backend is
 used.
 
-## Safe spawn grants
+## Narrowing profiles for a governed child
 
-Child sessions do not inherit every sandbox profile automatically. Grant the profiles a child may use:
+A governed child does not automatically keep every sandbox profile its parent holds. Narrow the set
+on the call that creates it, through the `narrow.sandbox_profiles` array on `compozy__agent_call`
+or the matching HTTP and UDS route:
 
-```bash
-compozy spawn \
-  --agent coder \
-  --ttl-seconds 1800 \
-  --sandbox-profile daytona-dev \
-  --prompt-overlay "Reproduce the failing build"
+```json
+{
+  "agent": "coder",
+  "prompt": "Reproduce the failing build",
+  "idle_ttl_seconds": 1800,
+  "narrow": { "sandbox_profiles": ["daytona-dev"] }
+}
 ```
 
 The permission policy is serialized as `sandbox_profiles`, and narrowing rules prevent a child from
-expanding beyond the parent's allowed profiles. The prompt overlay narrows the child session's
-instructions; follow-up work still happens through the session surfaces.
+expanding beyond the parent's allowed profiles. There is no CLI flag for this category — use the
+native tool or the API. See
+[Narrow what a child may touch](/docs/agent-comms/subagents#narrow-what-a-child-may-touch).
 
 ## API shape
 
@@ -136,6 +140,6 @@ List responses use a `sandboxes` array. Detail responses use a `sandbox` object.
 
 - [Sandbox Overview](/docs/sandbox) explains where profiles fit into session launch.
 - [Daytona](/docs/sandbox/daytona) documents the implemented remote sandbox provider.
-- [Safe Spawn](/docs/autonomy/safe-spawn) explains child-session narrowing with sandbox
-  grants.
+- [Governed Children](/docs/autonomy/safe-spawn) explains child-session narrowing with sandbox
+  profiles.
 - [config.toml](/docs/configuration/config-toml) is the full configuration reference.

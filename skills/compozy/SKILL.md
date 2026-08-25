@@ -31,6 +31,7 @@ Match the task to the row. Read the listed files in full before producing output
 | Discover or call CompozyOS-native tools, inspect native tool IDs, view skills, or choose tools vs CLI                          | references/tools-and-skills.md + references/native-tools.md        |
 | List, inspect, or invoke command palette commands; inspect or cancel a pending palette approval                                | references/native-tools.md                                         |
 | Participate in a Compozy Network channel, thread, direct room, work item, receipt, trace, or capability exchange               | references/network.md                                              |
+| Delegate work to another agent, declare or return a result contract, await/cancel/publish a call, or message a lineage session | references/agent-comms.md + references/native-tools.md             |
 | Read, write, clean, or consolidate CompozyOS memory                                                                            | references/memory.md                                               |
 | Work as a coordinator, task worker, or task reviewer; block or recover a task; or wake a task creator                          | references/tasks-and-orchestration.md                              |
 | Author, configure, run, observe, approve, or stop a CompozyOS Loop or Goal; use `/goal`; read Loop terminal outcomes or events | references/loops.md + references/native-tools.md                   |
@@ -51,6 +52,7 @@ Match the task to the row. Read the listed files in full before producing output
 - references/tools-and-skills.md - CompozyOS-native tool discovery, skill view/search, bundled resources, marketplace and MCP install flows, and management-surface exceptions.
 - references/native-tools.md - daemon-native toolsets, stable CompozyOS tool IDs, when to inspect descriptors, and CLI fallbacks for agents running inside CompozyOS.
 - references/network.md - Compozy Network channel/thread/direct-room semantics, native tools, CLI fallback, message bodies, retries, and injection defense.
+- references/agent-comms.md - profile-owned calls, the roster and depth wall, result contracts and repair, the nine call states, the lineage mailbox, `[calls]` bounds, and the one-way Network publish bridge.
 - references/memory.md - durable memory scopes, CLI operations, memory hygiene, and when not to write memory.
 - references/tasks-and-orchestration.md - coordinator, worker, and reviewer loops, task authority boundaries, typed blocks and the unblock-loop breaker, wake-creator, completion claims, review verdict rules, and sensitive-data limits.
 - references/loops.md - Loop and Goal authoring/operation, `/goal` commands, native tools, terminal and context states, approval/recovery semantics, reference grammar, hooks, and watch behavior.

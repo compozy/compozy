@@ -1,0 +1,150 @@
+---
+title: Messages Between Sessions
+description: Steer a working child with inert text delivered at turn boundaries through the CLI, native tools, HTTP API, and UDS.
+---
+
+A message is plain text sent to a session already inside your lineage. It creates no work and
+carries no contract — it is how you add a constraint to a child that is already running, or how a
+child reports something back mid-flight without settling its call.
+
+Use a [call](/docs/agent-comms/calls) when you need an answer with a shape. Use a message when you
+need to say something.
+
+## Send and read messages
+
+```bash
+compozy message send ses_01JBD8G2MZTX "Prioritize the loop package first" -o json
+```
+
+```json
+{ "message_id": "msg_01JBD8M2R4V7", "delivery": "queued" }
+```
+
+The daemon commits the message before it tries to deliver it, so the send returns `202 Accepted`
+with a receipt rather than waiting on the recipient. Pass `--call <call-id>` to tie the message to
+the call it is about.
+
+```bash
+compozy message list --session ses_01JBD8G2MZTX --limit 2
+```
+
+```
+MESSAGE           FROM              TO                DELIVERY             TEXT
+msg_01JBD8M2R4V7  operator          ses_01JBD8G2MZTX  delivered-into-turn  Prioritize the loop pa…
+msg_01JBD8KX9QQ1  ses_01JBD8G2MZTX  ses_01JBD7ZZAAAA  woke                 Blocked: repo has no t…
+```
+
+```bash
+compozy message list --session ses_01JBD8G2MZTX --limit 2 -o jsonl
+compozy message list --all-profiles -o json
+```
+
+Message pages are cursor-based and **uncounted** — there is no total, because the runtime does not
+compute one. Use `--cursor` with the `next_cursor` from the previous page.
+
+## From inside a session
+
+```json
+{
+  "to": "parent",
+  "text": "Blocked: repo has no tests for internal/loop — proceed reviewing anyway?"
+}
+```
+
+```json
+{ "message_id": "msg_01JBD8KX9QQ1", "delivery": "woke" }
+```
+
+`compozy__agent_message` takes `to` as either the literal `"parent"` or a session id inside the
+caller's lineage or grant. Anything else is denied.
+
+## The four delivery outcomes
+
+| Outcome               | What happened                                                           |
+| --------------------- | ----------------------------------------------------------------------- |
+| `delivered-into-turn` | The recipient was already working; the message joined its current turn. |
+| `woke`                | The recipient was idle or parked; delivering it started a new turn.     |
+| `queued`              | Committed and waiting for the next boundary or revival.                 |
+| `failed`              | Delivery terminalized, with the reason on the record.                   |
+
+Delivery is never mid-tool. A message waits for a turn boundary, and it never splices into past
+context.
+
+<OperatorNote label="There is no read or seen state">
+  `delivery` says what the runtime did with a message, not whether a model paid attention to it.
+  CompozyOS does not model read receipts, and `calls.messages.pending_cap` bounds transport backlog,
+  not an unread count.
+</OperatorNote>
+
+### What happens to a queued message
+
+A message queued for a parked or busy child stays durably queued and is delivered at the next
+boundary or on revival. If the target expires against its idle TTL or is drained by a subtree stop,
+every queued message for it terminalizes `failed` carrying that reason — visible on the message
+record, never dropped in silence. There is no retry knob to tune.
+
+## Messages are untrusted input
+
+Every peer message reaches its recipient stamped with where it came from and wrapped in a bounded
+frame:
+
+```
+from agent reviewer (ses_01JBD8G2MZTX), not the operator
+<untrusted-agent-message>
+Blocked: repo has no tests for internal/loop — proceed reviewing anyway?
+</untrusted-agent-message>
+```
+
+That framing is the security boundary, and three properties hold behind it:
+
+- **Capability-subtracted.** Nothing in a message can approve a pending permission request, change
+  configuration, or execute an embedded command. Instructions inside the frame arrive inert.
+- **Sanitized.** Payloads are scanned on the way in. Secret-shaped content is redacted, and a body
+  that cannot be made safe is replaced with `[message removed: unsafe secret material]`.
+- **Bounded.** The frame is truncated to fit the recipient's budget rather than expanding it.
+
+## Loop-breakers
+
+Messaging is where two agents can spin. The bounds that stop it are protocol properties, and every
+one of them is observable when it engages — never a silent drop.
+
+| Bound                                  | Default   | Engagement                                                                          |
+| -------------------------------------- | --------- | ----------------------------------------------------------------------------------- |
+| `calls.messages.rate_limit_per_minute` | `30`      | Per sender. Over it → `message_rate_limited` with a reset time.                     |
+| `calls.messages.dedup_window`          | `"30s"`   | An identical repeat inside the window → `message_duplicate` naming the original id. |
+| `calls.messages.pending_cap`           | `50`      | Queued-undelivered ceiling per recipient → `message_pending_cap`.                   |
+| `calls.messages.max_bytes`             | `"64KiB"` | Per message → `message_too_large`.                                                  |
+
+See [`[calls.messages]`](/docs/configuration/config-toml#callsmessages) for the full key reference.
+
+## Message errors
+
+| Condition                                  | Code                     | HTTP  |
+| ------------------------------------------ | ------------------------ | ----- |
+| Unknown message id                         | `message_not_found`      | `404` |
+| Target outside your lineage or grant       | `message_target_denied`  | `403` |
+| Target is awaiting a human decision        | `message_target_blocked` | `409` |
+| Identical repeat inside the dedup window   | `message_duplicate`      | `409` |
+| Body over `calls.messages.max_bytes`       | `message_too_large`      | `413` |
+| Sender over the per-minute rate limit      | `message_rate_limited`   | `429` |
+| Recipient's queued-undelivered cap reached | `message_pending_cap`    | `422` |
+
+A blocked target is a routing answer, not a failure: the recipient owes a human a decision, so use
+the decision surface instead of messaging it again.
+
+## Who a message belongs to
+
+Standalone messages pin the same ownership tuple as calls — an immutable `profile_id`, a `scope` of
+`global` or `workspace`, and a `workspace_id` when the scope is workspace. Lineage messages cannot
+cross a profile or a workspace. Operator sends resolve exactly one profile; `message list` accepts
+one profile or `--all-profiles` for an owner-labeled aggregate. Native sends derive their scope from
+the calling session and take no override.
+
+See [Who a call belongs to](/docs/agent-comms/calls#who-a-call-belongs-to) for the full rules.
+
+## Related pages
+
+- [Calls and result contracts](/docs/agent-comms/calls) covers delegation and typed results.
+- [Budgets and safety](/docs/agent-comms/budgets-and-safety) covers the rest of the `[calls]` bounds.
+- [Message CLI reference](/docs/cli/message) lists the generated flags.
+- [Messages API](/docs/api/messages) lists exact request and response bodies.

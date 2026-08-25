@@ -75,13 +75,12 @@ An automation that keeps clearing a block a worker keeps re-declaring is a thras
 
 When an agent session creates a task, CompozyOS wakes that creator session on the child's terminal, blocked, and `needs_attention` transitions by default, delivering a synthetic queued turn (never an interrupt). This is the delegation feedback path — prefer it over polling. Opt a task out at create time with `compozy task create … --no-wake-creator`. Wake fires at most once per transition, is suppressed for a dead creator session and for a self-wake, and never carries a raw claim token; it is meaningful only for agent-created tasks.
 
-Governed child sessions have the parallel session-level feedback path. `compozy spawn` and
-`compozy__session_spawn` default `notify_creator` to true, then queue one sanitized synthetic turn on
-the parent when the child stops, fails, or enters a needs-you state. Use CLI
-`--no-notify-creator` or explicit `notify_creator: false` on the API/tool request for a child that
-must not wake its parent. The default is fixed in v1 and has no `config.toml` key. Delivery never
-interrupts the parent's active prompt, is suppressed when the parent is not live or the child would
-wake itself, and carries no raw interaction content or claim token.
+Governed child sessions have the parallel session-level feedback path. A managed caller using
+`compozy__agent_call` receives one sanitized synthetic turn when the call settles, carrying the
+terminal state and its result reference — the wake and the outcome are one delivery. Delivery never
+interrupts the caller's active prompt, is suppressed when the caller is not live or the child would
+wake itself, and carries no raw interaction content or claim token. Operator CLI calls use
+`compozy call await`. Read `references/agent-comms.md` before delegating or returning a result.
 
 When you complete a run that created child tasks, list exactly the task ids you created this run in the completion's `created_task_ids`. CompozyOS verifies each id (exists, same workspace, created by your session) before the terminal write; a phantom or cross-session id rejects the completion and leaves your run running with its lease intact so you can correct the claim and complete again. Never claim tasks created by another session, and never fabricate task ids in the result prose — an advisory scan flags task-id-shaped tokens absent from the store.
 

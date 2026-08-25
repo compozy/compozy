@@ -92,6 +92,9 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[loops.breaker]`                    | Reload-scoped target breaker shared across Loop kinds.                               | 5 consecutive transport failures, 60s probe interval                                                  |
 | `[loops.inputs.<loop-name>]`         | Global/workspace defaults for declared inputs of one Loop.                           | empty map; per-key origin remains explicit                                                            |
 | `[goals]`                            | Goal defaults and durable session-event relay controls.                              | 20 turns, context ratio 0.8, relay batch 50 every 100 ms                                              |
+| `[calls]`                            | Delegation depth, batch, child, concurrency, and parked-idle bounds for agent calls. | depth 3, batch 8, 5 children per parent, 32 active per tree, idle TTL 1h                              |
+| `[calls.results]`                    | Result-contract byte budgets and the over-budget strategy.                           | 256 KiB default, 4 MiB ceiling, `overflow = "store"`                                                  |
+| `[calls.messages]`                   | Mailbox rate, deduplication, backlog, and payload bounds.                            | 30 per minute, 30s dedup window, 50 queued per recipient, 64 KiB per message                          |
 | `[autonomy]`                         | Task-kernel autonomy defaults (unblock-loop breaker).                                | block recurrence limit 2                                                                              |
 | `[task.orchestration]`               | Bounds for active workspace runs, summaries, context, scheduler health, and runtime. | 16 active runs/workspace, 4 KiB summaries, 8 KiB context, prior 5/recent 50 events                    |
 | `[task.orchestration.profile]`       | Defaults and gates for task execution profiles.                                      | inherit coordinator/worker/sandbox; provider override + sandbox `none` allowed                        |
@@ -810,6 +813,35 @@ context_nudge_ratio = 0.8
 # Durable session-event relay controls. Applied when the daemon starts.
 outbox_batch_size = 50
 outbox_poll_interval = "100ms"
+
+[calls]
+# Delegation nesting wall. At the wall the call tool is absent from the child's toolset.
+max_depth = 3
+# Tasks per call invocation. Over the cap the whole batch rejects.
+max_batch = 8
+# Per-parent admission wall. A call over this cap rejects with a typed error.
+max_children = 5
+# Execution budget per governed tree. Admitted work over it queues visibly.
+max_active_per_root = 32
+# Parked-idle ceiling. The clock runs only while the child is parked.
+idle_ttl = "1h"
+
+[calls.results]
+# Per-contract result ceiling. A call may override it, capped by max_budget.
+default_budget = "256KiB"
+max_budget = "4MiB"
+# store: keep the whole payload and project bounded previews. reject: fail over-budget results.
+overflow = "store"
+
+[calls.messages]
+# Per sender. Over the limit the send returns message_rate_limited.
+rate_limit_per_minute = 30
+# Identical repeats inside the window reject with message_duplicate.
+dedup_window = "30s"
+# Queued-undelivered transport backlog per recipient. There are no read or seen semantics.
+pending_cap = 50
+# Per message. Over the limit the send returns message_too_large.
+max_bytes = "64KiB"
 
 [autonomy]
 # Same-kind re-block count that escalates a task to needs_attention. 0 disables the breaker.
@@ -2323,6 +2355,63 @@ compozy config set goals.context_nudge_ratio 0.75 \
 The equivalent agent path is `compozy__config_set` after resolving its live descriptor. Both surfaces
 validate the same allowlist and bounds, write desired state at global or workspace scope, and return
 `lifecycle="restart-required"` with `next_action="restart-daemon"`. They do not mutate a live Goal.
+
+## `[calls]`
+
+`[calls]` bounds agent-to-agent delegation: how deep it nests, how wide one invocation fans out,
+how many children a parent may hold, how much work one governed tree runs at once, and how long a
+parked child stays addressable. The defaults below are loaded from
+`internal/config/calls_config.go`. See [Agent comms](/docs/agent-comms) for the behavior these
+bounds govern.
+
+| Field                 | Type            | Default | Valid values          | Description                                                                                                                                    |
+| --------------------- | --------------- | ------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `max_depth`           | integer         | `3`     | Positive integer.     | Delegation nesting wall. At the wall `compozy__agent_call` is absent from the child's toolset; other surfaces fail with `call_depth_exceeded`. |
+| `max_batch`           | integer         | `8`     | Positive integer.     | Tasks per call invocation. An over-cap batch rejects whole with `call_batch_over_cap`; nothing partial runs.                                   |
+| `max_children`        | integer         | `5`     | Positive integer.     | Per-parent admission wall. A call over the cap rejects with `call_children_cap` — it never queues.                                             |
+| `max_active_per_root` | integer         | `32`    | Positive integer.     | Execution budget per governed tree. Admitted work over it queues visibly in the `queued` state.                                                |
+| `idle_ttl`            | duration string | `"1h"`  | Positive Go duration. | Parked-idle ceiling for a child. The clock runs only while the child is parked and suspends while a call is in flight.                         |
+
+Non-positive integers and non-positive durations are rejected at load with the offending path
+named. All paths are available through `compozy config get|set|unset` and the native config tools.
+`max_depth` changes apply to new calls, and `idle_ttl` applies at call time — a working child is
+never reaped by the clock, and there is no default deadline (`--deadline` is per-call opt-in, with
+stall handling owned by [session supervision](/docs/sessions/lifecycle)).
+
+### `[calls.results]`
+
+`[calls.results]` sets the byte budget every result contract inherits and what happens when a
+result exceeds it. A call may narrow or widen its own budget with `--result-budget` and
+`--result-overflow`, capped by `max_budget` and snapshotted immutably onto the call at admission.
+
+| Field            | Type      | Default    | Valid values                                  | Description                                                                                                                         |
+| ---------------- | --------- | ---------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `default_budget` | byte size | `"256KiB"` | Positive size in `B`, `KiB`, `MiB`, or `GiB`. | Per-contract result ceiling. Must not exceed `max_budget`.                                                                          |
+| `max_budget`     | byte size | `"4MiB"`   | Positive size in `B`, `KiB`, `MiB`, or `GiB`. | Administrative ceiling for any per-call override.                                                                                   |
+| `overflow`       | string    | `"store"`  | `store` or `reject`.                          | `store` keeps the whole payload and projects bounded previews. `reject` fails an over-budget result with `call_result_over_budget`. |
+
+A `default_budget` larger than `max_budget` fails strict config validation. Stored payloads are
+never truncated under `store`; only projections are bounded, and the full payload stays behind
+`compozy call result`.
+
+### `[calls.messages]`
+
+`[calls.messages]` bounds the mailbox: how fast one sender may send, how identical repeats are
+suppressed, how much undelivered transport backlog a recipient may accumulate, and how large one
+message may be.
+
+| Field                   | Type            | Default   | Valid values                                  | Description                                                                                             |
+| ----------------------- | --------------- | --------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `rate_limit_per_minute` | integer         | `30`      | Positive integer.                             | Per-sender send rate. Over it → `message_rate_limited` carrying the reset time.                         |
+| `dedup_window`          | duration string | `"30s"`   | Positive Go duration.                         | Identical repeats inside the window reject with `message_duplicate` naming the original message id.     |
+| `pending_cap`           | integer         | `50`      | Positive integer.                             | Queued-undelivered ceiling per recipient. Transport backlog only — there are no read or seen semantics. |
+| `max_bytes`             | byte size       | `"64KiB"` | Positive size in `B`, `KiB`, `MiB`, or `GiB`. | Per-message payload ceiling. Over it → `message_too_large`.                                             |
+
+A message queued for a parked or busy child stays durably queued and is delivered at the next
+boundary or on revival. When the target expires against its idle TTL or is drained, every queued
+message terminalizes `failed` with that reason on the message record. There is no additional retry
+knob. All twelve `calls.*` paths are agent-manageable through `compozy config get|set|unset` and
+the native config tools.
 
 ## `[autonomy]`
 

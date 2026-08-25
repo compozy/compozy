@@ -626,7 +626,8 @@ Four optional runtime inputs select `orchestrator_runtime`, `backend_runtime`, `
 and `default_runtime`. The category match uses exact task frontmatter type; all other types use the
 default. Empty inputs fall through to agent and config defaults. Task frontmatter runtime wins over
 the category input field by field. The conductor passes every supplied provider, model, reasoning,
-and speed value through `compozy spawn`.
+and speed value through the worker call. The conductor starts one bounded `code_implementer` call
+per task in graph order, waits for its result, and stops the child on every exit path.
 
 A command judge passes only when every `.compozy/tasks/<slug>/task_*.md` carries
 `status: completed` and no conductor-created worker survives. The Goal's result uses status

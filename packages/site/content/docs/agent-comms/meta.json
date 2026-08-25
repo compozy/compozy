@@ -1,0 +1,5 @@
+{
+    "title": "Agent Comms",
+    "icon": "MessageSquare",
+    "pages": ["calls", "subagents", "mailbox", "budgets-and-safety"]
+}

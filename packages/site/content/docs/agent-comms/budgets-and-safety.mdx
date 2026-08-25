@@ -1,0 +1,180 @@
+---
+title: Budgets, Isolation, and Safety
+description: Read the [calls] bounds, result budgets, permission narrowing, profile isolation, and the call lifecycle hooks that agent comms enforces.
+---
+
+Delegation is where an agent system can quietly go wrong: unbounded recursion, results too large to
+hold, a child that outlives its parent, a call reaching into work it does not own. This page is the
+list of walls CompozyOS puts in the way, and what each one does when it engages.
+
+Every bound here is observable. A cap that fires produces a typed error or a visible queue — never
+a silent truncation.
+
+## The `[calls]` walls
+
+```toml
+[calls]
+max_depth = 3
+max_batch = 8
+max_children = 5
+max_active_per_root = 32
+idle_ttl = "1h"
+```
+
+| Key                   | Default | What it does when it engages                                                                                                                                             |
+| --------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `max_depth`           | `3`     | At the wall, `compozy__agent_call` is absent from the child's toolset and the child's prompt states its remaining depth. Other surfaces fail with `call_depth_exceeded`. |
+| `max_batch`           | `8`     | An over-cap batch is rejected **whole** with `call_batch_over_cap`. Nothing partial runs.                                                                                |
+| `max_children`        | `5`     | An admission wall: a call over the per-parent cap **rejects** with `call_children_cap`.                                                                                  |
+| `max_active_per_root` | `32`    | An execution budget per governed tree: admitted work over it **queues** visibly as `queued`.                                                                             |
+| `idle_ttl`            | `"1h"`  | Ceiling on how long a parked child stays addressable. Past it the child is reaped and calling it returns `call_target_expired`.                                          |
+
+The difference between `max_children` and `max_active_per_root` is deliberate. One is a wall you
+hit and bounce off; the other is a budget that makes work wait. Both are visible.
+
+<OperatorNote label="The idle clock only runs while parked">
+  `idle_ttl` suspends the moment a call is in flight and resets on the next contact. A child that is
+  working is never reaped by the clock, however long the work takes.
+</OperatorNote>
+
+Full key reference, including `[calls.results]` and `[calls.messages]`, lives in
+[`config.toml`](/docs/configuration/config-toml#calls). Every path is agent-manageable:
+
+```bash
+compozy config get calls.max_depth
+compozy config set calls.max_batch 4
+```
+
+## Result budgets
+
+```toml
+[calls.results]
+default_budget = "256KiB"
+max_budget = "4MiB"
+overflow = "store"
+```
+
+One budget per contract, with an explicit overflow strategy. A call may override the default with
+`--result-budget` and `--result-overflow`, capped by `max_budget` and snapshotted immutably onto
+the call at admission — a later config change cannot retroactively move a running call's ceiling.
+
+**Stored payloads are never truncated.** What is bounded is the projection: list rows and wake
+notifications carry a preview, and the whole payload stays behind
+[`compozy call result`](/docs/cli/call/result). With
+`overflow = "reject"`, an over-budget result becomes a `call_result_over_budget` failure instead of
+a stored payload.
+
+## How a result gets admitted
+
+Result admission happens inside the same act that settles the call. Capture-time checking alone
+would let a bad payload slip through a race, so the runtime does not rely on it. Contract syntax is
+checked earlier, when the call itself is admitted.
+
+<Workflow>
+  <WorkflowStep title="Sanitize first">
+    The raw bytes are classified and redacted before anything reads them. Secret-shaped values are
+    replaced with hash forms, so everything downstream — including validator error text handed back
+    to the child — is already safe.
+  </WorkflowStep>
+  <WorkflowStep title="Validate against the contract">
+    A single-key wrapper around an otherwise valid payload is unwrapped rather than failed. If
+    redaction cannot preserve contract validity, the payload rejects with a typed reason instead of
+    settling as something it is not.
+  </WorkflowStep>
+  <WorkflowStep title="Repair once, at most">
+    A failure returns the validator's errors verbatim and the child gets exactly one more attempt. A
+    second failure settles the call `invalid-result` with both attempts recorded. Infrastructure
+    failures are classified separately and never consume the repair round.
+  </WorkflowStep>
+  <WorkflowStep title="Record provenance">
+    Every result carries who produced it, from which session, and how it was admitted — the closed
+    verdict set `returned`, `extracted`, `repaired`. A post-settle correction is an amendment record
+    with its own provenance, never a fourth verdict.
+  </WorkflowStep>
+</Workflow>
+
+A declared contract that cannot be enforced is a loud authoring failure. A schema is never silently
+dropped.
+
+## Permission narrowing
+
+Child permissions are subset-only in every category and compose down the tree. Widening is rejected
+with the offending atoms named, whether it comes from the caller or from a hook — a hook patch is
+not authority to widen. See
+[Narrow what a child may touch](/docs/agent-comms/subagents#narrow-what-a-child-may-touch).
+
+## Profile and workspace isolation
+
+A call is a profile-owned work root. It pins an immutable `profile_id` and a `scope` of `global` or
+`workspace` at admission; workspace scope also pins a `workspace_id`, and Global work has none.
+Deliveries, publications, activations, amendments, and payload reads all authorize through that
+owning root, and profile-integrity constraints reject an inactive owner or any attempt to mutate
+ownership.
+
+- **Typed calls and lineage messages are hard-denied across profiles and workspaces**, before any
+  side effect. There is no grant that opens the boundary.
+- **Identity fences include the owner.** The operator caller identity and idempotency keys are
+  scoped by `(profile_id, scope, workspace_id)`, so identical agent names and identical idempotency
+  keys in two profiles cannot collide.
+- **Profile rename is presentation only.** It changes display and filesystem paths; ownership stays
+  keyed by the stable `profile_id`.
+- **Profile archive blocks running work.** Archiving is refused while calls are running or delivery
+  is in flight. Queued activations freeze and stay durable, and a claim rechecks an active owner
+  inside its own transaction. New admissions against an archived or unavailable profile reject.
+- **Profile delete counts everything.** The delete plan inventories and removes calls, standalone
+  messages, caller bindings, and all descendants.
+
+See [Profile reads](/docs/profiles/reads) and [Profile selection](/docs/profiles/selection).
+
+### The one profile-blind path
+
+[Compozy Network](/docs/network) is the deliberate cross-profile channel, and publishing a
+completed call as Network evidence is therefore not blocked by the call owner's profile. That
+exception is narrow and one-directional: bounded, sanitized result evidence goes out, and nothing
+from Network ever comes back into a call. See
+[Publish a result to Network](/docs/agent-comms/calls#publish-a-result-to-network).
+
+## Four-layer resolution
+
+Both the agent roster and the `[calls]` configuration resolve through the same four layers the rest
+of the runtime uses, each one overriding the one before it:
+
+1. User
+2. Profile
+3. Workspace
+4. Workspace-profile
+
+## Draining a subtree
+
+When a parent reaches a terminal state, its governed subtree drains: descendants stop, open calls
+close carrying the parent-terminal reason, and **already-completed results are preserved** and stay
+fetchable. The drain sets a closing fence before it enumerates, so it is safe to repeat, safe
+against cycles, and resumable after a daemon restart. Operators invoke the same operation with
+[`compozy session stop --subtree`](/docs/agent-comms/calls#stop-a-whole-delegation-subtree).
+
+## Watching from an extension
+
+Seven hook events cover the lifecycle. None are synchronous — a hook observes and annotates, it
+does not gate a settlement.
+
+| Event                    | Fires when                                |
+| ------------------------ | ----------------------------------------- |
+| `call.created`           | A call is admitted.                       |
+| `call.settled`           | A call reaches a terminal state.          |
+| `call.canceled`          | A caller or operator cancels a call.      |
+| `call.published`         | A completed call is published to Network. |
+| `call.message_sent`      | A message is committed.                   |
+| `call.message_delivered` | A message reaches its recipient.          |
+| `call.subtree_drained`   | A governed subtree finishes draining.     |
+
+Extensions read the same records through the Host API under the `calls:read` permission:
+`calls/list`, `calls/get`, `calls/result`, and `messages/list`. Reads are profile-scoped like every
+other surface. See the [Hook event catalog](/docs/hooks/event-catalog) and
+[Extension development](/docs/extensions/develop).
+
+## Related pages
+
+- [Calls and result contracts](/docs/agent-comms/calls) covers delegation end to end.
+- [Subagents and the roster](/docs/agent-comms/subagents) covers selection and narrowing.
+- [Messages between sessions](/docs/agent-comms/mailbox) covers the mailbox loop-breakers.
+- [`config.toml`](/docs/configuration/config-toml#calls) is the full key reference.

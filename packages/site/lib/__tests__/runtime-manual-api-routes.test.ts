@@ -2,6 +2,12 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import {
+  type APIRoute,
+  extractRegisteredRoutes,
+  isRouteSourceFile,
+  routePattern,
+} from "../api-routes";
 
 const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const repoRoot = resolve(siteRoot, "../..");
@@ -12,12 +18,6 @@ type ManualDoc = {
   content: string;
 };
 
-type APIRoute = {
-  method: string;
-  path: string;
-  source: string;
-};
-
 const ignoredExternalPrefixes = ["/api/v1"];
 
 function readRepoFile(...parts: string[]): string {
@@ -26,7 +26,7 @@ function readRepoFile(...parts: string[]): string {
 
 function listRouteSourcePaths(dir: string): string[] {
   return readdirSync(resolve(repoRoot, dir))
-    .filter(entry => entry === "routes.go" || entry.endsWith("_routes.go"))
+    .filter(isRouteSourceFile)
     .sort()
     .map(entry => `${dir}/${entry}`);
 }
@@ -50,69 +50,11 @@ function listManualDocs(dir: string): ManualDoc[] {
   return docs.sort((left, right) => left.path.localeCompare(right.path));
 }
 
-function joinRoute(left: string, right: string): string {
-  if (!right) {
-    return left || "/";
-  }
-  return `${left.replace(/\/$/, "")}/${right.replace(/^\//, "")}`;
-}
-
-function extractRegisteredRoutes(sourcePath: string): APIRoute[] {
-  const routes: APIRoute[] = [];
-  const source = readRepoFile(sourcePath);
-  const groups = new Map<string, string>([["api", "/api"]]);
-  const assignmentMatcher = /^\s*(\w+)\s*:=\s*(\w+)\.Group\("([^"]*)"/;
-  const methodMatcher = /^\s*(\w+)\.(GET|POST|PATCH|PUT|DELETE)\("([^"]*)"/;
-
-  for (const line of source.split("\n")) {
-    const assignment = line.match(assignmentMatcher);
-    if (assignment) {
-      const [, target, parent, suffix] = assignment;
-      const parentPath = groups.get(parent ?? "");
-      if (target && parentPath !== undefined) {
-        groups.set(target, joinRoute(parentPath, suffix ?? ""));
-      }
-      continue;
-    }
-
-    const method = line.match(methodMatcher);
-    if (method) {
-      const [, group, verb, suffix] = method;
-      const prefix = groups.get(group ?? "");
-      if (prefix !== undefined && verb) {
-        routes.push({
-          method: verb,
-          path: joinRoute(prefix, suffix ?? ""),
-          source: sourcePath,
-        });
-      }
-    }
-  }
-
-  return routes;
-}
-
 function implementedRoutes(): APIRoute[] {
   return [
     ...listRouteSourcePaths("internal/api/httpapi"),
     ...listRouteSourcePaths("internal/api/udsapi"),
-  ].flatMap(sourcePath => extractRegisteredRoutes(sourcePath));
-}
-
-function routePattern(route: string): RegExp {
-  const escaped = route
-    .split("/")
-    .map(part => {
-      if (part.startsWith(":")) {
-        return "[^/]+";
-      }
-      if (part.startsWith("*")) {
-        return ".*";
-      }
-      return part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    })
-    .join("/");
-  return new RegExp(`^${escaped}$`);
+  ].flatMap(sourcePath => extractRegisteredRoutes(readRepoFile(sourcePath)));
 }
 
 function normalizeDocumentedRoute(raw: string): string {
@@ -149,6 +91,24 @@ function isCoveredByRegisteredRoute(
 }
 
 describe("manual API route references", () => {
+  it("expands helper-mounted routes for global and workspace scopes", () => {
+    const source = `
+func registerRoutes(api *gin.RouterGroup, handlers *Handlers) {
+  registerCallRoutes(api, handlers)
+  registerCallRoutes(api.Group("/workspaces/:workspace_id"), handlers)
+}
+
+func registerCallRoutes(scope gin.IRouter, handlers *Handlers) {
+  scope.GET("/calls", handlers.CallsList)
+}
+`;
+
+    expect(extractRegisteredRoutes(source)).toEqual([
+      { method: "GET", path: "/api/calls" },
+      { method: "GET", path: "/api/workspaces/:workspace_id/calls" },
+    ]);
+  });
+
   it("points documented CompozyOS /api routes at implemented HTTP or UDS handlers", () => {
     const registeredRoutes = implementedRoutes();
     const violations = listManualDocs(contentRoot).flatMap(doc =>

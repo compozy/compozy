@@ -4,8 +4,8 @@ description: Wait for session state and coordinate governed child sessions throu
 ---
 
 CompozyOS exposes session orchestration through the CLI, matching HTTP/UDS routes, and scoped native
-tools. Use these surfaces to wait on state, spawn bounded children, resolve their interactions, cancel
-one prompt, or stop a session without polling the catalog.
+tools. Use these surfaces to wait on state, delegate work to a governed child, resolve their
+interactions, cancel one prompt, or stop a session without polling the catalog.
 
 ## Wait for state
 
@@ -50,22 +50,23 @@ uses the same cancellation path as
 `POST /api/workspaces/{workspace_id}/sessions/{session_id}/prompt/cancel` and the native tool. The CLI
 exits `0` after a cancel and `66` when there was nothing to cancel.
 
-## Governed child feedback
+## Delegate to a governed child
 
-`compozy spawn` creates a child with a required TTL, lineage, capacity limits, and permissions that
-cannot exceed its parent. By default, CompozyOS queues a sanitized synthetic turn on the parent when
-the child stops, fails, or enters a needs-you state. The wake never interrupts an active parent
-prompt.
+`compozy call` creates a governed child beneath a durable operator caller and carries its first
+prompt. The child inherits lineage, capacity limits, and permissions that cannot exceed that
+resolved parent, plus a parked-idle ceiling from `--idle-ttl` or `calls.idle_ttl`.
 
 ```bash
-compozy spawn --agent researcher --ttl-seconds 3600
-compozy spawn --agent researcher --ttl-seconds 3600 --no-notify-creator
-compozy spawn --agent researcher --ttl-seconds 3600 \
-  --provider codex --model gpt-5.6-sol --reasoning-effort high --speed fast
+compozy call researcher "Summarize the open questions in docs/rfcs" --idle-ttl 1h -o json
 ```
 
-`notify_creator` defaults to true on HTTP, UDS, and `compozy__session_spawn`. Set it explicitly to
-false to opt out for one child. This default has no `config.toml` key.
+The command returns after admission; use `compozy call await` when the operator needs a checkpoint.
+With `compozy__agent_call`, the managed caller keeps running and receives a sanitized synthetic turn
+carrying the outcome and result reference when the call settles. The wake never interrupts an
+active prompt. Calling the same child again by session id revives it with its context intact.
+
+Delegation, result contracts, and the mailbox are documented in
+[Agent comms](/docs/agent-comms).
 
 Provider, model, reasoning effort, and speed are optional child-runtime overrides on the CLI,
 HTTP/UDS request, and native tool. Omit them to use the named agent and workspace defaults.
@@ -75,14 +76,15 @@ HTTP/UDS request, and native tool. Omit them to use the named agent and workspac
 Resolve each live descriptor with `compozy__tool_info` before calling it. All targets are restricted
 to the caller's workspace, and a session cannot target itself.
 
-| Tool                              | Purpose                                                               |
-| --------------------------------- | --------------------------------------------------------------------- |
-| `compozy__session_wait`           | Wait up to 30 minutes for a badge or lifecycle state.                 |
-| `compozy__session_spawn`          | Create a governed child with a required TTL and narrowed permissions. |
-| `compozy__session_stop`           | Stop another session; destructive approval policy applies.            |
-| `compozy__session_approve`        | Resolve another session's pending permission request.                 |
-| `compozy__session_clarify_answer` | Answer another session's pending clarification by choice or text.     |
-| `compozy__session_prompt_cancel`  | Cancel another session's active prompt without stopping the session.  |
+| Tool                              | Purpose                                                                       |
+| --------------------------------- | ----------------------------------------------------------------------------- |
+| `compozy__session_wait`           | Wait up to 30 minutes for a badge or lifecycle state.                         |
+| `compozy__agent_call`             | Delegate to a governed child with a result contract and narrowed permissions. |
+| `compozy__agent_message`          | Send inert text to a session inside the caller's lineage.                     |
+| `compozy__session_stop`           | Stop another session; `subtree: true` drains its governed descendants first.  |
+| `compozy__session_approve`        | Resolve another session's pending permission request.                         |
+| `compozy__session_clarify_answer` | Answer another session's pending clarification by choice or text.             |
+| `compozy__session_prompt_cancel`  | Cancel another session's active prompt without stopping the session.          |
 
 Approval and clarification resolution survive daemon restart. A successful orphaned resolution
 returns `resolved-after-restart`; a race may return `already-resolved`, and a full durable input queue
@@ -90,7 +92,8 @@ returns `queue-full` without consuming the pending interaction.
 
 ## Related pages
 
-- [Safe Spawn](/docs/autonomy/safe-spawn) covers child constraints and cleanup.
+- [Calls and result contracts](/docs/agent-comms/calls) covers delegation, results, and subtree drain.
+- [Governed children](/docs/autonomy/safe-spawn) covers child constraints and cleanup.
 - [Session Lifecycle](/docs/sessions/lifecycle) covers durable session and runtime state.
 - [Session Wait CLI](/docs/cli/session/wait) lists the generated flags.
 - [Prompt Cancel CLI](/docs/cli/session/prompt-cancel) lists the generated command contract.

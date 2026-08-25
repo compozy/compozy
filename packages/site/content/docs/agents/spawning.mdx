@@ -242,24 +242,24 @@ after the process was launched, CompozyOS stops the process. Synchronous interna
 startup error; an HTTP/UDS session that was already accepted becomes durably `stopped` with a
 `startup_failure` diagnostic.
 
-## Agent-Initiated Safe Spawn
+## Call-Created Child Sessions
 
-An active agent can request a child session through `compozy spawn`. This is separate from normal
-session creation: CompozyOS validates the caller identity, requires a positive TTL, keeps the child inside
-the parent's coordination channel, denies coordinator-role children, and only permits permission
-subsets of the parent session. The child inherits the parent workspace unless `--workspace` targets
-another one, which the workspace-access policy must authorize.
+An active managed agent delegates through `compozy__agent_call`; an operator uses
+[`compozy call`](/docs/agent-comms/calls). Both create a governed child session, but the native tool
+derives lineage from the managed caller while the CLI resolves a durable operator caller inside the
+selected profile and scope. This is separate from normal session creation: CompozyOS validates the
+caller identity, applies a parked-idle ceiling, denies coordinator-role children, and only permits
+permission subsets of the resolved parent session.
 
-The spawn request can override the child runtime with provider, model, reasoning effort, and speed.
+The call request can override the child runtime with provider, model, reasoning effort, and speed.
 Unset fields keep resolving through the named agent and workspace defaults.
 
-Safe-spawn children are recorded as `spawned` sessions with parent/root lineage, depth, role, TTL,
-and permission metadata. In the MVP, max depth is `1` and the default max children per parent is
-`5`. Parent-stop and TTL expiry cleanup release active task-run leases through the task service
-before stopping the child session.
+Governed children are recorded as `spawned` sessions with parent/root lineage, depth, role, TTL, and
+permission metadata. Depth and per-parent child caps come from `calls.max_depth` and
+`calls.max_children`. Parent-stop and idle-TTL cleanup release active task-run leases through the
+task service before stopping the child session.
 
-Use [Safe Spawn](/docs/autonomy/safe-spawn) for command flags, constraints, and lifecycle
-hooks.
+Use [Governed Children](/docs/autonomy/safe-spawn) for the constraints and lifecycle hooks.
 
 ## Edge cases
 
@@ -281,4 +281,4 @@ hooks.
 - [Agent Definitions](/docs/agents/definitions) shows how the launch inputs are declared.
 - [Providers](/docs/agents/providers) lists the built-in provider commands.
 - [Session Lifecycle](/docs/sessions/lifecycle) explains how the spawned process is wrapped by a durable CompozyOS session.
-- [Safe Spawn](/docs/autonomy/safe-spawn) covers agent-initiated child sessions.
+- [Governed Children](/docs/autonomy/safe-spawn) covers call-created child sessions.

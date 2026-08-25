@@ -11,6 +11,7 @@
 - Autonomy scheduler
 - Loop defaults and observability
 - Goals
+- Calls and mailbox
 - Profile selection environment
 - Automation schedules
 - Session compaction
@@ -204,6 +205,23 @@ Loop observability is durable runtime state, not a transient UI stream. `loop_ru
 ## Goals
 
 `[goals]` sets `max_turns = 20` and `context_nudge_ratio = 0.8` for new Goals, plus the daemon-wide durable session-event relay controls `outbox_batch_size = 50` and `outbox_poll_interval = "100ms"`. The Goal defaults are global/workspace-overridable; relay controls use global config because one relay serves every workspace. All four are agent-mutable, restart-required paths. `max_turns` must be positive; the ratio accepts `0.0` through `1.0`, with zero preserved; the relay batch accepts `1` through `200`; and its poll interval must be positive. Each Run pins its resolved ratio and every Goal checkpoint copies that value, so config reload or daemon restart cannot change an active Goal. Relay settings take effect when the daemon starts.
+
+## Calls And Mailbox
+
+`[calls]` bounds agent-to-agent delegation. Defaults are `max_depth = 3`, `max_batch = 8`,
+`max_children = 5`, `max_active_per_root = 32`, and `idle_ttl = "1h"`. `[calls.results]` sets
+`default_budget = "256KiB"`, `max_budget = "4MiB"`, and `overflow = "store"`. `[calls.messages]` sets
+`rate_limit_per_minute = 30`, `dedup_window = "30s"`, `pending_cap = 50`, and `max_bytes = "64KiB"`.
+Validation rejects non-positive integers and durations at load, requires `overflow` to be `store` or
+`reject`, and rejects a `default_budget` above `max_budget`. All twelve paths are agent-mutable
+through `compozy config get|set|unset` and the native config tools, and resolve through the user,
+profile, workspace, and workspace-profile layers.
+
+`max_children` is an admission wall that rejects; `max_active_per_root` is an execution budget that
+queues visibly. `max_depth` changes apply to new calls. `idle_ttl` applies at call time and suspends
+while a call is in flight, so a working child is never clock-reaped. There is no default deadline —
+`deadline_seconds` is per-call opt-in. `overflow = "reject"` turns over-budget results into
+`call_result_over_budget`. Read `references/agent-comms.md` for the behavior these bound.
 
 ## Profile Selection Environment
 

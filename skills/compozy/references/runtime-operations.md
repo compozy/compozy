@@ -418,18 +418,21 @@ session ID, transcript, archive state, and lineage.
 
 The session catalog is counted and workspace-scoped. Dream sessions are internal and never appear in catalog results. HTTP and UDS clients can filter exact public session type with `type=user|system|coordinator|spawned`; the CLI exposes the same filter as `--type`. Browser integrations should subscribe once to `/api/sessions/catalog-stream`, route each wake signal by its authoritative `workspace_id`, and refetch that workspace's catalog page instead of incrementing local counters.
 
-Sessions created from inside another session record creation provenance in `lineage`: `compozy__session_create` links the calling session automatically (same-workspace only), and `session new --parent <id>` / `parent_session_id` on `POST /api/sessions` link explicitly. Provenance keeps `type=user` and carries no TTL, auto-stop, budget, or permission narrowing — governed children still come only from `compozy spawn`. Query hierarchy with `parent=<id>` (direct children) or `root=<id>` (whole tree, root included) on the catalog — CLI `session list --parent/--root`, same fields on `compozy__session_list`.
+Sessions created from inside another session record creation provenance in `lineage`: `compozy__session_create` links the calling session automatically (same-workspace only), and `session new --parent <id>` / `parent_session_id` on `POST /api/sessions` link explicitly. Provenance keeps `type=user` and carries no TTL, auto-stop, budget, or permission narrowing — governed children come only from a call (`compozy call` or `compozy__agent_call`). Query hierarchy with `parent=<id>` (direct children) or `root=<id>` (whole tree, root included) on the catalog — CLI `session list --parent/--root`, same fields on `compozy__session_list`.
 
-`compozy spawn` and `compozy__session_spawn` create governed children with a required TTL and
-permission subsets. Both accept optional provider, model, reasoning-effort, and speed overrides for
-the child runtime. The parent receives one sanitized synthetic turn when an eligible child stops,
-fails, or enters a needs-you state. This `notify_creator` behavior defaults to on and has no
-`config.toml` key. Use `--no-notify-creator` in the CLI or explicit `notify_creator: false` in the
-HTTP/UDS or native-tool request to opt out for that child.
+`compozy call` and `compozy__agent_call` create governed children with permission subsets and a
+parked-idle ceiling from `--idle-ttl` or `calls.idle_ttl`. Depth and per-parent child caps come from
+`calls.max_depth` and `calls.max_children`. Both accept optional provider, model, reasoning-effort,
+and speed overrides for the child runtime. A managed caller using `compozy__agent_call` receives one
+sanitized synthetic turn when the call settles, carrying the outcome and its result reference; it
+never interrupts an active prompt and is suppressed for a dead caller or a self-wake. Operator CLI
+calls use `compozy call await`. A finished child is parked, not gone — call it again by session id to
+revive it with its context. Read references/agent-comms.md for the contract.
 
-TTL cleanup checks the child runtime before classifying the stop: a child whose prompt has already
-settled with `done` or `end_turn` is reaped as completed, while a prompt still in flight is reaped
-as a timeout. Both paths retain the `spawn_reaper:ttl_expired` stop origin.
+Idle-TTL cleanup checks the child runtime before classifying the stop: a child whose prompt has
+already settled with `done` or `end_turn` is reaped as completed, while a prompt still in flight is
+reaped as a timeout. Both paths retain the `spawn_reaper:ttl_expired` stop origin. Stopping a parent
+with `--subtree` drains its governed descendants and preserves completed results.
 
 Loop Goal sessions also record the session that started the Loop as internal creation provenance when that origin is available. They remain `type=system`: the parent/root/depth fields are informational and do not grant safe-spawn policy, caps, TTL, or parent-stop cleanup. If the origin was deleted before Goal creation, the Goal is created as its own root; deleting an origin after creation preserves the Goal and its recorded lineage.
 
@@ -472,8 +475,9 @@ First-run onboarding completion is a global instance flag (stored in the `app_me
 
 The web first-run wizard blocks the dashboard until this flag is set. Resetting it surfaces the wizard again on next load. Fresh daemon boot registers the operator `$HOME` as the default workspace before the wizard starts, so the workspace step should not require manual project registration on a clean machine.
 
-Native session tools include scoped wait, governed spawn, stop, approval, clarification answer, and
-prompt cancel. Recap, repair, inspect, and Soul refresh remain CLI/HTTP/UDS management surfaces unless
+Native session tools include scoped wait, stop (with optional subtree drain), approval, clarification
+answer, and prompt cancel; delegation itself is `compozy__agent_call`.
+Recap, repair, inspect, and Soul refresh remain CLI/HTTP/UDS management surfaces unless
 the live registry exposes a matching tool. `compozy__clarify` asks from inside the active session;
 `compozy__session_clarify_answer` answers a pending question on another same-workspace session.
 

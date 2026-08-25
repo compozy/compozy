@@ -1,0 +1,186 @@
+---
+title: Subagents and the Roster
+description: Give agent definitions a description, read the injected roster, fan out a batch, and narrow what a child may touch through the CLI, native tools, HTTP API, and UDS.
+---
+
+A subagent is not a second runtime. It is an ordinary agent definition, reached through a call.
+Selection is explicit: the caller names a definition from the registry. **Nothing routes work by
+matching descriptions** — CompozyOS has no auto-router, and the roster reaches the model without
+costing a lookup turn.
+
+## Give a definition a description
+
+`description` is the one field other agents read when choosing a specialist. Write it as a promise
+about the output, not a bio.
+
+```yaml
+---
+name: reviewer
+description: Reviews a diff and returns structured findings with severity.
+provider: claude
+model: claude-opus-5
+tools: [read, grep]
+---
+You are a strict code reviewer. Review what you are given and report findings.
+```
+
+Definitions without a description stay valid and appear in the roster with the name alone. The
+authoring maximum is 500 characters; over it, loading fails with the bound named.
+
+Definitions live at `.compozy/agents/<name>/AGENT.md` (workspace) or
+`$COMPOZY_HOME/agents/<name>/AGENT.md` (global), and load exactly as they always have. See
+[Agent definitions](/docs/agents/definitions).
+
+## The injected roster
+
+The call tool's `agent` parameter carries the live roster inside its own description, so the model
+reads it as part of the tool schema:
+
+```
+Available agents for this profile and workspace:
+- reviewer — Reviews a diff and returns structured findings with severity.
+- scout — Maps a codebase area and returns entry points.
+
+Delegation depth remaining: 2.
+```
+
+The rendering is bounded and deliberately boring:
+
+- Entries are sorted by name and scoped to the caller's profile and workspace.
+- Descriptions are trimmed to 120 characters with an ellipsis and stripped of Markdown control
+  characters, so a definition cannot smuggle formatting or instructions into another agent's
+  schema.
+- At most 32 agents render. Beyond that the roster closes with
+  `- N more agents. Use compozy__agent_list to see all.`
+- With no definitions at all, the roster says so and points at `compozy agent create`.
+
+Workspace shadows global: a workspace definition with the same name wins, and the shadowed global
+one is inactive.
+
+## Read the roster yourself
+
+```bash
+compozy agent list -o json
+```
+
+```json
+[
+  {
+    "name": "reviewer",
+    "description": "Reviews a diff and returns structured findings with severity.",
+    "scope": "workspace",
+    "shadowed": false,
+    "digest": "sha256:2b8e4c17a90d"
+  },
+  {
+    "name": "scout",
+    "description": "Maps a codebase area and returns entry points.",
+    "scope": "global",
+    "shadowed": false,
+    "digest": "sha256:91aa3f08c221"
+  }
+]
+```
+
+The same fields come back from `GET /api/agents` and from the `compozy__agent_list` tool.
+`"shadowed": true` marks an inactive name collision. This listing is
+for operators and for management flows — the calling model never needs it, because the roster is
+already in the tool.
+
+## Fan out a batch
+
+Models under-parallelize when each delegation costs a separate tool call, so one call can carry
+several tasks. The batch shares one concurrency budget and returns one consolidated array:
+
+```json
+{
+  "tasks": [
+    { "agent": "scout", "prompt": "Map the entry points of internal/loop." },
+    {
+      "agent": "reviewer",
+      "prompt": "Review HEAD~1..HEAD",
+      "expect": { "findings": [{ "file": "", "severity": "" }], "verdict": "" }
+    }
+  ]
+}
+```
+
+Each item is admitted independently, so one rejection does not sink its siblings. A batch larger
+than `calls.max_batch` (default `8`) is rejected whole with `call_batch_over_cap` naming the cap.
+Nothing is silently truncated.
+
+## The depth wall
+
+`calls.max_depth` (default `3`) bounds how deep delegation nests. The wall is enforced by removal,
+not by an error the model has to learn from: at the wall, `compozy__agent_call` is simply absent
+from the child's toolset.
+
+Every child also opens with its literal remaining depth in front of its prompt:
+
+```
+Call context: You may delegate 1 more level.
+
+Review the diff in HEAD~1..HEAD of this repo
+```
+
+At the wall the line reads `You cannot delegate further.` A call attempted past the wall through
+another surface fails with `call_depth_exceeded`.
+
+## Narrow what a child may touch
+
+Permissions are **subset-only in every category**. A child can be given less than its caller holds,
+never more, and narrowing composes down the tree — a grandchild cannot recover what its parent gave
+up. Any widening attempt, whether from the caller or from a hook, is rejected with the offending
+atoms named (`call_widening_rejected`).
+
+The `narrow` object on the native tool and the HTTP and UDS routes carries six categories:
+
+| Category           | Narrows                                        |
+| ------------------ | ---------------------------------------------- |
+| `tools`            | Which tools the child may invoke.              |
+| `skills`           | Which skills the child may load.               |
+| `mcp_servers`      | Which MCP servers the child may reach.         |
+| `workspace_paths`  | Which paths inside the workspace it may touch. |
+| `network_channels` | Which Compozy Network channels it may join.    |
+| `sandbox_profiles` | Which sandbox profiles it may use.             |
+
+```json
+{
+  "agent": "reviewer",
+  "prompt": "Review HEAD~1..HEAD",
+  "narrow": {
+    "tools": ["read", "grep"],
+    "workspace_paths": ["internal/loop"],
+    "sandbox_profiles": ["review-only"]
+  }
+}
+```
+
+The CLI exposes four of them as flags — `--tools`, `--skills`, `--workspace-paths`, and
+`--network-channels`:
+
+```bash
+compozy call reviewer "Review HEAD~1..HEAD" \
+  --tools read,grep \
+  --workspace-paths internal/loop
+```
+
+For `mcp_servers` and `sandbox_profiles`, use the native tool or the HTTP and UDS routes.
+
+## Runtime overrides
+
+A call may pin the child's runtime without touching the definition:
+
+```bash
+compozy call reviewer "Review HEAD~1..HEAD" --runtime anthropic/claude-opus-5/high/normal
+```
+
+The value is `provider/model/reasoning/speed`; trailing parts may be omitted. On the tool and the
+API the same thing is a `runtime` object with `provider`, `model`, `reasoning_effort`, and `speed`.
+
+## Related pages
+
+- [Calls and result contracts](/docs/agent-comms/calls) covers delegation end to end.
+- [Budgets and safety](/docs/agent-comms/budgets-and-safety) covers the caps these rules enforce.
+- [Agent definitions](/docs/agents/definitions) covers the rest of `AGENT.md`.
+- [Agent CLI reference](/docs/cli/agent) lists the generated flags.

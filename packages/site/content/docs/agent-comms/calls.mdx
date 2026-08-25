@@ -1,0 +1,428 @@
+---
+title: Calls and Result Contracts
+description: Delegate work to an agent with a declared result shape, await the typed answer, and follow up with the same child through the CLI, native tools, HTTP API, and UDS.
+---
+
+A call delegates work to an agent and carries a **result contract** — the shape the answer has to
+match before CompozyOS will record it. A managed caller keeps running while the child works and is
+woken when the result lands. An operator can await the same durable result from the CLI or API.
+
+This page walks the whole path once, then documents each piece.
+
+## Delegate work end to end
+
+<Workflow>
+  <WorkflowStep title="Give the specialist a description">
+    A call targets an agent definition by name. The `description` is what other agents read when
+    they pick a specialist, so write it as a promise about the output.
+
+    ```yaml
+    ---
+    name: reviewer
+    description: Reviews a diff and returns structured findings with severity.
+    provider: claude
+    model: claude-opus-5
+    tools: [read, grep]
+    ---
+    You are a strict code reviewer. Review what you are given and report findings.
+    ```
+
+    Save it as `.compozy/agents/reviewer/AGENT.md` for a workspace agent, or
+    `$COMPOZY_HOME/agents/reviewer/AGENT.md` for a global one.
+
+  </WorkflowStep>
+
+  <WorkflowStep title="Write the result contract">
+    Put the shape you expect in a file. This example uses the shorthand form — a plain object whose
+    keys become required properties and whose values illustrate the types.
+
+    ```json
+    {
+      "findings": [{ "file": "", "line": 0, "severity": "", "note": "" }],
+      "verdict": ""
+    }
+    ```
+
+  </WorkflowStep>
+
+  <WorkflowStep title="Make the call">
+    ```bash
+    compozy call reviewer "Review the diff in HEAD~1..HEAD of this repo" \
+      --expect @review-contract.json \
+      --idle-ttl 1h \
+      --idempotency-key rev-2026-08-20-01 \
+      -o json
+    ```
+
+    ```json
+    {
+      "call_id": "call_01JBD8G2K7Q9",
+      "child_session_id": "ses_01JBD8G2MZTX",
+      "state": "queued",
+      "replayed": false,
+      "idle_expires_at": null
+    }
+    ```
+
+    Admission always records `queued`; activation moves the call to `running` when its child starts.
+    The command returns before that activation wait. `idle_expires_at` stays `null` while the call is
+    in flight and becomes a timestamp once the child parks.
+
+  </WorkflowStep>
+
+  <WorkflowStep title="Wait for the checkpoint">
+    ```bash
+    compozy call await call_01JBD8G2K7Q9 --timeout 120s
+    ```
+
+    ```
+    Await
+    =====
+    Outcome:  complete
+    Pending:  0
+    Settled:  1
+    Resume:   -
+    ```
+
+    The outcome is `complete` when nothing is left pending, `partial` when some calls settled and
+    others did not, and `timeout` when none did. `-o json` returns `settled` as an array of full
+    call records, plus `pending`, `outcome`, `clamped_timeout_ms`, and a `resume` token when work
+    remains.
+
+    A timeout is a checkpoint, not a failure: the CLI exits `3`, and passing the `resume` token
+    back with `--resume` continues the same wait. `--timeout` clamps to 30 minutes.
+
+  </WorkflowStep>
+
+  <WorkflowStep title="Read the whole result">
+    `call await` shows a bounded preview. Fetch the stored payload with `call result`, which prints
+    it verbatim in every output format.
+
+    ```bash
+    compozy call result call_01JBD8G2K7Q9
+    ```
+
+    ```json
+    {"findings":[{"file":"internal/loop/action.go","line":88,"severity":"warning","note":"error swallowed on retry path"}],"verdict":"needs-changes"}
+    ```
+
+  </WorkflowStep>
+
+  <WorkflowStep title="Ask a follow-up">
+    The child parked when it returned, but it still holds its context. Call it again by session id
+    — the same verb, no new agent, no lost history.
+
+    ```bash
+    compozy call ses_01JBD8G2MZTX "One more thing: check the tests too" -o json
+    ```
+
+    A parked child revives on contact. Once its idle TTL runs out it is gone, and calling it
+    returns `call_target_expired` with the expiry time.
+
+  </WorkflowStep>
+</Workflow>
+
+Inside an agent session the same journey is two native tools: `compozy__agent_call` to delegate,
+and the completion arrives on its own as a wake carrying the result. Agents do not poll.
+
+## Result contracts
+
+`--expect` accepts inline JSON or `@file`, in either of two forms. Both normalize to the same
+canonical contract and pin the same digest:
+
+```json
+{ "findings": [{ "file": "", "line": 0, "severity": "", "note": "" }], "verdict": "" }
+```
+
+```json
+{
+  "type": "object",
+  "required": ["findings", "verdict"],
+  "properties": {
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["file", "line", "severity", "note"],
+        "properties": {
+          "file": { "type": "string" },
+          "line": { "type": "number" },
+          "severity": { "type": "string" },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "verdict": { "type": "string" }
+  }
+}
+```
+
+Anything that is neither form fails with `call_expect_invalid` and the schema error attached.
+
+A contract is checked at admission, inside the same act that settles the call — not when the child
+produces text. A contracted call can never settle as `completed` with a payload that does not
+satisfy it. The child gets exactly one repair round carrying the validator's errors; a second
+failure settles the call `invalid-result`. A single-key wrapper around an otherwise valid payload
+is unwrapped rather than rejected.
+
+Every recorded result carries a verdict saying how it was admitted:
+
+| Verdict     | Meaning                                                             |
+| ----------- | ------------------------------------------------------------------- |
+| `returned`  | The child invoked `compozy__call_return` with a conforming payload. |
+| `extracted` | The payload was recovered from the child's prose.                   |
+| `repaired`  | The first attempt failed validation and the retry conformed.        |
+
+Pass `--strict` to switch prose extraction off for one call. A contracted child that never invokes
+the return tool then settles `completed-without-result` directly.
+
+### The same contract as a Loop `output_schema`
+
+A `run-agent` node's `output_schema` and a call's `expect` are the same result contract and behave
+identically: validated when the result is produced **and** again when it settles, so an invalid
+payload can never settle as succeeded. What Loops learned, calls know, and the reverse. See the
+[Loop DSL reference](/docs/loops/dsl-reference).
+
+## The nine states
+
+A call is always in exactly one of these. `--state` accepts any comma-separated subset.
+
+| State                      | Terminal | Meaning                                                 |
+| -------------------------- | -------- | ------------------------------------------------------- |
+| `queued`                   | no       | Durably admitted; activation or delivery still pending. |
+| `running`                  | no       | The child is working.                                   |
+| `completed`                | yes      | A typed result was recorded.                            |
+| `invalid-result`           | yes      | The contract failed after the repair round.             |
+| `completed-without-result` | yes      | A contracted child finished with nothing to admit.      |
+| `failed`                   | yes      | A runtime or contract fault, with the reason attached.  |
+| `canceled`                 | yes      | The caller or an operator stopped it.                   |
+| `timeout`                  | yes      | An opt-in `--deadline` elapsed.                         |
+| `expired`                  | yes      | The target sat idle past its TTL.                       |
+
+Terminal is terminal. A late outcome attaches as superseded evidence rather than moving the state
+backwards.
+
+<OperatorNote label="There is no default deadline">
+  A call runs until it settles, is canceled, or its parent drains. `--deadline` is per-call opt-in.
+  Stalled work is handled by session activity supervision, not by a wall clock over the call.
+</OperatorNote>
+
+## Idle TTL and parking
+
+`--idle-ttl` (default `calls.idle_ttl`, `1h`) bounds how long a **parked** child stays addressable.
+The clock only runs while the child is parked, and it suspends the moment a call is in flight — a
+working child is never reaped by the clock. Contact resets it.
+
+## Idempotency
+
+`--idempotency-key` makes a retry safe. Replaying a key returns the original call with
+`"replayed": true` instead of starting a second one. Reusing the key with a different payload —
+including a different budget or deadline, both of which take part in the identity — is a typed
+`call_idempotency_conflict` naming the original call id.
+
+## Inspect calls
+
+```bash
+compozy call list --state running,completed --caller ses_01JBD7ZZAAAA --limit 3
+compozy call list --all-profiles -o json
+compozy call show call_01JBD8G2K7Q9 -o json
+```
+
+`call list` returns the columns `CALL`, `AGENT`, `CHILD`, `STATE`, `RESULT`. `call show -o json`
+returns the full record:
+
+```json
+{
+  "call_id": "call_01JBD8G2K7Q9",
+  "profile_id": "prof_01JBD7Y0001",
+  "profile_name": "default",
+  "scope": "workspace",
+  "workspace_id": "ws_main",
+  "caller": { "kind": "session", "id": "ses_operator_94fc4b7e06125bb045aed409" },
+  "actor": { "kind": "human", "id": "operator:udsapi" },
+  "agent": "reviewer",
+  "child_session_id": "ses_01JBD8G2MZTX",
+  "parent_session_id": "ses_operator_94fc4b7e06125bb045aed409",
+  "root_session_id": "ses_operator_94fc4b7e06125bb045aed409",
+  "depth": 1,
+  "state": "completed",
+  "verdict": "returned",
+  "expect_digest": "sha256:9f2c1d0a7b4e",
+  "prompt_preview": "Review the diff in HEAD~1..HEAD of this repo",
+  "prompt_bytes": 44,
+  "result_preview": { "verdict": "needs-changes" },
+  "result_bytes": 312,
+  "result_budget_bytes": 262144,
+  "result_overflow": "store",
+  "strict": false,
+  "idle_ttl_seconds": 3600,
+  "idle_expires_at": "2026-08-20T19:14:11Z",
+  "superseded_bytes": 0,
+  "repair_attempts": 0,
+  "provenance": {
+    "produced_by": "reviewer",
+    "session_id": "ses_01JBD8G2MZTX",
+    "admitted": "returned"
+  },
+  "created_at": "2026-08-20T18:12:04Z",
+  "started_at": "2026-08-20T18:12:05Z",
+  "settled_at": "2026-08-20T18:14:11Z",
+  "updated_at": "2026-08-20T18:14:11Z"
+}
+```
+
+The HTTP and UDS list route accepts filters the CLI does not expose: `attention`,
+`child_session_id`, `root_session_id`, and `agent`. Two reads are HTTP and UDS only —
+`GET …/calls/{call_id}/prompt` returns the complete authored prompt, and
+`GET …/calls/{call_id}/superseded` returns preserved late evidence. See the
+[Calls API](/docs/api/calls).
+
+## Cancel a call
+
+```bash
+compozy call cancel call_01JBD8H9PW2M --reason "superseded by rev-02"
+```
+
+Cancel is idempotent. Cancelling an already-terminal call returns its current state as a `200`
+no-op rather than an error.
+
+## Batch fan-out
+
+The HTTP and UDS create route can carry several independent tasks. The batch shares one concurrency
+budget and returns one consolidated array, each entry either `{call_id, state}` or `{error}`:
+
+```json
+{
+  "tasks": [
+    { "target": { "agent": "scout" }, "prompt": "Map the entry points of internal/loop." },
+    {
+      "target": { "agent": "reviewer" },
+      "prompt": "Review HEAD~1..HEAD",
+      "expect": { "verdict": "" }
+    }
+  ]
+}
+```
+
+A batch larger than `calls.max_batch` is rejected whole with `call_batch_over_cap`. Nothing runs
+partially, and nothing is silently truncated.
+
+## Stop a whole delegation subtree
+
+```bash
+compozy session stop ses_01JBD7ZZAAAA --subtree --reason "superseded" -o json
+```
+
+```json
+{
+  "session_id": "ses_01JBD7ZZAAAA",
+  "stopped_children": 3,
+  "closed_calls": 2,
+  "preserved_results": 1
+}
+```
+
+The drain stops descendants, closes open calls with the parent-terminal reason, and **preserves
+already-completed results** so they stay fetchable. It is idempotent on repeat, cycle-safe, and it
+is the same operation the `subtree` field on `compozy__session_stop` and the Agents app control
+invoke.
+
+## Publish a result to Network
+
+A completed call can be posted into a Compozy Network conversation as evidence:
+
+```bash
+compozy call publish call_01JBD8G2K7Q9 --channel eng-room --thread thread_reviews -o json
+```
+
+```json
+{ "network_message_id": "msg_9f2c1d0a", "published": true }
+```
+
+`--channel` is required; omit `--thread` to use the `thread_calls` thread. What crosses is a
+bounded result preview, the call identity, and a fetch reference, posted as a `say` with
+`intent: "result"`, attributed to you, under Network's own rules. Publishing the same call to the
+same conversation again returns the recorded message id with `"published": false` — a replay, not
+a second post.
+
+Two conditions apply: you need active Live participation in that channel, and the call must be
+`completed` with a valid result. Running calls and every resultless terminal reject with
+`call_publish_not_settled`, because there is no evidence to publish.
+
+**Nothing flows back.** Network content never creates, answers, or changes a call. This is the one
+place a call touches Network, and it is one-directional — which is also why publish is allowed
+across profiles when the rest of the call surface is not.
+
+## Who a call belongs to
+
+A call pins an immutable `profile_id` and a `scope` of `global` or `workspace` at admission.
+
+```bash
+# Global work: omit --workspace
+compozy call reviewer "Audit my dotfiles repo" -o json
+
+# Workspace work
+compozy call reviewer "Review HEAD~1..HEAD" --workspace checkout-api -o json
+```
+
+| Surface           | Profile behavior                                                                                                                        |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Operator mutation | Resolves exactly one profile from `--profile`, `COMPOZY_PROFILE`, your remembered selection, or `default`. Aggregate scope is rejected. |
+| Operator read     | One profile, or `--all-profiles` for an owner-labeled aggregate carrying `profile_id` and `profile_name`. Never both.                   |
+| Detail read       | A call owned by another profile returns not found.                                                                                      |
+| Native tool       | Derives profile and scope from the immutable session. There is no override field.                                                       |
+
+Typed calls never cross a profile or a workspace. The boundary denies before any side effect
+(`call_workspace_denied`), and no grant opens it. Cross-profile work belongs to
+[Compozy Network](/docs/network), which is deliberately profile-blind. See
+[Profile reads](/docs/profiles/reads) and [Profile selection](/docs/profiles/selection).
+
+## Call errors
+
+Every condition produces the same code and the same shape on every surface.
+
+| Condition                                        | Code                            | HTTP  |
+| ------------------------------------------------ | ------------------------------- | ----- |
+| Unknown agent name (body carries the roster)     | `call_agent_unknown`            | `404` |
+| Target never existed                             | `call_target_not_found`         | `404` |
+| Target idle past its TTL                         | `call_target_expired`           | `410` |
+| Target outside your lineage or grant             | `call_target_denied`            | `403` |
+| Cross-workspace or cross-profile target          | `call_workspace_denied`         | `403` |
+| Settlement by a non-owning actor                 | `call_settlement_denied`        | `403` |
+| Idempotency key reused with a new payload        | `call_idempotency_conflict`     | `409` |
+| Result read before the call settled              | `call_not_settled`              | `409` |
+| Return against an already-settled call           | `call_already_settled`          | `409` |
+| Publish a call that is not completed-with-result | `call_publish_not_settled`      | `409` |
+| Malformed contract                               | `call_expect_invalid`           | `422` |
+| Empty prompt                                     | `call_prompt_empty`             | `422` |
+| Empty batch                                      | `call_batch_empty`              | `422` |
+| Batch over `calls.max_batch`                     | `call_batch_over_cap`           | `422` |
+| Per-parent child cap reached                     | `call_children_cap`             | `422` |
+| Depth wall reached                               | `call_depth_exceeded`           | `422` |
+| Permission widening attempted                    | `call_widening_rejected`        | `422` |
+| Deadline zero, negative, or non-integer          | `call_deadline_invalid`         | `422` |
+| Return with no bound call                        | `call_return_unbound`           | `422` |
+| Result fails the contract                        | `call_result_invalid`           | `422` |
+| Result over budget with `overflow = "reject"`    | `call_result_over_budget`       | `422` |
+| Parent already terminal                          | `call_parent_terminal`          | `422` |
+| Publish without Live participation               | `call_publish_no_participation` | `422` |
+| Request shape rejected                           | `call_validation`               | `422` |
+
+On the CLI these exit `2`, except the `call await` timeout checkpoint, which exits `3`.
+`call_agent_unknown` prints the current roster inline so the next attempt can succeed:
+
+```
+error: call_agent_unknown: no agent definition named "reviewre"
+available: reviewer — Reviews a diff and returns structured findings with severity.
+           scout — Maps a codebase area and returns entry points.
+try: compozy call reviewer "..."
+```
+
+Message errors are on the [mailbox page](/docs/agent-comms/mailbox#message-errors).
+
+## Related pages
+
+- [Subagents and the roster](/docs/agent-comms/subagents) covers selection, batching, and narrowing.
+- [Budgets and safety](/docs/agent-comms/budgets-and-safety) covers the `[calls]` walls and isolation.
+- [Call CLI reference](/docs/cli/call) lists the generated flags.
+- [Calls API](/docs/api/calls) lists exact request and response bodies.

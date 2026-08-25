@@ -10,6 +10,7 @@
 - Workspace boundary
 - Window management tools
 - Skills and memory tools
+- Calls and mailbox tools
 - Network tools
 - Task and autonomy tools
 - Loop tools
@@ -77,7 +78,7 @@ Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__ses
 `compozy__session_describe`, `compozy__session_health`, `compozy__session_runtime_set`,
 `compozy__session_runtime_clear`, `compozy__session_archive`,
 `compozy__session_unarchive`, `compozy__session_rename`, `compozy__session_wait`,
-`compozy__session_spawn`, `compozy__session_stop`, `compozy__session_approve`,
+`compozy__session_stop`, `compozy__session_approve`,
 `compozy__session_clarify_answer`, `compozy__session_prompt_cancel`.
 
 `compozy__notify` sends one operator notification from the bound session and workspace. Pass a
@@ -114,15 +115,11 @@ the canonical attention/lifecycle badges; omission uses the settled set, and `do
 `session-gone`, `canceled`, and `overflow`. A native wait emits activity heartbeats while blocked so
 session supervision does not mistake orchestration for inactivity.
 
-`compozy__session_spawn` creates one governed child of the caller. It requires `agent_name` and a
-positive `ttl_seconds`; optional permission arrays can only narrow the parent. Omitted
-`notify_creator` defaults to true, while explicit false suppresses the synthetic parent wake for
-that child. Optional `provider`, `model`, `reasoning_effort`, `speed`, and `acp_options` fields
-override the named agent's runtime for the child. The result returns the child session ID, role,
-depth, and TTL expiry.
-
 `compozy__session_stop` stops another same-workspace session and is destructive/approval-gated. It is
-idempotent for an already stopped target. `compozy__session_prompt_cancel` cancels only another
+idempotent for an already stopped target. `subtree: true` first drains the caller's governed
+delegation subtree — descendants stop, open calls close with the parent-terminal reason, and
+completed results stay fetchable — returning `stopped_children`, `closed_calls`, and
+`preserved_results`. `compozy__session_prompt_cancel` cancels only another
 session's active prompt and returns `canceled` or `nothing-in-flight` without stopping the session.
 
 `compozy__session_approve` resolves another session's permission request with `allow-once`,
@@ -303,6 +300,23 @@ Resolve canonical `compozy__skill_view`, then use its returned tool reference wi
 Memory tools: `compozy__memory_list`, `compozy__memory_show`, `compozy__memory_search`, `compozy__memory_propose`, `compozy__memory_note`.
 
 Memory admin tools include health, scope, reindex, promote, reset, reload, decisions, recall traces, dreams, daily logs, extractor, provider, and session-ledger operations under the `compozy__memory_*` namespace. Inspect descriptors before using admin tools because they are broader than normal memory reads.
+
+## Calls And Mailbox Tools
+
+The `compozy__calls` toolset contains `compozy__agent_call`, `compozy__call_return`,
+`compozy__call_await`, `compozy__call_cancel`, `compozy__call_result`,
+`compozy__call_publish`, and `compozy__agent_message`.
+
+`compozy__agent_call` delegates to a named definition or an existing child session — pass exactly one
+of `agent` or `session_id`, plus a non-empty `prompt`. Optional: `expect` (result contract),
+`strict`, `idle_ttl_seconds`, `deadline_seconds`, `result_budget`, `result_overflow`,
+`idempotency_key`, a `runtime` override, and a `narrow` object whose six arrays can only subset the
+parent. `tasks` carries a bounded batch of the same item shape. Its `agent` parameter description
+holds the live roster; at the depth wall the tool is absent from your toolset.
+
+Read `references/agent-comms.md` in full before using this toolset. It owns call and mailbox
+behavior: scope, result admission and repair, states, settlement, delivery, bounds, and the Network
+publish boundary.
 
 ## Network Tools
 

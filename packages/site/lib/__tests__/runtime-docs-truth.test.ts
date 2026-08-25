@@ -512,6 +512,9 @@ describe("runtime docs truth", () => {
       "daemonUnavailableError",
       "ProviderConfig.Aliases",
       "[notifications.presets",
+      "compozy spawn",
+      "compozy__session_spawn",
+      "notify_creator",
     ];
 
     for (const snippet of forbiddenSnippets) {

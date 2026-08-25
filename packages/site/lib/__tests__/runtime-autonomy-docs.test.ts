@@ -466,7 +466,10 @@ describe("generated autonomy CLI references", () => {
     "cli/ch/recv.mdx",
     "cli/ch/send.mdx",
     "cli/ch/reply.mdx",
-    "cli/spawn.mdx",
+    "cli/call/index.mdx",
+    "cli/call/await.mdx",
+    "cli/call/result.mdx",
+    "cli/message/send.mdx",
     "cli/task/next.mdx",
     "cli/task/heartbeat.mdx",
     "cli/task/complete.mdx",
@@ -481,7 +484,7 @@ describe("generated autonomy CLI references", () => {
     }
   });
 
-  it("lists exact implemented flags for task, channel, and spawn examples", () => {
+  it("lists exact implemented flags for task, channel, and call examples", () => {
     const taskNext = readRuntimeDoc("cli/task/next.mdx");
     const heartbeat = readRuntimeDoc("cli/task/heartbeat.mdx");
     const complete = readRuntimeDoc("cli/task/complete.mdx");
@@ -490,7 +493,7 @@ describe("generated autonomy CLI references", () => {
     const retry = readRuntimeDoc("cli/task/retry.mdx");
     const send = readRuntimeDoc("cli/ch/send.mdx");
     const reply = readRuntimeDoc("cli/ch/reply.mdx");
-    const spawn = readRuntimeDoc("cli/spawn.mdx");
+    const call = readRuntimeDoc("cli/call/index.mdx");
 
     expectIncludesAll(taskNext, ["--wait", "--lease-seconds", "--capability", "--priority-min"]);
     expectIncludesAll(heartbeat, ["--lease-seconds"]);
@@ -511,18 +514,20 @@ describe("generated autonomy CLI references", () => {
     expectIncludesAll(reply, ["--to-message", "--body", "--task-id", "--run-id", "--channel-id"]);
     expectExcludesAll(send, ["--coordination-channel-id"]);
     expectExcludesAll(reply, ["--coordination-channel-id"]);
-    expectIncludesAll(spawn, [
-      "--agent",
-      "--ttl-seconds",
-      "--provider",
-      "--model",
-      "--role",
-      "--tool",
-      "--skill",
-      "--mcp-server",
-      "--workspace-path",
-      "--channel",
-      "--sandbox-profile",
+    expectIncludesAll(call, [
+      "--expect",
+      "--strict",
+      "--idle-ttl",
+      "--deadline",
+      "--idempotency-key",
+      "--result-budget",
+      "--result-overflow",
+      "--runtime",
+      "--tools",
+      "--skills",
+      "--workspace-paths",
+      "--network-channels",
     ]);
+    expectExcludesAll(call, ["--ttl-seconds", "--sandbox-profile", "--no-notify-creator"]);
   });
 });

@@ -12,6 +12,7 @@
         "use-cases",
         "---Core concepts---",
         "sessions",
+        "agent-comms",
         "agents",
         "autonomy",
         "memory",

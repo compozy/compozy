@@ -3,6 +3,12 @@ import { promises as fs } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { generateFiles } from "fumadocs-openapi";
 import { createOpenAPI } from "fumadocs-openapi/server";
+import {
+  type APIRoute,
+  extractRegisteredRoutes,
+  isCoveredByRegisteredRoute,
+  isRouteSourceFile,
+} from "../lib/api-routes";
 import { API_TAG_ICONS } from "../lib/docs-icons";
 import { COMPOZY_OPENAPI_ID, COMPOZY_OPENAPI_PATH } from "../lib/openapi";
 import { API_SECTIONS } from "../lib/docs-navigation";
@@ -20,11 +26,6 @@ type OpenAPIDocument = {
 type OpenAPIOperation = {
   tags?: string[];
   [key: string]: unknown;
-};
-
-type APIRoute = {
-  method: string;
-  path: string;
 };
 
 type OpenAPIOptions = NonNullable<Parameters<typeof createOpenAPI>[0]>;
@@ -53,50 +54,9 @@ async function readRepoFile(...parts: string[]): Promise<string> {
 async function listRouteSourcePaths(dir: string): Promise<string[]> {
   const entries = await fs.readdir(path.resolve(REPO_ROOT, dir));
   return entries
-    .filter(entry => entry === "routes.go" || entry.endsWith("_routes.go"))
+    .filter(isRouteSourceFile)
     .sort()
     .map(entry => path.join(dir, entry));
-}
-
-function joinRoute(left: string, right: string): string {
-  if (!right) {
-    return left || "/";
-  }
-  return `${left.replace(/\/$/, "")}/${right.replace(/^\//, "")}`;
-}
-
-async function extractRegisteredRoutes(sourcePath: string): Promise<APIRoute[]> {
-  const routes: APIRoute[] = [];
-  const source = await readRepoFile(sourcePath);
-  const groups = new Map<string, string>([["api", "/api"]]);
-  const assignmentMatcher = /^\s*(\w+)\s*:=\s*(\w+)\.Group\("([^"]*)"/;
-  const methodMatcher = /^\s*(\w+)\.(GET|POST|PATCH|PUT|DELETE)\("([^"]*)"/;
-
-  for (const line of source.split("\n")) {
-    const assignment = line.match(assignmentMatcher);
-    if (assignment) {
-      const [, target, parent, suffix] = assignment;
-      const parentPath = groups.get(parent ?? "");
-      if (target && parentPath !== undefined) {
-        groups.set(target, joinRoute(parentPath, suffix ?? ""));
-      }
-      continue;
-    }
-
-    const method = line.match(methodMatcher);
-    if (method) {
-      const [, group, verb, suffix] = method;
-      const prefix = groups.get(group ?? "");
-      if (prefix !== undefined && verb) {
-        routes.push({
-          method: verb,
-          path: joinRoute(prefix, suffix ?? ""),
-        });
-      }
-    }
-  }
-
-  return routes;
 }
 
 async function implementedRoutes(): Promise<APIRoute[]> {
@@ -105,32 +65,11 @@ async function implementedRoutes(): Promise<APIRoute[]> {
     listRouteSourcePaths("internal/api/udsapi"),
   ]);
   const routeGroups = await Promise.all(
-    [...httpSources, ...udsSources].map(sourcePath => extractRegisteredRoutes(sourcePath))
+    [...httpSources, ...udsSources].map(async sourcePath =>
+      extractRegisteredRoutes(await readRepoFile(sourcePath))
+    )
   );
   return routeGroups.flat();
-}
-
-function routePattern(route: string): RegExp {
-  const escaped = route
-    .split("/")
-    .map(part => {
-      if (part.startsWith(":")) {
-        return "[^/]+";
-      }
-      if (part.startsWith("*")) {
-        return ".*";
-      }
-      return part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    })
-    .join("/");
-  return new RegExp(`^${escaped}$`);
-}
-
-function isCoveredByRegisteredRoute(openapiPath: string, method: string, routes: APIRoute[]) {
-  const upperMethod = method.toUpperCase();
-  return routes.some(
-    route => route.method === upperMethod && routePattern(route.path).test(openapiPath)
-  );
 }
 
 function isOpenAPIOperation(method: string, value: unknown): value is OpenAPIOperation {
@@ -143,7 +82,7 @@ function filterUnimplementedRoutes(doc: OpenAPIDocument, routes: APIRoute[]): Op
       if (!isOpenAPIOperation(method, operation)) {
         continue;
       }
-      if (!isCoveredByRegisteredRoute(openapiPath, method, routes)) {
+      if (!isCoveredByRegisteredRoute(openapiPath, routes, method)) {
         delete pathItem[method];
       }
     }

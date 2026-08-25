@@ -320,9 +320,12 @@ describe("manual site CLI examples", () => {
     expect(shell).not.toContain('--webhook-secret "$COMPOZY_DEPLOY_WEBHOOK_SECRET"');
   });
 
-  it("keeps manual spawn examples explicit about bounded child session TTL", () => {
-    const violations = commandBlocks("compozy spawn")
-      .filter(({ block }) => !block.includes("--ttl-seconds "))
+  it("keeps manual call examples explicit about the delegated agent or child session", () => {
+    const violations = commandBlocks("compozy call ")
+      .filter(({ block }) => {
+        const normalized = block.replaceAll("\\\n", " ");
+        return !/compozy call (?:list|show|await|cancel|result|publish|\S+ )/.test(normalized);
+      })
       .map(({ path }) => path);
 
     expect(violations).toEqual([]);

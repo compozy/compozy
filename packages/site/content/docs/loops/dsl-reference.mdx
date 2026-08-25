@@ -188,6 +188,12 @@ Each managed `run-agent` cell owns a system session. A session-started Loop reco
 origin session as informational parent lineage without borrowing it. Terminal cell settlement
 closes the binding and queues a durable stop. A failure scheduled for retry keeps the binding active
 until the cell reaches a terminal boundary.
+
+A node's `output_schema` and a call's `expect` are the same kind of result contract and behave
+identically: both accept a full JSON Schema or the example-shape shorthand, both are validated when
+the result is produced **and** again when it settles, and neither can settle as succeeded with an
+invalid payload. See [Calls and result contracts](/docs/agent-comms/calls#result-contracts).
+
 Cross-generation references keep the same authored shape on every pass. On generation 1,
 `previous.generation` is `0`; before a best candidate exists, `best.generation` is `0`. Authored
 node outputs use zero values from their declared schemas and verdict lists are empty, so a valid

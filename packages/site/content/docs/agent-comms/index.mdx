@@ -1,0 +1,108 @@
+---
+title: Agent Comms Overview
+description: How one agent calls another, what a result contract guarantees, and how calls stay separate from Compozy Network.
+---
+
+Agent comms is how one agent asks another to do work and gets a checked answer back. It has two
+parts, and they do different jobs:
+
+| Part        | What it carries                                                                                       |
+| ----------- | ----------------------------------------------------------------------------------------------------- |
+| **Call**    | Delegated work plus a **result contract** — the shape the answer has to match before it can be filed. |
+| **Message** | Plain text to a session already in your lineage. No contract, no new work.                            |
+
+A call always keeps the caller in charge. The caller stays running, gets woken when the result
+lands, and can ask the same child a follow-up question afterwards. That is why the word here is
+**call** and never "handoff" — nothing is transferred away.
+
+<OperatorNote>
+  When a child finishes, it is **parked**, not gone. It keeps its context and revives the moment you
+  call it again, until its idle TTL runs out. A parked child costs nothing while it waits.
+</OperatorNote>
+
+## In this section
+
+<RouteList>
+  <RouteRow
+    href="/docs/agent-comms/calls"
+    label="Start here"
+    title="Calls and result contracts"
+    description="Delegate work end to end: declare the contract, await the typed result, follow up with the same child."
+    meta="Tutorial"
+  />
+  <RouteRow
+    href="/docs/agent-comms/subagents"
+    label="Roster"
+    title="Subagents and the roster"
+    description="Give an agent definition a description, read the injected roster, fan out a batch, and narrow what a child may touch."
+    meta="Selection"
+  />
+  <RouteRow
+    href="/docs/agent-comms/mailbox"
+    label="Mailbox"
+    title="Messages between sessions"
+    description="Steer a working child with inert text delivered at turn boundaries, never mid-tool."
+    meta="Coordination"
+  />
+  <RouteRow
+    href="/docs/agent-comms/budgets-and-safety"
+    label="Bounds"
+    title="Budgets, isolation, and safety"
+    description="Read the [calls] walls, result budgets, permission narrowing, and the profile isolation rules."
+    meta="Operator safety"
+  />
+</RouteList>
+
+## Who owns a call
+
+A call is a **profile-owned work root**. When it is admitted it pins an immutable `profile_id` and
+a `scope` of either `global` or `workspace`. Workspace scope also pins a `workspace_id`; Global
+work has none. Every delivery, publication, activation, and payload read underneath a call
+authorizes through that owning root, so ownership cannot drift after the fact.
+
+That ownership decides who can address what:
+
+- **Operator commands** resolve exactly one profile — from `--profile`, `COMPOZY_PROFILE`, your
+  remembered selection, or `default`. A mutation never runs against an aggregate.
+- **Reads** take either one profile or `--all-profiles`, never both. Aggregate rows carry
+  `profile_id` and `profile_name` so you can tell whose work you are looking at. Asking for the
+  detail of another profile's call returns not found.
+- **Agents** never choose. A native call inherits the profile and scope of the session making it,
+  and there is no override field to pass.
+- **Typed calls and lineage messages cannot cross a profile or a workspace.** The boundary denies
+  before any side effect. There is no grant that opens it.
+
+Cross-profile work belongs to [Compozy Network](/docs/network), which is deliberately
+profile-blind.
+
+## Where calls stop and Network starts
+
+The two mechanisms are kept apart by the shape of the envelope, not by convention. A call carries
+no `channel`, `surface`, `thread_id`, `direct_id`, or `work_id`. If an exchange needs any of those,
+it is a conversation and belongs in Network.
+
+| Use a call when                                             | Use Network when                                       |
+| ----------------------------------------------------------- | ------------------------------------------------------ |
+| One agent needs a specific answer back from one specialist. | Several peers read and reply in a shared conversation. |
+| The answer has to satisfy a schema.                         | The exchange is discussion, evidence, or a capability. |
+| The target may not exist yet.                               | Every participant is already enrolled and present.     |
+
+One bridge crosses that line, and it runs one way: a completed call can be
+[published](/docs/agent-comms/calls#publish-a-result-to-network) into a Network conversation as
+evidence. Nothing in Network ever creates, answers, or changes a call.
+
+## Surfaces
+
+Everything here works identically from the CLI, HTTP, UDS, and the native tools, and the Agents app
+renders the same records.
+
+| Surface      | Entry point                                                                 |
+| ------------ | --------------------------------------------------------------------------- |
+| CLI          | [`compozy call`](/docs/cli/call), [`compozy message`](/docs/cli/message)    |
+| HTTP / UDS   | [Calls API](/docs/api/calls), [Messages API](/docs/api/messages)            |
+| Native tools | the `compozy__calls` toolset — see [Subagents](/docs/agent-comms/subagents) |
+| Agents app   | the Activity view and call detail under `/agents`                           |
+
+For exact flags, use the [Call CLI reference](/docs/cli/call) and the
+[Message CLI reference](/docs/cli/message). For exact request and response bodies, use the
+[API reference](/docs/api/calls).

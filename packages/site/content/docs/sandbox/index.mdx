@@ -53,13 +53,13 @@ For `sync_mode = "none"`, the sync phases are still lifecycle checkpoints, but n
 
 ## Agent-manageable surfaces
 
-| Surface                                        | Purpose                                                    |
-| ---------------------------------------------- | ---------------------------------------------------------- |
-| `compozy workspace add --sandbox <name>`       | Attach a workspace to a sandbox profile.                   |
-| `compozy workspace edit --sandbox <name>`      | Change a workspace's sandbox profile.                      |
-| `compozy spawn --sandbox-profile <name>`       | Grant a child session permission to use a sandbox profile. |
-| `/api/settings/sandboxes`                      | Manage config-backed sandbox profiles through HTTP/UDS.    |
-| `sandbox/list`, `sandbox/info`, `sandbox/exec` | Extension Host API methods for operational sandbox access. |
+| Surface                                         | Purpose                                                    |
+| ----------------------------------------------- | ---------------------------------------------------------- |
+| `compozy workspace add --sandbox <name>`        | Attach a workspace to a sandbox profile.                   |
+| `compozy workspace edit --sandbox <name>`       | Change a workspace's sandbox profile.                      |
+| `compozy__agent_call` `narrow.sandbox_profiles` | Narrow which sandbox profiles a governed child may use.    |
+| `/api/settings/sandboxes`                       | Manage config-backed sandbox profiles through HTTP/UDS.    |
+| `sandbox/list`, `sandbox/info`, `sandbox/exec`  | Extension Host API methods for operational sandbox access. |
 
 Lifecycle hooks use the `sandbox.*` taxonomy: `sandbox.prepare`, `sandbox.ready`,
 `sandbox.sync.before`, `sandbox.sync.after`, and `sandbox.stop`.
@@ -76,14 +76,14 @@ Lifecycle hooks use the `sandbox.*` taxonomy: `sandbox.prepare`, `sandbox.ready`
 
 ## Failure guide
 
-| Symptom                                      | Likely cause                                                                 | First check                                      |
-| -------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------ |
-| Session starts on the host                   | Workspace did not resolve a remote profile.                                  | `compozy workspace info <name> -o json`          |
-| Session fails during prepare                 | Profile name, backend, provider credential, or provider capacity is invalid. | `compozy session events <id> --last 50`          |
-| Files are missing inside the runtime         | `sync_mode`, `include`, `exclude`, or `runtime_root` does not cover them.    | Sandbox profile in `config.toml`                 |
-| Local files did not update after stop        | Sync-back is disabled or the session crashed before final sync completed.    | `sandbox.sync.*` events and `sandbox.last_error` |
-| Reused provider instance has old state       | `persistence = "reuse"` intentionally retained it.                           | Provider state and session sandbox metadata      |
-| Child session cannot use the sandbox profile | Spawn permission did not include the profile.                                | `compozy spawn --sandbox-profile <name>`         |
+| Symptom                                      | Likely cause                                                                   | First check                                                 |
+| -------------------------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| Session starts on the host                   | Workspace did not resolve a remote profile.                                    | `compozy workspace info <name> -o json`                     |
+| Session fails during prepare                 | Profile name, backend, provider credential, or provider capacity is invalid.   | `compozy session events <id> --last 50`                     |
+| Files are missing inside the runtime         | `sync_mode`, `include`, `exclude`, or `runtime_root` does not cover them.      | Sandbox profile in `config.toml`                            |
+| Local files did not update after stop        | Sync-back is disabled or the session crashed before final sync completed.      | `sandbox.sync.*` events and `sandbox.last_error`            |
+| Reused provider instance has old state       | `persistence = "reuse"` intentionally retained it.                             | Provider state and session sandbox metadata                 |
+| Child session cannot use the sandbox profile | The call's `narrow.sandbox_profiles` excluded it, or the parent never held it. | The call's `narrow` object and the parent's own profile set |
 
 ## Next
 
