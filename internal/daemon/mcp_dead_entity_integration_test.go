@@ -17,7 +17,6 @@ import (
 	"github.com/compozy/compozy/internal/deadentity"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/store/globaldb"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	mcp "github.com/modelcontextprotocol/go-sdk/mcp"

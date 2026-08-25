@@ -22,7 +22,6 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	extensiontest "github.com/compozy/compozy/internal/extensiontest"
 	storepkg "github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 )

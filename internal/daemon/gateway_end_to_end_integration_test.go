@@ -25,7 +25,6 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/gorilla/websocket"
 )

@@ -2,7 +2,7 @@ import { HttpResponse } from "msw";
 
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import { storybookMswParameters } from "@/storybook/msw";
-import { extensionFixtures } from "@/systems/extensions/mocks";
+import { extensionFixtures } from "@/systems/extensions";
 
 export const kitExtensionFixture = {
   ...extensionFixtures[0]!,

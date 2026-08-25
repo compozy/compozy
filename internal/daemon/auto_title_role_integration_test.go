@@ -16,7 +16,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	sessionpkg "github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 )
