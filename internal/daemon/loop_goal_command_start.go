@@ -227,7 +227,7 @@ func (s *daemonLoopAPIService) resolveGoalRuntime(
 	}
 	if strings.TrimSpace(resolved.Model) == "" {
 		return nil, looppkg.NewRuntimeValidationError(looppkg.RuntimeValidationItem{
-			Field: watchEventsPayloadModelKey, Value: "", Reason: "missing_default_model",
+			Field: watchEventsPayloadModelKey, Value: "", Reason: "missing_runtime_model",
 		})
 	}
 	return &resolved, nil
