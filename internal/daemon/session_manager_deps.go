@@ -35,6 +35,7 @@ type SessionManagerDeps struct {
 	WorkspaceResolver       workspacepkg.RuntimeResolver
 	WorktreeResolver        session.WorktreeResolver
 	ParticipationResolver   participation.Resolver
+	WindowReconciler        session.WindowReconciler
 	SandboxRegistry         *sandbox.Registry
 	SessionSupervision      compozyconfig.SessionSupervisionConfig
 	SessionBusyInput        compozyconfig.SessionBusyInputConfig
@@ -57,6 +58,8 @@ type SessionManagerDeps struct {
 }
 
 func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
+	reconciler := windowManagerSessionReconcilerDependency(state.windowManagers)
+	state.sessionWindowReconciler = reconciler
 	return SessionManagerDeps{
 		HomePaths:         d.homePaths,
 		Logger:            state.logger,
@@ -92,6 +95,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		WorkspaceResolver:       state.workspaceResolver,
 		WorktreeResolver:        daemonSessionWorktreeResolver{state: state},
 		ParticipationResolver:   state.participationResolver,
+		WindowReconciler:        reconciler,
 		SandboxRegistry:         state.sandboxRegistry,
 		SessionSupervision:      state.cfg.Session.Supervision,
 		SessionBusyInput:        state.cfg.Session.BusyInput,

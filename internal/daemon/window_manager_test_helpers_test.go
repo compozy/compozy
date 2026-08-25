@@ -32,6 +32,19 @@ type daemonWindowManagerFixture struct {
 	storePath     string
 }
 
+type windowManagerWorkspaceStoreStub struct {
+	workspacepkg.Store
+	err error
+}
+
+func (s *windowManagerWorkspaceStoreStub) GetWorkspace(context.Context, string) (workspacepkg.Workspace, error) {
+	return workspacepkg.Workspace{}, s.err
+}
+
+func (s *windowManagerWorkspaceStoreStub) GetWorkspaceByName(context.Context, string) (workspacepkg.Workspace, error) {
+	return workspacepkg.Workspace{}, s.err
+}
+
 func newDaemonWindowManagerFixture(t *testing.T) daemonWindowManagerFixture {
 	t.Helper()
 	database := openDaemonTestGlobalDB(t)

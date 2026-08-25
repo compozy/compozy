@@ -199,6 +199,7 @@ func hasDeadEntityOwner(entities []store.DeadEntity, profileID string, archived 
 }
 
 func TestGlobalDBDeadEntityMigration(t *testing.T) {
+	t.Parallel()
 	t.Run("Should preserve workspace ownership through the dead-entity upgrade", func(t *testing.T) {
 		t.Parallel()
 

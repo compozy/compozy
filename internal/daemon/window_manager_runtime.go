@@ -113,6 +113,13 @@ func (r *windowManagerStoreWorkspaceResolver) ResolveWorkspace(
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return "", ctxErr
 		}
+		if !errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
+			return "", fmt.Errorf(
+				"daemon: resolve window-manager workspace %q: %w",
+				workspaceID,
+				err,
+			)
+		}
 		return "", fmt.Errorf(
 			"daemon: resolve window-manager workspace %q: %w",
 			workspaceID,

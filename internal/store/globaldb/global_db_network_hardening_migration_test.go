@@ -15,6 +15,7 @@ import (
 )
 
 func TestNetworkParticipationHardeningMigration(t *testing.T) {
+	t.Parallel()
 	t.Run("Should backfill workspace-qualified evidence from the frozen v9 authorities", func(t *testing.T) {
 		t.Parallel()
 
@@ -122,6 +123,7 @@ func TestNetworkParticipationHardeningMigration(t *testing.T) {
 }
 
 func TestNetworkSubscriptionHardCutMigration(t *testing.T) {
+	t.Parallel()
 	t.Run("Should preserve supported subscriptions while removing legacy digest state", func(t *testing.T) {
 		t.Parallel()
 

@@ -1109,6 +1109,352 @@ func TestWindowTabCloseAndReopenV3(t *testing.T) {
 	})
 }
 
+func TestDeletedSessionWindowReconciliation(t *testing.T) {
+	t.Run(
+		"Should close every matching placement without reopening or disturbing another workspace",
+		func(t *testing.T) {
+			t.Parallel()
+			environment := newTestEnvironment(t, DefaultConfig(), "workspace-a", "workspace-b")
+			const deletedSession = "session-deleted"
+
+			executeTestCommand(
+				t,
+				environment.manager,
+				"workspace-a",
+				nil,
+				CreateDesktopCommand{DesktopID: "desktop-two", Name: "Desktop 2"},
+			)
+			openSessionTestWindow(
+				t,
+				environment.manager,
+				"workspace-a",
+				"deleted-floating",
+				deletedSession,
+				"desktop-default",
+			)
+			openSessionTestWindow(
+				t,
+				environment.manager,
+				"workspace-a",
+				"deleted-tiled",
+				deletedSession,
+				"desktop-default",
+			)
+			executeTestCommand(
+				t,
+				environment.manager,
+				"workspace-a",
+				nil,
+				ToggleFloatingCommand{WindowID: "deleted-tiled"},
+			)
+			openSessionTestWindow(
+				t,
+				environment.manager,
+				"workspace-a",
+				"deleted-stack",
+				deletedSession,
+				"desktop-default",
+			)
+			openTestWindow(t, environment.manager, "workspace-a", nil, "keep-stack", "desktop-default")
+			executeTestCommand(t, environment.manager, "workspace-a", nil, GroupWindowsCommand{
+				TargetWindowID: "deleted-stack",
+				WindowIDs:      []WindowID{"keep-stack"},
+			})
+			openSessionTestWindow(
+				t,
+				environment.manager,
+				"workspace-a",
+				"deleted-pinned",
+				deletedSession,
+				"desktop-default",
+			)
+			executeTestCommand(
+				t,
+				environment.manager,
+				"workspace-a",
+				nil,
+				PinWindowCommand{WindowID: "deleted-pinned", Pinned: true},
+			)
+			openSessionTestWindow(
+				t,
+				environment.manager,
+				"workspace-a",
+				"deleted-minimized",
+				deletedSession,
+				"desktop-default",
+			)
+			executeTestCommand(t, environment.manager, "workspace-a", nil, CloseWindowCommand{
+				WindowID: "deleted-minimized",
+				Minimize: true,
+			})
+			openSessionTestWindow(
+				t,
+				environment.manager,
+				"workspace-a",
+				"deleted-other-desktop",
+				deletedSession,
+				"desktop-two",
+			)
+			openSessionTestWindow(
+				t,
+				environment.manager,
+				"workspace-a",
+				"deleted-closed",
+				deletedSession,
+				"desktop-default",
+			)
+			executeTestCommand(
+				t,
+				environment.manager,
+				"workspace-a",
+				nil,
+				CloseWindowCommand{WindowID: "deleted-closed"},
+			)
+			openSessionTestWindow(
+				t,
+				environment.manager,
+				"workspace-a",
+				"keep-session",
+				"session-keep",
+				"desktop-default",
+			)
+			openTestWindow(t, environment.manager, "workspace-a", nil, "keep-latest", "desktop-default")
+			openSessionTestWindow(
+				t,
+				environment.manager,
+				"workspace-b",
+				"other-workspace",
+				deletedSession,
+				"desktop-default",
+			)
+
+			clientID := ClientID("client-a")
+			registerTestClient(t, environment.manager, "workspace-a", clientID)
+			deletedFocusWindow := WindowID("deleted-floating")
+			executeTestCommand(t, environment.manager, "workspace-a", &clientID, FocusWindowCommand{
+				WindowID: &deletedFocusWindow,
+			})
+			focusWindow := WindowID("keep-latest")
+			executeTestCommand(t, environment.manager, "workspace-a", &clientID, FocusWindowCommand{
+				WindowID: &focusWindow,
+			})
+			before := mustSnapshot(t, environment.manager, "workspace-a")
+			subscription, err := environment.manager.Subscribe(t.Context(), SubscriptionRequest{
+				WorkspaceID:   "workspace-a",
+				AfterRevision: before.Revision,
+			})
+			if err != nil {
+				t.Fatalf("Subscribe() error = %v", err)
+			}
+			subscription = trackSubscription(t, subscription)
+
+			if err := environment.manager.ReconcileDeletedSession(
+				t.Context(),
+				"workspace-a",
+				deletedSession,
+			); err != nil {
+				t.Fatalf("ReconcileDeletedSession() error = %v", err)
+			}
+			update := <-subscription.Updates()
+			if update.Event == nil || update.Event.CommandID != CommandWindowClose ||
+				!slices.Equal(update.Event.Changes.WindowIDs, []WindowID{
+					"deleted-floating",
+					"deleted-minimized",
+					"deleted-other-desktop",
+					"deleted-pinned",
+					"deleted-stack",
+					"deleted-tiled",
+				}) {
+				t.Fatalf("deleted-session event = %+v", update)
+			}
+
+			after := mustSnapshot(t, environment.manager, "workspace-a")
+			if after.Revision != before.Revision+1 || len(after.ClosedEntries) != 0 ||
+				len(after.History.Undo) != 0 || len(after.History.Redo) != 0 {
+				t.Fatalf(
+					"deleted-session snapshot revision=%d closed=%+v history=(%d,%d), want revision %d and no restore history",
+					after.Revision,
+					after.ClosedEntries,
+					len(after.History.Undo),
+					len(after.History.Redo),
+					before.Revision+1,
+				)
+			}
+			for _, windowID := range []WindowID{
+				"deleted-floating",
+				"deleted-tiled",
+				"deleted-stack",
+				"deleted-pinned",
+				"deleted-minimized",
+				"deleted-other-desktop",
+				"deleted-closed",
+			} {
+				if _, exists := after.Windows[windowID]; exists {
+					t.Fatalf("deleted window %q remains in snapshot", windowID)
+				}
+			}
+			for _, windowID := range []WindowID{"keep-stack", "keep-session", "keep-latest"} {
+				if _, exists := after.Windows[windowID]; !exists {
+					t.Fatalf("unrelated window %q was removed", windowID)
+				}
+			}
+			desktopTwoIndex, desktopTwoExists := desktopIndexByID(&after, "desktop-two")
+			if !desktopTwoExists {
+				t.Fatal("deleted-only desktop was removed")
+			}
+			desktopTwo := after.Desktops[desktopTwoIndex]
+			if len(desktopTwo.Groups) != 0 || len(desktopTwo.Floating) != 0 || len(desktopTwo.FloatingStacks) != 0 {
+				t.Fatalf("deleted-only desktop was not left empty: %+v", after.Desktops[desktopTwoIndex])
+			}
+			requireValidSnapshot(t, after)
+
+			clients, err := environment.manager.Clients(t.Context(), "workspace-a")
+			if err != nil {
+				t.Fatalf("Clients() error = %v", err)
+			}
+			if len(clients) != 1 || valueOrZero(clients[0].FocusedWindowID) != "keep-latest" ||
+				clients[0].ActiveDesktopID != "desktop-default" {
+				t.Fatalf("repaired client view = %+v", clients)
+			}
+			for _, windowID := range clients[0].FocusOrder {
+				if strings.HasPrefix(string(windowID), "deleted-") {
+					t.Fatalf("deleted window remains in focus order = %+v", clients[0].FocusOrder)
+				}
+			}
+
+			otherWorkspace := mustSnapshot(t, environment.manager, "workspace-b")
+			if _, exists := otherWorkspace.Windows["other-workspace"]; !exists {
+				t.Fatal("window in another workspace was removed")
+			}
+
+			commitsBeforeNoOp := len(environment.repository.Commits("workspace-a"))
+			if err := environment.manager.ReconcileDeletedSession(
+				t.Context(),
+				"workspace-a",
+				deletedSession,
+			); err != nil {
+				t.Fatalf("ReconcileDeletedSession(no-op) error = %v", err)
+			}
+			noOp := mustSnapshot(t, environment.manager, "workspace-a")
+			if noOp.Revision != after.Revision ||
+				len(environment.repository.Commits("workspace-a")) != commitsBeforeNoOp {
+				t.Fatalf(
+					"repeated reconciliation revision=%d commits=%d, want revision %d commits %d",
+					noOp.Revision,
+					len(environment.repository.Commits("workspace-a")),
+					after.Revision,
+					commitsBeforeNoOp,
+				)
+			}
+			reopened := executeTestCommand(t, environment.manager, "workspace-a", nil, ReopenCommand{})
+			if reopened.Applied || reopened.Snapshot.Revision != after.Revision {
+				t.Fatalf("reopen after deleted-session reconciliation = %+v", reopened)
+			}
+		},
+	)
+
+	t.Run("Should clear redo history that only contains the deleted session", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		const deletedSession = "session-redo-only"
+		openSessionTestWindow(
+			t,
+			environment.manager,
+			"workspace-a",
+			"deleted-redo",
+			deletedSession,
+			"desktop-default",
+		)
+		undone := executeTestCommand(t, environment.manager, "workspace-a", nil, UndoLayoutCommand{})
+		if _, exists := undone.Snapshot.Windows["deleted-redo"]; exists || len(undone.Snapshot.History.Redo) == 0 {
+			t.Fatalf("undo snapshot = %+v, want deleted window only in redo history", undone.Snapshot)
+		}
+
+		before := undone.Snapshot
+		if err := environment.manager.ReconcileDeletedSession(
+			t.Context(),
+			"workspace-a",
+			deletedSession,
+		); err != nil {
+			t.Fatalf("ReconcileDeletedSession() error = %v", err)
+		}
+		after := mustSnapshot(t, environment.manager, "workspace-a")
+		if after.Revision != before.Revision+1 || len(after.History.Undo) != 0 || len(after.History.Redo) != 0 {
+			t.Fatalf("history-only reconciliation snapshot = %+v, want one revision and empty history", after)
+		}
+		_, err := environment.manager.Execute(t.Context(), CommandRequest{
+			WorkspaceID:      "workspace-a",
+			ExpectedRevision: after.Revision,
+			Payload:          RedoLayoutCommand{},
+		})
+		if !errors.Is(err, ErrHistoryBoundary) {
+			t.Fatalf("RedoLayoutCommand() error = %v, want history boundary", err)
+		}
+		if _, exists := mustSnapshot(t, environment.manager, "workspace-a").Windows["deleted-redo"]; exists {
+			t.Fatal("redo resurrected the deleted session window")
+		}
+	})
+
+	t.Run("Should clear undo history after the deleted close entry is evicted", func(t *testing.T) {
+		t.Parallel()
+		config := DefaultConfig()
+		config.ClosedEntryLimit = 1
+		environment := newTestEnvironment(t, config, "workspace-a")
+		const deletedSession = "session-evicted-close"
+		openSessionTestWindow(
+			t,
+			environment.manager,
+			"workspace-a",
+			"deleted-evicted",
+			deletedSession,
+			"desktop-default",
+		)
+		executeTestCommand(t, environment.manager, "workspace-a", nil, CloseWindowCommand{WindowID: "deleted-evicted"})
+		openTestWindow(t, environment.manager, "workspace-a", nil, "unrelated-closed", "desktop-default")
+		executeTestCommand(t, environment.manager, "workspace-a", nil, CloseWindowCommand{WindowID: "unrelated-closed"})
+
+		before := mustSnapshot(t, environment.manager, "workspace-a")
+		for _, entry := range before.ClosedEntries {
+			for _, window := range entry.Windows {
+				if windowBelongsToSession(window, deletedSession) {
+					t.Fatalf("deleted session still has a closed entry after eviction: %+v", before.ClosedEntries)
+				}
+			}
+		}
+		if !historyContainsDeletedSession(before.History, deletedSession) {
+			t.Fatal("test setup did not retain the deleted session in history")
+		}
+
+		if err := environment.manager.ReconcileDeletedSession(t.Context(), "workspace-a", deletedSession); err != nil {
+			t.Fatalf("ReconcileDeletedSession() error = %v", err)
+		}
+		after := mustSnapshot(t, environment.manager, "workspace-a")
+		if after.Revision != before.Revision+1 || len(after.History.Undo) != 0 || len(after.History.Redo) != 0 {
+			t.Fatalf("evicted-entry reconciliation snapshot = %+v, want one revision and empty history", after)
+		}
+	})
+}
+
+func openSessionTestWindow(
+	t *testing.T,
+	manager *Manager,
+	workspaceID WorkspaceID,
+	windowID WindowID,
+	sessionID string,
+	desktopID DesktopID,
+) Result {
+	t.Helper()
+	key := sessionID
+	return executeTestCommand(t, manager, workspaceID, nil, OpenWindowCommand{Window: WindowSpec{
+		ID:           windowID,
+		App:          "session",
+		InstanceKey:  &key,
+		Route:        testRoute(fmt.Sprintf("/session/%s", sessionID)),
+		DesktopID:    desktopID,
+		FloatingRect: fullRect(),
+	}})
+}
+
 func TestWindowTabNavigationV3(t *testing.T) {
 	t.Run(
 		"Should cap navigation at the effective limit while retaining newest ancestors [UT-008][UT-031]",

@@ -616,6 +616,7 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 // releasing only their names; every non-dismissed row still reserves its name.
 // Owning layer: GlobalDB migration stream. Canonical suite: global_db_worktree_test.go.
 func TestGlobalDBWorktreeNameReservationMigration(t *testing.T) {
+	t.Parallel()
 	t.Run("Should preserve dismissed tombstones and release names after migration", func(t *testing.T) {
 		t.Parallel()
 

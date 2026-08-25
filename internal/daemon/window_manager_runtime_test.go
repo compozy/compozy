@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/clientstate"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -381,6 +382,38 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 		}
 		if len(clients) != 1 || clients[0].ClientID != clientID {
 			t.Fatalf("Clients(after rollback) = %#v, want browser-a", clients)
+		}
+	})
+}
+
+func TestWindowManagerWorkspaceResolverErrorClassification(t *testing.T) {
+	t.Parallel()
+	transientErr := errors.New("workspace store temporarily unavailable")
+	store := &windowManagerWorkspaceStoreStub{err: transientErr}
+	resolver, err := workspacepkg.NewResolver(store, workspacepkg.WithLogger(discardLogger()))
+	if err != nil {
+		t.Fatalf("workspace.NewResolver() error = %v", err)
+	}
+	windowResolver, err := newWindowManagerStoreWorkspaceResolver(resolver, discardLogger())
+	if err != nil {
+		t.Fatalf("newWindowManagerStoreWorkspaceResolver() error = %v", err)
+	}
+
+	t.Run("Should preserve transient resolver errors for retry", func(t *testing.T) {
+		_, err := windowResolver.ResolveWorkspace(t.Context(), "ws-transient")
+		if !errors.Is(err, transientErr) {
+			t.Fatalf("ResolveWorkspace() error = %v, want transient store error", err)
+		}
+		if errors.Is(err, clientstate.ErrWorkspaceNotFound) {
+			t.Fatalf("ResolveWorkspace() error = %v, must not classify transient failure as absence", err)
+		}
+	})
+
+	t.Run("Should classify confirmed absence as terminal", func(t *testing.T) {
+		store.err = workspacepkg.ErrWorkspaceNotFound
+		_, err := windowResolver.ResolveWorkspace(t.Context(), "ws-missing")
+		if !errors.Is(err, clientstate.ErrWorkspaceNotFound) {
+			t.Fatalf("ResolveWorkspace() error = %v, want clientstate absence", err)
 		}
 	})
 }

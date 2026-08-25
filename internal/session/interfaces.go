@@ -85,6 +85,12 @@ type NetworkPeerLifecycle interface {
 	LeaveChannel(ctx context.Context, sessionID string) error
 }
 
+// WindowReconciler removes durable session windows after a session
+// deletion has committed its catalog mutation.
+type WindowReconciler interface {
+	ReconcileDeletedSession(ctx context.Context, profileID, workspaceID, sessionID string) error
+}
+
 // TurnEndNotifier is invoked once after a prompt turn finishes dispatching.
 type TurnEndNotifier func(sessionID string)
 

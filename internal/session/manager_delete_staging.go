@@ -21,13 +21,14 @@ const (
 )
 
 type stagedSessionDelete struct {
-	info          *Info
-	owner         store.SessionDBOwner
-	originalPath  string
-	stagedPath    string
-	committedPath string
-	capabilities  *sessionDeleteCapabilities
-	attachments   *stagedAttachmentDelete
+	info                        *Info
+	owner                       store.SessionDBOwner
+	originalPath                string
+	stagedPath                  string
+	committedPath               string
+	capabilities                *sessionDeleteCapabilities
+	attachments                 *stagedAttachmentDelete
+	windowReconciliationPending bool
 }
 
 type workspaceUnregisterPreparation struct {
@@ -402,7 +403,7 @@ func (m *Manager) commitStagedSessionDeletes(ctx context.Context, staged []stage
 				cleanupErr = errors.Join(cleanupErr, verifyErr)
 				attachmentErr := commitStagedAttachmentDelete(entry.attachments)
 				cleanupErr = errors.Join(cleanupErr, attachmentErr)
-				if verifyErr == nil && attachmentErr == nil {
+				if verifyErr == nil && attachmentErr == nil && !entry.windowReconciliationPending {
 					cleanupErr = errors.Join(
 						cleanupErr,
 						m.removeStagedSessionDelete(entry, entry.committedPath),

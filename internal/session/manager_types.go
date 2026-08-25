@@ -177,6 +177,12 @@ type Manager struct {
 	notifier                     Notifier
 	networkPeers                 NetworkPeerLifecycle
 	participationResolver        participation.Resolver
+	sessionWindowReconciler      WindowReconciler
+	windowReconciliationCtx      context.Context
+	windowReconciliationCancel   context.CancelFunc
+	windowReconciliationMu       sync.Mutex
+	windowReconciliationClosed   bool
+	windowReconciliationWG       sync.WaitGroup
 	turnEndNotifier              TurnEndNotifier
 	spawnWakeNotifier            SpawnWakeNotifier
 	inputAugmenter               PromptInputAugmenter

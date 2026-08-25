@@ -223,6 +223,7 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 }
 
 func TestGlobalDBSchedulerCatchUpPolicyMigration(t *testing.T) {
+	t.Parallel()
 	t.Run("Should preserve scheduler state while hard-cutting catch-up policy values", func(t *testing.T) {
 		t.Parallel()
 
@@ -1333,8 +1334,7 @@ func TestGlobalDBAutomationListsSearchPageAndIsolateWorkspaces(t *testing.T) {
 }
 
 func TestGlobalDBAutomationSuggestionMigrations(t *testing.T) {
-	// Keep these full-history fixtures serial: migration helpers share a process-wide
-	// lock, and parallel suite contention can exhaust the package timeout under -race.
+	t.Parallel()
 	t.Run("Should append the v20 schema and preserve suggestions across reopen", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
 		prefixDB, err := openGlobalMigrationPrefixDatabase(t, path, automationSuggestionMigrationPrefix(t))

@@ -5,13 +5,17 @@ import (
 	"database/sql"
 	"errors"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
 )
 
-const globalMigrationTestTimeout = 3 * time.Minute
+const globalMigrationTestTimeout = 5 * time.Minute
+
+var globalMigrationTestPrefixMu sync.Mutex
+var globalMigrationTestUpgradeSlots = make(chan struct{}, 2)
 
 func globalMigrationTestContext(t *testing.T) context.Context {
 	t.Helper()
@@ -27,6 +31,8 @@ func openGlobalMigrationPrefixDatabase(
 	stream store.MigrationStream,
 ) (*sql.DB, error) {
 	t.Helper()
+	globalMigrationTestPrefixMu.Lock()
+	defer globalMigrationTestPrefixMu.Unlock()
 	if _, err := os.Stat(path); err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			return nil, err
@@ -51,6 +57,8 @@ func applyGlobalMigrationPrefix(
 	stream store.MigrationStream,
 ) error {
 	t.Helper()
+	globalMigrationTestPrefixMu.Lock()
+	defer globalMigrationTestPrefixMu.Unlock()
 
 	return store.Apply(globalMigrationTestContext(t), db, stream)
 }
@@ -65,6 +73,8 @@ func openGlobalMigrationUpgradeWithOptions(
 	options ...OpenOption,
 ) (*GlobalDB, error) {
 	t.Helper()
+	globalMigrationTestUpgradeSlots <- struct{}{}
+	defer func() { <-globalMigrationTestUpgradeSlots }()
 
 	return OpenGlobalDB(globalMigrationTestContext(t), path, options...)
 }

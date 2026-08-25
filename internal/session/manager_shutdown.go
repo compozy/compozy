@@ -11,6 +11,7 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	if m == nil {
 		return nil
 	}
+	m.stopDeletedSessionWindowReconciliation()
 	var shutdownErr error
 	if m.waitRegistry != nil {
 		m.waitRegistry.close()
@@ -34,5 +35,6 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	if err := m.shutdownQueryStoreRuntime(ctx); err != nil {
 		shutdownErr = errors.Join(shutdownErr, fmt.Errorf("session: shut down query store runtime: %w", err))
 	}
+	m.waitForDeletedSessionWindowReconciliation()
 	return shutdownErr
 }

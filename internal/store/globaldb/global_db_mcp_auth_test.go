@@ -504,6 +504,7 @@ func TestMCPOAuthRegistrationStorePersistsTargetScopedDCRState(t *testing.T) {
 }
 
 func TestMCPAuthTokenScopeMigration(t *testing.T) {
+	t.Parallel()
 	t.Run("Should hard-cut name-only tokens while preserving scoped marketplace secrets", func(t *testing.T) {
 		t.Parallel()
 

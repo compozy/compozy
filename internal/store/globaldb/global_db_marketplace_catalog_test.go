@@ -56,8 +56,7 @@ func TestMarketplaceCatalogReopenAfterRestart(t *testing.T) {
 }
 
 func TestMarketplaceCatalogManifestV2Migration(t *testing.T) {
-	// Keep this full-history fixture serial: migration helpers share a process-wide
-	// lock, and parallel suite contention previously exhausted its operation context.
+	t.Parallel()
 	t.Run("Should discard every cached v1 catalog projection before the v2 reader opens", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
 		legacy, err := sql.Open(sqliteDriverName, path)
@@ -69,7 +68,7 @@ func TestMarketplaceCatalogManifestV2Migration(t *testing.T) {
 			closeErr := legacy.Close()
 			t.Fatalf("Apply(global through v31) error = %v; close error = %v", err, closeErr)
 		}
-		ctx := testutil.Context(t)
+		ctx := globalMigrationTestContext(t)
 		if _, err := legacy.ExecContext(
 			ctx,
 			`INSERT INTO marketplace_catalog_state (kind, manifest_version, generated_at, fetched_at, stale, last_error)

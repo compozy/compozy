@@ -172,6 +172,14 @@ func WithSessionCatalog(catalog store.SessionCatalog) Option {
 	}
 }
 
+// WithWindowReconciler injects the daemon-owned window cleanup invoked
+// after a session catalog deletion succeeds.
+func WithWindowReconciler(reconciler WindowReconciler) Option {
+	return func(manager *Manager) {
+		manager.sessionWindowReconciler = reconciler
+	}
+}
+
 // WithManagedInputLifecycle injects the daemon-owned managed prompt callbacks.
 func WithManagedInputLifecycle(lifecycle ManagedInputLifecycle) Option {
 	return func(manager *Manager) {

@@ -21,6 +21,7 @@ import (
 // Boundary IN: a production v18 GlobalDB prefix with one cached source row.
 // Boundary OUT: head repository reads after close and reopen.
 func TestGlobalDBModelCatalogPricingMigration(t *testing.T) {
+	t.Parallel()
 	t.Run("Should preserve cached model prices through the head upgrade", func(t *testing.T) {
 		t.Parallel()
 

@@ -140,6 +140,7 @@ func reportTestMainError(format string, args ...any) {
 }
 
 func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
+	t.Parallel()
 	t.Run("Should verify the exact permanent default profile without repairing it", func(t *testing.T) {
 		t.Parallel()
 
@@ -420,7 +421,7 @@ func TestGlobalDBRepositoryComposition(t *testing.T) {
 	t.Run("Should initialize every embedded repository after open", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshTestGlobalDB(t)
+		globalDB := openTestGlobalDB(t)
 		facadeType := reflect.TypeFor[GlobalDB]()
 		facadeValue := reflect.ValueOf(globalDB).Elem()
 		for field := range facadeType.Fields() {
@@ -464,7 +465,7 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 				}
 			}
 		})
-		ctx := testutil.Context(t)
+		ctx := globalMigrationTestContext(t)
 		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO loop_config (
 			workspace_id, loop_name, human_gate_enabled, enabled_checks_json, iteration_cap
 		) VALUES ('ws-loop-environment', 'delivery', 0, '{}', 7)`); err != nil {
@@ -651,6 +652,7 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 }
 
 func TestGlobalDBPhase0HomeWorkspaceMigration(t *testing.T) {
+	t.Parallel()
 	t.Run("Should re-home synthetic workspace data without cascade loss", func(t *testing.T) {
 		t.Parallel()
 

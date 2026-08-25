@@ -15,6 +15,7 @@ import (
 // Boundary IN: a v17 global database with cost-bearing and cost-free token aggregates.
 // Boundary OUT: observer estimation and public session/task projections.
 func TestGlobalDBTokenCostMigration(t *testing.T) {
+	t.Parallel()
 	t.Run("Should preserve token costs and assign legacy provenance", func(t *testing.T) {
 		t.Parallel()
 

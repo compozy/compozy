@@ -106,6 +106,7 @@ func TestGlobalDBToolApprovalPending(t *testing.T) {
 }
 
 func TestGlobalDBToolApprovalPendingMigration(t *testing.T) {
+	t.Parallel()
 	t.Run("Should upgrade 00077 to 00078 and preserve pending state across reopen [IT-020]", func(t *testing.T) {
 		t.Parallel()
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)

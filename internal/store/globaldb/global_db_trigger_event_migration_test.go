@@ -15,6 +15,7 @@ import (
 // Boundary IN: a v59 global database containing producer-backed and impossible trigger events.
 // Boundary OUT: runtime registration, which consumes the migrated definitions.
 func TestGlobalDBTriggerEventHardCutMigration(t *testing.T) {
+	t.Parallel()
 	t.Run(
 		"Should delete impossible triggers and their overlays while preserving supported definitions and run history",
 		func(t *testing.T) {
@@ -29,7 +30,7 @@ func TestGlobalDBTriggerEventHardCutMigration(t *testing.T) {
 			if err != nil {
 				t.Fatalf("OpenSQLiteDatabase(v59 prefix) error = %v", err)
 			}
-			ctx := testutil.Context(t)
+			ctx := globalMigrationTestContext(t)
 			seedTriggerEventHardCutFixture(ctx, t, prefixDB)
 			if err := prefixDB.Close(); err != nil {
 				t.Fatalf("prefixDB.Close() error = %v", err)

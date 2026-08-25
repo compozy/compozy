@@ -44,6 +44,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithWorkspaceResolver(deps.WorkspaceResolver),
 			session.WithWorktreeResolver(deps.WorktreeResolver),
 			session.WithParticipationResolver(deps.ParticipationResolver),
+			session.WithWindowReconciler(deps.WindowReconciler),
 			session.WithSandboxRegistry(deps.SandboxRegistry),
 			session.WithSessionSupervision(deps.SessionSupervision),
 			session.WithSessionBusyInputConfig(deps.SessionBusyInput),
