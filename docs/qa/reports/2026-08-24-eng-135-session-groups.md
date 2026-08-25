@@ -64,7 +64,7 @@ None.
 
 ## Focused Verification
 
-- `bunx turbo run test --filter=./web -- --run src/components/assistant-ui/__tests__/session-timeline.logic.test.ts src/components/assistant-ui/__tests__/timeline-scroll-anchoring.test.ts src/components/assistant-ui/__tests__/session-thread.test.tsx` — PASS (130 tests).
+- `bunx turbo run test --filter=./web --force -- --run src/components/assistant-ui/__tests__/session-timeline.logic.test.ts src/components/assistant-ui/__tests__/timeline-scroll-anchoring.test.ts src/components/assistant-ui/__tests__/session-thread.test.tsx` — PASS (131 tests after the review remediation).
 - `bunx turbo run typecheck --filter=./web` — PASS.
 - Targeted `oxfmt --check` and `oxlint --deny-warnings` — PASS (0 warnings, 0 errors).
 - First `make gate` — FAIL in the unrelated `use-window-manager-stream.test.tsx` test (`expected null to be "workspace:home"`); 713/714 web test files passed.
