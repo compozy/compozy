@@ -7,6 +7,11 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (m *ExposeManager) planMissingExposureDirectories(root string) ([]string, error) {
@@ -20,10 +25,10 @@ func (m *ExposeManager) planMissingExposureDirectories(root string) ([]string, e
 		info, statErr := m.fs.Lstat(current)
 		if statErr == nil {
 			if !info.IsDir() {
-				return nil, newExposureError(
-					ExposureCodeNameConflict, "", current,
-					fmt.Sprintf("expose target root component %q is not a directory", current), nil,
-				)
+				return nil, newExposureError(exposureErrorParams{
+					code: ExposureCodeNameConflict, path: current,
+					message: fmt.Sprintf("expose target root component %q is not a directory", current),
+				})
 			}
 			break
 		}
@@ -95,13 +100,10 @@ func (m *ExposeManager) rollbackCompletedExposures(
 			results[index].OK = false
 			results[index].Exposure = nil
 			results[index].RolledBack = rollbackErr == nil
-			results[index].Err = newExposureError(
-				ExposureCodeRolledBack,
-				commit.preflight.target,
-				commit.preflight.linkPath,
-				fmt.Sprintf("exposure to %q was rolled back", commit.preflight.target),
-				nil,
-			)
+			results[index].Err = newExposureError(exposureErrorParams{
+				code: ExposureCodeRolledBack, target: commit.preflight.target, path: commit.preflight.linkPath,
+				message: fmt.Sprintf("exposure to %q was rolled back", commit.preflight.target),
+			})
 			results[index].CleanupErr = rollbackErr
 		}
 		if rollbackErr != nil {
@@ -136,6 +138,9 @@ func (m *ExposeManager) removeEmptyExposureDirectories(created []string) error {
 }
 
 func (m *ExposeManager) removeProvenExposureLink(record ExposureRecord) error {
+	if err := m.validateRecordedExposurePath(record); err != nil {
+		return err
+	}
 	info, err := m.fs.Lstat(record.LinkPath)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
@@ -144,29 +149,103 @@ func (m *ExposeManager) removeProvenExposureLink(record ExposureRecord) error {
 		return fmt.Errorf("skills: inspect exposure link %q: %w", record.LinkPath, err)
 	}
 	if info.Mode()&os.ModeSymlink == 0 {
-		return newExposureError(
-			ExposureCodeForeignLink,
-			record.TargetSlug,
-			record.LinkPath,
-			fmt.Sprintf("exposure path %q is no longer the recorded symlink", record.LinkPath),
-			nil,
-		)
+		return newExposureError(exposureErrorParams{
+			code: ExposureCodeForeignLink, target: record.TargetSlug, path: record.LinkPath,
+			message: fmt.Sprintf("exposure path %q is no longer the recorded symlink", record.LinkPath),
+		})
 	}
 	target, err := m.fs.Readlink(record.LinkPath)
 	if err != nil {
 		return fmt.Errorf("skills: read exposure link %q: %w", record.LinkPath, err)
 	}
 	if target != record.LinkTarget {
-		return newExposureError(
-			ExposureCodeForeignLink,
-			record.TargetSlug,
-			record.LinkPath,
-			fmt.Sprintf("exposure path %q points to foreign target %q", record.LinkPath, target),
-			nil,
-		)
+		return newExposureError(exposureErrorParams{
+			code: ExposureCodeForeignLink, target: record.TargetSlug, path: record.LinkPath,
+			message: fmt.Sprintf("exposure path %q points to foreign target %q", record.LinkPath, target),
+		})
 	}
 	if err := m.fs.Remove(record.LinkPath); err != nil {
 		return fmt.Errorf("skills: remove exposure link %q: %w", record.LinkPath, err)
 	}
 	return nil
+}
+
+func (m *ExposeManager) validateRecordedExposurePath(record ExposureRecord) error {
+	owner, err := exposureOwnerFromRecord(record)
+	if err != nil {
+		return err
+	}
+	root, err := m.recordedTargetRoot(owner, record.TargetSlug)
+	if err != nil {
+		return err
+	}
+	expected, err := resolveExposeDest(root.Dir, record.SkillName)
+	if err != nil {
+		return err
+	}
+	if filepath.Clean(expected) != filepath.Clean(record.LinkPath) {
+		return newExposureError(exposureErrorParams{
+			code: ExposureCodeForeignLink, target: record.TargetSlug, path: record.LinkPath,
+			message: fmt.Sprintf("recorded exposure path %q is outside its configured target root", record.LinkPath),
+		})
+	}
+	canonicalRoot, err := m.fs.EvalSymlinks(root.Dir)
+	if err != nil {
+		return fmt.Errorf("skills: resolve exposure target root %q: %w", root.Dir, err)
+	}
+	canonicalParent, err := m.fs.EvalSymlinks(filepath.Dir(record.LinkPath))
+	if err != nil {
+		return fmt.Errorf("skills: resolve exposure link parent %q: %w", filepath.Dir(record.LinkPath), err)
+	}
+	if filepath.Clean(canonicalParent) != filepath.Clean(canonicalRoot) {
+		return newExposureError(exposureErrorParams{
+			code: ExposureCodeForeignLink, target: record.TargetSlug, path: record.LinkPath,
+			message: fmt.Sprintf("exposure path %q resolves outside its configured target root", record.LinkPath),
+		})
+	}
+	return nil
+}
+
+func (m *ExposeManager) recordedTargetRoot(
+	owner exposureOwner,
+	target string,
+) (compozyconfig.SkillRootSpec, error) {
+	for _, root := range m.knownRoots {
+		if root.SourceSlug == strings.TrimSpace(target) && root.Kind == compozyconfig.RootKindPreset &&
+			sameExposureScope(root.ResourceScope.Normalize(), owner.resource) {
+			return root, nil
+		}
+	}
+	return compozyconfig.SkillRootSpec{}, newExposureError(exposureErrorParams{
+		code: ExposureCodeForeignLink, target: target,
+		message: fmt.Sprintf("recorded exposure target %q is no longer an approved provider root", target),
+	})
+}
+
+func exposureOwnerFromRecord(record ExposureRecord) (exposureOwner, error) {
+	switch record.OwnerScope {
+	case store.SkillExposureOwnerUser:
+		return exposureOwner{
+			scope:    record.OwnerScope,
+			resource: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+		}, nil
+	case store.SkillExposureOwnerWorkspace:
+		workspaceID := strings.TrimSpace(record.WorkspaceID)
+		if workspaceID == "" {
+			return exposureOwner{}, newExposureError(exposureErrorParams{
+				code: ExposureCodeForeignLink, target: record.TargetSlug, path: record.LinkPath,
+				message: "recorded workspace exposure has no workspace id",
+			})
+		}
+		return exposureOwner{
+			scope:       record.OwnerScope,
+			workspaceID: workspaceID,
+			resource:    resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: workspaceID},
+		}, nil
+	default:
+		return exposureOwner{}, newExposureError(exposureErrorParams{
+			code: ExposureCodeForeignLink, target: record.TargetSlug, path: record.LinkPath,
+			message: "recorded exposure has an unsupported owner scope",
+		})
+	}
 }

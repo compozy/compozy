@@ -363,6 +363,9 @@ func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T)
 		},
 	)
 
+	// Invariant: isolated provider homes override each native provider's state directory.
+	// Owning layer: session provider-runtime integration coverage.
+	// Canonical suite: TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome.
 	t.Run("Should override native provider directories for isolated homes", func(t *testing.T) {
 		t.Parallel()
 
@@ -375,7 +378,7 @@ func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T)
 			{provider: "openclaw", envKey: "OPENCLAW_STATE_DIR"},
 		}
 		for _, test := range tests {
-			t.Run(test.provider, func(t *testing.T) {
+			t.Run("Should override "+test.provider+" native directory for isolated homes", func(t *testing.T) {
 				t.Parallel()
 
 				homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())

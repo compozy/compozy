@@ -56,6 +56,7 @@ type Registry struct {
 	globalLoaded                              bool
 	globalSnapshots                           map[string]filesnap.Snapshot
 	globalDiagnostics                         []SkillDiagnostic
+	resourceWorkspaceDiagnostics              map[string][]SkillDiagnostic
 	workspaceDisabled                         map[string][]string
 	profileDisabled                           map[string][]string
 	workspaceProfileDisabled                  map[string][]string
@@ -64,15 +65,17 @@ type Registry struct {
 	globalVersion    atomic.Int64
 	configGeneration atomic.Int64
 
-	cfg               RegistryConfig
-	pendingConfig     *RegistryConfig
-	pendingGeneration int64
-	pendingProjection *resourceSkillProjection
-	pendingRevision   int64
-	logger            *slog.Logger
-	now               func() time.Time
-	events            store.EventSummaryStore
-	activationContext ActivationContextProvider
+	cfg                         RegistryConfig
+	pendingConfig               *RegistryConfig
+	pendingGeneration           int64
+	pendingProjection           *resourceSkillProjection
+	pendingRevision             int64
+	pendingGlobalDiagnostics    []SkillDiagnostic
+	pendingWorkspaceDiagnostics map[string][]SkillDiagnostic
+	logger                      *slog.Logger
+	now                         func() time.Time
+	events                      store.EventSummaryStore
+	activationContext           ActivationContextProvider
 }
 
 type skillToggleScope int
@@ -117,10 +120,12 @@ func NewRegistry(cfg RegistryConfig, opts ...Option) *Registry {
 		resourceWorkspaceCommandCandidates:        make(map[string][]*Skill),
 		resourceWorkspaceProfileCommandCandidates: make(map[string][]*Skill),
 		globalSnapshots:                           make(map[string]filesnap.Snapshot),
+		resourceWorkspaceDiagnostics:              make(map[string][]SkillDiagnostic),
 		workspaceDisabled:                         make(map[string][]string),
 		profileDisabled:                           make(map[string][]string),
 		workspaceProfileDisabled:                  make(map[string][]string),
 		wsCache:                                   make(map[string]*wsCache),
+		pendingWorkspaceDiagnostics:               make(map[string][]SkillDiagnostic),
 		cfg:                                       cfg,
 		logger:                                    slog.Default(),
 		now:                                       time.Now,
@@ -273,6 +278,7 @@ func (r *Registry) refreshWorkspaceCacheLocked(
 		commandCandidates: cloneCommandSkillSlice(workspaceCommandCandidates),
 		diagnostics:       workspaceDiagnostics,
 		snapshots:         load.snapshots,
+		rootPaths:         append([]string(nil), load.rootPaths...),
 		lastAccess:        now,
 		globalVersion:     currentGlobalVersion,
 	}

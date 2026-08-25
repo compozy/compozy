@@ -53,16 +53,20 @@ func (s *Service) Update(ctx context.Context, req UpdateRequest) (items []Update
 
 // Remove removes one installed marketplace skill.
 func (s *Service) Remove(ctx context.Context, name string) (RemoveResult, error) {
+	normalizedName, err := NormalizeSkillName(name)
+	if err != nil {
+		return RemoveResult{}, err
+	}
+	installed, err := FindInstalledSkill(s.homePaths.SkillsDir, normalizedName)
+	if err != nil {
+		return RemoveResult{}, err
+	}
 	if s.exposures != nil {
-		installed, err := FindInstalledSkill(s.homePaths.SkillsDir, name)
-		if err != nil {
-			return RemoveResult{}, err
-		}
 		if err := s.exposures.CleanupCanonicalDir(ctx, installed.Dir); err != nil {
 			return RemoveResult{}, err
 		}
 	}
-	return RemoveSkill(s.homePaths.SkillsDir, name)
+	return removeInstalledSkill(s.homePaths.SkillsDir, installed)
 }
 
 // ListInstalled returns the global marketplace-backed skill installation projection.

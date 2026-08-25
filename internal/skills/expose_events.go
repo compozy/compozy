@@ -75,16 +75,22 @@ func (m *ExposeManager) emitExposureFailure(
 	linkPath string,
 	err error,
 ) {
-	record := ExposureRecord{TargetSlug: target, LinkPath: linkPath}
-	if skill != nil {
-		record.SkillName = strings.TrimSpace(skill.Meta.Name)
-		record.OwnerScope, record.WorkspaceID = exposureEventOwner(skill)
-	}
-	m.emitExposureEvent(ctx, eventspkg.SkillExposureOperationFailed, record, "", err)
+	m.emitSkillExposureFailure(ctx, eventspkg.SkillExposureOperationFailed, skill, target, linkPath, err)
 }
 
 func (m *ExposeManager) emitExposureCleanupFailure(
 	ctx context.Context,
+	skill *Skill,
+	target string,
+	linkPath string,
+	err error,
+) {
+	m.emitSkillExposureFailure(ctx, eventspkg.SkillExposureCleanupFailed, skill, target, linkPath, err)
+}
+
+func (m *ExposeManager) emitSkillExposureFailure(
+	ctx context.Context,
+	eventType string,
 	skill *Skill,
 	target string,
 	linkPath string,
@@ -95,7 +101,7 @@ func (m *ExposeManager) emitExposureCleanupFailure(
 		record.SkillName = strings.TrimSpace(skill.Meta.Name)
 		record.OwnerScope, record.WorkspaceID = exposureEventOwner(skill)
 	}
-	m.emitExposureEvent(ctx, eventspkg.SkillExposureCleanupFailed, record, "", err)
+	m.emitExposureEvent(ctx, eventType, record, "", err)
 }
 
 func (m *ExposeManager) emitExposureDivergence(ctx context.Context, state ExposureState) {

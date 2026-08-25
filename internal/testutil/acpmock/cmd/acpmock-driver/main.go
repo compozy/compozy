@@ -24,6 +24,7 @@ type cliArgs struct {
 	FixturePath     string
 	AgentName       string
 	DiagnosticsPath string
+	Provider        string
 }
 
 type sessionState struct {
@@ -38,6 +39,7 @@ type mockAgent struct {
 	agent           acpmock.AgentFixture
 	configTemplate  []acpsdk.SessionConfigOption
 	diagnosticsPath string
+	provider        string
 	lifecycleCtx    context.Context
 	cancelLifecycle context.CancelFunc
 
@@ -87,6 +89,7 @@ func main() {
 		agent:           agentFixture,
 		configTemplate:  sessionConfigOptionsFromFixture(agentFixture.ConfigOptions),
 		diagnosticsPath: strings.TrimSpace(args.DiagnosticsPath),
+		provider:        strings.TrimSpace(args.Provider),
 		lifecycleCtx:    lifecycleCtx,
 		cancelLifecycle: cancelLifecycle,
 		sessions:        make(map[string]*sessionState),
@@ -106,6 +109,7 @@ func parseArgs(argv []string) (cliArgs, error) {
 	fs.StringVar(&args.FixturePath, "fixture", "", "fixture JSON path")
 	fs.StringVar(&args.AgentName, "agent", "", "fixture agent name")
 	fs.StringVar(&args.DiagnosticsPath, "diagnostics", "", "diagnostics jsonl path")
+	fs.StringVar(&args.Provider, "provider", "", "effective runtime provider name")
 
 	if err := fs.Parse(argv); err != nil {
 		return cliArgs{}, err

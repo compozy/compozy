@@ -9,7 +9,7 @@ import (
 )
 
 var errManagedSessionSkillCLIUnsupported = errors.New(
-	"cli: managed sessions cannot run compozy skill commands; " +
+	"cli: managed sessions can run only compozy skill expose and compozy skill unexpose; " +
 		"use canonical compozy__skill_list, compozy__skill_search, or compozy__skill_view for read-only requests; " +
 		"skill install, remove, create, enable, disable, and update require an operator shell",
 )

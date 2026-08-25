@@ -2,7 +2,8 @@ import { Button, cn, MonoId, StatusDot } from "@compozy/ui";
 
 import type { SkillExposeModel } from "../hooks/use-skill-expose";
 import type { SkillExposeResultView, SkillExposureView } from "../lib/skill-exposure-view";
-import { SkillExposeTargetPicker, type SkillExposeTarget } from "./skill-expose-target-picker";
+import type { SkillExposeTarget } from "../types";
+import { SkillExposeTargetPicker } from "./skill-expose-target-picker";
 
 interface SkillExposePanelProps {
   exposures: readonly SkillExposureView[];
@@ -68,10 +69,11 @@ export function SkillExposePanel({
               onExposeAgain={() => model.expose([exposure.target])}
               onUnexpose={() => model.unexpose([exposure.target])}
               pending={pendingTargets.has(exposure.target)}
+              pendingAction={model.pendingAction}
             />
           ))}
           {pending.map(target => (
-            <PendingRow key={target} label={labelForTarget(target)} />
+            <PendingRow key={target} label={labelForTarget(target)} action={model.pendingAction} />
           ))}
         </div>
       )}
@@ -98,6 +100,7 @@ function ExposureRow({
   exposure,
   label,
   pending,
+  pendingAction,
   busy,
   onExposeAgain,
   onUnexpose,
@@ -105,6 +108,7 @@ function ExposureRow({
   exposure: SkillExposureView;
   label: string;
   pending: boolean;
+  pendingAction: "expose" | "unexpose" | null;
   busy: boolean;
   onExposeAgain: () => void;
   onUnexpose: () => void;
@@ -118,7 +122,9 @@ function ExposureRow({
     >
       <StatusDot
         className="mt-1 shrink-0"
-        label={pending ? "exposing…" : exposure.sentence}
+        label={
+          pending ? (pendingAction === "unexpose" ? "removing…" : "exposing…") : exposure.sentence
+        }
         tone={pending ? "accent" : exposure.tone}
         variant={pending || exposure.status === "foreign_conflict" ? "ring" : "solid"}
       />
@@ -132,7 +138,11 @@ function ExposureRow({
             )}
             data-testid={`${testId}-status`}
           >
-            {pending ? "exposing…" : exposure.sentence}
+            {pending
+              ? pendingAction === "unexpose"
+                ? "removing…"
+                : "exposing…"
+              : exposure.sentence}
           </span>
         </span>
         <span
@@ -179,15 +189,16 @@ function ExposureRow({
 }
 
 /** A target being written has no reconciled state yet, so it claims no status word. */
-function PendingRow({ label }: { label: string }) {
+function PendingRow({ label, action }: { label: string; action: "expose" | "unexpose" | null }) {
+  const status = action === "unexpose" ? "removing…" : "exposing…";
   return (
     <div
       className="flex min-w-0 items-center gap-2 border-b border-line py-2 last:border-b-0"
       data-testid={`${TEST_ID}-pending-${label}`}
     >
-      <StatusDot label="exposing…" tone="accent" variant="ring" />
+      <StatusDot label={status} tone="accent" variant="ring" />
       <b className="text-small-body text-subtle">{label}</b>
-      <span className="text-form-hint text-subtle">exposing…</span>
+      <span className="text-form-hint text-subtle">{status}</span>
     </div>
   );
 }

@@ -72,6 +72,8 @@ func (r *Registry) ApplyConfigGeneration(
 	r.pendingGeneration = generation
 	r.pendingProjection = nil
 	r.pendingRevision = 0
+	r.pendingGlobalDiagnostics = nil
+	r.pendingWorkspaceDiagnostics = make(map[string][]SkillDiagnostic)
 	resourceAuthority := r.resourceAuthority
 	r.mu.Unlock()
 	if resourceAuthority {
@@ -98,18 +100,12 @@ func (r *Registry) ApplyConfigGeneration(
 		return false, r.supersededGenerationError(ctx, generation, winningGeneration)
 	}
 	if err := r.writeSkillSourcesApplied(ctx, generation, *r.pendingConfig); err != nil {
-		r.pendingConfig = nil
-		r.pendingGeneration = 0
-		r.pendingProjection = nil
-		r.pendingRevision = 0
+		r.clearPendingConfigGenerationLocked()
 		r.mu.Unlock()
 		return false, err
 	}
 	r.cfg = cloneRegistryConfig(*r.pendingConfig)
-	r.pendingConfig = nil
-	r.pendingGeneration = 0
-	r.pendingProjection = nil
-	r.pendingRevision = 0
+	r.clearPendingConfigGenerationLocked()
 	r.globalSnapshots = filesnap.Clone(snapshots)
 	r.globalDiagnostics = cloneDiagnostics(diagnostics)
 	r.globalSkills = loaded
@@ -142,19 +138,15 @@ func (r *Registry) CommitConfigGeneration(ctx context.Context, generation int64)
 	}
 	projection := *r.pendingProjection
 	if err := r.writeSkillSourcesApplied(ctx, generation, *r.pendingConfig); err != nil {
-		r.pendingConfig = nil
-		r.pendingGeneration = 0
-		r.pendingProjection = nil
-		r.pendingRevision = 0
+		r.clearPendingConfigGenerationLocked()
 		r.mu.Unlock()
 		return err
 	}
 	r.cfg = cloneRegistryConfig(*r.pendingConfig)
 	r.applyResourceProjectionLocked(r.pendingRevision, projection)
-	r.pendingConfig = nil
-	r.pendingGeneration = 0
-	r.pendingProjection = nil
-	r.pendingRevision = 0
+	r.globalDiagnostics = cloneDiagnostics(r.pendingGlobalDiagnostics)
+	r.resourceWorkspaceDiagnostics = cloneWorkspaceDiagnosticMap(r.pendingWorkspaceDiagnostics)
+	r.clearPendingConfigGenerationLocked()
 	r.configGeneration.Store(generation)
 	r.mu.Unlock()
 
@@ -170,11 +162,25 @@ func (r *Registry) AbortConfigGeneration(generation int64) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.pendingGeneration == generation {
-		r.pendingConfig = nil
-		r.pendingGeneration = 0
-		r.pendingProjection = nil
-		r.pendingRevision = 0
+		r.clearPendingConfigGenerationLocked()
 	}
+}
+
+func (r *Registry) clearPendingConfigGenerationLocked() {
+	r.pendingConfig = nil
+	r.pendingGeneration = 0
+	r.pendingProjection = nil
+	r.pendingRevision = 0
+	r.pendingGlobalDiagnostics = nil
+	r.pendingWorkspaceDiagnostics = make(map[string][]SkillDiagnostic)
+}
+
+func cloneWorkspaceDiagnosticMap(source map[string][]SkillDiagnostic) map[string][]SkillDiagnostic {
+	cloned := make(map[string][]SkillDiagnostic, len(source))
+	for key, diagnostics := range source {
+		cloned[key] = cloneDiagnostics(diagnostics)
+	}
+	return cloned
 }
 
 func (r *Registry) registryConfigSnapshot(ctx context.Context) RegistryConfig {

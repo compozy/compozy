@@ -329,7 +329,7 @@ func TestSkillExposureCommandsUseCanonicalDaemonEnvelope(t *testing.T) {
 			t.Fatal("skill expose exit code = 0, want failure")
 		}
 		for _, want := range []string{
-			"Error: expose failed (1 of 2 targets; completed targets rolled back)",
+			"Error: skill exposure failed (1 of 2 targets; completed targets rolled back)",
 			"agents  rolled_back",
 			"claude  expose_name_conflict — occupied by /repo/.claude/skills/review-checklist",
 		} {
@@ -399,7 +399,7 @@ func TestSkillExposureCommandsUseCanonicalDaemonEnvelope(t *testing.T) {
 			t.Fatalf("skill create --expose stdout = %q", stdout)
 		}
 		for _, want := range []string{
-			"Error: expose failed (1 target) — the skill was created; fix the cause and run `compozy skill expose`",
+			"Error: skill exposure failed (1 target) — the skill was created; fix the cause and run `compozy skill expose`",
 			"claude  expose_target_disabled — source not enabled (enabled targets: agents)",
 		} {
 			if !strings.Contains(stderr, want) {
@@ -488,7 +488,7 @@ func TestSkillPublicTranscriptsMatchDXContract(t *testing.T) {
 		want := strings.Join([]string{
 			"NAME         review-checklist",
 			"SOURCE       workspace",
-			"DIR          /repo/.compozy/skills/review-checklist",
+			"PATH         /repo/.compozy/skills/review-checklist",
 			"EXPOSED TO   agents → /repo/.agents/skills/review-checklist (healthy)",
 			"             claude → /repo/.claude/skills/review-checklist (missing — re-expose repairs)",
 			"             codex → /repo/.codex/skills/review-checklist (broken — unexpose or re-expose repairs)",

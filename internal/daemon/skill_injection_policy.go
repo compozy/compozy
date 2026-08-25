@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/providerenv"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 )
 
@@ -45,11 +46,12 @@ func WithHarnessSkillInjectionEnvLookup(
 }
 
 type skillInjectionPolicyResolver struct {
-	mu        sync.Mutex
-	profiles  map[string]*sessionSkillInjectionProfile
-	homePaths compozyconfig.HomePaths
-	lookupEnv func(string) (string, bool)
-	logger    *slog.Logger
+	mu           sync.Mutex
+	profiles     map[string]*sessionSkillInjectionProfile
+	profileOrder []string
+	homePaths    compozyconfig.HomePaths
+	lookupEnv    func(string) (string, bool)
+	logger       *slog.Logger
 }
 
 type sessionSkillInjectionProfile struct {
@@ -57,7 +59,14 @@ type sessionSkillInjectionProfile struct {
 	provider    string
 	nativeRoots map[string]struct{}
 	logger      *slog.Logger
+	rootMu      sync.Mutex
+	rootCache   map[string]string
 }
+
+const (
+	maxSkillInjectionProfiles = 512
+	maxSkillRootCacheEntries  = 256
+)
 
 func newSkillInjectionPolicyResolver() skillInjectionPolicyResolver {
 	return skillInjectionPolicyResolver{
@@ -79,7 +88,13 @@ func (r *skillInjectionPolicyResolver) resolve(sessionCtx HarnessSessionContext)
 			return profile.filter
 		}
 		profile := r.newProfile(sessionCtx)
+		if len(r.profileOrder) >= maxSkillInjectionProfiles {
+			oldest := r.profileOrder[0]
+			r.profileOrder = r.profileOrder[1:]
+			delete(r.profiles, oldest)
+		}
 		r.profiles[key] = profile
+		r.profileOrder = append(r.profileOrder, key)
 		r.mu.Unlock()
 		return profile.filter
 	}
@@ -105,6 +120,7 @@ func (r *skillInjectionPolicyResolver) newProfile(
 		provider:    sessionCtx.Provider,
 		nativeRoots: set,
 		logger:      r.logger,
+		rootCache:   make(map[string]string),
 	}
 }
 
@@ -112,7 +128,7 @@ func (p *sessionSkillInjectionProfile) filter(skill *skillspkg.Skill) bool {
 	if p == nil || skill == nil || !nativeProviderReadsOrigin(p.provider, skill.Origin) {
 		return true
 	}
-	root := canonicalNativeSkillRoot(skill.RootDir)
+	root := p.canonicalSkillRoot(skill.RootDir)
 	if root == "" {
 		return true
 	}
@@ -133,6 +149,21 @@ func (p *sessionSkillInjectionProfile) filter(skill *skillspkg.Skill) bool {
 	return false
 }
 
+func (p *sessionSkillInjectionProfile) canonicalSkillRoot(path string) string {
+	trimmed := strings.TrimSpace(path)
+	p.rootMu.Lock()
+	defer p.rootMu.Unlock()
+	if cached, ok := p.rootCache[trimmed]; ok {
+		return cached
+	}
+	if len(p.rootCache) >= maxSkillRootCacheEntries {
+		clear(p.rootCache)
+	}
+	canonical := canonicalNativeSkillRoot(trimmed)
+	p.rootCache[trimmed] = canonical
+	return canonical
+}
+
 type nativeSkillRootResolution struct {
 	Provider           string
 	ProviderHomePolicy compozyconfig.ProviderHomePolicy
@@ -146,6 +177,10 @@ func resolveSessionNativeSkillRoots(input nativeSkillRootResolution) []string {
 	if provider == "" {
 		return nil
 	}
+	spec, ok := providerenv.NativeProviderHomeSpec(provider)
+	if !ok || spec.WorkspaceSkillDir == "" {
+		return nil
+	}
 	lookup := input.LookupEnv
 	if lookup == nil {
 		lookup = os.LookupEnv
@@ -153,48 +188,20 @@ func resolveSessionNativeSkillRoots(input nativeSkillRootResolution) []string {
 	workspace := strings.TrimSpace(input.Workspace)
 	home := nativeProviderHome(input.HomePaths, provider, input.ProviderHomePolicy)
 	roots := make([]string, 0, 2)
-	switch provider {
-	case "claude":
-		if workspace != "" {
-			roots = append(roots, filepath.Join(workspace, ".claude", "skills"))
-		}
-		configDir := lookupTrimmed(lookup, "CLAUDE_CONFIG_DIR")
-		if configDir == "" && home != "" {
-			configDir = filepath.Join(home, ".claude")
-			if input.ProviderHomePolicy == compozyconfig.ProviderHomePolicyIsolated {
-				configDir = filepath.Join(home, "claude")
-			}
-		}
-		if configDir != "" {
-			roots = append(roots, filepath.Join(configDir, "skills"))
-		}
-	case "openclaw":
-		if workspace != "" {
-			roots = append(roots, filepath.Join(workspace, ".agents", "skills"))
-		}
-		stateDir := lookupTrimmed(lookup, "OPENCLAW_STATE_DIR")
-		if input.ProviderHomePolicy == compozyconfig.ProviderHomePolicyIsolated && home != "" {
-			stateDir = filepath.Join(home, "openclaw")
-		}
-		if stateDir != "" {
-			roots = append(roots, filepath.Join(stateDir, "skills"))
-		} else if home != "" {
-			roots = append(roots, filepath.Join(home, ".agents", "skills"))
-		}
-	case "hermes":
-		if workspace != "" {
-			roots = append(roots, filepath.Join(workspace, ".agents", "skills"))
-		}
-		hermesHome := lookupTrimmed(lookup, "HERMES_HOME")
-		if input.ProviderHomePolicy == compozyconfig.ProviderHomePolicyIsolated && home != "" {
-			hermesHome = filepath.Join(home, "hermes")
-		}
-		if hermesHome == "" && home != "" {
-			hermesHome = filepath.Join(home, ".hermes")
-		}
-		if hermesHome != "" {
-			roots = append(roots, filepath.Join(hermesHome, "skills"))
-		}
+	if workspace != "" {
+		roots = append(roots, filepath.Join(workspace, spec.WorkspaceSkillDir, "skills"))
+	}
+	providerDir := ""
+	if len(spec.EnvKeys) > 0 {
+		providerDir = lookupTrimmed(lookup, spec.EnvKeys[0])
+	}
+	if input.ProviderHomePolicy == compozyconfig.ProviderHomePolicyIsolated && home != "" {
+		providerDir = filepath.Join(home, spec.IsolatedChild)
+	} else if providerDir == "" && home != "" {
+		providerDir = filepath.Join(home, spec.OperatorFallback)
+	}
+	if providerDir != "" {
+		roots = append(roots, filepath.Join(providerDir, "skills"))
 	}
 	return canonicalNativeSkillRoots(roots)
 }

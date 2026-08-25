@@ -280,24 +280,50 @@ func ensureKnownProviderHomeDirs(
 	return nil
 }
 
+// ProviderHomeSpec is the shared native-provider home and skill-discovery contract.
+type ProviderHomeSpec struct {
+	EnvKeys           []string
+	IsolatedChild     string
+	OperatorFallback  string
+	WorkspaceSkillDir string
+}
+
+var providerHomeSpecs = map[string]ProviderHomeSpec{
+	"claude": {
+		EnvKeys: []string{"CLAUDE_CONFIG_DIR"}, IsolatedChild: "claude",
+		OperatorFallback: ".claude", WorkspaceSkillDir: ".claude",
+	},
+	"codex": {
+		EnvKeys: []string{"CODEX_HOME", "PROVIDER_CODEX_HOME"}, IsolatedChild: "codex",
+	},
+	"hermes": {
+		EnvKeys: []string{"HERMES_HOME"}, IsolatedChild: "hermes",
+		OperatorFallback: ".hermes", WorkspaceSkillDir: ".agents",
+	},
+	"openclaw": {
+		EnvKeys: []string{"OPENCLAW_STATE_DIR"}, IsolatedChild: "openclaw",
+		OperatorFallback: ".agents", WorkspaceSkillDir: ".agents",
+	},
+	"opencode": {
+		EnvKeys: []string{"OPENCODE_CONFIG_DIR"}, IsolatedChild: "opencode",
+	},
+}
+
+// NativeProviderHomeSpec returns a copy of the canonical home metadata for one provider.
+func NativeProviderHomeSpec(providerName string) (ProviderHomeSpec, bool) {
+	spec, ok := providerHomeSpecs[strings.TrimSpace(providerName)]
+	spec.EnvKeys = append([]string(nil), spec.EnvKeys...)
+	return spec, ok
+}
+
 func knownProviderHomeDirs(providerName string, providerHome string) map[string]string {
-	knownDirs := map[string]map[string]string{
-		"claude": {
-			"CLAUDE_CONFIG_DIR": filepath.Join(providerHome, "claude"),
-		},
-		"codex": {
-			"CODEX_HOME":          filepath.Join(providerHome, "codex"),
-			"PROVIDER_CODEX_HOME": filepath.Join(providerHome, "codex"),
-		},
-		"hermes": {
-			"HERMES_HOME": filepath.Join(providerHome, "hermes"),
-		},
-		"openclaw": {
-			"OPENCLAW_STATE_DIR": filepath.Join(providerHome, "openclaw"),
-		},
-		"opencode": {
-			"OPENCODE_CONFIG_DIR": filepath.Join(providerHome, "opencode"),
-		},
+	spec, ok := NativeProviderHomeSpec(providerName)
+	if !ok {
+		return nil
 	}
-	return knownDirs[providerName]
+	dirs := make(map[string]string, len(spec.EnvKeys))
+	for _, key := range spec.EnvKeys {
+		dirs[key] = filepath.Join(providerHome, spec.IsolatedChild)
+	}
+	return dirs
 }

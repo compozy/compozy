@@ -59,7 +59,7 @@ export function SettingsSkillCustomSources({
       {sources.map(source => (
         <SettingsSkillSourceRow
           disabled={disabled}
-          key={source.slug}
+          key={`measured:${source.slug}`}
           onRemove={() => onRemove(source.path ?? source.slug)}
           source={source}
         />
@@ -68,7 +68,7 @@ export function SettingsSkillCustomSources({
         <PendingCustomRow
           disabled={disabled}
           entry={entry}
-          key={entry}
+          key={`pending:${entry}`}
           onRemove={() => onRemove(entry)}
         />
       ))}

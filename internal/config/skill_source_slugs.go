@@ -11,6 +11,11 @@ import (
 
 const customSourceHashLength = 6
 
+// CanonicalSkillSourcePath returns the normalized identity used by custom-source allocations.
+func CanonicalSkillSourcePath(path string) string {
+	return canonicalSkillSourcePath(path)
+}
+
 // CustomSourceSlugs allocates deterministic display slugs for a set of paths.
 func CustomSourceSlugs(paths []string) map[string]string {
 	canonicalPaths := make([]string, 0, len(paths))
@@ -35,8 +40,13 @@ func CustomSourceSlugs(paths []string) map[string]string {
 	}
 
 	allocated := make(map[string]string, len(canonicalPaths))
+	reserved := make(map[string]struct{}, len(SkillSourcePresets()))
+	for _, preset := range SkillSourcePresets() {
+		reserved[preset.Slug] = struct{}{}
+	}
 	for base, group := range groups {
-		if len(group) == 1 {
+		_, conflictsWithPreset := reserved[base]
+		if len(group) == 1 && !conflictsWithPreset {
 			allocated[group[0]] = base
 			continue
 		}
@@ -46,11 +56,6 @@ func CustomSourceSlugs(paths []string) map[string]string {
 		}
 	}
 	return allocated
-}
-
-// CustomSourceSlug returns the stable slug allocated to path within the full custom-source set.
-func CustomSourceSlug(path string, paths []string) string {
-	return CustomSourceSlugs(paths)[canonicalSkillSourcePath(path)]
 }
 
 func sanitizeSkillSourceSlug(value string) string {

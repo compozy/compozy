@@ -76,6 +76,9 @@ func (r *Registry) appendWorkspaceLoadDiagnosticsLocked(
 	resolved *workspacepkg.ResolvedWorkspace,
 ) []SkillDiagnostic {
 	if r.resourceAuthority {
+		if cacheKey := workspaceCacheKey(resolved); cacheKey != "" {
+			diagnostics = append(diagnostics, cloneDiagnostics(r.resourceWorkspaceDiagnostics[cacheKey])...)
+		}
 		return diagnostics
 	}
 	if cacheKey := workspaceCacheKey(resolved); cacheKey != "" {

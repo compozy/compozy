@@ -20,6 +20,9 @@ func skillExposureSuccessBundle(success skillExposureSuccess) outputBundle {
 	return outputBundle{
 		jsonValue: jsonValue,
 		human: func() (string, error) {
+			if success.Action != "expose" && success.Action != "unexpose" {
+				return "", fmt.Errorf("cli: unsupported skill exposure action %q", success.Action)
+			}
 			lines := make([]string, 0, len(success.Results))
 			for _, result := range success.Results {
 				path := ""
@@ -35,8 +38,6 @@ func skillExposureSuccessBundle(success skillExposureSuccess) outputBundle {
 					}
 				case "unexpose":
 					lines = append(lines, fmt.Sprintf("unexposed %s ← %s", success.Name, path))
-				default:
-					return "", fmt.Errorf("cli: unsupported skill exposure action %q", success.Action)
 				}
 			}
 			return strings.Join(lines, "\n"), nil
@@ -65,6 +66,19 @@ func skillCreateExposureBundle(
 			return "", err
 		}
 		return "created " + relativeFile + "\n" + rendered, nil
+	}
+	exposureToon := bundle.toon
+	bundle.toon = func() (string, error) {
+		rendered, err := exposureToon()
+		if err != nil {
+			return "", err
+		}
+		return renderHumanBlocks(
+			renderToonObject("created", []string{"name", "path", "file", "source", "status"}, []string{
+				created.Name, created.Path, created.File, created.Source, created.Status,
+			}),
+			rendered,
+		), nil
 	}
 	return bundle
 }

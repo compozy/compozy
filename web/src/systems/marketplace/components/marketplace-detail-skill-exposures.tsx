@@ -19,7 +19,13 @@ function MarketplaceSkillExposuresCard({ skill }: { skill: SkillPayload }) {
     <MarketplaceDetailRailCard
       data-testid="skill-exposures-card"
       icon={Link2}
-      summary={model.exposures.length > 0 ? String(model.exposures.length) : "not exposed"}
+      summary={
+        model.expose.isPending
+          ? "updating"
+          : model.exposures.length > 0
+            ? String(model.exposures.length)
+            : "not exposed"
+      }
       title="Exposures"
     >
       <SkillExposePanel

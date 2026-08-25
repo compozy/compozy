@@ -44,7 +44,6 @@ func TestExposeManager(t *testing.T) {
 		}
 		createdAt := record.UpdatedAt
 
-		time.Sleep(2 * time.Millisecond)
 		repeated, err := fixture.manager.Expose(context.Background(), fixture.skill, []string{"agents"})
 		if err != nil {
 			t.Fatalf("repeat Expose() error = %v", err)
@@ -119,16 +118,19 @@ func TestExposeManager(t *testing.T) {
 			resources.ResourceScopeKindProfile,
 			resources.ResourceScopeKindWorkspaceProfile,
 		} {
-			fixture := newExposureFixture(t, "agents")
-			fixture.skill.ResourceScope = resources.ResourceScope{Kind: kind, ID: "profile-a"}
-			_, err := fixture.manager.Expose(context.Background(), fixture.skill, []string{"agents"})
-			assertExposureCode(t, err, ExposureCodeProfileSkillNotExposable)
-			if got := fixture.store.operationCount(); got != 0 {
-				t.Fatalf("store operations = %d, want 0", got)
-			}
-			if _, err := os.Lstat(fixture.root("agents")); !errors.Is(err, os.ErrNotExist) {
-				t.Fatalf("provider root mutated, error = %v", err)
-			}
+			t.Run("Should reject "+string(kind)+" ownership", func(t *testing.T) {
+				t.Parallel()
+				fixture := newExposureFixture(t, "agents")
+				fixture.skill.ResourceScope = resources.ResourceScope{Kind: kind, ID: "profile-a"}
+				_, err := fixture.manager.Expose(context.Background(), fixture.skill, []string{"agents"})
+				assertExposureCode(t, err, ExposureCodeProfileSkillNotExposable)
+				if got := fixture.store.operationCount(); got != 0 {
+					t.Fatalf("store operations = %d, want 0", got)
+				}
+				if _, err := os.Lstat(fixture.root("agents")); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("provider root mutated, error = %v", err)
+				}
+			})
 		}
 	})
 
@@ -584,7 +586,12 @@ func newExposureFixture(t *testing.T, targets ...string) *exposureFixture {
 	if err := os.WriteFile(filepath.Join(canonical, "SKILL.md"), []byte("---\nname: review\n---\n"), 0o600); err != nil {
 		t.Fatalf("WriteFile(SKILL.md) error = %v", err)
 	}
-	repository := &memoryExposureStore{nextID: 1}
+	repository := &memoryExposureStore{
+		nextID: 1,
+		now: func() time.Time {
+			return time.Date(2026, time.August, 25, 12, 0, 0, 0, time.UTC)
+		},
+	}
 	roots := make(map[string]string, len(targets))
 	specs := make([]compozyconfig.SkillRootSpec, 0, len(targets))
 	for _, target := range targets {
@@ -616,6 +623,7 @@ type memoryExposureStore struct {
 	operations     []string
 	failCreateAt   string
 	failDeleteOnce error
+	now            func() time.Time
 }
 
 func (s *memoryExposureStore) CreateSkillExposure(
@@ -637,7 +645,7 @@ func (s *memoryExposureStore) CreateSkillExposure(
 	}
 	record.ID = s.nextID
 	s.nextID++
-	record.CreatedAt = time.Now().UTC()
+	record.CreatedAt = s.now()
 	record.UpdatedAt = record.CreatedAt
 	s.records = append(s.records, record)
 	return record, nil

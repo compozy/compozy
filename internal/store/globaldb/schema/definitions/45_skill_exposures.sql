@@ -19,8 +19,5 @@ CREATE TABLE skill_exposures (
 CREATE UNIQUE INDEX idx_skill_exposures_owner_target
 	ON skill_exposures(skill_name, owner_scope, COALESCE(workspace_id, ''), target_slug);
 
-CREATE INDEX idx_skill_exposures_skill_name
-	ON skill_exposures(skill_name);
-
 CREATE INDEX idx_skill_exposures_workspace_id
 	ON skill_exposures(workspace_id);

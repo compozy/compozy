@@ -68612,6 +68612,62 @@ export interface operations {
             agent_name?: string;
             applied: boolean;
             apply_record_id: string;
+            available_scopes: ("user" | "profile" | "workspace" | "agent")[];
+            config: {
+              allowed_marketplace_hooks?: string[];
+              allowed_marketplace_mcp?: string[];
+              custom_sources: string[];
+              disabled_skills?: string[];
+              enabled: boolean;
+              marketplace: {
+                base_url?: string;
+                registry: string;
+              };
+              poll_interval: string;
+              sources: string[];
+            };
+            diagnostics?: {
+              activation_reasons?: {
+                /** @enum {string} */
+                code:
+                  | "platform_mismatch"
+                  | "environment_context_unavailable"
+                  | "environment_mismatch"
+                  | "tool_context_unavailable"
+                  | "missing_tool"
+                  | "capability_context_unavailable"
+                  | "missing_capability";
+                gate: string;
+                message: string;
+                missing?: string[];
+              }[];
+              failure?: {
+                actual_hash?: string;
+                code: string;
+                expected_hash?: string;
+                message: string;
+              } | null;
+              name: string;
+              path?: string;
+              source?: string;
+              /** @enum {string} */
+              state: "valid" | "shadowed" | "verification_failed" | "inactive";
+              /** @enum {string} */
+              verification_status: "passed" | "warning" | "failed";
+              warnings?: {
+                message: string;
+                pattern?: string;
+                severity: string;
+              }[];
+              winning_path?: string;
+              winning_source?: string;
+            }[];
+            disabled_count: number;
+            discovered_count: number;
+            inherits?: {
+              custom_sources: boolean;
+              sources: boolean;
+            } | null;
             /** @enum {string} */
             lifecycle:
               | "live"
@@ -68619,6 +68675,10 @@ export interface operations {
               | "live-remove-if-unused"
               | "restart-required"
               | "session-rebind";
+            links?: {
+              label: string;
+              path: string;
+            }[];
             /** @enum {string} */
             next_action: "none" | "restart-daemon" | "new-session" | "retry";
             partial_failures?: {
@@ -68641,10 +68701,11 @@ export interface operations {
             profile?: string;
             restart_required?: boolean;
             restart_scope?: string;
+            runtime_available: boolean;
             /** @enum {string} */
-            scope?: "user" | "profile" | "workspace" | "agent";
+            scope: "user" | "profile" | "workspace" | "agent";
             /** @enum {string} */
-            section?:
+            section:
               | "general"
               | "persona"
               | "memory"
@@ -68657,13 +68718,43 @@ export interface operations {
               | "attention"
               | "shell"
               | "observability"
-              | "hooks-extensions"
-              | "providers"
-              | "mcp-servers"
-              | "sandboxes"
-              | "hooks";
+              | "hooks-extensions";
             skipped?: boolean;
             skipped_reason?: string;
+            sources: {
+              always_on: boolean;
+              default?: boolean;
+              enabled: boolean;
+              global_path?: string;
+              kind: string;
+              label: string;
+              path?: string;
+              roots: {
+                collisions: {
+                  name: string;
+                  qualified_form: string;
+                  winner_root_id: string;
+                }[];
+                exists: boolean;
+                native_readers: string[];
+                path: string;
+                readable: boolean;
+                root_id: string;
+                scanned_count?: number | null;
+                skill_count?: number | null;
+                skipped_links: {
+                  path: string;
+                  reason: string;
+                }[];
+                truncated: boolean;
+                verification: {
+                  blocked: number;
+                  warned: number;
+                };
+              }[];
+              slug: string;
+              workspace_path?: string;
+            }[];
             warnings?: string[];
             workspace_id?: string;
             /** @enum {string} */
@@ -69898,6 +69989,8 @@ export interface operations {
       query?: {
         /** @description Workspace id or path for resolution context */
         workspace?: string;
+        /** @description Exact profile name */
+        profile?: string;
         /** @description Logical agent name for agent-local resolution */
         for_agent?: string;
       };
@@ -69984,6 +70077,8 @@ export interface operations {
               };
               name: string;
               origin: string;
+              owner_id?: string;
+              owner_scope: string;
               provenance?: {
                 /** Format: date-time */
                 installed_at?: string | null;
@@ -70677,6 +70772,8 @@ export interface operations {
       query?: {
         /** @description Canonical workspace id for resolution context */
         workspace_id?: string;
+        /** @description Exact profile name */
+        profile?: string;
         /** @description Logical agent name for agent-local resolution */
         for_agent?: string;
       };
@@ -70766,6 +70863,8 @@ export interface operations {
               };
               name: string;
               origin: string;
+              owner_id?: string;
+              owner_scope: string;
               provenance?: {
                 /** Format: date-time */
                 installed_at?: string | null;
@@ -70941,6 +71040,8 @@ export interface operations {
       query?: {
         /** @description Workspace id or path for resolution context */
         workspace?: string;
+        /** @description Exact profile name */
+        profile?: string;
         /** @description Logical agent name for agent-local resolution */
         for_agent?: string;
       };
@@ -71116,6 +71217,8 @@ export interface operations {
       query?: {
         /** @description Workspace id or path for resolution context */
         workspace?: string;
+        /** @description Exact profile name */
+        profile?: string;
         /** @description Logical agent name for agent-local resolution */
         for_agent?: string;
       };
@@ -71291,6 +71394,8 @@ export interface operations {
       query?: {
         /** @description Workspace id or path for resolution context */
         workspace?: string;
+        /** @description Exact profile name */
+        profile?: string;
         /** @description Logical agent name for agent-local resolution */
         for_agent?: string;
       };
@@ -71563,6 +71668,8 @@ export interface operations {
       query?: {
         /** @description Workspace id or path for resolution context */
         workspace?: string;
+        /** @description Exact profile name */
+        profile?: string;
         /** @description Logical agent name for agent-local resolution */
         for_agent?: string;
       };

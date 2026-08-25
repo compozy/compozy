@@ -378,48 +378,51 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 
 func TestSkillsCatalogAugmenterFiltersBeforeCatalogSignature(t *testing.T) {
 	t.Parallel()
+	t.Run("Should compute the signature after provider-native filtering", func(t *testing.T) {
+		t.Parallel()
 
-	registry := &stubPromptSkillsRegistry{skillsByAgent: map[string][]*skillspkg.Skill{
-		"general": {
-			{Meta: skillspkg.SkillMeta{Name: "native", Description: "Native"}, Enabled: true},
-			{Meta: skillspkg.SkillMeta{Name: "managed", Description: "Managed"}, Enabled: true},
-		},
-	}}
-	resolver := &stubPromptSkillsWorkspaceResolver{resolved: workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: "ws-filter", RootDir: t.TempDir()},
-	}}
-	augmenter := newSkillsCatalogAugmenterState(
-		registry, nil, func() promptSkillsWorkspaceResolver { return resolver }, nil,
-	)
-	sess := newPromptSkillsSession("sess-filter-signature")
+		registry := &stubPromptSkillsRegistry{skillsByAgent: map[string][]*skillspkg.Skill{
+			"general": {
+				{Meta: skillspkg.SkillMeta{Name: "native", Description: "Native"}, Enabled: true},
+				{Meta: skillspkg.SkillMeta{Name: "managed", Description: "Managed"}, Enabled: true},
+			},
+		}}
+		resolver := &stubPromptSkillsWorkspaceResolver{resolved: workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: "ws-filter", RootDir: t.TempDir()},
+		}}
+		augmenter := newSkillsCatalogAugmenterState(
+			registry, nil, func() promptSkillsWorkspaceResolver { return resolver }, nil,
+		)
+		sess := newPromptSkillsSession("sess-filter-signature")
 
-	full, err := augmenter.Augment(t.Context(), sess, "first")
-	if err != nil {
-		t.Fatalf("Augment(full) error = %v", err)
-	}
-	if !strings.Contains(full, `name="native"`) {
-		t.Fatalf("full catalog = %q, want native skill", full)
-	}
-	policy := ResolvedHarnessContext{Policy: ResolvedHarnessPolicy{
-		SkillInjectionFilter: func(skill *skillspkg.Skill) bool { return skill.Meta.Name != "native" },
-	}}
-	filtered, err := augmenter.AugmentWithPolicy(t.Context(), sess, "second", policy)
-	if err != nil {
-		t.Fatalf("AugmentWithPolicy(filtered) error = %v", err)
-	}
-	if strings.Contains(filtered, `name="native"`) || !strings.Contains(filtered, `name="managed"`) {
-		t.Fatalf("filtered catalog = %q, want only managed skill", filtered)
-	}
-	if strings.Contains(filtered, `unchanged="true"`) {
-		t.Fatalf("filtered catalog = %q, signature was computed before filtering", filtered)
-	}
-	repeat, err := augmenter.AugmentWithPolicy(t.Context(), sess, "third", policy)
-	if err != nil {
-		t.Fatalf("AugmentWithPolicy(repeat) error = %v", err)
-	}
-	if !strings.Contains(repeat, `unchanged="true"`) {
-		t.Fatalf("repeat catalog = %q, want unchanged marker", repeat)
-	}
+		full, err := augmenter.Augment(t.Context(), sess, "first")
+		if err != nil {
+			t.Fatalf("Augment(full) error = %v", err)
+		}
+		if !strings.Contains(full, `name="native"`) {
+			t.Fatalf("full catalog = %q, want native skill", full)
+		}
+		policy := ResolvedHarnessContext{Policy: ResolvedHarnessPolicy{
+			SkillInjectionFilter: func(skill *skillspkg.Skill) bool { return skill.Meta.Name != "native" },
+		}}
+		filtered, err := augmenter.AugmentWithPolicy(t.Context(), sess, "second", policy)
+		if err != nil {
+			t.Fatalf("AugmentWithPolicy(filtered) error = %v", err)
+		}
+		if strings.Contains(filtered, `name="native"`) || !strings.Contains(filtered, `name="managed"`) {
+			t.Fatalf("filtered catalog = %q, want only managed skill", filtered)
+		}
+		if strings.Contains(filtered, `unchanged="true"`) {
+			t.Fatalf("filtered catalog = %q, signature was computed before filtering", filtered)
+		}
+		repeat, err := augmenter.AugmentWithPolicy(t.Context(), sess, "third", policy)
+		if err != nil {
+			t.Fatalf("AugmentWithPolicy(repeat) error = %v", err)
+		}
+		if !strings.Contains(repeat, `unchanged="true"`) {
+			t.Fatalf("repeat catalog = %q, want unchanged marker", repeat)
+		}
+	})
 }
 
 func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing.T) {

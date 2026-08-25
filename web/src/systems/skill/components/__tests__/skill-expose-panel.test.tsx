@@ -59,7 +59,7 @@ import {
 import { skillExposePartialFailureFixture, skillExposuresFixture } from "../../mocks";
 import type { SkillExposeResult, SkillPayload } from "../../types";
 import { SkillExposePanel } from "../skill-expose-panel";
-import type { SkillExposeTarget } from "../skill-expose-target-picker";
+import type { SkillExposeTarget } from "../../types";
 
 const TARGETS: SkillExposeTarget[] = [
   { slug: "agents", label: "Universal (.agents)", hint: ".agents/skills" },
@@ -77,6 +77,7 @@ function exposeModel(overrides: Partial<SkillExposeModel> = {}): SkillExposeMode
     unexpose: vi.fn(),
     dismiss: vi.fn(),
     ...overrides,
+    pendingAction: overrides.pendingAction ?? null,
   };
 }
 

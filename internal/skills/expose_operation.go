@@ -23,12 +23,12 @@ type exposePreflight struct {
 }
 
 type exposeCommit struct {
-	preflight    exposePreflight
-	record       ExposureRecord
-	inserted     bool
-	createdLink  bool
-	createdDirs  []string
-	originalLink ExposureStatus
+	preflight   exposePreflight
+	record      ExposureRecord
+	inserted    bool
+	createdLink bool
+	createdDirs []string
+	state       ExposureState
 }
 
 // Expose creates provider-root links after every requested target passes preflight.
@@ -43,8 +43,8 @@ func (m *ExposeManager) Expose(
 	if m == nil {
 		return nil, errors.New("skills: expose manager is required")
 	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	exposureMutationMu.Lock()
+	defer exposureMutationMu.Unlock()
 
 	results := exposureTargetResults(targets)
 	owner, canonicalDir, err := m.prepareSkill(skill)
@@ -54,6 +54,7 @@ func (m *ExposeManager) Expose(
 	}
 	preflights, err := m.preflightExpose(ctx, skill, owner, canonicalDir, targets, results)
 	if err != nil {
+		m.failUnresolvedExposureTargets(ctx, skill, results, err)
 		return results, &ExposureBatchError{Cause: err}
 	}
 
@@ -68,7 +69,7 @@ func (m *ExposeManager) Expose(
 		commit, commitErr := m.commitExposure(ctx, skill, owner, canonicalDir, preflight)
 		if commitErr == nil {
 			completed = append(completed, commit)
-			state := m.reconcileRecord(commit.record)
+			state := commit.state
 			results[index].OK = true
 			results[index].Exposure = &state
 			m.emitExposureEvent(ctx, exposureEventCreated, commit.record, state.Status, nil)
@@ -84,9 +85,25 @@ func (m *ExposeManager) Expose(
 		}
 		rollbackErr := m.rollbackCompletedExposures(ctx, skill, completed, results)
 		joined := errors.Join(commitErr, cleanupErr, rollbackErr)
-		return results, &ExposureBatchError{RolledBack: len(completed) > 0, Cause: joined}
+		rolledBack := len(completed) > 0 && cleanupErr == nil && rollbackErr == nil
+		return results, &ExposureBatchError{RolledBack: rolledBack, Cause: joined}
 	}
 	return results, nil
+}
+
+func (m *ExposeManager) failUnresolvedExposureTargets(
+	ctx context.Context,
+	skill *Skill,
+	results []TargetResult,
+	err error,
+) {
+	for index := range results {
+		if results[index].OK || results[index].Err != nil {
+			continue
+		}
+		results[index].Err = err
+		m.emitExposureFailure(ctx, skill, results[index].Target, exposureErrorPath(err), err)
+	}
 }
 
 func (m *ExposeManager) preflightExpose(
@@ -98,7 +115,9 @@ func (m *ExposeManager) preflightExpose(
 	results []TargetResult,
 ) ([]exposePreflight, error) {
 	if len(targets) == 0 {
-		return nil, newExposureError(ExposureCodeTargetInvalid, "", "", "at least one expose target is required", nil)
+		return nil, newExposureError(exposureErrorParams{
+			code: ExposureCodeTargetInvalid, message: "at least one expose target is required",
+		})
 	}
 	records, err := m.store.ListSkillExposuresByOwner(ctx, skill.Meta.Name, owner.scope, owner.workspaceID)
 	if err != nil {
@@ -109,9 +128,10 @@ func (m *ExposeManager) preflightExpose(
 	for index, rawTarget := range targets {
 		target := strings.TrimSpace(rawTarget)
 		if _, duplicate := seenTargets[target]; duplicate {
-			err := newExposureError(
-				ExposureCodeTargetInvalid, target, "", fmt.Sprintf("duplicate expose target %q", target), nil,
-			)
+			err := newExposureError(exposureErrorParams{
+				code: ExposureCodeTargetInvalid, target: target,
+				message: fmt.Sprintf("duplicate expose target %q", target),
+			})
 			results[index].Err = err
 			m.emitExposureFailure(ctx, skill, target, "", err)
 			return nil, err
@@ -137,37 +157,37 @@ func (m *ExposeManager) preflightExpose(
 			preflight.record = &record
 			preflight.state = m.reconcileRecord(record).Status
 			if filepath.Clean(record.CanonicalDir) != filepath.Clean(canonicalDir) || record.LinkPath != linkPath {
-				err := newExposureError(
-					ExposureCodeNameConflict, target, linkPath,
-					fmt.Sprintf("expose target %q is owned by another skill location", target), nil,
-				)
+				err := newExposureError(exposureErrorParams{
+					code: ExposureCodeNameConflict, target: target, path: linkPath,
+					message: fmt.Sprintf("expose target %q is owned by another skill location", target),
+				})
 				results[index].Err = err
 				m.emitExposureFailure(ctx, skill, target, linkPath, err)
 				return nil, err
 			}
 			if preflight.state == ExposureForeignConflict {
-				err := newExposureError(
-					ExposureCodeForeignLink, target, linkPath,
-					fmt.Sprintf("exposure path %q is not the recorded CompozyOS link", linkPath), nil,
-				)
+				err := newExposureError(exposureErrorParams{
+					code: ExposureCodeForeignLink, target: target, path: linkPath,
+					message: fmt.Sprintf("exposure path %q is not the recorded CompozyOS link", linkPath),
+				})
 				results[index].Err = err
 				m.emitExposureFailure(ctx, skill, target, linkPath, err)
 				return nil, err
 			}
 			preflight.linkTarget = record.LinkTarget
 		} else if _, statErr := m.fs.Lstat(linkPath); statErr == nil {
-			err := newExposureError(
-				ExposureCodeNameConflict, target, linkPath,
-				fmt.Sprintf("exposure path %q is occupied by a foreign entry", linkPath), nil,
-			)
+			err := newExposureError(exposureErrorParams{
+				code: ExposureCodeNameConflict, target: target, path: linkPath,
+				message: fmt.Sprintf("exposure path %q is occupied by a foreign entry", linkPath),
+			})
 			results[index].Err = err
 			m.emitExposureFailure(ctx, skill, target, linkPath, err)
 			return nil, err
 		} else if !errors.Is(statErr, os.ErrNotExist) {
-			err := newExposureError(
-				ExposureCodeNameConflict, target, linkPath,
-				fmt.Sprintf("cannot inspect exposure path %q", linkPath), statErr,
-			)
+			err := newExposureError(exposureErrorParams{
+				code: ExposureCodeNameConflict, target: target, path: linkPath,
+				message: fmt.Sprintf("cannot inspect exposure path %q", linkPath), cause: statErr,
+			})
 			results[index].Err = err
 			m.emitExposureFailure(ctx, skill, target, linkPath, err)
 			return nil, err
@@ -191,14 +211,14 @@ func (m *ExposeManager) commitExposure(
 	canonicalDir string,
 	preflight exposePreflight,
 ) (exposeCommit, error) {
-	commit := exposeCommit{preflight: preflight, originalLink: preflight.state}
+	commit := exposeCommit{preflight: preflight}
 	createdDirs, err := m.createExposureDirectories(preflight.missingDirs)
 	commit.createdDirs = createdDirs
 	if err != nil {
-		return commit, newExposureError(
-			ExposureCodeLinkUnsupported, preflight.target, preflight.root.Dir,
-			fmt.Sprintf("cannot create expose target root %q", preflight.root.Dir), err,
-		)
+		return commit, newExposureError(exposureErrorParams{
+			code: ExposureCodeLinkUnsupported, target: preflight.target, path: preflight.root.Dir,
+			message: fmt.Sprintf("cannot create expose target root %q", preflight.root.Dir), cause: err,
+		})
 	}
 	if preflight.record != nil {
 		commit.record = *preflight.record
@@ -220,25 +240,20 @@ func (m *ExposeManager) commitExposure(
 		commit.inserted = true
 	}
 	if err := m.fs.Symlink(commit.record.LinkTarget, commit.record.LinkPath); err != nil {
-		return commit, newExposureError(
-			ExposureCodeLinkUnsupported,
-			preflight.target,
-			preflight.linkPath,
-			fmt.Sprintf("cannot create skill link at %q; copying is not supported", preflight.linkPath),
-			err,
-		)
+		return commit, newExposureError(exposureErrorParams{
+			code: ExposureCodeLinkUnsupported, target: preflight.target, path: preflight.linkPath,
+			message: fmt.Sprintf("cannot create skill link at %q; copying is not supported", preflight.linkPath), cause: err,
+		})
 	}
 	commit.createdLink = true
 	state := m.reconcileRecord(commit.record)
 	if state.Status != ExposureHealthy {
-		return commit, newExposureError(
-			ExposureCodeLinkUnsupported,
-			preflight.target,
-			preflight.linkPath,
-			fmt.Sprintf("created skill link at %q did not reconcile as healthy", preflight.linkPath),
-			nil,
-		)
+		return commit, newExposureError(exposureErrorParams{
+			code: ExposureCodeLinkUnsupported, target: preflight.target, path: preflight.linkPath,
+			message: fmt.Sprintf("created skill link at %q did not reconcile as healthy", preflight.linkPath),
+		})
 	}
+	commit.state = state
 	return commit, nil
 }
 

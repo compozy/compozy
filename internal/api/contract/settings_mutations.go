@@ -258,6 +258,24 @@ type SettingsApplyResponse struct {
 	SkippedReason    string                        `json:"skipped_reason,omitempty"`
 }
 
+// SettingsSkillsMutationResponse returns the refreshed skills read model with apply metadata.
+type SettingsSkillsMutationResponse struct {
+	SettingsSkillsResponse
+	WriteTarget      SettingsWriteTargetKind       `json:"write_target,omitempty"`
+	Applied          bool                          `json:"applied"`
+	Lifecycle        SettingsApplyLifecycle        `json:"lifecycle"`
+	ApplyRecordID    string                        `json:"apply_record_id"`
+	ActiveGeneration int64                         `json:"active_generation"`
+	ActiveConfigHash string                        `json:"active_config_hash"`
+	NextAction       SettingsApplyNextAction       `json:"next_action"`
+	RestartRequired  bool                          `json:"restart_required,omitempty"`
+	RestartScope     string                        `json:"restart_scope,omitempty"`
+	Warnings         []string                      `json:"warnings,omitempty"`
+	PartialFailures  []SettingsApplyFailurePayload `json:"partial_failures,omitempty"`
+	Skipped          bool                          `json:"skipped,omitempty"`
+	SkippedReason    string                        `json:"skipped_reason,omitempty"`
+}
+
 type ConfigApplyRecordPayload struct {
 	ID                string                  `json:"id"`
 	DesiredConfigHash string                  `json:"desired_config_hash"`

@@ -7,7 +7,7 @@ import { skillExposeResultViews, toSkillExposureView } from "../../lib/skill-exp
 import { skillExposePartialFailureFixture, skillExposuresFixture } from "../../mocks";
 import type { SkillExposeResult } from "../../types";
 import { SkillExposePanel } from "../skill-expose-panel";
-import type { SkillExposeTarget } from "../skill-expose-target-picker";
+import type { SkillExposeTarget } from "../../types";
 
 const noop = () => undefined;
 
@@ -27,6 +27,7 @@ function exposeModel(overrides: Partial<SkillExposeModel> = {}): SkillExposeMode
     unexpose: noop,
     dismiss: noop,
     ...overrides,
+    pendingAction: overrides.pendingAction ?? null,
   };
 }
 

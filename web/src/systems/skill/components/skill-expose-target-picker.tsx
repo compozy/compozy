@@ -9,13 +9,7 @@ import {
   DropdownMenuTrigger,
   Spinner,
 } from "@compozy/ui";
-
-export interface SkillExposeTarget {
-  slug: string;
-  label: string;
-  /** The folder convention this target writes into, e.g. `.agents`. */
-  hint: string | null;
-}
+import type { SkillExposeTarget } from "../types";
 
 interface SkillExposeTargetPickerProps {
   targets: readonly SkillExposeTarget[];

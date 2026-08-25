@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 
+	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 
 	"github.com/compozy/compozy/internal/skills"
@@ -18,12 +19,18 @@ func SkillPayloadFromSkill(skill *skills.Skill) contract.SkillPayload {
 		return contract.SkillPayload{}
 	}
 
+	owner := skill.ResourceScope.Normalize()
+	if owner.Kind == "" {
+		owner.Kind = resources.ResourceScopeKindUser
+	}
 	payload := contract.SkillPayload{
 		Name:        skill.Meta.Name,
 		Description: skill.Meta.Description,
 		Version:     skill.Meta.Version,
 		Source:      skills.SkillSourceName(skill.Source),
 		Origin:      strings.TrimSpace(skill.Origin),
+		OwnerScope:  string(owner.Kind),
+		OwnerID:     owner.ID,
 		Enabled:     skill.Enabled,
 		Activation:  skillActivationPayload(skill),
 		Dir:         skill.Dir,

@@ -76,6 +76,7 @@ func skillInfoItemFromRecord(record SkillRecord) skillInfoItem {
 		Activation:  record.Activation,
 		Metadata:    cloneMetadata(record.Metadata),
 		Provenance:  record.Provenance,
+		Exposures:   []contract.SkillExposurePayload{},
 	}
 	if record.Exposures != nil {
 		item.Exposures = append([]contract.SkillExposurePayload(nil), (*record.Exposures)...)
@@ -128,7 +129,8 @@ func skillWhereItemFromRecords(detail SkillRecord, shadows SkillShadowsRecord) s
 	item := skillWhereItem{
 		Name: detail.Name, Source: strings.TrimSpace(detail.Source), Origin: strings.TrimSpace(detail.Origin),
 		Dir: detail.Dir, Winner: shadows.Winner,
-		Shadows: append([]contract.SkillShadowEntryPayload(nil), shadows.Shadows...),
+		Shadows:   append([]contract.SkillShadowEntryPayload(nil), shadows.Shadows...),
+		Exposures: []contract.SkillExposurePayload{},
 	}
 	if detail.Exposures != nil {
 		item.Exposures = append([]contract.SkillExposurePayload(nil), (*detail.Exposures)...)

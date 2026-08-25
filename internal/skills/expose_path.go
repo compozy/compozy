@@ -28,13 +28,10 @@ func validateExposeName(name string) error {
 		trimmed == "." || trimmed == ".." || strings.ContainsAny(trimmed, `/\`) ||
 		strings.ContainsRune(trimmed, '\x00') || !exposureNamePattern.MatchString(trimmed)
 	if unsafe {
-		return newExposureError(
-			ExposureCodeUnsafeSkillName,
-			"",
-			"",
-			fmt.Sprintf("skill name %q is unsafe as a filesystem path segment", name),
-			decodeErr,
-		)
+		return newExposureError(exposureErrorParams{
+			code: ExposureCodeUnsafeSkillName, message: fmt.Sprintf("skill name %q is unsafe as a filesystem path segment", name),
+			cause: decodeErr,
+		})
 	}
 	return nil
 }
@@ -48,13 +45,11 @@ func resolveExposeDest(root string, name string) (string, error) {
 		return "", fmt.Errorf("skills: make exposure root %q absolute: %w", root, err)
 	}
 	if unsafeRootSymlink(absoluteRoot) {
-		return "", newExposureError(
-			ExposureCodeNameConflict,
-			"",
-			absoluteRoot,
-			fmt.Sprintf("exposure root %q traverses a symlinked parent", absoluteRoot),
-			fileutil.ErrPathOutsideRoot,
-		)
+		return "", newExposureError(exposureErrorParams{
+			code: ExposureCodeNameConflict, path: absoluteRoot,
+			message: fmt.Sprintf("exposure root %q traverses a symlinked parent", absoluteRoot),
+			cause:   fileutil.ErrPathOutsideRoot,
+		})
 	}
 	canonicalRoot, err := fileutil.CanonicalPathWithExistingPrefix(absoluteRoot)
 	if err != nil {
@@ -73,13 +68,11 @@ func resolveExposeDest(root string, name string) (string, error) {
 		return "", fmt.Errorf("skills: relate exposure destination %q to root %q: %w", candidate, canonicalRoot, err)
 	}
 	if !contained {
-		return "", newExposureError(
-			ExposureCodeNameConflict,
-			"",
-			candidate,
-			fmt.Sprintf("exposure destination %q escapes preset root %q", candidate, canonicalRoot),
-			fileutil.ErrPathOutsideRoot,
-		)
+		return "", newExposureError(exposureErrorParams{
+			code: ExposureCodeNameConflict, path: candidate,
+			message: fmt.Sprintf("exposure destination %q escapes preset root %q", candidate, canonicalRoot),
+			cause:   fileutil.ErrPathOutsideRoot,
+		})
 	}
 	return filepath.Clean(candidate), nil
 }

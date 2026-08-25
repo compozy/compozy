@@ -62,7 +62,7 @@ export function SkillsSettingsPage() {
   }
 
   const { envelope, draft, setDraft, restart } = page;
-  const isUserLayer = page.selection.scope === "user";
+  const isPersonalPolicyScope = page.selection.scope === "user";
   const scopeLabel =
     page.selection.scope === "user"
       ? page.personalLabel.toLowerCase()
@@ -102,7 +102,7 @@ export function SkillsSettingsPage() {
       ]}
       restart={restart}
       saveBar={
-        isUserLayer ? (
+        isPersonalPolicyScope ? (
           <SettingsSaveBar
             onReset={page.handleResetPolicy}
             onSave={page.handleSavePolicy}
@@ -119,7 +119,9 @@ export function SkillsSettingsPage() {
           description="Compozy isn't reachable right now. Skill counts are hidden until it's back. You can still change these settings."
         />
       ) : null}
-      {isUserLayer ? <SettingsSkillsEngineSection draft={draft} onChange={setDraft} /> : null}
+      {isPersonalPolicyScope ? (
+        <SettingsSkillsEngineSection draft={draft} onChange={setDraft} />
+      ) : null}
       <SettingsSkillsScopeSelector
         selection={page.selection}
         availableScopes={page.availableScopes}
@@ -133,7 +135,7 @@ export function SkillsSettingsPage() {
         onSelectWorkspace={page.selectWorkspace}
       />
       <SettingsSkillSourcesSection model={page.sources} />
-      {isUserLayer ? (
+      {isPersonalPolicyScope ? (
         <>
           <SettingsSkillsMarketplaceSection draft={draft} onChange={setDraft} />
           <SettingsSkillsManageSection />
@@ -176,7 +178,7 @@ export function SkillsSettingsPage() {
           )
         }
       />
-      {isUserLayer ? (
+      {isPersonalPolicyScope ? (
         <SettingsAdvancedFold
           data-testid="settings-page-skills-advanced"
           label="Advanced — endpoint & install policy"

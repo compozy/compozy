@@ -99,6 +99,15 @@ func (s *stubSettingsService) GetSection(
 	if s.GetSectionFn != nil {
 		return s.GetSectionFn(ctx, req)
 	}
+	if req.Section == settingspkg.SectionSkills {
+		return settingspkg.SectionEnvelope{
+			Section: req.Section, Scope: req.Scope, WorkspaceID: req.WorkspaceID,
+			ProfileName: req.ProfileName, AgentName: req.AgentName,
+			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser, settingspkg.ScopeProfile,
+				settingspkg.ScopeWorkspace, settingspkg.ScopeAgent},
+			Skills: &settingspkg.SkillsSection{Config: compozyconfig.SkillsConfig{}},
+		}, nil
+	}
 	return settingspkg.SectionEnvelope{}, nil
 }
 
@@ -2831,6 +2840,18 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 								FallbackAgentEnabled: false,
 								Personalization:      false,
 							},
+						}, nil
+					case settingspkg.SectionSkills:
+						return settingspkg.SectionEnvelope{
+							Section: req.Section,
+							Scope:   req.Scope,
+							AvailableScopes: []settingspkg.ScopeKind{
+								settingspkg.ScopeUser,
+								settingspkg.ScopeProfile,
+								settingspkg.ScopeWorkspace,
+								settingspkg.ScopeAgent,
+							},
+							Skills: &settingspkg.SkillsSection{Config: compozyconfig.SkillsConfig{}},
 						}, nil
 					default:
 						return settingspkg.SectionEnvelope{}, nil

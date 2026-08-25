@@ -14,6 +14,14 @@ func (h *BaseHandlers) respondSettingsSkillsError(c *gin.Context, err error) {
 		h.respondError(c, StatusForSettingsError(err), err)
 		return
 	}
+	h.respondSkillSourceValidationError(c, err, sourceError)
+}
+
+func (h *BaseHandlers) respondSkillSourceValidationError(
+	c *gin.Context,
+	err error,
+	sourceError *compozyconfig.SkillSourceValidationError,
+) {
 	c.JSON(StatusForSettingsError(err), contract.SkillSourceValidationErrorResponse{
 		Error: contract.SkillSourceValidationErrorPayload{
 			Code:           sourceError.Code,
@@ -32,6 +40,6 @@ func (h *BaseHandlers) respondSettingsSkillsTypedError(c *gin.Context, err error
 	if !errors.As(err, &sourceError) {
 		return false
 	}
-	h.respondSettingsSkillsError(c, err)
+	h.respondSkillSourceValidationError(c, err, sourceError)
 	return true
 }

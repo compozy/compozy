@@ -1,4 +1,5 @@
 import { useSelector } from "@xstate/store-react";
+import { useEffect } from "react";
 
 import { useStoreBinding } from "@/hooks/use-store-binding";
 
@@ -52,28 +53,6 @@ function errorMessage(error: unknown): string | null {
   return null;
 }
 
-/**
- * Placeholder for the window before the first read resolves. The page renders a
- * spinner then, so nothing here reaches the screen — it only keeps hook order
- * stable while `envelope` is still null.
- */
-const EMPTY_ENVELOPE: SettingsSkillsSection = {
-  section: "skills",
-  scope: "user",
-  available_scopes: ["user"],
-  runtime_available: false,
-  discovered_count: 0,
-  disabled_count: 0,
-  config: {
-    enabled: false,
-    marketplace: { registry: "" },
-    poll_interval: "",
-    sources: [],
-    custom_sources: [],
-  },
-  sources: [],
-};
-
 function envelopeScopeKey(envelope: SettingsSkillsSection): string {
   return [
     envelope.scope,
@@ -88,6 +67,13 @@ export function useSettingsSkillsPage() {
   const scope = useSettingsSkillsScope();
   const disabledMutation = useUpdateSettingsSkills();
   const policyMutation = useUpdateSettingsSkills();
+  const resetDisabledMutation = disabledMutation.reset;
+  const resetPolicyMutation = policyMutation.reset;
+
+  useEffect(() => {
+    resetDisabledMutation();
+    resetPolicyMutation();
+  }, [scope.scopeKey, resetDisabledMutation, resetPolicyMutation]);
 
   const query = useSettingsSkills(scope.filter);
   const envelope = query.data ?? null;
@@ -165,8 +151,8 @@ export function useSettingsSkillsPage() {
   };
 
   const sources = useSettingsSkillSources({
-    envelope: envelope ?? EMPTY_ENVELOPE,
-    draft: draft ?? EMPTY_ENVELOPE.config,
+    envelope,
+    draft,
     filter: scope.filter,
     scopeKey: scope.scopeKey,
     isSaving: draftFlow.pending.sources !== null,

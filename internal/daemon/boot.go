@@ -284,7 +284,7 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 			state.skillsRegistry,
 			func() session.AgentResolver { return agentCatalogDependency(state.agentCatalog) },
 			func() promptSkillsWorkspaceResolver { return state.workspaceResolver },
-			state.profiles,
+			bootProfileNameResolver{state: state},
 		)
 		state.mcpResolver = skills.NewMCPResolver(state.cfg.Skills, state.logger)
 		appendProviders = append(appendProviders, skills.NewCatalogProvider(state.skillsRegistry))
@@ -328,7 +328,7 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 		func() promptSkillsWorkspaceResolver {
 			return state.workspaceResolver
 		},
-		state.profiles,
+		bootProfileNameResolver{state: state},
 	)
 	var skillsCatalog session.PromptInputAugmenter
 	if skillsCatalogAugmenter != nil {

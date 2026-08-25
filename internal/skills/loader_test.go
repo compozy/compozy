@@ -217,34 +217,36 @@ func TestParseSkillContentWarnsOnUnknownFields(t *testing.T) {
 }
 
 func TestParseSkillContentAcceptsEcosystemFrontmatterWithoutWarnings(t *testing.T) {
-	original := slog.Default()
-	var logs bytes.Buffer
-	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
-	t.Cleanup(func() {
-		slog.SetDefault(original)
+	t.Run("Should accept portable ecosystem frontmatter without warnings", func(t *testing.T) {
+		original := slog.Default()
+		var logs bytes.Buffer
+		slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+		t.Cleanup(func() {
+			slog.SetDefault(original)
+		})
+
+		ecosystemFields := []string{
+			"license", "compatibility", "allowed-tools", "when_to_use", "argument-hint", "arguments",
+			"disable-model-invocation", "user-invocable", "disallowed-tools", "model", "effort", "context",
+			"agent", "background", "hooks", "paths", "shell", "aliases",
+		}
+		lines := []string{"---", "name: ecosystem", "description: portable metadata"}
+		for _, field := range ecosystemFields {
+			lines = append(lines, field+": true")
+		}
+		lines = append(lines, "---", "body")
+
+		meta, _, err := parseSkillContent([]byte(strings.Join(lines, "\n")))
+		if err != nil {
+			t.Fatalf("parseSkillContent() error = %v", err)
+		}
+		if meta.Name != "ecosystem" {
+			t.Fatalf("parseSkillContent().Name = %q, want ecosystem", meta.Name)
+		}
+		if strings.Contains(logs.String(), "unknown frontmatter field") {
+			t.Fatalf("parseSkillContent() logs = %q, want ecosystem fields accepted without warnings", logs.String())
+		}
 	})
-
-	ecosystemFields := []string{
-		"license", "compatibility", "allowed-tools", "when_to_use", "argument-hint", "arguments",
-		"disable-model-invocation", "user-invocable", "disallowed-tools", "model", "effort", "context",
-		"agent", "background", "hooks", "paths", "shell", "aliases",
-	}
-	lines := []string{"---", "name: ecosystem", "description: portable metadata"}
-	for _, field := range ecosystemFields {
-		lines = append(lines, field+": true")
-	}
-	lines = append(lines, "---", "body")
-
-	meta, _, err := parseSkillContent([]byte(strings.Join(lines, "\n")))
-	if err != nil {
-		t.Fatalf("parseSkillContent() error = %v", err)
-	}
-	if meta.Name != "ecosystem" {
-		t.Fatalf("parseSkillContent().Name = %q, want ecosystem", meta.Name)
-	}
-	if strings.Contains(logs.String(), "unknown frontmatter field") {
-		t.Fatalf("parseSkillContent() logs = %q, want ecosystem fields accepted without warnings", logs.String())
-	}
 }
 
 func TestParseSkillFile(t *testing.T) {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { SettingsApiError, type SettingsErrorDetail } from "../adapters/settings-api-error";
 import {
@@ -17,6 +17,7 @@ import { groupSkillSources, type SkillSourceGroups } from "../lib/skill-sources-
 import type {
   SettingsSkillsSection,
   SettingsSkillSourceInherits,
+  SettingsUpdateSkillsRequest,
   SettingsUpdateSkillsFilter,
 } from "../types";
 import { useUpdateSettingsSkills } from "./use-settings-mutations";
@@ -26,7 +27,7 @@ type SkillsConfig = SettingsSkillsSection["config"];
 export type SkillSourceKey = "sources" | "custom_sources";
 
 const SOURCE_KEYS = ["sources", "custom_sources"] as const;
-const INHERITED_BY_DEFAULT: SettingsSkillSourceInherits = { sources: true, custom_sources: true };
+const NO_INHERITANCE: SettingsSkillSourceInherits = { sources: false, custom_sources: false };
 const NOTHING_ARMED: Record<SkillSourceKey, boolean> = { sources: false, custom_sources: false };
 
 export interface SkillSourceKeyPosture {
@@ -63,8 +64,8 @@ export interface SettingsSkillSourcesModel {
 }
 
 interface SettingsSkillSourcesInput {
-  envelope: SettingsSkillsSection;
-  draft: SkillsConfig;
+  envelope: SettingsSkillsSection | null;
+  draft: SkillsConfig | null;
   filter: SettingsUpdateSkillsFilter;
   /** Identity of the scope being edited; arming resets when it changes. */
   scopeKey: string;
@@ -114,11 +115,11 @@ export function useSettingsSkillSources(
   input: SettingsSkillSourcesInput
 ): SettingsSkillSourcesModel {
   const { envelope, draft, filter, scopeKey } = input;
-  const workspaceScope = envelope.scope === "workspace";
+  const workspaceScope = envelope?.scope === "workspace";
   const repositoryProfileScope =
     filter.scope === "profile" && typeof filter.workspace_id === "string";
   const readOnlyReason =
-    envelope.scope === "agent"
+    envelope?.scope === "agent"
       ? ("agent" as const)
       : repositoryProfileScope
         ? ("repository-profile" as const)
@@ -126,20 +127,28 @@ export function useSettingsSkillSources(
   const readOnly = readOnlyReason !== null;
   const sourcesMutation = useUpdateSettingsSkills();
   const inheritMutation = useUpdateSettingsSkills();
+  const resetSourcesMutation = sourcesMutation.reset;
+  const resetInheritMutation = inheritMutation.reset;
   const [armState, setArmState] = useState<ArmState>({ scopeKey, keys: NOTHING_ARMED });
   const armed = armState.scopeKey === scopeKey ? armState.keys : NOTHING_ARMED;
 
-  const inherits = envelope.inherits ?? INHERITED_BY_DEFAULT;
-  const baseline = envelope.config;
-  const isDirty = !sameSourcesConfig(baseline, draft);
+  useEffect(() => {
+    resetSourcesMutation();
+    resetInheritMutation();
+  }, [scopeKey, resetSourcesMutation, resetInheritMutation]);
 
-  const postures: SkillSourceKeyPosture[] | null = workspaceScope
-    ? SOURCE_KEYS.map(key => ({
-        key,
-        inherited: inherits[key],
-        armed: !inherits[key] || armed[key] || !sameStringList(baseline[key], draft[key]),
-      }))
-    : null;
+  const inherits = envelope?.inherits ?? NO_INHERITANCE;
+  const baseline = envelope?.config ?? null;
+  const isDirty = baseline !== null && draft !== null && !sameSourcesConfig(baseline, draft);
+
+  const postures: SkillSourceKeyPosture[] | null =
+    workspaceScope && baseline !== null && draft !== null
+      ? SOURCE_KEYS.map(key => ({
+          key,
+          inherited: inherits[key],
+          armed: !inherits[key] || armed[key] || !sameStringList(baseline[key], draft[key]),
+        }))
+      : null;
 
   const setArmed = (key: SkillSourceKey, value: boolean) => {
     setArmState(current => {
@@ -149,12 +158,13 @@ export function useSettingsSkillSources(
   };
 
   const editDraft = (key: SkillSourceKey, next: string[]) => {
-    if (readOnly) return;
+    if (readOnly || draft === null) return;
     if (workspaceScope) setArmed(key, true);
     input.onDraftChange({ ...draft, [key]: next });
   };
 
   const saveFullConfig = () => {
+    if (baseline === null || draft === null) return;
     const config = skillsSourcesConfig(baseline, draft);
     input.onSaveRequested({
       baseline: config,
@@ -164,7 +174,8 @@ export function useSettingsSkillSources(
   };
 
   const saveWorkspaceOverride = () => {
-    const override: { sources?: string[]; custom_sources?: string[] } = {};
+    if (baseline === null || draft === null) return;
+    const override: NonNullable<SettingsUpdateSkillsRequest["override"]> = {};
     for (const posture of postures ?? []) {
       if (posture.armed) override[posture.key] = [...draft[posture.key]];
     }
@@ -177,7 +188,7 @@ export function useSettingsSkillSources(
   };
 
   const useInherited = (key: SkillSourceKey) => {
-    if (readOnly || !workspaceScope || inheritMutation.isPending) return;
+    if (envelope === null || readOnly || !workspaceScope || inheritMutation.isPending) return;
     void inheritMutation
       .mutateAsync({ body: { override: { [key]: null } }, filter })
       .then(() => setArmed(key, false))
@@ -187,9 +198,12 @@ export function useSettingsSkillSources(
   };
 
   const saveDetail = errorDetail(sourcesMutation.error);
-  const measuredGroups = groupSkillSources(envelope.sources, envelope.runtime_available);
-  const enabledPresets = new Set(draft.sources);
-  const customEntries = new Set(draft.custom_sources);
+  const measuredGroups = groupSkillSources(
+    envelope?.sources ?? [],
+    envelope?.runtime_available ?? false
+  );
+  const enabledPresets = new Set(draft?.sources ?? []);
+  const customEntries = new Set(draft?.custom_sources ?? []);
   const groups: SkillSourceGroups = {
     presets: measuredGroups.presets.map(source =>
       source.alwaysOn ? source : { ...source, enabled: enabledPresets.has(source.slug) }
@@ -200,8 +214,8 @@ export function useSettingsSkillSources(
   };
   return {
     groups,
-    enabledPresets: draft.sources,
-    customEntries: draft.custom_sources,
+    enabledPresets: draft?.sources ?? [],
+    customEntries: draft?.custom_sources ?? [],
     readOnly,
     readOnlyReason,
     postures,
@@ -211,18 +225,19 @@ export function useSettingsSkillSources(
     saveErrorCode: saveDetail?.code ?? null,
     lastLabel: input.lastLabel,
     togglePreset: (slug, enabled) =>
-      editDraft("sources", toggleSkillSourcePreset(draft.sources, slug, enabled)),
-    addCustom: path => editDraft("custom_sources", addSkillSourceEntry(draft.custom_sources, path)),
+      editDraft("sources", toggleSkillSourcePreset(draft?.sources ?? [], slug, enabled)),
+    addCustom: path =>
+      editDraft("custom_sources", addSkillSourceEntry(draft?.custom_sources ?? [], path)),
     removeCustom: path =>
-      editDraft("custom_sources", removeSkillSourceEntry(draft.custom_sources, path)),
+      editDraft("custom_sources", removeSkillSourceEntry(draft?.custom_sources ?? [], path)),
     validateEntry: entry =>
       validateSkillSourceEntry(entry, {
-        customEntries: draft.custom_sources,
-        sources: envelope.sources,
+        customEntries: draft?.custom_sources ?? [],
+        sources: envelope?.sources ?? [],
         workspaceScope,
       }),
     customize: key => {
-      if (readOnly) return;
+      if (envelope === null || readOnly) return;
       setArmed(key, true);
     },
     useInherited,
@@ -231,12 +246,12 @@ export function useSettingsSkillSources(
       : null,
     inheritError: errorMessage(inheritMutation.error),
     save: () => {
-      if (readOnly || !isDirty) return;
+      if (envelope === null || draft === null || readOnly || !isDirty) return;
       if (workspaceScope) saveWorkspaceOverride();
       else saveFullConfig();
     },
     reset: () => {
-      if (readOnly) return;
+      if (baseline === null || draft === null || readOnly) return;
       input.onDraftChange({
         ...draft,
         sources: [...baseline.sources],

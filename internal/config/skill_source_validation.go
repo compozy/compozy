@@ -3,8 +3,100 @@ package config
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 )
+
+// SkillSourceValidationError reports one portable source-policy validation failure.
+type SkillSourceValidationError struct {
+	Code           string
+	Source         string
+	Field          string
+	Path           string
+	ExistingSource string
+	Valid          []string
+	Suggestion     string
+	Message        string
+}
+
+func (e *SkillSourceValidationError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return e.Message
+}
+
+// ValidateSkillSources rejects duplicates and slugs outside the curated table.
+func ValidateSkillSources(slugs []string) error {
+	valid := configurableSkillSourceSlugs()
+	seen := make(map[string]struct{}, len(slugs))
+	for _, raw := range slugs {
+		slug := strings.TrimSpace(raw)
+		if _, ok := seen[slug]; ok {
+			return &SkillSourceValidationError{
+				Code: "duplicate_skill_source", Source: slug,
+				Message: fmt.Sprintf("duplicate skill source preset %q", slug),
+			}
+		}
+		seen[slug] = struct{}{}
+		if slices.Contains(valid, slug) {
+			continue
+		}
+		suggestion := closestSkillSource(slug, valid)
+		message := fmt.Sprintf("unknown skill source preset %q; valid: %s", slug, strings.Join(valid, ", "))
+		if suggestion != "" {
+			message = fmt.Sprintf(
+				"unknown skill source preset %q (did you mean %q?); valid: %s",
+				slug, suggestion, strings.Join(valid, ", "),
+			)
+		}
+		return &SkillSourceValidationError{
+			Code: "unknown_skill_source", Source: slug, Valid: valid,
+			Suggestion: suggestion, Message: message,
+		}
+	}
+	return nil
+}
+
+func closestSkillSource(value string, candidates []string) string {
+	best := ""
+	bestDistance := -1
+	for _, candidate := range candidates {
+		distance := editDistance(strings.ToLower(value), candidate)
+		if bestDistance < 0 || distance < bestDistance || (distance == bestDistance && candidate < best) {
+			best = candidate
+			bestDistance = distance
+		}
+	}
+	if bestDistance > 3 {
+		return ""
+	}
+	return best
+}
+
+func editDistance(left string, right string) int {
+	previous := make([]int, len(right)+1)
+	for index := range previous {
+		previous[index] = index
+	}
+	for leftIndex, leftRune := range []rune(left) {
+		current := make([]int, len(previous))
+		current[0] = leftIndex + 1
+		for rightIndex, rightRune := range []rune(right) {
+			cost := 0
+			if leftRune != rightRune {
+				cost = 1
+			}
+			current[rightIndex+1] = min(
+				current[rightIndex]+1,
+				previous[rightIndex+1]+1,
+				previous[rightIndex]+cost,
+			)
+		}
+		previous = current
+	}
+	return previous[len(previous)-1]
+}
 
 // ValidateForScope validates source policy for the layer that will own a write.
 func (c SkillsConfig) ValidateForScope(scope WriteScope) error {
@@ -18,6 +110,44 @@ func (c SkillsConfig) ValidateForScope(scope WriteScope) error {
 		return err
 	}
 	return validateDuplicateSkillSourceRoots(c.Sources, c.CustomSources)
+}
+
+// ValidateForScopeAtRoot rejects physical collisions using the owning layer's path base.
+func (c SkillsConfig) ValidateForScopeAtRoot(scope WriteScope, layerRoot string, home HomePaths) error {
+	if err := c.ValidateForScope(scope); err != nil {
+		return err
+	}
+	var roots []SkillRootSpec
+	switch scope {
+	case WriteScopeUser:
+		roots = ResolveGlobalSkillRoots(&c, home)
+	case WriteScopeProfile:
+		roots = (WorkspaceDiscoveryRoot{Dir: layerRoot, Source: WorkspaceDiscoverySourceProfile}).SkillsDirs(&c)
+	case WriteScopeWorkspace:
+		roots = (WorkspaceDiscoveryRoot{
+			Dir: layerRoot, WorkspaceRoot: layerRoot, Source: WorkspaceDiscoverySourceWorkspace,
+		}).SkillsDirs(&c)
+	default:
+		return nil
+	}
+	seen := make(map[string]SkillRootSpec, len(roots))
+	for _, root := range roots {
+		canonical := canonicalSkillSourcePath(root.Dir)
+		if existing, ok := seen[canonical]; ok {
+			path := root.Dir
+			owner := existing.SourceSlug
+			if existing.Kind == RootKindCustom && root.Kind != RootKindCustom {
+				path = existing.Dir
+				owner = root.SourceSlug
+			}
+			return &SkillSourceValidationError{
+				Code: "duplicate_skill_source", Path: path, ExistingSource: owner,
+				Message: fmt.Sprintf("skill source path %q is already owned by source %q", path, owner),
+			}
+		}
+		seen[canonical] = root
+	}
+	return nil
 }
 
 func validateCustomSkillSourcePaths(paths []string, scope WriteScope) error {

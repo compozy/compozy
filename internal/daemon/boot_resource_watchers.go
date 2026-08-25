@@ -16,7 +16,9 @@ func (d *Daemon) bootResourceWatchers(ctx context.Context, state *bootState, cle
 			ctx,
 			state.skillsRegistry,
 			state.cfg.Skills.PollInterval,
-			workspaceSkillWatcherRoots(d.homePaths, state.registry),
+			workspaceSkillWatcherRoots(
+				d.homePaths, state.registry, state.workspaceResolver, bootProfileCatalog{state: state},
+			),
 			workspaceAgentWatcherRoots(d.homePaths, state.registry),
 			func(refreshCtx context.Context) error {
 				if agentSkillResources != nil {

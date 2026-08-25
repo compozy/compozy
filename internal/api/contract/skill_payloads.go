@@ -28,6 +28,8 @@ type SkillPayload struct {
 	Version     string                   `json:"version,omitempty"`
 	Source      string                   `json:"source"`
 	Origin      string                   `json:"origin"`
+	OwnerScope  string                   `json:"owner_scope"`
+	OwnerID     string                   `json:"owner_id,omitempty"`
 	Enabled     bool                     `json:"enabled"`
 	Activation  SkillActivationPayload   `json:"activation"`
 	Dir         string                   `json:"dir"`

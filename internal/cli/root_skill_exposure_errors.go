@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -29,7 +28,7 @@ func renderSkillExposureExecutionError(err error) (string, bool) {
 	if payload.RolledBack != nil && *payload.RolledBack {
 		count += "; completed targets rolled back"
 	}
-	title := "Error: expose failed (" + count + ")"
+	title := "Error: skill exposure failed (" + count + ")"
 	if _, created := errors.AsType[*skillCreatedExposureError](err); created {
 		title += " — the skill was created; fix the cause and run `compozy skill expose`"
 	}
@@ -60,19 +59,7 @@ func marshalSkillExposureExecutionError(args []string, err error) ([]byte, bool)
 	if !ok {
 		return nil, false
 	}
-	switch requestedOutputFormat(args) {
-	case OutputJSON:
-		encoded, marshalErr := json.Marshal(payload)
-		return encoded, marshalErr == nil
-	case OutputJSONL:
-		encoded, marshalErr := json.Marshal(payload)
-		if marshalErr != nil {
-			return nil, false
-		}
-		return append(encoded, '\n'), true
-	default:
-		return nil, false
-	}
+	return marshalStructuredPayload(args, payload)
 }
 
 func skillExposureErrorPayload(err error) (contract.SkillExposureFailureResponse, bool) {

@@ -1104,13 +1104,18 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 		t.Parallel()
 
 		for _, provider := range []string{ProviderClaude, ProviderOpenClaw, ProviderHermes, "claude-code", "hermes-agent"} {
-			cfg, err := ProviderConfigForIdentity(provider, "/tmp/acpmock-driver")
-			if err != nil {
-				t.Fatalf("ProviderConfigForIdentity(%q) error = %v", provider, err)
-			}
-			if cfg.Command != "/tmp/acpmock-driver" {
-				t.Fatalf("ProviderConfigForIdentity(%q).Command = %q", provider, cfg.Command)
-			}
+			provider := provider
+			t.Run("Should resolve provider alias "+provider, func(t *testing.T) {
+				t.Parallel()
+
+				cfg, err := ProviderConfigForIdentity(provider, "/tmp/acpmock-driver")
+				if err != nil {
+					t.Fatalf("ProviderConfigForIdentity(%q) error = %v", provider, err)
+				}
+				if cfg.Command != "/tmp/acpmock-driver" {
+					t.Fatalf("ProviderConfigForIdentity(%q).Command = %q", provider, cfg.Command)
+				}
+			})
 		}
 		if _, err := ProviderConfigForIdentity("custom"); err == nil {
 			t.Fatal("ProviderConfigForIdentity(custom) error = nil, want unsupported identity")
@@ -1120,6 +1125,9 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 		claude := DiagnosticsForProvider(records, "claude")
 		if len(claude) != 2 {
 			t.Fatalf("DiagnosticsForProvider(claude) = %#v, want canonical alias pair", claude)
+		}
+		if got, want := []string{claude[0].Provider, claude[1].Provider}, []string{"claude", "claude-code"}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("DiagnosticsForProvider(claude) providers = %#v, want %#v", got, want)
 		}
 	})
 

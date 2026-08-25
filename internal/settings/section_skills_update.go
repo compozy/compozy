@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -40,11 +41,11 @@ func (s *service) updateSkillsSection(
 		}
 		return s.updateAgentSkillsSection(cfg.Skills, resolved, workspaceID, agentName, *req.Skills)
 	}
-	if scope == ScopeWorkspace {
+	if scope == ScopeWorkspace || (scope == ScopeProfile && req.SkillSourcesOverride != nil) {
 		if req.SkillSourcesOverride == nil {
 			return MutationResult{}, validationError(errors.New("settings: skills override is required at workspace scope"))
 		}
-		return s.updateWorkspaceSkillSources(workspaceID, cfg.Skills, resolved, *req.SkillSourcesOverride)
+		return s.updateScopedSkillSources(scope, workspaceID, req.ProfileName, cfg.Skills, resolved, *req.SkillSourcesOverride)
 	}
 	if req.Skills == nil {
 		return MutationResult{}, validationError(errors.New("settings: skills config is required"))
@@ -61,6 +62,13 @@ func (s *service) updateSkillsSection(
 	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, "", scope.configWriteScope(), profileName)
 	if err != nil {
 		return MutationResult{}, fmt.Errorf("settings: resolve section %q write target: %w", SectionSkills, err)
+	}
+	layerRoot := s.homePaths.HomeDir
+	if scope == ScopeProfile {
+		layerRoot = filepath.Dir(target.Path())
+	}
+	if err := next.ValidateForScopeAtRoot(scope.configWriteScope(), layerRoot, s.homePaths); err != nil {
+		return MutationResult{}, validationError(err)
 	}
 
 	current := cfg.Skills
@@ -127,13 +135,15 @@ func (s *service) writeSkillsConfig(
 	return err
 }
 
-func (s *service) updateWorkspaceSkillSources(
+func (s *service) updateScopedSkillSources(
+	scope ScopeKind,
 	workspaceID string,
+	profileName string,
 	current compozyconfig.SkillsConfig,
 	resolved *workspacepkg.ResolvedWorkspace,
 	override SkillSourcesOverride,
 ) (MutationResult, error) {
-	if resolved == nil {
+	if scope == ScopeWorkspace && resolved == nil {
 		return MutationResult{}, errors.New("settings: resolved workspace is required for skills update")
 	}
 	if !override.Sources.Present && !override.CustomSources.Present {
@@ -154,18 +164,28 @@ func (s *service) updateWorkspaceSkillSources(
 			candidate.CustomSources = append([]string(nil), override.CustomSources.Value...)
 		}
 	}
-	if err := candidate.ValidateForScope(compozyconfig.WriteScopeWorkspace); err != nil {
+	writeScope := scope.configWriteScope()
+	if err := candidate.ValidateForScope(writeScope); err != nil {
 		return MutationResult{}, validationError(err)
 	}
-
-	target, err := compozyconfig.ResolveConfigWriteTarget(
-		s.homePaths,
-		resolved.RootDir,
-		compozyconfig.WriteScopeWorkspace,
-		"",
-	)
+	workspaceRoot := ""
+	if resolved != nil {
+		workspaceRoot = resolved.RootDir
+	}
+	profileName, err := normalizeSettingsProfileName(scope, profileName)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	target, err := compozyconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, writeScope, profileName)
 	if err != nil {
 		return MutationResult{}, fmt.Errorf("settings: resolve section %q write target: %w", SectionSkills, err)
+	}
+	layerRoot := workspaceRoot
+	if scope == ScopeProfile {
+		layerRoot = filepath.Dir(target.Path())
+	}
+	if err := candidate.ValidateForScopeAtRoot(writeScope, layerRoot, s.homePaths); err != nil {
+		return MutationResult{}, validationError(err)
 	}
 	classification, err := ClassifyMutation(MutationDescriptor{Section: SectionSkills, ChangedFields: changed})
 	if err != nil {
@@ -173,7 +193,7 @@ func (s *service) updateWorkspaceSkillSources(
 	}
 	_, err = compozyconfig.EditConfigOverlay(
 		s.homePaths,
-		resolved.RootDir,
+		workspaceRoot,
 		target,
 		func(editor *compozyconfig.OverlayEditor) error {
 			if err := applyOptionalSkillSourceOverride(editor, "sources", override.Sources); err != nil {
@@ -186,8 +206,9 @@ func (s *service) updateWorkspaceSkillSources(
 		return MutationResult{}, fmt.Errorf("settings: write section %q: %w", SectionSkills, err)
 	}
 	return MutationResult{
-		Section: SectionSkills, Scope: ScopeWorkspace, WriteTarget: target.Kind(), WorkspaceID: workspaceID,
-		Behavior: classification.Behavior, Applied: classification.Applied,
+		Section: SectionSkills, Scope: scope, WriteTarget: target.Kind(), WorkspaceID: workspaceID,
+		ProfileName: profileName,
+		Behavior:    classification.Behavior, Applied: classification.Applied,
 		RestartRequired: classification.RestartRequired, RestartScope: classification.RestartScope,
 		Lifecycle: classification.Lifecycle, DiffClass: classification.DiffClass, writePath: target.Path(),
 	}, nil

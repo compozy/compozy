@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"errors"
 	"strings"
 
@@ -28,19 +27,7 @@ func marshalSkillSourceExecutionError(args []string, err error) ([]byte, bool) {
 	if !ok {
 		return nil, false
 	}
-	switch requestedOutputFormat(args) {
-	case OutputJSON:
-		encoded, marshalErr := json.Marshal(payload)
-		return encoded, marshalErr == nil
-	case OutputJSONL:
-		encoded, marshalErr := json.Marshal(payload)
-		if marshalErr != nil {
-			return nil, false
-		}
-		return append(encoded, '\n'), true
-	default:
-		return nil, false
-	}
+	return marshalStructuredPayload(args, payload)
 }
 
 func skillSourceErrorPayload(err error) (contract.SkillSourceValidationErrorResponse, bool) {

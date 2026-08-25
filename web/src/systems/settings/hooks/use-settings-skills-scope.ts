@@ -64,11 +64,20 @@ function resolveSelection(
   }
   if (stored.scope === "agent") {
     if (agents.length === 0) return { scope: "user" };
-    if (agents.some(agent => agent.name === stored.agentName)) return stored;
+    const workspaceId = workspaces.some(workspace => workspace.id === stored.workspaceId)
+      ? stored.workspaceId
+      : undefined;
+    if (agents.some(agent => agent.name === stored.agentName)) {
+      return {
+        scope: "agent",
+        agentName: stored.agentName,
+        ...(workspaceId ? { workspaceId } : {}),
+      };
+    }
     return {
       scope: "agent",
       agentName: pickDefaultAgentName(agents),
-      ...(stored.workspaceId ? { workspaceId: stored.workspaceId } : {}),
+      ...(workspaceId ? { workspaceId } : {}),
     };
   }
   return stored;

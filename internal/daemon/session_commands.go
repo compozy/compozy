@@ -237,8 +237,8 @@ func availableCommandSkills(
 		if descriptor.Skill == nil {
 			continue
 		}
-		if skill, ok := skillsByCommandID[descriptor.ID]; ok {
-			availableSkills[descriptor.ID] = skill
+		if candidate, ok := skillsByCommandID[descriptor.ID]; ok {
+			availableSkills[descriptor.ID] = candidate
 		}
 	}
 	return availableSkills

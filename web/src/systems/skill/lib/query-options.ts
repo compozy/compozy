@@ -6,10 +6,7 @@ import { skillKeys } from "./query-keys";
 export function skillsListOptions(workspace: string, enabled = true, profile?: string) {
   return queryOptions({
     queryKey: skillKeys.list(workspace, profile),
-    queryFn: ({ signal }) =>
-      profile === undefined
-        ? listSkills(workspace, signal)
-        : listSkills(workspace, signal, profile),
+    queryFn: ({ signal }) => listSkills(workspace, signal, profile),
     staleTime: 30_000,
     refetchInterval: 60_000,
     enabled,
@@ -19,10 +16,7 @@ export function skillsListOptions(workspace: string, enabled = true, profile?: s
 export function skillDetailOptions(name: string, workspace: string, profile?: string) {
   return queryOptions({
     queryKey: skillKeys.detail(name, workspace, profile),
-    queryFn: ({ signal }) =>
-      profile === undefined
-        ? getSkill(name, workspace, signal)
-        : getSkill(name, workspace, signal, profile),
+    queryFn: ({ signal }) => getSkill(name, workspace, signal, profile),
     staleTime: 30_000,
     enabled: !!name,
   });
@@ -36,10 +30,7 @@ export function skillContentOptions(
 ) {
   return queryOptions({
     queryKey: skillKeys.content(name, workspace, profile),
-    queryFn: ({ signal }) =>
-      profile === undefined
-        ? getSkillContent(name, workspace, signal)
-        : getSkillContent(name, workspace, signal, profile),
+    queryFn: ({ signal }) => getSkillContent(name, workspace, signal, profile),
     staleTime: 30_000,
     enabled: enabled && !!name,
   });
@@ -48,10 +39,7 @@ export function skillContentOptions(
 export function skillShadowsOptions(name: string, workspace: string, profile?: string) {
   return queryOptions({
     queryKey: skillKeys.shadows(name, workspace, profile),
-    queryFn: ({ signal }) =>
-      profile === undefined
-        ? getSkillShadows(name, workspace, signal)
-        : getSkillShadows(name, workspace, signal, profile),
+    queryFn: ({ signal }) => getSkillShadows(name, workspace, signal, profile),
     staleTime: 30_000,
     enabled: !!name,
   });

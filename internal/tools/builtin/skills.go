@@ -15,7 +15,7 @@ const (
 )
 
 var skillTools = []toolspkg.Descriptor{
-	nativeDescriptor(
+	skillDescriptor(nativeDescriptor(
 		toolspkg.ToolIDSkillList,
 		"skill_list",
 		"Skill List",
@@ -28,8 +28,8 @@ var skillTools = []toolspkg.Descriptor{
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCatalog},
 		[]string{skillsSkillsKey, skillsCatalogKey},
 		[]string{"available skills", "skill registry"},
-	),
-	nativeDescriptor(
+	), skillCatalogOutputSchema),
+	skillDescriptor(nativeDescriptor(
 		toolspkg.ToolIDSkillSearch,
 		"skill_search",
 		"Skill Search",
@@ -42,8 +42,8 @@ var skillTools = []toolspkg.Descriptor{
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCatalog},
 		[]string{skillsSkillsKey, skillsCatalogKey},
 		[]string{"find skills", "skill registry search"},
-	),
-	nativeDescriptor(
+	), skillCatalogOutputSchema),
+	skillDescriptor(nativeDescriptor(
 		toolspkg.ToolIDSkillView,
 		"skill_view",
 		"Skill View",
@@ -56,22 +56,20 @@ var skillTools = []toolspkg.Descriptor{
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCatalog},
 		[]string{skillsSkillsKey, skillsCatalogKey, "content"},
 		[]string{"skill body", "skill instructions"},
-	),
+	), skillViewOutputSchema),
 }
 
 func skillDescriptors() []toolspkg.Descriptor {
 	descriptors := make([]toolspkg.Descriptor, 0, len(skillTools))
 	for _, descriptor := range skillTools {
-		cloned := cloneDescriptor(descriptor)
-		switch cloned.ID {
-		case toolspkg.ToolIDSkillList, toolspkg.ToolIDSkillSearch:
-			cloned.OutputSchema = json.RawMessage(skillCatalogOutputSchema)
-		case toolspkg.ToolIDSkillView:
-			cloned.OutputSchema = json.RawMessage(skillViewOutputSchema)
-		}
-		descriptors = append(descriptors, cloned)
+		descriptors = append(descriptors, cloneDescriptor(descriptor))
 	}
 	return descriptors
+}
+
+func skillDescriptor(descriptor toolspkg.Descriptor, outputSchema string) toolspkg.Descriptor {
+	descriptor.OutputSchema = json.RawMessage(outputSchema)
+	return descriptor
 }
 
 const skillListInputSchema = `{
@@ -117,11 +115,13 @@ const skillCatalogOutputSchema = `{
 			"type":"array",
 			"items":{
 				"type":"object",
-				"required":["name","source","origin"],
+				"required":["name","source","origin","owner_scope"],
 				"properties":{
 					"name":{"type":"string"},
 					"source":{"type":"string"},
-					"origin":{"type":"string"}
+					"origin":{"type":"string"},
+					"owner_scope":{"type":"string","enum":["user","workspace","profile","workspace_profile"]},
+					"owner_id":{"type":"string"}
 				}
 			}
 		}
@@ -135,11 +135,13 @@ const skillViewOutputSchema = `{
 	"properties":{
 		"skill":{
 			"type":"object",
-			"required":["name","source","origin","exposures"],
+			"required":["name","source","origin","owner_scope","exposures"],
 			"properties":{
 				"name":{"type":"string"},
 				"source":{"type":"string"},
 				"origin":{"type":"string"},
+				"owner_scope":{"type":"string","enum":["user","workspace","profile","workspace_profile"]},
+				"owner_id":{"type":"string"},
 				"exposures":{
 					"type":"array",
 					"items":{

@@ -16,7 +16,7 @@ func newSkillInfoCommand(deps commandDeps) *cobra.Command {
 		Use:   skillCommandsInfoEntryValue,
 		Short: "Inspect installed skill metadata and resources",
 		Example: `  # Inspect an installed skill's metadata and resource list
-  compozy skill inspect code-review`,
+  compozy skill info code-review`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			scope, err := resolveSkillCommandScope(cmd.Context(), cmd, deps)

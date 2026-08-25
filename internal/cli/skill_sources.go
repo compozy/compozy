@@ -60,6 +60,14 @@ func readSkillSources(
 	}
 	query := settingsSkillsScopeQuery{}
 	record := skillSourcesRecord{Scope: string(contract.SettingsScopeUser)}
+	if selection, selected := ctx.Value(profileResolutionContextKey{}).(profileResolution); selected {
+		profileName := strings.TrimSpace(selection.Profile.Name)
+		if profileName != "" && profileName != configDefaultKey {
+			query.Scope = contract.SettingsScopeProfile
+			query.Profile = profileName
+			record.Scope = string(contract.SettingsScopeProfile)
+		}
+	}
 	if workspaceRef != "" {
 		resolution, resolveErr := resolveWorkspaceCandidate(ctx, cmd, client, workspaceRef, workspaceResolutionFlag)
 		if resolveErr != nil {
@@ -95,11 +103,19 @@ func skillSourcesBundle(record skillSourcesRecord) outputBundle {
 			), nil
 		},
 		toon: func() (string, error) {
+			inheritsSources := ""
+			inheritsCustom := ""
+			if record.Inherits != nil {
+				inheritsSources = strconv.FormatBool(record.Inherits.Sources)
+				inheritsCustom = strconv.FormatBool(record.Inherits.CustomSources)
+			}
 			return renderHumanBlocks(
+				renderToonObject("scope", []string{
+					"kind", "workspace_id", "inherits_sources", "inherits_custom_sources",
+				}, []string{record.Scope, record.WorkspaceID, inheritsSources, inheritsCustom}),
 				renderToonArray("sources", []string{
 					"source", "state", "workspace_path", "global_path", "skills", "notes",
 				}, skillSourceRows(record.Sources)),
-				skillSourcesFooter(record),
 			), nil
 		},
 	}

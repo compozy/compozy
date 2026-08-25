@@ -15,13 +15,17 @@ import (
 
 // ExposeManager owns skill-link lifecycle for one exact configured root projection.
 type ExposeManager struct {
-	store  store.SkillExposureRepository
-	roots  []compozyconfig.SkillRootSpec
-	events store.EventSummaryStore
-	logger *slog.Logger
-	fs     exposureFS
-	mu     sync.Mutex
+	store      store.SkillExposureRepository
+	roots      []compozyconfig.SkillRootSpec
+	knownRoots []compozyconfig.SkillRootSpec
+	events     store.EventSummaryStore
+	logger     *slog.Logger
+	fs         exposureFS
 }
+
+// exposureMutationMu serializes the filesystem and repository transaction
+// across managers created by every transport and marketplace request.
+var exposureMutationMu sync.Mutex
 
 // ExposeManagerOption customizes exposure I/O and observability.
 type ExposeManagerOption func(*ExposeManager)
@@ -36,10 +40,6 @@ func WithExposureLogger(logger *slog.Logger) ExposeManagerOption {
 	return func(manager *ExposeManager) { manager.logger = logger }
 }
 
-func withExposureFS(filesystem exposureFS) ExposeManagerOption {
-	return func(manager *ExposeManager) { manager.fs = filesystem }
-}
-
 // NewExposeManager constructs a manager scoped to one effective source projection.
 func NewExposeManager(
 	repository store.SkillExposureRepository,
@@ -47,10 +47,11 @@ func NewExposeManager(
 	options ...ExposeManagerOption,
 ) *ExposeManager {
 	manager := &ExposeManager{
-		store:  repository,
-		roots:  append([]compozyconfig.SkillRootSpec(nil), roots...),
-		fs:     osExposureFS{},
-		logger: slog.Default(),
+		store:      repository,
+		roots:      append([]compozyconfig.SkillRootSpec(nil), roots...),
+		knownRoots: append([]compozyconfig.SkillRootSpec(nil), roots...),
+		fs:         osExposureFS{},
+		logger:     slog.Default(),
 	}
 	for _, option := range options {
 		if option != nil {
@@ -74,18 +75,15 @@ type exposureOwner struct {
 
 func (m *ExposeManager) prepareSkill(skill *Skill) (exposureOwner, string, error) {
 	if skill == nil {
-		return exposureOwner{}, "", newExposureError(
-			ExposureCodeSkillNotExposable, "", "", "skill is required", nil,
-		)
+		return exposureOwner{}, "", newExposureError(exposureErrorParams{
+			code: ExposureCodeSkillNotExposable, message: "skill is required",
+		})
 	}
 	if skill.Source == SourceBundled {
-		return exposureOwner{}, "", newExposureError(
-			ExposureCodeSkillNotExposable,
-			"",
-			"",
-			"bundled skills have no on-disk home; copy it with `compozy skill create` first",
-			nil,
-		)
+		return exposureOwner{}, "", newExposureError(exposureErrorParams{
+			code:    ExposureCodeSkillNotExposable,
+			message: "bundled skills have no on-disk home; copy it with `compozy skill create` first",
+		})
 	}
 	owner, name, err := m.prepareSkillIdentity(skill)
 	if err != nil {
@@ -93,22 +91,16 @@ func (m *ExposeManager) prepareSkill(skill *Skill) (exposureOwner, string, error
 	}
 	info, err := m.fs.Stat(skill.Dir)
 	if err != nil {
-		return exposureOwner{}, "", newExposureError(
-			ExposureCodeSkillNotExposable,
-			"",
-			skill.Dir,
-			fmt.Sprintf("skill %q has no accessible on-disk home", name),
-			err,
-		)
+		return exposureOwner{}, "", newExposureError(exposureErrorParams{
+			code: ExposureCodeSkillNotExposable, path: skill.Dir,
+			message: fmt.Sprintf("skill %q has no accessible on-disk home", name), cause: err,
+		})
 	}
 	if !info.IsDir() {
-		return exposureOwner{}, "", newExposureError(
-			ExposureCodeSkillNotExposable,
-			"",
-			skill.Dir,
-			fmt.Sprintf("skill %q on-disk home is not a directory", name),
-			nil,
-		)
+		return exposureOwner{}, "", newExposureError(exposureErrorParams{
+			code: ExposureCodeSkillNotExposable, path: skill.Dir,
+			message: fmt.Sprintf("skill %q on-disk home is not a directory", name),
+		})
 	}
 	canonicalDir, err := m.fs.EvalSymlinks(skill.Dir)
 	if err != nil {
@@ -119,9 +111,9 @@ func (m *ExposeManager) prepareSkill(skill *Skill) (exposureOwner, string, error
 
 func (m *ExposeManager) prepareSkillIdentity(skill *Skill) (exposureOwner, string, error) {
 	if skill == nil {
-		return exposureOwner{}, "", newExposureError(
-			ExposureCodeSkillNotExposable, "", "", "skill is required", nil,
-		)
+		return exposureOwner{}, "", newExposureError(exposureErrorParams{
+			code: ExposureCodeSkillNotExposable, message: "skill is required",
+		})
 	}
 	scope := skill.ResourceScope.Normalize()
 	owner, err := exposureOwnerFromScope(scope)
@@ -144,25 +136,22 @@ func exposureOwnerFromScope(scope resources.ResourceScope) (exposureOwner, error
 		return exposureOwner{scope: store.SkillExposureOwnerUser, resource: scope}, nil
 	case resources.ResourceScopeKindWorkspace:
 		if strings.TrimSpace(scope.ID) == "" {
-			return exposureOwner{}, newExposureError(
-				ExposureCodeSkillNotExposable, "", "", "workspace-owned skill is missing its workspace id", nil,
-			)
+			return exposureOwner{}, newExposureError(exposureErrorParams{
+				code: ExposureCodeSkillNotExposable, message: "workspace-owned skill is missing its workspace id",
+			})
 		}
 		return exposureOwner{
 			scope: store.SkillExposureOwnerWorkspace, workspaceID: strings.TrimSpace(scope.ID), resource: scope,
 		}, nil
 	case resources.ResourceScopeKindProfile, resources.ResourceScopeKindWorkspaceProfile:
-		return exposureOwner{}, newExposureError(
-			ExposureCodeProfileSkillNotExposable,
-			"",
-			"",
-			"profile-owned skills cannot be exposed into shared provider roots",
-			nil,
-		)
+		return exposureOwner{}, newExposureError(exposureErrorParams{
+			code:    ExposureCodeProfileSkillNotExposable,
+			message: "profile-owned skills cannot be exposed into shared provider roots",
+		})
 	default:
-		return exposureOwner{}, newExposureError(
-			ExposureCodeSkillNotExposable, "", "", "skill ownership scope is not exposable", nil,
-		)
+		return exposureOwner{}, newExposureError(exposureErrorParams{
+			code: ExposureCodeSkillNotExposable, message: "skill ownership scope is not exposable",
+		})
 	}
 }
 
@@ -170,23 +159,17 @@ func (m *ExposeManager) targetRoot(owner exposureOwner, target string) (compozyc
 	trimmed := strings.TrimSpace(target)
 	for _, root := range m.roots {
 		if root.SourceSlug == trimmed && root.Kind == compozyconfig.RootKindCustom {
-			return compozyconfig.SkillRootSpec{}, newExposureError(
-				ExposureCodeTargetInvalid,
-				trimmed,
-				root.Dir,
-				"expose targets are presets; custom sources cannot receive links",
-				nil,
-			)
+			return compozyconfig.SkillRootSpec{}, newExposureError(exposureErrorParams{
+				code: ExposureCodeTargetInvalid, target: trimmed, path: root.Dir,
+				message: "expose targets are presets; custom sources cannot receive links",
+			})
 		}
 	}
 	if !knownExposePreset(trimmed) {
-		return compozyconfig.SkillRootSpec{}, newExposureError(
-			ExposureCodeTargetInvalid,
-			trimmed,
-			"",
-			fmt.Sprintf("expose target %q is not a supported preset", trimmed),
-			nil,
-		)
+		return compozyconfig.SkillRootSpec{}, newExposureError(exposureErrorParams{
+			code: ExposureCodeTargetInvalid, target: trimmed,
+			message: fmt.Sprintf("expose target %q is not a supported preset", trimmed),
+		})
 	}
 	for _, root := range m.roots {
 		if root.SourceSlug != trimmed || root.Kind != compozyconfig.RootKindPreset ||
@@ -196,13 +179,10 @@ func (m *ExposeManager) targetRoot(owner exposureOwner, target string) (compozyc
 		return root, nil
 	}
 	enabled := m.enabledTargets(owner)
-	return compozyconfig.SkillRootSpec{}, newExposureError(
-		ExposureCodeTargetDisabled,
-		trimmed,
-		"",
-		fmt.Sprintf("expose target %q is disabled; enabled targets: %s", trimmed, strings.Join(enabled, ", ")),
-		nil,
-	)
+	return compozyconfig.SkillRootSpec{}, newExposureError(exposureErrorParams{
+		code: ExposureCodeTargetDisabled, target: trimmed,
+		message: fmt.Sprintf("expose target %q is disabled; enabled targets: %s", trimmed, strings.Join(enabled, ", ")),
+	})
 }
 
 func (m *ExposeManager) enabledTargets(owner exposureOwner) []string {

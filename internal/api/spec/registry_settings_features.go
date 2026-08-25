@@ -284,7 +284,7 @@ func updateSettingsSkillsOperationSpec() OperationSpec {
 		},
 		RequestBody: contract.UpdateSettingsSkillsRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsSkillsMutationResponse{}},
 			{
 				Status: 400, Description: specInvalidSettingsPayloadDescription,
 				Bodies: responseBodiesOf(

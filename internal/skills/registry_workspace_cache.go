@@ -13,7 +13,6 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
-	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/skillscan"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -23,6 +22,7 @@ type wsCache struct {
 	commandCandidates []*Skill
 	diagnostics       []SkillDiagnostic
 	snapshots         map[string]filesnap.Snapshot
+	rootPaths         []string
 	lastAccess        time.Time
 	globalVersion     int64
 }
@@ -30,15 +30,12 @@ type wsCache struct {
 type workspaceLoad struct {
 	paths     []workspaceSkillPath
 	snapshots map[string]filesnap.Snapshot
+	rootPaths []string
 }
 
 type workspaceSkillPath struct {
-	filePath      string
-	source        SkillSource
-	origin        string
-	rootID        string
-	rootDir       string
-	resourceScope resources.ResourceScope
+	filePath string
+	root     compozyconfig.SkillRootSpec
 }
 
 func (r *Registry) workspaceDisabledSkillsSnapshot(cacheKey string, configured []string) []string {
@@ -91,20 +88,22 @@ func (r *Registry) workspaceLoadFromRoots(
 	ctx context.Context,
 	resolved *workspacepkg.ResolvedWorkspace,
 ) (workspaceLoad, error) {
-	roots := workspaceResolvedSkillRoots(resolved)
+	cfg := r.registryConfigSnapshot(ctx)
+	roots := rootsNotOwnedByHigherLayer(workspaceResolvedSkillRoots(resolved), cfg.GlobalSkillRoots)
 	if len(roots) == 0 {
 		return workspaceLoad{}, nil
 	}
 	load := workspaceLoad{
 		paths:     make([]workspaceSkillPath, 0),
 		snapshots: make(map[string]filesnap.Snapshot),
+		rootPaths: make([]string, 0, len(roots)),
 	}
-	cfg := r.registryConfigSnapshot(ctx)
 	trustedRoots := make([]string, 0, len(roots)+len(cfg.GlobalSkillRoots))
 	for _, root := range cfg.GlobalSkillRoots {
 		trustedRoots = append(trustedRoots, root.Dir)
 	}
 	for _, root := range roots {
+		load.rootPaths = append(load.rootPaths, canonicalRootIdentity(root.Dir))
 		trustedRoots = append(trustedRoots, root.Dir)
 	}
 	scans := make([]configuredRootScan, 0, len(roots))
@@ -123,6 +122,21 @@ func (r *Registry) workspaceLoadFromRoots(
 			return workspaceLoad{}, err
 		}
 		maps.Copy(load.snapshots, result.Snapshots)
+		if result.Stats.Exists {
+			rootSnapshot, snapshotErr := filesnap.FromPath(root.Dir)
+			if snapshotErr != nil {
+				return workspaceLoad{}, snapshotErr
+			}
+			load.snapshots[root.Dir] = rootSnapshot
+		}
+		for _, skillPath := range result.Paths {
+			skillDir := filepath.Dir(skillPath)
+			dirSnapshot, snapshotErr := filesnap.FromPath(skillDir)
+			if snapshotErr != nil {
+				return workspaceLoad{}, snapshotErr
+			}
+			load.snapshots[skillDir] = dirSnapshot
+		}
 		if err := recordSidecarSnapshots(result.Paths, load.snapshots); err != nil {
 			return workspaceLoad{}, err
 		}
@@ -131,21 +145,90 @@ func (r *Registry) workspaceLoadFromRoots(
 	selected := selectedRootPaths(scans)
 	for index, scan := range scans {
 		for _, path := range selected[index] {
-			origin := strings.TrimSpace(scan.spec.SourceSlug)
-			if origin == compozyconfig.SkillSourceCompozy {
-				origin = ""
-			}
 			load.paths = append(load.paths, workspaceSkillPath{
-				filePath:      path,
-				source:        sourceTierFor(scan.spec),
-				origin:        origin,
-				rootID:        scan.spec.RootID(),
-				rootDir:       scan.spec.Dir,
-				resourceScope: scan.spec.ResourceScope.Normalize(),
+				filePath: path,
+				root:     scan.spec,
 			})
 		}
 	}
 	return load, nil
+}
+
+func (r *Registry) cachedWorkspaceSkillsIfFresh(
+	ctx context.Context,
+	resolved *workspacepkg.ResolvedWorkspace,
+	cacheKey string,
+	disabled []string,
+) ([]*Skill, bool) {
+	if cacheKey == "" {
+		return nil, false
+	}
+	cfg := r.registryConfigSnapshot(ctx)
+	roots := rootsNotOwnedByHigherLayer(workspaceResolvedSkillRoots(resolved), cfg.GlobalSkillRoots)
+	rootPaths := make([]string, 0, len(roots))
+	for _, root := range roots {
+		rootPaths = append(rootPaths, canonicalRootIdentity(root.Dir))
+	}
+	now := r.now()
+
+	r.mu.RLock()
+	cached := r.wsCache[cacheKey]
+	if cached == nil || cached.lastAccess.Before(now.Add(-workspaceCacheTTL)) ||
+		cached.globalVersion != r.globalVersion.Load() || !slices.Equal(cached.rootPaths, rootPaths) {
+		r.mu.RUnlock()
+		return nil, false
+	}
+	snapshots := filesnap.Clone(cached.snapshots)
+	r.mu.RUnlock()
+
+	current := make(map[string]filesnap.Snapshot, len(snapshots))
+	for path := range snapshots {
+		snapshot, err := filesnap.FromPath(path)
+		if err != nil {
+			return nil, false
+		}
+		current[path] = snapshot
+	}
+	if !filesnap.Equal(snapshots, current) {
+		return nil, false
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	cached = r.wsCache[cacheKey]
+	if cached == nil || cached.globalVersion != r.globalVersion.Load() || !filesnap.Equal(cached.snapshots, snapshots) {
+		return nil, false
+	}
+	cached.lastAccess = now
+	return mergedSkillListWithDisabled(r.globalSkills, cached.skills, disabled), true
+}
+
+func rootsNotOwnedByHigherLayer(
+	roots []compozyconfig.SkillRootSpec,
+	higher []compozyconfig.SkillRootSpec,
+) []compozyconfig.SkillRootSpec {
+	owned := make(map[string]struct{}, len(higher))
+	for _, root := range higher {
+		owned[canonicalRootIdentity(root.Dir)] = struct{}{}
+	}
+	filtered := make([]compozyconfig.SkillRootSpec, 0, len(roots))
+	for _, root := range roots {
+		identity := canonicalRootIdentity(root.Dir)
+		if _, exists := owned[identity]; exists {
+			continue
+		}
+		owned[identity] = struct{}{}
+		filtered = append(filtered, root)
+	}
+	return filtered
+}
+
+func canonicalRootIdentity(path string) string {
+	canonical, err := filepath.EvalSymlinks(filepath.Clean(path))
+	if err == nil {
+		return canonical
+	}
+	return filepath.Clean(path)
 }
 
 func workspaceResolvedSkillRoots(resolved *workspacepkg.ResolvedWorkspace) []compozyconfig.SkillRootSpec {

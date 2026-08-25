@@ -296,17 +296,20 @@ func TestSkillListCommandFiltersBySource(t *testing.T) {
 
 func TestSkillListCommandSourceHelpIncludesEveryPublicTier(t *testing.T) {
 	t.Parallel()
+	t.Run("Should mention every public skill source tier", func(t *testing.T) {
+		t.Parallel()
 
-	cmd := newSkillListCommand(newSkillTestEnv(t, nil).deps)
-	usage := cmd.Flags().Lookup("source").Usage
+		cmd := newSkillListCommand(newSkillTestEnv(t, nil).deps)
+		usage := cmd.Flags().Lookup("source").Usage
 
-	for _, expected := range []string{
-		"bundled", "marketplace", "user", "profile", "additional", "workspace", "workspace_profile", "agent-local",
-	} {
-		if !strings.Contains(usage, expected) {
-			t.Fatalf("source flag usage = %q, want mention of %q", usage, expected)
+		for _, expected := range []string{
+			"bundled", "marketplace", "user", "profile", "additional", "workspace", "workspace_profile", "agent-local",
+		} {
+			if !strings.Contains(usage, expected) {
+				t.Fatalf("source flag usage = %q, want mention of %q", usage, expected)
+			}
 		}
-	}
+	})
 }
 
 func TestSkillSourcesCommand(t *testing.T) {
@@ -706,7 +709,7 @@ func TestSkillInfoCommandShowsMetadataSourcePathResourcesAndExposures(t *testing
 			t.Fatalf("skill info human error = %v", err)
 		}
 		if !strings.Contains(humanOut, "NAME") || !strings.Contains(humanOut, "SOURCE") ||
-			!strings.Contains(humanOut, "DIR") || !strings.Contains(humanOut, "EXPOSED TO   — none —") {
+			!strings.Contains(humanOut, "PATH") || !strings.Contains(humanOut, "EXPOSED TO   — none —") {
 			t.Fatalf("skill info human output missing public transcript fields:\n%s", humanOut)
 		}
 	})
@@ -2749,17 +2752,19 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 	if got := skillSourceLabel(skills.SourceMarketplace); got != "marketplace" {
 		t.Fatalf("skillSourceLabel(marketplace) = %q, want marketplace", got)
 	}
-	for source, want := range map[skills.SkillSource]string{
-		skills.SourceProfile:          profileSkillSource,
-		skills.SourceWorkspaceProfile: workspaceProfileSkillSource,
-	} {
-		if got := skillSourceLabel(source); got != want {
-			t.Fatalf("skillSourceLabel(%v) = %q, want %q", source, got, want)
+	t.Run("Should map profile source tiers through labels and filters", func(t *testing.T) {
+		for source, want := range map[skills.SkillSource]string{
+			skills.SourceProfile:          profileSkillSource,
+			skills.SourceWorkspaceProfile: workspaceProfileSkillSource,
+		} {
+			if got := skillSourceLabel(source); got != want {
+				t.Fatalf("skillSourceLabel(%v) = %q, want %q", source, got, want)
+			}
+			if got, err := normalizeSkillSourceFilter(want); err != nil || got != want {
+				t.Fatalf("normalizeSkillSourceFilter(%q) = %q, %v, want %q", want, got, err, want)
+			}
 		}
-		if got, err := normalizeSkillSourceFilter(want); err != nil || got != want {
-			t.Fatalf("normalizeSkillSourceFilter(%q) = %q, %v, want %q", want, got, err, want)
-		}
-	}
+	})
 	t.Run("Should validate helper skill slug normalization", func(t *testing.T) {
 		t.Parallel()
 

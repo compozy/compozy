@@ -14,13 +14,13 @@ func (r *Resolver) configForSkillScan(
 	profileName string,
 	cacheKey string,
 ) (compozyconfig.Config, bool, error) {
-	r.mu.Lock()
+	r.mu.RLock()
 	cached := r.cache[cacheKey]
 	var cfg compozyconfig.Config
 	if cached != nil {
 		cfg = compozyconfig.CloneConfig(&cached.resolved.Config)
 	}
-	r.mu.Unlock()
+	r.mu.RUnlock()
 	if cached != nil {
 		return cfg, true, nil
 	}

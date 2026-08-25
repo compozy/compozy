@@ -69,6 +69,7 @@ func listSkillsOperationSpec() OperationSpec {
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			queryParam(specWorkspaceKey, "Workspace id or path for resolution context", false),
+			queryParam("profile", "Exact profile name", false),
 			queryParam("for_agent", "Logical agent name for agent-local resolution", false),
 		},
 		Responses: []ResponseSpec{
@@ -150,6 +151,7 @@ func getSkillOperationSpec() OperationSpec {
 		Parameters: []ParameterSpec{
 			pathParam("name", "Skill name"),
 			queryParam("workspace_id", "Canonical workspace id for resolution context", false),
+			queryParam("profile", "Exact profile name", false),
 			queryParam("for_agent", "Logical agent name for agent-local resolution", false),
 		},
 		Responses: []ResponseSpec{
@@ -173,6 +175,7 @@ func getSkillContentOperationSpec() OperationSpec {
 		Parameters: []ParameterSpec{
 			pathParam("name", "Skill name"),
 			queryParam(specWorkspaceKey, "Workspace id or path for resolution context", false),
+			queryParam("profile", "Exact profile name", false),
 			queryParam("for_agent", "Logical agent name for agent-local resolution", false),
 		},
 		Responses: []ResponseSpec{
@@ -196,6 +199,7 @@ func getSkillShadowsOperationSpec() OperationSpec {
 		Parameters: []ParameterSpec{
 			pathParam("name", "Skill name"),
 			queryParam(specWorkspaceKey, "Workspace id or path for resolution context", false),
+			queryParam("profile", "Exact profile name", false),
 			queryParam("for_agent", "Logical agent name for agent-local resolution", false),
 		},
 		Responses: []ResponseSpec{
@@ -219,6 +223,7 @@ func enableSkillOperationSpec() OperationSpec {
 		Parameters: []ParameterSpec{
 			pathParam("name", "Skill name"),
 			queryParam(specWorkspaceKey, "Workspace id or path for resolution context", false),
+			queryParam("profile", "Exact profile name", false),
 			queryParam("for_agent", "Logical agent name for agent-local resolution", false),
 		},
 		Responses: []ResponseSpec{
@@ -242,6 +247,7 @@ func disableSkillOperationSpec() OperationSpec {
 		Parameters: []ParameterSpec{
 			pathParam("name", "Skill name"),
 			queryParam(specWorkspaceKey, "Workspace id or path for resolution context", false),
+			queryParam("profile", "Exact profile name", false),
 			queryParam("for_agent", "Logical agent name for agent-local resolution", false),
 		},
 		Responses: []ResponseSpec{

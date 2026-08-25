@@ -832,6 +832,54 @@ func TestServiceRemoveExposureLifecycle(t *testing.T) {
 	})
 }
 
+// Invariant: every applied marketplace update verifies its canonical exposure path and propagates failures.
+// Owning layer: marketplace service lifecycle.
+// Canonical suite: service_test.go.
+func TestServiceUpdateExposureLifecycle(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should verify the updated canonical path and propagate verification failure", func(t *testing.T) {
+		t.Parallel()
+
+		skillsDir := t.TempDir()
+		writeMarketplaceInstalledSkill(t, skillsDir, "review", "@acme/review", "1.0.0")
+		canonical := filepath.Join(skillsDir, "review")
+		blocked := errors.New("exposure verification failed")
+		lifecycle := &recordingExposureLifecycle{verifyFn: func(path string) error {
+			if path != canonical {
+				t.Fatalf("verification path = %q, want %q", path, canonical)
+			}
+			return blocked
+		}}
+		source := &lifecycleRegistrySource{
+			archive: marketplaceSkillArchive(t, "review", "Updated skill", "updated body"),
+			detail: registrypkg.Detail{Listing: registrypkg.Listing{
+				Slug: "@acme/review", Name: "review", Version: "2.0.0",
+				Source: "test-registry", Type: registrypkg.PackageTypeSkill,
+			}},
+		}
+		service := NewService(
+			compozyconfig.HomePaths{SkillsDir: skillsDir},
+			compozyconfig.SkillsConfig{},
+			WithExposureLifecycle(lifecycle),
+			WithSourceLoader(func(compozyconfig.MarketplaceConfig) ([]registrypkg.Source, error) {
+				return []registrypkg.Source{source}, nil
+			}),
+		)
+
+		updates, err := service.Update(t.Context(), UpdateRequest{Name: "review"})
+		if !errors.Is(err, blocked) {
+			t.Fatalf("Update() error = %v, want %v", err, blocked)
+		}
+		if len(updates) != 1 || updates[0].Status != UpdateStatusUpdated || lifecycle.verifyCalls != 1 {
+			t.Fatalf("Update() results = %#v; verifyCalls = %d", updates, lifecycle.verifyCalls)
+		}
+	})
+}
+
+// Invariant: marketplace updates preserve healthy exposures and removal clears links and ownership records.
+// Owning layer: marketplace and exposure-store integration.
+// Canonical suite: service_test.go.
 func TestServiceMarketplaceExposureLifecycleIntegration(t *testing.T) {
 	t.Parallel()
 	t.Run("Should preserve exposures through update and clean them before remove", func(t *testing.T) {

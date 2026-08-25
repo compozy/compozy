@@ -3,8 +3,7 @@ import { useProfileReadScope } from "@/systems/profiles";
 
 import { isSkillExposable, skillExposureViews } from "../lib/skill-exposure-view";
 import type { SkillExposureView } from "../lib/skill-exposure-view";
-import type { SkillPayload } from "../types";
-import type { SkillExposeTarget } from "../components/skill-expose-target-picker";
+import type { SkillExposeTarget, SkillPayload } from "../types";
 import { useSkillExpose, type SkillExposeModel } from "./use-skill-expose";
 
 export interface SkillExposuresModel {
@@ -22,21 +21,28 @@ export interface SkillExposuresModel {
 /**
  * Exposure state for one skill, plus the sources it could be exposed into.
  *
- * Targets are the daemon's enabled presets for this workspace — custom folders
- * are excluded because a link into a machine-local path would travel to
- * teammates as a broken one.
+ * Targets are the daemon's enabled presets for the skill's owning settings
+ * scope. Custom folders are excluded because a link into a machine-local path
+ * would travel to teammates as a broken one.
  */
 export function useSkillExposures(skill: SkillPayload, workspaceId: string): SkillExposuresModel {
   const { destination } = useProfileReadScope();
   const profile = destination === "default" ? undefined : destination;
-  const settings = useSettingsSkills(
-    profile
-      ? { scope: "profile", profile, ...(workspaceId ? { workspace_id: workspaceId } : {}) }
-      : workspaceId === ""
-        ? {}
-        : { scope: "workspace", workspace_id: workspaceId }
-  );
-  const expose = useSkillExpose(skill.name, workspaceId, profile);
+  const ownerWorkspaceId = skill.owner_scope === "workspace" ? skill.owner_id || workspaceId : "";
+  const settingsFilter =
+    skill.owner_scope === "workspace"
+      ? { scope: "workspace" as const, workspace_id: ownerWorkspaceId }
+      : skill.owner_scope === "profile"
+        ? { scope: "profile" as const, profile }
+        : skill.owner_scope === "workspace_profile"
+          ? {
+              scope: "profile" as const,
+              profile,
+              workspace_id: skill.owner_id?.split("@pf:", 1)[0] || workspaceId,
+            }
+          : { scope: "user" as const };
+  const settings = useSettingsSkills(settingsFilter);
+  const expose = useSkillExpose(skill.name, ownerWorkspaceId, profile);
   const sources = settings.data?.sources ?? [];
   const targets: SkillExposeTarget[] = [];
   const labelBySlug = new Map<string, string>();

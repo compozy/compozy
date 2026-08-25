@@ -88,12 +88,22 @@ func applyDaemonSkillSourceValue(
 			strings.Join(path, "."), value,
 		)
 	}
-	if target.Scope() == compozyconfig.WriteScopeWorkspace {
-		resolution, err := resolveCommandWorkspace(
-			cmd.Context(), cmd, deps, client, workspaceResolutionRequest{FlagRef: workspaceRef},
-		)
-		if err != nil {
-			return SettingsMutationRecord{}, err
+	if target.Scope() == compozyconfig.WriteScopeWorkspace || target.Scope() == compozyconfig.WriteScopeProfile {
+		query := settingsSkillsScopeQuery{Scope: contract.SettingsScopeWorkspace}
+		if target.Scope() == compozyconfig.WriteScopeProfile {
+			profileName, err := resolveConfigWriteProfile(cmd, deps)
+			if err != nil {
+				return SettingsMutationRecord{}, err
+			}
+			query = settingsSkillsScopeQuery{Scope: contract.SettingsScopeProfile, Profile: profileName}
+		} else {
+			resolution, err := resolveCommandWorkspace(
+				cmd.Context(), cmd, deps, client, workspaceResolutionRequest{FlagRef: workspaceRef},
+			)
+			if err != nil {
+				return SettingsMutationRecord{}, err
+			}
+			query.WorkspaceID = resolution.ID
 		}
 		override := contract.SettingsSkillsOverridePayload{}
 		optional := contract.OptionalStringList{Present: true, Value: append([]string{}, values...)}
@@ -102,23 +112,12 @@ func applyDaemonSkillSourceValue(
 		} else {
 			override.CustomSources = optional
 		}
-		return updateSettingsSkillsAtScope(client, cmd.Context(), settingsSkillsScopeQuery{
-			Scope: contract.SettingsScopeWorkspace, WorkspaceID: resolution.ID,
-		}, UpdateSettingsSkillsRequest{Override: &override})
+		return updateSettingsSkillsAtScope(client, cmd.Context(), query, UpdateSettingsSkillsRequest{Override: &override})
 	}
 
 	scope := contract.SettingsScopeUser
 	scopeRaw := string(compozyconfig.WriteScopeUser)
 	query := settingsSkillsScopeQuery{Scope: scope}
-	if target.Scope() == compozyconfig.WriteScopeProfile {
-		scope = contract.SettingsScopeProfile
-		scopeRaw = string(compozyconfig.WriteScopeProfile)
-		profileName, err := resolveConfigWriteProfile(cmd, deps)
-		if err != nil {
-			return SettingsMutationRecord{}, err
-		}
-		query = settingsSkillsScopeQuery{Scope: scope, Profile: profileName}
-	}
 	cfg, _, err := loadConfigForDisplayScope(cmd, deps, scopeRaw, workspaceRef)
 	if err != nil {
 		return SettingsMutationRecord{}, fmt.Errorf("cli: load current skill source config: %w", err)
@@ -158,7 +157,8 @@ func maybeUnsetWorkspaceSkillSourceViaDaemon(
 	workspaceRef string,
 	path []string,
 ) (*configUnsetRecord, error) {
-	if target.Scope() != compozyconfig.WriteScopeWorkspace || !isSkillSourceMutation(path) {
+	if (target.Scope() != compozyconfig.WriteScopeWorkspace &&
+		target.Scope() != compozyconfig.WriteScopeProfile) || !isSkillSourceMutation(path) {
 		return nil, nil
 	}
 	client, running, err := daemonClientIfRunning(cmd.Context(), deps)
@@ -168,11 +168,21 @@ func maybeUnsetWorkspaceSkillSourceViaDaemon(
 	if !running {
 		return nil, nil
 	}
-	resolution, err := resolveCommandWorkspace(
-		cmd.Context(), cmd, deps, client, workspaceResolutionRequest{FlagRef: workspaceRef},
-	)
-	if err != nil {
-		return nil, err
+	query := settingsSkillsScopeQuery{Scope: contract.SettingsScopeWorkspace}
+	if target.Scope() == compozyconfig.WriteScopeProfile {
+		profileName, resolveErr := resolveConfigWriteProfile(cmd, deps)
+		if resolveErr != nil {
+			return nil, resolveErr
+		}
+		query = settingsSkillsScopeQuery{Scope: contract.SettingsScopeProfile, Profile: profileName}
+	} else {
+		resolution, resolveErr := resolveCommandWorkspace(
+			cmd.Context(), cmd, deps, client, workspaceResolutionRequest{FlagRef: workspaceRef},
+		)
+		if resolveErr != nil {
+			return nil, resolveErr
+		}
+		query.WorkspaceID = resolution.ID
 	}
 	override := contract.SettingsSkillsOverridePayload{}
 	optional := contract.OptionalStringList{Present: true, Null: true}
@@ -181,9 +191,7 @@ func maybeUnsetWorkspaceSkillSourceViaDaemon(
 	} else {
 		override.CustomSources = optional
 	}
-	result, err := updateSettingsSkillsAtScope(client, cmd.Context(), settingsSkillsScopeQuery{
-		Scope: contract.SettingsScopeWorkspace, WorkspaceID: resolution.ID,
-	}, UpdateSettingsSkillsRequest{Override: &override})
+	result, err := updateSettingsSkillsAtScope(client, cmd.Context(), query, UpdateSettingsSkillsRequest{Override: &override})
 	if err != nil {
 		return nil, fmt.Errorf("cli: unset %q via daemon settings surface: %w", strings.Join(path, "."), err)
 	}

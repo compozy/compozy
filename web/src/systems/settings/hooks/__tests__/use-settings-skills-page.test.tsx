@@ -55,7 +55,7 @@ import { primaryAgentFixture } from "@/systems/agent/mocks";
 import { getSettingsSkills, updateSettingsSkills } from "@/systems/settings/adapters/settings-api";
 import { settingsSkillSourcesFixture } from "@/systems/settings/mocks";
 import { resetSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
-import type { SettingsSkillsSection } from "@/systems/settings";
+import type { SettingsMutationResult, SettingsSkillsSection } from "@/systems/settings";
 import { fetchWorkspaces } from "@/systems/workspace/adapters/workspace-api";
 // The section reads the daemon's coded rejection through the un-mocked error
 // module, so the suite throws that exact class rather than a look-alike.
@@ -85,6 +85,20 @@ const skillsEnvelope: SettingsSkillsSection = {
   },
   sources: settingsSkillSourcesFixture,
   links: [{ label: "skills", path: "/marketplace/skills" }],
+};
+
+const skillsMutationFixture: SettingsMutationResult = {
+  ...skillsEnvelope,
+  active_config_hash: "sha256:skills-live",
+  active_generation: 12,
+  applied: true,
+  apply_record_id: "cfg_apply_skills",
+  lifecycle: "live",
+  next_action: "none",
+  restart_required: false,
+  restart_scope: "none",
+  warnings: [],
+  write_target: "global-config",
 };
 
 function createWrapper() {
@@ -514,6 +528,9 @@ describe("useSettingsSkillsPage", () => {
   });
 
   it("Should send a workspace override only for the keys the workspace owns", async () => {
+    // Invariant: source ownership changes preserve the complete refreshed section.
+    // Owning layer: settings skills page hook and draft store.
+    // Canonical suite: use-settings-skills-page.test.tsx.
     shellMocks.activeWorkspaceId = "ws_acme";
     shellMocks.workspaces = [{ id: "ws_acme", name: "acme-api" }];
     vi.mocked(getSettingsSkills).mockImplementation(async filter => ({
@@ -525,11 +542,11 @@ describe("useSettingsSkillsPage", () => {
         : {}),
     }));
     vi.mocked(updateSettingsSkills).mockResolvedValue({
-      section: "skills",
+      ...skillsMutationFixture,
       scope: "workspace",
-      applied: true,
-      restart_required: false,
-    } as never);
+      workspace_id: "ws_acme",
+      write_target: "workspace-config",
+    });
 
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsSkillsPage(), { wrapper });
@@ -557,6 +574,9 @@ describe("useSettingsSkillsPage", () => {
   });
 
   it("Should return one key to inheritance without touching the other", async () => {
+    // Invariant: releasing one source key does not release its sibling key.
+    // Owning layer: settings skills page hook and draft store.
+    // Canonical suite: use-settings-skills-page.test.tsx.
     shellMocks.activeWorkspaceId = "ws_acme";
     shellMocks.workspaces = [{ id: "ws_acme", name: "acme-api" }];
     vi.mocked(getSettingsSkills).mockImplementation(async filter => ({
@@ -568,11 +588,11 @@ describe("useSettingsSkillsPage", () => {
         : {}),
     }));
     vi.mocked(updateSettingsSkills).mockResolvedValue({
-      section: "skills",
+      ...skillsMutationFixture,
       scope: "workspace",
-      applied: true,
-      restart_required: false,
-    } as never);
+      workspace_id: "ws_acme",
+      write_target: "workspace-config",
+    });
 
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsSkillsPage(), { wrapper });

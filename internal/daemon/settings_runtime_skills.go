@@ -15,10 +15,6 @@ import (
 
 const skillSourceRollbackTimeout = 5 * time.Second
 
-type skillResourceRepublisher interface {
-	SyncSkills(context.Context) error
-}
-
 type stagedSkillResourceRepublisher interface {
 	SyncSkillsStaged(context.Context) (func(context.Context) error, error)
 }
@@ -119,10 +115,7 @@ func syncSkillResources(ctx context.Context, publisher agentSkillPublisher) erro
 	if publisher == nil {
 		return errors.New("daemon: skill resource publisher is unavailable")
 	}
-	if scoped, ok := publisher.(skillResourceRepublisher); ok {
-		return scoped.SyncSkills(ctx)
-	}
-	return publisher.Sync(ctx)
+	return publisher.SyncSkills(ctx)
 }
 
 func skillRegistryConfigChanged(previous *compozyconfig.Config, next *compozyconfig.Config) bool {

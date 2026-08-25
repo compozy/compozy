@@ -714,92 +714,97 @@ func TestConfigSetDisabledSkillsUsesDaemonSettingsWhenRunning(t *testing.T) {
 
 func TestConfigSetSkillSourcesRoutesProfileAndWorkspaceThroughDaemon(t *testing.T) {
 	t.Parallel()
+	t.Run("Should route scoped skill source writes through the daemon", func(t *testing.T) {
+		t.Parallel()
 
-	workspaceRoot := t.TempDir()
-	type capturedCall struct {
-		query   settingsSkillsScopeQuery
-		request UpdateSettingsSkillsRequest
-	}
-	var captured []capturedCall
-	base := &stubClient{
-		getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
-			if strings.TrimSpace(ref) != workspaceRoot && strings.TrimSpace(ref) != "ws-alpha" {
-				return WorkspaceDetailRecord{}, fmt.Errorf("unexpected workspace ref %q", ref)
-			}
-			return WorkspaceDetailRecord{
-				Workspace: WorkspaceRecord{ID: "ws-alpha", Name: "alpha", RootDir: workspaceRoot},
-			}, nil
-		},
-	}
-	client := &profileAwareStubClient{
-		stubClient: base,
-		profileClientStub: &profileClientStub{profiles: []contract.Profile{
-			{Name: "default", State: "active"},
-			{Name: "marketing", State: "active"},
-		}},
-		updateSettingsSkillsAtScopeFn: func(
-			_ context.Context,
-			query settingsSkillsScopeQuery,
-			request UpdateSettingsSkillsRequest,
-		) (SettingsMutationRecord, error) {
-			captured = append(captured, capturedCall{query: query, request: request})
-			return SettingsMutationRecord{
-				Section: "skills", Scope: query.Scope,
-				Lifecycle: contract.SettingsApplyLifecycleLive, Applied: true,
-			}, nil
-		},
-	}
-	deps := newTestDeps(t, client)
-	deps.getwd = func() (string, error) { return workspaceRoot, nil }
-	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
-		return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
-	}
-	deps.processAlive = func(pid int) bool { return pid == 42 }
+		workspaceRoot := t.TempDir()
+		type capturedCall struct {
+			query   settingsSkillsScopeQuery
+			request UpdateSettingsSkillsRequest
+		}
+		var captured []capturedCall
+		base := &stubClient{
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				if strings.TrimSpace(ref) != workspaceRoot && strings.TrimSpace(ref) != "ws-alpha" {
+					return WorkspaceDetailRecord{}, fmt.Errorf("unexpected workspace ref %q", ref)
+				}
+				return WorkspaceDetailRecord{
+					Workspace: WorkspaceRecord{ID: "ws-alpha", Name: "alpha", RootDir: workspaceRoot},
+				}, nil
+			},
+		}
+		client := &profileAwareStubClient{
+			stubClient: base,
+			profileClientStub: &profileClientStub{profiles: []contract.Profile{
+				{Name: "default", State: "active"},
+				{Name: "marketing", State: "active"},
+			}},
+			updateSettingsSkillsAtScopeFn: func(
+				_ context.Context,
+				query settingsSkillsScopeQuery,
+				request UpdateSettingsSkillsRequest,
+			) (SettingsMutationRecord, error) {
+				captured = append(captured, capturedCall{query: query, request: request})
+				return SettingsMutationRecord{
+					Section: "skills", Scope: query.Scope,
+					Lifecycle: contract.SettingsApplyLifecycleLive, Applied: true,
+				}, nil
+			},
+		}
+		deps := newTestDeps(t, client)
+		deps.getwd = func() (string, error) { return workspaceRoot, nil }
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
+		}
+		deps.processAlive = func(pid int) bool { return pid == 42 }
 
-	_, _, err := executeRootCommand(
-		t, deps,
-		"--profile", "marketing", "config", "set", "skills.sources", "agents,claude",
-		"--scope", "profile", "--workspace", workspaceRoot,
-	)
-	if err != nil {
-		t.Fatalf("profile config set skills.sources error = %v", err)
-	}
-	_, _, err = executeRootCommand(
-		t, deps,
-		"config", "set", "skills.custom_sources", "./team-skills",
-		"--scope", "workspace", "--workspace", workspaceRoot,
-	)
-	if err != nil {
-		t.Fatalf("workspace config set skills.custom_sources error = %v", err)
-	}
-	_, _, err = executeRootCommand(
-		t, deps,
-		"config", "unset", "skills.sources",
-		"--scope", "workspace", "--workspace", workspaceRoot,
-	)
-	if err != nil {
-		t.Fatalf("workspace config unset skills.sources error = %v", err)
-	}
-	if len(captured) != 3 {
-		t.Fatalf("scoped daemon calls = %d, want 3", len(captured))
-	}
-	if captured[0].query.Scope != contract.SettingsScopeProfile || captured[0].query.Profile != "marketing" ||
-		!slices.Equal(captured[0].request.Config.Sources, []string{"agents", "claude"}) ||
-		captured[0].request.Override != nil {
-		t.Fatalf("profile daemon call = %#v", captured[0])
-	}
-	workspaceOverride := captured[1].request.Override
-	if captured[1].query.Scope != contract.SettingsScopeWorkspace || captured[1].query.WorkspaceID != "ws-alpha" ||
-		workspaceOverride == nil || workspaceOverride.Sources.Present ||
-		!workspaceOverride.CustomSources.Present ||
-		!slices.Equal(workspaceOverride.CustomSources.Value, []string{"./team-skills"}) {
-		t.Fatalf("workspace daemon call = %#v", captured[1])
-	}
-	unsetOverride := captured[2].request.Override
-	if unsetOverride == nil || !unsetOverride.Sources.Present || !unsetOverride.Sources.Null ||
-		unsetOverride.CustomSources.Present {
-		t.Fatalf("workspace unset daemon call = %#v", captured[2])
-	}
+		_, _, err := executeRootCommand(
+			t, deps,
+			"--profile", "marketing", "config", "set", "skills.sources", "agents,claude",
+			"--scope", "profile", "--workspace", workspaceRoot,
+		)
+		if err != nil {
+			t.Fatalf("profile config set skills.sources error = %v", err)
+		}
+		_, _, err = executeRootCommand(
+			t, deps,
+			"config", "set", "skills.custom_sources", "./team-skills",
+			"--scope", "workspace", "--workspace", workspaceRoot,
+		)
+		if err != nil {
+			t.Fatalf("workspace config set skills.custom_sources error = %v", err)
+		}
+		_, _, err = executeRootCommand(
+			t, deps,
+			"config", "unset", "skills.sources",
+			"--scope", "workspace", "--workspace", workspaceRoot,
+		)
+		if err != nil {
+			t.Fatalf("workspace config unset skills.sources error = %v", err)
+		}
+		if len(captured) != 3 {
+			t.Fatalf("scoped daemon calls = %d, want 3", len(captured))
+		}
+		profileOverride := captured[0].request.Override
+		if captured[0].query.Scope != contract.SettingsScopeProfile || captured[0].query.Profile != "marketing" ||
+			profileOverride == nil || !profileOverride.Sources.Present || profileOverride.Sources.Null ||
+			!slices.Equal(profileOverride.Sources.Value, []string{"agents", "claude"}) ||
+			profileOverride.CustomSources.Present {
+			t.Fatalf("profile daemon call = %#v", captured[0])
+		}
+		workspaceOverride := captured[1].request.Override
+		if captured[1].query.Scope != contract.SettingsScopeWorkspace || captured[1].query.WorkspaceID != "ws-alpha" ||
+			workspaceOverride == nil || workspaceOverride.Sources.Present ||
+			!workspaceOverride.CustomSources.Present ||
+			!slices.Equal(workspaceOverride.CustomSources.Value, []string{"./team-skills"}) {
+			t.Fatalf("workspace daemon call = %#v", captured[1])
+		}
+		unsetOverride := captured[2].request.Override
+		if unsetOverride == nil || !unsetOverride.Sources.Present || !unsetOverride.Sources.Null ||
+			unsetOverride.CustomSources.Present {
+			t.Fatalf("workspace unset daemon call = %#v", captured[2])
+		}
+	})
 }
 
 func TestConfigSetWindowManagerWritesOverlayAndReloadsWhenDaemonRuns(t *testing.T) {

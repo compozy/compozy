@@ -70,7 +70,7 @@ export function SettingsSkillSourcesSection({ model }: SettingsSkillSourcesSecti
           ) : null}
         </p>
       ) : null}
-      <SourceKeyGroup model={model} posture={postureFor(model.postures, "sources")} title="Sources">
+      <SourceKeyGroup model={model} posture={postureFor(model.postures, "sources")} title="Presets">
         <div
           className="overflow-hidden rounded-lg border border-line"
           data-testid={`${TEST_ID}-list`}

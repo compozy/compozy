@@ -15,8 +15,8 @@ func (m *ExposeManager) CleanupCanonicalDir(ctx context.Context, canonicalDir st
 	if m == nil || m.store == nil {
 		return errors.New("skills: exposure repository is required")
 	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	exposureMutationMu.Lock()
+	defer exposureMutationMu.Unlock()
 
 	canonical, err := m.fs.EvalSymlinks(canonicalDir)
 	if err != nil {
@@ -52,8 +52,8 @@ func (m *ExposeManager) VerifyCanonicalDir(ctx context.Context, canonicalDir str
 	if m == nil || m.store == nil {
 		return errors.New("skills: exposure repository is required")
 	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	exposureMutationMu.Lock()
+	defer exposureMutationMu.Unlock()
 
 	canonical, err := m.fs.EvalSymlinks(canonicalDir)
 	if err != nil {

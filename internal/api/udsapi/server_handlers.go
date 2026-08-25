@@ -3,7 +3,6 @@ package udsapi
 import (
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/gateway"
-	"github.com/compozy/compozy/internal/store"
 )
 
 func newHandlers(cfg *handlerConfig) *Handlers {
@@ -24,6 +23,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 }
 
 func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
+	exposureDeps := core.ResolveSkillExposureDependencies(cfg.networkStore)
 	return &core.BaseHandlerConfig{
 		TransportName:                "udsapi",
 		MaskInternalErrors:           false,
@@ -83,8 +83,8 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 		Roles:                        cfg.roles,
 		SkillsRegistry:               cfg.skillsRegistry,
 		SkillResources:               cfg.skillResources,
-		SkillExposures:               skillExposureRepository(cfg.networkStore),
-		SkillExposureEvents:          skillExposureEventStore(cfg.networkStore),
+		SkillExposures:               exposureDeps.Repository,
+		SkillExposureEvents:          exposureDeps.Events,
 		MemoryStore:                  cfg.memoryStore,
 		DreamTrigger:                 cfg.dreamTrigger,
 		MemoryExtractor:              cfg.memoryExtractor,
@@ -102,16 +102,6 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 		PollInterval:                 cfg.pollInterval,
 		AgentLoader:                  cfg.agentLoader,
 	}
-}
-
-func skillExposureRepository(value any) store.SkillExposureRepository {
-	repository, _ := value.(store.SkillExposureRepository)
-	return repository
-}
-
-func skillExposureEventStore(value any) store.EventSummaryStore {
-	events, _ := value.(store.EventSummaryStore)
-	return events
 }
 
 func sessionAcceptanceManager(manager core.SessionManager) core.SessionAcceptanceManager {

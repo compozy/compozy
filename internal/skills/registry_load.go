@@ -150,7 +150,8 @@ func (r *Registry) loadRootSkillPaths(
 		}
 		skill, content, err := parseSkillFileDocument(skillPath)
 		if err != nil {
-			return err
+			appendSkillDiagnostic(diagnostics, skillDefinitionFailedDiagnostic(skillPath, root.SourceSlug, err))
+			continue
 		}
 		if err := r.assignRootAndProvenance(skill, root); err != nil {
 			return err
@@ -179,14 +180,15 @@ func (r *Registry) loadWorkspaceSkills(
 
 		skill, content, err := parseSkillFileDocument(path.filePath)
 		if err != nil {
+			diagnostics = append(
+				diagnostics,
+				skillDefinitionFailedDiagnostic(path.filePath, path.root.SourceSlug, err),
+			)
+			continue
+		}
+		if err := r.assignRootAndProvenance(skill, path.root); err != nil {
 			return nil, nil, nil, err
 		}
-		skill.Source = path.source
-		skill.Origin = path.origin
-		skill.RootID = path.rootID
-		skill.RootDir = path.rootDir
-		skill.ResourceScope = path.resourceScope
-		refreshSkillHookDecls(skill)
 		if !r.processSkillWithDiagnostics(skills, skill, content, disabledSkills, &diagnostics) {
 			continue
 		}
@@ -220,7 +222,8 @@ func (r *Registry) loadBundledSkills(
 
 		skill, content, err := parseBundledSkillDocument(bundledFS, skillPath)
 		if err != nil {
-			return err
+			appendSkillDiagnostic(diagnostics, skillDefinitionFailedDiagnostic(skillPath, registryBundledKey, err))
+			continue
 		}
 		if !r.processSkillWithDiagnostics(dst, skill, content, disabledSkills, diagnostics) {
 			continue
@@ -272,7 +275,8 @@ func (r *Registry) loadSkillPaths(
 
 		skill, content, err := parseSkillFileDocument(skillPath)
 		if err != nil {
-			return err
+			appendSkillDiagnostic(diagnostics, skillDefinitionFailedDiagnostic(skillPath, skillSourceName(source), err))
+			continue
 		}
 		if err := r.assignSourceAndProvenance(skill, source); err != nil {
 			return err
@@ -325,35 +329,18 @@ func (r *Registry) assignSourceAndProvenance(skill *Skill, source SkillSource) e
 	}
 
 	skill.Source = source
-	if source != SourceUser {
-		refreshSkillHookDecls(skill)
-		return nil
-	}
-
-	hasSidecar, err := HasSidecar(skill.Dir)
-	if err != nil {
-		return err
-	}
-	if !hasSidecar {
-		refreshSkillHookDecls(skill)
-		return nil
-	}
-
-	provenance, err := ReadSidecar(skill.Dir)
-	if err != nil {
-		return err
-	}
-
-	skill.Source = SourceMarketplace
-	skill.Provenance = provenance
-	skill.InstalledFrom = strings.TrimSpace(provenance.Slug)
-	refreshSkillHookDecls(skill)
-
-	return nil
+	return assignMarketplaceProvenance(skill)
 }
 
 func (r *Registry) assignRootAndProvenance(skill *Skill, root compozyconfig.SkillRootSpec) error {
 	assignSkillRoot(skill, root)
+	return assignMarketplaceProvenance(skill)
+}
+
+func assignMarketplaceProvenance(skill *Skill) error {
+	if skill == nil {
+		return errors.New("skills: skill is required")
+	}
 	if skill.Source != SourceUser {
 		refreshSkillHookDecls(skill)
 		return nil

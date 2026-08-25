@@ -106,8 +106,9 @@ func appendUnmeasuredCustomSources(
 	indexBySlug map[string]int,
 	paths []string,
 ) {
+	slugs := compozyconfig.CustomSourceSlugs(paths)
 	for _, path := range paths {
-		slug := compozyconfig.CustomSourceSlug(path, paths)
+		slug := slugs[compozyconfig.CanonicalSkillSourcePath(path)]
 		if _, exists := indexBySlug[slug]; exists {
 			continue
 		}
@@ -128,7 +129,8 @@ func skillSourceRootItem(
 		Verification:  status.Verification,
 		NativeReaders: append([]string(nil), status.NativeReaders...),
 	}
-	if runtimeAvailable && (!status.Exists || status.Readable) {
+	countsAvailable := runtimeAvailable && (!status.Exists || status.Readable)
+	if countsAvailable {
 		scanned := status.ScannedCount
 		skills := status.SkillCount
 		item.ScannedCount = &scanned

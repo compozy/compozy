@@ -134,12 +134,8 @@ func (c *daemonClient) ExposeSkill(
 	query SkillQuery,
 ) (contract.SkillExposeResponse, error) {
 	var response contract.SkillExposeResponse
-	values := url.Values{}
-	if query.ForAgent != "" {
-		values.Set("for_agent", query.ForAgent)
-	}
 	path := "/api/skills/" + url.PathEscape(strings.TrimSpace(name)) + "/expose"
-	if err := c.doJSON(ctx, http.MethodPost, path, values, request, &response); err != nil {
+	if err := c.doJSON(ctx, http.MethodPost, path, skillValues(query), request, &response); err != nil {
 		return contract.SkillExposeResponse{}, err
 	}
 	return response, nil
@@ -152,12 +148,8 @@ func (c *daemonClient) UnexposeSkill(
 	query SkillQuery,
 ) (contract.SkillUnexposeResponse, error) {
 	var response contract.SkillUnexposeResponse
-	values := url.Values{}
-	if query.ForAgent != "" {
-		values.Set("for_agent", query.ForAgent)
-	}
 	path := "/api/skills/" + url.PathEscape(strings.TrimSpace(name)) + "/unexpose"
-	if err := c.doJSON(ctx, http.MethodPost, path, values, request, &response); err != nil {
+	if err := c.doJSON(ctx, http.MethodPost, path, skillValues(query), request, &response); err != nil {
 		return contract.SkillUnexposeResponse{}, err
 	}
 	return response, nil

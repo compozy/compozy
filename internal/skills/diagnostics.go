@@ -9,6 +9,7 @@ const (
 	skillVerificationFailureCriticalWarning = "critical_warning"
 	skillVerificationFailureHashMismatch    = "hash_mismatch"
 	skillVerificationFailureProvenance      = "provenance_verification_failed"
+	skillVerificationFailureDefinition      = "definition_invalid"
 )
 
 // DiagnosticsForSkill returns the diagnostics visible for one effective skill.
@@ -17,6 +18,19 @@ func DiagnosticsForSkill(skill *Skill) []SkillDiagnostic {
 		return nil
 	}
 	return skillDiagnosticsForList([]*Skill{skill})
+}
+
+func skillDefinitionFailedDiagnostic(path string, source string, loadErr error) SkillDiagnostic {
+	return SkillDiagnostic{
+		State:              SkillDiagnosticStateVerificationFailed,
+		Source:             strings.TrimSpace(source),
+		Path:               strings.TrimSpace(path),
+		VerificationStatus: SkillVerificationStatusFailed,
+		Failure: &SkillVerificationFailure{
+			Code:    skillVerificationFailureDefinition,
+			Message: strings.TrimSpace(loadErr.Error()),
+		},
+	}
 }
 
 func skillDiagnosticsForList(skills []*Skill) []SkillDiagnostic {

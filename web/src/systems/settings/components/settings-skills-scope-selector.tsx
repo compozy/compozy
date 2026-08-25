@@ -53,7 +53,7 @@ export function SettingsSkillsScopeSelector({
     items.push({ value: "agent", label: "Agent", testId: "settings-page-skills-scope-agent" });
   }
 
-  const showWorkspacePicker = selection.scope !== "user";
+  const showContextPickers = selection.scope !== "user";
   return (
     <SettingsGroup title="Scope">
       <div
@@ -73,7 +73,7 @@ export function SettingsSkillsScopeSelector({
         />
       </div>
 
-      {showWorkspacePicker ? (
+      {showContextPickers ? (
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           {selection.scope === "agent" ? (
             <SettingsFieldRow

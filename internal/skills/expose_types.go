@@ -63,6 +63,8 @@ type ExposureError struct {
 	Cause     error
 }
 
+var _ error = (*ExposureError)(nil)
+
 func (e *ExposureError) Error() string {
 	if e == nil {
 		return ""
@@ -89,6 +91,8 @@ type ExposureBatchError struct {
 	Cause      error
 }
 
+var _ error = (*ExposureBatchError)(nil)
+
 func (e *ExposureBatchError) Error() string {
 	if e == nil || e.Cause == nil {
 		return "skill exposure failed"
@@ -103,8 +107,19 @@ func (e *ExposureBatchError) Unwrap() error {
 	return e.Cause
 }
 
-func newExposureError(code string, target string, path string, message string, cause error) error {
-	return &ExposureError{Code: code, Target: target, Path: path, Message: message, Cause: cause}
+type exposureErrorParams struct {
+	code    string
+	target  string
+	path    string
+	message string
+	cause   error
+}
+
+func newExposureError(params exposureErrorParams) error {
+	return &ExposureError{
+		Code: params.code, Target: params.target, Path: params.path,
+		Message: params.message, Cause: params.cause,
+	}
 }
 
 type exposureFS interface {

@@ -47,6 +47,7 @@ const STATUS_TONE: Record<SkillExposureStatus, StatusDotTone> = {
 
 export function toSkillExposureView(exposure: SkillExposurePayload): SkillExposureView {
   const ours = exposure.status !== "foreign_conflict";
+  const stale = exposure.status === "missing" || exposure.status === "broken";
   return {
     target: exposure.target,
     path: exposure.path,
@@ -55,7 +56,7 @@ export function toSkillExposureView(exposure: SkillExposurePayload): SkillExposu
     tone: STATUS_TONE[exposure.status],
     repairable: exposure.status === "missing" || exposure.status === "broken",
     removable: ours,
-    stale: exposure.status === "missing" || exposure.status === "broken",
+    stale,
   };
 }
 
@@ -71,6 +72,7 @@ export function skillExposureViews(skill: SkillPayload): SkillExposureView[] {
 const INELIGIBLE_SOURCES = new Set(["bundled", "profile", "workspace_profile"]);
 
 export function isSkillExposable(skill: SkillPayload): boolean {
+  if (skill.owner_scope === "profile" || skill.owner_scope === "workspace_profile") return false;
   if (INELIGIBLE_SOURCES.has(skill.source)) return false;
   return typeof skill.dir === "string" && skill.dir.trim() !== "";
 }

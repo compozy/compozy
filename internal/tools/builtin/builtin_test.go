@@ -962,24 +962,26 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 
 		descriptors := descriptorMap(NativeDescriptors())
 		wantDigests := map[toolspkg.ToolID]string{
-			toolspkg.ToolIDSkillList:   "5271efbd3897c6e22d8f59bd49364a8f67d5986158b4c9b18d78c76dd2e4e123",
-			toolspkg.ToolIDSkillSearch: "5271efbd3897c6e22d8f59bd49364a8f67d5986158b4c9b18d78c76dd2e4e123",
-			toolspkg.ToolIDSkillView:   "a7e24d30659111d8180994085d091bc904fc4fd1fb1076ec0b63428885df461a",
+			toolspkg.ToolIDSkillList:   "93130ccf79a4e5f9a9c6565cd2127a7dda23e9989b37987fc9570ea206fd370f",
+			toolspkg.ToolIDSkillSearch: "93130ccf79a4e5f9a9c6565cd2127a7dda23e9989b37987fc9570ea206fd370f",
+			toolspkg.ToolIDSkillView:   "fadf40d7421248945f924e72c73663e92867d40edcc29049ff4e298b51cf006b",
 		}
 		for id, want := range wantDigests {
-			descriptor, ok := descriptors[id]
-			if !ok {
-				t.Errorf("descriptor %q missing", id)
-				continue
-			}
-			withDigests, err := toolspkg.DescriptorWithSchemaDigests(descriptor)
-			if err != nil {
-				t.Errorf("DescriptorWithSchemaDigests(%s) error = %v", id, err)
-				continue
-			}
-			if withDigests.OutputSchemaDigest != want {
-				t.Errorf("%s output schema digest = %q, want %q", id, withDigests.OutputSchemaDigest, want)
-			}
+			t.Run("Should pin "+string(id)+" output schema digest", func(t *testing.T) {
+				t.Parallel()
+
+				descriptor, ok := descriptors[id]
+				if !ok {
+					t.Fatalf("descriptor %q missing", id)
+				}
+				withDigests, err := toolspkg.DescriptorWithSchemaDigests(descriptor)
+				if err != nil {
+					t.Fatalf("DescriptorWithSchemaDigests(%s) error = %v", id, err)
+				}
+				if withDigests.OutputSchemaDigest != want {
+					t.Fatalf("%s output schema digest = %q, want %q", id, withDigests.OutputSchemaDigest, want)
+				}
+			})
 		}
 	})
 

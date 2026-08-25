@@ -177,22 +177,9 @@ func (c *daemonClient) UpdateSettingsSkillsAtScope(
 	query settingsSkillsScopeQuery,
 	request UpdateSettingsSkillsRequest,
 ) (SettingsMutationRecord, error) {
-	values := url.Values{}
-	if query.Scope != "" {
-		values.Set("scope", string(query.Scope))
-	}
-	if strings.TrimSpace(query.WorkspaceID) != "" {
-		values.Set("workspace_id", strings.TrimSpace(query.WorkspaceID))
-	}
-	if strings.TrimSpace(query.Profile) != "" {
-		values.Set("profile", strings.TrimSpace(query.Profile))
-	}
-	path := "/api/settings/skills"
-	if encoded := values.Encode(); encoded != "" {
-		path += "?" + encoded
-	}
+	values := settingsSkillsQueryValues(query)
 	var response SettingsMutationRecord
-	if err := c.doJSON(ctx, http.MethodPatch, path, nil, request, &response); err != nil {
+	if err := c.doJSON(ctx, http.MethodPatch, "/api/settings/skills", values, request, &response); err != nil {
 		return SettingsMutationRecord{}, err
 	}
 	return response, nil
@@ -202,25 +189,26 @@ func (c *daemonClient) GetSettingsSkills(
 	ctx context.Context,
 	query settingsSkillsScopeQuery,
 ) (contract.SettingsSkillsResponse, error) {
+	values := settingsSkillsQueryValues(query)
+	var response contract.SettingsSkillsResponse
+	if err := c.doJSON(ctx, http.MethodGet, "/api/settings/skills", values, nil, &response); err != nil {
+		return contract.SettingsSkillsResponse{}, err
+	}
+	return response, nil
+}
+
+func settingsSkillsQueryValues(query settingsSkillsScopeQuery) url.Values {
 	values := url.Values{}
 	if query.Scope != "" {
 		values.Set("scope", string(query.Scope))
 	}
-	if strings.TrimSpace(query.WorkspaceID) != "" {
-		values.Set("workspace_id", strings.TrimSpace(query.WorkspaceID))
+	if workspaceID := strings.TrimSpace(query.WorkspaceID); workspaceID != "" {
+		values.Set("workspace_id", workspaceID)
 	}
-	if strings.TrimSpace(query.Profile) != "" {
-		values.Set("profile", strings.TrimSpace(query.Profile))
+	if profile := strings.TrimSpace(query.Profile); profile != "" {
+		values.Set("profile", profile)
 	}
-	path := "/api/settings/skills"
-	if encoded := values.Encode(); encoded != "" {
-		path += "?" + encoded
-	}
-	var response contract.SettingsSkillsResponse
-	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
-		return contract.SettingsSkillsResponse{}, err
-	}
-	return response, nil
+	return values
 }
 
 func (c *daemonClient) UpdateSettingsAttention(

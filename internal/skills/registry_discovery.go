@@ -48,10 +48,11 @@ func (r *Registry) DiscoverGlobal(ctx context.Context) ([]*Skill, map[string]fil
 	}
 	cfg := r.registryConfigSnapshot(ctx)
 	disabledSkills := append([]string(nil), cfg.DisabledSkills...)
-	_, snapshots, _, candidates, err := r.loadGlobalSkills(ctx, disabledSkills, cfg)
+	_, snapshots, diagnostics, candidates, err := r.loadGlobalSkills(ctx, disabledSkills, cfg)
 	if err != nil {
 		return nil, nil, err
 	}
+	r.recordDiscoveredGlobalDiagnostics(ctx, diagnostics)
 	return cloneCommandSkillSlice(candidates), filesnap.Clone(snapshots), nil
 }
 
@@ -68,17 +69,50 @@ func (r *Registry) DiscoverWorkspace(
 		return nil, nil, err
 	}
 	if len(load.paths) == 0 {
+		r.recordDiscoveredWorkspaceDiagnostics(ctx, resolved, nil)
 		return nil, load.snapshots, nil
 	}
 	workspaceDisabled := r.workspaceDisabledSkillsSnapshot(
 		workspaceCacheKey(resolved),
 		resolved.Config.Skills.DisabledSkills,
 	)
-	_, _, candidates, err := r.loadWorkspaceSkills(ctx, load.paths, workspaceDisabled)
+	_, diagnostics, candidates, err := r.loadWorkspaceSkills(ctx, load.paths, workspaceDisabled)
 	if err != nil {
 		return nil, nil, err
 	}
+	r.recordDiscoveredWorkspaceDiagnostics(ctx, resolved, diagnostics)
 	return cloneCommandSkillSlice(candidates), load.snapshots, nil
+}
+
+func (r *Registry) recordDiscoveredGlobalDiagnostics(ctx context.Context, diagnostics []SkillDiagnostic) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if generation := ConfigGenerationFromContext(ctx); generation > 0 && generation == r.pendingGeneration {
+		r.pendingGlobalDiagnostics = cloneDiagnostics(diagnostics)
+		return
+	}
+	r.globalDiagnostics = cloneDiagnostics(diagnostics)
+}
+
+func (r *Registry) recordDiscoveredWorkspaceDiagnostics(
+	ctx context.Context,
+	resolved *workspacepkg.ResolvedWorkspace,
+	diagnostics []SkillDiagnostic,
+) {
+	key := workspaceCacheKey(resolved)
+	if key == "" {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if generation := ConfigGenerationFromContext(ctx); generation > 0 && generation == r.pendingGeneration {
+		if r.pendingWorkspaceDiagnostics == nil {
+			r.pendingWorkspaceDiagnostics = make(map[string][]SkillDiagnostic)
+		}
+		r.pendingWorkspaceDiagnostics[key] = cloneDiagnostics(diagnostics)
+		return
+	}
+	r.resourceWorkspaceDiagnostics[key] = cloneDiagnostics(diagnostics)
 }
 
 // ApplyResourceRecords atomically replaces the runtime skill catalog with the
@@ -101,6 +135,11 @@ func (r *Registry) ApplyResourceRecords(
 	r.mu.Lock()
 	generation := ConfigGenerationFromContext(ctx)
 	activeGeneration := r.configGeneration.Load()
+	if generation == 0 && r.pendingGeneration > 0 {
+		winningGeneration := r.pendingGeneration
+		r.mu.Unlock()
+		return r.supersededGenerationError(ctx, generation, winningGeneration)
+	}
 	if generation > 0 && generation < activeGeneration {
 		r.mu.Unlock()
 		return r.supersededGenerationError(ctx, generation, activeGeneration)
@@ -134,7 +173,6 @@ func (r *Registry) applyResourceProjectionLocked(revision int64, projection reso
 	r.resourceWorkspaceCommandCandidates = projection.workspaceCommandCandidates
 	r.resourceWorkspaceProfileCommandCandidates = projection.workspaceProfileCommandCandidates
 	r.globalSkills = projection.globalSkills
-	r.globalDiagnostics = nil
 	r.wsCache = make(map[string]*wsCache)
 	r.globalLoaded = true
 	r.globalVersion.Add(1)

@@ -10,6 +10,7 @@ import type {
 } from "../types";
 import {
   storySkillNames,
+  storyWorkspaceIds,
   storyWorkspacePaths,
   storyWorkspaceSkillDir,
 } from "@/storybook/fintech-scenario";
@@ -20,6 +21,8 @@ export const skillFixtures: SkillPayload[] = [
     description:
       "Turn cross-functional launch traffic into a concise executive brief with risks, owners, and next steps.",
     source: "workspace",
+    owner_scope: "workspace",
+    owner_id: storyWorkspaceIds.hq,
     origin: "",
     enabled: true,
     activation: { active: true },
@@ -57,6 +60,8 @@ export const skillFixtures: SkillPayload[] = [
     description:
       "Polish launch headlines, CRM copy, pricing claims, and ad lines without violating the approved guardrails.",
     source: "workspace",
+    owner_scope: "workspace",
+    owner_id: storyWorkspaceIds.growth,
     origin: "agents",
     enabled: true,
     activation: { active: true },
@@ -75,6 +80,8 @@ export const skillFixtures: SkillPayload[] = [
     description:
       "Run launch-surface QA for hero states, pricing banners, mobile breakpoints, and fallback banners.",
     source: "workspace",
+    owner_scope: "workspace",
+    owner_id: storyWorkspaceIds.product,
     origin: "",
     enabled: true,
     activation: {
@@ -104,6 +111,8 @@ export const skillFixtures: SkillPayload[] = [
     description:
       "Prepare launch GMV, burn, and reserve snapshots for finance reviews and launch-room decisions.",
     source: "workspace",
+    owner_scope: "workspace",
+    owner_id: storyWorkspaceIds.finance,
     origin: "team-skills",
     enabled: true,
     activation: { active: true },
@@ -123,6 +132,7 @@ export const skillFixtures: SkillPayload[] = [
     description:
       "Guide support and risk through launch-day merchant escalations with clear customer-safe next steps.",
     source: "marketplace",
+    owner_scope: "user",
     origin: "",
     enabled: false,
     activation: { active: true },
@@ -231,7 +241,11 @@ export const skillExposeSuccessFixture: SkillExposeResponse = {
     {
       target: "agents",
       ok: true,
-      exposure: skillExposuresFixture[0],
+      exposure: {
+        target: "agents",
+        path: `/Users/ana/.agents/skills/${storySkillNames.executiveBrief}`,
+        status: "healthy",
+      },
     },
   ],
   rolled_back: false,

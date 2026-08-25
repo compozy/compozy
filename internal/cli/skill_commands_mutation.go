@@ -91,6 +91,14 @@ func newSkillCreateCommand(deps commandDeps) *cobra.Command {
   compozy skill create campaign-brief --group marketing`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			var targets []string
+			if cmd.Flags().Changed("expose") {
+				parsedTargets, parseErr := parseSkillExposureTargets(exposeTargets)
+				if parseErr != nil {
+					return parseErr
+				}
+				targets = parsedTargets
+			}
 			name := defaultSkillName
 			if len(args) == 1 {
 				name = args[0]
@@ -129,10 +137,6 @@ func newSkillCreateCommand(deps commandDeps) *cobra.Command {
 			}
 			if !cmd.Flags().Changed("expose") {
 				return writeCommandOutput(cmd, skillCreateBundle(created))
-			}
-			targets, err := parseSkillExposureTargets(exposeTargets)
-			if err != nil {
-				return err
 			}
 			resolution, ok := commandWorkspaceResolution(cmd)
 			if !ok || strings.TrimSpace(resolution.ID) == "" {

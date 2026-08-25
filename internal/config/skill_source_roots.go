@@ -52,9 +52,7 @@ func (r WorkspaceDiscoveryRoot) SkillsDirs(cfg *SkillsConfig) []SkillRootSpec {
 	scope := r.skillResourceScope()
 	roots := make([]SkillRootSpec, 0, len(settings.Sources)+len(settings.CustomSources)+1)
 
-	if r.Source == WorkspaceDiscoverySourceWorkspace ||
-		r.Source == WorkspaceDiscoverySourceProfile ||
-		r.Source == WorkspaceDiscoverySourceWorkspaceProfile {
+	if r.supportsConfiguredSkillRoots() {
 		for _, slug := range settings.Sources {
 			preset, ok := skillSourcePreset(slug)
 			if !ok || preset.AlwaysOn || strings.TrimSpace(preset.WorkspaceRel) == "" {
@@ -65,15 +63,12 @@ func (r WorkspaceDiscoveryRoot) SkillsDirs(cfg *SkillsConfig) []SkillRootSpec {
 	}
 
 	resolvedCustom := make([]string, 0, len(settings.CustomSources))
-	if r.Source == WorkspaceDiscoverySourceWorkspace ||
-		r.Source == WorkspaceDiscoverySourceProfile ||
-		r.Source == WorkspaceDiscoverySourceWorkspaceProfile {
+	if r.supportsConfiguredSkillRoots() {
 		for _, path := range settings.CustomSources {
 			expanded := canonicalSkillSourcePath(path)
 			isWorkspaceRelative := !filepath.IsAbs(strings.TrimSpace(path)) &&
 				!strings.HasPrefix(strings.TrimSpace(path), "~")
-			if (isWorkspaceRelative && r.Source == WorkspaceDiscoverySourceProfile) ||
-				(!isWorkspaceRelative && r.Source != WorkspaceDiscoverySourceProfile) {
+			if isWorkspaceRelative && r.Source == WorkspaceDiscoverySourceProfile {
 				continue
 			}
 			base := r.WorkspaceRoot
@@ -100,10 +95,18 @@ func (r WorkspaceDiscoveryRoot) SkillsDirs(cfg *SkillsConfig) []SkillRootSpec {
 		compozyDir = filepath.Join(r.Dir, DirName, SkillsDirName)
 	}
 	kind := RootKindBuiltin
+	slug := SkillSourceCompozy
 	if r.Source == WorkspaceDiscoverySourceAdditional {
 		kind = RootKindCustom
+		slug = string(WorkspaceDiscoverySourceAdditional)
 	}
-	return append(roots, r.skillRootSpec(compozyDir, SkillSourceCompozy, kind, scope))
+	return append(roots, r.skillRootSpec(compozyDir, slug, kind, scope))
+}
+
+func (r WorkspaceDiscoveryRoot) supportsConfiguredSkillRoots() bool {
+	return r.Source == WorkspaceDiscoverySourceWorkspace ||
+		r.Source == WorkspaceDiscoverySourceProfile ||
+		r.Source == WorkspaceDiscoverySourceWorkspaceProfile
 }
 
 // ResolveGlobalSkillRoots resolves the user-owned global roots in effective config order.

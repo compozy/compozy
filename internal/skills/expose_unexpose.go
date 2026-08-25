@@ -21,18 +21,15 @@ func (m *ExposeManager) Unexpose(
 	if m == nil {
 		return nil, errors.New("skills: expose manager is required")
 	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	exposureMutationMu.Lock()
+	defer exposureMutationMu.Unlock()
 
 	results := exposureTargetResults(targets)
 	if skill != nil && skill.Source == SourceBundled {
-		err := newExposureError(
-			ExposureCodeSkillNotExposable,
-			"",
-			"",
-			"bundled skills have no on-disk home; copy it with `compozy skill create` first",
-			nil,
-		)
+		err := newExposureError(exposureErrorParams{
+			code:    ExposureCodeSkillNotExposable,
+			message: "bundled skills have no on-disk home; copy it with `compozy skill create` first",
+		})
 		m.failAllExposureTargets(ctx, skill, results, err)
 		return results, err
 	}
@@ -42,18 +39,19 @@ func (m *ExposeManager) Unexpose(
 		return results, err
 	}
 	if len(targets) == 0 {
-		return results, newExposureError(
-			ExposureCodeTargetInvalid, "", "", "at least one unexpose target is required", nil,
-		)
+		return results, newExposureError(exposureErrorParams{
+			code: ExposureCodeTargetInvalid, message: "at least one unexpose target is required",
+		})
 	}
 	failures := make([]error, 0)
 	seen := make(map[string]struct{}, len(targets))
 	for index, rawTarget := range targets {
 		target := strings.TrimSpace(rawTarget)
 		if _, duplicate := seen[target]; duplicate {
-			err := newExposureError(
-				ExposureCodeTargetInvalid, target, "", fmt.Sprintf("duplicate unexpose target %q", target), nil,
-			)
+			err := newExposureError(exposureErrorParams{
+				code: ExposureCodeTargetInvalid, target: target,
+				message: fmt.Sprintf("duplicate unexpose target %q", target),
+			})
 			results[index].Err = err
 			failures = append(failures, err)
 			m.emitExposureFailure(ctx, skill, target, "", err)
@@ -84,13 +82,10 @@ func (m *ExposeManager) Unexpose(
 		state := m.reconcileRecord(record)
 		results[index].Exposure = &state
 		if state.Status == ExposureForeignConflict {
-			err := newExposureError(
-				ExposureCodeForeignLink,
-				target,
-				record.LinkPath,
-				fmt.Sprintf("exposure path %q is not the recorded CompozyOS link", record.LinkPath),
-				nil,
-			)
+			err := newExposureError(exposureErrorParams{
+				code: ExposureCodeForeignLink, target: target, path: record.LinkPath,
+				message: fmt.Sprintf("exposure path %q is not the recorded CompozyOS link", record.LinkPath),
+			})
 			results[index].Err = err
 			failures = append(failures, err)
 			m.emitExposureFailure(ctx, skill, target, record.LinkPath, err)
@@ -145,13 +140,10 @@ func (m *ExposeManager) unexposeWithoutRecord(owner exposureOwner, skill *Skill,
 			actual = targetValue
 		}
 	}
-	return newExposureError(
-		ExposureCodeForeignLink,
-		target,
-		linkPath,
-		fmt.Sprintf("exposure path %q has no ownership record and points to %q", linkPath, actual),
-		nil,
-	)
+	return newExposureError(exposureErrorParams{
+		code: ExposureCodeForeignLink, target: target, path: linkPath,
+		message: fmt.Sprintf("exposure path %q has no ownership record and points to %q", linkPath, actual),
+	})
 }
 
 func exposureErrorPath(err error) string {

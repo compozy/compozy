@@ -74,6 +74,9 @@ func (r *Registry) CommandCandidatesForAgentDefSession(
 			workspaceConfiguredDisabledSkills(resolved),
 		),
 	)
+	profileDisabled, workspaceProfileDisabled := r.profileDisabledSkillSnapshots(resolved)
+	applyDisabledSkillList(all, profileDisabled)
+	applyDisabledSkillList(all, workspaceProfileDisabled)
 	applyDisabledSkillList(all, agent.Skills.Disabled)
 	all, err = r.projectAgentSkillActivation(ctx, resolved, agent, sessionID, all)
 	if err != nil {
@@ -103,6 +106,18 @@ func (r *Registry) CommandCandidatesForAgentDefSession(
 		return strings.Compare(leftKey, rightKey)
 	})
 	return candidates, nil
+}
+
+func (r *Registry) profileDisabledSkillSnapshots(
+	resolved *workspacepkg.ResolvedWorkspace,
+) ([]string, []string) {
+	if r == nil || resolved == nil {
+		return nil, nil
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return slices.Clone(r.profileDisabled[resourceProfileKey(resolved)]),
+		slices.Clone(r.workspaceProfileDisabled[resourceWorkspaceProfileKey(resolved)])
 }
 
 func (r *Registry) commandCandidateSnapshot(
@@ -367,6 +382,10 @@ func rootQualifiedSourceID(sourceID string, rootID string) string {
 	if base == "" || stableRootID == "" {
 		return base
 	}
+	// RootID is a deterministic digest of the normalized physical root. Four
+	// digest bytes keep the command token short while preserving stable identity
+	// across scans and generations; collision grouping adds this suffix only when
+	// two physical roots would otherwise publish the same qualified command.
 	digest := sha256.Sum256([]byte(stableRootID))
 	return base + "-" + hex.EncodeToString(digest[:4])
 }

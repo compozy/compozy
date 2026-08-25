@@ -1,4 +1,4 @@
-import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
+import type { OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
 export type SkillsResponse = OperationResponse<"listSkills", 200>;
 export type SkillPayload = SkillsResponse["skills"][number];
@@ -19,8 +19,14 @@ export type SkillExposeResponse = OperationResponse<"exposeSkill", 200>;
 export type SkillUnexposeResponse = OperationResponse<"unexposeSkill", 200>;
 export type SkillExposeResult = SkillExposeResponse["results"][number];
 export type SkillExposeRequest = OperationRequestBody<"exposeSkill">;
-export type SkillExposeFilter = NonNullable<OperationQuery<"exposeSkill">>;
 export type SkillExposeFailureResponse = OperationResponse<"exposeSkill", 409>;
+
+export interface SkillExposeTarget {
+  slug: string;
+  label: string;
+  /** The folder convention this target writes into, e.g. `.agents`. */
+  hint: string | null;
+}
 
 export type SkillMarketplaceInstallResponse = OperationResponse<"installSkillMarketplace", 200>;
 export type SkillMarketplaceInstallPayload = SkillMarketplaceInstallResponse["skill"];

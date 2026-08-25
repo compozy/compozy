@@ -24,6 +24,12 @@ func appendScopedSkillResources(
 	for _, kind := range allowed {
 		allowedKinds[kind] = struct{}{}
 	}
+	type scopedSkills struct {
+		scope  resources.ResourceScope
+		skills []*skillspkg.Skill
+	}
+	groups := make([]scopedSkills, 0, len(allowedKinds)+1)
+	indexByScope := make(map[string]int, len(allowedKinds)+1)
 	for _, skill := range skills {
 		if skill == nil {
 			continue
@@ -37,7 +43,17 @@ func appendScopedSkillResources(
 				continue
 			}
 		}
-		appendSkillResources(desired, scope, source, []*skillspkg.Skill{skill})
+		key := string(scope.Kind) + "\x00" + scope.ID
+		index, exists := indexByScope[key]
+		if !exists {
+			groups = append(groups, scopedSkills{scope: scope})
+			index = len(groups) - 1
+			indexByScope[key] = index
+		}
+		groups[index].skills = append(groups[index].skills, skill)
+	}
+	for _, group := range groups {
+		appendSkillResources(desired, group.scope, source, group.skills)
 	}
 }
 

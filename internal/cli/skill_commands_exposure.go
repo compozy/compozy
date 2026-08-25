@@ -162,8 +162,5 @@ func parseSkillExposureTargets(value string) ([]string, error) {
 		}
 		targets = append(targets, target)
 	}
-	if len(targets) == 0 {
-		return nil, errors.New("at least one skill exposure target is required")
-	}
 	return targets, nil
 }

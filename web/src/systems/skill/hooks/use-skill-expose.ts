@@ -14,6 +14,7 @@ interface SkillExposeVariables {
 export interface SkillExposeModel {
   /** Targets currently being written, so the ledger can show them pending. */
   pendingTargets: readonly string[];
+  pendingAction: "expose" | "unexpose" | null;
   isPending: boolean;
   /** Per-target outcome of the last operation, success or failure alike. */
   results: SkillExposeResultView[];
@@ -69,6 +70,11 @@ export function useSkillExpose(
 
   return {
     pendingTargets,
+    pendingAction: exposeMutation.isPending
+      ? "expose"
+      : unexposeMutation.isPending
+        ? "unexpose"
+        : null,
     isPending,
     results: skillExposeResultViews(failure?.results ?? last.data?.results ?? []),
     failure: failure?.message ?? null,

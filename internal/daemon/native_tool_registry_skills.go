@@ -144,7 +144,8 @@ func (n *daemonNativeTools) skillView(
 		"skill":   skillViewPayloadWithoutExposure(skill),
 		"content": content,
 	}
-	if skill.ResourceScope.Normalize().Kind == "user" || skill.ResourceScope.Normalize().Kind == "workspace" {
+	resourceScope := skill.ResourceScope.Normalize()
+	if resourceScope.Kind == "user" || resourceScope.Kind == "workspace" {
 		skillPayload, exposureErr := n.skillViewPayload(ctx, scope, input, skill)
 		if exposureErr != nil {
 			return toolspkg.ToolResult{}, exposureErr
@@ -179,12 +180,15 @@ func sourceQualifiedSkillViewPayload(
 	}
 	projectedExposures := make([]contract.SkillExposurePayload, len(exposures))
 	copy(projectedExposures, exposures)
+	owner := core.SkillPayloadFromSkill(skill)
 	return map[string]any{
 		bootNameKey:   skill.Meta.Name,
 		"description": skill.Meta.Description,
 		"version":     skill.Meta.Version,
 		bootSourceKey: skillspkg.CommandSourceForSkill(skill),
 		"origin":      strings.TrimSpace(skill.Origin),
+		"owner_scope": owner.OwnerScope,
+		"owner_id":    owner.OwnerID,
 		"exposures":   projectedExposures,
 		"enabled":     skill.Enabled,
 	}

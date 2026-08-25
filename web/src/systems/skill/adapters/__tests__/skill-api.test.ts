@@ -161,6 +161,16 @@ describe("getSkillContent", () => {
 
     await expectFetchRequest({ path: "/api/skills/my%20skill/content?workspace=ws_123" });
   });
+
+  it("preserves the exact profile in a workspace content read", async () => {
+    mockJsonResponse({ content: "profile skill content" });
+
+    await getSkillContent("test-skill", "ws_123", undefined, "research");
+
+    await expectFetchRequest({
+      path: "/api/skills/test-skill/content?workspace=ws_123&profile=research",
+    });
+  });
 });
 
 describe("getSkillShadows", () => {
@@ -188,6 +198,16 @@ describe("getSkillShadows", () => {
 
     expect(result).toEqual(response);
     await expectFetchRequest({ path: "/api/skills/test-skill/shadows?workspace=ws_123" });
+  });
+
+  it("preserves the exact profile in a workspace shadow read", async () => {
+    mockJsonResponse({ name: "test-skill", shadows: [] });
+
+    await getSkillShadows("test-skill", "ws_123", undefined, "research");
+
+    await expectFetchRequest({
+      path: "/api/skills/test-skill/shadows?workspace=ws_123&profile=research",
+    });
   });
 });
 
@@ -419,36 +439,20 @@ describe("exposeSkill", () => {
       { status: 409 }
     );
 
-    await expect(
-      exposeSkill("review-checklist", { targets: ["agents", "claude"] })
-    ).rejects.toBeInstanceOf(SkillExposeError);
+    const failure = await exposeSkill("review-checklist", {
+      targets: ["agents", "claude"],
+    }).catch(error => error as SkillExposeError);
 
-    mockJsonResponse(
-      {
-        error: { code: "expose_failed", message: "1 of 2 targets failed" },
-        name: "review-checklist",
-        results: [
-          { target: "claude", ok: false, error: { code: "expose_name_conflict" } },
-          { target: "agents", ok: false, error: { code: "rolled_back" } },
-        ],
-        rolled_back: true,
-      },
-      { status: 409 }
-    );
-
-    try {
-      await exposeSkill("review-checklist", { targets: ["agents", "claude"] });
-      expect.unreachable("expose should have thrown");
-    } catch (error) {
-      const failure = error as SkillExposeError;
-      expect(failure.code).toBe("expose_failed");
-      expect(failure.status).toBe(409);
-      expect(failure.rolledBack).toBe(true);
-      expect(failure.results.map(result => result.error?.code)).toEqual([
-        "expose_name_conflict",
-        "rolled_back",
-      ]);
-    }
+    expect(failure).toBeInstanceOf(SkillExposeError);
+    expect(failure).toMatchObject({
+      code: "expose_failed",
+      status: 409,
+      rolledBack: true,
+    });
+    expect(failure.results.map(result => result.error?.code)).toEqual([
+      "expose_name_conflict",
+      "rolled_back",
+    ]);
   });
 });
 

@@ -115,6 +115,14 @@ func (h *BaseHandlers) resolveSkillExposureOperation(
 			)
 		}
 		resolved = &resolvedWorkspace
+	} else {
+		profileName, profileErr := h.agentResourceProfileNameForScope(c.Request.Context(), actor.ReadScope)
+		if profileErr != nil {
+			return skillExposureOperation{}, profileErr
+		}
+		if profileName != "" && profileName != compozyconfig.DefaultProfileDirName {
+			resolved = h.profileOnlySkillScope(profileName)
+		}
 	}
 
 	agentName, err := skillAgentScope(c)
@@ -188,20 +196,6 @@ func canonicalResolvedWorkspaceID(resolved workspacepkg.ResolvedWorkspace) strin
 		return workspaceID
 	}
 	return strings.TrimSpace(resolved.ID)
-}
-
-func skillAgentScope(c *gin.Context) (string, error) {
-	agentName, present := c.GetQuery("for_agent")
-	agentName = strings.TrimSpace(agentName)
-	if present && agentName == "" {
-		return "", fmt.Errorf("%w: for_agent is required", ErrSkillValidation)
-	}
-	if agentName != "" {
-		if err := compozyconfig.ValidateAgentName(agentName); err != nil {
-			return "", fmt.Errorf("%w: %v", ErrSkillValidation, err)
-		}
-	}
-	return agentName, nil
 }
 
 func findSkillByName(skillList []*skills.Skill, name string) *skills.Skill {

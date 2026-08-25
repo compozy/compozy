@@ -60,13 +60,7 @@ func NewWatcher(registry *Registry, interval time.Duration) *Watcher {
 	snapshots := make(map[string]filesnap.Snapshot)
 	initialized := false
 	if registry != nil {
-		configured := make([]string, 0, len(registry.cfg.GlobalSkillRoots)+1)
-		for _, root := range registry.cfg.GlobalSkillRoots {
-			configured = append(configured, root.Dir)
-		}
-		configured = append(configured, registry.cfg.GlobalAgentsDir)
-		roots = watcherRoots(configured...)
-		agentRoots = watcherRoots(registry.cfg.GlobalAgentsDir)
+		roots, agentRoots = registry.watcherRootsSnapshot()
 		snapshots, initialized = registry.globalSnapshotState()
 	}
 

@@ -384,8 +384,8 @@ const emptyRootDiagnostics: Pick<
 };
 
 /**
- * Daemon-measured sources. Every state the section can render is present here so
- * stories and suites never invent a count the runtime did not report.
+ * Default daemon-measured sources. Tests derive unreadable, truncated, and
+ * runtime-unavailable variants from these measured rows.
  */
 export const settingsSkillSourcesFixture: SettingsSkillSource[] = [
   {

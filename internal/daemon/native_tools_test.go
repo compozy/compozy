@@ -1645,8 +1645,13 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		skillRegistry := newLoadedNativeSkillRegistry(t)
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), compozyconfig.DirName))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Skills: skillRegistry,
+			Skills:    skillRegistry,
+			HomePaths: homePaths,
 		}, nativeApproveAllPolicyInputs())
 
 		listResult, err := registry.Call(
@@ -1655,7 +1660,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{ToolID: toolspkg.ToolIDSkillList},
 		)
 		if err != nil {
-			t.Fatalf("Registry.Call(skill_list) error = %v", err)
+			t.Fatalf("Registry.Call(skill_list) error = %v; cause = %v", err, errors.Unwrap(err))
 		}
 		requireNativeStructuredContains(t, listResult, []byte(`"compozy"`))
 		requireNativeStructuredContains(t, listResult, []byte(`"origin":""`))

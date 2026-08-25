@@ -21,8 +21,8 @@ func (m *ExposeManager) Exposures(ctx context.Context, skill *Skill) ([]Exposure
 	if m == nil {
 		return nil, errors.New("skills: expose manager is required")
 	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	exposureMutationMu.Lock()
+	defer exposureMutationMu.Unlock()
 
 	if skill != nil && skill.Source == SourceBundled {
 		return []ExposureState{}, nil

@@ -2,10 +2,10 @@ package skills
 
 import (
 	"context"
-	"path/filepath"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/skillscan"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -52,7 +52,7 @@ func (r *Registry) SkillSourceRoots(
 	cfg := r.registryConfigSnapshot(ctx)
 	roots := append([]compozyconfig.SkillRootSpec(nil), cfg.GlobalSkillRoots...)
 	if resolved != nil {
-		roots = append(roots, workspaceResolvedSkillRoots(resolved)...)
+		roots = append(roots, rootsNotOwnedByHigherLayer(workspaceResolvedSkillRoots(resolved), cfg.GlobalSkillRoots)...)
 	}
 	trusted := make([]string, 0, len(roots))
 	for _, root := range roots {
@@ -113,8 +113,8 @@ func populateRootRuntimeStatus(
 			if !pathWithinSkillRoot(shadow.Path, status.Spec.Dir) {
 				continue
 			}
-			qualifier := strings.TrimSpace(status.Spec.SourceSlug)
-			if qualifier == strings.TrimSpace(skill.Origin) && skill.RootID != rootID {
+			qualifier := normalizedSkillOrigin(status.Spec.SourceSlug)
+			if qualifier == normalizedSkillOrigin(skill.Origin) && skill.RootID != rootID {
 				qualifier = rootQualifiedSourceID(qualifier, rootID)
 			}
 			status.Collisions = append(status.Collisions, SkillSourceCollision{
@@ -136,12 +136,26 @@ func populateRootRuntimeStatus(
 	}
 }
 
+func normalizedSkillOrigin(origin string) string {
+	if trimmed := strings.TrimSpace(origin); trimmed != "" {
+		return trimmed
+	}
+	return compozyconfig.SkillSourceCompozy
+}
+
 func nativeReadersForRoot(root compozyconfig.SkillRootSpec) []string {
+	if root.Kind != compozyconfig.RootKindPreset {
+		return []string{}
+	}
+	scope := root.ResourceScope.Kind.Normalize()
+	if scope != resources.ResourceScopeKindUser && scope != resources.ResourceScopeKindWorkspace {
+		return []string{}
+	}
 	for _, preset := range compozyconfig.SkillSourcePresets() {
 		if preset.Slug != root.SourceSlug {
 			continue
 		}
-		if root.ResourceScope.Kind.Normalize() == resources.ResourceScopeKindUser {
+		if scope == resources.ResourceScopeKindUser {
 			return append([]string(nil), preset.GlobalNativeReaders...)
 		}
 		return append([]string(nil), preset.WorkspaceNativeReaders...)
@@ -158,9 +172,9 @@ func qualifiedSkillSourceName(sourceSlug string, name string) string {
 }
 
 func pathWithinSkillRoot(path string, root string) bool {
-	relative, err := filepath.Rel(strings.TrimSpace(root), strings.TrimSpace(path))
+	contained, err := fileutil.PathWithinRoot(strings.TrimSpace(root), strings.TrimSpace(path))
 	if err != nil {
 		return false
 	}
-	return relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)))
+	return contained
 }

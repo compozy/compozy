@@ -90,8 +90,8 @@ func Register(homePaths compozyconfig.HomePaths, opts RegisterOptions) (Registra
 	if err != nil {
 		return Registration{}, fmt.Errorf("acpmock: resolve diagnostics path for %q: %w", runtimeAgentName, err)
 	}
-	command := BuildCommand(driverPath, fixture.path, fixture.agentName, diagnosticsPath)
 	providerName := registrationProviderName(opts.ProviderName, fixture.agent.Provider)
+	command := BuildCommand(driverPath, fixture.path, fixture.agentName, diagnosticsPath, providerName)
 
 	agentDefPath := filepath.Join(homePaths.AgentsDir, runtimeAgentName, "AGENT.md")
 	if err := os.MkdirAll(filepath.Dir(agentDefPath), 0o755); err != nil {
@@ -191,7 +191,13 @@ func resolveRegistrationFixture(opts RegisterOptions) (registrationFixture, erro
 }
 
 // BuildCommand renders the test-only ACP driver command string stored in AGENT.md.
-func BuildCommand(driverPath string, fixturePath string, fixtureAgent string, diagnosticsPath string) string {
+func BuildCommand(
+	driverPath string,
+	fixturePath string,
+	fixtureAgent string,
+	diagnosticsPath string,
+	effectiveProvider ...string,
+) string {
 	argv := []string{
 		strings.TrimSpace(driverPath),
 		"--fixture",
@@ -201,6 +207,9 @@ func BuildCommand(driverPath string, fixturePath string, fixtureAgent string, di
 	}
 	if strings.TrimSpace(diagnosticsPath) != "" {
 		argv = append(argv, "--diagnostics", strings.TrimSpace(diagnosticsPath))
+	}
+	if len(effectiveProvider) > 0 && strings.TrimSpace(effectiveProvider[0]) != "" {
+		argv = append(argv, "--provider", strings.TrimSpace(effectiveProvider[0]))
 	}
 	return shellquote.Join(argv...)
 }

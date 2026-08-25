@@ -28,7 +28,7 @@ func settingsSkillSourceRootPayloads(items []settingspkg.SkillSourceRootItem) []
 			Verification: contract.SettingsSkillSourceVerificationPayload{
 				Blocked: item.Verification.Blocked, Warned: item.Verification.Warned,
 			},
-			NativeReaders: append([]string(nil), item.NativeReaders...),
+			NativeReaders: append([]string{}, item.NativeReaders...),
 		}
 		for _, skipped := range item.SkippedLinks {
 			payload.SkippedLinks = append(payload.SkippedLinks, contract.SettingsSkillSourceSkippedLinkPayload{

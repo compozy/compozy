@@ -103,8 +103,9 @@ compozy skill sources -o json
 }
 ```
 
-`scanned_count` is how many `SKILL.md` files the root contains; `skill_count` is how many of them
-won a place in the catalog. The difference is shadowing. `native_readers` names the agent CLIs that
+`scanned_count` is how many candidate `SKILL.md` files the root contains; `skill_count` is how many
+won a place in the catalog. A gap can come from shadowing, rejected links, or failed verification;
+inspect `collisions`, `skipped_links`, and `verification` to identify the cause. `native_readers` names the agent CLIs that
 read this exact directory themselves — it is per root, so the project-level `.agents/skills` root
 lists `["openclaw", "hermes"]` while the user-level one lists only `["openclaw"]`.
 
@@ -317,7 +318,8 @@ CompozyOS reports it without touching it.
 
 ## Step 7: Read the refusals
 
-Failures are deterministic and happen before anything is written. A disabled target:
+Every target is checked before writes begin. If a later write fails, CompozyOS rolls back targets
+already written and reports any rollback residue in that target's `cleanup_error`. A disabled target:
 
 ```bash
 compozy skill expose review-checklist --to claude
@@ -369,8 +371,9 @@ unexposed review-checklist ← /repo/.agents/skills/review-checklist
 ```
 
 Removal is idempotent, and CompozyOS never removes a link it did not create — a link that is not in
-its ownership record is refused with `expose_foreign_link`. Removing the skill itself removes every
-link CompozyOS created for it.
+its ownership record is refused with `expose_foreign_link`. Removing the skill first cleans every
+recorded link. If a link became foreign or cleanup fails, removal stops with the retryable
+`skill_remove_blocked` error and preserves the skill and ownership record for repair.
 
 ## Verify
 
@@ -423,7 +426,7 @@ See [Skills your provider already reads](/docs/skills#skills-your-provider-alrea
 | A custom path is refused                          | the error code                  | `invalid_source_path` (scope) or `duplicate_skill_source` (overlap)                   |
 | An expose target is refused                       | its per-target error code       | `expose_target_disabled` or `expose_target_invalid`                                   |
 | An expose destination is occupied                 | `occupied_by` in the result     | `expose_name_conflict` or `expose_foreign_link`; CompozyOS leaves it untouched        |
-| A non-profile skill cannot be exposed             | `compozy skill info <name>`     | `skill_not_exposable` means its ownership layer is not user or workspace              |
+| A non-profile skill cannot be exposed             | `compozy skill info <name>`     | `skill_not_exposable` also covers bundled skills and skills without an accessible on-disk directory |
 | Expose is refused for a profile-owned skill       | `compozy skill info <name>`     | Move the skill to the user or workspace layer                                         |
 | A workspace write is refused for a non-source key | the `field` in the error        | `workspace_scope_field_forbidden` — only these two keys are writable there            |
 | A skill is missing from one session's prompt only | that session's agent CLI        | [Skills your provider already reads](/docs/skills#skills-your-provider-already-reads) |

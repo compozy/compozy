@@ -41,6 +41,11 @@ type skillCandidate struct {
 	rootOrder int
 }
 
+type workspaceSkillRoot struct {
+	spec   compozyconfig.SkillRootSpec
+	source string
+}
+
 func (r *Resolver) scanWorkspace(
 	ctx context.Context,
 	ws Workspace,
@@ -107,13 +112,19 @@ func (r *Resolver) scanWorkspace(
 	}
 	scan.profileDeclarations = declarations
 
-	skillRootOrder := 0
-	for _, root := range compozyconfig.WorkspaceDiscoveryRoots(
+	discoveryRoots := compozyconfig.WorkspaceDiscoveryRoots(
 		ws.RootDir,
 		ws.AdditionalDirs,
 		r.homePaths,
 		profileName,
-	) {
+	)
+	globalConfig, err := compozyconfig.LoadForHome(r.homePaths)
+	if err != nil {
+		return workspaceScan{}, fmt.Errorf("workspace: load user skill sources: %w", err)
+	}
+	skillRoots := make([]workspaceSkillRoot, 0)
+	seenSkillRoots := make(map[string]struct{})
+	for _, root := range discoveryRoots {
 		if err := checkContext(ctx); err != nil {
 			return workspaceScan{}, err
 		}
@@ -121,19 +132,48 @@ func (r *Resolver) scanWorkspace(
 		if err := scanAgentSource(root, scan.snapshots, &scan.agents); err != nil {
 			return workspaceScan{}, err
 		}
-		for _, skillRoot := range root.SkillsDirs(skillsConfig) {
+		rootSkillsConfig := skillsConfig
+		if root.Source == compozyconfig.WorkspaceDiscoverySourceGlobal {
+			rootSkillsConfig = &globalConfig.Skills
+		}
+		for _, skillRoot := range root.SkillsDirs(rootSkillsConfig) {
+			identity := canonicalWorkspaceSkillRoot(skillRoot.Dir)
+			if _, exists := seenSkillRoots[identity]; exists {
+				continue
+			}
+			seenSkillRoots[identity] = struct{}{}
 			source := skillRoot.SourceSlug
 			if skillRoot.Kind == compozyconfig.RootKindBuiltin {
 				source = string(root.Source)
 			}
-			if err := scanSkillSource(skillRoot, source, skillRootOrder, scan.snapshots, &scan.skills); err != nil {
-				return workspaceScan{}, err
-			}
-			skillRootOrder++
+			skillRoots = append(skillRoots, workspaceSkillRoot{spec: skillRoot, source: source})
+		}
+	}
+	trustedSkillRoots := make([]string, 0, len(skillRoots))
+	for _, root := range skillRoots {
+		trustedSkillRoots = append(trustedSkillRoots, root.spec.Dir)
+	}
+	for order, root := range skillRoots {
+		if err := scanSkillSource(
+			root.spec, root.source, order, trustedSkillRoots, scan.snapshots, &scan.skills,
+		); err != nil {
+			return workspaceScan{}, err
 		}
 	}
 
 	return scan, nil
+}
+
+func canonicalWorkspaceSkillRoot(path string) string {
+	canonical, err := filepath.EvalSymlinks(path)
+	if err == nil {
+		return filepath.Clean(canonical)
+	}
+	absolute, absErr := filepath.Abs(path)
+	if absErr == nil {
+		return filepath.Clean(absolute)
+	}
+	return filepath.Clean(path)
 }
 
 func validatePersonalProfileRoot(workspaceRoot, profilesRoot, profileName string) error {
@@ -232,6 +272,7 @@ func scanSkillSource(
 	root compozyconfig.SkillRootSpec,
 	source string,
 	rootOrder int,
+	trustedRoots []string,
 	snapshots map[string]filesnap.Snapshot,
 	dst *[]skillCandidate,
 ) error {
@@ -240,7 +281,7 @@ func scanSkillSource(
 		return fmt.Errorf("workspace: snapshot skills directory %q: %w", skillsDir, err)
 	}
 
-	result, err := skillscan.ScanDirectory(skillsDir)
+	result, err := skillscan.ScanDirectoryWithin(skillsDir, trustedRoots)
 	if err != nil {
 		return fmt.Errorf("workspace: scan skills directory %q: %w", skillsDir, err)
 	}

@@ -593,9 +593,14 @@ func TestSkillRootResolutionAndIdentity(t *testing.T) {
 		}
 		workspaceConfigured := workspace.SkillsDirs(&configured)
 		if got, want := rootSlugs(workspaceConfigured), []string{
-			SkillSourceAgents, SkillSourceClaude, SkillSourceCompozy,
+			SkillSourceAgents, SkillSourceClaude, "team-skills", SkillSourceCompozy,
 		}; !slices.Equal(got, want) {
 			t.Fatalf("SkillsDirs(configured) slugs = %q, want %q", got, want)
+		}
+		if workspaceConfigured[2].Kind != RootKindCustom ||
+			workspaceConfigured[2].ResourceScope.Kind != resources.ResourceScopeKindWorkspace ||
+			workspaceConfigured[2].WorkspaceID != workspaceID {
+			t.Fatalf("workspace custom root ownership = %#v, want workspace scope", workspaceConfigured[2])
 		}
 
 		empty := SkillsConfig{Sources: []string{}, CustomSources: []string{}}

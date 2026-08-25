@@ -87,7 +87,7 @@ func renderSkillInfoTranscript(item skillInfoItem) string {
 	}{
 		{label: "NAME", value: stringOrDash(item.Name)},
 		{label: "SOURCE", value: stringOrDash(item.Source)},
-		{label: "DIR", value: stringOrDash(item.Path)},
+		{label: "PATH", value: stringOrDash(item.Path)},
 	}
 	if len(item.Exposures) == 0 {
 		rows = append(rows, struct {
@@ -118,11 +118,11 @@ func renderSkillInfoTranscript(item skillInfoItem) string {
 func skillExposureStatusLabel(status contract.SkillExposureStatus) string {
 	trimmed := strings.TrimSpace(string(status))
 	switch trimmed {
-	case "missing":
+	case string(contract.SkillExposureStatusMissing):
 		return "missing — re-expose repairs"
-	case "broken":
+	case string(contract.SkillExposureStatusBroken):
 		return "broken — unexpose or re-expose repairs"
-	case "foreign_conflict":
+	case string(contract.SkillExposureStatusForeignConflict):
 		return "foreign conflict — not our link; no action"
 	default:
 		return strings.ReplaceAll(trimmed, "_", " ")
@@ -227,6 +227,12 @@ func skillInfoBundle(item skillInfoItem) outputBundle {
 			for _, resource := range item.Resources {
 				resourceRows = append(resourceRows, []string{resource})
 			}
+			exposureRows := make([][]string, 0, len(item.Exposures))
+			for _, exposure := range item.Exposures {
+				exposureRows = append(exposureRows, []string{
+					exposure.Target, exposure.Path, string(exposure.Status),
+				})
+			}
 
 			return renderHumanBlocks(
 				renderToonObject(
@@ -259,6 +265,7 @@ func skillInfoBundle(item skillInfoItem) outputBundle {
 				),
 				renderToonArray("metadata", []string{cliKeyKey, skillOutputValueKey}, metadataRows),
 				renderToonArray("resources", []string{skillOutputPathKey}, resourceRows),
+				renderToonArray("exposures", []string{"target", "path", "status"}, exposureRows),
 			), nil
 		},
 	}
@@ -343,7 +350,11 @@ func renderSkillWhereTranscript(record skillWhereItem) string {
 			}
 			origin := strings.TrimSpace(entry.Origin)
 			if origin == "" {
-				origin = skillOriginFromPath(entry.Path)
+				if entry.Tier == "bundled" || entry.Tier == "marketplace" {
+					origin = "compozy"
+				} else {
+					origin = skillOriginFromPath(entry.Path)
+				}
 			}
 			hint := ""
 			if origin != "compozy" && origin != "custom" {

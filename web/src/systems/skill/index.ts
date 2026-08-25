@@ -22,6 +22,7 @@ export type {
   SkillExposeRequest,
   SkillExposeResponse,
   SkillExposeResult,
+  SkillExposeTarget,
   SkillExposurePayload,
   SkillExposureStatus,
   SkillUnexposeResponse,
@@ -73,10 +74,7 @@ export {
   SkillActivationSection,
 } from "./components/skill-activation-status";
 export { SkillExposePanel } from "./components/skill-expose-panel";
-export {
-  SkillExposeTargetPicker,
-  type SkillExposeTarget,
-} from "./components/skill-expose-target-picker";
+export { SkillExposeTargetPicker } from "./components/skill-expose-target-picker";
 
 // Hooks
 export { useSkill, useSkillContent, useSkillShadows, useSkills } from "./hooks/use-skills";

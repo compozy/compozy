@@ -27,20 +27,17 @@ func newSkillCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 
-	cmd.AddCommand(newSkillListCommand(deps))
-	cmd.AddCommand(newSkillSourcesCommand(deps))
-	cmd.AddCommand(newSkillViewCommand(deps))
-	cmd.AddCommand(newSkillInfoCommand(deps))
-	cmd.AddCommand(newSkillWhereCommand(deps))
-	cmd.AddCommand(newSkillSearchCommand(deps))
-	cmd.AddCommand(newSkillInstallCommand(deps))
-	cmd.AddCommand(newSkillRemoveCommand(deps))
-	cmd.AddCommand(newSkillUpdateCommand(deps))
-	cmd.AddCommand(newSkillCreateCommand(deps))
-	cmd.AddCommand(newSkillEnableCommand(deps))
-	cmd.AddCommand(newSkillDisableCommand(deps))
-	cmd.AddCommand(newSkillExposeCommand(deps))
-	cmd.AddCommand(newSkillUnexposeCommand(deps))
+	commands := []*cobra.Command{
+		newSkillListCommand(deps), newSkillSourcesCommand(deps), newSkillViewCommand(deps),
+		newSkillInfoCommand(deps), newSkillWhereCommand(deps), newSkillSearchCommand(deps),
+		newSkillInstallCommand(deps), newSkillRemoveCommand(deps), newSkillUpdateCommand(deps),
+		newSkillCreateCommand(deps), newSkillEnableCommand(deps), newSkillDisableCommand(deps),
+		newSkillExposeCommand(deps), newSkillUnexposeCommand(deps),
+	}
+	for _, command := range commands {
+		configureSingleProfileReadCommand(command, deps)
+		cmd.AddCommand(command)
+	}
 	return cmd
 }
 
