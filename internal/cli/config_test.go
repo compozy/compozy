@@ -635,6 +635,33 @@ func TestConfigSkillSourceValuesAndValidationRendering(t *testing.T) {
 			t.Fatalf("config source error = %#v, want portable unknown-source payload", payload)
 		}
 	})
+
+	t.Run("Should reject a non-source workspace skill field without writing a file", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
+		workspaceRoot := t.TempDir()
+		exitCode, _, stderr := executeRootCommandWithExit(
+			t,
+			deps,
+			"config", "set", "skills.poll_interval", "9s",
+			"--scope", "workspace", "--workspace", workspaceRoot, "-o", "json",
+		)
+		if exitCode != 1 {
+			t.Fatalf("config set skills.poll_interval exit code = %d, want 1", exitCode)
+		}
+		var payload contract.SkillSourceValidationErrorResponse
+		if err := json.Unmarshal([]byte(stderr), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(config source error) error = %v; body=%q", err, stderr)
+		}
+		if payload.Error.Code != "workspace_scope_field_forbidden" || payload.Error.Field != "poll_interval" {
+			t.Fatalf("config source error = %#v, want forbidden poll_interval", payload)
+		}
+		workspaceConfig := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.ConfigName)
+		if _, err := os.Stat(workspaceConfig); !os.IsNotExist(err) {
+			t.Fatalf("workspace config stat error = %v, want no file", err)
+		}
+	})
 }
 
 func TestConfigSetDisabledSkillsUsesDaemonSettingsWhenRunning(t *testing.T) {

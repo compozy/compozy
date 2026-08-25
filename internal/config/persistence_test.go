@@ -476,6 +476,21 @@ func TestWriteScopeValidationAndTargetScope(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject non-source skill fields at workspace scope", func(t *testing.T) {
+		t.Parallel()
+		err := ValidateConfigWriteScope(
+			WriteScopeWorkspace,
+			[]string{"skills", "poll_interval"},
+		)
+		var sourceErr *SkillSourceValidationError
+		if !errors.As(err, &sourceErr) {
+			t.Fatalf("ValidateConfigWriteScope() error = %v, want SkillSourceValidationError", err)
+		}
+		if sourceErr.Code != "workspace_scope_field_forbidden" || sourceErr.Field != "poll_interval" {
+			t.Fatalf("ValidateConfigWriteScope() error = %#v, want forbidden poll_interval", sourceErr)
+		}
+	})
+
 	for _, scope := range []WriteScope{WriteScopeUser, WriteScopeWorkspace} {
 		if err := scope.Validate(); err != nil {
 			t.Fatalf("WriteScope(%q).Validate() error = %v", scope, err)
