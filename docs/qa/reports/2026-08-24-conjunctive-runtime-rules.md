@@ -17,7 +17,8 @@ Real CLI run `looprun-a7c7dc7d16f7ea2e` durably emitted `runtime_applied` for th
 recorded `loop: transition conflict: Goal session cleanup ... payload changed`. Fresh known-model run
 `looprun-1bea18dfb47059ae` did not advance past generation start during bounded polling. The evidence
 therefore does not prove a settled mixed batch, its legacy single-selector item, its exact-ID item,
-or complete per-field provenance. The scenario remains `blocked-verify`.
+or complete per-field provenance. Issue [#480](https://github.com/compozy/compozy/issues/480)
+tracks the Goal-session cleanup conflict. The scenario remains `blocked-verify`.
 
 ## Remaining verification
 
