@@ -22,8 +22,26 @@ type RegisterOptions struct {
 	Tools           []string
 }
 
-// ProviderName is the auth-free local provider used by fixture-backed ACP mocks.
-const ProviderName = "acpmock"
+// Provider identities supported by provider-aware fixture scenarios.
+const (
+	ProviderName     = "acpmock"
+	ProviderClaude   = "claude"
+	ProviderOpenClaw = "openclaw"
+	ProviderHermes   = "hermes"
+)
+
+// ProviderConfigForIdentity returns an ACP mock config under one typed native provider identity.
+func ProviderConfigForIdentity(provider string, command ...string) (compozyconfig.ProviderConfig, error) {
+	canonical := compozyconfig.CanonicalProviderName(provider)
+	switch canonical {
+	case ProviderClaude, ProviderOpenClaw, ProviderHermes:
+		return ProviderConfig(command...), nil
+	default:
+		return compozyconfig.ProviderConfig{}, fmt.Errorf(
+			"acpmock: provider identity %q is not supported", strings.TrimSpace(provider),
+		)
+	}
+}
 
 // Registration captures one temporary mock-agent definition written into Compozy home.
 type Registration struct {

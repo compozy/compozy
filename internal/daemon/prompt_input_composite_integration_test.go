@@ -60,7 +60,7 @@ func testPromptInputCompositeIntegrationPreservesStoredMessages(t *testing.T) {
 				memory.NewRecallAugmenter(daemonInstance.memoryStore),
 				newSkillsCatalogAugmenter(daemonInstance.skillsRegistry, nil, func() promptSkillsWorkspaceResolver {
 					return workspaceResolver
-				}),
+				}, nil),
 				daemonInstance.situationContext.Augment,
 			),
 			promptInputAugmenterDescriptor{

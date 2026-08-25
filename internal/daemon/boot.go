@@ -284,6 +284,7 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 			state.skillsRegistry,
 			func() session.AgentResolver { return agentCatalogDependency(state.agentCatalog) },
 			func() promptSkillsWorkspaceResolver { return state.workspaceResolver },
+			state.profiles,
 		)
 		state.mcpResolver = skills.NewMCPResolver(state.cfg.Skills, state.logger)
 		appendProviders = append(appendProviders, skills.NewCatalogProvider(state.skillsRegistry))
@@ -302,7 +303,10 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 		DurableMemoryAugmenter:              state.memoryStore != nil,
 		SyntheticTurnsEnabled:               true,
 		DetachedTaskRuntimeEnabled:          true,
-	})
+	},
+		WithHarnessSkillInjectionHome(d.homePaths),
+		WithHarnessSkillInjectionLogger(state.logger),
+	)
 	state.harnessRecorder = newHarnessLifecycleRecorder(state.logger, d.now)
 	state.promptAssembler = NewComposedAssembler(
 		WithSectionSelector(NewSectionSelector(state.harnessResolver, state.harnessRecorder)),
@@ -316,16 +320,33 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 		),
 	)
 	state.startupOverlay = compozyRuntimePromptOverlay{}
+	skillsCatalogAugmenter := newSkillsCatalogAugmenterState(
+		state.skillsRegistry,
+		func() session.AgentResolver {
+			return agentCatalogDependency(state.agentCatalog)
+		},
+		func() promptSkillsWorkspaceResolver {
+			return state.workspaceResolver
+		},
+		state.profiles,
+	)
+	var skillsCatalog session.PromptInputAugmenter
+	if skillsCatalogAugmenter != nil {
+		skillsCatalog = skillsCatalogAugmenter.Augment
+	}
 	promptAugmenterDescriptors := defaultPromptInputAugmenterDescriptors(
 		situation.WorkspaceKnowledgeAugmenter,
 		memory.NewProfileRecallAugmenter(state.memoryStore, d.memoryRecallStoreResolver(state)),
-		newSkillsCatalogAugmenter(state.skillsRegistry, func() session.AgentResolver {
-			return agentCatalogDependency(state.agentCatalog)
-		}, func() promptSkillsWorkspaceResolver {
-			return state.workspaceResolver
-		}),
+		skillsCatalog,
 		state.situationContext.Augment,
 	)
+	if skillsCatalogAugmenter != nil {
+		for index := range promptAugmenterDescriptors {
+			if promptAugmenterDescriptors[index].Name == HarnessAugmenterSkills {
+				promptAugmenterDescriptors[index].PolicyAugmenter = skillsCatalogAugmenter.AugmentWithPolicy
+			}
+		}
+	}
 	promptAugmenter, err := newPromptInputCompositeAugmenter(
 		state.logger,
 		state.harnessResolver,

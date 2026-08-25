@@ -20,21 +20,22 @@ func (r *Registry) loadGlobalSkills(
 	ctx context.Context,
 	disabledSkills []string,
 	cfg RegistryConfig,
-) (map[string]*Skill, map[string]filesnap.Snapshot, []SkillDiagnostic, error) {
+) (map[string]*Skill, map[string]filesnap.Snapshot, []SkillDiagnostic, []*Skill, error) {
 	skills := make(map[string]*Skill)
 	snapshots := make(map[string]filesnap.Snapshot)
 	diagnostics := make([]SkillDiagnostic, 0)
+	candidates := make([]*Skill, 0)
 
-	if err := r.loadBundledSkills(ctx, cfg.BundledFS, skills, disabledSkills, &diagnostics); err != nil {
-		return nil, nil, nil, err
+	if err := r.loadBundledSkills(ctx, cfg.BundledFS, skills, disabledSkills, &diagnostics, &candidates); err != nil {
+		return nil, nil, nil, nil, err
 	}
 	if err := r.loadConfiguredGlobalRoots(
-		ctx, cfg.GlobalSkillRoots, skills, snapshots, disabledSkills, &diagnostics,
+		ctx, cfg.GlobalSkillRoots, skills, snapshots, disabledSkills, &diagnostics, &candidates,
 	); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
-	return skills, snapshots, diagnostics, nil
+	return skills, snapshots, diagnostics, candidates, nil
 }
 
 type configuredRootScan struct {
@@ -49,6 +50,7 @@ func (r *Registry) loadConfiguredGlobalRoots(
 	snapshots map[string]filesnap.Snapshot,
 	disabledSkills []string,
 	diagnostics *[]SkillDiagnostic,
+	candidates *[]*Skill,
 ) error {
 	trustedRoots := make([]string, 0, len(roots))
 	for _, root := range roots {
@@ -82,6 +84,7 @@ func (r *Registry) loadConfiguredGlobalRoots(
 			dst,
 			disabledSkills,
 			diagnostics,
+			candidates,
 		); err != nil {
 			return err
 		}
@@ -139,6 +142,7 @@ func (r *Registry) loadRootSkillPaths(
 	dst map[string]*Skill,
 	disabledSkills []string,
 	diagnostics *[]SkillDiagnostic,
+	candidates *[]*Skill,
 ) error {
 	for _, skillPath := range paths {
 		if err := checkRegistryContext(ctx); err != nil {
@@ -154,6 +158,7 @@ func (r *Registry) loadRootSkillPaths(
 		if !r.processSkillWithDiagnostics(dst, skill, content, disabledSkills, diagnostics) {
 			continue
 		}
+		*candidates = append(*candidates, cloneSkill(skill))
 	}
 	return nil
 }
@@ -162,18 +167,19 @@ func (r *Registry) loadWorkspaceSkills(
 	ctx context.Context,
 	paths []workspaceSkillPath,
 	disabledSkills []string,
-) (map[string]*Skill, []SkillDiagnostic, error) {
+) (map[string]*Skill, []SkillDiagnostic, []*Skill, error) {
 	skills := make(map[string]*Skill)
 	diagnostics := make([]SkillDiagnostic, 0)
+	candidates := make([]*Skill, 0, len(paths))
 
 	for _, path := range paths {
 		if err := checkRegistryContext(ctx); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 
 		skill, content, err := parseSkillFileDocument(path.filePath)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		skill.Source = path.source
 		skill.Origin = path.origin
@@ -184,9 +190,10 @@ func (r *Registry) loadWorkspaceSkills(
 		if !r.processSkillWithDiagnostics(skills, skill, content, disabledSkills, &diagnostics) {
 			continue
 		}
+		candidates = append(candidates, cloneSkill(skill))
 	}
 
-	return skills, diagnostics, nil
+	return skills, diagnostics, candidates, nil
 }
 
 func (r *Registry) loadBundledSkills(
@@ -195,6 +202,7 @@ func (r *Registry) loadBundledSkills(
 	dst map[string]*Skill,
 	disabledSkills []string,
 	diagnostics *[]SkillDiagnostic,
+	candidates *[]*Skill,
 ) error {
 	if bundledFS == nil {
 		return nil
@@ -217,6 +225,7 @@ func (r *Registry) loadBundledSkills(
 		if !r.processSkillWithDiagnostics(dst, skill, content, disabledSkills, diagnostics) {
 			continue
 		}
+		*candidates = append(*candidates, cloneSkill(skill))
 	}
 
 	return nil

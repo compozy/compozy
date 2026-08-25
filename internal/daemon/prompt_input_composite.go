@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -36,12 +37,13 @@ type promptInputAugmenterResolver interface {
 }
 
 type promptInputAugmenterDescriptor struct {
-	Name           HarnessAugmenter
-	Order          int
-	Budget         int
-	BudgetBehavior promptInputAugmenterBudgetBehavior
-	Critical       bool
-	Augmenter      session.PromptInputAugmenter
+	Name            HarnessAugmenter
+	Order           int
+	Budget          int
+	BudgetBehavior  promptInputAugmenterBudgetBehavior
+	Critical        bool
+	Augmenter       session.PromptInputAugmenter
+	PolicyAugmenter func(context.Context, *session.Session, string, ResolvedHarnessContext) (string, error)
 }
 
 type promptInputComposite struct {
@@ -147,17 +149,18 @@ func normalizePromptInputAugmenterDescriptors(
 		if _, exists := seen[name]; exists {
 			return nil, fmt.Errorf("daemon: duplicate prompt input augmenter descriptor %q", name)
 		}
-		if descriptor.Augmenter == nil {
+		if descriptor.Augmenter == nil && descriptor.PolicyAugmenter == nil {
 			return nil, fmt.Errorf("daemon: prompt input augmenter %q is missing an augmenter", name)
 		}
 
 		normalized = append(normalized, promptInputAugmenterDescriptor{
-			Name:           name,
-			Order:          descriptor.Order,
-			Budget:         max(descriptor.Budget, 0),
-			BudgetBehavior: normalizePromptInputAugmenterBudgetBehavior(descriptor.BudgetBehavior),
-			Critical:       descriptor.Critical,
-			Augmenter:      descriptor.Augmenter,
+			Name:            name,
+			Order:           descriptor.Order,
+			Budget:          max(descriptor.Budget, 0),
+			BudgetBehavior:  normalizePromptInputAugmenterBudgetBehavior(descriptor.BudgetBehavior),
+			Critical:        descriptor.Critical,
+			Augmenter:       descriptor.Augmenter,
+			PolicyAugmenter: descriptor.PolicyAugmenter,
 		})
 		seen[name] = struct{}{}
 	}

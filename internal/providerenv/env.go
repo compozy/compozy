@@ -289,6 +289,12 @@ func knownProviderHomeDirs(providerName string, providerHome string) map[string]
 			"CODEX_HOME":          filepath.Join(providerHome, "codex"),
 			"PROVIDER_CODEX_HOME": filepath.Join(providerHome, "codex"),
 		},
+		"hermes": {
+			"HERMES_HOME": filepath.Join(providerHome, "hermes"),
+		},
+		"openclaw": {
+			"OPENCLAW_STATE_DIR": filepath.Join(providerHome, "openclaw"),
+		},
 		"opencode": {
 			"OPENCODE_CONFIG_DIR": filepath.Join(providerHome, "opencode"),
 		},

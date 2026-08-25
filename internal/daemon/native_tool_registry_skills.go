@@ -304,17 +304,18 @@ func (n *daemonNativeTools) resolveSkillViewTarget(
 		registry,
 		func() session.AgentResolver { return n.deps.AgentResolver },
 		func() promptSkillsWorkspaceResolver { return n.deps.WorkspaceResolver },
+		n.deps.Profiles,
 	)
 	_, byCommandID, err := service.project(ctx, info, agent)
 	if err != nil {
 		return nil, err
 	}
-	skill := byCommandID[commandID]
-	if skill == nil {
+	candidate, found := byCommandID[commandID]
+	if !found || candidate.Skill == nil {
 		return nil, nativeCommandNotFoundError(
 			toolspkg.ToolIDSkillView,
 			fmt.Sprintf("skill command %q not found", commandID),
 		)
 	}
-	return skill, nil
+	return candidate.Skill, nil
 }

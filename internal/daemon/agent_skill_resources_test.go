@@ -1164,6 +1164,45 @@ func TestAppendAgentAndSkillResourcesPublishesMCPAttachments(t *testing.T) {
 	if desired.mcpServers[0].spec.Name != "agent-mcp" || desired.mcpServers[1].spec.Name != "skill-mcp" {
 		t.Fatalf("mcpServers = %#v, want agent and skill MCP attachments", desired.mcpServers)
 	}
+
+	t.Run("Should publish only the winning homonym MCP attachment", func(t *testing.T) {
+		t.Parallel()
+
+		winnerDesired := agentSkillDeclarations{}
+		appendSkillResources(
+			&winnerDesired,
+			scope,
+			skillPublicationSource{prefix: "append"},
+			[]*skillspkg.Skill{
+				{
+					Meta:    skillspkg.SkillMeta{Name: "review", Description: "First root"},
+					RootID:  "first",
+					Enabled: true,
+					MCPServers: []skillspkg.MCPServerDecl{{
+						Name: "first-mcp", Command: "first-command",
+					}},
+				},
+				{
+					Meta:    skillspkg.SkillMeta{Name: "review", Description: "Winning root"},
+					RootID:  "winner",
+					Enabled: true,
+					MCPServers: []skillspkg.MCPServerDecl{{
+						Name: "winner-mcp", Command: "winner-command",
+					}},
+				},
+			},
+		)
+
+		if got, want := len(winnerDesired.skills), 2; got != want {
+			t.Fatalf("len(skills) = %d, want %d physical candidates", got, want)
+		}
+		if got, want := len(winnerDesired.mcpServers), 1; got != want {
+			t.Fatalf("len(mcpServers) = %d, want %d winner attachment", got, want)
+		}
+		if got, want := winnerDesired.mcpServers[0].spec.Name, "winner-mcp"; got != want {
+			t.Fatalf("mcpServers[0].spec.Name = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestAgentDefinitionSyncRuntimeWiring(t *testing.T) {

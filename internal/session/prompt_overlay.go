@@ -18,6 +18,7 @@ type StartupPromptContext struct {
 	SessionName          string
 	AgentName            string
 	Provider             string
+	ProviderHomePolicy   compozyconfig.ProviderHomePolicy
 	WorkspaceID          string
 	Workspace            string
 	WorktreeID           string

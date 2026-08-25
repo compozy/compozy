@@ -126095,6 +126095,7 @@ export interface operations {
                 id?: string;
                 key?: string;
                 kind: string;
+                origin?: string;
                 scope: string;
               };
               unavailable_reason?: string;
@@ -129894,6 +129895,7 @@ export interface operations {
                   id?: string;
                   key?: string;
                   kind: string;
+                  origin?: string;
                   scope: string;
                 };
                 start: number;
@@ -130036,6 +130038,7 @@ export interface operations {
                   id?: string;
                   key?: string;
                   kind: string;
+                  origin?: string;
                   scope: string;
                 };
                 start: number;

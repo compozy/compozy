@@ -166,14 +166,15 @@ type HarnessTurnContext struct {
 
 // ResolvedHarnessPolicy is the authoritative daemon-owned harness runtime policy.
 type ResolvedHarnessPolicy struct {
-	SessionClass      SessionClass
-	TurnOrigin        TurnOrigin
-	IncludeSections   []HarnessPromptSection
-	EnableAugmenters  []HarnessAugmenter
-	ReentryMode       ReentryMode
-	DetachedRunMode   DetachedRunMode
-	DiagnosticLabel   string
-	ObservabilityTags map[string]string
+	SessionClass         SessionClass
+	TurnOrigin           TurnOrigin
+	IncludeSections      []HarnessPromptSection
+	EnableAugmenters     []HarnessAugmenter
+	ReentryMode          ReentryMode
+	DetachedRunMode      DetachedRunMode
+	DiagnosticLabel      string
+	ObservabilityTags    map[string]string
+	SkillInjectionFilter SkillInjectionFilter
 }
 
 // ResolvedHarnessContext captures the normalized inputs plus the derived policy.
@@ -187,12 +188,22 @@ type ResolvedHarnessContext struct {
 // HarnessContextResolver derives harness policy from durable session state plus
 // turn-origin metadata.
 type HarnessContextResolver struct {
-	runtime HarnessRuntimeSignals
+	runtime        HarnessRuntimeSignals
+	skillInjection skillInjectionPolicyResolver
 }
 
 // NewHarnessContextResolver constructs a daemon-owned harness context resolver.
-func NewHarnessContextResolver(runtime HarnessRuntimeSignals) *HarnessContextResolver {
-	return &HarnessContextResolver{runtime: runtime}
+func NewHarnessContextResolver(runtime HarnessRuntimeSignals, opts ...HarnessContextResolverOption) *HarnessContextResolver {
+	resolver := &HarnessContextResolver{
+		runtime:        runtime,
+		skillInjection: newSkillInjectionPolicyResolver(),
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(resolver)
+		}
+	}
+	return resolver
 }
 
 // ResolveStartup resolves startup policy from durable session context.
@@ -200,11 +211,14 @@ func (r *HarnessContextResolver) ResolveStartup(startup session.StartupPromptCon
 	return r.Resolve(HarnessResolutionInput{
 		Surface: ResolutionSurfaceStartup,
 		Session: HarnessSessionInput{
+			SessionID:            startup.SessionID,
 			Type:                 startup.SessionType,
 			NetworkParticipation: startup.NetworkParticipation,
 			WorkspaceID:          startup.WorkspaceID,
 			Workspace:            startup.Workspace,
 			AgentName:            startup.AgentName,
+			Provider:             startup.Provider,
+			ProviderHomePolicy:   startup.ProviderHomePolicy,
 		},
 		Turn: HarnessTurnRequest{
 			Source: session.TurnSourceUser,
@@ -224,11 +238,14 @@ func (r *HarnessContextResolver) ResolvePrompt(
 	return r.Resolve(HarnessResolutionInput{
 		Surface: ResolutionSurfaceTurn,
 		Session: HarnessSessionInput{
+			SessionID:            info.ID,
 			Type:                 info.Type,
 			NetworkParticipation: info.NetworkParticipation,
 			WorkspaceID:          info.WorkspaceID,
 			Workspace:            info.Workspace,
 			AgentName:            info.AgentName,
+			Provider:             info.Provider,
+			ProviderHomePolicy:   info.ProviderHomePolicy,
 		},
 		Turn: harnessTurnRequestFromPrompt(source, meta),
 	})
@@ -256,12 +273,13 @@ func (r *HarnessContextResolver) Resolve(input HarnessResolutionInput) (Resolved
 	}
 
 	policy := ResolvedHarnessPolicy{
-		SessionClass:     sessionCtx.SessionClass,
-		TurnOrigin:       turnCtx.Origin,
-		IncludeSections:  r.resolveSections(sessionCtx),
-		EnableAugmenters: r.resolveAugmenters(surface, turnCtx),
-		ReentryMode:      r.resolveReentry(turnCtx),
-		DetachedRunMode:  r.resolveDetachedRunMode(sessionCtx, turnCtx),
+		SessionClass:         sessionCtx.SessionClass,
+		TurnOrigin:           turnCtx.Origin,
+		IncludeSections:      r.resolveSections(sessionCtx),
+		EnableAugmenters:     r.resolveAugmenters(surface, turnCtx),
+		ReentryMode:          r.resolveReentry(turnCtx),
+		DetachedRunMode:      r.resolveDetachedRunMode(sessionCtx, turnCtx),
+		SkillInjectionFilter: r.skillInjection.resolve(sessionCtx),
 	}
 	policy.DiagnosticLabel = buildHarnessDiagnosticLabel(sessionCtx, policy)
 	policy.ObservabilityTags = buildHarnessObservabilityTags(surface, sessionCtx, turnCtx, policy)
@@ -304,6 +322,7 @@ func normalizeHarnessSessionContext(input HarnessSessionInput) (HarnessSessionCo
 		return HarnessSessionContext{}, fmt.Errorf("daemon: validate harness network participation: %w", err)
 	}
 	return HarnessSessionContext{
+		SessionID:            strings.TrimSpace(input.SessionID),
 		Type:                 sessionType,
 		SessionClass:         sessionClass,
 		NetworkParticipation: networkParticipation,
@@ -311,6 +330,8 @@ func normalizeHarnessSessionContext(input HarnessSessionInput) (HarnessSessionCo
 		WorkspaceID:          strings.TrimSpace(input.WorkspaceID),
 		Workspace:            strings.TrimSpace(input.Workspace),
 		AgentName:            strings.TrimSpace(input.AgentName),
+		Provider:             canonicalNativeSkillProvider(input.Provider),
+		ProviderHomePolicy:   input.ProviderHomePolicy,
 	}, nil
 }
 

@@ -1100,6 +1100,29 @@ func TestResolveDriverPathHonorsExplicitAndEnvOverrides(t *testing.T) {
 }
 
 func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
+	t.Run("Should expose typed native provider identities and diagnostics matching", func(t *testing.T) {
+		t.Parallel()
+
+		for _, provider := range []string{ProviderClaude, ProviderOpenClaw, ProviderHermes, "claude-code", "hermes-agent"} {
+			cfg, err := ProviderConfigForIdentity(provider, "/tmp/acpmock-driver")
+			if err != nil {
+				t.Fatalf("ProviderConfigForIdentity(%q) error = %v", provider, err)
+			}
+			if cfg.Command != "/tmp/acpmock-driver" {
+				t.Fatalf("ProviderConfigForIdentity(%q).Command = %q", provider, cfg.Command)
+			}
+		}
+		if _, err := ProviderConfigForIdentity("custom"); err == nil {
+			t.Fatal("ProviderConfigForIdentity(custom) error = nil, want unsupported identity")
+		}
+
+		records := []DiagnosticsRecord{{Provider: "claude"}, {Provider: "openclaw"}, {Provider: "claude-code"}}
+		claude := DiagnosticsForProvider(records, "claude")
+		if len(claude) != 2 {
+			t.Fatalf("DiagnosticsForProvider(claude) = %#v, want canonical alias pair", claude)
+		}
+	})
+
 	t.Run("Should default diagnostics path uses logs directory", func(t *testing.T) {
 		t.Parallel()
 

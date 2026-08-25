@@ -72,7 +72,9 @@ func (r *Registry) workspaceSkills(ctx context.Context, resolved *workspacepkg.R
 	}
 	r.mu.Unlock()
 
-	workspaceSkills, workspaceDiagnostics, err := r.loadWorkspaceSkills(ctx, load.paths, workspaceDisabled)
+	workspaceSkills, workspaceDiagnostics, commandCandidates, err := r.loadWorkspaceSkills(
+		ctx, load.paths, workspaceDisabled,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -84,6 +86,7 @@ func (r *Registry) workspaceSkills(ctx context.Context, resolved *workspacepkg.R
 		cacheKey,
 		workspaceSkills,
 		workspaceDiagnostics,
+		commandCandidates,
 		workspaceDisabled,
 		now,
 	)

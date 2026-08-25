@@ -2628,7 +2628,15 @@ func TestRegistryCommandCandidatesRespectScopeSourceAndActivation(t *testing.T) 
 		want := []candidateIdentity{
 			{
 				name: "darwin-only", kind: "extension", id: "ops", key: "ops", scope: "workspace",
+				available: false,
+			},
+			{
+				name: "darwin-only", kind: "extension", id: "ops", key: "ops", scope: "workspace",
 				qualified: true, available: false,
+			},
+			{
+				name: "release", kind: "extension", id: "ops", key: "ops", scope: "workspace",
+				available: false,
 			},
 			{
 				name: "release", kind: "extension", id: "ops", key: "ops", scope: "workspace",
@@ -2637,6 +2645,10 @@ func TestRegistryCommandCandidatesRespectScopeSourceAndActivation(t *testing.T) 
 			{
 				name: "review", kind: "extension", id: "ops", key: "ops", scope: "global",
 				qualified: true, available: false,
+			},
+			{
+				name: "review", kind: "marketplace", id: "official",
+				key: "official:@compozy/review", scope: "global", available: false,
 			},
 			{
 				name: "review", kind: "marketplace", id: "official",
@@ -2656,6 +2668,130 @@ func TestRegistryCommandCandidatesRespectScopeSourceAndActivation(t *testing.T) 
 			t.Fatalf("command candidates = %#v, want %#v", got, want)
 		}
 	})
+}
+
+func TestRegistryCommandCandidatesPreservePreOverlayRootIdentity(t *testing.T) {
+	t.Parallel()
+
+	registry := newTestRegistry(t, RegistryConfig{})
+	records := []resources.Record[SkillResourceSpec]{
+		{
+			ID: "agents:review", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+			Spec: SkillResourceSpec{
+				Name: "review", Description: "Agents review", Source: skillSourceName(SourceUser),
+				Origin: "agents", RootID: "root_agents", FilePath: "/agents/review/SKILL.md", Enabled: true,
+			},
+		},
+		{
+			ID:    "claude:review",
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-roots"},
+			Spec: SkillResourceSpec{
+				Name: "review", Description: "Claude review", Source: skillSourceName(SourceWorkspace),
+				Origin: "claude", RootID: "root_claude", FilePath: "/claude/review/SKILL.md", Enabled: true,
+			},
+		},
+	}
+	if err := registry.ApplyResourceRecords(t.Context(), 1, records); err != nil {
+		t.Fatalf("ApplyResourceRecords() error = %v", err)
+	}
+	resolved := &workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-roots"}}
+	candidates, err := registry.CommandCandidatesForAgentDefSession(
+		t.Context(), resolved, compozyconfig.AgentDef{Name: "coder"}, "sess-roots",
+	)
+	if err != nil {
+		t.Fatalf("CommandCandidatesForAgentDefSession() error = %v", err)
+	}
+	type projection struct {
+		name, sourceID, rootID string
+		qualified              bool
+	}
+	got := make([]projection, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.Skill == nil || candidate.Skill.Meta.Name != "review" {
+			continue
+		}
+		got = append(got, projection{
+			name: candidate.Skill.Meta.Name, sourceID: candidate.SourceID,
+			rootID: candidate.RootID, qualified: candidate.Qualified,
+		})
+		if candidate.RootID != "" && !strings.HasPrefix(candidate.SourceKey, candidate.RootID+"@generation:") {
+			t.Fatalf("candidate source key = %q, want opaque generation under RootID %q", candidate.SourceKey, candidate.RootID)
+		}
+	}
+	want := []projection{
+		{name: "review", sourceID: "agents", rootID: "root_agents", qualified: true},
+		{name: "review", sourceID: "claude", rootID: "root_claude", qualified: false},
+		{name: "review", sourceID: "claude", rootID: "root_claude", qualified: true},
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("review candidates = %#v, want %#v", got, want)
+	}
+
+	sameOriginRecords := []resources.Record[SkillResourceSpec]{
+		{
+			ID: "agents-user:deploy", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+			Spec: SkillResourceSpec{
+				Name: "deploy", Description: "User agents deploy", Source: skillSourceName(SourceUser),
+				Origin: "agents", RootID: "root_agents_user", FilePath: "/user/agents/deploy/SKILL.md", Enabled: true,
+			},
+		},
+		{
+			ID:    "agents-workspace:deploy",
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-roots"},
+			Spec: SkillResourceSpec{
+				Name: "deploy", Description: "Workspace agents deploy", Source: skillSourceName(SourceWorkspace),
+				Origin: "agents", RootID: "root_agents_workspace",
+				FilePath: "/workspace/agents/deploy/SKILL.md", Enabled: true,
+			},
+		},
+	}
+	if err := registry.ApplyResourceRecords(t.Context(), 2, sameOriginRecords); err != nil {
+		t.Fatalf("ApplyResourceRecords(same origin) error = %v", err)
+	}
+	sameOriginCandidates, err := registry.CommandCandidatesForAgentDefSession(
+		t.Context(), resolved, compozyconfig.AgentDef{Name: "coder"}, "sess-roots",
+	)
+	if err != nil {
+		t.Fatalf("CommandCandidatesForAgentDefSession(same origin) error = %v", err)
+	}
+	qualifiedByRoot := make(map[string]string)
+	for _, candidate := range sameOriginCandidates {
+		if candidate.Skill == nil || candidate.Skill.Meta.Name != "deploy" || !candidate.Qualified {
+			continue
+		}
+		qualifiedByRoot[candidate.RootID] = candidate.SourceID
+	}
+	if got, want := len(qualifiedByRoot), 2; got != want {
+		t.Fatalf("same-origin qualified candidates = %#v, want %d physical roots", qualifiedByRoot, want)
+	}
+	userQualifier := qualifiedByRoot["root_agents_user"]
+	workspaceQualifier := qualifiedByRoot["root_agents_workspace"]
+	if !strings.HasPrefix(userQualifier, "agents-") || !strings.HasPrefix(workspaceQualifier, "agents-") {
+		t.Fatalf("same-origin qualifiers = %#v, want deterministic agents-* slugs", qualifiedByRoot)
+	}
+	if userQualifier == workspaceQualifier {
+		t.Fatalf("same-origin qualifiers = %#v, want distinct invocable tokens", qualifiedByRoot)
+	}
+
+	losingRootDir := t.TempDir()
+	losingRoot := compozyconfig.SkillRootSpec{
+		Dir: losingRootDir, SourceSlug: "agents", Kind: compozyconfig.RootKindPreset,
+		ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+	}
+	status := SkillSourceRootStatus{Spec: losingRoot}
+	populateRootRuntimeStatus(&status, []*Skill{{
+		Meta: SkillMeta{Name: "deploy"}, Origin: "agents", RootID: "root_agents_workspace",
+		Diagnostics: SkillDiagnostics{ShadowedDefinitions: []SkillDefinitionRef{{
+			Path: filepath.Join(losingRootDir, "deploy", skillFileName), Origin: "agents",
+		}}},
+	}}, nil)
+	if got, want := len(status.Collisions), 1; got != want {
+		t.Fatalf("collision diagnostics = %#v, want %d losing root", status.Collisions, want)
+	}
+	wantQualifiedForm := rootQualifiedSourceID("agents", losingRoot.RootID()) + ":deploy"
+	if got := status.Collisions[0].QualifiedForm; got != wantQualifiedForm {
+		t.Fatalf("collision qualified form = %q, want %q", got, wantQualifiedForm)
+	}
 }
 
 func TestCloneSkillPreservesNilProvenance(t *testing.T) {

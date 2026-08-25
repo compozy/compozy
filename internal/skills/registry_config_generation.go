@@ -78,7 +78,7 @@ func (r *Registry) ApplyConfigGeneration(
 		return true, nil
 	}
 
-	loaded, snapshots, diagnostics, err := r.loadGlobalSkills(
+	loaded, snapshots, diagnostics, commandCandidates, err := r.loadGlobalSkills(
 		WithConfigGeneration(ctx, generation),
 		append([]string(nil), candidate.DisabledSkills...),
 		candidate,
@@ -113,6 +113,7 @@ func (r *Registry) ApplyConfigGeneration(
 	r.globalSnapshots = filesnap.Clone(snapshots)
 	r.globalDiagnostics = cloneDiagnostics(diagnostics)
 	r.globalSkills = loaded
+	r.globalCommandCandidates = cloneCommandSkillSlice(commandCandidates)
 	r.globalLoaded = true
 	r.wsCache = make(map[string]*wsCache)
 	r.configGeneration.Store(generation)

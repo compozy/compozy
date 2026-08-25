@@ -823,7 +823,7 @@ func TestSpecCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 
 		augmenter := newSkillsCatalogAugmenter(rebuiltSkills, nil, func() promptSkillsWorkspaceResolver {
 			return workspaceResolver
-		})
+		}, nil)
 		for _, promptCase := range []struct {
 			name          string
 			session       *session.Session

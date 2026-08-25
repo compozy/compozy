@@ -122,7 +122,17 @@ func appendSkillResources(
 	if desired == nil {
 		return
 	}
-	for _, skill := range skills {
+	winnerIndexes := make(map[string]int, len(skills))
+	for index, skill := range skills {
+		if skill == nil {
+			continue
+		}
+		name := strings.TrimSpace(skill.Meta.Name)
+		if name != "" {
+			winnerIndexes[name] = index
+		}
+	}
+	for index, skill := range skills {
 		if skill == nil {
 			continue
 		}
@@ -130,19 +140,26 @@ func appendSkillResources(
 		if name == "" {
 			continue
 		}
+		identity := name
+		if rootID := strings.TrimSpace(skill.RootID); rootID != "" {
+			identity += "/root/" + rootID
+		}
 		desired.skills = append(desired.skills, skillPublicationInput{
-			sourceKey: source.prefix + "/skill/" + name,
+			sourceKey: source.prefix + "/skill/" + identity,
 			scope:     scope,
 			owner:     source.owner,
 			spec:      skillspkg.SkillToResourceSpec(skill),
 		})
+		if winnerIndexes[name] != index {
+			continue
+		}
 		for _, server := range skill.MCPServers {
 			serverName := strings.TrimSpace(server.Name)
 			if serverName == "" {
 				continue
 			}
 			desired.mcpServers = append(desired.mcpServers, mcpServerPublicationInput{
-				sourceKey: source.prefix + "/skill/" + name + "/mcp_server/" + serverName,
+				sourceKey: source.prefix + "/skill/" + identity + "/mcp_server/" + serverName,
 				scope:     scope,
 				owner:     source.owner,
 				spec:      mcpServerFromSkillDecl(server),

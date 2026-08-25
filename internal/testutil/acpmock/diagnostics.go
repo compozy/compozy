@@ -10,12 +10,14 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 // DiagnosticsRecord captures one protocol, lifecycle, or prompt event emitted by the ACP mock driver.
 type DiagnosticsRecord struct {
 	CompozySessionID  string             `json:"compozy_session_id,omitempty"`
 	AgentName         string             `json:"agent_name"`
+	Provider          string             `json:"provider,omitempty"`
 	SessionID         string             `json:"session_id"`
 	ProtocolMethod    string             `json:"protocol_method,omitempty"`
 	ConfigOptionID    string             `json:"config_option_id,omitempty"`
@@ -29,6 +31,18 @@ type DiagnosticsRecord struct {
 	TurnName          string             `json:"turn_name,omitempty"`
 	Match             TurnMatch          `json:"match"`
 	Steps             []DiagnosticsStep  `json:"steps"`
+}
+
+// DiagnosticsForProvider returns structured records for one canonical provider identity.
+func DiagnosticsForProvider(records []DiagnosticsRecord, provider string) []DiagnosticsRecord {
+	canonical := compozyconfig.CanonicalProviderName(provider)
+	filtered := make([]DiagnosticsRecord, 0, len(records))
+	for _, record := range records {
+		if compozyconfig.CanonicalProviderName(record.Provider) == canonical {
+			filtered = append(filtered, record)
+		}
+	}
+	return filtered
 }
 
 // DiagnosticsForCompozySession returns records owned by one daemon session in append order.

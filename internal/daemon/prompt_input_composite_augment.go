@@ -79,7 +79,13 @@ func (c *promptInputComposite) applyAugmenterDescriptor(
 	limited bool,
 	timestamp time.Time,
 ) (string, int, error) {
-	next, augmentErr := descriptor.Augmenter(ctx, sess, current)
+	var next string
+	var augmentErr error
+	if descriptor.PolicyAugmenter != nil {
+		next, augmentErr = descriptor.PolicyAugmenter(ctx, sess, current, resolved)
+	} else {
+		next, augmentErr = descriptor.Augmenter(ctx, sess, current)
+	}
 	if augmentErr != nil {
 		return c.handleAugmenterFailure(
 			ctx,

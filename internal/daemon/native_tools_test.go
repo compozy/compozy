@@ -2099,6 +2099,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			skillRegistry,
 			func() session.AgentResolver { return agentResolver },
 			func() promptSkillsWorkspaceResolver { return workspaces },
+			nil,
 		).Catalog(t.Context(), info, manager.agent)
 		if err != nil {
 			t.Fatalf("Catalog() error = %v", err)

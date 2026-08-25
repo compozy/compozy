@@ -75,7 +75,7 @@ func (r *Registry) reloadGlobal(ctx context.Context) error {
 
 	cfg := r.registryConfigSnapshot(ctx)
 	disabledSkills := append([]string(nil), cfg.DisabledSkills...)
-	loaded, snapshots, diagnostics, err := r.loadGlobalSkills(ctx, disabledSkills, cfg)
+	loaded, snapshots, diagnostics, commandCandidates, err := r.loadGlobalSkills(ctx, disabledSkills, cfg)
 	if err != nil {
 		return err
 	}
@@ -99,6 +99,7 @@ func (r *Registry) reloadGlobal(ctx context.Context) error {
 	r.globalDiagnostics = cloneDiagnostics(diagnostics)
 	r.globalLoaded = true
 	r.globalSkills = loaded
+	r.globalCommandCandidates = cloneCommandSkillSlice(commandCandidates)
 	r.globalVersion.Add(1)
 	shadowEvents := r.buildSkillShadowSummariesFromResolved(
 		mergedSkillList(loaded, nil), "global", store.DefaultProfileID, "", "",

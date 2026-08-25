@@ -108,6 +108,37 @@ func (cp *CatalogProvider) PromptAgentSessionSection(
 	return BuildCatalog(skills), nil
 }
 
+// PromptAgentSessionFilteredSection applies one session-resolved injection-only filter.
+func (cp *CatalogProvider) PromptAgentSessionFilteredSection(
+	ctx context.Context,
+	sessionID string,
+	agent compozyconfig.AgentDef,
+	workspace *workspacepkg.ResolvedWorkspace,
+	filter func(*Skill) bool,
+) (string, error) {
+	if cp == nil || cp.registry == nil {
+		return "", nil
+	}
+	skills, err := cp.registry.ForAgentDefSession(ctx, workspace, agent, sessionID)
+	if err != nil {
+		return "", fmt.Errorf("skills: build filtered catalog for agent %q session %q: %w", agent.Name, sessionID, err)
+	}
+	return BuildCatalog(filterInjectedSkills(skills, filter)), nil
+}
+
+func filterInjectedSkills(skills []*Skill, filter func(*Skill) bool) []*Skill {
+	if filter == nil {
+		return skills
+	}
+	filtered := make([]*Skill, 0, len(skills))
+	for _, skill := range skills {
+		if skill != nil && filter(skill) {
+			filtered = append(filtered, skill)
+		}
+	}
+	return filtered
+}
+
 // BuildCatalog renders the XML-like available-skills block injected into agent
 // system prompts.
 func BuildCatalog(skills []*Skill) string {

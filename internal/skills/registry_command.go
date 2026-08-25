@@ -53,43 +53,47 @@ func (r *Registry) CommandCandidatesForAgentDefSession(
 		return nil, err
 	}
 
-	candidates := make([]CommandCandidate, 0, len(effective))
-	externalByKey := make(map[string]*Skill)
+	generation := r.globalVersion.Load()
+	candidates := make([]CommandCandidate, 0, len(effective)*2)
 	for _, skill := range effective {
 		if skill == nil {
 			continue
 		}
-		if isExternalCommandSkill(skill) {
-			key, ok := externalCommandSkillKey(skill)
-			if !ok {
-				continue
-			}
-			externalByKey[key] = cloneSkill(skill)
-			continue
-		}
-		candidates = append(candidates, commandCandidateFromSkill(skill, false))
+		candidates = append(candidates, commandCandidateFromSkill(skill, false, generation))
 	}
 
-	externalSnapshot := r.externalCommandCandidateSnapshot(resolved)
-	maps.Copy(externalByKey, externalSnapshot)
-	external := make([]*Skill, 0, len(externalByKey))
-	for _, skill := range externalByKey {
-		external = append(external, skill)
+	allByKey := r.commandCandidateSnapshot(resolved)
+	for _, skill := range effective {
+		appendCommandSkill(allByKey, skill)
 	}
+	all := slices.Collect(maps.Values(allByKey))
 	applyDisabledSkillList(
-		external,
+		all,
 		r.workspaceDisabledSkillsSnapshot(
 			workspaceCacheKey(resolved),
 			workspaceConfiguredDisabledSkills(resolved),
 		),
 	)
-	applyDisabledSkillList(external, agent.Skills.Disabled)
-	external, err = r.projectAgentSkillActivation(ctx, resolved, agent, sessionID, external)
+	applyDisabledSkillList(all, agent.Skills.Disabled)
+	all, err = r.projectAgentSkillActivation(ctx, resolved, agent, sessionID, all)
 	if err != nil {
 		return nil, err
 	}
-	for _, skill := range external {
-		candidate := commandCandidateFromSkill(skill, true)
+	nameCounts := make(map[string]int, len(all))
+	for _, skill := range all {
+		if skill != nil {
+			nameCounts[commandpkg.Slug(skill.Meta.Name)]++
+		}
+	}
+	qualifiedSourceIDs := collisionSafeQualifiedSourceIDs(all, generation)
+	for _, skill := range all {
+		if skill == nil || !shouldProjectQualifiedSkill(skill, nameCounts) {
+			continue
+		}
+		candidate := commandCandidateFromSkill(skill, true, generation)
+		if sourceID := qualifiedSourceIDs[commandCandidateIdentity(skill)]; sourceID != "" {
+			candidate.SourceID = sourceID
+		}
 		candidates = append(candidates, candidate)
 	}
 
@@ -101,26 +105,47 @@ func (r *Registry) CommandCandidatesForAgentDefSession(
 	return candidates, nil
 }
 
-func (r *Registry) externalCommandCandidateSnapshot(
+func (r *Registry) commandCandidateSnapshot(
 	resolved *workspacepkg.ResolvedWorkspace,
 ) map[string]*Skill {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	result := make(map[string]*Skill)
+	if !r.resourceAuthority {
+		for _, skill := range r.globalCommandCandidates {
+			appendCommandSkill(result, skill)
+		}
+		if cached := r.wsCache[workspaceCacheKey(resolved)]; cached != nil {
+			for _, skill := range cached.commandCandidates {
+				appendCommandSkill(result, skill)
+			}
+		}
+		return result
+	}
 	for _, skill := range r.resourceGlobalCommandCandidates {
-		appendExternalCommandSkill(result, skill)
+		appendCommandSkill(result, skill)
 	}
 	for _, skill := range r.profileCommandCandidatesForResolved(resolved) {
-		appendExternalCommandSkill(result, skill)
+		appendCommandSkill(result, skill)
 	}
 	for _, skill := range r.resourceWorkspaceCommandCandidates[resourceWorkspaceKey(resolved)] {
-		appendExternalCommandSkill(result, skill)
+		appendCommandSkill(result, skill)
 	}
 	for _, skill := range r.workspaceProfileCommandCandidatesForResolved(resolved) {
-		appendExternalCommandSkill(result, skill)
+		appendCommandSkill(result, skill)
 	}
 	return result
+}
+
+func cloneCommandSkillSlice(skills []*Skill) []*Skill {
+	cloned := make([]*Skill, 0, len(skills))
+	for _, skill := range skills {
+		if skill != nil {
+			cloned = append(cloned, cloneSkill(skill))
+		}
+	}
+	return cloned
 }
 
 func (r *Registry) profileCommandCandidatesForResolved(
@@ -143,11 +168,11 @@ func (r *Registry) workspaceProfileCommandCandidatesForResolved(
 	return r.resourceWorkspaceProfileCommandCandidates[resourceWorkspaceProfileKey(resolved)]
 }
 
-func appendExternalCommandSkill(destination map[string]*Skill, skill *Skill) {
-	if skill == nil || !isExternalCommandSkill(skill) {
+func appendCommandSkill(destination map[string]*Skill, skill *Skill) {
+	if skill == nil {
 		return
 	}
-	key, ok := externalCommandSkillKey(skill)
+	key, ok := commandSkillCandidateKey(skill)
 	if !ok {
 		return
 	}
@@ -159,10 +184,10 @@ func appendCommandResourceCandidate(
 	scope string,
 	skill *Skill,
 ) error {
-	if skill == nil || !isExternalCommandSkill(skill) {
+	if skill == nil {
 		return nil
 	}
-	key, ok := externalCommandSkillKey(skill)
+	key, ok := commandSkillCandidateKey(skill)
 	if !ok {
 		return nil
 	}
@@ -174,8 +199,8 @@ func appendCommandResourceCandidate(
 	return nil
 }
 
-func commandCandidateFromSkill(skill *Skill, qualified bool) CommandCandidate {
-	source := CommandSourceForSkill(skill)
+func commandCandidateFromSkill(skill *Skill, qualified bool, generation int64) CommandCandidate {
+	source := commandSourceForCandidate(skill, generation)
 	return CommandCandidate{
 		Skill:      cloneSkill(skill),
 		SourceKind: source.Kind,
@@ -184,13 +209,31 @@ func commandCandidateFromSkill(skill *Skill, qualified bool) CommandCandidate {
 		Scope:      source.Scope,
 		Qualified:  qualified,
 		Available:  skill != nil && skill.Enabled && skillIsActive(skill),
+		Origin:     strings.TrimSpace(skill.Origin),
+		RootID:     strings.TrimSpace(skill.RootID),
+		Generation: generation,
 	}
 }
 
 // CommandSourceForSkill returns the opaque exact-source identity used by slash command refs.
 func CommandSourceForSkill(skill *Skill) commandpkg.Source {
+	return commandSourceForCandidate(skill, 0)
+}
+
+func commandSourceForCandidate(skill *Skill, generation int64) commandpkg.Source {
 	kind, id, key := commandSkillSource(skill)
-	return commandpkg.Source{Kind: kind, ID: id, Key: key, Scope: commandSkillScope(skill)}
+	if rootID := strings.TrimSpace(skill.RootID); rootID != "" {
+		kind = SkillPrecedenceTierName(skill.Source)
+		id = strings.TrimSpace(skill.Origin)
+		if id == "" {
+			id = compozyconfig.SkillSourceCompozy
+		}
+		key = fmt.Sprintf("%s@generation:%d", rootID, generation)
+	}
+	return commandpkg.Source{
+		Kind: kind, ID: id, Key: key, Scope: commandSkillScope(skill),
+		Origin: strings.TrimSpace(skill.Origin),
+	}
 }
 
 func commandSkillSource(skill *Skill) (string, string, string) {
@@ -255,4 +298,80 @@ func externalCommandSkillKey(skill *Skill) (string, bool) {
 		return "", false
 	}
 	return sourceKind + "\x00" + sourceSlug + "\x00" + name, true
+}
+
+func commandSkillCandidateKey(skill *Skill) (string, bool) {
+	if skill == nil {
+		return "", false
+	}
+	if rootID := strings.TrimSpace(skill.RootID); rootID != "" {
+		path := strings.TrimSpace(skill.FilePath)
+		return rootID + "\x00" + path, true
+	}
+	return externalCommandSkillKey(skill)
+}
+
+func shouldProjectQualifiedSkill(skill *Skill, nameCounts map[string]int) bool {
+	if skill == nil {
+		return false
+	}
+	name := commandpkg.Slug(skill.Meta.Name)
+	if name == "goal" || name == "worktree" || name == "run" {
+		return true
+	}
+	return strings.TrimSpace(skill.Origin) != "" || isExternalCommandSkill(skill) || nameCounts[name] > 1
+}
+
+func collisionSafeQualifiedSourceIDs(skills []*Skill, generation int64) map[string]string {
+	type sourceIdentity struct {
+		candidateKey string
+		sourceID     string
+		rootID       string
+	}
+	groups := make(map[string][]sourceIdentity)
+	for _, skill := range skills {
+		if skill == nil {
+			continue
+		}
+		candidateKey := commandCandidateIdentity(skill)
+		if candidateKey == "" {
+			continue
+		}
+		source := commandSourceForCandidate(skill, generation)
+		groupKey := commandpkg.Slug(source.ID) + "\x00" + commandpkg.Slug(skill.Meta.Name)
+		groups[groupKey] = append(groups[groupKey], sourceIdentity{
+			candidateKey: candidateKey,
+			sourceID:     commandpkg.Slug(source.ID),
+			rootID:       strings.TrimSpace(skill.RootID),
+		})
+	}
+
+	result := make(map[string]string)
+	for _, group := range groups {
+		if len(group) < 2 {
+			continue
+		}
+		for _, identity := range group {
+			if identity.rootID == "" || identity.sourceID == "" {
+				continue
+			}
+			result[identity.candidateKey] = rootQualifiedSourceID(identity.sourceID, identity.rootID)
+		}
+	}
+	return result
+}
+
+func rootQualifiedSourceID(sourceID string, rootID string) string {
+	base := commandpkg.Slug(sourceID)
+	stableRootID := strings.TrimSpace(rootID)
+	if base == "" || stableRootID == "" {
+		return base
+	}
+	digest := sha256.Sum256([]byte(stableRootID))
+	return base + "-" + hex.EncodeToString(digest[:4])
+}
+
+func commandCandidateIdentity(skill *Skill) string {
+	key, _ := commandSkillCandidateKey(skill)
+	return key
 }

@@ -43,6 +43,7 @@ type Option func(*Registry)
 type Registry struct {
 	mu                                        sync.RWMutex
 	globalSkills                              map[string]*Skill
+	globalCommandCandidates                   []*Skill
 	resourceAuthority                         bool
 	resourceRevision                          int64
 	resourceWorkspaces                        map[string]map[string]*Skill
@@ -250,6 +251,7 @@ func (r *Registry) refreshWorkspaceCacheLocked(
 	cacheKey string,
 	workspaceSkills map[string]*Skill,
 	workspaceDiagnostics []SkillDiagnostic,
+	workspaceCommandCandidates []*Skill,
 	workspaceDisabled []string,
 	now time.Time,
 ) ([]*Skill, []store.EventSummary) {
@@ -267,11 +269,12 @@ func (r *Registry) refreshWorkspaceCacheLocked(
 		"",
 	)
 	r.wsCache[cacheKey] = &wsCache{
-		skills:        workspaceSkills,
-		diagnostics:   workspaceDiagnostics,
-		snapshots:     load.snapshots,
-		lastAccess:    now,
-		globalVersion: currentGlobalVersion,
+		skills:            workspaceSkills,
+		commandCandidates: cloneCommandSkillSlice(workspaceCommandCandidates),
+		diagnostics:       workspaceDiagnostics,
+		snapshots:         load.snapshots,
+		lastAccess:        now,
+		globalVersion:     currentGlobalVersion,
 	}
 	return mergedSkillListWithDisabled(globalSkills, workspaceSkills, workspaceDisabled), shadowEvents
 }

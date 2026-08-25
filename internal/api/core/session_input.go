@@ -119,6 +119,7 @@ func SessionInputPayloadFromSession(input session.PendingInput) contract.Session
 			Source: contract.SessionCommandSource{
 				Kind: invocation.Ref.Source.Kind, ID: invocation.Ref.Source.ID,
 				Key: invocation.Ref.Source.Key, Scope: invocation.Ref.Source.Scope,
+				Origin: invocation.Ref.Source.Origin,
 			},
 			Start: invocation.Start, End: invocation.End,
 		})

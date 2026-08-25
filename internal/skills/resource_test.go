@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/store"
@@ -230,6 +231,31 @@ func TestSkillResourceCodecPreservesProvenanceAndSidecarMCP(t *testing.T) {
 	}
 	if got, want := projected.ActivationGates.RequiresTools, []string{"compozy__skill_view"}; !slices.Equal(got, want) {
 		t.Fatalf("ActivationGates.RequiresTools = %#v, want %#v", got, want)
+	}
+}
+
+func TestDiscoverGlobalPreservesPhysicalHomonymsForPublication(t *testing.T) {
+	t.Parallel()
+
+	agentsRoot := filepath.Join(t.TempDir(), "agents")
+	claudeRoot := filepath.Join(t.TempDir(), "claude")
+	writeSkillFile(t, filepath.Join(agentsRoot, "review"), skillFileName, skillWithBody("review", "Agents review", "Agents body."))
+	writeSkillFile(t, filepath.Join(claudeRoot, "review"), skillFileName, skillWithBody("review", "Claude review", "Claude body."))
+	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
+	registry := NewRegistry(RegistryConfig{GlobalSkillRoots: []compozyconfig.SkillRootSpec{
+		{Dir: agentsRoot, SourceSlug: compozyconfig.SkillSourceAgents, Kind: compozyconfig.RootKindPreset, ResourceScope: scope},
+		{Dir: claudeRoot, SourceSlug: compozyconfig.SkillSourceClaude, Kind: compozyconfig.RootKindPreset, ResourceScope: scope},
+	}})
+	discovered, _, err := registry.DiscoverGlobal(t.Context())
+	if err != nil {
+		t.Fatalf("DiscoverGlobal() error = %v", err)
+	}
+	if len(discovered) != 2 {
+		t.Fatalf("DiscoverGlobal() = %#v, want both physical homonyms", discovered)
+	}
+	rootIDs := []string{discovered[0].RootID, discovered[1].RootID}
+	if rootIDs[0] == "" || rootIDs[1] == "" || rootIDs[0] == rootIDs[1] {
+		t.Fatalf("DiscoverGlobal() RootIDs = %#v, want two non-empty identities", rootIDs)
 	}
 }
 

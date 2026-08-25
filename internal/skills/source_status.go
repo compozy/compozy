@@ -113,9 +113,13 @@ func populateRootRuntimeStatus(
 			if !pathWithinSkillRoot(shadow.Path, status.Spec.Dir) {
 				continue
 			}
+			qualifier := strings.TrimSpace(status.Spec.SourceSlug)
+			if qualifier == strings.TrimSpace(skill.Origin) && skill.RootID != rootID {
+				qualifier = rootQualifiedSourceID(qualifier, rootID)
+			}
 			status.Collisions = append(status.Collisions, SkillSourceCollision{
 				Name: strings.TrimSpace(skill.Meta.Name), WinnerRootID: skill.RootID,
-				QualifiedForm: qualifiedSkillSourceName(status.Spec.SourceSlug, skill.Meta.Name),
+				QualifiedForm: qualifiedSkillSourceName(qualifier, skill.Meta.Name),
 			})
 		}
 	}

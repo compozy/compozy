@@ -317112,6 +317112,9 @@
                               "kind": {
                                 "type": "string"
                               },
+                              "origin": {
+                                "type": "string"
+                              },
                               "scope": {
                                 "type": "string"
                               }
@@ -325729,6 +325732,9 @@
                                     "kind": {
                                       "type": "string"
                                     },
+                                    "origin": {
+                                      "type": "string"
+                                    },
                                     "scope": {
                                       "type": "string"
                                     }
@@ -326677,6 +326683,9 @@
                                     "type": "string"
                                   },
                                   "kind": {
+                                    "type": "string"
+                                  },
+                                  "origin": {
                                     "type": "string"
                                   },
                                   "scope": {

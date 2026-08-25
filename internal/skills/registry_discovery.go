@@ -48,11 +48,11 @@ func (r *Registry) DiscoverGlobal(ctx context.Context) ([]*Skill, map[string]fil
 	}
 	cfg := r.registryConfigSnapshot(ctx)
 	disabledSkills := append([]string(nil), cfg.DisabledSkills...)
-	loaded, snapshots, _, err := r.loadGlobalSkills(ctx, disabledSkills, cfg)
+	_, snapshots, _, candidates, err := r.loadGlobalSkills(ctx, disabledSkills, cfg)
 	if err != nil {
 		return nil, nil, err
 	}
-	return mergedSkillList(loaded, nil), filesnap.Clone(snapshots), nil
+	return cloneCommandSkillSlice(candidates), filesnap.Clone(snapshots), nil
 }
 
 // DiscoverWorkspace loads workspace-visible skill definitions for resource publication.
@@ -74,11 +74,11 @@ func (r *Registry) DiscoverWorkspace(
 		workspaceCacheKey(resolved),
 		resolved.Config.Skills.DisabledSkills,
 	)
-	loaded, _, err := r.loadWorkspaceSkills(ctx, load.paths, workspaceDisabled)
+	_, _, candidates, err := r.loadWorkspaceSkills(ctx, load.paths, workspaceDisabled)
 	if err != nil {
 		return nil, nil, err
 	}
-	return mergedSkillList(nil, loaded), load.snapshots, nil
+	return cloneCommandSkillSlice(candidates), load.snapshots, nil
 }
 
 // ApplyResourceRecords atomically replaces the runtime skill catalog with the

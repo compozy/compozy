@@ -363,6 +363,60 @@ func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T)
 		},
 	)
 
+	t.Run("Should override native provider directories for isolated homes", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			provider string
+			envKey   string
+		}{
+			{provider: "claude", envKey: "CLAUDE_CONFIG_DIR"},
+			{provider: "hermes", envKey: "HERMES_HOME"},
+			{provider: "openclaw", envKey: "OPENCLAW_STATE_DIR"},
+		}
+		for _, test := range tests {
+			t.Run(test.provider, func(t *testing.T) {
+				t.Parallel()
+
+				homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+				if err != nil {
+					t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+				}
+				manager := &Manager{
+					homePaths:       homePaths,
+					providerSecrets: fakeProviderSecretResolver{},
+				}
+				resolved := compozyconfig.ResolvedAgent{
+					Provider:   test.provider,
+					Harness:    compozyconfig.ProviderHarnessACP,
+					AuthMode:   compozyconfig.ProviderAuthModeNativeCLI,
+					EnvPolicy:  compozyconfig.ProviderEnvPolicyIsolated,
+					HomePolicy: compozyconfig.ProviderHomePolicyIsolated,
+				}
+
+				opts, err := manager.prepareProviderForStart(
+					testutil.Context(t),
+					&Session{},
+					resolved,
+					acp.StartOpts{Env: []string{
+						"HOME=/Users/operator",
+						test.envKey + "=/Users/operator/native",
+					}},
+				)
+				if err != nil {
+					t.Fatalf("prepareProviderForStart(%s) error = %v", test.provider, err)
+				}
+
+				providerHome := filepath.Join(homePaths.HomeDir, "providers", test.provider)
+				wantNativeDir := filepath.Join(providerHome, test.provider)
+				if got := envValue(opts.Env, test.envKey); got != wantNativeDir {
+					t.Fatalf("%s = %q, want %q", test.envKey, got, wantNativeDir)
+				}
+				assertProviderRuntimeFileMode(t, wantNativeDir, 0o700)
+			})
+		}
+	})
+
 	t.Run("Should preserve operator codex home for regular codex sessions", func(t *testing.T) {
 		t.Parallel()
 
