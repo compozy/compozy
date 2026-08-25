@@ -69,8 +69,10 @@ test("operator can navigate the settings shell and complete a restart-aware gene
     .poll(async () => normalizeTexts(await settingsUI.shell.sectionItems.allTextContents()))
     .toEqual([
       "General",
+      "Defaults",
       "Appearance",
       "Layouts",
+      "Profiles",
       "Palette",
       "Providers",
       "Memory",
@@ -146,10 +148,14 @@ test("operator can navigate the settings shell and complete a restart-aware gene
   await expect
     .poll(
       async () => {
-        const payload = await runtime.requestJSON<{ status: string }>(
-          `/api/settings/actions/restart/${encodeURIComponent(operationID)}`
-        );
-        return payload.status;
+        try {
+          const payload = await runtime.requestJSON<{ status: string }>(
+            `/api/settings/actions/restart/${encodeURIComponent(operationID)}`
+          );
+          return payload.status;
+        } catch {
+          return "unavailable";
+        }
       },
       {
         timeout: 45_000,
@@ -321,13 +327,31 @@ test("E2E-026: notification preset enablement follows the active profile", async
   const profiles = profilesOperatorSelectors(appPage);
   await profiles.switcher.click();
   await profiles.switcherOption("marketing").click();
-  await expect(profileLabel).toContainText("marketing");
-  await expect(taskTerminalToggle).toBeChecked();
+  await appPage.goto(runtime.url("/settings/hooks"), { waitUntil: "domcontentloaded" });
+  const marketingSettingsWin = appWindow(appPage, "settings");
+  await expect(marketingSettingsWin).toBeVisible();
+  const marketingProfileLabel = marketingSettingsWin.getByTestId(
+    "settings-page-hooks-notification-preset-profile"
+  );
+  const marketingTaskTerminalToggle = marketingSettingsWin.getByTestId(
+    "settings-page-hooks-notification-preset-row-task_terminal-toggle"
+  );
+  await expect(marketingProfileLabel).toContainText("marketing");
+  await expect(marketingTaskTerminalToggle).toBeChecked();
 
   await profiles.switcher.click();
   await profiles.switcherOption("default").click();
-  await expect(profileLabel).toContainText("default");
-  await expect(taskTerminalToggle).not.toBeChecked();
+  await appPage.goto(runtime.url("/settings/hooks"), { waitUntil: "domcontentloaded" });
+  const defaultSettingsWin = appWindow(appPage, "settings");
+  await expect(defaultSettingsWin).toBeVisible();
+  await expect(
+    defaultSettingsWin.getByTestId("settings-page-hooks-notification-preset-profile")
+  ).toContainText("default");
+  await expect(
+    defaultSettingsWin.getByTestId(
+      "settings-page-hooks-notification-preset-row-task_terminal-toggle"
+    )
+  ).not.toBeChecked();
 });
 
 test("operator can distinguish skills actions that apply now from policy changes that require restart", async ({
@@ -614,11 +638,18 @@ test("operator routes a background role, persists it across reload, and keeps bu
 }) => {
   const sessionUI = sessionLifecycleSelectors(appPage);
   const settingsUI = settingsOperatorSelectors(appPage);
-  const nextModel = "claude-haiku-4-5";
-  const nextModelLabel = "Claude Haiku 4.5";
 
   await ensureProjectWorkspace(appPage, runtime);
   await completeOnboardingIfPrompted(sessionUI);
+  const catalog = await runtime.requestJSON<{
+    models: Array<{ display_name?: string; model_id: string; provider_id: string }>;
+  }>("/api/model-catalog/models?include_stale=true&view=all");
+  const next =
+    catalog.models.find(model => model.model_id === "claude-haiku-4-5") ?? catalog.models[0];
+  if (!next) throw new Error("model catalog must advertise a background-role candidate");
+  const nextModel = next.model_id;
+  const nextModelLabel = next.display_name?.trim() || nextModel;
+  const nextProvider = next.provider_id;
   await appPage.goto(runtime.url("/settings/roles"), { waitUntil: "domcontentloaded" });
 
   await expect(settingsUI.roles.page).toBeVisible({ timeout: 20_000 });
@@ -638,7 +669,7 @@ test("operator routes a background role, persists it across reload, and keeps bu
   // provider/model decision instead of treating a known model as a custom ID.
   await appPage.getByTestId("runtime-selector-search").fill(nextModel);
   await appPage
-    .locator(`[role="option"][data-provider="opencode"][data-model="${nextModel}"]`)
+    .locator(`[role="option"][data-provider="${nextProvider}"][data-model="${nextModel}"]`)
     .click();
   await appPage.keyboard.press("Escape");
   await expect(appPage.getByTestId("runtime-selector-popup")).toHaveCount(0);
@@ -660,7 +691,7 @@ test("operator routes a background role, persists it across reload, and keeps bu
     readyTestId: "settings-page-roles",
   });
   await expect(settingsUI.roles.routeSummary("auto_title")).toContainText(
-    `opencode · ${nextModel}`
+    `${nextProvider} · ${nextModel}`
   );
 
   const section = await runtime.requestJSON<{ config: { auto_title: { model: string } } }>(

@@ -1,5 +1,6 @@
 // Suite: OS dock state
-// Invariant: dock activation resolves the correct instance and every available destination is reachable.
+// Invariant: dock activation resolves the correct instance, every available destination is reachable,
+// and launchers wait for the authoritative HTTP command fence rather than the live event stream.
 // Boundary IN: OsDock presentation, DesktopDock projection, and OsDockAppMenu interaction semantics.
 // Boundary OUT: coordinator command execution and browser lifecycle journeys.
 import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
@@ -10,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@compozy/ui";
 
 import type { OsDesktopRuntimeStore, OsWindow } from "../../lib/os-types";
+import type { WindowManagerConfig, WindowManagerSnapshot } from "../../lib/window-manager-types";
 import { DesktopDock } from "../desktop-dock";
 import { OsDock } from "../os-dock";
 import { OsDockAppMenu } from "../os-dock-app-menu";
@@ -24,6 +26,45 @@ const dockShell = vi.hoisted(() => ({
     userOpen: vi.fn(),
   },
 }));
+
+const SNAPSHOT: WindowManagerSnapshot = {
+  version: 3,
+  workspaceId: "workspace:test",
+  revision: 1,
+  desktops: [],
+  windows: {},
+  closedEntryCount: 0,
+  overrides: {},
+  updatedAt: "2026-07-31T00:00:00Z",
+};
+
+const CONFIG: WindowManagerConfig = {
+  newWindowPolicy: "floating",
+  smallViewportPolicy: "stack",
+  focusPolicy: "click_directional",
+  focusWrap: true,
+  focusFollowsPointer: false,
+  raiseOnFocus: true,
+  dragAwayPolicy: "window",
+  groupMoveModifier: "alt",
+  swapModifier: "shift",
+  historyLimit: 50,
+  navStackLimit: 50,
+  closedEntryLimit: 20,
+  desktopTransition: "slide",
+  gaps: { inner: 8, top: 0, right: 0, bottom: 0, left: 0 },
+  snap: {
+    edgeBand: 32,
+    cornerReach: 150,
+    exitSlack: 16,
+    repeatRatios: [0.5, 0.666667, 0.333333],
+  },
+  bindings: { topCenter: "zoom", bottomCenter: "reserved" },
+  shortcuts: {},
+  globalShortcuts: {},
+  shortcutDefaults: {},
+  effectiveShortcuts: {},
+};
 
 vi.mock("../../hooks/use-desktop", () => ({
   useDesktop: (selector: (state: unknown) => unknown) => selector(dockShell.state),
@@ -65,8 +106,8 @@ function desktopState(
   focusOrder: readonly string[] = []
 ): OsDesktopRuntimeStore {
   return {
-    snapshot: null,
-    windowManagerConfig: null,
+    snapshot: SNAPSHOT,
+    windowManagerConfig: CONFIG,
     client: {
       workspaceId: "workspace:test",
       clientId: "client:web",
@@ -139,6 +180,31 @@ describe("OsDock", () => {
       "minimized"
     );
     expect(screen.getByRole("button", { name: "Agents" })).toHaveAttribute("data-state", "closed");
+  });
+
+  it("Should wait for authoritative hydration but stay enabled while the stream reconnects", async () => {
+    const user = userEvent.setup();
+    setDockState({ ...desktopState(), hydration: "pending", connectionStatus: "reconnecting" });
+    const view = renderDock(
+      <DesktopDock badges={{}} onNewSession={vi.fn()} pager={null} contextMenusEnabled />
+    );
+    const tasks = screen.getByRole("button", { name: "Tasks" });
+
+    expect(tasks).toBeDisabled();
+    fireEvent.click(tasks);
+    expect(dockShell.coordinator.userOpen).not.toHaveBeenCalled();
+
+    setDockState({ ...desktopState(), connectionStatus: "reconnecting" });
+    view.rerender(
+      <TooltipProvider delay={0}>
+        <DesktopDock badges={{}} onNewSession={vi.fn()} pager={null} contextMenusEnabled />
+      </TooltipProvider>
+    );
+
+    const reconnectedTasks = screen.getByRole("button", { name: "Tasks" });
+    expect(reconnectedTasks).toBeEnabled();
+    await user.click(reconnectedTasks);
+    expect(dockShell.coordinator.userOpen).toHaveBeenCalledWith({ app: "tasks" });
   });
 
   it("Should hide zero badges and cap large attention counts at 9+ (UT-066)", () => {

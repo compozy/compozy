@@ -1,10 +1,4 @@
-import { useEffect } from "react";
-import { toast } from "sonner";
-
-import type { OsShellHandle } from "../../contexts/os-shell-context";
-import { useOsShell } from "../../hooks/use-os-shell";
-import { useSessionWindowResolution } from "./hooks/use-session-window-resolution";
-import { useSessionWindowRuntime } from "./hooks/use-session-window-runtime";
+import { useSessionWindowController } from "./hooks/use-session-window-controller";
 import { preloadSessionWindowModules } from "./session-window-module-loader";
 import { SessionProfileOwnerNotice } from "./session-profile-owner-notice";
 import { SessionWindowNotice, SessionWindowView } from "./session-window-view";
@@ -12,23 +6,6 @@ import { SessionWindowNotice, SessionWindowView } from "./session-window-view";
 // This controller is itself route-local and lazy. Once it is requested, warm
 // the chat surface chunks together so nested lazy boundaries do not waterfall.
 void Promise.allSettled([preloadSessionWindowModules()]);
-
-function returnToAgent(
-  coordinator: OsShellHandle["coordinator"],
-  windowId: string,
-  agentName: string
-): void {
-  void coordinator.userClose(windowId).then(closed => {
-    if (!closed) return;
-    void coordinator.userOpen({
-      app: "agents",
-      route: {
-        pathname: `/agents/${encodeURIComponent(agentName)}`,
-        search: {},
-      },
-    });
-  });
-}
 
 /**
  * Session window controller: parses `agent + session` identity from the window's
@@ -43,21 +20,22 @@ function returnToAgent(
  * visible session look deleted.
  */
 export function SessionWindow({ windowId }: { windowId: string }) {
-  const { coordinator } = useOsShell();
-  const { runtimeWorkspaceId, liveTailEnabled, sessionId, agentName } =
-    useSessionWindowRuntime(windowId);
-  const { session, isLoading, error, scopedMiss, foreign, crossesWorkspace } =
-    useSessionWindowResolution({ sessionId, runtimeWorkspaceId, liveTailEnabled });
+  const {
+    agentName,
+    crossesWorkspace,
+    deletedLocally,
+    effectiveLiveTailEnabled,
+    error,
+    foreign,
+    handleDeleteSuccess,
+    isLoading,
+    liveTailEnabled,
+    session,
+    sessionId,
+    workspaceId,
+  } = useSessionWindowController(windowId);
 
-  useEffect(() => {
-    if (agentName === null) return;
-    // Only a settled "nowhere" licenses the bounce. `loading` and `found` both
-    // mean the operator is still owed an answer on this screen.
-    const gone = scopedMiss && foreign.status === "missing";
-    if (!gone && !crossesWorkspace) return;
-    toast.error("Session not found");
-    returnToAgent(coordinator, windowId, agentName);
-  }, [agentName, coordinator, crossesWorkspace, foreign.status, scopedMiss, windowId]);
+  if (deletedLocally) return null;
 
   if (sessionId === null || agentName === null) {
     return <SessionWindowNotice message="This window does not point at a session." />;
@@ -66,7 +44,7 @@ export function SessionWindow({ windowId }: { windowId: string }) {
     return (
       <SessionProfileOwnerNotice
         agentName={agentName}
-        liveTailEnabled={liveTailEnabled}
+        liveTailEnabled={effectiveLiveTailEnabled}
         owner={foreign.owner}
         session={foreign.session}
         windowId={windowId}
@@ -79,19 +57,19 @@ export function SessionWindow({ windowId }: { windowId: string }) {
         windowId={windowId}
         name={agentName}
         id={sessionId}
-        workspaceId={runtimeWorkspaceId ?? ""}
+        workspaceId={workspaceId ?? ""}
         session={undefined}
         liveTailEnabled={liveTailEnabled}
         isLoading
         error={null}
-        onDeleteSuccess={() => returnToAgent(coordinator, windowId, agentName)}
+        onDeleteSuccess={handleDeleteSuccess}
       />
     );
   }
   if (foreign.status === "error") {
     return <SessionWindowNotice message={foreign.error.message} />;
   }
-  if (runtimeWorkspaceId === null || crossesWorkspace) {
+  if (workspaceId === null || crossesWorkspace) {
     return <SessionWindowNotice message={error?.message ?? "Session workspace unavailable"} />;
   }
 
@@ -101,12 +79,12 @@ export function SessionWindow({ windowId }: { windowId: string }) {
         windowId={windowId}
         name={agentName}
         id={sessionId}
-        workspaceId={runtimeWorkspaceId}
+        workspaceId={workspaceId}
         session={session}
-        liveTailEnabled={liveTailEnabled}
+        liveTailEnabled={effectiveLiveTailEnabled}
         isLoading={isLoading}
         error={error}
-        onDeleteSuccess={() => returnToAgent(coordinator, windowId, agentName)}
+        onDeleteSuccess={handleDeleteSuccess}
       />
     </div>
   );

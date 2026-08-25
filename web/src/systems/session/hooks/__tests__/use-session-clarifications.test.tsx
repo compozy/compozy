@@ -38,7 +38,7 @@ afterEach(() => {
 });
 
 describe("useAnswerSessionClarification", () => {
-  it("Should reconcile only the owning session's clarifications after a successful answer", async () => {
+  it("Should reconcile the owning clarification and transcript after a successful answer", async () => {
     vi.mocked(answerSessionClarification).mockResolvedValue({
       choice: 0,
       fallback: false,
@@ -53,6 +53,10 @@ describe("useAnswerSessionClarification", () => {
       expect(invalidate).toHaveBeenCalledWith({
         exact: true,
         queryKey: sessionKeys.clarifications(WS, ID),
+      });
+      expect(invalidate).toHaveBeenCalledWith({
+        exact: true,
+        queryKey: sessionKeys.transcript(WS, ID),
       });
     });
     expect(invalidate).not.toHaveBeenCalledWith({

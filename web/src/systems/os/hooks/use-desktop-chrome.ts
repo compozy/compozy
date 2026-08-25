@@ -105,7 +105,14 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
     return () => manager.stop();
   }, [manager]);
 
-  useEffect(() => subscribeWorkspaceSwitchBarrier(shell.coordinator), [shell]);
+  useEffect(
+    () =>
+      subscribeWorkspaceSwitchBarrier(
+        shell.coordinator,
+        () => manager.getState().client?.workspaceId ?? null
+      ),
+    [manager, shell]
+  );
 
   useEffect(() => {
     if (activeWorkspaceId === null) {

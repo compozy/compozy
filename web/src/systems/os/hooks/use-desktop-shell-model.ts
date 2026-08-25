@@ -18,7 +18,13 @@ import {
  * the session/agent create dialog wiring (sidebar state is gone with the
  * sidebar).
  */
-export function useDesktopShellModel() {
+export function useDesktopShellModel({
+  backgroundStreamsEnabled = true,
+  continuityStreamsEnabled = true,
+}: {
+  backgroundStreamsEnabled?: boolean;
+  continuityStreamsEnabled?: boolean;
+} = {}) {
   const {
     workspaces,
     registeredWorkspaces,
@@ -53,6 +59,7 @@ export function useDesktopShellModel() {
   // Attention edges leave the stream through the module-level bus so the
   // notifier can subscribe without ever reopening this connection.
   const sessionCatalogStreamStatus = useSessionCatalogStreams({
+    enabled: continuityStreamsEnabled,
     onAttentionEdge: publishAttentionEdge,
     onOperatorNotification: publishOperatorNotification,
   });
@@ -60,7 +67,7 @@ export function useDesktopShellModel() {
   // One catalog subscription per shell; the query stays the snapshot authority
   // and this only reconciles workspace-qualified invalidations into it.
   const worktreeCatalogStreamStatus = useWorktreeCatalogStream(workspaces, {
-    enabled: hasWorkspaces,
+    enabled: hasWorkspaces && backgroundStreamsEnabled,
   });
   const activeWorktrees = useWorktrees(activeWorkspaceId, { enabled: activeWorkspaceId !== null });
   const userHomeDir = useUserHomeDir();

@@ -37,9 +37,10 @@ export function DesktopDock({
   pager,
   dormant = false,
 }: DesktopDockProps) {
-  const { entries, presentation, magnify, handleSelect } = useDesktopDock(badges, {
-    onNewSession,
-  });
+  const { entries, presentation, magnify, commandsAvailable, handleSelect } = useDesktopDock(
+    badges,
+    { onNewSession }
+  );
   const dormancy = cn(WAKE, dormant && DORMANT);
 
   if (presentation === "compact") {
@@ -49,6 +50,7 @@ export function DesktopDock({
         items={entries}
         leading={pager}
         onSelect={handleSelect}
+        disabled={!commandsAvailable}
         onNewSession={onNewSession}
       />
     );
@@ -60,8 +62,9 @@ export function DesktopDock({
       items={entries}
       leading={pager}
       onSelect={handleSelect}
+      disabled={!commandsAvailable}
       renderItemMenu={
-        !contextMenusEnabled
+        !commandsAvailable || !contextMenusEnabled
           ? undefined
           : (item, children) =>
               item.id === "session" ? (

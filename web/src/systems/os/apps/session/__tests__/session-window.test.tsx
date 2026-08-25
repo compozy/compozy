@@ -3,7 +3,7 @@
 // presence additionally requires the shell window and browser document to hold focus; and the
 // window resolves a session through the profile-enforced read before deciding it is gone.
 // Owning layer: the OS session-window controller.
-import { render, waitFor } from "@testing-library/react";
+import { act, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const session = {
@@ -189,6 +189,28 @@ describe("SessionWindow", () => {
     );
   });
 
+  it("Should release live-tail ownership before closing a deleted session window", async () => {
+    render(<SessionWindow windowId="session:sess-1" />);
+    const props = sessionWindowViewSpy.mock.lastCall?.[0] as
+      | { onDeleteSuccess?: () => void }
+      | undefined;
+
+    act(() => props?.onDeleteSuccess?.());
+
+    expect(scopedDetailSpy).toHaveBeenLastCalledWith(
+      "sess-1",
+      { profile: "marketing" },
+      expect.objectContaining({ enabled: true, liveTail: false })
+    );
+    await waitFor(() => expect(userClose).toHaveBeenCalledExactlyOnceWith("session:sess-1"));
+    await waitFor(() =>
+      expect(userOpen).toHaveBeenCalledExactlyOnceWith({
+        app: "agents",
+        route: { pathname: "/agents/qa-agent", search: {} },
+      })
+    );
+  });
+
   it("Should release operator presence when the browser document loses focus", () => {
     const view = render(<SessionWindow windowId="session:sess-1" />);
     expect(useSessionPresenceSpy).toHaveBeenLastCalledWith("ws-1", "sess-1", true);
@@ -202,17 +224,16 @@ describe("SessionWindow", () => {
     );
   });
 
-  it("Should treat an empty runtime workspace as unavailable without rendering the session", () => {
+  it("Should render a Global-scope session from its authoritative workspace", () => {
     workspace.runtimeWorkspaceId = "";
 
     render(<SessionWindow windowId="session:sess-1" />);
 
-    // The by-id read carries no workspace, so an unresolved shell no longer
-    // gates the request — it gates what is shown.
-    expect(sessionWindowNoticeSpy).toHaveBeenLastCalledWith({
-      message: "Session workspace unavailable",
-    });
-    expect(sessionWindowViewSpy).not.toHaveBeenCalled();
+    expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ session, workspaceId: "ws-1" })
+    );
+    expect(useSessionPresenceSpy).toHaveBeenLastCalledWith("ws-1", "sess-1", true);
+    expect(sessionWindowNoticeSpy).not.toHaveBeenCalled();
   });
 
   it("Should show the truthful gone notice and return a restored missing session to its agent list (UT-087)", async () => {

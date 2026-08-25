@@ -9,9 +9,12 @@ import type { AnswerClarificationBody, AnswerClarificationResult } from "../type
 export function useSessionClarifications(
   workspaceId: string,
   id: string,
-  options: { enabled?: boolean } = {}
+  options: { enabled?: boolean; refetchInterval?: number | false } = {}
 ) {
-  return useQuery(sessionClarificationsOptions(workspaceId, id, options.enabled ?? true));
+  return useQuery({
+    ...sessionClarificationsOptions(workspaceId, id, options.enabled ?? true),
+    refetchInterval: options.refetchInterval ?? false,
+  });
 }
 
 export interface AnswerClarificationVariables {
@@ -20,10 +23,9 @@ export interface AnswerClarificationVariables {
 }
 
 /**
- * Resolve one live clarification and reconcile the exact owner key. Invalidation runs in `onSettled`
- * so the pending list re-reads on both success and the terminal-gone (409/404) races — the
- * `clarifications` key is a child of `detail`, so it needs an explicit exact invalidation that the
- * broader session-surface refresh does not reach.
+ * Resolve one live clarification and reconcile the exact owner keys. Invalidation runs in
+ * `onSettled` so the pending list and its durable transcript receipt re-read on both success and
+ * terminal-gone (409/404) races.
  */
 export function useAnswerSessionClarification(workspaceId: string, id: string) {
   const queryClient = useQueryClient();
@@ -33,6 +35,10 @@ export function useAnswerSessionClarification(workspaceId: string, id: string) {
     onSettled: () => {
       void queryClient.invalidateQueries({
         queryKey: sessionKeys.clarifications(workspaceId, id),
+        exact: true,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: sessionKeys.transcript(workspaceId, id),
         exact: true,
       });
     },

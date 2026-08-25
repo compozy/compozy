@@ -14,6 +14,7 @@ const remoteHTTPAPIBlockedMessage =
 test.use({
   runtimeOptions: {
     host: "0.0.0.0",
+    seedDefaultWorkspace: false,
     env: {
       ...process.env,
       COMPOZY_TEST_TELEGRAM_TOKEN: "telegram-bot-token",

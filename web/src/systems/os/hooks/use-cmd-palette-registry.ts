@@ -3,7 +3,9 @@ import type { PaletteRegistry } from "../lib/cmd-palette-types";
 import type { WindowManagerAttachedClientView } from "../lib/window-manager-types";
 import { useCmdPaletteCatalog } from "./use-cmd-palette-catalog";
 import { useCmdPaletteContext } from "./use-cmd-palette-context";
+import { backgroundStreamsWithinConnectionBudget } from "../lib/background-stream-budget";
 import { useCmdPaletteStream } from "./use-cmd-palette-stream";
+import { useDesktop } from "./use-desktop";
 
 export interface UseCmdPaletteRegistryOptions {
   readonly workspaceId: string | null;
@@ -36,7 +38,8 @@ export function useCmdPaletteRegistry({
     clientId,
     enabled,
   });
-  useCmdPaletteStream({ workspaceId, enabled });
+  const streamWithinConnectionBudget = useDesktop(backgroundStreamsWithinConnectionBudget);
+  useCmdPaletteStream({ workspaceId, enabled: enabled && streamWithinConnectionBudget });
   const daemonContext = client?.paletteContext;
   const context = useCmdPaletteContext({
     // `shell.desktop` is the daemon's own derivation from the attachment kind;

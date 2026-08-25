@@ -1,5 +1,6 @@
 // Suite: desktop shell model boundary
-// Invariant: the shell model mounts before OsShellContext because DesktopShell owns that provider.
+// Invariant: the shell model mounts before OsShellContext and independently budgets optional
+// worktree traffic and continuity-critical session events.
 // Boundary IN: useDesktopShellModel's dependency graph.
 // Boundary OUT: query transports, window-manager projection, and rendered desktop chrome.
 import { renderHook } from "@testing-library/react";
@@ -7,7 +8,9 @@ import { describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   sessionCreate: { store: {} },
+  sessionCatalogStreams: vi.fn((_options: unknown) => "connected"),
   agentCreate: { open: false },
+  worktreeCatalogStream: vi.fn((_workspaces: unknown, _options: unknown) => "connected"),
 }));
 
 vi.mock("@/systems/agent", () => ({
@@ -16,7 +19,7 @@ vi.mock("@/systems/agent", () => ({
 }));
 
 vi.mock("@/systems/session", () => ({
-  useSessionCatalogStreams: () => "connected",
+  useSessionCatalogStreams: (options: unknown) => mocks.sessionCatalogStreams(options),
   useSessionCreateDialogController: () => mocks.sessionCreate,
 }));
 
@@ -33,7 +36,8 @@ vi.mock("@/systems/workspace", () => ({
   }),
   useUserHomeDir: () => "/operator",
   useWorkspace: () => ({ data: undefined, isLoading: false, error: null }),
-  useWorktreeCatalogStream: () => "connected",
+  useWorktreeCatalogStream: (workspaces: unknown, options: unknown) =>
+    mocks.worktreeCatalogStream(workspaces, options),
   useWorktrees: () => ({ data: undefined }),
 }));
 
@@ -45,5 +49,19 @@ describe("useDesktopShellModel", () => {
 
     expect(result.current.activeWorkspaceId).toBeNull();
     expect(result.current.worktreeListing).toBeUndefined();
+  });
+
+  it("Should budget optional and continuity streams independently", () => {
+    renderHook(() =>
+      useDesktopShellModel({
+        backgroundStreamsEnabled: false,
+        continuityStreamsEnabled: true,
+      })
+    );
+
+    expect(mocks.worktreeCatalogStream).toHaveBeenLastCalledWith([], { enabled: false });
+    expect(mocks.sessionCatalogStreams).toHaveBeenLastCalledWith(
+      expect.objectContaining({ enabled: true })
+    );
   });
 });

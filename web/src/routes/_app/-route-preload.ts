@@ -53,6 +53,12 @@ export async function resolveActiveWorkspaceId(queryClient: QueryClient): Promis
   return resolution.runtimeWorkspaceId;
 }
 
+/** Workspace that owns the mounted desktop, including while data scope is Global. */
+export async function resolveDesktopWorkspaceId(queryClient: QueryClient): Promise<string | null> {
+  const resolution = await resolveActiveWorkspaceSelection(queryClient);
+  return resolution.desktopWorkspaceId;
+}
+
 function loadWorkspaceSelection(queryClient: QueryClient) {
   const hydration = isActiveWorkspaceStoreHydrated()
     ? Promise.resolve()

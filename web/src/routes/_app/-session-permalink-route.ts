@@ -4,10 +4,11 @@ import { redirect } from "@tanstack/react-router";
 import type { RouterContext } from "@/integrations/tanstack-query/root-context";
 
 import type { TopbarRouteContext } from "@/types/topbar";
-import { resolveActiveWorkspaceId } from "./-route-preload";
+import { resolveDesktopWorkspaceId } from "./-route-preload";
 import {
   cachedForeignSessionOwner,
-  resolveForeignSessionOwner,
+  resolveSessionOwner,
+  sessionAcrossProfilesOptions,
   sessionDetailOptions,
   type SessionDeepLinkSearch,
   sessionScopedDetailOptions,
@@ -87,7 +88,10 @@ export async function resolveSessionPermalink({
   queryClient: QueryClient;
   sessionId: string;
 }): Promise<SessionPermalinkResolution> {
-  const workspaceId = await resolveActiveWorkspaceId(queryClient);
+  // Global data scope still renders inside the remembered project's desktop.
+  // Session windows belong to that durable layout partition, not to the
+  // workspace-free catalog lens used by global listings.
+  const workspaceId = await resolveDesktopWorkspaceId(queryClient);
   if (!workspaceId) {
     throw new SessionNotFoundError(sessionId);
   }
@@ -128,9 +132,16 @@ async function resolveForeignPermalink(
   sessionId: string,
   activeWorkspaceId: string
 ): Promise<SessionPermalinkResolution> {
-  const owner = await resolveForeignSessionOwner(queryClient, sessionId, activeWorkspaceId);
+  const owner = await resolveSessionOwner(queryClient, sessionId);
   if (!owner) {
     throw new SessionNotFoundError(sessionId);
+  }
+  if (owner.workspaceId === activeWorkspaceId) {
+    const session = await queryClient.ensureQueryData(sessionAcrossProfilesOptions(sessionId));
+    await Promise.allSettled([
+      queryClient.ensureInfiniteQueryData(sessionTranscriptOptions(activeWorkspaceId, sessionId)),
+    ]);
+    return { status: "resolved", session };
   }
   return { status: "foreign", owner };
 }

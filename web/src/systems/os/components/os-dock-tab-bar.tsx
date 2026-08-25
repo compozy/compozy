@@ -11,7 +11,15 @@ function formatBadge(count: number): string {
   return count > 9 ? "9+" : String(count);
 }
 
-function TabBarItem({ item, onSelect }: { item: OsDockItemData; onSelect: (id: string) => void }) {
+function TabBarItem({
+  item,
+  onSelect,
+  disabled,
+}: {
+  item: OsDockItemData;
+  onSelect: (id: string) => void;
+  disabled?: boolean;
+}) {
   const state = item.minimized ? "minimized" : item.running ? "running" : "closed";
   return (
     <button
@@ -20,6 +28,7 @@ function TabBarItem({ item, onSelect }: { item: OsDockItemData; onSelect: (id: s
       data-app={item.id}
       data-state={state}
       aria-label={item.name}
+      disabled={disabled}
       className={cn(
         "relative grid size-dock-tab-item shrink-0 place-items-center rounded-lg",
         "transition-colors duration-shell-fast",
@@ -62,6 +71,7 @@ export interface OsDockTabBarProps extends Omit<React.ComponentProps<"nav">, "on
   items: OsDockEntry[];
   leading?: React.ReactNode;
   onSelect: (id: string) => void;
+  disabled?: boolean;
   onNewSession: () => void;
 }
 
@@ -75,6 +85,7 @@ export function OsDockTabBar({
   items,
   leading,
   onSelect,
+  disabled,
   onNewSession,
   className,
   ...props
@@ -108,7 +119,7 @@ export function OsDockTabBar({
       >
         {items.map(entry =>
           isOsDockSeparator(entry) ? null : (
-            <TabBarItem key={entry.id} item={entry} onSelect={onSelect} />
+            <TabBarItem key={entry.id} item={entry} onSelect={onSelect} disabled={disabled} />
           )
         )}
       </div>

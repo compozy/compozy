@@ -756,8 +756,8 @@ test("Command palette E2E-009: Tasks reports truthful zero counts and clears one
   appPage,
   runtime,
 }) => {
-  await prepareShell(appPage, runtime);
-  const task = await createTask(runtime, "Palette filter target");
+  const workspace = await prepareShell(appPage, runtime);
+  const task = await createTask(runtime, "Palette filter target", workspace.id);
 
   const palette = await openCommandPalette(appPage);
   await palette.getByPlaceholder("Search apps, sessions, and actions…").fill("Tasks");
@@ -929,9 +929,9 @@ test("E2E-015: bell approval stays live and a CLI-resolved item reports truthful
   appPage,
   runtime,
 }) => {
-  await prepareShell(appPage, runtime);
+  const workspace = await prepareShell(appPage, runtime);
   const tasksUI = tasksOperatorSelectors(appPage);
-  const first = await createApprovalTask(runtime, "Primary approval");
+  const first = await createApprovalTask(runtime, "Primary approval", workspace.id);
   const bell = appPage.getByRole("button", { name: "Attention" });
 
   await expect(bell).toHaveText("1");
@@ -968,7 +968,7 @@ test("E2E-015: bell approval stays live and a CLI-resolved item reports truthful
   await expect(tasksUI.inboxItem(first.id)).toHaveCount(0);
   await expect(bell).toHaveText("");
 
-  const second = await createApprovalTask(runtime, "CLI race approval");
+  const second = await createApprovalTask(runtime, "CLI race approval", workspace.id);
   await expect(bell).toHaveText("1");
   await bell.click();
   await appPage.getByTestId(`os-attention-task-${second.id}`).click();
@@ -1915,9 +1915,9 @@ test("E2E-020: compact keeps deep links, truthful badges, and the rail overlay w
   appPage,
   runtime,
 }) => {
-  await prepareShell(appPage, runtime);
-  await createApprovalTask(runtime, "Compact parity approval");
-  const detailTask = await createTask(runtime, "Compact deep link target");
+  const workspace = await prepareShell(appPage, runtime);
+  await createApprovalTask(runtime, "Compact parity approval", workspace.id);
+  const detailTask = await createTask(runtime, "Compact deep link target", workspace.id);
 
   await appPage.setViewportSize({ width: 390, height: 844 });
   await appPage.goto(runtime.url(`/tasks/${encodeURIComponent(detailTask.id)}`), {
@@ -3252,7 +3252,7 @@ async function windowManagerClient(
 
 async function browserClientId(page: Page): Promise<string> {
   const clientId = await page.evaluate(
-    key => window.localStorage.getItem(key)?.trim() ?? "",
+    key => window.sessionStorage.getItem(key)?.trim() ?? "",
     windowManagerClientStorageKey
   );
   if (!clientId) throw new Error("browser must publish a stable window-manager client ID");
@@ -3643,7 +3643,8 @@ async function createNamedSessionForAgent(
 
 async function createApprovalTask(
   runtime: BrowserRuntime,
-  title: string
+  title: string,
+  workspaceId: string
 ): Promise<{ id: string; title: string }> {
   const payload = await runtime.requestJSON<{ task: { id: string; title: string } }>("/api/tasks", {
     method: "POST",
@@ -3652,8 +3653,9 @@ async function createApprovalTask(
       description: "OS shell attention E2E approval fixture.",
       owner: { kind: "human", ref: "os-shell-operator" },
       priority: "high",
-      scope: "global",
+      scope: "workspace",
       title,
+      workspace: workspaceId,
     }),
   });
   return payload.task;
@@ -3661,7 +3663,8 @@ async function createApprovalTask(
 
 async function createTask(
   runtime: BrowserRuntime,
-  title: string
+  title: string,
+  workspaceId?: string
 ): Promise<{ id: string; title: string }> {
   const payload = await runtime.requestJSON<{ task: { id: string; title: string } }>("/api/tasks", {
     method: "POST",
@@ -3669,8 +3672,9 @@ async function createTask(
       description: "OS shell window-controller E2E fixture.",
       owner: { kind: "human", ref: "os-shell-operator" },
       priority: "medium",
-      scope: "global",
+      scope: workspaceId ? "workspace" : "global",
       title,
+      ...(workspaceId ? { workspace: workspaceId } : {}),
     }),
   });
   return payload.task;

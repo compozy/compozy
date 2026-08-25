@@ -22,6 +22,7 @@ export interface SessionStoreContext {
   drafts: Record<string, string>;
   firstPrompts: Record<string, SessionFirstPrompt>;
   goalFeedback: Record<string, SessionGoalFeedback>;
+  liveTailSuppressions: Record<string, true>;
 }
 
 export const SESSION_DRAFTS_STORAGE_KEY = "compozy:session:drafts:v1";
@@ -86,6 +87,7 @@ const initialSessionContext: SessionStoreContext = {
   drafts: readPersistedDrafts(),
   firstPrompts: {},
   goalFeedback: {},
+  liveTailSuppressions: {},
 };
 
 export const sessionStore = createStore({
@@ -181,18 +183,39 @@ export const sessionStore = createStore({
         },
       };
     },
+    sessionLiveTailResumed: (context, event: { sessionId: string }) => {
+      const liveTailSuppressions = withoutSessionValue(
+        context.liveTailSuppressions,
+        event.sessionId
+      );
+      return liveTailSuppressions === context.liveTailSuppressions
+        ? undefined
+        : { ...context, liveTailSuppressions };
+    },
+    sessionLiveTailSuspended: (context, event: { sessionId: string }) => {
+      if (context.liveTailSuppressions[event.sessionId]) return;
+      return {
+        ...context,
+        liveTailSuppressions: { ...context.liveTailSuppressions, [event.sessionId]: true as const },
+      };
+    },
     sessionInteractionRemoved: (context, event: { sessionId: string }) => {
       const drafts = withoutSessionValue(context.drafts, event.sessionId);
       const firstPrompts = withoutSessionValue(context.firstPrompts, event.sessionId);
       const goalFeedback = withoutSessionValue(context.goalFeedback, event.sessionId);
+      const liveTailSuppressions = withoutSessionValue(
+        context.liveTailSuppressions,
+        event.sessionId
+      );
       if (
         drafts === context.drafts &&
         firstPrompts === context.firstPrompts &&
-        goalFeedback === context.goalFeedback
+        goalFeedback === context.goalFeedback &&
+        liveTailSuppressions === context.liveTailSuppressions
       ) {
         return;
       }
-      return { ...context, drafts, firstPrompts, goalFeedback };
+      return { ...context, drafts, firstPrompts, goalFeedback, liveTailSuppressions };
     },
   },
 });

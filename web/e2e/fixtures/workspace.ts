@@ -101,20 +101,17 @@ async function completeFirstRunOnboarding(page: Page): Promise<void> {
         body: JSON.stringify({ settings: provider.settings }),
         method: "PUT",
       });
-      const general = await requestJSON<{ config?: { defaults?: Record<string, unknown> } }>(
-        "/api/settings/general"
-      );
-      if (!general.config) {
-        throw new Error("First-run E2E bootstrap could not load general settings.");
+      const persona = await requestJSON<{
+        config?: { agent?: string; provider?: string; sandbox?: string };
+      }>("/api/settings/persona?scope=user");
+      if (!persona.config) {
+        throw new Error("First-run E2E bootstrap could not load default profile settings.");
       }
-      await requestJSON("/api/settings/general", {
+      await requestJSON("/api/settings/persona?scope=user", {
         body: JSON.stringify({
           config: {
-            ...general.config,
-            defaults: {
-              ...general.config.defaults,
-              provider: provider.name,
-            },
+            ...persona.config,
+            provider: provider.name,
           },
         }),
         method: "PATCH",

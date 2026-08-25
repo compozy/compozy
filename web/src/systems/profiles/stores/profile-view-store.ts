@@ -20,10 +20,19 @@ export const profileViewStore = createStore({
     viewByLens: {} as Record<string, ProfileView>,
   },
   on: {
+    viewEntered: (context, event: { lens: string; view: ProfileView }) => {
+      if (event.lens in context.viewByLens) return undefined;
+      return { ...context, viewByLens: { ...context.viewByLens, [event.lens]: event.view } };
+    },
     viewChanged: (context, event: { lens: string; view: ProfileView }) => {
       const current = context.viewByLens[event.lens];
       if (current && sameView(current, event.view)) return undefined;
       return { ...context, viewByLens: { ...context.viewByLens, [event.lens]: event.view } };
+    },
+    viewCarried: (context, event: { from: string; to: string }) => {
+      const source = context.viewByLens[event.from];
+      if (!source || sameView(context.viewByLens[event.to], source)) return undefined;
+      return { ...context, viewByLens: { ...context.viewByLens, [event.to]: source } };
     },
     viewCleared: (context, event: { lens: string }) => {
       if (!(event.lens in context.viewByLens)) return undefined;
@@ -44,7 +53,8 @@ export const profileViewStore = createStore({
   },
 });
 
-function sameView(left: ProfileView, right: ProfileView): boolean {
+function sameView(left: ProfileView | undefined, right: ProfileView): boolean {
+  if (!left) return false;
   if (left.kind === "aggregate") return right.kind === "aggregate";
   return right.kind === "profile" && left.profile === right.profile;
 }
@@ -60,6 +70,16 @@ export function localProfileView(lens: ProfileLens): ProfileView | null {
 
 export function setProfileView(lens: ProfileLens, view: ProfileView): void {
   profileViewStore.trigger.viewChanged({ lens: profileLensKey(lens), view });
+}
+
+/** Keeps the acting view stable while this client changes workspace breadth. */
+export function carryProfileView(from: ProfileLens, to: ProfileLens): void {
+  profileViewStore.trigger.viewCarried({ from: profileLensKey(from), to: profileLensKey(to) });
+}
+
+/** Captures the remembered default when this client first enters a lens. */
+export function enterProfileView(lens: ProfileLens, view: ProfileView): void {
+  profileViewStore.trigger.viewEntered({ lens: profileLensKey(lens), view });
 }
 
 /** Rolls a lens back after a failed persist, restoring the previous local answer. */

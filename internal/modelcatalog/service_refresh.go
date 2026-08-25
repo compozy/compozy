@@ -54,6 +54,9 @@ func (s *CatalogService) refreshSources(
 	failures := 0
 	staleFallbacks := 0
 	for _, source := range sources {
+		if err := ctx.Err(); err != nil {
+			return statuses, err
+		}
 		sourceStatuses, outcome, err := s.refreshSource(ctx, source, opts, now)
 		statuses = append(statuses, sourceStatuses...)
 		if err != nil {
@@ -95,6 +98,9 @@ func (s *CatalogService) refreshAllProviders(
 	successes := 0
 
 	for _, source := range sources {
+		if err := ctx.Err(); err != nil {
+			return statuses, err
+		}
 		providers := sourceProviders(source)
 		if len(providers) > 0 {
 			storedProviders, err := s.storedProvidersForSource(ctx, source, now)
@@ -120,6 +126,9 @@ func (s *CatalogService) refreshAllProviders(
 
 		snapshot := &sourceRefreshSnapshot{Source: source}
 		for _, providerID := range providers {
+			if err := ctx.Err(); err != nil {
+				return statuses, err
+			}
 			providerOpts := opts
 			providerOpts.ProviderID = providerID
 			providerOpts.SourceID = source.ID()
@@ -212,6 +221,9 @@ func (s *CatalogService) refreshSource(
 		Now:          now,
 	})
 	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, refreshOutcomeEmpty, ctxErr
+		}
 		return s.recordSourceFailure(ctx, source, opts.ProviderID, rows, now, err)
 	}
 	statuses, err := s.persistSourceRows(ctx, source, opts.ProviderID, rows, now, false, "")

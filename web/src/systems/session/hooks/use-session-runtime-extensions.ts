@@ -3,10 +3,13 @@ import { useSelector } from "@xstate/store-react";
 
 import type { SessionPromptDispatchStore } from "@/components/assistant-ui/session-prompt-dispatch-store";
 import { derivePendingPermissions } from "../lib/pending-permissions";
+import { sessionStore } from "../stores/session-store";
 import { useMergedSessionRuntimeTranscript } from "./use-merged-session-runtime-transcript";
 import { useSessionClarifications } from "./use-session-clarifications";
 import { useSessionInputs } from "./use-session-inputs";
 import type { SessionStreamEventSourceFactory } from "./use-session-live-tail";
+
+const ACTIVE_PROMPT_CLARIFICATION_REFETCH_MS = 1_000;
 
 export function useSessionRuntimeExtensions({
   eventSourceFactory,
@@ -26,6 +29,11 @@ export function useSessionRuntimeExtensions({
     promptDispatch,
     snapshot => snapshot.context.hasLocalRuntimeTail
   );
+  const promptPending = useSelector(promptDispatch, snapshot => snapshot.context.pending);
+  const liveTailSuppressed = useSelector(
+    sessionStore,
+    snapshot => snapshot.context.liveTailSuppressions[sessionId] === true
+  );
   const streamResetGeneration = useSelector(
     promptDispatch,
     snapshot => snapshot.context.streamResetGeneration
@@ -33,13 +41,17 @@ export function useSessionRuntimeExtensions({
   const transcript = useMergedSessionRuntimeTranscript({
     eventSourceFactory,
     hasLocalRuntimeTail,
-    liveTailEnabled,
+    // The prompt response is already the live source for its turn. Suspending
+    // the parallel transcript SSE leaves an HTTP/1.1 connection available for
+    // approval, clarification, cancel, and other control requests.
+    liveTailEnabled: liveTailEnabled && !promptPending && !liveTailSuppressed,
     resetGeneration: streamResetGeneration,
     sessionId,
     workspaceId,
   });
   const clarifications = useSessionClarifications(workspaceId, sessionId, {
     enabled: liveTailEnabled,
+    refetchInterval: promptPending ? ACTIVE_PROMPT_CLARIFICATION_REFETCH_MS : false,
   });
   const inputs = useSessionInputs(workspaceId, sessionId, { enabled: liveTailEnabled });
   const rewindBlocked =

@@ -23,7 +23,7 @@ import type {
 } from "@/systems/bridges";
 import { slackBridgeManifestFixture } from "@/systems/bridges/mocks";
 
-import { openAppWindow } from "../fixtures/os-navigation";
+import { ensureAppWindow } from "../fixtures/os-navigation";
 import { bridgeOperatorSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { ensureProjectWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
@@ -419,7 +419,7 @@ async function openBridgesPage(
   await ensureProjectWorkspace(page, runtime);
   await completeOnboardingIfPrompted(page);
   await expect(page.getByTestId("os-desktop")).toBeVisible();
-  await openAppWindow(page, "Bridges", "bridges");
+  await ensureAppWindow(page, "Bridges", "bridges");
 }
 
 async function openBridgeDetail(

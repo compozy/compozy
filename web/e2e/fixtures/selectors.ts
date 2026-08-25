@@ -40,6 +40,7 @@ export const sessionWindowTestIds = {
   composerDropOverlay: "composer-drop-overlay",
   composerQueuedAttachmentWell: "composer-queued-attachment-well",
   composerSendButton: "composer-send-button",
+  composerStopButton: "composer-stop-button",
   deleteButton: "delete-button",
   permissionAllowAlways: "permission-allow-always",
   permissionAllowOnce: "permission-allow-once",
@@ -72,6 +73,7 @@ export interface SessionWindowSelectors {
   composerDropOverlay: Locator;
   composerQueuedAttachmentWell: Locator;
   composerSendButton: Locator;
+  composerStopButton: Locator;
   composerTextarea: Locator;
   deleteButton: Locator;
   permissionAllowAlways: Locator;
@@ -1011,6 +1013,7 @@ export function sessionWindowSelectors(
       sessionWindowTestIds.composerQueuedAttachmentWell
     ),
     composerSendButton: win.getByRole("button", { name: "Send message" }),
+    composerStopButton: win.getByTestId(sessionWindowTestIds.composerStopButton),
     composerTextarea: win.getByRole("textbox", { name: "Session prompt" }),
     deleteButton: portalRoot.getByTestId(sessionWindowTestIds.deleteButton),
     permissionAllowAlways: win.getByTestId(sessionWindowTestIds.permissionAllowAlways),

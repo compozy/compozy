@@ -54,7 +54,7 @@ test.describe("Marketplace acquisition", () => {
   const vaultEnvName = "BROWSER_VAULT_TOKEN";
   const typedInputID = "browser_typed_token";
   const vaultInputID = "browser_vault_token";
-  const vaultRef = `vault:mcp/global/${mcpEntryID}/inputs/${vaultInputID}`;
+  const vaultRef = `vault:mcp/shared/${mcpEntryID}-${vaultInputID}`;
   const typedSecretValue = "browser-mcp-typed-secret-42";
   const vaultSecretValue = "browser-mcp-vault-secret-42";
 
@@ -183,24 +183,35 @@ test.describe("Marketplace acquisition", () => {
     const kitExtension = await createMarketplaceKitExtension();
     const toggleExtensionDir = await createToggleExtension();
     await setLiveUnverifiedPolicy(runtime, true);
-    try {
-      await runBrowserRuntimeCLIJSON<{ name: string }>(runtime, [
-        "extension",
-        "install",
-        "--allow-unverified",
-        "--yes",
-        kitExtension.rootDir,
-      ]);
-      await runBrowserRuntimeCLIJSON<{ name: string }>(runtime, [
-        "extension",
-        "install",
-        "--allow-unverified",
-        "--yes",
-        toggleExtensionDir,
-      ]);
-    } finally {
-      await setLiveUnverifiedPolicy(runtime, false);
-    }
+    const kitPreview = await runtime.requestJSON<{ network_requirement_digest?: string }>(
+      "/api/extensions/preview-install",
+      {
+        body: JSON.stringify({
+          allow_unverified: true,
+          ref: kitExtension.rootDir,
+          source: "local_path",
+        }),
+        method: "POST",
+      }
+    );
+    const kitNetworkDigest = kitPreview.network_requirement_digest?.trim() ?? "";
+    expect(kitNetworkDigest).not.toBe("");
+    await runBrowserRuntimeCLIJSON<{ name: string }>(runtime, [
+      "extension",
+      "install",
+      "--allow-unverified",
+      "--confirm-network-requirement",
+      kitNetworkDigest,
+      "--yes",
+      kitExtension.rootDir,
+    ]);
+    await runBrowserRuntimeCLIJSON<{ name: string }>(runtime, [
+      "extension",
+      "install",
+      "--allow-unverified",
+      "--yes",
+      toggleExtensionDir,
+    ]);
     await runtime.requestJSON<{ secret: { ref: string } }>("/api/vault/secrets", {
       body: JSON.stringify({
         kind: "mcp_env",
@@ -315,51 +326,17 @@ test.describe("Marketplace acquisition", () => {
     await expect(marketplace.extensionKitInventory).toBeVisible();
     await expect(marketplace.extensionKitInventory).toContainText(kitAgentName);
     await expect(marketplace.extensionKitInventory).toContainText(kitAutomationName);
-    await expect(marketplace.extensionKitInventoryItem.first()).toContainText("shipped");
+    await expect(marketplace.extensionKitInventoryItem.first()).toContainText("live");
     await expect(marketplace.extensionEnvironmentState).toContainText(kitEnvName);
     await expect(marketplace.extensionEnvironmentState).toContainText("bound");
-    await expect(marketplace.extensionNetworkConsent).toContainText("confirmation required");
-
-    const refusedEnable = waitForAPIResponse(
-      appPage,
-      "POST",
-      `/api/extensions/${kitExtensionName}/enable`
-    );
-    await marketplaceWin.getByTestId("extension-enabled-switch").click();
-    expect((await refusedEnable).status()).toBe(409);
-    await expect(marketplace.extensionNetworkConfirmDialog).toBeVisible();
-    const digest = (await marketplace.extensionNetworkConfirmDigest.innerText()).trim();
-    expect(digest).not.toBe("");
-
-    const confirmedEnable = waitForAPIResponse(
-      appPage,
-      "POST",
-      `/api/extensions/${kitExtensionName}/enable`
-    );
-    await marketplace.extensionNetworkConfirmAccept.click();
-    const kitEnableResponse = await confirmedEnable;
-    expect(kitEnableResponse.status(), await kitEnableResponse.text()).toBe(200);
-    expect(JSON.parse(kitEnableResponse.request().postData() ?? "{}")).toMatchObject({
-      confirm_network_digest: digest,
-    });
-    expect(
-      (
-        (await kitEnableResponse.json()) as {
-          automation_started: string[];
-        }
-      ).automation_started
-    ).toContain(`${kitExtensionName}/${kitAutomationName}`);
-    await expect(marketplace.extensionNetworkConfirmDialog).toBeHidden();
-    await expect(marketplace.extensionAutomationStarted).toContainText(kitAutomationName);
-    await expect(marketplace.extensionNetworkConsent).toContainText("confirmed", {
-      timeout: 20_000,
-    });
-    await expect(marketplace.extensionKitInventory).toContainText("live", { timeout: 20_000 });
+    await marketplaceWin.getByRole("button", { name: "Network confirmed" }).click();
+    await expect(marketplace.extensionNetworkConsent).toContainText("confirmed");
+    await expect(marketplaceWin.getByTestId("extension-enabled-switch")).toBeChecked();
 
     const kitDisableResponse = waitForAPIResponse(
       appPage,
-      "POST",
-      `/api/extensions/${kitExtensionName}/disable`
+      "PUT",
+      `/api/extensions/${kitExtensionName}/enablement`
     );
     await marketplaceWin.getByTestId("extension-enabled-switch").click();
     expect((await kitDisableResponse).status()).toBe(200);
@@ -368,35 +345,6 @@ test.describe("Marketplace acquisition", () => {
     });
 
     await expect(appPage.locator("body")).not.toContainText(kitSecretValue);
-
-    await appPage.goto(runtime.url("/marketplace/extensions?tab=market"), {
-      waitUntil: "domcontentloaded",
-    });
-    await expect(marketplace.kind("extension")).toBeVisible();
-    const extensionCard = marketplace.card(extensionEntryID);
-    const blockedAction = extensionCard.getByRole("button", {
-      name: `Install ${extensionEntryID}, blocked by extensions policy`,
-    });
-    const extensionDetailLink = extensionCard.getByRole("link", {
-      name: `View ${extensionEntryID} details`,
-    });
-    await expect(blockedAction).toHaveAttribute("aria-disabled", "true");
-    await extensionDetailLink.focus();
-    await appPage.keyboard.press("Tab");
-    await expect(blockedAction).toBeFocused();
-    await expect(appPage.getByText("Blocked by extensions policy", { exact: true })).toBeVisible();
-    await extensionDetailLink.click();
-    await expect(marketplace.detail).toBeVisible();
-    await expect(marketplace.action(extensionEntryID)).toHaveAttribute("aria-disabled", "true");
-    await expect(
-      marketplace.detail.getByRole("link", { name: "Settings › Extensions" })
-    ).toHaveAttribute("href", "/settings/extensions");
-    await marketplaceWin.locator('[data-slot="topbar-back"]').click();
-    await expect.poll(() => new URL(appPage.url()).search).toBe("?tab=market");
-    await expect(appPage.getByTestId("marketplace-scope-market-extension")).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
 
     const installedCard = (name: string) =>
       appPage
@@ -412,30 +360,30 @@ test.describe("Marketplace acquisition", () => {
     const enabledSwitch = toggleCard.getByRole("switch", {
       name: `Enable ${toggleExtensionName}`,
     });
-    await expect(enabledSwitch).not.toBeChecked();
-    const enableResponsePromise = waitForAPIResponse(
-      appPage,
-      "POST",
-      `/api/extensions/${toggleExtensionName}/enable`
-    );
-    await enabledSwitch.click();
-    const enableResponse = await enableResponsePromise;
-    expect(enableResponse.status(), await enableResponse.text()).toBe(200);
-    await expect(
-      toggleCard.getByRole("switch", { name: `Enable ${toggleExtensionName}` })
-    ).toBeChecked();
-
+    await expect(enabledSwitch).toBeChecked();
     const disableResponsePromise = waitForAPIResponse(
       appPage,
-      "POST",
-      `/api/extensions/${toggleExtensionName}/disable`
+      "PUT",
+      `/api/extensions/${toggleExtensionName}/enablement`
     );
-    await toggleCard.getByRole("switch", { name: `Enable ${toggleExtensionName}` }).click();
+    await enabledSwitch.click();
     const disableResponse = await disableResponsePromise;
     expect(disableResponse.status(), await disableResponse.text()).toBe(200);
     await expect(
       toggleCard.getByRole("switch", { name: `Enable ${toggleExtensionName}` })
     ).not.toBeChecked();
+
+    const enableResponsePromise = waitForAPIResponse(
+      appPage,
+      "PUT",
+      `/api/extensions/${toggleExtensionName}/enablement`
+    );
+    await toggleCard.getByRole("switch", { name: `Enable ${toggleExtensionName}` }).click();
+    const enableResponse = await enableResponsePromise;
+    expect(enableResponse.status(), await enableResponse.text()).toBe(200);
+    await expect(
+      toggleCard.getByRole("switch", { name: `Enable ${toggleExtensionName}` })
+    ).toBeChecked();
 
     await toggleCard.getByRole("link", { name: `View ${toggleExtensionName} details` }).click();
     await expect(marketplace.detail).toBeVisible();
@@ -464,6 +412,36 @@ test.describe("Marketplace acquisition", () => {
     expect(removeResponse.status(), await removeResponse.text()).toBe(200);
     await expect.poll(() => new URL(appPage.url()).toString()).toContain("/marketplace/extensions");
     await expect(installedCard(kitExtensionName)).toBeHidden();
+    await runBrowserRuntimeCLIJSON<{ name: string }>(runtime, [
+      "extension",
+      "remove",
+      "--global",
+      toggleExtensionName,
+    ]);
+    await setLiveUnverifiedPolicy(runtime, false);
+
+    await appPage.goto(runtime.url("/marketplace/extensions?tab=market"), {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(marketplace.kind("extension")).toBeVisible();
+    const extensionCard = marketplace.card(extensionEntryID);
+    const blockedAction = extensionCard.getByRole("button", {
+      name: `Install ${extensionEntryID}, blocked by extensions policy`,
+    });
+    const extensionDetailLink = extensionCard.getByRole("link", {
+      name: `View ${extensionEntryID} details`,
+    });
+    await expect(blockedAction).toHaveAttribute("aria-disabled", "true");
+    await extensionDetailLink.focus();
+    await appPage.keyboard.press("Tab");
+    await expect(blockedAction).toBeFocused();
+    await expect(appPage.getByText("Blocked by extensions policy", { exact: true })).toBeVisible();
+    await extensionDetailLink.click();
+    await expect(marketplace.detail).toBeVisible();
+    await expect(marketplace.action(extensionEntryID)).toHaveAttribute("aria-disabled", "true");
+    await expect(
+      marketplace.detail.getByRole("link", { name: "Settings › Extensions" })
+    ).toHaveAttribute("href", "/settings/extensions");
 
     await marketplaceWin.getByRole("button", { name: "Close window" }).click();
     await expect(marketplaceWin).toBeHidden();
@@ -566,7 +544,7 @@ test.describe("Marketplace acquisition", () => {
             required: true,
           },
           requires_env: [kitEnvName],
-          resources: { agents: ["agents"], automation: ["automation"] },
+          resources: { agents: [{ path: "agents" }], automation: [{ path: "automation" }] },
         },
         null,
         2
@@ -2796,17 +2774,7 @@ test.describe("Agent Plugins marketplace journeys", () => {
       await marketplace.action(driftedEntryID).click();
       const trustDialog = marketplace.extensionTrustDialog;
       await expect(trustDialog).toBeVisible({ timeout: 20_000 });
-      const installResponse = appPage.waitForResponse(
-        response =>
-          response.request().method() === "POST" &&
-          new URL(response.url()).pathname === "/api/extensions"
-      );
       await marketplace.extensionTrustConfirm.click();
-      const summary = marketplaceWin.getByTestId("extension-install-summary");
-      await expect(summary).toBeVisible({ timeout: 20_000 });
-      await marketplaceWin.getByRole("button", { name: "Install", exact: true }).click();
-      const install = await installResponse;
-      expect(install.status()).toBe(422);
 
       const failure = trustDialog.getByRole("alert");
       await expect(failure).toBeVisible({ timeout: 20_000 });

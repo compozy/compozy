@@ -81,6 +81,9 @@ describe("session window selectors", () => {
       `portal-locator:${sessionWindowTestIds.composerClearButton}`
     );
     expect(selectors.composerSendButton).toBe("win-role:button:Send message");
+    expect(selectors.composerStopButton).toBe(
+      `win-locator:${sessionWindowTestIds.composerStopButton}`
+    );
     expect(selectors.composerTextarea).toBe("win-role:textbox:Session prompt");
     expect(selectors.deleteButton).toBe(`portal-locator:${sessionWindowTestIds.deleteButton}`);
     expect(selectors.permissionAllowAlways).toBe(

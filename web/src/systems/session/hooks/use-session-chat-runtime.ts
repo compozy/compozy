@@ -4,6 +4,7 @@ import { useChatRuntime } from "@assistant-ui/react-ai-sdk";
 
 import { authorizeStreamFetchInput } from "@/lib/gateway-stream-auth";
 import { reportGatewayResponse } from "@/lib/gateway-access-signal";
+import { modelCatalogKeys } from "@/systems/model-catalog";
 
 import type { SessionPromptDispatchStore } from "@/components/assistant-ui/session-prompt-dispatch-store";
 import { sessionKeys } from "../lib/query-keys";
@@ -19,6 +20,49 @@ import { useOptionalSessionPromptRuntimeContext } from "./use-session-prompt-run
 import { loopsKeys } from "@/systems/loops";
 
 type QueryClient = ReturnType<typeof useQueryClient>;
+
+function completeWhenResponseBodySettles(response: Response, onComplete: () => void): Response {
+  if (response.body === null) {
+    onComplete();
+    return response;
+  }
+
+  const reader = response.body.getReader();
+  let completed = false;
+  const complete = () => {
+    if (completed) return;
+    completed = true;
+    onComplete();
+  };
+  const body = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const chunk = await reader.read();
+        if (chunk.done) {
+          complete();
+          controller.close();
+          return;
+        }
+        controller.enqueue(chunk.value);
+      } catch (error) {
+        complete();
+        controller.error(error);
+      }
+    },
+    async cancel(reason) {
+      try {
+        await reader.cancel(reason);
+      } finally {
+        complete();
+      }
+    },
+  });
+  return new Response(body, {
+    headers: response.headers,
+    status: response.status,
+    statusText: response.statusText,
+  });
+}
 
 function buildSessionRuntimeConfig(
   queryClient: QueryClient,
@@ -65,17 +109,34 @@ function buildSessionRuntimeConfig(
       upstreamSignal?.addEventListener("abort", abortFromUpstream, { once: true });
     }
     promptDispatch.trigger.requestStarted({ controller });
+    let responseOwnsCompletion = false;
+    let requestCompleted = false;
+    const completeRequest = () => {
+      if (requestCompleted) return;
+      requestCompleted = true;
+      upstreamSignal?.removeEventListener("abort", abortFromUpstream);
+      promptDispatch.trigger.requestCompleted({ controller });
+    };
     try {
+      // Local HTTP/1.1 browsers have a small per-origin connection pool. The
+      // desktop already owns several long-lived SSE connections, so a slow
+      // provider discovery can otherwise queue the prompt behind the model
+      // catalog. Prompt dispatch is the user-driven operation, so release any
+      // optional catalog reads first; the selector's explicit refresh remains
+      // available when the operator next needs discovery.
+      await queryClient.cancelQueries({ queryKey: modelCatalogKeys.all });
       // The prompt POST streams its response, so a remote gateway session
       // authenticates it with a fresh single-use ticket like any other stream.
       const target = await authorizeStreamFetchInput(input, controller.signal);
       const response = await goalAwareFetch(target, { ...init, signal: controller.signal });
       await reportGatewayResponse(response);
       if (response.ok) promptRecovery.acknowledge();
-      return response;
+      responseOwnsCompletion = true;
+      return completeWhenResponseBodySettles(response, completeRequest);
     } finally {
-      upstreamSignal?.removeEventListener("abort", abortFromUpstream);
-      promptDispatch.trigger.requestCompleted({ controller });
+      if (!responseOwnsCompletion) {
+        completeRequest();
+      }
     }
   };
   return {

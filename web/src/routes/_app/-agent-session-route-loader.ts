@@ -1,9 +1,10 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import { resolveActiveWorkspaceId } from "./-route-preload";
+import { resolveDesktopWorkspaceId } from "./-route-preload";
 import {
   cachedForeignSessionOwner,
-  resolveForeignSessionOwner,
+  resolveSessionOwner,
+  sessionAcrossProfilesOptions,
   sessionDetailOptions,
   sessionScopedDetailOptions,
   SessionNotFoundError,
@@ -34,7 +35,7 @@ export async function prefetchAgentSessionRoute({
   queryClient: QueryClient;
   sessionId: string;
 }): Promise<AgentSessionRouteLoaderData> {
-  const workspaceId = await resolveActiveWorkspaceId(queryClient);
+  const workspaceId = await resolveDesktopWorkspaceId(queryClient);
   if (!workspaceId) {
     return { status: "not-found" };
   }
@@ -75,9 +76,16 @@ async function resolveForeignSession(
   sessionId: string,
   activeWorkspaceId: string
 ): Promise<AgentSessionRouteLoaderData> {
-  const owner = await resolveForeignSessionOwner(queryClient, sessionId, activeWorkspaceId);
+  const owner = await resolveSessionOwner(queryClient, sessionId);
   if (!owner) {
     return { status: "not-found" };
+  }
+  if (owner.workspaceId === activeWorkspaceId) {
+    await queryClient.ensureQueryData(sessionAcrossProfilesOptions(sessionId));
+    await Promise.allSettled([
+      queryClient.ensureInfiniteQueryData(sessionTranscriptOptions(activeWorkspaceId, sessionId)),
+    ]);
+    return { status: "loaded", workspaceId: activeWorkspaceId };
   }
   return { status: "foreign", owner };
 }

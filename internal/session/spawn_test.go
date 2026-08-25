@@ -539,7 +539,12 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 	t.Run("Should keep an automatic-title child off collaboration channels", func(t *testing.T) {
 		t.Parallel()
 
-		h := newHarness(t, WithParticipationResolver(newTestSessionParticipationResolver(t, true)))
+		wakeNotifier := &recordingSpawnWakeNotifier{}
+		h := newHarness(
+			t,
+			WithParticipationResolver(newTestSessionParticipationResolver(t, true)),
+			WithSpawnWakeNotifier(wakeNotifier),
+		)
 		parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
 			AgentName:                    "coder",
 			Workspace:                    h.workspaceID,
@@ -584,6 +589,16 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 		}
 		if got, want := readMeta(t, child.MetaPath()).NetworkSpecSnapshot(), participation.LocalSpec(); got != want {
 			t.Fatalf("persisted child participation = %#v, want %#v", got, want)
+		}
+		if child.Info().Lineage == nil || child.Info().Lineage.NotifyCreator {
+			t.Fatalf("child lineage = %#v, want creator wake disabled", child.Info().Lineage)
+		}
+		meta := readMeta(t, child.MetaPath())
+		if meta.Lineage == nil || meta.Lineage.NotifyCreator {
+			t.Fatalf("persisted child lineage = %#v, want creator wake disabled", meta.Lineage)
+		}
+		if parents, events := wakeNotifier.calls(); len(parents) != 0 || len(events) != 0 {
+			t.Fatalf("internal child wakes = parents %#v events %#v, want none", parents, events)
 		}
 	})
 

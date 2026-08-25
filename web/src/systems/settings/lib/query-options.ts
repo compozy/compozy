@@ -301,9 +301,7 @@ export function settingsRestartStatusOptions(operationId: string | null, enabled
     enabled: active,
     staleTime: 0,
     refetchInterval: query =>
-      query.state.status === "error" || isTerminalRestartStatus(query.state.data?.status)
-        ? false
-        : RESTART_POLL_INTERVAL,
+      isTerminalRestartStatus(query.state.data?.status) ? false : RESTART_POLL_INTERVAL,
     refetchIntervalInBackground: true,
     retry: (failureCount, error) =>
       error instanceof SettingsApiError && error.status === 404

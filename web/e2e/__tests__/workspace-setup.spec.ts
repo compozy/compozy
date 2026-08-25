@@ -119,12 +119,14 @@ test.describe("first-run default model", () => {
         response.request().method() === "PUT" &&
         response.url().endsWith(`/api/settings/providers/${mockAgentProvider}`)
     );
-    const generalRequestPromise = appPage.waitForRequest(
-      request => request.method() === "PATCH" && request.url().endsWith("/api/settings/general")
+    const personaRequestPromise = appPage.waitForRequest(
+      request =>
+        request.method() === "PATCH" && new URL(request.url()).pathname === "/api/settings/persona"
     );
-    const generalResponsePromise = appPage.waitForResponse(
+    const personaResponsePromise = appPage.waitForResponse(
       response =>
-        response.request().method() === "PATCH" && response.url().endsWith("/api/settings/general")
+        response.request().method() === "PATCH" &&
+        new URL(response.url()).pathname === "/api/settings/persona"
     );
 
     await expect(appPage.getByTestId("onboarding-continue")).toBeEnabled();
@@ -141,12 +143,12 @@ test.describe("first-run default model", () => {
     });
     expect(providerResponse.ok()).toBe(true);
 
-    const generalRequest = await generalRequestPromise;
-    const generalResponse = await generalResponsePromise;
-    expect(generalRequest.postDataJSON()).toMatchObject({
-      config: { defaults: { provider: mockAgentProvider } },
+    const personaRequest = await personaRequestPromise;
+    const personaResponse = await personaResponsePromise;
+    expect(personaRequest.postDataJSON()).toMatchObject({
+      config: { provider: mockAgentProvider },
     });
-    expect(generalResponse.ok()).toBe(true);
+    expect(personaResponse.ok()).toBe(true);
     await expect(appPage.getByTestId("onboarding-step-workspaces")).toBeVisible();
 
     const provider = await runtime.requestJSON<{

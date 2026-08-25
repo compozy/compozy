@@ -179,13 +179,16 @@ describe("settings restart options", () => {
     expect(enabled.queryKey).toEqual(["settings", "restart", "op_1"]);
   });
 
-  it("polls while the status is not terminal and stops on terminal states", () => {
+  it("polls through transient errors and stops only on terminal states", () => {
     const options = settingsRestartStatusOptions("op_1", true);
     const refetchInterval = options.refetchInterval as (query: {
-      state: { data?: { status: string } };
+      state: { data?: { status: string }; status?: string };
     }) => number | false;
 
     expect(refetchInterval({ state: {} })).toBe(SETTINGS_QUERY_INTERVALS.restartPollInterval);
+    expect(refetchInterval({ state: { status: "error" } })).toBe(
+      SETTINGS_QUERY_INTERVALS.restartPollInterval
+    );
     expect(refetchInterval({ state: { data: { status: "stopping" } } })).toBe(
       SETTINGS_QUERY_INTERVALS.restartPollInterval
     );

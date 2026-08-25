@@ -145,6 +145,17 @@ export function useDeleteSession(options: UseSessionWorkspaceOptions = {}) {
 
   return useMutation({
     mutationFn: (id: string) => deleteSession(requireWorkspace(workspaceId), id),
+    onMutate: async id => {
+      const deleteWorkspaceId = requireWorkspace(workspaceId);
+      sessionStore.trigger.sessionLiveTailSuspended({ sessionId: id });
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: sessionKeys.detail(deleteWorkspaceId, id) }),
+        queryClient.cancelQueries({ queryKey: sessionKeys.byIdRoot(id) }),
+      ]);
+    },
+    onError: (_error, id) => {
+      sessionStore.trigger.sessionLiveTailResumed({ sessionId: id });
+    },
     onSuccess: (_data, id) => {
       const successWorkspaceId = requireWorkspace(workspaceId);
       sessionStore.trigger.sessionInteractionRemoved({ sessionId: id });
@@ -193,8 +204,22 @@ export function useResumeSession(options: UseSessionWorkspaceOptions = {}) {
 
   return useMutation({
     mutationFn: (id: string) => resumeSession(requireWorkspace(workspaceId), id),
-    onSettled: (_data, _error, id) => {
-      if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, id);
+    onMutate: async id => {
+      const resumeWorkspaceId = requireWorkspace(workspaceId);
+      sessionStore.trigger.sessionLiveTailSuspended({ sessionId: id });
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: sessionKeys.detail(resumeWorkspaceId, id) }),
+        queryClient.cancelQueries({ queryKey: sessionKeys.byIdRoot(id) }),
+      ]);
+    },
+    onSettled: async (_data, _error, id) => {
+      try {
+        if (workspaceId) {
+          await invalidateSessionMutationQueries(queryClient, workspaceId, id);
+        }
+      } finally {
+        sessionStore.trigger.sessionLiveTailResumed({ sessionId: id });
+      }
     },
   });
 }

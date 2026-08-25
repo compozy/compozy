@@ -177,9 +177,6 @@ func (m *Manager) prepareSpawn(
 
 func normalizeSpawnOpts(opts SpawnOpts) (SpawnOpts, error) {
 	normalized := opts
-	if !normalized.NotifyCreatorSet {
-		normalized.NotifyCreator = true
-	}
 	normalized.ParentSessionID = strings.TrimSpace(normalized.ParentSessionID)
 	normalized.AgentName = strings.TrimSpace(normalized.AgentName)
 	normalized.Provider = strings.TrimSpace(normalized.Provider)
@@ -204,6 +201,12 @@ func normalizeSpawnOpts(opts SpawnOpts) (SpawnOpts, error) {
 	}
 	normalized.PromptOverlay = strings.TrimSpace(normalized.PromptOverlay)
 	normalized.SpawnRole = normalizeSpawnRole(normalized.SpawnRole)
+	if IsInternalSpawnRole(normalized.SpawnRole) {
+		normalized.NotifyCreator = false
+		normalized.NotifyCreatorSet = true
+	} else if !normalized.NotifyCreatorSet {
+		normalized.NotifyCreator = true
+	}
 	normalized.PermissionPolicy = store.NormalizeSessionPermissionPolicy(normalized.PermissionPolicy)
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
 

@@ -803,6 +803,7 @@ test("tasks list and kanban surface needs_attention as a distinct status", async
 
   await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(ui);
+  await setGlobalScope(appPage, true);
   if ((await ui.modeList.getAttribute("aria-current")) !== "page") {
     await ui.modeList.click();
   }

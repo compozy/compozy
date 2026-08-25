@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSelector } from "@xstate/store-react";
 
@@ -8,6 +9,8 @@ import { PERMANENT_PROFILE } from "../lib/profile-rows";
 import { profileKeys, profileLensKey } from "../lib/query-keys";
 import { profileSelectionOptions } from "../lib/query-options";
 import {
+  carryProfileView,
+  enterProfileView,
   localProfileView,
   profileViewStore,
   restoreProfileView,
@@ -31,8 +34,27 @@ export function useActiveProfileView(lens: ProfileLens, enabled = true): Profile
   const remembered = useRememberedProfile(lens, enabled);
   const viewByLens = useSelector(profileViewStore, state => state.context.viewByLens);
   const local = viewByLens[profileLensKey(lens)];
+  const rememberedProfile = remembered.data?.profile;
+  const workspaceId = lens.scope === "workspace" ? lens.workspaceId : null;
+  const lensKey = profileLensKey(lens);
+  const previousLens = useRef<ProfileLens>(lens);
+
+  useEffect(() => {
+    const previous = previousLens.current;
+    previousLens.current = lens;
+    if (profileLensKey(previous) === lensKey) return;
+    carryProfileView(previous, lens);
+  }, [lens, lensKey]);
+
+  useEffect(() => {
+    if (!enabled || rememberedProfile === undefined) return;
+    const enteredLens: ProfileLens =
+      workspaceId === null ? { scope: "global" } : { scope: "workspace", workspaceId };
+    enterProfileView(enteredLens, { kind: "profile", profile: rememberedProfile });
+  }, [enabled, lens.scope, rememberedProfile, workspaceId]);
+
   if (local) return local;
-  return { kind: "profile", profile: remembered.data?.profile ?? PERMANENT_PROFILE };
+  return { kind: "profile", profile: rememberedProfile ?? PERMANENT_PROFILE };
 }
 
 /**

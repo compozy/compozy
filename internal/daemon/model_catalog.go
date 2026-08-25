@@ -112,12 +112,23 @@ func (r *modelCatalogRuntime) listModelsInGeneration(
 	ctx context.Context,
 	opts modelcatalog.ListOptions,
 ) ([]modelcatalog.Model, error) {
-	release, err := r.generationGate.lock(ctx, true)
+	complete, admitted := r.workers.Begin()
+	if !admitted {
+		return nil, fmt.Errorf("daemon: model catalog list stopped: %w", r.ctx.Err())
+	}
+	defer complete()
+
+	listCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stopRootCancel := context.AfterFunc(r.ctx, cancel)
+	defer stopRootCancel()
+
+	release, err := r.generationGate.lock(listCtx, true)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: wait to list model catalog generation: %w", err)
 	}
 	defer release()
-	return r.service.ListModels(ctx, opts)
+	return r.service.ListModels(listCtx, opts)
 }
 
 func (r *modelCatalogRuntime) Refresh(

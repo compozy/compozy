@@ -5,6 +5,7 @@ import { DockIcons, type DockIconId } from "../components/os-dock-icons";
 import type { OsDockEntry } from "../components/os-dock-types";
 import type { OsAttentionBadges } from "../lib/attention-model";
 import { dockAppDescriptors, OS_APP_DESCRIPTORS } from "../lib/app-catalog";
+import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import {
   activationTarget,
   appRunState,
@@ -21,6 +22,7 @@ export interface DesktopDockModel {
   presentation: OsPresentation;
   /** Floating-only magnification, gated by the appearance toggle and motion prefs. */
   magnify: boolean;
+  commandsAvailable: boolean;
   handleSelect: (id: string) => void;
 }
 
@@ -43,6 +45,7 @@ export function useDesktopDock(
   // appearance toggle here, the system reduced-motion preference inside
   // `useDockMagnify`, and compact presentation via the tab-bar branch.
   const magnify = useDesktop(state => state.dockMagnify && !state.reduceMotion);
+  const commandsAvailable = useDesktop(windowManagerCommandsAvailable);
   // Dock state aggregates every instance of an app (ADR-010 §3): the icon
   // lights while any window of that app is live, whatever its instance key.
   const windowStates = useDesktop(state => {
@@ -83,6 +86,7 @@ export function useDesktopDock(
   });
 
   const handleSelect = (id: string) => {
+    if (!commandsAvailable) return;
     const appId = id as OsAppId;
     const state = manager.getState();
     if (appId === "session") {
@@ -119,5 +123,5 @@ export function useDesktopDock(
     void coordinator.userActivateWindow(target.id);
   };
 
-  return { entries, presentation, magnify, handleSelect };
+  return { entries, presentation, magnify, commandsAvailable, handleSelect };
 }

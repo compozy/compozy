@@ -23,6 +23,8 @@ export interface OsDockProps extends Omit<React.ComponentProps<"nav">, "onSelect
   items: OsDockEntry[];
   /** Item activation. Omit to render items as presentation. */
   onSelect?: (id: string) => void;
+  /** Keeps launchers visible while the authoritative command fence hydrates. */
+  disabled?: boolean;
   /** Wraps each interactive item with its destination context menu (US-006). */
   renderItemMenu?: (item: OsDockItemData, children: React.ReactNode) => React.ReactNode;
   /**
@@ -64,10 +66,12 @@ function DockTip({ label }: { label: string }) {
 function DockItem({
   item,
   onSelect,
+  disabled,
   renderItemMenu,
 }: {
   item: OsDockItemData;
   onSelect?: (id: string) => void;
+  disabled?: boolean;
   renderItemMenu?: OsDockProps["renderItemMenu"];
 }) {
   const state = item.minimized ? "minimized" : item.running ? "running" : "closed";
@@ -138,6 +142,7 @@ function DockItem({
             data-app={item.id}
             data-state={state}
             aria-label={item.name}
+            disabled={disabled}
             className={classes}
             onClick={() => onSelect(item.id)}
           />
@@ -157,6 +162,7 @@ const DOCK_SEG =
 export function OsDock({
   items,
   onSelect,
+  disabled,
   renderItemMenu,
   magnify = true,
   className,
@@ -186,6 +192,7 @@ export function OsDock({
             key={entry.id}
             item={entry}
             onSelect={onSelect}
+            disabled={disabled}
             renderItemMenu={renderItemMenu}
           />
         )
@@ -261,6 +268,7 @@ export function OsDockZone({
   items,
   leading,
   onSelect,
+  disabled,
   renderItemMenu,
   onNewSession,
   magnify = true,
@@ -271,6 +279,7 @@ export function OsDockZone({
   items: OsDockEntry[];
   leading?: React.ReactNode;
   onSelect?: (id: string) => void;
+  disabled?: boolean;
   renderItemMenu?: OsDockProps["renderItemMenu"];
   onNewSession?: () => void;
   magnify?: boolean;
@@ -298,6 +307,7 @@ export function OsDockZone({
         <OsDock
           items={items}
           onSelect={onSelect}
+          disabled={disabled}
           renderItemMenu={renderItemMenu}
           magnify={magnify}
           className="pointer-events-auto"

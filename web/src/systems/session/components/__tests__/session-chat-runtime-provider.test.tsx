@@ -12,6 +12,7 @@ import { createSessionPromptDispatchStore } from "@/components/assistant-ui/sess
 import { Toaster } from "@compozy/ui";
 import { formatMessageError } from "@/components/assistant-ui/session-thread-error";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
+import { modelCatalogKeys } from "@/systems/model-catalog";
 
 import { sessionStore } from "@/systems/session/stores/session-store";
 import {
@@ -517,6 +518,15 @@ function countPromptFetches(fetchMock: ReturnType<typeof vi.fn>): number {
   }).length;
 }
 
+function countClarificationFetches(fetchMock: ReturnType<typeof vi.fn>): number {
+  return fetchMock.mock.calls.filter(([input]) => {
+    return (
+      getPathname(input as RequestInfo | URL) ===
+      `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/clarifications`
+    );
+  }).length;
+}
+
 function fixtureWorkspaceId(): string {
   const workspaceId = primarySessionFixture.workspace_id;
   if (!workspaceId) {
@@ -994,6 +1004,28 @@ describe("SessionChatRuntimeProvider", () => {
     expect(eventSourceFactory).not.toHaveBeenCalled();
   });
 
+  it("Should suspend the live EventSource while a session mutation suppresses its tail", async () => {
+    const sources: FakeSessionEventSource[] = [];
+    const eventSourceFactory = vi.fn((url: string) => {
+      const source = new FakeSessionEventSource(url);
+      sources.push(source);
+      return source;
+    });
+
+    renderSessionThread({ eventSourceFactory });
+    await waitFor(() => expect(eventSourceFactory).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      sessionStore.trigger.sessionLiveTailSuspended({ sessionId: primarySessionFixture.id });
+    });
+    await waitFor(() => expect(sources[0]?.closed).toBe(true));
+
+    act(() => {
+      sessionStore.trigger.sessionLiveTailResumed({ sessionId: primarySessionFixture.id });
+    });
+    await waitFor(() => expect(eventSourceFactory).toHaveBeenCalledTimes(2));
+  });
+
   it("Should preserve a visible message anchor when older history and a live delta arrive together", async () => {
     const user = userEvent.setup();
     transcriptMessages = [sessionTranscriptFixture[1]!];
@@ -1108,6 +1140,81 @@ describe("SessionChatRuntimeProvider", () => {
       .filter(url => url.pathname.endsWith("/prompt"))
       .map(url => url.searchParams.get("ticket"));
     expect(promptTickets).toEqual(["prompt-ticket-one", "prompt-ticket-two"]);
+  });
+
+  // Invariant: a user prompt preempts optional model-catalog reads so browser
+  // connection pressure cannot keep the prompt from reaching the daemon.
+  // Owning layer: chat-runtime provider integration. Canonical suite: this file.
+  it("Should cancel an in-flight model catalog read before dispatching a prompt", async () => {
+    const queryClient = createQueryClient();
+    const catalogStarted = createDeferred<void>();
+    let catalogSignal: AbortSignal | undefined;
+    const catalogQuery = queryClient.fetchQuery({
+      queryKey: modelCatalogKeys.allModels("all", undefined, undefined, true),
+      queryFn: ({ signal }) => {
+        catalogSignal = signal;
+        catalogStarted.resolve();
+        return new Promise<never>((_resolve, reject) => {
+          signal.addEventListener(
+            "abort",
+            () => reject(new DOMException("The operation was aborted", "AbortError")),
+            { once: true }
+          );
+        });
+      },
+    });
+    void catalogQuery.catch(() => undefined);
+    await catalogStarted.promise;
+
+    const user = userEvent.setup();
+    renderSessionThread({ queryClient });
+    await screen.findByTestId("composer-input");
+    await setComposerText("Prompt while provider discovery is slow");
+    await user.click(screen.getByTestId("composer-send-button"));
+
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+    expect(catalogSignal?.aborted).toBe(true);
+  });
+
+  // Invariant: the prompt response replaces the transcript live tail while it
+  // is active, leaving one browser connection available for control requests.
+  // Owning layer: chat-runtime provider integration. Canonical suite: this file.
+  it("Should suspend the transcript live tail while a prompt stream is active", async () => {
+    const promptResponse = openSseResponse([
+      'data: {"type":"start","messageId":"control-slot-turn"}\n\n',
+    ]);
+    promptResponsePromise = Promise.resolve(promptResponse.response);
+    const sources: FakeSessionEventSource[] = [];
+    const user = userEvent.setup();
+
+    renderSessionThread({
+      eventSourceFactory: url => {
+        const source = new FakeSessionEventSource(url);
+        sources.push(source);
+        return source;
+      },
+    });
+    await waitFor(() => expect(sources).toHaveLength(1));
+    expect(sources[0]?.closed).toBe(false);
+    const initialClarificationFetches = countClarificationFetches(fetchMock);
+
+    await setComposerText("Keep one control connection available");
+    await user.click(screen.getByTestId("composer-send-button"));
+    await waitFor(() => {
+      expect(countPromptFetches(fetchMock)).toBe(1);
+      expect(sources[0]?.closed).toBe(true);
+    });
+    await waitFor(
+      () =>
+        expect(countClarificationFetches(fetchMock)).toBeGreaterThan(initialClarificationFetches),
+      { timeout: 2_500 }
+    );
+
+    promptResponse.close(['data: {"type":"finish","finishReason":"stop"}\n\n', "data: [DONE]\n\n"]);
+    await waitFor(() => {
+      expect(sources).toHaveLength(2);
+      expect(sources[1]?.closed).toBe(false);
+    });
   });
 
   it("Should report a revoked device response from the prompt transport", async () => {

@@ -55,20 +55,16 @@ export function OsWindow({ frame }: OsWindowProps) {
     registerRnd,
     resizeMax,
   } = useOsWindow(frame);
-  const { presentation, activeApp, reduceMotion, closeShortcut, newTabShortcut } = useDesktop(
-    state => {
-      const effective = state.windowManagerConfig?.effectiveShortcuts;
-      const platform = typeof navigator === "undefined" ? "" : navigator.platform;
-      return {
-        presentation: state.presentation,
-        activeApp: state.windows[frame.activeWindowId]?.app ?? null,
-        reduceMotion: state.reduceMotion,
-        closeShortcut: shortcutActionLabel(effective, "window.close", platform) ?? undefined,
-        newTabShortcut: shortcutActionLabel(effective, "window.tab.new", platform) ?? undefined,
-      };
-    },
-    shallowEqual
-  );
+  const { presentation, activeApp, closeShortcut, newTabShortcut } = useDesktop(state => {
+    const effective = state.windowManagerConfig?.effectiveShortcuts;
+    const platform = typeof navigator === "undefined" ? "" : navigator.platform;
+    return {
+      presentation: state.presentation,
+      activeApp: state.windows[frame.activeWindowId]?.app ?? null,
+      closeShortcut: shortcutActionLabel(effective, "window.close", platform) ?? undefined,
+      newTabShortcut: shortcutActionLabel(effective, "window.tab.new", platform) ?? undefined,
+    };
+  }, shallowEqual);
   const dragging = useWindowManagerGestureDragging(frame.activeWindowId);
   const compact = presentation === "compact";
   const deckVisible = frame.members.length >= 2 && !compact;
@@ -99,7 +95,7 @@ export function OsWindow({ frame }: OsWindowProps) {
   return (
     <Rnd
       ref={registerRnd}
-      className={compact ? "absolute inset-0" : undefined}
+      className={cn(compact && "absolute inset-0", focused && "will-change-transform")}
       position={compact ? { x: 0, y: 0 } : { x: rect.x, y: rect.y }}
       size={compact ? { width: "100%", height: "100%" } : { width: rect.w, height: rect.h }}
       minWidth={compact ? undefined : minimum.width}
@@ -125,12 +121,11 @@ export function OsWindow({ frame }: OsWindowProps) {
         focused={focused}
         presentation={presentation}
         kind={frame.kind}
-        // Reduced opacity plus a slight shrink while dragging keeps the merge
-        // and snap affordances underneath readable through the moving frame.
+        // Reduced opacity keeps merge and snap affordances readable through
+        // the moving frame without rerasterizing the full window during drag.
         className={cn(
-          "relative h-full w-full transition-[opacity,transform] duration-base ease-out",
-          dragging && "opacity-70",
-          dragging && !reduceMotion && "scale-[0.98]"
+          "relative h-full w-full transition-opacity duration-base ease-out",
+          dragging && "opacity-70"
         )}
         data-dragging={dragging ? "" : undefined}
         data-testid={`os-window-frame-${frame.id}`}

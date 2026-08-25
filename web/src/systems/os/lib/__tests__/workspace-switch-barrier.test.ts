@@ -28,4 +28,17 @@ describe("subscribeWorkspaceSwitchBarrier", () => {
     expect(beginWorkspaceSwitch).toHaveBeenCalledOnce();
     unsubscribe();
   });
+
+  it("Should keep routing live when selection resolves to the already-bound workspace", () => {
+    const beginWorkspaceSwitch = vi.fn();
+    const unsubscribe = subscribeWorkspaceSwitchBarrier(
+      { beginWorkspaceSwitch },
+      () => "workspace:one"
+    );
+
+    setActiveWorkspaceId("workspace:one");
+
+    expect(beginWorkspaceSwitch).not.toHaveBeenCalled();
+    unsubscribe();
+  });
 });

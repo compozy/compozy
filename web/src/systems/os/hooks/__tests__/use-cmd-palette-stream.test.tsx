@@ -16,6 +16,10 @@ import {
   CMD_PALETTE_CATALOG_CHANGED_EVENT,
   cmdPaletteStreamUrl,
 } from "../../lib/cmd-palette-stream";
+import {
+  backgroundStreamsWithinConnectionBudget,
+  continuityStreamsWithinConnectionBudget,
+} from "../../lib/background-stream-budget";
 import { useCmdPaletteStream } from "../use-cmd-palette-stream";
 
 const WORKSPACE = "ws-hq";
@@ -57,7 +61,7 @@ class FakeEventSource implements StreamEventSource {
   }
 }
 
-function harness(workspaceId: string | null = WORKSPACE) {
+function harness(workspaceId: string | null = WORKSPACE, enabled = true) {
   const sources: FakeEventSource[] = [];
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -70,6 +74,7 @@ function harness(workspaceId: string | null = WORKSPACE) {
     () =>
       useCmdPaletteStream({
         workspaceId,
+        enabled,
         eventSourceFactory: url => {
           const source = new FakeEventSource(url);
           sources.push(source);
@@ -175,6 +180,57 @@ describe("useCmdPaletteStream (UT-104)", () => {
     const { result, sources } = harness(null);
     expect(result.current).toBe("disabled");
     expect(sources).toHaveLength(0);
+  });
+
+  it("Should stay disabled when the desktop reserves capacity for multiple live sessions", () => {
+    const { result, sources } = harness(WORKSPACE, false);
+    expect(result.current).toBe("disabled");
+    expect(sources).toHaveLength(0);
+  });
+
+  it("Should reserve the palette stream connection while any app window is visible", () => {
+    const window = {
+      app: "session" as const,
+      desktopId: "desktop-1",
+      minimized: false,
+      stackActive: true,
+    };
+    expect(
+      backgroundStreamsWithinConnectionBudget({
+        activeDesktopId: "desktop-1",
+        connectionStatus: "connected",
+        windows: { first: window },
+      })
+    ).toBe(false);
+    expect(
+      backgroundStreamsWithinConnectionBudget({
+        activeDesktopId: "desktop-1",
+        connectionStatus: "connected",
+        windows: { first: { ...window, app: "tasks" } },
+      })
+    ).toBe(false);
+    expect(
+      backgroundStreamsWithinConnectionBudget({
+        activeDesktopId: "desktop-1",
+        connectionStatus: "connected",
+        windows: { first: { ...window, minimized: true } },
+      })
+    ).toBe(true);
+    expect(
+      backgroundStreamsWithinConnectionBudget({
+        activeDesktopId: "desktop-1",
+        connectionStatus: "reconnecting",
+        windows: {},
+      })
+    ).toBe(false);
+    expect(continuityStreamsWithinConnectionBudget({ connectionStatus: "connected" })).toBe(true);
+    expect(continuityStreamsWithinConnectionBudget({ connectionStatus: "disconnected" })).toBe(
+      true
+    );
+    expect(continuityStreamsWithinConnectionBudget({ connectionStatus: "connecting" })).toBe(false);
+    expect(continuityStreamsWithinConnectionBudget({ connectionStatus: "reconnecting" })).toBe(
+      false
+    );
   });
 
   it("Should subscribe under the active profile so the daemon never sends another's revisions", () => {

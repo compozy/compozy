@@ -17,6 +17,7 @@ import (
 
 type options struct {
 	homeDir     string
+	profileID   string
 	workspaceID string
 	taskID      string
 	runID       string
@@ -54,6 +55,7 @@ func run(ctx context.Context, args []string) (err error) {
 	}
 	record := taskpkg.Task{
 		ID:             options.taskID,
+		ProfileID:      options.profileID,
 		Scope:          taskpkg.ScopeWorkspace,
 		WorkspaceID:    options.workspaceID,
 		Title:          "Retained Loop execution record",
@@ -98,6 +100,7 @@ func parseOptions(args []string) (options, error) {
 	flags.SetOutput(os.Stderr)
 	var parsed options
 	flags.StringVar(&parsed.homeDir, "home", "", "isolated CompozyOS home")
+	flags.StringVar(&parsed.profileID, "profile", "", "owning profile id")
 	flags.StringVar(&parsed.workspaceID, "workspace", "", "workspace id")
 	flags.StringVar(&parsed.taskID, "task", "", "task id")
 	flags.StringVar(&parsed.runID, "run", "", "task run id")
@@ -105,10 +108,11 @@ func parseOptions(args []string) (options, error) {
 	if err := flags.Parse(args); err != nil {
 		return options{}, err
 	}
-	if strings.TrimSpace(parsed.homeDir) == "" || strings.TrimSpace(parsed.workspaceID) == "" ||
+	if strings.TrimSpace(parsed.homeDir) == "" || strings.TrimSpace(parsed.profileID) == "" ||
+		strings.TrimSpace(parsed.workspaceID) == "" ||
 		strings.TrimSpace(parsed.taskID) == "" || strings.TrimSpace(parsed.runID) == "" ||
 		strings.TrimSpace(parsed.loopRunID) == "" {
-		return options{}, errors.New("retained Loop task seeder requires home, workspace, task, run, and loop-run")
+		return options{}, errors.New("retained Loop task seeder requires home, profile, workspace, task, run, and loop-run")
 	}
 	return parsed, nil
 }

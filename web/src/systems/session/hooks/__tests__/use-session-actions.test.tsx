@@ -13,6 +13,7 @@ import {
   useQueueSessionPrompt,
   useRepairSession,
   useRenameSession,
+  useResumeSession,
   useSteerSessionPrompt,
   useUnarchiveSession,
 } from "../use-session-actions";
@@ -67,6 +68,7 @@ import {
   deleteSession,
   repairSession,
   renameSession,
+  resumeSession,
   promoteSessionInputToSteer,
   replaceSessionInput,
   rewindSession,
@@ -400,11 +402,14 @@ describe("session actions", () => {
   });
 
   it("useDeleteSession removes cached session data and clears the draft", async () => {
-    vi.mocked(deleteSession).mockResolvedValue(undefined);
+    vi.mocked(deleteSession).mockImplementation(async () => {
+      expect(sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]).toBe(true);
+    });
 
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
+    const cancelSpy = vi.spyOn(queryClient, "cancelQueries");
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     queryClient.setQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id), createdSession);
     queryClient.setQueryData(
@@ -433,6 +438,12 @@ describe("session actions", () => {
     });
 
     expect(deleteSession).toHaveBeenCalledWith(WORKSPACE_ID, createdSession.id);
+    expect(cancelSpy).toHaveBeenCalledWith({
+      queryKey: sessionKeys.detail(WORKSPACE_ID, createdSession.id),
+    });
+    expect(cancelSpy).toHaveBeenCalledWith({
+      queryKey: sessionKeys.byIdRoot(createdSession.id),
+    });
     expect(
       queryClient.getQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id))
     ).toBeUndefined();
@@ -452,6 +463,9 @@ describe("session actions", () => {
       queryClient.getQueryData(sessionKeys.byId(createdSession.id, PROFILE_AGGREGATE))
     ).toBeUndefined();
     expect(sessionStore.getSnapshot().context.drafts[createdSession.id]).toBeUndefined();
+    expect(
+      sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]
+    ).toBeUndefined();
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: sessionKeys.workspaceLists(WORKSPACE_ID),
     });
@@ -497,6 +511,52 @@ describe("session actions", () => {
       eventsSnapshot
     );
     expect(sessionStore.getSnapshot().context.drafts[createdSession.id]).toBe("keep me");
+    expect(
+      sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]
+    ).toBeUndefined();
+  });
+
+  it("useResumeSession keeps the live tail suspended through state reconciliation", async () => {
+    vi.mocked(resumeSession).mockImplementation(async () => {
+      expect(sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]).toBe(true);
+      return createdSession;
+    });
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const cancelSpy = vi.spyOn(queryClient, "cancelQueries");
+    let releaseInvalidation!: () => void;
+    const invalidation = new Promise<void>(resolve => {
+      releaseInvalidation = resolve;
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries").mockReturnValue(invalidation);
+    const { result } = renderHook(() => useResumeSession(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    let mutation!: Promise<SessionPayload>;
+    act(() => {
+      mutation = result.current.mutateAsync(createdSession.id);
+    });
+
+    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledTimes(3));
+    expect(cancelSpy).toHaveBeenCalledWith({
+      queryKey: sessionKeys.detail(WORKSPACE_ID, createdSession.id),
+    });
+    expect(cancelSpy).toHaveBeenCalledWith({
+      queryKey: sessionKeys.byIdRoot(createdSession.id),
+    });
+    expect(sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]).toBe(true);
+
+    releaseInvalidation();
+    await act(async () => {
+      await mutation;
+    });
+
+    expect(
+      sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]
+    ).toBeUndefined();
   });
 
   it("useRepairSession invalidates the owning session query tree after repair completes", async () => {

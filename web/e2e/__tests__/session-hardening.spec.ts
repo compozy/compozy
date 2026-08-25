@@ -141,9 +141,13 @@ test("first document navigation to a canonical session route loads the app shell
   await page.addInitScript(
     ({ workspaceId }) => {
       localStorage.setItem(
-        "compozy:active-workspace",
+        "compozy:active-workspace:v4",
         JSON.stringify({
-          state: { selectedWorkspaceId: workspaceId },
+          context: {
+            scope: "workspace",
+            selectedWorkspaceId: workspaceId,
+            worktreeByScope: {},
+          },
           version: 0,
         })
       );
@@ -325,6 +329,14 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
   await ui.composerTextarea.fill("block until canceled");
   await ui.composerTextarea.press("Enter");
   await expect(ui.chatView).toContainText("block until canceled");
+  await expect
+    .poll(async () => {
+      const transcript = await runtime.requestJSON<unknown>(
+        sessionAPIPath(workspace.id, session.id, "/transcript")
+      );
+      return JSON.stringify(transcript);
+    })
+    .toContain("block until canceled");
 
   const stopActionPaths = [
     sessionAPIPath(workspace.id, session.id, "/prompt/cancel"),
@@ -341,7 +353,7 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
 
   await expect(ui.topbarOverflow).toBeVisible({ timeout: 60_000 });
   const beforeClear = await captureSessionSnapshot(runtime, workspace.id, session.id);
-  expect(JSON.stringify(beforeClear.history)).toContain("block until canceled");
+  expect(JSON.stringify(beforeClear.transcript)).toContain("block until canceled");
 
   await ui.topbarOverflow.click();
   await ui.composerClearButton.click();
@@ -352,14 +364,20 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
       response.url().endsWith(sessionAPIPath(workspace.id, session.id, "/clear"))
   );
   await appPage.getByTestId("composer-clear-confirm").click();
-  expect((await clearResponsePromise).ok()).toBe(true);
+  const clearResponse = await clearResponsePromise;
+  if (!clearResponse.ok()) {
+    const daemonLog = runtime.paths?.daemonLog
+      ? await readFile(runtime.paths.daemonLog, "utf8")
+      : "daemon log unavailable";
+    throw new Error(`clear session returned ${clearResponse.status()}\n${daemonLog}`);
+  }
   await expect(ui.chatView).not.toContainText("block until canceled");
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(sessionWin).toBeVisible();
   await expect(ui.chatView).not.toContainText("block until canceled");
 
   const afterClear = await captureSessionSnapshot(runtime, workspace.id, session.id);
-  expect(JSON.stringify(afterClear.history)).not.toContain("block until canceled");
+  expect(JSON.stringify(afterClear.transcript)).not.toContain("block until canceled");
 
   const deletableSession = await createSession(runtime, faultAgent, workspace.id);
   await appPage.goto(runtime.url(sessionPath(faultAgent, deletableSession.id)), {
@@ -750,6 +768,7 @@ async function prepareSessionRuntime(
   const ui = sessionLifecycleSelectors(page);
   await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(ui);
+  await switchWorkspace(page, workspace.id, workspace.name);
   return workspace;
 }
 

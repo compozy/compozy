@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Outlet } from "@tanstack/react-router";
 
 import { cn } from "@compozy/ui";
@@ -6,14 +7,18 @@ import { CmdPaletteRegistryProvider } from "../contexts/cmd-palette-registry-con
 import { OsShellContext } from "../contexts/os-shell-context";
 import { useCmdPaletteRegistry } from "../hooks/use-cmd-palette-registry";
 import { WorktreeDialogActionsContext } from "../contexts/worktree-dialog-actions-context";
-import { useDesktopChrome } from "../hooks/use-desktop-chrome";
+import { useDesktopChromeController } from "../hooks/use-desktop-chrome-controller";
+import { useDesktop } from "../hooks/use-desktop";
 import { useDesktopShellBody } from "../hooks/use-desktop-shell-body";
-import { useDesktopShellModel, type DesktopShellModel } from "../hooks/use-desktop-shell-model";
+import type { DesktopShellModel } from "../hooks/use-desktop-shell-model";
 import { useProfileAutomationEnablement } from "../hooks/use-profile-automation-enablement";
 import { useDesktopWorktreeScope, WindowScopeContext } from "../hooks/use-worktree-scope";
-import { useWorktreeDialogTargets } from "../hooks/use-worktree-dialog-targets";
-import { useWorkspaceSetupDefaults } from "../hooks/use-workspace-setup-defaults";
+import type { WorktreeDialogTargets } from "../hooks/use-worktree-dialog-targets";
 import type { ClientCommandChannel } from "../lib/client-command-channel";
+import {
+  backgroundStreamsWithinConnectionBudget,
+  continuityStreamsWithinConnectionBudget,
+} from "../lib/background-stream-budget";
 import type { WindowManagerRegisteredClientView } from "../lib/window-manager-types";
 import { DesktopGate } from "./desktop-gate";
 import { DesktopWorktreeDialogs } from "./desktop-worktree-dialogs";
@@ -83,38 +88,55 @@ function DesktopChrome({
   firstRun: boolean;
   updateAvailable: boolean;
 }) {
-  const model = useDesktopShellModel();
-  const chrome = useDesktopChrome(model.desktopWorkspaceId);
-  const worktreeDialogs = useWorktreeDialogTargets();
-  const workspaceSetupDefaults = useWorkspaceSetupDefaults();
+  const controller = useDesktopChromeController();
 
   // Zero project workspaces boots Global-on; the home registration is not a
   // project workspace and must not replace the shell with setup.
 
   return (
-    <WorktreeDialogActionsContext.Provider value={worktreeDialogs}>
-      <OsShellContext.Provider value={chrome.shell}>
+    <WorktreeDialogActionsContext.Provider value={controller.worktreeDialogs}>
+      <OsShellContext.Provider value={controller.chrome.shell}>
+        <BackgroundStreamBudgetBridge
+          onBackgroundChange={controller.setBackgroundStreamsEnabled}
+          onContinuityChange={controller.setContinuityStreamsEnabled}
+        />
         <DesktopChromeContent
-          client={chrome.client}
+          client={controller.chrome.client}
           firstRun={firstRun}
-          model={model}
-          clientCommandChannel={chrome.clientCommandChannel}
+          continuityStreamsEnabled={controller.continuityStreamsEnabled}
+          model={controller.model}
+          clientCommandChannel={controller.chrome.clientCommandChannel}
           updateAvailable={updateAvailable}
-          worktreeDialogs={worktreeDialogs}
-          workspaceSetupDefaults={workspaceSetupDefaults}
+          worktreeDialogs={controller.worktreeDialogs}
+          workspaceSetupDefaults={controller.workspaceSetupDefaults}
         />
       </OsShellContext.Provider>
     </WorktreeDialogActionsContext.Provider>
   );
 }
 
+function BackgroundStreamBudgetBridge({
+  onBackgroundChange,
+  onContinuityChange,
+}: {
+  onBackgroundChange: (enabled: boolean) => void;
+  onContinuityChange: (enabled: boolean) => void;
+}) {
+  const backgroundEnabled = useDesktop(backgroundStreamsWithinConnectionBudget);
+  const continuityEnabled = useDesktop(continuityStreamsWithinConnectionBudget);
+  useEffect(() => onBackgroundChange(backgroundEnabled), [backgroundEnabled, onBackgroundChange]);
+  useEffect(() => onContinuityChange(continuityEnabled), [continuityEnabled, onContinuityChange]);
+  return null;
+}
+
 interface DesktopShellBodyProps {
+  continuityStreamsEnabled: boolean;
   client: WindowManagerRegisteredClientView | null;
   model: DesktopShellModel;
   firstRun: boolean;
   updateAvailable: boolean;
   workspaceSetupDefaults: WorkspaceSetupDefaultsModel;
-  worktreeDialogs: ReturnType<typeof useWorktreeDialogTargets>;
+  worktreeDialogs: WorktreeDialogTargets;
   /** The daemon's client-command channel reads the current shell seam through this port. */
   clientCommandChannel: ClientCommandChannel;
 }
@@ -165,6 +187,7 @@ function DesktopShellBody(props: DesktopShellBodyProps) {
 }
 
 function DesktopShellScopedBody({
+  continuityStreamsEnabled,
   client,
   model,
   firstRun,
@@ -436,7 +459,10 @@ function DesktopShellScopedBody({
       />
       {/* Profile lifecycle dialogs live at the shell so a flow started from the
           command palette does not depend on Settings being open. */}
-      <ProfileLifecycleHost onSetAutomationEnabled={setAutomationEnabled} />
+      <ProfileLifecycleHost
+        enabled={continuityStreamsEnabled}
+        onSetAutomationEnabled={setAutomationEnabled}
+      />
     </div>
   );
 }

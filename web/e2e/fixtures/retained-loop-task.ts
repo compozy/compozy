@@ -10,6 +10,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../
 
 export interface RetainedLoopTaskSeed {
   loopRunId: string;
+  profileId: string;
   runId: string;
   taskId: string;
   workspaceId: string;
@@ -40,6 +41,8 @@ export async function seedRetainedLoopTask(
       runtime.paths.homeDir,
       "--workspace",
       seed.workspaceId,
+      "--profile",
+      seed.profileId,
       "--task",
       seed.taskId,
       "--run",

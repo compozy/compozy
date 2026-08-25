@@ -1,8 +1,10 @@
 // Suite: command palette dispatch targeting
-// Invariant: daemon invokes carry the bound client, a stale runById target is
-// announced, and host-target copy writes the clipboard after seam policy gates.
+// Invariant: daemon invokes carry the bound client, navigation preserves route
+// intent, a stale runById target is announced, and host-target copy writes the
+// clipboard after seam policy gates.
 // Boundary IN: resolveInvokeClientId and useCmdPaletteDispatch.run.
-// Boundary OUT: OpenAPI invoke transport, catalog cache, and navigator.clipboard.
+// Boundary OUT: OpenAPI invoke transport, app navigation, catalog cache, and
+// navigator.clipboard.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -129,6 +131,37 @@ describe("command palette dispatch targeting", () => {
       args: {},
     });
     expect(input).not.toHaveProperty("attachmentToken");
+  });
+
+  it("Should preserve route intent when a command navigates to an app", async () => {
+    const openApp = vi.fn();
+    const command = paletteCommand({
+      id: "profile.archive",
+      arguments: [{ name: "profile", type: "text", required: true }],
+      action: {
+        kind: "navigate",
+        app: "settings",
+        args: { pathname: "/settings/profiles", flow: "archive" },
+      },
+    });
+    const { result } = renderHook(
+      () =>
+        useCmdPaletteDispatch({
+          registry: emptyRegistry,
+          workspaceId: "ws_home",
+          shell: shellFixture(),
+          openApp,
+        }),
+      { wrapper: wrapper() }
+    );
+
+    await expect(result.current.run(command, { args: { profile: "marketing" } })).resolves.toEqual({
+      status: "ran",
+    });
+    expect(openApp).toHaveBeenCalledExactlyOnceWith("settings", {
+      pathname: "/settings/profiles",
+      search: { flow: "archive", profile: "marketing" },
+    });
   });
 
   it("Should announce when runById names a command the registry no longer carries [RD0094]", async () => {
