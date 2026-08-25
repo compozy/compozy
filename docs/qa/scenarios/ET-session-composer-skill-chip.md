@@ -17,3 +17,5 @@ overlaps: ET-session-slash-commands-inline;ET-web-session-composer-text-entry
 ---
 
 QA impact 2026-08-05: new user-visible behavior from the composer redesign — inline skill chips in the prompt editor (Lexical), mirroring the transcript's verified skill pills. The wire contract is unchanged: the daemon still receives the raw token text and returns skill_invocations; the chip is presentation only. Walk chip insertion at start and mid-text, atomic deletion, caret traversal, draft restore re-materialization, and confirm the transcript echo matches the sent token.
+
+QA impact 2026-08-25 (skill sources): already `untested`, and this cycle touched the same composer menu. Skill rows from a non-Compozy source now render a discreet mono origin label in the trailing slot, and physical homonyms from two roots appear as separate rows with distinct qualified tokens. The chip contract itself is unchanged — the wire still carries the raw canonical token — so the risk is presentational collision between the origin label and the chip's own label, and a homonym whose chip cannot be told apart from its twin. Rides along in `CH-skill-session-suppression-matrix`.

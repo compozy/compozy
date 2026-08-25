@@ -6,7 +6,7 @@ persona: Ada
 journey: J-validate-compozy-hard-cut
 expected: A managed session, including Codex on a macOS CGO-disabled build, and the operator CLI discover and invoke compozy__ native tools; hosted MCP advertises only compozy_host__ façade names from compozy-hosted-tools, and retired identifiers resolve as unknown without aliases.
 entry_points: compozy tool list|search|info|invoke -o json; managed session tool call; compozy mcp serve; hosted MCP tools/list and tools/call
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260727-runtime-legacy-identity
 fix_status: fixed
 retest_status: pass
@@ -31,3 +31,5 @@ QA impact 2026-08-13: reset because `compozy__config_get` now distinguishes an a
 QA evidence correction 2026-08-13: the prior pass is not valid evidence for PR #372 because its build predates this PR head. It is historical only and does not set this scenario status.
 
 QA verdict 2026-08-13 (fresh native-CLI lab): passed. The real operator-home Codex reviewer invoked hosted skill-list, empty skill-search, all ten skill views, and `compozy__config_get`; the missing `loops.inputs.batuta-deliver.auto_commit` path returned `config_path_not_found`. This is a substantive persona-walk verdict only: the QA report remains blocked on C14 until a successful final gate exists.
+
+QA impact 2026-08-25 (skill sources): reset because the skill native-tool descriptors changed in this cycle. `compozy__skill_list` and `compozy__skill_search` now require `origin` and `owner_scope`, `compozy__skill_view` additionally requires `exposures[]`, the descriptions were rewritten, and the recorded native-tool catalog and schema digests were regenerated. Re-walk discovery and invocation across the managed session, the operator CLI, and hosted MCP against the new digests. Charter: `CH-skill-sources-agent-plane`.

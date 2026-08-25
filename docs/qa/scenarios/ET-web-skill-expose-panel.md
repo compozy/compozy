@@ -3,9 +3,9 @@ id: ET-web-skill-expose-panel
 area: ET
 title: Expose a skill and read its origin from the web
 persona: Dora
-journey: J-layer-profile-resources
+journey: J-share-skills-with-other-tools
 expected: Skills absorbed from another tool carry a neutral origin label in the composer picker and on catalog cards while Compozy-native ones stay unlabeled; the skill detail exposes to enabled presets only, repairs links CompozyOS created, never offers an action on a foreign entry, and accounts for every target of a partial failure
-entry_points: session composer `/` picker; Marketplace > Skills installed detail Exposures card
+entry_points: session composer `/` picker; /marketplace/skills; /marketplace/skills/$entryId installed detail Exposures card
 qa_status: untested
 bug_ids:
 fix_status:
@@ -13,7 +13,7 @@ retest_status:
 fix_commits:
 evidence:
 last_report:
-overlaps: ET-skill-origin-attribution, ET-skill-exposure-lifecycle, ET-session-composer-skill-chip
+overlaps: ET-skill-exposure-lifecycle; ET-skill-origin-attribution; ET-session-composer-skill-chip; ET-web-marketplace-installed-management
 ---
 
 With one Compozy-native skill and skills absorbed from `agents`, `claude`, and a custom folder,
@@ -30,3 +30,5 @@ rolled back, and keeps the daemon's codes verbatim. Confirm a bundled skill show
 card at all — absent, not disabled.
 
 Covers UT-072, UT-073, E2E-010, E2E-011.
+
+QA plan 2026-08-25 (skill sources cycle): re-pointed from the `J-layer-profile-resources` placeholder to `J-share-skills-with-other-tools`. Entry points now use the real routes — the installed detail is `/marketplace/skills/$entryId`, not a singular `skill` segment. Stable selectors exist for this walk (`skill-exposures-card`, `skill-expose-panel` plus its `-row-{target}`, `-row-{target}-expose-again`, `-row-{target}-unexpose`, `-result-{target}`, `-failure` children, and `skill-expose-target-picker-{trigger|option-{slug}|confirm|none}`), so the browser pass asserts on them rather than on copy. Charter: `CH-skill-expose-web-repair`.

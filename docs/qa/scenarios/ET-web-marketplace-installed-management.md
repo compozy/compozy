@@ -6,10 +6,10 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: Each kind opens in Installed scope with `tab` omitted and exposes only daemon-backed controls: skill content, shadows, enable and update; extension kit inventory, lifecycle, environment, diagnostics and provenance; MCP creation and exact-scope configuration, status and authorization.
 entry_points: /marketplace/skills; /marketplace/mcps; /marketplace/extensions
-qa_status: blocked-verify
+qa_status: untested
 bug_ids:
 fix_status:
-retest_status: blocked-verify
+retest_status:
 fix_commits:
 evidence: docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/marketplace-skill-disabled.png; docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/extension-spec-cycle-trust.png; docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/marketplace-mcp-playwright-installed.png
 last_report: docs/qa/reports/2026-08-10-loop-browser-runtime-closeout.md
@@ -77,3 +77,5 @@ official trust stayed truthful; then installed Playwright in workspace scope and
 installed stdio detail. The isolated catalog exposed no extension update candidate, so the remaining
 update branch could not be walked without fabricated state; its detail contract is tracked by
 ET-web-extension-detail.
+
+QA impact 2026-08-25 (skill sources): reset because the installed skill detail gained a new daemon-backed control surface. The Exposures card now sits beside skill content, shadows, enable, and update, and origin attribution renders on the installed rows. Bundled skills must show no Exposures card at all — absent, not disabled — so the "only daemon-backed controls" claim in this scenario's promise has to be re-settled against the new card. Rides along in `CH-skill-expose-web-repair`.

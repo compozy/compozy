@@ -55,3 +55,5 @@ operations were present. Existing cross-plane discovery evidence remains valid f
 
 QA impact 2026-08-10: the official skill gained `references/desktop.md` and desktop routing while
 its public prose moved to CompozyOS. Reset to `untested`; Task 07 owns the cross-plane re-walk.
+
+QA impact 2026-08-25 (skill sources): already `untested`, and this cycle adds a reason to walk it. Task_07 rewrote two of the bundled skill's references — `references/configuration.md` (the two source keys, their scopes, and the agent-write claim) and `references/tools-and-skills.md` (origins, precedence, suppression, exposure). The scenario's promise is that every read plane agrees on one `compozy` entry; this cycle's specific risk is that the served body now describes behavior the runtime does not implement. Read the configuration reference against the shipped tool surface, not just against itself — see `ET-skill-source-agent-parity` for the agent-write discrepancy this cycle found. Rides along in `CH-skill-sources-agent-plane`.
