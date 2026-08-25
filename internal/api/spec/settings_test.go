@@ -961,14 +961,21 @@ func assertSettingsUpdateTargetSetSchema(t *testing.T, schema *openapi3.Schema) 
 	if !slices.Equal(got, want) {
 		t.Fatalf("settings update target set enum = %v, want %v", got, want)
 	}
-	for _, invalid := range [][]any{
-		{"app", "runtime"},
-		{"runtime", "runtime"},
-		{},
+	for _, test := range []struct {
+		name  string
+		value []any
+	}{
+		{name: "Should reject app before runtime", value: []any{"app", "runtime"}},
+		{name: "Should reject duplicate runtime", value: []any{"runtime", "runtime"}},
+		{name: "Should reject an empty target set", value: []any{}},
 	} {
-		if schema.IsMatching(invalid) {
-			t.Fatalf("settings update target set schema accepts invalid targets %v", invalid)
-		}
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if schema.IsMatching(test.value) {
+				t.Fatalf("settings update target set schema accepts invalid targets %v", test.value)
+			}
+		})
 	}
 }
 
