@@ -353,6 +353,63 @@ func TestSessionTailReadContract(t *testing.T) {
 func TestSessionAttachReplayAndResizeContract(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should broadcast each lease transition to every active subscriber [UT-018]", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings())
+		agent := Actor{
+			Kind: ActorKindAgent, ID: "agent", ProfileID: "profile-a",
+			SessionID: "session-a", RunID: "run-a", Generation: 1,
+		}
+		handle, err := manager.Open(context.Background(), OpenRequest{
+			WS: "workspace-a", Shell: "sh", Actor: agent,
+			Capabilities: Capabilities{Interactive: true},
+		})
+		if err != nil {
+			t.Fatalf("Open(agent) error = %v", err)
+		}
+		receiveStartedProc(t, starter)
+		human := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		subscriptions := make([]Subscription, 0, 2)
+		for range 2 {
+			subscriber, attachErr := handle.Attach(context.Background(), AttachOptions{
+				Mode: "read", Flow: "drop", Actor: human,
+			})
+			if attachErr != nil {
+				t.Fatalf("Attach(watcher) error = %v", attachErr)
+			}
+			t.Cleanup(func() {
+				if closeErr := subscriber.Close(); closeErr != nil {
+					t.Errorf("subscriber Close() error = %v", closeErr)
+				}
+			})
+			assertAttachedFrame(t, receiveSubscriptionFrame(t, subscriber), 0, false)
+			subscriptions = append(subscriptions, subscriber)
+		}
+
+		if err := handle.Takeover(context.Background(), human, true); err != nil {
+			t.Fatalf("Takeover() error = %v", err)
+		}
+		for _, subscriber := range subscriptions {
+			frame := receiveSubscriptionFrame(t, subscriber)
+			if frame.Op != terminalwire.ServerOpOwner {
+				t.Fatalf("lease transition opcode = 0x%02x, want OWNER", frame.Op)
+			}
+			var payload struct {
+				Lease     LeaseState `json:"lease"`
+				ActorKind ActorKind  `json:"actor_kind"`
+				ActorID   string     `json:"actor_id"`
+				Reason    string     `json:"reason"`
+			}
+			if err := json.Unmarshal(frame.Payload, &payload); err != nil {
+				t.Fatalf("decode OWNER: %v", err)
+			}
+			if payload.Lease != LeaseHumanOwned || payload.ActorKind != ActorKindHuman ||
+				payload.ActorID != human.ID || payload.Reason != "takeover" {
+				t.Fatalf("OWNER = %#v, want human takeover", payload)
+			}
+		}
+	})
+
 	t.Run("Should continue exactly or send a complete truncated resync [IT-004]", func(t *testing.T) {
 		t.Parallel()
 		settings := DefaultSettings()

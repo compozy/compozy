@@ -60,7 +60,7 @@ func TestLeaseMachineContract(t *testing.T) {
 		lease := newLeaseMachine(agent, io.Discard, time.Second, func(from, to LeaseState, reason string, _ Actor, _ *Actor) {
 			transitions <- string(from) + ">" + string(to) + ":" + reason
 		})
-		if err := lease.takeover(humanA, true); err != nil {
+		if err := lease.takeover(humanA, false); err != nil {
 			t.Fatalf("takeover() error = %v", err)
 		}
 		state, controller := lease.snapshot()
@@ -69,6 +69,25 @@ func TestLeaseMachineContract(t *testing.T) {
 		}
 		if got := <-transitions; got != "agent_owned>human_owned:takeover" {
 			t.Fatalf("transition = %q", got)
+		}
+	})
+
+	t.Run("Should require confirmation before displacing another human [UT-018][UT-118]", func(t *testing.T) {
+		t.Parallel()
+		lease := newLeaseMachine(humanA, io.Discard, time.Second, nil)
+		if err := lease.takeover(humanB, false); !errors.Is(err, ErrWriteOwnerHeld) {
+			t.Fatalf("takeover(without confirmation) error = %v, want ErrWriteOwnerHeld", err)
+		}
+		state, controller := lease.snapshot()
+		if state != LeaseHumanOwned || controller == nil || controller.ID != humanA.ID {
+			t.Fatalf("lease after refusal = %s %#v, want human-a", state, controller)
+		}
+		if err := lease.takeover(humanB, true); err != nil {
+			t.Fatalf("takeover(after confirmation) error = %v", err)
+		}
+		state, controller = lease.snapshot()
+		if state != LeaseHumanOwned || controller == nil || controller.ID != humanB.ID {
+			t.Fatalf("lease after confirmation = %s %#v, want human-b", state, controller)
 		}
 	})
 
@@ -101,7 +120,7 @@ func TestLeaseMachineContract(t *testing.T) {
 		}
 	})
 
-	t.Run("Should select one winner for simultaneous forced human takeovers [UT-020]", func(t *testing.T) {
+	t.Run("Should select one winner for simultaneous human takeovers [UT-020]", func(t *testing.T) {
 		t.Parallel()
 		lease := newLeaseMachine(agent, io.Discard, time.Second, nil)
 		start := make(chan struct{})
@@ -110,7 +129,7 @@ func TestLeaseMachineContract(t *testing.T) {
 			actor := actor
 			go func() {
 				<-start
-				results <- lease.takeover(actor, true)
+				results <- lease.takeover(actor, false)
 			}()
 		}
 		close(start)
@@ -182,16 +201,16 @@ func TestLeaseMachineContract(t *testing.T) {
 		second := lease.attachWriter(humanA)
 		lease.detachWriter(first)
 		time.Sleep(50 * time.Millisecond)
-		state, _ := lease.snapshot()
-		if state != LeaseHumanOwned {
-			t.Fatalf("state after one detach = %s, want held", state)
+		state, controller := lease.snapshot()
+		if state != LeaseHumanOwned || controller == nil || controller.ID != humanA.ID {
+			t.Fatalf("lease after one detach = %s %#v, want human-a held", state, controller)
 		}
 		lease.detachWriter(second)
 		resumed := lease.attachWriter(humanA)
 		time.Sleep(50 * time.Millisecond)
-		state, _ = lease.snapshot()
-		if state != LeaseHumanOwned {
-			t.Fatalf("state after grace cancellation = %s, want held", state)
+		state, controller = lease.snapshot()
+		if state != LeaseHumanOwned || controller == nil || controller.ID != humanA.ID {
+			t.Fatalf("lease after grace cancellation = %s %#v, want human-a held", state, controller)
 		}
 		lease.detachWriter(resumed)
 		select {

@@ -1,0 +1,47 @@
+// Narrow public entry for the terminal system.
+//
+// Everything exported here is free of the emulator, so a surface that merely
+// *mentions* terminals — the session decision dock, the remembered-decisions
+// section, the composer's quote slot — can import it without pulling the
+// terminal chunk into a bundle its users may never open. The full barrel
+// (`@/systems/terminal`) stays behind a lazy boundary.
+
+export {
+  TerminalApprovalDetail,
+  type TerminalApprovalDetailProps,
+} from "./components/terminal-approval-detail";
+export { TerminalGrantRow } from "./components/terminal-grant-row";
+export {
+  terminalGrantFromToolGrant,
+  type TerminalGrant,
+  type TerminalGrantKind,
+  type ToolApprovalGrantLike,
+} from "./lib/terminal-grant";
+export { TerminalQuoteBlock, TerminalSelectionActions } from "./components/terminal-quote-block";
+export {
+  isTerminalPermission,
+  terminalPermissionDetail,
+  type TerminalPermissionDetail,
+  type TerminalPermissionRisk,
+} from "./lib/terminal-permission";
+export {
+  buildTerminalQuote,
+  terminalSelectionLines,
+  type TerminalQuote,
+} from "./lib/terminal-quote";
+export {
+  terminalApprovalCopy,
+  terminalConfidenceCopy,
+  terminalExitCopy,
+  terminalInputOutcomeCopy,
+} from "./lib/terminal-copy";
+// The dock reads the badge without ever opening a terminal, so the projection
+// belongs on the emulator-free entry alongside the other mention-only surfaces.
+export {
+  projectTerminalBadge,
+  terminalsRunning,
+  type TerminalBadgeInput,
+  type TerminalBadgeProjection,
+  type TerminalPendingApproval,
+} from "./lib/terminal-badge";
+export type { TerminalRunState } from "./types";

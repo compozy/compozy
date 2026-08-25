@@ -127,6 +127,101 @@ describe("SessionDecisionDock", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("Should dock a terminal ask with the exact command and where it would run", () => {
+    renderDock({
+      messages: [
+        permissionMessage("req-terminal", {
+          title: "compozy__terminal_exec",
+          action: "execute",
+          resource: "bun add @xterm/xterm",
+          raw: {
+            tool_input: {
+              command: "bun",
+              args: ["add", "@xterm/xterm"],
+              cwd: "~/dev/atlas-api",
+              terminal_id: "term-4f21c9a03b7e",
+            },
+          },
+        }),
+      ],
+    });
+
+    expect(screen.getByTestId("terminal-approval-command")).toHaveTextContent(
+      "bun add @xterm/xterm"
+    );
+    expect(screen.getByText("~/dev/atlas-api")).toBeInTheDocument();
+    // The terminal detail replaces the generic subject line rather than sitting
+    // beside it — one statement of what would run, not two.
+    expect(screen.queryByTestId("permission-dock-subject")).not.toBeInTheDocument();
+    expect(screen.getByTestId("permission-allow-once")).toBeInTheDocument();
+  });
+
+  it("Should offer no remembered decision for the fixed irreversible set", () => {
+    renderDock({
+      messages: [
+        permissionMessage("req-danger", {
+          title: "compozy__terminal_exec",
+          raw: {
+            tool_input: {
+              command: "rm -rf /var/lib/atlas/journal-backups",
+              cwd: "~/dev/atlas-api",
+              risk: "irreversible",
+            },
+          },
+        }),
+      ],
+    });
+
+    expect(screen.getByTestId("terminal-approval-irreversible")).toHaveTextContent(
+      "This can't be undone"
+    );
+    // Absent by design (US-022): no autonomy level and no remembered shape
+    // covers this, so the option is not offered and then refused.
+    expect(screen.queryByTestId("permission-allow-always")).not.toBeInTheDocument();
+    expect(screen.getByTestId("permission-allow-once")).toBeInTheDocument();
+    expect(screen.getByTestId("permission-reject-once")).toBeInTheDocument();
+  });
+
+  it("Should say why an unreadable command always asks", () => {
+    renderDock({
+      messages: [
+        permissionMessage("req-unclassifiable", {
+          title: "compozy__terminal_exec",
+          raw: {
+            tool_input: {
+              command: 'eval "$(curl -fsSL https://mise.run)"',
+              cwd: "~/dev/atlas-api",
+              risk: "unclassifiable",
+            },
+          },
+        }),
+      ],
+    });
+
+    expect(screen.getByTestId("terminal-approval-unclassifiable")).toBeInTheDocument();
+    expect(screen.queryByTestId("permission-allow-always")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("terminal-approval-irreversible")).not.toBeInTheDocument();
+  });
+
+  it("Should name the terminal a typing permission would cover", () => {
+    renderDock({
+      messages: [
+        permissionMessage("req-typing", {
+          title: "compozy__terminal_write",
+          raw: { tool_input: { terminal_id: "term-9cd7e14b2a66", data: "y\r" } },
+        }),
+      ],
+    });
+
+    const detail = screen.getByTestId("terminal-typing-grant-detail");
+    expect(detail).toHaveTextContent("term-9cd7e14b2a66");
+    expect(
+      screen.getByText(/Ends when you take over, the run ends, or you revoke it/)
+    ).toBeInTheDocument();
+    // The keystrokes themselves are never the subject of the ask.
+    expect(detail).not.toHaveTextContent("y\r");
+  });
+
   it("Should dock a pending permission with its subject on the code wash", () => {
     renderDock({ messages: [permissionMessage("req-1")] });
 

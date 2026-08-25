@@ -172,15 +172,10 @@ func (m *leaseMachine) takeover(actor Actor, force bool) error {
 		m.mu.Unlock()
 		return &Error{Code: "write_owner_held", Message: "agents cannot displace the current controller", Controller: controller, Err: ErrWriteOwnerHeld}
 	}
-	if m.controller != nil && m.controller.Kind == ActorKindHuman {
+	if m.controller != nil && m.controller.Kind == ActorKindHuman && !force {
 		controller := cloneActor(m.controller)
 		m.mu.Unlock()
 		return &Error{Code: "write_owner_held", Message: "another human controls the terminal", Controller: controller, Err: ErrWriteOwnerHeld}
-	}
-	if m.controller != nil && !force {
-		controller := cloneActor(m.controller)
-		m.mu.Unlock()
-		return &Error{Code: "write_owner_held", Message: "terminal takeover requires force", Controller: controller, Err: ErrWriteOwnerHeld}
 	}
 	from := m.state
 	m.controller = cloneActor(&actor)

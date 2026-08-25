@@ -12,7 +12,7 @@ import (
 )
 
 func configurePipeCommand(command *exec.Cmd) {
-	command.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	procutil.ConfigureCommandSession(command)
 }
 
 func registerPipeCommand(*exec.Cmd) error { return nil }

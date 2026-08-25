@@ -2,11 +2,14 @@ package terminal
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
 )
 
 func (s *session) Info() Info {
@@ -338,7 +341,30 @@ func (s *session) leaseChanged(from, to LeaseState, reason string, actor Actor, 
 		s.info.TypingGeneration++
 	}
 	info := s.infoSnapshotLocked()
+	subscribers := make([]*subscription, 0, len(s.subscribers))
+	for _, subscriber := range s.subscribers {
+		subscribers = append(subscribers, subscriber)
+	}
 	s.mu.Unlock()
+	actorKind := ActorKind("")
+	actorID := ""
+	if controller != nil {
+		actorKind = controller.Kind
+		actorID = controller.ID
+	}
+	payload, err := json.Marshal(struct {
+		Lease     LeaseState `json:"lease"`
+		ActorKind ActorKind  `json:"actor_kind"`
+		ActorID   string     `json:"actor_id"`
+		Reason    string     `json:"reason"`
+	}{Lease: to, ActorKind: actorKind, ActorID: actorID, Reason: reason})
+	if err != nil {
+		s.manager.logger.Warn("terminal: encode owner frame", "terminal_id", info.ID, "error", err)
+	} else {
+		for _, subscriber := range subscribers {
+			subscriber.deliver(Frame{Op: terminalwire.ServerOpOwner, Payload: payload}, 0)
+		}
+	}
 	s.manager.events.Emit(context.Background(), TerminalEvent{
 		Kind: EventKindLeaseChanged, WorkspaceID: info.WS, ProfileID: info.ProfileID,
 		ProfileName: s.profileName,

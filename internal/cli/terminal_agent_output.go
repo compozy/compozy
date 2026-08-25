@@ -120,12 +120,29 @@ func terminalQuoteBundle(id string, from, to int, content string) outputBundle {
 func terminalQuote(id string, from, to int, content string) string {
 	lines := strings.Split(strings.TrimSuffix(content, "\n"), "\n")
 	quoted := make([]string, 0, len(lines)+2)
-	quoted = append(quoted, fmt.Sprintf("<terminal_context terminal=%q lines=%q>", id, fmt.Sprintf("%d-%d", from, to)))
+	quoted = append(quoted, fmt.Sprintf(
+		`<terminal_context terminal="%s" lines="%d-%d">`,
+		escapeTerminalContext(id),
+		from,
+		to,
+	))
 	for index, line := range lines {
-		quoted = append(quoted, fmt.Sprintf("%d | %s", from+index, line))
+		quoted = append(quoted, fmt.Sprintf("%d | %s", from+index, escapeTerminalContext(line)))
 	}
 	quoted = append(quoted, "</terminal_context>")
 	return strings.Join(quoted, "\n")
+}
+
+var terminalContextEscaper = strings.NewReplacer(
+	"&", "&amp;",
+	"<", "&lt;",
+	">", "&gt;",
+	`"`, "&quot;",
+	"'", "&apos;",
+)
+
+func escapeTerminalContext(value string) string {
+	return terminalContextEscaper.Replace(value)
 }
 
 func nullableTerminalCursor(cursor string) any {

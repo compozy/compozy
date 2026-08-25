@@ -67,6 +67,7 @@ function replaceGeneratedSections(text) {
     ["signal", signalTable()],
     ["owner-avatar", tokenTable(prefixRows(runtimeTheme, "color-avatar-"))],
     ["status-tone", tokenTable(prefixRows(runtimeTheme, "color-kind-"))],
+    ["terminal-ansi", tokenTable(terminalRampRows())],
     ["fonts", tokenTable(namedRows(runtimeDecls, fontTokenPattern))],
     ["type-ladder", typeTable()],
     ["tracking-ladder", tokenTable(prefixRows(runtimeTheme, "tracking-"))],
@@ -114,6 +115,15 @@ function shellGlassRows() {
     ["--" + stem, runtime.get(stem)],
     ["--color-" + stem, runtime.get("color-" + stem)],
   ]);
+}
+
+// The terminal ramp follows the shell-glass shape: canonical `:root --terminal-*`
+// literals with mechanical `@theme --color-terminal-*` adapters. The table
+// documents the canonical names — the identity the emulator bridge resolves —
+// because the alias is `var(--terminal-X)` for every one of them and listing
+// forty rows to say that twenty times would bury the palette.
+function terminalRampRows() {
+  return namedRows(runtimeDecls, /^terminal-/);
 }
 
 function namedRows(decls, re) {

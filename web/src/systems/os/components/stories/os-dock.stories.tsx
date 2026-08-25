@@ -1,10 +1,18 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
-import { ChevronRight, Search } from "lucide-react";
+import { ChevronRight, Search, Terminal } from "lucide-react";
 
 import { Button, useTopbarSlot } from "@compozy/ui";
 
+import {
+  projectTerminalBadge,
+  terminalsRunning,
+  type TerminalBadgeInput,
+  type TerminalRunState,
+} from "@/systems/terminal/parts";
+
 import { OsDock, OsDockZone, type OsDockItemData } from "../os-dock";
+import { DockIcons } from "../os-dock-icons";
 import { OsWindowFrame } from "../os-window-frame";
 import { buildDeskItems, DesktopShell, DESK_APP_ITEMS, DESK_ITEMS } from "./_desktop";
 
@@ -185,6 +193,92 @@ export const HoverMagnify: Story = {
   render: () => (
     <DesktopShell dock={false}>
       <OsDockZone items={DESK_ITEMS} onSelect={fn()} onNewSession={fn()} magnify />
+    </DesktopShell>
+  ),
+};
+
+/**
+ * VC-03 — the terminal launcher, in the three states its runtime projection
+ * produces. The count is never authored here: `projectTerminalBadge` counts the
+ * questions and approvals waiting on this person under the profile they are
+ * working as, and `terminalsRunning` decides the indicator. Zero renders
+ * nothing at all, so the resting launcher is indistinguishable from any other
+ * closed app.
+ *
+ * The launcher is registered by the activation tranche; this story composes the
+ * dock with the projection to hold the badge to its contract before then.
+ */
+const TERMINAL_BADGE_STATES: { label: string; input: TerminalBadgeInput }[] = [
+  {
+    label: "Nothing waiting",
+    input: {
+      scopeKey: "8:ws-atlas4:work",
+      profileId: "work",
+      inputRequests: [],
+      pendingApprovals: [],
+    },
+  },
+  {
+    label: "One question waiting",
+    input: {
+      scopeKey: "8:ws-atlas4:work",
+      profileId: "work",
+      inputRequests: [{ profile_id: "work" }],
+      pendingApprovals: [],
+    },
+  },
+  {
+    label: "Three waiting",
+    input: {
+      scopeKey: "8:ws-atlas4:work",
+      profileId: "work",
+      // The last row belongs to another profile and must not be counted.
+      inputRequests: [{ profile_id: "work" }, { profile_id: "work" }, { profile_id: "personal" }],
+      pendingApprovals: [{ terminalId: "trm_7f21", profileId: "work" }],
+    },
+  },
+];
+
+const TERMINAL_STRIP_TERMINALS: { state: TerminalRunState }[][] = [
+  [],
+  [{ state: "running" }],
+  [{ state: "running" }, { state: "exited" }],
+];
+
+export const TerminalLauncher: Story = {
+  args: { items: DESK_ITEMS },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Visual Contract VC-03. Left to right: resting, one question waiting, three waiting. The third strip's fixture includes a row owned by another profile to prove the count stays inside the profile you are working as.",
+      },
+    },
+  },
+  render: () => (
+    <DesktopShell dock={false}>
+      <div className="absolute inset-x-0 top-[62px] flex items-start justify-center gap-4">
+        {TERMINAL_BADGE_STATES.map((state, index) => (
+          <OsDock
+            key={state.label}
+            aria-label={`Dock — ${state.label}`}
+            magnify={false}
+            items={
+              [
+                { id: "sessions", name: "Sessions", icon: DockIcons.sessions },
+                {
+                  id: "terminal",
+                  name: "Terminal",
+                  icon: Terminal,
+                  running: terminalsRunning(TERMINAL_STRIP_TERMINALS[index]),
+                  badge: projectTerminalBadge(state.input).count,
+                },
+                { id: "tasks", name: "Tasks", icon: DockIcons.tasks },
+              ] satisfies OsDockItemData[]
+            }
+          />
+        ))}
+      </div>
     </DesktopShell>
   ),
 };

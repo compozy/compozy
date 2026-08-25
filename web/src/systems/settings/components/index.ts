@@ -21,6 +21,10 @@ export { ProviderInspectView } from "./provider-inspect-view";
 export { ProviderLogo } from "./provider-logo";
 export { ProviderModelCatalogStatus } from "./provider-model-catalog-status";
 export { NetworkSettingsSections } from "./network-settings-sections";
+export {
+  TerminalSettingsSections,
+  type TerminalSettingsConfig,
+} from "./terminal-settings-sections";
 export { SettingsDecimalInput } from "./settings-decimal-input";
 export { SettingsDisabledSkillsSection } from "./settings-disabled-skills-section";
 export { SettingsSkillSourcesSection } from "./settings-skill-sources-section";

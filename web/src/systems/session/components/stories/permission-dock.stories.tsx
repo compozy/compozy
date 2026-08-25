@@ -69,3 +69,70 @@ export const GatedDecisions: Story = {
     },
   },
 };
+
+/**
+ * VC-10 — a terminal ask, decided on the session's one decision surface.
+ *
+ * The generic subject line cannot show what matters here, so the terminal
+ * detail replaces it: the exact command as the agent wrote it, the folder it
+ * would run in, and the terminal it is bound to.
+ *
+ * The board titles this row "Claude Code wants to run · dev server". The
+ * request carries neither — no requester field, and only a `terminal_id` rather
+ * than the terminal's name — so the dock states the tool and lets the detail
+ * carry the facts. Authorized runtime-truth delta.
+ */
+export const TerminalExec: Story = {
+  args: {
+    permission: {
+      ...permission,
+      toolName: "compozy__terminal_exec",
+      toolInput: {
+        command: "bun",
+        args: ["add", "@xterm/xterm", "@xterm/addon-fit"],
+        cwd: "~/dev/atlas-api",
+        terminal_id: "term-4f21c9a03b7e",
+      },
+    },
+  },
+};
+
+/**
+ * VC-11 — an irreversible command.
+ *
+ * Danger is stated in words before the command is even read, and no remembered
+ * decision is offered: the fixed irreversible set always asks, at every autonomy
+ * level, so an "Always allow" here would be a promise the runtime would refuse
+ * to keep.
+ */
+export const TerminalIrreversible: Story = {
+  args: {
+    permission: {
+      ...permission,
+      toolName: "compozy__terminal_exec",
+      toolInput: {
+        command: "rm",
+        args: ["-rf", "/var/lib/atlas/journal-backups"],
+        cwd: "~/dev/atlas-api",
+        terminal_id: "term-4f21c9a03b7e",
+        risk: "irreversible",
+      },
+    },
+  },
+};
+
+/**
+ * VC-12a — permission to type into a terminal someone else is watching.
+ *
+ * Typing is scoped to one terminal, named by id, and reads as a permission
+ * rather than as a tool call.
+ */
+export const TerminalTypingGrant: Story = {
+  args: {
+    permission: {
+      ...permission,
+      toolName: "compozy__terminal_write",
+      toolInput: { terminal_id: "term-9cd7e14b2a66" },
+    },
+  },
+};

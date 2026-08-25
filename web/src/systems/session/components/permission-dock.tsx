@@ -2,6 +2,9 @@ import { ChevronUp } from "lucide-react";
 
 import { Button, cn, Dock, Kbd } from "@compozy/ui";
 
+// Narrow entry: the dock must not pull the emulator into every session bundle.
+import { TerminalApprovalDetail, terminalPermissionDetail } from "@/systems/terminal/parts";
+
 import { usePermissionDock } from "../hooks/use-permission-dock";
 import { useRejectMenuElements } from "../hooks/use-reject-menu-elements";
 import type { PermissionRequest } from "../types";
@@ -50,6 +53,11 @@ export function PermissionDock({
 
   const offersRejectOnce = decisionOptions.includes("reject-once");
   const offersRejectAlways = decisionOptions.includes("reject-always");
+  // A terminal ask carries facts the generic subject line cannot show: the exact
+  // command, where it would run, and why the runtime is asking.
+  const terminalDetail = terminalPermissionDetail(permission.toolName, permission.toolInput);
+  const offersNoRememberedDecision =
+    terminalDetail?.kind === "exec" && terminalDetail.risk !== "ordinary";
 
   return (
     <Dock data-testid="permission-dock" role="region" aria-label="Permission required">
@@ -61,7 +69,11 @@ export function PermissionDock({
         ) : null}
       </Dock.Head>
       <Dock.Body>
-        {subject ? <Dock.Pre data-testid="permission-dock-subject">{subject}</Dock.Pre> : null}
+        {terminalDetail ? (
+          <TerminalApprovalDetail detail={terminalDetail} />
+        ) : subject ? (
+          <Dock.Pre data-testid="permission-dock-subject">{subject}</Dock.Pre>
+        ) : null}
         {permission.action || permission.resource ? (
           <Dock.Meta data-testid="permission-dock-meta">
             {permission.action}
@@ -83,7 +95,9 @@ export function PermissionDock({
             <Dock.Key>1</Dock.Key>
           </Button>
         ) : null}
-        {decisionOptions.includes("allow-always") ? (
+        {/* No remembered decision covers the fixed irreversible set (US-022),
+            so the option is absent here rather than offered and refused. */}
+        {decisionOptions.includes("allow-always") && !offersNoRememberedDecision ? (
           <Button
             size="sm"
             variant="outline"

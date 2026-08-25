@@ -5,9 +5,36 @@ package procutil
 import (
 	"errors"
 	"fmt"
+	"os/exec"
 	"syscall"
 	"testing"
 )
+
+func TestConfigureCommandSession(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should create a new session without claiming a controlling terminal", func(t *testing.T) {
+		t.Parallel()
+		command := exec.CommandContext(t.Context(), "true")
+
+		ConfigureCommandSession(command)
+
+		if command.SysProcAttr == nil || !command.SysProcAttr.Setsid || command.SysProcAttr.Setctty {
+			t.Fatalf("session SysProcAttr = %#v, want Setsid without Setctty", command.SysProcAttr)
+		}
+	})
+
+	t.Run("Should create a new session that claims its controlling terminal", func(t *testing.T) {
+		t.Parallel()
+		command := exec.CommandContext(t.Context(), "true")
+
+		ConfigureCommandTerminalSession(command)
+
+		if command.SysProcAttr == nil || !command.SysProcAttr.Setsid || !command.SysProcAttr.Setctty {
+			t.Fatalf("terminal session SysProcAttr = %#v, want Setsid and Setctty", command.SysProcAttr)
+		}
+	})
+}
 
 func TestJoinProcessGroupKillResult(t *testing.T) {
 	t.Parallel()

@@ -22,6 +22,7 @@ export {
   settingsSectionPath,
 } from "./lib/sections";
 export { DEFAULT_SETTINGS_SECTION_SLUG } from "./lib/section-paths";
+export { readTerminalSettings } from "./lib/terminal-settings-projection";
 
 // MCP page models (status matrix + editor draft)
 export {
@@ -252,6 +253,8 @@ export {
   ProviderLogo,
   ProviderModelCatalogStatus,
   NetworkSettingsSections,
+  TerminalSettingsSections,
+  type TerminalSettingsConfig,
   ProviderRow,
   ProvidersToolbar,
   RoleList,

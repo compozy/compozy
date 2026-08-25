@@ -2,6 +2,9 @@ import { Plus, Shield, Trash2 } from "lucide-react";
 
 import { Button, ConfirmDialog, DataSurface, Section } from "@compozy/ui";
 
+// Narrow entry: this section must not pull the emulator into settings.
+import { TerminalGrantRow, terminalGrantFromToolGrant } from "@/systems/terminal/parts";
+
 import { useToolApprovalGrantsPanel } from "../hooks/use-tool-approval-grants-panel";
 import { ToolApprovalGrantSetDialog } from "./tool-approval-grant-set-dialog";
 import { ToolApprovalGrantRow } from "./tool-approval-grant-row";
@@ -64,9 +67,22 @@ export function ToolApprovalGrantsSection() {
           className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
           data-testid={`${TEST_ID}-list`}
         >
-          {grants.map(grant => (
-            <ToolApprovalGrantRow grant={grant} key={grant.id} onRevoke={revoke.open} />
-          ))}
+          {grants.map(grant => {
+            // Terminal permissions are remembered decisions like any other, so
+            // they list and revoke here rather than in a second policy surface.
+            // They only read differently: "can type in psql" is not a tool id.
+            const terminalGrant = terminalGrantFromToolGrant(grant);
+            if (terminalGrant) {
+              return (
+                <TerminalGrantRow
+                  grant={terminalGrant}
+                  key={grant.id}
+                  onRevoke={() => revoke.open(grant)}
+                />
+              );
+            }
+            return <ToolApprovalGrantRow grant={grant} key={grant.id} onRevoke={revoke.open} />;
+          })}
         </DataSurface.Content>
       </DataSurface>
       <ToolApprovalGrantSetDialog

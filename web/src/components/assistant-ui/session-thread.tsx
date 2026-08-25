@@ -2,6 +2,7 @@ import { ThreadPrimitive, useAui } from "@assistant-ui/react";
 
 import { SessionGoalHeaderContainer } from "@/systems/session/components/goal/session-goal-header-container";
 import { SessionGoalCommandErrorNotice } from "@/systems/session/components/goal/session-goal-command-error-notice";
+import { SessionTerminalQuoteSlot } from "@/systems/session/components/session-terminal-quote-slot";
 
 import { useSessionComposerState } from "./hooks/use-session-composer-state";
 import { usePrefersReducedMotion } from "./hooks/use-prefers-reduced-motion";
@@ -130,6 +131,7 @@ export function SessionThread({
           />
           <ThreadContentRail inset={contentInset} className="pt-2">
             <SessionGoalCommandErrorNotice sessionId={sessionId} />
+            {readOnly ? null : <SessionTerminalQuoteSlot sessionId={sessionId} />}
             {runtimeRunning ? (
               <WorkingIndicator
                 liveDataEnabled={liveDataEnabled}

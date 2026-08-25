@@ -47,6 +47,26 @@ tokens:
       neutral: "#7a7a80"
       neutral-ink: "#8a8a90"
       neutral-tint: "rgba(150, 150, 155, 0.06)"
+      terminal-bg: "var(--terminal-bg)"
+      terminal-fg: "var(--terminal-fg)"
+      terminal-cursor: "var(--terminal-cursor)"
+      terminal-selection: "var(--terminal-selection)"
+      terminal-ansi-0: "var(--terminal-ansi-0)"
+      terminal-ansi-1: "var(--terminal-ansi-1)"
+      terminal-ansi-2: "var(--terminal-ansi-2)"
+      terminal-ansi-3: "var(--terminal-ansi-3)"
+      terminal-ansi-4: "var(--terminal-ansi-4)"
+      terminal-ansi-5: "var(--terminal-ansi-5)"
+      terminal-ansi-6: "var(--terminal-ansi-6)"
+      terminal-ansi-7: "var(--terminal-ansi-7)"
+      terminal-ansi-8: "var(--terminal-ansi-8)"
+      terminal-ansi-9: "var(--terminal-ansi-9)"
+      terminal-ansi-10: "var(--terminal-ansi-10)"
+      terminal-ansi-11: "var(--terminal-ansi-11)"
+      terminal-ansi-12: "var(--terminal-ansi-12)"
+      terminal-ansi-13: "var(--terminal-ansi-13)"
+      terminal-ansi-14: "var(--terminal-ansi-14)"
+      terminal-ansi-15: "var(--terminal-ansi-15)"
       viz-line: "rgba(255, 255, 255, 0.42)"
       viz-fill: "rgba(255, 255, 255, 0.055)"
       viz-bar: "rgba(255, 255, 255, 0.3)"
@@ -727,6 +747,44 @@ new tone map at each feature boundary.
 | `--color-kind-whois`      | `var(--color-neutral)` |
 
 <!-- END:tokens:status-tone -->
+
+### Terminal emulator ramp
+
+The terminal grid is the one surface in the product that owns a solid
+sub-canvas ground: `--terminal-bg` sits a step below `--color-canvas`, because a
+terminal is a byte well, not a card.
+
+The ramp follows the shell-glass shape — one literal, two names. The canonical
+`--terminal-*` variables below are the identity the `TerminalView` theme bridge
+resolves through `getComputedStyle` and hands to the emulator. Each has a
+mechanical `@theme` adapter, `--color-terminal-X: var(--terminal-X)`, so
+terminal chrome uses generated utilities (`bg-terminal-bg`,
+`text-terminal-ansi-8`) like any other colour in the system. The values live in
+exactly one place.
+
+Indices 1, 2, 3 and their bright pairs 9, 10, 11 ride the danger, success and
+warning lanes so a red test failure in the grid is the same red as a danger
+chip. Indices 4, 5, 6 are desaturated hues at matched OKLCH lightness
+(~0.68–0.72) so no ANSI color outshouts the signal palette. Index 8 is
+dim-by-design (~3.5:1) — that is terminal convention for dim text, and it is
+never a legal color for UI copy.
+
+<!-- BEGIN:tokens:terminal-ansi -->
+
+| Token                | Value     | Token                  | Value                       |
+| -------------------- | --------- | ---------------------- | --------------------------- |
+| `--terminal-bg`      | `#131211` | `--terminal-fg`        | `#e3e1de`                   |
+| `--terminal-cursor`  | `#f7f6f4` | `--terminal-selection` | `rgba(255, 255, 255, 0.16)` |
+| `--terminal-ansi-0`  | `#2a2927` | `--terminal-ansi-1`    | `#e0635a`                   |
+| `--terminal-ansi-2`  | `#5fbf85` | `--terminal-ansi-3`    | `#d6a647`                   |
+| `--terminal-ansi-4`  | `#7d9bc8` | `--terminal-ansi-5`    | `#b48ec6`                   |
+| `--terminal-ansi-6`  | `#6fb5ab` | `--terminal-ansi-7`    | `#c9c7c3`                   |
+| `--terminal-ansi-8`  | `#6f6d68` | `--terminal-ansi-9`    | `#ef837b`                   |
+| `--terminal-ansi-10` | `#7fd3a2` | `--terminal-ansi-11`   | `#e8c06a`                   |
+| `--terminal-ansi-12` | `#9db9e3` | `--terminal-ansi-13`   | `#cdaade`                   |
+| `--terminal-ansi-14` | `#8fd0c6` | `--terminal-ansi-15`   | `#f7f6f4`                   |
+
+<!-- END:tokens:terminal-ansi -->
 
 ## 3. Typography and eyebrow contract
 

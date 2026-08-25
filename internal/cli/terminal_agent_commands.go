@@ -237,7 +237,7 @@ func newTerminalQuoteCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			result, err := client.ReadTerminal(cmd.Context(), workspaceID, args[0], TerminalReadOptions{
-				View: "lines", FromLine: from, ToLine: to,
+				View: "lines", FromLine: from - 1, ToLine: to,
 			})
 			if err != nil {
 				return err

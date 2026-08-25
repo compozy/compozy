@@ -52,7 +52,7 @@ func startInteractive(_ context.Context, spec ProcSpec) (Proc, error) {
 	command := exec.Command(setup.argv[0], setup.argv[1:]...)
 	command.Dir = spec.Cwd
 	command.Env = environment(setup.env)
-	command.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true}
+	procutil.ConfigureCommandTerminalSession(command)
 	if err := device.Start(command); err != nil {
 		return nil, errors.Join(
 			fmt.Errorf("terminal pty: start %q: %w", spec.Argv[0], err),
