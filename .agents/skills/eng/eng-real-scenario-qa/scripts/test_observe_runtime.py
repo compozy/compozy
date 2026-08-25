@@ -189,6 +189,7 @@ class PublicRuntimeReaderTest(unittest.TestCase):
     def cli_router(self, responses: dict[tuple[str, ...], dict]):
         def run(arguments: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
             self.assertEqual(kwargs["env"]["COMPOZY_HOME"], str(self.compozy_home.resolve()))
+            self.assertEqual(kwargs["env"]["COMPOZY_WORKSPACE"], self.workspace_id)
             command = tuple(arguments[1:-2])
             if command not in responses:
                 self.fail(f"unexpected public CLI command: {command}")

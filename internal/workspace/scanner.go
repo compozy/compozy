@@ -125,7 +125,12 @@ func (r *Resolver) scanWorkspaceDependencies(
 	profileName string,
 	snapshots map[string]filesnap.Snapshot,
 ) ([]ProfileDeclaration, error) {
-	if err := validatePersonalProfileRoot(ws.RootDir, r.homePaths.ProfilesDir, profileName); err != nil {
+	if err := validatePersonalProfileRoot(
+		ws.RootDir,
+		r.homePaths.HomeDir,
+		r.homePaths.ProfilesDir,
+		profileName,
+	); err != nil {
 		return nil, err
 	}
 	if err := addSnapshotIfExists(r.homePaths.ConfigFile, snapshots); err != nil {
@@ -190,7 +195,7 @@ func canonicalWorkspaceSkillRoot(path string) string {
 	return filepath.Clean(path)
 }
 
-func validatePersonalProfileRoot(workspaceRoot, profilesRoot, profileName string) error {
+func validatePersonalProfileRoot(workspaceRoot, homeRoot, profilesRoot, profileName string) error {
 	trimmedName := strings.TrimSpace(profileName)
 	if trimmedName == "" {
 		return nil
@@ -199,6 +204,13 @@ func validatePersonalProfileRoot(workspaceRoot, profilesRoot, profileName string
 	canonicalWorkspaceRoot, err := fileutil.CanonicalPathWithExistingPrefix(workspaceRoot)
 	if err != nil {
 		return fmt.Errorf("workspace: canonicalize workspace root: %w", err)
+	}
+	canonicalHomeRoot, err := fileutil.CanonicalPathWithExistingPrefix(homeRoot)
+	if err != nil {
+		return fmt.Errorf("workspace: canonicalize home root: %w", err)
+	}
+	if canonicalWorkspaceRoot == canonicalHomeRoot {
+		return nil
 	}
 	canonicalPersonalRoot, err := fileutil.CanonicalPathWithExistingPrefix(personalRoot)
 	if err != nil {

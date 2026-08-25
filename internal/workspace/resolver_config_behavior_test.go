@@ -176,6 +176,28 @@ func TestResolveWorkspaceLensesComposeUserResourcesAndLocalOverridesIT040(t *tes
 		t.Parallel()
 		testResolveWorkspaceLensesComposeUserResourcesAndLocalOverridesIT040(t)
 	})
+	t.Run("Should allow personal profile resources in the global home workspace", func(t *testing.T) {
+		t.Parallel()
+		testResolveGlobalHomeWorkspaceProfileResources(t)
+	})
+}
+
+func testResolveGlobalHomeWorkspaceProfileResources(t *testing.T) {
+	t.Helper()
+
+	homePaths := newTestHomePaths(t)
+	writeSkill(t, filepath.Join(homePaths.ProfilesDir, "default", compozyconfig.SkillsDirName, "profile-skill"))
+	store := newMockWorkspaceStore(Workspace{ID: "ws_global", RootDir: homePaths.HomeDir, Name: "global"})
+	loader := &countingConfigLoader{cfg: validConfig(homePaths)}
+	resolver := newTestResolver(t, store, WithHomePaths(homePaths), WithConfigLoader(loader.Load))
+
+	resolved, err := resolver.ResolveForProfile(t.Context(), "ws_global", "default")
+	if err != nil {
+		t.Fatalf("ResolveForProfile(global home workspace) error = %v", err)
+	}
+	if got, want := skillPathSourceByName(resolved.Skills, "profile-skill"), "profile"; got != want {
+		t.Fatalf("global home workspace profile skill source = %q, want %q", got, want)
+	}
 }
 
 func testResolveWorkspaceLensesComposeUserResourcesAndLocalOverridesIT040(t *testing.T) {
