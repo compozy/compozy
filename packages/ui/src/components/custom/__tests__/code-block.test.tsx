@@ -238,6 +238,33 @@ describe("CodeBlock", () => {
     expect(button.getAttribute("data-copied")).toBeNull();
   });
 
+  it("Should keep feedback from the newest overlapping copy request", async () => {
+    let releaseFirstRequest = () => {};
+    const firstRequest = new Promise<void>(resolve => {
+      releaseFirstRequest = resolve;
+    });
+    clipboard.writeText
+      .mockImplementationOnce(() => firstRequest)
+      .mockRejectedValueOnce(new Error("newer request blocked"));
+    const { container } = render(<CodeBlock code="compozy start" />);
+    const button = container.querySelector<HTMLButtonElement>('[data-slot="code-block-copy"]')!;
+
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(button).toHaveAttribute("data-copy-state", "failed");
+      expect(toastMocks.error).toHaveBeenCalledWith("Couldn't copy to clipboard");
+    });
+
+    await act(async () => {
+      releaseFirstRequest();
+      await Promise.resolve();
+    });
+    expect(button).toHaveAttribute("data-copy-state", "failed");
+    expect(toastMocks.success).not.toHaveBeenCalled();
+  });
+
   it("Should apply line truncation attributes", () => {
     const { container } = render(
       <CodeBlock code={"one\ntwo\nthree\nfour"} showPrompt={false} truncateLines={2} />

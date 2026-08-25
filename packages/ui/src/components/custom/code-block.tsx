@@ -223,6 +223,7 @@ function CopyIconButton({
 }: CopyIconButtonProps) {
   const [copyState, setCopyState] = React.useState<CopyState>("idle");
   const copyFeedbackTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const copyRequestRef = React.useRef(0);
 
   React.useEffect(
     () => () => {
@@ -241,7 +242,14 @@ function CopyIconButton({
   };
 
   const handleCopy = async () => {
+    const requestID = copyRequestRef.current + 1;
+    copyRequestRef.current = requestID;
+    if (copyFeedbackTimerRef.current) {
+      clearTimeout(copyFeedbackTimerRef.current);
+      copyFeedbackTimerRef.current = null;
+    }
     const copied = await writeClipboard(value);
+    if (requestID !== copyRequestRef.current) return;
     const nextState: CopyState = copied ? "copied" : "failed";
     setCopyState(nextState);
     if (copied) {
