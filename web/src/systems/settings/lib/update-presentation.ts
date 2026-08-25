@@ -145,8 +145,9 @@ function trackProgress(
  * Requires something to apply, a self-applicable install, and a free update
  * channel — acquisition is single-flight per home, so a live operation makes
  * apply impossible rather than merely inadvisable. Managed installs recommend
- * and never mutate, so they never qualify. A `failed` track qualifies again once
- * its operation is terminal: the lease is free and the offer still stands.
+ * and never mutate, so they never qualify. A failed track remains diagnostic-only
+ * until the daemon reports a fresh available state; PlanOperation rejects failed
+ * targets even when the lease is free.
  */
 function canApplyTrack(input: {
   status: SettingsUpdateStatusKind;
@@ -155,7 +156,7 @@ function canApplyTrack(input: {
   latestVersion: string | null;
 }): boolean {
   if (input.managed || input.operation !== null || input.latestVersion === null) return false;
-  return input.status === "available" || input.status === "failed";
+  return input.status === "available";
 }
 
 function dormantOperationTarget(

@@ -628,7 +628,7 @@ describe("GeneralSettingsPage — Updates section", () => {
     expect(screen.getByTestId("settings-page-general-update-last-error")).toHaveTextContent(
       "health check failed after swap"
     );
-    // The lease is free again, so the offer returns.
-    expect(apply()).toBeInTheDocument();
+    // The failed projection is diagnostic-only until a fresh check reports available.
+    expect(apply()).toBeNull();
   });
 });

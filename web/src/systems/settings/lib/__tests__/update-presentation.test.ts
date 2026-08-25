@@ -166,8 +166,9 @@ describe("settingsUpdateTracks", () => {
       restoredVersion: "0.5.0",
       lastError: "health check failed after swap",
     });
-    // The operation is terminal and the lease is free, so the offer stands again.
-    expect(runtime.canApply).toBe(true);
+    // A failed projection is diagnostic-only until a fresh check reports available;
+    // PlanOperation rejects failed targets even after the lease is free.
+    expect(runtime.canApply).toBe(false);
   });
 
   it("Should not offer a failed track without release metadata", () => {
