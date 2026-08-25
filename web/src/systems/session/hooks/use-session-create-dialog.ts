@@ -79,10 +79,12 @@ export interface SessionCreateDialogController {
   store: SessionCreateStore;
 }
 
+/** Provides the shared session-create store controller used by dialog hosts. */
 export function useSessionCreateDialogController(): SessionCreateDialogController {
   return { store: useStore(sessionCreateStoreLogic) };
 }
 
+/** Projects session-create state into the dialog API and validates durable launch requests. */
 export function useSessionCreateDialogViewModel(
   {
     agents,
