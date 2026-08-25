@@ -139,7 +139,7 @@ Generic Go concurrency patterns (goroutine ownership, channels vs mutexes, `sele
 
 ## Memory & Skills Runtime (RFC-backed)
 
-- **Five-layer skill/memory/agent precedence**: Bundled → Marketplace → User → Additional → Workspace, with agent-local overriding all. Higher precedence wins on collision; an audit trail logs every shadow.
+- **Eight-tier skill precedence**: Bundled → Marketplace → User → Profile → Additional → Workspace → Workspace-Profile → Agent-local. Higher precedence wins on collision; an audit trail logs every shadow. Non-Compozy scan roots come from `skills.sources`/`skills.custom_sources` across all four config overlays — never hardcode a root.
 - **Memory taxonomy**: `user | feedback | project | reference` types; scopes `agent | workspace | global`. Default write scope declared per agent in `memory.scope`.
 - **Memory consolidation gates**: Time → Sessions → Lock cascade ordered by computational cost. Default gates: 24h, 5 touched sessions, file-lock. Never replace gates with naive heuristics.
 - **Lifecycle hooks** (`on_session_created`, `on_session_stopped`) execute in hierarchy precedence then alphabetical order; configurable timeout (default 5s); fail-open semantics (errors logged, never block); JSON over stdin.

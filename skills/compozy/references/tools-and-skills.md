@@ -8,6 +8,7 @@
 - Oversized tool results
 - Marketplace discovery
 - Skill loading
+- Skill sources and exposure
 - Session command catalog
 - Bundled skill resources
 - Skill provenance and shadows
@@ -168,6 +169,33 @@ Inactive skills stay manageable and readable with structured reasons but are abs
 Keep administrative `enabled` separate from runtime `activation.active`.
 Tool-gated skills re-evaluate on the next projection without a daemon restart.
 
+## Skill Sources And Exposure
+
+Scan roots beyond Compozy's own come from `skills.sources` (folder conventions) and
+`skills.custom_sources` (exact directories), resolved live through four config overlays. Both are
+trust roots: `compozy__config_set` denies them with `config_trust_root_forbidden`, so read them at
+agent scope and route a change to an operator. Before reasoning about which roots are active or
+proposing a source change, read the Skill sources section of `references/configuration.md`.
+
+Inspect with `compozy skill sources -o json` or `GET /api/settings/skills`. Per root read `exists`,
+`readable`, `scanned_count` (candidates found), `skill_count` (winners contributed), `truncated`,
+`skipped_links`, `collisions`, and per-root `native_readers`. A root with `readable: false` omits its
+counts, and an omitted count means unknown — report it as unknown. Skill catalogs, sources, and
+settings answer for exactly one profile — the session's own — and no all-profiles skill view exists.
+
+Expose links a user-owned or workspace-owned skill into an enabled preset root. Operators use
+`compozy skill expose|unexpose <name> --to <targets>` and `compozy skill create <name> --expose
+<targets>`; there is no native expose tool, so a managed session uses `POST
+/api/skills/{name}/expose|unexpose` over HTTP or UDS under the same authorization gate as skill
+enable/disable. Profile- and workspace-profile-owned skills refuse with `profile_skill_not_exposable`
+before any filesystem write, and custom sources are never valid targets. Every failure is one
+`expose_failed` envelope carrying per-target `results[]`; a multi-target expose rolls completed
+targets back. CompozyOS never copies skill content and never removes a link it does not own.
+
+Skills whose winning copy already lives in a root the session's own provider reads natively are
+omitted from that session's injected catalog only — `claude` reads the `claude` origin, `openclaw`
+and `hermes` read `agents`. They remain in the command catalog, in every list, and in explicit reads.
+
 ## Session Command Catalog
 
 Read the command catalog for the exact session before referring an operator to a slash command:
@@ -181,10 +209,11 @@ that session. `/run` is reserved and absent.
 
 Daemon and ACP controls are standalone prompts. Skill tokens can appear after any whitespace boundary,
 including in the middle of a prompt; repeated references to one exact skill activate it once. Bare
-tokens name the effective bundled, user, profile, additional, workspace, workspace-profile, or
-agent-local winner. The active profile and workspace-profile layers follow the selection rules in
-`references/profiles.md`. Extension skills use `/extension-id:skill`; Marketplace skills use
-`/registry-id:skill`.
+tokens name the effective bundled, marketplace, user, profile, additional, workspace,
+workspace-profile, or agent-local winner. The active profile and workspace-profile layers follow the
+selection rules in `references/profiles.md`. Extension skills use `/extension-id:skill`; Marketplace
+skills use `/registry-id:skill`; a skill shadowed by a same-named winner stays invocable as
+`/origin:skill`, with a deterministic `origin-<hash>` prefix when two roots share one origin.
 
 Slash activation belongs to authenticated operator prompt ingress. Agent-authored prompts and
 `compozy__session_prompt` keep slash-shaped text literal. When a catalog row identifies a skill, pass
@@ -200,7 +229,7 @@ Bundled `spec-cycle` globally publishes exactly `cy-create-spec`, `cy-create-tas
 
 ## Skill Provenance And Shadows
 
-Every skill list/detail payload includes resolver provenance. `provenance.precedence_tier` names the winning tier, and installed-from metadata identifies extension ownership when present.
+Every skill list/detail payload includes resolver provenance. `provenance.precedence_tier` names the winning tier — `bundled`, `marketplace`, `user`, `profile`, `additional`, `workspace`, `workspace_profile`, or `agent_local` — and installed-from metadata identifies extension ownership when present. The separate `origin` field names the source root's convention or custom slug and is empty for Compozy-native skills; `compozy__skill_list`, `compozy__skill_search`, and `compozy__skill_view` all carry it, and `compozy__skill_view` adds reconciled `exposures[]{target, path, status}` with status `healthy`, `missing`, `broken`, or `foreign_conflict`. Tier and origin are independent: never infer one from the other.
 
 When multiple declarations use the same skill name, CompozyOS keeps the normal precedence order and records losing declarations as shadows. Use these surfaces before assuming which skill body is active:
 

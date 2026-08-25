@@ -18,8 +18,9 @@ CompozyOS reads standard YAML frontmatter, then keeps the Markdown body availabl
 instructions for agents.
 
 <OperatorNote>
-  CompozyOS intentionally separates fields it reads from fields it tolerates. Unknown top-level
-  frontmatter fields are logged as warnings, but they are not runtime controls.
+  CompozyOS intentionally separates fields it reads from fields it recognizes. Frontmatter fields
+  from the AgentSkills spec and the Claude Code superset are recognized without a warning and are
+  still not runtime controls. Fields outside both lists are logged as warnings.
 </OperatorNote>
 
 ## Quick Reference
@@ -91,9 +92,12 @@ Return the exact file paths you used and call out any stale or conflicting sourc
 | `version`     | string | empty   | Any string.               | Stored as metadata and used by marketplace provenance/update comparisons when available. |
 | `metadata`    | object | empty   | YAML mapping.             | Free-form metadata namespace. CompozyOS-specific fields belong under `metadata.compozy`. |
 
-Unknown top-level fields such as `allowed-tools`, `user-invocable`, and `argument-hint` are
-tolerated with warnings but ignored by the current CompozyOS runtime. Do not use those fields for access
-control, invocation behavior, or permissions in CompozyOS.
+Ecosystem fields such as `license`, `compatibility`, `allowed-tools`, `disallowed-tools`,
+`argument-hint`, `arguments`, `when_to_use`, `user-invocable`, `disable-model-invocation`, `model`,
+`effort`, `context`, `agent`, `background`, `hooks`, `paths`, `shell`, and `aliases` are recognized
+without a warning so that skills written for other tools load cleanly. CompozyOS reads none of them.
+Do not use those fields for access control, invocation behavior, or permissions in CompozyOS. A
+top-level field outside both lists still warns and the skill still loads.
 
 ## `metadata.compozy`
 
@@ -285,15 +289,15 @@ active-registry precedence model.
 
 ## RFC 002 Drift
 
-| Field or behavior                                             | Current implementation                                             |
-| ------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `metadata.compozy.memory_tags`                                | RFC-only; current runtime does not consume it.                     |
-| `allowed-tools`                                               | Tolerated as an unknown top-level field, but ignored by CompozyOS. |
-| `user-invocable`                                              | Tolerated, but ignored.                                            |
-| `argument-hint`                                               | Tolerated, but ignored.                                            |
-| Legacy hook events `on_session_created`, `on_session_stopped` | Rejected. Use `session.post_create` and `session.post_stop`.       |
-| Unknown top-level fields                                      | Warn and continue.                                                 |
-| Unknown hook fields                                           | Fail hook decoding.                                                |
+| Field or behavior                                             | Current implementation                                       |
+| ------------------------------------------------------------- | ------------------------------------------------------------ |
+| `metadata.compozy.memory_tags`                                | RFC-only; current runtime does not consume it.               |
+| `allowed-tools`                                               | Recognized without a warning, but ignored by CompozyOS.      |
+| `user-invocable`                                              | Recognized, but ignored.                                     |
+| `argument-hint`                                               | Recognized, but ignored.                                     |
+| Legacy hook events `on_session_created`, `on_session_stopped` | Rejected. Use `session.post_create` and `session.post_stop`. |
+| Top-level fields outside both lists                           | Warn and continue.                                           |
+| Unknown hook fields                                           | Fail hook decoding.                                          |
 
 ## Related Pages
 

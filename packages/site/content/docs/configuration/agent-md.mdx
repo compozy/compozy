@@ -17,7 +17,9 @@ The parser is strict. Unknown frontmatter fields fail loading.
 <OperatorNote>
   RFC 001 is ahead of the current implementation. This page documents the fields accepted by the
   current runtime. Draft RFC fields such as `description`, `skills.inherit`, `skills.extra_sources`,
-  and `memory.*` are listed as non-accepted fields near the end of this page.
+  and `memory.*` are listed as non-accepted fields near the end of this page. Extra skill
+  directories are runtime configuration, not an agent field — see [`skills.sources` and
+  `skills.custom_sources`](/docs/skills/sources).
 </OperatorNote>
 
 ## Quick Reference
@@ -518,16 +520,16 @@ layer narrows it. Denies still win.
 
 The current runtime diverges from the broader RFC 001 draft in these ways:
 
-| Field                     | RFC purpose                           | Current behavior |
-| ------------------------- | ------------------------------------- | ---------------- |
-| `description`             | Human description.                    | Rejected.        |
-| `skills.inherit`          | Control inherited skills.             | Rejected.        |
-| `skills.disabled`         | Disable logical skills for one agent. | Accepted.        |
-| `skills.extra_sources`    | Add agent-specific skill roots.       | Rejected.        |
-| `memory.inherit`          | Control inherited memory.             | Rejected.        |
-| `memory.scope`            | Default write scope for memory.       | Rejected.        |
-| `memory.auto_consolidate` | Agent-scoped memory consolidation.    | Rejected.        |
-| `categories`              | Ambiguous multi-tag grouping.         | Rejected.        |
+| Field                     | RFC purpose                           | Current behavior                                                                                                          |
+| ------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `description`             | Human description.                    | Rejected.                                                                                                                 |
+| `skills.inherit`          | Control inherited skills.             | Rejected.                                                                                                                 |
+| `skills.disabled`         | Disable logical skills for one agent. | Accepted.                                                                                                                 |
+| `skills.extra_sources`    | Add agent-specific skill roots.       | Rejected. Skill scan roots are runtime config — see [`skills.sources` and `skills.custom_sources`](/docs/skills/sources). |
+| `memory.inherit`          | Control inherited memory.             | Rejected.                                                                                                                 |
+| `memory.scope`            | Default write scope for memory.       | Rejected.                                                                                                                 |
+| `memory.auto_consolidate` | Agent-scoped memory consolidation.    | Rejected.                                                                                                                 |
+| `categories`              | Ambiguous multi-tag grouping.         | Rejected.                                                                                                                 |
 
 RFC examples also use permission values such as `plan`. Current CompozyOS uses `deny-all`,
 `approve-reads`, and `approve-all`.
