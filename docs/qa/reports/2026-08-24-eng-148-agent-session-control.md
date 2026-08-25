@@ -33,6 +33,7 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 - **Runtime/isolation:** Focused race tests covered origin binding, workspace/lineage rejection, cyclic lineage rejection, provider-only runtime selection, and eight concurrent child Goals with unique run/network/session bindings.
 - **Web:** `agent-browser` selected the isolated workspace, opened `/agents/qa_general/sessions/sess-8539c81f6527e989`, and rendered the `Goal status` region. The expanded strip showed `Contract`, `Run`, `Context`, `Last verdict`, and `Node`; the head action was `Clear goal`. Evidence: `qa/screenshots/goal-status-strip.png` and `qa/screenshots/goal-status-expanded.png` under the lab output.
 - **Evidence index:** `/Users/pedronauck/dev/qa-labs/compozy-eng-148-agent-session-control-20260825-014009-304323-lab/qa-artifacts/qa/journey-log.jsonl`.
+- **Teardown evidence:** the bootstrap manifest's `TEARDOWN_COMMAND` completed; `/Users/pedronauck/dev/qa-labs/compozy-eng-148-agent-session-control-20260825-014009-304323-lab/qa-artifacts/qa/teardown.json` records `"clean": true`, with no lab processes left running.
 
 ## Human Verifications Needed
 
