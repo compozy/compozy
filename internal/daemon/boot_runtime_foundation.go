@@ -122,6 +122,10 @@ func (d *Daemon) bootRegistryState(
 	if err := registry.VerifyDefaultProfile(ctx); err != nil {
 		return fmt.Errorf("daemon: verify default profile: %w", err)
 	}
+	state.registry = registry
+	if err := startLoopReconciliation(ctx, state, registry, cleanup, d.readyCh); err != nil {
+		return err
+	}
 	if err := d.bootMemoryCatalog(ctx, state, cleanup); err != nil {
 		return err
 	}
@@ -138,7 +142,6 @@ func (d *Daemon) bootRegistryState(
 	if err != nil {
 		return err
 	}
-	state.registry = registry
 	if bindings, ok := any(registry).(extensionpkg.EnvBindingStore); ok {
 		state.extensionEnvBindings = bindings
 	}

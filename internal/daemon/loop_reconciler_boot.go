@@ -18,6 +18,9 @@ func startLoopReconciliation(
 	if cleanup == nil {
 		return fmt.Errorf("daemon: Loop reconciliation cleanup owner is required")
 	}
+	if state.runtimeWorkers.loopReconciler != nil {
+		return nil
+	}
 	reconciler := looppkg.NewRunReconciler(store)
 	started := time.Now()
 	report, err := reconciler.NeutralizeOrphans(ctx)
