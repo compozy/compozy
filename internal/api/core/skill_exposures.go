@@ -191,11 +191,16 @@ func (h *BaseHandlers) resolveSkillExposureWorkspace(
 	return resolveWorkspaceAgentProfile(c.Request.Context(), h.Workspaces, workspaceID, profileName)
 }
 
+// canonicalResolvedWorkspaceID returns the workspace id public callers hand out and receive back.
+// That is the registered `ws_` id (ResolvedWorkspace.ID) — ResolvedWorkspace.WorkspaceID carries the
+// durable identity stamped in <root>/.compozy/workspace.toml, which no public surface ever emits, so
+// comparing a caller's `workspace_id` against it can never match. An unregistered workspace resolved
+// by path has no registered id, and there the durable identity is the only identity available.
 func canonicalResolvedWorkspaceID(resolved workspacepkg.ResolvedWorkspace) string {
-	if workspaceID := strings.TrimSpace(resolved.WorkspaceID); workspaceID != "" {
+	if workspaceID := strings.TrimSpace(resolved.ID); workspaceID != "" {
 		return workspaceID
 	}
-	return strings.TrimSpace(resolved.ID)
+	return strings.TrimSpace(resolved.WorkspaceID)
 }
 
 func findSkillByName(skillList []*skills.Skill, name string) *skills.Skill {

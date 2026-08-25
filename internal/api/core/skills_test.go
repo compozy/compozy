@@ -1427,6 +1427,45 @@ func TestGetSkill(t *testing.T) {
 		}
 	})
 
+	t.Run("Should accept the registered workspace id when a durable identity is also stamped", func(t *testing.T) {
+		t.Parallel()
+
+		// The production resolver always stamps ResolvedWorkspace.WorkspaceID with the durable
+		// identity from <root>/.compozy/workspace.toml while ResolvedWorkspace.ID stays the
+		// registered ws_ id that every public surface hands out. A stub that leaves WorkspaceID
+		// empty cannot catch a canonical-id comparison that reads the wrong field.
+		workspaceSkill := testSkill()
+		workspaceSkill.Source = skills.SourceWorkspace
+		workspaceSkill.Dir = "/workspace/.compozy/skills/test-skill"
+
+		registry := &stubSkillsRegistry{
+			GetFn: func(_ string) (*skills.Skill, bool) { return nil, false },
+			ForWorkspaceFn: func(_ context.Context, _ *workspacepkg.ResolvedWorkspace) ([]*skills.Skill, error) {
+				return []*skills.Skill{workspaceSkill}, nil
+			},
+		}
+		workspaces := testutil.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, _ string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{
+						ID:      "ws_1a9b181e45528661",
+						RootDir: "/workspace",
+						Name:    "test",
+					},
+					WorkspaceID: "01M0WZZB8C9NCWN606SZDCSXMG",
+				}, nil
+			},
+		}
+
+		engine := newSkillsHandlerFixture(t, registry, workspaces)
+		rec := testutil.PerformRequest(
+			t, engine, http.MethodGet, "/api/skills/test-skill?workspace_id=ws_1a9b181e45528661", nil,
+		)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+	})
+
 	t.Run("Should resolve workspace-only skills from the canonical workspace id", func(t *testing.T) {
 		t.Parallel()
 
