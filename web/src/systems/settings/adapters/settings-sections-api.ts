@@ -104,7 +104,7 @@ export async function getSettingsUpdate(signal?: AbortSignal): Promise<SettingsU
 }
 
 /**
- * Requests an apply for one track. The daemon answers `accepted` + operation id
+ * Requests an apply for all eligible tracks. The daemon answers `accepted` + operation id
  * after durable acquisition, or a deterministic `blocked` naming the holder — it
  * never returns a terminal verdict it cannot yet know. Terminal truth arrives
  * through `getSettingsUpdate`, so callers must not treat a 200 as success.

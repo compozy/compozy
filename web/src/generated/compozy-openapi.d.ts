@@ -68967,8 +68967,8 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          /** @enum {string} */
-          target: "runtime" | "app";
+          /** @enum {array} */
+          targets: ["runtime"] | ["app"] | ["runtime", "app"];
         };
       };
     };
@@ -68994,12 +68994,11 @@ export interface operations {
             operation_id?: string;
             /** @enum {string} */
             status: "accepted" | "blocked" | "failed";
-            /** @enum {string} */
-            target: "runtime" | "app";
+            targets: ("runtime" | "app")[];
           };
         };
       };
-      /** @description Invalid update target */
+      /** @description Invalid update target set */
       400: {
         headers: {
           [name: string]: unknown;

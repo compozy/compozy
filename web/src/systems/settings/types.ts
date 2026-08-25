@@ -171,6 +171,7 @@ export type SettingsUpdateOperation = NonNullable<SettingsUpdateStatus["operatio
 export type SettingsUpdateHolder = NonNullable<SettingsUpdateOperation["holder"]>;
 export type SettingsUpdateStatusKind = SettingsUpdateRuntimeTrack["status"];
 export type SettingsUpdateApplyRequest = OperationRequestBody<"applySettingsUpdate">;
+export type SettingsUpdateTargetSet = SettingsUpdateApplyRequest["targets"];
 export type SettingsUpdateApplyResult = OperationResponse<"applySettingsUpdate", 200>;
 export type SettingsUpdateCancelResult = OperationResponse<"cancelSettingsUpdate", 200>;
 /** The two update tracks the daemon models. Mirrors `compozyupdate.Target`. */

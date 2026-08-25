@@ -58,7 +58,8 @@ credential and requires `--yes` for non-interactive removal when the profile own
 `[app] update_check` defaults to `true`; `update_check_interval` defaults to `6h` and accepts
 `15m` through `168h`. The daemon is the sole consumer and schedules read-only runtime and app
 checks. The shell reads no update config. Read the host-global operation with
-`GET /api/settings/update`; mutate it through `POST /api/settings/update/apply` or
+`GET /api/settings/update`; mutate it with `POST /api/settings/update/apply` using a non-empty
+`targets` array (runtime first), or through
 `POST /api/settings/update/cancel` over HTTP or UDS. Use `compozy update --check -o json`,
 `compozy update -o json`, and `compozy update --cancel -o json` as the CLI paths.
 Read or change the cadence with `compozy config get|set|unset app.update_check -o json` and

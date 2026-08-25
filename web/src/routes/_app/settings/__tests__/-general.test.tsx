@@ -46,7 +46,7 @@ type UpdateStatus = SettingsUpdateStatus;
 type UpdateActions = {
   apply: ReturnType<typeof vi.fn>;
   cancel: ReturnType<typeof vi.fn>;
-  pendingTarget: "runtime" | "app" | null;
+  isApplying: boolean;
   isCanceling: boolean;
   result: SettingsUpdateApplyResult | null;
   cancelResult: SettingsUpdateCancelResult | null;
@@ -221,7 +221,7 @@ beforeEach(() => {
     updateActions: {
       apply: vi.fn(),
       cancel: vi.fn(),
-      pendingTarget: null,
+      isApplying: false,
       isCanceling: false,
       result: null,
       cancelResult: null,
@@ -416,8 +416,7 @@ describe("GeneralSettingsPage", () => {
 describe("GeneralSettingsPage — Updates section", () => {
   const track = (target: "runtime" | "app") =>
     screen.getByTestId(`settings-page-general-update-track-${target}`);
-  const apply = (target: "runtime" | "app") =>
-    screen.queryByTestId(`settings-page-general-update-apply-${target}`);
+  const apply = () => screen.queryByTestId("settings-page-general-update-apply");
 
   it("UT-040: Should render both tracks with their own versions, status, and release link", () => {
     render(<GeneralSettingsPage />);
@@ -432,6 +431,7 @@ describe("GeneralSettingsPage — Updates section", () => {
       "https://github.com/compozy/compozy/releases/tag/v0.5.1"
     );
     expect(screen.getByTestId("settings-page-general-update-release-app")).toBeInTheDocument();
+    expect(apply()).toBeInTheDocument();
   });
 
   it("UT-041: Should render a single-track section when the host has no desktop app", () => {
@@ -453,14 +453,14 @@ describe("GeneralSettingsPage — Updates section", () => {
       "CompozyOS 0.5.1 is available. Upgrade with your package manager."
     );
     // Absent, not disabled — a dimmed button would still claim the capability.
-    expect(apply("runtime")).toBeNull();
+    expect(apply()).toBeNull();
   });
 
   it("UT-043: Should apply the clicked track and then render the daemon's staged phase", () => {
     const { rerender } = render(<GeneralSettingsPage />);
 
-    fireEvent.click(screen.getByTestId("settings-page-general-update-apply-runtime"));
-    expect(pageState.updateActions.apply).toHaveBeenCalledWith("runtime");
+    fireEvent.click(screen.getByTestId("settings-page-general-update-apply"));
+    expect(pageState.updateActions.apply).toHaveBeenCalledWith(["runtime", "app"]);
 
     // Progress is not optimistic: it appears only once the polled read reports it.
     pageState.update.data = settingsUpdateApplyingFixture;
@@ -470,7 +470,14 @@ describe("GeneralSettingsPage — Updates section", () => {
     expect(progress).toHaveTextContent("install · 62%");
     expect(progress).toHaveAttribute("role", "status");
     expect(progress).toHaveAttribute("aria-live", "polite");
-    expect(apply("runtime")).toBeNull();
+    expect(apply()).toBeNull();
+  });
+
+  it("Should disable the shared action while its durable request is pending", () => {
+    pageState.updateActions.isApplying = true;
+    render(<GeneralSettingsPage />);
+
+    expect(screen.getByTestId("settings-page-general-update-apply")).toBeDisabled();
   });
 
   it("UT-044: Should report a staged app with the daemon's next-launch message and a cancel action", () => {
@@ -531,7 +538,7 @@ describe("GeneralSettingsPage — Updates section", () => {
     expect(screen.getByText("Refresh failed")).toBeInTheDocument();
     // The rows keep their last truth rather than restating the failure per track.
     expect(track("runtime")).toHaveTextContent("0.5.1");
-    expect(apply("runtime")).toBeInTheDocument();
+    expect(apply()).toBeNull();
 
     fireEvent.click(screen.getByTestId("settings-page-general-update-retry"));
     expect(pageState.update.refetch).toHaveBeenCalledTimes(1);
@@ -540,7 +547,7 @@ describe("GeneralSettingsPage — Updates section", () => {
   it("UT-047: Should surface a blocked apply with its holder and claim no success", () => {
     pageState.update.data = settingsUpdateBlockedFixture;
     pageState.updateActions.result = {
-      target: "runtime",
+      targets: ["runtime"],
       status: "blocked",
       message: "A runtime update is already in progress. Retry after it completes.",
       holder: {
@@ -558,21 +565,21 @@ describe("GeneralSettingsPage — Updates section", () => {
     );
     expect(within(track("runtime")).getByText("Blocked")).toBeInTheDocument();
     expect(screen.queryByText("Updated")).toBeNull();
-    expect(apply("runtime")).toBeNull();
+    expect(apply()).toBeNull();
   });
 
-  it("UT-048: Should keep the apply action tab-reachable and Enter-activatable", async () => {
+  it("UT-048: Should keep the shared apply action tab-reachable and Enter-activatable", async () => {
     const user = userEvent.setup();
     pageState.update.data = settingsUpdateNoAppFixture;
     render(<GeneralSettingsPage />);
 
-    const applyButton = screen.getByTestId("settings-page-general-update-apply-runtime");
+    const applyButton = screen.getByTestId("settings-page-general-update-apply");
     screen.getByTestId("settings-page-general-update-release-runtime").focus();
     await user.tab({ shift: true });
     expect(applyButton).toHaveFocus();
 
     await user.keyboard("{Enter}");
-    expect(pageState.updateActions.apply).toHaveBeenCalledWith("runtime");
+    expect(pageState.updateActions.apply).toHaveBeenCalledWith(["runtime"]);
   });
 
   it("Should acknowledge a canceled dormant update", () => {
@@ -622,6 +629,6 @@ describe("GeneralSettingsPage — Updates section", () => {
       "health check failed after swap"
     );
     // The lease is free again, so the offer returns.
-    expect(apply("runtime")).toBeInTheDocument();
+    expect(apply()).toBeInTheDocument();
   });
 });

@@ -152,10 +152,10 @@ export const handlers: HttpHandler[] = [
   compozyApiMock.post("/api/settings/update/apply", async ({ request }) => {
     const body = (await request.json()) as SettingsUpdateApplyRequest;
     return HttpResponse.json({
-      target: body.target,
+      targets: body.targets,
       status: "accepted",
       operation_id: "op-storybook",
-      message: `Started the ${body.target} update.`,
+      message: "Started the requested updates.",
       holder: null,
     });
   }),

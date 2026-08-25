@@ -5,6 +5,7 @@ import type {
   SettingsUpdateStatus,
   SettingsUpdateStatusKind,
   SettingsUpdateTarget,
+  SettingsUpdateTargetSet,
 } from "../types";
 import { updatePhasePercent, updateUiPhase, type UpdateUiPhase } from "./update-phase-map";
 
@@ -273,6 +274,23 @@ export function settingsUpdateTracks(snapshot: SettingsUpdateStatus): SettingsUp
     );
   }
   return tracks;
+}
+
+/** The ordered targets this surface may apply in one durable operation. */
+export function settingsUpdateApplicableTargets(
+  tracks: readonly Pick<SettingsUpdateTrackView, "id" | "canApply">[]
+): SettingsUpdateTargetSet | null {
+  let runtime = false;
+  let app = false;
+  for (const track of tracks) {
+    if (!track.canApply) continue;
+    if (track.id === "runtime") runtime = true;
+    if (track.id === "app") app = true;
+  }
+  if (runtime && app) return ["runtime", "app"];
+  if (runtime) return ["runtime"];
+  if (app) return ["app"];
+  return null;
 }
 
 /**

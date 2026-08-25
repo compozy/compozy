@@ -718,9 +718,9 @@ interface SettingsGeneralSelectors {
   updateBlocked: Locator;
   updateRollback: Locator;
   updateCancel: Locator;
-  /** Per-track row, apply affordance, live progress, and release link. */
+  /** Per-track row, shared apply affordance, live progress, and release link. */
   updateTrack: (target: string) => Locator;
-  updateApply: (target: string) => Locator;
+  updateApply: () => Locator;
   updateProgress: (target: string) => Locator;
   updateRelease: (target: string) => Locator;
 }
@@ -1552,8 +1552,7 @@ export function settingsOperatorSelectors(
       updateCancel: page.getByTestId(settingsGeneralTestIds.updateCancel),
       updateTrack: (target: string) =>
         page.getByTestId(`settings-page-general-update-track-${target}`),
-      updateApply: (target: string) =>
-        page.getByTestId(`settings-page-general-update-apply-${target}`),
+      updateApply: () => page.getByTestId("settings-page-general-update-apply"),
       updateProgress: (target: string) =>
         page.getByTestId(`settings-page-general-update-progress-${target}`),
       updateRelease: (target: string) =>

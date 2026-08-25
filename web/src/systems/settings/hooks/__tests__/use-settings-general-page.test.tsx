@@ -185,9 +185,9 @@ describe("useSettingsGeneralPage", () => {
     });
   });
 
-  it("Should send the requested track to the apply endpoint and expose the daemon's answer", async () => {
+  it("Should send all requested targets to the apply endpoint and expose the daemon's answer", async () => {
     vi.mocked(applySettingsUpdate).mockResolvedValue({
-      target: "runtime",
+      targets: ["runtime", "app"],
       status: "accepted",
       operation_id: "op-7f3a2c",
       message: "Started the runtime update.",
@@ -199,11 +199,11 @@ describe("useSettingsGeneralPage", () => {
     await waitFor(() => expect(result.current.update.data).toBeTruthy());
 
     act(() => {
-      result.current.updateActions.apply("runtime");
+      result.current.updateActions.apply(["runtime", "app"]);
     });
 
     await waitFor(() => {
-      expect(applySettingsUpdate).toHaveBeenCalledWith({ target: "runtime" });
+      expect(applySettingsUpdate).toHaveBeenCalledWith({ targets: ["runtime", "app"] });
       expect(result.current.updateActions.result).toMatchObject({
         status: "accepted",
         operation_id: "op-7f3a2c",
@@ -213,7 +213,7 @@ describe("useSettingsGeneralPage", () => {
 
   it("Should keep a blocked apply answer verbatim instead of reporting success", async () => {
     vi.mocked(applySettingsUpdate).mockResolvedValue({
-      target: "runtime",
+      targets: ["runtime"],
       status: "blocked",
       message:
         "A runtime update is already in progress (holder pid 4242). Retry after it completes.",
@@ -231,7 +231,7 @@ describe("useSettingsGeneralPage", () => {
     await waitFor(() => expect(result.current.update.data).toBeTruthy());
 
     act(() => {
-      result.current.updateActions.apply("runtime");
+      result.current.updateActions.apply(["runtime"]);
     });
 
     await waitFor(() => {
