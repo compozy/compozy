@@ -46,14 +46,16 @@ type LoopRuntimeDefaults struct {
 	Judge LoopRuntimeSpec `json:"judge,omitempty,omitzero"`
 }
 
-// LoopRuntimeMatch selects exactly one imported task dimension.
+// LoopRuntimeMatch selects exactly one task id, one task type, one complexity,
+// or a type and complexity conjunction. The conjunction is AND and id is exclusive.
 type LoopRuntimeMatch struct {
 	ID         string `json:"id,omitempty"`
 	Type       string `json:"type,omitempty"`
 	Complexity string `json:"complexity,omitempty"`
 }
 
-// LoopRuntimeRule applies runtime intent to matching task items.
+// LoopRuntimeRule applies field-merged runtime intent with specificity
+// id > type+complexity > type > complexity; later equal-specificity rules win per field.
 type LoopRuntimeRule struct {
 	Match   LoopRuntimeMatch `json:"match"`
 	Runtime LoopRuntimeSpec  `json:"runtime"`

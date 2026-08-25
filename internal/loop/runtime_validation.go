@@ -177,16 +177,13 @@ func validateRuntimeRules(ctx context.Context, catalog RuntimeCatalog, rules []R
 			key := keys[0]
 			return runtimeValidation(path+".match."+key, rule.Match.Extra[key], "unknown_field")
 		}
-		selectors := 0
-		for _, value := range []string{rule.Match.ID, rule.Match.Type, rule.Match.Complexity} {
-			if strings.TrimSpace(value) != "" {
-				selectors++
-			}
-		}
-		if selectors == 0 {
+		hasID := strings.TrimSpace(rule.Match.ID) != ""
+		hasType := strings.TrimSpace(rule.Match.Type) != ""
+		hasComplexity := strings.TrimSpace(rule.Match.Complexity) != ""
+		if !hasID && !hasType && !hasComplexity {
 			return runtimeValidation(path+".match", "", "selector_required")
 		}
-		if selectors > 1 {
+		if hasID && (hasType || hasComplexity) {
 			return runtimeValidation(path+".match", "", "selector_collision")
 		}
 		if !runtimeSpecHasValue(rule.Runtime) {

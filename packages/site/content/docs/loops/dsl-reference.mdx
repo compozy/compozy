@@ -102,7 +102,7 @@ contract:
     worker: { provider: codex, model: gpt-5.4, reasoning: high, speed: fast }
     judge: { provider: claude, model: opus, speed: normal }
   runtime_rules:
-    - match: { type: frontend }
+    - match: { type: frontend, complexity: high }
       runtime: { model: gpt-5.5-codex, speed: normal }
 ```
 
@@ -112,8 +112,10 @@ predicate exits by default so it cannot keep a run alive; set `on_eval_error: fa
 `failed` instead. The stop model — `iteration_cap`, `no_progress`, and `budget` — is documented in
 full on the [guardrails](/docs/loops/guardrails) page. `terminal_states` lists the fixed seven outcomes.
 `runtime_defaults.worker` seeds worker runtime fields; `runtime_defaults.judge` seeds judge fields.
-Each `runtime_rules` entry matches exactly one task `id`, `type`, or `complexity` and replaces only
-the runtime fields it sets.
+Each `runtime_rules` entry matches one exact task `id`, one `type`, one `complexity`, or the
+conjunction `type + complexity`. The conjunction is AND, and `id` cannot be combined with another
+selector. Specificity is `id > type + complexity > type > complexity`. Matching rules merge runtime
+fields independently; a later equal-specificity rule wins only the non-empty fields it sets.
 
 A `command` check is authored shell code. Any runtime value inserted into `check` must end with
 `| shellQuote`, as in the example above. Publish and dry-run reject unquoted command substitutions so
@@ -187,9 +189,9 @@ Field interpolation inside a runtime object is invalid. Worker fields resolve in
 order, from highest to lowest precedence: per-run rule, imported task frontmatter, referenced
 runtime input, configured rule, literal `params.runtime`, `runtime_defaults.worker`, then empty
 fields from the agent definition. `resolved_runtime.source` reports a referenced value as `input`.
-Rule specificity is
-`id > type > complexity`; a later rule wins at equal specificity. A child `run-loop` resolves its
-own rules and never inherits the parent's per-run rules.
+Rule specificity is `id > type + complexity > type > complexity`; matching rules merge fields
+independently, and a later equal-specificity rule wins only the non-empty fields it sets. A child
+`run-loop` resolves its own rules and never inherits the parent's per-run rules.
 `run-agent` sessions use the target agent definition plus workspace defaults for sandbox and
 permission policy. `allowed_tools` is a narrowing override only: every listed value must be a
 canonical tool ID already allowed by the resolved agent profile. A widening or unknown tool
