@@ -9,6 +9,10 @@ func customizeSettingsUpdateApplyRequestSchema(schema *openapi3.Schema) {
 	customizeSettingsUpdateTargetSetProperty(schema, "targets")
 }
 
+func customizeSettingsUpdateApplyResponseSchema(schema *openapi3.Schema) {
+	customizeSettingsUpdateTargetSetProperty(schema, "targets")
+}
+
 func customizeSettingsUpdateTargetSetProperty(schema *openapi3.Schema, property string) {
 	if schema == nil {
 		return

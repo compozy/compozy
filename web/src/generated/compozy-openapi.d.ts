@@ -68994,7 +68994,8 @@ export interface operations {
             operation_id?: string;
             /** @enum {string} */
             status: "accepted" | "blocked" | "failed";
-            targets: ("runtime" | "app")[];
+            /** @enum {array} */
+            targets: ["runtime"] | ["app"] | ["runtime", "app"];
           };
         };
       };

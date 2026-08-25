@@ -167402,6 +167402,18 @@
                       "type": "string"
                     },
                     "targets": {
+                      "enum": [
+                        [
+                          "runtime"
+                        ],
+                        [
+                          "app"
+                        ],
+                        [
+                          "runtime",
+                          "app"
+                        ]
+                      ],
                       "items": {
                         "enum": [
                           "runtime",

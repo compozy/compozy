@@ -788,11 +788,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		applyResponseSchema := jsonResponseSchema(t, applyUpdate, 200)
 		assertRequired(t, applyResponseSchema, "targets", "status", "message")
 		applyResponseTargetsSchema := propertySchema(t, applyResponseSchema, "targets")
-		if applyResponseTargetsSchema.Type == nil || !applyResponseTargetsSchema.Type.Is("array") ||
-			applyResponseTargetsSchema.Items == nil || applyResponseTargetsSchema.Items.Value == nil {
-			t.Fatal("apply response targets schema must be an array with resolved items")
-		}
-		assertEnumValues(t, applyResponseTargetsSchema.Items.Value, "app", "runtime")
+		assertSettingsUpdateTargetSetSchema(t, applyResponseTargetsSchema)
 		assertEnumValues(t, propertySchema(t, applyResponseSchema, "status"), "accepted", "blocked", "failed")
 
 		cancelUpdate := operationFor(t, doc, "/api/settings/update/cancel", "POST")
@@ -964,6 +960,15 @@ func assertSettingsUpdateTargetSetSchema(t *testing.T, schema *openapi3.Schema) 
 	want := []string{`["app"]`, `["runtime","app"]`, `["runtime"]`}
 	if !slices.Equal(got, want) {
 		t.Fatalf("settings update target set enum = %v, want %v", got, want)
+	}
+	for _, invalid := range [][]any{
+		{"app", "runtime"},
+		{"runtime", "runtime"},
+		{},
+	} {
+		if schema.IsMatching(invalid) {
+			t.Fatalf("settings update target set schema accepts invalid targets %v", invalid)
+		}
 	}
 }
 
