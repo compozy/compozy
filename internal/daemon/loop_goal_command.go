@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -17,6 +18,8 @@ type goalCommandHandlerInstaller interface {
 
 var _ goalCommandHandlerInstaller = (*session.Manager)(nil)
 var _ session.GoalCommandHandler = (*daemonLoopAPIService)(nil)
+
+var errGoalCallerDenied = errors.New("Goal caller is not authorized")
 
 // Handle executes one authenticated external `/goal` command against the Loop aggregate.
 func (s *daemonLoopAPIService) Handle(
@@ -33,6 +36,14 @@ func (s *daemonLoopAPIService) Handle(
 		return session.GoalDispatchDecision{}, err
 	}
 	verb := strings.TrimSpace(command.Verb)
+	if err := s.authorizeGoalCaller(ctx, workspaceID, sessionID, caller); err != nil {
+		if !errors.Is(err, errGoalCallerDenied) {
+			s.logGoalCommandWarning(ctx, "Goal caller authorization failed", workspaceID, sessionID, err)
+			return session.GoalDispatchDecision{}, err
+		}
+		s.logGoalCommandWarning(ctx, "Goal caller denied", workspaceID, sessionID, err)
+		return goalCommandErrorDecision(session.GoalReasonCallerUnauthorized, nil), nil
+	}
 	if verb == session.GoalCommandVerbDraft {
 		return session.GoalDispatchDecision{
 			Kind:             session.GoalDispatchPrompt,
@@ -42,15 +53,14 @@ func (s *daemonLoopAPIService) Handle(
 			BusyReason:       session.GoalReasonDraftRequiresIdle,
 		}, nil
 	}
-	if err := s.authorizeGoalCaller(ctx, workspaceID, sessionID, caller); err != nil {
-		return goalCommandErrorDecision(session.GoalReasonCallerUnauthorized, nil), nil
-	}
 	runtime, err := goalCommandRuntime(command.Runtime)
 	if err != nil {
+		s.logGoalCommandWarning(ctx, "Goal runtime selection invalid", workspaceID, sessionID, err)
 		return goalCommandErrorDecision(session.GoalReasonRuntimeInvalid, nil), nil
 	}
 	actor, err := goalCommandActor(caller, workspaceID, sessionID)
 	if err != nil {
+		s.logGoalCommandWarning(ctx, "Goal caller actor invalid", workspaceID, sessionID, err)
 		return goalCommandErrorDecision(session.GoalReasonCode(looppkg.ReasonCodeGoalOriginInvalid), nil), nil
 	}
 	switch verb {
@@ -112,15 +122,18 @@ func (s *daemonLoopAPIService) authorizeGoalCaller(
 		return fmt.Errorf("load Goal target session: %w", err)
 	}
 	if target == nil || strings.TrimSpace(target.WorkspaceID) != strings.TrimSpace(workspaceID) {
-		return errors.New("Goal target session is outside the caller workspace")
+		return fmt.Errorf("%w: target session is outside the caller workspace", errGoalCallerDenied)
 	}
 	if strings.TrimSpace(target.ID) != strings.TrimSpace(sessionID) {
-		return errors.New("Goal target session identity is inconsistent")
+		return fmt.Errorf("%w: target session identity is inconsistent", errGoalCallerDenied)
 	}
 	callerInfo, err := s.sessionStatus.Status(ctx, strings.TrimSpace(caller.ID))
-	if err != nil || callerInfo == nil || strings.TrimSpace(callerInfo.ID) != strings.TrimSpace(caller.ID) ||
+	if err != nil {
+		return fmt.Errorf("load Goal caller session: %w", err)
+	}
+	if callerInfo == nil || strings.TrimSpace(callerInfo.ID) != strings.TrimSpace(caller.ID) ||
 		strings.TrimSpace(callerInfo.WorkspaceID) != strings.TrimSpace(workspaceID) {
-		return errors.New("Goal agent caller session is not in the target workspace")
+		return fmt.Errorf("%w: agent caller session is not in the target workspace", errGoalCallerDenied)
 	}
 	if strings.TrimSpace(target.ID) == strings.TrimSpace(caller.ID) {
 		return nil
@@ -131,17 +144,17 @@ func (s *daemonLoopAPIService) authorizeGoalCaller(
 		if current == nil || strings.TrimSpace(current.ID) == "" ||
 			strings.TrimSpace(current.WorkspaceID) != strings.TrimSpace(workspaceID) ||
 			current.Lineage == nil {
-			return errors.New("Goal target session is not a child of the caller")
+			return fmt.Errorf("%w: target session is not a child of the caller", errGoalCallerDenied)
 		}
 		parentID := strings.TrimSpace(current.Lineage.ParentSessionID)
 		if parentID == "" {
-			return errors.New("Goal target session is not a child of the caller")
+			return fmt.Errorf("%w: target session is not a child of the caller", errGoalCallerDenied)
 		}
 		if parentID == strings.TrimSpace(caller.ID) {
 			return nil
 		}
 		if _, seen := visited[parentID]; seen {
-			return errors.New("Goal target session lineage contains a cycle")
+			return fmt.Errorf("%w: target session lineage contains a cycle", errGoalCallerDenied)
 		}
 		current, err = s.sessionStatus.Status(ctx, parentID)
 		if err != nil {
@@ -149,11 +162,30 @@ func (s *daemonLoopAPIService) authorizeGoalCaller(
 		}
 		if current == nil || strings.TrimSpace(current.ID) != parentID ||
 			strings.TrimSpace(current.WorkspaceID) != strings.TrimSpace(workspaceID) {
-			return errors.New("Goal target session parent is outside the caller workspace")
+			return fmt.Errorf("%w: target session parent is outside the caller workspace", errGoalCallerDenied)
 		}
 		visited[parentID] = struct{}{}
 	}
-	return errors.New("Goal target session lineage is too deep")
+	return fmt.Errorf("%w: target session lineage is too deep", errGoalCallerDenied)
+}
+
+func (s *daemonLoopAPIService) logGoalCommandWarning(
+	ctx context.Context,
+	message string,
+	workspaceID string,
+	sessionID string,
+	err error,
+) {
+	if s == nil || s.logger == nil {
+		return
+	}
+	s.logger.WarnContext(
+		ctx,
+		message,
+		slog.String("workspace_id", strings.TrimSpace(workspaceID)),
+		slog.String("session_id", strings.TrimSpace(sessionID)),
+		slog.Any("error", err),
+	)
 }
 
 func goalCommandActor(

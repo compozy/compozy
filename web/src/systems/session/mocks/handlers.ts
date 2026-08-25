@@ -540,24 +540,40 @@ export const handlers: HttpHandler[] = [
     "/api/workspaces/{workspace_id}/sessions/{session_id}/goal",
     ({ params, request }) => {
       const id = String(params.session_id);
+      const workspaceId = String(params.workspace_id);
+      const session = sessionById.get(id);
 
-      if (!sessionById.has(id)) {
+      if (!session || session.workspace_id !== workspaceId) {
         return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
       }
 
       return request.json().then(body => {
         const operation =
           typeof body === "object" && body !== null && "operation" in body
-            ? String(body.operation)
-            : "status";
+            ? body.operation
+            : undefined;
+        if (
+          operation !== "set" &&
+          operation !== "replace" &&
+          operation !== "status" &&
+          operation !== "pause" &&
+          operation !== "resume" &&
+          operation !== "clear"
+        ) {
+          return HttpResponse.json({ error: "Invalid Goal operation" }, { status: 400 });
+        }
         const outcome =
-          operation === "clear"
-            ? "cleared"
-            : operation === "pause"
-              ? "paused"
-              : operation === "resume"
-                ? "resumed"
-                : "status";
+          operation === "set"
+            ? "started"
+            : operation === "replace"
+              ? "replaced"
+              : operation === "clear"
+                ? "cleared"
+                : operation === "pause"
+                  ? "paused"
+                  : operation === "resume"
+                    ? "resumed"
+                    : "status";
         return HttpResponse.json({
           outcome,
           reason_code: null,

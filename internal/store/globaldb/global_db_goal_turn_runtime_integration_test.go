@@ -43,6 +43,13 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("PrepareGoalPrompt(first) error = %v", err)
 		}
+		runtimeChanged := firstRequest
+		runtimeChanged.Runtime.Model = "grok-4.5-different"
+		if _, err := globalDB.PrepareGoalPrompt(ctx, runtimeChanged); err == nil {
+			t.Fatal("PrepareGoalPrompt(runtime changed) error = nil")
+		} else {
+			requireGoalReasonCode(t, err, looppkg.ReasonCodeGoalControlStale)
+		}
 		repeated, err := globalDB.PrepareGoalPrompt(ctx, firstRequest)
 		if err != nil {
 			t.Fatalf("PrepareGoalPrompt(repeated) error = %v", err)

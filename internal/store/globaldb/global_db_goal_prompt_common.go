@@ -35,6 +35,10 @@ type goalPromptRow struct {
 	promptAttempt          int
 	dispatchable           int
 	operationUsageBase     sql.NullInt64
+	runtimeProvider        string
+	runtimeModel           string
+	runtimeReasoning       string
+	runtimeSpeed           string
 	dispatchTokenHash      sql.NullString
 	fenceKind              sql.NullString
 	fenceDisposition       sql.NullString

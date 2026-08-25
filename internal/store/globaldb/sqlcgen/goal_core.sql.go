@@ -45,7 +45,8 @@ SELECT id, session_id, status, text, task_run_id, run_generation,
        fence_kind, fence_disposition, fence_reason_code,
        terminal_event_start_seq, terminal_event_end_seq, terminal_kind,
        terminal_stop_reason, terminal_disposition, terminal_reason_code,
-       terminal_tokens_reported, terminal_tokens_used, terminal_at
+       terminal_tokens_reported, terminal_tokens_used, terminal_at,
+       runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed
 FROM session_input_queue
 WHERE loop_run_id = ?1 AND prompt_id = ?2
 `
@@ -84,6 +85,10 @@ type GetGoalPromptRowRow struct {
 	TerminalTokensReported   int64          `json:"terminal_tokens_reported"`
 	TerminalTokensUsed       sql.NullInt64  `json:"terminal_tokens_used"`
 	TerminalAt               sql.NullTime   `json:"terminal_at"`
+	RuntimeProvider          string         `json:"runtime_provider"`
+	RuntimeModel             string         `json:"runtime_model"`
+	RuntimeReasoningEffort   string         `json:"runtime_reasoning_effort"`
+	RuntimeSpeed             string         `json:"runtime_speed"`
 }
 
 func (q *Queries) GetGoalPromptRow(ctx context.Context, arg GetGoalPromptRowParams) (GetGoalPromptRowRow, error) {
@@ -118,6 +123,10 @@ func (q *Queries) GetGoalPromptRow(ctx context.Context, arg GetGoalPromptRowPara
 		&i.TerminalTokensReported,
 		&i.TerminalTokensUsed,
 		&i.TerminalAt,
+		&i.RuntimeProvider,
+		&i.RuntimeModel,
+		&i.RuntimeReasoningEffort,
+		&i.RuntimeSpeed,
 	)
 	return i, err
 }

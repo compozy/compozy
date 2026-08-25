@@ -278,6 +278,43 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 		}
 	})
 
+	t.Run("Should authorize an agent draft before rewriting it", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newGoalCommandHandlerFixture(t)
+		status := fixture.service.sessionStatus.(*goalCommandSessionStatus)
+		status.callers["other-agent"] = &session.Info{ID: "other-agent", WorkspaceID: fixture.workspaceID}
+		decision, err := fixture.service.Handle(
+			testutil.Context(t), fixture.workspaceID, fixture.sessionID,
+			session.PromptCaller{Kind: string(taskpkg.ActorKindAgentSession), ID: "other-agent", Source: "http"},
+			session.GoalCommand{Verb: session.GoalCommandVerbDraft, Objective: "do not rewrite this"},
+		)
+		if err != nil {
+			t.Fatalf("Handle(unauthorized draft) error = %v", err)
+		}
+		assertGoalCommandOutcome(t, decision, session.GoalOutcomeError, session.GoalReasonCallerUnauthorized)
+	})
+
+	t.Run("Should propagate caller status store failures instead of returning unauthorized", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newGoalCommandHandlerFixture(t)
+		status := fixture.service.sessionStatus.(*goalCommandSessionStatus)
+		statusErr := errors.New("session status store unavailable")
+		status.statusErrs = map[string]error{fixture.sessionID: statusErr}
+		decision, err := fixture.service.Handle(
+			testutil.Context(t), fixture.workspaceID, fixture.sessionID,
+			session.PromptCaller{Kind: string(taskpkg.ActorKindAgentSession), ID: "agent-operator", Source: "http"},
+			session.GoalCommand{Verb: session.GoalCommandVerbSet, Objective: "surface the store outage"},
+		)
+		if !errors.Is(err, statusErr) {
+			t.Fatalf("Handle(status store failure) error = %v, want wrapped status error", err)
+		}
+		if decision != (session.GoalDispatchDecision{}) {
+			t.Fatalf("Handle(status store failure) decision = %#v, want zero decision", decision)
+		}
+	})
+
 	t.Run("Should preserve the origin Network snapshot and apply a per-run worker runtime", func(t *testing.T) {
 		t.Parallel()
 
@@ -484,6 +521,9 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 			t.Fatalf("session status type = %T, want *goalCommandSessionStatus", fixture.service.sessionStatus)
 		}
 		status.info.Lineage = &store.SessionLineage{ParentSessionID: "different-agent"}
+		status.callers["different-agent"] = &session.Info{
+			ID: "different-agent", WorkspaceID: fixture.workspaceID,
+		}
 		decision, err := fixture.service.Handle(
 			testutil.Context(t), fixture.workspaceID, fixture.sessionID,
 			session.PromptCaller{Kind: string(taskpkg.ActorKindAgentSession), ID: "agent-operator", Source: "uds"},
@@ -888,15 +928,19 @@ func assertGoalCommandOutcome(
 }
 
 type goalCommandSessionStatus struct {
-	info     *session.Info
-	targetID string
-	callers  map[string]*session.Info
-	sessions map[string]*session.Info
+	info       *session.Info
+	targetID   string
+	callers    map[string]*session.Info
+	sessions   map[string]*session.Info
+	statusErrs map[string]error
 }
 
 func (s *goalCommandSessionStatus) Status(_ context.Context, id string) (*session.Info, error) {
 	if s == nil || s.info == nil {
 		return nil, errors.New("session not found")
+	}
+	if err, ok := s.statusErrs[strings.TrimSpace(id)]; ok {
+		return nil, err
 	}
 	if caller, ok := s.callers[strings.TrimSpace(id)]; ok {
 		cloned := *caller

@@ -115,6 +115,7 @@ func existingPreparedGoalPromptTicket(
 		row.ownerEpoch.Valid && row.ownerEpoch.Int64 == req.ExpectedControlEpoch &&
 		row.promptKind.Valid && row.promptKind.String == req.PromptKind &&
 		preparedGoalUsageBaseMatches(row.operationUsageBase, req) &&
+		preparedGoalRuntimeMatches(row, req) &&
 		row.promptAttempt == req.PromptAttempt
 	if !matches {
 		return goal.PromptTicket{}, goalControlStaleError(
@@ -122,6 +123,16 @@ func existingPreparedGoalPromptTicket(
 		)
 	}
 	return goal.PromptTicket{QueueEntryID: row.id, PromptID: row.promptID.String}, nil
+}
+
+func preparedGoalRuntimeMatches(row *goalPromptRow, req goal.PreparePromptRequest) bool {
+	if row == nil {
+		return false
+	}
+	return strings.TrimSpace(row.runtimeProvider) == strings.TrimSpace(req.Runtime.Provider) &&
+		strings.TrimSpace(row.runtimeModel) == strings.TrimSpace(req.Runtime.Model) &&
+		strings.TrimSpace(row.runtimeReasoning) == strings.TrimSpace(req.Runtime.Reasoning) &&
+		strings.TrimSpace(row.runtimeSpeed) == strings.TrimSpace(string(req.Runtime.Speed))
 }
 
 func insertPreparedGoalPrompt(
