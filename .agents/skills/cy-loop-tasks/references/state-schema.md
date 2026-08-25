@@ -32,8 +32,13 @@ No other writer is permitted. Hand-editing voids resume guarantees.
 | `review.rounds` | int ≥ 0 | Count of closed `deep-review` rounds. Incremented by `update-state.py --review-round-done`. |
 | `review.last_verdict` | `SHIP` \| `FIX_BEFORE_SHIP` \| `REWORK` \| null | Verdict of the last closed round. |
 | `review.ship` | bool | True once a round closes with verdict `SHIP`. Phase E requires it. |
-| `verify.last_run` | RFC3339 \| null | Last `make verify` execution. |
-| `verify.last_status` | `PASS` \| `FAIL` \| null | Result of the final `make verify` observation for a completed action or proven external blocker. Intermediate repair-loop failures are not written. |
+| `verify.last_run` | RFC3339 \| null | Last local owning-scope verification observation (`make gate`). |
+| `verify.last_status` | `PASS` \| `FAIL` \| null | Final local owning-scope result for a completed action or proven external blocker. Intermediate repair-loop failures are not written. |
+| `delivery.pr_urls` | list[string] | GitHub PR URLs in stack order; one entry in one-branch mode. |
+| `delivery.head_shas` | list[string] | Exact PR head SHAs paired by index with `pr_urls`; the final entry must equal the checkout HEAD before CI can pass. |
+| `delivery.ci_status` | `PENDING` \| `PASS` \| `FAIL` \| null | Latest observed delivery status. Only `update-state.py --ci-pass` can write PASS. |
+| `delivery.checks` | list[string] | Required checks observed for the recorded head set. PASS requires at least one check. |
+| `delivery.observed_at` | RFC3339 \| null | When CI evidence was last refreshed. |
 | `iterations[]` | list[obj] | Append-only log capped at the last 50 entries by `update-state.py`. Each entry: `n` (int), `timestamp` (RFC3339), `phase` (string), `action` (string), `outcome` (`completed`\|`partial`\|`blocked`), `memory_written` (list[string]), `blockers` (list[string]). `blocked` is reserved for the external-blocker test in `references/recovery-loop.md`. |
 
 ## Invariants
@@ -57,3 +62,7 @@ No other writer is permitted. Hand-editing voids resume guarantees.
 7. Repair-loop failures do not append `iterations[]` entries or set
    `verify.last_status=FAIL`; only the phase's final PASS or a proven external
    blocker mutates those fields.
+8. `delivery.ci_status=PASS` requires fresh PR URLs, paired 40-character head
+   SHAs, at least one reported check, and the final SHA equal to the current
+   checkout HEAD. A new local `--verify-pass` or any `--verify-fail` clears
+   previous delivery evidence.

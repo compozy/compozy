@@ -68,9 +68,9 @@ Ship one atomic wire-contract bundle. This file owns the sequence;
 3. Run `bunx turbo run typecheck test build --filter=./web` from the repository root when Web consumers are affected.
 4. Run `bunx turbo run typecheck test build --filter=./packages/site` from the repository root when site content or generated inputs are affected.
 5. Confirm every applicable co-ship checklist item passes.
-6. Reserve the single full `make verify` for the completion gate after source freeze.
+6. Run `make gate` after source freeze; exact-head PR CI owns full completion verification.
 
-*Done when:* codegen has no drift, affected Turbo lanes are green, the checklist is complete, and exactly one fresh full monorepo gate is scheduled or complete for the finished task.
+*Done when:* codegen has no drift, affected Turbo lanes and the local gate are green, the checklist is complete, and exact-head PR CI is scheduled or green for the enclosing workstream.
 
 ## Error Handling
 

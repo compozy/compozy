@@ -264,11 +264,13 @@ Vite HMR:
 make dev
 ```
 
-Run the full repository gate once the change is ready:
+Run the affected local gate before committing or pushing:
 
 ```bash
-make verify
+make gate
 ```
+
+Delivery finishes in the draft PR: wait for every required CI check to pass on its current head.
 
 Read [AGENTS.md](AGENTS.md) and the surface-specific instructions before editing.
 
@@ -285,7 +287,7 @@ Read [AGENTS.md](AGENTS.md) and the surface-specific instructions before editing
 ## 🤝 Contributing
 
 Contributions are welcome. Open an issue or pull request, keep public behavior agent-manageable, and
-run `make verify` before sending changes. [Security reports](SECURITY.md) belong in the repository's
+run `make gate` before sending changes, then keep the PR until its current-head CI is green. [Security reports](SECURITY.md) belong in the repository's
 private security channel, not a public issue.
 
 ## Contributors

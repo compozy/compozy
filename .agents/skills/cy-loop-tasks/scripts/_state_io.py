@@ -110,6 +110,15 @@ def dump(state: dict, path: Path) -> None:
     out.append(f"  last_run: {_scalar(verify.get('last_run'))}")
     out.append(f"  last_status: {_scalar(verify.get('last_status'))}")
 
+    delivery = state.get("delivery", {})
+    out.append("")
+    out.append("delivery:")
+    out.append(f"  pr_urls: {_flow_list(delivery.get('pr_urls', []))}")
+    out.append(f"  head_shas: {_flow_list(delivery.get('head_shas', []))}")
+    out.append(f"  ci_status: {_scalar(delivery.get('ci_status'))}")
+    out.append(f"  checks: {_flow_list(delivery.get('checks', []))}")
+    out.append(f"  observed_at: {_scalar(delivery.get('observed_at'))}")
+
     iterations = state.get("iterations", [])
     out.append("")
     if not iterations:

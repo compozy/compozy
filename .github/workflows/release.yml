@@ -545,7 +545,6 @@ jobs:
       - uses: ./.github/actions/setup-go
         with:
           go-version: ${{ env.GO_VERSION }}
-          install-mage: "true"
           install-gotestsum: "true"
 
       - uses: ./.github/actions/setup-bun
@@ -599,7 +598,6 @@ jobs:
       - uses: ./.github/actions/setup-go
         with:
           go-version: ${{ env.GO_VERSION }}
-          install-mage: "true"
           install-gotestsum: "true"
 
       - uses: ./.github/actions/setup-bun

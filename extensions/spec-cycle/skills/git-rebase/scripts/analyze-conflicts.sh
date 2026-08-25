@@ -114,7 +114,7 @@ else
     echo "   1. All conflicts appear resolved!"
 fi
 echo "   2. Run from the repository root: bash .agents/skills/git-rebase/scripts/validate-merge.sh"
-echo "   3. Run from the repository root: make gate-full"
+echo "   3. Run from the repository root: make gate"
 echo "   4. For focused frontend checks, use bunx turbo run <task> --filter=<workspace> from the repository root"
 echo "   5. Run a manual smoke test if needed"
 echo "   6. Stage the resolved files explicitly, then run: git rebase --continue"

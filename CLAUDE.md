@@ -11,7 +11,7 @@ No production users. Never sacrifice quality for backward compatibility; never w
 ## Critical Rules
 
 - <critical>Write responses in plain language: prefer everyday words over technical jargon, and define any technical term you must keep in one short clause.</critical>
-- **`make gate-full` MUST pass before closing a workstream** — final completion, commit batch, PR, handoff (see Build Commands). Intermediate tasks inside a loop/batch close on task-focused checks (task-named commands + scoped tests); `make gate` runs once when the batch enters its QA/review tail, `make gate-full` once at close. Zero warnings, zero errors. Exception: docs-only changes that don't affect test/lint/typecheck.
+- **`make gate` MUST pass locally before commit or push; a workstream closes only when the PR's required CI checks are green for its current head.** Draft PRs with pending/red CI remain owned by the author until repaired; `make gate-full` is opt-in local diagnostics only. Zero warnings, zero errors. Exception: docs-only changes that don't affect test/lint/typecheck.
 - **`make lint` and `make bun-lint` are zero-tolerance** — any warning is a blocking failure.
 - **Check dependent package APIs** before writing integration code or tests.
 - **Never hand-edit `go.mod`** — use `go get`. **Never hand-add JS deps** — use `bun add`.
@@ -124,16 +124,17 @@ Web-specific dispatch: `web/CLAUDE.md`. Site-specific: `packages/site/CLAUDE.md`
 
 `make verify` is the only gate that exercises the entire monorepo — `codegen-check → installer-check → Bun lint → Bun typecheck → Bun test → web build → Go fmt → Go lint → Go test → Go build → boundaries`. Run gates through the evidence-cached wrapper, never by hand:
 
-- **Iteration** → `make gate`: classifies the diff vs merge-base and runs only affected lanes (Go → scoped `go-lint` + `go test -race`; web/ui/site → `turbo --filter`; docs/instructions-only → no-op). Schema/SQL, contracts/openapi, `internal/config`, tokens, dependency/build/tooling files, and unclassified paths escalate to full automatically.
-- **Workstream close (final completion/commit batch/PR)** → `make gate-full`: the full `make verify`, exactly once, after the last mutation. Intermediate tasks in a multi-task loop close on `make gate`; the full gate runs once at the loop's end.
-- Gates record `{fingerprint, result, log}` in `.cache/gate/`, keyed by tree content — commits keep records valid, any edit goes stale. A gate whose record is current no-ops; cite `make gate-status` as completion evidence instead of re-running (`cy-final-verify` accepts a current full-gate record as fresh evidence).
+- **Local iteration and pre-push** → `make gate`: classifies the diff vs merge-base and runs only affected lanes (Go → scoped `go-lint` + `go test -race`; web/ui/site → `turbo --filter`; sensitive paths → their codegen/tooling/scoped lanes; docs/instructions-only → no-op). Missing merge bases and unclassified paths fail with an actionable error; they never trigger `make verify`.
+- **Workstream close** → push the current head, open or update its draft PR, then wait for every required CI check to pass. Pending/red CI keeps the workstream open and its author repairs, pushes, and re-waits. `make gate-full` remains available only when an author explicitly wants an extra local full run.
+- **Accepted trade-off** → red failures may arrive one CI wall later, and schema/contract changes receive only their scoped local lanes before push; exact-head PR CI is the mandatory backstop.
+- Local gates record `{fingerprint, result, log}` in `.cache/gate/`, keyed by tree content — commits keep records valid, any edit goes stale. Cite current scoped records for local claims; cite the PR check run at the exact head SHA for completion.
 
-**`make verify` and the E2E lanes self-serialize across worktrees (L-030).** These gates are machine-sized by design; two at once collapse the machine and both stall. They share a machine-wide lock (`~/Library/Caches/compozy-dev/verify.lock`): a second concurrent run queues with explicit "waiting for pid N (worktree X)" messages instead of silently thrashing. Never kill a queued run assuming it hung — read its output. `COMPOZY_VERIFY_LOCK=off` bypasses (CI-style single-checkout machines only). Scoped lanes stay lock-free but bounded: unit `go test` budgets combined package/subtest concurrency against half the effective Go CPU capacity (`COMPOZY_GO_TEST_P` overrides the package cap), and Vitest pools cap at 50%.
+**Opt-in local `make gate-full` and local E2E lanes self-serialize across worktrees (L-030).** They share a machine-wide lock (`~/Library/Caches/compozy-dev/verify.lock`); never kill a queued run assuming it hung. Required local scoped lanes stay lock-free but bounded, while separate PR CI runs execute independently. `COMPOZY_VERIFY_LOCK=off` is for CI-style single-checkout machines only.
 
 **Frontend validation MUST run through Turborepo from the repo root.** Never use `cd web && bun run test`, `bun run --cwd web test`, `cd packages/site && bun run …`, or package-local equivalents as evidence — they bypass Turbo's cache/task graph.
 
 ```bash
-make gate / gate-full / gate-status        # diff-scoped lanes / full verify / evidence records (fingerprint-cached)
+make gate / gate-full / gate-status        # required scoped lanes / opt-in local full / local evidence records
 make bun-lint / bun-typecheck / bun-test   # repo-root Bun gates (oxfmt+oxlint / turbo typecheck / turbo test)
 make lint                                  # strict Go + monorepo Bun lint (zero issues)
 make test / test-integration               # Go unit (-race) / +integration tag
@@ -170,7 +171,7 @@ Before editing any production `*.go` under `cmd/`/`internal/`, activate `eng-cod
 ## Testing
 
 - Activate `eng-test-conventions` before writing/editing any `*_test.go`; `eng-consolidate-test-suites` before adding/moving a test (see the Critical Rules test-placement rule). Both skills carry their own detail.
-- Non-negotiables: `t.Run("Should …")` subtests + `t.Parallel` default; status-code **and** body assertions; `-race`/`CGO_ENABLED=1`; integration/E2E build tags; runtime-contract co-ship (E2E mock + matchers ship with contract changes); 80% per-package coverage floor. `make verify` is the commit gate — test failures are production bugs.
+- Non-negotiables: `t.Run("Should …")` subtests + `t.Parallel` default; status-code **and** body assertions; `-race`/`CGO_ENABLED=1`; integration/E2E build tags; runtime-contract co-ship (E2E mock + matchers ship with contract changes); 80% per-package coverage floor. `make gate` is the local commit gate and PR CI is the delivery gate — test failures are production bugs.
 
 ### Schema Migrations
 

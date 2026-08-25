@@ -33,10 +33,9 @@ inside `commit-checkpoint.py`; the loop's phase machine does not change.
 - **Submission is part of the checkpoint.** After each commit the script runs
   `gh stack submit --auto` (new PRs open as drafts). A clean tree inside a
   stack still re-submits — that heals a commit-ok/submit-failed retry.
-- **The loop never merges the stack.** Phase E ends at the full gate +
-  done-signature as always; merging (`gh stack merge`, or per-layer) is the
-  operator's call afterwards. Merged lower layers auto-rebase the ones above
-  on GitHub's side.
+- **The loop never merges the stack.** Phase E ends only after required CI is
+  green at every open layer's exact head, then prints the done-signature;
+  merging (`gh stack merge`, or per-layer) remains the operator's call.
 
 ## Resume and drift
 

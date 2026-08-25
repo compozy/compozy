@@ -506,6 +506,24 @@ func TestWorktreeScriptSharesResources(t *testing.T) {
 			t.Fatalf("os.Lstat(%s) error = %v, want os.ErrNotExist", resourcesPath, err)
 		}
 	})
+
+	t.Run("Should copy active specs without archived task evidence", func(t *testing.T) {
+		t.Parallel()
+
+		_, worktreeDir := createWorktreeScriptFixture(t, false)
+		if got := readTestFile(t, worktreeDir, ".compozy/tasks/active/task.md"); got != "active" {
+			t.Fatalf("active task content = %q, want active", got)
+		}
+		if _, err := os.Stat(filepath.Join(worktreeDir, ".compozy/tasks/_archived/old/evidence.bin")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("archived evidence os.Stat() error = %v, want os.ErrNotExist", err)
+		}
+		if got := readTestFile(t, worktreeDir, "docs/prompts/current.md"); got != "prompt" {
+			t.Fatalf("prompt content = %q, want prompt", got)
+		}
+		if got := readTestFile(t, worktreeDir, "README.md"); got != "fixture" {
+			t.Fatalf("tracked README content = %q, want fixture", got)
+		}
+	})
 }
 
 func TestDirectoryDigest(t *testing.T) {
@@ -925,6 +943,9 @@ func createWorktreeScriptFixture(t *testing.T, withResources bool) (string, stri
 
 	runTestCommand(t, "", "git", "init", "-b", "main", mainDir)
 	writeTestFile(t, mainDir, "README.md", "fixture")
+	writeTestFile(t, mainDir, ".compozy/tasks/active/task.md", "active")
+	writeTestFile(t, mainDir, ".compozy/tasks/_archived/old/evidence.bin", "archive")
+	writeTestFile(t, mainDir, "docs/prompts/current.md", "prompt")
 	runTestCommand(t, mainDir, "git", "add", "README.md")
 	runTestCommand(
 		t,

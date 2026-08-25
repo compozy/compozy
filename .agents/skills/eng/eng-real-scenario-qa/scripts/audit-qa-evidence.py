@@ -848,7 +848,7 @@ def audit(args: argparse.Namespace) -> tuple[list[Finding], list[Finding], dict[
                 if evidence_exists(path_text, roots):
                     verify_existing.append(path_text)
         if not verify_existing:
-            blockers.append(Finding("C14", "final make verify evidence is missing", str(final_report_path)))
+            blockers.append(Finding("C14", "final local gate evidence is missing", str(final_report_path)))
 
     if args.api_base_url:
         warnings.append(Finding("C99", "API deep equality check is not implemented; rely on captured CLI/API/Web/runtime evidence", args.api_base_url))

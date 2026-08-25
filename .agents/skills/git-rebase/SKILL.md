@@ -25,7 +25,7 @@ git rebase origin/main
 # Step 4: If conflicts, resolve them once (see workflow below)
 # Then continue: git rebase --continue
 
-# Step 5: Force push safely
+# Step 5: Force push safely, then watch the PR's exact-head CI
 git push origin $(git rev-parse --abbrev-ref HEAD) --force-with-lease
 ```
 
@@ -44,7 +44,7 @@ Rebase Workflow:
 - [ ] Step 5: Apply conflict resolutions
 - [ ] Step 6: Validate merged code
 - [ ] Step 7: Run tests
-- [ ] Step 8: Force push safely
+- [ ] Step 8: Force push safely and wait for current-head CI
 ```
 
 ### Step 1: Create Safety Backup
@@ -265,8 +265,8 @@ git diff HEAD origin/main -- <conflicted-file>
 This is your safety net:
 
 ```bash
-# Run full test suite
-npm test
+# Run the repository's required local pre-push gate
+make gate
 
 # Or specific tests for changed areas
 npm test -- --testPathPattern=auth  # If auth.ts was changed
@@ -287,6 +287,9 @@ Use `--force-with-lease` instead of `--force`. It protects against accidentally 
 ```bash
 # SAFE: Protects others' commits
 git push origin $(git rev-parse --abbrev-ref HEAD) --force-with-lease
+
+# The rewritten head invalidates previous CI evidence.
+gh pr checks --watch --interval 20
 
 # UNSAFE: Can overwrite others' work
 git push origin your-branch -f  # Don't do this

@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"io/fs"
 	"time"
-
-	"github.com/pressly/goose/v3"
 )
 
 var (
@@ -60,31 +58,12 @@ func Apply(ctx context.Context, db *sql.DB, stream MigrationStream) error {
 	if bootstrapped {
 		return logAppliedMigrationStream(ctx, db, stream, inspection.directory.sumDigest, startedAt)
 	}
-	plan, err := prepareMigrationPlan(inspection.directory)
+	stepper, err := newMigrationStepperFromInspection(db, stream, inspection)
 	if err != nil {
-		return fmt.Errorf("store: prepare migration stream %q: %w", stream.Name, err)
+		return err
 	}
-	if plan.requiresIndependentConnection() && db.Stats().MaxOpenConnections == 1 {
-		return fmt.Errorf(
-			"%w: stream %q contains a non-transactional migration and requires at least two open connections",
-			ErrMigrationConnectionCapacity,
-			stream.Name,
-		)
-	}
-
-	provider, err := goose.NewProvider(
-		goose.DialectSQLite3,
-		db,
-		plan.gooseFS,
-		goose.WithTableName(stream.VersionTable),
-		goose.WithDisableGlobalRegistry(true),
-		goose.WithGoMigrations(plan.gooseMigrations()...),
-	)
-	if err != nil {
-		return fmt.Errorf("store: create migration provider for stream %q: %w", stream.Name, err)
-	}
-	if _, err := provider.Up(ctx); err != nil {
-		return fmt.Errorf("store: apply migration stream %q: %w", stream.Name, err)
+	if _, err := stepper.UpTo(ctx, inspection.directory.maxVersion); err != nil {
+		return err
 	}
 	return logAppliedMigrationStream(ctx, db, stream, inspection.directory.sumDigest, startedAt)
 }

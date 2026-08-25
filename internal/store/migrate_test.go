@@ -45,6 +45,32 @@ func TestApplyMigrationStream(t *testing.T) {
 		}
 	})
 
+	t.Run("Should apply one explicit migration step without rebuilding the plan", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openEngineTestDB(t, "stepper.db")
+		stream := fixtureMigrationStream("goose_db_version_stepper", "testdata/migrations/happy")
+		stepper, err := NewMigrationStepper(ctx, db, stream)
+		if err != nil {
+			t.Fatalf("NewMigrationStepper() error = %v", err)
+		}
+		applied, err := stepper.UpTo(ctx, 1)
+		if err != nil {
+			t.Fatalf("UpTo(1) error = %v", err)
+		}
+		if applied != 1 || migrationItemValues(t, db) != "first" {
+			t.Fatalf("UpTo(1) applied = %d, values = %q, want 1 and first", applied, migrationItemValues(t, db))
+		}
+		applied, err = stepper.UpTo(ctx, 2)
+		if err != nil {
+			t.Fatalf("UpTo(2) error = %v", err)
+		}
+		if applied != 1 || migrationItemValues(t, db) != "first,second" {
+			t.Fatalf("UpTo(2) applied = %d, values = %q, want 1 and first,second", applied, migrationItemValues(t, db))
+		}
+	})
+
 	t.Run("Should create only the configured stream version table", func(t *testing.T) {
 		t.Parallel()
 

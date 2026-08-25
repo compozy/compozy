@@ -81,7 +81,7 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 
 1. Maintain the dated report at `docs/qa/reports/<YYYY-MM-DD>-<playbook-ref>.md` through `qa-report`/`qa-execution`; index lab-side evidence by path rather than copying it into the repository.
 2. Diagnose and fix real runtime defects with `systematic-debugging` and `no-workarounds`; fix playbook authoring defects in the playbook source and restart from Step 2.
-3. After the last code change, run the single full `make verify` completion gate and record its fresh evidence in the dated report.
+3. After the last code change, run `make gate` and record its fresh local evidence in the dated report; the enclosing workstream waits for exact-head PR CI.
 4. Run the mutating strict auditor last, passing the durable report explicitly:
    `python3 .agents/skills/eng/eng-real-scenario-qa/scripts/audit-qa-evidence.py --qa-output-path "$QA_OUTPUT_PATH" --final-report "docs/qa/reports/<YYYY-MM-DD>-<playbook-ref>.md" --strict`
 5. Auditor exit code 2 is a blocking failure. Read `qa-audit-report.json` and act per check. All durable bugs go to the repo's global registry as `docs/qa/bugs/BUG-<YYYYMMDD>-<slug>.md` (dedup against the registry first, per `qa-report`'s bug-registry rules) and are linked into the affected `docs/qa/scenarios/*.md` files:
@@ -89,12 +89,12 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
    - **C16** deliverable count short → file a runtime bug (which Compozy agent failed to produce the artifact, why, what state shows the failure). Do not author the missing artifact yourself — the runtime is what's under test.
    - **C17** collaboration loop short → file a runtime bug describing which channel, agent, or review cycle did not complete. Cite journey-log timestamps.
    - **C18** stall → the registry bug is mandatory and must name the silent agent and stalled task.
-6. Re-run the relevant scoped checks after each fix; after source freezes again, refresh the single full gate evidence and rerun the strict auditor.
+6. Re-run the relevant scoped checks after each fix; after source freezes again, refresh the local gate evidence and rerun the strict auditor.
    Observer changes use the read-only verification helper:
    `python3 .agents/skills/eng/eng-real-scenario-qa/scripts/test_observe_runtime.py`.
 7. Update affected scenario verdicts and append the bootstrap continuation block only when the same active loop will continue.
 
-*Done when:* the dated report, fresh final gate, scenario verdicts, strict audit, and indexed evidence all describe the same execution with no blocker.
+*Done when:* the dated report, fresh local gate, scenario verdicts, strict audit, and indexed evidence all describe the same execution with no blocker.
 
 **Step 7: Tear Down the Lab (MANDATORY)**
 

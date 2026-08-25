@@ -12,6 +12,7 @@ phase=B action=execute_free_slice
 phase=C action=qa_report
 phase=C action=qa_execution
 phase=D action=peer_review round=N
+phase=E action=await_ci
 phase=E action=done
 ```
 
@@ -32,7 +33,8 @@ filesystem truth.
 | `phase=C action=qa_report` | QA is next (tasks: head of pending is a QA task; free: deliverables complete) AND `qa.report_done=false`. Always precedes `qa_execution`. |
 | `phase=C action=qa_execution` | `qa.report_done=true` AND `qa.execution_done=false`. |
 | `phase=D action=peer_review round=N` | Both QA flags true AND `review.ship=false` (`N = review.rounds + 1`). Also re-emitted when `review.ship=true` but `verify.last_status != PASS` — a SHIP verdict on a failing tree is void, so review re-enters after the tree is fixed. |
-| `phase=E action=done` | Both QA flags true AND `review.ship=true` AND `verify.last_status=PASS`. |
+| `phase=E action=await_ci` | Both QA flags true, `review.ship=true`, and `verify.last_status=PASS`, but exact-head delivery evidence is absent, pending, or failed. |
+| `phase=E action=done` | The `await_ci` entry conditions hold AND `delivery.ci_status=PASS` with paired PR URLs/head SHAs and reported checks. |
 
 ## Exit rules
 
@@ -46,7 +48,9 @@ filesystem truth.
   `tasks.pending` drains.
 - Phase D closes one `deep-review` round per iteration via
   `--review-round-done <verdict>`; `SHIP` sets `review.ship=true`.
-- Phase E prints the iteration summary plus the literal contents of
+- Phase E `await_ci` pushes/refreshes the draft PR set, watches every check,
+  and records terminal evidence through `update-state.py`. Phase E `done`
+  prints the iteration summary plus the literal contents of
   `assets/done-signature.txt`, then stops. The codex-loop verdict prompt
   marks the goal complete from that signature.
 

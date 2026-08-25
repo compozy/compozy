@@ -68,4 +68,6 @@ final iteration.
 
 - [ ] `qa.report_done=true`, `qa.execution_done=true`, AND `review.ship=true` confirmed via `state.yaml`, not memory.
 - [ ] `verify.last_status` is `PASS` and the timestamp is recent (same iteration as Phase E entry).
+- [ ] Every draft PR URL and exact head SHA is recorded; all reported required checks are green at that head.
+- [ ] No check is pending/red and no repair commit remains unpushed.
 - [ ] The done-signature from `assets/done-signature.txt` is the LAST line of the message.

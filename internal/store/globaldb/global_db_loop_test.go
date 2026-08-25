@@ -3,17 +3,17 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -30,6 +30,9 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 )
 
+//go:embed global_db_*.go
+var globalDBLoopSourceFiles embed.FS
+
 // Invariant: every low-level terminal loop_runs status mutation invokes the settlement authority
 // in the same function. Source routing is the product safety contract, so this AST check owns IT-030.
 func TestGlobalDBLoopTerminalMutationPathsShouldInvokeSettlementAuthority(t *testing.T) {
@@ -37,14 +40,9 @@ func TestGlobalDBLoopTerminalMutationPathsShouldInvokeSettlementAuthority(t *tes
 	t.Run("Should require every terminal mutation path to invoke settlement authority", func(t *testing.T) {
 		t.Parallel()
 
-		_, currentFile, _, ok := runtime.Caller(0)
-		if !ok {
-			t.Fatal("runtime.Caller() did not resolve the GlobalDB suite")
-		}
-		directory := filepath.Dir(currentFile)
-		entries, err := os.ReadDir(directory)
+		entries, err := fs.ReadDir(globalDBLoopSourceFiles, ".")
 		if err != nil {
-			t.Fatalf("os.ReadDir() error = %v", err)
+			t.Fatalf("fs.ReadDir(embedded GlobalDB sources) error = %v", err)
 		}
 		terminalMutationSelectors := map[string]struct{}{
 			"CompareAndSwapLoopRunStatus":       {},
@@ -60,10 +58,13 @@ func TestGlobalDBLoopTerminalMutationPathsShouldInvokeSettlementAuthority(t *tes
 				!strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
 				continue
 			}
-			path := filepath.Join(directory, entry.Name())
-			parsed, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+			source, err := fs.ReadFile(globalDBLoopSourceFiles, entry.Name())
 			if err != nil {
-				t.Fatalf("parser.ParseFile(%s) error = %v", path, err)
+				t.Fatalf("fs.ReadFile(%s) error = %v", entry.Name(), err)
+			}
+			parsed, err := parser.ParseFile(token.NewFileSet(), entry.Name(), source, 0)
+			if err != nil {
+				t.Fatalf("parser.ParseFile(%s) error = %v", entry.Name(), err)
 			}
 			for _, declaration := range parsed.Decls {
 				function, ok := declaration.(*ast.FuncDecl)

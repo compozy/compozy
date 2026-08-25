@@ -96,11 +96,7 @@ func (c *daemonClient) doSessionPrompt(
 		})
 		record := SessionPromptRecord{Events: events}
 		if decodeErr != nil || state.failure != nil {
-			streamErr := errors.Join(decodeErr, state.failure)
-			if c.target.isRemoteGateway() && ctx.Err() == nil {
-				streamErr = newGatewayStreamInterruptedError(c.target, streamErr)
-			}
-			return record, streamErr
+			return record, sessionPromptStreamError(ctx, c.target, state, decodeErr)
 		}
 		if !state.terminal {
 			return record, errSessionPromptStreamIncomplete
@@ -162,11 +158,7 @@ func (c *daemonClient) StreamPromptSession(
 			return handler(event)
 		})
 		if decodeErr != nil || state.failure != nil {
-			streamErr := errors.Join(decodeErr, state.failure)
-			if c.target.isRemoteGateway() && ctx.Err() == nil {
-				return newGatewayStreamInterruptedError(c.target, streamErr)
-			}
-			return streamErr
+			return sessionPromptStreamError(ctx, c.target, state, decodeErr)
 		}
 		if !state.terminal {
 			return errSessionPromptStreamIncomplete
@@ -184,6 +176,22 @@ func (c *daemonClient) StreamPromptSession(
 		return nil
 	}
 	return handler(SSEEvent{Event: promptResultEventName, Data: body})
+}
+
+func sessionPromptStreamError(
+	ctx context.Context,
+	target ClientTarget,
+	state sessionPromptStreamState,
+	decodeErr error,
+) error {
+	streamErr := errors.Join(decodeErr, state.failure)
+	if !state.terminal {
+		streamErr = errors.Join(errSessionPromptStreamIncomplete, streamErr)
+	}
+	if target.isRemoteGateway() && ctx.Err() == nil {
+		return newGatewayStreamInterruptedError(target, streamErr)
+	}
+	return streamErr
 }
 
 func (s *sessionPromptStreamState) observe(event SSEEvent) error {

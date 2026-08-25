@@ -42,11 +42,11 @@ Skip any step = lying, not verifying
 Match the verification scope to the claim scope:
 
 - **Narrow claim** (e.g., "this test passes"): Run the specific test.
-- **Broad claim** (e.g., "task complete", "ready to commit"): Run the **full verification pipeline** — formatting, linting, all tests, and build. If the project defines a single gate command (e.g., `make verify`), run that.
+- **Broad claim** (e.g., "workstream delivered"): Run the repository's required local pre-push gate. If the repository delegates full delivery to PR CI, also require green checks for the exact head SHA; a local full run cannot replace that evidence.
 
 A narrow verification does not support a broad claim. Running `make test` alone does not justify "task complete." Running the linter alone does not justify "ready to commit." The verification scope must be equal to or broader than the claim scope.
 
-**If in doubt, run the full pipeline.** Over-verification wastes minutes. Under-verification wastes hours.
+**If in doubt, follow the repository's verification contract.** A narrow lane cannot support a broad claim, and pending/red CI is not delivery.
 
 **Passing pipeline != meeting requirements.** A green build proves the code compiles, lints, and passes existing tests. It does not prove the implementation matches the requirements. For "task complete" or "requirements met" claims, also verify the deliverables against the original specification — line by line, not by assumption. In a spec/PRD workflow, "the original specification" means the canonical artifacts in the spec directory (example documents, input tables, parity maps, QA seeds) — never just the task file's paraphrase of them (see "Spec Contract Parity").
 
@@ -119,7 +119,7 @@ Commits and PRs are permanent artifacts. They require the highest verification s
 **Before `git commit`:**
 
 1. If the `deslop` skill exists, run the deslop pass (see "Deslop Gate" above).
-2. Run the full verification pipeline (e.g., `make verify`). Not a subset. The full pipeline.
+2. Run the repository's required local pre-push gate. Use its full pipeline only when the repository requires it locally.
 3. Confirm zero errors, zero warnings, zero test failures in the output.
 4. If both `qa-report` and `qa-execution` skills exist and the project keeps living QA scenario files (e.g. `docs/qa/scenarios/*.md`), apply the QA impact flag (see "QA Tracker Impact" below).
 5. Produce a Verification Report (see template below) with verdict PASS.
@@ -130,8 +130,9 @@ Commits and PRs are permanent artifacts. They require the highest verification s
 1. All of the above, plus:
 2. Verify the diff matches the intended changes (`git diff` review).
 3. Confirm no unrelated files are staged.
+4. If full delivery is delegated to CI, push/open the PR, watch its checks to terminal state, and record the PR URL plus exact green head SHA. Pending/red CI keeps the claim open.
 
-If the full pipeline has not passed in this session after the last code change, the commit or PR must not proceed.
+If the owning local gate has not passed in this session after the last code change, the commit or PR must not proceed. If the repository requires exact-head PR CI, the workstream cannot close until that evidence is green.
 
 ## QA Tracker Impact (living QA docs)
 
@@ -178,7 +179,7 @@ Every verification must be reported using this structure. Do not deviate.
 VERIFICATION REPORT
 -------------------
 Claim: [What is being claimed — e.g., "tests pass", "build succeeds", "task complete"]
-Command: [Exact command run — e.g., `make verify`]
+Command: [Exact local and remote verification commands]
 Executed: [Timestamp or "just now, after all changes"]
 Exit code: [0 or non-zero]
 Output summary: [Key lines from output — pass count, error count, build result]
@@ -186,6 +187,7 @@ Warnings: [Any warnings, or "none"]
 Errors: [Any errors, or "none"]
 Contract parity: [spec-workflow tasks: artifacts compared + PASS/mismatch; otherwise "n/a"]
 Visual contract: [named-reference UI: matrix rows passed/total + durable bundle root; otherwise "n/a — no named visual reference found"]
+PR evidence: [when delegated: PR URL(s), exact head SHA(s), and required check results; otherwise "n/a"]
 Verdict: PASS or FAIL
 ```
 
@@ -200,7 +202,7 @@ Verification failure is not a dead end. It is information. Follow this protocol:
 1. **Read the failure.** Identify the exact error: which command failed, which test, which lint rule, which build error. Quote the relevant output lines.
 2. **Diagnose the root cause.** Do not guess. Read the error message. Trace it to the source. If multiple things failed, address them one at a time starting with the first failure.
 3. **Fix the root cause.** Apply the minimal change that addresses the actual error. Do not apply workarounds, suppress warnings, or skip checks.
-4. **Re-verify from scratch.** Run the full verification command again. Do not assume the fix worked. Do not run only the previously-failing subset.
+4. **Re-verify at the owning scope.** Rerun the affected local gate and, when delivery is delegated, push and wait for the complete PR CI run again.
 5. **Report with evidence.** Use the Verification Report Template. If it passes now, the claim may proceed. If it fails again, return to step 1.
 
 **Never:**

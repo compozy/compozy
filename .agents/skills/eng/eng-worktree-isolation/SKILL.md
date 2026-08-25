@@ -11,7 +11,7 @@ Provision one owned runtime envelope for a concurrent worktree or non-bootstrap
 test run. Production-like QA should prefer `eng-qa-bootstrap`, which adds a
 manifest, provider homes, browser policy, and targeted teardown evidence.
 
-Creating the parallel checkout itself is a separate step: `make worktree-new SLUG=<slug>` (→ `./scripts/worktree.sh`) adds a sibling worktree and bootstraps it (mise pins, `bun install` + skill/AGENTS.md symlinks; `BUILD=1`/`E2E=1` opt-ins); `make worktree-bootstrap` preps an existing checkout; `./scripts/worktree.sh rm <slug>` removes. Go caches are shared machine-wide — no per-worktree Go setup. This skill then isolates the RUNTIME state that agents inside that worktree use. `make verify` and the E2E lanes self-queue machine-wide (L-030); scoped lanes are capacity-bounded and need no lock.
+Creating the parallel checkout itself is a separate step: `make worktree-new SLUG=<slug>` (→ `./scripts/worktree.sh`) adds a sibling worktree and bootstraps it (mise pins, `bun install` + skill/AGENTS.md symlinks; `BUILD=1`/`E2E=1` opt-ins); `make worktree-bootstrap` preps an existing checkout; `./scripts/worktree.sh rm <slug>` removes. Go caches are shared machine-wide — no per-worktree Go setup. This skill then isolates the RUNTIME state that agents inside that worktree use. Opt-in `make gate-full` and local E2E self-queue machine-wide (L-030); required scoped lanes need no lock and PR CI owns full verification.
 
 ## Required Inputs
 

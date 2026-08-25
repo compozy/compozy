@@ -55,7 +55,7 @@ Run before writing Final Status; every unmet item is either fixed or disclosed i
 4. **Fixes proven** — every fix has commit SHA + regression test (or documented replay + backlog entry); impacted and adjacent journeys re-walked.
 5. **Tracker written** — every settled scenario's file carries the current verdict with valid enums; every session's debrief is in the report.
 6. **Evidence lean and linked** — checkpoints/failures captured, paths resolve, oversized evidence pruned per the layout policy.
-7. **Exit gate run** — full automated suite result recorded verbatim.
+7. **Exit gate run** — local pre-push gate and exact-head PR CI status recorded verbatim.
 8. **Parity disclosed** — any production-parity deviation (mocked service, missing extension set, wifi-only) stated, since it qualifies every verdict.
 9. **Fidelity clean** — no evaluator framing leaked into product surfaces; any violation disclosed with the re-run that replaced the tainted verdicts.
 10. **Final Status states the release readiness** in one sentence a non-reader can act on, with totals by user-impact tier.

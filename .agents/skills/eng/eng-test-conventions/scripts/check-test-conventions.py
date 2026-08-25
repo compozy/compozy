@@ -7,7 +7,7 @@ Exits 0 on success, 1 if violations were found.
 Use as: python3 check-test-conventions.py <path/to/file_test.go>
 
 Heuristics are intentionally fast and pragmatic; they complement (not replace)
-golangci-lint and make verify.
+golangci-lint, the local gate, and exact-head PR CI.
 """
 
 from __future__ import annotations

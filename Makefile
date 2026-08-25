@@ -53,7 +53,8 @@ test-e2e-web:
 
 test-e2e-desktop: web-build desktop-build
 	@runner=""; \
-	if [ "$$(uname -s)" = "Linux" ]; then runner="xvfb-run -a"; fi; \
+	if [ "$$(uname -s)" = "Linux" ]; then runner="xvfb-run -a desktop/scripts/run-e2e-linux.sh"; fi; \
+	if [ -n "$$runner" ]; then $$runner; exit $$?; fi; \
 	$$runner bun run --cwd desktop test:e2e
 
 test-e2e:
@@ -123,11 +124,10 @@ help:
 
 # Evidence-cached gates
 #
-# `gate` classifies the branch diff and runs only affected lanes; sensitive
-# paths (schema, contracts, config, deps, build tooling) escalate to the full
-# verify. `gate-full` is the completion/PR gate. Both record evidence in
-# .cache/gate/ keyed by tree-content fingerprint — a gate whose record matches
-# the current fingerprint is a no-op. `gate-status` prints records for citing.
+# `gate` classifies the branch diff and runs affected local lanes only; the
+# PR CI run owns full verification. `gate-full` is an opt-in local diagnostic.
+# Both record evidence in .cache/gate/ keyed by tree-content fingerprint; a
+# current record is a no-op. `gate-status` prints local records for citing.
 .PHONY: gate gate-full gate-status
 gate:
 	@bash scripts/gate.sh auto
@@ -177,7 +177,7 @@ web-test:
 # Parallel worktrees
 #
 # `worktree-new` creates a sibling worktree at ../_worktrees/<slug>, copies
-# shared dirs from main (.claude .codex .compozy docs), links .resources, then
+# small local agent state plus active specs (never archived task evidence), links .resources, then
 # bootstraps (mise pins, bun install + skill symlinks; BUILD=1 adds `make
 # build`, E2E=1 installs Playwright chromium). `worktree-light` skips the copy
 # and the install (tracked dirs come from the branch) — enough for Go-only

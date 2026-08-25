@@ -65,7 +65,7 @@ After any fix:
 
 ## The exit gate
 
-Before the run's Final Status: **run the project's full automated suite once.** A green matrix with a red suite is not ready — some fix broke something the sessions didn't walk. The gate result goes in the report verbatim; a red gate makes Final Status "not ready" regardless of the matrix.
+Before the run's Final Status: **run the project's required local pre-push gate.** A green matrix with a red gate is not ready — some fix broke something the sessions did not walk. Record the local result verbatim; delivery later requires exact-head PR CI, whose red or pending state also keeps Final Status "not ready".
 
 (The suite was green at Step 1 — the gate catches what *this run's fixes* changed.)
 

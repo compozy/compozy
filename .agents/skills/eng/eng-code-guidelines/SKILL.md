@@ -43,9 +43,9 @@ application order; its references own the rules.
 
 1. Run `make lint` and scoped `go test -race ./<owning-package>/...` for the changed package.
 2. Run cross-build or Linux-race parity checks only when the concurrency reference routes the change there.
-3. Reserve the single full `make verify` for the task completion gate after source freeze.
+3. Run `make gate` after source freeze; exact-head PR CI owns full completion verification.
 
-*Done when:* scoped lanes are green and exactly one fresh full gate is scheduled or complete for the finished task.
+*Done when:* scoped lanes and the local gate are green; exact-head PR CI is scheduled or green for the enclosing workstream.
 
 ## Error Handling
 

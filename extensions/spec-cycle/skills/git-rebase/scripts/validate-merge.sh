@@ -117,7 +117,7 @@ if [ $EXIT_CODE -eq 0 ]; then
     echo "✅ Validation PASSED - Ready for testing!"
     echo ""
     echo "Next steps:"
-    echo "  1. Run from the repository root: make gate-full"
+    echo "  1. Run from the repository root: make gate"
     echo "  2. For focused frontend checks, use bunx turbo run <task> --filter=<workspace> from the repository root"
     echo "  3. Run a manual smoke test if needed"
     echo "  4. Then: git rebase --continue"

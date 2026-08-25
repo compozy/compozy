@@ -68,13 +68,13 @@ Verbatim canonical rules. Reviewers will quote these. Stay aligned.
 
 ## Race / cgo
 
-- `make verify` runs `-race`. Race-enabled tests need `CGO_ENABLED=1`.
+- `make test`, scoped Go gates, and the PR Go-test lanes run `-race`. Race-enabled tests need `CGO_ENABLED=1`.
 - `runRaceEnabledGoCommand` (or equivalent) clones caller env and forces `CGO_ENABLED=1` for race subprocesses. Do not trust ambient env.
-- Linux-Race CI parity: before claiming `make verify` complete on race-sensitive packages (`internal/session`, `internal/acp`, `internal/hooks`, `internal/subprocess`, `internal/resources`), reproduce locally with `act workflow_dispatch -W .github/workflows/ci.yml -j verify --container-architecture linux/amd64`.
+- Linux-race parity for sensitive packages (`internal/session`, `internal/acp`, `internal/hooks`, `internal/subprocess`, `internal/resources`) is owned by the exact-head PR Go-test lanes.
 
 ## Commit gate
 
-- `make verify` is the commit gate. If verification is blocked by an external/branch-side asset issue (missing test fixture, etc.), do NOT commit — report the verified blocker and hold.
+- `make gate` is the local commit gate; exact-head PR CI is the delivery gate. If either is blocked by an external asset issue, report the verified blocker and hold.
 - Test failures are production bugs. Fix production code; don't weaken assertions. The only exception is documenting an INVALID review item with concrete evidence.
 
 ## E2E follows runtime contract
