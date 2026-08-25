@@ -130,6 +130,7 @@ func (s *Session) prepareStop(now time.Time, cause StopCause, detail string) (bo
 	if s.promptSetupDone == nil {
 		s.promptSetupDone = closedSignalChan()
 	}
+	cause = s.resolveSpawnTTLStopCauseLocked(cause)
 
 	switch s.State {
 	case StateStopped:
@@ -151,6 +152,19 @@ func (s *Session) prepareStop(now time.Time, cause StopCause, detail string) (bo
 	default:
 		return false, nil, fmt.Errorf("%w: %s -> %s", ErrInvalidStateTransition, s.State, StateStopping)
 	}
+}
+
+// resolveSpawnTTLStopCauseLocked classifies an expired child at the same
+// lifecycle lock that transitions it to stopping. This prevents a new prompt
+// from being admitted between a reaper snapshot and the stop decision.
+func (s *Session) resolveSpawnTTLStopCauseLocked(cause StopCause) StopCause {
+	if cause != CauseSpawnTTLExpired {
+		return cause
+	}
+	if s.promptSetupCount > 0 || s.currentTurnSource != "" || s.currentTurnID != "" {
+		return CauseTimeout
+	}
+	return CauseCompleted
 }
 
 func (s *Session) setStopCause(cause StopCause) {

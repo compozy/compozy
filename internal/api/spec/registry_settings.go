@@ -121,7 +121,7 @@ func applySettingsUpdateOperationSpec() OperationSpec {
 				Description: "Accepted, blocked, or acquisition-time failure",
 				Body:        contract.SettingsUpdateApplyResponse{},
 			},
-			{Status: 400, Description: "Invalid update target", Body: contract.ErrorPayload{}},
+			{Status: 400, Description: "Invalid update target set", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: settingsUpdateUnavailableDescription, Body: contract.ErrorPayload{}},

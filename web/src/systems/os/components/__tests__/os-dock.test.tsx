@@ -243,9 +243,7 @@ describe("OsDock", () => {
     const first = windowFixture("window:tasks-a", "tasks");
     const second = windowFixture("window:tasks-b", "tasks", { minimized: true });
     const other = windowFixture("window:dashboard", "dashboard");
-    const { result, rerender } = renderHook(() =>
-      useDesktopDock({}, { sessionsOpen: false, onToggleSessions: vi.fn() })
-    );
+    const { result, rerender } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
 
     setDockState(
       desktopState({ [first.id]: first, [second.id]: second, [other.id]: other }, other.id, [
@@ -271,9 +269,7 @@ describe("OsDock", () => {
 
   it("Should target a task instance on another desktop through the activation coordinator (UT-044)", () => {
     const remote = windowFixture("window:tasks-remote", "tasks", { desktopId: "desktop:two" });
-    const { result } = renderHook(() =>
-      useDesktopDock({}, { sessionsOpen: false, onToggleSessions: vi.fn() })
-    );
+    const { result } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
     setDockState(desktopState({ [remote.id]: remote }, null, [remote.id]));
 
     act(() => result.current.handleSelect("tasks"));
@@ -283,7 +279,7 @@ describe("OsDock", () => {
 
   it("Should keep a sessions attention badge after its last session tab closes (UT-045)", () => {
     const { result, rerender } = renderHook(() =>
-      useDesktopDock({ sessions: 1 }, { sessionsOpen: false, onToggleSessions: vi.fn() })
+      useDesktopDock({ sessions: 1 }, { onNewSession: vi.fn() })
     );
     const session = windowFixture("window:session", "session", {
       instanceKey: "session:needs-input",
@@ -296,6 +292,93 @@ describe("OsDock", () => {
 
     expect(result.current.entries.find(entry => entry.id === "session")).toMatchObject({
       badge: 1,
+    });
+  });
+
+  it("Should launch a new session from the dock when no session window exists", () => {
+    const onNewSession = vi.fn();
+    const { result } = renderHook(() => useDesktopDock({}, { onNewSession }));
+    setDockState(desktopState());
+
+    act(() => result.current.handleSelect("session"));
+
+    expect(onNewSession).toHaveBeenCalledOnce();
+    expect(dockShell.coordinator.userActivateWindow).not.toHaveBeenCalled();
+  });
+
+  it("Should focus the most recently used session window and project its run state", () => {
+    const older = windowFixture("window:session-older", "session", {
+      instanceKey: "session:older",
+      minimized: true,
+      desktopId: "desktop:two",
+      stackId: "stack:session",
+      stackActive: false,
+    });
+    const recent = windowFixture("window:session-recent", "session", {
+      instanceKey: "session:recent",
+      stackId: "stack:session",
+      stackActive: true,
+    });
+    const onNewSession = vi.fn();
+    const { result, rerender } = renderHook(() => useDesktopDock({}, { onNewSession }));
+    setDockState(
+      desktopState({ [older.id]: older, [recent.id]: recent }, null, [recent.id, older.id])
+    );
+    rerender();
+
+    act(() => result.current.handleSelect("session"));
+
+    expect(onNewSession).not.toHaveBeenCalled();
+    expect(dockShell.coordinator.userActivateWindow).toHaveBeenLastCalledWith(recent.id);
+    expect(result.current.entries.find(entry => entry.id === "session")).toMatchObject({
+      running: true,
+      minimized: false,
+    });
+  });
+
+  it.each([
+    {
+      label: "minimized",
+      overrides: { minimized: true },
+      projection: { running: false, minimized: true },
+    },
+    {
+      label: "on another desktop",
+      overrides: { desktopId: "desktop:two" },
+      projection: { running: true, minimized: false },
+    },
+    {
+      label: "an inactive stack tab",
+      overrides: { stackId: "stack:session", stackActive: false },
+      projection: { running: true, minimized: false },
+    },
+  ])("Should focus an MRU session window when it is $label", ({ overrides, projection }) => {
+    const target = windowFixture("window:session-target", "session", {
+      instanceKey: "session:target",
+      ...overrides,
+    });
+    const { result, rerender } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
+    setDockState(desktopState({ [target.id]: target }, null, [target.id]));
+    rerender();
+
+    act(() => result.current.handleSelect("session"));
+
+    expect(dockShell.coordinator.userActivateWindow).toHaveBeenLastCalledWith(target.id);
+    expect(result.current.entries.find(entry => entry.id === "session")).toMatchObject(projection);
+  });
+
+  it("Should mark the sessions dock icon minimized when every session window is minimized", () => {
+    const session = windowFixture("window:session-minimized", "session", {
+      instanceKey: "session:minimized",
+      minimized: true,
+    });
+    const { result, rerender } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
+    setDockState(desktopState({ [session.id]: session }, null, [session.id]));
+    rerender();
+
+    expect(result.current.entries.find(entry => entry.id === "session")).toMatchObject({
+      running: false,
+      minimized: true,
     });
   });
 
@@ -351,14 +434,7 @@ describe("OsDock", () => {
     const task = windowFixture("window:tasks", "tasks");
     setDockState(desktopState({ [task.id]: task }, task.id, [task.id]));
     const view = renderDock(
-      <DesktopDock
-        badges={{}}
-        onNewSession={vi.fn()}
-        onToggleSessions={vi.fn()}
-        pager={null}
-        contextMenusEnabled
-        sessionsOpen={false}
-      />
+      <DesktopDock badges={{}} onNewSession={vi.fn()} pager={null} contextMenusEnabled />
     );
     const taskButton = screen.getByRole("button", { name: "Tasks" });
     fireEvent.contextMenu(taskButton);
@@ -366,14 +442,7 @@ describe("OsDock", () => {
 
     view.rerender(
       <TooltipProvider delay={0}>
-        <DesktopDock
-          badges={{}}
-          onNewSession={vi.fn()}
-          onToggleSessions={vi.fn()}
-          pager={null}
-          contextMenusEnabled={false}
-          sessionsOpen
-        />
+        <DesktopDock badges={{}} onNewSession={vi.fn()} pager={null} contextMenusEnabled={false} />
       </TooltipProvider>
     );
 

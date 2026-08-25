@@ -518,7 +518,7 @@ func TestBootLoopReconciliationBarrier(t *testing.T) {
 		cfg := testConfig(t, homePaths)
 		cfg.Network.Enabled = false
 		cloneDaemonTestStoreSeed(t, homePaths.DatabaseFile)
-		db, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
+		db, err := openDaemonTestGlobalDBAtPath(testutil.Context(t), homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -733,7 +733,7 @@ func TestBootLoopReconciliationBarrier(t *testing.T) {
 		cfg := testConfig(t, homePaths)
 		cfg.Network.Enabled = false
 		cloneDaemonTestStoreSeed(t, homePaths.DatabaseFile)
-		database, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
+		database, err := openDaemonTestGlobalDBAtPath(testutil.Context(t), homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -11610,7 +11610,7 @@ func openDaemonTestGlobalDB(t *testing.T) *globaldb.GlobalDB {
 
 	databasePath := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
 	cloneDaemonTestStoreSeed(t, databasePath)
-	db, err := globaldb.OpenGlobalDB(testutil.Context(t), databasePath)
+	db, err := openDaemonTestGlobalDBAtPath(testutil.Context(t), databasePath)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}

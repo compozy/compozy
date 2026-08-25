@@ -43,7 +43,8 @@ func seedTokenUsage(ctx context.Context, db *globaldb.GlobalDB, state *scenario)
 		input, output, cost := story.Input, story.Output, story.CostUSD
 		total := input + output
 		if err := db.UpsertTokenUsageDaily(ctx, store.TokenUsageDailyUpdate{
-			Day: state.clock.dayKey(story.DaysBack), WorkspaceID: record.ID, AgentName: story.AgentName,
+			Day: state.clock.dayKey(story.DaysBack), ProfileID: store.DefaultProfileID,
+			WorkspaceID: record.ID, AgentName: story.AgentName,
 			InputTokens: &input, OutputTokens: &output, TotalTokens: &total,
 			CostAmount: &cost, CostCurrency: &currency,
 			CostStatus: store.TokenCostStatusEstimated, CostSource: store.TokenCostSourceCatalogConfig,
@@ -59,7 +60,8 @@ func seedEventSummaries(ctx context.Context, db *globaldb.GlobalDB, state *scena
 	summaries := make([]store.EventSummary, 0, len(stories))
 	for _, story := range stories {
 		summary := store.EventSummary{
-			ID: story.ID, SessionID: story.SessionID, Type: story.Type,
+			ID: story.ID, ProfileID: store.DefaultProfileID,
+			SessionID: story.SessionID, Type: story.Type,
 			AgentName: story.AgentName, Outcome: story.Outcome,
 			Summary: story.Summary, Timestamp: story.At,
 		}

@@ -78,7 +78,7 @@ func resumeSessionCWD(meta store.SessionMeta, executionRoot string) (string, err
 	requested := executionRoot
 	if meta.CreationProfile != nil {
 		requested = strings.TrimSpace(meta.CreationProfile.CWD)
-	} else if cwd := strings.TrimSpace(meta.CWD); cwd != "" {
+	} else if cwd := strings.TrimSpace(meta.CWDValue()); cwd != "" {
 		requested = cwd
 	}
 	return ResolveSessionCWD(executionRoot, requested)

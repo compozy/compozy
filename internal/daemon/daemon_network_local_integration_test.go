@@ -13,7 +13,6 @@ import (
 
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
@@ -203,7 +202,7 @@ func assertLocalNetworkPersistence(
 	loopRunID string,
 ) {
 	t.Helper()
-	db, err := globaldb.OpenGlobalDB(ctx, harness.HomePaths.DatabaseFile)
+	db, err := openDaemonTestGlobalDBAtPath(ctx, harness.HomePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB(Local zero-cost assertion) error = %v", err)
 	}

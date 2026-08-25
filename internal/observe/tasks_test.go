@@ -794,6 +794,7 @@ func TestQueryTaskDashboardAggregatesCardsAndBreakdown(t *testing.T) {
 		})
 
 		dashboard, err := h.observer.QueryTaskDashboard(ctx, TaskDashboardQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
 			ExcludeCreatedBy: []taskpkg.ActorRef{{
 				Kind: taskpkg.ActorKindDaemon, Ref: "loop-coordinator",
 			}},

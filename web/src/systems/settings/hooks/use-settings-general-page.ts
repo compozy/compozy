@@ -6,7 +6,7 @@ import {
   SettingsApiError,
   type SettingsGeneralSection,
   type SettingsUpdateGeneralRequest,
-  type SettingsUpdateTarget,
+  type SettingsUpdateTargetSet,
   useApplySettingsUpdate,
   useCancelSettingsUpdate,
   useReloadSettings,
@@ -147,9 +147,9 @@ export function useSettingsGeneralPage() {
     // own answer (`accepted` or `blocked` with its holder) so the surface can
     // report it verbatim; terminal truth still comes from the `update` read.
     updateActions: {
-      apply: (target: SettingsUpdateTarget) => updateApply.mutate({ target }),
+      apply: (targets: SettingsUpdateTargetSet) => updateApply.mutate({ targets }),
       cancel: () => updateCancel.mutate(),
-      pendingTarget: updateApply.isPending ? (updateApply.variables?.target ?? null) : null,
+      isApplying: updateApply.isPending,
       isCanceling: updateCancel.isPending,
       result: updateApply.data ?? null,
       cancelResult: updateCancel.data ?? null,

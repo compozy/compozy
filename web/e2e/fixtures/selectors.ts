@@ -249,7 +249,7 @@ export const knowledgeOperatorTestIds = {
   searchInfo: "knowledge-search-info",
   shell: "knowledge-shell",
   tabAgent: "tab-agent",
-  tabGlobal: "tab-global",
+  tabProfile: "tab-profile",
   tabWorkspace: "tab-workspace",
 } as const;
 
@@ -514,7 +514,7 @@ export interface KnowledgeOperatorSelectors {
   searchInfo: Locator;
   shell: Locator;
   tabAgent: Locator;
-  tabGlobal: Locator;
+  tabProfile: Locator;
   tabWorkspace: Locator;
 }
 
@@ -718,9 +718,9 @@ interface SettingsGeneralSelectors {
   updateBlocked: Locator;
   updateRollback: Locator;
   updateCancel: Locator;
-  /** Per-track row, apply affordance, live progress, and release link. */
+  /** Per-track row, shared apply affordance, live progress, and release link. */
   updateTrack: (target: string) => Locator;
-  updateApply: (target: string) => Locator;
+  updateApply: () => Locator;
   updateProgress: (target: string) => Locator;
   updateRelease: (target: string) => Locator;
 }
@@ -1238,7 +1238,7 @@ export function knowledgeOperatorSelectors(
     searchInfo: page.getByTestId(knowledgeOperatorTestIds.searchInfo),
     shell: page.getByTestId(knowledgeOperatorTestIds.shell),
     tabAgent: page.getByTestId(knowledgeOperatorTestIds.tabAgent),
-    tabGlobal: page.getByTestId(knowledgeOperatorTestIds.tabGlobal),
+    tabProfile: page.getByTestId(knowledgeOperatorTestIds.tabProfile),
     tabWorkspace: page.getByTestId(knowledgeOperatorTestIds.tabWorkspace),
   };
 }
@@ -1552,8 +1552,7 @@ export function settingsOperatorSelectors(
       updateCancel: page.getByTestId(settingsGeneralTestIds.updateCancel),
       updateTrack: (target: string) =>
         page.getByTestId(`settings-page-general-update-track-${target}`),
-      updateApply: (target: string) =>
-        page.getByTestId(`settings-page-general-update-apply-${target}`),
+      updateApply: () => page.getByTestId("settings-page-general-update-apply"),
       updateProgress: (target: string) =>
         page.getByTestId(`settings-page-general-update-progress-${target}`),
       updateRelease: (target: string) =>

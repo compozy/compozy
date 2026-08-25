@@ -24,7 +24,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
@@ -58,7 +57,7 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 		}
 		stopRuntimeHarness(t, harness)
 
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openDaemonTestGlobalDBAtPath(ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(seed orphan) error = %v", err)
 		}
@@ -360,7 +359,7 @@ func loopSettlementCounts(
 	coordinatorTaskID string,
 ) (int, int) {
 	t.Helper()
-	db, err := globaldb.OpenGlobalDB(ctx, databaseFile)
+	db, err := openDaemonTestGlobalDBAtPath(ctx, databaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB(inspect settlement) error = %v", err)
 	}
@@ -1309,7 +1308,7 @@ func blockTaskThroughStoreForWatchEventsE2E(
 	taskID string,
 ) {
 	t.Helper()
-	db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+	db, err := openDaemonTestGlobalDBAtPath(ctx, homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB(%q) error = %v", homePaths.DatabaseFile, err)
 	}
@@ -1531,7 +1530,7 @@ func assertNoWatchEventsGapWake(
 	promptCount int,
 ) {
 	t.Helper()
-	db, err := globaldb.OpenGlobalDB(ctx, harness.HomePaths.DatabaseFile)
+	db, err := openDaemonTestGlobalDBAtPath(ctx, harness.HomePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB(%q) error = %v", harness.HomePaths.DatabaseFile, err)
 	}

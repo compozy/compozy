@@ -4,7 +4,7 @@ import path from "node:path";
 import { openAppWindow } from "../fixtures/os-navigation";
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
-import { completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { completeOnboardingIfPrompted, ensureProjectWorkspace } from "../fixtures/workspace";
 
 const browserLifecycleFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -48,6 +48,7 @@ test("categorized agents surface on the fleet page and group inside the session-
 }) => {
   const ui = sessionLifecycleSelectors(appPage);
 
+  await ensureProjectWorkspace(appPage, runtime);
   await completeOnboardingIfPrompted(ui);
   await expect(ui.osDesktop).toBeVisible();
   const agentsWin = await openAppWindow(appPage, "Agents", "agents");

@@ -87,7 +87,8 @@ must be updated by downloading and installing the current `.deb` package over th
 
 The same host-global operation is available through `GET /api/settings/update`,
 `POST /api/settings/update/apply`, and `POST /api/settings/update/cancel` over HTTP and UDS.
-Status can report `available`, `applying`, `staged`, `blocked`, `failed`, `updated`, or
+Apply accepts a non-empty `targets` array, such as `{"targets":["runtime","app"]}`; runtime is
+listed first, and managed or unavailable tracks are omitted. Status can report `available`, `applying`, `staged`, `blocked`, `failed`, `updated`, or
 `up-to-date`; app status also carries the operation ID, phase, and progress when present.
 
 For a managed runtime, CompozyOS returns the exact package-manager command and does not replace the

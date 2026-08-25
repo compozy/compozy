@@ -6,7 +6,12 @@ import process from "node:process";
 import { promisify } from "node:util";
 
 import { networkOperatorSelectors } from "../fixtures/selectors";
-import { appWindow, ensureAppWindow, openAppWindow } from "../fixtures/os-navigation";
+import {
+  appWindow,
+  ensureAppWindow,
+  openAppWindow,
+  switchWorkspace,
+} from "../fixtures/os-navigation";
 import {
   browserNetworkOperatorFlowScenario,
   seedBrowserNetworkOperatorFlow,
@@ -399,6 +404,7 @@ async function prepareNetworkRuntime(
   const ui = networkOperatorSelectors(page);
   await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(ui);
+  await switchWorkspace(page, workspace.id, workspace.name);
   return workspace;
 }
 

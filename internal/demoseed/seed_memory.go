@@ -33,7 +33,7 @@ func seedMemories(state *scenario) (int, error) {
 
 func memoryDirFor(state *scenario, story memoryStory) (string, error) {
 	switch story.Scope {
-	case memoryScopeGlobal:
+	case memoryScopeProfile:
 		return state.paths.MemoryDir, nil
 	case memoryScopeWorkspace:
 		record, err := state.recordFor(story.WorkspaceKey)

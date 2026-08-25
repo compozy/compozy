@@ -536,12 +536,18 @@ function resolvedRuntimeOutputs(detail: LoopRunDetail): RuntimeOutput[] {
   );
 }
 
+async function activateRuntimeWorkspace(appPage: Page, runtime: BrowserRuntime, rootDir: string) {
+  const workspace = await runtime.resolveWorkspace(rootDir);
+  await completeOnboardingIfPrompted(appPage);
+  await switchWorkspace(appPage, workspace.id, workspace.name);
+  return workspace;
+}
+
 async function openInteractionEditor(appPage: Page, runtime: BrowserRuntime): Promise<void> {
   if (!runtime.paths) {
     throw new Error("Loop editor interaction test requires launch-mode runtime paths");
   }
-  const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
-  await completeOnboardingIfPrompted(appPage);
+  const workspace = await activateRuntimeWorkspace(appPage, runtime, runtime.paths.workspaceDir);
   const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
   await runtime.requestJSON(`${workspacePath}/loops`, {
     method: "POST",
@@ -590,8 +596,7 @@ test("CompozyOS migration E2E-015: run page lifecycle controls and node inventor
   if (!runtime.paths) {
     throw new Error("Loop lifecycle browser test requires launch-mode runtime paths");
   }
-  const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
-  await completeOnboardingIfPrompted(appPage);
+  const workspace = await activateRuntimeWorkspace(appPage, runtime, runtime.paths.workspaceDir);
   const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
   await runtime.requestJSON(`${workspacePath}/loops`, {
     method: "POST",
@@ -716,8 +721,7 @@ test("an enum ask without type crosses the real browser and daemon seam", async 
   if (!runtime.paths) {
     throw new Error("Loop enum ask browser test requires launch-mode runtime paths");
   }
-  const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
-  await completeOnboardingIfPrompted(appPage);
+  const workspace = await activateRuntimeWorkspace(appPage, runtime, runtime.paths.workspaceDir);
   const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
   await runtime.requestJSON(`${workspacePath}/loops`, {
     method: "POST",
@@ -776,8 +780,7 @@ test("CompozyOS migration E2E-016: author retry + on_error in the editor, publis
   if (!runtime.paths) {
     throw new Error("Loop authoring browser test requires launch-mode runtime paths");
   }
-  const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
-  await completeOnboardingIfPrompted(appPage);
+  const workspace = await activateRuntimeWorkspace(appPage, runtime, runtime.paths.workspaceDir);
   const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
   await runtime.requestJSON(`${workspacePath}/loops`, {
     method: "POST",
@@ -1058,8 +1061,7 @@ test("CompozyOS migration E2E-004: loop run renders API runtime provenance witho
     throw new Error("Loop runtime browser test requires launch-mode runtime paths");
   }
 
-  const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
-  await completeOnboardingIfPrompted(appPage);
+  const workspace = await activateRuntimeWorkspace(appPage, runtime, runtime.paths.workspaceDir);
 
   const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
   await runtime.requestJSON(`${workspacePath}/loops`, {
@@ -1165,8 +1167,7 @@ test("Parked watch-events run renders its durable cursor from the real daemon", 
     throw new Error("Loop watch-events browser test requires launch-mode runtime paths");
   }
 
-  const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
-  await completeOnboardingIfPrompted(appPage);
+  const workspace = await activateRuntimeWorkspace(appPage, runtime, runtime.paths.workspaceDir);
   const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
   await runtime.requestJSON(`${workspacePath}/loops`, {
     method: "POST",
@@ -1241,8 +1242,7 @@ test("CompozyOS migration E2E-006: exhausted run renders score, best, restore, a
     throw new Error("Loop feedback browser test requires launch-mode runtime paths");
   }
 
-  const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
-  await completeOnboardingIfPrompted(appPage);
+  const workspace = await activateRuntimeWorkspace(appPage, runtime, runtime.paths.workspaceDir);
   const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
   await runtime.requestJSON(`${workspacePath}/loops`, {
     method: "POST",

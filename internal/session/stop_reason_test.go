@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
@@ -83,6 +84,13 @@ func TestClassifyStopReason(t *testing.T) {
 			wantReason: store.StopCompleted,
 		},
 		{
+			name:       "Should preserve the spawn reaper origin for clean completion",
+			cause:      CauseCompleted,
+			detail:     "spawn_reaper:ttl_expired",
+			wantReason: store.StopCompleted,
+			wantDetail: "spawn_reaper:ttl_expired",
+		},
+		{
 			name:       "Should classify clear conversation as completed with detail",
 			cause:      CauseClearConversation,
 			wantReason: store.StopCompleted,
@@ -124,6 +132,59 @@ func TestClassifyStopReason(t *testing.T) {
 			}
 			if gotDetail != tc.wantDetail {
 				t.Fatalf("classifyStopReason() detail = %q, want %q", gotDetail, tc.wantDetail)
+			}
+		})
+	}
+}
+
+func TestSpawnTTLStopCauseUsesPromptStateAtLifecycleTransition(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		prompting bool
+		wantCause StopCause
+	}{
+		{
+			name:      "Should classify a settled child as completed",
+			wantCause: CauseCompleted,
+		},
+		{
+			name:      "Should classify an active prompt as timeout",
+			prompting: true,
+			wantCause: CauseTimeout,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			promptSetupDone := closedSignalChan()
+			s := &Session{
+				ID:              "child",
+				State:           StateActive,
+				promptSetupDone: promptSetupDone,
+			}
+			if tc.prompting {
+				s.promptSetupDone = make(chan struct{})
+				s.promptSetupCount = 1
+				s.currentTurnID = "turn-1"
+			}
+
+			stopAt := time.Unix(0, 0).UTC()
+			if _, _, err := s.prepareStop(
+				stopAt,
+				CauseSpawnTTLExpired,
+				"spawn_reaper:ttl_expired",
+			); err != nil {
+				t.Fatalf("prepareStop() error = %v", err)
+			}
+			cause, detail := s.stopCauseDetail()
+			if cause != tc.wantCause {
+				t.Fatalf("stop cause = %v, want %v", cause, tc.wantCause)
+			}
+			if detail != "spawn_reaper:ttl_expired" {
+				t.Fatalf("stop detail = %q, want spawn_reaper:ttl_expired", detail)
 			}
 		})
 	}

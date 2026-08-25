@@ -28,8 +28,8 @@ export interface OsAppDescriptor {
   paths: readonly string[];
   /** Optional measured product floor; the shared frame floor is the conservative fallback. */
   minimumSize?: PixelSize;
-  /** Dock strip group, sessions modal toggle, or null for menubar-only settings. */
-  dock: { group: 1 | 2 | 3 | 4 } | "sessions-toggle" | null;
+  /** Dock strip group, sessions launcher, or null for menubar-only settings. */
+  dock: { group: 1 | 2 | 3 | 4 } | "sessions-launcher" | null;
   badge?: "sessions" | "tasks";
   /** Extracts the multi-instance key from a pathname (session windows). */
   matchInstance?: (pathname: string) => string | null;
@@ -55,7 +55,7 @@ export const OS_APP_DESCRIPTORS: Record<OsAppId, OsAppDescriptor> = {
     title: "Session",
     icon: MessagesSquare,
     paths: [],
-    dock: "sessions-toggle",
+    dock: "sessions-launcher",
     badge: "sessions",
     matchInstance: matchSessionInstance,
   },
@@ -172,7 +172,7 @@ export function getOsAppMinimum(id: OsAppId): PixelSize {
 export function dockAppDescriptors(): OsAppDescriptor[][] {
   const groups: OsAppDescriptor[][] = [[], [], [], []];
   for (const app of Object.values(OS_APP_DESCRIPTORS)) {
-    if (app.dock && app.dock !== "sessions-toggle") groups[app.dock.group - 1].push(app);
+    if (app.dock && app.dock !== "sessions-launcher") groups[app.dock.group - 1].push(app);
   }
   return groups.filter(group => group.length > 0);
 }

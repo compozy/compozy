@@ -317,9 +317,7 @@ function DesktopShellScopedBody({
           dormant={firstRun}
           onNewSession={openNewSession}
           badges={attention.badges}
-          sessionsOpen={overlays.activeOverlay === "sessions"}
           contextMenusEnabled={overlays.activeOverlay === null}
-          onToggleSessions={() => overlays.toggleOverlay("sessions")}
           pager={
             <DesktopPagerSurface
               activeDesktopId={pager.activeDesktopId}

@@ -21,6 +21,7 @@ import (
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/skills"
 	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
 	"github.com/google/go-cmp/cmp"
@@ -1152,7 +1153,8 @@ func TestMarketplaceDetailAndRefreshValidateStableIdentityAndKind(t *testing.T) 
 			) ([]contract.ExtensionPayload, error) {
 				scopedCalls++
 				if actor.Actor.Ref != "marketplace-resolver" ||
-					actor.Scope.WorkspaceID != "ws-alpha" || !actor.Authority.Read {
+					actor.Scope.WorkspaceID != "ws-alpha" || !actor.Authority.Read ||
+					actor.ReadScope.ProfileID != store.DefaultProfileID {
 					t.Fatalf("scoped extension actor = %#v, want resolved readable workspace actor", actor)
 				}
 				return []contract.ExtensionPayload{{

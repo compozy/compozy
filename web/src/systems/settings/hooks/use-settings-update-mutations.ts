@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { applySettingsUpdate, cancelSettingsUpdate } from "../adapters/settings-api";
 import { settingsKeys } from "../lib/query-keys";
-import type { SettingsUpdateTarget } from "../types";
+import type { SettingsUpdateApplyRequest } from "../types";
 
 /**
  * Update-operation mutations (ADR-009). These are host-global lifecycle actions
@@ -19,9 +19,7 @@ export function useApplySettingsUpdate() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    // Typed on the closed target vocabulary rather than the generated `string`,
-    // so callers can read `variables.target` back without an assertion.
-    mutationFn: (body: { target: SettingsUpdateTarget }) => applySettingsUpdate(body),
+    mutationFn: (body: SettingsUpdateApplyRequest) => applySettingsUpdate(body),
     onSettled: () => queryClient.invalidateQueries({ queryKey: settingsKeys.updateStatus() }),
   });
 }

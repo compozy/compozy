@@ -60,6 +60,14 @@ func (r *Registry) SetEnabledForProfile(name string, profileID string, enabled b
 	if err != nil {
 		return err
 	}
+	rotateLifecycle := enabled && profileID == store.DefaultProfileID
+	nextLifecycleToken := ""
+	if rotateLifecycle {
+		nextLifecycleToken, err = store.NewID("extstate")
+		if err != nil {
+			return fmt.Errorf("extension: generate lifecycle token for %q: %w", trimmedName, err)
+		}
+	}
 	tx, err := r.db.BeginTx(registryContext(), nil)
 	if err != nil {
 		return fmt.Errorf("extension: begin enabled-state update for %q: %w", trimmedName, err)
@@ -83,6 +91,16 @@ func (r *Registry) SetEnabledForProfile(name string, profileID string, enabled b
 	}
 	if !exists {
 		return &ExtensionNotFoundError{Name: trimmedName}
+	}
+	if rotateLifecycle {
+		if _, err := tx.ExecContext(
+			registryContext(),
+			`UPDATE extensions SET lifecycle_token = ? WHERE name = ?`,
+			nextLifecycleToken,
+			trimmedName,
+		); err != nil {
+			return fmt.Errorf("extension: rotate lifecycle token for %q: %w", trimmedName, err)
+		}
 	}
 
 	if enabled {

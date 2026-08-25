@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -445,7 +446,7 @@ func (s *stubSettingsRestartController) RequestRestart(
 
 type stubSettingsUpdateController struct {
 	GetFn       func(context.Context) (compozyupdate.MultiState, error)
-	ApplyFn     func(context.Context, compozyupdate.Target) (core.SettingsUpdateApply, error)
+	ApplyFn     func(context.Context, []compozyupdate.Target) (core.SettingsUpdateApply, error)
 	CancelFn    func(context.Context) (core.SettingsUpdateCancel, error)
 	GetCalls    int
 	ApplyCalls  int
@@ -462,11 +463,11 @@ func (s *stubSettingsUpdateController) GetUpdate(ctx context.Context) (compozyup
 
 func (s *stubSettingsUpdateController) ApplyUpdate(
 	ctx context.Context,
-	target compozyupdate.Target,
+	targets []compozyupdate.Target,
 ) (core.SettingsUpdateApply, error) {
 	s.ApplyCalls++
 	if s.ApplyFn != nil {
-		return s.ApplyFn(ctx, target)
+		return s.ApplyFn(ctx, targets)
 	}
 	return core.SettingsUpdateApply{}, nil
 }
@@ -1249,12 +1250,12 @@ func TestSettingsUpdateMutationsReturnStructuredOutcomes(t *testing.T) {
 		t.Parallel()
 
 		fixture := newSettingsHandlerFixture(t, "api-core-http", &stubSettingsService{}, nil)
-		fixture.Update.ApplyFn = func(_ context.Context, target compozyupdate.Target) (core.SettingsUpdateApply, error) {
-			if target != compozyupdate.TargetRuntime {
-				t.Fatalf("ApplyUpdate() target = %q, want runtime", target)
+		fixture.Update.ApplyFn = func(_ context.Context, targets []compozyupdate.Target) (core.SettingsUpdateApply, error) {
+			if !slices.Equal(targets, []compozyupdate.Target{compozyupdate.TargetRuntime}) {
+				t.Fatalf("ApplyUpdate() targets = %v, want [runtime]", targets)
 			}
 			return core.SettingsUpdateApply{
-				Target: target, Status: compozyupdate.ApplyStatusAccepted,
+				Targets: targets, Status: compozyupdate.ApplyStatusAccepted,
 				OperationID: "operation-1", Message: "Update accepted.",
 			}, nil
 		}
@@ -1264,7 +1265,7 @@ func TestSettingsUpdateMutationsReturnStructuredOutcomes(t *testing.T) {
 			fixture.Engine,
 			http.MethodPost,
 			"/api/settings/update/apply",
-			[]byte(`{"target":"runtime"}`),
+			[]byte(`{"targets":["runtime"]}`),
 		)
 		if resp.Code != http.StatusOK {
 			t.Fatalf("POST apply status = %d, want 200; body=%s", resp.Code, resp.Body.String())
@@ -1274,40 +1275,91 @@ func TestSettingsUpdateMutationsReturnStructuredOutcomes(t *testing.T) {
 			t.Fatalf("json.Unmarshal(apply response) error = %v", err)
 		}
 		if payload.Status != contract.SettingsUpdateApplyAccepted ||
-			payload.Target != contract.SettingsUpdateTargetRuntime ||
+			!slices.Equal(payload.Targets, []contract.SettingsUpdateTarget{contract.SettingsUpdateTargetRuntime}) ||
 			payload.OperationID != "operation-1" ||
 			fixture.Update.ApplyCalls != 1 {
 			t.Fatalf("apply response = %#v calls=%d, want accepted runtime", payload, fixture.Update.ApplyCalls)
 		}
 	})
 
-	t.Run("Should reject an unknown target before invoking the controller", func(t *testing.T) {
+	t.Run("Should return an accepted operation for runtime then app", func(t *testing.T) {
 		t.Parallel()
 
 		fixture := newSettingsHandlerFixture(t, "api-core-http", &stubSettingsService{}, nil)
+		fixture.Update.ApplyFn = func(_ context.Context, targets []compozyupdate.Target) (core.SettingsUpdateApply, error) {
+			if !slices.Equal(targets, []compozyupdate.Target{compozyupdate.TargetRuntime, compozyupdate.TargetApp}) {
+				t.Fatalf("ApplyUpdate() targets = %v, want [runtime app]", targets)
+			}
+			return core.SettingsUpdateApply{
+				Targets: targets, Status: compozyupdate.ApplyStatusAccepted,
+				OperationID: "operation-both", Message: "Update accepted.",
+			}, nil
+		}
+
 		resp := performRequest(
 			t,
 			fixture.Engine,
 			http.MethodPost,
 			"/api/settings/update/apply",
-			[]byte(`{"target":"everything"}`),
+			[]byte(`{"targets":["runtime","app"]}`),
 		)
-		if resp.Code != http.StatusBadRequest || fixture.Update.ApplyCalls != 0 {
-			t.Fatalf(
-				"POST invalid apply status=%d calls=%d body=%s",
-				resp.Code,
-				fixture.Update.ApplyCalls,
-				resp.Body.String(),
-			)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("POST apply status = %d, want 200; body=%s", resp.Code, resp.Body.String())
 		}
-		var payload contract.ErrorPayload
+		var payload contract.SettingsUpdateApplyResponse
 		if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
-			t.Fatalf("json.Unmarshal(error response) error = %v", err)
+			t.Fatalf("json.Unmarshal(apply response) error = %v", err)
 		}
-		if payload.Error != "settings: update target must be runtime or app" {
-			t.Fatalf("invalid target error = %#v, want stable validation message", payload)
+		if payload.Status != contract.SettingsUpdateApplyAccepted ||
+			!slices.Equal(payload.Targets, []contract.SettingsUpdateTarget{
+				contract.SettingsUpdateTargetRuntime,
+				contract.SettingsUpdateTargetApp,
+			}) || payload.OperationID != "operation-both" || fixture.Update.ApplyCalls != 1 {
+			t.Fatalf("apply response = %#v calls=%d, want accepted runtime/app", payload, fixture.Update.ApplyCalls)
 		}
 	})
+
+	for _, test := range []struct {
+		name string
+		body string
+		want string
+	}{
+		{name: "Should reject an empty target set before invoking the controller", body: `{"targets":[]}`, want: "settings: update targets must contain at least one target"},
+		{name: "Should reject an unknown target before invoking the controller", body: `{"targets":["everything"]}`, want: `settings: update target "everything" is invalid`},
+		{name: "Should reject a target with surrounding whitespace before invoking the controller", body: `{"targets":[" runtime "]}`, want: `settings: update target " runtime " is invalid`},
+		{name: "Should reject the removed singular target body before invoking the controller", body: `{"target":"runtime"}`, want: "settings: update targets must contain at least one target"},
+		{name: "Should reject duplicate targets before invoking the controller", body: `{"targets":["runtime","runtime"]}`, want: `settings: update targets must not contain duplicate "runtime"`},
+		{name: "Should reject app before runtime before invoking the controller", body: `{"targets":["app","runtime"]}`, want: "settings: runtime must be the first update target"},
+		{name: "Should reject more than two targets before invoking the controller", body: `{"targets":["runtime","app","runtime"]}`, want: "settings: update targets must contain at most two targets"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			fixture := newSettingsHandlerFixture(t, "api-core-http", &stubSettingsService{}, nil)
+			resp := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodPost,
+				"/api/settings/update/apply",
+				[]byte(test.body),
+			)
+			if resp.Code != http.StatusBadRequest || fixture.Update.ApplyCalls != 0 {
+				t.Fatalf(
+					"POST invalid apply status=%d calls=%d body=%s",
+					resp.Code,
+					fixture.Update.ApplyCalls,
+					resp.Body.String(),
+				)
+			}
+			var payload contract.ErrorPayload
+			if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("json.Unmarshal(error response) error = %v", err)
+			}
+			if payload.Error != test.want {
+				t.Fatalf("invalid target error = %#v, want stable validation message", payload)
+			}
+		})
+	}
 
 	t.Run("Should return a blocked cancel with its live holder", func(t *testing.T) {
 		t.Parallel()
@@ -4309,10 +4361,10 @@ func TestSettingsHandlersBehaveIdenticallyAcrossTransportShims(t *testing.T) {
 		}
 		fixture.Update.ApplyFn = func(
 			_ context.Context,
-			target compozyupdate.Target,
+			targets []compozyupdate.Target,
 		) (core.SettingsUpdateApply, error) {
 			return core.SettingsUpdateApply{
-				Target: target, Status: compozyupdate.ApplyStatusAccepted,
+				Targets: targets, Status: compozyupdate.ApplyStatusAccepted,
 				OperationID: "update-op", Message: "Update accepted.",
 			}, nil
 		}
@@ -4332,7 +4384,7 @@ func TestSettingsHandlersBehaveIdenticallyAcrossTransportShims(t *testing.T) {
 		{method: http.MethodPost, path: "/api/settings/actions/restart", body: []byte(`{}`)},
 		{method: http.MethodGet, path: "/api/settings/actions/restart/op-shared"},
 		{method: http.MethodGet, path: "/api/settings/update"},
-		{method: http.MethodPost, path: "/api/settings/update/apply", body: []byte(`{"target":"runtime"}`)},
+		{method: http.MethodPost, path: "/api/settings/update/apply", body: []byte(`{"targets":["runtime"]}`)},
 		{method: http.MethodPost, path: "/api/settings/update/cancel", body: []byte(`{}`)},
 	} {
 		httpResp := performRequest(t, httpFixture.Engine, request.method, request.path, request.body)

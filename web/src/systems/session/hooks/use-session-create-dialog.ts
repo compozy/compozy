@@ -79,10 +79,12 @@ export interface SessionCreateDialogController {
   store: SessionCreateStore;
 }
 
+/** Provides the shared session-create store controller used by dialog hosts. */
 export function useSessionCreateDialogController(): SessionCreateDialogController {
   return { store: useStore(sessionCreateStoreLogic) };
 }
 
+/** Projects session-create state into the dialog API and validates durable launch requests. */
 export function useSessionCreateDialogViewModel(
   {
     agents,
@@ -189,6 +191,10 @@ export function useSessionCreateDialogViewModel(
     if (!binding || isSubmitting || pendingSubmit !== null) return;
     const agentName = selectedAgentName.trim();
     if (agentName.length === 0) {
+      store.trigger.validationFailed({ message: "Select an agent before starting the session." });
+      return;
+    }
+    if (!agentList.some(agent => agent.name === agentName)) {
       store.trigger.validationFailed({ message: "Select an agent before starting the session." });
       return;
     }

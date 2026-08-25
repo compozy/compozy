@@ -43,9 +43,17 @@ func OpenGlobalDB(ctx context.Context, path string, options ...OpenOption) (*Glo
 		},
 	}
 	globalDB.initializeRepositories(config)
-	if err := globalDB.EnsureBuiltInPresets(ctx, presetspkg.BuiltInPresets(globalDB.now())); err != nil {
+	defaults := presetspkg.BuiltInPresets(globalDB.now())
+	defaultsCurrent, err := builtInPresetDefaultsCurrent(ctx, db, defaults)
+	if err != nil {
 		closeErr := db.Close()
-		return nil, errors.Join(fmt.Errorf("store: initialize built-in notification presets: %w", err), closeErr)
+		return nil, errors.Join(err, closeErr)
+	}
+	if !defaultsCurrent {
+		if err := globalDB.EnsureBuiltInPresets(ctx, defaults); err != nil {
+			closeErr := db.Close()
+			return nil, errors.Join(fmt.Errorf("store: initialize built-in notification presets: %w", err), closeErr)
+		}
 	}
 	return globalDB, nil
 }

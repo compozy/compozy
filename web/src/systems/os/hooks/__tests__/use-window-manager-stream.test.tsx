@@ -262,32 +262,31 @@ describe("useWindowManagerStream", () => {
   it("Should reconcile a removed workspace before opening the replacement stream", async () => {
     const staleWorkspace = workspace("workspace:stale");
     const currentWorkspace = workspace("workspace:current");
-    const homeRow = { ...workspace("workspace:home"), root_dir: "/Users/operator" };
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
-    // Scope resolution needs `$HOME` before it claims a workspace binding.
+    // Scope resolution needs `$HOME` before it can partition project workspaces.
     queryClient.setQueryData(statusKeys.current(), {
       daemon: { user_home_dir: "/Users/operator" },
     } as StatusPayload);
-    queryClient.setQueryData(workspaceKeys.list(), [staleWorkspace, homeRow]);
+    queryClient.setQueryData(workspaceKeys.list(), [staleWorkspace]);
     setActiveWorkspaceId(staleWorkspace.id);
-    vi.mocked(fetchWorkspaces).mockResolvedValue([currentWorkspace, homeRow]);
+    vi.mocked(fetchWorkspaces).mockResolvedValue([currentWorkspace]);
     const { factory, sockets } = createSocketFactory();
 
     try {
       const { result } = renderHook(
         () => {
-          // Mirrors the desktop shell: the stream binds the runtime workspace,
-          // which is the home row while Global scope is on.
-          const { runtimeWorkspaceId } = useActiveWorkspace();
+          // Mirrors the desktop shell: Global keeps data unbound while the
+          // window-manager stream stays on a durable project layout partition.
+          const { desktopWorkspaceId } = useActiveWorkspace();
           useWindowManagerStream({
-            workspaceId: runtimeWorkspaceId,
+            workspaceId: desktopWorkspaceId,
             profileId: "marketing",
             clientId: "client:web",
             registrationEpoch: 0,
             currentClient: null,
-            enabled: runtimeWorkspaceId !== null,
+            enabled: desktopWorkspaceId !== null,
             afterRevision: 0,
             socketFactory: factory,
             onStatusChange: vi.fn(),
@@ -296,7 +295,7 @@ describe("useWindowManagerStream", () => {
             onClientInvalidated: vi.fn(),
             onError: vi.fn(),
           });
-          return runtimeWorkspaceId;
+          return desktopWorkspaceId;
         },
         { wrapper: wrapper(queryClient) }
       );
@@ -317,12 +316,12 @@ describe("useWindowManagerStream", () => {
         });
       });
 
-      // A pruned selection never adopts another project — it falls back to
-      // Global, whose runtime binding is the operator-home row.
-      await waitFor(() => expect(result.current).toBe(homeRow.id));
+      // A pruned selection falls back to Global without adopting another data
+      // workspace, while its desktop layout binds to the first live project.
+      await waitFor(() => expect(result.current).toBe(currentWorkspace.id));
       expect(fetchWorkspaces).toHaveBeenCalledOnce();
       expect(factory).toHaveBeenLastCalledWith(
-        "/api/workspaces/workspace%3Ahome/window-manager/stream?after_revision=0&client_id=client%3Aweb&profile=marketing"
+        "/api/workspaces/workspace%3Acurrent/window-manager/stream?after_revision=0&client_id=client%3Aweb&profile=marketing"
       );
     } finally {
       act(() => clearActiveWorkspaceSelection());

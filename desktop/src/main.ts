@@ -264,6 +264,7 @@ async function start(): Promise<void> {
       const runtime = await runner.run(async event => {
         await statePublisher.publish(bootstrapSnapshot(event, paths.bootstrapLog));
       });
+      applyDefaultDenyPermissions(session.defaultSession, runtime.origin);
       await statePublisher.setRuntime(runtime.version, runtime.owned);
       startUpdateConsumer(statePublisher);
       runtimeMonitor?.stop();

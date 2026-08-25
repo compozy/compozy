@@ -66,7 +66,7 @@ func (s *daemonLoopAPIService) ListLoopRuns(
 	if len(payloads) > request.limit {
 		response.Runs = payloads[:request.limit]
 		response.NextCursor, err = encodeLoopRunListCursor(
-			response.Runs[len(response.Runs)-1],
+			&response.Runs[len(response.Runs)-1],
 			string(request.workspaceID),
 			query,
 		)
@@ -163,7 +163,7 @@ func applyLoopRunListSummary(payload *contract.LoopRunPayload, summary looppkg.R
 
 func sortLoopRunList(runs []contract.LoopRunPayload) {
 	sort.SliceStable(runs, func(i, j int) bool {
-		left, right := loopRunListRank(runs[i]), loopRunListRank(runs[j])
+		left, right := loopRunListRank(&runs[i]), loopRunListRank(&runs[j])
 		if left != right {
 			return left < right
 		}
@@ -174,7 +174,7 @@ func sortLoopRunList(runs []contract.LoopRunPayload) {
 	})
 }
 
-func loopRunListRank(run contract.LoopRunPayload) int {
+func loopRunListRank(run *contract.LoopRunPayload) int {
 	if run.Attention != nil {
 		return 0
 	}
@@ -188,7 +188,7 @@ func loopRunListRank(run contract.LoopRunPayload) int {
 }
 
 func encodeLoopRunListCursor(
-	run contract.LoopRunPayload,
+	run *contract.LoopRunPayload,
 	workspaceID string,
 	query core.LoopRunListQuery,
 ) (string, error) {

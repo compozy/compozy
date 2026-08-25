@@ -10,6 +10,7 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/task"
 )
@@ -200,8 +201,9 @@ func incidentGoalTurnEvents(turns []looppkg.RunHistoryGoalTurn) []looppkg.RunHis
 
 func historicalLoopRun(story loopRunStory, workspaceID string, pinned loopSnapshot) looppkg.Run {
 	return looppkg.Run{
-		ID: looppkg.RunID(story.ID), WorkspaceID: looppkg.WorkspaceID(workspaceID),
-		LoopName: story.LoopName, Status: looppkg.Status(story.Status),
+		ID: looppkg.RunID(story.ID), ProfileID: store.DefaultProfileID,
+		WorkspaceID: looppkg.WorkspaceID(workspaceID),
+		LoopName:    story.LoopName, Status: looppkg.Status(story.Status),
 		Generation: story.Generation, ReattemptStrategy: looppkg.ReattemptFailedOnly,
 		CreatedAt: story.CreatedAt, StartedAt: story.CreatedAt, LastProgressAt: story.LastProgressAt,
 		StartedBy:         task.ActorIdentity{Kind: task.ActorKindHuman, Ref: operatorRef},

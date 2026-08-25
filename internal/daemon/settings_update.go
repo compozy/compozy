@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 	"time"
 
 	core "github.com/compozy/compozy/internal/api/core"
@@ -40,7 +41,7 @@ func (c settingsUpdateController) GetUpdate(ctx context.Context) (compozyupdate.
 
 func (c settingsUpdateController) ApplyUpdate(
 	ctx context.Context,
-	target compozyupdate.Target,
+	targets []compozyupdate.Target,
 ) (core.SettingsUpdateApply, error) {
 	if c.manager == nil || c.spawn == nil || c.holder == nil {
 		return core.SettingsUpdateApply{}, errors.New("daemon: settings update apply is not configured")
@@ -49,10 +50,11 @@ func (c settingsUpdateController) ApplyUpdate(
 	if err != nil {
 		return core.SettingsUpdateApply{}, err
 	}
-	request, err := c.manager.PlanOperation(ctx, compozyupdate.ActorWeb, []compozyupdate.Target{target}, holder)
+	requestedTargets := slices.Clone(targets)
+	request, err := c.manager.PlanOperation(ctx, compozyupdate.ActorWeb, targets, holder)
 	if err != nil {
 		return core.SettingsUpdateApply{
-			Target: target, Status: compozyupdate.ApplyStatusFailed, Message: err.Error(),
+			Targets: requestedTargets, Status: compozyupdate.ApplyStatusFailed, Message: err.Error(),
 		}, err
 	}
 	operation, err := c.manager.AcquireOperation(ctx, request)
@@ -60,13 +62,13 @@ func (c settingsUpdateController) ApplyUpdate(
 		var blocked *compozyupdate.BlockedError
 		if errors.As(err, &blocked) {
 			return core.SettingsUpdateApply{
-				Target: target, Status: compozyupdate.ApplyStatusBlocked,
+				Targets: requestedTargets, Status: compozyupdate.ApplyStatusBlocked,
 				OperationID: blocked.Operation.ID, Message: "An update operation is already active.",
 				Holder: blocked.Operation.Holder,
 			}, nil
 		}
 		return core.SettingsUpdateApply{
-			Target: target, Status: compozyupdate.ApplyStatusFailed, Message: err.Error(),
+			Targets: requestedTargets, Status: compozyupdate.ApplyStatusFailed, Message: err.Error(),
 		}, err
 	}
 	detachedCtx := context.WithoutCancel(ctx)
@@ -75,12 +77,12 @@ func (c settingsUpdateController) ApplyUpdate(
 			detachedCtx, operation.ID, operation.Holder.ExecutorGeneration, operation.Revision,
 			compozyupdate.Transition{
 				Kind: compozyupdate.TransitionPhase, Actor: compozyupdate.ActorDaemon,
-				Target: target, Phase: compozyupdate.PhaseFailed, Percent: -1,
+				Target: operation.ActiveTarget, Phase: compozyupdate.PhaseFailed, Percent: -1,
 				LastError: err.Error(), Outcome: string(compozyupdate.StatusFailed),
 			},
 		)
 		result := core.SettingsUpdateApply{
-			Target: target, Status: compozyupdate.ApplyStatusAccepted, OperationID: operation.ID,
+			Targets: requestedTargets, Status: compozyupdate.ApplyStatusAccepted, OperationID: operation.ID,
 			Message: "Update accepted.",
 		}
 		if transitionErr != nil {
@@ -89,7 +91,7 @@ func (c settingsUpdateController) ApplyUpdate(
 		return result, nil
 	}
 	return core.SettingsUpdateApply{
-		Target: target, Status: compozyupdate.ApplyStatusAccepted, OperationID: operation.ID,
+		Targets: requestedTargets, Status: compozyupdate.ApplyStatusAccepted, OperationID: operation.ID,
 		Message: "Update accepted.",
 	}, nil
 }

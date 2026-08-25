@@ -25,7 +25,6 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/gorilla/websocket"
 )
@@ -772,7 +771,7 @@ func gatewayDaemonMarshalJSON(t *testing.T, value any) []byte {
 func seedGatewayEndToEndExposure(t *testing.T, databasePath string) {
 	t.Helper()
 	ctx := testutil.Context(t)
-	database, err := globaldb.OpenGlobalDB(ctx, databasePath)
+	database, err := openDaemonTestGlobalDBAtPath(ctx, databasePath)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}

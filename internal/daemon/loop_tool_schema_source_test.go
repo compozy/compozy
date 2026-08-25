@@ -13,7 +13,6 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	looppkg "github.com/compozy/compozy/internal/loop"
-	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/subprocess"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -180,7 +179,7 @@ func newBundledSpecCycleLoopSchemaSource(t *testing.T) looppkg.ToolSchemaSource 
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
-	globalDB, err := globaldb.OpenGlobalDB(t.Context(), homePaths.DatabaseFile)
+	globalDB, err := openDaemonTestGlobalDBAtPath(t.Context(), homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
