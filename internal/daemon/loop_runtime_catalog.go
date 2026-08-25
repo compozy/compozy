@@ -41,7 +41,7 @@ func (c *loopRuntimeCatalog) ValidateRuntime(_ context.Context, runtime looppkg.
 		}
 		if _, err := c.config.ResolveProvider(provider); err != nil {
 			return looppkg.NewRuntimeValidationError(looppkg.RuntimeValidationItem{
-				Field: "provider", Value: runtime.Provider, Reason: "unknown_provider",
+				Field: watchEventsPayloadProviderKey, Value: runtime.Provider, Reason: "unknown_provider",
 			})
 		}
 	}

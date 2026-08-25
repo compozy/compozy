@@ -275,7 +275,7 @@ func schedulerBacklogBundle(record SchedulerBacklogRecord) outputBundle {
 			}
 			return renderHumanTable(
 				"Scheduler Backlog",
-				[]string{"Run", taskTaskValue, taskStatusValue, "Attempt", "Queued", "Paused"},
+				[]string{taskRunValue, taskTaskValue, taskStatusValue, "Attempt", "Queued", "Paused"},
 				rows,
 			), nil
 		},

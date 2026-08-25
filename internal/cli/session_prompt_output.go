@@ -55,7 +55,7 @@ func goalCommandBundle(prompt SessionPromptResultRecord, result contract.GoalCom
 			return renderHumanSectionResult("Goal", goalCommandRows(prompt, result))
 		},
 		toon: func() (string, error) {
-			return renderToonObject("goal", goalCommandFields(), goalCommandValues(prompt, result)), nil
+			return renderToonObject(sessionGoalValue, goalCommandFields(), goalCommandValues(prompt, result)), nil
 		},
 	}
 }
@@ -70,7 +70,7 @@ func goalCommandRows(prompt SessionPromptResultRecord, result contract.GoalComma
 	}
 	if result.Snapshot != nil {
 		rows = append(rows,
-			keyValue{Label: "Run", Value: result.Snapshot.RunID},
+			keyValue{Label: taskRunValue, Value: result.Snapshot.RunID},
 			keyValue{Label: sessionStatusValue, Value: string(result.Snapshot.Status)},
 			keyValue{Label: "Objective", Value: result.Snapshot.Objective},
 			keyValue{

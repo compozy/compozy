@@ -65,14 +65,19 @@ func (n *daemonNativeTools) goalControl(
 	service := n.loopService()
 	goalService, ok := service.(core.GoalCommandService)
 	if !ok || goalService == nil {
-		return toolspkg.ToolResult{}, nativeGoalToolError(req.ToolID, errors.New("daemon: Goal control service is unavailable"))
+		return toolspkg.ToolResult{}, nativeGoalToolError(
+			req.ToolID,
+			errors.New("daemon: Goal control service is unavailable"),
+		)
 	}
 	actor, err := actorContextFromScope(scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeGoalToolError(req.ToolID, err)
 	}
 	caller := session.PromptCaller{
-		Kind: string(actor.Actor.Kind.Normalize()), ID: strings.TrimSpace(actor.Actor.Ref), Source: string(actor.Origin.Kind),
+		Kind:   string(actor.Actor.Kind.Normalize()),
+		ID:     strings.TrimSpace(actor.Actor.Ref),
+		Source: string(actor.Origin.Kind),
 	}
 	if caller.ID == "" {
 		caller.ID = callerSessionID
@@ -81,8 +86,10 @@ func (n *daemonNativeTools) goalControl(
 		return toolspkg.ToolResult{}, nativeGoalToolError(req.ToolID, err)
 	}
 	decision, err := goalService.Handle(ctx, workspaceID, targetSessionID, caller, session.GoalCommand{
-		Verb: string(commandRequest.Operation), Objective: commandRequest.Objective,
-		ExpectedRunID: commandRequest.ExpectedRunID, Runtime: contract.PromptRuntimeSelectionFromPayload(commandRequest.Runtime),
+		Verb:          string(commandRequest.Operation),
+		Objective:     commandRequest.Objective,
+		ExpectedRunID: commandRequest.ExpectedRunID,
+		Runtime:       contract.PromptRuntimeSelectionFromPayload(commandRequest.Runtime),
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeGoalToolError(req.ToolID, err)

@@ -14,8 +14,10 @@ type sessionGoalMutationFlags struct {
 	runtime       sessionPromptRuntimeFlags
 }
 
+const sessionGoalValue = "goal"
+
 func newSessionGoalCommand(deps commandDeps) *cobra.Command {
-	cmd := &cobra.Command{Use: "goal", Short: "Manage a session-origin Goal", Args: cobra.NoArgs}
+	cmd := &cobra.Command{Use: sessionGoalValue, Short: "Manage a session-origin Goal", Args: cobra.NoArgs}
 	cmd.AddCommand(
 		newSessionGoalSetCommand(deps),
 		newSessionGoalReplaceCommand(deps),
@@ -134,7 +136,7 @@ func sessionGoalBundle(result contract.GoalCommandResult) outputBundle {
 			return renderHumanSectionResult("Goal", sessionGoalRows(result))
 		},
 		toon: func() (string, error) {
-			return renderToonObject("goal", sessionGoalFields(), sessionGoalValues(result)), nil
+			return renderToonObject(sessionGoalValue, sessionGoalFields(), sessionGoalValues(result)), nil
 		},
 	}
 }
@@ -149,17 +151,23 @@ func sessionGoalRows(result contract.GoalCommandResult) []keyValue {
 	}
 	if result.Snapshot != nil {
 		rows = append(rows,
-			keyValue{Label: "Run", Value: result.Snapshot.RunID},
+			keyValue{Label: taskRunValue, Value: result.Snapshot.RunID},
 			keyValue{Label: sessionStatusValue, Value: string(result.Snapshot.Status)},
 			keyValue{Label: "Objective", Value: result.Snapshot.Objective},
-			keyValue{Label: cliTurnsValue, Value: fmt.Sprintf("%d/%d", result.Snapshot.TurnsUsed, result.Snapshot.TurnLimit)},
+			keyValue{
+				Label: cliTurnsValue,
+				Value: fmt.Sprintf("%d/%d", result.Snapshot.TurnsUsed, result.Snapshot.TurnLimit),
+			},
 		)
 	}
 	return rows
 }
 
 func sessionGoalFields() []string {
-	return []string{cliOutcomeKey, "reason_code", "replaced_run_id", agentKernelRunIDKey, sessionStatusKey, "objective", "turns_used", "turn_limit", goalLiveKey}
+	return []string{
+		cliOutcomeKey, "reason_code", "replaced_run_id", agentKernelRunIDKey,
+		sessionStatusKey, "objective", "turns_used", "turn_limit", goalLiveKey,
+	}
 }
 
 func sessionGoalValues(result contract.GoalCommandResult) []string {

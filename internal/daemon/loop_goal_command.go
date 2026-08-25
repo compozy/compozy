@@ -19,7 +19,7 @@ type goalCommandHandlerInstaller interface {
 var _ goalCommandHandlerInstaller = (*session.Manager)(nil)
 var _ session.GoalCommandHandler = (*daemonLoopAPIService)(nil)
 
-var errGoalCallerDenied = errors.New("Goal caller is not authorized")
+var errGoalCallerDenied = errors.New("goal caller is not authorized")
 
 // Handle executes one authenticated external `/goal` command against the Loop aggregate.
 func (s *daemonLoopAPIService) Handle(
@@ -114,54 +114,81 @@ func (s *daemonLoopAPIService) authorizeGoalCaller(
 	if taskpkg.ActorKind(strings.TrimSpace(caller.Kind)).Normalize() != taskpkg.ActorKindAgentSession {
 		return nil
 	}
-	if s == nil || s.sessionStatus == nil {
-		return errors.New("daemon: Goal caller authorization session reader is unavailable")
-	}
-	target, err := s.sessionStatus.Status(ctx, strings.TrimSpace(sessionID))
+	target, callerInfo, err := s.loadGoalCallerSessions(ctx, sessionID, caller.ID)
 	if err != nil {
-		return fmt.Errorf("load Goal target session: %w", err)
+		return err
 	}
-	if target == nil || strings.TrimSpace(target.WorkspaceID) != strings.TrimSpace(workspaceID) {
+	workspaceID = strings.TrimSpace(workspaceID)
+	if !goalSessionInWorkspace(target, workspaceID) {
 		return fmt.Errorf("%w: target session is outside the caller workspace", errGoalCallerDenied)
 	}
 	if strings.TrimSpace(target.ID) != strings.TrimSpace(sessionID) {
 		return fmt.Errorf("%w: target session identity is inconsistent", errGoalCallerDenied)
 	}
-	callerInfo, err := s.sessionStatus.Status(ctx, strings.TrimSpace(caller.ID))
-	if err != nil {
-		return fmt.Errorf("load Goal caller session: %w", err)
-	}
-	if callerInfo == nil || strings.TrimSpace(callerInfo.ID) != strings.TrimSpace(caller.ID) ||
-		strings.TrimSpace(callerInfo.WorkspaceID) != strings.TrimSpace(workspaceID) {
+	if !goalSessionIdentityMatches(callerInfo, caller.ID, workspaceID) {
 		return fmt.Errorf("%w: agent caller session is not in the target workspace", errGoalCallerDenied)
 	}
 	if strings.TrimSpace(target.ID) == strings.TrimSpace(caller.ID) {
 		return nil
 	}
+	return s.authorizeGoalDescendant(ctx, workspaceID, target, caller.ID)
+}
+
+func (s *daemonLoopAPIService) loadGoalCallerSessions(
+	ctx context.Context,
+	targetSessionID string,
+	callerSessionID string,
+) (*session.Info, *session.Info, error) {
+	if s == nil || s.sessionStatus == nil {
+		return nil, nil, errors.New("daemon: Goal caller authorization session reader is unavailable")
+	}
+	target, err := s.sessionStatus.Status(ctx, strings.TrimSpace(targetSessionID))
+	if err != nil {
+		return nil, nil, fmt.Errorf("load Goal target session: %w", err)
+	}
+	callerInfo, err := s.sessionStatus.Status(ctx, strings.TrimSpace(callerSessionID))
+	if err != nil {
+		return nil, nil, fmt.Errorf("load Goal caller session: %w", err)
+	}
+	return target, callerInfo, nil
+}
+
+func goalSessionIdentityMatches(info *session.Info, id string, workspaceID string) bool {
+	return goalSessionInWorkspace(info, workspaceID) && strings.TrimSpace(info.ID) == strings.TrimSpace(id)
+}
+
+func goalSessionInWorkspace(info *session.Info, workspaceID string) bool {
+	return info != nil && strings.TrimSpace(info.ID) != "" &&
+		strings.TrimSpace(info.WorkspaceID) == strings.TrimSpace(workspaceID)
+}
+
+func (s *daemonLoopAPIService) authorizeGoalDescendant(
+	ctx context.Context,
+	workspaceID string,
+	target *session.Info,
+	callerID string,
+) error {
 	visited := map[string]struct{}{strings.TrimSpace(target.ID): {}}
 	current := target
 	for range 256 {
-		if current == nil || strings.TrimSpace(current.ID) == "" ||
-			strings.TrimSpace(current.WorkspaceID) != strings.TrimSpace(workspaceID) ||
-			current.Lineage == nil {
+		if !goalSessionInWorkspace(current, workspaceID) || current.Lineage == nil {
 			return fmt.Errorf("%w: target session is not a child of the caller", errGoalCallerDenied)
 		}
 		parentID := strings.TrimSpace(current.Lineage.ParentSessionID)
 		if parentID == "" {
 			return fmt.Errorf("%w: target session is not a child of the caller", errGoalCallerDenied)
 		}
-		if parentID == strings.TrimSpace(caller.ID) {
+		if parentID == strings.TrimSpace(callerID) {
 			return nil
 		}
 		if _, seen := visited[parentID]; seen {
 			return fmt.Errorf("%w: target session lineage contains a cycle", errGoalCallerDenied)
 		}
-		current, err = s.sessionStatus.Status(ctx, parentID)
+		current, err := s.sessionStatus.Status(ctx, parentID)
 		if err != nil {
 			return fmt.Errorf("load Goal target parent session: %w", err)
 		}
-		if current == nil || strings.TrimSpace(current.ID) != parentID ||
-			strings.TrimSpace(current.WorkspaceID) != strings.TrimSpace(workspaceID) {
+		if !goalSessionIdentityMatches(current, parentID, workspaceID) {
 			return fmt.Errorf("%w: target session parent is outside the caller workspace", errGoalCallerDenied)
 		}
 		visited[parentID] = struct{}{}
@@ -247,7 +274,8 @@ func (s *daemonLoopAPIService) commandErrorDecision(
 	}
 	reasonErr, ok := errors.AsType[*looppkg.ReasonError](err)
 	if !ok {
-		if _, runtimeErr := looppkg.AsRuntimeValidationError(err); runtimeErr {
+		runtimeValidation, runtimeErr := looppkg.AsRuntimeValidationError(err)
+		if runtimeErr && runtimeValidation != nil {
 			return goalCommandErrorDecision(session.GoalReasonRuntimeInvalid, nil), nil
 		}
 		if errors.Is(err, looppkg.ErrInvalidTransition) || errors.Is(err, looppkg.ErrTransitionConflict) {

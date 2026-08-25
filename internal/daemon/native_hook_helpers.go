@@ -281,7 +281,7 @@ func nativeHookDeclPayload(decl hookspkg.HookDecl) map[string]any {
 		loopEventIdentity:            decl.Event.String(),
 		bootSourceKey:                decl.Source.String(),
 		"mode":                       string(decl.Mode),
-		"required":                   decl.Required,
+		daemonRequiredValue:          decl.Required,
 		"priority":                   decl.Priority,
 		"executor_kind":              string(decl.ExecutorKind),
 		"command":                    decl.Command,

@@ -198,7 +198,7 @@ func (s *daemonLoopAPIService) resolveGoalRuntime(
 	provider := compozyconfig.CanonicalProviderName(resolved.Provider)
 	if provider == "" {
 		return nil, looppkg.NewRuntimeValidationError(looppkg.RuntimeValidationItem{
-			Field: "provider", Value: resolved.Provider, Reason: "required",
+			Field: watchEventsPayloadProviderKey, Value: resolved.Provider, Reason: daemonRequiredValue,
 		})
 	}
 	cfg, err := resolveLoopServiceConfig(
@@ -213,7 +213,7 @@ func (s *daemonLoopAPIService) resolveGoalRuntime(
 	providerConfig, err := cfg.ResolveProvider(provider)
 	if err != nil {
 		return nil, looppkg.NewRuntimeValidationError(looppkg.RuntimeValidationItem{
-			Field: "provider", Value: resolved.Provider, Reason: "unknown_provider",
+			Field: watchEventsPayloadProviderKey, Value: resolved.Provider, Reason: "unknown_provider",
 		})
 	}
 	resolved.Provider = provider
@@ -227,7 +227,7 @@ func (s *daemonLoopAPIService) resolveGoalRuntime(
 	}
 	if strings.TrimSpace(resolved.Model) == "" {
 		return nil, looppkg.NewRuntimeValidationError(looppkg.RuntimeValidationItem{
-			Field: "model", Value: "", Reason: "missing_default_model",
+			Field: watchEventsPayloadModelKey, Value: "", Reason: "missing_default_model",
 		})
 	}
 	return &resolved, nil

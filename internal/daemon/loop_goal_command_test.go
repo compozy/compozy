@@ -343,7 +343,11 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 		if got := run.NetworkSpecSnapshot(); got != network {
 			t.Fatalf("run network snapshot = %#v, want exact origin snapshot %#v", got, network)
 		}
-		snapshot, err := fixture.db.GetLoopDefinitionSnapshot(testutil.Context(t), run.WorkspaceID, run.DefinitionDigest)
+		snapshot, err := fixture.db.GetLoopDefinitionSnapshot(
+			testutil.Context(t),
+			run.WorkspaceID,
+			run.DefinitionDigest,
+		)
 		if err != nil {
 			t.Fatalf("GetLoopDefinitionSnapshot() error = %v", err)
 		}
@@ -375,7 +379,9 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 		}
 		assertGoalCommandOutcome(t, decision, session.GoalOutcomeStarted, "")
 		run := fixture.mustRun(t, decision.Result.Snapshot.RunID)
-		definition, err := fixture.db.GetLoopDefinitionSnapshot(testutil.Context(t), run.WorkspaceID, run.DefinitionDigest)
+		definition, err := fixture.db.GetLoopDefinitionSnapshot(
+			testutil.Context(t), run.WorkspaceID, run.DefinitionDigest,
+		)
 		if err != nil {
 			t.Fatalf("GetLoopDefinitionSnapshot() error = %v", err)
 		}
