@@ -935,19 +935,65 @@ test("E2E-024: status, healthy retry, diagnose, and diagnostic bundle remain age
   }
 });
 
-test("E2E-034: packaged product and boot windows enforce their security boundaries", async ({
+test("E2E-034: packaged windows enforce security boundaries and intentional debugging", async ({
   launchDesktop,
 }) => {
-  const desktop = await launchDesktop();
+  const desktop = await launchDesktop({
+    environment: { COMPOZY_DESKTOP_E2E_FOREGROUND: "1" },
+  });
   const product = await desktop.product();
   expect(await product.evaluate(async () => await Notification.requestPermission())).toBe("denied");
+
+  const clipboardValue = "Copied through the packaged Electron product window";
+  expect(
+    await product.evaluate(async value => {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }, clipboardValue)
+  ).toBe(true);
+  expect(await desktop.app.evaluate(({ clipboard }) => clipboard.readText())).toBe(clipboardValue);
+
+  // Playwright's page keyboard does not enter Electron's native input path on macOS;
+  // sendInputEvent supplies the exact Control+Option+I chord that a physical keypress emits.
   await desktop.app.evaluate(({ BrowserWindow }) => {
-    const window = BrowserWindow.getAllWindows().find(candidate => {
-      const url = candidate.webContents.getURL();
-      return url.startsWith("http://") || url.startsWith("https://");
+    const productWindow = BrowserWindow.getAllWindows().find(window =>
+      /^https?:/u.test(window.webContents.getURL())
+    );
+    if (!productWindow) throw new Error("Product window missing before shortcut probe.");
+    productWindow.webContents.sendInputEvent({
+      type: "keyDown",
+      keyCode: "I",
+      modifiers: ["control", "alt"],
     });
-    if (!window) throw new Error("The product window is missing.");
-    window.webContents.openDevTools();
+    productWindow.webContents.sendInputEvent({
+      type: "keyUp",
+      keyCode: "I",
+      modifiers: ["control", "alt"],
+    });
+  });
+  await expect
+    .poll(
+      async () =>
+        await desktop.app.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows().some(window => window.webContents.isDevToolsOpened())
+        )
+    )
+    .toBe(true);
+  await desktop.app.evaluate(({ BrowserWindow }) => {
+    const productWindow = BrowserWindow.getAllWindows().find(window =>
+      /^https?:/u.test(window.webContents.getURL())
+    );
+    if (!productWindow) throw new Error("Product window missing before shortcut close.");
+    productWindow.webContents.sendInputEvent({
+      type: "keyDown",
+      keyCode: "I",
+      modifiers: ["control", "alt"],
+    });
+    productWindow.webContents.sendInputEvent({
+      type: "keyUp",
+      keyCode: "I",
+      modifiers: ["control", "alt"],
+    });
   });
   await expect
     .poll(

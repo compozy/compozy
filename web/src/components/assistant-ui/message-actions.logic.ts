@@ -1,10 +1,10 @@
 interface MessageActionsState {
-  /** The message's markdown text answer, joined and trimmed (empty for a pure tool turn). */
+  /** The message's copyable text, joined and trimmed (empty for a pure tool turn). */
   source: string;
   /** Latest real event time across the message's parts, or null when none is recorded. */
   timestampMs: number | null;
   streaming: boolean;
-  /** Copy is offered for non-streaming message text, including inspectable failure output. */
+  /** Copy stays in the row while streaming, including before the first text token arrives. */
   visible: boolean;
 }
 
@@ -19,6 +19,28 @@ function stringField(record: Record<string, unknown>, key: string): string | und
 
 function isStreamingState(state: string | undefined): boolean {
   return state === "streaming" || state === "running";
+}
+
+function copyableTextSegments(content: unknown): string[] {
+  if (typeof content === "string") {
+    return [content];
+  }
+
+  if (!Array.isArray(content)) {
+    return [];
+  }
+
+  return content.flatMap(part => {
+    if (typeof part === "string") {
+      return [part];
+    }
+    if (!isRecord(part) || stringField(part, "type") !== "text") {
+      return [];
+    }
+
+    const text = stringField(part, "text");
+    return text ? [text] : [];
+  });
 }
 
 function partTimestampMs(part: Record<string, unknown>): number | null {
@@ -38,7 +60,7 @@ export function deriveMessageActions(message: {
   status?: { type?: string };
 }): MessageActionsState {
   const parts = Array.isArray(message.content) ? message.content : [];
-  const textSegments: string[] = [];
+  const textSegments = copyableTextSegments(message.content);
   let streaming = message.status?.type === "running";
   let timestampMs: number | null = null;
 
@@ -48,10 +70,6 @@ export function deriveMessageActions(message: {
     if ((type === "text" || type === "reasoning") && isStreamingState(stringField(part, "state"))) {
       streaming = true;
     }
-    if (type === "text") {
-      const text = stringField(part, "text");
-      if (text) textSegments.push(text);
-    }
     const timestamp = partTimestampMs(part);
     if (timestamp !== null && (timestampMs === null || timestamp > timestampMs)) {
       timestampMs = timestamp;
@@ -59,6 +77,9 @@ export function deriveMessageActions(message: {
   }
 
   const source = textSegments.join("\n\n").trim();
-  const visible = source.length > 0 && !streaming;
+  // Streaming messages copy the text settled so far. Keeping the action in the
+  // row prevents it from appearing only after generation finishes and shifting
+  // the transcript layout.
+  const visible = source.length > 0 || streaming;
   return { source, timestampMs, streaming, visible };
 }

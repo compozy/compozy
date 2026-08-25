@@ -3,6 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CodeBlock, CopyIconButton } from "../code-block";
 
+const toastMocks = vi.hoisted(() => ({
+  error: vi.fn(),
+  success: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({ toast: toastMocks }));
+
 function installClipboard() {
   const writeText = vi.fn<(value: string) => Promise<void>>().mockResolvedValue(undefined);
   const descriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
@@ -25,6 +32,8 @@ describe("CodeBlock", () => {
 
   beforeEach(() => {
     clipboard = installClipboard();
+    toastMocks.error.mockClear();
+    toastMocks.success.mockClear();
   });
 
   afterEach(() => {
@@ -141,6 +150,7 @@ describe("CodeBlock", () => {
     fireEvent.click(button);
     await waitFor(() => {
       expect(clipboard.writeText).toHaveBeenCalledWith("compozy network status");
+      expect(toastMocks.success).toHaveBeenCalledWith("Copied to clipboard");
     });
   });
 
@@ -151,9 +161,27 @@ describe("CodeBlock", () => {
     fireEvent.click(button);
     await waitFor(() => {
       expect(button).toHaveAttribute("data-copy-state", "failed");
+      expect(toastMocks.error).toHaveBeenCalledWith("Couldn't copy to clipboard");
     });
     expect(button.getAttribute("aria-label")).toBe("Copy failed");
     expect(button.querySelector("svg.lucide-triangle-alert")).not.toBeNull();
+  });
+
+  it("Should expose copy failure when the Clipboard API is unavailable", async () => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: undefined,
+    });
+    const { container } = render(<CodeBlock code="compozy start" />);
+    const button = container.querySelector<HTMLButtonElement>('[data-slot="code-block-copy"]')!;
+
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(button).toHaveAttribute("data-copy-state", "failed");
+      expect(toastMocks.error).toHaveBeenCalledWith("Couldn't copy to clipboard");
+    });
+    expect(button).toHaveAttribute("aria-label", "Copy failed");
   });
 
   it("Should swap to the check icon for 1.5s on copy success, then revert", async () => {
@@ -208,6 +236,33 @@ describe("CodeBlock", () => {
       vi.advanceTimersByTime(1);
     });
     expect(button.getAttribute("data-copied")).toBeNull();
+  });
+
+  it("Should keep feedback from the newest overlapping copy request", async () => {
+    let releaseFirstRequest = () => {};
+    const firstRequest = new Promise<void>(resolve => {
+      releaseFirstRequest = resolve;
+    });
+    clipboard.writeText
+      .mockImplementationOnce(() => firstRequest)
+      .mockRejectedValueOnce(new Error("newer request blocked"));
+    const { container } = render(<CodeBlock code="compozy start" />);
+    const button = container.querySelector<HTMLButtonElement>('[data-slot="code-block-copy"]')!;
+
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(button).toHaveAttribute("data-copy-state", "failed");
+      expect(toastMocks.error).toHaveBeenCalledWith("Couldn't copy to clipboard");
+    });
+
+    await act(async () => {
+      releaseFirstRequest();
+      await Promise.resolve();
+    });
+    expect(button).toHaveAttribute("data-copy-state", "failed");
+    expect(toastMocks.success).not.toHaveBeenCalled();
   });
 
   it("Should apply line truncation attributes", () => {
