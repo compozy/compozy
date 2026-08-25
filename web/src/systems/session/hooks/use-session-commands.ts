@@ -11,8 +11,13 @@ export interface SessionCommandMenuItem {
   label: string;
   description?: string;
   lane: SessionCommandMenuLane;
-  /** Daemon source scope (session/workspace/agent/global); surfaced for skills. */
+  /** Daemon-reported source tier, surfaced for skill rows. */
   scope?: string;
+  /**
+   * Which folder convention contributed this skill, straight from the daemon
+   * catalog. Empty for Compozy-native skills, which carry no label.
+   */
+  origin?: string;
   /**
    * Daemon availability for this session's current state. An unavailable command
    * stays listed and inert — hiding it would erase the reason it cannot run.
@@ -62,6 +67,7 @@ function commandMenuItem(
   lane: SessionCommandMenuLane
 ): SessionCommandMenuItem {
   const scope = command.source?.scope;
+  const origin = command.source?.origin?.trim();
   const reason = command.unavailable_reason?.trim();
   return {
     id: command.id,
@@ -71,6 +77,7 @@ function commandMenuItem(
     available: command.available,
     ...(command.description ? { description: command.description } : {}),
     ...(scope ? { scope } : {}),
+    ...(origin ? { origin } : {}),
     ...(reason ? { unavailableReason: reason } : {}),
   };
 }

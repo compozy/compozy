@@ -116,6 +116,64 @@ export const Loading: Story = {
 };
 
 /**
+ * Runtime down: counts and folder states disappear because nothing was measured,
+ * while the switches and the folder editor keep working — these are preferences,
+ * not live state.
+ */
+export const SourcesRuntimeUnavailable: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/settings/skills"),
+    ...storybookMswParameters({
+      settings: [
+        compozyApiMock.get("/api/settings/skills", () =>
+          HttpResponse.json({
+            ...settingsSkillsSectionFixture,
+            runtime_available: false,
+            sources: settingsSkillsSectionFixture.sources.map(source => ({
+              ...source,
+              roots: source.roots.map(root => {
+                const { scanned_count: _scanned, skill_count: _skills, ...rest } = root;
+                return rest;
+              }),
+            })),
+          })
+        ),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * Only Compozy's own folders are on, and no folder was added by hand.
+ */
+export const SourcesDefaultsOnly: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/settings/skills"),
+    ...storybookMswParameters({
+      settings: [
+        compozyApiMock.get("/api/settings/skills", () =>
+          HttpResponse.json({
+            ...settingsSkillsSectionFixture,
+            config: {
+              ...settingsSkillsSectionFixture.config,
+              sources: [],
+              custom_sources: [],
+            },
+            sources: settingsSkillsSectionFixture.sources
+              .filter(source => source.kind !== "custom")
+              .map(source => (source.always_on ? source : { ...source, enabled: false })),
+          })
+        ),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
  * Error branch when the skills settings request fails.
  */
 export const Error: Story = {

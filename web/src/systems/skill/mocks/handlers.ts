@@ -1,9 +1,11 @@
 import { HttpResponse, type HttpHandler } from "msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
+import type { SkillExposeRequest } from "../types";
 
 import {
   skillActionFixture,
   skillContentFixtures,
+  skillExposePartialFailureFixture,
   skillFixtures,
   skillShadowsFixtures,
   skillMarketplaceInstallFixture,
@@ -103,5 +105,43 @@ export const handlers: HttpHandler[] = [
     }
 
     return HttpResponse.json(skillActionFixture);
+  }),
+  // Exposing into `claude` hits an occupied path, which is the fixture's way of
+  // exercising the one failure envelope both verbs share.
+  compozyApiMock.post("/api/skills/{name}/expose", async ({ params, request }) => {
+    const name = String(params.name);
+    const body = (await request.json()) as SkillExposeRequest;
+    const targets = body.targets;
+    if (targets.includes("claude")) {
+      const results = skillExposePartialFailureFixture.results.filter(result =>
+        targets.includes(result.target)
+      );
+      return HttpResponse.json(
+        {
+          ...skillExposePartialFailureFixture,
+          name,
+          results,
+          rolled_back: results.some(result => result.error?.code === "rolled_back"),
+        },
+        { status: 409 }
+      );
+    }
+    return HttpResponse.json({
+      name,
+      results: targets.map(target => ({
+        target,
+        ok: true,
+        exposure: { target, path: `/Users/ana/.${target}/skills/${name}`, status: "healthy" },
+      })),
+      rolled_back: false,
+    });
+  }),
+  compozyApiMock.post("/api/skills/{name}/unexpose", async ({ params, request }) => {
+    const name = String(params.name);
+    const body = (await request.json()) as SkillExposeRequest;
+    return HttpResponse.json({
+      name,
+      results: body.targets.map(target => ({ target, ok: true })),
+    });
   }),
 ];

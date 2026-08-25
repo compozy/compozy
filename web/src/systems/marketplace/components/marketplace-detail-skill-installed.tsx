@@ -18,6 +18,7 @@ import {
 } from "@compozy/ui";
 
 import { useMarketplaceDetailSkillManage } from "../hooks/use-marketplace-detail-skill-manage";
+import { MarketplaceSkillExposuresCard } from "./marketplace-detail-skill-exposures";
 import { MarketplaceDetailManageFallbackBody } from "./marketplace-detail-manage-state";
 import {
   MarketplaceDetailColumns,
@@ -79,6 +80,7 @@ function MarketplaceDetailSkillInstalled({ data }: MarketplaceDetailSkillInstall
       rail={
         <>
           <MarketplaceSkillManageCard state={state} />
+          {skill ? <MarketplaceSkillExposuresCard skill={skill} /> : null}
           {skill ? <MarketplaceSkillCapabilitiesCard skill={skill} /> : null}
           <MarketplaceSkillDetailsCard data={data} />
           <MarketplaceSkillVersionsCard data={data} />

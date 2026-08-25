@@ -1,4 +1,4 @@
-import type { OperationRequestBody, OperationResponse } from "@/lib/api-contract";
+import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
 export type SkillsResponse = OperationResponse<"listSkills", 200>;
 export type SkillPayload = SkillsResponse["skills"][number];
@@ -10,6 +10,17 @@ export type SkillShadowsResponse = OperationResponse<"getSkillShadows", 200>;
 export type SkillShadowEntryPayload = SkillShadowsResponse["shadows"][number];
 export type SkillActionResponse = OperationResponse<"enableSkill", 200>;
 export type ProvenancePayload = NonNullable<SkillPayload["provenance"]>;
+
+/** Reconciled expose links; `status` is filesystem truth, not the stored record. */
+export type SkillExposurePayload = NonNullable<SkillPayload["exposures"]>[number];
+export type SkillExposureStatus = SkillExposurePayload["status"];
+export type SkillExposeResponse = OperationResponse<"exposeSkill", 200>;
+/** Unexpose is per-target independent, so its envelope carries no rollback flag. */
+export type SkillUnexposeResponse = OperationResponse<"unexposeSkill", 200>;
+export type SkillExposeResult = SkillExposeResponse["results"][number];
+export type SkillExposeRequest = OperationRequestBody<"exposeSkill">;
+export type SkillExposeFilter = NonNullable<OperationQuery<"exposeSkill">>;
+export type SkillExposeFailureResponse = OperationResponse<"exposeSkill", 409>;
 
 export type SkillMarketplaceInstallResponse = OperationResponse<"installSkillMarketplace", 200>;
 export type SkillMarketplaceInstallPayload = SkillMarketplaceInstallResponse["skill"];

@@ -85,6 +85,19 @@ describe("sessionCommandMenuCatalog", () => {
       label: "frontend-qa",
     });
   });
+
+  it("Should carry a foreign origin and leave Compozy-native rows unlabeled", () => {
+    const native = command("skill:workspace::review", "/review", "skill", ["standalone"]);
+    const absorbed = command("skill:user::pdf-tools", "/pdf-tools", "skill", ["standalone"]);
+    const catalog = sessionCommandMenuCatalog([
+      { ...native, source: { ...native.source, origin: "" } },
+      { ...absorbed, source: { ...absorbed.source, origin: "claude" } },
+    ]);
+
+    const rows = catalog.standaloneSections.flatMap(section => section.commands);
+    expect(rows.find(row => row.token === "/pdf-tools")?.origin).toBe("claude");
+    expect(rows.find(row => row.token === "/review")).not.toHaveProperty("origin");
+  });
 });
 
 describe("useSessionCommands", () => {

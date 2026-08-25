@@ -100,7 +100,8 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     label: "Skills",
     icon: Wrench,
     group: "runtime",
-    keywords: "registry marketplace policy disabled install",
+    keywords:
+      "registry marketplace policy disabled install sources folders agents claude custom directories origin expose",
   },
   {
     slug: "automation",

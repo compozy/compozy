@@ -23,6 +23,7 @@ export {
   settingsRestartRequiredMutationFixture,
   settingsRestartResponseFixture,
   settingsRestartStatusFixture,
+  settingsSkillSourcesFixture,
   settingsSkillsSectionFixture,
 } from "./fixtures";
 export { settingsHooksCollectionFixture, settingsPersonaSectionFixture } from "./layered-fixtures";

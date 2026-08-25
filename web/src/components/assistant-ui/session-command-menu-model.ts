@@ -31,6 +31,8 @@ export interface SessionComposerCommand {
   lane: SessionCommandLane;
   /** Daemon source scope (session/workspace/agent/global); shown for skills. */
   scope?: string;
+  /** Daemon-reported source slug; empty/absent for Compozy-native skills. */
+  origin?: string;
   /** Daemon availability for the current session state; defaults to available. */
   available?: boolean;
   /** Verbatim daemon explanation when unavailable. */
@@ -53,6 +55,7 @@ export interface SessionCommandItemPresentation {
   token: string;
   lane: SessionCommandLane;
   scope?: string;
+  origin?: string;
   sectionId: string;
   sectionLabel: string;
   /** Row title in the menu; skill rows keep their exact kebab identity. */
@@ -110,6 +113,7 @@ export function asTriggerItem(
       menuTitle: command.label,
       lane: command.lane,
       ...(command.scope ? { scope: command.scope } : {}),
+      ...(command.origin ? { origin: command.origin } : {}),
       // Availability travels as metadata so the row can stay listed and inert
       // while still stating the daemon's reason.
       available: command.available !== false,
@@ -129,6 +133,9 @@ export function commandItemPresentation(
     token: typeof metadata.token === "string" ? metadata.token : item.label,
     lane,
     ...(typeof metadata.scope === "string" ? { scope: metadata.scope } : {}),
+    ...(typeof metadata.origin === "string" && metadata.origin !== ""
+      ? { origin: metadata.origin }
+      : {}),
     sectionId: typeof metadata.sectionId === "string" ? metadata.sectionId : lane,
     sectionLabel: typeof metadata.sectionLabel === "string" ? metadata.sectionLabel : item.label,
     menuTitle: typeof metadata.menuTitle === "string" ? metadata.menuTitle : item.label,
@@ -230,12 +237,18 @@ export function commandIcon(token: string, lane: SessionCommandLane): LucideIcon
 export function formatScopeLabel(scope: string | undefined): string {
   const normalized = scope?.trim() ?? "";
   if (normalized.length === 0) return "Skill";
-  return normalized.charAt(0).toLocaleUpperCase() + normalized.slice(1);
+  const words = normalized.replace(/[_-]+/gu, " ");
+  return words.charAt(0).toLocaleUpperCase() + words.slice(1);
 }
 
 export interface SessionCommandTrailing {
   text: string;
   mono: boolean;
+  /**
+   * Source slug for a skill that came from another tool's folder convention.
+   * Absent for Compozy-native rows, which keep exactly today's anatomy.
+   */
+  origin?: string;
 }
 
 /** Built-in/agent rows show the canonical token; skill rows show their daemon scope. */
@@ -243,7 +256,11 @@ export function commandTrailing(
   presentation: SessionCommandItemPresentation
 ): SessionCommandTrailing {
   if (presentation.lane === "skill") {
-    return { text: formatScopeLabel(presentation.scope), mono: false };
+    return {
+      text: formatScopeLabel(presentation.scope),
+      mono: false,
+      ...(presentation.origin ? { origin: presentation.origin } : {}),
+    };
   }
   return { text: presentation.token, mono: true };
 }

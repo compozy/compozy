@@ -23,6 +23,21 @@ export { ProviderModelCatalogStatus } from "./provider-model-catalog-status";
 export { NetworkSettingsSections } from "./network-settings-sections";
 export { SettingsDecimalInput } from "./settings-decimal-input";
 export { SettingsDisabledSkillsSection } from "./settings-disabled-skills-section";
+export { SettingsSkillSourcesSection } from "./settings-skill-sources-section";
+export { SettingsSkillSourceRow } from "./settings-skill-source-row";
+export { SettingsSkillSourceDiagnostics } from "./settings-skill-source-diagnostics";
+export { SettingsSkillCustomSources } from "./settings-skill-custom-sources";
+export {
+  SettingsSkillsEngineSection,
+  SettingsSkillsManageSection,
+  SettingsSkillsMarketplaceSection,
+  type SettingsSkillsDraftSectionProps,
+} from "./settings-skills-engine-sections";
+export { SettingsSkillsInstallPolicySection } from "./settings-skills-install-policy-section";
+export {
+  SettingsSkillsScopeNotice,
+  SettingsSkillsScopeSelector,
+} from "./settings-skills-scope-selector";
 export { ModalSettingsFieldRow, SettingsFieldRow } from "./settings-field-row";
 export {
   ModalSettingRow,

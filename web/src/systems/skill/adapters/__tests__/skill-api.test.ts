@@ -9,8 +9,11 @@ import {
   getSkillShadows,
   installSkillMarketplace,
   listSkills,
+  exposeSkill,
   removeSkillMarketplace,
   SkillApiError,
+  SkillExposeError,
+  unexposeSkill,
   updateSkillMarketplace,
 } from "@/systems/skill/adapters/skill-api";
 
@@ -77,18 +80,28 @@ describe("listSkills", () => {
 
     await expectFetchRequest({ path: "/api/skills?workspace=%2Fhome%2Fuser%2Fproject" });
   });
+
+  it("preserves the exact profile in a workspace list", async () => {
+    mockJsonResponse(validResponse);
+
+    await listSkills("ws_123", undefined, "research");
+
+    await expectFetchRequest({ path: "/api/skills?workspace=ws_123&profile=research" });
+  });
 });
 
 describe("getSkill", () => {
   const validResponse = { skill: validSkill };
 
-  it("calls GET /api/skills/:name?workspace=:id and returns typed object", async () => {
+  // Detail reads take the canonical workspace id; list, content, and shadows
+  // keep the resolvable `workspace` parameter.
+  it("calls GET /api/skills/:name?workspace_id=:id and returns typed object", async () => {
     mockJsonResponse(validResponse);
 
     const result = await getSkill("test-skill", "ws_123");
 
     expect(result).toEqual(validSkill);
-    await expectFetchRequest({ path: "/api/skills/test-skill?workspace=ws_123" });
+    await expectFetchRequest({ path: "/api/skills/test-skill?workspace_id=ws_123" });
   });
 
   it("throws SkillApiError with 404 for unknown skill", async () => {
@@ -117,7 +130,17 @@ describe("getSkill", () => {
 
     await getSkill("my skill", "ws_123");
 
-    await expectFetchRequest({ path: "/api/skills/my%20skill?workspace=ws_123" });
+    await expectFetchRequest({ path: "/api/skills/my%20skill?workspace_id=ws_123" });
+  });
+
+  it("preserves the exact profile in a workspace detail", async () => {
+    mockJsonResponse(validResponse);
+
+    await getSkill("test-skill", "ws_123", undefined, "research");
+
+    await expectFetchRequest({
+      path: "/api/skills/test-skill?workspace_id=ws_123&profile=research",
+    });
   });
 });
 
@@ -333,6 +356,120 @@ describe("removeSkillMarketplace", () => {
     await expectFetchRequest({
       method: "DELETE",
       path: "/api/skills/marketplace/my%20skill",
+    });
+  });
+});
+
+describe("exposeSkill", () => {
+  it("posts the named targets and returns the per-target results", async () => {
+    mockJsonResponse({
+      name: "review-checklist",
+      results: [
+        {
+          target: "agents",
+          ok: true,
+          exposure: { target: "agents", path: "/repo/.agents/skills/rc", status: "healthy" },
+        },
+      ],
+      rolled_back: false,
+    });
+
+    const result = await exposeSkill("review-checklist", {
+      targets: ["agents"],
+      workspace_id: "ws_123",
+    });
+
+    expect(result.results[0]).toMatchObject({ target: "agents", ok: true });
+    await expectFetchRequest({
+      body: { targets: ["agents"], workspace_id: "ws_123" },
+      method: "POST",
+      path: "/api/skills/review-checklist/expose",
+    });
+  });
+
+  it("preserves the exact profile when exposing a workspace skill", async () => {
+    mockJsonResponse({ name: "review-checklist", results: [], rolled_back: false });
+
+    await exposeSkill(
+      "review-checklist",
+      { targets: ["agents"], workspace_id: "ws_123" },
+      "research"
+    );
+
+    await expectFetchRequest({
+      body: { targets: ["agents"], workspace_id: "ws_123" },
+      method: "POST",
+      path: "/api/skills/review-checklist/expose?profile=research",
+    });
+  });
+
+  // Any failure — single- or multi-target — uses one envelope, so the per-target
+  // detail has to survive the throw instead of collapsing into a status code.
+  it("carries the expose_failed envelope through the thrown error", async () => {
+    mockJsonResponse(
+      {
+        error: { code: "expose_failed", message: "1 of 2 targets failed" },
+        name: "review-checklist",
+        results: [
+          { target: "claude", ok: false, error: { code: "expose_name_conflict" } },
+          { target: "agents", ok: false, error: { code: "rolled_back" } },
+        ],
+        rolled_back: true,
+      },
+      { status: 409 }
+    );
+
+    await expect(
+      exposeSkill("review-checklist", { targets: ["agents", "claude"] })
+    ).rejects.toBeInstanceOf(SkillExposeError);
+
+    mockJsonResponse(
+      {
+        error: { code: "expose_failed", message: "1 of 2 targets failed" },
+        name: "review-checklist",
+        results: [
+          { target: "claude", ok: false, error: { code: "expose_name_conflict" } },
+          { target: "agents", ok: false, error: { code: "rolled_back" } },
+        ],
+        rolled_back: true,
+      },
+      { status: 409 }
+    );
+
+    try {
+      await exposeSkill("review-checklist", { targets: ["agents", "claude"] });
+      expect.unreachable("expose should have thrown");
+    } catch (error) {
+      const failure = error as SkillExposeError;
+      expect(failure.code).toBe("expose_failed");
+      expect(failure.status).toBe(409);
+      expect(failure.rolledBack).toBe(true);
+      expect(failure.results.map(result => result.error?.code)).toEqual([
+        "expose_name_conflict",
+        "rolled_back",
+      ]);
+    }
+  });
+});
+
+describe("unexposeSkill", () => {
+  it("returns per-target independent results with no rollback concept", async () => {
+    mockJsonResponse({
+      name: "review-checklist",
+      results: [
+        { target: "agents", ok: true },
+        { target: "claude", ok: false, error: { code: "expose_foreign_link" } },
+      ],
+    });
+
+    const result = await unexposeSkill("review-checklist", { targets: ["agents", "claude"] });
+
+    expect(result).not.toHaveProperty("rolled_back");
+    expect(result.results.map(entry => entry.ok)).toEqual([true, false]);
+    await expectFetchRequest({
+      body: { targets: ["agents", "claude"] },
+      method: "POST",
+      path: "/api/skills/review-checklist/unexpose",
     });
   });
 });

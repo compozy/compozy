@@ -24,6 +24,7 @@ function makeSkill(overrides: Partial<SkillPayload> = {}): SkillPayload {
     enabled: true,
     activation: { active: true },
     dir: "/path",
+    origin: "",
     ...overrides,
   };
 }

@@ -40,7 +40,7 @@ import type {
   SettingsUpdateSkillsRequest,
   SettingsUpdateStatus,
 } from "../types";
-import { normalizeOptionalText, SettingsApiError } from "./settings-api-error";
+import { normalizeOptionalText, SettingsApiError, settingsErrorDetail } from "./settings-api-error";
 import { normalizeSettingsLayerFilter } from "./settings-layer-filter";
 
 export { getSettingsCmdPalette, updateSettingsCmdPalette } from "./settings-cmd-palette-api";
@@ -61,6 +61,7 @@ function normalizeSettingsSkillsFilter(
   return {
     scope: filter.scope,
     workspace_id: normalizeOptionalText(filter.workspace_id),
+    profile: normalizeOptionalText(filter.profile),
     agent_name: normalizeOptionalText(filter.agent_name),
   };
 }
@@ -207,9 +208,14 @@ export async function updateSettingsSkills(
     signal,
   });
   if (apiRequestFailed(response, error)) {
+    // Source validation answers with a coded body; keep it so the section can
+    // render the daemon's own sentence and code instead of a status number.
+    const detail = settingsErrorDetail(error);
     throw new SettingsApiError(
-      defaultApiErrorMessage("Failed to update skills settings", response, error),
-      response.status
+      detail?.message ??
+        defaultApiErrorMessage("Failed to update skills settings", response, error),
+      response.status,
+      detail
     );
   }
   return requireResponseData(data, response, "Failed to update skills settings");

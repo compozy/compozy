@@ -42,6 +42,16 @@ export function skillSourceLabel(source: string): string {
   return source;
 }
 
+/**
+ * The source slug that contributed a skill, or null when it is Compozy-native.
+ * One vocabulary for the picker, the catalog cards, and the expose panel — and
+ * nothing is derived: the daemon either reports an origin or it does not.
+ */
+export function skillOriginLabel(origin: string | undefined): string | null {
+  const trimmed = origin?.trim() ?? "";
+  return trimmed === "" ? null : trimmed;
+}
+
 export function skillStatusTone(enabled: boolean): "success" | "neutral" {
   return enabled ? "success" : "neutral";
 }

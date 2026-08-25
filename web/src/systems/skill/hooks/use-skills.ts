@@ -7,18 +7,23 @@ import {
   skillsListOptions,
 } from "@/systems/skill/lib/query-options";
 
-export function useSkills(workspace: string, enabled = true) {
-  return useQuery(skillsListOptions(workspace, enabled));
+export function useSkills(workspace: string, enabled = true, profile?: string) {
+  return useQuery(skillsListOptions(workspace, enabled, profile));
 }
 
-export function useSkill(name: string, workspace: string) {
-  return useQuery(skillDetailOptions(name, workspace));
+export function useSkill(name: string, workspace: string, profile?: string) {
+  return useQuery(skillDetailOptions(name, workspace, profile));
 }
 
-export function useSkillContent(name: string, workspace: string, enabled = false) {
-  return useQuery(skillContentOptions(name, workspace, enabled));
+export function useSkillContent(
+  name: string,
+  workspace: string,
+  enabled = false,
+  profile?: string
+) {
+  return useQuery(skillContentOptions(name, workspace, enabled, profile));
 }
 
-export function useSkillShadows(name: string, workspace: string) {
-  return useQuery(skillShadowsOptions(name, workspace));
+export function useSkillShadows(name: string, workspace: string, profile?: string) {
+  return useQuery(skillShadowsOptions(name, workspace, profile));
 }

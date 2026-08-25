@@ -141,6 +141,12 @@ export type SettingsUpdateRolesRequest = OperationRequestBody<"updateSettingsRol
 export type SettingsUpdateSkillsRequest = OperationRequestBody<"updateSettingsSkills">;
 export type SettingsSkillsFilter = NonNullable<OperationQuery<"getSettingsSkills">>;
 export type SettingsUpdateSkillsFilter = NonNullable<OperationQuery<"updateSettingsSkills">>;
+/** Daemon-measured source read model; every rendered path, count, and state comes from here. */
+export type SettingsSkillSource = SettingsSkillsSection["sources"][number];
+export type SettingsSkillSourceRoot = SettingsSkillSource["roots"][number];
+export type SettingsSkillSourceInherits = NonNullable<SettingsSkillsSection["inherits"]>;
+/** Presence-aware workspace override body: absent = untouched, null = inherit, array = set. */
+export type SettingsSkillSourcesOverride = NonNullable<SettingsUpdateSkillsRequest["override"]>;
 export type SettingsUpdateAutomationRequest = OperationRequestBody<"updateSettingsAutomation">;
 export type SettingsUpdateNetworkRequest = OperationRequestBody<"updateSettingsNetwork">;
 export type SettingsUpdateAttentionRequest = OperationRequestBody<"updateSettingsAttention">;

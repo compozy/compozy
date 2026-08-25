@@ -302,6 +302,8 @@ describe("section reads and updates", () => {
         disabled_skills: ["review"],
         poll_interval: "5m",
         marketplace: { registry: "compozy" },
+        sources: ["agents"],
+        custom_sources: [],
       },
     };
 

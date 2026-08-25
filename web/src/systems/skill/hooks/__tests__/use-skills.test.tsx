@@ -36,6 +36,7 @@ const validSkill = {
   enabled: true,
   activation: { active: true },
   dir: "/path/to/skill",
+  origin: "",
 };
 
 describe("useSkills", () => {
@@ -62,6 +63,17 @@ describe("useSkills", () => {
 
     expect(result.current.data).toEqual([validSkill]);
     expect(listSkills).toHaveBeenCalledWith("ws_123", expect.any(AbortSignal));
+  });
+
+  it("keeps the exact profile in a workspace skill read", async () => {
+    vi.mocked(listSkills).mockResolvedValue([validSkill]);
+
+    const { result } = renderHook(() => useSkills("ws_123", true, "research"), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.data).toEqual([validSkill]));
+    expect(listSkills).toHaveBeenCalledWith("ws_123", expect.any(AbortSignal), "research");
   });
 
   it("loads global skills when workspace is empty", async () => {
@@ -105,6 +117,22 @@ describe("useSkill", () => {
     });
 
     expect(getSkill).toHaveBeenCalledWith("test-skill", "ws_123", expect.any(AbortSignal));
+  });
+
+  it("keeps the exact profile in a workspace skill detail read", async () => {
+    vi.mocked(getSkill).mockResolvedValue(validSkill);
+
+    const { result } = renderHook(() => useSkill("test-skill", "ws_123", "research"), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.data).toEqual(validSkill));
+    expect(getSkill).toHaveBeenCalledWith(
+      "test-skill",
+      "ws_123",
+      expect.any(AbortSignal),
+      "research"
+    );
   });
 
   it("does not fetch when name is empty", () => {

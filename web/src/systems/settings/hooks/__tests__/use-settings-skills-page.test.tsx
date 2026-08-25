@@ -27,12 +27,39 @@ vi.mock("@/systems/workspace/adapters/workspace-api", () => ({
   fetchWorkspaces: vi.fn(),
 }));
 
+// The scope hook reads the shell's profile lens and active workspace rather than
+// owning a second selector, so both seams are stubbed here.
+const shellMocks = vi.hoisted(() => ({
+  actingProfile: "default",
+  activeWorkspaceId: null as string | null,
+  workspaces: [] as { id: string; name: string }[],
+}));
+
+vi.mock("@/systems/profiles/hooks/use-profile-read-scope", () => ({
+  useProfileReadScope: () => ({ destination: shellMocks.actingProfile }),
+  useAggregateDestination: () => null,
+}));
+
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
+  useActiveWorkspace: () => ({
+    activeWorkspaceId: shellMocks.activeWorkspaceId,
+    workspaces: shellMocks.workspaces,
+    isLoading: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
+
 import { fetchAgents } from "@/systems/agent/adapters/agent-api";
 import { primaryAgentFixture } from "@/systems/agent/mocks";
 import { getSettingsSkills, updateSettingsSkills } from "@/systems/settings/adapters/settings-api";
+import { settingsSkillSourcesFixture } from "@/systems/settings/mocks";
 import { resetSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
 import type { SettingsSkillsSection } from "@/systems/settings";
 import { fetchWorkspaces } from "@/systems/workspace/adapters/workspace-api";
+// The section reads the daemon's coded rejection through the un-mocked error
+// module, so the suite throws that exact class rather than a look-alike.
+import { SettingsApiError as SourceValidationError } from "@/systems/settings/adapters/settings-api-error";
 import { useSettingsSkillsPage } from "../use-settings-skills-page";
 import { settingsSkillsDraftLogic } from "../settings-skills-draft-logic";
 
@@ -53,7 +80,10 @@ const skillsEnvelope: SettingsSkillsSection = {
     },
     allowed_marketplace_mcp: [],
     allowed_marketplace_hooks: [],
+    sources: ["agents"],
+    custom_sources: [],
   },
+  sources: settingsSkillSourcesFixture,
   links: [{ label: "skills", path: "/marketplace/skills" }],
 };
 
@@ -71,6 +101,9 @@ function createWrapper() {
 beforeEach(() => {
   vi.clearAllMocks();
   resetSettingsRestartStore();
+  shellMocks.actingProfile = "default";
+  shellMocks.activeWorkspaceId = null;
+  shellMocks.workspaces = [];
   vi.mocked(fetchAgents).mockResolvedValue([]);
   vi.mocked(fetchWorkspaces).mockResolvedValue([]);
   vi.mocked(getSettingsSkills).mockResolvedValue(skillsEnvelope);
@@ -328,6 +361,8 @@ describe("useSettingsSkillsPage", () => {
       enabled: true,
       marketplace: { registry: "https://registry.example" },
       poll_interval: "5m",
+      sources: ["agents"],
+      custom_sources: [],
     };
     const agent = { ...global, enabled: false };
     const globalStore = settingsSkillsDraftLogic.createStore({ baseline: global, key: "global" });
@@ -340,7 +375,11 @@ describe("useSettingsSkillsPage", () => {
     });
 
     expect(agentStore.getSnapshot().context.draft).toEqual(agent);
-    expect(agentStore.getSnapshot().context.labels).toEqual({ disabled: null, policy: null });
+    expect(agentStore.getSnapshot().context.labels).toEqual({
+      disabled: null,
+      policy: null,
+      sources: null,
+    });
   });
 
   it("Should merge out-of-order independent saves into one baseline", async () => {
@@ -388,5 +427,211 @@ describe("useSettingsSkillsPage", () => {
         poll_interval: "10m",
       });
     });
+  });
+  it("Should key reads by the exact acting profile without an aggregate", async () => {
+    shellMocks.actingProfile = "research";
+    vi.mocked(getSettingsSkills).mockImplementation(async filter => ({
+      ...skillsEnvelope,
+      scope: (filter?.scope ?? "user") as SettingsSkillsSection["scope"],
+      profile: filter?.profile,
+    }));
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsSkillsPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.envelope).toBeTruthy());
+    expect(vi.mocked(getSettingsSkills).mock.calls.at(-1)?.[0]).toEqual({
+      scope: "profile",
+      profile: "research",
+    });
+    expect(result.current.personalLabel).toBe("research");
+    expect(result.current.actingProfile).toBe("research");
+  });
+
+  it("Should preserve the acting profile in a read-only workspace projection", async () => {
+    shellMocks.actingProfile = "research";
+    shellMocks.activeWorkspaceId = "ws_acme";
+    shellMocks.workspaces = [{ id: "ws_acme", name: "acme-api" }];
+    vi.mocked(getSettingsSkills).mockImplementation(async filter => ({
+      ...skillsEnvelope,
+      scope: (filter?.scope ?? "user") as SettingsSkillsSection["scope"],
+      profile: filter?.profile,
+      workspace_id: filter?.workspace_id,
+    }));
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsSkillsPage(), { wrapper });
+    await waitFor(() => expect(result.current.envelope).toBeTruthy());
+
+    act(() => result.current.selectWorkspaceScope());
+
+    await waitFor(() => {
+      expect(vi.mocked(getSettingsSkills).mock.calls.at(-1)?.[0]).toEqual({
+        scope: "profile",
+        profile: "research",
+        workspace_id: "ws_acme",
+      });
+    });
+    expect(result.current.isRepositoryProfile).toBe(true);
+    expect(result.current.sources.readOnlyReason).toBe("repository-profile");
+
+    act(() => {
+      result.current.toggleDisabled("beta");
+      result.current.handleSaveDisabled();
+      result.current.sources.togglePreset("claude", true);
+      result.current.sources.save();
+    });
+
+    expect(result.current.isDisabledDirty).toBe(false);
+    expect(result.current.sources.isDirty).toBe(false);
+    expect(updateSettingsSkills).not.toHaveBeenCalled();
+  });
+
+  it("Should keep separate drafts for two profiles under one lens", async () => {
+    vi.mocked(getSettingsSkills).mockImplementation(async filter => ({
+      ...skillsEnvelope,
+      scope: (filter?.scope ?? "user") as SettingsSkillsSection["scope"],
+      profile: filter?.profile,
+      config: {
+        ...skillsEnvelope.config,
+        sources: filter?.profile === "research" ? ["agents", "claude"] : ["agents"],
+      },
+    }));
+
+    const { wrapper, queryClient } = createWrapper();
+    const first = renderHook(() => useSettingsSkillsPage(), { wrapper });
+    await waitFor(() => expect(first.result.current.draft?.sources).toEqual(["agents"]));
+    first.unmount();
+
+    shellMocks.actingProfile = "research";
+    const second = renderHook(() => useSettingsSkillsPage(), { wrapper });
+    await waitFor(() => expect(second.result.current.draft?.sources).toEqual(["agents", "claude"]));
+    // Two cache entries, not one entry answering for both profiles.
+    const skillsEntries = queryClient
+      .getQueryCache()
+      .findAll({ queryKey: ["settings", "section", "skills"] });
+    expect(skillsEntries.length).toBeGreaterThan(1);
+  });
+
+  it("Should send a workspace override only for the keys the workspace owns", async () => {
+    shellMocks.activeWorkspaceId = "ws_acme";
+    shellMocks.workspaces = [{ id: "ws_acme", name: "acme-api" }];
+    vi.mocked(getSettingsSkills).mockImplementation(async filter => ({
+      ...skillsEnvelope,
+      scope: (filter?.scope ?? "user") as SettingsSkillsSection["scope"],
+      workspace_id: filter?.workspace_id,
+      ...(filter?.scope === "workspace"
+        ? { inherits: { sources: true, custom_sources: true } }
+        : {}),
+    }));
+    vi.mocked(updateSettingsSkills).mockResolvedValue({
+      section: "skills",
+      scope: "workspace",
+      applied: true,
+      restart_required: false,
+    } as never);
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsSkillsPage(), { wrapper });
+    await waitFor(() => expect(result.current.envelope).toBeTruthy());
+
+    act(() => result.current.selectWorkspaceScope());
+    await waitFor(() => expect(result.current.sources.postures).not.toBeNull());
+    expect(result.current.sources.postures).toEqual([
+      { key: "sources", inherited: true, armed: false },
+      { key: "custom_sources", inherited: true, armed: false },
+    ]);
+
+    act(() => result.current.sources.togglePreset("claude", true));
+    await waitFor(() => expect(result.current.sources.isDirty).toBe(true));
+    expect(
+      result.current.sources.groups.presets.find(source => source.slug === "claude")?.enabled
+    ).toBe(true);
+    act(() => result.current.sources.save());
+
+    await waitFor(() => expect(updateSettingsSkills).toHaveBeenCalled());
+    const [body, filter] = vi.mocked(updateSettingsSkills).mock.calls.at(-1) ?? [];
+    // custom_sources is still inherited and untouched, so it stays out of the body.
+    expect(body).toEqual({ override: { sources: ["agents", "claude"] } });
+    expect(filter).toMatchObject({ scope: "workspace", workspace_id: "ws_acme" });
+  });
+
+  it("Should return one key to inheritance without touching the other", async () => {
+    shellMocks.activeWorkspaceId = "ws_acme";
+    shellMocks.workspaces = [{ id: "ws_acme", name: "acme-api" }];
+    vi.mocked(getSettingsSkills).mockImplementation(async filter => ({
+      ...skillsEnvelope,
+      scope: (filter?.scope ?? "user") as SettingsSkillsSection["scope"],
+      workspace_id: filter?.workspace_id,
+      ...(filter?.scope === "workspace"
+        ? { inherits: { sources: false, custom_sources: true } }
+        : {}),
+    }));
+    vi.mocked(updateSettingsSkills).mockResolvedValue({
+      section: "skills",
+      scope: "workspace",
+      applied: true,
+      restart_required: false,
+    } as never);
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsSkillsPage(), { wrapper });
+    await waitFor(() => expect(result.current.envelope).toBeTruthy());
+    act(() => result.current.selectWorkspaceScope());
+    await waitFor(() => expect(result.current.sources.postures).not.toBeNull());
+
+    act(() => result.current.sources.useInherited("sources"));
+
+    await waitFor(() => expect(updateSettingsSkills).toHaveBeenCalled());
+    expect(vi.mocked(updateSettingsSkills).mock.calls.at(-1)?.[0]).toEqual({
+      override: { sources: null },
+    });
+  });
+
+  it("Should read source policy without writing it at agent scope", async () => {
+    vi.mocked(fetchAgents).mockResolvedValue([{ ...primaryAgentFixture, name: "general" }]);
+    vi.mocked(getSettingsSkills).mockImplementation(async filter => ({
+      ...skillsEnvelope,
+      scope: (filter?.scope ?? "user") as SettingsSkillsSection["scope"],
+      agent_name: filter?.agent_name,
+    }));
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsSkillsPage(), { wrapper });
+    await waitFor(() => expect(result.current.agents).toHaveLength(1));
+
+    act(() => result.current.selectAgentScope());
+    await waitFor(() => expect(result.current.sources.readOnly).toBe(true));
+
+    act(() => result.current.sources.togglePreset("claude", true));
+    expect(result.current.sources.isDirty).toBe(false);
+    expect(updateSettingsSkills).not.toHaveBeenCalled();
+  });
+
+  it("Should keep the draft and quote the daemon when a source save is rejected", async () => {
+    vi.mocked(updateSettingsSkills).mockRejectedValue(
+      new SourceValidationError('unknown skill source preset "cluade"', 400, {
+        code: "unknown_skill_source",
+        message: 'unknown skill source preset "cluade"',
+        valid: ["agents", "claude"],
+        suggestion: "claude",
+      })
+    );
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsSkillsPage(), { wrapper });
+    await waitFor(() => expect(result.current.draft).toBeTruthy());
+
+    act(() => result.current.sources.togglePreset("cluade", true));
+    await waitFor(() => expect(result.current.sources.isDirty).toBe(true));
+    act(() => result.current.sources.save());
+
+    await waitFor(() =>
+      expect(result.current.sources.saveError).toBe('unknown skill source preset "cluade"')
+    );
+    expect(result.current.sources.saveErrorCode).toBe("unknown_skill_source");
+    // Nothing was applied, so the operator's edit is still on screen.
+    expect(result.current.sources.enabledPresets).toContain("cluade");
+    expect(result.current.sources.isDirty).toBe(true);
   });
 });
