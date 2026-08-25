@@ -103,6 +103,54 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
+	t.Run("Should describe the complete nullable Goal control output contract", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := descriptorMap(NativeDescriptors())[toolspkg.ToolIDGoalControl]
+		var output struct {
+			Required             []string                   `json:"required"`
+			AdditionalProperties bool                       `json:"additionalProperties"`
+			Properties           map[string]json.RawMessage `json:"properties"`
+		}
+		if err := json.Unmarshal(descriptor.OutputSchema, &output); err != nil {
+			t.Fatalf("Goal control output schema unmarshal error = %v", err)
+		}
+		if !slices.Equal(output.Required, []string{"outcome", "reason_code", "snapshot", "replaced_run_id"}) ||
+			output.AdditionalProperties {
+			t.Fatalf("Goal control output envelope = %#v, want closed required envelope", output)
+		}
+		var snapshot struct {
+			Type       []string                   `json:"type"`
+			Required   []string                   `json:"required"`
+			Properties map[string]json.RawMessage `json:"properties"`
+		}
+		if err := json.Unmarshal(output.Properties["snapshot"], &snapshot); err != nil {
+			t.Fatalf("Goal control snapshot schema unmarshal error = %v", err)
+		}
+		if !slices.Equal(snapshot.Type, []string{"object", "null"}) ||
+			!slices.Equal(snapshot.Required, []string{
+				"run_id", "node_id", "objective", "origin_session_id", "bound_session_id",
+				"status", "run_status", "cause", "turns_used", "turn_limit", "live",
+				"contract_summary", "last_verdict", "context",
+			}) {
+			t.Fatalf("Goal control snapshot schema = %#v, want complete nullable snapshot", snapshot)
+		}
+		for _, field := range []string{"reason_code", "snapshot", "replaced_run_id"} {
+			if _, ok := output.Properties[field]; !ok {
+				t.Fatalf("Goal control output schema omits %q", field)
+			}
+		}
+		for _, field := range []string{
+			"run_id", "node_id", "objective", "origin_session_id", "bound_session_id", "status",
+			"run_status", "cause", "turns_used", "turn_limit", "live", "contract_summary",
+			"last_verdict", "context",
+		} {
+			if _, ok := snapshot.Properties[field]; !ok {
+				t.Fatalf("Goal control snapshot schema omits %q", field)
+			}
+		}
+	})
+
 	t.Run("Should expose typed participation on execution management tools", func(t *testing.T) {
 		t.Parallel()
 
@@ -1224,6 +1272,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__gateway", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__goal_control", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__goal_get", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__goal_report", risk: toolspkg.RiskMutating,
@@ -3046,6 +3096,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		}
 		if !slices.Contains(loops, toolspkg.ToolIDLoopRun) ||
 			!slices.Contains(loops, toolspkg.ToolIDLoopApprove) ||
+			!slices.Contains(loops, toolspkg.ToolIDGoalControl) ||
 			!slices.Contains(loops, toolspkg.ToolIDGoalGet) ||
 			!slices.Contains(loops, toolspkg.ToolIDGoalReport) ||
 			!slices.Contains(loops, toolspkg.ToolIDLoopTurns) ||

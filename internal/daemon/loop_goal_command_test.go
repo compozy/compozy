@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/network/participation"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
@@ -276,6 +278,141 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 		}
 	})
 
+	t.Run("Should authorize an agent draft before rewriting it", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newGoalCommandHandlerFixture(t)
+		status := fixture.service.sessionStatus.(*goalCommandSessionStatus)
+		status.callers["other-agent"] = &session.Info{ID: "other-agent", WorkspaceID: fixture.workspaceID}
+		decision, err := fixture.service.Handle(
+			testutil.Context(t), fixture.workspaceID, fixture.sessionID,
+			session.PromptCaller{Kind: string(taskpkg.ActorKindAgentSession), ID: "other-agent", Source: "http"},
+			session.GoalCommand{Verb: session.GoalCommandVerbDraft, Objective: "do not rewrite this"},
+		)
+		if err != nil {
+			t.Fatalf("Handle(unauthorized draft) error = %v", err)
+		}
+		assertGoalCommandOutcome(t, decision, session.GoalOutcomeError, session.GoalReasonCallerUnauthorized)
+	})
+
+	t.Run("Should propagate caller status store failures instead of returning unauthorized", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newGoalCommandHandlerFixture(t)
+		status := fixture.service.sessionStatus.(*goalCommandSessionStatus)
+		statusErr := errors.New("session status store unavailable")
+		status.statusErrs = map[string]error{fixture.sessionID: statusErr}
+		decision, err := fixture.service.Handle(
+			testutil.Context(t), fixture.workspaceID, fixture.sessionID,
+			session.PromptCaller{Kind: string(taskpkg.ActorKindAgentSession), ID: "agent-operator", Source: "http"},
+			session.GoalCommand{Verb: session.GoalCommandVerbSet, Objective: "surface the store outage"},
+		)
+		if !errors.Is(err, statusErr) {
+			t.Fatalf("Handle(status store failure) error = %v, want wrapped status error", err)
+		}
+		if decision != (session.GoalDispatchDecision{}) {
+			t.Fatalf("Handle(status store failure) decision = %#v, want zero decision", decision)
+		}
+	})
+
+	t.Run("Should preserve the origin Network snapshot and apply a per-run worker runtime", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newGoalCommandHandlerFixture(t)
+		status, ok := fixture.service.sessionStatus.(*goalCommandSessionStatus)
+		if !ok {
+			t.Fatalf("session status type = %T, want *goalCommandSessionStatus", fixture.service.sessionStatus)
+		}
+		network := daemonTestLiveParticipation(fixture.workspaceID, "goal-origin-command")
+		status.info.NetworkParticipation = network
+		decision, err := fixture.service.Handle(
+			testutil.Context(t), fixture.workspaceID, fixture.sessionID,
+			session.PromptCaller{Kind: string(taskpkg.ActorKindHuman), ID: "operator", Source: "http"},
+			session.GoalCommand{
+				Verb: session.GoalCommandVerbSet, Objective: "Ship with the selected worker",
+				Runtime: &session.RuntimeSelection{
+					Provider: "cursor", Model: "grok-4.5", ReasoningEffort: "high", Speed: speedpkg.SpeedFast,
+				},
+			},
+		)
+		if err != nil {
+			t.Fatalf("Handle(set runtime) error = %v", err)
+		}
+		assertGoalCommandOutcome(t, decision, session.GoalOutcomeStarted, "")
+		run := fixture.mustRun(t, decision.Result.Snapshot.RunID)
+		if got := run.NetworkSpecSnapshot(); got != network {
+			t.Fatalf("run network snapshot = %#v, want exact origin snapshot %#v", got, network)
+		}
+		snapshot, err := fixture.db.GetLoopDefinitionSnapshot(
+			testutil.Context(t),
+			run.WorkspaceID,
+			run.DefinitionDigest,
+		)
+		if err != nil {
+			t.Fatalf("GetLoopDefinitionSnapshot() error = %v", err)
+		}
+		resolved, err := looppkg.LoadExecutedDefinitionSnapshot(snapshot.Definition, run.DefinitionDigest)
+		if err != nil {
+			t.Fatalf("LoadExecutedDefinitionSnapshot() error = %v", err)
+		}
+		worker := resolved.EffectiveConfig.RuntimeDefaults.Worker
+		if worker.Provider != "cursor" || worker.Model != "grok-4.5" || worker.Reasoning != "high" ||
+			worker.Speed != speedpkg.SpeedFast {
+			t.Fatalf("run worker runtime = %#v, want selected runtime", worker)
+		}
+	})
+
+	t.Run("Should resolve a provider-only runtime against the selected provider", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newGoalCommandHandlerFixture(t)
+		decision, err := fixture.service.Handle(
+			testutil.Context(t), fixture.workspaceID, fixture.sessionID,
+			session.PromptCaller{Kind: string(taskpkg.ActorKindHuman), ID: "operator", Source: "http"},
+			session.GoalCommand{
+				Verb: session.GoalCommandVerbSet, Objective: "Switch providers without inheriting the origin model",
+				Runtime: &session.RuntimeSelection{Provider: "openrouter", Speed: speedpkg.SpeedNormal},
+			},
+		)
+		if err != nil {
+			t.Fatalf("Handle(provider-only runtime) error = %v", err)
+		}
+		assertGoalCommandOutcome(t, decision, session.GoalOutcomeStarted, "")
+		run := fixture.mustRun(t, decision.Result.Snapshot.RunID)
+		definition, err := fixture.db.GetLoopDefinitionSnapshot(
+			testutil.Context(t), run.WorkspaceID, run.DefinitionDigest,
+		)
+		if err != nil {
+			t.Fatalf("GetLoopDefinitionSnapshot() error = %v", err)
+		}
+		resolved, err := looppkg.LoadExecutedDefinitionSnapshot(definition.Definition, run.DefinitionDigest)
+		if err != nil {
+			t.Fatalf("LoadExecutedDefinitionSnapshot() error = %v", err)
+		}
+		worker := resolved.EffectiveConfig.RuntimeDefaults.Worker
+		if worker.Provider != "openrouter" || worker.Model == "" || worker.Model == goalCommandCursorModel {
+			t.Fatalf("provider-only Goal runtime = %#v, want openrouter default model", worker)
+		}
+	})
+
+	t.Run("Should return a stable runtime-invalid result for an unknown provider", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newGoalCommandHandlerFixture(t)
+		decision, err := fixture.service.Handle(
+			testutil.Context(t), fixture.workspaceID, fixture.sessionID,
+			session.PromptCaller{Kind: string(taskpkg.ActorKindHuman), ID: "operator", Source: "http"},
+			session.GoalCommand{
+				Verb: session.GoalCommandVerbSet, Objective: "Reject an unknown Goal runtime provider",
+				Runtime: &session.RuntimeSelection{Provider: "missing-provider", Model: "missing-model"},
+			},
+		)
+		if err != nil {
+			t.Fatalf("Handle(unknown provider) error = %v", err)
+		}
+		assertGoalCommandOutcome(t, decision, session.GoalOutcomeError, session.GoalReasonRuntimeInvalid)
+	})
+
 	t.Run("Should reject invalid origin sessions before creating a Run", func(t *testing.T) {
 		t.Parallel()
 
@@ -380,6 +517,237 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 			t.Fatalf("agent-started Run identity = %#v", run)
 		}
 	})
+
+	t.Run("Should reject an agent caller that is not an ancestor of the target session", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newGoalCommandHandlerFixture(t)
+		status, ok := fixture.service.sessionStatus.(*goalCommandSessionStatus)
+		if !ok {
+			t.Fatalf("session status type = %T, want *goalCommandSessionStatus", fixture.service.sessionStatus)
+		}
+		status.info.Lineage = &store.SessionLineage{ParentSessionID: "different-agent"}
+		status.callers["different-agent"] = &session.Info{
+			ID: "different-agent", WorkspaceID: fixture.workspaceID,
+		}
+		decision, err := fixture.service.Handle(
+			testutil.Context(t), fixture.workspaceID, fixture.sessionID,
+			session.PromptCaller{Kind: string(taskpkg.ActorKindAgentSession), ID: "agent-operator", Source: "uds"},
+			session.GoalCommand{Verb: session.GoalCommandVerbSet, Objective: "Reject this cross-tree Goal"},
+		)
+		if err != nil {
+			t.Fatalf("Handle(unauthorized agent) error = %v", err)
+		}
+		assertGoalCommandOutcome(t, decision, session.GoalOutcomeError, session.GoalReasonCallerUnauthorized)
+		if _, err := fixture.db.GetLoopRun(
+			testutil.Context(t), looppkg.WorkspaceID(fixture.workspaceID), "run-goal-command-1",
+		); !errors.Is(err, looppkg.ErrRunNotFound) {
+			t.Fatalf("GetLoopRun(after unauthorized agent) error = %v, want ErrRunNotFound", err)
+		}
+	})
+
+	t.Run("Should reject foreign and cyclic agent lineage before Goal creation", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("Should reject a foreign workspace intermediary", func(t *testing.T) {
+			t.Parallel()
+			fixture := newGoalCommandHandlerFixture(t)
+			status := fixture.service.sessionStatus.(*goalCommandSessionStatus)
+			status.info.Lineage = &store.SessionLineage{ParentSessionID: "foreign-intermediate"}
+			status.callers["foreign-intermediate"] = &session.Info{
+				ID: "foreign-intermediate", WorkspaceID: "ws-foreign",
+			}
+			decision, err := fixture.service.Handle(
+				testutil.Context(t), fixture.workspaceID, fixture.sessionID,
+				session.PromptCaller{Kind: string(taskpkg.ActorKindAgentSession), ID: "agent-operator", Source: "uds"},
+				session.GoalCommand{Verb: session.GoalCommandVerbSet, Objective: "reject foreign lineage"},
+			)
+			if err != nil {
+				t.Fatalf("Handle(foreign intermediary) error = %v", err)
+			}
+			assertGoalCommandOutcome(t, decision, session.GoalOutcomeError, session.GoalReasonCallerUnauthorized)
+		})
+
+		t.Run("Should reject a cyclic lineage", func(t *testing.T) {
+			t.Parallel()
+			fixture := newGoalCommandHandlerFixture(t)
+			status := fixture.service.sessionStatus.(*goalCommandSessionStatus)
+			status.info.Lineage = &store.SessionLineage{ParentSessionID: "cyclic-intermediate"}
+			status.callers["cyclic-intermediate"] = &session.Info{
+				ID: "cyclic-intermediate", WorkspaceID: fixture.workspaceID,
+				Lineage: &store.SessionLineage{ParentSessionID: fixture.sessionID},
+			}
+			decision, err := fixture.service.Handle(
+				testutil.Context(t), fixture.workspaceID, fixture.sessionID,
+				session.PromptCaller{Kind: string(taskpkg.ActorKindAgentSession), ID: "agent-operator", Source: "uds"},
+				session.GoalCommand{Verb: session.GoalCommandVerbSet, Objective: "reject cyclic lineage"},
+			)
+			if err != nil {
+				t.Fatalf("Handle(cyclic lineage) error = %v", err)
+			}
+			assertGoalCommandOutcome(t, decision, session.GoalOutcomeError, session.GoalReasonCallerUnauthorized)
+		})
+	})
+
+	t.Run("Should isolate eight concurrent child Goals by origin runtime and network", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newGoalCommandHandlerFixture(t)
+		status, ok := fixture.service.sessionStatus.(*goalCommandSessionStatus)
+		if !ok {
+			t.Fatalf("session status type = %T, want *goalCommandSessionStatus", fixture.service.sessionStatus)
+		}
+		profile, err := fixture.db.GetSessionCreationProfile(testutil.Context(t), fixture.profileRef)
+		if err != nil {
+			t.Fatalf("GetSessionCreationProfile() error = %v", err)
+		}
+		policyDigest, err := profile.PolicySpecDigest()
+		if err != nil {
+			t.Fatalf("PolicySpecDigest() error = %v", err)
+		}
+		status.sessions = make(map[string]*session.Info)
+		parent := *status.info
+		parentID := fixture.sessionID
+		status.sessions[parentID] = &parent
+		for index := range 8 {
+			childID := "session-goal-child-" + string(rune('a'+index))
+			childNetwork := daemonTestLiveParticipation(fixture.workspaceID, "goal-child-"+string(rune('a'+index)))
+			child := &session.Info{
+				ID:                   childID,
+				ProfileID:            parent.ProfileID,
+				AgentName:            parent.AgentName,
+				Provider:             parent.Provider,
+				Model:                parent.Model,
+				WorkspaceID:          parent.WorkspaceID,
+				NetworkParticipation: childNetwork,
+				Lineage: &store.SessionLineage{
+					ParentSessionID: parentID,
+				},
+				Type:  parent.Type,
+				State: session.StateActive,
+			}
+			status.sessions[childID] = child
+			creationDigest, err := profile.CreationDigest(store.SessionCreationOptions{
+				SessionID: childID, NetworkOwnerKey: "session:" + childID,
+				NetworkParticipation: childNetwork, SessionType: string(session.SessionTypeUser),
+			})
+			if err != nil {
+				t.Fatalf("CreationDigest(%q) error = %v", childID, err)
+			}
+			identity := store.SessionCreationIdentity{
+				CreationProfileRef: fixture.profileRef,
+				PolicySpecDigest:   policyDigest,
+				CreationDigest:     creationDigest,
+			}
+			if _, err := fixture.db.RegisterSessionWithCreationIdentity(testutil.Context(t), store.SessionInfo{
+				ProfileID:           child.ProfileID,
+				ID:                  childID,
+				AgentName:           child.AgentName,
+				Provider:            child.Provider,
+				WorkspaceID:         child.WorkspaceID,
+				SessionNetworkState: &store.SessionNetworkState{NetworkSpec: childNetwork},
+				SessionType: string(
+					child.Type,
+				),
+				State:         string(child.State),
+				RuntimeStatus: store.SessionRuntimeUnbound,
+				CreatedAt:     parent.CreatedAt,
+				UpdatedAt:     parent.UpdatedAt,
+			}, identity); err != nil {
+				t.Fatalf("RegisterSessionWithCreationIdentity(%q) error = %v", childID, err)
+			}
+		}
+
+		type childResult struct {
+			childID  string
+			decision session.GoalDispatchDecision
+			err      error
+		}
+		results := make(chan childResult, 8)
+		for index := range 8 {
+			childID := "session-goal-child-" + string(rune('a'+index))
+			go func(childID string, index int) {
+				decision, err := fixture.service.Handle(
+					testutil.Context(t), fixture.workspaceID, childID,
+					session.PromptCaller{Kind: string(taskpkg.ActorKindAgentSession), ID: parentID, Source: "uds"},
+					session.GoalCommand{
+						Verb: session.GoalCommandVerbSet, Objective: "Ship child " + childID,
+						Runtime: &session.RuntimeSelection{
+							Provider: "cursor", Model: "child-model-" + string(rune('a'+index)),
+							ReasoningEffort: "high", Speed: speedpkg.SpeedFast,
+						},
+					},
+				)
+				results <- childResult{childID: childID, decision: decision, err: err}
+			}(childID, index)
+		}
+
+		runIDs := make(map[string]struct{}, 8)
+		for range 8 {
+			result := <-results
+			if result.err != nil {
+				t.Fatalf("Handle(%q) error = %v", result.childID, result.err)
+			}
+			assertGoalCommandOutcome(t, result.decision, session.GoalOutcomeStarted, "")
+			snapshot := result.decision.Result.Snapshot
+			if snapshot == nil || snapshot.OriginSessionID != result.childID ||
+				snapshot.BoundSessionID != result.childID {
+				t.Fatalf("Goal snapshot for %q = %#v, want isolated origin/binding", result.childID, snapshot)
+			}
+			if _, exists := runIDs[snapshot.RunID]; exists {
+				t.Fatalf("duplicate child Goal run ID %q", snapshot.RunID)
+			}
+			runIDs[snapshot.RunID] = struct{}{}
+			run := fixture.mustRun(t, snapshot.RunID)
+			if run.Origin.SessionID != result.childID || run.StartedBy.Ref != parentID {
+				t.Fatalf(
+					"child Goal run %q identity = %#v, want origin %q and actor %q",
+					snapshot.RunID,
+					run.Origin,
+					result.childID,
+					parentID,
+				)
+			}
+			child := status.sessions[result.childID]
+			if got := run.NetworkSpecSnapshot(); got != child.NetworkParticipation {
+				t.Fatalf("child Goal run %q network = %#v, want %#v", snapshot.RunID, got, child.NetworkParticipation)
+			}
+			definition, err := fixture.db.GetLoopDefinitionSnapshot(
+				testutil.Context(t),
+				run.WorkspaceID,
+				run.DefinitionDigest,
+			)
+			if err != nil {
+				t.Fatalf("GetLoopDefinitionSnapshot(%q) error = %v", result.childID, err)
+			}
+			resolved, err := looppkg.LoadExecutedDefinitionSnapshot(definition.Definition, run.DefinitionDigest)
+			if err != nil {
+				t.Fatalf("LoadExecutedDefinitionSnapshot(%q) error = %v", result.childID, err)
+			}
+			worker := resolved.EffectiveConfig.RuntimeDefaults.Worker
+			wantModel := "child-model-" + string(result.childID[len(result.childID)-1])
+			if worker.Provider != "cursor" || worker.Model != wantModel || worker.Reasoning != "high" ||
+				worker.Speed != speedpkg.SpeedFast {
+				t.Fatalf("child Goal run %q runtime = %#v, want cursor/%s/high/fast", snapshot.RunID, worker, wantModel)
+			}
+		}
+
+		sibling, err := fixture.service.Handle(
+			testutil.Context(t),
+			fixture.workspaceID,
+			"session-goal-child-b",
+			session.PromptCaller{
+				Kind:   string(taskpkg.ActorKindAgentSession),
+				ID:     "session-goal-child-a",
+				Source: "uds",
+			},
+			session.GoalCommand{Verb: session.GoalCommandVerbStatus},
+		)
+		if err != nil {
+			t.Fatalf("Handle(sibling status) error = %v", err)
+		}
+		assertGoalCommandOutcome(t, sibling, session.GoalOutcomeError, session.GoalReasonCallerUnauthorized)
+	})
 }
 
 type goalCommandHandlerFixture struct {
@@ -478,8 +846,21 @@ context_nudge_ratio = 0.0
 		"run-goal-command-2",
 		"run-goal-command-3",
 		"run-goal-command-4",
+		"run-goal-command-5",
+		"run-goal-command-6",
+		"run-goal-command-7",
+		"run-goal-command-8",
+		"run-goal-command-9",
+		"run-goal-command-10",
+		"run-goal-command-11",
+		"run-goal-command-12",
+		"run-goal-command-13",
+		"run-goal-command-14",
+		"run-goal-command-15",
+		"run-goal-command-16",
 	}
 	nextRunID := 0
+	var nextRunMu sync.Mutex
 	aggregate, err := looppkg.NewService(
 		db,
 		looppkg.DefinitionResolverFunc(
@@ -491,6 +872,8 @@ context_nudge_ratio = 0.0
 		looppkg.WithDefaultsResolver(newLoopDefaultsResolver(homePaths, nil)),
 		looppkg.WithClock(func() time.Time { return now }),
 		looppkg.WithRunIDFactory(func() (looppkg.RunID, error) {
+			nextRunMu.Lock()
+			defer nextRunMu.Unlock()
 			if nextRunID >= len(runIDs) {
 				return looppkg.RunID("run-goal-command-overflow"), nil
 			}
@@ -502,11 +885,16 @@ context_nudge_ratio = 0.0
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
 	}
-	status := &goalCommandSessionStatus{info: &session.Info{
+	status := &goalCommandSessionStatus{targetID: sessionID, callers: map[string]*session.Info{
+		"agent-operator": {
+			ID: "agent-operator", WorkspaceID: workspaceID,
+		},
+	}, info: &session.Info{
 		ProfileID: profileOwner.ID, ID: sessionID, AgentName: profile.AgentName, Provider: profile.Provider,
 		Model:       activeModel,
 		WorkspaceID: workspaceID, NetworkParticipation: participation.LocalSpec(),
-		Type: session.SessionTypeUser, State: session.StateActive,
+		Lineage: &store.SessionLineage{ParentSessionID: "agent-operator"},
+		Type:    session.SessionTypeUser, State: session.StateActive,
 	}}
 	return goalCommandHandlerFixture{
 		service: &daemonLoopAPIService{
@@ -581,11 +969,29 @@ func assertGoalCommandOutcome(
 }
 
 type goalCommandSessionStatus struct {
-	info *session.Info
+	info       *session.Info
+	targetID   string
+	callers    map[string]*session.Info
+	sessions   map[string]*session.Info
+	statusErrs map[string]error
 }
 
-func (s *goalCommandSessionStatus) Status(context.Context, string) (*session.Info, error) {
+func (s *goalCommandSessionStatus) Status(_ context.Context, id string) (*session.Info, error) {
 	if s == nil || s.info == nil {
+		return nil, errors.New("session not found")
+	}
+	if err, ok := s.statusErrs[strings.TrimSpace(id)]; ok {
+		return nil, err
+	}
+	if caller, ok := s.callers[strings.TrimSpace(id)]; ok {
+		cloned := *caller
+		return &cloned, nil
+	}
+	if child, ok := s.sessions[strings.TrimSpace(id)]; ok {
+		cloned := *child
+		return &cloned, nil
+	}
+	if s.targetID != "" && strings.TrimSpace(id) != s.targetID {
 		return nil, errors.New("session not found")
 	}
 	cloned := *s.info

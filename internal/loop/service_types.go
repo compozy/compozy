@@ -30,7 +30,10 @@ type Inputs struct {
 	StartMetadata              map[string]any         `json:"start_metadata,omitempty"`
 	NetworkParticipation       *participation.Request `json:"network_participation,omitempty"`
 	NetworkParticipationSource participation.Source   `json:"-"`
-	Admission                  *AdmissionIdentity     `json:"-"`
+	// NetworkParticipationSnapshot is a trusted immutable origin snapshot. It is used
+	// when a session-origin Goal must inherit the exact resolved network contract.
+	NetworkParticipationSnapshot *participation.Spec `json:"-"`
+	Admission                    *AdmissionIdentity  `json:"-"`
 }
 
 // Status is the closed loop_runs.status vocabulary.

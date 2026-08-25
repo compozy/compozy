@@ -10,6 +10,33 @@ const (
 func goalOperations() []OperationSpec {
 	return []OperationSpec{
 		loopOperation(
+			httpMethodPost,
+			specSessionGoalPath,
+			"mutateSessionGoal",
+			"Set or control the authenticated session Goal",
+			contract.SessionGoalCommandRequest{},
+			[]ParameterSpec{workspaceIDParam(), pathParam("session_id", "Session id")},
+			[]ResponseSpec{
+				{Status: 200, Description: "Goal operation completed", Body: contract.GoalCommandResult{}},
+				{Status: 202, Description: "Goal operation accepted", Body: contract.GoalCommandResult{}},
+				{Status: 400, Description: "Invalid Goal command", Body: contract.ErrorPayload{}},
+				{
+					Status:      403,
+					Description: "Goal caller is not authorized for the target session",
+					Body:        contract.GoalCommandResult{},
+				},
+				{Status: 404, Description: "Session or Goal not found", Body: contract.GoalCommandResult{}},
+				{
+					Status:      409,
+					Description: "Goal state is stale or requires replacement",
+					Body:        contract.GoalCommandResult{},
+				},
+				{Status: 422, Description: "Goal operation is invalid", Body: contract.GoalCommandResult{}},
+				loopUnavailable(),
+				internalError(),
+			},
+		),
+		loopOperation(
 			httpMethodGet,
 			specSessionGoalPath,
 			"getSessionGoal",

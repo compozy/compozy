@@ -50,6 +50,8 @@ const (
 	GoalReasonContractClauseEmpty GoalReasonCode = "goal_contract_clause_empty"
 	GoalReasonCommandInvalid      GoalReasonCode = "goal_command_invalid"
 	GoalReasonDraftRequiresIdle   GoalReasonCode = "goal_draft_requires_idle"
+	GoalReasonRuntimeInvalid      GoalReasonCode = "goal_runtime_invalid"
+	GoalReasonCallerUnauthorized  GoalReasonCode = "goal_caller_unauthorized"
 )
 
 // PromptCaller is the authenticated operator identity admitted by an external prompt ingress.
@@ -72,6 +74,7 @@ type GoalCommand struct {
 	Verb          string
 	Objective     string
 	ExpectedRunID string
+	Runtime       *RuntimeSelection
 }
 
 // GoalObjectiveContract is the line-oriented free-form objective subset.

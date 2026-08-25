@@ -9,6 +9,15 @@ func GoalCommandOutcomeValues() []string {
 	}
 }
 
+// SessionGoalOperationValues returns the closed structured Goal operation vocabulary.
+func SessionGoalOperationValues() []string {
+	return []string{
+		string(SessionGoalOperationSet), string(SessionGoalOperationReplace),
+		string(SessionGoalOperationStatus), string(SessionGoalOperationPause),
+		string(SessionGoalOperationResume), string(SessionGoalOperationClear),
+	}
+}
+
 // GoalStatusValues returns the closed public Goal lifecycle vocabulary.
 func GoalStatusValues() []string {
 	return []string{
@@ -72,6 +81,7 @@ func GoalReasonCodeValues() []string {
 		string(GoalReasonOriginInvalid), string(GoalReasonOriginWorkspaceMismatch),
 		string(GoalReasonOriginProfileUnavailable), string(GoalReasonControlStale),
 		string(GoalReasonPromptFenced), string(GoalReasonSessionCreationMismatch),
-		string(GoalReasonContinuousBindingMismatch),
+		string(GoalReasonContinuousBindingMismatch), string(GoalReasonRuntimeInvalid),
+		string(GoalReasonCallerUnauthorized),
 	}
 }

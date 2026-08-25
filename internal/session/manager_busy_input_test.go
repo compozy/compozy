@@ -1668,6 +1668,59 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 		}
 	})
 
+	t.Run("Should forward the prompt runtime into a typed Goal command", func(t *testing.T) {
+		t.Parallel()
+
+		queueStore := openManagerInputQueueStore(t)
+		var gotRuntime *RuntimeSelection
+		h := newHarness(t,
+			WithSessionInputQueueStore(queueStore),
+			WithGoalCommandHandler(GoalCommandHandlerFunc(func(
+				_ context.Context,
+				_ string,
+				_ string,
+				_ PromptCaller,
+				command GoalCommand,
+			) (GoalDispatchDecision, error) {
+				gotRuntime = cloneRuntimeSelection(command.Runtime)
+				return GoalDispatchDecision{
+					Kind: GoalDispatchRespond,
+					Result: &GoalCommandResult{
+						Outcome:  GoalOutcomeStatus,
+						Snapshot: &GoalSnapshot{RunID: "run-runtime-forwarded", Status: "active"},
+					},
+				}, nil
+			})),
+		)
+		registerManagerInputQueueWorkspace(t, queueStore, h)
+		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, queueStore, h, sess)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
+				t.Errorf("Stop() error = %v", err)
+			}
+		})
+
+		wantRuntime := &RuntimeSelection{
+			Provider: "codex", Model: "goal-runtime-model",
+			ReasoningEffort: "high", Speed: speedpkg.SpeedFast,
+		}
+		result, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+			Message: "/goal status", AllowCommands: true,
+			Caller:  PromptCaller{Kind: "human", ID: "operator", Source: "http"},
+			Runtime: wantRuntime,
+		})
+		if err != nil {
+			t.Fatalf("SendPrompt(Goal status) error = %v", err)
+		}
+		if result.Goal == nil || result.Goal.Outcome != GoalOutcomeStatus {
+			t.Fatalf("Goal result = %#v, want structured status", result)
+		}
+		if gotRuntime == nil || *gotRuntime != *wantRuntime {
+			t.Fatalf("Goal command runtime = %#v, want %#v", gotRuntime, wantRuntime)
+		}
+	})
+
 	t.Run("Should reject a Cursor alias before a retryable Goal dispatch commit", func(t *testing.T) {
 		t.Parallel()
 

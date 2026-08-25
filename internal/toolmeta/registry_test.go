@@ -142,6 +142,7 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__extensions_update":              expectedNativeEntry("Updating", " ", false, "🧩", "auto"),
 		"compozy__extensions_validate":            expectedNativeEntry("Validating", " ", false, "🧩", "auto"),
 		"compozy__gateway":                        expectedNativeEntry("Reading", " ", false, "🌐", "auto"),
+		"compozy__goal_control":                   expectedNativeEntry("Updating", " ", false, "🎯", "auto"),
 		"compozy__goal_get":                       expectedNativeEntry("Reading", " ", false, "🎯", "auto"),
 		"compozy__goal_report":                    expectedNativeEntry("Reporting", " ", false, "🎯", "auto"),
 		"compozy__hooks_create":                   expectedNativeEntry("Creating", " ", false, "🪝", "auto"),

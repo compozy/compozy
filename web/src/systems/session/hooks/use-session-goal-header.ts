@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { sessionKeys } from "../lib/query-keys";
 import type { SessionGoalCommandResult, SessionGoalResponse } from "../types";
 import { useSendSessionPrompt } from "./use-session-actions";
+import { mutateSessionGoal } from "../adapters/session-goal-api";
 import { sessionStore } from "../stores/session-store";
 import { useSessionGoalFeedback } from "./use-session-store";
 import { useSessionGoal } from "./use-sessions";
@@ -81,6 +82,14 @@ export function useSessionGoalHeader(
 
   const command = (action: GoalControlAction, message: string) => {
     setPendingAction(action);
+    const operation = action === "approve" ? "resume" : action;
+    if (operation === "pause" || operation === "resume" || operation === "clear") {
+      void mutateSessionGoal(workspaceId, sessionId, { operation })
+        .then(applyResult)
+        .catch(error => toast.error(error.message))
+        .finally(() => setPendingAction(undefined));
+      return;
+    }
     mutation.mutate(
       { id: sessionId, message },
       {

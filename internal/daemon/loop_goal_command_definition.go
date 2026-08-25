@@ -34,7 +34,7 @@ func buildSessionGoalDefinition(
 				"enum": []string{goalSnapshotStatusComplete, goalSnapshotStatusBlocked},
 			},
 		},
-		"required":             []string{daemonStatusField},
+		daemonRequiredValue:    []string{daemonStatusField},
 		"additionalProperties": true,
 	}
 	return dsl.Definition{

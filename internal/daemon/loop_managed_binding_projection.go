@@ -90,19 +90,21 @@ func (b *loopActionSessionBinder) validateActiveBindingPolicy(
 		PolicySpecDigest:   binding.PolicySpecDigest,
 		CreationDigest:     binding.CreationDigest,
 	}
-	return b.revalidatePersistedProfile(ctx, req, identity)
+	return b.revalidatePersistedProfile(ctx, req, identity, false)
 }
 
 func (b *loopActionSessionBinder) revalidatePersistedProfile(
 	ctx context.Context,
 	req looppkg.ActionSessionBindRequest,
 	identity store.SessionCreationIdentity,
+	allowRuntimeOverride bool,
 ) (looppkg.RuntimeSpec, error) {
 	profile, opts, materialized, err := b.resolvePinnedCreationProfile(
 		ctx,
 		req,
 		identity.CreationProfileRef,
 		false,
+		allowRuntimeOverride,
 	)
 	if err != nil {
 		return looppkg.RuntimeSpec{}, err
@@ -128,7 +130,23 @@ func (b *loopActionSessionBinder) revalidatePersistedProfile(
 			"persisted creation profile no longer passes the effective policy gate",
 		)
 	}
-	return appliedRuntimeFromCreateOptions(opts), nil
+	applied := appliedRuntimeFromCreateOptions(opts)
+	if allowRuntimeOverride && req.Runtime != nil {
+		requested := req.RuntimeValue()
+		if strings.TrimSpace(requested.Provider) != "" {
+			applied.Provider = strings.TrimSpace(requested.Provider)
+		}
+		if strings.TrimSpace(requested.Model) != "" {
+			applied.Model = strings.TrimSpace(requested.Model)
+		}
+		if strings.TrimSpace(requested.Reasoning) != "" {
+			applied.Reasoning = strings.TrimSpace(requested.Reasoning)
+		}
+		if requested.Speed != "" {
+			applied.Speed = requested.Speed
+		}
+	}
+	return applied, nil
 }
 
 func actionBindingFromGoal(

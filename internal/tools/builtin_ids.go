@@ -328,6 +328,8 @@ const (
 	ToolIDHooksDisable ToolID = "compozy__hooks_disable"
 	// ToolIDGoalGet reads the visible Goal projection for the caller session.
 	ToolIDGoalGet ToolID = "compozy__goal_get"
+	// ToolIDGoalControl applies one authenticated structured Goal operation to a target session.
+	ToolIDGoalControl ToolID = "compozy__goal_control"
 	// ToolIDGoalReport records one prompt-bound Goal completion or blocker intent.
 	ToolIDGoalReport ToolID = "compozy__goal_report"
 	// ToolIDAutomationJobsList lists automation jobs through the automation manager.

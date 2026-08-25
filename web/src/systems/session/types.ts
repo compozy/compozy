@@ -108,6 +108,7 @@ export type SessionInputPayload = SessionInputsResponse["inputs"][number];
 export type ReplaceSessionInputRequest = OperationRequestBody<"replaceSessionInput">;
 export type PromoteSessionInputRequest = OperationRequestBody<"promoteSessionInput">;
 export type SessionGoalResponse = OperationResponse<"getSessionGoal", 200>;
+export type SessionGoalCommandRequest = OperationRequestBody<"mutateSessionGoal">;
 export type SessionGoalSnapshot = NonNullable<SessionGoalResponse["goal"]>;
 export type SessionGoalContext = SessionGoalSnapshot["context"];
 export type SessionGoalStatus = SessionGoalSnapshot["status"];

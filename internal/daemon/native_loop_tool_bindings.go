@@ -7,6 +7,7 @@ func (n *daemonNativeTools) loopCoreToolBindings(
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDGoalGet:       {call: n.goalGet, availability: n.goalGetAvailability},
+		toolspkg.ToolIDGoalControl:   {call: n.goalControl, availability: n.goalControlAvailability},
 		toolspkg.ToolIDGoalReport:    {call: n.goalReport, availability: n.goalReportAvailability},
 		toolspkg.ToolIDLoopList:      {call: n.loopList, availability: availability},
 		toolspkg.ToolIDLoopInspect:   {call: n.loopInspect, availability: availability},

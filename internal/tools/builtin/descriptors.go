@@ -22,6 +22,7 @@ const (
 	descriptorKeywordNode        = "node"
 	descriptorKeywordReplace     = "replace"
 	descriptorKeywordAgent       = "agent"
+	descriptorKeywordSession     = "session"
 	emptyInputSchema             = `{"type":"object","additionalProperties":false}`
 )
 

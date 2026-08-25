@@ -1,0 +1,47 @@
+---
+title: "compozy session goal set"
+description: "Start a Goal for a session"
+---
+
+## compozy session goal set
+
+Start a Goal for a session
+
+```
+compozy session goal set <id> <objective> [flags]
+```
+
+### Options
+
+```
+  -h, --help                      help for set
+      --model string              Runtime model for this prompt
+      --provider string           Runtime provider for this prompt
+      --reasoning-effort string   Runtime reasoning effort for this prompt (none|minimal|low|medium|high|xhigh|max)
+      --speed string              Runtime speed for this prompt (normal|fast)
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy session goal set <id> <objective> -o json
+```

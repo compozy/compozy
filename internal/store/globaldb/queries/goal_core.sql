@@ -46,7 +46,8 @@ SELECT id, session_id, status, text, task_run_id, run_generation,
        fence_kind, fence_disposition, fence_reason_code,
        terminal_event_start_seq, terminal_event_end_seq, terminal_kind,
        terminal_stop_reason, terminal_disposition, terminal_reason_code,
-       terminal_tokens_reported, terminal_tokens_used, terminal_at
+       terminal_tokens_reported, terminal_tokens_used, terminal_at,
+       runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed
 FROM session_input_queue
 WHERE loop_run_id = sqlc.arg(loop_run_id) AND prompt_id = sqlc.arg(prompt_id);
 

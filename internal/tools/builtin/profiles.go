@@ -34,7 +34,7 @@ var profileTools = []toolspkg.Descriptor{
 			false,
 			false,
 			[]toolspkg.ToolsetID{toolspkg.ToolsetIDCatalog},
-			[]string{"profiles", descriptorKeywordStatus, "session"},
+			[]string{"profiles", descriptorKeywordStatus, descriptorKeywordSession},
 			[]string{"current profile", "session profile", "active profile"},
 		)
 		descriptor.OutputSchema = []byte(profileCurrentOutputSchema)

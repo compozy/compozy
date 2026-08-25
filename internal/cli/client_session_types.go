@@ -86,6 +86,9 @@ type SessionApprovalRecord = contract.SessionApprovalResponse
 // SessionPromptRequest captures a session prompt plus explicit busy-input mode.
 type SessionPromptRequest = contract.SendPromptRequest
 
+// SessionGoalCommandRequest is the typed CLI Goal control request.
+type SessionGoalCommandRequest = contract.SessionGoalCommandRequest
+
 // SessionPromptResultRecord is the shared non-streaming prompt outcome payload.
 type SessionPromptResultRecord = contract.SendPromptResultPayload
 

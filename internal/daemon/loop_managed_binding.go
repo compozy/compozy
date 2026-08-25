@@ -149,7 +149,7 @@ func (b *loopActionSessionBinder) adoptOriginBinding(
 	if pinned := strings.TrimSpace(req.PinnedCreationDigest); pinned != "" && pinned != identity.CreationDigest {
 		return looppkg.ActionSessionBinding{}, bindingMismatch("origin creation digest differs from pinned identity")
 	}
-	appliedRuntime, err := b.revalidatePersistedProfile(ctx, req, identity)
+	appliedRuntime, err := b.revalidatePersistedProfile(ctx, req, identity, true)
 	if err != nil {
 		return looppkg.ActionSessionBinding{}, err
 	}

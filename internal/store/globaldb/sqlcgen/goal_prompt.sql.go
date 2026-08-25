@@ -453,14 +453,16 @@ INSERT INTO session_input_queue (
     id, session_id, status, mode, text, session_generation,
     task_run_id, run_generation, attempt_count, enqueued_at, updated_at,
     loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id,
-    prompt_kind, prompt_attempt, operation_usage_base_tokens, dispatchable
+    prompt_kind, prompt_attempt, operation_usage_base_tokens, dispatchable,
+    runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed
 ) VALUES (
     ?1, ?2, 'queued', ?3, ?4,
     (SELECT input_generation FROM sessions WHERE id = ?2),
     ?5, ?6, 0, CAST(?7 AS TEXT),
     CAST(?8 AS TEXT), ?9, ?10,
     ?11, ?12, ?13,
-    ?14, ?15, ?16, 0
+    ?14, ?15, ?16, 0,
+    ?17, ?18, ?19, ?20
 )
 `
 
@@ -481,6 +483,10 @@ type InsertPreparedGoalPromptQueueParams struct {
 	PromptKind               sql.NullString `json:"prompt_kind"`
 	PromptAttempt            int64          `json:"prompt_attempt"`
 	OperationUsageBaseTokens sql.NullInt64  `json:"operation_usage_base_tokens"`
+	RuntimeProvider          string         `json:"runtime_provider"`
+	RuntimeModel             string         `json:"runtime_model"`
+	RuntimeReasoningEffort   string         `json:"runtime_reasoning_effort"`
+	RuntimeSpeed             string         `json:"runtime_speed"`
 }
 
 func (q *Queries) InsertPreparedGoalPromptQueue(ctx context.Context, arg InsertPreparedGoalPromptQueueParams) error {
@@ -501,6 +507,10 @@ func (q *Queries) InsertPreparedGoalPromptQueue(ctx context.Context, arg InsertP
 		arg.PromptKind,
 		arg.PromptAttempt,
 		arg.OperationUsageBaseTokens,
+		arg.RuntimeProvider,
+		arg.RuntimeModel,
+		arg.RuntimeReasoningEffort,
+		arg.RuntimeSpeed,
 	)
 	return err
 }

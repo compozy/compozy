@@ -25,6 +25,7 @@ import {
   fetchSessionLedger,
   fetchSessionRecap,
   fetchSessionTranscript,
+  mutateSessionGoal,
   fetchSessions,
   repairSession,
   renameSession,
@@ -170,6 +171,28 @@ describe("fetchSessionCommands", () => {
 
     await expectFetchRequest({
       path: "/api/workspaces/ws_alpha/sessions/sess-001/commands",
+    });
+  });
+});
+
+describe("mutateSessionGoal", () => {
+  it("sends the structured Goal operation to the session route", async () => {
+    const response = {
+      outcome: "paused",
+      reason_code: null,
+      replaced_run_id: null,
+      snapshot: null,
+    };
+    mockJsonResponse(response);
+
+    await expect(
+      mutateSessionGoal("ws_alpha", "sess-001", { operation: "pause" })
+    ).resolves.toEqual(response);
+
+    await expectFetchRequest({
+      body: { operation: "pause" },
+      method: "POST",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/goal",
     });
   });
 });

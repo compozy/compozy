@@ -53,6 +53,7 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			testutil.Context(t),
 			request,
 			originIdentity,
+			true,
 		)
 		if err != nil {
 			t.Fatalf("revalidatePersistedProfile() error = %v", err)

@@ -52,6 +52,44 @@ afterAll(() => {
 });
 
 describe("session MSW handlers", () => {
+  it("Should enforce workspace and operation validation for Goal control", async () => {
+    const sample = sessionFixtures[0]!;
+    const workspaceId = sample.workspace_id;
+    if (!workspaceId) throw new Error("session fixture must include workspace_id");
+
+    const foreignWorkspace = await fetch(
+      `${API}/api/workspaces/workspace-foreign/sessions/${sample.id}/goal`,
+      {
+        body: JSON.stringify({ operation: "status" }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }
+    );
+    expect(foreignWorkspace.status).toBe(404);
+
+    const invalidOperation = await fetch(
+      `${API}/api/workspaces/${workspaceId}/sessions/${sample.id}/goal`,
+      {
+        body: JSON.stringify({ operation: "unknown" }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }
+    );
+    expect(invalidOperation.status).toBe(400);
+    await expect(invalidOperation.json()).resolves.toEqual({ error: "Invalid Goal operation" });
+
+    const malformedBody = await fetch(
+      `${API}/api/workspaces/${workspaceId}/sessions/${sample.id}/goal`,
+      {
+        body: "{",
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }
+    );
+    expect(malformedBody.status).toBe(400);
+    await expect(malformedBody.json()).resolves.toEqual({ error: "Invalid Goal request body" });
+  });
+
   it("Should upload, read, and delete one attachment within its workspace", async () => {
     const sample = sessionFixtures[0]!;
     const workspaceId = sample.workspace_id;

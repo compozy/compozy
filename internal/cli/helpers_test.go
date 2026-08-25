@@ -180,6 +180,7 @@ type stubClient struct {
 	registerBridgeWebhookFn      func(context.Context, string) (BridgeWebhookRegistrationRecord, error)
 	listSessionsFn               func(context.Context, SessionListQuery) ([]SessionRecord, error)
 	listSessionPageFn            func(context.Context, SessionListQuery) (SessionListPage, error)
+	mutateSessionGoalFn          func(context.Context, string, contract.SessionGoalCommandRequest) (contract.GoalCommandResult, error)
 	listSessionCommandsFn        func(context.Context, string) (SessionCommandsRecord, error)
 	createSessionFn              func(context.Context, CreateSessionRequest) (SessionRecord, error)
 	getSessionFn                 func(context.Context, string) (SessionRecord, error)
@@ -1729,6 +1730,17 @@ func (s *stubClient) ListSessions(
 		}, err
 	}
 	return SessionListPage{}, errors.New("unexpected ListSessions call")
+}
+
+func (s *stubClient) MutateSessionGoal(
+	ctx context.Context,
+	id string,
+	request contract.SessionGoalCommandRequest,
+) (contract.GoalCommandResult, error) {
+	if s.mutateSessionGoalFn != nil {
+		return s.mutateSessionGoalFn(ctx, id, request)
+	}
+	return contract.GoalCommandResult{}, errors.New("unexpected MutateSessionGoal call")
 }
 
 func (s *stubClient) ListSessionCommands(

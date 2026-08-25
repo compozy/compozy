@@ -27,6 +27,74 @@ import (
 func TestDaemonNativeLoopTools(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should route structured Goal control through the authenticated caller session", func(t *testing.T) {
+		t.Parallel()
+
+		var capturedWorkspaceID string
+		var capturedTargetID string
+		var capturedCaller session.PromptCaller
+		var capturedCommand session.GoalCommand
+		service := &nativeLoopServiceStub{
+			goalCommandFn: func(
+				_ context.Context,
+				workspaceID string,
+				targetID string,
+				caller session.PromptCaller,
+				command session.GoalCommand,
+			) (session.GoalDispatchDecision, error) {
+				capturedWorkspaceID, capturedTargetID, capturedCaller, capturedCommand =
+					workspaceID, targetID, caller, command
+				previous := "run-old"
+				return session.GoalDispatchDecision{
+					Kind: session.GoalDispatchRespond,
+					Result: &session.GoalCommandResult{
+						Outcome: session.GoalOutcomeReplaced, ReplacedRunID: &previous,
+						Snapshot: &session.GoalSnapshot{
+							RunID: "run-new", NodeID: "goal", Objective: "Ship the child",
+							OriginSessionID: targetID, BoundSessionID: targetID,
+							Status: "active", RunStatus: "running", TurnLimit: 5, Live: true,
+							ContractSummary: "Ship it",
+							Context:         session.GoalContextSnapshot{State: "unknown", NudgeRatio: 0},
+						},
+					},
+				}, nil
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: nativeNetworkTestSessionManager("ws-alpha"),
+			Loops:    func() core.LoopService { return service },
+		}, nativeApproveAllPolicyInputs())
+
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-alpha", WorkspaceID: "ws-alpha"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDGoalControl,
+				Input: json.RawMessage(
+					`{"session_id":"sess-child","operation":"replace","objective":"Ship the child","expected_run_id":"run-current","runtime":{"provider":"cursor","model":"grok-4.5","reasoning_effort":"high","speed":"fast"}}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(goal_control) error = %v", err)
+		}
+		if capturedWorkspaceID != "ws-alpha" || capturedTargetID != "sess-child" {
+			t.Fatalf("Goal target = %s/%s, want ws-alpha/sess-child", capturedWorkspaceID, capturedTargetID)
+		}
+		if capturedCaller.Kind != string(taskpkg.ActorKindAgentSession) || capturedCaller.ID != "sess-alpha" ||
+			capturedCaller.Source != string(taskpkg.OriginKindAgentSession) {
+			t.Fatalf("Goal caller = %#v", capturedCaller)
+		}
+		if capturedCommand.Verb != session.GoalCommandVerbReplace || capturedCommand.ExpectedRunID != "run-current" ||
+			capturedCommand.Runtime == nil || capturedCommand.Runtime.Provider != "cursor" ||
+			capturedCommand.Runtime.Model != "grok-4.5" || capturedCommand.Runtime.ReasoningEffort != "high" ||
+			capturedCommand.Runtime.Speed != "fast" {
+			t.Fatalf("Goal command = %#v", capturedCommand)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"outcome":"replaced"`))
+		requireNativeStructuredContains(t, result, []byte(`"replaced_run_id":"run-old"`))
+	})
+
 	t.Run("Should forward the bounded catalog query within caller workspace scope", func(t *testing.T) {
 		t.Parallel()
 
@@ -1375,6 +1443,7 @@ type nativeLoopServiceStub struct {
 	listLoopRunsFn         func(context.Context, string, core.LoopRunListQuery) (contract.LoopRunsResponse, error)
 	getLoopRunFn           func(context.Context, string, string) (contract.LoopRunResponse, error)
 	getSessionGoalFn       func(context.Context, string, string) (*session.GoalSnapshot, error)
+	goalCommandFn          func(context.Context, string, string, session.PromptCaller, session.GoalCommand) (session.GoalDispatchDecision, error)
 	listGoalTurnsFn        func(context.Context, string, string, core.GoalTurnListQuery) (session.GoalTurnPage, error)
 	findGoalReportTargetFn func(
 		context.Context,
@@ -1409,6 +1478,19 @@ func (s *nativeLoopServiceStub) GetSessionGoal(
 		return s.getSessionGoalFn(ctx, workspaceID, sessionID)
 	}
 	return nil, errors.New("unexpected GetSessionGoal call")
+}
+
+func (s *nativeLoopServiceStub) Handle(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+	caller session.PromptCaller,
+	command session.GoalCommand,
+) (session.GoalDispatchDecision, error) {
+	if s.goalCommandFn == nil {
+		return session.GoalDispatchDecision{}, errors.New("unexpected Goal command")
+	}
+	return s.goalCommandFn(ctx, workspaceID, sessionID, caller, command)
 }
 
 func (s *nativeLoopServiceStub) ListGoalTurns(

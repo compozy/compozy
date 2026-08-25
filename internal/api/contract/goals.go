@@ -2,6 +2,8 @@ package contract
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 )
 
@@ -19,6 +21,18 @@ type GoalTurnResultStatus string
 
 // GoalVerdictOutcome is the closed Goal judge outcome vocabulary.
 type GoalVerdictOutcome string
+
+// SessionGoalOperation is one authenticated structured mutation for a session-origin Goal.
+type SessionGoalOperation string
+
+const (
+	SessionGoalOperationSet     SessionGoalOperation = "set"
+	SessionGoalOperationReplace SessionGoalOperation = "replace"
+	SessionGoalOperationStatus  SessionGoalOperation = "status"
+	SessionGoalOperationPause   SessionGoalOperation = "pause"
+	SessionGoalOperationResume  SessionGoalOperation = "resume"
+	SessionGoalOperationClear   SessionGoalOperation = "clear"
+)
 
 const (
 	GoalOutcomeStarted  GoalCommandOutcome = "started"
@@ -89,7 +103,45 @@ const (
 	GoalReasonPromptFenced               GoalReasonCode = "goal_prompt_fenced"
 	GoalReasonSessionCreationMismatch    GoalReasonCode = "session_creation_identity_mismatch"
 	GoalReasonContinuousBindingMismatch  GoalReasonCode = "continuous_binding_mismatch"
+	GoalReasonRuntimeInvalid             GoalReasonCode = "goal_runtime_invalid"
+	GoalReasonCallerUnauthorized         GoalReasonCode = "goal_caller_unauthorized"
 )
+
+// SessionGoalCommandRequest is the typed ingress contract for Goal control.
+type SessionGoalCommandRequest struct {
+	Operation     SessionGoalOperation           `json:"operation"`
+	Objective     string                         `json:"objective,omitempty"`
+	ExpectedRunID string                         `json:"expected_run_id,omitempty"`
+	Runtime       *PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
+}
+
+// Validate enforces operation-specific fields before the command reaches the daemon aggregate.
+func (r SessionGoalCommandRequest) Validate() error {
+	op := SessionGoalOperation(strings.TrimSpace(string(r.Operation)))
+	objective := strings.TrimSpace(r.Objective)
+	expectedRunID := strings.TrimSpace(r.ExpectedRunID)
+	switch op {
+	case SessionGoalOperationSet:
+		if objective == "" {
+			return fmt.Errorf("goal objective is required for %q", op)
+		}
+		if expectedRunID != "" {
+			return fmt.Errorf("expected_run_id is only valid for %q", SessionGoalOperationReplace)
+		}
+	case SessionGoalOperationReplace:
+		if objective == "" || expectedRunID == "" {
+			return fmt.Errorf("objective and expected_run_id are required for %q", op)
+		}
+	case SessionGoalOperationStatus, SessionGoalOperationPause,
+		SessionGoalOperationResume, SessionGoalOperationClear:
+		if objective != "" || expectedRunID != "" || r.Runtime != nil {
+			return fmt.Errorf("operation %q does not accept objective, expected_run_id, or runtime", op)
+		}
+	default:
+		return fmt.Errorf("unsupported Goal operation %q", op)
+	}
+	return nil
+}
 
 // GoalContextState is the closed public context freshness vocabulary.
 type GoalContextState string

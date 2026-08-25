@@ -6427,7 +6427,8 @@ export interface paths {
     /** Get the newest visible session Goal */
     get: operations["getSessionGoal"];
     put?: never;
-    post?: never;
+    /** Set or control the authenticated session Goal */
+    post: operations["mutateSessionGoal"];
     delete?: never;
     options?: never;
     head?: never;
@@ -108030,6 +108031,8 @@ export interface operations {
                 | "goal_prompt_fenced"
                 | "session_creation_identity_mismatch"
                 | "continuous_binding_mismatch"
+                | "goal_runtime_invalid"
+                | "goal_caller_unauthorized"
                 | null;
               /** @enum {string|null} */
               result_status: "completed" | "invalid-result" | "failed" | "ambiguous" | null;
@@ -108168,6 +108171,8 @@ export interface operations {
               | "goal_prompt_fenced"
               | "session_creation_identity_mismatch"
               | "continuous_binding_mismatch"
+              | "goal_runtime_invalid"
+              | "goal_caller_unauthorized"
               | null;
             replaced_run_id: string | null;
             snapshot: {
@@ -108206,6 +108211,8 @@ export interface operations {
                 | "goal_prompt_fenced"
                 | "session_creation_identity_mismatch"
                 | "continuous_binding_mismatch"
+                | "goal_runtime_invalid"
+                | "goal_caller_unauthorized"
                 | null;
               context: {
                 /** Format: double */
@@ -126119,6 +126126,8 @@ export interface operations {
                 | "goal_prompt_fenced"
                 | "session_creation_identity_mismatch"
                 | "continuous_binding_mismatch"
+                | "goal_runtime_invalid"
+                | "goal_caller_unauthorized"
                 | null;
               context: {
                 /** Format: double */
@@ -126241,6 +126250,1039 @@ export interface operations {
               title: string;
             } | null;
             error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  mutateSessionGoal: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          expected_run_id?: string;
+          objective?: string;
+          /** @enum {string} */
+          operation: "set" | "replace" | "status" | "pause" | "resume" | "clear";
+          runtime?: {
+            model?: string;
+            provider: string;
+            /** @enum {string} */
+            reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+            /** @enum {string} */
+            speed?: "normal" | "fast";
+          } | null;
+        };
+      };
+    };
+    responses: {
+      /** @description Goal operation completed */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            outcome: "started" | "replaced" | "status" | "paused" | "resumed" | "cleared" | "error";
+            /** @enum {string|null} */
+            reason_code:
+              | "goal_not_active"
+              | "goal_replace_required"
+              | "goal_replace_stale"
+              | "goal_objective_required"
+              | "goal_objective_too_large"
+              | "goal_contract_clause_empty"
+              | "goal_command_invalid"
+              | "goal_draft_requires_idle"
+              | "goal_evidence_too_large"
+              | "goal_report_conflict"
+              | "goal_session_busy_queue_full"
+              | "goal_turn_filter_invalid"
+              | "goal_judge_unavailable"
+              | "goal_judge_broken"
+              | "goal_judge_outcome_invalid"
+              | "goal_action_control_invalid"
+              | "goal_stop_reason_invalid"
+              | "goal_prompt_request_failed"
+              | "goal_agent_refused"
+              | "goal_compaction_cancelled"
+              | "goal_recovery_ambiguous"
+              | "goal_control_revoked_in_flight"
+              | "goal_reseed_confirmation_required"
+              | "goal_presubmit_retries_exhausted"
+              | "goal_budget_fenced"
+              | "goal_origin_invalid"
+              | "goal_origin_workspace_mismatch"
+              | "goal_origin_profile_unavailable"
+              | "goal_control_stale"
+              | "goal_prompt_fenced"
+              | "session_creation_identity_mismatch"
+              | "continuous_binding_mismatch"
+              | "goal_runtime_invalid"
+              | "goal_caller_unauthorized"
+              | null;
+            replaced_run_id: string | null;
+            snapshot: {
+              bound_session_id: string;
+              /** @enum {string|null} */
+              cause:
+                | "goal_not_active"
+                | "goal_replace_required"
+                | "goal_replace_stale"
+                | "goal_objective_required"
+                | "goal_objective_too_large"
+                | "goal_contract_clause_empty"
+                | "goal_command_invalid"
+                | "goal_draft_requires_idle"
+                | "goal_evidence_too_large"
+                | "goal_report_conflict"
+                | "goal_session_busy_queue_full"
+                | "goal_turn_filter_invalid"
+                | "goal_judge_unavailable"
+                | "goal_judge_broken"
+                | "goal_judge_outcome_invalid"
+                | "goal_action_control_invalid"
+                | "goal_stop_reason_invalid"
+                | "goal_prompt_request_failed"
+                | "goal_agent_refused"
+                | "goal_compaction_cancelled"
+                | "goal_recovery_ambiguous"
+                | "goal_control_revoked_in_flight"
+                | "goal_reseed_confirmation_required"
+                | "goal_presubmit_retries_exhausted"
+                | "goal_budget_fenced"
+                | "goal_origin_invalid"
+                | "goal_origin_workspace_mismatch"
+                | "goal_origin_profile_unavailable"
+                | "goal_control_stale"
+                | "goal_prompt_fenced"
+                | "session_creation_identity_mismatch"
+                | "continuous_binding_mismatch"
+                | "goal_runtime_invalid"
+                | "goal_caller_unauthorized"
+                | null;
+              context: {
+                /** Format: double */
+                nudge_ratio: number;
+                /** Format: double */
+                ratio: number | null;
+                /** Format: date-time */
+                reported_at: string | null;
+                /** Format: int64 */
+                size: number | null;
+                /** @enum {string} */
+                state: "known" | "unknown" | "pending";
+                /** Format: int64 */
+                used: number | null;
+              };
+              contract_summary: string;
+              last_verdict: {
+                blocking_issues: {
+                  id: string;
+                  note: string;
+                }[];
+                /** Format: date-time */
+                evaluated_at: string;
+                evidence_ref: string | null;
+                /** @enum {string} */
+                outcome:
+                  | "approved"
+                  | "rejected"
+                  | "awaiting_approval"
+                  | "blocked"
+                  | "error"
+                  | "timeout"
+                  | "invalid_output";
+              } | null;
+              live: boolean;
+              node_id: string;
+              objective: string;
+              origin_session_id: string;
+              run_id: string;
+              /** @enum {string} */
+              run_status:
+                | "queued"
+                | "running"
+                | "watching"
+                | "needs-approval"
+                | "paused"
+                | "done"
+                | "no-op"
+                | "blocked"
+                | "failed"
+                | "exhausted"
+                | "stalled"
+                | "canceled";
+              /** @enum {string} */
+              status:
+                | "active"
+                | "paused"
+                | "blocked"
+                | "usage-limited"
+                | "budget-limited"
+                | "complete";
+              turn_limit: number;
+              turns_used: number;
+            } | null;
+          };
+        };
+      };
+      /** @description Goal operation accepted */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            outcome: "started" | "replaced" | "status" | "paused" | "resumed" | "cleared" | "error";
+            /** @enum {string|null} */
+            reason_code:
+              | "goal_not_active"
+              | "goal_replace_required"
+              | "goal_replace_stale"
+              | "goal_objective_required"
+              | "goal_objective_too_large"
+              | "goal_contract_clause_empty"
+              | "goal_command_invalid"
+              | "goal_draft_requires_idle"
+              | "goal_evidence_too_large"
+              | "goal_report_conflict"
+              | "goal_session_busy_queue_full"
+              | "goal_turn_filter_invalid"
+              | "goal_judge_unavailable"
+              | "goal_judge_broken"
+              | "goal_judge_outcome_invalid"
+              | "goal_action_control_invalid"
+              | "goal_stop_reason_invalid"
+              | "goal_prompt_request_failed"
+              | "goal_agent_refused"
+              | "goal_compaction_cancelled"
+              | "goal_recovery_ambiguous"
+              | "goal_control_revoked_in_flight"
+              | "goal_reseed_confirmation_required"
+              | "goal_presubmit_retries_exhausted"
+              | "goal_budget_fenced"
+              | "goal_origin_invalid"
+              | "goal_origin_workspace_mismatch"
+              | "goal_origin_profile_unavailable"
+              | "goal_control_stale"
+              | "goal_prompt_fenced"
+              | "session_creation_identity_mismatch"
+              | "continuous_binding_mismatch"
+              | "goal_runtime_invalid"
+              | "goal_caller_unauthorized"
+              | null;
+            replaced_run_id: string | null;
+            snapshot: {
+              bound_session_id: string;
+              /** @enum {string|null} */
+              cause:
+                | "goal_not_active"
+                | "goal_replace_required"
+                | "goal_replace_stale"
+                | "goal_objective_required"
+                | "goal_objective_too_large"
+                | "goal_contract_clause_empty"
+                | "goal_command_invalid"
+                | "goal_draft_requires_idle"
+                | "goal_evidence_too_large"
+                | "goal_report_conflict"
+                | "goal_session_busy_queue_full"
+                | "goal_turn_filter_invalid"
+                | "goal_judge_unavailable"
+                | "goal_judge_broken"
+                | "goal_judge_outcome_invalid"
+                | "goal_action_control_invalid"
+                | "goal_stop_reason_invalid"
+                | "goal_prompt_request_failed"
+                | "goal_agent_refused"
+                | "goal_compaction_cancelled"
+                | "goal_recovery_ambiguous"
+                | "goal_control_revoked_in_flight"
+                | "goal_reseed_confirmation_required"
+                | "goal_presubmit_retries_exhausted"
+                | "goal_budget_fenced"
+                | "goal_origin_invalid"
+                | "goal_origin_workspace_mismatch"
+                | "goal_origin_profile_unavailable"
+                | "goal_control_stale"
+                | "goal_prompt_fenced"
+                | "session_creation_identity_mismatch"
+                | "continuous_binding_mismatch"
+                | "goal_runtime_invalid"
+                | "goal_caller_unauthorized"
+                | null;
+              context: {
+                /** Format: double */
+                nudge_ratio: number;
+                /** Format: double */
+                ratio: number | null;
+                /** Format: date-time */
+                reported_at: string | null;
+                /** Format: int64 */
+                size: number | null;
+                /** @enum {string} */
+                state: "known" | "unknown" | "pending";
+                /** Format: int64 */
+                used: number | null;
+              };
+              contract_summary: string;
+              last_verdict: {
+                blocking_issues: {
+                  id: string;
+                  note: string;
+                }[];
+                /** Format: date-time */
+                evaluated_at: string;
+                evidence_ref: string | null;
+                /** @enum {string} */
+                outcome:
+                  | "approved"
+                  | "rejected"
+                  | "awaiting_approval"
+                  | "blocked"
+                  | "error"
+                  | "timeout"
+                  | "invalid_output";
+              } | null;
+              live: boolean;
+              node_id: string;
+              objective: string;
+              origin_session_id: string;
+              run_id: string;
+              /** @enum {string} */
+              run_status:
+                | "queued"
+                | "running"
+                | "watching"
+                | "needs-approval"
+                | "paused"
+                | "done"
+                | "no-op"
+                | "blocked"
+                | "failed"
+                | "exhausted"
+                | "stalled"
+                | "canceled";
+              /** @enum {string} */
+              status:
+                | "active"
+                | "paused"
+                | "blocked"
+                | "usage-limited"
+                | "budget-limited"
+                | "complete";
+              turn_limit: number;
+              turns_used: number;
+            } | null;
+          };
+        };
+      };
+      /** @description Invalid Goal command */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Goal caller is not authorized for the target session */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            outcome: "started" | "replaced" | "status" | "paused" | "resumed" | "cleared" | "error";
+            /** @enum {string|null} */
+            reason_code:
+              | "goal_not_active"
+              | "goal_replace_required"
+              | "goal_replace_stale"
+              | "goal_objective_required"
+              | "goal_objective_too_large"
+              | "goal_contract_clause_empty"
+              | "goal_command_invalid"
+              | "goal_draft_requires_idle"
+              | "goal_evidence_too_large"
+              | "goal_report_conflict"
+              | "goal_session_busy_queue_full"
+              | "goal_turn_filter_invalid"
+              | "goal_judge_unavailable"
+              | "goal_judge_broken"
+              | "goal_judge_outcome_invalid"
+              | "goal_action_control_invalid"
+              | "goal_stop_reason_invalid"
+              | "goal_prompt_request_failed"
+              | "goal_agent_refused"
+              | "goal_compaction_cancelled"
+              | "goal_recovery_ambiguous"
+              | "goal_control_revoked_in_flight"
+              | "goal_reseed_confirmation_required"
+              | "goal_presubmit_retries_exhausted"
+              | "goal_budget_fenced"
+              | "goal_origin_invalid"
+              | "goal_origin_workspace_mismatch"
+              | "goal_origin_profile_unavailable"
+              | "goal_control_stale"
+              | "goal_prompt_fenced"
+              | "session_creation_identity_mismatch"
+              | "continuous_binding_mismatch"
+              | "goal_runtime_invalid"
+              | "goal_caller_unauthorized"
+              | null;
+            replaced_run_id: string | null;
+            snapshot: {
+              bound_session_id: string;
+              /** @enum {string|null} */
+              cause:
+                | "goal_not_active"
+                | "goal_replace_required"
+                | "goal_replace_stale"
+                | "goal_objective_required"
+                | "goal_objective_too_large"
+                | "goal_contract_clause_empty"
+                | "goal_command_invalid"
+                | "goal_draft_requires_idle"
+                | "goal_evidence_too_large"
+                | "goal_report_conflict"
+                | "goal_session_busy_queue_full"
+                | "goal_turn_filter_invalid"
+                | "goal_judge_unavailable"
+                | "goal_judge_broken"
+                | "goal_judge_outcome_invalid"
+                | "goal_action_control_invalid"
+                | "goal_stop_reason_invalid"
+                | "goal_prompt_request_failed"
+                | "goal_agent_refused"
+                | "goal_compaction_cancelled"
+                | "goal_recovery_ambiguous"
+                | "goal_control_revoked_in_flight"
+                | "goal_reseed_confirmation_required"
+                | "goal_presubmit_retries_exhausted"
+                | "goal_budget_fenced"
+                | "goal_origin_invalid"
+                | "goal_origin_workspace_mismatch"
+                | "goal_origin_profile_unavailable"
+                | "goal_control_stale"
+                | "goal_prompt_fenced"
+                | "session_creation_identity_mismatch"
+                | "continuous_binding_mismatch"
+                | "goal_runtime_invalid"
+                | "goal_caller_unauthorized"
+                | null;
+              context: {
+                /** Format: double */
+                nudge_ratio: number;
+                /** Format: double */
+                ratio: number | null;
+                /** Format: date-time */
+                reported_at: string | null;
+                /** Format: int64 */
+                size: number | null;
+                /** @enum {string} */
+                state: "known" | "unknown" | "pending";
+                /** Format: int64 */
+                used: number | null;
+              };
+              contract_summary: string;
+              last_verdict: {
+                blocking_issues: {
+                  id: string;
+                  note: string;
+                }[];
+                /** Format: date-time */
+                evaluated_at: string;
+                evidence_ref: string | null;
+                /** @enum {string} */
+                outcome:
+                  | "approved"
+                  | "rejected"
+                  | "awaiting_approval"
+                  | "blocked"
+                  | "error"
+                  | "timeout"
+                  | "invalid_output";
+              } | null;
+              live: boolean;
+              node_id: string;
+              objective: string;
+              origin_session_id: string;
+              run_id: string;
+              /** @enum {string} */
+              run_status:
+                | "queued"
+                | "running"
+                | "watching"
+                | "needs-approval"
+                | "paused"
+                | "done"
+                | "no-op"
+                | "blocked"
+                | "failed"
+                | "exhausted"
+                | "stalled"
+                | "canceled";
+              /** @enum {string} */
+              status:
+                | "active"
+                | "paused"
+                | "blocked"
+                | "usage-limited"
+                | "budget-limited"
+                | "complete";
+              turn_limit: number;
+              turns_used: number;
+            } | null;
+          };
+        };
+      };
+      /** @description Session or Goal not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            outcome: "started" | "replaced" | "status" | "paused" | "resumed" | "cleared" | "error";
+            /** @enum {string|null} */
+            reason_code:
+              | "goal_not_active"
+              | "goal_replace_required"
+              | "goal_replace_stale"
+              | "goal_objective_required"
+              | "goal_objective_too_large"
+              | "goal_contract_clause_empty"
+              | "goal_command_invalid"
+              | "goal_draft_requires_idle"
+              | "goal_evidence_too_large"
+              | "goal_report_conflict"
+              | "goal_session_busy_queue_full"
+              | "goal_turn_filter_invalid"
+              | "goal_judge_unavailable"
+              | "goal_judge_broken"
+              | "goal_judge_outcome_invalid"
+              | "goal_action_control_invalid"
+              | "goal_stop_reason_invalid"
+              | "goal_prompt_request_failed"
+              | "goal_agent_refused"
+              | "goal_compaction_cancelled"
+              | "goal_recovery_ambiguous"
+              | "goal_control_revoked_in_flight"
+              | "goal_reseed_confirmation_required"
+              | "goal_presubmit_retries_exhausted"
+              | "goal_budget_fenced"
+              | "goal_origin_invalid"
+              | "goal_origin_workspace_mismatch"
+              | "goal_origin_profile_unavailable"
+              | "goal_control_stale"
+              | "goal_prompt_fenced"
+              | "session_creation_identity_mismatch"
+              | "continuous_binding_mismatch"
+              | "goal_runtime_invalid"
+              | "goal_caller_unauthorized"
+              | null;
+            replaced_run_id: string | null;
+            snapshot: {
+              bound_session_id: string;
+              /** @enum {string|null} */
+              cause:
+                | "goal_not_active"
+                | "goal_replace_required"
+                | "goal_replace_stale"
+                | "goal_objective_required"
+                | "goal_objective_too_large"
+                | "goal_contract_clause_empty"
+                | "goal_command_invalid"
+                | "goal_draft_requires_idle"
+                | "goal_evidence_too_large"
+                | "goal_report_conflict"
+                | "goal_session_busy_queue_full"
+                | "goal_turn_filter_invalid"
+                | "goal_judge_unavailable"
+                | "goal_judge_broken"
+                | "goal_judge_outcome_invalid"
+                | "goal_action_control_invalid"
+                | "goal_stop_reason_invalid"
+                | "goal_prompt_request_failed"
+                | "goal_agent_refused"
+                | "goal_compaction_cancelled"
+                | "goal_recovery_ambiguous"
+                | "goal_control_revoked_in_flight"
+                | "goal_reseed_confirmation_required"
+                | "goal_presubmit_retries_exhausted"
+                | "goal_budget_fenced"
+                | "goal_origin_invalid"
+                | "goal_origin_workspace_mismatch"
+                | "goal_origin_profile_unavailable"
+                | "goal_control_stale"
+                | "goal_prompt_fenced"
+                | "session_creation_identity_mismatch"
+                | "continuous_binding_mismatch"
+                | "goal_runtime_invalid"
+                | "goal_caller_unauthorized"
+                | null;
+              context: {
+                /** Format: double */
+                nudge_ratio: number;
+                /** Format: double */
+                ratio: number | null;
+                /** Format: date-time */
+                reported_at: string | null;
+                /** Format: int64 */
+                size: number | null;
+                /** @enum {string} */
+                state: "known" | "unknown" | "pending";
+                /** Format: int64 */
+                used: number | null;
+              };
+              contract_summary: string;
+              last_verdict: {
+                blocking_issues: {
+                  id: string;
+                  note: string;
+                }[];
+                /** Format: date-time */
+                evaluated_at: string;
+                evidence_ref: string | null;
+                /** @enum {string} */
+                outcome:
+                  | "approved"
+                  | "rejected"
+                  | "awaiting_approval"
+                  | "blocked"
+                  | "error"
+                  | "timeout"
+                  | "invalid_output";
+              } | null;
+              live: boolean;
+              node_id: string;
+              objective: string;
+              origin_session_id: string;
+              run_id: string;
+              /** @enum {string} */
+              run_status:
+                | "queued"
+                | "running"
+                | "watching"
+                | "needs-approval"
+                | "paused"
+                | "done"
+                | "no-op"
+                | "blocked"
+                | "failed"
+                | "exhausted"
+                | "stalled"
+                | "canceled";
+              /** @enum {string} */
+              status:
+                | "active"
+                | "paused"
+                | "blocked"
+                | "usage-limited"
+                | "budget-limited"
+                | "complete";
+              turn_limit: number;
+              turns_used: number;
+            } | null;
+          };
+        };
+      };
+      /** @description Goal state is stale or requires replacement */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            outcome: "started" | "replaced" | "status" | "paused" | "resumed" | "cleared" | "error";
+            /** @enum {string|null} */
+            reason_code:
+              | "goal_not_active"
+              | "goal_replace_required"
+              | "goal_replace_stale"
+              | "goal_objective_required"
+              | "goal_objective_too_large"
+              | "goal_contract_clause_empty"
+              | "goal_command_invalid"
+              | "goal_draft_requires_idle"
+              | "goal_evidence_too_large"
+              | "goal_report_conflict"
+              | "goal_session_busy_queue_full"
+              | "goal_turn_filter_invalid"
+              | "goal_judge_unavailable"
+              | "goal_judge_broken"
+              | "goal_judge_outcome_invalid"
+              | "goal_action_control_invalid"
+              | "goal_stop_reason_invalid"
+              | "goal_prompt_request_failed"
+              | "goal_agent_refused"
+              | "goal_compaction_cancelled"
+              | "goal_recovery_ambiguous"
+              | "goal_control_revoked_in_flight"
+              | "goal_reseed_confirmation_required"
+              | "goal_presubmit_retries_exhausted"
+              | "goal_budget_fenced"
+              | "goal_origin_invalid"
+              | "goal_origin_workspace_mismatch"
+              | "goal_origin_profile_unavailable"
+              | "goal_control_stale"
+              | "goal_prompt_fenced"
+              | "session_creation_identity_mismatch"
+              | "continuous_binding_mismatch"
+              | "goal_runtime_invalid"
+              | "goal_caller_unauthorized"
+              | null;
+            replaced_run_id: string | null;
+            snapshot: {
+              bound_session_id: string;
+              /** @enum {string|null} */
+              cause:
+                | "goal_not_active"
+                | "goal_replace_required"
+                | "goal_replace_stale"
+                | "goal_objective_required"
+                | "goal_objective_too_large"
+                | "goal_contract_clause_empty"
+                | "goal_command_invalid"
+                | "goal_draft_requires_idle"
+                | "goal_evidence_too_large"
+                | "goal_report_conflict"
+                | "goal_session_busy_queue_full"
+                | "goal_turn_filter_invalid"
+                | "goal_judge_unavailable"
+                | "goal_judge_broken"
+                | "goal_judge_outcome_invalid"
+                | "goal_action_control_invalid"
+                | "goal_stop_reason_invalid"
+                | "goal_prompt_request_failed"
+                | "goal_agent_refused"
+                | "goal_compaction_cancelled"
+                | "goal_recovery_ambiguous"
+                | "goal_control_revoked_in_flight"
+                | "goal_reseed_confirmation_required"
+                | "goal_presubmit_retries_exhausted"
+                | "goal_budget_fenced"
+                | "goal_origin_invalid"
+                | "goal_origin_workspace_mismatch"
+                | "goal_origin_profile_unavailable"
+                | "goal_control_stale"
+                | "goal_prompt_fenced"
+                | "session_creation_identity_mismatch"
+                | "continuous_binding_mismatch"
+                | "goal_runtime_invalid"
+                | "goal_caller_unauthorized"
+                | null;
+              context: {
+                /** Format: double */
+                nudge_ratio: number;
+                /** Format: double */
+                ratio: number | null;
+                /** Format: date-time */
+                reported_at: string | null;
+                /** Format: int64 */
+                size: number | null;
+                /** @enum {string} */
+                state: "known" | "unknown" | "pending";
+                /** Format: int64 */
+                used: number | null;
+              };
+              contract_summary: string;
+              last_verdict: {
+                blocking_issues: {
+                  id: string;
+                  note: string;
+                }[];
+                /** Format: date-time */
+                evaluated_at: string;
+                evidence_ref: string | null;
+                /** @enum {string} */
+                outcome:
+                  | "approved"
+                  | "rejected"
+                  | "awaiting_approval"
+                  | "blocked"
+                  | "error"
+                  | "timeout"
+                  | "invalid_output";
+              } | null;
+              live: boolean;
+              node_id: string;
+              objective: string;
+              origin_session_id: string;
+              run_id: string;
+              /** @enum {string} */
+              run_status:
+                | "queued"
+                | "running"
+                | "watching"
+                | "needs-approval"
+                | "paused"
+                | "done"
+                | "no-op"
+                | "blocked"
+                | "failed"
+                | "exhausted"
+                | "stalled"
+                | "canceled";
+              /** @enum {string} */
+              status:
+                | "active"
+                | "paused"
+                | "blocked"
+                | "usage-limited"
+                | "budget-limited"
+                | "complete";
+              turn_limit: number;
+              turns_used: number;
+            } | null;
+          };
+        };
+      };
+      /** @description Goal operation is invalid */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            outcome: "started" | "replaced" | "status" | "paused" | "resumed" | "cleared" | "error";
+            /** @enum {string|null} */
+            reason_code:
+              | "goal_not_active"
+              | "goal_replace_required"
+              | "goal_replace_stale"
+              | "goal_objective_required"
+              | "goal_objective_too_large"
+              | "goal_contract_clause_empty"
+              | "goal_command_invalid"
+              | "goal_draft_requires_idle"
+              | "goal_evidence_too_large"
+              | "goal_report_conflict"
+              | "goal_session_busy_queue_full"
+              | "goal_turn_filter_invalid"
+              | "goal_judge_unavailable"
+              | "goal_judge_broken"
+              | "goal_judge_outcome_invalid"
+              | "goal_action_control_invalid"
+              | "goal_stop_reason_invalid"
+              | "goal_prompt_request_failed"
+              | "goal_agent_refused"
+              | "goal_compaction_cancelled"
+              | "goal_recovery_ambiguous"
+              | "goal_control_revoked_in_flight"
+              | "goal_reseed_confirmation_required"
+              | "goal_presubmit_retries_exhausted"
+              | "goal_budget_fenced"
+              | "goal_origin_invalid"
+              | "goal_origin_workspace_mismatch"
+              | "goal_origin_profile_unavailable"
+              | "goal_control_stale"
+              | "goal_prompt_fenced"
+              | "session_creation_identity_mismatch"
+              | "continuous_binding_mismatch"
+              | "goal_runtime_invalid"
+              | "goal_caller_unauthorized"
+              | null;
+            replaced_run_id: string | null;
+            snapshot: {
+              bound_session_id: string;
+              /** @enum {string|null} */
+              cause:
+                | "goal_not_active"
+                | "goal_replace_required"
+                | "goal_replace_stale"
+                | "goal_objective_required"
+                | "goal_objective_too_large"
+                | "goal_contract_clause_empty"
+                | "goal_command_invalid"
+                | "goal_draft_requires_idle"
+                | "goal_evidence_too_large"
+                | "goal_report_conflict"
+                | "goal_session_busy_queue_full"
+                | "goal_turn_filter_invalid"
+                | "goal_judge_unavailable"
+                | "goal_judge_broken"
+                | "goal_judge_outcome_invalid"
+                | "goal_action_control_invalid"
+                | "goal_stop_reason_invalid"
+                | "goal_prompt_request_failed"
+                | "goal_agent_refused"
+                | "goal_compaction_cancelled"
+                | "goal_recovery_ambiguous"
+                | "goal_control_revoked_in_flight"
+                | "goal_reseed_confirmation_required"
+                | "goal_presubmit_retries_exhausted"
+                | "goal_budget_fenced"
+                | "goal_origin_invalid"
+                | "goal_origin_workspace_mismatch"
+                | "goal_origin_profile_unavailable"
+                | "goal_control_stale"
+                | "goal_prompt_fenced"
+                | "session_creation_identity_mismatch"
+                | "continuous_binding_mismatch"
+                | "goal_runtime_invalid"
+                | "goal_caller_unauthorized"
+                | null;
+              context: {
+                /** Format: double */
+                nudge_ratio: number;
+                /** Format: double */
+                ratio: number | null;
+                /** Format: date-time */
+                reported_at: string | null;
+                /** Format: int64 */
+                size: number | null;
+                /** @enum {string} */
+                state: "known" | "unknown" | "pending";
+                /** Format: int64 */
+                used: number | null;
+              };
+              contract_summary: string;
+              last_verdict: {
+                blocking_issues: {
+                  id: string;
+                  note: string;
+                }[];
+                /** Format: date-time */
+                evaluated_at: string;
+                evidence_ref: string | null;
+                /** @enum {string} */
+                outcome:
+                  | "approved"
+                  | "rejected"
+                  | "awaiting_approval"
+                  | "blocked"
+                  | "error"
+                  | "timeout"
+                  | "invalid_output";
+              } | null;
+              live: boolean;
+              node_id: string;
+              objective: string;
+              origin_session_id: string;
+              run_id: string;
+              /** @enum {string} */
+              run_status:
+                | "queued"
+                | "running"
+                | "watching"
+                | "needs-approval"
+                | "paused"
+                | "done"
+                | "no-op"
+                | "blocked"
+                | "failed"
+                | "exhausted"
+                | "stalled"
+                | "canceled";
+              /** @enum {string} */
+              status:
+                | "active"
+                | "paused"
+                | "blocked"
+                | "usage-limited"
+                | "budget-limited"
+                | "complete";
+              turn_limit: number;
+              turns_used: number;
+            } | null;
           };
         };
       };
@@ -127376,6 +128418,8 @@ export interface operations {
                   | "goal_prompt_fenced"
                   | "session_creation_identity_mismatch"
                   | "continuous_binding_mismatch"
+                  | "goal_runtime_invalid"
+                  | "goal_caller_unauthorized"
                   | null;
                 replaced_run_id: string | null;
                 snapshot: {
@@ -127414,6 +128458,8 @@ export interface operations {
                     | "goal_prompt_fenced"
                     | "session_creation_identity_mismatch"
                     | "continuous_binding_mismatch"
+                    | "goal_runtime_invalid"
+                    | "goal_caller_unauthorized"
                     | null;
                   context: {
                     /** Format: double */
@@ -127550,6 +128596,8 @@ export interface operations {
                   | "goal_prompt_fenced"
                   | "session_creation_identity_mismatch"
                   | "continuous_binding_mismatch"
+                  | "goal_runtime_invalid"
+                  | "goal_caller_unauthorized"
                   | null;
                 replaced_run_id: string | null;
                 snapshot: {
@@ -127588,6 +128636,8 @@ export interface operations {
                     | "goal_prompt_fenced"
                     | "session_creation_identity_mismatch"
                     | "continuous_binding_mismatch"
+                    | "goal_runtime_invalid"
+                    | "goal_caller_unauthorized"
                     | null;
                   context: {
                     /** Format: double */
@@ -127775,6 +128825,8 @@ export interface operations {
                       | "goal_prompt_fenced"
                       | "session_creation_identity_mismatch"
                       | "continuous_binding_mismatch"
+                      | "goal_runtime_invalid"
+                      | "goal_caller_unauthorized"
                       | null;
                     replaced_run_id: string | null;
                     snapshot: {
@@ -127813,6 +128865,8 @@ export interface operations {
                         | "goal_prompt_fenced"
                         | "session_creation_identity_mismatch"
                         | "continuous_binding_mismatch"
+                        | "goal_runtime_invalid"
+                        | "goal_caller_unauthorized"
                         | null;
                       context: {
                         /** Format: double */
@@ -127971,6 +129025,8 @@ export interface operations {
                       | "goal_prompt_fenced"
                       | "session_creation_identity_mismatch"
                       | "continuous_binding_mismatch"
+                      | "goal_runtime_invalid"
+                      | "goal_caller_unauthorized"
                       | null;
                     replaced_run_id: string | null;
                     snapshot: {
@@ -128009,6 +129065,8 @@ export interface operations {
                         | "goal_prompt_fenced"
                         | "session_creation_identity_mismatch"
                         | "continuous_binding_mismatch"
+                        | "goal_runtime_invalid"
+                        | "goal_caller_unauthorized"
                         | null;
                       context: {
                         /** Format: double */
@@ -128196,6 +129254,8 @@ export interface operations {
                       | "goal_prompt_fenced"
                       | "session_creation_identity_mismatch"
                       | "continuous_binding_mismatch"
+                      | "goal_runtime_invalid"
+                      | "goal_caller_unauthorized"
                       | null;
                     replaced_run_id: string | null;
                     snapshot: {
@@ -128234,6 +129294,8 @@ export interface operations {
                         | "goal_prompt_fenced"
                         | "session_creation_identity_mismatch"
                         | "continuous_binding_mismatch"
+                        | "goal_runtime_invalid"
+                        | "goal_caller_unauthorized"
                         | null;
                       context: {
                         /** Format: double */
@@ -128835,6 +129897,8 @@ export interface operations {
                   | "goal_prompt_fenced"
                   | "session_creation_identity_mismatch"
                   | "continuous_binding_mismatch"
+                  | "goal_runtime_invalid"
+                  | "goal_caller_unauthorized"
                   | null;
                 replaced_run_id: string | null;
                 snapshot: {
@@ -128873,6 +129937,8 @@ export interface operations {
                     | "goal_prompt_fenced"
                     | "session_creation_identity_mismatch"
                     | "continuous_binding_mismatch"
+                    | "goal_runtime_invalid"
+                    | "goal_caller_unauthorized"
                     | null;
                   context: {
                     /** Format: double */
@@ -129095,6 +130161,8 @@ export interface operations {
                   | "goal_prompt_fenced"
                   | "session_creation_identity_mismatch"
                   | "continuous_binding_mismatch"
+                  | "goal_runtime_invalid"
+                  | "goal_caller_unauthorized"
                   | null;
                 replaced_run_id: string | null;
                 snapshot: {
@@ -129133,6 +130201,8 @@ export interface operations {
                     | "goal_prompt_fenced"
                     | "session_creation_identity_mismatch"
                     | "continuous_binding_mismatch"
+                    | "goal_runtime_invalid"
+                    | "goal_caller_unauthorized"
                     | null;
                   context: {
                     /** Format: double */
@@ -131973,6 +133043,8 @@ export interface operations {
                   | "goal_prompt_fenced"
                   | "session_creation_identity_mismatch"
                   | "continuous_binding_mismatch"
+                  | "goal_runtime_invalid"
+                  | "goal_caller_unauthorized"
                   | null;
                 replaced_run_id: string | null;
                 snapshot: {
@@ -132011,6 +133083,8 @@ export interface operations {
                     | "goal_prompt_fenced"
                     | "session_creation_identity_mismatch"
                     | "continuous_binding_mismatch"
+                    | "goal_runtime_invalid"
+                    | "goal_caller_unauthorized"
                     | null;
                   context: {
                     /** Format: double */

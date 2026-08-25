@@ -36,6 +36,17 @@ Read the current Goal through any of these public surfaces:
 - `compozy__goal_get` — session-scoped native read, including terminal state until clear.
 - `GET /api/workspaces/{workspace_id}/sessions/{session_id}/goal` — canonical snapshot or `{ "goal": null }`.
 
+An authenticated agent can manage a child Goal with the typed control surface instead of sending
+slash-command text. Use `compozy__goal_control` with `session_id` and one operation (`set`,
+`replace`, `status`, `pause`, `resume`, or `clear`), or use the equivalent
+`compozy session goal ...` CLI and `POST /api/workspaces/{workspace_id}/sessions/{session_id}/goal`
+HTTP/UDS route. The caller may target its own session or a descendant in the same workspace; an
+unrelated session is rejected with `goal_caller_unauthorized`. `set` and `replace` may include a
+typed provider/model/reasoning/speed runtime for the Goal worker. The Goal keeps its immutable
+creation identity and resolved network participation snapshot, while the selected worker runtime
+is scoped to that run. Results are structured and include stable reason codes for stale replacement,
+invalid runtime, and failed binding evidence.
+
 The snapshot includes `run_id`, `node_id`, objective, origin and bound session IDs, Goal and Run
 status, cause, turn counts, contract summary, latest nullable verdict, and context telemetry. A
 terminal newest Goal remains visible after restart until it is explicitly cleared. Clear returns
@@ -163,6 +174,7 @@ The tags survive reload; clients do not infer them from prompt prose.
 Agents operating inside the active binding have three dedicated tools:
 
 - `compozy__goal_get` reads the visible snapshot for the caller session and follows an active moved-binding alias.
+- `compozy__goal_control` applies typed lifecycle operations to the caller session or an authorized descendant session.
 - `compozy__goal_report` records `complete` or evidenced `blocked` intent for the current prompt binding.
 - `compozy__loop_turns` reads the workspace-authorized Run audit with cursor and node/item filters, even after the binding is terminal.
 

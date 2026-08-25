@@ -1,0 +1,44 @@
+---
+title: "compozy session goal"
+description: "Manage a session-origin Goal"
+---
+
+## compozy session goal
+
+Manage a session-origin Goal
+
+### Options
+
+```
+  -h, --help   help for goal
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                        | Description                      |
+| -------------------------------------------------------------- | -------------------------------- |
+| [compozy session goal clear](/docs/cli/session/goal/clear)     | Clear the current Goal           |
+| [compozy session goal pause](/docs/cli/session/goal/pause)     | Pause the current Goal           |
+| [compozy session goal replace](/docs/cli/session/goal/replace) | Replace the expected active Goal |
+| [compozy session goal resume](/docs/cli/session/goal/resume)   | Resume the current Goal          |
+| [compozy session goal set](/docs/cli/session/goal/set)         | Start a Goal for a session       |
+| [compozy session goal status](/docs/cli/session/goal/status)   | Read the current Goal            |

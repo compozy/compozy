@@ -536,6 +536,66 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ goal: null });
   }),
+  compozyApiMock.post(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/goal",
+    async ({ params, request, response }) => {
+      const id = String(params.session_id);
+      const workspaceId = String(params.workspace_id);
+      const session = sessionById.get(id);
+
+      if (!session || session.workspace_id !== workspaceId) {
+        return response.untyped(
+          HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 })
+        );
+      }
+
+      let body: unknown;
+      try {
+        body = await request.json();
+      } catch {
+        return response.untyped(
+          HttpResponse.json({ error: "Invalid Goal request body" }, { status: 400 })
+        );
+      }
+
+      const operation =
+        typeof body === "object" && body !== null && "operation" in body
+          ? body.operation
+          : undefined;
+      if (
+        operation !== "set" &&
+        operation !== "replace" &&
+        operation !== "status" &&
+        operation !== "pause" &&
+        operation !== "resume" &&
+        operation !== "clear"
+      ) {
+        return response.untyped(
+          HttpResponse.json({ error: "Invalid Goal operation" }, { status: 400 })
+        );
+      }
+      const outcome =
+        operation === "set"
+          ? "started"
+          : operation === "replace"
+            ? "replaced"
+            : operation === "clear"
+              ? "cleared"
+              : operation === "pause"
+                ? "paused"
+                : operation === "resume"
+                  ? "resumed"
+                  : "status";
+      return response.untyped(
+        HttpResponse.json({
+          outcome,
+          reason_code: null,
+          replaced_run_id: null,
+          snapshot: null,
+        })
+      );
+    }
+  ),
   compozyApiMock.get(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications",
     ({ params }) => {
