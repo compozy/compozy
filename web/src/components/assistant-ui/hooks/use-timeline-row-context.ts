@@ -1,5 +1,6 @@
 import { createContext, use } from "react";
 import { createStoreLogic } from "@xstate/store";
+import type { SessionWorkGroupAnchor } from "../session-timeline.logic";
 
 export type TimelineExpansion = "work-group" | "turn" | "changed-files";
 
@@ -13,6 +14,7 @@ function toggled(ids: ReadonlySet<string>, id: string): Set<string> {
 export const timelineRowLogic = createStoreLogic({
   context: (_input: undefined) => ({
     expandedWorkGroups: new Set<string>(),
+    workGroupAnchors: new Map<string, SessionWorkGroupAnchor>(),
     expandedTurns: new Set<string>(),
     expandedChangedFiles: new Set<string>(),
   }),
@@ -21,6 +23,17 @@ export const timelineRowLogic = createStoreLogic({
       ...context,
       expandedWorkGroups: toggled(context.expandedWorkGroups, event.id),
     }),
+    workGroupAnchorObserved: (context, event: SessionWorkGroupAnchor) => {
+      const previous = context.workGroupAnchors.get(event.groupId);
+      const sameAnchor =
+        previous !== undefined &&
+        previous.turnId === event.turnId &&
+        previous.anchorToolCallId === event.anchorToolCallId;
+      if (sameAnchor) return context;
+      const workGroupAnchors = new Map(context.workGroupAnchors);
+      workGroupAnchors.set(event.groupId, event);
+      return { ...context, workGroupAnchors };
+    },
     turnExpansionToggled: (context, event: { id: string }) => ({
       ...context,
       expandedTurns: toggled(context.expandedTurns, event.id),

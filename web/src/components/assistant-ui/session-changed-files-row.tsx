@@ -61,11 +61,13 @@ export function SessionChangedFilesRowView({
   const fileCount = row.files.length;
   const visibleFiles = row.files.slice(0, CHANGED_FILES_VISIBLE_CAP);
   const hiddenCount = fileCount - visibleFiles.length;
+  const detailsId = `${row.id}:entries`;
   return (
     <div data-testid="changed-files-row" data-expanded={String(row.expanded)} className="min-w-0">
       <TranscriptDisclosure
         expanded={row.expanded}
         onToggle={onToggle}
+        aria-controls={detailsId}
         icon={
           <FileText aria-hidden="true" className="size-3 shrink-0 text-subtle" strokeWidth={1.8} />
         }
@@ -76,21 +78,31 @@ export function SessionChangedFilesRowView({
         }
         trailing={<DiffStat additions={row.additions} deletions={row.deletions} />}
       />
-      {row.expanded ? (
-        <div
-          data-testid="changed-files-list"
-          className="mt-0.5 mb-0.5 ml-transcript-detail-indent flex flex-col gap-px border-l border-line pl-transcript-detail-gutter"
-        >
-          {visibleFiles.map(file => (
-            <ChangedFileRow key={file.path} file={file} />
-          ))}
-          {hiddenCount > 0 ? (
-            <span className="min-h-transcript-row content-center text-transcript-meta text-subtle">
-              +{hiddenCount} more
-            </span>
-          ) : null}
-        </div>
-      ) : null}
+      <div
+        id={detailsId}
+        data-testid="changed-files-list"
+        hidden={!row.expanded}
+        aria-hidden={!row.expanded}
+        inert={!row.expanded}
+        className={
+          row.expanded
+            ? "mt-0.5 mb-0.5 ml-transcript-detail-indent flex flex-col gap-px border-l border-line pl-transcript-detail-gutter"
+            : undefined
+        }
+      >
+        {row.expanded ? (
+          <>
+            {visibleFiles.map(file => (
+              <ChangedFileRow key={file.path} file={file} />
+            ))}
+            {hiddenCount > 0 ? (
+              <span className="min-h-transcript-row content-center text-transcript-meta text-subtle">
+                +{hiddenCount} more
+              </span>
+            ) : null}
+          </>
+        ) : null}
+      </div>
     </div>
   );
 }

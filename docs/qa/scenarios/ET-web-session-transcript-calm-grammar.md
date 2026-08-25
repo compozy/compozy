@@ -6,7 +6,7 @@ persona: Théo
 journey: J-14
 expected: Settled tool runs rest as one semantic summary line ("Ran N commands · Edited N files", distinct-file counts) that expands to plain 24px tool rows; the live tail shows the last 4 calls behind a "+N previous tool calls" toggle; failed calls stay individually visible and collapsed with the red × glyph and error-first-line preview (row text never turns red, success check is grey); settled turns fold behind "Worked for Ns" (the only border), interrupted turns never fold; normal queue, steer, interrupt, and dropped-input lifecycle markers do not render as warning noise; the active turn has one working row immediately above the composer; runtime events render as calm one-line markers, never tinted Alert cards; the user message, TodoWrite plan, and changed-file roll-up retain their compact semantic treatments.
 entry_points: web session window transcript; session transcript REST + SSE
-qa_status: skipped
+qa_status: blocked-verify
 bug_ids: BUG-20260803-prompt-cancel-warning-noise
 fix_status: fixed
 retest_status: pass
@@ -46,3 +46,5 @@ QA pass 2026-08-03: lifecycle markers stayed durable but invisible as warning no
 QA impact 2026-08-03 (CodeRabbit remediation): reset after a live steer/interrupt walk exposed the singular `transcript_marker.prompt_cancel` as duplicate warning noise.
 
 QA pass 2026-08-03 (CodeRabbit remediation): after the canonical lifecycle filter fix, a fresh load rendered no prompt-cancel warning while preserving the settled replacement conversation and one active-turn Working row.
+
+QA blocked 2026-08-25 (ENG-135): the isolated web shell reached setup, but the transcript journey could not be seeded because `internal/demoseed/seed.go:79` references the unavailable `GlobalDB.ListPresets` method. Focused UI tests passed; real-user transcript verification remains pending until the daemon seed compiles.

@@ -13,6 +13,7 @@
 // `./session-row-equality`; the run summarizer in `./session-timeline-summary`.
 
 import { foldSettledTurns } from "./session-timeline-fold";
+import { workGroupId, type SessionWorkGroupAnchor } from "./session-timeline-group-identity";
 import { markerClusterKey } from "./session-timeline-markers";
 import {
   MIN_COLLAPSIBLE_TOOL_GROUP_SIZE,
@@ -182,10 +183,12 @@ export interface DeriveSessionRowsOptions {
   activeTurnId?: string;
   interruptedTurnIds?: ReadonlySet<string>;
   expandedWorkGroupIds?: ReadonlySet<string>;
+  workGroupAnchors?: ReadonlyMap<string, SessionWorkGroupAnchor>;
   expandedTurnIds?: ReadonlySet<string>;
   expandedChangedFilesIds?: ReadonlySet<string>;
   foldSettledTurns?: boolean;
 }
+export type { SessionWorkGroupAnchor } from "./session-timeline-group-identity";
 
 const ACTIVE_WORK_VISIBLE_LIMIT = 4;
 
@@ -347,10 +350,6 @@ function findLiveTailClusterStart(
   return hasRunning || activeTurn ? (cluster[0]?.id ?? null) : null;
 }
 
-function workGroupId(first: SessionTimelineToolPart): string {
-  return `work:${first.turnId ?? "none"}:${first.id}`;
-}
-
 function workRowsFromCluster(
   tools: SessionTimelineToolPart[],
   options: DeriveSessionRowsOptions,
@@ -369,7 +368,7 @@ function liveWorkRows(
   options: DeriveSessionRowsOptions
 ): SessionRow[] {
   const first = tools[0]!;
-  const groupId = workGroupId(first);
+  const groupId = workGroupId(tools, options);
   const grouped = tools.length > ACTIVE_WORK_VISIBLE_LIMIT;
   const expanded = grouped ? (options.expandedWorkGroupIds?.has(groupId) ?? false) : false;
   const workRow: SessionWorkRow = {
@@ -434,7 +433,7 @@ function settledWorkRow(
   options: DeriveSessionRowsOptions
 ): SessionWorkRow {
   const first = entries[0]!;
-  const groupId = workGroupId(first);
+  const groupId = workGroupId(entries, options);
   return {
     kind: "work",
     id: groupId,

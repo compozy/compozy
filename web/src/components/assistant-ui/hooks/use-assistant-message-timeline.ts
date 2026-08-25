@@ -1,5 +1,6 @@
 import { useAuiState } from "@assistant-ui/react";
 import { useSelector, useStore } from "@xstate/store-react";
+import { useLayoutEffect } from "react";
 
 import {
   deriveSessionRows,
@@ -7,6 +8,7 @@ import {
   type SessionRow,
   type SessionTimelinePart,
   type SessionTimelineWorkingPart,
+  type SessionWorkGroupAnchor,
 } from "../session-timeline.logic";
 import { isRecord, stringField, toTimelineParts } from "../timeline-message-parts";
 import { timelineRowLogic } from "./use-timeline-row-context";
@@ -25,6 +27,17 @@ function partIsLive(part: SessionTimelinePart): boolean {
     return part.status === "running";
   }
   return isStreamingState(part.state);
+}
+
+function messageTurnId(
+  message: { id?: string },
+  parts: readonly SessionTimelinePart[]
+): string | undefined {
+  for (let index = parts.length - 1; index >= 0; index -= 1) {
+    const turnId = parts[index]?.turnId;
+    if (turnId) return turnId;
+  }
+  return typeof message.id === "string" && message.id.length > 0 ? message.id : undefined;
 }
 
 // The turn start anchors the "Working for Xs" timer. Parts carry ISO timestamps
@@ -51,10 +64,10 @@ function deriveWorkingPart(
   if (!messageStatusIsRunning(message) && !parts.some(partIsLive)) {
     return null;
   }
-  const turnId = typeof message.id === "string" && message.id.length > 0 ? message.id : undefined;
+  const turnId = messageTurnId(message, parts);
   return {
     kind: "working",
-    id: `${message.id ?? "message"}:working`,
+    id: `${turnId ?? message.id ?? "message"}:working`,
     turnId,
     startedAt: earliestTimestampMs(parts),
   };
@@ -129,6 +142,38 @@ function goalPromptMeta(content: unknown): GoalPromptMeta | null {
   return null;
 }
 
+function canonicalToolCallId(row: Extract<SessionRow, { kind: "work" }>): string {
+  let anchor = row.entries[0]?.toolCallId.trim() || row.entries[0]?.id || row.id;
+  for (const tool of row.entries.slice(1)) {
+    const identity = tool.toolCallId.trim() || tool.id;
+    if (identity < anchor) anchor = identity;
+  }
+  return anchor;
+}
+
+function workGroupAnchorsFromRows(
+  rows: readonly SessionRow[],
+  previousAnchors: ReadonlyMap<string, SessionWorkGroupAnchor>
+): SessionWorkGroupAnchor[] {
+  const anchors = new Map<string, SessionWorkGroupAnchor>();
+  const visit = (nestedRows: readonly SessionRow[]) => {
+    for (const row of nestedRows) {
+      if (row.kind === "work") {
+        const previous = previousAnchors.get(row.groupId) ?? anchors.get(row.groupId);
+        anchors.set(row.groupId, {
+          groupId: row.groupId,
+          turnId: row.turnId,
+          anchorToolCallId: previous?.anchorToolCallId ?? canonicalToolCallId(row),
+        });
+        continue;
+      }
+      if (row.kind === "turn-fold") visit(row.rows);
+    }
+  };
+  visit(rows);
+  return [...anchors.values()];
+}
+
 export function useAssistantMessageTimeline() {
   const message = useAuiState(
     state => state.message as { id?: string; content?: unknown; status?: unknown }
@@ -147,12 +192,21 @@ export function useAssistantMessageTimeline() {
     timelineStore,
     state => state.context.expandedChangedFiles
   );
+  const workGroupAnchors = useSelector(timelineStore, state => state.context.workGroupAnchors);
   const rows = deriveSessionRows(parts, {
+    activeTurnId: workingPart?.turnId,
     foldSettledTurns: true,
     interruptedTurnIds: interruptedTurns,
     expandedWorkGroupIds: expandedWorkGroups,
+    workGroupAnchors,
     expandedChangedFilesIds: expandedChangedFiles,
   });
+  const observedWorkGroupAnchors = workGroupAnchorsFromRows(rows, workGroupAnchors);
+  useLayoutEffect(() => {
+    for (const anchor of observedWorkGroupAnchors) {
+      timelineStore.trigger.workGroupAnchorObserved(anchor);
+    }
+  }, [observedWorkGroupAnchors, timelineStore]);
 
   return {
     rows,
