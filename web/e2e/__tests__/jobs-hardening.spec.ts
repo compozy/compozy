@@ -211,7 +211,8 @@ test("operator creates edits disables enables triggers and deletes a dynamic job
 
   const createResponse = appPage.waitForResponse(
     response =>
-      response.request().method() === "POST" && response.url().endsWith("/api/automation/jobs")
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === "/api/automation/jobs"
   );
   await ui.submitJobForm.click();
   expect((await createResponse).ok()).toBe(true);
@@ -233,7 +234,7 @@ test("operator creates edits disables enables triggers and deletes a dynamic job
   const updateResponse = appPage.waitForResponse(
     response =>
       response.request().method() === "PATCH" &&
-      response.url().endsWith(`/api/automation/jobs/${encodeURIComponent(created.id)}`)
+      new URL(response.url()).pathname === `/api/automation/jobs/${encodeURIComponent(created.id)}`
   );
   await ui.submitJobForm.click();
   expect((await updateResponse).ok()).toBe(true);

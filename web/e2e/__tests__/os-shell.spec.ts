@@ -1167,7 +1167,8 @@ test("E2E-022: menubar traverses five menus and operates workspaces, sessions, D
     browserLifecycleAgent
   );
   const createResponsePromise = appPage.waitForResponse(
-    response => response.request().method() === "POST" && response.url().endsWith("/api/sessions")
+    response =>
+      response.request().method() === "POST" && new URL(response.url()).pathname === "/api/sessions"
   );
   await createDialog.getByTestId("session-create-submit").click();
   const createResponse = await createResponsePromise;
@@ -3051,6 +3052,7 @@ async function prepareShell(page: Page, runtime: BrowserRuntime): Promise<Worksp
   const payload = await runtime.requestJSON<{ workspaces: WorkspacePayload[] }>("/api/workspaces");
   const workspace = payload.workspaces[0];
   if (!workspace) throw new Error("OS shell E2E requires one resolved workspace");
+  await switchWorkspace(page, workspace.id, workspace.name);
   return workspace;
 }
 
@@ -3066,6 +3068,10 @@ async function openPeerPage(browser: Browser, runtime: BrowserRuntime): Promise<
   const page = await context.newPage();
   await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(page);
+  const payload = await runtime.requestJSON<{ workspaces: WorkspacePayload[] }>("/api/workspaces");
+  const workspace = payload.workspaces[0];
+  if (!workspace) throw new Error("OS shell peer E2E requires one resolved workspace");
+  await switchWorkspace(page, workspace.id, workspace.name);
   return page;
 }
 

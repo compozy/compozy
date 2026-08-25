@@ -315,7 +315,9 @@ test("starting a manual session is unaffected by task autonomy labels", async ({
   await expect(appPage.getByTestId("session-create-agent-select")).toContainText(handoffAgentName);
 
   const createResponsePromise = appPage.waitForResponse(response => {
-    return response.request().method() === "POST" && response.url().endsWith("/api/sessions");
+    return (
+      response.request().method() === "POST" && new URL(response.url()).pathname === "/api/sessions"
+    );
   });
   await appPage.getByTestId("session-create-submit").click();
   const createResponse = await createResponsePromise;

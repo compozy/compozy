@@ -108,6 +108,8 @@ test.describe("Extension dev overlay and source-union install", () => {
     await marketplace.extensionInstallRef.fill(unionDir);
     await marketplace.extensionInstallAllowUnverified.click();
     await marketplace.extensionInstallSubmit.click();
+    await expect(marketplaceWin.getByTestId("extension-install-summary")).toBeVisible();
+    await marketplace.extensionInstallSubmit.click();
     // An unverified archive never installs without the daemon's explicit consent decision.
     await expect(marketplace.extensionTrustDialog).toBeVisible();
 
@@ -240,11 +242,12 @@ test.describe("Profile-aware extension management", () => {
     await expect(defaultToggle).not.toBeChecked();
     await expect
       .poll(async () => {
-        return await runtime.requestJSON<{ enabled: boolean }>(
+        const enablement = await runtime.requestJSON<Array<{ enabled: boolean; profile: string }>>(
           `/api/extensions/${extensionName}/enablement?profile=default`
         );
+        return enablement.find(item => item.profile === "default")?.enabled;
       })
-      .toMatchObject({ enabled: false });
+      .toBe(false);
 
     await fulfillGrowthProfileCredential(runtime);
     await appPage.reload({ waitUntil: "domcontentloaded" });
@@ -259,8 +262,12 @@ test.describe("Profile-aware extension management", () => {
     await profiles.switcher.click();
     await profiles.switcherOption("growth").click();
     await expect(profiles.switcher).toContainText("growth");
-    await expect(refreshedMarketplace.getByTestId("extension-enabled-switch")).toBeChecked();
-    await expect(refreshedMarketplace.getByText("growth", { exact: true }).last()).toBeVisible();
+    await appPage.goto(runtime.url(`/marketplace/extension/${extensionName}`), {
+      waitUntil: "domcontentloaded",
+    });
+    const growthMarketplace = appWindow(appPage, "marketplace");
+    await expect(growthMarketplace.getByTestId("extension-enabled-switch")).toBeChecked();
+    await expect(growthMarketplace.getByText("growth", { exact: true }).last()).toBeVisible();
   });
 
   test("E2E-030: a placed palette command follows profile enablement and catalog revision", async ({
