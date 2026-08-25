@@ -425,8 +425,8 @@ jobs:
 
       - name: Verify Windows terminal runtime
         run: >-
-          go test ./internal/terminal/pty ./internal/terminal
-          -run '^(TestWindowsPTYHardening|TestWindowsPipeRuntime|TestWindowsDefaultShellResolution|TestResolveCapabilities)$'
+          go test ./internal/procutil ./internal/terminal/pty ./internal/terminal
+          -run '^(TestWindowsProcessHandleTermination|TestWindowsPTYHardening|TestWindowsPipeRuntime|TestWindowsDefaultShellResolution|TestResolveCapabilities)$'
           -count=1
         env:
           CGO_ENABLED: 0

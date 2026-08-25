@@ -81,3 +81,50 @@ func TestWindowsStrictProcessGroupSignals(t *testing.T) {
 		}
 	})
 }
+
+func TestWindowsProcessHandleTermination(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should terminate the process owned by the supplied handle", func(t *testing.T) {
+		t.Parallel()
+
+		command := exec.Command(
+			"powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 300",
+		)
+		if err := command.Start(); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		waited := false
+		t.Cleanup(func() {
+			if waited {
+				return
+			}
+			killErr := command.Process.Kill()
+			waitErr := command.Wait()
+			if killErr != nil && !errors.Is(killErr, os.ErrProcessDone) {
+				t.Errorf("Kill() cleanup error = %v", killErr)
+			}
+			var exitErr *exec.ExitError
+			if waitErr != nil && !errors.As(waitErr, &exitErr) {
+				t.Errorf("Wait() cleanup error = %v", waitErr)
+			}
+		})
+
+		var terminateErr error
+		handleErr := command.Process.WithHandle(func(handle uintptr) {
+			terminateErr = TerminateProcessHandle(handle, 23)
+		})
+		if handleErr != nil || terminateErr != nil {
+			t.Fatalf("TerminateProcessHandle() handle_error=%v terminate_error=%v", handleErr, terminateErr)
+		}
+		waitErr := command.Wait()
+		waited = true
+		var exitErr *exec.ExitError
+		if !errors.As(waitErr, &exitErr) {
+			t.Fatalf("Wait() error = %v, want exec.ExitError", waitErr)
+		}
+		if code := command.ProcessState.ExitCode(); code != 23 {
+			t.Fatalf("ExitCode() = %d, want 23", code)
+		}
+	})
+}

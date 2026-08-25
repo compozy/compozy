@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/x/conpty"
+	"github.com/compozy/compozy/internal/procutil"
 	"golang.org/x/sys/windows"
 )
 
@@ -197,7 +198,7 @@ func cancelWindowsRead(device *conpty.ConPty) error {
 }
 
 func terminateUnassignedWindowsProcess(process windows.Handle) error {
-	terminateErr := windows.TerminateProcess(process, windowsJobExitCode)
+	terminateErr := procutil.TerminateProcessHandle(uintptr(process), windowsJobExitCode)
 	return errors.Join(terminateErr, waitAndCloseWindowsProcess(process, 0))
 }
 

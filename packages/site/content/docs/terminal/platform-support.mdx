@@ -6,12 +6,12 @@ description: Interactive and execute-only terminal capabilities across local and
 Terminal records report `capabilities.interactive`. Clients must use that value instead of assuming
 support from the route, operating-system label, or presence of a Terminal launcher.
 
-| Environment | Execute commands | Interactive terminal, attach, resize, shared control | Recording |
-| --- | --- | --- | --- |
-| Local macOS | Yes | Yes | Yes, when enabled and started explicitly |
-| Local Linux | Yes | Yes | Yes, when enabled and started explicitly |
-| Local Windows | Yes | Yes | Yes, when enabled and started explicitly |
-| Remote sandbox | Yes | No | No |
+| Environment    | Execute commands | Interactive terminal, attach, resize, shared control | Recording                                |
+| -------------- | ---------------- | ---------------------------------------------------- | ---------------------------------------- |
+| Local macOS    | Yes              | Yes                                                  | Yes, when enabled and started explicitly |
+| Local Linux    | Yes              | Yes                                                  | Yes, when enabled and started explicitly |
+| Local Windows  | Yes              | Yes                                                  | Yes, when enabled and started explicitly |
+| Remote sandbox | Yes              | No                                                   | No                                       |
 
 Remote sandboxes use `compozy terminal exec` without `--visible`. They still return bounded,
 structured output and write command journal rows. Opening an interactive terminal or requesting a
