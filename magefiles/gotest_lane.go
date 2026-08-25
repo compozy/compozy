@@ -22,12 +22,19 @@ const (
 	goTestPackageLimitEnvVar = "COMPOZY_GO_TEST_P"
 	goTestShardIndexEnvVar   = "COMPOZY_GO_TEST_SHARD_INDEX"
 	goTestShardTotalEnvVar   = "COMPOZY_GO_TEST_SHARD_TOTAL"
+	goSplitTestPackage       = "github.com/compozy/compozy/internal/store/globaldb"
+	goAllPackagesPattern     = "./..."
 	goUnitTestParallelism    = 4
 )
 
 type goTestShard struct {
 	index int
 	total int
+}
+
+type goUnitTestInvocation struct {
+	packages []string
+	tests    []string
 }
 
 // ambientRuntimeStateEnvVars are the runtime identity vars a QA lab or dev
@@ -78,7 +85,7 @@ func goUnitTestPackageLimitFor(effectiveCPU, parallelism int) int {
 	return limit
 }
 
-func goUnitTestPackages(ctx context.Context) ([]string, error) {
+func goUnitTestInvocations(ctx context.Context) ([]goUnitTestInvocation, error) {
 	shard, enabled, err := parseGoTestShard(
 		os.Getenv(goTestShardIndexEnvVar),
 		os.Getenv(goTestShardTotalEnvVar),
@@ -87,10 +94,10 @@ func goUnitTestPackages(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	if !enabled {
-		return []string{"./..."}, nil
+		return []goUnitTestInvocation{{packages: []string{goAllPackagesPattern}}}, nil
 	}
 
-	cmd := exec.CommandContext(ctx, "go", "list", "./...")
+	cmd := exec.CommandContext(ctx, "go", "list", goAllPackagesPattern)
 	cmd.Env = hermeticGoTestEnv(withRaceEnabledEnv(nil))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -101,23 +108,67 @@ func goUnitTestPackages(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("list Go unit-test packages: go list returned no packages")
 	}
 
-	selected := shardGoTestPackages(packages, shard)
-	if len(selected) == 0 {
-		return nil, fmt.Errorf(
-			"select Go unit-test shard %d/%d: no packages selected from %d packages",
-			shard.index+1,
-			shard.total,
-			len(packages),
-		)
+	splitTests, err := listGoTopLevelTests(ctx, goSplitTestPackage)
+	if err != nil {
+		return nil, err
+	}
+	invocations, err := shardGoUnitTestInvocations(packages, splitTests, shard)
+	if err != nil {
+		return nil, err
+	}
+	selectedPackageCount := 0
+	for _, invocation := range invocations {
+		selectedPackageCount += len(invocation.packages)
 	}
 	fmt.Printf(
-		"Go unit-test shard %d/%d selected %d of %d packages\n",
+		"Go unit-test shard %d/%d selected %d package invocations and %d of %d %s tests\n",
 		shard.index+1,
 		shard.total,
-		len(selected),
-		len(packages),
+		selectedPackageCount,
+		len(invocations[len(invocations)-1].tests),
+		len(splitTests),
+		goSplitTestPackage,
 	)
-	return selected, nil
+	return invocations, nil
+}
+
+func shardGoUnitTestInvocations(
+	packages []string,
+	splitTests []string,
+	shard goTestShard,
+) ([]goUnitTestInvocation, error) {
+	regularPackages := make([]string, 0, len(packages)-1)
+	foundSplitPackage := false
+	for _, packagePath := range packages {
+		if packagePath == goSplitTestPackage {
+			foundSplitPackage = true
+			continue
+		}
+		regularPackages = append(regularPackages, packagePath)
+	}
+	if !foundSplitPackage {
+		return nil, fmt.Errorf("split Go unit-test package %q was not listed", goSplitTestPackage)
+	}
+
+	selectedTests := shardSortedStrings(splitTests, shard)
+	if len(selectedTests) == 0 {
+		return nil, fmt.Errorf(
+			"select Go unit-test shard %d/%d: no %s tests selected from %d tests",
+			shard.index+1,
+			shard.total,
+			goSplitTestPackage,
+			len(splitTests),
+		)
+	}
+
+	invocations := make([]goUnitTestInvocation, 0, 2)
+	if selectedPackages := shardSortedStrings(regularPackages, shard); len(selectedPackages) > 0 {
+		invocations = append(invocations, goUnitTestInvocation{packages: selectedPackages})
+	}
+	return append(invocations, goUnitTestInvocation{
+		packages: []string{goSplitTestPackage},
+		tests:    selectedTests,
+	}), nil
 }
 
 func parseGoTestShard(indexRaw, totalRaw string) (goTestShard, bool, error) {
@@ -154,13 +205,13 @@ func parseGoTestShard(indexRaw, totalRaw string) (goTestShard, bool, error) {
 	return goTestShard{index: index, total: total}, true, nil
 }
 
-func shardGoTestPackages(packages []string, shard goTestShard) []string {
-	sorted := append([]string(nil), packages...)
+func shardSortedStrings(values []string, shard goTestShard) []string {
+	sorted := append([]string(nil), values...)
 	slices.Sort(sorted)
 	selected := make([]string, 0, (len(sorted)+shard.total-1)/shard.total)
-	for index, packagePath := range sorted {
+	for index, value := range sorted {
 		if index%shard.total == shard.index {
-			selected = append(selected, packagePath)
+			selected = append(selected, value)
 		}
 	}
 	return selected

@@ -1,7 +1,7 @@
 //go:build mage
 
 // Suite: Hermetic Go test lane policy
-// Invariant: Unit-test shards partition every package once and reject ambiguous configuration.
+// Invariant: Unit-test shards partition every regular package and split-package test exactly once.
 // Boundary IN: Mage package selection, concurrency policy, and environment scrubbing.
 // Boundary OUT: GitHub Actions runner orchestration in .github/workflows/ci.yml.
 
@@ -116,14 +116,14 @@ func TestParseGoTestShard(t *testing.T) {
 	}
 }
 
-func TestShardGoTestPackages(t *testing.T) {
+func TestShardSortedStrings(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should partition the sorted package list exactly once", func(t *testing.T) {
 		t.Parallel()
 		packages := []string{"package/d", "package/a", "package/e", "package/b", "package/c"}
-		first := shardGoTestPackages(packages, goTestShard{index: 0, total: 2})
-		second := shardGoTestPackages(packages, goTestShard{index: 1, total: 2})
+		first := shardSortedStrings(packages, goTestShard{index: 0, total: 2})
+		second := shardSortedStrings(packages, goTestShard{index: 1, total: 2})
 
 		if !slices.Equal(first, []string{"package/a", "package/c", "package/e"}) {
 			t.Fatalf("first shard = %v, want [package/a package/c package/e]", first)
@@ -143,6 +143,63 @@ func TestShardGoTestPackages(t *testing.T) {
 					counts[packagePath],
 				)
 			}
+		}
+	})
+}
+
+func TestShardGoUnitTestInvocations(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should assign every package and split-package test to exactly one shard", func(t *testing.T) {
+		t.Parallel()
+		packages := []string{
+			"package/d",
+			goSplitTestPackage,
+			"package/a",
+			"package/c",
+			"package/b",
+		}
+		splitTests := []string{"TestDelta", "TestAlpha", "TestCharlie", "TestBravo"}
+		assigned := make([]string, 0, len(packages)+len(splitTests)-1)
+
+		for shardIndex := range 3 {
+			invocations, err := shardGoUnitTestInvocations(
+				packages,
+				splitTests,
+				goTestShard{index: shardIndex, total: 3},
+			)
+			if err != nil {
+				t.Fatalf("shardGoUnitTestInvocations() for shard %d: %v", shardIndex, err)
+			}
+			for _, invocation := range invocations {
+				if slices.Equal(invocation.packages, []string{goSplitTestPackage}) {
+					for _, testName := range invocation.tests {
+						assigned = append(assigned, "test:"+testName)
+					}
+					continue
+				}
+				if len(invocation.tests) != 0 {
+					t.Fatalf("regular package invocation unexpectedly selected tests: %+v", invocation)
+				}
+				for _, packagePath := range invocation.packages {
+					assigned = append(assigned, "package:"+packagePath)
+				}
+			}
+		}
+
+		slices.Sort(assigned)
+		want := []string{
+			"package:package/a",
+			"package:package/b",
+			"package:package/c",
+			"package:package/d",
+			"test:TestAlpha",
+			"test:TestBravo",
+			"test:TestCharlie",
+			"test:TestDelta",
+		}
+		if !slices.Equal(assigned, want) {
+			t.Fatalf("assignments across shards = %v, want %v", assigned, want)
 		}
 	})
 }

@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -13,20 +14,34 @@ import (
 // Test runs unit tests only (no integration tag).
 func Test() error {
 	ctx := context.Background()
-	packages, err := goUnitTestPackages(ctx)
+	invocations, err := goUnitTestInvocations(ctx)
 	if err != nil {
 		return err
 	}
-	args := []string{
+	baseArgs := []string{
 		"--format", "pkgname", "--", "-race", "-p", goUnitTestPackageLimit(),
 		"-parallel=" + strconv.Itoa(goUnitTestParallelism),
 		"-timeout", goUnitTestTimeout,
 	}
-	args = append(args, packages...)
-	if err := runGotestsum(ctx, nil, args...); err != nil {
-		return err
+	for _, invocation := range invocations {
+		args := append([]string(nil), baseArgs...)
+		if len(invocation.tests) > 0 {
+			args = append(args, "-run", exactGoTestRunPattern(invocation.tests))
+		}
+		args = append(args, invocation.packages...)
+		if err := runGotestsum(ctx, nil, args...); err != nil {
+			return err
+		}
 	}
 	return runRaceEnabledCommandInDir(ctx, "sdk/go", nil, "go", "test", "-race", "-parallel=4", "./...")
+}
+
+func exactGoTestRunPattern(tests []string) string {
+	quoted := make([]string, len(tests))
+	for index, testName := range tests {
+		quoted[index] = regexp.QuoteMeta(testName)
+	}
+	return "^(?:" + strings.Join(quoted, "|") + ")$"
 }
 
 // TestIntegration runs all tests including integration tests.
