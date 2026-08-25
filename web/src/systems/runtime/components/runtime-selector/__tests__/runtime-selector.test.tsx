@@ -11,7 +11,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IntensityMeter, UIProvider } from "@compozy/ui";
+import { IntensityMeter, TooltipProvider, UIProvider } from "@compozy/ui";
 
 import { FAVORITES_STORAGE_KEY, RECENTS_LIMIT, RECENTS_STORAGE_KEY } from "../favorites";
 import { runtimeModelKey } from "../model-key";
@@ -82,17 +82,19 @@ function renderSelector({
     const [current, setCurrent] = useState<RuntimeSelectorValue>(value);
     return (
       <UIProvider reducedMotion="never" skipAnimations>
-        <RuntimeSelector
-          {...props}
-          value={current}
-          onChange={next => {
-            onChange(next);
-            setCurrent(next);
-          }}
-          providers={providers}
-          models={models}
-          triggerTestId="rt-trigger"
-        />
+        <TooltipProvider delay={0}>
+          <RuntimeSelector
+            {...props}
+            value={current}
+            onChange={next => {
+              onChange(next);
+              setCurrent(next);
+            }}
+            providers={providers}
+            models={models}
+            triggerTestId="rt-trigger"
+          />
+        </TooltipProvider>
       </UIProvider>
     );
   }
@@ -656,6 +658,106 @@ describe("RuntimeSelector needs-auth provider", () => {
     await user.click(row("gpt-a"));
 
     expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("RuntimeSelector provider tooltips", () => {
+  it("Should show the provider name on hover and keyboard focus without a native title", async () => {
+    const user = userEvent.setup();
+    renderSelector({
+      value: { provider: "codex", model: "", reasoning_effort: "" },
+      providers: [codexProvider, claudeProvider],
+      models: [model("gpt-a")],
+    });
+
+    await openSelector(user);
+    const providerChip = screen.getByRole("radio", { name: "Codex" });
+    expect(providerChip).not.toHaveAttribute("title");
+
+    await user.hover(providerChip);
+    expect(
+      await screen.findByText("Codex", { selector: '[data-slot="tooltip-content"]' })
+    ).toBeInTheDocument();
+
+    await user.unhover(providerChip);
+    act(() => providerChip.focus());
+    expect(
+      await screen.findByText("Codex", { selector: '[data-slot="tooltip-content"]' })
+    ).toBeInTheDocument();
+  });
+
+  it("Should preserve the needs-sign-in label in the provider tooltip", async () => {
+    const user = userEvent.setup();
+    const authProvider: RuntimeProviderOption = {
+      ...codexProvider,
+      needs_auth: true,
+    };
+    renderSelector({
+      value: { provider: "codex", model: "", reasoning_effort: "" },
+      providers: [authProvider],
+      models: [
+        model("gpt-a", {
+          availability: "unavailable",
+          disabled: true,
+          disabled_reason: "Sign in",
+        }),
+      ],
+    });
+
+    await openSelector(user);
+    const providerChip = screen.getByRole("radio", { name: "Codex · needs sign in" });
+    expect(providerChip).not.toHaveAttribute("title");
+    await user.hover(providerChip);
+
+    expect(
+      await screen.findByText("Codex · needs sign in", {
+        selector: '[data-slot="tooltip-content"]',
+      })
+    ).toBeInTheDocument();
+  });
+
+  it("Should not show a provider tooltip for disabled chips while searching", async () => {
+    const user = userEvent.setup();
+    renderSelector({
+      value: { provider: "codex", model: "", reasoning_effort: "" },
+      providers: [codexProvider],
+      models: [model("gpt-a")],
+    });
+
+    await openSelector(user);
+    fireEvent.change(screen.getByTestId("runtime-selector-search"), {
+      target: { value: "gpt" },
+    });
+    const providerChip = screen.getByRole("radio", { name: "Codex" });
+    expect(providerChip).toBeDisabled();
+
+    await user.hover(providerChip);
+    expect(
+      screen.queryByText("Codex", { selector: '[data-slot="tooltip-content"]' })
+    ).not.toBeInTheDocument();
+  });
+
+  it("Should show the provider name when a pinned model row glyph is hovered", async () => {
+    const user = userEvent.setup();
+    window.localStorage.setItem(
+      FAVORITES_STORAGE_KEY,
+      JSON.stringify([runtimeModelKey("codex", "gpt-a")])
+    );
+    await hydrateRuntimeFavoritesFromStorage();
+    renderSelector({
+      value: { provider: "", model: "", reasoning_effort: "" },
+      models: [model("gpt-a", { name: "GPT A" })],
+    });
+
+    await openSelector(user);
+    const providerGlyph = row("gpt-a").querySelector<HTMLElement>('[data-kind="codex"]');
+    expect(providerGlyph).not.toBeNull();
+    expect(providerGlyph).not.toHaveAttribute("title");
+
+    await user.hover(providerGlyph!);
+    expect(
+      await screen.findByText("Codex", { selector: '[data-slot="tooltip-content"]' })
+    ).toBeInTheDocument();
   });
 });
 

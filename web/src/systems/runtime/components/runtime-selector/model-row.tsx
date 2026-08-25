@@ -1,6 +1,13 @@
 import { Brain, Check, Star } from "lucide-react";
 
-import { cn, KindIcon, providerKindIconRegistry } from "@compozy/ui";
+import {
+  cn,
+  KindIcon,
+  providerKindIconRegistry,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@compozy/ui";
 
 import type { RuntimeModelOption } from "./types";
 
@@ -79,13 +86,20 @@ export function ModelRow({
       }}
     >
       {showGlyph ? (
-        <KindIcon
-          kind={iconKind}
-          registry={providerKindIconRegistry}
-          size="sm"
-          tone="default"
-          className="shrink-0"
-        />
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <KindIcon
+                kind={iconKind}
+                registry={providerKindIconRegistry}
+                size="sm"
+                tone="default"
+                className="shrink-0"
+              />
+            }
+          />
+          <TooltipContent>{providerName}</TooltipContent>
+        </Tooltip>
       ) : null}
       <span className="flex min-w-0 flex-1 items-center gap-2">
         <span
