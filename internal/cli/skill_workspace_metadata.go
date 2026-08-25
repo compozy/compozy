@@ -109,10 +109,14 @@ func skillSourceLabel(source skills.SkillSource) string {
 		return marketplaceSkillSource
 	case skills.SourceUser:
 		return userSkillSource
+	case skills.SourceProfile:
+		return profileSkillSource
 	case skills.SourceAdditional:
 		return additionalSkillSource
 	case skills.SourceWorkspace:
 		return workspaceSkillSource
+	case skills.SourceWorkspaceProfile:
+		return workspaceProfileSkillSource
 	case skills.SourceAgentLocal:
 		return agentLocalSkillSource
 	default:

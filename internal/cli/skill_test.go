@@ -294,13 +294,15 @@ func TestSkillListCommandFiltersBySource(t *testing.T) {
 	}
 }
 
-func TestSkillListCommandSourceHelpIncludesMarketplaceAndAgentLocal(t *testing.T) {
+func TestSkillListCommandSourceHelpIncludesEveryPublicTier(t *testing.T) {
 	t.Parallel()
 
 	cmd := newSkillListCommand(newSkillTestEnv(t, nil).deps)
 	usage := cmd.Flags().Lookup("source").Usage
 
-	for _, expected := range []string{"marketplace", "agent-local"} {
+	for _, expected := range []string{
+		"bundled", "marketplace", "user", "profile", "additional", "workspace", "workspace_profile", "agent-local",
+	} {
 		if !strings.Contains(usage, expected) {
 			t.Fatalf("source flag usage = %q, want mention of %q", usage, expected)
 		}
@@ -2747,8 +2749,16 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 	if got := skillSourceLabel(skills.SourceMarketplace); got != "marketplace" {
 		t.Fatalf("skillSourceLabel(marketplace) = %q, want marketplace", got)
 	}
-	if got, err := normalizeSkillSourceFilter("marketplace"); err != nil || got != "marketplace" {
-		t.Fatalf("normalizeSkillSourceFilter(marketplace) = %q, %v, want marketplace", got, err)
+	for source, want := range map[skills.SkillSource]string{
+		skills.SourceProfile:          profileSkillSource,
+		skills.SourceWorkspaceProfile: workspaceProfileSkillSource,
+	} {
+		if got := skillSourceLabel(source); got != want {
+			t.Fatalf("skillSourceLabel(%v) = %q, want %q", source, got, want)
+		}
+		if got, err := normalizeSkillSourceFilter(want); err != nil || got != want {
+			t.Fatalf("normalizeSkillSourceFilter(%q) = %q, %v, want %q", want, got, err, want)
+		}
 	}
 	t.Run("Should validate helper skill slug normalization", func(t *testing.T) {
 		t.Parallel()

@@ -99,7 +99,7 @@ func newSkillListCommand(deps commandDeps) *cobra.Command {
 		&sourceFilter,
 		"source",
 		"",
-		"Filter by source: bundled, marketplace, user, additional, workspace, or agent-local",
+		"Filter by source: bundled, marketplace, user, profile, additional, workspace, workspace_profile, or agent-local",
 	)
 	cmd.Flags().StringVar(
 		&workspace,

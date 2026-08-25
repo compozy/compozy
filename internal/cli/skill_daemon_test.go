@@ -18,6 +18,40 @@ import (
 func TestSkillWorkspaceCommandsUseDaemon(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should filter daemon skills by both profile tiers", func(t *testing.T) {
+		t.Parallel()
+
+		const workspace = "ws-profile-filters"
+		records := []SkillRecord{
+			{Name: "personal", Source: profileSkillSource, Enabled: true},
+			{Name: "project-personal", Source: workspaceProfileSkillSource, Enabled: true},
+		}
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			listSkillsFn: func(_ context.Context, query SkillQuery) ([]SkillRecord, error) {
+				if query.Workspace != workspace {
+					t.Fatalf("ListSkills() workspace = %q, want %q", query.Workspace, workspace)
+				}
+				return records, nil
+			},
+		})
+
+		for _, source := range []string{profileSkillSource, workspaceProfileSkillSource} {
+			stdout, _, err := executeRootCommand(
+				t, deps, "skill", "list", "--workspace", workspace, "--source", source, "-o", "json",
+			)
+			if err != nil {
+				t.Fatalf("skill list --source %s error = %v", source, err)
+			}
+			var listed []skillListItem
+			if err := json.Unmarshal([]byte(stdout), &listed); err != nil {
+				t.Fatalf("json.Unmarshal(skill list --source %s) error = %v", source, err)
+			}
+			if len(listed) != 1 || listed[0].Source != source {
+				t.Fatalf("skill list --source %s = %#v, want one matching record", source, listed)
+			}
+		}
+	})
+
 	t.Run("Should list inspect and view daemon workspace skills", func(t *testing.T) {
 		t.Parallel()
 

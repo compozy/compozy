@@ -20,10 +20,12 @@ const (
 )
 
 const (
-	additionalSkillSource  = "additional"
-	bundledSkillSource     = "bundled"
-	marketplaceSkillSource = "marketplace"
-	userSkillSource        = "user"
+	additionalSkillSource       = "additional"
+	bundledSkillSource          = "bundled"
+	marketplaceSkillSource      = "marketplace"
+	profileSkillSource          = "profile"
+	userSkillSource             = "user"
+	workspaceProfileSkillSource = "workspace_profile"
 )
 
 type skillCommandScope struct {
@@ -197,8 +199,10 @@ func normalizeSkillSourceFilter(sourceFilter string) (string, error) {
 	case bundledSkillSource,
 		marketplaceSkillSource,
 		userSkillSource,
+		profileSkillSource,
 		additionalSkillSource,
 		workspaceSkillSource,
+		workspaceProfileSkillSource,
 		agentLocalSkillSource:
 		return filter, nil
 	default:
