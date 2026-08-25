@@ -1223,13 +1223,15 @@ var _ tools.ApprovalBridge = (*hostedApprovalBridge)(nil)
 func (b *hostedApprovalBridge) RequestToolApproval(
 	_ context.Context,
 	scope tools.Scope,
-	call tools.CallRequest,
+	call *tools.CallRequest,
 	view *tools.ToolView,
 ) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.scopes = append(b.scopes, scope)
-	b.calls = append(b.calls, call)
+	if call != nil {
+		b.calls = append(b.calls, *call)
+	}
 	if view != nil {
 		b.views = append(b.views, *view)
 	}

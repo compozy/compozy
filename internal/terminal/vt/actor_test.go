@@ -190,6 +190,40 @@ func TestActorOverflowRebuild(t *testing.T) {
 	}
 }
 
+func TestActorCloseShouldPreemptOverflowRebuild(t *testing.T) {
+	t.Parallel()
+
+	var snapshots atomic.Int32
+	large := []byte(strings.Repeat("x", 8<<20))
+	actor := New(20, 5, func() ([]byte, uint64) {
+		if snapshots.Add(1) == 1 {
+			return nil, 0
+		}
+		return large, uint64(len(large))
+	})
+	actor.capacity = 1
+	if _, err := actor.WriteAt([]byte("overflow"), uint64(len(large))); err != nil {
+		t.Fatalf("WriteAt(overflow) error = %v", err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for !actor.rebuilding.Load() {
+		if time.Now().After(deadline) {
+			t.Fatal("VT actor did not enter overflow rebuild")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	closed := make(chan error, 1)
+	go func() { closed <- actor.Close() }()
+	select {
+	case err := <-closed:
+		if err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Close() waited for the full overflow rebuild")
+	}
+}
+
 func waitForContent(t *testing.T, actor *Actor, contains string) string {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)

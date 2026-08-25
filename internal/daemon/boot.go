@@ -88,6 +88,7 @@ type bootState struct {
 	loopTargetHealth       *loopTargetHealthSlot
 	processRegistry        *toolruntime.Registry
 	terminals              *terminalpkg.Service
+	terminalPermissions    *terminalPermissionBridge
 	sandboxRegistry        *sandbox.Registry
 	workspaceResolver      *workspacepkg.Resolver
 	worktrees              *worktree.Service

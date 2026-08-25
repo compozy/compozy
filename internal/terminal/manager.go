@@ -45,6 +45,8 @@ type Service struct {
 	profileNames    ProfileNameResolver
 	settings        SettingsProvider
 	profiles        ProfileGuard
+	typingGrants    TypingGrantAuthorizer
+	execApprovals   ExecAuthorizer
 	registerProcess processRegister
 	events          *EventBus
 	journal         Journal
@@ -52,6 +54,7 @@ type Service struct {
 	logger          *slog.Logger
 	now             func() time.Time
 	entropy         io.Reader
+	inputRequestTTL time.Duration
 
 	mu             sync.RWMutex
 	terminals      map[terminalKey]*session
@@ -64,6 +67,7 @@ type Service struct {
 	reaperDone     chan struct{}
 	shutdownDone   chan struct{}
 	shutdownErr    error
+	inputs         *inputRegistry
 }
 
 func NewManager(options ...Option) (*Service, error) {
@@ -73,6 +77,7 @@ func NewManager(options ...Option) (*Service, error) {
 		pendingByScope: make(map[terminalScope]int),
 		reaperDone:     make(chan struct{}),
 		shutdownDone:   make(chan struct{}),
+		inputs:         newInputRegistry(),
 	}
 	defaultServiceOptions(service)
 	for _, option := range options {
@@ -82,6 +87,7 @@ func NewManager(options ...Option) (*Service, error) {
 			}
 		}
 	}
+	service.events.Observe(service.resolveInputRequestsOnClose)
 	return service, nil
 }
 
@@ -318,10 +324,6 @@ func (m *Service) admit(ctx context.Context, workspaceID string, actor Actor) er
 		return m.profiles.EnsureAvailableID(ctx, actor.ProfileID)
 	}
 	return nil
-}
-
-func (m *Service) Exec(context.Context, ExecRequest) (*ExecResult, error) {
-	return nil, &Error{Code: "terminal_exec_unavailable", Message: "terminal exec is not available yet", Err: ErrUnsupported}
 }
 
 func (m *Service) processRegistration(

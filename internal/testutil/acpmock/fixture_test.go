@@ -245,6 +245,42 @@ func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
 			t.Fatalf("recovered turn name = %q, want %q", got, want)
 		}
 	})
+
+	t.Run("Should expose a deterministic terminal generation bump fixture [IT-010]", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, err := LoadFixture(filepath.Join("testdata", "terminal_generation_bump_fixture.json"))
+		if err != nil {
+			t.Fatalf("LoadFixture() error = %v", err)
+		}
+		agent, err := fixture.Agent("terminal-generation-bump")
+		if err != nil {
+			t.Fatalf("fixture.Agent() error = %v", err)
+		}
+		if agent.SupportsLoadSession() {
+			t.Fatal("generation-bump fixture advertises load_session; recovery would not replace the runtime")
+		}
+		initial, err := agent.SelectTurn("recover the terminal generation", acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser})
+		if err != nil {
+			t.Fatalf("agent.SelectTurn(initial) error = %v", err)
+		}
+		last := initial.Steps[len(initial.Steps)-1]
+		if last.Kind != StepKindDriverControl || last.DriverControl == nil ||
+			last.DriverControl.Action != DriverControlDisconnect {
+			t.Fatalf("initial terminal generation step = %#v, want disconnect", last)
+		}
+		replayPrompt := strings.Join([]string{
+			"<compozy_context_replay>", "[]", "</compozy_context_replay>", "",
+			userRequestPromptMarker, "", "recover the terminal generation",
+		}, "\n")
+		recovered, err := agent.SelectTurn(replayPrompt, acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser})
+		if err != nil {
+			t.Fatalf("agent.SelectTurn(recovered) error = %v", err)
+		}
+		if got, want := recovered.Name, "recover-terminal-turn"; got != want {
+			t.Fatalf("recovered turn name = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestRegisterRendersValidatedAgentDefinition(t *testing.T) {

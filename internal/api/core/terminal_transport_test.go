@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -232,6 +233,101 @@ func TestTerminalHandlersShouldKeepProfileScopesClosed(t *testing.T) {
 	}
 }
 
+func TestTerminalAgentHandlersShouldPreserveUntrustedAndRedactedContracts(t *testing.T) { // IT-025
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+	handle := terminalHandleStub{
+		screenResult: &terminalpkg.ReadResult{Content: "terminal bytes", Seq: 12, Untrusted: true},
+		pending:      &terminalpkg.PendingInputRequest{ID: "input-a", Redacted: true},
+	}
+	provider := &terminalProviderStub{manager: terminalManagerStub{handle: handle}}
+	handlers := NewBaseHandlers(&BaseHandlerConfig{TransportName: "udsapi", Terminal: provider})
+	router := gin.New()
+	router.GET("/api/workspaces/:workspace_id/terminals/:id/read", handlers.ReadTerminal)
+	router.POST(
+		"/api/workspaces/:workspace_id/terminals/:id/input-requests/:request_id/answer",
+		handlers.AnswerTerminalInputRequest,
+	)
+
+	read := httptest.NewRecorder()
+	router.ServeHTTP(read, httptest.NewRequest(
+		http.MethodGet, "/api/workspaces/workspace-a/terminals/term-a/read?view=tail", nil,
+	))
+	if read.Code != http.StatusOK || !strings.Contains(read.Body.String(), `"untrusted":true`) {
+		t.Fatalf("read status/body = %d/%s", read.Code, read.Body.String())
+	}
+
+	answer := httptest.NewRecorder()
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/workspaces/workspace-a/terminals/term-a/input-requests/input-a/answer",
+		strings.NewReader(`{"input":"secret"}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(answer, request)
+	if answer.Code != http.StatusOK || !strings.Contains(answer.Body.String(), `"redacted":true`) {
+		t.Fatalf("answer status/body = %d/%s", answer.Code, answer.Body.String())
+	}
+}
+
+func TestTerminalAgentHandlersShouldExecuteEveryUnregisteredBody(t *testing.T) { // IT-009, IT-029, IT-034, IT-037
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+	handle := &terminalAgentHandleStub{terminalHandleStub: terminalHandleStub{
+		pending: &terminalpkg.PendingInputRequest{ID: "input-a", Redacted: true},
+	}}
+	journal := &terminalAgentJournalStub{}
+	manager := &terminalAgentManagerStub{terminalManagerStub: terminalManagerStub{}, handle: handle, journal: journal}
+	provider := &terminalProviderStub{manager: manager}
+	handlers := NewBaseHandlers(&BaseHandlerConfig{TransportName: "udsapi", Terminal: provider})
+	router := gin.New()
+	router.POST("/api/workspaces/:workspace_id/terminals/exec", handlers.ExecTerminal)
+	router.POST("/api/workspaces/:workspace_id/terminals/:id/wait", handlers.WaitTerminal)
+	router.POST("/api/workspaces/:workspace_id/terminals/:id/signal", handlers.SignalTerminal)
+	router.GET("/api/workspaces/:workspace_id/terminal-input-requests", handlers.ListTerminalInputRequests)
+	router.POST("/api/workspaces/:workspace_id/terminals/:id/input-requests/:request_id/reject", handlers.RejectTerminalInputRequest)
+	router.POST("/api/workspaces/:workspace_id/terminals/:id/recording", handlers.ControlTerminalRecording)
+	router.GET("/api/workspaces/:workspace_id/terminal-journal", handlers.QueryTerminalJournal)
+
+	testCases := []struct {
+		name       string
+		method     string
+		path       string
+		body       string
+		wantStatus int
+		wantBody   string
+	}{
+		{"exec", http.MethodPost, "/api/workspaces/workspace-a/terminals/exec", `{"command":"server","yield_ms":250}`, http.StatusAccepted, `"still_running":true`},
+		{"wait", http.MethodPost, "/api/workspaces/workspace-a/terminals/term-a/wait", `{"until":"match","pattern":"ok"}`, http.StatusOK, `"untrusted":true`},
+		{"signal", http.MethodPost, "/api/workspaces/workspace-a/terminals/term-a/signal", `{"signal":"TERM"}`, http.StatusOK, `"delivered":true`},
+		{"input requests", http.MethodGet, "/api/workspaces/workspace-a/terminal-input-requests?all_profiles=true", "", http.StatusOK, `"requests"`},
+		{"reject", http.MethodPost, "/api/workspaces/workspace-a/terminals/term-a/input-requests/input-a/reject", `{"reason":"later"}`, http.StatusOK, `"outcome":"rejected"`},
+		{"record start", http.MethodPost, "/api/workspaces/workspace-a/terminals/term-a/recording", `{"action":"start"}`, http.StatusOK, `"state":"recording"`},
+		{"record stop", http.MethodPost, "/api/workspaces/workspace-a/terminals/term-a/recording", `{"action":"stop"}`, http.StatusOK, `"state":"saved"`},
+		{"journal", http.MethodGet, "/api/workspaces/workspace-a/terminal-journal?all_profiles=true&limit=25", "", http.StatusOK, `"entries"`},
+	}
+	for _, testCase := range testCases {
+		t.Run("Should execute "+testCase.name, func(t *testing.T) {
+			request := httptest.NewRequest(testCase.method, testCase.path, strings.NewReader(testCase.body))
+			if testCase.body != "" {
+				request.Header.Set("Content-Type", "application/json")
+			}
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+			if response.Code != testCase.wantStatus || !strings.Contains(response.Body.String(), testCase.wantBody) {
+				t.Fatalf("status/body = %d/%s, want %d containing %s", response.Code, response.Body.String(), testCase.wantStatus, testCase.wantBody)
+			}
+		})
+	}
+	if manager.exec.Actor.Kind != terminalpkg.ActorKindHuman || handle.signal != terminalpkg.SignalTERM ||
+		handle.rejected != "input-a" || handle.recordStarts != 1 || handle.recordStops != 1 {
+		t.Fatalf("handler actor/effects = manager:%#v handle:%#v", manager, handle)
+	}
+	if !manager.inputScope.AllProfiles || !journal.scope.AllProfiles || journal.query.Limit != 25 {
+		t.Fatalf("aggregate scopes/query = input:%#v journal:%#v query:%#v", manager.inputScope, journal.scope, journal.query)
+	}
+}
+
 func TestTerminalCatalogShouldReplayExactlyOnceAndResetOldCursors(t *testing.T) {
 	t.Parallel()
 	t.Run("Should project every named event from its carried fields", func(t *testing.T) {
@@ -377,6 +473,69 @@ type terminalManagerStub struct {
 	info   *terminalpkg.Info
 }
 
+type terminalAgentManagerStub struct {
+	terminalManagerStub
+	handle     *terminalAgentHandleStub
+	journal    *terminalAgentJournalStub
+	exec       terminalpkg.ExecRequest
+	inputScope store.ReadScope
+}
+
+func (m *terminalAgentManagerStub) Exec(_ context.Context, request terminalpkg.ExecRequest) (*terminalpkg.ExecResult, error) {
+	m.exec = request
+	id := terminalpkg.ID("term-a")
+	return &terminalpkg.ExecResult{StillRunning: true, TerminalID: &id, CommandID: "cmd-a", Untrusted: true}, nil
+}
+
+func (m *terminalAgentManagerStub) Handle(context.Context, string, string, terminalpkg.ID) (terminalpkg.Handle, error) {
+	return m.handle, nil
+}
+
+func (m *terminalAgentManagerStub) InputRequests(
+	_ context.Context,
+	_ string,
+	scope store.ReadScope,
+	_ terminalpkg.ID,
+) ([]terminalpkg.PendingInputRequest, error) {
+	m.inputScope = scope
+	return []terminalpkg.PendingInputRequest{{ID: "input-a"}}, nil
+}
+
+func (m *terminalAgentManagerStub) Journal() terminalpkg.Journal { return m.journal }
+
+type terminalAgentJournalStub struct {
+	scope store.ReadScope
+	query terminalpkg.Query
+}
+
+func (*terminalAgentJournalStub) Record(context.Context, string, terminalpkg.CommandRow) error {
+	return nil
+}
+func (j *terminalAgentJournalStub) Query(
+	_ context.Context,
+	_ string,
+	scope store.ReadScope,
+	query terminalpkg.Query,
+) (*terminalpkg.Page, error) {
+	j.scope = scope
+	j.query = query
+	return &terminalpkg.Page{Entries: []terminalpkg.CommandRow{}}, nil
+}
+func (*terminalAgentJournalStub) LinkRecording(context.Context, string, terminalpkg.ID, terminalpkg.RecordingRef) error {
+	return nil
+}
+func (*terminalAgentJournalStub) Recording(
+	context.Context,
+	string,
+	store.ReadScope,
+	string,
+) (*terminalpkg.RecordingRef, io.ReadCloser, error) {
+	return nil, nil, terminalpkg.ErrUnsupported
+}
+func (*terminalAgentJournalStub) Artifact(context.Context, string, store.ReadScope, string) (io.ReadCloser, error) {
+	return nil, terminalpkg.ErrUnsupported
+}
+
 type scopeRecordingTerminalManager struct {
 	terminalManagerStub
 	scope store.ReadScope
@@ -414,7 +573,43 @@ func (terminalManagerStub) Observe(func(context.Context, terminalpkg.TerminalEve
 func (terminalManagerStub) ArchiveProfile(context.Context, string) error             { return nil }
 
 type terminalHandleStub struct {
-	attachErr error
+	attachErr    error
+	screenResult *terminalpkg.ReadResult
+	screenErr    error
+	pending      *terminalpkg.PendingInputRequest
+}
+
+type terminalAgentHandleStub struct {
+	terminalHandleStub
+	signal       terminalpkg.Signal
+	rejected     terminalpkg.InputRequestID
+	recordStarts int
+	recordStops  int
+}
+
+func (*terminalAgentHandleStub) Wait(context.Context, terminalpkg.WaitCondition) (*terminalpkg.WaitResult, error) {
+	return &terminalpkg.WaitResult{Reason: "match", Screen: "ok", Untrusted: true}, nil
+}
+func (h *terminalAgentHandleStub) Signal(_ context.Context, _ terminalpkg.Actor, signal terminalpkg.Signal) error {
+	h.signal = signal
+	return nil
+}
+func (h *terminalAgentHandleStub) RejectInput(
+	_ context.Context,
+	_ terminalpkg.Actor,
+	id terminalpkg.InputRequestID,
+	_ string,
+) error {
+	h.rejected = id
+	return nil
+}
+func (h *terminalAgentHandleStub) StartRecording(context.Context, terminalpkg.Actor) (terminalpkg.RecordingRef, error) {
+	h.recordStarts++
+	return terminalpkg.RecordingRef{ID: "recording-a"}, nil
+}
+func (h *terminalAgentHandleStub) StopRecording(context.Context, terminalpkg.Actor) (terminalpkg.RecordingRef, error) {
+	h.recordStops++
+	return terminalpkg.RecordingRef{ID: "recording-a"}, nil
 }
 
 func (terminalHandleStub) Info() terminalpkg.Info { return terminalpkg.Info{} }
@@ -423,8 +618,8 @@ func (h terminalHandleStub) Attach(context.Context, terminalpkg.AttachOptions) (
 	return nil, h.attachErr
 }
 func (terminalHandleStub) Write(context.Context, terminalpkg.Actor, []byte) error { return nil }
-func (terminalHandleStub) Screen(context.Context, terminalpkg.ReadOptions) (*terminalpkg.ReadResult, error) {
-	return nil, nil
+func (h terminalHandleStub) Screen(context.Context, terminalpkg.ReadOptions) (*terminalpkg.ReadResult, error) {
+	return h.screenResult, h.screenErr
 }
 func (terminalHandleStub) Wait(context.Context, terminalpkg.WaitCondition) (*terminalpkg.WaitResult, error) {
 	return nil, nil
@@ -439,6 +634,9 @@ func (terminalHandleStub) AnswerInput(context.Context, terminalpkg.Actor, termin
 }
 func (terminalHandleStub) RejectInput(context.Context, terminalpkg.Actor, terminalpkg.InputRequestID, string) error {
 	return nil
+}
+func (h terminalHandleStub) PendingInput(terminalpkg.InputRequestID) (*terminalpkg.PendingInputRequest, error) {
+	return h.pending, nil
 }
 func (terminalHandleStub) Signal(context.Context, terminalpkg.Actor, terminalpkg.Signal) error {
 	return nil

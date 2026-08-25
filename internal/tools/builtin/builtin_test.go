@@ -3003,6 +3003,67 @@ func assertStringEnumSchema(t *testing.T, owner string, raw json.RawMessage, wan
 	}
 }
 
+func TestTerminalDescriptorsShouldKeepObserveOnlyAgentsReadOnly(t *testing.T) { // IT-026
+	t.Parallel()
+
+	descriptors := descriptorMap(terminalDescriptors())
+	readIDs := []toolspkg.ToolID{
+		toolspkg.ToolIDTerminalList,
+		toolspkg.ToolIDTerminalRead,
+		toolspkg.ToolIDTerminalWait,
+	}
+	patterns := make([]toolspkg.ToolPattern, 0, len(readIDs))
+	for _, id := range readIDs {
+		pattern, err := toolspkg.ParseToolPattern(id.String())
+		if err != nil {
+			t.Fatalf("ParseToolPattern(%s) error = %v", id, err)
+		}
+		patterns = append(patterns, pattern)
+	}
+	universe := make([]toolspkg.ToolID, 0, len(descriptors))
+	for id := range descriptors {
+		universe = append(universe, id)
+	}
+	evaluator, err := toolspkg.NewEffectivePolicyEvaluator(toolspkg.PolicyInputs{
+		SystemPermissionMode: toolspkg.PermissionModeApproveAll,
+		Agent:                toolspkg.AgentToolPolicy{Tools: patterns},
+	}, toolspkg.ToolsetCatalog{}, universe)
+	if err != nil {
+		t.Fatalf("NewEffectivePolicyEvaluator() error = %v", err)
+	}
+
+	for _, id := range readIDs {
+		descriptor := descriptors[id]
+		if !slices.Equal(descriptor.Backend.RequiresCapabilities, []string{terminalObserveCapability}) {
+			t.Fatalf("%s capabilities = %#v, want [%q]", id, descriptor.Backend.RequiresCapabilities, terminalObserveCapability)
+		}
+		decision, evaluateErr := evaluator.Evaluate(t.Context(), toolspkg.Scope{}, descriptor)
+		if evaluateErr != nil {
+			t.Fatalf("Evaluate(%s) error = %v", id, evaluateErr)
+		}
+		if !decision.Callable {
+			t.Fatalf("Evaluate(%s).Callable = false, want observe-only access: %#v", id, decision)
+		}
+	}
+
+	execDescriptor := descriptors[toolspkg.ToolIDTerminalExec]
+	if !slices.Equal(execDescriptor.Backend.RequiresCapabilities, []string{terminalExecCapability}) {
+		t.Fatalf(
+			"%s capabilities = %#v, want [%q]",
+			toolspkg.ToolIDTerminalExec,
+			execDescriptor.Backend.RequiresCapabilities,
+			terminalExecCapability,
+		)
+	}
+	decision, err := evaluator.Evaluate(t.Context(), toolspkg.Scope{}, execDescriptor)
+	if err != nil {
+		t.Fatalf("Evaluate(%s) error = %v", toolspkg.ToolIDTerminalExec, err)
+	}
+	if decision.Callable || !slices.Contains(decision.ReasonCodes, toolspkg.ReasonPolicyDenied) {
+		t.Fatalf("Evaluate(%s) decision = %#v, want policy denial", toolspkg.ToolIDTerminalExec, decision)
+	}
+}
+
 func TestBuiltinNativeWorkspaceInputContract(t *testing.T) {
 	t.Parallel()
 

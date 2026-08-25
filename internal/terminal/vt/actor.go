@@ -29,7 +29,6 @@ type commandKind uint8
 const (
 	commandScreen commandKind = iota + 1
 	commandResize
-	commandClose
 )
 
 type command struct {
@@ -54,6 +53,7 @@ type Actor struct {
 	pending    atomic.Int64
 	dirty      atomic.Bool
 	rebuilding atomic.Bool
+	closing    atomic.Bool
 	closed     atomic.Bool
 	sequence   atomic.Uint64
 	closeOnce  sync.Once
@@ -84,7 +84,7 @@ func (a *Actor) WriteAt(input []byte, end uint64) (int, error) {
 	if len(input) == 0 {
 		return 0, nil
 	}
-	if a.closed.Load() {
+	if a.closing.Load() || a.closed.Load() {
 		return 0, ErrClosed
 	}
 	copyOfInput := append([]byte(nil), input...)
@@ -144,14 +144,10 @@ func (a *Actor) Resize(ctx context.Context, cols, rows int) error {
 
 func (a *Actor) Close() error {
 	a.closeOnce.Do(func() {
-		response := make(chan error, 1)
+		a.closing.Store(true)
 		select {
-		case <-a.done:
-		case a.commands <- command{kind: commandClose, err: response}:
-			select {
-			case a.closeErr = <-response:
-			case <-a.done:
-			}
+		case a.wake <- struct{}{}:
+		default:
 		}
 	})
 	<-a.done
@@ -198,12 +194,23 @@ func (a *Actor) loop(cols, rows int, ring RingSnapshot) {
 	}
 	defer close(a.done)
 	for {
+		if a.closing.Load() {
+			a.finishClose(emulator, drainDone)
+			return
+		}
 		if a.dirty.Load() && !ended {
 			a.rebuilding.Store(true)
 			var err error
-			emulator, drainDone, applied, err = rebuildEmulator(emulator, drainDone, cols, rows, ring)
+			emulator, drainDone, applied, err = rebuildEmulator(
+				emulator,
+				drainDone,
+				cols,
+				rows,
+				ring,
+				a.closing.Load,
+			)
 			if err != nil {
-				ended = true
+				ended = !errors.Is(err, ErrClosed)
 			}
 			a.dirty.Store(false)
 			a.rebuilding.Store(false)
@@ -242,14 +249,15 @@ func (a *Actor) loop(cols, rows int, ring RingSnapshot) {
 				}
 				emulator.Resize(cols, rows)
 				request.err <- nil
-			case commandClose:
-				a.closed.Store(true)
-				a.setFinal(Snapshot{Content: screenText(emulator), Ended: true})
-				request.err <- shutdownEmulator(emulator, drainDone)
-				return
 			}
 		}
 	}
+}
+
+func (a *Actor) finishClose(emulator *charmvt.Emulator, drainDone <-chan error) {
+	a.closed.Store(true)
+	a.setFinal(Snapshot{Content: screenText(emulator), Ended: true})
+	a.closeErr = shutdownEmulator(emulator, drainDone)
 }
 
 func startEmulator(cols, rows int) (*charmvt.Emulator, <-chan error) {
@@ -271,6 +279,7 @@ func rebuildEmulator(
 	drainDone <-chan error,
 	cols, rows int,
 	ring RingSnapshot,
+	interrupted func() bool,
 ) (*charmvt.Emulator, <-chan error, uint64, error) {
 	if err := shutdownEmulator(current, drainDone); err != nil {
 		return current, drainDone, 0, err
@@ -280,9 +289,16 @@ func rebuildEmulator(
 		return next, nextDrain, 0, nil
 	}
 	data, sequence := ring()
-	if _, err := next.Write(data); err != nil {
-		shutdownErr := shutdownEmulator(next, nextDrain)
-		return next, nextDrain, sequence, errors.Join(fmt.Errorf("terminal vt: rebuild: %w", err), shutdownErr)
+	const chunkBytes = 4 * 1024
+	for offset := 0; offset < len(data); offset += chunkBytes {
+		if interrupted != nil && interrupted() {
+			return next, nextDrain, sequence, ErrClosed
+		}
+		end := min(offset+chunkBytes, len(data))
+		if _, err := next.Write(data[offset:end]); err != nil {
+			shutdownErr := shutdownEmulator(next, nextDrain)
+			return next, nextDrain, sequence, errors.Join(fmt.Errorf("terminal vt: rebuild: %w", err), shutdownErr)
+		}
 	}
 	return next, nextDrain, sequence, nil
 }

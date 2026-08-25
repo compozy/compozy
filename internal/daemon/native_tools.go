@@ -7,6 +7,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	core "github.com/compozy/compozy/internal/api/core"
@@ -56,7 +57,8 @@ func normalizeNativeMemoryActorKind(actorKind string) nativeMemoryActorKind {
 }
 
 type daemonNativeTools struct {
-	deps *daemonNativeToolsDeps
+	deps          *daemonNativeToolsDeps
+	terminalReads sync.Map
 }
 
 type memoryToolWriteRecorder interface {

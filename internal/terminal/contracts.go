@@ -37,12 +37,12 @@ const (
 )
 
 type Actor struct {
-	Kind       ActorKind
-	ID         string
-	ProfileID  string
-	SessionID  string
-	RunID      string
-	Generation int64
+	Kind       ActorKind `json:"kind"`
+	ID         string    `json:"id"`
+	ProfileID  string    `json:"profile_id"`
+	SessionID  string    `json:"session_id,omitempty"`
+	RunID      string    `json:"run_id,omitempty"`
+	Generation int64     `json:"generation,omitempty"`
 }
 
 type Capabilities struct {
@@ -69,65 +69,67 @@ type ExecRequest struct {
 	YieldMs      int
 	Visible      bool
 	Output       OutputShape
+	Approval     string
 	Actor        Actor
 	Capabilities Capabilities
 }
 
 type OutputShape struct {
-	MaxBytes int
-	Strategy string
-	Grep     string
+	MaxBytes int    `json:"max_bytes,omitempty"`
+	Strategy string `json:"strategy,omitempty"`
+	Grep     string `json:"grep,omitempty"`
 }
 
 type ExecResult struct {
-	ExitCode     *int
-	Signal       *string
-	Output       string
-	Truncated    bool
-	Untrusted    bool
-	Spill        *SpillRef
-	DurationMs   int64
-	CommandID    string
-	StillRunning bool
-	TerminalID   *ID
+	ExitCode     *int      `json:"exit_code"`
+	Signal       *string   `json:"signal"`
+	Output       string    `json:"output"`
+	Truncated    bool      `json:"truncated"`
+	Untrusted    bool      `json:"untrusted"`
+	Spill        *SpillRef `json:"spill,omitempty"`
+	DurationMs   int64     `json:"duration_ms"`
+	CommandID    string    `json:"command_id"`
+	StillRunning bool      `json:"still_running,omitempty"`
+	TerminalID   *ID       `json:"terminal_id"`
 }
 
 type SpillRef struct {
-	ArtifactID string
-	Path       string
-	ProfileID  string
-	Bytes      int64
+	ArtifactID string `json:"artifact_id"`
+	Path       string `json:"-"`
+	ProfileID  string `json:"-"`
+	Bytes      int64  `json:"bytes"`
 }
 
 type RunRef struct {
-	SessionID  string
-	RunID      string
-	Generation int64
+	SessionID  string `json:"session_id"`
+	RunID      string `json:"run_id"`
+	Generation int64  `json:"generation"`
 }
 
 type Exit struct {
-	Cause  string
-	Code   *int
-	Signal *string
-	At     time.Time
+	Cause  string    `json:"cause"`
+	Code   *int      `json:"code,omitempty"`
+	Signal *string   `json:"signal,omitempty"`
+	At     time.Time `json:"at"`
 }
 
 type Info struct {
-	ID           ID
-	WS           string
-	ProfileID    string
-	Title        string
-	Shell        string
-	Cwd          string
-	Mode         Mode
-	State        string
-	Controller   *Actor
-	Lease        LeaseState
-	Viewers      int
-	BoundRun     *RunRef
-	Capabilities Capabilities
-	CreatedAt    time.Time
-	Exit         *Exit
+	ID               ID           `json:"id"`
+	WS               string       `json:"workspace_id"`
+	ProfileID        string       `json:"profile_id"`
+	Title            string       `json:"title"`
+	Shell            string       `json:"shell"`
+	Cwd              string       `json:"cwd"`
+	Mode             Mode         `json:"mode"`
+	State            string       `json:"state"`
+	Controller       *Actor       `json:"controller,omitempty"`
+	Lease            LeaseState   `json:"lease"`
+	Viewers          int          `json:"viewers"`
+	BoundRun         *RunRef      `json:"bound_run,omitempty"`
+	Capabilities     Capabilities `json:"capabilities"`
+	CreatedAt        time.Time    `json:"created_at"`
+	Exit             *Exit        `json:"exit,omitempty"`
+	TypingGeneration uint64       `json:"-"`
 }
 
 type AttachOptions struct {
@@ -149,12 +151,12 @@ type ReadOptions struct {
 }
 
 type ReadResult struct {
-	Content   string
-	Seq       uint64
-	Truncated bool
-	Busy      bool
-	Untrusted bool
-	Spill     *SpillRef
+	Content   string    `json:"content"`
+	Seq       uint64    `json:"seq"`
+	Truncated bool      `json:"truncated"`
+	Busy      bool      `json:"busy"`
+	Untrusted bool      `json:"untrusted"`
+	Spill     *SpillRef `json:"spill,omitempty"`
 }
 
 type WaitCondition struct {
@@ -164,10 +166,10 @@ type WaitCondition struct {
 }
 
 type WaitResult struct {
-	Reason    string
-	ExitCode  *int
-	Screen    string
-	Untrusted bool
+	Reason    string `json:"reason"`
+	ExitCode  *int   `json:"exit_code,omitempty"`
+	Screen    string `json:"screen"`
+	Untrusted bool   `json:"untrusted"`
 }
 
 type InputRequest struct {
@@ -177,25 +179,39 @@ type InputRequest struct {
 }
 
 type InputOutcome struct {
-	Outcome  string
-	Redacted bool
-	Length   int
+	Outcome  string `json:"outcome"`
+	Redacted bool   `json:"redacted"`
+	Length   int    `json:"length"`
 }
 
 type InputAnswer struct {
 	Input []byte
 }
 
+// PendingInputRequest is the profile-scoped public projection of one unresolved prompt.
+type PendingInputRequest struct {
+	ID            InputRequestID `json:"id"`
+	TerminalID    ID             `json:"terminal_id"`
+	WorkspaceID   string         `json:"workspace_id,omitempty"`
+	ProfileID     string         `json:"profile_id"`
+	ProfileName   string         `json:"profile_name"`
+	Reason        string         `json:"reason"`
+	PromptExcerpt string         `json:"prompt_excerpt"`
+	Redacted      bool           `json:"redacted"`
+	RequestedAt   time.Time      `json:"requested_at"`
+}
+
 type RecordingRef struct {
-	ID         string
-	TerminalID ID
-	ProfileID  string
-	Digest     string
-	Path       string
-	StartedAt  time.Time
-	StoppedAt  *time.Time
-	Bytes      int64
-	ExpiresAt  time.Time
+	ID         string     `json:"id"`
+	State      string     `json:"state,omitempty"`
+	TerminalID ID         `json:"terminal_id"`
+	ProfileID  string     `json:"profile_id"`
+	Digest     string     `json:"digest"`
+	Path       string     `json:"-"`
+	StartedAt  time.Time  `json:"started_at"`
+	StoppedAt  *time.Time `json:"stopped_at,omitempty"`
+	Bytes      int64      `json:"bytes"`
+	ExpiresAt  time.Time  `json:"expires_at"`
 }
 
 type Frame = terminalwire.Frame
@@ -231,8 +247,8 @@ type Query struct {
 }
 
 type Page struct {
-	Entries []CommandRow
-	Next    string
+	Entries []CommandRow `json:"entries"`
+	Next    string       `json:"next,omitempty"`
 }
 
 type FilterResult struct {

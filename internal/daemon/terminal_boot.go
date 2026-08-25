@@ -50,6 +50,14 @@ func (d *Daemon) bootTerminal(ctx context.Context, state *bootState, cleanup *bo
 		terminalpkg.WithJournal(journal),
 		terminalpkg.WithMarkerConsumer(journal),
 	}
+	if state.terminalPermissions == nil {
+		state.terminalPermissions = newTerminalPermissionBridge()
+	}
+	options = append(
+		options,
+		terminalpkg.WithTypingGrantAuthorizer(state.terminalPermissions),
+		terminalpkg.WithExecAuthorizer(state.terminalPermissions),
+	)
 	if state.workspaceResolver != nil {
 		options = append(options, terminalpkg.WithWorkspaceResolver(state.workspaceResolver))
 	}
@@ -77,6 +85,14 @@ func (d *Daemon) bootTerminal(ctx context.Context, state *bootState, cleanup *bo
 	}
 	cleanup.add(manager.Shutdown)
 	state.terminals = manager
+	if state.notifier != nil {
+		state.notifier.setTerminalRuntime(manager)
+		if state.sessions != nil {
+			state.notifier.AddTaskRunTerminalObserver(&terminalRunLifecycleObserver{
+				terminals: manager, sessions: state.sessions,
+			})
+		}
+	}
 	return nil
 }
 

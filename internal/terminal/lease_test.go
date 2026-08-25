@@ -57,7 +57,7 @@ func TestLeaseMachineContract(t *testing.T) {
 	t.Run("Should let a human take control from an agent immediately [UT-018]", func(t *testing.T) {
 		t.Parallel()
 		transitions := make(chan string, 1)
-		lease := newLeaseMachine(agent, io.Discard, time.Second, func(from, to LeaseState, reason string, _ Actor) {
+		lease := newLeaseMachine(agent, io.Discard, time.Second, func(from, to LeaseState, reason string, _ Actor, _ *Actor) {
 			transitions <- string(from) + ">" + string(to) + ":" + reason
 		})
 		if err := lease.takeover(humanA, true); err != nil {
@@ -72,7 +72,7 @@ func TestLeaseMachineContract(t *testing.T) {
 		}
 	})
 
-	t.Run("Should linearize takeover after a whole in-flight write [UT-019]", func(t *testing.T) {
+	t.Run("Should linearize takeover after a whole in-flight write [UT-019][IT-007]", func(t *testing.T) {
 		t.Parallel()
 		writer := newBlockingPartialWriter()
 		lease := newLeaseMachine(agent, writer, time.Second, nil)
@@ -153,7 +153,7 @@ func TestLeaseMachineContract(t *testing.T) {
 		t.Parallel()
 		var mu sync.Mutex
 		transitions := 0
-		lease := newLeaseMachine(agent, io.Discard, time.Second, func(LeaseState, LeaseState, string, Actor) {
+		lease := newLeaseMachine(agent, io.Discard, time.Second, func(LeaseState, LeaseState, string, Actor, *Actor) {
 			mu.Lock()
 			transitions++
 			mu.Unlock()
@@ -175,7 +175,7 @@ func TestLeaseMachineContract(t *testing.T) {
 	t.Run("Should start grace only after the final controller attachment closes [UT-024]", func(t *testing.T) {
 		t.Parallel()
 		transition := make(chan LeaseState, 2)
-		lease := newLeaseMachine(humanA, io.Discard, 35*time.Millisecond, func(_ LeaseState, to LeaseState, _ string, _ Actor) {
+		lease := newLeaseMachine(humanA, io.Discard, 35*time.Millisecond, func(_ LeaseState, to LeaseState, _ string, _ Actor, _ *Actor) {
 			transition <- to
 		})
 		first := lease.attachWriter(humanA)

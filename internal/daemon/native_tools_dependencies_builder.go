@@ -69,6 +69,7 @@ func (d *Daemon) nativeToolsDeps(
 		AutomationRuntime: func() core.AutomationManager {
 			return state.deps.Automation
 		},
+		TerminalExecApprover: state.terminalPermissions,
 	}
 	d.populateNativeExtensionDeps(&deps, state)
 	return deps

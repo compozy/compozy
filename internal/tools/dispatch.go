@@ -94,7 +94,7 @@ func (r *RuntimeRegistry) executeDispatchTarget(
 	if err := contextErr(ctx, target.descriptor.ID); err != nil {
 		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallFailed)
 	}
-	if err := r.requestApproval(ctx, scope, target, patchedReq); err != nil {
+	if err := r.requestApproval(ctx, scope, target, &patchedReq); err != nil {
 		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallDenied)
 	}
 	providerResult, err := target.handle.Call(ctx, patchedReq)

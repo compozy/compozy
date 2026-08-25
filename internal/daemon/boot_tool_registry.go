@@ -28,6 +28,9 @@ func (d *Daemon) bootToolRegistry(
 	if err != nil {
 		return err
 	}
+	if state.terminalPermissions != nil {
+		state.terminalPermissions.bind(approvalBridge)
+	}
 	workspaceBinder := nativeWorkspaceAccessBinderForBoot(state)
 	var registry *toolspkg.RuntimeRegistry
 	providers, err := d.bootToolProviders(state, func() toolspkg.Registry { return registry })

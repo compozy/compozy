@@ -1155,9 +1155,12 @@ type apiTestApprovalBridge struct {
 func (b apiTestApprovalBridge) RequestToolApproval(
 	ctx context.Context,
 	scope toolspkg.Scope,
-	call toolspkg.CallRequest,
+	call *toolspkg.CallRequest,
 	_ *toolspkg.ToolView,
 ) error {
+	if call == nil {
+		return toolspkg.ErrToolApprovalRequired
+	}
 	if b.approvals == nil {
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeApprovalRequired,
@@ -1168,7 +1171,7 @@ func (b apiTestApprovalBridge) RequestToolApproval(
 			toolspkg.ReasonApprovalTokenMissing,
 		)
 	}
-	return b.approvals.ConsumeToolApproval(ctx, scope, call)
+	return b.approvals.ConsumeToolApproval(ctx, scope, *call)
 }
 
 func testToolDescriptor(

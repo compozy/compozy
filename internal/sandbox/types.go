@@ -306,6 +306,12 @@ const (
 	PermissionOperationWriteTextFile PermissionOperation = "fs/write_text_file"
 	// PermissionOperationCreateTerminal authorizes terminal creation.
 	PermissionOperationCreateTerminal PermissionOperation = "terminal/create"
+	// PermissionOperationWriteTerminal authorizes agent input into a live terminal.
+	PermissionOperationWriteTerminal PermissionOperation = "terminal/write"
+	// PermissionOperationSignalTerminal authorizes signaling a live terminal.
+	PermissionOperationSignalTerminal PermissionOperation = "terminal/signal"
+	// PermissionOperationCloseTerminal authorizes closing a live terminal.
+	PermissionOperationCloseTerminal PermissionOperation = "terminal/close"
 	// PermissionOperationRequestToolGrant authorizes interactive permission requests.
 	PermissionOperationRequestToolGrant PermissionOperation = "session/request_permission"
 )

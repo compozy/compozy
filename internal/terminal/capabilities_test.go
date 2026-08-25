@@ -6,7 +6,7 @@ package terminal
 
 import "testing"
 
-func TestResolveCapabilities(t *testing.T) {
+func TestResolveCapabilities(t *testing.T) { // IT-016
 	t.Parallel()
 
 	for _, testCase := range []struct {

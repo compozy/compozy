@@ -50,6 +50,7 @@ import (
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	builtintools "github.com/compozy/compozy/internal/tools/builtin"
@@ -65,6 +66,259 @@ const (
 	nativeNetworkTestWorkspaceID         = "ws-native-network"
 	nativeNetworkTestWorkspaceIdentityID = "01NATIVEWORKSPACEIDENTITY"
 )
+
+func TestNativeTerminalBodiesShouldEnforceScopeAndUntrustedResults(t *testing.T) { // UT-068, UT-089, UT-090, IT-008, IT-034, IT-036
+	t.Parallel()
+	handle := &terminalNativeHandleStub{
+		info: terminalpkg.Info{ID: "term-aaaaaaaaaaaa", WS: "workspace-a", ProfileID: "profile-a", Lease: terminalpkg.LeaseAgentOwned},
+		read: &terminalpkg.ReadResult{Content: "terminal bytes", Seq: 12, Untrusted: true},
+	}
+	manager := &terminalNativeManagerStub{handle: handle}
+	adapter := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+		Terminals: func() terminalpkg.Manager { return manager },
+		Sessions: apitest.StubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+			return &session.Info{ID: id, AgentName: "agent-a", RuntimeGeneration: 4}, nil
+		}},
+	}}
+	scope := toolspkg.Scope{
+		WorkspaceID: "workspace-a", ProfileID: "profile-a", SessionID: "session-a", AgentName: "agent-a",
+	}
+
+	read, err := adapter.terminalRead(context.Background(), scope, toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDTerminalRead,
+		Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","view":"tail"}`),
+	})
+	if err != nil {
+		t.Fatalf("terminalRead() error = %v", err)
+	}
+	if !strings.Contains(string(read.Structured), `"untrusted":true`) {
+		t.Fatalf("terminalRead() structured = %s", read.Structured)
+	}
+
+	foreign := scope
+	foreign.ProfileID = "profile-b"
+	_, err = adapter.terminalRead(context.Background(), foreign, toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDTerminalRead,
+		Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","view":"tail"}`),
+	})
+	if err == nil || !strings.Contains(err.Error(), "terminal_not_found") {
+		t.Fatalf("terminalRead(cross-profile) error = %v", err)
+	}
+	_, err = adapter.terminalWrite(context.Background(), foreign, toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDTerminalWrite,
+		Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","data":"hidden"}`),
+	})
+	if err == nil || !strings.Contains(err.Error(), "terminal_not_found") {
+		t.Fatalf("terminalWrite(cross-profile) error = %v", err)
+	}
+	_, err = adapter.terminalClose(context.Background(), foreign, toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDTerminalClose,
+		Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa"}`),
+	})
+	if err == nil || !strings.Contains(err.Error(), "terminal_not_found") {
+		t.Fatalf("terminalClose(cross-profile) error = %v", err)
+	}
+	crossWorkspace := scope
+	crossWorkspace.WorkspaceID = "workspace-b"
+	_, err = adapter.terminalRead(context.Background(), crossWorkspace, toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDTerminalRead,
+		Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","view":"tail"}`),
+	})
+	if err == nil || !strings.Contains(err.Error(), "terminal_not_found") {
+		t.Fatalf("terminalRead(cross-workspace) error = %v", err)
+	}
+
+	withoutWorkspace := scope
+	withoutWorkspace.WorkspaceID = ""
+	_, err = adapter.terminalRead(context.Background(), withoutWorkspace, toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDTerminalRead,
+		Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","view":"tail"}`),
+	})
+	if err == nil || !strings.Contains(err.Error(), "terminal_requires_workspace") {
+		t.Fatalf("terminalRead(global session) error = %v", err)
+	}
+
+	_, err = adapter.terminalClose(context.Background(), scope, toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDTerminalClose,
+		Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa"}`),
+	})
+	if err != nil {
+		t.Fatalf("terminalClose() error = %v", err)
+	}
+	if manager.closeActor.Generation != 4 || manager.closeActor.SessionID != "session-a" {
+		t.Fatalf("terminalClose() actor = %#v", manager.closeActor)
+	}
+
+	_, err = adapter.terminalExec(context.Background(), scope, toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDTerminalExec,
+		Input:  json.RawMessage(`{"command":"rm","args":["-rf","/"]}`),
+	})
+	if err == nil || !strings.Contains(err.Error(), "approval_rejected") || manager.execCalls != 0 {
+		t.Fatalf("terminalExec(irreversible) error/calls = %v/%d", err, manager.execCalls)
+	}
+	_, err = adapter.terminalExec(context.Background(), scope, toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDTerminalExec,
+		Input:  json.RawMessage(`{"command":"bun","args":["test"]}`),
+	})
+	if err == nil || !strings.Contains(err.Error(), "approval_required") || manager.execCalls != 0 {
+		t.Fatalf("terminalExec(unapproved) error/calls = %v/%d", err, manager.execCalls)
+	}
+	_, err = adapter.terminalExec(context.Background(), scope, toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDTerminalExec, ApprovalToken: "approval-token",
+		Input: json.RawMessage(`{"command":"bun","args":["test"]}`),
+	})
+	if err != nil || manager.execCalls != 1 || manager.execRequest.Approval != "approved_once" {
+		t.Fatalf("terminalExec(approved) error/calls/request = %v/%d/%#v", err, manager.execCalls, manager.execRequest)
+	}
+	approver := &terminalExecApproverStub{label: "approved_always"}
+	adapter.deps.TerminalExecApprover = approver
+	_, err = adapter.terminalExec(context.Background(), scope, toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDTerminalExec,
+		Input:  json.RawMessage(`{"command":"bun","args":["test"]}`),
+	})
+	if err != nil || manager.execCalls != 2 || manager.execRequest.Approval != "approved_always" || approver.calls != 1 {
+		t.Fatalf(
+			"terminalExec(prompted) error/calls/request/approvals = %v/%d/%#v/%d",
+			err, manager.execCalls, manager.execRequest, approver.calls,
+		)
+	}
+}
+
+func TestNativeTerminalBodiesShouldCoverEveryUnregisteredOperation(t *testing.T) { // IT-016, IT-025, IT-028
+	t.Parallel()
+	handle := &terminalNativeHandleStub{
+		info:        terminalpkg.Info{ID: "term-aaaaaaaaaaaa", WS: "workspace-a", ProfileID: "profile-a", Lease: terminalpkg.LeaseAgentOwned},
+		read:        &terminalpkg.ReadResult{Content: "tail", Seq: 4, Untrusted: true},
+		wait:        &terminalpkg.WaitResult{Reason: "match", Screen: "matched", Untrusted: true},
+		inputResult: &terminalpkg.InputOutcome{Outcome: "answered", Redacted: true, Length: 4},
+	}
+	manager := &terminalNativeManagerStub{handle: handle}
+	adapter := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+		Terminals: func() terminalpkg.Manager { return manager },
+		Sessions: apitest.StubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+			return &session.Info{ID: id, AgentName: "agent-a", RuntimeGeneration: 7}, nil
+		}},
+	}}
+	scope := toolspkg.Scope{WorkspaceID: "workspace-a", ProfileID: "profile-a", SessionID: "session-a", AgentName: "agent-a"}
+	testCases := []struct {
+		name  string
+		call  func() (toolspkg.ToolResult, error)
+		check func(toolspkg.ToolResult)
+	}{
+		{
+			name: "open", call: func() (toolspkg.ToolResult, error) {
+				return adapter.terminalOpen(t.Context(), scope, toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDTerminalOpen, Input: json.RawMessage(`{"title":"shell"}`),
+				})
+			},
+			check: func(result toolspkg.ToolResult) {
+				requireNativeStructuredContains(t, result, []byte(`"terminal_id":"term-aaaaaaaaaaaa"`))
+			},
+		},
+		{
+			name: "write", call: func() (toolspkg.ToolResult, error) {
+				return adapter.terminalWrite(t.Context(), scope, toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDTerminalWrite,
+					Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","data":"go\n"}`),
+				})
+			},
+			check: func(result toolspkg.ToolResult) {
+				requireNativeStructuredContains(t, result, []byte(`"accepted":true`))
+			},
+		},
+		{
+			name: "wait", call: func() (toolspkg.ToolResult, error) {
+				return adapter.terminalWait(t.Context(), scope, toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDTerminalWait,
+					Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","until":"match","pattern":"ok"}`),
+				})
+			},
+			check: func(result toolspkg.ToolResult) {
+				requireNativeStructuredContains(t, result, []byte(`"untrusted":true`))
+			},
+		},
+		{
+			name: "signal", call: func() (toolspkg.ToolResult, error) {
+				return adapter.terminalSignal(t.Context(), scope, toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDTerminalSignal,
+					Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","signal":"TERM"}`),
+				})
+			},
+			check: func(result toolspkg.ToolResult) {
+				requireNativeStructuredContains(t, result, []byte(`"delivered":true`))
+			},
+		},
+		{
+			name: "list", call: func() (toolspkg.ToolResult, error) {
+				return adapter.terminalList(t.Context(), scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDTerminalList, Input: json.RawMessage(`{}`)})
+			},
+			check: func(result toolspkg.ToolResult) {
+				requireNativeStructuredContains(t, result, []byte(`"term-aaaaaaaaaaaa"`))
+			},
+		},
+		{
+			name: "request input", call: func() (toolspkg.ToolResult, error) {
+				return adapter.terminalRequestInput(t.Context(), scope, toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDTerminalRequestInput,
+					Input: json.RawMessage(
+						`{"terminal_id":"term-aaaaaaaaaaaa","reason":"password","prompt_excerpt":"Password:","redact":true}`,
+					),
+				})
+			},
+			check: func(result toolspkg.ToolResult) {
+				requireNativeStructuredContains(t, result, []byte(`"outcome":"answered"`))
+			},
+		},
+		{
+			name: "yield", call: func() (toolspkg.ToolResult, error) {
+				return adapter.terminalYield(t.Context(), scope, toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDTerminalYield,
+					Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","reason":"operator"}`),
+				})
+			},
+			check: func(result toolspkg.ToolResult) {
+				requireNativeStructuredContains(t, result, []byte(`"lease_state":"agent_owned"`))
+			},
+		},
+		{
+			name: "claim", call: func() (toolspkg.ToolResult, error) {
+				return adapter.terminalClaim(t.Context(), scope, toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDTerminalClaim,
+					Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa"}`),
+				})
+			},
+			check: func(result toolspkg.ToolResult) { requireNativeStructuredContains(t, result, []byte(`"granted":true`)) },
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run("Should execute "+testCase.name, func(t *testing.T) {
+			result, err := testCase.call()
+			if err != nil {
+				t.Fatalf("native terminal %s error = %v", testCase.name, err)
+			}
+			testCase.check(result)
+		})
+	}
+	if string(handle.writeInput) != "go\n" || handle.writeActor.Generation != 7 || handle.signal != terminalpkg.SignalTERM ||
+		!handle.yielded || manager.claimActor.Generation != 7 || manager.openRequest.Actor.Generation != 7 {
+		t.Fatalf("native calls lost actor/input state: handle=%#v manager=%#v", handle, manager)
+	}
+}
+
+type terminalExecApproverStub struct {
+	label string
+	err   error
+	calls int
+}
+
+func (a *terminalExecApproverStub) ApproveTerminalExec(
+	context.Context,
+	toolspkg.Scope,
+	toolspkg.CallRequest,
+) (string, error) {
+	a.calls++
+	return a.label, a.err
+}
 
 type nativeSessionPageHealthManager struct {
 	apitest.StubSessionManager
@@ -93,6 +347,122 @@ type nativeOrchestrationSessionManager struct {
 
 type nativeCoreOnlySessionManager struct {
 	core.SessionManager
+}
+
+type terminalNativeManagerStub struct {
+	handle      terminalpkg.Handle
+	closeActor  terminalpkg.Actor
+	execRequest terminalpkg.ExecRequest
+	openRequest terminalpkg.OpenRequest
+	claimActor  terminalpkg.Actor
+	execCalls   int
+}
+
+func (m *terminalNativeManagerStub) Open(_ context.Context, request terminalpkg.OpenRequest) (terminalpkg.Handle, error) {
+	m.openRequest = request
+	return m.handle, nil
+}
+func (m *terminalNativeManagerStub) Exec(_ context.Context, request terminalpkg.ExecRequest) (*terminalpkg.ExecResult, error) {
+	m.execCalls++
+	m.execRequest = request
+	return &terminalpkg.ExecResult{Untrusted: true, CommandID: "cmd-a"}, nil
+}
+func (m *terminalNativeManagerStub) Handle(_ context.Context, workspaceID, profileID string, _ terminalpkg.ID) (terminalpkg.Handle, error) {
+	if m.handle == nil || m.handle.Info().WS != workspaceID || m.handle.Info().ProfileID != profileID {
+		return nil, &terminalpkg.Error{Code: "terminal_not_found", Message: "terminal not found", Err: terminalpkg.ErrNotFound}
+	}
+	return m.handle, nil
+}
+func (m *terminalNativeManagerStub) Get(ctx context.Context, workspaceID, profileID string, id terminalpkg.ID) (*terminalpkg.Info, error) {
+	handle, err := m.Handle(ctx, workspaceID, profileID, id)
+	if err != nil {
+		return nil, err
+	}
+	info := handle.Info()
+	return &info, nil
+}
+func (m *terminalNativeManagerStub) List(context.Context, string, store.ReadScope) ([]terminalpkg.Info, error) {
+	if m.handle == nil {
+		return nil, nil
+	}
+	return []terminalpkg.Info{m.handle.Info()}, nil
+}
+func (m *terminalNativeManagerStub) Close(
+	_ context.Context,
+	workspaceID string,
+	_ terminalpkg.ID,
+	actor terminalpkg.Actor,
+	_ terminalpkg.Signal,
+) (*terminalpkg.Exit, error) {
+	if m.handle == nil || m.handle.Info().WS != workspaceID || m.handle.Info().ProfileID != actor.ProfileID {
+		return nil, &terminalpkg.Error{Code: "terminal_not_found", Message: "terminal not found", Err: terminalpkg.ErrNotFound}
+	}
+	m.closeActor = actor
+	return &terminalpkg.Exit{Cause: "signaled"}, nil
+}
+func (*terminalNativeManagerStub) Journal() terminalpkg.Journal                             { return nil }
+func (*terminalNativeManagerStub) Shutdown(context.Context) error                           { return nil }
+func (*terminalNativeManagerStub) Observe(func(context.Context, terminalpkg.TerminalEvent)) {}
+func (*terminalNativeManagerStub) ArchiveProfile(context.Context, string) error             { return nil }
+
+func (m *terminalNativeManagerStub) Claim(_ context.Context, workspaceID string, _ terminalpkg.ID, actor terminalpkg.Actor) error {
+	if m.handle == nil || m.handle.Info().WS != workspaceID || m.handle.Info().ProfileID != actor.ProfileID {
+		return terminalpkg.ErrNotFound
+	}
+	m.claimActor = actor
+	return nil
+}
+
+type terminalNativeHandleStub struct {
+	info        terminalpkg.Info
+	read        *terminalpkg.ReadResult
+	wait        *terminalpkg.WaitResult
+	inputResult *terminalpkg.InputOutcome
+	writeActor  terminalpkg.Actor
+	writeInput  []byte
+	signal      terminalpkg.Signal
+	yielded     bool
+}
+
+func (h *terminalNativeHandleStub) Info() terminalpkg.Info { return h.info }
+func (*terminalNativeHandleStub) MarkerNonce() string      { return "" }
+func (*terminalNativeHandleStub) Attach(context.Context, terminalpkg.AttachOptions) (terminalpkg.Subscription, error) {
+	return nil, terminalpkg.ErrUnsupported
+}
+func (h *terminalNativeHandleStub) Write(_ context.Context, actor terminalpkg.Actor, input []byte) error {
+	h.writeActor = actor
+	h.writeInput = append([]byte(nil), input...)
+	return nil
+}
+func (h *terminalNativeHandleStub) Screen(context.Context, terminalpkg.ReadOptions) (*terminalpkg.ReadResult, error) {
+	return h.read, nil
+}
+func (h *terminalNativeHandleStub) Wait(context.Context, terminalpkg.WaitCondition) (*terminalpkg.WaitResult, error) {
+	return h.wait, nil
+}
+func (*terminalNativeHandleStub) Takeover(context.Context, terminalpkg.Actor, bool) error { return nil }
+func (h *terminalNativeHandleStub) Yield(context.Context, terminalpkg.Actor) error {
+	h.yielded = true
+	return nil
+}
+func (h *terminalNativeHandleStub) RequestInput(context.Context, terminalpkg.InputRequest) (*terminalpkg.InputOutcome, error) {
+	return h.inputResult, nil
+}
+func (*terminalNativeHandleStub) AnswerInput(context.Context, terminalpkg.Actor, terminalpkg.InputRequestID, terminalpkg.InputAnswer) error {
+	return nil
+}
+func (*terminalNativeHandleStub) RejectInput(context.Context, terminalpkg.Actor, terminalpkg.InputRequestID, string) error {
+	return nil
+}
+func (h *terminalNativeHandleStub) Signal(_ context.Context, _ terminalpkg.Actor, signal terminalpkg.Signal) error {
+	h.signal = signal
+	return nil
+}
+func (*terminalNativeHandleStub) StartRecording(context.Context, terminalpkg.Actor) (terminalpkg.RecordingRef, error) {
+	return terminalpkg.RecordingRef{}, nil
+}
+func (*terminalNativeHandleStub) StopRecording(context.Context, terminalpkg.Actor) (terminalpkg.RecordingRef, error) {
+	return terminalpkg.RecordingRef{}, nil
 }
 
 type nativeEntityAgentCatalog struct {

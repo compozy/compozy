@@ -5,6 +5,7 @@ import (
 
 	"errors"
 	"fmt"
+	"strings"
 )
 
 func (r *RuntimeRegistry) runPreCallHook(
@@ -50,10 +51,18 @@ func (r *RuntimeRegistry) requestApproval(
 	ctx context.Context,
 	scope Scope,
 	target *dispatchTarget,
-	req CallRequest,
+	req *CallRequest,
 ) error {
 	if target == nil || !target.view.Decision.ApprovalRequired {
 		return nil
+	}
+	if req == nil {
+		return approvalBridgeError(
+			target.descriptor.ID,
+			"tool approval request is unavailable",
+			ErrToolApprovalRequired,
+			ReasonApprovalUnreachable,
+		)
 	}
 	if r.approvalBridge == nil {
 		return approvalBridgeError(
@@ -66,6 +75,11 @@ func (r *RuntimeRegistry) requestApproval(
 	view := cloneToolView(&target.view)
 	if err := r.approvalBridge.RequestToolApproval(ctx, scope, req, &view); err != nil {
 		return normalizeApprovalBridgeError(target.descriptor.ID, err)
+	}
+	req.ApprovalGranted = true
+	req.ApprovalLabel = strings.TrimSpace(req.ApprovalLabel)
+	if req.ApprovalLabel == "" {
+		req.ApprovalLabel = "approved_once"
 	}
 	return nil
 }

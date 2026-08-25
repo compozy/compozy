@@ -259,7 +259,7 @@ type HookRunner interface {
 
 // ApprovalBridge mediates approval-required calls before provider execution.
 type ApprovalBridge interface {
-	RequestToolApproval(ctx context.Context, scope Scope, call CallRequest, view *ToolView) error
+	RequestToolApproval(ctx context.Context, scope Scope, call *CallRequest, view *ToolView) error
 }
 
 // CallInputBinder rewrites trusted scope into tool input before schema validation.
@@ -319,6 +319,8 @@ type CallRequest struct {
 	Input                json.RawMessage `json:"input"`
 	SensitiveInputFields []string        `json:"sensitive_input_fields,omitempty"`
 	ApprovalToken        string          `json:"approval_token,omitempty"`
+	ApprovalGranted      bool            `json:"-"`
+	ApprovalLabel        string          `json:"-"`
 	TrustedWorkspaceRoot string          `json:"-"`
 }
 

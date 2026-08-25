@@ -11,6 +11,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/google/uuid"
 )
@@ -62,15 +63,31 @@ func newToolApprovalBridge(
 func (b *toolApprovalBridge) RequestToolApproval(
 	ctx context.Context,
 	scope toolspkg.Scope,
-	call toolspkg.CallRequest,
+	request *toolspkg.CallRequest,
 	view *toolspkg.ToolView,
 ) error {
+	if request == nil {
+		return toolApprovalError("", "tool approval request is unavailable", toolspkg.ReasonApprovalUnreachable)
+	}
+	call := *request
 	toolID := toolApprovalID(call, view)
-	if handled, err := b.consumeLocalToolApproval(ctx, scope, call); handled {
+	forcePrompt, err := terminalApprovalForcePrompt(call, toolID)
+	if err != nil {
 		return err
 	}
-	if handled, err := b.consumeDurableToolApproval(ctx, scope, call, toolID); handled {
+	if handled, err := b.consumeLocalToolApproval(ctx, scope, call); handled {
+		if err == nil {
+			setToolApprovalLabel(request, "approved_once")
+		}
 		return err
+	}
+	if !forcePrompt {
+		if handled, durableErr := b.consumeDurableToolApproval(ctx, scope, call, toolID); handled {
+			if durableErr == nil {
+				setToolApprovalLabel(request, "approved_always")
+			}
+			return durableErr
+		}
 	}
 	if b == nil || b.sessions == nil {
 		return toolApprovalError(
@@ -103,7 +120,52 @@ func (b *toolApprovalBridge) RequestToolApproval(
 	if err != nil {
 		return err
 	}
-	return b.applyToolApprovalOutcome(ctx, scope, call, toolID, response.Outcome)
+	err = b.applyToolApprovalOutcome(ctx, scope, call, toolID, response.Outcome)
+	if err == nil {
+		setToolApprovalLabel(request, toolApprovalOutcomeLabel(response.Outcome))
+	}
+	return err
+}
+
+func terminalApprovalForcePrompt(call toolspkg.CallRequest, toolID toolspkg.ToolID) (bool, error) {
+	if toolID != toolspkg.ToolIDTerminalExec {
+		return false, nil
+	}
+	var input terminalExecInput
+	if err := json.Unmarshal(call.Input, &input); err != nil {
+		return false, toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			toolID,
+			"terminal command approval input is invalid",
+			errors.Join(toolspkg.ErrToolInvalidInput, err),
+			toolspkg.ReasonSchemaInvalid,
+		)
+	}
+	classification := terminalpkg.ClassifyArgv(append([]string{input.Command}, input.Args...), nil)
+	if classification.Verdict == terminalpkg.CommandVerdictDenied {
+		return false, nativeCommandToolError(
+			toolspkg.ErrorCodeDenied,
+			toolID,
+			"approval_rejected — terminal command is blocked by the irreversible-operation policy",
+			toolspkg.ErrToolDenied,
+			toolspkg.ReasonSessionDenied,
+		)
+	}
+	return classification.Reason == "unclassifiable", nil
+}
+
+func setToolApprovalLabel(call *toolspkg.CallRequest, label string) {
+	if call != nil {
+		call.ApprovalGranted = true
+		call.ApprovalLabel = label
+	}
+}
+
+func toolApprovalOutcomeLabel(outcome acpsdk.RequestPermissionOutcome) string {
+	if outcome.Selected != nil && outcome.Selected.OptionId == toolApprovalAllowAlwaysID {
+		return "approved_always"
+	}
+	return "approved_once"
 }
 
 func (b *toolApprovalBridge) requestSessionToolApproval(

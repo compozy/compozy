@@ -43,8 +43,10 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/version"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/spf13/cobra"
 )
 
 func TestCLIRoundTripIntegration(t *testing.T) {
@@ -159,6 +161,176 @@ func TestCLIRoundTripIntegration(t *testing.T) {
 	if err := h.runner.waitForExit(); err != nil {
 		t.Fatalf("waitForExit() error = %v", err)
 	}
+}
+
+func TestTerminalAgentCommandBodiesKeepProfileHelperContracts(t *testing.T) { // IT-037
+	t.Parallel()
+	deps := commandDeps{}
+	testCases := []struct {
+		name                string
+		command             *cobra.Command
+		wantAllProfilesFlag bool
+	}{
+		{name: "journal aggregate read", command: newTerminalJournalCommand(deps), wantAllProfilesFlag: true},
+		{name: "input requests aggregate read", command: newTerminalInputRequestsCommand(deps), wantAllProfilesFlag: true},
+		{name: "quote owner read", command: newTerminalQuoteCommand(deps)},
+		{name: "exec mutation", command: newTerminalExecCommand(deps)},
+		{name: "signal mutation", command: newTerminalSignalCommand(deps)},
+		{name: "respond mutation", command: newTerminalRespondCommand(deps)},
+	}
+	for _, testCase := range testCases {
+		t.Run("Should configure "+testCase.name, func(t *testing.T) {
+			t.Parallel()
+			flag := testCase.command.Flags().Lookup(allProfilesFlagName)
+			if got := flag != nil; got != testCase.wantAllProfilesFlag {
+				t.Fatalf("--all-profiles present = %t, want %t", got, testCase.wantAllProfilesFlag)
+			}
+		})
+	}
+
+	quote := terminalQuote("term-4aa01f22e6c3", 120, 121, "FAIL users.test.ts\nexpected 201, received 500")
+	want := strings.Join([]string{
+		`<terminal_context terminal="term-4aa01f22e6c3" lines="120-121">`,
+		"120 | FAIL users.test.ts",
+		"121 | expected 201, received 500",
+		"</terminal_context>",
+	}, "\n")
+	if quote != want {
+		t.Fatalf("terminalQuote() = %q, want %q", quote, want)
+	}
+}
+
+func TestTerminalAgentCommandBodiesShouldMatchHTTPClientContracts(t *testing.T) { // IT-027, IT-034, IT-037
+	client := &terminalAgentCommandClient{DaemonClient: newDefaultProfileTestClient(&stubClient{})}
+	deps := newTestDeps(t, client)
+	testCases := []struct {
+		name     string
+		command  *cobra.Command
+		args     []string
+		input    string
+		contains string
+	}{
+		{"exec", newTerminalExecCommand(deps), []string{"exec", "--workspace", "workspace-a", "--yield", "250ms", "printf", "ok"}, "", "ok"},
+		{"signal", newTerminalSignalCommand(deps), []string{"signal", "--workspace", "workspace-a", "--signal", "TERM", "term-a"}, "", "SIGTERM delivered"},
+		{"input requests", newTerminalInputRequestsCommand(deps), []string{"input-requests", "--workspace", "workspace-a", "--all-profiles"}, "", "input-a"},
+		{"respond reject", newTerminalRespondCommand(deps), []string{"respond", "--workspace", "workspace-a", "--request", "input-a", "--reject", "term-a"}, "", "Rejected"},
+		{"journal", newTerminalJournalCommand(deps), []string{"journal", "--workspace", "workspace-a", "--all-profiles", "--limit", "25"}, "", "No terminal commands matched"},
+		{"record", newTerminalRecordCommand(deps), []string{"record", "start", "--workspace", "workspace-a", "term-a"}, "", "recording-a"},
+		{"quote", newTerminalQuoteCommand(deps), []string{"quote", "--workspace", "workspace-a", "--lines", "1-2", "term-a"}, "", `<terminal_context terminal="term-a" lines="1-2">`},
+	}
+	for _, testCase := range testCases {
+		t.Run("Should execute "+testCase.name, func(t *testing.T) {
+			root := newRootCommand(deps)
+			terminalCommand := newTerminalCommand(deps)
+			root.AddCommand(terminalCommand)
+			terminalCommand.AddCommand(testCase.command)
+			var stdout, stderr bytes.Buffer
+			root.SetOut(&stdout)
+			root.SetErr(&stderr)
+			root.SetIn(strings.NewReader(testCase.input))
+			root.SetArgs(append([]string{"terminal"}, testCase.args...))
+			if err := root.ExecuteContext(t.Context()); err != nil {
+				t.Fatalf("ExecuteContext() error = %v; stderr=%s", err, stderr.String())
+			}
+			if !strings.Contains(stdout.String(), testCase.contains) {
+				t.Fatalf("stdout = %q, want %q", stdout.String(), testCase.contains)
+			}
+		})
+	}
+	if client.exec.Workspace != "workspace-a" || client.exec.Request.YieldMs != 250 ||
+		client.signal != "TERM" || !client.inputAllProfiles || !client.journalAllProfiles ||
+		client.journal.Limit != 25 || client.rejected != "input-a" || client.recordAction != "start" {
+		t.Fatalf("terminal command calls = %#v", client)
+	}
+}
+
+type terminalAgentCommandClient struct {
+	DaemonClient
+	exec struct {
+		Workspace string
+		Request   TerminalExecRequest
+	}
+	signal             string
+	inputAllProfiles   bool
+	journalAllProfiles bool
+	journal            TerminalJournalQuery
+	rejected           string
+	recordAction       string
+}
+
+func (*terminalAgentCommandClient) CreateTerminal(context.Context, string, TerminalCreateRequest) (TerminalRecord, error) {
+	return TerminalRecord{}, nil
+}
+func (*terminalAgentCommandClient) ListTerminals(context.Context, string) ([]TerminalRecord, error) {
+	return nil, nil
+}
+func (*terminalAgentCommandClient) GetTerminal(context.Context, string, string) (TerminalRecord, error) {
+	return TerminalRecord{}, nil
+}
+func (*terminalAgentCommandClient) DeleteTerminal(context.Context, string, string, string) (TerminalExitRecord, error) {
+	return TerminalExitRecord{}, nil
+}
+func (*terminalAgentCommandClient) AttachTerminal(context.Context, string, string, TerminalAttachOptions, io.Reader, io.Writer) error {
+	return nil
+}
+func (c *terminalAgentCommandClient) ExecTerminal(
+	_ context.Context,
+	workspace string,
+	request TerminalExecRequest,
+) (terminalpkg.ExecResult, error) {
+	c.exec.Workspace, c.exec.Request = workspace, request
+	return terminalpkg.ExecResult{CommandID: "cmd-a", Output: "ok", Untrusted: true}, nil
+}
+func (*terminalAgentCommandClient) ReadTerminal(
+	context.Context,
+	string,
+	string,
+	TerminalReadOptions,
+) (terminalpkg.ReadResult, error) {
+	return terminalpkg.ReadResult{Content: "first\nsecond", Untrusted: true}, nil
+}
+func (c *terminalAgentCommandClient) SignalTerminal(_ context.Context, _, _, signal string) error {
+	c.signal = signal
+	return nil
+}
+func (c *terminalAgentCommandClient) ListTerminalInputRequests(
+	ctx context.Context,
+	_ string,
+	_ TerminalInputRequestQuery,
+) ([]terminalpkg.PendingInputRequest, error) {
+	selection, ok := ctx.Value(profileReadSelectionContextKey{}).(profileReadSelection)
+	c.inputAllProfiles = ok && selection.AllProfiles
+	return []terminalpkg.PendingInputRequest{{ID: "input-a", TerminalID: "term-a"}}, nil
+}
+func (*terminalAgentCommandClient) AnswerTerminalInputRequest(
+	context.Context,
+	string,
+	string,
+	string,
+	[]byte,
+) (int, bool, error) {
+	return 2, true, nil
+}
+func (c *terminalAgentCommandClient) RejectTerminalInputRequest(_ context.Context, _, _, requestID, _ string) error {
+	c.rejected = requestID
+	return nil
+}
+func (c *terminalAgentCommandClient) QueryTerminalJournal(
+	ctx context.Context,
+	_ string,
+	query TerminalJournalQuery,
+) (terminalpkg.Page, error) {
+	selection, ok := ctx.Value(profileReadSelectionContextKey{}).(profileReadSelection)
+	c.journalAllProfiles = ok && selection.AllProfiles
+	c.journal = query
+	return terminalpkg.Page{}, nil
+}
+func (c *terminalAgentCommandClient) ControlTerminalRecording(
+	_ context.Context,
+	_, _, action string,
+) (terminalpkg.RecordingRef, error) {
+	c.recordAction = action
+	return terminalpkg.RecordingRef{ID: "recording-a"}, nil
 }
 
 func TestRemoteCLIProfilesIntegrationIT060ThroughIT066(t *testing.T) {

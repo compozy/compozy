@@ -51,6 +51,9 @@ type session struct {
 	policy        Settings
 	recordingMu   sync.Mutex
 	recording     *activeRecording
+	captureMu     sync.Mutex
+	capture       []byte
+	captureOutput bool
 	done          chan struct{}
 	closeOnce     sync.Once
 }
@@ -180,6 +183,11 @@ func (s *session) acceptOutput(input []byte) {
 	if len(input) == 0 {
 		return
 	}
+	if s.captureOutput {
+		s.captureMu.Lock()
+		s.capture = append(s.capture, input...)
+		s.captureMu.Unlock()
+	}
 	s.appendRecording(input)
 	s.manager.observeJournalOutput(s.Info())
 	start, end := s.ring.Append(input)
@@ -202,6 +210,12 @@ func (s *session) acceptOutput(input []byte) {
 	for _, subscriber := range subscribers {
 		subscriber.deliver(frame, end)
 	}
+}
+
+func (s *session) capturedOutput() []byte {
+	s.captureMu.Lock()
+	defer s.captureMu.Unlock()
+	return append([]byte(nil), s.capture...)
 }
 
 func (s *session) programTitleChanged(title string) {

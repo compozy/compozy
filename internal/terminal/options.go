@@ -34,6 +34,17 @@ type processCheckpoint interface {
 
 type processRegister func(context.Context, toolruntime.RegisterConfig) (processCheckpoint, error)
 
+// TypingGrantAuthorizer evaluates the existing profile-scoped approval store
+// before an agent can deliver bytes to a terminal.
+type TypingGrantAuthorizer interface {
+	AuthorizeTerminalInput(context.Context, Actor, Info) error
+}
+
+// ExecAuthorizer obtains a caller-owned approval decision for an agent command.
+type ExecAuthorizer interface {
+	AuthorizeTerminalExec(context.Context, ExecRequest, CommandClassification) (string, error)
+}
+
 type Option func(*Service) error
 
 func WithPTY(starter pty.PTY) Option {
@@ -82,6 +93,26 @@ func WithProfileGuard(guard ProfileGuard) Option {
 			return errors.New("terminal: profile guard is required")
 		}
 		service.profiles = guard
+		return nil
+	}
+}
+
+func WithTypingGrantAuthorizer(authorizer TypingGrantAuthorizer) Option {
+	return func(service *Service) error {
+		if authorizer == nil {
+			return errors.New("terminal: typing grant authorizer is required")
+		}
+		service.typingGrants = authorizer
+		return nil
+	}
+}
+
+func WithExecAuthorizer(authorizer ExecAuthorizer) Option {
+	return func(service *Service) error {
+		if authorizer == nil {
+			return errors.New("terminal: exec authorizer is required")
+		}
+		service.execApprovals = authorizer
 		return nil
 	}
 }
@@ -171,6 +202,16 @@ func WithEntropy(entropy io.Reader) Option {
 	}
 }
 
+func withInputRequestTTL(ttl time.Duration) Option {
+	return func(service *Service) error {
+		if ttl <= 0 {
+			return errors.New("terminal: input request ttl must be positive")
+		}
+		service.inputRequestTTL = ttl
+		return nil
+	}
+}
+
 func defaultServiceOptions(service *Service) {
 	service.pty = pty.New()
 	service.settings = func(context.Context, string, string) (Settings, error) {
@@ -181,6 +222,7 @@ func defaultServiceOptions(service *Service) {
 	service.logger = slog.Default()
 	service.now = func() time.Time { return time.Now().UTC() }
 	service.entropy = rand.Reader
+	service.inputRequestTTL = inputRequestTTL
 }
 
 type noopMarkerConsumer struct{}

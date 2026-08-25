@@ -22,7 +22,26 @@ func (s *session) infoSnapshotLocked() Info {
 	return info
 }
 
-func (s *session) Write(_ context.Context, actor Actor, input []byte) error {
+func (s *session) Write(ctx context.Context, actor Actor, input []byte) error {
+	return s.deliverInputMode(ctx, actor, input, false, false)
+}
+
+type echoAwareProc interface {
+	EchoEnabled() (bool, error)
+	WriteRedacted([]byte) (int, error)
+}
+
+func (s *session) deliverInput(ctx context.Context, actor Actor, input []byte, clientRedact bool) error {
+	return s.deliverInputMode(ctx, actor, input, clientRedact, false)
+}
+
+func (s *session) deliverInputMode(
+	ctx context.Context,
+	actor Actor,
+	input []byte,
+	clientRedact bool,
+	answerHandoff bool,
+) error {
 	if err := s.authorizeProfile(actor); err != nil {
 		return err
 	}
@@ -35,17 +54,47 @@ func (s *session) Write(_ context.Context, actor Actor, input []byte) error {
 	if err := s.runningGate(); err != nil {
 		return err
 	}
+	if actor.Kind == ActorKindAgent {
+		if s.manager.typingGrants == nil {
+			return &Error{Code: "typing_grant_rejected", Message: "agent typing requires a one-time terminal grant", Err: ErrTypingGrant}
+		}
+		if err := s.manager.typingGrants.AuthorizeTerminalInput(ctx, actor, s.Info()); err != nil {
+			return err
+		}
+	}
 	filtered := s.filter.FilterInput(input)
 	info := s.Info()
-	reservation, admitted := s.manager.reserveJournalInput(info, filtered)
+	redacted := clientRedact
+	writer := s.proc.Write
+	if echoProc, ok := s.proc.(echoAwareProc); ok {
+		echoEnabled, err := echoProc.EchoEnabled()
+		if err != nil {
+			return err
+		}
+		redacted = redacted || !echoEnabled
+		if redacted {
+			writer = echoProc.WriteRedacted
+		}
+	}
+	auditInput := filtered
+	if redacted {
+		auditInput = nil
+	}
+	reservation, admitted := s.manager.reserveJournalInput(info, auditInput)
 	if !admitted {
 		return &Error{Code: "journal_unavailable", Message: "terminal input is blocked while the journal lane is full", Err: ErrJournalUnavailable}
 	}
-	if err := s.lease.deliver(actor, filtered); err != nil {
-		s.manager.releaseJournalInput(info, reservation)
-		return err
+	var deliveryErr error
+	if answerHandoff {
+		deliveryErr = s.lease.answerHandoff(actor, filtered, writer)
+	} else {
+		deliveryErr = s.lease.deliverWith(actor, filtered, writer)
 	}
-	s.manager.commitJournalInput(info, actor, filtered, reservation)
+	if deliveryErr != nil {
+		s.manager.releaseJournalInput(info, reservation)
+		return deliveryErr
+	}
+	s.manager.commitJournalInput(info, actor, auditInput, reservation)
 	return nil
 }
 
@@ -87,6 +136,9 @@ func (s *session) readTail(options ReadOptions) *ReadResult {
 		replay := s.ring.ReplayFrom(options.SinceSeq)
 		content, seq, truncated = replay.Payload, replay.Seq, replay.Truncated
 	}
+	if options.Grep != "" {
+		content = grepOutput(content, options.Grep)
+	}
 	if options.MaxBytes > 0 && len(content) > options.MaxBytes {
 		content = content[len(content)-options.MaxBytes:]
 		content = trimPartialLeadingRune(content)
@@ -119,25 +171,33 @@ func (s *session) readLines(options ReadOptions) *ReadResult {
 	}
 	selected := strings.Join(lines[from:to], "\n")
 	if options.Grep != "" {
-		matches := make([]string, 0)
-		for _, line := range strings.Split(selected, "\n") {
-			if strings.Contains(line, options.Grep) {
-				matches = append(matches, line)
-			}
-		}
-		selected = strings.Join(matches, "\n")
+		selected = string(grepOutput([]byte(selected), options.Grep))
 	}
-	return &ReadResult{Content: selected, Seq: seq, Untrusted: true}
+	truncated := false
+	if options.MaxBytes > 0 && len(selected) > options.MaxBytes {
+		content := []byte(selected)
+		content = trimPartialLeadingRune(content[len(content)-options.MaxBytes:])
+		selected = string(content)
+		truncated = true
+	}
+	return &ReadResult{Content: selected, Seq: seq, Truncated: truncated, Untrusted: true}
 }
 
-func (s *session) Takeover(_ context.Context, actor Actor, force bool) error {
+func (s *session) Takeover(ctx context.Context, actor Actor, force bool) error {
 	if err := s.authorizeProfile(actor); err != nil {
 		return err
 	}
 	if err := s.runningGate(); err != nil {
 		return err
 	}
-	return s.lease.takeover(actor, force)
+	_, before := s.lease.snapshot()
+	if err := s.lease.takeover(actor, force); err != nil {
+		return err
+	}
+	if before == nil || !sameActor(actor, *before) {
+		s.supersedeInputRequests(context.WithoutCancel(ctx), actor)
+	}
+	return nil
 }
 
 func (s *session) Yield(_ context.Context, actor Actor) error {
@@ -148,6 +208,43 @@ func (s *session) Yield(_ context.Context, actor Actor) error {
 		return err
 	}
 	return s.lease.yield(actor)
+}
+
+func (s *session) claim(actor Actor) error {
+	if err := s.authorizeProfile(actor); err != nil {
+		return err
+	}
+	if err := s.runningGate(); err != nil {
+		return err
+	}
+	return s.lease.claim(actor)
+}
+
+func (s *session) runtimeRecovered(previous, current Actor) bool {
+	s.mu.Lock()
+	bound := s.info.BoundRun
+	if bound == nil || bound.SessionID != previous.SessionID || bound.RunID != previous.RunID ||
+		bound.Generation != previous.Generation || current.Generation <= previous.Generation {
+		s.mu.Unlock()
+		return false
+	}
+	s.info.BoundRun = &RunRef{
+		SessionID: current.SessionID, RunID: current.RunID, Generation: current.Generation,
+	}
+	s.mu.Unlock()
+	s.lease.runtimeRecovered(previous, current)
+	return true
+}
+
+func (s *session) runEnded(actor Actor) bool {
+	info := s.Info()
+	if info.BoundRun == nil || info.BoundRun.SessionID != actor.SessionID ||
+		info.BoundRun.RunID != actor.RunID || info.BoundRun.Generation != actor.Generation {
+		return false
+	}
+	s.lease.runEnded(actor, "run_ended")
+	s.supersedeInputRequests(context.Background(), actor)
+	return true
 }
 
 func (s *session) Signal(_ context.Context, actor Actor, signal Signal) error {
@@ -185,31 +282,15 @@ func (s *session) authorizeClose(actor Actor) error {
 }
 
 func (s *session) authorizeProfile(actor Actor) error {
-	if actor.ProfileID != s.Info().ProfileID {
+	info := s.Info()
+	if actor.ProfileID != info.ProfileID {
 		return &Error{Code: "terminal_not_found", Message: "terminal not found", Err: ErrNotFound}
 	}
+	if actor.Kind == ActorKindAgent && info.BoundRun != nil && actor.SessionID == info.BoundRun.SessionID &&
+		actor.RunID == info.BoundRun.RunID && actor.Generation != info.BoundRun.Generation {
+		return &Error{Code: "generation_fenced", Message: "terminal action came from a stale runtime generation", Err: ErrGenerationFenced}
+	}
 	return nil
-}
-
-func (s *session) RequestInput(context.Context, InputRequest) (*InputOutcome, error) {
-	if s.Info().Mode != ModePTY {
-		return nil, &Error{Code: "terminal_not_interactive", Message: "terminal is not interactive", Err: ErrNotInteractive}
-	}
-	return nil, &Error{Code: "terminal_input_requests_unavailable", Message: "terminal input requests are not available yet", Err: ErrUnsupported}
-}
-
-func (s *session) AnswerInput(_ context.Context, actor Actor, _ InputRequestID, _ InputAnswer) error {
-	if err := s.authorizeProfile(actor); err != nil {
-		return err
-	}
-	return &Error{Code: "terminal_input_requests_unavailable", Message: "terminal input requests are not available yet", Err: ErrUnsupported}
-}
-
-func (s *session) RejectInput(_ context.Context, actor Actor, _ InputRequestID, _ string) error {
-	if err := s.authorizeProfile(actor); err != nil {
-		return err
-	}
-	return &Error{Code: "terminal_input_requests_unavailable", Message: "terminal input requests are not available yet", Err: ErrUnsupported}
 }
 
 func (s *session) StartRecording(_ context.Context, actor Actor) (RecordingRef, error) {
@@ -249,11 +330,13 @@ func (s *session) touch() {
 	s.mu.Unlock()
 }
 
-func (s *session) leaseChanged(from, to LeaseState, reason string, actor Actor) {
+func (s *session) leaseChanged(from, to LeaseState, reason string, actor Actor, controller *Actor) {
 	s.mu.Lock()
 	s.info.Lease = to
-	_, controller := s.lease.snapshot()
-	s.info.Controller = controller
+	s.info.Controller = cloneActor(controller)
+	if from == LeaseAgentOwned && to != LeaseAgentOwned && reason != "answer_handoff" {
+		s.info.TypingGeneration++
+	}
 	info := s.infoSnapshotLocked()
 	s.mu.Unlock()
 	s.manager.events.Emit(context.Background(), TerminalEvent{

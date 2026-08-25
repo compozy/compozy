@@ -19,9 +19,10 @@ import (
 )
 
 type fakePTY struct {
-	mu     sync.Mutex
-	procs  []*fakeProc
-	starts atomic.Int32
+	mu      sync.Mutex
+	procs   []*fakeProc
+	starts  atomic.Int32
+	started chan *fakeProc
 }
 
 func (p *fakePTY) Start(_ context.Context, spec ProcSpec) (Proc, error) {
@@ -30,6 +31,9 @@ func (p *fakePTY) Start(_ context.Context, spec ProcSpec) (Proc, error) {
 	p.mu.Lock()
 	p.procs = append(p.procs, proc)
 	p.mu.Unlock()
+	if p.started != nil {
+		p.started <- proc
+	}
 	return proc, nil
 }
 
@@ -43,19 +47,21 @@ func (p *fakePTY) latest() *fakeProc {
 }
 
 type fakeProc struct {
-	reader       *io.PipeReader
-	output       *io.PipeWriter
-	done         chan struct{}
-	completeOnce sync.Once
-	closeOnce    sync.Once
-	mu           sync.Mutex
-	input        bytes.Buffer
-	resizes      []fakeResize
-	exit         terminalpty.Exit
-	completeErr  error
-	spec         ProcSpec
-	pid          int
-	reads        atomic.Int32
+	reader         *io.PipeReader
+	output         *io.PipeWriter
+	done           chan struct{}
+	completeOnce   sync.Once
+	closeOnce      sync.Once
+	mu             sync.Mutex
+	input          bytes.Buffer
+	resizes        []fakeResize
+	exit           terminalpty.Exit
+	completeErr    error
+	spec           ProcSpec
+	pid            int
+	reads          atomic.Int32
+	redactedWrites atomic.Int32
+	echoEnabled    bool
 }
 
 type fakeResize struct {
@@ -65,7 +71,7 @@ type fakeResize struct {
 
 func newFakeProc(pid int) *fakeProc {
 	reader, output := io.Pipe()
-	return &fakeProc{reader: reader, output: output, done: make(chan struct{}), pid: pid}
+	return &fakeProc{reader: reader, output: output, done: make(chan struct{}), pid: pid, echoEnabled: true}
 }
 
 func (p *fakeProc) Reader() io.Reader { return countingReader{Reader: p.reader, count: &p.reads} }
@@ -74,6 +80,17 @@ func (p *fakeProc) Write(input []byte) (int, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.input.Write(input)
+}
+
+func (p *fakeProc) EchoEnabled() (bool, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.echoEnabled, nil
+}
+
+func (p *fakeProc) WriteRedacted(input []byte) (int, error) {
+	p.redactedWrites.Add(1)
+	return p.Write(input)
 }
 
 func (p *fakeProc) Resize(cols, rows uint16) error {
@@ -199,6 +216,18 @@ type fakeProfileGuard struct {
 	errors map[string]error
 }
 
+type fakeTypingGrantAuthorizer struct {
+	calls      atomic.Int32
+	generation atomic.Uint64
+	err        error
+}
+
+func (a *fakeTypingGrantAuthorizer) AuthorizeTerminalInput(_ context.Context, _ Actor, info Info) error {
+	a.calls.Add(1)
+	a.generation.Store(info.TypingGeneration)
+	return a.err
+}
+
 func (g *fakeProfileGuard) EnsureAvailableID(_ context.Context, profileID string) error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -216,9 +245,15 @@ type fakeRecordingJournal struct {
 	called    chan struct{}
 	calledOne sync.Once
 	release   <-chan struct{}
+	rows      []CommandRow
 }
 
-func (j *fakeRecordingJournal) Record(context.Context, string, CommandRow) error { return nil }
+func (j *fakeRecordingJournal) Record(_ context.Context, _ string, row CommandRow) error {
+	j.mu.Lock()
+	j.rows = append(j.rows, row)
+	j.mu.Unlock()
+	return nil
+}
 
 func (j *fakeRecordingJournal) Query(context.Context, string, store.ReadScope, Query) (*Page, error) {
 	return &Page{Entries: []CommandRow{}}, nil
@@ -285,7 +320,7 @@ func newTestManager(
 ) (*Service, *fakePTY, string) {
 	t.Helper()
 	root := t.TempDir()
-	starter := &fakePTY{}
+	starter := &fakePTY{started: make(chan *fakeProc, 64)}
 	resolver := &staticWorkspaceResolver{workspace: workspacepkg.ResolvedWorkspace{
 		Workspace: workspacepkg.Workspace{ID: "workspace-a", RootDir: root}, WorkspaceID: "workspace-a",
 	}}

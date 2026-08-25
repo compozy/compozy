@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -13,6 +15,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	apitest "github.com/compozy/compozy/internal/api/testutil"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/network/participation"
@@ -20,6 +23,7 @@ import (
 	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -1734,6 +1738,82 @@ func (r *recordingLoopTerminalObserver) OnLoopTerminal(
 type spyLifecycleObserver struct {
 	created []*session.Session
 	stopped []*session.Session
+}
+
+func TestHooksNotifierShouldFenceTerminalRuntimeRecoveryGeneration(t *testing.T) {
+	t.Parallel()
+	notifier := newHooksNotifier(discardLogger(), time.Now)
+	spy := &spyTerminalRuntimeRecovery{}
+	notifier.setTerminalRuntime(spy)
+	payload := hookspkg.SessionRuntimeRecoveryStartedPayload{
+		SessionContext: hookspkg.SessionContext{
+			ProfileID: "profile-a", SessionID: "session-a", AgentName: "agent-a",
+		},
+		Generation: 2,
+	}
+	if _, err := notifier.DispatchSessionRuntimeRecoveryStarted(context.Background(), payload); err != nil {
+		t.Fatalf("DispatchSessionRuntimeRecoveryStarted() error = %v", err)
+	}
+	if got, want := len(spy.calls), 1; got != want {
+		t.Fatalf("terminal recovery calls = %d, want %d", got, want)
+	}
+	call := spy.calls[0]
+	if call.previous.Generation != 1 || call.current.Generation != 2 ||
+		call.current.ProfileID != "profile-a" || call.current.SessionID != "session-a" || call.current.ID != "agent-a" {
+		t.Fatalf("terminal recovery call = %#v", call)
+	}
+}
+
+func TestTerminalRunLifecycleObserverShouldReleaseCurrentSessionGeneration(t *testing.T) {
+	t.Parallel()
+	spy := &spyTerminalSessionRunEnder{}
+	observer := &terminalRunLifecycleObserver{
+		terminals: spy,
+		sessions: apitest.StubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+			return &session.Info{ID: id, RuntimeGeneration: 7}, nil
+		}},
+	}
+	err := observer.OnTaskRunTerminal(context.Background(), hookspkg.TaskRunLeasePayload{
+		TaskRunContext: hookspkg.TaskRunContext{ProfileID: "profile-a", SessionID: "session-a"},
+	})
+	if err != nil {
+		t.Fatalf("OnTaskRunTerminal() error = %v", err)
+	}
+	if got, want := spy.calls, []string{"profile-a/session-a/7"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("terminal run-end calls = %#v, want %#v", got, want)
+	}
+}
+
+type spyTerminalSessionRunEnder struct {
+	calls []string
+}
+
+func (s *spyTerminalSessionRunEnder) SessionRunEnded(
+	_ context.Context,
+	profileID, sessionID string,
+	generation int64,
+) int {
+	s.calls = append(s.calls, fmt.Sprintf("%s/%s/%d", profileID, sessionID, generation))
+	return 1
+}
+
+type spyTerminalRuntimeRecovery struct {
+	calls []struct {
+		previous terminalpkg.Actor
+		current  terminalpkg.Actor
+	}
+}
+
+func (s *spyTerminalRuntimeRecovery) RuntimeRecovered(
+	_ context.Context,
+	previous terminalpkg.Actor,
+	current terminalpkg.Actor,
+) int {
+	s.calls = append(s.calls, struct {
+		previous terminalpkg.Actor
+		current  terminalpkg.Actor
+	}{previous: previous, current: current})
+	return 1
 }
 
 type recordingSubprocessHealthRuntime struct {

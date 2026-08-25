@@ -1,0 +1,331 @@
+package core
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"runtime"
+	"strings"
+
+	"github.com/compozy/compozy/internal/store"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
+	"github.com/gin-gonic/gin"
+)
+
+type execTerminalRequest struct {
+	Command string                  `json:"command"`
+	Args    []string                `json:"args"`
+	Cwd     string                  `json:"cwd"`
+	Env     map[string]string       `json:"env"`
+	YieldMs int                     `json:"yield_ms"`
+	Visible bool                    `json:"visible"`
+	Output  terminalpkg.OutputShape `json:"output"`
+}
+
+type waitTerminalRequest struct {
+	Until     string `json:"until"`
+	Pattern   string `json:"pattern"`
+	TimeoutMs int    `json:"timeout_ms"`
+}
+
+type signalTerminalRequest struct {
+	Signal terminalpkg.Signal `json:"signal"`
+}
+
+type answerTerminalInputRequest struct {
+	Input string `json:"input"`
+}
+
+type rejectTerminalInputRequest struct {
+	Reason string `json:"reason"`
+}
+
+type terminalRecordingRequest struct {
+	Action string `json:"action"`
+}
+
+type terminalInputRequestLister interface {
+	InputRequests(context.Context, string, store.ReadScope, terminalpkg.ID) ([]terminalpkg.PendingInputRequest, error)
+}
+
+type terminalInputRequestInspector interface {
+	PendingInput(terminalpkg.InputRequestID) (*terminalpkg.PendingInputRequest, error)
+}
+
+func (h *BaseHandlers) ExecTerminal(c *gin.Context) {
+	service, profileID, ok := h.terminalService(c, true)
+	if !ok {
+		return
+	}
+	workspaceID := strings.TrimSpace(c.Param("workspace_id"))
+	actor, ok := h.terminalActor(c, workspaceID, profileID, "terminal.exec")
+	if !ok {
+		return
+	}
+	var request execTerminalRequest
+	if err := decodeStrictJSONBody(c, &request); err != nil {
+		h.respondTerminalError(c, terminalRequestError(err))
+		return
+	}
+	result, err := service.Exec(c.Request.Context(), terminalpkg.ExecRequest{
+		WS: workspaceID, Command: request.Command, Args: request.Args, Cwd: request.Cwd,
+		Env: request.Env, YieldMs: request.YieldMs, Visible: request.Visible, Output: request.Output,
+		Actor: actor, Capabilities: terminalpkg.ResolveCapabilities(runtime.GOOS, terminalpkg.WorkspaceKindLocal),
+	})
+	if err != nil {
+		h.respondTerminalError(c, err)
+		return
+	}
+	status := http.StatusOK
+	if result.StillRunning {
+		status = http.StatusAccepted
+	}
+	c.JSON(status, result)
+}
+
+func (h *BaseHandlers) ReadTerminal(c *gin.Context) {
+	handle, _, ok := h.terminalHandle(c, false, "terminal.read")
+	if !ok {
+		return
+	}
+	maxBytes, err := ParseOptionalInt(c.Query("max_bytes"))
+	if err != nil {
+		h.respondTerminalError(c, terminalRequestError(err))
+		return
+	}
+	sinceSeq, err := parseTerminalUint(c.Query("since_seq"), 64)
+	if err != nil {
+		h.respondTerminalError(c, terminalRequestError(err))
+		return
+	}
+	from, err := ParseOptionalInt(c.Query("from"))
+	if err != nil {
+		h.respondTerminalError(c, terminalRequestError(err))
+		return
+	}
+	to, err := ParseOptionalInt(c.Query("to"))
+	if err != nil {
+		h.respondTerminalError(c, terminalRequestError(err))
+		return
+	}
+	result, err := handle.Screen(c.Request.Context(), terminalpkg.ReadOptions{
+		View: c.Query("view"), MaxBytes: maxBytes, SinceSeq: sinceSeq,
+		FromLine: from, ToLine: to, Grep: c.Query("grep"),
+	})
+	if err != nil {
+		h.respondTerminalError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+func (h *BaseHandlers) WaitTerminal(c *gin.Context) {
+	handle, _, ok := h.terminalHandle(c, false, "terminal.wait")
+	if !ok {
+		return
+	}
+	var request waitTerminalRequest
+	if err := decodeStrictJSONBody(c, &request); err != nil {
+		h.respondTerminalError(c, terminalRequestError(err))
+		return
+	}
+	if request.TimeoutMs > 60_000 {
+		h.respondTerminalError(c, &terminalpkg.Error{Code: "timeout_out_of_range", Message: "terminal wait timeout_ms must not exceed 60000", Err: terminalpkg.ErrUnsupported})
+		return
+	}
+	result, err := handle.Wait(c.Request.Context(), terminalpkg.WaitCondition{Until: request.Until, Pattern: request.Pattern, TimeoutMs: request.TimeoutMs})
+	if err != nil {
+		h.respondTerminalError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+func (h *BaseHandlers) SignalTerminal(c *gin.Context) {
+	handle, actor, ok := h.terminalHandle(c, true, "terminal.signal")
+	if !ok {
+		return
+	}
+	var request signalTerminalRequest
+	if err := decodeStrictJSONBody(c, &request); err != nil {
+		h.respondTerminalError(c, terminalRequestError(err))
+		return
+	}
+	if !validTerminalSignal(request.Signal) {
+		h.respondTerminalError(c, terminalRequestError(errors.New("signal must be INT, TERM, KILL, or HUP")))
+		return
+	}
+	if err := handle.Signal(c.Request.Context(), actor, request.Signal); err != nil {
+		h.respondTerminalError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"delivered": true})
+}
+
+func (h *BaseHandlers) ListTerminalInputRequests(c *gin.Context) {
+	if h == nil || h.Terminal == nil {
+		h.respondTerminalUnavailable(c)
+		return
+	}
+	scope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	service, err := h.Terminal.TerminalFor(scope.ProfileID)
+	if err != nil {
+		h.respondTerminalError(c, err)
+		return
+	}
+	lister, ok := service.(terminalInputRequestLister)
+	if !ok {
+		h.respondTerminalUnavailable(c)
+		return
+	}
+	requests, err := lister.InputRequests(c.Request.Context(), strings.TrimSpace(c.Param("workspace_id")), scope, terminalpkg.ID(strings.TrimSpace(c.Query("terminal_id"))))
+	if err != nil {
+		h.respondTerminalError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"requests": requests})
+}
+
+func (h *BaseHandlers) AnswerTerminalInputRequest(c *gin.Context) {
+	handle, actor, ok := h.terminalHandle(c, true, "terminal.input.answer")
+	if !ok {
+		return
+	}
+	var request answerTerminalInputRequest
+	if err := decodeStrictJSONBody(c, &request); err != nil {
+		h.respondTerminalError(c, terminalRequestError(err))
+		return
+	}
+	requestID := terminalpkg.InputRequestID(strings.TrimSpace(c.Param("request_id")))
+	redacted := false
+	if inspector, available := handle.(terminalInputRequestInspector); available {
+		pending, err := inspector.PendingInput(requestID)
+		if err != nil {
+			h.respondTerminalError(c, err)
+			return
+		}
+		redacted = pending.Redacted
+	}
+	if err := handle.AnswerInput(c.Request.Context(), actor, requestID, terminalpkg.InputAnswer{Input: []byte(request.Input)}); err != nil {
+		h.respondTerminalError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"delivered_bytes": len(request.Input), "redacted": redacted})
+}
+
+func (h *BaseHandlers) RejectTerminalInputRequest(c *gin.Context) {
+	handle, actor, ok := h.terminalHandle(c, true, "terminal.input.reject")
+	if !ok {
+		return
+	}
+	var request rejectTerminalInputRequest
+	if err := decodeStrictJSONBody(c, &request); err != nil {
+		h.respondTerminalError(c, terminalRequestError(err))
+		return
+	}
+	if err := handle.RejectInput(c.Request.Context(), actor, terminalpkg.InputRequestID(strings.TrimSpace(c.Param("request_id"))), request.Reason); err != nil {
+		h.respondTerminalError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"outcome": "rejected"})
+}
+
+func (h *BaseHandlers) ControlTerminalRecording(c *gin.Context) {
+	handle, actor, ok := h.terminalHandle(c, true, "terminal.record")
+	if !ok {
+		return
+	}
+	var request terminalRecordingRequest
+	if err := decodeStrictJSONBody(c, &request); err != nil {
+		h.respondTerminalError(c, terminalRequestError(err))
+		return
+	}
+	var recording terminalpkg.RecordingRef
+	var err error
+	switch request.Action {
+	case "start":
+		recording, err = handle.StartRecording(c.Request.Context(), actor)
+		recording.State = "recording"
+	case "stop":
+		recording, err = handle.StopRecording(c.Request.Context(), actor)
+		recording.State = "saved"
+	default:
+		err = terminalRequestError(errors.New("recording action must be start or stop"))
+	}
+	if err != nil {
+		h.respondTerminalError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"recording": recording})
+}
+
+func (h *BaseHandlers) QueryTerminalJournal(c *gin.Context) {
+	if h == nil || h.Terminal == nil {
+		h.respondTerminalUnavailable(c)
+		return
+	}
+	scope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	service, err := h.Terminal.TerminalFor(scope.ProfileID)
+	if err != nil {
+		h.respondTerminalError(c, err)
+		return
+	}
+	limit, err := ParseOptionalInt(c.Query("limit"))
+	if err != nil {
+		h.respondTerminalError(c, terminalRequestError(err))
+		return
+	}
+	failed, err := ParseOptionalBool(c.Query("failed"))
+	if err != nil {
+		h.respondTerminalError(c, terminalRequestError(err))
+		return
+	}
+	page, err := service.Journal().Query(c.Request.Context(), strings.TrimSpace(c.Param("workspace_id")), scope, terminalpkg.Query{
+		Actor: c.Query("actor"), Since: c.Query("since"), Terminal: c.Query("terminal_id"),
+		Failed: failed, Limit: limit, Cursor: c.Query("cursor"),
+	})
+	if err != nil {
+		h.respondTerminalError(c, err)
+		return
+	}
+	next := any(nil)
+	if page.Next != "" {
+		next = page.Next
+	}
+	c.JSON(http.StatusOK, gin.H{"entries": page.Entries, "next": next})
+}
+
+func (h *BaseHandlers) terminalHandle(c *gin.Context, mutation bool, action string) (terminalpkg.Handle, terminalpkg.Actor, bool) {
+	service, profileID, ok := h.terminalService(c, mutation)
+	if !ok {
+		return nil, terminalpkg.Actor{}, false
+	}
+	workspaceID := strings.TrimSpace(c.Param("workspace_id"))
+	actor, ok := h.terminalActor(c, workspaceID, profileID, action)
+	if !ok {
+		return nil, terminalpkg.Actor{}, false
+	}
+	handle, err := service.Handle(c.Request.Context(), workspaceID, profileID, terminalpkg.ID(strings.TrimSpace(c.Param("id"))))
+	if err != nil {
+		h.respondTerminalError(c, err)
+		return nil, terminalpkg.Actor{}, false
+	}
+	return handle, actor, true
+}
+
+func validTerminalSignal(signal terminalpkg.Signal) bool {
+	switch signal {
+	case terminalpkg.SignalINT, terminalpkg.SignalTERM, terminalpkg.SignalKILL, terminalpkg.SignalHUP:
+		return true
+	default:
+		return false
+	}
+}

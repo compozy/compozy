@@ -106,7 +106,7 @@ func TestManagerAdmissionAndScope(t *testing.T) {
 		}
 	})
 
-	t.Run("Should make cross-workspace and cross-profile lookups indistinguishable from absence [UT-057][UT-103]", func(t *testing.T) {
+	t.Run("Should make cross-workspace and cross-profile lookups indistinguishable from absence [UT-057][UT-089][UT-103][IT-036]", func(t *testing.T) {
 		t.Parallel()
 		manager, _, _ := newTestManager(t, DefaultSettings())
 		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
@@ -152,6 +152,43 @@ func TestManagerAdmissionAndScope(t *testing.T) {
 		}
 		if info := handle.Info(); info.Viewers != 0 || info.Exit != nil || starter.latest().inputString() != "" {
 			t.Fatalf("stale actions mutated terminal: %#v input=%q", info, starter.latest().inputString())
+		}
+	})
+
+	t.Run("Should deny signal and close outside the active controller while humans remain unrestricted [IT-028][IT-034]", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings())
+		agent := Actor{
+			Kind: ActorKindAgent, ID: "agent", ProfileID: "profile-a",
+			SessionID: "session", RunID: "run", Generation: 3,
+		}
+		handle, err := manager.Open(context.Background(), OpenRequest{
+			WS: "workspace-a", Shell: "sh", Actor: agent, Capabilities: Capabilities{Interactive: true},
+		})
+		if err != nil {
+			t.Fatalf("Open() error = %v", err)
+		}
+		receiveStartedProc(t, starter)
+		human := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		if err := handle.Takeover(context.Background(), human, true); err != nil {
+			t.Fatalf("Takeover() error = %v", err)
+		}
+		for name, action := range map[string]func() error{
+			"signal": func() error { return handle.Signal(context.Background(), agent, SignalTERM) },
+			"close": func() error {
+				_, closeErr := manager.Close(context.Background(), "workspace-a", handle.Info().ID, agent, SignalHUP)
+				return closeErr
+			},
+		} {
+			actionErr := action()
+			var terminalErr *Error
+			if !errors.As(actionErr, &terminalErr) || !errors.Is(actionErr, ErrWriteOwnerHeld) ||
+				terminalErr.Controller == nil || !sameActor(*terminalErr.Controller, human) {
+				t.Fatalf("%s(non-controller) error = %#v", name, actionErr)
+			}
+		}
+		if _, err := manager.Close(context.Background(), "workspace-a", handle.Info().ID, human, SignalHUP); err != nil {
+			t.Fatalf("Close(human controller) error = %v", err)
 		}
 	})
 
@@ -546,7 +583,7 @@ func TestManagerProfileAndShutdownLifecycle(t *testing.T) {
 		archived := errors.New("profile_archived")
 		unavailable := errors.New("profile_unavailable")
 		guard := &fakeProfileGuard{errors: map[string]error{}}
-		manager, _, _ := newTestManager(t, DefaultSettings(), WithProfileGuard(guard))
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithProfileGuard(guard))
 		existing := openTestTerminal(t, manager, "workspace-a", "profile-a")
 		guard.mu.Lock()
 		guard.errors["profile-a"] = archived
@@ -560,6 +597,16 @@ func TestManagerProfileAndShutdownLifecycle(t *testing.T) {
 			if !errors.Is(err, want) {
 				t.Fatalf("Open(%s) error = %v, want %v", profileID, err, want)
 			}
+			_, err = manager.Exec(context.Background(), ExecRequest{
+				WS: "workspace-a", Command: "printf",
+				Actor: Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: profileID},
+			})
+			if !errors.Is(err, want) {
+				t.Fatalf("Exec(%s) error = %v, want %v", profileID, err, want)
+			}
+		}
+		if got := starter.starts.Load(); got != 1 {
+			t.Fatalf("process starts after unavailable exec = %d, want existing terminal only", got)
 		}
 		if _, err := existing.Screen(context.Background(), ReadOptions{View: "tail"}); err != nil {
 			t.Fatalf("existing Screen() error = %v", err)
@@ -890,4 +937,763 @@ func waitDone(t *testing.T, manager *Service, workspaceID, profileID string, id 
 
 func terminalExit(cause string, code *int, signal *string) terminalpty.Exit {
 	return terminalpty.Exit{Cause: cause, Code: code, Signal: signal}
+}
+
+func TestManagerExecShapesAndOutputContract(t *testing.T) {
+	t.Parallel()
+	actor := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+
+	t.Run("Should refuse agent exec without caller-supplied approval before spawn [UT-068][IT-008]", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings())
+		_, err := manager.Exec(context.Background(), ExecRequest{
+			WS: "workspace-a", Command: "printf",
+			Actor: Actor{
+				Kind: ActorKindAgent, ID: "agent", ProfileID: "profile-a",
+				SessionID: "session-a", RunID: "run-a", Generation: 1,
+			},
+		})
+		if !errors.Is(err, ErrApprovalRequired) {
+			t.Fatalf("Exec(agent without approval) error = %v, want ErrApprovalRequired", err)
+		}
+		if starter.starts.Load() != 0 {
+			t.Fatalf("process starts = %d, want 0", starter.starts.Load())
+		}
+	})
+
+	t.Run("Should return a completed plain command without a terminal object [IT-027]", func(t *testing.T) {
+		t.Parallel()
+		journal := &fakeRecordingJournal{}
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithJournal(journal))
+		type execCompletion struct {
+			result *ExecResult
+			err    error
+		}
+		completed := make(chan execCompletion, 1)
+		go func() {
+			result, err := manager.Exec(context.Background(), ExecRequest{
+				WS: "workspace-a", Command: "printf", Args: []string{"ok"}, YieldMs: 1000,
+				Output: OutputShape{MaxBytes: 64, Strategy: "head_tail"}, Actor: actor,
+			})
+			completed <- execCompletion{result: result, err: err}
+		}()
+		proc := receiveStartedProc(t, starter)
+		if err := proc.emit([]byte("plain output")); err != nil {
+			t.Fatalf("emit() error = %v", err)
+		}
+		code := 0
+		proc.complete(terminalExit("exited", &code, nil))
+		completion := <-completed
+		if completion.err != nil || completion.result.TerminalID != nil || completion.result.Output != "plain output" ||
+			!completion.result.Untrusted || completion.result.StillRunning {
+			t.Fatalf("Exec(plain) = %#v error=%v", completion.result, completion.err)
+		}
+		journal.mu.Lock()
+		defer journal.mu.Unlock()
+		if len(journal.rows) != 1 || journal.rows[0].TerminalID != nil || journal.rows[0].DetectedBy != "exact" {
+			t.Fatalf("plain journal rows = %#v", journal.rows)
+		}
+	})
+
+	t.Run("Should expose a visible terminal from byte zero and close with actor attribution [IT-027][IT-034]", func(t *testing.T) {
+		t.Parallel()
+		bus := NewEventBus(nil)
+		closed := make(chan TerminalEvent, 1)
+		bus.Observe(func(_ context.Context, event TerminalEvent) {
+			if event.Kind == EventKindClosed {
+				closed <- event
+			}
+		})
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithEventBus(bus))
+		resultCh := make(chan *ExecResult, 1)
+		errCh := make(chan error, 1)
+		go func() {
+			result, err := manager.Exec(context.Background(), ExecRequest{
+				WS: "workspace-a", Command: "interactive", YieldMs: 250, Visible: true,
+				Actor: actor, Capabilities: Capabilities{Interactive: true},
+			})
+			resultCh <- result
+			errCh <- err
+		}()
+		proc := receiveStartedProc(t, starter)
+		if err := proc.emit([]byte("visible from byte zero")); err != nil {
+			t.Fatalf("emit() error = %v", err)
+		}
+		result := <-resultCh
+		if err := <-errCh; err != nil {
+			t.Fatalf("Exec(visible) error = %v", err)
+		}
+		if !result.StillRunning || result.TerminalID == nil {
+			t.Fatalf("Exec(visible) = %#v", result)
+		}
+		handle, err := manager.Handle(context.Background(), "workspace-a", "profile-a", *result.TerminalID)
+		if err != nil || handle.Info().Mode != ModePTY {
+			t.Fatalf("Handle(visible) = %#v error=%v", handle, err)
+		}
+		read := waitForTailContent(t, handle, "visible from byte zero")
+		if read.Content != "visible from byte zero" || !read.Untrusted {
+			t.Fatalf("visible tail = %#v", read)
+		}
+		if _, err := manager.Close(context.Background(), "workspace-a", *result.TerminalID, actor, SignalHUP); err != nil {
+			t.Fatalf("Close(visible) error = %v", err)
+		}
+		event := receiveTerminalEvent(t, closed)
+		if !sameActor(event.Actor, actor) || event.Reason != "operator_close" {
+			t.Fatalf("close event = %#v", event)
+		}
+	})
+
+	t.Run("Should persist the exact caller-owned approval label [IT-008]", func(t *testing.T) {
+		t.Parallel()
+		for _, approval := range []string{"approved_once", "approved_always", "allowlisted"} {
+			t.Run(approval, func(t *testing.T) {
+				journal := &fakeRecordingJournal{}
+				manager, starter, _ := newTestManager(t, DefaultSettings(), WithJournal(journal))
+				resultCh := make(chan error, 1)
+				go func() {
+					_, err := manager.Exec(context.Background(), ExecRequest{
+						WS: "workspace-a", Command: "printf", YieldMs: 1000, Approval: approval,
+						Actor: Actor{
+							Kind: ActorKindAgent, ID: "agent", ProfileID: "profile-a",
+							SessionID: "session-a", RunID: "run-a", Generation: 1,
+						},
+					})
+					resultCh <- err
+				}()
+				proc := receiveStartedProc(t, starter)
+				code := 0
+				proc.complete(terminalExit("exited", &code, nil))
+				if err := <-resultCh; err != nil {
+					t.Fatalf("Exec(%s) error = %v", approval, err)
+				}
+				journal.mu.Lock()
+				defer journal.mu.Unlock()
+				if len(journal.rows) != 1 || journal.rows[0].Approval != approval {
+					t.Fatalf("journal approval rows = %#v, want %q", journal.rows, approval)
+				}
+			})
+		}
+	})
+
+	t.Run("Should clean up a promoted exec when terminal capacity changed before publication [IT-027]", func(t *testing.T) {
+		t.Parallel()
+		settings := DefaultSettings()
+		settings.MaxPerWorkspace = 1
+		manager, starter, _ := newTestManager(t, settings)
+		openTestTerminal(t, manager, "workspace-a", "profile-a")
+		receiveStartedProc(t, starter)
+		errCh := make(chan error, 1)
+		go func() {
+			_, err := manager.Exec(context.Background(), ExecRequest{
+				WS: "workspace-a", Command: "server", YieldMs: 250, Actor: actor,
+			})
+			errCh <- err
+		}()
+		proc := receiveStartedProc(t, starter)
+		if err := <-errCh; !errors.Is(err, ErrLimitReached) {
+			t.Fatalf("Exec(cap hit) error = %v, want ErrLimitReached", err)
+		}
+		select {
+		case <-proc.done:
+		default:
+			t.Fatal("unpublished exec process survived capacity rejection")
+		}
+		items, err := manager.List(context.Background(), "workspace-a", store.ReadScope{ProfileID: "profile-a"})
+		if err != nil || len(items) != 1 {
+			t.Fatalf("List(after cap hit) = %#v error=%v", items, err)
+		}
+	})
+
+	t.Run("Should promote a running non-visible command to a pipe terminal at yield [UT-053][UT-097][IT-009][IT-025]", func(t *testing.T) {
+		t.Parallel()
+		journal := &fakeRecordingJournal{}
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithJournal(journal))
+		resultCh := make(chan *ExecResult, 1)
+		errCh := make(chan error, 1)
+		go func() {
+			result, err := manager.Exec(context.Background(), ExecRequest{
+				WS: "workspace-a", Command: "server", YieldMs: 250, Actor: actor,
+			})
+			resultCh <- result
+			errCh <- err
+		}()
+		proc := receiveStartedProc(t, starter)
+		result := <-resultCh
+		if err := <-errCh; err != nil {
+			t.Fatalf("Exec(yielded) error = %v", err)
+		}
+		if !result.StillRunning || result.TerminalID == nil {
+			t.Fatalf("Exec(yielded) = %#v", result)
+		}
+		handle, err := manager.Handle(context.Background(), "workspace-a", "profile-a", *result.TerminalID)
+		if err != nil || handle.Info().Mode != ModePipe {
+			t.Fatalf("Handle(promoted) = %#v error=%v", handle, err)
+		}
+		if _, err := handle.Screen(context.Background(), ReadOptions{View: "screen"}); !errors.Is(err, ErrNotInteractive) {
+			t.Fatalf("Screen(pipe) error = %v", err)
+		}
+		if _, err := handle.Attach(context.Background(), AttachOptions{Mode: "read", Actor: actor}); !errors.Is(err, ErrNotInteractive) {
+			t.Fatalf("Attach(pipe) error = %v", err)
+		}
+		if err := handle.Write(context.Background(), actor, []byte("input")); !errors.Is(err, ErrNotInteractive) {
+			t.Fatalf("Write(pipe) error = %v", err)
+		}
+		if _, err := handle.RequestInput(context.Background(), InputRequest{Reason: "prompt"}); !errors.Is(err, ErrNotInteractive) {
+			t.Fatalf("RequestInput(pipe) error = %v", err)
+		}
+		if err := proc.emit([]byte("one\ntwo\nthree\n")); err != nil {
+			t.Fatalf("emit() error = %v", err)
+		}
+		tail := waitForTailContent(t, handle, "three")
+		if tail.Content != "one\ntwo\nthree\n" || !tail.Untrusted {
+			t.Fatalf("tail(pipe) = %#v", tail)
+		}
+		lines, err := handle.Screen(context.Background(), ReadOptions{View: "lines", FromLine: 1, ToLine: 3})
+		if err != nil || lines.Content != "two\nthree" || !lines.Untrusted {
+			t.Fatalf("lines(pipe) = %#v error=%v", lines, err)
+		}
+		matched, err := handle.Wait(context.Background(), WaitCondition{Until: "match", Pattern: "three", TimeoutMs: 100})
+		if err != nil || matched.Reason != "match" || !matched.Untrusted {
+			t.Fatalf("Wait(match pipe) = %#v error=%v", matched, err)
+		}
+		if err := handle.Signal(context.Background(), actor, SignalTERM); err != nil {
+			t.Fatalf("Signal(pipe) error = %v", err)
+		}
+		wait, err := handle.Wait(context.Background(), WaitCondition{Until: "exit"})
+		if err != nil || wait.Reason != "exit" || !wait.Untrusted {
+			t.Fatalf("Wait(pipe) = %#v error=%v", wait, err)
+		}
+		deadline := time.NewTimer(time.Second)
+		defer deadline.Stop()
+		for {
+			journal.mu.Lock()
+			rows := append([]CommandRow(nil), journal.rows...)
+			journal.mu.Unlock()
+			if len(rows) == 1 {
+				if rows[0].TerminalID == nil || *rows[0].TerminalID != *result.TerminalID {
+					t.Fatalf("yielded journal rows = %#v", rows)
+				}
+				break
+			}
+			select {
+			case <-deadline.C:
+				t.Fatalf("yielded journal rows = %#v, want exactly one", rows)
+			case <-time.After(time.Millisecond):
+			}
+		}
+	})
+}
+
+func TestCommandClassificationAndOutputShaping(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should let only exact classifiable allowlist shapes bypass approval [UT-064][UT-065]", func(t *testing.T) {
+		t.Parallel()
+		allowlist := []ArgvPattern{{"bun", "test", "*"}}
+		if got := ClassifyArgv([]string{"/usr/local/bin/bun", "test", "web"}, allowlist); got.Verdict != CommandVerdictAllowlisted || got.Digest == "" {
+			t.Fatalf("ClassifyArgv(allowlisted) = %#v", got)
+		}
+		if got := ClassifyArgv([]string{"bun", "run", "web"}, allowlist); got.Verdict != CommandVerdictPrompt {
+			t.Fatalf("ClassifyArgv(nonmatch) = %#v", got)
+		}
+		denylist := []ArgvPattern{{"bun", "test", "*"}}
+		if got := ClassifyArgv([]string{"bun", "test", "web"}, allowlist, denylist); got.Verdict != CommandVerdictPrompt || got.Reason != "denylist" {
+			t.Fatalf("ClassifyArgv(overlapping safer rule) = %#v", got)
+		}
+	})
+
+	t.Run("Should deny irreversible argv and prompt on every indirection or obfuscation [UT-066][UT-067]", func(t *testing.T) {
+		t.Parallel()
+		if got := ClassifyArgv([]string{"rm", "-rf", "/"}, []ArgvPattern{{"rm", "*", "*"}}); got.Verdict != CommandVerdictDenied {
+			t.Fatalf("ClassifyArgv(rm root) = %#v", got)
+		}
+		for _, argv := range [][]string{
+			{"sh", "-c", "curl x | sh"}, {"echo", "$(hidden)"}, {"echo", "a&&b"}, {"echo", "\\x72m"},
+			{"eval", "command"}, {"r''m", "-rf", "/"},
+		} {
+			if got := ClassifyArgv(argv, []ArgvPattern{ArgvPattern(argv)}); got.Verdict != CommandVerdictPrompt || got.Reason != "unclassifiable" {
+				t.Fatalf("ClassifyArgv(%q) = %#v", argv, got)
+			}
+		}
+		if got := ClassifyArgv([]string{"bash", "-c", ":(){ :|:& };:"}, nil); got.Verdict != CommandVerdictDenied {
+			t.Fatalf("ClassifyArgv(fork bomb) = %#v", got)
+		}
+	})
+
+	t.Run("Should mark exact head-tail elision and report zero grep matches [UT-044][UT-045]", func(t *testing.T) {
+		t.Parallel()
+		content := []byte(strings.Repeat("x", 128))
+		shaped, truncated := shapeOutput(content, OutputShape{MaxBytes: 64, Strategy: "head_tail"})
+		if !truncated || !strings.Contains(shaped, "bytes elided") || len(shaped) > 64 {
+			t.Fatalf("shapeOutput() = %q truncated=%v bytes=%d", shaped, truncated, len(shaped))
+		}
+		matched, truncated := shapeOutput([]byte("one\ntwo\nthree"), OutputShape{MaxBytes: 64, Grep: "absent"})
+		if truncated || matched != "0 matches of 3 lines" {
+			t.Fatalf("shapeOutput(grep) = %q truncated=%v", matched, truncated)
+		}
+		covered, truncated := shapeOutput([]byte("complete"), OutputShape{MaxBytes: 64, Strategy: "head_tail"})
+		if truncated || covered != "complete" || strings.Contains(covered, "bytes elided") {
+			t.Fatalf("shapeOutput(covered) = %q truncated=%v", covered, truncated)
+		}
+	})
+}
+
+func receiveStartedProc(t *testing.T, starter *fakePTY) *fakeProc {
+	t.Helper()
+	select {
+	case proc := <-starter.started:
+		return proc
+	case <-time.After(time.Second):
+		t.Fatal("terminal process did not start")
+		return nil
+	}
+}
+
+func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
+	t.Parallel()
+	agent := Actor{
+		Kind: ActorKindAgent, ID: "agent", ProfileID: "profile-a", SessionID: "session-a", RunID: "run-a", Generation: 1,
+	}
+
+	t.Run("Should require a fresh typing grant and evaluate it on every agent write [UT-025][IT-028]", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings())
+		handle, err := manager.Open(context.Background(), OpenRequest{
+			WS: "workspace-a", Shell: "sh", Actor: agent, Capabilities: Capabilities{Interactive: true},
+		})
+		if err != nil {
+			t.Fatalf("Open(agent) error = %v", err)
+		}
+		proc := receiveStartedProc(t, starter)
+		if err := handle.Write(context.Background(), agent, []byte("denied")); !errors.Is(err, ErrTypingGrant) {
+			t.Fatalf("Write(without grant) error = %v", err)
+		}
+		if proc.inputString() != "" {
+			t.Fatalf("input after rejected grant = %q", proc.inputString())
+		}
+
+		grant := &fakeTypingGrantAuthorizer{}
+		allowedManager, allowedStarter, _ := newTestManager(t, DefaultSettings(), WithTypingGrantAuthorizer(grant))
+		allowed, err := allowedManager.Open(context.Background(), OpenRequest{
+			WS: "workspace-a", Shell: "sh", Actor: agent, Capabilities: Capabilities{Interactive: true},
+		})
+		if err != nil {
+			t.Fatalf("Open(allowed agent) error = %v", err)
+		}
+		allowedProc := receiveStartedProc(t, allowedStarter)
+		if err := allowed.Write(context.Background(), agent, []byte("accepted")); err != nil {
+			t.Fatalf("Write(with grant) error = %v", err)
+		}
+		if grant.calls.Load() != 1 || allowedProc.inputString() != "accepted" {
+			t.Fatalf("grant calls/input = %d/%q", grant.calls.Load(), allowedProc.inputString())
+		}
+		recovered := agent
+		recovered.Generation = 2
+		if changed := allowedManager.RuntimeRecovered(context.Background(), agent, recovered); changed != 1 {
+			t.Fatalf("RuntimeRecovered() = %d, want 1", changed)
+		}
+		if err := allowedManager.Claim(context.Background(), "workspace-a", allowed.Info().ID, recovered); err != nil {
+			t.Fatalf("Claim(agent) error = %v", err)
+		}
+		if err := allowed.Write(context.Background(), recovered, []byte("fresh")); err != nil {
+			t.Fatalf("Write(after takeover) error = %v", err)
+		}
+		if grant.calls.Load() != 2 || grant.generation.Load() != 1 {
+			t.Fatalf(
+				"grant calls/generation after takeover = %d/%d, want 2/1",
+				grant.calls.Load(), grant.generation.Load(),
+			)
+		}
+		human := Actor{Kind: ActorKindHuman, ID: "human", ProfileID: "profile-a"}
+		if err := allowed.Takeover(context.Background(), human, true); err != nil {
+			t.Fatalf("Takeover(human) error = %v", err)
+		}
+		if got := allowed.Info().TypingGeneration; got != 2 {
+			t.Fatalf("typing generation after takeover = %d, want 2", got)
+		}
+	})
+
+	t.Run("Should answer through an atomic redacted handoff and return control [UT-026][UT-073][UT-074][UT-075][UT-090][UT-092][IT-029]", func(t *testing.T) {
+		t.Parallel()
+		bus := NewEventBus(nil)
+		leaseEvents := make(chan TerminalEvent, 2)
+		inputEvents := make(chan TerminalEvent, 1)
+		bus.Observe(func(_ context.Context, event TerminalEvent) {
+			if event.Kind == EventKindLeaseChanged &&
+				(event.Reason == "answer_handoff" || event.Reason == "answer_return") {
+				leaseEvents <- event
+			}
+			if event.Kind == EventKindInputProvided {
+				inputEvents <- event
+			}
+		})
+		journal := &fakeRecordingJournal{}
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithEventBus(bus), WithJournal(journal))
+		handle, err := manager.Open(context.Background(), OpenRequest{
+			WS: "workspace-a", Shell: "sh", Actor: agent, Capabilities: Capabilities{Interactive: true},
+		})
+		if err != nil {
+			t.Fatalf("Open(agent) error = %v", err)
+		}
+		proc := receiveStartedProc(t, starter)
+		human := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		if _, err := handle.StartRecording(context.Background(), human); err != nil {
+			t.Fatalf("StartRecording() error = %v", err)
+		}
+		outcomeCh := make(chan *InputOutcome, 1)
+		errCh := make(chan error, 1)
+		go func() {
+			outcome, requestErr := handle.RequestInput(context.Background(), InputRequest{
+				Reason: "password", PromptExcerpt: "Password:", Redact: true,
+			})
+			outcomeCh <- outcome
+			errCh <- requestErr
+		}()
+		pending := waitForInputRequests(t, manager, "workspace-a", store.ReadScope{ProfileID: "profile-a"}, 1)
+		if err := handle.AnswerInput(context.Background(), human, pending[0].ID, InputAnswer{Input: []byte("secret\n")}); err != nil {
+			t.Fatalf("AnswerInput() error = %v", err)
+		}
+		outcome := <-outcomeCh
+		if err := <-errCh; err != nil {
+			t.Fatalf("RequestInput() error = %v", err)
+		}
+		if outcome.Outcome != "answered" || !outcome.Redacted || outcome.Length != len("secret\n") {
+			t.Fatalf("input outcome = %#v", outcome)
+		}
+		if proc.inputString() != "secret\n" || proc.redactedWrites.Load() != 1 {
+			t.Fatalf("delivered input/redacted writes = %q/%d", proc.inputString(), proc.redactedWrites.Load())
+		}
+		info := handle.Info()
+		if info.Controller == nil || !sameActor(*info.Controller, agent) || info.Lease != LeaseAgentOwned {
+			t.Fatalf("controller after answer = %#v lease=%s", info.Controller, info.Lease)
+		}
+		handoff := receiveTerminalEvent(t, leaseEvents)
+		returned := receiveTerminalEvent(t, leaseEvents)
+		if handoff.Reason != "answer_handoff" || handoff.Info == nil || handoff.Info.Controller == nil ||
+			handoff.Info.Controller.Kind != ActorKindHuman {
+			t.Fatalf("answer handoff event = %#v", handoff)
+		}
+		if returned.Reason != "answer_return" || returned.Info == nil || returned.Info.Controller == nil ||
+			!sameActor(*returned.Info.Controller, agent) {
+			t.Fatalf("answer return event = %#v", returned)
+		}
+		provided := receiveTerminalEvent(t, inputEvents)
+		encodedEvent, err := json.Marshal(provided)
+		if err != nil {
+			t.Fatalf("json.Marshal(input event) error = %v", err)
+		}
+		if strings.Contains(string(encodedEvent), "secret") {
+			t.Fatalf("input event leaked redacted bytes: %s", encodedEvent)
+		}
+		read, err := handle.Screen(context.Background(), ReadOptions{View: "tail"})
+		if err != nil {
+			t.Fatalf("Screen() error = %v", err)
+		}
+		if strings.Contains(read.Content, "secret") {
+			t.Fatalf("terminal ring leaked redacted bytes: %q", read.Content)
+		}
+		if _, err := handle.StopRecording(context.Background(), human); err != nil {
+			t.Fatalf("StopRecording() error = %v", err)
+		}
+		_, recording := journal.snapshot()
+		if strings.Contains(string(recording), "secret") {
+			t.Fatalf("recording leaked redacted bytes: %q", recording)
+		}
+		if got, err := manager.InputRequests(context.Background(), "workspace-a", store.ReadScope{ProfileID: "profile-a"}, ""); err != nil || len(got) != 0 {
+			t.Fatalf("pending after answer = %#v error=%v", got, err)
+		}
+	})
+
+	t.Run("Should distinguish full takeover by superseding the pending request [IT-013][IT-029]", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings())
+		handle, err := manager.Open(context.Background(), OpenRequest{
+			WS: "workspace-a", Shell: "sh", Actor: agent, Capabilities: Capabilities{Interactive: true},
+		})
+		if err != nil {
+			t.Fatalf("Open(agent) error = %v", err)
+		}
+		receiveStartedProc(t, starter)
+		outcomeCh := make(chan *InputOutcome, 1)
+		go func() {
+			outcome, requestErr := handle.RequestInput(context.Background(), InputRequest{Reason: "confirm"})
+			if requestErr != nil {
+				outcomeCh <- nil
+				return
+			}
+			outcomeCh <- outcome
+		}()
+		pending := waitForInputRequests(t, manager, "workspace-a", store.ReadScope{ProfileID: "profile-a"}, 1)
+		human := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		if err := handle.Takeover(context.Background(), human, true); err != nil {
+			t.Fatalf("Takeover() error = %v", err)
+		}
+		outcome := <-outcomeCh
+		if outcome == nil || outcome.Outcome != "superseded" {
+			t.Fatalf("takeover outcome = %#v", outcome)
+		}
+		if err := handle.AnswerInput(context.Background(), human, pending[0].ID, InputAnswer{Input: []byte("y")}); !errors.Is(err, ErrInputAnswered) {
+			t.Fatalf("AnswerInput(after takeover) error = %v", err)
+		}
+	})
+
+	t.Run("Should preserve rejected and expired outcomes as distinct terminal states [UT-026][IT-013]", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings(), withInputRequestTTL(10*time.Millisecond))
+		handle, err := manager.Open(context.Background(), OpenRequest{
+			WS: "workspace-a", Shell: "sh", Actor: agent, Capabilities: Capabilities{Interactive: true},
+		})
+		if err != nil {
+			t.Fatalf("Open(agent) error = %v", err)
+		}
+		receiveStartedProc(t, starter)
+		type requestResult struct {
+			outcome *InputOutcome
+			err     error
+		}
+		request := func(reason string) <-chan requestResult {
+			result := make(chan requestResult, 1)
+			go func() {
+				outcome, requestErr := handle.RequestInput(context.Background(), InputRequest{Reason: reason})
+				result <- requestResult{outcome: outcome, err: requestErr}
+			}()
+			return result
+		}
+		rejectedResult := request("reject")
+		pending := waitForInputRequests(t, manager, "workspace-a", store.ReadScope{ProfileID: "profile-a"}, 1)
+		human := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		if err := handle.RejectInput(context.Background(), human, pending[0].ID, "not now"); err != nil {
+			t.Fatalf("RejectInput() error = %v", err)
+		}
+		if result := <-rejectedResult; result.err != nil || result.outcome == nil || result.outcome.Outcome != "rejected" {
+			t.Fatalf("rejected request = %#v", result)
+		}
+		expired := <-request("expire")
+		if expired.err != nil || expired.outcome == nil || expired.outcome.Outcome != "expired" {
+			t.Fatalf("expired request = %#v", expired)
+		}
+	})
+
+	t.Run("Should enforce terminal and scope caps then reject every archived request exactly once [IT-029][IT-037]", func(t *testing.T) {
+		t.Parallel()
+		settings := DefaultSettings()
+		settings.MaxPerWorkspace = 9
+		settings.MaxPerDaemon = 9
+		bus := NewEventBus(nil)
+		provided := make(chan TerminalEvent, maxInputRequestsPerScope+1)
+		bus.Observe(func(_ context.Context, event TerminalEvent) {
+			if event.Kind == EventKindInputProvided {
+				provided <- event
+			}
+		})
+		manager, starter, _ := newTestManager(t, settings, WithEventBus(bus))
+		type requestResult struct {
+			outcome *InputOutcome
+			err     error
+		}
+		results := make(chan requestResult, maxInputRequestsPerScope)
+		handles := make([]Handle, 0, 9)
+		for index := 0; index < 9; index++ {
+			owner := agent
+			owner.RunID = fmt.Sprintf("run-%d", index)
+			handle, err := manager.Open(context.Background(), OpenRequest{
+				WS: "workspace-a", Shell: "sh", Actor: owner, Capabilities: Capabilities{Interactive: true},
+			})
+			if err != nil {
+				t.Fatalf("Open(%d) error = %v", index, err)
+			}
+			receiveStartedProc(t, starter)
+			handles = append(handles, handle)
+		}
+		requestAsync := func(handle Handle) {
+			go func() {
+				outcome, err := handle.RequestInput(context.Background(), InputRequest{Reason: "confirm"})
+				results <- requestResult{outcome: outcome, err: err}
+			}()
+		}
+		for index := 0; index < maxInputRequestsPerTerminal; index++ {
+			requestAsync(handles[0])
+		}
+		waitForInputRequests(t, manager, "workspace-a", store.ReadScope{ProfileID: "profile-a"}, 4)
+		if _, err := handles[0].RequestInput(context.Background(), InputRequest{Reason: "fifth"}); !errors.Is(err, ErrInputLimit) {
+			t.Fatalf("fifth terminal request error = %v", err)
+		}
+		for terminalIndex := 1; terminalIndex < 8; terminalIndex++ {
+			for requestIndex := 0; requestIndex < maxInputRequestsPerTerminal; requestIndex++ {
+				requestAsync(handles[terminalIndex])
+			}
+		}
+		waitForInputRequests(t, manager, "workspace-a", store.ReadScope{ProfileID: "profile-a"}, maxInputRequestsPerScope)
+		if _, err := handles[8].RequestInput(context.Background(), InputRequest{Reason: "thirty-third"}); !errors.Is(err, ErrInputLimit) {
+			t.Fatalf("thirty-third scope request error = %v", err)
+		}
+		if _, err := manager.InputRequests(
+			context.Background(), "workspace-a", store.ReadScope{ProfileID: "profile-a", AllProfiles: true}, "",
+		); err == nil {
+			t.Fatal("InputRequests(invalid scope) error = nil")
+		}
+		if err := manager.ArchiveProfile(context.Background(), "profile-a"); err != nil {
+			t.Fatalf("ArchiveProfile() error = %v", err)
+		}
+		for index := 0; index < maxInputRequestsPerScope; index++ {
+			result := <-results
+			if result.err != nil || result.outcome == nil || result.outcome.Outcome != "rejected" {
+				t.Fatalf("archived request %d = %#v", index, result)
+			}
+		}
+		if got := len(provided); got != maxInputRequestsPerScope {
+			t.Fatalf("input-provided events = %d, want %d", got, maxInputRequestsPerScope)
+		}
+		if err := manager.ArchiveProfile(context.Background(), "profile-a"); err != nil {
+			t.Fatalf("ArchiveProfile(second) error = %v", err)
+		}
+		if got := len(provided); got != maxInputRequestsPerScope {
+			t.Fatalf("input-provided events after second archive = %d, want unchanged", got)
+		}
+	})
+
+	t.Run("Should fence a recovered runtime generation and let its replacement reclaim [IT-010]", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithTypingGrantAuthorizer(&fakeTypingGrantAuthorizer{}))
+		previous := Actor{
+			Kind: ActorKindAgent, ID: "agent-a", ProfileID: "profile-a",
+			SessionID: "session-a", RunID: "run-a", Generation: 1,
+		}
+		handle, err := manager.Open(context.Background(), OpenRequest{
+			WS: "workspace-a", Shell: "sh", Actor: previous, Capabilities: Capabilities{Interactive: true},
+		})
+		if err != nil {
+			t.Fatalf("Open() error = %v", err)
+		}
+		proc := receiveStartedProc(t, starter)
+		current := previous
+		current.Generation = 2
+		if got := manager.RuntimeRecovered(context.Background(), previous, current); got != 1 {
+			t.Fatalf("RuntimeRecovered() = %d, want 1", got)
+		}
+		select {
+		case <-proc.done:
+			t.Fatal("runtime recovery closed the terminal process")
+		default:
+		}
+		info := handle.Info()
+		if info.Lease != LeaseHumanOwned || info.Controller == nil || info.Controller.Kind != ActorKindHuman {
+			t.Fatalf("recovery lease/controller = %s/%#v", info.Lease, info.Controller)
+		}
+		if err := handle.Write(context.Background(), previous, []byte("stale")); !errors.Is(err, ErrGenerationFenced) {
+			t.Fatalf("Write(stale generation) error = %v", err)
+		}
+		if err := manager.Claim(context.Background(), "workspace-a", handle.Info().ID, current); err != nil {
+			t.Fatalf("Claim(replacement generation) error = %v", err)
+		}
+		if err := handle.Write(context.Background(), current, []byte("current")); err != nil {
+			t.Fatalf("Write(replacement generation) error = %v", err)
+		}
+		if got := proc.inputString(); got != "current" {
+			t.Fatalf("terminal input = %q, want current", got)
+		}
+	})
+
+	t.Run("Should release the current run and resolve its pending input once [IT-013]", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings())
+		running := Actor{
+			Kind: ActorKindAgent, ID: "agent-a", ProfileID: "profile-a",
+			SessionID: "session-a", RunID: "run-a", Generation: 3,
+		}
+		handle, err := manager.Open(context.Background(), OpenRequest{
+			WS: "workspace-a", Shell: "sh", Actor: running, Capabilities: Capabilities{Interactive: true},
+		})
+		if err != nil {
+			t.Fatalf("Open() error = %v", err)
+		}
+		receiveStartedProc(t, starter)
+		outcome := make(chan *InputOutcome, 1)
+		go func() {
+			resolved, requestErr := handle.RequestInput(context.Background(), InputRequest{Reason: "confirm"})
+			if requestErr != nil {
+				outcome <- nil
+				return
+			}
+			outcome <- resolved
+		}()
+		waitForInputRequests(t, manager, "workspace-a", store.ReadScope{ProfileID: "profile-a"}, 1)
+		if got := manager.SessionRunEnded(context.Background(), "profile-a", "session-a", 3); got != 1 {
+			t.Fatalf("SessionRunEnded() = %d, want 1", got)
+		}
+		resolved := <-outcome
+		if resolved == nil || resolved.Outcome != "superseded" {
+			t.Fatalf("run-ended input outcome = %#v", resolved)
+		}
+		info := handle.Info()
+		if info.Lease != LeaseHumanOwned || info.Controller == nil || info.Controller.Kind != ActorKindHuman {
+			t.Fatalf("run-ended lease/controller = %s/%#v", info.Lease, info.Controller)
+		}
+		if got := manager.SessionRunEnded(context.Background(), "profile-a", "session-a", 3); got != 0 {
+			t.Fatalf("SessionRunEnded(second) = %d, want 0", got)
+		}
+	})
+}
+
+func waitForInputRequests(
+	t *testing.T,
+	manager *Service,
+	workspaceID string,
+	scope store.ReadScope,
+	want int,
+) []PendingInputRequest {
+	t.Helper()
+	deadline := time.NewTimer(time.Second)
+	defer deadline.Stop()
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	for {
+		items, err := manager.InputRequests(context.Background(), workspaceID, scope, "")
+		if err != nil {
+			t.Fatalf("InputRequests() error = %v", err)
+		}
+		if len(items) == want {
+			return items
+		}
+		select {
+		case <-deadline.C:
+			t.Fatalf("InputRequests() count = %d, want %d", len(items), want)
+			return nil
+		case <-ticker.C:
+		}
+	}
+}
+
+func waitForTailContent(t *testing.T, handle Handle, want string) *ReadResult {
+	t.Helper()
+	deadline := time.NewTimer(time.Second)
+	defer deadline.Stop()
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	for {
+		result, err := handle.Screen(context.Background(), ReadOptions{View: "tail"})
+		if err != nil {
+			t.Fatalf("Screen(tail) error = %v", err)
+		}
+		if strings.Contains(result.Content, want) {
+			return result
+		}
+		select {
+		case <-deadline.C:
+			t.Fatalf("terminal tail = %q, want content %q", result.Content, want)
+			return nil
+		case <-ticker.C:
+		}
+	}
+}
+
+func receiveTerminalEvent(t *testing.T, events <-chan TerminalEvent) TerminalEvent {
+	t.Helper()
+	select {
+	case event := <-events:
+		return event
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for terminal event")
+		return TerminalEvent{}
+	}
 }

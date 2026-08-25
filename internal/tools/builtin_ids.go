@@ -443,6 +443,8 @@ const (
 	ToolsetIDResources ToolsetID = "compozy__resources"
 	// ToolsetIDWindowManager groups persistent desktop, window, and layout tools.
 	ToolsetIDWindowManager ToolsetID = "compozy__window_manager"
+	// ToolsetIDTerminal groups supervised terminal observation and execution tools.
+	ToolsetIDTerminal ToolsetID = "compozy__terminal"
 	// ToolsetIDMCP groups MCP probe and status diagnostics.
 	ToolsetIDMCP ToolsetID = "compozy__mcp"
 	// ToolsetIDMCPAuth groups redacted MCP auth diagnostics.

@@ -63,15 +63,27 @@ func terminalDomainStatus(err *terminalpkg.Error) int {
 	case errors.Is(err, terminalpkg.ErrLimitReached),
 		errors.Is(err, terminalpkg.ErrSubscriberLimit),
 		errors.Is(err, terminalpkg.ErrWriteOwnerHeld),
-		errors.Is(err, terminalpkg.ErrExited):
+		errors.Is(err, terminalpkg.ErrLeaseRevoked),
+		errors.Is(err, terminalpkg.ErrGenerationFenced),
+		errors.Is(err, terminalpkg.ErrExited),
+		errors.Is(err, terminalpkg.ErrInputAnswered),
+		errors.Is(err, terminalpkg.ErrInputLimit),
+		errors.Is(err, terminalpkg.ErrRecording):
 		return http.StatusConflict
+	case errors.Is(err, terminalpkg.ErrInputNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, terminalpkg.ErrInputRequiresWrite),
+		errors.Is(err, terminalpkg.ErrApprovalRequired),
+		errors.Is(err, terminalpkg.ErrTypingGrant):
+		return http.StatusForbidden
 	case errors.Is(err, terminalpkg.ErrRequiresWorkspace),
 		errors.Is(err, terminalpkg.ErrInvalidCwd),
 		errors.Is(err, terminalpkg.ErrInteractive),
 		errors.Is(err, terminalpkg.ErrNotInteractive),
 		errors.Is(err, terminalpkg.ErrUnsupported):
 		return http.StatusUnprocessableEntity
-	case errors.Is(err, terminalpkg.ErrShuttingDown):
+	case errors.Is(err, terminalpkg.ErrShuttingDown),
+		errors.Is(err, terminalpkg.ErrJournalUnavailable):
 		return http.StatusServiceUnavailable
 	default:
 		return http.StatusInternalServerError

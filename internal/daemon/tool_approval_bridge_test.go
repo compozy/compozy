@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
@@ -21,6 +23,38 @@ func TestToolApprovalBridgeDeterministicErrors(t *testing.T) {
 
 	view := toolApprovalTestView()
 
+	t.Run("Should scope a typing grant to one terminal generation", func(t *testing.T) {
+		t.Parallel()
+
+		requester := selectedPermissionRequester(toolApprovalAllowOnceID)
+		approval := newToolApprovalBridge(
+			func() sessionPermissionRequester { return requester },
+			time.Second,
+			nil,
+			nil,
+			nil,
+		)
+		terminalApproval := newTerminalPermissionBridge()
+		terminalApproval.bind(approval)
+		err := terminalApproval.AuthorizeTerminalInput(t.Context(), terminalpkg.Actor{
+			Kind: terminalpkg.ActorKindAgent, ID: "codex", ProfileID: "profile-a", SessionID: "sess-a",
+		}, terminalpkg.Info{
+			ID: "term-aaaaaaaaaaaa", WS: "workspace-a", ProfileID: "profile-a", TypingGeneration: 3,
+		})
+		if err != nil {
+			t.Fatalf("AuthorizeTerminalInput() error = %v", err)
+		}
+		request := requester.lastRequest(t)
+		raw, marshalErr := json.Marshal(request.ToolCall.RawInput)
+		if marshalErr != nil {
+			t.Fatalf("Marshal(RawInput) error = %v", marshalErr)
+		}
+		if !strings.Contains(string(raw), `"terminal_id":"term-aaaaaaaaaaaa"`) ||
+			!strings.Contains(string(raw), `"grant_generation":3`) {
+			t.Fatalf("typing grant input = %s, want terminal and generation scope", raw)
+		}
+	})
+
 	t.Run("Should return approval_unreachable without a permission channel", func(t *testing.T) {
 		t.Parallel()
 
@@ -28,7 +62,7 @@ func TestToolApprovalBridgeDeterministicErrors(t *testing.T) {
 		err := bridge.RequestToolApproval(
 			t.Context(),
 			toolspkg.Scope{SessionID: "sess-1"},
-			toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)},
+			toolApprovalCallPtr(toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)}),
 			&view,
 		)
 		requireToolApprovalReason(t, err, toolspkg.ReasonApprovalUnreachable)
@@ -53,7 +87,7 @@ func TestToolApprovalBridgeDeterministicErrors(t *testing.T) {
 		err := bridge.RequestToolApproval(
 			t.Context(),
 			toolspkg.Scope{SessionID: "sess-1"},
-			toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)},
+			toolApprovalCallPtr(toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)}),
 			&view,
 		)
 		requireToolApprovalReason(t, err, toolspkg.ReasonApprovalTimedOut)
@@ -79,7 +113,7 @@ func TestToolApprovalBridgeDeterministicErrors(t *testing.T) {
 		err := bridge.RequestToolApproval(
 			ctx,
 			toolspkg.Scope{SessionID: "sess-1"},
-			toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)},
+			toolApprovalCallPtr(toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)}),
 			&view,
 		)
 		requireToolApprovalReason(t, err, toolspkg.ReasonApprovalCanceled)
@@ -101,7 +135,7 @@ func TestToolApprovalBridgeDeterministicErrors(t *testing.T) {
 		err := bridge.RequestToolApproval(
 			t.Context(),
 			toolspkg.Scope{SessionID: "sess-1"},
-			toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)},
+			toolApprovalCallPtr(toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)}),
 			&view,
 		)
 		requireToolApprovalReason(t, err, toolspkg.ReasonApprovalCanceled)
@@ -320,14 +354,14 @@ func TestToolApprovalBridgeRoutesAllowAndRejectOutcomes(t *testing.T) {
 		err := bridge.RequestToolApproval(
 			t.Context(),
 			toolspkg.Scope{SessionID: "sess-1"},
-			toolspkg.CallRequest{
+			toolApprovalCallPtr(toolspkg.CallRequest{
 				ToolID:      view.Descriptor.ID,
 				ToolCallID:  "call-1",
 				SessionID:   "sess-1",
 				WorkspaceID: "ws-1",
 				AgentName:   "codex",
 				Input:       []byte(`{"message":"hello"}`),
-			},
+			}),
 			&view,
 		)
 		if err != nil {
@@ -391,15 +425,17 @@ func TestToolApprovalBridgeRoutesAllowAndRejectOutcomes(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 		t.Cleanup(cancel)
 
+		firstCall := call
+		secondCall := call
 		firstResult := make(chan error, 1)
 		go func() {
-			firstResult <- bridge.RequestToolApproval(ctx, toolspkg.Scope{}, call, &view)
+			firstResult <- bridge.RequestToolApproval(ctx, toolspkg.Scope{}, &firstCall, &view)
 		}()
 		first := <-pending
 
 		secondResult := make(chan error, 1)
 		go func() {
-			secondResult <- bridge.RequestToolApproval(ctx, toolspkg.Scope{}, call, &view)
+			secondResult <- bridge.RequestToolApproval(ctx, toolspkg.Scope{}, &secondCall, &view)
 		}()
 		second := <-pending
 
@@ -451,7 +487,7 @@ func TestToolApprovalBridgeRoutesAllowAndRejectOutcomes(t *testing.T) {
 		err := bridge.RequestToolApproval(
 			t.Context(),
 			toolspkg.Scope{SessionID: "sess-1"},
-			toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)},
+			toolApprovalCallPtr(toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)}),
 			&view,
 		)
 		requireToolApprovalReason(t, err, toolspkg.ReasonApprovalRequired)
@@ -462,6 +498,40 @@ func TestToolApprovalBridgePersistsDurableOutcomes(t *testing.T) {
 	t.Parallel()
 
 	view := toolApprovalTestView()
+
+	t.Run("Should prompt again for an unclassifiable terminal command despite a durable allow", func(t *testing.T) {
+		t.Parallel()
+
+		terminalView := toolApprovalTestView()
+		terminalView.Descriptor.ID = toolspkg.ToolIDTerminalExec
+		call := toolApprovalTestCall(toolspkg.ToolIDTerminalExec, "ws-1")
+		call.Input = json.RawMessage(`{"command":"sh","args":["-c","echo hidden"]}`)
+		scope := toolspkg.Scope{ProfileID: store.DefaultProfileID}
+		key, err := toolApprovalGrantKey(scope, call, toolspkg.ToolIDTerminalExec)
+		if err != nil {
+			t.Fatalf("toolApprovalGrantKey() error = %v", err)
+		}
+		grants := &recordingApprovalGrantStore{grants: []toolspkg.ApprovalGrant{
+			materializedApprovalGrant("grant-terminal", key, toolspkg.ApprovalGrantAllow),
+		}}
+		requester := selectedPermissionRequester(toolApprovalAllowOnceID)
+		bridge := newToolApprovalBridge(
+			func() sessionPermissionRequester { return requester },
+			time.Second,
+			nil,
+			grants,
+			nil,
+		)
+		if err := bridge.RequestToolApproval(t.Context(), scope, &call, &terminalView); err != nil {
+			t.Fatalf("RequestToolApproval() error = %v", err)
+		}
+		if got := len(requester.requests); got != 1 {
+			t.Fatalf("permission requests = %d, want 1 despite durable allow", got)
+		}
+		if call.ApprovalLabel != "approved_once" {
+			t.Fatalf("approval label = %q, want approved_once", call.ApprovalLabel)
+		}
+	})
 
 	t.Run("Should remember allow always and skip the next prompt", func(t *testing.T) {
 		t.Parallel()
@@ -478,7 +548,7 @@ func TestToolApprovalBridgePersistsDurableOutcomes(t *testing.T) {
 		call := toolApprovalTestCall(view.Descriptor.ID, "ws-1")
 		for attempt := range 2 {
 			if err := bridge.RequestToolApproval(
-				t.Context(), toolspkg.Scope{ProfileID: store.DefaultProfileID}, call, &view,
+				t.Context(), toolspkg.Scope{ProfileID: store.DefaultProfileID}, &call, &view,
 			); err != nil {
 				t.Fatalf("RequestToolApproval(%d) error = %v, want nil", attempt, err)
 			}
@@ -511,7 +581,7 @@ func TestToolApprovalBridgePersistsDurableOutcomes(t *testing.T) {
 		call := toolApprovalTestCall(view.Descriptor.ID, "ws-1")
 		for attempt := range 2 {
 			err := bridge.RequestToolApproval(
-				t.Context(), toolspkg.Scope{ProfileID: store.DefaultProfileID}, call, &view,
+				t.Context(), toolspkg.Scope{ProfileID: store.DefaultProfileID}, &call, &view,
 			)
 			requireToolApprovalReason(t, err, toolspkg.ReasonApprovalRequired)
 			if len(requester.requests) != 1 {
@@ -538,7 +608,7 @@ func TestToolApprovalBridgePersistsDurableOutcomes(t *testing.T) {
 		call := toolApprovalTestCall(view.Descriptor.ID, "ws-1")
 		for attempt := range 2 {
 			if err := bridge.RequestToolApproval(
-				t.Context(), toolspkg.Scope{ProfileID: store.DefaultProfileID}, call, &view,
+				t.Context(), toolspkg.Scope{ProfileID: store.DefaultProfileID}, &call, &view,
 			); err != nil {
 				t.Fatalf("RequestToolApproval(%d) error = %v, want nil", attempt, err)
 			}
@@ -566,7 +636,7 @@ func TestToolApprovalBridgePersistsDurableOutcomes(t *testing.T) {
 		if err := bridge.RequestToolApproval(
 			t.Context(),
 			toolspkg.Scope{ProfileID: store.DefaultProfileID},
-			toolApprovalTestCall(view.Descriptor.ID, "ws-1"),
+			toolApprovalCallPtr(toolApprovalTestCall(view.Descriptor.ID, "ws-1")),
 			&view,
 		); err != nil {
 			t.Fatalf("RequestToolApproval() error = %v, want prompt fallback", err)
@@ -599,7 +669,7 @@ func TestToolApprovalBridgePersistsDurableOutcomes(t *testing.T) {
 		if err := bridge.RequestToolApproval(
 			t.Context(),
 			toolspkg.Scope{ProfileID: store.DefaultProfileID},
-			toolApprovalTestCall(view.Descriptor.ID, "ws-b"),
+			toolApprovalCallPtr(toolApprovalTestCall(view.Descriptor.ID, "ws-b")),
 			&view,
 		); err != nil {
 			t.Fatalf("RequestToolApproval() error = %v, want workspace B prompt", err)
@@ -624,7 +694,7 @@ func TestToolApprovalBridgePersistsDurableOutcomes(t *testing.T) {
 		err := bridge.RequestToolApproval(
 			t.Context(),
 			toolspkg.Scope{ProfileID: store.DefaultProfileID},
-			toolApprovalTestCall(view.Descriptor.ID, "ws-1"),
+			toolApprovalCallPtr(toolApprovalTestCall(view.Descriptor.ID, "ws-1")),
 			&view,
 		)
 		if !errors.Is(err, toolspkg.ErrToolBackendFailed) {
@@ -647,6 +717,10 @@ func requireToolApprovalReason(t *testing.T, err error, want toolspkg.ReasonCode
 	if !toolErrMatched || !slices.Contains(toolErr.ReasonCodes, want) {
 		t.Fatalf("approval error = %#v, want reason %q", err, want)
 	}
+}
+
+func toolApprovalCallPtr(call toolspkg.CallRequest) *toolspkg.CallRequest {
+	return &call
 }
 
 func toolApprovalTestView() toolspkg.ToolView {
