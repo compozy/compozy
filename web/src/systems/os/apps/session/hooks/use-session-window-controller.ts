@@ -41,7 +41,11 @@ export function useSessionWindowController(windowId: string) {
     runtimeWorkspaceId,
     liveTailEnabled: effectiveLiveTailEnabled,
   });
-  useSessionPresence(resolution.workspaceId, sessionId, presenceEnabled && !deletedLocally);
+  useSessionPresence(
+    resolution.workspaceId,
+    sessionId,
+    presenceEnabled && !deletedLocally && !resolution.crossesWorkspace
+  );
 
   useEffect(() => {
     if (agentName === null || deletedLocally) return;

@@ -332,6 +332,26 @@ describe("SessionWindow", () => {
     expect(sessionWindowNoticeSpy).not.toHaveBeenCalled();
   });
 
+  it("Should reject a foreign session from another workspace before acquiring presence", async () => {
+    queryState.data = undefined;
+    queryState.error = new SessionNotFoundError("sess-1");
+    queryState.isError = true;
+    foreignState.current = {
+      status: "found",
+      session: { ...session, workspace_id: "ws-2" },
+      owner: { id: "01J9CONSULTING000000000000", name: "consulting", archived: false },
+    };
+
+    render(<SessionWindow windowId="session:sess-1" />);
+
+    expect(useSessionPresenceSpy).toHaveBeenLastCalledWith("ws-2", "sess-1", false);
+    expect(ownerViewSpy).not.toHaveBeenCalled();
+    expect(sessionWindowNoticeSpy).toHaveBeenLastCalledWith({
+      message: "Session not found: sess-1",
+    });
+    await waitFor(() => expect(userClose).toHaveBeenCalledExactlyOnceWith("session:sess-1"));
+  });
+
   it("Should surface a failed owner lookup instead of claiming the session is gone", async () => {
     queryState.data = undefined;
     queryState.error = new SessionNotFoundError("sess-1");

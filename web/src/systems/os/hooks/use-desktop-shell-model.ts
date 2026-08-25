@@ -18,14 +18,8 @@ import {
  * the session/agent create dialog wiring (sidebar state is gone with the
  * sidebar).
  */
-export function useDesktopShellModel({
-  backgroundStreamsEnabled = true,
-  continuityStreamsEnabled = true,
-}: {
-  backgroundStreamsEnabled?: boolean;
-  continuityStreamsEnabled?: boolean;
-} = {}) {
-  const {
+export function useDesktopShellModel(
+  {
     workspaces,
     registeredWorkspaces,
     hasWorkspaces,
@@ -46,7 +40,15 @@ export function useDesktopShellModel({
     toggleGlobalScope,
     isLoading: areWorkspacesLoading,
     isError: workspacesError,
-  } = useActiveWorkspace();
+  }: ReturnType<typeof useActiveWorkspace>,
+  {
+    backgroundStreamsEnabled = true,
+    continuityStreamsEnabled = true,
+  }: {
+    backgroundStreamsEnabled?: boolean;
+    continuityStreamsEnabled?: boolean;
+  } = {}
+) {
   const { data: agents } = useAgents(runtimeWorkspaceId, {
     enabled: runtimeWorkspaceId !== null,
   });

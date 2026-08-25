@@ -180,6 +180,7 @@ describe("session actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     sessionStore.trigger.allDraftsDiscarded();
+    sessionStore.trigger.sessionInteractionRemoved({ sessionId: createdSession.id });
   });
 
   afterEach(() => {
@@ -403,7 +404,7 @@ describe("session actions", () => {
 
   it("useDeleteSession removes cached session data and clears the draft", async () => {
     vi.mocked(deleteSession).mockImplementation(async () => {
-      expect(sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]).toBe(true);
+      expect(sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]).toBe(1);
     });
 
     const queryClient = new QueryClient({
@@ -518,7 +519,7 @@ describe("session actions", () => {
 
   it("useResumeSession keeps the live tail suspended through state reconciliation", async () => {
     vi.mocked(resumeSession).mockImplementation(async () => {
-      expect(sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]).toBe(true);
+      expect(sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]).toBe(1);
       return createdSession;
     });
 
@@ -547,13 +548,61 @@ describe("session actions", () => {
     expect(cancelSpy).toHaveBeenCalledWith({
       queryKey: sessionKeys.byIdRoot(createdSession.id),
     });
-    expect(sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]).toBe(true);
+    expect(sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]).toBe(1);
 
     releaseInvalidation();
     await act(async () => {
       await mutation;
     });
 
+    expect(
+      sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]
+    ).toBeUndefined();
+  });
+
+  it("Should retain live-tail suppression until overlapping mutation owners settle", async () => {
+    let resolveResume!: (session: SessionPayload) => void;
+    let rejectDelete!: (error: Error) => void;
+    vi.mocked(resumeSession).mockReturnValue(
+      new Promise(resolve => {
+        resolveResume = resolve;
+      })
+    );
+    vi.mocked(deleteSession).mockReturnValue(
+      new Promise((_resolve, reject) => {
+        rejectDelete = reject;
+      })
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const { result } = renderHook(
+      () => ({ remove: useDeleteSession(), resume: useResumeSession() }),
+      { wrapper: createWrapper(queryClient) }
+    );
+
+    let deleteOutcome!: Promise<unknown>;
+    let resumeMutation!: Promise<SessionPayload>;
+    act(() => {
+      deleteOutcome = result.current.remove.mutateAsync(createdSession.id).catch(error => error);
+      resumeMutation = result.current.resume.mutateAsync(createdSession.id);
+    });
+
+    await waitFor(() =>
+      expect(sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]).toBe(2)
+    );
+
+    const deleteError = new Error("delete failed");
+    rejectDelete(deleteError);
+    await act(async () => {
+      expect(await deleteOutcome).toBe(deleteError);
+    });
+    expect(sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]).toBe(1);
+
+    resolveResume(createdSession);
+    await act(async () => {
+      await resumeMutation;
+    });
     expect(
       sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]
     ).toBeUndefined();

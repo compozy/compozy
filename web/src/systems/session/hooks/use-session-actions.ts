@@ -212,14 +212,15 @@ export function useResumeSession(options: UseSessionWorkspaceOptions = {}) {
         queryClient.cancelQueries({ queryKey: sessionKeys.byIdRoot(id) }),
       ]);
     },
-    onSettled: async (_data, _error, id) => {
-      try {
-        if (workspaceId) {
-          await invalidateSessionMutationQueries(queryClient, workspaceId, id);
-        }
-      } finally {
+    onSettled: (_data, _error, id) => {
+      if (!workspaceId) {
         sessionStore.trigger.sessionLiveTailResumed({ sessionId: id });
+        return;
       }
+
+      return invalidateSessionMutationQueries(queryClient, workspaceId, id).finally(() => {
+        sessionStore.trigger.sessionLiveTailResumed({ sessionId: id });
+      });
     },
   });
 }

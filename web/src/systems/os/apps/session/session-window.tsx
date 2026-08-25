@@ -40,6 +40,9 @@ export function SessionWindow({ windowId }: { windowId: string }) {
   if (sessionId === null || agentName === null) {
     return <SessionWindowNotice message="This window does not point at a session." />;
   }
+  if (crossesWorkspace) {
+    return <SessionWindowNotice message={error?.message ?? "Session workspace unavailable"} />;
+  }
   if (foreign.status === "found") {
     return (
       <SessionProfileOwnerNotice
@@ -69,7 +72,7 @@ export function SessionWindow({ windowId }: { windowId: string }) {
   if (foreign.status === "error") {
     return <SessionWindowNotice message={foreign.error.message} />;
   }
-  if (workspaceId === null || crossesWorkspace) {
+  if (workspaceId === null) {
     return <SessionWindowNotice message={error?.message ?? "Session workspace unavailable"} />;
   }
 

@@ -42,10 +42,11 @@ vi.mock("@/systems/workspace", () => ({
 }));
 
 import { useDesktopShellModel } from "../use-desktop-shell-model";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 describe("useDesktopShellModel", () => {
   it("Should mount before the desktop shell context exists", () => {
-    const { result } = renderHook(() => useDesktopShellModel());
+    const { result } = renderHook(() => useDesktopShellModel(useActiveWorkspace()));
 
     expect(result.current.activeWorkspaceId).toBeNull();
     expect(result.current.worktreeListing).toBeUndefined();
@@ -53,7 +54,7 @@ describe("useDesktopShellModel", () => {
 
   it("Should budget optional and continuity streams independently", () => {
     renderHook(() =>
-      useDesktopShellModel({
+      useDesktopShellModel(useActiveWorkspace(), {
         backgroundStreamsEnabled: false,
         continuityStreamsEnabled: true,
       })

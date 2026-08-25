@@ -301,13 +301,19 @@ export function settingsRestartStatusOptions(operationId: string | null, enabled
     enabled: active,
     staleTime: 0,
     refetchInterval: query =>
-      isTerminalRestartStatus(query.state.data?.status) ? false : RESTART_POLL_INTERVAL,
+      isTerminalRestartStatus(query.state.data?.status) || isTerminalRestartError(query.state.error)
+        ? false
+        : RESTART_POLL_INTERVAL,
     refetchIntervalInBackground: true,
     retry: (failureCount, error) =>
       error instanceof SettingsApiError && error.status === 404
         ? false
         : shouldRetrySettingsQuery(failureCount, error),
   });
+}
+
+function isTerminalRestartError(error: Error | null): boolean {
+  return error instanceof SettingsApiError && (error.status === 403 || error.status === 404);
 }
 
 export function settingsApplyRecordsOptions(filter: SettingsApplyRecordsFilter = {}) {

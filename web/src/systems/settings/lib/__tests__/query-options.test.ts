@@ -182,7 +182,7 @@ describe("settings restart options", () => {
   it("polls through transient errors and stops only on terminal states", () => {
     const options = settingsRestartStatusOptions("op_1", true);
     const refetchInterval = options.refetchInterval as (query: {
-      state: { data?: { status: string }; status?: string };
+      state: { data?: { status: string }; error?: Error | null; status?: string };
     }) => number | false;
 
     expect(refetchInterval({ state: {} })).toBe(SETTINGS_QUERY_INTERVALS.restartPollInterval);
@@ -194,6 +194,17 @@ describe("settings restart options", () => {
     );
     expect(refetchInterval({ state: { data: { status: "ready" } } })).toBe(false);
     expect(refetchInterval({ state: { data: { status: "failed" } } })).toBe(false);
+  });
+
+  it.each([403, 404])("Should stop restart polling after terminal HTTP %s errors", status => {
+    const options = settingsRestartStatusOptions("op_1", true);
+    const refetchInterval = options.refetchInterval as (query: {
+      state: { error: Error };
+    }) => number | false;
+
+    expect(
+      refetchInterval({ state: { error: new SettingsApiError("Restart unavailable", status) } })
+    ).toBe(false);
   });
 });
 

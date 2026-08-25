@@ -112,7 +112,9 @@ func parseOptions(args []string) (options, error) {
 		strings.TrimSpace(parsed.workspaceID) == "" ||
 		strings.TrimSpace(parsed.taskID) == "" || strings.TrimSpace(parsed.runID) == "" ||
 		strings.TrimSpace(parsed.loopRunID) == "" {
-		return options{}, errors.New("retained Loop task seeder requires home, profile, workspace, task, run, and loop-run")
+		return options{}, errors.New(
+			"retained Loop task seeder requires home, profile, workspace, task, run, and loop-run",
+		)
 	}
 	return parsed, nil
 }

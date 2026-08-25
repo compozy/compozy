@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSelector } from "@xstate/store-react";
 
@@ -33,18 +33,31 @@ export function useRememberedProfile(lens: ProfileLens, enabled = true) {
 export function useActiveProfileView(lens: ProfileLens, enabled = true): ProfileView {
   const remembered = useRememberedProfile(lens, enabled);
   const viewByLens = useSelector(profileViewStore, state => state.context.viewByLens);
-  const local = viewByLens[profileLensKey(lens)];
   const rememberedProfile = remembered.data?.profile;
   const workspaceId = lens.scope === "workspace" ? lens.workspaceId : null;
   const lensKey = profileLensKey(lens);
-  const previousLens = useRef<ProfileLens>(lens);
+  const [activeLens, setActiveLens] = useState(lens);
+  const [pendingCarry, setPendingCarry] = useState<ProfileViewCarry | null>(null);
+  const activeLensKey = profileLensKey(activeLens);
+  const destinationLocal = viewByLens[lensKey];
+
+  if (activeLensKey !== lensKey) {
+    const sourceView = viewByLens[activeLensKey];
+    setActiveLens(lens);
+    setPendingCarry(sourceView ? { from: activeLens, to: lens, view: sourceView } : null);
+  }
+
+  const carryForCurrentLens =
+    pendingCarry && profileLensKey(pendingCarry.to) === lensKey ? pendingCarry : null;
+  if (carryForCurrentLens && sameProfileView(destinationLocal, carryForCurrentLens.view)) {
+    setPendingCarry(null);
+  }
+  const local = carryForCurrentLens?.view ?? destinationLocal;
 
   useEffect(() => {
-    const previous = previousLens.current;
-    previousLens.current = lens;
-    if (profileLensKey(previous) === lensKey) return;
-    carryProfileView(previous, lens);
-  }, [lens, lensKey]);
+    if (!pendingCarry) return;
+    carryProfileView(pendingCarry.from, pendingCarry.to);
+  }, [pendingCarry]);
 
   useEffect(() => {
     if (!enabled || rememberedProfile === undefined) return;
@@ -55,6 +68,18 @@ export function useActiveProfileView(lens: ProfileLens, enabled = true): Profile
 
   if (local) return local;
   return { kind: "profile", profile: rememberedProfile ?? PERMANENT_PROFILE };
+}
+
+interface ProfileViewCarry {
+  from: ProfileLens;
+  to: ProfileLens;
+  view: ProfileView;
+}
+
+function sameProfileView(left: ProfileView | undefined, right: ProfileView): boolean {
+  if (!left || left.kind !== right.kind) return false;
+  if (left.kind === "aggregate") return true;
+  return right.kind === "profile" && left.profile === right.profile;
 }
 
 /**

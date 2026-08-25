@@ -32,7 +32,7 @@ export function useSessionRuntimeExtensions({
   const promptPending = useSelector(promptDispatch, snapshot => snapshot.context.pending);
   const liveTailSuppressed = useSelector(
     sessionStore,
-    snapshot => snapshot.context.liveTailSuppressions[sessionId] === true
+    snapshot => (snapshot.context.liveTailSuppressions[sessionId] ?? 0) > 0
   );
   const streamResetGeneration = useSelector(
     promptDispatch,

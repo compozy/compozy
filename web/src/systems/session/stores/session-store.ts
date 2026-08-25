@@ -22,7 +22,7 @@ export interface SessionStoreContext {
   drafts: Record<string, string>;
   firstPrompts: Record<string, SessionFirstPrompt>;
   goalFeedback: Record<string, SessionGoalFeedback>;
-  liveTailSuppressions: Record<string, true>;
+  liveTailSuppressions: Record<string, number>;
 }
 
 export const SESSION_DRAFTS_STORAGE_KEY = "compozy:session:drafts:v1";
@@ -184,19 +184,29 @@ export const sessionStore = createStore({
       };
     },
     sessionLiveTailResumed: (context, event: { sessionId: string }) => {
-      const liveTailSuppressions = withoutSessionValue(
-        context.liveTailSuppressions,
-        event.sessionId
-      );
-      return liveTailSuppressions === context.liveTailSuppressions
-        ? undefined
-        : { ...context, liveTailSuppressions };
-    },
-    sessionLiveTailSuspended: (context, event: { sessionId: string }) => {
-      if (context.liveTailSuppressions[event.sessionId]) return;
+      const owners = context.liveTailSuppressions[event.sessionId] ?? 0;
+      if (owners === 0) return;
+      if (owners > 1) {
+        return {
+          ...context,
+          liveTailSuppressions: {
+            ...context.liveTailSuppressions,
+            [event.sessionId]: owners - 1,
+          },
+        };
+      }
       return {
         ...context,
-        liveTailSuppressions: { ...context.liveTailSuppressions, [event.sessionId]: true as const },
+        liveTailSuppressions: withoutSessionValue(context.liveTailSuppressions, event.sessionId),
+      };
+    },
+    sessionLiveTailSuspended: (context, event: { sessionId: string }) => {
+      return {
+        ...context,
+        liveTailSuppressions: {
+          ...context.liveTailSuppressions,
+          [event.sessionId]: (context.liveTailSuppressions[event.sessionId] ?? 0) + 1,
+        },
       };
     },
     sessionInteractionRemoved: (context, event: { sessionId: string }) => {

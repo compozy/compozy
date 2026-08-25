@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Outlet } from "@tanstack/react-router";
 
 import { cn } from "@compozy/ui";
@@ -8,17 +7,12 @@ import { OsShellContext } from "../contexts/os-shell-context";
 import { useCmdPaletteRegistry } from "../hooks/use-cmd-palette-registry";
 import { WorktreeDialogActionsContext } from "../contexts/worktree-dialog-actions-context";
 import { useDesktopChromeController } from "../hooks/use-desktop-chrome-controller";
-import { useDesktop } from "../hooks/use-desktop";
 import { useDesktopShellBody } from "../hooks/use-desktop-shell-body";
 import type { DesktopShellModel } from "../hooks/use-desktop-shell-model";
 import { useProfileAutomationEnablement } from "../hooks/use-profile-automation-enablement";
 import { useDesktopWorktreeScope, WindowScopeContext } from "../hooks/use-worktree-scope";
 import type { WorktreeDialogTargets } from "../hooks/use-worktree-dialog-targets";
 import type { ClientCommandChannel } from "../lib/client-command-channel";
-import {
-  backgroundStreamsWithinConnectionBudget,
-  continuityStreamsWithinConnectionBudget,
-} from "../lib/background-stream-budget";
 import type { WindowManagerRegisteredClientView } from "../lib/window-manager-types";
 import { DesktopGate } from "./desktop-gate";
 import { DesktopWorktreeDialogs } from "./desktop-worktree-dialogs";
@@ -96,10 +90,6 @@ function DesktopChrome({
   return (
     <WorktreeDialogActionsContext.Provider value={controller.worktreeDialogs}>
       <OsShellContext.Provider value={controller.chrome.shell}>
-        <BackgroundStreamBudgetBridge
-          onBackgroundChange={controller.setBackgroundStreamsEnabled}
-          onContinuityChange={controller.setContinuityStreamsEnabled}
-        />
         <DesktopChromeContent
           client={controller.chrome.client}
           firstRun={firstRun}
@@ -113,20 +103,6 @@ function DesktopChrome({
       </OsShellContext.Provider>
     </WorktreeDialogActionsContext.Provider>
   );
-}
-
-function BackgroundStreamBudgetBridge({
-  onBackgroundChange,
-  onContinuityChange,
-}: {
-  onBackgroundChange: (enabled: boolean) => void;
-  onContinuityChange: (enabled: boolean) => void;
-}) {
-  const backgroundEnabled = useDesktop(backgroundStreamsWithinConnectionBudget);
-  const continuityEnabled = useDesktop(continuityStreamsWithinConnectionBudget);
-  useEffect(() => onBackgroundChange(backgroundEnabled), [backgroundEnabled, onBackgroundChange]);
-  useEffect(() => onContinuityChange(continuityEnabled), [continuityEnabled, onContinuityChange]);
-  return null;
 }
 
 interface DesktopShellBodyProps {
