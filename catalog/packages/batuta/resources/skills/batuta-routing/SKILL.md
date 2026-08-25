@@ -47,11 +47,7 @@ dated example as above and MUST be replaced by the derived ones. The stored
 override is what `run-loop` children resolve at execution — batuta never
 sends per-run rules on dispatch, because per-run rules freeze into the run
 and are not inherited by `run-loop` children anyway. Rule matching
-inside the stored layer accepts exactly `id`, `type`, `complexity`, or
-`type + complexity`; the conjunction is AND and `id` is exclusive.
-Specificity is `id > type + complexity > type > complexity`. Matching
-rules merge runtime fields independently, and a later equal-specificity
-rule wins only the non-empty fields it sets.
+precedence inside the stored layer: `id > type > complexity`.
 
 ```json runtime_rules
 [
@@ -65,22 +61,6 @@ rule wins only the non-empty fields it sets.
     "match": { "complexity": "critical" },
     "runtime": { "provider": "claude", "model": "claude-opus-4-8" }
   }
-]
-```
-
-### Conjunctive overlay shape (placeholder values, never store them)
-
-For a `frontend/high` task, these rules resolve provider from the `type`
-rule, reasoning from the matrix rule, and model from the later matrix rule:
-
-```json runtime_rules
-[
-  {
-    "match": { "type": "frontend" },
-    "runtime": { "provider": "derived-provider", "model": "type-model" }
-  },
-  { "match": { "type": "frontend", "complexity": "high" }, "runtime": { "reasoning": "high" } },
-  { "match": { "type": "frontend", "complexity": "high" }, "runtime": { "model": "matrix-model" } }
 ]
 ```
 
@@ -99,8 +79,8 @@ rule, reasoning from the matrix rule, and model from the later matrix rule:
 - Repeated failure in a lane: write a surgical `id` rule one lane up into
   the STORED override (`compozy__loop_configure` on `implement-tasks`, e.g.
   `{"match":{"id":"task_NN"},"runtime":{...}}` prepended to the rules), then
-  re-dispatch `batuta-deliver`. An `id` rule beats matrix and single-selector
-  rules for each non-empty runtime field it sets; remove it after the task lands.
+  re-dispatch `batuta-deliver`. `id` beats `complexity`; remove the rule
+  after the task lands.
 - Operator reclassification in conversation ("use luna for this one")
   becomes the same stored `id` rule before the next dispatch.
 - The daemon persists `resolved_runtime` with per-field provenance on every

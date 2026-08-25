@@ -12,7 +12,7 @@
 RED (pre-production change, selector-count implementation):
 
 ```text
-rtk env TMPDIR="$(rtk mktemp -d -p /home/francisross/tmp-builds batuta-task1-red-exact.XXXXXX)" go test ./internal/loop -run TestValidateRuntimeRulesShouldAcceptTypeComplexityConjunction -count=1
+rtk env TMPDIR="$(rtk mktemp -d -p /home/francisross/tmp-builds conjunctive-runtime-red-exact.XXXXXX)" go test ./internal/loop -run TestValidateRuntimeRulesShouldAcceptTypeComplexityConjunction -count=1
 --- FAIL: TestValidateRuntimeRulesShouldAcceptTypeComplexityConjunction
     runtime_validation_test.go:280: ValidateDefinitionRuntime() error = loop: runtime validation failed for runtime_rules[0].match="": selector_collision
 FAIL
@@ -21,10 +21,10 @@ FAIL
 GREEN:
 
 ```text
-rtk env TMPDIR="$(rtk mktemp -d -p /home/francisross/tmp-builds batuta-task1-green-exact.XXXXXX)" go test ./internal/loop -run TestValidateRuntimeRulesShouldAcceptTypeComplexityConjunction -count=1
+rtk env TMPDIR="$(rtk mktemp -d -p /home/francisross/tmp-builds conjunctive-runtime-green-exact.XXXXXX)" go test ./internal/loop -run TestValidateRuntimeRulesShouldAcceptTypeComplexityConjunction -count=1
 ok   github.com/compozy/compozy/internal/loop  0.009s
 
-rtk env TMPDIR="$(rtk mktemp -d -p /home/francisross/tmp-builds batuta-task1-package-final.XXXXXX)" go test ./internal/loop -count=1
+rtk env TMPDIR="$(rtk mktemp -d -p /home/francisross/tmp-builds conjunctive-runtime-package-final.XXXXXX)" go test ./internal/loop -count=1
 ok   github.com/compozy/compozy/internal/loop  12.730s
 ```
 
