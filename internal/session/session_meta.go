@@ -41,7 +41,6 @@ func (s *Session) metaLocked() store.SessionMeta {
 			s.RuntimeSelectionRevision,
 		),
 		WorkspaceID:          s.WorkspaceID,
-		CWD:                  s.CWD,
 		NetworkParticipation: participation.CloneSpec(s.NetworkParticipation),
 		SessionType:          string(normalizeSessionType(s.Type)),
 		Lineage:              store.NormalizeSessionLineage(s.ID, s.Lineage),
@@ -63,6 +62,7 @@ func (s *Session) metaLocked() store.SessionMeta {
 	meta.SetEffectivePermissions(s.EffectivePermissions)
 	meta.SetEffectiveProviderAuthMode(string(s.effectiveProviderAuthMode))
 	meta.SetWorktreeID(s.WorktreeID)
+	meta.SetCWD(s.CWD)
 	meta.SetAdvertisedCommands(s.AdvertisedCommands)
 	if identity != nil {
 		meta.CreationProfileRef = identity.CreationProfileRef

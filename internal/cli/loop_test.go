@@ -1246,11 +1246,13 @@ func TestLoopListCommandsProfileReadScope(t *testing.T) {
 				t.Fatalf("selected profile listing error = %v", err)
 			}
 			if test.wantOwner {
-				var response contract.LoopRunsResponse
+				var response struct {
+					Items []contract.LoopRunPayload `json:"items"`
+				}
 				if err := json.Unmarshal([]byte(selected), &response); err != nil {
 					t.Fatalf("decode selected profile output: %v", err)
 				}
-				if len(response.Runs) != 1 || response.Runs[0].ProfileName != "marketing" {
+				if len(response.Items) != 1 || response.Items[0].ProfileName != "marketing" {
 					t.Fatalf("selected profile output = %#v, want marketing owner", response)
 				}
 			}

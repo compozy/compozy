@@ -70,7 +70,8 @@ test("operator can onboard, create a session, submit work, approve a permission 
   );
 
   const createResponsePromise = appPage.waitForResponse(
-    response => response.request().method() === "POST" && response.url().endsWith("/api/sessions")
+    response =>
+      response.request().method() === "POST" && new URL(response.url()).pathname === "/api/sessions"
   );
   await appPage.getByTestId("session-create-submit").click();
   const createResponse = await createResponsePromise;

@@ -110,7 +110,7 @@ export interface BrowserRouteState {
   knowledge_edit_dialog_open?: boolean;
   knowledge_item_count?: number;
   knowledge_revert_button_count?: number;
-  knowledge_scope?: "global" | "workspace" | "agent";
+  knowledge_scope?: "profile" | "workspace" | "agent";
   knowledge_search_active?: boolean;
   knowledge_selected_item?: string;
   knowledge_view_visible?: boolean;

@@ -21,7 +21,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -40,7 +39,7 @@ func TestWorkspaceAccessIntegration(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		db, err := globaldb.OpenGlobalDB(ctx, filepath.Join(t.TempDir(), store.GlobalDatabaseName))
+		db, err := openDaemonTestGlobalDBAtPath(ctx, filepath.Join(t.TempDir(), store.GlobalDatabaseName))
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}

@@ -147,7 +147,7 @@ test.describe("E2E-009 attention bell", () => {
   test("Should state that a disconnected source is frozen and uncounted", async ({
     appPage: page,
   }) => {
-    await page.route("**/api/sessions/catalog-stream", route => route.abort());
+    await page.route(/\/api\/sessions\/catalog-stream(?:\?.*)?$/, route => route.abort());
     await page.reload();
     await completeOnboardingIfPrompted(page);
 

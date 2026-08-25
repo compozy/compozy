@@ -88,7 +88,10 @@ func (n *daemonNativeTools) taskExecutionProfileSet(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{"profile": stored}, fmt.Sprintf("updated profile %s", stored.TaskID))
+	return structuredResult(
+		map[string]any{nativeProfileToolsProfileKey: stored},
+		fmt.Sprintf("updated profile %s", stored.TaskID),
+	)
 }
 
 func (n *daemonNativeTools) taskExecutionProfileDelete(

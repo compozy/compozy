@@ -1170,14 +1170,11 @@ export async function seedBrowserAutomationOperatorFlow(
 
   await waitForSeedCondition(
     async () => {
-      const workspaceId = await resolveBrowserAutomationWorkspaceID(
-        runtime,
-        seed,
-        timeoutMs,
-        (baselineRun as { workspace_id?: string }).workspace_id
+      const owner = await runtime.requestJSON<{ workspace_id: string }>(
+        `/api/sessions/${encodeURIComponent(baselineRun.session_id ?? "")}/owner`
       );
       const payload = await runtime.requestJSON<{ entries: Array<{ message: unknown }> }>(
-        workspaceSessionPath(workspaceId, baselineRun.session_id ?? "", "/transcript")
+        workspaceSessionPath(owner.workspace_id, baselineRun.session_id ?? "", "/transcript")
       );
       const transcript = JSON.stringify(payload.entries.map(entry => entry.message));
 
@@ -1936,46 +1933,6 @@ async function resolveBrowserTasksWorkspace(
     "browser tasks workspace",
     timeoutMs
   );
-}
-
-async function resolveBrowserAutomationWorkspaceID(
-  runtime: BrowserAutomationOperatorSeedRuntime,
-  seed: BrowserAutomationOperatorFlowSeed,
-  timeoutMs: number,
-  runWorkspaceId?: string
-): Promise<string> {
-  const explicitWorkspaceID = runWorkspaceId?.trim() || seed.workspaceId?.trim();
-  if (explicitWorkspaceID) {
-    return explicitWorkspaceID;
-  }
-
-  const seededWorkspaceID = runtime.seeded?.workspace?.id?.trim();
-  if (seededWorkspaceID) {
-    return seededWorkspaceID;
-  }
-
-  const resolveWorkspace = runtime.resolveWorkspace?.bind(runtime);
-  const workspaceDir = runtime.paths?.workspaceDir;
-  if (resolveWorkspace && workspaceDir) {
-    const workspace = await waitForSeedCondition(
-      async () => await resolveWorkspace(workspaceDir),
-      "browser automation workspace",
-      timeoutMs
-    );
-    return workspace.id;
-  }
-
-  const workspace = await waitForSeedCondition(
-    async () => {
-      const payload = await runtime.requestJSON<{ workspaces: WorkspacePayload[] }>(
-        "/api/workspaces"
-      );
-      return payload.workspaces[0] ?? null;
-    },
-    "browser automation workspace",
-    timeoutMs
-  );
-  return workspace.id;
 }
 
 async function createBrowserTask(

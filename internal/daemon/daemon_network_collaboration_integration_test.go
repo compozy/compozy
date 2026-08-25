@@ -17,7 +17,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	"github.com/compozy/compozy/internal/transcript"
@@ -455,7 +454,7 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 			}
 		}
 
-		usageDB, err := globaldb.OpenGlobalDB(ctx, harness.HomePaths.DatabaseFile)
+		usageDB, err := openDaemonTestGlobalDBAtPath(ctx, harness.HomePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(network usage) error = %v", err)
 		}
@@ -839,7 +838,7 @@ func TestDaemonE2ENetworkWakeCancellationWithMockAgent(t *testing.T) {
 		})
 		mustSetNetworkEnabled(t, ctx, harness, false)
 
-		usageDB, err := globaldb.OpenGlobalDB(ctx, harness.HomePaths.DatabaseFile)
+		usageDB, err := openDaemonTestGlobalDBAtPath(ctx, harness.HomePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(canceled network wake) error = %v", err)
 		}
@@ -1871,7 +1870,7 @@ func waitForSettledNetworkWakeCount(
 	want int,
 ) {
 	t.Helper()
-	usageDB, err := globaldb.OpenGlobalDB(ctx, harness.HomePaths.DatabaseFile)
+	usageDB, err := openDaemonTestGlobalDBAtPath(ctx, harness.HomePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB(network wake settlement) error = %v", err)
 	}

@@ -173,10 +173,10 @@ func TestLoopRunReadCommands(t *testing.T) {
 			t.Fatalf("loop runs human error = %v", err)
 		}
 		want := strings.Join([]string{
-			"STATUS     LOOP      PROGRESS       STARTED  DURATION",
-			"NEEDS YOU  review    step 4/6 · r1  18:32    22m   approval (1) · 3m",
-			"running    assisted  step 2/9 · r1  18:41    13m",
-			"done       review    —              17:40    18m",
+			"STATUS     PROFILE  LOOP      PROGRESS       STARTED  DURATION",
+			"NEEDS YOU  --       review    step 4/6 · r1  18:32    22m   approval (1) · 3m",
+			"running    --       assisted  step 2/9 · r1  18:41    13m",
+			"done       --       review    —              17:40    18m",
 		}, "\n")
 		if strings.TrimSpace(stdout) != want {
 			t.Fatalf("loop runs output = %q, want %q", strings.TrimSpace(stdout), want)
@@ -185,9 +185,9 @@ func TestLoopRunReadCommands(t *testing.T) {
 
 	t.Run("Should render an unknown run start time as an em dash", func(t *testing.T) {
 		t.Parallel()
-		row := loopRunSummaryRow(contract.LoopRunPayload{Status: contract.LoopRunStatusQueued}, deps.now)
-		if row[3] != "—" {
-			t.Fatalf("queued run STARTED = %q, want em dash", row[3])
+		row := loopRunSummaryRow(&contract.LoopRunPayload{Status: contract.LoopRunStatusQueued}, deps.now)
+		if row[4] != "—" {
+			t.Fatalf("queued run STARTED = %q, want em dash", row[4])
 		}
 	})
 

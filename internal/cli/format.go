@@ -60,6 +60,8 @@ const (
 	cliSeverityValue         = "Severity"
 	cliRunsKey               = "runs"
 	cliStatusHeader          = "STATUS"
+	cliStateHeader           = "STATE"
+	cliStepHeader            = "STEP"
 	cliTurnsValue            = "Turns"
 	cliUptimeValue           = "Uptime"
 	completionCommandKey     = "completion"

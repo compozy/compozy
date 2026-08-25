@@ -180,8 +180,8 @@ test("Home reports an overview failure without misreporting daemon connectivity"
     });
   });
 
-  await ensureProjectWorkspace(page, runtime);
   await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
+  await ensureProjectWorkspace(page, runtime);
   await completeOnboardingIfPrompted(workspaceShell(page));
   const home = await ensureAppWindow(page, "Home", "dashboard");
 
@@ -200,8 +200,8 @@ test("Home preserves its loaded overview and recovers when health requests resum
   runtime,
 }) => {
   await prepareHomeRuntime(runtime);
-  await ensureProjectWorkspace(page, runtime);
   await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
+  await ensureProjectWorkspace(page, runtime);
   await completeOnboardingIfPrompted(workspaceShell(page));
   const home = await ensureAppWindow(page, "Home", "dashboard");
   await expect(home.getByTestId("home-connection-indicator")).toHaveAttribute(

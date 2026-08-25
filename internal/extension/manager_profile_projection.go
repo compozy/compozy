@@ -61,12 +61,13 @@ func (m *Manager) ProjectForProfile(
 	}
 
 	manifest := cloneManifest(extension.Manifest)
-	projectManifestResourcesForProfile(&manifest.Resources, profile.Name)
+	projectedManifest := cloneManifest(extension.Manifest)
+	projectManifestResourcesForProfile(&projectedManifest.Resources, profile.Name)
 	temporary := &managedExtension{
 		key:      key,
 		info:     extension.Info,
 		rootDir:  extension.RootDir,
-		manifest: manifest,
+		manifest: projectedManifest,
 	}
 	loaded, err := m.loadDeclarativeResources(ctx, temporary)
 	if err != nil {

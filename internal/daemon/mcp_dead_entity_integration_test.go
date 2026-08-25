@@ -17,7 +17,6 @@ import (
 	"github.com/compozy/compozy/internal/deadentity"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/store/globaldb"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -39,7 +38,7 @@ func TestDaemonIntegrationMCPDeadEntityRecoversWithoutRestart(t *testing.T) {
 			defer cancel()
 			now := time.Date(2026, 7, 15, 20, 0, 0, 0, time.UTC)
 			workspaceID := "ws-dead-mcp-integration"
-			globalDB, err := globaldb.OpenGlobalDB(ctx, filepath.Join(t.TempDir(), store.GlobalDatabaseName))
+			globalDB, err := openDaemonTestGlobalDBAtPath(ctx, filepath.Join(t.TempDir(), store.GlobalDatabaseName))
 			if err != nil {
 				t.Fatalf("OpenGlobalDB() error = %v", err)
 			}

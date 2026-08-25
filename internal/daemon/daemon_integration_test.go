@@ -62,7 +62,7 @@ func installExtensionForDaemonIntegration(
 ) string {
 	t.Helper()
 
-	db, err := globaldb.OpenGlobalDB(testutil.Context(t), databasePath)
+	db, err := openDaemonTestGlobalDBAtPath(testutil.Context(t), databasePath)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB(%q) error = %v", databasePath, err)
 	}
@@ -1129,7 +1129,7 @@ func TestBootRecoversOrphanedTaskRunsAndRecordsAudit(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
 
-	seedDB, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
+	seedDB, err := openDaemonTestGlobalDBAtPath(testutil.Context(t), homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB(seed) error = %v", err)
 	}
@@ -1485,7 +1485,7 @@ func TestBootPreservesAutomationEnabledOverlaysAcrossRestart(t *testing.T) {
 		t.Fatalf("restarted trigger = %#v, want disabled overlay", trigger)
 	}
 
-	db, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
+	db, err := openDaemonTestGlobalDBAtPath(testutil.Context(t), homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
@@ -2126,7 +2126,7 @@ func TestBootNetworkShutdownPreservesCommittedDelivery(t *testing.T) {
 		t.Fatal("sess-net remains prompting after daemon shutdown")
 	}
 
-	db, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
+	db, err := openDaemonTestGlobalDBAtPath(testutil.Context(t), homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB(after shutdown) error = %v", err)
 	}
@@ -4204,7 +4204,7 @@ func seedDetachedHarnessSessionIndex(
 ) {
 	t.Helper()
 
-	db, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
+	db, err := openDaemonTestGlobalDBAtPath(testutil.Context(t), homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
@@ -4358,7 +4358,7 @@ func seedDaemonWorkspace(t *testing.T, homePaths compozyconfig.HomePaths, root s
 		t.Fatalf("os.MkdirAll(%q) error = %v", root, err)
 	}
 
-	registry, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
+	registry, err := openDaemonTestGlobalDBAtPath(testutil.Context(t), homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
@@ -4534,7 +4534,7 @@ func writeDaemonIntegrationProviderConfig(
 func openDaemonIntegrationGlobalDB(t *testing.T, databasePath string) *globaldb.GlobalDB {
 	t.Helper()
 
-	db, err := globaldb.OpenGlobalDB(testutil.Context(t), databasePath)
+	db, err := openDaemonTestGlobalDBAtPath(testutil.Context(t), databasePath)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB(%q) error = %v", databasePath, err)
 	}

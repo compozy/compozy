@@ -14,7 +14,6 @@ import (
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/soul"
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/store/globaldb"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -343,7 +342,7 @@ func daemonBenchmarkKernel(b *testing.B) *resources.Kernel {
 	b.Helper()
 
 	ctx := b.Context()
-	db, err := globaldb.OpenGlobalDB(ctx, filepath.Join(b.TempDir(), store.GlobalDatabaseName))
+	db, err := openDaemonTestGlobalDBAtPath(ctx, filepath.Join(b.TempDir(), store.GlobalDatabaseName))
 	if err != nil {
 		b.Fatalf("OpenGlobalDB() error = %v", err)
 	}

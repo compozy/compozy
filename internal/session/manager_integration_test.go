@@ -354,7 +354,7 @@ func newSessionWorktreeRaceFixture(
 	}
 	initializeSessionIntegrationGitRepository(t, h.workspace)
 
-	database, err := globaldb.OpenGlobalDB(ctx, filepath.Join(t.TempDir(), store.GlobalDatabaseName))
+	database, err := openSessionTestGlobalDB(ctx, filepath.Join(t.TempDir(), store.GlobalDatabaseName))
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}

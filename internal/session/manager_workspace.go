@@ -65,7 +65,8 @@ func (m *Manager) resolveCreateWorkspace(ctx context.Context, opts CreateOpts) (
 					err,
 				)
 			}
-			return withDefaultProfileIdentity(resolved), nil
+			applyDefaultProfileIdentity(&resolved)
+			return resolved, nil
 		}
 		profileName, err := resolveProfileName(ctx, m.profileNames, opts.ProfileID)
 		if err != nil {
@@ -154,7 +155,8 @@ func resolveWorkspaceForProfile(
 		if err != nil {
 			return workspacepkg.ResolvedWorkspace{}, err
 		}
-		return withDefaultProfileIdentity(resolved), nil
+		applyDefaultProfileIdentity(&resolved)
+		return resolved, nil
 	}
 	profileName, err := resolveProfileName(ctx, profileNames, profileID)
 	if err != nil {
@@ -174,10 +176,12 @@ func resolveWorkspaceForProfile(
 	return resolved, nil
 }
 
-func withDefaultProfileIdentity(resolved workspacepkg.ResolvedWorkspace) workspacepkg.ResolvedWorkspace {
+func applyDefaultProfileIdentity(resolved *workspacepkg.ResolvedWorkspace) {
+	if resolved == nil {
+		return
+	}
 	resolved.ProfileID = store.DefaultProfileID
 	resolved.ProfileName = sessionDefaultProfileName
-	return resolved
 }
 
 func resolveProfileName(ctx context.Context, profileNames ProfileNameResolver, profileID string) (string, error) {

@@ -249,7 +249,7 @@ export const knowledgeOperatorTestIds = {
   searchInfo: "knowledge-search-info",
   shell: "knowledge-shell",
   tabAgent: "tab-agent",
-  tabGlobal: "tab-global",
+  tabProfile: "tab-profile",
   tabWorkspace: "tab-workspace",
 } as const;
 
@@ -514,7 +514,7 @@ export interface KnowledgeOperatorSelectors {
   searchInfo: Locator;
   shell: Locator;
   tabAgent: Locator;
-  tabGlobal: Locator;
+  tabProfile: Locator;
   tabWorkspace: Locator;
 }
 
@@ -1238,7 +1238,7 @@ export function knowledgeOperatorSelectors(
     searchInfo: page.getByTestId(knowledgeOperatorTestIds.searchInfo),
     shell: page.getByTestId(knowledgeOperatorTestIds.shell),
     tabAgent: page.getByTestId(knowledgeOperatorTestIds.tabAgent),
-    tabGlobal: page.getByTestId(knowledgeOperatorTestIds.tabGlobal),
+    tabProfile: page.getByTestId(knowledgeOperatorTestIds.tabProfile),
     tabWorkspace: page.getByTestId(knowledgeOperatorTestIds.tabWorkspace),
   };
 }

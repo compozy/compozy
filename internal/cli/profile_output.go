@@ -64,7 +64,7 @@ func profileListBundle(items []contract.Profile, current string) outputBundle {
 					marker, row.Name, symbol, row.State, profileCountLabel(row.WorkItems, "item"),
 				})
 			}
-			return renderHumanTable("", []string{"", "NAME", "SYMBOL", "STATE", "WORK"}, tableRows), nil
+			return renderHumanTable("", []string{"", "NAME", "SYMBOL", cliStateHeader, "WORK"}, tableRows), nil
 		},
 		toon: func() (string, error) {
 			toonRows := make([][]string, 0, len(rows))
@@ -237,7 +237,7 @@ func profileOperationsBundle(items []contract.ProfileOperation) outputBundle {
 		items,
 		items,
 		"",
-		[]string{"ID", cliKindHeader, cliProfileHeader, cliStatusHeader, "STEP", "ERROR"},
+		[]string{"ID", cliKindHeader, cliProfileHeader, cliStatusHeader, cliStepHeader, "ERROR"},
 		"profile_operations",
 		[]string{"id", "kind", profileFlagName, automationStatusKey, "step", automationErrorKey},
 		func(item contract.ProfileOperation) []string {

@@ -529,6 +529,12 @@ profile = "y"
 		t.Fatal("ProjectForProfile(x) enabled = false, want true")
 	}
 	assertSkills(t, xProjection, []string{"shared", "x-one", "x-two"})
+	if got := manifestResourcePaths(xProjection.Manifest.Resources.Skills); !slices.Equal(
+		got,
+		[]string{"skills/shared", "skills/x-one", "skills/x-two", "skills/y-one"},
+	) {
+		t.Fatalf("ProjectForProfile(x).Manifest.Resources.Skills = %#v, want complete placement manifest", got)
+	}
 	yProjection, enabled := project(t, yProfileID, "y")
 	if !enabled {
 		t.Fatal("ProjectForProfile(y) enabled = false, want true")

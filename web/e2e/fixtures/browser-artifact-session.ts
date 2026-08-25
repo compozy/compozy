@@ -313,8 +313,10 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       document.querySelector('[data-testid="tasks-run-detail-content"]') !== null ||
       document.querySelector('[data-testid="task-editor-surface"]') !== null;
     const tasksReviewCount = countByPrefix("tasks-run-review-");
-    const knowledgeScope = document.querySelector('[data-testid="tab-global"][aria-pressed="true"]')
-      ? "global"
+    const knowledgeScope = document.querySelector(
+      '[data-testid="tab-profile"][aria-pressed="true"]'
+    )
+      ? "profile"
       : document.querySelector('[data-testid="tab-workspace"][aria-pressed="true"]')
         ? "workspace"
         : document.querySelector('[data-testid="tab-agent"][aria-pressed="true"]')

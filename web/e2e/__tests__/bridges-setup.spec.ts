@@ -23,6 +23,7 @@ import type {
 } from "@/systems/bridges";
 import { slackBridgeManifestFixture } from "@/systems/bridges/mocks";
 
+import { openAppWindow } from "../fixtures/os-navigation";
 import { bridgeOperatorSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { ensureProjectWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
@@ -110,7 +111,13 @@ test("Should wait for Slack create 201 before manifest, copy daemon JSON, and op
   await ui.createDialog.getByTestId(`bridge-provider-card-${PROVIDER_KEY}`).click();
   await expect(ui.createDisplayNameInput).toBeVisible();
   await ui.createDisplayNameInput.fill("Browser Slack Setup");
-  await expect(page.getByTestId("workspace-scope-statement")).toContainText("Creates in Global");
+  if (!runtime.paths?.workspaceDir) {
+    throw new Error("bridge setup browser test requires launch-mode workspace paths");
+  }
+  const activeWorkspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
+  await expect(page.getByTestId("workspace-scope-statement")).toContainText(
+    `Creates in ${activeWorkspace.name}.`
+  );
   await ui.createModeAdvanced.click();
   await ui.createProviderConfigInput.fill(
     JSON.stringify({
@@ -408,10 +415,11 @@ async function openBridgesPage(
   targetURL: string,
   runtime: Parameters<typeof ensureProjectWorkspace>[1]
 ): Promise<void> {
-  await ensureProjectWorkspace(page, runtime);
   await page.goto(targetURL, { waitUntil: "domcontentloaded" });
+  await ensureProjectWorkspace(page, runtime);
   await completeOnboardingIfPrompted(page);
   await expect(page.getByTestId("os-desktop")).toBeVisible();
+  await openAppWindow(page, "Bridges", "bridges");
 }
 
 async function openBridgeDetail(
@@ -422,7 +430,7 @@ async function openBridgeDetail(
   await openBridgesPage(page, runtime.url("/bridges"), runtime);
   const ui = bridgeOperatorSelectors(page);
   await expect(ui.item(bridgeID)).toBeVisible();
-  await ui.item(bridgeID).click();
+  await ui.item(bridgeID).getByRole("link").click();
   await expect(page).toHaveURL(new RegExp(`/bridges/${bridgeID}$`));
   await expect(ui.detailPanel).toBeVisible();
 }

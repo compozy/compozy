@@ -11,6 +11,8 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+const defaultResourceProfileName = "default"
+
 func (r *Registry) usesResourceAuthority() bool {
 	if r == nil {
 		return false
@@ -91,7 +93,7 @@ func resourceProfileSkills(
 	profileName := strings.TrimSpace(resolved.ProfileName)
 	if profileID == "" && profileName == "" {
 		profileID = store.DefaultProfileID
-		profileName = "default"
+		profileName = defaultResourceProfileName
 	}
 	keys := []string{
 		profileID,
@@ -123,7 +125,7 @@ func resourceWorkspaceProfileKey(resolved *workspacepkg.ResolvedWorkspace) strin
 	profileName := strings.TrimSpace(resolved.ProfileName)
 	profileID := strings.TrimSpace(resolved.ProfileID)
 	if profileName == "" && (profileID == "" || profileID == store.DefaultProfileID) {
-		profileName = "default"
+		profileName = defaultResourceProfileName
 	}
 	if workspaceID == "" || profileName == "" {
 		return ""

@@ -49,7 +49,7 @@ func (h *BaseHandlers) marketplaceReadActorContext(
 		h.respondError(c, StatusForTaskError(err), err)
 		return nil, false
 	}
-	if scope.scope == settingspkg.ScopeProfile {
+	if scope.scope != settingspkg.ScopeUser {
 		readScope, resolveErr := h.resolveProfileMutationScope(c)
 		if resolveErr != nil {
 			h.respondProfileReadScopeError(c, resolveErr)

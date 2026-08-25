@@ -108,6 +108,8 @@ test.describe("Extension dev overlay and source-union install", () => {
     await marketplace.extensionInstallRef.fill(unionDir);
     await marketplace.extensionInstallAllowUnverified.click();
     await marketplace.extensionInstallSubmit.click();
+    await expect(marketplaceWin.getByTestId("extension-install-summary")).toBeVisible();
+    await marketplace.extensionInstallSubmit.click();
     // An unverified archive never installs without the daemon's explicit consent decision.
     await expect(marketplace.extensionTrustDialog).toBeVisible();
 
@@ -240,35 +242,32 @@ test.describe("Profile-aware extension management", () => {
     await expect(defaultToggle).not.toBeChecked();
     await expect
       .poll(async () => {
-        return await runtime.requestJSON<{ enabled: boolean }>(
+        const enablement = await runtime.requestJSON<Array<{ enabled: boolean; profile: string }>>(
           `/api/extensions/${extensionName}/enablement?profile=default`
         );
+        return enablement.find(item => item.profile === "default")?.enabled;
       })
-      .toMatchObject({ enabled: false });
+      .toBe(false);
+
+    await fulfillGrowthProfileCredential(runtime);
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    const refreshedMarketplace = appWindow(appPage, "marketplace");
+    const refreshedDeclaredProfiles = refreshedMarketplace.getByTestId(
+      "extension-declared-profiles"
+    );
+    await expect(refreshedDeclaredProfiles).toBeVisible({ timeout: 20_000 });
+    await expect(refreshedDeclaredProfiles.getByText("Needs setup")).toHaveCount(0);
 
     const profiles = profilesOperatorSelectors(appPage);
     await profiles.switcher.click();
     await profiles.switcherOption("growth").click();
     await expect(profiles.switcher).toContainText("growth");
-    await expect(marketplaceWin.getByTestId("extension-enabled-switch")).toBeChecked();
-    await expect(marketplaceWin.getByText("growth", { exact: true }).last()).toBeVisible();
-
-    await runtime.requestJSON("/api/vault/secrets", {
-      body: JSON.stringify({
-        kind: "api_key",
-        ref: "vault:profiles/growth/providers/openai/api_key",
-        secret_value: "browser-growth-secret",
-      }),
-      method: "PUT",
+    await appPage.goto(runtime.url(`/marketplace/extension/${extensionName}`), {
+      waitUntil: "domcontentloaded",
     });
-    await appPage.reload({ waitUntil: "domcontentloaded" });
-    const refreshedMarketplace = appWindow(appPage, "marketplace");
-    await expect(refreshedMarketplace.getByTestId("extension-declared-profiles")).toBeVisible({
-      timeout: 20_000,
-    });
-    await expect(
-      refreshedMarketplace.getByTestId("extension-declared-profiles").getByText("Needs setup")
-    ).toHaveCount(0);
+    const growthMarketplace = appWindow(appPage, "marketplace");
+    await expect(growthMarketplace.getByTestId("extension-enabled-switch")).toBeChecked();
+    await expect(growthMarketplace.getByText("growth", { exact: true }).last()).toBeVisible();
   });
 
   test("E2E-030: a placed palette command follows profile enablement and catalog revision", async ({
@@ -284,6 +283,7 @@ test.describe("Profile-aware extension management", () => {
       "--allow-unverified",
       "--yes",
     ]);
+    await fulfillGrowthProfileCredential(runtime);
 
     await completeOnboardingIfPrompted(appPage);
     await switchWorkspace(appPage, workspace.id, workspace.name);
@@ -390,5 +390,18 @@ test.describe("Profile-aware extension management", () => {
       "utf8"
     );
     return rootDir;
+  }
+
+  async function fulfillGrowthProfileCredential(
+    runtime: Parameters<typeof runBrowserRuntimeCLIJSON>[0]
+  ): Promise<void> {
+    await runtime.requestJSON("/api/vault/secrets", {
+      body: JSON.stringify({
+        kind: "api_key",
+        ref: "vault:profiles/growth/providers/openai/api_key",
+        secret_value: "browser-growth-secret",
+      }),
+      method: "PUT",
+    });
   }
 });

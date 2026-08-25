@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import type { Locator, Page } from "@playwright/test";
 
 import type { LoopDefinition, LoopRunDetail, RunLoopResult } from "@/systems/loops";
+import { switchWorkspace } from "../fixtures/os-navigation";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted } from "../fixtures/workspace";
@@ -542,6 +543,7 @@ async function seedRun(
   const paths = requirePaths(runtime);
   const workspace = await runtime.resolveWorkspace(paths.workspaceDir);
   await completeOnboardingIfPrompted(appPage);
+  await switchWorkspace(appPage, workspace.id, workspace.name);
   const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
   await runtime.requestJSON(`${workspacePath}/loops`, {
     method: "POST",
@@ -1517,8 +1519,9 @@ test.describe("Loop run page — two registers", () => {
     runtime,
   }) => {
     const paths = requirePaths(runtime);
-    await runtime.resolveWorkspace(paths.workspaceDir);
+    const workspace = await runtime.resolveWorkspace(paths.workspaceDir);
     await completeOnboardingIfPrompted(appPage);
+    await switchWorkspace(appPage, workspace.id, workspace.name);
 
     await appPage.goto(runtime.url("/loop-runs"), { waitUntil: "domcontentloaded" });
     // A fresh workspace gets a sentence, not a blank table.

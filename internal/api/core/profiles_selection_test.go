@@ -38,7 +38,8 @@ func TestGetProfileSelectionsReturnsOneStableShape(t *testing.T) {
 				wantScope: contract.ProfileSelectionScopeWorkspace, wantProfile: "default",
 			},
 			{
-				name: "archived remembered workspace lens", path: "/profiles/selection?scope=workspace&workspace_id=ws-marketing",
+				name:      "archived remembered workspace lens",
+				path:      "/profiles/selection?scope=workspace&workspace_id=ws-marketing",
 				wantScope: contract.ProfileSelectionScopeWorkspace, wantProfile: "default",
 			},
 			{

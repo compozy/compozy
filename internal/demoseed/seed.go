@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/notifications/presets"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
@@ -76,7 +77,7 @@ func seedDatabase(ctx context.Context, db *globaldb.GlobalDB, state *scenario) (
 	}
 	counts.EventSummaries = observability.eventSummaries
 	counts.TokenUsageDays = observability.tokenUsageDays
-	notificationPresets, err := db.ListPresets(ctx, presets.Query{})
+	notificationPresets, err := db.ListPresetsForProfile(ctx, presets.Query{}, store.DefaultProfileID)
 	if err != nil {
 		return Result{}, fmt.Errorf("demo seed: list notification presets: %w", err)
 	}

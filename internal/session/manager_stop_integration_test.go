@@ -23,7 +23,6 @@ import (
 	"github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/sandbox/local"
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -376,109 +375,113 @@ func TestManagerIntegrationKillProcessPersistsAgentCrashedStopReason(t *testing.
 }
 
 func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
-	homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
-		t.Fatalf("EnsureHomeLayout() error = %v", err)
-	}
+	t.Run("Should create and resume with a resolved workspace", func(t *testing.T) {
+		t.Parallel()
 
-	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
-	if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
-		t.Fatalf("MkdirAll(workspace root) error = %v", err)
-	}
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
 
-	command := sessionStopHelperCommand(t)
-	writeSessionIntegrationAgentDef(t, homePaths, "coder", command)
+		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+		if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
+			t.Fatalf("MkdirAll(workspace root) error = %v", err)
+		}
 
-	registry, err := globaldb.OpenGlobalDB(context.Background(), homePaths.DatabaseFile)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := registry.Close(context.Background()); err != nil {
-			t.Fatalf("registry.Close() error = %v", err)
+		command := sessionStopHelperCommand(t)
+		writeSessionIntegrationAgentDef(t, homePaths, "coder", command)
+
+		registry, err := openSessionTestGlobalDB(context.Background(), homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := registry.Close(context.Background()); err != nil {
+				t.Fatalf("registry.Close() error = %v", err)
+			}
+		})
+
+		cfg := compozyconfig.DefaultWithHome(homePaths)
+		cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
+
+		resolver, err := workspacepkg.NewResolver(
+			registry,
+			workspacepkg.WithHomePaths(homePaths),
+			workspacepkg.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+			workspacepkg.WithConfigLoader(func(string) (compozyconfig.Config, error) { return cfg, nil }),
+		)
+		if err != nil {
+			t.Fatalf("workspace.NewResolver() error = %v", err)
+		}
+
+		driver := newIntegrationACPDriver(acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
+		sandboxRegistry, err := local.NewRegistry(local.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
+		if err != nil {
+			t.Fatalf("local.NewRegistry() error = %v", err)
+		}
+		manager, err := NewManager(
+			WithHomePaths(homePaths),
+			WithWorkspaceResolver(resolver),
+			WithDriver(NewACPDriverAdapter(driver)),
+			WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+			WithSandboxRegistry(sandboxRegistry),
+		)
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		cleanupTestManager(t, manager)
+
+		session, err := manager.Create(testutil.Context(t), CreateOpts{
+			AgentName:     "coder",
+			WorkspacePath: workspaceRoot,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		workspaceID := session.Info().WorkspaceID
+		if workspaceID == "" {
+			t.Fatal("Create() workspace id = empty, want resolved workspace id")
+		}
+		canonicalWorkspaceRoot := resolveIntegrationWorkspaceRoot(t, workspaceRoot)
+		if got, want := session.Info().Workspace, canonicalWorkspaceRoot; got != want {
+			t.Fatalf("Create() workspace root = %q, want %q", got, want)
+		}
+		events, err := manager.Prompt(testutil.Context(t), session.ID, "integration prompt")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		for range events {
+		}
+
+		if err := manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		waitForStoppedSession(t, manager, session)
+
+		resumed, err := manager.Resume(testutil.Context(t), session.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Stop(testutil.Context(t), resumed.ID); err != nil {
+				t.Fatalf("cleanup Stop() error = %v", err)
+			}
+			waitForStoppedSession(t, manager, resumed)
+		})
+
+		if got := resumed.Info().WorkspaceID; got != workspaceID {
+			t.Fatalf("Resume() workspace id = %q, want %q", got, workspaceID)
+		}
+		if got, want := resumed.Info().Workspace, canonicalWorkspaceRoot; got != want {
+			t.Fatalf("Resume() workspace root = %q, want %q", got, want)
+		}
+		if got := readMeta(t, resumed.MetaPath()).WorkspaceID; got != workspaceID {
+			t.Fatalf("meta workspace id = %q, want %q", got, workspaceID)
 		}
 	})
-
-	cfg := compozyconfig.DefaultWithHome(homePaths)
-	cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
-
-	resolver, err := workspacepkg.NewResolver(
-		registry,
-		workspacepkg.WithHomePaths(homePaths),
-		workspacepkg.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
-		workspacepkg.WithConfigLoader(func(string) (compozyconfig.Config, error) { return cfg, nil }),
-	)
-	if err != nil {
-		t.Fatalf("workspace.NewResolver() error = %v", err)
-	}
-
-	driver := newIntegrationACPDriver(acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
-	sandboxRegistry, err := local.NewRegistry(local.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
-	if err != nil {
-		t.Fatalf("local.NewRegistry() error = %v", err)
-	}
-	manager, err := NewManager(
-		WithHomePaths(homePaths),
-		WithWorkspaceResolver(resolver),
-		WithDriver(NewACPDriverAdapter(driver)),
-		WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
-		WithSandboxRegistry(sandboxRegistry),
-	)
-	if err != nil {
-		t.Fatalf("NewManager() error = %v", err)
-	}
-	cleanupTestManager(t, manager)
-
-	session, err := manager.Create(testutil.Context(t), CreateOpts{
-		AgentName:     "coder",
-		WorkspacePath: workspaceRoot,
-	})
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-	workspaceID := session.Info().WorkspaceID
-	if workspaceID == "" {
-		t.Fatal("Create() workspace id = empty, want resolved workspace id")
-	}
-	canonicalWorkspaceRoot := resolveIntegrationWorkspaceRoot(t, workspaceRoot)
-	if got, want := session.Info().Workspace, canonicalWorkspaceRoot; got != want {
-		t.Fatalf("Create() workspace root = %q, want %q", got, want)
-	}
-	events, err := manager.Prompt(testutil.Context(t), session.ID, "integration prompt")
-	if err != nil {
-		t.Fatalf("Prompt() error = %v", err)
-	}
-	for range events {
-	}
-
-	if err := manager.Stop(testutil.Context(t), session.ID); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-	waitForStoppedSession(t, manager, session)
-
-	resumed, err := manager.Resume(testutil.Context(t), session.ID)
-	if err != nil {
-		t.Fatalf("Resume() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := manager.Stop(testutil.Context(t), resumed.ID); err != nil {
-			t.Fatalf("cleanup Stop() error = %v", err)
-		}
-		waitForStoppedSession(t, manager, resumed)
-	})
-
-	if got := resumed.Info().WorkspaceID; got != workspaceID {
-		t.Fatalf("Resume() workspace id = %q, want %q", got, workspaceID)
-	}
-	if got, want := resumed.Info().Workspace, canonicalWorkspaceRoot; got != want {
-		t.Fatalf("Resume() workspace root = %q, want %q", got, want)
-	}
-	if got := readMeta(t, resumed.MetaPath()).WorkspaceID; got != workspaceID {
-		t.Fatalf("meta workspace id = %q, want %q", got, workspaceID)
-	}
 }
 
 func TestManagerIntegrationResumeClassifiesCrashAndActivates(t *testing.T) {

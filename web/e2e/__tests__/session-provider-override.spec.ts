@@ -187,7 +187,8 @@ test("operator can create a provider/model override session and attach without l
     request => request.method() === "POST" && request.url().endsWith("/api/sessions")
   );
   const createResponsePromise = appPage.waitForResponse(
-    response => response.request().method() === "POST" && response.url().endsWith("/api/sessions")
+    response =>
+      response.request().method() === "POST" && new URL(response.url()).pathname === "/api/sessions"
   );
 
   await appPage.getByTestId("session-create-submit").click();
@@ -338,7 +339,8 @@ test("operator persists an advertised model and non-empty reasoning effort on th
     request => request.method() === "POST" && request.url().endsWith("/api/sessions")
   );
   const createResponsePromise = appPage.waitForResponse(
-    response => response.request().method() === "POST" && response.url().endsWith("/api/sessions")
+    response =>
+      response.request().method() === "POST" && new URL(response.url()).pathname === "/api/sessions"
   );
   await appPage.getByTestId("session-create-submit").click();
 

@@ -83,7 +83,7 @@ func extensionLayoutResourceNameFromID(record resources.RawRecord) string {
 	parts := strings.Split(strings.Trim(strings.TrimSpace(record.ID), "/"), "/")
 	for index := len(parts) - 2; index > 0; index-- {
 		switch parts[index] {
-		case "profile", "workspace", "workspace_profile":
+		case nativeProfileToolsProfileKey, nativeToolsWorkspaceKey, "workspace_profile":
 			return strings.TrimSpace(parts[index-1])
 		}
 	}
