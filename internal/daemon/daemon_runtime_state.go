@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/situation"
 	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/soul"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/worktree"
@@ -33,6 +34,7 @@ type daemonRuntimeState struct {
 	memoryProviderRegistry *extensionpkg.MemoryProviderRegistry
 	memoryExtractor        *daemonMemoryExtractor
 	runtimeWorkers         daemonRuntimeWorkers
+	terminals              *terminalpkg.Service
 	localMemoryProvider    memoryProviderShutdowner
 	situationContext       *situation.Service
 	sessions               SessionManager

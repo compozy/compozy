@@ -40572,7 +40572,18 @@ export interface operations {
           | "worktree.pre_remove"
           | "worktree.created"
           | "worktree.adopted"
-          | "worktree.removed";
+          | "worktree.removed"
+          | "terminal.opened"
+          | "terminal.closed"
+          | "terminal.lease_changed"
+          | "terminal.command_started"
+          | "terminal.command_finished"
+          | "terminal.input_requested"
+          | "terminal.input_provided"
+          | "terminal.recording_started"
+          | "terminal.recording_stopped"
+          | "terminal.subscriber_evicted"
+          | "terminal.limit_rejected";
         /** @description Hook source */
         source?: "native" | "config" | "agent_definition" | "skill";
         /** @description Hook mode */
@@ -60844,7 +60855,18 @@ export interface operations {
                   | "worktree.pre_remove"
                   | "worktree.created"
                   | "worktree.adopted"
-                  | "worktree.removed";
+                  | "worktree.removed"
+                  | "terminal.opened"
+                  | "terminal.closed"
+                  | "terminal.lease_changed"
+                  | "terminal.command_started"
+                  | "terminal.command_finished"
+                  | "terminal.input_requested"
+                  | "terminal.input_provided"
+                  | "terminal.recording_started"
+                  | "terminal.recording_stopped"
+                  | "terminal.subscriber_evicted"
+                  | "terminal.limit_rejected";
                 /** @enum {string} */
                 executor_kind?: "native" | "subprocess" | "wasm";
                 matcher: {
@@ -61159,7 +61181,18 @@ export interface operations {
                   | "worktree.pre_remove"
                   | "worktree.created"
                   | "worktree.adopted"
-                  | "worktree.removed";
+                  | "worktree.removed"
+                  | "terminal.opened"
+                  | "terminal.closed"
+                  | "terminal.lease_changed"
+                  | "terminal.command_started"
+                  | "terminal.command_finished"
+                  | "terminal.input_requested"
+                  | "terminal.input_provided"
+                  | "terminal.recording_started"
+                  | "terminal.recording_stopped"
+                  | "terminal.subscriber_evicted"
+                  | "terminal.limit_rejected";
                 /** @enum {string} */
                 executor_kind?: "native" | "subprocess" | "wasm";
                 matcher: {
@@ -61739,7 +61772,18 @@ export interface operations {
               | "worktree.pre_remove"
               | "worktree.created"
               | "worktree.adopted"
-              | "worktree.removed";
+              | "worktree.removed"
+              | "terminal.opened"
+              | "terminal.closed"
+              | "terminal.lease_changed"
+              | "terminal.command_started"
+              | "terminal.command_finished"
+              | "terminal.input_requested"
+              | "terminal.input_provided"
+              | "terminal.recording_started"
+              | "terminal.recording_stopped"
+              | "terminal.subscriber_evicted"
+              | "terminal.limit_rejected";
             /** @enum {string} */
             executor_kind?: "native" | "subprocess" | "wasm";
             matcher: {
@@ -102069,7 +102113,18 @@ export interface operations {
           | "worktree.pre_remove"
           | "worktree.created"
           | "worktree.adopted"
-          | "worktree.removed";
+          | "worktree.removed"
+          | "terminal.opened"
+          | "terminal.closed"
+          | "terminal.lease_changed"
+          | "terminal.command_started"
+          | "terminal.command_finished"
+          | "terminal.input_requested"
+          | "terminal.input_provided"
+          | "terminal.recording_started"
+          | "terminal.recording_stopped"
+          | "terminal.subscriber_evicted"
+          | "terminal.limit_rejected";
         /** @description Hook execution outcome */
         outcome?: "applied" | "denied" | "failed" | "skipped" | "dropped" | "rejected";
         /** @description Only runs recorded since this timestamp */

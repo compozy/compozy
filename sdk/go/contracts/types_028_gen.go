@@ -7,36 +7,6 @@ import (
 	"time"
 )
 
-type TaskRunStatus uint8
-
-type TaskRunSummaryPayload struct {
-	ID                           string                      `json:"id"`
-	TaskID                       string                      `json:"task_id"`
-	Status                       TaskRunStatus               `json:"status"`
-	Attempt                      int                         `json:"attempt"`
-	RecoveryCount                int                         `json:"recovery_count"`
-	PreviousRunID                string                      `json:"previous_run_id,omitempty"`
-	FailureKind                  string                      `json:"failure_kind,omitempty"`
-	MaxAttempts                  int                         `json:"max_attempts"`
-	SessionID                    string                      `json:"session_id,omitempty"`
-	WorktreeID                   string                      `json:"worktree_id,omitempty"`
-	ResolvedWorktreeMode         ResolvedWorktreeMode        `json:"resolved_worktree_mode"`
-	ResolvedWorktreeRef          string                      `json:"resolved_worktree_ref,omitempty"`
-	ClaimedBy                    *ActorIdentity              `json:"claimed_by,omitempty"`
-	ClaimTokenHash               string                      `json:"claim_token_hash,omitempty"`
-	LeaseUntil                   *time.Time                  `json:"lease_until,omitempty"`
-	HeartbeatAt                  *time.Time                  `json:"heartbeat_at,omitempty"`
-	ResolvedNetworkParticipation *Spec                       `json:"resolved_network_participation,omitempty"`
-	CoordinationChannel          *CoordinationChannelPayload `json:"coordination_channel,omitempty"`
-	DesignationGroupID           string                      `json:"designation_group_id,omitempty"`
-	Designation                  *RunDesignationSummary      `json:"designation,omitempty"`
-	QueuedAt                     time.Time                   `json:"queued_at"`
-	ClaimedAt                    *time.Time                  `json:"claimed_at,omitempty"`
-	StartedAt                    *time.Time                  `json:"started_at,omitempty"`
-	EndedAt                      *time.Time                  `json:"ended_at,omitempty"`
-	Error                        string                      `json:"error,omitempty"`
-}
-
 type TaskRunTotal struct {
 	Status     TaskRunStatus `json:"status"`
 	OriginKind OriginKind    `json:"origin_kind"`
@@ -246,54 +216,109 @@ type TasksResponse struct {
 	Facets TaskCatalogFacetsPayload `json:"facets"`
 }
 
-type ToastEffect struct {
-	Tone    string `json:"tone"`
-	Message string `json:"message"`
+type TerminalClosedPayload struct {
+	Event       HookEvent    `json:"event"`
+	Timestamp   time.Time    `json:"timestamp"`
+	WorkspaceID string       `json:"workspace_id"`
+	ProfileID   string       `json:"profile_id"`
+	TerminalID  string       `json:"terminal_id,omitempty"`
+	ActorKind   string       `json:"actor_kind"`
+	ActorID     string       `json:"actor_id"`
+	SessionID   string       `json:"session_id,omitempty"`
+	RunID       string       `json:"run_id,omitempty"`
+	At          time.Time    `json:"at"`
+	Exit        TerminalExit `json:"exit"`
+	Reason      string       `json:"reason"`
 }
 
-type Tool struct {
-	ID                  ToolID          `json:"id"`
-	Backend             BackendRef      `json:"backend"`
-	DisplayTitle        string          `json:"display_title,omitempty"`
-	FriendlyVerb        string          `json:"friendly_verb,omitempty"`
-	Preview             string          `json:"preview,omitempty"`
-	Description         string          `json:"description"`
-	InputSchema         json.RawMessage `json:"input_schema"`
-	OutputSchema        json.RawMessage `json:"output_schema,omitempty"`
-	InputSchemaDigest   string          `json:"input_schema_digest"`
-	OutputSchemaDigest  string          `json:"output_schema_digest,omitempty"`
-	Source              SourceRef       `json:"source"`
-	Visibility          Visibility      `json:"visibility"`
-	Risk                RiskClass       `json:"risk"`
-	ReadOnly            bool            `json:"read_only"`
-	Destructive         bool            `json:"destructive"`
-	OpenWorld           bool            `json:"open_world"`
-	RequiresInteraction bool            `json:"requires_interaction"`
-	ConcurrencySafe     bool            `json:"concurrency_safe"`
-	MaxResultBytes      int64           `json:"max_result_bytes,omitempty"`
-	Toolsets            []ToolsetID     `json:"toolsets,omitempty"`
-	Tags                []string        `json:"tags,omitempty"`
-	SearchHints         []string        `json:"search_hints,omitempty"`
+type TerminalCommandFinishedPayload struct {
+	Event       HookEvent `json:"event"`
+	Timestamp   time.Time `json:"timestamp"`
+	WorkspaceID string    `json:"workspace_id"`
+	ProfileID   string    `json:"profile_id"`
+	TerminalID  string    `json:"terminal_id,omitempty"`
+	ActorKind   string    `json:"actor_kind"`
+	ActorID     string    `json:"actor_id"`
+	SessionID   string    `json:"session_id,omitempty"`
+	RunID       string    `json:"run_id,omitempty"`
+	At          time.Time `json:"at"`
+	CommandID   string    `json:"command_id"`
+	ExitCode    *int      `json:"exit_code,omitempty"`
+	Signal      *string   `json:"signal,omitempty"`
+	ExitCause   string    `json:"exit_cause"`
+	DurationMS  int64     `json:"duration_ms"`
+	DetectedBy  string    `json:"detected_by"`
+	Approval    string    `json:"approval"`
 }
 
-type ToolCallPatch struct {
-	Deny       bool            `json:"deny,omitempty"`
-	DenyReason string          `json:"deny_reason,omitempty"`
-	ToolID     *string         `json:"tool_id,omitempty"`
-	ReadOnly   *bool           `json:"read_only,omitempty"`
-	ToolInput  json.RawMessage `json:"tool_input,omitempty"`
+type TerminalCommandStartedPayload struct {
+	Event       HookEvent `json:"event"`
+	Timestamp   time.Time `json:"timestamp"`
+	WorkspaceID string    `json:"workspace_id"`
+	ProfileID   string    `json:"profile_id"`
+	TerminalID  string    `json:"terminal_id,omitempty"`
+	ActorKind   string    `json:"actor_kind"`
+	ActorID     string    `json:"actor_id"`
+	SessionID   string    `json:"session_id,omitempty"`
+	RunID       string    `json:"run_id,omitempty"`
+	At          time.Time `json:"at"`
+	CommandID   string    `json:"command_id"`
+	Command     string    `json:"command"`
+	Cwd         string    `json:"cwd"`
+	DetectedBy  string    `json:"detected_by"`
 }
 
-type ToolCallRef struct {
-	ToolCallID string `json:"tool_call_id,omitempty"`
-	ToolID     string `json:"tool_id,omitempty"`
-	ReadOnly   bool   `json:"read_only,omitempty"`
+type TerminalExit struct {
+	Cause  string  `json:"cause"`
+	Code   *int    `json:"code,omitempty"`
+	Signal *string `json:"signal,omitempty"`
 }
 
-type ToolContent struct {
-	Type     string                     `json:"type"`
-	Text     string                     `json:"text,omitempty"`
-	Data     json.RawMessage            `json:"data,omitempty"`
-	MIMEType string                     `json:"mime_type,omitempty"`
-	Metadata map[string]json.RawMessage `json:"metadata,omitempty"`
+type TerminalInputProvidedPayload struct {
+	Event       HookEvent `json:"event"`
+	Timestamp   time.Time `json:"timestamp"`
+	WorkspaceID string    `json:"workspace_id"`
+	ProfileID   string    `json:"profile_id"`
+	TerminalID  string    `json:"terminal_id,omitempty"`
+	ActorKind   string    `json:"actor_kind"`
+	ActorID     string    `json:"actor_id"`
+	SessionID   string    `json:"session_id,omitempty"`
+	RunID       string    `json:"run_id,omitempty"`
+	At          time.Time `json:"at"`
+	RequestID   string    `json:"request_id"`
+	Redacted    bool      `json:"redacted"`
+	Length      int       `json:"length"`
+	Outcome     string    `json:"outcome"`
+}
+
+type TerminalInputRequestedPayload struct {
+	Event       HookEvent `json:"event"`
+	Timestamp   time.Time `json:"timestamp"`
+	WorkspaceID string    `json:"workspace_id"`
+	ProfileID   string    `json:"profile_id"`
+	TerminalID  string    `json:"terminal_id,omitempty"`
+	ActorKind   string    `json:"actor_kind"`
+	ActorID     string    `json:"actor_id"`
+	SessionID   string    `json:"session_id,omitempty"`
+	RunID       string    `json:"run_id,omitempty"`
+	At          time.Time `json:"at"`
+	RequestID   string    `json:"request_id"`
+	Reason      string    `json:"reason"`
+	Redacted    bool      `json:"redacted"`
+}
+
+type TerminalLeaseChangedPayload struct {
+	Event       HookEvent `json:"event"`
+	Timestamp   time.Time `json:"timestamp"`
+	WorkspaceID string    `json:"workspace_id"`
+	ProfileID   string    `json:"profile_id"`
+	TerminalID  string    `json:"terminal_id,omitempty"`
+	ActorKind   string    `json:"actor_kind"`
+	ActorID     string    `json:"actor_id"`
+	SessionID   string    `json:"session_id,omitempty"`
+	RunID       string    `json:"run_id,omitempty"`
+	At          time.Time `json:"at"`
+	From        string    `json:"from"`
+	To          string    `json:"to"`
+	Reason      string    `json:"reason"`
 }

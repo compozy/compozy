@@ -155,10 +155,14 @@ func installWorkspaceRemovalPreparer(state *bootState, sessions SessionManager) 
 				rollbackErr := sessionPreparation.Rollback(context.WithoutCancel(ctx))
 				return nil, errors.Join(err, rollbackErr)
 			}
+			var terminals terminalWorkspaceArchiver
+			if state.terminals != nil {
+				terminals = state.terminals
+			}
 			return workspaceRemovalPreparation{
 				windowManager: windowPreparation,
 				session:       sessionPreparation,
-				terminal:      state.terminals,
+				terminal:      terminals,
 				deadEntities:  state.deadEntities,
 				mcpTools:      state.mcpToolProvider,
 				workspaceID:   workspace.ID,

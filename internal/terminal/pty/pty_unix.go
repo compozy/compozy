@@ -22,12 +22,13 @@ import (
 const killGrace = time.Second
 
 type unixProc struct {
-	device    *xpty.UnixPty
-	reader    *os.File
-	command   *exec.Cmd
-	waiter    processWaiter
-	closeOnce sync.Once
-	closeErr  error
+	device      *xpty.UnixPty
+	reader      *os.File
+	command     *exec.Cmd
+	waiter      processWaiter
+	closeOnce   sync.Once
+	closeErr    error
+	shimCleanup func() error
 }
 
 func startInteractive(_ context.Context, spec ProcSpec) (Proc, error) {
@@ -44,20 +45,33 @@ func startInteractive(_ context.Context, spec ProcSpec) (Proc, error) {
 		closeErr := closeUnixDevice(device)
 		return nil, errors.Join(fmt.Errorf("terminal pty: duplicate master: %w", err), closeErr)
 	}
-	command := exec.Command(spec.Argv[0], spec.Argv[1:]...)
+	setup, err := prepareShellIntegration(spec)
+	if err != nil {
+		return nil, errors.Join(err, reader.Close(), closeUnixDevice(device))
+	}
+	command := exec.Command(setup.argv[0], setup.argv[1:]...)
 	command.Dir = spec.Cwd
-	command.Env = environment(spec.Env)
+	command.Env = environment(setup.env)
 	command.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true}
 	if err := device.Start(command); err != nil {
-		return nil, errors.Join(fmt.Errorf("terminal pty: start %q: %w", spec.Argv[0], err), reader.Close(), closeUnixDevice(device))
+		return nil, errors.Join(
+			fmt.Errorf("terminal pty: start %q: %w", spec.Argv[0], err),
+			setup.cleanup(), reader.Close(), closeUnixDevice(device),
+		)
 	}
 	if runtime.GOOS == "linux" {
 		if err := device.Slave().Close(); err != nil {
 			cleanupErr := terminateStartedCommand(command)
-			return nil, errors.Join(fmt.Errorf("terminal pty: close parent slave: %w", err), cleanupErr, reader.Close(), device.Master().Close())
+			return nil, errors.Join(
+				fmt.Errorf("terminal pty: close parent slave: %w", err), cleanupErr,
+				reader.Close(), device.Master().Close(), setup.cleanup(),
+			)
 		}
 	}
-	proc := &unixProc{device: device, reader: reader, command: command, waiter: newProcessWaiter()}
+	proc := &unixProc{
+		device: device, reader: reader, command: command, waiter: newProcessWaiter(),
+		shimCleanup: setup.cleanup,
+	}
 	proc.waiter.start(func() waitResult {
 		err := command.Wait()
 		return waitResult{exit: classifyExit(err, command), err: waitError(err)}
@@ -140,7 +154,11 @@ func (p *unixProc) Kill(signal Signal) error {
 
 func (p *unixProc) Close() error {
 	p.closeOnce.Do(func() {
-		p.closeErr = errors.Join(closeIgnoringClosed(p.reader), closeUnixDevice(p.device))
+		var shimErr error
+		if p.shimCleanup != nil {
+			shimErr = p.shimCleanup()
+		}
+		p.closeErr = errors.Join(closeIgnoringClosed(p.reader), closeUnixDevice(p.device), shimErr)
 	})
 	return p.closeErr
 }

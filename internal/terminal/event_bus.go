@@ -22,34 +22,36 @@ const (
 	EventKindRecordingStopped  EventKind = "recording_stopped"
 	EventKindSubscriberEvicted EventKind = "subscriber_evicted"
 	EventKindLimitRejected     EventKind = "limit_rejected"
+	EventKindAuditChanged      EventKind = "audit_changed"
 )
 
 type EventDetail struct {
-	Mode        Mode
-	Title       string
-	LeaseFrom   LeaseState
-	LeaseTo     LeaseState
-	CommandID   string
-	Command     string
-	Cwd         string
-	DetectedBy  string
-	ExitCode    *int
-	Signal      *string
-	ExitCause   string
-	DurationMS  int64
-	Approval    string
-	RequestID   InputRequestID
-	Redacted    bool
-	Length      int
-	Outcome     string
-	RecordingID string
-	Digest      string
-	Bytes       int64
-	Truncated   bool
-	Flow        string
-	Limit       string
-	Current     int
-	Max         int
+	Mode         Mode
+	Title        string
+	LeaseFrom    LeaseState
+	LeaseTo      LeaseState
+	CommandID    string
+	Command      string
+	Cwd          string
+	DetectedBy   string
+	ExitCode     *int
+	Signal       *string
+	ExitCause    string
+	DurationMS   int64
+	Approval     string
+	RequestID    InputRequestID
+	Redacted     bool
+	Length       int
+	Outcome      string
+	RecordingID  string
+	Digest       string
+	Bytes        int64
+	Truncated    bool
+	Flow         string
+	Limit        string
+	Current      int
+	Max          int
+	AuditBlocked bool
 }
 
 type TerminalEvent struct {

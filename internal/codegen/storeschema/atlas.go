@@ -162,6 +162,13 @@ func planAtlasStream(
 			closeAtlasDatabase(closeDev, descriptor.name),
 		)
 	}
+	currentTriggers, err := readMigrationSQLiteTriggers(ctx, descriptor)
+	if err != nil {
+		return nil, nil, nil, errors.Join(
+			fmt.Errorf("codegen: inspect %s migration triggers: %w", descriptor.name, err),
+			closeAtlasDatabase(closeDev, descriptor.name),
+		)
+	}
 	normalizeGeneratedSQLiteIndexes(current)
 	normalizeGeneratedSQLiteIndexes(desired)
 	if err := normalizeSQLiteIndexExpressions(current); err != nil {
@@ -183,27 +190,30 @@ func planAtlasStream(
 			closeAtlasDatabase(closeDev, descriptor.name),
 		)
 	}
-	if len(changes) == 0 {
-		if closeErr := closeAtlasDatabase(closeDev, descriptor.name); closeErr != nil {
-			return nil, nil, nil, closeErr
+	plan := &migrate.Plan{Name: atlasSchemaName}
+	if len(changes) > 0 {
+		plan, err = dev.PlanChanges(ctx, atlasSchemaName, changes, func(options *migrate.PlanOptions) {
+			options.Mode = migrate.PlanModeDeferred
+		})
+		if err != nil {
+			return nil, nil, nil, errors.Join(
+				fmt.Errorf("codegen: plan %s schema migration: %w", descriptor.name, err),
+				closeAtlasDatabase(closeDev, descriptor.name),
+			)
 		}
-		return nil, nil, nil, migrate.ErrNoPlan
-	}
-	plan, err := dev.PlanChanges(ctx, atlasSchemaName, changes, func(options *migrate.PlanOptions) {
-		options.Mode = migrate.PlanModeDeferred
-	})
-	if err != nil {
-		return nil, nil, nil, errors.Join(
-			fmt.Errorf("codegen: plan %s schema migration: %w", descriptor.name, err),
-			closeAtlasDatabase(closeDev, descriptor.name),
-		)
 	}
 	restoreSQLiteExpressionIndexStatements(plan, desired)
 	lintStatements := make([]string, 0, len(plan.Changes))
 	for _, change := range plan.Changes {
 		lintStatements = append(lintStatements, change.Cmd)
 	}
-	appendSQLiteTriggerRecreations(plan, desiredSchema.triggers)
+	appendSQLiteTriggerChanges(plan, currentTriggers, desiredSchema.triggers)
+	if len(plan.Changes) == 0 {
+		if closeErr := closeAtlasDatabase(closeDev, descriptor.name); closeErr != nil {
+			return nil, nil, nil, closeErr
+		}
+		return nil, nil, nil, migrate.ErrNoPlan
+	}
 	return &atlasPlan{migration: plan, changes: changes, lintStatements: lintStatements}, dev, closeDev, nil
 }
 

@@ -44,6 +44,7 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 	state.hooks = hooks
 	state.hookDispatcher = hooks
 	state.hookBindings = hookBindings
+	attachTerminalHookBridge(state.terminals, hooks, state.logger)
 	if readiness, ok := state.sessionWindowReconciler.(interface{ SetReady() }); ok {
 		readiness.SetReady()
 	}

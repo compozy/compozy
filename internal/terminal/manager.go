@@ -184,9 +184,16 @@ func (m *Service) ArchiveWorkspace(ctx context.Context, workspaceID string) erro
 	if strings.TrimSpace(workspaceID) == "" {
 		return errors.New("terminal: workspace id is required")
 	}
-	return m.archiveTerminals(ctx, "workspace_deleted", "workspace-lifecycle", func(key terminalKey) bool {
+	archiveErr := m.archiveTerminals(ctx, "workspace_deleted", "workspace-lifecycle", func(key terminalKey) bool {
 		return key.workspaceID == workspaceID
 	})
+	var removeErr error
+	if lifecycle, ok := m.journal.(interface {
+		RemoveWorkspace(context.Context, string) error
+	}); ok {
+		removeErr = lifecycle.RemoveWorkspace(ctx, workspaceID)
+	}
+	return errors.Join(archiveErr, removeErr)
 }
 
 func (m *Service) archiveTerminals(
@@ -271,6 +278,13 @@ func (m *Service) drain(cancel context.CancelFunc, targets []shutdownTarget) {
 	for _, target := range targets {
 		<-target.item.done
 		m.removeWithTombstone(target.key, target.item, m.now().Add(idleTombstoneTTL))
+	}
+	if lifecycle, ok := m.journal.(interface {
+		Shutdown(context.Context) error
+	}); ok {
+		if err := lifecycle.Shutdown(context.Background()); err != nil {
+			closeErrors = append(closeErrors, err)
+		}
 	}
 	m.mu.Lock()
 	m.shutdownErr = errors.Join(closeErrors...)

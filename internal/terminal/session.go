@@ -49,6 +49,8 @@ type session struct {
 	rows          uint16
 	processRecord processCheckpoint
 	policy        Settings
+	recordingMu   sync.Mutex
+	recording     *activeRecording
 	done          chan struct{}
 	closeOnce     sync.Once
 }
@@ -178,6 +180,8 @@ func (s *session) acceptOutput(input []byte) {
 	if len(input) == 0 {
 		return
 	}
+	s.appendRecording(input)
+	s.manager.observeJournalOutput(s.Info())
 	start, end := s.ring.Append(input)
 	vtInput := append(s.vtCarry, input...)
 	complete, carry := splitCompleteUTF8(vtInput)
@@ -280,6 +284,10 @@ func (s *session) finalize(exit Exit) {
 		s.closedEmitted = true
 		info := s.infoSnapshotLocked()
 		s.mu.Unlock()
+		if _, err := s.stopRecording(context.Background(), actor, "terminal_closed"); err != nil &&
+			!isRecordingNotActive(err) {
+			s.manager.logger.Warn("terminal: stop recording on exit", "terminal_id", info.ID, "error", err)
+		}
 		for _, subscriber := range subscribers {
 			subscriber.finish(exit)
 		}

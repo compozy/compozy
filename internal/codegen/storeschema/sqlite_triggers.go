@@ -6,6 +6,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -20,6 +22,13 @@ type sqliteTrigger struct {
 }
 
 var sqliteDropTable = regexp.MustCompile(`(?i)^DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?["` + "`" + `]?([^"` + "`" + `\s;]+)`)
+
+var (
+	gooseTriggerBlock       = regexp.MustCompile(`(?is)--\s*\+goose\s+StatementBegin\s*(.*?)\s*--\s*\+goose\s+StatementEnd`)
+	sqliteCreateTriggerName = regexp.MustCompile(`(?i)^CREATE\s+TRIGGER\s+(?:IF\s+NOT\s+EXISTS\s+)?["` + "`" + `\[]?([^"` + "`" + `\]\s]+)`)
+	sqliteTriggerTable      = regexp.MustCompile(`(?is)\b(?:BEFORE|AFTER|INSTEAD\s+OF)\b.*?\bON\s+["` + "`" + `\[]?([^"` + "`" + `\]\s]+)`)
+	sqliteDropTrigger       = regexp.MustCompile(`(?im)^\s*DROP\s+TRIGGER\s+(?:IF\s+EXISTS\s+)?["` + "`" + `\[]?([^"` + "`" + `\]\s;]+)[^\n]*`)
+)
 
 func inspectSQLiteTriggers(ctx context.Context, db *sql.DB) (_ []sqliteTrigger, err error) {
 	rows, err := db.QueryContext(ctx, `
@@ -50,36 +59,131 @@ func inspectSQLiteTriggers(ctx context.Context, db *sql.DB) (_ []sqliteTrigger, 
 	return triggers, nil
 }
 
-func appendSQLiteTriggerRecreations(plan *migrate.Plan, triggers []sqliteTrigger) {
-	rebuilt := rebuiltSQLiteTables(plan)
-	if len(rebuilt) == 0 {
-		return
+func readMigrationSQLiteTriggers(_ context.Context, descriptor stream) ([]sqliteTrigger, error) {
+	entries, err := os.ReadDir(descriptor.migrationsDir)
+	if err != nil {
+		return nil, fmt.Errorf("read %s migrations for triggers: %w", descriptor.name, err)
 	}
-	recreated := make([]sqliteTrigger, 0)
-	for _, trigger := range triggers {
-		if !triggerTouchesRebuiltTable(trigger, rebuilt) {
+	current := make(map[string]sqliteTrigger)
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != sqlFileExtension {
 			continue
 		}
-		recreated = append(recreated, trigger)
+		path := filepath.Join(descriptor.migrationsDir, entry.Name())
+		contents, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("read %s migration %q for triggers: %w", descriptor.name, path, err)
+		}
+		up := strings.SplitN(string(contents), "-- +goose Down", 2)[0]
+		events, err := migrationTriggerEvents(up)
+		if err != nil {
+			return nil, fmt.Errorf("read %s migration %q triggers: %w", descriptor.name, path, err)
+		}
+		for _, event := range events {
+			if event.drop {
+				delete(current, event.trigger.name)
+				continue
+			}
+			current[event.trigger.name] = event.trigger
+		}
 	}
-	if len(recreated) == 0 {
-		return
+	triggers := make([]sqliteTrigger, 0, len(current))
+	for _, trigger := range current {
+		triggers = append(triggers, trigger)
 	}
-	drops := make([]*migrate.Change, 0, len(recreated))
-	for _, trigger := range recreated {
+	slices.SortFunc(triggers, func(left, right sqliteTrigger) int {
+		return strings.Compare(left.name, right.name)
+	})
+	return triggers, nil
+}
+
+type migrationTriggerEvent struct {
+	offset  int
+	drop    bool
+	trigger sqliteTrigger
+}
+
+func migrationTriggerEvents(contents string) ([]migrationTriggerEvent, error) {
+	events := make([]migrationTriggerEvent, 0)
+	for _, match := range gooseTriggerBlock.FindAllStringSubmatchIndex(contents, -1) {
+		statement := strings.TrimSpace(contents[match[2]:match[3]])
+		nameMatch := sqliteCreateTriggerName.FindStringSubmatch(statement)
+		if len(nameMatch) != 2 {
+			continue
+		}
+		tableMatch := sqliteTriggerTable.FindStringSubmatch(statement)
+		if len(tableMatch) != 2 {
+			return nil, fmt.Errorf("trigger %q has no owning table", nameMatch[1])
+		}
+		events = append(events, migrationTriggerEvent{
+			offset: match[0],
+			trigger: sqliteTrigger{
+				name: nameMatch[1], tableName: tableMatch[1], createSQL: statement,
+			},
+		})
+	}
+	for _, match := range sqliteDropTrigger.FindAllStringSubmatchIndex(contents, -1) {
+		events = append(events, migrationTriggerEvent{
+			offset:  match[0],
+			drop:    true,
+			trigger: sqliteTrigger{name: contents[match[2]:match[3]]},
+		})
+	}
+	slices.SortFunc(events, func(left, right migrationTriggerEvent) int {
+		return left.offset - right.offset
+	})
+	return events, nil
+}
+
+func appendSQLiteTriggerChanges(plan *migrate.Plan, current, desired []sqliteTrigger) {
+	rebuilt := rebuiltSQLiteTables(plan)
+	currentByName := make(map[string]sqliteTrigger, len(current))
+	desiredByName := make(map[string]sqliteTrigger, len(desired))
+	for _, trigger := range current {
+		currentByName[trigger.name] = trigger
+	}
+	for _, trigger := range desired {
+		desiredByName[trigger.name] = trigger
+	}
+
+	dropNames := make([]string, 0)
+	creates := make([]sqliteTrigger, 0)
+	for _, trigger := range current {
+		desiredTrigger, retained := desiredByName[trigger.name]
+		changed := retained && normalizeSQLiteTriggerSQL(trigger.createSQL) != normalizeSQLiteTriggerSQL(desiredTrigger.createSQL)
+		if !retained || changed || triggerTouchesRebuiltTable(trigger, rebuilt) {
+			dropNames = append(dropNames, trigger.name)
+		}
+		if retained && (changed || triggerTouchesRebuiltTable(trigger, rebuilt)) {
+			creates = append(creates, desiredTrigger)
+		}
+	}
+	for _, trigger := range desired {
+		_, exists := currentByName[trigger.name]
+		if !exists {
+			creates = append(creates, trigger)
+		}
+	}
+
+	drops := make([]*migrate.Change, 0, len(dropNames))
+	for _, name := range dropNames {
 		drops = append(drops, &migrate.Change{
-			Cmd:     "DROP TRIGGER IF EXISTS " + quoteSQLiteIdentifier(trigger.name),
-			Comment: fmt.Sprintf("drop trigger %q before rebuilding a referenced table", trigger.name),
+			Cmd:     "DROP TRIGGER IF EXISTS " + quoteSQLiteIdentifier(name),
+			Comment: fmt.Sprintf("drop trigger %q before applying its declarative change", name),
 		})
 	}
 	plan.Changes = slices.Insert(plan.Changes, firstSQLiteTableDrop(plan), drops...)
-	for _, trigger := range recreated {
+	for _, trigger := range creates {
 		plan.Changes = append(plan.Changes, &migrate.Change{
 			Cmd:     strings.TrimSuffix(strings.TrimSpace(trigger.createSQL), ";"),
 			Reverse: "DROP TRIGGER " + quoteSQLiteIdentifier(trigger.name),
-			Comment: fmt.Sprintf("recreate trigger %q after rebuilding table %q", trigger.name, trigger.tableName),
+			Comment: fmt.Sprintf("apply declarative trigger %q on table %q", trigger.name, trigger.tableName),
 		})
 	}
+}
+
+func normalizeSQLiteTriggerSQL(statement string) string {
+	return strings.Join(strings.Fields(strings.TrimSuffix(strings.TrimSpace(statement), ";")), " ")
 }
 
 func triggerTouchesRebuiltTable(trigger sqliteTrigger, rebuilt []string) bool {

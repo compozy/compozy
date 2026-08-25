@@ -174,6 +174,9 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 		matcherWorkspaceRootKey: {},
 		matcherWorktreeIDKey:    {},
 	},
+	HookEventFamilyTerminal: {
+		matcherWorkspaceIDKey: {},
+	},
 }
 
 var allowedMatcherFieldsByEvent = map[HookEvent]map[string]struct{}{

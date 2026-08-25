@@ -77,6 +77,7 @@ func (m *Service) OpenPipe(ctx context.Context, request PipeRequest) (Handle, er
 	}
 	profileName := m.eventProfileName(ctx, request.Actor.ProfileID)
 	item := newSession(m, proc, info, settings, nonce, profileName, 80, 24, true)
+	m.registerJournalTerminal(item)
 	processRecord, err := m.processRegistration(ctx, item, spec)
 	if err != nil {
 		return nil, errors.Join(err, cleanupUnregisteredProcess(proc))

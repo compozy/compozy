@@ -713,6 +713,162 @@ func TestManagerHotSettings(t *testing.T) {
 	}
 }
 
+func TestManagerRecordingLifecycle(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should persist asciicast output and enforce start-stop state [IT-014][IT-031]", func(t *testing.T) {
+		t.Parallel()
+		journal := &fakeRecordingJournal{}
+		bus := NewEventBus(nil)
+		events := make(chan TerminalEvent, 4)
+		bus.Observe(func(_ context.Context, event TerminalEvent) {
+			if event.Kind == EventKindRecordingStarted || event.Kind == EventKindRecordingStopped {
+				events <- event
+			}
+		})
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithJournal(journal), WithEventBus(bus))
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		actor := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		started, err := handle.StartRecording(context.Background(), actor)
+		if err != nil || started.ID == "" {
+			t.Fatalf("StartRecording() = %#v error=%v", started, err)
+		}
+		if _, err := handle.StartRecording(context.Background(), actor); terminalErrorCode(err) != "recording_already_started" {
+			t.Fatalf("second StartRecording() error = %v", err)
+		}
+		output := []byte("safe output\x1b]52;c;forbidden-clipboard\x1b\\done\n")
+		if err := starter.latest().emit(output); err != nil {
+			t.Fatalf("emit output error = %v", err)
+		}
+		deadline := time.Now().Add(time.Second)
+		for {
+			tail, readErr := handle.Screen(context.Background(), ReadOptions{View: "tail"})
+			if readErr != nil {
+				t.Fatalf("Screen(tail) error = %v", readErr)
+			}
+			if strings.Contains(tail.Content, "done") {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("filtered output did not reach the terminal tail")
+			}
+			time.Sleep(time.Millisecond)
+		}
+		stopped, err := handle.StopRecording(context.Background(), actor)
+		if err != nil || stopped.ID != started.ID || stopped.Digest == "" || stopped.Bytes == 0 {
+			t.Fatalf("StopRecording() = %#v error=%v", stopped, err)
+		}
+		if _, err := handle.StopRecording(context.Background(), actor); terminalErrorCode(err) != "recording_not_active" {
+			t.Fatalf("idle StopRecording() error = %v", err)
+		}
+		persisted, cast := journal.snapshot()
+		if persisted.ID != started.ID || !bytes.Contains(cast, []byte(`"version":2`)) ||
+			!bytes.Contains(cast, []byte("safe output")) || bytes.Contains(cast, []byte("forbidden-clipboard")) {
+			t.Fatalf("persisted recording = %#v contents=%q", persisted, cast)
+		}
+		first := receiveRecordingEvent(t, events)
+		second := receiveRecordingEvent(t, events)
+		if first.Kind != EventKindRecordingStarted || second.Kind != EventKindRecordingStopped ||
+			first.Detail.RecordingID != started.ID || second.Detail.Digest != stopped.Digest {
+			t.Fatalf("recording events = %#v then %#v", first, second)
+		}
+	})
+
+	t.Run("Should stop at one MiB while blocked storage never stalls terminal bytes [UT-101]", func(t *testing.T) {
+		t.Parallel()
+		called := make(chan struct{})
+		release := make(chan struct{})
+		journal := &fakeRecordingJournal{called: called, release: release}
+		bus := NewEventBus(nil)
+		stoppedEvents := make(chan TerminalEvent, 1)
+		bus.Observe(func(_ context.Context, event TerminalEvent) {
+			if event.Kind == EventKindRecordingStopped {
+				stoppedEvents <- event
+			}
+		})
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithJournal(journal), WithEventBus(bus))
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		actor := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		if _, err := handle.StartRecording(context.Background(), actor); err != nil {
+			t.Fatalf("StartRecording() error = %v", err)
+		}
+		payload := bytes.Repeat([]byte("x"), recorderBufferLimit+32*1024)
+		emitDone := make(chan error, 1)
+		go func() { emitDone <- starter.latest().emit(payload) }()
+		select {
+		case err := <-emitDone:
+			if err != nil {
+				t.Fatalf("emit flood error = %v", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("terminal byte delivery stalled behind recorder storage")
+		}
+		event := receiveRecordingEvent(t, stoppedEvents)
+		if event.Reason != "storage_stall" || !event.Detail.Truncated {
+			t.Fatalf("recording stop event = %#v", event)
+		}
+		select {
+		case <-called:
+		case <-time.After(time.Second):
+			t.Fatal("truncated recording did not enter persistence")
+		}
+		result, err := handle.Screen(context.Background(), ReadOptions{View: "tail"})
+		if err != nil || result.Seq != uint64(len(payload)) {
+			t.Fatalf("tail during blocked persistence = %#v error=%v", result, err)
+		}
+		close(release)
+		deadline := time.Now().Add(time.Second)
+		for {
+			_, cast := journal.snapshot()
+			if len(cast) > 0 {
+				if len(cast) > recorderBufferLimit {
+					t.Fatalf("recorder buffer bytes = %d, want <= %d", len(cast), recorderBufferLimit)
+				}
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("truncated recording did not finish persistence")
+			}
+			time.Sleep(time.Millisecond)
+		}
+	})
+
+	t.Run("Should auto-record from open when configured [IT-031]", func(t *testing.T) {
+		t.Parallel()
+		settings := DefaultSettings()
+		settings.Recording = true
+		journal := &fakeRecordingJournal{}
+		manager, _, _ := newTestManager(t, settings, WithJournal(journal))
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		actor := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		if _, err := handle.StartRecording(context.Background(), actor); terminalErrorCode(err) != "recording_already_started" {
+			t.Fatalf("StartRecording(auto-active) error = %v", err)
+		}
+		if _, err := handle.StopRecording(context.Background(), actor); err != nil {
+			t.Fatalf("StopRecording(auto) error = %v", err)
+		}
+	})
+}
+
+func receiveRecordingEvent(t *testing.T, events <-chan TerminalEvent) TerminalEvent {
+	t.Helper()
+	select {
+	case event := <-events:
+		return event
+	case <-time.After(time.Second):
+		t.Fatal("recording event was not emitted")
+		return TerminalEvent{}
+	}
+}
+
+func terminalErrorCode(err error) string {
+	var terminalErr *Error
+	if errors.As(err, &terminalErr) {
+		return terminalErr.Code
+	}
+	return ""
+}
+
 func resolvedTestWorkspace(root string) workspacepkg.ResolvedWorkspace {
 	return workspacepkg.ResolvedWorkspace{
 		Workspace: workspacepkg.Workspace{ID: "workspace-a", RootDir: root}, WorkspaceID: "workspace-a",

@@ -30,12 +30,23 @@ func (s *session) Write(_ context.Context, actor Actor, input []byte) error {
 		return &Error{Code: "terminal_not_interactive", Message: "terminal is not interactive", Err: ErrNotInteractive}
 	}
 	if s.audit.Blocked() {
-		return &Error{Code: "terminal_audit_blocked", Message: "terminal input is blocked while audit delivery is unavailable", Err: ErrWriteOwnerHeld}
+		return &Error{Code: "journal_unavailable", Message: "terminal input is blocked while journal delivery is unavailable", Err: ErrJournalUnavailable}
 	}
 	if err := s.runningGate(); err != nil {
 		return err
 	}
-	return s.lease.deliver(actor, s.filter.FilterInput(input))
+	filtered := s.filter.FilterInput(input)
+	info := s.Info()
+	reservation, admitted := s.manager.reserveJournalInput(info, filtered)
+	if !admitted {
+		return &Error{Code: "journal_unavailable", Message: "terminal input is blocked while the journal lane is full", Err: ErrJournalUnavailable}
+	}
+	if err := s.lease.deliver(actor, filtered); err != nil {
+		s.manager.releaseJournalInput(info, reservation)
+		return err
+	}
+	s.manager.commitJournalInput(info, actor, filtered, reservation)
+	return nil
 }
 
 func (s *session) Screen(ctx context.Context, options ReadOptions) (*ReadResult, error) {
@@ -205,17 +216,19 @@ func (s *session) StartRecording(_ context.Context, actor Actor) (RecordingRef, 
 	if err := s.authorizeProfile(actor); err != nil {
 		return RecordingRef{}, err
 	}
-	if !RecordingAvailable(s.Info().Capabilities) {
-		return RecordingRef{}, &Error{Code: "recording_unavailable", Message: "recording is unavailable for this terminal", Err: ErrRecording}
-	}
-	return RecordingRef{}, &Error{Code: "recording_unavailable", Message: "recording is not available yet", Err: ErrUnsupported}
+	return s.startRecording(actor)
 }
 
-func (s *session) StopRecording(_ context.Context, actor Actor) (RecordingRef, error) {
+func (s *session) StopRecording(ctx context.Context, actor Actor) (RecordingRef, error) {
 	if err := s.authorizeProfile(actor); err != nil {
 		return RecordingRef{}, err
 	}
-	return RecordingRef{}, &Error{Code: "recording_not_active", Message: "terminal recording is not active", Err: ErrUnsupported}
+	return s.stopRecording(ctx, actor, "manual")
+}
+
+func isRecordingNotActive(err error) bool {
+	var terminalErr *Error
+	return errors.As(err, &terminalErr) && terminalErr.Code == "recording_not_active"
 }
 
 func (s *session) runningGate() error {

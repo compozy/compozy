@@ -307,6 +307,53 @@ END;
 	})
 }
 
+func TestPlanAtlasStreamTriggerDiff(t *testing.T) {
+	t.Run("Should generate a migration when only a declarative trigger is added", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		migrationsDir := filepath.Join(root, "migrations")
+		if err := os.MkdirAll(migrationsDir, 0o700); err != nil {
+			t.Fatalf("create migrations directory: %v", err)
+		}
+		writeSchemaTestFile(t, migrationsDir, "00001_schema.sql", `-- +goose Up
+CREATE TABLE records (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL);
+`)
+		dir, err := sqltool.NewGooseDir(migrationsDir)
+		if err != nil {
+			t.Fatalf("open migration directory: %v", err)
+		}
+		if err := writeAtlasSum(dir, "test"); err != nil {
+			t.Fatalf("write migration checksum: %v", err)
+		}
+
+		desiredPath := filepath.Join(root, "schema.sql")
+		writeSchemaTestFile(t, root, "schema.sql", `CREATE TABLE records (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL);
+CREATE TRIGGER records_owner_immutable
+BEFORE UPDATE OF owner_id ON records
+WHEN NEW.owner_id <> OLD.owner_id
+BEGIN SELECT RAISE(ABORT, 'owner_immutable'); END;
+`)
+		plan, _, closeDev, err := planAtlasStream(testutil.Context(t), stream{
+			name:          "test",
+			schemaSource:  schemaSource{path: desiredPath},
+			migrationsDir: migrationsDir,
+		}, dir)
+		if err != nil {
+			t.Fatalf("planAtlasStream() error = %v", err)
+		}
+		defer func() {
+			if err := closeDev(); err != nil {
+				t.Errorf("close Atlas database: %v", err)
+			}
+		}()
+		if len(plan.migration.Changes) != 1 ||
+			!strings.Contains(plan.migration.Changes[0].Cmd, "CREATE TRIGGER records_owner_immutable") {
+			t.Fatalf("trigger-only plan = %#v, want one CREATE TRIGGER", plan.migration.Changes)
+		}
+	})
+}
+
 func writeSchemaTestFile(t *testing.T, directory, name, contents string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(directory, name), []byte(contents), 0o600); err != nil {

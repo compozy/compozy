@@ -4,19 +4,51 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/store/workspacedb"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
+	terminaljournal "github.com/compozy/compozy/internal/terminal/journal"
 )
 
 func (d *Daemon) bootTerminal(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
 	if state == nil {
 		return errors.New("daemon: terminal state is required")
 	}
+	if state.workspaceResolver == nil {
+		return errors.New("daemon: terminal workspace resolver is required")
+	}
+	databasePool, err := workspacedb.NewPool(func(resolveCtx context.Context, workspaceID string) (string, error) {
+		resolved, resolveErr := state.workspaceResolver.Resolve(resolveCtx, workspaceID)
+		if resolveErr != nil {
+			return "", resolveErr
+		}
+		canonicalID := strings.TrimSpace(resolved.WorkspaceID)
+		if canonicalID == "" {
+			canonicalID = strings.TrimSpace(resolved.ID)
+		}
+		if canonicalID != strings.TrimSpace(workspaceID) {
+			return "", fmt.Errorf("daemon: resolved workspace id %q does not match %q", canonicalID, workspaceID)
+		}
+		return resolved.RootDir, nil
+	})
+	if err != nil {
+		return fmt.Errorf("daemon: create workspace database pool: %w", err)
+	}
+	cleanup.add(databasePool.Close)
+	journal, err := terminaljournal.New(terminaljournal.Options{
+		Databases: databasePool, HomeDir: d.homePaths.HomeDir, Logger: state.logger, Now: d.now,
+	})
+	if err != nil {
+		return fmt.Errorf("daemon: create terminal journal: %w", err)
+	}
 	options := []terminalpkg.Option{
 		terminalpkg.WithProcessRegistry(state.processRegistry),
 		terminalpkg.WithLogger(state.logger),
 		terminalpkg.WithClock(d.now),
+		terminalpkg.WithJournal(journal),
+		terminalpkg.WithMarkerConsumer(journal),
 	}
 	if state.workspaceResolver != nil {
 		options = append(options, terminalpkg.WithWorkspaceResolver(state.workspaceResolver))

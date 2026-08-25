@@ -24,6 +24,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 		memoryProviderRegistry: state.memoryProviderRegistry,
 		memoryExtractor:        state.memoryExtractor,
 		runtimeWorkers:         state.runtimeWorkers,
+		terminals:              state.terminals,
 		localMemoryProvider:    localMemoryProvider,
 		situationContext:       state.situationContext,
 		sessions:               state.sessions,

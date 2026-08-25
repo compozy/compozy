@@ -62,6 +62,7 @@ func (m *Service) Open(ctx context.Context, request OpenRequest) (Handle, error)
 	spec := ProcSpec{
 		Argv: []string{shell}, Cwd: cwd, Cols: cols, Rows: rows,
 		Mode: terminalpty.ModePTY, Title: request.Title, MarkerNonce: nonce,
+		ShellIntegration: settings.ShellIntegration,
 	}
 	proc, err := m.pty.Start(ctx, spec)
 	if err != nil {
@@ -80,6 +81,7 @@ func (m *Service) Open(ctx context.Context, request OpenRequest) (Handle, error)
 	}
 	profileName := m.eventProfileName(ctx, request.Actor.ProfileID)
 	item := newSession(m, proc, info, settings, nonce, profileName, cols, rows, strings.TrimSpace(request.Title) != "")
+	m.registerJournalTerminal(item)
 	processRecord, err := m.processRegistration(ctx, item, spec)
 	if err != nil {
 		cleanupErr := cleanupUnregisteredProcess(proc)
@@ -98,6 +100,12 @@ func (m *Service) Open(ctx context.Context, request OpenRequest) (Handle, error)
 		TerminalID:  id, Actor: request.Actor, Info: &opened,
 		Detail: EventDetail{Mode: opened.Mode, Cwd: opened.Cwd, Title: opened.Title}, At: m.now(),
 	})
+	if settings.Recording {
+		autoActor := Actor{Kind: ActorKindSystem, ID: "terminal-auto-recording", ProfileID: info.ProfileID}
+		if _, err := item.startRecording(autoActor); err != nil {
+			m.logger.Warn("terminal: start automatic recording", "terminal_id", info.ID, "error", err)
+		}
+	}
 	item.start()
 	return item, nil
 }
@@ -319,6 +327,7 @@ func cleanupUnregisteredProcess(proc Proc) error {
 
 func validateSettings(settings Settings) error {
 	if settings.ScrollbackBytes <= 0 || settings.DetachedTTL <= 0 || settings.ExitRetention <= 0 ||
+		settings.RecordingRetentionDays <= 0 ||
 		settings.MaxPerWorkspace <= 0 || settings.MaxPerDaemon <= 0 || settings.MaxSubscribers <= 0 {
 		return errors.New("terminal: settings must contain positive limits and retention durations")
 	}

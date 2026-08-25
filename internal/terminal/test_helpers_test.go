@@ -3,6 +3,8 @@ package terminal
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io"
 	"sync"
@@ -10,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/store"
 	terminalpty "github.com/compozy/compozy/internal/terminal/pty"
 	"github.com/compozy/compozy/internal/toolruntime"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -204,6 +207,68 @@ func (g *fakeProfileGuard) EnsureAvailableID(_ context.Context, profileID string
 
 type fakeCheckpoint struct {
 	completed atomic.Bool
+}
+
+type fakeRecordingJournal struct {
+	mu        sync.Mutex
+	contents  []byte
+	ref       RecordingRef
+	called    chan struct{}
+	calledOne sync.Once
+	release   <-chan struct{}
+}
+
+func (j *fakeRecordingJournal) Record(context.Context, string, CommandRow) error { return nil }
+
+func (j *fakeRecordingJournal) Query(context.Context, string, store.ReadScope, Query) (*Page, error) {
+	return &Page{Entries: []CommandRow{}}, nil
+}
+
+func (j *fakeRecordingJournal) LinkRecording(context.Context, string, ID, RecordingRef) error {
+	return nil
+}
+
+func (j *fakeRecordingJournal) Recording(
+	context.Context,
+	string,
+	store.ReadScope,
+	string,
+) (*RecordingRef, io.ReadCloser, error) {
+	return nil, nil, errors.New("recording not found")
+}
+
+func (j *fakeRecordingJournal) Artifact(context.Context, string, store.ReadScope, string) (io.ReadCloser, error) {
+	return nil, errors.New("artifact not found")
+}
+
+func (j *fakeRecordingJournal) PersistRecording(
+	_ context.Context,
+	_ string,
+	_ ID,
+	ref RecordingRef,
+	contents []byte,
+) (RecordingRef, error) {
+	if j.called != nil {
+		j.calledOne.Do(func() { close(j.called) })
+	}
+	if j.release != nil {
+		<-j.release
+	}
+	digest := sha256.Sum256(contents)
+	ref.Digest = hex.EncodeToString(digest[:])
+	ref.Path = "/recordings/" + ref.Digest + ".cast"
+	ref.Bytes = int64(len(contents))
+	j.mu.Lock()
+	j.contents = append([]byte(nil), contents...)
+	j.ref = ref
+	j.mu.Unlock()
+	return ref, nil
+}
+
+func (j *fakeRecordingJournal) snapshot() (RecordingRef, []byte) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return j.ref, append([]byte(nil), j.contents...)
 }
 
 func (*fakeCheckpoint) Checkpoint(context.Context, toolruntime.ProcessCheckpoint) error { return nil }

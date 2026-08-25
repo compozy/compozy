@@ -10,4 +10,5 @@ var hookEventDescriptors = mergeHookEventDescriptors(
 	networkHookEventDescriptors(),
 	windowManagerHookEventDescriptors(),
 	worktreeHookEventDescriptors(),
+	terminalHookEventDescriptors(),
 )

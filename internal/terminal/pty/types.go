@@ -25,14 +25,15 @@ const (
 )
 
 type ProcSpec struct {
-	Argv        []string
-	Cwd         string
-	Env         map[string]string
-	Cols        uint16
-	Rows        uint16
-	Mode        Mode
-	Title       string
-	MarkerNonce string
+	Argv             []string
+	Cwd              string
+	Env              map[string]string
+	Cols             uint16
+	Rows             uint16
+	Mode             Mode
+	Title            string
+	MarkerNonce      string
+	ShellIntegration bool
 }
 
 type Exit struct {

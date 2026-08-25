@@ -94896,7 +94896,18 @@
                 "worktree.pre_remove",
                 "worktree.created",
                 "worktree.adopted",
-                "worktree.removed"
+                "worktree.removed",
+                "terminal.opened",
+                "terminal.closed",
+                "terminal.lease_changed",
+                "terminal.command_started",
+                "terminal.command_finished",
+                "terminal.input_requested",
+                "terminal.input_provided",
+                "terminal.recording_started",
+                "terminal.recording_stopped",
+                "terminal.subscriber_evicted",
+                "terminal.limit_rejected"
               ],
               "type": "string"
             }
@@ -146864,7 +146875,18 @@
                                   "worktree.pre_remove",
                                   "worktree.created",
                                   "worktree.adopted",
-                                  "worktree.removed"
+                                  "worktree.removed",
+                                  "terminal.opened",
+                                  "terminal.closed",
+                                  "terminal.lease_changed",
+                                  "terminal.command_started",
+                                  "terminal.command_finished",
+                                  "terminal.input_requested",
+                                  "terminal.input_provided",
+                                  "terminal.recording_started",
+                                  "terminal.recording_stopped",
+                                  "terminal.subscriber_evicted",
+                                  "terminal.limit_rejected"
                                 ],
                                 "type": "string"
                               },
@@ -147563,7 +147585,18 @@
                                   "worktree.pre_remove",
                                   "worktree.created",
                                   "worktree.adopted",
-                                  "worktree.removed"
+                                  "worktree.removed",
+                                  "terminal.opened",
+                                  "terminal.closed",
+                                  "terminal.lease_changed",
+                                  "terminal.command_started",
+                                  "terminal.command_finished",
+                                  "terminal.input_requested",
+                                  "terminal.input_provided",
+                                  "terminal.recording_started",
+                                  "terminal.recording_stopped",
+                                  "terminal.subscriber_evicted",
+                                  "terminal.limit_rejected"
                                 ],
                                 "type": "string"
                               },
@@ -149408,7 +149441,18 @@
                           "worktree.pre_remove",
                           "worktree.created",
                           "worktree.adopted",
-                          "worktree.removed"
+                          "worktree.removed",
+                          "terminal.opened",
+                          "terminal.closed",
+                          "terminal.lease_changed",
+                          "terminal.command_started",
+                          "terminal.command_finished",
+                          "terminal.input_requested",
+                          "terminal.input_provided",
+                          "terminal.recording_started",
+                          "terminal.recording_stopped",
+                          "terminal.subscriber_evicted",
+                          "terminal.limit_rejected"
                         ],
                         "type": "string"
                       },
@@ -251609,7 +251653,18 @@
                 "worktree.pre_remove",
                 "worktree.created",
                 "worktree.adopted",
-                "worktree.removed"
+                "worktree.removed",
+                "terminal.opened",
+                "terminal.closed",
+                "terminal.lease_changed",
+                "terminal.command_started",
+                "terminal.command_finished",
+                "terminal.input_requested",
+                "terminal.input_provided",
+                "terminal.recording_started",
+                "terminal.recording_stopped",
+                "terminal.subscriber_evicted",
+                "terminal.limit_rejected"
               ],
               "type": "string"
             }

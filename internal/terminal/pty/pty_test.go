@@ -14,6 +14,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
@@ -297,6 +298,161 @@ func TestPipeRunnerContract(t *testing.T) {
 			t.Fatalf("Close() error = %v", err)
 		}
 	})
+}
+
+func TestShellIntegrationContract(t *testing.T) {
+	t.Run("Should leave the shell untouched when integration is disabled [UT-086]", func(t *testing.T) {
+		spec := ProcSpec{
+			Argv: []string{"/bin/bash"}, Env: map[string]string{"HOME": t.TempDir(), "KEEP": "value"},
+			MarkerNonce: "nonce-disabled", ShellIntegration: false,
+		}
+		setup, err := prepareShellIntegration(spec)
+		if err != nil {
+			t.Fatalf("prepareShellIntegration() error = %v", err)
+		}
+		if strings.Join(setup.argv, "\x00") != strings.Join(spec.Argv, "\x00") {
+			t.Fatalf("argv = %q, want %q", setup.argv, spec.Argv)
+		}
+		if setup.env["KEEP"] != "value" || setup.env["ENV"] != "" || setup.env["ZDOTDIR"] != "" {
+			t.Fatalf("disabled environment = %#v", setup.env)
+		}
+		if err := setup.cleanup(); err != nil {
+			t.Fatalf("cleanup() error = %v", err)
+		}
+	})
+
+	t.Run("Should prepare private shims after each user rc without exporting the nonce [UT-087]", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			shell    string
+			env      map[string]string
+			shimPath func(shellSetup) string
+		}{
+			{
+				name: "bash", shell: "/bin/bash", env: map[string]string{"HOME": t.TempDir()},
+				shimPath: func(setup shellSetup) string { return setup.env["ENV"] },
+			},
+			{
+				name: "zsh", shell: "/bin/zsh",
+				env:      map[string]string{"HOME": t.TempDir(), "ZDOTDIR": t.TempDir()},
+				shimPath: func(setup shellSetup) string { return filepath.Join(setup.env["ZDOTDIR"], ".zshrc") },
+			},
+			{
+				name: "fish", shell: "/opt/homebrew/bin/fish",
+				env: map[string]string{"HOME": t.TempDir(), "XDG_CONFIG_HOME": t.TempDir()},
+				shimPath: func(setup shellSetup) string {
+					return filepath.Join(setup.env["XDG_CONFIG_HOME"], "fish", "vendor_conf.d", "compozy-terminal.fish")
+				},
+			},
+		}
+		for _, test := range tests {
+			t.Run("Should inject "+test.name, func(t *testing.T) {
+				nonce := "nonce-" + test.name
+				setup, err := prepareShellIntegration(ProcSpec{
+					Argv: []string{test.shell}, Env: test.env, MarkerNonce: nonce, ShellIntegration: true,
+				})
+				if err != nil {
+					t.Fatalf("prepareShellIntegration(%s) error = %v", test.name, err)
+				}
+				shimPath := test.shimPath(setup)
+				root := shellShimRoot(test.name, setup, shimPath)
+				assertPrivatePath(t, root, 0o700)
+				assertPrivatePath(t, shimPath, 0o600)
+				content, err := os.ReadFile(shimPath)
+				if err != nil {
+					t.Fatalf("ReadFile(%s) error = %v", shimPath, err)
+				}
+				if !strings.Contains(string(content), nonce) || !strings.Contains(string(content), "7113;v1") {
+					t.Fatalf("%s shim does not contain authenticated marker grammar", test.name)
+				}
+				for key, value := range setup.env {
+					if strings.Contains(value, nonce) {
+						t.Fatalf("nonce leaked through environment %s=%q", key, value)
+					}
+				}
+				assertUserRCFirst(t, test.name, setup, string(content), test.env)
+				if err := setup.cleanup(); err != nil {
+					t.Fatalf("cleanup(%s) error = %v", test.name, err)
+				}
+				if _, err := os.Stat(root); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("shim root remains after cleanup: %v", err)
+				}
+			})
+		}
+	})
+
+	t.Run("Should emit one authenticated start marker for one human bash command [UT-088]", func(t *testing.T) {
+		home := t.TempDir()
+		if err := os.WriteFile(filepath.Join(home, ".bashrc"), []byte("export USER_RC_LOADED=1\n"), 0o600); err != nil {
+			t.Fatalf("write user bashrc error = %v", err)
+		}
+		proc := startTestProc(t, ProcSpec{
+			Argv: []string{"/bin/bash"}, Env: map[string]string{"HOME": home}, MarkerNonce: "nonce-human",
+			ShellIntegration: true, Mode: ModePTY, Cols: 80, Rows: 24,
+		})
+		if _, err := proc.Write([]byte("echo compozy-human-command\nexit\n")); err != nil {
+			t.Fatalf("Write(command) error = %v", err)
+		}
+		output, readErr := io.ReadAll(proc.Reader())
+		if readErr != nil {
+			t.Fatalf("ReadAll() error = %v", readErr)
+		}
+		exit, waitErr := proc.Wait(context.Background())
+		if waitErr != nil || exit.Code == nil || *exit.Code != 0 {
+			t.Fatalf("Wait() = %#v error=%v", exit, waitErr)
+		}
+		if err := proc.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+		marker := ";S;cmd=echo%20compozy-human-command;"
+		if count := strings.Count(string(output), marker); count != 1 {
+			t.Fatalf("human command marker count = %d, want 1; output=%q", count, output)
+		}
+	})
+}
+
+func shellShimRoot(shell string, setup shellSetup, shimPath string) string {
+	switch shell {
+	case "zsh", "fish":
+		return setup.env[map[string]string{"zsh": "ZDOTDIR", "fish": "XDG_CONFIG_HOME"}[shell]]
+	default:
+		return filepath.Dir(shimPath)
+	}
+}
+
+func assertPrivatePath(t *testing.T, path string, mode os.FileMode) {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("Stat(%s) error = %v", path, err)
+	}
+	if got := info.Mode().Perm(); got != mode {
+		t.Fatalf("mode(%s) = %o, want %o", path, got, mode)
+	}
+}
+
+func assertUserRCFirst(t *testing.T, shell string, setup shellSetup, shim string, env map[string]string) {
+	t.Helper()
+	switch shell {
+	case "bash":
+		if source, marker := strings.Index(shim, "; then . "), strings.Index(shim, "__compozy_nonce"); source < 0 || source > marker {
+			t.Fatalf("%s user rc is not sourced before integration: %q", shell, shim)
+		}
+	case "zsh":
+		if source, marker := strings.Index(shim, "source "), strings.Index(shim, "__compozy_nonce"); source < 0 || source > marker {
+			t.Fatalf("%s user rc is not sourced before integration: %q", shell, shim)
+		}
+	case "fish":
+		configPath := filepath.Join(setup.env["XDG_CONFIG_HOME"], "fish", "config.fish")
+		config, err := os.ReadFile(configPath)
+		if err != nil {
+			t.Fatalf("ReadFile(%s) error = %v", configPath, err)
+		}
+		userConfig := filepath.Join(env["XDG_CONFIG_HOME"], "fish", "config.fish")
+		if user, vendor := strings.Index(string(config), userConfig), strings.Index(string(config), "compozy-terminal.fish"); user < 0 || user > vendor {
+			t.Fatalf("fish user config is not sourced before integration: %q", config)
+		}
+	}
 }
 
 func startTestProc(t *testing.T, spec ProcSpec) Proc {
