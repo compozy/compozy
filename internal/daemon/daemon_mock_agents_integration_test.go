@@ -761,6 +761,98 @@ func TestDaemonE2EToolPermissionFixtureEventsSurface(t *testing.T) {
 	}
 }
 
+func TestDaemonE2EAgentReportedTerminalStaysObservational(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		MockAgents: []e2etest.MockAgentSpec{{
+			FixturePath:  mockFixturePath(t, "integrated_terminal_fixture.json"),
+			FixtureAgent: "integrated-terminal", AgentName: "mock-integrated-terminal",
+		}},
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	reportedSession := createFixtureBackedSession(
+		t, ctx, harness, "mock-integrated-terminal", "agent-reported-terminal",
+	)
+	if _, err := harness.PromptSession(ctx, reportedSession.ID, "show agent reported terminal"); err != nil {
+		t.Fatalf("PromptSession(reported terminal) error = %v", err)
+	}
+	eventsResponse, err := harness.SessionEvents(ctx, reportedSession.ID)
+	if err != nil {
+		t.Fatalf("SessionEvents(reported terminal) error = %v", err)
+	}
+	events := decodeAgentEvents(t, eventsResponse.Events)
+	var reported *compozycontract.AgentEventPayload
+	for index := range events {
+		if events[index].Type == acp.EventTypeAgentReportedTerminal {
+			reported = &events[index]
+		}
+	}
+	if reported == nil {
+		t.Fatalf("events = %#v, want reported terminal event", events)
+	}
+	if got, want := reported.Origin, acp.AgentEventOriginAgentReported; got != want {
+		t.Fatalf("reported origin = %q, want %q", got, want)
+	}
+	if reported.ReportedTerminal == nil || reported.ReportedTerminal.ID != "reported-terminal-1" {
+		t.Fatalf("reported metadata = %#v, want agent terminal identity", reported.ReportedTerminal)
+	}
+	if got, want := reported.Text, "$ bun test --filter terminal\n12 tests passed\n"; got != want {
+		t.Fatalf("reported output = %q, want %q", got, want)
+	}
+
+	workspacePath := "/api/workspaces/" + url.PathEscape(reportedSession.WorkspaceID)
+	var terminals compozycontract.TerminalListResponse
+	if err := harness.UDSJSON(ctx, http.MethodGet, workspacePath+"/terminals", nil, &terminals); err != nil {
+		t.Fatalf("ListTerminals() error = %v", err)
+	}
+	if len(terminals.Terminals) != 0 {
+		t.Fatalf("terminal catalog = %#v, want no supervised terminal", terminals.Terminals)
+	}
+	var journal compozycontract.TerminalJournalResponse
+	if err := harness.UDSJSON(ctx, http.MethodGet, workspacePath+"/terminals/journal", nil, &journal); err != nil {
+		t.Fatalf("QueryTerminalJournal() error = %v", err)
+	}
+	if len(journal.Entries) != 0 {
+		t.Fatalf("terminal journal = %#v, want no reported-output rows", journal.Entries)
+	}
+	var windows compozycontract.WindowManagerSnapshot
+	if err := harness.UDSJSON(ctx, http.MethodGet, workspacePath+"/window-manager", nil, &windows); err != nil {
+		t.Fatalf("GetWindowManagerSnapshot() error = %v", err)
+	}
+	if len(windows.Windows) != 0 {
+		t.Fatalf("window manager windows = %#v, want no window for reported output", windows.Windows)
+	}
+
+	noReportSession := createFixtureBackedSession(
+		t, ctx, harness, "mock-integrated-terminal", "agent-without-terminal-report",
+	)
+	if _, err := harness.PromptSession(ctx, noReportSession.ID, "show no terminal report"); err != nil {
+		t.Fatalf("PromptSession(no report) error = %v", err)
+	}
+	transcriptResponse, err := harness.SessionTranscript(ctx, noReportSession.ID)
+	if err != nil {
+		t.Fatalf("SessionTranscript(no report) error = %v", err)
+	}
+	for _, entry := range transcriptResponse.Entries {
+		for _, part := range entry.Message.Parts {
+			if part.Type != "data-compozy-event" {
+				continue
+			}
+			var payload compozycontract.AgentEventPayload
+			if err := json.Unmarshal(part.Data, &payload); err != nil {
+				t.Fatalf("decode transcript data part: %v", err)
+			}
+			if payload.Origin == acp.AgentEventOriginAgentReported {
+				t.Fatalf("no-report transcript contains terminal chrome payload: %#v", payload)
+			}
+		}
+	}
+}
+
 func TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool(t *testing.T) {
 	acpmock.RequireDriver(t)
 	t.Parallel()

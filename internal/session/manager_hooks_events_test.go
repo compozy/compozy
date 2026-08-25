@@ -213,6 +213,43 @@ func TestRecordEventDispatchesAroundPersistence(t *testing.T) {
 	}
 }
 
+func TestRecordEventSkipsHooksForAgentReportedTerminal(t *testing.T) {
+	t.Parallel()
+
+	order := make([]string, 0, 1)
+	dispatcher := &spyHookDispatcher{
+		dispatchEventPreRecordFn: func(_ context.Context, payload hookspkg.EventPreRecordPayload) (hookspkg.EventPreRecordPayload, error) {
+			t.Fatalf("unexpected event.pre_record hook: %#v", payload)
+			return payload, nil
+		},
+		dispatchEventPostRecordFn: func(_ context.Context, payload hookspkg.EventPostRecordPayload) (hookspkg.EventPostRecordPayload, error) {
+			t.Fatalf("unexpected event.post_record hook: %#v", payload)
+			return payload, nil
+		},
+	}
+	h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
+	now := h.manager.now()
+	session := &Session{
+		ID: "sess-reported", AgentName: "coder", WorkspaceID: h.workspaceID, Workspace: h.workspace,
+		Type: SessionTypeUser, State: StateActive, CreatedAt: now, UpdatedAt: now,
+		recorder: &orderedRecorder{onRecord: func(event store.SessionEvent) {
+			order = append(order, "record:"+event.Type)
+		}},
+	}
+
+	err := h.manager.recordEvent(testutil.Context(t), session, acp.AgentEvent{
+		Type: acp.EventTypeAgentReportedTerminal, Origin: acp.AgentEventOriginAgentReported,
+		TurnID: "turn-reported", Timestamp: now, Text: "output",
+		ReportedTerminal: &acp.AgentReportedTerminal{ID: "reported-1", TotalBytes: 6},
+	})
+	if err != nil {
+		t.Fatalf("recordEvent() error = %v", err)
+	}
+	if got, want := order, []string{"record:terminal_output"}; !testutil.EqualStringSlices(got, want) {
+		t.Fatalf("dispatch order = %#v, want persisted without hooks %#v", got, want)
+	}
+}
+
 func TestRecordEventDispatchesSessionMessagePersistedAfterDurableAgentMessage(t *testing.T) {
 	t.Parallel()
 

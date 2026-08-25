@@ -188,9 +188,84 @@ func (a *mockAgent) executeStep(
 		return a.executeSandboxCommand(ctx, sessionID, step)
 	case acpmock.StepKindDriverControl:
 		return a.executeDriverControl(ctx, step)
+	case acpmock.StepKindReportedTerminal:
+		return a.emitReportedTerminal(ctx, sessionID, step)
 	default:
 		return acpmock.DiagnosticsStep{}, fmt.Errorf("unsupported step kind %s", step.Kind)
 	}
+}
+
+func (a *mockAgent) emitReportedTerminal(
+	ctx context.Context,
+	sessionID acpsdk.SessionId,
+	step acpmock.Step,
+) (acpmock.DiagnosticsStep, error) {
+	a.mu.Lock()
+	supported := a.reportedTerminalOutput
+	a.mu.Unlock()
+	if !supported {
+		return acpmock.DiagnosticsStep{}, errors.New(
+			"acpmock-driver: client did not advertise _meta.terminal_output",
+		)
+	}
+
+	toolCallID := acpsdk.ToolCallId(strings.TrimSpace(step.ToolCallID))
+	terminalID := strings.TrimSpace(step.TerminalID)
+	title := strings.TrimSpace(step.Title)
+	start := acpsdk.StartToolCall(
+		toolCallID,
+		title,
+		acpsdk.WithStartKind(acpsdk.ToolKindExecute),
+		acpsdk.WithStartStatus(acpsdk.ToolCallStatusInProgress),
+	)
+	start.ToolCall.Meta = map[string]any{"terminal_info": map[string]any{
+		"terminal_id": terminalID,
+		"cwd":         strings.TrimSpace(step.Cwd),
+	}}
+	if err := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{SessionId: sessionID, Update: start}); err != nil {
+		return acpmock.DiagnosticsStep{}, err
+	}
+	if err := pauseForDelivery(ctx); err != nil {
+		return acpmock.DiagnosticsStep{}, err
+	}
+
+	chunks := normalizedChunks(step)
+	for _, chunk := range chunks {
+		update := acpsdk.UpdateToolCall(toolCallID)
+		update.ToolCallUpdate.Meta = map[string]any{"terminal_output": map[string]any{
+			"terminal_id": terminalID,
+			"data":        chunk,
+		}}
+		if err := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{SessionId: sessionID, Update: update}); err != nil {
+			return acpmock.DiagnosticsStep{}, err
+		}
+		if err := pauseForDelivery(ctx); err != nil {
+			return acpmock.DiagnosticsStep{}, err
+		}
+	}
+
+	final := acpsdk.UpdateToolCall(toolCallID, acpsdk.WithUpdateStatus(acpsdk.ToolCallStatusCompleted))
+	final.ToolCallUpdate.Meta = map[string]any{"terminal_exit": map[string]any{
+		"terminal_id": terminalID,
+		"exit_code":   reportedTerminalExitCode(step.ExitCode),
+		"signal":      strings.TrimSpace(step.Signal),
+	}}
+	if err := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{SessionId: sessionID, Update: final}); err != nil {
+		return acpmock.DiagnosticsStep{}, err
+	}
+	if err := pauseForDelivery(ctx); err != nil {
+		return acpmock.DiagnosticsStep{}, err
+	}
+	return acpmock.DiagnosticsStep{
+		Kind: step.Kind, Text: strings.Join(chunks, ""), ToolCallID: string(toolCallID),
+	}, nil
+}
+
+func reportedTerminalExitCode(exitCode *int) int {
+	if exitCode == nil {
+		return 0
+	}
+	return *exitCode
 }
 
 func (a *mockAgent) emitTextChunks(

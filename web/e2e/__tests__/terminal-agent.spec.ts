@@ -181,6 +181,45 @@ test.use({
   },
 });
 
+test("E2E-010: agent-reported output stays labeled and absent from the Terminal app", async ({
+  appPage,
+  runtime,
+}) => {
+  assertLaunchRuntime(runtime);
+  await completeOnboardingIfPrompted(appPage);
+  const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
+  const created = await runtime.requestJSON<SessionEnvelope>("/api/sessions", {
+    method: "POST",
+    body: JSON.stringify({ agent_name: MOCK_AGENT, workspace: workspace.id }),
+  });
+  const sessionId = created.session.id;
+  await appPage.goto(runtime.url(`/agents/${MOCK_AGENT}/sessions/${sessionId}`), {
+    waitUntil: "domcontentloaded",
+  });
+  const sessionWin = sessionWindow(appPage, sessionId);
+  const sessionUI = sessionWindowSelectors(sessionWin, appPage);
+  await expect(sessionWin).toBeVisible({ timeout: 20_000 });
+  await sessionUI.composerTextarea.fill("show agent reported terminal");
+  await sessionUI.composerTextarea.press("Enter");
+
+  const reported = sessionWin.getByTestId("session-agent-reported-block-reported-terminal-1");
+  await expect(reported).toBeVisible({ timeout: 20_000 });
+  await expect(reported.getByText("reported by agent")).toBeVisible();
+  await expect(
+    reported.getByRole("log", { name: "Command output reported by the agent" })
+  ).toHaveAttribute("data-readonly", "true");
+  await expect(reported.getByRole("button")).toHaveCount(0);
+  await expect(reported).toContainText("12 tests passed");
+
+  const catalog = await runtime.requestJSON<{ terminals: unknown[] }>(
+    `/api/workspaces/${encodeURIComponent(workspace.id)}/terminals?profile=default`
+  );
+  expect(catalog.terminals).toEqual([]);
+  await ensureProjectWorkspace(appPage, runtime);
+  const terminalWindow = await openAppWindow(appPage, "Terminal", "terminal");
+  await expect(terminalWindow.getByTestId("terminal-empty")).toBeVisible();
+});
+
 test("E2E-003: deliberate agent exec stays discoverable from approval through journal", async ({
   appPage,
   runtime,

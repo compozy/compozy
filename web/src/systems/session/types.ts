@@ -211,6 +211,7 @@ export interface RuntimeActivityPayload {
 
 export interface AgentEventPayload {
   type: string;
+  origin?: string;
   session_id?: string;
   turn_id?: string;
   message_id?: string;
@@ -227,9 +228,19 @@ export interface AgentEventPayload {
   failure?: SessionFailurePayload;
   usage?: TokenUsagePayload;
   runtime?: RuntimeActivityPayload;
+  reported_terminal?: AgentReportedTerminalPayload;
   marker?: TranscriptMarkerPayload;
   goal?: GoalPromptMeta;
   raw?: unknown;
+}
+
+export interface AgentReportedTerminalPayload {
+  id: string;
+  cwd?: string;
+  total_bytes: number;
+  truncated?: boolean;
+  exit_code?: number;
+  signal?: string;
 }
 
 export interface CompozyPermissionData extends AgentEventPayload {

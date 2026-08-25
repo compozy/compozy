@@ -50,6 +50,8 @@ type AgentProcess struct {
 	terminalProcesses   map[string]*toolruntime.Handle
 	toolPrecheckMu      sync.Mutex
 	toolPrechecks       []providerNativeToolPrecheck
+	reportedTerminalMu  sync.Mutex
+	reportedTerminals   map[string]*agentReportedTerminalState
 
 	waitMu        sync.RWMutex
 	waitErr       error

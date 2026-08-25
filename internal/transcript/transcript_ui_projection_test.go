@@ -56,6 +56,100 @@ func TestClarificationEventProjectionPreservesTypedEvidence(t *testing.T) {
 	})
 }
 
+func TestAgentReportedTerminalProjection(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should replace chunks for one reported block and preserve its origin", func(t *testing.T) {
+		t.Parallel()
+
+		timestamp := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+		terminal := &acp.AgentReportedTerminal{ID: "reported-1", Cwd: "/workspace", TotalBytes: 11}
+		first, err := MarshalAgentEvent(acp.AgentEvent{
+			Type: acp.EventTypeAgentReportedTerminal, Origin: acp.AgentEventOriginAgentReported,
+			SessionID: "sess-reported", TurnID: "turn-reported", Timestamp: timestamp,
+			Text: "hello ", Title: "bun test", ReportedTerminal: terminal,
+		})
+		if err != nil {
+			t.Fatalf("MarshalAgentEvent(first) error = %v", err)
+		}
+		terminal.ExitCode = new(int)
+		second, err := MarshalAgentEvent(acp.AgentEvent{
+			Type: acp.EventTypeAgentReportedTerminal, Origin: acp.AgentEventOriginAgentReported,
+			SessionID: "sess-reported", TurnID: "turn-reported", Timestamp: timestamp.Add(time.Second),
+			Text: "hello world", Title: "bun test", ReportedTerminal: terminal,
+		})
+		if err != nil {
+			t.Fatalf("MarshalAgentEvent(second) error = %v", err)
+		}
+
+		messages, err := ToUIMessages([]store.SessionEvent{
+			{ID: "ev-1", SessionID: "sess-reported", TurnID: "turn-reported", Sequence: 1,
+				Type: acp.EventTypeAgentReportedTerminal, Content: first, Timestamp: timestamp},
+			{ID: "ev-2", SessionID: "sess-reported", TurnID: "turn-reported", Sequence: 2,
+				Type: acp.EventTypeAgentReportedTerminal, Content: second, Timestamp: timestamp.Add(time.Second)},
+		})
+		if err != nil {
+			t.Fatalf("ToUIMessages() error = %v", err)
+		}
+		if got, want := len(messages), 1; got != want {
+			t.Fatalf("len(messages) = %d, want %d", got, want)
+		}
+		if got, want := len(messages[0].Parts), 1; got != want {
+			t.Fatalf("len(parts) = %d, want one replaced block", got)
+		}
+		part := messages[0].Parts[0]
+		if got, want := part.ID, "reported-1"; got != want {
+			t.Fatalf("part id = %q, want %q", got, want)
+		}
+		var payload UIAgentEventPayload
+		if err := json.Unmarshal(part.Data, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(part.Data) error = %v", err)
+		}
+		if got, want := payload.Origin, acp.AgentEventOriginAgentReported; got != want {
+			t.Fatalf("payload origin = %q, want %q", got, want)
+		}
+		if got, want := payload.Text, "hello world"; got != want {
+			t.Fatalf("payload text = %q, want %q", got, want)
+		}
+		if payload.ReportedTerminal == nil || payload.ReportedTerminal.ExitCode == nil ||
+			*payload.ReportedTerminal.ExitCode != 0 {
+			t.Fatalf("payload reported terminal = %#v, want exit code 0", payload.ReportedTerminal)
+		}
+	})
+
+	t.Run("Should add no terminal data part when no report exists", func(t *testing.T) {
+		t.Parallel()
+
+		content, err := MarshalAgentEvent(acp.AgentEvent{
+			Type: acp.EventTypeAgentMessage, TurnID: "turn-no-report", Timestamp: time.Now().UTC(), Text: "done",
+		})
+		if err != nil {
+			t.Fatalf("MarshalAgentEvent() error = %v", err)
+		}
+		messages, err := ToUIMessages([]store.SessionEvent{{
+			ID: "ev-no-report", SessionID: "sess-no-report", TurnID: "turn-no-report",
+			Sequence: 1, Type: acp.EventTypeAgentMessage, Content: content, Timestamp: time.Now().UTC(),
+		}})
+		if err != nil {
+			t.Fatalf("ToUIMessages() error = %v", err)
+		}
+		for _, message := range messages {
+			for _, part := range message.Parts {
+				if part.Type != uiPartDataEvent {
+					continue
+				}
+				var payload UIAgentEventPayload
+				if err := json.Unmarshal(part.Data, &payload); err != nil {
+					t.Fatalf("json.Unmarshal(part.Data) error = %v", err)
+				}
+				if payload.Origin == acp.AgentEventOriginAgentReported {
+					t.Fatalf("unexpected reported terminal part: %#v", payload)
+				}
+			}
+		}
+	})
+}
+
 func TestToUIMessagesPreservesUserMessageIdentity(t *testing.T) {
 	t.Run("Should project the durable user message identity into user metadata", func(t *testing.T) {
 		t.Parallel()

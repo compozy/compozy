@@ -32,6 +32,7 @@ func (s *AvailableCommandSet) Values() []store.SessionAdvertisedCommand {
 // AgentEvent is the stream item exposed to session/.
 type AgentEvent struct {
 	Type      string
+	Origin    string
 	SessionID string
 	TurnID    string
 	store.EventCorrelation
@@ -52,5 +53,6 @@ type AgentEvent struct {
 	AvailableCommands *AvailableCommandSet
 	Usage             *TokenUsage
 	Runtime           *RuntimeActivity
+	ReportedTerminal  *AgentReportedTerminal
 	Raw               json.RawMessage
 }

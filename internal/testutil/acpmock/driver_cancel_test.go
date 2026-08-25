@@ -224,7 +224,7 @@ func waitForTerminalRecords(
 
 	for {
 		records, err := store.ListProcessRecords(context.Background(), toolruntime.ProcessQuery{
-			Scope: toolruntime.InterruptScope{Source: toolruntime.ProcessSourceACPTerminal},
+			Scope: toolruntime.InterruptScope{Source: toolruntime.ProcessSourceTerminal},
 		})
 		if err != nil {
 			t.Fatalf("ListProcessRecords() error = %v", err)

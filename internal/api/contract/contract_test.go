@@ -1673,6 +1673,31 @@ func TestAgentEventPayloadRoundTripsThroughJSON(t *testing.T) {
 			t.Fatalf("prompt runtime payload = %#v", roundTrip.PromptRuntime)
 		}
 	})
+
+	t.Run("Should round-trip agent-reported terminal provenance", func(t *testing.T) {
+		t.Parallel()
+
+		exitCode := 0
+		event := acp.AgentEvent{
+			Type: acp.EventTypeAgentReportedTerminal, Origin: acp.AgentEventOriginAgentReported,
+			SessionID: "sess-reported", TurnID: "turn-reported", Timestamp: time.Now().UTC(),
+			Text: "tests passed", Title: "bun test",
+			ReportedTerminal: &acp.AgentReportedTerminal{
+				ID: "reported-1", Cwd: "/workspace", TotalBytes: 12, ExitCode: &exitCode,
+			},
+		}
+		payload := core.AgentEventPayloadFromEvent(event)
+		var roundTrip contract.AgentEventPayload
+		marshalJSON(t, payload, &roundTrip)
+
+		if got, want := roundTrip.Origin, acp.AgentEventOriginAgentReported; got != want {
+			t.Fatalf("origin = %q, want %q", got, want)
+		}
+		if roundTrip.ReportedTerminal == nil || roundTrip.ReportedTerminal.ID != "reported-1" ||
+			roundTrip.ReportedTerminal.ExitCode == nil || *roundTrip.ReportedTerminal.ExitCode != 0 {
+			t.Fatalf("reported terminal payload = %#v", roundTrip.ReportedTerminal)
+		}
+	})
 }
 
 func TestAutomationJobPayloadJSONShape(t *testing.T) {

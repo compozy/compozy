@@ -1,6 +1,6 @@
 {
     "title": "Terminal",
-    "icon": "SquareTerminal",
+    "icon": "Terminal",
     "pages": [
         "index",
         "tutorial",

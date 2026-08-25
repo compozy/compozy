@@ -48,6 +48,28 @@ func TestStartInitializeContract(t *testing.T) {
 			)
 		}
 	})
+
+	t.Run("Should advertise agent-reported terminal output support", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "initialize-terminal-output.jsonl")
+		proc := startHelperProcess(t, driver, "initialize_contract", "", StartOpts{
+			Env: helperEnvWithCapture("initialize_contract", "", captureFile),
+		})
+		defer stopProcess(t, driver, proc)
+
+		params := captureRequestParams(t, captureFile, acpsdk.AgentMethodInitialize)
+		var capabilities struct {
+			Meta map[string]any `json:"_meta"`
+		}
+		if err := json.Unmarshal(params["clientCapabilities"], &capabilities); err != nil {
+			t.Fatalf("decode initialize clientCapabilities: %v", err)
+		}
+		if advertised, ok := capabilities.Meta["terminal_output"].(bool); !ok || !advertised {
+			t.Fatalf("clientCapabilities._meta.terminal_output = %#v, want true", capabilities.Meta)
+		}
+	})
 }
 
 func TestStartCapturesPromptCapabilities(t *testing.T) {

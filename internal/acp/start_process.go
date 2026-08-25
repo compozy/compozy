@@ -182,6 +182,9 @@ func (d *Driver) initializeConnection(ctx context.Context, process *AgentProcess
 	initRequest := acpsdk.InitializeRequest{
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,
 		ClientCapabilities: acpsdk.ClientCapabilities{
+			Meta: map[string]any{
+				"terminal_output": true,
+			},
 			Fs: acpsdk.FileSystemCapabilities{
 				ReadTextFile:  true,
 				WriteTextFile: true,

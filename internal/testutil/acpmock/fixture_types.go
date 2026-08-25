@@ -7,13 +7,14 @@ const FixtureVersion = 2
 type StepKind string
 
 const (
-	StepKindAssistant     StepKind = "assistant"
-	StepKindThought       StepKind = "thought"
-	StepKindToolCall      StepKind = "tool_call"
-	StepKindPermission    StepKind = "permission"
-	StepKindSandbox       StepKind = "sandbox_exec"
-	StepKindBridgeContent StepKind = "bridge_response"
-	StepKindDriverControl StepKind = "driver_control"
+	StepKindAssistant        StepKind = "assistant"
+	StepKindThought          StepKind = "thought"
+	StepKindToolCall         StepKind = "tool_call"
+	StepKindPermission       StepKind = "permission"
+	StepKindSandbox          StepKind = "sandbox_exec"
+	StepKindBridgeContent    StepKind = "bridge_response"
+	StepKindDriverControl    StepKind = "driver_control"
+	StepKindReportedTerminal StepKind = "reported_terminal"
 )
 
 // Fixture describes one deterministic multi-agent ACP mock scenario.
@@ -131,6 +132,7 @@ type Step struct {
 	Chunks []string `json:"chunks,omitempty"`
 
 	ToolCallID  string          `json:"tool_call_id,omitempty"`
+	TerminalID  string          `json:"terminal_id,omitempty"`
 	Title       string          `json:"title,omitempty"`
 	ToolKind    string          `json:"tool_kind,omitempty"`
 	Path        string          `json:"path,omitempty"`
@@ -138,6 +140,8 @@ type Step struct {
 	ContentText string          `json:"content_text,omitempty"`
 	RawInput    json.RawMessage `json:"raw_input,omitempty"`
 	RawOutput   json.RawMessage `json:"raw_output,omitempty"`
+	ExitCode    *int            `json:"exit_code,omitempty"`
+	Signal      string          `json:"signal,omitempty"`
 
 	ExpectDecision string `json:"expect_decision,omitempty"`
 	EmitDecision   bool   `json:"emit_decision,omitempty"`

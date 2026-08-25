@@ -68,28 +68,40 @@ type AgentMCPServerJSON struct {
 
 // AgentEventPayload is the shared raw agent-event streaming payload.
 type AgentEventPayload struct {
-	Type              string                       `json:"type"`
-	SessionID         string                       `json:"session_id,omitempty"`
-	TurnID            string                       `json:"turn_id,omitempty"`
-	MessageID         string                       `json:"message_id,omitempty"`
-	RequestID         string                       `json:"request_id,omitempty"`
-	Timestamp         time.Time                    `json:"timestamp"`
-	Text              string                       `json:"text,omitempty"`
-	Title             string                       `json:"title,omitempty"`
-	ToolCallID        string                       `json:"tool_call_id,omitempty"`
-	StopReason        string                       `json:"stop_reason,omitempty"`
-	PromptStopReason  ACPPromptStopReason          `json:"prompt_stop_reason,omitempty"`
-	AvailableCommands []ACPAvailableCommandPayload `json:"available_commands,omitempty"`
-	Action            string                       `json:"action,omitempty"`
-	Resource          string                       `json:"resource,omitempty"`
-	Decision          string                       `json:"decision,omitempty"`
-	Error             string                       `json:"error,omitempty"`
-	Failure           *SessionFailurePayload       `json:"failure,omitempty"`
-	Goal              *GoalPromptMeta              `json:"goal,omitempty"`
-	Usage             *TokenUsagePayload           `json:"usage,omitempty"`
-	Runtime           *RuntimeActivityPayload      `json:"runtime,omitempty"`
-	PromptRuntime     *RuntimeSelectionPayload     `json:"prompt_runtime,omitempty"`
-	Raw               json.RawMessage              `json:"raw,omitempty"`
+	Type              string                           `json:"type"`
+	Origin            string                           `json:"origin,omitempty"`
+	SessionID         string                           `json:"session_id,omitempty"`
+	TurnID            string                           `json:"turn_id,omitempty"`
+	MessageID         string                           `json:"message_id,omitempty"`
+	RequestID         string                           `json:"request_id,omitempty"`
+	Timestamp         time.Time                        `json:"timestamp"`
+	Text              string                           `json:"text,omitempty"`
+	Title             string                           `json:"title,omitempty"`
+	ToolCallID        string                           `json:"tool_call_id,omitempty"`
+	StopReason        string                           `json:"stop_reason,omitempty"`
+	PromptStopReason  ACPPromptStopReason              `json:"prompt_stop_reason,omitempty"`
+	AvailableCommands []ACPAvailableCommandPayload     `json:"available_commands,omitempty"`
+	Action            string                           `json:"action,omitempty"`
+	Resource          string                           `json:"resource,omitempty"`
+	Decision          string                           `json:"decision,omitempty"`
+	Error             string                           `json:"error,omitempty"`
+	Failure           *SessionFailurePayload           `json:"failure,omitempty"`
+	Goal              *GoalPromptMeta                  `json:"goal,omitempty"`
+	Usage             *TokenUsagePayload               `json:"usage,omitempty"`
+	Runtime           *RuntimeActivityPayload          `json:"runtime,omitempty"`
+	ReportedTerminal  *ACPAgentReportedTerminalPayload `json:"reported_terminal,omitempty"`
+	PromptRuntime     *RuntimeSelectionPayload         `json:"prompt_runtime,omitempty"`
+	Raw               json.RawMessage                  `json:"raw,omitempty"`
+}
+
+// ACPAgentReportedTerminalPayload describes observational terminal output supplied by an agent.
+type ACPAgentReportedTerminalPayload struct {
+	ID         string `json:"id"`
+	Cwd        string `json:"cwd,omitempty"`
+	TotalBytes int64  `json:"total_bytes"`
+	Truncated  bool   `json:"truncated,omitempty"`
+	ExitCode   *int   `json:"exit_code,omitempty"`
+	Signal     string `json:"signal,omitempty"`
 }
 
 // TokenUsagePayload is the shared token-usage response payload.

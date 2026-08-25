@@ -1,6 +1,7 @@
 export type {
   ACPCaps,
   AgentEventPayload,
+  AgentReportedTerminalPayload,
   CompozyPermissionData,
   AnswerClarificationBody,
   AnswerClarificationResult,
@@ -168,6 +169,10 @@ export {
 } from "./attachments";
 export { formatMessageTimestamp, formatMessageTimestampFull } from "./lib/format-timestamp";
 export { isClarifyEventData } from "./lib/clarify-event";
+export {
+  SessionAgentReportedBlock,
+  type SessionAgentReportedBlockProps,
+} from "./components/session-agent-reported-block";
 export { isAgentEventPayload, resolveToolResult } from "./lib/message-parts";
 export { getSessionDisplayTitle, UNTITLED_SESSION_TITLE } from "./lib/session-display-title";
 // Attention surface — badge dictionary, pending-interaction reads, list

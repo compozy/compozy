@@ -128,6 +128,62 @@ func TestMockAgentInitializeAdvertisesFixtureLoadCapability(t *testing.T) {
 	}
 }
 
+func TestMockAgentReportedTerminalRequiresNegotiatedCapability(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should emit terminal metadata and chunks after capability negotiation", func(t *testing.T) {
+		t.Parallel()
+
+		conn := &recordingSandboxConnection{}
+		agent := &mockAgent{conn: conn}
+		if _, err := agent.Initialize(context.Background(), acpsdk.InitializeRequest{
+			ClientCapabilities: acpsdk.ClientCapabilities{Meta: map[string]any{"terminal_output": true}},
+		}); err != nil {
+			t.Fatalf("Initialize() error = %v", err)
+		}
+		entry, err := agent.emitReportedTerminal(context.Background(), "sess-reported", acpmock.Step{
+			Kind: acpmock.StepKindReportedTerminal, ToolCallID: "tool-1", TerminalID: "reported-1",
+			Title: "bun test", Cwd: "/workspace", Chunks: []string{"one\n", "two\n"},
+		})
+		if err != nil {
+			t.Fatalf("emitReportedTerminal() error = %v", err)
+		}
+		if got, want := entry.Text, "one\ntwo\n"; got != want {
+			t.Fatalf("diagnostics text = %q, want %q", got, want)
+		}
+		if got, want := len(conn.notifications), 4; got != want {
+			t.Fatalf("notification count = %d, want %d", got, want)
+		}
+		startMeta := conn.notifications[0].Update.ToolCall.Meta
+		if startMeta["terminal_info"] == nil {
+			t.Fatalf("start metadata = %#v, want terminal_info", startMeta)
+		}
+		for _, index := range []int{1, 2} {
+			meta := conn.notifications[index].Update.ToolCallUpdate.Meta
+			if meta["terminal_output"] == nil {
+				t.Fatalf("chunk %d metadata = %#v, want terminal_output", index, meta)
+			}
+		}
+		finalMeta := conn.notifications[3].Update.ToolCallUpdate.Meta
+		if finalMeta["terminal_exit"] == nil {
+			t.Fatalf("final metadata = %#v, want terminal_exit", finalMeta)
+		}
+	})
+
+	t.Run("Should fail a reported step when the client omits the capability", func(t *testing.T) {
+		t.Parallel()
+
+		agent := &mockAgent{conn: &recordingSandboxConnection{}}
+		_, err := agent.emitReportedTerminal(context.Background(), "sess-reported", acpmock.Step{
+			Kind: acpmock.StepKindReportedTerminal, ToolCallID: "tool-1", TerminalID: "reported-1",
+			Title: "bun test", Text: "ok",
+		})
+		if err == nil || !strings.Contains(err.Error(), "did not advertise") {
+			t.Fatalf("emitReportedTerminal() error = %v, want capability negotiation failure", err)
+		}
+	})
+}
+
 func TestExtractPromptTextPreservesAugmentedPromptWithoutNestedMessageMarker(t *testing.T) {
 	t.Parallel()
 
@@ -490,12 +546,14 @@ type recordingSandboxConnection struct {
 	releaseCalled     bool
 	releaseContextErr error
 	createRequest     acpsdk.CreateTerminalRequest
+	notifications     []acpsdk.SessionNotification
 }
 
 func (c *recordingSandboxConnection) SessionUpdate(
-	context.Context,
-	acpsdk.SessionNotification,
+	_ context.Context,
+	notification acpsdk.SessionNotification,
 ) error {
+	c.notifications = append(c.notifications, notification)
 	return nil
 }
 

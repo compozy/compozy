@@ -54,6 +54,7 @@ func canonicalPayloadFromAgentEvent(event acp.AgentEvent, authoredText string) c
 	return canonicalEventPayload{
 		Schema:            CanonicalSchema,
 		Type:              event.Type,
+		Origin:            event.Origin,
 		SessionID:         event.SessionID,
 		TurnID:            event.TurnID,
 		MessageID:         event.MessageIDValue(),
@@ -84,6 +85,7 @@ func canonicalPayloadFromAgentEvent(event acp.AgentEvent, authoredText string) c
 		Usage:             event.Usage,
 		Runtime:           cloneRuntimeActivity(event.Runtime),
 		PromptRuntime:     event.PromptRuntimeSnapshot(),
+		ReportedTerminal:  acp.CloneAgentReportedTerminal(event.ReportedTerminal),
 	}
 }
 
@@ -136,6 +138,7 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 
 	event := acp.AgentEvent{
 		Type:             strings.TrimSpace(decoded.Type),
+		Origin:           strings.TrimSpace(decoded.Origin),
 		SessionID:        strings.TrimSpace(decoded.SessionID),
 		TurnID:           strings.TrimSpace(decoded.TurnID),
 		EventCorrelation: decoded.Normalize(),
@@ -154,6 +157,7 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		Goal:             acp.CloneGoalPromptMeta(decoded.Goal),
 		Usage:            decoded.Usage,
 		Runtime:          cloneRuntimeActivity(decoded.Runtime),
+		ReportedTerminal: acp.CloneAgentReportedTerminal(decoded.ReportedTerminal),
 		Raw:              acp.CloneRawMessage(decoded.Raw),
 	}.WithRequestID(decoded.RequestID).WithResolvedBy(decoded.ResolvedBy)
 	event = event.WithAttachments(decoded.Attachments)

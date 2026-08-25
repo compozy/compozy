@@ -50,12 +50,18 @@ func (p *AgentProcess) handleSessionUpdate(params json.RawMessage) error {
 	if notification.Update.CurrentModeUpdate != nil {
 		p.setConfigOptionCurrent(sessionConfigModeKey, string(notification.Update.CurrentModeUpdate.CurrentModeId))
 	}
+	reportedEvent, suppressStandard := p.projectAgentReportedTerminal(notification)
 
-	event, err := translateSessionUpdate(notification, raw.Update, p.activeTurnID())
-	if err != nil {
-		return err
+	if !suppressStandard {
+		event, err := translateSessionUpdate(notification, raw.Update, p.activeTurnID())
+		if err != nil {
+			return err
+		}
+		event = p.markToolEventPrechecked(event)
+		p.emitPromptEvent(event)
 	}
-	event = p.markToolEventPrechecked(event)
-	p.emitPromptEvent(event)
+	if reportedEvent != nil {
+		p.emitPromptEvent(*reportedEvent)
+	}
 	return nil
 }

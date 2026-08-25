@@ -8,6 +8,14 @@ routine internal work. Use the terminal when the operator asks to see or follow 
 will prompt, the process is long-running and may need takeover, or the task uses a full-screen program
 or demo.
 
+## Agent-reported output
+
+Some agents report output from commands they run inside their own runtime. The session shows that
+output in a terminal-styled block labeled **reported by agent**. This is an observation, not a
+CompozyOS-supervised terminal: it has no window, write lease, controls, journal row, or recording and
+does not appear in `compozy terminal list`. Use the terminal toolset when the work needs CompozyOS
+supervision, operator takeover, durable command history, or recording.
+
 ## Terminal toolset
 
 Toolset `compozy__terminal` contains:

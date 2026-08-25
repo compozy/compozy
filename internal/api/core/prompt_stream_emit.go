@@ -132,9 +132,13 @@ func (e *PromptStreamEncoder) emitGenericEvent(writer FlushWriter, event acp.Age
 	if err := e.closeOpenBlocks(writer); err != nil {
 		return err
 	}
-	return WriteSSE(writer, SSEMessage{
-		Data: promptDataEventEnvelope{Type: "data-compozy-event", Data: promptAgentEventPayloadFromEvent(event)},
-	})
+	partID := ""
+	if event.Type == acp.EventTypeAgentReportedTerminal && event.ReportedTerminal != nil {
+		partID = strings.TrimSpace(event.ReportedTerminal.ID)
+	}
+	return WriteSSE(writer, SSEMessage{Data: promptDataEventEnvelope{
+		Type: "data-compozy-event", ID: partID, Data: promptAgentEventPayloadFromEvent(event),
+	}})
 }
 
 func (e *PromptStreamEncoder) toolCallID(event acp.AgentEvent) string {

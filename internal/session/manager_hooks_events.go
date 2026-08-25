@@ -21,7 +21,7 @@ const (
 )
 
 func (m *Manager) dispatchEventPreRecord(ctx context.Context, session *Session, event acp.AgentEvent, content string) {
-	if m == nil {
+	if m == nil || event.Origin == acp.AgentEventOriginAgentReported {
 		return
 	}
 	ctx = hookDispatchContext(ctx, m, session)
@@ -123,7 +123,7 @@ func (m *Manager) dispatchEventPostRecord(
 	content string,
 	sequence int64,
 ) {
-	if m == nil {
+	if m == nil || event.Origin == acp.AgentEventOriginAgentReported {
 		return
 	}
 	ctx = hookDispatchContext(ctx, m, session)

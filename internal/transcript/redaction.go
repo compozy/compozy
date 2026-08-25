@@ -17,6 +17,7 @@ var structuralRedactor = redactpkg.New(redactpkg.Options{Disabled: true})
 // stored, replayed, or streamed to a caller.
 func RedactAgentEvent(event acp.AgentEvent) acp.AgentEvent {
 	redacted := event
+	redacted.Origin = redactStructuralString(event.Origin)
 	redacted.Text = redactDisplayString(event.Text)
 	redacted.Title = redactDisplayString(event.Title)
 	redacted.ToolCallID = redactStructuralString(event.ToolCallID)
@@ -40,6 +41,7 @@ func RedactAgentEvent(event acp.AgentEvent) acp.AgentEvent {
 		redacted.AvailableCommands = acp.NewAvailableCommandSet(event.AvailableCommands.Values())
 	}
 	redacted.Runtime = redactRuntimeActivity(event.Runtime)
+	redacted.ReportedTerminal = redactAgentReportedTerminal(event.ReportedTerminal)
 	redacted = redacted.WithPromptRuntime(event.PromptRuntimeSnapshot())
 	redacted = redacted.WithAttachments(redactEventAttachments(event.Attachments()))
 	redacted.Raw = redactRawMessage(event.Raw)
@@ -51,6 +53,7 @@ func redactCanonicalPayload(payload *canonicalEventPayload) {
 		return
 	}
 	payload.Text = redactDisplayString(payload.Text)
+	payload.Origin = redactStructuralString(payload.Origin)
 	payload.AuthoredText = redactDisplayString(payload.AuthoredText)
 	payload.Title = redactDisplayString(payload.Title)
 	payload.ToolName = redactStructuralString(payload.ToolName)
@@ -69,7 +72,19 @@ func redactCanonicalPayload(payload *canonicalEventPayload) {
 	payload.Goal = redactGoalPromptMeta(payload.Goal)
 	payload.Attachments = redactEventAttachments(payload.Attachments)
 	payload.Runtime = redactRuntimeActivity(payload.Runtime)
+	payload.ReportedTerminal = redactAgentReportedTerminal(payload.ReportedTerminal)
 	payload.Raw = redactRawMessage(payload.Raw)
+}
+
+func redactAgentReportedTerminal(terminal *acp.AgentReportedTerminal) *acp.AgentReportedTerminal {
+	redacted := acp.CloneAgentReportedTerminal(terminal)
+	if redacted == nil {
+		return nil
+	}
+	redacted.ID = redactStructuralString(redacted.ID)
+	redacted.Cwd = redactStructuralString(redacted.Cwd)
+	redacted.Signal = redactStructuralString(redacted.Signal)
+	return redacted
 }
 
 func redactEventAttachments(attachments []acp.EventAttachment) []acp.EventAttachment {

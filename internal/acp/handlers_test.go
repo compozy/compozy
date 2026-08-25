@@ -13,10 +13,12 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/toolruntime"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -1600,6 +1602,202 @@ func TestHandleSessionUpdateAvailableCommands(t *testing.T) {
 			t.Fatalf("available commands = %#v, want %#v", got, want)
 		}
 	})
+}
+
+func TestHandleSessionUpdateAgentReportedTerminal(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should project chunks into one bounded agent-reported terminal block", func(t *testing.T) {
+		t.Parallel()
+
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		terminalHost := &recordingReportedTerminalHost{}
+		proc.terminalCore = terminalHost
+		active, err := proc.beginPrompt("turn-reported-terminal", 8)
+		if err != nil {
+			t.Fatalf("beginPrompt() error = %v", err)
+		}
+		defer proc.endPrompt(active)
+
+		updates := []map[string]any{
+			{
+				"sessionUpdate": "tool_call", "toolCallId": "tool-reported", "title": "bun test",
+				"status": "in_progress",
+				"_meta": map[string]any{"terminal_info": map[string]any{
+					"terminal_id": "agent-term-1", "cwd": "/workspace",
+				}},
+			},
+			{
+				"sessionUpdate": "tool_call_update", "toolCallId": "tool-reported",
+				"_meta": map[string]any{"terminal_output": map[string]any{
+					"terminal_id": "agent-term-1", "data": "hello ",
+				}},
+			},
+			{
+				"sessionUpdate": "tool_call_update", "toolCallId": "tool-reported", "status": "completed",
+				"_meta": map[string]any{
+					"terminal_output": map[string]any{"terminal_id": "agent-term-1", "data": "world"},
+					"terminal_exit":   map[string]any{"terminal_id": "agent-term-1", "exit_code": 0},
+				},
+			},
+		}
+		for _, update := range updates {
+			notification := mustMarshalJSON(wireSessionNotification{
+				SessionID: "sess-direct",
+				Update:    mustMarshalJSON(update),
+			})
+			if err := proc.handleSessionUpdate(notification); err != nil {
+				t.Fatalf("handleSessionUpdate() error = %v", err)
+			}
+		}
+
+		events := collectEventsUntilCount(t, active.events, 4)
+		if got, want := events[0].Type, EventTypeToolCall; got != want {
+			t.Fatalf("start event type = %q, want %q", got, want)
+		}
+		for _, index := range []int{1, 3} {
+			if got, want := events[index].Type, EventTypeAgentReportedTerminal; got != want {
+				t.Fatalf("reported event %d type = %q, want %q", index, got, want)
+			}
+			if got, want := events[index].Origin, AgentEventOriginAgentReported; got != want {
+				t.Fatalf("reported event %d origin = %q, want %q", index, got, want)
+			}
+			if events[index].ReportedTerminal == nil {
+				t.Fatalf("reported event %d metadata = nil", index)
+			}
+		}
+		if got, want := events[1].Text, "hello "; got != want {
+			t.Fatalf("first reported output = %q, want %q", got, want)
+		}
+		if got, want := events[2].Type, EventTypeToolResult; got != want {
+			t.Fatalf("completion event type = %q, want %q", got, want)
+		}
+		if got, want := events[3].Text, "hello world"; got != want {
+			t.Fatalf("completed reported output = %q, want %q", got, want)
+		}
+		terminal := events[3].ReportedTerminal
+		if got, want := terminal.ID, "agent-term-1"; got != want {
+			t.Fatalf("reported terminal id = %q, want %q", got, want)
+		}
+		if terminal.ExitCode == nil || *terminal.ExitCode != 0 {
+			t.Fatalf("reported terminal exit code = %#v, want 0", terminal.ExitCode)
+		}
+		if terminalHost.calls != 0 {
+			t.Fatalf("supervised terminal host calls = %d, want none for registry and catalog isolation", terminalHost.calls)
+		}
+	})
+
+	t.Run("Should bound oversized output without splitting UTF-8", func(t *testing.T) {
+		t.Parallel()
+
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		active, err := proc.beginPrompt("turn-reported-terminal-bounded", 4)
+		if err != nil {
+			t.Fatalf("beginPrompt() error = %v", err)
+		}
+		defer proc.endPrompt(active)
+
+		oversized := strings.Repeat("界", maxAgentReportedTerminalBytes)
+		updates := []map[string]any{
+			{
+				"sessionUpdate": "tool_call", "toolCallId": "tool-large", "title": "large output",
+				"_meta": map[string]any{"terminal_info": map[string]any{"terminal_id": "agent-term-large"}},
+			},
+			{
+				"sessionUpdate": "tool_call_update", "toolCallId": "tool-large",
+				"_meta": map[string]any{"terminal_output": map[string]any{
+					"terminal_id": "agent-term-large", "data": oversized,
+				}},
+			},
+		}
+		for _, update := range updates {
+			if err := proc.handleSessionUpdate(mustMarshalJSON(wireSessionNotification{
+				SessionID: "sess-direct", Update: mustMarshalJSON(update),
+			})); err != nil {
+				t.Fatalf("handleSessionUpdate() error = %v", err)
+			}
+		}
+
+		events := collectEventsUntilCount(t, active.events, 2)
+		reported := events[1]
+		if len(reported.Text) > maxAgentReportedTerminalBytes {
+			t.Fatalf("reported output bytes = %d, want <= %d", len(reported.Text), maxAgentReportedTerminalBytes)
+		}
+		if !utf8.ValidString(reported.Text) {
+			t.Fatal("reported output is not valid UTF-8")
+		}
+		if reported.ReportedTerminal == nil || !reported.ReportedTerminal.Truncated {
+			t.Fatalf("reported terminal = %#v, want truncated", reported.ReportedTerminal)
+		}
+		if !strings.Contains(reported.Text, "bytes omitted") {
+			t.Fatalf("reported output = %q, want omission marker", reported.Text[:64])
+		}
+	})
+
+	t.Run("Should emit no terminal event when the agent reports nothing", func(t *testing.T) {
+		t.Parallel()
+
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		active, err := proc.beginPrompt("turn-without-reports", 2)
+		if err != nil {
+			t.Fatalf("beginPrompt() error = %v", err)
+		}
+		defer proc.endPrompt(active)
+
+		message := mustMarshalJSON(wireSessionNotification{
+			SessionID: "sess-direct",
+			Update: mustMarshalJSON(map[string]any{
+				"sessionUpdate": "agent_message_chunk",
+				"content":       map[string]any{"type": "text", "text": "done"},
+			}),
+		})
+		if err := proc.handleSessionUpdate(message); err != nil {
+			t.Fatalf("handleSessionUpdate() error = %v", err)
+		}
+
+		events := collectEventsUntilCount(t, active.events, 1)
+		if got, want := events[0].Type, EventTypeAgentMessage; got != want {
+			t.Fatalf("event type = %q, want %q", got, want)
+		}
+		select {
+		case event := <-active.events:
+			t.Fatalf("unexpected empty terminal event: %#v", event)
+		default:
+		}
+	})
+}
+
+type recordingReportedTerminalHost struct {
+	calls int
+}
+
+func (h *recordingReportedTerminalHost) OpenPipe(
+	context.Context,
+	terminalpkg.PipeRequest,
+) (terminalpkg.Handle, error) {
+	h.calls++
+	return nil, errors.New("unexpected reported-terminal OpenPipe call")
+}
+
+func (h *recordingReportedTerminalHost) Handle(
+	context.Context,
+	string,
+	string,
+	terminalpkg.ID,
+) (terminalpkg.Handle, error) {
+	h.calls++
+	return nil, errors.New("unexpected reported-terminal Handle call")
+}
+
+func (h *recordingReportedTerminalHost) Release(
+	context.Context,
+	string,
+	string,
+	terminalpkg.ID,
+	terminalpkg.Actor,
+) error {
+	h.calls++
+	return errors.New("unexpected reported-terminal Release call")
 }
 
 func TestHandleSessionUpdateMarksToolCallAsPrecheckedAfterGatewayIntercept(t *testing.T) {

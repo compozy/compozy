@@ -575,6 +575,11 @@ func TestLoadFixtureAndParseFixtureValidationErrors(t *testing.T) {
 			want: "driver_control is required",
 		},
 		{
+			name: "Should reject reported terminal without terminal identity",
+			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"reported_terminal","tool_call_id":"tool-1","title":"bun test","text":"ok"}]}]}]}`,
+			want: "terminal_id is required",
+		},
+		{
 			name: "Should reject driver delay that exceeds duration capacity",
 			raw: fmt.Sprintf(
 				`{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"driver_control","driver_control":{"action":"delay","delay_ms":%d}}]}]}]}`,
