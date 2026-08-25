@@ -502,8 +502,9 @@ async function waitForBadge(
 }
 
 async function openSessionsModal(page: Page) {
-  const dock = page.locator('[data-slot="os-dock"]:visible, [data-slot="os-dock-tabbar"]:visible');
-  await dock.getByRole("button", { exact: true, name: "Sessions" }).click();
+  await page.getByRole("menuitem", { name: "Session", exact: true }).click();
+  await expect(page.getByTestId("os-menu-session")).toBeVisible();
+  await page.getByTestId("os-menubar-command-shell.sessions.toggle").click();
   const modal = page.getByTestId("os-sessions-modal");
   await expect(modal).toBeVisible();
   return modal;
