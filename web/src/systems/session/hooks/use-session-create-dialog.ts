@@ -192,6 +192,10 @@ export function useSessionCreateDialogViewModel(
       store.trigger.validationFailed({ message: "Select an agent before starting the session." });
       return;
     }
+    if (!agentList.some(agent => agent.name === agentName)) {
+      store.trigger.validationFailed({ message: "Select an agent before starting the session." });
+      return;
+    }
 
     const networkParticipation = networkParticipationDraftFromValues(
       draft.networkParticipationMode,

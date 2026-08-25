@@ -22,6 +22,9 @@ export interface SessionCreateDialogDraft {
   environment: SessionEnvironmentTarget;
 }
 
+/** Runtime's canonical built-in agent for a new session. */
+export const DEFAULT_SESSION_AGENT_NAME = "general";
+
 /** Fields hidden by Simple mode and reset when the operator leaves Advanced. */
 export const ADVANCED_DEFAULTS = {
   networkParticipationMode: "local" as const,
@@ -31,7 +34,7 @@ export const ADVANCED_DEFAULTS = {
 };
 
 export const EMPTY_SESSION_CREATE_DRAFT: SessionCreateDialogDraft = {
-  agentName: "",
+  agentName: DEFAULT_SESSION_AGENT_NAME,
   workspaceId: "",
   sessionName: "",
   firstMessage: "",

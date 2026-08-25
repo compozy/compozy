@@ -210,7 +210,11 @@ describe("session create workspace binding", () => {
     expect(createSessionAsync).not.toHaveBeenCalled();
     expect(store.getSnapshot().context).toMatchObject({
       open: true,
-      draft: { agentName: "", firstMessage: "Find the missing route", workspaceId: "ws_home" },
+      draft: {
+        agentName: "general",
+        firstMessage: "Find the missing route",
+        workspaceId: "ws_home",
+      },
     });
     expect(onPickerOpened).toHaveBeenCalledTimes(1);
   });
