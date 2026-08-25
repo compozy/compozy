@@ -68267,9 +68267,11 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Select the settings scope */
-        scope?: "user" | "agent";
-        /** @description Optional workspace id for agent resolution context */
+        scope?: "user" | "profile" | "workspace" | "agent";
+        /** @description Workspace id for workspace or agent resolution context */
         workspace_id?: string;
+        /** @description Profile name when scope=profile */
+        profile?: string;
         /** @description Agent name when scope=agent */
         agent_name?: string;
       };
@@ -68287,10 +68289,11 @@ export interface operations {
         content: {
           "application/json": {
             agent_name?: string;
-            available_scopes: ("user" | "agent")[];
+            available_scopes: ("user" | "profile" | "workspace" | "agent")[];
             config: {
               allowed_marketplace_hooks?: string[];
               allowed_marketplace_mcp?: string[];
+              custom_sources: string[];
               disabled_skills?: string[];
               enabled: boolean;
               marketplace: {
@@ -68298,6 +68301,7 @@ export interface operations {
                 registry: string;
               };
               poll_interval: string;
+              sources: string[];
             };
             diagnostics?: {
               activation_reasons?: {
@@ -68341,9 +68345,10 @@ export interface operations {
               label: string;
               path: string;
             }[];
+            profile?: string;
             runtime_available: boolean;
             /** @enum {string} */
-            scope: "user" | "agent";
+            scope: "user" | "profile" | "workspace" | "agent";
             /** @enum {string} */
             section:
               | "general"
@@ -68485,9 +68490,11 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Select the settings scope */
-        scope?: "user" | "agent";
-        /** @description Optional workspace id for agent resolution context */
+        scope?: "user" | "profile" | "workspace" | "agent";
+        /** @description Workspace id for workspace or agent resolution context */
         workspace_id?: string;
+        /** @description Profile name when scope=profile */
+        profile?: string;
         /** @description Agent name when scope=agent */
         agent_name?: string;
       };
@@ -68499,9 +68506,10 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          config: {
+          config?: {
             allowed_marketplace_hooks?: string[];
             allowed_marketplace_mcp?: string[];
+            custom_sources: string[];
             disabled_skills?: string[];
             enabled: boolean;
             marketplace: {
@@ -68509,7 +68517,12 @@ export interface operations {
               registry: string;
             };
             poll_interval: string;
+            sources: string[];
           };
+          override?: {
+            custom_sources?: string[] | null;
+            sources?: string[] | null;
+          } | null;
         };
       };
     };
@@ -68600,27 +68613,39 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+          "application/json":
+            | {
+                code?: string;
+                details?: {
+                  [key: string]: string;
+                };
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
+              }
+            | {
+                error: {
+                  code: string;
+                  existing_source?: string;
+                  field?: string;
+                  message: string;
+                  path?: string;
+                  suggestion?: string;
+                  valid?: string[];
+                };
               };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
         };
       };
       /** @description Forbidden */

@@ -552,6 +552,22 @@ type stubClient struct {
 type profileAwareStubClient struct {
 	*stubClient
 	*profileClientStub
+	updateSettingsSkillsAtScopeFn func(
+		context.Context,
+		settingsSkillsScopeQuery,
+		UpdateSettingsSkillsRequest,
+	) (SettingsMutationRecord, error)
+}
+
+func (s *profileAwareStubClient) UpdateSettingsSkillsAtScope(
+	ctx context.Context,
+	query settingsSkillsScopeQuery,
+	request UpdateSettingsSkillsRequest,
+) (SettingsMutationRecord, error) {
+	if s.updateSettingsSkillsAtScopeFn != nil {
+		return s.updateSettingsSkillsAtScopeFn(ctx, query, request)
+	}
+	return SettingsMutationRecord{}, errors.New("unexpected UpdateSettingsSkillsAtScope call")
 }
 
 type profileClientStub struct {

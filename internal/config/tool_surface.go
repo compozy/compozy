@@ -152,6 +152,8 @@ var (
 		"marketplace.catalog.ttl":                                  ConfigValueDuration,
 		"marketplace.catalog.timeout":                              ConfigValueDuration,
 		"skills.enabled":                                           ConfigValueBool,
+		"skills.sources":                                           ConfigValueStringSlice,
+		"skills.custom_sources":                                    ConfigValueStringSlice,
 		"skills.disabled_skills":                                   ConfigValueStringSlice,
 		"skills.poll_interval":                                     ConfigValueDuration,
 		"shell.sessions.sort":                                      ConfigValueString,

@@ -48,6 +48,30 @@ type worktreeRemovalAPIError struct {
 	payload    contract.WorktreeRemovalRefusalPayload
 }
 
+type skillSourceAPIError struct {
+	statusCode int
+	status     string
+	payload    contract.SkillSourceValidationErrorResponse
+}
+
+func (e *skillSourceAPIError) Error() string {
+	if e == nil {
+		return nilToolErrorString
+	}
+	return apiErrorMessage(e.payload.Error.Message, e.status)
+}
+
+func (e *skillSourceAPIError) cliExitCode() int {
+	return 1
+}
+
+func (e *skillSourceAPIError) skillSourceErrorPayload() contract.SkillSourceValidationErrorResponse {
+	if e == nil {
+		return contract.SkillSourceValidationErrorResponse{}
+	}
+	return e.payload
+}
+
 func (e *worktreeRemovalAPIError) Error() string {
 	if e == nil {
 		return nilToolErrorString
@@ -215,6 +239,7 @@ func readAPIErrorBody(statusCode int, status string, body []byte) error {
 	if len(body) > 0 {
 		for _, parse := range []func(int, string, []byte) (bool, error){
 			parseProfileAPIError,
+			parseSkillSourceAPIError,
 			parseCmdPaletteMutationAPIError,
 			parseCmdPaletteAPIError,
 			parseExtensionValidationAPIError,
@@ -244,6 +269,28 @@ func readAPIErrorBody(statusCode int, status string, body []byte) error {
 		statusCode: statusCode,
 		status:     status,
 		payload:    contract.ErrorPayload{Error: message},
+	}
+}
+
+func parseSkillSourceAPIError(statusCode int, status string, body []byte) (bool, error) {
+	var payload contract.SkillSourceValidationErrorResponse
+	if json.Unmarshal(body, &payload) != nil || !isSkillSourceValidationCode(payload.Error.Code) {
+		return false, nil
+	}
+	payload.Error.Message = redactToolDiagnostic(payload.Error.Message)
+	return true, &skillSourceAPIError{
+		statusCode: statusCode,
+		status:     status,
+		payload:    payload,
+	}
+}
+
+func isSkillSourceValidationCode(code string) bool {
+	switch strings.TrimSpace(code) {
+	case "unknown_skill_source", "duplicate_skill_source", "invalid_source_path", "workspace_scope_field_forbidden":
+		return true
+	default:
+		return false
 	}
 }
 

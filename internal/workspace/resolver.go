@@ -152,7 +152,12 @@ func (r *Resolver) resolve(
 	}
 	workspaceID = identity.WorkspaceID
 
-	scan, err := r.scanWorkspace(ctx, ws, profileName)
+	cacheKey := workspaceProfileCacheKey(ws.ID, profileName)
+	cfg, hadCachedConfig, err := r.configForSkillScan(ws, profileName, cacheKey)
+	if err != nil {
+		return ResolvedWorkspace{}, err
+	}
+	scan, err := r.scanWorkspace(ctx, ws, profileName, &cfg.Skills)
 	if err != nil {
 		return ResolvedWorkspace{}, err
 	}
@@ -161,7 +166,6 @@ func (r *Resolver) resolve(
 
 	r.mu.Lock()
 	r.evictExpiredLocked(now)
-	cacheKey := workspaceProfileCacheKey(ws.ID, profileName)
 	if cached := r.cache[cacheKey]; cached != nil && cached.canReuse(ws, scan.snapshots) {
 		cached.lastAccess = now
 		cacheHit = true
@@ -172,8 +176,14 @@ func (r *Resolver) resolve(
 		return resolved, nil
 	}
 	r.mu.Unlock()
+	if hadCachedConfig {
+		cfg, scan, err = r.refreshSkillScanConfig(ctx, ws, profileName, cfg, scan)
+		if err != nil {
+			return ResolvedWorkspace{}, err
+		}
+	}
 
-	resolved, err = r.buildResolvedWorkspace(ctx, ws, scan, profileName)
+	resolved, err = r.buildResolvedWorkspace(ctx, ws, scan, profileName, cfg)
 	if err != nil {
 		return ResolvedWorkspace{}, err
 	}
@@ -389,21 +399,12 @@ func (r *Resolver) buildResolvedWorkspace(
 	ws Workspace,
 	scan workspaceScan,
 	profileName string,
+	cfg compozyconfig.Config,
 ) (ResolvedWorkspace, error) {
 	if err := checkContext(ctx); err != nil {
 		return ResolvedWorkspace{}, err
 	}
 
-	var cfg compozyconfig.Config
-	var err error
-	if strings.TrimSpace(profileName) != "" && r.loadProfileConfig != nil {
-		cfg, err = r.loadProfileConfig(ws.RootDir, profileName)
-	} else {
-		cfg, err = r.loadConfig(ws.RootDir)
-	}
-	if err != nil {
-		return ResolvedWorkspace{}, fmt.Errorf("workspace: load config for %q: %w", ws.RootDir, err)
-	}
 	applyDefaultAgentOverride(&cfg, ws.DefaultAgent)
 	resolvedSandbox, err := resolveWorkspaceSandbox(ws, &cfg)
 	if err != nil {

@@ -2314,6 +2314,141 @@ func TestUpdateSettingsSectionHandlersRejectInvalidPayloads(t *testing.T) {
 	})
 }
 
+func TestUpdateSettingsSkillsSourcePolicyShapes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should decode every workspace list override state through the shared handler", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name       string
+			body       string
+			wantSource settingspkg.OptionalStringList
+			wantCustom settingspkg.OptionalStringList
+		}{
+			{name: "absent", body: `{"override":{"sources":["agents"]}}`, wantSource: settingspkg.OptionalStringList{Present: true, Value: []string{"agents"}}},
+			{name: "null", body: `{"override":{"custom_sources":null}}`, wantCustom: settingspkg.OptionalStringList{Present: true, Null: true}},
+			{name: "empty", body: `{"override":{"custom_sources":[]}}`, wantCustom: settingspkg.OptionalStringList{Present: true, Value: []string{}}},
+			{name: "non-empty", body: `{"override":{"sources":["agents","claude"],"custom_sources":["./team-skills"]}}`, wantSource: settingspkg.OptionalStringList{Present: true, Value: []string{"agents", "claude"}}, wantCustom: settingspkg.OptionalStringList{Present: true, Value: []string{"./team-skills"}}},
+		}
+		for _, testCase := range tests {
+			t.Run("Should decode "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				service := &stubSettingsService{}
+				fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+				response := performRequest(
+					t, fixture.Engine, http.MethodPatch,
+					"/api/settings/skills?scope=workspace&workspace_id=ws-alpha",
+					[]byte(testCase.body),
+				)
+				if response.Code != http.StatusOK {
+					t.Fatalf("status = %d, want 200; body=%s", response.Code, response.Body.String())
+				}
+				override := service.LastUpdateSectionRequest.SkillSourcesOverride
+				if override == nil || !reflect.DeepEqual(override.Sources, testCase.wantSource) ||
+					!reflect.DeepEqual(override.CustomSources, testCase.wantCustom) {
+					t.Fatalf("workspace override = %#v, want sources=%#v custom=%#v", override, testCase.wantSource, testCase.wantCustom)
+				}
+			})
+		}
+	})
+
+	t.Run("Should reject forbidden workspace fields with the portable policy error", func(t *testing.T) {
+		t.Parallel()
+
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		response := performRequest(
+			t, fixture.Engine, http.MethodPatch,
+			"/api/settings/skills?scope=workspace&workspace_id=ws-alpha",
+			[]byte(`{"override":{"sources":["agents"]},"config":{"marketplace":{"registry":"clawhub"}}}`),
+		)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400; body=%s", response.Code, response.Body.String())
+		}
+		var payload contract.SkillSourceValidationErrorResponse
+		decodeJSON(t, response.Body.Bytes(), &payload)
+		if payload.Error.Code != "workspace_scope_field_forbidden" || payload.Error.Field != "marketplace" {
+			t.Fatalf("workspace policy error = %#v", payload)
+		}
+		if service.ApplySectionCalls != 0 {
+			t.Fatalf("ApplySectionCalls = %d, want 0", service.ApplySectionCalls)
+		}
+	})
+
+	t.Run("Should return the exact unknown-source metadata before applying", func(t *testing.T) {
+		t.Parallel()
+
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		body := mustJSON(t, contract.UpdateSettingsSkillsRequest{
+			Config: contract.SettingsSkillsConfigPayload{
+				Enabled: true, Sources: []string{"agnets"}, CustomSources: []string{}, PollInterval: "1m",
+				Marketplace: contract.SettingsMarketplacePayload{Registry: "clawhub"},
+			},
+		})
+		response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/skills", body)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400; body=%s", response.Code, response.Body.String())
+		}
+		var payload contract.SkillSourceValidationErrorResponse
+		decodeJSON(t, response.Body.Bytes(), &payload)
+		if payload.Error.Code != "unknown_skill_source" || payload.Error.Suggestion != "agents" ||
+			!slices.Equal(payload.Error.Valid, []string{"agents", "claude"}) {
+			t.Fatalf("unknown source payload = %#v", payload)
+		}
+		if service.ApplySectionCalls != 0 {
+			t.Fatalf("ApplySectionCalls = %d, want 0", service.ApplySectionCalls)
+		}
+	})
+
+	t.Run("Should keep the full config shape outside workspace scope", func(t *testing.T) {
+		t.Parallel()
+
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		body := mustJSON(t, contract.UpdateSettingsSkillsRequest{
+			Config: contract.SettingsSkillsConfigPayload{
+				Enabled: true, Sources: []string{"agents", "claude"}, CustomSources: []string{"/team/skills"}, PollInterval: "1m",
+				Marketplace: contract.SettingsMarketplacePayload{Registry: "clawhub"},
+			},
+		})
+		response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/skills?scope=user", body)
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", response.Code, response.Body.String())
+		}
+		request := service.LastUpdateSectionRequest
+		if request.Skills == nil || request.SkillSourcesOverride != nil ||
+			!slices.Equal(request.Skills.Sources, []string{"agents", "claude"}) ||
+			!slices.Equal(request.Skills.CustomSources, []string{"/team/skills"}) {
+			t.Fatalf("user skills request = %#v, want full config shape", request)
+		}
+	})
+
+	t.Run("Should reject a non-list override identically over HTTP and UDS", func(t *testing.T) {
+		t.Parallel()
+
+		var bodies []string
+		for _, transport := range []string{"api-core-http", "api-core-uds"} {
+			service := &stubSettingsService{}
+			fixture := newSettingsHandlerFixture(t, transport, service, nil)
+			response := performRequest(
+				t, fixture.Engine, http.MethodPatch,
+				"/api/settings/skills?scope=workspace&workspace_id=ws-alpha",
+				[]byte(`{"override":{"sources":"agents"}}`),
+			)
+			if response.Code != http.StatusBadRequest {
+				t.Fatalf("%s status = %d, want 400; body=%s", transport, response.Code, response.Body.String())
+			}
+			bodies = append(bodies, response.Body.String())
+		}
+		if bodies[0] != bodies[1] {
+			t.Fatalf("HTTP/UDS bodies differ: %q != %q", bodies[0], bodies[1])
+		}
+	})
+}
+
 func TestUpdateSettingsMemoryRejectsUnavailableProvider(t *testing.T) {
 	t.Parallel()
 

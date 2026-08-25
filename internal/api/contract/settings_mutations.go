@@ -19,7 +19,8 @@ type UpdateSettingsRolesRequest struct {
 }
 
 type UpdateSettingsSkillsRequest struct {
-	Config SettingsSkillsConfigPayload `json:"config"`
+	Config   SettingsSkillsConfigPayload    `json:"config,omitempty"`
+	Override *SettingsSkillsOverridePayload `json:"override,omitempty"`
 }
 
 type UpdateSettingsAutomationRequest struct {
@@ -193,9 +194,10 @@ type SettingsWorkspaceSectionMutationResult struct {
 
 type SettingsSkillsMutationResult struct {
 	Section         SettingsSectionName      `json:"section"`
-	Scope           SettingsAgentScopeKind   `json:"scope"`
+	Scope           SettingsScopeKind        `json:"scope"`
 	WriteTarget     SettingsWriteTargetKind  `json:"write_target,omitempty"`
 	WorkspaceID     string                   `json:"workspace_id,omitempty"`
+	Profile         string                   `json:"profile,omitempty"`
 	AgentName       string                   `json:"agent_name,omitempty"`
 	Behavior        SettingsMutationBehavior `json:"behavior"`
 	Applied         bool                     `json:"applied"`

@@ -345,6 +345,8 @@ type memoryWorkspaceOverlay struct {
 
 type skillsOverlay struct {
 	Enabled                 *bool              `toml:"enabled"`
+	Sources                 *[]string          `toml:"sources"`
+	CustomSources           *[]string          `toml:"custom_sources"`
 	DisabledSkills          *[]string          `toml:"disabled_skills"`
 	PollInterval            *time.Duration     `toml:"poll_interval"`
 	AllowedMarketplaceMCP   *[]string          `toml:"allowed_marketplace_mcp"`

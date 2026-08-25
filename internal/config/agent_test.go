@@ -3,6 +3,7 @@ package config
 import (
 	"bytes"
 	"errors"
+	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -15,6 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/frontmatter"
 	"github.com/compozy/compozy/internal/reasoning"
+	"github.com/compozy/compozy/internal/resources"
 	"github.com/goccy/go-yaml"
 )
 
@@ -432,6 +434,241 @@ func TestAgentDefinitionLifecycleHelpers(t *testing.T) {
 			t.Fatalf("target SOUL.md = %q, want complete sibling copy", soulBody)
 		}
 	})
+}
+
+func TestSkillSourcePresetPolicy(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose the exact closed preset table", func(t *testing.T) {
+		t.Parallel()
+
+		got := SkillSourcePresets()
+		want := []SkillSourcePreset{
+			{
+				Slug: SkillSourceCompozy, Label: "Compozy", AlwaysOn: true,
+				WorkspaceNativeReaders: []string{}, GlobalNativeReaders: []string{},
+			},
+			{
+				Slug: SkillSourceAgents, Label: "Agents", WorkspaceRel: ".agents/skills",
+				GlobalPath: "~/.agents/skills", WorkspaceNativeReaders: []string{"openclaw", "hermes"},
+				GlobalNativeReaders: []string{"openclaw"}, DefaultOn: true,
+			},
+			{
+				Slug: SkillSourceClaude, Label: "Claude", WorkspaceRel: ".claude/skills",
+				GlobalPath: "~/.claude/skills", WorkspaceNativeReaders: []string{"claude"},
+				GlobalNativeReaders: []string{"claude"},
+			},
+		}
+		if !slices.EqualFunc(got, want, func(left SkillSourcePreset, right SkillSourcePreset) bool {
+			return left.Slug == right.Slug && left.Label == right.Label &&
+				left.WorkspaceRel == right.WorkspaceRel && left.GlobalPath == right.GlobalPath &&
+				slices.Equal(left.WorkspaceNativeReaders, right.WorkspaceNativeReaders) &&
+				slices.Equal(left.GlobalNativeReaders, right.GlobalNativeReaders) &&
+				left.AlwaysOn == right.AlwaysOn && left.DefaultOn == right.DefaultOn
+		}) {
+			t.Fatalf("SkillSourcePresets() = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should reject an unknown preset with valid choices and a suggestion", func(t *testing.T) {
+		t.Parallel()
+
+		err := ValidateSkillSources([]string{"agnets"})
+		var validation *SkillSourceValidationError
+		if !errors.As(err, &validation) {
+			t.Fatalf("ValidateSkillSources() error = %v, want SkillSourceValidationError", err)
+		}
+		if validation.Code != "unknown_skill_source" || validation.Suggestion != SkillSourceAgents ||
+			!slices.Equal(validation.Valid, []string{SkillSourceAgents, SkillSourceClaude}) {
+			t.Fatalf("ValidateSkillSources() error = %#v, want unknown source metadata", validation)
+		}
+		for _, fragment := range []string{`unknown skill source preset "agnets"`, "valid: agents, claude", `agents`} {
+			if !strings.Contains(err.Error(), fragment) {
+				t.Fatalf("ValidateSkillSources() error = %q, want fragment %q", err, fragment)
+			}
+		}
+	})
+
+	t.Run("Should allocate sanitized custom slugs deterministically", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		first := filepath.Join(root, "a", "Team Skills")
+		second := filepath.Join(root, "b", "Team Skills")
+		third := filepath.Join(root, "Audit Tools")
+		forward := CustomSourceSlugs([]string{first, second})
+		reversed := CustomSourceSlugs([]string{second, first})
+		if !maps.Equal(forward, reversed) {
+			t.Fatalf("CustomSourceSlugs() order changed allocation: %#v != %#v", forward, reversed)
+		}
+		firstCanonical := canonicalSkillSourcePath(first)
+		secondCanonical := canonicalSkillSourcePath(second)
+		if forward[firstCanonical] == forward[secondCanonical] ||
+			!strings.HasPrefix(forward[firstCanonical], "team-skills-") ||
+			!strings.HasPrefix(forward[secondCanonical], "team-skills-") {
+			t.Fatalf("CustomSourceSlugs() collision allocation = %#v", forward)
+		}
+		expanded := CustomSourceSlugs([]string{second, third, first})
+		if expanded[firstCanonical] != forward[firstCanonical] || expanded[secondCanonical] != forward[secondCanonical] {
+			t.Fatalf("CustomSourceSlugs() changed colliding slugs after unrelated addition: %#v", expanded)
+		}
+		if got := expanded[canonicalSkillSourcePath(third)]; got != "audit-tools" {
+			t.Fatalf("CustomSourceSlugs() sanitized slug = %q, want audit-tools", got)
+		}
+	})
+
+	t.Run("Should reject duplicate roots and non-workspace relative paths", func(t *testing.T) {
+		t.Parallel()
+
+		duplicate := SkillsConfig{
+			Sources:       []string{SkillSourceAgents},
+			CustomSources: []string{"~/.agents/skills"},
+		}
+		err := duplicate.ValidateForScope(WriteScopeUser)
+		var validation *SkillSourceValidationError
+		if !errors.As(err, &validation) || validation.Code != "duplicate_skill_source" ||
+			validation.ExistingSource != SkillSourceAgents {
+			t.Fatalf("ValidateForScope(duplicate) error = %#v", err)
+		}
+
+		relative := SkillsConfig{CustomSources: []string{"./rel/path"}}
+		err = relative.ValidateForScope(WriteScopeUser)
+		if !errors.As(err, &validation) || validation.Code != "invalid_source_path" ||
+			!strings.Contains(err.Error(), "workspace-relative paths require workspace scope") {
+			t.Fatalf("ValidateForScope(relative) error = %#v", err)
+		}
+		if err := relative.ValidateForScope(WriteScopeWorkspace); err != nil {
+			t.Fatalf("ValidateForScope(workspace relative) error = %v", err)
+		}
+	})
+}
+
+func TestSkillRootResolutionAndIdentity(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should resolve defaults enabled presets custom roots and compozy last", func(t *testing.T) {
+		t.Parallel()
+
+		operatorHome := t.TempDir()
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(operatorHome, DirName))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		workspaceRoot := t.TempDir()
+		workspaceID := "workspace-stable"
+		workspace := WorkspaceDiscoveryRoot{
+			Dir: workspaceRoot, Source: WorkspaceDiscoverySourceWorkspace, WorkspaceID: workspaceID,
+		}
+		defaults := DefaultWithHome(homePaths).Skills
+
+		global := ResolveGlobalSkillRoots(&defaults, homePaths)
+		if got, want := rootSlugs(global), []string{SkillSourceAgents, SkillSourceCompozy}; !slices.Equal(got, want) {
+			t.Fatalf("ResolveGlobalSkillRoots(default) slugs = %q, want %q", got, want)
+		}
+		if got, want := global[0].Dir, canonicalSkillSourcePath(filepath.Join(operatorHome, ".agents", "skills")); got != want {
+			t.Fatalf("agents global dir = %q, want %q", got, want)
+		}
+		workspaceRoots := workspace.SkillsDirs(&defaults)
+		if got, want := rootSlugs(workspaceRoots), []string{SkillSourceAgents, SkillSourceCompozy}; !slices.Equal(got, want) {
+			t.Fatalf("SkillsDirs(default) slugs = %q, want %q", got, want)
+		}
+		if workspaceRoots[0].ResourceScope.Kind != resources.ResourceScopeKindWorkspace ||
+			workspaceRoots[0].WorkspaceID != workspaceID {
+			t.Fatalf("workspace root ownership = %#v", workspaceRoots[0])
+		}
+
+		customDir := filepath.Join(operatorHome, "Team Skills")
+		configured := defaults
+		configured.Sources = []string{SkillSourceAgents, SkillSourceClaude}
+		configured.CustomSources = []string{customDir}
+		global = ResolveGlobalSkillRoots(&configured, homePaths)
+		if got, want := rootSlugs(global), []string{SkillSourceAgents, SkillSourceClaude, "team-skills", SkillSourceCompozy}; !slices.Equal(got, want) {
+			t.Fatalf("ResolveGlobalSkillRoots(configured) slugs = %q, want %q", got, want)
+		}
+		if global[2].Kind != RootKindCustom || !filepath.IsAbs(global[2].Dir) {
+			t.Fatalf("custom global root = %#v, want absolute custom root", global[2])
+		}
+		if global[2].ResourceScope.Kind != resources.ResourceScopeKindUser || global[2].WorkspaceID != "" {
+			t.Fatalf("custom global root ownership = %#v, want user scope without workspace id", global[2])
+		}
+		workspaceConfigured := workspace.SkillsDirs(&configured)
+		if got, want := rootSlugs(workspaceConfigured), []string{
+			SkillSourceAgents, SkillSourceClaude, "team-skills", SkillSourceCompozy,
+		}; !slices.Equal(got, want) {
+			t.Fatalf("SkillsDirs(configured) slugs = %q, want %q", got, want)
+		}
+
+		empty := SkillsConfig{Sources: []string{}, CustomSources: []string{}}
+		if got := rootSlugs(ResolveGlobalSkillRoots(&empty, homePaths)); !slices.Equal(got, []string{SkillSourceCompozy}) {
+			t.Fatalf("ResolveGlobalSkillRoots(empty) slugs = %q", got)
+		}
+		if got := rootSlugs(workspace.SkillsDirs(&empty)); !slices.Equal(got, []string{SkillSourceCompozy}) {
+			t.Fatalf("SkillsDirs(empty) slugs = %q", got)
+		}
+	})
+
+	t.Run("Should keep root identity stable under ordering and display changes", func(t *testing.T) {
+		t.Parallel()
+
+		base := SkillRootSpec{
+			Dir: filepath.Join(t.TempDir(), "skills"), Kind: RootKindCustom,
+			ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: "presentation-name"},
+			ProfileID:     "profile-stable",
+		}
+		changedDisplay := base
+		changedDisplay.SourceSlug = "different-display"
+		changedDisplay.ResourceScope.ID = "renamed-presentation"
+		if base.RootID() != changedDisplay.RootID() {
+			t.Fatalf("RootID() changed with display-only fields: %q != %q", base.RootID(), changedDisplay.RootID())
+		}
+		restarted := SkillRootSpec{
+			Dir: base.Dir, SourceSlug: base.SourceSlug, Kind: base.Kind,
+			ResourceScope: base.ResourceScope, ProfileID: base.ProfileID, WorkspaceID: base.WorkspaceID,
+		}
+		if base.RootID() != restarted.RootID() {
+			t.Fatalf("RootID() changed across equivalent reconstruction: %q != %q", base.RootID(), restarted.RootID())
+		}
+		otherProfile := base
+		otherProfile.ProfileID = "profile-other"
+		if base.RootID() == otherProfile.RootID() {
+			t.Fatal("RootID() matched roots owned by different profiles")
+		}
+		workspaceOwned := base
+		workspaceOwned.ResourceScope = resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "workspace-a"}
+		workspaceOwned.ProfileID = ""
+		workspaceOwned.WorkspaceID = "workspace-a"
+		if base.RootID() == workspaceOwned.RootID() {
+			t.Fatal("RootID() matched roots in different resource scopes")
+		}
+
+		collisionRoot := t.TempDir()
+		firstPath := filepath.Join(collisionRoot, "a", "team-skills")
+		secondPath := filepath.Join(collisionRoot, "b", "team-skills")
+		beforeCollision := SkillRootSpec{
+			Dir: firstPath, SourceSlug: "team-skills", Kind: RootKindCustom,
+			ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+		}
+		reallocated := beforeCollision
+		reallocated.SourceSlug = CustomSourceSlugs([]string{firstPath, secondPath})[canonicalSkillSourcePath(firstPath)]
+		if beforeCollision.RootID() != reallocated.RootID() {
+			t.Fatalf("RootID() changed after display slug reallocation: %q != %q", beforeCollision.RootID(), reallocated.RootID())
+		}
+
+		beforeRename := base
+		afterRename := base
+		afterRename.Dir = filepath.Join(filepath.Dir(base.Dir), "renamed-profile", "skills")
+		if beforeRename.ProfileID != afterRename.ProfileID || beforeRename.RootID() == afterRename.RootID() {
+			t.Fatalf("profile rename identity/path result = (%q, %q), want stable owner and regenerated root", beforeRename.RootID(), afterRename.RootID())
+		}
+	})
+}
+
+func rootSlugs(roots []SkillRootSpec) []string {
+	result := make([]string, len(roots))
+	for index := range roots {
+		result[index] = roots[index].SourceSlug
+	}
+	return result
 }
 
 func TestDuplicateAgentDefinitionWritesThroughTheHeldTargetParentAfterPathReplacement(t *testing.T) {
@@ -1063,11 +1300,14 @@ func TestWorkspaceDiscoveryRootsReturnsWorkspaceAdditionalGlobalOrder(t *testing
 		t.Fatalf("roots[3].Source = %q, want %q", got, want)
 	}
 
-	if got, want := roots[0].SkillsDir(), filepath.Join(root, DirName, SkillsDirName); got != want {
-		t.Fatalf("roots[0].SkillsDir() = %q, want %q", got, want)
+	defaultSkills := DefaultWithHome(homePaths).Skills
+	workspaceSkillRoots := roots[0].SkillsDirs(&defaultSkills)
+	if got, want := workspaceSkillRoots[len(workspaceSkillRoots)-1].Dir, filepath.Join(root, DirName, SkillsDirName); got != want {
+		t.Fatalf("workspace compozy skill root = %q, want %q", got, want)
 	}
-	if got, want := roots[3].SkillsDir(), filepath.Join(homePaths.HomeDir, SkillsDirName); got != want {
-		t.Fatalf("roots[3].SkillsDir() = %q, want %q", got, want)
+	globalSkillRoots := roots[3].SkillsDirs(&defaultSkills)
+	if got, want := globalSkillRoots[len(globalSkillRoots)-1].Dir, filepath.Join(homePaths.HomeDir, SkillsDirName); got != want {
+		t.Fatalf("user compozy skill root = %q, want %q", got, want)
 	}
 	if got, want := roots[0].LoopsDir(), filepath.Join(root, DirName, LoopsDirName); got != want {
 		t.Fatalf("roots[0].LoopsDir() = %q, want %q", got, want)
@@ -1107,7 +1347,8 @@ func TestWorkspaceDiscoveryRootsReturnsWorkspaceAdditionalGlobalOrder(t *testing
 	); got != want {
 		t.Fatalf("project profile agents dir = %q, want %q", got, want)
 	}
-	if got, want := profileRoots[4].SkillsDir(), filepath.Join(
+	personalSkillRoots := profileRoots[4].SkillsDirs(&defaultSkills)
+	if got, want := personalSkillRoots[len(personalSkillRoots)-1].Dir, filepath.Join(
 		homePaths.ProfilesDir,
 		"marketing",
 		SkillsDirName,

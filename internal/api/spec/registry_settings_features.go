@@ -254,8 +254,9 @@ func getSettingsSkillsOperationSpec() OperationSpec {
 		Tags:        []string{specSettingsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			enumQueryParam(specScopeKey, "Select the settings scope", settingsAgentScopeValues()),
-			queryParam("workspace_id", "Optional workspace id for agent resolution context", false),
+			enumQueryParam(specScopeKey, "Select the settings scope", settingsScopeValues()),
+			queryParam("workspace_id", "Workspace id for workspace or agent resolution context", false),
+			queryParam("profile", "Profile name when scope=profile", false),
 			queryParam("agent_name", "Agent name when scope=agent", false),
 		},
 		Responses: []ResponseSpec{
@@ -276,14 +277,21 @@ func updateSettingsSkillsOperationSpec() OperationSpec {
 		Tags:        []string{specSettingsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			enumQueryParam(specScopeKey, "Select the settings scope", settingsAgentScopeValues()),
-			queryParam("workspace_id", "Optional workspace id for agent resolution context", false),
+			enumQueryParam(specScopeKey, "Select the settings scope", settingsScopeValues()),
+			queryParam("workspace_id", "Workspace id for workspace or agent resolution context", false),
+			queryParam("profile", "Profile name when scope=profile", false),
 			queryParam("agent_name", "Agent name when scope=agent", false),
 		},
 		RequestBody: contract.UpdateSettingsSkillsRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
-			{Status: 400, Description: specInvalidSettingsPayloadDescription, Body: contract.ErrorPayload{}},
+			{
+				Status: 400, Description: specInvalidSettingsPayloadDescription,
+				Bodies: responseBodiesOf(
+					responseBodyOf[contract.ErrorPayload](),
+					responseBodyOf[contract.SkillSourceValidationErrorResponse](),
+				),
+			},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specAgentNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: specConflictingSettingsChangeDescription, Body: contract.ErrorPayload{}},

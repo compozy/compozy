@@ -573,6 +573,70 @@ func TestConfigSetReportsMutationLifecycle(t *testing.T) {
 	})
 }
 
+func TestConfigSkillSourceValuesAndValidationRendering(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should parse comma JSON and empty list forms identically", func(t *testing.T) {
+		t.Parallel()
+
+		for _, testCase := range []struct {
+			name string
+			raw  string
+			want []string
+		}{
+			{name: "comma separated", raw: "agents,claude", want: []string{"agents", "claude"}},
+			{name: "JSON array", raw: `["agents","claude"]`, want: []string{"agents", "claude"}},
+			{name: "empty", raw: "", want: []string{}},
+		} {
+			t.Run("Should parse "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
+				out, _, err := executeRootCommand(
+					t, deps, "config", "set", "skills.sources", testCase.raw, "-o", "json",
+				)
+				if err != nil {
+					t.Fatalf("config set skills.sources error = %v", err)
+				}
+				var record configSetRecord
+				if err := json.Unmarshal([]byte(out), &record); err != nil {
+					t.Fatalf("json.Unmarshal(config set skills.sources) error = %v", err)
+				}
+				got, ok := record.Value.([]any)
+				if !ok || len(got) != len(testCase.want) {
+					t.Fatalf("config set skills.sources value = %#v, want %#v", record.Value, testCase.want)
+				}
+				for index := range testCase.want {
+					if got[index] != testCase.want[index] {
+						t.Fatalf("config set skills.sources value[%d] = %#v, want %q", index, got[index], testCase.want[index])
+					}
+				}
+			})
+		}
+	})
+
+	t.Run("Should render an unknown preset as the portable JSON error with exit one", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
+		exitCode, _, stderr := executeRootCommandWithExit(
+			t, deps, "config", "set", "skills.sources", "agnets", "-o", "json",
+		)
+		if exitCode != 1 {
+			t.Fatalf("config set skills.sources exit code = %d, want 1", exitCode)
+		}
+		var payload contract.SkillSourceValidationErrorResponse
+		if err := json.Unmarshal([]byte(stderr), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(config source error) error = %v; body=%q", err, stderr)
+		}
+		if payload.Error.Code != "unknown_skill_source" ||
+			payload.Error.Suggestion != "agents" ||
+			!slices.Equal(payload.Error.Valid, []string{"agents", "claude"}) {
+			t.Fatalf("config source error = %#v, want portable unknown-source payload", payload)
+		}
+	})
+}
+
 func TestConfigSetDisabledSkillsUsesDaemonSettingsWhenRunning(t *testing.T) {
 	t.Parallel()
 
@@ -645,6 +709,96 @@ func TestConfigSetDisabledSkillsUsesDaemonSettingsWhenRunning(t *testing.T) {
 	}
 	if record.Lifecycle != string(contract.SettingsApplyLifecycleLive) || !record.Applied {
 		t.Fatalf("config set disabled skills record = %#v, want live/applied=true", record)
+	}
+}
+
+func TestConfigSetSkillSourcesRoutesProfileAndWorkspaceThroughDaemon(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	type capturedCall struct {
+		query   settingsSkillsScopeQuery
+		request UpdateSettingsSkillsRequest
+	}
+	var captured []capturedCall
+	base := &stubClient{
+		getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+			if strings.TrimSpace(ref) != workspaceRoot && strings.TrimSpace(ref) != "ws-alpha" {
+				return WorkspaceDetailRecord{}, fmt.Errorf("unexpected workspace ref %q", ref)
+			}
+			return WorkspaceDetailRecord{
+				Workspace: WorkspaceRecord{ID: "ws-alpha", Name: "alpha", RootDir: workspaceRoot},
+			}, nil
+		},
+	}
+	client := &profileAwareStubClient{
+		stubClient: base,
+		profileClientStub: &profileClientStub{profiles: []contract.Profile{
+			{Name: "default", State: "active"},
+			{Name: "marketing", State: "active"},
+		}},
+		updateSettingsSkillsAtScopeFn: func(
+			_ context.Context,
+			query settingsSkillsScopeQuery,
+			request UpdateSettingsSkillsRequest,
+		) (SettingsMutationRecord, error) {
+			captured = append(captured, capturedCall{query: query, request: request})
+			return SettingsMutationRecord{
+				Section: "skills", Scope: query.Scope,
+				Lifecycle: contract.SettingsApplyLifecycleLive, Applied: true,
+			}, nil
+		},
+	}
+	deps := newTestDeps(t, client)
+	deps.getwd = func() (string, error) { return workspaceRoot, nil }
+	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+		return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
+	}
+	deps.processAlive = func(pid int) bool { return pid == 42 }
+
+	_, _, err := executeRootCommand(
+		t, deps,
+		"--profile", "marketing", "config", "set", "skills.sources", "agents,claude",
+		"--scope", "profile", "--workspace", workspaceRoot,
+	)
+	if err != nil {
+		t.Fatalf("profile config set skills.sources error = %v", err)
+	}
+	_, _, err = executeRootCommand(
+		t, deps,
+		"config", "set", "skills.custom_sources", "./team-skills",
+		"--scope", "workspace", "--workspace", workspaceRoot,
+	)
+	if err != nil {
+		t.Fatalf("workspace config set skills.custom_sources error = %v", err)
+	}
+	_, _, err = executeRootCommand(
+		t, deps,
+		"config", "unset", "skills.sources",
+		"--scope", "workspace", "--workspace", workspaceRoot,
+	)
+	if err != nil {
+		t.Fatalf("workspace config unset skills.sources error = %v", err)
+	}
+	if len(captured) != 3 {
+		t.Fatalf("scoped daemon calls = %d, want 3", len(captured))
+	}
+	if captured[0].query.Scope != contract.SettingsScopeProfile || captured[0].query.Profile != "marketing" ||
+		!slices.Equal(captured[0].request.Config.Sources, []string{"agents", "claude"}) ||
+		captured[0].request.Override != nil {
+		t.Fatalf("profile daemon call = %#v", captured[0])
+	}
+	workspaceOverride := captured[1].request.Override
+	if captured[1].query.Scope != contract.SettingsScopeWorkspace || captured[1].query.WorkspaceID != "ws-alpha" ||
+		workspaceOverride == nil || workspaceOverride.Sources.Present ||
+		!workspaceOverride.CustomSources.Present ||
+		!slices.Equal(workspaceOverride.CustomSources.Value, []string{"./team-skills"}) {
+		t.Fatalf("workspace daemon call = %#v", captured[1])
+	}
+	unsetOverride := captured[2].request.Override
+	if unsetOverride == nil || !unsetOverride.Sources.Present || !unsetOverride.Sources.Null ||
+		unsetOverride.CustomSources.Present {
+		t.Fatalf("workspace unset daemon call = %#v", captured[2])
 	}
 }
 
@@ -1368,7 +1522,7 @@ func TestConfigProfileLayerWriteTargetsIT043E2E006(t *testing.T) {
 		}
 		stdout, _, err := executeRootCommand(
 			t, deps,
-			"--profile", "marketing", "config", "get", "defaults.provider", "-o", "json",
+			"--profile", "marketing", "config", "get", "defaults.provider", "--scope", "profile", "-o", "json",
 		)
 		if err != nil {
 			t.Fatalf("config get marketing profile value error = %v", err)
@@ -1406,7 +1560,7 @@ func TestConfigProfileLayerWriteTargetsIT043E2E006(t *testing.T) {
 		}
 		stdout, _, err = executeRootCommand(
 			t, deps,
-			"--profile", "marketing", "config", "get", "defaults.provider", "--workspace", workspaceRoot, "-o", "json",
+			"--profile", "marketing", "config", "get", "defaults.provider", "--scope", "workspace", "--workspace", workspaceRoot, "-o", "json",
 		)
 		if err != nil {
 			t.Fatalf("config get effective profile value error = %v", err)

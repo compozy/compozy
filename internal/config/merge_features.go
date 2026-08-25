@@ -13,6 +13,12 @@ func (o skillsOverlay) Apply(dst *SkillsConfig) {
 	if o.Enabled != nil {
 		dst.Enabled = *o.Enabled
 	}
+	if o.Sources != nil {
+		dst.Sources = append([]string(nil), (*o.Sources)...)
+	}
+	if o.CustomSources != nil {
+		dst.CustomSources = append([]string(nil), (*o.CustomSources)...)
+	}
 	if o.DisabledSkills != nil {
 		dst.DisabledSkills = append([]string(nil), (*o.DisabledSkills)...)
 	}

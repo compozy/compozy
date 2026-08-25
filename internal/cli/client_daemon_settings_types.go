@@ -1,6 +1,10 @@
 package cli
 
-import "github.com/compozy/compozy/internal/api/contract"
+import (
+	"context"
+
+	"github.com/compozy/compozy/internal/api/contract"
+)
 
 // StatusRecord is the hard-cut daemon API status payload.
 type StatusRecord = contract.StatusPayload
@@ -51,6 +55,20 @@ type SettingsApplyHistoryQuery struct {
 
 // UpdateSettingsSkillsRequest captures the shared skills settings update payload.
 type UpdateSettingsSkillsRequest = contract.UpdateSettingsSkillsRequest
+
+type settingsSkillsScopeQuery struct {
+	Scope       contract.SettingsScopeKind
+	WorkspaceID string
+	Profile     string
+}
+
+type scopedSettingsSkillsClient interface {
+	UpdateSettingsSkillsAtScope(
+		context.Context,
+		settingsSkillsScopeQuery,
+		UpdateSettingsSkillsRequest,
+	) (SettingsMutationRecord, error)
+}
 
 // UpdateSettingsAttentionRequest captures the shared attention settings update payload.
 type UpdateSettingsAttentionRequest = contract.UpdateSettingsAttentionRequest

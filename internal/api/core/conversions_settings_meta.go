@@ -22,10 +22,11 @@ func settingsSkillsSectionMetaPayload(
 ) contract.SettingsSkillsSectionResponseMetaPayload {
 	return contract.SettingsSkillsSectionResponseMetaPayload{
 		Section:         contract.SettingsSectionName(envelope.Section),
-		Scope:           contract.SettingsAgentScopeKind(envelope.Scope),
+		Scope:           contract.SettingsScopeKind(envelope.Scope),
 		WorkspaceID:     strings.TrimSpace(envelope.WorkspaceID),
+		Profile:         strings.TrimSpace(envelope.ProfileName),
 		AgentName:       strings.TrimSpace(envelope.AgentName),
-		AvailableScopes: settingsAgentScopeKindsPayload(envelope.AvailableScopes),
+		AvailableScopes: settingsScopeKindsPayload(envelope.AvailableScopes),
 	}
 }
 

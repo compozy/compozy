@@ -20,6 +20,24 @@ func TestClassifyPath(t *testing.T) {
 			wantDiffClass: DiffClassLive,
 		},
 		{
+			name:          "Should classify skill source presets as live",
+			path:          "skills.sources",
+			wantLifecycle: Live,
+			wantDiffClass: DiffClassLive,
+		},
+		{
+			name:          "Should classify custom skill sources as live",
+			path:          "skills.custom_sources",
+			wantLifecycle: Live,
+			wantDiffClass: DiffClassLive,
+		},
+		{
+			name:          "Should keep the skills enabled switch restart required",
+			path:          "skills.enabled",
+			wantLifecycle: RestartRequired,
+			wantDiffClass: DiffClassRestartRequired,
+		},
+		{
 			name:          "Should classify provider model changes as live",
 			path:          "providers.codex.models",
 			wantLifecycle: Live,

@@ -74,8 +74,10 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		Roles:       DefaultRolesConfig(),
 		RoleSources: defaultRoleFieldSources(),
 		Skills: SkillsConfig{
-			Enabled:      true,
-			PollInterval: 3 * time.Second,
+			Enabled:       true,
+			Sources:       []string{SkillSourceAgents},
+			CustomSources: []string{},
+			PollInterval:  3 * time.Second,
 		},
 		Extensions: defaultExtensionsConfig(),
 		Tools:      DefaultToolsConfig(),

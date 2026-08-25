@@ -79,10 +79,10 @@ func (s *service) GetSection(ctx context.Context, req SectionRequest) (SectionEn
 
 func (s *service) UpdateSection(ctx context.Context, req SectionUpdateRequest) (MutationResult, error) {
 	if req.Section == SectionSkills {
-		if req.Skills == nil {
+		if req.Skills == nil && req.SkillSourcesOverride == nil {
 			return MutationResult{}, validationError(errors.New("settings: skills section payload is required"))
 		}
-		result, err := s.updateSkillsSection(ctx, req.SectionRequest, *req.Skills)
+		result, err := s.updateSkillsSection(ctx, req)
 		return s.finalizeSectionUpdate(ctx, result, err)
 	}
 
@@ -127,11 +127,6 @@ func validateSectionScope(section SectionName, scope ScopeKind, agentName string
 	}
 	if section != SectionSkills {
 		return nil
-	}
-	if scope == ScopeWorkspace {
-		return conflictError(
-			fmt.Errorf("settings: section %q does not support %s scope", section, scope),
-		)
 	}
 	if scope == ScopeAgent && agentName == "" {
 		return validationError(errors.New("settings: agent scope requires agent_name"))
@@ -179,7 +174,7 @@ func (s *service) populateSectionEnvelope(
 		}
 		envelope.Memory = &section
 	case SectionSkills:
-		envelope.AvailableScopes = []ScopeKind{ScopeUser, ScopeAgent}
+		envelope.AvailableScopes = []ScopeKind{ScopeUser, ScopeProfile, ScopeWorkspace, ScopeAgent}
 		section, err := s.buildSkillsSection(
 			ctx,
 			cfg,

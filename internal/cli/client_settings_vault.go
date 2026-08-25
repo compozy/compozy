@@ -172,6 +172,32 @@ func (c *daemonClient) UpdateSettingsSkills(
 	return response, nil
 }
 
+func (c *daemonClient) UpdateSettingsSkillsAtScope(
+	ctx context.Context,
+	query settingsSkillsScopeQuery,
+	request UpdateSettingsSkillsRequest,
+) (SettingsMutationRecord, error) {
+	values := url.Values{}
+	if query.Scope != "" {
+		values.Set("scope", string(query.Scope))
+	}
+	if strings.TrimSpace(query.WorkspaceID) != "" {
+		values.Set("workspace_id", strings.TrimSpace(query.WorkspaceID))
+	}
+	if strings.TrimSpace(query.Profile) != "" {
+		values.Set("profile", strings.TrimSpace(query.Profile))
+	}
+	path := "/api/settings/skills"
+	if encoded := values.Encode(); encoded != "" {
+		path += "?" + encoded
+	}
+	var response SettingsMutationRecord
+	if err := c.doJSON(ctx, http.MethodPatch, path, nil, request, &response); err != nil {
+		return SettingsMutationRecord{}, err
+	}
+	return response, nil
+}
+
 func (c *daemonClient) UpdateSettingsAttention(
 	ctx context.Context,
 	request UpdateSettingsAttentionRequest,

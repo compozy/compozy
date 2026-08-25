@@ -41,7 +41,12 @@ type skillCandidate struct {
 	rootOrder int
 }
 
-func (r *Resolver) scanWorkspace(ctx context.Context, ws Workspace, profileName string) (workspaceScan, error) {
+func (r *Resolver) scanWorkspace(
+	ctx context.Context,
+	ws Workspace,
+	profileName string,
+	skillsConfig *compozyconfig.SkillsConfig,
+) (workspaceScan, error) {
 	if err := checkContext(ctx); err != nil {
 		return workspaceScan{}, err
 	}
@@ -102,7 +107,8 @@ func (r *Resolver) scanWorkspace(ctx context.Context, ws Workspace, profileName 
 	}
 	scan.profileDeclarations = declarations
 
-	for rootOrder, root := range compozyconfig.WorkspaceDiscoveryRoots(
+	skillRootOrder := 0
+	for _, root := range compozyconfig.WorkspaceDiscoveryRoots(
 		ws.RootDir,
 		ws.AdditionalDirs,
 		r.homePaths,
@@ -115,8 +121,15 @@ func (r *Resolver) scanWorkspace(ctx context.Context, ws Workspace, profileName 
 		if err := scanAgentSource(root, scan.snapshots, &scan.agents); err != nil {
 			return workspaceScan{}, err
 		}
-		if err := scanSkillSource(root, rootOrder, scan.snapshots, &scan.skills); err != nil {
-			return workspaceScan{}, err
+		for _, skillRoot := range root.SkillsDirs(skillsConfig) {
+			source := skillRoot.SourceSlug
+			if skillRoot.Kind == compozyconfig.RootKindBuiltin {
+				source = string(root.Source)
+			}
+			if err := scanSkillSource(skillRoot, source, skillRootOrder, scan.snapshots, &scan.skills); err != nil {
+				return workspaceScan{}, err
+			}
+			skillRootOrder++
 		}
 	}
 
@@ -216,12 +229,13 @@ func scanAgentCapabilityCatalog(agentDir string, snapshots map[string]filesnap.S
 }
 
 func scanSkillSource(
-	root compozyconfig.WorkspaceDiscoveryRoot,
+	root compozyconfig.SkillRootSpec,
+	source string,
 	rootOrder int,
 	snapshots map[string]filesnap.Snapshot,
 	dst *[]skillCandidate,
 ) error {
-	skillsDir := root.SkillsDir()
+	skillsDir := root.Dir
 	if err := addSnapshotIfExists(skillsDir, snapshots); err != nil {
 		return fmt.Errorf("workspace: snapshot skills directory %q: %w", skillsDir, err)
 	}
@@ -257,7 +271,7 @@ func scanSkillSource(
 		*dst = append(*dst, skillCandidate{
 			name:      skillName,
 			dir:       skillDir,
-			source:    string(root.Source),
+			source:    source,
 			rootOrder: rootOrder,
 		})
 	}

@@ -7,11 +7,12 @@ type SettingsUserSectionResponseMetaPayload struct {
 }
 
 type SettingsSkillsSectionResponseMetaPayload struct {
-	Section         SettingsSectionName      `json:"section"`
-	Scope           SettingsAgentScopeKind   `json:"scope"`
-	WorkspaceID     string                   `json:"workspace_id,omitempty"`
-	AgentName       string                   `json:"agent_name,omitempty"`
-	AvailableScopes []SettingsAgentScopeKind `json:"available_scopes"`
+	Section         SettingsSectionName `json:"section"`
+	Scope           SettingsScopeKind   `json:"scope"`
+	WorkspaceID     string              `json:"workspace_id,omitempty"`
+	Profile         string              `json:"profile,omitempty"`
+	AgentName       string              `json:"agent_name,omitempty"`
+	AvailableScopes []SettingsScopeKind `json:"available_scopes"`
 }
 
 type SettingsLayeredSectionResponseMetaPayload struct {

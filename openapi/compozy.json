@@ -165553,15 +165553,25 @@
             "schema": {
               "enum": [
                 "user",
+                "profile",
+                "workspace",
                 "agent"
               ],
               "type": "string"
             }
           },
           {
-            "description": "Optional workspace id for agent resolution context",
+            "description": "Workspace id for workspace or agent resolution context",
             "in": "query",
             "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Profile name when scope=profile",
+            "in": "query",
+            "name": "profile",
             "schema": {
               "type": "string"
             }
@@ -165588,6 +165598,8 @@
                       "items": {
                         "enum": [
                           "user",
+                          "profile",
+                          "workspace",
                           "agent"
                         ],
                         "type": "string"
@@ -165603,6 +165615,12 @@
                           "type": "array"
                         },
                         "allowed_marketplace_mcp": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "custom_sources": {
                           "items": {
                             "type": "string"
                           },
@@ -165633,12 +165651,20 @@
                         },
                         "poll_interval": {
                           "type": "string"
+                        },
+                        "sources": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
                         }
                       },
                       "required": [
+                        "custom_sources",
                         "enabled",
                         "marketplace",
-                        "poll_interval"
+                        "poll_interval",
+                        "sources"
                       ],
                       "type": "object"
                     },
@@ -165791,12 +165817,17 @@
                       },
                       "type": "array"
                     },
+                    "profile": {
+                      "type": "string"
+                    },
                     "runtime_available": {
                       "type": "boolean"
                     },
                     "scope": {
                       "enum": [
                         "user",
+                        "profile",
+                        "workspace",
                         "agent"
                       ],
                       "type": "string"
@@ -166150,15 +166181,25 @@
             "schema": {
               "enum": [
                 "user",
+                "profile",
+                "workspace",
                 "agent"
               ],
               "type": "string"
             }
           },
           {
-            "description": "Optional workspace id for agent resolution context",
+            "description": "Workspace id for workspace or agent resolution context",
             "in": "query",
             "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Profile name when scope=profile",
+            "in": "query",
+            "name": "profile",
             "schema": {
               "type": "string"
             }
@@ -166176,6 +166217,7 @@
           "content": {
             "application/json": {
               "schema": {
+                "additionalProperties": false,
                 "properties": {
                   "config": {
                     "properties": {
@@ -166186,6 +166228,12 @@
                         "type": "array"
                       },
                       "allowed_marketplace_mcp": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "custom_sources": {
                         "items": {
                           "type": "string"
                         },
@@ -166216,19 +166264,45 @@
                       },
                       "poll_interval": {
                         "type": "string"
+                      },
+                      "sources": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
                       }
                     },
                     "required": [
+                      "custom_sources",
                       "enabled",
                       "marketplace",
-                      "poll_interval"
+                      "poll_interval",
+                      "sources"
                     ],
+                    "type": "object"
+                  },
+                  "override": {
+                    "additionalProperties": false,
+                    "nullable": true,
+                    "properties": {
+                      "custom_sources": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "nullable": true,
+                        "type": "array"
+                      },
+                      "sources": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "nullable": true,
+                        "type": "array"
+                      }
+                    },
                     "type": "object"
                   }
                 },
-                "required": [
-                  "config"
-                ],
                 "type": "object"
               }
             }
@@ -166424,70 +166498,115 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "details": {
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "type": "object"
-                    },
-                    "diagnostic": {
-                      "nullable": true,
+                  "oneOf": [
+                    {
                       "properties": {
-                        "category": {
-                          "type": "string"
-                        },
                         "code": {
                           "type": "string"
                         },
-                        "data_freshness": {
-                          "type": "string"
-                        },
-                        "doc_url": {
-                          "type": "string"
-                        },
-                        "evidence": {
-                          "additionalProperties": {},
+                        "details": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
                           "type": "object"
                         },
-                        "id": {
-                          "type": "string"
+                        "diagnostic": {
+                          "nullable": true,
+                          "properties": {
+                            "category": {
+                              "type": "string"
+                            },
+                            "code": {
+                              "type": "string"
+                            },
+                            "data_freshness": {
+                              "type": "string"
+                            },
+                            "doc_url": {
+                              "type": "string"
+                            },
+                            "evidence": {
+                              "additionalProperties": {},
+                              "type": "object"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "message": {
+                              "type": "string"
+                            },
+                            "severity": {
+                              "type": "string"
+                            },
+                            "suggested_command": {
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "category",
+                            "code",
+                            "data_freshness",
+                            "id",
+                            "message",
+                            "severity",
+                            "title"
+                          ],
+                          "type": "object"
                         },
-                        "message": {
-                          "type": "string"
-                        },
-                        "severity": {
-                          "type": "string"
-                        },
-                        "suggested_command": {
-                          "type": "string"
-                        },
-                        "title": {
+                        "error": {
                           "type": "string"
                         }
                       },
                       "required": [
-                        "category",
-                        "code",
-                        "data_freshness",
-                        "id",
-                        "message",
-                        "severity",
-                        "title"
+                        "error"
                       ],
                       "type": "object"
                     },
-                    "error": {
-                      "type": "string"
+                    {
+                      "properties": {
+                        "error": {
+                          "properties": {
+                            "code": {
+                              "type": "string"
+                            },
+                            "existing_source": {
+                              "type": "string"
+                            },
+                            "field": {
+                              "type": "string"
+                            },
+                            "message": {
+                              "type": "string"
+                            },
+                            "path": {
+                              "type": "string"
+                            },
+                            "suggestion": {
+                              "type": "string"
+                            },
+                            "valid": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "code",
+                            "message"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "error"
+                      ],
+                      "type": "object"
                     }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
+                  ]
                 }
               }
             },

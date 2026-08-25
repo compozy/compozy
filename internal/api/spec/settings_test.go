@@ -359,7 +359,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		)
 
 		updateSkills := operationFor(t, doc, "/api/settings/skills", "PATCH")
-		assertParameterEnumValues(t, updateSkills, "scope", "agent", "user")
+		assertParameterEnumValues(t, updateSkills, "scope", "agent", "profile", "user", "workspace")
 		skillsMutationSchema := jsonResponseSchema(t, updateSkills, 200)
 		assertRequired(
 			t,

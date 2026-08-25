@@ -9,6 +9,8 @@ import (
 // SkillsConfig controls skill loading and discovery.
 type SkillsConfig struct {
 	Enabled                 bool              `toml:"enabled"`
+	Sources                 []string          `toml:"sources,omitempty"`
+	CustomSources           []string          `toml:"custom_sources,omitempty"`
 	DisabledSkills          []string          `toml:"disabled_skills,omitempty"`
 	PollInterval            time.Duration     `toml:"poll_interval"`
 	AllowedMarketplaceMCP   []string          `toml:"allowed_marketplace_mcp,omitempty"`

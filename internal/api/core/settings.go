@@ -90,10 +90,14 @@ func (h *BaseHandlers) GetSettingsSkills(c *gin.Context) {
 func (h *BaseHandlers) UpdateSettingsSkills(c *gin.Context) {
 	req, err := parseUpdateSettingsSkillsRequest(c)
 	if err != nil {
-		h.respondError(c, StatusForSettingsError(err), err)
+		h.respondSettingsSkillsError(c, err)
 		return
 	}
-	h.updateSettingsSection(c, req)
+	result, ok := h.applySettingsSection(c, req, h.respondSettingsSkillsTypedError)
+	if !ok {
+		return
+	}
+	c.JSON(http.StatusOK, SettingsApplyResponseFromResult(result))
 }
 
 // ReloadSettings reconciles desired config.toml with the daemon active generation.

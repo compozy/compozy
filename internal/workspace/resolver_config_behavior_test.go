@@ -249,8 +249,12 @@ func testResolveWorkspaceLensesComposeUserResourcesAndLocalOverridesIT040(t *tes
 	if got := agentModel(first.Agents, "reviewer"); got != "review" {
 		t.Fatalf("reviewer model = %q, want %q", got, "review")
 	}
+	canonicalUserSkill, err := filepath.EvalSymlinks(filepath.Join(homePaths.SkillsDir, "user-skill"))
+	if err != nil {
+		t.Fatalf("EvalSymlinks(user skill) error = %v", err)
+	}
 	if got, want := first.Skills, []SkillPath{
-		{Name: "user-skill", Dir: filepath.Join(homePaths.SkillsDir, "user-skill"), Source: "global"},
+		{Name: "user-skill", Dir: canonicalUserSkill, Source: string(compozyconfig.WorkspaceDiscoverySourceGlobal)},
 	}; !slices.Equal(
 		got,
 		want,

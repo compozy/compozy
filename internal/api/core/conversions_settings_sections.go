@@ -243,9 +243,10 @@ func SettingsSectionMutationResultPayloadFromResult(result settingspkg.MutationR
 	case settingspkg.SectionSkills:
 		return contract.SettingsSkillsMutationResult{
 			Section:         contract.SettingsSectionName(result.Section),
-			Scope:           contract.SettingsAgentScopeKind(result.Scope),
+			Scope:           contract.SettingsScopeKind(result.Scope),
 			WriteTarget:     contract.SettingsWriteTargetKind(result.WriteTarget),
 			WorkspaceID:     strings.TrimSpace(result.WorkspaceID),
+			Profile:         strings.TrimSpace(result.ProfileName),
 			AgentName:       strings.TrimSpace(result.AgentName),
 			Behavior:        contract.SettingsMutationBehavior(result.Behavior),
 			Applied:         result.Applied,

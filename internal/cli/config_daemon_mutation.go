@@ -2,20 +2,20 @@ package cli
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
-
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/spf13/cobra"
 )
 
 func maybeApplyConfigSetViaDaemon(
-	ctx context.Context,
+	cmd *cobra.Command,
 	deps commandDeps,
 	target compozyconfig.WriteTarget,
+	workspaceRef string,
 	path []string,
 	value any,
 	redacted bool,
@@ -24,7 +24,7 @@ func maybeApplyConfigSetViaDaemon(
 		return nil, nil
 	}
 
-	client, running, err := daemonClientIfRunning(ctx, deps)
+	client, running, err := daemonClientIfRunning(cmd.Context(), deps)
 	if err != nil {
 		return nil, fmt.Errorf("cli: inspect daemon reachability for config set: %w", err)
 	}
@@ -32,12 +32,16 @@ func maybeApplyConfigSetViaDaemon(
 		return nil, nil
 	}
 
-	cfg, err := deps.loadConfig()
-	if err != nil {
-		return nil, fmt.Errorf("cli: load current config for daemon-backed config set: %w", err)
+	var result SettingsMutationRecord
+	if isSkillSourceMutation(path) {
+		result, err = applyDaemonSkillSourceValue(cmd, deps, client, target, workspaceRef, path, value)
+	} else {
+		cfg, loadErr := deps.loadConfig()
+		if loadErr != nil {
+			return nil, fmt.Errorf("cli: load current config for daemon-backed config set: %w", loadErr)
+		}
+		result, err = applyDaemonManagedConfigValue(cmd.Context(), client, &cfg, path, value)
 	}
-
-	result, err := applyDaemonManagedConfigValue(ctx, client, &cfg, path, value)
 	if err != nil {
 		return nil, fmt.Errorf("cli: apply %q via daemon settings surface: %w", strings.Join(path, "."), err)
 	}
@@ -63,6 +67,134 @@ func maybeApplyConfigSetViaDaemon(
 	}, nil
 }
 
+func isSkillSourceMutation(path []string) bool {
+	return len(path) == 2 && path[0] == configSkillsKey &&
+		(path[1] == "sources" || path[1] == "custom_sources")
+}
+
+func applyDaemonSkillSourceValue(
+	cmd *cobra.Command,
+	deps commandDeps,
+	client DaemonClient,
+	target compozyconfig.WriteTarget,
+	workspaceRef string,
+	path []string,
+	value any,
+) (SettingsMutationRecord, error) {
+	values, ok := value.([]string)
+	if !ok {
+		return SettingsMutationRecord{}, fmt.Errorf(
+			"cli: config set %q expects a string slice payload, got %T",
+			strings.Join(path, "."), value,
+		)
+	}
+	if target.Scope() == compozyconfig.WriteScopeWorkspace {
+		resolution, err := resolveCommandWorkspace(
+			cmd.Context(), cmd, deps, client, workspaceResolutionRequest{FlagRef: workspaceRef},
+		)
+		if err != nil {
+			return SettingsMutationRecord{}, err
+		}
+		override := contract.SettingsSkillsOverridePayload{}
+		optional := contract.OptionalStringList{Present: true, Value: append([]string{}, values...)}
+		if path[1] == "sources" {
+			override.Sources = optional
+		} else {
+			override.CustomSources = optional
+		}
+		return updateSettingsSkillsAtScope(client, cmd.Context(), settingsSkillsScopeQuery{
+			Scope: contract.SettingsScopeWorkspace, WorkspaceID: resolution.ID,
+		}, UpdateSettingsSkillsRequest{Override: &override})
+	}
+
+	scope := contract.SettingsScopeUser
+	scopeRaw := string(compozyconfig.WriteScopeUser)
+	query := settingsSkillsScopeQuery{Scope: scope}
+	if target.Scope() == compozyconfig.WriteScopeProfile {
+		scope = contract.SettingsScopeProfile
+		scopeRaw = string(compozyconfig.WriteScopeProfile)
+		profileName, err := resolveConfigWriteProfile(cmd, deps)
+		if err != nil {
+			return SettingsMutationRecord{}, err
+		}
+		query = settingsSkillsScopeQuery{Scope: scope, Profile: profileName}
+	}
+	cfg, _, err := loadConfigForDisplayScope(cmd, deps, scopeRaw, workspaceRef)
+	if err != nil {
+		return SettingsMutationRecord{}, fmt.Errorf("cli: load current skill source config: %w", err)
+	}
+	if path[1] == "sources" {
+		cfg.Skills.Sources = append([]string{}, values...)
+	} else {
+		cfg.Skills.CustomSources = append([]string{}, values...)
+	}
+	if err := cfg.Skills.ValidateForScope(target.Scope()); err != nil {
+		return SettingsMutationRecord{}, err
+	}
+	request := UpdateSettingsSkillsRequest{Config: settingsSkillsPayloadFromConfig(cfg.Skills)}
+	if target.Scope() == compozyconfig.WriteScopeUser {
+		return client.UpdateSettingsSkills(cmd.Context(), request)
+	}
+	return updateSettingsSkillsAtScope(client, cmd.Context(), query, request)
+}
+
+func updateSettingsSkillsAtScope(
+	client DaemonClient,
+	ctx context.Context,
+	query settingsSkillsScopeQuery,
+	request UpdateSettingsSkillsRequest,
+) (SettingsMutationRecord, error) {
+	scoped, ok := client.(scopedSettingsSkillsClient)
+	if !ok {
+		return SettingsMutationRecord{}, errors.New("cli: daemon client does not support scoped skills settings")
+	}
+	return scoped.UpdateSettingsSkillsAtScope(ctx, query, request)
+}
+
+func maybeUnsetWorkspaceSkillSourceViaDaemon(
+	cmd *cobra.Command,
+	deps commandDeps,
+	target compozyconfig.WriteTarget,
+	workspaceRef string,
+	path []string,
+) (*configUnsetRecord, error) {
+	if target.Scope() != compozyconfig.WriteScopeWorkspace || !isSkillSourceMutation(path) {
+		return nil, nil
+	}
+	client, running, err := daemonClientIfRunning(cmd.Context(), deps)
+	if err != nil {
+		return nil, fmt.Errorf("cli: inspect daemon reachability for config unset: %w", err)
+	}
+	if !running {
+		return nil, nil
+	}
+	resolution, err := resolveCommandWorkspace(
+		cmd.Context(), cmd, deps, client, workspaceResolutionRequest{FlagRef: workspaceRef},
+	)
+	if err != nil {
+		return nil, err
+	}
+	override := contract.SettingsSkillsOverridePayload{}
+	optional := contract.OptionalStringList{Present: true, Null: true}
+	if path[1] == "sources" {
+		override.Sources = optional
+	} else {
+		override.CustomSources = optional
+	}
+	result, err := updateSettingsSkillsAtScope(client, cmd.Context(), settingsSkillsScopeQuery{
+		Scope: contract.SettingsScopeWorkspace, WorkspaceID: resolution.ID,
+	}, UpdateSettingsSkillsRequest{Override: &override})
+	if err != nil {
+		return nil, fmt.Errorf("cli: unset %q via daemon settings surface: %w", strings.Join(path, "."), err)
+	}
+	return &configUnsetRecord{
+		Path: strings.Join(path, "."), Scope: string(target.Scope()), Target: target.Path(), Deleted: true,
+		Lifecycle: string(result.Lifecycle), ApplyRecordID: result.ApplyRecordID, Applied: result.Applied,
+		ActiveGeneration: result.ActiveGeneration, ActiveConfigHash: result.ActiveConfigHash,
+		NextAction: string(result.NextAction), RestartRequired: result.RestartRequired, RestartScope: result.RestartScope,
+	}, nil
+}
+
 func applyDaemonManagedConfigValue(
 	ctx context.Context,
 	client DaemonClient,
@@ -72,7 +204,7 @@ func applyDaemonManagedConfigValue(
 ) (SettingsMutationRecord, error) {
 	switch path[0] {
 	case configSkillsKey:
-		disabledSkills, ok := value.([]string)
+		values, ok := value.([]string)
 		if !ok {
 			return SettingsMutationRecord{}, fmt.Errorf(
 				"cli: config set %q expects a string slice payload, got %T",
@@ -80,7 +212,22 @@ func applyDaemonManagedConfigValue(
 				value,
 			)
 		}
-		cfg.Skills.DisabledSkills = append([]string(nil), disabledSkills...)
+		switch path[1] {
+		case "sources":
+			cfg.Skills.Sources = append([]string(nil), values...)
+		case "custom_sources":
+			cfg.Skills.CustomSources = append([]string(nil), values...)
+		case agentDisabledSkillsKey:
+			cfg.Skills.DisabledSkills = append([]string(nil), values...)
+		default:
+			return SettingsMutationRecord{}, fmt.Errorf(
+				"cli: config set %q is not daemon-managed",
+				strings.Join(path, "."),
+			)
+		}
+		if err := cfg.Skills.ValidateForScope(compozyconfig.WriteScopeUser); err != nil {
+			return SettingsMutationRecord{}, err
+		}
 		return client.UpdateSettingsSkills(ctx, UpdateSettingsSkillsRequest{
 			Config: settingsSkillsPayloadFromConfig(cfg.Skills),
 		})
@@ -140,11 +287,16 @@ func maybeReloadConfigAfterLocalWrite(
 }
 
 func supportsDaemonManagedConfigSet(path []string, target compozyconfig.WriteTarget) bool {
+	if len(path) == 2 && path[0] == configSkillsKey {
+		switch path[1] {
+		case "sources", "custom_sources":
+			return true
+		case agentDisabledSkillsKey:
+			return target.Scope() == compozyconfig.WriteScopeUser
+		}
+	}
 	if target.Scope() != compozyconfig.WriteScopeUser {
 		return false
-	}
-	if len(path) == 2 && path[0] == configSkillsKey && path[1] == agentDisabledSkillsKey {
-		return true
 	}
 	return len(path) >= 2 && (path[0] == configAttentionKey || path[0] == configShellKey)
 }
@@ -152,6 +304,8 @@ func supportsDaemonManagedConfigSet(path []string, target compozyconfig.WriteTar
 func settingsSkillsPayloadFromConfig(cfg compozyconfig.SkillsConfig) contract.SettingsSkillsConfigPayload {
 	return contract.SettingsSkillsConfigPayload{
 		Enabled:                 cfg.Enabled,
+		Sources:                 append([]string(nil), cfg.Sources...),
+		CustomSources:           append([]string(nil), cfg.CustomSources...),
 		DisabledSkills:          append([]string(nil), cfg.DisabledSkills...),
 		PollInterval:            cfg.PollInterval.String(),
 		AllowedMarketplaceMCP:   append([]string(nil), cfg.AllowedMarketplaceMCP...),

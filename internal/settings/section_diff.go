@@ -30,6 +30,12 @@ func diffSkillsSettings(current compozyconfig.SkillsConfig, desired compozyconfi
 	if current.Enabled != desired.Enabled {
 		changed = append(changed, "skills.enabled")
 	}
+	if !reflect.DeepEqual(current.Sources, desired.Sources) {
+		changed = append(changed, "skills.sources")
+	}
+	if !reflect.DeepEqual(current.CustomSources, desired.CustomSources) {
+		changed = append(changed, "skills.custom_sources")
+	}
 	if !reflect.DeepEqual(current.DisabledSkills, desired.DisabledSkills) {
 		changed = append(changed, "skills.disabled_skills")
 	}

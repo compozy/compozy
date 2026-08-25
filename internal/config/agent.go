@@ -80,8 +80,12 @@ const (
 
 // WorkspaceDiscoveryRoot describes a filesystem root participating in multi-root resource discovery.
 type WorkspaceDiscoveryRoot struct {
-	Dir    string
-	Source WorkspaceDiscoverySource
+	Dir             string
+	Source          WorkspaceDiscoverySource
+	ProfileID       string
+	WorkspaceID     string
+	ResourceScopeID string
+	OperatorHomeDir string
 }
 
 // AgentLayerName returns the public layer label for a discovery source.
@@ -229,8 +233,9 @@ func WorkspaceDiscoveryRoots(
 
 	if trimmed := strings.TrimSpace(homePaths.HomeDir); trimmed != "" {
 		roots = append(roots, WorkspaceDiscoveryRoot{
-			Dir:    trimmed,
-			Source: WorkspaceDiscoverySourceGlobal,
+			Dir:             trimmed,
+			Source:          WorkspaceDiscoverySourceGlobal,
+			OperatorHomeDir: strings.TrimSpace(homePaths.OperatorHomeDir),
 		})
 	}
 
@@ -257,15 +262,6 @@ func (r WorkspaceDiscoveryRoot) AgentsDir() string {
 	}
 
 	return filepath.Join(r.Dir, DirName, AgentsDirName)
-}
-
-// SkillsDir returns the skill-definition directory for this discovery root.
-func (r WorkspaceDiscoveryRoot) SkillsDir() string {
-	if r.usesHomeResourceLayout() {
-		return filepath.Join(r.Dir, SkillsDirName)
-	}
-
-	return filepath.Join(r.Dir, DirName, SkillsDirName)
 }
 
 // LoopsDir returns the loop-definition directory for this discovery root.

@@ -129,7 +129,8 @@ func workspaceSkillWatcherRoots(
 			return nil, fmt.Errorf("daemon: list workspaces for skill watcher: %w", err)
 		}
 
-		roots := make([]string, 0, len(workspaces)*2)
+		roots := make([]string, 0, len(workspaces)*3)
+		defaultSkills := compozyconfig.DefaultWithHome(homePaths).Skills
 		for _, workspace := range workspaces {
 			for _, root := range compozyconfig.WorkspaceDiscoveryRoots(
 				workspace.RootDir,
@@ -140,7 +141,10 @@ func workspaceSkillWatcherRoots(
 				if root.Source == compozyconfig.WorkspaceDiscoverySourceGlobal {
 					continue
 				}
-				roots = append(roots, root.SkillsDir(), root.AgentsDir())
+				for _, skillRoot := range root.SkillsDirs(&defaultSkills) {
+					roots = append(roots, skillRoot.Dir)
+				}
+				roots = append(roots, root.AgentsDir())
 			}
 		}
 
