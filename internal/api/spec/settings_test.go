@@ -1,6 +1,7 @@
 package spec
 
 import (
+	"encoding/json"
 	"slices"
 	"testing"
 
@@ -781,11 +782,13 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 
 		applyUpdate := operationFor(t, doc, "/api/settings/update/apply", "POST")
 		applyRequestSchema := jsonRequestSchema(t, applyUpdate)
-		assertRequired(t, applyRequestSchema, "target")
-		assertEnumValues(t, propertySchema(t, applyRequestSchema, "target"), "app", "runtime")
+		assertRequired(t, applyRequestSchema, "targets")
+		applyTargetsSchema := propertySchema(t, applyRequestSchema, "targets")
+		assertSettingsUpdateTargetSetSchema(t, applyTargetsSchema)
 		applyResponseSchema := jsonResponseSchema(t, applyUpdate, 200)
-		assertRequired(t, applyResponseSchema, "target", "status", "message")
-		assertEnumValues(t, propertySchema(t, applyResponseSchema, "target"), "app", "runtime")
+		assertRequired(t, applyResponseSchema, "targets", "status", "message")
+		applyResponseTargetsSchema := propertySchema(t, applyResponseSchema, "targets")
+		assertSettingsUpdateTargetSetSchema(t, applyResponseTargetsSchema)
 		assertEnumValues(t, propertySchema(t, applyResponseSchema, "status"), "accepted", "blocked", "failed")
 
 		cancelUpdate := operationFor(t, doc, "/api/settings/update/cancel", "POST")
@@ -937,6 +940,42 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			t.Fatal("expected 403 response on POST /api/extensions")
 		}
 	})
+}
+
+func assertSettingsUpdateTargetSetSchema(t *testing.T, schema *openapi3.Schema) {
+	t.Helper()
+
+	if schema.Type == nil || !schema.Type.Is("array") {
+		t.Fatalf("settings update target set schema type = %#v, want array", schema.Type)
+	}
+	got := make([]string, 0, len(schema.Enum))
+	for index, value := range schema.Enum {
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			t.Fatalf("settings update target set enum[%d] marshal error = %v", index, err)
+		}
+		got = append(got, string(encoded))
+	}
+	slices.Sort(got)
+	want := []string{`["app"]`, `["runtime","app"]`, `["runtime"]`}
+	if !slices.Equal(got, want) {
+		t.Fatalf("settings update target set enum = %v, want %v", got, want)
+	}
+	for _, test := range []struct {
+		name  string
+		value []any
+	}{
+		{name: "Should reject app before runtime", value: []any{"app", "runtime"}},
+		{name: "Should reject duplicate runtime", value: []any{"runtime", "runtime"}},
+		{name: "Should reject an empty target set", value: []any{}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if schema.IsMatching(test.value) {
+				t.Fatalf("settings update target set schema accepts invalid targets %v", test.value)
+			}
+		})
+	}
 }
 
 func assertMCPSecretInputExactlyOneOf(t *testing.T, schema *openapi3.Schema) {

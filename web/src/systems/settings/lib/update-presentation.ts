@@ -5,6 +5,7 @@ import type {
   SettingsUpdateStatus,
   SettingsUpdateStatusKind,
   SettingsUpdateTarget,
+  SettingsUpdateTargetSet,
 } from "../types";
 import { updatePhasePercent, updateUiPhase, type UpdateUiPhase } from "./update-phase-map";
 
@@ -144,8 +145,9 @@ function trackProgress(
  * Requires something to apply, a self-applicable install, and a free update
  * channel — acquisition is single-flight per home, so a live operation makes
  * apply impossible rather than merely inadvisable. Managed installs recommend
- * and never mutate, so they never qualify. A `failed` track qualifies again once
- * its operation is terminal: the lease is free and the offer still stands.
+ * and never mutate, so they never qualify. A failed track remains diagnostic-only
+ * until the daemon reports a fresh available state; PlanOperation rejects failed
+ * targets even when the lease is free.
  */
 function canApplyTrack(input: {
   status: SettingsUpdateStatusKind;
@@ -154,7 +156,7 @@ function canApplyTrack(input: {
   latestVersion: string | null;
 }): boolean {
   if (input.managed || input.operation !== null || input.latestVersion === null) return false;
-  return input.status === "available" || input.status === "failed";
+  return input.status === "available";
 }
 
 function dormantOperationTarget(
@@ -273,6 +275,23 @@ export function settingsUpdateTracks(snapshot: SettingsUpdateStatus): SettingsUp
     );
   }
   return tracks;
+}
+
+/** The ordered targets this surface may apply in one durable operation. */
+export function settingsUpdateApplicableTargets(
+  tracks: readonly Pick<SettingsUpdateTrackView, "id" | "canApply">[]
+): SettingsUpdateTargetSet | null {
+  let runtime = false;
+  let app = false;
+  for (const track of tracks) {
+    if (!track.canApply) continue;
+    if (track.id === "runtime") runtime = true;
+    if (track.id === "app") app = true;
+  }
+  if (runtime && app) return ["runtime", "app"];
+  if (runtime) return ["runtime"];
+  if (app) return ["app"];
+  return null;
 }
 
 /**

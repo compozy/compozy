@@ -32,8 +32,9 @@ compozy update --cancel -o json
 
 Check and apply results always contain `runtime` and include `app` only when the desktop app is
 installed. Cancel returns `status`, `operation_id`, `message`, and an optional `holder`. A managed
-runtime returns its exact package-manager recommendation without changing the binary. Apply and
-cancel are also available through `POST /api/settings/update/apply` and
+runtime returns its exact package-manager recommendation without changing the binary. Apply accepts
+`{"targets":["runtime","app"]}` with runtime first; omit targets that are unavailable or managed.
+Apply and cancel are also available through `POST /api/settings/update/apply` and
 `POST /api/settings/update/cancel` over HTTP or UDS; read live state with `GET /api/settings/update`.
 Treat `available`, `applying`, `staged`, `blocked`, `failed`, `updated`, and
 `up-to-date` as the update statuses. A blocked result names the current holder. App status also

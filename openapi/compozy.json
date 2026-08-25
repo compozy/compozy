@@ -167312,16 +167312,31 @@
             "application/json": {
               "schema": {
                 "properties": {
-                  "target": {
+                  "targets": {
                     "enum": [
-                      "runtime",
-                      "app"
+                      [
+                        "runtime"
+                      ],
+                      [
+                        "app"
+                      ],
+                      [
+                        "runtime",
+                        "app"
+                      ]
                     ],
-                    "type": "string"
+                    "items": {
+                      "enum": [
+                        "runtime",
+                        "app"
+                      ],
+                      "type": "string"
+                    },
+                    "type": "array"
                   }
                 },
                 "required": [
-                  "target"
+                  "targets"
                 ],
                 "type": "object"
               }
@@ -167386,18 +167401,33 @@
                       ],
                       "type": "string"
                     },
-                    "target": {
+                    "targets": {
                       "enum": [
-                        "runtime",
-                        "app"
+                        [
+                          "runtime"
+                        ],
+                        [
+                          "app"
+                        ],
+                        [
+                          "runtime",
+                          "app"
+                        ]
                       ],
-                      "type": "string"
+                      "items": {
+                        "enum": [
+                          "runtime",
+                          "app"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "array"
                     }
                   },
                   "required": [
                     "message",
                     "status",
-                    "target"
+                    "targets"
                   ],
                   "type": "object"
                 }
@@ -167476,7 +167506,7 @@
                 }
               }
             },
-            "description": "Invalid update target"
+            "description": "Invalid update target set"
           },
           "403": {
             "content": {

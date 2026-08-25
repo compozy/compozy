@@ -985,7 +985,11 @@ func TestSettingsUpdateControllerMutations(t *testing.T) {
 				targets []compozyupdate.Target,
 				holder compozyupdate.Holder,
 			) (compozyupdate.OperationRequest, error) {
-				if actor != compozyupdate.ActorWeb || len(targets) != 1 || targets[0] != compozyupdate.TargetRuntime {
+				if actor != compozyupdate.ActorWeb ||
+					!slices.Equal(targets, []compozyupdate.Target{
+						compozyupdate.TargetRuntime,
+						compozyupdate.TargetApp,
+					}) {
 					t.Fatalf("PlanOperation() actor/targets = %q/%v", actor, targets)
 				}
 				return daemonSettingsOperationRequest(holder, targets), nil
@@ -1026,11 +1030,18 @@ func TestSettingsUpdateControllerMutations(t *testing.T) {
 			spawned = true
 			return nil
 		}
-		result, err := controller.ApplyUpdate(requestCtx, compozyupdate.TargetRuntime)
+		result, err := controller.ApplyUpdate(requestCtx, []compozyupdate.Target{
+			compozyupdate.TargetRuntime,
+			compozyupdate.TargetApp,
+		})
 		if err != nil {
 			t.Fatalf("ApplyUpdate() error = %v", err)
 		}
-		if result.Status != compozyupdate.ApplyStatusAccepted || result.OperationID == "" || !spawned {
+		if result.Status != compozyupdate.ApplyStatusAccepted || result.OperationID == "" || !spawned ||
+			!slices.Equal(result.Targets, []compozyupdate.Target{
+				compozyupdate.TargetRuntime,
+				compozyupdate.TargetApp,
+			}) {
 			t.Fatalf("ApplyUpdate() = %#v spawned=%t, want durable acceptance", result, spawned)
 		}
 	})
@@ -1059,7 +1070,7 @@ func TestSettingsUpdateControllerMutations(t *testing.T) {
 				return errors.New("detached launch failed")
 			},
 		}
-		result, err := controller.ApplyUpdate(t.Context(), compozyupdate.TargetRuntime)
+		result, err := controller.ApplyUpdate(t.Context(), []compozyupdate.Target{compozyupdate.TargetRuntime})
 		if err != nil {
 			t.Fatalf("ApplyUpdate() error = %v", err)
 		}
@@ -1128,7 +1139,7 @@ func TestSettingsUpdateControllerMutations(t *testing.T) {
 				},
 			}
 
-			result, err := controller.ApplyUpdate(t.Context(), compozyupdate.TargetApp)
+			result, err := controller.ApplyUpdate(t.Context(), []compozyupdate.Target{compozyupdate.TargetApp})
 			if err != nil {
 				t.Fatalf("ApplyUpdate() error = %v", err)
 			}
@@ -1179,7 +1190,7 @@ func TestSettingsUpdateControllerMutations(t *testing.T) {
 			},
 		}
 
-		result, err := controller.ApplyUpdate(t.Context(), compozyupdate.TargetRuntime)
+		result, err := controller.ApplyUpdate(t.Context(), []compozyupdate.Target{compozyupdate.TargetRuntime})
 		if err != nil {
 			t.Fatalf("ApplyUpdate() error = %v", err)
 		}

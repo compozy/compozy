@@ -27,7 +27,8 @@ compozy.com docs instead of package managers, which may lag the active line.
 
 The command checks both the runtime and desktop app, applies the runtime first, and stages a closed
 app for its next launch. Use `--check` for a read-only result and `--cancel` only for a dormant
-operation. Read or control the same host-global operation through `GET /api/settings/update`,
+operation. The HTTP/UDS apply body is `{"targets":["runtime","app"]}` with runtime first; omit
+unavailable or managed tracks. Read or control the same host-global operation through `GET /api/settings/update`,
 `POST /api/settings/update/apply`, and `POST /api/settings/update/cancel` over HTTP or UDS.
 
 When an artifact-policy failure prevents an in-place update, follow the command's release-specific

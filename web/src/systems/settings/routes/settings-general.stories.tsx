@@ -324,7 +324,7 @@ export const UpdatesChecking: Story = {
 /** Both tracks are current: the calm, explicit settled state. */
 export const UpdatesUpToDate: Story = updateStory(settingsUpdateStatusFixture);
 
-/** Both tracks offer a release: two rows, two actions, no combined "update all". */
+/** Both tracks offer a release: two rows, one combined action. */
 export const UpdatesBothAvailable: Story = updateStory(settingsUpdateBothAvailableFixture);
 
 /** Runtime only offers a release; the current app keeps its settled lane. */

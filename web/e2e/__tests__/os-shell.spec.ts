@@ -3968,14 +3968,14 @@ test("E2E-022: a keyboard-only operator reaches the indicator, opens Updates, an
     await route.fulfill({ json: settingsUpdateBothAvailableFixture });
   });
   await appPage.route("**/api/settings/update/apply", async route => {
-    const body = route.request().postDataJSON() as { target: string };
-    applyTargets.push(body.target);
+    const body = route.request().postDataJSON() as { targets: string[] };
+    applyTargets.push(...body.targets);
     await route.fulfill({
       json: {
-        target: body.target,
+        targets: body.targets,
         status: "accepted",
         operation_id: "op-e2e-keyboard",
-        message: "Started the runtime update.",
+        message: "Started the requested updates.",
         holder: null,
       },
     });
@@ -3998,12 +3998,12 @@ test("E2E-022: a keyboard-only operator reaches the indicator, opens Updates, an
   await expect(settingsUI.general.updates).toBeVisible({ timeout: 20_000 });
 
   // The apply affordance is a real button in the tab order, activatable by keyboard.
-  const apply = settingsUI.general.updateApply("runtime");
+  const apply = settingsUI.general.updateApply();
   await expect(apply).toBeVisible();
   await apply.focus();
   await expect(apply).toBeFocused();
   await appPage.keyboard.press("Enter");
-  await expect.poll(() => applyTargets).toEqual(["runtime"]);
+  await expect.poll(() => applyTargets).toEqual(["runtime", "app"]);
 });
 
 test("E2E-015: destination mode offers only eligible targets and exits clean when none are", async ({
