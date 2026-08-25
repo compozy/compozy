@@ -237,6 +237,8 @@ func coreHandlerConfig(cfg *handlerConfig, boundHost string) *core.BaseHandlerCo
 		HeartbeatWakeEvents:          cfg.wakeEvents,
 		SkillsRegistry:               cfg.skillsRegistry,
 		SkillResources:               cfg.skillResources,
+		SkillExposures:               skillExposureRepository(cfg.networkStore),
+		SkillExposureEvents:          skillExposureEventStore(cfg.networkStore),
 		MemoryStore:                  cfg.memoryStore,
 		DreamTrigger:                 cfg.dreamTrigger,
 		MemoryExtractor:              cfg.memoryExtractor,
@@ -255,6 +257,16 @@ func coreHandlerConfig(cfg *handlerConfig, boundHost string) *core.BaseHandlerCo
 		AgentLoader:                  cfg.agentLoader,
 		HTTPPort:                     cfg.httpPort,
 	}
+}
+
+func skillExposureRepository(value any) store.SkillExposureRepository {
+	repository, _ := value.(store.SkillExposureRepository)
+	return repository
+}
+
+func skillExposureEventStore(value any) store.EventSummaryStore {
+	events, _ := value.(store.EventSummaryStore)
+	return events
 }
 
 func gatewayPairingSource(surfaceSet SurfaceSet) string {

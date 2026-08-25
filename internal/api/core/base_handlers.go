@@ -87,6 +87,8 @@ type BaseHandlerConfig struct {
 	Roles                        RolesStatusProvider
 	SkillsRegistry               SkillsRegistry
 	SkillResources               SkillResourceSyncer
+	SkillExposures               store.SkillExposureRepository
+	SkillExposureEvents          store.EventSummaryStore
 	SkillMarketplace             SkillMarketplaceService
 	InstalledSkillMarketplace    InstalledSkillMarketplaceService
 	TaskActorContextResolver     TaskActorContextResolver
@@ -173,6 +175,8 @@ type BaseHandlers struct {
 	Roles                        RolesStatusProvider
 	SkillsRegistry               SkillsRegistry
 	SkillResources               SkillResourceSyncer
+	SkillExposures               store.SkillExposureRepository
+	SkillExposureEvents          store.EventSummaryStore
 	SkillMarketplace             SkillMarketplaceService
 	InstalledSkillMarketplace    InstalledSkillMarketplaceService
 	TaskActorContextResolver     TaskActorContextResolver
@@ -270,6 +274,8 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		Roles:                        cfg.Roles,
 		SkillsRegistry:               cfg.SkillsRegistry,
 		SkillResources:               cfg.SkillResources,
+		SkillExposures:               cfg.SkillExposures,
+		SkillExposureEvents:          cfg.SkillExposureEvents,
 		SkillMarketplace:             cfg.SkillMarketplace,
 		InstalledSkillMarketplace:    cfg.InstalledSkillMarketplace,
 		TaskActorContextResolver:     cfg.TaskActorContextResolver,

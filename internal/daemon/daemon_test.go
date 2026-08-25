@@ -8791,6 +8791,43 @@ type queuedAttachmentStore struct {
 	entries []store.SessionInputQueueEntry
 }
 
+func (r *recordingRegistry) CreateSkillExposure(
+	context.Context,
+	store.SkillExposureRecord,
+) (store.SkillExposureRecord, error) {
+	return store.SkillExposureRecord{}, errors.New("recording registry: skill exposure writes are not configured")
+}
+
+func (r *recordingRegistry) GetSkillExposureByOwnerTarget(
+	context.Context,
+	string,
+	store.SkillExposureOwnerScope,
+	string,
+	string,
+) (store.SkillExposureRecord, error) {
+	return store.SkillExposureRecord{}, sql.ErrNoRows
+}
+
+func (r *recordingRegistry) ListSkillExposuresByOwner(
+	context.Context,
+	string,
+	store.SkillExposureOwnerScope,
+	string,
+) ([]store.SkillExposureRecord, error) {
+	return []store.SkillExposureRecord{}, nil
+}
+
+func (r *recordingRegistry) ListSkillExposuresByCanonicalDir(
+	context.Context,
+	string,
+) ([]store.SkillExposureRecord, error) {
+	return []store.SkillExposureRecord{}, nil
+}
+
+func (r *recordingRegistry) DeleteSkillExposure(context.Context, int64) error {
+	return nil
+}
+
 func (r *recordingRegistry) VerifyDefaultProfile(context.Context) error {
 	return nil
 }

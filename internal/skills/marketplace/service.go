@@ -108,6 +108,13 @@ type Service struct {
 	logger       *slog.Logger
 	now          func() time.Time
 	sourceLoader SourceLoader
+	exposures    ExposureLifecycle
+}
+
+// ExposureLifecycle protects persisted provider links during marketplace mutations.
+type ExposureLifecycle interface {
+	CleanupCanonicalDir(context.Context, string) error
+	VerifyCanonicalDir(context.Context, string) error
 }
 
 // Option customizes a Service.
@@ -131,6 +138,13 @@ func WithNow(now func() time.Time) Option {
 func WithSourceLoader(loader SourceLoader) Option {
 	return func(service *Service) {
 		service.sourceLoader = loader
+	}
+}
+
+// WithExposureLifecycle enables ownership-aware link cleanup and update verification.
+func WithExposureLifecycle(lifecycle ExposureLifecycle) Option {
+	return func(service *Service) {
+		service.exposures = lifecycle
 	}
 }
 

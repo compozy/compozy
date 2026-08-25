@@ -24,6 +24,7 @@ type GlobalDB struct {
 	*SoulRepo
 	*ModelCatalogRepo
 	*MarketplaceRepo
+	*SkillExposureRepo
 	*ObserveRepo
 	*NotificationRepo
 	*AttentionRepo

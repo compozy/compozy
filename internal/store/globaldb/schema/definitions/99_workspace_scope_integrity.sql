@@ -301,4 +301,5 @@ BEGIN
 	DELETE FROM tool_approval_grants WHERE workspace_id = OLD.id;
 	DELETE FROM dead_entities WHERE workspace_id = OLD.id;
 	DELETE FROM notification_cursors WHERE workspace_id = OLD.id;
+	DELETE FROM skill_exposures WHERE workspace_id = OLD.id;
 END;

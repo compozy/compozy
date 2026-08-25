@@ -3,6 +3,8 @@ package daemon
 import (
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/cmdpalette"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/skills"
 	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -96,10 +98,17 @@ func nativeAgentCatalogDependency(state *bootState) *resourceAgentCatalog {
 }
 
 func (d *Daemon) nativeMarketplaceSkills(state *bootState) *skillmarketplace.Service {
+	exposures := skills.NewExposeManager(
+		state.registry,
+		compozyconfig.ResolveGlobalSkillRoots(&state.cfg.Skills, d.homePaths),
+		skills.WithExposureEventStore(state.registry),
+		skills.WithExposureLogger(state.logger),
+	)
 	return skillmarketplace.NewService(
 		d.homePaths,
 		state.cfg.Skills,
 		skillmarketplace.WithLogger(state.logger),
 		skillmarketplace.WithNow(d.now),
+		skillmarketplace.WithExposureLifecycle(exposures),
 	)
 }

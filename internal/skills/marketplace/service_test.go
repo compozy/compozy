@@ -15,7 +15,10 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	registrypkg "github.com/compozy/compozy/internal/registry"
+	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
 func timeNowForTest() time.Time {
@@ -764,6 +767,198 @@ func TestVerifyInstallVisible(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: marketplace removal must complete exposure cleanup before deleting
+// the canonical skill directory. Owning layer: marketplace service lifecycle.
+// Canonical suite: service_test.go.
+func TestServiceRemoveExposureLifecycle(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should clean exposures before deleting the canonical directory", func(t *testing.T) {
+		t.Parallel()
+		skillsDir := t.TempDir()
+		writeMarketplaceInstalledSkill(t, skillsDir, "review", "@acme/review", "1.0.0")
+		canonical := filepath.Join(skillsDir, "review")
+		canonicalReal, err := filepath.EvalSymlinks(canonical)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(canonical) error = %v", err)
+		}
+		lifecycle := &recordingExposureLifecycle{cleanupFn: func(path string) error {
+			if path != canonicalReal {
+				t.Fatalf("cleanup path = %q, want %q", path, canonicalReal)
+			}
+			if _, err := os.Stat(canonical); err != nil {
+				t.Fatalf("canonical missing before cleanup: %v", err)
+			}
+			return nil
+		}}
+		service := NewService(
+			compozyconfig.HomePaths{SkillsDir: skillsDir},
+			compozyconfig.SkillsConfig{},
+			WithExposureLifecycle(lifecycle),
+		)
+		result, err := service.Remove(context.Background(), "review")
+		if err != nil {
+			t.Fatalf("Remove() error = %v", err)
+		}
+		if result.Name != "review" || lifecycle.cleanupCalls != 1 {
+			t.Fatalf("Remove() result=%#v cleanupCalls=%d", result, lifecycle.cleanupCalls)
+		}
+		if _, err := os.Stat(canonical); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("canonical still exists after remove, error = %v", err)
+		}
+	})
+
+	t.Run("Should preserve the canonical directory when exposure cleanup fails", func(t *testing.T) {
+		t.Parallel()
+		skillsDir := t.TempDir()
+		writeMarketplaceInstalledSkill(t, skillsDir, "review", "@acme/review", "1.0.0")
+		canonical := filepath.Join(skillsDir, "review")
+		blocked := errors.New("skill_remove_blocked: provider link is not removable")
+		lifecycle := &recordingExposureLifecycle{cleanupFn: func(string) error { return blocked }}
+		service := NewService(
+			compozyconfig.HomePaths{SkillsDir: skillsDir},
+			compozyconfig.SkillsConfig{},
+			WithExposureLifecycle(lifecycle),
+		)
+		_, err := service.Remove(context.Background(), "review")
+		if !errors.Is(err, blocked) {
+			t.Fatalf("Remove() error = %v, want %v", err, blocked)
+		}
+		if _, err := os.Stat(canonical); err != nil {
+			t.Fatalf("canonical removed despite cleanup failure: %v", err)
+		}
+	})
+}
+
+func TestServiceMarketplaceExposureLifecycleIntegration(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve exposures through update and clean them before remove", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		base := t.TempDir()
+		skillsDir := filepath.Join(base, "compozy", "skills")
+		writeMarketplaceInstalledSkill(t, skillsDir, "review", "@acme/review", "1.0.0")
+		canonical := filepath.Join(skillsDir, "review")
+		providerRoot := filepath.Join(base, "providers", "agents", "skills")
+		database, err := globaldb.OpenGlobalDB(ctx, filepath.Join(base, store.GlobalDatabaseName))
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := database.Close(context.Background()); err != nil {
+				t.Errorf("Close(globaldb) error = %v", err)
+			}
+		})
+		manager := skills.NewExposeManager(database, []compozyconfig.SkillRootSpec{{
+			Dir: providerRoot, SourceSlug: compozyconfig.SkillSourceAgents, Kind: compozyconfig.RootKindPreset,
+			ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+		}})
+		skill := &skills.Skill{
+			Meta: skills.SkillMeta{Name: "review"}, Source: skills.SourceMarketplace, Dir: canonical,
+			ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+		}
+		results, err := manager.Expose(ctx, skill, []string{compozyconfig.SkillSourceAgents})
+		if err != nil || len(results) != 1 || !results[0].OK {
+			t.Fatalf("Expose() results=%#v error=%v", results, err)
+		}
+		linkPath := results[0].Exposure.Record.LinkPath
+
+		source := &lifecycleRegistrySource{
+			archive: marketplaceSkillArchive(t, "review", "Updated skill", "updated body"),
+			detail: registrypkg.Detail{Listing: registrypkg.Listing{
+				Slug: "@acme/review", Name: "review", Version: "2.0.0", Source: "test-registry", Type: registrypkg.PackageTypeSkill,
+			}},
+		}
+		service := NewService(
+			compozyconfig.HomePaths{SkillsDir: skillsDir},
+			compozyconfig.SkillsConfig{},
+			WithExposureLifecycle(manager),
+			WithSourceLoader(func(compozyconfig.MarketplaceConfig) ([]registrypkg.Source, error) {
+				return []registrypkg.Source{source}, nil
+			}),
+		)
+		updates, err := service.Update(ctx, UpdateRequest{Name: "review"})
+		if err != nil {
+			t.Fatalf("Update() error = %v", err)
+		}
+		if len(updates) != 1 || updates[0].Status != UpdateStatusUpdated {
+			t.Fatalf("Update() results = %#v", updates)
+		}
+		states, err := manager.Exposures(ctx, skill)
+		if err != nil || len(states) != 1 || states[0].Status != skills.ExposureHealthy {
+			t.Fatalf("Exposures(after update) states=%#v error=%v", states, err)
+		}
+		if _, err := service.Remove(ctx, "review"); err != nil {
+			t.Fatalf("Remove() error = %v", err)
+		}
+		if _, err := os.Lstat(linkPath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("provider link remains after remove, error = %v", err)
+		}
+		records, err := database.ListSkillExposuresByCanonicalDir(ctx, states[0].Record.CanonicalDir)
+		if err != nil {
+			t.Fatalf("ListSkillExposuresByCanonicalDir() error = %v", err)
+		}
+		if len(records) != 0 {
+			t.Fatalf("exposure records remain after remove: %#v", records)
+		}
+	})
+}
+
+type recordingExposureLifecycle struct {
+	cleanupCalls int
+	verifyCalls  int
+	cleanupFn    func(string) error
+	verifyFn     func(string) error
+}
+
+type lifecycleRegistrySource struct {
+	archive []byte
+	detail  registrypkg.Detail
+}
+
+func (s *lifecycleRegistrySource) Name() string { return "test-registry" }
+func (s *lifecycleRegistrySource) Capabilities() registrypkg.SourceCaps {
+	return registrypkg.SourceCaps{}
+}
+func (s *lifecycleRegistrySource) Search(
+	context.Context,
+	string,
+	registrypkg.SearchOpts,
+) ([]registrypkg.Listing, error) {
+	return nil, registrypkg.ErrNotSupported
+}
+func (s *lifecycleRegistrySource) Info(context.Context, string) (*registrypkg.Detail, error) {
+	copy := s.detail
+	return &copy, nil
+}
+func (s *lifecycleRegistrySource) Download(
+	context.Context,
+	string,
+	registrypkg.DownloadOpts,
+) (*registrypkg.DownloadResult, error) {
+	return &registrypkg.DownloadResult{
+		Reader: io.NopCloser(bytes.NewReader(s.archive)), Slug: s.detail.Slug,
+		Version: s.detail.Version, ContentType: "application/gzip",
+	}, nil
+}
+func (s *lifecycleRegistrySource) Close() error { return nil }
+
+func (l *recordingExposureLifecycle) CleanupCanonicalDir(_ context.Context, path string) error {
+	l.cleanupCalls++
+	if l.cleanupFn == nil {
+		return nil
+	}
+	return l.cleanupFn(path)
+}
+
+func (l *recordingExposureLifecycle) VerifyCanonicalDir(_ context.Context, path string) error {
+	l.verifyCalls++
+	if l.verifyFn == nil {
+		return nil
+	}
+	return l.verifyFn(path)
 }
 
 func marketplaceSkillArchive(t *testing.T, name string, description string, body string) []byte {

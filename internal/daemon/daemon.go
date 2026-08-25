@@ -107,6 +107,7 @@ type Registry interface {
 	daemonNetworkRegistry
 	daemonWorkspaceRegistry
 	daemonAttentionWorkspaceMuteRegistry
+	store.SkillExposureRepository
 	gateway.Store
 	store.OnboardingStore
 	looppkg.ReconciliationStore

@@ -134,6 +134,56 @@ func TestRegistryIntegrationSourceIsolationAndRealpathDedup(t *testing.T) {
 	}
 }
 
+// Invariant: a Compozy canonical skill exposed into a provider root resolves as
+// one Compozy-owned catalog entry and never creates a self-shadow diagnostic.
+// Owning layer: registry realpath dedup. Canonical suite: registry_integration_test.go.
+func TestRegistryIntegrationOwnExposureDoesNotSelfShadow(t *testing.T) {
+	t.Parallel()
+	t.Run("Should resolve an owned provider link as one canonical Compozy skill", func(t *testing.T) {
+		t.Parallel()
+		homeDir := t.TempDir()
+		canonicalRoot := filepath.Join(homeDir, compozyconfig.DirName, compozyconfig.SkillsDirName)
+		canonicalDir := filepath.Join(canonicalRoot, "review")
+		writeSkillFile(
+			t,
+			canonicalRoot,
+			filepath.Join("review", skillFileName),
+			skillWithDescription("review", "Canonical Compozy skill"),
+		)
+		agentsRoot := filepath.Join(homeDir, ".agents", "skills")
+		if err := os.MkdirAll(agentsRoot, 0o755); err != nil {
+			t.Fatalf("MkdirAll(agents root) error = %v", err)
+		}
+		if err := os.Symlink(canonicalDir, filepath.Join(agentsRoot, "review")); err != nil {
+			t.Skipf("Symlink(exposure) unavailable: %v", err)
+		}
+		config := compozyconfig.SkillsConfig{Sources: []string{compozyconfig.SkillSourceAgents}}
+		registry := newTestRegistry(t, RegistryConfig{
+			GlobalSkillRoots: compozyconfig.ResolveGlobalSkillRoots(&config, compozyconfig.HomePaths{
+				SkillsDir: canonicalRoot, OperatorHomeDir: homeDir,
+			}),
+		})
+		if err := registry.LoadAll(t.Context()); err != nil {
+			t.Fatalf("LoadAll() error = %v", err)
+		}
+		count := 0
+		for _, skill := range registry.List() {
+			if skill != nil && skill.Meta.Name == "review" {
+				count++
+				if skill.Origin != "" {
+					t.Fatalf("review origin = %q, want Compozy canonical origin", skill.Origin)
+				}
+				if len(skill.Diagnostics.ShadowedDefinitions) != 0 {
+					t.Fatalf("review self-shadow diagnostics = %#v", skill.Diagnostics.ShadowedDefinitions)
+				}
+			}
+		}
+		if count != 1 {
+			t.Fatalf("review count = %d, want 1", count)
+		}
+	})
+}
+
 func TestRegistryIntegrationRefreshPromotesSidecarBackedSkillToMarketplace(t *testing.T) {
 	t.Parallel()
 

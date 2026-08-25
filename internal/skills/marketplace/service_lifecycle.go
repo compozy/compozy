@@ -1,6 +1,10 @@
 package marketplace
 
-import "context"
+import (
+	"context"
+	"errors"
+	"fmt"
+)
 
 // Install installs one marketplace skill into the configured Compozy skills root.
 func (s *Service) Install(ctx context.Context, slug string, version string) (item InstallResult, err error) {
@@ -27,11 +31,37 @@ func (s *Service) Update(ctx context.Context, req UpdateRequest) (items []Update
 	}()
 
 	items, err = UpdateWithRegistry(ctx, s.homePaths.SkillsDir, registry, req, s.now)
+	if s.exposures != nil && !req.CheckOnly {
+		verificationErrors := make([]error, 0)
+		for _, item := range items {
+			if item.Status != UpdateStatusUpdated {
+				continue
+			}
+			if verifyErr := s.exposures.VerifyCanonicalDir(ctx, item.Path); verifyErr != nil {
+				verificationErrors = append(
+					verificationErrors,
+					fmt.Errorf("verify exposures after marketplace update %q: %w", item.Name, verifyErr),
+				)
+			}
+		}
+		if len(verificationErrors) > 0 {
+			err = errors.Join(append([]error{err}, verificationErrors...)...)
+		}
+	}
 	return items, err
 }
 
 // Remove removes one installed marketplace skill.
-func (s *Service) Remove(_ context.Context, name string) (RemoveResult, error) {
+func (s *Service) Remove(ctx context.Context, name string) (RemoveResult, error) {
+	if s.exposures != nil {
+		installed, err := FindInstalledSkill(s.homePaths.SkillsDir, name)
+		if err != nil {
+			return RemoveResult{}, err
+		}
+		if err := s.exposures.CleanupCanonicalDir(ctx, installed.Dir); err != nil {
+			return RemoveResult{}, err
+		}
+	}
 	return RemoveSkill(s.homePaths.SkillsDir, name)
 }
 
