@@ -2,6 +2,7 @@ package settings
 
 import (
 	"context"
+	"maps"
 	"path/filepath"
 	"testing"
 
@@ -177,6 +178,40 @@ func TestSkillsSectionDiagnostics(t *testing.T) {
 		}
 		if envelope.Skills.Inherits.Sources || !envelope.Skills.Inherits.CustomSources {
 			t.Fatalf("inherits = %#v, want sources=false custom_sources=true", envelope.Skills.Inherits)
+		}
+	})
+
+	t.Run("Should correlate source applies with every effective root", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		runtime := &sourceStatusSkillsRuntime{
+			fakeSkillsRuntime: newFakeSkillsRuntime(),
+			statuses: []skillspkg.SkillSourceRootStatus{
+				{Spec: compozyconfig.SkillRootSpec{SourceSlug: "compozy"}},
+				{Spec: compozyconfig.SkillRootSpec{SourceSlug: "compozy"}},
+				{Spec: compozyconfig.SkillRootSpec{SourceSlug: "agents"}},
+				{Spec: compozyconfig.SkillRootSpec{SourceSlug: "agents"}},
+				{Spec: compozyconfig.SkillRootSpec{SourceSlug: "team-skills"}},
+			},
+		}
+		settingsService, ok := testService(t, homePaths, Dependencies{SkillsRuntime: runtime}).(*service)
+		if !ok {
+			t.Fatal("testService() did not return the concrete settings service")
+		}
+		ctx, err := settingsService.withSkillSourceEventCorrelation(t.Context(), MutationResult{
+			Section:     SectionSkills,
+			Scope:       ScopeProfile,
+			ProfileName: "marketing",
+		})
+		if err != nil {
+			t.Fatalf("withSkillSourceEventCorrelation() error = %v", err)
+		}
+		correlation := skillspkg.SourceEventCorrelationFromContext(ctx)
+		want := map[string]int{"compozy": 2, "agents": 2, "team-skills": 1}
+		if !maps.Equal(correlation.RootCounts, want) {
+			t.Fatalf("RootCounts = %#v, want %#v", correlation.RootCounts, want)
 		}
 	})
 }

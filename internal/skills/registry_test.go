@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -478,6 +479,7 @@ func TestRegistryConfigGenerationFence(t *testing.T) {
 			WithSourceEventCorrelation(t.Context(), SourceEventCorrelation{
 				Scope: "workspace", ProfileID: "profile-b", WorkspaceID: "workspace-b",
 				ActorKind: "settings", ActorID: "uds",
+				RootCounts: map[string]int{"compozy": 2, "agents": 2, "team-skills": 1},
 			}),
 			2,
 		)
@@ -593,7 +595,32 @@ func TestRegistryConfigGenerationFence(t *testing.T) {
 		}
 
 		assertSkillLifecycleObservabilityMatrix(t, eventStore.Summaries())
+		assertSkillSourcesAppliedRootCounts(t, eventStore.Summaries(), map[string]int{
+			"compozy": 2, "agents": 2, "team-skills": 1,
+		})
 	})
+}
+
+func assertSkillSourcesAppliedRootCounts(
+	t *testing.T,
+	summaries []store.EventSummary,
+	want map[string]int,
+) {
+	t.Helper()
+	for _, summary := range summaries {
+		if summary.Type != eventspkg.SkillSourcesApplied {
+			continue
+		}
+		var content skillSourcesAppliedContent
+		if err := json.Unmarshal(summary.ContentValue(), &content); err != nil {
+			t.Fatalf("Unmarshal(applied content) error = %v", err)
+		}
+		if !maps.Equal(content.RootCounts, want) {
+			t.Fatalf("applied root counts = %#v, want %#v", content.RootCounts, want)
+		}
+		return
+	}
+	t.Fatal("skills.sources.applied event not found")
 }
 
 func assertSkillLifecycleObservabilityMatrix(t *testing.T, summaries []store.EventSummary) {

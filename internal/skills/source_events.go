@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -25,6 +26,7 @@ type SourceEventCorrelation struct {
 	WorkspaceID string
 	ActorKind   string
 	ActorID     string
+	RootCounts  map[string]int
 }
 
 type sourceEventCorrelationContextKey struct{}
@@ -34,6 +36,7 @@ func WithSourceEventCorrelation(ctx context.Context, correlation SourceEventCorr
 	if ctx == nil {
 		return nil
 	}
+	correlation.RootCounts = cloneSourceRootCounts(correlation.RootCounts)
 	return context.WithValue(ctx, sourceEventCorrelationContextKey{}, correlation)
 }
 
@@ -91,13 +94,16 @@ func (r *Registry) writeSkillSourcesApplied(
 	cfg RegistryConfig,
 ) error {
 	correlation := sourceEventCorrelation(ctx, nil)
-	rootCounts := make(map[string]int)
-	for _, root := range cfg.GlobalSkillRoots {
-		source := strings.TrimSpace(root.SourceSlug)
-		if source == "" {
-			source = compozyconfig.SkillSourceCompozy
+	rootCounts := cloneSourceRootCounts(correlation.RootCounts)
+	if len(rootCounts) == 0 {
+		rootCounts = make(map[string]int)
+		for _, root := range cfg.GlobalSkillRoots {
+			source := strings.TrimSpace(root.SourceSlug)
+			if source == "" {
+				source = compozyconfig.SkillSourceCompozy
+			}
+			rootCounts[source]++
 		}
-		rootCounts[source]++
 	}
 	return r.writeSourceEvent(ctx, correlation, eventspkg.SkillSourcesApplied,
 		"skill source policy applied",
@@ -226,7 +232,10 @@ func sourceEventCorrelation(
 ) SourceEventCorrelation {
 	correlation := SourceEventCorrelation{}
 	if ctx != nil {
-		correlation, _ = ctx.Value(sourceEventCorrelationContextKey{}).(SourceEventCorrelation)
+		stored, ok := ctx.Value(sourceEventCorrelationContextKey{}).(SourceEventCorrelation)
+		if ok {
+			correlation = stored
+		}
 	}
 	if root != nil {
 		if strings.TrimSpace(correlation.ProfileID) == "" {
@@ -252,7 +261,15 @@ func sourceEventCorrelation(
 	if correlation.ActorID == "" {
 		correlation.ActorID = defaultSkillSourceActorID
 	}
+	correlation.RootCounts = cloneSourceRootCounts(correlation.RootCounts)
 	return correlation
+}
+
+func cloneSourceRootCounts(source map[string]int) map[string]int {
+	if len(source) == 0 {
+		return nil
+	}
+	return maps.Clone(source)
 }
 
 func sourceEventBase(correlation SourceEventCorrelation, generation int64) skillSourceEventBase {
@@ -269,7 +286,7 @@ func normalizedSourceEventScope(scope string) string {
 	if normalized := strings.TrimSpace(scope); normalized != "" {
 		return normalized
 	}
-	return "user"
+	return registryUserKey
 }
 
 func sourceErrorClass(err error) string {
