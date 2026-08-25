@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 func TestStopTransitionsToStoppedAndNotifies(t *testing.T) {
@@ -54,6 +55,59 @@ func TestStopTransitionsToStoppedAndNotifies(t *testing.T) {
 	if got, want := stopPayload["stop_reason"], string(store.StopUserCanceled); got != want {
 		t.Fatalf("session_stopped stop_reason = %v, want %q", got, want)
 	}
+}
+
+func TestCompletedSpawnReapKeepsCleanTerminalProjection(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep a settled TTL reap clean across lifecycle projections", func(t *testing.T) {
+		t.Parallel()
+
+		wakeNotifier := &recordingSpawnWakeNotifier{}
+		h := newHarness(t, WithSpawnWakeNotifier(wakeNotifier), WithSessionCatalog(newRecordingSessionCatalog()))
+		parent := createSession(t, h)
+		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: parent.ID,
+			AgentName:       "coder",
+			Name:            "spawned-child",
+			TTL:             time.Minute,
+		})
+		if err != nil {
+			t.Fatalf("Spawn() error = %v", err)
+		}
+
+		if err := h.manager.StopWithSpawnTTL(
+			testutil.Context(t),
+			child.ID,
+			"spawn_reaper:ttl_expired",
+		); err != nil {
+			t.Fatalf("StopWithSpawnTTL() error = %v", err)
+		}
+
+		meta := readMeta(t, child.MetaPath())
+		if meta.StopReason == nil || *meta.StopReason != store.StopCompleted {
+			t.Fatalf("meta.StopReason = %#v, want %q", meta.StopReason, store.StopCompleted)
+		}
+		if got, want := meta.StopDetail, "spawn_reaper:ttl_expired"; got != want {
+			t.Fatalf("meta.StopDetail = %q, want %q", got, want)
+		}
+		if meta.Failure != nil {
+			t.Fatalf("meta.Failure = %#v, want nil for clean TTL reap", meta.Failure)
+		}
+		if got := countTranscriptMarkers(t, h.manager, child.ID, transcript.MarkerPromptTimeout); got != 0 {
+			t.Fatalf("prompt timeout markers = %d, want 0 for clean TTL reap", got)
+		}
+		if got := h.notifier.stoppedCount(); got != 1 {
+			t.Fatalf("stopped notifications = %d, want 1", got)
+		}
+		parents, events := wakeNotifier.calls()
+		if len(events) != 1 || len(parents) != 1 {
+			t.Fatalf("spawn wakes = parents %#v events %#v, want one clean wake", parents, events)
+		}
+		if parents[0] != parent.ID || events[0].Reason != SpawnWakeReasonStopped ||
+			events[0].Badge != BadgeStopped {
+			t.Fatalf("spawn wake = parents %#v events %#v, want stopped wake", parents, events)
+		}
+	})
 }
 
 func TestActivateAndWatchUpdatesStateAndStartsWatcher(t *testing.T) {
