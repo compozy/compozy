@@ -4,15 +4,11 @@ import { Button, Pill, Spinner } from "@compozy/ui";
 
 import { settingsUpdateVersionTransition } from "../lib/update-presentation";
 import type { SettingsUpdateTrackView } from "../lib/update-presentation";
-import type { SettingsUpdateTarget } from "../types";
 import { SettingRow, SettingValue } from "./setting-row";
 
 export interface SettingsUpdateTrackRowProps {
   track: SettingsUpdateTrackView;
-  onApply: (target: SettingsUpdateTarget) => void;
   onCancel: () => void;
-  /** The track an apply request is currently in flight for, if any. */
-  pendingTarget: SettingsUpdateTarget | null;
   isCanceling: boolean;
 }
 
@@ -37,19 +33,16 @@ function TrackVersion({ track }: { track: SettingsUpdateTrackView }) {
 
 /**
  * One update track (runtime or app) as a settings row: label, the daemon's
- * consequence sentence where it adds truth, the version lane, and the controls
- * the projected track truth allows. Status, action, cancel, and release notes may
- * coexist when each communicates a distinct fact.
+ * consequence sentence where it adds truth, the version lane, cancel, and release
+ * notes. The shared apply action lives in the section header so one click can
+ * update every eligible track.
  *
- * The apply affordance is absent — never disabled — whenever the daemon says this
- * track is not ours to mutate (SD-007): a managed install, a track with nothing
- * to apply, or a home whose update channel is already held.
+ * `canApply` remains in the view model as the daemon-derived input for that
+ * shared action; this row never invents a per-track mutation affordance (SD-007).
  */
 export function SettingsUpdateTrackRow({
   track,
-  onApply,
   onCancel,
-  pendingTarget,
   isCanceling,
 }: SettingsUpdateTrackRowProps) {
   // A track with no live progress (settled, staged, refused) keeps its status
@@ -93,19 +86,6 @@ export function SettingsUpdateTrackRow({
               {track.statusLabel}
             </Pill>
           )}
-          {track.canApply ? (
-            <Button
-              data-testid={`settings-page-general-update-apply-${track.id}`}
-              disabled={pendingTarget !== null}
-              onClick={() => onApply(track.id)}
-              size="sm"
-              type="button"
-              variant="neutral"
-            >
-              {pendingTarget === track.id ? <Spinner className="size-3" /> : null}
-              Update {track.id}
-            </Button>
-          ) : null}
           {track.canCancel ? (
             <Button
               data-testid="settings-page-general-update-cancel"

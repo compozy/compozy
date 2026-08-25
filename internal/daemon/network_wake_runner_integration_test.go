@@ -141,7 +141,7 @@ func TestNetworkWakeRunnerWithDurableTaskService(t *testing.T) {
 func openNetworkWakeIntegrationDB(t *testing.T, databasePath string) *globaldb.GlobalDB {
 	t.Helper()
 
-	db, err := globaldb.OpenGlobalDB(t.Context(), databasePath)
+	db, err := openDaemonTestGlobalDBAtPath(t.Context(), databasePath)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}

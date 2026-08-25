@@ -13,6 +13,7 @@ import {
   settingsUpdateStatusFixture,
 } from "../../mocks/settings-update-fixture";
 import {
+  settingsUpdateApplicableTargets,
   settingsUpdateIndicatorAvailable,
   settingsUpdateTracks,
   settingsUpdateView,
@@ -165,8 +166,9 @@ describe("settingsUpdateTracks", () => {
       restoredVersion: "0.5.0",
       lastError: "health check failed after swap",
     });
-    // The operation is terminal and the lease is free, so the offer stands again.
-    expect(runtime.canApply).toBe(true);
+    // A failed projection is diagnostic-only until a fresh check reports available;
+    // PlanOperation rejects failed targets even after the lease is free.
+    expect(runtime.canApply).toBe(false);
   });
 
   it("Should not offer a failed track without release metadata", () => {
@@ -218,6 +220,35 @@ describe("settingsUpdateTracks", () => {
       "CompozyOS 0.5.1 is available. Upgrade with your package manager."
     );
     expect(failed.description).toBe("Update failed; restored CompozyOS runtime 0.5.0.");
+  });
+});
+
+describe("settingsUpdateApplicableTargets", () => {
+  it("Should preserve runtime-first order for both eligible tracks", () => {
+    const tracks = settingsUpdateTracks(settingsUpdateBothAvailableFixture);
+
+    expect(settingsUpdateApplicableTargets(tracks)).toEqual(["runtime", "app"]);
+  });
+
+  it("Should return exactly the eligible one-track target", () => {
+    expect(
+      settingsUpdateApplicableTargets(settingsUpdateTracks(settingsUpdateRuntimeAvailableFixture))
+    ).toEqual(["runtime"]);
+    expect(
+      settingsUpdateApplicableTargets(settingsUpdateTracks(settingsUpdateAppAvailableFixture))
+    ).toEqual(["app"]);
+  });
+
+  it("Should return no targets for managed, absent, or live update states", () => {
+    expect(
+      settingsUpdateApplicableTargets(settingsUpdateTracks(settingsUpdateManagedFixture))
+    ).toBeNull();
+    expect(
+      settingsUpdateApplicableTargets(settingsUpdateTracks(settingsUpdateApplyingFixture))
+    ).toBeNull();
+    expect(
+      settingsUpdateApplicableTargets(settingsUpdateTracks(settingsUpdateStatusFixture))
+    ).toBeNull();
   });
 });
 

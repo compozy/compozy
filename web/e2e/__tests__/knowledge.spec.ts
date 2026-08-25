@@ -141,7 +141,7 @@ test("operator creates edits reverts searches recalls and deletes workspace know
   await expect(kWin).toBeVisible();
   const knowledgeUI = knowledgeOperatorSelectors(kWin);
   await expect(knowledgeUI.shell).toBeVisible();
-  await expect(knowledgeUI.tabGlobal).toHaveAttribute("aria-pressed", "true");
+  await expect(knowledgeUI.tabProfile).toHaveAttribute("aria-pressed", "true");
   await knowledgeUI.tabWorkspace.click();
   await expect(knowledgeUI.tabWorkspace).toHaveAttribute("aria-pressed", "true");
 
@@ -159,7 +159,8 @@ test("operator creates edits reverts searches recalls and deletes workspace know
   await knowledgeUI.createDescription.fill("browser-created workspace recall contract");
   await knowledgeUI.createContent.fill(originalContent);
   const createResponsePromise = appPage.waitForResponse(
-    response => response.request().method() === "POST" && response.url().endsWith("/api/memory")
+    response =>
+      response.request().method() === "POST" && new URL(response.url()).pathname === "/api/memory"
   );
   await knowledgeUI.confirmCreateMemory.click();
   const createPayload = (await (await createResponsePromise).json()) as MemoryMutationResponse;
@@ -226,7 +227,7 @@ test("operator creates edits reverts searches recalls and deletes workspace know
   const revertResponsePromise = appPage.waitForResponse(
     response =>
       response.request().method() === "POST" &&
-      response.url().endsWith(`/api/memory/decisions/${editPayload.decision.id}/revert`)
+      new URL(response.url()).pathname === `/api/memory/decisions/${editPayload.decision.id}/revert`
   );
   await knowledgeUI.revertDecision(editPayload.decision.id).click();
   const revertPayload = (await (await revertResponsePromise).json()) as MemoryMutationResponse;
@@ -373,7 +374,8 @@ async function createSessionThroughBrowser(
   await agentsUI.agentPageNewSession.click();
   await expect(page.getByTestId("session-create-dialog")).toBeVisible();
   const createResponsePromise = page.waitForResponse(
-    response => response.request().method() === "POST" && response.url().endsWith("/api/sessions")
+    response =>
+      response.request().method() === "POST" && new URL(response.url()).pathname === "/api/sessions"
   );
   await page.getByTestId("session-create-submit").click();
   const createResponse = await createResponsePromise;

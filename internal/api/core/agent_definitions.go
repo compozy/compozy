@@ -36,24 +36,8 @@ func (h *BaseHandlers) UpdateAgent(c *gin.Context) {
 		return
 	}
 	name := compozyconfig.NormalizeAgentName(c.Param("name"))
-	requestedName := compozyconfig.NormalizeAgentName(req.Agent.Name)
-	if err := compozyconfig.ValidateAuthoredAgentName(requestedName); err != nil {
-		wrapped := errors.Join(errAgentDefinitionInvalid, err)
-		h.respondError(c, statusForAgentDefinitionError(wrapped), wrapped)
-		return
-	}
-	if requestedName != name {
-		h.respondError(c, http.StatusBadRequest, errors.Join(
-			errAgentDefinitionInvalid,
-			fmt.Errorf("agent.name must equal route name %q", name),
-		))
-		return
-	}
-	if strings.TrimSpace(req.ExpectedDigest) == "" {
-		h.respondError(c, http.StatusBadRequest, errors.Join(
-			errAgentDefinitionInvalid,
-			errors.New("expected_digest is required"),
-		))
+	if err := validateUpdateAgentRequest(name, req); err != nil {
+		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
 	}
 	if h.AgentDefinitionSync == nil {
@@ -111,6 +95,23 @@ func (h *BaseHandlers) UpdateAgent(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.AgentResponse{
 		Agent: AgentPayloadFromEntryWithConfig(entry, &resolved.Config),
 	})
+}
+
+func validateUpdateAgentRequest(routeName string, req contract.UpdateAgentRequest) error {
+	requestedName := compozyconfig.NormalizeAgentName(req.Agent.Name)
+	if err := compozyconfig.ValidateAuthoredAgentName(requestedName); err != nil {
+		return errors.Join(errAgentDefinitionInvalid, err)
+	}
+	if requestedName != routeName {
+		return errors.Join(
+			errAgentDefinitionInvalid,
+			fmt.Errorf("agent.name must equal route name %q", routeName),
+		)
+	}
+	if strings.TrimSpace(req.ExpectedDigest) == "" {
+		return errors.Join(errAgentDefinitionInvalid, errors.New("expected_digest is required"))
+	}
+	return nil
 }
 
 // DeleteAgent durably removes the effective authored directory and its scoped revision history.

@@ -84,3 +84,4 @@ export {
 } from "./lib/query-keys";
 export { extensionsListOptions } from "./lib/query-options";
 export { previewExtensionInstall } from "./adapters/extensions-api";
+export { extensionFixtures } from "./mocks/fixtures";

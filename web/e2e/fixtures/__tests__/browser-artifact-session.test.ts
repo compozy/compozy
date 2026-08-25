@@ -270,7 +270,7 @@ describe("captureRouteState", () => {
     document.title = "CompozyOS";
     document.body.innerHTML = `
       <main data-testid="knowledge-shell">
-        <button data-testid="tab-global" aria-pressed="false"></button>
+        <button data-testid="tab-profile" aria-pressed="false"></button>
         <button data-testid="tab-workspace" aria-pressed="true"></button>
         <button data-testid="tab-agent" aria-pressed="false"></button>
         <aside data-testid="knowledge-list-panel">

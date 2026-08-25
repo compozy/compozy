@@ -22,7 +22,6 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	extensiontest "github.com/compozy/compozy/internal/extensiontest"
 	storepkg "github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 )
@@ -115,7 +114,7 @@ func TestDaemonE2EBridgeDeliveryReconcilesAfterRestart(t *testing.T) {
 		stopCancel()
 
 		seedCtx, seedCancel := context.WithTimeout(context.Background(), 20*time.Second)
-		db, err := globaldb.OpenGlobalDB(seedCtx, homePaths.DatabaseFile)
+		db, err := openDaemonTestGlobalDBAtPath(seedCtx, homePaths.DatabaseFile)
 		if err != nil {
 			seedCancel()
 			t.Fatalf("OpenGlobalDB(seed restart delivery) error = %v", err)
@@ -206,7 +205,7 @@ func TestDaemonE2EBridgeDeliveryReconcilesAfterRestart(t *testing.T) {
 		restartStopCancel()
 		verifyCtx, verifyCancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer verifyCancel()
-		verifiedDB, err := globaldb.OpenGlobalDB(verifyCtx, homePaths.DatabaseFile)
+		verifiedDB, err := openDaemonTestGlobalDBAtPath(verifyCtx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(verify restart) error = %v", err)
 		}
@@ -873,7 +872,7 @@ func seedDaemonBundledBridgeExtension(
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+	db, err := openDaemonTestGlobalDBAtPath(ctx, homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}

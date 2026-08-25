@@ -108,6 +108,7 @@ export type {
   SettingsUpdateStatus,
   SettingsUpdateStatusKind,
   SettingsUpdateTarget,
+  SettingsUpdateTargetSet,
   SettingsUpdateWindowManagerRequest,
   SettingsWindowManagerSection,
   SettingsWriteTarget,

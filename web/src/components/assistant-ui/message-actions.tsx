@@ -12,13 +12,6 @@ import { useSessionThreadReadOnly } from "./hooks/use-session-thread-read-only";
 
 const ACTIONS_CLASS_NAME = "flex items-center gap-2 text-small-body text-muted tabular-nums";
 
-const REVEAL_CLASS_NAME = cn(
-  ACTIONS_CLASS_NAME,
-  "opacity-0 pointer-events-none transition-opacity duration-slow motion-reduce:transition-none",
-  "group-hover/message:opacity-100 group-hover/message:pointer-events-auto",
-  "focus-within:opacity-100 focus-within:pointer-events-auto"
-);
-
 export interface MessageActionsProps {
   /** `start` aligns the row under a flat assistant message; `end` under the right-aligned user bubble. */
   align: "start" | "end";
@@ -30,7 +23,7 @@ export function MessageActions({ align, copyLabel, testId }: MessageActionsProps
   const message = useAuiState(
     state => state.message as { content?: unknown; status?: { type?: string } }
   );
-  const { source, timestampMs, visible } = deriveMessageActions(message);
+  const { source, timestampMs, streaming, visible } = deriveMessageActions(message);
   const readOnly = useSessionThreadReadOnly();
 
   if (!visible) {
@@ -54,6 +47,9 @@ export function MessageActions({ align, copyLabel, testId }: MessageActionsProps
       value={source}
       copyLabel={copyLabel}
       copiedLabel="Copied"
+      copiedToastLabel="Message copied"
+      copyFailedToastLabel="Couldn't copy message"
+      disabled={streaming && source.length === 0}
       className="text-muted hover:text-fg"
       data-testid={`${testId}-copy`}
     />
@@ -61,7 +57,7 @@ export function MessageActions({ align, copyLabel, testId }: MessageActionsProps
   return (
     <div
       data-testid={testId}
-      className={cn(REVEAL_CLASS_NAME, align === "end" ? "justify-end" : "justify-start")}
+      className={cn(ACTIONS_CLASS_NAME, align === "end" ? "justify-end" : "justify-start")}
     >
       {align === "end" ? (
         <>

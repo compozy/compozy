@@ -26,7 +26,7 @@ const automationTaskFixture = path.resolve(
 const automationAgentName = "browser-automation-runner";
 
 function automationSessionPath(sessionId: string): string {
-  return `/agents/${automationAgentName}/sessions/${sessionId}`;
+  return `/session/${sessionId}`;
 }
 
 test.use({
@@ -189,6 +189,9 @@ test("operator can inspect automation, trigger a real run, and inspect the linke
   await expect
     .poll(() => new URL(appPage.url()).pathname)
     .toBe(automationSessionPath(uiTriggeredRun.session_id));
+  const workspaceSwitchDialog = appPage.getByRole("dialog", { name: "Switch workspace?" });
+  await expect(workspaceSwitchDialog).toBeVisible();
+  await workspaceSwitchDialog.getByRole("button", { name: "Switch workspace" }).click();
   const sessionUI = sessionWindowSelectors(sessionWindow(appPage, uiTriggeredRun.session_id));
   await expect(sessionUI.chatView).toBeVisible();
   await expect(sessionUI.chatView).toContainText(browserAutomationOperatorFlowScenario.job.prompt);
@@ -205,6 +208,7 @@ test("operator can accept and dismiss workspace suggestions through the real dae
 }) => {
   const automationUI = automationOperatorSelectors(appPage);
 
+  await ensureProjectWorkspace(appPage, runtime);
   await completeOnboardingIfPrompted(automationUI);
   const workspaces = await runtime.requestJSON<{
     workspaces: Array<{ id: string }>;

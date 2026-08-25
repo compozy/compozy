@@ -298,7 +298,7 @@ type RestartActionStatus struct {
 }
 
 type SettingsUpdateApplyRequest struct {
-	Target SettingsUpdateTarget `json:"target"`
+	Targets []SettingsUpdateTarget `json:"targets"`
 }
 
 type SettingsUpdateHolderPayload struct {
@@ -355,7 +355,7 @@ type SettingsUpdateResponse struct {
 }
 
 type SettingsUpdateApplyResponse struct {
-	Target      SettingsUpdateTarget         `json:"target"`
+	Targets     []SettingsUpdateTarget       `json:"targets"`
 	Status      SettingsUpdateApplyStatus    `json:"status"`
 	OperationID string                       `json:"operation_id,omitempty"`
 	Message     string                       `json:"message"`

@@ -14,4 +14,8 @@ const (
 	CauseTimeout
 	CauseClearConversation
 	CauseConversationRewind
+	// CauseSpawnTTLExpired asks the session manager to classify the stop while
+	// holding the session lifecycle lock, so prompt admission cannot race the
+	// TTL decision.
+	CauseSpawnTTLExpired
 )

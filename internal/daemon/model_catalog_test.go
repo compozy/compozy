@@ -15,7 +15,6 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
-	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -78,7 +77,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			t.Fatalf("NewLiveProviderSource() error = %v", err)
 		}
 		configSource := modelcatalog.NewConfigSource(cfg.Providers)
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openDaemonTestGlobalDBAtPath(ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -245,7 +244,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			t.Fatalf("NewLiveProviderSource() error = %v", err)
 		}
 		configSource := modelcatalog.NewConfigSource(cfg.Providers)
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openDaemonTestGlobalDBAtPath(ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -431,7 +430,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			t.Fatalf("NewLiveProviderSource() error = %v", err)
 		}
 		configSource := modelcatalog.NewConfigSource(cfg.Providers)
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openDaemonTestGlobalDBAtPath(ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -532,7 +531,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		}
 		cfg.Providers = providers
 		configSource := modelcatalog.NewConfigSource(cfg.Providers)
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openDaemonTestGlobalDBAtPath(ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -646,7 +645,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			t.Fatalf("NewLiveProviderSource() error = %v", err)
 		}
 		configSource := modelcatalog.NewConfigSource(cfg.Providers)
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openDaemonTestGlobalDBAtPath(ctx, homePaths.DatabaseFile)
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
@@ -1149,7 +1148,7 @@ func seedPreExplicitCurationRows(t *testing.T, homePaths compozyconfig.HomePaths
 	t.Helper()
 
 	ctx := testutil.Context(t)
-	db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+	db, err := openDaemonTestGlobalDBAtPath(ctx, homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}

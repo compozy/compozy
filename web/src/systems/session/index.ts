@@ -1,4 +1,3 @@
-// Types
 export type {
   ACPCaps,
   AgentEventPayload,
@@ -81,7 +80,6 @@ export type {
 export type { SessionPromptRuntimeSnapshot } from "./contexts/session-prompt-runtime-context-value";
 export { isEditableTarget } from "./lib/editable-target";
 
-// Adapters
 export {
   SessionPromptRuntimeProvider,
   type SessionPromptRuntimeProviderProps,
@@ -141,7 +139,6 @@ export {
   type SetSessionRuntimeVariables,
 } from "./hooks/use-session-runtime-selection";
 
-// Query infrastructure
 export { sessionPromptCapability } from "./lib/session-prompt-capability";
 export type { SessionPromptCapability } from "./lib/session-prompt-capability";
 // Attachment surface — byte URLs, prompt parts, item shaping, cards (./attachments).
@@ -285,7 +282,6 @@ export {
   runningAgentNames,
 } from "./lib/session-running";
 
-// Stores
 export { useSessionComposerDraft, useSessionGoalFeedback } from "./hooks/use-session-store";
 export type {
   SessionGoalFeedback,
@@ -294,7 +290,6 @@ export type {
 } from "./stores/session-store";
 export { sessionStore } from "./stores/session-store";
 
-// Hooks
 export {
   useSession,
   useSessionById,
@@ -396,7 +391,6 @@ export {
 export { useSessionPromptFallback } from "./hooks/use-session-prompt-fallback";
 export { createSessionCreateStore, type SessionCreateStore } from "./stores/session-create-store";
 
-// Components
 export {
   SessionCreateDialog,
   type SessionCreateDialogProps,

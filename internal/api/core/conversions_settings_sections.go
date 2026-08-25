@@ -471,8 +471,12 @@ func settingsUpdateHolderPayload(holder *compozyupdate.Holder) *contract.Setting
 }
 
 func SettingsUpdateApplyResponseFromResult(result SettingsUpdateApply) contract.SettingsUpdateApplyResponse {
+	targets := make([]contract.SettingsUpdateTarget, 0, len(result.Targets))
+	for _, target := range result.Targets {
+		targets = append(targets, contract.SettingsUpdateTarget(target))
+	}
 	return contract.SettingsUpdateApplyResponse{
-		Target:      contract.SettingsUpdateTarget(result.Target),
+		Targets:     targets,
 		Status:      contract.SettingsUpdateApplyStatus(result.Status),
 		OperationID: strings.TrimSpace(result.OperationID),
 		Message:     strings.TrimSpace(result.Message),

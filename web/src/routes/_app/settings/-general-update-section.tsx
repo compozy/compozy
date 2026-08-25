@@ -5,6 +5,7 @@ import {
   SettingRow,
   SettingValue,
   SettingsGroup,
+  settingsUpdateApplicableTargets,
   SettingsUpdateTrackRow,
   settingsUpdateTracks,
   settingsUpdateView,
@@ -14,13 +15,13 @@ import type {
   SettingsUpdateCancelResult,
   SettingsUpdateHolder,
   SettingsUpdateStatus,
-  SettingsUpdateTarget,
+  SettingsUpdateTargetSet,
 } from "@/systems/settings";
 
 export interface GeneralUpdateActions {
-  apply: (target: SettingsUpdateTarget) => void;
+  apply: (targets: SettingsUpdateTargetSet) => void;
   cancel: () => void;
-  pendingTarget: SettingsUpdateTarget | null;
+  isApplying: boolean;
   isCanceling: boolean;
   /** The daemon's own answer to the last apply — `accepted` or `blocked`. */
   result: SettingsUpdateApplyResult | null;
@@ -60,8 +61,8 @@ function UpdateHolderValue({ holder }: { holder: SettingsUpdateHolder }) {
 }
 
 /**
- * Settings → General → Updates: both update tracks the daemon reports, each with
- * the action it actually supports (ADR-006). The section holds no shell
+ * Settings → General → Updates: one durable action applies every eligible track,
+ * while each row keeps the track state the daemon reports (ADR-006). The section holds no shell
  * awareness — it reads the daemon like any browser client, so it renders
  * identically in the desktop app and in a plain browser.
  */
@@ -114,6 +115,7 @@ export function GeneralUpdateSection(props: GeneralUpdateSectionProps) {
 
   const snapshot = view.snapshot;
   const tracks = settingsUpdateTracks(snapshot);
+  const applicableTargets = view.refreshError ? null : settingsUpdateApplicableTargets(tracks);
   const runtime = tracks[0];
   // A blocked apply is a 200 whose body refuses; it never reads as success.
   const blocked = props.actions.result?.status === "blocked" ? props.actions.result : null;
@@ -131,10 +133,27 @@ export function GeneralUpdateSection(props: GeneralUpdateSectionProps) {
           : undefined
       }
       action={
-        view.refreshError ? (
+        view.refreshError || applicableTargets ? (
           <>
-            <Pill tone="danger">Refresh failed</Pill>
-            <RetryButton isFetching={props.isFetching} onRetry={props.onRetry} />
+            {applicableTargets ? (
+              <Button
+                data-testid="settings-page-general-update-apply"
+                disabled={props.actions.isApplying}
+                onClick={() => props.actions.apply(applicableTargets)}
+                size="sm"
+                type="button"
+                variant="neutral"
+              >
+                {props.actions.isApplying ? <Spinner className="size-3" /> : null}
+                Update CompozyOS
+              </Button>
+            ) : null}
+            {view.refreshError ? (
+              <>
+                <Pill tone="danger">Refresh failed</Pill>
+                <RetryButton isFetching={props.isFetching} onRetry={props.onRetry} />
+              </>
+            ) : null}
           </>
         ) : null
       }
@@ -143,9 +162,7 @@ export function GeneralUpdateSection(props: GeneralUpdateSectionProps) {
         <SettingsUpdateTrackRow
           key={track.id}
           isCanceling={props.actions.isCanceling}
-          onApply={props.actions.apply}
           onCancel={props.actions.cancel}
-          pendingTarget={props.actions.pendingTarget}
           track={track}
         />
       ))}

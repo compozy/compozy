@@ -210,8 +210,11 @@ func assertCompleteSeedSurfaces(
 		t.Fatalf("WorkspaceIDs = %#v, want two workspaces", result.WorkspaceIDs)
 	}
 	var runCount int
+	readScope := store.ReadScope{ProfileID: store.DefaultProfileID}
 	for _, workspaceID := range result.WorkspaceIDs {
-		runs, err := db.ListLoopRuns(ctx, looppkg.RunListQuery{WorkspaceID: looppkg.WorkspaceID(workspaceID), Limit: 100})
+		runs, err := db.ListLoopRuns(ctx, looppkg.RunListQuery{
+			ReadScope: readScope, WorkspaceID: looppkg.WorkspaceID(workspaceID), Limit: 100,
+		})
 		if err != nil {
 			t.Fatalf("ListLoopRuns(%q) error = %v", workspaceID, err)
 		}
@@ -223,7 +226,7 @@ func assertCompleteSeedSurfaces(
 		runCount += len(runs)
 		live := true
 		liveRuns, err := db.ListLoopRuns(ctx, looppkg.RunListQuery{
-			WorkspaceID: looppkg.WorkspaceID(workspaceID), Live: &live, Limit: 100,
+			ReadScope: readScope, WorkspaceID: looppkg.WorkspaceID(workspaceID), Live: &live, Limit: 100,
 		})
 		if err != nil {
 			t.Fatalf("ListLoopRuns(live, %q) error = %v", workspaceID, err)
@@ -261,10 +264,10 @@ func assertCompleteSeedSurfaces(
 	}
 	items, err := db.ListPresetsForProfile(ctx, presets.Query{}, store.DefaultProfileID)
 	if err != nil {
-		t.Fatalf("ListPresets() error = %v", err)
+		t.Fatalf("ListPresetsForProfile() error = %v", err)
 	}
 	if len(items) != 3 {
-		t.Fatalf("ListPresets() = %#v, want three built-in presets", items)
+		t.Fatalf("ListPresetsForProfile() = %#v, want three built-in presets", items)
 	}
 	assertSeedMemoriesReadable(t, ctx, db, paths, result)
 	meta, err := store.ReadSessionMeta(store.SessionMetaFile(filepath.Join(paths.SessionsDir, sessionRollbackDrillID)))
@@ -285,11 +288,11 @@ func assertSeedMemoriesReadable(
 ) {
 	t.Helper()
 	memoryStore := memory.NewStore(paths.MemoryDir)
-	global, err := memoryStore.Scan(ctx, memcontract.ScopeGlobal)
+	profile, err := memoryStore.Scan(ctx, memcontract.ScopeProfile)
 	if err != nil {
-		t.Fatalf("Memory.Scan(global) error = %v", err)
+		t.Fatalf("Memory.Scan(profile) error = %v", err)
 	}
-	readable := len(global)
+	readable := len(profile)
 	for _, workspaceID := range result.WorkspaceIDs {
 		workspaceRecord, err := db.GetWorkspace(ctx, workspaceID)
 		if err != nil {
@@ -335,7 +338,11 @@ func assertWorkspaceRecords(t *testing.T, ctx context.Context, db *globaldb.Glob
 	if workspaceRecord.Name != launchWorkspaceName || workspaceRecord.DefaultAgent != "product-lead" {
 		t.Fatalf("GetWorkspace() = %#v, want Northstar Pay with product-lead default", workspaceRecord)
 	}
-	sessions, err := db.ListSessions(ctx, store.SessionListQuery{WorkspaceID: result.WorkspaceID, Limit: 20})
+	sessions, err := db.ListSessions(ctx, store.SessionListQuery{
+		ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+		WorkspaceID: result.WorkspaceID,
+		Limit:       20,
+	})
 	if err != nil {
 		t.Fatalf("ListSessions() error = %v", err)
 	}
@@ -437,7 +444,7 @@ func assertNetworkStory(t *testing.T, ctx context.Context, db *globaldb.GlobalDB
 		if message.ProfileID != store.DefaultProfileID {
 			t.Fatalf(
 				"network message %q ProfileID = %q, want %q",
-				message.ID,
+				message.MessageID,
 				message.ProfileID,
 				store.DefaultProfileID,
 			)

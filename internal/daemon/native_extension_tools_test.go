@@ -28,7 +28,6 @@ import (
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registrygit "github.com/compozy/compozy/internal/registry/gitsrc"
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -829,7 +828,7 @@ func newNativeExtensionToolDeps(
 	if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
-	db, err := globaldb.OpenGlobalDB(t.Context(), homePaths.DatabaseFile)
+	db, err := openDaemonTestGlobalDBAtPath(t.Context(), homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}

@@ -221,7 +221,7 @@ describe("useSessionCreateDialog", () => {
     });
 
     expect(result.current.firstDraftAgentName).toBe("claude-agent");
-    expect(result.current.secondDraftAgentName).toBe("");
+    expect(result.current.secondDraftAgentName).toBe("general");
   });
 
   it("Should expose the active workspace and select the requested agent", () => {
@@ -234,6 +234,21 @@ describe("useSessionCreateDialog", () => {
 
     expect(result.current.workspaceId).toBe("ws_alpha");
     expect(result.current.selectedAgentName).toBe("codex-agent");
+  });
+
+  it("Should preselect general for an unspecified launch but block when it is unavailable", async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
+    });
+
+    act(() => result.current.openDialog(""));
+
+    expect(result.current.selectedAgentName).toBe("general");
+    await act(async () => result.current.submit());
+
+    expect(mockMutateAsync).not.toHaveBeenCalled();
+    expect(result.current.submitError).toBe("Select an agent before starting the session.");
   });
 
   it("Should submit a durable session without prompt or runtime overrides", async () => {

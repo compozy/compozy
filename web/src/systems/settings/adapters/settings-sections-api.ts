@@ -34,6 +34,7 @@ import type {
   SettingsUpdateApplyRequest,
   SettingsUpdateApplyResult,
   SettingsUpdateCancelResult,
+  SettingsUpdateTargetSet,
   SettingsUpdateShellRequest,
   SettingsUpdateSkillsFilter,
   SettingsUpdateSkillsRequest,
@@ -104,7 +105,7 @@ export async function getSettingsUpdate(signal?: AbortSignal): Promise<SettingsU
 }
 
 /**
- * Requests an apply for one track. The daemon answers `accepted` + operation id
+ * Requests an apply for all eligible tracks. The daemon answers `accepted` + operation id
  * after durable acquisition, or a deterministic `blocked` naming the holder — it
  * never returns a terminal verdict it cannot yet know. Terminal truth arrives
  * through `getSettingsUpdate`, so callers must not treat a 200 as success.
@@ -123,7 +124,17 @@ export async function applySettingsUpdate(
       response.status
     );
   }
-  return requireResponseData(data, response, "Failed to start the update");
+  const result = requireResponseData(data, response, "Failed to start the update");
+  if (!isSettingsUpdateTargetSet(result.targets)) {
+    throw new SettingsApiError("Failed to start the update: invalid target set", response.status);
+  }
+  return { ...result, targets: result.targets };
+}
+
+function isSettingsUpdateTargetSet(value: unknown): value is SettingsUpdateTargetSet {
+  if (!Array.isArray(value)) return false;
+  if (value.length === 1) return value[0] === "runtime" || value[0] === "app";
+  return value.length === 2 && value[0] === "runtime" && value[1] === "app";
 }
 
 /** Cancels a dormant operation only; a live executor lease declines with its holder. */

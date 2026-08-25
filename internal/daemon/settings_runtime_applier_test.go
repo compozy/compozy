@@ -14,7 +14,6 @@ import (
 	"github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/windowmanager"
 )
 
@@ -539,7 +538,7 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		next := previous
 		next.Marketplace.Catalog.BaseURL = secondServer.URL
 
-		registry, err := globaldb.OpenGlobalDB(
+		registry, err := openDaemonTestGlobalDBAtPath(
 			t.Context(),
 			filepath.Join(t.TempDir(), store.GlobalDatabaseName),
 		)

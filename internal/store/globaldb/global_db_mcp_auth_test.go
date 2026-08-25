@@ -5,15 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"testing/fstest"
 	"time"
 
-	atlasmigrate "ariga.io/atlas/sql/migrate"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
@@ -825,51 +822,6 @@ func assertUnboundMCPAuthMigrationRow(ctx context.Context, t *testing.T, db *sql
 		t.Fatalf("migrated access token ref = %q, want user-owned ref", accessRef)
 	}
 	assertVaultRefPresence(ctx, t, db, accessRef, true)
-}
-
-func globalMigrationPrefix(t *testing.T, names ...string) store.MigrationStream {
-	t.Helper()
-	fullStream := MigrationStream()
-	memoryDirectory := &atlasmigrate.MemDir{}
-	files := fstest.MapFS{}
-	for _, name := range names {
-		contents, err := fs.ReadFile(fullStream.FS, fullStream.Dir+"/"+name)
-		if err != nil {
-			t.Fatalf("read global migration %q: %v", name, err)
-		}
-		if err := memoryDirectory.WriteFile(name, contents); err != nil {
-			t.Fatalf("write in-memory global migration %q: %v", name, err)
-		}
-		files[fullStream.Dir+"/"+name] = &fstest.MapFile{Data: append([]byte(nil), contents...)}
-	}
-	checksum, err := memoryDirectory.Checksum()
-	if err != nil {
-		t.Fatalf("checksum global migration prefix: %v", err)
-	}
-	checksumBytes, err := checksum.MarshalText()
-	if err != nil {
-		t.Fatalf("marshal global migration prefix checksum: %v", err)
-	}
-	files[fullStream.Dir+"/"+atlasmigrate.HashFileName] = &fstest.MapFile{Data: checksumBytes}
-	fullStream.FS = files
-	return fullStream
-}
-
-func globalMigrationPrefixBefore(t *testing.T, excludedMigration string) store.MigrationStream {
-	t.Helper()
-	fullStream := MigrationStream()
-	entries, err := fs.ReadDir(fullStream.FS, fullStream.Dir)
-	if err != nil {
-		t.Fatalf("read global migration directory: %v", err)
-	}
-	names := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") || entry.Name() >= excludedMigration {
-			continue
-		}
-		names = append(names, entry.Name())
-	}
-	return globalMigrationPrefix(t, names...)
 }
 
 func assertMCPAuthRowCount(ctx context.Context, t *testing.T, db *sql.DB, want int) {

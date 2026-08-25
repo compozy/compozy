@@ -19,7 +19,6 @@ import (
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -915,7 +914,7 @@ func TestManagerDelete(t *testing.T) {
 			name: "Should reject workspace removal while a session start is reserved",
 			run: func(t *testing.T) {
 				ctx := testutil.Context(t)
-				db, err := globaldb.OpenGlobalDB(ctx, filepath.Join(t.TempDir(), "global.db"))
+				db, err := openSessionTestGlobalDB(ctx, filepath.Join(t.TempDir(), "global.db"))
 				if err != nil {
 					t.Fatalf("OpenGlobalDB() error = %v", err)
 				}
@@ -1011,7 +1010,7 @@ func TestManagerDelete(t *testing.T) {
 			name: "Should prune a missing workspace through the staged session owner",
 			run: func(t *testing.T) {
 				ctx := testutil.Context(t)
-				db, err := globaldb.OpenGlobalDB(ctx, filepath.Join(t.TempDir(), "global.db"))
+				db, err := openSessionTestGlobalDB(ctx, filepath.Join(t.TempDir(), "global.db"))
 				if err != nil {
 					t.Fatalf("OpenGlobalDB() error = %v", err)
 				}

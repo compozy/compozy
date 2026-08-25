@@ -702,12 +702,11 @@ test("browser operator reads both update tracks, a managed runtime, and a headle
   const settingsUI = settingsOperatorSelectors(settingsWin);
   await expect(settingsUI.general.updates).toBeVisible({ timeout: 20_000 });
 
-  // Both tracks available: two rows, both versions, both apply affordances.
+  // Both tracks available: two rows, both versions, one combined action.
   await expect(settingsUI.general.updateTrack("runtime")).toContainText("0.5.0");
   await expect(settingsUI.general.updateTrack("runtime")).toContainText("0.5.1");
   await expect(settingsUI.general.updateTrack("app")).toContainText("0.5.1");
-  await expect(settingsUI.general.updateApply("runtime")).toBeVisible();
-  await expect(settingsUI.general.updateApply("app")).toBeVisible();
+  await expect(settingsUI.general.updateApply()).toBeVisible();
   await expect(settingsUI.general.updateRelease("runtime")).toHaveAttribute(
     "href",
     "https://github.com/compozy/compozy/releases/tag/v0.5.1"
@@ -718,7 +717,7 @@ test("browser operator reads both update tracks, a managed runtime, and a headle
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(settingsUI.general.updates).toBeVisible({ timeout: 20_000 });
   await expect(settingsUI.general.updateRecommendation).toContainText("brew upgrade compozy");
-  await expect(settingsUI.general.updateApply("runtime")).toHaveCount(0);
+  await expect(settingsUI.general.updateApply()).toHaveCount(0);
 
   // Headless host: the app row is absent entirely, not an empty row.
   updatePayload = updateFixtures.noApp;
@@ -729,11 +728,11 @@ test("browser operator reads both update tracks, a managed runtime, and a headle
 });
 
 /**
- * E2E-020 — applying the runtime from a plain browser: the apply call is issued
- * with its target, progress renders from the polled projection, and the terminal
+ * E2E-020 — applying all eligible tracks from a plain browser: the apply call is
+ * issued with the ordered target set, progress renders from the polled projection, and the terminal
  * outcome is read back rather than assumed (US-029 EC-2/EC-5).
  */
-test("browser operator applies the runtime update and reads staged progress and terminal truth from the daemon", async ({
+test("browser operator applies all eligible updates and reads staged progress and terminal truth from the daemon", async ({
   appPage,
   runtime,
 }) => {
@@ -747,16 +746,16 @@ test("browser operator applies the runtime update and reads staged progress and 
     await route.fulfill({ json: updatePayload });
   });
   await appPage.route("**/api/settings/update/apply", async route => {
-    const body = route.request().postDataJSON() as { target: string };
-    applyTargets.push(body.target);
+    const body = route.request().postDataJSON() as { targets: string[] };
+    applyTargets.push(...body.targets);
     // Apply only acknowledges acquisition; the GET above becomes the progress feed.
     updatePayload = updateFixtures.applying;
     await route.fulfill({
       json: {
-        target: body.target,
+        targets: body.targets,
         status: "accepted",
         operation_id: "op-e2e",
-        message: "Started the runtime update.",
+        message: "Started the requested updates.",
         holder: null,
       },
     });
@@ -766,16 +765,16 @@ test("browser operator applies the runtime update and reads staged progress and 
   const settingsWin = appWindow(appPage, "settings");
   await expect(settingsWin).toBeVisible({ timeout: 20_000 });
   const settingsUI = settingsOperatorSelectors(settingsWin);
-  await expect(settingsUI.general.updateApply("runtime")).toBeVisible({ timeout: 20_000 });
+  await expect(settingsUI.general.updateApply()).toBeVisible({ timeout: 20_000 });
 
-  await settingsUI.general.updateApply("runtime").click();
-  await expect.poll(() => applyTargets).toEqual(["runtime"]);
+  await settingsUI.general.updateApply().click();
+  await expect.poll(() => applyTargets).toEqual(["runtime", "app"]);
 
   // Progress is the daemon's named phase, not an invented spinner label.
   await expect(settingsUI.general.updateProgress("runtime")).toContainText("install", {
     timeout: 20_000,
   });
-  await expect(settingsUI.general.updateApply("runtime")).toHaveCount(0);
+  await expect(settingsUI.general.updateApply()).toHaveCount(0);
 
   // Terminal truth arrives through the polled read, including rollback.
   updatePayload = updateFixtures.rolledBack;

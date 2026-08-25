@@ -519,6 +519,8 @@ test.describe("Marketplace acquisition", () => {
       "set",
       "extensions.trust.allow_unverified",
       String(enabled),
+      "--scope",
+      "user",
     ]);
   }
 
@@ -1134,7 +1136,9 @@ test.describe("Skills marketplace management", () => {
     await agentsUI.agentPageNewSession.click();
     await expect(page.getByTestId("session-create-dialog")).toBeVisible();
     const createResponsePromise = page.waitForResponse(
-      response => response.request().method() === "POST" && response.url().endsWith("/api/sessions")
+      response =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/api/sessions"
     );
     await page.getByTestId("session-create-submit").click();
     const createResponse = await createResponsePromise;
@@ -1675,15 +1679,9 @@ test.describe("Extension marketplace runtime", () => {
     ]);
     expect(projectExtension(installed)).toMatchObject({
       name: extensionName,
-      enabled: false,
-      state: "disabled",
+      enabled: true,
+      state: "active",
     });
-
-    await runBrowserRuntimeCLIJSON<{ automation_started: string[] }>(runtime, [
-      "extension",
-      "enable",
-      extensionName,
-    ]);
 
     await expect
       .poll(async () => {
@@ -2313,6 +2311,7 @@ test.describe("Extension marketplace runtime", () => {
     const workspace = await runtime.resolveWorkspace(runtime.paths?.workspaceDir ?? process.cwd());
     await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
     await completeOnboardingIfPrompted(page);
+    await switchWorkspace(page, workspace.id, workspace.name);
     return workspace;
   }
 
@@ -2701,6 +2700,9 @@ test.describe("Agent Plugins marketplace journeys", () => {
       await expect(trustDialog).toBeVisible({ timeout: 20_000 });
       await expect(trustDialog).not.toContainText(/permission/i);
       await marketplace.extensionTrustConfirm.click();
+      const summary = marketplaceWin.getByTestId("extension-install-summary");
+      await expect(summary).toBeVisible({ timeout: 20_000 });
+      await marketplaceWin.getByRole("button", { name: "Install", exact: true }).click();
       const install = await installResponse;
       expect(install.status()).toBe(201);
 
@@ -2800,6 +2802,9 @@ test.describe("Agent Plugins marketplace journeys", () => {
           new URL(response.url()).pathname === "/api/extensions"
       );
       await marketplace.extensionTrustConfirm.click();
+      const summary = marketplaceWin.getByTestId("extension-install-summary");
+      await expect(summary).toBeVisible({ timeout: 20_000 });
+      await marketplaceWin.getByRole("button", { name: "Install", exact: true }).click();
       const install = await installResponse;
       expect(install.status()).toBe(422);
 

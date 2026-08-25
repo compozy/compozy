@@ -348,6 +348,44 @@ test("E2E-004: minimize exposes the dock state and restore remounts content", as
   await expect(tasks.getByTestId("tasks-shell")).toBeVisible();
 });
 
+test("E2E-136: Sessions dock action starts creation cold and focuses an existing window", async ({
+  appPage,
+  runtime,
+}) => {
+  const workspace = await prepareShell(appPage, runtime);
+  await switchWorkspace(appPage, workspace.id, workspace.name);
+  await expect(appPage.getByRole("button", { name: /^Desktop 1 of 1:/ })).toBeEnabled();
+  const sessionsDockButton = appPage.getByRole("button", { name: "Sessions", exact: true });
+
+  await sessionsDockButton.click();
+  const createDialog = appPage.getByTestId("session-create-dialog");
+  await expect(createDialog).toBeVisible();
+  await appPage.keyboard.press("Escape");
+  await expect(createDialog).toHaveCount(0);
+
+  const session = await createNamedSession(runtime, workspace.id, "Dock focus target");
+  const sessionWindowID = await openSessionWindowInAuthority(runtime, workspace.id, session);
+  const sessionWindowView = sessionWindow(appPage, session.id);
+  await expect(sessionWindowView).toBeVisible();
+  await expect.poll(() => windowID(sessionWindowView)).toBe(sessionWindowID);
+
+  await sessionWindowView.getByRole("button", { name: "Minimize window" }).click();
+  await expect(sessionWindowView).toBeHidden();
+  await sessionsDockButton.click();
+  await expect(sessionWindowView).toBeVisible();
+  await expect(windowFrame(sessionWindowView)).toHaveAttribute("data-focused", "");
+});
+
+test("ENG-136: Session menu owns the sessions catalog", async ({ appPage, runtime }) => {
+  await prepareShell(appPage, runtime);
+
+  await openSessionsCatalog(appPage);
+  const sessionsModal = appPage.getByTestId("os-sessions-modal");
+  await expect(sessionsModal).toBeVisible();
+  await appPage.keyboard.press("Escape");
+  await expect(sessionsModal).toHaveCount(0);
+});
+
 test("E2E-005: a direct task detail deep link returns to the catalog with Back", async ({
   appPage,
   runtime,
@@ -451,19 +489,17 @@ test("E2E-006: visible session windows stream without focus and catch up after r
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
+  await switchWorkspace(appPage, workspace.id, workspace.name);
+  await expect(appPage.getByRole("button", { name: /^Desktop 1 of 1:/ })).toBeEnabled();
   const primary = await createNamedSession(runtime, workspace.id, "Primary observer");
   const secondary = await createNamedSession(runtime, workspace.id, "Secondary responder");
-  const sessionsDockButton = appPage.getByRole("button", { name: "Sessions", exact: true });
 
-  await sessionsDockButton.click();
+  await openSessionsCatalog(appPage);
   const sessionsModal = appPage.getByTestId("os-sessions-modal");
-  await expect(sessionsModal).toBeVisible();
   await sessionsModal.getByTestId(`os-sessions-modal-session-${primary.id}`).first().click();
   await expect(sessionsModal).toHaveCount(0);
-  await sessionsDockButton.click();
-  await expect(sessionsModal).toBeVisible();
-  await sessionsModal.getByTestId(`os-sessions-modal-session-${secondary.id}`).first().click();
-  await expect(sessionsModal).toHaveCount(0);
+  await expect(sessionWindow(appPage, primary.id)).toBeVisible();
+  await openSessionWindowInAuthority(runtime, workspace.id, secondary);
 
   const primaryWindow = sessionWindow(appPage, primary.id);
   const secondaryWindow = sessionWindow(appPage, secondary.id);
@@ -543,9 +579,8 @@ test("E2E-006: visible session windows stream without focus and catch up after r
     .poll(() => sessionHistoryContains(runtime, workspace.id, primary.id, "arrived while"))
     .toBe(true);
 
-  await sessionsDockButton.click();
+  await openSessionsCatalog(appPage);
   const restoredModal = appPage.getByTestId("os-sessions-modal");
-  await expect(restoredModal).toBeVisible();
   await restoredModal.getByTestId(`os-sessions-modal-session-${primary.id}`).first().click();
   const restoredPrimary = sessionWindow(appPage, primary.id);
   await expect(restoredPrimary).toBeVisible();
@@ -972,12 +1007,13 @@ test("E2E-024: a Tasks confirm stays scoped while a session remains interactive"
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
+  await switchWorkspace(appPage, workspace.id, workspace.name);
+  await expect(appPage.getByRole("button", { name: /^Desktop 1 of 1:/ })).toBeEnabled();
   const session = await createNamedSession(runtime, workspace.id, "Scoped modal session");
   const task = await createTask(runtime, "Window-scoped deletion");
 
-  await appPage.getByRole("button", { name: "Sessions" }).click();
+  await openSessionsCatalog(appPage);
   const sessionsModal = appPage.getByTestId("os-sessions-modal");
-  await expect(sessionsModal).toBeVisible();
   await sessionsModal.getByTestId(`os-sessions-modal-session-${session.id}`).first().click();
   await expect(sessionsModal).toHaveCount(0);
   const sessionWin = sessionWindow(appPage, session.id);
@@ -1167,7 +1203,8 @@ test("E2E-022: menubar traverses five menus and operates workspaces, sessions, D
     browserLifecycleAgent
   );
   const createResponsePromise = appPage.waitForResponse(
-    response => response.request().method() === "POST" && response.url().endsWith("/api/sessions")
+    response =>
+      response.request().method() === "POST" && new URL(response.url()).pathname === "/api/sessions"
   );
   await createDialog.getByTestId("session-create-submit").click();
   const createResponse = await createResponsePromise;
@@ -1903,10 +1940,9 @@ test("E2E-020: compact keeps deep links, truthful badges, and the rail overlay w
   await tabbar.locator('[data-app="tasks"]').click();
   await expect(tasksWindow).toBeVisible();
 
-  // The sessions catalog presents as a global modal; dismissing returns intact.
-  await tabbar.locator('[data-app="session"]').click();
+  // Compact chrome has no menubar, so the palette owns the dedicated catalog entry.
+  await openSessionsCatalogFromPalette(appPage);
   const sessionsModal = appPage.getByTestId("os-sessions-modal");
-  await expect(sessionsModal).toBeVisible();
   await appPage.keyboard.press("Escape");
   await expect(sessionsModal).toHaveCount(0);
   await expect(tasksWindow).toBeVisible();
@@ -2634,6 +2670,8 @@ test("E2E-043 (logical E2E-011): CLI close removes an attention tab without losi
   runtime,
 }) => {
   const workspace = await prepareShell(appPage, runtime);
+  await switchWorkspace(appPage, workspace.id, workspace.name);
+  await expect(appPage.getByRole("button", { name: /^Desktop 1 of 1:/ })).toBeEnabled();
   const session = await createNamedSessionForAgent(
     runtime,
     workspace.id,
@@ -2664,7 +2702,7 @@ test("E2E-043 (logical E2E-011): CLI close removes an attention tab without losi
     sessionID,
   ]);
   await expect(sessionWindow).toHaveCount(0);
-  await appPage.getByRole("button", { name: "Sessions" }).click();
+  await openSessionsCatalog(appPage);
   const sessionsModal = appPage.getByTestId("os-sessions-modal");
   const sessionRow = sessionsModal.getByTestId(`os-sessions-modal-session-${session.id}`).first();
   await expect(sessionRow).toBeVisible();
@@ -3049,8 +3087,9 @@ async function prepareShell(page: Page, runtime: BrowserRuntime): Promise<Worksp
   await expect(closeWindow).not.toContainText("requires an attached shell");
   await page.keyboard.press("Escape");
   const payload = await runtime.requestJSON<{ workspaces: WorkspacePayload[] }>("/api/workspaces");
-  const workspace = payload.workspaces[0];
+  const workspace = runtime.seeded.workspace ?? payload.workspaces[0];
   if (!workspace) throw new Error("OS shell E2E requires one resolved workspace");
+  await switchWorkspace(page, workspace.id, workspace.name);
   return workspace;
 }
 
@@ -3066,6 +3105,10 @@ async function openPeerPage(browser: Browser, runtime: BrowserRuntime): Promise<
   const page = await context.newPage();
   await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(page);
+  const payload = await runtime.requestJSON<{ workspaces: WorkspacePayload[] }>("/api/workspaces");
+  const workspace = payload.workspaces[0];
+  if (!workspace) throw new Error("OS shell peer E2E requires one resolved workspace");
+  await switchWorkspace(page, workspace.id, workspace.name);
   return page;
 }
 
@@ -3722,6 +3765,20 @@ async function openMenu(page: Page, name: MenubarMenu): Promise<void> {
   await expect(page.getByTestId(menuTestID)).toBeVisible();
 }
 
+async function openSessionsCatalog(page: Page): Promise<void> {
+  await openMenu(page, "Session");
+  await page.getByTestId("os-menubar-command-shell.sessions.toggle").click();
+  await expect(page.getByTestId("os-sessions-modal")).toBeVisible();
+}
+
+async function openSessionsCatalogFromPalette(page: Page): Promise<void> {
+  const palette = await openCommandPalette(page);
+  const search = palette.getByPlaceholder("Search apps, sessions, and actions…");
+  await search.fill("Toggle sessions");
+  await palette.getByTestId("os-palette-command-shell.sessions.toggle").click();
+  await expect(page.getByTestId("os-sessions-modal")).toBeVisible();
+}
+
 /**
  * E2E-005: the command switcher, the menubar menu, and the overview render one
  * nested tree from one query; keyboard-only traversal reaches nested entries;
@@ -3911,14 +3968,14 @@ test("E2E-022: a keyboard-only operator reaches the indicator, opens Updates, an
     await route.fulfill({ json: settingsUpdateBothAvailableFixture });
   });
   await appPage.route("**/api/settings/update/apply", async route => {
-    const body = route.request().postDataJSON() as { target: string };
-    applyTargets.push(body.target);
+    const body = route.request().postDataJSON() as { targets: string[] };
+    applyTargets.push(...body.targets);
     await route.fulfill({
       json: {
-        target: body.target,
+        targets: body.targets,
         status: "accepted",
         operation_id: "op-e2e-keyboard",
-        message: "Started the runtime update.",
+        message: "Started the requested updates.",
         holder: null,
       },
     });
@@ -3941,12 +3998,12 @@ test("E2E-022: a keyboard-only operator reaches the indicator, opens Updates, an
   await expect(settingsUI.general.updates).toBeVisible({ timeout: 20_000 });
 
   // The apply affordance is a real button in the tab order, activatable by keyboard.
-  const apply = settingsUI.general.updateApply("runtime");
+  const apply = settingsUI.general.updateApply();
   await expect(apply).toBeVisible();
   await apply.focus();
   await expect(apply).toBeFocused();
   await appPage.keyboard.press("Enter");
-  await expect.poll(() => applyTargets).toEqual(["runtime"]);
+  await expect.poll(() => applyTargets).toEqual(["runtime", "app"]);
 });
 
 test("E2E-015: destination mode offers only eligible targets and exits clean when none are", async ({

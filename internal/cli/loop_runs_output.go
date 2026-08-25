@@ -70,8 +70,8 @@ func loopRunsOutputBundle(response contract.LoopRunsResponse, now func() time.Ti
 			"best_generation",
 			"best_score",
 		},
-		func(run contract.LoopRunPayload) []string { return loopRunSummaryRow(run, now) },
-		loopRunSummaryTOONRow,
+		func(run contract.LoopRunPayload) []string { return loopRunSummaryRow(&run, now) },
+		func(run contract.LoopRunPayload) []string { return loopRunSummaryTOONRow(&run) },
 	)
 	bundle.jsonValue = jsonResponse
 	bundle.jsonl = func(cmd *cobra.Command) error {
@@ -79,8 +79,8 @@ func loopRunsOutputBundle(response contract.LoopRunsResponse, now func() time.Ti
 	}
 	bundle.human = func() (string, error) {
 		rows := make([][]string, 0, len(response.Runs))
-		for _, run := range response.Runs {
-			rows = append(rows, loopRunSummaryRow(run, now))
+		for index := range response.Runs {
+			rows = append(rows, loopRunSummaryRow(&response.Runs[index], now))
 		}
 		return renderLoopReadTable(
 			[]string{cliStatusHeader, cliProfileHeader, taskLoopColumn, "PROGRESS", "STARTED", loopDurationHeader},
@@ -91,13 +91,13 @@ func loopRunsOutputBundle(response contract.LoopRunsResponse, now func() time.Ti
 }
 
 type loopRunCLIJSONItem struct {
-	payload contract.LoopRunPayload
+	payload *contract.LoopRunPayload
 }
 
 func loopRunCLIJSONItems(runs []contract.LoopRunPayload) []loopRunCLIJSONItem {
 	items := make([]loopRunCLIJSONItem, 0, len(runs))
-	for _, run := range runs {
-		items = append(items, loopRunCLIJSONItem{payload: run})
+	for index := range runs {
+		items = append(items, loopRunCLIJSONItem{payload: &runs[index]})
 	}
 	return items
 }
@@ -120,7 +120,7 @@ func (item loopRunCLIJSONItem) MarshalJSON() ([]byte, error) {
 	return encoded, nil
 }
 
-func loopRunSummaryRow(run contract.LoopRunPayload, now func() time.Time) []string {
+func loopRunSummaryRow(run *contract.LoopRunPayload, now func() time.Time) []string {
 	status := string(run.Status)
 	if run.Attention != nil {
 		status = loopNeedsYouLabel
@@ -163,7 +163,7 @@ func formatLoopReadDuration(duration time.Duration) string {
 	return duration.String()
 }
 
-func loopRunSummaryTOONRow(run contract.LoopRunPayload) []string {
+func loopRunSummaryTOONRow(run *contract.LoopRunPayload) []string {
 	return []string{
 		stringOrDash(run.ID),
 		stringOrDash(run.ProfileName),

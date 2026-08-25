@@ -5,7 +5,13 @@ import { DockIcons, type DockIconId } from "../components/os-dock-icons";
 import type { OsDockEntry } from "../components/os-dock-types";
 import type { OsAttentionBadges } from "../lib/attention-model";
 import { dockAppDescriptors, OS_APP_DESCRIPTORS } from "../lib/app-catalog";
-import { activationTarget, appRunState, type OsAppRunState } from "../lib/window-instance-lookup";
+import {
+  activationTarget,
+  appRunState,
+  mruWindowInstance,
+  windowInstancesFor,
+  type OsAppRunState,
+} from "../lib/window-instance-lookup";
 import type { OsAppId, OsPresentation } from "../lib/os-types";
 import { useDesktop } from "./use-desktop";
 import { useOsShell } from "./use-os-shell";
@@ -19,8 +25,7 @@ export interface DesktopDockModel {
 }
 
 export interface UseDesktopDockOptions {
-  sessionsOpen: boolean;
-  onToggleSessions: () => void;
+  onNewSession: () => void;
 }
 
 /**
@@ -30,7 +35,7 @@ export interface UseDesktopDockOptions {
  */
 export function useDesktopDock(
   badges: OsAttentionBadges,
-  { sessionsOpen, onToggleSessions }: UseDesktopDockOptions
+  { onNewSession }: UseDesktopDockOptions
 ): DesktopDockModel {
   const { manager, coordinator } = useOsShell();
   const presentation = useDesktop(state => state.presentation);
@@ -56,7 +61,8 @@ export function useDesktopDock(
       id: sessionApp.id,
       name: "Sessions",
       icon: DockIcons.sessions,
-      running: sessionsOpen,
+      running: windowStates[sessionApp.id] === "open" || windowStates[sessionApp.id] === "focused",
+      minimized: windowStates[sessionApp.id] === "minimized",
       badge: dockBadgeFor(sessionApp, badges),
     },
   ];
@@ -78,11 +84,19 @@ export function useDesktopDock(
 
   const handleSelect = (id: string) => {
     const appId = id as OsAppId;
+    const state = manager.getState();
     if (appId === "session") {
-      onToggleSessions();
+      const sessionWindows = windowInstancesFor(state.windows, { app: "session" });
+      if (sessionWindows.length === 0) {
+        onNewSession();
+        return;
+      }
+      const target = mruWindowInstance(state.windows, state.client?.focusOrder ?? [], {
+        app: "session",
+      });
+      if (target !== null) void coordinator.userActivateWindow(target.id);
       return;
     }
-    const state = manager.getState();
     // Repeat activation cycles the app's instances (ADR-002); minimizing the
     // focused one only makes sense when it is the app's sole instance.
     const target = activationTarget(

@@ -7,6 +7,7 @@ import type { EntityMode } from "@compozy/ui";
 import {
   ADVANCED_DEFAULTS,
   applySessionAgentSelection,
+  DEFAULT_SESSION_AGENT_NAME,
   EMPTY_SESSION_CREATE_DRAFT,
   type SessionCreateDialogDraft,
 } from "../lib/session-create-draft";
@@ -109,6 +110,7 @@ export const sessionCreateStoreLogic = createStoreLogic<
   on: {
     dialogOpened: (context, event) => {
       if (context.operation.status === "submitting") return;
+      const agentName = event.agentName.trim() || DEFAULT_SESSION_AGENT_NAME;
       return {
         ...context,
         open: true,
@@ -118,7 +120,7 @@ export const sessionCreateStoreLogic = createStoreLogic<
         // only way the operator can see what was chosen for them.
         mode: event.environment ? "advanced" : "simple",
         draft: {
-          ...applySessionAgentSelection(context.draft, event.agentName, event.workspaceId),
+          ...applySessionAgentSelection(context.draft, agentName, event.workspaceId),
           ...(event.environment ? { environment: event.environment } : {}),
         },
         operation: { status: "idle" },
@@ -145,7 +147,11 @@ export const sessionCreateStoreLogic = createStoreLogic<
     agentSelected: (context, event) => ({
       ...context,
       draft: {
-        ...applySessionAgentSelection(context.draft, event.agentName, event.workspaceId),
+        ...applySessionAgentSelection(
+          context.draft,
+          event.agentName.trim() || DEFAULT_SESSION_AGENT_NAME,
+          event.workspaceId
+        ),
         // Both are the operator's own words; swapping agents is not a reason to
         // throw them away.
         firstMessage: context.draft.firstMessage,

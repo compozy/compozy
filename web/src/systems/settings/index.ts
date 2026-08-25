@@ -380,6 +380,7 @@ export { useSettingsTopbar, type UseSettingsTopbarOptions } from "./hooks/use-se
 export type { SettingsSaveBarState } from "./lib/save-state";
 export {
   settingsUpdateIndicatorAvailable,
+  settingsUpdateApplicableTargets,
   settingsUpdateStatusLabel,
   settingsUpdateStatusTone,
   settingsUpdateTracks,

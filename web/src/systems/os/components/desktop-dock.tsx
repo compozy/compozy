@@ -12,10 +12,8 @@ import { OsDockTabBar } from "./os-dock-tab-bar";
 export interface DesktopDockProps {
   onNewSession: () => void;
   badges: OsAttentionBadges;
-  sessionsOpen: boolean;
   /** Modal overlays own keyboard and pointer interaction until they close. */
   contextMenusEnabled: boolean;
-  onToggleSessions: () => void;
   pager: ReactNode;
   /** First run: the dock is present but asleep until setup commits. */
   dormant?: boolean;
@@ -35,15 +33,12 @@ const WAKE =
 export function DesktopDock({
   onNewSession,
   badges,
-  sessionsOpen,
   contextMenusEnabled,
-  onToggleSessions,
   pager,
   dormant = false,
 }: DesktopDockProps) {
   const { entries, presentation, magnify, handleSelect } = useDesktopDock(badges, {
-    sessionsOpen,
-    onToggleSessions,
+    onNewSession,
   });
   const dormancy = cn(WAKE, dormant && DORMANT);
 

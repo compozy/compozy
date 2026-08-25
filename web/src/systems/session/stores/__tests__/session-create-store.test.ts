@@ -53,6 +53,15 @@ describe("session-create store", () => {
     });
   });
 
+  it.each(["", "   "])("Should preserve general for an empty agent selection %j", agentName => {
+    const store = createSessionCreateStore();
+    store.trigger.dialogOpened({ agentName: "general", workspaceId: "ws_alpha" });
+
+    store.trigger.agentSelected({ agentName, workspaceId: "ws_alpha" });
+
+    expect(store.getSnapshot().context.draft.agentName).toBe("general");
+  });
+
   it("Should retract a submit waiting on the environment when the choice changes", () => {
     const store = createSessionCreateStore();
     store.trigger.dialogOpened({ agentName: "claude-agent", workspaceId: "ws_alpha" });

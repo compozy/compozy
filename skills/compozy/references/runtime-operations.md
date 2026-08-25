@@ -27,7 +27,8 @@ compozy.com docs instead of package managers, which may lag the active line.
 
 The command checks both the runtime and desktop app, applies the runtime first, and stages a closed
 app for its next launch. Use `--check` for a read-only result and `--cancel` only for a dormant
-operation. Read or control the same host-global operation through `GET /api/settings/update`,
+operation. The HTTP/UDS apply body is `{"targets":["runtime","app"]}` with runtime first; omit
+unavailable or managed tracks. Read or control the same host-global operation through `GET /api/settings/update`,
 `POST /api/settings/update/apply`, and `POST /api/settings/update/cancel` over HTTP or UDS.
 
 When an artifact-policy failure prevents an in-place update, follow the command's release-specific
@@ -405,6 +406,10 @@ permission subsets. The parent receives one sanitized synthetic turn when an eli
 fails, or enters a needs-you state. This `notify_creator` behavior defaults to on and has no
 `config.toml` key. Use `--no-notify-creator` in the CLI or explicit `notify_creator: false` in the
 HTTP/UDS or native-tool request to opt out for that child.
+
+TTL cleanup checks the child runtime before classifying the stop: a child whose prompt has already
+settled with `done` or `end_turn` is reaped as completed, while a prompt still in flight is reaped
+as a timeout. Both paths retain the `spawn_reaper:ttl_expired` stop origin.
 
 Loop Goal sessions also record the session that started the Loop as internal creation provenance when that origin is available. They remain `type=system`: the parent/root/depth fields are informational and do not grant safe-spawn policy, caps, TTL, or parent-stop cleanup. If the origin was deleted before Goal creation, the Goal is created as its own root; deleting an origin after creation preserves the Goal and its recorded lineage.
 

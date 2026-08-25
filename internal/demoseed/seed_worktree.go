@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/worktree"
 )
@@ -63,7 +64,11 @@ func seedWorktree(ctx context.Context, db *globaldb.GlobalDB, state *scenario) (
 		worktree.WithIDGenerator(func(string) (string, error) { return seedWorktreeID, nil }),
 	)
 	created, err := service.Create(ctx, record.ID, worktree.CreateOptions{
-		Name: seedWorktreeName, Branch: seedWorktreeBranch, BaseRef: "HEAD", Origin: worktree.OriginManual,
+		ProfileID: store.DefaultProfileID,
+		Name:      seedWorktreeName,
+		Branch:    seedWorktreeBranch,
+		BaseRef:   "HEAD",
+		Origin:    worktree.OriginManual,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("demo seed: create settlement retry worktree: %w", err)

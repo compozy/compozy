@@ -2,10 +2,12 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
 
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil/storeseed"
 )
 
@@ -53,6 +55,18 @@ func isDaemonTestHelperProcess() bool {
 		}
 	}
 	return false
+}
+
+func openDaemonTestGlobalDBAtPath(ctx context.Context, path string) (*globaldb.GlobalDB, error) {
+	if _, err := os.Stat(path); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("stat daemon test global database %q: %w", path, err)
+		}
+		if err := daemonTestStoreSeed.Clone(path); err != nil {
+			return nil, fmt.Errorf("clone daemon test store seed to %q: %w", path, err)
+		}
+	}
+	return globaldb.OpenGlobalDB(ctx, path)
 }
 
 func reportDaemonTestMainError(format string, args ...any) {

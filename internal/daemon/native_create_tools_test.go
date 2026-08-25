@@ -15,7 +15,6 @@ import (
 	apitest "github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/store/globaldb"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -129,7 +128,7 @@ func TestNativeNetworkChannelCreate(t *testing.T) {
 		registryWorkspaceID := "ws-native-network"
 		identityWorkspaceID := "01KSGVKVZVS4WP4HVMFE08J96Y"
 		root := t.TempDir()
-		db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), store.GlobalDatabaseName))
+		db, err := openDaemonTestGlobalDBAtPath(t.Context(), filepath.Join(t.TempDir(), store.GlobalDatabaseName))
 		if err != nil {
 			t.Fatalf("OpenGlobalDB() error = %v", err)
 		}
