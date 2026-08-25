@@ -10,6 +10,7 @@ export interface SessionWorkGroupAnchor {
 interface WorkGroupIdentityOptions {
   expandedWorkGroupIds?: ReadonlySet<string>;
   workGroupAnchors?: ReadonlyMap<string, SessionWorkGroupAnchor>;
+  usedGroupIds?: ReadonlySet<string>;
 }
 
 export function workGroupId(
@@ -22,7 +23,10 @@ export function workGroupId(
   const identitySet = new Set(identities);
 
   const retainedAnchor = [...(options.workGroupAnchors?.values() ?? [])].find(
-    anchor => anchor.turnId === first.turnId && identitySet.has(anchor.anchorToolCallId)
+    anchor =>
+      anchor.turnId === first.turnId &&
+      identitySet.has(anchor.anchorToolCallId) &&
+      !options.usedGroupIds?.has(anchor.groupId)
   );
   if (retainedAnchor) return retainedAnchor.groupId;
 
@@ -37,7 +41,17 @@ export function workGroupId(
     const expandedIdentity = groupId.slice(turnPrefix.length);
     return identitySet.has(expandedIdentity);
   });
-  return expandedGroupId ?? `${turnPrefix}${identity}`;
+  const candidate = expandedGroupId ?? `${turnPrefix}${identity}`;
+  const usedGroupIds = options.usedGroupIds;
+  if (!usedGroupIds || !usedGroupIds.has(candidate)) return candidate;
+
+  let suffix = 2;
+  let uniqueCandidate = `${candidate}:part-${suffix}`;
+  while (usedGroupIds.has(uniqueCandidate)) {
+    suffix += 1;
+    uniqueCandidate = `${candidate}:part-${suffix}`;
+  }
+  return uniqueCandidate;
 }
 
 function compareIdentities(left: string, right: string): number {

@@ -186,6 +186,42 @@ describe("session timeline derivation", () => {
     expect(failedRow.summary).toBeNull();
   });
 
+  it("Should avoid identity collisions when an expanded run splits after a lower-sorting call", () => {
+    const historicalGroupId = "work:turn-1:tool-call-4";
+    const streamingParts = [
+      tool(4, { status: "running", result: undefined }),
+      tool(5, { status: "running", result: undefined }),
+    ];
+    const expandedRows = deriveSessionRows(streamingParts, {
+      activeTurnId: "turn-1",
+      expandedWorkGroupIds: new Set([historicalGroupId]),
+    });
+    const expandedWork = expandedRows.find(row => row.kind === "work");
+    if (expandedWork?.kind !== "work") throw new Error("expected expanded work row");
+    expect(expandedWork.groupId).toBe(historicalGroupId);
+
+    const observedAnchors = new Map([
+      [
+        historicalGroupId,
+        {
+          groupId: historicalGroupId,
+          turnId: "turn-1",
+          anchorToolCallId: "tool-call-1",
+        },
+      ],
+    ]);
+    const settledRows = deriveSessionRows(
+      [tool(1), tool(4, { isError: true, result: undefined }), tool(5)],
+      { workGroupAnchors: observedAnchors }
+    );
+    const workRows = settledRows.filter(row => row.kind === "work");
+
+    expect(workRows).toHaveLength(3);
+    expect(new Set(workRows.map(row => row.groupId)).size).toBe(workRows.length);
+    expect(workRows[0]?.groupId).toBe(historicalGroupId);
+    expect(workRows[1]?.groupId).not.toBe(historicalGroupId);
+  });
+
   it("Should break the cluster into two runs when text and reasoning interleave", () => {
     const parts: SessionTimelinePart[] = [
       tool(1),
