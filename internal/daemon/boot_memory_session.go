@@ -41,6 +41,9 @@ func (d *Daemon) bootMemorySessionRuntime(
 	if err != nil {
 		return fmt.Errorf("daemon: create session manager: %w", err)
 	}
+	cleanup.add(func(cleanupCtx context.Context) error {
+		return d.shutdownSessionManager(cleanupCtx, sessions)
+	})
 	state.sessions = sessions
 	if state.notifier != nil {
 		state.notifier.setSessionProfileResolver(

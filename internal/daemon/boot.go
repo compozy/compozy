@@ -166,6 +166,8 @@ type bootState struct {
 	startedAt             time.Time
 	info                  Info
 	deps                  RuntimeDeps
+
+	sessionWindowReconciler session.WindowReconciler
 }
 
 type daemonMCPToolProvider interface {

@@ -135,8 +135,9 @@ func (m *Manager) recordCommandHistory(
 	commandID CommandID,
 	workspaceDefaults Config,
 ) error {
-	if commandID == CommandLayoutUndo || commandID == CommandLayoutRedo || commandID == CommandWindowNavigate ||
-		commandID == CommandWindowStackSetActive {
+	if isSessionDeletionCommand(request.Payload) ||
+		commandID == CommandLayoutUndo || commandID == CommandLayoutRedo ||
+		commandID == CommandWindowNavigate || commandID == CommandWindowStackSetActive {
 		return nil
 	}
 	config, err := effectiveConfig(workspaceDefaults, working.Overrides)

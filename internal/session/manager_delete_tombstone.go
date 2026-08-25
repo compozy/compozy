@@ -81,6 +81,10 @@ func (m *Manager) cleanupDeleteTombstones() {
 		path := filepath.Join(m.homePaths.SessionsDir, entry.Name())
 		if err := m.cleanupSessionDeleteTombstone(path, entry.Name()); err != nil {
 			m.logger.Warn("session: retain deletion tombstone for later retry", "path", path, "error", err)
+			_, _, _, parseErr := parseSessionDeleteTombstoneParts(entry.Name())
+			if parseErr == nil {
+				m.scheduleDeletedSessionWindowRetry(path)
+			}
 		}
 	}
 }
@@ -97,12 +101,20 @@ func (m *Manager) acquireDeleteTombstoneLease(
 }
 
 func (m *Manager) cleanupSessionDeleteTombstone(path string, name string) (retErr error) {
+	ctx, cancel := m.lifecycleCleanupContext()
+	defer cancel()
+	return m.cleanupSessionDeleteTombstoneWithContext(ctx, path, name)
+}
+
+func (m *Manager) cleanupSessionDeleteTombstoneWithContext(
+	ctx context.Context,
+	path string,
+	name string,
+) (retErr error) {
 	state, target, deletionID, err := parseSessionDeleteTombstoneParts(name)
 	if err != nil {
 		return err
 	}
-	ctx, cancel := m.lifecycleCleanupContext()
-	defer cancel()
 
 	canonicalDBPath := store.SessionDBFile(filepath.Join(m.homePaths.SessionsDir, target))
 	lease, err := m.acquireDeleteTombstoneLease(ctx, canonicalDBPath)
@@ -148,16 +160,73 @@ func (m *Manager) cleanupSessionDeleteTombstone(path string, name string) (retEr
 		return err
 	}
 
+	_, restored, err := m.prepareSessionDeleteTombstoneCleanup(
+		ctx,
+		state,
+		target,
+		deletionID,
+		&meta,
+		owner,
+		canonicalDBPath,
+		path,
+		parent,
+		directory,
+		database,
+	)
+	if err != nil {
+		return err
+	}
+	if restored {
+		return nil
+	}
+	return m.removeBoundSessionDelete(directory, path)
+}
+
+func (m *Manager) reconcileCommittedSessionDelete(
+	ctx context.Context,
+	committed bool,
+	profileID string,
+	workspaceID string,
+	target string,
+) error {
+	if !committed || m.sessionWindowReconciler == nil {
+		return nil
+	}
+	if err := m.reconcileDeletedSessionWindows(ctx, profileID, workspaceID, target); err != nil {
+		return fmt.Errorf(
+			"%w: reconcile committed deletion windows for %q: %w",
+			errDeletedSessionWindowReconciliationPending,
+			target,
+			err,
+		)
+	}
+	return nil
+}
+
+func (m *Manager) prepareSessionDeleteTombstoneCleanup(
+	ctx context.Context,
+	state sessionDeleteTombstoneState,
+	target string,
+	deletionID string,
+	meta *store.SessionMeta,
+	owner store.SessionDBOwner,
+	canonicalDBPath string,
+	path string,
+	parent *fileutil.Directory,
+	directory *fileutil.Directory,
+	database *sessiondb.FamilyFile,
+) (bool, bool, error) {
+	logicalDeletionCommitted := state == sessionDeleteTombstoneCommitted
 	if state == sessionDeleteTombstoneStaged {
 		restore, err := m.shouldRestoreStagedSessionDelete(ctx, target, owner)
 		if err != nil {
-			return err
+			return false, false, err
 		}
 		if err := m.recoverSessionAttachmentDelete(meta.WorkspaceID, target, deletionID, restore); err != nil {
-			return fmt.Errorf("session: recover staged attachment deletion for %q: %w", target, err)
+			return false, false, fmt.Errorf("session: recover staged attachment deletion for %q: %w", target, err)
 		}
 		if restore {
-			return m.restoreStagedSessionDelete(
+			return false, true, m.restoreStagedSessionDelete(
 				ctx,
 				owner,
 				canonicalDBPath,
@@ -166,14 +235,24 @@ func (m *Manager) cleanupSessionDeleteTombstone(path string, name string) (retEr
 				database,
 			)
 		}
+		logicalDeletionCommitted = true
 	} else if err := m.recoverSessionAttachmentDelete(meta.WorkspaceID, target, deletionID, false); err != nil {
-		return fmt.Errorf("session: finish committed attachment deletion for %q: %w", target, err)
+		return false, false, fmt.Errorf("session: finish committed attachment deletion for %q: %w", target, err)
 	}
 
 	if err := database.VerifyOwnerAt(ctx, owner, store.SessionDBFile(path)); err != nil {
-		return err
+		return false, false, err
 	}
-	return m.removeBoundSessionDelete(directory, path)
+	if err := m.reconcileCommittedSessionDelete(
+		ctx,
+		logicalDeletionCommitted,
+		meta.ProfileID,
+		meta.WorkspaceID,
+		target,
+	); err != nil {
+		return false, false, err
+	}
+	return logicalDeletionCommitted, false, nil
 }
 
 func (m *Manager) restoreStagedSessionDelete(

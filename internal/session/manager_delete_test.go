@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -138,6 +139,17 @@ func (g *nonReentrantAttachmentScopeLeaseGuard) Release() {
 func (*nonReentrantAttachmentScopeLeaseGuard) MarkDeleted() {}
 
 var _ attachmentScopeLease = (*nonReentrantAttachmentScopeLease)(nil)
+
+type sessionWindowReconcilerFunc func(context.Context, string, string, string) error
+
+func (f sessionWindowReconcilerFunc) ReconcileDeletedSession(
+	ctx context.Context,
+	profileID string,
+	workspaceID string,
+	sessionID string,
+) error {
+	return f(ctx, profileID, workspaceID, sessionID)
+}
 
 func TestManagerDelete(t *testing.T) {
 	t.Parallel()
@@ -1117,6 +1129,178 @@ func TestManagerDelete(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "Should reconcile deleted session windows only after catalog commit",
+			run: func(t *testing.T) {
+				catalog := newRecordingSessionCatalog()
+				reconciled := false
+				var reconciledProfile, reconciledWorkspace, reconciledSession string
+				h := newHarness(
+					t,
+					WithSessionCatalog(catalog),
+					WithWindowReconciler(sessionWindowReconcilerFunc(
+						func(_ context.Context, profileID, workspaceID, sessionID string) error {
+							if _, exists := catalog.get(sessionID); exists {
+								t.Errorf("window reconciliation ran before catalog deletion for %q", sessionID)
+							}
+							reconciledProfile = profileID
+							reconciledWorkspace = workspaceID
+							reconciledSession = sessionID
+							reconciled = true
+							return nil
+						},
+					)),
+				)
+				session := createSession(t, h)
+				if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+					t.Fatalf("Stop() error = %v", err)
+				}
+				if err := h.manager.Delete(testutil.Context(t), session.ID); err != nil {
+					t.Fatalf("Delete() error = %v", err)
+				}
+				if !reconciled || reconciledProfile != session.ProfileID ||
+					reconciledWorkspace != session.WorkspaceID || reconciledSession != session.ID {
+					t.Fatalf(
+						"deleted session window reconciliation scope=(%q,%q,%q), want (%q,%q,%q)",
+						reconciledProfile,
+						reconciledWorkspace,
+						reconciledSession,
+						session.ProfileID,
+						session.WorkspaceID,
+						session.ID,
+					)
+				}
+
+				failureCatalog := newRecordingSessionCatalog()
+				failureErr := errors.New("catalog delete failed")
+				failureCatalog.deleteErr = failureErr
+				failureCalls := 0
+				failureHarness := newHarness(
+					t,
+					WithSessionCatalog(failureCatalog),
+					WithWindowReconciler(sessionWindowReconcilerFunc(
+						func(context.Context, string, string, string) error {
+							failureCalls++
+							return nil
+						},
+					)),
+				)
+				failureSession := createSession(t, failureHarness)
+				if err := failureHarness.manager.Stop(testutil.Context(t), failureSession.ID); err != nil {
+					t.Fatalf("Stop(failure case) error = %v", err)
+				}
+				if err := failureHarness.manager.Delete(
+					testutil.Context(t),
+					failureSession.ID,
+				); !errors.Is(err, failureErr) {
+					t.Fatalf("Delete(failure case) error = %v, want %v", err, failureErr)
+				}
+				if failureCalls != 0 {
+					t.Fatalf("window reconciliation calls after catalog rollback = %d, want 0", failureCalls)
+				}
+			},
+		},
+		{
+			name: "Should retry failed deleted-session window reconciliation from a durable tombstone",
+			run: func(t *testing.T) {
+				catalog := newRecordingSessionCatalog()
+				var calls atomic.Int32
+				retryErr := errors.New("temporary window-manager failure")
+				h := newHarness(
+					t,
+					WithSessionCatalog(catalog),
+					WithWindowReconciler(sessionWindowReconcilerFunc(
+						func(context.Context, string, string, string) error {
+							if calls.Add(1) == 1 {
+								return retryErr
+							}
+							return nil
+						},
+					)),
+				)
+				cleanupTestManager(t, h.manager)
+				session := createSession(t, h)
+				if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+					t.Fatalf("Stop() error = %v", err)
+				}
+				if err := h.manager.Delete(testutil.Context(t), session.ID); err != nil {
+					t.Fatalf("Delete() error = %v", err)
+				}
+				if _, _, err := sessionDeleteTombstoneForTest(h.homePaths.SessionsDir); err != nil {
+					t.Fatalf("session deletion tombstone after failed reconciliation: %v", err)
+				}
+
+				deadline := time.Now().Add(4 * time.Second)
+				for {
+					_, _, tombstoneErr := sessionDeleteTombstoneForTest(h.homePaths.SessionsDir)
+					if errors.Is(tombstoneErr, os.ErrNotExist) {
+						break
+					}
+					if tombstoneErr != nil {
+						t.Fatalf("scan deletion tombstone retry: %v", tombstoneErr)
+					}
+					if time.Now().After(deadline) {
+						t.Fatalf("deletion tombstone remained after retry; reconciliation calls=%d", calls.Load())
+					}
+					time.Sleep(10 * time.Millisecond)
+				}
+				if got := calls.Load(); got < 2 {
+					t.Fatalf("window reconciliation calls = %d, want initial failure plus retry", got)
+				}
+			},
+		},
+		{
+			name: "Should retry a retained deleted-session tombstone during manager restart",
+			run: func(t *testing.T) {
+				catalog := newRecordingSessionCatalog()
+				var firstCalls atomic.Int32
+				retryErr := errors.New("window manager unavailable during shutdown")
+				h := newHarness(
+					t,
+					WithSessionCatalog(catalog),
+					WithWindowReconciler(sessionWindowReconcilerFunc(
+						func(context.Context, string, string, string) error {
+							firstCalls.Add(1)
+							return retryErr
+						},
+					)),
+				)
+				session := createSession(t, h)
+				if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+					t.Fatalf("Stop() error = %v", err)
+				}
+				if err := h.manager.Delete(testutil.Context(t), session.ID); err != nil {
+					t.Fatalf("Delete() error = %v", err)
+				}
+				if firstCalls.Load() != 1 {
+					t.Fatalf("initial reconciliation calls = %d, want 1", firstCalls.Load())
+				}
+				if err := h.manager.Shutdown(testutil.Context(t)); err != nil {
+					t.Fatalf("Shutdown(initial manager) error = %v", err)
+				}
+
+				var restartCalls atomic.Int32
+				restarted := newManagerWithHarness(
+					t,
+					h,
+					WithSessionCatalog(catalog),
+					WithWindowReconciler(sessionWindowReconcilerFunc(
+						func(context.Context, string, string, string) error {
+							restartCalls.Add(1)
+							return nil
+						},
+					)),
+				)
+				cleanupTestManager(t, restarted)
+				_, _, err := sessionDeleteTombstoneForTest(h.homePaths.SessionsDir)
+				if !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("session deletion tombstone after restart = %v, want os.ErrNotExist", err)
+				}
+				if restartCalls.Load() != 1 {
+					t.Fatalf("restart reconciliation calls = %d, want 1", restartCalls.Load())
+				}
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -1156,6 +1340,19 @@ func findSessionDeleteTombstone(t *testing.T, sessionsDir string) (string, strin
 	}
 	t.Fatal("session deletion tombstone was not found")
 	return "", ""
+}
+
+func sessionDeleteTombstoneForTest(sessionsDir string) (string, string, error) {
+	entries, err := os.ReadDir(sessionsDir)
+	if err != nil {
+		return "", "", err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() && strings.HasPrefix(entry.Name(), sessionDeleteTombstonePrefix) {
+			return filepath.Join(sessionsDir, entry.Name()), entry.Name(), nil
+		}
+	}
+	return "", "", os.ErrNotExist
 }
 
 func assertNoSessionDeleteTombstones(t *testing.T, sessionsDir string) {
