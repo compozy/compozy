@@ -31,6 +31,12 @@ export function installApplicationMenu(product: () => ProductWindow | null): voi
       },
       { type: "separator" },
       { role: "reload" },
+      { type: "separator" },
+      {
+        label: "Developer Tools",
+        accelerator: "Control+Alt+I",
+        click: () => product()?.toggleDevTools(),
+      },
     ],
   });
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));

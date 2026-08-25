@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, screen } from "electron";
+import { BrowserWindow, dialog, screen } from "electron";
 
 import { productDeepLink, productNavigationURL, type DeepLinkQueue } from "../deep-links/deep-link";
 import { writeWindowState, readWindowState, type StoredWindowState } from "./window-state-store";
@@ -83,7 +83,7 @@ export class ProductWindow {
         sandbox: true,
         nodeIntegration: false,
         webviewTag: false,
-        devTools: !app.isPackaged,
+        devTools: true,
       },
     });
     this.#window = window;
@@ -130,6 +130,16 @@ export class ProductWindow {
     this.#scheduleSave();
   }
 
+  toggleDevTools(): void {
+    const window = this.#window;
+    if (!window || window.isDestroyed()) return;
+    if (window.webContents.isDevToolsOpened()) {
+      window.webContents.closeDevTools();
+      return;
+    }
+    window.webContents.openDevTools({ mode: "detach" });
+  }
+
   async flushState(): Promise<void> {
     if (this.#saveTimer) clearTimeout(this.#saveTimer);
     this.#saveTimer = null;
@@ -155,6 +165,16 @@ export class ProductWindow {
       this.#navigatePending();
     });
     window.webContents.on("before-input-event", (event, input) => {
+      if (
+        input.type === "keyDown" &&
+        input.alt &&
+        (input.control || input.meta) &&
+        input.key.toLowerCase() === "i"
+      ) {
+        event.preventDefault();
+        this.toggleDevTools();
+        return;
+      }
       if (!input.control && !input.meta) return;
       const direction =
         input.key === "0"
