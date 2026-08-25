@@ -106,6 +106,7 @@ type daemonNativeToolsDeps struct {
 	Clarify                    func() toolspkg.ClarifyBroker
 	LoopResources              loopResourcePublisher
 	Loops                      func() core.LoopService
+	Calls                      func() core.CallsService
 	Resources                  core.ResourceService
 	WindowManagers             windowManagerProvider
 }

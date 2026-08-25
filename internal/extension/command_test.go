@@ -265,8 +265,9 @@ func TestCommandProjectionRejectsUnsupportedSchemas(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		schema string
+		name           string
+		schema         string
+		buildFragments []string
 	}{
 		{name: "Should reject object fields", schema: `{"type":"object","properties":{}}`},
 		{
@@ -279,7 +280,11 @@ func TestCommandProjectionRejectsUnsupportedSchemas(t *testing.T) {
 		{name: "Should reject allOf", schema: `{"allOf":[{"type":"string"}]}`},
 		{name: "Should reject not", schema: `{"type":"string","not":{"const":"x"}}`},
 		{name: "Should reject multi-type unions", schema: `{"type":["string","number"]}`},
-		{name: "Should reject unresolved references", schema: `{"$ref":"#/$defs/missing"}`},
+		{
+			name:           "Should reject unresolved references",
+			schema:         `{"$ref":"#/$defs/missing"}`,
+			buildFragments: []string{"input schema digest", "$defs/missing"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -292,7 +297,13 @@ func TestCommandProjectionRejectsUnsupportedSchemas(t *testing.T) {
 				map[string]string{"value": "value"},
 				false,
 			)
-			assertCommandRejectedAtBuildAndLoad(t, manifest, "value", "--input")
+			assertCommandRejectedAtBuildAndLoadWithBuildFragments(
+				t,
+				manifest,
+				tt.buildFragments,
+				"value",
+				"--input",
+			)
 		})
 	}
 }
@@ -580,9 +591,17 @@ func commandTestTool(
 func commandDescribePayload(t *testing.T, manifest *Manifest) extensioncontract.DescribePayload {
 	t.Helper()
 
-	descriptors, err := ResolveManifestToolDescriptors(manifest)
+	payload, err := tryCommandDescribePayload(manifest)
 	if err != nil {
 		t.Fatalf("ResolveManifestToolDescriptors() error = %v", err)
+	}
+	return payload
+}
+
+func tryCommandDescribePayload(manifest *Manifest) (extensioncontract.DescribePayload, error) {
+	descriptors, err := ResolveManifestToolDescriptors(manifest)
+	if err != nil {
+		return extensioncontract.DescribePayload{}, err
 	}
 	runtime := make([]toolspkg.ExtensionToolRuntimeDescriptor, 0, len(descriptors))
 	for index := range descriptors {
@@ -603,16 +622,35 @@ func commandDescribePayload(t *testing.T, manifest *Manifest) extensioncontract.
 		SDK: extensioncontract.DescribeSDKInfo{
 			Name: "test-sdk", Version: "0.1.0", ProtocolVersion: "1", MinCompozyVersion: manifest.MinCompozyVersion,
 		},
-	}
+	}, nil
 }
 
-func assertCommandRejectedAtBuildAndLoad(t *testing.T, manifest *Manifest, fragments ...string) {
+func assertCommandRejectedAtBuildAndLoad(
+	t *testing.T,
+	manifest *Manifest,
+	fragments ...string,
+) {
+	t.Helper()
+	assertCommandRejectedAtBuildAndLoadWithBuildFragments(t, manifest, nil, fragments...)
+}
+
+func assertCommandRejectedAtBuildAndLoadWithBuildFragments(
+	t *testing.T,
+	manifest *Manifest,
+	buildFragments []string,
+	loadFragments ...string,
+) {
 	t.Helper()
 
-	payload := commandDescribePayload(t, manifest)
-	_, buildErr := manifestFromDescribe(&payload)
-	assertCommandValidationError(t, "build", buildErr, fragments...)
-	assertCommandValidationError(t, "load", manifest.Validate(), fragments...)
+	payload, buildErr := tryCommandDescribePayload(manifest)
+	if buildErr == nil {
+		_, buildErr = manifestFromDescribe(&payload)
+	}
+	if len(buildFragments) == 0 {
+		buildFragments = loadFragments
+	}
+	assertCommandValidationError(t, "build", buildErr, buildFragments...)
+	assertCommandValidationError(t, "load", manifest.Validate(), loadFragments...)
 }
 
 func assertCommandValidationError(t *testing.T, lane string, err error, fragments ...string) {

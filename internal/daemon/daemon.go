@@ -229,6 +229,7 @@ type extensionManagerDeps struct {
 	Clarify                toolspkg.ClarifyBroker
 	Automation             func() extensionpkg.HostAPIAutomationManager
 	Tasks                  taskpkg.Manager
+	Calls                  core.CallsService
 	Network                core.NetworkService
 	NetworkStore           store.NetworkConversationStore
 	ModelCatalog           core.ModelCatalogService

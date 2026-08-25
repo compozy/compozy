@@ -111,16 +111,70 @@ type BridgesMessagesIngestResult struct {
 	RoutingKey   RoutingKey `json:"routing_key"`
 }
 
-type CatalogScope string
+type ByteBudget struct {
+	MaxBytes int          `json:"max_bytes"`
+	Overflow OverflowMode `json:"overflow"`
+}
 
-type CatalogSort string
+type Call struct {
+	CallID            string                 `json:"call_id"`
+	ProfileID         string                 `json:"profile_id"`
+	ProfileName       string                 `json:"profile_name"`
+	Scope             string                 `json:"scope"`
+	WorkspaceID       string                 `json:"workspace_id,omitempty"`
+	Caller            CallOwnerPayload       `json:"caller"`
+	Actor             CallOwnerPayload       `json:"actor"`
+	Agent             string                 `json:"agent,omitempty"`
+	ChildSessionID    string                 `json:"child_session_id,omitempty"`
+	ParentSessionID   string                 `json:"parent_session_id,omitempty"`
+	RootSessionID     string                 `json:"root_session_id"`
+	Depth             int                    `json:"depth"`
+	State             string                 `json:"state"`
+	Verdict           string                 `json:"verdict,omitempty"`
+	ExpectDigest      string                 `json:"expect_digest,omitempty"`
+	ResultPreview     json.RawMessage        `json:"result_preview,omitempty"`
+	ResultBytes       int                    `json:"result_bytes,omitempty"`
+	ResultBudget      int                    `json:"result_budget_bytes"`
+	ResultOverflow    string                 `json:"result_overflow"`
+	Strict            bool                   `json:"strict"`
+	IdleTTLSeconds    int64                  `json:"idle_ttl_seconds"`
+	IdleExpiresAt     *time.Time             `json:"idle_expires_at"`
+	FailureCode       string                 `json:"failure_code,omitempty"`
+	FailureDetail     string                 `json:"failure_detail,omitempty"`
+	FinalProsePreview string                 `json:"final_prose_preview,omitempty"`
+	RepairAttempts    int                    `json:"repair_attempts"`
+	Replayed          bool                   `json:"replayed,omitempty"`
+	Provenance        *CallProvenancePayload `json:"provenance,omitempty"`
+	DeadlineAt        *time.Time             `json:"deadline_at,omitempty"`
+	CreatedAt         time.Time              `json:"created_at"`
+	StartedAt         *time.Time             `json:"started_at,omitempty"`
+	SettledAt         *time.Time             `json:"settled_at,omitempty"`
+	UpdatedAt         time.Time              `json:"updated_at"`
+}
 
-type ChannelStrategy string
+type CallMessagePayload struct {
+	MessageID     string           `json:"message_id"`
+	ProfileID     string           `json:"profile_id"`
+	ProfileName   string           `json:"profile_name"`
+	Scope         string           `json:"scope"`
+	WorkspaceID   string           `json:"workspace_id,omitempty"`
+	From          CallOwnerPayload `json:"from"`
+	FromAgentName string           `json:"from_agent_name,omitempty"`
+	ToSessionID   string           `json:"to_session_id"`
+	CallID        string           `json:"call_id,omitempty"`
+	Text          string           `json:"text"`
+	Delivery      string           `json:"delivery"`
+	Reason        string           `json:"reason,omitempty"`
+	Attempts      int              `json:"attempts"`
+	CreatedAt     time.Time        `json:"created_at"`
+	DeliveredAt   *time.Time       `json:"delivered_at,omitempty"`
+}
 
-type Chip struct {
-	ID       string            `json:"id"`
-	Label    string            `json:"label"`
-	Count    *int              `json:"count,omitempty"`
-	Requires map[string]string `json:"requires,omitempty"`
-	Fallback string            `json:"fallback,omitempty"`
+type CallMessagesResponse struct {
+	Items      []CallMessagePayload `json:"items"`
+	NextCursor string               `json:"next_cursor,omitempty"`
+}
+
+type CallObservationPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
 }

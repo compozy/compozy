@@ -7,6 +7,94 @@ import (
 	"time"
 )
 
+type DescribeNetworkParticipation struct {
+	Required      bool     `json:"required"`
+	Mode          string   `json:"mode"`
+	ChannelScopes []string `json:"channel_scopes,omitempty"`
+}
+
+type DescribePayload struct {
+	Name                 string                           `json:"name"`
+	Version              string                           `json:"version"`
+	Description          string                           `json:"description,omitempty"`
+	Provides             []string                         `json:"provides"`
+	Permissions          []string                         `json:"permissions"`
+	RequiresEnv          []string                         `json:"requires_env,omitempty"`
+	Profiles             []DescribeProfile                `json:"profiles,omitempty"`
+	Resources            DescribeResources                `json:"resources"`
+	Subprocess           DescribeSubprocess               `json:"subprocess"`
+	NetworkParticipation *DescribeNetworkParticipation    `json:"network_participation,omitempty"`
+	Tools                []ExtensionToolRuntimeDescriptor `json:"tools,omitempty"`
+	HookEvents           []DescribeHookEvent              `json:"hook_events,omitempty"`
+	WatchSourceKinds     []string                         `json:"watch_source_kinds,omitempty"`
+	CmdPaletteViews      []string                         `json:"cmd_palette_views,omitempty"`
+	CommandGroups        []ExtensionCommandGroupSpec      `json:"command_groups,omitempty"`
+	SDK                  DescribeSDKInfo                  `json:"sdk"`
+}
+
+type DescribeProfile struct {
+	Name        string                      `json:"name"`
+	Color       string                      `json:"color,omitempty"`
+	Icon        string                      `json:"icon,omitempty"`
+	Emoji       string                      `json:"emoji,omitempty"`
+	Defaults    DescribeProfileDefaults     `json:"defaults,omitzero"`
+	Credentials []DescribeProfileCredential `json:"credentials,omitempty"`
+}
+
+type DescribeProfileCredential struct {
+	Provider string `json:"provider"`
+	Slot     string `json:"slot"`
+}
+
+type DescribeProfileDefaults struct {
+	Agent    string `json:"agent,omitempty"`
+	Provider string `json:"provider,omitempty"`
+	Sandbox  string `json:"sandbox,omitempty"`
+}
+
+type DescribeResourcePath struct {
+	Path    string `json:"path"`
+	Profile string `json:"profile,omitempty"`
+}
+
+type DescribeResources struct {
+	Skills     []DescribeResourcePath `json:"skills,omitempty"`
+	Loops      []DescribeResourcePath `json:"loops,omitempty"`
+	Agents     []DescribeResourcePath `json:"agents,omitempty"`
+	Automation []DescribeResourcePath `json:"automation,omitempty"`
+	Layouts    []DescribeResourcePath `json:"layouts,omitempty"`
+	CmdPalette CmdPaletteConfig       `json:"cmd_palette,omitzero"`
+}
+
+type DescribeSDKInfo struct {
+	Name              string `json:"name"`
+	Version           string `json:"version"`
+	ProtocolVersion   string `json:"protocol_version"`
+	MinCompozyVersion string `json:"min_compozy_version"`
+}
+
+type DescribeSubprocess struct {
+	Command string            `json:"command"`
+	Args    []string          `json:"args,omitempty"`
+	Env     map[string]string `json:"env,omitempty"`
+}
+
+type DetailBody struct {
+	IsLoading bool        `json:"is_loading,omitempty"`
+	Markdown  string      `json:"markdown,omitempty"`
+	Metadata  []MetaField `json:"metadata,omitempty"`
+	Actions   []RowAction `json:"actions,omitempty"`
+}
+
+type Effect struct {
+	ID        string           `json:"id"`
+	Toast     *ToastEffect     `json:"toast,omitempty"`
+	Copy      *CopyEffect      `json:"copy,omitempty"`
+	OpenURL   *OpenURLEffect   `json:"open_url,omitempty"`
+	OpenApp   *OpenAppEffect   `json:"open_app,omitempty"`
+	PickFiles *PickFilesEffect `json:"pick_files,omitempty"`
+}
+
 type EffectResult struct {
 	EffectID string          `json:"effect_id"`
 	Payload  json.RawMessage `json:"payload,omitempty"`
@@ -123,79 +211,4 @@ type ExtensionManifestSummary struct {
 	MinCompozyVersion string   `json:"min_compozy_version"`
 	Provides          []string `json:"provides"`
 	Permissions       []string `json:"permissions"`
-}
-
-type ExtensionProvideToolsResponse struct {
-	Tools []ExtensionToolRuntimeDescriptor `json:"tools"`
-}
-
-type ExtensionToolCallRequest struct {
-	ToolID           ToolID                       `json:"tool_id"`
-	Handler          string                       `json:"handler"`
-	SessionID        string                       `json:"session_id,omitempty"`
-	InvocationID     string                       `json:"invocation_id,omitempty"`
-	TrustedWorkspace *ExtensionToolWorkspaceScope `json:"trusted_workspace,omitempty"`
-	Input            json.RawMessage              `json:"input"`
-}
-
-type ExtensionToolCallResponse struct {
-	Result ToolResult `json:"result"`
-}
-
-type ExtensionToolRuntimeDescriptor struct {
-	Profile             string                `json:"profile,omitempty"`
-	ID                  ToolID                `json:"id"`
-	Handler             string                `json:"handler"`
-	Description         string                `json:"description,omitempty"`
-	FriendlyVerb        string                `json:"friendly_verb,omitempty"`
-	Preview             string                `json:"preview,omitempty"`
-	InputSchema         json.RawMessage       `json:"input_schema,omitempty"`
-	OutputSchema        json.RawMessage       `json:"output_schema,omitempty"`
-	InputSchemaDigest   string                `json:"input_schema_digest"`
-	OutputSchemaDigest  string                `json:"output_schema_digest,omitempty"`
-	ReadOnly            bool                  `json:"read_only"`
-	Risk                RiskClass             `json:"risk"`
-	RequiresInteraction bool                  `json:"requires_interaction"`
-	Capabilities        []string              `json:"capabilities,omitempty"`
-	Command             *ExtensionCommandSpec `json:"command,omitempty"`
-}
-
-type ExtensionToolWorkspaceScope struct {
-	ID   string `json:"id"`
-	Root string `json:"root"`
-}
-
-type ExtensionValidatePayload struct {
-	Status       string                         `json:"status"`
-	Format       string                         `json:"format"`
-	Name         string                         `json:"name,omitempty"`
-	Version      string                         `json:"version,omitempty"`
-	WouldIngest  []ExtensionValidationComponent `json:"would_ingest,omitempty"`
-	Manifest     *ExtensionManifestSummary      `json:"manifest,omitempty"`
-	Issues       []ValidationIssue              `json:"issues"`
-	ConsentAreas []ConsentArea                  `json:"consent_areas,omitempty"`
-}
-
-type ExtensionValidationComponent struct {
-	Kind      string `json:"kind"`
-	Name      string `json:"name"`
-	Transport string `json:"transport,omitempty"`
-}
-
-type FailureHealth struct {
-	Status string                 `json:"status"`
-	Total  int                    `json:"total"`
-	ByKind map[FailureKind]int    `json:"by_kind,omitempty"`
-	Recent []SessionFailureHealth `json:"recent,omitempty"`
-}
-
-type FailureKind string
-
-type FireLimitConfig struct {
-	Max    int    `json:"max"`
-	Window string `json:"window"`
-}
-
-type ForgeCapabilitiesRequest struct {
-	RemoteURLs []string `json:"remote_urls"`
 }

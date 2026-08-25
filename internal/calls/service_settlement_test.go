@@ -437,11 +437,12 @@ func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 		second.ActivationRunID = "run-second"
 		database.calls[second.CallID] = second
 		database.subtree = []CallRecord{first, second}
+		database.preservedResults = 1
 		report, err := service.DrainSubtree(context.Background(), "root-1", Actor{Kind: "daemon", ID: "recovery"}, "parent terminal")
 		if err != nil {
 			t.Fatalf("DrainSubtree() error = %v", err)
 		}
-		if len(report.CanceledCalls) != 2 || len(report.Stopped) != 1 || len(invoker.stops) != 1 {
+		if len(report.CanceledCalls) != 2 || len(report.Stopped) != 1 || report.PreservedResults != 1 || len(invoker.stops) != 1 {
 			t.Fatalf("DrainSubtree() = %#v stops=%#v", report, invoker.stops)
 		}
 	})

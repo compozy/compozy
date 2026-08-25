@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/network/participation"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -53,6 +54,8 @@ type TaskRunPayload struct {
 	HeartbeatAt                  *time.Time                     `json:"heartbeat_at,omitempty"`
 	CoordinationChannel          *CoordinationChannelPayload    `json:"coordination_channel,omitempty"`
 	Designation                  *taskpkg.RunDesignationSummary `json:"designation,omitempty"`
+	ExpectDigest                 string                         `json:"expect_digest,omitempty"`
+	ResultBudget                 *contracts.ByteBudget          `json:"result_budget,omitempty"`
 	QueuedAt                     time.Time                      `json:"queued_at"`
 	ClaimedAt                    *time.Time                     `json:"claimed_at,omitempty"`
 	StartedAt                    *time.Time                     `json:"started_at,omitempty"`
@@ -84,6 +87,8 @@ type TaskRunSummaryPayload struct {
 	CoordinationChannel          *CoordinationChannelPayload    `json:"coordination_channel,omitempty"`
 	DesignationGroupID           string                         `json:"designation_group_id,omitempty"`
 	Designation                  *taskpkg.RunDesignationSummary `json:"designation,omitempty"`
+	ExpectDigest                 string                         `json:"expect_digest,omitempty"`
+	ResultBudget                 *contracts.ByteBudget          `json:"result_budget,omitempty"`
 	QueuedAt                     time.Time                      `json:"queued_at"`
 	ClaimedAt                    *time.Time                     `json:"claimed_at,omitempty"`
 	StartedAt                    *time.Time                     `json:"started_at,omitempty"`

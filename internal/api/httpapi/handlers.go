@@ -39,6 +39,7 @@ type handlerConfig struct {
 	windowManager       core.WindowManagerProvider
 	automation          core.AutomationManager
 	loops               core.LoopService
+	calls               core.CallsService
 	bridges             core.BridgeService
 	notifications       core.NotificationPresetService
 	profiles            core.ProfileService
@@ -213,6 +214,7 @@ func coreHandlerDependencies(cfg *handlerConfig) *core.BaseHandlerConfig {
 		Extensions:             cfg.extensions,
 		Automation:             cfg.automation,
 		Loops:                  cfg.loops,
+		Calls:                  cfg.calls,
 		Bridges:                cfg.bridges,
 		Notifications:          cfg.notifications,
 		Profiles:               cfg.profiles,

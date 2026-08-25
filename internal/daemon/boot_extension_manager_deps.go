@@ -32,6 +32,7 @@ func (d *Daemon) extensionManagerDeps(
 			return state.automation
 		},
 		Tasks:                  state.deps.Tasks,
+		Calls:                  state.deps.Calls,
 		Network:                state.deps.Network,
 		NetworkStore:           state.registry,
 		ModelCatalog:           state.modelCatalog,

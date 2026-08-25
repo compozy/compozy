@@ -30,6 +30,7 @@ type cliArgs struct {
 type sessionState struct {
 	PromptCount          int
 	ConfigOptions        []acpsdk.SessionConfigOption
+	MCPServers           []acpsdk.McpServer
 	activePromptCancel   context.CancelFunc
 	activePromptCancelID uint64
 }
@@ -193,6 +194,7 @@ func (a *mockAgent) NewSession(_ context.Context, params acpsdk.NewSessionReques
 	sessionID := fmt.Sprintf("%s-session-%d", a.agent.Name, a.nextSession)
 	a.sessions[sessionID] = &sessionState{
 		ConfigOptions: cloneSessionConfigOptions(a.configTemplate),
+		MCPServers:    append([]acpsdk.McpServer(nil), params.McpServers...),
 	}
 	a.mu.Unlock()
 	if err := a.writeSessionDiagnostics("session_new", sessionID, params.McpServers); err != nil {
@@ -219,6 +221,7 @@ func (a *mockAgent) LoadSession(
 			ConfigOptions: cloneSessionConfigOptions(a.configTemplate),
 		}
 	}
+	a.sessions[sessionID].MCPServers = append([]acpsdk.McpServer(nil), params.McpServers...)
 	configOptions := cloneSessionConfigOptions(a.sessions[sessionID].ConfigOptions)
 	a.mu.Unlock()
 	if err := a.writeSessionDiagnostics("session_load", sessionID, params.McpServers); err != nil {

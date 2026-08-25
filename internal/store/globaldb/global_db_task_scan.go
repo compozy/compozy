@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/contracts"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -62,6 +63,15 @@ func taskRecordFromFields(record taskpkg.Task, fields *taskScanFields) (taskpkg.
 		return taskpkg.Task{}, err
 	}
 	record.ExpectDigest = taskNullStringValue(fields.expectDigest)
+	if fields.resultBudgetBytes.Valid || fields.resultOverflow.Valid {
+		if !fields.resultBudgetBytes.Valid || !fields.resultOverflow.Valid {
+			return taskpkg.Task{}, fmt.Errorf("store: task result contract is incomplete")
+		}
+		record.ResultBudget = &contracts.ByteBudget{
+			MaxBytes: int(fields.resultBudgetBytes.Int64),
+			Overflow: contracts.OverflowMode(strings.TrimSpace(fields.resultOverflow.String)),
+		}
+	}
 	if err := assignNullableTaskTimestamp(&record.PausedAt, fields.pausedAtRaw); err != nil {
 		return taskpkg.Task{}, err
 	}
@@ -111,6 +121,8 @@ type taskScanFields struct {
 	wakeCreator          int
 	metadataJSON         sql.NullString
 	expectDigest         sql.NullString
+	resultBudgetBytes    sql.NullInt64
+	resultOverflow       sql.NullString
 }
 
 func scanTaskRecordColumns(scanner rowScanner) (taskpkg.Task, taskScanFields, error) {
@@ -153,6 +165,8 @@ func scanTaskRecordColumns(scanner rowScanner) (taskpkg.Task, taskScanFields, er
 		&fields.wakeCreator,
 		&fields.metadataJSON,
 		&fields.expectDigest,
+		&fields.resultBudgetBytes,
+		&fields.resultOverflow,
 	); err != nil {
 		return taskpkg.Task{}, taskScanFields{}, fmt.Errorf("store: scan task: %w", err)
 	}

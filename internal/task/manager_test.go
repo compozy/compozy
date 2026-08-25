@@ -8579,30 +8579,33 @@ func TestManagerTerminalRunStopsBackingSession(t *testing.T) {
 		if err != nil {
 			t.Fatalf("contracts.Prepare(updated) error = %v", err)
 		}
-		if err := store.PutContract(context.Background(), original); err != nil {
-			t.Fatalf("PutContract(original) error = %v", err)
-		}
-		if err := store.PutContract(context.Background(), updated); err != nil {
-			t.Fatalf("PutContract(updated) error = %v", err)
-		}
 		actor := validActorContext()
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
 			ProfileID: storepkg.DefaultProfileID,
 			Scope:     ScopeGlobal,
 			Title:     "Contract snapshot",
+			Expect:    original.Schema,
+			ResultBudget: &contracts.ByteBudget{
+				MaxBytes: 1024,
+				Overflow: contracts.OverflowReject,
+			},
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
-		storedTask := store.tasks[taskRecord.ID]
-		storedTask.ExpectDigest = original.Digest
-		store.tasks[taskRecord.ID] = storedTask
 		queued, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
 		if err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
-		storedTask.ExpectDigest = updated.Digest
-		store.tasks[taskRecord.ID] = storedTask
+		if _, err := manager.UpdateTask(context.Background(), taskRecord.ID, Patch{
+			Expect: &updated.Schema,
+			ResultBudget: &contracts.ByteBudget{
+				MaxBytes: 2048,
+				Overflow: contracts.OverflowStore,
+			},
+		}, actor); err != nil {
+			t.Fatalf("UpdateTask(updated contract) error = %v", err)
+		}
 		claimed, err := admitRunDirectlyForTest(context.Background(), manager, queued.ID, actor)
 		if err != nil {
 			t.Fatalf("ClaimNextRun() error = %v", err)
@@ -8653,13 +8656,11 @@ func TestManagerTerminalRunStopsBackingSession(t *testing.T) {
 			ProfileID: storepkg.DefaultProfileID,
 			Scope:     ScopeGlobal,
 			Title:     "Contract snapshot second rejection",
+			Expect:    original.Schema,
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask(second) error = %v", err)
 		}
-		storedSecondTask := store.tasks[secondTask.ID]
-		storedSecondTask.ExpectDigest = original.Digest
-		store.tasks[secondTask.ID] = storedSecondTask
 		secondQueued, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: secondTask.ID}, actor)
 		if err != nil {
 			t.Fatalf("EnqueueRun(second) error = %v", err)

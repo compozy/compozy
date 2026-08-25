@@ -79,6 +79,10 @@ const (
 	HostAPIMethodTasksRunsComplete           HostAPIMethod = "tasks/runs/complete"
 	HostAPIMethodTasksRunsFail               HostAPIMethod = "tasks/runs/fail"
 	HostAPIMethodTasksRunsCancel             HostAPIMethod = "tasks/runs/cancel"
+	HostAPIMethodCallsList                   HostAPIMethod = "calls/list"
+	HostAPIMethodCallsGet                    HostAPIMethod = "calls/get"
+	HostAPIMethodCallsResult                 HostAPIMethod = "calls/result"
+	HostAPIMethodMessagesList                HostAPIMethod = "messages/list"
 	HostAPIMethodNetworkStatus               HostAPIMethod = "network/status"
 	HostAPIMethodNetworkUsage                HostAPIMethod = "network/usage"
 	HostAPIMethodNetworkChannels             HostAPIMethod = "network/channels"
@@ -178,6 +182,10 @@ var allHostAPIMethods = []HostAPIMethod{
 	HostAPIMethodTasksRunsComplete,
 	HostAPIMethodTasksRunsFail,
 	HostAPIMethodTasksRunsCancel,
+	HostAPIMethodCallsList,
+	HostAPIMethodCallsGet,
+	HostAPIMethodCallsResult,
+	HostAPIMethodMessagesList,
 	HostAPIMethodNetworkStatus,
 	HostAPIMethodNetworkUsage,
 	HostAPIMethodNetworkChannels,

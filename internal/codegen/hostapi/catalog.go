@@ -14,7 +14,7 @@ import (
 //go:embed catalog.json
 var catalogJSON []byte
 
-var familyOrder = []string{"core", "automation", "tasks", "network", "resources", "bridges", "clarify"}
+var familyOrder = []string{"core", "automation", "tasks", "calls", "network", "resources", "bridges", "clarify"}
 
 type namedType struct {
 	Name  string `json:"name"`

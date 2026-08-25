@@ -3,6 +3,7 @@ package task
 import (
 	"time"
 
+	"github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/network/participation"
 )
 
@@ -68,6 +69,8 @@ type RunSummary struct {
 	ResolvedNetworkParticipation *participation.Spec    `json:"resolved_network_participation"`
 	DesignationGroupID           string                 `json:"designation_group_id,omitempty"`
 	Designation                  *RunDesignationSummary `json:"designation,omitempty"`
+	ExpectDigest                 string                 `json:"expect_digest,omitempty"`
+	ResultBudget                 *contracts.ByteBudget  `json:"result_budget,omitempty"`
 	QueuedAt                     time.Time              `json:"queued_at"`
 	ClaimedAt                    time.Time              `json:"claimed_at"`
 	StartedAt                    time.Time              `json:"started_at"`

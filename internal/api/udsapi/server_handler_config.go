@@ -16,6 +16,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 		windowManager:       s.windowManager,
 		automation:          s.automation,
 		loops:               s.loops,
+		calls:               s.calls,
 		bridges:             s.bridges,
 		notifications:       s.notifications,
 		profiles:            s.profiles,

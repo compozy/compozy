@@ -10,6 +10,8 @@ const (
 	StepKindAssistant     StepKind = "assistant"
 	StepKindThought       StepKind = "thought"
 	StepKindToolCall      StepKind = "tool_call"
+	StepKindCallReturn    StepKind = "call_return"
+	StepKindAgentMessage  StepKind = "agent_message"
 	StepKindPermission    StepKind = "permission"
 	StepKindSandbox       StepKind = "sandbox_exec"
 	StepKindBridgeContent StepKind = "bridge_response"

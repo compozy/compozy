@@ -35,11 +35,15 @@ export type HostAPIMethod =
   | "bridges/instances/list"
   | "bridges/instances/report_state"
   | "bridges/messages/ingest"
+  | "calls/get"
+  | "calls/list"
+  | "calls/result"
   | "clarify/ask"
   | "logs/list"
   | "memory/forget"
   | "memory/recall"
   | "memory/store"
+  | "messages/list"
   | "models/list"
   | "models/refresh"
   | "models/status"
@@ -212,7 +216,14 @@ export type HookEvent =
   | "worktree.pre_remove"
   | "worktree.created"
   | "worktree.adopted"
-  | "worktree.removed";
+  | "worktree.removed"
+  | "call.created"
+  | "call.settled"
+  | "call.canceled"
+  | "call.published"
+  | "call.message_sent"
+  | "call.message_delivered"
+  | "call.subtree_drained";
 
 export interface AgentCrashedPayload {
   event: HookEvent;
@@ -1239,6 +1250,130 @@ export interface BridgesMessagesIngestResult {
   session_id: string;
   route_created: boolean;
   routing_key: RoutingKey;
+}
+
+export interface CallOwnerPayload {
+  kind: string;
+  id: string;
+}
+
+export interface CallProvenancePayload {
+  produced_by?: string;
+  session_id?: string;
+  admitted?: string;
+}
+
+export interface Call {
+  call_id: string;
+  profile_id: string;
+  profile_name: string;
+  scope: string;
+  workspace_id?: string;
+  caller: CallOwnerPayload;
+  actor: CallOwnerPayload;
+  agent?: string;
+  child_session_id?: string;
+  parent_session_id?: string;
+  root_session_id: string;
+  depth: number;
+  state: string;
+  verdict?: string;
+  expect_digest?: string;
+  result_preview?: JSONValue;
+  result_bytes?: number;
+  result_budget_bytes: number;
+  result_overflow: string;
+  strict: boolean;
+  idle_ttl_seconds: number;
+  idle_expires_at?: ISODateTime;
+  failure_code?: string;
+  failure_detail?: string;
+  final_prose_preview?: string;
+  repair_attempts: number;
+  replayed?: boolean;
+  provenance?: CallProvenancePayload;
+  deadline_at?: ISODateTime;
+  created_at: ISODateTime;
+  started_at?: ISODateTime;
+  settled_at?: ISODateTime;
+  updated_at: ISODateTime;
+}
+
+export interface CallMessagePayload {
+  message_id: string;
+  profile_id: string;
+  profile_name: string;
+  scope: string;
+  workspace_id?: string;
+  from: CallOwnerPayload;
+  from_agent_name?: string;
+  to_session_id: string;
+  call_id?: string;
+  text: string;
+  delivery: string;
+  reason?: string;
+  attempts: number;
+  created_at: ISODateTime;
+  delivered_at?: ISODateTime;
+}
+
+export interface CallMessagesResponse {
+  items: CallMessagePayload[];
+  next_cursor?: string;
+}
+
+export interface CallObservationPatch {
+  labels?: Record<string, string>;
+}
+
+export interface CallPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  profile_id: string;
+  scope: string;
+  workspace_id?: string;
+  call_id?: string;
+  message_id?: string;
+  parent_session_id?: string;
+  child_session_id?: string;
+  root_session_id?: string;
+  agent_name?: string;
+  state?: string;
+  verdict?: string;
+  actor_kind?: string;
+  actor_id?: string;
+  channel?: string;
+  thread_id?: string;
+  network_message_id?: string;
+  delivery?: string;
+  stopped_children?: number;
+  closed_calls?: number;
+  preserved_results?: number;
+}
+
+export interface CallResult {
+  call_id: string;
+  result: JSONValue;
+}
+
+export interface CallTargetParams {
+  call_id: string;
+  scope?: string;
+  workspace_id?: string;
+}
+
+export interface CallsListParams {
+  scope?: string;
+  workspace_id?: string;
+  state?: string[];
+  caller?: string;
+  cursor?: string;
+  limit?: number;
+}
+
+export interface CallsResponse {
+  items: Call[];
+  next_cursor?: string;
 }
 
 export interface ClarifyAnswer {
@@ -2454,7 +2589,8 @@ export type HookEventFamily =
   | "spawn"
   | "network"
   | "window_manager"
-  | "worktree";
+  | "worktree"
+  | "call";
 
 export type HookRunOutcome = "applied" | "denied" | "failed" | "skipped" | "dropped" | "rejected";
 
@@ -3129,6 +3265,14 @@ export interface MessageStartPayload {
   delta_type?: string;
   text?: string;
   raw?: JSONValue;
+}
+
+export interface MessagesListParams {
+  scope?: string;
+  workspace_id?: string;
+  session_id?: string;
+  cursor?: string;
+  limit?: number;
 }
 
 export interface ModelSourceListParams {
@@ -5593,6 +5737,13 @@ export interface ActorIdentity {
   ref: string;
 }
 
+export type OverflowMode = string;
+
+export interface ByteBudget {
+  max_bytes: number;
+  overflow: OverflowMode;
+}
+
 export interface Origin {
   kind: OriginKind;
   ref: string;
@@ -5644,6 +5795,8 @@ export interface Task {
   needs_attention_at?: ISODateTime;
   needs_attention_by?: ActorIdentity;
   wake_creator: boolean;
+  expect_digest?: string;
+  result_budget?: ByteBudget;
   created_by: ActorIdentity;
   origin: Origin;
   created_at: ISODateTime;
@@ -5718,6 +5871,9 @@ export interface TaskCreateParams {
   approval_policy?: ApprovalPolicy;
   owner?: Ownership;
   wake_creator?: boolean;
+  expect?: JSONValue;
+  result_budget?: string;
+  result_overflow?: string;
   metadata?: JSONValue;
 }
 
@@ -5945,6 +6101,8 @@ export interface TaskRunSummaryPayload {
   coordination_channel?: CoordinationChannelPayload;
   designation_group_id?: string;
   designation?: RunDesignationSummary;
+  expect_digest?: string;
+  result_budget?: ByteBudget;
   queued_at: ISODateTime;
   claimed_at?: ISODateTime;
   started_at?: ISODateTime;
@@ -5986,6 +6144,8 @@ export interface TaskSummaryPayload {
   needs_attention_at?: ISODateTime;
   needs_attention_by?: ActorIdentity;
   wake_creator: boolean;
+  expect_digest?: string;
+  result_budget?: ByteBudget;
   created_by: ActorIdentity;
   origin: Origin;
   created_at: ISODateTime;
@@ -6031,6 +6191,8 @@ export interface TaskRun {
   heartbeat_at?: ISODateTime;
   coordination_channel?: CoordinationChannelPayload;
   designation?: RunDesignationSummary;
+  expect_digest?: string;
+  result_budget?: ByteBudget;
   queued_at: ISODateTime;
   claimed_at?: ISODateTime;
   started_at?: ISODateTime;
@@ -6801,6 +6963,9 @@ export interface TaskUpdateParams {
   max_attempts?: number;
   auto_enqueue_on_ready?: boolean;
   approval_policy?: ApprovalPolicy;
+  expect?: JSONValue;
+  result_budget?: string;
+  result_overflow?: string;
   metadata?: JSONValue;
   network_participation?: NetworkParticipationRequest;
   owner?: Ownership;
@@ -7689,6 +7854,13 @@ export interface HookPayloadByEvent {
   "worktree.created": WorktreeObservationPayload;
   "worktree.adopted": WorktreeObservationPayload;
   "worktree.removed": WorktreeObservationPayload;
+  "call.created": CallPayload;
+  "call.settled": CallPayload;
+  "call.canceled": CallPayload;
+  "call.published": CallPayload;
+  "call.message_sent": CallPayload;
+  "call.message_delivered": CallPayload;
+  "call.subtree_drained": CallPayload;
 }
 
 export interface HookPatchByEvent {
@@ -7796,6 +7968,13 @@ export interface HookPatchByEvent {
   "worktree.created": WorktreeObservationPatch;
   "worktree.adopted": WorktreeObservationPatch;
   "worktree.removed": WorktreeObservationPatch;
+  "call.created": CallObservationPatch;
+  "call.settled": CallObservationPatch;
+  "call.canceled": CallObservationPatch;
+  "call.published": CallObservationPatch;
+  "call.message_sent": CallObservationPatch;
+  "call.message_delivered": CallObservationPatch;
+  "call.subtree_drained": CallObservationPatch;
 }
 
 export interface HostAPIMethodMap {
@@ -8102,6 +8281,22 @@ export interface HostAPIMethodMap {
   "tasks/runs/cancel": {
     params: TaskRunCancelParams;
     result: TaskRun;
+  };
+  "calls/list": {
+    params: CallsListParams | undefined;
+    result: CallsResponse;
+  };
+  "calls/get": {
+    params: CallTargetParams;
+    result: Call;
+  };
+  "calls/result": {
+    params: CallTargetParams;
+    result: CallResult;
+  };
+  "messages/list": {
+    params: MessagesListParams | undefined;
+    result: CallMessagesResponse;
   };
   "network/status": {
     params: undefined;

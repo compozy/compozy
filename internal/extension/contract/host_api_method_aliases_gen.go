@@ -81,6 +81,10 @@ const (
 	HostAPIMethodTasksRunsComplete           = extensionprotocol.HostAPIMethodTasksRunsComplete
 	HostAPIMethodTasksRunsFail               = extensionprotocol.HostAPIMethodTasksRunsFail
 	HostAPIMethodTasksRunsCancel             = extensionprotocol.HostAPIMethodTasksRunsCancel
+	HostAPIMethodCallsList                   = extensionprotocol.HostAPIMethodCallsList
+	HostAPIMethodCallsGet                    = extensionprotocol.HostAPIMethodCallsGet
+	HostAPIMethodCallsResult                 = extensionprotocol.HostAPIMethodCallsResult
+	HostAPIMethodMessagesList                = extensionprotocol.HostAPIMethodMessagesList
 	HostAPIMethodNetworkStatus               = extensionprotocol.HostAPIMethodNetworkStatus
 	HostAPIMethodNetworkUsage                = extensionprotocol.HostAPIMethodNetworkUsage
 	HostAPIMethodNetworkChannels             = extensionprotocol.HostAPIMethodNetworkChannels

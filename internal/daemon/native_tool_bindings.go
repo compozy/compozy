@@ -26,7 +26,6 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 		n.sessionOrchestrationToolBindings(
 			availability.sessionOrchestration,
 			availability.sessionWait,
-			availability.sessionSpawn,
 			availability.sessionClarifyAnswer,
 		),
 	)
@@ -68,6 +67,7 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 	addNativeToolBindings(bindings, n.configToolBindings(availability.config))
 	addNativeToolBindings(bindings, n.hookToolBindings(availability.hookRead, availability.hookMutation))
 	addNativeToolBindings(bindings, n.loopToolBindings(availability.loops))
+	addNativeToolBindings(bindings, n.callToolBindings(availability.calls))
 	addNativeToolBindings(bindings, n.automationToolBindings(availability.automation))
 	addNativeToolBindings(bindings, n.marketplaceToolBindings(availability.marketplace))
 	addNativeToolBindings(bindings, n.extensionToolBindings(availability.extensions))

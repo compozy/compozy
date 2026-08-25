@@ -4,10 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/reasoning"
 )
+
+const AgentDescriptionMaxCharacters = 500
 
 // Validate ensures the parsed agent definition is usable.
 func (a AgentDef) Validate() error {
@@ -16,6 +19,13 @@ func (a AgentDef) Validate() error {
 		return errors.New("agent name is required")
 	case strings.TrimSpace(a.Prompt) == "":
 		return errors.New("agent prompt is required")
+	}
+	if count := utf8.RuneCountInString(strings.TrimSpace(a.Description)); count > AgentDescriptionMaxCharacters {
+		return fmt.Errorf(
+			"agent.description must be at most %d characters (got %d)",
+			AgentDescriptionMaxCharacters,
+			count,
+		)
 	}
 	if err := ValidateAgentName(a.Name); err != nil {
 		return err

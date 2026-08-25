@@ -36,6 +36,21 @@ func TestAcpmockBehaviorContracts(t *testing.T) {
 		}
 	})
 
+	t.Run("Should validate hosted call return and agent message inputs", func(t *testing.T) {
+		for _, kind := range []StepKind{StepKindCallReturn, StepKindAgentMessage} {
+			valid := Step{Kind: kind, RawInput: []byte(`{"text":"hello"}`)}
+			if err := valid.Validate("step"); err != nil {
+				t.Fatalf("Step.Validate(%s) error = %v", kind, err)
+			}
+			for _, raw := range []string{"", `[]`, `{`} {
+				invalid := Step{Kind: kind, RawInput: []byte(raw)}
+				if err := invalid.Validate("step"); err == nil || !strings.Contains(err.Error(), "raw_input") {
+					t.Fatalf("Step.Validate(%s, %q) error = %v, want raw_input error", kind, raw, err)
+				}
+			}
+		}
+	})
+
 	t.Run("Should public driver helpers honor environment override before cache or build", func(t *testing.T) {
 		overridePath := createExecutableFile(t, filepath.Join(t.TempDir(), driverBinaryName()))
 		cachedPath := createExecutableFile(t, filepath.Join(t.TempDir(), driverBinaryName()))

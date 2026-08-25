@@ -23,6 +23,7 @@ func buildOperationRegistry() []OperationSpec {
 		registryLogOperations(),
 		registrySupportOperations(),
 		registrySessionOperations(),
+		registryCallOperations(),
 		registryTaskManagementOperations(),
 		registryTaskLifecycleOperations(),
 		registryTaskRunOperations(),

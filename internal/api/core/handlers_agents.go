@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 
@@ -154,17 +155,20 @@ func (h *BaseHandlers) respondAgentEntries(
 	for _, group := range diagnostics {
 		diagnosticCount += len(group)
 	}
-	agents := make([]contract.AgentPayload, 0, len(entries)+diagnosticCount)
-	for _, entry := range entries {
-		agents = append(agents, AgentPayloadFromEntryWithConfig(entry, cfg))
+	agents := AgentListPayloads(entries, cfg, h.HomePaths, diagnosticWorkspaceID)
+	if diagnosticCount > 0 {
+		agents = slices.Grow(agents, diagnosticCount)
 	}
 	for _, group := range diagnostics {
 		for _, diagnostic := range group {
 			agents = append(agents, AgentPayloadFromDiagnostic(diagnostic, diagnosticWorkspaceID))
 		}
 	}
-	sort.Slice(agents, func(i, j int) bool {
-		return agents[i].Name < agents[j].Name
+	sort.SliceStable(agents, func(i, j int) bool {
+		if agents[i].Name != agents[j].Name {
+			return agents[i].Name < agents[j].Name
+		}
+		return !agents[i].Shadowed && agents[j].Shadowed
 	})
 	c.JSON(http.StatusOK, contract.AgentsResponse{Agents: agents})
 }

@@ -44,15 +44,15 @@ func (s *HostedService) projectionForGeneration(
 	record *hostedBindRecord,
 	registry tools.Registry,
 ) (HostedProjectionResponse, error) {
-	if s.projectionGeneration == nil {
-		return buildHostedProjection(ctx, registry, record.scope())
+	if s.projectionGeneration == nil || s.projectionDecorator != nil {
+		return s.buildHostedProjection(ctx, registry, record.scope())
 	}
 
 	scope := record.scope()
 	for range hostedProjectionGenerationRetries {
 		generation, known := s.projectionGeneration(ctx, scope)
 		if !known {
-			return buildHostedProjection(ctx, registry, scope)
+			return s.buildHostedProjection(ctx, registry, scope)
 		}
 		if cached, ok := s.projectionCache.load(record.bindID, generation); ok {
 			return cached, nil
@@ -68,7 +68,7 @@ func (s *HostedService) projectionForGeneration(
 			return response, err
 		}
 
-		response, err := buildHostedProjection(ctx, registry, scope)
+		response, err := s.buildHostedProjection(ctx, registry, scope)
 		if err != nil {
 			s.projectionCache.finish(key, HostedProjectionResponse{}, err, false, false)
 			return HostedProjectionResponse{}, err
@@ -83,7 +83,7 @@ func (s *HostedService) projectionForGeneration(
 			return HostedProjectionResponse{}, ErrHostedBindNotFound
 		}
 	}
-	return buildHostedProjection(ctx, registry, scope)
+	return s.buildHostedProjection(ctx, registry, scope)
 }
 
 func (s *HostedService) finishProjectionGeneration(
@@ -105,7 +105,7 @@ func (s *HostedService) finishProjectionGeneration(
 	return owned
 }
 
-func buildHostedProjection(
+func (s *HostedService) buildHostedProjection(
 	ctx context.Context,
 	registry tools.Registry,
 	scope tools.Scope,
@@ -113,6 +113,12 @@ func buildHostedProjection(
 	views, err := registry.List(ctx, scope)
 	if err != nil {
 		return HostedProjectionResponse{}, err
+	}
+	if s.projectionDecorator != nil {
+		views, err = s.projectionDecorator(ctx, scope, cloneToolViews(views))
+		if err != nil {
+			return HostedProjectionResponse{}, err
+		}
 	}
 	return hostedProjectionResponse(views), nil
 }

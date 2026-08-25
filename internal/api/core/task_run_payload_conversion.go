@@ -36,6 +36,8 @@ func TaskRunPayloadFromRun(run *taskpkg.Run) contract.TaskRunPayload {
 		ResolvedNetworkParticipation: participation.CloneSpec(networkSpec),
 		DesignationGroupID:           run.DesignationGroupID,
 		Designation:                  designation,
+		ExpectDigest:                 run.ExpectDigest,
+		ResultBudget:                 cloneTaskResultBudget(run.ResultBudget),
 		ClaimTokenHash:               run.ClaimTokenHash,
 		LeaseUntil:                   optionalTime(run.LeaseUntil),
 		HeartbeatAt:                  optionalTime(run.HeartbeatAt),

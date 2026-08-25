@@ -78,14 +78,15 @@ func TestAgentDefinitionLifecycleHelpers(t *testing.T) {
 	t.Run("Should render and digest semantic definitions canonically", func(t *testing.T) {
 		t.Parallel()
 		draft := AgentDefinitionDraft{
-			Name:       "coder",
-			Provider:   "codex",
-			Speed:      speedpkg.SpeedFast,
-			ACPOptions: []ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}},
-			Tools:      []string{"compozy__zeta", "compozy__alpha", "compozy__zeta"},
-			Toolsets:   []string{"compozy__network", "compozy__catalog"},
-			DenyTools:  []string{"compozy__write_*", "compozy__delete_*"},
-			Skills:     AgentSkillsConfig{Disabled: []string{"zeta", "alpha"}},
+			Name:        "coder",
+			Description: "Reviews changes and returns bounded findings.",
+			Provider:    "codex",
+			Speed:       speedpkg.SpeedFast,
+			ACPOptions:  []ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}},
+			Tools:       []string{"compozy__zeta", "compozy__alpha", "compozy__zeta"},
+			Toolsets:    []string{"compozy__network", "compozy__catalog"},
+			DenyTools:   []string{"compozy__write_*", "compozy__delete_*"},
+			Skills:      AgentSkillsConfig{Disabled: []string{"zeta", "alpha"}},
 			MCPServers: []MCPServer{{
 				Name:      "zeta",
 				Transport: MCPServerTransportStdio,
@@ -116,6 +117,10 @@ func TestAgentDefinitionLifecycleHelpers(t *testing.T) {
 		if !bytes.Equal(first, second) {
 			t.Fatalf("repeated render differs:\nfirst=%s\nsecond=%s", first, second)
 		}
+		if firstAgent.Description != draft.Description || secondAgent.Description != draft.Description ||
+			!bytes.Contains(first, []byte("description: Reviews changes and returns bounded findings.")) {
+			t.Fatalf("description round-trip = %#v / %s", firstAgent.Description, first)
+		}
 		if !slices.Equal(firstAgent.Tools, []string{"compozy__alpha", "compozy__zeta"}) ||
 			!slices.Equal(secondAgent.Skills.Disabled, []string{"alpha", "zeta"}) {
 			t.Fatalf("canonical agent ordering = %#v", firstAgent)
@@ -138,13 +143,28 @@ func TestAgentDefinitionLifecycleHelpers(t *testing.T) {
 			t.Fatalf("equal definition digests = %q and %q", firstDigest, secondDigest)
 		}
 		changed := CloneAgentDef(firstAgent)
-		changed.Prompt = "Changed."
+		changed.Description = "Changed description."
 		changedDigest, err := AgentDefinitionDigest(changed)
 		if err != nil {
 			t.Fatalf("AgentDefinitionDigest(changed) error = %v", err)
 		}
 		if changedDigest == firstDigest {
-			t.Fatalf("changed digest = %q, want different from %q", changedDigest, firstDigest)
+			t.Fatalf("description-changed digest = %q, want different from %q", changedDigest, firstDigest)
+		}
+	})
+
+	t.Run("Should keep description optional and reject values above the authored bound", func(t *testing.T) {
+		t.Parallel()
+		withoutDescription := AgentDefinitionDraft{Name: "plain", Provider: "codex", Prompt: "Work."}
+		_, parsed, err := RenderAgentDefinition(withoutDescription)
+		if err != nil || parsed.Description != "" {
+			t.Fatalf("RenderAgentDefinition(optional description) = %#v, error = %v", parsed, err)
+		}
+		tooLong := withoutDescription
+		tooLong.Description = strings.Repeat("界", AgentDescriptionMaxCharacters+1)
+		if _, _, err := RenderAgentDefinition(tooLong); err == nil ||
+			!strings.Contains(err.Error(), "agent.description must be at most 500 characters") {
+			t.Fatalf("RenderAgentDefinition(over-bound description) error = %v", err)
 		}
 	})
 

@@ -31,6 +31,7 @@ func validateAgentResourceSpec(
 
 	normalized := AgentDef{
 		Name:            strings.TrimSpace(spec.Name),
+		Description:     strings.TrimSpace(spec.Description),
 		Provider:        strings.TrimSpace(spec.Provider),
 		Command:         strings.TrimSpace(spec.Command),
 		Model:           strings.TrimSpace(spec.Model),

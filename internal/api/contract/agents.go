@@ -278,29 +278,3 @@ type AgentChannelMessagePayload struct {
 	Metadata      CoordinationMessageMetadataPayload `json:"metadata"`
 	Timestamp     time.Time                          `json:"timestamp"`
 }
-
-// AgentSpawnRequest asks the daemon to create a narrowed child session.
-type AgentSpawnRequest struct {
-	AgentName        string                       `json:"agent_name"`
-	Provider         string                       `json:"provider,omitempty"`
-	Model            string                       `json:"model,omitempty"`
-	ReasoningEffort  ReasoningEffort              `json:"reasoning_effort,omitempty"`
-	Speed            Speed                        `json:"speed,omitempty"`
-	ACPOptions       []AgentACPOptionSelection    `json:"acp_options,omitempty"`
-	Name             string                       `json:"name,omitempty"`
-	Workspace        string                       `json:"workspace,omitempty"`
-	PromptOverlay    string                       `json:"prompt_overlay,omitempty"`
-	SpawnRole        string                       `json:"spawn_role"`
-	TTLSeconds       int64                        `json:"ttl_seconds"`
-	AutoStopOnParent bool                         `json:"auto_stop_on_parent"`
-	NotifyCreator    *bool                        `json:"notify_creator,omitempty"`
-	Permissions      SpawnPermissionPolicyPayload `json:"permissions"`
-	IdempotencyKey   string                       `json:"idempotency_key,omitempty"`
-}
-
-// AgentSpawnPayload is the safe spawn response projection.
-type AgentSpawnPayload struct {
-	Session     SessionPayload               `json:"session"`
-	Lineage     SessionLineagePayload        `json:"lineage"`
-	Permissions SpawnPermissionPolicyPayload `json:"permissions"`
-}

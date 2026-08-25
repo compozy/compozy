@@ -16,6 +16,7 @@ type RegisterOptions struct {
 	FixturePath     string
 	FixtureAgent    string
 	AgentName       string
+	Description     string
 	ProviderName    string
 	DriverPath      string
 	DiagnosticsPath string
@@ -98,7 +99,14 @@ func Register(homePaths compozyconfig.HomePaths, opts RegisterOptions) (Registra
 		return Registration{}, fmt.Errorf("acpmock: create agent directory %q: %w", filepath.Dir(agentDefPath), err)
 	}
 
-	content := renderAgentDef(runtimeAgentName, fixture.agent, command, providerName, opts.Tools)
+	content := renderAgentDef(
+		runtimeAgentName,
+		strings.TrimSpace(opts.Description),
+		fixture.agent,
+		command,
+		providerName,
+		opts.Tools,
+	)
 	if err := os.WriteFile(agentDefPath, []byte(content), 0o600); err != nil {
 		return Registration{}, fmt.Errorf("acpmock: write agent definition %q: %w", agentDefPath, err)
 	}
@@ -214,7 +222,14 @@ func BuildCommand(
 	return shellquote.Join(argv...)
 }
 
-func renderAgentDef(name string, agent AgentFixture, command string, providerName string, tools []string) string {
+func renderAgentDef(
+	name string,
+	description string,
+	agent AgentFixture,
+	command string,
+	providerName string,
+	tools []string,
+) string {
 	prompt := strings.TrimSpace(agent.Prompt)
 	if prompt == "" {
 		prompt = "You are " + name + "."
@@ -223,6 +238,9 @@ func renderAgentDef(name string, agent AgentFixture, command string, providerNam
 	var builder strings.Builder
 	builder.WriteString("---\n")
 	builder.WriteString("name: " + strings.TrimSpace(name) + "\n")
+	if description != "" {
+		builder.WriteString("description: " + yamlSingleQuote(description) + "\n")
+	}
 	builder.WriteString("provider: " + strings.TrimSpace(providerName) + "\n")
 	builder.WriteString("command: " + yamlSingleQuote(strings.TrimSpace(command)) + "\n")
 	if model := strings.TrimSpace(agent.Model); model != "" {

@@ -65,7 +65,8 @@ const taskRecordSelectColumnsSQL = `
 	owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
 	created_at, updated_at, closed_at, current_run_id, ` + taskLatestEventSeqSelectSQL + `,
 	paused, paused_by, paused_at, paused_reason, needs_attention_reason, needs_attention_at,
-	needs_attention_by_kind, needs_attention_by_ref, wake_creator, metadata_json, expect_digest`
+	needs_attention_by_kind, needs_attention_by_ref, wake_creator, metadata_json, expect_digest,
+	result_budget_bytes, result_overflow`
 
 const taskLatestEventSeqSelectSQL = `COALESCE((
 	SELECT MAX(te.event_seq)

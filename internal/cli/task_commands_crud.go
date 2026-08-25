@@ -14,20 +14,23 @@ import (
 
 func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 	var (
-		id            string
-		identifier    string
-		scopeRaw      string
-		workspaceRef  string
-		networkFlags  networkParticipationFlags
-		title         string
-		description   string
-		ownerKindRaw  string
-		ownerRef      string
-		metadataRaw   string
-		priorityRaw   string
-		asAgent       bool
-		autoEnqueue   bool
-		noWakeCreator bool
+		id             string
+		identifier     string
+		scopeRaw       string
+		workspaceRef   string
+		networkFlags   networkParticipationFlags
+		title          string
+		description    string
+		ownerKindRaw   string
+		ownerRef       string
+		metadataRaw    string
+		expectRaw      string
+		resultBudget   string
+		resultOverflow string
+		priorityRaw    string
+		asAgent        bool
+		autoEnqueue    bool
+		noWakeCreator  bool
 	)
 
 	cmd := &cobra.Command{
@@ -52,6 +55,9 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 				OwnerKindRaw:       ownerKindRaw,
 				OwnerRef:           ownerRef,
 				MetadataRaw:        metadataRaw,
+				ExpectRaw:          expectRaw,
+				ResultBudget:       resultBudget,
+				ResultOverflow:     resultOverflow,
 				AutoEnqueueOnReady: autoEnqueue,
 				NoWakeCreator:      noWakeCreator,
 			})
@@ -79,6 +85,9 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&ownerKindRaw, "owner-kind", "", "Optional owner kind")
 	cmd.Flags().StringVar(&ownerRef, "owner-ref", "", "Optional owner reference")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional metadata JSON")
+	cmd.Flags().StringVar(&expectRaw, "expect", "", "Result contract as inline JSON or @file")
+	cmd.Flags().StringVar(&resultBudget, "result-budget", "", "Task result budget, for example 512KiB")
+	cmd.Flags().StringVar(&resultOverflow, "result-overflow", "", "Over-budget policy: store or reject")
 	cmd.Flags().
 		BoolVar(&asAgent, "as-agent", false, "Create using the current CompozyOS-managed agent session identity")
 	cmd.Flags().

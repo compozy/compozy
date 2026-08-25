@@ -7,40 +7,87 @@ import (
 	"time"
 )
 
-type ModelSourceRow struct {
-	SourceID               string                        `json:"source_id"`
-	ProviderID             string                        `json:"provider_id"`
-	ModelID                string                        `json:"model_id"`
-	DisplayName            string                        `json:"display_name,omitempty"`
-	Priority               int                           `json:"priority,omitempty"`
-	Available              *bool                         `json:"available,omitempty"`
-	Stale                  bool                          `json:"stale,omitempty"`
-	RefreshedAt            time.Time                     `json:"refreshed_at"`
-	ExpiresAt              time.Time                     `json:"expires_at"`
-	ContextWindow          *int64                        `json:"context_window,omitempty"`
-	MaxInputTokens         *int64                        `json:"max_input_tokens,omitempty"`
-	MaxOutputTokens        *int64                        `json:"max_output_tokens,omitempty"`
-	SupportsTools          *bool                         `json:"supports_tools,omitempty"`
-	SupportsReasoning      *bool                         `json:"supports_reasoning,omitempty"`
-	ReasoningEfforts       []Effort                      `json:"reasoning_efforts,omitempty"`
-	DefaultReasoningEffort *Effort                       `json:"default_reasoning_effort,omitempty"`
-	ConfigOptions          []ModelSourceOptionDescriptor `json:"config_options,omitempty"`
-	TransportBindings      []ModelSourceTransportBinding `json:"transport_bindings,omitempty"`
-	Cost                   *ModelCatalogCostPayload      `json:"cost,omitempty"`
-	Deprecated             *bool                         `json:"deprecated,omitempty"`
-	Hidden                 *bool                         `json:"hidden,omitempty"`
-	Featured               *bool                         `json:"featured,omitempty"`
-	ReleaseDate            *string                       `json:"release_date,omitempty"`
-	LastError              string                        `json:"last_error,omitempty"`
+type MessagesListParams struct {
+	Scope       string `json:"scope,omitempty"`
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	SessionID   string `json:"session_id,omitempty"`
+	Cursor      string `json:"cursor,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
 }
 
-type ModelSourceTransportBinding struct {
-	TransportModelID string                       `json:"transport_model_id"`
-	Label            string                       `json:"label,omitempty"`
-	ReasoningEffort  *Effort                      `json:"reasoning_effort,omitempty"`
-	Fast             *bool                        `json:"fast,omitempty"`
-	Thinking         *bool                        `json:"thinking,omitempty"`
-	OptionSelections []ModelSourceOptionSelection `json:"option_selections,omitempty"`
+type MetaField struct {
+	Label    string            `json:"label"`
+	Value    string            `json:"value"`
+	Requires map[string]string `json:"requires,omitempty"`
+	Fallback string            `json:"fallback,omitempty"`
+}
+
+type Mode string
+
+type ModelCatalogCostPayload struct {
+	InputPerMillion      *float64 `json:"input_per_million,omitempty"`
+	OutputPerMillion     *float64 `json:"output_per_million,omitempty"`
+	CacheReadPerMillion  *float64 `json:"cache_read_per_million,omitempty"`
+	CacheWritePerMillion *float64 `json:"cache_write_per_million,omitempty"`
+	ReasoningPerMillion  *float64 `json:"reasoning_per_million,omitempty"`
+}
+
+type ModelCatalogSourceRefPayload struct {
+	SourceID    string `json:"source_id"`
+	SourceKind  string `json:"source_kind"`
+	Priority    int    `json:"priority"`
+	RefreshedAt string `json:"refreshed_at,omitempty"`
+	Stale       bool   `json:"stale"`
+	LastError   string `json:"last_error,omitempty"`
+}
+
+type ModelCatalogSourceStatusPayload struct {
+	SourceID     string `json:"source_id"`
+	SourceKind   string `json:"source_kind"`
+	ProviderID   string `json:"provider_id"`
+	Priority     int    `json:"priority"`
+	LastRefresh  string `json:"last_refresh,omitempty"`
+	NextRefresh  string `json:"next_refresh,omitempty"`
+	LastSuccess  string `json:"last_success,omitempty"`
+	LastError    string `json:"last_error,omitempty"`
+	RefreshState string `json:"refresh_state"`
+	RowCount     int    `json:"row_count"`
+	Stale        bool   `json:"stale"`
+}
+
+type ModelSourceListParams struct {
+	ProviderID   string `json:"provider_id,omitempty"`
+	Refresh      bool   `json:"refresh,omitempty"`
+	IncludeStale bool   `json:"include_stale,omitempty"`
+}
+
+type ModelSourceListResponse struct {
+	Rows []ModelSourceRow `json:"rows"`
+}
+
+type ModelSourceRow struct {
+	SourceID               string                   `json:"source_id"`
+	ProviderID             string                   `json:"provider_id"`
+	ModelID                string                   `json:"model_id"`
+	DisplayName            string                   `json:"display_name,omitempty"`
+	Priority               int                      `json:"priority,omitempty"`
+	Available              *bool                    `json:"available,omitempty"`
+	Stale                  bool                     `json:"stale,omitempty"`
+	RefreshedAt            time.Time                `json:"refreshed_at"`
+	ExpiresAt              time.Time                `json:"expires_at"`
+	ContextWindow          *int64                   `json:"context_window,omitempty"`
+	MaxInputTokens         *int64                   `json:"max_input_tokens,omitempty"`
+	MaxOutputTokens        *int64                   `json:"max_output_tokens,omitempty"`
+	SupportsTools          *bool                    `json:"supports_tools,omitempty"`
+	SupportsReasoning      *bool                    `json:"supports_reasoning,omitempty"`
+	ReasoningEfforts       []Effort                 `json:"reasoning_efforts,omitempty"`
+	DefaultReasoningEffort *Effort                  `json:"default_reasoning_effort,omitempty"`
+	Cost                   *ModelCatalogCostPayload `json:"cost,omitempty"`
+	Deprecated             *bool                    `json:"deprecated,omitempty"`
+	Hidden                 *bool                    `json:"hidden,omitempty"`
+	Featured               *bool                    `json:"featured,omitempty"`
+	ReleaseDate            *string                  `json:"release_date,omitempty"`
+	LastError              string                   `json:"last_error,omitempty"`
 }
 
 type ModelsListParams struct {
@@ -200,83 +247,4 @@ type NetworkDirectRoomOpenedPayload struct {
 	LastSeenAt  *time.Time `json:"last_seen_at,omitempty"`
 	TraceID     string     `json:"trace_id,omitempty"`
 	CausationID string     `json:"causation_id,omitempty"`
-}
-
-type NetworkDirectRoomPayload struct {
-	ProfileID          string     `json:"profile_id"`
-	ProfileName        string     `json:"profile_name"`
-	ProfileColor       string     `json:"profile_color,omitempty"`
-	ProfileIcon        string     `json:"profile_icon,omitempty"`
-	ProfileEmoji       string     `json:"profile_emoji,omitempty"`
-	ProfileArchived    bool       `json:"profile_archived,omitempty"`
-	WorkspaceID        string     `json:"workspace_id,omitempty"`
-	Channel            string     `json:"channel"`
-	DirectID           string     `json:"direct_id"`
-	SessionA           string     `json:"session_a"`
-	SessionB           string     `json:"session_b"`
-	OpenedAt           *time.Time `json:"opened_at,omitempty"`
-	LastActivityAt     *time.Time `json:"last_activity_at,omitempty"`
-	MessageCount       int        `json:"message_count"`
-	OpenWorkCount      int        `json:"open_work_count"`
-	LastMessagePreview string     `json:"last_message_preview,omitempty"`
-}
-
-type NetworkDirectRoomsResponse struct {
-	Directs []NetworkDirectRoomPayload `json:"directs"`
-	Page    CountedCursorPagePayload   `json:"page"`
-}
-
-type NetworkDirectsParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	Channel     string `json:"channel"`
-	Query       string `json:"query,omitempty"`
-	PeerID      string `json:"peer_id,omitempty"`
-	Sort        string `json:"sort,omitempty"`
-	HasWork     *bool  `json:"has_work,omitempty"`
-	Limit       int    `json:"limit,omitempty"`
-	After       string `json:"after,omitempty"`
-}
-
-type NetworkKindMetricPayload struct {
-	Kind      string `json:"kind"`
-	Sent      int64  `json:"sent"`
-	Received  int64  `json:"received"`
-	Rejected  int64  `json:"rejected"`
-	Delivered int64  `json:"delivered"`
-}
-
-type NetworkMatcher struct {
-	Channel             string `json:"channel,omitempty"`
-	Surface             string `json:"surface,omitempty"`
-	Kind                string `json:"kind,omitempty"`
-	Direction           string `json:"direction,omitempty"`
-	WorkState           string `json:"work_state,omitempty"`
-	ParticipationMode   string `json:"participation_mode,omitempty"`
-	ParticipationSource string `json:"participation_source,omitempty"`
-}
-
-type NetworkMessagePersistedPayload struct {
-	Event       HookEvent  `json:"event"`
-	Timestamp   time.Time  `json:"timestamp"`
-	WorkspaceID string     `json:"workspace_id,omitempty"`
-	SessionID   string     `json:"session_id,omitempty"`
-	Channel     string     `json:"channel,omitempty"`
-	Surface     string     `json:"surface,omitempty"`
-	ThreadID    string     `json:"thread_id,omitempty"`
-	DirectID    string     `json:"direct_id,omitempty"`
-	MessageID   string     `json:"message_id,omitempty"`
-	Kind        string     `json:"kind,omitempty"`
-	Direction   string     `json:"direction,omitempty"`
-	WorkID      string     `json:"work_id,omitempty"`
-	WorkState   string     `json:"work_state,omitempty"`
-	PeerID      string     `json:"peer_id,omitempty"`
-	PeerFrom    string     `json:"peer_from,omitempty"`
-	PeerTo      string     `json:"peer_to,omitempty"`
-	LastSeenAt  *time.Time `json:"last_seen_at,omitempty"`
-	TraceID     string     `json:"trace_id,omitempty"`
-	CausationID string     `json:"causation_id,omitempty"`
-}
-
-type NetworkObservationPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
 }

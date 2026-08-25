@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/contracts"
 
 	"github.com/compozy/compozy/internal/network/participation"
 
@@ -25,6 +27,10 @@ func (h *BaseHandlers) createTaskSpecFromRequest(
 ) (taskpkg.CreateTask, error) {
 	scope := req.Scope.Normalize()
 	workspaceID, err := h.resolveTaskWorkspaceBinding(ctx, scope, req.Workspace, "create_task")
+	if err != nil {
+		return taskpkg.CreateTask{}, err
+	}
+	resultBudget, err := taskResultBudgetFromWire(req.ResultBudget, req.ResultOverflow)
 	if err != nil {
 		return taskpkg.CreateTask{}, err
 	}
@@ -44,6 +50,8 @@ func (h *BaseHandlers) createTaskSpecFromRequest(
 		ApprovalPolicy:       req.ApprovalPolicy.Normalize(),
 		Owner:                cloneOwnership(req.Owner),
 		WakeCreator:          cloneBoolPtr(req.WakeCreator),
+		Expect:               cloneRawMessage(req.Expect),
+		ResultBudget:         resultBudget,
 		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
 		Metadata:             cloneRawMessage(req.Metadata),
 	}
@@ -63,6 +71,10 @@ func (h *BaseHandlers) createChildTaskSpecFromRequest(
 	if err != nil {
 		return taskpkg.CreateTask{}, err
 	}
+	resultBudget, err := taskResultBudgetFromWire(req.ResultBudget, req.ResultOverflow)
+	if err != nil {
+		return taskpkg.CreateTask{}, err
+	}
 
 	spec := taskpkg.CreateTask{
 		ID:                   strings.TrimSpace(req.ID),
@@ -79,6 +91,8 @@ func (h *BaseHandlers) createChildTaskSpecFromRequest(
 		ApprovalPolicy:       req.ApprovalPolicy.Normalize(),
 		Owner:                cloneOwnership(req.Owner),
 		WakeCreator:          cloneBoolPtr(req.WakeCreator),
+		Expect:               cloneRawMessage(req.Expect),
+		ResultBudget:         resultBudget,
 		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
 		Metadata:             cloneRawMessage(req.Metadata),
 	}
@@ -89,6 +103,10 @@ func (h *BaseHandlers) createChildTaskSpecFromRequest(
 }
 
 func taskPatchFromRequest(req contract.UpdateTaskRequest) (taskpkg.Patch, error) {
+	resultBudget, err := taskResultBudgetFromWire(req.ResultBudget, req.ResultOverflow)
+	if err != nil {
+		return taskpkg.Patch{}, err
+	}
 	patch := taskpkg.Patch{
 		Title:                trimStringPtr(req.Title),
 		Description:          trimStringPtr(req.Description),
@@ -96,6 +114,8 @@ func taskPatchFromRequest(req contract.UpdateTaskRequest) (taskpkg.Patch, error)
 		MaxAttempts:          req.MaxAttempts,
 		AutoEnqueueOnReady:   req.AutoEnqueueOnReady,
 		ApprovalPolicy:       normalizeApprovalPolicyPtr(req.ApprovalPolicy),
+		Expect:               cloneRawMessagePtr(req.Expect),
+		ResultBudget:         resultBudget,
 		Metadata:             cloneRawMessagePtr(req.Metadata),
 		Owner:                cloneOwnership(req.Owner),
 		ClearOwner:           req.ClearOwner,
@@ -105,6 +125,26 @@ func taskPatchFromRequest(req contract.UpdateTaskRequest) (taskpkg.Patch, error)
 		return taskpkg.Patch{}, err
 	}
 	return patch, nil
+}
+
+func taskResultBudgetFromWire(budgetRaw, overflowRaw string) (*contracts.ByteBudget, error) {
+	budgetRaw = strings.TrimSpace(budgetRaw)
+	overflowRaw = strings.TrimSpace(overflowRaw)
+	if budgetRaw == "" && overflowRaw == "" {
+		return nil, nil
+	}
+	budget := &contracts.ByteBudget{}
+	if budgetRaw != "" {
+		maxBytes, err := config.ParseByteSize(budgetRaw)
+		if err != nil {
+			return nil, NewTaskValidationError(fmt.Errorf("result_budget: %w", err))
+		}
+		budget.MaxBytes = maxBytes
+	}
+	if overflowRaw != "" {
+		budget.Overflow = contracts.OverflowMode(overflowRaw)
+	}
+	return budget, nil
 }
 
 func taskExecutionProfileFromRequest(

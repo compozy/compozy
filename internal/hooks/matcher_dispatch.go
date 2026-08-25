@@ -161,6 +161,15 @@ func matchNetwork(matcher HookMatcher, payload NetworkPayload) bool {
 	return matcher.MatchesNetwork(payload)
 }
 
+func matchCall(matcher HookMatcher, payload CallPayload) bool {
+	autonomy := matcher.autonomy()
+	return matchStringField(matcher.AgentName, payload.AgentName) &&
+		matchStringField(matcher.WorkspaceID, payload.WorkspaceID) &&
+		matchStringField(autonomy.ParentSessionID, payload.ParentSessionID) &&
+		matchStringField(autonomy.RootSessionID, payload.RootSessionID) &&
+		matchStringField(autonomy.ChildSessionID, payload.ChildSessionID)
+}
+
 func matchWindowManager(matcher HookMatcher, payload WindowManagerPayload) bool {
 	return matchStringField(matcher.WorkspaceID, payload.WorkspaceID)
 }

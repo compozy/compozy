@@ -42,6 +42,13 @@ func WithHostAPITaskManager(manager hostAPITaskManager) HostAPIOption {
 	}
 }
 
+// WithHostAPICallsReader injects the profile-owned call and mailbox read surface.
+func WithHostAPICallsReader(reader hostAPICallsReader) HostAPIOption {
+	return func(handler *HostAPIHandler) {
+		handler.calls = reader
+	}
+}
+
 // WithHostAPITaskCatalogFilterMapper injects the API-owned task catalog filter semantics.
 func WithHostAPITaskCatalogFilterMapper(mapper HostAPITaskCatalogFilterMapper) HostAPIOption {
 	return func(handler *HostAPIHandler) {

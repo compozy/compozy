@@ -56,6 +56,7 @@ type Server struct {
 	schemaStreams       core.SchemaStreamStatusReader
 	automation          core.AutomationManager
 	loops               core.LoopService
+	calls               core.CallsService
 	bridges             core.BridgeService
 	notifications       core.NotificationPresetService
 	profiles            core.ProfileService

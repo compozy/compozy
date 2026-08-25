@@ -149,6 +149,11 @@ func TestAllEventDescriptorsReturnsFullTaxonomy(t *testing.T) {
 	if descriptor := byEvent[HookPermissionRequest]; !descriptor.SyncEligible {
 		t.Fatalf("permission.request SyncEligible = false, want true")
 	}
+	if descriptor := byEvent[HookCallCreated]; descriptor.Family != HookEventFamilyCall ||
+		descriptor.SyncEligible || descriptor.PayloadSchema != "CallPayload" ||
+		descriptor.PatchSchema != "CallObservationPatch" {
+		t.Fatalf("call.created descriptor = %#v, want asynchronous call observation", descriptor)
+	}
 	if descriptor := byEvent[HookAutomationJobPreFire]; descriptor.Family != HookEventFamilyAutomation ||
 		!descriptor.SyncEligible ||
 		descriptor.PatchSchema != "AutomationFirePatch" {

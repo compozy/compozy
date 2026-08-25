@@ -47,6 +47,7 @@ type RuntimeDeps struct {
 	SchemaStreams       core.SchemaStreamStatusReader
 	Automation          core.AutomationManager
 	Loops               core.LoopService
+	Calls               core.CallsService
 	Bridges             core.BridgeService
 	Notifications       core.NotificationPresetService
 	Registry            Registry

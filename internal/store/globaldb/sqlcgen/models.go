@@ -2088,6 +2088,8 @@ type Task struct {
 	NeedsAttentionByRef   sql.NullString `json:"needs_attention_by_ref"`
 	WakeCreator           int64          `json:"wake_creator"`
 	ExpectDigest          sql.NullString `json:"expect_digest"`
+	ResultBudgetBytes     sql.NullInt64  `json:"result_budget_bytes"`
+	ResultOverflow        sql.NullString `json:"result_overflow"`
 }
 
 type TaskBlock struct {

@@ -49,6 +49,9 @@ type HostedRegistry func() tools.Registry
 // Returning known=false keeps projection reads uncached.
 type HostedProjectionGeneration func(context.Context, tools.Scope) (generation string, known bool)
 
+// HostedProjectionDecorator applies session-scoped runtime metadata to tool views.
+type HostedProjectionDecorator func(context.Context, tools.Scope, []tools.ToolView) ([]tools.ToolView, error)
+
 // HostedConfig configures hosted MCP launch and bind validation.
 type HostedConfig struct {
 	Enabled              bool
@@ -57,6 +60,7 @@ type HostedConfig struct {
 	HomePaths            compozyconfig.HomePaths
 	Registry             HostedRegistry
 	ProjectionGeneration HostedProjectionGeneration
+	ProjectionDecorator  HostedProjectionDecorator
 	Logger               *slog.Logger
 	Now                  func() time.Time
 	NonceReader          func([]byte) error
@@ -72,6 +76,7 @@ type HostedService struct {
 	homePaths            compozyconfig.HomePaths
 	registry             HostedRegistry
 	projectionGeneration HostedProjectionGeneration
+	projectionDecorator  HostedProjectionDecorator
 	logger               *slog.Logger
 	now                  func() time.Time
 	nonceReader          func([]byte) error
@@ -187,6 +192,7 @@ func NewHostedService(cfg *HostedConfig) (*HostedService, error) {
 		homePaths:            cfg.HomePaths,
 		registry:             cfg.Registry,
 		projectionGeneration: cfg.ProjectionGeneration,
+		projectionDecorator:  cfg.ProjectionDecorator,
 		logger:               cfg.Logger,
 		now:                  now,
 		nonceReader:          nonceReader,

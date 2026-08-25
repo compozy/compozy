@@ -7,6 +7,107 @@ import (
 	"time"
 )
 
+type CoordinatorObservationPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
+type CoordinatorPreSpawnPayload struct {
+	Event                        HookEvent `json:"event"`
+	Timestamp                    time.Time `json:"timestamp"`
+	ProfileID                    string    `json:"profile_id,omitempty"`
+	WorkspaceID                  string    `json:"workspace_id,omitempty"`
+	Workspace                    string    `json:"workspace,omitempty"`
+	AgentName                    string    `json:"agent_name,omitempty"`
+	CoordinatorSessionID         string    `json:"coordinator_session_id,omitempty"`
+	TaskID                       string    `json:"task_id,omitempty"`
+	RunID                        string    `json:"run_id,omitempty"`
+	WorkflowID                   string    `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation,omitempty"`
+	Provider                     string    `json:"provider,omitempty"`
+	Model                        string    `json:"model,omitempty"`
+	Reason                       string    `json:"reason,omitempty"`
+	Denied                       bool      `json:"denied,omitempty"`
+	DenyReason                   string    `json:"deny_reason,omitempty"`
+}
+
+type CoordinatorSpawnPatch struct {
+	Deny       bool    `json:"deny,omitempty"`
+	DenyReason string  `json:"deny_reason,omitempty"`
+	AgentName  *string `json:"agent_name,omitempty"`
+	Provider   *string `json:"provider,omitempty"`
+	Model      *string `json:"model,omitempty"`
+}
+
+type CoordinatorSpawnedPayload struct {
+	Event                        HookEvent `json:"event"`
+	Timestamp                    time.Time `json:"timestamp"`
+	ProfileID                    string    `json:"profile_id,omitempty"`
+	WorkspaceID                  string    `json:"workspace_id,omitempty"`
+	Workspace                    string    `json:"workspace,omitempty"`
+	AgentName                    string    `json:"agent_name,omitempty"`
+	CoordinatorSessionID         string    `json:"coordinator_session_id,omitempty"`
+	TaskID                       string    `json:"task_id,omitempty"`
+	RunID                        string    `json:"run_id,omitempty"`
+	WorkflowID                   string    `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation,omitempty"`
+	Provider                     string    `json:"provider,omitempty"`
+	Model                        string    `json:"model,omitempty"`
+	DecisionKind                 string    `json:"decision_kind,omitempty"`
+	Decision                     string    `json:"decision,omitempty"`
+	StopReason                   string    `json:"stop_reason,omitempty"`
+	Error                        string    `json:"error,omitempty"`
+}
+
+type CoordinatorStoppedPayload struct {
+	Event                        HookEvent `json:"event"`
+	Timestamp                    time.Time `json:"timestamp"`
+	ProfileID                    string    `json:"profile_id,omitempty"`
+	WorkspaceID                  string    `json:"workspace_id,omitempty"`
+	Workspace                    string    `json:"workspace,omitempty"`
+	AgentName                    string    `json:"agent_name,omitempty"`
+	CoordinatorSessionID         string    `json:"coordinator_session_id,omitempty"`
+	TaskID                       string    `json:"task_id,omitempty"`
+	RunID                        string    `json:"run_id,omitempty"`
+	WorkflowID                   string    `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation,omitempty"`
+	Provider                     string    `json:"provider,omitempty"`
+	Model                        string    `json:"model,omitempty"`
+	DecisionKind                 string    `json:"decision_kind,omitempty"`
+	Decision                     string    `json:"decision,omitempty"`
+	StopReason                   string    `json:"stop_reason,omitempty"`
+	Error                        string    `json:"error,omitempty"`
+}
+
+type CopyEffect struct {
+	Content string `json:"content"`
+}
+
+type CostSource string
+
+type CostStatus string
+
+type CountedCursorPagePayload struct {
+	NextCursor string `json:"next_cursor,omitempty"`
+	HasMore    bool   `json:"has_more"`
+	Total      int    `json:"total"`
+	Limit      int    `json:"limit"`
+}
+
+type CursorPagePayload struct {
+	NextCursor string `json:"next_cursor,omitempty"`
+	HasMore    bool   `json:"has_more"`
+	Limit      int    `json:"limit"`
+}
+
+type DeliveryAck struct {
+	DeliveryID             string               `json:"delivery_id"`
+	Seq                    int64                `json:"seq"`
+	RemoteMessageID        string               `json:"remote_message_id,omitempty"`
+	ReplaceRemoteMessageID string               `json:"replace_remote_message_id,omitempty"`
+	Outcome                DeliveryAckOutcome   `json:"outcome,omitempty"`
+	Error                  *DeliveryErrorDetail `json:"error,omitempty"`
+}
+
 type DeliveryAckOutcome string
 
 type DeliveryErrorDetail struct {
@@ -85,92 +186,4 @@ type DependencyKind string
 type DescribeHookEvent struct {
 	Event   HookEvent `json:"event"`
 	Profile string    `json:"profile,omitempty"`
-}
-
-type DescribeNetworkParticipation struct {
-	Required      bool     `json:"required"`
-	Mode          string   `json:"mode"`
-	ChannelScopes []string `json:"channel_scopes,omitempty"`
-}
-
-type DescribePayload struct {
-	Name                 string                           `json:"name"`
-	Version              string                           `json:"version"`
-	Description          string                           `json:"description,omitempty"`
-	Provides             []string                         `json:"provides"`
-	Permissions          []string                         `json:"permissions"`
-	RequiresEnv          []string                         `json:"requires_env,omitempty"`
-	Profiles             []DescribeProfile                `json:"profiles,omitempty"`
-	Resources            DescribeResources                `json:"resources"`
-	Subprocess           DescribeSubprocess               `json:"subprocess"`
-	NetworkParticipation *DescribeNetworkParticipation    `json:"network_participation,omitempty"`
-	Tools                []ExtensionToolRuntimeDescriptor `json:"tools,omitempty"`
-	HookEvents           []DescribeHookEvent              `json:"hook_events,omitempty"`
-	WatchSourceKinds     []string                         `json:"watch_source_kinds,omitempty"`
-	CmdPaletteViews      []string                         `json:"cmd_palette_views,omitempty"`
-	CommandGroups        []ExtensionCommandGroupSpec      `json:"command_groups,omitempty"`
-	SDK                  DescribeSDKInfo                  `json:"sdk"`
-}
-
-type DescribeProfile struct {
-	Name        string                      `json:"name"`
-	Color       string                      `json:"color,omitempty"`
-	Icon        string                      `json:"icon,omitempty"`
-	Emoji       string                      `json:"emoji,omitempty"`
-	Defaults    DescribeProfileDefaults     `json:"defaults,omitzero"`
-	Credentials []DescribeProfileCredential `json:"credentials,omitempty"`
-}
-
-type DescribeProfileCredential struct {
-	Provider string `json:"provider"`
-	Slot     string `json:"slot"`
-}
-
-type DescribeProfileDefaults struct {
-	Agent    string `json:"agent,omitempty"`
-	Provider string `json:"provider,omitempty"`
-	Sandbox  string `json:"sandbox,omitempty"`
-}
-
-type DescribeResourcePath struct {
-	Path    string `json:"path"`
-	Profile string `json:"profile,omitempty"`
-}
-
-type DescribeResources struct {
-	Skills     []DescribeResourcePath `json:"skills,omitempty"`
-	Loops      []DescribeResourcePath `json:"loops,omitempty"`
-	Agents     []DescribeResourcePath `json:"agents,omitempty"`
-	Automation []DescribeResourcePath `json:"automation,omitempty"`
-	Layouts    []DescribeResourcePath `json:"layouts,omitempty"`
-	CmdPalette CmdPaletteConfig       `json:"cmd_palette,omitzero"`
-}
-
-type DescribeSDKInfo struct {
-	Name              string `json:"name"`
-	Version           string `json:"version"`
-	ProtocolVersion   string `json:"protocol_version"`
-	MinCompozyVersion string `json:"min_compozy_version"`
-}
-
-type DescribeSubprocess struct {
-	Command string            `json:"command"`
-	Args    []string          `json:"args,omitempty"`
-	Env     map[string]string `json:"env,omitempty"`
-}
-
-type DetailBody struct {
-	IsLoading bool        `json:"is_loading,omitempty"`
-	Markdown  string      `json:"markdown,omitempty"`
-	Metadata  []MetaField `json:"metadata,omitempty"`
-	Actions   []RowAction `json:"actions,omitempty"`
-}
-
-type Effect struct {
-	ID        string           `json:"id"`
-	Toast     *ToastEffect     `json:"toast,omitempty"`
-	Copy      *CopyEffect      `json:"copy,omitempty"`
-	OpenURL   *OpenURLEffect   `json:"open_url,omitempty"`
-	OpenApp   *OpenAppEffect   `json:"open_app,omitempty"`
-	PickFiles *PickFilesEffect `json:"pick_files,omitempty"`
 }

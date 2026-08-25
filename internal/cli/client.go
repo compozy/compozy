@@ -413,11 +413,6 @@ type DaemonClient interface {
 		request AgentNotifyRequest,
 		credentials agentidentity.Credentials,
 	) (AgentNotifyRecord, error)
-	AgentSpawn(
-		ctx context.Context,
-		request AgentSpawnRequest,
-		credentials agentidentity.Credentials,
-	) (AgentSpawnRecord, error)
 	AgentChannels(ctx context.Context, credentials agentidentity.Credentials) ([]AgentChannelRecord, error)
 	AgentChannelRecv(
 		ctx context.Context,

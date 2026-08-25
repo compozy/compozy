@@ -1,0 +1,314 @@
+package core
+
+import (
+	"errors"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/compozy/compozy/internal/api/contract"
+	callspkg "github.com/compozy/compozy/internal/calls"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/gin-gonic/gin"
+)
+
+const callsOperatorActorKind = "human"
+
+// CallsCreate accepts one call or a bounded per-item batch.
+func (h *BaseHandlers) CallsCreate(c *gin.Context) {
+	if !h.requireCallsOperator(c, "call create") {
+		return
+	}
+	var req contract.CreateCallRequest
+	if err := decodeCallBody(c, &req); err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	selection, err := h.resolveProfileMutationSelection(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	scope, workspaceID, err := callSurfaceScope(c, req.Scope, req.WorkspaceID)
+	if err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	actor := h.callsOperatorActor()
+	caller, err := h.Calls.ResolveOperatorCaller(c.Request.Context(), callspkg.CallScope{
+		ProfileID: selection.Scope.ProfileID, Scope: scope, WorkspaceID: workspaceID,
+	}, actor)
+	if err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	inputs, batch, err := h.createCallInputs(c, req, selection.Scope.ProfileID, caller, actor)
+	if err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	if batch {
+		h.createCallBatch(c, inputs)
+		return
+	}
+	record, err := h.Calls.Create(c.Request.Context(), inputs[0])
+	if err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, callCreatePayload(record))
+}
+
+func (h *BaseHandlers) createCallBatch(c *gin.Context, inputs []callspkg.CreateInput) {
+	outcomes, err := h.Calls.CreateBatch(c.Request.Context(), inputs)
+	if err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	items := make([]contract.CallBatchItemPayload, 0, len(outcomes))
+	for _, outcome := range outcomes {
+		item := contract.CallBatchItemPayload{}
+		if outcome.Call != nil {
+			payload := callCreatePayload(*outcome.Call)
+			item.Call = &payload
+		} else if outcome.Error != nil {
+			payload := callErrorResponse(outcome.Error)
+			item.Error = &payload
+		}
+		items = append(items, item)
+	}
+	c.JSON(http.StatusOK, items)
+}
+
+// CallsList returns an uncounted cursor page.
+func (h *BaseHandlers) CallsList(c *gin.Context) {
+	if !h.requireCallsOperator(c, "call list") {
+		return
+	}
+	readScope, ok := h.callsReadScope(c)
+	if !ok {
+		return
+	}
+	base, err := callReadQuery(c, readScope)
+	if err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	query := callspkg.CallListQuery{CallReadQuery: base}
+	query.State, err = parseCallStates(c.QueryArray("state"))
+	if err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	query.Caller = c.Query("caller")
+	query.Cursor = c.Query("cursor")
+	query.Limit, err = parseOptionalPositiveIntQuery(c, "limit", callspkg.DefaultReadLimit, callspkg.MaxReadLimit)
+	if err != nil {
+		h.respondCallsError(c, callRequestError(callspkg.CodeValidation, err.Error()))
+		return
+	}
+	page, err := h.Calls.List(c.Request.Context(), query)
+	if err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	items, err := h.callPayloads(c.Request.Context(), page.Items)
+	if err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.CallsResponse{Items: items, NextCursor: page.NextCursor})
+}
+
+// CallsGet returns one call through the list's owner boundary.
+func (h *BaseHandlers) CallsGet(c *gin.Context) {
+	h.callReadDetail(c, false)
+}
+
+// CallsResult returns the exact stored JSON result.
+func (h *BaseHandlers) CallsResult(c *gin.Context) {
+	h.callReadDetail(c, true)
+}
+
+func (h *BaseHandlers) callReadDetail(c *gin.Context, wholeResult bool) {
+	if !h.requireCallsOperator(c, "call read") {
+		return
+	}
+	query, ok := h.resolvedCallReadQuery(c)
+	if !ok {
+		return
+	}
+	callID := strings.TrimSpace(c.Param("call_id"))
+	if wholeResult {
+		result, err := h.Calls.Result(c.Request.Context(), query, callID)
+		if err != nil {
+			h.respondCallsError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, contract.CallResultResponse{CallID: result.CallID, Result: result.Bytes})
+		return
+	}
+	record, err := h.Calls.GetRead(c.Request.Context(), query, callID)
+	if err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	owners, err := h.profileOwnerIdentities(c.Request.Context())
+	if err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	var preview []byte
+	if record.State == callspkg.StateCompleted {
+		result, resultErr := h.Calls.Result(c.Request.Context(), query, callID)
+		if resultErr != nil {
+			h.respondCallsError(c, resultErr)
+			return
+		}
+		preview = boundedCallPreview(result.Bytes, record.ResultBudget.MaxBytes)
+	}
+	c.JSON(http.StatusOK, callPayload(record, owners[record.ProfileID], preview))
+}
+
+// CallsAwait waits for a bounded interval and returns settled and pending identities.
+func (h *BaseHandlers) CallsAwait(c *gin.Context) {
+	if !h.requireCallsOperator(c, "call await") {
+		return
+	}
+	query, ok := h.resolvedCallReadQuery(c)
+	if !ok {
+		return
+	}
+	var req contract.AwaitCallsRequest
+	if c.Request.ContentLength != 0 {
+		if err := decodeCallBody(c, &req); err != nil {
+			h.respondCallsError(c, err)
+			return
+		}
+	}
+	if callID := strings.TrimSpace(c.Param("call_id")); callID != "" {
+		req.CallIDs = append([]string{callID}, req.CallIDs...)
+	}
+	outcome, err := h.Calls.Await(c.Request.Context(), callspkg.AwaitInput{
+		ProfileID: query.ReadScope.ProfileID, Scope: query.Scope, WorkspaceID: query.WorkspaceID,
+		CallIDs: req.CallIDs, Timeout: time.Duration(req.TimeoutMS) * time.Millisecond, Resume: req.Resume,
+	})
+	if err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	settled, err := h.callPayloads(c.Request.Context(), outcome.Settled)
+	if err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.AwaitCallsResponse{
+		Settled: settled, Pending: outcome.Pending, Outcome: outcome.Outcome, Resume: outcome.Resume,
+		ClampedTimeoutMS: outcome.ClampedTimeout.Milliseconds(),
+	})
+}
+
+// CallsCancel is idempotent and owner-bound.
+func (h *BaseHandlers) CallsCancel(c *gin.Context) {
+	if !h.requireCallsOperator(c, "call cancel") {
+		return
+	}
+	query, ok := h.resolvedCallReadQuery(c)
+	if !ok {
+		return
+	}
+	callID := strings.TrimSpace(c.Param("call_id"))
+	if _, err := h.Calls.GetRead(c.Request.Context(), query, callID); err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	var req contract.CancelCallRequest
+	if c.Request.ContentLength != 0 {
+		if err := decodeCallBody(c, &req); err != nil {
+			h.respondCallsError(c, err)
+			return
+		}
+	}
+	record, err := h.Calls.Cancel(c.Request.Context(), callID, req.Reason, h.callsOperatorActor())
+	if err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.CancelCallResponse{State: string(record.State)})
+}
+
+// CallsPublish posts one completed call as bounded Network evidence.
+func (h *BaseHandlers) CallsPublish(c *gin.Context) {
+	if !h.requireCallsOperator(c, "call publish") {
+		return
+	}
+	query, ok := h.resolvedCallReadQuery(c)
+	if !ok {
+		return
+	}
+	var req contract.PublishCallRequest
+	if err := decodeCallBody(c, &req); err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	receipt, err := h.Calls.Publish(c.Request.Context(), callspkg.PublishInput{
+		ProfileID: query.ReadScope.ProfileID, Scope: query.Scope, WorkspaceID: query.WorkspaceID,
+		CallID: strings.TrimSpace(c.Param("call_id")), Actor: h.callsOperatorActor(),
+		Channel: req.Channel, ThreadID: req.ThreadID,
+	})
+	if err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.PublishCallResponse{
+		NetworkMessageID: receipt.NetworkMessageID,
+		Published:        receipt.Published,
+	})
+}
+
+func (h *BaseHandlers) requireCallsOperator(c *gin.Context, surface string) bool {
+	if !h.requireOperatorSurface(c, surface) {
+		return false
+	}
+	if h == nil || h.Calls == nil {
+		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: calls service is not configured"))
+		return false
+	}
+	return true
+}
+
+func (h *BaseHandlers) callsOperatorActor() callspkg.Actor {
+	return callspkg.Actor{Kind: callsOperatorActorKind, ID: "operator:" + h.transportName()}
+}
+
+func (h *BaseHandlers) callsReadScope(c *gin.Context) (store.ReadScope, bool) {
+	scope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return store.ReadScope{}, false
+	}
+	return store.ReadScope{ProfileID: scope.ProfileID, AllProfiles: scope.AllProfiles}, true
+}
+
+func (h *BaseHandlers) resolvedCallReadQuery(c *gin.Context) (callspkg.CallReadQuery, bool) {
+	readScope, ok := h.callsReadScope(c)
+	if !ok {
+		return callspkg.CallReadQuery{}, false
+	}
+	query, err := callReadQuery(c, readScope)
+	if err != nil {
+		h.respondCallsError(c, err)
+		return callspkg.CallReadQuery{}, false
+	}
+	return query, true
+}
+
+func boundedCallPreview(payload []byte, limit int) []byte {
+	if limit <= 0 || limit > 64<<10 {
+		limit = 64 << 10
+	}
+	if len(payload) <= limit {
+		return append([]byte(nil), payload...)
+	}
+	return nil
+}

@@ -1,0 +1,126 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "reviewer",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "prompt": "You are a deterministic review agent.",
+            "turns": [
+                {
+                    "name": "golden",
+                    "match": { "user_text_contains": "golden path" },
+                    "steps": [
+                        { "kind": "call_return", "raw_input": { "result": { "answer": 42 } } }
+                    ]
+                },
+                {
+                    "name": "idempotent",
+                    "match": { "user_text_contains": "idempotent retry" },
+                    "steps": [{ "kind": "call_return", "raw_input": { "result": { "answer": 7 } } }]
+                },
+                {
+                    "name": "follow-up-first",
+                    "match": { "user_text_contains": "first pass" },
+                    "steps": [{ "kind": "call_return", "raw_input": { "result": { "answer": 1 } } }]
+                },
+                {
+                    "name": "follow-up-second",
+                    "match": { "user_text_contains": "one more thing" },
+                    "steps": [{ "kind": "call_return", "raw_input": { "result": { "answer": 2 } } }]
+                },
+                {
+                    "name": "repair-first",
+                    "match": { "user_text_contains": "repair result" },
+                    "steps": [
+                        { "kind": "call_return", "raw_input": { "result": { "wrong": true } } }
+                    ]
+                },
+                {
+                    "name": "repair-second",
+                    "match": {
+                        "user_text_contains": "Your result did not satisfy the output contract"
+                    },
+                    "steps": [{ "kind": "call_return", "raw_input": { "result": { "answer": 9 } } }]
+                },
+                {
+                    "name": "delayed",
+                    "match": { "user_text_contains": "delayed result" },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": { "action": "delay", "delay_ms": 300 }
+                        },
+                        { "kind": "call_return", "raw_input": { "result": { "answer": 5 } } }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "silent",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "turns": [
+                {
+                    "name": "silent",
+                    "match": { "user_text_contains": "finish silently" },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "chunks": ["Reviewed the change without a structured result."]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "extractor",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "turns": [
+                {
+                    "name": "extract",
+                    "match": { "user_text_contains": "extract result" },
+                    "steps": [
+                        { "kind": "assistant", "chunks": ["Done.\n```json\n{\"answer\":11}\n```"] }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "blocker",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "turns": [
+                {
+                    "name": "block",
+                    "match": { "user_text_contains": "keep working" },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": { "action": "block_until_cancel" }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "messenger",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "turns": [
+                {
+                    "name": "message-parent",
+                    "match": { "user_text_contains": "message parent" },
+                    "steps": [
+                        {
+                            "kind": "agent_message",
+                            "raw_input": { "to": "parent", "text": "Need an operator decision." }
+                        },
+                        { "kind": "call_return", "raw_input": { "result": { "answer": 13 } } }
+                    ]
+                }
+            ]
+        }
+    ]
+}

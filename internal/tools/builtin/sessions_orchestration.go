@@ -14,11 +14,6 @@ func sessionOrchestrationDescriptors() []toolspkg.Descriptor {
 			sessionWaitInputSchema, sessionWaitOutputSchema, toolspkg.RiskRead, true, false,
 		),
 		orchestrationDescriptor(
-			toolspkg.ToolIDSessionSpawn, "session_spawn", "Session Spawn",
-			"Create one governed child session with narrowed permissions and a required TTL.",
-			sessionSpawnInputSchema, sessionSpawnOutputSchema, toolspkg.RiskMutating, false, false,
-		),
-		orchestrationDescriptor(
 			toolspkg.ToolIDSessionStop, "session_stop", "Session Stop",
 			"Stop one same-workspace session other than the caller.",
 			sessionTargetInputSchema, sessionStopOutputSchema, toolspkg.RiskDestructive, false, true,
@@ -65,7 +60,7 @@ func orchestrationDescriptor(
 const sessionTargetInputSchema = `{
 	"type":"object",
 	"required":["session_id"],
-	"properties":{"session_id":{"type":"string","minLength":1}},
+	"properties":{"session_id":{"type":"string","minLength":1},"subtree":{"type":"boolean"},"reason":{"type":"string"}},
 	"additionalProperties":false
 }`
 
@@ -103,43 +98,10 @@ const sessionWaitOutputSchema = `{
 	"additionalProperties":false
 }`
 
-const sessionSpawnInputSchema = `{
-	"type":"object",
-	"required":["agent_name","ttl_seconds"],
-	"properties":{
-		"agent_name":{"type":"string","minLength":1},
-		"provider":{"type":"string"},"model":{"type":"string"},
-		"reasoning_effort":{"type":"string"},"speed":{"type":"string","enum":["normal","fast"]},
-		"acp_options":{"type":"array","items":` + acpOptionSelectionInputSchema + `},
-		"name":{"type":"string"},
-		"prompt_overlay":{"type":"string"},"spawn_role":{"type":"string"},
-		"ttl_seconds":{"type":"integer","minimum":1},
-		"auto_stop_on_parent":{"type":"boolean"},"notify_creator":{"type":"boolean"},
-		"tools":{"type":"array","items":{"type":"string"},"uniqueItems":true},
-		"skills":{"type":"array","items":{"type":"string"},"uniqueItems":true},
-		"mcp_servers":{"type":"array","items":{"type":"string"},"uniqueItems":true},
-		"workspace_paths":{"type":"array","items":{"type":"string"},"uniqueItems":true},
-		"network_channels":{"type":"array","items":{"type":"string"},"uniqueItems":true},
-		"sandbox_profiles":{"type":"array","items":{"type":"string"},"uniqueItems":true},
-		"idempotency_key":{"type":"string"}
-	},
-	"additionalProperties":false
-}`
-
-const sessionSpawnOutputSchema = `{
-	"type":"object",
-	"required":["session_id","spawn_role","spawn_depth","ttl_expires_at"],
-	"properties":{
-		"session_id":{"type":"string"},"spawn_role":{"type":"string"},
-		"spawn_depth":{"type":"integer","minimum":1},"ttl_expires_at":{"type":"string","format":"date-time"}
-	},
-	"additionalProperties":false
-}`
-
 const sessionStopOutputSchema = `{
 	"type":"object",
 	"required":["session_id","state"],
-	"properties":{"session_id":{"type":"string"},"state":{"const":"stopped"},"outcome":{"const":"already-stopped"}},
+	"properties":{"session_id":{"type":"string"},"state":{"const":"stopped"},"outcome":{"const":"already-stopped"},"stopped_children":{"type":"integer","minimum":0},"closed_calls":{"type":"integer","minimum":0},"preserved_results":{"type":"integer","minimum":0}},
 	"additionalProperties":false
 }`
 

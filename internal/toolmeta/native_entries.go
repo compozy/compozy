@@ -1,10 +1,12 @@
 package toolmeta
 
 var nativeEntries = map[string]Entry{
+	"compozy__agent_call":                     nativeEntry("Delegating", " ", false, "🤖", "auto"),
 	"compozy__agent_create":                   nativeEntry("Creating", " ", false, "🤖", "auto"),
 	"compozy__agent_heartbeat_status":         nativeEntry("Reading", " ", false, "🤖", "auto"),
 	"compozy__agent_heartbeat_wake":           nativeEntry("Running", " ", false, "🤖", "auto"),
 	"compozy__agent_list":                     nativeEntry("Reading", " ", false, "🤖", "auto"),
+	"compozy__agent_message":                  nativeEntry("Messaging", " ", false, "💬", "auto"),
 	"compozy__automation_jobs_create":         nativeEntry("Creating", " ", false, "⏱️", "auto"),
 	"compozy__automation_jobs_delete":         nativeEntry("Deleting", " ", false, "⏱️", "auto"),
 	"compozy__automation_jobs_disable":        nativeEntry("Disabling", " ", false, "⏱️", "auto"),
@@ -29,6 +31,11 @@ var nativeEntries = map[string]Entry{
 	"compozy__automation_triggers_update":     nativeEntry("Updating", " ", false, "⏱️", "auto"),
 	"compozy__bridges_list":                   nativeEntry("Reading", " ", false, "🌉", "auto"),
 	"compozy__bridges_status":                 nativeEntry("Reading", " ", false, "🌉", "auto"),
+	"compozy__call_await":                     nativeEntry("Waiting", " ", false, "🤖", "auto"),
+	"compozy__call_cancel":                    nativeEntry("Canceling", " ", false, "🤖", "auto"),
+	"compozy__call_publish":                   nativeEntry("Publishing", " ", false, "🤖", "auto"),
+	"compozy__call_result":                    nativeEntry("Reading", " ", false, "🤖", "auto"),
+	"compozy__call_return":                    nativeEntry("Returning", " ", false, "🤖", "auto"),
 	"compozy__clarify":                        nativeEntry("Asking", " ", false, "💬", "auto"),
 	"compozy__cmd_palette_invoke":             nativeEntry("Running", " ", false, "💬", "auto"),
 	"compozy__cmd_palette_list":               nativeEntry("Reading", " ", false, "💬", "auto"),
@@ -204,7 +211,6 @@ var nativeEntries = map[string]Entry{
 	"compozy__session_rewind":                 nativeEntry("Rewinding", " ", false, "💬", "auto"),
 	"compozy__session_runtime_clear":          nativeEntry("Clearing", " ", false, "💬", "auto"),
 	"compozy__session_runtime_set":            nativeEntry("Selecting", " ", false, "💬", "auto"),
-	"compozy__session_spawn":                  nativeEntry("Spawning", " ", false, "💬", "auto"),
 	"compozy__session_status":                 nativeEntry("Reading", " ", false, "💬", "auto"),
 	"compozy__session_stop":                   nativeEntry("Stopping", " ", false, "💬", "auto"),
 	"compozy__session_unarchive":              nativeEntry("Unarchiving", " ", false, "💬", "auto"),

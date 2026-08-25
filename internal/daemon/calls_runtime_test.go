@@ -40,7 +40,8 @@ func TestDaemonCallSessionInvokerRecovery(t *testing.T) {
 	if manager.resumeCalls != 1 {
 		t.Fatalf("Resume() calls = %d, want 1", manager.resumeCalls)
 	}
-	if manager.sentSessionID != childID || manager.sent.Message != "Review the patch." ||
+	wantPrompt := callspkg.CallPromptWithRemainingDepth("Review the patch.", 0)
+	if manager.sentSessionID != childID || manager.sent.Message != wantPrompt ||
 		manager.sent.MessageID != "msg_"+callID || manager.sent.IdempotencyKey != "call:"+callID {
 		t.Fatalf("SendPrompt() = %q %#v, want deterministic recovery delivery", manager.sentSessionID, manager.sent)
 	}

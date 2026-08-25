@@ -12,6 +12,9 @@ type taskUpdateInput struct {
 	Description        string
 	PriorityRaw        string
 	MetadataRaw        string
+	ExpectRaw          string
+	ResultBudget       string
+	ResultOverflow     string
 	OwnerKindRaw       string
 	OwnerRef           string
 	ClearOwner         bool
@@ -22,15 +25,18 @@ type taskUpdateInput struct {
 
 func newTaskUpdateCommand(deps commandDeps) *cobra.Command {
 	var (
-		title        string
-		description  string
-		metadataRaw  string
-		priorityRaw  string
-		ownerKindRaw string
-		ownerRef     string
-		clearOwner   bool
-		autoEnqueue  bool
-		networkFlags networkParticipationFlags
+		title          string
+		description    string
+		metadataRaw    string
+		expectRaw      string
+		resultBudget   string
+		resultOverflow string
+		priorityRaw    string
+		ownerKindRaw   string
+		ownerRef       string
+		clearOwner     bool
+		autoEnqueue    bool
+		networkFlags   networkParticipationFlags
 	)
 
 	cmd := &cobra.Command{
@@ -48,6 +54,9 @@ func newTaskUpdateCommand(deps commandDeps) *cobra.Command {
 				Description:        description,
 				PriorityRaw:        priorityRaw,
 				MetadataRaw:        metadataRaw,
+				ExpectRaw:          expectRaw,
+				ResultBudget:       resultBudget,
+				ResultOverflow:     resultOverflow,
 				OwnerKindRaw:       ownerKindRaw,
 				OwnerRef:           ownerRef,
 				ClearOwner:         clearOwner,
@@ -74,6 +83,9 @@ func newTaskUpdateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(&priorityRaw, "priority", "", "Update the task priority: low, medium, high, or urgent")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Update metadata JSON")
+	cmd.Flags().StringVar(&expectRaw, "expect", "", "Replace the result contract with inline JSON or @file")
+	cmd.Flags().StringVar(&resultBudget, "result-budget", "", "Task result budget, for example 512KiB")
+	cmd.Flags().StringVar(&resultOverflow, "result-overflow", "", "Over-budget policy: store or reject")
 	cmd.Flags().StringVar(&ownerKindRaw, "owner-kind", "", "Update the owner kind")
 	cmd.Flags().StringVar(&ownerRef, "owner-ref", "", "Update the owner reference")
 	cmd.Flags().BoolVar(&clearOwner, "clear-owner", false, "Remove the current owner")
@@ -108,6 +120,19 @@ func buildTaskUpdateRequest(cmd *cobra.Command, input taskUpdateInput) (UpdateTa
 			return UpdateTaskRequest{}, err
 		}
 		request.Metadata = &metadata
+	}
+	if cmd.Flags().Changed("expect") {
+		expect, err := readCallExpect(input.ExpectRaw)
+		if err != nil {
+			return UpdateTaskRequest{}, err
+		}
+		request.Expect = &expect
+	}
+	if cmd.Flags().Changed("result-budget") {
+		request.ResultBudget = strings.TrimSpace(input.ResultBudget)
+	}
+	if cmd.Flags().Changed("result-overflow") {
+		request.ResultOverflow = strings.TrimSpace(input.ResultOverflow)
 	}
 	if input.AutoEnqueueSet {
 		autoEnqueue := input.AutoEnqueueOnReady

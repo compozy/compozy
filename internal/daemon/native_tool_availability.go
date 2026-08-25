@@ -24,7 +24,6 @@ type nativeToolAvailabilitySet struct {
 	profiles             toolspkg.NativeAvailabilityFunc
 	sessionOrchestration toolspkg.NativeAvailabilityFunc
 	sessionWait          toolspkg.NativeAvailabilityFunc
-	sessionSpawn         toolspkg.NativeAvailabilityFunc
 	sessionClarifyAnswer toolspkg.NativeAvailabilityFunc
 	notifications        toolspkg.NativeAvailabilityFunc
 	sessionCatalog       toolspkg.NativeAvailabilityFunc
@@ -57,6 +56,7 @@ type nativeToolAvailabilitySet struct {
 	marketplace          toolspkg.NativeAvailabilityFunc
 	resources            toolspkg.NativeAvailabilityFunc
 	windowManager        toolspkg.NativeAvailabilityFunc
+	calls                toolspkg.NativeAvailabilityFunc
 	mcpStatus            toolspkg.NativeAvailabilityFunc
 	mcpAuth              toolspkg.NativeAvailabilityFunc
 }
@@ -109,10 +109,6 @@ func (n *daemonNativeTools) applySessionNativeToolAvailability(availability *nat
 	})
 	availability.sessionWait = n.dependencyAvailability(func() bool {
 		_, ok := n.deps.Sessions.(nativeSessionWaiter)
-		return ok && n.deps.Workspaces != nil
-	})
-	availability.sessionSpawn = n.dependencyAvailability(func() bool {
-		_, ok := n.deps.Sessions.(nativeSessionSpawner)
 		return ok && n.deps.Workspaces != nil
 	})
 	availability.sessionClarifyAnswer = n.dependencyAvailability(func() bool {
@@ -207,6 +203,7 @@ func (n *daemonNativeTools) applyServiceNativeToolAvailability(availability *nat
 	})
 	availability.automation = n.dependencyAvailability(func() bool { return n.automationManager() != nil })
 	availability.loops = n.dependencyAvailability(func() bool { return n.loopService() != nil })
+	availability.calls = n.dependencyAvailability(func() bool { return n.callsService() != nil })
 	availability.extensions = n.dependencyAvailability(func() bool {
 		return n.deps.ExtensionRegistry != nil && strings.TrimSpace(n.deps.HomePaths.HomeDir) != ""
 	})

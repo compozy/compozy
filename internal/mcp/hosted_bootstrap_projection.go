@@ -34,6 +34,12 @@ func (s *HostedService) bootstrapProjection(
 	if err != nil {
 		return HostedProjectionResponse{}, err
 	}
+	if s.projectionDecorator != nil {
+		views, err = s.projectionDecorator(ctx, record.scope(), cloneToolViews(views))
+		if err != nil {
+			return HostedProjectionResponse{}, err
+		}
+	}
 	response := hostedProjectionResponse(views)
 	if !known {
 		return response, nil

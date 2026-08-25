@@ -157,6 +157,7 @@ const (
 	specAgentsKey                                            = "agents"
 	specAutomationKey                                        = "automation"
 	specBridgesKey                                           = "bridges"
+	specCallsKey                                             = "calls"
 	specDiagnosticsKey                                       = "diagnostics"
 	specOnboardingKey                                        = "onboarding"
 	specFilesystemKey                                        = "filesystem"
@@ -168,6 +169,7 @@ const (
 	specLogsKey                                              = "logs"
 	specMarketplaceKey                                       = "marketplace"
 	specMemoryKey                                            = "memory"
+	specMessagesKey                                          = "messages"
 	specNetworkKey                                           = "network"
 	specNotificationsKey                                     = "notifications"
 	specObserveKey                                           = "observe"
@@ -277,6 +279,7 @@ func Document() (*openapi3.T, error) {
 			{Name: specAgentsKey},
 			{Name: specAutomationKey},
 			{Name: specBridgesKey},
+			{Name: specCallsKey},
 			{Name: specDiagnosticsKey},
 			{Name: specOnboardingKey},
 			{Name: specFilesystemKey},
@@ -289,6 +292,7 @@ func Document() (*openapi3.T, error) {
 			{Name: specLoopsKey},
 			{Name: specMarketplaceKey},
 			{Name: specMemoryKey},
+			{Name: specMessagesKey},
 			{Name: specObserveKey},
 			{Name: specOpenAIKey},
 			{Name: specProvidersKey},

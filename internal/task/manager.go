@@ -142,6 +142,7 @@ type Service struct {
 	workAdmission            admission.Checker
 	workspaceAccess          workspaceaccess.Policy
 	resultBudget             contracts.ByteBudget
+	resultBudgetConfig       contracts.CallsResultsConfig
 	resultContracts          contracts.Registry
 	forceRateLimiter         *forceRunRateLimiter
 	wakeMu                   sync.Mutex

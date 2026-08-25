@@ -58,6 +58,8 @@ func taskFromGenerated(row *sqlcgen.GetTaskRow) (taskpkg.Task, error) {
 		wakeCreator:          int(row.WakeCreator),
 		metadataJSON:         row.MetadataJson,
 		expectDigest:         row.ExpectDigest,
+		resultBudgetBytes:    row.ResultBudgetBytes,
+		resultOverflow:       row.ResultOverflow,
 	}
 	return taskRecordFromFields(record, &fields)
 }
@@ -208,6 +210,7 @@ func taskAttemptFromInt64(value int64) (int32, error) {
 }
 
 func insertTaskParams(record taskpkg.Task) sqlcgen.InsertTaskParams {
+	budgetBytes, overflow := nullableTaskResultBudget(record.ResultBudget)
 	return sqlcgen.InsertTaskParams{
 		ProfileID:          record.ProfileID,
 		ID:                 record.ID,
@@ -239,10 +242,13 @@ func insertTaskParams(record taskpkg.Task) sqlcgen.InsertTaskParams {
 		WakeCreator:        boolInt64(record.WakeCreator),
 		MetadataJson:       nullableTaskRawJSON(record.Metadata),
 		ExpectDigest:       nullableTaskString(record.ExpectDigest),
+		ResultBudgetBytes:  budgetBytes,
+		ResultOverflow:     overflow,
 	}
 }
 
 func updateTaskParams(record taskpkg.Task) sqlcgen.UpdateTaskParams {
+	budgetBytes, overflow := nullableTaskResultBudget(record.ResultBudget)
 	params := sqlcgen.UpdateTaskParams{
 		Identifier:           nullableTaskString(record.Identifier),
 		Scope:                string(record.Scope),
@@ -275,6 +281,8 @@ func updateTaskParams(record taskpkg.Task) sqlcgen.UpdateTaskParams {
 		WakeCreator:          boolInt64(record.WakeCreator),
 		MetadataJson:         nullableTaskRawJSON(record.Metadata),
 		ExpectDigest:         nullableTaskString(record.ExpectDigest),
+		ResultBudgetBytes:    budgetBytes,
+		ResultOverflow:       overflow,
 		ID:                   record.ID,
 	}
 	return params

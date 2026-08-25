@@ -11,7 +11,6 @@ import (
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
-	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -181,174 +180,14 @@ func TestMeContextCommandJSONKeepsStableSectionOrder(t *testing.T) {
 	})
 }
 
-func TestSpawnCommandMapsBoundedChildRequest(t *testing.T) {
+func TestRootCommandRejectsRemovedSpawn(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should map bounded child request", func(t *testing.T) {
-		t.Parallel()
-
-		var gotRequest AgentSpawnRequest
-		client := &stubClient{}
-		deps := newAgentCommandTestDeps(t, client)
-		client.agentSpawnFn = func(
-			_ context.Context,
-			request AgentSpawnRequest,
-			credentials agentidentity.Credentials,
-		) (AgentSpawnRecord, error) {
-			assertAgentCredentials(t, credentials)
-			gotRequest = request
-			ttl := fixedTestNow.Add(2 * time.Minute)
-			return AgentSpawnRecord{
-				Session: SessionRecord{
-					ID:        "sess-child",
-					Name:      request.Name,
-					AgentName: request.AgentName,
-					Runtime: contract.SessionRuntimePayload{Effective: &contract.RuntimeSelectionPayload{
-						Provider: request.Provider,
-					}},
-					WorkspaceID:   "ws-1",
-					WorkspacePath: "/workspace/project",
-					Type:          session.SessionTypeSpawned,
-					State:         session.StateActive,
-					CreatedAt:     fixedTestNow,
-					UpdatedAt:     fixedTestNow,
-				},
-				Lineage: contract.SessionLineagePayload{
-					ParentSessionID:  "sess-agent",
-					RootSessionID:    "sess-agent",
-					SpawnDepth:       1,
-					SpawnRole:        request.SpawnRole,
-					TTLExpiresAt:     &ttl,
-					AutoStopOnParent: request.AutoStopOnParent,
-					NotifyCreator:    request.NotifyCreator == nil || *request.NotifyCreator,
-					SpawnBudget: contract.SpawnBudgetPayload{
-						MaxChildren: 5,
-						MaxDepth:    1,
-						TTLSeconds:  request.TTLSeconds,
-					},
-					PermissionPolicy: request.Permissions,
-				},
-				Permissions: request.Permissions,
-			}, nil
-		}
-
-		stdout, _, err := executeRootCommand(
-			t,
-			deps,
-			"spawn",
-			"--agent",
-			"coder",
-			"--provider",
-			"codex",
-			"--model",
-			"gpt-test",
-			"--reasoning-effort",
-			"high",
-			"--speed",
-			"fast",
-			"--acp-option",
-			"context=1m",
-			"--acp-toggle",
-			"thinking=true",
-			"--name",
-			"child",
-			"--workspace",
-			"ws-target",
-			"--prompt-overlay",
-			"focus",
-			"--role",
-			"worker",
-			"--ttl-seconds",
-			"120",
-			"--tool",
-			"read",
-			"--skill",
-			"go",
-			"--mcp-server",
-			"filesystem",
-			"--workspace-path",
-			"/workspace/project",
-			"--channel",
-			"builders",
-			"--sandbox-profile",
-			"default",
-			"--idempotency-key",
-			"spawn-1",
-			"-o",
-			"json",
-		)
-		if err != nil {
-			t.Fatalf("compozy spawn error = %v", err)
-		}
-		if gotRequest.AgentName != "coder" ||
-			gotRequest.Provider != "codex" ||
-			gotRequest.Model != "gpt-test" ||
-			gotRequest.ReasoningEffort != "high" ||
-			gotRequest.Speed != speedpkg.SpeedFast ||
-			len(gotRequest.ACPOptions) != 2 ||
-			gotRequest.Name != "child" ||
-			gotRequest.Workspace != "ws-target" ||
-			gotRequest.PromptOverlay != "focus" ||
-			gotRequest.SpawnRole != "worker" ||
-			gotRequest.TTLSeconds != 120 ||
-			!gotRequest.AutoStopOnParent ||
-			gotRequest.NotifyCreator != nil ||
-			gotRequest.IdempotencyKey != "spawn-1" {
-			t.Fatalf("spawn request = %#v, want parsed bounded spawn request", gotRequest)
-		}
-		if gotRequest.ACPOptions[0].ID != "context" || gotRequest.ACPOptions[0].ValueID != "1m" ||
-			gotRequest.ACPOptions[1].ID != "thinking" || gotRequest.ACPOptions[1].BoolValue == nil ||
-			!*gotRequest.ACPOptions[1].BoolValue {
-			t.Fatalf("spawn ACP options = %#v, want typed select and boolean", gotRequest.ACPOptions)
-		}
-		if len(gotRequest.Permissions.Tools) != 1 ||
-			gotRequest.Permissions.Tools[0] != "read" ||
-			len(gotRequest.Permissions.Skills) != 1 ||
-			gotRequest.Permissions.Skills[0] != "go" ||
-			len(gotRequest.Permissions.MCPServers) != 1 ||
-			gotRequest.Permissions.MCPServers[0] != "filesystem" ||
-			len(gotRequest.Permissions.WorkspacePaths) != 1 ||
-			gotRequest.Permissions.WorkspacePaths[0] != "/workspace/project" ||
-			len(gotRequest.Permissions.NetworkChannels) != 1 ||
-			gotRequest.Permissions.NetworkChannels[0] != "builders" ||
-			len(gotRequest.Permissions.SandboxProfiles) != 1 ||
-			gotRequest.Permissions.SandboxProfiles[0] != "default" {
-			t.Fatalf("spawn permissions = %#v, want all repeatable atom flags", gotRequest.Permissions)
-		}
-
-		var output AgentSpawnRecord
-		if err := json.Unmarshal([]byte(stdout), &output); err != nil {
-			t.Fatalf("json.Unmarshal(spawn output) error = %v", err)
-		}
-		if output.Session.ID != "sess-child" || output.Lineage.ParentSessionID != "sess-agent" {
-			t.Fatalf("spawn output = %#v, want child session with parent lineage", output)
-		}
-
-		defaultStdout, _, err := executeRootCommand(
-			t, deps, "spawn", "--agent", "coder", "--ttl-seconds", "120",
-		)
-		if err != nil {
-			t.Fatalf("compozy spawn with default wake error = %v", err)
-		}
-		if !strings.Contains(defaultStdout, "Wake") || !strings.Contains(defaultStdout, "on-settle (default)") {
-			t.Fatalf("default spawn output = %q, want effective wake state", defaultStdout)
-		}
-
-		disabledStdout, _, err := executeRootCommand(
-			t, deps, "spawn", "--agent", "coder", "--ttl-seconds", "120", "--no-notify-creator",
-		)
-		if err != nil {
-			t.Fatalf("compozy spawn --no-notify-creator error = %v", err)
-		}
-		if gotRequest.NotifyCreator == nil || *gotRequest.NotifyCreator {
-			t.Fatalf("spawn request = %#v, want explicit notify_creator=false", gotRequest)
-		}
-		if !strings.Contains(disabledStdout, "Wake") || !strings.Contains(disabledStdout, "off") {
-			t.Fatalf("disabled spawn output = %q, want wake off", disabledStdout)
-		}
-	})
+	_, _, err := executeRootCommand(t, newAgentCommandTestDeps(t, &stubClient{}), "spawn")
+	if err == nil {
+		t.Fatal("compozy spawn error = nil, want removed command")
+	}
 }
-
 func TestChannelSendRejectsMissingInputsAndInvalidIdentity(t *testing.T) {
 	t.Parallel()
 

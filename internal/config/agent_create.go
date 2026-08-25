@@ -24,6 +24,7 @@ var (
 // AgentDefinitionDraft captures the simple AGENT.md fields supported by authoring surfaces.
 type AgentDefinitionDraft struct {
 	Name            string
+	Description     string
 	Provider        string
 	Command         string
 	Model           string
@@ -78,6 +79,7 @@ func RenderAgentDefinition(draft AgentDefinitionDraft) ([]byte, AgentDef, error)
 	}
 	agent := AgentDef{
 		Name:            agentName,
+		Description:     strings.TrimSpace(draft.Description),
 		Provider:        strings.TrimSpace(draft.Provider),
 		Command:         strings.TrimSpace(draft.Command),
 		Model:           strings.TrimSpace(draft.Model),
@@ -131,6 +133,7 @@ func AgentDefinitionDraftFromDef(agent AgentDef) AgentDefinitionDraft {
 	canonical := canonicalAgentDefinition(CloneAgentDef(agent))
 	return AgentDefinitionDraft{
 		Name:            canonical.Name,
+		Description:     canonical.Description,
 		Provider:        canonical.Provider,
 		Command:         canonical.Command,
 		Model:           canonical.Model,

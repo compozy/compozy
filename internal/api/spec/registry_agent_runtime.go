@@ -16,7 +16,6 @@ func registryAgentRuntimeOperations() []OperationSpec {
 		completeAgentTaskRunOperationSpec(),
 		failAgentTaskRunOperationSpec(),
 		releaseAgentTaskRunOperationSpec(),
-		spawnAgentSessionOperationSpec(),
 		notifyOperatorOperationSpec(),
 		getAgentCoordinatorConfigOperationSpec(),
 	}
@@ -401,30 +400,6 @@ func releaseAgentTaskRunOperationSpec() OperationSpec {
 			{Status: 404, Description: specTaskRunNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Task-run release conflict", Body: contract.ErrorPayload{}},
 			{Status: 422, Description: "Invalid release request", Body: contract.ErrorPayload{}},
-			{
-				Status:      503,
-				Description: specServiceUnavailableDependentServiceMissingDescription,
-				Body:        contract.ErrorPayload{},
-			},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-func spawnAgentSessionOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodPost,
-		Path:        "/api/agent/spawn",
-		OperationID: "spawnAgentSession",
-		Summary:     "Spawn a narrowed child session for the calling agent",
-		Tags:        []string{specAgentKey, specSessionsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		RequestBody: contract.AgentSpawnRequest{},
-		Responses: []ResponseSpec{
-			{Status: 201, Description: specCreatedDescription, Body: contract.AgentSpawnResponse{}},
-			{Status: 401, Description: specAgentCallerIdentityIsMissingDescription, Body: contract.ErrorPayload{}},
-			{Status: 403, Description: "Spawn permission denied", Body: contract.ErrorPayload{}},
-			{Status: 409, Description: "Spawn limit conflict", Body: contract.ErrorPayload{}},
-			{Status: 422, Description: "Invalid spawn request", Body: contract.ErrorPayload{}},
 			{
 				Status:      503,
 				Description: specServiceUnavailableDependentServiceMissingDescription,

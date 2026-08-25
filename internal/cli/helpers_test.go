@@ -170,6 +170,15 @@ type stubClient struct {
 	) (contract.NotificationPresetEnablementPayload, error)
 	listProfilesFn               func(context.Context) ([]contract.Profile, error)
 	listProfileSelectionsFn      func(context.Context) ([]contract.ProfileSelection, error)
+	createCallFn                 func(context.Context, string, contract.CreateCallRequest) (contract.CallCreatePayload, error)
+	listCallsFn                  func(context.Context, callListQuery) (contract.CallsResponse, error)
+	getCallFn                    func(context.Context, string, string) (contract.CallPayload, error)
+	getCallResultFn              func(context.Context, string, string) (contract.CallResultResponse, error)
+	awaitCallFn                  func(context.Context, string, string, contract.AwaitCallsRequest) (contract.AwaitCallsResponse, error)
+	cancelCallFn                 func(context.Context, string, string, contract.CancelCallRequest) (contract.CancelCallResponse, error)
+	publishCallFn                func(context.Context, string, string, contract.PublishCallRequest) (contract.PublishCallResponse, error)
+	sendCallMessageFn            func(context.Context, string, contract.SendCallMessageRequest) (contract.SendCallMessageResponse, error)
+	listCallMessagesFn           func(context.Context, callListQuery) (contract.CallMessagesResponse, error)
 	listBridgeSecretBindingsFn   func(context.Context, string) ([]BridgeSecretBindingRecord, error)
 	putBridgeSecretBindingFn     func(context.Context, string, string, BridgeSecretBindingRequest) (BridgeSecretBindingRecord, error)
 	deleteBridgeSecretBindingFn  func(context.Context, string, string) error
@@ -190,6 +199,7 @@ type stubClient struct {
 	inspectSessionFn             func(context.Context, string, SessionInspectQuery) (SessionInspectRecord, error)
 	refreshSessionSoulFn         func(context.Context, string, SessionSoulRefreshRequest) (AgentSoulRecord, error)
 	stopSessionFn                func(context.Context, string) error
+	stopSessionSubtreeFn         func(context.Context, string, string) (contract.StopSessionSubtreeResponse, error)
 	archiveSessionFn             func(context.Context, string) (SessionRecord, error)
 	unarchiveSessionFn           func(context.Context, string) (SessionRecord, error)
 	renameSessionFn              func(context.Context, string, RenameSessionRequest) (SessionRecord, error)
@@ -539,7 +549,6 @@ type stubClient struct {
 	agentMeFn              func(context.Context, agentidentity.Credentials) (AgentMeRecord, error)
 	agentContextFn         func(context.Context, agentidentity.Credentials) (AgentContextRecord, error)
 	agentNotifyFn          func(context.Context, AgentNotifyRequest, agentidentity.Credentials) (AgentNotifyRecord, error)
-	agentSpawnFn           func(context.Context, AgentSpawnRequest, agentidentity.Credentials) (AgentSpawnRecord, error)
 	agentChannelsFn        func(context.Context, agentidentity.Credentials) ([]AgentChannelRecord, error)
 	agentChannelRecvFn     func(context.Context, string, AgentChannelRecvQuery, agentidentity.Credentials) ([]AgentChannelMessageRecord, error)
 	agentChannelSendFn     func(context.Context, string, AgentChannelSendRequest, agentidentity.Credentials) (AgentChannelMessageRecord, error)
@@ -1690,6 +1699,103 @@ func (s *stubClient) ListProfileSelections(
 	return nil, nil
 }
 
+func (s *stubClient) CreateCall(
+	ctx context.Context,
+	workspaceID string,
+	request contract.CreateCallRequest,
+) (contract.CallCreatePayload, error) {
+	if s.createCallFn != nil {
+		return s.createCallFn(ctx, workspaceID, request)
+	}
+	return contract.CallCreatePayload{}, errors.New("unexpected CreateCall call")
+}
+
+func (s *stubClient) ListCalls(ctx context.Context, query callListQuery) (contract.CallsResponse, error) {
+	if s.listCallsFn != nil {
+		return s.listCallsFn(ctx, query)
+	}
+	return contract.CallsResponse{}, errors.New("unexpected ListCalls call")
+}
+
+func (s *stubClient) GetCall(
+	ctx context.Context,
+	workspaceID string,
+	callID string,
+) (contract.CallPayload, error) {
+	if s.getCallFn != nil {
+		return s.getCallFn(ctx, workspaceID, callID)
+	}
+	return contract.CallPayload{}, errors.New("unexpected GetCall call")
+}
+
+func (s *stubClient) GetCallResult(
+	ctx context.Context,
+	workspaceID string,
+	callID string,
+) (contract.CallResultResponse, error) {
+	if s.getCallResultFn != nil {
+		return s.getCallResultFn(ctx, workspaceID, callID)
+	}
+	return contract.CallResultResponse{}, errors.New("unexpected GetCallResult call")
+}
+
+func (s *stubClient) AwaitCall(
+	ctx context.Context,
+	workspaceID string,
+	callID string,
+	request contract.AwaitCallsRequest,
+) (contract.AwaitCallsResponse, error) {
+	if s.awaitCallFn != nil {
+		return s.awaitCallFn(ctx, workspaceID, callID, request)
+	}
+	return contract.AwaitCallsResponse{}, errors.New("unexpected AwaitCall call")
+}
+
+func (s *stubClient) CancelCall(
+	ctx context.Context,
+	workspaceID string,
+	callID string,
+	request contract.CancelCallRequest,
+) (contract.CancelCallResponse, error) {
+	if s.cancelCallFn != nil {
+		return s.cancelCallFn(ctx, workspaceID, callID, request)
+	}
+	return contract.CancelCallResponse{}, errors.New("unexpected CancelCall call")
+}
+
+func (s *stubClient) PublishCall(
+	ctx context.Context,
+	workspaceID string,
+	callID string,
+	request contract.PublishCallRequest,
+) (contract.PublishCallResponse, error) {
+	if s.publishCallFn != nil {
+		return s.publishCallFn(ctx, workspaceID, callID, request)
+	}
+	return contract.PublishCallResponse{}, errors.New("unexpected PublishCall call")
+}
+
+func (s *stubClient) SendCallMessage(
+	ctx context.Context,
+	workspaceID string,
+	request contract.SendCallMessageRequest,
+) (contract.SendCallMessageResponse, error) {
+	if s.sendCallMessageFn != nil {
+		return s.sendCallMessageFn(ctx, workspaceID, request)
+	}
+	return contract.SendCallMessageResponse{}, errors.New("unexpected SendCallMessage call")
+}
+
+func (s *stubClient) ListCallMessages(
+	ctx context.Context,
+	query callListQuery,
+) (contract.CallMessagesResponse, error) {
+	if s.listCallMessagesFn != nil {
+		return s.listCallMessagesFn(ctx, query)
+	}
+	return contract.CallMessagesResponse{}, errors.New("unexpected ListCallMessages call")
+}
+
 func (s *stubClient) ListBridgeSecretBindings(
 	ctx context.Context,
 	id string,
@@ -1878,6 +1984,17 @@ func (s *stubClient) StopSession(ctx context.Context, id string) error {
 		return s.stopSessionFn(ctx, id)
 	}
 	return errors.New("unexpected StopSession call")
+}
+
+func (s *stubClient) StopSessionSubtree(
+	ctx context.Context,
+	id string,
+	reason string,
+) (contract.StopSessionSubtreeResponse, error) {
+	if s.stopSessionSubtreeFn != nil {
+		return s.stopSessionSubtreeFn(ctx, id, reason)
+	}
+	return contract.StopSessionSubtreeResponse{}, errors.New("unexpected StopSessionSubtree call")
 }
 
 func (s *stubClient) ArchiveSession(ctx context.Context, id string) (SessionRecord, error) {
@@ -4355,17 +4472,6 @@ func (s *stubClient) AgentNotify(
 		return s.agentNotifyFn(ctx, request, credentials)
 	}
 	return AgentNotifyRecord{}, errors.New("unexpected AgentNotify call")
-}
-
-func (s *stubClient) AgentSpawn(
-	ctx context.Context,
-	request AgentSpawnRequest,
-	credentials agentidentity.Credentials,
-) (AgentSpawnRecord, error) {
-	if s.agentSpawnFn != nil {
-		return s.agentSpawnFn(ctx, request, credentials)
-	}
-	return AgentSpawnRecord{}, errors.New("unexpected AgentSpawn call")
 }
 
 func (s *stubClient) AgentChannels(

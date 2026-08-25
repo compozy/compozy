@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/network/participation"
 )
 
@@ -24,6 +25,8 @@ type CreateTask struct {
 	ApprovalPolicy       ApprovalPolicy         `json:"approval_policy,omitempty"`
 	Owner                *Ownership             `json:"owner,omitempty"`
 	WakeCreator          *bool                  `json:"wake_creator,omitempty"`
+	Expect               json.RawMessage        `json:"expect,omitempty"`
+	ResultBudget         *contracts.ByteBudget  `json:"result_budget,omitempty"`
 	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
 	Metadata             json.RawMessage        `json:"metadata,omitempty"`
 }
@@ -36,6 +39,8 @@ type Patch struct {
 	MaxAttempts          *int                   `json:"max_attempts,omitempty"`
 	AutoEnqueueOnReady   *bool                  `json:"auto_enqueue_on_ready,omitempty"`
 	ApprovalPolicy       *ApprovalPolicy        `json:"approval_policy,omitempty"`
+	Expect               *json.RawMessage       `json:"expect,omitempty"`
+	ResultBudget         *contracts.ByteBudget  `json:"result_budget,omitempty"`
 	Metadata             *json.RawMessage       `json:"metadata,omitempty"`
 	Owner                *Ownership             `json:"owner,omitempty"`
 	ClearOwner           bool                   `json:"clear_owner,omitempty"`

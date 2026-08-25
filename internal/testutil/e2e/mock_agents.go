@@ -24,6 +24,7 @@ type MockAgentSpec struct {
 	FixturePath     string
 	FixtureAgent    string
 	AgentName       string
+	Description     string
 	ProviderName    string
 	DiagnosticsPath string
 	Tools           []string
@@ -303,6 +304,7 @@ func registerMockAgent(
 		FixturePath:     spec.FixturePath,
 		FixtureAgent:    spec.FixtureAgent,
 		AgentName:       spec.AgentName,
+		Description:     spec.Description,
 		ProviderName:    providerName,
 		DiagnosticsPath: diagnosticsPath,
 		Tools:           append([]string(nil), spec.Tools...),

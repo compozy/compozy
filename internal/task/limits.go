@@ -52,6 +52,10 @@ const (
 	TaskFieldMetadata = "metadata"
 	// TaskFieldOwner identifies the mutable ownership field.
 	TaskFieldOwner = "owner"
+	// TaskFieldExpectDigest identifies the mutable result-contract identity field.
+	TaskFieldExpectDigest = "expect_digest"
+	// TaskFieldResultBudget identifies the mutable result-budget field.
+	TaskFieldResultBudget = "result_budget"
 )
 
 // ImmutableTaskFields returns the canonical immutable task field names.
@@ -76,6 +80,8 @@ func MutableTaskFields() []string {
 		TaskFieldApprovalPolicy,
 		TaskFieldMetadata,
 		TaskFieldOwner,
+		TaskFieldExpectDigest,
+		TaskFieldResultBudget,
 	}
 }
 
@@ -98,6 +104,8 @@ func IsMutableTaskField(field string) bool {
 		TaskFieldMaxAttempts,
 		TaskFieldAutoEnqueueOnReady,
 		TaskFieldApprovalPolicy,
+		TaskFieldExpectDigest,
+		TaskFieldResultBudget,
 		TaskFieldMetadata,
 		TaskFieldOwner:
 		return true

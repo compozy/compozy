@@ -91,6 +91,7 @@ func createAgentDraftFromRequest(req contract.CreateAgentRequest) (compozyconfig
 	}
 	return compozyconfig.AgentDefinitionDraft{
 		Name:            agentName,
+		Description:     agent.Description,
 		Provider:        agent.Provider,
 		Command:         agent.Command,
 		Model:           agent.Model,

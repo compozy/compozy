@@ -171,6 +171,7 @@ type ChildSpec struct {
 	IdleTTL         time.Duration
 	Runtime         RuntimeSpec
 	Permissions     PermissionAtoms
+	RemainingDepth  int
 }
 
 type SessionRef struct {
@@ -278,10 +279,50 @@ type SweepReport struct {
 	TimedOut []string
 }
 
+// PublishInput selects one channel-thread conversation for one-way result evidence.
+type PublishInput struct {
+	ProfileID   string
+	Scope       Scope
+	WorkspaceID string
+	CallID      string
+	Actor       Actor
+	Channel     string
+	ThreadID    string
+}
+
+// ResultEvidence is the Network-neutral payload consumed by the daemon bridge.
+type ResultEvidence struct {
+	CallID          string
+	WorkspaceID     string
+	SourceSessionID string
+	Channel         string
+	ThreadID        string
+	MessageID       string
+	ResultPreview   json.RawMessage
+	ResultBytes     int
+	FetchPath       string
+}
+
+// PublishReceipt records whether this request created or replayed a publication.
+type PublishReceipt struct {
+	NetworkMessageID string
+	Published        bool
+}
+
+// Publication is the durable idempotency row for one call and conversation.
+type Publication struct {
+	CallID           string
+	Channel          string
+	ThreadID         string
+	NetworkMessageID string
+	CreatedAt        time.Time
+}
+
 type DrainReport struct {
-	RootSessionID string
-	Stopped       []string
-	CanceledCalls []string
+	RootSessionID    string
+	Stopped          []string
+	CanceledCalls    []string
+	PreservedResults int
 }
 
 type OperatorCallerBinding struct {

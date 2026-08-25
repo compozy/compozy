@@ -49,7 +49,11 @@ func (n *daemonNativeTools) taskCreate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	created, err := n.deps.Tasks.CreateTask(ctx, input.spec(scope), actor)
+	spec, err := input.spec(scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	created, err := n.deps.Tasks.CreateTask(ctx, spec, actor)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -69,7 +73,11 @@ func (n *daemonNativeTools) taskChildCreate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	created, err := n.deps.Tasks.CreateChildTask(ctx, input.ParentTaskID, input.spec(scope), actor)
+	spec, err := input.spec(scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	created, err := n.deps.Tasks.CreateChildTask(ctx, input.ParentTaskID, spec, actor)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -89,7 +97,11 @@ func (n *daemonNativeTools) taskUpdate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	updated, err := n.deps.Tasks.UpdateTask(ctx, input.TaskID, input.patch(), actor)
+	patch, err := input.patch()
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	updated, err := n.deps.Tasks.UpdateTask(ctx, input.TaskID, patch, actor)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

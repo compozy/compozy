@@ -4869,14 +4869,13 @@ func TestTaskResultContractSnapshotAndRepairIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
-	registry := contracts.NewRegistry(db)
-	original, err := registry.Pin(ctx, json.RawMessage(
+	original, err := contracts.Prepare(json.RawMessage(
 		`{"type":"object","required":["answer"],"properties":{"answer":{"type":"integer"}},"additionalProperties":false}`,
 	))
 	if err != nil {
 		t.Fatalf("Pin(original contract) error = %v", err)
 	}
-	updated, err := registry.Pin(ctx, json.RawMessage(
+	updated, err := contracts.Prepare(json.RawMessage(
 		`{"type":"object","required":["changed"],"properties":{"changed":{"type":"boolean"}},"additionalProperties":false}`,
 	))
 	if err != nil {
@@ -4887,15 +4886,15 @@ func TestTaskResultContractSnapshotAndRepairIntegration(t *testing.T) {
 		ProfileID: store.DefaultProfileID,
 		Scope:     taskpkg.ScopeGlobal,
 		Title:     "Result contract snapshot",
+		Expect:    original.Schema,
+		ResultBudget: &contracts.ByteBudget{
+			MaxBytes: 1024,
+			Overflow: contracts.OverflowReject,
+		},
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
 	}
-	taskRecord.ExpectDigest = original.Digest
-	if err := db.UpdateTask(ctx, *taskRecord, actor); err != nil {
-		t.Fatalf("UpdateTask(original contract) error = %v", err)
-	}
-
 	startRun := func(label string) (*taskpkg.Run, string) {
 		t.Helper()
 		queued, enqueueErr := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: taskRecord.ID}, actor)
@@ -4916,12 +4915,13 @@ func TestTaskResultContractSnapshotAndRepairIntegration(t *testing.T) {
 	}
 
 	firstRun, firstToken := startRun("original")
-	storedTask, err := db.GetTask(ctx, taskRecord.ID)
-	if err != nil {
-		t.Fatalf("GetTask(mid-run) error = %v", err)
-	}
-	storedTask.ExpectDigest = updated.Digest
-	if err := db.UpdateTask(ctx, storedTask, actor); err != nil {
+	if _, err := manager.UpdateTask(ctx, taskRecord.ID, taskpkg.Patch{
+		Expect: &updated.Schema,
+		ResultBudget: &contracts.ByteBudget{
+			MaxBytes: 2048,
+			Overflow: contracts.OverflowStore,
+		},
+	}, actor); err != nil {
 		t.Fatalf("UpdateTask(updated contract) error = %v", err)
 	}
 	if firstRun.ExpectDigest != original.Digest {

@@ -125,6 +125,16 @@ var HostAPITasksRunsAttachSessionContract = HostAPIMethodContract[TaskRunAttachS
 var HostAPITasksRunsCompleteContract = HostAPIMethodContract[TaskRunCompleteParams, TaskRun]{Method: HostAPIMethodTasksRunsComplete}
 var HostAPITasksRunsFailContract = HostAPIMethodContract[TaskRunFailParams, TaskRun]{Method: HostAPIMethodTasksRunsFail}
 var HostAPITasksRunsCancelContract = HostAPIMethodContract[TaskRunCancelParams, TaskRun]{Method: HostAPIMethodTasksRunsCancel}
+var HostAPICallsListContract = HostAPIMethodContract[CallsListParams, CallsResponse]{
+	Method:         HostAPIMethodCallsList,
+	OptionalParams: true,
+}
+var HostAPICallsGetContract = HostAPIMethodContract[CallTargetParams, Call]{Method: HostAPIMethodCallsGet}
+var HostAPICallsResultContract = HostAPIMethodContract[CallTargetParams, CallResult]{Method: HostAPIMethodCallsResult}
+var HostAPIMessagesListContract = HostAPIMethodContract[MessagesListParams, CallMessagesResponse]{
+	Method:         HostAPIMethodMessagesList,
+	OptionalParams: true,
+}
 var HostAPINetworkStatusContract = HostAPIMethodContract[EmptyResult, NetworkStatusPayload]{
 	Method:         HostAPIMethodNetworkStatus,
 	OptionalParams: true,

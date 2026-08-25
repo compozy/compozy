@@ -134,6 +134,7 @@ func agentDefFromParsedFile(
 
 func applyAgentDefToParsed(parsed *parsedAgentDef, agent AgentDef) error {
 	parsed.Name = agent.Name
+	parsed.Description = strings.TrimSpace(agent.Description)
 	parsed.Provider = strings.TrimSpace(agent.Provider)
 	parsed.Command = strings.TrimSpace(agent.Command)
 	parsed.Model = strings.TrimSpace(agent.Model)

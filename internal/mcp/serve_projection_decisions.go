@@ -95,6 +95,10 @@ var hostAPIProjectionDecisions = map[extensionprotocol.HostAPIMethod]projectionD
 	extensionprotocol.HostAPIMethodTasksRunsComplete:        {Reason: projectionReasonTargetOnly},
 	extensionprotocol.HostAPIMethodTasksRunsFail:            {Reason: projectionReasonTargetOnly},
 	extensionprotocol.HostAPIMethodTasksRunsCancel:          {Reason: projectionReasonTargetOnly},
+	extensionprotocol.HostAPIMethodCallsList:                {Publish: true},
+	extensionprotocol.HostAPIMethodCallsGet:                 {Publish: true},
+	extensionprotocol.HostAPIMethodCallsResult:              {Publish: true},
+	extensionprotocol.HostAPIMethodMessagesList:             {Publish: true},
 	extensionprotocol.HostAPIMethodNetworkStatus: {
 		Reason: "daemon-global status has no workspace binding",
 	},

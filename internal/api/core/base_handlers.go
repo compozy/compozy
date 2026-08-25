@@ -53,6 +53,7 @@ type BaseHandlerConfig struct {
 	Clarify                      toolspkg.ClarifyBroker
 	Automation                   AutomationManager
 	Loops                        LoopService
+	Calls                        CallsService
 	Tasks                        TaskService
 	Bridges                      BridgeService
 	Notifications                NotificationPresetService
@@ -141,6 +142,7 @@ type BaseHandlers struct {
 	Clarify                      toolspkg.ClarifyBroker
 	Automation                   AutomationManager
 	Loops                        LoopService
+	Calls                        CallsService
 	Tasks                        TaskService
 	Bridges                      BridgeService
 	Notifications                NotificationPresetService
@@ -247,6 +249,7 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		Clarify:                      cfg.Clarify,
 		Automation:                   cfg.Automation,
 		Loops:                        cfg.Loops,
+		Calls:                        cfg.Calls,
 		Tasks:                        cfg.Tasks,
 		Bridges:                      cfg.Bridges,
 		Notifications:                cfg.Notifications,

@@ -452,6 +452,22 @@ func TestServiceCreateBatchAndSessionTargets(t *testing.T) {
 	}
 }
 
+func TestCallPromptStatesLiteralRemainingDepth(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		remaining int
+		want      string
+	}{
+		{remaining: 2, want: "You may delegate 2 more levels."},
+		{remaining: 1, want: "You may delegate 1 more level."},
+		{remaining: 0, want: "You cannot delegate further."},
+	} {
+		if got := CallPromptWithRemainingDepth("Review this.", test.remaining); !strings.Contains(got, test.want) {
+			t.Fatalf("CallPromptWithRemainingDepth(%d) = %q, want %q", test.remaining, got, test.want)
+		}
+	}
+}
+
 func newCallServiceHarness(
 	t *testing.T,
 	cfg config.CallsConfig,

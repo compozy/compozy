@@ -85,6 +85,8 @@ func runSummaryFromRun(run Run, maxAttempts int) *RunSummary {
 		HeartbeatAt:                  run.HeartbeatAt,
 		ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
 		DesignationGroupID:           run.DesignationGroupID,
+		ExpectDigest:                 run.ExpectDigest,
+		ResultBudget:                 cloneResultBudget(run.ResultBudget),
 		QueuedAt:                     run.QueuedAt,
 		ClaimedAt:                    run.ClaimedAt,
 		StartedAt:                    run.StartedAt,

@@ -34,9 +34,11 @@ func (m *Service) CreateTask(
 	if err := m.validateParentConstraints(ctx, normalizedSpec); err != nil {
 		return nil, err
 	}
-
 	record, err := m.newTaskRecord(normalizedSpec, actor)
 	if err != nil {
+		return nil, err
+	}
+	if err := m.applyNewTaskExpectation(ctx, &record, normalizedSpec); err != nil {
 		return nil, err
 	}
 	if err := record.Validate(); err != nil {
@@ -148,6 +150,9 @@ func (m *Service) CreateChildTask(
 	}
 	child, err := m.newTaskRecord(normalizedSpec, actor)
 	if err != nil {
+		return nil, err
+	}
+	if err := m.applyNewTaskExpectation(ctx, &child, normalizedSpec); err != nil {
 		return nil, err
 	}
 	if err := child.Validate(); err != nil {
@@ -266,6 +271,10 @@ func (m *Service) UpdateTask(
 	}
 
 	updated, changedFields := applyTaskPatch(current, normalizedPatch)
+	changedFields, err = m.applyTaskExpectationPatch(ctx, &updated, normalizedPatch, changedFields)
+	if err != nil {
+		return nil, err
+	}
 	updateTaskRow := len(changedFields) > 0
 	if normalizedPatch.NetworkParticipation != nil {
 		changedFields = append(changedFields, "network_participation")

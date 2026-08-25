@@ -155,12 +155,6 @@ type AgentMeRecord = contract.AgentMePayload
 // AgentContextRecord is the shared bounded agent situation payload.
 type AgentContextRecord = contract.AgentContextPayload
 
-// AgentSpawnRequest captures one bounded child-session spawn request.
-type AgentSpawnRequest = contract.AgentSpawnRequest
-
-// AgentSpawnRecord is the stable child-session spawn response projection.
-type AgentSpawnRecord = contract.AgentSpawnPayload
-
 // SpawnPermissionPolicyRecord captures concrete spawn permission atoms.
 type SpawnPermissionPolicyRecord = contract.SpawnPermissionPolicyPayload
 

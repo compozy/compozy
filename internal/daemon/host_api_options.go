@@ -15,6 +15,7 @@ func buildHostAPIOptions(
 	opts := []extensionpkg.HostAPIOption{
 		extensionpkg.WithHostAPIAutomationGetter(deps.Automation),
 		extensionpkg.WithHostAPITaskManager(deps.Tasks),
+		extensionpkg.WithHostAPICallsReader(deps.Calls),
 		extensionpkg.WithHostAPITaskCatalogFilterMapper(core.ApplyTaskLoopCatalogFilters),
 		extensionpkg.WithHostAPINetworkService(deps.Network),
 		extensionpkg.WithHostAPINetworkStore(deps.NetworkStore),

@@ -6,39 +6,45 @@ import (
 	"strings"
 )
 
+// ErrPublicationNotFound reports an absent per-conversation idempotency row.
+var ErrPublicationNotFound = errors.New("calls: publication not found")
+
 // ErrorCode is the stable machine-readable calls failure vocabulary.
 type ErrorCode string
 
 const (
-	CodeValidation           ErrorCode = "call_validation"
-	CodeAgentUnknown         ErrorCode = "call_agent_unknown"
-	CodeExpectInvalid        ErrorCode = "call_expect_invalid"
-	CodePromptRequired       ErrorCode = "call_prompt_required"
-	CodeChildrenCap          ErrorCode = "call_children_cap"
-	CodeWideningRejected     ErrorCode = "call_widening_rejected"
-	CodeTargetNotFound       ErrorCode = "call_target_not_found"
-	CodeTargetExpired        ErrorCode = "call_target_expired"
-	CodeTargetDenied         ErrorCode = "call_target_denied"
-	CodeWorkspaceDenied      ErrorCode = "call_workspace_denied"
-	CodeParentTerminal       ErrorCode = "call_parent_terminal"
-	CodeDepthExceeded        ErrorCode = "call_depth_exceeded"
-	CodeBatchEmpty           ErrorCode = "call_batch_empty"
-	CodeBatchOverCap         ErrorCode = "call_batch_over_cap"
-	CodeIdempotencyConflict  ErrorCode = "call_idempotency_conflict"
-	CodeNotFound             ErrorCode = "call_not_found"
-	CodeAlreadySettled       ErrorCode = "call_already_settled"
-	CodeReturnUnbound        ErrorCode = "call_return_unbound"
-	CodeResultInvalid        ErrorCode = "call_result_invalid"
-	CodeResultOverBudget     ErrorCode = "call_result_over_budget"
-	CodeDeadlineInvalid      ErrorCode = "call_deadline_invalid"
-	CodeSettlementDenied     ErrorCode = "call_settlement_denied"
-	CodeMessageTooLarge      ErrorCode = "message_too_large"
-	CodeMessageTargetBlocked ErrorCode = "message_target_blocked"
-	CodeMessageTargetDenied  ErrorCode = "message_target_denied"
-	CodeMessageRateLimited   ErrorCode = "message_rate_limited"
-	CodeMessageDuplicate     ErrorCode = "message_duplicate"
-	CodeMessagePendingCap    ErrorCode = "message_pending_cap"
-	CodeMessageNotFound      ErrorCode = "message_not_found"
+	CodeValidation             ErrorCode = "call_validation"
+	CodeAgentUnknown           ErrorCode = "call_agent_unknown"
+	CodeExpectInvalid          ErrorCode = "call_expect_invalid"
+	CodePromptRequired         ErrorCode = "call_prompt_empty"
+	CodeChildrenCap            ErrorCode = "call_children_cap"
+	CodeWideningRejected       ErrorCode = "call_widening_rejected"
+	CodeTargetNotFound         ErrorCode = "call_target_not_found"
+	CodeTargetExpired          ErrorCode = "call_target_expired"
+	CodeTargetDenied           ErrorCode = "call_target_denied"
+	CodeWorkspaceDenied        ErrorCode = "call_workspace_denied"
+	CodeParentTerminal         ErrorCode = "call_parent_terminal"
+	CodeDepthExceeded          ErrorCode = "call_depth_exceeded"
+	CodeBatchEmpty             ErrorCode = "call_batch_empty"
+	CodeBatchOverCap           ErrorCode = "call_batch_over_cap"
+	CodeIdempotencyConflict    ErrorCode = "call_idempotency_conflict"
+	CodeNotFound               ErrorCode = "call_target_not_found"
+	CodeNotSettled             ErrorCode = "call_not_settled"
+	CodeAlreadySettled         ErrorCode = "call_already_settled"
+	CodeReturnUnbound          ErrorCode = "call_return_unbound"
+	CodeResultInvalid          ErrorCode = "call_result_invalid"
+	CodeResultOverBudget       ErrorCode = "call_result_over_budget"
+	CodeDeadlineInvalid        ErrorCode = "call_deadline_invalid"
+	CodeSettlementDenied       ErrorCode = "call_settlement_denied"
+	CodeMessageTooLarge        ErrorCode = "message_too_large"
+	CodeMessageTargetBlocked   ErrorCode = "message_target_blocked"
+	CodeMessageTargetDenied    ErrorCode = "message_target_denied"
+	CodeMessageRateLimited     ErrorCode = "message_rate_limited"
+	CodeMessageDuplicate       ErrorCode = "message_duplicate"
+	CodeMessagePendingCap      ErrorCode = "message_pending_cap"
+	CodeMessageNotFound        ErrorCode = "message_not_found"
+	CodePublishNoParticipation ErrorCode = "call_publish_no_participation"
+	CodePublishNotSettled      ErrorCode = "call_publish_not_settled"
 )
 
 // Error carries a stable code plus safe diagnostic detail.
@@ -66,6 +72,14 @@ func (e *Error) Error() string {
 }
 
 func (e *Error) Unwrap() error { return e.Cause }
+
+// DiagnosticCode exposes the stable calls code to shared transport error rendering.
+func (e *Error) DiagnosticCode() string {
+	if e == nil {
+		return ""
+	}
+	return string(e.Code)
+}
 
 // IsCode reports whether an error carries the requested public code.
 func IsCode(err error, code ErrorCode) bool {

@@ -6,6 +6,7 @@ import "strings"
 func CloneAgentDef(agent AgentDef) AgentDef {
 	cloned := AgentDef{
 		Name:            strings.TrimSpace(agent.Name),
+		Description:     strings.TrimSpace(agent.Description),
 		Provider:        strings.TrimSpace(agent.Provider),
 		Command:         strings.TrimSpace(agent.Command),
 		Model:           strings.TrimSpace(agent.Model),

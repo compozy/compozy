@@ -25,6 +25,8 @@ type serviceOptions struct {
 	claimer   ActivationClaimer
 	canceler  ActivationRunCanceler
 	invoker   SessionInvoker
+	publisher PublishBridge
+	hooks     HookDispatcher
 	config    config.CallsConfig
 	now       func() time.Time
 	newID     func(string) (string, error)
@@ -36,6 +38,8 @@ type Service struct {
 	claimer         ActivationClaimer
 	canceler        ActivationRunCanceler
 	invoker         SessionInvoker
+	publisher       PublishBridge
+	hooks           HookDispatcher
 	config          config.CallsConfig
 	resultPolicy    contracts.CallsResultsConfig
 	registry        contracts.Registry
@@ -47,6 +51,7 @@ type Service struct {
 	waitMu          sync.Mutex
 	waiters         map[string]map[uint64]chan struct{}
 	nextWaiterID    uint64
+	publishMu       sync.Mutex
 }
 
 func WithStore(value Store) Option { return func(opts *serviceOptions) { opts.store = value } }
@@ -61,6 +66,12 @@ func WithActivationRunCanceler(value ActivationRunCanceler) Option {
 }
 func WithSessionInvoker(value SessionInvoker) Option {
 	return func(opts *serviceOptions) { opts.invoker = value }
+}
+func WithPublishBridge(value PublishBridge) Option {
+	return func(opts *serviceOptions) { opts.publisher = value }
+}
+func WithHookDispatcher(value HookDispatcher) Option {
+	return func(opts *serviceOptions) { opts.hooks = value }
 }
 func WithConfig(value config.CallsConfig) Option {
 	return func(opts *serviceOptions) { opts.config = value }
@@ -116,7 +127,8 @@ func NewService(options ...Option) (*Service, error) {
 	}
 	return &Service{
 		store: opts.store, directory: opts.directory, claimer: opts.claimer,
-		canceler: opts.canceler, invoker: opts.invoker, config: opts.config,
+		canceler: opts.canceler, invoker: opts.invoker, publisher: opts.publisher, hooks: opts.hooks,
+		config:       opts.config,
 		resultPolicy: resultPolicy, idleTTL: idleTTL, messageDedup: messageDedup,
 		messageMaxBytes: messageMaxBytes, now: opts.now, newID: opts.newID,
 		registry: contracts.NewRegistry(opts.store),

@@ -198,6 +198,9 @@ func (t Task) Validate() error {
 	if err := ValidateMetadataSize(t.Metadata, "task.metadata"); err != nil {
 		return err
 	}
+	if err := validatePersistedTaskExpectation(t); err != nil {
+		return err
+	}
 	return nil
 }
 

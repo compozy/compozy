@@ -43,7 +43,6 @@ Generic Go concurrency patterns (goroutine ownership, channels vs mutexes, `sele
 - Single-binary and local-first. Sidecars or external control planes require a written techspec.
 - Keep execution paths deterministic and observable.
 - **Daemon runs in background by default.** No daemon should require a foreground terminal.
-- **`compozy exec` is headless.** `--format text` returns a single string; `--format json` returns a stream of valid JSON objects; the TUI is opt-in via `--tui`. `exec` does not persist artifacts to `.compozy/runs/` unless `--persist` is given.
 - **Agent operations must not depend on the web UI.** If agents need to inspect, configure, start, stop, approve, claim, release, or repair a capability, the spec must provide a CLI/HTTP/UDS path with structured output and deterministic errors.
 
 ### Observability

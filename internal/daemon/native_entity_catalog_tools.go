@@ -46,7 +46,7 @@ func (n *daemonNativeTools) agentList(
 		}
 		entries = listed
 	}
-	payload := core.AgentPayloadsFromEntries(entries)
+	payload := core.AgentListPayloads(entries, nil, n.deps.HomePaths, workspaceID)
 	return structuredResult(
 		map[string]any{nativeToolsAgentsKey: payload},
 		fmt.Sprintf("%d agents", len(payload)),

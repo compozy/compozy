@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/contracts"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -20,6 +21,7 @@ func normalizeTaskRecord(record taskpkg.Task) taskpkg.Task {
 	normalized.ParentTaskID = strings.TrimSpace(normalized.ParentTaskID)
 	normalized.CurrentRunID = strings.TrimSpace(normalized.CurrentRunID)
 	normalized.ExpectDigest = strings.TrimSpace(normalized.ExpectDigest)
+	normalized.ResultBudget = cloneTaskResultBudget(normalized.ResultBudget)
 	normalized.Title = strings.TrimSpace(normalized.Title)
 	normalized.Description = strings.TrimSpace(normalized.Description)
 	normalized.PausedBy = strings.TrimSpace(normalized.PausedBy)
@@ -85,6 +87,14 @@ func normalizeTaskRecord(record taskpkg.Task) taskpkg.Task {
 		normalized.PausedAt = normalized.PausedAt.UTC()
 	}
 	return normalized
+}
+
+func cloneTaskResultBudget(budget *contracts.ByteBudget) *contracts.ByteBudget {
+	if budget == nil {
+		return nil
+	}
+	cloned := *budget
+	return &cloned
 }
 
 func normalizeTaskRunRecord(run taskpkg.Run) taskpkg.Run {

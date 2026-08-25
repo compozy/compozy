@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -135,18 +136,19 @@ type Task struct {
 	// automatically once its blocking dependencies complete (opt-in; default
 	// false preserves the explicit-execution-boundary contract). Clustered with
 	// Paused to keep Task within the 512-byte gocritic copy threshold.
-	AutoEnqueueOnReady bool            `json:"auto_enqueue_on_ready,omitempty"`
-	Paused             bool            `json:"paused,omitempty"`
-	WakeCreator        bool            `json:"wake_creator"`
-	ExpectDigest       string          `json:"expect_digest,omitempty"`
-	PausedBy           string          `json:"paused_by,omitempty"`
-	PausedAt           time.Time       `json:"paused_at,omitzero"`
-	PausedReason       string          `json:"paused_reason,omitempty"`
-	NeedsAttention     *NeedsAttention `json:"needs_attention,omitempty"`
-	CreatedBy          ActorIdentity   `json:"created_by"`
-	Origin             Origin          `json:"origin"`
-	CreatedAt          time.Time       `json:"created_at"`
-	UpdatedAt          time.Time       `json:"updated_at"`
-	ClosedAt           time.Time       `json:"closed_at"`
-	Metadata           json.RawMessage `json:"metadata,omitempty"`
+	AutoEnqueueOnReady bool                  `json:"auto_enqueue_on_ready,omitempty"`
+	Paused             bool                  `json:"paused,omitempty"`
+	WakeCreator        bool                  `json:"wake_creator"`
+	ExpectDigest       string                `json:"expect_digest,omitempty"`
+	ResultBudget       *contracts.ByteBudget `json:"result_budget,omitempty"`
+	PausedBy           string                `json:"paused_by,omitempty"`
+	PausedAt           time.Time             `json:"paused_at,omitzero"`
+	PausedReason       string                `json:"paused_reason,omitempty"`
+	NeedsAttention     *NeedsAttention       `json:"needs_attention,omitempty"`
+	CreatedBy          ActorIdentity         `json:"created_by"`
+	Origin             Origin                `json:"origin"`
+	CreatedAt          time.Time             `json:"created_at"`
+	UpdatedAt          time.Time             `json:"updated_at"`
+	ClosedAt           time.Time             `json:"closed_at"`
+	Metadata           json.RawMessage       `json:"metadata,omitempty"`
 }

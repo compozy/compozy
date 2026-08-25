@@ -78,10 +78,12 @@ func TestNativeEntryMatchesBuiltinDescriptorInventory(t *testing.T) {
 
 func expectedNativeEntries() map[string]toolmeta.Entry {
 	return map[string]toolmeta.Entry{
+		"compozy__agent_call":                     expectedNativeEntry("Delegating", " ", false, "🤖", "auto"),
 		"compozy__agent_create":                   expectedNativeEntry("Creating", " ", false, "🤖", "auto"),
 		"compozy__agent_heartbeat_status":         expectedNativeEntry("Reading", " ", false, "🤖", "auto"),
 		"compozy__agent_heartbeat_wake":           expectedNativeEntry("Running", " ", false, "🤖", "auto"),
 		"compozy__agent_list":                     expectedNativeEntry("Reading", " ", false, "🤖", "auto"),
+		"compozy__agent_message":                  expectedNativeEntry("Messaging", " ", false, "💬", "auto"),
 		"compozy__automation_jobs_create":         expectedNativeEntry("Creating", " ", false, "⏱️", "auto"),
 		"compozy__automation_jobs_delete":         expectedNativeEntry("Deleting", " ", false, "⏱️", "auto"),
 		"compozy__automation_jobs_disable":        expectedNativeEntry("Disabling", " ", false, "⏱️", "auto"),
@@ -106,6 +108,11 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__automation_triggers_update":     expectedNativeEntry("Updating", " ", false, "⏱️", "auto"),
 		"compozy__bridges_list":                   expectedNativeEntry("Reading", " ", false, "🌉", "auto"),
 		"compozy__bridges_status":                 expectedNativeEntry("Reading", " ", false, "🌉", "auto"),
+		"compozy__call_await":                     expectedNativeEntry("Waiting", " ", false, "🤖", "auto"),
+		"compozy__call_cancel":                    expectedNativeEntry("Canceling", " ", false, "🤖", "auto"),
+		"compozy__call_publish":                   expectedNativeEntry("Publishing", " ", false, "🤖", "auto"),
+		"compozy__call_result":                    expectedNativeEntry("Reading", " ", false, "🤖", "auto"),
+		"compozy__call_return":                    expectedNativeEntry("Returning", " ", false, "🤖", "auto"),
 		"compozy__clarify":                        expectedNativeEntry("Asking", " ", false, "💬", "auto"),
 		"compozy__cmd_palette_invoke":             expectedNativeEntry("Running", " ", false, "💬", "auto"),
 		"compozy__cmd_palette_list":               expectedNativeEntry("Reading", " ", false, "💬", "auto"),
@@ -281,7 +288,6 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__session_rewind":                 expectedNativeEntry("Rewinding", " ", false, "💬", "auto"),
 		"compozy__session_runtime_clear":          expectedNativeEntry("Clearing", " ", false, "💬", "auto"),
 		"compozy__session_runtime_set":            expectedNativeEntry("Selecting", " ", false, "💬", "auto"),
-		"compozy__session_spawn":                  expectedNativeEntry("Spawning", " ", false, "💬", "auto"),
 		"compozy__session_status":                 expectedNativeEntry("Reading", " ", false, "💬", "auto"),
 		"compozy__session_stop":                   expectedNativeEntry("Stopping", " ", false, "💬", "auto"),
 		"compozy__session_unarchive":              expectedNativeEntry("Unarchiving", " ", false, "💬", "auto"),

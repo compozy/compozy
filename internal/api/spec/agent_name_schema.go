@@ -24,10 +24,6 @@ func customizeDuplicateAgentRequestSchema(schema *openapi3.Schema) {
 	setAgentNameSchema(schema, "name", compozyconfig.AgentNamePattern)
 }
 
-func customizeAgentSpawnRequestSchema(schema *openapi3.Schema) {
-	setAgentNameSchema(schema, "agent_name", compozyconfig.AgentNamePattern)
-}
-
 func customizeCreateSessionRequestSchema(schema *openapi3.Schema) {
 	setAgentNameSchema(schema, "agent_name", compozyconfig.OptionalAgentNamePattern)
 }

@@ -22,6 +22,7 @@ type Store interface {
 	ListDueCalls(context.Context, time.Time, int) ([]CallRecord, error)
 	FenceSessionDrain(context.Context, string, time.Time) error
 	ListOpenSubtreeCalls(context.Context, string) ([]CallRecord, error)
+	CountPreservedSubtreeResults(context.Context, string) (int, error)
 	ListQueuedActivationRunIDs(context.Context, int) ([]string, error)
 	LoadActivation(context.Context, string) (CallRecord, ActivationSpec, []byte, PermissionAtoms, error)
 	ReconcileActivations(context.Context, time.Time) ([]string, error)
@@ -41,6 +42,19 @@ type MailboxStore interface {
 	FailPendingDeliveriesForRecipient(context.Context, string, string, time.Time) error
 	FenceSessionReap(context.Context, string, time.Time) (bool, error)
 	FinalizeReapedSession(context.Context, string, string, time.Time) error
+}
+
+// ReadStore owns the profile-scoped public call and mailbox projections.
+type ReadStore interface {
+	ListCalls(context.Context, CallListQuery) (CallPage, error)
+	GetCallRead(context.Context, CallReadQuery, string) (CallRecord, error)
+	ListMessages(context.Context, MessageListQuery) (MessagePage, error)
+}
+
+// PublicationStore owns the per-conversation publication idempotency fence.
+type PublicationStore interface {
+	GetPublication(context.Context, string, string, string) (Publication, error)
+	RecordPublication(context.Context, Publication) (Publication, bool, error)
 }
 
 type Directory interface {
@@ -63,6 +77,11 @@ type SessionInvoker interface {
 	Revive(context.Context, string, string, string) error
 	DeliverAtBoundary(context.Context, Delivery) (DeliveryOutcome, error)
 	StopManaged(context.Context, string, string) error
+}
+
+// PublishBridge posts bounded call evidence without coupling calls to Network types.
+type PublishBridge interface {
+	PublishResultEvidence(context.Context, ResultEvidence) (string, error)
 }
 
 type CallScope struct {

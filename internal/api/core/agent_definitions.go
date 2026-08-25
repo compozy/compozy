@@ -283,6 +283,9 @@ func duplicateAgentDraft(
 	if overrides.Provider != "" {
 		draft.Provider = overrides.Provider
 	}
+	if overrides.Description != "" {
+		draft.Description = overrides.Description
+	}
 	if overrides.Command != "" {
 		draft.Command = overrides.Command
 	}

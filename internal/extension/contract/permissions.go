@@ -16,6 +16,7 @@ type PermissionContract struct {
 const (
 	permissionAutomationRead  = "automation.read"
 	permissionAutomationWrite = "automation.write"
+	permissionCallsRead       = "calls:read"
 	permissionHeartbeatRead   = "heartbeat.read"
 	permissionHeartbeatWrite  = "heartbeat.write"
 	permissionNetworkRead     = "network.read"
@@ -57,6 +58,10 @@ var consentByHostAPIMethod = map[string]string{
 	"agents/soul/put":                permissionSoulWrite,
 	"agents/soul/rollback":           permissionSoulWrite,
 	"agents/soul/validate":           permissionSoulRead,
+	"calls/list":                     permissionCallsRead,
+	"calls/get":                      permissionCallsRead,
+	"calls/result":                   permissionCallsRead,
+	"messages/list":                  permissionCallsRead,
 	"tasks":                          permissionTaskRead,
 	"tasks/get":                      permissionTaskRead,
 	"tasks/timeline":                 permissionTaskRead,
@@ -133,7 +138,10 @@ func PermissionContracts() []PermissionContract {
 	for _, spec := range specs {
 		method := string(spec.Method)
 		capability := consentByHostAPIMethod[method]
-		area, access, _ := strings.Cut(capability, ".")
+		area, access, found := strings.Cut(capability, ".")
+		if !found {
+			area, access, _ = strings.Cut(capability, ":")
+		}
 		if area == "session" {
 			area = "sessions"
 		}

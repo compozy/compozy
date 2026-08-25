@@ -10,18 +10,21 @@ import (
 
 func newTaskChildCreateCommand(deps commandDeps) *cobra.Command {
 	var (
-		id           string
-		identifier   string
-		scopeRaw     string
-		workspaceRef string
-		networkFlags networkParticipationFlags
-		title        string
-		description  string
-		priorityRaw  string
-		ownerKindRaw string
-		ownerRef     string
-		metadataRaw  string
-		autoEnqueue  bool
+		id             string
+		identifier     string
+		scopeRaw       string
+		workspaceRef   string
+		networkFlags   networkParticipationFlags
+		title          string
+		description    string
+		priorityRaw    string
+		ownerKindRaw   string
+		ownerRef       string
+		metadataRaw    string
+		expectRaw      string
+		resultBudget   string
+		resultOverflow string
+		autoEnqueue    bool
 	)
 
 	cmd := &cobra.Command{
@@ -46,6 +49,9 @@ func newTaskChildCreateCommand(deps commandDeps) *cobra.Command {
 				OwnerKindRaw:       ownerKindRaw,
 				OwnerRef:           ownerRef,
 				MetadataRaw:        metadataRaw,
+				ExpectRaw:          expectRaw,
+				ResultBudget:       resultBudget,
+				ResultOverflow:     resultOverflow,
 				AutoEnqueueOnReady: autoEnqueue,
 			})
 			if err != nil {
@@ -74,6 +80,9 @@ func newTaskChildCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&ownerKindRaw, "owner-kind", "", "Optional child owner kind")
 	cmd.Flags().StringVar(&ownerRef, "owner-ref", "", "Optional child owner reference")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional child metadata JSON")
+	cmd.Flags().StringVar(&expectRaw, "expect", "", "Child result contract as inline JSON or @file")
+	cmd.Flags().StringVar(&resultBudget, "result-budget", "", "Child result budget, for example 512KiB")
+	cmd.Flags().StringVar(&resultOverflow, "result-overflow", "", "Over-budget policy: store or reject")
 	cmd.Flags().
 		BoolVar(&autoEnqueue, taskAutoEnqueueOnReadyFlag, false, "Auto-enqueue the child run once dependencies complete")
 	mustMarkFlagRequired(cmd, taskScopeKey)

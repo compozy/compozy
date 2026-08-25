@@ -25,8 +25,8 @@ const (
 
 // ByteBudget is an immutable per-consumer result budget.
 type ByteBudget struct {
-	MaxBytes int
-	Overflow OverflowMode
+	MaxBytes int          `json:"max_bytes"`
+	Overflow OverflowMode `json:"overflow"`
 }
 
 // CallsResultsConfig is the parsed calls.results budget policy.

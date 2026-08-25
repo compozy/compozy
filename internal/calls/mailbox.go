@@ -36,6 +36,22 @@ func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (Mess
 	if err := validateMessageIdentity(input); err != nil {
 		return MessageRecord{}, err
 	}
+	if input.To == "parent" {
+		if input.From.Kind != "session" {
+			return MessageRecord{}, newError(CodeTargetDenied, "only a child session may address parent", nil)
+		}
+		call, resolveErr := s.store.GetOpenCallForChild(ctx, input.From.ID)
+		if resolveErr != nil {
+			return MessageRecord{}, resolveErr
+		}
+		if call.ProfileID != input.ProfileID || call.Scope != input.Scope || call.WorkspaceID != input.WorkspaceID {
+			return MessageRecord{}, newError(CodeWorkspaceDenied, "parent belongs to another call scope", nil)
+		}
+		input.To = call.ParentSessionID
+		if input.CallID == "" {
+			input.CallID = call.CallID
+		}
+	}
 	clean, _, reject := contracts.SanitizeText(input.Body)
 	if reject {
 		return MessageRecord{}, newError(CodeValidation, "message contains unsafe secret material", nil)
@@ -56,7 +72,7 @@ func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (Mess
 	}
 	digest := sha256.Sum256([]byte(clean))
 	now := s.now().UTC()
-	return mailbox.AcceptMessage(ctx, MessageAdmission{
+	record, err := mailbox.AcceptMessage(ctx, MessageAdmission{
 		Record: MessageRecord{
 			MessageID: messageID, ProfileID: input.ProfileID, Scope: input.Scope,
 			WorkspaceID: input.WorkspaceID, From: input.From, CallID: input.CallID,
@@ -66,6 +82,15 @@ func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (Mess
 		RateLimit:  s.config.Messages.RateLimitPerMinute,
 		PendingCap: s.config.Messages.PendingCap,
 	})
+	if err != nil {
+		return MessageRecord{}, err
+	}
+	s.emitHook(ctx, HookCallMessageSent, HookPayload{
+		ProfileID: record.ProfileID, Scope: record.Scope, WorkspaceID: record.WorkspaceID,
+		CallID: record.CallID, MessageID: record.MessageID,
+		Actor: Actor{Kind: record.From.Kind, ID: record.From.ID}, Delivery: record.Delivery,
+	})
+	return record, nil
 }
 
 func validateMessageIdentity(input SendMessageInput) error {
@@ -184,11 +209,25 @@ func (s *Service) DrainDeliveries(ctx context.Context, recipientSessionID string
 				continue
 			}
 		}
-		if _, updateErr := mailbox.RecordDelivery(ctx, DeliveryUpdate{
+		updated, updateErr := mailbox.RecordDelivery(ctx, DeliveryUpdate{
 			DeliveryID: item.DeliveryID, State: outcome.State, Reason: outcome.Reason,
 			At: s.now().UTC(), MaxAttempts: maxDeliveryAttempts,
-		}); updateErr != nil {
+		})
+		if updateErr != nil {
 			errs = append(errs, updateErr)
+			continue
+		}
+		if item.Kind == "message" {
+			message, loadErr := mailbox.GetMessage(ctx, CallScope{}, item.SubjectID)
+			if loadErr != nil {
+				errs = append(errs, loadErr)
+				continue
+			}
+			s.emitHook(ctx, HookCallMessageDelivered, HookPayload{
+				ProfileID: message.ProfileID, Scope: message.Scope, WorkspaceID: message.WorkspaceID,
+				CallID: message.CallID, MessageID: message.MessageID,
+				ChildSessionID: item.RecipientSessionID, Delivery: updated.State,
+			})
 		}
 	}
 	return errors.Join(errs...)

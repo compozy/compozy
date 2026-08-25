@@ -156,6 +156,8 @@ CREATE TABLE "tasks" (
 		needs_attention_by_ref  TEXT,
 		wake_creator            INTEGER NOT NULL DEFAULT 1,
 		expect_digest           TEXT REFERENCES contract_schemas(digest),
+		result_budget_bytes     INTEGER CHECK (result_budget_bytes IS NULL OR result_budget_bytes > 0),
+		result_overflow         TEXT CHECK (result_overflow IS NULL OR result_overflow IN ('store', 'reject')),
 		CHECK (
 			(scope = 'global' AND workspace_id IS NULL) OR
 			(scope = 'workspace' AND workspace_id IS NOT NULL)
@@ -168,6 +170,10 @@ CREATE TABLE "tasks" (
 		CHECK (
 			(approval_policy = 'none' AND approval_state = 'not_required') OR
 			(approval_policy = 'manual' AND approval_state IN ('pending', 'approved', 'rejected'))
+		),
+		CHECK (
+			(expect_digest IS NULL AND result_budget_bytes IS NULL AND result_overflow IS NULL) OR
+			(expect_digest IS NOT NULL AND result_budget_bytes IS NOT NULL AND result_overflow IS NOT NULL)
 		)
 		);
 

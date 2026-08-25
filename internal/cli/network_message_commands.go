@@ -111,7 +111,7 @@ func newNetworkSendCommand(deps commandDeps, workspaceRef *string) *cobra.Comman
 				DirectID:    strings.TrimSpace(flags.directID),
 				Kind:        strings.TrimSpace(flags.kind),
 				To:          strings.TrimSpace(flags.to),
-				Mentions:    trimSpawnAtoms(flags.mentions),
+				Mentions:    trimStringAtoms(flags.mentions),
 				Body:        body,
 				WorkID:      strings.TrimSpace(flags.workID),
 				ReplyTo:     strings.TrimSpace(flags.replyTo),

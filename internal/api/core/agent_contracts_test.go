@@ -2,6 +2,7 @@ package core_test
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +11,39 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
+
+func TestAgentListPayloadsDistinguishesInactiveShadows(t *testing.T) {
+	t.Parallel()
+	home, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	shadowPath := filepath.Join(home.AgentsDir, "reviewer", compozyconfig.AgentDefinitionFileName)
+	if _, err := compozyconfig.CreateAgentDefFile(shadowPath, compozyconfig.AgentDefinitionDraft{
+		Name: "reviewer", Description: "Global review", Provider: "codex", Prompt: "Review globally.",
+	}, false); err != nil {
+		t.Fatalf("CreateAgentDefFile(shadow) error = %v", err)
+	}
+	entries := []core.AgentCatalogEntry{{
+		Def: compozyconfig.AgentDef{
+			Name: "reviewer", Description: "Workspace review", Provider: "claude", Prompt: "Review locally.",
+			SourceLayer: "project", ShadowedDefinitions: []compozyconfig.AgentDefinitionRef{{
+				Layer: "user", Path: shadowPath,
+			}},
+		},
+		Origin: contract.AgentOriginWorkspace, WorkspaceID: "ws-1",
+	}}
+	payloads := core.AgentListPayloads(entries, nil, home, "ws-1")
+	if got, want := len(payloads), 2; got != want {
+		t.Fatalf("AgentListPayloads() length = %d, want %d", got, want)
+	}
+	active, shadowed := payloads[0], payloads[1]
+	if active.Shadowed || active.Scope != "workspace" || active.Description != "Workspace review" ||
+		!shadowed.Shadowed || shadowed.Scope != "shadowed" || shadowed.Layer != "user" ||
+		shadowed.Description != "Global review" || shadowed.DefinitionDigest == "" {
+		t.Fatalf("AgentListPayloads() = %#v", payloads)
+	}
+}
 
 func TestAgentPayloadDoesNotExposeMCPSecretBindings(t *testing.T) {
 	t.Run("Should project MCP bindings as redacted presence without Vault refs", func(t *testing.T) {

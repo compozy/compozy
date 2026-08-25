@@ -1,6 +1,7 @@
 package acpmock
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"path/filepath"
@@ -84,6 +85,8 @@ func (s Step) validateKindPayload(path string) error {
 		return validateTextStep(path, s)
 	case StepKindToolCall:
 		return validateToolCallStep(path, s)
+	case StepKindCallReturn, StepKindAgentMessage:
+		return validateHostedNativeCallStep(path, s)
 	case StepKindPermission:
 		return validatePermissionStep(path, s)
 	case StepKindSandbox:
@@ -93,6 +96,20 @@ func (s Step) validateKindPayload(path string) error {
 	default:
 		return fmt.Errorf("acpmock: %s.kind %q is invalid", path, s.Kind)
 	}
+}
+
+func validateHostedNativeCallStep(path string, step Step) error {
+	if len(step.RawInput) == 0 {
+		return fmt.Errorf("acpmock: %s.raw_input is required", path)
+	}
+	var input map[string]any
+	if err := json.Unmarshal(step.RawInput, &input); err != nil {
+		return fmt.Errorf("acpmock: %s.raw_input must be a JSON object: %w", path, err)
+	}
+	if input == nil {
+		return fmt.Errorf("acpmock: %s.raw_input must be a JSON object", path)
+	}
+	return nil
 }
 
 func validateTextStep(path string, step Step) error {

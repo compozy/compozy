@@ -67,6 +67,9 @@ func AgentPayloadFromEntry(entry AgentCatalogEntry) contract.AgentPayload {
 	disabledSkills := append([]string(nil), agent.Skills.Disabled...)
 	return contract.AgentPayload{
 		Name:             agent.Name,
+		Description:      agent.Description,
+		Scope:            string(entry.Origin),
+		Shadowed:         false,
 		Provider:         agent.Provider,
 		Command:          agent.Command,
 		Model:            agent.Model,

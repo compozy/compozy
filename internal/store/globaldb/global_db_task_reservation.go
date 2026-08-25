@@ -184,6 +184,9 @@ func (g *TaskRepo) createQueuedRunWithExecutor(
 	}
 	if strings.TrimSpace(taskRecord.ExpectDigest) != "" {
 		budget := input.resultBudget
+		if taskRecord.ResultBudget != nil {
+			budget = *taskRecord.ResultBudget
+		}
 		run.ExpectDigest = taskRecord.ExpectDigest
 		run.ResultBudget = &budget
 	}

@@ -126,6 +126,12 @@ type hostAPITaskRunFailParams = extensioncontract.TaskRunFailParams
 
 type hostAPITaskRunCancelParams = extensioncontract.TaskRunCancelParams
 
+type hostAPICallsListParams = extensioncontract.CallsListParams
+
+type hostAPICallTargetParams = extensioncontract.CallTargetParams
+
+type hostAPIMessagesListParams = extensioncontract.MessagesListParams
+
 type hostAPIResourcesListParams = extensioncontract.ResourcesListParams
 
 type hostAPIResourceGetParams = extensioncontract.ResourceGetParams

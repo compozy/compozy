@@ -2,7 +2,102 @@
 
 package contracts
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
+
+type ExtensionProvideToolsResponse struct {
+	Tools []ExtensionToolRuntimeDescriptor `json:"tools"`
+}
+
+type ExtensionToolCallRequest struct {
+	ToolID           ToolID                       `json:"tool_id"`
+	Handler          string                       `json:"handler"`
+	SessionID        string                       `json:"session_id,omitempty"`
+	InvocationID     string                       `json:"invocation_id,omitempty"`
+	TrustedWorkspace *ExtensionToolWorkspaceScope `json:"trusted_workspace,omitempty"`
+	Input            json.RawMessage              `json:"input"`
+}
+
+type ExtensionToolCallResponse struct {
+	Result ToolResult `json:"result"`
+}
+
+type ExtensionToolRuntimeDescriptor struct {
+	Profile             string                `json:"profile,omitempty"`
+	ID                  ToolID                `json:"id"`
+	Handler             string                `json:"handler"`
+	Description         string                `json:"description,omitempty"`
+	FriendlyVerb        string                `json:"friendly_verb,omitempty"`
+	Preview             string                `json:"preview,omitempty"`
+	InputSchema         json.RawMessage       `json:"input_schema,omitempty"`
+	OutputSchema        json.RawMessage       `json:"output_schema,omitempty"`
+	InputSchemaDigest   string                `json:"input_schema_digest"`
+	OutputSchemaDigest  string                `json:"output_schema_digest,omitempty"`
+	ReadOnly            bool                  `json:"read_only"`
+	Risk                RiskClass             `json:"risk"`
+	RequiresInteraction bool                  `json:"requires_interaction"`
+	Capabilities        []string              `json:"capabilities,omitempty"`
+	Command             *ExtensionCommandSpec `json:"command,omitempty"`
+}
+
+type ExtensionToolWorkspaceScope struct {
+	ID   string `json:"id"`
+	Root string `json:"root"`
+}
+
+type ExtensionValidatePayload struct {
+	Status       string                         `json:"status"`
+	Format       string                         `json:"format"`
+	Name         string                         `json:"name,omitempty"`
+	Version      string                         `json:"version,omitempty"`
+	WouldIngest  []ExtensionValidationComponent `json:"would_ingest,omitempty"`
+	Manifest     *ExtensionManifestSummary      `json:"manifest,omitempty"`
+	Issues       []ValidationIssue              `json:"issues"`
+	ConsentAreas []ConsentArea                  `json:"consent_areas,omitempty"`
+}
+
+type ExtensionValidationComponent struct {
+	Kind      string `json:"kind"`
+	Name      string `json:"name"`
+	Transport string `json:"transport,omitempty"`
+}
+
+type FailureHealth struct {
+	Status string                 `json:"status"`
+	Total  int                    `json:"total"`
+	ByKind map[FailureKind]int    `json:"by_kind,omitempty"`
+	Recent []SessionFailureHealth `json:"recent,omitempty"`
+}
+
+type FailureKind string
+
+type FireLimitConfig struct {
+	Max    int    `json:"max"`
+	Window string `json:"window"`
+}
+
+type ForgeCapabilitiesRequest struct {
+	RemoteURLs []string `json:"remote_urls"`
+}
+
+type ForgeCapabilitiesResponse struct {
+	Served             bool     `json:"served"`
+	Available          bool     `json:"available"`
+	Winner             string   `json:"winner,omitempty"`
+	Provider           string   `json:"provider,omitempty"`
+	ServedRemote       string   `json:"served_remote,omitempty"`
+	RequestNoun        string   `json:"request_noun,omitempty"`
+	OpenActionLabel    string   `json:"open_action_label,omitempty"`
+	ViewActionLabel    string   `json:"view_action_label,omitempty"`
+	SupportsDraft      bool     `json:"supports_draft,omitempty"`
+	CompareURLTemplate string   `json:"compare_url_template,omitempty"`
+	TemplatePaths      []string `json:"template_paths,omitempty"`
+	CredentialSource   string   `json:"credential_source,omitempty"`
+	DefaultBranch      string   `json:"default_branch,omitempty"`
+	Cause              string   `json:"cause,omitempty"`
+}
 
 type ForgeCapabilitiesResponse struct {
 	Served             bool     `json:"served"`
@@ -113,95 +208,4 @@ type HeartbeatActorKind string
 type HeartbeatActorPayload struct {
 	Kind HeartbeatActorKind `json:"kind"`
 	Ref  string             `json:"ref,omitempty"`
-}
-
-type HeartbeatConfigProvenancePayload struct {
-	Digest string                       `json:"digest"`
-	Subset HeartbeatConfigSubsetPayload `json:"subset"`
-}
-
-type HeartbeatConfigSubsetPayload struct {
-	Enabled                      bool   `json:"enabled"`
-	MaxBodyBytes                 int64  `json:"max_body_bytes"`
-	ContextProjectionBytes       int64  `json:"context_projection_bytes"`
-	MinInterval                  string `json:"min_interval"`
-	DefaultInterval              string `json:"default_interval"`
-	WakeCooldown                 string `json:"wake_cooldown"`
-	MaxWakesPerCycle             int    `json:"max_wakes_per_cycle"`
-	ActiveSessionOnly            bool   `json:"active_session_only"`
-	AllowActiveHoursPreferences  bool   `json:"allow_active_hours_preferences"`
-	WakeEventRetention           string `json:"wake_event_retention"`
-	SessionHealthStaleAfter      string `json:"session_health_stale_after"`
-	SessionHealthHookMinInterval string `json:"session_health_hook_min_interval"`
-}
-
-type HeartbeatContextProjectionPayload struct {
-	Include []string `json:"include,omitempty"`
-}
-
-type HeartbeatDeleteRequest struct {
-	WorkspaceID    string `json:"workspace_id,omitempty"`
-	AgentName      string `json:"agent_name"`
-	ExpectedDigest string `json:"expected_digest"`
-}
-
-type HeartbeatFrontmatterPayload struct {
-	Version     int                                    `json:"version"`
-	Enabled     bool                                   `json:"enabled"`
-	Summary     string                                 `json:"summary,omitempty"`
-	Preferences HeartbeatFrontmatterPreferencesPayload `json:"preferences"`
-	Context     HeartbeatContextProjectionPayload      `json:"context"`
-}
-
-type HeartbeatFrontmatterPreferencesPayload struct {
-	MinInterval  string                       `json:"min_interval,omitempty"`
-	ActiveHours  []HeartbeatTimeWindowPayload `json:"active_hours,omitempty"`
-	QuietWindows []HeartbeatTimeWindowPayload `json:"quiet_windows,omitempty"`
-}
-
-type HeartbeatHistoryRequest struct {
-	WorkspaceID string `json:"workspace_id,omitempty"`
-	AgentName   string `json:"agent_name"`
-	Limit       int    `json:"limit,omitempty"`
-	Cursor      string `json:"cursor,omitempty"`
-}
-
-type HeartbeatHistoryResponse struct {
-	Revisions  []HeartbeatRevisionPayload `json:"revisions"`
-	NextCursor string                     `json:"next_cursor,omitempty"`
-}
-
-type HeartbeatMutationResponse struct {
-	Heartbeat HeartbeatPolicyPayload   `json:"heartbeat"`
-	Revision  HeartbeatRevisionPayload `json:"revision"`
-}
-
-type HeartbeatPolicyPayload struct {
-	AgentName        string                             `json:"agent_name,omitempty"`
-	Enabled          bool                               `json:"enabled"`
-	Present          bool                               `json:"present"`
-	Active           bool                               `json:"active"`
-	Valid            bool                               `json:"valid"`
-	ValidationStatus AuthoredValidationStatus           `json:"validation_status"`
-	SourcePath       string                             `json:"source_path,omitempty"`
-	Digest           string                             `json:"digest,omitempty"`
-	ConfigDigest     string                             `json:"config_digest,omitempty"`
-	SnapshotID       string                             `json:"snapshot_id,omitempty"`
-	SchemaVersion    int                                `json:"schema_version"`
-	Summary          string                             `json:"summary,omitempty"`
-	GuidanceMarkdown string                             `json:"guidance_markdown,omitempty"`
-	Frontmatter      HeartbeatFrontmatterPayload        `json:"frontmatter"`
-	Preferences      HeartbeatPreferencesPayload        `json:"preferences"`
-	ConfigProvenance HeartbeatConfigProvenancePayload   `json:"config_provenance"`
-	Prompt           HeartbeatPromptContributionPayload `json:"prompt"`
-	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
-	Limits           AuthoredContextLimitsPayload       `json:"limits"`
-	CreatedAt        *time.Time                         `json:"created_at,omitempty"`
-}
-
-type HeartbeatPreferencesPayload struct {
-	MinInterval  string                            `json:"min_interval"`
-	ActiveHours  []HeartbeatTimeWindowPayload      `json:"active_hours,omitempty"`
-	QuietWindows []HeartbeatTimeWindowPayload      `json:"quiet_windows,omitempty"`
-	Context      HeartbeatContextProjectionPayload `json:"context"`
 }

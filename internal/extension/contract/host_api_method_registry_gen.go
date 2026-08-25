@@ -6,6 +6,7 @@ var hostAPIMethodSpecGroups = [][]HostAPIMethodSpec{
 	hostAPIMethodSpecsCore,
 	hostAPIMethodSpecsAutomation,
 	hostAPIMethodSpecsTasks,
+	hostAPIMethodSpecsCalls,
 	hostAPIMethodSpecsNetwork,
 	hostAPIMethodSpecsResources,
 	hostAPIMethodSpecsBridges,

@@ -7,6 +7,103 @@ import (
 	"time"
 )
 
+type PatchOp struct {
+	Op    string          `json:"op"`
+	Path  string          `json:"path"`
+	Value json.RawMessage `json:"value,omitempty"`
+}
+
+type PayloadBase struct {
+	Event     HookEvent `json:"event"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+type PendingInteractionPayload struct {
+	InteractionID     string     `json:"interaction_id"`
+	Kind              string     `json:"kind"`
+	ProviderRequestID string     `json:"provider_request_id"`
+	TurnID            string     `json:"turn_id,omitempty"`
+	Title             string     `json:"title,omitempty"`
+	Choices           []string   `json:"choices,omitempty"`
+	Decisions         []string   `json:"decisions,omitempty"`
+	Status            string     `json:"status"`
+	CreatedAt         time.Time  `json:"created_at"`
+	ResolvedAt        *time.Time `json:"resolved_at,omitempty"`
+	Resolution        string     `json:"resolution,omitempty"`
+	ResolvedBy        string     `json:"resolved_by,omitempty"`
+}
+
+type PermissionDeniedPatch struct{}
+
+type PermissionDeniedPayload struct {
+	Event          HookEvent          `json:"event"`
+	Timestamp      time.Time          `json:"timestamp"`
+	ProfileID      string             `json:"profile_id,omitempty"`
+	SessionID      string             `json:"session_id,omitempty"`
+	SessionName    string             `json:"session_name,omitempty"`
+	SessionType    string             `json:"session_type,omitempty"`
+	AgentName      string             `json:"agent_name,omitempty"`
+	WorkspaceID    string             `json:"workspace_id,omitempty"`
+	Workspace      string             `json:"workspace,omitempty"`
+	WorktreeID     string             `json:"worktree_id,omitempty"`
+	ACPSessionID   string             `json:"acp_session_id,omitempty"`
+	State          string             `json:"state,omitempty"`
+	SoulSnapshotID string             `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string             `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
+	TurnID         string             `json:"turn_id,omitempty"`
+	RequestID      string             `json:"request_id,omitempty"`
+	Action         string             `json:"action,omitempty"`
+	Resource       string             `json:"resource,omitempty"`
+	Decision       string             `json:"decision,omitempty"`
+	DecisionClass  string             `json:"decision_class,omitempty"`
+	ToolCall       PermissionToolCall `json:"tool_call"`
+}
+
+type PermissionOption struct {
+	Decision string `json:"decision,omitempty"`
+	OptionID string `json:"option_id,omitempty"`
+	Kind     string `json:"kind,omitempty"`
+	Label    string `json:"label,omitempty"`
+}
+
+type PermissionRequestPatch struct {
+	Deny          bool    `json:"deny,omitempty"`
+	DenyReason    string  `json:"deny_reason,omitempty"`
+	Decision      *string `json:"decision,omitempty"`
+	DecisionClass *string `json:"decision_class,omitempty"`
+	Reason        *string `json:"reason,omitempty"`
+}
+
+type PermissionRequestPayload struct {
+	Event          HookEvent          `json:"event"`
+	Timestamp      time.Time          `json:"timestamp"`
+	ProfileID      string             `json:"profile_id,omitempty"`
+	SessionID      string             `json:"session_id,omitempty"`
+	SessionName    string             `json:"session_name,omitempty"`
+	SessionType    string             `json:"session_type,omitempty"`
+	AgentName      string             `json:"agent_name,omitempty"`
+	WorkspaceID    string             `json:"workspace_id,omitempty"`
+	Workspace      string             `json:"workspace,omitempty"`
+	WorktreeID     string             `json:"worktree_id,omitempty"`
+	ACPSessionID   string             `json:"acp_session_id,omitempty"`
+	State          string             `json:"state,omitempty"`
+	SoulSnapshotID string             `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string             `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
+	TurnID         string             `json:"turn_id,omitempty"`
+	RequestID      string             `json:"request_id,omitempty"`
+	Action         string             `json:"action,omitempty"`
+	Resource       string             `json:"resource,omitempty"`
+	Decision       string             `json:"decision,omitempty"`
+	DecisionClass  string             `json:"decision_class,omitempty"`
+	ToolInput      json.RawMessage    `json:"tool_input,omitempty"`
+	ToolCall       PermissionToolCall `json:"tool_call"`
+	Options        []PermissionOption `json:"options,omitempty"`
+}
+
 type PermissionResolutionPayload struct {
 	Event          HookEvent          `json:"event"`
 	Timestamp      time.Time          `json:"timestamp"`
@@ -156,55 +253,4 @@ type ProviderModelConfigurationPayload struct {
 	ReasoningEffort *Effort `json:"reasoning_effort,omitempty"`
 	Fast            *bool   `json:"fast,omitempty"`
 	Thinking        *bool   `json:"thinking,omitempty"`
-}
-
-type ProviderModelListResponse struct {
-	Models []ProviderModelPayload `json:"models"`
-}
-
-type ProviderModelPayload struct {
-	ProviderID             string                              `json:"provider_id"`
-	ModelID                string                              `json:"model_id"`
-	DisplayName            string                              `json:"display_name,omitempty"`
-	Sources                []ModelCatalogSourceRefPayload      `json:"sources"`
-	Available              *bool                               `json:"available"`
-	AvailabilityState      string                              `json:"availability_state"`
-	Stale                  bool                                `json:"stale"`
-	RefreshedAt            string                              `json:"refreshed_at,omitempty"`
-	ContextWindow          *int64                              `json:"context_window,omitempty"`
-	MaxInputTokens         *int64                              `json:"max_input_tokens,omitempty"`
-	MaxOutputTokens        *int64                              `json:"max_output_tokens,omitempty"`
-	SupportsTools          *bool                               `json:"supports_tools,omitempty"`
-	SupportsReasoning      *bool                               `json:"supports_reasoning,omitempty"`
-	ReasoningEfforts       []Effort                            `json:"reasoning_efforts,omitempty"`
-	DefaultReasoningEffort *Effort                             `json:"default_reasoning_effort,omitempty"`
-	ConfigOptions          []SessionConfigOptionPayload        `json:"config_options,omitempty"`
-	Configurations         []ProviderModelConfigurationPayload `json:"configurations,omitempty"`
-	Cost                   *ModelCatalogCostPayload            `json:"cost,omitempty"`
-	Curated                bool                                `json:"curated"`
-	Deprecated             bool                                `json:"deprecated"`
-	Hidden                 bool                                `json:"hidden"`
-	Featured               bool                                `json:"featured"`
-	ReleaseDate            string                              `json:"release_date,omitempty"`
-	ReasoningSource        ReasoningSource                     `json:"reasoning_source,omitempty"`
-	LastError              string                              `json:"last_error,omitempty"`
-}
-
-type ProviderModelRefreshResponse struct {
-	Sources []ModelCatalogSourceStatusPayload `json:"sources"`
-	Error   string                            `json:"error,omitempty"`
-}
-
-type ProviderModelStatusResponse struct {
-	Sources []ModelCatalogSourceStatusPayload `json:"sources"`
-}
-
-type ReasonCode string
-
-type ReasoningSource string
-
-type Redaction struct {
-	Path   string     `json:"path"`
-	Reason ReasonCode `json:"reason"`
-	Bytes  int64      `json:"bytes,omitempty"`
 }

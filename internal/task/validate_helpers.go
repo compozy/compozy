@@ -76,6 +76,8 @@ func taskPatchHasMutableFields(p Patch) bool {
 		p.MaxAttempts != nil ||
 		p.AutoEnqueueOnReady != nil ||
 		p.ApprovalPolicy != nil ||
+		p.Expect != nil ||
+		p.ResultBudget != nil ||
 		p.Metadata != nil ||
 		p.Owner != nil ||
 		p.ClearOwner ||

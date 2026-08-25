@@ -47,6 +47,10 @@ func (d *Daemon) bootCalls(ctx context.Context, state *bootState, cleanup *bootC
 		callspkg.WithActivationClaimer(state.tasks.manager),
 		callspkg.WithActivationRunCanceler(state.tasks.manager),
 		callspkg.WithSessionInvoker(invoker),
+		callspkg.WithPublishBridge(&daemonCallPublishBridge{network: state.network}),
+		callspkg.WithHookDispatcher(daemonCallHookDispatcher{
+			state: state, logger: state.logger, now: d.now,
+		}),
 		callspkg.WithConfig(state.cfg.Calls),
 		callspkg.WithClock(d.now),
 		callspkg.WithIDGenerator(store.NewID),
@@ -70,6 +74,7 @@ func (d *Daemon) bootCalls(ctx context.Context, state *bootState, cleanup *bootC
 		cancel: cancel, done: make(chan struct{}),
 	}
 	state.calls = runtime
+	state.deps.Calls = newCallSurfaceService(service, state.sessions)
 	if registrar, ok := state.sessions.(turnEndNotifierRegistrar); ok {
 		registrar.AddTurnEndNotifier(runtime.onTurnEnd)
 	}
@@ -164,7 +169,9 @@ func (d *daemonCallDirectory) ResolveCallTarget(
 	requested := strings.TrimSpace(input.Target.Agent)
 	for _, entry := range entries {
 		name := strings.TrimSpace(entry.Def.Name)
-		roster = append(roster, callspkg.AgentRosterEntry{Name: name})
+		roster = append(roster, callspkg.AgentRosterEntry{
+			Name: name, Description: strings.TrimSpace(entry.Def.Description),
+		})
 		if name == requested {
 			target.AgentName = name
 		}
@@ -207,7 +214,9 @@ func (i *daemonCallSessionInvoker) SpawnChild(
 				return callspkg.SessionRef{}, fmt.Errorf("daemon: resume call child %q: %w", desiredID, err)
 			}
 		}
-		if _, err := i.send(ctx, desiredID, spec.Prompt, spec.CallID, nil); err != nil {
+		if _, err := i.send(
+			ctx, desiredID, callspkg.CallPromptWithRemainingDepth(spec.Prompt, spec.RemainingDepth), spec.CallID, nil,
+		); err != nil {
 			return callspkg.SessionRef{}, err
 		}
 		return callspkg.SessionRef{ID: desiredID}, nil
@@ -236,7 +245,9 @@ func (i *daemonCallSessionInvoker) SpawnChild(
 		}
 		return callspkg.SessionRef{}, err
 	}
-	if _, err := i.send(ctx, child.ID, spec.Prompt, spec.CallID, nil); err != nil {
+	if _, err := i.send(
+		ctx, child.ID, callspkg.CallPromptWithRemainingDepth(spec.Prompt, spec.RemainingDepth), spec.CallID, nil,
+	); err != nil {
 		cleanupErr := i.sessions.StopWithCause(ctx, child.ID, session.CauseFailed, "call activation prompt failed")
 		return callspkg.SessionRef{}, errors.Join(err, cleanupErr)
 	}

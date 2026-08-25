@@ -2,6 +2,7 @@ package contract
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/compozy/compozy/internal/network/participation"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -53,6 +54,9 @@ type CreateTaskRequest struct {
 	ApprovalPolicy       taskpkg.ApprovalPolicy `json:"approval_policy,omitempty"`
 	Owner                *taskpkg.Ownership     `json:"owner,omitempty"`
 	WakeCreator          *bool                  `json:"wake_creator,omitempty"`
+	Expect               json.RawMessage        `json:"expect,omitempty"`
+	ResultBudget         string                 `json:"result_budget,omitempty"`
+	ResultOverflow       string                 `json:"result_overflow,omitempty"`
 	Metadata             json.RawMessage        `json:"metadata,omitempty"`
 }
 
@@ -72,6 +76,9 @@ type CreateTaskChildRequest struct {
 	ApprovalPolicy       taskpkg.ApprovalPolicy `json:"approval_policy,omitempty"`
 	Owner                *taskpkg.Ownership     `json:"owner,omitempty"`
 	WakeCreator          *bool                  `json:"wake_creator,omitempty"`
+	Expect               json.RawMessage        `json:"expect,omitempty"`
+	ResultBudget         string                 `json:"result_budget,omitempty"`
+	ResultOverflow       string                 `json:"result_overflow,omitempty"`
 	Metadata             json.RawMessage        `json:"metadata,omitempty"`
 }
 
@@ -83,6 +90,9 @@ type UpdateTaskRequest struct {
 	MaxAttempts          *int                    `json:"max_attempts,omitempty"`
 	AutoEnqueueOnReady   *bool                   `json:"auto_enqueue_on_ready,omitempty"`
 	ApprovalPolicy       *taskpkg.ApprovalPolicy `json:"approval_policy,omitempty"`
+	Expect               *json.RawMessage        `json:"expect,omitempty"`
+	ResultBudget         string                  `json:"result_budget,omitempty"`
+	ResultOverflow       string                  `json:"result_overflow,omitempty"`
 	Metadata             *json.RawMessage        `json:"metadata,omitempty"`
 	NetworkParticipation *participation.Request  `json:"network_participation,omitempty"`
 	Owner                *taskpkg.Ownership      `json:"owner,omitempty"`
@@ -97,6 +107,9 @@ func (r UpdateTaskRequest) HasChanges() bool {
 		r.MaxAttempts != nil ||
 		r.AutoEnqueueOnReady != nil ||
 		r.ApprovalPolicy != nil ||
+		r.Expect != nil ||
+		strings.TrimSpace(r.ResultBudget) != "" ||
+		strings.TrimSpace(r.ResultOverflow) != "" ||
 		r.Metadata != nil ||
 		r.NetworkParticipation != nil ||
 		r.Owner != nil ||

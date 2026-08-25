@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/calls"
 
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -234,12 +235,44 @@ func (h *BaseHandlers) StopSession(c *gin.Context) {
 	if !h.requireSessionInProfile(c, info, scope) {
 		return
 	}
+	var request contract.StopSessionRequest
+	if c.Request.ContentLength != 0 {
+		if err := decodeStrictJSONBody(c, &request); err != nil {
+			h.respondError(c, http.StatusUnprocessableEntity, fmt.Errorf("decode session stop request: %w", err))
+			return
+		}
+	}
+	if request.Subtree {
+		if h.Calls == nil {
+			h.respondError(c, http.StatusServiceUnavailable, errors.New("api: calls service is not configured"))
+			return
+		}
+		report, drainErr := h.Calls.DrainSubtree(c.Request.Context(), sessionID, callsHumanActor(h), request.Reason)
+		if drainErr != nil {
+			h.respondCallsError(c, drainErr)
+			return
+		}
+		if err := h.Sessions.StopWithCause(c.Request.Context(), sessionID, session.CauseUserRequested, request.Reason); err != nil &&
+			!errors.Is(err, session.ErrSessionNotFound) {
+			h.respondError(c, StatusForSessionError(err), err)
+			return
+		}
+		c.JSON(http.StatusOK, contract.StopSessionSubtreeResponse{
+			StoppedChildren: len(report.Stopped), ClosedCalls: len(report.CanceledCalls),
+			PreservedResults: report.PreservedResults,
+		})
+		return
+	}
 	if err := h.Sessions.Stop(c.Request.Context(), sessionID); err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+func callsHumanActor(h *BaseHandlers) calls.Actor {
+	return calls.Actor{Kind: callsOperatorActorKind, ID: "operator:" + h.transportName()}
 }
 
 // ResumeSession attaches a caller to an eligible live session.

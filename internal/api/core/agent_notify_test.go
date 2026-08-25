@@ -28,7 +28,7 @@ func TestBaseHandlersAgentNotify(t *testing.T) {
 		var got session.NotifyRequest
 		manager := &notifyStubSessionManager{}
 		manager.StatusFn = func(context.Context, string) (*session.Info, error) {
-			return agentSpawnCallerInfo(), nil
+			return agentNotifyCallerInfo(), nil
 		}
 		manager.publish = func(_ context.Context, req session.NotifyRequest) (session.NotifyResult, error) {
 			got = req
@@ -90,7 +90,7 @@ func TestBaseHandlersAgentNotify(t *testing.T) {
 		t.Parallel()
 		manager := &notifyStubSessionManager{}
 		manager.StatusFn = func(context.Context, string) (*session.Info, error) {
-			return agentSpawnCallerInfo(), nil
+			return agentNotifyCallerInfo(), nil
 		}
 		manager.publish = func(context.Context, session.NotifyRequest) (session.NotifyResult, error) {
 			return session.NotifyResult{}, session.ErrInvalidNotification
@@ -178,10 +178,32 @@ func (unmutedAttentionWorkspaceReader) IsAttentionWorkspaceMuted(
 func notifyRouteManager(runtime *session.Manager) *notifyStubSessionManager {
 	manager := &notifyStubSessionManager{}
 	manager.StatusFn = func(context.Context, string) (*session.Info, error) {
-		return agentSpawnCallerInfo(), nil
+		return agentNotifyCallerInfo(), nil
 	}
 	manager.publish = runtime.PublishOperatorNotification
 	return manager
+}
+
+func agentNotifyCallerInfo() *session.Info {
+	return &session.Info{
+		ID:                   "sess-parent",
+		ProfileID:            store.DefaultProfileID,
+		Name:                 "parent",
+		AgentName:            "coder",
+		Provider:             "codex",
+		WorkspaceID:          "ws-1",
+		Workspace:            "/workspace/project",
+		NetworkParticipation: testLiveParticipation("ws-1", "builders"),
+		Type:                 session.SessionTypeUser,
+		State:                session.StateActive,
+		Lineage: &store.SessionLineage{
+			RootSessionID: "sess-parent",
+			PermissionPolicy: store.SessionPermissionPolicy{
+				Tools:  []string{"read"},
+				Skills: []string{"go"},
+			},
+		},
+	}
 }
 
 func assertAgentNotifyOutcome(

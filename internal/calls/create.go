@@ -29,7 +29,11 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (CallRecord, er
 		return CallRecord{}, err
 	}
 	result.Record.Replayed = result.Replayed
-	if result.Replayed || result.Record.ActivationRunID == "" {
+	if result.Replayed {
+		return result.Record, nil
+	}
+	s.emitHook(ctx, HookCallCreated, hookPayloadForCall(result.Record))
+	if result.Record.ActivationRunID == "" {
 		return result.Record, nil
 	}
 	activated, err := s.activateFastPath(ctx, result.Record, prepared, roster)

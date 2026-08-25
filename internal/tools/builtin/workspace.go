@@ -119,6 +119,7 @@ var agentCreateInputSchema = `{
 		"scope":{"type":"string","enum":["global","workspace"]},
 		"workspace":{"type":"string"},
 		"name":` + agentNameInputSchema + `,
+		"description":{"type":"string","maxLength":500},
 		"provider":{"type":"string"},
 		"model":{"type":"string"},
 		"reasoning_effort":{"type":"string","enum":["none","minimal","low","medium","high","xhigh","max"]},

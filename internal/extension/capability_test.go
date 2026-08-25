@@ -51,6 +51,30 @@ func TestDeriveConsentAreas(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("Should map every calls read method to the calls consent contract", func(t *testing.T) {
+		t.Parallel()
+
+		methods := []string{"calls/list", "calls/get", "calls/result", "messages/list"}
+		for _, method := range methods {
+			contract, ok := extensioncontract.PermissionContractForMethod(method)
+			if !ok {
+				t.Fatalf("PermissionContractForMethod(%q) missing", method)
+			}
+			if contract.Area != "calls" || contract.Access != "read" || contract.Capability != "calls:read" {
+				t.Fatalf("PermissionContractForMethod(%q) = %#v", method, contract)
+			}
+
+			allowed := newTestCapabilityChecker("ext", SourceUser, []string{method})
+			if err := allowed.Check("ext", "calls:read"); err != nil {
+				t.Fatalf("Check(%q calls:read) error = %v", method, err)
+			}
+			denied := newTestCapabilityChecker("ext", SourceUser, nil)
+			if err := denied.Check("ext", "calls:read"); err == nil {
+				t.Fatalf("Check(%q calls:read) error = nil without permission", method)
+			}
+		}
+	})
 }
 
 func TestCapabilityCheckerCheckShouldAllowGrantedCapability(t *testing.T) {

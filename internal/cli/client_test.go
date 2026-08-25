@@ -2468,68 +2468,32 @@ func TestUnixSocketClientTaskExecutionMethods(t *testing.T) {
 	})
 }
 
-func TestUnixSocketClientAgentContextAndSpawnMethods(t *testing.T) {
+func TestUnixSocketClientAgentContextMethod(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should get agent context and spawn child sessions", func(t *testing.T) {
-		t.Parallel()
+	credentials := agentidentity.Credentials{SessionID: "sess-1", AgentName: "coder"}
+	client := &daemonClient{
+		target: LocalClientTarget("/tmp/compozy.sock"),
+		httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			assertAgentRequestHeaders(t, req, credentials)
+			if req.Method != http.MethodGet || req.URL.Path != "/api/agent/context" {
+				t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
+			}
+			return newHTTPResponse(
+				http.StatusOK,
+				`{"context":{"self":{"session_id":"sess-1","agent_name":"coder","provider":"test"},"workspace":{"id":"ws-1"},"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}}`,
+			), nil
+		})},
+	}
 
-		credentials := agentidentity.Credentials{
-			SessionID: "sess-1",
-			AgentName: "coder",
-		}
-		client := &daemonClient{
-			target: LocalClientTarget("/tmp/compozy.sock"),
-			httpClient: &http.Client{
-				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-					assertAgentRequestHeaders(t, req, credentials)
-					switch {
-					case req.Method == http.MethodGet && req.URL.Path == "/api/agent/context":
-						return newHTTPResponse(
-							http.StatusOK,
-							`{"context":{"self":{"session_id":"sess-1","agent_name":"coder","provider":"test"},"workspace":{"id":"ws-1"},"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}}`,
-						), nil
-					case req.Method == http.MethodPost && req.URL.Path == "/api/agent/spawn":
-						var request AgentSpawnRequest
-						if err := json.NewDecoder(req.Body).Decode(&request); err != nil {
-							t.Fatalf("decode spawn body: %v", err)
-						}
-						if request.AgentName != "worker" || request.SpawnRole != "reviewer" {
-							t.Fatalf("spawn request = %#v, want worker reviewer", request)
-						}
-						return newHTTPResponse(
-							http.StatusCreated,
-							`{"spawn":{"session":{"id":"sess-child","agent_name":"worker","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"},"lineage":{"parent_session_id":"sess-1","root_session_id":"sess-1","depth":1},"permissions":{}}}`,
-						), nil
-					default:
-						t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
-						return nil, nil
-					}
-				}),
-			},
-		}
-
-		contextRecord, err := client.AgentContext(context.Background(), credentials)
-		if err != nil {
-			t.Fatalf("AgentContext() error = %v", err)
-		}
-		if contextRecord.Self.SessionID != "sess-1" || contextRecord.Workspace.ID != "ws-1" {
-			t.Fatalf("AgentContext() = %#v, want caller context", contextRecord)
-		}
-
-		spawn, err := client.AgentSpawn(context.Background(), AgentSpawnRequest{
-			AgentName: "worker",
-			SpawnRole: "reviewer",
-		}, credentials)
-		if err != nil {
-			t.Fatalf("AgentSpawn() error = %v", err)
-		}
-		if spawn.Session.ID != "sess-child" || spawn.Session.AgentName != "worker" {
-			t.Fatalf("AgentSpawn() = %#v, want child session", spawn.Session)
-		}
-	})
+	contextRecord, err := client.AgentContext(context.Background(), credentials)
+	if err != nil {
+		t.Fatalf("AgentContext() error = %v", err)
+	}
+	if contextRecord.Self.SessionID != "sess-1" || contextRecord.Workspace.ID != "ws-1" {
+		t.Fatalf("AgentContext() = %#v, want caller context", contextRecord)
+	}
 }
-
 func assertAgentRequestHeaders(t *testing.T, req *http.Request, credentials agentidentity.Credentials) {
 	t.Helper()
 

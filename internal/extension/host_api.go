@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	callspkg "github.com/compozy/compozy/internal/calls"
 	"github.com/compozy/compozy/internal/cmdpalette"
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
@@ -114,6 +115,7 @@ type HostAPIHandler struct {
 	sessions         hostAPISessionManager
 	automation       HostAPIAutomationManager
 	tasks            hostAPITaskManager
+	calls            hostAPICallsReader
 	taskFilters      HostAPITaskCatalogFilterMapper
 	network          hostAPINetworkService
 	networkStore     store.NetworkConversationStore
@@ -182,6 +184,13 @@ type hostAPISessionAcceptanceManager interface {
 type hostAPISessionArchiveManager interface {
 	Archive(ctx context.Context, workspaceID string, sessionID string) (*session.Info, error)
 	Unarchive(ctx context.Context, workspaceID string, sessionID string) (*session.Info, error)
+}
+
+type hostAPICallsReader interface {
+	List(context.Context, callspkg.CallListQuery) (callspkg.CallPage, error)
+	GetRead(context.Context, callspkg.CallReadQuery, string) (callspkg.CallRecord, error)
+	Result(context.Context, callspkg.CallReadQuery, string) (callspkg.ResultPayload, error)
+	ListMessages(context.Context, callspkg.MessageListQuery) (callspkg.MessagePage, error)
 }
 
 type hostAPIRuntimePromptSessionManager interface {

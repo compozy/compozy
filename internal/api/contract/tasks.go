@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/network/participation"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -59,6 +60,8 @@ type TaskSummaryPayload struct {
 	NeedsAttentionAt             *time.Time                       `json:"needs_attention_at,omitempty"`
 	NeedsAttentionBy             *taskpkg.ActorIdentity           `json:"needs_attention_by,omitempty"`
 	WakeCreator                  bool                             `json:"wake_creator"`
+	ExpectDigest                 string                           `json:"expect_digest,omitempty"`
+	ResultBudget                 *contracts.ByteBudget            `json:"result_budget,omitempty"`
 	CreatedBy                    taskpkg.ActorIdentity            `json:"created_by"`
 	Origin                       taskpkg.Origin                   `json:"origin"`
 	CreatedAt                    time.Time                        `json:"created_at"`
@@ -108,6 +111,8 @@ type TaskPayload struct {
 	NeedsAttentionAt     *time.Time              `json:"needs_attention_at,omitempty"`
 	NeedsAttentionBy     *taskpkg.ActorIdentity  `json:"needs_attention_by,omitempty"`
 	WakeCreator          bool                    `json:"wake_creator"`
+	ExpectDigest         string                  `json:"expect_digest,omitempty"`
+	ResultBudget         *contracts.ByteBudget   `json:"result_budget,omitempty"`
 	CreatedBy            taskpkg.ActorIdentity   `json:"created_by"`
 	Origin               taskpkg.Origin          `json:"origin"`
 	CreatedAt            time.Time               `json:"created_at"`

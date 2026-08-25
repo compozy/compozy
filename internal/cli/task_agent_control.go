@@ -239,7 +239,7 @@ func newTaskFanOutCommand(deps commandDeps) *cobra.Command {
 func taskFanOutDesignations(
 	values []string,
 ) ([]contract.TaskFanOutRunDesignationRequest, error) {
-	trimmed := trimSpawnAtoms(values)
+	trimmed := trimStringAtoms(values)
 	if len(trimmed) == 0 {
 		return nil, errors.New("cli: at least one --designation is required")
 	}

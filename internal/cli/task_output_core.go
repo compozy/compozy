@@ -1,6 +1,9 @@
 package cli
 
-import "strconv"
+import (
+	"fmt"
+	"strconv"
+)
 
 func agentTaskNextBundle(record AgentTaskNextRecord) outputBundle {
 	return outputBundle{
@@ -40,6 +43,8 @@ func taskBundle(item *TaskRecord) outputBundle {
 				{Label: taskTitleValue, Value: stringOrDash(item.Title)},
 				{Label: taskDescriptionValue, Value: stringOrDash(item.Description)},
 				{Label: taskStatusValue, Value: stringOrDash(string(item.Status))},
+				{Label: "Expect", Value: stringOrDash(item.ExpectDigest)},
+				{Label: "Result Budget", Value: stringOrDash(formatTaskResultBudget(item))},
 				{Label: "Paused", Value: strconv.FormatBool(item.Paused)},
 				{Label: "Paused By", Value: stringOrDash(item.PausedBy)},
 				{Label: taskReasonValue, Value: stringOrDash(item.PausedReason)},
@@ -67,6 +72,8 @@ func taskBundle(item *TaskRecord) outputBundle {
 				taskTitleKey,
 				taskDescriptionKey,
 				taskStatusKey,
+				"expect_digest",
+				"result_budget",
 				"paused",
 				"paused_by",
 				"paused_reason",
@@ -88,6 +95,8 @@ func taskBundle(item *TaskRecord) outputBundle {
 				item.Title,
 				item.Description,
 				string(item.Status),
+				item.ExpectDigest,
+				formatTaskResultBudget(item),
 				strconv.FormatBool(item.Paused),
 				item.PausedBy,
 				item.PausedReason,
@@ -102,6 +111,13 @@ func taskBundle(item *TaskRecord) outputBundle {
 			}), nil
 		},
 	}
+}
+
+func formatTaskResultBudget(item *TaskRecord) string {
+	if item == nil || item.ResultBudget == nil {
+		return ""
+	}
+	return fmt.Sprintf("%d bytes (%s)", item.ResultBudget.MaxBytes, item.ResultBudget.Overflow)
 }
 
 func taskBlockBundle(item TaskBlockRecord) outputBundle {

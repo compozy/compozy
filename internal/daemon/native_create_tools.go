@@ -36,6 +36,7 @@ type agentCreateInput struct {
 	Scope           string                             `json:"scope"`
 	Workspace       string                             `json:"workspace,omitempty"`
 	Name            string                             `json:"name"`
+	Description     string                             `json:"description,omitempty"`
 	Provider        string                             `json:"provider,omitempty"`
 	Model           string                             `json:"model,omitempty"`
 	ReasoningEffort string                             `json:"reasoning_effort,omitempty"`
@@ -261,6 +262,7 @@ func (n *daemonNativeTools) agentCreateRequest(
 		Workspace: strings.TrimSpace(input.Workspace),
 		Agent: contract.CreateAgentPayload{
 			Name:            strings.TrimSpace(input.Name),
+			Description:     strings.TrimSpace(input.Description),
 			Provider:        strings.TrimSpace(input.Provider),
 			Command:         strings.TrimSpace(input.Command),
 			Model:           strings.TrimSpace(input.Model),

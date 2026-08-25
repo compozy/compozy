@@ -142,6 +142,72 @@ func TestValidateOperationRegistry(t *testing.T) {
 	}
 }
 
+func TestDocumentDescribesCallsAndMessages(t *testing.T) {
+	t.Parallel()
+
+	doc, err := Document()
+	if err != nil {
+		t.Fatalf("Document() error = %v", err)
+	}
+
+	t.Run("Should publish both global and workspace operation families", func(t *testing.T) {
+		t.Parallel()
+
+		for _, prefix := range []string{"/api", "/api/workspaces/{workspace_id}"} {
+			for path, methods := range map[string][]string{
+				prefix + "/calls":                   {http.MethodGet, http.MethodPost},
+				prefix + "/calls/{call_id}":         {http.MethodGet},
+				prefix + "/calls/{call_id}/result":  {http.MethodGet},
+				prefix + "/calls/{call_id}/await":   {http.MethodPost},
+				prefix + "/calls/{call_id}/cancel":  {http.MethodPost},
+				prefix + "/calls/{call_id}/publish": {http.MethodPost},
+				prefix + "/messages":                {http.MethodGet, http.MethodPost},
+				prefix + "/messages/{message_id}":   {http.MethodGet},
+			} {
+				for _, method := range methods {
+					operation := operationFor(t, doc, path, method)
+					if len(operation.Tags) != 1 || (operation.Tags[0] != specCallsKey && operation.Tags[0] != specMessagesKey) {
+						t.Fatalf("%s %s tags = %#v", method, path, operation.Tags)
+					}
+				}
+			}
+		}
+		if doc.Paths.Find("/api/agent/spawn") != nil {
+			t.Fatal("deleted /api/agent/spawn remains in OpenAPI")
+		}
+	})
+
+	t.Run("Should describe deadline batch outcomes and typed call errors", func(t *testing.T) {
+		t.Parallel()
+
+		create := operationFor(t, doc, "/api/calls", http.MethodPost)
+		request := jsonRequestSchema(t, create)
+		deadline := propertySchema(t, request, "deadline_seconds")
+		if deadline.Type == nil || !deadline.Type.Is("integer") {
+			t.Fatalf("deadline_seconds type = %#v, want integer", deadline.Type)
+		}
+		tasks := propertySchema(t, request, "tasks")
+		if tasks.Items == nil || tasks.Items.Value == nil {
+			t.Fatal("tasks item schema is missing")
+		}
+		batchDeadline := propertySchema(t, tasks.Items.Value, "deadline_seconds")
+		if batchDeadline.Type == nil || !batchDeadline.Type.Is("integer") {
+			t.Fatalf("tasks[].deadline_seconds type = %#v, want integer", batchDeadline.Type)
+		}
+		for _, status := range []int{200, 201, 403, 404, 409, 410, 422, 503} {
+			assertResponseStatus(t, create, status)
+		}
+		unknown := jsonResponseSchema(t, create, http.StatusNotFound)
+		propertySchema(t, unknown, "available")
+		propertySchema(t, unknown, "code")
+
+		messages := operationFor(t, doc, "/api/messages", http.MethodPost)
+		for _, status := range []int{202, 403, 409, 410, 413, 422, 429, 503} {
+			assertResponseStatus(t, messages, status)
+		}
+	})
+}
+
 func TestDocumentDescribesAgentNameRequestConstraints(t *testing.T) {
 	t.Parallel()
 
@@ -173,14 +239,6 @@ func TestDocumentDescribesAgentNameRequestConstraints(t *testing.T) {
 			compozyconfig.AgentNamePattern,
 		)
 
-		spawnAgent := jsonRequestSchema(t, operationFor(t, doc, "/api/agent/spawn", http.MethodPost))
-		assertRequired(t, spawnAgent, "agent_name")
-		assertAgentNameRequestSchema(
-			t,
-			"spawn agent_name",
-			propertySchema(t, spawnAgent, "agent_name"),
-			compozyconfig.AgentNamePattern,
-		)
 	})
 
 	t.Run("Should describe empty-or-canonical reference fields without changing requiredness", func(t *testing.T) {
@@ -2228,7 +2286,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					{path: "/api/agent/tasks/{run_id}/complete", method: "POST"},
 					{path: "/api/agent/tasks/{run_id}/fail", method: "POST"},
 					{path: "/api/agent/tasks/{run_id}/release", method: "POST"},
-					{path: "/api/agent/spawn", method: "POST"},
 					{path: "/api/agent/coordinator/config", method: "GET"},
 				}
 				for _, operation := range operations {
@@ -2365,29 +2422,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				if _, exists := metadataSchema.Properties["claim_token"]; exists {
 					t.Fatalf("coordination metadata schema exposes raw claim_token")
 				}
-
-				spawnOperation := operationFor(t, doc, "/api/agent/spawn", "POST")
-				spawnSchema := jsonRequestSchema(t, spawnOperation)
-				assertRequired(
-					t,
-					spawnSchema,
-					"agent_name",
-					"spawn_role",
-					"ttl_seconds",
-					"auto_stop_on_parent",
-					"permissions",
-				)
-				assertEnumValues(t, propertySchema(t, spawnSchema, "speed"), "normal", "fast")
-				spawnResponse := jsonResponseSchema(t, spawnOperation, 201)
-				lineageSchema := propertySchema(t, propertySchema(t, spawnResponse, "spawn"), "lineage")
-				assertRequired(
-					t,
-					lineageSchema,
-					"spawn_depth",
-					"auto_stop_on_parent",
-					"spawn_budget",
-					"permission_policy",
-				)
 
 				configOperation := operationFor(t, doc, "/api/agent/coordinator/config", "GET")
 				configResponse := jsonResponseSchema(t, configOperation, 200)

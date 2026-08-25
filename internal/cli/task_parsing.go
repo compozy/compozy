@@ -326,6 +326,10 @@ func buildTaskCreateRequest(
 	if err != nil {
 		return CreateTaskRequest{}, err
 	}
+	expect, err := readCallExpect(input.ExpectRaw)
+	if err != nil {
+		return CreateTaskRequest{}, err
+	}
 
 	request := CreateTaskRequest{
 		ID:                 strings.TrimSpace(input.ID),
@@ -338,6 +342,9 @@ func buildTaskCreateRequest(
 		AutoEnqueueOnReady: input.AutoEnqueueOnReady,
 		Owner:              owner,
 		Metadata:           metadata,
+		Expect:             expect,
+		ResultBudget:       strings.TrimSpace(input.ResultBudget),
+		ResultOverflow:     strings.TrimSpace(input.ResultOverflow),
 	}
 	participationRequest, err := input.NetworkFlags.request()
 	if err != nil {

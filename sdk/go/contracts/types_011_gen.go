@@ -4,6 +4,97 @@ package contracts
 
 import "time"
 
+type HeartbeatConfigProvenancePayload struct {
+	Digest string                       `json:"digest"`
+	Subset HeartbeatConfigSubsetPayload `json:"subset"`
+}
+
+type HeartbeatConfigSubsetPayload struct {
+	Enabled                      bool   `json:"enabled"`
+	MaxBodyBytes                 int64  `json:"max_body_bytes"`
+	ContextProjectionBytes       int64  `json:"context_projection_bytes"`
+	MinInterval                  string `json:"min_interval"`
+	DefaultInterval              string `json:"default_interval"`
+	WakeCooldown                 string `json:"wake_cooldown"`
+	MaxWakesPerCycle             int    `json:"max_wakes_per_cycle"`
+	ActiveSessionOnly            bool   `json:"active_session_only"`
+	AllowActiveHoursPreferences  bool   `json:"allow_active_hours_preferences"`
+	WakeEventRetention           string `json:"wake_event_retention"`
+	SessionHealthStaleAfter      string `json:"session_health_stale_after"`
+	SessionHealthHookMinInterval string `json:"session_health_hook_min_interval"`
+}
+
+type HeartbeatContextProjectionPayload struct {
+	Include []string `json:"include,omitempty"`
+}
+
+type HeartbeatDeleteRequest struct {
+	WorkspaceID    string `json:"workspace_id,omitempty"`
+	AgentName      string `json:"agent_name"`
+	ExpectedDigest string `json:"expected_digest"`
+}
+
+type HeartbeatFrontmatterPayload struct {
+	Version     int                                    `json:"version"`
+	Enabled     bool                                   `json:"enabled"`
+	Summary     string                                 `json:"summary,omitempty"`
+	Preferences HeartbeatFrontmatterPreferencesPayload `json:"preferences"`
+	Context     HeartbeatContextProjectionPayload      `json:"context"`
+}
+
+type HeartbeatFrontmatterPreferencesPayload struct {
+	MinInterval  string                       `json:"min_interval,omitempty"`
+	ActiveHours  []HeartbeatTimeWindowPayload `json:"active_hours,omitempty"`
+	QuietWindows []HeartbeatTimeWindowPayload `json:"quiet_windows,omitempty"`
+}
+
+type HeartbeatHistoryRequest struct {
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	AgentName   string `json:"agent_name"`
+	Limit       int    `json:"limit,omitempty"`
+	Cursor      string `json:"cursor,omitempty"`
+}
+
+type HeartbeatHistoryResponse struct {
+	Revisions  []HeartbeatRevisionPayload `json:"revisions"`
+	NextCursor string                     `json:"next_cursor,omitempty"`
+}
+
+type HeartbeatMutationResponse struct {
+	Heartbeat HeartbeatPolicyPayload   `json:"heartbeat"`
+	Revision  HeartbeatRevisionPayload `json:"revision"`
+}
+
+type HeartbeatPolicyPayload struct {
+	AgentName        string                             `json:"agent_name,omitempty"`
+	Enabled          bool                               `json:"enabled"`
+	Present          bool                               `json:"present"`
+	Active           bool                               `json:"active"`
+	Valid            bool                               `json:"valid"`
+	ValidationStatus AuthoredValidationStatus           `json:"validation_status"`
+	SourcePath       string                             `json:"source_path,omitempty"`
+	Digest           string                             `json:"digest,omitempty"`
+	ConfigDigest     string                             `json:"config_digest,omitempty"`
+	SnapshotID       string                             `json:"snapshot_id,omitempty"`
+	SchemaVersion    int                                `json:"schema_version"`
+	Summary          string                             `json:"summary,omitempty"`
+	GuidanceMarkdown string                             `json:"guidance_markdown,omitempty"`
+	Frontmatter      HeartbeatFrontmatterPayload        `json:"frontmatter"`
+	Preferences      HeartbeatPreferencesPayload        `json:"preferences"`
+	ConfigProvenance HeartbeatConfigProvenancePayload   `json:"config_provenance"`
+	Prompt           HeartbeatPromptContributionPayload `json:"prompt"`
+	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
+	Limits           AuthoredContextLimitsPayload       `json:"limits"`
+	CreatedAt        *time.Time                         `json:"created_at,omitempty"`
+}
+
+type HeartbeatPreferencesPayload struct {
+	MinInterval  string                            `json:"min_interval"`
+	ActiveHours  []HeartbeatTimeWindowPayload      `json:"active_hours,omitempty"`
+	QuietWindows []HeartbeatTimeWindowPayload      `json:"quiet_windows,omitempty"`
+	Context      HeartbeatContextProjectionPayload `json:"context"`
+}
+
 type HeartbeatPromptContributionPayload struct {
 	Active           bool                               `json:"active"`
 	Digest           string                             `json:"digest,omitempty"`
@@ -125,85 +216,3 @@ type HeartbeatWakeRequest struct {
 	DryRun         bool                `json:"dry_run,omitempty"`
 	IdempotencyKey string              `json:"idempotency_key,omitempty"`
 }
-
-type HeartbeatWakeResponse struct {
-	Decision HeartbeatWakeDecisionPayload `json:"decision"`
-}
-
-type HeartbeatWakeResult string
-
-type HeartbeatWakeSource string
-
-type HeartbeatWakeStatePayload struct {
-	WorkspaceID      string              `json:"workspace_id,omitempty"`
-	AgentName        string              `json:"agent_name,omitempty"`
-	SessionID        string              `json:"session_id"`
-	PolicySnapshotID string              `json:"policy_snapshot_id,omitempty"`
-	LastWakeAt       *time.Time          `json:"last_wake_at,omitempty"`
-	NextAllowedAt    *time.Time          `json:"next_allowed_at,omitempty"`
-	CoalescedCount   int                 `json:"coalesced_count"`
-	LastResult       HeartbeatWakeResult `json:"last_result"`
-	LastReason       HeartbeatWakeReason `json:"last_reason,omitempty"`
-	UpdatedAt        time.Time           `json:"updated_at"`
-}
-
-type HookDecl struct {
-	Name         string            `json:"name"`
-	ProfileID    string            `json:"profile_id,omitempty"`
-	Event        HookEvent         `json:"event"`
-	Mode         HookMode          `json:"mode,omitempty"`
-	Matcher      HookMatcher       `json:"matcher"`
-	ExecutorKind HookExecutorKind  `json:"executor_kind,omitempty"`
-	Command      string            `json:"command,omitempty"`
-	Args         []string          `json:"args,omitempty"`
-	Env          map[string]string `json:"env,omitempty"`
-	SecretEnv    map[string]string `json:"secret_env,omitempty"`
-	Metadata     map[string]string `json:"metadata,omitempty"`
-	Timeout      time.Duration     `json:"timeout,omitempty"`
-	Enabled      *bool             `json:"enabled,omitempty"`
-	Priority     int32             `json:"priority,omitempty"`
-	Source       HookSource        `json:"source"`
-	Required     bool              `json:"required,omitempty"`
-}
-
-type HookEventFamily string
-
-type HookExecutorKind string
-
-type HookMatcher struct {
-	AgentName           string           `json:"agent_name,omitempty"`
-	AgentType           string           `json:"agent_type,omitempty"`
-	WorkspaceID         string           `json:"workspace_id,omitempty"`
-	WorktreeID          string           `json:"worktree_id,omitempty"`
-	WorkspaceRoot       string           `json:"workspace_root,omitempty"`
-	SessionType         string           `json:"session_type,omitempty"`
-	SandboxID           string           `json:"sandbox_id,omitempty"`
-	SandboxBackend      string           `json:"sandbox_backend,omitempty"`
-	SandboxProfile      string           `json:"sandbox_profile,omitempty"`
-	SyncDirection       string           `json:"sync_direction,omitempty"`
-	InputClass          string           `json:"input_class,omitempty"`
-	ACPEventType        string           `json:"acp_event_type,omitempty"`
-	TurnID              string           `json:"turn_id,omitempty"`
-	ToolID              string           `json:"tool_id,omitempty"`
-	ToolName            string           `json:"tool_name,omitempty"`
-	ToolReadOnly        *bool            `json:"tool_read_only,omitempty"`
-	DecisionClass       string           `json:"decision_class,omitempty"`
-	MessageRole         string           `json:"message_role,omitempty"`
-	MessageDeltaType    string           `json:"message_delta_type,omitempty"`
-	Channel             string           `json:"channel,omitempty"`
-	Surface             string           `json:"surface,omitempty"`
-	Kind                string           `json:"kind,omitempty"`
-	Direction           string           `json:"direction,omitempty"`
-	WorkState           string           `json:"work_state,omitempty"`
-	ParticipationMode   string           `json:"participation_mode,omitempty"`
-	ParticipationSource string           `json:"participation_source,omitempty"`
-	Reason              string           `json:"compaction_reason,omitempty"`
-	Strategy            string           `json:"compaction_strategy,omitempty"`
-	Autonomy            *AutonomyMatcher `json:"autonomy,omitempty"`
-}
-
-type HookMode string
-
-type HookRunOutcome string
-
-type HookSkillSource uint8

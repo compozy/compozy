@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/contracts"
 
 	"github.com/compozy/compozy/internal/network/participation"
 
@@ -32,10 +34,17 @@ type taskCreateInput struct {
 	ApprovalPolicy       string                 `json:"approval_policy,omitempty"`
 	Owner                *taskpkg.Ownership     `json:"owner,omitempty"`
 	WakeCreator          *bool                  `json:"wake_creator,omitempty"`
+	Expect               json.RawMessage        `json:"expect,omitempty"`
+	ResultBudget         string                 `json:"result_budget,omitempty"`
+	ResultOverflow       string                 `json:"result_overflow,omitempty"`
 	Metadata             json.RawMessage        `json:"metadata,omitempty"`
 }
 
-func (i taskCreateInput) spec(scope toolspkg.Scope) taskpkg.CreateTask {
+func (i taskCreateInput) spec(scope toolspkg.Scope) (taskpkg.CreateTask, error) {
+	resultBudget, err := nativeTaskResultBudget(i.ResultBudget, i.ResultOverflow)
+	if err != nil {
+		return taskpkg.CreateTask{}, err
+	}
 	taskScope := taskpkg.Scope(strings.TrimSpace(i.Scope))
 	workspaceID := strings.TrimSpace(i.WorkspaceID)
 	if workspaceID == "" && taskScope.Normalize() == taskpkg.ScopeWorkspace {
@@ -55,9 +64,11 @@ func (i taskCreateInput) spec(scope toolspkg.Scope) taskpkg.CreateTask {
 		ApprovalPolicy:       taskpkg.ApprovalPolicy(strings.TrimSpace(i.ApprovalPolicy)),
 		Owner:                cloneTaskOwner(i.Owner),
 		WakeCreator:          cloneBoolPtr(i.WakeCreator),
+		Expect:               cloneJSON(i.Expect),
+		ResultBudget:         resultBudget,
 		NetworkParticipation: participation.CloneRequest(i.NetworkParticipation),
 		Metadata:             cloneJSON(i.Metadata),
-	}
+	}, nil
 }
 
 type taskChildCreateInput struct {
@@ -65,10 +76,13 @@ type taskChildCreateInput struct {
 	taskCreateInput
 }
 
-func (i taskChildCreateInput) spec(scope toolspkg.Scope) taskpkg.CreateTask {
-	spec := i.taskCreateInput.spec(scope)
+func (i taskChildCreateInput) spec(scope toolspkg.Scope) (taskpkg.CreateTask, error) {
+	spec, err := i.taskCreateInput.spec(scope)
+	if err != nil {
+		return taskpkg.CreateTask{}, err
+	}
 	spec.ParentTaskID = strings.TrimSpace(i.ParentTaskID)
-	return spec
+	return spec, nil
 }
 
 type taskUpdateInput struct {
@@ -78,24 +92,53 @@ type taskUpdateInput struct {
 	Priority             *string                `json:"priority,omitempty"`
 	MaxAttempts          *int                   `json:"max_attempts,omitempty"`
 	ApprovalPolicy       *string                `json:"approval_policy,omitempty"`
+	Expect               *json.RawMessage       `json:"expect,omitempty"`
+	ResultBudget         string                 `json:"result_budget,omitempty"`
+	ResultOverflow       string                 `json:"result_overflow,omitempty"`
 	Metadata             *json.RawMessage       `json:"metadata,omitempty"`
 	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
 	Owner                *taskpkg.Ownership     `json:"owner,omitempty"`
 	ClearOwner           bool                   `json:"clear_owner,omitempty"`
 }
 
-func (i taskUpdateInput) patch() taskpkg.Patch {
+func (i taskUpdateInput) patch() (taskpkg.Patch, error) {
+	resultBudget, err := nativeTaskResultBudget(i.ResultBudget, i.ResultOverflow)
+	if err != nil {
+		return taskpkg.Patch{}, err
+	}
 	return taskpkg.Patch{
 		Title:                cloneStringPtr(i.Title),
 		Description:          cloneStringPtr(i.Description),
 		Priority:             taskPriorityPtr(i.Priority),
 		MaxAttempts:          cloneIntPtr(i.MaxAttempts),
 		ApprovalPolicy:       taskApprovalPolicyPtr(i.ApprovalPolicy),
+		Expect:               cloneRawMessagePtr(i.Expect),
+		ResultBudget:         resultBudget,
 		Metadata:             cloneRawMessagePtr(i.Metadata),
 		Owner:                cloneTaskOwner(i.Owner),
 		ClearOwner:           i.ClearOwner,
 		NetworkParticipation: participation.CloneRequest(i.NetworkParticipation),
+	}, nil
+}
+
+func nativeTaskResultBudget(budgetRaw, overflowRaw string) (*contracts.ByteBudget, error) {
+	budgetRaw = strings.TrimSpace(budgetRaw)
+	overflowRaw = strings.TrimSpace(overflowRaw)
+	if budgetRaw == "" && overflowRaw == "" {
+		return nil, nil
 	}
+	budget := &contracts.ByteBudget{}
+	if budgetRaw != "" {
+		maxBytes, err := config.ParseByteSize(budgetRaw)
+		if err != nil {
+			return nil, fmt.Errorf("task result_budget: %w", err)
+		}
+		budget.MaxBytes = maxBytes
+	}
+	if overflowRaw != "" {
+		budget.Overflow = contracts.OverflowMode(overflowRaw)
+	}
+	return budget, nil
 }
 
 type taskCancelInput struct {

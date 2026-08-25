@@ -18,6 +18,7 @@ type memoryCallStore struct {
 	idempotency      map[string]string
 	due              []CallRecord
 	subtree          []CallRecord
+	preservedResults int
 	admissions       []Admission
 	settlements      []SettlementMutation
 	repairDeliveries []DeliveryRecord
@@ -207,6 +208,12 @@ func (s *memoryCallStore) ListOpenSubtreeCalls(_ context.Context, _ string) ([]C
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]CallRecord(nil), s.subtree...), nil
+}
+
+func (s *memoryCallStore) CountPreservedSubtreeResults(_ context.Context, _ string) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.preservedResults, nil
 }
 
 func (s *memoryCallStore) ListQueuedActivationRunIDs(context.Context, int) ([]string, error) {

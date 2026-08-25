@@ -20,6 +20,7 @@ var resourceProfileNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 // AgentDef is the parsed representation of an AGENT.md file.
 type AgentDef struct {
 	Name                  string `json:"name"                       yaml:"name"                       toml:"name"`
+	Description           string `json:"description,omitempty"      yaml:"description,omitempty"      toml:"description,omitempty"`
 	Provider              string `json:"provider,omitempty"         yaml:"provider"                   toml:"provider"`
 	Command               string `json:"command,omitempty"          yaml:"command,omitempty"          toml:"command,omitempty"`
 	Model                 string `json:"model,omitempty"            yaml:"model,omitempty"            toml:"model,omitempty"`
@@ -48,6 +49,7 @@ type AgentDefinitionRef struct {
 
 type parsedAgentDef struct {
 	Name            string                  `yaml:"name"                       toml:"name"`
+	Description     string                  `yaml:"description,omitempty"      toml:"description,omitempty"`
 	Provider        string                  `yaml:"provider"                   toml:"provider"`
 	Command         string                  `yaml:"command,omitempty"          toml:"command,omitempty"`
 	Model           string                  `yaml:"model,omitempty"            toml:"model,omitempty"`
@@ -300,6 +302,7 @@ func ParseAgentDef(content []byte) (AgentDef, error) {
 
 	agent := AgentDef{
 		Name:            strings.TrimSpace(parsed.Name),
+		Description:     strings.TrimSpace(parsed.Description),
 		Provider:        strings.TrimSpace(parsed.Provider),
 		Command:         strings.TrimSpace(parsed.Command),
 		Model:           strings.TrimSpace(parsed.Model),

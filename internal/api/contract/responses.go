@@ -100,11 +100,6 @@ type AgentTaskLeaseResponse struct {
 	Lease TaskRunLeaseSummaryPayload `json:"lease"`
 }
 
-// AgentSpawnResponse wraps a safe spawn result.
-type AgentSpawnResponse struct {
-	Spawn AgentSpawnPayload `json:"spawn"`
-}
-
 // AgentCoordinatorConfigResponse wraps coordinator config read state.
 type AgentCoordinatorConfigResponse struct {
 	Coordinator CoordinatorConfigPayload `json:"coordinator"`

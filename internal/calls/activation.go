@@ -32,6 +32,7 @@ func (s *Service) invokeClaimedActivation(
 			AgentName: activation.AgentName, Prompt: string(admission.Prompt),
 			WorkspaceID: activation.WorkspaceID, IdleTTL: activation.IdleTTL,
 			Runtime: activation.Runtime, Permissions: admission.Narrow,
+			RemainingDepth: max(s.config.MaxDepth-activation.Depth, 0),
 		})
 		if err != nil {
 			invokeErr = err
@@ -40,7 +41,12 @@ func (s *Service) invokeClaimedActivation(
 			createdChild = true
 		}
 	case "revive":
-		invokeErr = s.invoker.Revive(ctx, childID, string(admission.Prompt), record.CallID)
+		invokeErr = s.invoker.Revive(
+			ctx,
+			childID,
+			callPromptWithRemainingDepth(string(admission.Prompt), max(s.config.MaxDepth-activation.Depth, 0)),
+			record.CallID,
+		)
 	default:
 		invokeErr = fmt.Errorf("unsupported activation kind %q", activation.Kind)
 	}

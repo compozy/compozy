@@ -112,6 +112,9 @@ type taskCreateInput struct {
 	OwnerKindRaw       string
 	OwnerRef           string
 	MetadataRaw        string
+	ExpectRaw          string
+	ResultBudget       string
+	ResultOverflow     string
 	AutoEnqueueOnReady bool
 	NoWakeCreator      bool
 }

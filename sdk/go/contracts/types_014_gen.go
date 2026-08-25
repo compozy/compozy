@@ -7,6 +7,165 @@ import (
 	"time"
 )
 
+type LoopLifecyclePayload struct {
+	Event                        HookEvent       `json:"event"`
+	Timestamp                    time.Time       `json:"timestamp"`
+	ProfileID                    string          `json:"profile_id,omitempty"`
+	LoopRunID                    string          `json:"loop_run_id,omitempty"`
+	ParentLoopRunID              string          `json:"parent_loop_run_id,omitempty"`
+	WorkspaceID                  string          `json:"workspace_id,omitempty"`
+	LoopName                     string          `json:"loop_name,omitempty"`
+	Generation                   int             `json:"generation,omitempty"`
+	TaskID                       string          `json:"task_id,omitempty"`
+	RunID                        string          `json:"run_id,omitempty"`
+	RunKind                      string          `json:"run_kind,omitempty"`
+	NodeID                       string          `json:"node_id,omitempty"`
+	WorkflowID                   string          `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *Spec           `json:"resolved_network_participation,omitempty"`
+	AgentName                    string          `json:"agent_name,omitempty"`
+	SessionID                    string          `json:"session_id,omitempty"`
+	ActorKind                    string          `json:"actor_kind,omitempty"`
+	ActorID                      string          `json:"actor_id,omitempty"`
+	OriginKind                   string          `json:"origin_kind,omitempty"`
+	OriginRef                    string          `json:"origin_ref,omitempty"`
+	Status                       string          `json:"status,omitempty"`
+	Cause                        string          `json:"cause,omitempty"`
+	ReasonCode                   string          `json:"reason_code,omitempty"`
+	Details                      json.RawMessage `json:"details,omitempty"`
+}
+
+type LoopNodeTerminalPayload struct {
+	Event                        HookEvent       `json:"event"`
+	Timestamp                    time.Time       `json:"timestamp"`
+	ProfileID                    string          `json:"profile_id,omitempty"`
+	LoopRunID                    string          `json:"loop_run_id,omitempty"`
+	ParentLoopRunID              string          `json:"parent_loop_run_id,omitempty"`
+	WorkspaceID                  string          `json:"workspace_id,omitempty"`
+	LoopName                     string          `json:"loop_name,omitempty"`
+	Generation                   int             `json:"generation,omitempty"`
+	TaskID                       string          `json:"task_id,omitempty"`
+	RunID                        string          `json:"run_id,omitempty"`
+	RunKind                      string          `json:"run_kind,omitempty"`
+	NodeID                       string          `json:"node_id,omitempty"`
+	WorkflowID                   string          `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *Spec           `json:"resolved_network_participation,omitempty"`
+	AgentName                    string          `json:"agent_name,omitempty"`
+	SessionID                    string          `json:"session_id,omitempty"`
+	ActorKind                    string          `json:"actor_kind,omitempty"`
+	ActorID                      string          `json:"actor_id,omitempty"`
+	OriginKind                   string          `json:"origin_kind,omitempty"`
+	OriginRef                    string          `json:"origin_ref,omitempty"`
+	TaskStatus                   string          `json:"task_status,omitempty"`
+	RunStatus                    string          `json:"run_status,omitempty"`
+	FailureClass                 string          `json:"failure_class,omitempty"`
+	Disposition                  string          `json:"disposition,omitempty"`
+	Attempt                      int             `json:"attempt,omitempty"`
+	Target                       string          `json:"target,omitempty"`
+	Error                        string          `json:"error,omitempty"`
+	Details                      json.RawMessage `json:"details,omitempty"`
+}
+
+type LoopObservationPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
+type LoopProvenance struct {
+	RunID      string             `json:"run_id"`
+	LoopName   string             `json:"loop_name,omitempty"`
+	Role       LoopProvenanceRole `json:"role"`
+	Generation *int               `json:"generation,omitempty"`
+	NodeID     string             `json:"node_id,omitempty"`
+	ItemIndex  *int               `json:"item_index,omitempty"`
+}
+
+type LoopProvenanceRole string
+
+const (
+	LoopProvenanceRoleCoordinator LoopProvenanceRole = "coordinator"
+	LoopProvenanceRoleCell        LoopProvenanceRole = "cell"
+)
+
+type LoopStartedPayload struct {
+	Event                        HookEvent       `json:"event"`
+	Timestamp                    time.Time       `json:"timestamp"`
+	ProfileID                    string          `json:"profile_id,omitempty"`
+	LoopRunID                    string          `json:"loop_run_id,omitempty"`
+	ParentLoopRunID              string          `json:"parent_loop_run_id,omitempty"`
+	WorkspaceID                  string          `json:"workspace_id,omitempty"`
+	LoopName                     string          `json:"loop_name,omitempty"`
+	Generation                   int             `json:"generation,omitempty"`
+	TaskID                       string          `json:"task_id,omitempty"`
+	RunID                        string          `json:"run_id,omitempty"`
+	RunKind                      string          `json:"run_kind,omitempty"`
+	NodeID                       string          `json:"node_id,omitempty"`
+	WorkflowID                   string          `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *Spec           `json:"resolved_network_participation,omitempty"`
+	AgentName                    string          `json:"agent_name,omitempty"`
+	SessionID                    string          `json:"session_id,omitempty"`
+	ActorKind                    string          `json:"actor_kind,omitempty"`
+	ActorID                      string          `json:"actor_id,omitempty"`
+	OriginKind                   string          `json:"origin_kind,omitempty"`
+	OriginRef                    string          `json:"origin_ref,omitempty"`
+	Status                       string          `json:"status,omitempty"`
+	Cause                        string          `json:"cause,omitempty"`
+	ReasonCode                   string          `json:"reason_code,omitempty"`
+	Details                      json.RawMessage `json:"details,omitempty"`
+}
+
+type LoopTarget struct {
+	WorkspaceID          string            `json:"workspace_id"`
+	LoopName             string            `json:"loop_name"`
+	Inputs               map[string]any    `json:"inputs,omitempty"`
+	InputMapping         map[string]string `json:"input_mapping,omitempty"`
+	NetworkParticipation *Request          `json:"network_participation,omitempty"`
+}
+
+type LoopTerminalPayload struct {
+	Event                        HookEvent       `json:"event"`
+	Timestamp                    time.Time       `json:"timestamp"`
+	ProfileID                    string          `json:"profile_id,omitempty"`
+	LoopRunID                    string          `json:"loop_run_id,omitempty"`
+	ParentLoopRunID              string          `json:"parent_loop_run_id,omitempty"`
+	WorkspaceID                  string          `json:"workspace_id,omitempty"`
+	LoopName                     string          `json:"loop_name,omitempty"`
+	Generation                   int             `json:"generation,omitempty"`
+	TaskID                       string          `json:"task_id,omitempty"`
+	RunID                        string          `json:"run_id,omitempty"`
+	RunKind                      string          `json:"run_kind,omitempty"`
+	NodeID                       string          `json:"node_id,omitempty"`
+	WorkflowID                   string          `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *Spec           `json:"resolved_network_participation,omitempty"`
+	AgentName                    string          `json:"agent_name,omitempty"`
+	SessionID                    string          `json:"session_id,omitempty"`
+	ActorKind                    string          `json:"actor_kind,omitempty"`
+	ActorID                      string          `json:"actor_id,omitempty"`
+	OriginKind                   string          `json:"origin_kind,omitempty"`
+	OriginRef                    string          `json:"origin_ref,omitempty"`
+	Status                       string          `json:"status,omitempty"`
+	Cause                        string          `json:"cause,omitempty"`
+	ReasonCode                   string          `json:"reason_code,omitempty"`
+	Details                      json.RawMessage `json:"details,omitempty"`
+}
+
+type MemoryForgetParams struct {
+	Key       string      `json:"key"`
+	Scope     MemoryScope `json:"scope,omitempty"`
+	Workspace string      `json:"workspace,omitempty"`
+}
+
+type MemoryRecallEntry struct {
+	Key     string  `json:"key"`
+	Content string  `json:"content"`
+	Score   float64 `json:"score"`
+}
+
+type MemoryRecallParams struct {
+	Query     string      `json:"query"`
+	Limit     int         `json:"limit,omitempty"`
+	Scope     MemoryScope `json:"scope,omitempty"`
+	Workspace string      `json:"workspace,omitempty"`
+}
+
 type MemoryScope string
 
 type MemoryStoreParams struct {
@@ -164,87 +323,4 @@ type MessageStartPayload struct {
 	DeltaType      string          `json:"delta_type,omitempty"`
 	Text           string          `json:"text,omitempty"`
 	Raw            json.RawMessage `json:"raw,omitempty"`
-}
-
-type MetaField struct {
-	Label    string            `json:"label"`
-	Value    string            `json:"value"`
-	Requires map[string]string `json:"requires,omitempty"`
-	Fallback string            `json:"fallback,omitempty"`
-}
-
-type Mode string
-
-type ModelCatalogCostPayload struct {
-	InputPerMillion      *float64 `json:"input_per_million,omitempty"`
-	OutputPerMillion     *float64 `json:"output_per_million,omitempty"`
-	CacheReadPerMillion  *float64 `json:"cache_read_per_million,omitempty"`
-	CacheWritePerMillion *float64 `json:"cache_write_per_million,omitempty"`
-	ReasoningPerMillion  *float64 `json:"reasoning_per_million,omitempty"`
-}
-
-type ModelCatalogSourceRefPayload struct {
-	SourceID    string `json:"source_id"`
-	SourceKind  string `json:"source_kind"`
-	Priority    int    `json:"priority"`
-	RefreshedAt string `json:"refreshed_at,omitempty"`
-	Stale       bool   `json:"stale"`
-	LastError   string `json:"last_error,omitempty"`
-}
-
-type ModelCatalogSourceStatusPayload struct {
-	SourceID     string `json:"source_id"`
-	SourceKind   string `json:"source_kind"`
-	ProviderID   string `json:"provider_id"`
-	Priority     int    `json:"priority"`
-	LastRefresh  string `json:"last_refresh,omitempty"`
-	NextRefresh  string `json:"next_refresh,omitempty"`
-	LastSuccess  string `json:"last_success,omitempty"`
-	LastError    string `json:"last_error,omitempty"`
-	RefreshState string `json:"refresh_state"`
-	RowCount     int    `json:"row_count"`
-	Stale        bool   `json:"stale"`
-}
-
-type ModelSourceListParams struct {
-	ProviderID   string `json:"provider_id,omitempty"`
-	Refresh      bool   `json:"refresh,omitempty"`
-	IncludeStale bool   `json:"include_stale,omitempty"`
-}
-
-type ModelSourceListResponse struct {
-	Rows []ModelSourceRow `json:"rows"`
-}
-
-type ModelSourceOptionDescriptor struct {
-	ID             string                   `json:"id"`
-	Label          string                   `json:"label,omitempty"`
-	Description    string                   `json:"description,omitempty"`
-	Category       string                   `json:"category,omitempty"`
-	Kind           ModelSourceOptionKind    `json:"kind"`
-	CurrentValueID string                   `json:"current_value_id,omitempty"`
-	CurrentBool    *bool                    `json:"current_bool,omitempty"`
-	Values         []ModelSourceOptionValue `json:"values,omitempty"`
-}
-
-type ModelSourceOptionKind string
-
-const (
-	ModelSourceOptionKindSelect  ModelSourceOptionKind = "select"
-	ModelSourceOptionKindBoolean ModelSourceOptionKind = "boolean"
-)
-
-type ModelSourceOptionSelection struct {
-	ID        string `json:"id"`
-	ValueID   string `json:"value_id,omitempty"`
-	BoolValue *bool  `json:"bool_value,omitempty"`
-}
-
-type ModelSourceOptionValue struct {
-	ValueID     string `json:"value_id"`
-	Label       string `json:"label,omitempty"`
-	Description string `json:"description,omitempty"`
-	GroupID     string `json:"group_id,omitempty"`
-	GroupLabel  string `json:"group_label,omitempty"`
-	Order       int    `json:"order,omitempty"`
 }

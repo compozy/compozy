@@ -92,11 +92,22 @@ var builtinToolsets = []toolspkg.Toolset{
 			toolspkg.ToolIDSessionHealth.String(),
 			toolspkg.ToolIDNotify.String(),
 			toolspkg.ToolIDSessionWait.String(),
-			toolspkg.ToolIDSessionSpawn.String(),
 			toolspkg.ToolIDSessionStop.String(),
 			toolspkg.ToolIDSessionApprove.String(),
 			toolspkg.ToolIDSessionClarifyAnswer.String(),
 			toolspkg.ToolIDSessionPromptCancel.String(),
+		},
+	},
+	{
+		ID: toolspkg.ToolsetIDCalls,
+		Tools: []string{
+			toolspkg.ToolIDAgentCall.String(),
+			toolspkg.ToolIDCallReturn.String(),
+			toolspkg.ToolIDCallAwait.String(),
+			toolspkg.ToolIDCallCancel.String(),
+			toolspkg.ToolIDCallResult.String(),
+			toolspkg.ToolIDCallPublish.String(),
+			toolspkg.ToolIDAgentMessage.String(),
 		},
 	},
 	{

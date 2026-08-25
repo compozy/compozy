@@ -59,6 +59,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 
 		excluded := []toolspkg.ToolID{
+			"compozy__session_spawn",
 			"compozy__skill_install",
 			"compozy__skill_update",
 			"compozy__skill_remove",
@@ -147,6 +148,37 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		} {
 			if _, ok := snapshot.Properties[field]; !ok {
 				t.Fatalf("Goal control snapshot schema omits %q", field)
+			}
+		}
+	})
+
+	t.Run("Should register the complete calls family and remove session spawn everywhere", func(t *testing.T) {
+		t.Parallel()
+		descriptors := descriptorMap(NativeDescriptors())
+		callIDs := []toolspkg.ToolID{
+			toolspkg.ToolIDAgentCall, toolspkg.ToolIDCallReturn, toolspkg.ToolIDCallAwait,
+			toolspkg.ToolIDCallCancel, toolspkg.ToolIDCallResult, toolspkg.ToolIDCallPublish,
+			toolspkg.ToolIDAgentMessage,
+		}
+		for _, id := range callIDs {
+			descriptor, ok := descriptors[id]
+			if !ok || !slices.Contains(descriptor.Toolsets, toolspkg.ToolsetIDCalls) {
+				t.Fatalf("calls descriptor %q = %#v", id, descriptor)
+			}
+			withDigests, err := toolspkg.DescriptorWithSchemaDigests(descriptor)
+			if err != nil {
+				t.Fatalf("DescriptorWithSchemaDigests(%s) error = %v", id, err)
+			}
+			if withDigests.InputSchemaDigest == "" {
+				t.Fatalf("calls descriptor %q input schema digest is empty", id)
+			}
+		}
+		if _, exists := descriptors[toolspkg.ToolID("compozy__session_spawn")]; exists {
+			t.Fatal("compozy__session_spawn remains in NativeDescriptors")
+		}
+		for _, toolset := range builtinToolsets {
+			if slices.Contains(toolset.Tools, "compozy__session_spawn") {
+				t.Fatalf("toolset %q still contains compozy__session_spawn", toolset.ID)
 			}
 		}
 	})
@@ -1315,6 +1347,8 @@ type nativeDescriptorExpectation struct {
 
 func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 	return []nativeDescriptorExpectation{
+		{id: "compozy__agent_call", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__agent_create", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__agent_heartbeat_status", risk: toolspkg.RiskRead,
@@ -1323,6 +1357,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__agent_list", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__agent_message", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__automation_jobs_create", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__automation_jobs_delete", risk: toolspkg.RiskDestructive,
@@ -1371,6 +1407,16 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__bridges_status", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__call_await", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__call_cancel", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__call_publish", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__call_result", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__call_return", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__clarify", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__cmd_palette_invoke", risk: toolspkg.RiskMutating,
@@ -1723,8 +1769,6 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_status", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__session_spawn", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_stop", risk: toolspkg.RiskDestructive,
 			readOnly: false, destructive: true, openWorld: false},
 		{id: "compozy__session_unarchive", risk: toolspkg.RiskMutating,
@@ -3242,12 +3286,14 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			!slices.Contains(sessions, toolspkg.ToolIDSessionHealth) ||
 			!slices.Contains(sessions, toolspkg.ToolIDNotify) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionWait) ||
-			!slices.Contains(sessions, toolspkg.ToolIDSessionSpawn) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionStop) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionApprove) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionClarifyAnswer) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionPromptCancel) {
 			t.Fatalf("sessions toolset expansion = %#v, want session read and mutation tools", sessions)
+		}
+		if slices.Contains(sessions, toolspkg.ToolID("compozy__session_spawn")) {
+			t.Fatalf("sessions toolset expansion = %#v, contains deleted session_spawn", sessions)
 		}
 
 		authoredContext, err := catalog.Expand(toolspkg.ToolsetIDAuthoredContext, universe)

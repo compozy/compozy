@@ -1,9 +1,12 @@
 package task
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/network/participation"
 )
 
@@ -47,6 +50,9 @@ func (r CreateTask) Validate(path string) error {
 			return err
 		}
 	}
+	if err := validateTaskExpectationInput(r.Expect, r.ResultBudget, nestedPath(path, "expect")); err != nil {
+		return err
+	}
 	if err := ValidateMetadataSize(r.Metadata, nestedPath(path, "metadata")); err != nil {
 		return err
 	}
@@ -74,6 +80,14 @@ func (p Patch) Validate(path string) error {
 			path,
 		)
 	}
+	if p.Expect == nil && p.ResultBudget != nil {
+		return fmt.Errorf("%w: %s requires %s", ErrValidation, nestedPath(path, "result_budget"), nestedPath(path, "expect"))
+	}
+	if p.Expect != nil {
+		if err := validateTaskExpectationInput(*p.Expect, p.ResultBudget, nestedPath(path, "expect")); err != nil {
+			return err
+		}
+	}
 	if p.Owner != nil {
 		if err := p.Owner.Validate(nestedPath(path, "owner")); err != nil {
 			return err
@@ -88,6 +102,26 @@ func (p Patch) Validate(path string) error {
 		if _, err := participation.NormalizeIntent(*p.NetworkParticipation); err != nil {
 			return fmt.Errorf("%w: %s: %w", ErrValidation, nestedPath(path, "network_participation"), err)
 		}
+	}
+	return nil
+}
+
+func validateTaskExpectationInput(
+	expect json.RawMessage,
+	budget *contracts.ByteBudget,
+	path string,
+) error {
+	if len(bytes.TrimSpace(expect)) == 0 {
+		if budget != nil {
+			return fmt.Errorf("%w: %s is required when result_budget is set", ErrValidation, path)
+		}
+		return nil
+	}
+	if !json.Valid(expect) {
+		return fmt.Errorf("%w: %s must be valid JSON", ErrValidation, path)
+	}
+	if budget != nil && budget.MaxBytes < 0 {
+		return fmt.Errorf("%w: %s.result_budget.max_bytes must not be negative", ErrValidation, path)
 	}
 	return nil
 }

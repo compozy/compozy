@@ -1179,6 +1179,7 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 
 		content := renderAgentDef(
 			"mock-alpha",
+			"Reviews delegated work",
 			AgentFixture{
 				Provider:        "claude",
 				ReasoningEffort: "max",
@@ -1193,6 +1194,9 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 		}
 		if !strings.Contains(content, "reasoning_effort: max") {
 			t.Fatalf("renderAgentDef() = %q, want reasoning effort", content)
+		}
+		if !strings.Contains(content, "description: 'Reviews delegated work'") {
+			t.Fatalf("renderAgentDef() = %q, want description", content)
 		}
 		if !strings.Contains(content, "tools:\n  - 'mcp__local__echo_environment'") {
 			t.Fatalf("renderAgentDef() = %q, want requested tool", content)

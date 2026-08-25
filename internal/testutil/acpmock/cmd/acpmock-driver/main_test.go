@@ -5,11 +5,13 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 )
 
@@ -409,6 +411,26 @@ func TestMockAgentLoadSessionValidation(t *testing.T) {
 			t.Fatalf("LoadSession(empty) error = %v, want session id validation", err)
 		}
 	})
+}
+
+func TestMockAgentKeepsHostedMCPBindingWithSession(t *testing.T) {
+	t.Parallel()
+	server := acpsdk.McpServer{Stdio: &acpsdk.McpServerStdio{
+		Name: mcppkg.HostedServerName, Command: "/bin/echo", Args: []string{"server"},
+		Env: []acpsdk.EnvVariable{{Name: "TOKEN", Value: "value"}},
+	}}
+	agent := &mockAgent{sessions: make(map[string]*sessionState), configTemplate: nil}
+	created, err := agent.NewSession(context.Background(), acpsdk.NewSessionRequest{McpServers: []acpsdk.McpServer{server}})
+	if err != nil {
+		t.Fatalf("NewSession() error = %v", err)
+	}
+	bound, err := agent.hostedMCPServer(string(created.SessionId))
+	if err != nil {
+		t.Fatalf("hostedMCPServer() error = %v", err)
+	}
+	if bound.Command != "/bin/echo" || !slices.Equal(mcpServerEnvironment(bound), []string{"TOKEN=value"}) {
+		t.Fatalf("hosted MCP binding = %#v env=%#v", bound, mcpServerEnvironment(bound))
+	}
 }
 
 func TestMockAgentSandboxTerminalCleanup(t *testing.T) {

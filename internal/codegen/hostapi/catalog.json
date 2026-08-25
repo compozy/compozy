@@ -618,6 +618,36 @@
         "result": { "name": "TaskRun", "value": "apicontract.TaskRunPayload{}" }
     },
     {
+        "constant": "HostAPIMethodCallsList",
+        "wire": "calls/list",
+        "family": "calls",
+        "params": { "name": "CallsListParams", "value": "CallsListParams{}" },
+        "result": { "name": "CallsResponse", "value": "apicontract.CallsResponse{}" },
+        "optional_params": true
+    },
+    {
+        "constant": "HostAPIMethodCallsGet",
+        "wire": "calls/get",
+        "family": "calls",
+        "params": { "name": "CallTargetParams", "value": "CallTargetParams{}" },
+        "result": { "name": "Call", "value": "apicontract.CallPayload{}" }
+    },
+    {
+        "constant": "HostAPIMethodCallsResult",
+        "wire": "calls/result",
+        "family": "calls",
+        "params": { "name": "CallTargetParams", "value": "CallTargetParams{}" },
+        "result": { "name": "CallResult", "value": "apicontract.CallResultResponse{}" }
+    },
+    {
+        "constant": "HostAPIMethodMessagesList",
+        "wire": "messages/list",
+        "family": "calls",
+        "params": { "name": "MessagesListParams", "value": "MessagesListParams{}" },
+        "result": { "name": "CallMessagesResponse", "value": "apicontract.CallMessagesResponse{}" },
+        "optional_params": true
+    },
+    {
         "constant": "HostAPIMethodNetworkStatus",
         "wire": "network/status",
         "family": "network",

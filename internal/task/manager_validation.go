@@ -70,6 +70,8 @@ func normalizeCreateTaskSpec(spec CreateTask) (CreateTask, error) {
 		normalized.WakeCreator = &wakeCreator
 	}
 	normalized.ApprovalPolicy = normalizeApprovalPolicyOrDefault(normalized.ApprovalPolicy)
+	normalized.Expect = cloneRawJSON(normalized.Expect)
+	normalized.ResultBudget = cloneResultBudget(normalized.ResultBudget)
 	if normalized.Owner != nil {
 		normalized.Owner = normalizeOwnership(normalized.Owner)
 	}
@@ -120,6 +122,11 @@ func normalizeTaskPatch(patch Patch) (Patch, error) {
 		approvalPolicy := normalized.ApprovalPolicy.Normalize()
 		normalized.ApprovalPolicy = &approvalPolicy
 	}
+	if normalized.Expect != nil {
+		expect := cloneRawJSON(*normalized.Expect)
+		normalized.Expect = &expect
+	}
+	normalized.ResultBudget = cloneResultBudget(normalized.ResultBudget)
 	if normalized.Metadata != nil {
 		metadata := normalizeRawJSON(*normalized.Metadata)
 		normalized.Metadata = &metadata

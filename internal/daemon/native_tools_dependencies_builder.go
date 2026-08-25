@@ -69,6 +69,9 @@ func (d *Daemon) nativeToolsDeps(
 		AutomationRuntime: func() core.AutomationManager {
 			return state.deps.Automation
 		},
+		Calls: func() core.CallsService {
+			return state.deps.Calls
+		},
 	}
 	d.populateNativeExtensionDeps(&deps, state)
 	return deps

@@ -135,14 +135,16 @@ type Summary struct {
 	ChildCount      int32                 `json:"child_count,omitempty"`
 	DependencyCount int32                 `json:"dependency_count,omitempty"`
 	// Bool fields are clustered to keep Summary within the 512-byte gocritic copy threshold.
-	AutoEnqueueOnReady bool      `json:"auto_enqueue_on_ready,omitempty"`
-	Draft              bool      `json:"draft"`
-	Paused             bool      `json:"paused,omitempty"`
-	EffectivePaused    bool      `json:"effective_paused,omitempty"`
-	WakeCreator        bool      `json:"wake_creator"`
-	PausedAt           time.Time `json:"paused_at,omitzero"`
-	CreatedAt          time.Time `json:"created_at"`
-	UpdatedAt          time.Time `json:"updated_at"`
-	ClosedAt           time.Time `json:"closed_at"`
-	LastActivityAt     time.Time `json:"last_activity_at"`
+	AutoEnqueueOnReady bool                  `json:"auto_enqueue_on_ready,omitempty"`
+	Draft              bool                  `json:"draft"`
+	Paused             bool                  `json:"paused,omitempty"`
+	EffectivePaused    bool                  `json:"effective_paused,omitempty"`
+	WakeCreator        bool                  `json:"wake_creator"`
+	ExpectDigest       string                `json:"expect_digest,omitempty"`
+	ResultBudget       *contracts.ByteBudget `json:"result_budget,omitempty"`
+	PausedAt           time.Time             `json:"paused_at,omitzero"`
+	CreatedAt          time.Time             `json:"created_at"`
+	UpdatedAt          time.Time             `json:"updated_at"`
+	ClosedAt           time.Time             `json:"closed_at"`
+	LastActivityAt     time.Time             `json:"last_activity_at"`
 }

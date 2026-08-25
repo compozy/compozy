@@ -65,6 +65,7 @@ func (s *Service) Cancel(
 	}
 	if err == nil {
 		s.notifyWaiters(record.CallID)
+		s.emitHook(ctx, HookCallCanceled, hookPayloadForCall(settled))
 	}
 	return settled, err
 }
@@ -109,7 +110,7 @@ func (s *Service) SweepDeadlines(ctx context.Context, now time.Time) (SweepRepor
 				return report, fmt.Errorf("calls: stop timed out child %q: %w", record.ChildSessionID, err)
 			}
 		}
-		_, settleErr := s.store.SettleCall(ctx, SettlementMutation{
+		settled, settleErr := s.store.SettleCall(ctx, SettlementMutation{
 			CallID: record.CallID, ExpectedState: record.State, State: StateTimeout,
 			FailureCode: "call_timeout", FailureDetail: "deadline elapsed", SettledAt: now,
 		})
@@ -121,6 +122,7 @@ func (s *Service) SweepDeadlines(ctx context.Context, now time.Time) (SweepRepor
 		}
 		report.TimedOut = append(report.TimedOut, record.CallID)
 		s.notifyWaiters(record.CallID)
+		s.emitHook(ctx, HookCallSettled, hookPayloadForCall(settled))
 	}
 	return report, nil
 }
@@ -145,7 +147,18 @@ func (s *Service) DrainSubtree(
 	if err != nil {
 		return DrainReport{}, err
 	}
-	report := DrainReport{RootSessionID: rootID}
+	preservedResults, err := s.store.CountPreservedSubtreeResults(ctx, rootID)
+	if err != nil {
+		return DrainReport{}, err
+	}
+	report := DrainReport{RootSessionID: rootID, PreservedResults: preservedResults}
+	drainPayload := HookPayload{CallID: rootID, RootSessionID: rootID, Actor: actor}
+	if len(openCalls) > 0 {
+		drainPayload = hookPayloadForCall(openCalls[0])
+		drainPayload.CallID = rootID
+		drainPayload.RootSessionID = rootID
+		drainPayload.Actor = actor
+	}
 	stopped := make(map[string]struct{})
 	for _, record := range openCalls {
 		if _, err := s.fenceActivation(ctx, record, "subtree drain"); err != nil {
@@ -168,7 +181,7 @@ func (s *Service) DrainSubtree(
 				report.Stopped = append(report.Stopped, childID)
 			}
 		}
-		_, settleErr := s.store.SettleCall(ctx, SettlementMutation{
+		settled, settleErr := s.store.SettleCall(ctx, SettlementMutation{
 			CallID: record.CallID, ExpectedState: record.State, State: StateCanceled,
 			FailureCode: "call_subtree_drained", FailureDetail: strings.TrimSpace(reason),
 			SettledAt: s.now().UTC(),
@@ -181,6 +194,11 @@ func (s *Service) DrainSubtree(
 		}
 		report.CanceledCalls = append(report.CanceledCalls, record.CallID)
 		s.notifyWaiters(record.CallID)
+		s.emitHook(ctx, HookCallCanceled, hookPayloadForCall(settled))
 	}
+	drainPayload.StoppedChildren = len(report.Stopped)
+	drainPayload.ClosedCalls = len(report.CanceledCalls)
+	drainPayload.PreservedResults = report.PreservedResults
+	s.emitHook(ctx, HookCallSubtreeDrained, drainPayload)
 	return report, nil
 }

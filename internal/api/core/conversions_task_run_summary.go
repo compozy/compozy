@@ -32,6 +32,8 @@ func TaskRunSummaryPayloadFromSummary(summary *taskpkg.RunSummary) *contract.Tas
 		ResolvedNetworkParticipation: resolvedParticipationFromRunSummary(summary),
 		DesignationGroupID:           summary.DesignationGroupID,
 		Designation:                  cloneRunDesignationSummary(summary.Designation),
+		ExpectDigest:                 summary.ExpectDigest,
+		ResultBudget:                 cloneTaskResultBudget(summary.ResultBudget),
 		QueuedAt:                     summary.QueuedAt,
 		ClaimedAt:                    optionalTime(summary.ClaimedAt),
 		StartedAt:                    optionalTime(summary.StartedAt),

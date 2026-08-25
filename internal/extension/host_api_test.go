@@ -25,6 +25,7 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
 	bridgecontract "github.com/compozy/compozy/internal/bridges/contract"
+	callspkg "github.com/compozy/compozy/internal/calls"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
@@ -60,6 +61,44 @@ func hostAPITestTaskCatalogFilterMapper(query *taskpkg.CatalogQuery, includeLoop
 		return
 	}
 	query.ExcludeCreatedBy = []taskpkg.ActorRef{{Kind: taskpkg.ActorKindDaemon, Ref: "loop-coordinator"}}
+}
+
+type hostAPICallsReaderStub struct {
+	reads atomic.Int64
+}
+
+func (s *hostAPICallsReaderStub) List(
+	context.Context,
+	callspkg.CallListQuery,
+) (callspkg.CallPage, error) {
+	s.reads.Add(1)
+	return callspkg.CallPage{}, nil
+}
+
+func (s *hostAPICallsReaderStub) GetRead(
+	context.Context,
+	callspkg.CallReadQuery,
+	string,
+) (callspkg.CallRecord, error) {
+	s.reads.Add(1)
+	return callspkg.CallRecord{}, nil
+}
+
+func (s *hostAPICallsReaderStub) Result(
+	context.Context,
+	callspkg.CallReadQuery,
+	string,
+) (callspkg.ResultPayload, error) {
+	s.reads.Add(1)
+	return callspkg.ResultPayload{}, nil
+}
+
+func (s *hostAPICallsReaderStub) ListMessages(
+	context.Context,
+	callspkg.MessageListQuery,
+) (callspkg.MessagePage, error) {
+	s.reads.Add(1)
+	return callspkg.MessagePage{}, nil
 }
 
 func TestHostAPIHandlerSessionsListReturnsAuthorizedSessions(t *testing.T) {
@@ -340,6 +379,47 @@ func TestHostAPIHandlerSessionsListReturnsCapabilityDeniedWithoutSessionRead(t *
 
 	_, err := env.call(t, "ext-denied", "sessions/list", nil)
 	assertCapabilityDenied(t, err, "sessions/list")
+}
+
+func TestHostAPIHandlerCallsReadConsent(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should deny every calls read method before reaching the store", func(t *testing.T) {
+		t.Parallel()
+
+		env := newHostAPITestEnv(t)
+		reader := &hostAPICallsReaderStub{}
+		env.handler.calls = reader
+		env.grant("ext-denied-calls", nil, nil)
+		for _, method := range []string{"calls/list", "calls/get", "calls/result", "messages/list"} {
+			_, err := env.call(t, "ext-denied-calls", method, map[string]any{"call_id": "missing"})
+			assertCapabilityDenied(t, err, method)
+		}
+		if got := reader.reads.Load(); got != 0 {
+			t.Fatalf("calls reader invocations = %d, want zero before consent", got)
+		}
+	})
+
+	t.Run("Should allow a declared calls list read in the extension profile", func(t *testing.T) {
+		t.Parallel()
+
+		env := newHostAPITestEnv(t)
+		reader := &hostAPICallsReaderStub{}
+		env.handler.calls = reader
+		env.grant("ext-calls", []string{"calls/list"}, nil)
+		result, err := env.call(t, "ext-calls", "calls/list", map[string]any{"scope": "global"})
+		if err != nil {
+			t.Fatalf("Handle(calls/list) error = %v", err)
+		}
+		var page apicontract.CallsResponse
+		decodeResult(t, result, &page)
+		if len(page.Items) != 0 {
+			t.Fatalf("calls/list items = %#v, want empty profile-owned page", page.Items)
+		}
+		if got := reader.reads.Load(); got != 1 {
+			t.Fatalf("calls reader invocations = %d, want one authorized read", got)
+		}
+	})
 }
 
 func TestHostAPIHandlerSessionsCreateReturnsSessionID(t *testing.T) {

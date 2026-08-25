@@ -24,6 +24,7 @@ import (
 	apitest "github.com/compozy/compozy/internal/api/testutil"
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	callspkg "github.com/compozy/compozy/internal/calls"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
@@ -47,7 +48,6 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/skills"
-	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
@@ -103,6 +103,113 @@ type nativeEntityAgentCatalog struct {
 
 type nativeProfileReaderStub struct {
 	profiles []profilepkg.WithCounts
+}
+
+type nativeCallsServiceStub struct {
+	create func(context.Context, callspkg.CreateInput) (callspkg.CallRecord, error)
+}
+
+func (s nativeCallsServiceStub) Create(
+	ctx context.Context,
+	input callspkg.CreateInput,
+) (callspkg.CallRecord, error) {
+	if s.create != nil {
+		return s.create(ctx, input)
+	}
+	return callspkg.CallRecord{}, errors.New("unexpected Create call")
+}
+
+func (nativeCallsServiceStub) CreateBatch(
+	context.Context,
+	[]callspkg.CreateInput,
+) ([]callspkg.BatchOutcome, error) {
+	return nil, errors.New("unexpected CreateBatch call")
+}
+
+func (nativeCallsServiceStub) Return(context.Context, callspkg.ReturnInput) (callspkg.Settlement, error) {
+	return callspkg.Settlement{}, errors.New("unexpected Return call")
+}
+
+func (nativeCallsServiceStub) List(
+	context.Context,
+	callspkg.CallListQuery,
+) (callspkg.CallPage, error) {
+	return callspkg.CallPage{}, errors.New("unexpected List call")
+}
+
+func (nativeCallsServiceStub) GetRead(
+	context.Context,
+	callspkg.CallReadQuery,
+	string,
+) (callspkg.CallRecord, error) {
+	return callspkg.CallRecord{}, errors.New("unexpected GetRead call")
+}
+
+func (nativeCallsServiceStub) Result(
+	context.Context,
+	callspkg.CallReadQuery,
+	string,
+) (callspkg.ResultPayload, error) {
+	return callspkg.ResultPayload{}, errors.New("unexpected Result call")
+}
+
+func (nativeCallsServiceStub) Await(context.Context, callspkg.AwaitInput) (callspkg.AwaitOutcome, error) {
+	return callspkg.AwaitOutcome{}, errors.New("unexpected Await call")
+}
+
+func (nativeCallsServiceStub) Cancel(
+	context.Context,
+	string,
+	string,
+	callspkg.Actor,
+) (callspkg.CallRecord, error) {
+	return callspkg.CallRecord{}, errors.New("unexpected Cancel call")
+}
+
+func (nativeCallsServiceStub) SendMessage(
+	context.Context,
+	callspkg.SendMessageInput,
+) (callspkg.MessageRecord, error) {
+	return callspkg.MessageRecord{}, errors.New("unexpected SendMessage call")
+}
+
+func (nativeCallsServiceStub) Publish(
+	context.Context,
+	callspkg.PublishInput,
+) (callspkg.PublishReceipt, error) {
+	return callspkg.PublishReceipt{}, errors.New("unexpected Publish call")
+}
+
+func (nativeCallsServiceStub) Message(
+	context.Context,
+	callspkg.CallScope,
+	string,
+) (callspkg.MessageRecord, error) {
+	return callspkg.MessageRecord{}, errors.New("unexpected Message call")
+}
+
+func (nativeCallsServiceStub) ListMessages(
+	context.Context,
+	callspkg.MessageListQuery,
+) (callspkg.MessagePage, error) {
+	return callspkg.MessagePage{}, errors.New("unexpected ListMessages call")
+}
+
+func (nativeCallsServiceStub) DrainSubtree(
+	context.Context,
+	string,
+	callspkg.Actor,
+	string,
+) (callspkg.DrainReport, error) {
+	return callspkg.DrainReport{}, errors.New("unexpected DrainSubtree call")
+}
+
+func (nativeCallsServiceStub) ResolveOperatorCaller(
+	context.Context,
+	callspkg.CallScope,
+	callspkg.Actor,
+) (participation.OwnerRef, error) {
+	return participation.OwnerRef{}, errors.New("unexpected ResolveOperatorCaller call")
 }
 
 func (s nativeProfileReaderStub) List(context.Context) ([]profilepkg.WithCounts, error) {
@@ -470,9 +577,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		const workspaceID = "ws-orchestration"
 		const callerID = "sess-caller"
 		const targetID = "sess-target"
-		ttl := time.Date(2026, 8, 16, 18, 0, 0, 0, time.UTC)
 		var waitRequest session.WaitRequest
-		var spawnOpts session.SpawnOpts
 		var stopTarget string
 		var approval acp.ApproveRequest
 		var canceledTarget string
@@ -523,17 +628,6 @@ func TestDaemonNativeTools(t *testing.T) {
 					Waited: 25 * time.Millisecond, Revision: 7,
 				}, nil
 			},
-			spawnFn: func(_ context.Context, opts session.SpawnOpts) (*session.Session, error) {
-				spawnOpts = opts
-				return &session.Session{
-					ID: "sess-child", AgentName: opts.AgentName, WorkspaceID: workspaceID,
-					State: session.StateActive, Type: session.SessionTypeSpawned,
-					Lineage: &store.SessionLineage{
-						ParentSessionID: callerID, RootSessionID: callerID, SpawnDepth: 1,
-						SpawnRole: "worker", TTLExpiresAt: &ttl, NotifyCreator: opts.NotifyCreator,
-					},
-				}, nil
-			},
 		}
 		var clarifyChoice *int
 		clarify := nativeOrchestrationClarifyBroker{answerFn: func(
@@ -565,11 +659,6 @@ func TestDaemonNativeTools(t *testing.T) {
 				`{"session_id":"sess-target","until":["idle"],"timeout_ms":120000}`,
 				`"outcome":"state-reached"`,
 			},
-			{
-				toolspkg.ToolIDSessionSpawn,
-				`{"agent_name":"researcher","provider":"codex","model":"gpt-test","reasoning_effort":"high","speed":"fast","acp_options":[{"id":"context","value_id":"1m"},{"id":"thinking","bool_value":true}],"ttl_seconds":3600,"notify_creator":false}`,
-				`"session_id":"sess-child"`,
-			},
 			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-target"}`, `"state":"stopped"`},
 			{
 				toolspkg.ToolIDSessionApprove,
@@ -597,18 +686,6 @@ func TestDaemonNativeTools(t *testing.T) {
 		if waitRequest.SessionID != targetID || waitRequest.Timeout != 2*time.Minute ||
 			!slices.Equal(waitRequest.Until, []session.Badge{session.BadgeIdle}) {
 			t.Fatalf("WaitForBadge() request = %#v", waitRequest)
-		}
-		if spawnOpts.ParentSessionID != callerID || spawnOpts.Provider != "codex" ||
-			spawnOpts.Model != "gpt-test" || spawnOpts.ReasoningEffort != "high" ||
-			spawnOpts.Speed != speedpkg.SpeedFast || len(spawnOpts.ACPOptions) != 2 ||
-			spawnOpts.NotifyCreator || !spawnOpts.NotifyCreatorSet {
-			t.Fatalf("Spawn() opts = %#v, want runtime overrides and explicit notify_creator=false", spawnOpts)
-		}
-		if spawnOpts.ACPOptions[0].ID != "context" || spawnOpts.ACPOptions[0].ValueID != "1m" ||
-			spawnOpts.ACPOptions[0].BoolValue != nil || spawnOpts.ACPOptions[1].ID != "thinking" ||
-			spawnOpts.ACPOptions[1].ValueID != "" || spawnOpts.ACPOptions[1].BoolValue == nil ||
-			!*spawnOpts.ACPOptions[1].BoolValue {
-			t.Fatalf("Spawn() ACP options = %#v, want typed context and thinking values", spawnOpts.ACPOptions)
 		}
 		if stopTarget != targetID || approval.RequestID != "perm-1" ||
 			approval.ResolvedBy != "agent_session:"+callerID || canceledTarget != targetID {
@@ -712,7 +789,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
-	t.Run("Should report wait and spawn unavailable without their domain services", func(t *testing.T) {
+	t.Run("Should report wait unavailable without its domain service", func(t *testing.T) {
 		t.Parallel()
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -728,7 +805,6 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("DiagnosticProjection() error = %v", err)
 		}
 		requireNativeToolUnavailableReason(t, views, toolspkg.ToolIDSessionWait)
-		requireNativeToolUnavailableReason(t, views, toolspkg.ToolIDSessionSpawn)
 		requireNativeToolAvailable(t, views, toolspkg.ToolIDSessionStop)
 		requireNativeToolAvailable(t, views, toolspkg.ToolIDSessionPromptCancel)
 	})
@@ -757,7 +833,6 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		for _, id := range []toolspkg.ToolID{
 			toolspkg.ToolIDSessionWait,
-			toolspkg.ToolIDSessionSpawn,
 			toolspkg.ToolIDSessionStop,
 			toolspkg.ToolIDSessionApprove,
 			toolspkg.ToolIDSessionClarifyAnswer,
@@ -11684,6 +11759,130 @@ func TestValidateNativeToolBindings(t *testing.T) {
 		if !strings.Contains(err.Error(), "nil_calls=[compozy__test]") ||
 			!strings.Contains(err.Error(), "nil_availability=[compozy__test]") {
 			t.Fatalf("validateNativeToolBindings() error = %v, want nil function IDs", err)
+		}
+	})
+
+	t.Run("Should bind the complete calls family without the deleted spawn tool", func(t *testing.T) {
+		t.Parallel()
+
+		bindings := (&daemonNativeTools{deps: &daemonNativeToolsDeps{}}).bindings()
+		for _, id := range []toolspkg.ToolID{
+			toolspkg.ToolIDAgentCall,
+			toolspkg.ToolIDCallReturn,
+			toolspkg.ToolIDCallAwait,
+			toolspkg.ToolIDCallCancel,
+			toolspkg.ToolIDCallResult,
+			toolspkg.ToolIDCallPublish,
+			toolspkg.ToolIDAgentMessage,
+		} {
+			binding, ok := bindings[id]
+			if !ok {
+				t.Fatalf("binding %q is missing", id)
+			}
+			if binding.call == nil || binding.availability == nil {
+				t.Fatalf("binding %q is not executable: %#v", id, binding)
+			}
+		}
+		if _, ok := bindings[toolspkg.ToolID("compozy__session_spawn")]; ok {
+			t.Fatal("deleted compozy__session_spawn binding remains registered")
+		}
+	})
+}
+
+func TestNativeAgentCallContractErrors(t *testing.T) {
+	t.Parallel()
+
+	scope := toolspkg.Scope{ProfileID: "default", WorkspaceID: "ws-1", SessionID: "ses-parent"}
+
+	t.Run("Should preserve the unknown-agent code and bounded roster", func(t *testing.T) {
+		t.Parallel()
+
+		service := nativeCallsServiceStub{create: func(
+			context.Context,
+			callspkg.CreateInput,
+		) (callspkg.CallRecord, error) {
+			return callspkg.CallRecord{}, &callspkg.Error{
+				Code: callspkg.CodeAgentUnknown, Message: "agent is unavailable",
+				Available: []callspkg.AgentRosterEntry{{Name: "reviewer", Description: "Reviews code"}},
+			}
+		}}
+		native := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+			Config: compozyconfig.Config{Calls: compozyconfig.DefaultCallsConfig()},
+			Calls:  func() core.CallsService { return service },
+		}}
+		_, err := native.agentCall(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentCall,
+			Input:  json.RawMessage(`{"agent":"missing","prompt":"Review"}`),
+		})
+		var callErr *callspkg.Error
+		if !errors.As(err, &callErr) || callErr.Code != callspkg.CodeAgentUnknown ||
+			len(callErr.Available) != 1 || callErr.Available[0].Name != "reviewer" ||
+			callErr.Available[0].Description != "Reviews code" {
+			t.Fatalf("agentCall() error = %#v", err)
+		}
+	})
+
+	t.Run(
+		"Should return call_deadline_invalid before dispatch for every non-positive integer form",
+		func(t *testing.T) {
+			t.Parallel()
+
+			createCalls := 0
+			service := nativeCallsServiceStub{create: func(
+				context.Context,
+				callspkg.CreateInput,
+			) (callspkg.CallRecord, error) {
+				createCalls++
+				return callspkg.CallRecord{}, nil
+			}}
+			native := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+				Config: compozyconfig.Config{Calls: compozyconfig.DefaultCallsConfig()},
+				Calls:  func() core.CallsService { return service },
+			}}
+			for _, value := range []string{"0", "-1", "1.5", `"1"`, "null"} {
+				_, err := native.agentCall(t.Context(), scope, toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDAgentCall,
+					Input: json.RawMessage(fmt.Sprintf(
+						`{"agent":"reviewer","prompt":"Review","deadline_seconds":%s}`,
+						value,
+					)),
+				})
+				if !callspkg.IsCode(err, callspkg.CodeDeadlineInvalid) {
+					t.Fatalf("agentCall(deadline_seconds=%s) error = %v", value, err)
+				}
+			}
+			if createCalls != 0 {
+				t.Fatalf("Create calls = %d, want zero after invalid deadline", createCalls)
+			}
+		},
+	)
+
+	t.Run("Should derive the immutable native owner and a future deadline", func(t *testing.T) {
+		t.Parallel()
+
+		before := time.Now().UTC()
+		service := nativeCallsServiceStub{create: func(
+			_ context.Context,
+			input callspkg.CreateInput,
+		) (callspkg.CallRecord, error) {
+			if input.ProfileID != "default" || input.Scope != callspkg.ScopeWorkspace ||
+				input.WorkspaceID != "ws-1" || input.Caller.ID != "ses-parent" ||
+				input.Actor.Kind != "agent_session" || input.Actor.ID != "ses-parent" || input.Deadline == nil ||
+				input.Deadline.Before(before.Add(2*time.Second)) || input.Deadline.After(before.Add(4*time.Second)) {
+				t.Fatalf("Create input = %#v", input)
+			}
+			return callspkg.CallRecord{CallID: "call-1", State: callspkg.StateQueued}, nil
+		}}
+		native := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+			Config: compozyconfig.Config{Calls: compozyconfig.DefaultCallsConfig()},
+			Calls:  func() core.CallsService { return service },
+		}}
+		result, err := native.agentCall(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentCall,
+			Input:  json.RawMessage(`{"agent":"reviewer","prompt":"Review","deadline_seconds":3}`),
+		})
+		if err != nil || !strings.Contains(string(result.Structured), `"call_id":"call-1"`) {
+			t.Fatalf("agentCall() result/error = %s/%v", result.Structured, err)
 		}
 	})
 }

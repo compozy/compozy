@@ -1,10 +1,13 @@
 package cli
 
 import (
+	"context"
 	"errors"
+	"fmt"
 
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/spf13/cobra"
 )
@@ -50,6 +53,8 @@ const (
 )
 
 func newSessionStopCommand(deps commandDeps) *cobra.Command {
+	var subtree bool
+	var reason string
 	cmd := &cobra.Command{
 		Use:   "stop <id>",
 		Short: "Stop a session",
@@ -60,6 +65,19 @@ func newSessionStopCommand(deps commandDeps) *cobra.Command {
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
+			}
+			if subtree {
+				drainer, ok := client.(interface {
+					StopSessionSubtree(context.Context, string, string) (contract.StopSessionSubtreeResponse, error)
+				})
+				if !ok {
+					return errors.New("cli: daemon client does not support subtree stop")
+				}
+				report, drainErr := drainer.StopSessionSubtree(cmd.Context(), args[0], reason)
+				if drainErr != nil {
+					return drainErr
+				}
+				return writeCommandOutput(cmd, sessionSubtreeStopBundle(args[0], report))
 			}
 			if err := client.StopSession(cmd.Context(), args[0]); err != nil {
 				return err
@@ -72,8 +90,23 @@ func newSessionStopCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, sessionBundle(&info, deps.now))
 		},
 	}
+	cmd.Flags().BoolVar(&subtree, "subtree", false, "Drain governed descendants before stopping the session")
+	cmd.Flags().StringVar(&reason, "reason", "", "Stop reason")
 	configureProfileMutationCommand(cmd, deps)
 	return cmd
+}
+
+func sessionSubtreeStopBundle(id string, report contract.StopSessionSubtreeResponse) outputBundle {
+	payload := struct {
+		SessionID string `json:"session_id"`
+		contract.StopSessionSubtreeResponse
+	}{SessionID: strings.TrimSpace(id), StopSessionSubtreeResponse: report}
+	return recordBundle(payload, "Session", []keyValue{
+		{Label: "Stopped", Value: payload.SessionID},
+		{Label: "Children", Value: fmt.Sprintf("%d", report.StoppedChildren)},
+		{Label: "Closed Calls", Value: fmt.Sprintf("%d", report.ClosedCalls)},
+		{Label: "Preserved Results", Value: fmt.Sprintf("%d", report.PreservedResults)},
+	})
 }
 
 func newSessionRemoveCommand(deps commandDeps) *cobra.Command {

@@ -86,7 +86,8 @@ SELECT
   created_at, updated_at, closed_at, current_run_id,
   CAST(COALESCE((SELECT MAX(te.event_seq) FROM task_events te WHERE te.task_id = tasks.id), 0) AS INTEGER) AS latest_event_seq,
   paused, paused_by, paused_at, paused_reason, needs_attention_reason, needs_attention_at,
-  needs_attention_by_kind, needs_attention_by_ref, wake_creator, metadata_json, expect_digest
+  needs_attention_by_kind, needs_attention_by_ref, wake_creator, metadata_json, expect_digest,
+  result_budget_bytes, result_overflow
 FROM tasks
 WHERE tasks.id = ?1
 `
@@ -128,6 +129,8 @@ type GetTaskRow struct {
 	WakeCreator          int64          `json:"wake_creator"`
 	MetadataJson         sql.NullString `json:"metadata_json"`
 	ExpectDigest         sql.NullString `json:"expect_digest"`
+	ResultBudgetBytes    sql.NullInt64  `json:"result_budget_bytes"`
+	ResultOverflow       sql.NullString `json:"result_overflow"`
 }
 
 func (q *Queries) GetTask(ctx context.Context, taskID string) (GetTaskRow, error) {
@@ -170,6 +173,8 @@ func (q *Queries) GetTask(ctx context.Context, taskID string) (GetTaskRow, error
 		&i.WakeCreator,
 		&i.MetadataJson,
 		&i.ExpectDigest,
+		&i.ResultBudgetBytes,
+		&i.ResultOverflow,
 	)
 	return i, err
 }
@@ -364,7 +369,7 @@ INSERT INTO tasks (
   priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
   owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
   created_at, updated_at, closed_at, paused, paused_by, paused_at, paused_reason, wake_creator,
-  metadata_json, expect_digest
+  metadata_json, expect_digest, result_budget_bytes, result_overflow
 ) VALUES (
   ?1,
   ?2, ?3, ?4, ?5,
@@ -374,7 +379,8 @@ INSERT INTO tasks (
   ?17, ?18, ?19, ?20,
   ?21, ?22, ?23, ?24,
   ?25, ?26, ?27, ?28,
-  ?29, ?30
+  ?29, ?30, ?31,
+  ?32
 )
 `
 
@@ -409,6 +415,8 @@ type InsertTaskParams struct {
 	WakeCreator        int64          `json:"wake_creator"`
 	MetadataJson       sql.NullString `json:"metadata_json"`
 	ExpectDigest       sql.NullString `json:"expect_digest"`
+	ResultBudgetBytes  sql.NullInt64  `json:"result_budget_bytes"`
+	ResultOverflow     sql.NullString `json:"result_overflow"`
 }
 
 func (q *Queries) InsertTask(ctx context.Context, arg InsertTaskParams) error {
@@ -443,6 +451,8 @@ func (q *Queries) InsertTask(ctx context.Context, arg InsertTaskParams) error {
 		arg.WakeCreator,
 		arg.MetadataJson,
 		arg.ExpectDigest,
+		arg.ResultBudgetBytes,
+		arg.ResultOverflow,
 	)
 	return err
 }
@@ -912,8 +922,10 @@ SET identifier = ?1,
     needs_attention_by_ref = ?28,
     wake_creator = ?29,
     metadata_json = ?30,
-    expect_digest = ?31
-WHERE id = ?32
+    expect_digest = ?31,
+    result_budget_bytes = ?32,
+    result_overflow = ?33
+WHERE id = ?34
 `
 
 type UpdateTaskParams struct {
@@ -948,6 +960,8 @@ type UpdateTaskParams struct {
 	WakeCreator          int64          `json:"wake_creator"`
 	MetadataJson         sql.NullString `json:"metadata_json"`
 	ExpectDigest         sql.NullString `json:"expect_digest"`
+	ResultBudgetBytes    sql.NullInt64  `json:"result_budget_bytes"`
+	ResultOverflow       sql.NullString `json:"result_overflow"`
 	ID                   string         `json:"id"`
 }
 
@@ -984,6 +998,8 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (int64, 
 		arg.WakeCreator,
 		arg.MetadataJson,
 		arg.ExpectDigest,
+		arg.ResultBudgetBytes,
+		arg.ResultOverflow,
 		arg.ID,
 	)
 	if err != nil {

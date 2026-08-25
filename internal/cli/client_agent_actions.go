@@ -34,26 +34,6 @@ func (c *daemonClient) AgentContext(
 	return response.Context, nil
 }
 
-func (c *daemonClient) AgentSpawn(
-	ctx context.Context,
-	request AgentSpawnRequest,
-	credentials agentidentity.Credentials,
-) (AgentSpawnRecord, error) {
-	var response contract.AgentSpawnResponse
-	if err := c.doAgentJSON(
-		ctx,
-		http.MethodPost,
-		"/api/agent/spawn",
-		nil,
-		request,
-		credentials,
-		&response,
-	); err != nil {
-		return AgentSpawnRecord{}, err
-	}
-	return response.Spawn, nil
-}
-
 func (c *daemonClient) AgentChannels(
 	ctx context.Context,
 	credentials agentidentity.Credentials,

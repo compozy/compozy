@@ -109,4 +109,11 @@ const (
 	HookEventWorktreeCreated                 HookEvent = "worktree.created"
 	HookEventWorktreeAdopted                 HookEvent = "worktree.adopted"
 	HookEventWorktreeRemoved                 HookEvent = "worktree.removed"
+	HookEventCallCreated                     HookEvent = "call.created"
+	HookEventCallSettled                     HookEvent = "call.settled"
+	HookEventCallCanceled                    HookEvent = "call.canceled"
+	HookEventCallPublished                   HookEvent = "call.published"
+	HookEventCallMessageSent                 HookEvent = "call.message_sent"
+	HookEventCallMessageDelivered            HookEvent = "call.message_delivered"
+	HookEventCallSubtreeDrained              HookEvent = "call.subtree_drained"
 )

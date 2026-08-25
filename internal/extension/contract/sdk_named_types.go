@@ -220,6 +220,8 @@ var namedHookTypes = mergeNamedHookTypes(map[string]NamedType{
 	},
 	sdkNetworkWorkClosedPayloadValue: {Name: sdkNetworkWorkClosedPayloadValue, Value: hooks.NetworkWorkClosedPayload{}},
 	sdkNetworkObservationPatchValue:  {Name: sdkNetworkObservationPatchValue, Value: hooks.NetworkObservationPatch{}},
+	sdkCallPayloadValue:              {Name: sdkCallPayloadValue, Value: hooks.CallPayload{}},
+	sdkCallObservationPatchValue:     {Name: sdkCallObservationPatchValue, Value: hooks.CallObservationPatch{}},
 	sdkTurnPayloadValue:              {Name: sdkTurnPayloadValue, Value: hooks.TurnPayload{}},
 	"TurnStartPayload":               {Name: "TurnStartPayload", Value: hooks.TurnStartPayload{}},
 	"TurnEndPayload":                 {Name: "TurnEndPayload", Value: hooks.TurnEndPayload{}},

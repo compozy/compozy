@@ -100,8 +100,20 @@ const (
 	ToolIDSessionDescribe ToolID = "compozy__session_describe"
 	// ToolIDSessionWait waits for one bounded session badge transition.
 	ToolIDSessionWait ToolID = "compozy__session_wait"
-	// ToolIDSessionSpawn creates one governed child session for the caller.
-	ToolIDSessionSpawn ToolID = "compozy__session_spawn"
+	// ToolIDAgentCall admits one asynchronous agent call.
+	ToolIDAgentCall ToolID = "compozy__agent_call"
+	// ToolIDCallReturn settles the call bound to the current child session.
+	ToolIDCallReturn ToolID = "compozy__call_return"
+	// ToolIDCallAwait waits for durable call settlement.
+	ToolIDCallAwait ToolID = "compozy__call_await"
+	// ToolIDCallCancel cancels one caller-owned call.
+	ToolIDCallCancel ToolID = "compozy__call_cancel"
+	// ToolIDCallResult reads the whole stored result.
+	ToolIDCallResult ToolID = "compozy__call_result"
+	// ToolIDCallPublish publishes a completed result to a Network conversation.
+	ToolIDCallPublish ToolID = "compozy__call_publish"
+	// ToolIDAgentMessage sends inert text to a lineage session.
+	ToolIDAgentMessage ToolID = "compozy__agent_message"
 	// ToolIDSessionStop stops one sibling or child session.
 	ToolIDSessionStop ToolID = "compozy__session_stop"
 	// ToolIDSessionApprove resolves one pending permission request.
@@ -409,6 +421,8 @@ const (
 	ToolsetIDAutonomy ToolsetID = "compozy__autonomy"
 	// ToolsetIDSessions groups runtime session tools.
 	ToolsetIDSessions ToolsetID = "compozy__sessions"
+	// ToolsetIDCalls groups the durable agent-call and message family.
+	ToolsetIDCalls ToolsetID = "compozy__calls"
 	// ToolsetIDAuthoredContext groups managed Soul/Heartbeat read and wake tools.
 	ToolsetIDAuthoredContext ToolsetID = "compozy__authored_context"
 	// ToolsetIDWorkspace groups workspace inspection and managed agent authoring tools.

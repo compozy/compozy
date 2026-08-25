@@ -296,7 +296,7 @@ func newNetworkChannelsCreateCommand(deps commandDeps, workspaceRef *string) *co
 			if err != nil {
 				return err
 			}
-			agentNames := trimSpawnAtoms(flags.agentNames)
+			agentNames := trimStringAtoms(flags.agentNames)
 			if len(agentNames) == 0 {
 				return errors.New("cli: at least one --agent is required")
 			}

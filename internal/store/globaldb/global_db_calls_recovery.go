@@ -94,3 +94,22 @@ func (g *CallRepo) ListOpenSubtreeCalls(
 	}
 	return records, nil
 }
+
+func (g *CallRepo) CountPreservedSubtreeResults(ctx context.Context, rootSessionID string) (int, error) {
+	if err := g.checkReady(ctx, "count preserved subtree results"); err != nil {
+		return 0, err
+	}
+	var count int
+	err := g.db.QueryRowContext(ctx, `WITH RECURSIVE descendants(id) AS (
+		SELECT id FROM sessions WHERE id = ?
+		UNION
+		SELECT child.id FROM sessions child JOIN descendants parent ON child.parent_session_id = parent.id
+	) SELECT COUNT(*) FROM calls
+	WHERE state = 'completed' AND result_ref IS NOT NULL AND (
+		parent_session_id IN (SELECT id FROM descendants) OR child_session_id IN (SELECT id FROM descendants)
+	)`, strings.TrimSpace(rootSessionID)).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("store: count preserved subtree results: %w", err)
+	}
+	return count, nil
+}

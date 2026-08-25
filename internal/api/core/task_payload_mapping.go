@@ -5,9 +5,18 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/contracts"
 
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
+
+func cloneTaskResultBudget(budget *contracts.ByteBudget) *contracts.ByteBudget {
+	if budget == nil {
+		return nil
+	}
+	cloned := *budget
+	return &cloned
+}
 
 // TaskSummaryPayloadsFromSummaries converts task summaries into shared payloads.
 func TaskSummaryPayloadsFromSummaries(tasks []taskpkg.Summary) []contract.TaskSummaryPayload {
@@ -55,6 +64,8 @@ func TaskSummaryPayloadFromSummary(record *taskpkg.Summary) contract.TaskSummary
 		NeedsAttentionAt:             needsAttentionAt(record.NeedsAttention),
 		NeedsAttentionBy:             needsAttentionBy(record.NeedsAttention),
 		WakeCreator:                  record.WakeCreator,
+		ExpectDigest:                 record.ExpectDigest,
+		ResultBudget:                 cloneTaskResultBudget(record.ResultBudget),
 		CreatedBy:                    record.CreatedBy,
 		Origin:                       record.Origin,
 		CreatedAt:                    record.CreatedAt,
@@ -109,6 +120,8 @@ func TaskPayloadFromTask(record *taskpkg.Task) contract.TaskPayload {
 		NeedsAttentionAt:     needsAttentionAt(record.NeedsAttention),
 		NeedsAttentionBy:     needsAttentionBy(record.NeedsAttention),
 		WakeCreator:          record.WakeCreator,
+		ExpectDigest:         record.ExpectDigest,
+		ResultBudget:         cloneTaskResultBudget(record.ResultBudget),
 		CreatedBy:            record.CreatedBy,
 		Origin:               record.Origin,
 		CreatedAt:            record.CreatedAt,

@@ -26,6 +26,9 @@ const taskCreateInputSchema = `{
 		"approval_policy":{"type":"string"},
 		"owner":` + ownerSchema + `,
 		"wake_creator":{"type":"boolean"},
+		"expect":{},
+		"result_budget":{"type":"string"},
+		"result_overflow":{"type":"string","enum":["store","reject"]},
 		"metadata":{}
 	},
 	"additionalProperties":false
@@ -49,6 +52,9 @@ const taskChildCreateInputSchema = `{
 		"approval_policy":{"type":"string"},
 		"owner":` + ownerSchema + `,
 		"wake_creator":{"type":"boolean"},
+		"expect":{},
+		"result_budget":{"type":"string"},
+		"result_overflow":{"type":"string","enum":["store","reject"]},
 		"metadata":{}
 	},
 	"additionalProperties":false
@@ -64,6 +70,9 @@ const taskUpdateInputSchema = `{
 		"priority":{"type":"string"},
 		"max_attempts":{"type":"integer"},
 		"approval_policy":{"type":"string"},
+		"expect":{},
+		"result_budget":{"type":"string"},
+		"result_overflow":{"type":"string","enum":["store","reject"]},
 		"metadata":{},
 		"network_participation":` + networkParticipationRequestSchema + `,
 		"owner":` + ownerSchema + `,

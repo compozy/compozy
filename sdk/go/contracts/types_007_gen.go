@@ -4,6 +4,86 @@ package contracts
 
 import "time"
 
+type CompactionMatcher struct {
+	Reason   string `json:"compaction_reason,omitempty"`
+	Strategy string `json:"compaction_strategy,omitempty"`
+}
+
+type Confirmation struct {
+	Title   string `json:"title"`
+	Body    string `json:"body,omitempty"`
+	Confirm string `json:"confirm"`
+}
+
+type ConnectivityAdvertisedEndpoint struct {
+	URL          string `json:"url"`
+	Scheme       string `json:"scheme"`
+	SchemePolicy string `json:"scheme_policy,omitempty"`
+	Stability    string `json:"stability"`
+}
+
+type ConnectivityEstablishRequest struct {
+	Tier          string    `json:"tier"`
+	ForwardTarget string    `json:"forward_target"`
+	ChallengePath string    `json:"challenge_path"`
+	Deadline      time.Time `json:"deadline"`
+}
+
+type ConnectivityReachability struct {
+	Tier      string                           `json:"tier"`
+	Endpoints []ConnectivityAdvertisedEndpoint `json:"endpoints"`
+	Health    string                           `json:"health"`
+	Reason    string                           `json:"reason,omitempty"`
+}
+
+type ConnectivityStatusRequest struct {
+	Tier string `json:"tier"`
+}
+
+type ConnectivityTeardownRequest struct {
+	Tier     string    `json:"tier"`
+	Deadline time.Time `json:"deadline"`
+}
+
+type ConnectivityTeardownResponse struct {
+	Stopped bool `json:"stopped"`
+}
+
+type ConsentArea struct {
+	Area   string `json:"area"`
+	Access string `json:"access"`
+}
+
+type ContextBlock struct {
+	Kind     string            `json:"kind,omitempty"`
+	Text     string            `json:"text,omitempty"`
+	Metadata map[string]string `json:"metadata,omitempty"`
+}
+
+type ContextCompactPayload struct {
+	Event          HookEvent      `json:"event"`
+	Timestamp      time.Time      `json:"timestamp"`
+	ProfileID      string         `json:"profile_id,omitempty"`
+	SessionID      string         `json:"session_id,omitempty"`
+	SessionName    string         `json:"session_name,omitempty"`
+	SessionType    string         `json:"session_type,omitempty"`
+	AgentName      string         `json:"agent_name,omitempty"`
+	WorkspaceID    string         `json:"workspace_id,omitempty"`
+	Workspace      string         `json:"workspace,omitempty"`
+	WorktreeID     string         `json:"worktree_id,omitempty"`
+	ACPSessionID   string         `json:"acp_session_id,omitempty"`
+	State          string         `json:"state,omitempty"`
+	SoulSnapshotID string         `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string         `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
+	TurnID         string         `json:"turn_id,omitempty"`
+	Reason         string         `json:"reason,omitempty"`
+	Strategy       string         `json:"strategy,omitempty"`
+	Summary        string         `json:"summary,omitempty"`
+	ContextBlocks  []ContextBlock `json:"context_blocks,omitempty"`
+}
+
 type ContextCompactionPatch struct {
 	Deny          bool           `json:"deny,omitempty"`
 	DenyReason    string         `json:"deny_reason,omitempty"`
@@ -169,105 +249,4 @@ type CoordinatorLifecyclePayload struct {
 	Decision                     string    `json:"decision,omitempty"`
 	StopReason                   string    `json:"stop_reason,omitempty"`
 	Error                        string    `json:"error,omitempty"`
-}
-
-type CoordinatorObservationPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
-}
-
-type CoordinatorPreSpawnPayload struct {
-	Event                        HookEvent `json:"event"`
-	Timestamp                    time.Time `json:"timestamp"`
-	ProfileID                    string    `json:"profile_id,omitempty"`
-	WorkspaceID                  string    `json:"workspace_id,omitempty"`
-	Workspace                    string    `json:"workspace,omitempty"`
-	AgentName                    string    `json:"agent_name,omitempty"`
-	CoordinatorSessionID         string    `json:"coordinator_session_id,omitempty"`
-	TaskID                       string    `json:"task_id,omitempty"`
-	RunID                        string    `json:"run_id,omitempty"`
-	WorkflowID                   string    `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation,omitempty"`
-	Provider                     string    `json:"provider,omitempty"`
-	Model                        string    `json:"model,omitempty"`
-	Reason                       string    `json:"reason,omitempty"`
-	Denied                       bool      `json:"denied,omitempty"`
-	DenyReason                   string    `json:"deny_reason,omitempty"`
-}
-
-type CoordinatorSpawnPatch struct {
-	Deny       bool    `json:"deny,omitempty"`
-	DenyReason string  `json:"deny_reason,omitempty"`
-	AgentName  *string `json:"agent_name,omitempty"`
-	Provider   *string `json:"provider,omitempty"`
-	Model      *string `json:"model,omitempty"`
-}
-
-type CoordinatorSpawnedPayload struct {
-	Event                        HookEvent `json:"event"`
-	Timestamp                    time.Time `json:"timestamp"`
-	ProfileID                    string    `json:"profile_id,omitempty"`
-	WorkspaceID                  string    `json:"workspace_id,omitempty"`
-	Workspace                    string    `json:"workspace,omitempty"`
-	AgentName                    string    `json:"agent_name,omitempty"`
-	CoordinatorSessionID         string    `json:"coordinator_session_id,omitempty"`
-	TaskID                       string    `json:"task_id,omitempty"`
-	RunID                        string    `json:"run_id,omitempty"`
-	WorkflowID                   string    `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation,omitempty"`
-	Provider                     string    `json:"provider,omitempty"`
-	Model                        string    `json:"model,omitempty"`
-	DecisionKind                 string    `json:"decision_kind,omitempty"`
-	Decision                     string    `json:"decision,omitempty"`
-	StopReason                   string    `json:"stop_reason,omitempty"`
-	Error                        string    `json:"error,omitempty"`
-}
-
-type CoordinatorStoppedPayload struct {
-	Event                        HookEvent `json:"event"`
-	Timestamp                    time.Time `json:"timestamp"`
-	ProfileID                    string    `json:"profile_id,omitempty"`
-	WorkspaceID                  string    `json:"workspace_id,omitempty"`
-	Workspace                    string    `json:"workspace,omitempty"`
-	AgentName                    string    `json:"agent_name,omitempty"`
-	CoordinatorSessionID         string    `json:"coordinator_session_id,omitempty"`
-	TaskID                       string    `json:"task_id,omitempty"`
-	RunID                        string    `json:"run_id,omitempty"`
-	WorkflowID                   string    `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation,omitempty"`
-	Provider                     string    `json:"provider,omitempty"`
-	Model                        string    `json:"model,omitempty"`
-	DecisionKind                 string    `json:"decision_kind,omitempty"`
-	Decision                     string    `json:"decision,omitempty"`
-	StopReason                   string    `json:"stop_reason,omitempty"`
-	Error                        string    `json:"error,omitempty"`
-}
-
-type CopyEffect struct {
-	Content string `json:"content"`
-}
-
-type CostSource string
-
-type CostStatus string
-
-type CountedCursorPagePayload struct {
-	NextCursor string `json:"next_cursor,omitempty"`
-	HasMore    bool   `json:"has_more"`
-	Total      int    `json:"total"`
-	Limit      int    `json:"limit"`
-}
-
-type CursorPagePayload struct {
-	NextCursor string `json:"next_cursor,omitempty"`
-	HasMore    bool   `json:"has_more"`
-	Limit      int    `json:"limit"`
-}
-
-type DeliveryAck struct {
-	DeliveryID             string               `json:"delivery_id"`
-	Seq                    int64                `json:"seq"`
-	RemoteMessageID        string               `json:"remote_message_id,omitempty"`
-	ReplaceRemoteMessageID string               `json:"replace_remote_message_id,omitempty"`
-	Outcome                DeliveryAckOutcome   `json:"outcome,omitempty"`
-	Error                  *DeliveryErrorDetail `json:"error,omitempty"`
 }

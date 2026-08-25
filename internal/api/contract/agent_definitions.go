@@ -27,6 +27,7 @@ type DuplicateAgentRequest struct {
 
 // DuplicateAgentOverrides captures caller-editable fields applied to a clone.
 type DuplicateAgentOverrides struct {
+	Description     string                    `json:"description,omitempty"`
 	Provider        string                    `json:"provider,omitempty"`
 	Command         string                    `json:"command,omitempty"`
 	Model           string                    `json:"model,omitempty"`
@@ -90,6 +91,9 @@ type AgentDefinitionShadowPayload struct {
 // AgentPayload is the shared agent definition response payload.
 type AgentPayload struct {
 	Name             string                         `json:"name"`
+	Description      string                         `json:"description"`
+	Scope            string                         `json:"scope"`
+	Shadowed         bool                           `json:"shadowed"`
 	Provider         string                         `json:"provider"`
 	Command          string                         `json:"command,omitempty"`
 	Model            string                         `json:"model,omitempty"`

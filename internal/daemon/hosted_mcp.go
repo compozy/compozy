@@ -65,6 +65,7 @@ func (d *Daemon) buildHostedMCPService(state *bootState) (*mcppkg.HostedService,
 			}
 			return generation.ProjectionGeneration(ctx, scope)
 		},
+		ProjectionDecorator: hostedCallRosterDecorator(state),
 	})
 }
 
