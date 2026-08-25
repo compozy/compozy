@@ -1,5 +1,6 @@
 // Suite: OS palette view stack integration
-// Invariant: the stack adapts profiles-domain content without owning profile lifecycle behavior.
+// Invariant: the stack adapts profiles-domain content without owning profile lifecycle behavior,
+// and pushed domain rows use the root-owned opener that survives view dismissal.
 // Boundary IN: a profiles controller projection and the profiles view registration.
 // Boundary OUT: profile queries, switching, and lifecycle dialogs.
 
@@ -55,6 +56,7 @@ describe("OsPaletteViewStack profiles integration", () => {
           dispatch={dispatch}
           onDismiss={vi.fn()}
           onPop={vi.fn()}
+          openDomainRow={vi.fn()}
           viewId="profiles"
         />
       </UIProvider>

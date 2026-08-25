@@ -9,13 +9,20 @@ import { describe, expect, it } from "vitest";
 
 import type { CmdPaletteRankSignals } from "../cmd-palette-types";
 import {
+  agentRoute,
+  bridgeRoute,
   knowledgeRoute,
+  jobRoute,
+  loopRoute,
   marketplaceCatalogTotal,
+  marketplaceEntryRoute,
   networkChannelRoute,
   paletteTaskFilters,
   paletteWorkspaceCatalogFilters,
   section,
-  tasksRoute,
+  taskRoute,
+  triggerRoute,
+  vaultRoute,
   workspaceLabel,
 } from "../os-palette-domain-search";
 
@@ -46,16 +53,53 @@ function seed(label: string, index: number) {
       key: `task:${index}`,
       label,
       app: "tasks" as const,
-      route: tasksRoute(label),
+      route: taskRoute(`task-${index}`),
     },
   };
 }
 
 describe("os-palette-domain-search helpers", () => {
-  it("Should land a task on the catalog query the Tasks page consumes", () => {
-    expect(tasksRoute("Ship review")).toEqual({
-      pathname: "/tasks",
-      search: { query: "Ship review" },
+  it("Should build identity-bearing routes for concrete entities", () => {
+    expect(taskRoute("task/42")).toEqual({ pathname: "/tasks/task%2F42", search: {} });
+    expect(loopRoute("Release / Ops", "ws-a")).toEqual({
+      pathname: "/loops/Release%20%2F%20Ops",
+      search: { workspace: "ws-a" },
+    });
+    expect(jobRoute("job-42")).toEqual({ pathname: "/jobs/job-42", search: {} });
+    expect(triggerRoute("trigger-42")).toEqual({ pathname: "/triggers/trigger-42", search: {} });
+    expect(bridgeRoute("bridge-42")).toEqual({ pathname: "/bridges/bridge-42", search: {} });
+    expect(agentRoute("agent/ops")).toEqual({ pathname: "/agents/agent%2Fops", search: {} });
+
+    const sameNameRoutes = ["task-a", "task-b"].map(id => taskRoute(id));
+    expect(sameNameRoutes).toEqual([
+      { pathname: "/tasks/task-a", search: {} },
+      { pathname: "/tasks/task-b", search: {} },
+    ]);
+  });
+
+  it("Should carry marketplace scope and installed identity into the detail route", () => {
+    expect(
+      marketplaceEntryRoute({
+        entryId: "ops/extension",
+        installedName: "ops-extension",
+        kind: "extension",
+        scope: "workspace",
+        workspaceId: "ws-a",
+      })
+    ).toEqual({
+      pathname: "/marketplace/extension/ops%2Fextension",
+      search: {
+        installed_name: "ops-extension",
+        scope: "workspace",
+        workspace_id: "ws-a",
+      },
+    });
+  });
+
+  it("Should select a Vault secret by ref instead of filtering by its display name", () => {
+    expect(vaultRoute("vault:providers/ops/api-token")).toEqual({
+      pathname: "/vault",
+      search: { ref: "vault:providers/ops/api-token" },
     });
   });
 

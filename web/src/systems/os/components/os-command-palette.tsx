@@ -123,6 +123,7 @@ export function OsCommandPalette({
                 viewId={frame.viewId}
                 onDismiss={() => onOpenChange(false)}
                 onPop={viewStack.pop}
+                openDomainRow={root.openDomainRow}
               />
             </div>
           ))}

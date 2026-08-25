@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   allSecretsState: {
     error: null as Error | null,
     isFetching: false,
+    isError: false,
     isLoading: false,
     isStale: false,
     isSuccess: true,
@@ -59,6 +60,7 @@ vi.mock("@/systems/vault/hooks/use-vault", () => ({
       data: mocks.secrets,
       error: isUnfiltered ? mocks.allSecretsState.error : null,
       isFetching: isUnfiltered ? mocks.allSecretsState.isFetching : false,
+      isError: isUnfiltered ? mocks.allSecretsState.isError : false,
       isLoading: isUnfiltered ? mocks.allSecretsState.isLoading : false,
       isStale: isUnfiltered ? mocks.allSecretsState.isStale : false,
       isSuccess: isUnfiltered ? mocks.allSecretsState.isSuccess : true,
@@ -100,6 +102,7 @@ describe("useVaultPage route state", () => {
     mocks.secrets = [];
     mocks.allSecretsState.error = null;
     mocks.allSecretsState.isFetching = false;
+    mocks.allSecretsState.isError = false;
     mocks.allSecretsState.isLoading = false;
     mocks.allSecretsState.isStale = false;
     mocks.allSecretsState.isSuccess = true;
@@ -153,6 +156,36 @@ describe("useVaultPage route state", () => {
     expect(normalizeVaultPrefixForNamespace("vault:providers/openai", undefined)).toBe(
       "vault:providers/openai"
     );
+  });
+
+  it("Should open a requested secret by exact ref and clear that route selection on close", async () => {
+    mocks.secrets = [providerSecret];
+    const { result } = renderHook(() => useVaultPage({ ref: providerSecret.ref }));
+
+    await waitFor(() => expect(result.current.selectedSecret?.ref).toBe(providerSecret.ref));
+    expect(result.current.selectionError).toBeNull();
+
+    act(() => result.current.closeInspect());
+    const routeSearch = mocks.navigate.mock.lastCall?.[0].search;
+    if (typeof routeSearch !== "function") throw new Error("Expected a route search updater.");
+    expect(routeSearch({ ref: providerSecret.ref })).toEqual({ ref: undefined });
+  });
+
+  it("Should expose a clear error when a requested secret is gone", () => {
+    const { result } = renderHook(() => useVaultPage({ ref: "vault:providers/missing" }));
+
+    expect(result.current.selectionError).toBe("Vault secret not found");
+    expect(result.current.selectedSecret).toBeNull();
+  });
+
+  it("Should keep a direct Vault route out of the catalog when exact resolution fails", () => {
+    mocks.allSecretsState.error = new Error("Vault inventory unavailable");
+    mocks.allSecretsState.isError = true;
+    mocks.allSecretsState.isSuccess = false;
+    const { result } = renderHook(() => useVaultPage({ ref: "vault:providers/unreachable" }));
+
+    expect(result.current.selectionError).toBe("Vault inventory unavailable");
+    expect(result.current.selectedSecret).toBeNull();
   });
 
   it("Should replace the selected secret with its exact ref and kind, rejecting blank values", async () => {

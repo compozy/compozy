@@ -84,11 +84,13 @@ const paletteMocks = vi.hoisted(() => {
   return {
     activeWorkspaceId: "workspace:alpha" as string | null,
     closeWindow: vi.fn(async () => true),
+    setActiveWorkspaceId: vi.fn(),
     coordinator: {
       userActivateWindow: vi.fn(async () => true),
       userOpen: vi.fn(async () => "window:new-tab" as string | null),
     },
     desktop: null as OsDesktopRuntimeStore | null,
+    commandAvailable: false,
     isWaiting: vi.fn<(sessionId: string) => boolean>(() => false),
     jumpToSession: vi.fn(),
     notifyUser: vi.fn<(feedback: { message: string; tone: string }) => void>(),
@@ -193,7 +195,7 @@ vi.mock("@/systems/workspace", async importOriginal => ({
   useActiveWorkspace: () => ({
     activeWorkspaceId: paletteMocks.activeWorkspaceId,
     runtimeWorkspaceId: paletteMocks.activeWorkspaceId,
-    setActiveWorkspaceId: vi.fn(),
+    setActiveWorkspaceId: paletteMocks.setActiveWorkspaceId,
     workspaces: paletteMocks.workspaces,
     registeredWorkspaces: paletteMocks.registeredWorkspaces,
     scope: paletteMocks.scope,
@@ -262,6 +264,10 @@ vi.mock("../../hooks/use-desktop", () => ({
     if (paletteMocks.desktop === null) throw new Error("Desktop fixture was not configured.");
     return selector(paletteMocks.desktop);
   },
+}));
+
+vi.mock("../../lib/window-manager-command-availability", () => ({
+  windowManagerCommandsAvailable: () => paletteMocks.commandAvailable,
 }));
 
 vi.mock("../../hooks/use-os-shell", () => ({
@@ -378,6 +384,10 @@ const DESKTOPS: readonly LayoutDesktop[] = [
 function desktopState(): OsDesktopRuntimeStore {
   if (paletteMocks.desktop === null) throw new Error("Desktop fixture was not configured.");
   return paletteMocks.desktop;
+}
+
+function commandSnapshot(workspaceId: string): NonNullable<OsDesktopRuntimeStore["snapshot"]> {
+  return { workspaceId } as NonNullable<OsDesktopRuntimeStore["snapshot"]>;
 }
 
 function desktopFixture(
@@ -610,6 +620,7 @@ function resetPaletteHarness() {
   paletteDispatch.setPinned.mockClear();
   paletteMocks.activeWorkspaceId = "workspace:alpha";
   paletteMocks.closeWindow.mockClear();
+  paletteMocks.setActiveWorkspaceId.mockClear();
   paletteMocks.coordinator.userActivateWindow.mockClear();
   paletteMocks.coordinator.userOpen.mockClear();
   paletteMocks.coordinator.userOpen.mockResolvedValue("window:new-tab");
@@ -643,6 +654,7 @@ function resetPaletteHarness() {
   paletteMocks.windowSlots.clear();
   paletteMocks.windowCommands.commandsAvailable = true;
   paletteMocks.desktop = desktopFixture({ "window:tasks": windowFixture() }, "window:tasks");
+  paletteMocks.commandAvailable = false;
 }
 
 function renderRoot(open = true, onOpenChange = vi.fn()) {
@@ -843,6 +855,171 @@ describe("useOsPaletteRoot", () => {
     });
     // The root must not keep a second landing implementation of its own.
     expect(paletteMocks.coordinator.userOpen).not.toHaveBeenCalled();
+  });
+
+  it("Should open a concrete domain row on its identity route", async () => {
+    paletteMocks.commandAvailable = true;
+    paletteMocks.desktop = {
+      ...desktopFixture({ "window:tasks": windowFixture() }, "window:tasks"),
+      snapshot: commandSnapshot("workspace:alpha"),
+    };
+    const onOpenChange = vi.fn();
+    const { result } = renderRoot(true, onOpenChange);
+
+    await act(async () => {
+      result.current.openDomainRow({
+        app: "tasks",
+        key: "task:task-42",
+        label: "Review release",
+        route: { pathname: "/tasks/task-42", search: {} },
+      });
+    });
+
+    expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false);
+    expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledExactlyOnceWith({
+      app: "tasks",
+      route: { pathname: "/tasks/task-42", search: {} },
+    });
+  });
+
+  it("Should report when the coordinator refuses a concrete domain target", async () => {
+    paletteMocks.commandAvailable = true;
+    paletteMocks.desktop = {
+      ...desktopFixture({ "window:tasks": windowFixture() }, "window:tasks"),
+      snapshot: commandSnapshot("workspace:alpha"),
+    };
+    paletteMocks.coordinator.userOpen.mockResolvedValueOnce(null);
+    const onOpenChange = vi.fn();
+    const { result } = renderRoot(true, onOpenChange);
+
+    await act(async () => {
+      result.current.openDomainRow({
+        app: "tasks",
+        key: "task:unreachable",
+        label: "Unavailable task",
+        route: { pathname: "/tasks/unreachable", search: {} },
+      });
+    });
+
+    await waitFor(() =>
+      expect(paletteMocks.notifyUser).toHaveBeenCalledWith({
+        message: "Couldn't open Unavailable task. Try again.",
+        tone: "error",
+      })
+    );
+  });
+
+  it("Should switch to a global row's owning workspace before opening it", async () => {
+    paletteMocks.scope = "global";
+    paletteMocks.commandAvailable = true;
+    paletteMocks.desktop = {
+      ...desktopFixture({ "window:tasks": windowFixture() }, "window:tasks"),
+      snapshot: commandSnapshot("workspace:alpha"),
+    };
+    const onOpenChange = vi.fn();
+    const rendered = renderRoot(true, onOpenChange);
+
+    act(() => {
+      rendered.result.current.openDomainRow({
+        app: "jobs",
+        key: "job:job-beta",
+        label: "Beta job",
+        route: { pathname: "/jobs/job-beta", search: {} },
+        workspaceId: "workspace:beta",
+      });
+    });
+
+    expect(paletteMocks.setActiveWorkspaceId).toHaveBeenCalledExactlyOnceWith("workspace:beta");
+    expect(paletteMocks.coordinator.userOpen).not.toHaveBeenCalled();
+
+    paletteMocks.activeWorkspaceId = "workspace:beta";
+    paletteMocks.desktop = {
+      ...paletteMocks.desktop,
+      snapshot: commandSnapshot("workspace:beta"),
+    };
+    rendered.rerender({ open: true });
+
+    await waitFor(() =>
+      expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledExactlyOnceWith({
+        app: "jobs",
+        route: { pathname: "/jobs/job-beta", search: {} },
+      })
+    );
+  });
+
+  it("Should retain a foreign target after the pushed palette view closes", async () => {
+    paletteMocks.scope = "global";
+    paletteMocks.commandAvailable = true;
+    paletteMocks.desktop = {
+      ...desktopFixture({ "window:tasks": windowFixture() }, "window:tasks"),
+      snapshot: commandSnapshot("workspace:alpha"),
+    };
+    const onOpenChange = vi.fn();
+    const rendered = renderRoot(true, onOpenChange);
+
+    act(() => {
+      rendered.result.current.openDomainRow({
+        app: "jobs",
+        key: "job:job-beta",
+        label: "Beta job",
+        route: { pathname: "/jobs/job-beta", search: {} },
+        workspaceId: "workspace:beta",
+      });
+    });
+
+    expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false);
+    expect(paletteMocks.coordinator.userOpen).not.toHaveBeenCalled();
+
+    rendered.rerender({ open: false });
+    paletteMocks.activeWorkspaceId = "workspace:beta";
+    paletteMocks.desktop = {
+      ...paletteMocks.desktop,
+      snapshot: commandSnapshot("workspace:beta"),
+    };
+    rendered.rerender({ open: false });
+
+    await waitFor(() =>
+      expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledExactlyOnceWith({
+        app: "jobs",
+        route: { pathname: "/jobs/job-beta", search: {} },
+      })
+    );
+  });
+
+  it("Should wait for the window manager workspace after the runtime is ready", async () => {
+    paletteMocks.commandAvailable = true;
+    paletteMocks.desktop = {
+      ...desktopFixture({ "window:tasks": windowFixture() }, "window:tasks"),
+      snapshot: commandSnapshot("workspace:stale"),
+    };
+    const onOpenChange = vi.fn();
+    const rendered = renderRoot(true, onOpenChange);
+
+    act(() => {
+      rendered.result.current.openDomainRow({
+        app: "tasks",
+        key: "task:task-alpha",
+        label: "Alpha task",
+        route: { pathname: "/tasks/task-alpha", search: {} },
+        workspaceId: "workspace:alpha",
+      });
+    });
+
+    expect(paletteMocks.setActiveWorkspaceId).not.toHaveBeenCalled();
+    expect(paletteMocks.coordinator.userOpen).not.toHaveBeenCalled();
+
+    paletteMocks.desktop = {
+      ...paletteMocks.desktop,
+      snapshot: commandSnapshot("workspace:alpha"),
+    };
+    rendered.rerender({ open: true });
+
+    await waitFor(() =>
+      expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledExactlyOnceWith({
+        app: "tasks",
+        route: { pathname: "/tasks/task-alpha", search: {} },
+      })
+    );
   });
 
   it("Should offer only navigable targets in destination mode and stay honest when none are eligible [UT-107, UT-108]", () => {

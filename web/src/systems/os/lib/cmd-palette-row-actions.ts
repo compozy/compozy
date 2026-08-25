@@ -300,7 +300,7 @@ function domainModel(row: OsPaletteDomainRow): PaletteRowActionModel {
         actions: [
           {
             id: "domain.open",
-            title: `Open ${row.label}`,
+            title: row.worktreeSelection ? `Scope to ${row.label}` : `Open ${row.label}`,
             icon: "arrow-right",
             section: "Open",
             primary: true,

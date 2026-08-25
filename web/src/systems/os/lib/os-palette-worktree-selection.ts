@@ -8,6 +8,7 @@ export function applyPaletteWorktreeSelection(input: {
   readonly scope: WorkspaceScopeMode;
   readonly worktreeScopeId: string;
   readonly activeWorkspaceId: string | null;
+  readonly setActiveWorkspaceId?: (workspaceId: string) => void;
   readonly entry: {
     readonly workspaceId?: string;
     readonly worktree?: { readonly id: string } | null;
@@ -16,7 +17,7 @@ export function applyPaletteWorktreeSelection(input: {
   const targetWorkspaceId = input.entry.workspaceId ?? input.activeWorkspaceId;
   if (!input.entry.worktree || targetWorkspaceId === null) return;
   if (input.scope === "global") {
-    setActiveWorkspaceId(targetWorkspaceId);
+    (input.setActiveWorkspaceId ?? setActiveWorkspaceId)(targetWorkspaceId);
   }
   selectWorktreeForScope(input.worktreeScopeId, targetWorkspaceId, input.entry.worktree.id);
 }

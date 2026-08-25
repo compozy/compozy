@@ -127,7 +127,14 @@ export function VaultPage({ search = {} }: { search?: VaultRouteSearch }) {
         <span data-testid="vault-page-providers">{page.counts.providers} provider-scoped</span>
       </p>
 
-      {page.queryError && page.secrets.length === 0 ? (
+      {page.selectionError ? (
+        <Empty
+          data-testid="vault-page-selection-error"
+          description="The requested secret was deleted or is unavailable."
+          icon={AlertCircle}
+          title={page.selectionError}
+        />
+      ) : page.queryError && page.secrets.length === 0 ? (
         <Empty
           action={
             <Button

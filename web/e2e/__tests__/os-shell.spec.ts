@@ -779,6 +779,29 @@ test("Command palette E2E-009: Tasks reports truthful zero counts and clears one
   );
 });
 
+test("Command palette ENG-131: a loop row opens its detail route", async ({ appPage, runtime }) => {
+  const workspace = await prepareShell(appPage, runtime);
+  const loopName = "palette-direct-loop";
+  await createPaletteLoop(runtime, workspace.id, loopName);
+
+  const palette = await openCommandPalette(appPage);
+  const search = palette.getByPlaceholder("Search apps, sessions, and actions…");
+  await search.fill(loopName);
+  const loopRow = palette.getByTestId(`os-palette-domain-row-loop:${workspace.id}:${loopName}`);
+  await expect(loopRow).toBeVisible();
+  await loopRow.click();
+
+  const loops = appWindow(appPage, "loops");
+  await expect(loops).toBeVisible();
+  await expect
+    .poll(async () => {
+      const snapshot = await windowManagerSnapshot(runtime, workspace.id);
+      return Object.values(snapshot.windows).find(window => window.app === "loops")?.route.pathname;
+    })
+    .toBe(`/loops/${encodeURIComponent(loopName)}`);
+  await expect(loops.getByTestId("loop-detail")).toBeVisible();
+});
+
 test("E2E-010 and E2E-018: peers converge topology while presentation stays client-local", async ({
   appPage,
   browser,
@@ -3674,6 +3697,50 @@ async function createTask(
     }),
   });
   return payload.task;
+}
+
+async function createPaletteLoop(
+  runtime: BrowserRuntime,
+  workspaceId: string,
+  name: string
+): Promise<void> {
+  const workspacePath = `/api/workspaces/${encodeURIComponent(workspaceId)}`;
+  await runtime.requestJSON(`${workspacePath}/loops`, {
+    method: "POST",
+    body: JSON.stringify({
+      definition: {
+        apiVersion: "compozy.loop/v1",
+        kind: "Loop",
+        meta: {
+          name,
+          description: "Command palette direct-route fixture.",
+          catalog: { category: "Testing" },
+        },
+        concurrency: "allow",
+        contract: {
+          goal: "Open one concrete loop from the command palette.",
+          definition_of_done: "The loop is available in the workspace catalog.",
+          stop_when: "nodes.finish.status == 'succeeded'",
+          iteration_cap: 1,
+          no_progress: { window: 2 },
+          budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
+          terminal_states: ["done", "failed", "blocked", "exhausted", "stalled"],
+        },
+        graph: {
+          nodes: [
+            {
+              id: "finish",
+              class: "action",
+              kind: "transform",
+              params: { map: { ready: { value: true } } },
+            },
+          ],
+          edges: [],
+        },
+        start: [{ kind: "http" }],
+      },
+    }),
+  });
 }
 
 async function createTaskRun(runtime: BrowserRuntime, taskId: string): Promise<{ id: string }> {

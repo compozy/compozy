@@ -14,16 +14,21 @@ import { useWorktrees, type WorkspaceScopeMode } from "@/systems/workspace";
 import { usePaletteInfiniteCatalog } from "./use-palette-infinite-catalog";
 import {
   isPaletteDomainSearchEnabled,
+  agentRoute,
+  bridgeRoute,
+  jobRoute,
   knowledgeRoute,
+  loopRoute,
   marketplaceCatalogTotal,
+  marketplaceEntryRoute,
   networkChannelRoute,
   paletteTaskFilters,
   paletteWorkspaceCatalogFilters,
   projectVaultRows,
   rowSeed,
-  searchRoute,
   section,
-  tasksRoute,
+  taskRoute,
+  triggerRoute,
   workspaceLabel,
   type OsPaletteDomainSection,
 } from "../lib/os-palette-domain-search";
@@ -181,7 +186,11 @@ export function useOsPaletteDomainSearch({
           workspaceLabel: wsLabel(worktree.workspace_id),
           status: worktree.state,
           app: "dashboard",
-          route: searchRoute("/", worktree.name),
+          route: { pathname: "/", search: {} },
+          worktreeSelection: {
+            workspaceId: worktree.workspace_id,
+            worktreeId: worktree.id,
+          },
         })
       ),
       scope === "global" ? catalogs.worktreeState : worktrees,
@@ -203,7 +212,10 @@ export function useOsPaletteDomainSearch({
           detail: agent.provider,
           workspaceLabel: wsLabel(agent.origin === "workspace" ? agentWorkspaceId : undefined),
           app: "agents",
-          route: searchRoute("/agents", agent.name),
+          route: agentRoute(agent.name),
+          ...(agent.origin === "workspace" && agentWorkspaceId
+            ? { workspaceId: agentWorkspaceId }
+            : {}),
         })
       ),
       scope === "global"
@@ -230,7 +242,8 @@ export function useOsPaletteDomainSearch({
             status: task.status,
             workspaceLabel: wsLabel(task.workspace_id),
             app: "tasks",
-            route: tasksRoute(task.title),
+            route: taskRoute(task.id),
+            ...(task.workspace_id ? { workspaceId: task.workspace_id } : {}),
           },
           task.identifier ? [task.identifier] : []
         )
@@ -250,7 +263,8 @@ export function useOsPaletteDomainSearch({
           detail: loop.contract.goal,
           workspaceLabel: wsLabel(loopWorkspaceId),
           app: "loops",
-          route: searchRoute("/loops", loop.name),
+          route: loopRoute(loop.name, loopWorkspaceId),
+          ...(loopWorkspaceId ? { workspaceId: loopWorkspaceId } : {}),
         })
       ),
       loopState,
@@ -268,7 +282,8 @@ export function useOsPaletteDomainSearch({
           detail: job.agent_name,
           workspaceLabel: wsLabel(job.workspace_id),
           app: "jobs",
-          route: searchRoute("/jobs", job.name),
+          route: jobRoute(job.id),
+          ...(job.workspace_id ? { workspaceId: job.workspace_id } : {}),
         })
       ),
       jobs,
@@ -286,7 +301,8 @@ export function useOsPaletteDomainSearch({
           detail: trigger.event,
           workspaceLabel: wsLabel(trigger.workspace_id),
           app: "triggers",
-          route: searchRoute("/triggers", trigger.name),
+          route: triggerRoute(trigger.id),
+          ...(trigger.workspace_id ? { workspaceId: trigger.workspace_id } : {}),
         })
       ),
       triggers,
@@ -304,7 +320,8 @@ export function useOsPaletteDomainSearch({
           detail: bridge.platform,
           workspaceLabel: wsLabel(bridge.workspace_id),
           app: "bridges",
-          route: searchRoute("/bridges", bridge.display_name),
+          route: bridgeRoute(bridge.id),
+          ...(bridge.workspace_id ? { workspaceId: bridge.workspace_id } : {}),
         })
       ),
       bridges,
@@ -338,6 +355,7 @@ export function useOsPaletteDomainSearch({
             scope: memory.scope === "workspace" ? "workspace" : "global",
             workspaceId: memory.workspace_id,
           }),
+          workspaceId: memory.scope === "workspace" ? memory.workspace_id : undefined,
         })
       ),
       {
@@ -384,6 +402,7 @@ export function useOsPaletteDomainSearch({
             workspaceLabel: wsLabel(channelWorkspaceId),
             app: "network",
             route: networkChannelRoute(channelWorkspaceId, channel.channel),
+            workspaceId: channelWorkspaceId,
           }),
         ];
       }),
@@ -406,7 +425,14 @@ export function useOsPaletteDomainSearch({
             detail: item.description,
             workspaceLabel: wsLabel(scopedWorkspace),
             app: "marketplace",
-            route: { pathname: item.manage_path ?? "/marketplace", search: { q: item.name } },
+            route: marketplaceEntryRoute({
+              kind: item.kind,
+              entryId: item.entry_id,
+              scope,
+              workspaceId: scopedWorkspace,
+              installedName: item.installed_name,
+            }),
+            ...(scopedWorkspace ? { workspaceId: scopedWorkspace } : {}),
           })
         )
       ),
@@ -437,7 +463,14 @@ export function useOsPaletteDomainSearch({
           detail: extension.health,
           workspaceLabel: wsLabel(extensionWorkspaceId),
           app: "marketplace",
-          route: searchRoute("/marketplace/extensions", extension.name),
+          route: marketplaceEntryRoute({
+            kind: "extension",
+            entryId: extension.marketplace?.entry_id ?? extension.name,
+            scope: extensionWorkspaceId ? "workspace" : "global",
+            workspaceId: extensionWorkspaceId,
+            installedName: extension.name,
+          }),
+          ...(extensionWorkspaceId ? { workspaceId: extensionWorkspaceId } : {}),
         })
       ),
       scope === "global" ? catalogs.workspaceExtensionState : publishedExtensions,
