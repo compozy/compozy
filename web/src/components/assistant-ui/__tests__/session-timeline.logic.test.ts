@@ -49,7 +49,7 @@ describe("session timeline derivation", () => {
   });
 
   it("Should mark the summary row expanded once the work group is toggled open", () => {
-    const groupId = "work:turn-1:tool-1";
+    const groupId = "work:turn-1:tool-call-1";
     const rows = deriveSessionRows(
       Array.from({ length: 8 }, (_, index) => tool(index + 1)),
       { expandedWorkGroupIds: new Set([groupId]) }
@@ -61,6 +61,165 @@ describe("session timeline derivation", () => {
     expect(workRow.expanded).toBe(true);
     expect(workRow.summary).not.toBeNull();
     expect(visibleWorkEntries(workRow)).toHaveLength(8);
+  });
+
+  it("Should keep a work disclosure expanded when the rendered part id is replaced", () => {
+    const initialParts = [...Array.from({ length: 4 }, (_, index) => tool(index + 1)), tool(5)];
+    const groupId = "work:turn-1:tool-call-1";
+    const initialRows = deriveSessionRows(initialParts, {
+      expandedWorkGroupIds: new Set([groupId]),
+    });
+
+    const rederivedParts = initialParts.map((part, index) => ({
+      ...part,
+      id: `replacement-${index + 1}`,
+    }));
+    const rederivedRows = deriveSessionRows(rederivedParts, {
+      expandedWorkGroupIds: new Set([groupId]),
+    });
+
+    const initialWork = initialRows.find(row => row.kind === "work");
+    const rederivedWork = rederivedRows.find(row => row.kind === "work");
+    if (initialWork?.kind !== "work" || rederivedWork?.kind !== "work") {
+      throw new Error("expected work rows");
+    }
+    expect(initialWork.groupId).toBe(groupId);
+    expect(rederivedWork.groupId).toBe(groupId);
+    expect(rederivedWork.expanded).toBe(true);
+    expect(visibleWorkEntries(rederivedWork)).toHaveLength(5);
+  });
+
+  it("Should keep a work disclosure stable when calls reorder or duplicate events settle", () => {
+    const initialParts = Array.from({ length: 5 }, (_, index) => tool(index + 1));
+    const groupId = "work:turn-1:tool-call-1";
+    const initialRows = deriveSessionRows(initialParts, {
+      expandedWorkGroupIds: new Set([groupId]),
+    });
+
+    const reorderedRows = deriveSessionRows(
+      [initialParts[1]!, initialParts[0]!, ...initialParts.slice(2)],
+      { expandedWorkGroupIds: new Set([groupId]) }
+    );
+    const duplicateRemovedRows = deriveSessionRows(
+      [
+        initialParts[0]!,
+        { ...initialParts[0]!, id: "duplicate-rendered-tool-1" },
+        ...initialParts.slice(1),
+      ],
+      { expandedWorkGroupIds: new Set([groupId]) }
+    );
+
+    for (const rows of [initialRows, reorderedRows, duplicateRemovedRows]) {
+      const workRow = rows.find(row => row.kind === "work");
+      if (workRow?.kind !== "work") throw new Error("expected work row");
+      expect(workRow.groupId).toBe(groupId);
+      expect(workRow.expanded).toBe(true);
+    }
+  });
+
+  it("Should retain a group's key when a lower-sorting call arrives and the group closes", () => {
+    const initialParts = Array.from({ length: 5 }, (_, index) => tool(index + 1));
+    const groupId = "work:turn-1:tool-call-1";
+    const anchors = new Map([
+      [
+        groupId,
+        {
+          groupId,
+          turnId: "turn-1",
+          anchorToolCallId: "tool-call-1",
+        },
+      ],
+    ]);
+
+    const initialRows = deriveSessionRows(initialParts, {
+      expandedWorkGroupIds: new Set([groupId]),
+      workGroupAnchors: anchors,
+    });
+    const grownParts = [tool(0), ...initialParts];
+    const grownRows = deriveSessionRows(grownParts, {
+      expandedWorkGroupIds: new Set([groupId]),
+      workGroupAnchors: anchors,
+    });
+    const closedRows = deriveSessionRows(grownParts, { workGroupAnchors: anchors });
+
+    for (const rows of [initialRows, grownRows, closedRows]) {
+      const workRow = rows.find(row => row.kind === "work");
+      if (workRow?.kind !== "work") throw new Error("expected work row");
+      expect(workRow.groupId).toBe(groupId);
+    }
+    const grownWork = grownRows.find(row => row.kind === "work");
+    const closedWork = closedRows.find(row => row.kind === "work");
+    if (grownWork?.kind !== "work" || closedWork?.kind !== "work") {
+      throw new Error("expected grown and closed work rows");
+    }
+    expect(grownWork.expanded).toBe(true);
+    expect(closedWork.expanded).toBe(false);
+  });
+
+  it("Should give settled success and failure chunks distinct group identities", () => {
+    const liveParts = Array.from({ length: 5 }, (_, index) =>
+      tool(index + 1, { status: "running", result: undefined })
+    );
+    const liveRows = deriveSessionRows(liveParts, { activeTurnId: "turn-1" });
+    const liveWork = liveRows.find(row => row.kind === "work");
+    if (liveWork?.kind !== "work") throw new Error("expected live work row");
+
+    const anchors = new Map([
+      [
+        liveWork.groupId,
+        { groupId: liveWork.groupId, turnId: "turn-1", anchorToolCallId: "tool-call-1" },
+      ],
+    ]);
+    const settledParts = liveParts.map((part, index) =>
+      index === 2
+        ? { ...part, status: "settled" as const, isError: true, result: undefined }
+        : { ...part, status: "settled" as const, result: { content: `file-${index + 1}` } }
+    );
+    const settledRows = deriveSessionRows(settledParts, { workGroupAnchors: anchors });
+    const workRows = settledRows.filter(row => row.kind === "work");
+
+    expect(workRows).toHaveLength(3);
+    expect(new Set(workRows.map(row => row.groupId)).size).toBe(3);
+    const failedRow = workRows.find(row => row.entries[0]?.isError === true);
+    if (failedRow?.kind !== "work") throw new Error("expected failed work row");
+    expect(failedRow.entries).toHaveLength(1);
+    expect(failedRow.summary).toBeNull();
+  });
+
+  it("Should avoid identity collisions when an expanded run splits after a lower-sorting call", () => {
+    const historicalGroupId = "work:turn-1:tool-call-4";
+    const streamingParts = [
+      tool(4, { status: "running", result: undefined }),
+      tool(5, { status: "running", result: undefined }),
+    ];
+    const expandedRows = deriveSessionRows(streamingParts, {
+      activeTurnId: "turn-1",
+      expandedWorkGroupIds: new Set([historicalGroupId]),
+    });
+    const expandedWork = expandedRows.find(row => row.kind === "work");
+    if (expandedWork?.kind !== "work") throw new Error("expected expanded work row");
+    expect(expandedWork.groupId).toBe(historicalGroupId);
+
+    const observedAnchors = new Map([
+      [
+        historicalGroupId,
+        {
+          groupId: historicalGroupId,
+          turnId: "turn-1",
+          anchorToolCallId: "tool-call-1",
+        },
+      ],
+    ]);
+    const settledRows = deriveSessionRows(
+      [tool(1), tool(4, { isError: true, result: undefined }), tool(5)],
+      { workGroupAnchors: observedAnchors }
+    );
+    const workRows = settledRows.filter(row => row.kind === "work");
+
+    expect(workRows).toHaveLength(3);
+    expect(new Set(workRows.map(row => row.groupId)).size).toBe(workRows.length);
+    expect(workRows[0]?.groupId).toBe(historicalGroupId);
+    expect(workRows[1]?.groupId).not.toBe(historicalGroupId);
   });
 
   it("Should break the cluster into two runs when text and reasoning interleave", () => {

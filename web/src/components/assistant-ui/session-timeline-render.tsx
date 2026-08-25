@@ -94,12 +94,21 @@ function workToggleLabel(row: SessionWorkToggleRow): string {
 }
 
 // `.tmore` — bare-text overflow toggle above the visible live tail.
-function WorkToggleButton({ row, onToggle }: { row: SessionWorkToggleRow; onToggle: () => void }) {
+function WorkToggleButton({
+  row,
+  onToggle,
+  controlsId,
+}: {
+  row: SessionWorkToggleRow;
+  onToggle: () => void;
+  controlsId: string;
+}) {
   return (
     <button
       type="button"
       data-testid="work-toggle-row"
       aria-expanded={row.expanded}
+      aria-controls={controlsId}
       onClick={onToggle}
       className={cn(
         "ml-transcript-detail-indent inline-flex min-h-transcript-row w-fit items-center gap-1.5 rounded-xs px-1",
@@ -124,6 +133,7 @@ function SessionWorkSummaryRow({
   onToggle: () => void;
 }) {
   const first = row.entries[0];
+  const detailsId = `${row.groupId}:entries`;
   const leadIcon = createElement(
     getToolIcon(resolveRegisteredToolName(first?.toolName ?? "tool"), first?.args),
     { "aria-hidden": true, className: "size-3 shrink-0 text-subtle", strokeWidth: 1.8 }
@@ -133,16 +143,24 @@ function SessionWorkSummaryRow({
       <TranscriptDisclosure
         expanded={row.expanded}
         onToggle={onToggle}
+        aria-controls={detailsId}
         icon={leadIcon}
         label={<span data-testid="work-summary-label">{summary.label}</span>}
       />
-      {row.expanded ? (
-        <div data-testid="work-summary-entries" className="flex min-w-0 flex-col gap-0.5 pt-0.5">
-          {row.entries.map(tool => (
-            <SessionToolCallRow key={tool.id} message={toolMessageFromPart(tool)} turnSettled />
-          ))}
-        </div>
-      ) : null}
+      <div
+        id={detailsId}
+        data-testid="work-summary-entries"
+        hidden={!row.expanded}
+        aria-hidden={!row.expanded}
+        inert={!row.expanded}
+        className={row.expanded ? "flex min-w-0 flex-col gap-0.5 pt-0.5" : undefined}
+      >
+        {row.expanded
+          ? row.entries.map(tool => (
+              <SessionToolCallRow key={tool.id} message={toolMessageFromPart(tool)} turnSettled />
+            ))
+          : null}
+      </div>
     </div>
   );
 }
@@ -159,8 +177,9 @@ function SessionWorkRowView({ row }: { row: SessionWorkRow }) {
     );
   }
   const tools = visibleWorkEntries(row);
+  const detailsId = row.grouped ? `${row.groupId}:entries` : undefined;
   return (
-    <div data-testid="work-row" className="flex min-w-0 flex-col gap-0.5">
+    <div id={detailsId} data-testid="work-row" className="flex min-w-0 flex-col gap-0.5">
       {tools.map(tool => (
         <SessionToolCallRow
           key={tool.id}
@@ -174,9 +193,11 @@ function SessionWorkRowView({ row }: { row: SessionWorkRow }) {
 
 function SessionWorkToggleRowView({ row }: { row: SessionWorkToggleRow }) {
   const store = useTimelineRowContext();
+  const detailsId = `${row.groupId}:entries`;
   return (
     <WorkToggleButton
       row={row}
+      controlsId={detailsId}
       onToggle={() => toggleTimelineExpansion(store, "work-group", row.groupId)}
     />
   );
@@ -198,6 +219,7 @@ function SessionChangedFilesRowContent({ row }: { row: SessionChangedFilesRow })
 function SessionTurnFoldRowView({ row }: { row: SessionTurnFoldRow }) {
   const store = useTimelineRowContext();
   const turnId = row.turnId ?? row.id;
+  const detailsId = `turn-fold:${turnId}:entries`;
   const expanded = useSelector(store, state => state.context.expandedTurns.has(turnId));
   if (row.interrupted) {
     return (
@@ -222,13 +244,20 @@ function SessionTurnFoldRowView({ row }: { row: SessionTurnFoldRow }) {
         data-testid="turn-fold-row"
         expanded={expanded}
         onToggle={() => toggleTimelineExpansion(store, "turn", turnId)}
+        aria-controls={detailsId}
         icon={null}
         label={row.label}
         variant="turn"
       />
-      {expanded ? (
-        <div className="flex min-w-0 flex-col gap-0.5 pt-1">{renderTimelineRows(row.rows)}</div>
-      ) : null}
+      <div
+        id={detailsId}
+        hidden={!expanded}
+        aria-hidden={!expanded}
+        inert={!expanded}
+        className={expanded ? "flex min-w-0 flex-col gap-0.5 pt-1" : undefined}
+      >
+        {expanded ? renderTimelineRows(row.rows) : null}
+      </div>
     </div>
   );
 }

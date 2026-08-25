@@ -13,6 +13,7 @@
 // `./session-row-equality`; the run summarizer in `./session-timeline-summary`.
 
 import { foldSettledTurns } from "./session-timeline-fold";
+import { workGroupId, type SessionWorkGroupAnchor } from "./session-timeline-group-identity";
 import { markerClusterKey } from "./session-timeline-markers";
 import {
   MIN_COLLAPSIBLE_TOOL_GROUP_SIZE,
@@ -182,10 +183,12 @@ export interface DeriveSessionRowsOptions {
   activeTurnId?: string;
   interruptedTurnIds?: ReadonlySet<string>;
   expandedWorkGroupIds?: ReadonlySet<string>;
+  workGroupAnchors?: ReadonlyMap<string, SessionWorkGroupAnchor>;
   expandedTurnIds?: ReadonlySet<string>;
   expandedChangedFilesIds?: ReadonlySet<string>;
   foldSettledTurns?: boolean;
 }
+export type { SessionWorkGroupAnchor } from "./session-timeline-group-identity";
 
 const ACTIVE_WORK_VISIBLE_LIMIT = 4;
 
@@ -210,6 +213,7 @@ function deriveBaseRows(
   options: DeriveSessionRowsOptions
 ): SessionRow[] {
   const rows: SessionRow[] = [];
+  const usedWorkGroupIds = new Set<string>();
   const liveTailStartId = findLiveTailClusterStart(parts, options.activeTurnId);
   let toolCluster: SessionTimelineToolPart[] = [];
   let reasoningCluster: SessionTimelineReasoningPart[] = [];
@@ -218,7 +222,7 @@ function deriveBaseRows(
 
   const flushToolCluster = () => {
     if (toolCluster.length === 0) return;
-    rows.push(...workRowsFromCluster(toolCluster, options, liveTailStartId));
+    rows.push(...workRowsFromCluster(toolCluster, options, liveTailStartId, usedWorkGroupIds));
     toolCluster = [];
   };
 
@@ -347,29 +351,30 @@ function findLiveTailClusterStart(
   return hasRunning || activeTurn ? (cluster[0]?.id ?? null) : null;
 }
 
-function workGroupId(first: SessionTimelineToolPart): string {
-  return `work:${first.turnId ?? "none"}:${first.id}`;
-}
-
 function workRowsFromCluster(
   tools: SessionTimelineToolPart[],
   options: DeriveSessionRowsOptions,
-  liveTailStartId: string | null
+  liveTailStartId: string | null,
+  usedGroupIds: Set<string>
 ): SessionRow[] {
   const first = tools[0];
   if (!first) return [];
   const live = first.id === liveTailStartId || tools.some(tool => tool.status === "running");
-  return live ? liveWorkRows(tools, options) : settledWorkRows(tools, options);
+  return live
+    ? liveWorkRows(tools, options, usedGroupIds)
+    : settledWorkRows(tools, options, usedGroupIds);
 }
 
 // The live tail: one open run, the newest ACTIVE_WORK_VISIBLE_LIMIT rows
 // visible, a "+N previous tool calls" toggle above them when the run overflows.
 function liveWorkRows(
   tools: SessionTimelineToolPart[],
-  options: DeriveSessionRowsOptions
+  options: DeriveSessionRowsOptions,
+  usedGroupIds: Set<string>
 ): SessionRow[] {
   const first = tools[0]!;
-  const groupId = workGroupId(first);
+  const groupId = workGroupId(tools, { ...options, usedGroupIds });
+  usedGroupIds.add(groupId);
   const grouped = tools.length > ACTIVE_WORK_VISIBLE_LIMIT;
   const expanded = grouped ? (options.expandedWorkGroupIds?.has(groupId) ?? false) : false;
   const workRow: SessionWorkRow = {
@@ -407,7 +412,8 @@ function liveWorkRows(
 // between them) stay individually visible — a summary never hides a failure.
 function settledWorkRows(
   tools: SessionTimelineToolPart[],
-  options: DeriveSessionRowsOptions
+  options: DeriveSessionRowsOptions,
+  usedGroupIds: Set<string>
 ): SessionRow[] {
   const chunks: { summarizable: boolean; entries: SessionTimelineToolPart[] }[] = [];
   for (const tool of tools) {
@@ -424,17 +430,19 @@ function settledWorkRows(
       chunk.summarizable && chunk.entries.length >= MIN_COLLAPSIBLE_TOOL_GROUP_SIZE
         ? summarizeToolGroup(chunk.entries)
         : null;
-    return settledWorkRow(chunk.entries, summary, options);
+    const groupId = workGroupId(chunk.entries, { ...options, usedGroupIds });
+    usedGroupIds.add(groupId);
+    return settledWorkRow(chunk.entries, summary, groupId, options);
   });
 }
 
 function settledWorkRow(
   entries: SessionTimelineToolPart[],
   summary: SessionToolGroupSummary | null,
+  groupId: string,
   options: DeriveSessionRowsOptions
 ): SessionWorkRow {
   const first = entries[0]!;
-  const groupId = workGroupId(first);
   return {
     kind: "work",
     id: groupId,

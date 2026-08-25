@@ -1242,13 +1242,20 @@ describe("SessionThread transcript states", () => {
 
     const toggle = screen.getByRole("button", { name: /Read 8 files/ });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
+    const detailsId = toggle.getAttribute("aria-controls");
+    expect(detailsId).toBeTruthy();
+    const details = document.getElementById(detailsId ?? "");
+    expect(details).toBeInTheDocument();
+    expect(details).toHaveAttribute("hidden");
     await user.click(toggle);
 
     expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(details).not.toHaveAttribute("hidden");
     expect(await screen.findByText(/\/tmp\/file-1\.ts/)).toBeInTheDocument();
     expect(screen.getAllByTestId("tool-call-row")).toHaveLength(8);
 
-    await user.click(toggle);
+    toggle.focus();
+    await user.keyboard("{Enter}");
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryAllByTestId("tool-call-row")).toHaveLength(0);
     expect(screen.queryByText(/\/tmp\/file-1\.ts/)).not.toBeInTheDocument();
@@ -1551,7 +1558,7 @@ describe("SessionThread transcript states", () => {
     expect(within(rollup).getByText("Edited 2 files")).toBeInTheDocument();
     const toggle = within(rollup).getByRole("button", { name: /Edited 2 files/ });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByTestId("changed-files-list")).not.toBeInTheDocument();
+    expect(screen.getByTestId("changed-files-list")).toHaveAttribute("hidden");
 
     await user.click(toggle);
 
@@ -1842,6 +1849,48 @@ describe("SessionThread transcript states", () => {
     expect(timer.textContent).toMatch(/^\d+s$/);
   });
 
+  it("Should keep a settled tool tail live when the message id differs from its part turn id", async () => {
+    const transcript = [
+      {
+        id: "assistant-live-tools",
+        role: "assistant",
+        status: { type: "running" },
+        parts: [
+          {
+            type: "tool-Read",
+            toolCallId: "live-read-1",
+            state: "output-available",
+            turn_id: "turn-live-tools",
+            timestamp: "2026-07-07T12:00:00Z",
+            input: { file_path: "/tmp/live-1.ts" },
+            output: { type: "tool_result", title: "Read", raw: { content: "one" } },
+          },
+          {
+            type: "tool-Read",
+            toolCallId: "live-read-2",
+            state: "output-available",
+            turn_id: "turn-live-tools",
+            timestamp: "2026-07-07T12:00:01Z",
+            input: { file_path: "/tmp/live-2.ts" },
+            output: { type: "tool_result", title: "Read", raw: { content: "two" } },
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({
+      status: "success",
+      messages: toReadonlyThreadMessages(transcript),
+      isSessionRunning: true,
+    });
+
+    const workRow = await screen.findByTestId("work-row");
+    expect(workRow).toBeInTheDocument();
+    expect(workRow.querySelectorAll('[data-testid="tool-call-row"]')).toHaveLength(2);
+    expect(screen.queryByTestId("work-summary-label")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("session-working-row")).toHaveLength(1);
+  });
+
   it("Should degrade the working row to a static label under prefers-reduced-motion with no animation classes", async () => {
     const originalMatchMedia = window.matchMedia;
     window.matchMedia = ((query: string) => ({
@@ -2029,6 +2078,73 @@ describe("SessionThread transcript states", () => {
 
     expect(await screen.findByText(/\/tmp\/anchor-1\.ts/)).toBeInTheDocument();
     expect(viewport.scrollTop).toBe(300);
+  });
+
+  it("Should preserve a work disclosure node and focus when a lower-sorting call arrives", async () => {
+    const user = userEvent.setup();
+    const queryClient = createQueryClient();
+    const toolPart = (toolCallId: string, index: number) => ({
+      type: "tool-Read",
+      toolCallId,
+      state: "output-available",
+      turn_id: "turn-anchor-stable",
+      timestamp: `2026-07-07T12:00:0${index}Z`,
+      input: { file_path: `/tmp/stable-${toolCallId}.ts` },
+      output: { type: "tool_result", title: "Read", raw: { content: toolCallId } },
+    });
+    const initialMessages = toReadonlyThreadMessages([
+      {
+        id: "assistant-anchor-stable",
+        role: "assistant",
+        parts: ["b", "c", "d", "e", "f"].map((id, index) => toolPart(id, index)),
+      } as SessionMessage,
+    ]);
+    const grownMessages = toReadonlyThreadMessages([
+      {
+        id: "assistant-anchor-stable",
+        role: "assistant",
+        parts: ["a", "b", "c", "d", "e", "f"].map((id, index) => toolPart(id, index)),
+      } as SessionMessage,
+    ]);
+    const tree = (messages: readonly ThreadMessage[]) => (
+      <QueryClientProvider client={queryClient}>
+        <SessionChatRuntimeProvider
+          sessionId={primarySessionFixture.id}
+          workspaceId={fixtureWorkspaceId()}
+        >
+          <SessionTranscriptThreadProvider
+            messages={messages}
+            status="success"
+            error={null}
+            retry={() => {}}
+          >
+            <SessionThread
+              sessionId={primarySessionFixture.id}
+              agentName={primarySessionFixture.agent_name}
+              canPrompt
+              onCancelPrompt={() => {}}
+              isSessionRunning={false}
+            />
+          </SessionTranscriptThreadProvider>
+        </SessionChatRuntimeProvider>
+      </QueryClientProvider>
+    );
+
+    const view = render(tree(initialMessages));
+    const initialButton = await screen.findByRole("button", { name: "Read 5 files" });
+    initialButton.focus();
+    await user.click(initialButton);
+    expect(initialButton).toHaveAttribute("aria-expanded", "true");
+
+    view.rerender(tree(grownMessages));
+
+    const grownButton = await screen.findByRole("button", { name: "Read 6 files" });
+    expect(grownButton).toBe(initialButton);
+    expect(grownButton).toHaveAttribute("aria-expanded", "true");
+    grownButton.focus();
+    await user.keyboard("{Enter}");
+    expect(grownButton).toHaveAttribute("aria-expanded", "false");
+    expect(document.activeElement).toBe(grownButton);
   });
 });
 
