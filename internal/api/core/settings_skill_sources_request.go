@@ -31,8 +31,12 @@ func decodeSettingsSkillsUpdate(
 		return nil, nil, fmt.Errorf("decode skills settings request: %w", err)
 	}
 
-	if scope == settingspkg.ScopeWorkspace {
-		override, err := decodeWorkspaceSkillSourcesOverride(raw)
+	// The workspace lane is override-only; the exact-profile lane accepts either shape — a full
+	// config body or the same presence-aware override the settings service already handles for it
+	// (internal/settings.updateSkillsSection). User scope stays config-only.
+	if _, hasOverride := raw["override"]; scope == settingspkg.ScopeWorkspace ||
+		(scope == settingspkg.ScopeProfile && hasOverride) {
+		override, err := decodeSkillSourcesOverride(raw)
 		return nil, override, err
 	}
 
@@ -52,9 +56,9 @@ func decodeSettingsSkillsUpdate(
 	return &payload, nil, nil
 }
 
-func decodeWorkspaceSkillSourcesOverride(raw map[string]json.RawMessage) (*settingspkg.SkillSourcesOverride, error) {
-	if forbidden := forbiddenWorkspaceSkillsField(raw); forbidden != "" {
-		return nil, workspaceSkillsFieldForbidden(forbidden)
+func decodeSkillSourcesOverride(raw map[string]json.RawMessage) (*settingspkg.SkillSourcesOverride, error) {
+	if forbidden := forbiddenScopedSkillsField(raw); forbidden != "" {
+		return nil, scopedSkillsFieldForbidden(forbidden)
 	}
 	overrideData, ok := raw["override"]
 	if !ok {
@@ -66,7 +70,7 @@ func decodeWorkspaceSkillSourcesOverride(raw map[string]json.RawMessage) (*setti
 	}
 	for field := range fields {
 		if field != "sources" && field != "custom_sources" {
-			return nil, workspaceSkillsFieldForbidden(field)
+			return nil, scopedSkillsFieldForbidden(field)
 		}
 	}
 	result := &settingspkg.SkillSourcesOverride{}
@@ -87,7 +91,7 @@ func decodeWorkspaceSkillSourcesOverride(raw map[string]json.RawMessage) (*setti
 	return result, nil
 }
 
-func forbiddenWorkspaceSkillsField(raw map[string]json.RawMessage) string {
+func forbiddenScopedSkillsField(raw map[string]json.RawMessage) string {
 	keys := make([]string, 0, len(raw))
 	for key := range raw {
 		if key != "override" {
@@ -145,10 +149,10 @@ func decodeStrictSettingsJSON(data []byte, target any) error {
 	return nil
 }
 
-func workspaceSkillsFieldForbidden(field string) error {
+func scopedSkillsFieldForbidden(field string) error {
 	return &compozyconfig.SkillSourceValidationError{
 		Code:    "workspace_scope_field_forbidden",
 		Field:   strings.TrimSpace(field),
-		Message: "only sources and custom_sources may be written at workspace scope",
+		Message: "only sources and custom_sources may be written at this scope",
 	}
 }

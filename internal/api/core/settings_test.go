@@ -2363,6 +2363,93 @@ func TestUpdateSettingsSkillsSourcePolicyShapes(t *testing.T) {
 		}
 	})
 
+	t.Run("Should decode the same list override states at exact-profile scope", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name       string
+			body       string
+			wantSource settingspkg.OptionalStringList
+			wantCustom settingspkg.OptionalStringList
+		}{
+			{name: "absent", body: `{"override":{"sources":["agents"]}}`, wantSource: settingspkg.OptionalStringList{Present: true, Value: []string{"agents"}}},
+			{name: "null", body: `{"override":{"sources":null}}`, wantSource: settingspkg.OptionalStringList{Present: true, Null: true}},
+			{name: "empty", body: `{"override":{"custom_sources":[]}}`, wantCustom: settingspkg.OptionalStringList{Present: true, Value: []string{}}},
+		}
+		for _, testCase := range tests {
+			t.Run("Should decode "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				service := &stubSettingsService{}
+				fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+				response := performRequest(
+					t, fixture.Engine, http.MethodPatch,
+					"/api/settings/skills?scope=profile&profile=helix",
+					[]byte(testCase.body),
+				)
+				if response.Code != http.StatusOK {
+					t.Fatalf("status = %d, want 200; body=%s", response.Code, response.Body.String())
+				}
+				override := service.LastUpdateSectionRequest.SkillSourcesOverride
+				if override == nil || !reflect.DeepEqual(override.Sources, testCase.wantSource) ||
+					!reflect.DeepEqual(override.CustomSources, testCase.wantCustom) {
+					t.Fatalf("profile override = %#v, want sources=%#v custom=%#v", override, testCase.wantSource, testCase.wantCustom)
+				}
+				if service.LastUpdateSectionRequest.ProfileName != "helix" {
+					t.Fatalf("profile name = %q, want helix", service.LastUpdateSectionRequest.ProfileName)
+				}
+			})
+		}
+	})
+
+	t.Run("Should still accept a full config body at exact-profile scope", func(t *testing.T) {
+		t.Parallel()
+
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		body := mustJSON(t, contract.UpdateSettingsSkillsRequest{
+			Config: contract.SettingsSkillsConfigPayload{
+				Enabled: true, Sources: []string{"agents"}, CustomSources: []string{}, PollInterval: "1m",
+				Marketplace: contract.SettingsMarketplacePayload{Registry: "clawhub"},
+			},
+		})
+		response := performRequest(
+			t, fixture.Engine, http.MethodPatch, "/api/settings/skills?scope=profile&profile=helix", body,
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", response.Code, response.Body.String())
+		}
+		if service.LastUpdateSectionRequest.SkillSourcesOverride != nil {
+			t.Fatalf("override = %#v, want nil for a config body", service.LastUpdateSectionRequest.SkillSourcesOverride)
+		}
+		if service.LastUpdateSectionRequest.Skills == nil {
+			t.Fatal("skills config = nil, want the decoded config payload")
+		}
+	})
+
+	t.Run("Should reject a forbidden override field at exact-profile scope", func(t *testing.T) {
+		t.Parallel()
+
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		response := performRequest(
+			t, fixture.Engine, http.MethodPatch,
+			"/api/settings/skills?scope=profile&profile=helix",
+			[]byte(`{"override":{"poll_interval":"5s"}}`),
+		)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400; body=%s", response.Code, response.Body.String())
+		}
+		var payload contract.SkillSourceValidationErrorResponse
+		decodeJSON(t, response.Body.Bytes(), &payload)
+		if payload.Error.Code != "workspace_scope_field_forbidden" || payload.Error.Field != "poll_interval" {
+			t.Fatalf("profile policy error = %#v", payload)
+		}
+		if service.ApplySectionCalls != 0 {
+			t.Fatalf("ApplySectionCalls = %d, want 0", service.ApplySectionCalls)
+		}
+	})
+
 	t.Run("Should reject forbidden workspace fields with the portable policy error", func(t *testing.T) {
 		t.Parallel()
 
