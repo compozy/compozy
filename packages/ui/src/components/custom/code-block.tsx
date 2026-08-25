@@ -2,6 +2,7 @@
 
 import { AlertTriangleIcon, CheckIcon, CopyIcon } from "lucide-react";
 import * as React from "react";
+import { toast } from "sonner";
 
 import type { CodeBlockThemeMode } from "../../lib/code-theme";
 import type { HighlightedCodeToken } from "../../lib/shiki-highlighter";
@@ -33,7 +34,9 @@ export type CodeBlockDensity = "default" | "compact";
 
 export interface CopyIconButtonProps extends Omit<React.ComponentProps<typeof Button>, "children"> {
   copiedLabel?: string;
+  copiedToastLabel?: string;
   copyFailedLabel?: string;
+  copyFailedToastLabel?: string;
   copyLabel?: string;
   value: string;
 }
@@ -42,6 +45,23 @@ type CopyState = "idle" | "copied" | "failed";
 
 const COPY_FEEDBACK_MS = 1500;
 const EMPTY_LINE = "\u00A0";
+
+async function writeClipboard(value: string): Promise<boolean> {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+
+  try {
+    const clipboard = navigator.clipboard;
+    if (!clipboard || typeof clipboard.writeText !== "function") {
+      return false;
+    }
+    await clipboard.writeText(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Code block per DESIGN.md §4. Canvas-deep container, JetBrains Mono body on
@@ -190,7 +210,9 @@ function CodeBlock({
 function CopyIconButton({
   className,
   copiedLabel = "Copied",
+  copiedToastLabel = "Copied to clipboard",
   copyFailedLabel = "Copy failed",
+  copyFailedToastLabel = "Couldn't copy to clipboard",
   copyLabel = "Copy to clipboard",
   onClick,
   value,
@@ -219,17 +241,13 @@ function CopyIconButton({
   };
 
   const handleCopy = async () => {
-    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
-      setCopyState("failed");
-      scheduleReset();
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopyState("copied");
-    } catch {
-      setCopyState("failed");
+    const copied = await writeClipboard(value);
+    const nextState: CopyState = copied ? "copied" : "failed";
+    setCopyState(nextState);
+    if (copied) {
+      toast.success(copiedToastLabel);
+    } else {
+      toast.error(copyFailedToastLabel);
     }
     scheduleReset();
   };

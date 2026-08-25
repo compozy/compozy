@@ -432,6 +432,9 @@ describe("SessionThread transcript states", () => {
     attachmentUploadSequence = 0;
     resetSessionDebugTelemetry();
     vi.stubGlobal("fetch", createFetchMock());
+    vi.mocked(toast.error).mockClear();
+    vi.mocked(toast.success).mockClear();
+    vi.mocked(toast.warning).mockClear();
   });
 
   afterEach(() => {
@@ -979,6 +982,7 @@ describe("SessionThread transcript states", () => {
       await waitFor(() => {
         expect(writeText).toHaveBeenCalledWith("Flatten both.");
       });
+      expect(vi.mocked(toast.success)).toHaveBeenCalledWith("Message copied");
     } finally {
       if (clipboardDescriptor) {
         Object.defineProperty(navigator, "clipboard", clipboardDescriptor);
@@ -986,6 +990,87 @@ describe("SessionThread transcript states", () => {
         Reflect.deleteProperty(navigator as unknown as { clipboard?: unknown }, "clipboard");
       }
     }
+  });
+
+  it("Should keep the message action visible without hover and report clipboard rejection", async () => {
+    const writeText = vi
+      .fn<(value: string) => Promise<void>>()
+      .mockRejectedValue(new Error("blocked"));
+    const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    const transcript = [
+      {
+        id: "assistant-copy-rejected",
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            text: "The clipboard permission is blocked.",
+            state: "done",
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+    ];
+
+    try {
+      renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+      const toolbar = await screen.findByTestId("assistant-message-actions");
+      const copy = within(toolbar).getByTestId("assistant-message-actions-copy");
+      expect(toolbar).toBeVisible();
+      expect(copy).toBeVisible();
+      expect(toolbar).not.toHaveClass("opacity-0", "pointer-events-none");
+
+      fireEvent.click(copy);
+
+      await waitFor(() => {
+        expect(copy).toHaveAttribute("data-copy-state", "failed");
+        expect(copy).toHaveAttribute("aria-label", "Copy failed");
+        expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Couldn't copy message");
+      });
+    } finally {
+      if (clipboardDescriptor) {
+        Object.defineProperty(navigator, "clipboard", clipboardDescriptor);
+      } else {
+        Reflect.deleteProperty(navigator as unknown as { clipboard?: unknown }, "clipboard");
+      }
+    }
+  });
+
+  it("Should reserve a disabled copy row before a streaming answer has text", async () => {
+    const transcript = [
+      {
+        id: "assistant-streaming-reasoning",
+        role: "assistant",
+        parts: [
+          {
+            type: "reasoning",
+            text: "Checking the tool output before answering.",
+            state: "streaming",
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+      {
+        id: "assistant-settled-tool-only",
+        role: "assistant",
+        parts: [
+          {
+            type: "tool-Bash",
+            toolCallId: "tool-settled-only",
+            state: "output-available",
+            input: { command: "true" },
+            output: { type: "tool_result", title: "Bash", raw: { content: "ok" } },
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    const toolbar = await screen.findByTestId("assistant-message-actions");
+    const copy = within(toolbar).getByTestId("assistant-message-actions-copy");
+    expect(copy).toBeDisabled();
+    expect(screen.getAllByTestId("assistant-message-actions")).toHaveLength(1);
   });
 
   it.each([
@@ -1642,12 +1727,11 @@ describe("SessionThread transcript states", () => {
     expect(
       await screen.findByText("The launch note is ready and the checks are green.")
     ).toBeInTheDocument();
-    // Settled, incomplete, and persisted-failure text remain copyable. The
-    // streaming turn renders no toolbar.
+    // Settled, streaming, incomplete, and persisted-failure text remain copyable.
     const assistantToolbars = screen.getAllByTestId("assistant-message-actions");
-    expect(assistantToolbars).toHaveLength(5);
+    expect(assistantToolbars).toHaveLength(6);
     expect(screen.queryByRole("button", { name: "Use as Goal" })).not.toBeInTheDocument();
-    expect(screen.getAllByTestId("assistant-message-actions-copy")).toHaveLength(5);
+    expect(screen.getAllByTestId("assistant-message-actions-copy")).toHaveLength(6);
     const successfulToolbar = assistantToolbars[0]!;
     expect(
       within(successfulToolbar).getByTestId("assistant-message-actions-timestamp")
@@ -1693,6 +1777,7 @@ describe("SessionThread transcript states", () => {
       await waitFor(() => {
         expect(copy).toHaveAttribute("data-copied", "true");
       });
+      expect(vi.mocked(toast.success)).toHaveBeenCalledWith("Message copied");
       expect(copy.querySelector("svg.lucide-check")).not.toBeNull();
       expect(copy.querySelector("svg.lucide-copy")).toBeNull();
     } finally {
