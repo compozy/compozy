@@ -36,6 +36,7 @@ func newSessionCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSessionEventsCommand(deps))
 	cmd.AddCommand(newSessionHistoryCommand(deps))
 	cmd.AddCommand(newSessionRuntimeCommand(deps))
+	cmd.AddCommand(newSessionGoalCommand(deps))
 
 	return cmd
 }

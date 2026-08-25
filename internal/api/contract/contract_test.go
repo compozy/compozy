@@ -2246,6 +2246,64 @@ func TestNetworkPeerDetailPayloadJSONShape(t *testing.T) {
 	})
 }
 
+func TestSessionGoalCommandRequestValidationShouldKeepOperationsClosed(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		request contract.SessionGoalCommandRequest
+		wantErr bool
+	}{
+		{
+			name:    "Should accept set with objective",
+			request: contract.SessionGoalCommandRequest{Operation: contract.SessionGoalOperationSet, Objective: "Ship it"},
+		},
+		{
+			name: "Should accept replace with expected run and runtime",
+			request: contract.SessionGoalCommandRequest{
+				Operation: contract.SessionGoalOperationReplace, Objective: "Ship it",
+				ExpectedRunID: "run-1", Runtime: &contract.PromptRuntimeSelectionPayload{Provider: "cursor"},
+			},
+		},
+		{
+			name:    "Should accept status without mutation fields",
+			request: contract.SessionGoalCommandRequest{Operation: contract.SessionGoalOperationStatus},
+		},
+		{
+			name:    "Should reject set without objective",
+			request: contract.SessionGoalCommandRequest{Operation: contract.SessionGoalOperationSet},
+			wantErr: true,
+		},
+		{
+			name:    "Should reject replace without expected run",
+			request: contract.SessionGoalCommandRequest{Operation: contract.SessionGoalOperationReplace, Objective: "Ship it"},
+			wantErr: true,
+		},
+		{
+			name: "Should reject clear with runtime",
+			request: contract.SessionGoalCommandRequest{
+				Operation: contract.SessionGoalOperationClear,
+				Runtime:   &contract.PromptRuntimeSelectionPayload{Provider: "cursor"},
+			},
+			wantErr: true,
+		},
+		{
+			name:    "Should reject unknown operation",
+			request: contract.SessionGoalCommandRequest{Operation: "launch"},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := tt.request.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("Validate() error = %v, wantErr %t", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func marshalJSON[T any](t *testing.T, value any, target *T) {
 	t.Helper()
 

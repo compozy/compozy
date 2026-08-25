@@ -37,6 +37,7 @@ type PreparePromptRequest struct {
 	ContextUsageSequence *int64
 	ContextUsageUsed     *int64
 	Message              string
+	Runtime              loop.RuntimeSpec
 	PreparedAt           time.Time
 }
 

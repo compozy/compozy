@@ -282,6 +282,15 @@ func decodeGoalCommandResult(body []byte) (contract.GoalCommandResult, bool) {
 	return *response.Prompt.Goal, true
 }
 
+func parseGoalCommandAPIError(statusCode int, status string, body []byte) (bool, error) {
+	var result contract.GoalCommandResult
+	if len(body) == 0 || json.Unmarshal(body, &result) != nil || result.Outcome != contract.GoalOutcomeError ||
+		result.ReasonCode == nil {
+		return false, nil
+	}
+	return true, &goalCommandAPIError{statusCode: statusCode, status: status, result: result}
+}
+
 func marshalGoalCommandExecutionError(args []string, goalErr *goalCommandAPIError) ([]byte, bool) {
 	if goalErr == nil {
 		return nil, false

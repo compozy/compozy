@@ -181,6 +181,12 @@ cannot be validated fail closed.
     compozy session clarify answer <session-id> <request-id> --choice 1 -o json
     compozy session clarify answer <session-id> <request-id> --text "Use staging" -o json
     compozy session prompt-cancel <session-id> -o json
+    compozy session goal set <session-id> "Ship the scoped objective" --provider codex --model gpt-5.6-sol -o json
+    compozy session goal replace <session-id> "Ship the revised objective" --expected-run-id <run-id> -o json
+    compozy session goal status <session-id> -o json
+    compozy session goal pause <session-id> -o json
+    compozy session goal resume <session-id> -o json
+    compozy session goal clear <session-id> -o json
     compozy session wait <session-id>
 
 `compozy session new` is promptless and accepts no runtime selection. It returns the durable active,

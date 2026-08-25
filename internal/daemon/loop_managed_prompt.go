@@ -64,6 +64,7 @@ func (b *loopActionSessionBinder) PrepareActionPrompt(
 		ContextUsageSequence: req.ContextUsageSequence,
 		ContextUsageUsed:     req.ContextUsageUsed,
 		Message:              req.Message,
+		Runtime:              binding.AppliedRuntime,
 		PreparedAt:           b.promptNow(),
 	})
 	if err != nil {

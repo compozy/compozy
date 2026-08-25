@@ -115,6 +115,7 @@ export {
   fetchSessionHistory,
   fetchSessionInputs,
   fetchSessionGoal,
+  mutateSessionGoal,
   fetchSessionLedger,
   fetchSessionRecap,
   fetchSessionUsage,

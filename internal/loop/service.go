@@ -132,6 +132,7 @@ func (s *service) DryRun(
 		inputs.NetworkParticipation,
 		inputs.NetworkParticipationSource,
 		resolved.Definition.NetworkParticipation,
+		inputs.NetworkParticipationSnapshot,
 	)
 	if err != nil {
 		return nil, err

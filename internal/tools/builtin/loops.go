@@ -291,7 +291,7 @@ var loopTools = []toolspkg.Descriptor{
 }
 
 func loopDescriptors() []toolspkg.Descriptor {
-	descriptors := append([]toolspkg.Descriptor(nil), loopTools...)
+	descriptors := append([]toolspkg.Descriptor{goalControlDescriptor}, loopTools...)
 	descriptors = append(descriptors, loopRequestTools...)
 	return append(descriptors, loopTimeTravelTools...)
 }

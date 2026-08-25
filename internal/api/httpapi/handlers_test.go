@@ -240,6 +240,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/events",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/commands",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/goal",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/goal",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/health",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/history",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/inspect",

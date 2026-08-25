@@ -36,6 +36,7 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 			BindingHandle:        "goal:runtime",
 			BindingEpoch:         1,
 			Message:              "Advance the durable Goal",
+			Runtime:              looppkg.RuntimeSpec{Provider: "cursor", Model: "grok-4.5", Reasoning: "high", Speed: "fast"},
 			PreparedAt:           now,
 		}
 		first, err := globalDB.PrepareGoalPrompt(ctx, firstRequest)
@@ -74,6 +75,14 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 		}
 		if checkpoint.PromptID != first.PromptID || checkpoint.QueueEntryID != first.QueueEntryID {
 			t.Fatalf("prepared checkpoint = %#v, want first ticket", checkpoint)
+		}
+		entry, err := globalDB.GetSessionInputQueueEntryByID(ctx, first.QueueEntryID)
+		if err != nil {
+			t.Fatalf("GetSessionInputQueueEntryByID() error = %v", err)
+		}
+		if entry.Runtime.Provider != "cursor" || entry.Runtime.Model != "grok-4.5" ||
+			entry.Runtime.ReasoningEffort != "high" || entry.Runtime.Speed != "fast" {
+			t.Fatalf("prepared runtime = %#v, want exact worker selection", entry.Runtime)
 		}
 	})
 

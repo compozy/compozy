@@ -203,6 +203,7 @@ func (s *service) prepareResolvedStart(
 		inputs.NetworkParticipation,
 		inputs.NetworkParticipationSource,
 		resolved.Definition.NetworkParticipation,
+		inputs.NetworkParticipationSnapshot,
 	)
 	if err != nil {
 		return Run{}, err

@@ -170,11 +170,13 @@ describe("SessionGoalHeader", () => {
   let visibleGoal: SessionGoalSnapshot | null;
   let goalReads: number;
   let commands: string[];
+  let operations: string[];
 
   beforeEach(() => {
     visibleGoal = snapshot();
     goalReads = 0;
     commands = [];
+    operations = [];
     FakeEventSource.latest = null;
     resetGatewayStreamAuth();
     sessionStore.trigger.sessionInteractionRemoved({ sessionId: SESSION_ID });
@@ -185,6 +187,28 @@ describe("SessionGoalHeader", () => {
         const pathname = path(input);
         if (pathname.endsWith("/api/status")) {
           return Response.json({}, { headers: { "X-Compozy-Gateway-Tier": "local" } });
+        }
+        if (
+          pathname.endsWith(`/sessions/${SESSION_ID}/goal`) &&
+          (init?.method ?? (input instanceof Request ? input.method : "GET")) === "POST"
+        ) {
+          const body = await requestBody(input, init);
+          const operation = typeof body.operation === "string" ? body.operation : "";
+          operations.push(operation);
+          if (operation === "pause") {
+            visibleGoal = snapshot({ status: "paused", run_status: "paused" });
+          }
+          if (operation === "clear") {
+            visibleGoal = null;
+          }
+          const outcome =
+            operation === "pause" ? "paused" : operation === "clear" ? "cleared" : "status";
+          return Response.json({
+            outcome,
+            reason_code: null,
+            replaced_run_id: null,
+            snapshot: visibleGoal,
+          } satisfies SessionGoalCommandResult);
         }
         if (pathname.endsWith(`/sessions/${SESSION_ID}/goal`)) {
           goalReads += 1;
@@ -265,7 +289,8 @@ describe("SessionGoalHeader", () => {
     // The one gated head action pauses the goal; the strip reflects the change
     // and the head action flips to Resume (never two actions at once).
     fireEvent.click(screen.getByTestId("goal-head-pause"));
-    await waitFor(() => expect(commands).toContain("/goal pause"));
+    await waitFor(() => expect(operations).toContain("pause"));
+    expect(commands).not.toContain("/goal pause");
     await waitFor(() =>
       expect(screen.getByRole("region", { name: "Goal status" })).toHaveAttribute(
         "data-goal-status",
@@ -284,7 +309,8 @@ describe("SessionGoalHeader", () => {
     expect(screen.queryByTestId("goal-head-pause")).not.toBeInTheDocument();
     fireEvent.click(clear);
 
-    await waitFor(() => expect(commands).toContain("/goal clear"));
+    await waitFor(() => expect(operations).toContain("clear"));
+    expect(commands).not.toContain("/goal clear");
     await waitFor(() =>
       expect(screen.queryByTestId("session-goal-header")).not.toBeInTheDocument()
     );

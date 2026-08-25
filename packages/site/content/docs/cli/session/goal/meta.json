@@ -1,0 +1,4 @@
+{
+    "title": "Goal",
+    "pages": ["index", "clear", "pause", "replace", "resume", "set", "status"]
+}

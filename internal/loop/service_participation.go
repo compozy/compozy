@@ -16,7 +16,21 @@ func (s *service) resolveRunParticipation(
 	request *participation.Request,
 	requestSource participation.Source,
 	definition *participation.Request,
+	snapshot *participation.Spec,
 ) (participation.Spec, error) {
+	if snapshot != nil {
+		if err := participation.ValidateSpec(*snapshot); err != nil {
+			return participation.Spec{}, fmt.Errorf("%w: trusted network participation snapshot: %w", ErrValidation, err)
+		}
+		if strings.TrimSpace(snapshot.WorkspaceID) != "" &&
+			strings.TrimSpace(snapshot.WorkspaceID) != strings.TrimSpace(string(workspaceID)) {
+			return participation.Spec{}, fmt.Errorf(
+				"%w: network participation workspace differs from the Loop workspace",
+				ErrValidation,
+			)
+		}
+		return *participation.CloneSpec(*snapshot), nil
+	}
 	if s == nil || s.participationResolver == nil {
 		if hasParticipationIntent(request) || hasParticipationIntent(definition) {
 			return participation.Spec{}, fmt.Errorf(

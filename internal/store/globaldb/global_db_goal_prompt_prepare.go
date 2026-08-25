@@ -144,6 +144,10 @@ func insertPreparedGoalPrompt(
 		BindingEpoch: goalNullableInt64(&req.BindingEpoch), PromptID: goalNullableString(req.PromptID),
 		PromptKind: goalNullableString(req.PromptKind), PromptAttempt: int64(req.PromptAttempt),
 		OperationUsageBaseTokens: usageBase,
+		RuntimeProvider:          strings.TrimSpace(req.Runtime.Provider),
+		RuntimeModel:             strings.TrimSpace(req.Runtime.Model),
+		RuntimeReasoningEffort:   strings.TrimSpace(req.Runtime.Reasoning),
+		RuntimeSpeed:             strings.TrimSpace(string(req.Runtime.Speed)),
 	})
 	if err != nil {
 		return fmt.Errorf("store: insert prepared Goal prompt: %w", err)

@@ -59,6 +59,10 @@ const GOAL_COMMAND_FAILURE_GUIDANCE = {
     "The Goal session identity changed during creation. Retry from the active session.",
   continuous_binding_mismatch:
     "The Goal session binding no longer matches. Refresh status and rebind before retrying.",
+  goal_runtime_invalid:
+    "The selected Goal runtime is invalid. Check the provider, model, and speed, then retry.",
+  goal_caller_unauthorized:
+    "This session cannot control the target Goal. Use the owning session or an authorized child.",
 } satisfies Record<GoalCommandFailureReason, string>;
 
 function isGoalCommandFailureReason(value: unknown): value is GoalCommandFailureReason {

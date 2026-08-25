@@ -35,14 +35,14 @@ journey:
   entry_points:
     - url: "HTTP and UDS session prompt, Goal snapshot, turn, and Run-list routes"
       origin: external-share
-    - url: "CLI: compozy session prompt; compozy loop turns; compozy loop runs"
+    - url: "CLI: compozy session goal; compozy session prompt; compozy loop turns; compozy loop runs"
       origin: direct
-    - url: "native: compozy__goal_get, compozy__goal_report, compozy__loop_turns"
+    - url: "native: compozy__goal_get, compozy__goal_control, compozy__goal_report, compozy__loop_turns"
       origin: direct
   actions:
     - step: 1
-      verb: "Run the same Goal operation across HTTP, UDS, CLI, and native tools"
-      expected_observable: "Statuses, content types, reason codes, cursors, nullability, and JSON/JSONL meaning agree."
+      verb: "Run the same typed Goal operation across HTTP, UDS, CLI, and native tools"
+      expected_observable: "Statuses, content types, reason codes, cursors, nullability, and JSON/JSONL meaning agree; an agent may target only its own session or an authorized descendant."
     - step: 2
       verb: "Send literal /goal text from every non-operator internal source"
       expected_observable: "Automation, network, extension, binder, and synthetic prompts do not invoke Goal dispatch."
@@ -71,5 +71,5 @@ e2e_backbone:
   runtime: ["_tests.md runtime cases 8 and 10 plus Task 04 Goal E2E and restart matrix"]
   web: ["_tests.md E2E-web 1, 9, and 10 as an adjacent canary"]
   integration: ["_tests.md integration 4, 6, 8-11, 15, 18, and 21-27"]
-  scenarios: [GL-025, GL-026, GL-027, GL-028, GL-029, GL-030, GL-031, GL-032, GL-034, GL-036, GL-037, GL-039]
+  scenarios: [GL-025, GL-026, GL-027, GL-028, GL-029, GL-030, GL-031, GL-032, GL-034, GL-036, GL-037, GL-039, GL-agent-session-control]
 ```

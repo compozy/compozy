@@ -56,6 +56,7 @@ func (m *Manager) dispatchGoalCommand(
 	if handler == nil {
 		return GoalDispatchDecision{}, true, errors.New("session: Goal command handler is unavailable")
 	}
+	command.Runtime = cloneRuntimeSelection(req.runtime)
 	decision, err := handler.Handle(ctx, workspaceID, req.target, opts.Caller, command)
 	if err != nil {
 		return GoalDispatchDecision{}, true, err

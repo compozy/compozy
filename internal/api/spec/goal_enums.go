@@ -7,6 +7,7 @@ import (
 )
 
 func withGoalSchemaEnumValues(values map[reflect.Type][]string) map[reflect.Type][]string {
+	values[reflect.TypeFor[contract.SessionGoalOperation]()] = contract.SessionGoalOperationValues()
 	values[reflect.TypeFor[contract.GoalCommandOutcome]()] = contract.GoalCommandOutcomeValues()
 	values[reflect.TypeFor[contract.GoalStatus]()] = contract.GoalStatusValues()
 	values[reflect.TypeFor[contract.GoalTurnResultStatus]()] = contract.GoalTurnResultStatusValues()

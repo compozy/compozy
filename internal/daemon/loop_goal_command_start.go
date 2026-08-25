@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"strings"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -17,6 +19,7 @@ func (s *daemonLoopAPIService) startSessionGoal(
 	workspaceID string,
 	sessionID string,
 	objective string,
+	runtime *looppkg.RuntimeSpec,
 	actor taskpkg.ActorContext,
 ) (session.GoalDispatchDecision, error) {
 	contract, err := session.ParseGoalObjective(objective)
@@ -31,6 +34,10 @@ func (s *daemonLoopAPIService) startSessionGoal(
 	if err != nil || decision.Result != nil {
 		return decision, err
 	}
+	runtime, err = s.resolveGoalRuntime(ctx, workspaceID, runtime, prepared.originProvider, prepared.originModel)
+	if err != nil {
+		return s.commandErrorDecision(ctx, workspaceID, sessionID, err)
+	}
 	definition := buildSessionGoalDefinition(
 		contract,
 		prepared.agentName,
@@ -41,7 +48,7 @@ func (s *daemonLoopAPIService) startSessionGoal(
 		ctx,
 		looppkg.WorkspaceID(strings.TrimSpace(workspaceID)),
 		definition,
-		looppkg.Inputs{ProfileID: prepared.profileID},
+		goalStartInputs(prepared.profileID, runtime, prepared.network),
 		prepared.origin,
 		actor,
 	)
@@ -61,6 +68,7 @@ func (s *daemonLoopAPIService) replaceSessionGoal(
 	sessionID string,
 	expectedRunID string,
 	objective string,
+	runtime *looppkg.RuntimeSpec,
 	actor taskpkg.ActorContext,
 ) (session.GoalDispatchDecision, error) {
 	contract, err := session.ParseGoalObjective(objective)
@@ -75,6 +83,10 @@ func (s *daemonLoopAPIService) replaceSessionGoal(
 	if err != nil || decision.Result != nil {
 		return decision, err
 	}
+	runtime, err = s.resolveGoalRuntime(ctx, workspaceID, runtime, prepared.originProvider, prepared.originModel)
+	if err != nil {
+		return s.commandErrorDecision(ctx, workspaceID, sessionID, err)
+	}
 	definition := buildSessionGoalDefinition(
 		contract,
 		prepared.agentName,
@@ -86,7 +98,7 @@ func (s *daemonLoopAPIService) replaceSessionGoal(
 		looppkg.RunID(strings.TrimSpace(expectedRunID)),
 		looppkg.WorkspaceID(strings.TrimSpace(workspaceID)),
 		definition,
-		looppkg.Inputs{ProfileID: prepared.profileID},
+		goalStartInputs(prepared.profileID, runtime, prepared.network),
 		prepared.origin,
 		actor,
 	)
@@ -105,17 +117,21 @@ func (s *daemonLoopAPIService) replaceSessionGoal(
 }
 
 type sessionGoalDefinitionInput struct {
-	origin     looppkg.RunOrigin
-	profileID  string
-	agentName  string
-	judgeModel string
-	maxTurns   int
+	origin         looppkg.RunOrigin
+	profileID      string
+	originProvider string
+	originModel    string
+	agentName      string
+	judgeModel     string
+	maxTurns       int
+	network        participation.Spec
 }
 
 type sessionGoalOriginDetails struct {
 	origin      looppkg.RunOrigin
 	profile     store.SessionCreationProfile
 	activeModel string
+	network     participation.Spec
 }
 
 func (s *daemonLoopAPIService) prepareSessionGoalDefinition(
@@ -148,12 +164,73 @@ func (s *daemonLoopAPIService) prepareSessionGoalDefinition(
 		judgeModel = strings.TrimSpace(details.activeModel)
 	}
 	return sessionGoalDefinitionInput{
-		origin:     details.origin,
-		profileID:  details.profile.ProfileID,
-		agentName:  details.profile.AgentName,
-		judgeModel: judgeModel,
-		maxTurns:   cfg.Goals.MaxTurns,
+		origin:         details.origin,
+		profileID:      details.profile.ProfileID,
+		originProvider: details.profile.Provider,
+		originModel:    strings.TrimSpace(firstNonEmptyGoalRuntime(details.profile.Model, details.activeModel)),
+		agentName:      details.profile.AgentName,
+		judgeModel:     judgeModel,
+		maxTurns:       cfg.Goals.MaxTurns,
+		network:        details.network,
 	}, session.GoalDispatchDecision{}, nil
+}
+
+func firstNonEmptyGoalRuntime(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func (s *daemonLoopAPIService) resolveGoalRuntime(
+	ctx context.Context,
+	workspaceID string,
+	runtime *looppkg.RuntimeSpec,
+	originProvider string,
+	originModel string,
+) (*looppkg.RuntimeSpec, error) {
+	if runtime == nil {
+		return nil, nil
+	}
+	resolved := *runtime
+	provider := compozyconfig.CanonicalProviderName(resolved.Provider)
+	if provider == "" {
+		return nil, looppkg.NewRuntimeValidationError(looppkg.RuntimeValidationItem{
+			Field: "provider", Value: resolved.Provider, Reason: "required",
+		})
+	}
+	cfg, err := resolveLoopServiceConfig(
+		ctx,
+		s.homePaths,
+		s.workspaceResolver,
+		looppkg.WorkspaceID(strings.TrimSpace(workspaceID)),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: resolve Goal runtime config: %w", err)
+	}
+	providerConfig, err := cfg.ResolveProvider(provider)
+	if err != nil {
+		return nil, looppkg.NewRuntimeValidationError(looppkg.RuntimeValidationItem{
+			Field: "provider", Value: resolved.Provider, Reason: "unknown_provider",
+		})
+	}
+	resolved.Provider = provider
+	if strings.TrimSpace(resolved.Model) == "" {
+		if provider == compozyconfig.CanonicalProviderName(originProvider) {
+			resolved.Model = strings.TrimSpace(originModel)
+		}
+		if strings.TrimSpace(resolved.Model) == "" {
+			resolved.Model = strings.TrimSpace(providerConfig.Models.Default)
+		}
+	}
+	if strings.TrimSpace(resolved.Model) == "" {
+		return nil, looppkg.NewRuntimeValidationError(looppkg.RuntimeValidationItem{
+			Field: "model", Value: "", Reason: "missing_default_model",
+		})
+	}
+	return &resolved, nil
 }
 
 func (s *daemonLoopAPIService) sessionGoalOrigin(
@@ -231,7 +308,23 @@ func (s *daemonLoopAPIService) sessionGoalOrigin(
 		},
 		profile:     profile,
 		activeModel: info.Model,
+		network:     participationSnapshotValue(&info.NetworkParticipation),
 	}, "", nil
+}
+
+func goalStartInputs(
+	profileID string,
+	runtime *looppkg.RuntimeSpec,
+	network participation.Spec,
+) looppkg.Inputs {
+	inputs := looppkg.Inputs{
+		ProfileID:                    profileID,
+		NetworkParticipationSnapshot: participation.CloneSpec(network),
+	}
+	if runtime != nil {
+		inputs.ConfigOverrides.RuntimeDefaults = &looppkg.RuntimeDefaults{Worker: *runtime}
+	}
+	return inputs
 }
 
 func validateSessionGoalProfile(

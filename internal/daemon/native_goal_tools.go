@@ -25,6 +25,94 @@ type nativeGoalRuntime interface {
 	recordGoalReport(context.Context, goalpkg.RecordToolReportRequest) (goalpkg.ReportIntent, error)
 }
 
+func (n *daemonNativeTools) goalControl(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input nativeGoalControlInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	commandRequest := contract.SessionGoalCommandRequest{
+		Operation: contract.SessionGoalOperation(strings.TrimSpace(input.Operation)),
+		Objective: strings.TrimSpace(input.Objective), ExpectedRunID: strings.TrimSpace(input.ExpectedRunID),
+		Runtime: input.Runtime,
+	}
+	if err := commandRequest.Validate(); err != nil {
+		return toolspkg.ToolResult{}, toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput, req.ToolID, err.Error(),
+			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err), toolspkg.ReasonSchemaInvalid,
+		)
+	}
+	workspaceID, err := n.nativeLoopWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	if explicit := strings.TrimSpace(input.WorkspaceID); explicit != "" &&
+		strings.TrimSpace(scope.WorkspaceID) != "" && explicit != strings.TrimSpace(scope.WorkspaceID) {
+		return toolspkg.ToolResult{}, nativeScopeMismatchError(req.ToolID, "workspace")
+	}
+	callerSessionID := strings.TrimSpace(scope.SessionID)
+	if callerSessionID == "" {
+		_, callerErr := nativeGoalSessionID(req.ToolID, scope)
+		return toolspkg.ToolResult{}, callerErr
+	}
+	targetSessionID, err := requiredNativeString(req.ToolID, "session_id", input.SessionID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	service := n.loopService()
+	goalService, ok := service.(core.GoalCommandService)
+	if !ok || goalService == nil {
+		return toolspkg.ToolResult{}, nativeGoalToolError(req.ToolID, errors.New("daemon: Goal control service is unavailable"))
+	}
+	actor, err := actorContextFromScope(scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeGoalToolError(req.ToolID, err)
+	}
+	caller := session.PromptCaller{
+		Kind: string(actor.Actor.Kind.Normalize()), ID: strings.TrimSpace(actor.Actor.Ref), Source: string(actor.Origin.Kind),
+	}
+	if caller.ID == "" {
+		caller.ID = callerSessionID
+	}
+	if err := caller.Validate(); err != nil {
+		return toolspkg.ToolResult{}, nativeGoalToolError(req.ToolID, err)
+	}
+	decision, err := goalService.Handle(ctx, workspaceID, targetSessionID, caller, session.GoalCommand{
+		Verb: string(commandRequest.Operation), Objective: commandRequest.Objective,
+		ExpectedRunID: commandRequest.ExpectedRunID, Runtime: contract.PromptRuntimeSelectionFromPayload(commandRequest.Runtime),
+	})
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeGoalToolError(req.ToolID, err)
+	}
+	if decision.Kind != session.GoalDispatchRespond || decision.Result == nil {
+		return toolspkg.ToolResult{}, nativeGoalToolError(req.ToolID, errors.New("daemon: Goal control returned no structured result"))
+	}
+	payload, err := core.GoalCommandResultPayloadFromSession(decision.Result)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeGoalToolError(req.ToolID, err)
+	}
+	return structuredResult(payload, fmt.Sprintf("Goal %s", payload.Outcome))
+}
+
+func (n *daemonNativeTools) goalControlAvailability(
+	_ context.Context,
+	scope toolspkg.Scope,
+) toolspkg.Availability {
+	if n.loopService() == nil {
+		return toolspkg.Unavailable(toolspkg.ReasonDependencyMissing)
+	}
+	if _, _, ok := nativeGoalScope(scope); !ok {
+		return toolspkg.Unavailable(toolspkg.ReasonSessionDenied)
+	}
+	if _, ok := n.loopService().(core.GoalCommandService); !ok {
+		return toolspkg.Unavailable(toolspkg.ReasonDependencyMissing)
+	}
+	return toolspkg.Available()
+}
+
 type nativeGoalReportResult struct {
 	Status      string    `json:"status"`
 	EvidenceRef *string   `json:"evidence_ref"`
@@ -319,6 +407,15 @@ type nativeGoalReportInput struct {
 	WorkspaceID string `json:"workspace,omitempty"`
 	Status      string `json:"status"`
 	Evidence    string `json:"evidence,omitempty"`
+}
+
+type nativeGoalControlInput struct {
+	WorkspaceID   string                                  `json:"workspace,omitempty"`
+	SessionID     string                                  `json:"session_id"`
+	Operation     string                                  `json:"operation"`
+	Objective     string                                  `json:"objective,omitempty"`
+	ExpectedRunID string                                  `json:"expected_run_id,omitempty"`
+	Runtime       *contract.PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
 }
 
 type nativeLoopTurnsInput struct {

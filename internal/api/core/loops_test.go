@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -964,6 +965,88 @@ func TestGoalReadHandlersExposeSnapshotAndTurnContracts(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("Should execute a typed Goal mutation with authenticated session scope", func(t *testing.T) {
+		t.Parallel()
+
+		service := happyLoopService(t)
+		service.goalCommandFn = func(
+			_ context.Context,
+			workspaceID string,
+			sessionID string,
+			caller session.PromptCaller,
+			command session.GoalCommand,
+		) (session.GoalDispatchDecision, error) {
+			if workspaceID != "ws-1" || sessionID != "sess-1" {
+				t.Fatalf("Handle() target = %s/%s", workspaceID, sessionID)
+			}
+			if caller.Kind != string(taskpkg.ActorKindHuman) || caller.ID != "local-user" ||
+				caller.Source != string(taskpkg.OriginKindHTTP) {
+				t.Fatalf("Handle() caller = %#v", caller)
+			}
+			if command.Verb != session.GoalCommandVerbReplace || command.ExpectedRunID != "run-1" ||
+				command.Objective != "Ship the replacement" || command.Runtime == nil ||
+				command.Runtime.Provider != "cursor" {
+				t.Fatalf("Handle() command = %#v", command)
+			}
+			return session.GoalDispatchDecision{
+				Kind: session.GoalDispatchRespond,
+				Result: &session.GoalCommandResult{
+					Outcome:       session.GoalOutcomeReplaced,
+					ReplacedRunID: func() *string { value := "run-0"; return &value }(),
+					Snapshot: &session.GoalSnapshot{
+						RunID: "run-2", NodeID: "goal", Objective: "Ship the replacement",
+						OriginSessionID: "sess-1", BoundSessionID: "sess-1", Status: "active",
+						RunStatus: "running", TurnLimit: 3, Live: true, ContractSummary: "Ship it",
+						Context: session.GoalContextSnapshot{State: "unknown", NudgeRatio: 0},
+					},
+				},
+			}, nil
+		}
+		handlers, engine := newLoopHandlerFixture(t, "httpapi", service)
+		handlers.Workspaces = testutil.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				if ref != "workspace-alias" {
+					t.Fatalf("Resolve() ref = %q", ref)
+				}
+				return workspacepkg.ResolvedWorkspace{
+					Workspace:   workspacepkg.Workspace{ID: "ws-1"},
+					WorkspaceID: "content-ws-1",
+				}, nil
+			},
+		}
+		handlers.Sessions = goalSessionManagerStub{
+			statusFn: func(_ context.Context, id string) (*session.Info, error) {
+				if id != "sess-1" {
+					t.Fatalf("Status() id = %q", id)
+				}
+				return &session.Info{ID: id, WorkspaceID: "ws-1"}, nil
+			},
+		}
+		handlers.TaskActorContextResolver = func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
+			if action != "session_prompt" {
+				t.Fatalf("actor action = %q, want session_prompt", action)
+			}
+			return taskpkg.DeriveHumanActorContext(
+				"local-user", taskpkg.OriginKindHTTP, "session_prompt",
+			)
+		}
+
+		response := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/workspaces/workspace-alias/sessions/sess-1/goal",
+			[]byte(`{"operation":"replace","objective":"Ship the replacement","expected_run_id":"run-1","runtime":{"provider":"cursor","model":"grok-4.5","reasoning_effort":"high","speed":"fast"}}`),
+		)
+		assertLoopStatus(t, response.Code, http.StatusAccepted, response.Body.String())
+		var result contract.GoalCommandResult
+		testutil.DecodeJSONResponse(t, response, &result)
+		if result.Outcome != contract.GoalOutcomeReplaced || result.ReplacedRunID == nil ||
+			*result.ReplacedRunID != "run-0" {
+			t.Fatalf("POST Goal result = %#v", result)
+		}
+	})
 }
 
 func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
@@ -1733,6 +1816,7 @@ func registerLoopTestRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	workspace.GET("/loop-nodes", handlers.ListLoopNodes)
 	workspace.GET("/loop-runs/:run_id/events", handlers.StreamLoopRunEvents)
 	workspace.GET("/sessions/:session_id/goal", handlers.GetSessionGoal)
+	workspace.POST("/sessions/:session_id/goal", handlers.MutateSessionGoal)
 }
 
 type stubLoopService struct {
@@ -1797,6 +1881,7 @@ type stubLoopService struct {
 	getLoopBriefingFn   func(context.Context, string, string) (contract.LoopBriefingResponse, error)
 	getLoopTimelineFn   func(context.Context, string, string, looppkg.TimelineQuery) (contract.LoopTimelineResponse, error)
 	getSessionGoalFn    func(context.Context, string, string) (*session.GoalSnapshot, error)
+	goalCommandFn       func(context.Context, string, string, session.PromptCaller, session.GoalCommand) (session.GoalDispatchDecision, error)
 	listGoalTurnsFn     func(context.Context, string, string, core.GoalTurnListQuery) (session.GoalTurnPage, error)
 	cancelLoopRunFn     func(context.Context, string, string) (contract.LoopMutationResponse, error)
 	killLoopRunFn       func(context.Context, string, string) (contract.LoopMutationResponse, error)
@@ -1816,6 +1901,18 @@ type stubLoopService struct {
 		int64,
 		store.ReadScope,
 	) ([]contract.LoopRunEventPayload, error)
+}
+
+type goalSessionManagerStub struct {
+	core.SessionManager
+	statusFn func(context.Context, string) (*session.Info, error)
+}
+
+func (s goalSessionManagerStub) Status(ctx context.Context, id string) (*session.Info, error) {
+	if s.statusFn == nil {
+		return nil, session.ErrSessionNotFound
+	}
+	return s.statusFn(ctx, id)
 }
 
 func happyLoopService(t testing.TB) *stubLoopService {
@@ -2235,6 +2332,19 @@ func (s *stubLoopService) GetSessionGoal(
 	sessionID string,
 ) (*session.GoalSnapshot, error) {
 	return s.getSessionGoalFn(ctx, workspaceID, sessionID)
+}
+
+func (s *stubLoopService) Handle(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+	caller session.PromptCaller,
+	command session.GoalCommand,
+) (session.GoalDispatchDecision, error) {
+	if s.goalCommandFn == nil {
+		return session.GoalDispatchDecision{}, errors.New("unexpected Goal command")
+	}
+	return s.goalCommandFn(ctx, workspaceID, sessionID, caller, command)
 }
 
 func (s *stubLoopService) ListGoalTurns(

@@ -111,6 +111,8 @@ func GoalCommandHTTPStatus(result contract.GoalCommandResult) int {
 			return 422
 		}
 		switch *result.ReasonCode {
+		case contract.GoalReasonCallerUnauthorized:
+			return http.StatusForbidden
 		case contract.GoalReasonNotActive:
 			return 404
 		case contract.GoalReasonReplaceRequired, contract.GoalReasonReplaceStale,

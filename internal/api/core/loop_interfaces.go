@@ -232,6 +232,17 @@ type LoopService interface {
 	) ([]contract.LoopRunEventPayload, error)
 }
 
+// GoalCommandService is the authenticated structured Goal mutation seam shared by HTTP, UDS, CLI, and tools.
+type GoalCommandService interface {
+	Handle(
+		context.Context,
+		string,
+		string,
+		session.PromptCaller,
+		session.GoalCommand,
+	) (session.GoalDispatchDecision, error)
+}
+
 // LoopRunReadService is the computed read contract used by run-read routes.
 type LoopRunReadService interface {
 	GetLoopRunNodes(context.Context, string, string, looppkg.RosterQuery) (contract.LoopRunNodesResponse, error)

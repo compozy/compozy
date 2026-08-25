@@ -151,6 +151,60 @@ func TestSessionPromptPassesRuntimeSelection(t *testing.T) {
 	})
 }
 
+// Invariant: the session Goal CLI forwards the typed operation, target, and
+// caller-selected runtime through the direct mutation API and preserves its
+// structured result output. The canonical CLI session command suite owns this
+// transport boundary.
+func TestSessionGoalCommandForwardsTypedMutation(t *testing.T) {
+	t.Parallel()
+
+	var gotID string
+	var gotRequest contract.SessionGoalCommandRequest
+	deps := newWorkspaceTestDeps(t, &stubClient{
+		mutateSessionGoalFn: func(
+			_ context.Context,
+			id string,
+			request contract.SessionGoalCommandRequest,
+		) (contract.GoalCommandResult, error) {
+			gotID = id
+			gotRequest = request
+			return contract.GoalCommandResult{Outcome: contract.GoalOutcomeReplaced}, nil
+		},
+	})
+
+	stdout, _, err := executeRootCommand(
+		t,
+		deps,
+		"session", "goal", "replace", "sess-1", "Ship the replacement",
+		"--expected-run-id", "run-1",
+		"--provider", "cursor",
+		"--model", "grok-4.5",
+		"--reasoning-effort", "high",
+		"--speed", "fast",
+		"-o", "json",
+	)
+	if err != nil {
+		t.Fatalf("executeRootCommand(session goal replace) error = %v", err)
+	}
+	if gotID != "sess-1" || gotRequest.Operation != contract.SessionGoalOperationReplace ||
+		gotRequest.Objective != "Ship the replacement" || gotRequest.ExpectedRunID != "run-1" ||
+		gotRequest.Runtime == nil {
+		t.Fatalf("MutateSessionGoal() = %q/%#v", gotID, gotRequest)
+	}
+	if gotRequest.Runtime.Provider != "cursor" || gotRequest.Runtime.Model != "grok-4.5" ||
+		gotRequest.Runtime.ReasoningEffort != contract.ReasoningEffort("high") ||
+		gotRequest.Runtime.Speed != contract.SpeedFast {
+		t.Fatalf("MutateSessionGoal() runtime = %#v", gotRequest.Runtime)
+	}
+	var decoded contract.GoalCommandResult
+	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal(session goal result) error = %v", err)
+	}
+	if decoded.Outcome != contract.GoalOutcomeReplaced {
+		t.Fatalf("session goal output = %#v", decoded)
+	}
+}
+
 func TestSessionRewindForwardsTranscriptFences(t *testing.T) {
 	t.Parallel()
 

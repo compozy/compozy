@@ -536,6 +536,37 @@ export const handlers: HttpHandler[] = [
 
     return HttpResponse.json({ goal: null });
   }),
+  compozyApiMock.post(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/goal",
+    ({ params, request }) => {
+      const id = String(params.session_id);
+
+      if (!sessionById.has(id)) {
+        return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      }
+
+      return request.json().then(body => {
+        const operation =
+          typeof body === "object" && body !== null && "operation" in body
+            ? String(body.operation)
+            : "status";
+        const outcome =
+          operation === "clear"
+            ? "cleared"
+            : operation === "pause"
+              ? "paused"
+              : operation === "resume"
+                ? "resumed"
+                : "status";
+        return HttpResponse.json({
+          outcome,
+          reason_code: null,
+          replaced_run_id: null,
+          snapshot: null,
+        });
+      });
+    }
+  ),
   compozyApiMock.get(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications",
     ({ params }) => {

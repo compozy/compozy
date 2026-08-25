@@ -24,7 +24,7 @@ func (b *loopActionSessionBinder) resolveEffectiveCreationProfile(
 	var opts session.CreateOpts
 	var materialized *worktree.Worktree
 	if strings.TrimSpace(pinnedProfileRef) != "" {
-		return b.resolvePinnedCreationProfile(ctx, req, pinnedProfileRef, true)
+		return b.resolvePinnedCreationProfile(ctx, req, pinnedProfileRef, true, false)
 	}
 	if agent == "" {
 		return store.SessionCreationProfile{}, session.CreateOpts{}, nil, fmt.Errorf(
@@ -49,13 +49,16 @@ func (b *loopActionSessionBinder) resolvePinnedCreationProfile(
 	req looppkg.ActionSessionBindRequest,
 	pinnedProfileRef string,
 	applyManagedDenials bool,
+	allowRuntimeOverride bool,
 ) (store.SessionCreationProfile, session.CreateOpts, *worktree.Worktree, error) {
 	profile, err := b.creationStore.GetSessionCreationProfile(ctx, pinnedProfileRef)
 	if err != nil {
 		return store.SessionCreationProfile{}, session.CreateOpts{}, nil, err
 	}
-	if err := validatePinnedRuntime(req.RuntimeValue(), profile); err != nil {
-		return store.SessionCreationProfile{}, session.CreateOpts{}, nil, err
+	if !allowRuntimeOverride {
+		if err := validatePinnedRuntime(req.RuntimeValue(), profile); err != nil {
+			return store.SessionCreationProfile{}, session.CreateOpts{}, nil, err
+		}
 	}
 	opts := createOptionsFromProfile(req, profile)
 	if !applyManagedDenials {
