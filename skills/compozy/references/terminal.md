@@ -109,9 +109,9 @@ Archiving a profile closes its live terminals and invalidates tickets while reta
 journal, artifacts, and recordings. Workspace deletion removes all terminal data owned by that
 workspace.
 
-Check `capabilities.interactive` before opening or requesting visible execution. Local macOS and Linux
-support interactive terminals. Local Windows and remote sandboxes are execute-only: use pipe exec and
-do not retry `terminal_interactive_unavailable` through another interactive surface.
+Check `capabilities.interactive` before opening or requesting visible execution. Local macOS, Linux,
+and Windows support interactive terminals. Remote sandboxes are execute-only: use pipe exec and do
+not retry `terminal_interactive_unavailable` through another interactive surface.
 
 ## CLI Fallback
 

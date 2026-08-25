@@ -286,7 +286,7 @@ func pathWithin(root, path string) bool {
 }
 
 func resolveShell(requested, configured string) (string, error) {
-	candidates := []string{requested, configured, os.Getenv("SHELL"), "zsh", "bash", "sh"}
+	candidates := append([]string{requested, configured}, platformShellCandidates()...)
 	seen := make(map[string]struct{}, len(candidates))
 	for _, candidate := range candidates {
 		candidate = strings.TrimSpace(candidate)

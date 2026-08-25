@@ -10,17 +10,17 @@ support from the route, operating-system label, or presence of a Terminal launch
 | --- | --- | --- | --- |
 | Local macOS | Yes | Yes | Yes, when enabled and started explicitly |
 | Local Linux | Yes | Yes | Yes, when enabled and started explicitly |
-| Local Windows | Yes | No | No |
+| Local Windows | Yes | Yes | Yes, when enabled and started explicitly |
 | Remote sandbox | Yes | No | No |
 
-Execute-only environments use `compozy terminal exec` without `--visible`. They still return bounded,
+Remote sandboxes use `compozy terminal exec` without `--visible`. They still return bounded,
 structured output and write command journal rows. Opening an interactive terminal or requesting a
-visible run returns `terminal_interactive_unavailable`; the UI disables interactive actions rather
-than opening a terminal that cannot work.
+visible run returns `terminal_interactive_unavailable`; the UI omits interactive actions rather than
+opening a terminal that cannot work.
 
-macOS and Linux use the full local terminal path. Windows and remote sandboxes keep the same public
-API and capability shape so interactive support can be added without changing callers, but the
-current value remains honest and fail-closed.
+macOS, Linux, and Windows use the full local terminal path. Windows runs through ConPTY, with the
+process tree owned by a Job Object so closing a terminal also ends its descendants. Remote sandboxes
+keep the same public API and capability shape while reporting execute-only support.
 
 Limits are also explicit. Terminal count, viewer count, dimensions, frame size, scrollback, and
 recording retention come from the daemon configuration. Hitting a limit returns a typed error such as
