@@ -37,6 +37,7 @@ type handlerConfig struct {
 	schemaStreams       core.SchemaStreamStatusReader
 	resources           core.ResourceService
 	windowManager       core.WindowManagerProvider
+	terminal            core.TerminalProvider
 	automation          core.AutomationManager
 	loops               core.LoopService
 	bridges             core.BridgeService
@@ -210,6 +211,7 @@ func coreHandlerDependencies(cfg *handlerConfig) *core.BaseHandlerConfig {
 		SchemaStreams:          cfg.schemaStreams,
 		Resources:              cfg.resources,
 		WindowManager:          cfg.windowManager,
+		Terminal:               cfg.terminal,
 		Extensions:             cfg.extensions,
 		Automation:             cfg.automation,
 		Loops:                  cfg.loops,

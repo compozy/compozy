@@ -25,18 +25,18 @@ const (
 )
 
 type EventDetail struct {
-	From        LeaseState
-	To          LeaseState
-	Reason      string
+	Mode        Mode
+	Title       string
+	LeaseFrom   LeaseState
+	LeaseTo     LeaseState
 	CommandID   string
 	Command     string
 	Cwd         string
 	DetectedBy  string
-	Exit        *Exit
 	ExitCode    *int
 	Signal      *string
 	ExitCause   string
-	DurationMs  int64
+	DurationMS  int64
 	Approval    string
 	RequestID   InputRequestID
 	Redacted    bool
@@ -56,9 +56,12 @@ type TerminalEvent struct {
 	Kind        EventKind
 	WorkspaceID string
 	ProfileID   string
+	ProfileName string
 	TerminalID  ID
 	Actor       Actor
 	Info        *Info
+	Exit        *Exit
+	Reason      string
 	Detail      EventDetail
 	At          time.Time
 }

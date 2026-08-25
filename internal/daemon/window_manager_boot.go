@@ -158,6 +158,7 @@ func installWorkspaceRemovalPreparer(state *bootState, sessions SessionManager) 
 			return workspaceRemovalPreparation{
 				windowManager: windowPreparation,
 				session:       sessionPreparation,
+				terminal:      state.terminals,
 				deadEntities:  state.deadEntities,
 				mcpTools:      state.mcpToolProvider,
 				workspaceID:   workspace.ID,
@@ -170,6 +171,7 @@ func installWorkspaceRemovalPreparer(state *bootState, sessions SessionManager) 
 type workspaceRemovalPreparation struct {
 	windowManager workspacepkg.UnregisterPreparation
 	session       workspacepkg.UnregisterPreparation
+	terminal      terminalWorkspaceArchiver
 	deadEntities  *deadentity.Service
 	mcpTools      workspaceMCPStateRetirer
 	workspaceID   string
@@ -177,6 +179,10 @@ type workspaceRemovalPreparation struct {
 
 type workspaceMCPStateRetirer interface {
 	ForgetWorkspace(workspaceID string)
+}
+
+type terminalWorkspaceArchiver interface {
+	ArchiveWorkspace(ctx context.Context, workspaceID string) error
 }
 
 func (p workspaceRemovalPreparation) BeforeDelete(ctx context.Context) error {
@@ -192,13 +198,17 @@ func (p workspaceRemovalPreparation) BeforeDelete(ctx context.Context) error {
 func (p workspaceRemovalPreparation) Commit(ctx context.Context) error {
 	windowManagerErr := p.windowManager.Commit(ctx)
 	sessionErr := p.session.Commit(ctx)
+	var terminalErr error
+	if p.terminal != nil {
+		terminalErr = p.terminal.ArchiveWorkspace(ctx, p.workspaceID)
+	}
 	if p.deadEntities != nil {
 		p.deadEntities.ForgetWorkspace(p.workspaceID)
 	}
 	if p.mcpTools != nil {
 		p.mcpTools.ForgetWorkspace(p.workspaceID)
 	}
-	return errors.Join(windowManagerErr, sessionErr)
+	return errors.Join(windowManagerErr, sessionErr, terminalErr)
 }
 
 func (p workspaceRemovalPreparation) Rollback(ctx context.Context) error {

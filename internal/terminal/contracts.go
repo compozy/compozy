@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/internal/store"
 	terminalpty "github.com/compozy/compozy/internal/terminal/pty"
+	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
 )
 
 type ID string
@@ -197,11 +198,7 @@ type RecordingRef struct {
 	ExpiresAt  time.Time
 }
 
-type Frame struct {
-	Op      byte
-	Seq     uint64
-	Payload []byte
-}
+type Frame = terminalwire.Frame
 
 type CommandRow struct {
 	ID          string    `json:"command_id"`
@@ -248,6 +245,10 @@ type MarkerFacts struct {
 	Command string
 	Cwd     string
 	Exit    *int
+}
+
+type MarkerConsumer interface {
+	ConsumeMarkerFacts(ctx context.Context, terminal Info, facts []MarkerFacts)
 }
 
 type ProcSpec = terminalpty.ProcSpec

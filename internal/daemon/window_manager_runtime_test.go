@@ -218,6 +218,23 @@ func TestWindowManagerHookBridge(t *testing.T) {
 func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should drain terminal runtime when workspace deletion commits", func(t *testing.T) {
+		t.Parallel()
+		terminal := &recordingTerminalWorkspaceArchiver{}
+		preparation := workspaceRemovalPreparation{
+			windowManager: &windowManagerSessionRemovalPreparation{},
+			session:       &windowManagerSessionRemovalPreparation{},
+			terminal:      terminal,
+			workspaceID:   "workspace-a",
+		}
+		if err := preparation.Commit(context.Background()); err != nil {
+			t.Fatalf("Commit() error = %v", err)
+		}
+		if len(terminal.workspaceIDs) != 1 || terminal.workspaceIDs[0] != "workspace-a" {
+			t.Fatalf("terminal workspace archives = %#v, want workspace-a", terminal.workspaceIDs)
+		}
+	})
+
 	t.Run("Should purge topology clients and subscriptions before same-id recreation", func(t *testing.T) {
 		t.Parallel()
 		fixture := newDaemonWindowManagerFixture(t)
@@ -532,6 +549,15 @@ func (m *windowManagerRemovalSessionManager) PrepareWorkspaceRemoval(
 type windowManagerSessionRemovalPreparation struct {
 	commits   int
 	rollbacks int
+}
+
+type recordingTerminalWorkspaceArchiver struct {
+	workspaceIDs []string
+}
+
+func (r *recordingTerminalWorkspaceArchiver) ArchiveWorkspace(_ context.Context, workspaceID string) error {
+	r.workspaceIDs = append(r.workspaceIDs, workspaceID)
+	return nil
 }
 
 type windowManagerMCPStateRetirer struct {

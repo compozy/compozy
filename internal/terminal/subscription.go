@@ -4,23 +4,23 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
-)
 
-const subscriptionFrameCapacity = 128
+	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
+)
 
 type subscription struct {
 	session    *session
 	id         uint64
 	mode       string
-	flow       string
 	actor      Actor
-	frames     chan Frame
+	queue      *terminalwire.Queue
 	leaseToken uint64
-	mu         sync.Mutex
-	closed     bool
-	droppedTo  uint64
-	closeOnce  sync.Once
+	cols       uint16
+	rows       uint16
+	removeOnce sync.Once
+	finishOnce sync.Once
 }
 
 func (s *session) Attach(_ context.Context, options AttachOptions) (Subscription, error) {
@@ -33,12 +33,9 @@ func (s *session) Attach(_ context.Context, options AttachOptions) (Subscription
 	if err := s.runningGate(); err != nil {
 		return nil, err
 	}
-	mode := options.Mode
-	if mode == "" {
-		mode = "read"
-	}
-	if mode != "read" && mode != "write" {
-		return nil, &Error{Code: "terminal_attach_mode_invalid", Message: "terminal attach mode must be read or write", Err: ErrUnsupported}
+	mode, flow, err := normalizeAttachOptions(options)
+	if err != nil {
+		return nil, err
 	}
 	if mode == "write" {
 		if err := s.lease.authorize(options.Actor); err != nil {
@@ -56,14 +53,18 @@ func (s *session) Attach(_ context.Context, options AttachOptions) (Subscription
 		return nil, &Error{Code: "terminal_exited", Message: "terminal has exited", Err: ErrExited}
 	}
 	if len(s.subscribers) >= settings.MaxSubscribers {
+		current := len(s.subscribers)
 		s.mu.Unlock()
-		return nil, &Error{Code: "subscriber_limit_reached", Message: "terminal subscriber limit reached", Current: settings.MaxSubscribers, Max: settings.MaxSubscribers, Err: ErrSubscriberLimit}
+		s.emitSubscriberLimit(options.Actor, current, settings.MaxSubscribers)
+		return nil, &Error{Code: "subscriber_limit_reached", Message: "terminal subscriber limit reached", Current: current, Max: settings.MaxSubscribers, Err: ErrSubscriberLimit}
 	}
 	s.nextSubID++
-	subscriber := &subscription{
-		session: s, id: s.nextSubID, mode: mode, flow: options.Flow,
-		actor: options.Actor, frames: make(chan Frame, subscriptionFrameCapacity),
-	}
+	subscriber := &subscription{session: s, id: s.nextSubID, mode: mode, actor: options.Actor}
+	subscriber.queue = terminalwire.NewQueue(terminalwire.QueueOptions{
+		Flow: terminalwire.Flow(flow), Now: s.manager.now,
+		Demoted: subscriber.demoted, Evicted: subscriber.evict,
+	})
+	s.flow.Add(subscriber.queue)
 	if mode == "write" {
 		subscriber.leaseToken = s.lease.attachWriter(options.Actor)
 	}
@@ -71,19 +72,11 @@ func (s *session) Attach(_ context.Context, options AttachOptions) (Subscription
 	s.info.Viewers = len(s.subscribers)
 	s.lastActivity = s.manager.now()
 	info := s.infoSnapshotLocked()
+	cols, rows := s.cols, s.rows
 	s.mu.Unlock()
-	replay := s.ring.ReplayFrom(options.AfterSeq)
-	attached, marshalErr := json.Marshal(map[string]any{
-		"seq": replay.Seq, "truncated": replay.Truncated, "cols": options.Cols,
-		"rows": options.Rows, "lease": info.Lease, "mode": info.Mode,
-	})
-	if marshalErr != nil {
+	if err := subscriber.enqueueInitialFrames(options, info, cols, rows); err != nil {
 		closeErr := subscriber.Close()
-		return nil, errors.Join(marshalErr, closeErr)
-	}
-	subscriber.frames <- Frame{Op: 0x02, Seq: replay.Seq, Payload: attached}
-	if len(replay.Payload) > 0 {
-		subscriber.frames <- Frame{Op: 0x01, Seq: replay.Seq - uint64(len(replay.Payload)), Payload: replay.Payload}
+		return nil, errors.Join(err, closeErr)
 	}
 	if options.Cols > 0 && options.Rows > 0 && mode == "write" {
 		if err := subscriber.Resize(options.Cols, options.Rows); err != nil {
@@ -94,52 +87,123 @@ func (s *session) Attach(_ context.Context, options AttachOptions) (Subscription
 	return subscriber, nil
 }
 
-func (s *subscription) Frames() <-chan Frame { return s.frames }
+func normalizeAttachOptions(options AttachOptions) (string, string, error) {
+	mode := options.Mode
+	if mode == "" {
+		mode = "read"
+	}
+	if mode != "read" && mode != "write" {
+		return "", "", &Error{Code: "terminal_attach_mode_invalid", Message: "terminal attach mode must be read or write", Err: ErrUnsupported}
+	}
+	flow := options.Flow
+	if flow == "" && mode == "write" {
+		flow = string(terminalwire.FlowAck)
+	}
+	if flow == "" {
+		flow = string(terminalwire.FlowDrop)
+	}
+	if flow != string(terminalwire.FlowAck) && flow != string(terminalwire.FlowDrop) {
+		return "", "", &Error{Code: "terminal_flow_invalid", Message: "terminal flow must be ack or drop", Err: ErrUnsupported}
+	}
+	return mode, flow, nil
+}
 
-func (s *subscription) Ack(int) {}
+func (s *subscription) enqueueInitialFrames(options AttachOptions, info Info, cols, rows uint16) error {
+	replay := s.session.ring.ReplayFrom(options.AfterSeq)
+	attached, err := json.Marshal(map[string]any{
+		"seq": replay.Seq, "truncated": replay.Truncated, "cols": cols,
+		"rows": rows, "lease": info.Lease, "mode": info.Mode,
+	})
+	if err != nil {
+		return fmt.Errorf("terminal: encode ATTACHED frame: %w", err)
+	}
+	s.queue.Enqueue(Frame{Op: terminalwire.ServerOpAttached, Seq: replay.Seq, Payload: attached}, replay.Seq)
+	if len(replay.Payload) > 0 {
+		start := replay.Seq - min(replay.Seq, uint64(len(replay.Payload)))
+		s.queue.Enqueue(Frame{Op: terminalwire.ServerOpOutput, Seq: start, Payload: replay.Payload}, replay.Seq)
+	}
+	return nil
+}
+
+func (s *subscription) Frames() <-chan Frame { return s.queue.Frames() }
+
+func (s *subscription) Ack(bytes int) { s.queue.Ack(bytes) }
 
 func (s *subscription) Resize(cols, rows uint16) error {
-	if s.mode != "write" || cols == 0 || rows == 0 {
+	if s.mode != "write" {
 		return nil
 	}
-	if err := s.session.proc.Resize(cols, rows); err != nil {
-		return err
+	cols, rows, ok := terminalwire.ClampDimensions(cols, rows)
+	if !ok {
+		return nil
 	}
-	return s.session.vt.Resize(context.Background(), int(cols), int(rows))
+	s.session.mu.Lock()
+	s.cols, s.rows = cols, rows
+	nextCols, nextRows := s.session.resizeVoteLocked()
+	changed := nextCols != s.session.cols || nextRows != s.session.rows
+	s.session.cols, s.session.rows = nextCols, nextRows
+	s.session.mu.Unlock()
+	if !changed {
+		return nil
+	}
+	return s.session.applyResize(nextCols, nextRows)
 }
 
 func (s *subscription) Close() error {
-	s.closeOnce.Do(func() {
-		s.mu.Lock()
-		s.closed = true
-		s.mu.Unlock()
-		s.session.removeSubscriber(s)
-		close(s.frames)
-	})
+	s.removeOnce.Do(func() { s.session.removeSubscriber(s) })
+	s.queue.Close()
 	return nil
 }
 
 func (s *subscription) deliver(frame Frame, end uint64) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return
-	}
-	select {
-	case s.frames <- frame:
-	default:
-		s.droppedTo = end
-	}
+	s.queue.Enqueue(frame, end)
 }
 
 func (s *subscription) finish(exit Exit) {
 	payload, err := json.Marshal(map[string]any{
-		"cause": exit.Cause, "exit_code": exit.Code, "signal": exit.Signal,
+		"cause": exit.Cause, "exit_code": exit.Code, "signal": exit.Signal, "seq": s.session.ringNext(),
 	})
-	if err == nil {
-		s.deliver(Frame{Op: 0x03, Payload: payload}, 0)
+	if err != nil {
+		if closeErr := s.Close(); closeErr != nil {
+			s.session.manager.logger.Warn("terminal: close subscription after exit encoding failure", "error", closeErr)
+		}
+		return
 	}
-	_ = s.Close()
+	s.finishOnce.Do(func() {
+		s.queue.Enqueue(Frame{Op: terminalwire.ServerOpExit, Payload: payload}, 0)
+		s.removeOnce.Do(func() { s.session.removeSubscriber(s) })
+		s.queue.Finish()
+	})
+}
+
+func (s *subscription) evict(reason string) {
+	s.emitFlowTransition(reason)
+	if err := s.Close(); err != nil {
+		s.session.manager.logger.Warn("terminal: close evicted subscription", "error", err)
+	}
+}
+
+func (s *subscription) demoted(reason string) {
+	s.emitFlowTransition(reason)
+}
+
+func (s *subscription) emitFlowTransition(reason string) {
+	info := s.session.Info()
+	s.session.manager.events.Emit(context.Background(), TerminalEvent{
+		Kind: EventKindSubscriberEvicted, WorkspaceID: info.WS, ProfileID: info.ProfileID,
+		ProfileName: s.session.profileName,
+		TerminalID:  info.ID, Actor: s.actor,
+		Reason: reason, Detail: EventDetail{Flow: string(s.queue.Flow())}, At: s.session.manager.now(),
+	})
+}
+
+func (s *session) emitSubscriberLimit(actor Actor, current, maximum int) {
+	info := s.Info()
+	s.manager.events.Emit(context.Background(), TerminalEvent{
+		Kind: EventKindLimitRejected, WorkspaceID: info.WS, ProfileID: info.ProfileID,
+		TerminalID: info.ID, Actor: actor,
+		Detail: EventDetail{Limit: "subscribers", Current: current, Max: maximum}, At: s.manager.now(),
+	})
 }
 
 func (s *session) removeSubscriber(subscriber *subscription) {
@@ -147,8 +211,61 @@ func (s *session) removeSubscriber(subscriber *subscription) {
 	delete(s.subscribers, subscriber.id)
 	s.info.Viewers = len(s.subscribers)
 	s.lastActivity = s.manager.now()
+	cols, rows := s.resizeVoteLocked()
+	changed := cols != s.cols || rows != s.rows
+	s.cols, s.rows = cols, rows
 	s.mu.Unlock()
+	s.flow.Remove(subscriber.queue)
 	if subscriber.leaseToken != 0 {
 		s.lease.detachWriter(subscriber.leaseToken)
 	}
+	if changed {
+		if err := s.applyResize(cols, rows); err != nil {
+			s.manager.logger.Warn("terminal: resize after subscriber departure", "terminal_id", s.Info().ID, "error", err)
+		}
+	}
+}
+
+func (s *session) resizeVoteLocked() (uint16, uint16) {
+	cols, rows := s.cols, s.rows
+	first := true
+	for _, subscriber := range s.subscribers {
+		if subscriber.mode != "write" || subscriber.cols == 0 || subscriber.rows == 0 {
+			continue
+		}
+		if first {
+			cols, rows, first = subscriber.cols, subscriber.rows, false
+			continue
+		}
+		cols, rows = min(cols, subscriber.cols), min(rows, subscriber.rows)
+	}
+	return cols, rows
+}
+
+func (s *session) applyResize(cols, rows uint16) error {
+	if err := s.proc.Resize(cols, rows); err != nil {
+		return fmt.Errorf("terminal: resize process: %w", err)
+	}
+	if err := s.vt.Resize(context.Background(), int(cols), int(rows)); err != nil {
+		return fmt.Errorf("terminal: resize emulator: %w", err)
+	}
+	payload, err := json.Marshal(map[string]uint16{"cols": cols, "rows": rows})
+	if err != nil {
+		return fmt.Errorf("terminal: encode RESIZED frame: %w", err)
+	}
+	s.mu.RLock()
+	subscribers := make([]*subscription, 0, len(s.subscribers))
+	for _, subscriber := range s.subscribers {
+		subscribers = append(subscribers, subscriber)
+	}
+	s.mu.RUnlock()
+	for _, subscriber := range subscribers {
+		subscriber.deliver(Frame{Op: terminalwire.ServerOpResized, Payload: payload}, 0)
+	}
+	return nil
+}
+
+func (s *session) ringNext() uint64 {
+	_, next := s.ring.Bounds()
+	return next
 }

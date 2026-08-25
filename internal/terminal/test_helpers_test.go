@@ -47,11 +47,17 @@ type fakeProc struct {
 	closeOnce    sync.Once
 	mu           sync.Mutex
 	input        bytes.Buffer
+	resizes      []fakeResize
 	exit         terminalpty.Exit
 	completeErr  error
 	spec         ProcSpec
 	pid          int
 	reads        atomic.Int32
+}
+
+type fakeResize struct {
+	cols uint16
+	rows uint16
 }
 
 func newFakeProc(pid int) *fakeProc {
@@ -67,7 +73,12 @@ func (p *fakeProc) Write(input []byte) (int, error) {
 	return p.input.Write(input)
 }
 
-func (p *fakeProc) Resize(uint16, uint16) error { return nil }
+func (p *fakeProc) Resize(cols, rows uint16) error {
+	p.mu.Lock()
+	p.resizes = append(p.resizes, fakeResize{cols: cols, rows: rows})
+	p.mu.Unlock()
+	return nil
+}
 
 func (p *fakeProc) Wait(ctx context.Context) (terminalpty.Exit, error) {
 	select {
@@ -116,6 +127,15 @@ func (p *fakeProc) inputString() string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.input.String()
+}
+
+func (p *fakeProc) latestResize() (fakeResize, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if len(p.resizes) == 0 {
+		return fakeResize{}, false
+	}
+	return p.resizes[len(p.resizes)-1], true
 }
 
 type countingReader struct {

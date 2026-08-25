@@ -35,7 +35,7 @@ func (s *session) Write(_ context.Context, actor Actor, input []byte) error {
 	if err := s.runningGate(); err != nil {
 		return err
 	}
-	return s.lease.deliver(actor, input)
+	return s.lease.deliver(actor, s.filter.FilterInput(input))
 }
 
 func (s *session) Screen(ctx context.Context, options ReadOptions) (*ReadResult, error) {
@@ -245,8 +245,9 @@ func (s *session) leaseChanged(from, to LeaseState, reason string, actor Actor) 
 	s.mu.Unlock()
 	s.manager.events.Emit(context.Background(), TerminalEvent{
 		Kind: EventKindLeaseChanged, WorkspaceID: info.WS, ProfileID: info.ProfileID,
-		TerminalID: info.ID, Actor: actor, Info: &info,
-		Detail: EventDetail{From: from, To: to, Reason: reason}, At: s.manager.now(),
+		ProfileName: s.profileName,
+		TerminalID:  info.ID, Actor: actor, Info: &info,
+		Reason: reason, Detail: EventDetail{LeaseFrom: from, LeaseTo: to}, At: s.manager.now(),
 	})
 }
 

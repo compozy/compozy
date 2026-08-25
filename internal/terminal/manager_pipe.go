@@ -75,7 +75,8 @@ func (m *Service) OpenPipe(ctx context.Context, request PipeRequest) (Handle, er
 	} else {
 		info.Lease = LeaseHumanOwned
 	}
-	item := newSession(m, proc, info, settings, nonce, 80, 24)
+	profileName := m.eventProfileName(ctx, request.Actor.ProfileID)
+	item := newSession(m, proc, info, settings, nonce, profileName, 80, 24, true)
 	processRecord, err := m.processRegistration(ctx, item, spec)
 	if err != nil {
 		return nil, errors.Join(err, cleanupUnregisteredProcess(proc))
@@ -88,7 +89,9 @@ func (m *Service) OpenPipe(ctx context.Context, request PipeRequest) (Handle, er
 	opened := item.Info()
 	m.events.Emit(ctx, TerminalEvent{
 		Kind: EventKindOpened, WorkspaceID: workspaceID, ProfileID: request.Actor.ProfileID,
-		TerminalID: id, Actor: request.Actor, Info: &opened, At: m.now(),
+		ProfileName: profileName,
+		TerminalID:  id, Actor: request.Actor, Info: &opened,
+		Detail: EventDetail{Mode: opened.Mode, Cwd: opened.Cwd, Title: opened.Title}, At: m.now(),
 	})
 	item.start()
 	return item, nil

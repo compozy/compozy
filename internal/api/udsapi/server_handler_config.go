@@ -14,6 +14,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 		schemaStreams:       s.schemaStreams,
 		resources:           s.resources,
 		windowManager:       s.windowManager,
+		terminal:            s.terminal,
 		automation:          s.automation,
 		loops:               s.loops,
 		bridges:             s.bridges,

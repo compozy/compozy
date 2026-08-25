@@ -48,6 +48,7 @@ type Service struct {
 	registerProcess processRegister
 	events          *EventBus
 	journal         Journal
+	markers         MarkerConsumer
 	logger          *slog.Logger
 	now             func() time.Time
 	entropy         io.Reader
@@ -166,12 +167,33 @@ func (m *Service) Close(
 
 func (m *Service) Journal() Journal { return m.journal }
 
+func (m *Service) TerminalFor(string) (Manager, error) { return m, nil }
+
 func (m *Service) Observe(fn func(context.Context, TerminalEvent)) { m.events.Observe(fn) }
 
 func (m *Service) ArchiveProfile(ctx context.Context, profileID string) error {
 	if strings.TrimSpace(profileID) == "" {
 		return errors.New("terminal: profile id is required")
 	}
+	return m.archiveTerminals(ctx, "profile_archived", "profile-lifecycle", func(key terminalKey) bool {
+		return key.profileID == profileID
+	})
+}
+
+func (m *Service) ArchiveWorkspace(ctx context.Context, workspaceID string) error {
+	if strings.TrimSpace(workspaceID) == "" {
+		return errors.New("terminal: workspace id is required")
+	}
+	return m.archiveTerminals(ctx, "workspace_deleted", "workspace-lifecycle", func(key terminalKey) bool {
+		return key.workspaceID == workspaceID
+	})
+}
+
+func (m *Service) archiveTerminals(
+	ctx context.Context,
+	reason, actorID string,
+	matches func(terminalKey) bool,
+) error {
 	type archiveTarget struct {
 		key  terminalKey
 		item *session
@@ -179,15 +201,15 @@ func (m *Service) ArchiveProfile(ctx context.Context, profileID string) error {
 	m.mu.RLock()
 	targets := make([]archiveTarget, 0)
 	for key, item := range m.terminals {
-		if key.profileID == profileID {
+		if matches(key) {
 			targets = append(targets, archiveTarget{key: key, item: item})
 		}
 	}
 	m.mu.RUnlock()
 	var closeErrors []error
-	actor := Actor{Kind: ActorKindSystem, ID: "profile-lifecycle", ProfileID: profileID}
 	for _, target := range targets {
-		if _, err := target.item.close(ctx, SignalHUP, "profile_archived", actor); err != nil && !errors.Is(err, ErrExited) {
+		actor := Actor{Kind: ActorKindSystem, ID: actorID, ProfileID: target.key.profileID}
+		if _, err := target.item.close(ctx, SignalHUP, reason, actor); err != nil && !errors.Is(err, ErrExited) {
 			closeErrors = append(closeErrors, err)
 			continue
 		}

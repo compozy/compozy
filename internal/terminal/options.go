@@ -131,6 +131,16 @@ func WithJournal(journal Journal) Option {
 	}
 }
 
+func WithMarkerConsumer(consumer MarkerConsumer) Option {
+	return func(service *Service) error {
+		if consumer == nil {
+			return errors.New("terminal: marker consumer is required")
+		}
+		service.markers = consumer
+		return nil
+	}
+}
+
 func WithLogger(logger *slog.Logger) Option {
 	return func(service *Service) error {
 		if logger == nil {
@@ -167,7 +177,12 @@ func defaultServiceOptions(service *Service) {
 		return DefaultSettings(), nil
 	}
 	service.events = NewEventBus(nil)
+	service.markers = noopMarkerConsumer{}
 	service.logger = slog.Default()
 	service.now = func() time.Time { return time.Now().UTC() }
 	service.entropy = rand.Reader
 }
+
+type noopMarkerConsumer struct{}
+
+func (noopMarkerConsumer) ConsumeMarkerFacts(context.Context, Info, []MarkerFacts) {}

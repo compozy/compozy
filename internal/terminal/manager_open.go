@@ -28,6 +28,7 @@ func (m *Service) Open(ctx context.Context, request OpenRequest) (Handle, error)
 			Err:     ErrInteractive,
 		}
 	}
+	request.Title = SanitizeTitle(request.Title)
 	_, cwd, workspaceID, err := m.resolveOpenWorkspace(ctx, request.WS, request.Cwd, request.Actor.ProfileID)
 	if err != nil {
 		return nil, err
@@ -77,7 +78,8 @@ func (m *Service) Open(ctx context.Context, request OpenRequest) (Handle, error)
 	} else {
 		info.Lease = LeaseHumanOwned
 	}
-	item := newSession(m, proc, info, settings, nonce, cols, rows)
+	profileName := m.eventProfileName(ctx, request.Actor.ProfileID)
+	item := newSession(m, proc, info, settings, nonce, profileName, cols, rows, strings.TrimSpace(request.Title) != "")
 	processRecord, err := m.processRegistration(ctx, item, spec)
 	if err != nil {
 		cleanupErr := cleanupUnregisteredProcess(proc)
@@ -92,10 +94,24 @@ func (m *Service) Open(ctx context.Context, request OpenRequest) (Handle, error)
 	opened := item.Info()
 	m.events.Emit(ctx, TerminalEvent{
 		Kind: EventKindOpened, WorkspaceID: workspaceID, ProfileID: request.Actor.ProfileID,
-		TerminalID: id, Actor: request.Actor, Info: &opened, At: m.now(),
+		ProfileName: profileName,
+		TerminalID:  id, Actor: request.Actor, Info: &opened,
+		Detail: EventDetail{Mode: opened.Mode, Cwd: opened.Cwd, Title: opened.Title}, At: m.now(),
 	})
 	item.start()
 	return item, nil
+}
+
+func (m *Service) eventProfileName(ctx context.Context, profileID string) string {
+	if m.profileNames == nil {
+		return ""
+	}
+	name, err := m.profileNames.ProfileName(ctx, profileID)
+	if err != nil {
+		m.logger.Warn("terminal: resolve event profile name", "profile_id", profileID, "error", err)
+		return ""
+	}
+	return name
 }
 
 func (m *Service) reserveAdmission(request OpenRequest, settings Settings) (func(), error) {

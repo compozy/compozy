@@ -90,7 +90,7 @@ type RuntimeDeps struct {
 	Extensions          udsapi.ExtensionService
 	Resources           core.ResourceService
 	WindowManagers      *windowManagerRegistry
-	Terminals           terminalpkg.Manager
+	Terminals           *terminalpkg.Service
 	Gateway             *gateway.Service
 	GatewayChallenges   *gateway.ChallengeRegistry
 	GatewayAuthLimiter  *gateway.AuthFailureLimiter

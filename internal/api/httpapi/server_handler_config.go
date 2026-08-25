@@ -7,7 +7,16 @@ import (
 )
 
 func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
-	return &handlerConfig{
+	config := s.handlerDependencies()
+	config.staticFS = staticFS
+	config.boundHost = s.host
+	config.httpPort = s.port
+	config.resourceAuth = append([]gin.HandlerFunc(nil), s.resourceAuth...)
+	return &config
+}
+
+func (s *Server) handlerDependencies() handlerConfig {
+	return handlerConfig{
 		sessions:            s.sessions,
 		drainController:     s.drainController,
 		sessionCatalog:      s.sessionCatalog,
@@ -20,6 +29,7 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		schemaStreams:       s.schemaStreams,
 		resources:           s.resources,
 		windowManager:       s.windowManager,
+		terminal:            s.terminal,
 		automation:          s.automation,
 		loops:               s.loops,
 		bridges:             s.bridges,
@@ -74,17 +84,13 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		authLimiter:         s.authLimiter,
 		ingressLimiter:      s.ingressLimiter,
 		surfaceSet:          s.surfaceSet,
-		staticFS:            staticFS,
 		homePaths:           s.homePaths,
 		config:              s.config,
-		boundHost:           s.host,
 		logger:              s.logger,
 		startedAt:           s.startedAt,
 		now:                 s.now,
 		pollInterval:        s.pollInterval,
 		agentLoader:         s.agentLoader,
-		httpPort:            s.port,
-		resourceAuth:        append([]gin.HandlerFunc(nil), s.resourceAuth...),
 		extensions:          s.extensions,
 	}
 }

@@ -29,6 +29,7 @@ type handlerConfig struct {
 	schemaStreams       core.SchemaStreamStatusReader
 	resources           core.ResourceService
 	windowManager       core.WindowManagerProvider
+	terminal            core.TerminalProvider
 	automation          core.AutomationManager
 	loops               core.LoopService
 	bridges             core.BridgeService

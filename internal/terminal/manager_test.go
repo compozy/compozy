@@ -5,7 +5,9 @@ package terminal
 // Boundary IN: domain manager operations. Boundary OUT: process substrate, toolruntime registration, and terminal events.
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -18,6 +20,7 @@ import (
 
 	"github.com/compozy/compozy/internal/store"
 	terminalpty "github.com/compozy/compozy/internal/terminal/pty"
+	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
 	"github.com/compozy/compozy/internal/toolruntime"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -310,6 +313,135 @@ func TestSessionTailReadContract(t *testing.T) {
 	})
 }
 
+func TestSessionAttachReplayAndResizeContract(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should continue exactly or send a complete truncated resync [IT-004]", func(t *testing.T) {
+		t.Parallel()
+		settings := DefaultSettings()
+		settings.ScrollbackBytes = 8
+		manager, _, _ := newTestManager(t, settings)
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		item := handle.(*session)
+		item.ring.Append([]byte("abcdefghij"))
+		actor := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+
+		continued, err := handle.Attach(context.Background(), AttachOptions{
+			Mode: "read", Flow: "drop", AfterSeq: 6, Actor: actor,
+		})
+		if err != nil {
+			t.Fatalf("Attach(continuation) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := continued.Close(); err != nil {
+				t.Errorf("continuation Close() error = %v", err)
+			}
+		})
+		attached := receiveSubscriptionFrame(t, continued)
+		assertAttachedFrame(t, attached, 10, false)
+		output := receiveSubscriptionFrame(t, continued)
+		if output.Op != terminalwire.ServerOpOutput || output.Seq != 6 || !bytes.Equal(output.Payload, []byte("ghij")) {
+			t.Fatalf("continuation OUTPUT = %#v", output)
+		}
+
+		resynced, err := handle.Attach(context.Background(), AttachOptions{
+			Mode: "read", Flow: "drop", AfterSeq: 0, Actor: actor,
+		})
+		if err != nil {
+			t.Fatalf("Attach(resync) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := resynced.Close(); err != nil {
+				t.Errorf("resync Close() error = %v", err)
+			}
+		})
+		assertAttachedFrame(t, receiveSubscriptionFrame(t, resynced), 10, true)
+		output = receiveSubscriptionFrame(t, resynced)
+		wantResync := append([]byte(resetSequence), []byte("cdefghij")...)
+		if output.Op != terminalwire.ServerOpOutput || output.Seq != 0 || !bytes.Equal(output.Payload, wantResync) {
+			t.Fatalf("resync OUTPUT = %#v, want seq=0 payload=%q", output, wantResync)
+		}
+	})
+
+	t.Run("Should take the minimum write vote and ignore read watchers [IT-006]", func(t *testing.T) {
+		t.Parallel()
+		settings := DefaultSettings()
+		settings.MaxSubscribers = 3
+		manager, starter, _ := newTestManager(t, settings)
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		actor := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		first, err := handle.Attach(context.Background(), AttachOptions{
+			Mode: "write", Flow: "ack", Cols: 120, Rows: 40, Actor: actor,
+		})
+		if err != nil {
+			t.Fatalf("Attach(first writer) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := first.Close(); err != nil {
+				t.Errorf("first writer Close() error = %v", err)
+			}
+		})
+		second, err := handle.Attach(context.Background(), AttachOptions{
+			Mode: "write", Flow: "ack", Cols: 100, Rows: 30, Actor: actor,
+		})
+		if err != nil {
+			t.Fatalf("Attach(second writer) error = %v", err)
+		}
+		watcher, err := handle.Attach(context.Background(), AttachOptions{
+			Mode: "read", Flow: "drop", Cols: 20, Rows: 5, Actor: actor,
+		})
+		if err != nil {
+			t.Fatalf("Attach(watcher) error = %v", err)
+		}
+		if err := watcher.Resize(20, 5); err != nil {
+			t.Fatalf("watcher Resize() error = %v", err)
+		}
+		if got, ok := starter.latest().latestResize(); !ok || got != (fakeResize{cols: 100, rows: 30}) {
+			t.Fatalf("authoritative resize = %#v/%v, want 100x30", got, ok)
+		}
+		if handle.Info().Viewers != 3 {
+			t.Fatalf("Viewers = %d, want 3", handle.Info().Viewers)
+		}
+		if err := second.Close(); err != nil {
+			t.Fatalf("second writer Close() error = %v", err)
+		}
+		if got, ok := starter.latest().latestResize(); !ok || got != (fakeResize{cols: 120, rows: 40}) {
+			t.Fatalf("resize after second writer = %#v/%v, want 120x40", got, ok)
+		}
+		if err := watcher.Close(); err != nil {
+			t.Fatalf("watcher Close() error = %v", err)
+		}
+	})
+}
+
+func receiveSubscriptionFrame(t *testing.T, subscription Subscription) Frame {
+	t.Helper()
+	select {
+	case frame := <-subscription.Frames():
+		return frame
+	case <-time.After(time.Second):
+		t.Fatal("subscription frame timed out")
+		return Frame{}
+	}
+}
+
+func assertAttachedFrame(t *testing.T, frame Frame, sequence uint64, truncated bool) {
+	t.Helper()
+	if frame.Op != terminalwire.ServerOpAttached {
+		t.Fatalf("initial opcode = 0x%02x, want ATTACHED", frame.Op)
+	}
+	var payload struct {
+		Seq       uint64 `json:"seq"`
+		Truncated bool   `json:"truncated"`
+	}
+	if err := json.Unmarshal(frame.Payload, &payload); err != nil {
+		t.Fatalf("decode ATTACHED: %v", err)
+	}
+	if payload.Seq != sequence || payload.Truncated != truncated {
+		t.Fatalf("ATTACHED = %#v, want seq=%d truncated=%v", payload, sequence, truncated)
+	}
+}
+
 func TestManagerRetentionAndReaper(t *testing.T) {
 	t.Parallel()
 
@@ -467,9 +599,46 @@ func TestManagerProfileAndShutdownLifecycle(t *testing.T) {
 			t.Fatalf("profile-archived close events = %d, want 2", len(closed))
 		}
 		for _, event := range closed {
-			if event.Detail.Reason != "profile_archived" || event.ProfileID != "profile-a" ||
+			if event.Reason != "profile_archived" || event.ProfileID != "profile-a" ||
 				event.Actor.Kind != ActorKindSystem || event.Actor.ProfileID != "profile-a" {
 				t.Fatalf("close event = %#v", event)
+			}
+		}
+	})
+
+	t.Run("Should archive only the selected workspace through the shared drain path", func(t *testing.T) {
+		t.Parallel()
+		bus := NewEventBus(nil)
+		closed := make(chan TerminalEvent, 2)
+		bus.Observe(func(_ context.Context, event TerminalEvent) {
+			if event.Kind == EventKindClosed {
+				closed <- event
+			}
+		})
+		manager, _, _ := newTestManager(t, DefaultSettings(), WithEventBus(bus))
+		first := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		second := openTestTerminal(t, manager, "workspace-a", "profile-b")
+		other := openTestTerminal(t, manager, "workspace-b", "profile-a")
+		if err := manager.ArchiveWorkspace(context.Background(), "workspace-a"); err != nil {
+			t.Fatalf("ArchiveWorkspace() error = %v", err)
+		}
+		for _, handle := range []Handle{first, second} {
+			if _, err := manager.Handle(context.Background(), "workspace-a", handle.Info().ProfileID, handle.Info().ID); !errors.Is(err, ErrExpired) {
+				t.Fatalf("archived Handle(%s) error = %v", handle.Info().ID, err)
+			}
+		}
+		if _, err := manager.Handle(context.Background(), "workspace-b", "profile-a", other.Info().ID); err != nil {
+			t.Fatalf("other workspace Handle() error = %v", err)
+		}
+		for index := 0; index < 2; index++ {
+			select {
+			case event := <-closed:
+				if event.Reason != "workspace_deleted" || event.WorkspaceID != "workspace-a" ||
+					event.Actor.Kind != ActorKindSystem || event.Actor.ID != "workspace-lifecycle" {
+					t.Fatalf("close event = %#v", event)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("workspace archive emitted too few close events")
 			}
 		}
 	})

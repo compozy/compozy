@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -11,20 +12,24 @@ import (
 
 	terminalpty "github.com/compozy/compozy/internal/terminal/pty"
 	terminalvt "github.com/compozy/compozy/internal/terminal/vt"
+	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
 	"github.com/compozy/compozy/internal/toolruntime"
 )
 
 const outputReadBytes = 32 * 1024
 
 type session struct {
-	manager *Service
-	proc    Proc
-	filter  outputFilter
-	ring    *Ring
-	vt      *terminalvt.Actor
-	lease   *leaseMachine
-	audit   *auditGate
-	nonce   string
+	manager     *Service
+	proc        Proc
+	filter      outputFilter
+	ring        *Ring
+	vt          *terminalvt.Actor
+	lease       *leaseMachine
+	audit       *auditGate
+	flow        *terminalwire.Group
+	nonce       string
+	profileName string
+	titlePinned bool
 
 	mu            sync.RWMutex
 	info          Info
@@ -40,6 +45,8 @@ type session struct {
 	vtCarry       []byte
 	subscribers   map[uint64]*subscription
 	nextSubID     uint64
+	cols          uint16
+	rows          uint16
 	processRecord processCheckpoint
 	policy        Settings
 	done          chan struct{}
@@ -52,23 +59,30 @@ func newSession(
 	info Info,
 	settings Settings,
 	nonce string,
+	profileName string,
 	cols uint16,
 	rows uint16,
+	titlePinned bool,
 ) *session {
 	item := &session{
 		manager:       manager,
 		proc:          proc,
-		filter:        identityOutputFilter{},
+		flow:          terminalwire.NewGroup(),
 		ring:          NewRing(settings.ScrollbackBytes),
 		audit:         &auditGate{},
 		nonce:         nonce,
+		profileName:   profileName,
+		titlePinned:   titlePinned,
 		info:          info,
 		lastActivity:  manager.now(),
 		policy:        settings,
 		revisionReady: make(chan struct{}),
 		subscribers:   make(map[uint64]*subscription),
 		done:          make(chan struct{}),
+		cols:          cols,
+		rows:          rows,
 	}
+	item.filter = newOSCSecurityFilter(nonce, item.programTitleChanged)
 	item.vt = terminalvt.New(int(cols), int(rows), func() ([]byte, uint64) {
 		return item.ring.Snapshot()
 	})
@@ -101,8 +115,6 @@ func infoController(info Info) Actor {
 
 func (s *session) MarkerNonce() string { return s.nonce }
 
-func (s *session) setMarkerNonce(nonce string) { s.nonce = nonce }
-
 func (s *session) start() {
 	outputDone := make(chan struct{})
 	go func() {
@@ -114,12 +126,16 @@ func (s *session) start() {
 
 func (s *session) readOutput() {
 	reads := make(chan outputRead, 1)
-	go readProcessOutput(s.proc.Reader(), reads)
+	go readProcessOutput(s.proc.Reader(), reads, s.flow)
 	coalescer := newOutputCoalescer(s.acceptOutput)
 	for {
 		select {
 		case read := <-reads:
-			coalescer.Push(read.data)
+			filtered := s.filter.Filter(read.data)
+			if len(filtered.MarkerFacts) > 0 {
+				s.manager.markers.ConsumeMarkerFacts(context.Background(), s.Info(), filtered.MarkerFacts)
+			}
+			coalescer.Push(filtered.DisplayBytes)
 			if read.err != nil {
 				coalescer.Flush()
 				if !errors.Is(read.err, io.EOF) && !errors.Is(read.err, io.ErrClosedPipe) {
@@ -139,9 +155,13 @@ type outputRead struct {
 	err  error
 }
 
-func readProcessOutput(reader io.Reader, output chan<- outputRead) {
+func readProcessOutput(reader io.Reader, output chan<- outputRead, flow *terminalwire.Group) {
 	buffer := make([]byte, outputReadBytes)
 	for {
+		if err := flow.WaitProducer(context.Background()); err != nil {
+			output <- outputRead{err: err}
+			return
+		}
 		count, err := reader.Read(buffer)
 		read := outputRead{err: err}
 		if count > 0 {
@@ -155,12 +175,11 @@ func readProcessOutput(reader io.Reader, output chan<- outputRead) {
 }
 
 func (s *session) acceptOutput(input []byte) {
-	filtered := s.filter.Filter(input)
-	if len(filtered.DisplayBytes) == 0 {
+	if len(input) == 0 {
 		return
 	}
-	start, end := s.ring.Append(filtered.DisplayBytes)
-	vtInput := append(s.vtCarry, filtered.DisplayBytes...)
+	start, end := s.ring.Append(input)
+	vtInput := append(s.vtCarry, input...)
 	complete, carry := splitCompleteUTF8(vtInput)
 	s.vtCarry = append(s.vtCarry[:0], carry...)
 	completeEnd := end - uint64(len(carry))
@@ -175,14 +194,47 @@ func (s *session) acceptOutput(input []byte) {
 		subscribers = append(subscribers, subscriber)
 	}
 	s.mu.Unlock()
-	frame := Frame{Op: 0x01, Seq: start, Payload: append([]byte(nil), filtered.DisplayBytes...)}
+	frame := Frame{Op: terminalwire.ServerOpOutput, Seq: start, Payload: append([]byte(nil), input...)}
 	for _, subscriber := range subscribers {
 		subscriber.deliver(frame, end)
 	}
 }
 
+func (s *session) programTitleChanged(title string) {
+	if title == "" {
+		return
+	}
+	s.mu.Lock()
+	if s.titlePinned || s.info.Title == title {
+		s.mu.Unlock()
+		return
+	}
+	s.info.Title = title
+	info := s.infoSnapshotLocked()
+	subscribers := make([]*subscription, 0, len(s.subscribers))
+	for _, subscriber := range s.subscribers {
+		subscribers = append(subscribers, subscriber)
+	}
+	s.mu.Unlock()
+	payload, err := json.Marshal(map[string]string{"title": title})
+	if err != nil {
+		s.manager.logger.Warn("terminal: encode title frame", "terminal_id", info.ID, "error", err)
+		return
+	}
+	for _, subscriber := range subscribers {
+		subscriber.deliver(Frame{Op: terminalwire.ServerOpTitle, Payload: payload}, 0)
+	}
+	s.manager.events.Emit(context.Background(), TerminalEvent{
+		Kind: EventKindTitleChanged, WorkspaceID: info.WS, ProfileID: info.ProfileID,
+		ProfileName: s.profileName,
+		TerminalID:  info.ID, Actor: Actor{Kind: ActorKindSystem, ID: "terminal-program", ProfileID: info.ProfileID},
+		Info: &info, Detail: EventDetail{Title: title}, At: s.manager.now(),
+	})
+}
+
 func (s *session) waitProcess(outputDone <-chan struct{}) {
 	ptyExit, waitErr := s.proc.Wait(context.Background())
+	s.flow.ResumeProducer()
 	select {
 	case <-outputDone:
 	case <-time.After(200 * time.Millisecond):
@@ -250,7 +302,8 @@ func (s *session) finalize(exit Exit) {
 		if emitClosed {
 			s.manager.events.Emit(context.Background(), TerminalEvent{
 				Kind: EventKindClosed, WorkspaceID: info.WS, ProfileID: info.ProfileID,
-				TerminalID: info.ID, Actor: actor, Info: &info, Detail: EventDetail{Reason: reason, Exit: cloneExit(&exit)},
+				ProfileName: s.profileName,
+				TerminalID:  info.ID, Actor: actor, Info: &info, Exit: cloneExit(&exit), Reason: reason,
 				At: s.manager.now(),
 			})
 		}
