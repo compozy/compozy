@@ -132,9 +132,9 @@ absent key inherits, a list replaces, an empty list disables that key's configur
 settings section at workspace scope writes only these two keys; another field returns
 `workspace_scope_field_forbidden`.
 
-Read effective sources with `compozy skill sources -o json` or `GET /api/settings/skills`. Both keys
-are trust roots, so `compozy__config_set` and `compozy__config_unset` deny them with
-`config_trust_root_forbidden`; operators change them with
+Read effective sources with `compozy skill sources -o json` or `GET /api/settings/skills`.
+`compozy__config_set` and `compozy__config_unset` write both keys at user and workspace scope and
+refuse agent and profile scope with `config_scope_not_allowed`; operators change them with
 `compozy config set|unset skills.sources|skills.custom_sources` at user, exact profile
 (`--profile <name> --scope profile`), or workspace scope. `PATCH /api/settings/skills` uses the same
 profile lens; its workspace body is `{"override": {...}}`, where an absent field is untouched and

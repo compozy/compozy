@@ -172,10 +172,10 @@ Tool-gated skills re-evaluate on the next projection without a daemon restart.
 ## Skill Sources And Exposure
 
 Scan roots beyond Compozy's own come from `skills.sources` (folder conventions) and
-`skills.custom_sources` (exact directories), resolved live through four config overlays. Both are
-trust roots: `compozy__config_set` denies them with `config_trust_root_forbidden`, so read them at
-agent scope and route a change to an operator. Before reasoning about which roots are active or
-proposing a source change, read the Skill sources section of `references/configuration.md`.
+`skills.custom_sources` (exact directories), resolved live through four config overlays.
+`compozy__config_set` and `compozy__config_unset` write both keys at user and workspace scope and
+refuse agent and profile scope with `config_scope_not_allowed`. Before reasoning about which roots
+are active or proposing a source change, read the Skill sources section of `references/configuration.md`.
 
 Inspect with `compozy skill sources -o json` or `GET /api/settings/skills`. Per root read `exists`,
 `readable`, `scanned_count` (candidates found), `skill_count` (winners contributed), `truncated`,
