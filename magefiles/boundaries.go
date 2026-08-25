@@ -200,6 +200,10 @@ func Boundaries() error {
 		{"internal/worktree", "internal/api"},
 		{"internal/worktree", "internal/cli"},
 		{"internal/profile", "internal/api"},
+		{"internal/calls", "internal/daemon"},
+		{"internal/calls", "internal/api"},
+		{"internal/calls", "internal/session"},
+		{"internal/calls", "internal/store/globaldb"},
 	}
 	for _, rule := range prefixForbidden {
 		importerDir := rule.importer

@@ -90,6 +90,7 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"needs_attention_by_kind",
 		"needs_attention_by_ref",
 		"wake_creator",
+		"expect_digest",
 	})
 	assertTableColumns(t, globalDB.db, "task_blocks", []string{
 		"id",
@@ -153,6 +154,9 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"error",
 		"metadata_json",
 		"result_json",
+		"expect_digest",
+		"result_budget_bytes",
+		"result_overflow",
 		"summary",
 		"claimed_agent_name",
 		"claimed_peer_id",

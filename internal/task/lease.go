@@ -63,6 +63,8 @@ type ClaimCriteria struct {
 	ParticipationChannel string         `json:"participation_channel,omitempty"`
 	// WorkspaceActiveRunCap is trusted Service policy and never caller-controlled wire input.
 	WorkspaceActiveRunCap int `json:"-"`
+	// GovernedRootActiveRunCap is trusted call policy and never caller-controlled wire input.
+	GovernedRootActiveRunCap int `json:"-"`
 	// CallerNetworkParticipation is trusted hook context, never run-selection input.
 	CallerNetworkParticipation *participation.Spec  `json:"-"`
 	Soul                       *SoulClaimProvenance `json:"soul,omitempty"`

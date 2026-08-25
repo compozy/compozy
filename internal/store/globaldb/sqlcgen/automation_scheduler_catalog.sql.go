@@ -80,7 +80,7 @@ type HydrateAutomationJobCatalogRow struct {
 	Prompt                   string         `json:"prompt"`
 	Schedule                 sql.NullString `json:"schedule"`
 	Task                     sql.NullString `json:"task"`
-	Enabled                  interface{}    `json:"enabled"`
+	Enabled                  any            `json:"enabled"`
 	Retry                    string         `json:"retry"`
 	FireLimit                string         `json:"fire_limit"`
 	Source                   string         `json:"source"`
@@ -94,7 +94,7 @@ type HydrateAutomationJobCatalogRow struct {
 	UpdatedAt                string         `json:"updated_at"`
 }
 
-func (q *Queries) HydrateAutomationJobCatalog(ctx context.Context, idsJson interface{}) ([]HydrateAutomationJobCatalogRow, error) {
+func (q *Queries) HydrateAutomationJobCatalog(ctx context.Context, idsJson any) ([]HydrateAutomationJobCatalogRow, error) {
 	rows, err := q.db.QueryContext(ctx, hydrateAutomationJobCatalog, idsJson)
 	if err != nil {
 		return nil, err
@@ -163,7 +163,7 @@ type HydrateAutomationTriggerCatalogRow struct {
 	Prompt                   string         `json:"prompt"`
 	Event                    string         `json:"event"`
 	Filter                   sql.NullString `json:"filter"`
-	Enabled                  interface{}    `json:"enabled"`
+	Enabled                  any            `json:"enabled"`
 	Retry                    string         `json:"retry"`
 	FireLimit                string         `json:"fire_limit"`
 	Source                   string         `json:"source"`
@@ -180,7 +180,7 @@ type HydrateAutomationTriggerCatalogRow struct {
 	UpdatedAt                string         `json:"updated_at"`
 }
 
-func (q *Queries) HydrateAutomationTriggerCatalog(ctx context.Context, idsJson interface{}) ([]HydrateAutomationTriggerCatalogRow, error) {
+func (q *Queries) HydrateAutomationTriggerCatalog(ctx context.Context, idsJson any) ([]HydrateAutomationTriggerCatalogRow, error) {
 	rows, err := q.db.QueryContext(ctx, hydrateAutomationTriggerCatalog, idsJson)
 	if err != nil {
 		return nil, err
@@ -233,8 +233,8 @@ SELECT ?1, CAST(value AS TEXT) FROM json_each(?2)
 `
 
 type InsertAutomationTriggerCatalogTermsParams struct {
-	TriggerID string      `json:"trigger_id"`
-	TermsJson interface{} `json:"terms_json"`
+	TriggerID string `json:"trigger_id"`
+	TermsJson any    `json:"terms_json"`
 }
 
 func (q *Queries) InsertAutomationTriggerCatalogTerms(ctx context.Context, arg InsertAutomationTriggerCatalogTermsParams) error {

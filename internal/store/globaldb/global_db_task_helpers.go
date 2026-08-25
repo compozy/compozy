@@ -19,6 +19,7 @@ func normalizeTaskRecord(record taskpkg.Task) taskpkg.Task {
 	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
 	normalized.ParentTaskID = strings.TrimSpace(normalized.ParentTaskID)
 	normalized.CurrentRunID = strings.TrimSpace(normalized.CurrentRunID)
+	normalized.ExpectDigest = strings.TrimSpace(normalized.ExpectDigest)
 	normalized.Title = strings.TrimSpace(normalized.Title)
 	normalized.Description = strings.TrimSpace(normalized.Description)
 	normalized.PausedBy = strings.TrimSpace(normalized.PausedBy)
@@ -110,6 +111,11 @@ func normalizeTaskRunRecord(run taskpkg.Run) taskpkg.Run {
 	normalized.Origin.Kind = normalized.Origin.Kind.Normalize()
 	normalized.Origin.Ref = strings.TrimSpace(normalized.Origin.Ref)
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
+	normalized.ExpectDigest = strings.TrimSpace(normalized.ExpectDigest)
+	if normalized.ResultBudget != nil {
+		budget := *normalized.ResultBudget
+		normalized.ResultBudget = &budget
+	}
 	wakeID, targetSessionID, ownerKey := normalized.NetworkWakeCorrelation()
 	normalized.SetNetworkState(
 		normalized.NetworkSpecSnapshot(),

@@ -119,6 +119,9 @@ CREATE TABLE "task_runs" (
 		error           TEXT,
 		metadata_json   TEXT,
 		result_json     TEXT,
+		expect_digest  TEXT REFERENCES contract_schemas(digest),
+		result_budget_bytes INTEGER CHECK (result_budget_bytes IS NULL OR result_budget_bytes > 0),
+		result_overflow TEXT CHECK (result_overflow IS NULL OR result_overflow IN ('store', 'reject')),
 		summary         TEXT NOT NULL DEFAULT '',
 		claimed_agent_name TEXT NOT NULL DEFAULT '',
 		claimed_peer_id TEXT NOT NULL DEFAULT '',
@@ -144,7 +147,9 @@ CREATE TABLE "task_runs" (
 		claim_token_hash TEXT,
 		lease_until TEXT,
 		heartbeat_at TEXT,
-		run_kind TEXT NOT NULL DEFAULT 'worker' CHECK (run_kind IN ('worker', 'coordinator', 'network_wake')),
+		run_kind TEXT NOT NULL DEFAULT 'worker' CHECK (
+			run_kind IN ('worker', 'coordinator', 'network_wake', 'call_activation')
+		),
 		loop_run_id TEXT,
 		tokens_used INTEGER NOT NULL DEFAULT 0 CHECK (tokens_used >= 0),
 		network_wake_id TEXT,
@@ -155,8 +160,12 @@ CREATE TABLE "task_runs" (
 			(claimed_by_kind IS NOT NULL AND claimed_by_ref IS NOT NULL)
 		),
 		CHECK (status <> 'queued' OR session_id IS NULL),
-		CHECK (run_kind = 'network_wake' OR task_id IS NOT NULL),
-		CHECK (run_kind <> 'network_wake' OR task_id IS NULL),
+		CHECK (run_kind IN ('network_wake', 'call_activation') OR task_id IS NOT NULL),
+		CHECK (run_kind NOT IN ('network_wake', 'call_activation') OR task_id IS NULL),
+		CHECK (
+			(expect_digest IS NULL AND result_budget_bytes IS NULL AND result_overflow IS NULL) OR
+			(expect_digest IS NOT NULL AND result_budget_bytes IS NOT NULL AND result_overflow IS NOT NULL)
+		),
 		CHECK (
 			(resolved_worktree_mode = 'ref') = (resolved_worktree_ref <> '')
 		),

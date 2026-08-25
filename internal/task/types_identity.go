@@ -138,6 +138,7 @@ type Task struct {
 	AutoEnqueueOnReady bool            `json:"auto_enqueue_on_ready,omitempty"`
 	Paused             bool            `json:"paused,omitempty"`
 	WakeCreator        bool            `json:"wake_creator"`
+	ExpectDigest       string          `json:"expect_digest,omitempty"`
 	PausedBy           string          `json:"paused_by,omitempty"`
 	PausedAt           time.Time       `json:"paused_at,omitzero"`
 	PausedReason       string          `json:"paused_reason,omitempty"`

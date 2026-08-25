@@ -16,9 +16,9 @@ FROM network_timeline_log
 WHERE workspace_id = ?1
 `
 
-func (q *Queries) GetNetworkWatchEventsCursor(ctx context.Context, workspaceID string) (interface{}, error) {
+func (q *Queries) GetNetworkWatchEventsCursor(ctx context.Context, workspaceID string) (any, error) {
 	row := q.db.QueryRowContext(ctx, getNetworkWatchEventsCursor, workspaceID)
-	var coalesce interface{}
+	var coalesce any
 	err := row.Scan(&coalesce)
 	return coalesce, err
 }

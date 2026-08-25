@@ -103,6 +103,9 @@ func (g *WorkspaceRepo) DeleteWorkspace(ctx context.Context, id string) error {
 		if err := deleteWorkspaceExtensionEnv(ctx, queries, trimmedID); err != nil {
 			return err
 		}
+		if err := terminalizeWorkspaceCalls(ctx, tx, trimmedID, g.now().UTC()); err != nil {
+			return err
+		}
 
 		if err := queries.DeleteSessionsByWorkspace(ctx, trimmedID); err != nil {
 			return fmt.Errorf("store: delete stopped sessions for workspace %q: %w", trimmedID, err)

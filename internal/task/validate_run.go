@@ -3,6 +3,8 @@ package task
 import (
 	"fmt"
 	"strings"
+
+	"github.com/compozy/compozy/internal/contracts"
 )
 
 // Validate reports whether the task-run record contains the canonical persisted shape.
@@ -32,7 +34,27 @@ func (r Run) Validate() error {
 			r.TokensUsed,
 		)
 	}
+	if err := validateRunResultContract(r); err != nil {
+		return err
+	}
 	return validateRunPayloads(r)
+}
+
+func validateRunResultContract(r Run) error {
+	hasDigest := strings.TrimSpace(r.ExpectDigest) != ""
+	if hasDigest != (r.ResultBudget != nil) {
+		return fmt.Errorf("%w: task_run result contract snapshot must be entirely set or empty", ErrValidation)
+	}
+	if !hasDigest {
+		return nil
+	}
+	if r.ResultBudget.MaxBytes <= 0 {
+		return fmt.Errorf("%w: task_run.result_budget.max_bytes must be positive", ErrValidation)
+	}
+	if r.ResultBudget.Overflow != contracts.OverflowStore && r.ResultBudget.Overflow != contracts.OverflowReject {
+		return fmt.Errorf("%w: task_run.result_budget.overflow is invalid: %q", ErrValidation, r.ResultBudget.Overflow)
+	}
+	return nil
 }
 
 func validateRunIdentity(r Run) error {
@@ -55,6 +77,13 @@ func validateRunIdentity(r Run) error {
 				"%w: network_wake runs require network_wake_id, network_target_session_id, and network_owner_key",
 				ErrValidation,
 			)
+		}
+	} else if kind == RunKindCallActivation {
+		if strings.TrimSpace(r.TaskID) != "" {
+			return fmt.Errorf("%w: task_run.task_id must be empty for call_activation runs", ErrValidation)
+		}
+		if strings.TrimSpace(wakeID) != "" || strings.TrimSpace(targetSessionID) != "" || strings.TrimSpace(ownerKey) != "" {
+			return fmt.Errorf("%w: call_activation runs cannot carry network wake correlation", ErrValidation)
 		}
 	} else {
 		if strings.TrimSpace(r.TaskID) == "" {

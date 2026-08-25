@@ -394,6 +394,112 @@ type BridgeTaskSubscription struct {
 	UpdatedAt        string         `json:"updated_at"`
 }
 
+type Call struct {
+	CallID                 string         `json:"call_id"`
+	ProfileID              string         `json:"profile_id"`
+	Scope                  string         `json:"scope"`
+	WorkspaceID            string         `json:"workspace_id"`
+	CallerKind             string         `json:"caller_kind"`
+	CallerID               string         `json:"caller_id"`
+	ActorKind              string         `json:"actor_kind"`
+	ActorID                string         `json:"actor_id"`
+	ActivationRunID        sql.NullString `json:"activation_run_id"`
+	ParentSessionID        sql.NullString `json:"parent_session_id"`
+	AgentName              sql.NullString `json:"agent_name"`
+	ChildSessionID         sql.NullString `json:"child_session_id"`
+	GovernedRootID         string         `json:"governed_root_id"`
+	Depth                  int64          `json:"depth"`
+	State                  string         `json:"state"`
+	Verdict                sql.NullString `json:"verdict"`
+	ExpectDigest           sql.NullString `json:"expect_digest"`
+	PromptRef              string         `json:"prompt_ref"`
+	ResultRef              sql.NullString `json:"result_ref"`
+	ResultBytes            sql.NullInt64  `json:"result_bytes"`
+	ResultBudgetBytes      int64          `json:"result_budget_bytes"`
+	ResultOverflow         string         `json:"result_overflow"`
+	Strict                 int64          `json:"strict"`
+	IdleTtlSeconds         int64          `json:"idle_ttl_seconds"`
+	RuntimeProvider        string         `json:"runtime_provider"`
+	RuntimeModel           string         `json:"runtime_model"`
+	RuntimeReasoningEffort string         `json:"runtime_reasoning_effort"`
+	RuntimeSpeed           string         `json:"runtime_speed"`
+	FailureCode            sql.NullString `json:"failure_code"`
+	FailureDetail          sql.NullString `json:"failure_detail"`
+	RepairAttempts         int64          `json:"repair_attempts"`
+	FirstIssueText         string         `json:"first_issue_text"`
+	SecondIssueText        string         `json:"second_issue_text"`
+	FinalProsePreview      string         `json:"final_prose_preview"`
+	SupersededRef          sql.NullString `json:"superseded_ref"`
+	IdempotencyKey         sql.NullString `json:"idempotency_key"`
+	RequestDigest          string         `json:"request_digest"`
+	BatchID                sql.NullString `json:"batch_id"`
+	DeadlineAt             sql.NullString `json:"deadline_at"`
+	CreatedAt              string         `json:"created_at"`
+	StartedAt              sql.NullString `json:"started_at"`
+	SettledAt              sql.NullString `json:"settled_at"`
+	UpdatedAt              string         `json:"updated_at"`
+}
+
+type CallActivationRun struct {
+	RunID                  string         `json:"run_id"`
+	CallID                 string         `json:"call_id"`
+	WorkspaceID            string         `json:"workspace_id"`
+	GovernedRootID         string         `json:"governed_root_id"`
+	ActivationKind         string         `json:"activation_kind"`
+	ParentSessionID        sql.NullString `json:"parent_session_id"`
+	TargetSessionID        sql.NullString `json:"target_session_id"`
+	AgentName              sql.NullString `json:"agent_name"`
+	Depth                  int64          `json:"depth"`
+	IdleTtlSeconds         int64          `json:"idle_ttl_seconds"`
+	RuntimeProvider        string         `json:"runtime_provider"`
+	RuntimeModel           string         `json:"runtime_model"`
+	RuntimeReasoningEffort string         `json:"runtime_reasoning_effort"`
+	RuntimeSpeed           string         `json:"runtime_speed"`
+	CreatedAt              string         `json:"created_at"`
+}
+
+type CallDelivery struct {
+	DeliveryID         string         `json:"delivery_id"`
+	Kind               string         `json:"kind"`
+	SubjectID          string         `json:"subject_id"`
+	RecipientSessionID string         `json:"recipient_session_id"`
+	OwnerKey           string         `json:"owner_key"`
+	WakeEventID        string         `json:"wake_event_id"`
+	State              string         `json:"state"`
+	Reason             string         `json:"reason"`
+	Attempts           int64          `json:"attempts"`
+	CreatedAt          string         `json:"created_at"`
+	UpdatedAt          string         `json:"updated_at"`
+	DeliveredAt        sql.NullString `json:"delivered_at"`
+}
+
+type CallMessage struct {
+	MessageID   string         `json:"message_id"`
+	ProfileID   string         `json:"profile_id"`
+	Scope       string         `json:"scope"`
+	WorkspaceID string         `json:"workspace_id"`
+	FromKind    string         `json:"from_kind"`
+	FromID      string         `json:"from_id"`
+	ToSessionID string         `json:"to_session_id"`
+	CallID      sql.NullString `json:"call_id"`
+	Body        string         `json:"body"`
+	DedupHash   string         `json:"dedup_hash"`
+	CreatedAt   string         `json:"created_at"`
+}
+
+type CallPermissionAtom struct {
+	CallID string `json:"call_id"`
+	Atom   string `json:"atom"`
+}
+
+type CallPublication struct {
+	CallID           string `json:"call_id"`
+	Channel          string `json:"channel"`
+	ThreadID         string `json:"thread_id"`
+	NetworkMessageID string `json:"network_message_id"`
+	CreatedAt        string `json:"created_at"`
+}
+
 type CmdPalettePin struct {
 	WorkspaceID   string `json:"workspace_id"`
 	ProfileLensID string `json:"profile_lens_id"`
@@ -434,6 +540,12 @@ type ConfigApplyRecord struct {
 	CreatedAt         string         `json:"created_at"`
 	AppliedAt         sql.NullString `json:"applied_at"`
 	UpdatedAt         string         `json:"updated_at"`
+}
+
+type ContractSchema struct {
+	Digest    string `json:"digest"`
+	Schema    string `json:"schema"`
+	CreatedAt string `json:"created_at"`
 }
 
 type DeadEntity struct {
@@ -1579,6 +1691,23 @@ type NotificationPresetEnablement struct {
 	Enabled    int64  `json:"enabled"`
 }
 
+type OperatorCallerSession struct {
+	ProfileID   string `json:"profile_id"`
+	Scope       string `json:"scope"`
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id"`
+	CreatedAt   string `json:"created_at"`
+}
+
+type PayloadBlob struct {
+	WorkspaceID string `json:"workspace_id"`
+	Ref         string `json:"ref"`
+	Bytes       []byte `json:"bytes"`
+	ByteSize    int64  `json:"byte_size"`
+	CreatedAt   string `json:"created_at"`
+	LastUsedAt  string `json:"last_used_at"`
+}
+
 type PermissionLog struct {
 	ID         string `json:"id"`
 	SessionID  string `json:"session_id"`
@@ -1720,6 +1849,9 @@ type Session struct {
 	SessionType              string         `json:"session_type"`
 	State                    string         `json:"state"`
 	ArchivedAt               sql.NullString `json:"archived_at"`
+	ParkedAt                 sql.NullString `json:"parked_at"`
+	IdleExpiresAt            sql.NullString `json:"idle_expires_at"`
+	DrainingAt               sql.NullString `json:"draining_at"`
 	AcpSessionID             sql.NullString `json:"acp_session_id"`
 	StopReason               sql.NullString `json:"stop_reason"`
 	StopDetail               sql.NullString `json:"stop_detail"`
@@ -1955,6 +2087,7 @@ type Task struct {
 	NeedsAttentionByKind  sql.NullString `json:"needs_attention_by_kind"`
 	NeedsAttentionByRef   sql.NullString `json:"needs_attention_by_ref"`
 	WakeCreator           int64          `json:"wake_creator"`
+	ExpectDigest          sql.NullString `json:"expect_digest"`
 }
 
 type TaskBlock struct {
@@ -2109,6 +2242,9 @@ type TaskRun struct {
 	Error                   sql.NullString `json:"error"`
 	MetadataJson            sql.NullString `json:"metadata_json"`
 	ResultJson              sql.NullString `json:"result_json"`
+	ExpectDigest            sql.NullString `json:"expect_digest"`
+	ResultBudgetBytes       sql.NullInt64  `json:"result_budget_bytes"`
+	ResultOverflow          sql.NullString `json:"result_overflow"`
 	Summary                 string         `json:"summary"`
 	ClaimedAgentName        string         `json:"claimed_agent_name"`
 	ClaimedPeerID           string         `json:"claimed_peer_id"`

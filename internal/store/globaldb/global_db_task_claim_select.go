@@ -99,7 +99,7 @@ func (g *TaskRunRepo) ensureWorkspaceActiveRunCapacity(
 		return err
 	}
 	workspaceID := strings.TrimSpace(candidate.WorkspaceID)
-	if workspaceID == "" || candidate.IsNetworkWake() {
+	if workspaceID == "" || candidate.IsTaskless() {
 		return nil
 	}
 	count, err := sqlcgen.New(exec).CountActiveTaskRunLeasesForWorkspace(
@@ -134,6 +134,9 @@ func (g *TaskRunRepo) selectClaimableRunID(
 ) (string, error) {
 	if criteria.RunKind.Normalize() == taskpkg.RunKindNetworkWake {
 		return g.selectClaimableNetworkWakeRunID(ctx, exec, criteria)
+	}
+	if criteria.RunKind.Normalize() == taskpkg.RunKindCallActivation {
+		return g.selectClaimableCallActivationRunID(ctx, exec, criteria)
 	}
 	where, args := baseClaimPredicates(criteria)
 	exactRunID := strings.TrimSpace(criteria.RunID)
@@ -291,6 +294,62 @@ func (g *TaskRunRepo) selectClaimableNetworkWakeRunID(
 			return "", nil
 		}
 		return "", fmt.Errorf("store: select claimable network wake run: %w", err)
+	}
+	return runID, nil
+}
+
+func (g *TaskRunRepo) selectClaimableCallActivationRunID(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	criteria taskpkg.ClaimCriteria,
+) (string, error) {
+	where := []string{
+		"tr.run_kind = ?",
+		globalDBTaskRunStatusFilter,
+		"c.state = 'queued'",
+		"c.scope = ?",
+		"c.workspace_id = ?",
+		`NOT EXISTS (SELECT 1 FROM scheduler_pause sp WHERE sp.id = 1 AND sp.paused = 1)`,
+	}
+	args := []any{
+		taskpkg.RunKindCallActivation.String(),
+		taskpkg.TaskRunStatusQueued.String(),
+		string(criteria.Scope.Normalize()),
+		strings.TrimSpace(criteria.WorkspaceID),
+	}
+	if runID := strings.TrimSpace(criteria.RunID); runID != "" {
+		where = append(where, "tr.id = ?")
+		args = append(args, runID)
+	}
+	if criteria.GovernedRootActiveRunCap > 0 {
+		where = append(where, `(SELECT COUNT(1)
+			FROM task_runs active_run
+			JOIN call_activation_runs active_activation ON active_activation.run_id = active_run.id
+			WHERE active_activation.governed_root_id = activation.governed_root_id
+			  AND active_run.status IN (?, ?, ?)
+			  AND (active_run.lease_until IS NULL OR active_run.lease_until > ?)) < ?`)
+		args = append(args,
+			taskpkg.TaskRunStatusClaimed.String(),
+			taskpkg.TaskRunStatusStarting.String(),
+			taskpkg.TaskRunStatusRunning.String(),
+			store.FormatTimestamp(criteria.Now),
+			criteria.GovernedRootActiveRunCap,
+		)
+	}
+	query := `SELECT tr.id
+		FROM task_runs tr
+		JOIN call_activation_runs activation ON activation.run_id = tr.id
+		JOIN calls c ON c.call_id = activation.call_id
+		JOIN profiles p ON p.id = c.profile_id
+		WHERE ` + strings.Join(where, " AND ") + `
+		  AND ` + profileClaimEligibilitySQL + `
+		ORDER BY tr.queued_at ASC, tr.id ASC LIMIT 1`
+	var runID string
+	if err := exec.QueryRowContext(ctx, query, args...).Scan(&runID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		return "", fmt.Errorf("store: select claimable call activation run: %w", err)
 	}
 	return runID, nil
 }

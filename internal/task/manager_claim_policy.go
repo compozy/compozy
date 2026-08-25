@@ -7,3 +7,11 @@ func WithWorkspaceActiveRunCap(limit int) Option {
 		opts.workspaceActiveRunCap = limit
 	}
 }
+
+// WithGovernedRootActiveRunCap injects the trusted concurrent call-activation limit.
+// Zero disables the limit.
+func WithGovernedRootActiveRunCap(limit int) Option {
+	return func(opts *managerOptions) {
+		opts.governedRootActiveRunCap = limit
+	}
+}

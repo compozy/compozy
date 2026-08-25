@@ -21,7 +21,8 @@ const (
 	// defaultStarvationWorkerTTL bounds a capability-matched starvation worker's lifetime. The
 	// spawn reaper releases its leases and stops it past this deadline so a worker that claims
 	// nothing cannot pile up; released work re-queues and re-escalates from the durable budget.
-	defaultStarvationWorkerTTL = 15 * time.Minute
+	defaultStarvationWorkerTTL   = 15 * time.Minute
+	defaultStarvationMaxChildren = 5
 	// defaultStarvationMaxActivePerWorkspace is advisory metadata on the spawn budget; the real
 	// per-(agent, channel, scope) cap is the role-session dedup in activeRoleSession.
 	defaultStarvationMaxActivePerWorkspace = 3

@@ -21,7 +21,7 @@ func (m *Service) publishCompletedLeaseSettlement(
 	defer publicationCancel()
 
 	run := settlement.Run
-	if run.IsNetworkWake() {
+	if run.IsTaskless() {
 		m.dispatchTaskRunCompleted(publicationCtx, run, Task{}, actor)
 		return &run, nil
 	}

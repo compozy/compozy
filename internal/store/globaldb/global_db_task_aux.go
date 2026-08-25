@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
@@ -44,6 +45,7 @@ type queuedRunReservationInput struct {
 	preferredCapabilities []string
 	metadata              json.RawMessage
 	queuedAt              time.Time
+	resultBudget          contracts.ByteBudget
 }
 
 // GetTaskTriageState returns the durable actor-scoped triage state for one task.

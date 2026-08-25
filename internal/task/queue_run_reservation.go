@@ -6,23 +6,25 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // QueueRunReservation captures the canonical store-level queue reservation input.
 type QueueRunReservation struct {
-	TaskID               string             `json:"task_id"`
-	RunID                string             `json:"run_id"`
-	RunKind              RunKind            `json:"run_kind,omitempty"`
-	LoopRunID            string             `json:"loop_run_id,omitempty"`
-	IdempotencyKey       string             `json:"idempotency_key,omitempty"`
-	Origin               Origin             `json:"origin"`
-	NetworkSpec          participation.Spec `json:"network_spec"`
-	DesignationGroupID   string             `json:"designation_group_id,omitempty"`
-	ResolvedWorktreeMode WorktreeMode       `json:"resolved_worktree_mode"`
-	ResolvedWorktreeRef  string             `json:"resolved_worktree_ref,omitempty"`
-	Metadata             json.RawMessage    `json:"metadata,omitempty"`
-	QueuedAt             time.Time          `json:"queued_at"`
+	TaskID               string               `json:"task_id"`
+	RunID                string               `json:"run_id"`
+	RunKind              RunKind              `json:"run_kind,omitempty"`
+	LoopRunID            string               `json:"loop_run_id,omitempty"`
+	IdempotencyKey       string               `json:"idempotency_key,omitempty"`
+	Origin               Origin               `json:"origin"`
+	NetworkSpec          participation.Spec   `json:"network_spec"`
+	DesignationGroupID   string               `json:"designation_group_id,omitempty"`
+	ResolvedWorktreeMode WorktreeMode         `json:"resolved_worktree_mode"`
+	ResolvedWorktreeRef  string               `json:"resolved_worktree_ref,omitempty"`
+	Metadata             json.RawMessage      `json:"metadata,omitempty"`
+	QueuedAt             time.Time            `json:"queued_at"`
+	ResultBudget         contracts.ByteBudget `json:"result_budget"`
 }
 
 // Validate reports whether the store-level queue reservation input is internally consistent.
@@ -60,6 +62,9 @@ func (r QueueRunReservation) Validate(path string) error {
 	}
 	if err := ValidateMetadataSize(r.Metadata, nestedPath(path, "metadata")); err != nil {
 		return err
+	}
+	if r.ResultBudget.MaxBytes < 0 {
+		return fmt.Errorf("%w: %s must not be negative", ErrValidation, nestedPath(path, "result_budget.max_bytes"))
 	}
 	return nil
 }

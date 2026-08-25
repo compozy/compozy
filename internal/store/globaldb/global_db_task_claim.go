@@ -7,6 +7,7 @@ import (
 	"time"
 
 	loop "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -72,6 +73,11 @@ func (g *TaskRunRepo) claimNextRunWithExecutor(
 	); err != nil {
 		return taskpkg.ClaimResult{}, err
 	}
+	if criteria.RunKind.Normalize() == taskpkg.RunKindCallActivation {
+		if err := markCallRunningForActivation(ctx, exec, runID, criteria.Now); err != nil {
+			return taskpkg.ClaimResult{}, err
+		}
+	}
 	run, err := g.tasks.getTaskRunWithExecutor(ctx, exec, runID)
 	if err != nil {
 		return taskpkg.ClaimResult{}, err
@@ -79,7 +85,36 @@ func (g *TaskRunRepo) claimNextRunWithExecutor(
 	if run.IsNetworkWake() {
 		return claimNetworkWakeResult(ctx, exec, run, claimToken, leaseUntil, criteria.Now)
 	}
+	if run.IsCallActivation() {
+		return taskpkg.ClaimResult{Run: run, ClaimToken: claimToken, LeaseUntil: leaseUntil}, nil
+	}
 	return g.claimStandardTaskRunResult(ctx, exec, run, claimToken, leaseUntil, criteria.Now)
+}
+
+func markCallRunningForActivation(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	runID string,
+	startedAt time.Time,
+) error {
+	result, err := exec.ExecContext(ctx, `UPDATE calls
+		SET state = 'running', started_at = ?, updated_at = ?
+		WHERE activation_run_id = ? AND state = 'queued'`,
+		store.FormatTimestamp(startedAt),
+		store.FormatTimestamp(startedAt),
+		strings.TrimSpace(runID),
+	)
+	if err != nil {
+		return fmt.Errorf("store: mark call activation %q running: %w", runID, err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("store: inspect call activation %q running update: %w", runID, err)
+	}
+	if affected != 1 {
+		return fmt.Errorf("%w: call activation run %q lost its queued call", taskpkg.ErrNoClaimableRun, runID)
+	}
+	return nil
 }
 
 func claimNetworkWakeResult(

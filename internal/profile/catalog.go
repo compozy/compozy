@@ -221,6 +221,7 @@ var ownedWorkTables = []string{
 	"automation_suggestions", "bridge_instances", "worktrees", "network_channels",
 	"network_direct_rooms", "network_threads", "network_work", "notification_cursors",
 	"tool_approval_grants", "dead_entities", "token_usage_daily",
+	"calls", "call_messages",
 }
 
 func (m *Manager) profileCounts(ctx context.Context, q queryer, profileID string) (profileCountsResult, error) {

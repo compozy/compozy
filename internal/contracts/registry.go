@@ -34,6 +34,23 @@ func NewRegistry(store RegistryStore) Registry {
 }
 
 func (r *registry) Pin(ctx context.Context, raw json.RawMessage) (Contract, error) {
+	contract, err := Prepare(raw)
+	if err != nil {
+		return Contract{}, err
+	}
+	if r.store == nil {
+		return Contract{}, newError(CodeExpectInvalid, FaultContract, "registry store is required", nil)
+	}
+	if err := r.store.PutContract(ctx, contract); err != nil {
+		return Contract{}, fmt.Errorf("pin contract %s: %w", contract.Digest, err)
+	}
+	return contract, nil
+}
+
+// Prepare validates and canonicalizes a contract without persisting it.
+// Transactional consumers use this to place the immutable registry row and
+// the referencing domain record in one commit.
+func Prepare(raw json.RawMessage) (Contract, error) {
 	canonical, err := normalizeSchema(raw)
 	if err != nil {
 		return Contract{}, newError(CodeExpectInvalid, FaultContract, err.Error(), err)
@@ -48,12 +65,6 @@ func (r *registry) Pin(ctx context.Context, raw json.RawMessage) (Contract, erro
 	}
 	if _, err := compileSchema(contract); err != nil {
 		return Contract{}, newError(CodeExpectInvalid, FaultContract, err.Error(), err)
-	}
-	if r.store == nil {
-		return Contract{}, newError(CodeExpectInvalid, FaultContract, "registry store is required", nil)
-	}
-	if err := r.store.PutContract(ctx, contract); err != nil {
-		return Contract{}, fmt.Errorf("pin contract %s: %w", contract.Digest, err)
 	}
 	return contract, nil
 }

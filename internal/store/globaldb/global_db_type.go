@@ -17,6 +17,7 @@ type GlobalDB struct {
 	*AutomationRepo
 	*BridgeRepo
 	*NetworkRepo
+	*CallRepo
 	*GatewayRepo
 	*LoopRepo
 	*GoalRepo

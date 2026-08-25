@@ -120,7 +120,6 @@ func (n *daemonNativeTools) sessionSpawn(
 			),
 			SandboxProfiles: trimNativeStrings(input.SandboxProfiles),
 		},
-		IdempotencyKey: strings.TrimSpace(input.IdempotencyKey),
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, err)

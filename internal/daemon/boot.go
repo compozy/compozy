@@ -98,6 +98,7 @@ type bootState struct {
 	marketplace           *marketplaceRuntime
 	marketplaceNotifier   marketplacepkg.Notifier
 	tasks                 *taskRuntime
+	calls                 *callRuntime
 	subprocessHealth      *subprocessHealthEscalator
 	reviewRequests        *runReviewRequestedForwarder
 	spawnReaper           *spawnReaper

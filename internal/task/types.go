@@ -166,6 +166,8 @@ const (
 	RunKindCoordinator
 	// RunKindNetworkWake identifies durable Network admission work without a task anchor.
 	RunKindNetworkWake
+	// RunKindCallActivation identifies durable call spawn or revival work without a task anchor.
+	RunKindCallActivation
 )
 
 // String returns the durable string representation of the task-run kind.
@@ -177,6 +179,8 @@ func (k RunKind) String() string {
 		return "coordinator"
 	case RunKindNetworkWake:
 		return "network_wake"
+	case RunKindCallActivation:
+		return "call_activation"
 	default:
 		return ""
 	}

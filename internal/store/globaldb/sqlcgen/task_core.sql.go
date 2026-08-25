@@ -86,7 +86,7 @@ SELECT
   created_at, updated_at, closed_at, current_run_id,
   CAST(COALESCE((SELECT MAX(te.event_seq) FROM task_events te WHERE te.task_id = tasks.id), 0) AS INTEGER) AS latest_event_seq,
   paused, paused_by, paused_at, paused_reason, needs_attention_reason, needs_attention_at,
-  needs_attention_by_kind, needs_attention_by_ref, wake_creator, metadata_json
+  needs_attention_by_kind, needs_attention_by_ref, wake_creator, metadata_json, expect_digest
 FROM tasks
 WHERE tasks.id = ?1
 `
@@ -127,6 +127,7 @@ type GetTaskRow struct {
 	NeedsAttentionByRef  sql.NullString `json:"needs_attention_by_ref"`
 	WakeCreator          int64          `json:"wake_creator"`
 	MetadataJson         sql.NullString `json:"metadata_json"`
+	ExpectDigest         sql.NullString `json:"expect_digest"`
 }
 
 func (q *Queries) GetTask(ctx context.Context, taskID string) (GetTaskRow, error) {
@@ -168,6 +169,7 @@ func (q *Queries) GetTask(ctx context.Context, taskID string) (GetTaskRow, error
 		&i.NeedsAttentionByRef,
 		&i.WakeCreator,
 		&i.MetadataJson,
+		&i.ExpectDigest,
 	)
 	return i, err
 }
@@ -193,7 +195,8 @@ SELECT
   tokens_used, error, metadata_json, result_json, review_required, review_request_round,
   review_policy_snapshot, review_request_id, parent_run_id, review_id, review_round,
   continuation_reason, missing_work_json, next_round_guidance,
-  network_wake_id, network_target_session_id, network_owner_key
+  network_wake_id, network_target_session_id, network_owner_key,
+  expect_digest, result_budget_bytes, result_overflow
 FROM task_runs
 WHERE id = ?1
 `
@@ -248,6 +251,9 @@ type GetTaskRunRow struct {
 	NetworkWakeID          sql.NullString `json:"network_wake_id"`
 	NetworkTargetSessionID sql.NullString `json:"network_target_session_id"`
 	NetworkOwnerKey        sql.NullString `json:"network_owner_key"`
+	ExpectDigest           sql.NullString `json:"expect_digest"`
+	ResultBudgetBytes      sql.NullInt64  `json:"result_budget_bytes"`
+	ResultOverflow         sql.NullString `json:"result_overflow"`
 }
 
 func (q *Queries) GetTaskRun(ctx context.Context, id string) (GetTaskRunRow, error) {
@@ -303,6 +309,9 @@ func (q *Queries) GetTaskRun(ctx context.Context, id string) (GetTaskRunRow, err
 		&i.NetworkWakeID,
 		&i.NetworkTargetSessionID,
 		&i.NetworkOwnerKey,
+		&i.ExpectDigest,
+		&i.ResultBudgetBytes,
+		&i.ResultOverflow,
 	)
 	return i, err
 }
@@ -355,7 +364,7 @@ INSERT INTO tasks (
   priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
   owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
   created_at, updated_at, closed_at, paused, paused_by, paused_at, paused_reason, wake_creator,
-  metadata_json
+  metadata_json, expect_digest
 ) VALUES (
   ?1,
   ?2, ?3, ?4, ?5,
@@ -365,7 +374,7 @@ INSERT INTO tasks (
   ?17, ?18, ?19, ?20,
   ?21, ?22, ?23, ?24,
   ?25, ?26, ?27, ?28,
-  ?29
+  ?29, ?30
 )
 `
 
@@ -399,6 +408,7 @@ type InsertTaskParams struct {
 	PausedReason       string         `json:"paused_reason"`
 	WakeCreator        int64          `json:"wake_creator"`
 	MetadataJson       sql.NullString `json:"metadata_json"`
+	ExpectDigest       sql.NullString `json:"expect_digest"`
 }
 
 func (q *Queries) InsertTask(ctx context.Context, arg InsertTaskParams) error {
@@ -432,6 +442,7 @@ func (q *Queries) InsertTask(ctx context.Context, arg InsertTaskParams) error {
 		arg.PausedReason,
 		arg.WakeCreator,
 		arg.MetadataJson,
+		arg.ExpectDigest,
 	)
 	return err
 }
@@ -446,7 +457,8 @@ INSERT INTO task_runs (
   tokens_used, error, metadata_json, result_json, review_required, review_request_round,
   review_policy_snapshot, review_request_id, parent_run_id, review_id, review_round,
   continuation_reason, missing_work_json, next_round_guidance,
-  network_wake_id, network_target_session_id, network_owner_key
+  network_wake_id, network_target_session_id, network_owner_key,
+  expect_digest, result_budget_bytes, result_overflow
 ) VALUES (
   ?1, ?2, ?3, ?4,
   ?5, ?6, ?7,
@@ -462,7 +474,8 @@ INSERT INTO task_runs (
   ?37, ?38, ?39,
   ?40, ?41, ?42,
   ?43, ?44, ?45,
-  ?46, ?47, ?48
+  ?46, ?47, ?48,
+  ?49, ?50, ?51
 )
 `
 
@@ -515,6 +528,9 @@ type InsertTaskRunParams struct {
 	NetworkWakeID          sql.NullString `json:"network_wake_id"`
 	NetworkTargetSessionID sql.NullString `json:"network_target_session_id"`
 	NetworkOwnerKey        sql.NullString `json:"network_owner_key"`
+	ExpectDigest           sql.NullString `json:"expect_digest"`
+	ResultBudgetBytes      sql.NullInt64  `json:"result_budget_bytes"`
+	ResultOverflow         sql.NullString `json:"result_overflow"`
 }
 
 func (q *Queries) InsertTaskRun(ctx context.Context, arg InsertTaskRunParams) error {
@@ -567,6 +583,9 @@ func (q *Queries) InsertTaskRun(ctx context.Context, arg InsertTaskRunParams) er
 		arg.NetworkWakeID,
 		arg.NetworkTargetSessionID,
 		arg.NetworkOwnerKey,
+		arg.ExpectDigest,
+		arg.ResultBudgetBytes,
+		arg.ResultOverflow,
 	)
 	return err
 }
@@ -580,7 +599,7 @@ ORDER BY run_id ASC, capability_id ASC
 
 func (q *Queries) ListPreferredTaskRunCapabilities(ctx context.Context, runIds []string) ([]TaskRunPreferredCapability, error) {
 	query := listPreferredTaskRunCapabilities
-	var queryParams []interface{}
+	var queryParams []any
 	if len(runIds) > 0 {
 		for _, v := range runIds {
 			queryParams = append(queryParams, v)
@@ -620,7 +639,7 @@ ORDER BY run_id ASC, capability_id ASC
 
 func (q *Queries) ListRequiredTaskRunCapabilities(ctx context.Context, runIds []string) ([]TaskRunRequiredCapability, error) {
 	query := listRequiredTaskRunCapabilities
-	var queryParams []interface{}
+	var queryParams []any
 	if len(runIds) > 0 {
 		for _, v := range runIds {
 			queryParams = append(queryParams, v)
@@ -661,7 +680,8 @@ SELECT
   tokens_used, error, metadata_json, result_json, review_required, review_request_round,
   review_policy_snapshot, review_request_id, parent_run_id, review_id, review_round,
   continuation_reason, missing_work_json, next_round_guidance,
-  network_wake_id, network_target_session_id, network_owner_key
+  network_wake_id, network_target_session_id, network_owner_key,
+  expect_digest, result_budget_bytes, result_overflow
 FROM task_runs
 WHERE status IN (/*SLICE:statuses*/?)
 ORDER BY queued_at ASC, id ASC
@@ -717,11 +737,14 @@ type ListTaskRunsByStatusRow struct {
 	NetworkWakeID          sql.NullString `json:"network_wake_id"`
 	NetworkTargetSessionID sql.NullString `json:"network_target_session_id"`
 	NetworkOwnerKey        sql.NullString `json:"network_owner_key"`
+	ExpectDigest           sql.NullString `json:"expect_digest"`
+	ResultBudgetBytes      sql.NullInt64  `json:"result_budget_bytes"`
+	ResultOverflow         sql.NullString `json:"result_overflow"`
 }
 
 func (q *Queries) ListTaskRunsByStatus(ctx context.Context, statuses []string) ([]ListTaskRunsByStatusRow, error) {
 	query := listTaskRunsByStatus
-	var queryParams []interface{}
+	var queryParams []any
 	if len(statuses) > 0 {
 		for _, v := range statuses {
 			queryParams = append(queryParams, v)
@@ -788,6 +811,9 @@ func (q *Queries) ListTaskRunsByStatus(ctx context.Context, statuses []string) (
 			&i.NetworkWakeID,
 			&i.NetworkTargetSessionID,
 			&i.NetworkOwnerKey,
+			&i.ExpectDigest,
+			&i.ResultBudgetBytes,
+			&i.ResultOverflow,
 		); err != nil {
 			return nil, err
 		}
@@ -885,8 +911,9 @@ SET identifier = ?1,
     needs_attention_by_kind = ?27,
     needs_attention_by_ref = ?28,
     wake_creator = ?29,
-    metadata_json = ?30
-WHERE id = ?31
+    metadata_json = ?30,
+    expect_digest = ?31
+WHERE id = ?32
 `
 
 type UpdateTaskParams struct {
@@ -920,6 +947,7 @@ type UpdateTaskParams struct {
 	NeedsAttentionByRef  sql.NullString `json:"needs_attention_by_ref"`
 	WakeCreator          int64          `json:"wake_creator"`
 	MetadataJson         sql.NullString `json:"metadata_json"`
+	ExpectDigest         sql.NullString `json:"expect_digest"`
 	ID                   string         `json:"id"`
 }
 
@@ -955,6 +983,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (int64, 
 		arg.NeedsAttentionByRef,
 		arg.WakeCreator,
 		arg.MetadataJson,
+		arg.ExpectDigest,
 		arg.ID,
 	)
 	if err != nil {

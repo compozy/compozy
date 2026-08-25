@@ -3,6 +3,8 @@ package task
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/compozy/compozy/internal/contracts"
 )
 
 // Dependency is the durable edge record connecting one task to a blocking dependency.
@@ -36,21 +38,23 @@ type RunWorktreeState struct {
 
 // Run is the durable execution record for one task attempt.
 type Run struct {
-	ID             string         `json:"id"`
-	ProfileID      string         `json:"profile_id,omitempty"`
-	TaskID         string         `json:"task_id"`
-	WorkspaceID    string         `json:"workspace_id,omitempty"`
-	Attempt        int32          `json:"attempt"`
-	RecoveryCount  int32          `json:"recovery_count"`
-	RunKind        RunKind        `json:"run_kind,omitempty"`
-	Status         RunStatus      `json:"status"`
-	LoopRunID      string         `json:"loop_run_id,omitempty"`
-	PreviousRunID  string         `json:"previous_run_id,omitempty"`
-	FailureKind    string         `json:"failure_kind,omitempty"`
-	ClaimedBy      *ActorIdentity `json:"claimed_by,omitempty"`
-	SessionID      string         `json:"session_id,omitempty"`
-	Origin         Origin         `json:"origin"`
-	IdempotencyKey string         `json:"idempotency_key,omitempty"`
+	ID             string                `json:"id"`
+	ProfileID      string                `json:"profile_id,omitempty"`
+	TaskID         string                `json:"task_id"`
+	WorkspaceID    string                `json:"workspace_id,omitempty"`
+	Attempt        int32                 `json:"attempt"`
+	RecoveryCount  int32                 `json:"recovery_count"`
+	RunKind        RunKind               `json:"run_kind,omitempty"`
+	Status         RunStatus             `json:"status"`
+	LoopRunID      string                `json:"loop_run_id,omitempty"`
+	PreviousRunID  string                `json:"previous_run_id,omitempty"`
+	FailureKind    string                `json:"failure_kind,omitempty"`
+	ClaimedBy      *ActorIdentity        `json:"claimed_by,omitempty"`
+	SessionID      string                `json:"session_id,omitempty"`
+	Origin         Origin                `json:"origin"`
+	IdempotencyKey string                `json:"idempotency_key,omitempty"`
+	ExpectDigest   string                `json:"expect_digest,omitempty"`
+	ResultBudget   *contracts.ByteBudget `json:"result_budget,omitempty"`
 	*RunNetworkState
 	*RunWorktreeState
 	DesignationGroupID    string            `json:"designation_group_id,omitempty"`

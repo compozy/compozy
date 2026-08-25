@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -56,6 +57,7 @@ func taskFromGenerated(row *sqlcgen.GetTaskRow) (taskpkg.Task, error) {
 		needsAttentionByRef:  row.NeedsAttentionByRef,
 		wakeCreator:          int(row.WakeCreator),
 		metadataJSON:         row.MetadataJson,
+		expectDigest:         row.ExpectDigest,
 	}
 	return taskRecordFromFields(record, &fields)
 }
@@ -123,6 +125,9 @@ func taskRunFromGenerated(row *sqlcgen.GetTaskRunRow) (taskpkg.Run, error) {
 		networkWakeID:          row.NetworkWakeID,
 		networkTargetSessionID: row.NetworkTargetSessionID,
 		networkOwnerKey:        row.NetworkOwnerKey,
+		expectDigest:           row.ExpectDigest,
+		resultBudgetBytes:      row.ResultBudgetBytes,
+		resultOverflow:         row.ResultOverflow,
 	}
 	return fields.record(run)
 }
@@ -188,6 +193,9 @@ func taskRunFromStatusGenerated(row *sqlcgen.ListTaskRunsByStatusRow) (taskpkg.R
 		networkWakeID:          row.NetworkWakeID,
 		networkTargetSessionID: row.NetworkTargetSessionID,
 		networkOwnerKey:        row.NetworkOwnerKey,
+		expectDigest:           row.ExpectDigest,
+		resultBudgetBytes:      row.ResultBudgetBytes,
+		resultOverflow:         row.ResultOverflow,
 	}
 	return fields.record(run)
 }
@@ -230,6 +238,7 @@ func insertTaskParams(record taskpkg.Task) sqlcgen.InsertTaskParams {
 		PausedReason:       record.PausedReason,
 		WakeCreator:        boolInt64(record.WakeCreator),
 		MetadataJson:       nullableTaskRawJSON(record.Metadata),
+		ExpectDigest:       nullableTaskString(record.ExpectDigest),
 	}
 }
 
@@ -265,6 +274,7 @@ func updateTaskParams(record taskpkg.Task) sqlcgen.UpdateTaskParams {
 		NeedsAttentionByRef:  nullableTaskActorRef(taskNeedsAttentionActor(record.NeedsAttention)),
 		WakeCreator:          boolInt64(record.WakeCreator),
 		MetadataJson:         nullableTaskRawJSON(record.Metadata),
+		ExpectDigest:         nullableTaskString(record.ExpectDigest),
 		ID:                   record.ID,
 	}
 	return params
@@ -277,6 +287,7 @@ func taskRunParams(run taskpkg.Run) (sqlcgen.InsertTaskRunParams, error) {
 		return sqlcgen.InsertTaskRunParams{}, err
 	}
 	wakeID, targetSessionID, ownerKey := run.NetworkWakeCorrelation()
+	budgetBytes, overflow := nullableTaskResultBudget(run.ResultBudget)
 	return sqlcgen.InsertTaskRunParams{
 		ID:                     run.ID,
 		TaskID:                 nullableTaskString(run.TaskID),
@@ -326,7 +337,17 @@ func taskRunParams(run taskpkg.Run) (sqlcgen.InsertTaskRunParams, error) {
 		NetworkWakeID:          nullableTaskString(wakeID),
 		NetworkTargetSessionID: nullableTaskString(targetSessionID),
 		NetworkOwnerKey:        nullableTaskString(ownerKey),
+		ExpectDigest:           nullableTaskString(run.ExpectDigest),
+		ResultBudgetBytes:      budgetBytes,
+		ResultOverflow:         overflow,
 	}, nil
+}
+
+func nullableTaskResultBudget(budget *contracts.ByteBudget) (sql.NullInt64, sql.NullString) {
+	if budget == nil {
+		return sql.NullInt64{}, sql.NullString{}
+	}
+	return sql.NullInt64{Int64: int64(budget.MaxBytes), Valid: true}, nullableTaskString(string(budget.Overflow))
 }
 
 func nullableTaskString(value string) sql.NullString {

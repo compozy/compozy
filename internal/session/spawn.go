@@ -15,8 +15,6 @@ import (
 )
 
 const (
-	// DefaultSpawnMaxChildren is the MVP per-parent active child cap.
-	DefaultSpawnMaxChildren = 5
 	// DefaultSpawnMaxDepth is the MVP maximum child depth under a root session.
 	DefaultSpawnMaxDepth = 1
 	// DefaultSpawnRole is used when an agent omits the advisory child role.
@@ -39,6 +37,8 @@ var (
 // SpawnOpts defines the safe child-session creation request accepted by the manager.
 type SpawnOpts struct {
 	ParentSessionID string
+	// DesiredSessionID is daemon-owned identity for idempotent durable activations.
+	DesiredSessionID string
 	// InheritedWorktreeID is daemon-owned structural context copied from the parent.
 	// Public callers cannot select or override it.
 	InheritedWorktreeID  string
@@ -59,10 +59,11 @@ type SpawnOpts struct {
 	NotifyCreator        bool
 	NotifyCreatorSet     bool
 	PermissionPolicy     store.SessionPermissionPolicy
-	IdempotencyKey       string
 	AllowStoppedParent   bool
 	// DiscardStartFailure is reserved for ephemeral internal role attempts.
 	DiscardStartFailure bool
+	// GovernanceBudget is an internal, already-admitted override used by durable call activations.
+	GovernanceBudget *store.SessionSpawnBudget
 }
 
 type permissionCategory struct {
@@ -101,6 +102,7 @@ func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
 	workspaceRef, workspacePath := spawnWorkspaceCreateRefs(parent, normalized)
 
 	child, err := m.Create(ctx, CreateOpts{
+		DesiredSessionID:     normalized.DesiredSessionID,
 		ProfileID:            strings.TrimSpace(parent.ProfileID),
 		AgentName:            normalized.AgentName,
 		Provider:             normalized.Provider,
@@ -181,6 +183,7 @@ func (m *Manager) prepareSpawn(
 func normalizeSpawnOpts(opts SpawnOpts) (SpawnOpts, error) {
 	normalized := opts
 	normalized.ParentSessionID = strings.TrimSpace(normalized.ParentSessionID)
+	normalized.DesiredSessionID = strings.TrimSpace(normalized.DesiredSessionID)
 	normalized.AgentName = strings.TrimSpace(normalized.AgentName)
 	normalized.Provider = strings.TrimSpace(normalized.Provider)
 	normalized.Model = strings.TrimSpace(normalized.Model)
@@ -216,8 +219,6 @@ func normalizeSpawnOpts(opts SpawnOpts) (SpawnOpts, error) {
 		normalized.NotifyCreator = true
 	}
 	normalized.PermissionPolicy = store.NormalizeSessionPermissionPolicy(normalized.PermissionPolicy)
-	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
-
 	switch {
 	case normalized.ParentSessionID == "":
 		return SpawnOpts{}, spawnValidation("parent_session_id is required")
@@ -354,6 +355,9 @@ func (m *Manager) spawnLineage(
 ) (*store.SessionLineage, error) {
 	parentLineage := store.NormalizeSessionLineage(parent.ID, parent.Lineage)
 	budget := effectiveSpawnBudget(parentLineage.SpawnBudget)
+	if opts.GovernanceBudget != nil {
+		budget = *opts.GovernanceBudget
+	}
 	governance, err := m.spawnGovernanceForParent(ctx, parent)
 	if err != nil {
 		return nil, err

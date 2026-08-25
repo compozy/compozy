@@ -79,74 +79,77 @@ const (
 type Option func(*managerOptions)
 
 type managerOptions struct {
-	store                 Store
-	sessions              SessionExecutor
-	runtimeViews          RuntimeViewReader
-	inspectReader         InspectStateReader
-	eventObserver         EventObserver
-	reviewObserver        RunReviewRequestedObserver
-	taskHooks             RunHookDispatcher
-	coordinatorRunner     CoordinatorRunner
-	coordinatorPostCommit CoordinatorPostCommitHandler
-	generationFinalizer   GenerationStateFinalizer
-	coordinatorTimerArmer CoordinatorTimerArmer
-	wakeNotifier          WakeNotifier
-	participationResolver participation.Resolver
-	coordinatorStatusOK   func(string) bool
-	coordinatorHookOK     func(string) bool
-	profileValidation     ExecutionProfileValidationOptions
-	worktreeRefValidator  WorktreeRefValidator
-	forceRecovery         ForceRecoveryOptions
-	now                   func() time.Time
-	newID                 func(prefix string) (string, error)
-	cancelGracePeriod     time.Duration
-	starvationAge         time.Duration
-	blockRecurrenceLimit  int
-	workspaceActiveRunCap int
-	workAdmission         admission.Checker
-	workspaceAccess       workspaceaccess.Policy
-	resultBudgetConfig    contracts.CallsResultsConfig
+	store                    Store
+	sessions                 SessionExecutor
+	runtimeViews             RuntimeViewReader
+	inspectReader            InspectStateReader
+	eventObserver            EventObserver
+	reviewObserver           RunReviewRequestedObserver
+	taskHooks                RunHookDispatcher
+	coordinatorRunner        CoordinatorRunner
+	coordinatorPostCommit    CoordinatorPostCommitHandler
+	generationFinalizer      GenerationStateFinalizer
+	coordinatorTimerArmer    CoordinatorTimerArmer
+	wakeNotifier             WakeNotifier
+	participationResolver    participation.Resolver
+	coordinatorStatusOK      func(string) bool
+	coordinatorHookOK        func(string) bool
+	profileValidation        ExecutionProfileValidationOptions
+	worktreeRefValidator     WorktreeRefValidator
+	forceRecovery            ForceRecoveryOptions
+	now                      func() time.Time
+	newID                    func(prefix string) (string, error)
+	cancelGracePeriod        time.Duration
+	starvationAge            time.Duration
+	blockRecurrenceLimit     int
+	workspaceActiveRunCap    int
+	governedRootActiveRunCap int
+	workAdmission            admission.Checker
+	workspaceAccess          workspaceaccess.Policy
+	resultBudgetConfig       contracts.CallsResultsConfig
 }
 
 // Service centralizes canonical task-domain creation, mutation, read, and
 // graph-management rules above the persistence layer.
 type Service struct {
-	store                 Store
-	sessions              SessionExecutor
-	runtimeViews          RuntimeViewReader
-	inspectReader         InspectStateReader
-	eventObserver         EventObserver
-	reviewObserver        RunReviewRequestedObserver
-	taskHooks             RunHookDispatcher
-	coordinatorRunner     CoordinatorRunner
-	coordinatorPostCommit CoordinatorPostCommitHandler
-	generationFinalizer   GenerationStateFinalizer
-	coordinatorTimerArmer CoordinatorTimerArmer
-	wakeNotifier          WakeNotifier
-	participationResolver participation.Resolver
-	taskAuthorizer        ResourceAuthorizer
-	runReadAuthorizer     RunReadAuthorizer
-	coordinatorStatusOK   func(string) bool
-	coordinatorHookOK     func(string) bool
-	profileValidation     ExecutionProfileValidationOptions
-	worktreeRefValidator  WorktreeRefValidator
-	forceRecovery         ForceRecoveryOptions
-	now                   func() time.Time
-	newID                 func(prefix string) (string, error)
-	cancelGracePeriod     time.Duration
-	starvationAge         time.Duration
-	blockRecurrenceLimit  int
-	workspaceActiveRunCap int
-	workAdmission         admission.Checker
-	workspaceAccess       workspaceaccess.Policy
-	resultBudget          contracts.ByteBudget
-	forceRateLimiter      *forceRunRateLimiter
-	wakeMu                sync.Mutex
-	wakeEventIDs          map[string]struct{}
-	wakeEventOrder        []string
-	liveMu                sync.Mutex
-	liveSubscribers       map[uint64]*taskStreamSubscriber
-	nextSubscriberID      uint64
+	store                    Store
+	sessions                 SessionExecutor
+	runtimeViews             RuntimeViewReader
+	inspectReader            InspectStateReader
+	eventObserver            EventObserver
+	reviewObserver           RunReviewRequestedObserver
+	taskHooks                RunHookDispatcher
+	coordinatorRunner        CoordinatorRunner
+	coordinatorPostCommit    CoordinatorPostCommitHandler
+	generationFinalizer      GenerationStateFinalizer
+	coordinatorTimerArmer    CoordinatorTimerArmer
+	wakeNotifier             WakeNotifier
+	participationResolver    participation.Resolver
+	taskAuthorizer           ResourceAuthorizer
+	runReadAuthorizer        RunReadAuthorizer
+	coordinatorStatusOK      func(string) bool
+	coordinatorHookOK        func(string) bool
+	profileValidation        ExecutionProfileValidationOptions
+	worktreeRefValidator     WorktreeRefValidator
+	forceRecovery            ForceRecoveryOptions
+	now                      func() time.Time
+	newID                    func(prefix string) (string, error)
+	cancelGracePeriod        time.Duration
+	starvationAge            time.Duration
+	blockRecurrenceLimit     int
+	workspaceActiveRunCap    int
+	governedRootActiveRunCap int
+	workAdmission            admission.Checker
+	workspaceAccess          workspaceaccess.Policy
+	resultBudget             contracts.ByteBudget
+	resultContracts          contracts.Registry
+	forceRateLimiter         *forceRunRateLimiter
+	wakeMu                   sync.Mutex
+	wakeEventIDs             map[string]struct{}
+	wakeEventOrder           []string
+	liveMu                   sync.Mutex
+	liveSubscribers          map[uint64]*taskStreamSubscriber
+	nextSubscriberID         uint64
 }
 
 var _ Manager = (*Service)(nil)
@@ -346,6 +349,9 @@ func NewManager(opts ...Option) (*Service, error) {
 	}
 	if options.workspaceActiveRunCap < 0 {
 		return nil, fmt.Errorf("task: workspace active run cap must be zero or positive")
+	}
+	if options.governedRootActiveRunCap < 0 {
+		return nil, fmt.Errorf("task: governed root active run cap must be zero or positive")
 	}
 	resultBudget, err := contracts.ResolveBudget(nil, options.resultBudgetConfig)
 	if err != nil {

@@ -1,0 +1,283 @@
+package calls
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/compozy/compozy/internal/contracts"
+)
+
+func RequireCallSettlementActor(record CallRecord, actor SettlementActor) error {
+	if strings.TrimSpace(actor.Kind) != "agent_session" ||
+		strings.TrimSpace(actor.ID) != strings.TrimSpace(record.ChildSessionID) {
+		return newError(CodeSettlementDenied, "only the bound child session may settle this call", nil)
+	}
+	return nil
+}
+
+func (s *Service) Return(ctx context.Context, input ReturnInput) (Settlement, error) {
+	childID := strings.TrimSpace(input.ChildSessionID)
+	if childID == "" {
+		childID = strings.TrimSpace(input.Actor.ID)
+	}
+	var record CallRecord
+	var err error
+	if strings.TrimSpace(input.CallID) == "" {
+		record, err = s.store.GetOpenCallForChild(ctx, childID)
+	} else {
+		record, err = s.store.GetCallForSettlement(ctx, input.CallID)
+	}
+	if err != nil {
+		return Settlement{}, err
+	}
+	if err := RequireCallSettlementActor(record, input.Actor); err != nil {
+		return Settlement{}, err
+	}
+	if record.State.Terminal() {
+		if len(input.Result) > 0 {
+			return s.recordSupersededResult(ctx, record, input.Result)
+		}
+		return Settlement{}, newError(CodeAlreadySettled, fmt.Sprintf("call is %s", record.State), nil)
+	}
+	if len(input.Result) > 0 {
+		return s.returnPayload(ctx, record, input.Result, input.ChildLive)
+	}
+	return s.returnFinalText(ctx, record, input.FinalText, input.ChildLive)
+}
+
+func (s *Service) returnPayload(
+	ctx context.Context,
+	record CallRecord,
+	raw json.RawMessage,
+	childLive bool,
+) (Settlement, error) {
+	payload, verdict, issues, err := s.validateReturnedPayload(ctx, record, raw)
+	if err != nil {
+		return Settlement{}, err
+	}
+	if len(issues) > 0 {
+		return s.handleInvalidResult(ctx, record, issues, childLive)
+	}
+	if record.RepairAttempts > 0 {
+		verdict = VerdictRepaired
+	}
+	return s.settleWithPayload(ctx, record, payload, verdict)
+}
+
+func (s *Service) validateReturnedPayload(
+	ctx context.Context,
+	record CallRecord,
+	raw json.RawMessage,
+) (json.RawMessage, Verdict, []contracts.ValidationIssue, error) {
+	if !json.Valid(raw) {
+		return nil, "", []contracts.ValidationIssue{{Path: "$", Message: "result must be valid JSON"}}, nil
+	}
+	if record.ExpectDigest == "" {
+		clean, _, reject := contracts.SanitizeText(string(raw))
+		if reject || !json.Valid([]byte(clean)) {
+			return nil, "", []contracts.ValidationIssue{{Path: "$", Message: "result contains unsafe secret material"}}, nil
+		}
+		return json.RawMessage(clean), VerdictReturned, nil, nil
+	}
+	contract, err := s.registry.Resolve(ctx, record.ExpectDigest)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	redacted, redactions, redactErr := contracts.RedactPreservingContract(contract, raw)
+	if redactErr == nil {
+		verdict, validateErr := s.registry.Validate(ctx, record.ExpectDigest, redacted)
+		if validateErr != nil {
+			return nil, "", nil, validateErr
+		}
+		if verdict.Unwrapped {
+			redacted = contracts.UnwrapSingleObject(redacted)
+		}
+		return redacted, VerdictReturned, nil, nil
+	}
+	if len(redactions) > 0 {
+		return nil, "", []contracts.ValidationIssue{{
+			Path:    "$",
+			Message: "result contains secret material in a contract-constrained field",
+		}}, nil
+	}
+	clean, _, reject := contracts.SanitizeText(string(raw))
+	if reject || !json.Valid([]byte(clean)) {
+		return nil, "", []contracts.ValidationIssue{{Path: "$", Message: "result contains unsafe secret material"}}, nil
+	}
+	verdict, validateErr := s.registry.Validate(ctx, record.ExpectDigest, json.RawMessage(clean))
+	if validateErr != nil {
+		return nil, "", nil, validateErr
+	}
+	if verdict.Valid {
+		payload := json.RawMessage(clean)
+		if verdict.Unwrapped {
+			payload = contracts.UnwrapSingleObject(payload)
+		}
+		return payload, VerdictReturned, nil, nil
+	}
+	return nil, "", verdict.Issues, nil
+}
+
+func (s *Service) handleInvalidResult(
+	ctx context.Context,
+	record CallRecord,
+	issues []contracts.ValidationIssue,
+	childLive bool,
+) (Settlement, error) {
+	prompt := contracts.BuildRepairPrompt(issues)
+	if record.RepairAttempts == 0 && childLive {
+		if s.invoker == nil {
+			return Settlement{}, errors.New("calls: session invoker is required for repair")
+		}
+		if _, err := s.invoker.DeliverAtBoundary(ctx, Delivery{
+			CallID: record.CallID, RecipientSessionID: record.ChildSessionID,
+			Body: prompt, Kind: "repair",
+		}); err != nil {
+			return Settlement{}, fmt.Errorf("calls: deliver repair for %q: %w", record.CallID, err)
+		}
+		updated, err := s.store.RecordRepair(ctx, RepairMutation{
+			CallID: record.CallID, IssueText: prompt, At: s.now().UTC(),
+		})
+		if err != nil {
+			return Settlement{}, err
+		}
+		return Settlement{Call: updated, RepairPrompt: prompt, Issues: issues}, nil
+	}
+	settled, err := s.settleTerminal(ctx, record, SettlementMutation{
+		CallID: record.CallID, ExpectedState: record.State, State: StateInvalidResult,
+		FailureCode: string(CodeResultInvalid), FailureDetail: prompt, SecondIssueText: prompt,
+		SettledAt: s.now().UTC(),
+	})
+	if err != nil {
+		return Settlement{}, err
+	}
+	return Settlement{Call: settled, Issues: issues}, nil
+}
+
+func (s *Service) settleWithPayload(
+	ctx context.Context,
+	record CallRecord,
+	payload json.RawMessage,
+	verdict Verdict,
+) (Settlement, error) {
+	outcome, err := contracts.EnforceBudget(record.ResultBudget, payload)
+	if err != nil {
+		settled, settleErr := s.settleTerminal(ctx, record, SettlementMutation{
+			CallID: record.CallID, ExpectedState: record.State, State: StateFailed,
+			FailureCode: string(CodeResultOverBudget), FailureDetail: err.Error(), SettledAt: s.now().UTC(),
+		})
+		if settleErr != nil {
+			return Settlement{}, errors.Join(err, settleErr)
+		}
+		return Settlement{Call: settled}, nil
+	}
+	ref := contracts.OutputRefForPayload(outcome.Payload)
+	settled, err := s.settleTerminal(ctx, record, SettlementMutation{
+		CallID: record.CallID, ExpectedState: record.State, State: StateCompleted, Verdict: verdict,
+		Result: outcome.Payload, ResultRef: ref, ResultBytes: len(outcome.Payload), SettledAt: s.now().UTC(),
+	})
+	if IsCode(err, CodeAlreadySettled) {
+		current, loadErr := s.store.GetCallForSettlement(ctx, record.CallID)
+		if loadErr != nil {
+			return Settlement{}, errors.Join(err, loadErr)
+		}
+		if current.State.Terminal() {
+			return s.recordSupersededResult(ctx, current, outcome.Payload)
+		}
+	}
+	return Settlement{Call: settled}, err
+}
+
+func (s *Service) returnFinalText(
+	ctx context.Context,
+	record CallRecord,
+	finalText string,
+	childLive bool,
+) (Settlement, error) {
+	clean, _, reject := contracts.SanitizeText(finalText)
+	if reject {
+		clean = ""
+	}
+	if !record.Strict {
+		var newestIssues []contracts.ValidationIssue
+		for _, candidate := range contracts.ExtractCandidates(clean) {
+			payload, _, issues, err := s.validateReturnedPayload(ctx, record, candidate)
+			if err != nil {
+				return Settlement{}, err
+			}
+			if len(issues) == 0 {
+				if record.RepairAttempts > 0 {
+					return s.settleWithPayload(ctx, record, payload, VerdictRepaired)
+				}
+				return s.settleWithPayload(ctx, record, payload, VerdictExtracted)
+			}
+			if newestIssues == nil {
+				newestIssues = issues
+			}
+		}
+		if newestIssues != nil {
+			return s.handleInvalidResult(ctx, record, newestIssues, childLive)
+		}
+	}
+	settled, err := s.settleTerminal(ctx, record, SettlementMutation{
+		CallID: record.CallID, ExpectedState: record.State, State: StateCompletedWithoutResult,
+		FinalProsePreview: clean, SettledAt: s.now().UTC(),
+	})
+	return Settlement{Call: settled}, err
+}
+
+func (s *Service) settleTerminal(
+	ctx context.Context,
+	record CallRecord,
+	mutation SettlementMutation,
+) (CallRecord, error) {
+	if _, err := s.fenceActivation(ctx, record, "call terminal settlement"); err != nil {
+		return CallRecord{}, err
+	}
+	settled, err := s.store.SettleCall(ctx, mutation)
+	if err == nil {
+		s.notifyWaiters(record.CallID)
+	}
+	return settled, err
+}
+
+func (s *Service) fenceActivation(
+	ctx context.Context,
+	record CallRecord,
+	reason string,
+) (CancelOutcome, error) {
+	if strings.TrimSpace(record.ActivationRunID) == "" {
+		return CancelOutcome{}, nil
+	}
+	if s.canceler == nil {
+		return CancelOutcome{}, errors.New("calls: activation run canceler is required")
+	}
+	outcome, err := s.canceler.CancelActivationRun(ctx, record.ActivationRunID, reason)
+	if err != nil {
+		return CancelOutcome{}, fmt.Errorf("calls: fence activation run %q: %w", record.ActivationRunID, err)
+	}
+	return outcome, nil
+}
+
+func (s *Service) recordSupersededResult(
+	ctx context.Context,
+	record CallRecord,
+	payload json.RawMessage,
+) (Settlement, error) {
+	clean, _, reject := contracts.SanitizeText(string(payload))
+	if reject {
+		return Settlement{}, newError(CodeResultInvalid, "late result contains unsafe secret material", nil)
+	}
+	raw := []byte(clean)
+	ref := contracts.OutputRefForPayload(raw)
+	updated, err := s.store.SettleCall(ctx, SettlementMutation{
+		CallID: record.CallID, Superseded: raw, SupersededRef: ref, SettledAt: s.now().UTC(),
+	})
+	if err != nil {
+		return Settlement{}, err
+	}
+	return Settlement{Call: updated}, newError(CodeAlreadySettled, fmt.Sprintf("call is %s", record.State), nil)
+}

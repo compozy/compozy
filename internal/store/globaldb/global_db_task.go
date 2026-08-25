@@ -56,7 +56,8 @@ const taskRunSelectColumnsSQL = `
 	claimed_at, started_at, ended_at, tokens_used, error, metadata_json, result_json, review_required,
 	review_request_round, review_policy_snapshot, review_request_id, parent_run_id, review_id,
 	review_round, continuation_reason, missing_work_json, next_round_guidance,
-	network_wake_id, network_target_session_id, network_owner_key`
+	network_wake_id, network_target_session_id, network_owner_key,
+	expect_digest, result_budget_bytes, result_overflow`
 
 const taskRecordSelectColumnsSQL = `
 	id, profile_id, identifier, scope, workspace_id, parent_task_id, title, description,
@@ -64,7 +65,7 @@ const taskRecordSelectColumnsSQL = `
 	owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
 	created_at, updated_at, closed_at, current_run_id, ` + taskLatestEventSeqSelectSQL + `,
 	paused, paused_by, paused_at, paused_reason, needs_attention_reason, needs_attention_at,
-	needs_attention_by_kind, needs_attention_by_ref, wake_creator, metadata_json`
+	needs_attention_by_kind, needs_attention_by_ref, wake_creator, metadata_json, expect_digest`
 
 const taskLatestEventSeqSelectSQL = `COALESCE((
 	SELECT MAX(te.event_seq)

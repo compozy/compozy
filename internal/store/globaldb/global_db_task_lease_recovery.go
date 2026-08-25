@@ -16,7 +16,7 @@ func (g *TaskRunRepo) recoverExpiredLeaseWithExecutor(
 	snapshot taskRunLeaseSnapshot,
 	recovery taskpkg.ExpiredLeaseRecovery,
 ) (bool, error) {
-	if run.IsNetworkWake() || run.RunKind.Normalize() == taskpkg.RunKindCoordinator {
+	if run.IsTaskless() || run.RunKind.Normalize() == taskpkg.RunKindCoordinator {
 		return false, requeueExpiredLease(ctx, exec, run, snapshot, 0)
 	}
 	taskRecord, err := g.tasks.getTaskWithExecutor(ctx, exec, run.TaskID)

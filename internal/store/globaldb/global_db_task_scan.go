@@ -61,6 +61,7 @@ func taskRecordFromFields(record taskpkg.Task, fields *taskScanFields) (taskpkg.
 	if err := assignTaskMetadata(&record.Metadata, fields.metadataJSON, "task.metadata_json"); err != nil {
 		return taskpkg.Task{}, err
 	}
+	record.ExpectDigest = taskNullStringValue(fields.expectDigest)
 	if err := assignNullableTaskTimestamp(&record.PausedAt, fields.pausedAtRaw); err != nil {
 		return taskpkg.Task{}, err
 	}
@@ -109,6 +110,7 @@ type taskScanFields struct {
 	needsAttentionByRef  sql.NullString
 	wakeCreator          int
 	metadataJSON         sql.NullString
+	expectDigest         sql.NullString
 }
 
 func scanTaskRecordColumns(scanner rowScanner) (taskpkg.Task, taskScanFields, error) {
@@ -150,6 +152,7 @@ func scanTaskRecordColumns(scanner rowScanner) (taskpkg.Task, taskScanFields, er
 		&fields.needsAttentionByRef,
 		&fields.wakeCreator,
 		&fields.metadataJSON,
+		&fields.expectDigest,
 	); err != nil {
 		return taskpkg.Task{}, taskScanFields{}, fmt.Errorf("store: scan task: %w", err)
 	}

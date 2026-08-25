@@ -26,7 +26,7 @@ func (m *Service) HeartbeatRunLease(
 		return nil, err
 	}
 	run := settlement.Run
-	if run.IsNetworkWake() {
+	if run.IsTaskless() {
 		m.dispatchTaskRunLeaseExtended(ctx, run, Task{}, actor)
 		return &run, nil
 	}
@@ -77,7 +77,7 @@ func (m *Service) ReleaseRunLease(
 	run := settlement.Run
 	previous := settlement.PreviousRun
 	defer m.restoreTaskRunNetworkBestEffort(ctx, previous.SessionID, run.ID)
-	if run.IsNetworkWake() {
+	if run.IsTaskless() {
 		m.dispatchTaskRunReleased(ctx, run, Task{}, actor, previous, normalized.Reason)
 		return &run, nil
 	}
@@ -135,7 +135,42 @@ func (m *Service) CompleteRunLease(
 	if err != nil {
 		return nil, err
 	}
-	if err := m.enforceResultBudget(storedResult); err != nil {
+	run, err := m.loadRun(ctx, normalized.RunID)
+	if err != nil {
+		return nil, err
+	}
+	if err := requireResultContractRepairLease(run, normalized.ClaimToken, normalized.Now); err != nil {
+		return nil, err
+	}
+	storedResult, err = m.prepareResultContract(ctx, run, storedResult)
+	if validationErr, invalid := asResultContractValidationError(err); invalid {
+		first, admissionErr := m.admitResultContractRepair(
+			ctx, run, normalized.ClaimToken, actor, validationErr,
+		)
+		if admissionErr != nil {
+			return nil, admissionErr
+		}
+		if first {
+			return nil, validationErr
+		}
+		failure, failureErr := invalidTaskResultFailure(validationErr)
+		if failureErr != nil {
+			return nil, failureErr
+		}
+		failed, failureErr := m.FailRunLease(ctx, LeaseFailure{
+			RunID: normalized.RunID, ClaimToken: normalized.ClaimToken,
+			Failure: failure, TokensUsed: normalized.TokensUsed, Now: normalized.Now,
+		}, actor)
+		if failureErr != nil {
+			return nil, errors.Join(ErrResultInvalid, validationErr, failureErr)
+		}
+		return failed, errors.Join(ErrResultInvalid, validationErr)
+	}
+	if err != nil {
+		return nil, err
+	}
+	normalized.Result, err = replaceRunResultStoredValue(normalized.Result, storedResult)
+	if err != nil {
 		return nil, err
 	}
 	normalized.Actor = actor

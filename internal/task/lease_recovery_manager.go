@@ -36,7 +36,7 @@ func (m *Service) handleExpiredRunLeaseRecovery(
 	actor ActorContext,
 ) error {
 	defer m.restoreTaskRunNetworkBestEffort(ctx, result.PreviousSessionID, result.Run.ID)
-	if result.Run.IsNetworkWake() {
+	if result.Run.IsTaskless() {
 		m.dispatchTaskRunLeaseExpired(ctx, result.Run, Task{}, actor, result)
 		m.dispatchTaskRunLeaseRecoveredFromExpiration(ctx, result.Run, Task{}, actor, result)
 		return nil

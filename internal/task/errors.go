@@ -27,6 +27,8 @@ var (
 	ErrRunReviewNotFound = errors.New("task: task run review not found")
 	// ErrValidation reports that a task-domain payload or state failed validation.
 	ErrValidation = errors.New("task: validation failed")
+	// ErrResultInvalid reports that a result exhausted its single repair attempt.
+	ErrResultInvalid = errors.New("task: result invalid")
 	// ErrImmutableField reports that a caller attempted to change an immutable task field.
 	ErrImmutableField = errors.New("task: immutable field")
 	// ErrInvalidScopeBinding reports that a scope and workspace binding combination is invalid.

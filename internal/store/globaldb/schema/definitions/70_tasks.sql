@@ -155,6 +155,7 @@ CREATE TABLE "tasks" (
 		needs_attention_by_kind TEXT,
 		needs_attention_by_ref  TEXT,
 		wake_creator            INTEGER NOT NULL DEFAULT 1,
+		expect_digest           TEXT REFERENCES contract_schemas(digest),
 		CHECK (
 			(scope = 'global' AND workspace_id IS NULL) OR
 			(scope = 'workspace' AND workspace_id IS NOT NULL)

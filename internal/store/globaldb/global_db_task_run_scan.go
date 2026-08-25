@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -67,6 +68,9 @@ func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
 		&fields.networkWakeID,
 		&fields.networkTargetSessionID,
 		&fields.networkOwnerKey,
+		&fields.expectDigest,
+		&fields.resultBudgetBytes,
+		&fields.resultOverflow,
 	); err != nil {
 		return taskpkg.Run{}, fmt.Errorf("store: scan task run: %w", err)
 	}
@@ -119,6 +123,9 @@ type taskRunScanFields struct {
 	networkWakeID          sql.NullString
 	networkTargetSessionID sql.NullString
 	networkOwnerKey        sql.NullString
+	expectDigest           sql.NullString
+	resultBudgetBytes      sql.NullInt64
+	resultOverflow         sql.NullString
 }
 
 func (fields *taskRunScanFields) record(run taskpkg.Run) (taskpkg.Run, error) {
@@ -160,6 +167,16 @@ func (fields *taskRunScanFields) record(run taskpkg.Run) (taskpkg.Run, error) {
 		taskNullStringValue(fields.networkTargetSessionID),
 		taskNullStringValue(fields.networkOwnerKey),
 	)
+	run.ExpectDigest = taskNullStringValue(fields.expectDigest)
+	if fields.resultBudgetBytes.Valid || fields.resultOverflow.Valid {
+		if !fields.resultBudgetBytes.Valid || !fields.resultOverflow.Valid {
+			return taskpkg.Run{}, fmt.Errorf("store: task run result contract snapshot is incomplete")
+		}
+		run.ResultBudget = &contracts.ByteBudget{
+			MaxBytes: int(fields.resultBudgetBytes.Int64),
+			Overflow: contracts.OverflowMode(strings.TrimSpace(fields.resultOverflow.String)),
+		}
+	}
 	if err := assignTaskRunTimestamps(
 		&run,
 		fields.queuedAtRaw,

@@ -5,7 +5,7 @@ INSERT INTO tasks (
   priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
   owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
   created_at, updated_at, closed_at, paused, paused_by, paused_at, paused_reason, wake_creator,
-  metadata_json
+  metadata_json, expect_digest
 ) VALUES (
   sqlc.arg(profile_id),
   sqlc.arg(id), sqlc.narg(identifier), sqlc.arg(scope), sqlc.narg(workspace_id),
@@ -15,7 +15,7 @@ INSERT INTO tasks (
   sqlc.arg(created_by_kind), sqlc.arg(created_by_ref), sqlc.arg(origin_kind), sqlc.arg(origin_ref),
   sqlc.arg(created_at), sqlc.arg(updated_at), sqlc.narg(closed_at), sqlc.arg(paused),
   sqlc.arg(paused_by), sqlc.narg(paused_at), sqlc.arg(paused_reason), sqlc.arg(wake_creator),
-  sqlc.narg(metadata_json)
+  sqlc.narg(metadata_json), sqlc.narg(expect_digest)
 );
 
 -- name: DeleteTask :execrows
@@ -52,7 +52,8 @@ SET identifier = sqlc.narg(identifier),
     needs_attention_by_kind = sqlc.narg(needs_attention_by_kind),
     needs_attention_by_ref = sqlc.narg(needs_attention_by_ref),
     wake_creator = sqlc.arg(wake_creator),
-    metadata_json = sqlc.narg(metadata_json)
+    metadata_json = sqlc.narg(metadata_json),
+    expect_digest = sqlc.narg(expect_digest)
 WHERE id = sqlc.arg(id);
 
 -- name: GetTask :one
@@ -63,7 +64,7 @@ SELECT
   created_at, updated_at, closed_at, current_run_id,
   CAST(COALESCE((SELECT MAX(te.event_seq) FROM task_events te WHERE te.task_id = tasks.id), 0) AS INTEGER) AS latest_event_seq,
   paused, paused_by, paused_at, paused_reason, needs_attention_reason, needs_attention_at,
-  needs_attention_by_kind, needs_attention_by_ref, wake_creator, metadata_json
+  needs_attention_by_kind, needs_attention_by_ref, wake_creator, metadata_json, expect_digest
 FROM tasks
 WHERE tasks.id = sqlc.arg(task_id);
 
@@ -86,7 +87,8 @@ INSERT INTO task_runs (
   tokens_used, error, metadata_json, result_json, review_required, review_request_round,
   review_policy_snapshot, review_request_id, parent_run_id, review_id, review_round,
   continuation_reason, missing_work_json, next_round_guidance,
-  network_wake_id, network_target_session_id, network_owner_key
+  network_wake_id, network_target_session_id, network_owner_key,
+  expect_digest, result_budget_bytes, result_overflow
 ) VALUES (
   sqlc.arg(id), sqlc.narg(task_id), sqlc.narg(workspace_id), sqlc.narg(worktree_id),
   sqlc.arg(run_kind), sqlc.narg(loop_run_id), sqlc.arg(status),
@@ -102,7 +104,8 @@ INSERT INTO task_runs (
   sqlc.arg(review_request_round), sqlc.arg(review_policy_snapshot), sqlc.narg(review_request_id),
   sqlc.narg(parent_run_id), sqlc.narg(review_id), sqlc.arg(review_round),
   sqlc.arg(continuation_reason), sqlc.arg(missing_work_json), sqlc.arg(next_round_guidance),
-  sqlc.narg(network_wake_id), sqlc.narg(network_target_session_id), sqlc.narg(network_owner_key)
+  sqlc.narg(network_wake_id), sqlc.narg(network_target_session_id), sqlc.narg(network_owner_key),
+  sqlc.narg(expect_digest), sqlc.narg(result_budget_bytes), sqlc.narg(result_overflow)
 );
 
 -- name: UpdateTaskRunMetadata :execrows
@@ -138,7 +141,8 @@ SELECT
   tokens_used, error, metadata_json, result_json, review_required, review_request_round,
   review_policy_snapshot, review_request_id, parent_run_id, review_id, review_round,
   continuation_reason, missing_work_json, next_round_guidance,
-  network_wake_id, network_target_session_id, network_owner_key
+  network_wake_id, network_target_session_id, network_owner_key,
+  expect_digest, result_budget_bytes, result_overflow
 FROM task_runs
 WHERE id = sqlc.arg(id);
 
@@ -158,7 +162,8 @@ SELECT
   tokens_used, error, metadata_json, result_json, review_required, review_request_round,
   review_policy_snapshot, review_request_id, parent_run_id, review_id, review_round,
   continuation_reason, missing_work_json, next_round_guidance,
-  network_wake_id, network_target_session_id, network_owner_key
+  network_wake_id, network_target_session_id, network_owner_key,
+  expect_digest, result_budget_bytes, result_overflow
 FROM task_runs
 WHERE status IN (sqlc.slice(statuses))
 ORDER BY queued_at ASC, id ASC;

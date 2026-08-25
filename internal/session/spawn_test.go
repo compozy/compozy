@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -373,7 +374,6 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 			ParentSessionID: parent.ID,
 			AgentName:       "coder",
 			TTL:             time.Minute,
-			IdempotencyKey:  "duplicate-spawn",
 		}
 
 		first, err := h.manager.Spawn(testutil.Context(t), opts)
@@ -388,6 +388,32 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 		cleanupSessionStop(t, h, second.ID)
 		if first.ID == second.ID {
 			t.Fatalf("duplicate spawn ids = %q, want distinct children", first.ID)
+		}
+	})
+
+	t.Run("Should preserve a daemon-owned desired child identity", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{}, store.SessionSpawnBudget{
+			MaxChildren: 1,
+			MaxDepth:    1,
+		})
+		cleanupSessionStop(t, h, parent.ID)
+
+		const desiredID = "ses_call_exact_identity"
+		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID:  parent.ID,
+			DesiredSessionID: desiredID,
+			AgentName:        "coder",
+			TTL:              time.Minute,
+		})
+		if err != nil {
+			t.Fatalf("Spawn() error = %v", err)
+		}
+		cleanupSessionStop(t, h, child.ID)
+		if child.ID != desiredID {
+			t.Fatalf("Spawn() id = %q, want %q", child.ID, desiredID)
 		}
 	})
 
@@ -1098,7 +1124,7 @@ func TestSpawnGovernanceUsesOnlyContiguousSpawnedLineage(t *testing.T) {
 		h := newHarness(t)
 		root := createSession(t, h)
 		cleanupSessionStop(t, h, root.ID)
-		for range DefaultSpawnMaxChildren {
+		for range compozyconfig.DefaultCallsConfig().MaxChildren {
 			goal, err := h.manager.Create(testutil.Context(t), CreateOpts{
 				AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
 				ProvenanceParentSessionID: root.ID,
@@ -1157,7 +1183,7 @@ func TestSpawnGovernanceUsesOnlyContiguousSpawnedLineage(t *testing.T) {
 		err = h.manager.validateSpawnCaps(
 			testutil.Context(t), secondGoal.Info(), governance,
 			store.SessionSpawnBudget{
-				MaxChildren: DefaultSpawnMaxChildren, MaxDepth: DefaultSpawnMaxDepth,
+				MaxChildren: compozyconfig.DefaultCallsConfig().MaxChildren, MaxDepth: DefaultSpawnMaxDepth,
 				MaxActivePerWorkspace: 1,
 			},
 			h.workspaceID,

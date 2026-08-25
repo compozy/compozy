@@ -29,7 +29,7 @@ type ClearTaskBlockParams struct {
 	ClearNote     sql.NullString `json:"clear_note"`
 	ID            string         `json:"id"`
 	TaskID        string         `json:"task_id"`
-	WorkspaceID   interface{}    `json:"workspace_id"`
+	WorkspaceID   any            `json:"workspace_id"`
 }
 
 func (q *Queries) ClearTaskBlock(ctx context.Context, arg ClearTaskBlockParams) (int64, error) {
@@ -78,7 +78,7 @@ type ExpireTaskBlockParams struct {
 	ID            string         `json:"id"`
 	TaskID        string         `json:"task_id"`
 	Now           sql.NullString `json:"now"`
-	WorkspaceID   interface{}    `json:"workspace_id"`
+	WorkspaceID   any            `json:"workspace_id"`
 }
 
 func (q *Queries) ExpireTaskBlock(ctx context.Context, arg ExpireTaskBlockParams) (int64, error) {
@@ -108,9 +108,9 @@ WHERE id = ?1
 `
 
 type GetTaskBlockParams struct {
-	ID          string      `json:"id"`
-	TaskID      string      `json:"task_id"`
-	WorkspaceID interface{} `json:"workspace_id"`
+	ID          string `json:"id"`
+	TaskID      string `json:"task_id"`
+	WorkspaceID any    `json:"workspace_id"`
 }
 
 func (q *Queries) GetTaskBlock(ctx context.Context, arg GetTaskBlockParams) (TaskBlock, error) {
@@ -170,9 +170,9 @@ SELECT EXISTS(
 `
 
 type HasClearedTaskBlockKindParams struct {
-	TaskID      string      `json:"task_id"`
-	Kind        string      `json:"kind"`
-	WorkspaceID interface{} `json:"workspace_id"`
+	TaskID      string `json:"task_id"`
+	Kind        string `json:"kind"`
+	WorkspaceID any    `json:"workspace_id"`
 }
 
 func (q *Queries) HasClearedTaskBlockKind(ctx context.Context, arg HasClearedTaskBlockKindParams) (bool, error) {
@@ -195,7 +195,7 @@ SELECT EXISTS(
 
 type HasOpenTaskBlocksParams struct {
 	TaskID      string         `json:"task_id"`
-	WorkspaceID interface{}    `json:"workspace_id"`
+	WorkspaceID any            `json:"workspace_id"`
 	Now         sql.NullString `json:"now"`
 }
 
@@ -276,8 +276,8 @@ ORDER BY created_at ASC, id ASC
 `
 
 type ListAllTaskBlocksParams struct {
-	TaskID      string      `json:"task_id"`
-	WorkspaceID interface{} `json:"workspace_id"`
+	TaskID      string `json:"task_id"`
+	WorkspaceID any    `json:"workspace_id"`
 }
 
 func (q *Queries) ListAllTaskBlocks(ctx context.Context, arg ListAllTaskBlocksParams) ([]TaskBlock, error) {
@@ -369,7 +369,7 @@ ORDER BY created_at ASC, id ASC
 type ListExpiredTaskBlockIDsParams struct {
 	TaskID      string         `json:"task_id"`
 	Now         sql.NullString `json:"now"`
-	WorkspaceID interface{}    `json:"workspace_id"`
+	WorkspaceID any            `json:"workspace_id"`
 }
 
 func (q *Queries) ListExpiredTaskBlockIDs(ctx context.Context, arg ListExpiredTaskBlockIDsParams) ([]string, error) {
@@ -409,7 +409,7 @@ ORDER BY created_at ASC, id ASC
 
 type ListOpenTaskBlocksParams struct {
 	TaskID      string         `json:"task_id"`
-	WorkspaceID interface{}    `json:"workspace_id"`
+	WorkspaceID any            `json:"workspace_id"`
 	Now         sql.NullString `json:"now"`
 }
 

@@ -121,6 +121,9 @@ CREATE TABLE sessions (
 		session_type   TEXT NOT NULL DEFAULT 'user',
 		state          TEXT NOT NULL,
 		archived_at    TEXT,
+		parked_at      TEXT,
+		idle_expires_at TEXT,
+		draining_at    TEXT,
 		acp_session_id TEXT,
 		stop_reason    TEXT,
 		stop_detail    TEXT,
@@ -245,6 +248,14 @@ CREATE INDEX idx_session_input_queue_goal_owner
 
 CREATE INDEX idx_sessions_attach_lock
 			ON sessions(attached_to, attach_expires_at);
+
+CREATE INDEX idx_sessions_idle_expiry
+			ON sessions(idle_expires_at)
+			WHERE parked_at IS NOT NULL AND idle_expires_at IS NOT NULL;
+
+CREATE INDEX idx_sessions_draining
+			ON sessions(draining_at)
+			WHERE draining_at IS NOT NULL;
 
 CREATE INDEX idx_sessions_catalog_activity
 			ON sessions(

@@ -101,7 +101,6 @@ func spawnOptsFromAgentRequest(req contract.AgentSpawnRequest, parentSessionID s
 		NotifyCreator:    req.NotifyCreator != nil && *req.NotifyCreator,
 		NotifyCreatorSet: req.NotifyCreator != nil,
 		PermissionPolicy: sessionPermissionPolicyFromPayload(req.Permissions),
-		IdempotencyKey:   strings.TrimSpace(req.IdempotencyKey),
 	}
 }
 

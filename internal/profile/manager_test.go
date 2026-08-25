@@ -12,10 +12,14 @@ import (
 	"testing"
 	"time"
 
+	callspkg "github.com/compozy/compozy/internal/calls"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/network/participation"
 	providerpkg "github.com/compozy/compozy/internal/providers"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -63,6 +67,123 @@ func TestManagerProfileLifecycle(t *testing.T) {
 		}
 		if !slices.Equal(names, []string{"default", "marketing"}) {
 			t.Fatalf("ListNames() = %#v, want default and marketing", names)
+		}
+	})
+
+	t.Run("Should freeze queued call activations and inventory call-owned work", func(t *testing.T) {
+		t.Parallel()
+
+		manager, database, _ := newTestManager(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+		created, err := manager.Create(ctx, CreateInput{Name: "call-owner"})
+		if err != nil {
+			t.Fatalf("Create(call-owner) error = %v", err)
+		}
+		const workspaceID = "ws-profile-call-owner"
+		if err := database.InsertWorkspace(ctx, workspacepkg.Workspace{
+			ID: workspaceID, RootDir: t.TempDir(), Name: "profile call owner",
+			CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("InsertWorkspace() error = %v", err)
+		}
+		const parentID = "ses_profile_call_owner"
+		if err := database.RegisterSession(ctx, store.SessionInfo{
+			ID: parentID, ProfileID: created.ID, AgentName: "coordinator",
+			WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
+			Lineage: &store.SessionLineage{
+				RootSessionID:    parentID,
+				SpawnBudget:      store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 3},
+				PermissionPolicy: store.SessionPermissionPolicy{Skills: []string{"review"}},
+			}, CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("RegisterSession(parent) error = %v", err)
+		}
+		directory := profileCallDirectoryFunc(func(
+			context.Context,
+			callspkg.CreateInput,
+		) (callspkg.TargetContext, []callspkg.AgentRosterEntry, error) {
+			return callspkg.TargetContext{
+				ProfileID: created.ID, WorkspaceID: workspaceID,
+				ParentSessionID: parentID, AgentName: "reviewer",
+				GovernedRootID: parentID, Depth: 1, Allowed: true,
+				CallerPolicy: store.SessionPermissionPolicy{Skills: []string{"review"}},
+			}, []callspkg.AgentRosterEntry{{Name: "reviewer"}}, nil
+		})
+		calls, err := callspkg.NewService(
+			callspkg.WithStore(database), callspkg.WithDirectory(directory),
+			callspkg.WithConfig(compozyconfig.DefaultCallsConfig()),
+			callspkg.WithClock(func() time.Time { return now }), callspkg.WithIDGenerator(store.NewID),
+		)
+		if err != nil {
+			t.Fatalf("calls.NewService() error = %v", err)
+		}
+		record, err := calls.Create(ctx, callspkg.CreateInput{
+			ProfileID: created.ID, Scope: callspkg.ScopeGlobal,
+			Caller: participation.OwnerRef{
+				Kind: participation.OwnerKindSession, ID: parentID, WorkspaceID: workspaceID,
+			},
+			Target: callspkg.Target{Agent: "reviewer"}, Prompt: "profile-owned call",
+			Actor:  callspkg.Actor{Kind: "human", ID: "operator:test"},
+			Narrow: callspkg.PermissionAtoms{Skills: []string{"review"}},
+		})
+		if err != nil {
+			t.Fatalf("calls.Create() error = %v", err)
+		}
+		if record.State != callspkg.StateQueued || record.ActivationRunID == "" {
+			t.Fatalf("calls.Create() = %#v", record)
+		}
+		if _, err := database.DB().ExecContext(ctx, `UPDATE sessions SET state = 'stopped' WHERE id = ?`, parentID); err != nil {
+			t.Fatalf("stop parent session fixture error = %v", err)
+		}
+		archivePlan, err := manager.PrepareArchive(ctx, created.Name)
+		if err != nil {
+			t.Fatalf("PrepareArchive() error = %v", err)
+		}
+		if archivePlan.QueuedRunsToFreeze != 1 || archivePlan.LeasedRuns != 0 {
+			t.Fatalf("PrepareArchive() = %#v, want one queued activation", archivePlan)
+		}
+		if _, err := manager.Archive(ctx, created.Name, archivePlan.Revision); err != nil {
+			t.Fatalf("Archive() error = %v", err)
+		}
+		tasks, err := taskpkg.NewManager(taskpkg.WithStore(database), taskpkg.WithGovernedRootActiveRunCap(32))
+		if err != nil {
+			t.Fatalf("task.NewManager() error = %v", err)
+		}
+		actor := taskpkg.ActorContext{
+			Actor:     taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "calls.activation"},
+			Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "calls.activation"},
+			Authority: taskpkg.Authority{Read: true, Write: true},
+		}
+		if _, err := tasks.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: record.ActivationRunID, RunKind: taskpkg.RunKindCallActivation, Scope: taskpkg.ScopeGlobal,
+		}, actor); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+			t.Fatalf("ClaimNextRun(archived) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
+		}
+		deletePlan, err := manager.PrepareDelete(ctx, created.Name)
+		if err != nil {
+			t.Fatalf("PrepareDelete() error = %v", err)
+		}
+		if _, err := manager.Delete(ctx, created.Name, deletePlan.Revision); !errors.Is(err, ErrOwnsWork) {
+			t.Fatalf("Delete(call owner) error = %v, want %v", err, ErrOwnsWork)
+		}
+		if _, err := manager.Unarchive(ctx, created.Name); err != nil {
+			t.Fatalf("Unarchive() error = %v", err)
+		}
+		if _, err := tasks.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: record.ActivationRunID, RunKind: taskpkg.RunKindCallActivation, Scope: taskpkg.ScopeGlobal,
+		}, actor); err != nil {
+			t.Fatalf("ClaimNextRun(unarchived) error = %v", err)
+		}
+		leasedPlan, err := manager.PrepareArchive(ctx, created.Name)
+		if err != nil {
+			t.Fatalf("PrepareArchive(leased) error = %v", err)
+		}
+		if leasedPlan.LeasedRuns != 1 {
+			t.Fatalf("PrepareArchive(leased).LeasedRuns = %d, want 1", leasedPlan.LeasedRuns)
+		}
+		if _, err := manager.Archive(ctx, created.Name, leasedPlan.Revision); !errors.Is(err, ErrOwnsWork) {
+			t.Fatalf("Archive(leased call activation) error = %v, want %v", err, ErrOwnsWork)
 		}
 	})
 
@@ -1541,6 +1662,18 @@ func TestManagerRecoveryAndReservation(t *testing.T) {
 
 func newTestManager(t *testing.T) (*Manager, *globaldb.GlobalDB, compozyconfig.HomePaths) {
 	return newTestManagerWithOptions(t)
+}
+
+type profileCallDirectoryFunc func(
+	context.Context,
+	callspkg.CreateInput,
+) (callspkg.TargetContext, []callspkg.AgentRosterEntry, error)
+
+func (f profileCallDirectoryFunc) ResolveCallTarget(
+	ctx context.Context,
+	input callspkg.CreateInput,
+) (callspkg.TargetContext, []callspkg.AgentRosterEntry, error) {
+	return f(ctx, input)
 }
 
 func newTestManagerWithDesktops(

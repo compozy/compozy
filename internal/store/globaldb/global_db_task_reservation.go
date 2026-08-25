@@ -56,6 +56,7 @@ func (g *TaskRepo) normalizeQueuedRunReservationInput(
 		resolvedWorktreeRef:  normalizedReservation.ResolvedWorktreeRef,
 		metadata:             normalizedReservation.Metadata,
 		queuedAt:             normalizedQueuedAt,
+		resultBudget:         normalizedReservation.ResultBudget,
 	}, nil
 }
 
@@ -180,6 +181,11 @@ func (g *TaskRepo) createQueuedRunWithExecutor(
 		PreferredCapabilities: append([]string(nil), input.preferredCapabilities...),
 		Metadata:              input.metadata,
 		QueuedAt:              input.queuedAt,
+	}
+	if strings.TrimSpace(taskRecord.ExpectDigest) != "" {
+		budget := input.resultBudget
+		run.ExpectDigest = taskRecord.ExpectDigest
+		run.ResultBudget = &budget
 	}
 	run.SetNetworkState(input.networkSpec, "", "", "")
 	normalizedRun, err := g.normalizeTaskRunForCreate(run)

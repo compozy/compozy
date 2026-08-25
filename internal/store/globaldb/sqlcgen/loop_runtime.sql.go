@@ -403,9 +403,9 @@ GROUP BY lr.loop_name
 `
 
 type ListLoopCatalogAggregatesParams struct {
-	WorkspaceID    string      `json:"workspace_id"`
-	AggregateAfter string      `json:"aggregate_after"`
-	NamesJson      interface{} `json:"names_json"`
+	WorkspaceID    string `json:"workspace_id"`
+	AggregateAfter string `json:"aggregate_after"`
+	NamesJson      any    `json:"names_json"`
 }
 
 type ListLoopCatalogAggregatesRow struct {
@@ -460,8 +460,8 @@ FROM loop_runs AS lr JOIN latest_ids ON latest_ids.id = lr.id
 `
 
 type ListLoopCatalogLatestRunsParams struct {
-	NamesJson   interface{} `json:"names_json"`
-	WorkspaceID string      `json:"workspace_id"`
+	NamesJson   any    `json:"names_json"`
+	WorkspaceID string `json:"workspace_id"`
 }
 
 type ListLoopCatalogLatestRunsRow struct {
@@ -1091,7 +1091,7 @@ WHERE loop_run_id = ?6 AND phase NOT IN ('awaiting_control', 'terminal')
 `
 
 type ProjectLoopPauseToGoalCheckpointsParams struct {
-	Requested   interface{}    `json:"requested"`
+	Requested   any            `json:"requested"`
 	ActorKind   sql.NullString `json:"actor_kind"`
 	ActorID     sql.NullString `json:"actor_id"`
 	RequestedAt sql.NullTime   `json:"requested_at"`

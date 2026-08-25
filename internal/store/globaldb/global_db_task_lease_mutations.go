@@ -58,6 +58,9 @@ func (g *TaskRunRepo) heartbeatRunLeaseWithExecutor(
 		}
 		return updated, nil
 	}
+	if updated.IsCallActivation() {
+		return updated, nil
+	}
 	if err := g.appendLoopTokenTickForHeartbeat(ctx, exec, updated, heartbeat.TokensUsed); err != nil {
 		return taskpkg.Run{}, err
 	}
@@ -152,9 +155,9 @@ func (g *TaskRunRepo) failRunLeaseMutationWithExecutor(
 	if err != nil {
 		return taskpkg.FailedRunLeaseMutation{}, err
 	}
-	if current.IsNetworkWake() {
+	if current.IsTaskless() {
 		return taskpkg.FailedRunLeaseMutation{}, fmt.Errorf(
-			"%w: network_wake runs must be failed through network settlement",
+			"%w: taskless runs must be failed through their owning domain settlement",
 			taskpkg.ErrValidation,
 		)
 	}

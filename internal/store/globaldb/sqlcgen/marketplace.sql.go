@@ -224,7 +224,7 @@ ORDER BY install_slug ASC, entry_id ASC
 
 func (q *Queries) ListMarketplaceSkillsByInstallSlugs(ctx context.Context, installSlugs []sql.NullString) ([]MarketplaceCatalogEntry, error) {
 	query := listMarketplaceSkillsByInstallSlugs
-	var queryParams []interface{}
+	var queryParams []any
 	if len(installSlugs) > 0 {
 		for _, v := range installSlugs {
 			queryParams = append(queryParams, v)

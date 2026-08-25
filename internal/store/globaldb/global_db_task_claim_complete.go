@@ -37,7 +37,7 @@ func (g *TaskRunRepo) CompleteRunLeaseSettlement(
 		if loadErr != nil {
 			return loadErr
 		}
-		if current.IsNetworkWake() {
+		if current.IsTaskless() {
 			return fmt.Errorf(
 				"%w: network_wake runs must be completed through network settlement",
 				taskpkg.ErrValidation,
@@ -47,7 +47,7 @@ func (g *TaskRunRepo) CompleteRunLeaseSettlement(
 		if err != nil {
 			return err
 		}
-		if updated.IsNetworkWake() {
+		if updated.IsTaskless() {
 			settlement = taskpkg.CompletedRunSettlement{Run: updated}
 			return nil
 		}
@@ -150,7 +150,7 @@ func recordCompletedRunLoopOutput(
 	outputRef string,
 	resultPayload json.RawMessage,
 ) error {
-	if current.IsNetworkWake() {
+	if current.IsTaskless() {
 		return nil
 	}
 	if completion.Result.CoordinatorControl != nil {

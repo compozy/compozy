@@ -182,14 +182,22 @@ func (m *Manager) archivePlan(ctx context.Context, q queryer, profile Profile) (
 		return ArchivePlan{}, err
 	}
 	if err := q.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM task_runs r JOIN tasks t ON t.id = r.task_id
-		WHERE t.profile_id = ? AND r.status IN ('claimed','starting','running')`, profile.ID).
+		SELECT COUNT(*) FROM task_runs r
+		WHERE r.status IN ('claimed','starting','running') AND (
+			EXISTS (SELECT 1 FROM tasks t WHERE t.id = r.task_id AND t.profile_id = ?)
+			OR EXISTS (SELECT 1 FROM call_activation_runs a JOIN calls c ON c.call_id = a.call_id
+				WHERE a.run_id = r.id AND c.profile_id = ?)
+		)`, profile.ID, profile.ID).
 		Scan(&plan.LeasedRuns); err != nil {
 		return ArchivePlan{}, fmt.Errorf("profile: count leased runs: %w", err)
 	}
 	if err := q.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM task_runs r JOIN tasks t ON t.id = r.task_id
-		WHERE t.profile_id = ? AND r.status = 'queued' AND t.paused = 0`, profile.ID).
+		SELECT COUNT(*) FROM task_runs r
+		WHERE r.status = 'queued' AND (
+			EXISTS (SELECT 1 FROM tasks t WHERE t.id = r.task_id AND t.profile_id = ? AND t.paused = 0)
+			OR EXISTS (SELECT 1 FROM call_activation_runs a JOIN calls c ON c.call_id = a.call_id
+				WHERE a.run_id = r.id AND c.profile_id = ?)
+		)`, profile.ID, profile.ID).
 		Scan(&plan.QueuedRunsToFreeze); err != nil {
 		return ArchivePlan{}, fmt.Errorf("profile: count queued runs to freeze: %w", err)
 	}

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 
 	"github.com/compozy/compozy/internal/store"
@@ -51,7 +52,7 @@ func validatePermissionAtoms(category string, parent []string, child []string) e
 func effectiveSpawnBudget(budget store.SessionSpawnBudget) store.SessionSpawnBudget {
 	normalized := budget
 	if normalized.MaxChildren <= 0 {
-		normalized.MaxChildren = DefaultSpawnMaxChildren
+		normalized.MaxChildren = compozyconfig.DefaultCallsConfig().MaxChildren
 	}
 	if normalized.MaxDepth <= 0 {
 		normalized.MaxDepth = DefaultSpawnMaxDepth

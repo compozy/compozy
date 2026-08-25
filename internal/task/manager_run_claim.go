@@ -162,6 +162,7 @@ func (m *Service) reserveQueuedRunWithStore(
 		ResolvedWorktreeRef:  worktreePolicy.WorktreeRef,
 		Metadata:             spec.Metadata,
 		QueuedAt:             m.now().UTC(),
+		ResultBudget:         m.resultBudget,
 	})
 	if err != nil {
 		return Run{}, false, err

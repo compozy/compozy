@@ -215,6 +215,12 @@ type EventStore interface {
 	TaskWakeEventExists(ctx context.Context, taskID string, wakeEventID string) (bool, error)
 }
 
+// ResultContractRepairStore is intentionally separate from Store: only stores
+// that admit contracted completions need to own this atomic repair fence.
+type ResultContractRepairStore interface {
+	AdmitResultContractRepair(ctx context.Context, admission ResultContractRepairAdmission) (bool, error)
+}
+
 // EventSequenceStore is the persistence surface for stable task event sequencing used by live reads.
 type EventSequenceStore interface {
 	GetTaskEventRecord(ctx context.Context, eventID string) (EventRecord, error)

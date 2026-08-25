@@ -27,7 +27,7 @@ func (m *Service) ClaimNextRun(
 	if err != nil {
 		return nil, err
 	}
-	if result.Run.IsNetworkWake() {
+	if result.Run.IsTaskless() {
 		m.dispatchTaskRunPostClaim(ctx, result.Run, Task{}, actor)
 		return &result, nil
 	}

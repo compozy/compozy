@@ -40,7 +40,7 @@ func (m *Service) claimNextRunSettlement(
 			}
 			claimResultWithoutRawTokenInMetadata(&claim)
 			commandResult.settlement.Run = claim.Run
-			if claim.Run.IsNetworkWake() {
+			if claim.Run.IsTaskless() {
 				return nil
 			}
 
@@ -105,7 +105,7 @@ func (m *Service) heartbeatRunLeaseSettlement(
 				return commandErr
 			}
 			commandResult.settlement.Run = run
-			if run.IsNetworkWake() {
+			if run.IsTaskless() {
 				return nil
 			}
 
@@ -217,7 +217,7 @@ func (m *Service) releaseRunLeaseSettlement(
 			}
 			commandResult.settlement.Run = run
 			commandResult.settlement.PreviousRun = previous
-			if run.IsNetworkWake() {
+			if run.IsTaskless() {
 				return nil
 			}
 
@@ -291,7 +291,7 @@ func (m *Service) releaseSessionRunLeasesSettlement(
 					result:   newSessionLeaseReleaseResult(run, previous, release.Reason),
 					previous: previous,
 				}
-				if run.IsNetworkWake() {
+				if run.IsTaskless() {
 					commandResult.outcomes = append(commandResult.outcomes, outcome)
 					continue
 				}

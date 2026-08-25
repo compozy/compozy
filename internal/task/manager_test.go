@@ -54,6 +54,7 @@ type inMemoryManagerStore struct {
 	eventSequenceByID         map[string]int64
 	nextEventSequence         int64
 	idempotencyByKey          map[string]RunIdempotency
+	contracts                 map[string]contracts.Contract
 	coordinatorCompletionErr  error
 	coordinatorPreCommitErrs  []error
 	coordinatorCompletions    []CoordinatorCompletion
@@ -700,7 +701,21 @@ func newInMemoryManagerStore() *inMemoryManagerStore {
 		events:            make([]Event, 0),
 		eventSequenceByID: make(map[string]int64),
 		idempotencyByKey:  make(map[string]RunIdempotency),
+		contracts:         make(map[string]contracts.Contract),
 	}
+}
+
+func (s *inMemoryManagerStore) PutContract(_ context.Context, contract contracts.Contract) error {
+	s.contracts[contract.Digest] = contract
+	return nil
+}
+
+func (s *inMemoryManagerStore) GetContract(_ context.Context, digest string) (contracts.Contract, error) {
+	contract, ok := s.contracts[digest]
+	if !ok {
+		return contracts.Contract{}, contracts.ErrContractNotFound
+	}
+	return contract, nil
 }
 
 func newForceInputStore() *forceInputStore {
@@ -3032,6 +3047,11 @@ func (s *inMemoryManagerStore) ReserveQueuedRun(
 		Metadata: normalizedReservation.Metadata,
 		QueuedAt: normalizedReservation.QueuedAt.UTC(),
 	}
+	if strings.TrimSpace(taskRecord.ExpectDigest) != "" {
+		budget := normalizedReservation.ResultBudget
+		run.ExpectDigest = taskRecord.ExpectDigest
+		run.ResultBudget = &budget
+	}
 	run.SetNetworkState(normalizedReservation.NetworkSpec, "", "", "")
 	if err := s.CreateTaskRun(context.Background(), run); err != nil {
 		return Task{}, Run{}, false, err
@@ -3078,6 +3098,36 @@ func (s *inMemoryManagerStore) CreateTaskEvent(_ context.Context, event Event) e
 		return s.events[i].Timestamp.After(s.events[j].Timestamp)
 	})
 	return nil
+}
+
+func (s *inMemoryManagerStore) AdmitResultContractRepair(
+	ctx context.Context,
+	admission ResultContractRepairAdmission,
+) (bool, error) {
+	run, ok := s.runs[admission.Event.RunID]
+	if !ok {
+		return false, ErrTaskRunNotFound
+	}
+	if run.TaskID != admission.Event.TaskID {
+		return false, ErrValidation
+	}
+	if strings.TrimSpace(admission.ClaimToken) != "" {
+		if err := requireResultContractRepairLease(run, admission.ClaimToken, admission.Now); err != nil {
+			return false, err
+		}
+	} else if strings.TrimSpace(run.ClaimTokenHash) != "" ||
+		run.Status.Normalize() != TaskRunStatusRunning {
+		return false, ErrInvalidStatusTransition
+	}
+	for _, event := range s.events {
+		if event.ID == admission.Event.ID {
+			return false, nil
+		}
+	}
+	if err := s.CreateTaskEvent(ctx, admission.Event); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (s *inMemoryManagerStore) appendTaskEventForTest(
@@ -8500,6 +8550,148 @@ func TestManagerTerminalRunStopsBackingSession(t *testing.T) {
 		}
 		if got := store.runs[runningRun.ID].Status.Normalize(); got != TaskRunStatusRunning {
 			t.Fatalf("stored run status = %q, want running after budget rejection", got)
+		}
+	})
+
+	// Invariant: completion validates against the contract and budget copied to
+	// the run at admission, even if the task contract changes mid-run.
+	// Owning layer: task service completion admission.
+	// Canonical suite: TestManagerTerminalRunStopsBackingSession.
+	t.Run("Should validate completion against the immutable run contract snapshot", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTestWithOptions(
+			t,
+			store,
+			WithSessionExecutor(&recordingSessionExecutor{}),
+			WithCancelGracePeriod(0),
+		)
+		original, err := contracts.Prepare(json.RawMessage(
+			`{"type":"object","required":["answer"],"properties":{"answer":{"type":"integer"}},"additionalProperties":false}`,
+		))
+		if err != nil {
+			t.Fatalf("contracts.Prepare(original) error = %v", err)
+		}
+		updated, err := contracts.Prepare(json.RawMessage(
+			`{"type":"object","required":["changed"],"properties":{"changed":{"type":"boolean"}},"additionalProperties":false}`,
+		))
+		if err != nil {
+			t.Fatalf("contracts.Prepare(updated) error = %v", err)
+		}
+		if err := store.PutContract(context.Background(), original); err != nil {
+			t.Fatalf("PutContract(original) error = %v", err)
+		}
+		if err := store.PutContract(context.Background(), updated); err != nil {
+			t.Fatalf("PutContract(updated) error = %v", err)
+		}
+		actor := validActorContext()
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Contract snapshot",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		storedTask := store.tasks[taskRecord.ID]
+		storedTask.ExpectDigest = original.Digest
+		store.tasks[taskRecord.ID] = storedTask
+		queued, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		storedTask.ExpectDigest = updated.Digest
+		store.tasks[taskRecord.ID] = storedTask
+		claimed, err := admitRunDirectlyForTest(context.Background(), manager, queued.ID, actor)
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+		running, err := manager.StartRun(context.Background(), claimed.ID, StartRun{}, actor)
+		if err != nil {
+			t.Fatalf("StartRun() error = %v", err)
+		}
+		if running.ExpectDigest != original.Digest || running.ResultBudget == nil {
+			t.Fatalf("run snapshot = digest %q budget %#v", running.ExpectDigest, running.ResultBudget)
+		}
+		_, err = manager.CompleteRun(context.Background(), running.ID, RunResult{
+			Value: json.RawMessage(`{"changed":true}`),
+		}, actor)
+		var validationErr *ResultContractValidationError
+		if !errors.Is(err, ErrValidation) || !errors.As(err, &validationErr) {
+			t.Fatalf("CompleteRun(updated-only payload) error = %v, want %v", err, ErrValidation)
+		}
+		if len(validationErr.Issues) == 0 || !strings.Contains(validationErr.Error(), "$.answer") {
+			t.Fatalf("validation error = %#v, want sanitized missing-key issue", validationErr)
+		}
+		if got := store.runs[running.ID].Status.Normalize(); got != TaskRunStatusRunning {
+			t.Fatalf("stored run status = %q, want running after repairable rejection", got)
+		}
+		repairEvents, err := store.ListTaskEvents(context.Background(), EventQuery{
+			TaskID: taskRecord.ID, RunID: running.ID, EventType: taskEventRunRejected,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskEvents(result repair) error = %v", err)
+		}
+		if len(repairEvents) != 1 || strings.Contains(string(repairEvents[0].Payload), "claim_token") {
+			t.Fatalf("result repair events = %#v, want one sanitized rejection", repairEvents)
+		}
+		completed, err := manager.CompleteRun(context.Background(), running.ID, RunResult{
+			Value: json.RawMessage(`{"result":{"answer":42}}`),
+		}, actor)
+		if err != nil {
+			t.Fatalf("CompleteRun(original payload) error = %v", err)
+		}
+		if completed.Status.Normalize() != TaskRunStatusCompleted {
+			t.Fatalf("completed run status = %q", completed.Status.Normalize())
+		}
+		if got := string(rawJSONValue(completed.Result)); got != `{"answer":42}` {
+			t.Fatalf("completed result = %s, want single wrapper removed", got)
+		}
+
+		secondTask, err := manager.CreateTask(context.Background(), CreateTask{
+			ProfileID: storepkg.DefaultProfileID,
+			Scope:     ScopeGlobal,
+			Title:     "Contract snapshot second rejection",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask(second) error = %v", err)
+		}
+		storedSecondTask := store.tasks[secondTask.ID]
+		storedSecondTask.ExpectDigest = original.Digest
+		store.tasks[secondTask.ID] = storedSecondTask
+		secondQueued, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: secondTask.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun(second) error = %v", err)
+		}
+		secondClaimed, err := admitRunDirectlyForTest(context.Background(), manager, secondQueued.ID, actor)
+		if err != nil {
+			t.Fatalf("ClaimNextRun(second) error = %v", err)
+		}
+		secondRunning, err := manager.StartRun(context.Background(), secondClaimed.ID, StartRun{}, actor)
+		if err != nil {
+			t.Fatalf("StartRun(second) error = %v", err)
+		}
+		invalidResult := RunResult{Value: json.RawMessage(`{"changed":true}`)}
+		if _, err := manager.CompleteRun(context.Background(), secondRunning.ID, invalidResult, actor); !errors.Is(err, ErrValidation) {
+			t.Fatalf("CompleteRun(second first rejection) error = %v, want %v", err, ErrValidation)
+		}
+		failed, err := manager.CompleteRun(context.Background(), secondRunning.ID, invalidResult, actor)
+		if !errors.Is(err, ErrResultInvalid) {
+			t.Fatalf("CompleteRun(second rejection) error = %v, want %v", err, ErrResultInvalid)
+		}
+		if failed == nil || failed.Status.Normalize() != TaskRunStatusFailed ||
+			!strings.Contains(failed.Error, resultContractInvalidCode) {
+			t.Fatalf("failed run = %#v, want typed invalid-result outcome", failed)
+		}
+		secondRepairEvents, err := store.ListTaskEvents(context.Background(), EventQuery{
+			TaskID: secondTask.ID, RunID: secondRunning.ID, EventType: taskEventRunRejected,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskEvents(second result repair) error = %v", err)
+		}
+		if len(secondRepairEvents) != 1 {
+			t.Fatalf("second result repair event count = %d, want 1", len(secondRepairEvents))
 		}
 	})
 
