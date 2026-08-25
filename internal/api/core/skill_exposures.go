@@ -317,7 +317,8 @@ func (h *BaseHandlers) respondSkillExposureFailure(
 	}
 	failureCount := 0
 	for _, result := range results {
-		if !result.OK && (result.Error == nil || result.Error.Code != skills.ExposureCodeRolledBack) {
+		if !result.OK && (result.Error == nil ||
+			(result.Error.Code != skills.ExposureCodeRolledBack && result.Error.Code != skills.ExposureCodeNotApplied)) {
 			failureCount++
 		}
 	}

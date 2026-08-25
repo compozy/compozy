@@ -30,7 +30,9 @@ flowchart TD
   C4 --> E
   C5 --> E
   E{Did any target fail?}
-  E -->|yes| E1["One envelope: expose_failed with per-target results; already-completed targets are compensated and marked rolled_back"]
+  E -->|preflight| E0["One envelope: expose_failed; the failing target keeps its code and untouched targets are marked expose_not_applied"]
+  E -->|commit| E1["One envelope: expose_failed with per-target results; already-completed targets are compensated and marked rolled_back"]
+  E0 --> F
   E1 --> E2{Could a compensation be undone?}
   E2 -->|no| E3[Per-target cleanup error surfaced — no silent residue]
   E2 -->|yes| E4["rolled_back: true; only folders this operation created and left empty are removed"]
@@ -91,7 +93,7 @@ journey:
       expected_observable: "A bundled skill is refused with the copy-first guidance and shows no exposure affordance on the web at all; a profile-owned skill is refused before any mutation and creates no shared entry."
     - step: 3
       verb: "Expose to two targets where one path is already occupied"
-      expected_observable: "One expose_failed envelope naming both targets, the failing target carrying its own code, the completed target marked rolled back, and only folders this operation created and left empty removed."
+      expected_observable: "One expose_failed envelope naming both targets. A preflight conflict keeps its own code while untouched targets report expose_not_applied and no writes exist; a later commit failure marks completed targets rolled_back and removes only folders the operation created and left empty."
     - step: 4
       verb: "Damage a link outside CompozyOS and look at it again"
       expected_observable: "A deleted link reads missing with repair actions; an unresolvable link of ours reads broken with repair actions; a foreign entry reads as a conflict with no action offered anywhere."

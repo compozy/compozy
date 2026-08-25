@@ -480,22 +480,23 @@ func TestSkillExposureEndpoints(t *testing.T) {
 		}
 	})
 
-	t.Run("Should use the single failure envelope for a name conflict", func(t *testing.T) {
+	t.Run("Should attribute a preflight conflict only to its target", func(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
 		skillDir := filepath.Join(root, "skills", "review-checklist")
-		targetRoot := filepath.Join(root, ".agents", "skills")
+		agentsRoot := filepath.Join(root, ".agents", "skills")
+		claudeRoot := filepath.Join(root, ".claude", "skills")
 		if err := os.MkdirAll(skillDir, 0o755); err != nil {
 			t.Fatalf("MkdirAll(skill) error = %v", err)
 		}
-		if err := os.MkdirAll(targetRoot, 0o755); err != nil {
+		if err := os.MkdirAll(claudeRoot, 0o755); err != nil {
 			t.Fatalf("MkdirAll(target) error = %v", err)
 		}
-		occupied := filepath.Join(targetRoot, "review-checklist")
+		occupied := filepath.Join(claudeRoot, "review-checklist")
 		if err := os.WriteFile(occupied, []byte("foreign"), 0o600); err != nil {
 			t.Fatalf("WriteFile(conflict) error = %v", err)
 		}
-		canonicalTargetRoot, err := filepath.EvalSymlinks(targetRoot)
+		canonicalTargetRoot, err := filepath.EvalSymlinks(claudeRoot)
 		if err != nil {
 			t.Fatalf("EvalSymlinks(target root) error = %v", err)
 		}
@@ -503,13 +504,15 @@ func TestSkillExposureEndpoints(t *testing.T) {
 		scope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 		skill := exposureTestSkill("review-checklist", skillDir, scope)
 		skill.Source = skills.SourceUser
-		engine := newSkillExposureFixture(t, skill, []compozyconfig.SkillRootSpec{{
-			Dir: targetRoot, SourceSlug: compozyconfig.SkillSourceAgents,
-			Kind: compozyconfig.RootKindPreset, ResourceScope: scope,
-		}}, &exposureMemoryStore{}, testutil.StubWorkspaceService{})
+		engine := newSkillExposureFixture(t, skill, []compozyconfig.SkillRootSpec{
+			{Dir: agentsRoot, SourceSlug: compozyconfig.SkillSourceAgents,
+				Kind: compozyconfig.RootKindPreset, ResourceScope: scope},
+			{Dir: claudeRoot, SourceSlug: compozyconfig.SkillSourceClaude,
+				Kind: compozyconfig.RootKindPreset, ResourceScope: scope},
+		}, &exposureMemoryStore{}, testutil.StubWorkspaceService{})
 
 		response := performSkillExposureRequest(
-			t, engine, "/api/skills/review-checklist/expose", `{"targets":["agents"]}`,
+			t, engine, "/api/skills/review-checklist/expose", `{"targets":["agents","claude"]}`,
 		)
 		if response.Code != http.StatusConflict {
 			t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
@@ -518,11 +521,17 @@ func TestSkillExposureEndpoints(t *testing.T) {
 		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 			t.Fatalf("Unmarshal(failure) error = %v", err)
 		}
-		if payload.Error.Code != "expose_failed" || payload.WorkspaceID != "" ||
-			len(payload.Results) != 1 || payload.Results[0].Error == nil ||
-			payload.Results[0].Error.Code != skills.ExposureCodeNameConflict ||
-			payload.Results[0].Error.OccupiedBy != occupied {
+		if payload.Error.Code != "expose_failed" || payload.Error.Message != "1 of 2 targets failed" ||
+			payload.WorkspaceID != "" || payload.RolledBack == nil || *payload.RolledBack ||
+			len(payload.Results) != 2 || payload.Results[0].Error == nil ||
+			payload.Results[0].Error.Code != skills.ExposureCodeNotApplied ||
+			payload.Results[0].Error.OccupiedBy != "" || payload.Results[1].Error == nil ||
+			payload.Results[1].Error.Code != skills.ExposureCodeNameConflict ||
+			payload.Results[1].Error.OccupiedBy != occupied {
 			t.Fatalf("failure payload = %#v", payload)
+		}
+		if _, err := os.Lstat(filepath.Join(agentsRoot, "review-checklist")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("preflight failure created agents link, error = %v", err)
 		}
 	})
 

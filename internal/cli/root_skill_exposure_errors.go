@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/skills"
 )
 
 func renderSkillExposureExecutionError(err error) (string, bool) {
@@ -15,7 +16,8 @@ func renderSkillExposureExecutionError(err error) (string, bool) {
 	}
 	failures := 0
 	for _, result := range payload.Results {
-		if !result.OK && (result.Error == nil || result.Error.Code != "rolled_back") {
+		if !result.OK && (result.Error == nil ||
+			(result.Error.Code != skills.ExposureCodeRolledBack && result.Error.Code != skills.ExposureCodeNotApplied)) {
 			failures++
 		}
 	}

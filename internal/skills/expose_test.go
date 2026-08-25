@@ -237,8 +237,21 @@ func TestExposeManager(t *testing.T) {
 		if err := os.WriteFile(conflict, []byte("foreign"), 0o600); err != nil {
 			t.Fatalf("WriteFile(conflict) error = %v", err)
 		}
-		_, err := fixture.manager.Expose(context.Background(), fixture.skill, []string{"agents", "claude"})
+		results, err := fixture.manager.Expose(context.Background(), fixture.skill, []string{"agents", "claude"})
 		assertExposureCode(t, err, ExposureCodeNameConflict)
+		if len(results) != 2 {
+			t.Fatalf("preflight results count = %d, want 2", len(results))
+		}
+		if got := exposureErrorCode(results[0].Err); got != ExposureCodeNotApplied {
+			t.Fatalf("agents preflight result code = %q, want %q", got, ExposureCodeNotApplied)
+		}
+		if got := exposureErrorCode(results[1].Err); got != ExposureCodeNameConflict {
+			t.Fatalf("claude preflight result code = %q, want %q", got, ExposureCodeNameConflict)
+		}
+		var agentsErr *ExposureError
+		if !errors.As(results[0].Err, &agentsErr) || agentsErr.Target != "agents" || agentsErr.Path != "" {
+			t.Fatalf("agents preflight result = %#v, want target-local result without foreign path", results[0])
+		}
 		if fixture.store.recordCount() != 0 {
 			t.Fatal("preflight failure inserted a record")
 		}
@@ -255,7 +268,7 @@ func TestExposeManager(t *testing.T) {
 		}
 		faults := &faultExposureFS{exposureFS: osExposureFS{}, failSymlinkPath: failedPath}
 		fixture.manager.fs = faults
-		results, err := fixture.manager.Expose(context.Background(), fixture.skill, []string{"agents", "claude"})
+		results, err = fixture.manager.Expose(context.Background(), fixture.skill, []string{"agents", "claude"})
 		assertExposureCode(t, err, ExposureCodeLinkUnsupported)
 		if len(results) != 2 || !results[0].RolledBack || exposureErrorCode(results[0].Err) != ExposureCodeRolledBack {
 			t.Fatalf("rollback results = %#v", results)

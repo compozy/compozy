@@ -222,6 +222,31 @@ describe("SkillExposePanel", () => {
       "The target that had finished was undone."
     );
   });
+
+  it("Should distinguish a target skipped by preflight from compensation", () => {
+    const results = skillExposeResultViews([
+      {
+        target: "agents",
+        ok: false,
+        error: {
+          code: "expose_not_applied",
+          message: 'exposure was not applied because target "claude" failed preflight',
+        },
+      },
+      {
+        target: "claude",
+        ok: false,
+        error: { code: "expose_name_conflict" },
+      },
+    ]);
+
+    expect(results[0]).toMatchObject({
+      code: "expose_not_applied",
+      rolledBack: false,
+      sentence: "not applied because another target failed preflight",
+    });
+    expect(results[1]).toMatchObject({ code: "expose_name_conflict", rolledBack: false });
+  });
 });
 
 describe("isSkillExposable", () => {

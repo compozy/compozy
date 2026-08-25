@@ -345,17 +345,21 @@ Provider folders are shared by every profile on the machine, so exposing a profi
 would make it visible to profiles that should not see it. CompozyOS refuses instead, and nothing is
 written. To share such a skill, move it to the user or workspace layer first.
 
-With several targets, either all of them succeed or none of them do:
+With several targets, either all of them succeed or none of them do. If preflight finds a conflict,
+the targets that passed preflight are marked as not applied because no writes started:
 
 ```bash
 compozy skill expose review-checklist --to agents,claude
 ```
 
 ```text
-Error: expose failed (1 of 2 targets; completed targets rolled back)
-  agents  rolled_back
+Error: expose failed (1 of 2 targets)
+  agents  expose_not_applied — exposure was not applied because target "claude" failed preflight
   claude  expose_name_conflict — occupied by /repo/.claude/skills/review-checklist
 ```
+
+If the filesystem fails after a target was written, that completed target is removed and reported as
+`rolled_back` instead. The top-level `rolled_back` flag is true only for that compensation path.
 
 `-o json` returns the same envelope the API returns: `error.code` is always `expose_failed`, and the
 per-target codes in `results[]` carry the detail.
@@ -425,6 +429,7 @@ See [Skills your provider already reads](/docs/skills#skills-your-provider-alrea
 | A source name is refused                          | the `valid` list in the error   | `unknown_skill_source` accepts only `agents` and `claude`                             |
 | A custom path is refused                          | the error code                  | `invalid_source_path` (scope) or `duplicate_skill_source` (overlap)                   |
 | An expose target is refused                       | its per-target error code       | `expose_target_disabled` or `expose_target_invalid`                                   |
+| Another target fails expose preflight             | its per-target error code       | `expose_not_applied`; no link or ownership record was written                         |
 | An expose destination is occupied                 | `occupied_by` in the result     | `expose_name_conflict` or `expose_foreign_link`; CompozyOS leaves it untouched        |
 | A non-profile skill cannot be exposed             | `compozy skill info <name>`     | `skill_not_exposable` also covers bundled skills and skills without an accessible on-disk directory |
 | Expose is refused for a profile-owned skill       | `compozy skill info <name>`     | Move the skill to the user or workspace layer                                         |

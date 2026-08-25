@@ -30,6 +30,7 @@ const (
 	ExposureCodeForeignLink              = "expose_foreign_link"
 	ExposureCodeUnsafeSkillName          = "unsafe_skill_name"
 	ExposureCodeRolledBack               = "rolled_back"
+	ExposureCodeNotApplied               = "expose_not_applied"
 	ExposureCodeCleanupFailed            = "exposure_cleanup_failed"
 	ExposureCodeSkillRemoveBlocked       = "skill_remove_blocked"
 )

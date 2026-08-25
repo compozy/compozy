@@ -79,6 +79,7 @@ export function isSkillExposable(skill: SkillPayload): boolean {
 
 const RESULT_SENTENCE: Record<string, string> = {
   rolled_back: "completed, then undone",
+  expose_not_applied: "not applied because another target failed preflight",
   expose_name_conflict: "a file with this name is already there",
   expose_target_disabled: "that source is turned off",
   expose_target_invalid: "custom folders can't receive links",

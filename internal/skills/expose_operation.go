@@ -54,7 +54,7 @@ func (m *ExposeManager) Expose(
 	}
 	preflights, err := m.preflightExpose(ctx, skill, owner, canonicalDir, targets, results)
 	if err != nil {
-		m.failUnresolvedExposureTargets(ctx, skill, results, err)
+		m.markUnappliedExposureTargets(ctx, skill, results, err)
 		return results, &ExposureBatchError{Cause: err}
 	}
 
@@ -91,18 +91,27 @@ func (m *ExposeManager) Expose(
 	return results, nil
 }
 
-func (m *ExposeManager) failUnresolvedExposureTargets(
+func (m *ExposeManager) markUnappliedExposureTargets(
 	ctx context.Context,
 	skill *Skill,
 	results []TargetResult,
-	err error,
+	cause error,
 ) {
+	var exposureErr *ExposureError
+	targetFailure := errors.As(cause, &exposureErr) && strings.TrimSpace(exposureErr.Target) != ""
 	for index := range results {
 		if results[index].OK || results[index].Err != nil {
 			continue
 		}
-		results[index].Err = err
-		m.emitExposureFailure(ctx, skill, results[index].Target, exposureErrorPath(err), err)
+		if !targetFailure {
+			results[index].Err = cause
+			m.emitExposureFailure(ctx, skill, results[index].Target, exposureErrorPath(cause), cause)
+			continue
+		}
+		results[index].Err = newExposureError(exposureErrorParams{
+			code: ExposureCodeNotApplied, target: results[index].Target,
+			message: fmt.Sprintf("exposure was not applied because target %q failed preflight", exposureErr.Target),
+		})
 	}
 }
 

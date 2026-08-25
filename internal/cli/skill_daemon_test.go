@@ -355,6 +355,54 @@ func TestSkillExposureCommandsUseCanonicalDaemonEnvelope(t *testing.T) {
 		}
 	})
 
+	t.Run("Should distinguish a preflight-aborted target from a rolled-back target", func(t *testing.T) {
+		t.Parallel()
+		rolledBack := false
+		failure := contract.SkillExposureFailureResponse{
+			Error: contract.SkillExposureFailureErrorPayload{Code: "expose_failed", Message: "1 of 2 targets failed"},
+			Name:  "review-checklist",
+			Results: []contract.SkillExposureTargetResultPayload{
+				{Target: "agents", Error: &contract.SkillExposureErrorPayload{
+					Code: "expose_not_applied", Message: "exposure was not applied because target \"claude\" failed preflight",
+				}},
+				{Target: "claude", Error: &contract.SkillExposureErrorPayload{
+					Code: "expose_name_conflict", OccupiedBy: "/repo/.claude/skills/review-checklist",
+				}},
+			},
+			RolledBack: &rolledBack,
+		}
+		client := &stubClient{
+			getSkillFn: func(_ context.Context, name string, _ SkillQuery) (SkillRecord, error) {
+				exposures := []contract.SkillExposurePayload{}
+				return SkillRecord{Name: name, Exposures: &exposures}, nil
+			},
+			exposeSkillFn: func(
+				context.Context,
+				string,
+				contract.SkillExposureRequest,
+				SkillQuery,
+			) (contract.SkillExposeResponse, error) {
+				return contract.SkillExposeResponse{}, &skillExposureAPIError{payload: failure}
+			},
+		}
+		deps := newWorkspaceTestDeps(t, client)
+		exitCode, _, stderr := executeRootCommandWithExit(
+			t, deps, "skill", "expose", "review-checklist", "--to", "agents,claude", "--workspace", "ws",
+		)
+		if exitCode == 0 {
+			t.Fatal("skill expose exit code = 0, want failure")
+		}
+		for _, want := range []string{
+			"Error: skill exposure failed (1 of 2 targets)",
+			"agents  expose_not_applied — exposure was not applied because target \"claude\" failed preflight",
+			"claude  expose_name_conflict — occupied by /repo/.claude/skills/review-checklist",
+		} {
+			if !strings.Contains(stderr, want) {
+				t.Fatalf("stderr = %q, want %q", stderr, want)
+			}
+		}
+	})
+
 	t.Run("Should keep a created skill when its requested exposure fails", func(t *testing.T) {
 		t.Parallel()
 		workspace := t.TempDir()

@@ -52,22 +52,22 @@ describe("useEnableSkill", () => {
     const { result } = renderHook(() => useEnableSkill(), { wrapper });
 
     act(() => {
-      result.current.mutate({ name: "test-skill", workspace: "ws_123" });
+      result.current.mutate({ name: "test-skill", workspace: "ws_123", profile: "research" });
     });
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(enableSkill).toHaveBeenCalledWith("test-skill", "ws_123");
+    expect(enableSkill).toHaveBeenCalledWith("test-skill", "ws_123", "research");
     expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
-      queryKey: ["skills", "list", "ws_123"],
+      queryKey: ["skills", "list", "ws_123", "research"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
-      queryKey: ["skills", "detail", "test-skill", "ws_123"],
+      queryKey: ["skills", "detail", "test-skill", "ws_123", "research"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
-      queryKey: ["skills", "content", "test-skill", "ws_123"],
+      queryKey: ["skills", "content", "test-skill", "ws_123", "research"],
     });
   });
 
@@ -85,7 +85,7 @@ describe("useEnableSkill", () => {
     const { result } = renderHook(() => useEnableSkill(), { wrapper });
 
     act(() => {
-      result.current.mutate({ name: "test-skill", workspace: "ws_123" });
+      result.current.mutate({ name: "test-skill", workspace: "ws_123", profile: "research" });
     });
 
     await waitFor(() => {
@@ -93,13 +93,13 @@ describe("useEnableSkill", () => {
     });
 
     expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
-      queryKey: ["skills", "list", "ws_123"],
+      queryKey: ["skills", "list", "ws_123", "research"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
-      queryKey: ["skills", "detail", "test-skill", "ws_123"],
+      queryKey: ["skills", "detail", "test-skill", "ws_123", "research"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
-      queryKey: ["skills", "content", "test-skill", "ws_123"],
+      queryKey: ["skills", "content", "test-skill", "ws_123", "research"],
     });
   });
 });
@@ -127,22 +127,22 @@ describe("useDisableSkill", () => {
     const { result } = renderHook(() => useDisableSkill(), { wrapper });
 
     act(() => {
-      result.current.mutate({ name: "test-skill", workspace: "ws_123" });
+      result.current.mutate({ name: "test-skill", workspace: "ws_123", profile: "research" });
     });
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(disableSkill).toHaveBeenCalledWith("test-skill", "ws_123");
+    expect(disableSkill).toHaveBeenCalledWith("test-skill", "ws_123", "research");
     expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
-      queryKey: ["skills", "list", "ws_123"],
+      queryKey: ["skills", "list", "ws_123", "research"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
-      queryKey: ["skills", "detail", "test-skill", "ws_123"],
+      queryKey: ["skills", "detail", "test-skill", "ws_123", "research"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
-      queryKey: ["skills", "content", "test-skill", "ws_123"],
+      queryKey: ["skills", "content", "test-skill", "ws_123", "research"],
     });
   });
 
@@ -160,7 +160,7 @@ describe("useDisableSkill", () => {
     const { result } = renderHook(() => useDisableSkill(), { wrapper });
 
     act(() => {
-      result.current.mutate({ name: "test-skill", workspace: "ws_123" });
+      result.current.mutate({ name: "test-skill", workspace: "ws_123", profile: "research" });
     });
 
     await waitFor(() => {
@@ -168,13 +168,13 @@ describe("useDisableSkill", () => {
     });
 
     expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
-      queryKey: ["skills", "list", "ws_123"],
+      queryKey: ["skills", "list", "ws_123", "research"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
-      queryKey: ["skills", "detail", "test-skill", "ws_123"],
+      queryKey: ["skills", "detail", "test-skill", "ws_123", "research"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
-      queryKey: ["skills", "content", "test-skill", "ws_123"],
+      queryKey: ["skills", "content", "test-skill", "ws_123", "research"],
     });
   });
 });
