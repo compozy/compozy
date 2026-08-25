@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	contractspkg "github.com/compozy/compozy/internal/contracts"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	storepkg "github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -43,7 +44,7 @@ func (g *LoopRepo) ResumeWait(
 		if wait.ClaimState == looppkg.WaitClaimInterventionRequired {
 			return fmt.Errorf("%w: wait requires intervention", looppkg.ErrInvalidTransition)
 		}
-		if err := looppkg.ValidateWaitPayload(wait.Expect, mutation.Payload); err != nil {
+		if err := validateContractWaitPayload(wait.Expect, mutation.Payload); err != nil {
 			updated, updateErr := recordWaitAdmissionFailure(ctx, exec, run, mutation, wait)
 			if updateErr != nil {
 				return updateErr
@@ -55,7 +56,7 @@ func (g *LoopRepo) ResumeWait(
 		if err := validateWaitResumeCell(ctx, exec, mutation, wait); err != nil {
 			return err
 		}
-		outputRef := looppkg.OutputRefForPayload(mutation.Payload)
+		outputRef := contractspkg.OutputRefForPayload(mutation.Payload)
 		if err := storepkg.UpsertLoopOutputBlob(
 			ctx, exec, outputRef, mutation.Payload, mutation.RequestedAt,
 		); err != nil {

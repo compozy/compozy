@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	contractspkg "github.com/compozy/compozy/internal/contracts"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
@@ -194,7 +195,7 @@ func (g *TaskRunRepo) storeLoopResultPayloadByRefIfLarge(
 	if !loopNodeRunShouldExternalizeResult(run, resultPayload) {
 		return resultPayload, "", nil
 	}
-	outputRef := looppkg.OutputRefForPayload(resultPayload)
+	outputRef := contractspkg.OutputRefForPayload(resultPayload)
 	if err := upsertLoopOutputBlobWithExecutor(ctx, exec, outputRef, resultPayload, completion.Now); err != nil {
 		return nil, "", err
 	}

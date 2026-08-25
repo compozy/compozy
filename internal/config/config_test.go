@@ -2899,7 +2899,11 @@ func TestProfileConfigLayersComposeInSpecificityOrder(t *testing.T) {
 		{path: workspaceProfileConfigFile(workspaceRoot, profileName), value: 5},
 	}
 	for _, layer := range layers {
-		writeFile(t, layer.path, fmt.Sprintf("[limits]\nmax_concurrent_agents = %d\n", layer.value))
+		writeFile(t, layer.path, fmt.Sprintf(
+			"[limits]\nmax_concurrent_agents = %d\n[calls]\nmax_batch = %d\n",
+			layer.value,
+			layer.value,
+		))
 	}
 	writeFile(t, profileMCPJSONFile(homePaths, profileName), `{
   "mcpServers": {"layered": {"command": "profile-sidecar"}}
@@ -2919,6 +2923,9 @@ func TestProfileConfigLayersComposeInSpecificityOrder(t *testing.T) {
 	if got, want := cfg.Limits.MaxConcurrentAgents, 5; got != want {
 		t.Fatalf("MaxConcurrentAgents = %d, want workspace-profile winner %d", got, want)
 	}
+	if got, want := cfg.Calls.MaxBatch, 5; got != want {
+		t.Fatalf("Calls.MaxBatch = %d, want workspace-profile winner %d", got, want)
+	}
 	if len(cfg.MCPServers) != 1 || cfg.MCPServers[0].Command != "workspace-profile-sidecar" {
 		t.Fatalf("MCPServers = %#v, want workspace-profile sidecar winner", cfg.MCPServers)
 	}
@@ -2935,6 +2942,9 @@ func TestProfileConfigLayersComposeInSpecificityOrder(t *testing.T) {
 	}
 	if got, want := cfg.Limits.MaxConcurrentAgents, 4; got != want {
 		t.Fatalf("MaxConcurrentAgents fallback = %d, want workspace winner %d", got, want)
+	}
+	if got, want := cfg.Calls.MaxBatch, 4; got != want {
+		t.Fatalf("Calls.MaxBatch fallback = %d, want workspace winner %d", got, want)
 	}
 	if len(cfg.MCPServers) != 1 || cfg.MCPServers[0].Command != "profile-sidecar" {
 		t.Fatalf("MCPServers fallback = %#v, want personal profile sidecar", cfg.MCPServers)

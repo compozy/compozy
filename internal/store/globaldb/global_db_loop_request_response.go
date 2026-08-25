@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	contractspkg "github.com/compozy/compozy/internal/contracts"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	storepkg "github.com/compozy/compozy/internal/store"
 )
@@ -94,7 +95,7 @@ func validateRequestDecision(
 	if len(schema) == 0 {
 		return nil
 	}
-	if err := looppkg.ValidateWaitPayload(schema, payload); err != nil {
+	if err := validateContractWaitPayload(schema, payload); err != nil {
 		return looppkg.NewRequestValidationError(err)
 	}
 	return nil
@@ -107,7 +108,7 @@ func (g *LoopRepo) commitRequestResponse(
 	state *requestResponseState,
 	result *looppkg.RespondResult,
 ) error {
-	answerRef := looppkg.OutputRefForPayload(state.mutation.Payload)
+	answerRef := contractspkg.OutputRefForPayload(state.mutation.Payload)
 	if err := storepkg.UpsertLoopOutputBlob(
 		ctx, exec, answerRef, state.mutation.Payload, state.mutation.RequestedAt,
 	); err != nil {

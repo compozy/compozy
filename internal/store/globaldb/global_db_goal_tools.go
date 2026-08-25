@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	contractspkg "github.com/compozy/compozy/internal/contracts"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/goal"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
@@ -192,7 +193,7 @@ func normalizeGoalToolReportRequest(req *goal.RecordToolReportRequest) (json.Raw
 		return nil, "", fmt.Errorf("store: encode Goal report evidence: %w", err)
 	}
 	raw := json.RawMessage(payload)
-	return raw, looppkg.OutputRefForPayload(raw), nil
+	return raw, contractspkg.OutputRefForPayload(raw), nil
 }
 
 func goalToolReportTargetEqual(left goal.ToolReportTarget, right goal.ToolReportTarget) bool {

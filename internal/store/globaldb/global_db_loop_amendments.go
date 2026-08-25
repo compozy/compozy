@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	contractspkg "github.com/compozy/compozy/internal/contracts"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	storepkg "github.com/compozy/compozy/internal/store"
 )
@@ -24,7 +25,7 @@ func (g *LoopRepo) AmendNodeOutput(
 	if err := input.Validate(); err != nil {
 		return looppkg.NodeAmendment{}, err
 	}
-	if err := looppkg.ValidateWaitPayload(input.Schema, input.Payload); err != nil {
+	if err := validateContractWaitPayload(input.Schema, input.Payload); err != nil {
 		return looppkg.NodeAmendment{}, looppkg.NewRequestValidationError(err)
 	}
 	var amendment looppkg.NodeAmendment
@@ -33,7 +34,7 @@ func (g *LoopRepo) AmendNodeOutput(
 		if err != nil {
 			return err
 		}
-		amendedRef := looppkg.OutputRefForPayload(input.Payload)
+		amendedRef := contractspkg.OutputRefForPayload(input.Payload)
 		if err := storepkg.UpsertLoopOutputBlob(ctx, exec, amendedRef, input.Payload, input.RequestedAt); err != nil {
 			return err
 		}

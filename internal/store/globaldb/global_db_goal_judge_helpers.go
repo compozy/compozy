@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	contractspkg "github.com/compozy/compozy/internal/contracts"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/gate"
 	"github.com/compozy/compozy/internal/loop/goal"
@@ -79,7 +80,7 @@ func persistGoalVerdictEvidence(
 	if !json.Valid(verdict.Payload) {
 		return "", fmt.Errorf("%w: goal judge evidence is invalid JSON", looppkg.ErrValidation)
 	}
-	ref := looppkg.OutputRefForPayload(verdict.Payload)
+	ref := contractspkg.OutputRefForPayload(verdict.Payload)
 	if err := upsertLoopOutputBlobWithExecutor(ctx, exec, ref, verdict.Payload, now); err != nil {
 		return "", err
 	}

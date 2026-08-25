@@ -107,6 +107,7 @@ type Config struct {
 	Goals         GoalsConfig               `toml:"goals"`
 	Task          TaskConfig                `toml:"task"`
 	Hooks         HooksConfig               `toml:"hooks"`
+	Calls         CallsConfig               `toml:"calls"`
 	Network       NetworkConfig             `toml:"network"`
 	Gateway       GatewayConfig             `toml:"gateway"`
 	Autonomy      AutonomyConfig            `toml:"autonomy"`

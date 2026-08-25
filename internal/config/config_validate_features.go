@@ -51,14 +51,24 @@ func (c *Config) validateFeatures(lookup envLookup) error {
 	if err := c.Hooks.Validate(); err != nil {
 		return fmt.Errorf("validate hooks config: %w", err)
 	}
-	if err := c.Network.Validate(); err != nil {
-		return fmt.Errorf("validate network config: %w", err)
+	if err := c.validateCallsAndNetwork(); err != nil {
+		return err
 	}
 	if err := c.Autonomy.Validate(); err != nil {
 		return fmt.Errorf("validate autonomy config: %w", err)
 	}
 	if err := c.Worktrees.Validate(); err != nil {
 		return fmt.Errorf("validate worktrees config: %w", err)
+	}
+	return nil
+}
+
+func (c *Config) validateCallsAndNetwork() error {
+	if err := c.Calls.Validate(); err != nil {
+		return fmt.Errorf("validate calls config: %w", err)
+	}
+	if err := c.Network.Validate(); err != nil {
+		return fmt.Errorf("validate network config: %w", err)
 	}
 	return nil
 }

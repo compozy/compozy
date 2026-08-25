@@ -229,6 +229,14 @@ func Boundaries() error {
 		allowed  map[string]struct{}
 	}{
 		{importer: "internal/redact", allowed: map[string]struct{}{}},
+		{
+			importer: "internal/contracts",
+			allowed: map[string]struct{}{
+				"github.com/compozy/compozy/internal/redact":    {},
+				"github.com/santhosh-tekuri/jsonschema/v6":      {},
+				"github.com/santhosh-tekuri/jsonschema/v6/kind": {},
+			},
+		},
 		{importer: "internal/extensionprotocol", allowed: map[string]struct{}{}},
 		{importer: "internal/mcppolicy", allowed: map[string]struct{}{}},
 		{
