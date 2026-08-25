@@ -147,7 +147,11 @@ export const sessionCreateStoreLogic = createStoreLogic<
     agentSelected: (context, event) => ({
       ...context,
       draft: {
-        ...applySessionAgentSelection(context.draft, event.agentName, event.workspaceId),
+        ...applySessionAgentSelection(
+          context.draft,
+          event.agentName.trim() || DEFAULT_SESSION_AGENT_NAME,
+          event.workspaceId
+        ),
         // Both are the operator's own words; swapping agents is not a reason to
         // throw them away.
         firstMessage: context.draft.firstMessage,
