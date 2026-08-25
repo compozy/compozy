@@ -323,37 +323,39 @@ func TestLoopResolvedRuntimeShouldPreserveSpeedOutcomeAndProvenance(t *testing.T
 }
 
 func TestLoopRuntimeRulesShouldPreserveConjunctionAndLegacyJSON(t *testing.T) {
-	t.Parallel()
+	t.Run("Should preserve conjunction and legacy selectors through JSON", func(t *testing.T) {
+		t.Parallel()
 
-	rules := []contract.LoopRuntimeRule{
-		{
-			Match: contract.LoopRuntimeMatch{Type: "frontend", Complexity: "high"},
-			Runtime: contract.LoopRuntimeSpec{
-				Provider: "codex", Model: "gpt-5.6-sol", Reasoning: "high", Speed: contract.SpeedFast,
+		rules := []contract.LoopRuntimeRule{
+			{
+				Match: contract.LoopRuntimeMatch{Type: "frontend", Complexity: "high"},
+				Runtime: contract.LoopRuntimeSpec{
+					Provider: "codex", Model: "gpt-5.6-sol", Reasoning: "high", Speed: contract.SpeedFast,
+				},
 			},
-		},
-		{
-			Match:   contract.LoopRuntimeMatch{Complexity: "low"},
-			Runtime: contract.LoopRuntimeSpec{Model: "gpt-5.6-luna"},
-		},
-	}
-	encoded, err := json.Marshal(rules)
-	if err != nil {
-		t.Fatalf("json.Marshal() error = %v", err)
-	}
-	want := `[{"match":{"type":"frontend","complexity":"high"},` +
-		`"runtime":{"provider":"codex","model":"gpt-5.6-sol","reasoning":"high","speed":"fast"}},` +
-		`{"match":{"complexity":"low"},"runtime":{"model":"gpt-5.6-luna"}}]`
-	if string(encoded) != want {
-		t.Fatalf("json.Marshal() = %s, want %s", encoded, want)
-	}
-	var decoded []contract.LoopRuntimeRule
-	if err := json.Unmarshal(encoded, &decoded); err != nil {
-		t.Fatalf("json.Unmarshal() error = %v", err)
-	}
-	if !reflect.DeepEqual(decoded, rules) {
-		t.Fatalf("json.Unmarshal() = %#v, want %#v", decoded, rules)
-	}
+			{
+				Match:   contract.LoopRuntimeMatch{Complexity: "low"},
+				Runtime: contract.LoopRuntimeSpec{Model: "gpt-5.6-luna"},
+			},
+		}
+		encoded, err := json.Marshal(rules)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		want := `[{"match":{"type":"frontend","complexity":"high"},` +
+			`"runtime":{"provider":"codex","model":"gpt-5.6-sol","reasoning":"high","speed":"fast"}},` +
+			`{"match":{"complexity":"low"},"runtime":{"model":"gpt-5.6-luna"}}]`
+		if string(encoded) != want {
+			t.Fatalf("json.Marshal() = %s, want %s", encoded, want)
+		}
+		var decoded []contract.LoopRuntimeRule
+		if err := json.Unmarshal(encoded, &decoded); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if !reflect.DeepEqual(decoded, rules) {
+			t.Fatalf("json.Unmarshal() = %#v, want %#v", decoded, rules)
+		}
+	})
 }
 
 func TestWindowManagerV3WireContract(t *testing.T) {

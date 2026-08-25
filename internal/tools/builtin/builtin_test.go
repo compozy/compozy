@@ -2119,6 +2119,21 @@ func validationErrorKindIsMinLength(errorKind jsonschema.ErrorKind) bool {
 	return ok
 }
 
+func validationErrorKindIsOneOf(errorKind jsonschema.ErrorKind) bool {
+	_, ok := errorKind.(*jsonschemakind.OneOf)
+	return ok
+}
+
+func validationErrorKindIsAnyOf(errorKind jsonschema.ErrorKind) bool {
+	_, ok := errorKind.(*jsonschemakind.AnyOf)
+	return ok
+}
+
+func validationErrorKindIsAdditionalProperties(errorKind jsonschema.ErrorKind) bool {
+	_, ok := errorKind.(*jsonschemakind.AdditionalProperties)
+	return ok
+}
+
 func assertSessionRuntimeMutationSchemas(
 	t *testing.T,
 	descriptors map[toolspkg.ToolID]toolspkg.Descriptor,
@@ -2723,9 +2738,11 @@ func assertNativeLoopRuntimeRulesSchema(
 	t.Helper()
 	compiled := compileNativeSchema(t, descriptor, raw, "runtime_rules")
 	for _, testCase := range []struct {
-		name    string
-		payload string
-		valid   bool
+		name         string
+		payload      string
+		valid        bool
+		matchesKind  func(jsonschema.ErrorKind) bool
+		expectedKind string
 	}{
 		{
 			name:    "Should accept an exact ID rule",
@@ -2750,33 +2767,47 @@ func assertNativeLoopRuntimeRulesSchema(
 			valid: true,
 		},
 		{
-			name:    "Should reject an empty matcher",
-			payload: `[{"match":{},"runtime":{"provider":"codex"}}]`,
+			name:         "Should reject an empty matcher",
+			payload:      `[{"match":{},"runtime":{"provider":"codex"}}]`,
+			matchesKind:  validationErrorKindIsOneOf,
+			expectedKind: "oneOf",
 		},
 		{
-			name:    "Should reject an ID and type collision",
-			payload: `[{"match":{"id":"task_01","type":"frontend"},"runtime":{"provider":"codex"}}]`,
+			name:         "Should reject an ID and type collision",
+			payload:      `[{"match":{"id":"task_01","type":"frontend"},"runtime":{"provider":"codex"}}]`,
+			matchesKind:  validationErrorKindIsOneOf,
+			expectedKind: "oneOf",
 		},
 		{
-			name:    "Should reject an ID and complexity collision",
-			payload: `[{"match":{"id":"task_01","complexity":"high"},"runtime":{"provider":"codex"}}]`,
+			name:         "Should reject an ID and complexity collision",
+			payload:      `[{"match":{"id":"task_01","complexity":"high"},"runtime":{"provider":"codex"}}]`,
+			matchesKind:  validationErrorKindIsOneOf,
+			expectedKind: "oneOf",
 		},
 		{
 			name: "Should reject all matcher fields together",
 			payload: `[{"match":{"id":"task_01","type":"frontend","complexity":"high"},` +
 				`"runtime":{"provider":"codex"}}]`,
+			matchesKind:  validationErrorKindIsOneOf,
+			expectedKind: "oneOf",
 		},
 		{
-			name:    "Should reject an empty runtime",
-			payload: `[{"match":{"type":"frontend"},"runtime":{}}]`,
+			name:         "Should reject an empty runtime",
+			payload:      `[{"match":{"type":"frontend"},"runtime":{}}]`,
+			matchesKind:  validationErrorKindIsAnyOf,
+			expectedKind: "anyOf",
 		},
 		{
-			name:    "Should reject unknown matcher fields",
-			payload: `[{"match":{"domain":"frontend"},"runtime":{"provider":"codex"}}]`,
+			name:         "Should reject unknown matcher fields",
+			payload:      `[{"match":{"domain":"frontend"},"runtime":{"provider":"codex"}}]`,
+			matchesKind:  validationErrorKindIsAdditionalProperties,
+			expectedKind: "additionalProperties",
 		},
 		{
-			name:    "Should reject unknown runtime fields",
-			payload: `[{"match":{"type":"frontend"},"runtime":{"effort":"high"}}]`,
+			name:         "Should reject unknown runtime fields",
+			payload:      `[{"match":{"type":"frontend"},"runtime":{"effort":"high"}}]`,
+			matchesKind:  validationErrorKindIsAdditionalProperties,
+			expectedKind: "additionalProperties",
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -2787,11 +2818,26 @@ func assertNativeLoopRuntimeRulesSchema(
 				t.Fatalf("%s runtime_rules payload parse error = %v", descriptor.ID, err)
 			}
 			err = compiled.Validate(instance)
-			if testCase.valid && err != nil {
-				t.Fatalf("%s runtime_rules schema rejected %s: %v", descriptor.ID, testCase.payload, err)
+			if testCase.valid {
+				if err != nil {
+					t.Fatalf("%s runtime_rules schema rejected %s: %v", descriptor.ID, testCase.payload, err)
+				}
+				return
 			}
-			if !testCase.valid && err == nil {
+			if err == nil {
 				t.Fatalf("%s runtime_rules schema accepted invalid payload %s", descriptor.ID, testCase.payload)
+			}
+			var validationErr *jsonschema.ValidationError
+			if !errors.As(err, &validationErr) {
+				t.Fatalf("%s validation error = %T, want *jsonschema.ValidationError", descriptor.ID, err)
+			}
+			if !validationErrorContainsKind(validationErr, testCase.matchesKind) {
+				t.Fatalf(
+					"%s validation cause = %#v, want %s",
+					descriptor.ID,
+					validationErr,
+					testCase.expectedKind,
+				)
 			}
 		})
 	}
