@@ -15,7 +15,7 @@ const meta: Meta<typeof SessionEnvironmentChip> = {
     docs: {
       description: {
         component:
-          "States where a live session runs. A session's worktree binding is immutable, so the chip is a statement of fact rather than a picker — the only interactive variant leads to a fork, and only when the daemon reports `/worktree` as available.",
+          "Icon-only environment control for a live session. The binding is immutable, so the control is a statement of fact rather than a picker; its tooltip identifies the environment and the fork action, and it opens the fork dialog only when `/worktree` is available.",
       },
     },
   },
@@ -25,15 +25,16 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * VC-07 — the workspace root, stated rather than offered.
+ * VC-07 — the workspace root, shown as an icon with its environment and fork action in the tooltip.
  *
- * Production passes `session.workspace_path` as the label and never sets `mono`.
+ * Production passes `session.workspace_path` as the label; the path is exposed
+ * through the control's accessible name and tooltip rather than visible text.
  */
 export const RootBinding: Story = {
   args: { state: "root", label: ROOT_LABEL },
 };
 
-/** VC-08 — bound, with the daemon refusing the fork right now and saying why. */
+/** VC-08 — bound, with the daemon refusing the fork right now and saying why in the tooltip. */
 export const WorktreeBindingForkUnavailable: Story = {
   args: {
     state: "worktree",
@@ -42,7 +43,7 @@ export const WorktreeBindingForkUnavailable: Story = {
   },
 };
 
-/** VC-12 — the binding is locked for a live session, so the chip leads to a fork. */
+/** VC-12 — the binding is locked for a live session, so the icon leads to a fork. */
 export const WorktreeBindingForkAvailable: Story = {
   args: { state: "worktree", label: "payments-retry", onFork: () => {} },
 };

@@ -1,17 +1,14 @@
-import { FolderGit2Icon, FolderIcon, FolderPlusIcon, LockIcon } from "lucide-react";
+import { FolderGit2Icon, FolderIcon, FolderPlusIcon } from "lucide-react";
 
-import { Button, cn } from "@compozy/ui";
+import { Button, cn, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 
-const CHIP_CLASS =
-  "inline-flex h-6 items-center gap-1.5 whitespace-nowrap rounded-md border border-line bg-canvas-tint px-[9px] text-badge font-medium text-muted [&_svg]:size-3 [&_svg]:text-subtle";
+const ACTION_CLASS = "text-muted hover:bg-row-hover hover:text-fg-strong";
 
 export type SessionEnvironmentChipState = "root" | "worktree" | "new" | "pending" | "failed";
 
 interface SessionEnvironmentChipProps {
   state: SessionEnvironmentChipState;
   label: string;
-  /** Secondary mono fact — `root` for the workspace binding, a name for a draft target. */
-  mono?: string;
   /** Present only when the daemon says `/worktree` can run right now. */
   onFork?: () => void;
   /** Verbatim daemon reason for an unavailable fork. Never reworded here. */
@@ -31,8 +28,6 @@ const ICON = {
   failed: FolderPlusIcon,
 } as const;
 
-const LOCK_TITLE = "Environment is fixed for a live session — fork to move";
-
 /**
  * States where a session runs, in the composer control row.
  *
@@ -44,63 +39,48 @@ const LOCK_TITLE = "Environment is fixed for a live session — fork to move";
 export function SessionEnvironmentChip({
   state,
   label,
-  mono,
   onFork,
   forkUnavailableReason,
   presentational = false,
 }: SessionEnvironmentChipProps) {
   const Glyph = ICON[state];
+  const forkAvailable = Boolean(onFork);
+  const environmentName = `${state === "worktree" ? "Worktree" : "Workspace"}: ${label}`;
+  const isLiveState = state === "root" || state === "worktree";
+  const tooltip = isLiveState ? `${environmentName} — fork into a new worktree` : environmentName;
+  const accessibleName = forkUnavailableReason ? `${tooltip}. ${forkUnavailableReason}` : tooltip;
   const toneClass = cn(
     state === "pending" && "border-dashed text-warning [&_svg]:text-warning",
     state === "failed" && "border-dashed text-danger [&_svg]:text-danger",
     state === "new" && "border-dashed"
   );
 
-  if (onFork) {
-    return (
-      <Button
-        aria-label={`Environment ${label} — fork to move`}
-        className={cn(CHIP_CLASS, "hover:border-line-strong hover:bg-row-hover hover:text-fg")}
-        data-binding="worktree"
-        data-fork="available"
-        data-locked=""
-        data-slot="session-environment-chip"
-        data-state={state}
-        onClick={onFork}
-        size="sm"
-        title={LOCK_TITLE}
-        type="button"
-        variant="outline"
-      >
-        <Glyph aria-hidden="true" />
-        {label}
-        <LockIcon aria-hidden="true" />
-      </Button>
-    );
-  }
-
   return (
-    <span
-      className={cn(CHIP_CLASS, "cursor-default", toneClass)}
-      data-binding={state === "root" ? "root" : "worktree"}
-      data-fork={forkUnavailableReason ? "unavailable" : undefined}
-      data-locked=""
-      data-presentational={presentational ? "true" : undefined}
-      data-slot="session-environment-chip"
-      data-state={state}
-      title={forkUnavailableReason ?? (state === "worktree" ? LOCK_TITLE : undefined)}
-    >
-      <Glyph aria-hidden="true" />
-      <span data-slot="session-environment-chip-label">{label}</span>
-      {mono ? (
-        <span
-          className="font-mono text-micro text-subtle"
-          data-slot="session-environment-chip-mono"
-        >
-          {mono}
-        </span>
-      ) : null}
-      {state === "worktree" ? <LockIcon aria-hidden="true" /> : null}
-    </span>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            aria-disabled={forkAvailable ? undefined : true}
+            aria-label={accessibleName}
+            className={cn("size-6", ACTION_CLASS, toneClass)}
+            data-binding={state === "root" ? "root" : "worktree"}
+            data-fork={
+              forkAvailable ? "available" : forkUnavailableReason ? "unavailable" : undefined
+            }
+            data-locked=""
+            data-presentational={presentational ? "true" : undefined}
+            data-slot="session-environment-chip"
+            data-state={state}
+            onClick={forkAvailable ? onFork : undefined}
+            size="icon-xs"
+            type="button"
+            variant="ghost"
+          >
+            <Glyph aria-hidden="true" className="size-3.5" />
+          </Button>
+        }
+      />
+      <TooltipContent>{accessibleName}</TooltipContent>
+    </Tooltip>
   );
 }
