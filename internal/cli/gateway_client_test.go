@@ -524,11 +524,71 @@ func TestGatewayClientTargetConstructionAndMatrix(t *testing.T) {
 	})
 }
 
+// Invariant: remote stream errors retain both their stable gateway code and the
+// domain classification needed by callers to decide whether work may continue.
+// Owning layer: CLI gateway stream error translation.
+// Canonical suite: this gateway stream interruption contract suite.
 func TestGatewayClientStreamsReportStableInterruption(t *testing.T) {
 	t.Parallel()
 	t.Run("Should preserve complete events then report a distinct interruption [UT-103] [UT-104]", func(t *testing.T) {
 		t.Parallel()
 		exerciseGatewayClientStreamInterruption(t)
+	})
+
+	t.Run("Should preserve incomplete prompt classification beneath a gateway interruption", func(t *testing.T) {
+		t.Parallel()
+
+		target, err := GatewayClientTarget("remote", "gateway.example", 443, testGatewayCredential('p'))
+		if err != nil {
+			t.Fatalf("GatewayClientTarget() error = %v", err)
+		}
+		transport := roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+			switch {
+			case request.Method == http.MethodGet && request.URL.Path == "/api/sessions/sess-1":
+				return newHTTPResponse(
+					http.StatusOK,
+					`{"session":{"id":"sess-1","workspace_id":"ws-1","state":"active","created_at":"2026-08-25T12:00:00Z","updated_at":"2026-08-25T12:00:00Z"}}`,
+				), nil
+			case request.Method == http.MethodPost && request.URL.Path == "/api/gateway/stream-tickets":
+				return newHTTPResponse(http.StatusCreated, `{"ticket":"ticket-1"}`), nil
+			case request.Method == http.MethodPost &&
+				request.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/prompt":
+				if request.URL.Query().Get("ticket") != "ticket-1" {
+					t.Fatalf("stream ticket = %q, want ticket-1", request.URL.Query().Get("ticket"))
+				}
+				response := &http.Response{
+					StatusCode: http.StatusOK,
+					Status:     "200 OK",
+					Header:     make(http.Header),
+					Body: io.NopCloser(&stagedResponseReader{
+						chunks:      [][]byte{[]byte("event: start\ndata: {\"type\":\"start\"}\n\n")},
+						terminalErr: errors.New("connection reset"),
+					}),
+					Request: request,
+				}
+				response.Header.Set("Content-Type", "text/event-stream")
+				return response, nil
+			default:
+				t.Fatalf("unexpected request = %s %s", request.Method, request.URL.Path)
+				return nil, errors.New("unexpected request")
+			}
+		})
+		client := &daemonClient{
+			target:       target,
+			httpClient:   &http.Client{Transport: transport},
+			streamClient: &http.Client{Transport: transport},
+		}
+
+		err = client.StreamPromptSession(
+			t.Context(),
+			"sess-1",
+			SessionPromptRequest{Message: "continue"},
+			func(SSEEvent) error { return nil },
+		)
+		assertGatewayClientErrorCode(t, err, gatewayStreamInterruptedCode)
+		if !errors.Is(err, errSessionPromptStreamIncomplete) {
+			t.Fatalf("StreamPromptSession() error = %v, want incomplete stream classification", err)
+		}
 	})
 }
 

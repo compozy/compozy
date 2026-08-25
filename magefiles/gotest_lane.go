@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -121,13 +122,9 @@ func goUnitTestInvocations(ctx context.Context) ([]goUnitTestInvocation, error) 
 
 	cmd := exec.CommandContext(ctx, "go", "list", goAllPackagesPattern)
 	cmd.Env = hermeticGoTestEnv(withRaceEnabledEnv(nil))
-	output, err := cmd.CombinedOutput()
+	packages, err := goListPackagePaths(cmd)
 	if err != nil {
-		return nil, fmt.Errorf("list Go unit-test packages: %w: %s", err, strings.TrimSpace(string(output)))
-	}
-	packages := strings.Fields(string(output))
-	if len(packages) == 0 {
-		return nil, fmt.Errorf("list Go unit-test packages: go list returned no packages")
+		return nil, err
 	}
 
 	splitTests, err := listGoTopLevelTests(ctx, goSplitTestPackage)
@@ -152,6 +149,26 @@ func goUnitTestInvocations(ctx context.Context) ([]goUnitTestInvocation, error) 
 		goSplitTestPackage,
 	)
 	return invocations, nil
+}
+
+func goListPackagePaths(cmd *exec.Cmd) ([]string, error) {
+	output, err := cmd.Output()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return nil, fmt.Errorf(
+				"list Go unit-test packages: %w: %s",
+				err,
+				strings.TrimSpace(string(exitErr.Stderr)),
+			)
+		}
+		return nil, fmt.Errorf("list Go unit-test packages: %w", err)
+	}
+	packages := strings.Fields(string(output))
+	if len(packages) == 0 {
+		return nil, fmt.Errorf("list Go unit-test packages: go list returned no packages")
+	}
+	return packages, nil
 }
 
 func shardGoUnitTestInvocations(

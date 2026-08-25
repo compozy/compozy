@@ -10,6 +10,7 @@ package main
 
 import (
 	"bytes"
+	"os/exec"
 	"slices"
 	"strconv"
 	"strings"
@@ -261,6 +262,27 @@ func TestShardGoUnitTestInvocations(t *testing.T) {
 		}
 		if !slices.Equal(assigned, want) {
 			t.Fatalf("assignments across shards = %v, want %v", assigned, want)
+		}
+	})
+}
+
+func TestGoListPackagePaths(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should exclude Go download diagnostics from package selection", func(t *testing.T) {
+		t.Parallel()
+		cmd := exec.Command(
+			"sh",
+			"-c",
+			"printf 'example.com/first\\nexample.com/second\\n'; printf 'go: downloading example.com/module v1.2.3\\n' >&2",
+		)
+		got, err := goListPackagePaths(cmd)
+		if err != nil {
+			t.Fatalf("goListPackagePaths() error = %v", err)
+		}
+		want := []string{"example.com/first", "example.com/second"}
+		if !slices.Equal(got, want) {
+			t.Fatalf("goListPackagePaths() = %v, want %v", got, want)
 		}
 	})
 }

@@ -489,10 +489,18 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
+      - name: Preserve Go caches across isolated desktop homes
+        run: |
+          echo "GOCACHE=$(go env GOCACHE)" >> "$GITHUB_ENV"
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> "$GITHUB_ENV"
+
       - name: Set up Bun (desktop deps + Playwright)
         uses: ./.github/actions/setup-bun
         with:
           install-playwright: "true"
+
+      - name: Allow the Chromium user namespace sandbox
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
       - name: Restore Turbo cache
         uses: actions/cache@v6
