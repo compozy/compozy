@@ -259,7 +259,7 @@ func assertCompleteSeedSurfaces(
 	if _, err := os.Stat(worktrees[0].Path); err != nil {
 		t.Fatalf("Stat(seed worktree) error = %v", err)
 	}
-	items, err := db.ListPresets(ctx, presets.Query{})
+	items, err := db.ListPresetsForProfile(ctx, presets.Query{}, store.DefaultProfileID)
 	if err != nil {
 		t.Fatalf("ListPresets() error = %v", err)
 	}
