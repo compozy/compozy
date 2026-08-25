@@ -20,17 +20,6 @@ func finishInitialControlPlan(
 ) (task.CoordinatorCompletionPlan, error) {
 	graph := resolved.Definition.Graph
 	postReserveOutputs := cloneGenerationOutputs(outputs)
-	if err := appendCoordinatorArtifactsForOutputs(
-		plan,
-		run,
-		generation,
-		graph,
-		topology,
-		gateEvaluator != nil,
-		postReserveOutputs,
-	); err != nil {
-		return task.CoordinatorCompletionPlan{}, err
-	}
 	if err := appendReadyNodeRunsControlAware(
 		plan,
 		run,
@@ -40,6 +29,17 @@ func finishInitialControlPlan(
 		gateEvaluator != nil,
 		postReserveOutputs,
 		scheduledAt,
+	); err != nil {
+		return task.CoordinatorCompletionPlan{}, err
+	}
+	if err := appendCoordinatorArtifactsForOutputs(
+		plan,
+		run,
+		generation,
+		graph,
+		topology,
+		gateEvaluator != nil,
+		postReserveOutputs,
 	); err != nil {
 		return task.CoordinatorCompletionPlan{}, err
 	}

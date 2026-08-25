@@ -3,6 +3,7 @@ package loop
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/task"
@@ -53,6 +54,7 @@ func appendCoordinatorTasksForOutputs(
 	for _, spec := range plan.NodeTasks {
 		existing[spec.TaskID] = struct{}{}
 	}
+	planned := coordinatorPlannedNodeTaskIDs(plan.NodeRuns)
 	for _, output := range sortedGenerationOutputs(outputs) {
 		if GenerationOutputStatusParked(output.Status) {
 			continue
@@ -68,6 +70,9 @@ func appendCoordinatorTasksForOutputs(
 			continue
 		}
 		taskID := coordinatorNodeTaskID(run.ID, generation, node.ID, output.ItemIndex)
+		if _, ok := planned[taskID]; !ok {
+			continue
+		}
 		if _, ok := existing[taskID]; ok {
 			continue
 		}
@@ -104,6 +109,7 @@ func appendCoordinatorDependenciesForOutputs(
 	for _, dependency := range plan.Dependencies {
 		existing[dependencyKey(dependency.TaskID, dependency.DependsOnTaskID)] = struct{}{}
 	}
+	planned := coordinatorPlannedNodeTaskIDs(plan.NodeRuns)
 	outputMap := generationOutputMap(outputs)
 	for _, output := range sortedGenerationOutputs(outputs) {
 		if GenerationOutputStatusParked(output.Status) {
@@ -115,6 +121,10 @@ func appendCoordinatorDependenciesForOutputs(
 		nodeID := dsl.NodeID(output.NodeID)
 		node, ok := graphNode(graph, nodeID)
 		if !ok || isCoordinatorOwnedNodeWithGates(node, gatesEnabled) {
+			continue
+		}
+		taskID := coordinatorNodeTaskID(run.ID, generation, nodeID, output.ItemIndex)
+		if _, ok := planned[taskID]; !ok {
 			continue
 		}
 		for _, dependency := range topology.dependencies[nodeID] {
@@ -137,7 +147,14 @@ func appendCoordinatorDependenciesForOutputs(
 				if dependencyOutput.NodeID == "" || GenerationOutputStatusParked(dependencyOutput.Status) {
 					continue
 				}
-				taskID := coordinatorNodeTaskID(run.ID, generation, nodeID, output.ItemIndex)
+				if !generationOutputOwnsTaskInGeneration(
+					run,
+					generation,
+					dependencyNode,
+					dependencyOutput,
+				) {
+					continue
+				}
 				dependsOnTaskID := coordinatorNodeTaskID(
 					run.ID,
 					generation,
@@ -157,6 +174,40 @@ func appendCoordinatorDependenciesForOutputs(
 			}
 		}
 	}
+}
+
+func coordinatorPlannedNodeTaskIDs(runs []task.EnqueueSpec) map[string]struct{} {
+	taskIDs := make(map[string]struct{}, len(runs))
+	for _, run := range runs {
+		taskID := strings.TrimSpace(run.TaskID)
+		if taskID != "" {
+			taskIDs[taskID] = struct{}{}
+		}
+	}
+	return taskIDs
+}
+
+func generationOutputOwnsTaskInGeneration(
+	run Run,
+	generation int,
+	node dsl.Node,
+	output GenerationOutput,
+) bool {
+	taskRunID := strings.TrimSpace(output.TaskRunID)
+	if taskRunID == "" || outputRefMarksSkippedRoute(output.OutputRef) {
+		return false
+	}
+	if dsl.ActionKind(node.Kind) == dsl.ActionGoal {
+		baseRunID := coordinatorNodeRunID(run.ID, generation, node.ID, output.ItemIndex)
+		return strings.HasPrefix(taskRunID, baseRunID+":goal-segment:")
+	}
+	return taskRunID == NodeCellAttemptRunID(
+		run.ID,
+		generation,
+		string(node.ID),
+		output.ItemIndex,
+		output.Attempt,
+	)
 }
 
 func isAuthoredErrorRouteDependency(source dsl.Node, target dsl.NodeID) bool {
