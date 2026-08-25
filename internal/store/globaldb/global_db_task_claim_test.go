@@ -4594,6 +4594,81 @@ func successionLoopRunForTest(
 	return run
 }
 
+func routeNotTakenJoinLoopRunForTest(t *testing.T, id string, at time.Time) looppkg.Run {
+	t.Helper()
+
+	transform := func(nodeID dsl.NodeID) dsl.Node {
+		return dsl.Node{
+			ID: nodeID, Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform),
+			Params: dsl.NodeParams{
+				"map": map[string]any{"value": map[string]any{"value": string(nodeID)}},
+			},
+		}
+	}
+	selectSource := transform("select_source")
+	selectSource.Produces = dsl.Schema{"risk": "string"}
+	definition := dsl.Definition{
+		Meta: dsl.Meta{Name: "delivery", Version: 1},
+		Contract: dsl.Contract{
+			Goal: "Prepare delivery", DefinitionOfDone: "Worktree is prepared",
+			IterationCap: 3, NoProgress: dsl.NoProgress{Window: 3},
+			Budget: dsl.Budget{Tokens: 100_000, WallClockSec: 3_600, OnExceeded: dsl.BudgetExceededHalt},
+		},
+		Graph: dsl.Graph{
+			Nodes: []dsl.Node{
+				selectSource,
+				{
+					ID:    "route_source",
+					Class: dsl.NodeClassControl,
+					Kind:  string(dsl.ControlRoute),
+					Routes: []dsl.RouteSpec{{
+						When: `nodes.select_source.output.risk == "linear"`, To: "analyze_linear",
+					}},
+					Default: "analyze_sentry",
+				},
+				transform("analyze_linear"),
+				transform("create_spec"),
+				transform("analyze_sentry"),
+				transform("prepare_worktree"),
+			},
+			Edges: []dsl.Edge{
+				{From: "select_source", To: "route_source"},
+				{From: "route_source", To: "analyze_linear"},
+				{From: "route_source", To: "analyze_sentry"},
+				{From: "analyze_linear", To: "create_spec"},
+				{From: "create_spec", To: "prepare_worktree"},
+				{From: "analyze_sentry", To: "prepare_worktree"},
+			},
+		},
+	}
+	definition.Normalize()
+	resolved, err := looppkg.NewCompiler().Compile(definition)
+	if err != nil {
+		t.Fatalf("Compile(route-not-taken definition) error = %v", err)
+	}
+	effective, err := looppkg.ResolveEffectiveConfig(
+		resolved,
+		looppkg.DefaultLoopDefaults(),
+		nil,
+		looppkg.LoopConfig{},
+	)
+	if err != nil {
+		t.Fatalf("ResolveEffectiveConfig(route-not-taken definition) error = %v", err)
+	}
+	snapshot, digest, err := looppkg.BuildExecutedDefinitionSnapshot(resolved, effective)
+	if err != nil {
+		t.Fatalf("BuildExecutedDefinitionSnapshot(route-not-taken definition) error = %v", err)
+	}
+	run := testLoopRun(id, at, looppkg.StatusRunning)
+	run.DefinitionVersion = resolved.DefinitionVersion
+	run.DefinitionDigest = digest
+	run.DefinitionSnapshot = snapshot
+	run.IterationCap = 3
+	run.BudgetTokens = 100_000
+	run.BudgetWallSec = 3_600
+	return run
+}
+
 func claimExactLoopTaskRunForTest(
 	ctx context.Context,
 	t *testing.T,
@@ -6617,6 +6692,11 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenc
 		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenciesAndRuns(t)
 	})
 
+	t.Run("Should claim a join after an inactive route settles", func(t *testing.T) {
+		t.Parallel()
+		testGlobalDBCompleteCoordinatorAndEnqueueNextShouldClaimJoinAfterInactiveRoute(t)
+	})
+
 	t.Run("Should drain open descendants when the coordinator terminates", func(t *testing.T) {
 		t.Parallel()
 		testGlobalDBCoordinatorTerminalShouldDrainOpenDescendants(t)
@@ -6866,6 +6946,188 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenc
 	}
 	if status != "enqueued" {
 		t.Fatalf("generation output status = %q, want enqueued", status)
+	}
+}
+
+func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldClaimJoinAfterInactiveRoute(t *testing.T) {
+	t.Helper()
+
+	globalDB := openLoopTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	now := time.Date(2026, 8, 25, 21, 0, 0, 0, time.UTC)
+	loopRun := routeNotTakenJoinLoopRunForTest(t, "looprun-route-not-taken-join", now)
+	created, err := globalDB.CreateLoopRunForStart(ctx, loopRun, dsl.ConcurrencyAllow)
+	if err != nil {
+		t.Fatalf("CreateLoopRunForStart() error = %v", err)
+	}
+	runner, err := looppkg.NewCoordinatorRunner(globalDB, globalDB, globalDB, slog.Default())
+	if err != nil {
+		t.Fatalf("NewCoordinatorRunner() error = %v", err)
+	}
+
+	initialClaim := claimCoordinatorRunForTest(
+		ctx,
+		t,
+		globalDB,
+		created.ID,
+		"route-not-taken-initial",
+		now,
+	)
+	initialPlan, err := runner.Run(ctx, taskpkg.RunID(initialClaim.Run.ID))
+	if err != nil {
+		t.Fatalf("CoordinatorRunner.Run(initial) error = %v", err)
+	}
+	if got, want := len(initialPlan.NodeRuns), 1; got != want {
+		t.Fatalf("initial node runs = %d, want %d", got, want)
+	}
+	if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+		RunID: initialClaim.Run.ID, ClaimToken: initialClaim.ClaimToken,
+		Actor: coordinatorActorContextForTest(), Plan: initialPlan, Now: now.Add(time.Second),
+	}, looppkg.NewStoreFinalizer()); err != nil {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext(initial) error = %v", err)
+	}
+
+	sourceClaim := claimExactLoopTaskRunForTest(
+		ctx,
+		t,
+		globalDB,
+		created,
+		initialPlan.NodeRuns[0].RunID,
+		taskpkg.RunKindWorker,
+		now.Add(2*time.Second),
+	)
+	if _, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+		Actor: coordinatorActorContextForTest(), RunID: sourceClaim.Run.ID,
+		ClaimToken: sourceClaim.ClaimToken,
+		Result:     taskpkg.RunResult{Value: json.RawMessage(`{"risk":"sentry"}`)},
+		Now:        now.Add(3 * time.Second),
+	}); err != nil {
+		t.Fatalf("CompleteRunLease(select_source) error = %v", err)
+	}
+
+	routeWake, added, err := globalDB.EnqueueLoopCoordinatorWake(
+		ctx,
+		string(created.ID),
+		"route-selection-settled",
+		taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop"},
+		now.Add(4*time.Second),
+	)
+	if err != nil || !added {
+		t.Fatalf("EnqueueLoopCoordinatorWake(route) = %#v, %v, want added", routeWake, err)
+	}
+	routeClaim := claimExactLoopTaskRunForTest(
+		ctx,
+		t,
+		globalDB,
+		created,
+		routeWake.ID,
+		taskpkg.RunKindCoordinator,
+		now.Add(5*time.Second),
+	)
+	routePlan, err := runner.Run(ctx, taskpkg.RunID(routeClaim.Run.ID))
+	if err != nil {
+		t.Fatalf("CoordinatorRunner.Run(route) error = %v", err)
+	}
+	if got, want := len(routePlan.NodeRuns), 1; got != want {
+		t.Fatalf("route node runs = %d, want %d", got, want)
+	}
+	selectedTaskID := fmt.Sprintf("loop.%s.g1.node.analyze_sentry.0", created.ID)
+	if got, want := routePlan.NodeRuns[0].TaskID, selectedTaskID; got != want {
+		t.Fatalf("route node task = %q, want %q", got, want)
+	}
+	if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+		RunID: routeClaim.Run.ID, ClaimToken: routeClaim.ClaimToken,
+		Actor: coordinatorActorContextForTest(), Plan: routePlan, Now: now.Add(6 * time.Second),
+	}, looppkg.NewStoreFinalizer()); err != nil {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext(route) error = %v", err)
+	}
+
+	sentryClaim := claimExactLoopTaskRunForTest(
+		ctx,
+		t,
+		globalDB,
+		created,
+		routePlan.NodeRuns[0].RunID,
+		taskpkg.RunKindWorker,
+		now.Add(7*time.Second),
+	)
+	if _, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+		Actor: coordinatorActorContextForTest(), RunID: sentryClaim.Run.ID,
+		ClaimToken: sentryClaim.ClaimToken,
+		Result:     taskpkg.RunResult{Value: json.RawMessage(`{"analysis":"complete"}`)},
+		Now:        now.Add(8 * time.Second),
+	}); err != nil {
+		t.Fatalf("CompleteRunLease(analyze_sentry) error = %v", err)
+	}
+
+	joinWake, added, err := globalDB.EnqueueLoopCoordinatorWake(
+		ctx,
+		string(created.ID),
+		"selected-analysis-settled",
+		taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop"},
+		now.Add(9*time.Second),
+	)
+	if err != nil || !added {
+		t.Fatalf("EnqueueLoopCoordinatorWake(join) = %#v, %v, want added", joinWake, err)
+	}
+	joinCoordinatorClaim := claimExactLoopTaskRunForTest(
+		ctx,
+		t,
+		globalDB,
+		created,
+		joinWake.ID,
+		taskpkg.RunKindCoordinator,
+		now.Add(10*time.Second),
+	)
+	joinPlan, err := runner.Run(ctx, taskpkg.RunID(joinCoordinatorClaim.Run.ID))
+	if err != nil {
+		t.Fatalf("CoordinatorRunner.Run(join) error = %v", err)
+	}
+	if got, want := len(joinPlan.NodeRuns), 1; got != want {
+		t.Fatalf("join node runs = %d, want %d", got, want)
+	}
+	joinRun := joinPlan.NodeRuns[0]
+	joinTaskID := fmt.Sprintf("loop.%s.g1.node.prepare_worktree.0", created.ID)
+	if got, want := joinRun.TaskID, joinTaskID; got != want {
+		t.Fatalf("join node task = %q, want %q", got, want)
+	}
+	if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
+		RunID: joinCoordinatorClaim.Run.ID, ClaimToken: joinCoordinatorClaim.ClaimToken,
+		Actor: coordinatorActorContextForTest(), Plan: joinPlan, Now: now.Add(11 * time.Second),
+	}, looppkg.NewStoreFinalizer()); err != nil {
+		t.Fatalf("CompleteCoordinatorAndEnqueueNext(join) error = %v", err)
+	}
+
+	claimedJoin, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		RunID: joinRun.RunID, Scope: taskpkg.ScopeWorkspace, WorkspaceID: string(created.WorkspaceID),
+		ClaimerSessionID: "daemon-route-not-taken-join",
+		ClaimedBy:        &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "loop"},
+		LeaseDuration:    time.Minute,
+		Now:              now.Add(12 * time.Second),
+	})
+	if err != nil {
+		t.Fatalf("ClaimNextRun(join) error = %v", err)
+	}
+	if got, want := claimedJoin.Run.ID, joinRun.RunID; got != want {
+		t.Fatalf("claimed join run = %q, want %q", got, want)
+	}
+
+	for _, inactiveNodeID := range []string{"analyze_linear", "create_spec"} {
+		inactiveTaskID := fmt.Sprintf("loop.%s.g1.node.%s.0", created.ID, inactiveNodeID)
+		if _, err := globalDB.GetTask(ctx, inactiveTaskID); !errors.Is(err, taskpkg.ErrTaskNotFound) {
+			t.Fatalf("GetTask(inactive %s) error = %v, want %v", inactiveNodeID, err, taskpkg.ErrTaskNotFound)
+		}
+	}
+	dependencies, err := globalDB.ListDependencies(ctx, joinTaskID)
+	if err != nil {
+		t.Fatalf("ListDependencies(join) error = %v", err)
+	}
+	wantDependencyID := selectedTaskID
+	if got, want := len(dependencies), 1; got != want {
+		t.Fatalf("join dependencies = %#v, want %d active dependency", dependencies, want)
+	}
+	if got, want := dependencies[0].DependsOnTaskID, wantDependencyID; got != want {
+		t.Fatalf("join dependency = %q, want %q", got, want)
 	}
 }
 

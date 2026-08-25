@@ -19,17 +19,6 @@ func appendReadyNodeRunsToPlan(
 	scheduledAt time.Time,
 ) (bool, error) {
 	postReserveOutputs := cloneGenerationOutputs(sortedGenerationOutputs(advancedOutputs))
-	if err := appendCoordinatorArtifactsForOutputs(
-		plan,
-		run,
-		generation,
-		resolved.Definition.Graph,
-		topology,
-		gateEvaluator != nil,
-		postReserveOutputs,
-	); err != nil {
-		return false, err
-	}
 	if err := appendReadyNodeRunsControlAware(
 		plan,
 		run,
@@ -39,6 +28,17 @@ func appendReadyNodeRunsToPlan(
 		gateEvaluator != nil,
 		postReserveOutputs,
 		scheduledAt,
+	); err != nil {
+		return false, err
+	}
+	if err := appendCoordinatorArtifactsForOutputs(
+		plan,
+		run,
+		generation,
+		resolved.Definition.Graph,
+		topology,
+		gateEvaluator != nil,
+		postReserveOutputs,
 	); err != nil {
 		return false, err
 	}

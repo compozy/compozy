@@ -3803,15 +3803,13 @@ func testRouteVerdict(action gate.RouteAction) gate.Verdict {
 
 func TestCoordinatorRunnerShouldPlanReattemptStrategy(t *testing.T) {
 	cases := []struct {
-		name             string
-		strategy         ReattemptStrategy
-		graph            dsl.Graph
-		outputs          []GenerationOutput
-		wantStatuses     map[string]string
-		wantCarriedRefs  map[string]string
-		wantClearedRefs  []string
-		wantNextRunID    string
-		wantNodeTaskSize int
+		name            string
+		strategy        ReattemptStrategy
+		graph           dsl.Graph
+		outputs         []GenerationOutput
+		wantStatuses    map[string]string
+		wantCarriedRefs map[string]string
+		wantClearedRefs []string
 	}{
 		{
 			name:     "failed-only carries succeeded outputs and reruns failed pending dependents",
@@ -3886,8 +3884,7 @@ func TestCoordinatorRunnerShouldPlanReattemptStrategy(t *testing.T) {
 				"setup":   "sha256:setup",
 				"archive": "sha256:archive",
 			},
-			wantClearedRefs:  []string{"test", "deploy", "notify", "doc"},
-			wantNodeTaskSize: 5,
+			wantClearedRefs: []string{"test", "deploy", "notify", "doc"},
 		},
 		{
 			name:     "full-body reruns every node",
@@ -3913,8 +3910,7 @@ func TestCoordinatorRunnerShouldPlanReattemptStrategy(t *testing.T) {
 				"load":  generationOutputPending,
 				"agent": generationOutputPending,
 			},
-			wantClearedRefs:  []string{"load", "agent"},
-			wantNodeTaskSize: 1,
+			wantClearedRefs: []string{"load", "agent"},
 		},
 	}
 
@@ -3956,8 +3952,8 @@ func TestCoordinatorRunnerShouldPlanReattemptStrategy(t *testing.T) {
 			if got, want := len(plan.NodeRuns), 0; got != want {
 				t.Fatalf("node runs = %d, want %d until next coordinator", got, want)
 			}
-			if got, want := len(plan.NodeTasks), tc.wantNodeTaskSize; got != want {
-				t.Fatalf("node tasks = %d, want %d", got, want)
+			if got := len(plan.NodeTasks); got != 0 {
+				t.Fatalf("node tasks = %d, want none before the next coordinator schedules work", got)
 			}
 			if plan.NextCoordinator == nil {
 				t.Fatal("NextCoordinator = nil, want retry coordinator")
