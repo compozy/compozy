@@ -37,7 +37,14 @@ func TestAppendProfiledSkillResources(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		writeDaemonSkill(
 			t,
-			filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.ProfilesDirName, "marketing", ".agents", "skills"),
+			filepath.Join(
+				workspaceRoot,
+				compozyconfig.DirName,
+				compozyconfig.ProfilesDirName,
+				"marketing",
+				".agents",
+				"skills",
+			),
 			"workspace-profile-agent",
 			"Workspace profile agents source",
 		)
@@ -63,7 +70,7 @@ func TestAppendProfiledSkillResources(t *testing.T) {
 			&desired,
 			homePaths,
 			skillProfileCatalogStub{profiles: []profilepkg.WithCounts{profile}},
-			skillProfileWorkspaceResolver{resolved: resolved},
+			&skillProfileWorkspaceResolver{resolved: resolved},
 			[]workspacepkg.ResolvedWorkspace{{
 				Workspace:   workspacepkg.Workspace{ID: resolved.ID, RootDir: workspaceRoot},
 				WorkspaceID: resolved.WorkspaceID,
@@ -111,15 +118,18 @@ type skillProfileWorkspaceResolver struct {
 	resolved workspacepkg.ResolvedWorkspace
 }
 
-func (s skillProfileWorkspaceResolver) Resolve(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+func (s *skillProfileWorkspaceResolver) Resolve(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 	return s.resolved, nil
 }
 
-func (s skillProfileWorkspaceResolver) ResolveOrRegister(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+func (s *skillProfileWorkspaceResolver) ResolveOrRegister(
+	context.Context,
+	string,
+) (workspacepkg.ResolvedWorkspace, error) {
 	return s.resolved, nil
 }
 
-func (s skillProfileWorkspaceResolver) ResolveForProfile(
+func (s *skillProfileWorkspaceResolver) ResolveForProfile(
 	context.Context,
 	string,
 	string,

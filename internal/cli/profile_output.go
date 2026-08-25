@@ -64,7 +64,7 @@ func profileListBundle(items []contract.Profile, current string) outputBundle {
 					marker, row.Name, symbol, row.State, profileCountLabel(row.WorkItems, "item"),
 				})
 			}
-			return renderHumanTable("", []string{"", "NAME", "SYMBOL", cliStateHeader, "WORK"}, tableRows), nil
+			return renderHumanTable("", []string{"", cliNameHeader, "SYMBOL", cliStateHeader, "WORK"}, tableRows), nil
 		},
 		toon: func() (string, error) {
 			toonRows := make([][]string, 0, len(rows))
@@ -115,7 +115,7 @@ func profileCurrentBundle(resolution profileResolution) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(
 				profileFlagName,
-				[]string{profileFlagName, "source", "note", workspaceSkillSource},
+				[]string{profileFlagName, cliSourceKey, "note", workspaceSkillSource},
 				[]string{
 					record.Profile, record.Source, record.Note, record.Workspace,
 				},
@@ -239,7 +239,7 @@ func profileOperationsBundle(items []contract.ProfileOperation) outputBundle {
 		"",
 		[]string{"ID", cliKindHeader, cliProfileHeader, cliStatusHeader, cliStepHeader, "ERROR"},
 		"profile_operations",
-		[]string{"id", "kind", profileFlagName, automationStatusKey, "step", automationErrorKey},
+		[]string{"id", cliKindKey, profileFlagName, automationStatusKey, "step", automationErrorKey},
 		func(item contract.ProfileOperation) []string {
 			return []string{item.ID, item.Kind, item.Profile, item.Status, item.Step, item.Error}
 		},

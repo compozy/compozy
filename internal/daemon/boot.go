@@ -261,7 +261,6 @@ func (d *Daemon) beginBoot() error {
 func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) error {
 	var prependProviders []session.PromptProvider
 	var appendProviders []session.PromptProvider
-
 	if state.cfg.Memory.Enabled {
 		provider, err := d.bootMemoryPromptProvider(ctx, state)
 		if err != nil {
@@ -269,27 +268,44 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 		}
 		prependProviders = append(prependProviders, provider)
 	}
-
 	if state.cfg.Skills.Enabled {
-		skillsCfg := d.skillsRegistryConfig(&state.cfg)
-		state.skillsRegistry = skills.NewRegistry(
-			skillsCfg,
-			skills.WithLogger(state.logger),
-			skills.WithActivationContextProvider(newSkillActivationContextProvider(state)),
-		)
-		if err := state.skillsRegistry.LoadAll(ctx); err != nil {
-			return fmt.Errorf("daemon: load skills registry: %w", err)
+		provider, err := d.bootSkillsPromptProvider(ctx, state)
+		if err != nil {
+			return err
 		}
-		state.commandService = newSessionCommandService(
-			state.skillsRegistry,
-			func() session.AgentResolver { return agentCatalogDependency(state.agentCatalog) },
-			func() promptSkillsWorkspaceResolver { return state.workspaceResolver },
-			bootProfileNameResolver{state: state},
-		)
-		state.mcpResolver = skills.NewMCPResolver(state.cfg.Skills, state.logger)
-		appendProviders = append(appendProviders, skills.NewCatalogProvider(state.skillsRegistry))
+		appendProviders = append(appendProviders, provider)
 	}
+	return d.bootHarnessPromptRuntime(state, prependProviders, appendProviders)
+}
 
+func (d *Daemon) bootSkillsPromptProvider(
+	ctx context.Context,
+	state *bootState,
+) (session.PromptProvider, error) {
+	skillsCfg := d.skillsRegistryConfig(&state.cfg)
+	state.skillsRegistry = skills.NewRegistry(
+		skillsCfg,
+		skills.WithLogger(state.logger),
+		skills.WithActivationContextProvider(newSkillActivationContextProvider(state)),
+	)
+	if err := state.skillsRegistry.LoadAll(ctx); err != nil {
+		return nil, fmt.Errorf("daemon: load skills registry: %w", err)
+	}
+	state.commandService = newSessionCommandService(
+		state.skillsRegistry,
+		func() session.AgentResolver { return agentCatalogDependency(state.agentCatalog) },
+		func() promptSkillsWorkspaceResolver { return state.workspaceResolver },
+		bootProfileNameResolver{state: state},
+	)
+	state.mcpResolver = skills.NewMCPResolver(state.cfg.Skills, state.logger)
+	return skills.NewCatalogProvider(state.skillsRegistry), nil
+}
+
+func (d *Daemon) bootHarnessPromptRuntime(
+	state *bootState,
+	prependProviders []session.PromptProvider,
+	appendProviders []session.PromptProvider,
+) error {
 	state.situationContext = d.buildSituationContext(state)
 	state.harnessResolver = NewHarnessContextResolver(HarnessRuntimeSignals{
 		RuntimeIdentityPromptSectionEnabled: true,

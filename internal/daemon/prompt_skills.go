@@ -104,8 +104,11 @@ func (a *skillsCatalogAugmenter) AugmentWithPolicy(
 	ctx context.Context,
 	sess *session.Session,
 	message string,
-	resolved ResolvedHarnessContext,
+	resolved *ResolvedHarnessContext,
 ) (string, error) {
+	if resolved == nil {
+		return a.augment(ctx, sess, message, nil)
+	}
 	return a.augment(ctx, sess, message, resolved.Policy.SkillInjectionFilter)
 }
 

@@ -3313,8 +3313,11 @@ description: Workspace preset skill
 		disableResult, err := runtimeDeps.Settings.ApplySection(
 			settingspkg.WithMutationSource(testutil.Context(t), "http"),
 			settingspkg.SectionUpdateRequest{
-				SectionRequest: settingspkg.SectionRequest{Section: settingspkg.SectionSkills, Scope: settingspkg.ScopeUser},
-				Skills:         &disabledSources,
+				SectionRequest: settingspkg.SectionRequest{
+					Section: settingspkg.SectionSkills,
+					Scope:   settingspkg.ScopeUser,
+				},
+				Skills: &disabledSources,
 			},
 		)
 		if err != nil {
@@ -3340,7 +3343,11 @@ description: Workspace preset skill
 		if envelope.Skills == nil {
 			t.Fatal("GetSection(disabled sources).Skills = nil")
 		}
-		if source := findDaemonIntegrationSkillSource(envelope.Skills.Sources, compozyconfig.SkillSourceAgents); source == nil || source.Enabled {
+		if source := findDaemonIntegrationSkillSource(
+			envelope.Skills.Sources,
+			compozyconfig.SkillSourceAgents,
+		); source == nil ||
+			source.Enabled {
 			t.Fatalf("agents source after disable = %#v, want disabled", source)
 		}
 
@@ -3349,8 +3356,11 @@ description: Workspace preset skill
 		if _, err := runtimeDeps.Settings.ApplySection(
 			settingspkg.WithMutationSource(testutil.Context(t), "http"),
 			settingspkg.SectionUpdateRequest{
-				SectionRequest: settingspkg.SectionRequest{Section: settingspkg.SectionSkills, Scope: settingspkg.ScopeUser},
-				Skills:         &enabledSources,
+				SectionRequest: settingspkg.SectionRequest{
+					Section: settingspkg.SectionSkills,
+					Scope:   settingspkg.ScopeUser,
+				},
+				Skills: &enabledSources,
 			},
 		); err != nil {
 			t.Fatalf("ApplySection(enable agents) error = %v", err)

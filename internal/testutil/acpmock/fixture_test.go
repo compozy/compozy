@@ -1104,7 +1104,6 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 		t.Parallel()
 
 		for _, provider := range []string{ProviderClaude, ProviderOpenClaw, ProviderHermes, "claude-code", "hermes-agent"} {
-			provider := provider
 			t.Run("Should resolve provider alias "+provider, func(t *testing.T) {
 				t.Parallel()
 
@@ -1126,7 +1125,16 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 		if len(claude) != 2 {
 			t.Fatalf("DiagnosticsForProvider(claude) = %#v, want canonical alias pair", claude)
 		}
-		if got, want := []string{claude[0].Provider, claude[1].Provider}, []string{"claude", "claude-code"}; !reflect.DeepEqual(got, want) {
+		if got, want := []string{
+			claude[0].Provider,
+			claude[1].Provider,
+		}, []string{
+			"claude",
+			"claude-code",
+		}; !reflect.DeepEqual(
+			got,
+			want,
+		) {
 			t.Fatalf("DiagnosticsForProvider(claude) providers = %#v, want %#v", got, want)
 		}
 	})

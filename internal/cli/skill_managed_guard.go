@@ -19,7 +19,7 @@ func ensureSkillCLIUsesSupportedSurface(cmd *cobra.Command, deps commandDeps) er
 		strings.TrimSpace(deps.getenv(agentidentity.EnvAgent)) == "" {
 		return nil
 	}
-	if cmd != nil && (cmd.Name() == "expose" || cmd.Name() == "unexpose") {
+	if cmd != nil && (cmd.Name() == skillExposeAction || cmd.Name() == skillUnexposeAction) {
 		return nil
 	}
 	return errManagedSessionSkillCLIUnsupported

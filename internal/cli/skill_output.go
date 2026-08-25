@@ -30,7 +30,7 @@ const (
 	skillOutputEnabledKey        = automationEnabledKey
 	skillOutputActiveKey         = authoredContextActiveKey
 	skillOutputInactiveKey       = "inactive_reason"
-	skillOutputPathKey           = "path"
+	skillOutputPathKey           = cliPathKey
 	skillOutputStatusKey         = automationStatusKey
 	skillOutputValueKey          = "value"
 )
@@ -85,8 +85,8 @@ func renderSkillInfoTranscript(item skillInfoItem) string {
 		label string
 		value string
 	}{
-		{label: "NAME", value: stringOrDash(item.Name)},
-		{label: "SOURCE", value: stringOrDash(item.Source)},
+		{label: cliNameHeader, value: stringOrDash(item.Name)},
+		{label: cliSourceHeader, value: stringOrDash(item.Source)},
 		{label: "PATH", value: stringOrDash(item.Path)},
 	}
 	if len(item.Exposures) == 0 {
@@ -145,7 +145,7 @@ func skillListBundle(items []skillListItem) outputBundle {
 			automationNameKey,
 			skillOutputDescriptionKey,
 			automationSourceKey,
-			"origin",
+			cliOriginKey,
 			skillOutputEnabledKey,
 			skillOutputActiveKey,
 			skillOutputInactiveKey,
@@ -178,7 +178,7 @@ func skillListBundle(items []skillListItem) outputBundle {
 
 func renderSkillListTranscript(items []skillListItem) string {
 	rows := make([][]string, 0, len(items)+1)
-	rows = append(rows, []string{"NAME", "SOURCE", "ORIGIN", "DESCRIPTION"})
+	rows = append(rows, []string{cliNameHeader, cliSourceHeader, cliOriginHeader, "DESCRIPTION"})
 	for _, item := range items {
 		origin := strings.TrimSpace(item.Origin)
 		if origin == "" {
@@ -265,7 +265,11 @@ func skillInfoBundle(item skillInfoItem) outputBundle {
 				),
 				renderToonArray("metadata", []string{cliKeyKey, skillOutputValueKey}, metadataRows),
 				renderToonArray("resources", []string{skillOutputPathKey}, resourceRows),
-				renderToonArray("exposures", []string{"target", "path", "status"}, exposureRows),
+				renderToonArray(
+					"exposures",
+					[]string{automationTargetKey, cliPathKey, automationStatusKey},
+					exposureRows,
+				),
 			), nil
 		},
 	}
@@ -324,7 +328,7 @@ func skillWhereBundle(record skillWhereItem) outputBundle {
 func renderSkillWhereTranscript(record skillWhereItem) string {
 	winnerOrigin := strings.TrimSpace(record.Origin)
 	if winnerOrigin == "" {
-		winnerOrigin = "compozy"
+		winnerOrigin = compozySkillSource
 	}
 	winnerPath := strings.TrimSpace(record.Dir)
 	if winnerPath == "" {
@@ -350,14 +354,14 @@ func renderSkillWhereTranscript(record skillWhereItem) string {
 			}
 			origin := strings.TrimSpace(entry.Origin)
 			if origin == "" {
-				if entry.Tier == "bundled" || entry.Tier == "marketplace" {
-					origin = "compozy"
+				if entry.Tier == bundledSkillSource || entry.Tier == marketplaceSkillSource {
+					origin = compozySkillSource
 				} else {
 					origin = skillOriginFromPath(entry.Path)
 				}
 			}
 			hint := ""
-			if origin != "compozy" && origin != "custom" {
+			if origin != compozySkillSource && origin != customSkillSource {
 				_, alreadyHinted := qualifiedOrigins[origin]
 				if !alreadyHinted {
 					qualifiedOrigins[origin] = struct{}{}
@@ -395,13 +399,13 @@ func skillOriginFromPath(path string) string {
 	normalized := strings.ReplaceAll(strings.TrimSpace(path), "\\", "/")
 	switch {
 	case strings.Contains(normalized, "/.agents/skills/"):
-		return "agents"
+		return agentsSkillSource
 	case strings.Contains(normalized, "/.claude/skills/"):
-		return "claude"
+		return claudeSkillSource
 	case strings.Contains(normalized, "/.compozy/skills/"):
-		return "compozy"
+		return compozySkillSource
 	default:
-		return "custom"
+		return customSkillSource
 	}
 }
 

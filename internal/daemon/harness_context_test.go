@@ -35,7 +35,7 @@ func TestResolveSessionNativeSkillRoots(t *testing.T) {
 			}
 			lookup := func(key string) (string, bool) { value, ok := env[key]; return value, ok }
 
-			claude := resolveSessionNativeSkillRoots(nativeSkillRootResolution{
+			claude := resolveSessionNativeSkillRoots(&nativeSkillRootResolution{
 				Provider: "claude-code", Workspace: workspace, HomePaths: homePaths, LookupEnv: lookup,
 			})
 			assertNativeRootSet(t, claude,
@@ -44,7 +44,7 @@ func TestResolveSessionNativeSkillRoots(t *testing.T) {
 			)
 
 			env["OPENCLAW_STATE_DIR"] = filepath.Join(operatorHome, "openclaw-override")
-			openclaw := resolveSessionNativeSkillRoots(nativeSkillRootResolution{
+			openclaw := resolveSessionNativeSkillRoots(&nativeSkillRootResolution{
 				Provider: "openclaw", Workspace: workspace, HomePaths: homePaths, LookupEnv: lookup,
 			})
 			assertNativeRootSet(t, openclaw,
@@ -52,7 +52,7 @@ func TestResolveSessionNativeSkillRoots(t *testing.T) {
 				filepath.Join(env["OPENCLAW_STATE_DIR"], "skills"),
 			)
 
-			hermes := resolveSessionNativeSkillRoots(nativeSkillRootResolution{
+			hermes := resolveSessionNativeSkillRoots(&nativeSkillRootResolution{
 				Provider: "hermes-agent", Workspace: workspace, HomePaths: homePaths, LookupEnv: lookup,
 			})
 			assertNativeRootSet(t, hermes,
@@ -60,7 +60,7 @@ func TestResolveSessionNativeSkillRoots(t *testing.T) {
 				filepath.Join(env["HERMES_HOME"], "skills"),
 			)
 
-			isolated := resolveSessionNativeSkillRoots(nativeSkillRootResolution{
+			isolated := resolveSessionNativeSkillRoots(&nativeSkillRootResolution{
 				Provider: "claude", ProviderHomePolicy: compozyconfig.ProviderHomePolicyIsolated,
 				Workspace: workspace, HomePaths: homePaths, LookupEnv: func(string) (string, bool) { return "", false },
 			})
@@ -78,7 +78,7 @@ func TestResolveSessionNativeSkillRoots(t *testing.T) {
 		t.Run("Should fail open for unknown provider identities", func(t *testing.T) {
 			t.Parallel()
 			for _, provider := range []string{"", "custom", "claude --dangerously-skip-permissions"} {
-				if roots := resolveSessionNativeSkillRoots(nativeSkillRootResolution{
+				if roots := resolveSessionNativeSkillRoots(&nativeSkillRootResolution{
 					Provider: provider, Workspace: workspace, HomePaths: homePaths,
 				}); len(roots) != 0 {
 					t.Fatalf("provider %q roots = %#v, want empty", provider, roots)
@@ -184,8 +184,11 @@ func TestHarnessSkillInjectionFilterSuppressesOnlyWinningNativePresetRoots(t *te
 				root: filepath.Join(workspace, ".claude", "skills"), wantKeep: true,
 			},
 			{
-				name: "Should retain a Compozy winner that shadows a native-root homonym", provider: "claude", origin: "",
-				root: filepath.Join(workspace, ".compozy", "skills"), wantKeep: true,
+				name:     "Should retain a Compozy winner that shadows a native-root homonym",
+				provider: "claude",
+				origin:   "",
+				root:     filepath.Join(workspace, ".compozy", "skills"),
+				wantKeep: true,
 			},
 		}
 		for _, test := range tests {
@@ -850,7 +853,11 @@ func testHarnessContextResolverResolvePromptUsesSessionInfo(t *testing.T) {
 		t.Fatalf("TurnOrigin = %q, want %q", resolved.Policy.TurnOrigin, TurnOriginUser)
 	}
 	if resolved.Session.Provider != "claude" || resolved.Policy.SkillInjectionFilter == nil {
-		t.Fatalf("resolved provider/filter = %q/%v, want canonical claude filter", resolved.Session.Provider, resolved.Policy.SkillInjectionFilter)
+		t.Fatalf(
+			"resolved provider/filter = %q/%v, want canonical claude filter",
+			resolved.Session.Provider,
+			resolved.Policy.SkillInjectionFilter,
+		)
 	}
 	if !containsHarnessSection(resolved.Policy.IncludeSections, HarnessPromptSectionNetwork) {
 		t.Fatalf("IncludeSections = %#v, want network section", resolved.Policy.IncludeSections)

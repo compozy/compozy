@@ -106,7 +106,7 @@ export function SettingsSkillSourcesSection({ model }: SettingsSkillSourcesSecti
       {defaultsOnly ? (
         <Empty
           data-testid={`${TEST_ID}-defaults-only`}
-          description="Only Compozy's built-in folders are on. Turn on a source above, or add your own folder."
+          description="Only CompozyOS's built-in folders are on. Turn on a source above, or add your own folder."
           icon={FolderTree}
           title="Defaults only"
         />

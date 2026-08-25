@@ -189,7 +189,10 @@ func (m *ExposeManager) enabledTargets(owner exposureOwner) []string {
 	enabled := make([]string, 0)
 	for _, root := range m.roots {
 		if root.Kind != compozyconfig.RootKindPreset || !knownExposePreset(root.SourceSlug) ||
-			!sameExposureScope(root.ResourceScope.Normalize(), owner.resource) || slices.Contains(enabled, root.SourceSlug) {
+			!sameExposureScope(
+				root.ResourceScope.Normalize(),
+				owner.resource,
+			) || slices.Contains(enabled, root.SourceSlug) {
 			continue
 		}
 		enabled = append(enabled, root.SourceSlug)

@@ -608,7 +608,12 @@ func TestConfigSkillSourceValuesAndValidationRendering(t *testing.T) {
 				}
 				for index := range testCase.want {
 					if got[index] != testCase.want[index] {
-						t.Fatalf("config set skills.sources value[%d] = %#v, want %q", index, got[index], testCase.want[index])
+						t.Fatalf(
+							"config set skills.sources value[%d] = %#v, want %q",
+							index,
+							got[index],
+							testCase.want[index],
+						)
 					}
 				}
 			})
@@ -1591,8 +1596,19 @@ func TestConfigProfileLayerWriteTargetsIT043E2E006(t *testing.T) {
 			t.Fatalf("profile write below workspace = %#v, want workspace winner", lower)
 		}
 		stdout, _, err = executeRootCommand(
-			t, deps,
-			"--profile", "marketing", "config", "get", "defaults.provider", "--scope", "workspace", "--workspace", workspaceRoot, "-o", "json",
+			t,
+			deps,
+			"--profile",
+			"marketing",
+			"config",
+			"get",
+			"defaults.provider",
+			"--scope",
+			"workspace",
+			"--workspace",
+			workspaceRoot,
+			"-o",
+			"json",
 		)
 		if err != nil {
 			t.Fatalf("config get effective profile value error = %v", err)

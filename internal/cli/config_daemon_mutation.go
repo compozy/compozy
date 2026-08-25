@@ -69,7 +69,7 @@ func maybeApplyConfigSetViaDaemon(
 
 func isSkillSourceMutation(path []string) bool {
 	return len(path) == 2 && path[0] == configSkillsKey &&
-		(path[1] == "sources" || path[1] == "custom_sources")
+		(path[1] == skillSourcesField || path[1] == skillCustomSourcesField)
 }
 
 func applyDaemonSkillSourceValue(
@@ -107,22 +107,27 @@ func applyDaemonSkillSourceValue(
 		}
 		override := contract.SettingsSkillsOverridePayload{}
 		optional := contract.OptionalStringList{Present: true, Value: append([]string{}, values...)}
-		if path[1] == "sources" {
+		if path[1] == skillSourcesField {
 			override.Sources = optional
 		} else {
 			override.CustomSources = optional
 		}
-		return updateSettingsSkillsAtScope(client, cmd.Context(), query, UpdateSettingsSkillsRequest{Override: &override})
+		return updateSettingsSkillsAtScope(
+			cmd.Context(),
+			client,
+			query,
+			UpdateSettingsSkillsRequest{Override: &override},
+		)
 	}
 
 	scope := contract.SettingsScopeUser
 	scopeRaw := string(compozyconfig.WriteScopeUser)
 	query := settingsSkillsScopeQuery{Scope: scope}
-	cfg, _, err := loadConfigForDisplayScope(cmd, deps, scopeRaw, workspaceRef)
+	cfg, err := loadConfigForDisplayScope(cmd, deps, scopeRaw, workspaceRef)
 	if err != nil {
 		return SettingsMutationRecord{}, fmt.Errorf("cli: load current skill source config: %w", err)
 	}
-	if path[1] == "sources" {
+	if path[1] == skillSourcesField {
 		cfg.Skills.Sources = append([]string{}, values...)
 	} else {
 		cfg.Skills.CustomSources = append([]string{}, values...)
@@ -134,12 +139,12 @@ func applyDaemonSkillSourceValue(
 	if target.Scope() == compozyconfig.WriteScopeUser {
 		return client.UpdateSettingsSkills(cmd.Context(), request)
 	}
-	return updateSettingsSkillsAtScope(client, cmd.Context(), query, request)
+	return updateSettingsSkillsAtScope(cmd.Context(), client, query, request)
 }
 
 func updateSettingsSkillsAtScope(
-	client DaemonClient,
 	ctx context.Context,
+	client DaemonClient,
 	query settingsSkillsScopeQuery,
 	request UpdateSettingsSkillsRequest,
 ) (SettingsMutationRecord, error) {
@@ -186,20 +191,35 @@ func maybeUnsetWorkspaceSkillSourceViaDaemon(
 	}
 	override := contract.SettingsSkillsOverridePayload{}
 	optional := contract.OptionalStringList{Present: true, Null: true}
-	if path[1] == "sources" {
+	if path[1] == skillSourcesField {
 		override.Sources = optional
 	} else {
 		override.CustomSources = optional
 	}
-	result, err := updateSettingsSkillsAtScope(client, cmd.Context(), query, UpdateSettingsSkillsRequest{Override: &override})
+	result, err := updateSettingsSkillsAtScope(
+		cmd.Context(),
+		client,
+		query,
+		UpdateSettingsSkillsRequest{Override: &override},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("cli: unset %q via daemon settings surface: %w", strings.Join(path, "."), err)
 	}
 	return &configUnsetRecord{
-		Path: strings.Join(path, "."), Scope: string(target.Scope()), Target: target.Path(), Deleted: true,
-		Lifecycle: string(result.Lifecycle), ApplyRecordID: result.ApplyRecordID, Applied: result.Applied,
-		ActiveGeneration: result.ActiveGeneration, ActiveConfigHash: result.ActiveConfigHash,
-		NextAction: string(result.NextAction), RestartRequired: result.RestartRequired, RestartScope: result.RestartScope,
+		Path:             strings.Join(path, "."),
+		Scope:            string(target.Scope()),
+		Target:           target.Path(),
+		Deleted:          true,
+		Lifecycle:        string(result.Lifecycle),
+		ApplyRecordID:    result.ApplyRecordID,
+		Applied:          result.Applied,
+		ActiveGeneration: result.ActiveGeneration,
+		ActiveConfigHash: result.ActiveConfigHash,
+		NextAction: string(
+			result.NextAction,
+		),
+		RestartRequired: result.RestartRequired,
+		RestartScope:    result.RestartScope,
 	}, nil
 }
 
@@ -221,7 +241,7 @@ func applyDaemonManagedConfigValue(
 			)
 		}
 		switch path[1] {
-		case "sources":
+		case skillSourcesField:
 			cfg.Skills.Sources = append([]string(nil), values...)
 		case "custom_sources":
 			cfg.Skills.CustomSources = append([]string(nil), values...)
@@ -297,7 +317,7 @@ func maybeReloadConfigAfterLocalWrite(
 func supportsDaemonManagedConfigSet(path []string, target compozyconfig.WriteTarget) bool {
 	if len(path) == 2 && path[0] == configSkillsKey {
 		switch path[1] {
-		case "sources", "custom_sources":
+		case skillSourcesField, skillCustomSourcesField:
 			return true
 		case agentDisabledSkillsKey:
 			return target.Scope() == compozyconfig.WriteScopeUser

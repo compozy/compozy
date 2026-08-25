@@ -26,7 +26,10 @@ func ConfigGenerationFromContext(ctx context.Context) int64 {
 	if ctx == nil {
 		return 0
 	}
-	generation, _ := ctx.Value(configGenerationContextKey{}).(int64)
+	generation, ok := ctx.Value(configGenerationContextKey{}).(int64)
+	if !ok {
+		return 0
+	}
 	return generation
 }
 

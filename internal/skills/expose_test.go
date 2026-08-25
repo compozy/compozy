@@ -1,6 +1,7 @@
 package skills
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -87,7 +88,12 @@ func TestExposeManager(t *testing.T) {
 			target string
 			code   string
 		}{
-			{name: "bundled", skill: &Skill{Meta: SkillMeta{Name: "bundled"}, Source: SourceBundled}, target: "agents", code: ExposureCodeSkillNotExposable},
+			{
+				name:   "bundled",
+				skill:  &Skill{Meta: SkillMeta{Name: "bundled"}, Source: SourceBundled},
+				target: "agents",
+				code:   ExposureCodeSkillNotExposable,
+			},
 			{name: "disabled", skill: fixture.skill, target: "claude", code: ExposureCodeTargetDisabled},
 			{name: "custom", skill: fixture.skill, target: "team", code: ExposureCodeTargetInvalid},
 		}
@@ -161,7 +167,7 @@ func TestExposeManager(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ReadFile(foreign after) error = %v", err)
 		}
-		if string(after) != string(before) {
+		if !bytes.Equal(after, before) {
 			t.Fatalf("foreign entry changed: before=%q after=%q", before, after)
 		}
 	})
@@ -255,7 +261,12 @@ func TestExposeManager(t *testing.T) {
 		if fixture.store.recordCount() != 0 {
 			t.Fatal("preflight failure inserted a record")
 		}
-		if _, err := os.Lstat(filepath.Join(fixture.root("agents"), fixture.skill.Meta.Name)); !errors.Is(err, os.ErrNotExist) {
+		if _, err := os.Lstat(
+			filepath.Join(fixture.root("agents"), fixture.skill.Meta.Name),
+		); !errors.Is(
+			err,
+			os.ErrNotExist,
+		) {
 			t.Fatalf("preflight failure created first link, error = %v", err)
 		}
 
@@ -276,7 +287,12 @@ func TestExposeManager(t *testing.T) {
 		if fixture.store.recordCount() != 0 {
 			t.Fatal("commit failure left records")
 		}
-		if _, err := os.Lstat(filepath.Join(fixture.root("agents"), fixture.skill.Meta.Name)); !errors.Is(err, os.ErrNotExist) {
+		if _, err := os.Lstat(
+			filepath.Join(fixture.root("agents"), fixture.skill.Meta.Name),
+		); !errors.Is(
+			err,
+			os.ErrNotExist,
+		) {
 			t.Fatalf("commit failure left completed link, error = %v", err)
 		}
 		if _, err := os.Stat(filepath.Join(fixture.root("claude"), fixture.skill.Meta.Name, "SKILL.md")); err == nil {
@@ -388,30 +404,33 @@ func TestExposeManager(t *testing.T) {
 		}
 	})
 
-	t.Run("Should clean every recorded target including a disabled preset before canonical removal", func(t *testing.T) {
-		t.Parallel()
-		fixture := newExposureFixture(t, "agents", "claude")
-		_, err := fixture.manager.Expose(context.Background(), fixture.skill, []string{"agents", "claude"})
-		if err != nil {
-			t.Fatalf("Expose() error = %v", err)
-		}
-		records := fixture.store.recordsSnapshot()
-		fixture.manager.roots = fixture.manager.roots[:1]
-		if err := fixture.manager.CleanupCanonicalDir(context.Background(), fixture.skill.Dir); err != nil {
-			t.Fatalf("CleanupCanonicalDir() error = %v", err)
-		}
-		for _, record := range records {
-			if _, err := os.Lstat(record.LinkPath); !errors.Is(err, os.ErrNotExist) {
-				t.Fatalf("link %q remains, error = %v", record.LinkPath, err)
+	t.Run(
+		"Should clean every recorded target including a disabled preset before canonical removal",
+		func(t *testing.T) {
+			t.Parallel()
+			fixture := newExposureFixture(t, "agents", "claude")
+			_, err := fixture.manager.Expose(context.Background(), fixture.skill, []string{"agents", "claude"})
+			if err != nil {
+				t.Fatalf("Expose() error = %v", err)
 			}
-		}
-		if fixture.store.recordCount() != 0 {
-			t.Fatal("cleanup left exposure records")
-		}
-		if _, err := os.Stat(fixture.skill.Dir); err != nil {
-			t.Fatalf("cleanup removed canonical dir: %v", err)
-		}
-	})
+			records := fixture.store.recordsSnapshot()
+			fixture.manager.roots = fixture.manager.roots[:1]
+			if err := fixture.manager.CleanupCanonicalDir(context.Background(), fixture.skill.Dir); err != nil {
+				t.Fatalf("CleanupCanonicalDir() error = %v", err)
+			}
+			for _, record := range records {
+				if _, err := os.Lstat(record.LinkPath); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("link %q remains, error = %v", record.LinkPath, err)
+				}
+			}
+			if fixture.store.recordCount() != 0 {
+				t.Fatal("cleanup left exposure records")
+			}
+			if _, err := os.Stat(fixture.skill.Dir); err != nil {
+				t.Fatalf("cleanup removed canonical dir: %v", err)
+			}
+		},
+	)
 
 	t.Run("Should block removal on an uncleanable owned link and complete on retry", func(t *testing.T) {
 		t.Parallel()
@@ -497,8 +516,8 @@ func TestExposeManager(t *testing.T) {
 			t.Fatalf("Unmarshal(event content) error = %v", err)
 		}
 		if content.ProfileID != "profile-acting" || content.ActorKind != "agent" || content.ActorID != "agent-7" ||
-			content.ConfigGeneration != 42 || summary.EventCorrelation.ActorKind != "agent" ||
-			summary.EventCorrelation.ActorID != "agent-7" ||
+			content.ConfigGeneration != 42 || summary.ActorKind != "agent" ||
+			summary.ActorID != "agent-7" ||
 			content.OwnerScope != string(store.SkillExposureOwnerUser) || content.WorkspaceID != "" {
 			t.Fatalf("event content = %#v", content)
 		}
@@ -510,10 +529,23 @@ func TestExposeManager(t *testing.T) {
 		workspaceA := filepath.Join(fixture.base, "workspace-a", ".agents", "skills")
 		workspaceB := filepath.Join(fixture.base, "workspace-b", ".agents", "skills")
 		fixture.skill.Source = SourceWorkspace
-		fixture.skill.ResourceScope = resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "workspace-a"}
+		fixture.skill.ResourceScope = resources.ResourceScope{
+			Kind: resources.ResourceScopeKindWorkspace,
+			ID:   "workspace-a",
+		}
 		fixture.manager.roots = []compozyconfig.SkillRootSpec{
-			{Dir: workspaceB, SourceSlug: "agents", Kind: compozyconfig.RootKindPreset, ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "workspace-b"}},
-			{Dir: workspaceA, SourceSlug: "agents", Kind: compozyconfig.RootKindPreset, ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "workspace-a"}},
+			{
+				Dir:           workspaceB,
+				SourceSlug:    "agents",
+				Kind:          compozyconfig.RootKindPreset,
+				ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "workspace-b"},
+			},
+			{
+				Dir:           workspaceA,
+				SourceSlug:    "agents",
+				Kind:          compozyconfig.RootKindPreset,
+				ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "workspace-a"},
+			},
 		}
 		results, err := fixture.manager.Expose(context.Background(), fixture.skill, []string{"agents"})
 		if err != nil {
@@ -533,9 +565,18 @@ func TestExposeManager(t *testing.T) {
 
 func TestValidateExposeName(t *testing.T) {
 	t.Parallel()
-	invalid := []string{"", "/absolute", "a/b", `a\b`, "..", "%2e%2e", "nul\x00name", "e\u0301", strings.Repeat("a", 256)}
+	invalid := []string{
+		"",
+		"/absolute",
+		"a/b",
+		`a\b`,
+		"..",
+		"%2e%2e",
+		"nul\x00name",
+		"e\u0301",
+		strings.Repeat("a", 256),
+	}
 	for _, name := range invalid {
-		name := name
 		t.Run("Should reject "+strings.ReplaceAll(name, "/", "_"), func(t *testing.T) {
 			t.Parallel()
 			assertExposureCode(t, validateExposeName(name), ExposureCodeUnsafeSkillName)
@@ -596,7 +637,11 @@ func newExposureFixture(t *testing.T, targets ...string) *exposureFixture {
 	if err := os.MkdirAll(canonical, 0o755); err != nil {
 		t.Fatalf("MkdirAll(canonical) error = %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(canonical, "SKILL.md"), []byte("---\nname: review\n---\n"), 0o600); err != nil {
+	if err := os.WriteFile(
+		filepath.Join(canonical, "SKILL.md"),
+		[]byte("---\nname: review\n---\n"),
+		0o600,
+	); err != nil {
 		t.Fatalf("WriteFile(SKILL.md) error = %v", err)
 	}
 	repository := &memoryExposureStore{

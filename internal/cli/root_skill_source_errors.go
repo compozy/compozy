@@ -8,13 +8,20 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
+const (
+	skillSourceDuplicateCode      = "duplicate_skill_source"
+	skillSourceInvalidPathCode    = "invalid_source_path"
+	skillSourceUnknownCode        = "unknown_skill_source"
+	skillSourceWorkspaceFieldCode = "workspace_scope_field_forbidden"
+)
+
 func renderSkillSourceExecutionError(err error) (string, bool) {
 	payload, ok := skillSourceErrorPayload(err)
 	if !ok {
 		return "", false
 	}
 	message := strings.TrimSpace(payload.Error.Message)
-	if payload.Error.Code == "unknown_skill_source" && len(payload.Error.Valid) > 0 {
+	if payload.Error.Code == skillSourceUnknownCode && len(payload.Error.Valid) > 0 {
 		message = strings.TrimSuffix(message, "; valid: "+strings.Join(payload.Error.Valid, ", "))
 		message = strings.TrimSuffix(message, " · valid: "+strings.Join(payload.Error.Valid, ", "))
 		message += " · valid: " + strings.Join(payload.Error.Valid, ", ")

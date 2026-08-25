@@ -115,7 +115,7 @@ func (r *Registry) ForAgentDefSession(
 		r.buildSkillShadowSummaries(
 			skillsByName,
 			agentLocalSkills,
-			"agent",
+			skillAgentKind,
 			resolvedSkillEventProfileID(resolved),
 			resourceWorkspaceKey(resolved),
 			target,

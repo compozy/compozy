@@ -15,7 +15,7 @@ import (
 func (c *promptInputComposite) applyAugmentedMessage(
 	ctx context.Context,
 	info *session.Info,
-	resolved ResolvedHarnessContext,
+	resolved *ResolvedHarnessContext,
 	descriptor promptInputAugmenterDescriptor,
 	current string,
 	next string,
@@ -90,7 +90,7 @@ func (c *promptInputComposite) applyAugmentedMessage(
 func (c *promptInputComposite) recordAugmenterApplied(
 	ctx context.Context,
 	info *session.Info,
-	resolved ResolvedHarnessContext,
+	resolved *ResolvedHarnessContext,
 	descriptor promptInputAugmenterDescriptor,
 	outcome string,
 	consumed int,

@@ -15,7 +15,10 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
-const maxExposureNameBytes = 255
+const (
+	maxExposureNameBytes = 255
+	goOSDarwin           = "darwin"
+)
 
 var exposureNamePattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
@@ -29,8 +32,9 @@ func validateExposeName(name string) error {
 		strings.ContainsRune(trimmed, '\x00') || !exposureNamePattern.MatchString(trimmed)
 	if unsafe {
 		return newExposureError(exposureErrorParams{
-			code: ExposureCodeUnsafeSkillName, message: fmt.Sprintf("skill name %q is unsafe as a filesystem path segment", name),
-			cause: decodeErr,
+			code:    ExposureCodeUnsafeSkillName,
+			message: fmt.Sprintf("skill name %q is unsafe as a filesystem path segment", name),
+			cause:   decodeErr,
 		})
 	}
 	return nil
@@ -99,7 +103,7 @@ func unsafeRootSymlink(root string) bool {
 }
 
 func allowedDarwinSystemAlias(path string) bool {
-	if runtime.GOOS != "darwin" {
+	if runtime.GOOS != goOSDarwin {
 		return false
 	}
 	cleaned := filepath.Clean(path)

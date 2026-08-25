@@ -48,7 +48,8 @@ func (m *ExposeManager) Exposures(ctx context.Context, skill *Skill) ([]Exposure
 		m.emitExposureDivergence(ctx, state)
 	}
 	for _, root := range m.roots {
-		if root.Kind != compozyconfig.RootKindPreset || !sameExposureScope(root.ResourceScope.Normalize(), owner.resource) {
+		if root.Kind != compozyconfig.RootKindPreset ||
+			!sameExposureScope(root.ResourceScope.Normalize(), owner.resource) {
 			continue
 		}
 		if _, exists := recordedTargets[root.SourceSlug]; exists {

@@ -52,7 +52,9 @@ func (r *Registry) SkillSourceRoots(
 	cfg := r.registryConfigSnapshot(ctx)
 	roots := append([]compozyconfig.SkillRootSpec(nil), cfg.GlobalSkillRoots...)
 	if resolved != nil {
-		roots = append(roots, rootsNotOwnedByHigherLayer(workspaceResolvedSkillRoots(resolved), cfg.GlobalSkillRoots)...)
+		roots = append(
+			roots,
+			rootsNotOwnedByHigherLayer(workspaceResolvedSkillRoots(resolved), cfg.GlobalSkillRoots)...)
 	}
 	trusted := make([]string, 0, len(roots))
 	for _, root := range roots {

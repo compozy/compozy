@@ -205,7 +205,7 @@ func providerModelListBundle(record ProviderModelListRecord) outputBundle {
 			providerModelsAvailableKey,
 			"availability_state",
 			outputStaleKey,
-			"sources",
+			cliSourcesKey,
 			"refreshed_at",
 		},
 		func(model ProviderModelRecord) []string {

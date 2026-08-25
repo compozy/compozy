@@ -177,7 +177,7 @@ func newConfigGetCommand(deps commandDeps) *cobra.Command {
 		Short: "Get one redacted effective config value",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, _, err := loadConfigForDisplayScope(cmd, deps, scopeRaw, workspaceRoot)
+			cfg, err := loadConfigForDisplayScope(cmd, deps, scopeRaw, workspaceRoot)
 			if err != nil {
 				return err
 			}
@@ -205,7 +205,8 @@ func newConfigGetCommand(deps commandDeps) *cobra.Command {
 			return fmt.Errorf("cli: config path %q not found", path)
 		},
 	}
-	cmd.Flags().StringVar(&scopeRaw, configScopeKey, "", "Read scope: user, profile, or workspace (defaults to effective context)")
+	cmd.Flags().
+		StringVar(&scopeRaw, configScopeKey, "", "Read scope: user, profile, or workspace (defaults to effective context)")
 	cmd.Flags().
 		StringVar(&workspaceRoot, "workspace", "", "Override workspace overlay (ID, name, or path)")
 	return cmd
@@ -314,7 +315,7 @@ func runConfigSetCommand(
 
 func validateSkillSourceConfigValue(scope compozyconfig.WriteScope, path []string, value any) error {
 	if len(path) != 2 || path[0] != configSkillsKey ||
-		(path[1] != "sources" && path[1] != "custom_sources") {
+		(path[1] != skillSourcesField && path[1] != skillCustomSourcesField) {
 		return nil
 	}
 	values, ok := value.([]string)
@@ -322,7 +323,7 @@ func validateSkillSourceConfigValue(scope compozyconfig.WriteScope, path []strin
 		return fmt.Errorf("cli: config set %q expects a string slice payload, got %T", strings.Join(path, "."), value)
 	}
 	settings := compozyconfig.SkillsConfig{}
-	if path[1] == "sources" {
+	if path[1] == skillSourcesField {
 		settings.Sources = append([]string(nil), values...)
 	} else {
 		settings.CustomSources = append([]string(nil), values...)

@@ -844,10 +844,14 @@ func TestServiceUpdateExposureLifecycle(t *testing.T) {
 		skillsDir := t.TempDir()
 		writeMarketplaceInstalledSkill(t, skillsDir, "review", "@acme/review", "1.0.0")
 		canonical := filepath.Join(skillsDir, "review")
+		canonicalReal, err := filepath.EvalSymlinks(canonical)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(canonical) error = %v", err)
+		}
 		blocked := errors.New("exposure verification failed")
 		lifecycle := &recordingExposureLifecycle{verifyFn: func(path string) error {
-			if path != canonical {
-				t.Fatalf("verification path = %q, want %q", path, canonical)
+			if path != canonicalReal {
+				t.Fatalf("verification path = %q, want %q", path, canonicalReal)
 			}
 			return blocked
 		}}
@@ -916,7 +920,11 @@ func TestServiceMarketplaceExposureLifecycleIntegration(t *testing.T) {
 		source := &lifecycleRegistrySource{
 			archive: marketplaceSkillArchive(t, "review", "Updated skill", "updated body"),
 			detail: registrypkg.Detail{Listing: registrypkg.Listing{
-				Slug: "@acme/review", Name: "review", Version: "2.0.0", Source: "test-registry", Type: registrypkg.PackageTypeSkill,
+				Slug:    "@acme/review",
+				Name:    "review",
+				Version: "2.0.0",
+				Source:  "test-registry",
+				Type:    registrypkg.PackageTypeSkill,
 			}},
 		}
 		service := NewService(
@@ -978,8 +986,8 @@ func (s *lifecycleRegistrySource) Search(
 	return nil, registrypkg.ErrNotSupported
 }
 func (s *lifecycleRegistrySource) Info(context.Context, string) (*registrypkg.Detail, error) {
-	copy := s.detail
-	return &copy, nil
+	detail := s.detail
+	return &detail, nil
 }
 func (s *lifecycleRegistrySource) Download(
 	context.Context,

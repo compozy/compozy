@@ -1,9 +1,10 @@
 package config
 
 const (
-	SkillSourceCompozy = "compozy"
-	SkillSourceAgents  = "agents"
-	SkillSourceClaude  = "claude"
+	SkillSourceCompozy    = "compozy"
+	SkillSourceAgents     = "agents"
+	SkillSourceClaude     = "claude"
+	agentsGlobalSkillPath = "~/.agents/skills"
 )
 
 // SkillSourcePreset describes one curated filesystem convention understood by CompozyOS.
@@ -32,9 +33,9 @@ func SkillSourcePresets() []SkillSourcePreset {
 			Slug:                   SkillSourceAgents,
 			Label:                  "Agents",
 			WorkspaceRel:           ".agents/skills",
-			GlobalPath:             "~/.agents/skills",
-			WorkspaceNativeReaders: []string{"openclaw", "hermes"},
-			GlobalNativeReaders:    []string{"openclaw"},
+			GlobalPath:             agentsGlobalSkillPath,
+			WorkspaceNativeReaders: []string{providerOpenclawKey, providerHermesKey},
+			GlobalNativeReaders:    []string{providerOpenclawKey},
 			DefaultOn:              true,
 		},
 		{
@@ -42,8 +43,8 @@ func SkillSourcePresets() []SkillSourcePreset {
 			Label:                  "Claude",
 			WorkspaceRel:           ".claude/skills",
 			GlobalPath:             "~/.claude/skills",
-			WorkspaceNativeReaders: []string{"claude"},
-			GlobalNativeReaders:    []string{"claude"},
+			WorkspaceNativeReaders: []string{providerClaudeKey},
+			GlobalNativeReaders:    []string{providerClaudeKey},
 		},
 	}
 }

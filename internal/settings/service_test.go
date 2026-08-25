@@ -1603,70 +1603,84 @@ Test agent.
 		}
 	})
 
-	t.Run("Should serialize user and workspace source writes without losing either overlay [IT-011]", func(t *testing.T) {
-		homePaths := testHomePaths(t)
-		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-		workspaceRoot := t.TempDir()
-		resolver := fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
-			"ws-alpha": {
-				Workspace:   workspacepkg.Workspace{ID: "ws-alpha", RootDir: workspaceRoot},
-				WorkspaceID: "ws-alpha",
-			},
-		}}
-		service := testService(t, homePaths, Dependencies{WorkspaceResolver: resolver})
-		loaded, err := compozyconfig.LoadForHome(homePaths)
-		if err != nil {
-			t.Fatalf("LoadForHome() error = %v", err)
-		}
-		userSkills := loaded.Skills
-		userSkills.Sources = []string{"claude"}
-
-		requests := []SectionUpdateRequest{
-			{
-				SectionRequest: SectionRequest{Section: SectionSkills, Scope: ScopeUser},
-				Skills:         &userSkills,
-			},
-			{
-				SectionRequest: SectionRequest{Section: SectionSkills, Scope: ScopeWorkspace, WorkspaceID: "ws-alpha"},
-				SkillSourcesOverride: &SkillSourcesOverride{
-					Sources: OptionalStringList{Present: true, Value: []string{"agents"}},
+	t.Run(
+		"Should serialize user and workspace source writes without losing either overlay [IT-011]",
+		func(t *testing.T) {
+			homePaths := testHomePaths(t)
+			writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+			workspaceRoot := t.TempDir()
+			resolver := fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
+				"ws-alpha": {
+					Workspace:   workspacepkg.Workspace{ID: "ws-alpha", RootDir: workspaceRoot},
+					WorkspaceID: "ws-alpha",
 				},
-			},
-		}
-		var wait sync.WaitGroup
-		errorsByRequest := make([]error, len(requests))
-		for index := range requests {
-			wait.Add(1)
-			go func(requestIndex int) {
-				defer wait.Done()
-				_, errorsByRequest[requestIndex] = service.UpdateSection(context.Background(), requests[requestIndex])
-			}(index)
-		}
-		wait.Wait()
-		for index, updateErr := range errorsByRequest {
-			if updateErr != nil {
-				t.Fatalf("UpdateSection(request %d) error = %v", index, updateErr)
+			}}
+			service := testService(t, homePaths, Dependencies{WorkspaceResolver: resolver})
+			loaded, err := compozyconfig.LoadForHome(homePaths)
+			if err != nil {
+				t.Fatalf("LoadForHome() error = %v", err)
 			}
-		}
+			userSkills := loaded.Skills
+			userSkills.Sources = []string{"claude"}
 
-		global, err := compozyconfig.LoadForHome(homePaths)
-		if err != nil {
-			t.Fatalf("LoadForHome(global after writes) error = %v", err)
-		}
-		if !slices.Equal(global.Skills.Sources, []string{"claude"}) {
-			t.Fatalf("global sources = %q, want claude", global.Skills.Sources)
-		}
-		workspace, err := compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(workspaceRoot))
-		if err != nil {
-			t.Fatalf("LoadForHome(workspace after writes) error = %v", err)
-		}
-		if !slices.Equal(workspace.Skills.Sources, []string{"agents"}) {
-			t.Fatalf("workspace sources = %q, want override agents", workspace.Skills.Sources)
-		}
-		if !slices.Equal(workspace.Skills.CustomSources, global.Skills.CustomSources) {
-			t.Fatalf("workspace custom_sources = %q, want inherited %q", workspace.Skills.CustomSources, global.Skills.CustomSources)
-		}
-	})
+			requests := []SectionUpdateRequest{
+				{
+					SectionRequest: SectionRequest{Section: SectionSkills, Scope: ScopeUser},
+					Skills:         &userSkills,
+				},
+				{
+					SectionRequest: SectionRequest{
+						Section:     SectionSkills,
+						Scope:       ScopeWorkspace,
+						WorkspaceID: "ws-alpha",
+					},
+					SkillSourcesOverride: &SkillSourcesOverride{
+						Sources: OptionalStringList{Present: true, Value: []string{"agents"}},
+					},
+				},
+			}
+			var wait sync.WaitGroup
+			errorsByRequest := make([]error, len(requests))
+			for index := range requests {
+				wait.Add(1)
+				go func(requestIndex int) {
+					defer wait.Done()
+					_, errorsByRequest[requestIndex] = service.UpdateSection(
+						context.Background(),
+						requests[requestIndex],
+					)
+				}(index)
+			}
+			wait.Wait()
+			for index, updateErr := range errorsByRequest {
+				if updateErr != nil {
+					t.Fatalf("UpdateSection(request %d) error = %v", index, updateErr)
+				}
+			}
+
+			global, err := compozyconfig.LoadForHome(homePaths)
+			if err != nil {
+				t.Fatalf("LoadForHome(global after writes) error = %v", err)
+			}
+			if !slices.Equal(global.Skills.Sources, []string{"claude"}) {
+				t.Fatalf("global sources = %q, want claude", global.Skills.Sources)
+			}
+			workspace, err := compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(workspaceRoot))
+			if err != nil {
+				t.Fatalf("LoadForHome(workspace after writes) error = %v", err)
+			}
+			if !slices.Equal(workspace.Skills.Sources, []string{"agents"}) {
+				t.Fatalf("workspace sources = %q, want override agents", workspace.Skills.Sources)
+			}
+			if !slices.Equal(workspace.Skills.CustomSources, global.Skills.CustomSources) {
+				t.Fatalf(
+					"workspace custom_sources = %q, want inherited %q",
+					workspace.Skills.CustomSources,
+					global.Skills.CustomSources,
+				)
+			}
+		},
+	)
 }
 
 func TestClassifyMutationDominatesMixedLifecycleWithRestartRequired(t *testing.T) {

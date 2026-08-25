@@ -44,7 +44,11 @@ func TestGlobalDBSkillExposureRepository(t *testing.T) {
 			t.Fatalf("CreateSkillExposure(workspace) error = %v", err)
 		}
 		if userRecord.ID == workspaceRecord.ID || userRecord.ID == 0 || workspaceRecord.ID == 0 {
-			t.Fatalf("record IDs are not distinct positive values: user=%d workspace=%d", userRecord.ID, workspaceRecord.ID)
+			t.Fatalf(
+				"record IDs are not distinct positive values: user=%d workspace=%d",
+				userRecord.ID,
+				workspaceRecord.ID,
+			)
 		}
 
 		if _, err := database.CreateSkillExposure(ctx, store.SkillExposureRecord{

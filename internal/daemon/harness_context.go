@@ -193,7 +193,10 @@ type HarnessContextResolver struct {
 }
 
 // NewHarnessContextResolver constructs a daemon-owned harness context resolver.
-func NewHarnessContextResolver(runtime HarnessRuntimeSignals, opts ...HarnessContextResolverOption) *HarnessContextResolver {
+func NewHarnessContextResolver(
+	runtime HarnessRuntimeSignals,
+	opts ...HarnessContextResolverOption,
+) *HarnessContextResolver {
 	resolver := &HarnessContextResolver{
 		runtime:        runtime,
 		skillInjection: newSkillInjectionPolicyResolver(),

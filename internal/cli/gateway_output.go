@@ -166,7 +166,7 @@ func gatewayDevicesOutput(records []contract.GatewayDevicePayload) outputBundle 
 		contract.GatewayDevicesResponse{Devices: records},
 		records,
 		"Devices",
-		[]string{"ID", windowManagerNameHeader, cliKindHeader, "ORIGIN", "LAST SEEN", "REVOKED"},
+		[]string{"ID", windowManagerNameHeader, cliKindHeader, cliOriginHeader, "LAST SEEN", "REVOKED"},
 		"devices",
 		[]string{"id", automationNameKey, "actor_kind", "pairing_origin", "last_seen_at", "revoked"},
 		func(record contract.GatewayDevicePayload) []string {

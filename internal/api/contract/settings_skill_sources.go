@@ -45,8 +45,8 @@ func (o OptionalStringList) MarshalJSON() ([]byte, error) {
 
 // SettingsSkillsOverridePayload carries independent workspace source overrides.
 type SettingsSkillsOverridePayload struct {
-	Sources       OptionalStringList `json:"sources,omitempty"`
-	CustomSources OptionalStringList `json:"custom_sources,omitempty"`
+	Sources       OptionalStringList `json:"sources,omitzero"`
+	CustomSources OptionalStringList `json:"custom_sources,omitzero"`
 }
 
 // MarshalJSON omits untouched overlay fields while preserving explicit null.

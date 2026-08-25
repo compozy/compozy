@@ -405,7 +405,7 @@ func TestSkillsCatalogAugmenterFiltersBeforeCatalogSignature(t *testing.T) {
 		policy := ResolvedHarnessContext{Policy: ResolvedHarnessPolicy{
 			SkillInjectionFilter: func(skill *skillspkg.Skill) bool { return skill.Meta.Name != "native" },
 		}}
-		filtered, err := augmenter.AugmentWithPolicy(t.Context(), sess, "second", policy)
+		filtered, err := augmenter.AugmentWithPolicy(t.Context(), sess, "second", &policy)
 		if err != nil {
 			t.Fatalf("AugmentWithPolicy(filtered) error = %v", err)
 		}
@@ -415,7 +415,7 @@ func TestSkillsCatalogAugmenterFiltersBeforeCatalogSignature(t *testing.T) {
 		if strings.Contains(filtered, `unchanged="true"`) {
 			t.Fatalf("filtered catalog = %q, signature was computed before filtering", filtered)
 		}
-		repeat, err := augmenter.AugmentWithPolicy(t.Context(), sess, "third", policy)
+		repeat, err := augmenter.AugmentWithPolicy(t.Context(), sess, "third", &policy)
 		if err != nil {
 			t.Fatalf("AugmentWithPolicy(repeat) error = %v", err)
 		}
@@ -562,7 +562,16 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 		if err != nil {
 			t.Fatalf("ParseSkillInvocations(stale) error = %v", err)
 		}
-		if _, err := service.Expand(t.Context(), info, agent, stale, "Use /review"); !errors.Is(err, commandpkg.ErrUnavailable) {
+		if _, err := service.Expand(
+			t.Context(),
+			info,
+			agent,
+			stale,
+			"Use /review",
+		); !errors.Is(
+			err,
+			commandpkg.ErrUnavailable,
+		) {
 			t.Fatalf("Expand(stale generation) error = %v, want ErrUnavailable", err)
 		}
 	})

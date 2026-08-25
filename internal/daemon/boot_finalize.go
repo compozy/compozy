@@ -161,15 +161,21 @@ func workspaceSkillWatcherRoots(
 			for _, profileName := range profileNames {
 				var resolved workspacepkg.ResolvedWorkspace
 				var resolveErr error
-				if profileAware {
+				switch {
+				case profileAware:
 					resolved, resolveErr = profileResolver.ResolveForProfile(ctx, workspace.ID, profileName)
-				} else if profileName == compozyconfig.DefaultProfileDirName {
+				case profileName == compozyconfig.DefaultProfileDirName:
 					resolved, resolveErr = resolver.Resolve(ctx, workspace.ID)
-				} else {
+				default:
 					continue
 				}
 				if resolveErr != nil {
-					return nil, fmt.Errorf("daemon: resolve workspace %q profile %q for skill watcher: %w", workspace.ID, profileName, resolveErr)
+					return nil, fmt.Errorf(
+						"daemon: resolve workspace %q profile %q for skill watcher: %w",
+						workspace.ID,
+						profileName,
+						resolveErr,
+					)
 				}
 				for _, root := range compozyconfig.WorkspaceDiscoveryRoots(
 					resolved.RootDir, resolved.AdditionalDirs, homePaths, resolved.ProfileName,

@@ -58,7 +58,7 @@ const (
 
 // SkillExposureRequest mutates exposure links for one skill.
 type SkillExposureRequest struct {
-	Targets     []string `json:"targets" binding:"required,min=1,dive,required"`
+	Targets     []string `json:"targets"                binding:"required,min=1,dive,required"`
 	WorkspaceID string   `json:"workspace_id,omitempty"`
 }
 

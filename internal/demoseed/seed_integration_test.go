@@ -249,7 +249,12 @@ func assertCompleteSeedSurfaces(
 	}
 	for index, turn := range turns.Turns {
 		if turn.SessionID != sessionIncidentReviewID {
-			t.Fatalf("ListGoalTurns().Turns[%d].SessionID = %q, want %q", index, turn.SessionID, sessionIncidentReviewID)
+			t.Fatalf(
+				"ListGoalTurns().Turns[%d].SessionID = %q, want %q",
+				index,
+				turn.SessionID,
+				sessionIncidentReviewID,
+			)
 		}
 	}
 	worktrees, err := db.WorktreeStore().List(ctx, result.WorkspaceIDs[1])

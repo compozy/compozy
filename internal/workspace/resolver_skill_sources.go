@@ -35,7 +35,7 @@ func (r *Resolver) refreshSkillScanConfig(
 	ctx context.Context,
 	ws Workspace,
 	profileName string,
-	cached compozyconfig.Config,
+	cached *compozyconfig.Config,
 	scan workspaceScan,
 ) (compozyconfig.Config, workspaceScan, error) {
 	loaded, err := r.loadWorkspaceConfig(ws.RootDir, profileName)
@@ -46,7 +46,7 @@ func (r *Resolver) refreshSkillScanConfig(
 			err,
 		)
 	}
-	if sameSkillSourceConfig(cached.Skills, loaded.Skills) {
+	if cached != nil && sameSkillSourceConfig(cached.Skills, loaded.Skills) {
 		return loaded, scan, nil
 	}
 	refreshed, err := r.scanWorkspace(ctx, ws, profileName, &loaded.Skills)

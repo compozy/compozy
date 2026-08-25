@@ -57,7 +57,7 @@ func (h *BaseHandlers) resolveSkillDetailScope(
 	if err != nil {
 		return nil, "", err
 	}
-	if hasWorkspaceID && canonicalResolvedWorkspaceID(*resolved) != workspaceID {
+	if hasWorkspaceID && canonicalResolvedWorkspaceID(resolved) != workspaceID {
 		return nil, "", fmt.Errorf("%w: workspace_id must be the canonical workspace id", ErrSkillValidation)
 	}
 	return resolved, agentName, nil

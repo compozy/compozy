@@ -78,7 +78,7 @@ func (m *ExposeManager) Expose(
 
 		results[index].Err = commitErr
 		m.emitExposureFailure(ctx, skill, preflight.target, preflight.linkPath, commitErr)
-		cleanupErr := m.rollbackExposureCommit(ctx, commit)
+		cleanupErr := m.rollbackExposureCommit(ctx, &commit)
 		if cleanupErr != nil {
 			results[index].CleanupErr = cleanupErr
 			m.emitExposureCleanupFailure(ctx, skill, preflight.target, preflight.linkPath, cleanupErr)
@@ -146,71 +146,74 @@ func (m *ExposeManager) preflightExpose(
 			return nil, err
 		}
 		seenTargets[target] = struct{}{}
-		root, rootErr := m.targetRoot(owner, target)
-		if rootErr != nil {
-			results[index].Err = rootErr
-			m.emitExposureFailure(ctx, skill, target, "", rootErr)
-			return nil, rootErr
-		}
-		linkPath, resolveErr := resolveExposeDest(root.Dir, skill.Meta.Name)
-		if resolveErr != nil {
-			results[index].Err = resolveErr
-			m.emitExposureFailure(ctx, skill, target, root.Dir, resolveErr)
-			return nil, resolveErr
-		}
-		preflight := exposePreflight{
-			target: target, root: root, linkPath: linkPath,
-			linkTarget: relativeExposureTarget(linkPath, canonicalDir),
-		}
-		if record, ok := exposureRecordForTarget(records, target); ok {
-			preflight.record = &record
-			preflight.state = m.reconcileRecord(record).Status
-			if filepath.Clean(record.CanonicalDir) != filepath.Clean(canonicalDir) || record.LinkPath != linkPath {
-				err := newExposureError(exposureErrorParams{
-					code: ExposureCodeNameConflict, target: target, path: linkPath,
-					message: fmt.Sprintf("expose target %q is owned by another skill location", target),
-				})
-				results[index].Err = err
-				m.emitExposureFailure(ctx, skill, target, linkPath, err)
-				return nil, err
-			}
-			if preflight.state == ExposureForeignConflict {
-				err := newExposureError(exposureErrorParams{
-					code: ExposureCodeForeignLink, target: target, path: linkPath,
-					message: fmt.Sprintf("exposure path %q is not the recorded CompozyOS link", linkPath),
-				})
-				results[index].Err = err
-				m.emitExposureFailure(ctx, skill, target, linkPath, err)
-				return nil, err
-			}
-			preflight.linkTarget = record.LinkTarget
-		} else if _, statErr := m.fs.Lstat(linkPath); statErr == nil {
-			err := newExposureError(exposureErrorParams{
-				code: ExposureCodeNameConflict, target: target, path: linkPath,
-				message: fmt.Sprintf("exposure path %q is occupied by a foreign entry", linkPath),
-			})
+		preflight, failurePath, err := m.preflightExposeTarget(exposePreflightTargetInput{
+			skillName: skill.Meta.Name, owner: owner, canonicalDir: canonicalDir,
+			target: target, records: records,
+		})
+		if err != nil {
 			results[index].Err = err
-			m.emitExposureFailure(ctx, skill, target, linkPath, err)
-			return nil, err
-		} else if !errors.Is(statErr, os.ErrNotExist) {
-			err := newExposureError(exposureErrorParams{
-				code: ExposureCodeNameConflict, target: target, path: linkPath,
-				message: fmt.Sprintf("cannot inspect exposure path %q", linkPath), cause: statErr,
-			})
-			results[index].Err = err
-			m.emitExposureFailure(ctx, skill, target, linkPath, err)
+			m.emitExposureFailure(ctx, skill, target, failurePath, err)
 			return nil, err
 		}
-		missingDirs, planErr := m.planMissingExposureDirectories(root.Dir)
-		if planErr != nil {
-			results[index].Err = planErr
-			m.emitExposureFailure(ctx, skill, target, root.Dir, planErr)
-			return nil, planErr
-		}
-		preflight.missingDirs = missingDirs
 		preflights = append(preflights, preflight)
 	}
 	return preflights, nil
+}
+
+type exposePreflightTargetInput struct {
+	skillName    string
+	owner        exposureOwner
+	canonicalDir string
+	target       string
+	records      []ExposureRecord
+}
+
+func (m *ExposeManager) preflightExposeTarget(input exposePreflightTargetInput) (exposePreflight, string, error) {
+	root, err := m.targetRoot(input.owner, input.target)
+	if err != nil {
+		return exposePreflight{}, "", err
+	}
+	linkPath, err := resolveExposeDest(root.Dir, input.skillName)
+	if err != nil {
+		return exposePreflight{}, root.Dir, err
+	}
+	preflight := exposePreflight{
+		target: input.target, root: root, linkPath: linkPath,
+		linkTarget: relativeExposureTarget(linkPath, input.canonicalDir),
+	}
+	if record, ok := exposureRecordForTarget(input.records, input.target); ok {
+		preflight.record = &record
+		preflight.state = m.reconcileRecord(record).Status
+		if filepath.Clean(record.CanonicalDir) != filepath.Clean(input.canonicalDir) || record.LinkPath != linkPath {
+			return exposePreflight{}, linkPath, newExposureError(exposureErrorParams{
+				code: ExposureCodeNameConflict, target: input.target, path: linkPath,
+				message: fmt.Sprintf("expose target %q is owned by another skill location", input.target),
+			})
+		}
+		if preflight.state == ExposureForeignConflict {
+			return exposePreflight{}, linkPath, newExposureError(exposureErrorParams{
+				code: ExposureCodeForeignLink, target: input.target, path: linkPath,
+				message: fmt.Sprintf("exposure path %q is not the recorded CompozyOS link", linkPath),
+			})
+		}
+		preflight.linkTarget = record.LinkTarget
+	} else if _, statErr := m.fs.Lstat(linkPath); statErr == nil {
+		return exposePreflight{}, linkPath, newExposureError(exposureErrorParams{
+			code: ExposureCodeNameConflict, target: input.target, path: linkPath,
+			message: fmt.Sprintf("exposure path %q is occupied by a foreign entry", linkPath),
+		})
+	} else if !errors.Is(statErr, os.ErrNotExist) {
+		return exposePreflight{}, linkPath, newExposureError(exposureErrorParams{
+			code: ExposureCodeNameConflict, target: input.target, path: linkPath,
+			message: fmt.Sprintf("cannot inspect exposure path %q", linkPath), cause: statErr,
+		})
+	}
+	missingDirs, err := m.planMissingExposureDirectories(root.Dir)
+	if err != nil {
+		return exposePreflight{}, root.Dir, err
+	}
+	preflight.missingDirs = missingDirs
+	return preflight, "", nil
 }
 
 func (m *ExposeManager) commitExposure(
@@ -250,8 +253,14 @@ func (m *ExposeManager) commitExposure(
 	}
 	if err := m.fs.Symlink(commit.record.LinkTarget, commit.record.LinkPath); err != nil {
 		return commit, newExposureError(exposureErrorParams{
-			code: ExposureCodeLinkUnsupported, target: preflight.target, path: preflight.linkPath,
-			message: fmt.Sprintf("cannot create skill link at %q; copying is not supported", preflight.linkPath), cause: err,
+			code:   ExposureCodeLinkUnsupported,
+			target: preflight.target,
+			path:   preflight.linkPath,
+			message: fmt.Sprintf(
+				"cannot create skill link at %q; copying is not supported",
+				preflight.linkPath,
+			),
+			cause: err,
 		})
 	}
 	commit.createdLink = true

@@ -32,7 +32,7 @@ func (c *promptInputComposite) Augment(
 	timestamp := time.Now().UTC()
 	if c.recorder != nil {
 		timestamp = c.recorder.timestamp(time.Time{})
-		c.recorder.RecordPromptContextResolved(ctx, info, resolved, timestamp)
+		c.recorder.RecordPromptContextResolved(ctx, info, &resolved, timestamp)
 	}
 
 	descriptors, err := c.selectedDescriptors(resolved.Policy.EnableAugmenters)
@@ -53,7 +53,7 @@ func (c *promptInputComposite) Augment(
 			ctx,
 			sess,
 			info,
-			resolved,
+			&resolved,
 			descriptor,
 			current,
 			remainingBudget,
@@ -72,7 +72,7 @@ func (c *promptInputComposite) applyAugmenterDescriptor(
 	ctx context.Context,
 	sess *session.Session,
 	info *session.Info,
-	resolved ResolvedHarnessContext,
+	resolved *ResolvedHarnessContext,
 	descriptor promptInputAugmenterDescriptor,
 	current string,
 	remainingBudget int,
@@ -118,7 +118,7 @@ func (c *promptInputComposite) handleAugmenterFailure(
 	ctx context.Context,
 	sess *session.Session,
 	info *session.Info,
-	resolved ResolvedHarnessContext,
+	resolved *ResolvedHarnessContext,
 	descriptor promptInputAugmenterDescriptor,
 	current string,
 	remainingBudget int,

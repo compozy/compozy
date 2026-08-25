@@ -76,7 +76,7 @@ func sanitizeSkillSourceSlug(value string) string {
 	}
 	result := strings.Trim(builder.String(), "-")
 	if result == "" {
-		return "custom"
+		return string(RootKindCustom)
 	}
 	return result
 }

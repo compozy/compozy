@@ -28,7 +28,7 @@ const (
 	configManagerKey           = "manager"
 	configMemoryKey            = "memory"
 	configNetworkKey           = "network"
-	configPathKey              = "path"
+	configPathKey              = cliPathKey
 	configReadKey              = "read"
 	configRedactedKey          = "redacted"
 	configRequiredKey          = "required"

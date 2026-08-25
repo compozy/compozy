@@ -301,7 +301,7 @@ func dotEnvDiagnosticSummaries(diagnostics []compozyconfig.DotEnvDiagnostic) []s
 			location += diagnostic.Key
 		}
 		if location == "" {
-			location = "file"
+			location = cliFileKey
 		}
 		summaries = append(summaries, location+": "+diagnostic.Message)
 	}

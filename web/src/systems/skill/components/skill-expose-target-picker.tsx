@@ -27,7 +27,7 @@ const TEST_ID = "skill-expose-target-picker";
  *
  * The list holds only enabled presets: a source that is turned off is absent
  * rather than greyed out, because offering it would be offering a dead end.
- * Compozy never appears — it is the skill's home, not a target.
+ * CompozyOS never appears — it is the skill's home, not a target.
  */
 export function SkillExposeTargetPicker({
   targets,

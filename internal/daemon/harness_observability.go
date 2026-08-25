@@ -116,7 +116,7 @@ func (r *harnessLifecycleRecorder) OnSessionStopped(_ context.Context, sess *ses
 
 func (r *harnessLifecycleRecorder) RecordStartupContextResolved(
 	startup session.StartupPromptContext,
-	resolved ResolvedHarnessContext,
+	resolved *ResolvedHarnessContext,
 	timestamp time.Time,
 ) {
 	r.queue(
@@ -133,7 +133,7 @@ func (r *harnessLifecycleRecorder) RecordStartupContextResolved(
 
 func (r *harnessLifecycleRecorder) RecordStartupSectionSelected(
 	startup session.StartupPromptContext,
-	resolved ResolvedHarnessContext,
+	resolved *ResolvedHarnessContext,
 	descriptors []PromptSectionDescriptor,
 	timestamp time.Time,
 ) {
@@ -152,7 +152,7 @@ func (r *harnessLifecycleRecorder) RecordStartupSectionSelected(
 func (r *harnessLifecycleRecorder) RecordPromptContextResolved(
 	ctx context.Context,
 	info *session.Info,
-	resolved ResolvedHarnessContext,
+	resolved *ResolvedHarnessContext,
 	timestamp time.Time,
 ) {
 	if info == nil {
@@ -175,7 +175,7 @@ func (r *harnessLifecycleRecorder) RecordSyntheticContextResolved(
 	ctx context.Context,
 	sessionID string,
 	agentName string,
-	resolved ResolvedHarnessContext,
+	resolved *ResolvedHarnessContext,
 	timestamp time.Time,
 ) {
 	r.record(
@@ -194,7 +194,7 @@ func (r *harnessLifecycleRecorder) RecordSyntheticContextResolved(
 func (r *harnessLifecycleRecorder) RecordAugmenterApplied(
 	ctx context.Context,
 	info *session.Info,
-	resolved ResolvedHarnessContext,
+	resolved *ResolvedHarnessContext,
 	observation harnessAugmenterObservation,
 	timestamp time.Time,
 ) {
@@ -217,7 +217,7 @@ func (r *harnessLifecycleRecorder) RecordAugmenterApplied(
 func (r *harnessLifecycleRecorder) RecordAugmenterFailed(
 	ctx context.Context,
 	info *session.Info,
-	resolved ResolvedHarnessContext,
+	resolved *ResolvedHarnessContext,
 	descriptor promptInputAugmenterDescriptor,
 	err error,
 	timestamp time.Time,
@@ -333,7 +333,7 @@ func harnessSummaryAgentName(agentName string) string {
 	return harnessSummaryDefaultAgentName
 }
 
-func harnessContextResolutionSummary(resolved ResolvedHarnessContext) string {
+func harnessContextResolutionSummary(resolved *ResolvedHarnessContext) string {
 	parts := []string{
 		"surface=" + strings.TrimSpace(string(resolved.Surface)),
 		"session_type=" + strings.TrimSpace(string(resolved.Session.Type)),
@@ -378,7 +378,7 @@ func harnessContextResolutionSummary(resolved ResolvedHarnessContext) string {
 }
 
 func harnessSectionSelectionSummary(
-	resolved ResolvedHarnessContext,
+	resolved *ResolvedHarnessContext,
 	descriptors []PromptSectionDescriptor,
 ) string {
 	names := make([]string, 0, len(descriptors))
@@ -396,7 +396,7 @@ func harnessSectionSelectionSummary(
 }
 
 func harnessAugmenterAppliedSummary(
-	resolved ResolvedHarnessContext,
+	resolved *ResolvedHarnessContext,
 	observation harnessAugmenterObservation,
 ) string {
 	return strings.Join([]string{
@@ -413,7 +413,7 @@ func harnessAugmenterAppliedSummary(
 }
 
 func harnessAugmenterFailedSummary(
-	resolved ResolvedHarnessContext,
+	resolved *ResolvedHarnessContext,
 	descriptor promptInputAugmenterDescriptor,
 	err error,
 ) string {

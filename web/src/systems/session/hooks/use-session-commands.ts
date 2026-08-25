@@ -15,7 +15,7 @@ export interface SessionCommandMenuItem {
   scope?: string;
   /**
    * Which folder convention contributed this skill, straight from the daemon
-   * catalog. Empty for Compozy-native skills, which carry no label.
+   * catalog. Empty for CompozyOS-native skills, which carry no label.
    */
   origin?: string;
   /**

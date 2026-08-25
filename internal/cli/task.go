@@ -77,7 +77,7 @@ const (
 	taskListKey                   = "list"
 	taskParticipationChannelKey   = "participation_channel"
 	taskNextKey                   = "next"
-	taskOriginKey                 = "origin"
+	taskOriginKey                 = cliOriginKey
 	taskOutcomeKey                = "outcome"
 	taskPeerIDKey                 = "peer_id"
 	taskProfileKey                = profileFlagName

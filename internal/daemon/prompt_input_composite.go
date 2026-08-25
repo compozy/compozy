@@ -43,7 +43,7 @@ type promptInputAugmenterDescriptor struct {
 	BudgetBehavior  promptInputAugmenterBudgetBehavior
 	Critical        bool
 	Augmenter       session.PromptInputAugmenter
-	PolicyAugmenter func(context.Context, *session.Session, string, ResolvedHarnessContext) (string, error)
+	PolicyAugmenter func(context.Context, *session.Session, string, *ResolvedHarnessContext) (string, error)
 }
 
 type promptInputComposite struct {

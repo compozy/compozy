@@ -25,6 +25,8 @@ type skillExposureOperation struct {
 	configGeneration int64
 }
 
+const workspaceScopeValue = "workspace"
+
 // ExposeSkill creates provider-root links for one skill.
 func (h *BaseHandlers) ExposeSkill(c *gin.Context) {
 	h.handleSkillExposureMutation(c, true)
@@ -39,7 +41,13 @@ func (h *BaseHandlers) handleSkillExposureMutation(c *gin.Context, expose bool) 
 	name := strings.TrimSpace(c.Param("name"))
 	var request contract.SkillExposureRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		h.respondSkillExposureInputFailure(c, name, request, fmt.Errorf("decode skill exposure request: %w", err), expose)
+		h.respondSkillExposureInputFailure(
+			c,
+			name,
+			request,
+			fmt.Errorf("decode skill exposure request: %w", err),
+			expose,
+		)
 		return
 	}
 	operation, err := h.resolveSkillExposureOperation(c, name, request.WorkspaceID, expose)
@@ -77,19 +85,8 @@ func (h *BaseHandlers) resolveSkillExposureOperation(
 	requestedWorkspaceID string,
 	expose bool,
 ) (skillExposureOperation, error) {
-	if h == nil || h.SkillsRegistry == nil {
-		return skillExposureOperation{}, errors.New("skills registry is not configured")
-	}
-	if h.SkillExposures == nil {
-		return skillExposureOperation{}, errors.New("skill exposure repository is not configured")
-	}
-	if name == "" {
-		return skillExposureOperation{}, fmt.Errorf("%w: skill name is required", ErrSkillValidation)
-	}
-	if h.SkillResources != nil {
-		if err := h.SkillResources.SyncSkills(c.Request.Context()); err != nil {
-			return skillExposureOperation{}, fmt.Errorf("sync skill resources before exposure: %w", err)
-		}
+	if err := h.prepareSkillExposure(c, name); err != nil {
+		return skillExposureOperation{}, err
 	}
 	action := "skills.unexpose"
 	if expose {
@@ -100,29 +97,9 @@ func (h *BaseHandlers) resolveSkillExposureOperation(
 		return skillExposureOperation{}, err
 	}
 
-	var resolved *workspacepkg.ResolvedWorkspace
-	canonicalWorkspaceID := ""
-	requestedWorkspaceID = strings.TrimSpace(requestedWorkspaceID)
-	if requestedWorkspaceID != "" {
-		resolvedWorkspace, resolveErr := h.resolveSkillExposureWorkspace(c, requestedWorkspaceID, actor)
-		if resolveErr != nil {
-			return skillExposureOperation{}, resolveErr
-		}
-		canonicalWorkspaceID = canonicalResolvedWorkspaceID(resolvedWorkspace)
-		if canonicalWorkspaceID != requestedWorkspaceID {
-			return skillExposureOperation{}, fmt.Errorf(
-				"%w: workspace_id must be the canonical workspace id", ErrSkillValidation,
-			)
-		}
-		resolved = &resolvedWorkspace
-	} else {
-		profileName, profileErr := h.agentResourceProfileNameForScope(c.Request.Context(), actor.ReadScope)
-		if profileErr != nil {
-			return skillExposureOperation{}, profileErr
-		}
-		if profileName != "" && profileName != compozyconfig.DefaultProfileDirName {
-			resolved = h.profileOnlySkillScope(profileName)
-		}
+	resolved, canonicalWorkspaceID, err := h.resolveSkillExposureScope(c, requestedWorkspaceID, actor)
+	if err != nil {
+		return skillExposureOperation{}, err
 	}
 
 	agentName, err := skillAgentScope(c)
@@ -137,26 +114,82 @@ func (h *BaseHandlers) resolveSkillExposureOperation(
 	if skill == nil {
 		return skillExposureOperation{}, fmt.Errorf("%w: %q", ErrSkillNotFound, name)
 	}
-	responseWorkspaceID := ""
-	if skill.ResourceScope.Normalize().Kind == "workspace" {
-		responseWorkspaceID = strings.TrimSpace(skill.ResourceScope.ID)
-		if responseWorkspaceID == "" {
-			responseWorkspaceID = canonicalWorkspaceID
-		}
-	}
+	responseWorkspaceID := skillExposureResponseWorkspaceID(skill, canonicalWorkspaceID)
 	manager, err := h.newSkillExposureManager(resolved)
 	if err != nil {
 		return skillExposureOperation{}, err
 	}
-	configGeneration := int64(0)
-	if generationProvider, ok := h.SkillsRegistry.(interface{ ConfigGeneration() int64 }); ok {
-		configGeneration = generationProvider.ConfigGeneration()
-	}
 	return skillExposureOperation{
 		skill: skill, actor: actor, workspaceID: responseWorkspaceID,
-		configGeneration: configGeneration,
+		configGeneration: skillExposureConfigGeneration(h.SkillsRegistry),
 		manager:          manager,
 	}, nil
+}
+
+func (h *BaseHandlers) prepareSkillExposure(c *gin.Context, name string) error {
+	if h == nil || h.SkillsRegistry == nil {
+		return errors.New("skills registry is not configured")
+	}
+	if h.SkillExposures == nil {
+		return errors.New("skill exposure repository is not configured")
+	}
+	if name == "" {
+		return fmt.Errorf("%w: skill name is required", ErrSkillValidation)
+	}
+	if h.SkillResources == nil {
+		return nil
+	}
+	if err := h.SkillResources.SyncSkills(c.Request.Context()); err != nil {
+		return fmt.Errorf("sync skill resources before exposure: %w", err)
+	}
+	return nil
+}
+
+func (h *BaseHandlers) resolveSkillExposureScope(
+	c *gin.Context,
+	requestedWorkspaceID string,
+	actor taskpkg.ActorContext,
+) (*workspacepkg.ResolvedWorkspace, string, error) {
+	requestedWorkspaceID = strings.TrimSpace(requestedWorkspaceID)
+	if requestedWorkspaceID != "" {
+		resolved, err := h.resolveSkillExposureWorkspace(c, requestedWorkspaceID, actor)
+		if err != nil {
+			return nil, "", err
+		}
+		canonicalID := canonicalResolvedWorkspaceID(&resolved)
+		if canonicalID != requestedWorkspaceID {
+			return nil, "", fmt.Errorf(
+				"%w: workspace_id must be the canonical workspace id", ErrSkillValidation,
+			)
+		}
+		return &resolved, canonicalID, nil
+	}
+	profileName, err := h.agentResourceProfileNameForScope(c.Request.Context(), actor.ReadScope)
+	if err != nil {
+		return nil, "", err
+	}
+	if profileName != "" && profileName != compozyconfig.DefaultProfileDirName {
+		return h.profileOnlySkillScope(profileName), "", nil
+	}
+	return nil, "", nil
+}
+
+func skillExposureResponseWorkspaceID(skill *skills.Skill, fallback string) string {
+	if skill == nil || skill.ResourceScope.Normalize().Kind != workspaceScopeValue {
+		return ""
+	}
+	if workspaceID := strings.TrimSpace(skill.ResourceScope.ID); workspaceID != "" {
+		return workspaceID
+	}
+	return fallback
+}
+
+func skillExposureConfigGeneration(registry SkillsRegistry) int64 {
+	provider, ok := registry.(interface{ ConfigGeneration() int64 })
+	if !ok {
+		return 0
+	}
+	return provider.ConfigGeneration()
 }
 
 func (h *BaseHandlers) newSkillExposureManager(
@@ -196,7 +229,10 @@ func (h *BaseHandlers) resolveSkillExposureWorkspace(
 // durable identity stamped in <root>/.compozy/workspace.toml, which no public surface ever emits, so
 // comparing a caller's `workspace_id` against it can never match. An unregistered workspace resolved
 // by path has no registered id, and there the durable identity is the only identity available.
-func canonicalResolvedWorkspaceID(resolved workspacepkg.ResolvedWorkspace) string {
+func canonicalResolvedWorkspaceID(resolved *workspacepkg.ResolvedWorkspace) string {
+	if resolved == nil {
+		return ""
+	}
 	if workspaceID := strings.TrimSpace(resolved.ID); workspaceID != "" {
 		return workspaceID
 	}
@@ -233,7 +269,7 @@ func (h *BaseHandlers) skillExposureInspectionContext(
 		return nil, err
 	}
 	workspaceID := ""
-	if skill != nil && skill.ResourceScope.Normalize().Kind == "workspace" {
+	if skill != nil && skill.ResourceScope.Normalize().Kind == workspaceScopeValue {
 		workspaceID = strings.TrimSpace(skill.ResourceScope.ID)
 	}
 	generation := int64(0)

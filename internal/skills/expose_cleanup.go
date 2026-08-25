@@ -63,7 +63,10 @@ func (m *ExposeManager) createExposureDirectories(planned []string) ([]string, e
 	return created, nil
 }
 
-func (m *ExposeManager) rollbackExposureCommit(ctx context.Context, commit exposeCommit) error {
+func (m *ExposeManager) rollbackExposureCommit(ctx context.Context, commit *exposeCommit) error {
+	if commit == nil {
+		return nil
+	}
 	failures := make([]error, 0, 3)
 	linkRemovalFailed := false
 	if commit.createdLink {
@@ -93,7 +96,8 @@ func (m *ExposeManager) rollbackCompletedExposures(
 	results []TargetResult,
 ) error {
 	failures := make([]error, 0)
-	for _, commit := range slices.Backward(completed) {
+	for index := range slices.Backward(completed) {
+		commit := &completed[index]
 		rollbackErr := m.rollbackExposureCommit(ctx, commit)
 		index := resultIndexForTarget(results, commit.preflight.target)
 		if index >= 0 {

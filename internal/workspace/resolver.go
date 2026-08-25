@@ -177,13 +177,13 @@ func (r *Resolver) resolve(
 	}
 	r.mu.Unlock()
 	if hadCachedConfig {
-		cfg, scan, err = r.refreshSkillScanConfig(ctx, ws, profileName, cfg, scan)
+		cfg, scan, err = r.refreshSkillScanConfig(ctx, ws, profileName, &cfg, scan)
 		if err != nil {
 			return ResolvedWorkspace{}, err
 		}
 	}
 
-	resolved, err = r.buildResolvedWorkspace(ctx, ws, scan, profileName, cfg)
+	resolved, err = r.buildResolvedWorkspace(ctx, ws, scan, profileName, &cfg)
 	if err != nil {
 		return ResolvedWorkspace{}, err
 	}
@@ -399,14 +399,17 @@ func (r *Resolver) buildResolvedWorkspace(
 	ws Workspace,
 	scan workspaceScan,
 	profileName string,
-	cfg compozyconfig.Config,
+	cfg *compozyconfig.Config,
 ) (ResolvedWorkspace, error) {
 	if err := checkContext(ctx); err != nil {
 		return ResolvedWorkspace{}, err
 	}
+	if cfg == nil {
+		return ResolvedWorkspace{}, errors.New("workspace: config is required")
+	}
 
-	applyDefaultAgentOverride(&cfg, ws.DefaultAgent)
-	resolvedSandbox, err := resolveWorkspaceSandbox(ws, &cfg)
+	applyDefaultAgentOverride(cfg, ws.DefaultAgent)
+	resolvedSandbox, err := resolveWorkspaceSandbox(ws, cfg)
 	if err != nil {
 		return ResolvedWorkspace{}, fmt.Errorf("workspace: resolve sandbox for %q: %w", ws.ID, err)
 	}
@@ -423,7 +426,7 @@ func (r *Resolver) buildResolvedWorkspace(
 		ProfileName:         profileName,
 		ProfileRoot:         resolvedProfileRoot(r.homePaths.ProfilesDir, profileName),
 		ProfileDeclarations: append([]ProfileDeclaration(nil), scan.profileDeclarations...),
-		Config:              compozyconfig.CloneConfig(&cfg),
+		Config:              compozyconfig.CloneConfig(cfg),
 		Agents:              cloneAgentDefs(agents),
 		AgentDiagnostics:    append([]AgentDiagnostic(nil), agentDiagnostics...),
 		Skills:              cloneSkillPaths(skills),

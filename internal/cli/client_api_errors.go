@@ -330,7 +330,8 @@ func parseSkillSourceAPIError(statusCode int, status string, body []byte) (bool,
 
 func isSkillSourceValidationCode(code string) bool {
 	switch strings.TrimSpace(code) {
-	case "unknown_skill_source", "duplicate_skill_source", "invalid_source_path", "workspace_scope_field_forbidden":
+	case skillSourceUnknownCode, skillSourceDuplicateCode, skillSourceInvalidPathCode,
+		skillSourceWorkspaceFieldCode:
 		return true
 	default:
 		return false

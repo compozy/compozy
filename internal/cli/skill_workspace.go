@@ -23,11 +23,18 @@ const (
 
 const (
 	additionalSkillSource       = "additional"
+	agentsSkillSource           = compozyconfig.SkillSourceAgents
 	bundledSkillSource          = "bundled"
+	claudeSkillSource           = compozyconfig.SkillSourceClaude
+	compozySkillSource          = compozyconfig.SkillSourceCompozy
+	customSkillSource           = "custom"
 	marketplaceSkillSource      = "marketplace"
 	profileSkillSource          = "profile"
 	userSkillSource             = "user"
 	workspaceProfileSkillSource = "workspace_profile"
+	skillExposeAction           = "expose"
+	skillUnexposeAction         = "unexpose"
+	skillExposureHealthyStatus  = "healthy"
 )
 
 type skillCommandScope struct {

@@ -50,7 +50,7 @@ const (
 	windowManagerPurposeField     = "purpose"
 	windowManagerDesktopID        = "desktop_id"
 	windowManagerValidField       = "valid"
-	windowManagerNameHeader       = "NAME"
+	windowManagerNameHeader       = cliNameHeader
 	windowManagerDiagnosticsLabel = "Diagnostics"
 	windowManagerPathnameFlag     = "pathname"
 	windowManagerSearchJSONFlag   = "search-json"

@@ -240,10 +240,17 @@ func TestSkillExposureCommandsUseCanonicalDaemonEnvelope(t *testing.T) {
 					t.Fatalf("ExposeSkill(%q, %#v, %#v)", name, request, query)
 				}
 				return contract.SkillExposeResponse{Name: name, WorkspaceID: workspaceID,
-					Results: []contract.SkillExposureTargetResultPayload{{
-						Target: "agents", OK: true,
-						Exposure: &contract.SkillExposurePayload{Target: "agents", Path: exposurePath, Status: "healthy"},
-					}},
+					Results: []contract.SkillExposureTargetResultPayload{
+						{
+							Target: "agents",
+							OK:     true,
+							Exposure: &contract.SkillExposurePayload{
+								Target: "agents",
+								Path:   exposurePath,
+								Status: "healthy",
+							},
+						},
+					},
 				}, nil
 			},
 			unexposeSkillFn: func(
@@ -253,10 +260,17 @@ func TestSkillExposureCommandsUseCanonicalDaemonEnvelope(t *testing.T) {
 				_ SkillQuery,
 			) (contract.SkillUnexposeResponse, error) {
 				return contract.SkillUnexposeResponse{Name: name, WorkspaceID: request.WorkspaceID,
-					Results: []contract.SkillExposureTargetResultPayload{{
-						Target: "agents", OK: true,
-						Exposure: &contract.SkillExposurePayload{Target: "agents", Path: exposurePath, Status: "healthy"},
-					}},
+					Results: []contract.SkillExposureTargetResultPayload{
+						{
+							Target: "agents",
+							OK:     true,
+							Exposure: &contract.SkillExposurePayload{
+								Target: "agents",
+								Path:   exposurePath,
+								Status: "healthy",
+							},
+						},
+					},
 				}, nil
 			},
 		}
@@ -349,8 +363,10 @@ func TestSkillExposureCommandsUseCanonicalDaemonEnvelope(t *testing.T) {
 		if err := json.Unmarshal([]byte(stderr), &got); err != nil {
 			t.Fatalf("json.Unmarshal(skill expose failure) error = %v; stderr=%s", err, stderr)
 		}
-		if got.Error.Code != failure.Error.Code || got.Name != failure.Name || len(got.Results) != len(failure.Results) ||
-			got.RolledBack == nil || !*got.RolledBack {
+		if got.Error.Code != failure.Error.Code || got.Name != failure.Name ||
+			len(got.Results) != len(failure.Results) ||
+			got.RolledBack == nil ||
+			!*got.RolledBack {
 			t.Fatalf("skill expose JSON failure = %#v, want canonical API envelope %#v", got, failure)
 		}
 	})
@@ -363,7 +379,8 @@ func TestSkillExposureCommandsUseCanonicalDaemonEnvelope(t *testing.T) {
 			Name:  "review-checklist",
 			Results: []contract.SkillExposureTargetResultPayload{
 				{Target: "agents", Error: &contract.SkillExposureErrorPayload{
-					Code: "expose_not_applied", Message: "exposure was not applied because target \"claude\" failed preflight",
+					Code:    "expose_not_applied",
+					Message: "exposure was not applied because target \"claude\" failed preflight",
 				}},
 				{Target: "claude", Error: &contract.SkillExposureErrorPayload{
 					Code: "expose_name_conflict", OccupiedBy: "/repo/.claude/skills/review-checklist",
@@ -423,15 +440,21 @@ func TestSkillExposureCommandsUseCanonicalDaemonEnvelope(t *testing.T) {
 				if name != "review-checklist" || request.WorkspaceID != workspaceID || query.Workspace != workspaceID {
 					t.Fatalf("ExposeSkill(%q, %#v, %#v)", name, request, query)
 				}
-				return contract.SkillExposeResponse{}, &skillExposureAPIError{payload: contract.SkillExposureFailureResponse{
-					Error: contract.SkillExposureFailureErrorPayload{Code: "expose_failed", Message: "1 of 1 targets failed"},
-					Name:  name, WorkspaceID: workspaceID,
-					Results: []contract.SkillExposureTargetResultPayload{{
-						Target: "claude", Error: &contract.SkillExposureErrorPayload{
-							Code: "expose_target_disabled", Message: "source not enabled (enabled targets: agents)",
+				return contract.SkillExposeResponse{}, &skillExposureAPIError{
+					payload: contract.SkillExposureFailureResponse{
+						Error: contract.SkillExposureFailureErrorPayload{
+							Code:    "expose_failed",
+							Message: "1 of 1 targets failed",
 						},
-					}},
-				}}
+						Name:        name,
+						WorkspaceID: workspaceID,
+						Results: []contract.SkillExposureTargetResultPayload{{
+							Target: "claude", Error: &contract.SkillExposureErrorPayload{
+								Code: "expose_target_disabled", Message: "source not enabled (enabled targets: agents)",
+							},
+						}},
+					},
+				}
 			},
 		}
 		deps := newWorkspaceTestDeps(t, client)
@@ -477,10 +500,17 @@ func TestSkillExposureCommandsUseCanonicalDaemonEnvelope(t *testing.T) {
 			) (contract.SkillExposeResponse, error) {
 				return contract.SkillExposeResponse{
 					Name: name, WorkspaceID: request.WorkspaceID,
-					Results: []contract.SkillExposureTargetResultPayload{{
-						Target: "agents", OK: true,
-						Exposure: &contract.SkillExposurePayload{Target: "agents", Path: exposurePath, Status: "healthy"},
-					}},
+					Results: []contract.SkillExposureTargetResultPayload{
+						{
+							Target: "agents",
+							OK:     true,
+							Exposure: &contract.SkillExposurePayload{
+								Target: "agents",
+								Path:   exposurePath,
+								Status: "healthy",
+							},
+						},
+					},
 				}, nil
 			},
 		}
@@ -507,8 +537,18 @@ func TestSkillPublicTranscriptsMatchDXContract(t *testing.T) {
 		t.Parallel()
 		got := renderSkillListTranscript([]skillListItem{
 			{Name: "compozy", Source: "bundled", Description: "Operate CompozyOS sessions, tasks, and memory"},
-			{Name: "frontend-qa", Source: "user", Origin: "agents", Description: "Audit web UIs against the team checklist"},
-			{Name: "git-hygiene", Source: "user", Origin: "agents", Description: "Keep branches, commits, and PRs clean"},
+			{
+				Name:        "frontend-qa",
+				Source:      "user",
+				Origin:      "agents",
+				Description: "Audit web UIs against the team checklist",
+			},
+			{
+				Name:        "git-hygiene",
+				Source:      "user",
+				Origin:      "agents",
+				Description: "Keep branches, commits, and PRs clean",
+			},
 		})
 		want := strings.Join([]string{
 			"NAME         SOURCE   ORIGIN  DESCRIPTION",
@@ -934,10 +974,17 @@ func TestSkillCommandsRejectManagedSessionCLI(t *testing.T) {
 				_ SkillQuery,
 			) (contract.SkillExposeResponse, error) {
 				return contract.SkillExposeResponse{Name: name, WorkspaceID: request.WorkspaceID,
-					Results: []contract.SkillExposureTargetResultPayload{{
-						Target: "agents", OK: true,
-						Exposure: &contract.SkillExposurePayload{Target: "agents", Path: exposurePath, Status: "healthy"},
-					}},
+					Results: []contract.SkillExposureTargetResultPayload{
+						{
+							Target: "agents",
+							OK:     true,
+							Exposure: &contract.SkillExposurePayload{
+								Target: "agents",
+								Path:   exposurePath,
+								Status: "healthy",
+							},
+						},
+					},
 				}, nil
 			},
 			unexposeSkillFn: func(
@@ -947,10 +994,17 @@ func TestSkillCommandsRejectManagedSessionCLI(t *testing.T) {
 				_ SkillQuery,
 			) (contract.SkillUnexposeResponse, error) {
 				return contract.SkillUnexposeResponse{Name: name, WorkspaceID: request.WorkspaceID,
-					Results: []contract.SkillExposureTargetResultPayload{{
-						Target: "agents", OK: true,
-						Exposure: &contract.SkillExposurePayload{Target: "agents", Path: exposurePath, Status: "healthy"},
-					}},
+					Results: []contract.SkillExposureTargetResultPayload{
+						{
+							Target: "agents",
+							OK:     true,
+							Exposure: &contract.SkillExposurePayload{
+								Target: "agents",
+								Path:   exposurePath,
+								Status: "healthy",
+							},
+						},
+					},
 				}, nil
 			},
 		}

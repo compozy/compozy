@@ -62,51 +62,7 @@ func (r *Resolver) scanWorkspace(
 		skills:              make([]skillCandidate, 0),
 		profileDeclarations: make([]ProfileDeclaration, 0),
 	}
-	if err := validatePersonalProfileRoot(ws.RootDir, r.homePaths.ProfilesDir, profileName); err != nil {
-		return workspaceScan{}, err
-	}
-
-	if err := addSnapshotIfExists(r.homePaths.ConfigFile, scan.snapshots); err != nil {
-		return workspaceScan{}, fmt.Errorf("workspace: snapshot global config %q: %w", r.homePaths.ConfigFile, err)
-	}
-	if err := addSnapshotIfExists(
-		filepath.Join(r.homePaths.HomeDir, compozyconfig.MCPJSONName),
-		scan.snapshots,
-	); err != nil {
-		return workspaceScan{}, fmt.Errorf("workspace: snapshot global MCP JSON %q: %w", r.homePaths.HomeDir, err)
-	}
-	if err := addSnapshotIfExists(
-		filepath.Join(ws.RootDir, compozyconfig.DirName, compozyconfig.ConfigName),
-		scan.snapshots,
-	); err != nil {
-		return workspaceScan{}, fmt.Errorf("workspace: snapshot workspace config %q: %w", ws.RootDir, err)
-	}
-	if err := addDependencySnapshot(compozyconfig.WorkspaceDotEnvFile(ws.RootDir), scan.snapshots); err != nil {
-		return workspaceScan{}, fmt.Errorf("workspace: snapshot workspace dotenv %q: %w", ws.RootDir, err)
-	}
-	if err := addSnapshotIfExists(
-		filepath.Join(ws.RootDir, compozyconfig.DirName, compozyconfig.MCPJSONName),
-		scan.snapshots,
-	); err != nil {
-		return workspaceScan{}, fmt.Errorf("workspace: snapshot workspace MCP JSON %q: %w", ws.RootDir, err)
-	}
-	if trimmedProfile := strings.TrimSpace(profileName); trimmedProfile != "" {
-		profileRoot := filepath.Join(r.homePaths.ProfilesDir, trimmedProfile)
-		workspaceProfileRoot := filepath.Join(
-			ws.RootDir, compozyconfig.DirName, compozyconfig.ProfilesDirName, trimmedProfile,
-		)
-		for _, path := range []string{
-			filepath.Join(profileRoot, compozyconfig.ConfigName),
-			filepath.Join(profileRoot, compozyconfig.MCPJSONName),
-			filepath.Join(workspaceProfileRoot, compozyconfig.ConfigName),
-			filepath.Join(workspaceProfileRoot, compozyconfig.MCPJSONName),
-		} {
-			if err := addSnapshotIfExists(path, scan.snapshots); err != nil {
-				return workspaceScan{}, fmt.Errorf("workspace: snapshot profile config dependency %q: %w", path, err)
-			}
-		}
-	}
-	declarations, err := scanWorkspaceProfileDeclarations(ws.RootDir, scan.snapshots)
+	declarations, err := r.scanWorkspaceDependencies(ws, profileName, scan.snapshots)
 	if err != nil {
 		return workspaceScan{}, err
 	}
@@ -162,6 +118,64 @@ func (r *Resolver) scanWorkspace(
 	}
 
 	return scan, nil
+}
+
+func (r *Resolver) scanWorkspaceDependencies(
+	ws Workspace,
+	profileName string,
+	snapshots map[string]filesnap.Snapshot,
+) ([]ProfileDeclaration, error) {
+	if err := validatePersonalProfileRoot(ws.RootDir, r.homePaths.ProfilesDir, profileName); err != nil {
+		return nil, err
+	}
+	if err := addSnapshotIfExists(r.homePaths.ConfigFile, snapshots); err != nil {
+		return nil, fmt.Errorf("workspace: snapshot global config %q: %w", r.homePaths.ConfigFile, err)
+	}
+	globalMCP := filepath.Join(r.homePaths.HomeDir, compozyconfig.MCPJSONName)
+	if err := addSnapshotIfExists(globalMCP, snapshots); err != nil {
+		return nil, fmt.Errorf("workspace: snapshot global MCP JSON %q: %w", r.homePaths.HomeDir, err)
+	}
+	workspaceConfig := filepath.Join(ws.RootDir, compozyconfig.DirName, compozyconfig.ConfigName)
+	if err := addSnapshotIfExists(workspaceConfig, snapshots); err != nil {
+		return nil, fmt.Errorf("workspace: snapshot workspace config %q: %w", ws.RootDir, err)
+	}
+	if err := addDependencySnapshot(compozyconfig.WorkspaceDotEnvFile(ws.RootDir), snapshots); err != nil {
+		return nil, fmt.Errorf("workspace: snapshot workspace dotenv %q: %w", ws.RootDir, err)
+	}
+	workspaceMCP := filepath.Join(ws.RootDir, compozyconfig.DirName, compozyconfig.MCPJSONName)
+	if err := addSnapshotIfExists(workspaceMCP, snapshots); err != nil {
+		return nil, fmt.Errorf("workspace: snapshot workspace MCP JSON %q: %w", ws.RootDir, err)
+	}
+	if err := r.addProfileDependencySnapshots(ws.RootDir, profileName, snapshots); err != nil {
+		return nil, err
+	}
+	return scanWorkspaceProfileDeclarations(ws.RootDir, snapshots)
+}
+
+func (r *Resolver) addProfileDependencySnapshots(
+	workspaceRoot string,
+	profileName string,
+	snapshots map[string]filesnap.Snapshot,
+) error {
+	trimmedProfile := strings.TrimSpace(profileName)
+	if trimmedProfile == "" {
+		return nil
+	}
+	profileRoot := filepath.Join(r.homePaths.ProfilesDir, trimmedProfile)
+	workspaceProfileRoot := filepath.Join(
+		workspaceRoot, compozyconfig.DirName, compozyconfig.ProfilesDirName, trimmedProfile,
+	)
+	for _, path := range []string{
+		filepath.Join(profileRoot, compozyconfig.ConfigName),
+		filepath.Join(profileRoot, compozyconfig.MCPJSONName),
+		filepath.Join(workspaceProfileRoot, compozyconfig.ConfigName),
+		filepath.Join(workspaceProfileRoot, compozyconfig.MCPJSONName),
+	} {
+		if err := addSnapshotIfExists(path, snapshots); err != nil {
+			return fmt.Errorf("workspace: snapshot profile config dependency %q: %w", path, err)
+		}
+	}
+	return nil
 }
 
 func canonicalWorkspaceSkillRoot(path string) string {

@@ -1,12 +1,12 @@
 ---
 title: Use skills from your other tools
-description: Scan the skill folders your other agent tools already use, see where every skill came from, and expose a Compozy skill back to them — without copying a single file.
+description: Scan the skill folders your other agent tools already use, see where every skill came from, and expose a CompozyOS skill back to them — without copying a single file.
 ---
 
 Most machines that run CompozyOS already have skills lying around: a `~/.agents/skills` library
 shared by several tools, a `~/.claude/skills` folder from Claude Code, a checked-in team directory.
 By the end of this page CompozyOS reads those folders, every skill says where it came from, and one
-of your Compozy skills is visible to your other tools through a link you asked for.
+of your CompozyOS skills is visible to your other tools through a link you asked for.
 
 Expect about ten minutes. Nothing here copies or moves a file.
 
@@ -29,16 +29,15 @@ before you configure anything:
 compozy skill list
 ```
 
-```text
-NAME         SOURCE   ORIGIN   DESCRIPTION
-compozy      bundled  —        Operate CompozyOS sessions, tasks, and memory
-frontend-qa  user     agents   Audit web UIs against the team checklist
-git-hygiene  user     agents   Keep branches, commits, and PRs clean
-```
+| NAME          | SOURCE    | ORIGIN   | DESCRIPTION                                   |
+| ------------- | --------- | -------- | --------------------------------------------- |
+| `compozy`     | `bundled` | —        | Operate CompozyOS sessions, tasks, and memory |
+| `frontend-qa` | `user`    | `agents` | Audit web UIs against the team checklist      |
+| `git-hygiene` | `user`    | `agents` | Keep branches, commits, and PRs clean         |
 
 Two columns, two different facts. `SOURCE` is the precedence tier that won — `bundled`, `user`,
 `workspace`, and the rest of the [eight tiers](/docs/skills#source-hierarchy). `ORIGIN` is the folder
-convention the winning copy came from. Compozy's own folders carry no origin label; `agents` means
+convention the winning copy came from. CompozyOS's own folders carry no origin label; `agents` means
 the skill lives in a `.agents/skills` directory.
 
 ## Step 2: See the folders behind those skills
@@ -50,17 +49,17 @@ to find them, measured by the daemon on this run:
 compozy skill sources
 ```
 
-```text
-SOURCE   STATE      WORKSPACE PATH  GLOBAL PATH       SKILLS  NOTES
-------   -----      --------------  -----------       ------  -----
-compozy  always on  —               —                 12      —
-agents   enabled    .agents/skills  ~/.agents/skills  2       —
-claude   disabled   .claude/skills  ~/.claude/skills  —       —
+| SOURCE    | STATE       | WORKSPACE PATH   | GLOBAL PATH        | SKILLS | NOTES |
+| --------- | ----------- | ---------------- | ------------------ | ------ | ----- |
+| `compozy` | `always on` | —                | —                  | 12     | —     |
+| `agents`  | `enabled`   | `.agents/skills` | `~/.agents/skills` | 2      | —     |
+| `claude`  | `disabled`  | `.claude/skills` | `~/.claude/skills` | —      | —     |
 
+```text
 scope: user · overrides: none
 ```
 
-Compozy's own folders are always scanned and never appear as a configurable path, which is why their
+CompozyOS's own folders are always scanned and never appear as a configurable path, which is why their
 path cells are empty. `claude` is a known convention that is currently off, so it has no counts.
 
 The structured form carries the full per-root diagnostic the terminal summarizes (output trimmed to
@@ -211,14 +210,14 @@ The workspace now overrides `sources` and still inherits `custom_sources`, and
 compozy skill sources --workspace acme-api
 ```
 
-```text
-SOURCE       STATE      WORKSPACE PATH  GLOBAL PATH             SKILLS  NOTES
-------       -----      --------------  -----------             ------  -----
-compozy      always on  —               —                       9       —
-agents       enabled    .agents/skills  ~/.agents/skills        3       —
-claude       disabled   .claude/skills  ~/.claude/skills        —       —
-team-skills  enabled    —               /Users/ana/team-skills  47      truncated
+| SOURCE        | STATE       | WORKSPACE PATH   | GLOBAL PATH              | SKILLS | NOTES       |
+| ------------- | ----------- | ---------------- | ------------------------ | ------ | ----------- |
+| `compozy`     | `always on` | —                | —                        | 9      | —           |
+| `agents`      | `enabled`   | `.agents/skills` | `~/.agents/skills`       | 3      | —           |
+| `claude`      | `disabled`  | `.claude/skills` | `~/.claude/skills`       | —      | —           |
+| `team-skills` | `enabled`   | —                | `/Users/ana/team-skills` | 47     | `truncated` |
 
+```text
 scope: workspace (acme-api) · overrides: sources · inherits: custom_sources
 ```
 
@@ -246,9 +245,9 @@ compozy --profile marketing config set skills.sources agents,claude --scope prof
 
 Reads use the same profile lens. There is no command that combines every profile's skill catalog.
 
-## Step 6: Expose a Compozy skill back to your other tools
+## Step 6: Expose a CompozyOS skill back to your other tools
 
-The other direction is a link, not a copy. One canonical skill stays in Compozy's folder, and your
+The other direction is a link, not a copy. One canonical skill stays in CompozyOS's folder, and your
 other tools see it in the convention they already read:
 
 The same operation supports both eligible owners. A user-owned skill links into the user-level
@@ -422,16 +421,16 @@ See [Skills your provider already reads](/docs/skills#skills-your-provider-alrea
 
 ## If something went wrong
 
-| Symptom                                           | First check                     | Where to go next                                                                      |
-| ------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------- |
-| A folder you enabled contributes no skills        | `compozy skill sources -o json` | Read `exists`, `readable`, and `truncated` on that root                               |
-| A skill loads but the wrong copy runs             | `compozy skill where <name>`    | [Provenance and shadow audit](/docs/skills#provenance-and-shadow-audit)               |
-| A source name is refused                          | the `valid` list in the error   | `unknown_skill_source` accepts only `agents` and `claude`                             |
-| A custom path is refused                          | the error code                  | `invalid_source_path` (scope) or `duplicate_skill_source` (overlap)                   |
-| An expose target is refused                       | its per-target error code       | `expose_target_disabled` or `expose_target_invalid`                                   |
-| Another target fails expose preflight             | its per-target error code       | `expose_not_applied`; no link or ownership record was written                         |
-| An expose destination is occupied                 | `occupied_by` in the result     | `expose_name_conflict` or `expose_foreign_link`; CompozyOS leaves it untouched        |
+| Symptom                                           | First check                     | Where to go next                                                                                    |
+| ------------------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------- |
+| A folder you enabled contributes no skills        | `compozy skill sources -o json` | Read `exists`, `readable`, and `truncated` on that root                                             |
+| A skill loads but the wrong copy runs             | `compozy skill where <name>`    | [Provenance and shadow audit](/docs/skills#provenance-and-shadow-audit)                             |
+| A source name is refused                          | the `valid` list in the error   | `unknown_skill_source` accepts only `agents` and `claude`                                           |
+| A custom path is refused                          | the error code                  | `invalid_source_path` (scope) or `duplicate_skill_source` (overlap)                                 |
+| An expose target is refused                       | its per-target error code       | `expose_target_disabled` or `expose_target_invalid`                                                 |
+| Another target fails expose preflight             | its per-target error code       | `expose_not_applied`; no link or ownership record was written                                       |
+| An expose destination is occupied                 | `occupied_by` in the result     | `expose_name_conflict` or `expose_foreign_link`; CompozyOS leaves it untouched                      |
 | A non-profile skill cannot be exposed             | `compozy skill info <name>`     | `skill_not_exposable` also covers bundled skills and skills without an accessible on-disk directory |
-| Expose is refused for a profile-owned skill       | `compozy skill info <name>`     | Move the skill to the user or workspace layer                                         |
-| A workspace write is refused for a non-source key | the `field` in the error        | `workspace_scope_field_forbidden` — only these two keys are writable there            |
-| A skill is missing from one session's prompt only | that session's agent CLI        | [Skills your provider already reads](/docs/skills#skills-your-provider-already-reads) |
+| Expose is refused for a profile-owned skill       | `compozy skill info <name>`     | Move the skill to the user or workspace layer                                                       |
+| A workspace write is refused for a non-source key | the `field` in the error        | `workspace_scope_field_forbidden` — only these two keys are writable there                          |
+| A skill is missing from one session's prompt only | that session's agent CLI        | [Skills your provider already reads](/docs/skills#skills-your-provider-already-reads)               |

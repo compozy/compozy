@@ -171,7 +171,7 @@ Tool-gated skills re-evaluate on the next projection without a daemon restart.
 
 ## Skill Sources And Exposure
 
-Scan roots beyond Compozy's own come from `skills.sources` (folder conventions) and
+Scan roots beyond CompozyOS's own come from `skills.sources` (folder conventions) and
 `skills.custom_sources` (exact directories), resolved live through four config overlays.
 `compozy__config_set` and `compozy__config_unset` write both keys at user and workspace scope and
 refuse agent and profile scope with `config_scope_not_allowed`. Before reasoning about which roots
@@ -229,7 +229,7 @@ Bundled `spec-cycle` globally publishes exactly `cy-create-spec`, `cy-create-tas
 
 ## Skill Provenance And Shadows
 
-Every skill list/detail payload includes resolver provenance. `provenance.precedence_tier` names the winning tier — `bundled`, `marketplace`, `user`, `profile`, `additional`, `workspace`, `workspace_profile`, or `agent_local` — and installed-from metadata identifies extension ownership when present. The separate `origin` field names the source root's convention or custom slug and is empty for Compozy-native skills; `compozy__skill_list`, `compozy__skill_search`, and `compozy__skill_view` all carry it, and `compozy__skill_view` adds reconciled `exposures[]{target, path, status}` with status `healthy`, `missing`, `broken`, or `foreign_conflict`. Tier and origin are independent: never infer one from the other.
+Every skill list/detail payload includes resolver provenance. `provenance.precedence_tier` names the winning tier — `bundled`, `marketplace`, `user`, `profile`, `additional`, `workspace`, `workspace_profile`, or `agent_local` — and installed-from metadata identifies extension ownership when present. The separate `origin` field names the source root's convention or custom slug and is empty for CompozyOS-native skills; `compozy__skill_list`, `compozy__skill_search`, and `compozy__skill_view` all carry it, and `compozy__skill_view` adds reconciled `exposures[]{target, path, status}` with status `healthy`, `missing`, `broken`, or `foreign_conflict`. Tier and origin are independent: never infer one from the other.
 
 When multiple declarations use the same skill name, CompozyOS keeps the normal precedence order and records losing declarations as shadows. Use these surfaces before assuming which skill body is active:
 

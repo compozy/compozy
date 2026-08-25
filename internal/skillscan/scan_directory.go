@@ -14,6 +14,11 @@ import (
 	"github.com/compozy/compozy/internal/filesnap"
 )
 
+const (
+	skippedLinkCycleReason  = "cycle"
+	skippedLinkEscapeReason = "escape"
+)
+
 // ScanDirectory discovers skill definitions below root. It resolves the root
 // itself, never follows nested directory symlinks, and excludes definitions
 // whose resolved path escapes root.
@@ -217,7 +222,7 @@ func (s *directoryScanner) followFirstLevelLinks() error {
 		}
 		if !pathWithinAnyTrustedRoot(resolved, s.trustedRoots) {
 			s.result.Stats.SkippedLinks = append(s.result.Stats.SkippedLinks, SkippedLink{
-				Path: linkPath, Reason: "escape",
+				Path: linkPath, Reason: skippedLinkEscapeReason,
 			})
 			continue
 		}
@@ -298,7 +303,7 @@ func pathWithinAnyTrustedRoot(path string, roots []string) bool {
 func symlinkFailureReason(path string, err error) string {
 	if errors.Is(err, syscall.ELOOP) || strings.Contains(strings.ToLower(err.Error()), "too many levels") ||
 		symlinkChainHasCycle(path) {
-		return "cycle"
+		return skippedLinkCycleReason
 	}
 	return "dangling"
 }

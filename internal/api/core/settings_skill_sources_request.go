@@ -14,6 +14,8 @@ import (
 	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
+const settingsConfigField = "config"
+
 func decodeSettingsSkillsUpdate(
 	reader io.Reader,
 	scope settingspkg.ScopeKind,
@@ -41,11 +43,11 @@ func decodeSettingsSkillsUpdate(
 	}
 
 	for key := range raw {
-		if key != "config" {
+		if key != settingsConfigField {
 			return nil, nil, fmt.Errorf("decode skills settings request: unknown field %q", key)
 		}
 	}
-	configData, ok := raw["config"]
+	configData, ok := raw[settingsConfigField]
 	if !ok {
 		return nil, nil, errors.New("skills.config is required")
 	}
@@ -102,12 +104,12 @@ func forbiddenScopedSkillsField(raw map[string]json.RawMessage) string {
 	if len(keys) == 0 {
 		return ""
 	}
-	if keys[0] != "config" {
+	if keys[0] != settingsConfigField {
 		return keys[0]
 	}
 	var configFields map[string]json.RawMessage
-	if err := json.Unmarshal(raw["config"], &configFields); err != nil || len(configFields) == 0 {
-		return "config"
+	if err := json.Unmarshal(raw[settingsConfigField], &configFields); err != nil || len(configFields) == 0 {
+		return settingsConfigField
 	}
 	nested := make([]string, 0, len(configFields))
 	for field := range configFields {

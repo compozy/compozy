@@ -715,7 +715,14 @@ func TestSpecCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 				return err
 			},
 			providers: []agentSkillDeclarationProvider{
-				daemonAgentSkillDeclarationProvider(homePaths, db, workspaceResolver, initialSkills, nil, discardLogger()),
+				daemonAgentSkillDeclarationProvider(
+					homePaths,
+					db,
+					workspaceResolver,
+					initialSkills,
+					nil,
+					discardLogger(),
+				),
 				extensionAgentSkillDeclarationProvider(
 					extensionRegistry,
 					func() extensionRuntime { return runtime },
@@ -1357,13 +1364,17 @@ func agentSkillIntegrationWorkspace(t *testing.T) string {
 	t.Helper()
 
 	root := filepath.Join(t.TempDir(), "workspace")
-	writeAgentSkillIntegrationFile(t, filepath.Join(root, ".agents", "skills", "workspace-agent-source", "SKILL.md"), `---
+	writeAgentSkillIntegrationFile(
+		t,
+		filepath.Join(root, ".agents", "skills", "workspace-agent-source", "SKILL.md"),
+		`---
 name: workspace-agent-source
 description: Workspace agents source skill
 ---
 
 Use the workspace agents convention.
-`)
+`,
+	)
 	agentDir := filepath.Join(root, compozyconfig.DirName, compozyconfig.AgentsDirName, "coder")
 	writeAgentSkillIntegrationFile(t, filepath.Join(agentDir, "AGENT.md"), `---
 name: coder

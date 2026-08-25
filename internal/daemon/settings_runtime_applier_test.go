@@ -26,8 +26,15 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		registry := skillspkg.NewRegistry(skillspkg.RegistryConfig{})
 		if err := registry.ApplyResourceRecords(t.Context(), 1, []resources.Record[skillspkg.SkillResourceSpec]{
 			{
-				Kind: skillspkg.SkillResourceKind, ID: "initial", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
-				Spec: skillspkg.SkillResourceSpec{Name: "initial", Description: "Initial", Source: "user", Enabled: true},
+				Kind:  skillspkg.SkillResourceKind,
+				ID:    "initial",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+				Spec: skillspkg.SkillResourceSpec{
+					Name:        "initial",
+					Description: "Initial",
+					Source:      "user",
+					Enabled:     true,
+				},
 			},
 		}); err != nil {
 			t.Fatalf("ApplyResourceRecords(initial) error = %v", err)
@@ -44,7 +51,11 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 			t.Fatalf("ApplyActiveConfig() failures = %#v, want skill_sources failure", failures)
 		}
 		if publisher.stagedCalls != 1 || publisher.rollbackCalls != 1 {
-			t.Fatalf("publisher staged/rollback calls = %d/%d, want 1/1", publisher.stagedCalls, publisher.rollbackCalls)
+			t.Fatalf(
+				"publisher staged/rollback calls = %d/%d, want 1/1",
+				publisher.stagedCalls,
+				publisher.rollbackCalls,
+			)
 		}
 		if registry.ConfigGeneration() != 0 {
 			t.Fatalf("registry.ConfigGeneration() = %d, want previous generation 0", registry.ConfigGeneration())

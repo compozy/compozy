@@ -59,10 +59,10 @@ func newSkillUnexposeCommand(deps commandDeps) *cobra.Command {
 }
 
 func newSkillExposureCommand(deps commandDeps, expose bool) *cobra.Command {
-	verb := "unexpose"
+	verb := skillUnexposeAction
 	short := "Remove owned provider-root links for one skill"
 	if expose {
-		verb = "expose"
+		verb = skillExposeAction
 		short = "Expose one skill to provider roots"
 	}
 	var workspaceRef string
@@ -129,7 +129,7 @@ func runSkillExposureCommand(
 		}
 		if record.Exposures != nil {
 			for _, exposure := range *record.Exposures {
-				if exposure.Status == "healthy" {
+				if exposure.Status == skillExposureHealthyStatus {
 					preexisting[exposure.Target] = true
 				}
 			}
@@ -139,7 +139,7 @@ func runSkillExposureCommand(
 			return err
 		}
 		return writeCommandOutput(cmd, skillExposureSuccessBundle(skillExposureSuccess{
-			Name: response.Name, Action: "expose", Results: response.Results,
+			Name: response.Name, Action: skillExposeAction, Results: response.Results,
 			Preexisting: preexisting, JSONValue: response,
 		}))
 	}
@@ -148,7 +148,7 @@ func runSkillExposureCommand(
 		return err
 	}
 	return writeCommandOutput(cmd, skillExposureSuccessBundle(skillExposureSuccess{
-		Name: response.Name, Action: "unexpose", Results: response.Results, JSONValue: response,
+		Name: response.Name, Action: skillUnexposeAction, Results: response.Results, JSONValue: response,
 	}))
 }
 

@@ -146,7 +146,7 @@ export const SourcesRuntimeUnavailable: Story = {
 };
 
 /**
- * Only Compozy's own folders are on, and no folder was added by hand.
+ * Only CompozyOS's own folders are on, and no folder was added by hand.
  */
 export const SourcesDefaultsOnly: Story = {
   args: {},

@@ -31,7 +31,7 @@ export interface SessionComposerCommand {
   lane: SessionCommandLane;
   /** Daemon source scope (session/workspace/agent/global); shown for skills. */
   scope?: string;
-  /** Daemon-reported source slug; empty/absent for Compozy-native skills. */
+  /** Daemon-reported source slug; empty/absent for CompozyOS-native skills. */
   origin?: string;
   /** Daemon availability for the current session state; defaults to available. */
   available?: boolean;
@@ -246,7 +246,7 @@ export interface SessionCommandTrailing {
   mono: boolean;
   /**
    * Source slug for a skill that came from another tool's folder convention.
-   * Absent for Compozy-native rows, which keep exactly today's anatomy.
+   * Absent for CompozyOS-native rows, which keep exactly today's anatomy.
    */
   origin?: string;
 }

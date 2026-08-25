@@ -15,6 +15,11 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+const (
+	resourceScopeUserKind      = "user"
+	resourceScopeWorkspaceKind = "workspace"
+)
+
 func (n *daemonNativeTools) toolList(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -145,7 +150,7 @@ func (n *daemonNativeTools) skillView(
 		"content": content,
 	}
 	resourceScope := skill.ResourceScope.Normalize()
-	if resourceScope.Kind == "user" || resourceScope.Kind == "workspace" {
+	if resourceScope.Kind == resourceScopeUserKind || resourceScope.Kind == resourceScopeWorkspaceKind {
 		skillPayload, exposureErr := n.skillViewPayload(ctx, scope, input, skill)
 		if exposureErr != nil {
 			return toolspkg.ToolResult{}, exposureErr

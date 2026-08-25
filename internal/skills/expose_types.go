@@ -64,8 +64,6 @@ type ExposureError struct {
 	Cause     error
 }
 
-var _ error = (*ExposureError)(nil)
-
 func (e *ExposureError) Error() string {
 	if e == nil {
 		return ""
@@ -91,8 +89,6 @@ type ExposureBatchError struct {
 	RolledBack bool
 	Cause      error
 }
-
-var _ error = (*ExposureBatchError)(nil)
 
 func (e *ExposureBatchError) Error() string {
 	if e == nil || e.Cause == nil {

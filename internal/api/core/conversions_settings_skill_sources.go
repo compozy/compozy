@@ -17,7 +17,9 @@ func settingsSkillSourcePayloads(items []settingspkg.SkillSourceItem) []contract
 	return payloads
 }
 
-func settingsSkillSourceRootPayloads(items []settingspkg.SkillSourceRootItem) []contract.SettingsSkillSourceRootPayload {
+func settingsSkillSourceRootPayloads(
+	items []settingspkg.SkillSourceRootItem,
+) []contract.SettingsSkillSourceRootPayload {
 	payloads := make([]contract.SettingsSkillSourceRootPayload, 0, len(items))
 	for _, item := range items {
 		payload := contract.SettingsSkillSourceRootPayload{

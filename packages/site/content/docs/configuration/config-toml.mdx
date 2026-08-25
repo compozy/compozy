@@ -590,7 +590,7 @@ auto_create = true
 
 [skills]
 enabled = true
-# Folder conventions to scan besides Compozy's own (always active).
+# Folder conventions to scan besides CompozyOS's own (always active).
 # Valid presets: "agents" (default on), "claude".
 sources = ["agents"]
 # Extra skills-only directories. Absolute or ~ paths at user and profile scope;
@@ -1990,7 +1990,7 @@ If `enabled = false`, skill polling and marketplace validation are skipped.
 | Field                       | Type         | Default      | Valid values                                          | Description                                                                                       |
 | --------------------------- | ------------ | ------------ | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | `enabled`                   | boolean      | `true`       | `true` or `false`                                     | Enables skill catalog discovery and polling.                                                      |
-| `sources`                   | string array | `["agents"]` | `agents`, `claude`.                                   | Folder conventions scanned besides Compozy's own. Applies live. An unknown name is rejected.      |
+| `sources`                   | string array | `["agents"]` | `agents`, `claude`.                                   | Folder conventions scanned besides CompozyOS's own. Applies live. An unknown name is rejected.    |
 | `custom_sources`            | string array | empty        | Absolute or `~/` paths; workspace-relative paths too. | Extra directories scanned as skill roots. Applies live. Workspace-relative needs workspace scope. |
 | `disabled_skills`           | string array | empty        | Skill names.                                          | Replaces the disabled-skill list in overlays.                                                     |
 | `poll_interval`             | duration     | `3s`         | Positive Go duration.                                 | Filesystem poll interval for skill catalog refresh.                                               |
@@ -2000,7 +2000,7 @@ If `enabled = false`, skill polling and marketplace validation are skipped.
 `sources` and `custom_sources` pass through all four config layers — user, personal profile,
 workspace, workspace named profile. Each layer decides each key on its own: leave the key out and the
 layer inherits it, write a list and that list replaces the inherited one, write an empty list and the
-layer scans no configured folders for that key. Compozy's own skill folders are always scanned and
+layer scans no configured folders for that key. CompozyOS's own skill folders are always scanned and
 never appear in `sources`. Both keys apply live: the daemon rescans and the next session picks up the
 change without a restart.
 

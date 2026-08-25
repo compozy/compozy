@@ -66,6 +66,9 @@ type sessionSkillInjectionProfile struct {
 const (
 	maxSkillInjectionProfiles = 512
 	maxSkillRootCacheEntries  = 256
+	nativeProviderClaude      = "claude"
+	nativeProviderHermes      = "hermes"
+	nativeProviderOpenClaw    = "openclaw"
 )
 
 func newSkillInjectionPolicyResolver() skillInjectionPolicyResolver {
@@ -104,13 +107,14 @@ func (r *skillInjectionPolicyResolver) resolve(sessionCtx HarnessSessionContext)
 func (r *skillInjectionPolicyResolver) newProfile(
 	sessionCtx HarnessSessionContext,
 ) *sessionSkillInjectionProfile {
-	roots := resolveSessionNativeSkillRoots(nativeSkillRootResolution{
+	resolution := nativeSkillRootResolution{
 		Provider:           sessionCtx.Provider,
 		ProviderHomePolicy: sessionCtx.ProviderHomePolicy,
 		Workspace:          sessionCtx.Workspace,
 		HomePaths:          r.homePaths,
 		LookupEnv:          r.lookupEnv,
-	})
+	}
+	roots := resolveSessionNativeSkillRoots(&resolution)
 	set := make(map[string]struct{}, len(roots))
 	for _, root := range roots {
 		set[root] = struct{}{}
@@ -172,7 +176,10 @@ type nativeSkillRootResolution struct {
 	LookupEnv          func(string) (string, bool)
 }
 
-func resolveSessionNativeSkillRoots(input nativeSkillRootResolution) []string {
+func resolveSessionNativeSkillRoots(input *nativeSkillRootResolution) []string {
+	if input == nil {
+		return nil
+	}
 	provider := canonicalNativeSkillProvider(input.Provider)
 	if provider == "" {
 		return nil
@@ -208,12 +215,12 @@ func resolveSessionNativeSkillRoots(input nativeSkillRootResolution) []string {
 
 func canonicalNativeSkillProvider(provider string) string {
 	switch compozyconfig.CanonicalProviderName(provider) {
-	case "claude":
-		return "claude"
-	case "openclaw":
-		return "openclaw"
-	case "hermes":
-		return "hermes"
+	case nativeProviderClaude:
+		return nativeProviderClaude
+	case nativeProviderOpenClaw:
+		return nativeProviderOpenClaw
+	case nativeProviderHermes:
+		return nativeProviderHermes
 	default:
 		return ""
 	}
@@ -236,9 +243,9 @@ func nativeProviderHome(
 func nativeProviderReadsOrigin(provider string, origin string) bool {
 	switch strings.TrimSpace(origin) {
 	case compozyconfig.SkillSourceAgents:
-		return provider == "openclaw" || provider == "hermes"
+		return provider == nativeProviderOpenClaw || provider == nativeProviderHermes
 	case compozyconfig.SkillSourceClaude:
-		return provider == "claude"
+		return provider == nativeProviderClaude
 	default:
 		return false
 	}

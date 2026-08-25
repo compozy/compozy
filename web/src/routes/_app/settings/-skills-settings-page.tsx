@@ -116,7 +116,7 @@ export function SkillsSettingsPage() {
       {!envelope.runtime_available ? (
         <SettingsRuntimeUnavailable
           slug="skills"
-          description="Compozy isn't reachable right now. Skill counts are hidden until it's back. You can still change these settings."
+          description="CompozyOS isn't reachable right now. Skill counts are hidden until it's back. You can still change these settings."
         />
       ) : null}
       {isPersonalPolicyScope ? (

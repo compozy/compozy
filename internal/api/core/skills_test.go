@@ -351,7 +351,7 @@ func performSkillExposureRequest(
 	body string,
 ) *httptest.ResponseRecorder {
 	t.Helper()
-	request := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(body))
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, path, bytes.NewBufferString(body))
 	request.Header.Set("Content-Type", "application/json")
 	response := httptest.NewRecorder()
 	engine.ServeHTTP(response, request)
@@ -453,10 +453,14 @@ func TestSkillExposureEndpoints(t *testing.T) {
 		skill.Source = skills.SourceProfile
 		repository := &exposureMemoryStore{}
 		targetRoot := filepath.Join(root, ".agents", "skills")
-		engine := newSkillExposureFixture(t, skill, []compozyconfig.SkillRootSpec{{
-			Dir: targetRoot, SourceSlug: compozyconfig.SkillSourceAgents,
-			Kind: compozyconfig.RootKindPreset, ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
-		}}, repository, testutil.StubWorkspaceService{})
+		engine := newSkillExposureFixture(t, skill, []compozyconfig.SkillRootSpec{
+			{
+				Dir:           targetRoot,
+				SourceSlug:    compozyconfig.SkillSourceAgents,
+				Kind:          compozyconfig.RootKindPreset,
+				ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+			},
+		}, repository, testutil.StubWorkspaceService{})
 
 		response := performSkillExposureRequest(
 			t, engine, "/api/skills/review-checklist/expose", `{"targets":["agents"]}`,
@@ -558,7 +562,9 @@ func TestSkillExposureEndpoints(t *testing.T) {
 			t.Fatalf("expose status = %d, body = %s", exposed.Code, exposed.Body.String())
 		}
 
-		detailRequest := httptest.NewRequest(http.MethodGet, "/api/skills/review-checklist", nil)
+		detailRequest := httptest.NewRequestWithContext(
+			t.Context(), http.MethodGet, "/api/skills/review-checklist", http.NoBody,
+		)
 		detailResponse := httptest.NewRecorder()
 		engine.ServeHTTP(detailResponse, detailRequest)
 		var detail contract.SkillResponse
@@ -570,7 +576,7 @@ func TestSkillExposureEndpoints(t *testing.T) {
 			t.Fatalf("detail = %#v", detail)
 		}
 
-		listRequest := httptest.NewRequest(http.MethodGet, "/api/skills", nil)
+		listRequest := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/skills", http.NoBody)
 		listResponse := httptest.NewRecorder()
 		engine.ServeHTTP(listResponse, listRequest)
 		var list contract.SkillsResponse

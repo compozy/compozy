@@ -7,6 +7,12 @@ import (
 	"strings"
 )
 
+const (
+	skillSourceErrorDuplicate   = "duplicate_skill_source"
+	skillSourceErrorInvalidPath = "invalid_source_path"
+	skillSourceErrorUnknown     = "unknown_skill_source"
+)
+
 // SkillSourceValidationError reports one portable source-policy validation failure.
 type SkillSourceValidationError struct {
 	Code           string
@@ -34,7 +40,7 @@ func ValidateSkillSources(slugs []string) error {
 		slug := strings.TrimSpace(raw)
 		if _, ok := seen[slug]; ok {
 			return &SkillSourceValidationError{
-				Code: "duplicate_skill_source", Source: slug,
+				Code: skillSourceErrorDuplicate, Source: slug,
 				Message: fmt.Sprintf("duplicate skill source preset %q", slug),
 			}
 		}
@@ -51,7 +57,7 @@ func ValidateSkillSources(slugs []string) error {
 			)
 		}
 		return &SkillSourceValidationError{
-			Code: "unknown_skill_source", Source: slug, Valid: valid,
+			Code: skillSourceErrorUnknown, Source: slug, Valid: valid,
 			Suggestion: suggestion, Message: message,
 		}
 	}
@@ -141,7 +147,7 @@ func (c SkillsConfig) ValidateForScopeAtRoot(scope WriteScope, layerRoot string,
 				owner = root.SourceSlug
 			}
 			return &SkillSourceValidationError{
-				Code: "duplicate_skill_source", Path: path, ExistingSource: owner,
+				Code: skillSourceErrorDuplicate, Path: path, ExistingSource: owner,
 				Message: fmt.Sprintf("skill source path %q is already owned by source %q", path, owner),
 			}
 		}
@@ -170,7 +176,7 @@ func validateCustomSkillSourcePaths(paths []string, scope WriteScope) error {
 		canonical := canonicalSkillSourcePath(path)
 		if existing, ok := seen[canonical]; ok {
 			return &SkillSourceValidationError{
-				Code:           "duplicate_skill_source",
+				Code:           skillSourceErrorDuplicate,
 				Path:           raw,
 				ExistingSource: existing,
 				Message:        fmt.Sprintf("duplicate skill source path %q already configured by %q", raw, existing),
@@ -202,7 +208,7 @@ func validateDuplicateSkillSourceRoots(sources []string, custom []string) error 
 			continue
 		}
 		return &SkillSourceValidationError{
-			Code:           "duplicate_skill_source",
+			Code:           skillSourceErrorDuplicate,
 			Path:           raw,
 			ExistingSource: owner,
 			Message:        fmt.Sprintf("skill source path %q is already owned by source %q", raw, owner),
@@ -213,7 +219,7 @@ func validateDuplicateSkillSourceRoots(sources []string, custom []string) error 
 
 func invalidSkillSourcePath(path string, reason string) error {
 	return &SkillSourceValidationError{
-		Code:    "invalid_source_path",
+		Code:    skillSourceErrorInvalidPath,
 		Path:    path,
 		Message: fmt.Sprintf("invalid skill source path %q: %s", path, reason),
 	}

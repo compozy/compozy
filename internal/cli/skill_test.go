@@ -319,7 +319,7 @@ func TestSkillSourcesCommand(t *testing.T) {
 	response := contract.SettingsSkillsResponse{
 		Sources: []contract.SettingsSkillSourcePayload{
 			{
-				Slug: "compozy", Label: "Compozy", Kind: "builtin", Enabled: true, AlwaysOn: true,
+				Slug: "compozy", Label: "CompozyOS", Kind: "builtin", Enabled: true, AlwaysOn: true,
 				WorkspacePath: ".compozy/skills", GlobalPath: "~/.compozy/skills",
 				Roots: []contract.SettingsSkillSourceRootPayload{{
 					RootID: "root-compozy", Path: "/home/.compozy/skills", Exists: true, Readable: true,
@@ -3182,7 +3182,10 @@ func newMarketplaceTestServer(t *testing.T, fixture marketplaceServerFixture) *m
 			return
 		case request.Method == http.MethodGet && strings.HasPrefix(request.URL.Path, "/api/v1/skills/") && strings.Contains(request.URL.Path, "/versions/") && strings.HasSuffix(request.URL.Path, "/archive"):
 			slug := strings.TrimPrefix(request.URL.Path, "/api/v1/skills/")
-			slug, _, _ = strings.Cut(slug, "/versions/")
+			slug, versionPath, found := strings.Cut(slug, "/versions/")
+			if !found || strings.TrimSpace(versionPath) == "" {
+				t.Fatalf("archive request path has no version: %q", request.URL.Path)
+			}
 			slug = decodeSkillSlug(t, slug)
 
 			download, ok := srv.fixture.downloads[slug]

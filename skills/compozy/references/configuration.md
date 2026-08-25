@@ -122,7 +122,7 @@ Marketplace catalog configuration is global-only because its projection and refr
 
 ## Skill Sources
 
-`skills.sources` selects folder conventions besides Compozy's own; the closed preset table is
+`skills.sources` selects folder conventions besides CompozyOS's own; the closed preset table is
 `agents` (default on) and `claude` (off). Any other name fails with `unknown_skill_source`, which
 carries `valid` and `suggestion`. `skills.custom_sources` lists extra directories scanned exactly as
 written; absolute and `~/` paths are valid at every scope, workspace-relative paths only at workspace

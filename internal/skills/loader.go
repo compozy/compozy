@@ -15,6 +15,7 @@ import (
 
 const (
 	loaderVersionKey = "version"
+	skillAgentKind   = "agent"
 )
 
 const skillFileName = skillscan.SkillFileName
@@ -40,7 +41,7 @@ var allowedFrontmatterFields = map[string]struct{}{
 	"model":                    {},
 	"effort":                   {},
 	"context":                  {},
-	"agent":                    {},
+	skillAgentKind:             {},
 	"background":               {},
 	"hooks":                    {},
 	"paths":                    {},

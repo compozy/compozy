@@ -86,7 +86,7 @@ describe("sessionCommandMenuCatalog", () => {
     });
   });
 
-  it("Should carry a foreign origin and leave Compozy-native rows unlabeled", () => {
+  it("Should carry a foreign origin and leave CompozyOS-native rows unlabeled", () => {
     const native = command("skill:workspace::review", "/review", "skill", ["standalone"]);
     const absorbed = command("skill:user::pdf-tools", "/pdf-tools", "skill", ["standalone"]);
     const catalog = sessionCommandMenuCatalog([

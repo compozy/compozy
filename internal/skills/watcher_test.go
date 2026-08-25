@@ -190,8 +190,18 @@ func TestWatcherDetectChangesUsesDynamicRootsProvider(t *testing.T) {
 
 		removedRoot := t.TempDir()
 		replacementRoot := t.TempDir()
-		removedPath := writeSkillFile(t, removedRoot, filepath.Join("removed", skillFileName), skillWithDescription("removed", "Removed"))
-		replacementPath := writeSkillFile(t, replacementRoot, filepath.Join("replacement", skillFileName), skillWithDescription("replacement", "Replacement"))
+		removedPath := writeSkillFile(
+			t,
+			removedRoot,
+			filepath.Join("removed", skillFileName),
+			skillWithDescription("removed", "Removed"),
+		)
+		replacementPath := writeSkillFile(
+			t,
+			replacementRoot,
+			filepath.Join("replacement", skillFileName),
+			skillWithDescription("replacement", "Replacement"),
+		)
 		activeRoots := []string{removedRoot}
 		spy := newRefreshSpy()
 		watcher := newTestWatcher(spy, time.Millisecond)
@@ -214,7 +224,11 @@ func TestWatcherDetectChangesUsesDynamicRootsProvider(t *testing.T) {
 		_, retainedReplacement := watcher.snapshots[replacementPath]
 		watcher.mu.Unlock()
 		if retainedRemoved || !retainedReplacement {
-			t.Fatalf("watcher snapshots retain removed=%t replacement=%t, want false/true", retainedRemoved, retainedReplacement)
+			t.Fatalf(
+				"watcher snapshots retain removed=%t replacement=%t, want false/true",
+				retainedRemoved,
+				retainedReplacement,
+			)
 		}
 	})
 }

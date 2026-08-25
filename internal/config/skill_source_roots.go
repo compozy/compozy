@@ -58,7 +58,15 @@ func (r WorkspaceDiscoveryRoot) SkillsDirs(cfg *SkillsConfig) []SkillRootSpec {
 			if !ok || preset.AlwaysOn || strings.TrimSpace(preset.WorkspaceRel) == "" {
 				continue
 			}
-			roots = append(roots, r.skillRootSpec(filepath.Join(r.Dir, filepath.FromSlash(preset.WorkspaceRel)), slug, RootKindPreset, scope))
+			roots = append(
+				roots,
+				r.skillRootSpec(
+					filepath.Join(r.Dir, filepath.FromSlash(preset.WorkspaceRel)),
+					slug,
+					RootKindPreset,
+					scope,
+				),
+			)
 		}
 	}
 
@@ -172,7 +180,10 @@ func (r WorkspaceDiscoveryRoot) skillResourceScope() resources.ResourceScope {
 	case WorkspaceDiscoverySourceProfile:
 		return resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: strings.TrimSpace(r.ProfileID)}
 	case WorkspaceDiscoverySourceWorkspaceProfile:
-		return resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspaceProfile, ID: strings.TrimSpace(r.ResourceScopeID)}
+		return resources.ResourceScope{
+			Kind: resources.ResourceScopeKindWorkspaceProfile,
+			ID:   strings.TrimSpace(r.ResourceScopeID),
+		}
 	default:
 		return resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: strings.TrimSpace(r.WorkspaceID)}
 	}

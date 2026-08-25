@@ -31,7 +31,7 @@ func renderSkillExposureExecutionError(err error) (string, bool) {
 		count += "; completed targets rolled back"
 	}
 	title := "Error: skill exposure failed (" + count + ")"
-	if _, created := errors.AsType[*skillCreatedExposureError](err); created {
+	if createdErr, created := errors.AsType[*skillCreatedExposureError](err); created && createdErr != nil {
 		title += " — the skill was created; fix the cause and run `compozy skill expose`"
 	}
 	lines := []string{title}

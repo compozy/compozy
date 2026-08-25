@@ -335,7 +335,7 @@ func (w *Watcher) currentRoots(ctx context.Context) ([]string, map[string]struct
 	if err != nil {
 		return nil, nil, err
 	}
-	additionalAgentRoots, err := resolveWatcherRootsProvider(ctx, w.agentRootsProvider, "agent")
+	additionalAgentRoots, err := resolveWatcherRootsProvider(ctx, w.agentRootsProvider, skillAgentKind)
 	if err != nil {
 		return nil, nil, err
 	}

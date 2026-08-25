@@ -57,7 +57,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Compozy always on, the universal folders on, Claude available but off. */
+/** CompozyOS always on, the universal folders on, Claude available but off. */
 export const Default: Story = { args: { model: model() } };
 
 /**

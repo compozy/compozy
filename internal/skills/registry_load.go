@@ -101,13 +101,13 @@ func selectedRootPaths(scans []configuredRootScan) map[int][]string {
 
 	selected := make(map[int][]string, len(scans))
 	winners := make(map[string]selection)
-	for index := len(scans) - 1; index >= 0; index-- {
-		for _, path := range scans[index].result.Paths {
-			realPath := scans[index].result.RealPaths[path]
+	for index, v := range slices.Backward(scans) {
+		for _, path := range v.result.Paths {
+			realPath := v.result.RealPaths[path]
 			candidate := selection{
 				index:             index,
 				path:              path,
-				firstLevelSymlink: pathUsesFirstLevelSymlink(scans[index].spec.Dir, path),
+				firstLevelSymlink: pathUsesFirstLevelSymlink(v.spec.Dir, path),
 			}
 			winner, exists := winners[realPath]
 			if exists && (!winner.firstLevelSymlink || candidate.firstLevelSymlink) {
@@ -127,7 +127,8 @@ func selectedRootPaths(scans []configuredRootScan) map[int][]string {
 
 func pathUsesFirstLevelSymlink(root string, skillPath string) bool {
 	relative, err := filepath.Rel(root, skillPath)
-	if err != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+	if err != nil || relative == "." || relative == ".." ||
+		strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 		return false
 	}
 	first, _, _ := strings.Cut(relative, string(filepath.Separator))
@@ -229,61 +230,6 @@ func (r *Registry) loadBundledSkills(
 			continue
 		}
 		*candidates = append(*candidates, cloneSkill(skill))
-	}
-
-	return nil
-}
-
-func (r *Registry) loadDirectorySkills(
-	ctx context.Context,
-	dir string,
-	source SkillSource,
-	dst map[string]*Skill,
-	snapshots map[string]filesnap.Snapshot,
-	disabledSkills []string,
-	diagnostics *[]SkillDiagnostic,
-) error {
-	root := strings.TrimSpace(dir)
-	if root == "" {
-		return nil
-	}
-
-	paths, dirSnapshots, err := scanDirectoryWithSnapshots(root)
-	if err != nil {
-		return err
-	}
-	maps.Copy(snapshots, dirSnapshots)
-	if err := recordSidecarSnapshots(paths, snapshots); err != nil {
-		return err
-	}
-
-	return r.loadSkillPaths(ctx, paths, source, dst, disabledSkills, diagnostics)
-}
-
-func (r *Registry) loadSkillPaths(
-	ctx context.Context,
-	paths []string,
-	source SkillSource,
-	dst map[string]*Skill,
-	disabledSkills []string,
-	diagnostics *[]SkillDiagnostic,
-) error {
-	for _, skillPath := range paths {
-		if err := checkRegistryContext(ctx); err != nil {
-			return err
-		}
-
-		skill, content, err := parseSkillFileDocument(skillPath)
-		if err != nil {
-			appendSkillDiagnostic(diagnostics, skillDefinitionFailedDiagnostic(skillPath, skillSourceName(source), err))
-			continue
-		}
-		if err := r.assignSourceAndProvenance(skill, source); err != nil {
-			return err
-		}
-		if !r.processSkillWithDiagnostics(dst, skill, content, disabledSkills, diagnostics) {
-			continue
-		}
 	}
 
 	return nil

@@ -22,7 +22,7 @@ only when it needs it.
     href="/docs/skills/sources"
     label="Sources"
     title="Use skills from your other tools"
-    description="Use this page to turn on the folder conventions other agent tools already use, see where every skill came from, and expose a Compozy skill back to them."
+    description="Use this page to turn on the folder conventions other agent tools already use, see where every skill came from, and expose a CompozyOS skill back to them."
     meta="Walkthrough"
   />
   <RouteRow
@@ -123,7 +123,7 @@ overrides or augments the already-resolved base set.
 
 ## Where CompozyOS Looks
 
-Compozy's own skill folders are always scanned. Two configuration keys add more folders:
+CompozyOS's own skill folders are always scanned. Two configuration keys add more folders:
 
 - `skills.sources` names the folder conventions other agent tools already use. CompozyOS ships a
   closed table: `agents` (`.agents/skills` and `~/.agents/skills`, on by default) and `claude`
@@ -153,7 +153,7 @@ labels; clients never rebuild them from paths.
 
 A skill carries two independent facts. Its **tier** is the precedence layer that won, and its
 **origin** is the folder convention or custom directory the winning copy came from. Skills in
-Compozy's own folders have no origin label; everything else carries one — `agents`, `claude`, or a
+CompozyOS's own folders have no origin label; everything else carries one — `agents`, `claude`, or a
 custom source's name, taken from that directory's own name.
 
 Origin is visible wherever you pick or manage a skill: the `ORIGIN` column of `compozy skill list`,

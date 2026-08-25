@@ -52,7 +52,7 @@ function withSources(mutate: (sources: SettingsSkillSource[]) => void): Settings
 }
 
 describe("SettingsSkillSourcesSection", () => {
-  it("Should render the always-on Compozy row without a switch", () => {
+  it("Should render the always-on CompozyOS row without a switch", () => {
     render(<SettingsSkillSourcesSection model={model()} />);
 
     const row = screen.getByTestId("settings-page-skills-source-compozy");

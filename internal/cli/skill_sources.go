@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -11,7 +12,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const skillSourcesCommandName = "sources"
+const (
+	skillSourcesCommandName = cliSourcesKey
+	skillSourcesField       = skillSourcesCommandName
+	skillCustomSourcesField = "custom_sources"
+)
 
 type skillSourcesRecord struct {
 	Scope       string                                          `json:"scope"`
@@ -97,7 +102,7 @@ func skillSourcesBundle(record skillSourcesRecord) outputBundle {
 		human: func() (string, error) {
 			return renderHumanBlocks(
 				renderHumanTable("", []string{
-					"SOURCE", "STATE", "WORKSPACE PATH", "GLOBAL PATH", "SKILLS", "NOTES",
+					cliSourceHeader, "STATE", "WORKSPACE PATH", "GLOBAL PATH", "SKILLS", "NOTES",
 				}, skillSourceRows(record.Sources)),
 				skillSourcesFooter(record),
 			), nil
@@ -111,10 +116,10 @@ func skillSourcesBundle(record skillSourcesRecord) outputBundle {
 			}
 			return renderHumanBlocks(
 				renderToonObject("scope", []string{
-					"kind", "workspace_id", "inherits_sources", "inherits_custom_sources",
+					cliKindKey, "workspace_id", "inherits_sources", "inherits_custom_sources",
 				}, []string{record.Scope, record.WorkspaceID, inheritsSources, inheritsCustom}),
-				renderToonArray("sources", []string{
-					"source", "state", "workspace_path", "global_path", "skills", "notes",
+				renderToonArray(cliSourcesKey, []string{
+					cliSourceKey, stateKey, "workspace_path", "global_path", configSkillsKey, "notes",
 				}, skillSourceRows(record.Sources)),
 			), nil
 		},
@@ -145,7 +150,7 @@ func skillSourceState(source contract.SettingsSkillSourcePayload) string {
 		return "always on"
 	}
 	if source.Enabled {
-		return "enabled"
+		return cliEnabledKey
 	}
 	return "disabled"
 }
@@ -189,10 +194,8 @@ func skillSourceNotes(roots []contract.SettingsSkillSourceRootPayload) []string 
 }
 
 func appendUniqueString(values []string, value string) []string {
-	for _, existing := range values {
-		if existing == value {
-			return values
-		}
+	if slices.Contains(values, value) {
+		return values
 	}
 	return append(values, value)
 }
@@ -212,14 +215,14 @@ func skillSourceInheritanceLabels(
 	value *contract.SettingsSkillSourceInheritancePayload,
 ) ([]string, []string) {
 	if value == nil {
-		return []string{"none"}, []string{"none"}
+		return []string{profileRepoNoneValue}, []string{profileRepoNoneValue}
 	}
 	overrides := make([]string, 0, 2)
 	inherits := make([]string, 0, 2)
 	for _, item := range []struct {
 		name      string
 		inherited bool
-	}{{"sources", value.Sources}, {"custom_sources", value.CustomSources}} {
+	}{{skillSourcesField, value.Sources}, {skillCustomSourcesField, value.CustomSources}} {
 		if item.inherited {
 			inherits = append(inherits, item.name)
 		} else {

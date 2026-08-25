@@ -390,7 +390,7 @@ const emptyRootDiagnostics: Pick<
 export const settingsSkillSourcesFixture: SettingsSkillSource[] = [
   {
     slug: "compozy",
-    label: "Compozy",
+    label: "CompozyOS",
     kind: "builtin",
     enabled: true,
     always_on: true,

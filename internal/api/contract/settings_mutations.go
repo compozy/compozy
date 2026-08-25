@@ -19,7 +19,7 @@ type UpdateSettingsRolesRequest struct {
 }
 
 type UpdateSettingsSkillsRequest struct {
-	Config   SettingsSkillsConfigPayload    `json:"config,omitempty"`
+	Config   SettingsSkillsConfigPayload    `json:"config,omitzero"`
 	Override *SettingsSkillsOverridePayload `json:"override,omitempty"`
 }
 

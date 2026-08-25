@@ -30,7 +30,7 @@ const (
 	automationPathValue      = "Path"
 	automationScopeValue     = "Scope"
 	automationSessionValue   = "Session"
-	automationSourceHeader   = "SOURCE"
+	automationSourceHeader   = cliSourceHeader
 	automationSourceValue    = "Source"
 	automationStartedValue   = "Started"
 	automationStatusValue    = "Status"
@@ -47,14 +47,14 @@ const (
 	automationGetIDValue     = "get <id>"
 	automationHistoryIDValue = "history <id>"
 	automationJobsKey        = "jobs"
-	automationPathKey        = "path"
+	automationPathKey        = cliPathKey
 	automationRootKey        = "automation"
 	automationPromptKey      = "prompt"
 	automationRetryKey       = "retry"
 	automationScheduleKey    = "schedule"
 	automationScheduleValue  = "Schedule"
 	automationScopeKey       = "scope"
-	automationSourceKey      = "source"
+	automationSourceKey      = cliSourceKey
 	automationStartedAtKey   = "started_at"
 	automationStatusKey      = "status"
 	automationTargetKey      = "target"

@@ -15,7 +15,7 @@ func (d *Daemon) nativeToolsDeps(
 ) daemonNativeToolsDeps {
 	agentCatalog := nativeAgentCatalogDependency(state)
 	marketplaceSkills := d.nativeMarketplaceSkills(state)
-	return daemonNativeToolsDeps{
+	deps := daemonNativeToolsDeps{
 		Logger:                     state.logger,
 		Registry:                   registryRef,
 		CmdPalette:                 func() cmdpalette.Registry { return state.cmdPalette },
@@ -69,29 +69,26 @@ func (d *Daemon) nativeToolsDeps(
 		AutomationRuntime: func() core.AutomationManager {
 			return state.deps.Automation
 		},
-		ExtensionRegistry: extensionRegistryDependency(state.registry),
-		Extensions: func() core.ExtensionService {
-			return state.deps.Extensions
-		},
-		ExtensionRuntime: state.currentExtensionRuntime,
-		ExtensionConfig:  state.cfg.Extensions,
-		ExtensionEvents:  extensionEventSummaryStore(state.registry),
-		ExtensionSecrets: state.providerVault,
-		AgentSkillsRuntime: func() agentSkillPublisher {
-			return state.agentSkillResources
-		},
-		ToolMCP:        state.toolMCPResources,
-		ApprovalGrants: state.deps.ApprovalGrants,
-		Clarify: func() toolspkg.ClarifyBroker {
-			return state.clarify
-		},
-		LoopResources: state.loopResources,
-		Loops: func() core.LoopService {
-			return state.deps.Loops
-		},
-		Resources:      state.deps.Resources,
-		WindowManagers: state.windowManagers,
 	}
+	d.populateNativeExtensionDeps(&deps, state)
+	return deps
+}
+
+func (d *Daemon) populateNativeExtensionDeps(deps *daemonNativeToolsDeps, state *bootState) {
+	deps.ExtensionRegistry = extensionRegistryDependency(state.registry)
+	deps.Extensions = func() core.ExtensionService { return state.deps.Extensions }
+	deps.ExtensionRuntime = state.currentExtensionRuntime
+	deps.ExtensionConfig = state.cfg.Extensions
+	deps.ExtensionEvents = extensionEventSummaryStore(state.registry)
+	deps.ExtensionSecrets = state.providerVault
+	deps.AgentSkillsRuntime = func() agentSkillPublisher { return state.agentSkillResources }
+	deps.ToolMCP = state.toolMCPResources
+	deps.ApprovalGrants = state.deps.ApprovalGrants
+	deps.Clarify = func() toolspkg.ClarifyBroker { return state.clarify }
+	deps.LoopResources = state.loopResources
+	deps.Loops = func() core.LoopService { return state.deps.Loops }
+	deps.Resources = state.deps.Resources
+	deps.WindowManagers = state.windowManagers
 }
 
 func nativeAgentCatalogDependency(state *bootState) *resourceAgentCatalog {

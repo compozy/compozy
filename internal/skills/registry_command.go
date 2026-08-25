@@ -295,7 +295,7 @@ func commandSkillScope(skill *Skill) string {
 	case SourceWorkspace:
 		return skillSourceWorkspaceName
 	case SourceAgentLocal:
-		return "agent"
+		return skillAgentKind
 	default:
 		return registryGlobalKey
 	}

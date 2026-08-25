@@ -10,7 +10,12 @@ type SkillExposureDependencies struct {
 
 // ResolveSkillExposureDependencies keeps HTTP and UDS exposure wiring identical.
 func ResolveSkillExposureDependencies(value any) SkillExposureDependencies {
-	repository, _ := value.(store.SkillExposureRepository)
-	events, _ := value.(store.EventSummaryStore)
-	return SkillExposureDependencies{Repository: repository, Events: events}
+	dependencies := SkillExposureDependencies{}
+	if repository, ok := value.(store.SkillExposureRepository); ok {
+		dependencies.Repository = repository
+	}
+	if events, ok := value.(store.EventSummaryStore); ok {
+		dependencies.Events = events
+	}
+	return dependencies
 }

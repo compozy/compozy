@@ -84,7 +84,7 @@ func (t authoredAgentTarget) soulAuthoringTarget() soul.AuthoringTarget {
 		AgentName:     t.agentName,
 		AgentPath:     t.agentPath,
 		Config:        t.soulConfig,
-		ConfigSource:  "workspace",
+		ConfigSource:  workspaceScopeValue,
 	}
 }
 
@@ -160,7 +160,7 @@ func pathWithinRoot(root string, sourcePath string) bool {
 }
 
 func (t authoredAgentTarget) soulConfigProvenance() soul.ConfigProvenance {
-	provenance, err := soul.NewConfigProvenance(t.soulConfig, "workspace")
+	provenance, err := soul.NewConfigProvenance(t.soulConfig, workspaceScopeValue)
 	if err != nil {
 		return soul.ConfigProvenance{}
 	}

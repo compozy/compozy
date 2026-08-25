@@ -104,15 +104,50 @@ func TestRegistryConfiguredRootProjection(t *testing.T) {
 		agentsDir := filepath.Join(root, "agents")
 		customDir := filepath.Join(root, "team-skills")
 		compozyDir := filepath.Join(root, "compozy")
-		writeSkillFile(t, agentsDir, filepath.Join("agents-only", skillFileName), skillWithDescription("agents-only", "Agents"))
-		writeSkillFile(t, customDir, filepath.Join("custom-only", skillFileName), skillWithDescription("custom-only", "Custom"))
-		writeSkillFile(t, agentsDir, filepath.Join("shared", skillFileName), skillWithDescription("shared", "Agents shared"))
-		compozyPath := writeSkillFile(t, compozyDir, filepath.Join("shared", skillFileName), skillWithDescription("shared", "Compozy shared"))
+		writeSkillFile(
+			t,
+			agentsDir,
+			filepath.Join("agents-only", skillFileName),
+			skillWithDescription("agents-only", "Agents"),
+		)
+		writeSkillFile(
+			t,
+			customDir,
+			filepath.Join("custom-only", skillFileName),
+			skillWithDescription("custom-only", "Custom"),
+		)
+		writeSkillFile(
+			t,
+			agentsDir,
+			filepath.Join("shared", skillFileName),
+			skillWithDescription("shared", "Agents shared"),
+		)
+		compozyPath := writeSkillFile(
+			t,
+			compozyDir,
+			filepath.Join("shared", skillFileName),
+			skillWithDescription("shared", "Compozy shared"),
+		)
 
 		registry := newTestRegistry(t, RegistryConfig{GlobalSkillRoots: []compozyconfig.SkillRootSpec{
-			{Dir: agentsDir, SourceSlug: compozyconfig.SkillSourceAgents, Kind: compozyconfig.RootKindPreset, ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}},
-			{Dir: customDir, SourceSlug: "team-skills", Kind: compozyconfig.RootKindCustom, ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}},
-			{Dir: compozyDir, SourceSlug: compozyconfig.SkillSourceCompozy, Kind: compozyconfig.RootKindBuiltin, ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}},
+			{
+				Dir:           agentsDir,
+				SourceSlug:    compozyconfig.SkillSourceAgents,
+				Kind:          compozyconfig.RootKindPreset,
+				ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+			},
+			{
+				Dir:           customDir,
+				SourceSlug:    "team-skills",
+				Kind:          compozyconfig.RootKindCustom,
+				ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+			},
+			{
+				Dir:           compozyDir,
+				SourceSlug:    compozyconfig.SkillSourceCompozy,
+				Kind:          compozyconfig.RootKindBuiltin,
+				ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+			},
 		}})
 		if err := registry.LoadAll(t.Context()); err != nil {
 			t.Fatalf("LoadAll() error = %v", err)
@@ -124,7 +159,11 @@ func TestRegistryConfiguredRootProjection(t *testing.T) {
 		}
 		customSkill := findSkill(t, registry.List(), "custom-only")
 		if customSkill.Source != SourceAdditional || customSkill.Origin != "team-skills" {
-			t.Fatalf("custom-only provenance = (%v, %q), want additional/team-skills", customSkill.Source, customSkill.Origin)
+			t.Fatalf(
+				"custom-only provenance = (%v, %q), want additional/team-skills",
+				customSkill.Source,
+				customSkill.Origin,
+			)
 		}
 		shared := findSkill(t, registry.List(), "shared")
 		if shared.Source != SourceUser || shared.Origin != "" || shared.FilePath != compozyPath {
@@ -146,8 +185,18 @@ func TestRegistryConfiguredRootProjection(t *testing.T) {
 			t.Skipf("Symlink(%q, %q) unavailable: %v", realRoot, aliasRoot, err)
 		}
 		registry := newTestRegistry(t, RegistryConfig{GlobalSkillRoots: []compozyconfig.SkillRootSpec{
-			{Dir: realRoot, SourceSlug: compozyconfig.SkillSourceAgents, Kind: compozyconfig.RootKindPreset, ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}},
-			{Dir: aliasRoot, SourceSlug: compozyconfig.SkillSourceCompozy, Kind: compozyconfig.RootKindBuiltin, ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}},
+			{
+				Dir:           realRoot,
+				SourceSlug:    compozyconfig.SkillSourceAgents,
+				Kind:          compozyconfig.RootKindPreset,
+				ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+			},
+			{
+				Dir:           aliasRoot,
+				SourceSlug:    compozyconfig.SkillSourceCompozy,
+				Kind:          compozyconfig.RootKindBuiltin,
+				ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+			},
 		}})
 		if err := registry.LoadAll(t.Context()); err != nil {
 			t.Fatalf("LoadAll() error = %v", err)
@@ -162,8 +211,18 @@ func TestRegistryConfiguredRootProjection(t *testing.T) {
 		t.Parallel()
 
 		workspaceRoot := t.TempDir()
-		agentsPath := writeSkillFile(t, filepath.Join(workspaceRoot, ".agents", "skills"), filepath.Join("shared", skillFileName), skillWithDescription("shared", "Agents workspace"))
-		compozyPath := writeSkillFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.SkillsDirName), filepath.Join("shared", skillFileName), skillWithDescription("shared", "Compozy workspace"))
+		agentsPath := writeSkillFile(
+			t,
+			filepath.Join(workspaceRoot, ".agents", "skills"),
+			filepath.Join("shared", skillFileName),
+			skillWithDescription("shared", "Agents workspace"),
+		)
+		compozyPath := writeSkillFile(
+			t,
+			filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.SkillsDirName),
+			filepath.Join("shared", skillFileName),
+			skillWithDescription("shared", "Compozy workspace"),
+		)
 		canonicalAgentsPath, err := filepath.EvalSymlinks(agentsPath)
 		if err != nil {
 			t.Fatalf("EvalSymlinks(agents path) error = %v", err)
@@ -183,8 +242,13 @@ func TestRegistryConfiguredRootProjection(t *testing.T) {
 		if shared.Source != SourceWorkspace || shared.Origin != "" || shared.FilePath != canonicalCompozyPath {
 			t.Fatalf("shared winner = %#v, want workspace compozy root", shared)
 		}
-		if len(shared.Diagnostics.ShadowedDefinitions) != 1 || shared.Diagnostics.ShadowedDefinitions[0].Path != canonicalAgentsPath {
-			t.Fatalf("shared shadows = %#v, want agents path %q", shared.Diagnostics.ShadowedDefinitions, canonicalAgentsPath)
+		if len(shared.Diagnostics.ShadowedDefinitions) != 1 ||
+			shared.Diagnostics.ShadowedDefinitions[0].Path != canonicalAgentsPath {
+			t.Fatalf(
+				"shared shadows = %#v, want agents path %q",
+				shared.Diagnostics.ShadowedDefinitions,
+				canonicalAgentsPath,
+			)
 		}
 	})
 }
@@ -457,7 +521,11 @@ func TestRegistryConfigGenerationFence(t *testing.T) {
 		eventStore := &recordingSkillEventSummaryStore{}
 		registry := newTestRegistry(t, RegistryConfig{}, WithEventSummaryStore(eventStore))
 		initialRecord := skillResourceRecord("initial", "Initial catalog")
-		if err := registry.ApplyResourceRecords(t.Context(), 1, []resources.Record[SkillResourceSpec]{initialRecord}); err != nil {
+		if err := registry.ApplyResourceRecords(
+			t.Context(),
+			1,
+			[]resources.Record[SkillResourceSpec]{initialRecord},
+		); err != nil {
 			t.Fatalf("ApplyResourceRecords(initial) error = %v", err)
 		}
 
@@ -559,7 +627,11 @@ func TestRegistryConfigGenerationFence(t *testing.T) {
 		}), 2)
 		exposureFixture := newExposureFixture(t, "agents")
 		exposureFixture.manager.events = eventStore
-		if _, err := exposureFixture.manager.Expose(exposureCtx, exposureFixture.skill, []string{"agents"}); err != nil {
+		if _, err := exposureFixture.manager.Expose(
+			exposureCtx,
+			exposureFixture.skill,
+			[]string{"agents"},
+		); err != nil {
 			t.Fatalf("Expose(observability fixture) error = %v", err)
 		}
 		if err := os.RemoveAll(exposureFixture.skill.Dir); err != nil {
@@ -571,7 +643,11 @@ func TestRegistryConfigGenerationFence(t *testing.T) {
 		if err := os.MkdirAll(exposureFixture.skill.Dir, 0o755); err != nil {
 			t.Fatalf("MkdirAll(restored canonical skill) error = %v", err)
 		}
-		if _, err := exposureFixture.manager.Unexpose(exposureCtx, exposureFixture.skill, []string{"agents"}); err != nil {
+		if _, err := exposureFixture.manager.Unexpose(
+			exposureCtx,
+			exposureFixture.skill,
+			[]string{"agents"},
+		); err != nil {
 			t.Fatalf("Unexpose(observability fixture) error = %v", err)
 		}
 
@@ -636,7 +712,8 @@ func assertSkillLifecycleObservabilityMatrix(t *testing.T, summaries []store.Eve
 			!strings.HasPrefix(summary.Type, "skills.exposure.") {
 			continue
 		}
-		if summary.ProfileID == "" || summary.EventCorrelation.ActorKind == "" || summary.EventCorrelation.ActorID == "" {
+		if summary.ProfileID == "" || summary.ActorKind == "" ||
+			summary.ActorID == "" {
 			t.Fatalf("source event %q correlation = %#v, want profile and actor", summary.Type, summary)
 		}
 		var content map[string]any
@@ -2762,7 +2839,11 @@ func TestRegistryCommandCandidatesPreservePreOverlayRootIdentity(t *testing.T) {
 				rootID: candidate.RootID, qualified: candidate.Qualified,
 			})
 			if candidate.RootID != "" && !strings.HasPrefix(candidate.SourceKey, candidate.RootID+"@generation:") {
-				t.Fatalf("candidate source key = %q, want opaque generation under RootID %q", candidate.SourceKey, candidate.RootID)
+				t.Fatalf(
+					"candidate source key = %q, want opaque generation under RootID %q",
+					candidate.SourceKey,
+					candidate.RootID,
+				)
 			}
 		}
 		want := []projection{
@@ -2778,8 +2859,13 @@ func TestRegistryCommandCandidatesPreservePreOverlayRootIdentity(t *testing.T) {
 			{
 				ID: "agents-user:deploy", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
 				Spec: SkillResourceSpec{
-					Name: "deploy", Description: "User agents deploy", Source: skillSourceName(SourceUser),
-					Origin: "agents", RootID: "root_agents_user", FilePath: "/user/agents/deploy/SKILL.md", Enabled: true,
+					Name:        "deploy",
+					Description: "User agents deploy",
+					Source:      skillSourceName(SourceUser),
+					Origin:      "agents",
+					RootID:      "root_agents_user",
+					FilePath:    "/user/agents/deploy/SKILL.md",
+					Enabled:     true,
 				},
 			},
 			{

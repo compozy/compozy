@@ -37,7 +37,11 @@ func TestLoopActionEnvironmentRealGitIntegration(t *testing.T) {
 		runLoopEnvironmentGit(t, runner, repository, "init", "-b", "main")
 		runLoopEnvironmentGit(t, runner, repository, "config", "user.name", "Compozy Integration")
 		runLoopEnvironmentGit(t, runner, repository, "config", "user.email", "integration@compozy.test")
-		if err := os.WriteFile(filepath.Join(repository, "README.md"), []byte("loop environment\n"), 0o600); err != nil {
+		if err := os.WriteFile(
+			filepath.Join(repository, "README.md"),
+			[]byte("loop environment\n"),
+			0o600,
+		); err != nil {
 			t.Fatalf("WriteFile(README.md) error = %v", err)
 		}
 		runLoopEnvironmentGit(t, runner, repository, "add", "README.md")

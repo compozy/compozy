@@ -73,23 +73,9 @@ func (s *service) buildSkillsSection(
 		return SkillsSection{}, err
 	}
 
-	var (
-		skills  []*skillspkg.Skill
-		loadErr error
-	)
-	if scope == ScopeAgent {
-		skills, loadErr = s.skillsRuntime.ForAgent(ctx, projection, agentName)
-	} else if projection != nil {
-		if workspaceRuntime, ok := s.skillsRuntime.(SkillsWorkspaceRuntime); ok {
-			skills, loadErr = workspaceRuntime.ForWorkspace(ctx, projection)
-		} else {
-			skills = s.skillsRuntime.List()
-		}
-	} else {
-		skills = s.skillsRuntime.List()
-	}
-	if loadErr != nil {
-		return SkillsSection{}, mapSkillsSettingsError(loadErr)
+	skills, err := s.loadSkillsForSection(ctx, projection, scope, agentName)
+	if err != nil {
+		return SkillsSection{}, mapSkillsSettingsError(err)
 	}
 	section.RuntimeAvailable = true
 	section.DiscoveredCount = len(skills)
@@ -120,6 +106,23 @@ func (s *service) buildSkillsSection(
 	}
 
 	return section, nil
+}
+
+func (s *service) loadSkillsForSection(
+	ctx context.Context,
+	projection *workspacepkg.ResolvedWorkspace,
+	scope ScopeKind,
+	agentName string,
+) ([]*skillspkg.Skill, error) {
+	if scope == ScopeAgent {
+		return s.skillsRuntime.ForAgent(ctx, projection, agentName)
+	}
+	if projection != nil {
+		if runtime, ok := s.skillsRuntime.(SkillsWorkspaceRuntime); ok {
+			return runtime.ForWorkspace(ctx, projection)
+		}
+	}
+	return s.skillsRuntime.List(), nil
 }
 
 func (s *service) buildAutomationSection(

@@ -12,6 +12,11 @@ import (
 
 var errProviderDirSymlink = errors.New("isolated provider directory contains symlink")
 
+const (
+	nativeAgentsDir   = ".agents"
+	providerCodexName = "codex"
+)
+
 // ApplyHomePolicy updates provider launch environment according to the provider
 // home policy. Operator home intentionally leaves the incoming env untouched.
 func ApplyHomePolicy(
@@ -293,16 +298,16 @@ var providerHomeSpecs = map[string]ProviderHomeSpec{
 		EnvKeys: []string{"CLAUDE_CONFIG_DIR"}, IsolatedChild: "claude",
 		OperatorFallback: ".claude", WorkspaceSkillDir: ".claude",
 	},
-	"codex": {
-		EnvKeys: []string{"CODEX_HOME", "PROVIDER_CODEX_HOME"}, IsolatedChild: "codex",
+	providerCodexName: {
+		EnvKeys: []string{"CODEX_HOME", "PROVIDER_CODEX_HOME"}, IsolatedChild: providerCodexName,
 	},
 	"hermes": {
 		EnvKeys: []string{"HERMES_HOME"}, IsolatedChild: "hermes",
-		OperatorFallback: ".hermes", WorkspaceSkillDir: ".agents",
+		OperatorFallback: ".hermes", WorkspaceSkillDir: nativeAgentsDir,
 	},
 	"openclaw": {
 		EnvKeys: []string{"OPENCLAW_STATE_DIR"}, IsolatedChild: "openclaw",
-		OperatorFallback: ".agents", WorkspaceSkillDir: ".agents",
+		OperatorFallback: nativeAgentsDir, WorkspaceSkillDir: nativeAgentsDir,
 	},
 	"opencode": {
 		EnvKeys: []string{"OPENCODE_CONFIG_DIR"}, IsolatedChild: "opencode",

@@ -43,7 +43,7 @@ export function skillSourceLabel(source: string): string {
 }
 
 /**
- * The source slug that contributed a skill, or null when it is Compozy-native.
+ * The source slug that contributed a skill, or null when it is CompozyOS-native.
  * One vocabulary for the picker, the catalog cards, and the expose panel — and
  * nothing is derived: the daemon either reports an origin or it does not.
  */

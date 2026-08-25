@@ -32,7 +32,8 @@ func (s *service) updateSkillsSection(
 		return MutationResult{}, fmt.Errorf("settings: load section %q config: %w", SectionSkills, err)
 	}
 
-	if scope == ScopeAgent {
+	switch {
+	case scope == ScopeAgent:
 		if req.Skills == nil {
 			return MutationResult{}, validationError(errors.New("settings: skills config is required at agent scope"))
 		}
@@ -40,18 +41,34 @@ func (s *service) updateSkillsSection(
 			return MutationResult{}, validationError(errors.New("settings: agent scope requires agent_name"))
 		}
 		return s.updateAgentSkillsSection(cfg.Skills, resolved, workspaceID, agentName, *req.Skills)
-	}
-	if scope == ScopeWorkspace || (scope == ScopeProfile && req.SkillSourcesOverride != nil) {
+	case scope == ScopeWorkspace || (scope == ScopeProfile && req.SkillSourcesOverride != nil):
 		if req.SkillSourcesOverride == nil {
-			return MutationResult{}, validationError(errors.New("settings: skills override is required at workspace scope"))
+			return MutationResult{}, validationError(
+				errors.New("settings: skills override is required at workspace scope"),
+			)
 		}
-		return s.updateScopedSkillSources(scope, workspaceID, req.ProfileName, cfg.Skills, resolved, *req.SkillSourcesOverride)
+		return s.updateScopedSkillSources(
+			scope,
+			workspaceID,
+			req.ProfileName,
+			cfg.Skills,
+			resolved,
+			*req.SkillSourcesOverride,
+		)
 	}
 	if req.Skills == nil {
 		return MutationResult{}, validationError(errors.New("settings: skills config is required"))
 	}
-	next := *req.Skills
-	profileName, err := normalizeSettingsProfileName(scope, req.ProfileName)
+	return s.updateLayeredSkillsSection(scope, req.ProfileName, cfg.Skills, *req.Skills)
+}
+
+func (s *service) updateLayeredSkillsSection(
+	scope ScopeKind,
+	requestedProfileName string,
+	current compozyconfig.SkillsConfig,
+	next compozyconfig.SkillsConfig,
+) (MutationResult, error) {
+	profileName, err := normalizeSettingsProfileName(scope, requestedProfileName)
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -71,7 +88,6 @@ func (s *service) updateSkillsSection(
 		return MutationResult{}, validationError(err)
 	}
 
-	current := cfg.Skills
 	changed := diffSkillsSettings(current, next)
 	if len(changed) == 0 {
 		return MutationResult{
@@ -147,7 +163,9 @@ func (s *service) updateScopedSkillSources(
 		return MutationResult{}, errors.New("settings: resolved workspace is required for skills update")
 	}
 	if !override.Sources.Present && !override.CustomSources.Present {
-		return MutationResult{}, validationError(errors.New("settings: skills override must include sources or custom_sources"))
+		return MutationResult{}, validationError(
+			errors.New("settings: skills override must include sources or custom_sources"),
+		)
 	}
 
 	candidate := current
