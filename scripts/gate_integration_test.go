@@ -138,6 +138,33 @@ exit 0
 		}
 	})
 
+	t.Run("Should collapse redundant Go scopes when the whole module is required", func(t *testing.T) {
+		t.Parallel()
+
+		repo := newGateTestRepo(t)
+		configDir := filepath.Join(repo, "internal", "config")
+		if err := os.MkdirAll(configDir, 0o755); err != nil {
+			t.Fatalf("create config directory: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(configDir, "config.go"), []byte("package config\n"), 0o644); err != nil {
+			t.Fatalf("write config change: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(repo, "go.mod"), []byte("module gate.test\n\ngo 1.26\n"), 0o644); err != nil {
+			t.Fatalf("write module change: %v", err)
+		}
+
+		output, err := runGate(t, repo, nil, "plan")
+		if err != nil {
+			t.Fatalf("plan: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "go scopes: ./...") {
+			t.Fatalf("expected whole-module scope, got:\n%s", output)
+		}
+		if strings.Contains(output, "go scopes: ./... ./internal/config/...") {
+			t.Fatalf("whole-module scope must subsume package scopes, got:\n%s", output)
+		}
+	})
+
 	t.Run("Should preserve the fingerprint after committing identical content", func(t *testing.T) {
 		t.Parallel()
 
