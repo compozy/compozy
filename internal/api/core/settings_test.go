@@ -1332,7 +1332,6 @@ func TestSettingsUpdateMutationsReturnStructuredOutcomes(t *testing.T) {
 		{name: "Should reject app before runtime before invoking the controller", body: `{"targets":["app","runtime"]}`, want: "settings: runtime must be the first update target"},
 		{name: "Should reject more than two targets before invoking the controller", body: `{"targets":["runtime","app","runtime"]}`, want: "settings: update targets must contain at most two targets"},
 	} {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 

@@ -969,7 +969,6 @@ func assertSettingsUpdateTargetSetSchema(t *testing.T, schema *openapi3.Schema) 
 		{name: "Should reject duplicate runtime", value: []any{"runtime", "runtime"}},
 		{name: "Should reject an empty target set", value: []any{}},
 	} {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			if schema.IsMatching(test.value) {
