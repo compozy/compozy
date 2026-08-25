@@ -44,7 +44,10 @@ export function useSessionWindowController(windowId: string) {
   useSessionPresence(
     resolution.workspaceId,
     sessionId,
-    presenceEnabled && !deletedLocally && !resolution.crossesWorkspace
+    presenceEnabled &&
+      !deletedLocally &&
+      !resolution.crossesWorkspace &&
+      resolution.foreign.status !== "loading"
   );
 
   useEffect(() => {

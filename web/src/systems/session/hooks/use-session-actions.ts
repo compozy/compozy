@@ -153,9 +153,6 @@ export function useDeleteSession(options: UseSessionWorkspaceOptions = {}) {
         queryClient.cancelQueries({ queryKey: sessionKeys.byIdRoot(id) }),
       ]);
     },
-    onError: (_error, id) => {
-      sessionStore.trigger.sessionLiveTailResumed({ sessionId: id });
-    },
     onSuccess: (_data, id) => {
       const successWorkspaceId = requireWorkspace(workspaceId);
       sessionStore.trigger.sessionInteractionRemoved({ sessionId: id });
@@ -163,6 +160,9 @@ export function useDeleteSession(options: UseSessionWorkspaceOptions = {}) {
       queryClient.removeQueries({ queryKey: sessionKeys.byIdRoot(id) });
 
       return invalidateWorkspaceSessionCatalog(queryClient, successWorkspaceId);
+    },
+    onSettled: (_data, _error, id) => {
+      sessionStore.trigger.sessionLiveTailResumed({ sessionId: id });
     },
   });
 }

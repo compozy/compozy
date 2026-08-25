@@ -213,19 +213,14 @@ export const sessionStore = createStore({
       const drafts = withoutSessionValue(context.drafts, event.sessionId);
       const firstPrompts = withoutSessionValue(context.firstPrompts, event.sessionId);
       const goalFeedback = withoutSessionValue(context.goalFeedback, event.sessionId);
-      const liveTailSuppressions = withoutSessionValue(
-        context.liveTailSuppressions,
-        event.sessionId
-      );
       if (
         drafts === context.drafts &&
         firstPrompts === context.firstPrompts &&
-        goalFeedback === context.goalFeedback &&
-        liveTailSuppressions === context.liveTailSuppressions
+        goalFeedback === context.goalFeedback
       ) {
         return;
       }
-      return { ...context, drafts, firstPrompts, goalFeedback, liveTailSuppressions };
+      return { ...context, drafts, firstPrompts, goalFeedback };
     },
   },
 });

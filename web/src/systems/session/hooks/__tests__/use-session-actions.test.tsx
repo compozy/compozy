@@ -560,53 +560,63 @@ describe("session actions", () => {
     ).toBeUndefined();
   });
 
-  it("Should retain live-tail suppression until overlapping mutation owners settle", async () => {
-    let resolveResume!: (session: SessionPayload) => void;
-    let rejectDelete!: (error: Error) => void;
-    vi.mocked(resumeSession).mockReturnValue(
-      new Promise(resolve => {
-        resolveResume = resolve;
-      })
-    );
-    vi.mocked(deleteSession).mockReturnValue(
-      new Promise((_resolve, reject) => {
-        rejectDelete = reject;
-      })
-    );
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-    });
-    const { result } = renderHook(
-      () => ({ remove: useDeleteSession(), resume: useResumeSession() }),
-      { wrapper: createWrapper(queryClient) }
-    );
+  it.each(["success", "failure"] as const)(
+    "Should retain live-tail suppression until overlapping mutation owners settle after delete %s",
+    async deleteResult => {
+      let resolveResume!: (session: SessionPayload) => void;
+      let settleDelete!: () => void;
+      const deleteError = new Error("delete failed");
+      vi.mocked(resumeSession).mockReturnValue(
+        new Promise(resolve => {
+          resolveResume = resolve;
+        })
+      );
+      vi.mocked(deleteSession).mockReturnValue(
+        new Promise((resolve, reject) => {
+          settleDelete = () => {
+            if (deleteResult === "success") {
+              resolve();
+              return;
+            }
+            reject(deleteError);
+          };
+        })
+      );
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+      });
+      const { result } = renderHook(
+        () => ({ remove: useDeleteSession(), resume: useResumeSession() }),
+        { wrapper: createWrapper(queryClient) }
+      );
 
-    let deleteOutcome!: Promise<unknown>;
-    let resumeMutation!: Promise<SessionPayload>;
-    act(() => {
-      deleteOutcome = result.current.remove.mutateAsync(createdSession.id).catch(error => error);
-      resumeMutation = result.current.resume.mutateAsync(createdSession.id);
-    });
+      let deleteMutation!: Promise<unknown>;
+      let resumeMutation!: Promise<SessionPayload>;
+      act(() => {
+        deleteMutation = result.current.remove.mutateAsync(createdSession.id).catch(error => error);
+        resumeMutation = result.current.resume.mutateAsync(createdSession.id);
+      });
 
-    await waitFor(() =>
-      expect(sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]).toBe(2)
-    );
+      await waitFor(() =>
+        expect(sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]).toBe(2)
+      );
 
-    const deleteError = new Error("delete failed");
-    rejectDelete(deleteError);
-    await act(async () => {
-      expect(await deleteOutcome).toBe(deleteError);
-    });
-    expect(sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]).toBe(1);
+      settleDelete();
+      await act(async () => {
+        const settledDelete = await deleteMutation;
+        expect(settledDelete).toBe(deleteResult === "success" ? undefined : deleteError);
+      });
+      expect(sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]).toBe(1);
 
-    resolveResume(createdSession);
-    await act(async () => {
-      await resumeMutation;
-    });
-    expect(
-      sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]
-    ).toBeUndefined();
-  });
+      resolveResume(createdSession);
+      await act(async () => {
+        await resumeMutation;
+      });
+      expect(
+        sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]
+      ).toBeUndefined();
+    }
+  );
 
   it("useRepairSession invalidates the owning session query tree after repair completes", async () => {
     vi.mocked(repairSession).mockResolvedValue({

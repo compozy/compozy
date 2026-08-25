@@ -304,6 +304,7 @@ describe("SessionWindow", () => {
     // alone does not mean gone, only "not in this profile".
     expect(userClose).not.toHaveBeenCalled();
     expect(userOpen).not.toHaveBeenCalled();
+    expect(useSessionPresenceSpy).toHaveBeenLastCalledWith("ws-1", "sess-1", false);
     expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
       expect.objectContaining({ isLoading: true })
     );
