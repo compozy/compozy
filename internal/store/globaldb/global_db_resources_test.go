@@ -49,7 +49,7 @@ func TestOpenGlobalDBCreatesResourceTablesAndIndexes(t *testing.T) {
 }
 
 func TestResourceRecordRemovedKindsCleanupMigration(t *testing.T) {
-	// Keep this full-history fixture serial: migration helpers share a process-wide lock.
+	t.Parallel()
 	t.Run("Should delete removed resource rows and preserve homonyms across reopen", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
 		prefixDB, err := openGlobalMigrationPrefixDatabase(

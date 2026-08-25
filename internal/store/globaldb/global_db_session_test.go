@@ -1080,9 +1080,8 @@ func TestGlobalDBDeleteSession(t *testing.T) {
 	})
 }
 
-// TestGlobalDBSessionCascadeMigration is serial because its race-instrumented
-// v2-to-head replay is the package's machine-sized historical fixture.
 func TestGlobalDBSessionCascadeMigration(t *testing.T) {
+	t.Parallel()
 	t.Run("Should upgrade the immutable bridge prefix before cascading session history", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
 		prefixDB, err := openGlobalMigrationPrefixDatabase(t, path, sessionCascadeMigrationPrefix(t))
@@ -1133,10 +1132,8 @@ func TestGlobalDBSessionCascadeMigration(t *testing.T) {
 	})
 }
 
-// TestGlobalDBRuntimeMetadataHardCut is serial because it opens a frozen v29
-// global catalog and verifies that the runtime metadata cut happens before
-// Goose can mutate it.
 func TestGlobalDBRuntimeMetadataHardCut(t *testing.T) {
+	t.Parallel()
 	t.Run("Should reject pre-runtime metadata before applying the v30 catalog migration", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
 		prefixDB, err := openGlobalMigrationPrefixDatabase(t, path, runtimeMetadataMigrationPrefix(t))

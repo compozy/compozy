@@ -625,6 +625,7 @@ func TestGlobalDBSessionInputQueueCapacity(t *testing.T) {
 }
 
 func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
+	t.Parallel()
 	t.Run("Should create the prompt admission schema on a fresh database", func(t *testing.T) {
 		globalDB := openFreshTestGlobalDB(t)
 		assertTablesPresent(t, globalDB.db, "session_prompt_admissions", "session_input_queue")
@@ -655,7 +656,7 @@ func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 
 	t.Run("Should require queue admissions to exist and clear deleted receipts", func(t *testing.T) {
 		ctx := testutil.Context(t)
-		globalDB := openFreshTestGlobalDB(t)
+		globalDB := openTestGlobalDB(t)
 		sessionID := registerInputQueueSession(t, globalDB)
 		now := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 		admissionReq := promptAdmissionRequest("ws-input-queue-workspace", sessionID, "foreign-key", now)
@@ -1516,6 +1517,7 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 }
 
 func TestGlobalDBSessionAttachmentsMigration(t *testing.T) {
+	t.Parallel()
 	t.Run("Should add attachments_json with an empty-array default on reopen", func(t *testing.T) {
 		t.Parallel()
 

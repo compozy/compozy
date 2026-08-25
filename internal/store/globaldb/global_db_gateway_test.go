@@ -134,7 +134,7 @@ func TestGlobalDBGatewayMutationCommitFence(t *testing.T) {
 
 	t.Run("Should roll back surface and ingress writes rejected at commit", func(t *testing.T) {
 		t.Parallel()
-		database := openFreshTestGlobalDB(t)
+		database := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		trigger := automationWebhookTriggerForTest(
 			automation.AutomationScopeGlobal,
@@ -243,7 +243,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 
 	t.Run("Should preserve generation for a stable address and advance it on change [UT-094]", func(t *testing.T) {
 		t.Parallel()
-		database := openFreshTestGlobalDB(t)
+		database := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		at := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
 
@@ -269,7 +269,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 
 	t.Run("Should resolve webhook ownership and delete its binding atomically [UT-095, UT-097]", func(t *testing.T) {
 		t.Parallel()
-		database := openFreshTestGlobalDB(t)
+		database := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		insertGatewayTestWorkspace(ctx, t, database, "workspace-owner")
 		trigger := automationWebhookTriggerForTest(
@@ -311,7 +311,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 
 	t.Run("Should bind canonical trigger resources and invalidate only ingress identity changes", func(t *testing.T) {
 		t.Parallel()
-		database := openFreshTestGlobalDB(t)
+		database := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		insertGatewayTestWorkspace(ctx, t, database, "workspace-resource-trigger")
 		trigger := automationWebhookTriggerForTest(
@@ -381,7 +381,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 
 	t.Run("Should bind canonical bridge resources and clear confirmation on target changes", func(t *testing.T) {
 		t.Parallel()
-		database := openFreshTestGlobalDB(t)
+		database := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		bridge := bridges.BridgeInstanceSpec{
 			ProfileID:     store.DefaultProfileID,
@@ -448,7 +448,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 
 	t.Run("Should delete and recreate a bridge without preserving its confirmation [IT-050]", func(t *testing.T) {
 		t.Parallel()
-		database := openFreshTestGlobalDB(t)
+		database := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		insertGatewayTestWorkspace(ctx, t, database, "workspace-owner")
 		instance := bridges.BridgeInstance{
@@ -514,7 +514,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		for index, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				database := openFreshTestGlobalDB(t)
+				database := openTestGlobalDB(t)
 				ctx := testutil.Context(t)
 				trigger := automationWebhookTriggerForTest(
 					automation.AutomationScopeGlobal,
@@ -569,7 +569,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		for index, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				database := openFreshTestGlobalDB(t)
+				database := openTestGlobalDB(t)
 				ctx := testutil.Context(t)
 				instance := bridges.BridgeInstance{
 					ProfileID: store.DefaultProfileID,
@@ -606,7 +606,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 
 	t.Run("Should invalidate a webhook binding when its workspace owner changes", func(t *testing.T) {
 		t.Parallel()
-		database := openFreshTestGlobalDB(t)
+		database := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		insertGatewayTestWorkspace(ctx, t, database, "workspace-before")
 		insertGatewayTestWorkspace(ctx, t, database, "workspace-after")
@@ -647,7 +647,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 
 	t.Run("Should invalidate a bridge binding when replacement changes its workspace owner", func(t *testing.T) {
 		t.Parallel()
-		database := openFreshTestGlobalDB(t)
+		database := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		insertGatewayTestWorkspace(ctx, t, database, "workspace-before")
 		insertGatewayTestWorkspace(ctx, t, database, "workspace-after")
@@ -693,7 +693,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 
 	t.Run("Should keep an external-proxy-only bridge outside gateway ingress", func(t *testing.T) {
 		t.Parallel()
-		database := openFreshTestGlobalDB(t)
+		database := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		instance := bridges.BridgeInstance{
 			ProfileID:     store.DefaultProfileID,
@@ -722,7 +722,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 
 	t.Run("Should distinguish an invalid local bridge target from external proxy mode", func(t *testing.T) {
 		t.Parallel()
-		database := openFreshTestGlobalDB(t)
+		database := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		instance := bridges.BridgeInstance{
 			ProfileID:     store.DefaultProfileID,
@@ -754,7 +754,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 
 	t.Run("Should treat a missing bridge provider config as an unavailable local target", func(t *testing.T) {
 		t.Parallel()
-		database := openFreshTestGlobalDB(t)
+		database := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		instance := bridges.BridgeInstance{
 			ProfileID:     store.DefaultProfileID,
@@ -796,7 +796,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 
 	t.Run("Should require fresh confirmation after a bridge switches through external proxy mode", func(t *testing.T) {
 		t.Parallel()
-		database := openFreshTestGlobalDB(t)
+		database := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		instance := bridges.BridgeInstance{
 			ProfileID:     store.DefaultProfileID,
@@ -852,7 +852,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 
 	t.Run("Should hide and sweep a binding whose subject vanished", func(t *testing.T) {
 		t.Parallel()
-		database := openFreshTestGlobalDB(t)
+		database := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectWebhookTrigger, ID: "trigger-orphan"}
 		if _, err := database.db.ExecContext(
@@ -878,7 +878,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 
 	t.Run("Should delete workspace-owned bindings before cascading their subjects", func(t *testing.T) {
 		t.Parallel()
-		database := openFreshTestGlobalDB(t)
+		database := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		insertGatewayTestWorkspace(ctx, t, database, "workspace-cascade")
 		trigger := automationWebhookTriggerForTest(
@@ -1100,7 +1100,7 @@ func TestGlobalDBGatewayDeviceLifecycle(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		database := openFreshTestGlobalDB(t)
+		database := openTestGlobalDB(t)
 		createdAt := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
 		first := gateway.StoredDeviceSession{
 			Session: gateway.DeviceSession{
@@ -1151,7 +1151,7 @@ func TestGlobalDBGatewayDeviceLifecycle(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		database := openFreshTestGlobalDB(t)
+		database := openTestGlobalDB(t)
 		createdAt := time.Date(2026, 8, 6, 13, 0, 0, 0, time.UTC)
 		actor := gateway.StoredDeviceSession{
 			Session: gateway.DeviceSession{

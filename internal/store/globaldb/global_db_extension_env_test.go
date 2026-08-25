@@ -15,8 +15,8 @@ import (
 )
 
 func TestExtensionEnvironmentMigration(t *testing.T) {
+	t.Parallel()
 	t.Run("Should append portable instance metadata and remote header mapping atomically", func(t *testing.T) {
-		// Keep this full-history fixture serial: migration helpers share a process-wide lock.
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
 		legacy, err := sql.Open(sqliteDriverName, path)
 		if err != nil {
@@ -202,9 +202,6 @@ func TestExtensionEnvironmentMigration(t *testing.T) {
 	})
 
 	t.Run("Should preserve valid extension environment bindings and enforce their ownership kind", func(t *testing.T) {
-		// Keep this full-history fixture serial: migration helpers share a process-wide
-		// lock, and parallel suite contention can exhaust its operation context under -race.
-
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
 		legacy, err := sql.Open(sqliteDriverName, path)
 		if err != nil {
@@ -346,7 +343,7 @@ func TestExtensionEnvRepoRoundTripAndInstanceIsolation(t *testing.T) {
 	t.Run("Should resolve the complete profile-first precedence order", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)
-		db := openFreshTestGlobalDB(t)
+		db := openTestGlobalDB(t)
 		const financeID = "01JPROFILEFINANCE000000000"
 		if _, err := db.db.ExecContext(ctx, `INSERT INTO profiles (
 			id, name, color, icon, state, created_at
@@ -407,7 +404,7 @@ func TestExtensionEnvRepoRoundTripAndInstanceIsolation(t *testing.T) {
 	t.Run("Should upsert one instance while preserving timestamps and other scopes", func(t *testing.T) {
 		t.Parallel()
 
-		db := openFreshTestGlobalDB(t)
+		db := openTestGlobalDB(t)
 		createdAt := time.Date(2026, 8, 2, 10, 0, 0, 123, time.UTC)
 		updatedAt := createdAt.Add(time.Minute)
 		global := extensionenv.Binding{
@@ -469,7 +466,7 @@ func TestExtensionEnvRepoRoundTripAndInstanceIsolation(t *testing.T) {
 	t.Run("Should list environment names in sorted order", func(t *testing.T) {
 		t.Parallel()
 
-		db := openFreshTestGlobalDB(t)
+		db := openTestGlobalDB(t)
 		for _, envName := range []string{"Z_TOKEN", "A_TOKEN", "M_TOKEN"} {
 			if err := db.PutEnvBinding(testutil.Context(t), extensionenv.Binding{
 				ExtensionName: "kit", EnvName: envName,
@@ -494,7 +491,7 @@ func TestExtensionEnvRepoRoundTripAndInstanceIsolation(t *testing.T) {
 	t.Run("Should reject refs owned by another extension or workspace", func(t *testing.T) {
 		t.Parallel()
 
-		db := openFreshTestGlobalDB(t)
+		db := openTestGlobalDB(t)
 		for _, testCase := range []struct {
 			name string
 			ref  string
@@ -519,7 +516,7 @@ func TestExtensionEnvRepoRoundTripAndInstanceIsolation(t *testing.T) {
 	t.Run("Should reject binding ownership kinds outside the extension environment contract", func(t *testing.T) {
 		t.Parallel()
 
-		db := openFreshTestGlobalDB(t)
+		db := openTestGlobalDB(t)
 		err := db.PutEnvBinding(testutil.Context(t), extensionenv.Binding{
 			ExtensionName: "kit",
 			EnvName:       "API_KEY",

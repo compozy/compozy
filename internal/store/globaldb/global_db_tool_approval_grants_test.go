@@ -236,6 +236,7 @@ func hasApprovalGrantOwner(grants []toolspkg.ApprovalGrant, profileID string, ar
 }
 
 func TestGlobalDBToolApprovalGrantMigration(t *testing.T) {
+	t.Parallel()
 	t.Run("Should preserve durable grants through the head upgrade", func(t *testing.T) {
 		t.Parallel()
 
