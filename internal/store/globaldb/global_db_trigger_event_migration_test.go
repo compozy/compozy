@@ -29,7 +29,7 @@ func TestGlobalDBTriggerEventHardCutMigration(t *testing.T) {
 			if err != nil {
 				t.Fatalf("OpenSQLiteDatabase(v59 prefix) error = %v", err)
 			}
-			ctx := testutil.Context(t)
+			ctx := globalMigrationTestContext(t)
 			seedTriggerEventHardCutFixture(ctx, t, prefixDB)
 			if err := prefixDB.Close(); err != nil {
 				t.Fatalf("prefixDB.Close() error = %v", err)
