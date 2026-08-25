@@ -13,17 +13,20 @@ import type {
   PaletteViewDefinition,
 } from "../lib/palette-view-registry";
 import { useCmdPaletteRankSignals } from "./use-cmd-palette-rank-signals";
-import { useOsShell } from "./use-os-shell";
 import { domainChips, domainEmptyMessage, domainFilter } from "./os-palette-domain-filters";
-import { useOsPaletteDomainSearch } from "./use-os-palette-domain-search";
+import {
+  useOsPaletteDomainSearch,
+  type OsPaletteDomainRow as OsPaletteDomainRowModel,
+} from "./use-os-palette-domain-search";
+
+type OpenDomainRow = (row: OsPaletteDomainRowModel) => void;
 
 export function useOsPaletteDomainView(
   definition: PaletteViewDefinition,
-  { query, onDismiss }: PaletteViewControllerInput
+  { query, openDomainRow }: PaletteViewControllerInput & { openDomainRow: OpenDomainRow }
 ): PaletteViewContent {
   const domainTitle = definition.domainTitle ?? definition.title;
   const [filter, setFilter] = useState("all");
-  const { coordinator } = useOsShell();
   const { runtimeWorkspaceId, scope, workspaces } = useActiveWorkspace();
   const signals = useCmdPaletteRankSignals(runtimeWorkspaceId, true);
   const sections = useOsPaletteDomainSearch({
@@ -75,8 +78,7 @@ export function useOsPaletteDomainView(
             const rowKey = action.action?.args?.row_key;
             const row = visible.find(candidate => candidate.key === rowKey);
             if (!row) return;
-            onDismiss();
-            void coordinator.userOpen({ app: row.app, route: row.route });
+            openDomainRow(row);
           }}
         />
       ),
@@ -97,8 +99,7 @@ export function useOsPaletteDomainView(
       twoLine: Boolean(row.detail || row.workspaceLabel),
       node: <OsPaletteDomainRow row={row} />,
       onSelect: () => {
-        onDismiss();
-        void coordinator.userOpen({ app: row.app, route: row.route });
+        openDomainRow(row);
       },
     })),
     header:

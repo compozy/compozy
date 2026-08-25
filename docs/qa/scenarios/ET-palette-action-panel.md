@@ -19,6 +19,10 @@ overlaps: ET-palette-registry-driven-root; ET-web-command-palette-shortcuts; ET-
 Flagged by command-palette task 04. Task 12 owns the first real-user walk, visual-contract
 comparison, and verdict.
 
+2026-08-24 qa-impact (ENG-131): the concrete-row action now names the direct entity open (or the
+Worktree scope action) rather than implying catalog search. Include one action-panel activation in
+the direct-target walk.
+
 Walk (task_11 plan):
 
 1. Select any command row and press ⌘K — the panel opens anchored to the row with sections,

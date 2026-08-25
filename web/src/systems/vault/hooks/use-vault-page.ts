@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useSelector, useStore } from "@xstate/store-react";
+import { useEffect, useRef } from "react";
 
 import type { ListingViewMode } from "@compozy/ui";
 
@@ -72,6 +73,7 @@ export function useVaultPage(search: VaultRouteSearch = {}) {
   const navigate = useNavigate({ from: "/vault" });
   const prefix = search.q ?? "";
   const namespace: VaultNamespaceFilter = search.namespace ?? "all";
+  const routeRef = search.ref?.trim() || null;
   const view: ListingViewMode = search.view ?? "rows";
   const pageStore = useStore(vaultPageLogic);
   const flow = useSelector(pageStore, snapshot => snapshot.context);
@@ -82,7 +84,10 @@ export function useVaultPage(search: VaultRouteSearch = {}) {
   // only the active namespace/prefix projection. Keep that unbounded read cold
   // until an action actually needs cross-filter truth.
   const inventoryRequired =
-    flow.editor.mode === "create" || flow.selectedRef !== null || flow.deleteTargetRef !== null;
+    routeRef !== null ||
+    flow.editor.mode === "create" ||
+    flow.selectedRef !== null ||
+    flow.deleteTargetRef !== null;
   const allSecretsQuery = useVaultSecrets({}, { enabled: inventoryRequired });
   const putMutation = usePutVaultSecret();
   const deleteMutation = useDeleteVaultSecret();
@@ -93,6 +98,18 @@ export function useVaultPage(search: VaultRouteSearch = {}) {
   const selectedSecret = flow.selectedRef
     ? (secretInventory.find(secret => secret.ref === flow.selectedRef) ?? null)
     : null;
+  const previousRouteRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    const previous = previousRouteRef.current;
+    previousRouteRef.current = routeRef;
+    if (routeRef !== null) {
+      if (flow.selectedRef !== routeRef) pageStore.trigger.inspectOpened({ ref: routeRef });
+      return;
+    }
+    if (previous !== undefined && previous !== null && flow.selectedRef !== null) {
+      pageStore.trigger.inspectClosed();
+    }
+  }, [flow.selectedRef, pageStore, routeRef]);
   const deleteTargetSecret = flow.deleteTargetRef
     ? (secretInventory.find(secret => secret.ref === flow.deleteTargetRef) ?? null)
     : null;
@@ -145,11 +162,13 @@ export function useVaultPage(search: VaultRouteSearch = {}) {
   const openInspect = (secret: VaultSecret) => {
     putMutation.reset();
     pageStore.trigger.inspectOpened({ ref: secret.ref });
+    updateSearch(current => ({ ...current, ref: secret.ref }));
   };
   const closeInspect = () => {
     if (flow.pendingPutAttempt !== null) return;
     pageStore.trigger.inspectClosed();
     putMutation.reset();
+    updateSearch(current => ({ ...current, ref: undefined }));
   };
   const replaceIsValid = Boolean(
     selectedSecret &&
@@ -184,6 +203,14 @@ export function useVaultPage(search: VaultRouteSearch = {}) {
   };
 
   const putError = errorMessage(putMutation.error);
+  const selectionError =
+    routeRef !== null && !allSecretsQuery.isFetching
+      ? allSecretsQuery.isError
+        ? (errorMessage(allSecretsQuery.error) ?? "Vault secret unavailable")
+        : allSecretsQuery.isSuccess && selectedSecret === null
+          ? "Vault secret not found"
+          : null
+      : null;
   return {
     counts,
     deleteError: errorMessage(deleteMutation.error),
@@ -212,6 +239,7 @@ export function useVaultPage(search: VaultRouteSearch = {}) {
     replaceIsValid,
     replaceSecret,
     replaceValue: flow.replaceValue,
+    selectionError,
     secrets,
     selectedSecret,
     setNamespace: (next: VaultNamespaceFilter) =>

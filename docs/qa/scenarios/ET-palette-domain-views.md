@@ -31,6 +31,11 @@ semantics, so `ET-profile-palette-view` owns it and this row keeps the generic g
 walking, confirm one domain's chip counts differ correctly between two profiles and that a profile
 switch with a view open re-fences it instead of showing the previous lens's rows.
 
+2026-08-24 qa-impact (ENG-131): concrete rows now land on identity-bearing detail routes (or the
+existing Vault/Extension selection surface) instead of catalog filters. The direct-target walk is
+tracked in `ET-palette-direct-entity-routes`; keep this scenario untested until that walk confirms
+root and pushed views remain consistent.
+
 Walk (task_11 plan):
 
 1. Open the Tasks view — chips show truthful counts with single-select; pick a chip with zero

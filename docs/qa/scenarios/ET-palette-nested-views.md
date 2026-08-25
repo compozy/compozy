@@ -33,6 +33,10 @@ order, Escape dismissal, and reopen-at-root behavior.
 the shared stack's observability contract. Keep this scenario `untested`; task 12 owns the re-walk.
 2026-08-20 qa-impact: Palette density/alignment polish tightened pushed-view rows (32px single-line / 40px two-line) and the shared left rail. Keep `untested`; re-walk Sessions and other nested views for scanability.
 
+2026-08-24 qa-impact (ENG-131): pushed domain rows share the root opener and now resolve direct
+entity targets. The direct route and foreign-workspace checks are tracked in
+`ET-palette-direct-entity-routes`.
+
 Walk (task_11 plan — stack semantics across all four kinds):
 
 1. Push a List view from the Views group — query clears, breadcrumb names the path, only that

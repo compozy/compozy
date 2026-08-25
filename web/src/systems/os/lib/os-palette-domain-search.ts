@@ -14,8 +14,15 @@ export interface OsPaletteDomainRow {
   readonly label: string;
   readonly detail?: string;
   readonly workspaceLabel?: string;
+  /** Owning workspace for global rows that need a workspace switch before opening. */
+  readonly workspaceId?: string;
   readonly app: OsAppId;
   readonly route: OsWindowRoute;
+  /** Worktree rows scope the shell instead of opening an application route. */
+  readonly worktreeSelection?: {
+    readonly workspaceId: string;
+    readonly worktreeId: string;
+  };
   readonly status?: string;
 }
 
@@ -66,12 +73,66 @@ export function workspaceLabel(
   return names.get(workspaceId) ?? workspaceId;
 }
 
-export function searchRoute(pathname: string, q: string): OsWindowRoute {
-  return { pathname, search: { q } };
+function encodedSegment(value: string): string {
+  return encodeURIComponent(value.trim());
 }
 
-export function tasksRoute(title: string): OsWindowRoute {
-  return { pathname: "/tasks", search: { query: title } };
+export function taskRoute(id: string): OsWindowRoute {
+  return { pathname: `/tasks/${encodedSegment(id)}`, search: {} };
+}
+
+export function loopRoute(name: string, workspaceId?: string | null): OsWindowRoute {
+  const workspace = workspaceId?.trim();
+  return {
+    pathname: `/loops/${encodedSegment(name)}`,
+    search: workspace ? { workspace } : {},
+  };
+}
+
+export function jobRoute(id: string): OsWindowRoute {
+  return { pathname: `/jobs/${encodedSegment(id)}`, search: {} };
+}
+
+export function triggerRoute(id: string): OsWindowRoute {
+  return { pathname: `/triggers/${encodedSegment(id)}`, search: {} };
+}
+
+export function bridgeRoute(id: string): OsWindowRoute {
+  return { pathname: `/bridges/${encodedSegment(id)}`, search: {} };
+}
+
+export function agentRoute(name: string): OsWindowRoute {
+  return { pathname: `/agents/${encodedSegment(name)}`, search: {} };
+}
+
+export function marketplaceEntryRoute(input: {
+  kind: "mcp" | "extension" | "skill";
+  entryId: string;
+  scope: WorkspaceScopeMode;
+  workspaceId?: string | null;
+  installedName?: string | null;
+}): OsWindowRoute {
+  const workspace = input.workspaceId?.trim();
+  const installedName = input.installedName?.trim();
+  const search =
+    input.scope === "workspace" && workspace
+      ? {
+          scope: "workspace",
+          workspace_id: workspace,
+          ...(installedName ? { installed_name: installedName } : {}),
+        }
+      : {
+          scope: "user",
+          ...(installedName ? { installed_name: installedName } : {}),
+        };
+  return {
+    pathname: `/marketplace/${input.kind}/${encodedSegment(input.entryId)}`,
+    search,
+  };
+}
+
+export function vaultRoute(ref: string): OsWindowRoute {
+  return { pathname: "/vault", search: { ref: ref.trim() } };
 }
 
 export function networkChannelRoute(workspaceId: string, channel: string): OsWindowRoute {
@@ -159,7 +220,7 @@ export function projectVaultRows(
       detail: [secret.namespace, secret.kind].filter(Boolean).join(" · "),
       workspaceLabel: workspaceLabel(scope, undefined, names),
       app: "vault",
-      route: searchRoute("/vault", name),
+      route: vaultRoute(secret.ref),
       namespace: secret.namespace,
       kind: secret.kind ?? "",
     };

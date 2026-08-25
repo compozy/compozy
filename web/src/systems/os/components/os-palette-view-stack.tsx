@@ -18,6 +18,7 @@ import type { WindowManagerRegisteredClientView } from "../lib/window-manager-ty
 import { useProfileLens, useProfilesPaletteView } from "@/systems/profiles";
 
 import { OsPaletteViewShell } from "./os-palette-view-shell";
+import type { OsPaletteDomainRow } from "../lib/os-palette-domain-search";
 
 interface PaletteViewFrameProps {
   dispatch: CmdPaletteDispatch;
@@ -69,14 +70,16 @@ function DomainPaletteViewFrame({
   client: _client,
   dispatch: _dispatch,
   onDismiss,
+  openDomainRow,
   viewId,
   ...shell
-}: PaletteViewFrameProps & { viewId: string }) {
+}: PaletteViewFrameProps & { viewId: string; openDomainRow: (row: OsPaletteDomainRow) => void }) {
   const definition = paletteViewDefinition(viewId);
   const fallbackDefinition = definition ?? unavailableDefinition(viewId);
   const content = useOsPaletteDomainView(fallbackDefinition, {
     query: shell.query,
     onDismiss,
+    openDomainRow,
   });
   return <OsPaletteViewShell definition={fallbackDefinition} content={content} {...shell} />;
 }
@@ -148,6 +151,7 @@ export interface OsPaletteViewStackProps {
   breadcrumb: PaletteBreadcrumb;
   onPop: () => void;
   onDismiss: () => void;
+  openDomainRow: (row: OsPaletteDomainRow) => void;
 }
 
 /**
@@ -164,6 +168,7 @@ export function OsPaletteViewStack({
   breadcrumb,
   onPop,
   onDismiss,
+  openDomainRow,
 }: OsPaletteViewStackProps) {
   const [ownedQuery, setOwnedQuery] = useState({ viewId, value: "" });
   if (ownedQuery.viewId !== viewId) {
@@ -186,7 +191,14 @@ export function OsPaletteViewStack({
     return <ProfilesPaletteViewFrame {...shell} />;
   }
   if (definition?.domainTitle) {
-    return <DomainPaletteViewFrame key={viewId} {...shell} viewId={viewId} />;
+    return (
+      <DomainPaletteViewFrame
+        key={viewId}
+        {...shell}
+        openDomainRow={openDomainRow}
+        viewId={viewId}
+      />
+    );
   }
   return <DeclarativePaletteViewFrame key={viewId} {...shell} viewId={viewId} />;
 }

@@ -8,6 +8,7 @@ export type VaultNamespaceFilter = VaultNamespace | "all";
 export interface VaultRouteSearch {
   q?: string;
   namespace?: VaultNamespace;
+  ref?: string;
   view?: ListingViewMode;
 }
 
@@ -31,9 +32,11 @@ export function parseVaultNamespaceFilter(value: unknown): VaultNamespace | unde
 
 export function validateVaultSearch(search: Record<string, unknown>): VaultRouteSearch {
   const namespace = parseVaultNamespaceFilter(search.namespace);
+  const ref = typeof search.ref === "string" ? search.ref.trim() || undefined : undefined;
   return {
     q: normalizeVaultPrefixForNamespace(search.q, namespace),
     namespace,
+    ref,
     view: parseListingView(search.view),
   };
 }

@@ -21,6 +21,7 @@ import type { OsAppId, OsWindowRoute } from "../lib/os-types";
 import { windowManagerStore } from "../stores/window-manager-store";
 import { WorktreeDialogActionsContext } from "../contexts/worktree-dialog-actions-context";
 import { useAttentionJump } from "./use-attention-jump";
+import { useOsPaletteDomainOpen } from "./use-os-palette-domain-open";
 import { useOsShell } from "./use-os-shell";
 import {
   useOsPaletteEntities,
@@ -146,6 +147,7 @@ export function useOsPaletteRoot({
   });
 
   const close = () => onOpenChange(false);
+  const openDomainRow = useOsPaletteDomainOpen(close);
   const fallback =
     assembly.fallback !== null &&
     assembly.sections.length === 0 &&
@@ -213,11 +215,6 @@ export function useOsPaletteRoot({
   const goToTab = (windowId: string) => {
     close();
     void coordinator.userActivateWindow(windowId);
-  };
-
-  const openDomainRow = (row: OsPaletteDomainRow) => {
-    close();
-    void coordinator.userOpen({ app: row.app, route: row.route });
   };
 
   const scopeToWorktree = (entry: OsPaletteWorktreeResult) => {
