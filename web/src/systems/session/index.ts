@@ -254,6 +254,7 @@ export {
   sessionRecapOptions,
   sessionUsageOptions,
   sessionTranscriptOptions,
+  sessionAcrossProfilesOptions,
   sessionScopedDetailOptions,
   sessionsListOptions,
   sessionsCompleteListOptions,

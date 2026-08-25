@@ -22,6 +22,7 @@ export interface SessionStoreContext {
   drafts: Record<string, string>;
   firstPrompts: Record<string, SessionFirstPrompt>;
   goalFeedback: Record<string, SessionGoalFeedback>;
+  liveTailSuppressions: Record<string, number>;
 }
 
 export const SESSION_DRAFTS_STORAGE_KEY = "compozy:session:drafts:v1";
@@ -86,6 +87,7 @@ const initialSessionContext: SessionStoreContext = {
   drafts: readPersistedDrafts(),
   firstPrompts: {},
   goalFeedback: {},
+  liveTailSuppressions: {},
 };
 
 export const sessionStore = createStore({
@@ -178,6 +180,32 @@ export const sessionStore = createStore({
         goalFeedback: {
           ...context.goalFeedback,
           [event.sessionId]: { ...feedback, errorVisible: false },
+        },
+      };
+    },
+    sessionLiveTailResumed: (context, event: { sessionId: string }) => {
+      const owners = context.liveTailSuppressions[event.sessionId] ?? 0;
+      if (owners === 0) return;
+      if (owners > 1) {
+        return {
+          ...context,
+          liveTailSuppressions: {
+            ...context.liveTailSuppressions,
+            [event.sessionId]: owners - 1,
+          },
+        };
+      }
+      return {
+        ...context,
+        liveTailSuppressions: withoutSessionValue(context.liveTailSuppressions, event.sessionId),
+      };
+    },
+    sessionLiveTailSuspended: (context, event: { sessionId: string }) => {
+      return {
+        ...context,
+        liveTailSuppressions: {
+          ...context.liveTailSuppressions,
+          [event.sessionId]: (context.liveTailSuppressions[event.sessionId] ?? 0) + 1,
         },
       };
     },

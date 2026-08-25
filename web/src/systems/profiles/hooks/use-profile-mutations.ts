@@ -11,7 +11,7 @@ import {
   updateProfileIdentity,
 } from "../adapters/profiles-api";
 import { profileKeys } from "../lib/query-keys";
-import { sweepProfileView } from "../stores/profile-view-store";
+import { setProfileView, sweepProfileView } from "../stores/profile-view-store";
 import type { CreateProfileParams, UpdateProfileParams } from "../types";
 
 /**
@@ -43,8 +43,17 @@ export function useCreateProfile() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (params: CreateProfileParams) => createProfile(params),
-    onSuccess: profile => {
+    onSuccess: (profile, input) => {
       notifyUser({ message: `Created ${profile.name}.`, tone: "success" });
+      const activation = input.activate;
+      if (activation?.scope === "global") {
+        setProfileView({ scope: "global" }, { kind: "profile", profile: profile.name });
+      } else if (activation?.scope === "workspace" && activation.workspace_id) {
+        setProfileView(
+          { scope: "workspace", workspaceId: activation.workspace_id },
+          { kind: "profile", profile: profile.name }
+        );
+      }
       return reconcile(queryClient, profile.name);
     },
     onError: reportFailure("Could not create the profile."),

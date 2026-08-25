@@ -83,6 +83,7 @@ export interface BrowserRuntimeOptions {
   networkEnabled?: boolean;
   readyTimeoutMs?: number;
   seed?: BrowserRuntimeSeed;
+  seedDefaultWorkspace?: boolean;
   toolsExternalDefault?: "disabled" | "ask" | "enabled";
 }
 
@@ -230,7 +231,9 @@ export async function createBrowserRuntime(
       paths,
       launchState: runtime,
     });
-    const seeded = await applyBrowserRuntimeSeed(activeRuntime, options.seed, paths.workspaceDir);
+    const fallbackWorkspace =
+      options.seedDefaultWorkspace === false ? undefined : paths.workspaceDir;
+    const seeded = await applyBrowserRuntimeSeed(activeRuntime, options.seed, fallbackWorkspace);
     return activeRuntime.withSeeded(seeded);
   } catch (error) {
     return await cleanupFailedRuntimeLaunch(

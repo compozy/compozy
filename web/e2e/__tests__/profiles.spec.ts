@@ -1,14 +1,16 @@
+import { randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import type { Locator, Page } from "@playwright/test";
 
 import { expect, test } from "../fixtures/test";
 import {
-  appWindow,
   openAppWindow,
   openCommandPalette,
+  openSessionsCatalog,
   paletteView,
   switchWorkspace,
 } from "../fixtures/os-navigation";
@@ -29,6 +31,28 @@ interface ProfileRow {
   name: string;
   state: string;
 }
+
+const fixtureRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "..",
+  "internal",
+  "testutil",
+  "acpmock",
+  "testdata"
+);
+const profilesAgent = "cost-provenance-agent";
+const profilesAgentFixture = path.join(fixtureRoot, "cost_provenance_fixture.json");
+const profilesUsagePrompt = "Summarize the cost provenance run";
+
+test.use({
+  runtimeOptions: {
+    seed: {
+      mockAgents: [{ fixtureAgent: profilesAgent, fixturePath: profilesAgentFixture }],
+    },
+  },
+});
 
 async function listProfiles(runtime: BrowserRuntime): Promise<ProfileRow[]> {
   return await runtime.requestJSON<ProfileRow[]>("/api/profiles");
@@ -125,12 +149,87 @@ async function tabUntilFocused(page: Page, target: Locator, limit: number): Prom
 
 /** The workspace the shell is running in — desks are per (workspace, profile). */
 async function activeWorkspaceId(runtime: BrowserRuntime): Promise<string> {
+  const seeded = runtime.seeded.workspace?.id.trim();
+  if (seeded) return seeded;
+
+  const workspaceDir = runtime.paths?.workspaceDir?.trim();
+  if (workspaceDir) return (await runtime.resolveWorkspace(workspaceDir)).id;
+
   const payload = await runtime.requestJSON<{ workspaces: Array<{ id: string }> }>(
     "/api/workspaces"
   );
   const workspace = payload.workspaces[0];
   if (!workspace) throw new Error("the desktop journey requires one resolved workspace");
   return workspace.id;
+}
+
+async function availableAgentName(
+  runtime: BrowserRuntime,
+  workspaceId: string,
+  profile: string
+): Promise<string> {
+  const catalog = await runtime.requestJSON<{ agents: Array<{ name: string }> }>(
+    `/api/agents?workspace=${encodeURIComponent(workspaceId)}&profile=${encodeURIComponent(profile)}`
+  );
+  const agent = catalog.agents.find(candidate => candidate.name === profilesAgent);
+  if (!agent) {
+    throw new Error(`profile ${profile} has no agent available in workspace ${workspaceId}`);
+  }
+  return agent.name;
+}
+
+async function recordDefaultProfileUsage(
+  runtime: BrowserRuntime,
+  workspaceId: string
+): Promise<void> {
+  const agentName = await availableAgentName(runtime, workspaceId, "default");
+  const created = await runtime.requestJSON<{ session: { id: string } }>(
+    "/api/sessions?profile=default",
+    {
+      method: "POST",
+      body: JSON.stringify({ agent_name: agentName, workspace: workspaceId }),
+    }
+  );
+  const promptResponse = await fetch(
+    runtime.url(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(created.session.id)}/prompt`
+    ),
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        idempotency_key: randomUUID(),
+        message: profilesUsagePrompt,
+        message_id: randomUUID(),
+      }),
+    }
+  );
+  expect(promptResponse.ok).toBe(true);
+  await promptResponse.text();
+  await expect
+    .poll(async () => {
+      const overview = await runtime.requestJSON<{
+        overview: { usage: { profiles: Array<{ profile_name: string; tokens: number }> } };
+      }>(
+        `/api/observe/overview?workspace=${encodeURIComponent(workspaceId)}&usage_window=30&all_profiles=true`
+      );
+      return (
+        overview.overview.usage.profiles.find(entry => entry.profile_name === "default")?.tokens ??
+        0
+      );
+    })
+    .toBeGreaterThan(0);
+}
+
+async function createDefaultProfileSession(
+  runtime: BrowserRuntime,
+  workspaceId: string
+): Promise<void> {
+  const agentName = await availableAgentName(runtime, workspaceId, "default");
+  await runtime.requestJSON("/api/sessions?profile=default", {
+    method: "POST",
+    body: JSON.stringify({ agent_name: agentName, workspace: workspaceId }),
+  });
 }
 
 test.describe("Profiles", () => {
@@ -378,12 +477,18 @@ test.describe("Profiles", () => {
     await ui.paletteRow("marketing").click();
     expect((await selectionResponse).ok()).toBe(true);
     await expect(ui.switcher).toContainText("marketing");
+    await expect(palette).toBeHidden();
 
-    // A lifecycle action opens the canonical dialog; the palette owns no plan.
+    // A lifecycle action collects only its target, then opens the canonical
+    // dialog; the palette owns no plan or mutation behavior.
     const reopened = await openCommandPalette(appPage);
     await reopened.getByRole("combobox").fill("Archive profile");
     await reopened.getByTestId("os-palette-command-profile.archive").click();
-    await expect(appWindow(appPage, "settings")).toBeVisible();
+    const profileArgument = appPage.getByTestId("os-palette-arg-profile");
+    await profileArgument.fill("marketing");
+    await profileArgument.press("Enter");
+    await expect(ui.archiveDialog).toBeVisible();
+    await expect(ui.archiveDialog).toContainText("marketing");
   });
 
   test("E2E-015: All profiles labels every row, states the destination, and names the owner", async ({
@@ -395,6 +500,7 @@ test.describe("Profiles", () => {
     await createProfile(runtime, "marketing", "#c26ad6", "megaphone");
     await createProfile(runtime, "old-agency", "#b58e5f", "folder");
     await archiveProfile(runtime, "old-agency");
+    await createDefaultProfileSession(runtime, await activeWorkspaceId(runtime));
     await appPage.reload({ waitUntil: "domcontentloaded" });
 
     const ui = profilesOperatorSelectors(appPage);
@@ -403,7 +509,7 @@ test.describe("Profiles", () => {
     await expect(ui.switcher).toContainText("All profiles");
 
     // S3: every aggregate row names its owner, and an archived owner says so.
-    const sessions = await openAppWindow(appPage, "Sessions", "sessions");
+    const sessions = await openSessionsCatalog(appPage);
     const rows = profilesOperatorSelectors(appPage, sessions);
     await expect(rows.ownerTags.first()).toBeVisible();
 
@@ -413,6 +519,8 @@ test.describe("Profiles", () => {
     await expect(chip).toBeVisible();
     await expect(chip).toContainText("default");
     await expect(chip.locator("button, select, input")).toHaveCount(0);
+    await appPage.getByRole("button", { name: "Cancel", exact: true }).click();
+    await sessions.getByRole("button", { name: "Close sessions" }).click();
 
     // S11: the two axes compose — the globe stays independent of the profile.
     await appPage.getByTestId("os-global-scope-toggle").click();
@@ -432,14 +540,21 @@ test.describe("Profiles", () => {
     await ensureProjectWorkspace(appPage, runtime);
     await completeOnboardingIfPrompted(appPage);
     await createProfile(runtime, "consulting", "#4ea7fc", "briefcase");
+    const workspaceId = await activeWorkspaceId(runtime);
+    const agentName = await availableAgentName(runtime, workspaceId, "consulting");
     const foreign = await runtime.requestJSON<{ session: { id: string; agent_name: string } }>(
       "/api/sessions?profile=consulting",
-      { method: "POST", body: JSON.stringify({ agent_name: "claude-agent" }) }
+      {
+        method: "POST",
+        body: JSON.stringify({ agent_name: agentName, workspace: workspaceId }),
+      }
     );
     await appPage.reload({ waitUntil: "domcontentloaded" });
 
     const ui = profilesOperatorSelectors(appPage);
-    await appPage.goto(`/session/${foreign.session.id}`, { waitUntil: "domcontentloaded" });
+    await appPage.goto(runtime.url(`/session/${foreign.session.id}`), {
+      waitUntil: "domcontentloaded",
+    });
 
     // Informed, not blocked: the item resolves through the labeled aggregate read.
     await expect(ui.ownerBanner).toContainText("belongs to consulting");
@@ -471,6 +586,7 @@ test.describe("Profiles", () => {
     await ensureProjectWorkspace(appPage, runtime);
     await completeOnboardingIfPrompted(appPage);
     await createProfile(runtime, "marketing", "#c26ad6", "megaphone");
+    await recordDefaultProfileUsage(runtime, await activeWorkspaceId(runtime));
     await appPage.reload({ waitUntil: "domcontentloaded" });
 
     const home = await openAppWindow(appPage, "Home", "dashboard");
@@ -505,7 +621,7 @@ test.describe("Profiles", () => {
     await mkdir(agentDir, { recursive: true });
     await writeFile(
       path.join(agentDir, "AGENT.md"),
-      "---\nname: browser-dev\nprovider: anthropic\nmodel: claude-sonnet-4-20250514\n---\n",
+      "---\nname: browser-dev\ncategory_path: [Browser]\n---\n\nOwn browser development work.\n",
       "utf8"
     );
     const workspace = await runtime.resolveWorkspace(workspaceRoot);
@@ -527,10 +643,14 @@ test.describe("Profiles", () => {
     expect((await created).ok()).toBe(true);
     await expect(hint).toHaveCount(0);
 
-    const detail = await runtime.requestJSON<{ agents: Array<{ name: string }> }>(
-      `/api/workspaces/${workspace.id}?profile=dev`
-    );
-    expect(detail.agents.map(agent => agent.name)).toContain("browser-dev");
+    await expect
+      .poll(async () => {
+        const detail = await runtime.requestJSON<{ agents: Array<{ name: string }> }>(
+          `/api/agents?workspace=${encodeURIComponent(workspace.id)}&profile=dev`
+        );
+        return detail.agents.map(agent => agent.name);
+      })
+      .toContain("browser-dev");
   });
 
   test("E2E-028: palette results, ranking, and view sessions re-scope across a switch", async ({
@@ -540,6 +660,7 @@ test.describe("Profiles", () => {
     await ensureProjectWorkspace(appPage, runtime);
     await completeOnboardingIfPrompted(appPage);
     await createProfile(runtime, "marketing", "#c26ad6", "megaphone");
+    await createDefaultProfileSession(runtime, await activeWorkspaceId(runtime));
     await appPage.reload({ waitUntil: "domcontentloaded" });
 
     const ui = profilesOperatorSelectors(appPage);
@@ -551,17 +672,20 @@ test.describe("Profiles", () => {
     await openCommandPalette(appPage);
     expect((await scopedCatalog).ok()).toBe(true);
     await appPage.keyboard.press("Escape");
+    await expect(appPage.getByTestId("os-command-palette")).toBeHidden();
 
-    await ui.switcher.click();
-    await ui.switcherAll.click();
     const aggregateCatalog = appPage.waitForResponse(
       response =>
         response.url().includes("/api/cmd-palette/commands") &&
         response.url().includes("all_profiles=true")
     );
+    await ui.switcher.click();
+    await ui.switcherAll.click();
     const palette = await openCommandPalette(appPage);
     expect((await aggregateCatalog).ok()).toBe(true);
-    await palette.getByRole("combobox").fill("session");
+    await palette.getByRole("combobox").fill("Sessions");
+    await palette.getByTestId("os-palette-command-palette.view.sessions").click();
+    await expect(palette).toHaveAttribute("data-palette-view", "sessions");
     // The aggregate speaks the same owner vocabulary as the listings.
     await expect(profilesOperatorSelectors(appPage, palette).ownerTags.first()).toBeVisible();
   });
@@ -578,20 +702,27 @@ test.describe("Profiles", () => {
     // S1: notifications → palette → profile switcher → Settings, in that order.
     const order = await appPage.evaluate(() => {
       const slots = ["os-menubar-notifications", "os-menubar-command", "os-menubar-profile"];
-      const positions = slots.map(
-        slot =>
-          document.querySelector(`[data-testid="${slot}"]`)?.getBoundingClientRect().left ?? -1
-      );
+      const positions = slots.map(slot => {
+        const selector =
+          slot === "os-menubar-profile"
+            ? `[data-testid="${slot}"]`
+            : `[data-slot="${slot === "os-menubar-notifications" ? "os-menubar-bell" : slot}"]`;
+        return document.querySelector(selector)?.getBoundingClientRect().left ?? -1;
+      });
       const settings =
-        document.querySelector('[data-testid="os-menubar-settings"]')?.getBoundingClientRect()
-          .left ?? -1;
+        document.querySelector('[data-slot="os-menubar-settings"]')?.getBoundingClientRect().left ??
+        -1;
       return [...positions, settings];
     });
     expect(order).toEqual([...order].sort((left, right) => left - right));
 
     const ui = profilesOperatorSelectors(appPage);
     const palette = await openCommandPalette(appPage);
+    await palette.getByRole("combobox").fill("Profiles");
+    await palette.getByTestId("os-palette-command-palette.view.profiles").click();
+    await expect(paletteView(appPage, "profiles")).toBeVisible();
     await palette.getByRole("combobox").fill("marketing");
+    await expect(ui.paletteRow("marketing")).toBeVisible();
     await appPage.keyboard.press("Enter");
     await expect(ui.switcher).toContainText("marketing");
   });
@@ -609,6 +740,7 @@ test.describe("Profiles", () => {
     const peerPage = await second.newPage();
     try {
       await peerPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
+      await ensureProjectWorkspace(peerPage, runtime);
       await completeOnboardingIfPrompted(peerPage);
       const ui = profilesOperatorSelectors(appPage);
       const peer = profilesOperatorSelectors(peerPage);
@@ -721,7 +853,8 @@ test.describe("Profiles", () => {
     await tabUntilFocused(appPage, emojisTab, 4);
     await appPage.keyboard.press("Enter");
     await expect(emojis).toBeVisible();
-    await tabUntilFocused(appPage, iconsTab, 4);
+    await appPage.keyboard.press("Shift+Tab");
+    await expect(iconsTab).toBeFocused();
     await appPage.keyboard.press("Enter");
     await expect(icons).toBeVisible();
 

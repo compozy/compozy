@@ -195,7 +195,8 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
 
   const createResponse = appPage.waitForResponse(
     response =>
-      response.request().method() === "POST" && response.url().endsWith("/api/automation/triggers")
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === "/api/automation/triggers"
   );
   await ui.submitTriggerForm.click();
   const createBody = await (await createResponse).text();
@@ -218,7 +219,8 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
   const updateResponse = appPage.waitForResponse(
     response =>
       response.request().method() === "PATCH" &&
-      response.url().endsWith(`/api/automation/triggers/${encodeURIComponent(created.id)}`)
+      new URL(response.url()).pathname ===
+        `/api/automation/triggers/${encodeURIComponent(created.id)}`
   );
   await ui.submitTriggerForm.click();
   const updateBody = await (await updateResponse).text();
@@ -329,12 +331,7 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
     runtime,
     reenabledRun.workspace_id
   );
-  const parity = await captureTriggerParity(
-    runtime,
-    updated.id,
-    reenabledRun.id,
-    reenabledWorkspaceID
-  );
+  const parity = await captureTriggerParity(runtime, updated.id, reenabledRun.id);
   expect(parity.http.trigger.name).toBe(editedName);
   expect(parity.uds.trigger.webhook_id).toBe(webhookID);
   expect(parity.cliGet.id).toBe(updated.id);
@@ -374,6 +371,9 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
   if (!reenabledSessionId) {
     throw new Error("Expected the re-enabled trigger run to expose a linked session.");
   }
+  const workspaceSwitchDialog = appPage.getByRole("dialog", { name: "Switch workspace?" });
+  await expect(workspaceSwitchDialog).toBeVisible();
+  await workspaceSwitchDialog.getByRole("button", { name: "Switch workspace" }).click();
   const sessionUI = sessionWindowSelectors(sessionWindow(appPage, reenabledSessionId));
   await expect(sessionUI.chatView).toBeVisible();
   await expect(sessionUI.chatView).toContainText("Review payload deploy for main");
@@ -481,7 +481,7 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
   await expect(ui.run(failedRun.id)).toContainText(failureSummary);
 
   const failedWorkspaceID = await resolveAutomationWorkspaceID(runtime, failedRun.workspace_id);
-  const parity = await captureTriggerParity(runtime, trigger.id, failedRun.id, failedWorkspaceID);
+  const parity = await captureTriggerParity(runtime, trigger.id, failedRun.id);
   expect(parity.httpRun.run.status).toBe("failed");
   expect(parity.cliRun.status).toBe("failed");
   expect(parity.cliHistory.runs.some(run => run.id === failedRun.id && run.attempt > 1)).toBe(true);
@@ -577,12 +577,7 @@ test("operator sees fire-limit rejection across browser and runtime surfaces", a
   await expect(ui.run(limitedRun?.id ?? "")).toContainText("Failed");
   await expect(ui.runHistory).toContainText("Completed");
   const acceptedWorkspaceID = await resolveAutomationWorkspaceID(runtime, acceptedRun.workspace_id);
-  const parity = await captureTriggerParity(
-    runtime,
-    trigger.id,
-    acceptedRun.id,
-    acceptedWorkspaceID
-  );
+  const parity = await captureTriggerParity(runtime, trigger.id, acceptedRun.id);
   expect(parity.httpRuns.runs).toHaveLength(2);
   expect(parity.cliHistory.runs).toHaveLength(2);
   await runtime.artifactCollector.captureJSON("browser_api_snapshots", {
@@ -758,12 +753,7 @@ async function waitForLatestTriggerRun(
   return matched;
 }
 
-async function captureTriggerParity(
-  runtime: BrowserRuntime,
-  triggerID: string,
-  runID: string,
-  workspaceID: string
-) {
+async function captureTriggerParity(runtime: BrowserRuntime, triggerID: string, runID: string) {
   const http = await getTrigger(runtime, triggerID);
   const uds = await requestOperatorJSONOrThrow<TriggerResponse>(
     runtime,
@@ -790,11 +780,22 @@ async function captureTriggerParity(
     "50",
   ]);
   const cliRun = await automationCLI<AutomationRun>(runtime, ["automation", "runs", "get", runID]);
-  const observe = httpRun.run.session_id
-    ? await runtime.requestJSON<LogsListResponse>(
-        workspaceListLogsPath(workspaceID, httpRun.run.session_id)
+  let observe: LogsListResponse = { events: [] };
+  if (httpRun.run.session_id) {
+    const owner = await runtime.requestJSON<{ workspace_id: string }>(
+      `/api/sessions/${encodeURIComponent(httpRun.run.session_id)}/owner`
+    );
+    const logsPath = workspaceListLogsPath(owner.workspace_id, httpRun.run.session_id);
+    await expect
+      .poll(
+        async () => {
+          observe = await runtime.requestJSON<LogsListResponse>(logsPath);
+          return observe.events.length;
+        },
+        { timeout: 20_000 }
       )
-    : { events: [] };
+      .toBeGreaterThan(0);
+  }
   return {
     cliGet,
     cliHistory,

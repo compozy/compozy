@@ -1,6 +1,7 @@
 import { shallowEqual } from "@xstate/store";
 
 import { getOsAppDescriptor } from "../lib/app-catalog";
+import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import { useDesktop } from "./use-desktop";
 import {
   useDesktopOverviewSegmentRequest,
@@ -20,10 +21,7 @@ export function useDesktopManagerSurfaces() {
   const hydration = useDesktop(state => state.hydration);
   const connectionStatus = useDesktop(state => state.connectionStatus);
   const activeDesktopId = useDesktop(state => state.activeDesktopId);
-  const canMutate = useDesktop(
-    state =>
-      state.client !== null && state.hydration === "live" && state.connectionStatus === "connected"
-  );
+  const canMutate = useDesktop(windowManagerCommandsAvailable);
   const projection = useDesktop(
     state => ({
       desktops: state.desktops,

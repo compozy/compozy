@@ -1315,17 +1315,18 @@ test.describe("Loop run page — two registers", () => {
         async () => {
           const roster = await readRoster(runtime, runPath);
           return (
-            roster.nodes.find(
-              node => node.node_id === "primary" && node.generation === currentParked.generation
-            )?.state ?? "absent"
+            roster.nodes
+              .filter(
+                node => node.node_id === "primary" && node.generation > currentParked.generation
+              )
+              .sort((left, right) => right.generation - left.generation)[0]?.state ?? "absent"
           );
         },
         { timeout: 90_000 }
       )
       .toMatch(/running|succeeded/);
-    // Requeue resumes the retained continuation in the same round; it does not
-    // manufacture an empty round just to make the action visible.
-    await expect(parked).not.toHaveAttribute("data-state", "quarantined");
+    // Requeue advances the live lane without rewriting the historical round.
+    await expect(parked).toHaveAttribute("data-state", "quarantined");
   });
 
   test("E2E-017: a healthy row carries its usage, and the round carries its own", async ({
@@ -1525,7 +1526,7 @@ test.describe("Loop run page — two registers", () => {
 
     await appPage.goto(runtime.url("/loop-runs"), { waitUntil: "domcontentloaded" });
     // A fresh workspace gets a sentence, not a blank table.
-    await expect(appPage.getByTestId("loop-runs-empty")).toContainText("No runs yet");
+    await expect(appPage.getByTestId("loop-runs-empty")).toContainText("No runs in default yet");
     await expect(appPage.getByTestId("loop-runs-empty")).toContainText("catalog");
   });
 

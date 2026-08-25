@@ -8,6 +8,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
+  carryProfileView,
+  enterProfileView,
   localProfileView,
   profileViewStore,
   resetProfileViews,
@@ -36,6 +38,22 @@ describe("profile view store", () => {
     expect(localProfileView(ACME)).toEqual({ kind: "profile", profile: "marketing" });
     expect(localProfileView(GLOBAL)).toEqual({ kind: "aggregate" });
     expect(localProfileView(CLIENT)).toBeNull();
+  });
+
+  it("Should capture the remembered choice once when a client enters a lens", () => {
+    enterProfileView(ACME, { kind: "profile", profile: "default" });
+    enterProfileView(ACME, { kind: "profile", profile: "marketing" });
+    expect(localProfileView(ACME)).toEqual({ kind: "profile", profile: "default" });
+  });
+
+  it("Should carry the acting view when workspace breadth changes", () => {
+    setProfileView(ACME, { kind: "aggregate" });
+    setProfileView(GLOBAL, { kind: "profile", profile: "consulting" });
+
+    carryProfileView(ACME, GLOBAL);
+
+    expect(localProfileView(ACME)).toEqual({ kind: "aggregate" });
+    expect(localProfileView(GLOBAL)).toEqual({ kind: "aggregate" });
   });
 
   it("Should roll back to the previous view after a failed persist", () => {

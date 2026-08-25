@@ -18,6 +18,7 @@ import type { OsAttentionSections, OsSessionAttentionRow } from "../lib/attentio
 import type { PaletteShellHandlers } from "../lib/cmd-palette-client-ops";
 import type { ClientCommandChannel } from "../lib/client-command-channel";
 import type { OsDesktopRuntimeStore, OsOpenTarget } from "../lib/os-types";
+import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import { shortcutActionLabel } from "../lib/window-manager-shortcuts";
 import type {
   ProjectedFrameSeam,
@@ -206,10 +207,7 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
       activeDesktopId: state.activeDesktopId,
       desktops: state.desktops,
       compact: state.presentation === "compact",
-      canSwitchDesktop:
-        state.client !== null &&
-        state.hydration === "live" &&
-        state.connectionStatus === "connected",
+      canSwitchDesktop: windowManagerCommandsAvailable(state),
     }),
     shallowEqual
   );

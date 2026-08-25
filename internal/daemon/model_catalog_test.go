@@ -836,6 +836,41 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		waitForCatalogTestSignal(t, service.released, "refresh release")
 	})
 
+	t.Run("Should cancel and join list discovery on shutdown", func(t *testing.T) {
+		t.Parallel()
+
+		service := newBlockingModelCatalogListService()
+		runtime, err := newModelCatalogRuntime(
+			testutil.Context(t),
+			service,
+			discardLogger(),
+			time.Now,
+			5*time.Second,
+		)
+		if err != nil {
+			t.Fatalf("newModelCatalogRuntime() error = %v", err)
+		}
+
+		listErrCh := make(chan error, 1)
+		go func() {
+			_, listErr := runtime.ListModels(testutil.Context(t), modelcatalog.ListOptions{})
+			listErrCh <- listErr
+		}()
+		waitForCatalogTestSignal(t, service.started, "list discovery start")
+
+		if err := runtime.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+		waitForCatalogTestSignal(t, service.released, "list discovery release")
+		listErr := waitForCatalogTestError(t, listErrCh, "list shutdown cancellation")
+		if !errors.Is(listErr, context.Canceled) {
+			t.Fatalf("ListModels(shutdown) error = %v, want context.Canceled", listErr)
+		}
+		if _, err := runtime.ListModels(testutil.Context(t), modelcatalog.ListOptions{}); err == nil {
+			t.Fatal("ListModels(after shutdown) error = nil, want admission failure")
+		}
+	})
+
 	t.Run("Should return shutdown deadline when refresh worker does not stop in time", func(t *testing.T) {
 		t.Parallel()
 
@@ -1271,6 +1306,20 @@ type blockingModelCatalogService struct {
 	releasedOnce sync.Once
 }
 
+type blockingModelCatalogListService struct {
+	started      chan struct{}
+	released     chan struct{}
+	startOnce    sync.Once
+	releasedOnce sync.Once
+}
+
+func newBlockingModelCatalogListService() *blockingModelCatalogListService {
+	return &blockingModelCatalogListService{
+		started:  make(chan struct{}),
+		released: make(chan struct{}),
+	}
+}
+
 type recordingModelCatalogService struct {
 	models       []modelcatalog.Model
 	refreshCalls int
@@ -1607,6 +1656,30 @@ func (s *blockingModelCatalogService) Refresh(
 }
 
 func (s *blockingModelCatalogService) ListSourceStatus(
+	context.Context,
+	string,
+) ([]modelcatalog.SourceStatus, error) {
+	return nil, nil
+}
+
+func (s *blockingModelCatalogListService) ListModels(
+	ctx context.Context,
+	_ modelcatalog.ListOptions,
+) ([]modelcatalog.Model, error) {
+	s.startOnce.Do(func() { close(s.started) })
+	<-ctx.Done()
+	s.releasedOnce.Do(func() { close(s.released) })
+	return nil, ctx.Err()
+}
+
+func (s *blockingModelCatalogListService) Refresh(
+	context.Context,
+	modelcatalog.RefreshOptions,
+) ([]modelcatalog.SourceStatus, error) {
+	return nil, nil
+}
+
+func (s *blockingModelCatalogListService) ListSourceStatus(
 	context.Context,
 	string,
 ) ([]modelcatalog.SourceStatus, error) {

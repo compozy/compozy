@@ -5,7 +5,7 @@ import { openAppWindow, sessionWindow } from "../fixtures/os-navigation";
 import { waitForSeedSessionActive } from "../fixtures/runtime";
 import { sessionLifecycleSelectors, sessionWindowSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
-import { completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { ensureProjectWorkspace } from "../fixtures/workspace";
 
 const browserLifecycleFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -52,7 +52,7 @@ test("operator can onboard, create a session, submit work, approve a permission 
 }) => {
   const ui = sessionLifecycleSelectors(appPage);
 
-  await completeOnboardingIfPrompted(ui);
+  await ensureProjectWorkspace(appPage, runtime);
   await expect(ui.osDesktop).toBeVisible();
   const agentsWin = await openAppWindow(appPage, "Agents", "agents");
   const fleet = sessionLifecycleSelectors(agentsWin);

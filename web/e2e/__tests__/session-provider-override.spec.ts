@@ -18,7 +18,7 @@ import {
   sessionWindowSelectors,
 } from "../fixtures/selectors";
 import { expect, test as base } from "../fixtures/test";
-import { completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { ensureProjectWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
 
@@ -184,7 +184,7 @@ test("operator can create a provider/model override session and attach without l
 
   await expect(appPage.getByTestId("session-create-dialog")).toBeVisible();
   const createRequestPromise = appPage.waitForRequest(
-    request => request.method() === "POST" && request.url().endsWith("/api/sessions")
+    request => request.method() === "POST" && new URL(request.url()).pathname === "/api/sessions"
   );
   const createResponsePromise = appPage.waitForResponse(
     response =>
@@ -323,7 +323,7 @@ test("operator persists an advertised model and non-empty reasoning effort on th
 }) => {
   const ui = sessionLifecycleSelectors(appPage);
 
-  await completeOnboardingIfPrompted(ui);
+  await ensureProjectWorkspace(appPage, runtime);
   await expect(ui.osDesktop).toBeVisible();
   const agentsWin = await openAppWindow(appPage, "Agents", "agents");
   const fleet = sessionLifecycleSelectors(agentsWin);
@@ -336,7 +336,7 @@ test("operator persists an advertised model and non-empty reasoning effort on th
   await expect(appPage.getByTestId("session-create-dialog")).toBeVisible();
 
   const createRequestPromise = appPage.waitForRequest(
-    request => request.method() === "POST" && request.url().endsWith("/api/sessions")
+    request => request.method() === "POST" && new URL(request.url()).pathname === "/api/sessions"
   );
   const createResponsePromise = appPage.waitForResponse(
     response =>

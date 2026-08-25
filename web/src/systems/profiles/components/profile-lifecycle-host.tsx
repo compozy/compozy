@@ -12,13 +12,15 @@ import { ProfileLifecycleDialogs } from "./profile-lifecycle-dialogs";
  * browser.
  */
 export function ProfileLifecycleHost({
+  enabled = true,
   onSetAutomationEnabled,
 }: {
+  enabled?: boolean;
   onSetAutomationEnabled: (identity: string, profile: string, enabled: boolean) => Promise<void>;
 }) {
   const lens = useProfileLens();
   const profiles = useProfiles();
-  useProfileEventStream();
+  useProfileEventStream({ enabled });
   return (
     <ProfileLifecycleDialogs
       profiles={profiles.data ?? []}

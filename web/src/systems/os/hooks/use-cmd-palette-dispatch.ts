@@ -171,12 +171,12 @@ export function useCmdPaletteDispatch({
           invalidateRankSignals();
           return result;
         },
-        navigate: (app, pathname) => {
+        navigate: (app, pathname, search = {}) => {
           if (navigateOverride === undefined) {
-            navigate(app, pathname);
+            navigate(app, pathname, search);
             return;
           }
-          navigateOverride(app as OsAppId, pathname === null ? null : { pathname, search: {} });
+          navigateOverride(app as OsAppId, pathname === null ? null : { pathname, search });
         },
         pushView: viewId => shell.openPaletteView(viewId),
         openUrl: openExternalUrl,

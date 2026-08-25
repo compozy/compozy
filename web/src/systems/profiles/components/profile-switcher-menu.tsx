@@ -113,14 +113,19 @@ export function ProfileSwitcherMenu({
             </CommandItem>
           ) : null}
           {manageable ? (
-            <CommandItem
-              value="__create-profile"
-              onSelect={onCreate}
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onCreate}
+              onKeyDown={event => {
+                if (event.key === "Enter" || event.key === " ") event.stopPropagation();
+              }}
               data-testid="profile-switcher-create"
+              className="h-auto w-full justify-start gap-2 px-2 py-1.5 text-small-body font-normal tracking-normal"
             >
               <Plus aria-hidden="true" className="size-3.5 shrink-0" />
               <span>Create profile…</span>
-            </CommandItem>
+            </Button>
           ) : null}
         </CommandGroup>
       </CommandList>

@@ -10,7 +10,7 @@ import {
   type HostedMcpConnection,
 } from "../fixtures/hosted-mcp";
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
-import { sessionWindow } from "../fixtures/os-navigation";
+import { sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
 import { sessionWindowSelectors, toolApprovalGrantsSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted } from "../fixtures/workspace";
@@ -83,6 +83,7 @@ test("operator remembers a native-tool decision and revokes it end to end", asyn
   // The session and its remembered decision belong to the isolated project runtime binding.
   await completeOnboardingIfPrompted(appPage);
   const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
+  await switchWorkspace(appPage, workspace.id, workspace.name);
 
   const created = await runtime.requestJSON<SessionEnvelope>("/api/sessions", {
     method: "POST",
@@ -112,7 +113,7 @@ test("operator remembers a native-tool decision and revokes it end to end", asyn
     await sessionUI.composerTextarea.fill("hold native approval");
     await sessionUI.composerTextarea.press("Enter");
     await expect(appPage.getByText("native approval ready")).toBeVisible({ timeout: 20_000 });
-    await expect(sessionUI.stopButton).toBeVisible({ timeout: 20_000 });
+    await expect(sessionUI.composerStopButton).toBeVisible({ timeout: 20_000 });
 
     // The first prompt binds the accepted logical session and starts ACP. Connect promptly after
     // that bind so the hosted MCP server exists and its single-use nonce is still valid.

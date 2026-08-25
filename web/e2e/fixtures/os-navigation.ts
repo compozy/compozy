@@ -120,10 +120,23 @@ export function commandPalette(page: Page): Locator {
 
 /** Opens ⌘K and waits for the overlay; the palette must not block on the daemon. */
 export async function openCommandPalette(page: Page): Promise<Locator> {
-  await page.keyboard.press("ControlOrMeta+KeyK");
   const palette = commandPalette(page);
-  await expect(palette).toBeVisible();
+  await expect(async () => {
+    if (await palette.isVisible().catch(() => false)) return;
+    await page.keyboard.press("ControlOrMeta+KeyK");
+    await expect(palette).toBeVisible({ timeout: 500 });
+  }).toPass({ timeout: 20_000 });
   return palette;
+}
+
+/** Opens the dedicated Sessions catalog through its current public menu command. */
+export async function openSessionsCatalog(page: Page): Promise<Locator> {
+  await page.getByRole("menuitem", { name: "Session", exact: true }).click();
+  await expect(page.getByTestId("os-menu-session")).toBeVisible();
+  await page.getByTestId("os-menubar-command-shell.sessions.toggle").click();
+  const catalog = page.getByTestId("os-sessions-modal");
+  await expect(catalog).toBeVisible();
+  return catalog;
 }
 
 /** One command row, addressed by its registry id. */

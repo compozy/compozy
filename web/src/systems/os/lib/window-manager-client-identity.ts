@@ -28,10 +28,10 @@ export function stableWindowManagerClientId(): string {
   const cached = rememberedClientId();
   if (cached) return cached;
   try {
-    const existing = window.localStorage.getItem(WINDOW_MANAGER_CLIENT_ID_STORAGE_KEY)?.trim();
+    const existing = window.sessionStorage.getItem(WINDOW_MANAGER_CLIENT_ID_STORAGE_KEY)?.trim();
     if (existing) return rememberClientId(existing);
     const created = randomClientId();
-    window.localStorage.setItem(WINDOW_MANAGER_CLIENT_ID_STORAGE_KEY, created);
+    window.sessionStorage.setItem(WINDOW_MANAGER_CLIENT_ID_STORAGE_KEY, created);
     return rememberClientId(created);
   } catch {
     return rememberClientId(randomClientId());

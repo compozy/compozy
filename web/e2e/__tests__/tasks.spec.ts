@@ -53,8 +53,8 @@ test.afterAll(async () => {
   await rm(tasksLoopWorkspaceRoot, { force: true, recursive: true });
 });
 
-function tasksSessionPath(sessionId: string): string {
-  return `/agents/${tasksSessionAgentName}/sessions/${sessionId}`;
+function tasksSessionPath(agentName: string, sessionId: string): string {
+  return `/agents/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}`;
 }
 
 function uniqueDraftTitle(prefix: string): string {
@@ -203,7 +203,7 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
   await tasksUI.runSessionDrilldown.click();
   await expect
     .poll(() => new URL(appPage.url()).pathname)
-    .toBe(tasksSessionPath(seeded.session.id));
+    .toBe(tasksSessionPath(seeded.session.agent_name, seeded.session.id));
   const sessionWin = sessionWindowSelectors(sessionWindow(appPage, seeded.session.id));
   await expect(sessionWin.chatView).toBeVisible();
   await browserArtifacts.captureScreenshot("tasks-linked-session", appPage);
@@ -353,6 +353,13 @@ test("operator sets the task worktree policy from the setup sheet", async ({
 
   await modes.filter({ hasText: "Per-run" }).click();
   await expect(policy).toHaveAttribute("data-mode", "per_run");
+  const saveProfile = appPage.waitForResponse(
+    response =>
+      response.request().method() === "PUT" &&
+      new URL(response.url()).pathname === `/api/tasks/${taskId}/execution-profile`
+  );
+  await appPage.getByTestId("tasks-setup-editor-save").click();
+  expect((await saveProfile).ok()).toBe(true);
   await expect
     .poll(async () => {
       const profile = await runtime.requestJSON<{ profile: { worktree: { mode: string } } }>(
@@ -364,6 +371,7 @@ test("operator sets the task worktree policy from the setup sheet", async ({
 
   // The reference picker only exists in `ref` mode, and only offers ready
   // worktrees from this task's own workspace.
+  await appPage.getByTestId("tasks-setup-edit").click();
   await modes.filter({ hasText: "Named worktree" }).click();
   await expect(appPage.getByTestId("tasks-setup-worktree-ref")).toBeVisible();
 });
@@ -532,6 +540,7 @@ interface SeededLoopRecords {
   loopName: string;
   coordinatorTaskId: string;
   cellTaskId: string;
+  profileId: string;
   workspaceId: string;
 }
 
@@ -595,11 +604,11 @@ async function seedLoopRecords(
     .toBe(true);
 
   const revealed = await runtime.requestJSON<{
-    tasks: Array<{ id: string; loop?: { role?: string } }>;
+    tasks: Array<{ id: string; profile_id: string; loop?: { role?: string } }>;
   }>(revealedPath);
   const coordinator = revealed.tasks.find(task => task.loop?.role === "coordinator");
   const cell = revealed.tasks.find(task => task.loop?.role === "cell");
-  if (!coordinator || !cell) {
+  if (!coordinator || !cell || coordinator.profile_id.trim() === "") {
     throw new Error(`Loop legibility seed produced no records: ${JSON.stringify(revealed)}`);
   }
   return {
@@ -607,6 +616,7 @@ async function seedLoopRecords(
     loopName,
     coordinatorTaskId: coordinator.id,
     cellTaskId: cell.id,
+    profileId: coordinator.profile_id,
     workspaceId: workspace.id,
   };
 }
@@ -674,7 +684,7 @@ test.describe("Loop record legibility", () => {
 
     const trueEmpty = tasksWin.getByTestId("tasks-empty-state");
     await expect(trueEmpty).toBeVisible();
-    await expect(trueEmpty).toContainText("No tasks yet");
+    await expect(trueEmpty).toContainText("No tasks in default yet");
     await expect(tasksWin.locator('[data-slot="task-loop-row"]')).toHaveCount(0);
     await expect(tasksUI.taskCard(seeded.coordinatorTaskId)).toHaveCount(0);
     await expect(tasksUI.taskCard(seeded.cellTaskId)).toHaveCount(0);
@@ -850,6 +860,7 @@ test.describe("Loop record legibility", () => {
     // the record reads as a Loop step purely from projected provenance.
     const retained = await seedRetainedLoopTask(runtime, {
       loopRunId: RETAINED_LOOP_RUN_ID,
+      profileId: seeded.profileId,
       runId: "run-retained-loop-record",
       taskId: RETAINED_TASK_ID,
       workspaceId: seeded.workspaceId,

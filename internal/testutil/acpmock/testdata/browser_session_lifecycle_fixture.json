@@ -86,6 +86,19 @@
                             "chunks": ["Session continued ", "after approval."]
                         }
                     ]
+                },
+                {
+                    "name": "browser-session-auto-title",
+                    "match": {
+                        "turn_source": "synthetic",
+                        "user_text_contains": "run browser lifecycle flow\n\nAssistant response:\nStreaming response started."
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Browser Lifecycle Flow"
+                        }
+                    ]
                 }
             ]
         }

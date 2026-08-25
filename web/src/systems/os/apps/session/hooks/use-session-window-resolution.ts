@@ -10,6 +10,7 @@ import {
 
 export interface SessionWindowResolution {
   session: SessionPayload | undefined;
+  workspaceId: string | null;
   isLoading: boolean;
   error: Error | null;
   /** The scoped read answered "not in this profile" — not yet "nowhere". */
@@ -45,15 +46,18 @@ export function useSessionWindowResolution({
   );
   const scopedMiss = query.isError && isNotFound(query.error);
   const foreign = useForeignProfileSession(sessionId, scopedMiss);
-  const sessionWorkspaceId = query.data?.workspace_id?.trim();
+  const foreignSession = foreign.status === "found" ? foreign.session : undefined;
+  const sessionWorkspaceId =
+    query.data?.workspace_id?.trim() || foreignSession?.workspace_id?.trim() || null;
   return {
     session: query.data,
+    workspaceId: sessionWorkspaceId ?? runtimeWorkspaceId,
     isLoading: query.isLoading,
     error: query.error,
     scopedMiss,
     foreign,
     crossesWorkspace:
-      sessionWorkspaceId !== undefined &&
+      sessionWorkspaceId !== null &&
       runtimeWorkspaceId !== null &&
       sessionWorkspaceId !== runtimeWorkspaceId,
   };

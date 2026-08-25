@@ -184,25 +184,27 @@ function acceptedOutcome(): WindowManagerCommandOutcome {
   return { accepted: true, completion: Promise.resolve(true) };
 }
 
-function createShell({ live = true, withPeer = true } = {}) {
+function createShell({ live = true, authoritative = true, withPeer = true } = {}) {
   const primary = windowFixture("window:primary", 2);
   const peer = windowFixture("window:peer", 1);
   const zoomWindow = vi.fn(() => acceptedOutcome());
   const toggleFloating = vi.fn(() => acceptedOutcome());
   const arrangeLayout = vi.fn();
   const state: OsDesktopRuntimeStore = {
-    snapshot: SNAPSHOT,
-    windowManagerConfig: CONFIG,
-    client: {
-      workspaceId: "workspace:test",
-      clientId: "client:web",
-      activeDesktopId: "desktop:main",
-      focusedWindowId: primary.id,
-      focusOrder: [primary.id],
-      stackActive: {},
-      connectedAt: "2026-07-22T00:00:00Z",
-      presentationRevision: 1,
-    },
+    snapshot: authoritative ? SNAPSHOT : null,
+    windowManagerConfig: authoritative ? CONFIG : null,
+    client: authoritative
+      ? {
+          workspaceId: "workspace:test",
+          clientId: "client:web",
+          activeDesktopId: "desktop:main",
+          focusedWindowId: primary.id,
+          focusOrder: [primary.id],
+          stackActive: {},
+          connectedAt: "2026-07-22T00:00:00Z",
+          presentationRevision: 1,
+        }
+      : null,
     desktops: [],
     projections: {},
     frames: {},
@@ -214,7 +216,7 @@ function createShell({ live = true, withPeer = true } = {}) {
     dockMagnify: true,
     presentation: "floating",
     viewportState: "ready",
-    hydration: "live",
+    hydration: authoritative ? "live" : "pending",
     connectionStatus: live ? "connected" : "disconnected",
     desktopBounds: { width: 1280, height: 800, origin: { x: 0, y: 0 } },
   };
@@ -1533,9 +1535,9 @@ describe("useOsZoomMenu", () => {
     expect(result.current.open).toBe(true);
   });
 
-  it("Should gate placement dispatch on live availability and close after an accepted action", () => {
+  it("Should gate placement dispatch on an authoritative fence and close after an accepted action", () => {
     const liveShell = createShell();
-    const unavailableShell = createShell({ live: false });
+    const unavailableShell = createShell({ authoritative: false });
     const live = renderHook(() => useOsZoomMenu("window:primary"), {
       wrapper: liveShell.wrapper,
     });
@@ -1615,8 +1617,21 @@ describe("useOsWindowCommands", () => {
     expect(actions.makeFloating).toBeNull();
   });
 
-  it("Should withhold every window command while the client is not live", () => {
+  it("Should keep window commands available while the event stream reconnects", () => {
     const shell = createShell({ live: false });
+    const { result } = renderHook(() => useOsWindowCommands(), { wrapper: shell.wrapper });
+
+    expect(result.current.commandsAvailable).toBe(true);
+    expect(result.current.focusedWindowActions).not.toBeNull();
+    expect(result.current.canToggleFloating).toBe(true);
+    expect(result.current.canBalanceLayout).toBe(true);
+    expect(result.current.canEditLayoutHistory).toBe(true);
+    expect(result.current.canFocusDirection).toBe(true);
+    expect(result.current.canSwitchDesktop).toBe(false);
+  });
+
+  it("Should withhold every window command without an authoritative fence", () => {
+    const shell = createShell({ authoritative: false });
     const { result } = renderHook(() => useOsWindowCommands(), { wrapper: shell.wrapper });
 
     expect(result.current.commandsAvailable).toBe(false);

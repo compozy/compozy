@@ -38,6 +38,7 @@ import { statusKeys, type StatusPayload } from "@/systems/status";
 import {
   ACTIVE_WORKSPACE_PERSIST_KEY,
   activeWorkspaceStore,
+  enableGlobalScope,
   setActiveWorkspaceId,
   workspaceKeys,
   type WorkspacePayload,
@@ -57,6 +58,7 @@ const BENCH_WORKSPACE_ID = "ws_74a58ac2bf973937";
 const PRIMARY_SESSION_ID = "sess-5ec18f5f2a13fe16";
 const PRIMARY_WORKSPACE_ID = "ws_06366aad69887872";
 const PRIMARY_WORKSPACE_NAME = "primary";
+const SIBLING_PROFILE_SESSION_ID = "sess-83c389e7e46274aa";
 const UNKNOWN_SESSION_ID = "sess-000000000000dead";
 
 interface TestRouterContext {
@@ -107,6 +109,11 @@ const foreignSession = makeSession(
   PRIMARY_WORKSPACE_ID,
   PRIMARY_WORKSPACE_NAME
 );
+const siblingProfileSession = {
+  ...makeSession(SIBLING_PROFILE_SESSION_ID, BENCH_WORKSPACE_ID, "bench-ops"),
+  profile_id: "01JMARKETINGPROFILE0000000000",
+  profile_name: "marketing",
+};
 
 /**
  * Seeds only what the active workspace legitimately owns. The foreign session stays out of every
@@ -156,6 +163,28 @@ function stubForeignSessionBackend(): void {
       pathname === `/api/sessions/${PRIMARY_SESSION_ID}`
     ) {
       return Promise.resolve(Response.json({ session: foreignSession }));
+    }
+    return Promise.resolve(new Response(null, { status: 404 }));
+  });
+}
+
+function stubSiblingProfileSessionBackend(): void {
+  vi.mocked(globalThis.fetch).mockImplementation(request => {
+    const url = new URL(request instanceof Request ? request.url : String(request));
+    if (url.pathname === `/api/sessions/${SIBLING_PROFILE_SESSION_ID}/owner`) {
+      return Promise.resolve(
+        Response.json({
+          session_id: SIBLING_PROFILE_SESSION_ID,
+          workspace_id: BENCH_WORKSPACE_ID,
+          workspace_name: "bench-ops",
+        })
+      );
+    }
+    if (
+      url.pathname === `/api/sessions/${SIBLING_PROFILE_SESSION_ID}` &&
+      url.searchParams.get("all_profiles") === "true"
+    ) {
+      return Promise.resolve(Response.json({ session: siblingProfileSession }));
     }
     return Promise.resolve(new Response(null, { status: 404 }));
   });
@@ -496,6 +525,38 @@ describe("cross-workspace session deep-link router integration", () => {
     expect(activeWorkspaceStore.getSnapshot().context.selectedWorkspaceId).toBe(
       PRIMARY_WORKSPACE_ID
     );
+  });
+
+  it("Should resolve a same-workspace permalink across profiles without a workspace prompt", async () => {
+    stubSiblingProfileSessionBackend();
+    const { queryClient, router } = buildSessionDeepLinkRouter({
+      initialEntry: `/session/${SIBLING_PROFILE_SESSION_ID}`,
+    });
+    renderRouter(router);
+
+    await screen.findByText(`Loaded session: ${SIBLING_PROFILE_SESSION_ID}`);
+    expect(router.state.location.pathname).toBe(
+      `/agents/general/sessions/${SIBLING_PROFILE_SESSION_ID}`
+    );
+    expect(screen.queryByTestId("session-workspace-switch-dialog")).not.toBeInTheDocument();
+    expect(queryClient.getQueryData(sessionKeys.byId(SIBLING_PROFILE_SESSION_ID, "@all"))).toEqual(
+      siblingProfileSession
+    );
+    expect(fetchedPathnames()).toContain(`/api/sessions/${SIBLING_PROFILE_SESSION_ID}/owner`);
+    expect(fetchedPathnames()).toContain(`/api/sessions/${SIBLING_PROFILE_SESSION_ID}`);
+  });
+
+  it("Should resolve a permalink against the remembered desktop workspace in Global scope", async () => {
+    enableGlobalScope();
+    const { router } = buildSessionDeepLinkRouter({
+      initialEntry: `/session/${BENCH_SESSION_ID}`,
+    });
+    renderRouter(router);
+
+    await screen.findByText(`Loaded session: ${BENCH_SESSION_ID}`);
+    expect(router.state.location.pathname).toBe(`/agents/general/sessions/${BENCH_SESSION_ID}`);
+    expect(screen.queryByTestId("session-workspace-switch-dialog")).not.toBeInTheDocument();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   it("Should keep an external permalink on today's not-found rendering when declined", async () => {

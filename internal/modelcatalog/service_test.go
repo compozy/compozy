@@ -1146,6 +1146,39 @@ func TestCatalogViews(t *testing.T) {
 func TestCatalogServiceRefresh(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should stop before the next source when refresh is canceled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(testutil.Context(t))
+		defer cancel()
+		first := &fakeSource{
+			id:       "extension:cancel-refresh",
+			kind:     SourceKindExtension,
+			priority: PriorityExtension + 1,
+			listModels: func(context.Context, ListOptions) ([]ModelRow, error) {
+				cancel()
+				return nil, ctx.Err()
+			},
+		}
+		later := &fakeSource{
+			id:       "extension:later-refresh",
+			kind:     SourceKindExtension,
+			priority: PriorityExtension,
+		}
+		service := newTestService(t, newMemoryStore(), []Source{later, first})
+
+		_, err := service.Refresh(ctx, RefreshOptions{Force: true, Now: testTime(1)})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Refresh() error = %v, want context.Canceled", err)
+		}
+		if got := first.calls; got != 1 {
+			t.Fatalf("first source calls = %d, want 1", got)
+		}
+		if got := later.calls; got != 0 {
+			t.Fatalf("later source calls = %d, want 0 after cancellation", got)
+		}
+	})
+
 	t.Run("Should bootstrap opted-in sources once before the first catalog projection", func(t *testing.T) {
 		t.Parallel()
 
@@ -2550,6 +2583,7 @@ type fakeSource struct {
 	err           error
 	ttl           time.Duration
 	bootstrapList bool
+	listModels    func(context.Context, ListOptions) ([]ModelRow, error)
 	calls         int
 }
 
@@ -2609,8 +2643,11 @@ func (s *fakeSource) BootstrapOnList() bool {
 	return s.bootstrapList
 }
 
-func (s *fakeSource) ListModels(_ context.Context, opts ListOptions) ([]ModelRow, error) {
+func (s *fakeSource) ListModels(ctx context.Context, opts ListOptions) ([]ModelRow, error) {
 	s.calls++
+	if s.listModels != nil {
+		return s.listModels(ctx, opts)
+	}
 	rows := make([]ModelRow, 0, len(s.rows))
 	for _, row := range s.rows {
 		if opts.ProviderID == "" || row.ProviderID == opts.ProviderID {

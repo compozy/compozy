@@ -58,8 +58,8 @@ function client(presentationRevision = 1): WindowManagerRegisteredClientView {
 
 beforeEach(() => {
   Reflect.deleteProperty(globalThis, WINDOW_MANAGER_CLIENT_ID_MEMORY_KEY);
-  window.localStorage.clear();
-  window.localStorage.setItem(STORAGE_KEY, "client:stable");
+  window.sessionStorage.clear();
+  window.sessionStorage.setItem(STORAGE_KEY, "client:stable");
   vi.mocked(isDesktopShell).mockReturnValue(false);
   // Matches the adapter's real shape: retiring a registration is awaited.
   vi.mocked(unregisterWindowManagerClient).mockResolvedValue(undefined);

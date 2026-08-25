@@ -145,6 +145,14 @@ export function useDeleteSession(options: UseSessionWorkspaceOptions = {}) {
 
   return useMutation({
     mutationFn: (id: string) => deleteSession(requireWorkspace(workspaceId), id),
+    onMutate: async id => {
+      const deleteWorkspaceId = requireWorkspace(workspaceId);
+      sessionStore.trigger.sessionLiveTailSuspended({ sessionId: id });
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: sessionKeys.detail(deleteWorkspaceId, id) }),
+        queryClient.cancelQueries({ queryKey: sessionKeys.byIdRoot(id) }),
+      ]);
+    },
     onSuccess: (_data, id) => {
       const successWorkspaceId = requireWorkspace(workspaceId);
       sessionStore.trigger.sessionInteractionRemoved({ sessionId: id });
@@ -152,6 +160,9 @@ export function useDeleteSession(options: UseSessionWorkspaceOptions = {}) {
       queryClient.removeQueries({ queryKey: sessionKeys.byIdRoot(id) });
 
       return invalidateWorkspaceSessionCatalog(queryClient, successWorkspaceId);
+    },
+    onSettled: (_data, _error, id) => {
+      sessionStore.trigger.sessionLiveTailResumed({ sessionId: id });
     },
   });
 }
@@ -193,8 +204,23 @@ export function useResumeSession(options: UseSessionWorkspaceOptions = {}) {
 
   return useMutation({
     mutationFn: (id: string) => resumeSession(requireWorkspace(workspaceId), id),
+    onMutate: async id => {
+      const resumeWorkspaceId = requireWorkspace(workspaceId);
+      sessionStore.trigger.sessionLiveTailSuspended({ sessionId: id });
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: sessionKeys.detail(resumeWorkspaceId, id) }),
+        queryClient.cancelQueries({ queryKey: sessionKeys.byIdRoot(id) }),
+      ]);
+    },
     onSettled: (_data, _error, id) => {
-      if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, id);
+      if (!workspaceId) {
+        sessionStore.trigger.sessionLiveTailResumed({ sessionId: id });
+        return;
+      }
+
+      return invalidateSessionMutationQueries(queryClient, workspaceId, id).finally(() => {
+        sessionStore.trigger.sessionLiveTailResumed({ sessionId: id });
+      });
     },
   });
 }

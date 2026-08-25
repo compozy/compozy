@@ -297,6 +297,10 @@ test("starting a manual session is unaffected by task autonomy labels", async ({
   const sessionUI = sessionLifecycleSelectors(appPage);
 
   await ensureProjectWorkspace(appPage, runtime);
+  if (!runtime.paths?.workspaceDir) {
+    throw new Error("manual session browser test requires launch-mode workspace paths");
+  }
+  const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(appPage);
 
@@ -344,7 +348,7 @@ test("starting a manual session is unaffected by task autonomy labels", async ({
 
   const sessions = await runtime.requestJSON<{
     sessions: Array<{ id: string; agent_name: string; state?: string }>;
-  }>("/api/sessions");
+  }>(`/api/sessions?workspace_id=${encodeURIComponent(workspace.id)}`);
   expect(
     sessions.sessions.some(
       session => session.id === sessionId && session.agent_name === handoffAgentName
