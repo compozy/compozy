@@ -1,7 +1,14 @@
 import { LayoutGrid, Settings, Star } from "lucide-react";
 import { useRef, type KeyboardEvent, type ReactNode } from "react";
 
-import { cn, KindIcon, providerKindIconRegistry } from "@compozy/ui";
+import {
+  cn,
+  KindIcon,
+  providerKindIconRegistry,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@compozy/ui";
 
 import type { RailFilter } from "./use-runtime-selector";
 import type { RuntimeProviderOption } from "./types";
@@ -78,16 +85,22 @@ export function ProviderChips({
     }
   };
 
-  const chipRadio = (target: RailFilter, label: string, content: ReactNode, dim = false) => {
+  const chipRadio = (
+    target: RailFilter,
+    label: string,
+    content: ReactNode,
+    dim = false,
+    tooltipText?: string
+  ) => {
     const active = railFilter === target;
-    return (
+    const chip = (
       <button
         key={target}
         type="button"
         role="radio"
         aria-checked={active}
         aria-label={label}
-        title={label}
+        title={tooltipText ? undefined : label}
         data-rail={target}
         data-active={active}
         data-dim={dim ? "true" : undefined}
@@ -101,6 +114,15 @@ export function ProviderChips({
       >
         {content}
       </button>
+    );
+
+    if (!tooltipText) return chip;
+
+    return (
+      <Tooltip key={target} disabled={searching}>
+        <TooltipTrigger render={chip} />
+        <TooltipContent>{tooltipText}</TooltipContent>
+      </Tooltip>
     );
   };
 
@@ -121,10 +143,11 @@ export function ProviderChips({
         {chipRadio("all", "All models", <LayoutGrid aria-hidden="true" className="size-3.5" />)}
         {chipRadio("fav", "Favorites", <Star aria-hidden="true" className="size-3.5" />)}
         <span aria-hidden="true" className="mx-1 h-3.5 w-px shrink-0 bg-line" />
-        {providers.map(provider =>
-          chipRadio(
+        {providers.map(provider => {
+          const label = provider.needs_auth ? `${provider.name} · needs sign in` : provider.name;
+          return chipRadio(
             provider.id,
-            provider.needs_auth ? `${provider.name} · needs sign in` : provider.name,
+            label,
             <KindIcon
               kind={provider.runtime_provider ?? provider.id}
               registry={providerKindIconRegistry}
@@ -132,9 +155,10 @@ export function ProviderChips({
               tone={railFilter === provider.id ? "default" : "muted"}
               className="size-3.5"
             />,
-            Boolean(provider.needs_auth)
-          )
-        )}
+            Boolean(provider.needs_auth),
+            label
+          );
+        })}
       </div>
       {onOpenSettings ? (
         <button
