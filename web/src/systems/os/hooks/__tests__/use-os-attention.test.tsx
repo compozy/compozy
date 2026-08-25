@@ -44,6 +44,17 @@ vi.mock("@/systems/loops", () => ({
     loading: false,
   })),
 }));
+// Delegation attention owns its own query suite; this one is about how the shell
+// composes it. The default is a quiet source so existing cases are unaffected.
+vi.mock("../use-attention-calls", () => ({
+  useAttentionCalls: vi.fn(() => ({
+    rows: [],
+    count: 0,
+    coveredSessionIds: new Set<string>(),
+    stale: false,
+    loading: false,
+  })),
+}));
 // The summary and policy hooks own their own suites; this one is about how the
 // shell composes them against the scoped modal queries.
 vi.mock("../use-attention-summary", () => ({ useAttentionSummary: vi.fn() }));
@@ -58,6 +69,7 @@ vi.mock("../use-attention-policy", () => ({
 
 import { useLoopNodeExists, useLoopRequestAttention } from "@/systems/loops";
 import { pendingAskRequest } from "@/systems/loops/mocks/fixture-graph-eng-requests";
+import { useAttentionCalls } from "../use-attention-calls";
 import { useAttentionSummary } from "../use-attention-summary";
 import { useOsAttention } from "../use-os-attention";
 import { useSessions, type SessionPayload } from "@/systems/session";
@@ -300,5 +312,131 @@ describe("useOsAttention", () => {
     expect(result.current.notificationCount).toBe(6);
     expect(result.current.loopRequestsDisconnected).toBe(true);
     expect(result.current.sections.needsYou[0]).toMatchObject({ kind: "loop-request" });
+  });
+
+  it("Should light the Agents badge from the daemon's delegation count", () => {
+    vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
+    vi.mocked(useAttentionCalls).mockReturnValue({
+      rows: [
+        {
+          id: "call_bad",
+          cause: "invalid-result",
+          agentName: "compliance-review-agent",
+          rootSessionId: "sess_release_control",
+          callId: "call_bad",
+          childSessionId: "sess_compliance_review",
+          changedAt: "2026-08-20T18:10:00Z",
+          count: 1,
+        },
+      ],
+      count: 3,
+      coveredSessionIds: new Set<string>(),
+      stale: false,
+      loading: false,
+    });
+
+    const { result } = renderHook(() => useOsAttention(workspace, "live", false));
+
+    expect(result.current.badges.calls).toBe(3);
+    expect(result.current.notificationCount).toBe(3);
+    expect(result.current.sections.needsYou[0]).toMatchObject({
+      kind: "call",
+      cause: "invalid-result",
+    });
+  });
+
+  it("Should render a coalesced tree as one row carrying its real count", () => {
+    vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
+    vi.mocked(useAttentionCalls).mockReturnValue({
+      rows: [
+        {
+          id: "tree:sess_migration_sweep",
+          cause: "invalid-result",
+          agentName: "platform-engineer-agent",
+          rootSessionId: "sess_migration_sweep",
+          callId: "call_0",
+          childSessionId: null,
+          changedAt: "2026-08-20T18:10:00Z",
+          count: 12,
+        },
+      ],
+      count: 12,
+      coveredSessionIds: new Set<string>(),
+      stale: false,
+      loading: false,
+    });
+
+    const { result } = renderHook(() => useOsAttention(workspace, "live", false));
+
+    // Twelve things need a look, shown as one row — not twelve alarms.
+    const callRows = result.current.sections.needsYou.filter(row => row.kind === "call");
+    expect(callRows).toHaveLength(1);
+    expect(callRows[0]).toMatchObject({
+      count: 12,
+      title: "12 calls need your look in this tree",
+    });
+    expect(result.current.badges.calls).toBe(12);
+  });
+
+  it("Should show a blocked child once, as the call row that names its tree", () => {
+    vi.mocked(useSessions).mockReturnValue(
+      sessionsQuery({ data: [waitingSession("sess_compliance_review")] })
+    );
+    vi.mocked(useAttentionCalls).mockReturnValue({
+      rows: [
+        {
+          id: "call_open",
+          cause: "blocked-on-decision",
+          agentName: "compliance-review-agent",
+          rootSessionId: "sess_release_control",
+          callId: "call_open",
+          childSessionId: "sess_compliance_review",
+          changedAt: "2026-08-20T18:10:00Z",
+          count: 1,
+        },
+      ],
+      count: 1,
+      coveredSessionIds: new Set(["sess_compliance_review"]),
+      stale: false,
+      loading: false,
+    });
+
+    const { result } = renderHook(() => useOsAttention(workspace, "live", false));
+
+    const kinds = result.current.sections.needsYou.map(row => row.kind);
+    expect(kinds).toContain("call");
+    // The bare session row is suppressed: the call row says the same thing with
+    // the agent and the tree attached, so one blocked child is one row.
+    expect(kinds).not.toContain("session");
+  });
+
+  it("Should drop the delegation badge while its source is stale, keeping the row", () => {
+    vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
+    vi.mocked(useAttentionCalls).mockReturnValue({
+      rows: [
+        {
+          id: "call_bad",
+          cause: "completed-without-result",
+          agentName: "copywriter-agent",
+          rootSessionId: "sess_marketing_launch_copy",
+          callId: "call_bad",
+          childSessionId: null,
+          changedAt: "2026-08-20T18:10:00Z",
+          count: 1,
+        },
+      ],
+      // Already zeroed by the agent-comms layer when its source went stale.
+      count: 0,
+      coveredSessionIds: new Set<string>(),
+      stale: true,
+      loading: false,
+    });
+
+    const { result } = renderHook(() => useOsAttention(workspace, "live", false));
+
+    expect(result.current.badges.calls).toBeUndefined();
+    expect(result.current.callsDisconnected).toBe(true);
+    // The row stays listed and clickable — an old jump target beats none.
+    expect(result.current.sections.needsYou[0]).toMatchObject({ kind: "call", stale: true });
   });
 });

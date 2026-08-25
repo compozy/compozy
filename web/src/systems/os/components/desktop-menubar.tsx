@@ -171,6 +171,17 @@ export function DesktopMenubar({
       });
       return;
     }
+    if (row.kind === "call") {
+      // Activity, not the single record: a coalesced row stands for a whole
+      // tree and its id is `tree:<root>`, which is not a call id at all. This
+      // branch also has to exist — without it a call row fell through to the
+      // tasks open below and navigated to `/tasks/<callId>`.
+      void coordinator.userOpen({
+        app: "agents",
+        route: { pathname: "/agents/activity", search: {} },
+      });
+      return;
+    }
     void coordinator.userOpen({
       app: "tasks",
       route: { pathname: `/tasks/${encodeURIComponent(row.id)}`, search: {} },

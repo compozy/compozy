@@ -132,6 +132,8 @@ type Call struct {
 	State             string                 `json:"state"`
 	Verdict           string                 `json:"verdict,omitempty"`
 	ExpectDigest      string                 `json:"expect_digest,omitempty"`
+	PromptPreview     string                 `json:"prompt_preview,omitempty"`
+	PromptBytes       int                    `json:"prompt_bytes"`
 	ResultPreview     json.RawMessage        `json:"result_preview,omitempty"`
 	ResultBytes       int                    `json:"result_bytes,omitempty"`
 	ResultBudget      int                    `json:"result_budget_bytes"`
@@ -141,7 +143,11 @@ type Call struct {
 	IdleExpiresAt     *time.Time             `json:"idle_expires_at"`
 	FailureCode       string                 `json:"failure_code,omitempty"`
 	FailureDetail     string                 `json:"failure_detail,omitempty"`
+	FirstIssueText    string                 `json:"first_issue_text,omitempty"`
+	SecondIssueText   string                 `json:"second_issue_text,omitempty"`
 	FinalProsePreview string                 `json:"final_prose_preview,omitempty"`
+	SupersededPreview json.RawMessage        `json:"superseded_preview,omitempty"`
+	SupersededBytes   int                    `json:"superseded_bytes"`
 	RepairAttempts    int                    `json:"repair_attempts"`
 	Replayed          bool                   `json:"replayed,omitempty"`
 	Provenance        *CallProvenancePayload `json:"provenance,omitempty"`
@@ -173,8 +179,4 @@ type CallMessagePayload struct {
 type CallMessagesResponse struct {
 	Items      []CallMessagePayload `json:"items"`
 	NextCursor string               `json:"next_cursor,omitempty"`
-}
-
-type CallObservationPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
 }

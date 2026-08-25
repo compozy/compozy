@@ -6,6 +6,10 @@ import { DETAIL_INSPECTOR_INLINE_BREAKPOINT } from "@compozy/ui";
 import { SessionLedgerUnavailableError } from "../../adapters/session-api";
 import type { SessionLedgerResponse } from "../../types";
 import { SessionInspector, type InspectorUsage } from "../session-inspector";
+import {
+  SESSION_INSPECTOR_TAB_IDS,
+  SESSION_INSPECTOR_TAB_TESTIDS,
+} from "../../lib/session-inspector-tabs";
 
 const ORIGINAL_MATCH_MEDIA = window.matchMedia;
 
@@ -70,7 +74,7 @@ function openUsageTab() {
 }
 
 describe("SessionInspector — DetailInspector chrome (/ §3)", () => {
-  it("Should consume <DetailInspector> with 4 tabs in a single flat tab strip", () => {
+  it("Should consume <DetailInspector> with every registered tab in one flat strip", () => {
     const ledger = makeLedger();
     render(<SessionInspector messages={[]} sessionId="sess_123" memory={{ ledger }} />);
 
@@ -79,6 +83,23 @@ describe("SessionInspector — DetailInspector chrome (/ §3)", () => {
     expect(screen.getByTestId("session-inspector-tab-memory")).toBeInTheDocument();
     expect(screen.getByTestId("session-inspector-tab-files")).toBeInTheDocument();
     expect(screen.getByTestId("session-inspector-tab-vault")).toBeInTheDocument();
+    expect(screen.getByTestId("session-inspector-tab-calls")).toBeInTheDocument();
+  });
+
+  it("Should give every registered tab id a testid and a rendered strip entry", () => {
+    // A tab added to the union without a testid, or with a testid but no strip
+    // entry, is invisible to every E2E selector that targets it — the failure
+    // this guards is a half-registered tab, not the strip's contents.
+    render(<SessionInspector messages={[]} sessionId="sess_123" memory={{ ledger: null }} />);
+
+    for (const id of SESSION_INSPECTOR_TAB_IDS) {
+      const testId = SESSION_INSPECTOR_TAB_TESTIDS[id];
+      expect(testId).toBeDefined();
+      expect(screen.getByTestId(testId)).toBeInTheDocument();
+    }
+    expect(Object.keys(SESSION_INSPECTOR_TAB_TESTIDS)).toHaveLength(
+      SESSION_INSPECTOR_TAB_IDS.length
+    );
   });
 
   it("Should default the active tab to Usage", () => {

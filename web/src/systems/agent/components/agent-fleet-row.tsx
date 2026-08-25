@@ -66,6 +66,17 @@ function AgentFleetRow({ row, newSessionDisabled = false, onNewSession }: AgentF
               ))}
             </ListingRow.Meta>
           ) : null}
+          {/*
+            The description is what another agent reads when choosing a
+            specialist, so it is the row's most useful line — and it is model
+            output, which is why it renders as plain text inside the row rather
+            than as anything that could carry a link or a control.
+          */}
+          {agent.description.trim() ? (
+            <ListingRow.Description data-testid={`agent-fleet-description-${agent.name}`}>
+              {agent.description}
+            </ListingRow.Description>
+          ) : null}
           <AgentLayerProvenance
             data-testid={`agent-fleet-provenance-${agent.name}`}
             layer={row.layer}
@@ -74,6 +85,15 @@ function AgentFleetRow({ row, newSessionDisabled = false, onNewSession }: AgentF
         </ListingRow.Main>
       </ListingRow.Link>
       <ListingRow.Trail className="gap-3">
+        {/*
+          An inactive name collision: this definition exists but a same-named one
+          in a nearer layer is what actually runs.
+        */}
+        {agent.shadowed ? (
+          <Pill tone="warning" size="sm" data-testid={`agent-fleet-shadowed-${agent.name}`}>
+            Shadowed
+          </Pill>
+        ) : null}
         {sessionsAvailable && signals ? (
           <Pill
             size="sm"

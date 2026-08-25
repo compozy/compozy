@@ -320,6 +320,7 @@ export {
 } from "./hooks/use-workspace-session-activity";
 export {
   sessionCatalogStreamURL,
+  useSessionCatalogStreamStatus,
   useSessionCatalogStreams,
   type SessionCatalogEventSource,
   type SessionCatalogEventSourceFactory,

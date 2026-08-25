@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	callspkg "github.com/compozy/compozy/internal/calls"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (h *BaseHandlers) callPayloads(
@@ -20,15 +22,63 @@ func (h *BaseHandlers) callPayloads(
 	}
 	items := make([]contract.CallPayload, 0, len(records))
 	for _, record := range records {
-		items = append(items, callPayload(record, owners[record.ProfileID], nil))
+		content, contentErr := h.callPayloadContent(ctx, record)
+		if contentErr != nil {
+			return nil, contentErr
+		}
+		items = append(items, callPayload(record, owners[record.ProfileID], content))
 	}
 	return items, nil
+}
+
+type callPayloadContent struct {
+	PromptPreview     string
+	PromptBytes       int
+	ResultPreview     json.RawMessage
+	SupersededPreview json.RawMessage
+	SupersededBytes   int
+}
+
+func (h *BaseHandlers) callPayloadContent(
+	ctx context.Context,
+	record callspkg.CallRecord,
+) (callPayloadContent, error) {
+	query := callspkg.CallReadQuery{
+		ReadScope:   store.ReadScope{ProfileID: record.ProfileID},
+		Scope:       record.Scope,
+		WorkspaceID: record.WorkspaceID,
+	}
+	content := callPayloadContent{}
+	if strings.TrimSpace(record.PromptRef) != "" {
+		prompt, err := h.Calls.Prompt(ctx, query, record.CallID)
+		if err != nil {
+			return callPayloadContent{}, err
+		}
+		content.PromptPreview = boundedCallTextPreview(prompt.Text, callPromptPreviewBytes)
+		content.PromptBytes = len([]byte(prompt.Text))
+	}
+	if record.State == callspkg.StateCompleted && strings.TrimSpace(record.ResultRef) != "" {
+		result, err := h.Calls.Result(ctx, query, record.CallID)
+		if err != nil {
+			return callPayloadContent{}, err
+		}
+		content.ResultPreview = boundedCallPreview(result.Bytes, record.ResultBudget.MaxBytes)
+	}
+	if strings.TrimSpace(record.SupersededRef) != "" {
+		superseded, err := h.Calls.Superseded(ctx, query, record.CallID)
+		if err != nil {
+			return callPayloadContent{}, err
+		}
+		content.SupersededPreview = boundedCallPreview(superseded.Bytes, record.ResultBudget.MaxBytes)
+		content.SupersededBytes = len(superseded.Bytes)
+	}
+	return content, nil
 }
 
 func callPayload(
 	record callspkg.CallRecord,
 	profile profileOwnerIdentity,
-	resultPreview json.RawMessage,
+	content callPayloadContent,
 ) contract.CallPayload {
 	payload := contract.CallPayload{
 		CallID: record.CallID, ProfileID: record.ProfileID, ProfileName: profile.Name,
@@ -38,11 +88,14 @@ func callPayload(
 		Agent:  record.AgentName, ChildSessionID: record.ChildSessionID,
 		ParentSessionID: record.ParentSessionID, RootSessionID: record.GovernedRootID,
 		Depth: record.Depth, State: string(record.State), Verdict: string(record.Verdict),
-		ExpectDigest: record.ExpectDigest, ResultPreview: cloneCallJSON(resultPreview),
-		ResultBytes: record.ResultBytes, ResultBudget: record.ResultBudget.MaxBytes,
+		ExpectDigest: record.ExpectDigest, PromptPreview: content.PromptPreview, PromptBytes: content.PromptBytes,
+		ResultPreview: cloneCallJSON(content.ResultPreview),
+		ResultBytes:   record.ResultBytes, ResultBudget: record.ResultBudget.MaxBytes,
 		ResultOverflow: string(record.ResultBudget.Overflow), Strict: record.Strict,
 		IdleTTLSeconds: durationSeconds(record.IdleTTL), FailureCode: record.FailureCode,
-		FailureDetail: record.FailureDetail, FinalProsePreview: record.FinalProsePreview,
+		FailureDetail: record.FailureDetail, FirstIssueText: record.FirstIssueText,
+		SecondIssueText: record.SecondIssueText, FinalProsePreview: record.FinalProsePreview,
+		SupersededPreview: cloneCallJSON(content.SupersededPreview), SupersededBytes: content.SupersededBytes,
 		RepairAttempts: record.RepairAttempts,
 		Replayed:       record.Replayed, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt,
 		StartedAt: timePointer(record.StartedAt), SettledAt: timePointer(record.SettledAt),
@@ -55,6 +108,17 @@ func callPayload(
 		}
 	}
 	return payload
+}
+
+func boundedCallTextPreview(value string, maxBytes int) string {
+	if maxBytes <= 0 || len(value) <= maxBytes {
+		return value
+	}
+	preview := value[:maxBytes]
+	for preview != "" && !utf8.ValidString(preview) {
+		preview = preview[:len(preview)-1]
+	}
+	return preview
 }
 
 func callCreatePayload(record callspkg.CallRecord) contract.CallCreatePayload {

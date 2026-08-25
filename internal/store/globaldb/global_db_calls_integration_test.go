@@ -179,6 +179,56 @@ func TestGlobalDBCallSettlementIsAtomicAndRetainsVerifiedOverflow(t *testing.T) 
 	if silent.Call.State != callspkg.StateCompletedWithoutResult || len(silent.Call.FinalProsePreview) != 4096 {
 		t.Fatalf("Return(silent) = state %s preview bytes %d", silent.Call.State, len(silent.Call.FinalProsePreview))
 	}
+
+	attentionQuery := callspkg.CallListQuery{
+		CallReadQuery: callspkg.CallReadQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			Scope:     callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
+		},
+		Attention: true,
+	}
+	attentionBefore, err := service.List(ctx, attentionQuery)
+	if err != nil {
+		t.Fatalf("List(unresolved attention) error = %v", err)
+	}
+	if attentionBefore.Total != 1 || len(attentionBefore.Items) != 1 ||
+		attentionBefore.Items[0].CallID != silent.Call.CallID {
+		t.Fatalf("List(unresolved attention) = %#v, want silent call", attentionBefore)
+	}
+
+	laterService, err := callspkg.NewService(
+		callspkg.WithStore(database), callspkg.WithDirectory(callIntegrationDirectory{database: database}),
+		callspkg.WithConfig(config.DefaultCallsConfig()),
+		callspkg.WithClock(func() time.Time { return now.Add(time.Minute) }),
+		callspkg.WithIDGenerator(store.NewID),
+	)
+	if err != nil {
+		t.Fatalf("calls.NewService(attention resolution) error = %v", err)
+	}
+	if _, err := laterService.SendMessage(ctx, callspkg.SendMessageInput{
+		ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
+		From: callspkg.MessageSender{Kind: "operator", ID: "operator:test"},
+		To:   silent.Call.ChildSessionID, CallID: silent.Call.CallID, Body: "Please return the missing result.",
+	}); err != nil {
+		t.Fatalf("SendMessage(resolve attention) error = %v", err)
+	}
+	attentionAfter, err := service.List(ctx, attentionQuery)
+	if err != nil {
+		t.Fatalf("List(resolved attention) error = %v", err)
+	}
+	if attentionAfter.Total != 0 || len(attentionAfter.Items) != 0 {
+		t.Fatalf("List(resolved attention) = %#v, want no unresolved cause", attentionAfter)
+	}
+	history, err := service.List(ctx, callspkg.CallListQuery{
+		CallReadQuery: attentionQuery.CallReadQuery,
+		State:         []callspkg.State{callspkg.StateCompletedWithoutResult},
+	})
+	if err != nil {
+		t.Fatalf("List(attention history) error = %v", err)
+	}
+	if history.Total != 1 || len(history.Items) != 1 || history.Items[0].CallID != silent.Call.CallID {
+		t.Fatalf("List(attention history) = %#v, want retained silent call", history)
+	}
 }
 
 func TestGlobalDBCallRuntimeRecoversClaimedActivationAndDurableAwait(t *testing.T) {
@@ -387,6 +437,38 @@ func TestGlobalDBCallOwnershipIsolationAndCycleSafeDrain(t *testing.T) {
 	defaultCall, secondaryCall := createForProfile(store.DefaultProfileID), createForProfile(secondProfileID)
 	if defaultCall.CallID == secondaryCall.CallID {
 		t.Fatalf("profile-isolated calls share id %q", defaultCall.CallID)
+	}
+	if _, err := database.db.ExecContext(ctx, `UPDATE calls
+		SET state = 'running', child_session_id = ?, started_at = ?, updated_at = ? WHERE call_id = ?`,
+		parents[store.DefaultProfileID], store.FormatTimestamp(now), store.FormatTimestamp(now), defaultCall.CallID,
+	); err != nil {
+		t.Fatalf("bind default call child for read projection error = %v", err)
+	}
+	exactPage, err := service.List(ctx, callspkg.CallListQuery{
+		CallReadQuery: callspkg.CallReadQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			Scope:     callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
+		},
+		ChildSessionID: parents[store.DefaultProfileID], RootSessionID: parents[store.DefaultProfileID],
+		Agent: "reviewer", Limit: 1,
+	})
+	if err != nil {
+		t.Fatalf("List(exact received root) error = %v", err)
+	}
+	if exactPage.Total != 1 || len(exactPage.Items) != 1 || exactPage.Items[0].CallID != defaultCall.CallID {
+		t.Fatalf("List(exact received root) = %#v", exactPage)
+	}
+	aggregatePage, err := service.List(ctx, callspkg.CallListQuery{
+		CallReadQuery: callspkg.CallReadQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
+		},
+		Agent: "reviewer", Limit: 1,
+	})
+	if err != nil {
+		t.Fatalf("List(aggregate agent summary) error = %v", err)
+	}
+	if aggregatePage.Total != 2 || len(aggregatePage.Items) != 1 || aggregatePage.NextCursor == "" {
+		t.Fatalf("List(aggregate agent summary) = %#v", aggregatePage)
 	}
 	for profileID, parentID := range parents {
 		binding, bindErr := database.ResolveOperatorCaller(ctx, callspkg.OperatorCallerBinding{

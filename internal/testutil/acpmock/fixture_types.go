@@ -7,11 +7,16 @@ const FixtureVersion = 2
 type StepKind string
 
 const (
-	StepKindAssistant     StepKind = "assistant"
-	StepKindThought       StepKind = "thought"
-	StepKindToolCall      StepKind = "tool_call"
-	StepKindCallReturn    StepKind = "call_return"
-	StepKindAgentMessage  StepKind = "agent_message"
+	StepKindAssistant    StepKind = "assistant"
+	StepKindThought      StepKind = "thought"
+	StepKindToolCall     StepKind = "tool_call"
+	StepKindCallReturn   StepKind = "call_return"
+	StepKindAgentMessage StepKind = "agent_message"
+	// StepKindAgentCall delegates to another agent through the real
+	// compozy__agent_call path. Depth is assigned by the daemon as delegation
+	// actually happens, so a nested tree cannot be described by a fixture that
+	// only returns results — it has to be produced by calling.
+	StepKindAgentCall     StepKind = "agent_call"
 	StepKindPermission    StepKind = "permission"
 	StepKindSandbox       StepKind = "sandbox_exec"
 	StepKindBridgeContent StepKind = "bridge_response"

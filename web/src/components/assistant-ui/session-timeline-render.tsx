@@ -7,7 +7,13 @@ import { cn } from "@/lib/utils";
 
 import { getToolIcon, resolveRegisteredToolName } from "@/systems/session/lib/tool-labels";
 import { Marker, MarkerMeta } from "@compozy/ui";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
+
+import {
+  AGENT_CALL_TOOL_NAME,
+  AgentCallInvocationCard,
+  callIdsFromToolResult,
+} from "@/systems/agent-comms";
 import { useAssistantMessageTimeline } from "./hooks/use-assistant-message-timeline";
 import {
   TimelineRowContext,
@@ -86,6 +92,52 @@ function toolMessageFromPart(part: SessionTimelineToolPart): UIMessage {
   };
 }
 
+/**
+ * One unit of a turn's work.
+ *
+ * Almost always a generic tool row — except `compozy__agent_call`, which is a
+ * delegation and gets the call card instead. Intercepting at render rather than
+ * in the row model is deliberate: the tool part is already in the transcript, in
+ * the order the daemon wrote it, so this is a rendering choice about a part that
+ * exists — not a second source spliced in beside it.
+ */
+function SessionWorkToolRow({
+  tool,
+  turnSettled,
+}: {
+  tool: SessionTimelineToolPart;
+  turnSettled: boolean;
+}) {
+  if (tool.toolName === AGENT_CALL_TOOL_NAME) {
+    return <SessionCallInvocation tool={tool} turnSettled={turnSettled} />;
+  }
+  return <SessionToolCallRow message={toolMessageFromPart(tool)} turnSettled={turnSettled} />;
+}
+
+function SessionCallInvocation({
+  tool,
+  turnSettled,
+}: {
+  tool: SessionTimelineToolPart;
+  turnSettled: boolean;
+}) {
+  const navigate = useNavigate();
+  return (
+    <AgentCallInvocationCard
+      data-testid="session-call-invocation"
+      invocation={{
+        toolCallId: tool.toolCallId,
+        callIds: callIdsFromToolResult(tool.result),
+        pending: tool.status === "running",
+      }}
+      live={!turnSettled}
+      onOpenCall={callId => {
+        void navigate({ to: "/agents/calls/$callId", params: { callId } });
+      }}
+    />
+  );
+}
+
 function workToggleLabel(row: SessionWorkToggleRow): string {
   if (row.expanded) {
     return "Show fewer tool calls";
@@ -156,9 +208,7 @@ function SessionWorkSummaryRow({
         className={row.expanded ? "flex min-w-0 flex-col gap-0.5 pt-0.5" : undefined}
       >
         {row.expanded
-          ? row.entries.map(tool => (
-              <SessionToolCallRow key={tool.id} message={toolMessageFromPart(tool)} turnSettled />
-            ))
+          ? row.entries.map(tool => <SessionWorkToolRow key={tool.id} tool={tool} turnSettled />)
           : null}
       </div>
     </div>
@@ -181,11 +231,7 @@ function SessionWorkRowView({ row }: { row: SessionWorkRow }) {
   return (
     <div id={detailsId} data-testid="work-row" className="flex min-w-0 flex-col gap-0.5">
       {tools.map(tool => (
-        <SessionToolCallRow
-          key={tool.id}
-          message={toolMessageFromPart(tool)}
-          turnSettled={!row.active}
-        />
+        <SessionWorkToolRow key={tool.id} tool={tool} turnSettled={!row.active} />
       ))}
     </div>
   );

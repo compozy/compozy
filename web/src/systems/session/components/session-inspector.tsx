@@ -15,6 +15,15 @@ import {
 import type { InspectorMemoryState, InspectorUsage } from "./session-inspector-types";
 import { SessionVaultPanel, type VaultSecret } from "@/systems/vault";
 
+import {
+  SESSION_INSPECTOR_TAB_TESTIDS,
+  SESSION_INSPECTOR_TABS,
+  isInspectorTabId,
+  type InspectorTabId,
+} from "../lib/session-inspector-tabs";
+
+import { SessionCallsSection } from "./session-calls-section";
+
 export type {
   InspectorMemoryState,
   InspectorSessionLedger,
@@ -23,22 +32,6 @@ export type {
 
 const EMPTY_VAULT_SECRETS: readonly VaultSecret[] = [];
 const EMPTY_MEMORY_STATE: InspectorMemoryState = Object.freeze({});
-
-type InspectorTabId = "usage" | "memory" | "files" | "vault";
-
-const SESSION_INSPECTOR_TABS = [
-  { id: "usage", label: "Usage" },
-  { id: "memory", label: "Memory" },
-  { id: "files", label: "Files" },
-  { id: "vault", label: "Vault" },
-] as const satisfies ReadonlyArray<{ id: InspectorTabId; label: string }>;
-
-const SESSION_INSPECTOR_TAB_TESTIDS: Record<InspectorTabId, string> = {
-  usage: "session-inspector-tab-usage",
-  memory: "session-inspector-tab-memory",
-  files: "session-inspector-tab-files",
-  vault: "session-inspector-tab-vault",
-};
 
 export interface SessionInspectorProps {
   messages: readonly ThreadMessageState[];
@@ -82,6 +75,8 @@ function InspectorTabRenderer(props: InspectorTabRendererProps) {
           sessionId={props.sessionId}
         />
       );
+    case "calls":
+      return <SessionCallsSection sessionId={props.sessionId} />;
   }
 }
 
@@ -100,7 +95,7 @@ export function SessionInspector({
 }: SessionInspectorProps) {
   const [activeTab, setActiveTab] = useState<InspectorTabId>("usage");
   const handleTabChange = (id: string) => {
-    if (SESSION_INSPECTOR_TABS.some(tab => tab.id === id)) setActiveTab(id as InspectorTabId);
+    if (isInspectorTabId(id)) setActiveTab(id);
   };
   const tabs = SESSION_INSPECTOR_TABS.map(tab => ({
     id: tab.id,

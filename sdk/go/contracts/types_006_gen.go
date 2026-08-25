@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+type CallObservationPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
 type CallOwnerPayload struct {
 	Kind string `json:"kind"`
 	ID   string `json:"id"`
@@ -66,6 +70,7 @@ type CallsListParams struct {
 type CallsResponse struct {
 	Items      []Call `json:"items"`
 	NextCursor string `json:"next_cursor,omitempty"`
+	Total      int    `json:"total"`
 }
 
 type CatalogScope string
@@ -169,12 +174,3 @@ type CommandFlag struct {
 	Minimum    *float64        `json:"minimum,omitempty"`
 	Maximum    *float64        `json:"maximum,omitempty"`
 }
-
-type CommandFlagType string
-
-const (
-	CommandFlagTypeString  CommandFlagType = "string"
-	CommandFlagTypeBoolean CommandFlagType = "boolean"
-	CommandFlagTypeInteger CommandFlagType = "integer"
-	CommandFlagTypeNumber  CommandFlagType = "number"
-)

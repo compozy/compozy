@@ -402,6 +402,20 @@ export const routeStoryRegistry = [
     storyName: "Basics",
   },
   {
+    system: "agent-comms",
+    routePath: "/agents/activity",
+    storybookPath: "/agents/activity",
+    title: "systems/agent-comms/routes/AgentsActivity",
+    storyName: "Default",
+  },
+  {
+    system: "agent-comms",
+    routePath: "/agents/calls/$callId",
+    storybookPath: "/agents/calls/call_01JBD8G2K7Q9",
+    title: "systems/agent-comms/routes/AgentCallDetail",
+    storyName: "Completed",
+  },
+  {
     system: "tasks",
     routePath: "/tasks/$id/edit",
     storybookPath: `/tasks/${storyTaskId}/edit`,

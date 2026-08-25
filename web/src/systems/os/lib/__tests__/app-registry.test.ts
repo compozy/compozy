@@ -52,4 +52,19 @@ describe("app registry", () => {
     expect(resolveAppForPath("/")?.app.id).toBe("dashboard");
     expect(resolveAppForPath("/tasks")?.app.id).toBe("tasks");
   });
+
+  it("Should keep the Agents app owning its Activity and call locations", () => {
+    // Both are new locations of the existing app, not a new app: the `/agents`
+    // prefix already owns them, and nothing new is registered.
+    expect(resolveAppForPath("/agents/activity")?.app.id).toBe("agents");
+    expect(resolveAppForPath("/agents/calls/call_01JBD8G2K7Q9")?.app.id).toBe("agents");
+    // A call is not a session, so it must not be claimed as a session instance.
+    expect(matchSessionInstance("/agents/calls/call_01JBD8G2K7Q9")).toBeNull();
+    expect(resolveAppForPath("/agents/activity")?.instanceKey).toBeNull();
+  });
+
+  it("Should light the Agents dock tile from the delegation badge", () => {
+    // The union widened rather than a second tile appearing.
+    expect(OS_APPS.agents.badge).toBe("calls");
+  });
 });

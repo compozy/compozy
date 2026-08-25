@@ -85,6 +85,28 @@ func (s *memoryCallStore) GetCall(_ context.Context, scope CallScope, callID str
 	return record, nil
 }
 
+func (s *memoryCallStore) GetCallRead(_ context.Context, query CallReadQuery, callID string) (CallRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	record, ok := s.calls[callID]
+	if !ok || (!query.ReadScope.AllProfiles && record.ProfileID != query.ReadScope.ProfileID) ||
+		(query.Scope != "" && record.Scope != query.Scope) ||
+		(query.WorkspaceID != "" && record.WorkspaceID != query.WorkspaceID) {
+		return CallRecord{}, newError(CodeNotFound, "call was not found", nil)
+	}
+	return record, nil
+}
+
+func (s *memoryCallStore) GetCallPayload(_ context.Context, _ string, ref string) ([]byte, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	payload, ok := s.payloads[ref]
+	if !ok {
+		return nil, errors.New("payload not found")
+	}
+	return append([]byte(nil), payload...), nil
+}
+
 func (s *memoryCallStore) GetCallByChild(_ context.Context, scope CallScope, childID string) (CallRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

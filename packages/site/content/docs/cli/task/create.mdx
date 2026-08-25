@@ -17,6 +17,7 @@ compozy task create [flags]
       --as-agent                          Create using the current CompozyOS-managed agent session identity
       --auto-enqueue-on-ready             Auto-enqueue the run once blocking dependencies complete
       --description string                Task description
+      --expect string                     Result contract as inline JSON or @file
   -h, --help                              help for create
       --id string                         Explicit task ID
       --identifier string                 Human-friendly task identifier
@@ -29,6 +30,8 @@ compozy task create [flags]
       --owner-kind string                 Optional owner kind
       --owner-ref string                  Optional owner reference
       --priority string                   Task priority: low, medium, high, or urgent
+      --result-budget string              Task result budget, for example 512KiB
+      --result-overflow string            Over-budget policy: store or reject
       --scope string                      Task scope: global or workspace
       --title string                      Task title
       --workspace string                  Override workspace (ID, name, or path)

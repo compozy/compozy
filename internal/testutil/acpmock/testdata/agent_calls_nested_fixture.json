@@ -1,0 +1,64 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "delegator-l1",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "prompt": "You split work one level down, then report what you delegated.",
+            "turns": [
+                {
+                    "name": "delegate-down",
+                    "match": { "user_text_contains": "start nested delegation" },
+                    "steps": [
+                        {
+                            "kind": "agent_call",
+                            "raw_input": {
+                                "agent": "delegator-l2",
+                                "prompt": "nested level two"
+                            },
+                            "expect_output_contains": "\"depth\":2"
+                        },
+                        { "kind": "call_return", "raw_input": { "result": { "level": 1 } } }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "delegator-l2",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "prompt": "You split work one level down, then report what you delegated.",
+            "turns": [
+                {
+                    "name": "delegate-down",
+                    "match": { "user_text_contains": "nested level two" },
+                    "steps": [
+                        {
+                            "kind": "agent_call",
+                            "raw_input": {
+                                "agent": "leaf-l3",
+                                "prompt": "nested level three"
+                            },
+                            "expect_output_contains": "\"depth\":3"
+                        },
+                        { "kind": "call_return", "raw_input": { "result": { "level": 2 } } }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "leaf-l3",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "prompt": "You do the work yourself. You never delegate.",
+            "turns": [
+                {
+                    "name": "answer",
+                    "match": { "user_text_contains": "nested level three" },
+                    "steps": [{ "kind": "call_return", "raw_input": { "result": { "level": 3 } } }]
+                }
+            ]
+        }
+    ]
+}

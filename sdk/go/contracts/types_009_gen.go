@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+type DescribeHookEvent struct {
+	Event   HookEvent `json:"event"`
+	Profile string    `json:"profile,omitempty"`
+}
+
 type DescribeNetworkParticipation struct {
 	Required      bool     `json:"required"`
 	Mode          string   `json:"mode"`
@@ -202,13 +207,4 @@ type ExtensionCommandSpec struct {
 	Summary string            `json:"summary"`
 	Example string            `json:"example,omitempty"`
 	Flags   map[string]string `json:"flags,omitempty"`
-}
-
-type ExtensionManifestSummary struct {
-	Name              string   `json:"name"`
-	Version           string   `json:"version"`
-	Description       string   `json:"description,omitempty"`
-	MinCompozyVersion string   `json:"min_compozy_version"`
-	Provides          []string `json:"provides"`
-	Permissions       []string `json:"permissions"`
 }

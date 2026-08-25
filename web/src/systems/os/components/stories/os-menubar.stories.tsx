@@ -82,6 +82,7 @@ const ATTENTION: OsAttentionModel = {
   sessionsDisconnected: false,
   tasksDisconnected: false,
   loopRequestsDisconnected: false,
+  callsDisconnected: false,
   loading: false,
 };
 

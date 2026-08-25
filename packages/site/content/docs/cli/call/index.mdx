@@ -1,0 +1,67 @@
+---
+title: "compozy call"
+description: "Call an agent and receive a durable result"
+---
+
+## compozy call
+
+Call an agent and receive a durable result
+
+```
+compozy call <agent-or-session-id> <prompt> [flags]
+```
+
+### Options
+
+```
+      --deadline duration          Optional call deadline
+      --expect string              Result contract as inline JSON or @file
+  -h, --help                       help for call
+      --idempotency-key string     Stable retry identity
+      --idle-ttl duration          Parked child idle ceiling
+      --network-channels strings   Allowed Network channels
+      --result-budget string       Per-call result budget, for example 512KiB
+      --result-overflow string     Over-budget policy: store or reject
+      --runtime string             Runtime override: provider/model/reasoning/speed
+      --skills strings             Allowed skill atoms
+      --strict                     Require an explicit structured return
+      --tools strings              Allowed tool atoms
+      --workspace string           Override workspace name or id; omit for global scope
+      --workspace-paths strings    Allowed workspace paths
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy call <agent-or-session-id> <prompt> -o json
+```
+
+## Subcommands
+
+| Command                                        | Description                                |
+| ---------------------------------------------- | ------------------------------------------ |
+| [compozy call await](/docs/cli/call/await)     | Wait for a call checkpoint                 |
+| [compozy call cancel](/docs/cli/call/cancel)   | Cancel a call idempotently                 |
+| [compozy call list](/docs/cli/call/list)       | List durable calls                         |
+| [compozy call publish](/docs/cli/call/publish) | Publish completed call evidence to Network |
+| [compozy call result](/docs/cli/call/result)   | Print the complete stored JSON result      |
+| [compozy call show](/docs/cli/call/show)       | Show one durable call                      |

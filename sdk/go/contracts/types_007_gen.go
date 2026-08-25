@@ -4,6 +4,15 @@ package contracts
 
 import "time"
 
+type CommandFlagType string
+
+const (
+	CommandFlagTypeString  CommandFlagType = "string"
+	CommandFlagTypeBoolean CommandFlagType = "boolean"
+	CommandFlagTypeInteger CommandFlagType = "integer"
+	CommandFlagTypeNumber  CommandFlagType = "number"
+)
+
 type CompactionMatcher struct {
 	Reason   string `json:"compaction_reason,omitempty"`
 	Strategy string `json:"compaction_strategy,omitempty"`
@@ -212,26 +221,6 @@ type CoordinatorDecisionPayload struct {
 }
 
 type CoordinatorFailedPayload struct {
-	Event                        HookEvent `json:"event"`
-	Timestamp                    time.Time `json:"timestamp"`
-	ProfileID                    string    `json:"profile_id,omitempty"`
-	WorkspaceID                  string    `json:"workspace_id,omitempty"`
-	Workspace                    string    `json:"workspace,omitempty"`
-	AgentName                    string    `json:"agent_name,omitempty"`
-	CoordinatorSessionID         string    `json:"coordinator_session_id,omitempty"`
-	TaskID                       string    `json:"task_id,omitempty"`
-	RunID                        string    `json:"run_id,omitempty"`
-	WorkflowID                   string    `json:"workflow_id,omitempty"`
-	ResolvedNetworkParticipation *Spec     `json:"resolved_network_participation,omitempty"`
-	Provider                     string    `json:"provider,omitempty"`
-	Model                        string    `json:"model,omitempty"`
-	DecisionKind                 string    `json:"decision_kind,omitempty"`
-	Decision                     string    `json:"decision,omitempty"`
-	StopReason                   string    `json:"stop_reason,omitempty"`
-	Error                        string    `json:"error,omitempty"`
-}
-
-type CoordinatorLifecyclePayload struct {
 	Event                        HookEvent `json:"event"`
 	Timestamp                    time.Time `json:"timestamp"`
 	ProfileID                    string    `json:"profile_id,omitempty"`

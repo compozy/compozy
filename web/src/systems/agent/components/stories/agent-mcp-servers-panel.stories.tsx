@@ -29,6 +29,9 @@ export const Empty: Story = {
       provider: "claude",
       prompt: "x",
       definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+      description: "",
+      scope: "",
+      shadowed: false,
       origin: "workspace",
       mcp_servers: [],
     },
@@ -47,6 +50,9 @@ export const WithServers: Story = {
       provider: "claude",
       prompt: "x",
       definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+      description: "",
+      scope: "",
+      shadowed: false,
       origin: "workspace",
       mcp_servers: [
         {

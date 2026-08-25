@@ -82,6 +82,8 @@ type CallPayload struct {
 	State             string                 `json:"state"`
 	Verdict           string                 `json:"verdict,omitempty"`
 	ExpectDigest      string                 `json:"expect_digest,omitempty"`
+	PromptPreview     string                 `json:"prompt_preview,omitempty"`
+	PromptBytes       int                    `json:"prompt_bytes"`
 	ResultPreview     json.RawMessage        `json:"result_preview,omitempty"`
 	ResultBytes       int                    `json:"result_bytes,omitempty"`
 	ResultBudget      int                    `json:"result_budget_bytes"`
@@ -91,7 +93,11 @@ type CallPayload struct {
 	IdleExpiresAt     *time.Time             `json:"idle_expires_at"`
 	FailureCode       string                 `json:"failure_code,omitempty"`
 	FailureDetail     string                 `json:"failure_detail,omitempty"`
+	FirstIssueText    string                 `json:"first_issue_text,omitempty"`
+	SecondIssueText   string                 `json:"second_issue_text,omitempty"`
 	FinalProsePreview string                 `json:"final_prose_preview,omitempty"`
+	SupersededPreview json.RawMessage        `json:"superseded_preview,omitempty"`
+	SupersededBytes   int                    `json:"superseded_bytes"`
 	RepairAttempts    int                    `json:"repair_attempts"`
 	Replayed          bool                   `json:"replayed,omitempty"`
 	Provenance        *CallProvenancePayload `json:"provenance,omitempty"`
@@ -117,10 +123,11 @@ type CallBatchItemPayload struct {
 	Error *CallErrorResponse `json:"error,omitempty"`
 }
 
-// CallsResponse is an uncounted cursor page.
+// CallsResponse is a counted cursor page.
 type CallsResponse struct {
 	Items      []CallPayload `json:"items"`
 	NextCursor string        `json:"next_cursor,omitempty"`
+	Total      int           `json:"total"`
 }
 
 // AwaitCallsRequest waits on one or more call identities.
@@ -204,6 +211,18 @@ type CallMessagesResponse struct {
 
 // CallResultResponse returns the exact stored JSON bytes under a stable key.
 type CallResultResponse struct {
+	CallID string          `json:"call_id"`
+	Result json.RawMessage `json:"result"`
+}
+
+// CallPromptResponse returns the exact authored prompt without a storage reference.
+type CallPromptResponse struct {
+	CallID string `json:"call_id"`
+	Prompt string `json:"prompt"`
+}
+
+// CallSupersededResponse returns preserved late-result evidence without a storage reference.
+type CallSupersededResponse struct {
 	CallID string          `json:"call_id"`
 	Result json.RawMessage `json:"result"`
 }

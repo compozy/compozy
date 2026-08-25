@@ -38,6 +38,20 @@ interface UseSessionCatalogStreamsOptions extends SessionCatalogStreamHandlers {
 
 export type { SessionCatalogStreamStatus } from "./session-catalog-streams-store";
 
+/**
+ * Read the catalog stream's connection status without owning it.
+ *
+ * `useSessionCatalogStreams` opens the socket and closes it on unmount, so it
+ * has exactly one legitimate caller. Surfaces that merely need to know whether
+ * live data is flowing — to say "showing the last known state", or to stop
+ * counting a stale source toward a badge — read it through here instead, and
+ * cannot accidentally tear down the shell's connection by unmounting.
+ */
+export function useSessionCatalogStreamStatus(): SessionCatalogStreamStatus {
+  const store = useStore(sessionCatalogStreamsLogic);
+  return useSelector(store, snapshot => snapshot.context.status);
+}
+
 export function sessionCatalogStreamURL(scope: ProfileScopeParams): string {
   const params = new URLSearchParams({ all_workspaces: "true" });
   if ("all_profiles" in scope) params.set("all_profiles", "true");

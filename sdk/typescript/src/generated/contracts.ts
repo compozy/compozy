@@ -1279,6 +1279,8 @@ export interface Call {
   state: string;
   verdict?: string;
   expect_digest?: string;
+  prompt_preview?: string;
+  prompt_bytes: number;
   result_preview?: JSONValue;
   result_bytes?: number;
   result_budget_bytes: number;
@@ -1288,7 +1290,11 @@ export interface Call {
   idle_expires_at?: ISODateTime;
   failure_code?: string;
   failure_detail?: string;
+  first_issue_text?: string;
+  second_issue_text?: string;
   final_prose_preview?: string;
+  superseded_preview?: JSONValue;
+  superseded_bytes: number;
   repair_attempts: number;
   replayed?: boolean;
   provenance?: CallProvenancePayload;
@@ -1374,6 +1380,7 @@ export interface CallsListParams {
 export interface CallsResponse {
   items: Call[];
   next_cursor?: string;
+  total: number;
 }
 
 export interface ClarifyAnswer {

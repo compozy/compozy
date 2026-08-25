@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/contracts"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestServiceReturnSettlementPipeline(t *testing.T) {
@@ -41,6 +42,18 @@ func TestServiceReturnSettlementPipeline(t *testing.T) {
 		stored := database.calls[record.CallID]
 		if stored.ResultRef != firstRef || stored.SupersededRef == "" {
 			t.Fatalf("stored result refs = result %q superseded %q", stored.ResultRef, stored.SupersededRef)
+		}
+		readQuery := CallReadQuery{
+			ReadScope: store.ReadScope{ProfileID: record.ProfileID},
+			Scope:     record.Scope, WorkspaceID: record.WorkspaceID,
+		}
+		prompt, err := service.Prompt(context.Background(), readQuery, record.CallID)
+		if err != nil || prompt.Text != "work" {
+			t.Fatalf("Prompt() = %#v, %v", prompt, err)
+		}
+		superseded, err := service.Superseded(context.Background(), readQuery, record.CallID)
+		if err != nil || string(superseded.Bytes) != `{"answer":99}` {
+			t.Fatalf("Superseded() = %s, %v", superseded.Bytes, err)
 		}
 	})
 

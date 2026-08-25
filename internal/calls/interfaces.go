@@ -44,10 +44,23 @@ type MailboxStore interface {
 	FinalizeReapedSession(context.Context, string, string, time.Time) error
 }
 
-// ReadStore owns the profile-scoped public call and mailbox projections.
-type ReadStore interface {
+// PayloadStore reads durable call prompt and result blobs.
+type PayloadStore interface {
+	GetCallPayload(context.Context, string, string) ([]byte, error)
+}
+
+// CallListStore owns profile-scoped public call pages.
+type CallListStore interface {
 	ListCalls(context.Context, CallListQuery) (CallPage, error)
+}
+
+// CallReadStore owns profile-scoped public call detail.
+type CallReadStore interface {
 	GetCallRead(context.Context, CallReadQuery, string) (CallRecord, error)
+}
+
+// MessageReadStore owns profile-scoped mailbox pages.
+type MessageReadStore interface {
 	ListMessages(context.Context, MessageListQuery) (MessagePage, error)
 }
 

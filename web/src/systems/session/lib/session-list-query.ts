@@ -23,6 +23,11 @@ export function normalizeSessionListFilters(filters: SessionListFilters = {}): S
     normalized.include_health = filters.include_health;
   }
   if (filters.state !== undefined) normalized.state = filters.state;
+  // One governed tree, asked for by its root ("includes the root itself"). The
+  // normalizer is a whitelist, so omitting this would both widen the request to
+  // the whole catalog and collapse two populations onto one cache entry.
+  const root = normalizedText(filters.root);
+  if (root) normalized.root = root;
   if (filters.type !== undefined) normalized.type = filters.type;
   if (agent) normalized.agent = agent;
   if (search) normalized.q = search;

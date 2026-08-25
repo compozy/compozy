@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+type HeartbeatWakeRequest struct {
+	WorkspaceID    string              `json:"workspace_id,omitempty"`
+	AgentName      string              `json:"agent_name"`
+	SessionID      string              `json:"session_id"`
+	Source         HeartbeatWakeSource `json:"source"`
+	DryRun         bool                `json:"dry_run,omitempty"`
+	IdempotencyKey string              `json:"idempotency_key,omitempty"`
+}
+
 type HeartbeatWakeResponse struct {
 	Decision HeartbeatWakeDecisionPayload `json:"decision"`
 }
@@ -171,11 +180,4 @@ type InitializeBridgeRuntime struct {
 	Platform         string                            `json:"platform"`
 	AllowedMethods   []string                          `json:"allowed_methods,omitempty"`
 	ManagedInstances []InitializeBridgeManagedInstance `json:"managed_instances,omitempty"`
-}
-
-type InitializeCapabilities struct {
-	Provides              []string        `json:"provides"`
-	GrantedPermissions    []HostAPIMethod `json:"granted_permissions"`
-	GrantedResourceKinds  []string        `json:"granted_resource_kinds"`
-	GrantedResourceScopes []string        `json:"granted_resource_scopes"`
 }

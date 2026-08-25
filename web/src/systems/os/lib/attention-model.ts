@@ -26,6 +26,7 @@ import {
 } from "@/systems/session";
 import type { TaskDashboardView, TaskListItem } from "@/systems/tasks";
 import type { LoopRequestAttentionItem } from "@/systems/loops";
+import type { CallAttentionCause, CallAttentionRow } from "@/systems/agent-comms";
 
 import { compareAttentionRecency } from "./attention-order";
 
@@ -33,6 +34,8 @@ export interface OsAttentionBadges {
   sessions?: number;
   tasks?: number;
   loops?: number;
+  /** Delegations that need a look. Lights the Agents tile. */
+  calls?: number;
 }
 
 export interface OsSessionAttentionRow {
@@ -83,11 +86,35 @@ export interface OsLoopRequestAttentionRow {
   stale: boolean;
 }
 
+/**
+ * A delegation that needs the operator.
+ *
+ * Exactly three causes reach this row, and one of them — `blocked-on-decision` —
+ * is a fact about the *child session* rather than about the call. It is joined
+ * in by `@/systems/agent-comms`, which also reports which child sessions it
+ * covered so their bare session rows can be suppressed: the call row says the
+ * same thing with the agent and the tree attached, which is strictly more useful.
+ */
+export interface OsCallAttentionRow {
+  kind: "call";
+  /** The call id, or `tree:<root>` once a storm has been coalesced. */
+  id: string;
+  cause: CallAttentionCause;
+  title: string;
+  callId: string;
+  rootSessionId: string;
+  changedAt: string;
+  /** More than one when this row stands for a whole tree that went wrong. */
+  count: number;
+  stale: boolean;
+}
+
 export type OsAttentionRow =
   | OsSessionAttentionRow
   | OsTaskAttentionRow
   | OsLoopNodeAttentionRow
-  | OsLoopRequestAttentionRow;
+  | OsLoopRequestAttentionRow
+  | OsCallAttentionRow;
 
 export interface OsAttentionSections {
   /** Questions, permissions, failures, task approvals, loop nodes. */
@@ -137,14 +164,22 @@ export interface DeriveAttentionBadgesInput {
   dashboard: TaskDashboardView | null;
   tasksStale: boolean;
   loopsPending?: number;
+  /**
+   * Delegation causes needing a look, already counted by the daemon
+   * (`CallsResponse.total` over an exact state filter) and already zeroed by
+   * `@/systems/agent-comms` when its source is stale.
+   */
+  callsNeedsYou?: number;
 }
 
 export function deriveAttentionBadges(input: DeriveAttentionBadgesInput): OsAttentionBadges {
   const loops = visibleCount(input.loopsPending ?? 0, false);
+  const calls = visibleCount(input.callsNeedsYou ?? 0, false);
   return {
     sessions: visibleCount(input.summary?.needsYou ?? 0, input.summaryStale),
     tasks: visibleCount(input.dashboard?.totals.awaiting_approval_tasks ?? 0, input.tasksStale),
     ...(loops === undefined ? {} : { loops }),
+    ...(calls === undefined ? {} : { calls }),
   };
 }
 
@@ -161,6 +196,14 @@ export interface DeriveAttentionSectionsInput {
   loopWaitingPresent: boolean;
   loopAttentionPresent: boolean;
   loopRequests?: readonly LoopRequestAttentionItem[];
+  /** Delegation rows, already coalesced per tree by the agent-comms system. */
+  callRows?: readonly CallAttentionRow[];
+  callRowsStale?: boolean;
+  /**
+   * Child sessions a call row already speaks for. Their bare session rows are
+   * suppressed so one blocked child is one row, not two.
+   */
+  callCoveredSessionIds?: ReadonlySet<string>;
 }
 
 /**
@@ -200,9 +243,42 @@ function toSessionRow(
  * Needs you first, Finished second; inside each, the newest transition first.
  * Sections render only when populated — no empty headers.
  */
+const NO_COVERED_SESSIONS: ReadonlySet<string> = new Set();
+
+/** Plain-language reason per delegation cause. The state word stays in the chip. */
+const CALL_CAUSE_REASON: Record<CallAttentionCause, string> = {
+  "invalid-result": "the answer didn't match what was asked, even after a retry",
+  "completed-without-result": "finished but sent nothing back",
+  "blocked-on-decision": "waiting on your decision to continue",
+};
+
+function toCallRow(row: CallAttentionRow, stale: boolean): OsCallAttentionRow {
+  return {
+    kind: "call",
+    id: row.id,
+    cause: row.cause,
+    title:
+      row.count > 1
+        ? `${row.count} calls need your look in this tree`
+        : `${row.agentName ?? row.callId} · ${CALL_CAUSE_REASON[row.cause]}`,
+    callId: row.callId,
+    rootSessionId: row.rootSessionId,
+    changedAt: row.changedAt,
+    count: row.count,
+    stale,
+  };
+}
+
 export function deriveAttentionSections(input: DeriveAttentionSectionsInput): OsAttentionSections {
-  const needsYouSessions = input.sessions.filter(isNeedsYouSession).sort(compareAttentionRecency);
-  const finishedSessions = input.sessions.filter(isFinishedSession).sort(compareAttentionRecency);
+  // A blocked child already has a call row naming its agent and its tree; the
+  // bare session row would say strictly less about the same situation.
+  const covered = input.callCoveredSessionIds ?? NO_COVERED_SESSIONS;
+  const sessions =
+    covered.size === 0
+      ? input.sessions
+      : input.sessions.filter(session => !covered.has(session.id));
+  const needsYouSessions = sessions.filter(isNeedsYouSession).sort(compareAttentionRecency);
+  const finishedSessions = sessions.filter(isFinishedSession).sort(compareAttentionRecency);
 
   const taskRows: OsTaskAttentionRow[] = [];
   if (!input.taskRowsStale) {
@@ -239,9 +315,12 @@ export function deriveAttentionSections(input: DeriveAttentionSectionsInput): Os
     })
   );
 
+  const callRows = (input.callRows ?? []).map(row => toCallRow(row, input.callRowsStale ?? false));
+
   return {
     needsYou: [
       ...needsYouSessions.map(session => toSessionRow(session, input)),
+      ...callRows,
       ...taskRows,
       ...requestRows,
       ...loopRows,
@@ -251,5 +330,5 @@ export function deriveAttentionSections(input: DeriveAttentionSectionsInput): Os
 }
 
 export function attentionCount(badges: OsAttentionBadges): number {
-  return (badges.sessions ?? 0) + (badges.tasks ?? 0) + (badges.loops ?? 0);
+  return (badges.sessions ?? 0) + (badges.tasks ?? 0) + (badges.loops ?? 0) + (badges.calls ?? 0);
 }

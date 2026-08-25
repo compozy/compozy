@@ -9,6 +9,9 @@ const agentWithMcp: AgentPayload = {
   provider: "claude",
   prompt: "x",
   definition_digest: "d".repeat(64),
+  description: "",
+  scope: "",
+  shadowed: false,
   origin: "workspace",
   mcp_servers: [
     {
@@ -45,6 +48,9 @@ describe("AgentMcpServersPanel", () => {
           provider: "claude",
           prompt: "x",
           definition_digest: "d".repeat(64),
+          description: "",
+          scope: "",
+          shadowed: false,
           origin: "global",
           mcp_servers: [],
         }}

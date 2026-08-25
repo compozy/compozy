@@ -25,13 +25,17 @@ type callReadCursor struct {
 }
 
 type callReadFingerprint struct {
-	ProfileID   string   `json:"profile_id,omitempty"`
-	AllProfiles bool     `json:"all_profiles,omitempty"`
-	Scope       string   `json:"scope,omitempty"`
-	WorkspaceID string   `json:"workspace_id,omitempty"`
-	States      []string `json:"states,omitempty"`
-	Caller      string   `json:"caller,omitempty"`
-	SessionID   string   `json:"session_id,omitempty"`
+	ProfileID      string   `json:"profile_id,omitempty"`
+	AllProfiles    bool     `json:"all_profiles,omitempty"`
+	Scope          string   `json:"scope,omitempty"`
+	WorkspaceID    string   `json:"workspace_id,omitempty"`
+	States         []string `json:"states,omitempty"`
+	Attention      bool     `json:"attention,omitempty"`
+	Caller         string   `json:"caller,omitempty"`
+	ChildSessionID string   `json:"child_session_id,omitempty"`
+	RootSessionID  string   `json:"root_session_id,omitempty"`
+	Agent          string   `json:"agent,omitempty"`
+	SessionID      string   `json:"session_id,omitempty"`
 }
 
 // ListCalls returns a query-bound keyset page ordered by durable creation identity.
@@ -46,7 +50,11 @@ func (g *CallRepo) ListCalls(ctx context.Context, query callspkg.CallListQuery) 
 	if err != nil {
 		return callspkg.CallPage{}, err
 	}
-	fingerprint, err := callQueryFingerprint(query.CallReadQuery, states, query.Caller, "")
+	filters := callReadFingerprint{
+		States: states, Attention: query.Attention, Caller: query.Caller, ChildSessionID: query.ChildSessionID,
+		RootSessionID: query.RootSessionID, Agent: query.Agent,
+	}
+	fingerprint, err := callQueryFingerprint(query.CallReadQuery, filters)
 	if err != nil {
 		return callspkg.CallPage{}, err
 	}
@@ -55,19 +63,15 @@ func (g *CallRepo) ListCalls(ctx context.Context, query callspkg.CallListQuery) 
 		return callspkg.CallPage{}, err
 	}
 
-	statement := `SELECT ` + callSelectColumnsSQL + ` FROM calls WHERE 1 = 1`
+	where := ` FROM calls WHERE 1 = 1`
 	args := make([]any, 0, 12)
-	statement, args = appendCallReadScope(statement, args, "calls", query.CallReadQuery)
-	if len(states) > 0 {
-		statement += ` AND state IN (` + callReadPlaceholders(len(states)) + `)`
-		for _, state := range states {
-			args = append(args, state)
-		}
+	where, args = appendCallReadScope(where, args, "calls", query.CallReadQuery)
+	where, args = appendCallListFilters(where, args, query, states)
+	var total int
+	if err := g.db.QueryRowContext(ctx, `SELECT COUNT(*)`+where, args...).Scan(&total); err != nil {
+		return callspkg.CallPage{}, fmt.Errorf("store: count calls: %w", err)
 	}
-	if caller := strings.TrimSpace(query.Caller); caller != "" {
-		statement += ` AND caller_id = ?`
-		args = append(args, caller)
-	}
+	statement := `SELECT ` + callSelectColumnsSQL + where
 	if cursor.ID != "" {
 		statement += ` AND (created_at < ? OR (created_at = ? AND call_id < ?))`
 		args = append(args, cursor.CreatedAt, cursor.CreatedAt, cursor.ID)
@@ -100,7 +104,7 @@ func (g *CallRepo) ListCalls(ctx context.Context, query callspkg.CallListQuery) 
 	if err := rows.Close(); err != nil {
 		return callspkg.CallPage{}, fmt.Errorf("store: close call page rows: %w", err)
 	}
-	page := callspkg.CallPage{Items: items}
+	page := callspkg.CallPage{Items: items, Total: total}
 	if len(page.Items) > limit {
 		page.Items = page.Items[:limit]
 		last := page.Items[len(page.Items)-1]
@@ -153,7 +157,7 @@ func (g *CallRepo) ListMessages(
 	if err := query.ReadScope.Validate(); err != nil {
 		return callspkg.MessagePage{}, fmt.Errorf("store: list messages read scope: %w", err)
 	}
-	fingerprint, err := callQueryFingerprint(query.CallReadQuery, nil, "", query.SessionID)
+	fingerprint, err := callQueryFingerprint(query.CallReadQuery, callReadFingerprint{SessionID: query.SessionID})
 	if err != nil {
 		return callspkg.MessagePage{}, err
 	}
@@ -248,6 +252,57 @@ func appendCallReadScope(
 	return statement, args
 }
 
+func appendCallListFilters(
+	statement string,
+	args []any,
+	query callspkg.CallListQuery,
+	states []string,
+) (string, []any) {
+	if len(states) > 0 {
+		statement += ` AND state IN (` + callReadPlaceholders(len(states)) + `)`
+		for _, state := range states {
+			args = append(args, state)
+		}
+	}
+	if query.Attention {
+		statement += ` AND state IN ('invalid-result', 'completed-without-result')
+			AND child_session_id <> ''
+			AND NOT EXISTS (
+				SELECT 1 FROM calls newer
+				WHERE newer.profile_id = calls.profile_id
+					AND newer.scope = calls.scope
+					AND newer.workspace_id = calls.workspace_id
+					AND newer.child_session_id = calls.child_session_id
+					AND newer.call_id <> calls.call_id
+					AND newer.created_at > COALESCE(calls.settled_at, calls.updated_at)
+			)
+			AND NOT EXISTS (
+				SELECT 1 FROM call_messages resolution
+				WHERE resolution.profile_id = calls.profile_id
+					AND resolution.scope = calls.scope
+					AND resolution.workspace_id = calls.workspace_id
+					AND resolution.to_session_id = calls.child_session_id
+					AND resolution.created_at > COALESCE(calls.settled_at, calls.updated_at)
+			)`
+	}
+	filters := []struct {
+		column string
+		value  string
+	}{
+		{column: "caller_id", value: query.Caller},
+		{column: "child_session_id", value: query.ChildSessionID},
+		{column: "governed_root_id", value: query.RootSessionID},
+		{column: "agent_name", value: query.Agent},
+	}
+	for _, filter := range filters {
+		if value := strings.TrimSpace(filter.value); value != "" {
+			statement += ` AND ` + filter.column + ` = ?`
+			args = append(args, value)
+		}
+	}
+	return statement, args
+}
+
 func normalizeCallStates(values []callspkg.State) ([]string, error) {
 	seen := make(map[string]struct{}, len(values))
 	states := make([]string, 0, len(values))
@@ -271,16 +326,19 @@ func normalizeCallStates(values []callspkg.State) ([]string, error) {
 
 func callQueryFingerprint(
 	query callspkg.CallReadQuery,
-	states []string,
-	caller string,
-	sessionID string,
+	filters callReadFingerprint,
 ) (string, error) {
-	fingerprint, err := listcursor.Fingerprint(callReadFingerprint{
-		ProfileID: strings.TrimSpace(query.ReadScope.ProfileID), AllProfiles: query.ReadScope.AllProfiles,
-		Scope: string(query.Scope), WorkspaceID: strings.TrimSpace(query.WorkspaceID),
-		States: append([]string(nil), states...), Caller: strings.TrimSpace(caller),
-		SessionID: strings.TrimSpace(sessionID),
-	})
+	filters.ProfileID = strings.TrimSpace(query.ReadScope.ProfileID)
+	filters.AllProfiles = query.ReadScope.AllProfiles
+	filters.Scope = string(query.Scope)
+	filters.WorkspaceID = strings.TrimSpace(query.WorkspaceID)
+	filters.States = append([]string(nil), filters.States...)
+	filters.Caller = strings.TrimSpace(filters.Caller)
+	filters.ChildSessionID = strings.TrimSpace(filters.ChildSessionID)
+	filters.RootSessionID = strings.TrimSpace(filters.RootSessionID)
+	filters.Agent = strings.TrimSpace(filters.Agent)
+	filters.SessionID = strings.TrimSpace(filters.SessionID)
+	fingerprint, err := listcursor.Fingerprint(filters)
 	if err != nil {
 		return "", fmt.Errorf("store: fingerprint calls query: %w", err)
 	}

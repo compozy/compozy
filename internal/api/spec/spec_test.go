@@ -155,14 +155,16 @@ func TestDocumentDescribesCallsAndMessages(t *testing.T) {
 
 		for _, prefix := range []string{"/api", "/api/workspaces/{workspace_id}"} {
 			for path, methods := range map[string][]string{
-				prefix + "/calls":                   {http.MethodGet, http.MethodPost},
-				prefix + "/calls/{call_id}":         {http.MethodGet},
-				prefix + "/calls/{call_id}/result":  {http.MethodGet},
-				prefix + "/calls/{call_id}/await":   {http.MethodPost},
-				prefix + "/calls/{call_id}/cancel":  {http.MethodPost},
-				prefix + "/calls/{call_id}/publish": {http.MethodPost},
-				prefix + "/messages":                {http.MethodGet, http.MethodPost},
-				prefix + "/messages/{message_id}":   {http.MethodGet},
+				prefix + "/calls":                      {http.MethodGet, http.MethodPost},
+				prefix + "/calls/{call_id}":            {http.MethodGet},
+				prefix + "/calls/{call_id}/prompt":     {http.MethodGet},
+				prefix + "/calls/{call_id}/result":     {http.MethodGet},
+				prefix + "/calls/{call_id}/superseded": {http.MethodGet},
+				prefix + "/calls/{call_id}/await":      {http.MethodPost},
+				prefix + "/calls/{call_id}/cancel":     {http.MethodPost},
+				prefix + "/calls/{call_id}/publish":    {http.MethodPost},
+				prefix + "/messages":                   {http.MethodGet, http.MethodPost},
+				prefix + "/messages/{message_id}":      {http.MethodGet},
 			} {
 				for _, method := range methods {
 					operation := operationFor(t, doc, path, method)
@@ -174,6 +176,20 @@ func TestDocumentDescribesCallsAndMessages(t *testing.T) {
 		}
 		if doc.Paths.Find("/api/agent/spawn") != nil {
 			t.Fatal("deleted /api/agent/spawn remains in OpenAPI")
+		}
+	})
+
+	t.Run("Should expose unresolved call attention as a typed list filter", func(t *testing.T) {
+		t.Parallel()
+
+		for _, path := range []string{"/api/calls", "/api/workspaces/{workspace_id}/calls"} {
+			list := operationFor(t, doc, path, http.MethodGet)
+			assertParameter(t, list, "attention", openapi3.ParameterInQuery, false)
+			assertSchemaIncludesType(
+				t,
+				parameterSchema(t, list, "attention", openapi3.ParameterInQuery),
+				openapi3.TypeBoolean,
+			)
 		}
 	})
 
@@ -204,6 +220,29 @@ func TestDocumentDescribesCallsAndMessages(t *testing.T) {
 		messages := operationFor(t, doc, "/api/messages", http.MethodPost)
 		for _, status := range []int{202, 403, 409, 410, 413, 422, 429, 503} {
 			assertResponseStatus(t, messages, status)
+		}
+		detail := jsonResponseSchema(t, operationFor(t, doc, "/api/calls/{call_id}", http.MethodGet), http.StatusOK)
+		for _, field := range []string{
+			"prompt_preview", "prompt_bytes", "first_issue_text", "second_issue_text",
+			"superseded_preview", "superseded_bytes",
+		} {
+			propertySchema(t, detail, field)
+		}
+	})
+
+	t.Run("Should describe optional subtree stop input and its drain report", func(t *testing.T) {
+		t.Parallel()
+
+		stop := operationFor(t, doc, "/api/workspaces/{workspace_id}/sessions/{session_id}/stop", http.MethodPost)
+		request := jsonRequestSchema(t, stop)
+		propertySchema(t, request, "subtree")
+		propertySchema(t, request, "reason")
+		response := jsonResponseSchema(t, stop, http.StatusOK)
+		propertySchema(t, response, "stopped_children")
+		propertySchema(t, response, "closed_calls")
+		propertySchema(t, response, "preserved_results")
+		for _, status := range []int{200, 204, 404, 422, 500, 503} {
+			assertResponseStatus(t, stop, status)
 		}
 	})
 }

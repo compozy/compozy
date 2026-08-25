@@ -12,6 +12,7 @@ import {
   type LaneTabsItem,
 } from "@compozy/ui";
 
+import { AgentCallComposeSection } from "./agent-call-compose-section";
 import { useAgentDetail } from "./use-agent-detail";
 import {
   AgentConfigurationTab,
@@ -210,6 +211,12 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
                 onEditRuntime={() => page.onEditSettings("runtime")}
                 onViewAllSessions={() => page.setTab("sessions")}
               />
+              {/*
+                The operator's path to a typed call, and what this definition has
+                been asked lately. Both live on Overview rather than behind a tab:
+                asking an agent for something is the point of looking it up.
+              */}
+              <AgentCallComposeSection agentName={page.agent.name} />
             </TabsContent>
 
             <TabsContent value="instructions" className="flex flex-col gap-6">

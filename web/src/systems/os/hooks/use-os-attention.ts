@@ -22,6 +22,7 @@ import {
   type WorkspacePayload,
 } from "@/systems/workspace";
 
+import { useAttentionCalls } from "./use-attention-calls";
 import { useAttentionPolicy } from "./use-attention-policy";
 import { useAttentionSessions } from "./use-attention-rows";
 import { useAttentionSummary } from "./use-attention-summary";
@@ -38,6 +39,7 @@ export interface OsAttentionModel {
   sessionsDisconnected: boolean;
   tasksDisconnected: boolean;
   loopRequestsDisconnected: boolean;
+  callsDisconnected: boolean;
   loading: boolean;
 }
 
@@ -104,6 +106,9 @@ export function useOsAttention(
   const loopWaitingPresent = useLoopNodeExists(loopWorkspaceId, "waiting", sessionsEnabled);
   const loopAttentionPresent = useLoopNodeExists(loopWorkspaceId, "attention", sessionsEnabled);
   const loopRequests = useLoopRequestAttention(workspaces, true, documentVisible);
+  // Delegation rows join the same needs-you set. They read the attention
+  // sessions rather than a second session query, so "blocked" has one definition.
+  const calls = useAttentionCalls(attention.sessions, sessionsEnabled, attention.stale);
 
   const modalSessions = modalSessionsQuery.data ?? [];
   const dashboard = dashboardQuery.data ?? null;
@@ -131,6 +136,7 @@ export function useOsAttention(
     dashboard,
     tasksStale: tasksDisconnected,
     loopsPending: loopRequests.pendingCount,
+    callsNeedsYou: calls.count,
   });
   const sections = deriveAttentionSections({
     sessions: attention.sessions,
@@ -142,6 +148,9 @@ export function useOsAttention(
     loopWaitingPresent,
     loopAttentionPresent,
     loopRequests: loopRequests.items,
+    callRows: calls.rows,
+    callRowsStale: calls.stale,
+    callCoveredSessionIds: calls.coveredSessionIds,
   });
   return {
     badges,
@@ -152,11 +161,13 @@ export function useOsAttention(
     sessionsDisconnected,
     tasksDisconnected: taskRowsDisconnected,
     loopRequestsDisconnected: loopRequests.disconnected,
+    callsDisconnected: calls.stale,
     loading:
       (sessionsEnabled &&
         (!worktree.resolved ||
           summary.loading ||
           attention.loading ||
+          calls.loading ||
           modalSessionsQuery.isLoading)) ||
       (tasksEnabled && (dashboardQuery.isLoading || tasksQuery.isLoading)) ||
       loopRequests.loading,

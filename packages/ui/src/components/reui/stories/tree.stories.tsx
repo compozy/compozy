@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { selectionFeature, syncDataLoaderFeature } from "@headless-tree/core";
+import { hotkeysCoreFeature, selectionFeature, syncDataLoaderFeature } from "@headless-tree/core";
 import { useTree } from "@headless-tree/react";
 
 import { Tree, TreeItem, TreeItemLabel } from "../tree";
@@ -25,22 +25,43 @@ const demoChildren: Record<string, string[]> = {
   "sales-agent": [],
 };
 
-function TreeDemo() {
+interface TreeDemoProps {
+  indent?: number;
+  toggleIconType?: "chevron" | "plus-minus";
+  expandedItems?: string[];
+  /** Keyboard traversal needs the hotkeys feature registered by the consumer. */
+  keyboard?: boolean;
+}
+
+function TreeDemo({
+  indent,
+  toggleIconType,
+  expandedItems = ["marketing", "sales"],
+  keyboard = false,
+}: TreeDemoProps) {
   const tree = useTree<DemoTreeItem>({
     rootItemId: "root",
     getItemName: item => item.getItemData().label,
     isItemFolder: item => item.getItemData().kind === "folder",
-    initialState: { expandedItems: ["marketing", "sales"] },
+    initialState: { expandedItems },
     dataLoader: {
       getItem: id => demoData[id] ?? { kind: "leaf", label: "" },
       getChildren: id => demoChildren[id] ?? [],
     },
-    features: [syncDataLoaderFeature, selectionFeature],
+    features: keyboard
+      ? [syncDataLoaderFeature, selectionFeature, hotkeysCoreFeature]
+      : [syncDataLoaderFeature, selectionFeature],
   });
 
   return (
     <div className="w-72 rounded-md border border-border bg-background p-2">
-      <Tree tree={tree} aria-label="Agent categories" className="gap-0.5">
+      <Tree
+        tree={tree}
+        aria-label="Agent categories"
+        className="gap-0.5"
+        {...(indent === undefined ? {} : { indent })}
+        {...(toggleIconType === undefined ? {} : { toggleIconType })}
+      >
         {tree.getItems().map(item => {
           const data = item.getItemData();
           if (data.kind === "root") return null;
@@ -76,6 +97,29 @@ type Story = StoryObj<typeof meta>;
  * Expanded folder hierarchy with leaf rows.
  */
 export const Default: Story = {
-  args: {},
   render: () => <TreeDemo />,
+};
+
+/** Collapsed branch: descendants leave the list rather than being dimmed. */
+export const Collapsed: Story = {
+  render: () => <TreeDemo expandedItems={["marketing"]} />,
+};
+
+/** Tighter indent for dense rails, where 20px per level costs too much width. */
+export const CompactIndent: Story = {
+  render: () => <TreeDemo indent={12} />,
+};
+
+/** The plus/minus toggle, for consumers whose chevrons would read as navigation. */
+export const PlusMinusToggle: Story = {
+  render: () => <TreeDemo toggleIconType="plus-minus" />,
+};
+
+/**
+ * With the hotkeys feature registered: ↑↓ move, ←→ fold and unfold, and the tree
+ * is a single tab stop with a roving tabindex inside it.
+ */
+export const KeyboardTraversal: Story = {
+  tags: ["play-fn"],
+  render: () => <TreeDemo keyboard />,
 };

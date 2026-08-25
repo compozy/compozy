@@ -194,9 +194,14 @@ func stopSessionOperationSpec() OperationSpec {
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
 		},
+		RequestBody:         contract.StopSessionRequest{},
+		RequestBodyOptional: true,
 		Responses: []ResponseSpec{
+			{Status: 200, Description: "Call subtree drained and session stopped", Body: contract.StopSessionSubtreeResponse{}},
 			{Status: 204, Description: specNoContentDescription},
 			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid session stop request", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Call service is not configured", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}

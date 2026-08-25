@@ -1,4 +1,14 @@
-import { BellOff, Clock3, ListChecks, TriangleAlert, type LucideIcon } from "lucide-react";
+import {
+  BellOff,
+  CircleHelp,
+  CircleSlash,
+  Clock3,
+  FileX,
+  GitBranch,
+  ListChecks,
+  TriangleAlert,
+  type LucideIcon,
+} from "lucide-react";
 
 import { Icon, Time } from "@compozy/ui";
 
@@ -6,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { SessionBadgeGlyph } from "@/systems/session";
 
 import { LOOP_STORY_ICONS } from "@/systems/loops";
+import type { CallAttentionCause } from "@/systems/agent-comms";
 
 import type { OsAttentionRow } from "../lib/attention-model";
 
@@ -24,10 +35,32 @@ function NonSessionMark({ icon, tone }: { icon: LucideIcon; tone: string }) {
   );
 }
 
+/**
+ * One red, many icons.
+ *
+ * All three delegation causes share the needs-you tone and differ by glyph, so
+ * colour is never the only channel — the same rule the session badges follow. A
+ * coalesced tree gets the branch glyph because the row is about the tree, not
+ * about any one call in it.
+ */
+const CALL_CAUSE_ICON: Record<CallAttentionCause, LucideIcon> = {
+  "invalid-result": FileX,
+  "completed-without-result": CircleSlash,
+  "blocked-on-decision": CircleHelp,
+};
+
 function RowMark({ row }: { row: OsAttentionRow }) {
   if (row.kind === "session") return <SessionBadgeGlyph badge={row.badge} />;
   if (row.kind === "task") {
     return <NonSessionMark icon={ListChecks} tone="bg-danger-tint text-danger" />;
+  }
+  if (row.kind === "call") {
+    return (
+      <NonSessionMark
+        icon={row.count > 1 ? GitBranch : CALL_CAUSE_ICON[row.cause]}
+        tone="bg-danger-tint text-danger"
+      />
+    );
   }
   if (row.kind === "loop-request") {
     return <NonSessionMark icon={TriangleAlert} tone="bg-danger-tint text-danger" />;
@@ -43,6 +76,7 @@ function RowMark({ row }: { row: OsAttentionRow }) {
 function rowReason(row: OsAttentionRow): string {
   if (row.kind === "session") return `${row.agentName} — ${row.reason}`;
   if (row.kind === "task") return "task approval";
+  if (row.kind === "call") return row.rootSessionId;
   if (row.kind === "loop-request") return `${row.loopName} — ${row.requestKind}`;
   return row.state;
 }
@@ -61,7 +95,8 @@ export interface AttentionBellRowProps {
 export function AttentionBellRow({ row, onSelect }: AttentionBellRowProps) {
   const isSession = row.kind === "session";
   const isLoopRequest = row.kind === "loop-request";
-  const stale = (isSession || isLoopRequest) && row.stale;
+  const isCall = row.kind === "call";
+  const stale = (isSession || isLoopRequest || isCall) && row.stale;
   const muted = isSession && row.muted;
   return (
     <button
@@ -89,7 +124,7 @@ export function AttentionBellRow({ row, onSelect }: AttentionBellRowProps) {
         {muted ? (
           <Icon as={BellOff} size="xs" className="text-faint" aria-label="Notifications muted" />
         ) : null}
-        {isSession ? <Time iso={row.changedAt} /> : null}
+        {isSession || isCall ? <Time iso={row.changedAt} /> : null}
         {isLoopRequest ? (
           <span className="flex flex-col items-end">
             <Time iso={row.openedAt} />

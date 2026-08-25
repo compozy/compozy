@@ -4,6 +4,74 @@ package contracts
 
 import "time"
 
+type WindowManagerStackActivatedPayload struct {
+	Event       HookEvent            `json:"event"`
+	Timestamp   time.Time            `json:"timestamp"`
+	WorkspaceID string               `json:"workspace_id"`
+	Revision    uint64               `json:"revision"`
+	CommandID   string               `json:"command_id"`
+	Changes     WindowManagerChanges `json:"changes"`
+	Actor       WindowManagerActor   `json:"actor"`
+	Origin      string               `json:"origin,omitempty"`
+}
+
+type WindowManagerStackGroupedPayload struct {
+	Event       HookEvent            `json:"event"`
+	Timestamp   time.Time            `json:"timestamp"`
+	WorkspaceID string               `json:"workspace_id"`
+	Revision    uint64               `json:"revision"`
+	CommandID   string               `json:"command_id"`
+	Changes     WindowManagerChanges `json:"changes"`
+	Actor       WindowManagerActor   `json:"actor"`
+	Origin      string               `json:"origin,omitempty"`
+}
+
+type WindowManagerStackUngroupedPayload struct {
+	Event       HookEvent            `json:"event"`
+	Timestamp   time.Time            `json:"timestamp"`
+	WorkspaceID string               `json:"workspace_id"`
+	Revision    uint64               `json:"revision"`
+	CommandID   string               `json:"command_id"`
+	Changes     WindowManagerChanges `json:"changes"`
+	Actor       WindowManagerActor   `json:"actor"`
+	Origin      string               `json:"origin,omitempty"`
+}
+
+type WindowManagerWindowClosedPayload struct {
+	Event       HookEvent            `json:"event"`
+	Timestamp   time.Time            `json:"timestamp"`
+	WorkspaceID string               `json:"workspace_id"`
+	Revision    uint64               `json:"revision"`
+	CommandID   string               `json:"command_id"`
+	Changes     WindowManagerChanges `json:"changes"`
+	Actor       WindowManagerActor   `json:"actor"`
+	Origin      string               `json:"origin,omitempty"`
+}
+
+type WindowManagerWindowMovedPayload struct {
+	Event       HookEvent            `json:"event"`
+	Timestamp   time.Time            `json:"timestamp"`
+	WorkspaceID string               `json:"workspace_id"`
+	Revision    uint64               `json:"revision"`
+	CommandID   string               `json:"command_id"`
+	Changes     WindowManagerChanges `json:"changes"`
+	Actor       WindowManagerActor   `json:"actor"`
+	Origin      string               `json:"origin,omitempty"`
+}
+
+type WindowManagerWindowOpenedPayload struct {
+	Event       HookEvent            `json:"event"`
+	Timestamp   time.Time            `json:"timestamp"`
+	WorkspaceID string               `json:"workspace_id"`
+	Revision    uint64               `json:"revision"`
+	CommandID   string               `json:"command_id"`
+	Changes     WindowManagerChanges `json:"changes"`
+	Actor       WindowManagerActor   `json:"actor"`
+	Origin      string               `json:"origin,omitempty"`
+}
+
+type WorkspaceID string
+
 type WorktreeContext struct {
 	ProfileID     string `json:"profile_id,omitempty"`
 	WorktreeID    string `json:"worktree_id"`

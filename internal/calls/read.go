@@ -24,16 +24,21 @@ type CallReadQuery struct {
 // CallListQuery selects a stable page of call records.
 type CallListQuery struct {
 	CallReadQuery
-	State  []State
-	Caller string
-	Cursor string
-	Limit  int
+	State          []State
+	Attention      bool
+	Caller         string
+	ChildSessionID string
+	RootSessionID  string
+	Agent          string
+	Cursor         string
+	Limit          int
 }
 
-// CallPage is an uncounted, cursor-backed page in durable creation order.
+// CallPage is a counted, cursor-backed page in durable creation order.
 type CallPage struct {
 	Items      []CallRecord
 	NextCursor string
+	Total      int
 }
 
 // MessageListQuery selects a stable page of lineage mailbox records.
@@ -56,9 +61,15 @@ type ResultPayload struct {
 	Bytes  []byte
 }
 
+// PromptPayload contains the exact authored prompt for one caller-owned call.
+type PromptPayload struct {
+	CallID string
+	Text   string
+}
+
 // List returns one profile-aware page with filters applied before the cut.
 func (s *Service) List(ctx context.Context, query CallListQuery) (CallPage, error) {
-	reader, err := s.readStore()
+	reader, err := s.callListStore()
 	if err != nil {
 		return CallPage{}, err
 	}
@@ -71,7 +82,7 @@ func (s *Service) List(ctx context.Context, query CallListQuery) (CallPage, erro
 
 // GetRead returns one call through the same exact-or-aggregate read boundary as List.
 func (s *Service) GetRead(ctx context.Context, query CallReadQuery, callID string) (CallRecord, error) {
-	reader, err := s.readStore()
+	reader, err := s.callReadStore()
 	if err != nil {
 		return CallRecord{}, err
 	}
@@ -99,7 +110,7 @@ func (s *Service) Result(ctx context.Context, query CallReadQuery, callID string
 			nil,
 		)
 	}
-	mailbox, err := s.mailboxStore()
+	mailbox, err := s.payloadStore()
 	if err != nil {
 		return ResultPayload{}, err
 	}
@@ -110,9 +121,46 @@ func (s *Service) Result(ctx context.Context, query CallReadQuery, callID string
 	return ResultPayload{CallID: record.CallID, Bytes: append([]byte(nil), payload...)}, nil
 }
 
+// Prompt returns the exact authored prompt without exposing its storage reference.
+func (s *Service) Prompt(ctx context.Context, query CallReadQuery, callID string) (PromptPayload, error) {
+	record, err := s.GetRead(ctx, query, callID)
+	if err != nil {
+		return PromptPayload{}, err
+	}
+	mailbox, err := s.payloadStore()
+	if err != nil {
+		return PromptPayload{}, err
+	}
+	payload, err := mailbox.GetCallPayload(ctx, record.WorkspaceID, record.PromptRef)
+	if err != nil {
+		return PromptPayload{}, err
+	}
+	return PromptPayload{CallID: record.CallID, Text: string(payload)}, nil
+}
+
+// Superseded returns preserved late-result evidence without exposing its storage reference.
+func (s *Service) Superseded(ctx context.Context, query CallReadQuery, callID string) (ResultPayload, error) {
+	record, err := s.GetRead(ctx, query, callID)
+	if err != nil {
+		return ResultPayload{}, err
+	}
+	if strings.TrimSpace(record.SupersededRef) == "" {
+		return ResultPayload{}, newError(CodeNotSettled, "call has no superseded result evidence", nil)
+	}
+	mailbox, err := s.payloadStore()
+	if err != nil {
+		return ResultPayload{}, err
+	}
+	payload, err := mailbox.GetCallPayload(ctx, record.WorkspaceID, record.SupersededRef)
+	if err != nil {
+		return ResultPayload{}, err
+	}
+	return ResultPayload{CallID: record.CallID, Bytes: append([]byte(nil), payload...)}, nil
+}
+
 // ListMessages returns one profile-aware mailbox page.
 func (s *Service) ListMessages(ctx context.Context, query MessageListQuery) (MessagePage, error) {
-	reader, err := s.readStore()
+	reader, err := s.messageReadStore()
 	if err != nil {
 		return MessagePage{}, err
 	}
@@ -129,6 +177,9 @@ func (s *Service) ListMessages(ctx context.Context, query MessageListQuery) (Mes
 func normalizeCallListQuery(query CallListQuery) CallListQuery {
 	query.CallReadQuery = normalizeCallReadQuery(query.CallReadQuery)
 	query.Caller = strings.TrimSpace(query.Caller)
+	query.ChildSessionID = strings.TrimSpace(query.ChildSessionID)
+	query.RootSessionID = strings.TrimSpace(query.RootSessionID)
+	query.Agent = strings.TrimSpace(query.Agent)
 	query.Cursor = strings.TrimSpace(query.Cursor)
 	query.Limit = normalizeReadLimit(query.Limit)
 	return query
@@ -176,10 +227,34 @@ func validateReadQuery(query CallReadQuery) error {
 	return nil
 }
 
-func (s *Service) readStore() (ReadStore, error) {
-	reader, ok := s.store.(ReadStore)
+func (s *Service) callListStore() (CallListStore, error) {
+	reader, ok := s.store.(CallListStore)
 	if !ok {
-		return nil, errors.New("calls: store does not implement public read projections")
+		return nil, errors.New("calls: store does not implement public call pages")
+	}
+	return reader, nil
+}
+
+func (s *Service) callReadStore() (CallReadStore, error) {
+	reader, ok := s.store.(CallReadStore)
+	if !ok {
+		return nil, errors.New("calls: store does not implement public call detail")
+	}
+	return reader, nil
+}
+
+func (s *Service) messageReadStore() (MessageReadStore, error) {
+	reader, ok := s.store.(MessageReadStore)
+	if !ok {
+		return nil, errors.New("calls: store does not implement public mailbox pages")
+	}
+	return reader, nil
+}
+
+func (s *Service) payloadStore() (PayloadStore, error) {
+	reader, ok := s.store.(PayloadStore)
+	if !ok {
+		return nil, errors.New("calls: store does not implement payload reads")
 	}
 	return reader, nil
 }

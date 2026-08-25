@@ -173,6 +173,58 @@ func TestToUIMessagesPreservesUserMessageIdentity(t *testing.T) {
 	})
 }
 
+func TestToUIMessagesProjectsSafeCallSyntheticMetadata(t *testing.T) {
+	t.Run("Should expose call and delivery identity without storage or policy internals", func(t *testing.T) {
+		t.Parallel()
+
+		timestamp := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+		event := acp.AgentEvent{
+			Type:      acp.EventTypeSyntheticReentry,
+			SessionID: "sess-parent",
+			TurnID:    "turn-wake",
+			Timestamp: timestamp,
+			Text:      "The delegated call completed.",
+			Synthetic: &acp.PromptSyntheticMeta{
+				CallID: "call-1", CallState: "completed", ChildSessionID: "sess-child",
+				ChildAgentName: "reviewer", ResultRef: "payload/secret-ref", ResultBytes: 128,
+				ContractDigest: "sha256:contract", MessageID: "msg-1", DeliveryKind: "completion",
+				Reason: "call_completion", Summary: "review returned", WakeEventID: "wake-1",
+				ClaimTokenHash: "sha256:claim", PolicySnapshotID: "policy-1",
+			},
+		}
+		stored := mustUIAgentSessionEvent(t, "ev-call-wake", 1, timestamp, event)
+		messages, err := ToUIMessages([]store.SessionEvent{stored})
+		if err != nil {
+			t.Fatalf("ToUIMessages() error = %v", err)
+		}
+		if got, want := len(messages), 1; got != want {
+			t.Fatalf("len(messages) = %d, want %d", got, want)
+		}
+
+		var metadata struct {
+			Synthetic map[string]any `json:"synthetic"`
+		}
+		if err := json.Unmarshal(messages[0].Metadata, &metadata); err != nil {
+			t.Fatalf("json.Unmarshal(metadata) error = %v", err)
+		}
+		want := map[string]any{
+			"call_id": "call-1", "call_state": "completed", "child_session_id": "sess-child",
+			"child_agent_name": "reviewer", "result_bytes": float64(128),
+			"contract_digest": "sha256:contract", "message_id": "msg-1",
+			"delivery_kind": "completion", "reason": "call_completion",
+			"summary": "review returned", "wake_event_id": "wake-1",
+		}
+		if !reflect.DeepEqual(metadata.Synthetic, want) {
+			t.Fatalf("synthetic metadata = %#v, want %#v", metadata.Synthetic, want)
+		}
+		for _, forbidden := range []string{"result_ref", "claim_token_hash", "policy_snapshot_id"} {
+			if _, ok := metadata.Synthetic[forbidden]; ok {
+				t.Fatalf("synthetic metadata exposes forbidden field %q", forbidden)
+			}
+		}
+	})
+}
+
 func TestToUIMessagesProjectsMixedUserAttachments(t *testing.T) {
 	t.Parallel()
 

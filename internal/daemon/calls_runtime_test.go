@@ -45,6 +45,31 @@ func TestDaemonCallSessionInvokerRecovery(t *testing.T) {
 		manager.sent.MessageID != "msg_"+callID || manager.sent.IdempotencyKey != "call:"+callID {
 		t.Fatalf("SendPrompt() = %q %#v, want deterministic recovery delivery", manager.sentSessionID, manager.sent)
 	}
+	if manager.sent.Synthetic == nil || manager.sent.Synthetic.CallID != callID ||
+		manager.sent.Synthetic.CallState != string(callspkg.StateRunning) ||
+		manager.sent.Synthetic.ChildSessionID != childID ||
+		manager.sent.Synthetic.ChildAgentName != "reviewer" ||
+		manager.sent.Synthetic.Reason != "call_request" {
+		t.Fatalf("SendPrompt() synthetic metadata = %#v, want call request identity", manager.sent.Synthetic)
+	}
+}
+
+func TestDaemonCallSessionInvokerReviveMetadata(t *testing.T) {
+	t.Run("Should identify a revived call follow-up as daemon-authored input", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &callSessionManagerStub{info: &session.Info{ID: "ses-child", State: session.StateStopped}}
+		invoker := &daemonCallSessionInvoker{sessions: manager}
+		if err := invoker.Revive(context.Background(), "ses-child", "Follow up.", "call-2"); err != nil {
+			t.Fatalf("Revive() error = %v", err)
+		}
+		if manager.sent.Synthetic == nil || manager.sent.Synthetic.CallID != "call-2" ||
+			manager.sent.Synthetic.CallState != string(callspkg.StateRunning) ||
+			manager.sent.Synthetic.ChildSessionID != "ses-child" ||
+			manager.sent.Synthetic.Reason != "call_follow_up" {
+			t.Fatalf("SendPrompt() synthetic metadata = %#v, want call follow-up identity", manager.sent.Synthetic)
+		}
+	})
 }
 
 // Invariant: an accepted queue entry is not projected as delivered until its durable state is sent.

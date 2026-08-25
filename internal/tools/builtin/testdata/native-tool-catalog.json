@@ -22,7 +22,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "facf8ab6d5e0df549417d881610a44d156de7085f4cf3f5cf338ccb0334f97e2",
+    "input_schema_digest": "fba03cacfcd008e52005f13ef8eeeb7e7f3fd88f6caa9376e005829cadf3642d",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -1328,7 +1328,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "0d58203a9c3cb6e023a80466e39bced1fdbc1736d4a0b90da1f2b874f88e5add",
+    "input_schema_digest": "c820c51ba788c49e133f834c2e691e46c016b2bedcecf82e96ff9ee962863f60",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -1613,7 +1613,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "ec22f89150845e0f4683a74cd5b4b08f8fb666b78ed69d50d8aa4e0c2c9f0276",
+    "input_schema_digest": "dcf41abe9c2389c76e61637801d4ba8ff01f82ff11fd5937b50c0ffd2d582ae3",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -1640,7 +1640,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "f6434e485d1becf0aec0201dcbb8853242be92d8fb69610f5461ace7ca9a2627",
-    "output_schema_digest": "6f35ec5a1afbdaf0bb59cd0ad313b518f70425aa4df93b9cf984816388f93057"
+    "output_schema_digest": "280b5ca2dee26b872c12a951e1c6f43bafabad5bb4df35031f1ff9b0dc532a3d"
   },
   {
     "tool_id": "compozy__loop_turns",
@@ -2875,7 +2875,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "b2295a1c10d4860d653a7e839b6e0800a3feedfe127819ef2e97c10d04002cde",
-    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    "output_schema_digest": "93130ccf79a4e5f9a9c6565cd2127a7dda23e9989b37987fc9570ea206fd370f"
   },
   {
     "tool_id": "compozy__skill_search",
@@ -2888,7 +2888,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "82f60a9a750f9d580dccbf241fa69c25bcea4eca0c4b1afc225faed77d423e14",
-    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    "output_schema_digest": "93130ccf79a4e5f9a9c6565cd2127a7dda23e9989b37987fc9570ea206fd370f"
   },
   {
     "tool_id": "compozy__skill_view",
@@ -2901,7 +2901,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "f646503ec390df98ec1737a9e00c6db2d55a16c7176df6d40e0d065bd07973fd",
-    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    "output_schema_digest": "fadf40d7421248945f924e72c73663e92867d40edcc29049ff4e298b51cf006b"
   },
   {
     "tool_id": "compozy__task_block",
@@ -3734,4 +3734,3 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   }
 ]
-

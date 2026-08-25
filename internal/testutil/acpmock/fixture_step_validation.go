@@ -85,7 +85,7 @@ func (s Step) validateKindPayload(path string) error {
 		return validateTextStep(path, s)
 	case StepKindToolCall:
 		return validateToolCallStep(path, s)
-	case StepKindCallReturn, StepKindAgentMessage:
+	case StepKindCallReturn, StepKindAgentMessage, StepKindAgentCall:
 		return validateHostedNativeCallStep(path, s)
 	case StepKindPermission:
 		return validatePermissionStep(path, s)

@@ -53,6 +53,17 @@
                         },
                         { "kind": "call_return", "raw_input": { "result": { "answer": 5 } } }
                     ]
+                },
+                {
+                    "name": "stale-action",
+                    "match": { "user_text_contains": "settle during stale action" },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": { "action": "delay", "delay_ms": 5000 }
+                        },
+                        { "kind": "call_return", "raw_input": { "result": { "answer": 6 } } }
+                    ]
                 }
             ]
         },

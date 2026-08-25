@@ -1920,3 +1920,217 @@ export function profilesOperatorSelectors(
     usageProfileShare: scope.getByTestId("home-profile-share"),
   };
 }
+
+export const agentCommsTestIds = {
+  // Activity location
+  activityPage: "agents-activity-page",
+  activityTree: "agents-activity-tree",
+  activityEmpty: "agents-activity-empty",
+  activityError: "agents-activity-error",
+  activityStale: "agents-activity-stale",
+  activityRefresh: "agents-activity-refresh",
+  activityLoadMore: "agents-activity-more",
+  treeGroup: "agent-call-tree-group",
+  treeRow: "agent-call-tree-row",
+  // Call detail
+  callPage: "agent-call-page",
+  callDetail: "agent-call-detail",
+  callHeader: "agent-call-detail-header",
+  callVerdict: "agent-call-verdict",
+  callCancel: "agent-call-cancel",
+  callAgain: "agent-call-again",
+  callMessageChild: "agent-call-message-child",
+  callPrompt: "agent-call-prompt",
+  callContract: "agent-call-contract",
+  callResult: "agent-call-result",
+  callResultRows: "agent-call-result-rows",
+  callAttempts: "agent-call-attempts",
+  callAttemptFirst: "agent-call-attempt-1",
+  callAttemptSecond: "agent-call-attempt-2",
+  callSuperseded: "agent-call-superseded",
+  callTimeline: "agent-call-timeline",
+  callCost: "agent-call-cost",
+  callUntrustedNote: "agent-call-untrusted-note",
+  callError: "agent-call-error",
+  // Session inspector
+  inspectorTab: "session-inspector-tab-calls",
+  inspectorPanel: "session-inspector-calls",
+  panelMade: "agent-calls-panel-made",
+  panelReceived: "agent-calls-panel-received",
+  panelMadeCount: "agent-calls-panel-made-count",
+  panelReceivedCount: "agent-calls-panel-received-count",
+  panelRow: "agent-calls-panel-row",
+  panelMadeMore: "agent-calls-panel-made-more",
+  // Messages
+  messageDelivery: "agent-message-delivery",
+  messageFailureReason: "agent-message-failure-reason",
+  composeMessage: "agent-compose-message-input",
+  composeMessageSend: "agent-compose-message-send",
+  composeMessageError: "agent-compose-message-error",
+  composeMessageAccepted: "agent-compose-message-accepted",
+  // Roster
+  detailCalls: "agent-detail-calls",
+  detailActiveInstances: "agent-detail-active-instances",
+  detailRecentCalls: "agent-detail-recent-calls",
+  callCompose: "agent-detail-call-compose",
+  callComposePrompt: "agent-call-compose-prompt",
+  callComposeExpect: "agent-call-compose-expect",
+  callComposeSubmit: "agent-call-compose-submit",
+  callComposeError: "agent-call-compose-error",
+  callComposeAccepted: "agent-call-compose-accepted",
+  /** Who a compose is aimed at: an existing child, or a fresh helper. */
+  callComposeTarget: "agent-call-compose-target",
+  /** Shown when only the prior contract's digest survived and it must be rewritten. */
+  callComposeContractNote: "agent-call-compose-contract-note",
+  /** The two write disclosures on call detail. */
+  callAgainCompose: "agent-call-again-compose",
+  callMessageCompose: "agent-call-message-compose",
+  /** A daemon-authored transcript turn: a call ask, a completion wake, or a message. */
+  syntheticTurn: "session-synthetic-turn",
+} as const;
+
+export interface AgentCommsSelectors {
+  activityPage: Locator;
+  activityTree: Locator;
+  activityEmpty: Locator;
+  activityError: Locator;
+  activityStale: Locator;
+  activityRefresh: Locator;
+  activityLoadMore: Locator;
+  treeGroups: Locator;
+  treeRows: Locator;
+  /** One tree row by call id — rows carry `data-call-id`. */
+  treeRow: (callId: string) => Locator;
+  /** One tree group by governed root session id. */
+  treeGroup: (rootSessionId: string) => Locator;
+  callPage: Locator;
+  callDetail: Locator;
+  callHeader: Locator;
+  callVerdict: Locator;
+  callCancel: Locator;
+  callAgain: Locator;
+  callMessageChild: Locator;
+  callPrompt: Locator;
+  callContract: Locator;
+  callResult: Locator;
+  callResultRows: Locator;
+  callAttempts: Locator;
+  callAttemptFirst: Locator;
+  callAttemptSecond: Locator;
+  callSuperseded: Locator;
+  callTimeline: Locator;
+  callCost: Locator;
+  callUntrustedNote: Locator;
+  callError: Locator;
+  inspectorTab: Locator;
+  inspectorPanel: Locator;
+  panelMade: Locator;
+  panelReceived: Locator;
+  panelMadeCount: Locator;
+  panelReceivedCount: Locator;
+  panelRows: Locator;
+  panelMadeMore: Locator;
+  messageDeliveries: Locator;
+  messageFailureReason: Locator;
+  composeMessage: Locator;
+  composeMessageSend: Locator;
+  composeMessageError: Locator;
+  composeMessageAccepted: Locator;
+  detailCalls: Locator;
+  detailActiveInstances: Locator;
+  detailRecentCalls: Locator;
+  callCompose: Locator;
+  callComposePrompt: Locator;
+  callComposeExpect: Locator;
+  callComposeSubmit: Locator;
+  callComposeError: Locator;
+  callComposeAccepted: Locator;
+  callComposeTarget: Locator;
+  callComposeContractNote: Locator;
+  callAgainCompose: Locator;
+  callMessageCompose: Locator;
+  syntheticTurns: Locator;
+  /** One transcript turn by kind: `message`, `call-wake`, `call-request`, `call-follow-up`. */
+  syntheticTurn: (kind: string) => Locator;
+  /** The Agents dock tile's delegation badge. */
+  dockBadge: Locator;
+}
+
+export function agentCommsSelectors(
+  scope: Pick<Page, "getByTestId" | "locator">
+): AgentCommsSelectors {
+  const id = agentCommsTestIds;
+  return {
+    activityPage: scope.getByTestId(id.activityPage),
+    activityTree: scope.getByTestId(id.activityTree),
+    activityEmpty: scope.getByTestId(id.activityEmpty),
+    activityError: scope.getByTestId(id.activityError),
+    activityStale: scope.getByTestId(id.activityStale),
+    activityRefresh: scope.getByTestId(id.activityRefresh),
+    activityLoadMore: scope.getByTestId(id.activityLoadMore),
+    treeGroups: scope.getByTestId(id.treeGroup),
+    treeRows: scope.getByTestId(id.treeRow),
+    treeRow: (callId: string) =>
+      scope.locator(`[data-testid="${id.treeRow}"] [data-call-id="${callId}"]`),
+    treeGroup: (rootSessionId: string) =>
+      scope.locator(`[data-testid="${id.treeGroup}"] [data-root-session-id="${rootSessionId}"]`),
+    callPage: scope.getByTestId(id.callPage),
+    callDetail: scope.getByTestId(id.callDetail),
+    callHeader: scope.getByTestId(id.callHeader),
+    callVerdict: scope.getByTestId(id.callVerdict),
+    callCancel: scope.getByTestId(id.callCancel),
+    callAgain: scope.getByTestId(id.callAgain),
+    callMessageChild: scope.getByTestId(id.callMessageChild),
+    callPrompt: scope.getByTestId(id.callPrompt),
+    callContract: scope.getByTestId(id.callContract),
+    callResult: scope.getByTestId(id.callResult),
+    callResultRows: scope.getByTestId(id.callResultRows),
+    callAttempts: scope.getByTestId(id.callAttempts),
+    callAttemptFirst: scope.getByTestId(id.callAttemptFirst),
+    callAttemptSecond: scope.getByTestId(id.callAttemptSecond),
+    callSuperseded: scope.getByTestId(id.callSuperseded),
+    callTimeline: scope.getByTestId(id.callTimeline),
+    callCost: scope.getByTestId(id.callCost),
+    callUntrustedNote: scope.getByTestId(id.callUntrustedNote),
+    callError: scope.getByTestId(id.callError),
+    inspectorTab: scope.getByTestId(id.inspectorTab),
+    inspectorPanel: scope.getByTestId(id.inspectorPanel),
+    panelMade: scope.getByTestId(id.panelMade),
+    panelReceived: scope.getByTestId(id.panelReceived),
+    panelMadeCount: scope.getByTestId(id.panelMadeCount),
+    panelReceivedCount: scope.getByTestId(id.panelReceivedCount),
+    panelRows: scope.getByTestId(id.panelRow),
+    panelMadeMore: scope.getByTestId(id.panelMadeMore),
+    messageDeliveries: scope.getByTestId(id.messageDelivery),
+    messageFailureReason: scope.getByTestId(id.messageFailureReason),
+    composeMessage: scope.getByTestId(id.composeMessage),
+    composeMessageSend: scope.getByTestId(id.composeMessageSend),
+    composeMessageError: scope.getByTestId(id.composeMessageError),
+    composeMessageAccepted: scope.getByTestId(id.composeMessageAccepted),
+    detailCalls: scope.getByTestId(id.detailCalls),
+    detailActiveInstances: scope.getByTestId(id.detailActiveInstances),
+    detailRecentCalls: scope.getByTestId(id.detailRecentCalls),
+    callCompose: scope.getByTestId(id.callCompose),
+    callComposePrompt: scope.getByTestId(id.callComposePrompt),
+    callComposeExpect: scope.getByTestId(id.callComposeExpect),
+    callComposeSubmit: scope.getByTestId(id.callComposeSubmit),
+    callComposeError: scope.getByTestId(id.callComposeError),
+    callComposeAccepted: scope.getByTestId(id.callComposeAccepted),
+    callComposeTarget: scope.getByTestId(id.callComposeTarget),
+    callComposeContractNote: scope.getByTestId(id.callComposeContractNote),
+    callAgainCompose: scope.getByTestId(id.callAgainCompose),
+    callMessageCompose: scope.getByTestId(id.callMessageCompose),
+    syntheticTurns: scope.getByTestId(id.syntheticTurn),
+    // `SessionSyntheticTurn` passes the testid straight through to
+    // `AgentSyntheticTurn`, so the kind lives on the same node — not a child.
+    syntheticTurn: (kind: string) =>
+      scope.locator(`[data-testid="${id.syntheticTurn}"][data-synthetic-kind="${kind}"]`),
+    // The dock emits `os-dock-badge` (`os-dock.tsx:86`), not `dock-badge`; the
+    // older name matched nothing, so every badge assertion silently passed
+    // against zero elements. The dock is shell chrome, so this must be resolved
+    // from the page, never from inside a window surface.
+    dockBadge: scope.locator(
+      '[data-slot="os-dock-item"][data-app="agents"] [data-slot="os-dock-badge"]'
+    ),
+  };
+}

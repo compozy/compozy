@@ -14,6 +14,8 @@ import (
 
 const callsOperatorActorKind = "human"
 
+const callPromptPreviewBytes = 4096
+
 // CallsCreate accepts one call or a bounded per-item batch.
 func (h *BaseHandlers) CallsCreate(c *gin.Context) {
 	if !h.requireCallsOperator(c, "call create") {
@@ -80,7 +82,7 @@ func (h *BaseHandlers) createCallBatch(c *gin.Context, inputs []callspkg.CreateI
 	c.JSON(http.StatusOK, items)
 }
 
-// CallsList returns an uncounted cursor page.
+// CallsList returns a counted cursor page.
 func (h *BaseHandlers) CallsList(c *gin.Context) {
 	if !h.requireCallsOperator(c, "call list") {
 		return
@@ -100,7 +102,16 @@ func (h *BaseHandlers) CallsList(c *gin.Context) {
 		h.respondCallsError(c, err)
 		return
 	}
+	attention, err := parseOptionalBoolPointer(c.Query("attention"))
+	if err != nil {
+		h.respondCallsError(c, callRequestError(callspkg.CodeValidation, "attention must be a boolean"))
+		return
+	}
+	query.Attention = attention != nil && *attention
 	query.Caller = c.Query("caller")
+	query.ChildSessionID = c.Query("child_session_id")
+	query.RootSessionID = c.Query("root_session_id")
+	query.Agent = c.Query("agent")
 	query.Cursor = c.Query("cursor")
 	query.Limit, err = parseOptionalPositiveIntQuery(c, "limit", callspkg.DefaultReadLimit, callspkg.MaxReadLimit)
 	if err != nil {
@@ -117,7 +128,7 @@ func (h *BaseHandlers) CallsList(c *gin.Context) {
 		h.respondCallsError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.CallsResponse{Items: items, NextCursor: page.NextCursor})
+	c.JSON(http.StatusOK, contract.CallsResponse{Items: items, NextCursor: page.NextCursor, Total: page.Total})
 }
 
 // CallsGet returns one call through the list's owner boundary.
@@ -158,16 +169,46 @@ func (h *BaseHandlers) callReadDetail(c *gin.Context, wholeResult bool) {
 		h.respondCallsError(c, err)
 		return
 	}
-	var preview []byte
-	if record.State == callspkg.StateCompleted {
-		result, resultErr := h.Calls.Result(c.Request.Context(), query, callID)
-		if resultErr != nil {
-			h.respondCallsError(c, resultErr)
-			return
-		}
-		preview = boundedCallPreview(result.Bytes, record.ResultBudget.MaxBytes)
+	content, err := h.callPayloadContent(c.Request.Context(), record)
+	if err != nil {
+		h.respondCallsError(c, err)
+		return
 	}
-	c.JSON(http.StatusOK, callPayload(record, owners[record.ProfileID], preview))
+	c.JSON(http.StatusOK, callPayload(record, owners[record.ProfileID], content))
+}
+
+// CallsPrompt returns the exact authored prompt through the call read boundary.
+func (h *BaseHandlers) CallsPrompt(c *gin.Context) {
+	if !h.requireCallsOperator(c, "call prompt read") {
+		return
+	}
+	query, ok := h.resolvedCallReadQuery(c)
+	if !ok {
+		return
+	}
+	prompt, err := h.Calls.Prompt(c.Request.Context(), query, strings.TrimSpace(c.Param("call_id")))
+	if err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.CallPromptResponse{CallID: prompt.CallID, Prompt: prompt.Text})
+}
+
+// CallsSuperseded returns preserved late-result evidence through the call read boundary.
+func (h *BaseHandlers) CallsSuperseded(c *gin.Context) {
+	if !h.requireCallsOperator(c, "call superseded read") {
+		return
+	}
+	query, ok := h.resolvedCallReadQuery(c)
+	if !ok {
+		return
+	}
+	result, err := h.Calls.Superseded(c.Request.Context(), query, strings.TrimSpace(c.Param("call_id")))
+	if err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.CallSupersededResponse{CallID: result.CallID, Result: result.Bytes})
 }
 
 // CallsAwait waits for a bounded interval and returns settled and pending identities.

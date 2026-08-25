@@ -194,7 +194,7 @@ func generationOutputOwnsTaskInGeneration(
 	output GenerationOutput,
 ) bool {
 	taskRunID := strings.TrimSpace(output.TaskRunID)
-	if taskRunID == "" || outputRefMarksSkippedRoute(output.OutputRef) {
+	if taskRunID == "" || outputMarksSkippedRoute(output) {
 		return false
 	}
 	if dsl.ActionKind(node.Kind) == dsl.ActionGoal {

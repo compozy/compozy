@@ -7,6 +7,31 @@ import (
 	"time"
 )
 
+type MessageStartPayload struct {
+	Event          HookEvent       `json:"event"`
+	Timestamp      time.Time       `json:"timestamp"`
+	ProfileID      string          `json:"profile_id,omitempty"`
+	SessionID      string          `json:"session_id,omitempty"`
+	SessionName    string          `json:"session_name,omitempty"`
+	SessionType    string          `json:"session_type,omitempty"`
+	AgentName      string          `json:"agent_name,omitempty"`
+	WorkspaceID    string          `json:"workspace_id,omitempty"`
+	Workspace      string          `json:"workspace,omitempty"`
+	WorktreeID     string          `json:"worktree_id,omitempty"`
+	ACPSessionID   string          `json:"acp_session_id,omitempty"`
+	State          string          `json:"state,omitempty"`
+	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string          `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+	TurnID         string          `json:"turn_id,omitempty"`
+	MessageID      string          `json:"message_id,omitempty"`
+	Role           string          `json:"role,omitempty"`
+	DeltaType      string          `json:"delta_type,omitempty"`
+	Text           string          `json:"text,omitempty"`
+	Raw            json.RawMessage `json:"raw,omitempty"`
+}
+
 type MessagesListParams struct {
 	Scope       string `json:"scope,omitempty"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
@@ -65,29 +90,73 @@ type ModelSourceListResponse struct {
 	Rows []ModelSourceRow `json:"rows"`
 }
 
+type ModelSourceOptionDescriptor struct {
+	ID             string                   `json:"id"`
+	Label          string                   `json:"label,omitempty"`
+	Description    string                   `json:"description,omitempty"`
+	Category       string                   `json:"category,omitempty"`
+	Kind           ModelSourceOptionKind    `json:"kind"`
+	CurrentValueID string                   `json:"current_value_id,omitempty"`
+	CurrentBool    *bool                    `json:"current_bool,omitempty"`
+	Values         []ModelSourceOptionValue `json:"values,omitempty"`
+}
+
+type ModelSourceOptionKind string
+
+const (
+	ModelSourceOptionKindSelect  ModelSourceOptionKind = "select"
+	ModelSourceOptionKindBoolean ModelSourceOptionKind = "boolean"
+)
+
+type ModelSourceOptionSelection struct {
+	ID        string `json:"id"`
+	ValueID   string `json:"value_id,omitempty"`
+	BoolValue *bool  `json:"bool_value,omitempty"`
+}
+
+type ModelSourceOptionValue struct {
+	ValueID     string `json:"value_id"`
+	Label       string `json:"label,omitempty"`
+	Description string `json:"description,omitempty"`
+	GroupID     string `json:"group_id,omitempty"`
+	GroupLabel  string `json:"group_label,omitempty"`
+	Order       int    `json:"order,omitempty"`
+}
+
 type ModelSourceRow struct {
-	SourceID               string                   `json:"source_id"`
-	ProviderID             string                   `json:"provider_id"`
-	ModelID                string                   `json:"model_id"`
-	DisplayName            string                   `json:"display_name,omitempty"`
-	Priority               int                      `json:"priority,omitempty"`
-	Available              *bool                    `json:"available,omitempty"`
-	Stale                  bool                     `json:"stale,omitempty"`
-	RefreshedAt            time.Time                `json:"refreshed_at"`
-	ExpiresAt              time.Time                `json:"expires_at"`
-	ContextWindow          *int64                   `json:"context_window,omitempty"`
-	MaxInputTokens         *int64                   `json:"max_input_tokens,omitempty"`
-	MaxOutputTokens        *int64                   `json:"max_output_tokens,omitempty"`
-	SupportsTools          *bool                    `json:"supports_tools,omitempty"`
-	SupportsReasoning      *bool                    `json:"supports_reasoning,omitempty"`
-	ReasoningEfforts       []Effort                 `json:"reasoning_efforts,omitempty"`
-	DefaultReasoningEffort *Effort                  `json:"default_reasoning_effort,omitempty"`
-	Cost                   *ModelCatalogCostPayload `json:"cost,omitempty"`
-	Deprecated             *bool                    `json:"deprecated,omitempty"`
-	Hidden                 *bool                    `json:"hidden,omitempty"`
-	Featured               *bool                    `json:"featured,omitempty"`
-	ReleaseDate            *string                  `json:"release_date,omitempty"`
-	LastError              string                   `json:"last_error,omitempty"`
+	SourceID               string                        `json:"source_id"`
+	ProviderID             string                        `json:"provider_id"`
+	ModelID                string                        `json:"model_id"`
+	DisplayName            string                        `json:"display_name,omitempty"`
+	Priority               int                           `json:"priority,omitempty"`
+	Available              *bool                         `json:"available,omitempty"`
+	Stale                  bool                          `json:"stale,omitempty"`
+	RefreshedAt            time.Time                     `json:"refreshed_at"`
+	ExpiresAt              time.Time                     `json:"expires_at"`
+	ContextWindow          *int64                        `json:"context_window,omitempty"`
+	MaxInputTokens         *int64                        `json:"max_input_tokens,omitempty"`
+	MaxOutputTokens        *int64                        `json:"max_output_tokens,omitempty"`
+	SupportsTools          *bool                         `json:"supports_tools,omitempty"`
+	SupportsReasoning      *bool                         `json:"supports_reasoning,omitempty"`
+	ReasoningEfforts       []Effort                      `json:"reasoning_efforts,omitempty"`
+	DefaultReasoningEffort *Effort                       `json:"default_reasoning_effort,omitempty"`
+	ConfigOptions          []ModelSourceOptionDescriptor `json:"config_options,omitempty"`
+	TransportBindings      []ModelSourceTransportBinding `json:"transport_bindings,omitempty"`
+	Cost                   *ModelCatalogCostPayload      `json:"cost,omitempty"`
+	Deprecated             *bool                         `json:"deprecated,omitempty"`
+	Hidden                 *bool                         `json:"hidden,omitempty"`
+	Featured               *bool                         `json:"featured,omitempty"`
+	ReleaseDate            *string                       `json:"release_date,omitempty"`
+	LastError              string                        `json:"last_error,omitempty"`
+}
+
+type ModelSourceTransportBinding struct {
+	TransportModelID string                       `json:"transport_model_id"`
+	Label            string                       `json:"label,omitempty"`
+	ReasoningEffort  *Effort                      `json:"reasoning_effort,omitempty"`
+	Fast             *bool                        `json:"fast,omitempty"`
+	Thinking         *bool                        `json:"thinking,omitempty"`
+	OptionSelections []ModelSourceOptionSelection `json:"option_selections,omitempty"`
 }
 
 type ModelsListParams struct {
@@ -194,57 +263,4 @@ type NetworkConversationRef struct {
 	ReplyTo     string                     `json:"reply_to,omitempty"`
 	TraceID     string                     `json:"trace_id,omitempty"`
 	CausationID string                     `json:"causation_id,omitempty"`
-}
-
-type NetworkConversationSurface string
-
-type NetworkCoordinationCostPayload struct {
-	DeliveredCount        int64 `json:"delivered_count,omitempty"`
-	PromptSizeBytes       int64 `json:"prompt_size_bytes,omitempty"`
-	EstimatedPromptTokens int64 `json:"estimated_prompt_tokens,omitempty"`
-}
-
-type NetworkDirectMessagesParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	Channel     string `json:"channel"`
-	DirectID    string `json:"direct_id"`
-	Before      string `json:"before,omitempty"`
-	After       string `json:"after,omitempty"`
-	Kind        string `json:"kind,omitempty"`
-	WorkID      string `json:"work_id,omitempty"`
-	Limit       int    `json:"limit,omitempty"`
-}
-
-type NetworkDirectResolveParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	Channel     string `json:"channel"`
-	SessionID   string `json:"session_id"`
-	PeerID      string `json:"peer_id"`
-}
-
-type NetworkDirectRoomMessagesResponse struct {
-	Messages []NetworkConversationMessagePayload `json:"messages"`
-	Page     CursorPagePayload                   `json:"page"`
-}
-
-type NetworkDirectRoomOpenedPayload struct {
-	Event       HookEvent  `json:"event"`
-	Timestamp   time.Time  `json:"timestamp"`
-	WorkspaceID string     `json:"workspace_id,omitempty"`
-	SessionID   string     `json:"session_id,omitempty"`
-	Channel     string     `json:"channel,omitempty"`
-	Surface     string     `json:"surface,omitempty"`
-	ThreadID    string     `json:"thread_id,omitempty"`
-	DirectID    string     `json:"direct_id,omitempty"`
-	MessageID   string     `json:"message_id,omitempty"`
-	Kind        string     `json:"kind,omitempty"`
-	Direction   string     `json:"direction,omitempty"`
-	WorkID      string     `json:"work_id,omitempty"`
-	WorkState   string     `json:"work_state,omitempty"`
-	PeerID      string     `json:"peer_id,omitempty"`
-	PeerFrom    string     `json:"peer_from,omitempty"`
-	PeerTo      string     `json:"peer_to,omitempty"`
-	LastSeenAt  *time.Time `json:"last_seen_at,omitempty"`
-	TraceID     string     `json:"trace_id,omitempty"`
-	CausationID string     `json:"causation_id,omitempty"`
 }

@@ -1,0 +1,30 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "blocked-child",
+            "provider": "acpmock",
+            "permissions": "approve-reads",
+            "prompt": "You stop and ask before touching a protected file.",
+            "turns": [
+                {
+                    "name": "await-decision",
+                    "match": { "user_text_contains": "hold for a decision" },
+                    "steps": [
+                        {
+                            "kind": "permission",
+                            "tool_call_id": "blocked-child-permission",
+                            "title": "Modify protected file",
+                            "tool_kind": "edit",
+                            "path": "protected.txt",
+                            "status": "pending",
+                            "expect_decision": "allow-once",
+                            "emit_decision": true
+                        },
+                        { "kind": "call_return", "raw_input": { "result": { "edited": true } } }
+                    ]
+                }
+            ]
+        }
+    ]
+}

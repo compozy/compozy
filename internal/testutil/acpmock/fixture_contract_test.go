@@ -36,8 +36,38 @@ func TestAcpmockBehaviorContracts(t *testing.T) {
 		}
 	})
 
-	t.Run("Should validate hosted call return and agent message inputs", func(t *testing.T) {
-		for _, kind := range []StepKind{StepKindCallReturn, StepKindAgentMessage} {
+	// Most fixtures are loaded by exactly one suite, so a malformed one stays
+	// invisible until the suite that owns it runs — and for fixtures driven from
+	// the browser E2E lane, that is a long way from here. Parsing all of them
+	// keeps a typo a unit-test failure.
+	t.Run("Should parse every fixture shipped in testdata", func(t *testing.T) {
+		entries, err := filepath.Glob(filepath.Join("testdata", "*.json"))
+		if err != nil {
+			t.Fatalf("glob testdata error = %v", err)
+		}
+		if len(entries) == 0 {
+			t.Fatal("glob testdata returned no fixtures")
+		}
+		for _, entry := range entries {
+			t.Run(filepath.Base(entry), func(t *testing.T) {
+				fixture, err := LoadFixture(entry)
+				if err != nil {
+					// `tool_permission_golden.json` is a recorded diagnostics
+					// transcript, not a fixture; anything else must parse.
+					if strings.Contains(filepath.Base(entry), "golden") {
+						t.Skipf("%s is a golden transcript, not a fixture", filepath.Base(entry))
+					}
+					t.Fatalf("LoadFixture(%s) error = %v", entry, err)
+				}
+				if len(fixture.Agents) == 0 {
+					t.Fatalf("LoadFixture(%s) returned no agents", entry)
+				}
+			})
+		}
+	})
+
+	t.Run("Should validate every hosted native call input", func(t *testing.T) {
+		for _, kind := range []StepKind{StepKindCallReturn, StepKindAgentMessage, StepKindAgentCall} {
 			valid := Step{Kind: kind, RawInput: []byte(`{"text":"hello"}`)}
 			if err := valid.Validate("step"); err != nil {
 				t.Fatalf("Step.Validate(%s) error = %v", kind, err)

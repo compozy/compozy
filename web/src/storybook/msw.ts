@@ -1,6 +1,7 @@
 import { HttpResponse, http, type HttpHandler } from "msw";
 
 import { handlers as agentHandlers } from "@/systems/agent/mocks";
+import { handlers as agentCommsHandlers } from "@/systems/agent-comms/mocks";
 import { handlers as automationHandlers } from "@/systems/automation/mocks";
 import { handlers as bridgeHandlers } from "@/systems/bridges/mocks";
 import { handlers as daemonHandlers } from "@/systems/status/mocks";
@@ -26,6 +27,7 @@ import { handlers as workspaceHandlers } from "@/systems/workspace/mocks";
 
 export type StorybookHandlerGroupName =
   | "agent"
+  | "agent-comms"
   | "automation"
   | "bridges"
   | "daemon"
@@ -55,6 +57,7 @@ export type StorybookHandlerOverrides = Partial<StorybookHandlerGroups>;
 
 export const storybookSystemHandlerGroups: StorybookHandlerGroups = {
   agent: agentHandlers,
+  "agent-comms": agentCommsHandlers,
   automation: automationHandlers,
   bridges: bridgeHandlers,
   daemon: daemonHandlers,

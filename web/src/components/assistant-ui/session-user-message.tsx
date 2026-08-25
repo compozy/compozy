@@ -18,7 +18,10 @@ import {
   SESSION_ATTACHMENT_PART_NAME,
 } from "@/systems/session/lib/attachment-kinds";
 
+import { readSyntheticTurn } from "@/systems/agent-comms";
+
 import { sessionSkillInvocationDirectives } from "./session-directive-registry";
+import { SessionSyntheticTurn } from "./session-synthetic-turn";
 import { SessionDirectiveText } from "./session-directive-text";
 import { MessageActions } from "./message-actions";
 import { SessionDataEventMarker } from "./session-message-parts";
@@ -104,6 +107,16 @@ function UserMessageBubble({ children }: { children: ReactNode }) {
 export function UserMessage() {
   const message = useAuiState(state => state.message);
   const context = useSessionRuntimeRenderContext();
+  const synthetic = readSyntheticTurn(message.metadata);
+  // A daemon-authored turn is not the operator speaking, so it must not wear the
+  // operator's bubble. It renders in its own grammar, in the same durable place.
+  if (synthetic !== null) {
+    return (
+      <MessagePrimitive.Root className="flex w-full min-w-0 flex-col pt-1 pb-transcript-turn-gap">
+        <SessionSyntheticTurn synthetic={synthetic} content={message.content} />
+      </MessagePrimitive.Root>
+    );
+  }
   const attachments = userMessageAttachmentItems(
     message.content,
     message.metadata,

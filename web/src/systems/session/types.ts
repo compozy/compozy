@@ -28,7 +28,6 @@ export type SessionFailurePayload = NonNullable<SessionPayload["failure"]>;
 export type SessionLineagePayload = NonNullable<SessionPayload["lineage"]>;
 export type AgentMePayload = OperationResponse<"getAgentMe", 200>["me"];
 export type AgentContextPayload = OperationResponse<"getAgentContext", 200>["context"];
-export type AgentSpawnPayload = OperationResponse<"spawnAgentSession", 201>["spawn"];
 export type CoordinatorConfigPayload = OperationResponse<
   "getAgentCoordinatorConfig",
   200

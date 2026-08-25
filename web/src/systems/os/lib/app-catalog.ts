@@ -30,7 +30,8 @@ export interface OsAppDescriptor {
   minimumSize?: PixelSize;
   /** Dock strip group, sessions launcher, or null for menubar-only settings. */
   dock: { group: 1 | 2 | 3 | 4 } | "sessions-launcher" | null;
-  badge?: "sessions" | "tasks";
+  /** Which `OsAttentionBadges` count this app's dock tile shows. */
+  badge?: "sessions" | "tasks" | "calls";
   /** Extracts the multi-instance key from a pathname (session windows). */
   matchInstance?: (pathname: string) => string | null;
 }
@@ -75,6 +76,9 @@ export const OS_APP_DESCRIPTORS: Record<OsAppId, OsAppDescriptor> = {
     icon: Bot,
     paths: ["/agents"],
     dock: { group: 2 },
+    // No new tile and no new glyph: delegations that need a look light the
+    // existing Agents app exactly the way sessions and tasks light theirs.
+    badge: "calls",
   },
   network: {
     id: "network",

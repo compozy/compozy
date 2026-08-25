@@ -17,6 +17,7 @@ compozy task update <id> [flags]
       --auto-enqueue-on-ready             Toggle auto-enqueue once blocking dependencies complete
       --clear-owner                       Remove the current owner
       --description string                Update the task description
+      --expect string                     Replace the result contract with inline JSON or @file
   -h, --help                              help for update
       --metadata string                   Update metadata JSON
       --network string                    Network participation mode: local or live
@@ -26,6 +27,8 @@ compozy task update <id> [flags]
       --owner-kind string                 Update the owner kind
       --owner-ref string                  Update the owner reference
       --priority string                   Update the task priority: low, medium, high, or urgent
+      --result-budget string              Task result budget, for example 512KiB
+      --result-overflow string            Over-budget policy: store or reject
       --title string                      Update the task title
 ```
 

@@ -4,6 +4,11 @@ package contracts
 
 import "time"
 
+type HeartbeatActorPayload struct {
+	Kind HeartbeatActorKind `json:"kind"`
+	Ref  string             `json:"ref,omitempty"`
+}
+
 type HeartbeatConfigProvenancePayload struct {
 	Digest string                       `json:"digest"`
 	Subset HeartbeatConfigSubsetPayload `json:"subset"`
@@ -207,12 +212,3 @@ type HeartbeatWakeEventPayload struct {
 }
 
 type HeartbeatWakeReason string
-
-type HeartbeatWakeRequest struct {
-	WorkspaceID    string              `json:"workspace_id,omitempty"`
-	AgentName      string              `json:"agent_name"`
-	SessionID      string              `json:"session_id"`
-	Source         HeartbeatWakeSource `json:"source"`
-	DryRun         bool                `json:"dry_run,omitempty"`
-	IdempotencyKey string              `json:"idempotency_key,omitempty"`
-}

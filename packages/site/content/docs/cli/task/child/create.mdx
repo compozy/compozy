@@ -16,6 +16,7 @@ compozy task child create <parent-id> [flags]
 ```
       --auto-enqueue-on-ready             Auto-enqueue the child run once dependencies complete
       --description string                Child task description
+      --expect string                     Child result contract as inline JSON or @file
   -h, --help                              help for create
       --id string                         Explicit child task ID
       --identifier string                 Human-friendly child task identifier
@@ -27,6 +28,8 @@ compozy task child create <parent-id> [flags]
       --owner-kind string                 Optional child owner kind
       --owner-ref string                  Optional child owner reference
       --priority string                   Child task priority: low, medium, high, or urgent
+      --result-budget string              Child result budget, for example 512KiB
+      --result-overflow string            Over-budget policy: store or reject
       --scope string                      Child task scope: global or workspace
       --title string                      Child task title
       --workspace string                  Override workspace (ID, name, or path)

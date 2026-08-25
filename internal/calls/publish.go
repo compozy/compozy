@@ -87,7 +87,7 @@ func (s *Service) Publish(ctx context.Context, input PublishInput) (PublishRecei
 }
 
 func (s *Service) loadPublicationPayload(ctx context.Context, record CallRecord) (json.RawMessage, error) {
-	mailbox, err := s.mailboxStore()
+	mailbox, err := s.payloadStore()
 	if err != nil {
 		return nil, err
 	}

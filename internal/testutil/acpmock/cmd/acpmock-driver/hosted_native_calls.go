@@ -30,8 +30,11 @@ func (a *mockAgent) executeHostedNativeCall(
 		return diagnostic, fmt.Errorf("acpmock-driver: decode %s input: %w", step.Kind, err)
 	}
 	toolID := toolspkg.ToolIDCallReturn.String()
-	if step.Kind == acpmock.StepKindAgentMessage {
+	switch step.Kind {
+	case acpmock.StepKindAgentMessage:
 		toolID = toolspkg.ToolIDAgentMessage.String()
+	case acpmock.StepKindAgentCall:
+		toolID = toolspkg.ToolIDAgentCall.String()
 	}
 	command := exec.CommandContext(ctx, server.Command, server.Args...)
 	command.Env = append(os.Environ(), mcpServerEnvironment(server)...)

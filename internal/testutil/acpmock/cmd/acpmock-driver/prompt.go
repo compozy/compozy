@@ -179,7 +179,7 @@ func (a *mockAgent) executeStep(
 		return a.emitTextChunks(ctx, sessionID, acpsdk.UpdateAgentMessageText, step)
 	case acpmock.StepKindToolCall:
 		return a.emitToolCall(ctx, sessionID, step)
-	case acpmock.StepKindCallReturn, acpmock.StepKindAgentMessage:
+	case acpmock.StepKindCallReturn, acpmock.StepKindAgentMessage, acpmock.StepKindAgentCall:
 		return a.executeHostedNativeCall(ctx, string(sessionID), step)
 	case acpmock.StepKindPermission:
 		return a.requestPermission(ctx, sessionID, step)

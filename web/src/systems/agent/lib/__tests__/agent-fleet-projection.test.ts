@@ -22,6 +22,9 @@ function agent(overrides: Partial<AgentPayload> & Pick<AgentPayload, "name">): A
   return {
     provider: "claude",
     prompt: "test",
+    description: "",
+    scope: "global",
+    shadowed: false,
     origin: "global",
     definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
     ...overrides,

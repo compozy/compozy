@@ -28,6 +28,8 @@ type callsServiceStub struct {
 	list          func(context.Context, callspkg.CallListQuery) (callspkg.CallPage, error)
 	get           func(context.Context, callspkg.CallReadQuery, string) (callspkg.CallRecord, error)
 	result        func(context.Context, callspkg.CallReadQuery, string) (callspkg.ResultPayload, error)
+	prompt        func(context.Context, callspkg.CallReadQuery, string) (callspkg.PromptPayload, error)
+	superseded    func(context.Context, callspkg.CallReadQuery, string) (callspkg.ResultPayload, error)
 	await         func(context.Context, callspkg.AwaitInput) (callspkg.AwaitOutcome, error)
 	cancel        func(context.Context, string, string, callspkg.Actor) (callspkg.CallRecord, error)
 	sendMessage   func(context.Context, callspkg.SendMessageInput) (callspkg.MessageRecord, error)
@@ -71,6 +73,22 @@ func (s callsServiceStub) Result(
 	callID string,
 ) (callspkg.ResultPayload, error) {
 	return s.result(ctx, query, callID)
+}
+
+func (s callsServiceStub) Prompt(
+	ctx context.Context,
+	query callspkg.CallReadQuery,
+	callID string,
+) (callspkg.PromptPayload, error) {
+	return s.prompt(ctx, query, callID)
+}
+
+func (s callsServiceStub) Superseded(
+	ctx context.Context,
+	query callspkg.CallReadQuery,
+	callID string,
+) (callspkg.ResultPayload, error) {
+	return s.superseded(ctx, query, callID)
 }
 
 func (s callsServiceStub) Await(ctx context.Context, input callspkg.AwaitInput) (callspkg.AwaitOutcome, error) {
@@ -145,7 +163,9 @@ func newCallsHandlerRouter(service core.CallsService) *gin.Engine {
 	router.POST("/calls", handlers.CallsCreate)
 	router.GET("/calls", handlers.CallsList)
 	router.GET("/calls/:call_id", handlers.CallsGet)
+	router.GET("/calls/:call_id/prompt", handlers.CallsPrompt)
 	router.GET("/calls/:call_id/result", handlers.CallsResult)
+	router.GET("/calls/:call_id/superseded", handlers.CallsSuperseded)
 	router.POST("/calls/:call_id/await", handlers.CallsAwait)
 	router.POST("/calls/:call_id/cancel", handlers.CallsCancel)
 	router.POST("/workspaces/:workspace_id/calls/:call_id/publish", handlers.CallsPublish)
@@ -260,6 +280,21 @@ func TestCallsHandlers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject a malformed call attention filter", func(t *testing.T) {
+		t.Parallel()
+		response := performCallsRequest(
+			t,
+			newCallsHandlerRouter(callsServiceStub{}),
+			http.MethodGet,
+			"/calls?attention=sometimes",
+			"",
+		)
+		if response.Code != http.StatusUnprocessableEntity ||
+			!strings.Contains(response.Body.String(), `"code":"call_validation"`) {
+			t.Fatalf("malformed attention response = %d %s", response.Code, response.Body.String())
+		}
+	})
+
 	t.Run("Should preserve pagination await result cancel and publish response contracts", func(t *testing.T) {
 		t.Parallel()
 		now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
@@ -267,16 +302,22 @@ func TestCallsHandlers(t *testing.T) {
 			CallID: "call-1", ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeGlobal,
 			Caller: participation.OwnerRef{Kind: participation.OwnerKindSession, ID: "parent"},
 			Actor:  callspkg.Actor{Kind: "human", ID: "operator"}, GovernedRootID: "parent",
-			State: callspkg.StateCompleted, ResultBudget: contracts.ByteBudget{MaxBytes: 4096},
+			State: callspkg.StateCompleted, PromptRef: "payload-prompt", ResultRef: "payload-result",
+			ResultBudget:   contracts.ByteBudget{MaxBytes: 4096},
+			FirstIssueText: "first issue", SecondIssueText: "second issue", SupersededRef: "payload-superseded",
 			CreatedAt: now, UpdatedAt: now,
 		}
 		cancelCalls := 0
 		service := callsServiceStub{
 			list: func(_ context.Context, query callspkg.CallListQuery) (callspkg.CallPage, error) {
-				if query.Cursor != "after-0" || query.Limit != 7 || query.ReadScope.ProfileID != store.DefaultProfileID {
+				if query.Cursor != "after-0" || query.Limit != 7 || query.ReadScope.ProfileID != store.DefaultProfileID ||
+					!query.Attention || query.ChildSessionID != "child-1" || query.RootSessionID != "root-1" ||
+					query.Agent != "reviewer" {
 					t.Fatalf("List query = %#v", query)
 				}
-				return callspkg.CallPage{Items: []callspkg.CallRecord{completed}, NextCursor: "after-1"}, nil
+				return callspkg.CallPage{
+					Items: []callspkg.CallRecord{completed}, NextCursor: "after-1", Total: 247,
+				}, nil
 			},
 			get: func(_ context.Context, _ callspkg.CallReadQuery, callID string) (callspkg.CallRecord, error) {
 				if callID != "call-1" {
@@ -286,6 +327,12 @@ func TestCallsHandlers(t *testing.T) {
 			},
 			result: func(_ context.Context, _ callspkg.CallReadQuery, callID string) (callspkg.ResultPayload, error) {
 				return callspkg.ResultPayload{CallID: callID, Bytes: []byte(`{"score":9}`)}, nil
+			},
+			prompt: func(_ context.Context, _ callspkg.CallReadQuery, callID string) (callspkg.PromptPayload, error) {
+				return callspkg.PromptPayload{CallID: callID, Text: "Review carefully"}, nil
+			},
+			superseded: func(_ context.Context, _ callspkg.CallReadQuery, callID string) (callspkg.ResultPayload, error) {
+				return callspkg.ResultPayload{CallID: callID, Bytes: []byte(`{"score":7}`)}, nil
 			},
 			await: func(_ context.Context, input callspkg.AwaitInput) (callspkg.AwaitOutcome, error) {
 				if len(input.CallIDs) != 1 || input.CallIDs[0] != "call-1" || input.Timeout != 250*time.Millisecond {
@@ -311,13 +358,38 @@ func TestCallsHandlers(t *testing.T) {
 			},
 		}
 		router := newCallsHandlerRouter(service)
-		list := performCallsRequest(t, router, http.MethodGet, "/calls?cursor=after-0&limit=7", "")
-		if list.Code != http.StatusOK || !strings.Contains(list.Body.String(), `"next_cursor":"after-1"`) {
+		list := performCallsRequest(
+			t,
+			router,
+			http.MethodGet,
+			"/calls?cursor=after-0&limit=7&attention=true&child_session_id=child-1&root_session_id=root-1&agent=reviewer",
+			"",
+		)
+		if list.Code != http.StatusOK || !strings.Contains(list.Body.String(), `"next_cursor":"after-1"`) ||
+			!strings.Contains(list.Body.String(), `"total":247`) ||
+			!strings.Contains(list.Body.String(), `"prompt_preview":"Review carefully"`) ||
+			!strings.Contains(list.Body.String(), `"result_preview":{"score":9}`) {
 			t.Fatalf("list response = %d %s", list.Code, list.Body.String())
+		}
+		detail := performCallsRequest(t, router, http.MethodGet, "/calls/call-1", "")
+		if detail.Code != http.StatusOK || !strings.Contains(detail.Body.String(), `"prompt_preview":"Review carefully"`) ||
+			!strings.Contains(detail.Body.String(), `"first_issue_text":"first issue"`) ||
+			!strings.Contains(detail.Body.String(), `"second_issue_text":"second issue"`) ||
+			!strings.Contains(detail.Body.String(), `"superseded_preview":{"score":7}`) {
+			t.Fatalf("detail response = %d %s", detail.Code, detail.Body.String())
+		}
+		prompt := performCallsRequest(t, router, http.MethodGet, "/calls/call-1/prompt", "")
+		if prompt.Code != http.StatusOK || prompt.Body.String() != `{"call_id":"call-1","prompt":"Review carefully"}` {
+			t.Fatalf("prompt response = %d %s", prompt.Code, prompt.Body.String())
 		}
 		result := performCallsRequest(t, router, http.MethodGet, "/calls/call-1/result", "")
 		if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), `"result":{"score":9}`) {
 			t.Fatalf("result response = %d %s", result.Code, result.Body.String())
+		}
+		superseded := performCallsRequest(t, router, http.MethodGet, "/calls/call-1/superseded", "")
+		if superseded.Code != http.StatusOK ||
+			superseded.Body.String() != `{"call_id":"call-1","result":{"score":7}}` {
+			t.Fatalf("superseded response = %d %s", superseded.Code, superseded.Body.String())
 		}
 		await := performCallsRequest(t, router, http.MethodPost, "/calls/call-1/await", `{"timeout_ms":250}`)
 		if await.Code != http.StatusOK || !strings.Contains(await.Body.String(), `"outcome":"partial"`) ||

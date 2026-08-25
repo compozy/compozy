@@ -215,7 +215,11 @@ func (i *daemonCallSessionInvoker) SpawnChild(
 			}
 		}
 		if _, err := i.send(
-			ctx, desiredID, callspkg.CallPromptWithRemainingDepth(spec.Prompt, spec.RemainingDepth), spec.CallID, nil,
+			ctx,
+			desiredID,
+			callspkg.CallPromptWithRemainingDepth(spec.Prompt, spec.RemainingDepth),
+			spec.CallID,
+			callRequestSyntheticMetadata(spec, desiredID, "call_request"),
 		); err != nil {
 			return callspkg.SessionRef{}, err
 		}
@@ -246,7 +250,11 @@ func (i *daemonCallSessionInvoker) SpawnChild(
 		return callspkg.SessionRef{}, err
 	}
 	if _, err := i.send(
-		ctx, child.ID, callspkg.CallPromptWithRemainingDepth(spec.Prompt, spec.RemainingDepth), spec.CallID, nil,
+		ctx,
+		child.ID,
+		callspkg.CallPromptWithRemainingDepth(spec.Prompt, spec.RemainingDepth),
+		spec.CallID,
+		callRequestSyntheticMetadata(spec, child.ID, "call_request"),
 	); err != nil {
 		cleanupErr := i.sessions.StopWithCause(ctx, child.ID, session.CauseFailed, "call activation prompt failed")
 		return callspkg.SessionRef{}, errors.Join(err, cleanupErr)
@@ -258,12 +266,26 @@ func (i *daemonCallSessionInvoker) Revive(ctx context.Context, sessionID, prompt
 	if _, err := i.sessions.Resume(ctx, sessionID); err != nil {
 		return err
 	}
-	_, err := i.send(ctx, sessionID, prompt, callID, nil)
+	_, err := i.send(ctx, sessionID, prompt, callID, &acp.PromptSyntheticMeta{
+		CallID: callID, CallState: string(callspkg.StateRunning),
+		ChildSessionID: sessionID, Reason: "call_follow_up",
+	})
 	if err == nil {
 		return nil
 	}
 	cleanupErr := i.sessions.StopWithCause(ctx, sessionID, session.CauseFailed, "call revival prompt failed")
 	return errors.Join(err, cleanupErr)
+}
+
+func callRequestSyntheticMetadata(
+	spec callspkg.ChildSpec,
+	childSessionID string,
+	reason string,
+) *acp.PromptSyntheticMeta {
+	return &acp.PromptSyntheticMeta{
+		CallID: spec.CallID, CallState: string(callspkg.StateRunning),
+		ChildSessionID: childSessionID, ChildAgentName: spec.AgentName, Reason: reason,
+	}
 }
 
 func (i *daemonCallSessionInvoker) DeliverAtBoundary(

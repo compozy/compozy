@@ -7,6 +7,98 @@ import (
 	"time"
 )
 
+type TaskTreeNodePayload struct {
+	Task           TaskReferencePayload   `json:"task"`
+	ParentTaskID   string                 `json:"parent_task_id,omitempty"`
+	Depth          int                    `json:"depth"`
+	ChildCount     int                    `json:"child_count,omitempty"`
+	ActiveRun      *TaskRunSummaryPayload `json:"active_run,omitempty"`
+	LastActivityAt time.Time              `json:"last_activity_at"`
+}
+
+type TaskTreeParams struct {
+	ID string `json:"id"`
+}
+
+type TaskTriageStatePayload struct {
+	TaskID             string        `json:"task_id"`
+	Actor              ActorIdentity `json:"actor"`
+	Read               bool          `json:"read"`
+	Archived           bool          `json:"archived"`
+	Dismissed          bool          `json:"dismissed"`
+	LastSeenActivityAt *time.Time    `json:"last_seen_activity_at,omitempty"`
+	UpdatedAt          time.Time     `json:"updated_at"`
+}
+
+type TaskUnblockedPayload struct {
+	Event                        HookEvent       `json:"event"`
+	Timestamp                    time.Time       `json:"timestamp"`
+	ProfileID                    string          `json:"profile_id,omitempty"`
+	TaskID                       string          `json:"task_id,omitempty"`
+	ParentTaskID                 string          `json:"parent_task_id,omitempty"`
+	WorkspaceID                  string          `json:"workspace_id,omitempty"`
+	WorkflowID                   string          `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *Spec           `json:"resolved_network_participation,omitempty"`
+	AgentName                    string          `json:"agent_name,omitempty"`
+	ActorKind                    string          `json:"actor_kind,omitempty"`
+	ActorID                      string          `json:"actor_id,omitempty"`
+	OriginKind                   string          `json:"origin_kind,omitempty"`
+	OriginRef                    string          `json:"origin_ref,omitempty"`
+	TaskStatus                   string          `json:"task_status,omitempty"`
+	RunID                        string          `json:"run_id,omitempty"`
+	ReleaseReason                string          `json:"release_reason,omitempty"`
+	ClaimTokenHash               string          `json:"claim_token_hash,omitempty"`
+	BlockID                      string          `json:"block_id,omitempty"`
+	Kind                         string          `json:"kind,omitempty"`
+	Reason                       string          `json:"reason,omitempty"`
+	Details                      json.RawMessage `json:"details,omitempty"`
+	ClearedAt                    time.Time       `json:"cleared_at,omitzero"`
+	ClearNote                    string          `json:"clear_note,omitempty"`
+}
+
+type TaskUpdateParams struct {
+	ID                   string           `json:"id"`
+	Title                *string          `json:"title,omitempty"`
+	Description          *string          `json:"description,omitempty"`
+	Priority             *Priority        `json:"priority,omitempty"`
+	MaxAttempts          *int             `json:"max_attempts,omitempty"`
+	AutoEnqueueOnReady   *bool            `json:"auto_enqueue_on_ready,omitempty"`
+	ApprovalPolicy       *ApprovalPolicy  `json:"approval_policy,omitempty"`
+	Expect               *json.RawMessage `json:"expect,omitempty"`
+	ResultBudget         string           `json:"result_budget,omitempty"`
+	ResultOverflow       string           `json:"result_overflow,omitempty"`
+	Metadata             *json.RawMessage `json:"metadata,omitempty"`
+	NetworkParticipation *Request         `json:"network_participation,omitempty"`
+	Owner                *Ownership       `json:"owner,omitempty"`
+	ClearOwner           bool             `json:"clear_owner,omitempty"`
+}
+
+type TasksParams struct {
+	Scope                CatalogScope  `json:"scope,omitempty"`
+	Workspace            string        `json:"workspace,omitempty"`
+	Status               Status        `json:"status,omitempty"`
+	Priority             Priority      `json:"priority,omitempty"`
+	IncludeDrafts        bool          `json:"include_drafts,omitempty"`
+	IncludeLoop          bool          `json:"include_loop,omitempty"`
+	LoopRunID            string        `json:"loop_run_id,omitempty"`
+	ApprovalState        ApprovalState `json:"approval_state,omitempty"`
+	OwnerKind            OwnerKind     `json:"owner_kind,omitempty"`
+	OwnerRef             string        `json:"owner_ref,omitempty"`
+	ParentTaskID         string        `json:"parent_task_id,omitempty"`
+	Worktree             string        `json:"worktree,omitempty"`
+	ParticipationChannel string        `json:"participation_channel,omitempty"`
+	Query                string        `json:"query,omitempty"`
+	Sort                 CatalogSort   `json:"sort,omitempty"`
+	Cursor               string        `json:"cursor,omitempty"`
+	Limit                int           `json:"limit,omitempty"`
+}
+
+type TasksResponse struct {
+	Tasks  []TaskCatalogItemPayload `json:"tasks"`
+	Page   CountedCursorPagePayload `json:"page"`
+	Facets TaskCatalogFacetsPayload `json:"facets"`
+}
+
 type ToastEffect struct {
 	Tone    string `json:"tone"`
 	Message string `json:"message"`
@@ -213,75 +305,4 @@ type Trigger struct {
 	Ingress              *GatewayIngressPayload `json:"ingress,omitempty"`
 	CreatedAt            time.Time              `json:"created_at"`
 	UpdatedAt            time.Time              `json:"updated_at"`
-}
-
-type TriggerResult struct {
-	Matched int   `json:"matched"`
-	Runs    []Run `json:"runs,omitempty"`
-}
-
-type TurnContext struct {
-	TurnID string `json:"turn_id,omitempty"`
-}
-
-type TurnEndPatch struct {
-	Deny       bool              `json:"deny,omitempty"`
-	DenyReason string            `json:"deny_reason,omitempty"`
-	Labels     map[string]string `json:"labels,omitempty"`
-}
-
-type TurnEndPayload struct {
-	Event          HookEvent `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	ProfileID      string    `json:"profile_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	TurnID         string    `json:"turn_id,omitempty"`
-	InputClass     string    `json:"input_class,omitempty"`
-	UserMessage    string    `json:"user_message,omitempty"`
-}
-
-type TurnPatch struct {
-	Deny       bool              `json:"deny,omitempty"`
-	DenyReason string            `json:"deny_reason,omitempty"`
-	Labels     map[string]string `json:"labels,omitempty"`
-}
-
-type TurnPayload struct {
-	Event          HookEvent `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	ProfileID      string    `json:"profile_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	TurnID         string    `json:"turn_id,omitempty"`
-	InputClass     string    `json:"input_class,omitempty"`
-	UserMessage    string    `json:"user_message,omitempty"`
-}
-
-type TurnStartPatch struct {
-	Deny       bool              `json:"deny,omitempty"`
-	DenyReason string            `json:"deny_reason,omitempty"`
-	Labels     map[string]string `json:"labels,omitempty"`
 }

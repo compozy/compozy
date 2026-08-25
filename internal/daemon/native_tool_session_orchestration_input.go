@@ -1,7 +1,5 @@
 package daemon
 
-import "github.com/compozy/compozy/internal/api/contract"
-
 type nativeSessionTargetInput struct {
 	SessionID string `json:"session_id"`
 	Subtree   bool   `json:"subtree,omitempty"`

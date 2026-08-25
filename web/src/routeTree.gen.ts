@@ -29,6 +29,7 @@ import { Route as AppTriggersRouteImport } from './routes/_app/triggers'
 import { Route as AppVaultRouteImport } from './routes/_app/vault'
 import { Route as AppAgentsIndexRouteImport } from './routes/_app/agents.index'
 import { Route as AppAgentsNameRouteImport } from './routes/_app/agents.$name'
+import { Route as AppAgentsActivityRouteImport } from './routes/_app/agents.activity'
 import { Route as AppBridgesIdRouteImport } from './routes/_app/bridges.$id'
 import { Route as AppJobsJobIdRouteImport } from './routes/_app/jobs.$jobId'
 import { Route as AppLoopRunsRunIdRouteImport } from './routes/_app/loop-runs.$runId'
@@ -62,6 +63,7 @@ import { Route as AppTasksNewRouteImport } from './routes/_app/tasks.new'
 import { Route as AppTriggersTriggerIdRouteImport } from './routes/_app/triggers.$triggerId'
 import { Route as AppAgentsNameIndexRouteImport } from './routes/_app/agents.$name.index'
 import { Route as AppAgentsNameSettingsRouteImport } from './routes/_app/agents.$name.settings'
+import { Route as AppAgentsCallsCallIdRouteImport } from './routes/_app/agents.calls.$callId'
 import { Route as AppLoopRunsRunIdDiffRouteImport } from './routes/_app/loop-runs.$runId.diff'
 import { Route as AppLoopsNameConfigureRouteImport } from './routes/_app/loops.$name.configure'
 import { Route as AppLoopsNameEditorRouteImport } from './routes/_app/loops.$name.editor'
@@ -173,6 +175,11 @@ const AppAgentsIndexRoute = AppAgentsIndexRouteImport.update({
 const AppAgentsNameRoute = AppAgentsNameRouteImport.update({
   id: '/$name',
   path: '/$name',
+  getParentRoute: () => AppAgentsRoute,
+} as any)
+const AppAgentsActivityRoute = AppAgentsActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
   getParentRoute: () => AppAgentsRoute,
 } as any)
 const AppBridgesIdRoute = AppBridgesIdRouteImport.update({
@@ -342,6 +349,11 @@ const AppAgentsNameSettingsRoute = AppAgentsNameSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AppAgentsNameRoute,
 } as any)
+const AppAgentsCallsCallIdRoute = AppAgentsCallsCallIdRouteImport.update({
+  id: '/calls/$callId',
+  path: '/calls/$callId',
+  getParentRoute: () => AppAgentsRoute,
+} as any)
 const AppLoopRunsRunIdDiffRoute = AppLoopRunsRunIdDiffRouteImport.update({
   id: '/diff',
   path: '/diff',
@@ -433,6 +445,7 @@ export interface FileRoutesByFullPath {
   '/triggers': typeof AppTriggersRouteWithChildren
   '/vault': typeof AppVaultRoute
   '/agents/$name': typeof AppAgentsNameRouteWithChildren
+  '/agents/activity': typeof AppAgentsActivityRoute
   '/bridges/$id': typeof AppBridgesIdRoute
   '/jobs/$jobId': typeof AppJobsJobIdRoute
   '/loop-runs/$runId': typeof AppLoopRunsRunIdRouteWithChildren
@@ -466,6 +479,7 @@ export interface FileRoutesByFullPath {
   '/marketplace/': typeof AppMarketplaceIndexRoute
   '/settings/': typeof AppSettingsIndexRoute
   '/agents/$name/settings': typeof AppAgentsNameSettingsRoute
+  '/agents/calls/$callId': typeof AppAgentsCallsCallIdRoute
   '/loop-runs/$runId/diff': typeof AppLoopRunsRunIdDiffRoute
   '/loops/$name/configure': typeof AppLoopsNameConfigureRoute
   '/loops/$name/editor': typeof AppLoopsNameEditorRoute
@@ -496,6 +510,7 @@ export interface FileRoutesByTo {
   '/triggers': typeof AppTriggersRouteWithChildren
   '/vault': typeof AppVaultRoute
   '/': typeof AppIndexRoute
+  '/agents/activity': typeof AppAgentsActivityRoute
   '/bridges/$id': typeof AppBridgesIdRoute
   '/jobs/$jobId': typeof AppJobsJobIdRoute
   '/loop-runs/$runId': typeof AppLoopRunsRunIdRouteWithChildren
@@ -529,6 +544,7 @@ export interface FileRoutesByTo {
   '/marketplace': typeof AppMarketplaceIndexRoute
   '/settings': typeof AppSettingsIndexRoute
   '/agents/$name/settings': typeof AppAgentsNameSettingsRoute
+  '/agents/calls/$callId': typeof AppAgentsCallsCallIdRoute
   '/loop-runs/$runId/diff': typeof AppLoopRunsRunIdDiffRoute
   '/loops/$name/configure': typeof AppLoopsNameConfigureRoute
   '/loops/$name/editor': typeof AppLoopsNameEditorRoute
@@ -565,6 +581,7 @@ export interface FileRoutesById {
   '/_app/vault': typeof AppVaultRoute
   '/_app/': typeof AppIndexRoute
   '/_app/agents/$name': typeof AppAgentsNameRouteWithChildren
+  '/_app/agents/activity': typeof AppAgentsActivityRoute
   '/_app/bridges/$id': typeof AppBridgesIdRoute
   '/_app/jobs/$jobId': typeof AppJobsJobIdRoute
   '/_app/loop-runs/$runId': typeof AppLoopRunsRunIdRouteWithChildren
@@ -598,6 +615,7 @@ export interface FileRoutesById {
   '/_app/marketplace/': typeof AppMarketplaceIndexRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
   '/_app/agents/$name/settings': typeof AppAgentsNameSettingsRoute
+  '/_app/agents/calls/$callId': typeof AppAgentsCallsCallIdRoute
   '/_app/loop-runs/$runId/diff': typeof AppLoopRunsRunIdDiffRoute
   '/_app/loops/$name/configure': typeof AppLoopsNameConfigureRoute
   '/_app/loops/$name/editor': typeof AppLoopsNameEditorRoute
@@ -634,6 +652,7 @@ export interface FileRouteTypes {
     | '/triggers'
     | '/vault'
     | '/agents/$name'
+    | '/agents/activity'
     | '/bridges/$id'
     | '/jobs/$jobId'
     | '/loop-runs/$runId'
@@ -667,6 +686,7 @@ export interface FileRouteTypes {
     | '/marketplace/'
     | '/settings/'
     | '/agents/$name/settings'
+    | '/agents/calls/$callId'
     | '/loop-runs/$runId/diff'
     | '/loops/$name/configure'
     | '/loops/$name/editor'
@@ -697,6 +717,7 @@ export interface FileRouteTypes {
     | '/triggers'
     | '/vault'
     | '/'
+    | '/agents/activity'
     | '/bridges/$id'
     | '/jobs/$jobId'
     | '/loop-runs/$runId'
@@ -730,6 +751,7 @@ export interface FileRouteTypes {
     | '/marketplace'
     | '/settings'
     | '/agents/$name/settings'
+    | '/agents/calls/$callId'
     | '/loop-runs/$runId/diff'
     | '/loops/$name/configure'
     | '/loops/$name/editor'
@@ -765,6 +787,7 @@ export interface FileRouteTypes {
     | '/_app/vault'
     | '/_app/'
     | '/_app/agents/$name'
+    | '/_app/agents/activity'
     | '/_app/bridges/$id'
     | '/_app/jobs/$jobId'
     | '/_app/loop-runs/$runId'
@@ -798,6 +821,7 @@ export interface FileRouteTypes {
     | '/_app/marketplace/'
     | '/_app/settings/'
     | '/_app/agents/$name/settings'
+    | '/_app/agents/calls/$callId'
     | '/_app/loop-runs/$runId/diff'
     | '/_app/loops/$name/configure'
     | '/_app/loops/$name/editor'
@@ -959,6 +983,13 @@ declare module '@tanstack/react-router' {
       path: '/$name'
       fullPath: '/agents/$name'
       preLoaderRoute: typeof AppAgentsNameRouteImport
+      parentRoute: typeof AppAgentsRoute
+    }
+    '/_app/agents/activity': {
+      id: '/_app/agents/activity'
+      path: '/activity'
+      fullPath: '/agents/activity'
+      preLoaderRoute: typeof AppAgentsActivityRouteImport
       parentRoute: typeof AppAgentsRoute
     }
     '/_app/bridges/$id': {
@@ -1192,6 +1223,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAgentsNameSettingsRouteImport
       parentRoute: typeof AppAgentsNameRoute
     }
+    '/_app/agents/calls/$callId': {
+      id: '/_app/agents/calls/$callId'
+      path: '/calls/$callId'
+      fullPath: '/agents/calls/$callId'
+      preLoaderRoute: typeof AppAgentsCallsCallIdRouteImport
+      parentRoute: typeof AppAgentsRoute
+    }
     '/_app/loop-runs/$runId/diff': {
       id: '/_app/loop-runs/$runId/diff'
       path: '/diff'
@@ -1304,12 +1342,16 @@ const AppAgentsNameRouteWithChildren = AppAgentsNameRoute._addFileChildren(
 
 interface AppAgentsRouteChildren {
   AppAgentsNameRoute: typeof AppAgentsNameRouteWithChildren
+  AppAgentsActivityRoute: typeof AppAgentsActivityRoute
   AppAgentsIndexRoute: typeof AppAgentsIndexRoute
+  AppAgentsCallsCallIdRoute: typeof AppAgentsCallsCallIdRoute
 }
 
 const AppAgentsRouteChildren: AppAgentsRouteChildren = {
   AppAgentsNameRoute: AppAgentsNameRouteWithChildren,
+  AppAgentsActivityRoute: AppAgentsActivityRoute,
   AppAgentsIndexRoute: AppAgentsIndexRoute,
+  AppAgentsCallsCallIdRoute: AppAgentsCallsCallIdRoute,
 }
 
 const AppAgentsRouteWithChildren = AppAgentsRoute._addFileChildren(

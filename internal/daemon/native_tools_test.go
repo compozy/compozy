@@ -153,6 +153,22 @@ func (nativeCallsServiceStub) Result(
 	return callspkg.ResultPayload{}, errors.New("unexpected Result call")
 }
 
+func (nativeCallsServiceStub) Prompt(
+	context.Context,
+	callspkg.CallReadQuery,
+	string,
+) (callspkg.PromptPayload, error) {
+	return callspkg.PromptPayload{}, errors.New("unexpected Prompt call")
+}
+
+func (nativeCallsServiceStub) Superseded(
+	context.Context,
+	callspkg.CallReadQuery,
+	string,
+) (callspkg.ResultPayload, error) {
+	return callspkg.ResultPayload{}, errors.New("unexpected Superseded call")
+}
+
 func (nativeCallsServiceStub) Await(context.Context, callspkg.AwaitInput) (callspkg.AwaitOutcome, error) {
 	return callspkg.AwaitOutcome{}, errors.New("unexpected Await call")
 }
