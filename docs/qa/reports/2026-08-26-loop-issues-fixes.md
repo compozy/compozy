@@ -128,7 +128,12 @@ None.
 - Fresh current-head `make build` passed in the isolated lab.
 - The operator explicitly deferred the scoped local `make gate` rerun to PR CI.
 - PR #492 exact-head CI is pending. Its first frontend lane found only MDX format drift in
-  `guardrails.mdx` and `running.mdx`; the official formatter has corrected both for the next push.
+  `guardrails.mdx` and `running.mdx`; the official formatter corrected both. The second frontend
+  pass then exposed Loop mock fixtures that had not co-shipped the newly required
+  `effective_config` and `request_expire_after` fields. The fixtures now satisfy the generated
+  contract, and the focused Web typecheck passed before the next push.
+- Final CI evidence will be recorded at
+  `/Users/pedronauck/dev/qa-labs/compozy-loop-issues-fixes-rerun-20260826-200713-569291-lab/qa-artifacts/qa/final-make-verify.log`.
 - Strict evidence audit covered one run id across CLI, API, Web, and runtime. Its only remaining
   blocker is C14, the deliberately deferred local gate; it will be settled with exact-head PR CI
   evidence after push.

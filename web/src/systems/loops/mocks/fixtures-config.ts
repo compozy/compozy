@@ -45,6 +45,7 @@ export const loopEffectiveConfigFixture: LoopEffectiveConfig = {
   ],
   no_progress_window: 3,
   reattempt_strategy: "failed_only",
+  request_expire_after: "",
 };
 
 export const loopAnnotationsFixture: LoopAnnotation[] = [

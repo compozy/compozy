@@ -1,4 +1,5 @@
 import type { LoopDetail, LoopRun, LoopRunDetail, LoopRunGeneration } from "../types";
+import { loopEffectiveConfigFixture } from "./fixtures-config";
 import { materializeContractFixture } from "./materialize-contract-fixture";
 
 function implementTasksGenerations(run: LoopRun): LoopRunGeneration[] {
@@ -148,6 +149,7 @@ export function buildLoopRunDetailFixtures(
         detail.definition.contract,
         run.inputs ?? {}
       ),
+      effective_config: loopEffectiveConfigFixture,
       generations:
         run.loop_name === "review-and-fix"
           ? reviewGenerations(run)
