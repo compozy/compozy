@@ -13,10 +13,12 @@ import {
 
 import { NAME_REQUIRED_MESSAGE, PROFILE_SEPARATION_LINE } from "../lib/profile-copy";
 import { starterIdentity } from "../lib/profile-identity";
+import type { ProfileIconCatalogViewModel } from "../hooks/use-profile-icon-catalog";
 import type { ProfileLens } from "../types";
 import { ProfileIdentityFields } from "./profile-identity-fields";
 
 export interface ProfileCreateDialogProps {
+  catalog: ProfileIconCatalogViewModel;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Drives the starter identity so two profiles made back to back differ. */
@@ -35,6 +37,7 @@ export interface ProfileCreateDialogProps {
 }
 
 export function ProfileCreateDialog({
+  catalog,
   open,
   onOpenChange,
   existingCount,
@@ -89,6 +92,7 @@ export function ProfileCreateDialog({
         <EntityDialogHeader eyebrow="Profiles" icon={UserRound} title="Create profile" />
         <EntityDialogBody>
           <ProfileIdentityFields
+            catalog={catalog}
             name={name}
             onNameChange={setName}
             color={identity.color}

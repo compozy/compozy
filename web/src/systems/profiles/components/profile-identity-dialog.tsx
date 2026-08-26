@@ -13,10 +13,12 @@ import {
 } from "@compozy/ui";
 
 import { symbolOf } from "../lib/profile-identity";
+import type { ProfileIconCatalogViewModel } from "../hooks/use-profile-icon-catalog";
 import type { ProfilePayload, UpdateProfileParams } from "../types";
 import { ProfileIdentityFields } from "./profile-identity-fields";
 
 export interface ProfileIdentityDialogProps {
+  catalog: ProfileIconCatalogViewModel;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   profile: ProfilePayload;
@@ -26,6 +28,7 @@ export interface ProfileIdentityDialogProps {
 }
 
 export function ProfileIdentityDialog({
+  catalog,
   open,
   onOpenChange,
   profile,
@@ -47,6 +50,7 @@ export function ProfileIdentityDialog({
         <EntityDialogHeader eyebrow="Profiles" icon={Palette} title={`Edit ${profile.name}`} />
         <EntityDialogBody>
           <ProfileIdentityFields
+            catalog={catalog}
             name={profile.name}
             color={color}
             onColorChange={setColor}

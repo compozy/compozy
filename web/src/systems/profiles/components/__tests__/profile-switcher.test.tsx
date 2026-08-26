@@ -172,10 +172,10 @@ describe("ProfileSwitcher", () => {
     const onSelectProfile = vi.fn();
     renderSwitcher({ onEditProfile, onSelectProfile });
     await user.click(screen.getByTestId("os-menubar-profile"));
+    expect(screen.queryByTestId("profile-switcher-edit-growth")).not.toBeInTheDocument();
     await user.click(await screen.findByTestId("profile-switcher-edit-default"));
     expect(onEditProfile).toHaveBeenCalledWith("default");
     expect(onSelectProfile).not.toHaveBeenCalled();
-    expect(screen.queryByTestId("profile-switcher-edit-growth")).not.toBeInTheDocument();
   });
 
   it("Should demote archive management to Settings rather than listing it here", async () => {

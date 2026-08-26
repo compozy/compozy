@@ -24,7 +24,7 @@ export interface SymbolPickerColorSectionProps extends Omit<
 
 /** Conic spectrum on the toggle is data — it names the full color range behind it. */
 const SPECTRUM_BACKGROUND =
-  "conic-gradient(from 180deg, #e0635a, #d6a647, #5fbf85, #4ea7fc, #8e8eb5, #c26ad6, #e0635a)";
+  "conic-gradient(from 180deg, var(--color-danger), var(--color-warning), var(--color-success), var(--color-spectrum-blue), var(--color-info), var(--color-spectrum-violet), var(--color-danger))";
 
 export function SymbolPickerColorSection({
   className,

@@ -1,10 +1,8 @@
 import { shallowEqual } from "@xstate/store";
 
-import { dockBadgeFor } from "../components/dock-badges";
-import { DockIcons, type DockIconId } from "../components/os-dock-icon-registry";
-import type { OsDockEntry } from "../components/os-dock-types";
 import type { OsAttentionBadges } from "../lib/attention-model";
 import { dockAppDescriptors, OS_APP_DESCRIPTORS } from "../lib/app-catalog";
+import { dockBadgeFor, dockIconForApp, type OsDockEntry } from "../lib/os-dock-model";
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import {
   activationTarget,
@@ -63,7 +61,7 @@ export function useDesktopDock(
     {
       id: sessionApp.id,
       name: "Sessions",
-      icon: DockIcons.sessions,
+      icon: dockIconForApp(sessionApp),
       running: windowStates[sessionApp.id] === "open" || windowStates[sessionApp.id] === "focused",
       minimized: windowStates[sessionApp.id] === "minimized",
       badge: dockBadgeFor(sessionApp, badges),
@@ -77,7 +75,7 @@ export function useDesktopDock(
       entries.push({
         id: app.id,
         name: app.title,
-        icon: DockIcons[app.id as DockIconId] ?? app.icon,
+        icon: dockIconForApp(app),
         running: state === "open" || state === "focused",
         minimized: state === "minimized",
         badge: dockBadgeFor(app, badges),

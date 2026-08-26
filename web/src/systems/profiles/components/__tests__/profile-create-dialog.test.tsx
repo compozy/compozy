@@ -15,11 +15,14 @@ function renderWithClient(ui: React.ReactElement) {
 
 import { ProfileCreateDialog } from "../profile-create-dialog";
 
+const catalog = { icons: [], loading: false } as const;
+
 describe("ProfileCreateDialog", () => {
   it("Should reject a blank profile name locally", async () => {
     const onCreate = vi.fn();
     renderWithClient(
       <ProfileCreateDialog
+        catalog={catalog}
         open
         onOpenChange={vi.fn()}
         existingCount={1}
@@ -39,6 +42,7 @@ describe("ProfileCreateDialog", () => {
     const onCreate = vi.fn();
     renderWithClient(
       <ProfileCreateDialog
+        catalog={catalog}
         open
         onOpenChange={vi.fn()}
         existingCount={1}
@@ -67,6 +71,7 @@ describe("ProfileCreateDialog", () => {
     const onCreate = vi.fn();
     renderWithClient(
       <ProfileCreateDialog
+        catalog={catalog}
         open
         onOpenChange={vi.fn()}
         existingCount={2}

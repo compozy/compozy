@@ -5,7 +5,6 @@
 // Boundary OUT: coordinator command execution and browser lifecycle journeys.
 import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Bot, LayoutDashboard, ListChecks } from "lucide-react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TooltipProvider } from "@compozy/ui";
@@ -163,9 +162,9 @@ describe("OsDock", () => {
     renderDock(
       <OsDock
         items={[
-          { id: "dashboard", name: "Dashboard", icon: LayoutDashboard, running: true },
-          { id: "tasks", name: "Tasks", icon: ListChecks, minimized: true },
-          { id: "agents", name: "Agents", icon: Bot },
+          { id: "dashboard", name: "Dashboard", icon: "dashboard", running: true },
+          { id: "tasks", name: "Tasks", icon: "tasks", minimized: true },
+          { id: "agents", name: "Agents", icon: "agents" },
         ]}
         onSelect={vi.fn()}
       />
@@ -211,8 +210,8 @@ describe("OsDock", () => {
     renderDock(
       <OsDock
         items={[
-          { id: "dashboard", name: "Dashboard", icon: LayoutDashboard, badge: 0 },
-          { id: "tasks", name: "Tasks", icon: ListChecks, badge: 12 },
+          { id: "dashboard", name: "Dashboard", icon: "dashboard", badge: 0 },
+          { id: "tasks", name: "Tasks", icon: "tasks", badge: 12 },
         ]}
         onSelect={vi.fn()}
       />
@@ -228,8 +227,8 @@ describe("OsDock", () => {
       <OsDock
         magnify={false}
         items={[
-          { id: "dashboard", name: "Dashboard", icon: LayoutDashboard },
-          { id: "network", name: "Network", icon: Bot },
+          { id: "dashboard", name: "Dashboard", icon: "dashboard" },
+          { id: "network", name: "Network", icon: "network" },
         ]}
         onSelect={vi.fn()}
       />
@@ -247,8 +246,8 @@ describe("OsDock", () => {
     renderDock(
       <OsDock
         items={[
-          { id: "dashboard", name: "Dashboard", icon: LayoutDashboard },
-          { id: "tasks", name: "Tasks", icon: ListChecks },
+          { id: "dashboard", name: "Dashboard", icon: "dashboard" },
+          { id: "tasks", name: "Tasks", icon: "tasks" },
         ]}
         onSelect={vi.fn()}
       />
@@ -279,8 +278,8 @@ describe("OsDock", () => {
       <OsDock
         magnify={false}
         items={[
-          { id: "dashboard", name: "Dashboard", icon: LayoutDashboard },
-          { id: "tasks", name: "Tasks", icon: ListChecks },
+          { id: "dashboard", name: "Dashboard", icon: "dashboard" },
+          { id: "tasks", name: "Tasks", icon: "tasks" },
         ]}
         onSelect={vi.fn()}
       />

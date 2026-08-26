@@ -6,12 +6,13 @@ import { Icon, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 import { cn } from "@/lib/utils";
 
 import { useDockMagnify } from "../hooks/use-dock-magnify";
-import { isOsDockSeparator, type OsDockEntry, type OsDockItemData } from "./os-dock-types";
+import { isOsDockSeparator, type OsDockEntry, type OsDockItemData } from "../lib/os-dock-model";
+import { DockIcon } from "./os-dock-icons";
 
 /** OpenDesign tip clearance above the icon (`bottom: calc(100% + 12px)`). */
 const DOCK_TIP_SIDE_OFFSET = 12;
 
-export type { OsDockEntry, OsDockItemData, OsDockSeparator } from "./os-dock-types";
+export type { OsDockEntry, OsDockItemData, OsDockSeparator } from "../lib/os-dock-model";
 
 /**
  * The dock: a centered glass strip of app launchers floating over the desktop,
@@ -83,7 +84,7 @@ function DockItem({
           item.minimized && "opacity-55"
         )}
       >
-        <item.icon className="size-dock-icon" />
+        <DockIcon name={item.icon} className="size-dock-icon" />
       </span>
       {item.badge ? (
         <span

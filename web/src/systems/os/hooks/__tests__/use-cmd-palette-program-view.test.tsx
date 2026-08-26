@@ -106,7 +106,11 @@ class FakeEventSource implements StreamEventSource {
   }
 }
 
-function frame(profile: string, title: string): CmdPaletteViewFrame {
+function frame(
+  profile: string,
+  title: string,
+  search?: { text: string; eventCount?: number }
+): CmdPaletteViewFrame {
   return {
     view_session: `view:${profile}`,
     revision: `revision:${profile}:${title}`,
@@ -114,7 +118,10 @@ function frame(profile: string, title: string): CmdPaletteViewFrame {
     handlers: [],
     payload: {
       view: "v1",
-      chrome: { complete: true },
+      chrome: {
+        complete: true,
+        ...(search ? { search_text: search.text, event_count: search.eventCount ?? 0 } : {}),
+      },
       sections: [{ rows: [{ id: `${profile}:row`, title }] }],
     },
   };
@@ -205,5 +212,72 @@ describe("useCmdPaletteProgramView", () => {
 
     await waitFor(() => expect(screen.getByText("research row")).toBeVisible());
     expect(screen.queryByText("stale marketing row")).not.toBeInTheDocument();
+  });
+
+  it("Should synchronize newer search text from initial and streamed frames", async () => {
+    const sources: FakeEventSource[] = [];
+    const eventSourceFactory = vi.fn(() => {
+      const source = new FakeEventSource();
+      sources.push(source);
+      return source;
+    });
+    const onQueryChange = vi.fn();
+    lifecycleMocks.admit.mockReset();
+    lifecycleMocks.close.mockReset().mockResolvedValue(undefined);
+    lifecycleMocks.readProfile.mockReset().mockReturnValue("marketing");
+    lifecycleMocks.open.mockReset().mockResolvedValue({
+      ...openedSession("marketing"),
+      first_frame: frame("marketing", "marketing row", { text: "initial search" }),
+    });
+
+    function Harness() {
+      const model = useCmdPaletteProgramView({
+        client,
+        dispatch,
+        eventSourceFactory,
+        onDismiss: vi.fn(),
+        onQueryChange,
+        query: "",
+        viewId: "ext.notes.browser",
+      });
+      return (
+        <div>
+          {model.content.rows.map(row => (
+            <div key={row.value}>{row.node}</div>
+          ))}
+        </div>
+      );
+    }
+
+    render(
+      <UIProvider reducedMotion="always">
+        <Harness />
+      </UIProvider>
+    );
+
+    await screen.findByText("marketing row");
+    await waitFor(() => expect(onQueryChange).toHaveBeenCalledExactlyOnceWith("initial search"));
+    const listener = sources[0]?.listeners.get("cmd_palette.view.frame");
+    expect(listener).toBeDefined();
+
+    act(() => {
+      invoke(
+        listener!,
+        new MessageEvent("cmd_palette.view.frame", {
+          data: JSON.stringify(frame("marketing", "updated row", { text: "streamed search" })),
+        })
+      );
+    });
+    await waitFor(() => expect(onQueryChange).toHaveBeenNthCalledWith(2, "streamed search"));
+
+    act(() => {
+      invoke(
+        listener!,
+        new MessageEvent("cmd_palette.view.frame", {
+          data: JSON.stringify(frame("marketing", "same search row", { text: "streamed search" })),
+        })
+      );
+    });
+    expect(onQueryChange).toHaveBeenCalledTimes(2);
   });
 });

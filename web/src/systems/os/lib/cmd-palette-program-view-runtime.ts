@@ -1,7 +1,7 @@
 import { notifyUser, type UserFeedbackTone } from "@/lib/user-feedback";
 
-import type { CmdPaletteDispatch } from "../hooks/use-cmd-palette-dispatch";
-import { commandForViewAction } from "../hooks/use-cmd-palette-declarative-view";
+import type { CmdPaletteDispatch } from "./cmd-palette-dispatch";
+import { commandForViewAction } from "./cmd-palette-view-action-command";
 import type {
   CmdPaletteViewAction,
   CmdPaletteViewEffect,

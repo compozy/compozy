@@ -12,6 +12,8 @@ import { writePaletteClipboard } from "../lib/cmd-palette-copy";
 import {
   dispatchPaletteCommand,
   STALE_TARGET_REASON,
+  type CmdPaletteDispatch,
+  type CmdPaletteRunOptions,
   type PaletteDispatchOutcome,
 } from "../lib/cmd-palette-dispatch";
 import {
@@ -59,31 +61,7 @@ export interface UseCmdPaletteDispatchOptions {
   readonly attachmentToken?: string | null;
 }
 
-export interface CmdPaletteRunOptions {
-  readonly args?: Readonly<Record<string, unknown>>;
-  readonly query?: string;
-  /** Set once the operator cleared the command's declared confirmation. */
-  readonly confirmed?: boolean;
-  /** Overrides only this command's navigation destination after the seam's gates pass. */
-  readonly navigate?: (app: OsAppId, route: OsWindowRoute | null) => void;
-}
-
-export interface CmdPaletteDispatch {
-  /** Runs a resolved command through the seam. */
-  run(
-    command: ResolvedPaletteCommand,
-    options?: CmdPaletteRunOptions
-  ): Promise<PaletteDispatchOutcome>;
-  /** Runs a command by id — the keyboard and menubar entry point. */
-  runById(commandId: string, options?: CmdPaletteRunOptions): Promise<PaletteDispatchOutcome>;
-  /**
-   * Executes a `client_op` the daemon pushed over the window-manager channel.
-   * Same table as every local path, so an agent's invoke and ⌘W cannot diverge.
-   */
-  executeClientOp(op: string, payload: unknown): Promise<unknown>;
-  /** The action panel's Pin/Unpin meta-action; idempotent on the daemon side. */
-  setPinned(command: ResolvedPaletteCommand, pinned: boolean): Promise<void>;
-}
+export type { CmdPaletteDispatch, CmdPaletteRunOptions } from "../lib/cmd-palette-dispatch";
 
 /**
  * Binds the dispatch seam to this client's live coordinators.

@@ -68,6 +68,25 @@ function jsonResponse(body: unknown, init?: ResponseInit) {
   });
 }
 
+function uploadedAttachmentResponse(name: string, idCharacter: string): Response {
+  return jsonResponse(
+    {
+      attachment: {
+        bytes: name.length,
+        created_at: "2026-08-15T00:00:00Z",
+        height: 0,
+        id: `att_${idCharacter.repeat(64)}`,
+        kind: "file",
+        mime_type: "text/plain",
+        name,
+        sha256: idCharacter.repeat(64),
+        width: 0,
+      },
+    },
+    { status: 201 }
+  );
+}
+
 function transcriptEntries(messages: TranscriptMessage[], firstSequence = 1) {
   return messages.map((message, index) => ({
     message,
@@ -678,6 +697,7 @@ describe("SessionChatRuntimeProvider", () => {
   let transcriptResponsePromise: Promise<Response> | null = null;
   let clearResponsePromise: Promise<Response> | null = null;
   let promptResponsePromise: Promise<Response> | null = null;
+  let attachmentUploadResponse: (() => Promise<Response>) | null = null;
   let olderTranscriptResponsePromise: Promise<Response> | null = null;
   let transcriptFirstSequence = 1;
   let transcriptHasOlder = false;
@@ -701,6 +721,7 @@ describe("SessionChatRuntimeProvider", () => {
     transcriptResponsePromise = null;
     clearResponsePromise = null;
     promptResponsePromise = null;
+    attachmentUploadResponse = null;
     olderTranscriptResponsePromise = null;
     transcriptFirstSequence = 1;
     transcriptHasOlder = false;
@@ -808,6 +829,7 @@ describe("SessionChatRuntimeProvider", () => {
         pathname ===
         `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/attachments`
       ) {
+        if (attachmentUploadResponse) return attachmentUploadResponse();
         return jsonResponse(
           {
             attachment: {
@@ -1304,6 +1326,58 @@ describe("SessionChatRuntimeProvider", () => {
 
     await waitFor(() => expect(composerText()).toBe("Newer draft"));
     expect(await screen.findByTestId("composer-attachment-tile")).toBeInTheDocument();
+  });
+
+  // Invariant: rejected prompt files return to the composer in the draft's
+  // original order, even when an earlier upload has not finished yet.
+  // Owning layer: SessionPromptRecoveryBridge in the runtime provider.
+  // Canonical suite: this session chat runtime provider integration suite.
+  it("Should restore rejected attachments sequentially in draft order", async () => {
+    const rejection = createDeferred<Response>();
+    promptResponsePromise = rejection.promise;
+    let initialUpload = 0;
+    attachmentUploadResponse = async () => {
+      initialUpload += 1;
+      return uploadedAttachmentResponse(
+        initialUpload === 1 ? "first.txt" : "second.txt",
+        initialUpload === 1 ? "a" : "b"
+      );
+    };
+    const user = userEvent.setup();
+    renderSessionThread();
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("Rejected ordered attachments");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(
+        new File(["first"], "first.txt", { type: "text/plain" })
+      );
+      await requireComposerAui().composer.addAttachment(
+        new File(["second"], "second.txt", { type: "text/plain" })
+      );
+    });
+    await user.click(screen.getByTestId("composer-send-button"));
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+
+    const firstRestore = createDeferred<Response>();
+    let restoredUploadCount = 0;
+    attachmentUploadResponse = () => {
+      restoredUploadCount += 1;
+      if (restoredUploadCount === 1) return firstRestore.promise;
+      return Promise.resolve(uploadedAttachmentResponse("second.txt", "d"));
+    };
+    rejection.resolve(jsonResponse({ error: "prompt rejected" }, { status: 422 }));
+
+    await waitFor(() => expect(restoredUploadCount).toBe(1));
+    firstRestore.resolve(uploadedAttachmentResponse("first.txt", "c"));
+    await waitFor(() => expect(restoredUploadCount).toBe(2));
+    await waitFor(() =>
+      expect(
+        requireComposerAui()
+          .composer.getState()
+          .attachments.map(attachment => attachment.name)
+      ).toEqual(["first.txt", "second.txt"])
+    );
   });
 
   it("Should preserve the first Goal transport and local cancellation across StrictMode replay", async () => {

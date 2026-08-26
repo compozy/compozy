@@ -13,10 +13,8 @@ import { UIProvider } from "@compozy/ui";
 
 import { TASK_STATUS_TONE } from "@/lib/status-tone";
 
-import {
-  contentForEnvelope,
-  viewActionCommandID,
-} from "../../hooks/use-cmd-palette-declarative-view";
+import { contentForEnvelope } from "../../hooks/use-cmd-palette-declarative-view";
+import { viewActionCommandID } from "../../lib/cmd-palette-view-action-command";
 import type { OsPaletteDomainRow as DomainRow } from "../../hooks/use-os-palette-domain-search";
 import type {
   CmdPaletteViewAction,

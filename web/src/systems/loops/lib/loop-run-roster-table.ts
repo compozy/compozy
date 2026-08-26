@@ -213,7 +213,7 @@ export function buildRosterTable({
 
   const rowFor = (node: LoopRosterNode, isBranch: boolean): LoopRosterRow => {
     const timing = timingOf(node.started_at, node.ended_at, nowMs, node.state);
-    const authored = graph?.nodes.find(entry => entry.id === node.node_id);
+    const authored = graphNodeById.get(node.node_id);
     const tokens = node.usage?.tokens ?? null;
     return {
       key: rosterRowKey(node),

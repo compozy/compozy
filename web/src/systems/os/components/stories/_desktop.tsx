@@ -3,27 +3,26 @@ import { Kbd } from "@compozy/ui";
 import { fn } from "storybook/test";
 
 import { OsDockZone, type OsDockEntry, type OsDockItemData } from "../os-dock";
-import { DockIcons } from "../os-dock-icon-registry";
 import { OsMenuBar } from "../os-menubar";
 import { OsWallpaper, type OsWallpaperKind } from "../os-wallpaper";
 import { shortcutLabel } from "../../lib/window-manager-shortcuts";
 
 const DOCK_DEFS = [
-  { id: "sessions", name: "Sessions", icon: DockIcons.sessions },
-  { id: "dashboard", name: "Dashboard", icon: DockIcons.dashboard },
-  { id: "agents", name: "Agents", icon: DockIcons.agents },
-  { id: "network", name: "Network", icon: DockIcons.network },
-  { id: "tasks", name: "Tasks", icon: DockIcons.tasks },
-  { id: "loops", name: "Loops", icon: DockIcons.loops },
-  { id: "jobs", name: "Jobs", icon: DockIcons.jobs },
-  { id: "triggers", name: "Triggers", icon: DockIcons.triggers },
+  { id: "sessions", name: "Sessions", icon: "sessions" },
+  { id: "dashboard", name: "Dashboard", icon: "dashboard" },
+  { id: "agents", name: "Agents", icon: "agents" },
+  { id: "network", name: "Network", icon: "network" },
+  { id: "tasks", name: "Tasks", icon: "tasks" },
+  { id: "loops", name: "Loops", icon: "loops" },
+  { id: "jobs", name: "Jobs", icon: "jobs" },
+  { id: "triggers", name: "Triggers", icon: "triggers" },
   { id: "sep-1", sep: true as const },
-  { id: "marketplace", name: "Marketplace", icon: DockIcons.marketplace },
-  { id: "bridges", name: "Bridges", icon: DockIcons.bridges },
-  { id: "knowledge", name: "Knowledge", icon: DockIcons.knowledge },
+  { id: "marketplace", name: "Marketplace", icon: "marketplace" },
+  { id: "bridges", name: "Bridges", icon: "bridges" },
+  { id: "knowledge", name: "Knowledge", icon: "knowledge" },
   { id: "sep-2", sep: true as const },
-  { id: "sandbox", name: "Sandbox", icon: DockIcons.sandbox },
-  { id: "vault", name: "Vault", icon: DockIcons.vault },
+  { id: "sandbox", name: "Sandbox", icon: "sandbox" },
+  { id: "vault", name: "Vault", icon: "vault" },
 ] as const;
 
 /** Runtime attention badges (OpenDesign DOCK_BADGES): sessions waiting, tasks needing you. */

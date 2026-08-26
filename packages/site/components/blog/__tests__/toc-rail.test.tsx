@@ -20,13 +20,20 @@ vi.mock("next/link", () => ({
 }));
 
 class MockIntersectionObserver {
+  static instance: MockIntersectionObserver | null = null;
+
   readonly observe = vi.fn();
   readonly unobserve = vi.fn();
   readonly disconnect = vi.fn();
+
+  constructor() {
+    MockIntersectionObserver.instance = this;
+  }
 }
 
 describe("blog TocRail", () => {
   afterEach(() => {
+    MockIntersectionObserver.instance = null;
     vi.unstubAllGlobals();
   });
 
@@ -51,7 +58,7 @@ describe("blog TocRail", () => {
     vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
     document.body.innerHTML = '<h2 id="setup">Setup</h2><h3 id="credentials">Credentials</h3>';
 
-    render(
+    const { unmount } = render(
       <TocRail
         items={[
           { title: "Setup", url: "#setup", depth: 2 },
@@ -70,6 +77,18 @@ describe("blog TocRail", () => {
     expect(credentials.getAttribute("href")).toBe("#credentials");
     expect(credentials.getAttribute("aria-current")).toBeNull();
     expect(credentials.getAttribute("class")).toContain("pl-3");
+
+    const observer = MockIntersectionObserver.instance;
+    expect(observer?.observe).toHaveBeenCalledTimes(2);
+    expect(observer?.observe).toHaveBeenNthCalledWith(1, document.getElementById("setup"));
+    expect(observer?.observe).toHaveBeenNthCalledWith(2, document.getElementById("credentials"));
+
+    const setupHeading = document.getElementById("setup");
+    const credentialsHeading = document.getElementById("credentials");
+    unmount();
+    expect(observer?.unobserve).toHaveBeenCalledTimes(2);
+    expect(observer?.unobserve).toHaveBeenNthCalledWith(1, setupHeading);
+    expect(observer?.unobserve).toHaveBeenNthCalledWith(2, credentialsHeading);
   });
 
   it("keeps the table of contents usable when IntersectionObserver is unavailable", () => {

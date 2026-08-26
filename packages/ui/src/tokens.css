@@ -56,6 +56,9 @@
   --color-danger-tint: rgba(224, 99, 90, 0.09);
   --color-info: #8e8eb5;
   --color-info-tint: rgba(142, 142, 181, 0.12);
+  /* Spectrum-only hues — identity/color data, never status signals. */
+  --color-spectrum-blue: #4ea7fc;
+  --color-spectrum-violet: #c26ad6;
   --color-neutral: #7a7a80;
   --color-neutral-ink: #8a8a90;
   --color-neutral-tint: rgba(150, 150, 155, 0.06);

@@ -16,8 +16,8 @@ import { UIProvider } from "@compozy/ui";
 import {
   contentForEnvelope,
   hostFiltersLocally,
-  viewActionCommandID,
 } from "../../hooks/use-cmd-palette-declarative-view";
+import { viewActionCommandID } from "../../lib/cmd-palette-view-action-command";
 import type {
   CmdPaletteViewAction,
   CmdPaletteViewEnvelope,

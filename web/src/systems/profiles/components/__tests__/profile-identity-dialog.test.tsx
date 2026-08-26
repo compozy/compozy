@@ -12,12 +12,18 @@ function renderWithClient(ui: React.ReactElement) {
 import { marketingProfileFixture } from "../../mocks/fixtures";
 import { ProfileIdentityDialog } from "../profile-identity-dialog";
 
+const catalog = {
+  icons: [{ name: "rocket", label: "rocket", keywords: "launch" }],
+  loading: false,
+} as const;
+
 describe("ProfileIdentityDialog", () => {
   it("Should update color and symbol without changing the profile name", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
     renderWithClient(
       <ProfileIdentityDialog
+        catalog={catalog}
         open
         onOpenChange={vi.fn()}
         profile={marketingProfileFixture}
@@ -40,6 +46,7 @@ describe("ProfileIdentityDialog", () => {
     const onSave = vi.fn();
     renderWithClient(
       <ProfileIdentityDialog
+        catalog={catalog}
         open
         onOpenChange={vi.fn()}
         profile={marketingProfileFixture}

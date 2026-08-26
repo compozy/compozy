@@ -23,15 +23,14 @@ import type {
   CmdPaletteViewEnvelope,
   CmdPaletteViewPayload,
   CmdPaletteViewRow,
-  PaletteRegistry,
-  ResolvedPaletteCommand,
 } from "../lib/cmd-palette-types";
 import { cmdPaletteViewOptions } from "../lib/cmd-palette-query-options";
+import type { PaletteViewContent, PaletteViewDefinition } from "../lib/palette-view-registry";
 import {
-  parseExtensionName,
-  type PaletteViewContent,
-  type PaletteViewDefinition,
-} from "../lib/palette-view-registry";
+  commandForViewAction,
+  extensionName,
+  viewActionCommandID,
+} from "../lib/cmd-palette-view-action-command";
 import { useProfileReadScope } from "@/systems/profiles";
 
 const VIEW_TIMEOUT_MS = 3_000;
@@ -335,10 +334,6 @@ export function viewDefinition(
   };
 }
 
-export function extensionName(viewId: string): string | null {
-  return parseExtensionName(viewId);
-}
-
 function rowMatches(row: CmdPaletteViewRow, query: string, activeChip: string | null): boolean {
   const normalized = query.trim().toLocaleLowerCase();
   const chipMatches = activeChip === null || row.keywords?.includes(activeChip);
@@ -387,59 +382,6 @@ function chromeHeader(
 export function hostFiltersLocally(chrome: CmdPaletteViewPayload["chrome"] | undefined): boolean {
   if (typeof chrome?.filtering === "boolean") return chrome.filtering;
   return chrome?.complete === true;
-}
-
-export function commandForViewAction(
-  viewId: string,
-  action: CmdPaletteViewAction,
-  registry?: PaletteRegistry
-): ResolvedPaletteCommand {
-  const target = action.action;
-  if (!target) throw new Error("This view action requires a live view program.");
-  if (target.kind === "client_op") {
-    throw new Error("View actions cannot run client operations.");
-  }
-  const shortcuts = action.shortcut ? [action.shortcut] : [];
-  const id = viewActionCommandID(viewId, action);
-  const catalog = registry?.byId.get(id);
-  if (catalog) {
-    return {
-      ...catalog,
-      confirmation: action.confirmation ?? catalog.confirmation,
-      destructive: action.destructive ?? catalog.destructive,
-    };
-  }
-  const available = target.kind !== "tool";
-  return {
-    id,
-    title: action.title,
-    section: action.section ?? "View",
-    icon: action.icon ?? "command",
-    source: extensionName(viewId) ? `ext.${extensionName(viewId)}` : "core",
-    available,
-    reason: available ? "" : "this command is not in the catalog",
-    bindings: shortcuts,
-    alias: null,
-    destructive: action.destructive ?? false,
-    confirmation: action.confirmation ?? null,
-    arguments: [],
-    action: target,
-    execution: { retry_safe: false, single_flight: false },
-    availability_exempt: false,
-    visible: true,
-    chords: shortcuts,
-  };
-}
-
-/** Maps an extension-local action tool to its daemon-canonical command id. */
-export function viewActionCommandID(viewId: string, action: CmdPaletteViewAction): string {
-  const target = action.action;
-  if (target?.kind !== "tool" || !target.tool) return `view-action.${viewId}`;
-  const tool = target.tool.trim();
-  if (tool.startsWith("ext__")) return tool;
-  if (tool.startsWith("ext.")) return tool.replaceAll(".", "__");
-  const extension = extensionName(viewId);
-  return extension ? `ext__${extension}__${tool}` : tool;
 }
 
 function listAside(

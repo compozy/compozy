@@ -2135,64 +2135,68 @@ func TestSessionWaitRejectsUnknownStateBeforeCallingDaemon(t *testing.T) {
 func TestSessionStopFetchesUpdatedSession(t *testing.T) {
 	t.Parallel()
 
-	var stoppedID string
+	t.Run("Should fetch the updated session through the selected profile", func(t *testing.T) {
+		t.Parallel()
 
-	client := &profileTestDaemonClient{
-		DaemonClient: withWorkspaceResolution(&stubClient{
-			stopSessionFn: func(ctx context.Context, id string) error {
-				if got := profileQueryValues(ctx, nil).Get(profileFlagName); got != "research" {
-					t.Fatalf("StopSession() profile query = %q, want research", got)
-				}
-				stoppedID = id
-				return nil
-			},
-			getSessionFn: func(ctx context.Context, id string) (SessionRecord, error) {
-				if got := profileQueryValues(ctx, nil).Get(profileFlagName); got != "research" {
-					t.Fatalf("GetSession() profile query = %q, want research", got)
-				}
-				return SessionRecord{
-					ID:            id,
-					AgentName:     "coder",
-					WorkspaceID:   "ws-1",
-					WorkspacePath: "/workspace/project",
-					State:         session.StateStopped,
-					CreatedAt:     fixedTestNow,
-					UpdatedAt:     fixedTestNow,
-				}, nil
-			},
-		}),
-		profileClientAPI: &profileClientStub{profiles: []contract.Profile{
-			{Name: "default", State: "active"},
-			{Name: "research", State: "active"},
-		}},
-	}
-	deps := newWorkspaceTestDeps(t, client)
+		var stoppedID string
 
-	stdout, _, err := executeRootCommand(
-		t,
-		deps,
-		"--profile",
-		"research",
-		"session",
-		"stop",
-		"sess-1",
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("executeRootCommand() error = %v", err)
-	}
-	if stoppedID != "sess-1" {
-		t.Fatalf("StopSession() id = %q, want %q", stoppedID, "sess-1")
-	}
+		client := &profileTestDaemonClient{
+			DaemonClient: withWorkspaceResolution(&stubClient{
+				stopSessionFn: func(ctx context.Context, id string) error {
+					if got := profileQueryValues(ctx, nil).Get(profileFlagName); got != "research" {
+						t.Fatalf("StopSession() profile query = %q, want research", got)
+					}
+					stoppedID = id
+					return nil
+				},
+				getSessionFn: func(ctx context.Context, id string) (SessionRecord, error) {
+					if got := profileQueryValues(ctx, nil).Get(profileFlagName); got != "research" {
+						t.Fatalf("GetSession() profile query = %q, want research", got)
+					}
+					return SessionRecord{
+						ID:            id,
+						AgentName:     "coder",
+						WorkspaceID:   "ws-1",
+						WorkspacePath: "/workspace/project",
+						State:         session.StateStopped,
+						CreatedAt:     fixedTestNow,
+						UpdatedAt:     fixedTestNow,
+					}, nil
+				},
+			}),
+			profileClientAPI: &profileClientStub{profiles: []contract.Profile{
+				{Name: "default", State: "active"},
+				{Name: "research", State: "active"},
+			}},
+		}
+		deps := newWorkspaceTestDeps(t, client)
 
-	var decoded SessionRecord
-	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
-		t.Fatalf("json.Unmarshal() error = %v", err)
-	}
-	if decoded.State != session.StateStopped {
-		t.Fatalf("decoded.State = %q, want %q", decoded.State, session.StateStopped)
-	}
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"--profile",
+			"research",
+			"session",
+			"stop",
+			"sess-1",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand() error = %v", err)
+		}
+		if stoppedID != "sess-1" {
+			t.Fatalf("StopSession() id = %q, want %q", stoppedID, "sess-1")
+		}
+
+		var decoded SessionRecord
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if decoded.State != session.StateStopped {
+			t.Fatalf("decoded.State = %q, want %q", decoded.State, session.StateStopped)
+		}
+	})
 }
 
 func TestSessionRemoveDeletesSession(t *testing.T) {

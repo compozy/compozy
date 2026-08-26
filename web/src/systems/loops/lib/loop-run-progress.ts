@@ -120,7 +120,7 @@ function orderedNodeIds(graph: LoopGraph | null, index: RosterIndex): string[] {
   };
   if (graph) {
     for (const nodeId of topoOrder(graph)) {
-      const isFanOut = index.rollups.some(rollup => rollup.node_id === nodeId);
+      const isFanOut = index.rollupByNode.has(nodeId);
       if (index.byNode.has(nodeId) || isFanOut) push(nodeId);
     }
   }

@@ -111,14 +111,20 @@ describe("app update consumer", () => {
       },
     };
     let current = stagedOperation();
+    let finishInstall!: () => void;
+    const installFinished = new Promise<void>(resolve => {
+      finishInstall = resolve;
+    });
     const installer: AppUpdateInstaller = {
       async download(_operation, onProgress) {
         calls.push("download");
         await onProgress(50);
         return { artifactPath: "/tmp/CompozyOS-1.1.0-arm64.zip", version: "1.1.0" };
       },
-      quitAndInstall() {
-        calls.push("quit-and-install");
+      async quitAndInstall() {
+        calls.push("quit-and-install:start");
+        await installFinished;
+        calls.push("quit-and-install:complete");
       },
     };
     const consumer = new AppUpdateConsumer({
@@ -131,7 +137,11 @@ describe("app update consumer", () => {
       },
     });
 
-    await consumer.handle(current);
+    const handling = consumer.handle(current);
+    await expect.poll(() => calls.at(-1)).toBe("quit-and-install:start");
+    expect(calls).not.toContain("quit-and-install:complete");
+    finishInstall();
+    await handling;
     consumer.stop();
 
     expect(calls).toEqual([
@@ -142,7 +152,8 @@ describe("app update consumer", () => {
       "verify-artifact",
       "phase:installer-handoff",
       "fence",
-      "quit-and-install",
+      "quit-and-install:start",
+      "quit-and-install:complete",
     ]);
     expect(acquireIdentity).toEqual({
       operationId: "operation-1",
@@ -206,7 +217,7 @@ describe("app update consumer", () => {
         async download() {
           throw new Error("injected download failure");
         },
-        quitAndInstall() {
+        async quitAndInstall() {
           throw new Error("unexpected install");
         },
       },
@@ -266,7 +277,7 @@ describe("app update consumer", () => {
           calls.push("download");
           return { artifactPath: "/tmp/CompozyOS-1.1.0-arm64.zip", version: "1.1.0" };
         },
-        quitAndInstall() {
+        async quitAndInstall() {
           calls.push("quit-and-install");
         },
       },

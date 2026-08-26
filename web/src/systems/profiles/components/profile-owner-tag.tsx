@@ -6,10 +6,7 @@ import { ARCHIVED_OWNER_SUFFIX } from "../lib/profile-copy";
 import type { ProfileOwner } from "../lib/profile-scope";
 import { ProfileGlyph } from "./profile-glyph";
 
-export interface ProfileOwnerTagProps extends Omit<
-  ComponentProps<typeof Pill>,
-  "children" | "size" | "tone"
-> {
+export interface ProfileOwnerTagProps extends Omit<ComponentProps<"span">, "children" | "color"> {
   "data-testid"?: string;
   owner: ProfileOwner;
   /** Surface the tag sits on, so identity ink is measured against the right plate. */
@@ -44,9 +41,12 @@ export function ProfileOwnerTag({
   if (compact) {
     return (
       <ProfileGlyph
+        {...props}
         data-slot="profile-owner-tag"
         data-testid={dataTestId ?? "profile-owner-tag"}
         data-archived={owner.archived ? "true" : undefined}
+        role="img"
+        aria-label={ownerLabel}
         name={ownerLabel}
         color={owner.color}
         icon={owner.icon}

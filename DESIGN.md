@@ -42,6 +42,8 @@ tokens:
       danger-tint: "rgba(224, 99, 90, 0.09)"
       info: "#8e8eb5"
       info-tint: "rgba(142, 142, 181, 0.12)"
+      spectrum-blue: "#4ea7fc"
+      spectrum-violet: "#c26ad6"
       neutral: "#7a7a80"
       neutral-ink: "#8a8a90"
       neutral-tint: "rgba(150, 150, 155, 0.06)"

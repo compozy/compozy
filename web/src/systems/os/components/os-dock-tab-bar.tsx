@@ -4,7 +4,8 @@ import { Icon } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
-import { isOsDockSeparator, type OsDockEntry, type OsDockItemData } from "./os-dock-types";
+import { isOsDockSeparator, type OsDockEntry, type OsDockItemData } from "../lib/os-dock-model";
+import { DockIcon } from "./os-dock-icons";
 
 /** Counts cap at "9+" without collapsing the zero/non-zero distinction. */
 function formatBadge(count: number): string {
@@ -42,7 +43,7 @@ function TabBarItem({
           item.minimized && "opacity-55"
         )}
       >
-        <item.icon className="size-dock-icon" />
+        <DockIcon name={item.icon} className="size-dock-icon" />
       </span>
       {item.badge ? (
         <span

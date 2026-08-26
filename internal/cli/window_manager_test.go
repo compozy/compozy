@@ -1567,8 +1567,16 @@ func TestWindowManagerCommandsRejectInvalidInputBeforeTransport(t *testing.T) {
 				t.Fatalf("command error = %q, want fragment %q", err, tt.wantError)
 			}
 			if tt.wantJSONCause {
-				if _, ok := errors.AsType[*json.UnmarshalTypeError](err); !ok {
+				jsonErr, ok := errors.AsType[*json.UnmarshalTypeError](err)
+				if !ok {
 					t.Fatalf("command error = %v, want *json.UnmarshalTypeError", err)
+				}
+				if jsonErr.Value != "array" || jsonErr.Type.Kind() != reflect.Map {
+					t.Fatalf(
+						"JSON type error = value %q into %v, want array into map",
+						jsonErr.Value,
+						jsonErr.Type,
+					)
 				}
 			}
 			if called {

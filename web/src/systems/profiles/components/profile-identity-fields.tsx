@@ -1,6 +1,6 @@
 import { Field, FieldError, FieldLabel, Input, SymbolPicker, type SymbolValue } from "@compozy/ui";
 
-import { useProfileIconCatalog } from "../hooks/use-profile-icon-catalog";
+import type { ProfileIconCatalogViewModel } from "../hooks/use-profile-icon-catalog";
 import {
   PROFILE_EMOJIBASE_URL,
   PROFILE_IDENTITY_SWATCHES,
@@ -9,6 +9,7 @@ import {
 import { ProfileGlyph } from "./profile-glyph";
 
 interface ProfileIdentityFieldsBaseProps {
+  catalog: ProfileIconCatalogViewModel;
   name: string;
   color: string;
   onColorChange: (next: string) => void;
@@ -46,8 +47,8 @@ export function ProfileIdentityFields(props: ProfileIdentityFieldsProps) {
     nameError = null,
     nameLabel = "Name",
     testIdPrefix,
+    catalog,
   } = props;
-  const catalog = useProfileIconCatalog();
   return (
     <div className="flex flex-col gap-3">
       {props.showName !== false ? (

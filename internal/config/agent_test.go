@@ -905,23 +905,35 @@ provider: claude`,
 func TestParseAgentDefPreservesParserErrorsInDecodeChain(t *testing.T) {
 	t.Parallel()
 
-	_, err := ParseAgentDef([]byte(`---
+	t.Run("Should preserve YAML and TOML parser errors in the decode chain", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := ParseAgentDef([]byte(`---
 name: [
 ---
 
 Prompt.
 `))
-	if err == nil {
-		t.Fatal("ParseAgentDef() error = nil, want decode failure")
-	}
+		if err == nil {
+			t.Fatal("ParseAgentDef() error = nil, want decode failure")
+		}
 
-	if _, ok := errors.AsType[*yaml.SyntaxError](err); !ok {
-		t.Fatalf("ParseAgentDef() error = %v, want yaml syntax error in unwrap chain", err)
-	}
+		yamlErr, yamlErrMatched := errors.AsType[*yaml.SyntaxError](err)
+		if !yamlErrMatched {
+			t.Fatalf("ParseAgentDef() error = %v, want yaml syntax error in unwrap chain", err)
+		}
+		if yamlErr.Message == "" || yamlErr.Token == nil {
+			t.Fatalf("YAML syntax error = %#v, want message and source token", yamlErr)
+		}
 
-	if _, ok := errors.AsType[toml.ParseError](err); !ok {
-		t.Fatalf("ParseAgentDef() error = %v, want TOML parse error in unwrap chain", err)
-	}
+		tomlErr, tomlErrMatched := errors.AsType[toml.ParseError](err)
+		if !tomlErrMatched {
+			t.Fatalf("ParseAgentDef() error = %v, want TOML parse error in unwrap chain", err)
+		}
+		if tomlErr.Message == "" || tomlErr.Position.Line == 0 {
+			t.Fatalf("TOML parse error = %#v, want message and source line", tomlErr)
+		}
+	})
 }
 
 func TestLoadAgentDefFileMissingReturnsError(t *testing.T) {

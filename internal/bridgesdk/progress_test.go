@@ -1398,11 +1398,16 @@ func TestProgressAccumulatorPropagatesSinkFailures(t *testing.T) {
 		if err := accumulator.OnProgress(ctx, progressTestEvent(2, "Reading")); err != nil {
 			t.Fatalf("OnProgress(second) error = %v", err)
 		}
-		sink.editError = MarkCommittedMutation(errors.New("edit result unavailable"))
+		commitErr := errors.New("edit result unavailable")
+		sink.editError = MarkCommittedMutation(commitErr)
 
 		err := accumulator.Flush(ctx)
-		if _, ok := errors.AsType[*CommittedMutationError](err); !ok {
+		committedErr, ok := errors.AsType[*CommittedMutationError](err)
+		if !ok {
 			t.Fatalf("Flush() error = %T %v, want CommittedMutationError", err, err)
+		}
+		if !errors.Is(committedErr, commitErr) {
+			t.Fatalf("Flush() committed error = %v, want cause %v", committedErr, commitErr)
 		}
 
 		sink.editError = nil
