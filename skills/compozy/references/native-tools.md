@@ -116,7 +116,8 @@ session supervision does not mistake orchestration for inactivity.
 `compozy__session_spawn` creates one governed child of the caller. It requires `agent_name` and a
 positive `ttl_seconds`; optional permission arrays can only narrow the parent. Omitted
 `notify_creator` defaults to true, while explicit false suppresses the synthetic parent wake for
-that child. The result returns the child session ID, role, depth, and TTL expiry.
+that child. Optional `provider`, `model`, `reasoning_effort`, and `speed` fields override the named
+agent's runtime for the child. The result returns the child session ID, role, depth, and TTL expiry.
 
 `compozy__session_stop` stops another same-workspace session and is destructive/approval-gated. It is
 idempotent for an already stopped target. `compozy__session_prompt_cancel` cancels only another

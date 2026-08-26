@@ -790,6 +790,13 @@ probe_interval = "60s"
 [loops.inputs.implement-tasks]
 # Explicit false remains a present value.
 auto_commit = false
+# Per-task is the default; set orchestrated to delegate through bounded workers.
+mode = "per-task"
+# Runtime input values are partial. Omitted fields keep resolving through lower layers.
+orchestrator_runtime = { provider = "codex", model = "gpt-5.6-sol", reasoning = "high", speed = "fast" }
+backend_runtime = { provider = "codex", model = "gpt-5.6-sol" }
+frontend_runtime = { provider = "claude", model = "sonnet" }
+default_runtime = { model = "gpt-5.6-terra" }
 
 [loops.inputs.review-and-fix]
 auto_commit = false
@@ -2253,6 +2260,11 @@ compozy config get loops.inputs.implement-tasks.auto_commit \
 compozy config unset loops.inputs.implement-tasks.auto_commit \
   --scope workspace --workspace /absolute/project/root
 ```
+
+For `implement-tasks`, `mode` accepts `per-task` or `orchestrated`. Its optional
+`orchestrator_runtime`, `backend_runtime`, `frontend_runtime`, and `default_runtime` inputs use the
+same partial `{provider, model, reasoning, speed}` object as a Loop runtime input. A task file's own
+frontmatter runtime still overrides the category input field by field.
 
 HTTP and UDS provide exact-scope inspect, replace, set, and delete operations at
 `/api/workspaces/{workspace_id}/loops/{name}/input-defaults`. These paths are also available through

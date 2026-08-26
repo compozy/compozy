@@ -250,6 +250,9 @@ the parent's coordination channel, denies coordinator-role children, and only pe
 subsets of the parent session. The child inherits the parent workspace unless `--workspace` targets
 another one, which the workspace-access policy must authorize.
 
+The spawn request can override the child runtime with provider, model, reasoning effort, and speed.
+Unset fields keep resolving through the named agent and workspace defaults.
+
 Safe-spawn children are recorded as `spawned` sessions with parent/root lineage, depth, role, TTL,
 and permission metadata. In the MVP, max depth is `1` and the default max children per parent is
 `5`. Parent-stop and TTL expiry cleanup release active task-run leases through the task service

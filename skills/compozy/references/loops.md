@@ -606,22 +606,23 @@ window `stalled` (reason `watch_source_silence`). Watch sources are extension-de
 `spec-cycle` extension does not publish one. Every `watch/poll` response must carry a stable
 `event_key`; missing, invalid UTF-8, or values over 256 bytes fail before admission, with no fallback.
 
-## Orchestrated Task Delivery
+## Bundled Task Delivery Modes
 
-The bundled `orchestrate-tasks` Loop delivers an authored spec by delegation instead of fan-out.
-Start it with `compozy loop run --workspace <workspace-id> --name orchestrate-tasks --input slug=<slug>`.
-The optional `orchestrator` input selects the conducting agent and defaults to `general`.
+The bundled `implement-tasks` Loop accepts `mode=per-task|orchestrated`; `per-task` is the default.
+The default path imports the task graph and runs one isolated `code_implementer` action per task.
+The orchestrated path runs the bundled `orchestrator` agent continuously and instructs it to follow
+`cy-orchestrate-tasks`: start one bounded `code_implementer` worker per task, dispatch a blocking
+prompt, accept only `status: completed` on disk, and stop the worker on every path.
 
-Its single Goal node runs that agent continuously and instructs it to follow the `cy-orchestrate-tasks`
-skill: one `compozy spawn` worker session per task, in graph order, each dispatched with a blocking
-`compozy session prompt` and stopped with `compozy session stop` on every path out. The Loop pins no
-provider or model — workers inherit the runtime resolved for the agent they are spawned with, and
-operators own delivery-wide pinning through `[loops.defaults.delivery.runtime_defaults]`.
+Four optional runtime inputs select `orchestrator_runtime`, `backend_runtime`, `frontend_runtime`,
+and `default_runtime`. The category match uses exact task frontmatter type; all other types use the
+default. Empty inputs fall through to agent and config defaults. Task frontmatter runtime wins over
+the category input field by field. The conductor passes every supplied provider, model, reasoning,
+and speed value through `compozy spawn`.
 
-A `type: command` judge runs from the workspace root and passes only when every
-`.compozy/tasks/<slug>/task_*.md` carries `status: completed`. The orchestrator's report never closes
-the Goal; the task files do. Use `implement-tasks` instead when the Loop itself should fan out over
-the same task files.
+A command judge passes only when every `.compozy/tasks/<slug>/task_*.md` carries
+`status: completed` and no conductor-created worker survives. The Goal's result uses status
+`complete|blocked`; task frontmatter continues to use `completed`.
 
 ## Agent-Authored Review and Fix
 
