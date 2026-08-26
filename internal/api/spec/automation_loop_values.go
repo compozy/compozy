@@ -76,6 +76,7 @@ func loopReattemptStrategyValues() []string {
 	return []string{
 		string(contract.LoopReattemptFailedOnly),
 		string(contract.LoopReattemptFullBody),
+		string(contract.LoopReattemptHalt),
 	}
 }
 

@@ -5,6 +5,7 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"sync"
 	"testing"
@@ -706,7 +707,7 @@ func inlineGoalRunForTest(
 		StartedBy: actor.Actor, StartedOrigin: actor.Origin,
 		DefinitionVersion: resolved.DefinitionVersion,
 		DefinitionDigest:  digest, DefinitionSnapshot: snapshot,
-		ActiveHumanCriteria: []byte(`[]`), StartMetadata: map[string]any{},
+		ActiveHumanCriteria: new(json.RawMessage(`[]`)), StartMetadata: map[string]any{},
 		IterationCap: effective.IterationCap, BudgetOnExceeded: effective.BudgetOnExceeded,
 		ProfileID:             store.DefaultProfileID,
 		GoalContextNudgeRatio: 0.8, Origin: &origin, Inputs: map[string]any{},

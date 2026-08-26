@@ -116,13 +116,6 @@ func (s *service) planRerunGeneration(
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	for _, output := range outputs {
-		if !generationOutputSettled(output.Status) && !GenerationOutputStatusParked(output.Status) {
-			return nil, nil, nil, reasonError(ReasonCodeRerunBusy, ErrRerunBusy, map[string]string{
-				metadataNodeIDKey: output.NodeID, namespaceStatusKey: output.Status,
-			})
-		}
-	}
 	snapshot, err := s.store.GetLoopDefinitionSnapshot(ctx, run.WorkspaceID, run.DefinitionDigest)
 	if err != nil {
 		return nil, nil, nil, err
@@ -137,7 +130,32 @@ func (s *service) planRerunGeneration(
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	if err := validateTerminalRerunOutputs(outputs, rerunNodes); err != nil {
+		return nil, nil, nil, err
+	}
 	return outputs, next, rerunNodes, nil
+}
+
+func validateTerminalRerunOutputs(outputs []GenerationOutput, rerunNodes []string) error {
+	rerun := make(map[string]struct{}, len(rerunNodes))
+	for _, node := range rerunNodes {
+		rerun[node] = struct{}{}
+	}
+	for _, output := range outputs {
+		if generationOutputSettled(output.Status) || GenerationOutputStatusParked(output.Status) {
+			continue
+		}
+		_, selectedPending := rerun[generationOutputLabel(generationOutputKey{
+			nodeID: output.NodeID, itemIndex: output.ItemIndex,
+		})]
+		if output.Status == generationOutputPending && selectedPending {
+			continue
+		}
+		return reasonError(ReasonCodeRerunBusy, ErrRerunBusy, map[string]string{
+			metadataNodeIDKey: output.NodeID, namespaceStatusKey: output.Status,
+		})
+	}
+	return nil
 }
 
 func (s *service) ForkRun(ctx context.Context, input ForkInput) (StartResult, error) {

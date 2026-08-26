@@ -6,6 +6,7 @@ import (
 	"time"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
@@ -40,7 +41,7 @@ func compareAndSwapLoopRunStatusWithEffects(
 	clearControlState := loopStatusClearsControlState(to)
 	affected, err := sqlcgen.New(exec).CompareAndSwapLoopRunStatus(ctx, sqlcgen.CompareAndSwapLoopRunStatusParams{
 		Status: string(to), ClearControlState: int64(boolToInt(clearControlState)),
-		ID: string(runID), ExpectedStatus: string(from),
+		CompletedAt: completedAtForLoopStatus(to, at), ID: string(runID), ExpectedStatus: string(from),
 	})
 	if err != nil {
 		return fmt.Errorf("store: transition loop run %q: %w", runID, err)
@@ -66,6 +67,13 @@ func compareAndSwapLoopRunStatusWithEffects(
 		}
 	}
 	return nil
+}
+
+func completedAtForLoopStatus(status looppkg.Status, at time.Time) string {
+	if !status.Terminal() {
+		return ""
+	}
+	return store.FormatTimestamp(at)
 }
 
 func loopStatusClearsControlState(status looppkg.Status) bool {

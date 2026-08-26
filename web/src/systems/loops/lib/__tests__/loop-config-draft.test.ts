@@ -45,6 +45,15 @@ describe("initialConfigDraft", () => {
     expect(draft.limits.values.budget_wall_sec).toBe(120);
   });
 
+  it("Should preserve a stored halt strategy", () => {
+    const draft = initialConfigDraft(
+      descriptors,
+      { ...loopConfigFixture, reattempt_strategy: "halt" },
+      loopEffectiveConfigFixture
+    );
+    expect(draft.reattemptStrategy).toBe("halt");
+  });
+
   it("Should clamp a stored value that exceeds its ceiling", () => {
     const draft = initialConfigDraft(
       descriptors,
@@ -82,12 +91,12 @@ describe("buildLoopConfigRequest", () => {
     const draft = initialConfigDraft(descriptors, null, loopEffectiveConfigFixture);
     draft.limits.values.iteration_cap = 80;
     draft.humanGateEnabled = true;
-    draft.reattemptStrategy = "full_body";
+    draft.reattemptStrategy = "halt";
     draft.checks.verify_build = { enabled: false, command: "go test ./..." };
     const { config } = buildLoopConfigRequest(draft, descriptors);
     expect(config.iteration_cap).toBe(80);
     expect(config.human_gate_enabled).toBe(true);
-    expect(config.reattempt_strategy).toBe("full_body");
+    expect(config.reattempt_strategy).toBe("halt");
     expect(config.enabled_checks_json).toEqual({
       verify_build: { enabled: false, command: "go test ./..." },
     });

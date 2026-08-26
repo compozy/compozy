@@ -2,7 +2,7 @@ package builtin
 
 const loopStatusOutputSchema = `{
 	"type":"object",
-	"required":["run","materialized_contract","node_controls","waits","requests","amendments"],
+	"required":["run","materialized_contract","effective_config","node_controls","waits","requests","amendments"],
 	"properties":{
 		"run":{
 			"type":"object",
@@ -17,6 +17,13 @@ const loopStatusOutputSchema = `{
 		},
 		"executed_definition":{"type":"object"},
 		"materialized_contract":{"type":"object"},
+		"effective_config":{
+			"type":"object",
+			"properties":{
+				"sources":{"type":"object","additionalProperties":{"type":"string"}}
+			},
+			"additionalProperties":true
+		},
 		"generations":{
 			"type":"array",
 			"items":{

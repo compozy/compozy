@@ -15,6 +15,7 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/goal"
+	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
@@ -150,6 +151,175 @@ func TestGoalSessionCreationIdentityIntegration(t *testing.T) {
 
 func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should atomically allocate the next epoch for a later Goal generation", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			workspaceID = "ws-goal-binding-allocate"
+			loopRunID   = "run-goal-binding-allocate"
+			handle      = "goal:binding-allocate"
+		)
+		globalDB := openLoopTestGlobalDB(t, workspaceID)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 26, 14, 0, 0, 0, time.UTC)
+		insertGoalSchemaLoopRun(t, globalDB, loopRunID, workspaceID, "catalog", nil)
+		seedActiveGoalBindingForTest(
+			t, globalDB, loopRunID, workspaceID, handle, 1, "session-binding-allocate-1", now,
+		)
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE loop_session_bindings SET state = 'closed', closed_at = ?
+			 WHERE loop_run_id = ? AND handle = ? AND binding_epoch = 1`,
+			store.FormatTimestamp(now.Add(time.Second)),
+			loopRunID,
+			handle,
+		); err != nil {
+			t.Fatalf("close prior Goal binding error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE loop_runs SET generation = 2 WHERE id = ? AND workspace_id = ?`,
+			loopRunID,
+			workspaceID,
+		); err != nil {
+			t.Fatalf("advance Goal Run generation error = %v", err)
+		}
+		checkpointKey := goal.TurnKey{
+			WorkspaceID: workspaceID,
+			LoopRunID:   loopRunID,
+			Generation:  2,
+			NodeID:      "goal-binding-allocate",
+		}
+		if _, err := globalDB.CreateCheckpoint(ctx, goal.CreateCheckpointRequest{Checkpoint: goal.Checkpoint{
+			Key: checkpointKey, ControlEpoch: 1, Phase: "idle", Status: "active", TurnLimit: 3,
+			TaskRunID: "task-goal-binding-allocate", ContextState: "unknown", ContextNudgeRatio: 0.8,
+			UpdatedAt: now.Add(2 * time.Second),
+		}}); err != nil {
+			t.Fatalf("CreateCheckpoint() error = %v", err)
+		}
+		profile := store.SessionCreationProfile{
+			Version: store.SessionCreationProfileVersion, AgentName: "codex", Provider: "native",
+			ProfileID: store.DefaultProfileID, WorkspaceID: workspaceID, CWD: "/tmp",
+			SandboxMode: store.SessionCreationSandboxNone,
+		}
+		request := goal.AllocateBindingAttemptRequest{
+			Key:           goal.BindingKey{WorkspaceID: workspaceID, LoopRunID: loopRunID, Handle: handle},
+			CheckpointKey: checkpointKey, ExpectedControlEpoch: 1, ExpectedCheckpointPhase: "idle",
+			ExpectedTaskRunID: "task-goal-binding-allocate", IdentityHandle: handle,
+			CreationProfile: profile,
+			CreationOptions: store.SessionCreationOptions{
+				NetworkOwnerKey:      "loop_run:" + loopRunID,
+				NetworkParticipation: participation.LocalSpec(),
+				SessionType:          "loop-goal",
+			},
+			CreatedAt: now.Add(3 * time.Second),
+		}
+
+		const contenders = 8
+		results := make(chan goal.SessionBinding, contenders)
+		errorsCh := make(chan error, contenders)
+		var wait sync.WaitGroup
+		wait.Add(contenders)
+		for range contenders {
+			go func() {
+				defer wait.Done()
+				binding, err := globalDB.AllocateSessionBindingAttempt(testutil.Context(t), request)
+				if err != nil {
+					errorsCh <- err
+					return
+				}
+				results <- binding
+			}()
+		}
+		wait.Wait()
+		close(results)
+		close(errorsCh)
+		for err := range errorsCh {
+			t.Errorf("AllocateSessionBindingAttempt() error = %v", err)
+		}
+		wantAttemptID, wantSessionID := goal.DeriveBindingIdentity(checkpointKey, handle, 2)
+		for binding := range results {
+			if binding.BindingEpoch != 2 || binding.State != goal.BindingStateCreating ||
+				binding.BindingAttemptID != wantAttemptID || binding.SessionID != wantSessionID {
+				t.Errorf("allocated binding = %#v, want deterministic creating epoch 2", binding)
+			}
+		}
+		var bindingCount int
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM loop_session_bindings WHERE loop_run_id = ? AND handle = ?`,
+			loopRunID,
+			handle,
+		).Scan(&bindingCount); err != nil {
+			t.Fatalf("count Goal bindings error = %v", err)
+		}
+		if bindingCount != 2 {
+			t.Fatalf("binding count = %d, want closed epoch 1 and creating epoch 2", bindingCount)
+		}
+	})
+
+	t.Run("Should replay cleanup metadata while rejecting a changed immutable identity", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			workspaceID = "ws-goal-cleanup-replay"
+			loopRunID   = "run-goal-cleanup-replay"
+			handle      = "goal:cleanup-replay"
+			sessionID   = "session-goal-cleanup-replay"
+		)
+		globalDB := openLoopTestGlobalDB(t, workspaceID)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
+		insertGoalSchemaLoopRun(t, globalDB, loopRunID, workspaceID, "catalog", nil)
+		seedActiveGoalBindingForTest(t, globalDB, loopRunID, workspaceID, handle, 1, sessionID, now)
+
+		binding, err := globalDB.GetSessionBindingAttempt(ctx, goal.BindingKey{
+			WorkspaceID: workspaceID,
+			LoopRunID:   loopRunID,
+			Handle:      handle,
+		}, 1)
+		if err != nil {
+			t.Fatalf("GetSessionBindingAttempt() error = %v", err)
+		}
+		enqueue := func(cause goal.SessionCleanupCause, createdAt time.Time, target goal.SessionBinding) error {
+			return globalDB.withTaskImmediateTransaction(
+				ctx,
+				"enqueue replayed Goal cleanup",
+				func(exec taskSQLExecutor) error {
+					return enqueueGoalSessionCleanupWithExecutor(ctx, exec, target, cause, createdAt)
+				},
+			)
+		}
+		if err := enqueue(goal.SessionCleanupCauseStop, now.Add(time.Minute), binding); err != nil {
+			t.Fatalf("enqueue(stop) error = %v", err)
+		}
+		if err := enqueue(goal.SessionCleanupCauseTerminal, now.Add(2*time.Minute), binding); err != nil {
+			t.Fatalf("enqueue(terminal replay) error = %v", err)
+		}
+
+		pending, err := globalDB.ClaimGoalSessionCleanup(ctx, 10)
+		if err != nil {
+			t.Fatalf("ClaimGoalSessionCleanup() error = %v", err)
+		}
+		if len(pending) != 1 || pending[0].Cause != goal.SessionCleanupCauseStop ||
+			!pending[0].CreatedAt.Equal(now.Add(time.Minute)) {
+			t.Fatalf("cleanup replay = %#v, want first-writer metadata", pending)
+		}
+
+		changed := binding
+		changed.SessionID = "session-goal-cleanup-conflict"
+		if err := enqueue(
+			goal.SessionCleanupCauseTerminal,
+			now.Add(3*time.Minute),
+			changed,
+		); !errors.Is(
+			err,
+			looppkg.ErrTransitionConflict,
+		) {
+			t.Fatalf("enqueue(changed identity) error = %v, want transition conflict", err)
+		}
+	})
 
 	t.Run("Should close a completed run-agent binding and publish durable cleanup", func(t *testing.T) {
 		t.Parallel()

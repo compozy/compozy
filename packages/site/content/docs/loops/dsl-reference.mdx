@@ -510,7 +510,8 @@ These defaults are a `RestartRequired` config plane, separate from the per-Loop
 | `fan_out_width`         | 4          | 2       |
 
 Write-time validation rejects negative `fan_out_width` values; positive values have no daemon-wide
-ceiling. The effective config a run uses is a four-layer merge — definition defaults ⊕
-`[loops.defaults.*]` ⊕ the per-Loop config store ⊕ per-run overrides. Other bounded fields remain
-clamped to their documented ceilings. See
+ceiling. Effective config resolves field by field from built-ins, the definition, the matching
+`[loops.defaults.*]` family, an inherited parent environment, the per-Loop config store, and per-run
+overrides. `effective_config.sources` identifies the winning logical source for each JSON Pointer.
+Other bounded fields remain clamped to their documented ceilings. See
 [configure](/docs/loops/configure).

@@ -96,6 +96,7 @@ CREATE TABLE loop_runs (
 			generation           INTEGER NOT NULL DEFAULT 0,
 			reattempt_strategy   TEXT NOT NULL DEFAULT 'failed_only',
 			last_progress_at     TIMESTAMP NOT NULL,
+			completed_at         TIMESTAMP,
 			budget_tokens        INTEGER NOT NULL DEFAULT 0,
 			budget_wall_sec      INTEGER NOT NULL DEFAULT 0,
 			budget_on_exceeded   TEXT NOT NULL DEFAULT 'halt',

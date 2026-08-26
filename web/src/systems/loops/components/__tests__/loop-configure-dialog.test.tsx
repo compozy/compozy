@@ -130,7 +130,7 @@ describe("LoopConfigureDialog", () => {
     expect(screen.getByTestId("loop-configure-checks-empty")).toBeInTheDocument();
   });
 
-  it("Should select the full-body re-attempt strategy", () => {
+  it("Should select each non-default re-attempt strategy", () => {
     renderSheet({ config: null });
     expect(screen.getByTestId("loop-configure-strategy-failed-only")).toHaveAttribute(
       "aria-checked",
@@ -142,6 +142,15 @@ describe("LoopConfigureDialog", () => {
       "true"
     );
     expect(screen.getByTestId("loop-configure-strategy-failed-only")).toHaveAttribute(
+      "aria-checked",
+      "false"
+    );
+    fireEvent.click(screen.getByTestId("loop-configure-strategy-halt"));
+    expect(screen.getByTestId("loop-configure-strategy-halt")).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    expect(screen.getByTestId("loop-configure-strategy-full-body")).toHaveAttribute(
       "aria-checked",
       "false"
     );
@@ -170,7 +179,7 @@ describe("LoopConfigureDialog", () => {
   it("Should PUT the edited config to loop_config and close on save", async () => {
     const { onOpenChange } = renderSheet({ config: null });
     fireEvent.click(rowSwitch("loop-configure-human-gate"));
-    fireEvent.click(screen.getByTestId("loop-configure-strategy-full-body"));
+    fireEvent.click(screen.getByTestId("loop-configure-strategy-halt"));
     fireEvent.change(screen.getByTestId("loop-configure-limit-input-iteration_cap"), {
       target: { value: "80" },
     });
@@ -183,7 +192,7 @@ describe("LoopConfigureDialog", () => {
     expect(putBodies[0].config).toMatchObject({
       iteration_cap: 80,
       human_gate_enabled: true,
-      reattempt_strategy: "full_body",
+      reattempt_strategy: "halt",
       budget_on_exceeded: "escalate",
       enabled_checks_json: { verify_build: { enabled: true, command: "go test ./..." } },
     });

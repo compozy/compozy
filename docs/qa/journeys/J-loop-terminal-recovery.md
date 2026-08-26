@@ -14,14 +14,19 @@ flowchart TD
     B -->|run pruned by retention| E[Records survive with no owning run]
     D --> F[Boot barrier: repair runs before task recovery admits claims]
     E --> F
-    C --> G[compozy loop status reports the terminal outcome]
+    C --> G[compozy loop status reports the terminal outcome and completed_at]
     F --> G
-    G --> H[compozy task timeline names loop_run_terminal, reconciled_run_terminal, or run_missing]
+    G --> G2[Fresh CLI HTTP native and Web reads preserve the same terminal time]
+    G2 --> H[compozy task timeline names loop_run_terminal, reconciled_run_terminal, or run_missing]
     H --> I{Second boot?}
     I -->|yes| J[Repair is idempotent: no duplicate event, active runs untouched]
     I -->|no| K[Interval sweep repairs only records that settle later]
     J --> L[True end: zero claimable records for terminal or missing runs, each with a structured reason]
     K --> L
+    F --> M{Persisted definition snapshot valid?}
+    M -->|yes| G
+    M -->|no| N[Only that run terminalizes with a structured snapshot cause]
+    N --> G
     F -.->|operator restarts the daemon mid-repair| X[Abandon: records stay unclaimable; the next boot repeats the same repair]
     X -.->|daemon boots again| F
 ```
@@ -50,8 +55,11 @@ journey:
     - step: 4
       verb: "Boot a second time and let the interval sweep run"
       expected_observable: "The repair emits no duplicate event, active Loop runs are untouched, and the configured interval affects only later sweeps"
+    - step: 5
+      verb: "Compare terminal time and restart isolation across public reads"
+      expected_observable: "Terminal time remains stable, rerun clears it while live, and one invalid snapshot cannot block healthy run recovery or daemon readiness"
   goal:
-    observable: "No terminal or missing Loop run owns a claimable execution record on any surface"
+    observable: "No terminal or missing Loop run owns claimable work, terminal time is durable, and invalid history is isolated to its run"
     side_effects: [claim-eligibility-removed, reconciliation-event-recorded, timeline-reason-appended]
   true_end_state: "After a fresh boot, a claim attempt finds no work owned by an ended run, and every settled record explains itself through its recorded reason."
   exit:

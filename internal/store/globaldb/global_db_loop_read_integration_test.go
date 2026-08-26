@@ -288,7 +288,7 @@ func TestGlobalDBLoopReadServiceIntegration(t *testing.T) {
 		service, err := looppkg.NewService(
 			globalDB,
 			looppkg.DefinitionResolverFunc(
-				func(context.Context, looppkg.WorkspaceID, string) (*looppkg.ResolvedDefinition, error) {
+				func(context.Context, looppkg.WorkspaceID, string, string) (*looppkg.ResolvedDefinition, error) {
 					return nil, errors.New("unexpected definition resolution")
 				},
 			),

@@ -21,11 +21,7 @@ interface LoopRunColumn {
   className?: string;
 }
 
-/**
- * The run projection exposes `created_at` and `last_progress_at`, so the roster
- * can state when a run started and how long it has been going — never an "Ended"
- * it does not know. Gens / Best / Budget are demoted to the run page.
- */
+/** Gens / Best / Budget are demoted to the run page. */
 const COLUMNS: readonly LoopRunColumn[] = [
   { key: "loop", label: "Loop", className: "w-full" },
   { key: "status", label: "Status" },

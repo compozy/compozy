@@ -149,6 +149,10 @@ func TestGlobalDBCoordinatorCompletionShouldCommitCanonicalEventAtomically(t *te
 		if stored.CompletionStateSnapshot() != looppkg.CompletionPartial {
 			t.Fatalf("completion state = %q, want %q", stored.CompletionStateSnapshot(), looppkg.CompletionPartial)
 		}
+		wantCompletedAt := now.Add(time.Second)
+		if stored.CompletedAt == nil || !stored.CompletedAt.Equal(wantCompletedAt) {
+			t.Fatalf("completed_at = %v, want %s", stored.CompletedAt, wantCompletedAt)
+		}
 		events, err := globalDB.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
 			ReadScope:   store.ReadScope{AllProfiles: true},
 			WorkspaceID: loopRun.WorkspaceID, RunID: loopRun.ID,

@@ -216,6 +216,33 @@ func TestDaemonLoopAPIServiceShouldBuildRunWebURLFromEffectiveConfig(t *testing.
 	}
 }
 
+// Invariant: run status reports the effective config pinned at start, never current workspace defaults.
+// The daemon Loop API run suite owns the snapshot-to-public-response projection.
+func TestDaemonLoopAPIServiceShouldReadEffectiveConfigFromPinnedRunSnapshot(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.August, 26, 12, 0, 0, 0, time.UTC)
+	run := looppkg.Run{
+		ID: "run-pinned-effective-config", WorkspaceID: "ws-pinned", LoopName: "release",
+		Inputs: map[string]any{},
+	}
+	applyLoopRunPinningForTest(t, &run, now)
+	persistence := &loopRunHistoryPersistenceStub{definitionSnapshot: &looppkg.DefinitionSnapshot{
+		WorkspaceID: run.WorkspaceID,
+		Digest:      run.DefinitionDigest,
+		Version:     run.DefinitionVersion,
+		Definition:  append(json.RawMessage(nil), run.DefinitionSnapshot...),
+	}}
+	service := &daemonLoopAPIService{persistence: persistence}
+	_, _, effective, err := service.loadExecutedLoopDefinition(t.Context(), run.WorkspaceID, &run)
+	if err != nil {
+		t.Fatalf("loadExecutedLoopDefinition() error = %v", err)
+	}
+	if got := effective.Sources["/iteration_cap"]; got != looppkg.EffectiveConfigSourceDeliveryDefaults {
+		t.Fatalf("pinned iteration source = %q, want delivery defaults", got)
+	}
+}
+
 func TestDaemonLoopAPIServiceListLoopRunsForwardsProfileScope(t *testing.T) {
 	t.Parallel()
 
@@ -804,16 +831,29 @@ func mustLoopApprovalActor(t *testing.T, sessionID string) task.ActorContext {
 
 type loopRunHistoryPersistenceStub struct {
 	loopAPIPersistence
-	lineage        []looppkg.LoopGeneration
-	outputs        map[int][]looppkg.GenerationOutput
-	verdicts       map[int64][]gate.VerdictRecord
-	routeCauses    map[int64][]looppkg.RouteCause
-	outputCalls    []int
-	workspaceCalls []string
-	lineageErr     error
-	outputErr      error
-	verdictErr     error
-	routeCauseErr  error
+	definitionSnapshot *looppkg.DefinitionSnapshot
+	lineage            []looppkg.LoopGeneration
+	outputs            map[int][]looppkg.GenerationOutput
+	verdicts           map[int64][]gate.VerdictRecord
+	routeCauses        map[int64][]looppkg.RouteCause
+	outputCalls        []int
+	workspaceCalls     []string
+	lineageErr         error
+	outputErr          error
+	verdictErr         error
+	routeCauseErr      error
+}
+
+func (s *loopRunHistoryPersistenceStub) GetLoopDefinitionSnapshot(
+	_ context.Context,
+	workspaceID looppkg.WorkspaceID,
+	digest string,
+) (looppkg.DefinitionSnapshot, error) {
+	if s.definitionSnapshot == nil || s.definitionSnapshot.WorkspaceID != workspaceID ||
+		s.definitionSnapshot.Digest != digest {
+		return looppkg.DefinitionSnapshot{}, looppkg.ErrDefinitionNotFound
+	}
+	return *s.definitionSnapshot, nil
 }
 
 type loopRunScopePersistenceStub struct {

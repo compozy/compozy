@@ -135,6 +135,8 @@ const (
 	ReattemptFailedOnly ReattemptStrategy = "failed_only"
 	// ReattemptFullBody retries the whole generation body.
 	ReattemptFullBody ReattemptStrategy = "full_body"
+	// ReattemptHalt leaves the failed generation terminal until an explicit rerun.
+	ReattemptHalt ReattemptStrategy = "halt"
 )
 
 // CompletionState records whether a terminal run satisfied full or partial coverage.
@@ -188,6 +190,7 @@ type EffectiveConfig struct {
 	Environment        dsl.EnvironmentSpec `json:"environment"`
 	Lifecycle          LifecycleConfig     `json:"lifecycle"`
 	RequestExpireAfter string              `json:"request_expire_after"`
+	Sources            map[string]string   `json:"sources,omitempty"`
 }
 
 // ConfigSnapshot keeps the stored override and daemon-resolved runtime config from one read.
@@ -218,6 +221,7 @@ type Run struct {
 	CreatedAt             time.Time
 	StartedAt             time.Time
 	LastProgressAt        time.Time
+	CompletedAt           *time.Time
 	StartedBy             task.ActorIdentity
 	StartedOrigin         task.Origin
 	DefinitionVersion     int

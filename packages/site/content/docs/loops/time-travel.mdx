@@ -39,7 +39,9 @@ compozy loop rerun --run-id <run-id> --from-node verify --reason "retry verifica
 Rerun opens a generation with origin `operator_rerun`. The selected node and its transitive dependents
 run again; unrelated settled cells carry forward. Add `--item <index>` to address one fan-out lane.
 
-The source run must have a settled generation, and the target cell cannot be pending or parked. Agents
+The source run must be terminal, and the target cell cannot be pending or parked. Pending downstream
+cells that never started rerun with the selected node, including dependents beyond an unmaterialized
+fan-out body. Pending cells outside that dependency chain and active cells still block rerun. Agents
 need `loops.timetravel`. An agent cannot rerun its own executing run, but it may rerun its own terminal
 run.
 

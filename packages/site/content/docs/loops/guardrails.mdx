@@ -95,6 +95,7 @@ gate rejection uses the gate's explicit route. They are separate controls.
 | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
 | Node failure with `failed_only` (default)                | Failed or pending nodes and their transitive dependents re-run; unrelated successful outputs carry forward.                  | `reattempt`            |
 | Node failure with `full_body`                            | The whole body re-runs.                                                                                                      | `reattempt`            |
+| Node failure with `halt`                                 | The run ends `failed`; no successor generation or new node reservation is admitted. An operator may still start an explicit rerun. | none               |
 | In-body gate rejection routed to `revise`                | Producers of every route-causing gate, those gates, and their dependents re-run; unrelated successful outputs carry forward. | `gate_revise`          |
 | Metric gate `revise` with an existing best               | The same producer-scoped repair runs, but carried outputs seed from the best generation.                                     | `ratchet_restore`      |
 | In-body gate rejection routed to `next_generation`       | A fresh full-body generation starts.                                                                                         | `gate_next_generation` |

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"strconv"
@@ -292,6 +293,62 @@ func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldLimitPerScope(t *testin
 			t.Fatalf("queued runs = %d, want one remaining per scope", got)
 		}
 	})
+}
+
+func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldIsolateInvalidSnapshots(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	now := time.Date(2026, 8, 26, 15, 30, 0, 0, time.UTC)
+	workspaceID := "ws-backstop-invalid-snapshot"
+	db := openDaemonTestGlobalDB(t)
+	if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
+		ID: workspaceID, RootDir: t.TempDir(), Name: workspaceID, CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("InsertWorkspace() error = %v", err)
+	}
+	runner := &schedulerInvalidSnapshotRunner{}
+	manager, err := taskpkg.NewManager(
+		taskpkg.WithStore(db),
+		taskpkg.WithCoordinatorRunner(runner),
+		taskpkg.WithGenerationStateFinalizer(schedulerBackstopGenerationFinalizer{}),
+		taskpkg.WithCoordinatorTerminalStatusValidator(func(status string) bool {
+			return looppkg.Status(strings.TrimSpace(status)).Valid()
+		}),
+		taskpkg.WithCoordinatorTerminalHookStatusValidator(func(status string) bool {
+			return looppkg.Status(strings.TrimSpace(status)).Terminal()
+		}),
+		taskpkg.WithManagerNow(func() time.Time { return now }),
+	)
+	if err != nil {
+		t.Fatalf("task.NewManager() error = %v", err)
+	}
+	seedCoordinatorBackstopRun(t, db, now, "invalid-snapshot", 0, workspaceID)
+	seedCoordinatorBackstopRun(t, db, now, "invalid-snapshot", 1, workspaceID)
+	actor := schedulerCoordinatorActorContextForTest(t)
+
+	started, err := (schedulerTaskSource{manager: manager, store: db}).RunLoopCoordinatorBackstop(
+		ctx,
+		now,
+		actor,
+	)
+	if err != nil {
+		t.Fatalf("RunLoopCoordinatorBackstop() error = %v", err)
+	}
+	if started != 1 {
+		t.Fatalf("started = %d, want one healthy coordinator", started)
+	}
+	failed, err := db.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{taskpkg.TaskRunStatusFailed})
+	if err != nil {
+		t.Fatalf("ListTaskRunsByStatus(failed) error = %v", err)
+	}
+	completed, err := db.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{taskpkg.TaskRunStatusCompleted})
+	if err != nil {
+		t.Fatalf("ListTaskRunsByStatus(completed) error = %v", err)
+	}
+	if len(failed) != 1 || len(completed) != 1 {
+		t.Fatalf("failed/completed coordinators = %d/%d, want 1/1", len(failed), len(completed))
+	}
 }
 
 func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldDeferAtWorkspaceCapacity(t *testing.T) {
@@ -1275,6 +1332,24 @@ func (schedulerBackstopCoordinatorRunner) Run(
 			Cause:  "backstop-test",
 		},
 	}, nil
+}
+
+type schedulerInvalidSnapshotRunner struct {
+	calls int
+}
+
+func (r *schedulerInvalidSnapshotRunner) Run(
+	ctx context.Context,
+	runID taskpkg.RunID,
+) (taskpkg.CoordinatorCompletionPlan, error) {
+	r.calls++
+	if r.calls == 1 {
+		return taskpkg.CoordinatorCompletionPlan{}, fmt.Errorf(
+			"load pinned definition: %w",
+			looppkg.ErrExecutedDefinitionSnapshot,
+		)
+	}
+	return schedulerBackstopCoordinatorRunner{}.Run(ctx, runID)
 }
 
 type schedulerBackstopGenerationFinalizer struct{}

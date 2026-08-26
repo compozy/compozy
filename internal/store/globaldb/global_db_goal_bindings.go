@@ -11,7 +11,8 @@ import (
 )
 
 var (
-	_ goal.BindingStore = (*GoalRepo)(nil)
+	_ goal.BindingStore            = (*GoalRepo)(nil)
+	_ goal.BindingAttemptAllocator = (*GoalRepo)(nil)
 )
 
 // GetOrCreateSessionBinding atomically adopts an origin session or returns the compatible active epoch.

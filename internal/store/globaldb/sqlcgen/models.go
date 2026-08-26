@@ -975,6 +975,7 @@ type LoopRun struct {
 	Generation               int64           `json:"generation"`
 	ReattemptStrategy        string          `json:"reattempt_strategy"`
 	LastProgressAt           time.Time       `json:"last_progress_at"`
+	CompletedAt              sql.NullTime    `json:"completed_at"`
 	BudgetTokens             int64           `json:"budget_tokens"`
 	BudgetWallSec            int64           `json:"budget_wall_sec"`
 	BudgetOnExceeded         string          `json:"budget_on_exceeded"`

@@ -7,6 +7,11 @@ import (
 )
 
 func deterministicBindingIdentity(key TurnKey, handle string, epoch int64) (string, string) {
+	return DeriveBindingIdentity(key, handle, epoch)
+}
+
+// DeriveBindingIdentity returns the deterministic attempt and session identities for one epoch.
+func DeriveBindingIdentity(key TurnKey, handle string, epoch int64) (string, string) {
 	material := fmt.Sprintf(
 		"%s\x00%s\x00%d\x00%s\x00%d\x00%s\x00%d",
 		key.LoopRunID,

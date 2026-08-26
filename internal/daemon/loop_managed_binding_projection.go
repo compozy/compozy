@@ -8,6 +8,7 @@ import (
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
+	"github.com/compozy/compozy/internal/session"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -29,6 +30,71 @@ func (b *loopActionSessionBinder) prepareBindingAttempt(
 		PolicySpecDigest:   identity.PolicySpecDigest,
 		CreationDigest:     identity.CreationDigest,
 	})
+}
+
+func (b *loopActionSessionBinder) prepareRunOwnedBinding(
+	ctx context.Context,
+	req looppkg.ActionSessionBindRequest,
+	key goalpkg.BindingKey,
+	profile store.SessionCreationProfile,
+	opts session.CreateOpts,
+) (goalpkg.SessionBinding, store.SessionCreationIdentity, error) {
+	if strings.TrimSpace(req.ExpectedCheckpointPhase) != "" {
+		if b.bindingAllocator == nil {
+			return goalpkg.SessionBinding{}, store.SessionCreationIdentity{}, errors.New(
+				"daemon: Goal binding attempt allocator is unavailable",
+			)
+		}
+		prepared, err := b.bindingAllocator.AllocateSessionBindingAttempt(
+			ctx,
+			goalpkg.AllocateBindingAttemptRequest{
+				Key:                            key,
+				CheckpointKey:                  bindingCheckpointKey(req),
+				ExpectedControlEpoch:           req.ExpectedControlEpoch,
+				ExpectedCheckpointPhase:        req.ExpectedCheckpointPhase,
+				ExpectedTaskRunID:              req.ExpectedTaskRunID,
+				ExpectedQueueEntryID:           req.ExpectedQueueEntryID,
+				ExpectedPromptID:               req.ExpectedPromptID,
+				ExpectedCheckpointBindingEpoch: req.ExpectedCheckpointBindingEpoch,
+				ExpectedCheckpointSessionID:    req.ExpectedCheckpointSessionID,
+				ExpectedCheckpointHandle:       req.ExpectedCheckpointHandle,
+				IdentityHandle:                 strings.TrimSpace(req.Handle),
+				CreationProfile:                profile,
+				CreationOptions:                bindingCreationOptions(opts, ""),
+			},
+		)
+		if err != nil {
+			return goalpkg.SessionBinding{}, store.SessionCreationIdentity{}, err
+		}
+		return prepared, bindingIdentityFromGoal(prepared), nil
+	}
+
+	epoch := req.TargetBindingEpoch
+	attemptID, sessionID := bindingAttemptIdentity(req, epoch)
+	identity, err := bindingCreationIdentity(profile, opts, sessionID)
+	if err != nil {
+		return goalpkg.SessionBinding{}, store.SessionCreationIdentity{}, err
+	}
+	prepared, err := b.prepareBindingAttempt(ctx, key, epoch, attemptID, sessionID, identity)
+	return prepared, identity, err
+}
+
+func bindingCheckpointKey(req looppkg.ActionSessionBindRequest) goalpkg.TurnKey {
+	return goalpkg.TurnKey{
+		WorkspaceID: req.WorkspaceID,
+		LoopRunID:   req.LoopRunID,
+		Generation:  req.Generation,
+		NodeID:      req.NodeID,
+		ItemIndex:   req.ItemIndex,
+	}
+}
+
+func bindingIdentityFromGoal(binding goalpkg.SessionBinding) store.SessionCreationIdentity {
+	return store.SessionCreationIdentity{
+		CreationProfileRef: binding.CreationProfileRef,
+		PolicySpecDigest:   binding.PolicySpecDigest,
+		CreationDigest:     binding.CreationDigest,
+	}
 }
 
 func activationRequest(

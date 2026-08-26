@@ -299,6 +299,12 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 					DryRun: &contract.LoopPlanPayload{
 						LoopName:       "release",
 						ResolvedInputs: request.Inputs,
+						EffectiveConfig: contract.LoopEffectiveConfig{
+							IterationCap: 14,
+							Sources: map[string]string{
+								"/iteration_cap": "per_run",
+							},
+						},
 						InputOrigins: map[string]contract.LoopInputOrigin{
 							"target":  contract.LoopInputOriginRun,
 							"enabled": contract.LoopInputOriginRun,
@@ -399,6 +405,7 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 		}
 		if !strings.Contains(human, `Input enabled=true (origin: run)`) ||
 			!strings.Contains(human, `Input target="prod" (origin: run)`) ||
+			!strings.Contains(human, `Effective iteration cap=14 (source: per_run)`) ||
 			strings.Contains(human, "/loop-runs/") {
 			t.Fatalf("loop run dry human = %q, want effective origins without a link", human)
 		}
@@ -796,6 +803,13 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 				BestGeneration: &bestGeneration,
 				BestScore:      &bestScore,
 			},
+			EffectiveConfig: contract.LoopEffectiveConfig{
+				IterationCap:      9,
+				ReattemptStrategy: contract.LoopReattemptHalt,
+				Sources: map[string]string{
+					"/iteration_cap": "definition",
+				},
+			},
 			Generations: []contract.LoopGenerationPayload{{
 				Generation:       2,
 				ParentGeneration: 1,
@@ -842,6 +856,21 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 			decoded.Generations[0].Origin != contract.LoopGenerationOriginGateRevise ||
 			len(decoded.Generations[0].Verdicts) != 1 {
 			t.Fatalf("loop status generations = %#v, want provenance and verdict detail", decoded.Generations)
+		}
+		if got := decoded.EffectiveConfig.Sources["/iteration_cap"]; got != "definition" {
+			t.Fatalf("loop status iteration source = %q, want definition", got)
+		}
+		human, _, err := executeRootCommand(
+			t,
+			deps,
+			"loop", "status", "--workspace", "alpha", "--run-id", "run-detail",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(loop status human) error = %v", err)
+		}
+		if !strings.Contains(human, "Reattempt strategy") ||
+			!strings.Contains(human, "/iteration_cap=definition") {
+			t.Fatalf("loop status human = %q, want effective config provenance", human)
 		}
 
 		response.Run.BestGeneration = nil

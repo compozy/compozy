@@ -62,6 +62,7 @@ type LoopRunPayload struct {
 	CreatedAt                    time.Time             `json:"created_at"`
 	StartedAt                    time.Time             `json:"started_at"`
 	LastProgressAt               time.Time             `json:"last_progress_at"`
+	CompletedAt                  *time.Time            `json:"completed_at,omitempty"`
 	StartedByKind                string                `json:"started_by_kind,omitempty"`
 	StartedByRef                 string                `json:"started_by_ref,omitempty"`
 	StartedOriginKind            string                `json:"started_origin_kind,omitempty"`
@@ -120,6 +121,7 @@ type LoopRunResponse struct {
 	Run                  LoopRunPayload             `json:"run"`
 	ExecutedDefinition   *LoopDefinitionDocument    `json:"executed_definition,omitempty"`
 	MaterializedContract LoopContract               `json:"materialized_contract"`
+	EffectiveConfig      LoopEffectiveConfig        `json:"effective_config"`
 	Generations          []LoopGenerationPayload    `json:"generations,omitempty"`
 	NodeControls         []LoopNodeControlPayload   `json:"node_controls"`
 	Waits                []LoopNodeWaitPayload      `json:"waits"`

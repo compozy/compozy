@@ -10,6 +10,8 @@ import (
 var (
 	// ErrValidation reports invalid loop-domain input.
 	ErrValidation = errors.New("loop: validation failed")
+	// ErrExecutedDefinitionSnapshot reports a Run-owned snapshot that cannot be loaded safely.
+	ErrExecutedDefinitionSnapshot = errors.New("loop: executed definition snapshot unavailable")
 	// ErrDefinitionReadOnly reports an attempted mutation of a non-workspace definition.
 	ErrDefinitionReadOnly = errors.New("loop: definition is read-only")
 	// ErrRunNotFound reports a missing loop_run aggregate.

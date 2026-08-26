@@ -3559,6 +3559,58 @@ func TestGlobalDBTaskRunForceOperations(t *testing.T) {
 		}
 	})
 
+	t.Run("Should recover a session-bound source after its session was deleted", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		taskRecord := taskRecordForTest("task-recover-deleted-session")
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := taskRunForTest("run-recover-deleted-session", taskRecord.ID)
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		sessionID := registerInputQueueSession(t, globalDB)
+		claimed := run
+		claimed.Status = taskpkg.TaskRunStatusClaimed
+		claimed.ClaimedBy = actorForTest(taskpkg.ActorKindAgentSession, sessionID)
+		claimed.SessionID = sessionID
+		claimed.ClaimTokenHash = "sha256:" + strings.Repeat("d", 64)
+		claimed.ClaimedAt = run.QueuedAt.Add(time.Second)
+		claimed.HeartbeatAt = claimed.ClaimedAt
+		claimed.LeaseUntil = claimed.ClaimedAt.Add(5 * time.Minute)
+		if err := globalDB.UpdateNonTerminalTaskRun(ctx, claimed); err != nil {
+			t.Fatalf("UpdateNonTerminalTaskRun(claimed) error = %v", err)
+		}
+		manager, err := taskpkg.NewManager(taskpkg.WithStore(globalDB))
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		actor := operatorActorContextForTest("operator:recover-deleted-session")
+		if _, err := manager.MarkRunNeedsAttention(ctx, run.ID, "operator review", actor); err != nil {
+			t.Fatalf("MarkRunNeedsAttention() error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `DELETE FROM sessions WHERE id = ?`, sessionID); err != nil {
+			t.Fatalf("delete session error = %v", err)
+		}
+
+		recovered, err := manager.RecoverRun(
+			ctx,
+			run.ID,
+			taskpkg.RecoverRunRequest{Reason: "resume work"},
+			actor,
+		)
+		if err != nil {
+			t.Fatalf("RecoverRun() error = %v", err)
+		}
+		if recovered.PreviousRun.Status.Normalize() != taskpkg.TaskRunStatusFailed ||
+			recovered.Run.Status.Normalize() != taskpkg.TaskRunStatusQueued {
+			t.Fatalf("RecoverRun() = %#v, want source failed and child queued", recovered)
+		}
+	})
+
 	t.Run("Should reject every stale lifecycle fence in purpose-specific force writers", func(t *testing.T) {
 		t.Parallel()
 

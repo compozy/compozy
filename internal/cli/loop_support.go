@@ -374,6 +374,11 @@ func loopRunOutputBundle(response contract.RunLoopResponse, summary string) outp
 					response.DryRun.InputOrigins[key],
 				))
 			}
+			lines = append(lines, fmt.Sprintf(
+				"Effective iteration cap=%d (source: %s)",
+				response.DryRun.EffectiveConfig.IterationCap,
+				response.DryRun.EffectiveConfig.Sources["/iteration_cap"],
+			))
 		}
 		if strings.TrimSpace(response.WebURL) != "" {
 			lines = append(lines, strings.TrimSpace(response.WebURL))

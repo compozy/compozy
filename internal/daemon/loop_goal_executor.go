@@ -30,6 +30,7 @@ type loopGoalProductionStore interface {
 	loopGoalExecutorStore
 	loopGoalPromptRecoveryStore
 	goalpkg.BindingStore
+	goalpkg.BindingAttemptAllocator
 	store.SessionCreationStore
 }
 

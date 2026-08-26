@@ -17,6 +17,7 @@ import (
 type loopActionSessionBinder struct {
 	sessions            loopPromptSessionManager
 	bindings            goalpkg.BindingStore
+	bindingAllocator    goalpkg.BindingAttemptAllocator
 	prompts             loopGoalPromptRuntimeStore
 	creationStore       store.SessionCreationStore
 	managedInputs       loopManagedInputSessionManager
@@ -199,15 +200,15 @@ func (b *loopActionSessionBinder) ensureRunOwnedBinding(
 	if err != nil {
 		return looppkg.ActionSessionBinding{}, err
 	}
-	epoch := req.TargetBindingEpoch
-	attemptID, sessionID := bindingAttemptIdentity(req, epoch)
-	identity, err := bindingCreationIdentity(profile, opts, sessionID)
+	prepared, identity, err := b.prepareRunOwnedBinding(ctx, req, key, profile, opts)
 	if err != nil {
 		return looppkg.ActionSessionBinding{}, b.rollbackLoopActionEnvironment(ctx, req, materialized, err)
 	}
-	prepared, err := b.prepareBindingAttempt(ctx, key, epoch, attemptID, sessionID, identity)
-	if err != nil {
-		return looppkg.ActionSessionBinding{}, b.rollbackLoopActionEnvironment(ctx, req, materialized, err)
+	if prepared.State == goalpkg.BindingStateActive {
+		if cleanupErr := b.rollbackLoopActionEnvironment(ctx, req, materialized, nil); cleanupErr != nil {
+			return looppkg.ActionSessionBinding{}, cleanupErr
+		}
+		return actionBindingFromGoal(req, prepared, appliedRuntimeFromCreateOptions(opts)), nil
 	}
 	opts.DesiredSessionID = prepared.SessionID
 	opts.CreationProfile = cloneStoreCreationProfile(profile)

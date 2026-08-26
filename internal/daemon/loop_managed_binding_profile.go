@@ -259,14 +259,7 @@ func bindingCreationIdentity(
 	if err != nil {
 		return store.SessionCreationIdentity{}, err
 	}
-	networkParticipation := participationSnapshotValue(opts.ResolvedNetworkParticipation)
-	creationDigest, err := profile.CreationDigest(store.SessionCreationOptions{
-		SessionID:            sessionID,
-		Name:                 opts.Name,
-		NetworkOwnerKey:      opts.NetworkOwnerKey,
-		NetworkParticipation: networkParticipation,
-		SessionType:          string(opts.Type),
-	})
+	creationDigest, err := profile.CreationDigest(bindingCreationOptions(opts, sessionID))
 	if err != nil {
 		return store.SessionCreationIdentity{}, err
 	}
@@ -275,6 +268,16 @@ func bindingCreationIdentity(
 		PolicySpecDigest:   policyDigest,
 		CreationDigest:     creationDigest,
 	}, nil
+}
+
+func bindingCreationOptions(opts session.CreateOpts, sessionID string) store.SessionCreationOptions {
+	return store.SessionCreationOptions{
+		SessionID:            strings.TrimSpace(sessionID),
+		Name:                 opts.Name,
+		NetworkOwnerKey:      opts.NetworkOwnerKey,
+		NetworkParticipation: participationSnapshotValue(opts.ResolvedNetworkParticipation),
+		SessionType:          string(opts.Type),
+	}
 }
 
 func bindingAttemptIdentity(req looppkg.ActionSessionBindRequest, epoch int64) (string, string) {

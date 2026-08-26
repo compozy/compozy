@@ -49,25 +49,49 @@ func definitionRuntimeConfig(definition dsl.Definition) (*RuntimeDefaults, []Run
 	return defaults, cloneRuntimeRules(definition.Contract.RuntimeRules)
 }
 
-func mergeRuntimeConfigLayer(effective *EffectiveConfig, layer LoopConfig) {
+func mergeRuntimeConfigLayer(effective *EffectiveConfig, layer LoopConfig, source string) {
 	if layer.RuntimeDefaults != nil {
-		mergeRuntimeSpec(&effective.RuntimeDefaults.Worker, layer.RuntimeDefaults.Worker)
-		mergeRuntimeSpec(&effective.RuntimeDefaults.Judge, layer.RuntimeDefaults.Judge)
+		mergeRuntimeSpec(
+			effective,
+			&effective.RuntimeDefaults.Worker,
+			layer.RuntimeDefaults.Worker,
+			"/runtime_defaults/worker",
+			source,
+		)
+		mergeRuntimeSpec(
+			effective,
+			&effective.RuntimeDefaults.Judge,
+			layer.RuntimeDefaults.Judge,
+			"/runtime_defaults/judge",
+			source,
+		)
 	}
+	start := len(effective.RuntimeRules)
 	effective.RuntimeRules = append(effective.RuntimeRules, cloneRuntimeRules(layer.RuntimeRules)...)
+	setRuntimeRuleSources(effective, "/runtime_rules", start, len(layer.RuntimeRules), source)
 }
 
-func mergeRuntimeSpec(target *RuntimeSpec, layer RuntimeSpec) {
+func mergeRuntimeSpec(
+	effective *EffectiveConfig,
+	target *RuntimeSpec,
+	layer RuntimeSpec,
+	path string,
+	source string,
+) {
 	if value := strings.TrimSpace(layer.Provider); value != "" {
 		target.Provider = value
+		setEffectiveConfigSource(effective, path+"/provider", source)
 	}
 	if value := strings.TrimSpace(layer.Model); value != "" {
 		target.Model = value
+		setEffectiveConfigSource(effective, path+"/model", source)
 	}
 	if value := strings.TrimSpace(layer.Reasoning); value != "" {
 		target.Reasoning = value
+		setEffectiveConfigSource(effective, path+"/reasoning", source)
 	}
 	if value := strings.TrimSpace(string(layer.Speed)); value != "" {
 		target.Speed = layer.Speed
+		setEffectiveConfigSource(effective, path+"/speed", source)
 	}
 }

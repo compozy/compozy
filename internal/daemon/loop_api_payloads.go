@@ -117,6 +117,7 @@ func loopRunPayload(run looppkg.Run) (contract.LoopRunPayload, error) {
 		CreatedAt:                    run.CreatedAt,
 		StartedAt:                    run.StartedAt,
 		LastProgressAt:               run.LastProgressAt,
+		CompletedAt:                  cloneOptional(run.CompletedAt),
 		StartedByKind:                string(run.StartedBy.Kind),
 		StartedByRef:                 run.StartedBy.Ref,
 		StartedOriginKind:            string(run.StartedOrigin.Kind),

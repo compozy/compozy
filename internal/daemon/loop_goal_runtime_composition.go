@@ -23,6 +23,7 @@ func newLoopGoalProductionRuntime(
 	binder := &loopActionSessionBinder{
 		sessions:            sessions,
 		bindings:            goalStore,
+		bindingAllocator:    goalStore,
 		prompts:             goalStore,
 		creationStore:       goalStore,
 		managedInputs:       managedInputs,

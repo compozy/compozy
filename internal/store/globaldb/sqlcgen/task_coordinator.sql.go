@@ -194,8 +194,9 @@ SET status = ?1,
 	completion_state = CASE
 		WHEN ?4 = 1 THEN 'partial'
 		ELSE completion_state
-	END
-WHERE id = ?5 AND status = ?6
+	END,
+	completed_at = NULLIF(CAST(?5 AS TEXT), '')
+WHERE id = ?6 AND status = ?7
 `
 
 type TransitionLoopCoordinatorBoundaryParams struct {
@@ -203,6 +204,7 @@ type TransitionLoopCoordinatorBoundaryParams struct {
 	Generation          int64  `json:"generation"`
 	NeedsApprovalStatus string `json:"needs_approval_status"`
 	CompletionPartial   any    `json:"completion_partial"`
+	CompletedAt         string `json:"completed_at"`
 	ID                  string `json:"id"`
 	FromStatus          string `json:"from_status"`
 }
@@ -213,6 +215,7 @@ func (q *Queries) TransitionLoopCoordinatorBoundary(ctx context.Context, arg Tra
 		arg.Generation,
 		arg.NeedsApprovalStatus,
 		arg.CompletionPartial,
+		arg.CompletedAt,
 		arg.ID,
 		arg.FromStatus,
 	)

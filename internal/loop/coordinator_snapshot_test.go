@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"reflect"
@@ -114,6 +115,46 @@ func TestCoordinatorRunnerShouldExecutePinnedDefinitionSnapshot(t *testing.T) {
 		}
 	})
 
+	t.Run(
+		"Should hydrate persisted bytes written before an optional effective config field existed",
+		func(t *testing.T) {
+			t.Parallel()
+
+			resolved, err := NewCompiler().Compile(pinnedSnapshotDefinition())
+			if err != nil {
+				t.Fatalf("Compile() error = %v", err)
+			}
+			current, _, err := BuildExecutedDefinitionSnapshot(resolved, snapshotEffectiveConfig())
+			if err != nil {
+				t.Fatalf("BuildExecutedDefinitionSnapshot() error = %v", err)
+			}
+			var persisted map[string]any
+			if err := json.Unmarshal(current, &persisted); err != nil {
+				t.Fatalf("json.Unmarshal(current snapshot) error = %v", err)
+			}
+			effective, ok := persisted["effective_config"].(map[string]any)
+			if !ok {
+				t.Fatalf("effective_config = %#v, want JSON object", persisted["effective_config"])
+			}
+			delete(effective, "request_expire_after")
+			raw, err := json.Marshal(persisted)
+			if err != nil {
+				t.Fatalf("json.Marshal(previous snapshot) error = %v", err)
+			}
+
+			hydrated, err := LoadExecutedDefinitionSnapshot(raw, executedDefinitionDigest(raw))
+			if err != nil {
+				t.Fatalf("LoadExecutedDefinitionSnapshot(previous bytes) error = %v", err)
+			}
+			if hydrated.EffectiveConfig.RequestExpireAfter != "" {
+				t.Fatalf(
+					"hydrated request_expire_after = %q, want zero value",
+					hydrated.EffectiveConfig.RequestExpireAfter,
+				)
+			}
+		},
+	)
+
 	t.Run("Should hydrate a snapshot with omitted optional definition extensions", func(t *testing.T) {
 		t.Parallel()
 
@@ -197,6 +238,12 @@ func TestCoordinatorRunnerShouldExecutePinnedDefinitionSnapshot(t *testing.T) {
 		effective.RuntimeDefaults = RuntimeDefaults{
 			Worker: RuntimeSpec{Model: "worker-v1"},
 			Judge:  RuntimeSpec{Model: "judge-v1"},
+		}
+		effective.Sources = map[string]string{"/iteration_cap": EffectiveConfigSourcePerRun}
+		owned := cloneEffectiveConfig(effective)
+		owned.Sources["/iteration_cap"] = EffectiveConfigSourceBuiltin
+		if effective.Sources["/iteration_cap"] != EffectiveConfigSourcePerRun {
+			t.Fatal("cloneEffectiveConfig() aliased Sources")
 		}
 
 		snapshotJSON, digest, err := BuildExecutedDefinitionSnapshot(resolved, effective)

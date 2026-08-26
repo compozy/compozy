@@ -250302,6 +250302,11 @@
                           "budget_wall_sec": {
                             "type": "integer"
                           },
+                          "completed_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
                           "completion_state": {
                             "enum": [
                               "complete",
@@ -250419,7 +250424,8 @@
                           "reattempt_strategy": {
                             "enum": [
                               "failed_only",
-                              "full_body"
+                              "full_body",
+                              "halt"
                             ],
                             "type": "string"
                           },
@@ -251002,6 +251008,237 @@
                         "type": "object"
                       },
                       "type": "array"
+                    },
+                    "effective_config": {
+                      "properties": {
+                        "budget_on_exceeded": {
+                          "enum": [
+                            "halt",
+                            "escalate"
+                          ],
+                          "type": "string"
+                        },
+                        "budget_tokens": {
+                          "type": "integer"
+                        },
+                        "budget_wall_sec": {
+                          "type": "integer"
+                        },
+                        "enabled_checks_json": {},
+                        "environment": {
+                          "properties": {
+                            "directory": {
+                              "type": "string"
+                            },
+                            "mode": {
+                              "enum": [
+                                "root",
+                                "worktree",
+                                "per_run",
+                                "directory"
+                              ],
+                              "type": "string"
+                            },
+                            "worktree_ref": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "mode"
+                          ],
+                          "type": "object"
+                        },
+                        "fan_out_width": {
+                          "type": "integer"
+                        },
+                        "gate_max_revisions": {
+                          "type": "integer"
+                        },
+                        "human_gate_enabled": {
+                          "type": "boolean"
+                        },
+                        "iteration_cap": {
+                          "type": "integer"
+                        },
+                        "no_progress_window": {
+                          "type": "integer"
+                        },
+                        "reattempt_strategy": {
+                          "enum": [
+                            "failed_only",
+                            "full_body",
+                            "halt"
+                          ],
+                          "type": "string"
+                        },
+                        "request_expire_after": {
+                          "type": "string"
+                        },
+                        "run_runtime_rules": {
+                          "items": {
+                            "properties": {
+                              "match": {
+                                "properties": {
+                                  "complexity": {
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                },
+                                "type": "object"
+                              },
+                              "runtime": {
+                                "properties": {
+                                  "model": {
+                                    "type": "string"
+                                  },
+                                  "provider": {
+                                    "type": "string"
+                                  },
+                                  "reasoning": {
+                                    "type": "string"
+                                  },
+                                  "speed": {
+                                    "enum": [
+                                      "normal",
+                                      "fast"
+                                    ],
+                                    "type": "string"
+                                  }
+                                },
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "match",
+                              "runtime"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "runtime_defaults": {
+                          "properties": {
+                            "judge": {
+                              "properties": {
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning": {
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "worker": {
+                              "properties": {
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning": {
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "runtime_rules": {
+                          "items": {
+                            "properties": {
+                              "match": {
+                                "properties": {
+                                  "complexity": {
+                                    "type": "string"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "type": "string"
+                                  }
+                                },
+                                "type": "object"
+                              },
+                              "runtime": {
+                                "properties": {
+                                  "model": {
+                                    "type": "string"
+                                  },
+                                  "provider": {
+                                    "type": "string"
+                                  },
+                                  "reasoning": {
+                                    "type": "string"
+                                  },
+                                  "speed": {
+                                    "enum": [
+                                      "normal",
+                                      "fast"
+                                    ],
+                                    "type": "string"
+                                  }
+                                },
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "match",
+                              "runtime"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "sources": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "budget_on_exceeded",
+                        "budget_tokens",
+                        "budget_wall_sec",
+                        "enabled_checks_json",
+                        "environment",
+                        "fan_out_width",
+                        "gate_max_revisions",
+                        "human_gate_enabled",
+                        "iteration_cap",
+                        "no_progress_window",
+                        "reattempt_strategy",
+                        "request_expire_after",
+                        "runtime_defaults",
+                        "runtime_rules"
+                      ],
+                      "type": "object"
                     },
                     "executed_definition": {
                       "nullable": true,
@@ -254112,6 +254349,11 @@
                         "budget_wall_sec": {
                           "type": "integer"
                         },
+                        "completed_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
                         "completion_state": {
                           "enum": [
                             "complete",
@@ -254229,7 +254471,8 @@
                         "reattempt_strategy": {
                           "enum": [
                             "failed_only",
-                            "full_body"
+                            "full_body",
+                            "halt"
                           ],
                           "type": "string"
                         },
@@ -254589,6 +254832,7 @@
                   },
                   "required": [
                     "amendments",
+                    "effective_config",
                     "materialized_contract",
                     "node_controls",
                     "requests",
@@ -257300,7 +257544,8 @@
                             "reattempt_strategy": {
                               "enum": [
                                 "failed_only",
-                                "full_body"
+                                "full_body",
+                                "halt"
                               ],
                               "type": "string"
                             }
@@ -257972,6 +258217,11 @@
                         "budget_wall_sec": {
                           "type": "integer"
                         },
+                        "completed_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
                         "completion_state": {
                           "enum": [
                             "complete",
@@ -258089,7 +258339,8 @@
                         "reattempt_strategy": {
                           "enum": [
                             "failed_only",
-                            "full_body"
+                            "full_body",
+                            "halt"
                           ],
                           "type": "string"
                         },
@@ -273660,6 +273911,238 @@
                         "description": {
                           "type": "string"
                         },
+                        "effective_config": {
+                          "nullable": true,
+                          "properties": {
+                            "budget_on_exceeded": {
+                              "enum": [
+                                "halt",
+                                "escalate"
+                              ],
+                              "type": "string"
+                            },
+                            "budget_tokens": {
+                              "type": "integer"
+                            },
+                            "budget_wall_sec": {
+                              "type": "integer"
+                            },
+                            "enabled_checks_json": {},
+                            "environment": {
+                              "properties": {
+                                "directory": {
+                                  "type": "string"
+                                },
+                                "mode": {
+                                  "enum": [
+                                    "root",
+                                    "worktree",
+                                    "per_run",
+                                    "directory"
+                                  ],
+                                  "type": "string"
+                                },
+                                "worktree_ref": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "mode"
+                              ],
+                              "type": "object"
+                            },
+                            "fan_out_width": {
+                              "type": "integer"
+                            },
+                            "gate_max_revisions": {
+                              "type": "integer"
+                            },
+                            "human_gate_enabled": {
+                              "type": "boolean"
+                            },
+                            "iteration_cap": {
+                              "type": "integer"
+                            },
+                            "no_progress_window": {
+                              "type": "integer"
+                            },
+                            "reattempt_strategy": {
+                              "enum": [
+                                "failed_only",
+                                "full_body",
+                                "halt"
+                              ],
+                              "type": "string"
+                            },
+                            "request_expire_after": {
+                              "type": "string"
+                            },
+                            "run_runtime_rules": {
+                              "items": {
+                                "properties": {
+                                  "match": {
+                                    "properties": {
+                                      "complexity": {
+                                        "type": "string"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "type": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "runtime": {
+                                    "properties": {
+                                      "model": {
+                                        "type": "string"
+                                      },
+                                      "provider": {
+                                        "type": "string"
+                                      },
+                                      "reasoning": {
+                                        "type": "string"
+                                      },
+                                      "speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
+                                        "type": "string"
+                                      }
+                                    },
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "match",
+                                  "runtime"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "runtime_defaults": {
+                              "properties": {
+                                "judge": {
+                                  "properties": {
+                                    "model": {
+                                      "type": "string"
+                                    },
+                                    "provider": {
+                                      "type": "string"
+                                    },
+                                    "reasoning": {
+                                      "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "worker": {
+                                  "properties": {
+                                    "model": {
+                                      "type": "string"
+                                    },
+                                    "provider": {
+                                      "type": "string"
+                                    },
+                                    "reasoning": {
+                                      "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "type": "object"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "runtime_rules": {
+                              "items": {
+                                "properties": {
+                                  "match": {
+                                    "properties": {
+                                      "complexity": {
+                                        "type": "string"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "type": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "runtime": {
+                                    "properties": {
+                                      "model": {
+                                        "type": "string"
+                                      },
+                                      "provider": {
+                                        "type": "string"
+                                      },
+                                      "reasoning": {
+                                        "type": "string"
+                                      },
+                                      "speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
+                                        "type": "string"
+                                      }
+                                    },
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "match",
+                                  "runtime"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "sources": {
+                              "additionalProperties": {
+                                "type": "string"
+                              },
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "budget_on_exceeded",
+                            "budget_tokens",
+                            "budget_wall_sec",
+                            "enabled_checks_json",
+                            "environment",
+                            "fan_out_width",
+                            "gate_max_revisions",
+                            "human_gate_enabled",
+                            "iteration_cap",
+                            "no_progress_window",
+                            "reattempt_strategy",
+                            "request_expire_after",
+                            "runtime_defaults",
+                            "runtime_rules"
+                          ],
+                          "type": "object"
+                        },
                         "effective_lifecycle": {
                           "nullable": true,
                           "properties": {
@@ -276593,6 +277076,238 @@
                         },
                         "description": {
                           "type": "string"
+                        },
+                        "effective_config": {
+                          "nullable": true,
+                          "properties": {
+                            "budget_on_exceeded": {
+                              "enum": [
+                                "halt",
+                                "escalate"
+                              ],
+                              "type": "string"
+                            },
+                            "budget_tokens": {
+                              "type": "integer"
+                            },
+                            "budget_wall_sec": {
+                              "type": "integer"
+                            },
+                            "enabled_checks_json": {},
+                            "environment": {
+                              "properties": {
+                                "directory": {
+                                  "type": "string"
+                                },
+                                "mode": {
+                                  "enum": [
+                                    "root",
+                                    "worktree",
+                                    "per_run",
+                                    "directory"
+                                  ],
+                                  "type": "string"
+                                },
+                                "worktree_ref": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "mode"
+                              ],
+                              "type": "object"
+                            },
+                            "fan_out_width": {
+                              "type": "integer"
+                            },
+                            "gate_max_revisions": {
+                              "type": "integer"
+                            },
+                            "human_gate_enabled": {
+                              "type": "boolean"
+                            },
+                            "iteration_cap": {
+                              "type": "integer"
+                            },
+                            "no_progress_window": {
+                              "type": "integer"
+                            },
+                            "reattempt_strategy": {
+                              "enum": [
+                                "failed_only",
+                                "full_body",
+                                "halt"
+                              ],
+                              "type": "string"
+                            },
+                            "request_expire_after": {
+                              "type": "string"
+                            },
+                            "run_runtime_rules": {
+                              "items": {
+                                "properties": {
+                                  "match": {
+                                    "properties": {
+                                      "complexity": {
+                                        "type": "string"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "type": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "runtime": {
+                                    "properties": {
+                                      "model": {
+                                        "type": "string"
+                                      },
+                                      "provider": {
+                                        "type": "string"
+                                      },
+                                      "reasoning": {
+                                        "type": "string"
+                                      },
+                                      "speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
+                                        "type": "string"
+                                      }
+                                    },
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "match",
+                                  "runtime"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "runtime_defaults": {
+                              "properties": {
+                                "judge": {
+                                  "properties": {
+                                    "model": {
+                                      "type": "string"
+                                    },
+                                    "provider": {
+                                      "type": "string"
+                                    },
+                                    "reasoning": {
+                                      "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "worker": {
+                                  "properties": {
+                                    "model": {
+                                      "type": "string"
+                                    },
+                                    "provider": {
+                                      "type": "string"
+                                    },
+                                    "reasoning": {
+                                      "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "type": "object"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "runtime_rules": {
+                              "items": {
+                                "properties": {
+                                  "match": {
+                                    "properties": {
+                                      "complexity": {
+                                        "type": "string"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "type": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "runtime": {
+                                    "properties": {
+                                      "model": {
+                                        "type": "string"
+                                      },
+                                      "provider": {
+                                        "type": "string"
+                                      },
+                                      "reasoning": {
+                                        "type": "string"
+                                      },
+                                      "speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
+                                        "type": "string"
+                                      }
+                                    },
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "match",
+                                  "runtime"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "sources": {
+                              "additionalProperties": {
+                                "type": "string"
+                              },
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "budget_on_exceeded",
+                            "budget_tokens",
+                            "budget_wall_sec",
+                            "enabled_checks_json",
+                            "environment",
+                            "fan_out_width",
+                            "gate_max_revisions",
+                            "human_gate_enabled",
+                            "iteration_cap",
+                            "no_progress_window",
+                            "reattempt_strategy",
+                            "request_expire_after",
+                            "runtime_defaults",
+                            "runtime_rules"
+                          ],
+                          "type": "object"
                         },
                         "effective_lifecycle": {
                           "nullable": true,
@@ -280833,6 +281548,238 @@
                         "description": {
                           "type": "string"
                         },
+                        "effective_config": {
+                          "nullable": true,
+                          "properties": {
+                            "budget_on_exceeded": {
+                              "enum": [
+                                "halt",
+                                "escalate"
+                              ],
+                              "type": "string"
+                            },
+                            "budget_tokens": {
+                              "type": "integer"
+                            },
+                            "budget_wall_sec": {
+                              "type": "integer"
+                            },
+                            "enabled_checks_json": {},
+                            "environment": {
+                              "properties": {
+                                "directory": {
+                                  "type": "string"
+                                },
+                                "mode": {
+                                  "enum": [
+                                    "root",
+                                    "worktree",
+                                    "per_run",
+                                    "directory"
+                                  ],
+                                  "type": "string"
+                                },
+                                "worktree_ref": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "mode"
+                              ],
+                              "type": "object"
+                            },
+                            "fan_out_width": {
+                              "type": "integer"
+                            },
+                            "gate_max_revisions": {
+                              "type": "integer"
+                            },
+                            "human_gate_enabled": {
+                              "type": "boolean"
+                            },
+                            "iteration_cap": {
+                              "type": "integer"
+                            },
+                            "no_progress_window": {
+                              "type": "integer"
+                            },
+                            "reattempt_strategy": {
+                              "enum": [
+                                "failed_only",
+                                "full_body",
+                                "halt"
+                              ],
+                              "type": "string"
+                            },
+                            "request_expire_after": {
+                              "type": "string"
+                            },
+                            "run_runtime_rules": {
+                              "items": {
+                                "properties": {
+                                  "match": {
+                                    "properties": {
+                                      "complexity": {
+                                        "type": "string"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "type": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "runtime": {
+                                    "properties": {
+                                      "model": {
+                                        "type": "string"
+                                      },
+                                      "provider": {
+                                        "type": "string"
+                                      },
+                                      "reasoning": {
+                                        "type": "string"
+                                      },
+                                      "speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
+                                        "type": "string"
+                                      }
+                                    },
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "match",
+                                  "runtime"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "runtime_defaults": {
+                              "properties": {
+                                "judge": {
+                                  "properties": {
+                                    "model": {
+                                      "type": "string"
+                                    },
+                                    "provider": {
+                                      "type": "string"
+                                    },
+                                    "reasoning": {
+                                      "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "worker": {
+                                  "properties": {
+                                    "model": {
+                                      "type": "string"
+                                    },
+                                    "provider": {
+                                      "type": "string"
+                                    },
+                                    "reasoning": {
+                                      "type": "string"
+                                    },
+                                    "speed": {
+                                      "enum": [
+                                        "normal",
+                                        "fast"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "type": "object"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "runtime_rules": {
+                              "items": {
+                                "properties": {
+                                  "match": {
+                                    "properties": {
+                                      "complexity": {
+                                        "type": "string"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "type": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "runtime": {
+                                    "properties": {
+                                      "model": {
+                                        "type": "string"
+                                      },
+                                      "provider": {
+                                        "type": "string"
+                                      },
+                                      "reasoning": {
+                                        "type": "string"
+                                      },
+                                      "speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
+                                        ],
+                                        "type": "string"
+                                      }
+                                    },
+                                    "type": "object"
+                                  }
+                                },
+                                "required": [
+                                  "match",
+                                  "runtime"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "sources": {
+                              "additionalProperties": {
+                                "type": "string"
+                              },
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "budget_on_exceeded",
+                            "budget_tokens",
+                            "budget_wall_sec",
+                            "enabled_checks_json",
+                            "environment",
+                            "fan_out_width",
+                            "gate_max_revisions",
+                            "human_gate_enabled",
+                            "iteration_cap",
+                            "no_progress_window",
+                            "reattempt_strategy",
+                            "request_expire_after",
+                            "runtime_defaults",
+                            "runtime_rules"
+                          ],
+                          "type": "object"
+                        },
                         "effective_lifecycle": {
                           "nullable": true,
                           "properties": {
@@ -282337,7 +283284,8 @@
                         "reattempt_strategy": {
                           "enum": [
                             "failed_only",
-                            "full_body"
+                            "full_body",
+                            "halt"
                           ],
                           "nullable": true,
                           "type": "string"
@@ -282497,8 +283445,12 @@
                         "reattempt_strategy": {
                           "enum": [
                             "failed_only",
-                            "full_body"
+                            "full_body",
+                            "halt"
                           ],
+                          "type": "string"
+                        },
+                        "request_expire_after": {
                           "type": "string"
                         },
                         "run_runtime_rules": {
@@ -282641,6 +283593,12 @@
                             "type": "object"
                           },
                           "type": "array"
+                        },
+                        "sources": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": "object"
                         }
                       },
                       "required": [
@@ -282655,6 +283613,7 @@
                         "iteration_cap",
                         "no_progress_window",
                         "reattempt_strategy",
+                        "request_expire_after",
                         "runtime_defaults",
                         "runtime_rules"
                       ],
@@ -283074,7 +284033,8 @@
                       "reattempt_strategy": {
                         "enum": [
                           "failed_only",
-                          "full_body"
+                          "full_body",
+                          "halt"
                         ],
                         "nullable": true,
                         "type": "string"
@@ -283261,7 +284221,8 @@
                         "reattempt_strategy": {
                           "enum": [
                             "failed_only",
-                            "full_body"
+                            "full_body",
+                            "halt"
                           ],
                           "nullable": true,
                           "type": "string"
@@ -283421,8 +284382,12 @@
                         "reattempt_strategy": {
                           "enum": [
                             "failed_only",
-                            "full_body"
+                            "full_body",
+                            "halt"
                           ],
+                          "type": "string"
+                        },
+                        "request_expire_after": {
                           "type": "string"
                         },
                         "run_runtime_rules": {
@@ -283565,6 +284530,12 @@
                             "type": "object"
                           },
                           "type": "array"
+                        },
+                        "sources": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": "object"
                         }
                       },
                       "required": [
@@ -283579,6 +284550,7 @@
                         "iteration_cap",
                         "no_progress_window",
                         "reattempt_strategy",
+                        "request_expire_after",
                         "runtime_defaults",
                         "runtime_rules"
                       ],
@@ -286374,7 +287346,8 @@
                       "reattempt_strategy": {
                         "enum": [
                           "failed_only",
-                          "full_body"
+                          "full_body",
+                          "halt"
                         ],
                         "nullable": true,
                         "type": "string"
@@ -287376,8 +288349,12 @@
                             "reattempt_strategy": {
                               "enum": [
                                 "failed_only",
-                                "full_body"
+                                "full_body",
+                                "halt"
                               ],
+                              "type": "string"
+                            },
+                            "request_expire_after": {
                               "type": "string"
                             },
                             "run_runtime_rules": {
@@ -287520,6 +288497,12 @@
                                 "type": "object"
                               },
                               "type": "array"
+                            },
+                            "sources": {
+                              "additionalProperties": {
+                                "type": "string"
+                              },
+                              "type": "object"
                             }
                           },
                           "required": [
@@ -287534,6 +288517,7 @@
                             "iteration_cap",
                             "no_progress_window",
                             "reattempt_strategy",
+                            "request_expire_after",
                             "runtime_defaults",
                             "runtime_rules"
                           ],
@@ -288411,6 +289395,11 @@
                         "budget_wall_sec": {
                           "type": "integer"
                         },
+                        "completed_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
                         "completion_state": {
                           "enum": [
                             "complete",
@@ -288528,7 +289517,8 @@
                         "reattempt_strategy": {
                           "enum": [
                             "failed_only",
-                            "full_body"
+                            "full_body",
+                            "halt"
                           ],
                           "type": "string"
                         },
@@ -289435,8 +290425,12 @@
                             "reattempt_strategy": {
                               "enum": [
                                 "failed_only",
-                                "full_body"
+                                "full_body",
+                                "halt"
                               ],
+                              "type": "string"
+                            },
+                            "request_expire_after": {
                               "type": "string"
                             },
                             "run_runtime_rules": {
@@ -289579,6 +290573,12 @@
                                 "type": "object"
                               },
                               "type": "array"
+                            },
+                            "sources": {
+                              "additionalProperties": {
+                                "type": "string"
+                              },
+                              "type": "object"
                             }
                           },
                           "required": [
@@ -289593,6 +290593,7 @@
                             "iteration_cap",
                             "no_progress_window",
                             "reattempt_strategy",
+                            "request_expire_after",
                             "runtime_defaults",
                             "runtime_rules"
                           ],
@@ -290470,6 +291471,11 @@
                         "budget_wall_sec": {
                           "type": "integer"
                         },
+                        "completed_at": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
                         "completion_state": {
                           "enum": [
                             "complete",
@@ -290587,7 +291593,8 @@
                         "reattempt_strategy": {
                           "enum": [
                             "failed_only",
-                            "full_body"
+                            "full_body",
+                            "halt"
                           ],
                           "type": "string"
                         },

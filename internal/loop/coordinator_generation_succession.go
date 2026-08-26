@@ -188,6 +188,10 @@ func (r *CoordinatorRunner) buildFailedGenerationPlan(
 		plan.Terminal = terminal
 		return plan, nil
 	}
+	if normalizeReattemptStrategy(run.ReattemptStrategy) == ReattemptHalt {
+		plan.Terminal = terminal
+		return plan, nil
+	}
 	repeatedNodes, err := r.repeatedFailureNodes(ctx, run, generation, normalized)
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, err

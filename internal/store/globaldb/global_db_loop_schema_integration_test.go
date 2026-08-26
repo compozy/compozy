@@ -692,6 +692,107 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 			t.Fatalf("upgraded legacy identity = %#v/%#v, want NULL/NULL", outputID, artifactName)
 		}
 	})
+
+	t.Run("Should backfill terminal completion time only from persisted status evidence", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefixDB, err := openGlobalMigrationPrefixDatabase(
+			t, path, globalMigrationPrefixThrough(t, "00089_schema.sql"),
+		)
+		if err != nil {
+			t.Fatalf("open v89 global database error = %v", err)
+		}
+		ctx := testutil.Context(t)
+		startedAt := time.Date(2026, time.August, 25, 10, 0, 0, 0, time.UTC)
+		firstTerminalAt := startedAt.Add(time.Minute)
+		lastTerminalAt := startedAt.Add(3 * time.Minute)
+		startedAtRaw := store.FormatTimestamp(startedAt)
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO workspaces (
+			id, root_dir, name, created_at, updated_at
+		) VALUES ('ws-completed-at-migration', ?, 'completed-at-migration', ?, ?)`,
+			t.TempDir(), startedAtRaw, startedAtRaw,
+		); err != nil {
+			t.Fatalf("insert v89 workspace error = %v", err)
+		}
+		for _, run := range []struct {
+			id     string
+			status looppkg.Status
+		}{
+			{id: "run-completed-at-evidence", status: looppkg.StatusFailed},
+			{id: "run-completed-at-unknown", status: looppkg.StatusDone},
+		} {
+			if _, err := prefixDB.ExecContext(ctx, `INSERT INTO loop_runs (
+				id, profile_id, workspace_id, loop_name, status, reattempt_strategy,
+				last_progress_at, inputs_json, created_at, started_at
+			) VALUES (?, ?, 'ws-completed-at-migration', 'delivery', ?, 'failed_only', ?, '{}', ?, ?)`,
+				run.id, store.DefaultProfileID, run.status, startedAtRaw, startedAtRaw, startedAtRaw,
+			); err != nil {
+				t.Fatalf("insert v89 loop run %q error = %v", run.id, err)
+			}
+		}
+		for _, event := range []struct {
+			id      string
+			seq     int
+			payload string
+			at      time.Time
+		}{
+			{id: "event-completed-at-first", seq: 1, payload: `{"to":"failed"}`, at: firstTerminalAt},
+			{id: "event-completed-at-live", seq: 2, payload: `{"to":"running"}`, at: startedAt.Add(2 * time.Minute)},
+			{id: "event-completed-at-last", seq: 3, payload: `{"to":"failed"}`, at: lastTerminalAt},
+		} {
+			if _, err := prefixDB.ExecContext(ctx, `INSERT INTO loop_run_events (
+				id, loop_run_id, workspace_id, seq, kind, payload_json, at
+			) VALUES (?, 'run-completed-at-evidence', 'ws-completed-at-migration', ?, 'status_changed', ?, ?)`,
+				event.id, event.seq, event.payload, store.FormatTimestamp(event.at),
+			); err != nil {
+				t.Fatalf("insert v89 status event %q error = %v", event.id, err)
+			}
+		}
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("close v89 global database error = %v", err)
+		}
+
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatalf("upgrade v89 global database error = %v", err)
+		}
+		if err := upgraded.Close(ctx); err != nil {
+			t.Fatalf("close upgraded global database error = %v", err)
+		}
+		reopened, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("reopen upgraded global database error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close(reopened cleanup) error = %v", closeErr)
+			}
+		})
+		withEvidence, err := reopened.GetLoopRun(
+			ctx, "ws-completed-at-migration", "run-completed-at-evidence",
+		)
+		if err != nil {
+			t.Fatalf("GetLoopRun(with evidence) error = %v", err)
+		}
+		if withEvidence.CompletedAt == nil || !withEvidence.CompletedAt.Equal(lastTerminalAt) {
+			t.Fatalf("backfilled completed_at = %v, want %s", withEvidence.CompletedAt, lastTerminalAt)
+		}
+		withoutEvidence, err := reopened.GetLoopRun(
+			ctx, "ws-completed-at-migration", "run-completed-at-unknown",
+		)
+		if err != nil {
+			t.Fatalf("GetLoopRun(without evidence) error = %v", err)
+		}
+		if withoutEvidence.CompletedAt != nil {
+			t.Fatalf("completion without evidence = %v, want nil", withoutEvidence.CompletedAt)
+		}
+		status, err := store.Status(ctx, reopened.db, MigrationStream())
+		if err != nil {
+			t.Fatalf("Status(reopened) error = %v", err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
+	})
 }
 
 func assertStoredArtifactIdentity(t *testing.T, outputs []looppkg.GenerationOutput) {
