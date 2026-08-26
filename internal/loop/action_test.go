@@ -1165,6 +1165,9 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 				if err == nil {
 					t.Fatal("Execute() error = nil, want invalid config_overrides")
 				}
+				if !strings.Contains(err.Error(), "run-loop config_overrides") {
+					t.Fatalf("Execute() error = %v, want run-loop config_overrides", err)
+				}
 				if got := starter.startCount(); got != 0 {
 					t.Fatalf("Start() calls = %d, want 0", got)
 				}
