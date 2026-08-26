@@ -14,7 +14,11 @@ func walkCompositionEntities(
 		branches, _ := schemaList(schema[keyword])
 		for _, raw := range branches {
 			branch, ok := schemaObject(raw)
-			if !ok || !schemaApplies(branch, value) {
+			if !ok {
+				continue
+			}
+			applies := compileSchemaApplicability(branch)
+			if !applies(value) {
 				continue
 			}
 			if err := walkEntities(ctx, branch, value, path, catalog, issues); err != nil {
@@ -38,7 +42,8 @@ func walkConditionalEntities(
 		return nil
 	}
 	keyword := schemaElse
-	if schemaApplies(condition, value) {
+	applies := compileSchemaApplicability(condition)
+	if applies(value) {
 		keyword = schemaThen
 	}
 	branch, ok := schemaObject(schema[keyword])

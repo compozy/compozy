@@ -9,6 +9,7 @@ import (
 
 const completionPreviewBytes = 512
 
+// RenderCompletionWake frames a bounded result or failure summary for the caller.
 func RenderCompletionWake(call CallRecord, payload []byte) string {
 	agent := strings.TrimSpace(call.AgentName)
 	if agent == "" {

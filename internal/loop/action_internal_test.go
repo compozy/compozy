@@ -584,10 +584,11 @@ func TestActionContractAdaptersShouldPreserveParity(t *testing.T) {
 		t.Parallel()
 
 		fixtures := []struct {
-			name    string
-			expect  json.RawMessage
-			payload json.RawMessage
-			valid   bool
+			name       string
+			expect     json.RawMessage
+			payload    json.RawMessage
+			valid      bool
+			wantDetail string
 		}{
 			{name: "empty contract", payload: json.RawMessage(`{"answer":true}`), valid: true},
 			{name: "shorthand valid", expect: json.RawMessage(`{"answer":"boolean"}`),
@@ -596,11 +597,11 @@ func TestActionContractAdaptersShouldPreserveParity(t *testing.T) {
 				`{"type":"object","required":["answer"],"properties":{"answer":{"type":"string"}}}`),
 				payload: json.RawMessage(`{"answer":"yes"}`), valid: true},
 			{name: "missing required", expect: json.RawMessage(`{"answer":"boolean"}`),
-				payload: json.RawMessage(`{}`), valid: false},
+				payload: json.RawMessage(`{}`), valid: false, wantDetail: "missing property 'answer'"},
 			{name: "wrong type", expect: json.RawMessage(`{"answer":"boolean"}`),
-				payload: json.RawMessage(`{"answer":"yes"}`), valid: false},
+				payload: json.RawMessage(`{"answer":"yes"}`), valid: false, wantDetail: "got string, want boolean"},
 			{name: "invalid json", expect: json.RawMessage(`{"answer":"boolean"}`),
-				payload: json.RawMessage(`{"answer":`), valid: false},
+				payload: json.RawMessage(`{"answer":`), valid: false, wantDetail: "wait payload must be valid JSON"},
 		}
 		for _, fixture := range fixtures {
 			fixture := fixture
@@ -611,6 +612,14 @@ func TestActionContractAdaptersShouldPreserveParity(t *testing.T) {
 				contractsErr := contracts.ValidateWaitPayload(fixture.expect, fixture.payload)
 				if (loopErr == nil) != fixture.valid || (contractsErr == nil) != fixture.valid {
 					t.Fatalf("acceptance loop=%v contracts=%v, want valid=%t", loopErr, contractsErr, fixture.valid)
+				}
+				if !fixture.valid {
+					if !strings.Contains(loopErr.Error(), fixture.wantDetail) {
+						t.Fatalf("loop error = %v, want detail %q", loopErr, fixture.wantDetail)
+					}
+					if !strings.Contains(contractsErr.Error(), fixture.wantDetail) {
+						t.Fatalf("contracts error = %v, want detail %q", contractsErr, fixture.wantDetail)
+					}
 				}
 				if string(fixture.payload) != string(before) {
 					t.Fatalf("payload changed from %q to %q", before, fixture.payload)

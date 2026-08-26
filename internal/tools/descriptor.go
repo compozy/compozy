@@ -166,7 +166,7 @@ func validateDescriptorContractSchema(field string, raw json.RawMessage, require
 		}
 		return nil
 	}
-	if _, err := contracts.ValidateSchema(raw, json.RawMessage(`{}`)); err != nil {
+	if err := contracts.ValidateSchemaDefinition(raw); err != nil {
 		return NewValidationError(field, ReasonSchemaInvalid, err.Error())
 	}
 	return nil

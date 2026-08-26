@@ -4873,13 +4873,13 @@ func TestTaskResultContractSnapshotAndRepairIntegration(t *testing.T) {
 		`{"type":"object","required":["answer"],"properties":{"answer":{"type":"integer"}},"additionalProperties":false}`,
 	))
 	if err != nil {
-		t.Fatalf("Pin(original contract) error = %v", err)
+		t.Fatalf("Prepare(original contract) error = %v", err)
 	}
 	updated, err := contracts.Prepare(json.RawMessage(
 		`{"type":"object","required":["changed"],"properties":{"changed":{"type":"boolean"}},"additionalProperties":false}`,
 	))
 	if err != nil {
-		t.Fatalf("Pin(updated contract) error = %v", err)
+		t.Fatalf("Prepare(updated contract) error = %v", err)
 	}
 
 	taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
@@ -4924,82 +4924,115 @@ func TestTaskResultContractSnapshotAndRepairIntegration(t *testing.T) {
 	}, actor); err != nil {
 		t.Fatalf("UpdateTask(updated contract) error = %v", err)
 	}
-	if firstRun.ExpectDigest != original.Digest {
-		t.Fatalf("first run digest = %q, want original %q", firstRun.ExpectDigest, original.Digest)
-	}
-
-	invalidForOriginal := taskpkg.LeaseCompletion{
-		RunID: firstRun.ID, ClaimToken: firstToken,
-		Result: taskpkg.RunResult{Value: json.RawMessage(`{"changed":true}`)},
-	}
-	wrongToken := invalidForOriginal
-	wrongToken.ClaimToken = "wrong-result-contract-token"
-	if _, err := manager.CompleteRunLease(ctx, wrongToken, actor); !errors.Is(err, taskpkg.ErrInvalidClaimToken) {
-		t.Fatalf("CompleteRunLease(wrong token) error = %v, want ErrInvalidClaimToken", err)
-	}
-	unauthorizedEvents, err := db.ListTaskEvents(ctx, taskpkg.EventQuery{
-		TaskID: taskRecord.ID, RunID: firstRun.ID, EventType: eventspkg.TaskRunRejected,
+	t.Run("Should retain the original contract and budget on the active run", func(t *testing.T) {
+		if firstRun.ExpectDigest != original.Digest || firstRun.ResultBudget == nil ||
+			firstRun.ResultBudget.MaxBytes != 1024 || firstRun.ResultBudget.Overflow != contracts.OverflowReject {
+			t.Fatalf("first run snapshot = digest %q budget %#v, want original 1024/reject", firstRun.ExpectDigest, firstRun.ResultBudget)
+		}
 	})
-	if err != nil {
-		t.Fatalf("ListTaskEvents(unauthorized repair) error = %v", err)
-	}
-	if len(unauthorizedEvents) != 0 {
-		t.Fatalf("unauthorized result repair event count = %d, want 0", len(unauthorizedEvents))
-	}
-	if _, err := manager.CompleteRunLease(ctx, invalidForOriginal, actor); !errors.Is(err, taskpkg.ErrValidation) {
-		t.Fatalf("CompleteRunLease(first rejection) error = %v, want ErrValidation", err)
-	}
-	completed, err := manager.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
-		RunID: firstRun.ID, ClaimToken: firstToken,
-		Result: taskpkg.RunResult{Value: json.RawMessage(`{"result":{"answer":42}}`)},
-	}, actor)
-	if err != nil {
-		t.Fatalf("CompleteRunLease(repaired original result) error = %v", err)
-	}
-	if completed.Status.Normalize() != taskpkg.TaskRunStatusCompleted || completed.Result == nil ||
-		string(*completed.Result) != `{"answer":42}` {
-		t.Fatalf("completed first run = %#v, want unwrapped original-contract result", completed)
-	}
-	repairEvents, err := db.ListTaskEvents(ctx, taskpkg.EventQuery{
-		TaskID: taskRecord.ID, RunID: firstRun.ID, EventType: eventspkg.TaskRunRejected,
-	})
-	if err != nil {
-		t.Fatalf("ListTaskEvents(result repair) error = %v", err)
-	}
-	if len(repairEvents) != 1 {
-		t.Fatalf("result repair event count = %d, want 1", len(repairEvents))
-	}
 
-	reopened, err := db.GetTask(ctx, taskRecord.ID)
-	if err != nil {
-		t.Fatalf("GetTask(reopen fixture) error = %v", err)
-	}
-	reopened.Status = taskpkg.TaskStatusReady
-	reopened.CurrentRunID = ""
-	reopened.ClosedAt = time.Time{}
-	if err := db.UpdateTask(ctx, reopened, actor); err != nil {
-		t.Fatalf("UpdateTask(reopen fixture) error = %v", err)
-	}
-	secondRun, secondToken := startRun("updated")
-	if secondRun.ExpectDigest != updated.Digest {
-		t.Fatalf("second run digest = %q, want updated %q", secondRun.ExpectDigest, updated.Digest)
-	}
-	if _, err := manager.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
-		RunID: secondRun.ID, ClaimToken: secondToken,
-		Result: taskpkg.RunResult{Value: json.RawMessage(`{"answer":42}`)},
-	}, actor); !errors.Is(err, taskpkg.ErrValidation) {
-		t.Fatalf("CompleteRunLease(updated rejection) error = %v, want ErrValidation", err)
-	}
-	completed, err = manager.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
-		RunID: secondRun.ID, ClaimToken: secondToken,
-		Result: taskpkg.RunResult{Value: json.RawMessage(`{"changed":true}`)},
-	}, actor)
-	if err != nil {
-		t.Fatalf("CompleteRunLease(updated resubmission) error = %v", err)
-	}
-	if completed.Status.Normalize() != taskpkg.TaskRunStatusCompleted {
-		t.Fatalf("completed second run status = %q, want completed", completed.Status.Normalize())
-	}
+	t.Run("Should fence unauthorized repair and complete one authorized repair round", func(t *testing.T) {
+		invalidForOriginal := taskpkg.LeaseCompletion{
+			RunID: firstRun.ID, ClaimToken: firstToken,
+			Result: taskpkg.RunResult{Value: json.RawMessage(`{"changed":true}`)},
+		}
+		wrongToken := invalidForOriginal
+		wrongToken.ClaimToken = "wrong-result-contract-token"
+		if _, err := manager.CompleteRunLease(ctx, wrongToken, actor); !errors.Is(err, taskpkg.ErrInvalidClaimToken) {
+			t.Fatalf("CompleteRunLease(wrong token) error = %v, want ErrInvalidClaimToken", err)
+		}
+		unauthorizedEvents, err := db.ListTaskEvents(ctx, taskpkg.EventQuery{
+			TaskID: taskRecord.ID, RunID: firstRun.ID, EventType: eventspkg.TaskRunRejected,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskEvents(unauthorized repair) error = %v", err)
+		}
+		if len(unauthorizedEvents) != 0 {
+			t.Fatalf("unauthorized result repair event count = %d, want 0", len(unauthorizedEvents))
+		}
+		_, firstRejectionErr := manager.CompleteRunLease(ctx, invalidForOriginal, actor)
+		var firstValidationErr *taskpkg.ResultContractValidationError
+		if !errors.Is(firstRejectionErr, taskpkg.ErrValidation) || !errors.As(firstRejectionErr, &firstValidationErr) {
+			t.Fatalf("CompleteRunLease(first rejection) error = %v, want typed ErrValidation", firstRejectionErr)
+		}
+		firstMissingAnswer := false
+		for _, issue := range firstValidationErr.Issues {
+			if issue.Path == "$.answer" && strings.Contains(issue.Message, "missing property") {
+				firstMissingAnswer = true
+				break
+			}
+		}
+		if !firstMissingAnswer {
+			t.Fatalf("first rejection issues = %#v, want missing $.answer", firstValidationErr.Issues)
+		}
+		completed, err := manager.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+			RunID: firstRun.ID, ClaimToken: firstToken,
+			Result: taskpkg.RunResult{Value: json.RawMessage(`{"result":{"answer":42}}`)},
+		}, actor)
+		if err != nil {
+			t.Fatalf("CompleteRunLease(repaired original result) error = %v", err)
+		}
+		if completed.Status.Normalize() != taskpkg.TaskRunStatusCompleted || completed.Result == nil ||
+			string(*completed.Result) != `{"answer":42}` {
+			t.Fatalf("completed first run = %#v, want unwrapped original-contract result", completed)
+		}
+		repairEvents, err := db.ListTaskEvents(ctx, taskpkg.EventQuery{
+			TaskID: taskRecord.ID, RunID: firstRun.ID, EventType: eventspkg.TaskRunRejected,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskEvents(result repair) error = %v", err)
+		}
+		if len(repairEvents) != 1 {
+			t.Fatalf("result repair event count = %d, want 1", len(repairEvents))
+		}
+	})
+
+	t.Run("Should apply the updated contract and budget to the next run", func(t *testing.T) {
+		reopened, err := db.GetTask(ctx, taskRecord.ID)
+		if err != nil {
+			t.Fatalf("GetTask(reopen fixture) error = %v", err)
+		}
+		reopened.Status = taskpkg.TaskStatusReady
+		reopened.CurrentRunID = ""
+		reopened.ClosedAt = time.Time{}
+		if err := db.UpdateTask(ctx, reopened, actor); err != nil {
+			t.Fatalf("UpdateTask(reopen fixture) error = %v", err)
+		}
+		secondRun, secondToken := startRun("updated")
+		if secondRun.ExpectDigest != updated.Digest || secondRun.ResultBudget == nil ||
+			secondRun.ResultBudget.MaxBytes != 2048 || secondRun.ResultBudget.Overflow != contracts.OverflowStore {
+			t.Fatalf("second run snapshot = digest %q budget %#v, want updated 2048/store", secondRun.ExpectDigest, secondRun.ResultBudget)
+		}
+		_, updatedRejectionErr := manager.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+			RunID: secondRun.ID, ClaimToken: secondToken,
+			Result: taskpkg.RunResult{Value: json.RawMessage(`{"answer":42}`)},
+		}, actor)
+		var updatedValidationErr *taskpkg.ResultContractValidationError
+		if !errors.Is(updatedRejectionErr, taskpkg.ErrValidation) ||
+			!errors.As(updatedRejectionErr, &updatedValidationErr) {
+			t.Fatalf("CompleteRunLease(updated rejection) error = %v, want typed ErrValidation", updatedRejectionErr)
+		}
+		updatedMissingChanged := false
+		for _, issue := range updatedValidationErr.Issues {
+			if issue.Path == "$.changed" && strings.Contains(issue.Message, "missing property") {
+				updatedMissingChanged = true
+				break
+			}
+		}
+		if !updatedMissingChanged {
+			t.Fatalf("updated rejection issues = %#v, want missing $.changed", updatedValidationErr.Issues)
+		}
+		completed, err := manager.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+			RunID: secondRun.ID, ClaimToken: secondToken,
+			Result: taskpkg.RunResult{Value: json.RawMessage(`{"changed":true}`)},
+		}, actor)
+		if err != nil {
+			t.Fatalf("CompleteRunLease(updated resubmission) error = %v", err)
+		}
+		if completed.Status.Normalize() != taskpkg.TaskRunStatusCompleted {
+			t.Fatalf("completed second run status = %q, want completed", completed.Status.Normalize())
+		}
+	})
 }
 
 func openTaskManagerGlobalDB(t *testing.T) *globaldb.GlobalDB {

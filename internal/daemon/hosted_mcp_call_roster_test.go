@@ -1,6 +1,8 @@
 package daemon
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -8,10 +10,30 @@ import (
 
 	"github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/session"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
-func TestRenderCallRoster(t *testing.T) {
+// Invariant: hosted call roster projection performs no dependency lookups when the call tool is absent.
+func TestHostedCallRoster(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should return non-call tools without consulting session dependencies", func(t *testing.T) {
+		t.Parallel()
+
+		statusErr := errors.New("status lookup must not run")
+		state := &bootState{sessions: callRosterSessionManagerStub{statusErr: statusErr}}
+		views := []toolspkg.ToolView{{Descriptor: toolspkg.Descriptor{ID: toolspkg.ToolIDAgentMessage}}}
+		projected, err := hostedCallRosterDecorator(state)(context.Background(), toolspkg.Scope{
+			SessionID: "ses-child",
+		}, views)
+		if err != nil {
+			t.Fatalf("hostedCallRosterDecorator() error = %v", err)
+		}
+		if len(projected) != 1 || projected[0].Descriptor.ID != toolspkg.ToolIDAgentMessage {
+			t.Fatalf("hostedCallRosterDecorator() = %#v, want unchanged message tool", projected)
+		}
+	})
 
 	t.Run("Should render active definitions deterministically and bound the injected roster", func(t *testing.T) {
 		t.Parallel()
@@ -52,4 +74,13 @@ func TestRenderCallRoster(t *testing.T) {
 			t.Fatalf("renderCallRoster(nil) = %q, want %q", got, want)
 		}
 	})
+}
+
+type callRosterSessionManagerStub struct {
+	SessionManager
+	statusErr error
+}
+
+func (s callRosterSessionManagerStub) Status(context.Context, string) (*session.Info, error) {
+	return nil, s.statusErr
 }

@@ -2,6 +2,8 @@ package daemon
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -73,6 +75,46 @@ func TestDaemonCallSessionInvokerReviveMetadata(t *testing.T) {
 			t.Fatalf("SendPrompt() synthetic metadata = %#v, want call follow-up identity", manager.sent.Synthetic)
 		}
 	})
+
+	t.Run("Should preserve the session identity and resume failure cause", func(t *testing.T) {
+		t.Parallel()
+
+		resumeErr := errors.New("resume transport failed")
+		manager := &callSessionManagerStub{
+			info:      &session.Info{ID: "ses-child", State: session.StateStopped},
+			resumeErr: resumeErr,
+		}
+		invoker := &daemonCallSessionInvoker{sessions: manager}
+		err := invoker.Revive(context.Background(), "ses-child", "Follow up.", "call-2")
+		if !errors.Is(err, resumeErr) {
+			t.Fatalf("Revive() error = %v, want resume cause %v", err, resumeErr)
+		}
+		if !strings.Contains(err.Error(), "ses-child") {
+			t.Fatalf("Revive() error = %q, want session identity", err)
+		}
+	})
+}
+
+// Invariant: call target lookup failures retain their typed storage cause.
+func TestDaemonCallDirectory(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve the target lookup failure cause", func(t *testing.T) {
+		t.Parallel()
+
+		lookupErr := errors.New("target lookup failed")
+		directory := &daemonCallDirectory{
+			store: callDirectoryStoreStub{resolveErr: lookupErr},
+			state: &bootState{},
+		}
+		_, _, err := directory.ResolveCallTarget(context.Background(), callspkg.CreateInput{})
+		if !errors.Is(err, lookupErr) {
+			t.Fatalf("ResolveCallTarget() error = %v, want lookup cause %v", err, lookupErr)
+		}
+		if !strings.Contains(err.Error(), "resolve call target context") {
+			t.Fatalf("ResolveCallTarget() error = %q, want operation context", err)
+		}
+	})
 }
 
 // Invariant: an accepted queue entry is not projected as delivered until its durable state is sent.
@@ -98,24 +140,41 @@ func TestDaemonCallDeliveryTracksDurableQueueState(t *testing.T) {
 		}
 
 		queued, err := invoker.DeliverAtBoundary(context.Background(), delivery)
-		if err != nil || queued.State != "pending" {
-			t.Fatalf("DeliverAtBoundary(queued) = %#v, %v, want pending", queued, err)
+		if err != nil {
+			t.Fatalf("DeliverAtBoundary(queued) error = %v", err)
 		}
-		if manager.sent.Synthetic == nil || manager.sent.Synthetic.CallID != "call_1" ||
-			manager.sent.Synthetic.WakeEventID != "wake_1" {
+		if queued.State != "pending" {
+			t.Fatalf("DeliverAtBoundary(queued) state = %q, want pending", queued.State)
+		}
+		if manager.sent.Synthetic == nil {
+			t.Fatal("SendPrompt() synthetic metadata = nil")
+		}
+		if manager.sent.Synthetic.CallID != "call_1" {
+			t.Fatalf("SendPrompt() synthetic call id = %q, want call_1", manager.sent.Synthetic.CallID)
+		}
+		if manager.sent.Synthetic.WakeEventID != "wake_1" {
 			t.Fatalf("SendPrompt() synthetic metadata = %#v, want durable call identity", manager.sent.Synthetic)
 		}
 		manager.queuedStatus = session.InputDeliveryStatus{Status: store.SessionInputQueueStatusSent}
 		delivered, err := invoker.DeliverAtBoundary(context.Background(), delivery)
-		if err != nil || delivered.State != "injected" {
-			t.Fatalf("DeliverAtBoundary(sent) = %#v, %v, want injected", delivered, err)
+		if err != nil {
+			t.Fatalf("DeliverAtBoundary(sent) error = %v", err)
+		}
+		if delivered.State != "injected" {
+			t.Fatalf("DeliverAtBoundary(sent) state = %q, want injected", delivered.State)
 		}
 
 		sentBeforeBusy := manager.sendCalls
 		manager.prompting = true
 		busy, err := invoker.DeliverAtBoundary(context.Background(), delivery)
-		if err != nil || busy.State != "pending" || busy.Reason != "recipient_busy" {
-			t.Fatalf("DeliverAtBoundary(busy) = %#v, %v, want pending recipient_busy", busy, err)
+		if err != nil {
+			t.Fatalf("DeliverAtBoundary(busy) error = %v", err)
+		}
+		if busy.State != "pending" {
+			t.Fatalf("DeliverAtBoundary(busy) state = %q, want pending", busy.State)
+		}
+		if busy.Reason != "recipient_busy" {
+			t.Fatalf("DeliverAtBoundary(busy) reason = %q, want recipient_busy", busy.Reason)
 		}
 		if manager.sendCalls != sentBeforeBusy {
 			t.Fatalf("SendPrompt() calls while busy = %d, want %d", manager.sendCalls, sentBeforeBusy)
@@ -129,14 +188,21 @@ func TestDaemonCallDeliveryTracksDurableQueueState(t *testing.T) {
 			CallID: "call_2", RecipientSessionID: "ses_parked", Body: "wake", Kind: "message",
 			WakeEventID: "wake_2",
 		})
-		if err != nil || woken.State != "woken" || wakeManager.resumeCalls != 1 {
-			t.Fatalf("DeliverAtBoundary(parked) = %#v, %v resumes=%d, want one wake", woken, err, wakeManager.resumeCalls)
+		if err != nil {
+			t.Fatalf("DeliverAtBoundary(parked) error = %v", err)
+		}
+		if woken.State != "woken" {
+			t.Fatalf("DeliverAtBoundary(parked) state = %q, want woken", woken.State)
+		}
+		if wakeManager.resumeCalls != 1 {
+			t.Fatalf("Resume() calls = %d, want 1", wakeManager.resumeCalls)
 		}
 	})
 }
 
 type callSessionManagerStub struct {
 	info          *session.Info
+	resumeErr     error
 	resumeCalls   int
 	sentSessionID string
 	sent          session.SendPromptOpts
@@ -154,6 +220,9 @@ func (s *callSessionManagerStub) IsPrompting(string) bool { return s.prompting }
 
 func (s *callSessionManagerStub) Resume(context.Context, string) (*session.Session, error) {
 	s.resumeCalls++
+	if s.resumeErr != nil {
+		return nil, s.resumeErr
+	}
 	return &session.Session{ID: s.info.ID}, nil
 }
 
@@ -181,4 +250,16 @@ func (s *callSessionManagerStub) QueuedInputDeliveryStatus(
 
 func (s *callSessionManagerStub) StopWithCause(context.Context, string, session.StopCause, string) error {
 	return nil
+}
+
+type callDirectoryStoreStub struct {
+	callspkg.Store
+	resolveErr error
+}
+
+func (s callDirectoryStoreStub) ResolveCallTargetContext(
+	context.Context,
+	callspkg.CreateInput,
+) (callspkg.TargetContext, error) {
+	return callspkg.TargetContext{}, s.resolveErr
 }

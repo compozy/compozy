@@ -2,27 +2,53 @@ package calls
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"sort"
 	"sync"
+	"sync/atomic"
+	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/contracts"
+	"github.com/compozy/compozy/internal/network/participation"
+	"github.com/compozy/compozy/internal/speed"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/task"
 )
 
 type memoryCallStore struct {
-	mu               sync.Mutex
-	calls            map[string]CallRecord
-	contracts        map[string]contracts.Contract
-	payloads         map[string][]byte
-	idempotency      map[string]string
-	due              []CallRecord
-	subtree          []CallRecord
-	preservedResults int
-	admissions       []Admission
-	settlements      []SettlementMutation
-	repairDeliveries []DeliveryRecord
-	operators        map[string]OperatorCallerBinding
+	mu                   sync.Mutex
+	calls                map[string]CallRecord
+	contracts            map[string]contracts.Contract
+	payloads             map[string][]byte
+	idempotency          map[string]string
+	due                  []CallRecord
+	subtree              []CallRecord
+	preservedResults     int
+	admissions           []Admission
+	settlements          []SettlementMutation
+	repairDeliveries     []DeliveryRecord
+	completionDeliveries []DeliveryRecord
+	operators            map[string]OperatorCallerBinding
+	drainFences          []string
+	operations           []string
+	payloadBatchReads    int
+}
+
+var (
+	_ Store                 = (*memoryCallStore)(nil)
+	_ Directory             = staticCallDirectory{}
+	_ Directory             = routedCallDirectory(nil)
+	_ ActivationClaimer     = (*fakeActivationClaimer)(nil)
+	_ ActivationRunCanceler = (*fakeActivationCanceler)(nil)
+	_ SessionInvoker        = (*fakeSessionInvoker)(nil)
+)
+
+func callPayloadKey(workspaceID, ref string) string {
+	return workspaceID + "\x00" + ref
 }
 
 func newMemoryCallStore() *memoryCallStore {
@@ -30,6 +56,69 @@ func newMemoryCallStore() *memoryCallStore {
 		calls: make(map[string]CallRecord), contracts: make(map[string]contracts.Contract),
 		payloads: make(map[string][]byte), idempotency: make(map[string]string),
 		operators: make(map[string]OperatorCallerBinding),
+	}
+}
+
+func newCallServiceHarness(
+	t *testing.T,
+	cfg config.CallsConfig,
+	target TargetContext,
+) (*Service, *memoryCallStore, *fakeActivationClaimer, *fakeSessionInvoker) {
+	t.Helper()
+	return newCallServiceHarnessWithRoster(t, cfg, target, []AgentRosterEntry{{Name: "reviewer", Description: "Reviews work"}})
+}
+
+func newCallServiceHarnessWithRoster(
+	t *testing.T,
+	cfg config.CallsConfig,
+	target TargetContext,
+	roster []AgentRosterEntry,
+) (*Service, *memoryCallStore, *fakeActivationClaimer, *fakeSessionInvoker) {
+	t.Helper()
+	return newCallServiceForDirectory(t, cfg, staticCallDirectory{target: target, roster: roster})
+}
+
+func newCallServiceForDirectory(
+	t *testing.T,
+	cfg config.CallsConfig,
+	directory Directory,
+) (*Service, *memoryCallStore, *fakeActivationClaimer, *fakeSessionInvoker) {
+	t.Helper()
+	database := newMemoryCallStore()
+	claimer := &fakeActivationClaimer{store: database}
+	canceler := &fakeActivationCanceler{}
+	invoker := &fakeSessionInvoker{}
+	var sequence atomic.Int64
+	service, err := NewService(
+		WithStore(database), WithDirectory(directory),
+		WithActivationClaimer(claimer), WithActivationRunCanceler(canceler), WithSessionInvoker(invoker),
+		WithConfig(cfg), WithClock(func() time.Time { return time.Date(2026, 8, 25, 0, 0, 0, 0, time.UTC) }),
+		WithIDGenerator(func(prefix string) (string, error) {
+			return prefix + "-" + time.Unix(0, sequence.Add(1)).Format("150405.000000000"), nil
+		}),
+	)
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+	return service, database, claimer, invoker
+}
+
+func validAgentTarget() TargetContext {
+	return TargetContext{
+		ProfileID: "default", WorkspaceID: "ws-1", ParentSessionID: "parent-1",
+		AgentName: "reviewer", GovernedRootID: "root-1", Depth: 1, Allowed: true,
+		Runtime:      RuntimeSpec{Provider: "anthropic", Model: "sonnet", Speed: speed.SpeedNormal},
+		CallerPolicy: store.SessionPermissionPolicy{Skills: []string{"review", "code"}},
+	}
+}
+
+func validCreateInput(prompt string, expect json.RawMessage, runtime *RuntimeSpec) CreateInput {
+	return CreateInput{
+		ProfileID: "default", Scope: ScopeWorkspace, WorkspaceID: "ws-1",
+		Caller: participation.OwnerRef{Kind: participation.OwnerKindSession, ID: "parent-1", WorkspaceID: "ws-1"},
+		Target: Target{Agent: "reviewer"}, Prompt: prompt, Expect: expect, Runtime: runtime,
+		Narrow: PermissionAtoms{Skills: []string{"review"}}, IdempotencyKey: "key-1",
+		Actor: Actor{Kind: "human", ID: "operator:test"},
 	}
 }
 
@@ -69,7 +158,7 @@ func (s *memoryCallStore) AdmitCall(_ context.Context, admission Admission) (Adm
 	if admission.Contract != nil {
 		s.contracts[admission.Contract.Digest] = *admission.Contract
 	}
-	s.payloads[admission.Record.PromptRef] = append([]byte(nil), admission.Prompt...)
+	s.payloads[callPayloadKey(admission.Record.WorkspaceID, admission.Record.PromptRef)] = append([]byte(nil), admission.Prompt...)
 	s.calls[admission.Record.CallID] = admission.Record
 	s.admissions = append(s.admissions, admission)
 	return AdmissionResult{Record: admission.Record}, nil
@@ -97,24 +186,54 @@ func (s *memoryCallStore) GetCallRead(_ context.Context, query CallReadQuery, ca
 	return record, nil
 }
 
-func (s *memoryCallStore) GetCallPayload(_ context.Context, _ string, ref string) ([]byte, error) {
+func (s *memoryCallStore) GetCallPayload(_ context.Context, workspaceID string, ref string) ([]byte, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	payload, ok := s.payloads[ref]
+	payload, ok := s.payloads[callPayloadKey(workspaceID, ref)]
 	if !ok {
 		return nil, errors.New("payload not found")
 	}
 	return append([]byte(nil), payload...), nil
 }
 
+func (s *memoryCallStore) GetCallPayloads(
+	_ context.Context,
+	workspaceID string,
+	refs []string,
+) (map[string][]byte, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.payloadBatchReads++
+	payloads := make(map[string][]byte, len(refs))
+	for _, ref := range refs {
+		payload, ok := s.payloads[callPayloadKey(workspaceID, ref)]
+		if !ok {
+			return nil, errors.New("payload not found")
+		}
+		payloads[ref] = append([]byte(nil), payload...)
+	}
+	return payloads, nil
+}
+
 func (s *memoryCallStore) GetCallByChild(_ context.Context, scope CallScope, childID string) (CallRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	var candidates []CallRecord
 	for _, record := range s.calls {
 		if record.ChildSessionID == childID && record.ProfileID == scope.ProfileID &&
-			record.Scope == scope.Scope && record.WorkspaceID == scope.WorkspaceID {
-			return record, nil
+			record.Scope == scope.Scope && record.WorkspaceID == scope.WorkspaceID &&
+			(record.State == StateQueued || record.State == StateRunning) {
+			candidates = append(candidates, record)
 		}
+	}
+	if len(candidates) > 0 {
+		sort.Slice(candidates, func(i, j int) bool {
+			if candidates[i].CreatedAt.Equal(candidates[j].CreatedAt) {
+				return candidates[i].CallID > candidates[j].CallID
+			}
+			return candidates[i].CreatedAt.After(candidates[j].CreatedAt)
+		})
+		return candidates[0], nil
 	}
 	return CallRecord{}, newError(CodeNotFound, "call was not found", nil)
 }
@@ -132,10 +251,20 @@ func (s *memoryCallStore) GetCallForSettlement(_ context.Context, callID string)
 func (s *memoryCallStore) GetOpenCallForChild(_ context.Context, childID string) (CallRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	var candidates []CallRecord
 	for _, record := range s.calls {
-		if record.ChildSessionID == childID && !record.State.Terminal() {
-			return record, nil
+		if record.ChildSessionID == childID && record.State == StateRunning {
+			candidates = append(candidates, record)
 		}
+	}
+	if len(candidates) > 0 {
+		sort.Slice(candidates, func(i, j int) bool {
+			if candidates[i].CreatedAt.Equal(candidates[j].CreatedAt) {
+				return candidates[i].CallID > candidates[j].CallID
+			}
+			return candidates[i].CreatedAt.After(candidates[j].CreatedAt)
+		})
+		return candidates[0], nil
 	}
 	return CallRecord{}, newError(CodeReturnUnbound, "child has no open call", nil)
 }
@@ -143,7 +272,13 @@ func (s *memoryCallStore) GetOpenCallForChild(_ context.Context, childID string)
 func (s *memoryCallStore) BindActivationChild(_ context.Context, binding ActivationBinding) (CallRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	record := s.calls[binding.CallID]
+	record, ok := s.calls[binding.CallID]
+	if !ok {
+		return CallRecord{}, newError(CodeNotFound, "call was not found", nil)
+	}
+	if record.ActivationRunID != binding.RunID || record.State != StateRunning {
+		return CallRecord{}, fmt.Errorf("call activation binding was fenced")
+	}
 	record.ChildSessionID = binding.ChildID
 	record.State = StateRunning
 	record.StartedAt = binding.ActivatedAt
@@ -155,20 +290,31 @@ func (s *memoryCallStore) BindActivationChild(_ context.Context, binding Activat
 func (s *memoryCallStore) FailActivation(_ context.Context, failure ActivationFailure) (CallRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	record := s.calls[failure.CallID]
+	record, ok := s.calls[failure.CallID]
+	if !ok {
+		return CallRecord{}, newError(CodeNotFound, "call was not found", nil)
+	}
+	if record.ActivationRunID != failure.RunID || record.State != StateRunning {
+		return CallRecord{}, fmt.Errorf("call activation failure was fenced")
+	}
 	record.State = StateFailed
 	record.FailureCode = failure.Code
 	record.FailureDetail = failure.Detail
 	record.SettledAt = failure.FailedAt
+	record.UpdatedAt = failure.FailedAt
 	s.calls[failure.CallID] = record
+	s.appendCompletionDelivery(record, failure.FailedAt)
 	return record, nil
 }
 
 func (s *memoryCallStore) RecordRepair(_ context.Context, mutation RepairMutation) (CallRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	record := s.calls[mutation.CallID]
-	if record.RepairAttempts != 0 || record.State.Terminal() {
+	record, ok := s.calls[mutation.CallID]
+	if !ok {
+		return CallRecord{}, newError(CodeNotFound, "call was not found", nil)
+	}
+	if record.RepairAttempts != 0 || record.State != StateRunning {
 		return CallRecord{}, newError(CodeAlreadySettled, "repair was fenced", nil)
 	}
 	record.RepairAttempts = 1
@@ -192,7 +338,7 @@ func (s *memoryCallStore) SettleCall(_ context.Context, mutation SettlementMutat
 	}
 	if len(mutation.Superseded) > 0 {
 		record.SupersededRef = mutation.SupersededRef
-		s.payloads[mutation.SupersededRef] = append([]byte(nil), mutation.Superseded...)
+		s.payloads[callPayloadKey(record.WorkspaceID, mutation.SupersededRef)] = append([]byte(nil), mutation.Superseded...)
 		s.calls[mutation.CallID] = record
 		return record, nil
 	}
@@ -208,27 +354,63 @@ func (s *memoryCallStore) SettleCall(_ context.Context, mutation SettlementMutat
 	record.SecondIssueText = mutation.SecondIssueText
 	record.FinalProsePreview = mutation.FinalProsePreview
 	record.SettledAt = mutation.SettledAt
+	record.UpdatedAt = mutation.SettledAt
 	if len(mutation.Result) > 0 {
-		s.payloads[mutation.ResultRef] = append([]byte(nil), mutation.Result...)
+		s.payloads[callPayloadKey(record.WorkspaceID, mutation.ResultRef)] = append([]byte(nil), mutation.Result...)
 	}
 	s.calls[mutation.CallID] = record
 	s.settlements = append(s.settlements, mutation)
+	s.appendCompletionDelivery(record, mutation.SettledAt)
 	return record, nil
 }
 
-func (s *memoryCallStore) ListDueCalls(_ context.Context, _ time.Time, _ int) ([]CallRecord, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return append([]CallRecord(nil), s.due...), nil
+func (s *memoryCallStore) appendCompletionDelivery(record CallRecord, at time.Time) {
+	if record.ParentSessionID == "" {
+		return
+	}
+	s.completionDeliveries = append(s.completionDeliveries, DeliveryRecord{
+		DeliveryID: "delivery_completion_" + record.CallID,
+		Kind:       DeliveryKindCompletion, SubjectID: record.CallID,
+		RecipientSessionID: record.ParentSessionID, State: DeliveryStatePending, CreatedAt: at,
+	})
 }
 
-func (s *memoryCallStore) FenceSessionDrain(_ context.Context, _ string, _ time.Time) error {
+func (s *memoryCallStore) ListDueCalls(_ context.Context, now time.Time, limit int) ([]CallRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if limit <= 0 {
+		limit = 100
+	}
+	result := make([]CallRecord, 0, min(limit, len(s.due)))
+	for _, record := range s.due {
+		if (record.State == StateQueued || record.State == StateRunning) && !record.DeadlineAt.IsZero() && !record.DeadlineAt.After(now) {
+			result = append(result, record)
+		}
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].DeadlineAt.Equal(result[j].DeadlineAt) {
+			return result[i].CallID < result[j].CallID
+		}
+		return result[i].DeadlineAt.Before(result[j].DeadlineAt)
+	})
+	if len(result) > limit {
+		result = result[:limit]
+	}
+	return result, nil
+}
+
+func (s *memoryCallStore) FenceSessionDrain(_ context.Context, rootSessionID string, _ time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.drainFences = append(s.drainFences, rootSessionID)
+	s.operations = append(s.operations, "fence:"+rootSessionID)
 	return nil
 }
 
-func (s *memoryCallStore) ListOpenSubtreeCalls(_ context.Context, _ string) ([]CallRecord, error) {
+func (s *memoryCallStore) ListOpenSubtreeCalls(_ context.Context, rootSessionID string) ([]CallRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.operations = append(s.operations, "list:"+rootSessionID)
 	return append([]CallRecord(nil), s.subtree...), nil
 }
 
@@ -301,6 +483,7 @@ type fakeActivationClaimer struct {
 	mu       sync.Mutex
 	criteria []task.ClaimCriteria
 	claimErr error
+	store    *memoryCallStore
 }
 
 func (c *fakeActivationClaimer) ClaimNextRun(_ context.Context, criteria task.ClaimCriteria, _ task.ActorContext) (*task.ClaimResult, error) {
@@ -309,6 +492,17 @@ func (c *fakeActivationClaimer) ClaimNextRun(_ context.Context, criteria task.Cl
 	c.mu.Unlock()
 	if c.claimErr != nil {
 		return nil, c.claimErr
+	}
+	if c.store != nil {
+		c.store.mu.Lock()
+		for callID, record := range c.store.calls {
+			if record.ActivationRunID == criteria.RunID && record.State == StateQueued {
+				record.State = StateRunning
+				c.store.calls[callID] = record
+				break
+			}
+		}
+		c.store.mu.Unlock()
 	}
 	return &task.ClaimResult{
 		Run:        task.Run{ID: criteria.RunID, RunKind: task.RunKindCallActivation, WorkspaceID: criteria.WorkspaceID},
@@ -324,6 +518,8 @@ type fakeActivationCanceler struct {
 	mu      sync.Mutex
 	runIDs  []string
 	reasons []string
+	outcome CancelOutcome
+	err     error
 }
 
 func (c *fakeActivationCanceler) CancelActivationRun(_ context.Context, runID string, reason string) (CancelOutcome, error) {
@@ -331,18 +527,33 @@ func (c *fakeActivationCanceler) CancelActivationRun(_ context.Context, runID st
 	defer c.mu.Unlock()
 	c.runIDs = append(c.runIDs, runID)
 	c.reasons = append(c.reasons, reason)
+	if c.err != nil {
+		return CancelOutcome{}, c.err
+	}
+	if c.outcome != (CancelOutcome{}) {
+		return c.outcome, nil
+	}
 	return CancelOutcome{Won: true}, nil
+}
+
+type fakeReviveOperation struct {
+	SessionID string
+	Prompt    string
+	CallID    string
 }
 
 type fakeSessionInvoker struct {
 	mu          sync.Mutex
 	spawns      []ChildSpec
 	revives     []string
+	reviveOps   []fakeReviveOperation
 	deliveries  []Delivery
 	stops       []string
 	stopReasons []string
 	spawnErr    error
+	reviveErr   error
 	deliverErr  error
+	stopErr     error
 }
 
 func (i *fakeSessionInvoker) SpawnChild(_ context.Context, spec ChildSpec) (SessionRef, error) {
@@ -355,11 +566,12 @@ func (i *fakeSessionInvoker) SpawnChild(_ context.Context, spec ChildSpec) (Sess
 	return SessionRef{ID: "child-" + spec.CallID}, nil
 }
 
-func (i *fakeSessionInvoker) Revive(_ context.Context, sessionID string, _ string, _ string) error {
+func (i *fakeSessionInvoker) Revive(_ context.Context, sessionID string, prompt string, callID string) error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	i.revives = append(i.revives, sessionID)
-	return nil
+	i.reviveOps = append(i.reviveOps, fakeReviveOperation{SessionID: sessionID, Prompt: prompt, CallID: callID})
+	return i.reviveErr
 }
 
 func (i *fakeSessionInvoker) DeliverAtBoundary(_ context.Context, delivery Delivery) (DeliveryOutcome, error) {
@@ -377,5 +589,5 @@ func (i *fakeSessionInvoker) StopManaged(_ context.Context, sessionID string, re
 	defer i.mu.Unlock()
 	i.stops = append(i.stops, sessionID)
 	i.stopReasons = append(i.stopReasons, reason)
-	return nil
+	return i.stopErr
 }

@@ -320,10 +320,7 @@ func NewManager(opts ...Option) (*Service, error) {
 		newID:                store.NewID,
 		starvationAge:        DefaultTaskStarvationAge,
 		blockRecurrenceLimit: configdefaults.BlockRecurrenceLimit,
-		resultBudgetConfig: contracts.CallsResultsConfig{
-			DefaultBudget: contracts.ByteBudget{MaxBytes: 256 << 10, Overflow: contracts.OverflowStore},
-			MaxBudget:     4 << 20,
-		},
+		resultBudgetConfig:   contracts.DefaultCallsResultsConfig(),
 	}
 	for _, opt := range opts {
 		if opt != nil {

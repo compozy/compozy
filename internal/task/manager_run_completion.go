@@ -2,7 +2,6 @@ package task
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 )
@@ -41,34 +40,24 @@ func (m *Service) CompleteRun(
 	}
 	storedResult, err = m.prepareResultContract(ctx, run, storedResult)
 	if validationErr, invalid := asResultContractValidationError(err); invalid {
-		first, admissionErr := m.admitResultContractRepair(ctx, run, "", actor, validationErr)
-		if admissionErr != nil {
-			return nil, admissionErr
-		}
-		if first {
-			return nil, validationErr
-		}
-		failure, failureErr := invalidTaskResultFailure(validationErr)
-		if failureErr != nil {
-			return nil, failureErr
-		}
-		failed, failureErr := m.failRunRecord(ctx, taskRecord, run, failure, actor)
-		if failureErr != nil {
-			return nil, errors.Join(ErrResultInvalid, validationErr, failureErr)
-		}
-		return failed, errors.Join(ErrResultInvalid, validationErr)
+		return m.settleInvalidResultContract(
+			ctx, run, "", actor, validationErr,
+			func(ctx context.Context, failure RunFailure) (*Run, error) {
+				return m.failRunRecord(ctx, taskRecord, run, failure, actor)
+			},
+		)
 	}
 	if err != nil {
 		return nil, err
 	}
+	eventResult := completionEventResult(storedResult)
 	if err := m.preflightTaskEvent(
 		run.TaskID,
 		run.ID,
 		taskEventRunCompleted,
 		actor,
-		completedRunPayload{
-			Status: TaskRunStatusCompleted, TaskStatus: taskRecord.Status, Result: completionEventResult(storedResult),
-		},
+		completedRunPayload{Status: TaskRunStatusCompleted, TaskStatus: taskRecord.Status,
+			Result: eventResult.payload, ResultDisposition: eventResult.disposition},
 	); err != nil {
 		return nil, err
 	}

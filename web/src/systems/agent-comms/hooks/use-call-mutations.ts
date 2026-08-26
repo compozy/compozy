@@ -26,7 +26,7 @@ import {
 } from "../adapters/agent-comms-api";
 import { agentCommsKeys } from "../lib/query-keys";
 import type { AgentCommsScope } from "../lib/agent-comms-scope";
-import type { CreateCallRequest, SendCallMessageRequest } from "../types";
+import type { CreateSingleCallRequest, SendCallMessageRequest } from "../types";
 
 export function useCallMutations(scope: AgentCommsScope) {
   const queryClient = useQueryClient();
@@ -48,7 +48,7 @@ export function useCallMutations(scope: AgentCommsScope) {
   });
 
   const create = useMutation({
-    mutationFn: (body: CreateCallRequest) =>
+    mutationFn: (body: CreateSingleCallRequest) =>
       createCall(scope.workspaceId, body, scope.actingProfile),
     onSettled: () => invalidateScope(),
   });

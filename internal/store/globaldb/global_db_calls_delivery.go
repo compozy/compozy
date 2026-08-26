@@ -2,14 +2,12 @@ package globaldb
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	callspkg "github.com/compozy/compozy/internal/calls"
-	"github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -38,23 +36,13 @@ func (g *CallRepo) ListPendingDeliveries(
 	if err != nil {
 		return nil, fmt.Errorf("store: list pending call deliveries: %w", err)
 	}
-	defer func() { err = errors.Join(err, rows.Close()) }()
+	defer func() { err = joinRowsCloseError(rows, err, "pending call deliveries") }()
 	records := make([]callspkg.DeliveryRecord, 0)
 	for rows.Next() {
 		var record callspkg.DeliveryRecord
-		var createdAt string
-		if scanErr := rows.Scan(
-			&record.DeliveryID, &record.Kind, &record.SubjectID, &record.RecipientSessionID,
-			&record.OwnerKey, &record.WakeEventID, &record.State, &record.Reason,
-			&record.Attempts, &createdAt,
-		); scanErr != nil {
-			return nil, fmt.Errorf("store: scan pending call delivery: %w", scanErr)
+		if scanErr := scanDeliveryRecord(rows, &record); scanErr != nil {
+			return nil, scanErr
 		}
-		parsed, parseErr := store.ParseTimestamp(createdAt)
-		if parseErr != nil {
-			return nil, fmt.Errorf("store: parse call delivery created_at: %w", parseErr)
-		}
-		record.CreatedAt = parsed
 		records = append(records, record)
 	}
 	if err := rows.Err(); err != nil {
@@ -74,16 +62,16 @@ func (g *CallRepo) RecordDelivery(
 		return callspkg.DeliveryRecord{}, errors.New("store: delivery maximum attempts must be positive")
 	}
 	err = g.tasks.withTaskImmediateTransaction(ctx, "record call delivery", func(exec taskSQLExecutor) error {
-		var currentState string
+		var currentState callspkg.DeliveryState
 		if err := exec.QueryRowContext(ctx, `SELECT state FROM call_deliveries WHERE delivery_id = ?`,
 			strings.TrimSpace(update.DeliveryID)).Scan(&currentState); err != nil {
 			return fmt.Errorf("store: inspect call delivery %q: %w", update.DeliveryID, err)
 		}
-		if currentState != "pending" {
+		if currentState != callspkg.DeliveryStatePending {
 			return scanDeliveryRecord(exec.QueryRowContext(ctx, deliveryRecordSelectSQL, update.DeliveryID), &record)
 		}
 		state := update.State
-		if state == "pending" {
+		if state == callspkg.DeliveryStatePending {
 			_, err := exec.ExecContext(ctx, `UPDATE call_deliveries
 				SET state = CASE WHEN attempts + 1 >= ? THEN 'failed' ELSE 'pending' END,
 				reason = ?, attempts = attempts + 1, updated_at = ?,
@@ -97,13 +85,10 @@ func (g *CallRepo) RecordDelivery(
 			}
 			return scanDeliveryRecord(exec.QueryRowContext(ctx, deliveryRecordSelectSQL, update.DeliveryID), &record)
 		}
-		if state != "injected" && state != "woken" && state != "failed" {
+		if !state.Valid() {
 			return fmt.Errorf("store: unsupported call delivery state %q", state)
 		}
-		deliveredAt := any(nil)
-		if state == "injected" || state == "woken" || state == "failed" {
-			deliveredAt = store.FormatTimestamp(update.At)
-		}
+		deliveredAt := store.FormatTimestamp(update.At)
 		_, err := exec.ExecContext(ctx, `UPDATE call_deliveries
 			SET state = ?, reason = ?, attempts = attempts + 1, updated_at = ?, delivered_at = ?
 			WHERE delivery_id = ? AND state = 'pending'`, state, strings.TrimSpace(update.Reason),
@@ -187,10 +172,7 @@ func (g *CallRepo) GetCallPayload(ctx context.Context, workspaceID, ref string) 
 	if err != nil {
 		return nil, fmt.Errorf("store: get call payload %q: %w", ref, err)
 	}
-	if int64(len(payload)) != byteSize || contracts.OutputRefForPayload(json.RawMessage(payload)) != ref {
-		return nil, fmt.Errorf("store: call payload %q failed digest verification", ref)
-	}
-	return append([]byte(nil), payload...), nil
+	return verifyCallBlob("payload", ref, payload, &byteSize)
 }
 
 func (g *CallRepo) FailPendingDeliveriesForRecipient(

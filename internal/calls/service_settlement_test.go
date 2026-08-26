@@ -29,7 +29,7 @@ func TestServiceReturnSettlementPipeline(t *testing.T) {
 			t.Fatalf("Return() error = %v", err)
 		}
 		if settlement.Call.State != StateCompleted || settlement.Call.Verdict != VerdictReturned ||
-			settlement.Call.ResultRef == "" || string(database.payloads[settlement.Call.ResultRef]) != `{"answer":42}` {
+			settlement.Call.ResultRef == "" || string(database.payloads[callPayloadKey(settlement.Call.WorkspaceID, settlement.Call.ResultRef)]) != `{"answer":42}` {
 			t.Fatalf("Return() = %#v", settlement)
 		}
 		firstRef := settlement.Call.ResultRef
@@ -55,6 +55,17 @@ func TestServiceReturnSettlementPipeline(t *testing.T) {
 		superseded, err := service.Superseded(context.Background(), readQuery, record.CallID)
 		if err != nil || string(superseded.Bytes) != `{"answer":99}` {
 			t.Fatalf("Superseded() = %s, %v", superseded.Bytes, err)
+		}
+		projected, err := service.ProjectPayloads(context.Background(), []CallRecord{stored})
+		if err != nil {
+			t.Fatalf("ProjectPayloads() error = %v", err)
+		}
+		if len(projected) != 1 || string(projected[0].Prompt) != "work" ||
+			string(projected[0].Result) != `{"answer":42}` || string(projected[0].Superseded) != `{"answer":99}` {
+			t.Fatalf("ProjectPayloads() = %#v", projected)
+		}
+		if database.payloadBatchReads != 1 {
+			t.Fatalf("payload batch reads = %d, want one for the page workspace", database.payloadBatchReads)
 		}
 	})
 
@@ -242,7 +253,7 @@ func TestServiceReturnExtractionStrictAndBudget(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Return(store overflow) error = %v", err)
 		}
-		stored := database.payloads[settlement.Call.ResultRef]
+		stored := database.payloads[callPayloadKey(settlement.Call.WorkspaceID, settlement.Call.ResultRef)]
 		if settlement.Call.State != StateCompleted || settlement.Call.Verdict != VerdictExtracted ||
 			len(stored) <= input.ResultBudget.MaxBytes || string(stored) != `{"answer":"long value"}` {
 			t.Fatalf("Return(store overflow) = %#v payload=%q", settlement, stored)
@@ -252,6 +263,32 @@ func TestServiceReturnExtractionStrictAndBudget(t *testing.T) {
 
 func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should normalize service and public read scopes identically", func(t *testing.T) {
+		t.Parallel()
+
+		serviceScope, err := NormalizeCallScope(CallScope{ProfileID: " default ", WorkspaceID: " ws-1 "})
+		if err != nil {
+			t.Fatalf("NormalizeCallScope() error = %v", err)
+		}
+		readQuery, err := NormalizeReadQuery(CallReadQuery{
+			ReadScope: store.ReadScope{ProfileID: " default "}, WorkspaceID: " ws-1 ",
+		})
+		if err != nil {
+			t.Fatalf("NormalizeReadQuery() error = %v", err)
+		}
+		if serviceScope.ProfileID != readQuery.ReadScope.ProfileID || serviceScope.Scope != readQuery.Scope ||
+			serviceScope.WorkspaceID != readQuery.WorkspaceID || serviceScope.Scope != ScopeWorkspace {
+			t.Fatalf("normalized scopes = service %#v read %#v", serviceScope, readQuery)
+		}
+		_, err = NormalizeReadQuery(CallReadQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			Scope:     ScopeGlobal, WorkspaceID: "ws-1",
+		})
+		if !IsCode(err, CodeValidation) {
+			t.Fatalf("NormalizeReadQuery(mismatch) error = %v, want %s", err, CodeValidation)
+		}
+	})
 
 	t.Run("Should stop a running child and make repeated cancel idempotent", func(t *testing.T) {
 		t.Parallel()
@@ -292,6 +329,40 @@ func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 		if strings.Contains(canceled.FailureDetail, "secret-value") || len(invoker.stopReasons) != 1 ||
 			strings.Contains(invoker.stopReasons[0], "secret-value") {
 			t.Fatalf("Cancel() detail=%q stop reasons=%q, want sanitized diagnostics", canceled.FailureDetail, invoker.stopReasons)
+		}
+	})
+
+	t.Run("Should leave a running call untouched when the activation fence fails", func(t *testing.T) {
+		t.Parallel()
+		service, database, _, invoker := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
+		record, err := service.Create(context.Background(), validCreateInput("work", nil, nil))
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		fenceErr := errors.New("activation fence unavailable")
+		service.canceler.(*fakeActivationCanceler).err = fenceErr
+		if _, err := service.Cancel(context.Background(), record.CallID, "stop", record.Actor); !errors.Is(err, fenceErr) {
+			t.Fatalf("Cancel() error = %v, want %v", err, fenceErr)
+		}
+		if got := database.calls[record.CallID].State; got != StateRunning || len(invoker.stops) != 0 {
+			t.Fatalf("fenced cancellation state = %q stops=%#v, want running with no child stop", got, invoker.stops)
+		}
+	})
+
+	t.Run("Should leave a running call unsettled when child cleanup fails", func(t *testing.T) {
+		t.Parallel()
+		service, database, _, invoker := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
+		record, err := service.Create(context.Background(), validCreateInput("work", nil, nil))
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		stopErr := errors.New("child stop failed")
+		invoker.stopErr = stopErr
+		if _, err := service.Cancel(context.Background(), record.CallID, "stop", record.Actor); !errors.Is(err, stopErr) {
+			t.Fatalf("Cancel() error = %v, want %v", err, stopErr)
+		}
+		if got := database.calls[record.CallID].State; got != StateRunning || len(invoker.stops) != 1 {
+			t.Fatalf("cleanup failure state = %q stops=%#v, want running with one attempted stop", got, invoker.stops)
 		}
 	})
 
@@ -451,8 +522,10 @@ func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
+		now := time.Date(2026, 8, 25, 1, 0, 0, 0, time.UTC)
+		record.DeadlineAt = now
 		database.due = []CallRecord{record}
-		report, err := service.SweepDeadlines(context.Background(), time.Date(2026, 8, 25, 1, 0, 0, 0, time.UTC))
+		report, err := service.SweepDeadlines(context.Background(), now)
 		if err != nil {
 			t.Fatalf("SweepDeadlines() error = %v", err)
 		}
@@ -481,51 +554,57 @@ func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 		if len(report.CanceledCalls) != 2 || len(report.Stopped) != 1 || report.PreservedResults != 1 || len(invoker.stops) != 1 {
 			t.Fatalf("DrainSubtree() = %#v stops=%#v", report, invoker.stops)
 		}
+		if len(database.operations) < 2 || database.operations[0] != "fence:root-1" || database.operations[1] != "list:root-1" {
+			t.Fatalf("drain operations = %#v, want fence before subtree list", database.operations)
+		}
 	})
 }
 
 func TestServiceReturnRacingDeadlinePreservesLateEvidence(t *testing.T) {
-	t.Parallel()
+	t.Run("Should preserve the losing return as late evidence", func(t *testing.T) {
+		t.Parallel()
 
-	for iteration := 0; iteration < 50; iteration++ {
-		service, database, _, _ := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
-		record := createContractedCall(t, service)
-		database.due = []CallRecord{record}
-		start := make(chan struct{})
-		returnResult := make(chan error, 1)
-		sweepResult := make(chan error, 1)
-		go func() {
-			<-start
-			_, err := service.Return(context.Background(), ReturnInput{
-				CallID: record.CallID, Result: json.RawMessage(`{"answer":42}`),
-				Actor: SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
-			})
-			returnResult <- err
-		}()
-		go func() {
-			<-start
-			_, err := service.SweepDeadlines(context.Background(), time.Date(2026, 8, 25, 1, 0, 0, 0, time.UTC))
-			sweepResult <- err
-		}()
-		close(start)
-		returnErr, sweepErr := <-returnResult, <-sweepResult
-		if sweepErr != nil {
-			t.Fatalf("iteration %d SweepDeadlines() error = %v", iteration, sweepErr)
-		}
-		stored := database.calls[record.CallID]
-		switch stored.State {
-		case StateCompleted:
-			if returnErr != nil || stored.ResultRef == "" {
-				t.Fatalf("iteration %d completed winner: return error=%v record=%#v", iteration, returnErr, stored)
+		for iteration := 0; iteration < 50; iteration++ {
+			service, database, _, _ := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
+			record := createContractedCall(t, service)
+			record.DeadlineAt = time.Date(2026, 8, 25, 1, 0, 0, 0, time.UTC)
+			database.due = []CallRecord{record}
+			start := make(chan struct{})
+			returnResult := make(chan error, 1)
+			sweepResult := make(chan error, 1)
+			go func() {
+				<-start
+				_, err := service.Return(context.Background(), ReturnInput{
+					CallID: record.CallID, Result: json.RawMessage(`{"answer":42}`),
+					Actor: SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
+				})
+				returnResult <- err
+			}()
+			go func() {
+				<-start
+				_, err := service.SweepDeadlines(context.Background(), time.Date(2026, 8, 25, 1, 0, 0, 0, time.UTC))
+				sweepResult <- err
+			}()
+			close(start)
+			returnErr, sweepErr := <-returnResult, <-sweepResult
+			if sweepErr != nil {
+				t.Fatalf("iteration %d SweepDeadlines() error = %v", iteration, sweepErr)
 			}
-		case StateTimeout:
-			if !IsCode(returnErr, CodeAlreadySettled) || stored.SupersededRef == "" {
-				t.Fatalf("iteration %d timeout winner: return error=%v record=%#v", iteration, returnErr, stored)
+			stored := database.calls[record.CallID]
+			switch stored.State {
+			case StateCompleted:
+				if returnErr != nil || stored.ResultRef == "" {
+					t.Fatalf("iteration %d completed winner: return error=%v record=%#v", iteration, returnErr, stored)
+				}
+			case StateTimeout:
+				if !IsCode(returnErr, CodeAlreadySettled) || stored.SupersededRef == "" {
+					t.Fatalf("iteration %d timeout winner: return error=%v record=%#v", iteration, returnErr, stored)
+				}
+			default:
+				t.Fatalf("iteration %d terminal state = %s", iteration, stored.State)
 			}
-		default:
-			t.Fatalf("iteration %d terminal state = %s", iteration, stored.State)
 		}
-	}
+	})
 }
 
 func createContractedCall(t *testing.T, service *Service) CallRecord {

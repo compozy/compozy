@@ -39,8 +39,9 @@ func (g *TaskRunRepo) CompleteRunLeaseSettlement(
 		}
 		if current.IsTaskless() {
 			return fmt.Errorf(
-				"%w: network_wake runs must be completed through network settlement",
+				"%w: taskless %s runs must be completed through their owning settlement path",
 				taskpkg.ErrValidation,
+				current.RunKind,
 			)
 		}
 		updated, err := g.completeRunLeaseWithExecutor(ctx, exec, normalized)

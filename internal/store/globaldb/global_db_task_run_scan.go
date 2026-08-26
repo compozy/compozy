@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -168,14 +167,13 @@ func (fields *taskRunScanFields) record(run taskpkg.Run) (taskpkg.Run, error) {
 		taskNullStringValue(fields.networkOwnerKey),
 	)
 	run.ExpectDigest = taskNullStringValue(fields.expectDigest)
-	if fields.resultBudgetBytes.Valid || fields.resultOverflow.Valid {
-		if !fields.resultBudgetBytes.Valid || !fields.resultOverflow.Valid {
-			return taskpkg.Run{}, fmt.Errorf("store: task run result contract snapshot is incomplete")
-		}
-		run.ResultBudget = &contracts.ByteBudget{
-			MaxBytes: int(fields.resultBudgetBytes.Int64),
-			Overflow: contracts.OverflowMode(strings.TrimSpace(fields.resultOverflow.String)),
-		}
+	run.ResultBudget, err = decodePersistedResultBudget(
+		fields.resultBudgetBytes,
+		fields.resultOverflow,
+		"task run result contract",
+	)
+	if err != nil {
+		return taskpkg.Run{}, err
 	}
 	if err := assignTaskRunTimestamps(
 		&run,

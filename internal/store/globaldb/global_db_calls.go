@@ -39,9 +39,11 @@ func (g *CallRepo) GetContract(ctx context.Context, digest string) (contracts.Co
 		return contracts.Contract{}, fmt.Errorf("store: get call contract %q: %w", digest, err)
 	}
 	contract := contracts.Contract{Digest: row.Digest, Schema: json.RawMessage(row.Schema)}
-	if contracts.OutputRefForPayload(contract.Schema) != contract.Digest {
-		return contracts.Contract{}, fmt.Errorf("store: call contract %q failed digest verification", digest)
+	verified, err := verifyCallBlob("contract", contract.Digest, contract.Schema, nil)
+	if err != nil {
+		return contracts.Contract{}, err
 	}
+	contract.Schema = json.RawMessage(verified)
 	return contract, nil
 }
 
@@ -51,11 +53,12 @@ func putCallContract(
 	contract contracts.Contract,
 	at time.Time,
 ) error {
-	if contracts.OutputRefForPayload(contract.Schema) != strings.TrimSpace(contract.Digest) {
-		return fmt.Errorf("store: call contract digest does not match schema bytes")
+	verified, err := verifyCallBlob("contract", contract.Digest, contract.Schema, nil)
+	if err != nil {
+		return err
 	}
-	err := sqlcgen.New(exec).PutCallContract(ctx, sqlcgen.PutCallContractParams{
-		Digest: contract.Digest, Schema: string(contract.Schema), CreatedAt: store.FormatTimestamp(at),
+	err = sqlcgen.New(exec).PutCallContract(ctx, sqlcgen.PutCallContractParams{
+		Digest: strings.TrimSpace(contract.Digest), Schema: string(verified), CreatedAt: store.FormatTimestamp(at),
 	})
 	if err != nil {
 		return fmt.Errorf("store: put call contract %q: %w", contract.Digest, err)
@@ -71,18 +74,30 @@ func putCallPayload(
 	payload []byte,
 	at time.Time,
 ) error {
-	if contracts.OutputRefForPayload(json.RawMessage(payload)) != strings.TrimSpace(ref) {
-		return fmt.Errorf("store: call payload digest does not match bytes")
+	verified, err := verifyCallBlob("payload", ref, payload, nil)
+	if err != nil {
+		return err
 	}
-	err := sqlcgen.New(exec).PutCallPayload(ctx, sqlcgen.PutCallPayloadParams{
+	err = sqlcgen.New(exec).PutCallPayload(ctx, sqlcgen.PutCallPayloadParams{
 		WorkspaceID: strings.TrimSpace(workspaceID), Ref: strings.TrimSpace(ref),
-		Bytes: append([]byte(nil), payload...), ByteSize: int64(len(payload)),
+		Bytes: verified, ByteSize: int64(len(verified)),
 		CreatedAt: store.FormatTimestamp(at), LastUsedAt: store.FormatTimestamp(at),
 	})
 	if err != nil {
 		return fmt.Errorf("store: put call payload %q: %w", ref, err)
 	}
 	return nil
+}
+
+func verifyCallBlob(kind, ref string, payload []byte, persistedSize *int64) ([]byte, error) {
+	ref = strings.TrimSpace(ref)
+	if persistedSize != nil && int64(len(payload)) != *persistedSize {
+		return nil, fmt.Errorf("store: call %s %q failed byte-size verification", kind, ref)
+	}
+	if contracts.OutputRefForPayload(json.RawMessage(payload)) != ref {
+		return nil, fmt.Errorf("store: call %s %q failed digest verification", kind, ref)
+	}
+	return append([]byte(nil), payload...), nil
 }
 
 func (g *CallRepo) GetCall(

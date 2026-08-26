@@ -36,6 +36,7 @@ const EMPTY_MEMORY_STATE: InspectorMemoryState = Object.freeze({});
 export interface SessionInspectorProps {
   messages: readonly ThreadMessageState[];
   sessionId?: string;
+  liveDataEnabled?: boolean;
   usage?: InspectorUsage | null;
   memory?: InspectorMemoryState;
   vaultSecrets?: readonly VaultSecret[];
@@ -52,6 +53,7 @@ interface InspectorTabRendererProps {
   usage: InspectorUsage | null | undefined;
   memory: InspectorMemoryState;
   sessionId?: string;
+  liveDataEnabled: boolean;
   vaultSecrets: readonly VaultSecret[];
   vaultIsLoading: boolean;
   vaultError: Error | null;
@@ -76,13 +78,16 @@ function InspectorTabRenderer(props: InspectorTabRendererProps) {
         />
       );
     case "calls":
-      return <SessionCallsSection sessionId={props.sessionId} />;
+      return (
+        <SessionCallsSection liveDataEnabled={props.liveDataEnabled} sessionId={props.sessionId} />
+      );
   }
 }
 
 export function SessionInspector({
   messages,
   sessionId,
+  liveDataEnabled = true,
   usage,
   memory,
   vaultSecrets = EMPTY_VAULT_SECRETS,
@@ -121,6 +126,7 @@ export function SessionInspector({
           activeTab={activeTab}
           files={files ?? deriveFileReads(messages)}
           memory={memory ?? EMPTY_MEMORY_STATE}
+          liveDataEnabled={liveDataEnabled}
           sessionId={sessionId}
           usage={usage}
           vaultError={vaultError}

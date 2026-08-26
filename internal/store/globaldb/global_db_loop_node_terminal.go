@@ -35,7 +35,7 @@ func recordLoopNodeTerminalWithExecutor(
 	exec taskSQLExecutor,
 	run taskpkg.Run,
 	outcome string,
-	outputRef string,
+	rawOutputRef string,
 	resultPayload json.RawMessage,
 	terminalAt time.Time,
 ) error {
@@ -47,11 +47,11 @@ func recordLoopNodeTerminalWithExecutor(
 	if outcome == loopNodeOutcomeFailure {
 		status = loopNodeOutputFailed
 	}
-	storedResult, err := looppkg.EncodeGenerationResultForRef(outputRef)
+	encodedResultRef, err := looppkg.EncodeGenerationResultForRef(rawOutputRef)
 	if err != nil {
 		return fmt.Errorf("store: encode loop node terminal result: %w", err)
 	}
-	recorded, err := updateLoopNodeOutputStatusWithExecutor(ctx, exec, run, loopRunID, status, storedResult)
+	recorded, err := updateLoopNodeOutputStatusWithExecutor(ctx, exec, run, loopRunID, status, encodedResultRef)
 	if err != nil {
 		return err
 	}
@@ -76,7 +76,7 @@ func recordLoopNodeTerminalWithExecutor(
 		exec,
 		run,
 		outcome,
-		outputRef,
+		rawOutputRef,
 		normalizeTaskJSON(resultPayload),
 		tokensUsed,
 		terminalAt,

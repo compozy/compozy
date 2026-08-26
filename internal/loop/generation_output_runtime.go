@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/compozy/compozy/internal/contracts"
 	"strings"
 )
 
@@ -54,7 +55,7 @@ func generationOutputRuntimeView(
 	for index := range view {
 		ref := strings.TrimSpace(view[index].OutputRef)
 		if !generationOutputHasKind(view[index], GenerationResultPayload, GenerationResultFailure) ||
-			!OutputRefLooksContentAddressed(ref) {
+			!contracts.OutputRefLooksContentAddressed(ref) {
 			continue
 		}
 		if reader == nil {
@@ -81,7 +82,7 @@ func generationOutputRuntimeView(
 					err,
 				)
 			}
-			if !json.Valid(payload) || OutputRefForPayload(payload) != ref {
+			if !json.Valid(payload) || contracts.OutputRefForPayload(payload) != ref {
 				return nil, fmt.Errorf(
 					"loop: resolve generation %d output %s/%d ref %q: %w",
 					scope.generation,
@@ -115,6 +116,14 @@ func generationOutputRuntimeValue(output GenerationOutput) any {
 
 func setGenerationOutputRef(output *GenerationOutput, ref string) {
 	if output == nil {
+		return
+	}
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		output.ResultKind = ""
+		output.SchemaRef = ""
+		output.OutputRef = ""
+		output.runtimePayload = nil
 		return
 	}
 	result := generationResultForRef(ref)

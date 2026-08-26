@@ -4,8 +4,10 @@ import type { AgentCommsScope } from "../agent-comms-scope";
 import { agentCommsKeys } from "../query-keys";
 import {
   CALLS_TREE_PAGE_SIZE,
+  CALLS_PANEL_PAGE_SIZE,
   callDetailOptions,
   callCountOptions,
+  callMessagesOptions,
   callPromptOptions,
   callResultOptions,
   callSupersededOptions,
@@ -151,12 +153,34 @@ describe("call query options", () => {
     expect(interval({ state: { data: undefined, error: new Error("offline") } } as never)).toBe(
       false
     );
+
+    const liveInterval = callDetailOptions(SCOPE, "call_1", true, true, true).refetchInterval;
+    expect(liveInterval).toBeTypeOf("function");
+    if (typeof liveInterval !== "function") return;
+    expect(liveInterval({ state: { data: { state: "running" }, error: null } } as never)).toBe(
+      5_000
+    );
+    expect(liveInterval({ state: { data: { state: "completed" }, error: null } } as never)).toBe(
+      false
+    );
   });
 
   it("Should refuse to fetch before the workspace resolves", () => {
     const pending: AgentCommsScope = { ...SCOPE, workspaceId: "" };
     expect(callsListOptions(pending, {}, true).enabled).toBe(false);
     expect(callCountOptions(pending, {}, true).enabled).toBe(false);
+    expect(callMessagesOptions(pending, { session: "ses_1" }, false).enabled).toBe(false);
+  });
+
+  it("Should key and enable mailbox reads from the resolved scope", () => {
+    const options = callMessagesOptions(SCOPE, { session: "ses_1" }, false);
+    expect(options.enabled).toBe(true);
+    expect(options.queryKey).toEqual(
+      agentCommsKeys.messagesList("ws_main", "default", {
+        session: "ses_1",
+        limit: CALLS_PANEL_PAGE_SIZE,
+      })
+    );
   });
 
   it("Should leave every unbounded payload unfetched until the operator asks", () => {

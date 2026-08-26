@@ -71,7 +71,7 @@ func runCallCreate(deps commandDeps, flags *callCreateFlags) func(*cobra.Command
 		if err != nil {
 			return withCommandExitCode(2, err)
 		}
-		_, calls, workspaceID, err := resolveCallClient(cmd, deps, flags.workspace)
+		calls, workspaceID, err := resolveCallClient(cmd, deps, flags.workspace)
 		if err != nil {
 			return err
 		}
@@ -102,7 +102,7 @@ func (flags *callCreateFlags) request(target, prompt string) (contract.CreateCal
 		return contract.CreateCallRequest{}, errors.New("cli: prompt is required")
 	}
 	if flags.idleTTL < 0 || flags.deadline < 0 {
-		return contract.CreateCallRequest{}, errors.New("cli: idle-ttl and deadline must be positive")
+		return contract.CreateCallRequest{}, errors.New("cli: idle-ttl and deadline must not be negative")
 	}
 	if flags.idleTTL > 0 {
 		seconds := durationSecondsCeil(flags.idleTTL)
@@ -173,21 +173,21 @@ func resolveCallClient(
 	cmd *cobra.Command,
 	deps commandDeps,
 	workspaceRef string,
-) (DaemonClient, callAPIClient, string, error) {
+) (callAPIClient, string, error) {
 	client, err := clientFromDeps(deps)
 	if err != nil {
-		return nil, nil, "", err
+		return nil, "", err
 	}
 	calls, ok := client.(callAPIClient)
 	if !ok {
-		return nil, nil, "", errors.New("cli: daemon client does not support calls")
+		return nil, "", errors.New("cli: daemon client does not support calls")
 	}
 	workspaceID := ""
 	if strings.TrimSpace(workspaceRef) != "" {
 		workspaceID, err = resolveCLIWorkspaceRouteRef(cmd, deps, client, workspaceRef)
 		if err != nil {
-			return nil, nil, "", err
+			return nil, "", err
 		}
 	}
-	return client, calls, workspaceID, nil
+	return calls, workspaceID, nil
 }

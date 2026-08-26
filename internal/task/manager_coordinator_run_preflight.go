@@ -27,16 +27,18 @@ func (m *Service) preflightCoordinatorRunStarted(run Run, actor ActorContext) er
 }
 
 func (m *Service) preflightCoordinatorRunCompletion(run Run, actor ActorContext) error {
+	eventResult := completionEventResult(CoordinatorCompletedRunResult())
 	return m.preflightTaskEvent(
 		run.TaskID,
 		run.ID,
 		taskEventRunCompleted,
 		actor,
 		completedRunPayload{
-			Status:         TaskRunStatusCompleted,
-			TaskStatus:     TaskStatusNeedsAttention,
-			Result:         completionEventResult(CoordinatorCompletedRunResult()),
-			ClaimTokenHash: run.ClaimTokenHash,
+			Status:            TaskRunStatusCompleted,
+			TaskStatus:        TaskStatusNeedsAttention,
+			Result:            eventResult.payload,
+			ResultDisposition: eventResult.disposition,
+			ClaimTokenHash:    run.ClaimTokenHash,
 		},
 	)
 }

@@ -24,7 +24,7 @@ func newCallListCommand(deps commandDeps) *cobra.Command {
 		Short: "List durable calls",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			_, client, workspaceID, err := resolveCallClient(cmd, deps, flags.workspace)
+			client, workspaceID, err := resolveCallClient(cmd, deps, flags.workspace)
 			if err != nil {
 				return err
 			}
@@ -50,7 +50,7 @@ func newCallShowCommand(deps commandDeps) *cobra.Command {
 		Short: "Show one durable call",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, client, workspaceID, err := resolveCallClient(cmd, deps, flags.workspace)
+			client, workspaceID, err := resolveCallClient(cmd, deps, flags.workspace)
 			if err != nil {
 				return err
 			}
@@ -73,7 +73,7 @@ func newCallResultCommand(deps commandDeps) *cobra.Command {
 		Short: "Print the complete stored JSON result",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, client, workspaceID, err := resolveCallClient(cmd, deps, flags.workspace)
+			client, workspaceID, err := resolveCallClient(cmd, deps, flags.workspace)
 			if err != nil {
 				return err
 			}
@@ -101,7 +101,7 @@ func newCallAwaitCommand(deps commandDeps) *cobra.Command {
 			if timeout < 0 {
 				return withCommandExitCode(2, errors.New("cli: --timeout must not be negative"))
 			}
-			_, client, workspaceID, err := resolveCallClient(cmd, deps, flags.workspace)
+			client, workspaceID, err := resolveCallClient(cmd, deps, flags.workspace)
 			if err != nil {
 				return err
 			}
@@ -135,7 +135,7 @@ func newCallCancelCommand(deps commandDeps) *cobra.Command {
 		Short: "Cancel a call idempotently",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, client, workspaceID, err := resolveCallClient(cmd, deps, flags.workspace)
+			client, workspaceID, err := resolveCallClient(cmd, deps, flags.workspace)
 			if err != nil {
 				return err
 			}
@@ -163,7 +163,7 @@ func newCallPublishCommand(deps commandDeps) *cobra.Command {
 		Short: "Publish completed call evidence to Network",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, client, workspaceID, err := resolveCallClient(cmd, deps, flags.workspace)
+			client, workspaceID, err := resolveCallClient(cmd, deps, flags.workspace)
 			if err != nil {
 				return err
 			}

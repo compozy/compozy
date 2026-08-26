@@ -257,6 +257,7 @@ func TestRegisterRendersValidatedAgentDefinition(t *testing.T) {
 		FixturePath:     filepath.Join("testdata", "multi_agent_fixture.json"),
 		FixtureAgent:    "alpha",
 		AgentName:       " mock-alpha ",
+		Description:     "Mock alpha reviewer",
 		DriverPath:      "/tmp/mock driver/acpmock-driver",
 		DiagnosticsPath: diagnosticsPath,
 	})
@@ -280,6 +281,9 @@ func TestRegisterRendersValidatedAgentDefinition(t *testing.T) {
 	}
 	if got, want := loaded.Name, "mock-alpha"; got != want {
 		t.Fatalf("loaded.Name = %q, want %q", got, want)
+	}
+	if got, want := loaded.Description, "Mock alpha reviewer"; got != want {
+		t.Fatalf("loaded.Description = %q, want %q", got, want)
 	}
 	if got, want := loaded.Provider, "claude"; got != want {
 		t.Fatalf("loaded.Provider = %q, want %q", got, want)

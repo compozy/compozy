@@ -256,14 +256,15 @@ func TestRosterContract(t *testing.T) {
 				{ID: "never-started", Class: dsl.NodeClassAction},
 			}},
 			Outputs: []GenerationOutput{
-				{Generation: 1, NodeID: "op", Status: generationOutputCanceled, OutputRef: strategyCanceledReasonCode},
+				{Generation: 1, NodeID: "op", Status: generationOutputCanceled,
+					ResultKind: GenerationResultStrategyCanceled, OutputRef: strategyCanceledReasonCode},
 				{
 					Generation: 1, NodeID: "strategy", Status: generationOutputCanceled,
-					OutputRef: strategyCanceledReasonCode,
+					ResultKind: GenerationResultStrategyCanceled, OutputRef: strategyCanceledReasonCode,
 				},
 				{
 					Generation: 1, NodeID: "never-started", Status: generationOutputCanceled,
-					OutputRef: strategyNeverStartedReasonCode,
+					ResultKind: GenerationResultStrategyNotStarted, OutputRef: strategyNeverStartedReasonCode,
 				},
 			},
 			Controls: []NodeControl{{

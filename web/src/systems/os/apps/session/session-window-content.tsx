@@ -211,6 +211,7 @@ export function SessionWindowContent({
       {inspector.open ? (
         <Suspense fallback={null}>
           <SessionInspector
+            liveDataEnabled={liveDataEnabled}
             messages={controls.messages}
             sessionId={sessionId}
             usage={inspectorUsage}

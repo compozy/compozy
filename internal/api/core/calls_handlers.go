@@ -46,7 +46,7 @@ func (h *BaseHandlers) CallsCreate(c *gin.Context) {
 		h.respondCallsError(c, err)
 		return
 	}
-	inputs, batch, err := h.createCallInputs(c, req, selection.Scope.ProfileID, caller, actor)
+	inputs, batch, err := h.createCallInputs(req, selection.Scope.ProfileID, scope, workspaceID, caller, actor)
 	if err != nil {
 		h.respondCallsError(c, err)
 		return
@@ -113,11 +113,7 @@ func (h *BaseHandlers) CallsList(c *gin.Context) {
 		return
 	}
 	query := callspkg.CallListQuery{CallReadQuery: base}
-	query.State, err = parseCallStates(c.QueryArray("state"))
-	if err != nil {
-		h.respondCallsError(c, err)
-		return
-	}
+	query.State = parseCallStates(c.QueryArray("state"))
 	attention, err := parseOptionalBoolPointer(c.Query("attention"))
 	if err != nil {
 		h.respondCallsError(c, callRequestError(callspkg.CodeValidation, "attention must be a boolean"))
@@ -185,7 +181,12 @@ func (h *BaseHandlers) callReadDetail(c *gin.Context, wholeResult bool) {
 		h.respondCallsError(c, err)
 		return
 	}
-	content, err := h.callPayloadContent(c.Request.Context(), record)
+	projected, err := h.Calls.ProjectPayloads(c.Request.Context(), []callspkg.CallRecord{record})
+	if err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	content, err := h.callPayloadContent(c.Request.Context(), record, projected[0])
 	if err != nil {
 		h.respondCallsError(c, err)
 		return
@@ -260,7 +261,7 @@ func (h *BaseHandlers) CallsAwait(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, contract.AwaitCallsResponse{
-		Settled: settled, Pending: outcome.Pending, Outcome: outcome.Outcome, Resume: outcome.Resume,
+		Settled: settled, Pending: outcome.Pending, Outcome: string(outcome.Outcome), Resume: outcome.Resume,
 		ClampedTimeoutMS: outcome.ClampedTimeout.Milliseconds(),
 	})
 }

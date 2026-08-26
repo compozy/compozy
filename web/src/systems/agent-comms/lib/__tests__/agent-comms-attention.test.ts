@@ -1,31 +1,15 @@
 import { describe, expect, it } from "vitest";
 
+import { buildCallFixture } from "../../mocks";
 import { deriveCallAttention } from "../agent-comms-attention";
-import type { CallPayload } from "../../types";
 
-function call(overrides: Partial<CallPayload> & Pick<CallPayload, "call_id">): CallPayload {
-  return {
-    actor: { id: "operator:http", kind: "operator" },
-    agent: "reviewer",
-    caller: { id: "ses_root", kind: "session" },
-    created_at: "2026-08-20T18:00:00Z",
-    depth: 1,
-    idle_expires_at: null,
-    idle_ttl_seconds: 3600,
-    profile_id: "pro_default",
-    profile_name: "default",
-    prompt_bytes: 0,
-    repair_attempts: 0,
-    result_budget_bytes: 262_144,
-    result_overflow: "store",
-    root_session_id: "ses_root",
-    scope: "workspace",
+function call(seed: Parameters<typeof buildCallFixture>[0]) {
+  return buildCallFixture({
     state: "invalid-result",
-    strict: false,
-    superseded_bytes: 0,
+    root_session_id: "ses_root",
     updated_at: "2026-08-20T18:10:00Z",
-    ...overrides,
-  };
+    ...seed,
+  });
 }
 
 const NONE = new Set<string>();
@@ -205,5 +189,20 @@ describe("deriveCallAttention — coalescing", () => {
       stale: false,
     });
     expect(model.rows.map(row => row.callId)).toEqual(["new", "old"]);
+  });
+
+  it("Should order equal timestamps by stable call id", () => {
+    const model = deriveCallAttention({
+      needsYouCalls: [
+        call({ call_id: "call_z", root_session_id: "ses_z", updated_at: "2026-08-20T18:00:00Z" }),
+        call({ call_id: "call_a", root_session_id: "ses_a", updated_at: "2026-08-20T18:00:00Z" }),
+      ],
+      needsYouTotal: 2,
+      openCalls: [],
+      blockedSessionIds: NONE,
+      stale: false,
+    });
+
+    expect(model.rows.map(row => row.callId)).toEqual(["call_a", "call_z"]);
   });
 });

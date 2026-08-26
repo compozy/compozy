@@ -62,6 +62,9 @@ func newSessionStopCommand(deps commandDeps) *cobra.Command {
   compozy session stop sess_1234`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if !subtree && strings.TrimSpace(reason) != "" {
+				return errors.New("cli: --reason requires --subtree")
+			}
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err

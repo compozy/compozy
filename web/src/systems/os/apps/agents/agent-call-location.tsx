@@ -64,12 +64,15 @@ export function AgentCallLocation({ callId, windowId }: { callId: string; window
         fullPayload={page.fullPayload}
         onFetchFullPayload={page.fetchFullPayload}
         fullPayloadPending={page.fullPayloadPending}
+        fullPayloadError={page.fullPayloadError}
         fullPrompt={page.fullPrompt}
         onFetchFullPrompt={page.fetchFullPrompt}
         fullPromptPending={page.fullPromptPending}
+        fullPromptError={page.fullPromptError}
         supersededPayload={page.supersededPayload}
         onFetchSuperseded={page.fetchSuperseded}
         supersededPending={page.supersededPending}
+        supersededError={page.supersededError}
         onCancel={page.cancel}
         cancelPending={page.cancelPending}
         cancelOutcome={page.cancelOutcome}
@@ -82,9 +85,8 @@ export function AgentCallLocation({ callId, windowId }: { callId: string; window
       />
 
       {/*
-        Both disclosures live here rather than inside the detail: the detail is
-        presentational, and these two are the only places on this screen that
-        write. Which one is open is the operator's last click, never both.
+        These are the two compose disclosures on this screen. Their open state
+        belongs to the location and is mutually exclusive.
       */}
       {page.composing === "call-again" ? (
         <AgentCallCompose

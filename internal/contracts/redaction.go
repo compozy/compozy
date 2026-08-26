@@ -7,12 +7,9 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-)
 
-var deniedSecretKeys = map[string]struct{}{
-	"apikey": {}, "accesstoken": {}, "claimtoken": {}, "clientsecret": {},
-	"password": {}, "privatekey": {}, "refreshtoken": {}, "secret": {}, "token": {},
-}
+	redactpkg "github.com/compozy/compozy/internal/redact"
+)
 
 // RedactPreservingContract sanitizes values and proves the transformed payload still validates.
 func RedactPreservingContract(contract Contract, payload json.RawMessage) (json.RawMessage, []Redaction, error) {
@@ -58,7 +55,7 @@ func findSecretField(value any, path string) (string, bool) {
 	switch typed := value.(type) {
 	case map[string]any:
 		for key, child := range typed {
-			childPath := appendPath(path, key)
+			childPath := fieldPath(path, key)
 			if deniedSecretKey(key) {
 				return childPath, true
 			}
@@ -68,7 +65,7 @@ func findSecretField(value any, path string) (string, bool) {
 		}
 	case []any:
 		for index, child := range typed {
-			if foundPath, found := findSecretField(child, fmt.Sprintf("%s[%d]", path, index)); found {
+			if foundPath, found := findSecretField(child, indexedPath(path, index)); found {
 				return foundPath, true
 			}
 		}
@@ -81,7 +78,7 @@ func redactValue(value any, path string, redactions *[]Redaction) any {
 	case map[string]any:
 		result := make(map[string]any, len(typed))
 		for key, child := range typed {
-			childPath := appendPath(path, key)
+			childPath := fieldPath(path, key)
 			if deniedSecretKey(key) {
 				fingerprint := secretFingerprint(fmt.Sprint(child))
 				result[key] = redactionMarker(fingerprint)
@@ -94,7 +91,7 @@ func redactValue(value any, path string, redactions *[]Redaction) any {
 	case []any:
 		result := make([]any, len(typed))
 		for index, child := range typed {
-			result[index] = redactValue(child, fmt.Sprintf("%s[%d]", path, index), redactions)
+			result[index] = redactValue(child, indexedPath(path, index), redactions)
 		}
 		return result
 	case string:
@@ -113,25 +110,7 @@ func redactValue(value any, path string, redactions *[]Redaction) any {
 }
 
 func deniedSecretKey(key string) bool {
-	normalized := normalizeFieldName(key)
-	if strings.HasSuffix(normalized, "hash") {
-		return false
-	}
-	_, denied := deniedSecretKeys[normalized]
-	return denied
-}
-
-func normalizeFieldName(value string) string {
-	value = strings.ToLower(strings.TrimSpace(value))
-	value = strings.NewReplacer("_", "", "-", "", ".", "").Replace(value)
-	return value
-}
-
-func appendPath(path, key string) string {
-	if path == "$" {
-		return path + "." + key
-	}
-	return path + "." + key
+	return redactpkg.IsSensitiveKey(key)
 }
 
 func validateSecretFieldAuthorship(canonical json.RawMessage) error {
@@ -173,7 +152,7 @@ func walkSecretFieldAuthorship(root, schema map[string]any, path string, visitin
 				)
 			}
 			if childSchema, ok := child.(map[string]any); ok {
-				if err := walkSecretFieldAuthorship(root, childSchema, appendPath(path, name), visiting); err != nil {
+				if err := walkSecretFieldAuthorship(root, childSchema, fieldPath(path, name), visiting); err != nil {
 					return err
 				}
 			}
@@ -209,7 +188,7 @@ func walkSecretFieldAuthorship(root, schema map[string]any, path string, visitin
 		if definitions, ok := schema[keyword].(map[string]any); ok {
 			for name, child := range definitions {
 				if childSchema, ok := child.(map[string]any); ok {
-					if err := walkSecretFieldAuthorship(root, childSchema, appendPath(path, name), visiting); err != nil {
+					if err := walkSecretFieldAuthorship(root, childSchema, fieldPath(path, name), visiting); err != nil {
 						return err
 					}
 				}

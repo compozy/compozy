@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -53,6 +54,7 @@ func TestSpawnReaperSweepClassifiesReasonsReleasesLeasesAndStopsChildren(t *test
 			discardLogger(),
 			func() time.Time { return now },
 			time.Hour,
+			nil,
 		)
 		if err != nil {
 			t.Fatalf("newSpawnReaper() error = %v", err)
@@ -146,6 +148,7 @@ func TestSpawnReaperReapsTTLExpiredStarvationWorkers(t *testing.T) {
 			discardLogger(),
 			func() time.Time { return now },
 			time.Hour,
+			nil,
 		)
 		if err != nil {
 			t.Fatalf("newSpawnReaper() error = %v", err)
@@ -180,64 +183,61 @@ func TestSpawnReaperUsesParkedIdleClockAndCallProtection(t *testing.T) {
 	parent := rootReaperInfo("parent", session.StateActive)
 	expired := spawnedReaperInfo("parked-expired", "parent", now.Add(-time.Hour), true)
 	expired.State, expired.ParkedAt, expired.IdleExpiresAt = session.StateStopped, &past, &past
-	inWindow := spawnedReaperInfo("parked-in-window", "parent", now.Add(-time.Hour), true)
-	inWindow.State, inWindow.ParkedAt, inWindow.IdleExpiresAt = session.StateStopped, &past, &future
-	openCall := spawnedReaperInfo("open-call", "parent", now.Add(-time.Minute), true)
-	lifecycle := &fakeSpawnReaperCallLifecycle{protected: map[string]bool{"open-call": true}}
-	reaper, err := newSpawnReaper(
-		context.Background(),
-		&fakeSessionManager{infos: []*session.Info{parent, expired, inWindow, openCall}},
-		&fakeSpawnLeaseReleaser{},
-		&recordingSpawnHooks{},
-		discardLogger(),
-		func() time.Time { return now },
-		time.Hour,
-		lifecycle,
-	)
-	if err != nil {
-		t.Fatalf("newSpawnReaper() error = %v", err)
-	}
-	report, err := reaper.Sweep(context.Background())
-	if err != nil {
-		t.Fatalf("Sweep() error = %v", err)
-	}
-	if report.Reaped != 1 || report.TTLExpired != 1 {
-		t.Fatalf("Sweep() report = %#v, want only parked-expired reaped", report)
-	}
-	if !equalStrings(lifecycle.finalized, []string{"parked-expired:ttl_expired"}) ||
-		!equalStrings(lifecycle.failedDeliveries, []string{"parked-expired:ttl_expired"}) {
-		t.Fatalf("call lifecycle = finalized %#v failed %#v", lifecycle.finalized, lifecycle.failedDeliveries)
-	}
-	if !equalStrings(lifecycle.sequence, []string{
-		"fail-deliveries:parked-expired:ttl_expired",
-		"finalize:parked-expired:ttl_expired",
-	}) {
-		t.Fatalf("call lifecycle sequence = %#v, want deliveries failed before finalization", lifecycle.sequence)
-	}
 
-	failedLifecycle := &fakeSpawnReaperCallLifecycle{failDeliveryErr: context.DeadlineExceeded}
-	failedReaper, err := newSpawnReaper(
-		context.Background(),
-		&fakeSessionManager{infos: []*session.Info{parent, expired}},
-		&fakeSpawnLeaseReleaser{},
-		&recordingSpawnHooks{},
-		discardLogger(),
-		func() time.Time { return now },
-		time.Hour,
-		failedLifecycle,
-	)
-	if err != nil {
-		t.Fatalf("newSpawnReaper(failed delivery) error = %v", err)
-	}
-	failedReport, sweepErr := failedReaper.Sweep(context.Background())
-	if sweepErr == nil || failedReport.Reaped != 0 || len(failedLifecycle.finalized) != 0 {
-		t.Fatalf(
-			"Sweep(failed delivery) = report %#v error %v finalized %#v, want no completed reap",
-			failedReport,
-			sweepErr,
-			failedLifecycle.finalized,
+	t.Run("Should reap only an expired parked child after protecting open calls", func(t *testing.T) {
+		t.Parallel()
+
+		inWindow := spawnedReaperInfo("parked-in-window", "parent", now.Add(-time.Hour), true)
+		inWindow.State, inWindow.ParkedAt, inWindow.IdleExpiresAt = session.StateStopped, &past, &future
+		openCall := spawnedReaperInfo("open-call", "parent", now.Add(-time.Minute), true)
+		lifecycle := &fakeSpawnReaperCallLifecycle{protected: map[string]bool{"open-call": true}}
+		reaper, err := newSpawnReaper(
+			context.Background(),
+			&fakeSessionManager{infos: []*session.Info{parent, expired, inWindow, openCall}},
+			&fakeSpawnLeaseReleaser{}, &recordingSpawnHooks{}, discardLogger(),
+			func() time.Time { return now }, time.Hour, lifecycle,
 		)
-	}
+		if err != nil {
+			t.Fatalf("newSpawnReaper() error = %v", err)
+		}
+		report, err := reaper.Sweep(context.Background())
+		if err != nil {
+			t.Fatalf("Sweep() error = %v", err)
+		}
+		if report.Reaped != 1 || report.TTLExpired != 1 {
+			t.Fatalf("Sweep() report = %#v, want only parked-expired reaped", report)
+		}
+		if !equalStrings(lifecycle.finalized, []string{"parked-expired:ttl_expired"}) ||
+			!equalStrings(lifecycle.failedDeliveries, []string{"parked-expired:ttl_expired"}) {
+			t.Fatalf("call lifecycle = finalized %#v failed %#v", lifecycle.finalized, lifecycle.failedDeliveries)
+		}
+		if !equalStrings(lifecycle.sequence, []string{
+			"fail-deliveries:parked-expired:ttl_expired", "finalize:parked-expired:ttl_expired",
+		}) {
+			t.Fatalf("call lifecycle sequence = %#v, want deliveries failed before finalization", lifecycle.sequence)
+		}
+	})
+
+	t.Run("Should preserve a delivery failure and leave the child unreaped", func(t *testing.T) {
+		t.Parallel()
+
+		lifecycle := &fakeSpawnReaperCallLifecycle{failDeliveryErr: context.DeadlineExceeded}
+		reaper, err := newSpawnReaper(
+			context.Background(), &fakeSessionManager{infos: []*session.Info{parent, expired}},
+			&fakeSpawnLeaseReleaser{}, &recordingSpawnHooks{}, discardLogger(),
+			func() time.Time { return now }, time.Hour, lifecycle,
+		)
+		if err != nil {
+			t.Fatalf("newSpawnReaper() error = %v", err)
+		}
+		report, err := reaper.Sweep(context.Background())
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Sweep() error = %v, want context.DeadlineExceeded", err)
+		}
+		if report.Reaped != 0 || len(lifecycle.finalized) != 0 {
+			t.Fatalf("Sweep() = report %#v finalized %#v, want no completed reap", report, lifecycle.finalized)
+		}
+	})
 }
 
 func TestSpawnReaperTTLClassification(t *testing.T) {
@@ -282,6 +282,7 @@ func TestSpawnReaperTTLClassification(t *testing.T) {
 				discardLogger(),
 				func() time.Time { return now },
 				time.Hour,
+				nil,
 			)
 			if err != nil {
 				t.Fatalf("newSpawnReaper() error = %v", err)
@@ -332,6 +333,7 @@ func TestSpawnReaperTTLWithoutAtomicStopperUsesTimeoutFallback(t *testing.T) {
 			discardLogger(),
 			func() time.Time { return now },
 			time.Hour,
+			nil,
 		)
 		if err != nil {
 			t.Fatalf("newSpawnReaper() error = %v", err)

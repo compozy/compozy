@@ -30,17 +30,9 @@ func (h *BaseHandlers) createTaskSpecFromRequest(
 	if err != nil {
 		return taskpkg.CreateTask{}, err
 	}
-	resultBudget, err := taskResultBudgetFromWire(req.ResultBudget, req.ResultOverflow)
-	if err != nil {
-		return taskpkg.CreateTask{}, err
-	}
-
-	spec := taskpkg.CreateTask{
+	spec, err := createTaskProjection(strings.TrimSpace(profileID), scope, workspaceID, taskCreateFields{
 		ID:                   strings.TrimSpace(req.ID),
-		ProfileID:            strings.TrimSpace(profileID),
 		Identifier:           strings.TrimSpace(req.Identifier),
-		Scope:                scope,
-		WorkspaceID:          workspaceID,
 		Title:                strings.TrimSpace(req.Title),
 		Description:          strings.TrimSpace(req.Description),
 		Priority:             req.Priority.Normalize(),
@@ -50,10 +42,14 @@ func (h *BaseHandlers) createTaskSpecFromRequest(
 		ApprovalPolicy:       req.ApprovalPolicy.Normalize(),
 		Owner:                cloneOwnership(req.Owner),
 		WakeCreator:          cloneBoolPtr(req.WakeCreator),
-		Expect:               cloneRawMessage(req.Expect),
-		ResultBudget:         resultBudget,
+		Expect:               req.Expect,
+		ResultBudget:         req.ResultBudget,
+		ResultOverflow:       req.ResultOverflow,
 		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
-		Metadata:             cloneRawMessage(req.Metadata),
+		Metadata:             req.Metadata,
+	})
+	if err != nil {
+		return taskpkg.CreateTask{}, err
 	}
 	if err := spec.Validate("create_task"); err != nil {
 		return taskpkg.CreateTask{}, err
@@ -71,17 +67,9 @@ func (h *BaseHandlers) createChildTaskSpecFromRequest(
 	if err != nil {
 		return taskpkg.CreateTask{}, err
 	}
-	resultBudget, err := taskResultBudgetFromWire(req.ResultBudget, req.ResultOverflow)
-	if err != nil {
-		return taskpkg.CreateTask{}, err
-	}
-
-	spec := taskpkg.CreateTask{
+	spec, err := createTaskProjection(strings.TrimSpace(profileID), scope, workspaceID, taskCreateFields{
 		ID:                   strings.TrimSpace(req.ID),
-		ProfileID:            strings.TrimSpace(profileID),
 		Identifier:           strings.TrimSpace(req.Identifier),
-		Scope:                scope,
-		WorkspaceID:          workspaceID,
 		Title:                strings.TrimSpace(req.Title),
 		Description:          strings.TrimSpace(req.Description),
 		Priority:             req.Priority.Normalize(),
@@ -91,15 +79,58 @@ func (h *BaseHandlers) createChildTaskSpecFromRequest(
 		ApprovalPolicy:       req.ApprovalPolicy.Normalize(),
 		Owner:                cloneOwnership(req.Owner),
 		WakeCreator:          cloneBoolPtr(req.WakeCreator),
-		Expect:               cloneRawMessage(req.Expect),
-		ResultBudget:         resultBudget,
+		Expect:               req.Expect,
+		ResultBudget:         req.ResultBudget,
+		ResultOverflow:       req.ResultOverflow,
 		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
-		Metadata:             cloneRawMessage(req.Metadata),
+		Metadata:             req.Metadata,
+	})
+	if err != nil {
+		return taskpkg.CreateTask{}, err
 	}
 	if err := spec.Validate("create_child_task"); err != nil {
 		return taskpkg.CreateTask{}, err
 	}
 	return spec, nil
+}
+
+type taskCreateFields struct {
+	ID                   string
+	Identifier           string
+	Title                string
+	Description          string
+	Priority             taskpkg.Priority
+	MaxAttempts          *int
+	AutoEnqueueOnReady   bool
+	Draft                bool
+	ApprovalPolicy       taskpkg.ApprovalPolicy
+	Owner                *taskpkg.Ownership
+	WakeCreator          *bool
+	Expect               json.RawMessage
+	ResultBudget         string
+	ResultOverflow       string
+	NetworkParticipation *participation.Request
+	Metadata             json.RawMessage
+}
+
+func createTaskProjection(
+	profileID string,
+	scope taskpkg.Scope,
+	workspaceID string,
+	fields taskCreateFields,
+) (taskpkg.CreateTask, error) {
+	resultBudget, err := taskResultBudgetFromWire(fields.ResultBudget, fields.ResultOverflow)
+	if err != nil {
+		return taskpkg.CreateTask{}, err
+	}
+	return taskpkg.CreateTask{
+		ID: fields.ID, ProfileID: profileID, Identifier: fields.Identifier,
+		Scope: scope, WorkspaceID: workspaceID, Title: fields.Title, Description: fields.Description,
+		Priority: fields.Priority, MaxAttempts: fields.MaxAttempts, AutoEnqueueOnReady: fields.AutoEnqueueOnReady,
+		Draft: fields.Draft, ApprovalPolicy: fields.ApprovalPolicy, Owner: fields.Owner,
+		WakeCreator: cloneBoolPtr(fields.WakeCreator), Expect: cloneRawMessage(fields.Expect), ResultBudget: resultBudget,
+		NetworkParticipation: participation.CloneRequest(fields.NetworkParticipation), Metadata: cloneRawMessage(fields.Metadata),
+	}, nil
 }
 
 func taskPatchFromRequest(req contract.UpdateTaskRequest) (taskpkg.Patch, error) {

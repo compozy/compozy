@@ -78,7 +78,7 @@ export function AgentCallCompose({
       foot={
         <span className="flex w-full items-center gap-2">
           <span className="text-form text-muted">
-            The helper rests up to an hour after finishing · no deadline unless you set one
+            Rests after finishing · no deadline unless you set one
           </span>
           <span className="flex-1" />
           <Button

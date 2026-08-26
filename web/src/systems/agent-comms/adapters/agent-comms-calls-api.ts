@@ -27,7 +27,7 @@ import type {
   CallsListResponse,
   CancelCallRequest,
   CancelCallResponse,
-  CreateCallRequest,
+  CreateSingleCallRequest,
   CreateCallResponse,
 } from "../types";
 
@@ -39,6 +39,19 @@ import type {
  * choose. `attention` arrives for free because the daemon has it.
  */
 export type CallsListFilter = Omit<CallsListQuery, "profile" | "all_profiles">;
+
+function requireAgentCommsResponseData<T>(
+  data: T | undefined,
+  response: Response,
+  fallback: string
+): T {
+  return requireResponseData(
+    data,
+    response,
+    fallback,
+    message => new AgentCommsApiError(message, response.status)
+  );
+}
 
 /**
  * Build the request query.
@@ -74,7 +87,7 @@ export async function listCalls(
   if (apiRequestFailed(response, error)) {
     throw toAgentCommsApiError("Failed to load calls", response, error);
   }
-  return requireResponseData(data, response, "Failed to load calls");
+  return requireAgentCommsResponseData(data, response, "Failed to load calls");
 }
 
 export async function fetchCall(
@@ -96,7 +109,7 @@ export async function fetchCall(
     }
     throw toAgentCommsApiError(`Failed to load call ${callId}`, response, error);
   }
-  return requireResponseData(data, response, `Failed to load call ${callId}`);
+  return requireAgentCommsResponseData(data, response, `Failed to load call ${callId}`);
 }
 
 /**
@@ -120,7 +133,7 @@ export async function fetchCallResult(
   if (apiRequestFailed(response, error)) {
     throw toAgentCommsApiError(`Failed to load the result for ${callId}`, response, error);
   }
-  return requireResponseData(data, response, `Failed to load the result for ${callId}`);
+  return requireAgentCommsResponseData(data, response, `Failed to load the result for ${callId}`);
 }
 
 /**
@@ -146,7 +159,7 @@ export async function fetchCallPrompt(
   if (apiRequestFailed(response, error)) {
     throw toAgentCommsApiError(`Failed to load the prompt for ${callId}`, response, error);
   }
-  return requireResponseData(data, response, `Failed to load the prompt for ${callId}`);
+  return requireAgentCommsResponseData(data, response, `Failed to load the prompt for ${callId}`);
 }
 
 /**
@@ -171,7 +184,11 @@ export async function fetchCallSuperseded(
   if (apiRequestFailed(response, error)) {
     throw toAgentCommsApiError(`Failed to load superseded evidence for ${callId}`, response, error);
   }
-  return requireResponseData(data, response, `Failed to load superseded evidence for ${callId}`);
+  return requireAgentCommsResponseData(
+    data,
+    response,
+    `Failed to load superseded evidence for ${callId}`
+  );
 }
 
 /**
@@ -185,7 +202,7 @@ export async function fetchCallSuperseded(
  */
 export async function createCall(
   workspaceId: string,
-  body: CreateCallRequest,
+  body: CreateSingleCallRequest,
   profile: string,
   signal?: AbortSignal
 ): Promise<CreateCallResponse> {
@@ -197,11 +214,12 @@ export async function createCall(
   if (apiRequestFailed(response, error)) {
     throw toAgentCommsApiError("Failed to create the call", response, error);
   }
-  const payload = requireResponseData(data, response, "Failed to create the call");
+  const payload = requireAgentCommsResponseData(data, response, "Failed to create the call");
   if (!isCallAcceptance(payload)) {
-    throw new AgentCommsApiError(
-      "The runtime accepted a batch where one call was expected",
-      response.status
+    throw toAgentCommsApiError(
+      "Failed to create the call: the runtime returned a batch response",
+      response,
+      undefined
     );
   }
   return payload;
@@ -234,5 +252,5 @@ export async function cancelCall(
   if (apiRequestFailed(response, error)) {
     throw toAgentCommsApiError(`Failed to cancel ${callId}`, response, error);
   }
-  return requireResponseData(data, response, `Failed to cancel ${callId}`);
+  return requireAgentCommsResponseData(data, response, `Failed to cancel ${callId}`);
 }

@@ -23,6 +23,11 @@ const (
 
 func hostedCallRosterDecorator(state *bootState) mcppkg.HostedProjectionDecorator {
 	return func(ctx context.Context, scope toolspkg.Scope, views []toolspkg.ToolView) ([]toolspkg.ToolView, error) {
+		if !slices.ContainsFunc(views, func(view toolspkg.ToolView) bool {
+			return view.Descriptor.ID == toolspkg.ToolIDAgentCall
+		}) {
+			return views, nil
+		}
 		remaining, err := callDepthRemaining(ctx, state, scope.SessionID)
 		if err != nil {
 			return nil, err

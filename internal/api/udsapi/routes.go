@@ -28,7 +28,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerToolRoutes(api, handlers)
 	registerAutomationRoutes(api, handlers)
 	registerLoopRoutes(api, handlers)
-	registerCallRoutes(api, handlers)
+	registerCallAndMessageRoutes(api, handlers)
 	registerTaskRoutes(api, handlers)
 	registerTaskRunRoutes(api, handlers)
 	registerMarketplaceRoutes(api, handlers)

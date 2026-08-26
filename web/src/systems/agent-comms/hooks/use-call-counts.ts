@@ -37,17 +37,20 @@ export function useCallCount(
 /**
  * Several counts, in one hook.
  *
- * Returns them positionally so the caller keeps its own names for the facets,
- * and returns `undefined` per slot until that facet answers — a half-loaded
- * summary shows the clauses it has rather than blocking on the slowest.
+ * Returns them under the caller's own facet keys, and returns `undefined` until
+ * each facet answers — a half-loaded summary shows the clauses it has rather
+ * than blocking on the slowest.
  */
-export function useCallCounts(
+export function useCallCounts<const Key extends string>(
   scope: AgentCommsScope,
-  filters: readonly CallCountFilter[],
+  facets: readonly { key: Key; filter: CallCountFilter }[],
   { live = false, enabled = true }: UseCallCountOptions = {}
-): (number | undefined)[] {
+): Record<Key, number | undefined> {
   return useQueries({
-    queries: filters.map(filter => callCountOptions(scope, filter, live, enabled)),
-    combine: results => results.map(result => result.data?.total),
+    queries: facets.map(facet => callCountOptions(scope, facet.filter, live, enabled)),
+    combine: results =>
+      Object.fromEntries(
+        facets.map((facet, index) => [facet.key, results[index]?.data?.total])
+      ) as Record<Key, number | undefined>,
   });
 }

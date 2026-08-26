@@ -112,8 +112,24 @@ func resolveActionOutputSchema(tools ToolSchemaSource, node dsl.Node) (refs.Sche
 	}
 }
 
-func (c *lintContext) declaredSchema(node dsl.Node) (refs.Schema, bool) {
+type declaredSchemaCacheEntry struct {
+	schema refs.Schema
+	ok     bool
+	err    error
+}
+
+func (c *lintContext) resolveDeclaredSchema(node dsl.Node) (refs.Schema, bool, error) {
+	if cached, exists := c.declaredSchemas[node.ID]; exists {
+		return cached.schema, cached.ok, cached.err
+	}
 	schema, ok, err := resolveDeclaredOutputSchema(c.def, c.linter.tools, node)
+	c.declaredSchemas[node.ID] = declaredSchemaCacheEntry{schema: schema, ok: ok, err: err}
+	return schema, ok, err
+
+}
+
+func (c *lintContext) declaredSchema(node dsl.Node) (refs.Schema, bool) {
+	schema, ok, err := c.resolveDeclaredSchema(node)
 	if err != nil {
 		return nil, false
 	}

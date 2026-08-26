@@ -13,8 +13,6 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	"github.com/compozy/compozy/internal/calls"
-
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/worktree"
@@ -249,7 +247,7 @@ func (h *BaseHandlers) StopSession(c *gin.Context) {
 			return
 		}
 		operationCtx := context.WithoutCancel(c.Request.Context())
-		report, drainErr := h.Calls.DrainSubtree(operationCtx, sessionID, callsHumanActor(h), request.Reason)
+		report, drainErr := h.Calls.DrainSubtree(operationCtx, sessionID, h.callsOperatorActor(), request.Reason)
 		if drainErr != nil {
 			h.respondCallsError(c, drainErr)
 			return
@@ -271,10 +269,6 @@ func (h *BaseHandlers) StopSession(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
-}
-
-func callsHumanActor(h *BaseHandlers) calls.Actor {
-	return calls.Actor{Kind: callsOperatorActorKind, ID: "operator:" + h.transportName()}
 }
 
 // ResumeSession attaches a caller to an eligible live session.

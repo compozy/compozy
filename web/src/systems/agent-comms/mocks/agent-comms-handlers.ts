@@ -10,7 +10,7 @@
  * can stage its own population without touching anyone else's — Storybook can
  * load two of these at once and neither sees the other's writes.
  */
-import { HttpResponse, type HttpHandler } from "msw";
+import type { HttpHandler } from "msw";
 
 import { compozyApiMock } from "@/storybook/openapi-msw";
 
@@ -19,6 +19,7 @@ import {
   type AgentCommsDataset,
   type AgentCommsMockStore,
 } from "./agent-comms-mock-store";
+import { buildCallFixture, buildCallMessageFixture } from "./fixtures";
 import type {
   CallMessagePayload,
   CallPayload,
@@ -27,9 +28,63 @@ import type {
 } from "../types";
 
 const NOT_FOUND_CODE = "call_target_not_found";
+const REDACTED_SECRET = "[REDACTED sha256:mock]";
+const SECRET_PATTERNS = [
+  /COMPOZY_CLAIM_[A-Za-z0-9._~+/=-]+/gi,
+  /cpz_gw[dpt]_[A-Za-z0-9._~+/=-]+/gi,
+  /(?:api[_-]?key|access[_-]?token|secret|password|bearer|token)\s*[:=]\s*[A-Za-z0-9._~+/=-]{8,}/gi,
+  /\b(?:sk-[A-Za-z0-9_-]{10,}|github_pat_[A-Za-z0-9_]{10,}|gh[pousr]_[A-Za-z0-9]{10,})\b/g,
+] as const;
 
 function notFound(callId: string) {
   return { error: `call not found: ${callId}`, code: NOT_FOUND_CODE } as const;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function sanitizeMockText(value: string): string | null {
+  let sanitized = value;
+  for (const pattern of SECRET_PATTERNS) {
+    sanitized = sanitized.replace(pattern, REDACTED_SECRET);
+  }
+  if (sanitized === value) return value;
+  const residue = sanitized
+    .replaceAll(REDACTED_SECRET, "")
+    .replace(/\b(?:bearer|authorization|token|compozy_claim_)\b/gi, "")
+    .replace(/[\s:;=,._'"-]+/g, "");
+  return residue === "" ? null : sanitized;
+}
+
+function parseCreateCallRequest(value: unknown): CreateCallRequest | null {
+  if (!isRecord(value) || !isRecord(value.target) || typeof value.prompt !== "string") return null;
+  const agent = typeof value.target.agent === "string" ? value.target.agent.trim() : "";
+  const sessionId =
+    typeof value.target.session_id === "string" ? value.target.session_id.trim() : "";
+  const prompt = sanitizeMockText(value.prompt);
+  if (prompt === null || prompt.trim() === "" || (agent === "" && sessionId === "")) return null;
+  return {
+    target: { ...(agent ? { agent } : {}), ...(sessionId ? { session_id: sessionId } : {}) },
+    prompt,
+    ...(Object.hasOwn(value, "expect") ? { expect: value.expect } : {}),
+    ...(typeof value.strict === "boolean" ? { strict: value.strict } : {}),
+  };
+}
+
+function parseSendCallMessageRequest(value: unknown): SendCallMessageRequest | null {
+  if (!isRecord(value) || !isRecord(value.to) || typeof value.text !== "string") return null;
+  const agent = typeof value.to.agent === "string" ? value.to.agent.trim() : "";
+  const sessionId = typeof value.to.session_id === "string" ? value.to.session_id.trim() : "";
+  const text = sanitizeMockText(value.text);
+  if (text === null || text.trim() === "" || (agent === "" && sessionId === "")) return null;
+  return {
+    to: { ...(agent ? { agent } : {}), ...(sessionId ? { session_id: sessionId } : {}) },
+    text,
+    ...(typeof value.call_id === "string" && value.call_id.trim()
+      ? { call_id: value.call_id.trim() }
+      : {}),
+  };
 }
 
 /** A newly created call, in the state the daemon admits one: queued, unanswered. */
@@ -44,8 +99,7 @@ function acceptedCall(
   const prompt = body.prompt;
   const caller = template?.caller.id ?? "ses_operator";
   const childSessionId = body.target.session_id ?? `ses_${callId}`;
-  const accepted = {
-    ...(template as CallPayload),
+  return buildCallFixture({
     call_id: callId,
     state: "queued",
     verdict: "pending",
@@ -60,10 +114,9 @@ function acceptedCall(
     repair_attempts: 0,
     workspace_id: workspaceId,
     profile_name: profileName,
-  };
-  delete accepted.result_preview;
-  delete accepted.result_bytes;
-  return accepted;
+    profile_id: template?.profile_id ?? "prof_default",
+    scope: template?.scope ?? "workspace",
+  });
 }
 
 function deliveredMessage(
@@ -74,7 +127,7 @@ function deliveredMessage(
   profileName: string
 ): CallMessagePayload {
   const template = store.snapshotCalls()[0];
-  return {
+  return buildCallMessageFixture({
     message_id: messageId,
     to_session_id: body.to.session_id ?? "",
     text: body.text,
@@ -88,14 +141,13 @@ function deliveredMessage(
     scope: template?.scope ?? "workspace",
     ...(body.call_id ? { call_id: body.call_id } : {}),
     profile_name: profileName,
-  } as CallMessagePayload;
+  });
 }
 
 export function buildAgentCommsHandlers(store: AgentCommsMockStore): HttpHandler[] {
-  let created = 0;
   return [
-    compozyApiMock.get("/api/workspaces/{workspace_id}/calls", ({ params, request }) =>
-      HttpResponse.json(store.pageCalls(String(params.workspace_id), new URL(request.url)))
+    compozyApiMock.get("/api/workspaces/{workspace_id}/calls", ({ params, request, response }) =>
+      response(200).json(store.pageCalls(String(params.workspace_id), new URL(request.url)))
     ),
     // The typed `response(status)` helper is what keeps a mocked error honest:
     // the body has to match the shape that status actually declares, so a handler
@@ -150,9 +202,12 @@ export function buildAgentCommsHandlers(store: AgentCommsMockStore): HttpHandler
     compozyApiMock.post(
       "/api/workspaces/{workspace_id}/calls",
       async ({ params, request, response }) => {
-        created += 1;
-        const callId = `call_mock_${created}`;
-        const body = (await request.json()) as CreateCallRequest;
+        const rawBody: unknown = await request.json();
+        const body = parseCreateCallRequest(rawBody);
+        if (body === null) {
+          return response(422).json({ error: "invalid call request", code: "call_validation" });
+        }
+        const callId = store.nextCallId();
         const url = new URL(request.url);
         const call = acceptedCall(
           store,
@@ -180,15 +235,18 @@ export function buildAgentCommsHandlers(store: AgentCommsMockStore): HttpHandler
         return response(200).json({ state });
       }
     ),
-    compozyApiMock.get("/api/workspaces/{workspace_id}/messages", ({ params, request }) =>
-      HttpResponse.json(store.pageMessages(String(params.workspace_id), new URL(request.url)))
+    compozyApiMock.get("/api/workspaces/{workspace_id}/messages", ({ params, request, response }) =>
+      response(200).json(store.pageMessages(String(params.workspace_id), new URL(request.url)))
     ),
     compozyApiMock.post(
       "/api/workspaces/{workspace_id}/messages",
       async ({ params, request, response }) => {
-        created += 1;
-        const messageId = `msg_mock_${created}`;
-        const body = (await request.json()) as SendCallMessageRequest;
+        const rawBody: unknown = await request.json();
+        const body = parseSendCallMessageRequest(rawBody);
+        if (body === null) {
+          return response(422).json({ error: "invalid message request", code: "call_validation" });
+        }
+        const messageId = store.nextMessageId();
         const url = new URL(request.url);
         store.addMessage(
           deliveredMessage(

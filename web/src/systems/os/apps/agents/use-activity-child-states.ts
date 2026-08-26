@@ -23,11 +23,13 @@
  */
 import { useQueries } from "@tanstack/react-query";
 
-import { childStatesForRoot, type AgentCommsScope, type ChildState } from "@/systems/agent-comms";
+import {
+  childStatesForRoot,
+  LIVE_CALL_POLL_INTERVAL,
+  type AgentCommsScope,
+  type ChildState,
+} from "@/systems/agent-comms";
 import { sessionsCompleteListOptions } from "@/systems/session";
-
-/** How long a child-state read stays fresh. Matches the calls list cadence. */
-const CHILD_STATE_POLL_INTERVAL = 5_000;
 
 /** One rendered tree, and the children its rows named. */
 export interface ActivityRootChildren {
@@ -49,7 +51,7 @@ export function useActivityChildStates(
         ...scope.params,
       }),
       enabled: ready,
-      refetchInterval: live ? CHILD_STATE_POLL_INTERVAL : (false as const),
+      refetchInterval: live ? LIVE_CALL_POLL_INTERVAL : (false as const),
     })),
     combine: results => {
       const merged = new Map<string, ChildState>();

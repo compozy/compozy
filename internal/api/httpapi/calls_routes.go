@@ -2,12 +2,12 @@ package httpapi
 
 import "github.com/gin-gonic/gin"
 
-func registerCallRoutes(api gin.IRouter, handlers *Handlers) {
-	registerScopedCallRoutes(api.Group(""), handlers)
-	registerScopedCallRoutes(api.Group("/workspaces/:workspace_id"), handlers)
+func registerCallAndMessageRoutes(api gin.IRouter, handlers *Handlers) {
+	registerScopedCallAndMessageRoutes(api.Group(""), handlers)
+	registerScopedCallAndMessageRoutes(api.Group("/workspaces/:workspace_id"), handlers)
 }
 
-func registerScopedCallRoutes(scope gin.IRouter, handlers *Handlers) {
+func registerScopedCallAndMessageRoutes(scope gin.IRouter, handlers *Handlers) {
 	calls := scope.Group("/calls")
 	calls.POST("", handlers.CallsCreate)
 	calls.GET("", handlers.CallsList)

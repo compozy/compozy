@@ -7,15 +7,15 @@
  * gaps without mounting anything, and `satisfies` makes a half-registered tab a
  * typecheck failure rather than a tab that renders but cannot be found.
  */
-export type InspectorTabId = "usage" | "memory" | "files" | "vault" | "calls";
-
 export const SESSION_INSPECTOR_TABS = [
   { id: "usage", label: "Usage" },
   { id: "memory", label: "Memory" },
   { id: "files", label: "Files" },
   { id: "vault", label: "Vault" },
   { id: "calls", label: "Calls" },
-] as const satisfies ReadonlyArray<{ id: InspectorTabId; label: string }>;
+] as const satisfies ReadonlyArray<{ id: string; label: string }>;
+
+export type InspectorTabId = (typeof SESSION_INSPECTOR_TABS)[number]["id"];
 
 export const SESSION_INSPECTOR_TAB_TESTIDS = {
   usage: "session-inspector-tab-usage",

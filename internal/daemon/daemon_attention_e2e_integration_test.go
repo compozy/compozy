@@ -191,8 +191,8 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 		defer cancel()
 
 		target := createBoundFixtureBackedSession(t, ctx, harness, "attention-agent", "wait-journey")
-		client := attentionHostedMCPClient(t, ctx, harness, "attention-agent", target.ID)
-		defer closeAttentionMCPClient(t, client)
+		client := hostedMCPClientForSession(t, ctx, harness, "attention-agent", target.ID)
+		defer closeHostedMCPClient(t, client)
 
 		clarify := startAttentionClarifyCall(ctx, client)
 		interaction := waitForAttentionInteraction(
@@ -325,10 +325,10 @@ func TestDaemonE2EAttentionTruthJourneys(t *testing.T) {
 
 		caller := createBoundFixtureBackedSession(t, ctx, harness, "attention-agent", "native-wait-caller")
 		target := createBoundFixtureBackedSession(t, ctx, harness, "attention-agent", "native-wait-target")
-		callerClient := attentionHostedMCPClient(t, ctx, harness, "attention-agent", caller.ID)
-		defer closeAttentionMCPClient(t, callerClient)
-		targetClient := attentionHostedMCPClient(t, ctx, harness, "attention-agent", target.ID)
-		defer closeAttentionMCPClient(t, targetClient)
+		callerClient := hostedMCPClientForSession(t, ctx, harness, "attention-agent", caller.ID)
+		defer closeHostedMCPClient(t, callerClient)
+		targetClient := hostedMCPClientForSession(t, ctx, harness, "attention-agent", target.ID)
+		defer closeHostedMCPClient(t, targetClient)
 
 		prompt := startAttentionPrompt(ctx, harness, caller.ID, "hold turn")
 		waitForAttentionStatus(t, ctx, harness, caller.ID, session.BadgeRunning)
@@ -467,40 +467,6 @@ func assertAttentionNotifyCLIOutcome(
 	}
 	if got, expected := strings.TrimSpace(stdout), "OUTCOME   "+string(want); got != expected {
 		t.Fatalf("compozy notify %q output = %q, want %q", title, got, expected)
-	}
-}
-
-func attentionHostedMCPClient(
-	t testing.TB,
-	ctx context.Context,
-	harness *e2etest.RuntimeHarness,
-	agentName string,
-	sessionID string,
-) *sdkmcp.ClientSession {
-	t.Helper()
-	registration, ok := harness.MockAgentRegistration(agentName)
-	if !ok {
-		t.Fatalf("MockAgentRegistration(%s) = missing", agentName)
-	}
-	records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
-	if err != nil {
-		t.Fatalf("ReadDiagnostics(%s) error = %v", agentName, err)
-	}
-	sessionRecords := acpmock.DiagnosticsForCompozySession(records, sessionID)
-	return startHostedMCPClient(
-		t,
-		ctx,
-		requireHostedMCPStdioServer(t, sessionRecords, hostedMCPServerEarliest),
-	)
-}
-
-func closeAttentionMCPClient(t testing.TB, client *sdkmcp.ClientSession) {
-	t.Helper()
-	if client == nil {
-		return
-	}
-	if err := client.Close(); err != nil {
-		t.Errorf("Close(hosted MCP client) error = %v", err)
 	}
 }
 

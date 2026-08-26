@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/task"
 )
 
+// Store owns durable call lifecycle and activation state.
 type Store interface {
 	contracts.RegistryStore
 	AdmitCall(context.Context, Admission) (AdmissionResult, error)
@@ -31,6 +32,7 @@ type Store interface {
 	ResolveCallTargetContext(context.Context, CreateInput) (TargetContext, error)
 }
 
+// MailboxStore owns durable messages, deliveries, and child reap fences.
 type MailboxStore interface {
 	AcceptMessage(context.Context, MessageAdmission) (MessageRecord, error)
 	GetMessage(context.Context, CallScope, string) (MessageRecord, error)
@@ -47,6 +49,7 @@ type MailboxStore interface {
 // PayloadStore reads durable call prompt and result blobs.
 type PayloadStore interface {
 	GetCallPayload(context.Context, string, string) ([]byte, error)
+	GetCallPayloads(context.Context, string, []string) (map[string][]byte, error)
 }
 
 // CallListStore owns profile-scoped public call pages.
@@ -70,21 +73,26 @@ type PublicationStore interface {
 	RecordPublication(context.Context, Publication) (Publication, bool, error)
 }
 
+// Directory resolves one call target and its safe roster projection.
 type Directory interface {
 	ResolveCallTarget(context.Context, CreateInput) (TargetContext, []AgentRosterEntry, error)
 }
 
+// ActivationClaimer claims and releases task-backed call activations.
 type ActivationClaimer interface {
 	ClaimNextRun(context.Context, task.ClaimCriteria, task.ActorContext) (*task.ClaimResult, error)
 	ReleaseRunLease(context.Context, task.LeaseRelease, task.ActorContext) (*task.Run, error)
 }
 
+// ActivationRunCanceler cancels one task-backed call activation.
 type ActivationRunCanceler interface {
 	CancelActivationRun(context.Context, string, string) (CancelOutcome, error)
 }
 
+// CancelOutcome reports the durable activation cancellation result.
 type CancelOutcome = task.ActivationCancelOutcome
 
+// SessionInvoker controls call-owned child sessions and boundary delivery.
 type SessionInvoker interface {
 	SpawnChild(context.Context, ChildSpec) (SessionRef, error)
 	Revive(context.Context, string, string, string) error
@@ -97,12 +105,14 @@ type PublishBridge interface {
 	PublishResultEvidence(context.Context, ResultEvidence) (string, error)
 }
 
+// CallScope selects one exact profile and global or workspace owner.
 type CallScope struct {
 	ProfileID   string
 	Scope       Scope
 	WorkspaceID string
 }
 
+// Admission contains the atomic durable state for one accepted call.
 type Admission struct {
 	Record      CallRecord
 	Contract    *contracts.Contract
@@ -114,17 +124,28 @@ type Admission struct {
 	FollowUp    *Delivery
 }
 
+// AdmissionResult reports the stored call and idempotent replay state.
 type AdmissionResult struct {
 	Record   CallRecord
 	Replayed bool
 }
 
+// ActivationKind identifies how an admitted call obtains a child runtime.
+type ActivationKind string
+
+// Call activation kinds.
+const (
+	ActivationKindSpawn  ActivationKind = "spawn"
+	ActivationKindRevive ActivationKind = "revive"
+)
+
+// ActivationSpec is the durable task-backed child activation request.
 type ActivationSpec struct {
 	RunID           string
 	CallID          string
 	WorkspaceID     string
 	GovernedRootID  string
-	Kind            string
+	Kind            ActivationKind
 	ParentSessionID string
 	TargetSessionID string
 	AgentName       string
@@ -133,6 +154,7 @@ type ActivationSpec struct {
 	Runtime         RuntimeSpec
 }
 
+// ActivationBinding commits the claimed child identity to a call.
 type ActivationBinding struct {
 	CallID      string
 	RunID       string
@@ -141,6 +163,7 @@ type ActivationBinding struct {
 	ActivatedAt time.Time
 }
 
+// ActivationFailure terminalizes a claimed activation with safe detail.
 type ActivationFailure struct {
 	CallID     string
 	RunID      string
@@ -150,12 +173,14 @@ type ActivationFailure struct {
 	FailedAt   time.Time
 }
 
+// RepairMutation records the single structured-result repair attempt.
 type RepairMutation struct {
 	CallID    string
 	IssueText string
 	At        time.Time
 }
 
+// SettlementMutation atomically commits one terminal call outcome.
 type SettlementMutation struct {
 	CallID             string
 	ExpectedState      State

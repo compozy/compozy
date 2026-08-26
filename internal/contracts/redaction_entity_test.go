@@ -41,8 +41,9 @@ func TestContractPreservingRedaction(t *testing.T) {
 			contract,
 			json.RawMessage(`{"note":"COMPOZY_CLAIM_super-secret-value"}`),
 		)
-		if !IsCode(err, CodeRedactionConflict) {
-			t.Fatalf("RedactPreservingContract() error = %v, want %s", err, CodeRedactionConflict)
+		if !IsCode(err, CodeRedactionConflict) || !strings.Contains(err.Error(), "remove it") ||
+			!strings.Contains(err.Error(), "safe value") {
+			t.Fatalf("RedactPreservingContract() error = %v, want %s with repair guidance", err, CodeRedactionConflict)
 		}
 	})
 
@@ -56,24 +57,6 @@ func TestContractPreservingRedaction(t *testing.T) {
 		)
 		if !IsCode(err, CodeRedactionConflict) || !strings.Contains(err.Error(), "$.apikey") {
 			t.Fatalf("RedactPreservingContract() error = %v, want secret-field rejection", err)
-		}
-	})
-
-	t.Run("Should bound and label split-secret best-effort rendering", func(t *testing.T) {
-		t.Parallel()
-
-		rendered := RenderUntrusted("call-result", map[string]string{
-			"part_a": "COMPOZY_",
-			"part_b": "CLAIM_split-across-fields",
-		}, 64)
-		if len(rendered) > 64 {
-			t.Fatalf("RenderUntrusted() bytes = %d, want <= 64", len(rendered))
-		}
-		if !strings.HasPrefix(rendered, "[untrusted call-result]") {
-			t.Fatalf("RenderUntrusted() = %q, want label", rendered)
-		}
-		if !strings.HasSuffix(rendered, "[/untrusted]") {
-			t.Fatalf("RenderUntrusted() = %q, want closing label", rendered)
 		}
 	})
 

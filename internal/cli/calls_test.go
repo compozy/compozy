@@ -39,13 +39,16 @@ func TestCallCreateCommand(t *testing.T) {
 			"--workspace-paths", "/repo", "--network-channels", "engineering",
 		}
 		for _, format := range []string{"human", "json", "jsonl", "toon"} {
-			stdout, stderr, err := executeRootCommand(t, deps, append(args, "-o", format)...)
-			if err != nil || stderr != "" {
-				t.Fatalf("call create -o %s error/stderr = %v/%q", format, err, stderr)
-			}
-			if !strings.Contains(stdout, "call-1") {
-				t.Fatalf("call create -o %s output = %q", format, stdout)
-			}
+			format := format
+			t.Run("Should render call creation as "+format, func(t *testing.T) {
+				stdout, stderr, err := executeRootCommand(t, deps, append(args, "-o", format)...)
+				if err != nil || stderr != "" {
+					t.Fatalf("call create -o %s error/stderr = %v/%q", format, err, stderr)
+				}
+				if !strings.Contains(stdout, "call-1") {
+					t.Fatalf("call create -o %s output = %q", format, stdout)
+				}
+			})
 		}
 		item := captured.CreateCallItemRequest
 		if item.Target.Agent != "reviewer" || item.Target.SessionID != "" || item.Prompt != "Review this" ||
@@ -142,18 +145,22 @@ func TestCallReadCommands(t *testing.T) {
 			t.Fatalf("call list output/error = %q/%v", stdout, err)
 		}
 		for _, test := range []struct {
+			name string
 			args []string
 			want string
 		}{
-			{args: []string{"call", "show", "call-1", "-o", "human"}, want: "reviewer"},
-			{args: []string{"call", "result", "call-1", "-o", "json"}, want: `"score": 9`},
-			{args: []string{"call", "cancel", "call-1", "--reason", "done", "-o", "jsonl"}, want: `"state":"canceled"`},
-			{args: []string{"call", "publish", "call-1", "--channel", "reviews", "--thread", "thread-1", "-o", "toon"}, want: "network-1"},
+			{name: "Should show a call", args: []string{"call", "show", "call-1", "-o", "human"}, want: "reviewer"},
+			{name: "Should print a call result", args: []string{"call", "result", "call-1", "-o", "json"}, want: `"score": 9`},
+			{name: "Should cancel a call", args: []string{"call", "cancel", "call-1", "--reason", "done", "-o", "jsonl"}, want: `"state":"canceled"`},
+			{name: "Should publish a call", args: []string{"call", "publish", "call-1", "--channel", "reviews", "--thread", "thread-1", "-o", "toon"}, want: "network-1"},
 		} {
-			stdout, stderr, err := executeRootCommand(t, deps, test.args...)
-			if err != nil || stderr != "" || !strings.Contains(stdout, test.want) {
-				t.Fatalf("%v output/stderr/error = %q/%q/%v", test.args, stdout, stderr, err)
-			}
+			test := test
+			t.Run(test.name, func(t *testing.T) {
+				stdout, stderr, err := executeRootCommand(t, deps, test.args...)
+				if err != nil || stderr != "" || !strings.Contains(stdout, test.want) {
+					t.Fatalf("%v output/stderr/error = %q/%q/%v", test.args, stdout, stderr, err)
+				}
+			})
 		}
 	})
 

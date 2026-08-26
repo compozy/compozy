@@ -56,8 +56,8 @@ func (c *daemonClient) CreateCall(
 
 func (c *daemonClient) ListCalls(ctx context.Context, query callListQuery) (contract.CallsResponse, error) {
 	values := url.Values{}
-	for _, state := range query.States {
-		values.Add("state", strings.TrimSpace(state))
+	for _, state := range cleanCallValues(query.States) {
+		values.Add("state", state)
 	}
 	setCallQueryValue(values, "caller", query.Caller)
 	setCallQueryValue(values, "cursor", query.Cursor)

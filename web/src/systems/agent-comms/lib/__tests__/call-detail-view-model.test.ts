@@ -67,7 +67,7 @@ describe("buildCallDetailView — controls", () => {
     expect(view.childSessionId).toBe("ses_01JBD8G2MZTX");
   });
 
-  it("Should offer exactly the three operations an operator can perform", () => {
+  it("Should expose exactly the four supported controls", () => {
     // Cancel, call again, message child — plus the jump link. Anything else
     // would be a button for an operation with no operator surface behind it.
     const view = buildCallDetailView({ call: call({ result_preview: { verdict: "ok" } }) });
@@ -244,8 +244,7 @@ describe("buildCallResultShape", () => {
       verdict: "needs-changes",
       findings: [{ file: "internal/loop/action.go", line: 88 }],
     });
-    expect(shape).toMatchObject({ kind: "rows" });
-    if (shape.kind !== "rows") return;
+    if (shape.kind !== "rows") throw new Error(`expected rows, got ${shape.kind}`);
     expect(shape.rows).toEqual([
       { path: "verdict", value: '"needs-changes"', summary: false },
       { path: "findings[0].file", value: '"internal/loop/action.go"', summary: false },

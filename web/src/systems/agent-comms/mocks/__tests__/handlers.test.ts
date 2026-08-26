@@ -55,7 +55,8 @@ describe("agent-comms handlers — counted pages", () => {
     return readCalls({ limit: "10" }).then(body => {
       expect(body.items).toHaveLength(10);
       expect(body.total).toBe(150);
-      expect(body.next_cursor).toBe("10");
+      expect(body.next_cursor).toBeTruthy();
+      expect(body.next_cursor).not.toMatch(/^\d+$/);
     });
   });
 
@@ -66,6 +67,26 @@ describe("agent-comms handlers — counted pages", () => {
 
     expect(second.total).toBe(first.total);
     expect(second.items[0]!.call_id).not.toBe(first.items[0]!.call_id);
+  });
+
+  it("Should bind an opaque cursor to the exact normalized query", async () => {
+    setAgentCommsMockCalls(buildLargeTreeFixture(150));
+    const first = await readCalls({ limit: "10", agent: "reviewer" });
+    const mismatched = await readCalls({
+      limit: "10",
+      agent: "scout",
+      cursor: first.next_cursor!,
+    });
+
+    expect(mismatched.items).toEqual([]);
+    expect(mismatched.next_cursor).toBeUndefined();
+  });
+
+  it("Should use the daemon default and maximum page bounds", async () => {
+    setAgentCommsMockCalls(buildLargeTreeFixture(250));
+
+    expect((await readCalls({})).items).toHaveLength(50);
+    expect((await readCalls({ limit: "999" })).items).toHaveLength(200);
   });
 
   it("Should answer a limit=1 count probe with one row and the real total", async () => {
@@ -83,6 +104,17 @@ describe("agent-comms handlers — counted pages", () => {
     expect(body.total).toBe(3);
     expect(body.next_cursor).toBeUndefined();
   });
+
+  it("Should return an empty page for malformed and out-of-range cursors", async () => {
+    setAgentCommsMockCalls(buildLargeTreeFixture(3));
+    const malformed = await readCalls({ cursor: "-1" });
+    const outOfRange = await readCalls({ cursor: "cursor_zz" });
+
+    expect(malformed.items).toEqual([]);
+    expect(outOfRange.items).toEqual([]);
+    expect(malformed.next_cursor).toBeUndefined();
+    expect(outOfRange.next_cursor).toBeUndefined();
+  });
 });
 
 describe("agent-comms handlers — filters", () => {
@@ -97,6 +129,20 @@ describe("agent-comms handlers — filters", () => {
     ]);
   });
 
+  it("Should normalize padded and repeated state filters as one set", async () => {
+    setAgentCommsMockCalls(nineStateCallsFixture);
+    const params = new URLSearchParams({ profile: "default" });
+    params.append("state", " completed ");
+    params.append("state", "running, completed ");
+    const response = await fetchMsw(
+      `http://localhost/api/workspaces/${callFixtureWorkspaceId}/calls?${params}`
+    );
+    const body = (await response.json()) as { items: { state: string }[]; total: number };
+
+    expect(response.status).toBe(200);
+    expect(new Set(body.items.map(item => item.state))).toEqual(new Set(["completed", "running"]));
+  });
+
   it("Should separate the Made and Received directions", async () => {
     const made = await readCalls({ caller: callFixtureRootSessionId });
     const received = await readCalls({
@@ -106,6 +152,15 @@ describe("agent-comms handlers — filters", () => {
     expect(made.total).toBeGreaterThan(0);
     expect(received.total).toBe(1);
     expect(received.items[0]!.call_id).toBe(completedCallFixture.call_id);
+  });
+
+  it("Should normalize padded scalar filters before matching", async () => {
+    const body = await readCalls({
+      caller: `  ${callFixtureRootSessionId}  `,
+      agent: `  ${completedCallFixture.agent!}  `,
+    });
+
+    expect(body.total).toBeGreaterThan(0);
   });
 
   it("Should scope one delegation tree by its governed root", async () => {
@@ -250,6 +305,73 @@ describe("agent-comms handlers — one call", () => {
 });
 
 describe("agent-comms handlers — messages", () => {
+  /**
+   * Invariant: reset restores both data and independent resource ID sequences.
+   * The mock-handler suite owns this because it is the public reset boundary.
+   */
+  it("Should restart independent call and message IDs when the mock state resets", async () => {
+    const callEndpoint = `http://localhost/api/workspaces/${callFixtureWorkspaceId}/calls?profile=default`;
+    const messageEndpoint = `http://localhost/api/workspaces/${callFixtureWorkspaceId}/messages?profile=default`;
+    const createCall = () =>
+      fetchMsw(callEndpoint, {
+        method: "POST",
+        body: JSON.stringify({ target: { agent: "reviewer" }, prompt: "Review this" }),
+      });
+    const sendMessage = () =>
+      fetchMsw(messageEndpoint, {
+        method: "POST",
+        body: JSON.stringify({ to: { session_id: "ses_child" }, text: "Continue" }),
+      });
+
+    expect(await (await createCall()).json()).toMatchObject({ call_id: "call_mock_1" });
+    expect(await (await sendMessage()).json()).toMatchObject({ message_id: "msg_mock_1" });
+
+    resetAgentCommsMockState();
+
+    expect(await (await createCall()).json()).toMatchObject({ call_id: "call_mock_1" });
+    expect(await (await sendMessage()).json()).toMatchObject({ message_id: "msg_mock_1" });
+  });
+
+  it("Should reject malformed mutation bodies without writing mock state", async () => {
+    const before = await readCalls({});
+    const callResponse = await fetchMsw(
+      `http://localhost/api/workspaces/${callFixtureWorkspaceId}/calls?profile=default`,
+      { method: "POST", body: JSON.stringify({ target: {}, prompt: "" }) }
+    );
+    const messageResponse = await fetchMsw(
+      `http://localhost/api/workspaces/${callFixtureWorkspaceId}/messages?profile=default`,
+      { method: "POST", body: JSON.stringify({ to: {}, text: "" }) }
+    );
+    const after = await readCalls({});
+
+    expect(callResponse.status).toBe(422);
+    expect(messageResponse.status).toBe(422);
+    expect(after.total).toBe(before.total);
+  });
+
+  it("Should sanitize mixed secret text and reject unsafe-only mutations", async () => {
+    const callEndpoint = `http://localhost/api/workspaces/${callFixtureWorkspaceId}/calls?profile=default`;
+    const messageEndpoint = `http://localhost/api/workspaces/${callFixtureWorkspaceId}/messages?profile=default`;
+    const mixedSecret = "Review COMPOZY_CLAIM_secret-value now";
+
+    const accepted = await fetchMsw(callEndpoint, {
+      method: "POST",
+      body: JSON.stringify({ target: { agent: "reviewer" }, prompt: mixedSecret }),
+    });
+    const acceptedBody = (await accepted.json()) as { call_id: string };
+    const detail = await fetchMsw(callUrl(acceptedBody.call_id, "/prompt"));
+    const prompt = (await detail.json()) as { prompt: string };
+    const rejected = await fetchMsw(messageEndpoint, {
+      method: "POST",
+      body: JSON.stringify({ to: { session_id: "ses_child" }, text: "COMPOZY_CLAIM_secret-value" }),
+    });
+
+    expect(accepted.status).toBe(201);
+    expect(prompt.prompt).toContain("[REDACTED sha256:mock]");
+    expect(prompt.prompt).not.toContain("COMPOZY_CLAIM_secret-value");
+    expect(rejected.status).toBe(422);
+  });
+
   it("Should page the mailbox without a total, because the daemon computes none", async () => {
     const response = await fetchMsw(
       `http://localhost/api/workspaces/${callFixtureWorkspaceId}/messages?profile=default`

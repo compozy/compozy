@@ -10,7 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/config"
 )
 
-func TestMailboxRenderingContracts(t *testing.T) {
+func TestMailboxContracts(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should stamp true provenance and keep message commands inert", func(t *testing.T) {

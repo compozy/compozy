@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/compozy/compozy/internal/contracts"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -3196,7 +3197,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRollbackWhenFinalizerFai
 				},
 				Terminal: &taskpkg.CoordinatorTerminal{Status: string(looppkg.StatusNeedsApproval)},
 			},
-		}, looppkg.NewStoreFinalizer())
+		}, generationFinalizerForTest())
 		if !errors.Is(err, taskpkg.ErrValidation) || !strings.Contains(err.Error(), "gate_id") {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v, want missing gate validation", err)
 		}
@@ -3259,7 +3260,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRollbackWhenFinalizerFai
 				},
 			},
 			Now: now.Add(2 * time.Second),
-		}, looppkg.NewStoreFinalizer())
+		}, generationFinalizerForTest())
 		if !errors.Is(err, taskpkg.ErrValidation) || !strings.Contains(err.Error(), "does not match claimed loop") {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v, want loop identity validation", err)
 		}
@@ -3416,7 +3417,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldLeaveIntentStateUntouche
 				},
 			},
 			Now: now.Add(time.Second),
-		}, looppkg.NewStoreFinalizer())
+		}, generationFinalizerForTest())
 		if !errors.Is(err, taskpkg.ErrInvalidClaimToken) {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v, want %v", err, taskpkg.ErrInvalidClaimToken)
 		}
@@ -3483,7 +3484,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRollbackIntentWritesAfte
 			t.Fatalf("NewVerdictIntent() error = %v", err)
 		}
 		blobPayload := json.RawMessage(`{"result":"durable"}`)
-		blobRef := looppkg.OutputRefForPayload(blobPayload)
+		blobRef := contracts.OutputRefForPayload(blobPayload)
 		_, err = globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
 			RunID:      claim.Run.ID,
 			ClaimToken: claim.ClaimToken,
@@ -3514,7 +3515,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRollbackIntentWritesAfte
 				Terminal: &taskpkg.CoordinatorTerminal{Status: "not-a-loop-status"},
 			},
 			Now: now.Add(time.Second),
-		}, looppkg.NewStoreFinalizer())
+		}, generationFinalizerForTest())
 		if err == nil {
 			t.Fatal("CompleteCoordinatorAndEnqueueNext() error = nil, want boundary validation failure")
 		}
@@ -3644,7 +3645,7 @@ func testGlobalDBCoordinatorIntentRollbackAtBoundary(t *testing.T, boundary stri
 	_, err = globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
 		RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
 		Actor: coordinatorActorContextForTest(), Plan: plan, Now: now.Add(time.Second),
-	}, looppkg.NewStoreFinalizer())
+	}, generationFinalizerForTest())
 	if err == nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(%s) error = nil, want injected failure", boundary)
 	}
@@ -3759,7 +3760,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldPersistEvaluatorMetricIn
 				},
 			},
 			Now: now.Add(time.Second),
-		}, looppkg.NewStoreFinalizer())
+		}, generationFinalizerForTest())
 		if err != nil {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
 		}
@@ -3866,7 +3867,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldPersistEvaluatorMetricIn
 				},
 			},
 			Now: now.Add(time.Second),
-		}, looppkg.NewStoreFinalizer())
+		}, generationFinalizerForTest())
 		if err != nil {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
 		}
@@ -3959,7 +3960,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldPersistPostReserveGenera
 				},
 			},
 			Now: now.Add(time.Second),
-		}, looppkg.NewStoreFinalizer())
+		}, generationFinalizerForTest())
 		if err != nil {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
 		}
@@ -4088,7 +4089,7 @@ func TestGlobalDBGenerationSuccessionObservabilityCoverageMatrix(t *testing.T) {
 						},
 					},
 					Now: now.Add(time.Duration(nextGeneration) * time.Second),
-				}, looppkg.NewStoreFinalizer())
+				}, generationFinalizerForTest())
 				if err != nil {
 					t.Fatalf("CompleteCoordinatorAndEnqueueNext(%s) error = %v", origin, err)
 				}
@@ -4340,7 +4341,7 @@ func testGlobalDBCoordinatorSuccessionConvergence(
 			Yield: true,
 		},
 		Now: now.Add(time.Second),
-	}, looppkg.NewStoreFinalizer())
+	}, generationFinalizerForTest())
 	if err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(seed generation) error = %v", err)
 	}
@@ -4386,7 +4387,7 @@ func testGlobalDBCoordinatorSuccessionConvergence(
 	_, err = globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
 		RunID: wakeClaim.Run.ID, ClaimToken: wakeClaim.ClaimToken,
 		Actor: coordinatorActorContextForTest(), Plan: firstPlan, Now: now.Add(4 * time.Second),
-	}, looppkg.NewStoreFinalizer())
+	}, generationFinalizerForTest())
 	if err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(first rejection) error = %v", err)
 	}
@@ -4410,7 +4411,7 @@ func testGlobalDBCoordinatorSuccessionConvergence(
 	_, err = globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
 		RunID: successorClaim.Run.ID, ClaimToken: successorClaim.ClaimToken,
 		Actor: coordinatorActorContextForTest(), Plan: materializePlan, Now: now.Add(6 * time.Second),
-	}, looppkg.NewStoreFinalizer())
+	}, generationFinalizerForTest())
 	if err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(materialize successor) error = %v", err)
 	}
@@ -4457,7 +4458,7 @@ func testGlobalDBCoordinatorSuccessionConvergence(
 	_, err = globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
 		RunID: finalClaim.Run.ID, ClaimToken: finalClaim.ClaimToken,
 		Actor: coordinatorActorContextForTest(), Plan: finalPlan, Now: now.Add(11 * time.Second),
-	}, looppkg.NewStoreFinalizer())
+	}, generationFinalizerForTest())
 	if err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(final approval) error = %v", err)
 	}
@@ -4853,7 +4854,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldPauseAtBoundaryWithoutEn
 			},
 		},
 		Now: now.Add(time.Second),
-	}, looppkg.NewStoreFinalizer())
+	}, generationFinalizerForTest())
 	if err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
 	}
@@ -4994,7 +4995,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldKeepNodeOutputsPendingWh
 					},
 				},
 				Now: tc.now(now),
-			}, looppkg.NewStoreFinalizer())
+			}, generationFinalizerForTest())
 			if err != nil {
 				t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
 			}
@@ -5156,7 +5157,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldDeferBoundaryWhileGenera
 					GenerationInFlight: true,
 				},
 				Now: tc.now(now),
-			}, looppkg.NewStoreFinalizer())
+			}, generationFinalizerForTest())
 			if err != nil {
 				t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
 			}
@@ -5267,7 +5268,7 @@ func testGlobalDBCompleteCoordinatorShouldPreserveConcurrentProgress(t *testing.
 		Actor:      actor,
 		Plan:       plan,
 		Now:        now.Add(2 * time.Second),
-	}, looppkg.NewStoreFinalizer())
+	}, generationFinalizerForTest())
 	if err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(first) error = %v", err)
 	}
@@ -5302,7 +5303,7 @@ func testGlobalDBCompleteCoordinatorShouldPreserveConcurrentProgress(t *testing.
 		Actor:      actor,
 		Plan:       plan,
 		Now:        now.Add(4 * time.Second),
-	}, looppkg.NewStoreFinalizer())
+	}, generationFinalizerForTest())
 	if err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(successor) error = %v", err)
 	}
@@ -5407,7 +5408,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldNotDispatchWhenLoopIsSus
 			},
 		},
 		Now: now.Add(time.Second),
-	}, looppkg.NewStoreFinalizer())
+	}, generationFinalizerForTest())
 	if err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
 	}
@@ -5520,7 +5521,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldResumeWatchingLoopForRea
 			},
 		},
 		Now: now.Add(time.Second),
-	}, looppkg.NewStoreFinalizer())
+	}, generationFinalizerForTest())
 	if err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
 	}
@@ -5596,7 +5597,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldNotPauseWhileYielding(t 
 			Snapshot: taskpkg.GenerationSnapshot{LoopRunID: string(loopRun.ID), Generation: 1},
 		},
 		Now: now.Add(time.Second),
-	}, looppkg.NewStoreFinalizer())
+	}, generationFinalizerForTest())
 	if err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
 	}
@@ -5678,7 +5679,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldEnqueuePostCommitWakes(t
 			}},
 		},
 		Now: now.Add(time.Second),
-	}, looppkg.NewStoreFinalizer())
+	}, generationFinalizerForTest())
 	if err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
 	}
@@ -5757,7 +5758,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldPreserveResultOnWakeFail
 			}},
 		},
 		Now: now.Add(time.Second),
-	}, looppkg.NewStoreFinalizer())
+	}, generationFinalizerForTest())
 	if err == nil || !strings.Contains(err.Error(), "forced coordinator post-commit wake failure") {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v, want forced wake failure", err)
 	}
@@ -5832,7 +5833,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldRejectLaterWakeIDFailure
 			},
 		},
 		Now: now.Add(time.Second),
-	}, looppkg.NewStoreFinalizer())
+	}, generationFinalizerForTest())
 	if !errors.Is(err, entropyErr) {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v, want errors.Is(entropyErr)", err)
 	}
@@ -5938,7 +5939,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldLetVerdictPreemptPause(t
 					},
 					Now: now.Add(time.Second),
 				},
-				looppkg.NewStoreFinalizer(),
+				generationFinalizerForTest(),
 			)
 			if err != nil {
 				t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
@@ -6043,7 +6044,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRefreshTokensAndApplyBud
 					},
 					Now: now.Add(time.Second),
 				},
-				looppkg.NewStoreFinalizer(),
+				generationFinalizerForTest(),
 			)
 			if err != nil {
 				t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
@@ -6159,7 +6160,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldApplyWallClockBudget(t *
 			},
 			Now: now.Add(11 * time.Second),
 		},
-		looppkg.NewStoreFinalizer(),
+		generationFinalizerForTest(),
 	)
 	if err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
@@ -6220,7 +6221,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldUseStartedAtForWallClock
 			},
 			Now: startedAt.Add(9 * time.Second),
 		},
-		looppkg.NewStoreFinalizer(),
+		generationFinalizerForTest(),
 	)
 	if err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
@@ -6293,7 +6294,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldConsumeBudgetApprovalOnc
 			},
 			Now: now.Add(time.Second),
 		},
-		looppkg.NewStoreFinalizer(),
+		generationFinalizerForTest(),
 	)
 	if err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(first) error = %v", err)
@@ -6346,7 +6347,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldConsumeBudgetApprovalOnc
 			},
 			Now: now.Add(3 * time.Second),
 		},
-		looppkg.NewStoreFinalizer(),
+		generationFinalizerForTest(),
 	)
 	if err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(second) error = %v", err)
@@ -6432,7 +6433,7 @@ func testGlobalDBCompleteCoordinatorShouldApplyParentClose(t *testing.T) {
 			},
 		},
 		Now: now.Add(2 * time.Second),
-	}, looppkg.NewStoreFinalizer())
+	}, generationFinalizerForTest())
 	if err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(parent close) error = %v", err)
 	}
@@ -6533,7 +6534,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldApplyRunStops(t *testing
 			},
 		},
 		Now: now.Add(2 * time.Second),
-	}, looppkg.NewStoreFinalizer())
+	}, generationFinalizerForTest())
 	if err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
 	}
@@ -6740,7 +6741,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCoalesceDeterministicRun
 			},
 		},
 		Now: now.Add(time.Second),
-	}, looppkg.NewStoreFinalizer()); err != nil {
+	}, generationFinalizerForTest()); err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(seed deterministic run) error = %v", err)
 	}
 	nextClaim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
@@ -6762,7 +6763,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCoalesceDeterministicRun
 			},
 		},
 		Now: now.Add(3 * time.Second),
-	}, looppkg.NewStoreFinalizer()); err != nil {
+	}, generationFinalizerForTest()); err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(settle deterministic run) error = %v", err)
 	}
 	hookOrigin := taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop.hooks"}
@@ -6800,7 +6801,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCoalesceDeterministicRun
 			},
 		},
 		Now: now.Add(6 * time.Second),
-	}, looppkg.NewStoreFinalizer())
+	}, generationFinalizerForTest())
 	if err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(replay from hook origin) error = %v", err)
 	}
@@ -6899,7 +6900,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenc
 			},
 		},
 		Now: now.Add(time.Second),
-	}, looppkg.NewStoreFinalizer())
+	}, generationFinalizerForTest())
 	if err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
 	}
@@ -6983,7 +6984,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldClaimJoinAfterInactiveRo
 	if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
 		RunID: initialClaim.Run.ID, ClaimToken: initialClaim.ClaimToken,
 		Actor: coordinatorActorContextForTest(), Plan: initialPlan, Now: now.Add(time.Second),
-	}, looppkg.NewStoreFinalizer()); err != nil {
+	}, generationFinalizerForTest()); err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(initial) error = %v", err)
 	}
 
@@ -7038,7 +7039,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldClaimJoinAfterInactiveRo
 	if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
 		RunID: routeClaim.Run.ID, ClaimToken: routeClaim.ClaimToken,
 		Actor: coordinatorActorContextForTest(), Plan: routePlan, Now: now.Add(6 * time.Second),
-	}, looppkg.NewStoreFinalizer()); err != nil {
+	}, generationFinalizerForTest()); err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(route) error = %v", err)
 	}
 
@@ -7094,7 +7095,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldClaimJoinAfterInactiveRo
 	if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(ctx, taskpkg.CoordinatorCompletion{
 		RunID: joinCoordinatorClaim.Run.ID, ClaimToken: joinCoordinatorClaim.ClaimToken,
 		Actor: coordinatorActorContextForTest(), Plan: joinPlan, Now: now.Add(11 * time.Second),
-	}, looppkg.NewStoreFinalizer()); err != nil {
+	}, generationFinalizerForTest()); err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(join) error = %v", err)
 	}
 
@@ -7197,7 +7198,7 @@ func testGlobalDBCoordinatorTerminalShouldDrainOpenDescendants(t *testing.T) {
 			},
 		},
 		Now: now.Add(time.Second),
-	}, looppkg.NewStoreFinalizer()); err != nil {
+	}, generationFinalizerForTest()); err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
 	}
 
@@ -7759,7 +7760,7 @@ func TestGlobalDBCompleteRunLeaseShouldCommitCoordinatorControlWithoutNodeSucces
 			Actor:      coordinatorActorContextForTest(),
 			Plan:       plan,
 			Now:        now.Add(5 * time.Second),
-		}, looppkg.NewStoreFinalizer()); err != nil {
+		}, generationFinalizerForTest()); err != nil {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext(recovered) error = %v", err)
 		}
 		settledRun, err := globalDB.GetLoopRunByID(ctx, loopRun.ID)
@@ -8182,7 +8183,7 @@ func TestGlobalDBCompleteRunLeaseShouldStoreLargeLoopOutputByRef(t *testing.T) {
 		if err != nil {
 			t.Fatalf("marshal result payload error = %v", err)
 		}
-		wantRef := looppkg.OutputRefForPayload(resultPayload)
+		wantRef := contracts.OutputRefForPayload(resultPayload)
 
 		updated, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
 			Actor:      coordinatorActorContextForTest(),
@@ -8259,7 +8260,7 @@ func TestGlobalDBCompleteRunLeaseShouldStoreLargeLoopOutputByRef(t *testing.T) {
 		wrongItem := owner
 		wrongItem.ItemIndex = 1
 		wrongRef := owner
-		wrongRef.OutputRef = looppkg.OutputRefForPayload(json.RawMessage(`[]`))
+		wrongRef.OutputRef = contracts.OutputRefForPayload(json.RawMessage(`[]`))
 		mismatches := []struct {
 			name string
 			key  looppkg.GenerationOutputPayloadKey
@@ -8318,11 +8319,11 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldSweepOrphanedLoopOutputB
 		t, globalDB, loopRun, "done-public", now,
 	)
 	keepPayload := json.RawMessage(`{"body":"keep"}`)
-	keepRef := looppkg.OutputRefForPayload(keepPayload)
+	keepRef := contracts.OutputRefForPayload(keepPayload)
 	reportPayload := json.RawMessage(`"goal report evidence"`)
-	reportRef := looppkg.OutputRefForPayload(reportPayload)
+	reportRef := contracts.OutputRefForPayload(reportPayload)
 	orphanPayload := json.RawMessage(`{"body":"orphan"}`)
-	orphanRef := looppkg.OutputRefForPayload(orphanPayload)
+	orphanRef := contracts.OutputRefForPayload(orphanPayload)
 	err = globalDB.withTaskImmediateTransaction(ctx, "seed loop output retention", func(exec taskSQLExecutor) error {
 		if err := upsertLoopOutputBlobWithExecutor(ctx, exec, keepRef, keepPayload, now); err != nil {
 			return err
@@ -8384,7 +8385,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldSweepOrphanedLoopOutputB
 			},
 		},
 		Now: now.Add(time.Second),
-	}, looppkg.NewStoreFinalizer())
+	}, generationFinalizerForTest())
 	if err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
 	}
@@ -8668,7 +8669,7 @@ func TestGlobalDBLoopGenerationOutputWritersShouldFenceStaleEpochs(t *testing.T)
 		}
 		nextAttemptAt := now.Add(time.Second)
 		expectedEpoch := int64(4)
-		err = looppkg.NewStoreFinalizer().WriteGenerationSnapshot(
+		err = generationFinalizerForTest().WriteGenerationSnapshot(
 			ctx,
 			tx,
 			taskpkg.GenerationSnapshot{
@@ -8820,7 +8821,7 @@ func TestGlobalDBCoordinatorCompletionShouldPersistRetryAttemptAndEventAtomicall
 					}},
 				},
 			}},
-		}, looppkg.NewStoreFinalizer())
+		}, generationFinalizerForTest())
 		if err != nil {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
 		}

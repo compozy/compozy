@@ -80,7 +80,7 @@ func newSpawnReaper(
 	logger *slog.Logger,
 	now func() time.Time,
 	interval time.Duration,
-	callLifecycle ...spawnReaperCallLifecycle,
+	callLifecycle spawnReaperCallLifecycle,
 ) (*spawnReaper, error) {
 	if ctx == nil {
 		return nil, errors.New("daemon: spawn reaper context is required")
@@ -111,9 +111,7 @@ func newSpawnReaper(
 		now:      now,
 		interval: interval,
 	}
-	if len(callLifecycle) > 0 {
-		reaper.callLifecycle = callLifecycle[0]
-	}
+	reaper.callLifecycle = callLifecycle
 	return reaper, nil
 }
 

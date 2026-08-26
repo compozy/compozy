@@ -71,6 +71,33 @@ describe("AgentCallDetail — controls exist or are absent, never disabled", () 
       expect(button).not.toBeDisabled();
     }
   });
+
+  it("Should invoke every terminal control through its owning callback", async () => {
+    const user = userEvent.setup();
+    const handlers = renderDetail(completedCallFixture);
+
+    await user.click(screen.getByTestId("agent-call-again"));
+    await user.click(screen.getByTestId("agent-call-message-child"));
+    await user.click(screen.getByText(completedCallFixture.child_session_id!));
+
+    expect(handlers.onCallAgain).toHaveBeenCalledOnce();
+    expect(handlers.onMessageChild).toHaveBeenCalledOnce();
+    expect(handlers.onOpenChildSession).toHaveBeenCalledOnce();
+  });
+
+  it("Should invoke cancel once and block it while cancellation is pending", async () => {
+    const user = userEvent.setup();
+    const handlers = renderDetail(runningCallFixture);
+    await user.click(screen.getByTestId("agent-call-cancel"));
+    expect(handlers.onCancel).toHaveBeenCalledOnce();
+
+    handlers.onCancel.mockClear();
+    renderDetail(runningCallFixture, { cancelPending: true, onCancel: handlers.onCancel });
+    const pendingCancel = screen.getAllByTestId("agent-call-cancel").at(-1)!;
+    expect(pendingCancel).toBeDisabled();
+    await user.click(pendingCancel);
+    expect(handlers.onCancel).not.toHaveBeenCalled();
+  });
 });
 
 describe("AgentCallDetail — outcomes", () => {
@@ -113,13 +140,51 @@ describe("AgentCallDetail — outcomes", () => {
     expect(screen.queryByTestId("agent-call-result-rows")).not.toBeInTheDocument();
   });
 
-  it("Should mark a bounded preview and offer the full fetch as its own act", () => {
+  it("Should fetch a bounded result once and remove the action after loading", async () => {
+    const user = userEvent.setup();
     const onFetchFullPayload = vi.fn();
-    renderDetail(overBudgetCallFixture, { onFetchFullPayload });
+    const view = buildCallDetailView({ call: overBudgetCallFixture });
+    const { rerender } = render(
+      <AgentCallDetail childUsage={NO_USAGE} onFetchFullPayload={onFetchFullPayload} view={view} />
+    );
 
     expect(screen.getByText(/bounded preview/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /fetch full payload/i })).toBeInTheDocument();
-    expect(screen.getByText(/812.0 KiB stored · budget 512.0 KiB/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /fetch full payload/i }));
+    expect(onFetchFullPayload).toHaveBeenCalledOnce();
+    expect(screen.getByText(/812 KiB stored · budget 512 KiB/)).toBeInTheDocument();
+
+    rerender(
+      <AgentCallDetail
+        childUsage={NO_USAGE}
+        fullPayload={{ files: ["full"] }}
+        onFetchFullPayload={onFetchFullPayload}
+        view={view}
+      />
+    );
+    expect(screen.queryByRole("button", { name: /fetch full payload/i })).not.toBeInTheDocument();
+  });
+
+  it("Should pass the exact call id when opening a bounded prompt", async () => {
+    const user = userEvent.setup();
+    const onFetchFullPrompt = vi.fn();
+    const boundedPrompt = { ...completedCallFixture, prompt_bytes: 4_096 };
+    const view = buildCallDetailView({ call: boundedPrompt });
+    const { rerender } = render(
+      <AgentCallDetail childUsage={NO_USAGE} onFetchFullPrompt={onFetchFullPrompt} view={view} />
+    );
+
+    await user.click(screen.getByRole("button", { name: /open the whole ask/i }));
+
+    expect(onFetchFullPrompt).toHaveBeenCalledWith(completedCallFixture.call_id);
+    rerender(
+      <AgentCallDetail
+        childUsage={NO_USAGE}
+        fullPrompt="The whole exact ask"
+        onFetchFullPrompt={onFetchFullPrompt}
+        view={view}
+      />
+    );
+    expect(screen.queryByRole("button", { name: /open the whole ask/i })).not.toBeInTheDocument();
   });
 
   it("Should keep a cancel reason on the record", () => {
@@ -148,7 +213,9 @@ describe("AgentCallDetail — outcomes", () => {
         view={buildCallDetailView({ call: canceledCallFixture })}
       />
     );
-    expect(screen.getByText('{"late":"complete"}')).toBeInTheDocument();
+    expect(screen.getByTestId("agent-call-superseded-payload")).toHaveTextContent(
+      /"late":\s*"complete"/
+    );
     expect(screen.queryByRole("button", { name: /open full evidence/i })).not.toBeInTheDocument();
   });
 });

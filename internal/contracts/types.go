@@ -35,6 +35,14 @@ type CallsResultsConfig struct {
 	MaxBudget     int
 }
 
+// DefaultCallsResultsConfig returns the canonical built-in result budget policy.
+func DefaultCallsResultsConfig() CallsResultsConfig {
+	return CallsResultsConfig{
+		DefaultBudget: ByteBudget{MaxBytes: 256 << 10, Overflow: OverflowStore},
+		MaxBudget:     4 << 20,
+	}
+}
+
 // BudgetOutcome reports the complete payload and its bounded projection.
 type BudgetOutcome struct {
 	Payload    json.RawMessage

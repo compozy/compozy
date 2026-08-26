@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
+// RuntimeSpec selects the provider runtime for a child activation.
 type RuntimeSpec struct {
 	Provider        string
 	Model           string
@@ -15,6 +16,7 @@ type RuntimeSpec struct {
 	Speed           speed.Speed
 }
 
+// Normalize trims authored runtime identifiers.
 func (r RuntimeSpec) Normalize() RuntimeSpec {
 	r.Provider = strings.TrimSpace(r.Provider)
 	r.Model = strings.TrimSpace(r.Model)
@@ -22,6 +24,7 @@ func (r RuntimeSpec) Normalize() RuntimeSpec {
 	return r
 }
 
+// PermissionAtoms contains the caller-requested permission narrowing.
 type PermissionAtoms struct {
 	Tools           []string
 	Skills          []string
@@ -31,13 +34,14 @@ type PermissionAtoms struct {
 	SandboxProfiles []string
 }
 
+// Policy converts authored atoms into the canonical normalized policy.
 func (p PermissionAtoms) Policy() store.SessionPermissionPolicy {
 	return store.NormalizeSessionPermissionPolicy(store.SessionPermissionPolicy{
-		Tools: append([]string(nil), p.Tools...), Skills: append([]string(nil), p.Skills...),
-		MCPServers:      append([]string(nil), p.MCPServers...),
-		WorkspacePaths:  append([]string(nil), p.WorkspacePaths...),
-		NetworkChannels: append([]string(nil), p.NetworkChannels...),
-		SandboxProfiles: append([]string(nil), p.SandboxProfiles...),
+		Tools: p.Tools, Skills: p.Skills,
+		MCPServers:      p.MCPServers,
+		WorkspacePaths:  p.WorkspacePaths,
+		NetworkChannels: p.NetworkChannels,
+		SandboxProfiles: p.SandboxProfiles,
 	})
 }
 

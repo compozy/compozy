@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/compozy/compozy/internal/contracts"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -32,6 +33,44 @@ import (
 
 //go:embed global_db_*.go
 var globalDBLoopSourceFiles embed.FS
+
+type explicitGenerationResultFinalizer struct {
+	inner taskpkg.GenerationStateFinalizer
+}
+
+func generationFinalizerForTest() taskpkg.GenerationStateFinalizer {
+	return explicitGenerationResultFinalizer{inner: looppkg.NewStoreFinalizer()}
+}
+
+func (f explicitGenerationResultFinalizer) WriteGenerationSnapshot(
+	ctx context.Context,
+	tx taskpkg.Tx,
+	snapshot taskpkg.GenerationSnapshot,
+) error {
+	payload, ok := snapshot.Payload.(looppkg.GenerationSnapshotPayload)
+	if !ok {
+		return f.inner.WriteGenerationSnapshot(ctx, tx, snapshot)
+	}
+	for index := range payload.Outputs {
+		output := &payload.Outputs[index]
+		if output.ResultKind != "" || strings.TrimSpace(output.OutputRef) == "" {
+			continue
+		}
+		encoded, err := looppkg.EncodeGenerationResultForRef(output.OutputRef)
+		if err != nil {
+			return err
+		}
+		result, err := looppkg.DecodeGenerationResultRef(encoded)
+		if err != nil {
+			return err
+		}
+		output.ResultKind = result.Kind
+		output.SchemaRef = result.SchemaRef
+		output.OutputRef = result.PayloadRef
+	}
+	snapshot.Payload = payload
+	return f.inner.WriteGenerationSnapshot(ctx, tx, snapshot)
+}
 
 // Invariant: every low-level terminal loop_runs status mutation invokes the settlement authority
 // in the same function. Source routing is the product safety contract, so this AST check owns IT-030.
@@ -971,7 +1010,7 @@ func TestGlobalDBLoopTimeTravelShouldCommitOneAtomicOperation(t *testing.T) {
 			t.Fatalf("CreateLoopRunForStart() error = %v", err)
 		}
 		payload := json.RawMessage(`{"result":"baseline"}`)
-		outputRef := looppkg.OutputRefForPayload(payload)
+		outputRef := contracts.OutputRefForPayload(payload)
 		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_output_blobs (
 			output_ref, payload_json, byte_size, created_at, last_used_at
 		) VALUES (?, ?, ?, ?, ?)`, outputRef, payload, len(payload), now, now); err != nil {
@@ -979,7 +1018,8 @@ func TestGlobalDBLoopTimeTravelShouldCommitOneAtomicOperation(t *testing.T) {
 		}
 		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
 			loop_run_id, generation, node_id, item_index, status, output_ref, attempt, epoch
-		) VALUES (?, 1, 'finish', 0, 'succeeded', ?, 1, 0)`, source.ID, outputRef); err != nil {
+		) VALUES (?, 1, 'finish', 0, 'succeeded', ?, 1, 0)`,
+			source.ID, generationResultRefForTest(t, outputRef)); err != nil {
 			t.Fatalf("insert source output error = %v", err)
 		}
 		if _, err := globalDB.db.ExecContext(
@@ -1007,11 +1047,13 @@ func TestGlobalDBLoopTimeTravelShouldCommitOneAtomicOperation(t *testing.T) {
 			SeedOutputs: []looppkg.GenerationOutput{
 				{
 					Generation: 1, NodeID: "finish", OutputID: "report", ArtifactName: "report-final.md",
-					Status: "succeeded", OutputRef: outputRef, Attempt: 1,
+					Status: "succeeded", ResultKind: looppkg.GenerationResultPayload,
+					OutputRef: outputRef, Attempt: 1,
 				},
 				{
 					Generation: 1, NodeID: "select", Status: "succeeded",
-					OutputRef: `{"environment":"staging"}`, Attempt: 1,
+					ResultKind: looppkg.GenerationResultPayload,
+					OutputRef:  `{"environment":"staging"}`, Attempt: 1,
 				},
 			},
 			Concurrency: dsl.ConcurrencyAllow,
@@ -1251,8 +1293,8 @@ func TestGlobalDBLoopRequestsShouldOwnOneAtomicLifecycle(t *testing.T) {
 				t.Fatalf("clear review scheduling clock error = %v", err)
 			}
 			contextPayload := json.RawMessage(`{}`)
-			contextRef := looppkg.OutputRefForPayload(contextPayload)
-			proposedRef := looppkg.OutputRefForPayload(proposed)
+			contextRef := contracts.OutputRefForPayload(contextPayload)
+			proposedRef := contracts.OutputRefForPayload(proposed)
 			for ref, payload := range map[string]json.RawMessage{
 				contextRef: contextPayload, proposedRef: proposed,
 			} {
@@ -1492,7 +1534,7 @@ func TestGlobalDBLoopRequestsShouldOwnOneAtomicLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateLoopRunForStart() error = %v", err)
 		}
-		schema := json.RawMessage(`{"type":"object"}`)
+		schema := json.RawMessage(`{"type":"object","additionalProperties":true}`)
 		expires := now.Add(time.Hour)
 		seedLoopWaitCellForTest(
 			t,
@@ -1561,7 +1603,7 @@ func TestGlobalDBLoopRequestsShouldOwnOneAtomicLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateLoopRunForStart() error = %v", err)
 		}
-		schema := json.RawMessage(`{"type":"object"}`)
+		schema := json.RawMessage(`{"type":"object","additionalProperties":true}`)
 		expires := now.Add(time.Minute)
 		seedLoopWaitCellForTest(
 			t,
@@ -1627,7 +1669,7 @@ func TestGlobalDBLoopAmendmentsShouldPreserveRecordedOutputs(t *testing.T) {
 		t.Fatalf("CreateLoopRunForStart() error = %v", err)
 	}
 	original := json.RawMessage(`{"value":"recorded"}`)
-	originalRef := looppkg.OutputRefForPayload(original)
+	originalRef := contracts.OutputRefForPayload(original)
 	if err := storepkg.UpsertLoopOutputBlob(ctx, globalDB.db, originalRef, original, now); err != nil {
 		t.Fatalf("UpsertLoopOutputBlob(original) error = %v", err)
 	}
@@ -1689,9 +1731,9 @@ func TestGlobalDBLoopAmendmentsShouldPreserveRecordedOutputs(t *testing.T) {
 		t.Fatalf("recorded generation output changed:\nbefore=%s\nafter=%s", before, after)
 	}
 	firstMatches := first.Sequence == 1 && first.OriginalRef == originalRef &&
-		first.AmendedRef == looppkg.OutputRefForPayload(firstPayload)
+		first.AmendedRef == contracts.OutputRefForPayload(firstPayload)
 	secondMatches := second.Sequence == 2 && second.OriginalRef == first.AmendedRef &&
-		second.AmendedRef == looppkg.OutputRefForPayload(secondPayload)
+		second.AmendedRef == contracts.OutputRefForPayload(secondPayload)
 	if !firstMatches || !secondMatches {
 		t.Fatalf("amendment chain first=%#v second=%#v", first, second)
 	}
@@ -1727,7 +1769,7 @@ func TestGlobalDBLoopAmendmentsShouldPreserveRecordedOutputs(t *testing.T) {
 			t.Fatalf("CreateLoopRunForStart() error = %v", err)
 		}
 		original := json.RawMessage(`{"value":"recorded"}`)
-		originalRef := looppkg.OutputRefForPayload(original)
+		originalRef := contracts.OutputRefForPayload(original)
 		if err := storepkg.UpsertLoopOutputBlob(ctx, globalDB.db, originalRef, original, now); err != nil {
 			t.Fatalf("UpsertLoopOutputBlob(original) error = %v", err)
 		}
@@ -1803,7 +1845,7 @@ func TestGlobalDBLoopAmendmentsShouldPreserveRecordedOutputs(t *testing.T) {
 		}
 		_, err = globalDB.AmendNodeOutput(ctx, looppkg.AmendInput{
 			WorkspaceID: run.WorkspaceID, RunID: run.ID, Generation: 1, NodeID: "repair",
-			Payload: json.RawMessage(`{"value":"repair"}`), Schema: json.RawMessage(`{"type":"object"}`),
+			Payload: json.RawMessage(`{"value":"repair"}`), Schema: json.RawMessage(`{"type":"object","additionalProperties":true}`),
 			Actor: operatorActorContextForTest("operator:no-output"), RequestedAt: now.Add(time.Minute),
 		})
 		if !errors.Is(err, looppkg.ErrAmendNoOutput) {
@@ -1824,7 +1866,7 @@ func TestGlobalDBLoopAmendmentsShouldPreserveRecordedOutputs(t *testing.T) {
 			t.Fatalf("CreateLoopRunForStart() error = %v", err)
 		}
 		payload := json.RawMessage(`{"value":"recorded"}`)
-		outputRef := looppkg.OutputRefForPayload(payload)
+		outputRef := contracts.OutputRefForPayload(payload)
 		if err := storepkg.UpsertLoopOutputBlob(ctx, globalDB.db, outputRef, payload, now); err != nil {
 			t.Fatalf("UpsertLoopOutputBlob() error = %v", err)
 		}
@@ -1843,7 +1885,7 @@ func TestGlobalDBLoopAmendmentsShouldPreserveRecordedOutputs(t *testing.T) {
 
 		_, err = globalDB.AmendNodeOutput(ctx, looppkg.AmendInput{
 			WorkspaceID: run.WorkspaceID, RunID: run.ID, Generation: 2, NodeID: "repair",
-			Payload: json.RawMessage(`{"value":"amended"}`), Schema: json.RawMessage(`{"type":"object"}`),
+			Payload: json.RawMessage(`{"value":"amended"}`), Schema: json.RawMessage(`{"type":"object","additionalProperties":true}`),
 			Actor: operatorActorContextForTest("operator:one"), RequestedAt: now.Add(time.Minute),
 		})
 		if !errors.Is(err, looppkg.ErrAmendNotParked) {
@@ -1889,7 +1931,7 @@ func TestGlobalDBLoopAmendmentsShouldPreserveRecordedOutputs(t *testing.T) {
 		ctx := testutil.Context(t)
 
 		orphan := json.RawMessage(`{"value":"orphan"}`)
-		orphanRef := looppkg.OutputRefForPayload(orphan)
+		orphanRef := contracts.OutputRefForPayload(orphan)
 		if err := storepkg.UpsertLoopOutputBlob(ctx, globalDB.db, orphanRef, orphan, now); err != nil {
 			t.Fatalf("UpsertLoopOutputBlob(orphan) error = %v", err)
 		}
@@ -1939,7 +1981,7 @@ func TestGlobalDBLoopNodeInventoryShouldPaginateAndIsolateStateTruth(t *testing.
 	waitAt := now.Add(-3 * time.Hour)
 	seedLoopWaitCellForTest(
 		t, globalDB, runA, "wait-a", 0, "event", 1,
-		json.RawMessage(`{"type":"object"}`), nil, nil, waitAt,
+		json.RawMessage(`{"type":"object","additionalProperties":true}`), nil, nil, waitAt,
 	)
 	seedLoopWaitCellForTest(t, globalDB, runA, "wait-b", 0, "event", 2, nil, nil, nil, waitAt)
 	seedLoopWaitCellForTest(t, globalDB, runB, "wait-c", 0, "event", 3, nil, nil, nil, waitAt)
@@ -2333,7 +2375,7 @@ func TestGlobalDBLoopRunCancellationShouldFenceBeforeTerminalizing(t *testing.T)
 				},
 			},
 		},
-		looppkg.NewStoreFinalizer(),
+		generationFinalizerForTest(),
 	)
 	if err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(cancel drain) error = %v", err)
@@ -3421,7 +3463,7 @@ func TestGlobalDBLoopNodeRequeueShouldBeAtomic(t *testing.T) {
 				RunID: claim.Run.ID, ClaimToken: claim.ClaimToken,
 				Actor: coordinatorActorContextForTest(), Now: now.Add(3 * time.Minute), Plan: plan,
 			},
-			looppkg.NewStoreFinalizer(),
+			generationFinalizerForTest(),
 		); err != nil {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext(requeue) error = %v", err)
 		}
@@ -3773,7 +3815,7 @@ func TestGlobalDBGateRevisionCountersShouldPersistPerItem(t *testing.T) {
 					},
 				},
 			},
-			looppkg.NewStoreFinalizer(),
+			generationFinalizerForTest(),
 		)
 		if err != nil {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
@@ -3883,7 +3925,7 @@ func TestGlobalDBQuarantineSnapshotShouldParkCellTasks(t *testing.T) {
 		if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(
 			ctx,
 			completion,
-			looppkg.NewStoreFinalizer(),
+			generationFinalizerForTest(),
 		); err != nil {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext(quarantine continuation) error = %v", err)
 		}
@@ -3949,7 +3991,7 @@ func TestGlobalDBQuarantineSnapshotShouldParkCellTasks(t *testing.T) {
 					},
 				},
 			},
-			looppkg.NewStoreFinalizer(),
+			generationFinalizerForTest(),
 		); err != nil {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext(completed-source replay) error = %v", err)
 		}
@@ -4073,7 +4115,7 @@ func TestGlobalDBQuarantineSnapshotShouldParkCellTasks(t *testing.T) {
 		if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(
 			ctx,
 			completion,
-			looppkg.NewStoreFinalizer(),
+			generationFinalizerForTest(),
 		); err != nil {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext(quarantine failed source) error = %v", err)
 		}
@@ -4115,7 +4157,7 @@ func TestGlobalDBQuarantineSnapshotShouldParkCellTasks(t *testing.T) {
 					},
 				},
 			},
-			looppkg.NewStoreFinalizer(),
+			generationFinalizerForTest(),
 		); err != nil {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext(quarantine replay) error = %v", err)
 		}
@@ -4225,7 +4267,7 @@ func TestGlobalDBQuarantineSnapshotShouldParkCellTasks(t *testing.T) {
 		if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(
 			ctx,
 			completion,
-			looppkg.NewStoreFinalizer(),
+			generationFinalizerForTest(),
 		); err != nil {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext(fan-out quarantine) error = %v", err)
 		}
@@ -4418,7 +4460,7 @@ func TestGlobalDBQuarantineSnapshotShouldParkCellTasks(t *testing.T) {
 		if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(
 			ctx,
 			completion,
-			looppkg.NewStoreFinalizer(),
+			generationFinalizerForTest(),
 		); err == nil || !strings.Contains(err.Error(), "forced quarantine task status event failure") {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext(forced event failure) error = %v", err)
 		}
@@ -4442,7 +4484,7 @@ func TestGlobalDBQuarantineSnapshotShouldParkCellTasks(t *testing.T) {
 		if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(
 			ctx,
 			completion,
-			looppkg.NewStoreFinalizer(),
+			generationFinalizerForTest(),
 		); err != nil {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext(quarantine) error = %v", err)
 		}
@@ -4470,7 +4512,7 @@ func TestGlobalDBQuarantineSnapshotShouldParkCellTasks(t *testing.T) {
 		if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(
 			ctx,
 			completion,
-			looppkg.NewStoreFinalizer(),
+			generationFinalizerForTest(),
 		); !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
 			t.Fatalf(
 				"CompleteCoordinatorAndEnqueueNext(quarantine replay) error = %v, want ErrInvalidStatusTransition",
@@ -4951,7 +4993,7 @@ func TestGlobalDBLoopRunCreateShouldSeedInitialCoordinator(t *testing.T) {
 					Yield: true,
 				},
 				Now: at,
-			}, looppkg.NewStoreFinalizer())
+			}, generationFinalizerForTest())
 			if err != nil {
 				t.Fatalf("CompleteCoordinatorAndEnqueueNext(%s) error = %v", claim.Run.ID, err)
 			}
@@ -5160,7 +5202,7 @@ func TestGlobalDBLoopHistoryShouldPersistMachineFacts(t *testing.T) {
 			1: `{"draft":"initial"}`,
 			2: `{"draft":"revised"}`,
 		} {
-			if err := looppkg.NewStoreFinalizer().WriteGenerationSnapshot(
+			if err := generationFinalizerForTest().WriteGenerationSnapshot(
 				ctx,
 				globalDB.db,
 				taskpkg.GenerationSnapshot{
@@ -5525,7 +5567,7 @@ func TestGlobalDBLoopRetryDueShouldFenceAndPageSchedules(t *testing.T) {
 		}
 		secondDueAt := cell.NextAttemptAt
 		firstScheduledAt := now.Add(-time.Minute)
-		if err := looppkg.NewStoreFinalizer().WriteGenerationSnapshot(
+		if err := generationFinalizerForTest().WriteGenerationSnapshot(
 			ctx,
 			globalDB.db,
 			taskpkg.GenerationSnapshot{
@@ -5665,7 +5707,7 @@ func seedLoopRetryDueCell(
 				}}},
 			}},
 		},
-		looppkg.NewStoreFinalizer(),
+		generationFinalizerForTest(),
 	); err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(%s) error = %v", runID, err)
 	}
@@ -6114,7 +6156,7 @@ func TestGlobalDBLoopNodePauseShouldFenceAndRestoreRetryState(t *testing.T) {
 				}}},
 			}},
 		},
-		looppkg.NewStoreFinalizer(),
+		generationFinalizerForTest(),
 	); err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(resume fixture) error = %v", err)
 	}
@@ -6541,7 +6583,7 @@ func TestGlobalDBLoopWaitResumeShouldClaimExactlyOnce(t *testing.T) {
 		if err != nil || len(waits) != 0 {
 			t.Fatalf("ListNodeWaits(empty) = %#v, %v, want truthful empty inventory", waits, err)
 		}
-		expect := json.RawMessage(`{"type":"object"}`)
+		expect := json.RawMessage(`{"type":"object","additionalProperties":true}`)
 		seedLoopWaitCellForTest(t, globalDB, run, "wait_for_review", 0, "event", 3, expect, nil, nil, now)
 		seedLoopWaitCellForTest(
 			t, globalDB, run, "wait_for_review", 1, looppkg.NodeWaitKindEvent, 5,
@@ -6605,7 +6647,7 @@ func TestGlobalDBLoopWaitResumeShouldClaimExactlyOnce(t *testing.T) {
 		completeInitialCoordinatorForParkedFixture(t, globalDB, run, now)
 		seedLoopWaitCellForTest(
 			t, globalDB, run, "wait_after_restart", 0, "event", 3,
-			json.RawMessage(`{"type":"object"}`), nil, nil, now,
+			json.RawMessage(`{"type":"object","additionalProperties":true}`), nil, nil, now,
 		)
 		if err := globalDB.Close(ctx); err != nil {
 			t.Fatalf("Close(before reopen) error = %v", err)
@@ -6663,7 +6705,7 @@ func TestGlobalDBLoopWaitResumeShouldClaimExactlyOnce(t *testing.T) {
 		completeInitialCoordinatorForParkedFixture(t, globalDB, run, now)
 		seedLoopWaitCellForTest(
 			t, globalDB, run, "wait_for_commit", 0, "event", 3,
-			json.RawMessage(`{"type":"object"}`), nil, nil, now,
+			json.RawMessage(`{"type":"object","additionalProperties":true}`), nil, nil, now,
 		)
 		if _, err := globalDB.db.ExecContext(ctx, `CREATE TRIGGER reject_wait_resume_event
 			BEFORE INSERT ON loop_run_events WHEN NEW.kind = 'node_wait_resumed'
@@ -6718,7 +6760,7 @@ func TestGlobalDBLoopWaitResumeShouldClaimExactlyOnce(t *testing.T) {
 		completeInitialCoordinatorForParkedFixture(t, globalDB, run, now)
 		seedLoopWaitCellForTest(
 			t, globalDB, run, "wait_without_output", 0, "event", 3,
-			json.RawMessage(`{"type":"object"}`), nil, nil, now,
+			json.RawMessage(`{"type":"object","additionalProperties":true}`), nil, nil, now,
 		)
 		if _, err := globalDB.db.ExecContext(ctx, `DELETE FROM loop_generation_outputs
 			WHERE loop_run_id = ? AND node_id = 'wait_without_output'`, run.ID); err != nil {
@@ -6830,7 +6872,7 @@ func TestGlobalDBLoopWaitDueShouldUsePinnedAdmissionAttempts(t *testing.T) {
 				t.Fatalf("CreateLoopRunForStart() error = %v", err)
 			}
 			completeInitialCoordinatorForParkedFixture(t, globalDB, created, now)
-			expect := json.RawMessage(`{"type":"object"}`)
+			expect := json.RawMessage(`{"type":"object","additionalProperties":true}`)
 			seedLoopWaitCellForTest(t, globalDB, created, "wait_for_ack", 0, "timer", 3, expect, &now, nil, now)
 			testCase.park(t, globalDB, created, now.Add(time.Minute))
 			runs, _, err := globalDB.ResumeDueLoopWaitsPage(
@@ -7564,7 +7606,7 @@ func seedLoopRequestForTest(
 	t.Helper()
 	ctx := testutil.Context(t)
 	contextPayload := json.RawMessage(fmt.Sprintf(`{"full":"lane-%d"}`, itemIndex))
-	contextRef := looppkg.OutputRefForPayload(contextPayload)
+	contextRef := contracts.OutputRefForPayload(contextPayload)
 	if err := storepkg.UpsertLoopOutputBlob(ctx, globalDB.db, contextRef, contextPayload, openedAt); err != nil {
 		t.Fatalf("UpsertLoopOutputBlob(request context) error = %v", err)
 	}
@@ -7608,7 +7650,7 @@ func completeInitialCoordinatorForParkedFixture(
 				Payload: looppkg.GenerationSnapshotPayload{},
 			}},
 		},
-		looppkg.NewStoreFinalizer(),
+		generationFinalizerForTest(),
 	); err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(parked fixture) error = %v", err)
 	}
@@ -7645,7 +7687,7 @@ func seedQuarantinedLoopNodeForTest(
 				Payload: looppkg.GenerationSnapshotPayload{},
 			}},
 		},
-		looppkg.NewStoreFinalizer(),
+		generationFinalizerForTest(),
 	); err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(seed) error = %v", err)
 	}

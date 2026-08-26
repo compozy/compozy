@@ -289,17 +289,17 @@ func scanCallMessage(scanner rowScanner) (callspkg.MessageRecord, error) {
 	return record, nil
 }
 
-func projectDeliveryState(state string) string {
+func projectDeliveryState(state string) callspkg.MessageDelivery {
 	switch state {
 	case "pending":
-		return "queued"
+		return callspkg.MessageDeliveryQueued
 	case "injected":
-		return "delivered-into-turn"
+		return callspkg.MessageDeliveryDeliveredIntoTurn
 	case "woken":
-		return "woke"
+		return callspkg.MessageDeliveryWoke
 	case "failed":
-		return "failed"
+		return callspkg.MessageDeliveryFailed
 	default:
-		return "failed"
+		return callspkg.MessageDeliveryFailed
 	}
 }

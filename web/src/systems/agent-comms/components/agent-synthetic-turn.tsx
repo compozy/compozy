@@ -17,8 +17,7 @@ import { Bell, CornerDownLeft, CornerUpRight } from "lucide-react";
 
 import { Marker, MarkerMeta, MonoId, Time } from "@compozy/ui";
 
-import { AgentCallStatePill } from "./agent-call-state-pill";
-import { AgentMessageDeliveryPill } from "./agent-call-state-pill";
+import { AgentCallStatePill, AgentMessageDeliveryPill } from "./agent-call-state-pill";
 import { AgentUntrustedFrame } from "./agent-untrusted-frame";
 import { toCallDelivery, toCallState } from "../lib/call-state";
 import type { SyntheticTurn } from "../lib/synthetic-turn";
@@ -109,7 +108,9 @@ export function AgentSyntheticTurn({
         <p className="flex items-center gap-1.5 text-form text-muted">
           <Bell aria-hidden="true" className="size-3 shrink-0" />
           Woke because a call settled
-          {state !== null ? <AgentCallStatePill state={state} /> : null}
+          {turn.callState ? (
+            <AgentCallStatePill state={state} fallbackLabel={turn.callState} />
+          ) : null}
         </p>
         {/*
           The daemon's own wake line, character for character. This is the text

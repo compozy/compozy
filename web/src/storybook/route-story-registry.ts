@@ -1,26 +1,25 @@
-import type { FileRouteTypes } from "@/routeTree.gen";
-
 import {
   storyAgentNames,
   storyDefaultWorkspaceId,
   storyHeroNetworkChannel,
   storySessionIds,
 } from "./fintech-scenario";
+import { agentRouteStories } from "./route-story-registry-agents";
+import {
+  settingsDetailRouteStories,
+  settingsRootRouteStories,
+} from "./route-story-registry-settings";
+import type {
+  GeneratedRoutePath,
+  RouteStoryExclusion,
+  RouteStoryRegistryEntry,
+} from "./route-story-registry-types";
 
-export type GeneratedRoutePath = FileRouteTypes["fullPaths"];
-
-export interface RouteStoryRegistryEntry {
-  system: string;
-  routePath: GeneratedRoutePath;
-  storybookPath: string;
-  title: `systems/${string}/routes/${string}`;
-  storyName: string;
-}
-
-export interface RouteStoryExclusion {
-  routePath: GeneratedRoutePath;
-  reason: string;
-}
+export type {
+  GeneratedRoutePath,
+  RouteStoryExclusion,
+  RouteStoryRegistryEntry,
+} from "./route-story-registry-types";
 
 const storyTaskId = "task_001";
 const storyTaskRunId = "run_001";
@@ -114,27 +113,7 @@ export const routeStoryRegistry = [
     title: "systems/marketplace/routes/Marketplace",
     storyName: "McpsMarketplace",
   },
-  {
-    system: "settings",
-    routePath: "/settings",
-    storybookPath: "/settings",
-    title: "systems/settings/routes/SettingsShell",
-    storyName: "Shell",
-  },
-  {
-    system: "settings",
-    routePath: "/settings/",
-    storybookPath: "/settings/",
-    title: "systems/settings/routes/SettingsShell",
-    storyName: "IndexRedirect",
-  },
-  {
-    system: "settings",
-    routePath: "/sandbox",
-    storybookPath: "/sandbox",
-    title: "systems/settings/routes/Sandbox",
-    storyName: "Default",
-  },
+  ...settingsRootRouteStories,
   {
     system: "network",
     routePath: "/network",
@@ -212,131 +191,13 @@ export const routeStoryRegistry = [
     title: "systems/tasks/routes/TaskDetail",
     storyName: "Overview",
   },
-  {
-    system: "settings",
-    routePath: "/settings/skills",
-    storybookPath: "/settings/skills",
-    title: "systems/settings/routes/SettingsSkills",
-    storyName: "Default",
-  },
-  {
-    system: "settings",
-    routePath: "/settings/providers",
-    storybookPath: "/settings/providers",
-    title: "systems/settings/routes/SettingsProviders",
-    storyName: "Default",
-  },
-  {
-    system: "settings",
-    routePath: "/settings/attention",
-    storybookPath: "/settings/attention",
-    title: "systems/settings/routes/SettingsAttention",
-    storyName: "Default",
-  },
-  {
-    system: "settings",
-    routePath: "/settings/observability",
-    storybookPath: "/settings/observability",
-    title: "systems/settings/routes/SettingsObservability",
-    storyName: "Default",
-  },
-  {
-    system: "settings",
-    routePath: "/settings/network",
-    storybookPath: "/settings/network",
-    title: "systems/settings/routes/SettingsNetwork",
-    storyName: "Default",
-  },
-  {
-    system: "settings",
-    routePath: "/settings/gateway",
-    storybookPath: "/settings/gateway",
-    title: "systems/settings/routes/SettingsGateway",
-    storyName: "Default",
-  },
-  {
-    system: "settings",
-    routePath: "/settings/memory",
-    storybookPath: "/settings/memory",
-    title: "systems/settings/routes/SettingsMemory",
-    storyName: "Default",
-  },
-  {
-    system: "settings",
-    routePath: "/settings/roles",
-    storybookPath: "/settings/roles",
-    title: "systems/settings/routes/SettingsRoles",
-    storyName: "Populated",
-  },
-  {
-    system: "settings",
-    routePath: "/settings/hooks",
-    storybookPath: "/settings/hooks",
-    title: "systems/settings/routes/SettingsHooks",
-    storyName: "Default",
-  },
-  {
-    system: "settings",
-    routePath: "/settings/extensions",
-    storybookPath: "/settings/extensions",
-    title: "systems/settings/routes/SettingsExtensions",
-    storyName: "Default",
-  },
+  ...settingsDetailRouteStories,
   {
     system: "marketplace",
     routePath: "/marketplace/extensions",
     storybookPath: "/marketplace/extensions",
     title: "systems/marketplace/routes/Marketplace",
     storyName: "ExtensionsInstalled",
-  },
-  {
-    system: "settings",
-    routePath: "/settings/general",
-    storybookPath: "/settings/general",
-    title: "systems/settings/routes/SettingsGeneral",
-    storyName: "Default",
-  },
-  {
-    system: "settings",
-    routePath: "/settings/defaults",
-    storybookPath: "/settings/defaults",
-    title: "systems/settings/routes/SettingsDefaults",
-    storyName: "Default",
-  },
-  {
-    system: "settings",
-    routePath: "/settings/appearance",
-    storybookPath: "/settings/appearance",
-    title: "systems/settings/routes/SettingsAppearance",
-    storyName: "Default",
-  },
-  {
-    system: "settings",
-    routePath: "/settings/layouts",
-    storybookPath: "/settings/layouts",
-    title: "systems/settings/routes/SettingsLayouts",
-    storyName: "Default",
-  },
-  {
-    system: "settings",
-    routePath: "/settings/profiles",
-    storybookPath: "/settings/profiles",
-    title: "systems/settings/routes/SettingsProfiles",
-    storyName: "Default",
-  },
-  {
-    system: "settings",
-    routePath: "/settings/palette",
-    storybookPath: "/settings/palette",
-    title: "systems/settings/routes/SettingsPalette",
-    storyName: "Default",
-  },
-  {
-    system: "settings",
-    routePath: "/settings/automation",
-    storybookPath: "/settings/automation",
-    title: "systems/settings/routes/SettingsAutomation",
-    storyName: "Default",
   },
   {
     system: "session",
@@ -366,55 +227,7 @@ export const routeStoryRegistry = [
     title: "systems/loops/routes/LoopRuns",
     storyName: "Diff",
   },
-  {
-    system: "agent",
-    routePath: "/agents",
-    storybookPath: "/agents",
-    title: "systems/agent/routes/AgentsFleet",
-    storyName: "Loaded",
-  },
-  {
-    system: "agent",
-    routePath: "/agents/",
-    storybookPath: "/agents/",
-    title: "systems/agent/routes/AgentsFleet",
-    storyName: "Loaded",
-  },
-  {
-    system: "agent",
-    routePath: "/agents/$name",
-    storybookPath: `/agents/${storyAgentNames.fraud}`,
-    title: "systems/agent/routes/AgentDetail",
-    storyName: "Default",
-  },
-  {
-    system: "agent",
-    routePath: "/agents/$name/",
-    storybookPath: `/agents/${storyAgentNames.fraud}/`,
-    title: "systems/agent/routes/AgentDetail",
-    storyName: "Default",
-  },
-  {
-    system: "agent",
-    routePath: "/agents/$name/settings",
-    storybookPath: `/agents/${storyAgentNames.fraud}/settings`,
-    title: "systems/agent/routes/AgentSettings",
-    storyName: "Basics",
-  },
-  {
-    system: "agent-comms",
-    routePath: "/agents/activity",
-    storybookPath: "/agents/activity",
-    title: "systems/agent-comms/routes/AgentsActivity",
-    storyName: "Default",
-  },
-  {
-    system: "agent-comms",
-    routePath: "/agents/calls/$callId",
-    storybookPath: "/agents/calls/call_01JBD8G2K7Q9",
-    title: "systems/agent-comms/routes/AgentCallDetail",
-    storyName: "Completed",
-  },
+  ...agentRouteStories,
   {
     system: "tasks",
     routePath: "/tasks/$id/edit",

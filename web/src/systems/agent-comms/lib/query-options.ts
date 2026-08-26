@@ -30,11 +30,11 @@ import {
 } from "../adapters/agent-comms-api";
 import { AgentCommsApiError } from "../adapters/agent-comms-api-error";
 import { isTerminalCallState, toCallState } from "./call-state";
-import type { AgentCommsScope } from "./agent-comms-scope";
+import { isScopeReady, type AgentCommsScope } from "./agent-comms-scope";
 import { agentCommsKeys } from "./query-keys";
 
 const LIST_STALE_TIME = 3_000;
-const LIST_POLL_INTERVAL = 5_000;
+export const LIVE_CALL_POLL_INTERVAL = 5_000;
 const COUNT_STALE_TIME = 3_000;
 const COUNT_POLL_INTERVAL = 10_000;
 const DETAIL_RETRY_LIMIT = 2;
@@ -88,9 +88,9 @@ export function callsListOptions(
     initialPageParam: null as CallsCursor,
     getNextPageParam: lastPage => lastPage.next_cursor ?? undefined,
     staleTime: LIST_STALE_TIME,
-    refetchInterval: pollWhen(live, LIST_POLL_INTERVAL),
+    refetchInterval: pollWhen(live, LIVE_CALL_POLL_INTERVAL),
     refetchOnWindowFocus: true,
-    enabled: Boolean(scope.workspaceId) && enabled,
+    enabled: isScopeReady(scope) && enabled,
   });
 }
 
@@ -112,7 +112,7 @@ export function callCountOptions(
     staleTime: COUNT_STALE_TIME,
     refetchInterval: pollWhen(live, COUNT_POLL_INTERVAL),
     refetchOnWindowFocus: true,
-    enabled: Boolean(scope.workspaceId) && enabled,
+    enabled: isScopeReady(scope) && enabled,
   });
 }
 
@@ -128,15 +128,16 @@ export function callDetailOptions(
     queryFn: ({ signal }) => fetchCall(scope.workspaceId, callId, scope.params, signal),
     staleTime: LIST_STALE_TIME,
     refetchInterval: query => {
-      if (live) return LIST_POLL_INTERVAL;
+      const state = toCallState(query.state.data?.state);
+      if (state !== null && isTerminalCallState(state)) return false;
+      if (live) return LIVE_CALL_POLL_INTERVAL;
       if (!pollUntilTerminal || query.state.status === "error" || query.state.error !== null) {
         return false;
       }
-      const state = toCallState(query.state.data?.state);
-      return state === null || !isTerminalCallState(state) ? LIST_POLL_INTERVAL : false;
+      return LIVE_CALL_POLL_INTERVAL;
     },
     retry: shouldRetryDetailQuery,
-    enabled: Boolean(scope.workspaceId) && Boolean(callId) && enabled,
+    enabled: isScopeReady(scope) && Boolean(callId) && enabled,
   });
 }
 
@@ -154,7 +155,7 @@ export function callResultOptions(scope: AgentCommsScope, callId: string, enable
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: false,
     retry: shouldRetryDetailQuery,
-    enabled: Boolean(scope.workspaceId) && Boolean(callId) && enabled,
+    enabled: isScopeReady(scope) && Boolean(callId) && enabled,
   });
 }
 
@@ -172,7 +173,7 @@ export function callPromptOptions(scope: AgentCommsScope, callId: string, enable
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: false,
     retry: shouldRetryDetailQuery,
-    enabled: Boolean(scope.workspaceId) && Boolean(callId) && enabled,
+    enabled: isScopeReady(scope) && Boolean(callId) && enabled,
   });
 }
 
@@ -189,7 +190,7 @@ export function callSupersededOptions(scope: AgentCommsScope, callId: string, en
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: false,
     retry: shouldRetryDetailQuery,
-    enabled: Boolean(scope.workspaceId) && Boolean(callId) && enabled,
+    enabled: isScopeReady(scope) && Boolean(callId) && enabled,
   });
 }
 
@@ -221,8 +222,8 @@ export function callMessagesOptions(
     initialPageParam: null as CallsCursor,
     getNextPageParam: lastPage => lastPage.next_cursor ?? undefined,
     staleTime: LIST_STALE_TIME,
-    refetchInterval: pollWhen(live, LIST_POLL_INTERVAL),
+    refetchInterval: pollWhen(live, LIVE_CALL_POLL_INTERVAL),
     refetchOnWindowFocus: true,
-    enabled: Boolean(scope.workspaceId) && enabled,
+    enabled: isScopeReady(scope) && enabled,
   });
 }

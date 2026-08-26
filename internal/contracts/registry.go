@@ -10,27 +10,33 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 type compiledEntry struct {
-	once     sync.Once
-	schema   *jsonschema.Schema
-	err      error
-	compiles atomic.Int64
+	once   sync.Once
+	schema *jsonschema.Schema
+	err    error
 }
 
+const compiledSchemaCacheLimit = 128
+
 type registry struct {
-	store RegistryStore
-	mu    sync.Mutex
-	cache map[string]*compiledEntry
+	store     RegistryStore
+	mu        sync.Mutex
+	cache     map[string]*compiledEntry
+	cacheFIFO []string
+	compiler  func(Contract) (*jsonschema.Schema, error)
+	onCompile func(string)
 }
 
 // NewRegistry creates a registry over the caller-owned immutable store.
 func NewRegistry(store RegistryStore) Registry {
-	return &registry{store: store, cache: make(map[string]*compiledEntry)}
+	return &registry{
+		store: store, cache: make(map[string]*compiledEntry),
+		cacheFIFO: make([]string, 0, compiledSchemaCacheLimit), compiler: compileSchema,
+	}
 }
 
 func (r *registry) Pin(ctx context.Context, raw json.RawMessage) (Contract, error) {
@@ -109,13 +115,22 @@ func (r *registry) compiled(contract Contract) (*jsonschema.Schema, error) {
 	r.mu.Lock()
 	entry := r.cache[contract.Digest]
 	if entry == nil {
+		if len(r.cacheFIFO) >= compiledSchemaCacheLimit {
+			oldest := r.cacheFIFO[0]
+			delete(r.cache, oldest)
+			copy(r.cacheFIFO, r.cacheFIFO[1:])
+			r.cacheFIFO = r.cacheFIFO[:len(r.cacheFIFO)-1]
+		}
 		entry = &compiledEntry{}
 		r.cache[contract.Digest] = entry
+		r.cacheFIFO = append(r.cacheFIFO, contract.Digest)
 	}
 	r.mu.Unlock()
 	entry.once.Do(func() {
-		entry.compiles.Add(1)
-		entry.schema, entry.err = compileSchema(contract)
+		if r.onCompile != nil {
+			r.onCompile(contract.Digest)
+		}
+		entry.schema, entry.err = r.compiler(contract)
 	})
 	return entry.schema, entry.err
 }

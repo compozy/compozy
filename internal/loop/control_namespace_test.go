@@ -127,7 +127,10 @@ func TestRuntimeNamespaceShouldScopeFanOutItemsByBatchSize(t *testing.T) {
 		if err != nil {
 			t.Fatalf("fanOutMaterializationRef() error = %v", err)
 		}
-		return []GenerationOutput{{NodeID: "fan", ItemIndex: 0, Status: "succeeded", OutputRef: ref}}
+		return []GenerationOutput{{
+			NodeID: "fan", ItemIndex: 0, Status: "succeeded",
+			ResultKind: GenerationResultPayload, OutputRef: ref,
+		}}
 	}
 
 	t.Run("Should expose the element itself when batch_size is 1", func(t *testing.T) {
@@ -223,7 +226,7 @@ func TestRuntimeNamespaceShouldProjectFanOutProgressAndIterationNames(t *testing
 		t.Fatalf("fanOutMaterializationRef() error = %v", err)
 	}
 	outputs := []GenerationOutput{
-		{NodeID: "fan", Status: generationOutputSucceeded, OutputRef: ref},
+		{NodeID: "fan", Status: generationOutputSucceeded, ResultKind: GenerationResultPayload, OutputRef: ref},
 		{NodeID: "body", ItemIndex: 0, Status: generationOutputSucceeded},
 		{NodeID: "body", ItemIndex: 1, Status: generationOutputFailed},
 		{NodeID: "body", ItemIndex: 2, Status: generationOutputRunning},
@@ -272,11 +275,24 @@ func TestOutputValueShouldProjectNamespaceValues(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve the malformed envelope decode cause", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := DecodeGenerationResultRef(`{"kind":`)
+		var syntaxErr *json.SyntaxError
+		if !errors.Is(err, ErrValidation) || !errors.As(err, &syntaxErr) {
+			t.Fatalf("DecodeGenerationResultRef() error = %v, want ErrValidation and json.SyntaxError", err)
+		}
+	})
+
 	t.Run("Should preserve large JSON numbers as json.Number", func(t *testing.T) {
 		t.Parallel()
 
 		output := GenerationOutput{}
 		setGenerationOutputRef(&output, `{"id":9007199254740993}`)
+		if output.ResultKind != GenerationResultPayload {
+			t.Fatalf("ResultKind = %q, want %q", output.ResultKind, GenerationResultPayload)
+		}
 		value := generationOutputRuntimeValue(output)
 		object, ok := value.(map[string]any)
 		if !ok {
@@ -296,8 +312,24 @@ func TestOutputValueShouldProjectNamespaceValues(t *testing.T) {
 
 		output := GenerationOutput{}
 		setGenerationOutputRef(&output, branchSkippedOutputRef)
+		if output.ResultKind != GenerationResultSkipped {
+			t.Fatalf("ResultKind = %q, want %q", output.ResultKind, GenerationResultSkipped)
+		}
 		if value := generationOutputRuntimeValue(output); value != nil {
 			t.Fatalf("generationOutputRuntimeValue(branch skipped) = %#v, want nil", value)
+		}
+	})
+
+	t.Run("Should project a selected route marker with its explicit kind", func(t *testing.T) {
+		t.Parallel()
+
+		output := GenerationOutput{}
+		setGenerationOutputRef(&output, routeSelectedOutputRefPrefix+"publish")
+		if output.ResultKind != GenerationResultRouteSelected {
+			t.Fatalf("ResultKind = %q, want %q", output.ResultKind, GenerationResultRouteSelected)
+		}
+		if value := generationOutputRuntimeValue(output); value != "route:publish" {
+			t.Fatalf("generationOutputRuntimeValue(route) = %#v, want route marker", value)
 		}
 	})
 
@@ -306,6 +338,9 @@ func TestOutputValueShouldProjectNamespaceValues(t *testing.T) {
 
 		output := GenerationOutput{}
 		setGenerationOutputRef(&output, reviewRejectedRouteOutputRefPrefix+"fallback")
+		if output.ResultKind != GenerationResultReviewRejectRouted {
+			t.Fatalf("ResultKind = %q, want %q", output.ResultKind, GenerationResultReviewRejectRouted)
+		}
 		if value := generationOutputRuntimeValue(output); value != nil {
 			t.Fatalf("generationOutputRuntimeValue(review rejected route) = %#v, want nil", value)
 		}

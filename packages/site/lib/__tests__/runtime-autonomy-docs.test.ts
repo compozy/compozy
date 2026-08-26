@@ -484,6 +484,19 @@ describe("generated autonomy CLI references", () => {
     }
   });
 
+  it("lists the page-specific flags for every generated call and message command", () => {
+    const pages: Array<[string, string[]]> = [
+      ["cli/call/index.mdx", ["--expect", "--strict", "--idle-ttl", "--deadline", "--workspace"]],
+      ["cli/call/await.mdx", ["--resume", "--timeout", "--workspace"]],
+      ["cli/call/result.mdx", ["--workspace"]],
+      ["cli/message/send.mdx", ["--call", "--workspace"]],
+    ];
+
+    for (const [page, flags] of pages) {
+      expectIncludesAll(readRuntimeDoc(page), flags);
+    }
+  });
+
   it("lists exact implemented flags for task, channel, and call examples", () => {
     const taskNext = readRuntimeDoc("cli/task/next.mdx");
     const heartbeat = readRuntimeDoc("cli/task/heartbeat.mdx");

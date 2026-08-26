@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/compozy/compozy/internal/contracts"
 	"strings"
 	"testing"
 	"time"
@@ -380,7 +381,7 @@ func TestDaemonLoopAPIServiceShouldAssembleGenerationDetailFromLineage(t *testin
 	score := 0.72
 	rank := 0
 	routeAt := time.Date(2026, 8, 16, 12, 0, 0, 0, time.UTC)
-	storedOutputRef := looppkg.OutputRefForPayload([]byte(`{"value":"best"}`))
+	storedOutputRef := contracts.OutputRefForPayload([]byte(`{"value":"best"}`))
 	persistence := &loopRunHistoryPersistenceStub{
 		lineage: []looppkg.LoopGeneration{
 			{

@@ -815,6 +815,15 @@ type LoopGenerationOutput struct {
 	GoalTurnLimit       sql.NullInt64  `json:"goal_turn_limit"`
 }
 
+type LoopGenerationOutputPayload struct {
+	LoopRunID   string `json:"loop_run_id"`
+	Generation  int64  `json:"generation"`
+	NodeID      string `json:"node_id"`
+	ItemIndex   int64  `json:"item_index"`
+	PayloadRef  string `json:"payload_ref"`
+	PayloadKind string `json:"payload_kind"`
+}
+
 type LoopGoalBindingRetryWitness struct {
 	LoopRunID          string    `json:"loop_run_id"`
 	Handle             string    `json:"handle"`

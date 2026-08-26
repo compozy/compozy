@@ -3,6 +3,7 @@ package speccycle
 import (
 	"errors"
 	"fmt"
+	"github.com/compozy/compozy/internal/contracts"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -127,7 +128,7 @@ func importMarkdownTasks(pattern string) (markdownTasksImportResult, error) {
 			Runtime:    taskFile.Meta.Runtime,
 			Path:       taskFile.Path,
 			Body:       taskFile.Body,
-			BodyRef:    looppkg.OutputRefForPayload([]byte(taskFile.Body)),
+			BodyRef:    contracts.OutputRefForPayload([]byte(taskFile.Body)),
 			Blocks:     compozyTaskBlocksForTarget(blocksByTarget, taskFile.ID),
 		})
 	}

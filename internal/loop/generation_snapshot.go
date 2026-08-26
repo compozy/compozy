@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/compozy/compozy/internal/contracts"
 	"strings"
 	"time"
 
@@ -29,7 +30,7 @@ type GenerationSnapshotPayload struct {
 	BoundaryEffects       map[Status][]RenderedEffectIntent `json:"boundary_effects,omitempty"`
 }
 
-// GenerationOutput is one loop_generation_outputs row mutation.
+// GenerationOutput is one loop_generation_outputs row mutation: ResultKind maps the durable envelope kind, SchemaRef maps its schema_ref, and OutputRef maps its payload_ref.
 type GenerationOutput struct {
 	Generation       int                  `json:"generation,omitempty"`
 	NodeID           string               `json:"node_id"`
@@ -192,13 +193,13 @@ func writeRequestIntent(
 	if err := intent.validate(); err != nil {
 		return err
 	}
-	contextRef := OutputRefForPayload(intent.Context)
+	contextRef := contracts.OutputRefForPayload(intent.Context)
 	if err := store.UpsertLoopOutputBlob(ctx, tx, contextRef, intent.Context, intent.OpenedAt); err != nil {
 		return fmt.Errorf("loop: persist request context: %w", err)
 	}
 	var proposedRef any
 	if len(intent.Proposed) > 0 {
-		ref := OutputRefForPayload(intent.Proposed)
+		ref := contracts.OutputRefForPayload(intent.Proposed)
 		if err := store.UpsertLoopOutputBlob(ctx, tx, ref, intent.Proposed, intent.OpenedAt); err != nil {
 			return fmt.Errorf("loop: persist request proposal: %w", err)
 		}
@@ -369,7 +370,7 @@ func (b GenerationOutputBlob) normalized() GenerationOutputBlob {
 }
 
 func (b GenerationOutputBlob) validate() error {
-	if !OutputRefLooksContentAddressed(b.OutputRef) {
+	if !contracts.OutputRefLooksContentAddressed(b.OutputRef) {
 		return fmt.Errorf("%w: output_ref is invalid: %q", ErrValidation, b.OutputRef)
 	}
 	if len(b.Payload) == 0 {

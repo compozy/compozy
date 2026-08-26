@@ -12,7 +12,7 @@
  */
 import { Archive } from "lucide-react";
 
-import { ActionResultBanner, Button, Eyebrow, MonoId, Panel } from "@compozy/ui";
+import { ActionResultBanner, Button, Eyebrow, JsonViewer, MonoId, Panel } from "@compozy/ui";
 
 import type { CostInput } from "@/lib/cost-provenance";
 
@@ -23,11 +23,7 @@ import { AgentCallDetailTimeline } from "./agent-call-detail-timeline";
 import { AgentCallResultView } from "./agent-call-result-view";
 import { AgentUntrustedFrame } from "./agent-untrusted-frame";
 import type { CallDetailView } from "../lib/call-detail-view-model";
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  return `${(bytes / 1024).toFixed(1)} KiB`;
-}
+import { formatAgentCallBytes } from "../lib/format-bytes";
 
 export interface AgentCallDetailProps {
   view: CallDetailView;
@@ -38,14 +34,17 @@ export interface AgentCallDetailProps {
   fullPayload?: unknown;
   onFetchFullPayload?: () => void;
   fullPayloadPending?: boolean;
+  fullPayloadError?: Error | null;
   /** The whole ask, once fetched. The inline preview is bounded by the daemon. */
   fullPrompt?: string;
-  onFetchFullPrompt?: () => void;
+  onFetchFullPrompt?: (callId: string) => void;
   fullPromptPending?: boolean;
+  fullPromptError?: Error | null;
   /** Whole late-result evidence, fetched only when the operator asks for it. */
   supersededPayload?: unknown;
   onFetchSuperseded?: () => void;
   supersededPending?: boolean;
+  supersededError?: Error | null;
   /**
    * What the last cancel actually did.
    *
@@ -73,12 +72,15 @@ export function AgentCallDetail({
   fullPayload,
   onFetchFullPayload,
   fullPayloadPending,
+  fullPayloadError = null,
   fullPrompt,
   onFetchFullPrompt,
   fullPromptPending = false,
+  fullPromptError = null,
   supersededPayload,
   onFetchSuperseded,
   supersededPending = false,
+  supersededError = null,
   cancelOutcome = null,
   cancelFailure = null,
   onRetryCancel,
@@ -145,14 +147,18 @@ export function AgentCallDetail({
         />
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_var(--width-detail-inspector-inline)]">
         <div className="flex min-w-0 flex-col gap-3">
           {view.prompt ? (
             <Panel
               title={<Eyebrow>Prompt</Eyebrow>}
-              meta={<span className="font-mono text-form">{formatBytes(view.prompt.bytes)}</span>}
+              meta={
+                <span className="font-mono text-form">
+                  {formatAgentCallBytes(view.prompt.bytes)}
+                </span>
+              }
               data-testid="agent-call-prompt"
-              {...(view.prompt.bounded && onFetchFullPrompt
+              {...(view.prompt.bounded && onFetchFullPrompt && fullPrompt === undefined
                 ? {
                     foot: (
                       <Button
@@ -160,7 +166,7 @@ export function AgentCallDetail({
                         size="xs"
                         variant="outline"
                         type="button"
-                        onClick={onFetchFullPrompt}
+                        onClick={() => onFetchFullPrompt(view.callId)}
                       >
                         {fullPromptPending ? "Opening the ask…" : "Open the whole ask"}
                       </Button>
@@ -171,6 +177,26 @@ export function AgentCallDetail({
               <p className="whitespace-pre-wrap break-words text-small-body text-fg">
                 {fullPrompt ?? view.prompt.preview ?? "The ask is stored but not previewed here."}
               </p>
+              {fullPromptError ? (
+                <ActionResultBanner
+                  className="mt-3"
+                  title="Couldn't open the whole ask."
+                  description={fullPromptError.message}
+                  tone="danger"
+                  actions={
+                    onFetchFullPrompt ? (
+                      <Button
+                        size="xs"
+                        type="button"
+                        variant="outline"
+                        onClick={() => onFetchFullPrompt(view.callId)}
+                      >
+                        Retry
+                      </Button>
+                    ) : null
+                  }
+                />
+              ) : null}
             </Panel>
           ) : null}
 
@@ -193,6 +219,7 @@ export function AgentCallDetail({
             {...(fullPayload === undefined ? {} : { fullPayload })}
             {...(onFetchFullPayload ? { onFetchFullPayload } : {})}
             {...(fullPayloadPending === undefined ? {} : { fullPayloadPending })}
+            {...(fullPayloadError ? { fullPayloadError } : {})}
             {...(openChild ? { onOpenChildSession: openChild } : {})}
           />
 
@@ -216,13 +243,16 @@ export function AgentCallDetail({
               data-testid="agent-call-superseded"
             >
               <p className="text-small-body text-fg">
-                The child returned {formatBytes(view.superseded.bytes)} after the call had already
-                ended. Kept as evidence; it did not change the call&apos;s state.
+                The child returned {formatAgentCallBytes(view.superseded.bytes)} after the call had
+                already ended. Kept as evidence; it did not change the call&apos;s state.
               </p>
               {(supersededPayload ?? view.superseded.preview) !== undefined ? (
-                <p className="mt-1.5 font-mono text-form text-muted">
-                  {JSON.stringify(supersededPayload ?? view.superseded.preview)}
-                </p>
+                <div className="mt-1.5">
+                  <JsonViewer
+                    data-testid="agent-call-superseded-payload"
+                    value={supersededPayload ?? view.superseded.preview}
+                  />
+                </div>
               ) : null}
               {onFetchSuperseded && supersededPayload === undefined ? (
                 <Button
@@ -235,6 +265,21 @@ export function AgentCallDetail({
                 >
                   {supersededPending ? "Opening evidence…" : "Open full evidence"}
                 </Button>
+              ) : null}
+              {supersededError ? (
+                <ActionResultBanner
+                  className="mt-3"
+                  title="Couldn't open the late result."
+                  description={supersededError.message}
+                  tone="danger"
+                  actions={
+                    onFetchSuperseded ? (
+                      <Button size="xs" type="button" variant="outline" onClick={onFetchSuperseded}>
+                        Retry
+                      </Button>
+                    ) : null
+                  }
+                />
               ) : null}
             </Panel>
           ) : null}

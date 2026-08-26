@@ -94,25 +94,29 @@ func sameResultBudget(left, right *contracts.ByteBudget) bool {
 }
 
 func validatePersistedTaskExpectation(task Task) error {
-	hasDigest := strings.TrimSpace(task.ExpectDigest) != ""
-	hasBudget := task.ResultBudget != nil
-	if hasDigest != hasBudget {
-		return fmt.Errorf(
-			"%w: task.expect_digest and task.result_budget must be set together",
-			ErrValidation,
-		)
+	return validatePersistedResultContract(task.ExpectDigest, task.ResultBudget, "task")
+}
+
+func validatePersistedResultContract(
+	digest string,
+	budget *contracts.ByteBudget,
+	path string,
+) error {
+	hasDigest := strings.TrimSpace(digest) != ""
+	if hasDigest != (budget != nil) {
+		return fmt.Errorf("%w: %s result contract snapshot must be entirely set or empty", ErrValidation, path)
 	}
-	if !hasBudget {
+	if budget == nil {
 		return nil
 	}
-	if task.ResultBudget.MaxBytes <= 0 {
-		return fmt.Errorf("%w: task.result_budget.max_bytes must be positive", ErrValidation)
+	if budget.MaxBytes <= 0 {
+		return fmt.Errorf("%w: %s.result_budget.max_bytes must be positive", ErrValidation, path)
 	}
-	if task.ResultBudget.Overflow != contracts.OverflowStore &&
-		task.ResultBudget.Overflow != contracts.OverflowReject {
+	if budget.Overflow != contracts.OverflowStore && budget.Overflow != contracts.OverflowReject {
 		return fmt.Errorf(
-			"%w: task.result_budget.overflow must be %q or %q",
+			"%w: %s.result_budget.overflow must be %q or %q",
 			ErrValidation,
+			path,
 			contracts.OverflowStore,
 			contracts.OverflowReject,
 		)

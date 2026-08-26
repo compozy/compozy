@@ -83,9 +83,10 @@ func newTaskUpdateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(&priorityRaw, "priority", "", "Update the task priority: low, medium, high, or urgent")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Update metadata JSON")
-	cmd.Flags().StringVar(&expectRaw, "expect", "", "Replace the result contract with inline JSON or @file")
-	cmd.Flags().StringVar(&resultBudget, "result-budget", "", "Task result budget, for example 512KiB")
-	cmd.Flags().StringVar(&resultOverflow, "result-overflow", "", "Over-budget policy: store or reject")
+	bindTaskResultContractFlags(
+		cmd, &expectRaw, &resultBudget, &resultOverflow, "Task",
+		"Replace the result contract with inline JSON or @file",
+	)
 	cmd.Flags().StringVar(&ownerKindRaw, "owner-kind", "", "Update the owner kind")
 	cmd.Flags().StringVar(&ownerRef, "owner-ref", "", "Update the owner reference")
 	cmd.Flags().BoolVar(&clearOwner, "clear-owner", false, "Remove the current owner")

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -82,7 +84,16 @@ func (s *hookLifecycleStore) RecordDelivery(_ context.Context, update DeliveryUp
 		s.deliveries[index].State = update.State
 		s.deliveries[index].Reason = update.Reason
 		message := s.messages[s.deliveries[index].SubjectID]
-		message.Delivery = update.State
+		switch update.State {
+		case DeliveryStateInjected:
+			message.Delivery = MessageDeliveryDeliveredIntoTurn
+		case DeliveryStateWoken:
+			message.Delivery = MessageDeliveryWoke
+		case DeliveryStateFailed:
+			message.Delivery = MessageDeliveryFailed
+		default:
+			message.Delivery = MessageDeliveryQueued
+		}
 		message.DeliveryReason = update.Reason
 		message.DeliveryAttempts++
 		message.DeliveredAt = update.At
@@ -136,7 +147,7 @@ func TestCallHookTransitions(t *testing.T) {
 			messages: make(map[string]MessageRecord),
 		}
 		hooks := &callHookRecorder{}
-		claimer := &fakeActivationClaimer{}
+		claimer := &fakeActivationClaimer{store: store.memoryCallStore}
 		canceler := &fakeActivationCanceler{}
 		invoker := &hookSessionInvoker{fakeSessionInvoker: &fakeSessionInvoker{}}
 		bridge := &publishTestBridge{}
@@ -219,7 +230,7 @@ func TestCallHookTransitions(t *testing.T) {
 			HookCallCreated, HookCallSettled, HookCallCanceled, HookCallPublished,
 			HookCallMessageSent, HookCallMessageDelivered, HookCallSubtreeDrained,
 		} {
-			if !containsHookEvent(events, want) {
+			if !slices.Contains(events, want) {
 				t.Fatalf("hook events = %#v, missing %q", events, want)
 			}
 		}
@@ -229,28 +240,10 @@ func TestCallHookTransitions(t *testing.T) {
 				t.Fatalf("json.Marshal(hook payload) error = %v", marshalErr)
 			}
 			for _, secret := range []string{"secret prompt", "secret result", "secret message"} {
-				if stringContains(string(encoded), secret) {
+				if strings.Contains(string(encoded), secret) {
 					t.Fatalf("hook payload leaked %q: %s", secret, encoded)
 				}
 			}
 		}
 	})
-}
-
-func containsHookEvent(events []HookEvent, want HookEvent) bool {
-	for _, event := range events {
-		if event == want {
-			return true
-		}
-	}
-	return false
-}
-
-func stringContains(value, fragment string) bool {
-	for start := 0; start+len(fragment) <= len(value); start++ {
-		if value[start:start+len(fragment)] == fragment {
-			return true
-		}
-	}
-	return false
 }

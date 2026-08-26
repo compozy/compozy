@@ -10,7 +10,7 @@ import (
 
 func validateContractWaitPayload(expect json.RawMessage, payload json.RawMessage) error {
 	if err := contractspkg.ValidateWaitPayload(expect, payload); err != nil {
-		return fmt.Errorf("%w: %v", looppkg.ErrValidation, err)
+		return fmt.Errorf("%w: wait payload validation failed: %w", looppkg.ErrValidation, err)
 	}
 	return nil
 }

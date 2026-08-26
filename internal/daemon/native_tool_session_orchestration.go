@@ -90,7 +90,7 @@ func (n *daemonNativeTools) sessionStop(
 			return toolspkg.ToolResult{}, nativeUnavailableError(req.ToolID, "calls service is unavailable")
 		}
 		report, drainErr := calls.DrainSubtree(ctx, target, callspkg.Actor{
-			Kind: "agent_session", ID: strings.TrimSpace(scope.SessionID),
+			Kind: daemonAgentSessionActorKind, ID: strings.TrimSpace(scope.SessionID),
 		}, input.Reason)
 		if drainErr != nil {
 			return toolspkg.ToolResult{}, drainErr
@@ -134,7 +134,7 @@ func (n *daemonNativeTools) sessionApprove(
 	result, err := n.deps.Sessions.ApprovePermission(ctx, target, acp.ApproveRequest{
 		RequestID:  strings.TrimSpace(input.RequestID),
 		Decision:   strings.TrimSpace(input.Decision),
-		ResolvedBy: "agent_session:" + strings.TrimSpace(scope.SessionID),
+		ResolvedBy: daemonAgentSessionActorKind + ":" + strings.TrimSpace(scope.SessionID),
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, err)

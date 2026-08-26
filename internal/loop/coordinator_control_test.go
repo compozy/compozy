@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/compozy/compozy/internal/contracts"
 	"io"
 	"log/slog"
 	"strconv"
@@ -438,7 +439,8 @@ func TestCoordinatorWaitExpiryRouteShouldSkipNormalPath(t *testing.T) {
 	}
 	outputs := []GenerationOutput{
 		{Generation: 1, NodeID: "wait_for_ack", Status: generationOutputSucceeded,
-			OutputRef: WaitExpiryRouteOutputRef("timeout"), Epoch: 2},
+			ResultKind: GenerationResultWaitExpiryRouted,
+			OutputRef:  WaitExpiryRouteOutputRef("timeout"), Epoch: 2},
 		{Generation: 1, NodeID: "normal", Status: generationOutputPending},
 		{Generation: 1, NodeID: "timeout", Status: generationOutputPending},
 	}
@@ -460,7 +462,8 @@ func TestCoordinatorWaitExpiryRouteShouldSkipNormalPath(t *testing.T) {
 	}
 	reviewOutputs := []GenerationOutput{
 		{Generation: 1, NodeID: "draft", Status: generationOutputSucceeded,
-			OutputRef: WaitExpiryRouteOutputRef("timed_out"), Epoch: 2},
+			ResultKind: GenerationResultWaitExpiryRouted,
+			OutputRef:  WaitExpiryRouteOutputRef("timed_out"), Epoch: 2},
 		{Generation: 1, NodeID: "publish", Status: generationOutputPending},
 		{Generation: 1, NodeID: "timed_out", Status: generationOutputPending},
 	}
@@ -711,7 +714,7 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 			if err != nil {
 				t.Fatalf("json.Marshal(producer payload) error = %v", err)
 			}
-			producerRef := OutputRefForPayload(producerPayload)
+			producerRef := contracts.OutputRefForPayload(producerPayload)
 			resolved := compileCoordinatorControlDefinition(t, fanOutControlDefinition(1, 1, 2))
 			loopRun := controlLoopRun("looprun-externalized-fanout", map[string]any{})
 			coordinatorRun := controlCoordinatorRun(loopRun, 1)
@@ -766,7 +769,7 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 				t.Fatalf("load output_ref = %q, want stored ref %q", got, producerRef)
 			}
 			fanRef := outputs["fan/0"].OutputRef
-			if !OutputRefLooksContentAddressed(fanRef) || fanRef == producerRef {
+			if !contracts.OutputRefLooksContentAddressed(fanRef) || fanRef == producerRef {
 				t.Fatalf("fan output_ref = %q, want distinct content-addressed materialization", fanRef)
 			}
 			if got, want := len(payload.OutputBlobs), 1; got != want {
@@ -781,7 +784,7 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 	t.Run("Should fail loudly when an externalized producer payload is missing", func(t *testing.T) {
 		t.Parallel()
 
-		producerRef := OutputRefForPayload(json.RawMessage(`{"items":[{"id":"A"}]}`))
+		producerRef := contracts.OutputRefForPayload(json.RawMessage(`{"items":[{"id":"A"}]}`))
 		resolved := compileCoordinatorControlDefinition(t, fanOutControlDefinition(1, 1, 2))
 		loopRun := controlLoopRun("looprun-missing-fanout-payload", map[string]any{})
 		coordinatorRun := controlCoordinatorRun(loopRun, 1)
@@ -816,7 +819,7 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 		if err != nil {
 			t.Fatalf("json.Marshal(failure payload) error = %v", err)
 		}
-		failureRef := OutputRefForPayload(failurePayload)
+		failureRef := contracts.OutputRefForPayload(failurePayload)
 		resolved := compileCoordinatorControlDefinition(t, fanOutControlDefinition(1, 1, 2))
 		loopRun := controlLoopRun("looprun-externalized-result-contract", map[string]any{})
 		coordinatorRun := controlCoordinatorRun(loopRun, 1)
@@ -854,7 +857,7 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 		if load.Status != generationOutputFailed {
 			t.Fatalf("load status = %q, want %q", load.Status, generationOutputFailed)
 		}
-		if OutputRefLooksContentAddressed(load.OutputRef) || !strings.Contains(load.OutputRef, "declared failure") {
+		if contracts.OutputRefLooksContentAddressed(load.OutputRef) || !strings.Contains(load.OutputRef, "declared failure") {
 			t.Fatalf("load output_ref = %q, want classified inline failure", load.OutputRef)
 		}
 	})

@@ -14,7 +14,8 @@
  */
 import type { CallMessagePayload, CallPayload } from "../types";
 
-const DEFAULT_LIMIT = 100;
+const DEFAULT_LIMIT = 50;
+const MAX_LIMIT = 200;
 
 export interface AgentCommsDataset {
   calls?: readonly CallPayload[];
@@ -66,28 +67,78 @@ function matchesCallFilters(
   calls: readonly CallPayload[],
   messages: readonly CallMessagePayload[]
 ): boolean {
-  const state = params.get("state");
-  if (state !== null && !state.split(",").includes(call.state)) return false;
+  const states = new Set(
+    params
+      .getAll("state")
+      .flatMap(value => value.split(","))
+      .map(value => value.trim())
+      .filter(Boolean)
+  );
+  if (states.size > 0 && !states.has(call.state)) return false;
   if (params.get("attention") === "true" && !needsAttention(call, calls, messages)) return false;
-  const caller = params.get("caller");
+  const caller = normalizedParam(params, "caller");
   if (caller !== null && call.caller.id !== caller) return false;
-  const child = params.get("child_session_id");
+  const child = normalizedParam(params, "child_session_id");
   if (child !== null && (call.child_session_id ?? "") !== child) return false;
-  const root = params.get("root_session_id");
+  const root = normalizedParam(params, "root_session_id");
   if (root !== null && call.root_session_id !== root) return false;
-  const agent = params.get("agent");
+  const agent = normalizedParam(params, "agent");
   if (agent !== null && (call.agent ?? "") !== agent) return false;
   return true;
 }
 
-/** Offset cursors: opaque to the caller, monotonic here, exhausted exactly once. */
-function slice<T>(matched: readonly T[], params: URLSearchParams) {
-  const limit = Number(params.get("limit") ?? DEFAULT_LIMIT);
+const CURSOR_PREFIX = "cursor_1_";
+
+function normalizedParam(params: URLSearchParams, name: string): string | null {
+  const value = params.get(name)?.trim() ?? "";
+  return value === "" ? null : value;
+}
+
+function queryFingerprint(params: URLSearchParams, kind: string): string {
+  const canonical = [...params.entries()]
+    .filter(([name]) => name !== "cursor" && name !== "limit")
+    .map(([name, value]) => [name, value.trim()] as const)
+    .sort(([leftName, leftValue], [rightName, rightValue]) =>
+      leftName === rightName
+        ? leftValue.localeCompare(rightValue)
+        : leftName.localeCompare(rightName)
+    );
+  let hash = 2_166_136_261;
+  for (const byte of new TextEncoder().encode(JSON.stringify([kind, canonical]))) {
+    hash ^= byte;
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function encodeCursor(offset: number, fingerprint: string): string {
+  return `${CURSOR_PREFIX}${fingerprint}_${offset.toString(36)}`;
+}
+
+function decodeCursor(value: string, fingerprint: string): number | null {
+  const match = value.match(/^cursor_1_([0-9a-z]+)_([0-9a-z]+)$/);
+  if (!match || match[1] !== fingerprint) return null;
+  const offset = Number.parseInt(match[2] ?? "", 36);
+  return Number.isSafeInteger(offset) && offset >= 0 ? offset : null;
+}
+
+/** Opaque cursors: validated here, exhausted exactly once. */
+function slice<T>(matched: readonly T[], params: URLSearchParams, kind: string) {
+  const rawLimit = Number(params.get("limit") ?? DEFAULT_LIMIT);
+  const limit =
+    Number.isFinite(rawLimit) && rawLimit > 0
+      ? Math.min(Math.floor(rawLimit), MAX_LIMIT)
+      : DEFAULT_LIMIT;
+  const fingerprint = queryFingerprint(params, kind);
   const cursor = params.get("cursor");
-  const start = cursor === null ? 0 : Number(cursor);
+  const start = cursor === null ? 0 : decodeCursor(cursor, fingerprint);
+  if (start === null || start >= matched.length) return { items: [] };
   const items = matched.slice(start, start + limit);
   const nextStart = start + items.length;
-  return { items, ...(nextStart < matched.length ? { next_cursor: String(nextStart) } : {}) };
+  return {
+    items,
+    ...(nextStart < matched.length ? { next_cursor: encodeCursor(nextStart, fingerprint) } : {}),
+  };
 }
 
 export interface AgentCommsMockStore {
@@ -101,11 +152,16 @@ export interface AgentCommsMockStore {
   setCalls(next: readonly CallPayload[]): void;
   setMessages(next: readonly CallMessagePayload[]): void;
   snapshotCalls(): readonly CallPayload[];
+  nextCallId(): string;
+  nextMessageId(): string;
+  resetSequences(): void;
 }
 
 export function createAgentCommsMockStore(dataset: AgentCommsDataset = {}): AgentCommsMockStore {
   let calls: CallPayload[] = [...(dataset.calls ?? [])];
   let messages: CallMessagePayload[] = [...(dataset.messages ?? [])];
+  let callSequence = 0;
+  let messageSequence = 0;
 
   return {
     pageCalls(workspaceId, url) {
@@ -117,16 +173,16 @@ export function createAgentCommsMockStore(dataset: AgentCommsDataset = {}): Agen
       );
       // Count the whole filtered set, then page it — the same order the daemon
       // uses (`SELECT COUNT(*)` over the filter, cursor applied afterwards).
-      return { total: matched.length, ...slice(matched, params) };
+      return { total: matched.length, ...slice(matched, params, "calls") };
     },
     pageMessages(workspaceId, url) {
       const params = url.searchParams;
-      const session = params.get("session");
+      const session = normalizedParam(params, "session");
       const matched = messages
         .filter(message => matchesOwner(message, workspaceId, params))
         .filter(message => session === null || message.to_session_id === session);
       // No `total`: the mailbox page is uncounted by contract.
-      return slice(matched, params);
+      return slice(matched, params, "call-messages");
     },
     findCall(workspaceId, url, callId) {
       return calls.find(
@@ -156,6 +212,18 @@ export function createAgentCommsMockStore(dataset: AgentCommsDataset = {}): Agen
     },
     snapshotCalls() {
       return calls;
+    },
+    nextCallId() {
+      callSequence += 1;
+      return `call_mock_${callSequence}`;
+    },
+    nextMessageId() {
+      messageSequence += 1;
+      return `msg_mock_${messageSequence}`;
+    },
+    resetSequences() {
+      callSequence = 0;
+      messageSequence = 0;
     },
   };
 }

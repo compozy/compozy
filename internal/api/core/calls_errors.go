@@ -16,8 +16,8 @@ func (h *BaseHandlers) respondCallsError(c *gin.Context, err error) {
 func callErrorResponse(err error) contract.CallErrorResponse {
 	base := ErrorPayloadForError(err)
 	payload := contract.CallErrorResponse{Error: base.Error, Code: base.Code, Details: base.Details}
-	var typed *callspkg.Error
-	if !errors.As(err, &typed) {
+	typed, ok := asCallError(err)
+	if !ok {
 		return payload
 	}
 	payload.Code = string(typed.Code)
@@ -47,12 +47,12 @@ func callErrorResponse(err error) contract.CallErrorResponse {
 }
 
 func statusForCallsError(err error) int {
-	var typed *callspkg.Error
-	if !errors.As(err, &typed) {
+	typed, ok := asCallError(err)
+	if !ok {
 		return http.StatusInternalServerError
 	}
 	switch typed.Code {
-	case callspkg.CodeAgentUnknown, callspkg.CodeTargetNotFound,
+	case callspkg.CodeAgentUnknown, callspkg.CodeNotFound,
 		callspkg.CodeMessageNotFound:
 		return http.StatusNotFound
 	case callspkg.CodeTargetDenied, callspkg.CodeWorkspaceDenied, callspkg.CodeMessageTargetDenied,
@@ -70,4 +70,10 @@ func statusForCallsError(err error) int {
 	default:
 		return http.StatusUnprocessableEntity
 	}
+}
+
+func asCallError(err error) (*callspkg.Error, bool) {
+	var typed *callspkg.Error
+	ok := errors.As(err, &typed)
+	return typed, ok
 }

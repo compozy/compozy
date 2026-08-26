@@ -99,8 +99,10 @@ That framing is the security boundary, and three properties hold behind it:
 
 - **Capability-subtracted.** Nothing in a message can approve a pending permission request, change
   configuration, or execute an embedded command. Instructions inside the frame arrive inert.
-- **Sanitized.** Payloads are scanned on the way in. Secret-shaped content is redacted, and a body
-  that cannot be made safe is replaced with `[message removed: unsafe secret material]`.
+- **Sanitized.** Payloads are scanned on the way in. Mixed text keeps its safe content and replaces
+  secret-shaped spans with fingerprinted redaction markers. A body made only of unsafe secret
+  material is rejected at admission. As a separate render-time safeguard, an unsafe-only stored
+  body is shown as `[message removed: unsafe secret material]` instead of entering a prompt.
 - **Bounded.** The frame is truncated to fit the recipient's budget rather than expanding it.
 
 ## Loop-breakers

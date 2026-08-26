@@ -45,7 +45,7 @@ func (h *BaseHandlers) CallMessagesCreate(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusAccepted, contract.SendCallMessageResponse{
-		MessageID: message.MessageID, Delivery: publicCallDelivery(message.Delivery),
+		MessageID: message.MessageID, Delivery: publicCallDelivery(string(message.Delivery)),
 	})
 }
 

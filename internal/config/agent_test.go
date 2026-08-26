@@ -164,8 +164,8 @@ func TestAgentDefinitionLifecycleHelpers(t *testing.T) {
 		tooLong.Description = strings.Repeat("界", AgentDescriptionMaxCharacters+1)
 		_, _, err = RenderAgentDefinition(tooLong)
 		want := "agent.description must be at most 500 characters (got 501)"
-		if err == nil || err.Error() != want {
-			t.Fatalf("RenderAgentDefinition(over-bound description) error = %v, want %q", err, want)
+		if !errors.Is(err, ErrInvalidAgentDefinition) || !strings.Contains(err.Error(), want) {
+			t.Fatalf("RenderAgentDefinition(over-bound description) error = %v, want typed error containing %q", err, want)
 		}
 	})
 

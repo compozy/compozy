@@ -34,7 +34,7 @@ export function AgentCallDetailTimeline({
               title={event.title}
               description={event.detail ?? undefined}
               icon={Glyph}
-              tone={event.tone === "neutral" ? "neutral" : event.tone}
+              tone={event.tone}
               time={<Time iso={event.at} mode="absolute" />}
             />
           );

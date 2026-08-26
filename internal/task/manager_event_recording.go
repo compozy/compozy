@@ -179,6 +179,7 @@ func NewCoordinatorRunCompletedEvent(
 			ErrInvalidStatusTransition,
 		)
 	}
+	eventResult := completionEventResult(rawJSONValue(run.Result))
 	return validatedTaskEvent(
 		eventID,
 		run.TaskID,
@@ -187,10 +188,11 @@ func NewCoordinatorRunCompletedEvent(
 		actor,
 		timestamp,
 		completedRunPayload{
-			Status:         run.Status,
-			TaskStatus:     taskRecord.Status,
-			Result:         completionEventResult(rawJSONValue(run.Result)),
-			ClaimTokenHash: run.ClaimTokenHash,
+			Status:            run.Status,
+			TaskStatus:        taskRecord.Status,
+			Result:            eventResult.payload,
+			ResultDisposition: eventResult.disposition,
+			ClaimTokenHash:    run.ClaimTokenHash,
 		},
 	)
 }

@@ -13,13 +13,14 @@ var ErrPublicationNotFound = errors.New("calls: publication not found")
 type ErrorCode string
 
 const (
+	// CodeValidation and the following constants are stable public call error codes.
 	CodeValidation             ErrorCode = "call_validation"
 	CodeAgentUnknown           ErrorCode = "call_agent_unknown"
 	CodeExpectInvalid          ErrorCode = "call_expect_invalid"
 	CodePromptRequired         ErrorCode = "call_prompt_empty"
 	CodeChildrenCap            ErrorCode = "call_children_cap"
 	CodeWideningRejected       ErrorCode = "call_widening_rejected"
-	CodeTargetNotFound         ErrorCode = "call_target_not_found"
+	CodeNotFound               ErrorCode = "call_target_not_found"
 	CodeTargetExpired          ErrorCode = "call_target_expired"
 	CodeTargetDenied           ErrorCode = "call_target_denied"
 	CodeWorkspaceDenied        ErrorCode = "call_workspace_denied"
@@ -28,7 +29,6 @@ const (
 	CodeBatchEmpty             ErrorCode = "call_batch_empty"
 	CodeBatchOverCap           ErrorCode = "call_batch_over_cap"
 	CodeIdempotencyConflict    ErrorCode = "call_idempotency_conflict"
-	CodeNotFound               ErrorCode = "call_target_not_found"
 	CodeNotSettled             ErrorCode = "call_not_settled"
 	CodeAlreadySettled         ErrorCode = "call_already_settled"
 	CodeReturnUnbound          ErrorCode = "call_return_unbound"
@@ -60,6 +60,7 @@ type Error struct {
 	Cause      error              `json:"-"`
 }
 
+// Error renders the stable code and safe message.
 func (e *Error) Error() string {
 	if e == nil {
 		return ""
@@ -71,6 +72,7 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("%s: %s", e.Code, message)
 }
 
+// Unwrap exposes the preserved internal cause.
 func (e *Error) Unwrap() error { return e.Cause }
 
 // DiagnosticCode exposes the stable calls code to shared transport error rendering.

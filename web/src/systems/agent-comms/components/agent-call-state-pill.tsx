@@ -1,7 +1,7 @@
 /**
  * The chips that carry call state, verdict, delivery, and child state.
  *
- * All four live in one file because they are one grammar, not four: tone, glyph,
+ * These related projections live in one file because they are one grammar: tone, glyph,
  * and the runtime's exact word always travel together, and splitting them across
  * files is how two of them eventually drift apart.
  *

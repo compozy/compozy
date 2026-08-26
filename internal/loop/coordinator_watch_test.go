@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/compozy/compozy/internal/contracts"
 	"io"
 	"log/slog"
 	"slices"
@@ -484,7 +485,7 @@ func TestCoordinatorRunnerWatchEvents(t *testing.T) {
 			t.Fatalf("Run() error = %v", err)
 		}
 		outputs := outputsByNodeForTest(coordinatorSnapshotPayloadForTest(t, plan).Outputs)
-		if !OutputRefLooksContentAddressed(outputs["watch_tasks"].OutputRef) {
+		if !contracts.OutputRefLooksContentAddressed(outputs["watch_tasks"].OutputRef) {
 			t.Fatalf("watch output_ref = %q, want content-addressed ref", outputs["watch_tasks"].OutputRef)
 		}
 		blobs := coordinatorSnapshotPayloadForTest(t, plan).OutputBlobs

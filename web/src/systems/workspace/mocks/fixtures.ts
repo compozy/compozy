@@ -31,6 +31,22 @@ const DEFAULT_SESSION_PROFILE = {
   profile_name: "default",
 } as const;
 
+type WorkspaceAgent = NonNullable<WorkspaceDetailPayload["agents"]>[number];
+
+function workspaceAgent(
+  input: Pick<WorkspaceAgent, "name" | "provider" | "prompt">
+): WorkspaceAgent {
+  return {
+    description: "",
+    scope: "",
+    shadowed: false,
+    origin: "workspace",
+    workspace_id: primaryWorkspaceFixture.id,
+    definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+    ...input,
+  };
+}
+
 export const workspaceFixtures: WorkspacePayload[] = [
   {
     id: storyWorkspaceIds.hq,
@@ -101,137 +117,71 @@ export const primaryWorkspaceFixture: WorkspacePayload =
 export const workspaceDetailFixture: WorkspaceDetailPayload = {
   workspace: primaryWorkspaceFixture,
   agents: [
-    {
+    workspaceAgent({
       name: storyAgentNames.cto,
       provider: "claude",
       prompt:
         "Own launch command and consolidate cross-functional launch risk into operator briefings.",
-      description: "",
-      scope: "",
-      shadowed: false,
-      origin: "workspace",
-      workspace_id: primaryWorkspaceFixture.id,
-      definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
-    },
-    {
+    }),
+    workspaceAgent({
       name: storyAgentNames.cfo,
       provider: "claude",
       prompt: "Track launch GMV, burn, reserve exposure, and finance approvals in real time.",
-      description: "",
-      scope: "",
-      shadowed: false,
-      origin: "workspace",
-      workspace_id: primaryWorkspaceFixture.id,
-      definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
-    },
-    {
+    }),
+    workspaceAgent({
       name: storyAgentNames.product,
       provider: "gemini",
       prompt:
         "Coordinate the launch checklist, unblock decision-makers, and manage the final go-live sequence.",
-      description: "",
-      scope: "",
-      shadowed: false,
-      origin: "workspace",
-      workspace_id: primaryWorkspaceFixture.id,
-      definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
-    },
-    {
+    }),
+    workspaceAgent({
       name: storyAgentNames.frontend,
       provider: "codex",
       prompt:
         "QA launch UI surfaces, patch visual regressions, and protect conversion-critical flows.",
-      description: "",
-      scope: "",
-      shadowed: false,
-      origin: "workspace",
-      workspace_id: primaryWorkspaceFixture.id,
-      definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
-    },
-    {
+    }),
+    workspaceAgent({
       name: storyAgentNames.marketing,
       provider: "gemini",
       prompt:
         "Sequence launch messaging, CRM sends, ads, and campaign timing across every merchant audience.",
-      description: "",
-      scope: "",
-      shadowed: false,
-      origin: "workspace",
-      workspace_id: primaryWorkspaceFixture.id,
-      definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
-    },
-    {
+    }),
+    workspaceAgent({
       name: storyAgentNames.copywriter,
       provider: "claude",
       prompt:
         "Polish launch headlines, pricing claims, lifecycle copy, and support-safe fallback language.",
-      description: "",
-      scope: "",
-      shadowed: false,
-      origin: "workspace",
-      workspace_id: primaryWorkspaceFixture.id,
-      definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
-    },
-    {
+    }),
+    workspaceAgent({
       name: storyAgentNames.support,
       provider: "claude",
       prompt:
         "Handle launch-day merchant questions, cluster escalations, and prepare operator-safe responses.",
-      description: "",
-      scope: "",
-      shadowed: false,
-      origin: "workspace",
-      workspace_id: primaryWorkspaceFixture.id,
-      definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
-    },
-    {
+    }),
+    workspaceAgent({
       name: storyAgentNames.fraud,
       provider: "claude",
       prompt:
         "Review payout holds, reserve anomalies, and launch-day fraud spikes before merchants are unblocked.",
-      description: "",
-      scope: "",
-      shadowed: false,
-      origin: "workspace",
-      workspace_id: primaryWorkspaceFixture.id,
-      definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
-    },
-    {
+    }),
+    workspaceAgent({
       name: storyAgentNames.compliance,
       provider: "qwen-code",
       prompt:
         "Verify claims, policy exceptions, sanctions screens, and KYB evidence before approval.",
-      description: "",
-      scope: "",
-      shadowed: false,
-      origin: "workspace",
-      workspace_id: primaryWorkspaceFixture.id,
-      definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
-    },
-    {
+    }),
+    workspaceAgent({
       name: storyAgentNames.release,
       provider: "codex",
       prompt:
         "Run canary verification, rollback guardrails, and launch-readiness checks across payment services.",
-      description: "",
-      scope: "",
-      shadowed: false,
-      origin: "workspace",
-      workspace_id: primaryWorkspaceFixture.id,
-      definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
-    },
-    {
+    }),
+    workspaceAgent({
       name: storyAgentNames.platform,
       provider: "codex",
       prompt:
         "Investigate webhook drift, partner integrations, and platform stability during launch.",
-      description: "",
-      scope: "",
-      shadowed: false,
-      origin: "workspace",
-      workspace_id: primaryWorkspaceFixture.id,
-      definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
-    },
+    }),
   ],
   providers: [
     {

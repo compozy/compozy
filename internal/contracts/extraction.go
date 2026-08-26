@@ -17,7 +17,7 @@ func ExtractCandidate(text string) (json.RawMessage, bool) {
 	if len(candidates) == 0 {
 		return nil, false
 	}
-	return cloneRaw(candidates[0]), true
+	return candidates[0], true
 }
 
 // ExtractCandidates returns distinct object candidates newest-first.
@@ -128,7 +128,7 @@ func balancedObjectAt(text string, start int) (json.RawMessage, int, bool) {
 }
 
 func validObject(value string) (json.RawMessage, bool) {
-	if value == "" || value[0] != '{' || !json.Valid([]byte(value)) {
+	if value == "" || value[0] != '{' {
 		return nil, false
 	}
 	var object map[string]any

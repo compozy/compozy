@@ -16,6 +16,8 @@ export interface AgentFleetRowModel {
   ariaLabel: string;
   hasDiagnostics: boolean;
   sessionsAvailable: boolean;
+  /** Shadowed definitions are inspectable but cannot start their winning twin. */
+  canStartSession: boolean;
 }
 
 export interface AgentFleetSessionSignals {
@@ -124,6 +126,7 @@ export function projectAgentFleetRows(input: {
       ariaLabel: formatAgentFleetAriaLabel(agent, signals, input.sessionsAvailable),
       hasDiagnostics: Array.isArray(agent.diagnostics) && agent.diagnostics.length > 0,
       sessionsAvailable: input.sessionsAvailable,
+      canStartSession: !agent.shadowed,
     };
   });
 }

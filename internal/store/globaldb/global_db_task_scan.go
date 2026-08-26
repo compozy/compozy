@@ -63,15 +63,15 @@ func taskRecordFromFields(record taskpkg.Task, fields *taskScanFields) (taskpkg.
 		return taskpkg.Task{}, err
 	}
 	record.ExpectDigest = taskNullStringValue(fields.expectDigest)
-	if fields.resultBudgetBytes.Valid || fields.resultOverflow.Valid {
-		if !fields.resultBudgetBytes.Valid || !fields.resultOverflow.Valid {
-			return taskpkg.Task{}, fmt.Errorf("store: task result contract is incomplete")
-		}
-		record.ResultBudget = &contracts.ByteBudget{
-			MaxBytes: int(fields.resultBudgetBytes.Int64),
-			Overflow: contracts.OverflowMode(strings.TrimSpace(fields.resultOverflow.String)),
-		}
+	resultBudget, err := decodePersistedResultBudget(
+		fields.resultBudgetBytes,
+		fields.resultOverflow,
+		"task result contract",
+	)
+	if err != nil {
+		return taskpkg.Task{}, err
 	}
+	record.ResultBudget = resultBudget
 	if err := assignNullableTaskTimestamp(&record.PausedAt, fields.pausedAtRaw); err != nil {
 		return taskpkg.Task{}, err
 	}
@@ -87,6 +87,30 @@ func taskRecordFromFields(record taskpkg.Task, fields *taskScanFields) (taskpkg.
 	}
 
 	return record, nil
+}
+
+func decodePersistedResultBudget(
+	maxBytes sql.NullInt64,
+	overflow sql.NullString,
+	path string,
+) (*contracts.ByteBudget, error) {
+	if !maxBytes.Valid && !overflow.Valid {
+		return nil, nil
+	}
+	if !maxBytes.Valid || !overflow.Valid {
+		return nil, fmt.Errorf("store: %s snapshot is incomplete", path)
+	}
+	budget := &contracts.ByteBudget{
+		MaxBytes: int(maxBytes.Int64),
+		Overflow: contracts.OverflowMode(strings.TrimSpace(overflow.String)),
+	}
+	if budget.MaxBytes <= 0 {
+		return nil, fmt.Errorf("store: %s max_bytes must be positive", path)
+	}
+	if budget.Overflow != contracts.OverflowStore && budget.Overflow != contracts.OverflowReject {
+		return nil, fmt.Errorf("store: %s overflow is invalid: %q", path, budget.Overflow)
+	}
+	return budget, nil
 }
 
 type taskScanFields struct {

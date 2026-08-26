@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/compozy/compozy/internal/contracts"
 	"testing"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -149,7 +150,7 @@ func TestCoordinatorRunnerShouldPreserveMixedGenerationAtGoalControlBoundary(t *
 			t.Fatalf("Goal output = %#v, want awaiting_goal", outputs["converge"])
 		}
 		if outputs["watch_tasks"].Status != generationOutputSucceeded ||
-			!OutputRefLooksContentAddressed(outputs["watch_tasks"].OutputRef) {
+			!contracts.OutputRefLooksContentAddressed(outputs["watch_tasks"].OutputRef) {
 			t.Fatalf("watch output = %#v, want content-addressed confirmation", outputs["watch_tasks"])
 		}
 		if outputs["summarize"].Status != generationOutputRunning ||

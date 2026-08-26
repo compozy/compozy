@@ -243,10 +243,12 @@ func TestDaemonE2EAgentCallsRuntimeAndPublicSurfaces(t *testing.T) {
 		if err := harness.HTTPJSON(ctx, http.MethodPost, path, batch, &batchItems); err != nil {
 			t.Fatalf("HTTP batch create error = %v", err)
 		}
-		if len(batchItems) != 3 || batchItems[0].Call == nil || batchItems[1].Call == nil ||
+		if len(batchItems) != 3 || batchItems[0].CallID == "" || batchItems[1].CallID == "" ||
 			batchItems[2].Error == nil || batchItems[2].Error.Code != string(callspkg.CodeAgentUnknown) {
 			t.Fatalf("HTTP batch response = %#v", batchItems)
 		}
+		waitForAgentCallState(t, ctx, harness, batchItems[0].CallID, callspkg.StateCompleted)
+		waitForAgentCallState(t, ctx, harness, batchItems[1].CallID, callspkg.StateCompleted)
 
 		status, unknown := postAgentCallHTTP[compozycontract.CallErrorResponse](
 			t,
@@ -310,19 +312,15 @@ func TestDaemonE2EAgentCallsRuntimeAndPublicSurfaces(t *testing.T) {
 			"1s",
 		)
 		ttlSettled := waitForAgentCallState(t, ctx, harness, ttl.CallID, callspkg.StateCompleted)
-		time.Sleep(1500 * time.Millisecond)
-		_, ttlStderr, ttlErr := harness.CLI.RunInDir(
+		waitForAgentCallCLIErrorCode(
+			t,
 			ctx,
-			harness.WorkspaceRoot,
+			harness,
+			10*time.Second,
+			callspkg.CodeTargetExpired,
 			"call", ttlSettled.ChildSessionID, "one more thing",
-			"--workspace", harness.WorkspaceRoot,
-			"-o", "json",
+			"--workspace", harness.WorkspaceRoot, "-o", "json",
 		)
-		var ttlExit *exec.ExitError
-		if !errors.As(ttlErr, &ttlExit) || ttlExit.ExitCode() != 2 ||
-			!strings.Contains(ttlStderr, string(callspkg.CodeTargetExpired)) {
-			t.Fatalf("expired follow-up error = %v stderr=%q, want exit 2 %s", ttlErr, ttlStderr, callspkg.CodeTargetExpired)
-		}
 
 		messaged := createAgentCallCLI(t, ctx, harness, "messenger", "message parent")
 		messagedCall := waitForAgentCallState(t, ctx, harness, messaged.CallID, callspkg.StateCompleted)
@@ -384,8 +382,8 @@ func TestDaemonE2EAgentCallsRuntimeAndPublicSurfaces(t *testing.T) {
 		depthTwoCall := waitForAgentCallState(t, ctx, harness, depthTwo.CallID, callspkg.StateRunning)
 		depthThree := createNestedAgentCall(t, ctx, harness, depthTwoCall.ChildSessionID)
 		depthThreeCall := waitForAgentCallState(t, ctx, harness, depthThree.CallID, callspkg.StateRunning)
-		depthThreeClient := attentionHostedMCPClient(t, ctx, harness, "blocker", depthThreeCall.ChildSessionID)
-		defer closeAttentionMCPClient(t, depthThreeClient)
+		depthThreeClient := hostedMCPClientForSession(t, ctx, harness, "blocker", depthThreeCall.ChildSessionID)
+		defer closeHostedMCPClient(t, depthThreeClient)
 		listed, err := depthThreeClient.ListTools(ctx, nil)
 		if err != nil {
 			t.Fatalf("ListTools(depth wall) error = %v", err)
@@ -409,7 +407,10 @@ func TestDaemonE2EAgentCallsRuntimeAndPublicSurfaces(t *testing.T) {
 			}
 		}
 		if !visibleDepthWall {
-			t.Fatalf("depth-three diagnostics = %#v, want literal zero remaining depth", records)
+			t.Fatalf(
+				"depth-three diagnostics contain %d session records, want literal zero remaining depth prompt",
+				len(acpmock.DiagnosticsForCompozySession(records, depthThreeCall.ChildSessionID)),
+			)
 		}
 	})
 
@@ -505,29 +506,29 @@ func TestDaemonE2EAgentCallsRuntimeAndPublicSurfaces(t *testing.T) {
 }
 
 func TestDaemonE2EAgentCallPublishBridge(t *testing.T) {
-	t.Run("Should publish settled call evidence across CLI HTTP and Network", func(t *testing.T) {
-		acpmock.RequireDriver(t)
-		t.Parallel()
+	acpmock.RequireDriver(t)
+	t.Parallel()
 
-		fixture := mockFixturePath(t, "agent_calls_fixture.json")
-		tools := []string{
-			toolspkg.ToolIDAgentCall.String(),
-			toolspkg.ToolIDCallReturn.String(),
-		}
-		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
-			EnableNetwork: true,
-			MockAgents: []e2etest.MockAgentSpec{
-				{FixturePath: fixture, FixtureAgent: "blocker", AgentName: "publisher", Tools: tools},
-				{FixturePath: fixture, FixtureAgent: "reviewer", AgentName: "reviewer", Tools: tools},
-			},
-		})
+	fixture := mockFixturePath(t, "agent_calls_fixture.json")
+	tools := []string{
+		toolspkg.ToolIDAgentCall.String(),
+		toolspkg.ToolIDCallReturn.String(),
+	}
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		EnableNetwork: true,
+		MockAgents: []e2etest.MockAgentSpec{
+			{FixturePath: fixture, FixtureAgent: "blocker", AgentName: "publisher", Tools: tools},
+			{FixturePath: fixture, FixtureAgent: "reviewer", AgentName: "reviewer", Tools: tools},
+		},
+	})
 
-		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
-		defer cancel()
-		channel := "call-publications"
-		detail := mustCreateNetworkChannel(t, ctx, harness, channel, "publisher")
-		publisher := requireChannelSession(t, detail, "publisher")
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	channel := "call-publications"
+	detail := mustCreateNetworkChannel(t, ctx, harness, channel, "publisher")
+	publisher := requireChannelSession(t, detail, "publisher")
 
+	t.Run("Should publish settled call evidence through CLI", func(t *testing.T) {
 		completed := createAgentCallFromSession(t, ctx, harness, "publisher", publisher.ID, "reviewer", "golden path")
 		waitForAgentCallState(t, ctx, harness, completed.CallID, callspkg.StateCompleted)
 		var cliPublished compozycontract.PublishCallResponse
@@ -553,7 +554,9 @@ func TestDaemonE2EAgentCallPublishBridge(t *testing.T) {
 		if !networkTimelineHasCallEvidence(messages, cliPublished.NetworkMessageID, completed.CallID) {
 			t.Fatalf("Network messages = %#v, want call evidence %s", messages, completed.CallID)
 		}
+	})
 
+	t.Run("Should publish settled call evidence through HTTP", func(t *testing.T) {
 		httpCompleted := createAgentCallFromSession(t, ctx, harness, "publisher", publisher.ID, "reviewer", "golden path")
 		waitForAgentCallState(t, ctx, harness, httpCompleted.CallID, callspkg.StateCompleted)
 		httpStatus, httpPublished := postAgentCallPublishHTTP(
@@ -566,7 +569,16 @@ func TestDaemonE2EAgentCallPublishBridge(t *testing.T) {
 		if httpStatus != http.StatusOK || !httpPublished.Published || httpPublished.NetworkMessageID == "" {
 			t.Fatalf("HTTP call publish = status %d payload %#v", httpStatus, httpPublished)
 		}
+		waitForRuntimeCondition(t, "HTTP-published call evidence", 10*time.Second, func() bool {
+			return channelHasMessageID(ctx, harness, channel, httpPublished.NetworkMessageID)
+		})
+		messages := mustHTTPNetworkThreadMessages(t, ctx, harness, channel, "thread_http_publish")
+		if !networkTimelineHasCallEvidence(messages, httpPublished.NetworkMessageID, httpCompleted.CallID) {
+			t.Fatalf("HTTP Network messages = %#v, want call evidence %s", messages, httpCompleted.CallID)
+		}
+	})
 
+	t.Run("Should reject non-terminal and canceled calls", func(t *testing.T) {
 		running := createAgentCallFromSession(t, ctx, harness, "publisher", publisher.ID, "publisher", "keep working")
 		waitForAgentCallState(t, ctx, harness, running.CallID, callspkg.StateRunning)
 		status, nonTerminal := postAgentCallPublishHTTPError(
@@ -594,7 +606,9 @@ func TestDaemonE2EAgentCallPublishBridge(t *testing.T) {
 		}
 		waitForAgentCallState(t, ctx, harness, running.CallID, callspkg.StateCanceled)
 		assertAgentCallPublishCLIError(t, ctx, harness, running.CallID, channel, callspkg.CodePublishNotSettled)
+	})
 
+	t.Run("Should reject calls without Network participation", func(t *testing.T) {
 		operatorCall := createAgentCallCLI(t, ctx, harness, "reviewer", "golden path")
 		waitForAgentCallState(t, ctx, harness, operatorCall.CallID, callspkg.StateCompleted)
 		status, noParticipation := postAgentCallPublishHTTPError(
@@ -608,7 +622,9 @@ func TestDaemonE2EAgentCallPublishBridge(t *testing.T) {
 			noParticipation.Code != string(callspkg.CodePublishNoParticipation) {
 			t.Fatalf("HTTP no-participation publish = status %d payload %#v", status, noParticipation)
 		}
+	})
 
+	t.Run("Should keep the reversed Network path unavailable", func(t *testing.T) {
 		reversePath := fmt.Sprintf("/api/workspaces/%s/network/calls", url.PathEscape(harness.WorkspaceID))
 		reverseRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, harness.HTTPURL(reversePath), nil)
 		if err != nil {
@@ -660,6 +676,7 @@ func waitForAgentCallState(
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	var last compozycontract.CallPayload
+	var lastErr error
 	for {
 		err := harness.CLI.RunJSONInDir(
 			ctx,
@@ -672,12 +689,13 @@ func waitForAgentCallState(
 		if err == nil && last.State == string(want) {
 			return last
 		}
+		lastErr = err
 		if err == nil && isAgentCallTerminal(last.State) && last.State != string(want) {
 			t.Fatalf("call %s settled %s, want %s; payload=%#v", callID, last.State, want, last)
 		}
 		select {
 		case <-ctx.Done():
-			t.Fatalf("wait for call %s state %s: %v; last=%#v", callID, want, ctx.Err(), last)
+			t.Fatalf("wait for call %s state %s: %v; last=%#v; last read error=%v", callID, want, ctx.Err(), last, lastErr)
 		case <-ticker.C:
 		}
 	}
@@ -694,21 +712,7 @@ func createNestedAgentCall(
 	parentSessionID string,
 ) compozycontract.CallCreatePayload {
 	t.Helper()
-	client := attentionHostedMCPClient(t, ctx, harness, "blocker", parentSessionID)
-	defer closeAttentionMCPClient(t, client)
-	var created compozycontract.CallCreatePayload
-	callHostedMCPToolJSON(
-		t,
-		ctx,
-		client,
-		toolspkg.ToolIDAgentCall.String(),
-		map[string]any{"agent": "blocker", "prompt": "keep working"},
-		&created,
-	)
-	if created.CallID == "" || created.ChildSessionID == "" {
-		t.Fatalf("nested agent call = %#v", created)
-	}
-	return created
+	return createAgentCallFromSession(t, ctx, harness, "blocker", parentSessionID, "blocker", "keep working")
 }
 
 func createAgentCallFromSession(
@@ -721,8 +725,8 @@ func createAgentCallFromSession(
 	prompt string,
 ) compozycontract.CallCreatePayload {
 	t.Helper()
-	client := attentionHostedMCPClient(t, ctx, harness, parentAgent, parentSessionID)
-	defer closeAttentionMCPClient(t, client)
+	client := hostedMCPClientForSession(t, ctx, harness, parentAgent, parentSessionID)
+	defer closeHostedMCPClient(t, client)
 	var created compozycontract.CallCreatePayload
 	callHostedMCPToolJSON(
 		t,
@@ -768,31 +772,12 @@ func postAgentCallPublishHTTPAs[T any](
 	payload compozycontract.PublishCallRequest,
 ) (int, T) {
 	t.Helper()
-	var decoded T
-	body, err := json.Marshal(payload)
-	if err != nil {
-		t.Fatalf("json.Marshal(publish request) error = %v", err)
-	}
 	path := fmt.Sprintf(
 		"/api/workspaces/%s/calls/%s/publish",
 		url.PathEscape(harness.WorkspaceID),
 		url.PathEscape(callID),
 	)
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, harness.HTTPURL(path), bytes.NewReader(body))
-	if err != nil {
-		t.Fatalf("http.NewRequestWithContext(publish request) error = %v", err)
-	}
-	request.Header.Set("Content-Type", "application/json")
-	response, err := harness.HTTPClient.Do(request)
-	if err != nil {
-		t.Fatalf("HTTP publish request error = %v", err)
-	}
-	decodeErr := json.NewDecoder(response.Body).Decode(&decoded)
-	closeErr := response.Body.Close()
-	if err := errors.Join(decodeErr, closeErr); err != nil {
-		t.Fatalf("decode/close HTTP publish response error = %v", err)
-	}
-	return response.StatusCode, decoded
+	return postAgentCallJSON[T](t, ctx, harness, path, payload)
 }
 
 func assertAgentCallPublishCLIError(
@@ -812,10 +797,70 @@ func assertAgentCallPublishCLIError(
 		"--channel", channel,
 		"-o", "json",
 	)
-	var exitErr *exec.ExitError
-	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 2 || !strings.Contains(stderr, string(want)) {
-		t.Fatalf("CLI publish %s error = %v stderr=%q, want exit 2 %s", callID, err, stderr, want)
+	assertAgentCallCLIErrorCode(t, err, stderr, want)
+}
+
+func waitForAgentCallCLIErrorCode(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	timeout time.Duration,
+	want callspkg.ErrorCode,
+	args ...string,
+) {
+	t.Helper()
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	var lastErr error
+	var lastCode string
+	for {
+		_, stderr, err := harness.CLI.RunInDir(waitCtx, harness.WorkspaceRoot, args...)
+		lastErr = err
+		if code, ok := agentCallCLIErrorCode(err, stderr); ok {
+			lastCode = code
+			if code == string(want) {
+				return
+			}
+		}
+		select {
+		case <-waitCtx.Done():
+			t.Fatalf(
+				"wait for CLI error code %s: %v; last code=%q; last command error=%v",
+				want,
+				waitCtx.Err(),
+				lastCode,
+				lastErr,
+			)
+		case <-ticker.C:
+		}
 	}
+}
+
+func assertAgentCallCLIErrorCode(
+	t testing.TB,
+	err error,
+	stderr string,
+	want callspkg.ErrorCode,
+) {
+	t.Helper()
+	code, ok := agentCallCLIErrorCode(err, stderr)
+	if !ok || code != string(want) {
+		t.Fatalf("CLI error = %v code=%q, want exit 2 code %s", err, code, want)
+	}
+}
+
+func agentCallCLIErrorCode(err error, stderr string) (string, bool) {
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 2 {
+		return "", false
+	}
+	var payload compozycontract.ErrorPayload
+	if json.Unmarshal([]byte(strings.TrimSpace(stderr)), &payload) != nil {
+		return "", false
+	}
+	return payload.Code, payload.Code != ""
 }
 
 func networkTimelineHasCallEvidence(
@@ -839,24 +884,35 @@ func postAgentCallHTTP[T any](
 	payload compozycontract.CreateCallRequest,
 ) (int, T) {
 	t.Helper()
+	return postAgentCallJSON[T](t, ctx, harness, path, payload)
+}
+
+func postAgentCallJSON[T any, P any](
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	path string,
+	payload P,
+) (int, T) {
+	t.Helper()
 	var decoded T
 	body, err := json.Marshal(payload)
 	if err != nil {
-		t.Fatalf("json.Marshal(call request) error = %v", err)
+		t.Fatalf("json.Marshal(agent call request) error = %v", err)
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, harness.HTTPURL(path), bytes.NewReader(body))
 	if err != nil {
-		t.Fatalf("http.NewRequestWithContext(call request) error = %v", err)
+		t.Fatalf("http.NewRequestWithContext(agent call request) error = %v", err)
 	}
 	request.Header.Set("Content-Type", "application/json")
 	response, err := harness.HTTPClient.Do(request)
 	if err != nil {
-		t.Fatalf("HTTP call request error = %v", err)
+		t.Fatalf("HTTP agent call request error = %v", err)
 	}
 	decodeErr := json.NewDecoder(response.Body).Decode(&decoded)
 	closeErr := response.Body.Close()
 	if err := errors.Join(decodeErr, closeErr); err != nil {
-		t.Fatalf("decode/close HTTP call response error = %v", err)
+		t.Fatalf("decode/close HTTP agent call response error = %v", err)
 	}
 	return response.StatusCode, decoded
 }

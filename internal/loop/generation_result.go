@@ -1,8 +1,10 @@
 package loop
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/compozy/compozy/internal/contracts"
 	"strings"
 )
 
@@ -10,21 +12,27 @@ import (
 type GenerationResultKind string
 
 const (
-	GenerationResultPayload            GenerationResultKind = "payload"
-	GenerationResultFailure            GenerationResultKind = "failure"
-	GenerationResultControlValue       GenerationResultKind = "control_value"
-	GenerationResultBranchTrue         GenerationResultKind = "branch_true"
-	GenerationResultBranchFalse        GenerationResultKind = "branch_false"
-	GenerationResultSkipped            GenerationResultKind = "skipped"
+	// GenerationResultPayload and GenerationResultFailure carry structured payload values.
+	GenerationResultPayload GenerationResultKind = "payload"
+	GenerationResultFailure GenerationResultKind = "failure"
+	// GenerationResultControlValue and branch kinds carry control-flow values.
+	GenerationResultControlValue GenerationResultKind = "control_value"
+	GenerationResultBranchTrue   GenerationResultKind = "branch_true"
+	GenerationResultBranchFalse  GenerationResultKind = "branch_false"
+	GenerationResultSkipped      GenerationResultKind = "skipped"
+	// GenerationResultRouteSelected and related kinds describe routing outcomes.
 	GenerationResultRouteSelected      GenerationResultKind = "route_selected"
 	GenerationResultRouteNotTaken      GenerationResultKind = "route_not_taken"
 	GenerationResultErrorRouted        GenerationResultKind = "error_routed"
 	GenerationResultFailureAbsorbed    GenerationResultKind = "failure_absorbed"
 	GenerationResultWaitExpiryRouted   GenerationResultKind = "wait_expiry_routed"
 	GenerationResultReviewRejectRouted GenerationResultKind = "review_reject_routed"
+	// GenerationResultStrategyCanceled and GenerationResultStrategyNotStarted are terminal absence kinds.
 	GenerationResultStrategyCanceled   GenerationResultKind = "strategy_canceled"
 	GenerationResultStrategyNotStarted GenerationResultKind = "strategy_not_started"
 )
+
+const routeSelectedOutputRefPrefix = "route:"
 
 // GenerationResultRef is the explicit shape persisted in loop_generation_outputs.output_ref.
 type GenerationResultRef struct {
@@ -78,7 +86,7 @@ func DecodeGenerationResultRef(raw string) (GenerationResultRef, error) {
 	}
 	var result GenerationResultRef
 	if err := json.Unmarshal([]byte(trimmed), &result); err != nil {
-		return GenerationResultRef{}, fmt.Errorf("%w: decode generation result: %v", ErrValidation, err)
+		return GenerationResultRef{}, fmt.Errorf("%w: decode generation result: %w", ErrValidation, err)
 	}
 	if err := result.validate(); err != nil {
 		return GenerationResultRef{}, err
@@ -98,7 +106,7 @@ func generationResultForRef(ref string) GenerationResultRef {
 		result.Kind = GenerationResultBranchFalse
 	case trimmed == branchSkippedOutputRef:
 		result.Kind = GenerationResultSkipped
-	case strings.HasPrefix(trimmed, "route:"):
+	case strings.HasPrefix(trimmed, routeSelectedOutputRefPrefix):
 		result.Kind = GenerationResultRouteSelected
 	case strings.HasPrefix(trimmed, routeNotTakenOutputRefPrefix):
 		result.Kind = GenerationResultRouteNotTaken
@@ -116,7 +124,7 @@ func generationResultForRef(ref string) GenerationResultRef {
 		result.Kind = GenerationResultStrategyNotStarted
 	case actionFailureFromOutputRef(trimmed).Kind == actionFailureKind:
 		result.Kind = GenerationResultFailure
-	case trimmed != "" && !json.Valid([]byte(trimmed)) && !OutputRefLooksContentAddressed(trimmed):
+	case trimmed != "" && !json.Valid([]byte(trimmed)) && !contracts.OutputRefLooksContentAddressed(trimmed):
 		result.Kind = GenerationResultControlValue
 	}
 	return result
@@ -141,8 +149,7 @@ func encodeGenerationOutputResult(output GenerationOutput) (string, error) {
 		PayloadRef: output.OutputRef,
 	}
 	if result.Kind == "" {
-		result = generationResultForRef(output.OutputRef)
-		result.SchemaRef = output.SchemaRef
+		return "", fmt.Errorf("%w: generation output result_kind is required", ErrValidation)
 	}
 	return EncodeGenerationResultRef(result)
 }
@@ -154,7 +161,7 @@ func (output GenerationOutput) EncodedResult() (string, error) {
 
 func generationResultValue(result GenerationResultRef, hydrated json.RawMessage) any {
 	if result.Kind == "" {
-		result = generationResultForRef(result.PayloadRef)
+		return nil
 	}
 	switch result.Kind {
 	case GenerationResultPayload, GenerationResultFailure:
@@ -163,7 +170,7 @@ func generationResultValue(result GenerationResultRef, hydrated json.RawMessage)
 			payload = hydrated
 		}
 		var value any
-		if err := decodeSingleJSONValue(strings.NewReader(string(payload)), &value); err != nil {
+		if err := decodeSingleJSONValue(bytes.NewReader(payload), &value); err != nil {
 			return nil
 		}
 		return value
@@ -180,7 +187,7 @@ func generationResultValue(result GenerationResultRef, hydrated json.RawMessage)
 func generationOutputHasKind(output GenerationOutput, kinds ...GenerationResultKind) bool {
 	actual := output.ResultKind
 	if actual == "" {
-		actual = generationResultForRef(output.OutputRef).Kind
+		return false
 	}
 	for _, kind := range kinds {
 		if actual == kind {

@@ -99,7 +99,8 @@ function toRow(call: CallPayload, cause: CallAttentionCause): CallAttentionRow {
 
 /** Newest transition first — the same ordering the bell's other sections use. */
 function byRecencyDesc(left: CallAttentionRow, right: CallAttentionRow): number {
-  return right.changedAt.localeCompare(left.changedAt);
+  const recency = right.changedAt.localeCompare(left.changedAt);
+  return recency === 0 ? left.id.localeCompare(right.id) : recency;
 }
 
 /**

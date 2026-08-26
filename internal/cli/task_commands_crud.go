@@ -85,9 +85,9 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&ownerKindRaw, "owner-kind", "", "Optional owner kind")
 	cmd.Flags().StringVar(&ownerRef, "owner-ref", "", "Optional owner reference")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional metadata JSON")
-	cmd.Flags().StringVar(&expectRaw, "expect", "", "Result contract as inline JSON or @file")
-	cmd.Flags().StringVar(&resultBudget, "result-budget", "", "Task result budget, for example 512KiB")
-	cmd.Flags().StringVar(&resultOverflow, "result-overflow", "", "Over-budget policy: store or reject")
+	bindTaskResultContractFlags(
+		cmd, &expectRaw, &resultBudget, &resultOverflow, "Task", "Result contract as inline JSON or @file",
+	)
 	cmd.Flags().
 		BoolVar(&asAgent, "as-agent", false, "Create using the current CompozyOS-managed agent session identity")
 	cmd.Flags().
@@ -97,6 +97,20 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 	mustMarkFlagRequired(cmd, taskScopeKey)
 	mustMarkFlagRequired(cmd, taskTitleKey)
 	return cmd
+}
+
+func bindTaskResultContractFlags(
+	cmd *cobra.Command,
+	expectRaw *string,
+	resultBudget *string,
+	resultOverflow *string,
+	subject string,
+	expectDescription string,
+) {
+	subject = strings.TrimSpace(subject)
+	cmd.Flags().StringVar(expectRaw, "expect", "", expectDescription)
+	cmd.Flags().StringVar(resultBudget, "result-budget", "", subject+" result budget, for example 512KiB")
+	cmd.Flags().StringVar(resultOverflow, "result-overflow", "", subject+" over-budget policy: store or reject")
 }
 
 func newTaskGetCommand(deps commandDeps) *cobra.Command {

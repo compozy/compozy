@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -18,9 +19,9 @@ func newMessageSendCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "send <session-id> <text>",
 		Short: "Send inert text to a lineage session",
-		Args:  cobra.ExactArgs(2),
+		Args:  exactTwoNonBlankArgs(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, client, workspaceID, err := resolveCallClient(cmd, deps, workspace)
+			client, workspaceID, err := resolveCallClient(cmd, deps, workspace)
 			if err != nil {
 				return err
 			}
@@ -48,7 +49,10 @@ func newMessageListCommand(deps commandDeps) *cobra.Command {
 		Short: "List lineage messages",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			_, client, workspaceID, err := resolveCallClient(cmd, deps, workspace)
+			if limit < 0 {
+				return fmt.Errorf("cli: --limit must be zero or positive")
+			}
+			client, workspaceID, err := resolveCallClient(cmd, deps, workspace)
 			if err != nil {
 				return err
 			}

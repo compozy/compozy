@@ -33,7 +33,7 @@ function issueLines(text: string | null | undefined): string[] {
   return text
     .split("\n")
     .map(line => line.trim())
-    .filter(line => line.length > 0);
+    .filter(line => /^(?:[-*]\s*)?(?:\$|\/)[^:]*:\s*\S/.test(line));
 }
 
 function Attempt({

@@ -36,8 +36,9 @@ export type CallSupersededResponse = OperationResponse<"getCallSupersededWorkspa
 // --- Calls: mutations -------------------------------------------------------
 
 export type CreateCallRequest = OperationRequestBody<"createCallWorkspace">;
+/** One-call admission body; batch-only fields are rejected at this boundary. */
+export type CreateSingleCallRequest = Omit<CreateCallRequest, "tasks"> & { tasks?: never };
 export type CreateCallResponse = OperationResponse<"createCallWorkspace", 201>;
-export type CreateCallBatchResponse = OperationResponse<"createCallWorkspace", 200>;
 export type CancelCallRequest = OperationRequestBody<"cancelCallWorkspace">;
 export type CancelCallResponse = OperationResponse<"cancelCallWorkspace", 200>;
 
@@ -67,7 +68,6 @@ export type SendCallMessageResponse = OperationResponse<"sendCallMessageWorkspac
 // 204 — so the drain response is the 200 branch, and the two are read apart by
 // status rather than by guessing from the payload.
 
-export type StopSessionRequest = OperationRequestBody<"stopSession">;
 export type StopSessionDrainResponse = OperationResponse<"stopSession", 200>;
 
 // --- View unions (the `_dx.md` vocabulary) ----------------------------------

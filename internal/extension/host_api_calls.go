@@ -38,13 +38,13 @@ func (h *HostAPIHandler) handleCallsList(ctx context.Context, raw json.RawMessag
 	if err != nil {
 		return nil, err
 	}
+	projected, err := reader.ProjectPayloads(ctx, page.Items)
+	if err != nil {
+		return nil, mapHostAPICallRPCError("call", "", err)
+	}
 	items := make([]apicontract.CallPayload, 0, len(page.Items))
-	for _, record := range page.Items {
-		item, mapErr := hostAPICallPayload(ctx, reader, query, record, profileName)
-		if mapErr != nil {
-			return nil, mapErr
-		}
-		items = append(items, item)
+	for index, record := range page.Items {
+		items = append(items, hostAPICallPayload(record, profileName, projected[index]))
 	}
 	return apicontract.CallsResponse{Items: items, NextCursor: page.NextCursor, Total: page.Total}, nil
 }
@@ -70,7 +70,11 @@ func (h *HostAPIHandler) handleCallsGet(ctx context.Context, raw json.RawMessage
 	if err != nil {
 		return nil, err
 	}
-	return hostAPICallPayload(ctx, reader, query, record, profileName)
+	projected, err := reader.ProjectPayloads(ctx, []callspkg.CallRecord{record})
+	if err != nil {
+		return nil, mapHostAPICallRPCError("call", callID, err)
+	}
+	return hostAPICallPayload(record, profileName, projected[0]), nil
 }
 
 func (h *HostAPIHandler) handleCallsResult(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -144,23 +148,14 @@ func (h *HostAPIHandler) hostAPICallsReadQuery(
 		}
 		workspaceID = boundWorkspaceID
 	}
-	scope := callspkg.Scope(strings.TrimSpace(rawScope))
-	if scope == "" {
-		if workspaceID == "" {
-			scope = callspkg.ScopeGlobal
-		} else {
-			scope = callspkg.ScopeWorkspace
-		}
+	query, err := callspkg.NormalizeReadQuery(callspkg.CallReadQuery{
+		ReadScope: store.ReadScope{ProfileID: profileID},
+		Scope:     callspkg.Scope(rawScope), WorkspaceID: workspaceID,
+	})
+	if err != nil {
+		return nil, callspkg.CallReadQuery{}, invalidParamsRPCError(err)
 	}
-	if scope == callspkg.ScopeGlobal && workspaceID != "" || scope == callspkg.ScopeWorkspace && workspaceID == "" {
-		return nil, callspkg.CallReadQuery{}, invalidParamsRPCError(errors.New("scope and workspace_id do not match"))
-	}
-	if scope != callspkg.ScopeGlobal && scope != callspkg.ScopeWorkspace {
-		return nil, callspkg.CallReadQuery{}, invalidParamsRPCError(errors.New("scope must be global or workspace"))
-	}
-	return h.calls, callspkg.CallReadQuery{
-		ReadScope: store.ReadScope{ProfileID: profileID}, Scope: scope, WorkspaceID: workspaceID,
-	}, nil
+	return h.calls, query, nil
 }
 
 func (h *HostAPIHandler) hostAPICallProfileName(ctx context.Context, profileID string) (string, error) {
@@ -180,12 +175,10 @@ func (h *HostAPIHandler) hostAPICallProfileName(ctx context.Context, profileID s
 }
 
 func hostAPICallPayload(
-	ctx context.Context,
-	reader hostAPICallsReader,
-	query callspkg.CallReadQuery,
 	record callspkg.CallRecord,
 	profileName string,
-) (apicontract.CallPayload, error) {
+	projected callspkg.ProjectionContent,
+) apicontract.CallPayload {
 	payload := apicontract.CallPayload{
 		CallID: record.CallID, ProfileID: record.ProfileID, ProfileName: profileName,
 		Scope: string(record.Scope), WorkspaceID: record.WorkspaceID,
@@ -205,35 +198,23 @@ func hostAPICallPayload(
 		StartedAt: hostAPITimePointer(record.StartedAt), SettledAt: hostAPITimePointer(record.SettledAt),
 		UpdatedAt: record.UpdatedAt,
 	}
-	if strings.TrimSpace(record.PromptRef) != "" {
-		prompt, err := reader.Prompt(ctx, query, record.CallID)
-		if err != nil {
-			return apicontract.CallPayload{}, mapHostAPICallRPCError("call_prompt", record.CallID, err)
-		}
-		payload.PromptPreview = hostAPIBoundedTextPreview(prompt.Text, 4<<10)
-		payload.PromptBytes = len([]byte(prompt.Text))
+	if len(projected.Prompt) > 0 {
+		payload.PromptPreview = hostAPIBoundedTextPreview(string(projected.Prompt), 4<<10)
+		payload.PromptBytes = len(projected.Prompt)
 	}
-	if record.State == callspkg.StateCompleted && strings.TrimSpace(record.ResultRef) != "" {
-		result, err := reader.Result(ctx, query, record.CallID)
-		if err != nil {
-			return apicontract.CallPayload{}, mapHostAPICallRPCError("call_result", record.CallID, err)
-		}
-		payload.ResultPreview = hostAPIBoundedJSONPreview(result.Bytes, record.ResultBudget.MaxBytes)
+	if record.State == callspkg.StateCompleted && len(projected.Result) > 0 {
+		payload.ResultPreview = hostAPIBoundedJSONPreview(projected.Result, record.ResultBudget.MaxBytes)
 	}
-	if strings.TrimSpace(record.SupersededRef) != "" {
-		superseded, err := reader.Superseded(ctx, query, record.CallID)
-		if err != nil {
-			return apicontract.CallPayload{}, mapHostAPICallRPCError("call_superseded", record.CallID, err)
-		}
-		payload.SupersededPreview = hostAPIBoundedJSONPreview(superseded.Bytes, record.ResultBudget.MaxBytes)
-		payload.SupersededBytes = len(superseded.Bytes)
+	if len(projected.Superseded) > 0 {
+		payload.SupersededPreview = hostAPIBoundedJSONPreview(projected.Superseded, record.ResultBudget.MaxBytes)
+		payload.SupersededBytes = len(projected.Superseded)
 	}
 	if record.Verdict != "" || record.ChildSessionID != "" {
 		payload.Provenance = &apicontract.CallProvenancePayload{
 			ProducedBy: record.AgentName, SessionID: record.ChildSessionID, Admitted: string(record.Verdict),
 		}
 	}
-	return payload, nil
+	return payload
 }
 
 func hostAPIBoundedJSONPreview(payload []byte, limit int) json.RawMessage {
@@ -259,7 +240,7 @@ func hostAPICallMessagePayload(record callspkg.MessageRecord, profileName string
 		Scope: string(record.Scope), WorkspaceID: record.WorkspaceID,
 		From:          apicontract.CallOwnerPayload{Kind: record.From.Kind, ID: record.From.ID},
 		FromAgentName: record.FromAgentName, ToSessionID: record.ToSessionID,
-		CallID: record.CallID, Text: record.Body, Delivery: hostAPICallDelivery(record.Delivery),
+		CallID: record.CallID, Text: record.Body, Delivery: hostAPICallDelivery(string(record.Delivery)),
 		Reason: record.DeliveryReason, Attempts: record.DeliveryAttempts,
 		CreatedAt: record.CreatedAt, DeliveredAt: hostAPITimePointer(record.DeliveredAt),
 	}

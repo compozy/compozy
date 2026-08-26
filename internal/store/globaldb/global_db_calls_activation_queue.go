@@ -3,14 +3,12 @@ package globaldb
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	callspkg "github.com/compozy/compozy/internal/calls"
-	"github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
@@ -95,10 +93,7 @@ func (g *CallRepo) loadVerifiedCallPayload(ctx context.Context, workspaceID, ref
 	if err != nil {
 		return nil, fmt.Errorf("store: get call payload %q: %w", ref, err)
 	}
-	if contracts.OutputRefForPayload(json.RawMessage(row.Bytes)) != ref || int64(len(row.Bytes)) != row.ByteSize {
-		return nil, fmt.Errorf("store: call payload %q failed digest verification", ref)
-	}
-	return append([]byte(nil), row.Bytes...), nil
+	return verifyCallBlob("payload", ref, row.Bytes, &row.ByteSize)
 }
 
 func (g *CallRepo) loadCallPermissionAtoms(
@@ -110,34 +105,20 @@ func (g *CallRepo) loadCallPermissionAtoms(
 		return callspkg.PermissionAtoms{}, fmt.Errorf("store: list call permissions: %w", err)
 	}
 	defer func() { err = joinRowsCloseError(rows, err, "call permissions") }()
+	encoded := make([]string, 0)
 	for rows.Next() {
 		var atom string
 		if err := rows.Scan(&atom); err != nil {
 			return callspkg.PermissionAtoms{}, fmt.Errorf("store: scan call permission: %w", err)
 		}
-		kind, value, ok := strings.Cut(atom, ":")
-		if !ok || strings.TrimSpace(value) == "" {
-			return callspkg.PermissionAtoms{}, fmt.Errorf("store: invalid call permission atom %q", atom)
-		}
-		switch kind {
-		case "tools":
-			result.Tools = append(result.Tools, value)
-		case "skills":
-			result.Skills = append(result.Skills, value)
-		case "mcp_servers":
-			result.MCPServers = append(result.MCPServers, value)
-		case "workspace_paths":
-			result.WorkspacePaths = append(result.WorkspacePaths, value)
-		case "network_channels":
-			result.NetworkChannels = append(result.NetworkChannels, value)
-		case "sandbox_profiles":
-			result.SandboxProfiles = append(result.SandboxProfiles, value)
-		default:
-			return callspkg.PermissionAtoms{}, fmt.Errorf("store: unknown call permission kind %q", kind)
-		}
+		encoded = append(encoded, atom)
 	}
 	if err := rows.Err(); err != nil {
 		return callspkg.PermissionAtoms{}, fmt.Errorf("store: iterate call permissions: %w", err)
+	}
+	result, err = callspkg.DecodePermissionAtoms(encoded)
+	if err != nil {
+		return callspkg.PermissionAtoms{}, fmt.Errorf("store: decode call permissions: %w", err)
 	}
 	return result, nil
 }
@@ -195,21 +176,24 @@ func (g *CallRepo) ReconcileActivations(ctx context.Context, at time.Time) (root
 	if err != nil {
 		return nil, err
 	}
-	return stringColumnFromDB(ctx, g.db, `SELECT id FROM sessions WHERE draining_at IS NOT NULL ORDER BY id`)
+	return listDrainingSessionIDs(ctx, g.db)
 }
 
-func stringColumnFromDB(ctx context.Context, db *sql.DB, statement string) (values []string, err error) {
-	rows, err := db.QueryContext(ctx, statement)
+func listDrainingSessionIDs(ctx context.Context, db *sql.DB) (values []string, err error) {
+	rows, err := db.QueryContext(ctx, `SELECT id FROM sessions WHERE draining_at IS NOT NULL ORDER BY id`)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("store: list draining session IDs: %w", err)
 	}
-	defer func() { err = errors.Join(err, rows.Close()) }()
+	defer func() { err = joinRowsCloseError(rows, err, "draining session IDs") }()
 	for rows.Next() {
 		var value string
 		if err := rows.Scan(&value); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("store: scan draining session ID: %w", err)
 		}
 		values = append(values, value)
 	}
-	return values, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: iterate draining session IDs: %w", err)
+	}
+	return values, nil
 }

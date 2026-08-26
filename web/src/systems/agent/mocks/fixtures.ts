@@ -123,6 +123,18 @@ export const agentFixtures: AgentPayload[] = [
     provider: "codex",
     model: "gpt-5.4",
     prompt:
+      "Own project release verification, canary promotion, rollback guardrails, and launch readiness updates.",
+    description: "Verifies this project's release and returns readiness with blocking items named.",
+    origin: "workspace",
+    scope: "workspace",
+    shadowed: false,
+    definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+  },
+  {
+    name: storyAgentNames.release,
+    provider: "codex",
+    model: "gpt-5.4",
+    prompt:
       "Own release verification, canary promotion, rollback guardrails, and cross-system launch readiness updates.",
     description: "Verifies a release and returns readiness with the blocking items named.",
     origin: "global",

@@ -3,14 +3,12 @@ package globaldb
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 	watchpkg "github.com/compozy/compozy/internal/loop/watch"
-	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
@@ -25,7 +23,7 @@ func (g *WatchEventsRepo) ListParkedWatchEventSubscriptions(
 		return nil, err
 	}
 	rows, err := g.queries.ListParkedWatchEventSubscriptions(ctx, sqlcgen.ListParkedWatchEventSubscriptionsParams{
-		Status: string(looppkg.StatusWatching), OutputKind: nullableWatchEventsString(watchEventsPendingOutputKind),
+		Status: string(looppkg.StatusWatching), OutputKind: watchEventsPendingOutputKind,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("store: list parked watch-events subscriptions: %w", err)
@@ -49,7 +47,7 @@ func (g *WatchEventsRepo) ListParkedWatchEventSubscriptionsForLoopRun(
 	rows, err := g.queries.ListParkedWatchEventSubscriptionsForLoopRun(
 		ctx,
 		sqlcgen.ListParkedWatchEventSubscriptionsForLoopRunParams{
-			Status: string(looppkg.StatusWatching), OutputKind: nullableWatchEventsString(watchEventsPendingOutputKind),
+			Status: string(looppkg.StatusWatching), OutputKind: watchEventsPendingOutputKind,
 			LoopRunID: loopRunID,
 		},
 	)
@@ -76,7 +74,7 @@ func (g *WatchEventsRepo) ListParkedWatchEventSubscriptionsPage(
 		ctx,
 		sqlcgen.ListParkedWatchEventSubscriptionsPageParams{
 			Status:     string(looppkg.StatusWatching),
-			OutputKind: nullableWatchEventsString(watchEventsPendingOutputKind),
+			OutputKind: watchEventsPendingOutputKind,
 			CursorWorkspaceID: strings.TrimSpace(
 				cursor.WorkspaceID,
 			),
@@ -185,10 +183,6 @@ func parkedWatchEventSubscriptionFromFields(
 		Inputs: inputs, Subscriptions: state.Subscriptions, Cursors: state.Cursors,
 		Contracts: resolved.WatchEventsContracts,
 	}, nil
-}
-
-func nullableWatchEventsString(value string) sql.NullString {
-	return store.SQLNullString(value)
 }
 
 func decodeParkedWatchEventsInputs(raw string) (map[string]any, error) {

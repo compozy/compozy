@@ -141,7 +141,14 @@ func generationOutputFromGenerated(row sqlcgen.ListLoopGenerationOutputsRow) (lo
 	if row.OutputRef.Valid {
 		result, err := looppkg.DecodeGenerationResultRef(row.OutputRef.String)
 		if err != nil {
-			return looppkg.GenerationOutput{}, fmt.Errorf("store: decode generation output result: %w", err)
+			return looppkg.GenerationOutput{}, fmt.Errorf(
+				"store: decode generation %d node %q item %d output %q result: %w",
+				row.Generation,
+				row.NodeID,
+				row.ItemIndex,
+				output.OutputID,
+				err,
+			)
 		}
 		output.ResultKind = result.Kind
 		output.SchemaRef = result.SchemaRef

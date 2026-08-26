@@ -4,7 +4,6 @@ import { LOOP_RUN_VISUAL_CONTRACT } from "../../systems/loops/components/stories
 import loopRunPageSource from "../../systems/loops/components/stories/loop-run-page.stories.tsx?raw";
 import loopRunRegistersSource from "../../systems/loops/components/stories/loop-run-registers.stories.tsx?raw";
 import loopRunsSource from "../../systems/loops/components/stories/loop-runs.stories.tsx?raw";
-
 // A Visual Contract row with no target is not a missing screenshot — it is a
 // state nobody can look at, and without this it surfaces halfway through a
 // capture run instead of here.

@@ -25,14 +25,214 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 )
 
+const callIntegrationRaceIterations = 50
+
 func TestGlobalDBCallSettlementIsAtomicAndRetainsVerifiedOverflow(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should roll back a failed settlement and commit one retry", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newCallSettlementFixture(t)
+		record := fixture.create(t, "atomic", callSettlementExpectSchema, nil)
+		trigger := fmt.Sprintf(`CREATE TRIGGER inject_call_result_blob_failure BEFORE INSERT ON payload_blobs
+			WHEN NEW.ref <> '%s' BEGIN SELECT RAISE(ABORT, 'injected_result_blob_failure'); END`, record.PromptRef)
+		if _, err := fixture.database.db.ExecContext(fixture.ctx, trigger); err != nil {
+			t.Fatalf("install result blob failure trigger error = %v", err)
+		}
+		_, err := fixture.service.Return(fixture.ctx, callspkg.ReturnInput{
+			CallID: record.CallID, Result: json.RawMessage(`{"answer":42}`),
+			Actor: callspkg.SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
+		})
+		if err == nil || !strings.Contains(err.Error(), "injected_result_blob_failure") {
+			t.Fatalf("Return(injected failure) error = %v", err)
+		}
+		stored, err := fixture.database.GetCall(fixture.ctx, fixture.scope(), record.CallID)
+		if err != nil {
+			t.Fatalf("GetCall(after rollback) error = %v", err)
+		}
+		var completionRows int
+		if err := fixture.database.db.QueryRowContext(fixture.ctx, `SELECT COUNT(*) FROM call_deliveries
+			WHERE subject_id = ? AND kind = 'completion'`, record.CallID).Scan(&completionRows); err != nil {
+			t.Fatalf("count rolled-back completion rows error = %v", err)
+		}
+		if stored.State != callspkg.StateRunning || stored.ResultRef != "" || completionRows != 0 {
+			t.Fatalf("settlement rollback = call %#v completion rows %d", stored, completionRows)
+		}
+		if _, err := fixture.database.db.ExecContext(fixture.ctx, `DROP TRIGGER inject_call_result_blob_failure`); err != nil {
+			t.Fatalf("drop result blob failure trigger error = %v", err)
+		}
+		settled, err := fixture.service.Return(fixture.ctx, callspkg.ReturnInput{
+			CallID: record.CallID, Result: json.RawMessage(`{"answer":42}`),
+			Actor: callspkg.SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
+		})
+		if err != nil {
+			t.Fatalf("Return(valid) error = %v", err)
+		}
+		_, secondErr := fixture.service.Return(fixture.ctx, callspkg.ReturnInput{
+			CallID: record.CallID, Result: json.RawMessage(`{"answer":99}`),
+			Actor: callspkg.SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
+		})
+		if !callspkg.IsCode(secondErr, callspkg.CodeAlreadySettled) {
+			t.Fatalf("Return(second) error = %v, want %s", secondErr, callspkg.CodeAlreadySettled)
+		}
+		if err := fixture.database.db.QueryRowContext(fixture.ctx, `SELECT COUNT(*) FROM call_deliveries
+			WHERE subject_id = ? AND kind = 'completion'`, record.CallID).Scan(&completionRows); err != nil {
+			t.Fatalf("count completion rows error = %v", err)
+		}
+		if settled.Call.ResultRef == "" || completionRows != 1 {
+			t.Fatalf("committed settlement = %#v completion rows %d", settled, completionRows)
+		}
+	})
+
+	t.Run("Should retain verified overflow bytes", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newCallSettlementFixture(t)
+		budget := contracts.ByteBudget{MaxBytes: 256 << 10, Overflow: contracts.OverflowStore}
+		record := fixture.create(t, "overflow", nil, &budget)
+		payload, err := json.Marshal(map[string]string{"payload": strings.Repeat("x", 300<<10)})
+		if err != nil {
+			t.Fatalf("json.Marshal(overflow payload) error = %v", err)
+		}
+		settled, err := fixture.service.Return(fixture.ctx, callspkg.ReturnInput{
+			CallID: record.CallID, Result: payload,
+			Actor: callspkg.SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
+		})
+		if err != nil {
+			t.Fatalf("Return(overflow store) error = %v", err)
+		}
+		verified, err := fixture.database.loadVerifiedCallPayload(fixture.ctx, fixture.workspaceID, settled.Call.ResultRef)
+		if err != nil {
+			t.Fatalf("loadVerifiedCallPayload(overflow) error = %v", err)
+		}
+		if !bytes.Equal(verified, payload) || settled.Call.ResultBytes != len(payload) {
+			t.Fatalf("overflow payload bytes = %d/%d record=%#v", len(verified), len(payload), settled.Call)
+		}
+		projected, err := fixture.database.GetCallPayloads(
+			fixture.ctx, fixture.workspaceID, []string{record.PromptRef, settled.Call.ResultRef},
+		)
+		if err != nil {
+			t.Fatalf("GetCallPayloads() error = %v", err)
+		}
+		if len(projected) != 2 || !bytes.Equal(projected[settled.Call.ResultRef], payload) {
+			t.Fatalf("GetCallPayloads() = %#v, want prompt and exact overflow result", projected)
+		}
+	})
+
+	t.Run("Should extract a contracted result and persist its schema", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newCallSettlementFixture(t)
+		record := fixture.create(t, "extracted", callSettlementExpectSchema, nil)
+		settled, err := fixture.service.Return(fixture.ctx, callspkg.ReturnInput{
+			CallID: record.CallID, FinalText: "Done. ```json\n{\"answer\":7}\n```",
+			Actor: callspkg.SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
+		})
+		if err != nil {
+			t.Fatalf("Return(extracted) error = %v", err)
+		}
+		if settled.Call.Verdict != callspkg.VerdictExtracted {
+			t.Fatalf("Return(extracted) = %#v", settled)
+		}
+		if _, err := fixture.database.loadVerifiedCallPayload(
+			fixture.ctx, fixture.workspaceID, settled.Call.ResultRef,
+		); err != nil {
+			t.Fatalf("loadVerifiedCallPayload(extracted) error = %v", err)
+		}
+		verdict, err := contracts.NewRegistry(fixture.database).Validate(
+			fixture.ctx, settled.Call.ExpectDigest, json.RawMessage(`{"answer":8}`),
+		)
+		if err != nil {
+			t.Fatalf("fresh registry Validate() error = %v", err)
+		}
+		if !verdict.Valid {
+			t.Fatalf("fresh registry Validate() = %#v, want persisted contract", verdict)
+		}
+	})
+
+	t.Run("Should resolve attention without removing resultless history", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newCallSettlementFixture(t)
+		record := fixture.create(t, "silent", callSettlementExpectSchema, nil)
+		settled, err := fixture.service.Return(fixture.ctx, callspkg.ReturnInput{
+			CallID: record.CallID, FinalText: strings.Repeat("plain prose ", 500),
+			Actor: callspkg.SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
+		})
+		if err != nil {
+			t.Fatalf("Return(silent) error = %v", err)
+		}
+		if settled.Call.State != callspkg.StateCompletedWithoutResult || len(settled.Call.FinalProsePreview) != 4096 {
+			t.Fatalf("Return(silent) = state %s preview bytes %d", settled.Call.State, len(settled.Call.FinalProsePreview))
+		}
+		query := callspkg.CallListQuery{CallReadQuery: fixture.readQuery(), Attention: true}
+		before, err := fixture.service.List(fixture.ctx, query)
+		if err != nil {
+			t.Fatalf("List(unresolved attention) error = %v", err)
+		}
+		if before.Total != 1 || len(before.Items) != 1 || before.Items[0].CallID != settled.Call.CallID {
+			t.Fatalf("List(unresolved attention) = %#v, want silent call", before)
+		}
+		later, err := callspkg.NewService(
+			callspkg.WithStore(fixture.database),
+			callspkg.WithDirectory(callIntegrationDirectory{database: fixture.database}),
+			callspkg.WithConfig(config.DefaultCallsConfig()),
+			callspkg.WithClock(func() time.Time { return fixture.now.Add(time.Minute) }),
+			callspkg.WithIDGenerator(store.NewID),
+		)
+		if err != nil {
+			t.Fatalf("calls.NewService(attention resolution) error = %v", err)
+		}
+		if _, err := later.SendMessage(fixture.ctx, callspkg.SendMessageInput{
+			ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace,
+			WorkspaceID: fixture.workspaceID,
+			From:        callspkg.MessageSender{Kind: "operator", ID: "operator:test"},
+			To:          settled.Call.ChildSessionID, CallID: settled.Call.CallID,
+			Body: "Please return the missing result.",
+		}); err != nil {
+			t.Fatalf("SendMessage(resolve attention) error = %v", err)
+		}
+		after, err := fixture.service.List(fixture.ctx, query)
+		if err != nil {
+			t.Fatalf("List(resolved attention) error = %v", err)
+		}
+		if after.Total != 0 || len(after.Items) != 0 {
+			t.Fatalf("List(resolved attention) = %#v, want no unresolved cause", after)
+		}
+		history, err := fixture.service.List(fixture.ctx, callspkg.CallListQuery{
+			CallReadQuery: query.CallReadQuery, State: []callspkg.State{callspkg.StateCompletedWithoutResult},
+		})
+		if err != nil {
+			t.Fatalf("List(attention history) error = %v", err)
+		}
+		if history.Total != 1 || len(history.Items) != 1 || history.Items[0].CallID != settled.Call.CallID {
+			t.Fatalf("List(attention history) = %#v, want retained silent call", history)
+		}
+	})
+}
+
+var callSettlementExpectSchema = json.RawMessage(
+	`{"type":"object","required":["answer"],"properties":{"answer":{"type":"integer"}},"additionalProperties":false}`,
+)
+
+type callSettlementFixture struct {
+	ctx         context.Context
+	database    *GlobalDB
+	service     *callspkg.Service
+	workspaceID string
+	parentID    string
+	now         time.Time
+}
+
+func newCallSettlementFixture(t *testing.T) callSettlementFixture {
+	t.Helper()
 	ctx := testutil.Context(t)
 	database := openFreshTestGlobalDB(t)
 	workspaceID := registerWorkspaceForGlobalTests(t, database, "calls-settlement", filepath.Join(t.TempDir(), "workspace"))
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 	parentID := "ses_calls_settlement_parent"
-	registerCallSession(t, database, store.SessionInfo{
+	registerCallSession(ctx, t, database, store.SessionInfo{
 		ID: parentID, ProfileID: store.DefaultProfileID, AgentName: "coordinator",
 		WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
 		Lineage: &store.SessionLineage{
@@ -40,194 +240,57 @@ func TestGlobalDBCallSettlementIsAtomicAndRetainsVerifiedOverflow(t *testing.T) 
 			PermissionPolicy: store.SessionPermissionPolicy{Skills: []string{"review"}},
 		}, CreatedAt: now, UpdatedAt: now,
 	})
-	tasks, err := taskpkg.NewManager(
-		taskpkg.WithStore(database), taskpkg.WithGovernedRootActiveRunCap(32),
-	)
+	tasks, err := taskpkg.NewManager(taskpkg.WithStore(database), taskpkg.WithGovernedRootActiveRunCap(32))
 	if err != nil {
 		t.Fatalf("task.NewManager() error = %v", err)
 	}
-	invoker := &callIntegrationInvoker{database: database, workspaceID: workspaceID, now: now}
 	service, err := callspkg.NewService(
 		callspkg.WithStore(database), callspkg.WithDirectory(callIntegrationDirectory{database: database}),
 		callspkg.WithActivationClaimer(tasks), callspkg.WithActivationRunCanceler(tasks),
-		callspkg.WithSessionInvoker(invoker), callspkg.WithConfig(config.DefaultCallsConfig()),
-		callspkg.WithClock(func() time.Time { return now }), callspkg.WithIDGenerator(store.NewID),
+		callspkg.WithSessionInvoker(&callIntegrationInvoker{database: database, workspaceID: workspaceID, now: now}),
+		callspkg.WithConfig(config.DefaultCallsConfig()), callspkg.WithClock(func() time.Time { return now }),
+		callspkg.WithIDGenerator(store.NewID),
 	)
 	if err != nil {
 		t.Fatalf("calls.NewService() error = %v", err)
 	}
-	expect := json.RawMessage(`{"type":"object","required":["answer"],"properties":{"answer":{"type":"integer"}},"additionalProperties":false}`)
-	create := func(key string, contract json.RawMessage, budget *contracts.ByteBudget) callspkg.CallRecord {
-		t.Helper()
-		record, createErr := service.Create(ctx, callspkg.CreateInput{
-			ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
-			Caller: participation.OwnerRef{Kind: participation.OwnerKindSession, ID: parentID, WorkspaceID: workspaceID},
-			Target: callspkg.Target{Agent: "reviewer"}, Prompt: "settle " + key, Expect: contract,
-			ResultBudget: budget, IdempotencyKey: key, Actor: callspkg.Actor{Kind: "human", ID: "operator:test"},
-			Narrow: callspkg.PermissionAtoms{Skills: []string{"review"}},
-		})
-		if createErr != nil {
-			t.Fatalf("Create(%q) error = %v", key, createErr)
-		}
-		return record
+	return callSettlementFixture{
+		ctx: ctx, database: database, service: service, workspaceID: workspaceID, parentID: parentID, now: now,
 	}
+}
 
-	atomicRecord := create("atomic", expect, nil)
-	trigger := fmt.Sprintf(`CREATE TRIGGER inject_call_result_blob_failure BEFORE INSERT ON payload_blobs
-		WHEN NEW.ref <> '%s' BEGIN SELECT RAISE(ABORT, 'injected_result_blob_failure'); END`, atomicRecord.PromptRef)
-	if _, err := database.db.ExecContext(ctx, trigger); err != nil {
-		t.Fatalf("install result blob failure trigger error = %v", err)
-	}
-	_, err = service.Return(ctx, callspkg.ReturnInput{
-		CallID: atomicRecord.CallID, Result: json.RawMessage(`{"answer":42}`),
-		Actor: callspkg.SettlementActor{Kind: "agent_session", ID: atomicRecord.ChildSessionID},
-	})
-	if err == nil || !strings.Contains(err.Error(), "injected_result_blob_failure") {
-		t.Fatalf("Return(injected failure) error = %v", err)
-	}
-	stored, err := database.GetCall(ctx, callspkg.CallScope{
-		ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
-	}, atomicRecord.CallID)
-	if err != nil {
-		t.Fatalf("GetCall(after rollback) error = %v", err)
-	}
-	var completionRows int
-	if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM call_deliveries
-		WHERE subject_id = ? AND kind = 'completion'`, atomicRecord.CallID).Scan(&completionRows); err != nil {
-		t.Fatalf("count rolled-back completion rows error = %v", err)
-	}
-	if stored.State != callspkg.StateRunning || stored.ResultRef != "" || completionRows != 0 {
-		t.Fatalf("settlement rollback = call %#v completion rows %d", stored, completionRows)
-	}
-	if _, err := database.db.ExecContext(ctx, `DROP TRIGGER inject_call_result_blob_failure`); err != nil {
-		t.Fatalf("drop result blob failure trigger error = %v", err)
-	}
-	settled, err := service.Return(ctx, callspkg.ReturnInput{
-		CallID: atomicRecord.CallID, Result: json.RawMessage(`{"answer":42}`),
-		Actor: callspkg.SettlementActor{Kind: "agent_session", ID: atomicRecord.ChildSessionID},
-	})
-	if err != nil {
-		t.Fatalf("Return(valid) error = %v", err)
-	}
-	_, secondErr := service.Return(ctx, callspkg.ReturnInput{
-		CallID: atomicRecord.CallID, Result: json.RawMessage(`{"answer":99}`),
-		Actor: callspkg.SettlementActor{Kind: "agent_session", ID: atomicRecord.ChildSessionID},
-	})
-	if !callspkg.IsCode(secondErr, callspkg.CodeAlreadySettled) {
-		t.Fatalf("Return(second) error = %v, want %s", secondErr, callspkg.CodeAlreadySettled)
-	}
-	if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM call_deliveries
-		WHERE subject_id = ? AND kind = 'completion'`, atomicRecord.CallID).Scan(&completionRows); err != nil {
-		t.Fatalf("count completion rows error = %v", err)
-	}
-	if settled.Call.ResultRef == "" || completionRows != 1 {
-		t.Fatalf("committed settlement = %#v completion rows %d", settled, completionRows)
-	}
-
-	storeBudget := contracts.ByteBudget{MaxBytes: 256 << 10, Overflow: contracts.OverflowStore}
-	overflowRecord := create("overflow", nil, &storeBudget)
-	overflowPayload, err := json.Marshal(map[string]string{"payload": strings.Repeat("x", 300<<10)})
-	if err != nil {
-		t.Fatalf("json.Marshal(overflow payload) error = %v", err)
-	}
-	overflowSettlement, err := service.Return(ctx, callspkg.ReturnInput{
-		CallID: overflowRecord.CallID, Result: overflowPayload,
-		Actor: callspkg.SettlementActor{Kind: "agent_session", ID: overflowRecord.ChildSessionID},
-	})
-	if err != nil {
-		t.Fatalf("Return(overflow store) error = %v", err)
-	}
-	verified, err := database.loadVerifiedCallPayload(ctx, workspaceID, overflowSettlement.Call.ResultRef)
-	if err != nil {
-		t.Fatalf("loadVerifiedCallPayload(overflow) error = %v", err)
-	}
-	if !bytes.Equal(verified, overflowPayload) || overflowSettlement.Call.ResultBytes != len(overflowPayload) {
-		t.Fatalf("overflow payload bytes = %d/%d record=%#v", len(verified), len(overflowPayload), overflowSettlement.Call)
-	}
-
-	extractedRecord := create("extracted", expect, nil)
-	extracted, err := service.Return(ctx, callspkg.ReturnInput{
-		CallID: extractedRecord.CallID, FinalText: "Done. ```json\n{\"answer\":7}\n```",
-		Actor: callspkg.SettlementActor{Kind: "agent_session", ID: extractedRecord.ChildSessionID},
-	})
-	if err != nil {
-		t.Fatalf("Return(extracted) error = %v", err)
-	}
-	if extracted.Call.Verdict != callspkg.VerdictExtracted {
-		t.Fatalf("Return(extracted) = %#v", extracted)
-	}
-	if _, err := database.loadVerifiedCallPayload(ctx, workspaceID, extracted.Call.ResultRef); err != nil {
-		t.Fatalf("loadVerifiedCallPayload(extracted) error = %v", err)
-	}
-	freshRegistry := contracts.NewRegistry(database)
-	verdict, err := freshRegistry.Validate(ctx, extracted.Call.ExpectDigest, json.RawMessage(`{"answer":8}`))
-	if err != nil {
-		t.Fatalf("fresh registry Validate() error = %v", err)
-	}
-	if !verdict.Valid {
-		t.Fatalf("fresh registry Validate() = %#v, want persisted contract", verdict)
-	}
-
-	silentRecord := create("silent", expect, nil)
-	silent, err := service.Return(ctx, callspkg.ReturnInput{
-		CallID: silentRecord.CallID, FinalText: strings.Repeat("plain prose ", 500),
-		Actor: callspkg.SettlementActor{Kind: "agent_session", ID: silentRecord.ChildSessionID},
-	})
-	if err != nil {
-		t.Fatalf("Return(silent) error = %v", err)
-	}
-	if silent.Call.State != callspkg.StateCompletedWithoutResult || len(silent.Call.FinalProsePreview) != 4096 {
-		t.Fatalf("Return(silent) = state %s preview bytes %d", silent.Call.State, len(silent.Call.FinalProsePreview))
-	}
-
-	attentionQuery := callspkg.CallListQuery{
-		CallReadQuery: callspkg.CallReadQuery{
-			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
-			Scope:     callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
+func (f callSettlementFixture) create(
+	t *testing.T,
+	key string,
+	contract json.RawMessage,
+	budget *contracts.ByteBudget,
+) callspkg.CallRecord {
+	t.Helper()
+	record, err := f.service.Create(f.ctx, callspkg.CreateInput{
+		ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: f.workspaceID,
+		Caller: participation.OwnerRef{
+			Kind: participation.OwnerKindSession, ID: f.parentID, WorkspaceID: f.workspaceID,
 		},
-		Attention: true,
-	}
-	attentionBefore, err := service.List(ctx, attentionQuery)
-	if err != nil {
-		t.Fatalf("List(unresolved attention) error = %v", err)
-	}
-	if attentionBefore.Total != 1 || len(attentionBefore.Items) != 1 ||
-		attentionBefore.Items[0].CallID != silent.Call.CallID {
-		t.Fatalf("List(unresolved attention) = %#v, want silent call", attentionBefore)
-	}
-
-	laterService, err := callspkg.NewService(
-		callspkg.WithStore(database), callspkg.WithDirectory(callIntegrationDirectory{database: database}),
-		callspkg.WithConfig(config.DefaultCallsConfig()),
-		callspkg.WithClock(func() time.Time { return now.Add(time.Minute) }),
-		callspkg.WithIDGenerator(store.NewID),
-	)
-	if err != nil {
-		t.Fatalf("calls.NewService(attention resolution) error = %v", err)
-	}
-	if _, err := laterService.SendMessage(ctx, callspkg.SendMessageInput{
-		ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
-		From: callspkg.MessageSender{Kind: "operator", ID: "operator:test"},
-		To:   silent.Call.ChildSessionID, CallID: silent.Call.CallID, Body: "Please return the missing result.",
-	}); err != nil {
-		t.Fatalf("SendMessage(resolve attention) error = %v", err)
-	}
-	attentionAfter, err := service.List(ctx, attentionQuery)
-	if err != nil {
-		t.Fatalf("List(resolved attention) error = %v", err)
-	}
-	if attentionAfter.Total != 0 || len(attentionAfter.Items) != 0 {
-		t.Fatalf("List(resolved attention) = %#v, want no unresolved cause", attentionAfter)
-	}
-	history, err := service.List(ctx, callspkg.CallListQuery{
-		CallReadQuery: attentionQuery.CallReadQuery,
-		State:         []callspkg.State{callspkg.StateCompletedWithoutResult},
+		Target: callspkg.Target{Agent: "reviewer"}, Prompt: "settle " + key, Expect: contract,
+		ResultBudget: budget, IdempotencyKey: key, Actor: callspkg.Actor{Kind: "human", ID: "operator:test"},
+		Narrow: callspkg.PermissionAtoms{Skills: []string{"review"}},
 	})
 	if err != nil {
-		t.Fatalf("List(attention history) error = %v", err)
+		t.Fatalf("Create(%q) error = %v", key, err)
 	}
-	if history.Total != 1 || len(history.Items) != 1 || history.Items[0].CallID != silent.Call.CallID {
-		t.Fatalf("List(attention history) = %#v, want retained silent call", history)
+	return record
+}
+
+func (f callSettlementFixture) scope() callspkg.CallScope {
+	return callspkg.CallScope{
+		ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: f.workspaceID,
+	}
+}
+
+func (f callSettlementFixture) readQuery() callspkg.CallReadQuery {
+	return callspkg.CallReadQuery{
+		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+		Scope:     callspkg.ScopeWorkspace, WorkspaceID: f.workspaceID,
 	}
 }
 
@@ -238,7 +301,7 @@ func TestGlobalDBCallRuntimeRecoversClaimedActivationAndDurableAwait(t *testing.
 	workspaceID := registerWorkspaceForGlobalTests(t, database, "calls-recovery", filepath.Join(t.TempDir(), "workspace"))
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 	parentID := "ses_calls_recovery_parent"
-	registerCallSession(t, database, store.SessionInfo{
+	registerCallSession(ctx, t, database, store.SessionInfo{
 		ID: parentID, ProfileID: store.DefaultProfileID, AgentName: "coordinator",
 		WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
 		Lineage: &store.SessionLineage{
@@ -384,7 +447,7 @@ func TestGlobalDBCallOwnershipIsolationAndCycleSafeDrain(t *testing.T) {
 		secondProfileID:        "ses_calls_owner_secondary",
 	}
 	for profileID, parentID := range parents {
-		registerCallSession(t, database, store.SessionInfo{
+		registerCallSession(ctx, t, database, store.SessionInfo{
 			ID: parentID, ProfileID: profileID, AgentName: "coordinator",
 			WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
 			Lineage: &store.SessionLineage{
@@ -438,201 +501,231 @@ func TestGlobalDBCallOwnershipIsolationAndCycleSafeDrain(t *testing.T) {
 	if defaultCall.CallID == secondaryCall.CallID {
 		t.Fatalf("profile-isolated calls share id %q", defaultCall.CallID)
 	}
-	if _, err := database.db.ExecContext(ctx, `UPDATE calls
+	t.Run("Should isolate profile-owned reads bindings and immutable ownership", func(t *testing.T) {
+		if _, err := database.db.ExecContext(ctx, `UPDATE calls
 		SET state = 'running', child_session_id = ?, started_at = ?, updated_at = ? WHERE call_id = ?`,
-		parents[store.DefaultProfileID], store.FormatTimestamp(now), store.FormatTimestamp(now), defaultCall.CallID,
-	); err != nil {
-		t.Fatalf("bind default call child for read projection error = %v", err)
-	}
-	exactPage, err := service.List(ctx, callspkg.CallListQuery{
-		CallReadQuery: callspkg.CallReadQuery{
-			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
-			Scope:     callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
-		},
-		ChildSessionID: parents[store.DefaultProfileID], RootSessionID: parents[store.DefaultProfileID],
-		Agent: "reviewer", Limit: 1,
-	})
-	if err != nil {
-		t.Fatalf("List(exact received root) error = %v", err)
-	}
-	if exactPage.Total != 1 || len(exactPage.Items) != 1 || exactPage.Items[0].CallID != defaultCall.CallID {
-		t.Fatalf("List(exact received root) = %#v", exactPage)
-	}
-	aggregatePage, err := service.List(ctx, callspkg.CallListQuery{
-		CallReadQuery: callspkg.CallReadQuery{
-			ReadScope: store.ReadScope{AllProfiles: true}, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
-		},
-		Agent: "reviewer", Limit: 1,
-	})
-	if err != nil {
-		t.Fatalf("List(aggregate agent summary) error = %v", err)
-	}
-	if aggregatePage.Total != 2 || len(aggregatePage.Items) != 1 || aggregatePage.NextCursor == "" {
-		t.Fatalf("List(aggregate agent summary) = %#v", aggregatePage)
-	}
-	for profileID, parentID := range parents {
-		binding, bindErr := database.ResolveOperatorCaller(ctx, callspkg.OperatorCallerBinding{
-			ProfileID: profileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID, SessionID: parentID,
+			parents[store.DefaultProfileID], store.FormatTimestamp(now), store.FormatTimestamp(now), defaultCall.CallID,
+		); err != nil {
+			t.Fatalf("bind default call child for read projection error = %v", err)
+		}
+		exactPage, err := service.List(ctx, callspkg.CallListQuery{
+			CallReadQuery: callspkg.CallReadQuery{
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				Scope:     callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
+			},
+			ChildSessionID: parents[store.DefaultProfileID], RootSessionID: parents[store.DefaultProfileID],
+			Agent: "reviewer", Limit: 1,
 		})
-		if bindErr != nil {
-			t.Fatalf("ResolveOperatorCaller(%q) error = %v", profileID, bindErr)
+		if err != nil {
+			t.Fatalf("List(exact received root) error = %v", err)
 		}
-		if !binding.Created || binding.ProfileID != profileID || binding.SessionID != parentID {
-			t.Fatalf("ResolveOperatorCaller(%q) = %#v", profileID, binding)
+		if exactPage.Total != 1 || len(exactPage.Items) != 1 || exactPage.Items[0].CallID != defaultCall.CallID {
+			t.Fatalf("List(exact received root) = %#v", exactPage)
 		}
-	}
-	if _, err := database.db.ExecContext(ctx, `UPDATE calls SET profile_id = ? WHERE call_id = ?`,
-		secondProfileID, defaultCall.CallID); err == nil || !strings.Contains(err.Error(), "profile_owner_immutable") {
-		t.Fatalf("mutate call profile owner error = %v", err)
-	}
-	var rowsBefore int
-	if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM calls`).Scan(&rowsBefore); err != nil {
-		t.Fatalf("count calls before denial error = %v", err)
-	}
-	foreignDirectory := callIntegrationDirectoryFunc(func(
-		_ context.Context,
-		_ callspkg.CreateInput,
-	) (callspkg.TargetContext, []callspkg.AgentRosterEntry, error) {
-		return callspkg.TargetContext{
-			ProfileID: secondProfileID, WorkspaceID: workspaceID,
-			ParentSessionID: parents[secondProfileID], AgentName: "reviewer",
-			GovernedRootID: parents[secondProfileID], Depth: 1, Allowed: true,
-			CallerPolicy: store.SessionPermissionPolicy{Skills: []string{"review"}},
-		}, []callspkg.AgentRosterEntry{{Name: "reviewer"}}, nil
+		aggregatePage, err := service.List(ctx, callspkg.CallListQuery{
+			CallReadQuery: callspkg.CallReadQuery{
+				ReadScope: store.ReadScope{AllProfiles: true}, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
+			},
+			Agent: "reviewer", Limit: 1,
+		})
+		if err != nil {
+			t.Fatalf("List(aggregate agent summary) error = %v", err)
+		}
+		if aggregatePage.Total != 2 || len(aggregatePage.Items) != 1 || aggregatePage.NextCursor == "" {
+			t.Fatalf("List(aggregate agent summary) = %#v", aggregatePage)
+		}
+		for profileID, parentID := range parents {
+			binding, bindErr := database.ResolveOperatorCaller(ctx, callspkg.OperatorCallerBinding{
+				ProfileID: profileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID, SessionID: parentID,
+			})
+			if bindErr != nil {
+				t.Fatalf("ResolveOperatorCaller(%q) error = %v", profileID, bindErr)
+			}
+			if !binding.Created || binding.ProfileID != profileID || binding.SessionID != parentID {
+				t.Fatalf("ResolveOperatorCaller(%q) = %#v", profileID, binding)
+			}
+		}
+		if _, err := database.db.ExecContext(ctx, `UPDATE calls SET profile_id = ? WHERE call_id = ?`,
+			secondProfileID, defaultCall.CallID); err == nil || !strings.Contains(err.Error(), "profile_owner_immutable") {
+			t.Fatalf("mutate call profile owner error = %v", err)
+		}
 	})
-	foreignService, err := callspkg.NewService(
-		callspkg.WithStore(database), callspkg.WithDirectory(foreignDirectory),
-		callspkg.WithActivationRunCanceler(tasks), callspkg.WithConfig(config.DefaultCallsConfig()),
-		callspkg.WithClock(func() time.Time { return now }), callspkg.WithIDGenerator(store.NewID),
-	)
-	if err != nil {
-		t.Fatalf("calls.NewService(foreign) error = %v", err)
-	}
-	foreignInput := callspkg.CreateInput{
-		ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
-		Caller: participation.OwnerRef{Kind: participation.OwnerKindTaskRun, ID: "shared-caller", WorkspaceID: workspaceID},
-		Target: callspkg.Target{Agent: "reviewer"}, Prompt: "cross profile", IdempotencyKey: "foreign",
-		Actor:  callspkg.Actor{Kind: "human", ID: "operator:test"},
-		Narrow: callspkg.PermissionAtoms{Skills: []string{"review"}},
-	}
-	if _, err := foreignService.Create(ctx, foreignInput); !callspkg.IsCode(err, callspkg.CodeTargetDenied) {
-		t.Fatalf("Create(cross profile) error = %v, want %s", err, callspkg.CodeTargetDenied)
-	}
-	if _, err := database.db.ExecContext(ctx, `UPDATE profiles SET state = 'archived', archived_at = ? WHERE id = ?`,
-		store.FormatTimestamp(now), secondProfileID); err != nil {
-		t.Fatalf("archive secondary profile error = %v", err)
-	}
-	archivedInput := foreignInput
-	archivedInput.ProfileID = secondProfileID
-	archivedInput.Prompt = "archived owner"
-	archivedInput.IdempotencyKey = "archived"
-	if _, err := service.Create(ctx, archivedInput); err == nil || !strings.Contains(err.Error(), "profile_archived") {
-		t.Fatalf("Create(archived profile) error = %v", err)
-	}
-	actor := taskpkg.ActorContext{
-		Actor:     taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "calls.activation"},
-		Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "calls.activation"},
-		Authority: taskpkg.Authority{Read: true, Write: true},
-		Scope:     taskpkg.CallerScope{WorkspaceID: workspaceID},
-	}
-	if _, err := tasks.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-		RunID: secondaryCall.ActivationRunID, RunKind: taskpkg.RunKindCallActivation,
-		Scope: taskpkg.ScopeWorkspace, WorkspaceID: workspaceID,
-	}, actor); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
-		t.Fatalf("ClaimNextRun(archived owner) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
-	}
-	if _, err := database.db.ExecContext(ctx, `UPDATE profiles SET state = 'active', archived_at = NULL WHERE id = ?`,
-		secondProfileID); err != nil {
-		t.Fatalf("unarchive secondary profile error = %v", err)
-	}
-	if _, err := database.db.ExecContext(ctx, `INSERT INTO profile_lifecycle_ops
+
+	t.Run("Should reject foreign archived and lifecycle-fenced owners without writes", func(t *testing.T) {
+		var rowsBefore int
+		if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM calls`).Scan(&rowsBefore); err != nil {
+			t.Fatalf("count calls before denial error = %v", err)
+		}
+		foreignDirectory := callIntegrationDirectoryFunc(func(
+			_ context.Context,
+			_ callspkg.CreateInput,
+		) (callspkg.TargetContext, []callspkg.AgentRosterEntry, error) {
+			return callspkg.TargetContext{
+				ProfileID: secondProfileID, WorkspaceID: workspaceID,
+				ParentSessionID: parents[secondProfileID], AgentName: "reviewer",
+				GovernedRootID: parents[secondProfileID], Depth: 1, Allowed: true,
+				CallerPolicy: store.SessionPermissionPolicy{Skills: []string{"review"}},
+			}, []callspkg.AgentRosterEntry{{Name: "reviewer"}}, nil
+		})
+		foreignService, err := callspkg.NewService(
+			callspkg.WithStore(database), callspkg.WithDirectory(foreignDirectory),
+			callspkg.WithActivationRunCanceler(tasks), callspkg.WithConfig(config.DefaultCallsConfig()),
+			callspkg.WithClock(func() time.Time { return now }), callspkg.WithIDGenerator(store.NewID),
+		)
+		if err != nil {
+			t.Fatalf("calls.NewService(foreign) error = %v", err)
+		}
+		foreignInput := callspkg.CreateInput{
+			ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
+			Caller: participation.OwnerRef{Kind: participation.OwnerKindTaskRun, ID: "shared-caller", WorkspaceID: workspaceID},
+			Target: callspkg.Target{Agent: "reviewer"}, Prompt: "cross profile", IdempotencyKey: "foreign",
+			Actor:  callspkg.Actor{Kind: "human", ID: "operator:test"},
+			Narrow: callspkg.PermissionAtoms{Skills: []string{"review"}},
+		}
+		if _, err := foreignService.Create(ctx, foreignInput); !callspkg.IsCode(err, callspkg.CodeTargetDenied) {
+			t.Fatalf("Create(cross profile) error = %v, want %s", err, callspkg.CodeTargetDenied)
+		}
+		if _, err := database.db.ExecContext(ctx, `UPDATE profiles SET state = 'archived', archived_at = ? WHERE id = ?`,
+			store.FormatTimestamp(now), secondProfileID); err != nil {
+			t.Fatalf("archive secondary profile error = %v", err)
+		}
+		archivedInput := foreignInput
+		archivedInput.ProfileID = secondProfileID
+		archivedInput.Prompt = "archived owner"
+		archivedInput.IdempotencyKey = "archived"
+		if _, err := service.Create(ctx, archivedInput); err == nil || !strings.Contains(err.Error(), "profile_archived") {
+			t.Fatalf("Create(archived profile) error = %v", err)
+		}
+		actor := taskpkg.ActorContext{
+			Actor:     taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "calls.activation"},
+			Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "calls.activation"},
+			Authority: taskpkg.Authority{Read: true, Write: true},
+			Scope:     taskpkg.CallerScope{WorkspaceID: workspaceID},
+		}
+		if _, err := tasks.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: secondaryCall.ActivationRunID, RunKind: taskpkg.RunKindCallActivation,
+			Scope: taskpkg.ScopeWorkspace, WorkspaceID: workspaceID,
+		}, actor); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+			t.Fatalf("ClaimNextRun(archived owner) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
+		}
+		if _, err := database.db.ExecContext(ctx, `UPDATE profiles SET state = 'active', archived_at = NULL WHERE id = ?`,
+			secondProfileID); err != nil {
+			t.Fatalf("unarchive secondary profile error = %v", err)
+		}
+		if _, err := database.db.ExecContext(ctx, `INSERT INTO profile_lifecycle_ops
 		(id, kind, profile_id, old_name, plan_revision, status, created_at, updated_at)
 		VALUES ('op_calls_profile_freeze', 'archive', ?, 'calls-secondary', 'revision', 'applied', ?, ?)`,
-		secondProfileID, store.FormatTimestamp(now), store.FormatTimestamp(now)); err != nil {
-		t.Fatalf("insert profile lifecycle fence error = %v", err)
-	}
-	if _, err := tasks.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-		RunID: secondaryCall.ActivationRunID, RunKind: taskpkg.RunKindCallActivation,
-		Scope: taskpkg.ScopeWorkspace, WorkspaceID: workspaceID,
-	}, actor); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
-		t.Fatalf("ClaimNextRun(lifecycle-fenced owner) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
-	}
-	var rowsAfter int
-	if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM calls`).Scan(&rowsAfter); err != nil {
-		t.Fatalf("count calls after denials error = %v", err)
-	}
-	if rowsAfter != rowsBefore {
-		t.Fatalf("denied ownership writes changed calls from %d to %d", rowsBefore, rowsAfter)
-	}
-
-	nodes := []string{"ses_calls_cycle_d1", "ses_calls_cycle_d2", "ses_calls_cycle_d3"}
-	for index, sessionID := range nodes {
-		lineage := &store.SessionLineage{
-			RootSessionID: nodes[0], SpawnDepth: index,
-			SpawnBudget:      store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 3},
-			PermissionPolicy: store.SessionPermissionPolicy{Skills: []string{"review"}},
+			secondProfileID, store.FormatTimestamp(now), store.FormatTimestamp(now)); err != nil {
+			t.Fatalf("insert profile lifecycle fence error = %v", err)
 		}
-		if index > 0 {
-			lineage.ParentSessionID = nodes[index-1]
+		if _, err := tasks.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: secondaryCall.ActivationRunID, RunKind: taskpkg.RunKindCallActivation,
+			Scope: taskpkg.ScopeWorkspace, WorkspaceID: workspaceID,
+		}, actor); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+			t.Fatalf("ClaimNextRun(lifecycle-fenced owner) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
 		}
-		registerCallSession(t, database, store.SessionInfo{
-			ID: sessionID, ProfileID: store.DefaultProfileID, AgentName: "reviewer",
-			WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
-			Lineage: lineage, CreatedAt: now, UpdatedAt: now,
-		})
-	}
-	cycleParents := map[string]string{"node1": nodes[0], "node2": nodes[1], "node3": nodes[2]}
-	cycleDepths := map[string]int{"node1": 1, "node2": 2, "node3": 3}
-	cycleDirectory := callIntegrationDirectoryFunc(func(
-		_ context.Context,
-		input callspkg.CreateInput,
-	) (callspkg.TargetContext, []callspkg.AgentRosterEntry, error) {
-		parentID := cycleParents[input.Target.Agent]
-		return callspkg.TargetContext{
-			ProfileID: store.DefaultProfileID, WorkspaceID: workspaceID, ParentSessionID: parentID,
-			AgentName: input.Target.Agent, GovernedRootID: nodes[0], Depth: cycleDepths[input.Target.Agent], Allowed: true,
-			CallerPolicy: store.SessionPermissionPolicy{Skills: []string{"review"}},
-		}, []callspkg.AgentRosterEntry{{Name: input.Target.Agent}}, nil
+		var rowsAfter int
+		if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM calls`).Scan(&rowsAfter); err != nil {
+			t.Fatalf("count calls after denials error = %v", err)
+		}
+		if rowsAfter != rowsBefore {
+			t.Fatalf("denied ownership writes changed calls from %d to %d", rowsBefore, rowsAfter)
+		}
 	})
-	cycleService, err := callspkg.NewService(
-		callspkg.WithStore(database), callspkg.WithDirectory(cycleDirectory),
-		callspkg.WithActivationRunCanceler(tasks), callspkg.WithConfig(config.DefaultCallsConfig()),
-		callspkg.WithClock(func() time.Time { return now }), callspkg.WithIDGenerator(store.NewID),
-	)
-	if err != nil {
-		t.Fatalf("calls.NewService(cycle) error = %v", err)
-	}
-	for index, agentName := range []string{"node1", "node2", "node3"} {
-		if _, err := cycleService.Create(ctx, callspkg.CreateInput{
-			ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
-			Caller: participation.OwnerRef{Kind: participation.OwnerKindTaskRun, ID: "cycle-caller", WorkspaceID: workspaceID},
-			Target: callspkg.Target{Agent: agentName}, Prompt: "cycle " + agentName,
-			IdempotencyKey: fmt.Sprintf("cycle-%d", index), Actor: callspkg.Actor{Kind: "daemon", ID: "cycle-test"},
-			Narrow: callspkg.PermissionAtoms{Skills: []string{"review"}},
-		}); err != nil {
-			t.Fatalf("Create(%s) error = %v", agentName, err)
+
+	t.Run("Should drain every persisted call through a forged lineage cycle", func(t *testing.T) {
+		nodes := []string{"ses_calls_cycle_d1", "ses_calls_cycle_d2", "ses_calls_cycle_d3"}
+		for index, sessionID := range nodes {
+			lineage := &store.SessionLineage{
+				RootSessionID: nodes[0], SpawnDepth: index,
+				SpawnBudget:      store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 3},
+				PermissionPolicy: store.SessionPermissionPolicy{Skills: []string{"review"}},
+			}
+			if index > 0 {
+				lineage.ParentSessionID = nodes[index-1]
+			}
+			registerCallSession(ctx, t, database, store.SessionInfo{
+				ID: sessionID, ProfileID: store.DefaultProfileID, AgentName: "reviewer",
+				WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
+				Lineage: lineage, CreatedAt: now, UpdatedAt: now,
+			})
 		}
-	}
-	if _, err := database.db.ExecContext(ctx, `UPDATE sessions SET parent_session_id = ? WHERE id = ?`,
-		nodes[2], nodes[0]); err != nil {
-		t.Fatalf("forge lineage cycle error = %v", err)
-	}
-	cycleCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	openCalls, err := database.ListOpenSubtreeCalls(cycleCtx, nodes[0])
-	if err != nil {
-		t.Fatalf("ListOpenSubtreeCalls(cycle) error = %v", err)
-	}
-	if len(openCalls) != 3 {
-		t.Fatalf("ListOpenSubtreeCalls(cycle) = %d, want 3", len(openCalls))
-	}
-	drain, err := cycleService.DrainSubtree(cycleCtx, nodes[0], callspkg.Actor{Kind: "daemon", ID: "recovery"}, "cycle-safe drain")
-	if err != nil {
-		t.Fatalf("DrainSubtree(cycle) error = %v", err)
-	}
-	if len(drain.CanceledCalls) != 3 {
-		t.Fatalf("DrainSubtree(cycle) = %#v", drain)
-	}
+		cycleParents := map[string]string{"node1": nodes[0], "node2": nodes[1], "node3": nodes[2]}
+		cycleDepths := map[string]int{"node1": 1, "node2": 2, "node3": 3}
+		cycleDirectory := callIntegrationDirectoryFunc(func(
+			_ context.Context,
+			input callspkg.CreateInput,
+		) (callspkg.TargetContext, []callspkg.AgentRosterEntry, error) {
+			parentID := cycleParents[input.Target.Agent]
+			return callspkg.TargetContext{
+				ProfileID: store.DefaultProfileID, WorkspaceID: workspaceID, ParentSessionID: parentID,
+				AgentName: input.Target.Agent, GovernedRootID: nodes[0], Depth: cycleDepths[input.Target.Agent], Allowed: true,
+				CallerPolicy: store.SessionPermissionPolicy{Skills: []string{"review"}},
+			}, []callspkg.AgentRosterEntry{{Name: input.Target.Agent}}, nil
+		})
+		cycleService, err := callspkg.NewService(
+			callspkg.WithStore(database), callspkg.WithDirectory(cycleDirectory),
+			callspkg.WithActivationRunCanceler(tasks), callspkg.WithConfig(config.DefaultCallsConfig()),
+			callspkg.WithClock(func() time.Time { return now }), callspkg.WithIDGenerator(store.NewID),
+		)
+		if err != nil {
+			t.Fatalf("calls.NewService(cycle) error = %v", err)
+		}
+		cycleCallIDs := make([]string, 0, len(nodes))
+		for index, agentName := range []string{"node1", "node2", "node3"} {
+			cycleCall, createErr := cycleService.Create(ctx, callspkg.CreateInput{
+				ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
+				Caller: participation.OwnerRef{Kind: participation.OwnerKindTaskRun, ID: "cycle-caller", WorkspaceID: workspaceID},
+				Target: callspkg.Target{Agent: agentName}, Prompt: "cycle " + agentName,
+				IdempotencyKey: fmt.Sprintf("cycle-%d", index), Actor: callspkg.Actor{Kind: "daemon", ID: "cycle-test"},
+				Narrow: callspkg.PermissionAtoms{Skills: []string{"review"}},
+			})
+			if createErr != nil {
+				t.Fatalf("Create(%s) error = %v", agentName, createErr)
+			}
+			cycleCallIDs = append(cycleCallIDs, cycleCall.CallID)
+		}
+		if _, err := database.db.ExecContext(ctx, `UPDATE sessions SET parent_session_id = ? WHERE id = ?`,
+			nodes[2], nodes[0]); err != nil {
+			t.Fatalf("forge lineage cycle error = %v", err)
+		}
+		cycleCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		openCalls, err := database.ListOpenSubtreeCalls(cycleCtx, nodes[0])
+		if err != nil {
+			t.Fatalf("ListOpenSubtreeCalls(cycle) error = %v", err)
+		}
+		if len(openCalls) != 3 {
+			t.Fatalf("ListOpenSubtreeCalls(cycle) = %d, want 3", len(openCalls))
+		}
+		drain, err := cycleService.DrainSubtree(cycleCtx, nodes[0], callspkg.Actor{Kind: "daemon", ID: "recovery"}, "cycle-safe drain")
+		if err != nil {
+			t.Fatalf("DrainSubtree(cycle) error = %v", err)
+		}
+		if len(drain.CanceledCalls) != 3 {
+			t.Fatalf("DrainSubtree(cycle) = %#v", drain)
+		}
+		for _, callID := range cycleCallIDs {
+			storedCall, getErr := database.GetCall(cycleCtx, callspkg.CallScope{
+				ProfileID:   store.DefaultProfileID,
+				Scope:       callspkg.ScopeWorkspace,
+				WorkspaceID: workspaceID,
+			}, callID)
+			if getErr != nil {
+				t.Fatalf("GetCall(%q) after cycle drain error = %v", callID, getErr)
+			}
+			if storedCall.State != callspkg.StateCanceled {
+				t.Fatalf("call %q after cycle drain state = %q, want %q", callID, storedCall.State, callspkg.StateCanceled)
+			}
+		}
+		remainingOpen, err := database.ListOpenSubtreeCalls(cycleCtx, nodes[0])
+		if err != nil {
+			t.Fatalf("ListOpenSubtreeCalls(after cycle drain) error = %v", err)
+		}
+		if len(remainingOpen) != 0 {
+			t.Fatalf("open subtree calls after cycle drain = %#v, want none", remainingOpen)
+		}
+	})
 }
 
 func TestGlobalDBCallActivationQueueEnforcesExactKindAndGovernedRootBudget(t *testing.T) {
@@ -642,7 +735,7 @@ func TestGlobalDBCallActivationQueueEnforcesExactKindAndGovernedRootBudget(t *te
 	workspaceID := registerWorkspaceForGlobalTests(t, database, "calls-queue", filepath.Join(t.TempDir(), "workspace"))
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 	parentID := "ses_calls_queue_parent"
-	registerCallSession(t, database, store.SessionInfo{
+	registerCallSession(ctx, t, database, store.SessionInfo{
 		ID: parentID, ProfileID: store.DefaultProfileID, AgentName: "coordinator",
 		WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
 		Lineage: &store.SessionLineage{
@@ -660,6 +753,7 @@ func TestGlobalDBCallActivationQueueEnforcesExactKindAndGovernedRootBudget(t *te
 		t.Fatalf("calls.NewService() error = %v", err)
 	}
 	create := func(key string) callspkg.CallRecord {
+		t.Helper()
 		record, createErr := service.Create(ctx, callspkg.CreateInput{
 			ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
 			Caller: participation.OwnerRef{Kind: participation.OwnerKindSession, ID: parentID, WorkspaceID: workspaceID},
@@ -715,8 +809,12 @@ func TestGlobalDBCallActivationQueueEnforcesExactKindAndGovernedRootBudget(t *te
 	if secondStored.State != callspkg.StateQueued {
 		t.Fatalf("second call state = %s, want queued at root budget", secondStored.State)
 	}
-	if _, err := database.db.ExecContext(ctx, `UPDATE task_runs SET run_kind = 'unknown' WHERE id = ?`, second.ActivationRunID); err == nil {
-		t.Fatal("unknown task run kind update succeeded, want CHECK rejection")
+	if _, err := database.db.ExecContext(
+		ctx,
+		`UPDATE task_runs SET run_kind = 'unknown' WHERE id = ?`,
+		second.ActivationRunID,
+	); err == nil || !strings.Contains(err.Error(), "run_kind") || !strings.Contains(err.Error(), "CHECK") {
+		t.Fatalf("unknown task run kind update error = %v, want run_kind CHECK rejection", err)
 	}
 }
 
@@ -727,7 +825,7 @@ func TestGlobalDBWorkspaceDeletionTerminalizesQueuedCalls(t *testing.T) {
 	workspaceID := registerWorkspaceForGlobalTests(t, database, "calls-delete", filepath.Join(t.TempDir(), "workspace"))
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 	parentID := "ses_calls_delete_parent"
-	registerCallSession(t, database, store.SessionInfo{
+	registerCallSession(ctx, t, database, store.SessionInfo{
 		ID: parentID, ProfileID: store.DefaultProfileID, AgentName: "coordinator",
 		WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
 		Lineage: &store.SessionLineage{
@@ -757,6 +855,7 @@ func TestGlobalDBWorkspaceDeletionTerminalizesQueuedCalls(t *testing.T) {
 	if _, err := database.db.ExecContext(ctx, `UPDATE sessions SET state = 'stopped' WHERE id = ?`, parentID); err != nil {
 		t.Fatalf("stop parent fixture error = %v", err)
 	}
+	activationRunID := record.ActivationRunID
 	if err := database.DeleteWorkspace(ctx, workspaceID); err != nil {
 		t.Fatalf("DeleteWorkspace() error = %v", err)
 	}
@@ -770,6 +869,18 @@ func TestGlobalDBWorkspaceDeletionTerminalizesQueuedCalls(t *testing.T) {
 		stored.ChildSessionID != "" || stored.ActivationRunID != "" {
 		t.Fatalf("call after workspace deletion = %#v", stored)
 	}
+	var runStatus string
+	var runError sql.NullString
+	if err := database.db.QueryRowContext(
+		ctx,
+		`SELECT status, error FROM task_runs WHERE id = ?`,
+		activationRunID,
+	).Scan(&runStatus, &runError); err != nil {
+		t.Fatalf("read activation after workspace deletion error = %v", err)
+	}
+	if runStatus != taskpkg.TaskRunStatusCanceled.String() || !runError.Valid || runError.String != "workspace removed" {
+		t.Fatalf("activation after workspace deletion = status %q error %#v", runStatus, runError)
+	}
 }
 
 func TestGlobalDBOperatorCallerBindingConvergesAndSurvivesReopen(t *testing.T) {
@@ -779,7 +890,7 @@ func TestGlobalDBOperatorCallerBindingConvergesAndSurvivesReopen(t *testing.T) {
 	workspaceID := registerWorkspaceForGlobalTests(t, database, "calls-operator", filepath.Join(t.TempDir(), "workspace"))
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 	for _, sessionID := range []string{"ses_operator_candidate_a", "ses_operator_candidate_b", "ses_operator_candidate_c"} {
-		registerCallSession(t, database, store.SessionInfo{
+		registerCallSession(ctx, t, database, store.SessionInfo{
 			ID: sessionID, ProfileID: store.DefaultProfileID, AgentName: "coordinator",
 			WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
 			Lineage: &store.SessionLineage{
@@ -858,7 +969,7 @@ func TestGlobalDBCallIdempotencyRaceAndContractBudgetSnapshots(t *testing.T) {
 	workspaceID := registerWorkspaceForGlobalTests(t, database, "calls-idempotency", filepath.Join(t.TempDir(), "workspace"))
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 	parentID := "ses_calls_idempotency_parent"
-	registerCallSession(t, database, store.SessionInfo{
+	registerCallSession(ctx, t, database, store.SessionInfo{
 		ID: parentID, ProfileID: store.DefaultProfileID, AgentName: "coordinator",
 		WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
 		Lineage: &store.SessionLineage{
@@ -965,7 +1076,7 @@ func TestGlobalDBFollowUpAndCompletionUseDistinctDurableDeliveries(t *testing.T)
 	workspaceID := registerWorkspaceForGlobalTests(t, database, "calls-follow-up", filepath.Join(t.TempDir(), "workspace"))
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 	parentID, childID := "ses_calls_follow_parent", "ses_calls_follow_child"
-	registerCallSession(t, database, store.SessionInfo{
+	registerCallSession(ctx, t, database, store.SessionInfo{
 		ID: parentID, ProfileID: store.DefaultProfileID, AgentName: "coordinator",
 		WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
 		Lineage: &store.SessionLineage{
@@ -973,7 +1084,7 @@ func TestGlobalDBFollowUpAndCompletionUseDistinctDurableDeliveries(t *testing.T)
 			PermissionPolicy: store.SessionPermissionPolicy{Skills: []string{"review"}},
 		}, CreatedAt: now, UpdatedAt: now,
 	})
-	registerCallSession(t, database, store.SessionInfo{
+	registerCallSession(ctx, t, database, store.SessionInfo{
 		ID: childID, ProfileID: store.DefaultProfileID, AgentName: "reviewer",
 		WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
 		Lineage: &store.SessionLineage{
@@ -1028,17 +1139,28 @@ func TestGlobalDBFollowUpAndCompletionUseDistinctDurableDeliveries(t *testing.T)
 		}
 	}()
 	seen := make(map[string]string)
+	seenDeliveryIDs := make(map[string]struct{})
+	rowCount := 0
 	for rows.Next() {
 		var kind, deliveryID, wakeID string
 		if err := rows.Scan(&kind, &deliveryID, &wakeID); err != nil {
 			t.Fatalf("scan follow-up delivery error = %v", err)
 		}
+		rowCount++
+		if _, duplicateKind := seen[kind]; duplicateKind {
+			t.Fatalf("duplicate follow-up delivery kind %q", kind)
+		}
+		if _, duplicateID := seenDeliveryIDs[deliveryID]; duplicateID {
+			t.Fatalf("duplicate follow-up delivery id %q", deliveryID)
+		}
 		seen[kind] = deliveryID + ":" + wakeID
+		seenDeliveryIDs[deliveryID] = struct{}{}
 	}
 	if err := rows.Err(); err != nil {
 		t.Fatalf("iterate follow-up deliveries error = %v", err)
 	}
-	if len(seen) != 2 || seen["message"] == "" || seen["completion"] == "" || seen["message"] == seen["completion"] {
+	if rowCount != 2 || len(seen) != 2 || seen["message"] == "" || seen["completion"] == "" ||
+		seen["message"] == seen["completion"] {
 		t.Fatalf("follow-up deliveries = %#v", seen)
 	}
 }
@@ -1050,7 +1172,7 @@ func TestGlobalDBCallActivationClaimCancelRaceHasOneFencedOutcome(t *testing.T) 
 	workspaceID := registerWorkspaceForGlobalTests(t, database, "calls-cancel-race", filepath.Join(t.TempDir(), "workspace"))
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 	parentID := "ses_calls_cancel_race_parent"
-	registerCallSession(t, database, store.SessionInfo{
+	registerCallSession(ctx, t, database, store.SessionInfo{
 		ID: parentID, ProfileID: store.DefaultProfileID, AgentName: "coordinator",
 		WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
 		Lineage: &store.SessionLineage{
@@ -1078,12 +1200,12 @@ func TestGlobalDBCallActivationClaimCancelRaceHasOneFencedOutcome(t *testing.T) 
 		Authority: taskpkg.Authority{Read: true, Write: true},
 		Scope:     taskpkg.CallerScope{WorkspaceID: workspaceID},
 	}
-	for iteration := 0; iteration < 50; iteration++ {
+	for iteration := 0; iteration < callIntegrationRaceIterations; iteration++ {
 		record, createErr := service.Create(ctx, callspkg.CreateInput{
 			ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
 			Caller: participation.OwnerRef{Kind: participation.OwnerKindSession, ID: parentID, WorkspaceID: workspaceID},
 			Target: callspkg.Target{Agent: "reviewer"}, Prompt: "race",
-			IdempotencyKey: "race-" + time.Unix(0, int64(iteration+1)).Format("150405.000000000"),
+			IdempotencyKey: fmt.Sprintf("race-%d", iteration),
 			Actor:          callspkg.Actor{Kind: "human", ID: "operator:test"},
 			Narrow:         callspkg.PermissionAtoms{Skills: []string{"review"}},
 		})
@@ -1138,7 +1260,7 @@ func TestGlobalDBCallCancelReturnRacePreservesOneTerminalOutcome(t *testing.T) {
 	workspaceID := registerWorkspaceForGlobalTests(t, database, "calls-return-race", filepath.Join(t.TempDir(), "workspace"))
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 	parentID := "ses_calls_return_race_parent"
-	registerCallSession(t, database, store.SessionInfo{
+	registerCallSession(ctx, t, database, store.SessionInfo{
 		ID: parentID, ProfileID: store.DefaultProfileID, AgentName: "coordinator",
 		WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
 		Lineage: &store.SessionLineage{
@@ -1164,7 +1286,7 @@ func TestGlobalDBCallCancelReturnRacePreservesOneTerminalOutcome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("calls.NewService() error = %v", err)
 	}
-	for iteration := 0; iteration < 50; iteration++ {
+	for iteration := 0; iteration < callIntegrationRaceIterations; iteration++ {
 		record, createErr := service.Create(ctx, callspkg.CreateInput{
 			ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
 			Caller: participation.OwnerRef{Kind: participation.OwnerKindSession, ID: parentID, WorkspaceID: workspaceID},
@@ -1233,7 +1355,7 @@ func TestGlobalDBCallsAdmissionActivationSettlementAndReplay(t *testing.T) {
 	workspaceID := registerWorkspaceForGlobalTests(t, database, "calls-runtime", filepath.Join(t.TempDir(), "workspace"))
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 	parentID := "ses_calls_parent"
-	registerCallSession(t, database, store.SessionInfo{
+	registerCallSession(ctx, t, database, store.SessionInfo{
 		ID: parentID, ProfileID: store.DefaultProfileID, AgentName: "coordinator",
 		WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
 		Lineage: &store.SessionLineage{
@@ -1394,15 +1516,26 @@ func TestGlobalDBCallsAdmissionActivationSettlementAndReplay(t *testing.T) {
 	}
 }
 
-func registerCallSession(t *testing.T, database *GlobalDB, info store.SessionInfo) {
+func registerCallSession(ctx context.Context, t *testing.T, database *GlobalDB, info store.SessionInfo) {
 	t.Helper()
-	if err := database.RegisterSession(testutil.Context(t), info); err != nil {
+	if err := database.RegisterSession(ctx, info); err != nil {
 		t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
 	}
 }
 
-func TestGlobalDBCallMailboxCommitsBeforeDeliveryAndEnforcesLoopBreakers(t *testing.T) {
-	t.Parallel()
+type globalDBCallMailboxFixture struct {
+	ctx         context.Context
+	database    *GlobalDB
+	service     *callspkg.Service
+	input       callspkg.SendMessageInput
+	workspaceID string
+	parentID    string
+	childID     string
+	now         time.Time
+}
+
+func newGlobalDBCallMailboxFixture(t *testing.T) globalDBCallMailboxFixture {
+	t.Helper()
 	ctx := testutil.Context(t)
 	database := openFreshTestGlobalDB(t)
 	workspaceID := registerWorkspaceForGlobalTests(
@@ -1410,14 +1543,14 @@ func TestGlobalDBCallMailboxCommitsBeforeDeliveryAndEnforcesLoopBreakers(t *test
 	)
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 	parentID, childID := "ses_mailbox_parent", "ses_mailbox_child"
-	registerCallSession(t, database, store.SessionInfo{
+	registerCallSession(ctx, t, database, store.SessionInfo{
 		ID: parentID, ProfileID: store.DefaultProfileID, AgentName: "coordinator",
 		WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
 		Lineage: &store.SessionLineage{
 			RootSessionID: parentID, SpawnBudget: store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 3},
 		}, CreatedAt: now, UpdatedAt: now,
 	})
-	registerCallSession(t, database, store.SessionInfo{
+	registerCallSession(ctx, t, database, store.SessionInfo{
 		ID: childID, ProfileID: store.DefaultProfileID, AgentName: "reviewer",
 		WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
 		Lineage: &store.SessionLineage{
@@ -1440,161 +1573,215 @@ func TestGlobalDBCallMailboxCommitsBeforeDeliveryAndEnforcesLoopBreakers(t *test
 	if err != nil {
 		t.Fatalf("calls.NewService() error = %v", err)
 	}
+	bindingCall, err := service.Create(ctx, callspkg.CreateInput{
+		ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
+		Caller: participation.OwnerRef{
+			Kind: participation.OwnerKindSession, ID: parentID, WorkspaceID: workspaceID,
+		},
+		Target: callspkg.Target{SessionID: childID}, Prompt: "bind child mailbox to parent",
+		Actor: callspkg.Actor{Kind: "human", ID: "operator:test"},
+	})
+	if err != nil {
+		t.Fatalf("Create(mailbox binding call) error = %v", err)
+	}
+	if bindingCall.ChildSessionID != childID || bindingCall.State != callspkg.StateRunning {
+		t.Fatalf("mailbox binding call = %#v, want running call for child %q", bindingCall, childID)
+	}
 	if _, err := database.db.ExecContext(ctx, `UPDATE sessions
 		SET state = 'stopped', parked_at = ?, idle_expires_at = ? WHERE id = ?`,
 		store.FormatTimestamp(now.Add(-time.Minute)), store.FormatTimestamp(now.Add(time.Hour)), parentID); err != nil {
 		t.Fatalf("park message target error = %v", err)
 	}
-	input := callspkg.SendMessageInput{
-		ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
-		From: callspkg.MessageSender{Kind: "session", ID: childID}, To: "parent",
-		Body: "blocked on COMPOZY_CLAIM_secret-value",
+	return globalDBCallMailboxFixture{
+		ctx: ctx, database: database, service: service,
+		workspaceID: workspaceID, parentID: parentID, childID: childID, now: now,
+		input: callspkg.SendMessageInput{
+			ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
+			From: callspkg.MessageSender{Kind: "session", ID: childID}, To: "parent",
+		},
 	}
-	record, err := service.SendMessage(ctx, input)
-	if err != nil {
-		t.Fatalf("SendMessage() error = %v", err)
-	}
-	if record.ToSessionID != parentID || record.Delivery != "queued" ||
-		strings.Contains(record.Body, "secret-value") {
-		t.Fatalf("SendMessage() = %#v, want sanitized durable queued receipt", record)
-	}
-	var messageRows, deliveryRows int
-	if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM call_messages WHERE message_id = ?`,
-		record.MessageID).Scan(&messageRows); err != nil {
-		t.Fatalf("count call message rows error = %v", err)
-	}
-	if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM call_deliveries
+}
+
+func TestGlobalDBCallMailboxCommitsBeforeDeliveryAndEnforcesLoopBreakers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should commit sanitize deduplicate and wake a durable message", func(t *testing.T) {
+		fixture := newGlobalDBCallMailboxFixture(t)
+		ctx, database, service := fixture.ctx, fixture.database, fixture.service
+		workspaceID, parentID, childID := fixture.workspaceID, fixture.parentID, fixture.childID
+		input := fixture.input
+		input.Body = "blocked on COMPOZY_CLAIM_secret-value"
+		record, err := service.SendMessage(ctx, input)
+		if err != nil {
+			t.Fatalf("SendMessage() error = %v", err)
+		}
+		if record.ToSessionID != parentID || record.Delivery != "queued" ||
+			strings.Contains(record.Body, "secret-value") {
+			t.Fatalf("SendMessage() = %#v, want sanitized durable queued receipt", record)
+		}
+		var messageRows, deliveryRows int
+		if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM call_messages WHERE message_id = ?`,
+			record.MessageID).Scan(&messageRows); err != nil {
+			t.Fatalf("count call message rows error = %v", err)
+		}
+		if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM call_deliveries
 		WHERE kind = 'message' AND subject_id = ?`, record.MessageID).Scan(&deliveryRows); err != nil {
-		t.Fatalf("count call delivery rows error = %v", err)
-	}
-	if messageRows != 1 || deliveryRows != 1 {
-		t.Fatalf("committed rows = message %d delivery %d, want 1/1", messageRows, deliveryRows)
-	}
-	var parkedAt, idleExpiresAt sql.NullString
-	if err := database.db.QueryRowContext(ctx, `SELECT parked_at, idle_expires_at FROM sessions WHERE id = ?`,
-		parentID).Scan(&parkedAt, &idleExpiresAt); err != nil {
-		t.Fatalf("read revived message target error = %v", err)
-	}
-	if !parkedAt.Valid || idleExpiresAt.Valid {
-		t.Fatalf(
-			"queued message target lifecycle = parked %q idle %q, want parked with suspended idle clock",
-			parkedAt.String,
-			idleExpiresAt.String,
-		)
-	}
-	_, err = service.SendMessage(ctx, input)
-	var duplicate *callspkg.Error
-	if !errors.As(err, &duplicate) || duplicate.Code != callspkg.CodeMessageDuplicate ||
-		duplicate.OriginalID != record.MessageID {
-		t.Fatalf("SendMessage(duplicate) error = %#v, want original %q", err, record.MessageID)
-	}
-	pending, err := database.ListPendingDeliveries(ctx, parentID, 10)
-	if err != nil || len(pending) != 1 {
-		t.Fatalf("ListPendingDeliveries() = %#v, %v, want one", pending, err)
-	}
-	if pending[0].OwnerKey != "session:"+childID {
-		t.Fatalf("message activation owner_key = %q, want sender owner", pending[0].OwnerKey)
-	}
-	if err := service.DrainDeliveries(ctx, parentID, 10); err != nil {
-		t.Fatalf("DrainDeliveries() error = %v", err)
-	}
-	receipt, err := service.Message(ctx, callspkg.CallScope{
-		ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
-	}, record.MessageID)
-	if err != nil || receipt.Delivery != "woke" {
-		t.Fatalf("Message() = %#v, %v, want woke", receipt, err)
-	}
-	if err := database.db.QueryRowContext(ctx, `SELECT parked_at, idle_expires_at FROM sessions WHERE id = ?`,
-		parentID).Scan(&parkedAt, &idleExpiresAt); err != nil {
-		t.Fatalf("read woken message target error = %v", err)
-	}
-	if parkedAt.Valid || idleExpiresAt.Valid {
-		t.Fatalf("woken message target lifecycle = parked %q idle %q, want active", parkedAt.String, idleExpiresAt.String)
-	}
-	var callWakeRows, networkWakeRows int
-	if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM call_deliveries
+			t.Fatalf("count call delivery rows error = %v", err)
+		}
+		if messageRows != 1 || deliveryRows != 1 {
+			t.Fatalf("committed rows = message %d delivery %d, want 1/1", messageRows, deliveryRows)
+		}
+		var parkedAt, idleExpiresAt sql.NullString
+		if err := database.db.QueryRowContext(ctx, `SELECT parked_at, idle_expires_at FROM sessions WHERE id = ?`,
+			parentID).Scan(&parkedAt, &idleExpiresAt); err != nil {
+			t.Fatalf("read revived message target error = %v", err)
+		}
+		if !parkedAt.Valid || idleExpiresAt.Valid {
+			t.Fatalf(
+				"queued message target lifecycle = parked %q idle %q, want parked with suspended idle clock",
+				parkedAt.String,
+				idleExpiresAt.String,
+			)
+		}
+		_, err = service.SendMessage(ctx, input)
+		var duplicate *callspkg.Error
+		if !errors.As(err, &duplicate) || duplicate.Code != callspkg.CodeMessageDuplicate ||
+			duplicate.OriginalID != record.MessageID {
+			t.Fatalf("SendMessage(duplicate) error = %#v, want original %q", err, record.MessageID)
+		}
+		pending, err := database.ListPendingDeliveries(ctx, parentID, 10)
+		if err != nil || len(pending) != 1 {
+			t.Fatalf("ListPendingDeliveries() = %#v, %v, want one", pending, err)
+		}
+		if pending[0].OwnerKey != "session:"+childID {
+			t.Fatalf("message activation owner_key = %q, want sender owner", pending[0].OwnerKey)
+		}
+		if err := service.DrainDeliveries(ctx, parentID, 10); err != nil {
+			t.Fatalf("DrainDeliveries() error = %v", err)
+		}
+		receipt, err := service.Message(ctx, callspkg.CallScope{
+			ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
+		}, record.MessageID)
+		if err != nil || receipt.Delivery != "woke" {
+			t.Fatalf("Message() = %#v, %v, want woke", receipt, err)
+		}
+		if err := database.db.QueryRowContext(ctx, `SELECT parked_at, idle_expires_at FROM sessions WHERE id = ?`,
+			parentID).Scan(&parkedAt, &idleExpiresAt); err != nil {
+			t.Fatalf("read woken message target error = %v", err)
+		}
+		if parkedAt.Valid || idleExpiresAt.Valid {
+			t.Fatalf("woken message target lifecycle = parked %q idle %q, want active", parkedAt.String, idleExpiresAt.String)
+		}
+		var callWakeRows, networkWakeRows int
+		if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM call_deliveries
 		WHERE wake_event_id = ? AND state = 'woken' AND owner_key = ?`,
-		pending[0].WakeEventID, pending[0].OwnerKey).Scan(&callWakeRows); err != nil {
-		t.Fatalf("count accounted call wake rows error = %v", err)
-	}
-	if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM network_live_wakes WHERE wake_id = ?`,
-		pending[0].WakeEventID).Scan(&networkWakeRows); err != nil {
-		t.Fatalf("count double-booked network wake rows error = %v", err)
-	}
-	if callWakeRows != 1 || networkWakeRows != 0 {
-		t.Fatalf("wake accounting = call %d network %d, want one owner-keyed call row only", callWakeRows, networkWakeRows)
-	}
-	input.Body = "second distinct message"
-	second, err := service.SendMessage(ctx, input)
-	if err != nil {
-		t.Fatalf("SendMessage(second) error = %v", err)
-	}
-	pending, err = database.ListPendingDeliveries(ctx, parentID, 10)
-	if err != nil || len(pending) != 1 || pending[0].SubjectID != second.MessageID {
-		t.Fatalf("ListPendingDeliveries(second) = %#v, %v", pending, err)
-	}
-	for attempt := 1; attempt <= 3; attempt++ {
-		updated, updateErr := database.RecordDelivery(ctx, callspkg.DeliveryUpdate{
-			DeliveryID: pending[0].DeliveryID, State: "pending", Reason: "recipient_unavailable",
-			At: now.Add(time.Duration(attempt) * time.Second), MaxAttempts: 3,
-		})
-		if updateErr != nil {
-			t.Fatalf("RecordDelivery(attempt %d) error = %v", attempt, updateErr)
+			pending[0].WakeEventID, pending[0].OwnerKey).Scan(&callWakeRows); err != nil {
+			t.Fatalf("count accounted call wake rows error = %v", err)
 		}
-		if attempt < 3 && updated.State != "pending" || attempt == 3 && updated.State != "failed" {
-			t.Fatalf("RecordDelivery(attempt %d) state = %q", attempt, updated.State)
+		if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM network_live_wakes WHERE wake_id = ?`,
+			pending[0].WakeEventID).Scan(&networkWakeRows); err != nil {
+			t.Fatalf("count double-booked network wake rows error = %v", err)
 		}
-	}
-	failed, err := service.Message(ctx, callspkg.CallScope{
-		ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
-	}, second.MessageID)
-	if err != nil || failed.Delivery != "failed" || failed.DeliveryReason != "recipient_unavailable" {
-		t.Fatalf("Message(failed) = %#v, %v", failed, err)
-	}
-	configWithTinyBody := config.DefaultCallsConfig()
-	configWithTinyBody.Messages.MaxBytes = "4B"
-	tinyService, err := callspkg.NewService(
-		callspkg.WithStore(database),
-		callspkg.WithDirectory(callIntegrationDirectory{database: database}),
-		callspkg.WithConfig(configWithTinyBody),
-		callspkg.WithClock(func() time.Time { return now.Add(time.Minute) }),
-		callspkg.WithIDGenerator(store.NewID),
-	)
-	if err != nil {
-		t.Fatalf("calls.NewService(tiny body) error = %v", err)
-	}
-	input.Body = "12345"
-	if _, err := tinyService.SendMessage(ctx, input); !callspkg.IsCode(err, callspkg.CodeMessageTooLarge) {
-		t.Fatalf("SendMessage(too large) error = %v, want %s", err, callspkg.CodeMessageTooLarge)
-	}
-	if _, err := service.Message(ctx, callspkg.CallScope{
-		ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
-	}, "msg_missing"); !callspkg.IsCode(err, callspkg.CodeMessageNotFound) {
-		t.Fatalf("Message(missing) error = %v, want %s", err, callspkg.CodeMessageNotFound)
-	}
-	if _, err := database.db.ExecContext(ctx, `UPDATE sessions SET pending_permission_count = 1 WHERE id = ?`, parentID); err != nil {
-		t.Fatalf("mark message target blocked error = %v", err)
-	}
-	input.Body = "blocked target probe"
-	if _, err := service.SendMessage(ctx, input); !callspkg.IsCode(err, callspkg.CodeMessageTargetBlocked) {
-		t.Fatalf("SendMessage(blocked target) error = %v, want %s", err, callspkg.CodeMessageTargetBlocked)
-	}
-	if _, err := database.db.ExecContext(ctx, `UPDATE sessions SET pending_permission_count = 0 WHERE id = ?`, parentID); err != nil {
-		t.Fatalf("clear message target blocked error = %v", err)
-	}
-	outsideID := "ses_mailbox_outside"
-	registerCallSession(t, database, store.SessionInfo{
-		ID: outsideID, ProfileID: store.DefaultProfileID, AgentName: "outsider",
-		WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
-		Lineage: &store.SessionLineage{
-			RootSessionID: outsideID, SpawnBudget: store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 3},
-		}, CreatedAt: now, UpdatedAt: now,
+		if callWakeRows != 1 || networkWakeRows != 0 {
+			t.Fatalf("wake accounting = call %d network %d, want one owner-keyed call row only", callWakeRows, networkWakeRows)
+		}
 	})
-	input.To = outsideID
-	input.Body = "cross-lineage probe"
-	if _, err := service.SendMessage(ctx, input); !callspkg.IsCode(err, callspkg.CodeMessageTargetDenied) {
-		t.Fatalf("SendMessage(outside lineage) error = %v, want %s", err, callspkg.CodeMessageTargetDenied)
-	}
+
+	t.Run("Should fail a delivery after the retry budget", func(t *testing.T) {
+		fixture := newGlobalDBCallMailboxFixture(t)
+		input := fixture.input
+		input.Body = "retry probe"
+		record, err := fixture.service.SendMessage(fixture.ctx, input)
+		if err != nil {
+			t.Fatalf("SendMessage(retry probe) error = %v", err)
+		}
+		pending, err := fixture.database.ListPendingDeliveries(fixture.ctx, fixture.parentID, 10)
+		if err != nil || len(pending) != 1 || pending[0].SubjectID != record.MessageID {
+			t.Fatalf("ListPendingDeliveries(retry probe) = %#v, %v", pending, err)
+		}
+		for attempt := 1; attempt <= 3; attempt++ {
+			updated, updateErr := fixture.database.RecordDelivery(fixture.ctx, callspkg.DeliveryUpdate{
+				DeliveryID: pending[0].DeliveryID, State: "pending", Reason: "recipient_unavailable",
+				At: fixture.now.Add(time.Duration(attempt) * time.Second), MaxAttempts: 3,
+			})
+			if updateErr != nil {
+				t.Fatalf("RecordDelivery(attempt %d) error = %v", attempt, updateErr)
+			}
+			if attempt < 3 && updated.State != "pending" || attempt == 3 && updated.State != "failed" {
+				t.Fatalf("RecordDelivery(attempt %d) state = %q", attempt, updated.State)
+			}
+		}
+		failed, err := fixture.service.Message(fixture.ctx, callspkg.CallScope{
+			ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: fixture.workspaceID,
+		}, record.MessageID)
+		if err != nil || failed.Delivery != "failed" || failed.DeliveryReason != "recipient_unavailable" {
+			t.Fatalf("Message(failed) = %#v, %v", failed, err)
+		}
+	})
+
+	t.Run("Should reject an oversized message before admission", func(t *testing.T) {
+		fixture := newGlobalDBCallMailboxFixture(t)
+		configWithTinyBody := config.DefaultCallsConfig()
+		configWithTinyBody.Messages.MaxBytes = "4B"
+		tinyService, err := callspkg.NewService(
+			callspkg.WithStore(fixture.database),
+			callspkg.WithDirectory(callIntegrationDirectory{database: fixture.database}),
+			callspkg.WithConfig(configWithTinyBody),
+			callspkg.WithClock(func() time.Time { return fixture.now.Add(time.Minute) }),
+			callspkg.WithIDGenerator(store.NewID),
+		)
+		if err != nil {
+			t.Fatalf("calls.NewService(tiny body) error = %v", err)
+		}
+		input := fixture.input
+		input.Body = "12345"
+		if _, err := tinyService.SendMessage(fixture.ctx, input); !callspkg.IsCode(err, callspkg.CodeMessageTooLarge) {
+			t.Fatalf("SendMessage(too large) error = %v, want %s", err, callspkg.CodeMessageTooLarge)
+		}
+	})
+
+	t.Run("Should return a typed missing-message error", func(t *testing.T) {
+		fixture := newGlobalDBCallMailboxFixture(t)
+		if _, err := fixture.service.Message(fixture.ctx, callspkg.CallScope{
+			ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: fixture.workspaceID,
+		}, "msg_missing"); !callspkg.IsCode(err, callspkg.CodeMessageNotFound) {
+			t.Fatalf("Message(missing) error = %v, want %s", err, callspkg.CodeMessageNotFound)
+		}
+	})
+
+	t.Run("Should reject a blocked message target", func(t *testing.T) {
+		fixture := newGlobalDBCallMailboxFixture(t)
+		if _, err := fixture.database.db.ExecContext(
+			fixture.ctx,
+			`UPDATE sessions SET pending_permission_count = 1 WHERE id = ?`,
+			fixture.parentID,
+		); err != nil {
+			t.Fatalf("mark message target blocked error = %v", err)
+		}
+		input := fixture.input
+		input.Body = "blocked target probe"
+		if _, err := fixture.service.SendMessage(fixture.ctx, input); !callspkg.IsCode(err, callspkg.CodeMessageTargetBlocked) {
+			t.Fatalf("SendMessage(blocked target) error = %v, want %s", err, callspkg.CodeMessageTargetBlocked)
+		}
+	})
+
+	t.Run("Should reject a target outside the sender lineage", func(t *testing.T) {
+		fixture := newGlobalDBCallMailboxFixture(t)
+		outsideID := "ses_mailbox_outside"
+		registerCallSession(fixture.ctx, t, fixture.database, store.SessionInfo{
+			ID: outsideID, ProfileID: store.DefaultProfileID, AgentName: "outsider",
+			WorkspaceID: fixture.workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
+			Lineage: &store.SessionLineage{
+				RootSessionID: outsideID, SpawnBudget: store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 3},
+			}, CreatedAt: fixture.now, UpdatedAt: fixture.now,
+		})
+		input := fixture.input
+		input.To = outsideID
+		input.Body = "cross-lineage probe"
+		if _, err := fixture.service.SendMessage(fixture.ctx, input); !callspkg.IsCode(err, callspkg.CodeMessageTargetDenied) {
+			t.Fatalf("SendMessage(outside lineage) error = %v, want %s", err, callspkg.CodeMessageTargetDenied)
+		}
+	})
 }
 
 // Invariant: the pending delivery ceiling protects one recipient's backlog,
@@ -1610,7 +1797,7 @@ func TestGlobalDBCallMailboxPendingCapIsPerRecipient(t *testing.T) {
 	)
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 	parentID := "ses_mailbox_cap_parent"
-	registerCallSession(t, database, store.SessionInfo{
+	registerCallSession(ctx, t, database, store.SessionInfo{
 		ID: parentID, ProfileID: store.DefaultProfileID, AgentName: "coordinator",
 		WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
 		Lineage: &store.SessionLineage{
@@ -1618,7 +1805,7 @@ func TestGlobalDBCallMailboxPendingCapIsPerRecipient(t *testing.T) {
 		}, CreatedAt: now, UpdatedAt: now,
 	})
 	for _, childID := range []string{"ses_mailbox_cap_child_a", "ses_mailbox_cap_child_b"} {
-		registerCallSession(t, database, store.SessionInfo{
+		registerCallSession(ctx, t, database, store.SessionInfo{
 			ID: childID, ProfileID: store.DefaultProfileID, AgentName: "worker",
 			WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
 			Lineage: &store.SessionLineage{
@@ -1662,7 +1849,7 @@ func TestGlobalDBCallAdmissionRacingReaperHasOneDurableWinner(t *testing.T) {
 	)
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 	parentID := "ses_reaper_race_parent"
-	registerCallSession(t, database, store.SessionInfo{
+	registerCallSession(ctx, t, database, store.SessionInfo{
 		ID: parentID, ProfileID: store.DefaultProfileID, AgentName: "coordinator",
 		WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
 		Lineage: &store.SessionLineage{
@@ -1679,9 +1866,9 @@ func TestGlobalDBCallAdmissionRacingReaperHasOneDurableWinner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("calls.NewService() error = %v", err)
 	}
-	for iteration := range 50 {
+	for iteration := range callIntegrationRaceIterations {
 		childID := fmt.Sprintf("ses_reaper_race_child_%02d", iteration)
-		registerCallSession(t, database, store.SessionInfo{
+		registerCallSession(ctx, t, database, store.SessionInfo{
 			ID: childID, ProfileID: store.DefaultProfileID, AgentName: "reviewer",
 			WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
 			Lineage: &store.SessionLineage{

@@ -99,31 +99,14 @@ const ESCALATION_RANK = new Map<CallState, number>(
   ESCALATION_ORDER.map((state, index) => [state, index])
 );
 
-/** The single most urgent state among a group's rows, or null when all are calm. */
-export function escalateCallStates(rows: readonly CallTreeRow[]): CallState | null {
+function escalateCallItems<T>(
+  items: readonly T[],
+  stateFor: (item: T) => CallState | null
+): CallState | null {
   let best: CallState | null = null;
   let bestRank = Number.POSITIVE_INFINITY;
-  for (const row of rows) {
-    if (row.state === null) continue;
-    const rank = ESCALATION_RANK.get(row.state);
-    if (rank === undefined || rank >= bestRank) continue;
-    best = row.state;
-    bestRank = rank;
-    if (rank === 0) break;
-  }
-  return best;
-}
-
-/**
- * The same escalation over raw calls, for surfaces that hold a batch rather than
- * a projected tree — the transcript's fan-out card, chiefly. One rule, one
- * ordering, whichever shape the caller has.
- */
-export function escalateCallPayloads(calls: readonly CallPayload[]): CallState | null {
-  let best: CallState | null = null;
-  let bestRank = Number.POSITIVE_INFINITY;
-  for (const call of calls) {
-    const state = toCallState(call.state);
+  for (const item of items) {
+    const state = stateFor(item);
     if (state === null) continue;
     const rank = ESCALATION_RANK.get(state);
     if (rank === undefined || rank >= bestRank) continue;
@@ -132,6 +115,20 @@ export function escalateCallPayloads(calls: readonly CallPayload[]): CallState |
     if (rank === 0) break;
   }
   return best;
+}
+
+/** The single most urgent state among a group's rows, or null when all are calm. */
+export function escalateCallStates(rows: readonly CallTreeRow[]): CallState | null {
+  return escalateCallItems(rows, row => row.state);
+}
+
+/**
+ * The same escalation over raw calls, for surfaces that hold a batch rather than
+ * a projected tree — the transcript's fan-out card, chiefly. One rule, one
+ * ordering, whichever shape the caller has.
+ */
+export function escalateCallPayloads(calls: readonly CallPayload[]): CallState | null {
+  return escalateCallItems(calls, call => toCallState(call.state));
 }
 
 function toRow(call: CallPayload, orphaned: boolean): CallTreeRow {

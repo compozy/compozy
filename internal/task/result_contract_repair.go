@@ -83,6 +83,34 @@ func invalidTaskResultFailure(validationErr *ResultContractValidationError) (Run
 	}, nil
 }
 
+type invalidResultSettlement func(context.Context, RunFailure) (*Run, error)
+
+func (m *Service) settleInvalidResultContract(
+	ctx context.Context,
+	run Run,
+	claimToken string,
+	actor ActorContext,
+	validationErr *ResultContractValidationError,
+	settle invalidResultSettlement,
+) (*Run, error) {
+	first, err := m.admitResultContractRepair(ctx, run, claimToken, actor, validationErr)
+	if err != nil {
+		return nil, err
+	}
+	if first {
+		return nil, validationErr
+	}
+	failure, err := invalidTaskResultFailure(validationErr)
+	if err != nil {
+		return nil, err
+	}
+	failed, settlementErr := settle(ctx, failure)
+	if settlementErr != nil {
+		return nil, errors.Join(ErrResultInvalid, validationErr, settlementErr)
+	}
+	return failed, errors.Join(ErrResultInvalid, validationErr)
+}
+
 func requireResultContractRepairLease(run Run, rawToken string, now time.Time) error {
 	if strings.TrimSpace(run.ClaimTokenHash) == "" || !VerifyClaimToken(rawToken, run.ClaimTokenHash) {
 		return fmt.Errorf("%w: task run %q token mismatch", ErrInvalidClaimToken, run.ID)

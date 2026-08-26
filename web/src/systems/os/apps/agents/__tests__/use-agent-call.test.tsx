@@ -10,6 +10,7 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMswFetch } from "@/test/msw-fetch";
+import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import {
   callFixtureWorkspaceId,
@@ -47,6 +48,8 @@ vi.mock("../../../hooks/use-window-live-data-enabled", () => ({
 }));
 
 let requests: URL[] = [];
+let exactPrompt: string | null = null;
+let recentCallsFail = false;
 
 function setup(callId: string) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -57,10 +60,30 @@ function setup(callId: string) {
 
 beforeEach(() => {
   requests = [];
+  exactPrompt = null;
+  recentCallsFail = false;
   childSession.isPending = false;
   childSession.isError = false;
   resetAgentCommsMockState();
-  const mswFetch = createMswFetch(() => handlers);
+  const mswFetch = createMswFetch(() => [
+    ...(recentCallsFail
+      ? [
+          compozyApiMock.get("/api/workspaces/{workspace_id}/calls", ({ response }) =>
+            response(503).json({ error: "call history unavailable" })
+          ),
+        ]
+      : []),
+    ...(exactPrompt === null
+      ? []
+      : [
+          compozyApiMock.get(
+            "/api/workspaces/{workspace_id}/calls/{call_id}/prompt",
+            ({ params, response }) =>
+              response(200).json({ call_id: String(params.call_id), prompt: exactPrompt! })
+          ),
+        ]),
+    ...handlers,
+  ]);
   vi.stubGlobal("fetch", ((input: RequestInfo | URL, init?: RequestInit) => {
     const raw = input instanceof Request ? input.url : String(input);
     requests.push(new URL(raw, "http://localhost"));
@@ -83,10 +106,29 @@ describe("useAgentCall — reading one call", () => {
       `/api/workspaces/${callFixtureWorkspaceId}/calls/${completedCallFixture.call_id}`
     );
   });
+
+  it("Should distinguish a failed recent-call read from an empty history", async () => {
+    recentCallsFail = true;
+    const { result } = setup(completedCallFixture.call_id);
+
+    await waitFor(() => expect(result.current.view).not.toBeNull());
+    await waitFor(() => expect(result.current.compose.recentCallsError).not.toBeNull());
+
+    expect(result.current.compose.recentCallsPending).toBe(false);
+    expect(result.current.compose.recentCalls).toEqual([]);
+  });
 });
 
 describe("useAgentCall — Call again", () => {
   it("Should fetch the exact ask and prefill it, never the bounded preview", async () => {
+    exactPrompt = "Review the full release packet, including the appendix and rollback matrix.";
+    setAgentCommsMockCalls([
+      {
+        ...completedCallFixture,
+        prompt_preview: "Review the full release packet…",
+        prompt_bytes: new TextEncoder().encode(exactPrompt).length,
+      },
+    ]);
     const { result } = setup(completedCallFixture.call_id);
     await waitFor(() => expect(result.current.view).not.toBeNull());
 
@@ -95,7 +137,8 @@ describe("useAgentCall — Call again", () => {
     await waitFor(() => expect(result.current.compose.prompt).not.toBe(""));
     expect(result.current.composing).toBe("call-again");
     expect(requests.some(url => url.pathname.endsWith("/prompt"))).toBe(true);
-    expect(result.current.compose.prompt).toBe(completedCallFixture.prompt_preview);
+    expect(result.current.compose.prompt).toBe(exactPrompt);
+    expect(result.current.compose.prompt).not.toBe("Review the full release packet…");
   });
 
   it("Should target the living child, so the helper revives with what it knows", async () => {

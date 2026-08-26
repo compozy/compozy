@@ -72,11 +72,9 @@ function AgentFleetRow({ row, newSessionDisabled = false, onNewSession }: AgentF
             output, which is why it renders as plain text inside the row rather
             than as anything that could carry a link or a control.
           */}
-          {agent.description.trim() ? (
-            <ListingRow.Description data-testid={`agent-fleet-description-${agent.name}`}>
-              {agent.description}
-            </ListingRow.Description>
-          ) : null}
+          <ListingRow.Description data-testid={`agent-fleet-description-${agent.name}`}>
+            {agent.description.trim() || "No description yet"}
+          </ListingRow.Description>
           <AgentLayerProvenance
             data-testid={`agent-fleet-provenance-${agent.name}`}
             layer={row.layer}
@@ -109,11 +107,13 @@ function AgentFleetRow({ row, newSessionDisabled = false, onNewSession }: AgentF
             Invalid
           </Pill>
         ) : null}
-        <AgentFleetNewSessionButton
-          agentName={agent.name}
-          disabled={newSessionDisabled}
-          onNewSession={onNewSession}
-        />
+        {row.canStartSession ? (
+          <AgentFleetNewSessionButton
+            agentName={agent.name}
+            disabled={newSessionDisabled}
+            onNewSession={onNewSession}
+          />
+        ) : null}
       </ListingRow.Trail>
     </ListingRow>
   );

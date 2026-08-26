@@ -27,9 +27,6 @@ import { useWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabl
 import { useActivityChildStates } from "./use-activity-child-states";
 import type { AgentActivitySearch } from "./agent-activity-search";
 
-/** Facets each rendered tree asks the daemon for, in probe order. */
-const TREE_FACETS = ["total", "running", "needsYou"] as const;
-
 export function useAgentsActivity(windowId: string, search: AgentActivitySearch = {}) {
   const live = useWindowLiveDataEnabled(windowId);
   const streamStatus = useSessionCatalogStreamStatus();
@@ -44,20 +41,25 @@ export function useAgentsActivity(windowId: string, search: AgentActivitySearch 
 
   // One probe per rendered tree per facet. They key separately from the row
   // pages, so refreshing a header never evicts the rows underneath it.
-  const countFilters = rootSessionIds.flatMap(rootSessionId => [
-    { root_session_id: rootSessionId },
-    { root_session_id: rootSessionId, state: "running" },
-    { root_session_id: rootSessionId, attention: true },
+  const countFacets = rootSessionIds.flatMap(rootSessionId => [
+    { key: `${rootSessionId}:total` as const, filter: { root_session_id: rootSessionId } },
+    {
+      key: `${rootSessionId}:running` as const,
+      filter: { root_session_id: rootSessionId, state: "running" },
+    },
+    {
+      key: `${rootSessionId}:needsYou` as const,
+      filter: { root_session_id: rootSessionId, attention: true },
+    },
   ]);
-  const counts = useCallCounts(activity.scope, countFilters, { live });
+  const counts = useCallCounts(activity.scope, countFacets, { live });
 
   const countsByRoot = new Map<string, CallTreeGroupCounts>();
-  rootSessionIds.forEach((rootSessionId, index) => {
-    const base = index * TREE_FACETS.length;
+  rootSessionIds.forEach(rootSessionId => {
     countsByRoot.set(rootSessionId, {
-      total: counts[base],
-      running: counts[base + 1],
-      needsYou: counts[base + 2],
+      total: counts[`${rootSessionId}:total`],
+      running: counts[`${rootSessionId}:running`],
+      needsYou: counts[`${rootSessionId}:needsYou`],
     });
   });
 

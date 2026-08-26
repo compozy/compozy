@@ -136,16 +136,6 @@ func TestManagerProfileLifecycle(t *testing.T) {
 		if _, err := database.DB().ExecContext(ctx, `UPDATE sessions SET state = 'stopped' WHERE id = ?`, parentID); err != nil {
 			t.Fatalf("stop parent session fixture error = %v", err)
 		}
-		archivePlan, err := manager.PrepareArchive(ctx, created.Name)
-		if err != nil {
-			t.Fatalf("PrepareArchive() error = %v", err)
-		}
-		if archivePlan.QueuedRunsToFreeze != 1 || archivePlan.LeasedRuns != 0 {
-			t.Fatalf("PrepareArchive() = %#v, want one queued activation", archivePlan)
-		}
-		if _, err := manager.Archive(ctx, created.Name, archivePlan.Revision); err != nil {
-			t.Fatalf("Archive() error = %v", err)
-		}
 		tasks, err := taskpkg.NewManager(taskpkg.WithStore(database), taskpkg.WithGovernedRootActiveRunCap(32))
 		if err != nil {
 			t.Fatalf("task.NewManager() error = %v", err)
@@ -155,36 +145,51 @@ func TestManagerProfileLifecycle(t *testing.T) {
 			Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "calls.activation"},
 			Authority: taskpkg.Authority{Read: true, Write: true},
 		}
-		if _, err := tasks.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			RunID: record.ActivationRunID, RunKind: taskpkg.RunKindCallActivation, Scope: taskpkg.ScopeGlobal,
-		}, actor); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
-			t.Fatalf("ClaimNextRun(archived) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
-		}
-		deletePlan, err := manager.PrepareDelete(ctx, created.Name)
-		if err != nil {
-			t.Fatalf("PrepareDelete() error = %v", err)
-		}
-		if _, err := manager.Delete(ctx, created.Name, deletePlan.Revision); !errors.Is(err, ErrOwnsWork) {
-			t.Fatalf("Delete(call owner) error = %v, want %v", err, ErrOwnsWork)
-		}
-		if _, err := manager.Unarchive(ctx, created.Name); err != nil {
-			t.Fatalf("Unarchive() error = %v", err)
-		}
-		if _, err := tasks.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			RunID: record.ActivationRunID, RunKind: taskpkg.RunKindCallActivation, Scope: taskpkg.ScopeGlobal,
-		}, actor); err != nil {
-			t.Fatalf("ClaimNextRun(unarchived) error = %v", err)
-		}
-		leasedPlan, err := manager.PrepareArchive(ctx, created.Name)
-		if err != nil {
-			t.Fatalf("PrepareArchive(leased) error = %v", err)
-		}
-		if leasedPlan.LeasedRuns != 1 {
-			t.Fatalf("PrepareArchive(leased).LeasedRuns = %d, want 1", leasedPlan.LeasedRuns)
-		}
-		if _, err := manager.Archive(ctx, created.Name, leasedPlan.Revision); !errors.Is(err, ErrOwnsWork) {
-			t.Fatalf("Archive(leased call activation) error = %v, want %v", err, ErrOwnsWork)
-		}
+		t.Run("Should freeze a queued activation and refuse deletion while call-owned work remains", func(t *testing.T) {
+			archivePlan, err := manager.PrepareArchive(ctx, created.Name)
+			if err != nil {
+				t.Fatalf("PrepareArchive() error = %v", err)
+			}
+			if archivePlan.QueuedRunsToFreeze != 1 || archivePlan.LeasedRuns != 0 {
+				t.Fatalf("PrepareArchive() = %#v, want one queued activation", archivePlan)
+			}
+			if _, err := manager.Archive(ctx, created.Name, archivePlan.Revision); err != nil {
+				t.Fatalf("Archive() error = %v", err)
+			}
+			if _, err := tasks.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+				RunID: record.ActivationRunID, RunKind: taskpkg.RunKindCallActivation, Scope: taskpkg.ScopeGlobal,
+			}, actor); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+				t.Fatalf("ClaimNextRun(archived) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
+			}
+			deletePlan, err := manager.PrepareDelete(ctx, created.Name)
+			if err != nil {
+				t.Fatalf("PrepareDelete() error = %v", err)
+			}
+			if _, err := manager.Delete(ctx, created.Name, deletePlan.Revision); !errors.Is(err, ErrOwnsWork) {
+				t.Fatalf("Delete(call owner) error = %v, want %v", err, ErrOwnsWork)
+			}
+			if _, err := manager.Unarchive(ctx, created.Name); err != nil {
+				t.Fatalf("Unarchive() error = %v", err)
+			}
+		})
+
+		t.Run("Should refuse archive while a call activation is leased", func(t *testing.T) {
+			if _, err := tasks.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+				RunID: record.ActivationRunID, RunKind: taskpkg.RunKindCallActivation, Scope: taskpkg.ScopeGlobal,
+			}, actor); err != nil {
+				t.Fatalf("ClaimNextRun(unarchived) error = %v", err)
+			}
+			leasedPlan, err := manager.PrepareArchive(ctx, created.Name)
+			if err != nil {
+				t.Fatalf("PrepareArchive(leased) error = %v", err)
+			}
+			if leasedPlan.LeasedRuns != 1 {
+				t.Fatalf("PrepareArchive(leased).LeasedRuns = %d, want 1", leasedPlan.LeasedRuns)
+			}
+			if _, err := manager.Archive(ctx, created.Name, leasedPlan.Revision); !errors.Is(err, ErrOwnsWork) {
+				t.Fatalf("Archive(leased call activation) error = %v, want %v", err, ErrOwnsWork)
+			}
+		})
 	})
 
 	t.Run("Should include extension placements in rename previews and revisions", func(t *testing.T) {

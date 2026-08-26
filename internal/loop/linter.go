@@ -70,6 +70,7 @@ type lintContext struct {
 	adjacency          map[dsl.NodeID][]dsl.NodeID
 	reverse            map[dsl.NodeID][]dsl.NodeID
 	conditionCompilers map[conditionCompilerKey]*refs.ConditionCompiler
+	declaredSchemas    map[dsl.NodeID]declaredSchemaCacheEntry
 	hasCycle           bool
 }
 
@@ -82,6 +83,7 @@ func newLintContext(def dsl.Definition, linter *DefinitionLinter) *lintContext {
 		adjacency:          map[dsl.NodeID][]dsl.NodeID{},
 		reverse:            map[dsl.NodeID][]dsl.NodeID{},
 		conditionCompilers: map[conditionCompilerKey]*refs.ConditionCompiler{},
+		declaredSchemas:    map[dsl.NodeID]declaredSchemaCacheEntry{},
 	}
 }
 
@@ -145,7 +147,7 @@ func (c *lintContext) lintNodeIDs() {
 
 func (c *lintContext) lintKindsAndSchemas() {
 	for _, node := range c.def.Graph.Nodes {
-		if _, _, err := resolveDeclaredOutputSchema(c.def, c.linter.tools, node); err != nil {
+		if _, _, err := c.resolveDeclaredSchema(node); err != nil {
 			c.add(node.ID, CodeDeclaredOutputInvalid, "declared output schema is invalid: %v", err)
 		}
 		c.lintEvalErrorPolicy(node)

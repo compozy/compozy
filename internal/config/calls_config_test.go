@@ -167,4 +167,11 @@ func TestParseByteSize(t *testing.T) {
 			t.Fatalf("ParseByteSize(malformed) error = %v, want %q", err, want)
 		}
 	})
+
+	t.Run("Should reject a negative byte size", func(t *testing.T) {
+		t.Parallel()
+		if _, err := ParseByteSize("-1KiB"); err == nil {
+			t.Fatal("ParseByteSize(-1KiB) error = nil")
+		}
+	})
 }

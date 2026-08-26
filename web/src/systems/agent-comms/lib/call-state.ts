@@ -41,16 +41,7 @@ import {
 
 import type { PillTone } from "@compozy/ui";
 
-import {
-  CALL_DELIVERIES,
-  CALL_STATES,
-  CALL_VERDICTS,
-  CHILD_STATES,
-  type CallDelivery,
-  type CallState,
-  type CallVerdict,
-  type ChildState,
-} from "../types";
+import { type CallDelivery, type CallState, type CallVerdict, type ChildState } from "../types";
 
 // The dictionary module is where consumers reach for the vocabulary, so the
 // unions travel with the signals that interpret them.
@@ -154,11 +145,6 @@ export const CALL_STATE_SIGNAL = {
   },
 } as const satisfies Record<CallState, CallStateSignal>;
 
-const CALL_STATE_MEMBERSHIP = Object.fromEntries(CALL_STATES.map(state => [state, true])) as Record<
-  CallState,
-  true
->;
-
 /**
  * Narrow a wire state, or return null.
  *
@@ -168,7 +154,7 @@ const CALL_STATE_MEMBERSHIP = Object.fromEntries(CALL_STATES.map(state => [state
  */
 export function toCallState(raw: string | undefined): CallState | null {
   if (!raw) return null;
-  return Object.hasOwn(CALL_STATE_MEMBERSHIP, raw) ? (raw as CallState) : null;
+  return Object.hasOwn(CALL_STATE_SIGNAL, raw) ? (raw as CallState) : null;
 }
 
 export function callStateSignal(state: CallState): CallStateSignal {
@@ -211,13 +197,9 @@ export const CALL_VERDICT_SIGNAL = {
   repaired: { label: "repaired", description: "the second answer matched" },
 } as const satisfies Record<CallVerdict, CallVerdictSignal>;
 
-const CALL_VERDICT_MEMBERSHIP = Object.fromEntries(
-  CALL_VERDICTS.map(verdict => [verdict, true])
-) as Record<CallVerdict, true>;
-
 export function toCallVerdict(raw: string | undefined): CallVerdict | null {
   if (!raw) return null;
-  return Object.hasOwn(CALL_VERDICT_MEMBERSHIP, raw) ? (raw as CallVerdict) : null;
+  return Object.hasOwn(CALL_VERDICT_SIGNAL, raw) ? (raw as CallVerdict) : null;
 }
 
 // --- Delivery ---------------------------------------------------------------
@@ -244,13 +226,9 @@ export const CALL_DELIVERY_SIGNAL = {
   failed: { tone: "danger", glyph: X, label: "failed" },
 } as const satisfies Record<CallDelivery, CallDeliverySignal>;
 
-const CALL_DELIVERY_MEMBERSHIP = Object.fromEntries(
-  CALL_DELIVERIES.map(delivery => [delivery, true])
-) as Record<CallDelivery, true>;
-
 export function toCallDelivery(raw: string | undefined): CallDelivery | null {
   if (!raw) return null;
-  return Object.hasOwn(CALL_DELIVERY_MEMBERSHIP, raw) ? (raw as CallDelivery) : null;
+  return Object.hasOwn(CALL_DELIVERY_SIGNAL, raw) ? (raw as CallDelivery) : null;
 }
 
 // --- Child session state ----------------------------------------------------
@@ -274,11 +252,7 @@ export const CHILD_STATE_SIGNAL = {
   gone: { tone: "neutral", glyph: CircleOff, label: "gone", live: false },
 } as const satisfies Record<ChildState, ChildStateSignal>;
 
-const CHILD_STATE_MEMBERSHIP = Object.fromEntries(
-  CHILD_STATES.map(state => [state, true])
-) as Record<ChildState, true>;
-
 export function toChildState(raw: string | undefined): ChildState | null {
   if (!raw) return null;
-  return Object.hasOwn(CHILD_STATE_MEMBERSHIP, raw) ? (raw as ChildState) : null;
+  return Object.hasOwn(CHILD_STATE_SIGNAL, raw) ? (raw as ChildState) : null;
 }

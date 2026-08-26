@@ -16,6 +16,18 @@ import (
 func TestStoreFinalizerShouldNormalizeGenerationOutputs(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should clear a prior result envelope before retry", func(t *testing.T) {
+		t.Parallel()
+
+		output := GenerationOutput{SchemaRef: "sha256:schema", runtimePayload: json.RawMessage(`{"stale":true}`)}
+		setGenerationOutputRef(&output, `{"result":"recorded"}`)
+		setGenerationOutputRef(&output, "  ")
+		if output.ResultKind != "" || output.SchemaRef != "" || output.OutputRef != "" ||
+			len(output.runtimePayload) != 0 {
+			t.Fatalf("reset output = %#v, want an empty result envelope", output)
+		}
+	})
+
 	t.Run("Should persist trimmed node id and status", func(t *testing.T) {
 		t.Parallel()
 

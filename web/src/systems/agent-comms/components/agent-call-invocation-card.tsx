@@ -46,7 +46,7 @@ export function AgentCallInvocationCard({
     );
   }
 
-  if (calls.length === 0) {
+  if (loading || calls.length !== invocation.callIds.length) {
     return (
       <p
         className="text-form text-muted"

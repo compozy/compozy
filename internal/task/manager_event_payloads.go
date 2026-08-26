@@ -74,21 +74,32 @@ type runTransitionPayload struct {
 }
 
 type completedRunPayload struct {
-	Status         RunStatus       `json:"status"`
-	TaskStatus     Status          `json:"task_status"`
-	Result         json.RawMessage `json:"result,omitempty"`
-	ClaimTokenHash string          `json:"claim_token_hash,omitempty"`
+	Status            RunStatus       `json:"status"`
+	TaskStatus        Status          `json:"task_status"`
+	Result            json.RawMessage `json:"result,omitempty"`
+	ResultDisposition string          `json:"result_disposition"`
+	ClaimTokenHash    string          `json:"claim_token_hash,omitempty"`
 }
 
-func completionEventResult(result json.RawMessage) json.RawMessage {
+const completionEventResultMaxBytes = MaxPayloadBytes / 2
+
+type completionEventResultProjection struct {
+	payload     json.RawMessage
+	disposition string
+}
+
+func completionEventResult(result json.RawMessage) completionEventResultProjection {
 	if len(result) == 0 {
-		return nil
+		return completionEventResultProjection{disposition: "omitted_empty"}
 	}
 	encoded, err := json.Marshal(result)
-	if err != nil || len(encoded) > MaxPayloadBytes/2 {
-		return nil
+	if err != nil {
+		return completionEventResultProjection{disposition: "omitted_invalid"}
 	}
-	return cloneRawJSON(result)
+	if len(encoded) > completionEventResultMaxBytes {
+		return completionEventResultProjection{disposition: "omitted_over_bound"}
+	}
+	return completionEventResultProjection{payload: cloneRawJSON(result), disposition: "included"}
 }
 
 type completionHallucinationBlockedPayload struct {

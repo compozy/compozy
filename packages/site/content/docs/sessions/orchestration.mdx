@@ -52,9 +52,10 @@ exits `0` after a cancel and `66` when there was nothing to cancel.
 
 ## Delegate to a governed child
 
-`compozy call` creates a governed child beneath a durable operator caller and carries its first
-prompt. The child inherits lineage, capacity limits, and permissions that cannot exceed that
-resolved parent, plus a parked-idle ceiling from `--idle-ttl` or `calls.idle_ttl`.
+`compozy call` admits a governed call beneath a durable operator caller. It either starts a child by
+agent name or addresses an existing child by session ID, and carries the prompt for that call. A new
+child inherits lineage, capacity limits, and permissions that cannot exceed the resolved parent,
+plus a parked-idle ceiling from `--idle-ttl` or `calls.idle_ttl`.
 
 ```bash
 compozy call researcher "Summarize the open questions in docs/rfcs" --idle-ttl 1h -o json

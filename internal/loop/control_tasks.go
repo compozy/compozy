@@ -3,6 +3,7 @@ package loop
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/compozy/compozy/internal/contracts"
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -298,7 +299,7 @@ func coordinatorNodeMetadataForOutput(
 	if err != nil {
 		return nil, err
 	}
-	if node.Review == nil || !OutputRefLooksContentAddressed(output.OutputRef) {
+	if node.Review == nil || !contracts.OutputRefLooksContentAddressed(output.OutputRef) {
 		return metadata, nil
 	}
 	var payload map[string]any

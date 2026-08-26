@@ -10,10 +10,8 @@ import (
 )
 
 const (
-	defaultCallsResultBudget = "256KiB"
-	maxCallsResultBudget     = "4MiB"
-	defaultCallsDedupWindow  = "30s"
-	callsMaxBatchPath        = "calls.max_batch"
+	defaultCallsDedupWindow = "30s"
+	callsMaxBatchPath       = "calls.max_batch"
 )
 
 // CallsConfig controls call admission, lifecycle, result, and mailbox bounds.
@@ -44,6 +42,7 @@ type CallsMessagesConfig struct {
 
 // DefaultCallsConfig returns the exact built-in call bounds.
 func DefaultCallsConfig() CallsConfig {
+	resultPolicy := contracts.DefaultCallsResultsConfig()
 	return CallsConfig{
 		MaxDepth:         3,
 		MaxBatch:         8,
@@ -51,8 +50,8 @@ func DefaultCallsConfig() CallsConfig {
 		MaxActivePerRoot: 32,
 		IdleTTL:          "1h",
 		Results: CallsResultsConfig{
-			DefaultBudget: defaultCallsResultBudget,
-			MaxBudget:     maxCallsResultBudget,
+			DefaultBudget: fmt.Sprintf("%dKiB", resultPolicy.DefaultBudget.MaxBytes>>10),
+			MaxBudget:     fmt.Sprintf("%dMiB", resultPolicy.MaxBudget>>20),
 			Overflow:      string(contracts.OverflowStore),
 		},
 		Messages: CallsMessagesConfig{
@@ -91,16 +90,21 @@ func (c CallsConfig) Validate() error {
 
 // Validate ensures result budgets and overflow policy are usable.
 func (c CallsResultsConfig) Validate() error {
+	_, err := c.normalizedPolicy()
+	return err
+}
+
+func (c CallsResultsConfig) normalizedPolicy() (contracts.CallsResultsConfig, error) {
 	defaultBytes, err := ParseByteSize(c.DefaultBudget)
 	if err != nil {
-		return fmt.Errorf("calls.results.default_budget: %w", err)
+		return contracts.CallsResultsConfig{}, fmt.Errorf("calls.results.default_budget: %w", err)
 	}
 	maxBytes, err := ParseByteSize(c.MaxBudget)
 	if err != nil {
-		return fmt.Errorf("calls.results.max_budget: %w", err)
+		return contracts.CallsResultsConfig{}, fmt.Errorf("calls.results.max_budget: %w", err)
 	}
 	if defaultBytes > maxBytes {
-		return fmt.Errorf(
+		return contracts.CallsResultsConfig{}, fmt.Errorf(
 			"calls.results: default_budget %q exceeds max_budget %q",
 			c.DefaultBudget,
 			c.MaxBudget,
@@ -108,31 +112,17 @@ func (c CallsResultsConfig) Validate() error {
 	}
 	mode := contracts.OverflowMode(strings.TrimSpace(c.Overflow))
 	if mode != contracts.OverflowStore && mode != contracts.OverflowReject {
-		return fmt.Errorf(`calls.results.overflow must be "store" or "reject": %q`, c.Overflow)
+		return contracts.CallsResultsConfig{}, fmt.Errorf(`calls.results.overflow must be "store" or "reject": %q`, c.Overflow)
 	}
-	return nil
+	return contracts.CallsResultsConfig{
+		DefaultBudget: contracts.ByteBudget{MaxBytes: defaultBytes, Overflow: mode},
+		MaxBudget:     maxBytes,
+	}, nil
 }
 
 // ContractPolicy converts the configured strings into the shared parsed budget contract.
 func (c CallsResultsConfig) ContractPolicy() (contracts.CallsResultsConfig, error) {
-	if err := c.Validate(); err != nil {
-		return contracts.CallsResultsConfig{}, err
-	}
-	defaultBytes, err := ParseByteSize(c.DefaultBudget)
-	if err != nil {
-		return contracts.CallsResultsConfig{}, fmt.Errorf("parse default result budget: %w", err)
-	}
-	maxBytes, err := ParseByteSize(c.MaxBudget)
-	if err != nil {
-		return contracts.CallsResultsConfig{}, fmt.Errorf("parse maximum result budget: %w", err)
-	}
-	return contracts.CallsResultsConfig{
-		DefaultBudget: contracts.ByteBudget{
-			MaxBytes: defaultBytes,
-			Overflow: contracts.OverflowMode(strings.TrimSpace(c.Overflow)),
-		},
-		MaxBudget: maxBytes,
-	}, nil
+	return c.normalizedPolicy()
 }
 
 // Validate ensures mailbox bounds are positive and parseable.

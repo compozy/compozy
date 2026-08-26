@@ -123,7 +123,7 @@ func validateJSONSchema(schema dsl.Schema, raw json.RawMessage) error {
 // ValidateWaitPayload validates one admitted wait payload against its persisted schema.
 func ValidateWaitPayload(expect json.RawMessage, payload json.RawMessage) error {
 	if err := contracts.ValidateWaitPayload(expect, payload); err != nil {
-		return fmt.Errorf("%w: %v", ErrValidation, err)
+		return fmt.Errorf("%w: %w", ErrValidation, err)
 	}
 	return nil
 }
@@ -197,14 +197,4 @@ func extractJSONObject(text string) (json.RawMessage, error) {
 		return nil, errors.New("no JSON object found")
 	}
 	return candidate, nil
-}
-
-// extractJSONObjectCandidates returns every distinct top-level JSON object in
-// the turn text, in order of appearance.
-func extractJSONObjectCandidates(text string) []json.RawMessage {
-	candidates := contracts.ExtractCandidates(text)
-	for left, right := 0, len(candidates)-1; left < right; left, right = left+1, right-1 {
-		candidates[left], candidates[right] = candidates[right], candidates[left]
-	}
-	return candidates
 }

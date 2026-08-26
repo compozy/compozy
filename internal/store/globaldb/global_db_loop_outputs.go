@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/compozy/compozy/internal/contracts"
 	"strings"
 	"time"
 
@@ -203,7 +204,7 @@ func (g *LoopRepo) GetGenerationOutputPayload(
 	if workspaceID == "" || runID == "" || key.Generation <= 0 || nodeID == "" || key.ItemIndex < 0 {
 		return nil, fmt.Errorf("%w: generation output payload identity is invalid", looppkg.ErrValidation)
 	}
-	if !looppkg.OutputRefLooksContentAddressed(outputRef) {
+	if !contracts.OutputRefLooksContentAddressed(outputRef) {
 		return nil, fmt.Errorf("%w: output_ref is invalid: %q", looppkg.ErrValidation, outputRef)
 	}
 	raw, err := g.queries.GetLoopGenerationOutputPayload(
@@ -255,7 +256,7 @@ func upsertLoopOutputBlobWithExecutor(
 	payload json.RawMessage,
 	now time.Time,
 ) error {
-	if !looppkg.OutputRefLooksContentAddressed(outputRef) {
+	if !contracts.OutputRefLooksContentAddressed(outputRef) {
 		return fmt.Errorf("%w: output_ref is invalid: %q", looppkg.ErrValidation, outputRef)
 	}
 	if len(payload) == 0 {

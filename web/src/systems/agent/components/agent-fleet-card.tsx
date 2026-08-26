@@ -55,6 +55,9 @@ function AgentFleetCard({ row, newSessionDisabled = false, onNewSession }: Agent
             />
           </div>
         </div>
+        <CatalogCard.Description className="line-clamp-2">
+          {agent.description.trim() || "No description yet"}
+        </CatalogCard.Description>
       </Link>
       <CatalogCard.Actions className="justify-between">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -74,11 +77,13 @@ function AgentFleetCard({ row, newSessionDisabled = false, onNewSession }: Agent
             </Pill>
           ) : null}
         </div>
-        <AgentFleetNewSessionButton
-          agentName={agent.name}
-          disabled={newSessionDisabled}
-          onNewSession={onNewSession}
-        />
+        {row.canStartSession ? (
+          <AgentFleetNewSessionButton
+            agentName={agent.name}
+            disabled={newSessionDisabled}
+            onNewSession={onNewSession}
+          />
+        ) : null}
       </CatalogCard.Actions>
     </CatalogCard>
   );

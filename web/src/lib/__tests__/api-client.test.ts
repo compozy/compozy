@@ -132,4 +132,25 @@ describe("api client helpers", () => {
       "Missing payload: empty response (200)"
     );
   });
+
+  it("lets a domain preserve its typed error for malformed successful responses", () => {
+    class DomainResponseError extends Error {
+      constructor(
+        message: string,
+        readonly status: number
+      ) {
+        super(message);
+      }
+    }
+    const response = new Response(null, { status: 200 });
+
+    expect(() =>
+      requireResponseData(
+        undefined,
+        response,
+        "Missing domain payload",
+        message => new DomainResponseError(message, response.status)
+      )
+    ).toThrow(expect.objectContaining({ name: "Error", status: 200 }));
+  });
 });

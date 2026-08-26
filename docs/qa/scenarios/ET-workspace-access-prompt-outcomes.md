@@ -5,8 +5,8 @@ title: Resolve a cross-workspace prompt and expire its session answer
 persona: Bruno
 journey: J-cross-workspace-access
 expected: An approve-reads session hitting the native-tool boundary raises one pending permission offering allow_once, allow_session, reject_once, and reject_session; once answers apply to that call only, session answers apply to every seam for the rest of the session, and stopping the session clears the answer so the next crossing prompts again.
-entry_points: compozy__workspace_info; compozy__task_run_claim_next; compozy spawn --workspace; compozy session approve <session-id> --request-id <request-id> --decision <allow-once|allow-always|reject-once|reject-always>; POST /api/workspaces/:workspace_id/sessions/:session_id/approve; compozy logs --type workspace.access_granted; GET /api/logs; compozy__logs; compozy__observe_search; /docs/sessions/permissions#the-prompt-in-approve-reads
-qa_status: blocked-verify
+entry_points: compozy__workspace_info; compozy__task_run_claim_next; compozy network coordination status --workspace; compozy call and compozy message with a foreign-workspace target (hard denial, never a prompt); compozy session approve <session-id> --request-id <request-id> --decision <allow-once|allow-always|reject-once|reject-always>; POST /api/workspaces/:workspace_id/sessions/:session_id/approve; compozy logs --type workspace.access_granted; GET /api/logs; compozy__logs; compozy__observe_search; /docs/sessions/permissions#the-prompt-in-approve-reads
+qa_status: untested
 bug_ids: BUG-20260730-tool-invoke-202-empty-success
 fix_status: fixed
 retest_status: pass
@@ -26,10 +26,15 @@ Answer `allow-once` and confirm the call proceeds and the next crossing prompts 
 still prompts.
 
 Answer `allow-always` and confirm it resolves to `allow_session`: later crossings by that session
-succeed with no prompt, and crossings at the task, spawn, and coordination seams — which never prompt
-— now succeed too. Confirm no approval record appears in any list or revoke surface: the answer is
+succeed with no prompt, and crossings at the task-claim and coordination seams — which never prompt —
+now succeed too. Confirm no approval record appears in any list or revoke surface: the answer is
 daemon memory only. Stop the session, start a new one for the same agent, and confirm the first
 crossing prompts again. Repeat the expiry check across a daemon restart.
+
+Then confirm the boundary this consent model does **not** cross. With `allow_session` cached, aim a
+`compozy call` and a `compozy message` at the same foreign workspace: both must be hard-denied with
+`call_workspace_denied` before any side effect and without raising a prompt. A cached session answer
+must never be laundered into delegation authority.
 
 Answer `reject-always` and confirm it resolves to `reject_session` and denies every later crossing by
 that session at every seam.
@@ -59,3 +64,11 @@ QA 2026-07-29: allow/reject once and session answers passed through both operato
 Session grants crossed task, coordination, and spawn seams, expired on stop and daemon restart, and
 an unanswered request timed out without storing consent. CLI, HTTP, native logs, and native search
 agreed on the attributable audit trail.
+
+Planning 2026-08-25 (agent-comms task_08): reset to `untested` because a listed seam was deleted.
+`compozy spawn --workspace` no longer exists — the agent-comms change hard-cut the public spawn
+surface — so the spawn crossing has been removed from the entry points and replaced by the calls
+seam, which behaves differently on purpose: it is a hard denial in every permission mode rather than
+a fifth consent seam. The prior `blocked-verify` verdict and its evidence are kept above as history;
+the walk that produced them exercised a surface that is gone. Re-walked by charter
+`CH-agent-comms-spawn-hard-cut-crossings`.

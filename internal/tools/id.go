@@ -3,6 +3,8 @@ package tools
 import (
 	"encoding/json"
 	"strings"
+
+	"github.com/compozy/compozy/internal/contracts"
 )
 
 const maxSegmentedIDLength = 64
@@ -181,17 +183,7 @@ func ValidateJSONObject(field string, raw json.RawMessage, required bool) error 
 		return nil
 	}
 
-	var decoded map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &decoded); err != nil {
-		return NewValidationError(field, ReasonSchemaInvalid, err.Error())
-	}
-	if decoded == nil {
-		if required {
-			return NewValidationError(field, ReasonSchemaInvalid, "schema must be a JSON object")
-		}
-		return nil
-	}
-	if err := validateJSONSchemaDocument("$", decoded); err != nil {
+	if err := contracts.ValidateSchemaDefinition(raw); err != nil {
 		return NewValidationError(field, ReasonSchemaInvalid, err.Error())
 	}
 	return nil

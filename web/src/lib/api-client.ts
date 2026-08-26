@@ -68,10 +68,11 @@ export function apiRequestFailed(response: Response, error: unknown): boolean {
 export function requireResponseData<T>(
   data: T | undefined,
   response: Response,
-  fallback: string
+  fallback: string,
+  createError: (message: string) => Error = message => new Error(message)
 ): T {
   if (data === undefined) {
-    throw new Error(`${fallback}: empty response (${response.status})`);
+    throw createError(`${fallback}: empty response (${response.status})`);
   }
   return data;
 }

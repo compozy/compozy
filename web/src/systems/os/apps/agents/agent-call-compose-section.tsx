@@ -60,7 +60,15 @@ export function AgentCallComposeSection({
         onOpenAcceptedCall={openCall}
       />
 
-      {compose.recentCalls.length > 0 ? (
+      {compose.recentCallsPending ? (
+        <p className="text-form text-fg-muted" data-testid="agent-detail-recent-calls-loading">
+          Loading calls…
+        </p>
+      ) : compose.recentCallsError ? (
+        <p className="text-form text-danger" data-testid="agent-detail-recent-calls-error">
+          Calls unavailable
+        </p>
+      ) : compose.recentCalls.length > 0 ? (
         <ul
           className="flex flex-col divide-y divide-line-soft"
           data-testid="agent-detail-recent-calls"
@@ -78,7 +86,11 @@ export function AgentCallComposeSection({
             </li>
           ))}
         </ul>
-      ) : null}
+      ) : (
+        <p className="text-form text-fg-muted" data-testid="agent-detail-recent-calls-empty">
+          No calls yet
+        </p>
+      )}
     </section>
   );
 }

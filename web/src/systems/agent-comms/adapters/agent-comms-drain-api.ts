@@ -36,9 +36,5 @@ export async function drainCallSubtree(
   if (apiRequestFailed(response, error)) {
     throw toAgentCommsApiError(`Failed to stop the subtree under ${sessionId}`, response, error);
   }
-  return requireResponseData(
-    data,
-    response,
-    `Failed to stop the subtree under ${sessionId}`
-  ) as StopSessionDrainResponse;
+  return requireResponseData(data, response, `Failed to stop the subtree under ${sessionId}`);
 }

@@ -127,7 +127,7 @@ func applyRouteSelection(
 		)
 	}
 	output.Status = generationOutputSucceeded
-	setGenerationOutputRef(&output, "route:"+string(selected))
+	setGenerationOutputRef(&output, routeSelectedOutputRefPrefix+string(selected))
 	skipUnselectedRoutePaths(graph, topology, sourceID, selected, output, outputs)
 	return output, nil
 }

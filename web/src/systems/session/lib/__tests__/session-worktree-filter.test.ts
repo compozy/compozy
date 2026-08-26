@@ -9,6 +9,23 @@ import { sessionKeys } from "../query-keys";
 import { normalizeSessionListFilters, sessionListRequest } from "../session-list-query";
 
 describe("session worktree scoping", () => {
+  it("Should normalize a governed root and keep it in requests and query keys", () => {
+    const filters = normalizeSessionListFilters({ workspace_id: "ws_alpha", root: " ses_root " });
+
+    expect(filters.root).toBe("ses_root");
+    expect(sessionListRequest(filters, "cursor-2")).toMatchObject({
+      root: "ses_root",
+      cursor: "cursor-2",
+    });
+    expect(sessionKeys.list(filters)).not.toEqual(sessionKeys.list({ workspace_id: "ws_alpha" }));
+  });
+
+  it("Should drop a blank governed root instead of widening with an empty value", () => {
+    expect(
+      normalizeSessionListFilters({ workspace_id: "ws_alpha", root: "   " })
+    ).not.toHaveProperty("root");
+  });
+
   it("Should carry a worktree filter through normalization", () => {
     const filters = normalizeSessionListFilters({
       workspace_id: "ws_alpha",

@@ -79,7 +79,7 @@ func TestGlobalDBCoordinatorCompletionShouldCommitCanonicalEventAtomically(t *te
 				Actor: coordinatorActorContextForTest(),
 				Now:   now.Add(2 * time.Second),
 			},
-			looppkg.NewStoreFinalizer(),
+			generationFinalizerForTest(),
 		)
 		assertForcedTaskEventInsertError(t, err, "CompleteCoordinatorAndEnqueueNext()")
 
@@ -139,7 +139,7 @@ func TestGlobalDBCoordinatorCompletionShouldCommitCanonicalEventAtomically(t *te
 					Status: string(looppkg.StatusDone), Cause: string(looppkg.TransitionCauseContract),
 				},
 			},
-		}, looppkg.NewStoreFinalizer())
+		}, generationFinalizerForTest())
 		if err != nil {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
 		}

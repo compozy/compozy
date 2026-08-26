@@ -52,7 +52,7 @@ func (g *LoopRepo) resolveExpiredWaitRoute(
 	if err != nil {
 		return err
 	}
-	storedResult, err := looppkg.EncodeGenerationResultForRef(looppkg.WaitExpiryRouteOutputRef(route))
+	storedResult, err := encodeWaitExpiryResult(route)
 	if err != nil {
 		return fmt.Errorf("store: encode expired wait route result: %w", err)
 	}
@@ -118,7 +118,7 @@ func (g *LoopRepo) resolveExpiredApprovalRoute(
 	parkedFor time.Duration,
 	now time.Time,
 ) error {
-	storedResult, err := looppkg.EncodeGenerationResultForRef(looppkg.WaitExpiryRouteOutputRef(route))
+	storedResult, err := encodeWaitExpiryResult(route)
 	if err != nil {
 		return fmt.Errorf("store: encode expired approval route result: %w", err)
 	}
@@ -152,6 +152,14 @@ func (g *LoopRepo) resolveExpiredApprovalRoute(
 			due.wait.NodeID, due.wait.ItemIndex, due.wait.IssuedEpoch),
 	)
 	return err
+}
+
+func encodeWaitExpiryResult(route string) (string, error) {
+	storedResult, err := looppkg.EncodeGenerationResultForRef(looppkg.WaitExpiryRouteOutputRef(route))
+	if err != nil {
+		return "", fmt.Errorf("store: encode wait-expiry route result: %w", err)
+	}
+	return storedResult, nil
 }
 
 func expiredWaitResumeEventPayload(

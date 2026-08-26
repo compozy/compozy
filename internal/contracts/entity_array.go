@@ -42,8 +42,9 @@ func walkContainedEntities(
 	if !ok {
 		return nil
 	}
+	applies := compileSchemaApplicability(contains)
 	for index, item := range items {
-		if !schemaApplies(contains, item) {
+		if !applies(item) {
 			continue
 		}
 		if err := walkEntities(

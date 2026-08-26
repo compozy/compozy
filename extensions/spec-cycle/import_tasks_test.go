@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/compozy/compozy/internal/contracts"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,7 +50,7 @@ func TestImportMarkdownTasksShouldLoadCompozyTaskManifest(t *testing.T) {
 		if !strings.Contains(third.Body, "Do three.") {
 			t.Fatalf("third body = %q, want hydrated markdown body", third.Body)
 		}
-		if got, want := third.BodyRef, looppkg.OutputRefForPayload([]byte(third.Body)); got != want {
+		if got, want := third.BodyRef, contracts.OutputRefForPayload([]byte(third.Body)); got != want {
 			t.Fatalf("third body_ref = %q, want %q", got, want)
 		}
 		if got, want := strings.Join(third.Blocks, ","), "task_01,task_02"; got != want {

@@ -72,6 +72,8 @@ export interface AgentCallComposeModel {
   accepted: { callId: string; childSessionId: string | null } | null;
   /** Calls made to this definition lately, newest first. */
   recentCalls: CallPayload[];
+  recentCallsPending: boolean;
+  recentCallsError: string | null;
   /** Helpers of this definition working right now. Undefined until counted. */
   activeInstances: number | undefined;
 }
@@ -136,6 +138,7 @@ export function useAgentCallCompose(
     expect,
     setExpect: (next: string) => {
       setLocalFailure(null);
+      mutations.create.reset();
       setExpect(next);
     },
     submit: () => {
@@ -168,6 +171,12 @@ export function useAgentCallCompose(
     failure: localFailure ?? remoteFailure,
     accepted,
     recentCalls: (recent.data?.pages ?? []).flatMap(page => page.items),
+    recentCallsPending: recent.isPending,
+    recentCallsError: recent.isError
+      ? recent.error instanceof Error
+        ? recent.error.message
+        : "The calls request failed."
+      : null,
     activeInstances,
   };
 }

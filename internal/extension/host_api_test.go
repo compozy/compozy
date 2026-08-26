@@ -84,6 +84,16 @@ func (s *hostAPICallsReaderStub) GetRead(
 	return callspkg.CallRecord{}, nil
 }
 
+func (s *hostAPICallsReaderStub) ProjectPayloads(
+	_ context.Context,
+	records []callspkg.CallRecord,
+) ([]callspkg.ProjectionContent, error) {
+	if len(records) > 0 {
+		s.reads.Add(1)
+	}
+	return make([]callspkg.ProjectionContent, len(records)), nil
+}
+
 func (s *hostAPICallsReaderStub) Result(
 	context.Context,
 	callspkg.CallReadQuery,

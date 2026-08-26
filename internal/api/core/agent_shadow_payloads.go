@@ -15,6 +15,17 @@ func AgentListPayloads(
 	homePaths compozyconfig.HomePaths,
 	workspaceID string,
 ) []contract.AgentPayload {
+	payloads := agentListPayloadsUnsorted(entries, cfg, homePaths, workspaceID)
+	sortAgentPayloads(payloads)
+	return payloads
+}
+
+func agentListPayloadsUnsorted(
+	entries []AgentCatalogEntry,
+	cfg *compozyconfig.Config,
+	homePaths compozyconfig.HomePaths,
+	workspaceID string,
+) []contract.AgentPayload {
 	payloads := make([]contract.AgentPayload, 0, len(entries))
 	for _, entry := range entries {
 		payloads = append(payloads, AgentPayloadFromEntryWithConfig(entry, cfg))
@@ -22,6 +33,10 @@ func AgentListPayloads(
 			payloads = append(payloads, agentShadowPayload(entry, shadow, cfg, homePaths, workspaceID))
 		}
 	}
+	return payloads
+}
+
+func sortAgentPayloads(payloads []contract.AgentPayload) {
 	sort.SliceStable(payloads, func(i, j int) bool {
 		if payloads[i].Name != payloads[j].Name {
 			return payloads[i].Name < payloads[j].Name
@@ -31,7 +46,6 @@ func AgentListPayloads(
 		}
 		return payloads[i].Layer < payloads[j].Layer
 	})
-	return payloads
 }
 
 func agentShadowPayload(

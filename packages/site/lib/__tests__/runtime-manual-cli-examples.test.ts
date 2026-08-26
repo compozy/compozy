@@ -82,6 +82,58 @@ function normalizedShellBlocks(doc: ManualDoc): string {
   return extractBashBlocks(doc).join("\n").replaceAll("\\\n", " ");
 }
 
+type ManualCallInvocation = { path: string; command: string };
+
+function manualCallInvocations(): ManualCallInvocation[] {
+  return listManualDocs(contentRoot).flatMap(doc =>
+    extractBashBlocks(doc).flatMap(block =>
+      block
+        .replaceAll("\\\n", " ")
+        .split("\n")
+        .flatMap(line => {
+          const starts = [...line.matchAll(/\bcompozy call\b/g)].map(match => match.index ?? -1);
+          return starts.map((start, index) => ({
+            path: doc.path,
+            command: line.slice(start, starts[index + 1] ?? line.length).trim(),
+          }));
+        })
+    )
+  );
+}
+
+const CALL_SUBCOMMAND_POSITIONALS = new Map<string, number>([
+  ["await", 1],
+  ["cancel", 1],
+  ["list", 0],
+  ["publish", 1],
+  ["result", 1],
+  ["show", 1],
+]);
+
+function shellTokens(command: string): string[] {
+  return command.match(/"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|\S+/g) ?? [];
+}
+
+function leadingPositionals(tokens: string[]): string[] {
+  const firstFlag = tokens.findIndex(token => token.startsWith("-"));
+  return firstFlag === -1 ? tokens : tokens.slice(0, firstFlag);
+}
+
+function callInvocationViolation(invocation: ManualCallInvocation): string | null {
+  const tokens = shellTokens(invocation.command);
+  const operation = tokens[2] ?? "";
+  const subcommandPositionals = CALL_SUBCOMMAND_POSITIONALS.get(operation);
+  if (subcommandPositionals !== undefined) {
+    const positionals = leadingPositionals(tokens.slice(3));
+    return positionals.length >= subcommandPositionals
+      ? null
+      : `${invocation.path}: ${invocation.command}`;
+  }
+
+  const rootPositionals = leadingPositionals(tokens.slice(2));
+  return rootPositionals.length >= 2 ? null : `${invocation.path}: ${invocation.command}`;
+}
+
 function listCLIReferenceDocs(dir: string): string[] {
   const docs: string[] = [];
   for (const entry of readdirSync(dir)) {
@@ -171,6 +223,10 @@ describe("manual site CLI examples", () => {
 
   it("uses command names that exist in the generated CLI reference", () => {
     expect(manualCompozyCommandViolations()).toEqual([]);
+  });
+
+  it("supplies required positional arguments to every documented compozy call invocation", () => {
+    expect(manualCallInvocations().map(callInvocationViolation).filter(Boolean)).toEqual([]);
   });
 
   it("does not execute the replaced compozy memory verbs in any documented shell block", () => {

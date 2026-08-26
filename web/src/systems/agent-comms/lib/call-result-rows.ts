@@ -55,6 +55,15 @@ interface FlattenState {
   truncated: boolean;
 }
 
+function appendRow(state: FlattenState, row: CallResultRow): boolean {
+  if (state.rows.length >= MAX_ROWS) {
+    state.truncated = true;
+    return false;
+  }
+  state.rows.push(row);
+  return true;
+}
+
 function flatten(value: unknown, path: string, state: FlattenState): void {
   if (state.rows.length >= MAX_ROWS) {
     state.truncated = true;
@@ -67,7 +76,7 @@ function flatten(value: unknown, path: string, state: FlattenState): void {
       flatten(value[index], `${path}[${index}]`, state);
     }
     if (value.length > shown) {
-      state.rows.push({
+      appendRow(state, {
         path: `${path}[0..${value.length - 1}]`,
         value: `${value.length} records · first ${shown} shown in preview`,
         summary: true,
@@ -84,7 +93,7 @@ function flatten(value: unknown, path: string, state: FlattenState): void {
     return;
   }
 
-  state.rows.push({ path, value: encodeScalar(value), summary: false });
+  appendRow(state, { path, value: encodeScalar(value), summary: false });
 }
 
 /**

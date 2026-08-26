@@ -23,7 +23,7 @@ func TestResultBudgets(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnforceBudget() error = %v", err)
 		}
-		if !outcome.Overflowed || len(outcome.Payload) != len(payload) {
+		if !outcome.Overflowed || len(outcome.Payload) != len(payload) || !bytes.Equal(outcome.Payload, payload) {
 			t.Fatalf("EnforceBudget() outcome = %#v, want whole overflow", outcome)
 		}
 		if len(outcome.Preview) > config.DefaultBudget.MaxBytes {
@@ -63,6 +63,17 @@ func TestResultBudgets(t *testing.T) {
 			t.Fatalf("EnforceBudget(+1) = %#v, %v; want overflow", plusOne, err)
 		}
 	})
+
+	t.Run("Should reject an invalid overflow mode at both entry points", func(t *testing.T) {
+		t.Parallel()
+		invalid := ByteBudget{MaxBytes: 4, Overflow: OverflowMode("discard")}
+		if _, err := ResolveBudget(&invalid, config); err == nil {
+			t.Fatal("ResolveBudget(invalid overflow) error = nil")
+		}
+		if _, err := EnforceBudget(invalid, json.RawMessage("1234")); err == nil {
+			t.Fatal("EnforceBudget(invalid overflow) error = nil")
+		}
+	})
 }
 
 func TestCandidateExtraction(t *testing.T) {
@@ -71,14 +82,20 @@ func TestCandidateExtraction(t *testing.T) {
 	t.Run("Should find fenced prose-wrapped and balanced objects", func(t *testing.T) {
 		t.Parallel()
 
-		for _, input := range []string{
-			"\x60\x60\x60json\n{\"answer\":1}\n\x60\x60\x60",
-			"before {\"answer\":2} after",
-			"before {\"answer\":{\"nested\":true}} after",
+		for _, test := range []struct {
+			name  string
+			input string
+		}{
+			{name: "Should find a fenced object", input: "\x60\x60\x60json\n{\"answer\":1}\n\x60\x60\x60"},
+			{name: "Should find a prose-wrapped object", input: "before {\"answer\":2} after"},
+			{name: "Should find a nested balanced object", input: "before {\"answer\":{\"nested\":true}} after"},
 		} {
-			if candidate, ok := ExtractCandidate(input); !ok || !json.Valid(candidate) {
-				t.Fatalf("ExtractCandidate(%q) = %s, %v; want JSON object", input, candidate, ok)
-			}
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+				if candidate, ok := ExtractCandidate(test.input); !ok || !json.Valid(candidate) {
+					t.Fatalf("ExtractCandidate(%q) = %s, %v; want JSON object", test.input, candidate, ok)
+				}
+			})
 		}
 	})
 
@@ -86,10 +103,16 @@ func TestCandidateExtraction(t *testing.T) {
 		t.Parallel()
 
 		candidates := ExtractCandidates("first {\"valid\":true} then {\"invalid\":true}")
+		if len(candidates) == 0 {
+			t.Fatal("ExtractCandidates(first input) returned no candidates")
+		}
 		if got, want := string(candidates[0]), "{\"invalid\":true}"; got != want {
 			t.Fatalf("first candidate = %s, want newest %s", got, want)
 		}
 		candidates = ExtractCandidates("first {\"valid\":false} then {\"valid\":true}")
+		if len(candidates) == 0 {
+			t.Fatal("ExtractCandidates(second input) returned no candidates")
+		}
 		if got, want := string(candidates[0]), "{\"valid\":true}"; got != want {
 			t.Fatalf("first candidate = %s, want newest valid %s", got, want)
 		}

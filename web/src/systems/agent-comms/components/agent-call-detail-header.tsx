@@ -4,17 +4,27 @@
  * The control row is the truthful-UI rule made concrete: each button is rendered
  * only when its operation is available right now. Cancel is present while the
  * call is in flight and gone the moment it settles; call-again and message
- * appear only afterwards. Nothing here is ever disabled — a greyed button
- * advertises an operation the runtime would refuse.
+ * appear only afterwards. The one disabled state is a cancel already in flight,
+ * which prevents a duplicate mutation while preserving the operation in place.
  *
  * Timer chrome follows the same rule. Most calls carry no deadline at all, so
  * most calls show none. The idle TTL states its own physics instead of a bare
  * countdown, because "suspended while running" is the fact that stops an
  * operator worrying about a clock that is not running.
  */
-import { Ban, Calendar, CornerUpRight, GitBranch, Layers, Mail, Timer, User } from "lucide-react";
+import {
+  Ban,
+  Calendar,
+  CornerUpRight,
+  GitBranch,
+  Layers,
+  Mail,
+  Timer,
+  User,
+  type LucideIcon,
+} from "lucide-react";
 
-import { Button, MonoId, OwnerAvatar, Time } from "@compozy/ui";
+import { Button, MonoId, OwnerAvatar, Time, cn } from "@compozy/ui";
 
 import {
   AgentCallLiveness,
@@ -23,7 +33,7 @@ import {
 } from "./agent-call-state-pill";
 import type { CallDetailView } from "../lib/call-detail-view-model";
 
-function Fact({ icon: Icon, children }: { icon: typeof User; children: React.ReactNode }) {
+function Fact({ icon: Icon, children }: { icon: LucideIcon; children: React.ReactNode }) {
   return (
     <span className="flex items-center gap-1.5 text-form text-muted">
       <Icon className="size-3 shrink-0" aria-hidden="true" />
@@ -32,7 +42,7 @@ function Fact({ icon: Icon, children }: { icon: typeof User; children: React.Rea
   );
 }
 
-export interface AgentCallDetailHeaderProps {
+export interface AgentCallDetailHeaderProps extends React.ComponentProps<"header"> {
   view: CallDetailView;
   onCancel?: () => void;
   onCallAgain?: () => void;
@@ -40,7 +50,6 @@ export interface AgentCallDetailHeaderProps {
   onOpenCaller?: () => void;
   onOpenChildSession?: () => void;
   cancelPending?: boolean;
-  "data-testid"?: string;
 }
 
 export function AgentCallDetailHeader({
@@ -51,11 +60,12 @@ export function AgentCallDetailHeader({
   onOpenCaller,
   onOpenChildSession,
   cancelPending = false,
-  "data-testid": testId,
+  className,
+  ...props
 }: AgentCallDetailHeaderProps) {
   const title = view.agentName ?? view.callId;
   return (
-    <header data-testid={testId} className="border-b border-line-soft pb-3">
+    <header {...props} className={cn("border-b border-line-soft pb-3", className)}>
       <div className="flex flex-wrap items-center gap-2">
         <OwnerAvatar ownerKind="agent" ownerId={title} size="default" />
         <h2 className="text-item-title text-fg-strong">{title}</h2>
@@ -123,7 +133,7 @@ export function AgentCallDetailHeader({
                 <MonoId value={view.childSessionId} />
               </Button>
             ) : (
-              // Retention pruned the session: identity stays, the jump does not.
+              // Retention pruned the session: identity stays, while the unavailable jump is omitted.
               <MonoId value={view.childSessionId} />
             )}
           </Fact>

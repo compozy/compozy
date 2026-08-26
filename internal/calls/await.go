@@ -7,19 +7,21 @@ import (
 	"time"
 )
 
+// Get returns one call from an exact ownership scope.
 func (s *Service) Get(
 	ctx context.Context,
 	profileID string,
 	workspaceID string,
 	callID string,
 ) (CallRecord, error) {
-	scope := ScopeWorkspace
-	if strings.TrimSpace(workspaceID) == "" {
-		scope = ScopeGlobal
+	scope, err := NormalizeCallScope(CallScope{ProfileID: profileID, WorkspaceID: workspaceID})
+	if err != nil {
+		return CallRecord{}, err
 	}
-	return s.store.GetCall(ctx, s.scope(profileID, scope, workspaceID), callID)
+	return s.store.GetCall(ctx, scope, callID)
 }
 
+// Await waits until at least one selected call settles or the bounded timeout expires.
 func (s *Service) Await(ctx context.Context, input AwaitInput) (AwaitOutcome, error) {
 	ids, err := normalizeAwaitIDs(input.CallIDs)
 	if err != nil {
@@ -37,13 +39,11 @@ func (s *Service) Await(ctx context.Context, input AwaitInput) (AwaitOutcome, er
 		return AwaitOutcome{}, err
 	}
 	defer unregister()
-	scope := s.scope(input.ProfileID, input.Scope, input.WorkspaceID)
-	if scope.Scope == "" {
-		if scope.WorkspaceID == "" {
-			scope.Scope = ScopeGlobal
-		} else {
-			scope.Scope = ScopeWorkspace
-		}
+	scope, err := NormalizeCallScope(CallScope{
+		ProfileID: input.ProfileID, Scope: input.Scope, WorkspaceID: input.WorkspaceID,
+	})
+	if err != nil {
+		return AwaitOutcome{}, err
 	}
 	snapshot := func() (AwaitOutcome, error) {
 		outcome := AwaitOutcome{ClampedTimeout: timeout}
@@ -59,11 +59,11 @@ func (s *Service) Await(ctx context.Context, input AwaitInput) (AwaitOutcome, er
 			}
 		}
 		if len(outcome.Pending) == 0 {
-			outcome.Outcome = "complete"
+			outcome.Outcome = AwaitOutcomeComplete
 		} else if len(outcome.Settled) > 0 {
-			outcome.Outcome = "partial"
+			outcome.Outcome = AwaitOutcomePartial
 		} else {
-			outcome.Outcome = "timeout"
+			outcome.Outcome = AwaitOutcomeTimeout
 		}
 		return outcome, nil
 	}

@@ -75,23 +75,35 @@ function prunedFrom(
   return pruned;
 }
 
-export function useSessionCallsPanel(sessionId: string): SessionCallsPanelModel {
+export function useSessionCallsPanel(
+  sessionId: string,
+  liveDataEnabled = true
+): SessionCallsPanelModel {
   const scope = useAgentCommsScope();
-  const enabled = sessionId !== "";
+  const enabled = sessionId !== "" && liveDataEnabled;
 
   const made = useInfiniteQuery(
-    callsListOptions(scope, { caller: sessionId, limit: CALLS_PANEL_PAGE_SIZE }, false, enabled)
+    callsListOptions(
+      scope,
+      { caller: sessionId, limit: CALLS_PANEL_PAGE_SIZE },
+      liveDataEnabled,
+      enabled
+    )
   );
   const received = useInfiniteQuery(
     callsListOptions(
       scope,
       { child_session_id: sessionId, limit: CALLS_PANEL_PAGE_SIZE },
-      false,
+      liveDataEnabled,
       enabled
     )
   );
-  const madeTotal = useCallCount(scope, { caller: sessionId }, { enabled });
-  const receivedTotal = useCallCount(scope, { child_session_id: sessionId }, { enabled });
+  const madeTotal = useCallCount(scope, { caller: sessionId }, { live: liveDataEnabled, enabled });
+  const receivedTotal = useCallCount(
+    scope,
+    { child_session_id: sessionId },
+    { live: liveDataEnabled, enabled }
+  );
 
   const madeCalls = (made.data?.pages ?? []).flatMap(page => page.items);
   const receivedCalls = (received.data?.pages ?? []).flatMap(page => page.items);

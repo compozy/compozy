@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/compozy/compozy/internal/contracts"
 	"sort"
 	"strings"
 	"time"
@@ -259,7 +260,7 @@ func refreshCompletedTaskRunOutput(
 	}
 	payload := run.ResultValue()
 	runtimeRef := generationOutputRuntimePayload(output)
-	if len(payload) == 0 && runtimeRef != "" && !OutputRefLooksContentAddressed(runtimeRef) {
+	if len(payload) == 0 && runtimeRef != "" && !contracts.OutputRefLooksContentAddressed(runtimeRef) {
 		payload = json.RawMessage(runtimeRef)
 	}
 	node, found := graphNode(graph, dsl.NodeID(output.NodeID))

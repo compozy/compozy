@@ -122,10 +122,7 @@ func normalizeTaskRunRecord(run taskpkg.Run) taskpkg.Run {
 	normalized.Origin.Ref = strings.TrimSpace(normalized.Origin.Ref)
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
 	normalized.ExpectDigest = strings.TrimSpace(normalized.ExpectDigest)
-	if normalized.ResultBudget != nil {
-		budget := *normalized.ResultBudget
-		normalized.ResultBudget = &budget
-	}
+	normalized.ResultBudget = cloneTaskResultBudget(normalized.ResultBudget)
 	wakeID, targetSessionID, ownerKey := normalized.NetworkWakeCorrelation()
 	normalized.SetNetworkState(
 		normalized.NetworkSpecSnapshot(),

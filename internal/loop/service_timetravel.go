@@ -350,7 +350,8 @@ func forkSeedOutputs(source []GenerationOutput) []GenerationOutput {
 	for _, output := range source {
 		seed = append(seed, GenerationOutput{
 			Generation: 1, NodeID: output.NodeID, ItemIndex: output.ItemIndex,
-			Status: generationOutputSucceeded, OutputRef: output.OutputRef, Attempt: 1,
+			Status: generationOutputSucceeded, ResultKind: output.ResultKind,
+			SchemaRef: output.SchemaRef, OutputRef: output.OutputRef, Attempt: 1,
 		})
 	}
 	return seed

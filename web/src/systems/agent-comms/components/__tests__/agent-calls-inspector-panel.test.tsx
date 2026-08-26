@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { AgentCallsInspectorPanel } from "../agent-calls-inspector-panel";
@@ -70,6 +71,21 @@ describe("AgentCallsInspectorPanel — directions", () => {
     const received = screen.getByTestId("agent-calls-panel-received");
     expect(within(made).getAllByTestId("agent-calls-panel-row")).toHaveLength(1);
     expect(within(received).getAllByTestId("agent-calls-panel-row")).toHaveLength(1);
+  });
+
+  it("Should open a selected row and load the next page", async () => {
+    const user = userEvent.setup();
+    const onOpenCall = vi.fn();
+    const made = section([completedCallFixture], 2, true);
+    render(
+      <AgentCallsInspectorPanel made={made} received={section([], 0)} onOpenCall={onOpenCall} />
+    );
+
+    await user.click(screen.getByRole("button", { name: completedCallFixture.agent }));
+    await user.click(screen.getByTestId("agent-calls-panel-made-more"));
+
+    expect(onOpenCall).toHaveBeenCalledWith(completedCallFixture.call_id);
+    expect(made.onLoadMore).toHaveBeenCalledOnce();
   });
 
   it("Should show a failed first read instead of calling it loading", () => {

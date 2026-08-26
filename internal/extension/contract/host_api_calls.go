@@ -10,7 +10,7 @@ type CallsListParams struct {
 	Limit       int      `json:"limit,omitempty"`
 }
 
-// CallTargetParams identifies one call within an explicit runtime scope.
+// CallTargetParams identifies one call; omitted scope fields infer the bound workspace or default to global scope.
 type CallTargetParams struct {
 	CallID      string `json:"call_id"`
 	Scope       string `json:"scope,omitempty"`

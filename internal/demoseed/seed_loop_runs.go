@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/compozy/compozy/internal/contracts"
 	"slices"
 	"time"
 
@@ -266,7 +267,7 @@ func generationOutputs(
 		output.ChildLoopRunID = cell.ChildRunID
 		if cell.Payload != "" {
 			payload := json.RawMessage(cell.Payload)
-			ref := looppkg.OutputRefForPayload(payload)
+			ref := contracts.OutputRefForPayload(payload)
 			output.OutputRef = ref
 			blobs = append(blobs, looppkg.GenerationOutputBlob{
 				OutputRef: ref, Payload: payload, At: source.CreatedAt,

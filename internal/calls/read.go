@@ -10,11 +10,48 @@ import (
 )
 
 const (
+	// DefaultReadLimit is the page size used when callers omit a limit.
 	DefaultReadLimit = 50
-	MaxReadLimit     = 200
+	// MaxReadLimit is the largest public call or message page.
+	MaxReadLimit = 200
 )
 
-// CallReadQuery selects one profile-owned call population.
+// NormalizeReadScope infers and validates the exact global or workspace call boundary.
+func NormalizeReadScope(scope Scope, workspaceID string) (Scope, string, error) {
+	workspaceID = strings.TrimSpace(workspaceID)
+	scope = Scope(strings.TrimSpace(string(scope)))
+	if scope == "" {
+		if workspaceID == "" {
+			scope = ScopeGlobal
+		} else {
+			scope = ScopeWorkspace
+		}
+	}
+	if scope != ScopeGlobal && scope != ScopeWorkspace {
+		return "", "", fmt.Errorf("scope must be global or workspace")
+	}
+	if scope == ScopeGlobal && workspaceID != "" || scope == ScopeWorkspace && workspaceID == "" {
+		return "", "", fmt.Errorf("scope and workspace_id do not match")
+	}
+	return scope, workspaceID, nil
+}
+
+// NormalizeReadQuery trims, infers, and validates a public call read boundary.
+func NormalizeReadQuery(query CallReadQuery) (CallReadQuery, error) {
+	query.ReadScope.ProfileID = strings.TrimSpace(query.ReadScope.ProfileID)
+	if err := query.ReadScope.Validate(); err != nil {
+		return CallReadQuery{}, newError(CodeValidation, "read scope must select one profile or all profiles", err)
+	}
+	scope, workspaceID, err := NormalizeReadScope(query.Scope, query.WorkspaceID)
+	if err != nil {
+		return CallReadQuery{}, newError(CodeValidation, "invalid call read scope", err)
+	}
+	query.Scope = scope
+	query.WorkspaceID = workspaceID
+	return query, nil
+}
+
+// CallReadQuery selects one profile or the explicit all-profile aggregate call population.
 type CallReadQuery struct {
 	ReadScope   store.ReadScope
 	Scope       Scope
@@ -74,7 +111,8 @@ func (s *Service) List(ctx context.Context, query CallListQuery) (CallPage, erro
 		return CallPage{}, err
 	}
 	query = normalizeCallListQuery(query)
-	if err := validateReadQuery(query.CallReadQuery); err != nil {
+	query.CallReadQuery, err = NormalizeReadQuery(query.CallReadQuery)
+	if err != nil {
 		return CallPage{}, err
 	}
 	return reader.ListCalls(ctx, query)
@@ -86,8 +124,8 @@ func (s *Service) GetRead(ctx context.Context, query CallReadQuery, callID strin
 	if err != nil {
 		return CallRecord{}, err
 	}
-	query = normalizeCallReadQuery(query)
-	if err := validateReadQuery(query); err != nil {
+	query, err = NormalizeReadQuery(query)
+	if err != nil {
 		return CallRecord{}, err
 	}
 	callID = strings.TrimSpace(callID)
@@ -110,11 +148,7 @@ func (s *Service) Result(ctx context.Context, query CallReadQuery, callID string
 			nil,
 		)
 	}
-	mailbox, err := s.payloadStore()
-	if err != nil {
-		return ResultPayload{}, err
-	}
-	payload, err := mailbox.GetCallPayload(ctx, record.WorkspaceID, record.ResultRef)
+	payload, err := s.readPayload(ctx, record.WorkspaceID, record.ResultRef)
 	if err != nil {
 		return ResultPayload{}, err
 	}
@@ -127,11 +161,7 @@ func (s *Service) Prompt(ctx context.Context, query CallReadQuery, callID string
 	if err != nil {
 		return PromptPayload{}, err
 	}
-	mailbox, err := s.payloadStore()
-	if err != nil {
-		return PromptPayload{}, err
-	}
-	payload, err := mailbox.GetCallPayload(ctx, record.WorkspaceID, record.PromptRef)
+	payload, err := s.readPayload(ctx, record.WorkspaceID, record.PromptRef)
 	if err != nil {
 		return PromptPayload{}, err
 	}
@@ -147,11 +177,7 @@ func (s *Service) Superseded(ctx context.Context, query CallReadQuery, callID st
 	if strings.TrimSpace(record.SupersededRef) == "" {
 		return ResultPayload{}, newError(CodeNotSettled, "call has no superseded result evidence", nil)
 	}
-	mailbox, err := s.payloadStore()
-	if err != nil {
-		return ResultPayload{}, err
-	}
-	payload, err := mailbox.GetCallPayload(ctx, record.WorkspaceID, record.SupersededRef)
+	payload, err := s.readPayload(ctx, record.WorkspaceID, record.SupersededRef)
 	if err != nil {
 		return ResultPayload{}, err
 	}
@@ -164,33 +190,23 @@ func (s *Service) ListMessages(ctx context.Context, query MessageListQuery) (Mes
 	if err != nil {
 		return MessagePage{}, err
 	}
-	query.CallReadQuery = normalizeCallReadQuery(query.CallReadQuery)
+	query.CallReadQuery, err = NormalizeReadQuery(query.CallReadQuery)
+	if err != nil {
+		return MessagePage{}, err
+	}
 	query.SessionID = strings.TrimSpace(query.SessionID)
 	query.Cursor = strings.TrimSpace(query.Cursor)
 	query.Limit = normalizeReadLimit(query.Limit)
-	if err := validateReadQuery(query.CallReadQuery); err != nil {
-		return MessagePage{}, err
-	}
 	return reader.ListMessages(ctx, query)
 }
 
 func normalizeCallListQuery(query CallListQuery) CallListQuery {
-	query.CallReadQuery = normalizeCallReadQuery(query.CallReadQuery)
 	query.Caller = strings.TrimSpace(query.Caller)
 	query.ChildSessionID = strings.TrimSpace(query.ChildSessionID)
 	query.RootSessionID = strings.TrimSpace(query.RootSessionID)
 	query.Agent = strings.TrimSpace(query.Agent)
 	query.Cursor = strings.TrimSpace(query.Cursor)
 	query.Limit = normalizeReadLimit(query.Limit)
-	return query
-}
-
-func normalizeCallReadQuery(query CallReadQuery) CallReadQuery {
-	query.ReadScope.ProfileID = strings.TrimSpace(query.ReadScope.ProfileID)
-	query.WorkspaceID = strings.TrimSpace(query.WorkspaceID)
-	if query.Scope == "" && query.WorkspaceID != "" {
-		query.Scope = ScopeWorkspace
-	}
 	return query
 }
 
@@ -202,29 +218,6 @@ func normalizeReadLimit(limit int) int {
 		return MaxReadLimit
 	}
 	return limit
-}
-
-func validateReadQuery(query CallReadQuery) error {
-	if err := query.ReadScope.Validate(); err != nil {
-		return newError(CodeValidation, "read scope must select one profile or all profiles", err)
-	}
-	switch query.Scope {
-	case "":
-		if query.WorkspaceID != "" {
-			return newError(CodeValidation, "workspace_id requires workspace scope", nil)
-		}
-	case ScopeGlobal:
-		if query.WorkspaceID != "" {
-			return newError(CodeValidation, "global scope requires an empty workspace_id", nil)
-		}
-	case ScopeWorkspace:
-		if query.WorkspaceID == "" {
-			return newError(CodeValidation, "workspace scope requires workspace_id", nil)
-		}
-	default:
-		return newError(CodeValidation, fmt.Sprintf("unsupported scope %q", query.Scope), nil)
-	}
-	return nil
 }
 
 func (s *Service) callListStore() (CallListStore, error) {
@@ -257,4 +250,12 @@ func (s *Service) payloadStore() (PayloadStore, error) {
 		return nil, errors.New("calls: store does not implement payload reads")
 	}
 	return reader, nil
+}
+
+func (s *Service) readPayload(ctx context.Context, workspaceID, ref string) ([]byte, error) {
+	reader, err := s.payloadStore()
+	if err != nil {
+		return nil, err
+	}
+	return reader.GetCallPayload(ctx, strings.TrimSpace(workspaceID), strings.TrimSpace(ref))
 }

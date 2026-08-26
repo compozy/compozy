@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/contracts"
 )
 
+// RequireCallSettlementActor accepts only the child session bound to the call.
 func RequireCallSettlementActor(record CallRecord, actor SettlementActor) error {
 	if strings.TrimSpace(actor.Kind) != "agent_session" ||
 		strings.TrimSpace(actor.ID) != strings.TrimSpace(record.ChildSessionID) {
@@ -18,17 +19,19 @@ func RequireCallSettlementActor(record CallRecord, actor SettlementActor) error 
 	return nil
 }
 
+// Return validates and settles one result from its bound child session.
 func (s *Service) Return(ctx context.Context, input ReturnInput) (Settlement, error) {
+	callID := strings.TrimSpace(input.CallID)
 	childID := strings.TrimSpace(input.ChildSessionID)
 	if childID == "" {
 		childID = strings.TrimSpace(input.Actor.ID)
 	}
 	var record CallRecord
 	var err error
-	if strings.TrimSpace(input.CallID) == "" {
+	if callID == "" {
 		record, err = s.store.GetOpenCallForChild(ctx, childID)
 	} else {
-		record, err = s.store.GetCallForSettlement(ctx, input.CallID)
+		record, err = s.store.GetCallForSettlement(ctx, callID)
 	}
 	if err != nil {
 		return Settlement{}, err
@@ -61,9 +64,6 @@ func (s *Service) returnPayload(
 	if len(issues) > 0 {
 		return s.handleInvalidResult(ctx, record, issues, childLive)
 	}
-	if record.RepairAttempts > 0 {
-		verdict = VerdictRepaired
-	}
 	return s.settleWithPayload(ctx, record, payload, verdict)
 }
 
@@ -76,11 +76,8 @@ func (s *Service) validateReturnedPayload(
 		return nil, "", []contracts.ValidationIssue{{Path: "$", Message: "result must be valid JSON"}}, nil
 	}
 	if record.ExpectDigest == "" {
-		clean, _, reject := contracts.SanitizeText(string(raw))
-		if reject || !json.Valid([]byte(clean)) {
-			return nil, "", []contracts.ValidationIssue{{Path: "$", Message: "result contains unsafe secret material"}}, nil
-		}
-		return json.RawMessage(clean), VerdictReturned, nil, nil
+		clean, issues := sanitizeJSONResult(raw)
+		return clean, VerdictReturned, issues, nil
 	}
 	contract, err := s.registry.Resolve(ctx, record.ExpectDigest)
 	if err != nil {
@@ -103,16 +100,16 @@ func (s *Service) validateReturnedPayload(
 			Message: "result contains secret material in a contract-constrained field",
 		}}, nil
 	}
-	clean, _, reject := contracts.SanitizeText(string(raw))
-	if reject || !json.Valid([]byte(clean)) {
-		return nil, "", []contracts.ValidationIssue{{Path: "$", Message: "result contains unsafe secret material"}}, nil
+	clean, issues := sanitizeJSONResult(raw)
+	if len(issues) > 0 {
+		return nil, "", issues, nil
 	}
-	verdict, validateErr := s.registry.Validate(ctx, record.ExpectDigest, json.RawMessage(clean))
+	verdict, validateErr := s.registry.Validate(ctx, record.ExpectDigest, clean)
 	if validateErr != nil {
 		return nil, "", nil, validateErr
 	}
 	if verdict.Valid {
-		payload := json.RawMessage(clean)
+		payload := clean
 		if verdict.Unwrapped {
 			payload = contracts.UnwrapSingleObject(payload)
 		}
@@ -154,6 +151,7 @@ func (s *Service) settleWithPayload(
 	payload json.RawMessage,
 	verdict Verdict,
 ) (Settlement, error) {
+	verdict = effectiveVerdict(record, verdict)
 	outcome, err := contracts.EnforceBudget(record.ResultBudget, payload)
 	if err != nil {
 		settled, settleErr := s.settleTerminal(ctx, record, SettlementMutation{
@@ -200,9 +198,6 @@ func (s *Service) returnFinalText(
 				return Settlement{}, err
 			}
 			if len(issues) == 0 {
-				if record.RepairAttempts > 0 {
-					return s.settleWithPayload(ctx, record, payload, VerdictRepaired)
-				}
 				return s.settleWithPayload(ctx, record, payload, VerdictExtracted)
 			}
 			if newestIssues == nil {
@@ -250,8 +245,11 @@ func (s *Service) parkSettledChild(ctx context.Context, record CallRecord) error
 	}
 	now := s.now().UTC()
 	eligible, err := mailbox.ParkCallChild(ctx, childID, now, now.Add(record.IdleTTL))
-	if err != nil || !eligible {
-		return err
+	if err != nil {
+		return fmt.Errorf("calls: inspect child %q park eligibility: %w", childID, err)
+	}
+	if !eligible {
+		return nil
 	}
 	if err := s.invoker.StopManaged(ctx, childID, "call child parked"); err != nil {
 		clearErr := mailbox.ClearCallChildIdleClock(ctx, childID, now)
@@ -283,17 +281,34 @@ func (s *Service) recordSupersededResult(
 	record CallRecord,
 	payload json.RawMessage,
 ) (Settlement, error) {
-	clean, _, reject := contracts.SanitizeText(string(payload))
-	if reject {
-		return Settlement{}, newError(CodeResultInvalid, "late result contains unsafe secret material", nil)
+	clean, issues := sanitizeJSONResult(payload)
+	if len(issues) > 0 {
+		return Settlement{}, newError(CodeResultInvalid, issues[0].Message, nil)
 	}
-	raw := []byte(clean)
-	ref := contracts.OutputRefForPayload(raw)
+	ref := contracts.OutputRefForPayload(clean)
 	updated, err := s.store.SettleCall(ctx, SettlementMutation{
-		CallID: record.CallID, Superseded: raw, SupersededRef: ref, SettledAt: s.now().UTC(),
+		CallID: record.CallID, Superseded: clean, SupersededRef: ref, SettledAt: s.now().UTC(),
 	})
 	if err != nil {
 		return Settlement{}, err
 	}
 	return Settlement{Call: updated}, newError(CodeAlreadySettled, fmt.Sprintf("call is %s", record.State), nil)
+}
+
+func effectiveVerdict(record CallRecord, verdict Verdict) Verdict {
+	if record.RepairAttempts > 0 {
+		return VerdictRepaired
+	}
+	return verdict
+}
+
+func sanitizeJSONResult(raw json.RawMessage) (json.RawMessage, []contracts.ValidationIssue) {
+	if !json.Valid(raw) {
+		return nil, []contracts.ValidationIssue{{Path: "$", Message: "result must be valid JSON"}}
+	}
+	clean, _, reject := contracts.SanitizeText(string(raw))
+	if reject || !json.Valid([]byte(clean)) {
+		return nil, []contracts.ValidationIssue{{Path: "$", Message: "result contains unsafe secret material"}}
+	}
+	return json.RawMessage(clean), nil
 }

@@ -140,6 +140,7 @@ describe("DesktopMenubar attention navigation", () => {
 
     await user.click(screen.getByTestId("os-attention-call-tree:ses_root"));
 
+    expect(userOpen).toHaveBeenCalledTimes(1);
     expect(userOpen.mock.calls[0]![0]).toMatchObject({
       app: "agents",
       route: {

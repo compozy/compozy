@@ -3,8 +3,6 @@ package task
 import (
 	"fmt"
 	"strings"
-
-	"github.com/compozy/compozy/internal/contracts"
 )
 
 // Validate reports whether the task-run record contains the canonical persisted shape.
@@ -41,20 +39,7 @@ func (r Run) Validate() error {
 }
 
 func validateRunResultContract(r Run) error {
-	hasDigest := strings.TrimSpace(r.ExpectDigest) != ""
-	if hasDigest != (r.ResultBudget != nil) {
-		return fmt.Errorf("%w: task_run result contract snapshot must be entirely set or empty", ErrValidation)
-	}
-	if !hasDigest {
-		return nil
-	}
-	if r.ResultBudget.MaxBytes <= 0 {
-		return fmt.Errorf("%w: task_run.result_budget.max_bytes must be positive", ErrValidation)
-	}
-	if r.ResultBudget.Overflow != contracts.OverflowStore && r.ResultBudget.Overflow != contracts.OverflowReject {
-		return fmt.Errorf("%w: task_run.result_budget.overflow is invalid: %q", ErrValidation, r.ResultBudget.Overflow)
-	}
-	return nil
+	return validatePersistedResultContract(r.ExpectDigest, r.ResultBudget, "task_run")
 }
 
 func validateRunIdentity(r Run) error {

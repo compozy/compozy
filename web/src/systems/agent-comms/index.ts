@@ -1,5 +1,5 @@
-// Public surface for the agent-comms system. Consumers import from
-// `@/systems/agent-comms` and never reach into a subdirectory.
+// Runtime consumers import from `@/systems/agent-comms`; Storybook and tests may
+// use the `/mocks` entry point to stage contract-faithful data.
 
 // Types
 export type {
@@ -42,6 +42,7 @@ export { agentCommsKeys } from "./lib/query-keys";
 export {
   CALLS_PANEL_PAGE_SIZE,
   CALLS_TREE_PAGE_SIZE,
+  LIVE_CALL_POLL_INTERVAL,
   callCountOptions,
   callDetailOptions,
   callMessagesOptions,
@@ -131,6 +132,7 @@ export { useCallDetail, type CallDetailModel } from "./hooks/use-call-detail";
 export { useCallMutations } from "./hooks/use-call-mutations";
 export { useCallCount, useCallCounts, type CallCountFilter } from "./hooks/use-call-counts";
 export { useAgentCallCompose, type AgentCallComposeModel } from "./hooks/use-agent-call-compose";
+export { useCallsById, type CallsByIdModel } from "./hooks/use-calls-by-id";
 
 // Components
 export {
@@ -160,7 +162,6 @@ export { AgentCallTurnCard } from "./components/agent-call-turn-card";
 export { AgentCallTurnFanout } from "./components/agent-call-turn-fanout";
 export { AgentSyntheticTurn } from "./components/agent-synthetic-turn";
 export { AgentCallInvocationCard } from "./components/agent-call-invocation-card";
-export { useCallsById, type CallsByIdModel } from "./hooks/use-calls-by-id";
 export {
   AgentCallsInspectorPanel,
   type CallDirectionSection,

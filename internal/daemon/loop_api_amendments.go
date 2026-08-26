@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/compozy/compozy/internal/contracts"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -77,6 +78,6 @@ func boundedAmendmentValue(raw json.RawMessage) (
 		return redacted, nil, nil
 	}
 	return nil, &contract.LoopAmendmentValueSummary{
-		ByteSize: len(redacted), ContentHash: looppkg.OutputRefForPayload(redacted),
+		ByteSize: len(redacted), ContentHash: contracts.OutputRefForPayload(redacted),
 	}, nil
 }

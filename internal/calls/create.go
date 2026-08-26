@@ -16,8 +16,9 @@ import (
 	"github.com/compozy/compozy/internal/task"
 )
 
+// Create admits one durable call and starts its activation when capacity is available.
 func (s *Service) Create(ctx context.Context, input CreateInput) (CallRecord, error) {
-	normalized, target, roster, err := s.normalizeCreate(ctx, input)
+	normalized, target, err := s.normalizeCreate(ctx, input)
 	if err != nil {
 		return CallRecord{}, err
 	}
@@ -37,13 +38,14 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (CallRecord, er
 	if result.Record.ActivationRunID == "" {
 		return result.Record, nil
 	}
-	activated, err := s.activateFastPath(ctx, result.Record, prepared, roster)
+	activated, err := s.activateFastPath(ctx, result.Record, prepared)
 	if err != nil {
 		return CallRecord{}, err
 	}
 	return activated, nil
 }
 
+// CreateBatch admits a bounded collection and reports each item independently.
 func (s *Service) CreateBatch(ctx context.Context, inputs []CreateInput) ([]BatchOutcome, error) {
 	if len(inputs) == 0 {
 		return nil, newError(CodeBatchEmpty, "at least one call is required", nil)
@@ -76,7 +78,7 @@ func (s *Service) CreateBatch(ctx context.Context, inputs []CreateInput) ([]Batc
 func (s *Service) normalizeCreate(
 	ctx context.Context,
 	input CreateInput,
-) (CreateInput, TargetContext, []AgentRosterEntry, error) {
+) (CreateInput, TargetContext, error) {
 	in := input
 	in.ProfileID = strings.TrimSpace(in.ProfileID)
 	in.WorkspaceID = strings.TrimSpace(in.WorkspaceID)
@@ -89,7 +91,7 @@ func (s *Service) normalizeCreate(
 	in.Caller.WorkspaceID = strings.TrimSpace(in.Caller.WorkspaceID)
 	cleanPrompt, _, rejectPrompt := contracts.SanitizeText(in.Prompt)
 	if rejectPrompt {
-		return CreateInput{}, TargetContext{}, nil, newError(
+		return CreateInput{}, TargetContext{}, newError(
 			CodeValidation,
 			"call prompt contains unsafe secret material",
 			nil,
@@ -104,18 +106,18 @@ func (s *Service) normalizeCreate(
 		}
 	}
 	if err := validateCreateIdentity(in); err != nil {
-		return CreateInput{}, TargetContext{}, nil, err
+		return CreateInput{}, TargetContext{}, err
 	}
 	if in.IdleTTL == 0 {
 		in.IdleTTL = s.idleTTL
 	}
 	if in.IdleTTL <= 0 {
-		return CreateInput{}, TargetContext{}, nil, newError(CodeValidation, "idle_ttl must be positive", nil)
+		return CreateInput{}, TargetContext{}, newError(CodeValidation, "idle_ttl must be positive", nil)
 	}
 	if in.Deadline != nil {
 		deadline := in.Deadline.UTC()
 		if !deadline.After(s.now().UTC()) {
-			return CreateInput{}, TargetContext{}, nil, newError(CodeDeadlineInvalid, "deadline must be in the future", nil)
+			return CreateInput{}, TargetContext{}, newError(CodeDeadlineInvalid, "deadline must be in the future", nil)
 		}
 		in.Deadline = &deadline
 	}
@@ -125,18 +127,24 @@ func (s *Service) normalizeCreate(
 	}
 	target, roster, err := s.directory.ResolveCallTarget(ctx, in)
 	if err != nil {
-		return CreateInput{}, TargetContext{}, roster, err
+		return CreateInput{}, TargetContext{}, err
 	}
-	if err := validateTargetContext(in, target, roster, s.config.MaxDepth, s.config.MaxChildren); err != nil {
-		return CreateInput{}, TargetContext{}, roster, err
+	limits := targetValidationLimits{maxDepth: s.config.MaxDepth, maxChildren: s.config.MaxChildren}
+	if err := validateTargetContext(in, target, roster, limits); err != nil {
+		return CreateInput{}, TargetContext{}, err
 	}
 	if widening := wideningPermissionAtoms(target.CallerPolicy, in.Narrow.Policy()); len(widening) > 0 {
-		return CreateInput{}, TargetContext{}, roster, &Error{
+		return CreateInput{}, TargetContext{}, &Error{
 			Code: CodeWideningRejected, Message: "permission narrowing widens the caller set",
 			Widening: widening,
 		}
 	}
-	return in, target, roster, nil
+	return in, target, nil
+}
+
+type targetValidationLimits struct {
+	maxDepth    int
+	maxChildren int
 }
 
 func validateCreateIdentity(in CreateInput) error {
@@ -173,8 +181,7 @@ func validateTargetContext(
 	in CreateInput,
 	target TargetContext,
 	roster []AgentRosterEntry,
-	maxDepth int,
-	maxChildren int,
+	limits targetValidationLimits,
 ) error {
 	if in.Target.Agent != "" && strings.TrimSpace(target.AgentName) == "" {
 		names := make([]string, 0, len(roster))
@@ -197,22 +204,22 @@ func validateTargetContext(
 	if !target.Allowed {
 		return newError(CodeTargetDenied, "target is outside the caller lineage", nil)
 	}
-	if in.Target.Agent != "" && target.Depth > maxDepth {
-		return newError(CodeDepthExceeded, fmt.Sprintf("call depth %d exceeds maximum %d", target.Depth, maxDepth), nil)
+	if in.Target.Agent != "" && target.Depth > limits.maxDepth {
+		return newError(CodeDepthExceeded, fmt.Sprintf("call depth %d exceeds maximum %d", target.Depth, limits.maxDepth), nil)
 	}
-	if in.Target.Agent != "" && target.LiveChildren >= maxChildren {
-		return newError(CodeChildrenCap, fmt.Sprintf("parent has %d live children; maximum is %d", target.LiveChildren, maxChildren), nil)
+	if in.Target.Agent != "" && target.LiveChildren >= limits.maxChildren {
+		return newError(CodeChildrenCap, fmt.Sprintf("parent has %d live children; maximum is %d", target.LiveChildren, limits.maxChildren), nil)
 	}
 	if in.Target.SessionID != "" {
-		switch strings.TrimSpace(target.State) {
-		case "expired":
+		switch TargetState(strings.TrimSpace(string(target.State))) {
+		case TargetStateExpired:
 			expiredAt := target.ExpiredAt.UTC().Format(time.RFC3339Nano)
 			return &Error{
 				Code: CodeTargetExpired, Message: fmt.Sprintf("target expired at %s; call the agent fresh", expiredAt),
 				ExpiredAt: expiredAt, Suggestion: "call the agent fresh",
 			}
-		case "missing", "":
-			return newError(CodeTargetNotFound, fmt.Sprintf("target session %q was not found", in.Target.SessionID), nil)
+		case TargetStateMissing, "":
+			return newError(CodeNotFound, fmt.Sprintf("target session %q was not found", in.Target.SessionID), nil)
 		}
 	}
 	return nil
@@ -272,7 +279,7 @@ func (s *Service) prepareAdmission(in CreateInput, target TargetContext) (Admiss
 	}
 	return Admission{
 		Record: record, Contract: contract, Prompt: []byte(in.Prompt), MaxChildren: s.config.MaxChildren,
-		Permissions: flattenPermissions(in.Narrow), Narrow: in.Narrow,
+		Permissions: EncodePermissionAtoms(in.Narrow), Narrow: in.Narrow,
 		Activation: activation, FollowUp: followUp,
 	}, nil
 }
@@ -294,7 +301,7 @@ func requestDigest(record CallRecord, prompt string, narrow PermissionAtoms) (st
 		TargetAgent: record.AgentName, TargetSession: record.ChildSessionID,
 		Prompt: prompt, ExpectDigest: record.ExpectDigest, Budget: record.ResultBudget.MaxBytes,
 		Overflow: string(record.ResultBudget.Overflow), Strict: record.Strict,
-		TTL: int64(record.IdleTTL), Runtime: record.Runtime, Permissions: flattenPermissions(narrow),
+		TTL: int64(record.IdleTTL), Runtime: record.Runtime, Permissions: EncodePermissionAtoms(narrow),
 	}
 	if !record.DeadlineAt.IsZero() {
 		identity.Deadline = record.DeadlineAt.UTC().Format(time.RFC3339Nano)
@@ -307,14 +314,17 @@ func requestDigest(record CallRecord, prompt string, narrow PermissionAtoms) (st
 	return "sha256:" + hex.EncodeToString(digest[:]), nil
 }
 
-func flattenPermissions(atoms PermissionAtoms) []string {
+// EncodePermissionAtoms returns the canonical sorted persistence vocabulary for narrowed permissions.
+func EncodePermissionAtoms(atoms PermissionAtoms) []string {
 	groups := []struct {
 		name   string
 		values []string
 	}{
-		{"tools", atoms.Tools}, {"skills", atoms.Skills}, {"mcp_servers", atoms.MCPServers},
-		{"workspace_paths", atoms.WorkspacePaths}, {"network_channels", atoms.NetworkChannels},
-		{"sandbox_profiles", atoms.SandboxProfiles},
+		{name: "tools", values: atoms.Tools}, {name: "skills", values: atoms.Skills},
+		{name: "mcp_servers", values: atoms.MCPServers},
+		{name: "workspace_paths", values: atoms.WorkspacePaths},
+		{name: "network_channels", values: atoms.NetworkChannels},
+		{name: "sandbox_profiles", values: atoms.SandboxProfiles},
 	}
 	result := make([]string, 0)
 	for _, group := range groups {
@@ -328,17 +338,46 @@ func flattenPermissions(atoms PermissionAtoms) []string {
 	return result
 }
 
+// DecodePermissionAtoms restores canonical persisted permission atoms.
+func DecodePermissionAtoms(encoded []string) (PermissionAtoms, error) {
+	var result PermissionAtoms
+	for _, atom := range encoded {
+		kind, value, ok := strings.Cut(atom, ":")
+		value = strings.TrimSpace(value)
+		if !ok || value == "" {
+			return PermissionAtoms{}, fmt.Errorf("invalid call permission atom %q", atom)
+		}
+		switch kind {
+		case "tools":
+			result.Tools = append(result.Tools, value)
+		case "skills":
+			result.Skills = append(result.Skills, value)
+		case "mcp_servers":
+			result.MCPServers = append(result.MCPServers, value)
+		case "workspace_paths":
+			result.WorkspacePaths = append(result.WorkspacePaths, value)
+		case "network_channels":
+			result.NetworkChannels = append(result.NetworkChannels, value)
+		case "sandbox_profiles":
+			result.SandboxProfiles = append(result.SandboxProfiles, value)
+		default:
+			return PermissionAtoms{}, fmt.Errorf("unknown call permission kind %q", kind)
+		}
+	}
+	return result, nil
+}
+
 func (s *Service) activationFor(record CallRecord, target TargetContext) (*ActivationSpec, *Delivery, error) {
-	if record.AgentName == "" && strings.TrimSpace(target.State) == "active" {
-		return nil, &Delivery{CallID: record.CallID, RecipientSessionID: record.ChildSessionID, Kind: "message"}, nil
+	if record.AgentName == "" && TargetState(strings.TrimSpace(string(target.State))) == TargetStateActive {
+		return nil, &Delivery{CallID: record.CallID, RecipientSessionID: record.ChildSessionID, Kind: DeliveryKindMessage}, nil
 	}
 	runID, err := s.newID("run")
 	if err != nil {
 		return nil, nil, fmt.Errorf("calls: generate activation run id: %w", err)
 	}
-	kind := "spawn"
+	kind := ActivationKindSpawn
 	if record.AgentName == "" {
-		kind = "revive"
+		kind = ActivationKindRevive
 	}
 	return &ActivationSpec{
 		RunID: runID, CallID: record.CallID, WorkspaceID: record.WorkspaceID,
@@ -352,7 +391,6 @@ func (s *Service) activateFastPath(
 	ctx context.Context,
 	record CallRecord,
 	admission Admission,
-	_ []AgentRosterEntry,
 ) (CallRecord, error) {
 	if s.claimer == nil || s.invoker == nil || admission.Activation == nil {
 		return record, nil

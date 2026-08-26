@@ -7,7 +7,6 @@ package sqlcgen
 
 import (
 	"context"
-	"database/sql"
 )
 
 const getNetworkWatchEventsCursor = `-- name: GetNetworkWatchEventsCursor :one
@@ -26,22 +25,22 @@ func (q *Queries) GetNetworkWatchEventsCursor(ctx context.Context, workspaceID s
 const listParkedWatchEventSubscriptions = `-- name: ListParkedWatchEventSubscriptions :many
 SELECT lr.workspace_id, lr.profile_id, lr.id, lr.loop_name, lr.generation, lr.inputs_json,
        lr.definition_digest, lds.definition_json, lgo.node_id,
-       CAST(COALESCE(json_extract(lgo.output_ref, '$.payload_ref'), '') AS TEXT) AS output_ref
+       lgo.payload_ref AS output_ref
 FROM loop_runs lr
 JOIN loop_definition_snapshots lds
   ON lds.workspace_id = lr.workspace_id
  AND lds.definition_digest = lr.definition_digest
-JOIN loop_generation_outputs lgo
+JOIN loop_generation_output_payloads lgo
   ON lgo.loop_run_id = lr.id
  AND lgo.generation = lr.generation
 WHERE lr.status = ?1
-  AND json_extract(json_extract(lgo.output_ref, '$.payload_ref'), '$.kind') = ?2
+  AND lgo.payload_kind = ?2
 ORDER BY lr.workspace_id ASC, lr.id ASC, lgo.node_id ASC
 `
 
 type ListParkedWatchEventSubscriptionsParams struct {
-	Status     string         `json:"status"`
-	OutputKind sql.NullString `json:"output_kind"`
+	Status     string `json:"status"`
+	OutputKind string `json:"output_kind"`
 }
 
 type ListParkedWatchEventSubscriptionsRow struct {
@@ -94,24 +93,24 @@ func (q *Queries) ListParkedWatchEventSubscriptions(ctx context.Context, arg Lis
 const listParkedWatchEventSubscriptionsForLoopRun = `-- name: ListParkedWatchEventSubscriptionsForLoopRun :many
 SELECT lr.workspace_id, lr.profile_id, lr.id, lr.loop_name, lr.generation, lr.inputs_json,
        lr.definition_digest, lds.definition_json, lgo.node_id,
-       CAST(COALESCE(json_extract(lgo.output_ref, '$.payload_ref'), '') AS TEXT) AS output_ref
+       lgo.payload_ref AS output_ref
 FROM loop_runs lr
 JOIN loop_definition_snapshots lds
   ON lds.workspace_id = lr.workspace_id
  AND lds.definition_digest = lr.definition_digest
-JOIN loop_generation_outputs lgo
+JOIN loop_generation_output_payloads lgo
   ON lgo.loop_run_id = lr.id
  AND lgo.generation = lr.generation
 WHERE lr.status = ?1
-  AND json_extract(json_extract(lgo.output_ref, '$.payload_ref'), '$.kind') = ?2
+  AND lgo.payload_kind = ?2
   AND lr.id = ?3
 ORDER BY lr.workspace_id ASC, lr.id ASC, lgo.node_id ASC
 `
 
 type ListParkedWatchEventSubscriptionsForLoopRunParams struct {
-	Status     string         `json:"status"`
-	OutputKind sql.NullString `json:"output_kind"`
-	LoopRunID  string         `json:"loop_run_id"`
+	Status     string `json:"status"`
+	OutputKind string `json:"output_kind"`
+	LoopRunID  string `json:"loop_run_id"`
 }
 
 type ListParkedWatchEventSubscriptionsForLoopRunRow struct {
@@ -164,16 +163,16 @@ func (q *Queries) ListParkedWatchEventSubscriptionsForLoopRun(ctx context.Contex
 const listParkedWatchEventSubscriptionsPage = `-- name: ListParkedWatchEventSubscriptionsPage :many
 SELECT lr.workspace_id, lr.profile_id, lr.id, lr.loop_name, lr.generation, lr.inputs_json,
        lr.definition_digest, lds.definition_json, lgo.node_id,
-       CAST(COALESCE(json_extract(lgo.output_ref, '$.payload_ref'), '') AS TEXT) AS output_ref
+       lgo.payload_ref AS output_ref
 FROM loop_runs lr
 JOIN loop_definition_snapshots lds
   ON lds.workspace_id = lr.workspace_id
  AND lds.definition_digest = lr.definition_digest
-JOIN loop_generation_outputs lgo
+JOIN loop_generation_output_payloads lgo
   ON lgo.loop_run_id = lr.id
  AND lgo.generation = lr.generation
 WHERE lr.status = ?1
-  AND json_extract(json_extract(lgo.output_ref, '$.payload_ref'), '$.kind') = ?2
+  AND lgo.payload_kind = ?2
   AND (
     lr.workspace_id > ?3
     OR (lr.workspace_id = ?3 AND lr.id > ?4)
@@ -186,12 +185,12 @@ LIMIT ?6
 `
 
 type ListParkedWatchEventSubscriptionsPageParams struct {
-	Status            string         `json:"status"`
-	OutputKind        sql.NullString `json:"output_kind"`
-	CursorWorkspaceID string         `json:"cursor_workspace_id"`
-	CursorLoopRunID   string         `json:"cursor_loop_run_id"`
-	CursorNodeID      string         `json:"cursor_node_id"`
-	RowLimit          int64          `json:"row_limit"`
+	Status            string `json:"status"`
+	OutputKind        string `json:"output_kind"`
+	CursorWorkspaceID string `json:"cursor_workspace_id"`
+	CursorLoopRunID   string `json:"cursor_loop_run_id"`
+	CursorNodeID      string `json:"cursor_node_id"`
+	RowLimit          int64  `json:"row_limit"`
 }
 
 type ListParkedWatchEventSubscriptionsPageRow struct {

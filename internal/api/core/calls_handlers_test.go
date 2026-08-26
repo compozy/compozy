@@ -1,7 +1,6 @@
 package core_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -27,6 +26,7 @@ type callsServiceStub struct {
 	createBatch   func(context.Context, []callspkg.CreateInput) ([]callspkg.BatchOutcome, error)
 	list          func(context.Context, callspkg.CallListQuery) (callspkg.CallPage, error)
 	get           func(context.Context, callspkg.CallReadQuery, string) (callspkg.CallRecord, error)
+	project       func(context.Context, []callspkg.CallRecord) ([]callspkg.ProjectionContent, error)
 	result        func(context.Context, callspkg.CallReadQuery, string) (callspkg.ResultPayload, error)
 	prompt        func(context.Context, callspkg.CallReadQuery, string) (callspkg.PromptPayload, error)
 	superseded    func(context.Context, callspkg.CallReadQuery, string) (callspkg.ResultPayload, error)
@@ -65,6 +65,16 @@ func (s callsServiceStub) GetRead(
 	callID string,
 ) (callspkg.CallRecord, error) {
 	return s.get(ctx, query, callID)
+}
+
+func (s callsServiceStub) ProjectPayloads(
+	ctx context.Context,
+	records []callspkg.CallRecord,
+) ([]callspkg.ProjectionContent, error) {
+	if s.project == nil {
+		return make([]callspkg.ProjectionContent, len(records)), nil
+	}
+	return s.project(ctx, records)
 }
 
 func (s callsServiceStub) Result(
@@ -177,13 +187,7 @@ func newCallsHandlerRouter(service core.CallsService) *gin.Engine {
 
 func performCallsRequest(t *testing.T, router http.Handler, method, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
-	request := httptest.NewRequest(method, path, bytes.NewBufferString(body))
-	if body != "" {
-		request.Header.Set("Content-Type", "application/json")
-	}
-	response := httptest.NewRecorder()
-	router.ServeHTTP(response, request)
-	return response
+	return performRequest(t, router, method, path, []byte(body))
 }
 
 func TestCallsHandlers(t *testing.T) {
@@ -237,15 +241,22 @@ func TestCallsHandlers(t *testing.T) {
 		deadline := performCallsRequest(t, router, http.MethodPost, "/calls", `{
 			"target":{"agent":"reviewer"},"prompt":"Review","deadline_seconds":"soon"
 		}`)
-		if deadline.Code != http.StatusUnprocessableEntity || !strings.Contains(deadline.Body.String(), `"code":"call_deadline_invalid"`) {
+		var deadlineError contract.CallErrorResponse
+		if err := json.Unmarshal(deadline.Body.Bytes(), &deadlineError); err != nil {
+			t.Fatalf("decode deadline error: %v", err)
+		}
+		if deadline.Code != http.StatusUnprocessableEntity || deadlineError.Code != string(callspkg.CodeDeadlineInvalid) {
 			t.Fatalf("invalid deadline response = %d %s", deadline.Code, deadline.Body.String())
 		}
 		unknown := performCallsRequest(t, router, http.MethodPost, "/calls", `{
 			"target":{"agent":"missing"},"prompt":"Review"
 		}`)
-		if unknown.Code != http.StatusNotFound ||
-			!strings.Contains(unknown.Body.String(), `"code":"call_agent_unknown"`) ||
-			!strings.Contains(unknown.Body.String(), `"name":"reviewer"`) {
+		var unknownError contract.CallErrorResponse
+		if err := json.Unmarshal(unknown.Body.Bytes(), &unknownError); err != nil {
+			t.Fatalf("decode unknown-agent error: %v", err)
+		}
+		if unknown.Code != http.StatusNotFound || unknownError.Code != string(callspkg.CodeAgentUnknown) ||
+			len(unknownError.Available) != 1 || unknownError.Available[0].Name != "reviewer" {
 			t.Fatalf("unknown agent response = %d %s", unknown.Code, unknown.Body.String())
 		}
 	})
@@ -273,9 +284,12 @@ func TestCallsHandlers(t *testing.T) {
 				{"target":{"agent":"missing"},"prompt":"two"}
 			]
 		}`)
-		if response.Code != http.StatusOK ||
-			!strings.Contains(response.Body.String(), `"call_id":"call-1"`) ||
-			!strings.Contains(response.Body.String(), `"code":"call_agent_unknown"`) {
+		var payload []contract.CallBatchItemPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("decode batch response: %v", err)
+		}
+		if response.Code != http.StatusOK || len(payload) != 2 || payload[0].CallID != "call-1" ||
+			payload[1].Error == nil || payload[1].Error.Code != string(callspkg.CodeAgentUnknown) {
 			t.Fatalf("batch response = %d %s", response.Code, response.Body.String())
 		}
 	})
@@ -289,8 +303,11 @@ func TestCallsHandlers(t *testing.T) {
 			"/calls?attention=sometimes",
 			"",
 		)
-		if response.Code != http.StatusUnprocessableEntity ||
-			!strings.Contains(response.Body.String(), `"code":"call_validation"`) {
+		var payload contract.CallErrorResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("decode malformed attention error: %v", err)
+		}
+		if response.Code != http.StatusUnprocessableEntity || payload.Code != string(callspkg.CodeValidation) {
 			t.Fatalf("malformed attention response = %d %s", response.Code, response.Body.String())
 		}
 	})
@@ -325,6 +342,16 @@ func TestCallsHandlers(t *testing.T) {
 				}
 				return completed, nil
 			},
+			project: func(_ context.Context, records []callspkg.CallRecord) ([]callspkg.ProjectionContent, error) {
+				projected := make([]callspkg.ProjectionContent, len(records))
+				for index := range records {
+					projected[index] = callspkg.ProjectionContent{
+						Prompt: []byte("Review carefully"), Result: []byte(`{"score":9}`),
+						Superseded: []byte(`{"score":7}`),
+					}
+				}
+				return projected, nil
+			},
 			result: func(_ context.Context, _ callspkg.CallReadQuery, callID string) (callspkg.ResultPayload, error) {
 				return callspkg.ResultPayload{CallID: callID, Bytes: []byte(`{"score":9}`)}, nil
 			},
@@ -358,58 +385,127 @@ func TestCallsHandlers(t *testing.T) {
 			},
 		}
 		router := newCallsHandlerRouter(service)
-		list := performCallsRequest(
-			t,
-			router,
-			http.MethodGet,
-			"/calls?cursor=after-0&limit=7&attention=true&child_session_id=child-1&root_session_id=root-1&agent=reviewer",
-			"",
-		)
-		if list.Code != http.StatusOK || !strings.Contains(list.Body.String(), `"next_cursor":"after-1"`) ||
-			!strings.Contains(list.Body.String(), `"total":247`) ||
-			!strings.Contains(list.Body.String(), `"prompt_preview":"Review carefully"`) ||
-			!strings.Contains(list.Body.String(), `"result_preview":{"score":9}`) {
-			t.Fatalf("list response = %d %s", list.Code, list.Body.String())
-		}
-		detail := performCallsRequest(t, router, http.MethodGet, "/calls/call-1", "")
-		if detail.Code != http.StatusOK || !strings.Contains(detail.Body.String(), `"prompt_preview":"Review carefully"`) ||
-			!strings.Contains(detail.Body.String(), `"first_issue_text":"first issue"`) ||
-			!strings.Contains(detail.Body.String(), `"second_issue_text":"second issue"`) ||
-			!strings.Contains(detail.Body.String(), `"superseded_preview":{"score":7}`) {
-			t.Fatalf("detail response = %d %s", detail.Code, detail.Body.String())
-		}
-		prompt := performCallsRequest(t, router, http.MethodGet, "/calls/call-1/prompt", "")
-		if prompt.Code != http.StatusOK || prompt.Body.String() != `{"call_id":"call-1","prompt":"Review carefully"}` {
-			t.Fatalf("prompt response = %d %s", prompt.Code, prompt.Body.String())
-		}
-		result := performCallsRequest(t, router, http.MethodGet, "/calls/call-1/result", "")
-		if result.Code != http.StatusOK || !strings.Contains(result.Body.String(), `"result":{"score":9}`) {
-			t.Fatalf("result response = %d %s", result.Code, result.Body.String())
-		}
-		superseded := performCallsRequest(t, router, http.MethodGet, "/calls/call-1/superseded", "")
-		if superseded.Code != http.StatusOK ||
-			superseded.Body.String() != `{"call_id":"call-1","result":{"score":7}}` {
-			t.Fatalf("superseded response = %d %s", superseded.Code, superseded.Body.String())
-		}
-		await := performCallsRequest(t, router, http.MethodPost, "/calls/call-1/await", `{"timeout_ms":250}`)
-		if await.Code != http.StatusOK || !strings.Contains(await.Body.String(), `"outcome":"partial"`) ||
-			!strings.Contains(await.Body.String(), `"clamped_timeout_ms":250`) {
-			t.Fatalf("await response = %d %s", await.Code, await.Body.String())
-		}
-		for range 2 {
-			cancel := performCallsRequest(t, router, http.MethodPost, "/calls/call-1/cancel", `{"reason":"stop"}`)
-			if cancel.Code != http.StatusOK || cancel.Body.String() != `{"state":"canceled"}` {
-				t.Fatalf("cancel response = %d %s", cancel.Code, cancel.Body.String())
+
+		t.Run("Should preserve the counted list projection", func(t *testing.T) {
+			response := performCallsRequest(
+				t, router, http.MethodGet,
+				"/calls?cursor=after-0&limit=7&attention=true&child_session_id=child-1&root_session_id=root-1&agent=reviewer",
+				"",
+			)
+			if response.Code != http.StatusOK {
+				t.Fatalf("GET /calls status = %d, body = %s", response.Code, response.Body.String())
 			}
-		}
-		if cancelCalls != 2 {
-			t.Fatalf("Cancel calls = %d, want 2 idempotent requests", cancelCalls)
-		}
-		publish := performCallsRequest(t, router, http.MethodPost,
-			"/workspaces/ws-1/calls/call-1/publish", `{"channel":"reviews","thread_id":"thread-1"}`)
-		if publish.Code != http.StatusOK || publish.Body.String() != `{"network_message_id":"network-1","published":true}` {
-			t.Fatalf("publish response = %d %s", publish.Code, publish.Body.String())
-		}
+			var page contract.CallsResponse
+			if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
+				t.Fatalf("decode list response: %v", err)
+			}
+			if page.NextCursor != "after-1" || page.Total != 247 || len(page.Items) != 1 ||
+				page.Items[0].PromptPreview != "Review carefully" || string(page.Items[0].ResultPreview) != `{"score":9}` {
+				t.Fatalf("list response = %#v", page)
+			}
+		})
+
+		t.Run("Should preserve the detail projection", func(t *testing.T) {
+			response := performCallsRequest(t, router, http.MethodGet, "/calls/call-1", "")
+			if response.Code != http.StatusOK {
+				t.Fatalf("GET /calls/call-1 status = %d, body = %s", response.Code, response.Body.String())
+			}
+			var payload contract.CallPayload
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("decode detail response: %v", err)
+			}
+			if payload.PromptPreview != "Review carefully" || payload.FirstIssueText != "first issue" ||
+				payload.SecondIssueText != "second issue" || string(payload.SupersededPreview) != `{"score":7}` {
+				t.Fatalf("detail response = %#v", payload)
+			}
+		})
+
+		t.Run("Should return exact prompt result and superseded payloads", func(t *testing.T) {
+			promptResponse := performCallsRequest(t, router, http.MethodGet, "/calls/call-1/prompt", "")
+			if promptResponse.Code != http.StatusOK {
+				t.Fatalf("GET prompt status = %d, body = %s", promptResponse.Code, promptResponse.Body.String())
+			}
+			var prompt contract.CallPromptResponse
+			if err := json.Unmarshal(promptResponse.Body.Bytes(), &prompt); err != nil {
+				t.Fatalf("decode prompt response: %v", err)
+			}
+			if prompt.CallID != "call-1" || prompt.Prompt != "Review carefully" {
+				t.Fatalf("prompt response = %#v", prompt)
+			}
+			resultResponse := performCallsRequest(t, router, http.MethodGet, "/calls/call-1/result", "")
+			if resultResponse.Code != http.StatusOK {
+				t.Fatalf("GET result status = %d, body = %s", resultResponse.Code, resultResponse.Body.String())
+			}
+			var result contract.CallResultResponse
+			if err := json.Unmarshal(resultResponse.Body.Bytes(), &result); err != nil {
+				t.Fatalf("decode result response: %v", err)
+			}
+			if result.CallID != "call-1" || string(result.Result) != `{"score":9}` {
+				t.Fatalf("result response = %#v", result)
+			}
+			supersededResponse := performCallsRequest(t, router, http.MethodGet, "/calls/call-1/superseded", "")
+			if supersededResponse.Code != http.StatusOK {
+				t.Fatalf("GET superseded status = %d, body = %s", supersededResponse.Code, supersededResponse.Body.String())
+			}
+			var superseded contract.CallSupersededResponse
+			if err := json.Unmarshal(supersededResponse.Body.Bytes(), &superseded); err != nil {
+				t.Fatalf("decode superseded response: %v", err)
+			}
+			if superseded.CallID != "call-1" || string(superseded.Result) != `{"score":7}` {
+				t.Fatalf("superseded response = %#v", superseded)
+			}
+		})
+
+		t.Run("Should preserve the bounded await response", func(t *testing.T) {
+			response := performCallsRequest(t, router, http.MethodPost, "/calls/call-1/await", `{"timeout_ms":250}`)
+			if response.Code != http.StatusOK {
+				t.Fatalf("POST await status = %d, body = %s", response.Code, response.Body.String())
+			}
+			var payload contract.AwaitCallsResponse
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("decode await response: %v", err)
+			}
+			if payload.Outcome != "partial" || payload.ClampedTimeoutMS != 250 ||
+				len(payload.Settled) != 1 || len(payload.Pending) != 1 || payload.Pending[0] != "call-2" {
+				t.Fatalf("await response = %#v", payload)
+			}
+		})
+
+		t.Run("Should keep cancellation idempotent", func(t *testing.T) {
+			for range 2 {
+				response := performCallsRequest(t, router, http.MethodPost, "/calls/call-1/cancel", `{"reason":"stop"}`)
+				if response.Code != http.StatusOK {
+					t.Fatalf("POST cancel status = %d, body = %s", response.Code, response.Body.String())
+				}
+				var payload contract.CancelCallResponse
+				if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+					t.Fatalf("decode cancel response: %v", err)
+				}
+				if payload.State != "canceled" {
+					t.Fatalf("cancel response = %#v", payload)
+				}
+			}
+			if cancelCalls != 2 {
+				t.Fatalf("Cancel calls = %d, want 2 idempotent requests", cancelCalls)
+			}
+		})
+
+		t.Run("Should publish one Network evidence receipt", func(t *testing.T) {
+			response := performCallsRequest(
+				t, router, http.MethodPost, "/workspaces/ws-1/calls/call-1/publish",
+				`{"channel":"reviews","thread_id":"thread-1"}`,
+			)
+			if response.Code != http.StatusOK {
+				t.Fatalf("POST publish status = %d, body = %s", response.Code, response.Body.String())
+			}
+			var payload contract.PublishCallResponse
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("decode publish response: %v", err)
+			}
+			if payload.NetworkMessageID != "network-1" || !payload.Published {
+				t.Fatalf("publish response = %#v", payload)
+			}
+		})
 	})
 
 	t.Run("Should preserve message send list detail and typed errors", func(t *testing.T) {

@@ -21,6 +21,10 @@ func (a *mockAgent) executeHostedNativeCall(
 	sessionID string,
 	step acpmock.Step,
 ) (diagnostic acpmock.DiagnosticsStep, err error) {
+	toolID, err := hostedNativeToolID(step.Kind)
+	if err != nil {
+		return diagnostic, err
+	}
 	server, err := a.hostedMCPServer(sessionID)
 	if err != nil {
 		return diagnostic, err
@@ -28,13 +32,6 @@ func (a *mockAgent) executeHostedNativeCall(
 	arguments := make(map[string]any)
 	if err := json.Unmarshal(step.RawInput, &arguments); err != nil {
 		return diagnostic, fmt.Errorf("acpmock-driver: decode %s input: %w", step.Kind, err)
-	}
-	toolID := toolspkg.ToolIDCallReturn.String()
-	switch step.Kind {
-	case acpmock.StepKindAgentMessage:
-		toolID = toolspkg.ToolIDAgentMessage.String()
-	case acpmock.StepKindAgentCall:
-		toolID = toolspkg.ToolIDAgentCall.String()
 	}
 	command := exec.CommandContext(ctx, server.Command, server.Args...)
 	command.Env = append(os.Environ(), mcpServerEnvironment(server)...)
@@ -74,6 +71,19 @@ func (a *mockAgent) executeHostedNativeCall(
 		return diagnostic, fmt.Errorf("acpmock-driver: %s succeeded, want error containing %q", toolID, expected)
 	}
 	return diagnostic, nil
+}
+
+func hostedNativeToolID(kind acpmock.StepKind) (string, error) {
+	switch kind {
+	case acpmock.StepKindCallReturn:
+		return toolspkg.ToolIDCallReturn.String(), nil
+	case acpmock.StepKindAgentMessage:
+		return toolspkg.ToolIDAgentMessage.String(), nil
+	case acpmock.StepKindAgentCall:
+		return toolspkg.ToolIDAgentCall.String(), nil
+	default:
+		return "", fmt.Errorf("acpmock-driver: hosted native call kind %q is unsupported", kind)
+	}
 }
 
 func (a *mockAgent) hostedMCPServer(sessionID string) (acpsdk.McpServerStdio, error) {

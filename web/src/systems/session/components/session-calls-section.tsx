@@ -13,11 +13,15 @@ import { useSessionCallsPanel } from "../hooks/use-session-calls-panel";
 
 export interface SessionCallsSectionProps {
   sessionId?: string;
+  liveDataEnabled?: boolean;
 }
 
-export function SessionCallsSection({ sessionId }: SessionCallsSectionProps) {
+export function SessionCallsSection({
+  sessionId,
+  liveDataEnabled = true,
+}: SessionCallsSectionProps) {
   const navigate = useNavigate();
-  const panel = useSessionCallsPanel(sessionId ?? "");
+  const panel = useSessionCallsPanel(sessionId ?? "", liveDataEnabled);
 
   return (
     <AgentCallsInspectorPanel

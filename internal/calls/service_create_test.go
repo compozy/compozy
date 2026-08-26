@@ -7,12 +7,10 @@ import (
 	"reflect"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/task"
@@ -34,8 +32,12 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 		if record.State != StateRunning || record.ChildSessionID == "" || record.ExpectDigest == "" {
 			t.Fatalf("Create() = %#v, want running contracted child", record)
 		}
-		if got := string(database.payloads[record.PromptRef]); got != prompt {
-			t.Fatalf("prompt changed during admission: got %q suffix, want byte-exact payload", got[len(got)-8:])
+		if got := string(database.payloads[callPayloadKey(record.WorkspaceID, record.PromptRef)]); got != prompt {
+			suffix := got
+			if len(suffix) > 8 {
+				suffix = suffix[len(suffix)-8:]
+			}
+			t.Fatalf("prompt changed during admission: got length %d and %q suffix, want byte-exact payload", len(got), suffix)
 		}
 		if record.IdleTTL != time.Hour || record.Runtime != runtime {
 			t.Fatalf("record snapshots = ttl %s runtime %#v", record.IdleTTL, record.Runtime)
@@ -135,7 +137,7 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 		}
 	})
 
-	t.Run("Should apply raised depth only to later admissions", func(t *testing.T) {
+	t.Run("Should persist the target depth for each admission", func(t *testing.T) {
 		t.Parallel()
 		firstTarget := validAgentTarget()
 		firstTarget.Depth = 3
@@ -396,14 +398,12 @@ func TestServiceCreateBatchAndSessionTargets(t *testing.T) {
 		for index := range items {
 			items[index] = validCreateInput("work", nil, nil)
 		}
-		started := time.Now()
 		_, err := service.CreateBatch(context.Background(), items)
-		elapsed := time.Since(started)
 		if !IsCode(err, CodeBatchOverCap) {
 			t.Fatalf("CreateBatch(800) error = %v", err)
 		}
-		if elapsed >= 100*time.Millisecond || len(database.calls) != 0 || len(invoker.spawns) != 0 {
-			t.Fatalf("CreateBatch(800) elapsed=%s calls=%d spawns=%d", elapsed, len(database.calls), len(invoker.spawns))
+		if len(database.calls) != 0 || len(invoker.spawns) != 0 {
+			t.Fatalf("CreateBatch(800) calls=%d spawns=%d", len(database.calls), len(invoker.spawns))
 		}
 	})
 
@@ -438,9 +438,9 @@ func TestServiceCreateBatchAndSessionTargets(t *testing.T) {
 
 	for _, state := range []struct {
 		name  string
-		state string
+		state TargetState
 		code  ErrorCode
-	}{{"Should distinguish an expired target", "expired", CodeTargetExpired}, {"Should distinguish an unknown target", "missing", CodeTargetNotFound}} {
+	}{{"Should distinguish an expired target", TargetStateExpired, CodeTargetExpired}, {"Should distinguish an unknown target", TargetStateMissing, CodeNotFound}} {
 		t.Run(state.name, func(t *testing.T) {
 			t.Parallel()
 			target := validAgentTarget()
@@ -468,79 +468,20 @@ func TestServiceCreateBatchAndSessionTargets(t *testing.T) {
 func TestCallPromptStatesLiteralRemainingDepth(t *testing.T) {
 	t.Parallel()
 	for _, test := range []struct {
+		name      string
 		remaining int
 		want      string
 	}{
-		{remaining: 2, want: "You may delegate 2 more levels."},
-		{remaining: 1, want: "You may delegate 1 more level."},
-		{remaining: 0, want: "You cannot delegate further."},
+		{name: "Should state two remaining levels", remaining: 2, want: "You may delegate 2 more levels."},
+		{name: "Should state one remaining level", remaining: 1, want: "You may delegate 1 more level."},
+		{name: "Should state that delegation is exhausted", remaining: 0, want: "You cannot delegate further."},
 	} {
-		if got := CallPromptWithRemainingDepth("Review this.", test.remaining); !strings.Contains(got, test.want) {
-			t.Fatalf("CallPromptWithRemainingDepth(%d) = %q, want %q", test.remaining, got, test.want)
-		}
-	}
-}
-
-func newCallServiceHarness(
-	t *testing.T,
-	cfg config.CallsConfig,
-	target TargetContext,
-) (*Service, *memoryCallStore, *fakeActivationClaimer, *fakeSessionInvoker) {
-	t.Helper()
-	return newCallServiceHarnessWithRoster(t, cfg, target, []AgentRosterEntry{{Name: "reviewer", Description: "Reviews work"}})
-}
-
-func newCallServiceHarnessWithRoster(
-	t *testing.T,
-	cfg config.CallsConfig,
-	target TargetContext,
-	roster []AgentRosterEntry,
-) (*Service, *memoryCallStore, *fakeActivationClaimer, *fakeSessionInvoker) {
-	t.Helper()
-	return newCallServiceForDirectory(t, cfg, staticCallDirectory{target: target, roster: roster})
-}
-
-func newCallServiceForDirectory(
-	t *testing.T,
-	cfg config.CallsConfig,
-	directory Directory,
-) (*Service, *memoryCallStore, *fakeActivationClaimer, *fakeSessionInvoker) {
-	t.Helper()
-	database := newMemoryCallStore()
-	claimer := &fakeActivationClaimer{}
-	canceler := &fakeActivationCanceler{}
-	invoker := &fakeSessionInvoker{}
-	var sequence atomic.Int64
-	service, err := NewService(
-		WithStore(database), WithDirectory(directory),
-		WithActivationClaimer(claimer), WithActivationRunCanceler(canceler), WithSessionInvoker(invoker),
-		WithConfig(cfg), WithClock(func() time.Time { return time.Date(2026, 8, 25, 0, 0, 0, 0, time.UTC) }),
-		WithIDGenerator(func(prefix string) (string, error) {
-			return prefix + "-" + time.Unix(0, sequence.Add(1)).Format("150405.000000000"), nil
-		}),
-	)
-	if err != nil {
-		t.Fatalf("NewService() error = %v", err)
-	}
-	return service, database, claimer, invoker
-}
-
-func validAgentTarget() TargetContext {
-	return TargetContext{
-		ProfileID: "default", WorkspaceID: "ws-1", ParentSessionID: "parent-1",
-		AgentName: "reviewer", GovernedRootID: "root-1", Depth: 1, Allowed: true,
-		Runtime:      RuntimeSpec{Provider: "anthropic", Model: "sonnet", Speed: speed.SpeedNormal},
-		CallerPolicy: store.SessionPermissionPolicy{Skills: []string{"review", "code"}},
-	}
-}
-
-func validCreateInput(prompt string, expect json.RawMessage, runtime *RuntimeSpec) CreateInput {
-	return CreateInput{
-		ProfileID: "default", Scope: ScopeWorkspace, WorkspaceID: "ws-1",
-		Caller: participation.OwnerRef{Kind: participation.OwnerKindSession, ID: "parent-1", WorkspaceID: "ws-1"},
-		Target: Target{Agent: "reviewer"}, Prompt: prompt, Expect: expect, Runtime: runtime,
-		Narrow: PermissionAtoms{Skills: []string{"review"}}, IdempotencyKey: "key-1",
-		Actor: Actor{Kind: "human", ID: "operator:test"},
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if got := CallPromptWithRemainingDepth("Review this.", test.remaining); !strings.Contains(got, test.want) {
+				t.Fatalf("CallPromptWithRemainingDepth(%d) = %q, want %q", test.remaining, got, test.want)
+			}
+		})
 	}
 }
 

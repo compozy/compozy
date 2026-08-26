@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -27,10 +28,11 @@ func (g *TaskRepo) AdmitResultContractRepair(
 	if err != nil {
 		return false, err
 	}
-	if event.EventType != "task.run_rejected" {
+	if event.EventType != eventspkg.TaskRunRejected {
 		return false, fmt.Errorf(
-			"%w: result contract repair requires task.run_rejected event",
+			"%w: result contract repair requires %s event",
 			taskpkg.ErrValidation,
+			eventspkg.TaskRunRejected,
 		)
 	}
 	if admission.Now.IsZero() {

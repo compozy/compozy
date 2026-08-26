@@ -36,7 +36,12 @@ func ValidateEntities(
 	if err := walkEntities(ctx, schema, value, "$", catalog, &issues); err != nil {
 		return nil, err
 	}
-	sort.Slice(issues, func(i, j int) bool { return issues[i].Path < issues[j].Path })
+	sort.Slice(issues, func(i, j int) bool {
+		if issues[i].Path == issues[j].Path {
+			return issues[i].Message < issues[j].Message
+		}
+		return issues[i].Path < issues[j].Path
+	})
 	return issues, nil
 }
 
@@ -105,24 +110,26 @@ func validateEntityAnnotation(
 	return nil
 }
 
-func schemaApplies(schema map[string]any, value any) bool {
+type schemaApplicability func(any) bool
+
+func compileSchemaApplicability(schema map[string]any) schemaApplicability {
 	rawSchema, err := json.Marshal(schema)
 	if err != nil {
-		return true
+		return func(any) bool { return true }
 	}
 	schemaValue, err := jsonschema.UnmarshalJSON(bytes.NewReader(rawSchema))
 	if err != nil {
-		return true
+		return func(any) bool { return true }
 	}
 	compiler := jsonschema.NewCompiler()
 	if err := compiler.AddResource("entity-branch.json", schemaValue); err != nil {
-		return true
+		return func(any) bool { return true }
 	}
 	compiled, err := compiler.Compile("entity-branch.json")
 	if err != nil {
-		return true
+		return func(any) bool { return true }
 	}
-	return compiled.Validate(value) == nil
+	return func(value any) bool { return compiled.Validate(value) == nil }
 }
 
 func schemaObject(value any) (map[string]any, bool) {

@@ -63,6 +63,26 @@ func TestPromptResponseUsagePreservesExplicitZeroTotal(t *testing.T) {
 	}
 }
 
+// Invariant: unsupported hosted native step kinds fail before session or MCP lookup.
+func TestExecuteHostedNativeCallRejectsUnsupportedKind(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject the kind before looking up a hosted MCP server", func(t *testing.T) {
+		t.Parallel()
+
+		agent := &mockAgent{}
+		_, err := agent.executeHostedNativeCall(context.Background(), "missing-session", acpmock.Step{
+			Kind: acpmock.StepKind("unsupported"),
+		})
+		if err == nil || !strings.Contains(err.Error(), `hosted native call kind "unsupported" is unsupported`) {
+			t.Fatalf("executeHostedNativeCall() error = %v, want unsupported-kind error", err)
+		}
+		if strings.Contains(err.Error(), "session") || strings.Contains(err.Error(), "MCP") {
+			t.Fatalf("executeHostedNativeCall() error = %q, want no session or MCP lookup", err)
+		}
+	})
+}
+
 func TestExtractPromptTextPreservesAugmentedPromptDiagnostics(t *testing.T) {
 	t.Parallel()
 
@@ -415,22 +435,30 @@ func TestMockAgentLoadSessionValidation(t *testing.T) {
 
 func TestMockAgentKeepsHostedMCPBindingWithSession(t *testing.T) {
 	t.Parallel()
-	server := acpsdk.McpServer{Stdio: &acpsdk.McpServerStdio{
-		Name: mcppkg.HostedServerName, Command: "/bin/echo", Args: []string{"server"},
-		Env: []acpsdk.EnvVariable{{Name: "TOKEN", Value: "value"}},
-	}}
-	agent := &mockAgent{sessions: make(map[string]*sessionState), configTemplate: nil}
-	created, err := agent.NewSession(context.Background(), acpsdk.NewSessionRequest{McpServers: []acpsdk.McpServer{server}})
-	if err != nil {
-		t.Fatalf("NewSession() error = %v", err)
-	}
-	bound, err := agent.hostedMCPServer(string(created.SessionId))
-	if err != nil {
-		t.Fatalf("hostedMCPServer() error = %v", err)
-	}
-	if bound.Command != "/bin/echo" || !slices.Equal(mcpServerEnvironment(bound), []string{"TOKEN=value"}) {
-		t.Fatalf("hosted MCP binding = %#v env=%#v", bound, mcpServerEnvironment(bound))
-	}
+	t.Run("Should retain hosted MCP command and environment after session load", func(t *testing.T) {
+		t.Parallel()
+		server := acpsdk.McpServer{Stdio: &acpsdk.McpServerStdio{
+			Name: mcppkg.HostedServerName, Command: "/bin/echo", Args: []string{"server"},
+			Env: []acpsdk.EnvVariable{{Name: "TOKEN", Value: "value"}},
+		}}
+		agent := &mockAgent{sessions: make(map[string]*sessionState), configTemplate: nil}
+		created, err := agent.NewSession(context.Background(), acpsdk.NewSessionRequest{McpServers: []acpsdk.McpServer{server}})
+		if err != nil {
+			t.Fatalf("NewSession() error = %v", err)
+		}
+		if _, err := agent.LoadSession(context.Background(), acpsdk.LoadSessionRequest{
+			SessionId: created.SessionId, McpServers: []acpsdk.McpServer{server},
+		}); err != nil {
+			t.Fatalf("LoadSession() error = %v", err)
+		}
+		bound, err := agent.hostedMCPServer(string(created.SessionId))
+		if err != nil {
+			t.Fatalf("hostedMCPServer() error = %v", err)
+		}
+		if bound.Command != "/bin/echo" || !slices.Equal(mcpServerEnvironment(bound), []string{"TOKEN=value"}) {
+			t.Fatalf("hosted MCP binding = %#v env=%#v", bound, mcpServerEnvironment(bound))
+		}
+	})
 }
 
 func TestMockAgentSandboxTerminalCleanup(t *testing.T) {

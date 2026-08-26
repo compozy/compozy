@@ -1792,7 +1792,7 @@ func TestGlobalDBWatchEventsCoordinatorIntegration(t *testing.T) {
 			Actor:      actor,
 			Plan:       firstPlan,
 			Now:        now.Add(time.Second),
-		}, looppkg.NewStoreFinalizer())
+		}, generationFinalizerForTest())
 		if err != nil {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext(first) error = %v", err)
 		}
@@ -1859,7 +1859,7 @@ func TestGlobalDBWatchEventsCoordinatorIntegration(t *testing.T) {
 			Actor:      actor,
 			Plan:       secondPlan,
 			Now:        now.Add(5 * time.Second),
-		}, looppkg.NewStoreFinalizer())
+		}, generationFinalizerForTest())
 		if err != nil {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext(second) error = %v", err)
 		}
@@ -2756,7 +2756,7 @@ func parkWatchEventsLoopForRecoveryTest(
 		Actor:      coordinatorActorContextForTest(),
 		Plan:       plan,
 		Now:        now.Add(time.Second),
-	}, looppkg.NewStoreFinalizer())
+	}, generationFinalizerForTest())
 	if err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(first) error = %v", err)
 	}
@@ -2799,7 +2799,7 @@ func parkWatchEventsLoopWithDefinitionForTest(
 		Actor:      coordinatorActorContextForTest(),
 		Plan:       plan,
 		Now:        now.Add(time.Second),
-	}, looppkg.NewStoreFinalizer())
+	}, generationFinalizerForTest())
 	if err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(%s first) error = %v", loopRunID, err)
 	}
@@ -2849,7 +2849,7 @@ func claimAndRunWatchEventsWakeForTest(
 		Actor:      coordinatorActorContextForTest(),
 		Plan:       plan,
 		Now:        now.Add(time.Second),
-	}, looppkg.NewStoreFinalizer())
+	}, generationFinalizerForTest())
 	if err != nil {
 		t.Fatalf("CompleteCoordinatorAndEnqueueNext(%s) error = %v", wakeRun.ID, err)
 	}

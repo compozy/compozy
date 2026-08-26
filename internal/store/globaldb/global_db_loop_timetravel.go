@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/compozy/compozy/internal/contracts"
 	"strings"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -168,7 +169,7 @@ func insertTimeTravelOutputs(
 
 func validateForkSeedBlobs(ctx context.Context, exec taskSQLExecutor, outputs []looppkg.GenerationOutput) error {
 	for _, output := range outputs {
-		if !looppkg.OutputRefLooksContentAddressed(output.OutputRef) {
+		if !contracts.OutputRefLooksContentAddressed(output.OutputRef) {
 			continue
 		}
 		var exists int

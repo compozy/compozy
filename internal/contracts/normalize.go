@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"strings"
 )
 
 var schemaKeywords = map[string]struct{}{
@@ -152,9 +151,6 @@ func shorthandValueSchema(value any) any {
 			return map[string]any{schemaType: "string"}
 		}
 	case json.Number:
-		if strings.ContainsAny(string(typed), ".eE") {
-			return map[string]any{schemaType: "number"}
-		}
 		return map[string]any{schemaType: "number"}
 	case bool:
 		return map[string]any{schemaType: "boolean"}

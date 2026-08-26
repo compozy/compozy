@@ -183,10 +183,13 @@ func TestMeContextCommandJSONKeepsStableSectionOrder(t *testing.T) {
 func TestRootCommandRejectsRemovedSpawn(t *testing.T) {
 	t.Parallel()
 
-	_, _, err := executeRootCommand(t, newAgentCommandTestDeps(t, &stubClient{}), "spawn")
-	if err == nil {
-		t.Fatal("compozy spawn error = nil, want removed command")
-	}
+	t.Run("Should reject the removed spawn command", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := executeRootCommand(t, newAgentCommandTestDeps(t, &stubClient{}), "spawn")
+		if err == nil || !strings.Contains(err.Error(), `unknown command "spawn"`) {
+			t.Fatalf("compozy spawn error = %v, want stable unknown-command detail", err)
+		}
+	})
 }
 func TestChannelSendRejectsMissingInputsAndInvalidIdentity(t *testing.T) {
 	t.Parallel()

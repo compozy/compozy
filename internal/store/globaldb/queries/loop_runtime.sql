@@ -142,15 +142,14 @@ WHERE event.loop_run_id = sqlc.arg(loop_run_id)
 ORDER BY event.seq ASC;
 
 -- name: ListAvailableLoopOutputRefs :many
-SELECT DISTINCT CAST(json_extract(output.output_ref, '$.payload_ref') AS TEXT) AS output_ref
-FROM loop_generation_outputs AS output
+SELECT output.payload_ref AS output_ref
+FROM loop_generation_output_payloads AS output
 JOIN loop_runs AS run ON run.id = output.loop_run_id
 JOIN loop_output_blobs AS blob
-  ON blob.output_ref = json_extract(output.output_ref, '$.payload_ref')
+  ON blob.output_ref = output.payload_ref
 WHERE output.loop_run_id = sqlc.arg(loop_run_id)
   AND run.workspace_id = sqlc.arg(workspace_id)
-  AND json_valid(output.output_ref)
-  AND COALESCE(json_extract(output.output_ref, '$.payload_ref'), '') <> '';
+  AND COALESCE(output.payload_ref, '') <> '';
 
 -- name: RecordLoopGenerationOutputRuntime :execrows
 UPDATE loop_generation_outputs
@@ -232,7 +231,7 @@ SELECT payload_json FROM loop_output_blobs WHERE output_ref = sqlc.arg(output_re
 
 -- name: GetLoopGenerationOutputPayload :one
 SELECT blob.payload_json
-FROM loop_generation_outputs AS output
+FROM loop_generation_output_payloads AS output
 JOIN loop_runs AS run ON run.id = output.loop_run_id
 JOIN loop_output_blobs AS blob ON blob.output_ref = sqlc.arg(output_ref)
 WHERE output.loop_run_id = sqlc.arg(loop_run_id)
@@ -240,10 +239,7 @@ WHERE output.loop_run_id = sqlc.arg(loop_run_id)
   AND output.node_id = sqlc.arg(node_id)
   AND output.item_index = sqlc.arg(item_index)
   AND (
-    CASE WHEN json_valid(output.output_ref)
-      THEN json_extract(output.output_ref, '$.payload_ref')
-      ELSE NULL
-    END = sqlc.arg(output_ref)
+    output.payload_ref = sqlc.arg(output_ref)
     OR EXISTS (
       SELECT 1 FROM loop_node_amendments AS amendment
       WHERE amendment.loop_run_id = output.loop_run_id
@@ -258,11 +254,9 @@ WHERE output.loop_run_id = sqlc.arg(loop_run_id)
 -- name: SweepOrphanedLoopOutputBlobs :exec
 DELETE FROM loop_output_blobs
 WHERE NOT EXISTS (
-  SELECT 1 FROM loop_generation_outputs
-  WHERE CASE WHEN json_valid(loop_generation_outputs.output_ref)
-    THEN json_extract(loop_generation_outputs.output_ref, '$.payload_ref')
-    ELSE NULL
-  END = loop_output_blobs.output_ref
+  SELECT 1
+  FROM loop_generation_output_payloads AS output
+  WHERE output.payload_ref = loop_output_blobs.output_ref
 )
 AND NOT EXISTS (
   SELECT 1 FROM loop_goal_turns

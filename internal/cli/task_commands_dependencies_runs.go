@@ -80,9 +80,10 @@ func newTaskChildCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&ownerKindRaw, "owner-kind", "", "Optional child owner kind")
 	cmd.Flags().StringVar(&ownerRef, "owner-ref", "", "Optional child owner reference")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional child metadata JSON")
-	cmd.Flags().StringVar(&expectRaw, "expect", "", "Child result contract as inline JSON or @file")
-	cmd.Flags().StringVar(&resultBudget, "result-budget", "", "Child result budget, for example 512KiB")
-	cmd.Flags().StringVar(&resultOverflow, "result-overflow", "", "Over-budget policy: store or reject")
+	bindTaskResultContractFlags(
+		cmd, &expectRaw, &resultBudget, &resultOverflow, "Child task",
+		"Child result contract as inline JSON or @file",
+	)
 	cmd.Flags().
 		BoolVar(&autoEnqueue, taskAutoEnqueueOnReadyFlag, false, "Auto-enqueue the child run once dependencies complete")
 	mustMarkFlagRequired(cmd, taskScopeKey)

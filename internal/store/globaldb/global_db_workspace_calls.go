@@ -17,7 +17,8 @@ func terminalizeWorkspaceCalls(
 	timestamp := store.FormatTimestamp(at)
 	if _, err := exec.ExecContext(ctx, `UPDATE task_runs
 		SET status = 'canceled', error = 'workspace removed', ended_at = ?, claim_token = NULL,
-			claim_token_hash = NULL, lease_until = NULL, heartbeat_at = NULL
+			claim_token_hash = NULL, lease_until = NULL, heartbeat_at = NULL,
+			workspace_id = NULL, worktree_id = NULL
 		WHERE id IN (
 			SELECT activation.run_id FROM call_activation_runs activation
 			JOIN calls call ON call.call_id = activation.call_id
@@ -27,7 +28,8 @@ func terminalizeWorkspaceCalls(
 	}
 	if _, err := exec.ExecContext(ctx, `UPDATE calls
 		SET state = 'failed', failure_code = 'call_workspace_removed',
-			failure_detail = 'workspace removed', settled_at = ?, updated_at = ?
+			failure_detail = 'workspace removed', activation_run_id = NULL,
+			settled_at = ?, updated_at = ?
 		WHERE workspace_id = ? AND state IN ('queued', 'running')`, timestamp, timestamp, workspaceID); err != nil {
 		return fmt.Errorf("store: terminalize calls for removed workspace %q: %w", workspaceID, err)
 	}

@@ -15,6 +15,11 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
+const (
+	maxCallDetailBytes = 2048
+	maxIssueTextBytes  = 4096
+)
+
 func (g *CallRepo) BindActivationChild(
 	ctx context.Context,
 	binding callspkg.ActivationBinding,
@@ -159,13 +164,13 @@ func insertRepairDelivery(
 	record callspkg.CallRecord,
 	at time.Time,
 ) error {
-	suffix := strings.TrimPrefix(record.CallID, "call_")
+	identity := callDeliveryIdentityFor("repair", record.CallID)
 	_, err := exec.ExecContext(ctx, `INSERT INTO call_deliveries (
 		delivery_id, kind, subject_id, recipient_session_id, owner_key, wake_event_id,
 		state, created_at, updated_at
 	) VALUES (?, 'repair', ?, ?, ?, ?, 'pending', ?, ?)`,
-		"delivery_repair_"+suffix, record.CallID, record.ChildSessionID,
-		participation.OwnerKey(record.Caller), "wake_repair_"+suffix,
+		identity.deliveryID, record.CallID, record.ChildSessionID,
+		participation.OwnerKey(record.Caller), identity.wakeID,
 		store.FormatTimestamp(at), store.FormatTimestamp(at),
 	)
 	if err != nil {
@@ -242,14 +247,14 @@ func insertCompletionDelivery(
 	if strings.TrimSpace(record.ParentSessionID) == "" {
 		return nil
 	}
-	suffix := strings.TrimPrefix(record.CallID, "call_")
+	identity := callDeliveryIdentityFor("completion", record.CallID)
 	_, err := exec.ExecContext(ctx, `INSERT INTO call_deliveries (
 		delivery_id, kind, subject_id, recipient_session_id, owner_key, wake_event_id,
 		state, created_at, updated_at
 	) VALUES (?, 'completion', ?, ?, ?, ?, 'pending', ?, ?)
 	ON CONFLICT(kind, subject_id, recipient_session_id) DO NOTHING`,
-		"delivery_completion_"+suffix, record.CallID, record.ParentSessionID,
-		participation.OwnerKey(record.Caller), "wake_completion_"+suffix,
+		identity.deliveryID, record.CallID, record.ParentSessionID,
+		participation.OwnerKey(record.Caller), identity.wakeID,
 		store.FormatTimestamp(at), store.FormatTimestamp(at),
 	)
 	if err != nil {
@@ -289,8 +294,8 @@ func callNullableInt(value int, valid bool) sql.NullInt64 {
 	return sql.NullInt64{Int64: int64(value), Valid: valid}
 }
 
-func boundedCallDetail(value string) string { return boundedUTF8String(value, 2048) }
-func boundedIssueText(value string) string  { return boundedUTF8String(value, 4096) }
+func boundedCallDetail(value string) string { return boundedUTF8String(value, maxCallDetailBytes) }
+func boundedIssueText(value string) string  { return boundedUTF8String(value, maxIssueTextBytes) }
 
 func boundedUTF8String(value string, limit int) string {
 	if len(value) <= limit {

@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -96,16 +98,22 @@ func TestRegistryContractLifecycle(t *testing.T) {
 	t.Run("Should reject invalid and non-object contract roots", func(t *testing.T) {
 		t.Parallel()
 
-		for _, schema := range []json.RawMessage{
-			json.RawMessage(`["not","an","object"]`),
-			json.RawMessage(`{"type":"array","items":{"type":"string"}}`),
-			json.RawMessage(`{"type":"object","properties":{"x":{"type":"not-a-type"}}}`),
-			json.RawMessage(`{} {}`),
+		for _, test := range []struct {
+			name   string
+			schema json.RawMessage
+		}{
+			{name: "Should reject an array root", schema: json.RawMessage(`["not","an","object"]`)},
+			{name: "Should reject a non-object schema root", schema: json.RawMessage(`{"type":"array","items":{"type":"string"}}`)},
+			{name: "Should reject an invalid property type", schema: json.RawMessage(`{"type":"object","properties":{"x":{"type":"not-a-type"}}}`)},
+			{name: "Should reject trailing JSON values", schema: json.RawMessage(`{} {}`)},
 		} {
-			_, err := registry.Pin(ctx, schema)
-			if !IsCode(err, CodeExpectInvalid) {
-				t.Fatalf("Pin(%s) error = %v, want %s", schema, err, CodeExpectInvalid)
-			}
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+				_, err := registry.Pin(ctx, test.schema)
+				if !IsCode(err, CodeExpectInvalid) {
+					t.Fatalf("Pin(%s) error = %v, want %s", test.schema, err, CodeExpectInvalid)
+				}
+			})
 		}
 	})
 }
@@ -217,6 +225,11 @@ func TestRegistryCompiledCache(t *testing.T) {
 	store := newMemoryRegistryStore()
 	registryValue := NewRegistry(store)
 	registry := registryValue.(*registry)
+	compileCounts := sync.Map{}
+	registry.onCompile = func(digest string) {
+		value, _ := compileCounts.LoadOrStore(digest, &atomic.Int64{})
+		value.(*atomic.Int64).Add(1)
+	}
 	first, err := registry.Pin(ctx, json.RawMessage(`{"name":""}`))
 	if err != nil {
 		t.Fatalf("Pin(first) error = %v", err)
@@ -242,14 +255,41 @@ func TestRegistryCompiledCache(t *testing.T) {
 				t.Fatalf("Validate() error = %v", validateErr)
 			}
 		}
-		if got := registry.cache[first.Digest].compiles.Load(); got != 1 {
+		value, ok := compileCounts.Load(first.Digest)
+		if !ok {
+			t.Fatal("first contract was not compiled")
+		}
+		if got := value.(*atomic.Int64).Load(); got != 1 {
 			t.Fatalf("first compile count = %d, want 1", got)
 		}
 		if _, err := registry.Validate(ctx, second.Digest, json.RawMessage(`{"count":1}`)); err != nil {
 			t.Fatalf("Validate(second) error = %v", err)
 		}
-		if got := registry.cache[second.Digest].compiles.Load(); got != 1 {
+		value, ok = compileCounts.Load(second.Digest)
+		if !ok {
+			t.Fatal("second contract was not compiled")
+		}
+		if got := value.(*atomic.Int64).Load(); got != 1 {
 			t.Fatalf("second compile count = %d, want 1", got)
+		}
+	})
+
+	t.Run("Should evict the oldest compiled schema at the cache bound", func(t *testing.T) {
+		for index := range compiledSchemaCacheLimit {
+			contract, pinErr := registry.Pin(ctx, json.RawMessage(fmt.Sprintf(`{"field_%d":""}`, index)))
+			if pinErr != nil {
+				t.Fatalf("Pin(%d) error = %v", index, pinErr)
+			}
+			if _, validateErr := registry.Validate(ctx, contract.Digest, json.RawMessage(fmt.Sprintf(`{"field_%d":"ok"}`, index))); validateErr != nil {
+				t.Fatalf("Validate(%d) error = %v", index, validateErr)
+			}
+		}
+		registry.mu.Lock()
+		cacheSize := len(registry.cache)
+		_, firstRetained := registry.cache[first.Digest]
+		registry.mu.Unlock()
+		if cacheSize != compiledSchemaCacheLimit || firstRetained {
+			t.Fatalf("compiled cache size=%d first retained=%t, want bounded FIFO eviction", cacheSize, firstRetained)
 		}
 	})
 }

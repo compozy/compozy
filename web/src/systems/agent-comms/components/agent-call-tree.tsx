@@ -43,7 +43,7 @@ import type { ChildState } from "../types";
  */
 export const CALL_TREE_VIRTUALIZATION_THRESHOLD = 60;
 
-/** Comfortable single-line row plus its gap; the virtualizer measures the truth. */
+/** Fixed comfortable single-line row estimate plus its gap. */
 const ROW_ESTIMATE = 34;
 const OVERSCAN = 12;
 

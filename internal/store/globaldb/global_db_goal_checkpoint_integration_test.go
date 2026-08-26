@@ -5,6 +5,7 @@ package globaldb
 import (
 	"encoding/json"
 	"errors"
+	"github.com/compozy/compozy/internal/contracts"
 	"strings"
 	"testing"
 	"time"
@@ -798,7 +799,7 @@ func TestGoalCheckpointIntentsIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("marshal conflicting evidence error = %v", err)
 		}
-		conflictRef := looppkg.OutputRefForPayload(conflictPayload)
+		conflictRef := contracts.OutputRefForPayload(conflictPayload)
 		if _, err := globalDB.RecordGoalReport(testutil.Context(t), conflict); err == nil {
 			t.Fatal("RecordGoalReport(conflict) error = nil")
 		} else {

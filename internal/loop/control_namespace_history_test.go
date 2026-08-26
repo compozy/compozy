@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/compozy/compozy/internal/contracts"
 	"math"
 	"reflect"
 	"testing"
@@ -44,8 +45,8 @@ func testGenerationHistoryExternalizedOutputs(t *testing.T) {
 
 	previousPayload := json.RawMessage(`{"summary":"previous"}`)
 	bestPayload := json.RawMessage(`{"summary":"best"}`)
-	previousRef := OutputRefForPayload(previousPayload)
-	bestRef := OutputRefForPayload(bestPayload)
+	previousRef := contracts.OutputRefForPayload(previousPayload)
+	bestRef := contracts.OutputRefForPayload(bestPayload)
 	bestGeneration := int64(1)
 	bestScore := 0.91
 	run := Run{
@@ -87,7 +88,7 @@ func testGenerationHistoryOutputOwnership(t *testing.T) {
 	t.Parallel()
 
 	payload := json.RawMessage(`{"summary":"shared"}`)
-	ref := OutputRefForPayload(payload)
+	ref := contracts.OutputRefForPayload(payload)
 	run := Run{ID: "run-output-ownership", WorkspaceID: "ws-output-ownership"}
 	reader := generationHistoryReaderStub{
 		outputs: map[int][]GenerationOutput{
@@ -366,10 +367,14 @@ func testGenerationHistoryFanOutScope(t *testing.T) {
 		2,
 		Run{},
 		[]GenerationOutput{
-			{NodeID: "draft", ItemIndex: 0, Status: generationOutputSucceeded, OutputRef: `{"item":"first"}`},
-			{NodeID: "draft", ItemIndex: 1, Status: generationOutputSucceeded, OutputRef: `{"item":"second"}`},
-			{NodeID: "quality", ItemIndex: 0, Status: generationOutputFailed, OutputRef: `{"item":"first"}`},
-			{NodeID: "quality", ItemIndex: 1, Status: generationOutputSucceeded, OutputRef: `{"item":"second"}`},
+			{NodeID: "draft", ItemIndex: 0, Status: generationOutputSucceeded,
+				ResultKind: GenerationResultPayload, OutputRef: `{"item":"first"}`},
+			{NodeID: "draft", ItemIndex: 1, Status: generationOutputSucceeded,
+				ResultKind: GenerationResultPayload, OutputRef: `{"item":"second"}`},
+			{NodeID: "quality", ItemIndex: 0, Status: generationOutputFailed,
+				ResultKind: GenerationResultPayload, OutputRef: `{"item":"first"}`},
+			{NodeID: "quality", ItemIndex: 1, Status: generationOutputSucceeded,
+				ResultKind: GenerationResultPayload, OutputRef: `{"item":"second"}`},
 		},
 		[]gate.VerdictRecord{
 			{
@@ -535,7 +540,7 @@ func testGenerationHistoryScalarBestOutput(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		[]GenerationOutput{{NodeID: "score", OutputRef: `0.5`}},
+		[]GenerationOutput{{NodeID: "score", ResultKind: GenerationResultPayload, OutputRef: `0.5`}},
 	)
 	if err != nil {
 		t.Fatalf("ProjectGenerationHistory() error = %v", err)
@@ -597,7 +602,8 @@ func testGenerationHistoryTerminalNodes(t *testing.T) {
 		2,
 		Run{},
 		[]GenerationOutput{
-			{NodeID: "quarantined", Status: "quarantined", OutputRef: `{"last":"known"}`},
+			{NodeID: "quarantined", Status: "quarantined",
+				ResultKind: GenerationResultPayload, OutputRef: `{"last":"known"}`},
 			{NodeID: "canceled", Status: "canceled"},
 		},
 		nil,
@@ -649,7 +655,7 @@ func (r generationHistoryReaderStub) ListGenerationOutputs(
 	_ RunID,
 	generation int,
 ) ([]GenerationOutput, error) {
-	return append([]GenerationOutput(nil), r.outputs[generation]...), nil
+	return persistedGenerationOutputsForTest(r.outputs[generation]), nil
 }
 
 func (r generationHistoryReaderStub) ListGateVerdicts(

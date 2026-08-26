@@ -9,7 +9,6 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	callspkg "github.com/compozy/compozy/internal/calls"
-	"github.com/compozy/compozy/internal/store"
 )
 
 func (h *BaseHandlers) callPayloads(
@@ -20,9 +19,13 @@ func (h *BaseHandlers) callPayloads(
 	if err != nil {
 		return nil, err
 	}
+	projected, err := h.Calls.ProjectPayloads(ctx, records)
+	if err != nil {
+		return nil, err
+	}
 	items := make([]contract.CallPayload, 0, len(records))
-	for _, record := range records {
-		content, contentErr := h.callPayloadContent(ctx, record)
+	for index, record := range records {
+		content, contentErr := h.callPayloadContent(ctx, record, projected[index])
 		if contentErr != nil {
 			return nil, contentErr
 		}
@@ -43,12 +46,8 @@ type callPayloadContent struct {
 func (h *BaseHandlers) callPayloadContent(
 	ctx context.Context,
 	record callspkg.CallRecord,
+	projected callspkg.ProjectionContent,
 ) (callPayloadContent, error) {
-	query := callspkg.CallReadQuery{
-		ReadScope:   store.ReadScope{ProfileID: record.ProfileID},
-		Scope:       record.Scope,
-		WorkspaceID: record.WorkspaceID,
-	}
 	content := callPayloadContent{}
 	if childID := strings.TrimSpace(record.ChildSessionID); childID != "" && h.Sessions != nil {
 		info, err := h.Sessions.Status(ctx, childID)
@@ -57,28 +56,16 @@ func (h *BaseHandlers) callPayloadContent(
 		}
 		content.IdleExpiresAt = info.IdleExpiresAt
 	}
-	if strings.TrimSpace(record.PromptRef) != "" {
-		prompt, err := h.Calls.Prompt(ctx, query, record.CallID)
-		if err != nil {
-			return callPayloadContent{}, err
-		}
-		content.PromptPreview = boundedCallTextPreview(prompt.Text, callPromptPreviewBytes)
-		content.PromptBytes = len([]byte(prompt.Text))
+	if len(projected.Prompt) > 0 {
+		content.PromptPreview = boundedCallTextPreview(string(projected.Prompt), callPromptPreviewBytes)
+		content.PromptBytes = len(projected.Prompt)
 	}
-	if record.State == callspkg.StateCompleted && strings.TrimSpace(record.ResultRef) != "" {
-		result, err := h.Calls.Result(ctx, query, record.CallID)
-		if err != nil {
-			return callPayloadContent{}, err
-		}
-		content.ResultPreview = boundedCallPreview(result.Bytes, record.ResultBudget.MaxBytes)
+	if record.State == callspkg.StateCompleted && len(projected.Result) > 0 {
+		content.ResultPreview = boundedCallPreview(projected.Result, record.ResultBudget.MaxBytes)
 	}
-	if strings.TrimSpace(record.SupersededRef) != "" {
-		superseded, err := h.Calls.Superseded(ctx, query, record.CallID)
-		if err != nil {
-			return callPayloadContent{}, err
-		}
-		content.SupersededPreview = boundedCallPreview(superseded.Bytes, record.ResultBudget.MaxBytes)
-		content.SupersededBytes = len(superseded.Bytes)
+	if len(projected.Superseded) > 0 {
+		content.SupersededPreview = boundedCallPreview(projected.Superseded, record.ResultBudget.MaxBytes)
+		content.SupersededBytes = len(projected.Superseded)
 	}
 	return content, nil
 }
@@ -110,7 +97,7 @@ func callPayload(
 		StartedAt: timePointer(record.StartedAt), SettledAt: timePointer(record.SettledAt),
 		DeadlineAt: timePointer(record.DeadlineAt),
 	}
-	if record.Verdict != "" || record.ChildSessionID != "" {
+	if record.Verdict != "" {
 		payload.Provenance = &contract.CallProvenancePayload{
 			ProducedBy: record.AgentName, SessionID: record.ChildSessionID,
 			Admitted: string(record.Verdict),
@@ -166,7 +153,7 @@ func callMessagePayload(record callspkg.MessageRecord, profile profileOwnerIdent
 		Scope: string(record.Scope), WorkspaceID: record.WorkspaceID,
 		From:          contract.CallOwnerPayload{Kind: record.From.Kind, ID: record.From.ID},
 		FromAgentName: record.FromAgentName, ToSessionID: record.ToSessionID,
-		CallID: record.CallID, Text: record.Body, Delivery: publicCallDelivery(record.Delivery),
+		CallID: record.CallID, Text: record.Body, Delivery: publicCallDelivery(string(record.Delivery)),
 		Reason: record.DeliveryReason, Attempts: record.DeliveryAttempts,
 		CreatedAt: record.CreatedAt, DeliveredAt: timePointer(record.DeliveredAt),
 	}
@@ -174,14 +161,16 @@ func callMessagePayload(record callspkg.MessageRecord, profile profileOwnerIdent
 
 func publicCallDelivery(value string) string {
 	switch strings.TrimSpace(value) {
-	case "pending":
+	case "pending", "queued":
 		return "queued"
-	case "injected":
+	case "injected", "delivered-into-turn":
 		return "delivered-into-turn"
-	case "woken":
+	case "woken", "woke":
 		return "woke"
+	case "failed":
+		return "failed"
 	default:
-		return strings.TrimSpace(value)
+		return "failed"
 	}
 }
 

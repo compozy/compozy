@@ -101,6 +101,19 @@ function sessionsQuery({
   return { data, isError, isLoading, total: data?.length ?? 0 } as ReturnType<typeof useSessions>;
 }
 
+function attentionCallsModel(
+  overrides: Partial<ReturnType<typeof useAttentionCalls>> = {}
+): ReturnType<typeof useAttentionCalls> {
+  return {
+    rows: [],
+    count: 0,
+    coveredSessionIds: new Set<string>(),
+    stale: false,
+    loading: false,
+    ...overrides,
+  };
+}
+
 /** `badge` is what puts a session in the needs-you class (see session-badge.ts). */
 function waitingSession(id: string): SessionPayload {
   return {
@@ -316,24 +329,23 @@ describe("useOsAttention", () => {
 
   it("Should light the Agents badge from the daemon's delegation count", () => {
     vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
-    vi.mocked(useAttentionCalls).mockReturnValue({
-      rows: [
-        {
-          id: "call_bad",
-          cause: "invalid-result",
-          agentName: "compliance-review-agent",
-          rootSessionId: "sess_release_control",
-          callId: "call_bad",
-          childSessionId: "sess_compliance_review",
-          changedAt: "2026-08-20T18:10:00Z",
-          count: 1,
-        },
-      ],
-      count: 3,
-      coveredSessionIds: new Set<string>(),
-      stale: false,
-      loading: false,
-    });
+    vi.mocked(useAttentionCalls).mockReturnValue(
+      attentionCallsModel({
+        rows: [
+          {
+            id: "call_bad",
+            cause: "invalid-result",
+            agentName: "compliance-review-agent",
+            rootSessionId: "sess_release_control",
+            callId: "call_bad",
+            childSessionId: "sess_compliance_review",
+            changedAt: "2026-08-20T18:10:00Z",
+            count: 1,
+          },
+        ],
+        count: 3,
+      })
+    );
 
     const { result } = renderHook(() => useOsAttention(workspace, "live", false));
 
@@ -347,24 +359,23 @@ describe("useOsAttention", () => {
 
   it("Should render a coalesced tree as one row carrying its real count", () => {
     vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
-    vi.mocked(useAttentionCalls).mockReturnValue({
-      rows: [
-        {
-          id: "tree:sess_migration_sweep",
-          cause: "invalid-result",
-          agentName: "platform-engineer-agent",
-          rootSessionId: "sess_migration_sweep",
-          callId: "call_0",
-          childSessionId: null,
-          changedAt: "2026-08-20T18:10:00Z",
-          count: 12,
-        },
-      ],
-      count: 12,
-      coveredSessionIds: new Set<string>(),
-      stale: false,
-      loading: false,
-    });
+    vi.mocked(useAttentionCalls).mockReturnValue(
+      attentionCallsModel({
+        rows: [
+          {
+            id: "tree:sess_migration_sweep",
+            cause: "invalid-result",
+            agentName: "platform-engineer-agent",
+            rootSessionId: "sess_migration_sweep",
+            callId: "call_0",
+            childSessionId: null,
+            changedAt: "2026-08-20T18:10:00Z",
+            count: 12,
+          },
+        ],
+        count: 12,
+      })
+    );
 
     const { result } = renderHook(() => useOsAttention(workspace, "live", false));
 
@@ -382,24 +393,24 @@ describe("useOsAttention", () => {
     vi.mocked(useSessions).mockReturnValue(
       sessionsQuery({ data: [waitingSession("sess_compliance_review")] })
     );
-    vi.mocked(useAttentionCalls).mockReturnValue({
-      rows: [
-        {
-          id: "call_open",
-          cause: "blocked-on-decision",
-          agentName: "compliance-review-agent",
-          rootSessionId: "sess_release_control",
-          callId: "call_open",
-          childSessionId: "sess_compliance_review",
-          changedAt: "2026-08-20T18:10:00Z",
-          count: 1,
-        },
-      ],
-      count: 1,
-      coveredSessionIds: new Set(["sess_compliance_review"]),
-      stale: false,
-      loading: false,
-    });
+    vi.mocked(useAttentionCalls).mockReturnValue(
+      attentionCallsModel({
+        rows: [
+          {
+            id: "call_open",
+            cause: "blocked-on-decision",
+            agentName: "compliance-review-agent",
+            rootSessionId: "sess_release_control",
+            callId: "call_open",
+            childSessionId: "sess_compliance_review",
+            changedAt: "2026-08-20T18:10:00Z",
+            count: 1,
+          },
+        ],
+        count: 1,
+        coveredSessionIds: new Set(["sess_compliance_review"]),
+      })
+    );
 
     const { result } = renderHook(() => useOsAttention(workspace, "live", false));
 
@@ -412,25 +423,25 @@ describe("useOsAttention", () => {
 
   it("Should drop the delegation badge while its source is stale, keeping the row", () => {
     vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
-    vi.mocked(useAttentionCalls).mockReturnValue({
-      rows: [
-        {
-          id: "call_bad",
-          cause: "completed-without-result",
-          agentName: "copywriter-agent",
-          rootSessionId: "sess_marketing_launch_copy",
-          callId: "call_bad",
-          childSessionId: null,
-          changedAt: "2026-08-20T18:10:00Z",
-          count: 1,
-        },
-      ],
-      // Already zeroed by the agent-comms layer when its source went stale.
-      count: 0,
-      coveredSessionIds: new Set<string>(),
-      stale: true,
-      loading: false,
-    });
+    vi.mocked(useAttentionCalls).mockReturnValue(
+      attentionCallsModel({
+        rows: [
+          {
+            id: "call_bad",
+            cause: "completed-without-result",
+            agentName: "copywriter-agent",
+            rootSessionId: "sess_marketing_launch_copy",
+            callId: "call_bad",
+            childSessionId: null,
+            changedAt: "2026-08-20T18:10:00Z",
+            count: 1,
+          },
+        ],
+        // Already zeroed by the agent-comms layer when its source went stale.
+        count: 0,
+        stale: true,
+      })
+    );
 
     const { result } = renderHook(() => useOsAttention(workspace, "live", false));
 

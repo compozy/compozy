@@ -23,16 +23,17 @@ func (s *Service) invokeClaimedActivation(
 		return CallRecord{}, newError(CodeValidation, "activation specification is missing", nil)
 	}
 	childID := strings.TrimSpace(activation.TargetSessionID)
+	remainingDepth := max(s.config.MaxDepth-activation.Depth, 0)
 	createdChild := false
 	var invokeErr error
 	switch activation.Kind {
-	case "spawn":
+	case ActivationKindSpawn:
 		child, err := s.invoker.SpawnChild(ctx, ChildSpec{
 			CallID: record.CallID, ParentSessionID: activation.ParentSessionID,
 			AgentName: activation.AgentName, Prompt: string(admission.Prompt),
 			WorkspaceID: activation.WorkspaceID, IdleTTL: activation.IdleTTL,
 			Runtime: activation.Runtime, Permissions: admission.Narrow,
-			RemainingDepth: max(s.config.MaxDepth-activation.Depth, 0),
+			RemainingDepth: remainingDepth,
 		})
 		if err != nil {
 			invokeErr = err
@@ -40,11 +41,11 @@ func (s *Service) invokeClaimedActivation(
 			childID = strings.TrimSpace(child.ID)
 			createdChild = true
 		}
-	case "revive":
+	case ActivationKindRevive:
 		invokeErr = s.invoker.Revive(
 			ctx,
 			childID,
-			callPromptWithRemainingDepth(string(admission.Prompt), max(s.config.MaxDepth-activation.Depth, 0)),
+			CallPromptWithRemainingDepth(string(admission.Prompt), remainingDepth),
 			record.CallID,
 		)
 	default:
@@ -127,7 +128,7 @@ func (s *Service) RecoverCallRuntime(ctx context.Context) error {
 			return err
 		}
 	}
-	_, err = s.DispatchQueued(ctx, 100)
+	_, err = s.DispatchQueued(ctx, callRecoveryBatchLimit)
 	return err
 }
 

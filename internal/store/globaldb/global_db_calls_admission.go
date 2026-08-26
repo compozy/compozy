@@ -60,7 +60,7 @@ func (g *CallRepo) AdmitCall(
 			if err := insertCallActivation(ctx, exec, g.tasks, *admission.Activation, admission.Record.CreatedAt); err != nil {
 				return err
 			}
-			if admission.Activation.Kind == "revive" {
+			if admission.Activation.Kind == callspkg.ActivationKindRevive {
 				if _, err := exec.ExecContext(ctx, `UPDATE sessions SET idle_expires_at = NULL, updated_at = ?
 					WHERE id = ? AND parked_at IS NOT NULL`, store.FormatTimestamp(admission.Record.CreatedAt),
 					admission.Activation.TargetSessionID); err != nil {
@@ -118,7 +118,20 @@ func validateCallAdmissionFence(
 	exec taskSQLExecutor,
 	admission callspkg.Admission,
 ) error {
-	record := admission.Record
+	if err := validateGovernedRootFence(ctx, exec, admission.Record); err != nil {
+		return err
+	}
+	if err := validateCallTargetFence(ctx, exec, admission.Record); err != nil {
+		return err
+	}
+	return validateCallChildrenCapFence(ctx, exec, admission)
+}
+
+func validateGovernedRootFence(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	record callspkg.CallRecord,
+) error {
 	var profileID, workspaceID string
 	var drainingAt sql.NullString
 	err := exec.QueryRowContext(ctx, `SELECT profile_id, workspace_id, draining_at
@@ -138,54 +151,70 @@ func validateCallAdmissionFence(
 	if drainingAt.Valid {
 		return &callspkg.Error{Code: callspkg.CodeParentTerminal, Message: "governed root is draining"}
 	}
-	if strings.TrimSpace(record.ChildSessionID) != "" {
-		var targetProfileID, targetWorkspaceID string
-		var targetDrainingAt, idleExpiresAt sql.NullString
-		err := exec.QueryRowContext(ctx, `SELECT profile_id, workspace_id, draining_at, idle_expires_at
-			FROM sessions WHERE id = ?`, record.ChildSessionID).Scan(
-			&targetProfileID, &targetWorkspaceID, &targetDrainingAt, &idleExpiresAt,
-		)
-		if errors.Is(err, sql.ErrNoRows) {
-			return &callspkg.Error{Code: callspkg.CodeTargetNotFound, Message: "call target was not found"}
-		}
-		if err != nil {
-			return fmt.Errorf("store: inspect call target %q: %w", record.ChildSessionID, err)
-		}
-		if targetProfileID != record.ProfileID {
-			return &callspkg.Error{Code: callspkg.CodeTargetDenied, Message: "call target belongs to another profile"}
-		}
-		if targetWorkspaceID != record.WorkspaceID {
-			return &callspkg.Error{Code: callspkg.CodeWorkspaceDenied, Message: "call target belongs to another workspace"}
-		}
-		if targetDrainingAt.Valid {
-			return &callspkg.Error{
-				Code: callspkg.CodeTargetExpired, Message: "call target is being reaped; call the agent fresh",
-				Suggestion: "call the agent fresh",
-			}
-		}
-		if idleExpiresAt.Valid {
-			expiresAt, parseErr := store.ParseTimestamp(idleExpiresAt.String)
-			if parseErr != nil {
-				return fmt.Errorf("store: parse call target idle expiry: %w", parseErr)
-			}
-			if !expiresAt.After(record.CreatedAt) {
-				expiredAt := store.FormatTimestamp(expiresAt)
-				return &callspkg.Error{
-					Code: callspkg.CodeTargetExpired,
-					Message: fmt.Sprintf(
-						"call target expired at %s; call the agent fresh",
-						expiredAt,
-					),
-					ExpiredAt: expiredAt, Suggestion: "call the agent fresh",
-				}
-			}
+	return nil
+}
+
+func validateCallTargetFence(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	record callspkg.CallRecord,
+) error {
+	if strings.TrimSpace(record.ChildSessionID) == "" {
+		return nil
+	}
+	var targetProfileID, targetWorkspaceID string
+	var targetDrainingAt, idleExpiresAt sql.NullString
+	err := exec.QueryRowContext(ctx, `SELECT profile_id, workspace_id, draining_at, idle_expires_at
+		FROM sessions WHERE id = ?`, record.ChildSessionID).Scan(
+		&targetProfileID, &targetWorkspaceID, &targetDrainingAt, &idleExpiresAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return &callspkg.Error{Code: callspkg.CodeNotFound, Message: "call target was not found"}
+	}
+	if err != nil {
+		return fmt.Errorf("store: inspect call target %q: %w", record.ChildSessionID, err)
+	}
+	if targetProfileID != record.ProfileID {
+		return &callspkg.Error{Code: callspkg.CodeTargetDenied, Message: "call target belongs to another profile"}
+	}
+	if targetWorkspaceID != record.WorkspaceID {
+		return &callspkg.Error{Code: callspkg.CodeWorkspaceDenied, Message: "call target belongs to another workspace"}
+	}
+	if targetDrainingAt.Valid {
+		return &callspkg.Error{
+			Code: callspkg.CodeTargetExpired, Message: "call target is being reaped; call the agent fresh",
+			Suggestion: "call the agent fresh",
 		}
 	}
+	if !idleExpiresAt.Valid {
+		return nil
+	}
+	expiresAt, err := store.ParseTimestamp(idleExpiresAt.String)
+	if err != nil {
+		return fmt.Errorf("store: parse call target idle expiry: %w", err)
+	}
+	if expiresAt.After(record.CreatedAt) {
+		return nil
+	}
+	expiredAt := store.FormatTimestamp(expiresAt)
+	return &callspkg.Error{
+		Code:      callspkg.CodeTargetExpired,
+		Message:   fmt.Sprintf("call target expired at %s; call the agent fresh", expiredAt),
+		ExpiredAt: expiredAt, Suggestion: "call the agent fresh",
+	}
+}
+
+func validateCallChildrenCapFence(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	admission callspkg.Admission,
+) error {
+	record := admission.Record
 	if strings.TrimSpace(record.AgentName) == "" || admission.MaxChildren <= 0 {
 		return nil
 	}
 	var liveChildren int
-	err = exec.QueryRowContext(ctx, `SELECT COUNT(1) FROM sessions
+	err := exec.QueryRowContext(ctx, `SELECT COUNT(1) FROM sessions
 		WHERE parent_session_id = ? AND state IN ('starting', 'active', 'stopping')`,
 		record.ParentSessionID,
 	).Scan(&liveChildren)
@@ -301,20 +330,32 @@ func insertCallFollowUpDelivery(
 	record callspkg.CallRecord,
 	delivery callspkg.Delivery,
 ) error {
-	suffix := strings.TrimPrefix(record.CallID, "call_")
-	deliveryID := "delivery_message_" + suffix
-	wakeID := "wake_message_" + suffix
+	identity := callDeliveryIdentityFor("message", record.CallID)
 	_, err := exec.ExecContext(ctx, `INSERT INTO call_deliveries (
 		delivery_id, kind, subject_id, recipient_session_id, owner_key, wake_event_id,
 		state, created_at, updated_at
 	) VALUES (?, 'message', ?, ?, ?, ?, 'pending', ?, ?)`,
-		deliveryID, record.CallID, delivery.RecipientSessionID, participation.OwnerKey(record.Caller), wakeID,
+		identity.deliveryID, record.CallID, delivery.RecipientSessionID,
+		participation.OwnerKey(record.Caller), identity.wakeID,
 		store.FormatTimestamp(record.CreatedAt), store.FormatTimestamp(record.CreatedAt),
 	)
 	if err != nil {
 		return fmt.Errorf("store: insert follow-up delivery for call %q: %w", record.CallID, err)
 	}
 	return nil
+}
+
+type callDeliveryIdentity struct {
+	deliveryID string
+	wakeID     string
+}
+
+func callDeliveryIdentityFor(kind, callID string) callDeliveryIdentity {
+	suffix := strings.TrimPrefix(strings.TrimSpace(callID), "call_")
+	return callDeliveryIdentity{
+		deliveryID: "delivery_" + kind + "_" + suffix,
+		wakeID:     "wake_" + kind + "_" + suffix,
+	}
 }
 
 func durationSecondsCeil(value time.Duration) int64 {

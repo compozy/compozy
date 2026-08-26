@@ -52,7 +52,7 @@ function summaryText(
   }
   if (runningCalls !== undefined && runningCalls > 0) parts.push(`${runningCalls} running`);
   if (needsYouCalls !== undefined && needsYouCalls > 0) {
-    parts.push(`${needsYouCalls} needs a look`);
+    parts.push(`${needsYouCalls} ${needsYouCalls === 1 ? "needs" : "need"} a look`);
   }
   return parts.length > 0 ? parts.join(" · ") : null;
 }

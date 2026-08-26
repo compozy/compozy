@@ -57,16 +57,28 @@ func TestServicePublish(t *testing.T) {
 
 	t.Run("Should reject every resultless or non-completed state", func(t *testing.T) {
 		t.Parallel()
-		for _, state := range []State{
-			StateQueued, StateRunning, StateInvalidResult, StateCompletedWithoutResult,
-			StateFailed, StateCanceled, StateTimeout, StateExpired,
+		for _, test := range []struct {
+			name  string
+			state State
+		}{
+			{name: "Should reject queued calls", state: StateQueued},
+			{name: "Should reject running calls", state: StateRunning},
+			{name: "Should reject invalid results", state: StateInvalidResult},
+			{name: "Should reject completed calls without results", state: StateCompletedWithoutResult},
+			{name: "Should reject failed calls", state: StateFailed},
+			{name: "Should reject canceled calls", state: StateCanceled},
+			{name: "Should reject timed out calls", state: StateTimeout},
+			{name: "Should reject expired calls", state: StateExpired},
 		} {
-			service, store, _ := newPublishHarness(t, true)
-			store.calls["call-publish"] = publishCallRecord(state)
-			_, err := service.Publish(context.Background(), validPublishInput())
-			if !IsCode(err, CodePublishNotSettled) {
-				t.Fatalf("Publish(%s) error = %v, want %s", state, err, CodePublishNotSettled)
-			}
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+				service, store, _ := newPublishHarness(t, true)
+				store.calls["call-publish"] = publishCallRecord(test.state)
+				_, err := service.Publish(context.Background(), validPublishInput())
+				if !IsCode(err, CodePublishNotSettled) {
+					t.Fatalf("Publish(%s) error = %v, want %s", test.state, err, CodePublishNotSettled)
+				}
+			})
 		}
 	})
 
@@ -93,15 +105,7 @@ func (s *publishTestStore) seedCompletedCall(payload []byte) {
 	record.ResultRef = "result-publish"
 	record.ResultBytes = len(payload)
 	s.calls[record.CallID] = record
-	s.payloads[record.ResultRef] = append([]byte(nil), payload...)
-}
-
-func (s *publishTestStore) GetCallPayload(_ context.Context, _, ref string) ([]byte, error) {
-	payload, ok := s.payloads[ref]
-	if !ok {
-		return nil, errors.New("payload not found")
-	}
-	return append([]byte(nil), payload...), nil
+	s.payloads[callPayloadKey(record.WorkspaceID, record.ResultRef)] = append([]byte(nil), payload...)
 }
 
 func (s *publishTestStore) GetPublication(_ context.Context, callID, channel, threadID string) (Publication, error) {

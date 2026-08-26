@@ -15,6 +15,7 @@ import (
 
 const maxDeliveryAttempts = 3
 
+// SendMessage admits one durable peer message and attempts boundary delivery.
 func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (MessageRecord, error) {
 	mailbox, err := s.mailboxStore()
 	if err != nil {
@@ -88,7 +89,7 @@ func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (Mess
 	s.emitHook(ctx, HookCallMessageSent, HookPayload{
 		ProfileID: record.ProfileID, Scope: record.Scope, WorkspaceID: record.WorkspaceID,
 		CallID: record.CallID, MessageID: record.MessageID,
-		Actor: Actor{Kind: record.From.Kind, ID: record.From.ID}, Delivery: record.Delivery,
+		Actor: Actor{Kind: record.From.Kind, ID: record.From.ID}, Delivery: string(record.Delivery),
 	})
 	return record, nil
 }
@@ -114,6 +115,7 @@ func validateMessageIdentity(input SendMessageInput) error {
 	}
 }
 
+// Message returns one mailbox message from an exact ownership scope.
 func (s *Service) Message(ctx context.Context, scope CallScope, messageID string) (MessageRecord, error) {
 	mailbox, err := s.mailboxStore()
 	if err != nil {
@@ -122,6 +124,7 @@ func (s *Service) Message(ctx context.Context, scope CallScope, messageID string
 	return mailbox.GetMessage(ctx, scope, strings.TrimSpace(messageID))
 }
 
+// RenderPeerMessage frames untrusted peer text within the configured byte limit.
 func RenderPeerMessage(message MessageRecord, maxBytes int) string {
 	agent := strings.TrimSpace(message.FromAgentName)
 	if agent == "" {
@@ -164,6 +167,7 @@ func truncateUTF8(value string, maxBytes int) string {
 	return string(raw)
 }
 
+// DrainDeliveries attempts pending messages for one recipient at a runtime boundary.
 func (s *Service) DrainDeliveries(ctx context.Context, recipientSessionID string, limit int) error {
 	if s.invoker == nil {
 		return errors.New("calls: session invoker is required for delivery")
@@ -192,10 +196,10 @@ func (s *Service) DrainDeliveries(ctx context.Context, recipientSessionID string
 			errs = append(errs, s.failDelivery(ctx, item, "delivery_error", deliverErr))
 			continue
 		}
-		if outcome.State == "pending" {
+		if outcome.State == DeliveryStatePending {
 			continue
 		}
-		if outcome.State != "injected" && outcome.State != "woken" {
+		if outcome.State != DeliveryStateInjected && outcome.State != DeliveryStateWoken {
 			errs = append(errs, s.failDelivery(
 				ctx,
 				item,
@@ -204,7 +208,7 @@ func (s *Service) DrainDeliveries(ctx context.Context, recipientSessionID string
 			))
 			continue
 		}
-		if outcome.State == "woken" {
+		if outcome.State == DeliveryStateWoken {
 			if clearErr := mailbox.ClearCallChildIdleClock(
 				ctx,
 				item.RecipientSessionID,
@@ -222,16 +226,22 @@ func (s *Service) DrainDeliveries(ctx context.Context, recipientSessionID string
 			errs = append(errs, updateErr)
 			continue
 		}
-		if item.Kind == "message" {
+		if item.Kind == DeliveryKindMessage {
 			message, loadErr := mailbox.GetMessage(ctx, CallScope{}, item.SubjectID)
 			if loadErr != nil {
+				// Follow-up call deliveries share the message delivery kind so they can
+				// use the same recipient-boundary injection path. Their subject is a
+				// call, not a mailbox message, and the call lifecycle emits its hooks.
+				if IsCode(loadErr, CodeMessageNotFound) {
+					continue
+				}
 				errs = append(errs, loadErr)
 				continue
 			}
 			s.emitHook(ctx, HookCallMessageDelivered, HookPayload{
 				ProfileID: message.ProfileID, Scope: message.Scope, WorkspaceID: message.WorkspaceID,
 				CallID: message.CallID, MessageID: message.MessageID,
-				ChildSessionID: item.RecipientSessionID, Delivery: updated.State,
+				ChildSessionID: item.RecipientSessionID, Delivery: string(updated.State),
 			})
 		}
 	}
@@ -244,7 +254,7 @@ func (s *Service) failDelivery(ctx context.Context, item DeliveryRecord, reason 
 		return errors.Join(cause, storeErr)
 	}
 	_, err := mailbox.RecordDelivery(ctx, DeliveryUpdate{
-		DeliveryID: item.DeliveryID, State: "pending", Reason: reason,
+		DeliveryID: item.DeliveryID, State: DeliveryStatePending, Reason: reason,
 		At: s.now().UTC(), MaxAttempts: maxDeliveryAttempts,
 	})
 	return errors.Join(
@@ -281,14 +291,14 @@ func (s *Service) deliveryContent(ctx context.Context, delivery DeliveryRecord) 
 		return durableDeliveryContent{}, err
 	}
 	switch delivery.Kind {
-	case "message":
+	case DeliveryKindMessage:
 		message, err := mailbox.GetMessage(ctx, CallScope{}, delivery.SubjectID)
 		if err == nil {
 			return durableDeliveryContent{
 				body: RenderPeerMessage(message, s.messageMaxBytes),
 				metadata: acp.PromptSyntheticMeta{
 					MessageID: message.MessageID, CallID: message.CallID,
-					DeliveryKind: delivery.Kind, Reason: "call_message", WakeEventID: delivery.WakeEventID,
+					DeliveryKind: string(delivery.Kind), Reason: "call_message", WakeEventID: delivery.WakeEventID,
 				},
 			}, nil
 		}
@@ -306,7 +316,7 @@ func (s *Service) deliveryContent(ctx context.Context, delivery DeliveryRecord) 
 		return durableDeliveryContent{
 			body: string(prompt), metadata: deliverySyntheticMetadata(delivery, call, "call_follow_up"),
 		}, nil
-	case "completion":
+	case DeliveryKindCompletion:
 		call, err := s.store.GetCallForSettlement(ctx, delivery.SubjectID)
 		if err != nil {
 			return durableDeliveryContent{}, err
@@ -322,7 +332,7 @@ func (s *Service) deliveryContent(ctx context.Context, delivery DeliveryRecord) 
 			body:     RenderCompletionWake(call, payload),
 			metadata: deliverySyntheticMetadata(delivery, call, "call_completion"),
 		}, nil
-	case "repair":
+	case DeliveryKindRepair:
 		call, err := s.store.GetCallForSettlement(ctx, delivery.SubjectID)
 		if err != nil {
 			return durableDeliveryContent{}, err
@@ -347,7 +357,7 @@ func deliverySyntheticMetadata(
 	return acp.PromptSyntheticMeta{
 		CallID: call.CallID, CallState: string(call.State), ResultRef: call.ResultRef,
 		ResultBytes: call.ResultBytes, ContractDigest: call.ExpectDigest,
-		DeliveryKind: delivery.Kind, Reason: reason, WakeEventID: delivery.WakeEventID,
+		DeliveryKind: string(delivery.Kind), Reason: reason, WakeEventID: delivery.WakeEventID,
 	}
 }
 
@@ -359,6 +369,7 @@ func (s *Service) mailboxStore() (MailboxStore, error) {
 	return mailbox, nil
 }
 
+// FenceReapSession prevents new work from racing with session reaping.
 func (s *Service) FenceReapSession(ctx context.Context, sessionID string) (bool, error) {
 	mailbox, err := s.mailboxStore()
 	if err != nil {
@@ -367,6 +378,7 @@ func (s *Service) FenceReapSession(ctx context.Context, sessionID string) (bool,
 	return mailbox.FenceSessionReap(ctx, strings.TrimSpace(sessionID), s.now().UTC())
 }
 
+// FailRecipientDeliveries terminalizes pending deliveries for a stopped recipient.
 func (s *Service) FailRecipientDeliveries(ctx context.Context, sessionID, reason string) error {
 	mailbox, err := s.mailboxStore()
 	if err != nil {
@@ -377,6 +389,7 @@ func (s *Service) FailRecipientDeliveries(ctx context.Context, sessionID, reason
 	)
 }
 
+// FinalizeReapedSession closes a fenced session after its runtime stops.
 func (s *Service) FinalizeReapedSession(ctx context.Context, sessionID, reason string) error {
 	mailbox, err := s.mailboxStore()
 	if err != nil {

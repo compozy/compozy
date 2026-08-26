@@ -84,25 +84,9 @@ func (g *CallRepo) ListCalls(ctx context.Context, query callspkg.CallListQuery) 
 	if err != nil {
 		return callspkg.CallPage{}, fmt.Errorf("store: list calls: %w", err)
 	}
-	items := make([]callspkg.CallRecord, 0, limit+1)
-	for rows.Next() {
-		record, scanErr := scanCallRecord(rows)
-		if scanErr != nil {
-			return callspkg.CallPage{}, errors.Join(
-				fmt.Errorf("store: scan call page: %w", scanErr),
-				rows.Close(),
-			)
-		}
-		items = append(items, record)
-	}
-	if err := rows.Err(); err != nil {
-		return callspkg.CallPage{}, errors.Join(
-			fmt.Errorf("store: iterate call page: %w", err),
-			rows.Close(),
-		)
-	}
-	if err := rows.Close(); err != nil {
-		return callspkg.CallPage{}, fmt.Errorf("store: close call page rows: %w", err)
+	items, err := collectCallPageRows(rows, limit+1, "call page", scanCallRecord)
+	if err != nil {
+		return callspkg.CallPage{}, err
 	}
 	page := callspkg.CallPage{Items: items, Total: total}
 	if len(page.Items) > limit {
@@ -190,25 +174,9 @@ func (g *CallRepo) ListMessages(
 	if err != nil {
 		return callspkg.MessagePage{}, fmt.Errorf("store: list call messages: %w", err)
 	}
-	items := make([]callspkg.MessageRecord, 0, limit+1)
-	for rows.Next() {
-		record, scanErr := scanCallMessage(rows)
-		if scanErr != nil {
-			return callspkg.MessagePage{}, errors.Join(
-				fmt.Errorf("store: scan message page: %w", scanErr),
-				rows.Close(),
-			)
-		}
-		items = append(items, record)
-	}
-	if err := rows.Err(); err != nil {
-		return callspkg.MessagePage{}, errors.Join(
-			fmt.Errorf("store: iterate message page: %w", err),
-			rows.Close(),
-		)
-	}
-	if err := rows.Close(); err != nil {
-		return callspkg.MessagePage{}, fmt.Errorf("store: close message page rows: %w", err)
+	items, err := collectCallPageRows(rows, limit+1, "message page", scanCallMessage)
+	if err != nil {
+		return callspkg.MessagePage{}, err
 	}
 	page := callspkg.MessagePage{Items: items}
 	if len(page.Items) > limit {
@@ -225,6 +193,29 @@ func (g *CallRepo) ListMessages(
 		}
 	}
 	return page, nil
+}
+
+func collectCallPageRows[T any](
+	rows *sql.Rows,
+	capacity int,
+	operation string,
+	scan func(rowScanner) (T, error),
+) ([]T, error) {
+	items := make([]T, 0, capacity)
+	for rows.Next() {
+		item, err := scan(rows)
+		if err != nil {
+			return nil, errors.Join(fmt.Errorf("store: scan %s: %w", operation, err), rows.Close())
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, errors.Join(fmt.Errorf("store: iterate %s: %w", operation, err), rows.Close())
+	}
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("store: close %s rows: %w", operation, err)
+	}
+	return items, nil
 }
 
 func appendCallReadScope(

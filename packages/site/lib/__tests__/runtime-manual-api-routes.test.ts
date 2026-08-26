@@ -109,6 +109,31 @@ func registerCallRoutes(scope gin.IRouter, handlers *Handlers) {
     ]);
   });
 
+  it("parses multiline Gin groups, helper mounts, and method registrations", () => {
+    const source = `
+func registerRoutes(api *gin.RouterGroup, handlers *Handlers) {
+  workspace := api.Group(
+    "/workspaces/:workspace_id",
+  )
+  registerCallRoutes(
+    workspace,
+    handlers,
+  )
+}
+
+func registerCallRoutes(scope gin.IRouter, handlers *Handlers) {
+  scope.GET(
+    "/calls/:call_id",
+    handlers.CallGet,
+  )
+}
+`;
+
+    expect(extractRegisteredRoutes(source)).toEqual([
+      { method: "GET", path: "/api/workspaces/:workspace_id/calls/:call_id" },
+    ]);
+  });
+
   it("points documented CompozyOS /api routes at implemented HTTP or UDS handlers", () => {
     const registeredRoutes = implementedRoutes();
     const violations = listManualDocs(contentRoot).flatMap(doc =>

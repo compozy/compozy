@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/compozy/compozy/internal/contracts"
 	"io"
 	"log/slog"
 	"reflect"
@@ -23,6 +24,19 @@ import (
 func taskRunWithResult(run task.Run, result json.RawMessage) task.Run {
 	run.SetResult(result)
 	return run
+}
+
+// persistedGenerationOutputsForTest models the store write boundary used by
+// coordinator fixtures. Production readers remain strict and never infer a
+// missing result kind.
+func persistedGenerationOutputsForTest(outputs []GenerationOutput) []GenerationOutput {
+	persisted := cloneGenerationOutputs(outputs)
+	for index := range persisted {
+		if persisted[index].ResultKind == "" && strings.TrimSpace(persisted[index].OutputRef) != "" {
+			setGenerationOutputRef(&persisted[index], persisted[index].OutputRef)
+		}
+	}
+	return persisted
 }
 
 func TestCoordinatorOperatorRerunPlanner(t *testing.T) {
@@ -587,7 +601,7 @@ func TestCoordinatorActionExecutionInputShouldCarryPinnedPolicyAndSessionProvena
 		if err != nil {
 			t.Fatalf("json.Marshal(output payload) error = %v", err)
 		}
-		outputRef := OutputRefForPayload(payload)
+		outputRef := contracts.OutputRefForPayload(payload)
 		loopRun := Run{
 			ID: "looprun-action-runtime-payload", WorkspaceID: "ws-action-runtime-payload",
 			LoopName: "delivery", Status: StatusRunning, Generation: 1, Inputs: map[string]any{},
@@ -985,7 +999,8 @@ func TestRoutePlannerShouldSelectExactlyOnePath(t *testing.T) {
 	resolved := compileCoordinatorControlDefinition(t, definition)
 	topology := newControlTopology(resolved.Definition.Graph)
 	baseOutputs := []GenerationOutput{
-		{Generation: 1, NodeID: "load", Status: generationOutputSucceeded, OutputRef: `{"risk":"high"}`},
+		{Generation: 1, NodeID: "load", Status: generationOutputSucceeded,
+			ResultKind: GenerationResultPayload, OutputRef: `{"risk":"high"}`},
 		{Generation: 1, NodeID: "router", Status: generationOutputPending},
 		{Generation: 1, NodeID: "quick", Status: generationOutputPending},
 		{Generation: 1, NodeID: "review", Status: generationOutputPending},
@@ -1983,7 +1998,7 @@ func TestRefreshCompletedTaskRunOutputShouldRevalidateRunAgentSchema(t *testing.
 
 		payload := json.RawMessage(`{"status":"done","summary":"complete"}`)
 		output := GenerationOutput{
-			NodeID: "worker", Status: generationOutputEnqueued, OutputRef: OutputRefForPayload(payload),
+			NodeID: "worker", Status: generationOutputEnqueued, OutputRef: contracts.OutputRefForPayload(payload),
 			runtimePayload: payload,
 		}
 		refreshed, live, stops, terminal, err := refreshCompletedTaskRunOutput(
@@ -3544,7 +3559,10 @@ func TestCoordinatorRunnerShouldValidatePersistedRouteCauseOutputs(t *testing.T)
 			Run{ID: "run-1", WorkspaceID: "ws-1"},
 			1,
 			graph,
-			[]GenerationOutput{{NodeID: "quality", Status: generationOutputFailed, OutputRef: ref}},
+			[]GenerationOutput{{
+				NodeID: "quality", Status: generationOutputFailed,
+				ResultKind: GenerationResultPayload, OutputRef: ref,
+			}},
 		)
 		if err != nil {
 			t.Fatalf("loadPersistedRouteCauses() error = %v", err)
@@ -3561,7 +3579,7 @@ func TestCoordinatorRunnerShouldValidatePersistedRouteCauseOutputs(t *testing.T)
 			t.Fatalf("gateVerdictOutputRef() error = %v", err)
 		}
 		payload := json.RawMessage(ref)
-		outputRef := OutputRefForPayload(payload)
+		outputRef := contracts.OutputRefForPayload(payload)
 		key := GenerationOutputPayloadKey{
 			WorkspaceID: "ws-1",
 			RunID:       "run-1",
@@ -3584,6 +3602,7 @@ func TestCoordinatorRunnerShouldValidatePersistedRouteCauseOutputs(t *testing.T)
 				Generation: 1,
 				NodeID:     "quality",
 				Status:     generationOutputFailed,
+				ResultKind: GenerationResultPayload,
 				OutputRef:  outputRef,
 			}},
 		)
@@ -4204,7 +4223,7 @@ func TestCoordinatorRunnerShouldStallOnRepeatedBlockingIssueSignature(t *testing
 			Status:    task.TaskRunStatusClaimed,
 		}
 		blockerPayload := json.RawMessage(`{"blocking_issues":[{"id":"missing-reviewer"},{"id":"blocked-api"}]}`)
-		blockerRef := OutputRefForPayload(blockerPayload)
+		blockerRef := contracts.OutputRefForPayload(blockerPayload)
 		outputStore := coordinatorRunnerOutputs{
 			outputs: map[int][]GenerationOutput{
 				1: {{Generation: 1, NodeID: "load", Status: generationOutputFailed, OutputRef: blockerRef}},
@@ -5602,7 +5621,7 @@ func (r coordinatorRunnerOutputs) ListGenerationOutputs(
 	if r.outputs == nil {
 		return nil, nil
 	}
-	return append([]GenerationOutput(nil), r.outputs[generation]...), nil
+	return persistedGenerationOutputsForTest(r.outputs[generation]), nil
 }
 
 type coordinatorRunnerLoopStore struct {

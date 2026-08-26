@@ -7,8 +7,9 @@ Delegation is where an agent system can quietly go wrong: unbounded recursion, r
 hold, a child that outlives its parent, a call reaching into work it does not own. This page is the
 list of walls CompozyOS puts in the way, and what each one does when it engages.
 
-Every bound here is observable. A cap that fires produces a typed error or a visible queue — never
-a silent truncation.
+Every bound here is observable. Depending on the wall, CompozyOS rejects admission, queues work,
+reaps an idle child, removes the call tool at the depth limit, or bounds a projection. Stored
+payloads are never silently truncated.
 
 ## The `[calls]` walls
 

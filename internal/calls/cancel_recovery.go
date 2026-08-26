@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// Cancel terminalizes one call when the actor owns its control boundary.
 func (s *Service) Cancel(
 	ctx context.Context,
 	callID string,
@@ -21,48 +22,31 @@ func (s *Service) Cancel(
 	if err := requireCallControlActor(record, actor); err != nil {
 		return CallRecord{}, err
 	}
-	if record.State.Terminal() {
-		return record, nil
-	}
-	outcome, err := s.fenceActivation(ctx, record, "call canceled")
-	if err != nil {
-		return CallRecord{}, err
-	}
-	if outcome.Claimed {
-		record, err = s.store.GetCallForSettlement(ctx, record.CallID)
-		if err != nil {
-			return CallRecord{}, err
-		}
-		if record.State.Terminal() {
-			return record, nil
-		}
-	}
-	if record.State == StateRunning && strings.TrimSpace(record.ChildSessionID) != "" {
-		if s.invoker == nil {
-			return CallRecord{}, errors.New("calls: session invoker is required for cancellation")
-		}
-		if err := s.invoker.StopManaged(ctx, record.ChildSessionID, sanitizeDiagnostic(reason, "canceled")); err != nil {
-			return CallRecord{}, fmt.Errorf("calls: stop child %q: %w", record.ChildSessionID, err)
-		}
-	}
 	detail := sanitizeDiagnostic(reason, "canceled")
 	failureDetail := sanitizeDiagnostic(actor.Kind+":"+actor.ID+": "+detail, detail)
-	settled, err := s.store.SettleCall(ctx, SettlementMutation{
-		CallID: record.CallID, ExpectedState: record.State, State: StateCanceled,
-		FailureCode: "call_canceled", FailureDetail: failureDetail,
-		SettledAt: s.now().UTC(),
+	settled, settledNow, err := s.settleControlledCall(ctx, record, controlledSettlement{
+		fenceReason: "call canceled",
+		stop: func(current CallRecord) error {
+			if current.State != StateRunning || strings.TrimSpace(current.ChildSessionID) == "" {
+				return nil
+			}
+			if s.invoker == nil {
+				return errors.New("calls: session invoker is required for cancellation")
+			}
+			if err := s.invoker.StopManaged(ctx, current.ChildSessionID, detail); err != nil {
+				return fmt.Errorf("calls: stop child %q: %w", current.ChildSessionID, err)
+			}
+			return nil
+		},
+		mutation: func(current CallRecord) SettlementMutation {
+			return SettlementMutation{
+				CallID: current.CallID, ExpectedState: current.State, State: StateCanceled,
+				FailureCode: "call_canceled", FailureDetail: failureDetail,
+				SettledAt: s.now().UTC(),
+			}
+		},
 	})
-	if IsCode(err, CodeAlreadySettled) {
-		current, loadErr := s.store.GetCallForSettlement(ctx, record.CallID)
-		if loadErr != nil {
-			return CallRecord{}, errors.Join(err, loadErr)
-		}
-		if current.State.Terminal() {
-			return current, nil
-		}
-	}
-	if err == nil {
-		s.notifyWaiters(record.CallID)
+	if err == nil && settledNow {
 		s.emitHook(ctx, HookCallCanceled, hookPayloadForCall(settled))
 	}
 	return settled, err
@@ -73,58 +57,59 @@ func requireCallControlActor(record CallRecord, actor Actor) error {
 	if kind == "" || id == "" {
 		return newError(CodeSettlementDenied, "cancel actor is required", nil)
 	}
-	if kind == "human" || kind == "daemon" ||
-		(kind == record.Actor.Kind && id == record.Actor.ID) ||
-		(kind == "agent_session" && (id == record.ParentSessionID || id == record.Caller.ID)) {
+	isOperator := kind == "human" || kind == "daemon"
+	isBoundActor := kind == record.Actor.Kind && id == record.Actor.ID
+	isParentSession := kind == "agent_session" && (id == record.ParentSessionID || id == record.Caller.ID)
+	if isOperator || isBoundActor || isParentSession {
 		return nil
 	}
 	return newError(CodeSettlementDenied, "actor may not control this call", nil)
 }
 
+// SweepDeadlines terminalizes calls whose configured deadline has elapsed.
 func (s *Service) SweepDeadlines(ctx context.Context, now time.Time) (SweepReport, error) {
 	if now.IsZero() {
 		now = s.now().UTC()
 	} else {
 		now = now.UTC()
 	}
-	due, err := s.store.ListDueCalls(ctx, now, 100)
+	due, err := s.store.ListDueCalls(ctx, now, callRecoveryBatchLimit)
 	if err != nil {
 		return SweepReport{}, err
 	}
 	report := SweepReport{TimedOut: make([]string, 0, len(due))}
 	for _, record := range due {
-		if _, err := s.fenceActivation(ctx, record, "call deadline elapsed"); err != nil {
-			return report, err
-		}
-		record, err = s.store.GetCallForSettlement(ctx, record.CallID)
-		if err != nil {
-			return report, err
-		}
-		if record.State.Terminal() {
-			continue
-		}
-		if record.State == StateRunning && record.ChildSessionID != "" && s.invoker != nil {
-			if err := s.invoker.StopManaged(ctx, record.ChildSessionID, "call deadline elapsed"); err != nil {
-				return report, fmt.Errorf("calls: stop timed out child %q: %w", record.ChildSessionID, err)
-			}
-		}
-		settled, settleErr := s.store.SettleCall(ctx, SettlementMutation{
-			CallID: record.CallID, ExpectedState: record.State, State: StateTimeout,
-			FailureCode: "call_timeout", FailureDetail: "deadline elapsed", SettledAt: now,
+		settled, settledNow, settleErr := s.settleControlledCall(ctx, record, controlledSettlement{
+			fenceReason: "call deadline elapsed",
+			stop: func(current CallRecord) error {
+				if current.State != StateRunning || current.ChildSessionID == "" || s.invoker == nil {
+					return nil
+				}
+				if err := s.invoker.StopManaged(ctx, current.ChildSessionID, "call deadline elapsed"); err != nil {
+					return fmt.Errorf("calls: stop timed out child %q: %w", current.ChildSessionID, err)
+				}
+				return nil
+			},
+			mutation: func(current CallRecord) SettlementMutation {
+				return SettlementMutation{
+					CallID: current.CallID, ExpectedState: current.State, State: StateTimeout,
+					FailureCode: "call_timeout", FailureDetail: "deadline elapsed", SettledAt: now,
+				}
+			},
 		})
-		if IsCode(settleErr, CodeAlreadySettled) {
+		if !settledNow && settleErr == nil {
 			continue
 		}
 		if settleErr != nil {
 			return report, settleErr
 		}
-		report.TimedOut = append(report.TimedOut, record.CallID)
-		s.notifyWaiters(record.CallID)
+		report.TimedOut = append(report.TimedOut, settled.CallID)
 		s.emitHook(ctx, HookCallSettled, hookPayloadForCall(settled))
 	}
 	return report, nil
 }
 
+// DrainSubtree fences one governed tree and terminalizes every open call in it.
 func (s *Service) DrainSubtree(
 	ctx context.Context,
 	rootSessionID string,
@@ -158,41 +143,40 @@ func (s *Service) DrainSubtree(
 		drainPayload.RootSessionID = rootID
 		drainPayload.Actor = actor
 	}
-	stopped := make(map[string]struct{})
+	stopped := make(map[string]struct{}, len(openCalls))
 	for _, record := range openCalls {
-		if _, err := s.fenceActivation(ctx, record, "subtree drain"); err != nil {
-			return report, err
-		}
-		record, err = s.store.GetCallForSettlement(ctx, record.CallID)
-		if err != nil {
-			return report, err
-		}
-		if record.State.Terminal() {
-			continue
-		}
-		childID := strings.TrimSpace(record.ChildSessionID)
-		if childID != "" {
-			if _, seen := stopped[childID]; !seen && s.invoker != nil {
+		settled, settledNow, settleErr := s.settleControlledCall(ctx, record, controlledSettlement{
+			fenceReason: "subtree drain",
+			stop: func(current CallRecord) error {
+				childID := strings.TrimSpace(current.ChildSessionID)
+				if childID == "" || s.invoker == nil {
+					return nil
+				}
+				if _, seen := stopped[childID]; seen {
+					return nil
+				}
 				if err := s.invoker.StopManaged(ctx, childID, detail); err != nil {
-					return report, fmt.Errorf("calls: drain child %q: %w", childID, err)
+					return fmt.Errorf("calls: drain child %q: %w", childID, err)
 				}
 				stopped[childID] = struct{}{}
 				report.Stopped = append(report.Stopped, childID)
-			}
-		}
-		settled, settleErr := s.store.SettleCall(ctx, SettlementMutation{
-			CallID: record.CallID, ExpectedState: record.State, State: StateCanceled,
-			FailureCode: "call_subtree_drained", FailureDetail: detail,
-			SettledAt: s.now().UTC(),
+				return nil
+			},
+			mutation: func(current CallRecord) SettlementMutation {
+				return SettlementMutation{
+					CallID: current.CallID, ExpectedState: current.State, State: StateCanceled,
+					FailureCode: "call_subtree_drained", FailureDetail: detail,
+					SettledAt: s.now().UTC(),
+				}
+			},
 		})
-		if IsCode(settleErr, CodeAlreadySettled) {
+		if !settledNow && settleErr == nil {
 			continue
 		}
 		if settleErr != nil {
 			return report, settleErr
 		}
-		report.CanceledCalls = append(report.CanceledCalls, record.CallID)
-		s.notifyWaiters(record.CallID)
+		report.CanceledCalls = append(report.CanceledCalls, settled.CallID)
 		s.emitHook(ctx, HookCallCanceled, hookPayloadForCall(settled))
 	}
 	drainPayload.StoppedChildren = len(report.Stopped)
@@ -200,4 +184,50 @@ func (s *Service) DrainSubtree(
 	drainPayload.PreservedResults = report.PreservedResults
 	s.emitHook(ctx, HookCallSubtreeDrained, drainPayload)
 	return report, nil
+}
+
+type controlledSettlement struct {
+	fenceReason string
+	stop        func(CallRecord) error
+	mutation    func(CallRecord) SettlementMutation
+}
+
+func (s *Service) settleControlledCall(
+	ctx context.Context,
+	record CallRecord,
+	options controlledSettlement,
+) (CallRecord, bool, error) {
+	if record.State.Terminal() {
+		return record, false, nil
+	}
+	if _, err := s.fenceActivation(ctx, record, options.fenceReason); err != nil {
+		return CallRecord{}, false, err
+	}
+	current, err := s.store.GetCallForSettlement(ctx, record.CallID)
+	if err != nil {
+		return CallRecord{}, false, err
+	}
+	if current.State.Terminal() {
+		return current, false, nil
+	}
+	if options.stop != nil {
+		if err := options.stop(current); err != nil {
+			return CallRecord{}, false, err
+		}
+	}
+	settled, err := s.store.SettleCall(ctx, options.mutation(current))
+	if IsCode(err, CodeAlreadySettled) {
+		latest, loadErr := s.store.GetCallForSettlement(ctx, current.CallID)
+		if loadErr != nil {
+			return CallRecord{}, false, errors.Join(err, loadErr)
+		}
+		if latest.State.Terminal() {
+			return latest, false, nil
+		}
+	}
+	if err != nil {
+		return CallRecord{}, false, err
+	}
+	s.notifyWaiters(settled.CallID)
+	return settled, true, nil
 }

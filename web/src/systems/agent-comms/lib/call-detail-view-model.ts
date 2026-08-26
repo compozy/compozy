@@ -14,7 +14,13 @@
  * shows no timer chrome at all — most calls have none, and a dormant clock
  * implies a bound the daemon is not keeping.
  */
-import { toCallState, toCallVerdict, type CallState, type CallVerdict } from "./call-state";
+import {
+  isTerminalCallState,
+  toCallState,
+  toCallVerdict,
+  type CallState,
+  type CallVerdict,
+} from "./call-state";
 import { buildCallResultShape, type CallResultShape } from "./call-result-rows";
 import { buildCallTimeline, type CallTimelineEvent } from "./call-detail-timeline";
 import type { CallPayload } from "../types";
@@ -131,7 +137,7 @@ export type CallResultView =
   | { kind: "pending" };
 
 function buildResultView(call: CallPayload, state: CallState | null): CallResultView {
-  if (state !== null && !isTerminal(state)) return { kind: "pending" };
+  if (state !== null && !isTerminalCallState(state)) return { kind: "pending" };
   if (state === "invalid-result") {
     return {
       kind: "invalid",
@@ -192,10 +198,6 @@ function previewBytes(preview: unknown): number {
   return new TextEncoder().encode(text ?? "").length;
 }
 
-function isTerminal(state: CallState): boolean {
-  return state !== "queued" && state !== "running";
-}
-
 /**
  * A child is addressable unless the runtime says it is gone.
  *
@@ -213,7 +215,7 @@ function buildControls(
   state: CallState | null,
   counterpartExists: boolean
 ): CallDetailControls {
-  const terminal = state === null ? false : isTerminal(state);
+  const terminal = state === null ? false : isTerminalCallState(state);
   return {
     cancel: state !== null && !terminal,
     callAgain: terminal && Boolean(call.agent),
@@ -224,7 +226,7 @@ function buildControls(
 
 function buildIdleTtl(call: CallPayload, state: CallState | null): CallIdleTtl {
   // A call in flight suspends the clock outright, so there is nothing to count.
-  if (state !== null && !isTerminal(state)) return { kind: "suspended" };
+  if (state !== null && !isTerminalCallState(state)) return { kind: "suspended" };
   if (call.idle_expires_at === null) return { kind: "none" };
   return { kind: "counting", expiresAt: call.idle_expires_at };
 }
@@ -262,7 +264,7 @@ export function buildCallDetailView(input: CallDetailInput): CallDetailView {
     state,
     stateLabel: call.state,
     verdict: toCallVerdict(call.verdict),
-    terminal: state === null ? false : isTerminal(state),
+    terminal: state === null ? false : isTerminalCallState(state),
     callerId: call.caller.id,
     childSessionId: call.child_session_id ?? null,
     depth: call.depth,

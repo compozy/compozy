@@ -14,6 +14,25 @@ import (
 
 const maxVerdictIssues = 25
 
+// ValidateSchemaDefinition validates one authored JSON Schema object without treating it as a result contract shorthand.
+func ValidateSchemaDefinition(schema json.RawMessage) error {
+	trimmed := bytes.TrimSpace(schema)
+	if len(trimmed) == 0 {
+		return errors.New("schema object is required")
+	}
+	var object map[string]json.RawMessage
+	if err := json.Unmarshal(trimmed, &object); err != nil {
+		return fmt.Errorf("parse schema definition: %w", err)
+	}
+	if object == nil {
+		return errors.New("schema must be a JSON object")
+	}
+	if _, err := compileSchema(Contract{Schema: cloneRaw(trimmed)}); err != nil {
+		return err
+	}
+	return nil
+}
+
 func validatePayload(schema *jsonschema.Schema, raw json.RawMessage) Verdict {
 	sanitized := sanitizeRawBytes(raw)
 	instance, err := jsonschema.UnmarshalJSON(bytes.NewReader(sanitized))

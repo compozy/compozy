@@ -17,15 +17,8 @@ import {
 } from "./agent-call-state-pill";
 import { toCallVerdict } from "../lib/call-state";
 import type { CallTreeRow } from "../lib/agent-comms-tree";
+import { formatAgentCallBytes } from "../lib/format-bytes";
 import type { ChildState } from "../types";
-
-/** Bytes as the daemon counted them — a record field, shown verbatim. */
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  const kib = bytes / 1024;
-  if (kib < 1024) return `${kib.toFixed(kib < 10 ? 1 : 0)} KiB`;
-  return `${(kib / 1024).toFixed(1)} MiB`;
-}
 
 /**
  * The trailing stat, or an em dash.
@@ -41,7 +34,7 @@ function trailingStat(row: CallTreeRow): string {
     return `${issues} ${issues === 1 ? "try" : "tries"}`;
   }
   if (row.state === "canceled" && call.failure_detail) return call.failure_detail;
-  if (typeof call.result_bytes === "number") return formatBytes(call.result_bytes);
+  if (typeof call.result_bytes === "number") return formatAgentCallBytes(call.result_bytes);
   return "—";
 }
 
@@ -90,7 +83,12 @@ export function AgentCallTreeRow({
         <AgentChildStatePill data-testid="agent-call-tree-child-state" state={childState} />
       ) : null}
       <span className="flex-1" />
-      <span className="shrink-0 font-mono text-form text-muted">{trailingStat(row)}</span>
+      <span
+        className="max-w-48 shrink-0 truncate font-mono text-form text-muted"
+        title={trailingStat(row)}
+      >
+        {trailingStat(row)}
+      </span>
       <Time iso={call.updated_at} className="shrink-0 text-form text-muted" />
     </span>
   );

@@ -651,7 +651,7 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 					},
 				},
 			},
-			looppkg.NewStoreFinalizer(),
+			generationFinalizerForTest(),
 		); err != nil {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext(retry) error = %v", err)
 		}
@@ -720,7 +720,7 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 					},
 				},
 			},
-			looppkg.NewStoreFinalizer(),
+			generationFinalizerForTest(),
 		); err != nil {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext(final failure) error = %v", err)
 		}
@@ -835,7 +835,7 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 					},
 				},
 			},
-			looppkg.NewStoreFinalizer(),
+			generationFinalizerForTest(),
 		); err != nil {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
 		}
@@ -924,7 +924,7 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 					},
 				},
 			},
-			looppkg.NewStoreFinalizer(),
+			generationFinalizerForTest(),
 		); err != nil {
 			t.Fatalf("CompleteCoordinatorAndEnqueueNext(terminal) error = %v", err)
 		}

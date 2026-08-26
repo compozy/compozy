@@ -13,10 +13,14 @@ import (
 )
 
 const (
-	MaxAwaitDuration   = 30 * time.Minute
-	MaxConcurrentAwait = 32
+	// MaxAwaitDuration bounds one synchronous await request.
+	MaxAwaitDuration = 30 * time.Minute
+	// MaxConcurrentAwait bounds registered waiters for one call.
+	MaxConcurrentAwait     = 32
+	callRecoveryBatchLimit = 100
 )
 
+// Option configures a Service dependency or deterministic runtime value.
 type Option func(*serviceOptions)
 
 type serviceOptions struct {
@@ -32,6 +36,7 @@ type serviceOptions struct {
 	newID     func(string) (string, error)
 }
 
+// Service owns durable agent-call admission, lifecycle, reads, and delivery.
 type Service struct {
 	store           Store
 	directory       Directory
@@ -54,35 +59,55 @@ type Service struct {
 	publishMu       sync.Mutex
 }
 
+// WithStore configures durable call persistence.
 func WithStore(value Store) Option { return func(opts *serviceOptions) { opts.store = value } }
+
+// WithDirectory configures target and roster resolution.
 func WithDirectory(value Directory) Option {
 	return func(opts *serviceOptions) { opts.directory = value }
 }
+
+// WithActivationClaimer configures durable activation claims.
 func WithActivationClaimer(value ActivationClaimer) Option {
 	return func(opts *serviceOptions) { opts.claimer = value }
 }
+
+// WithActivationRunCanceler configures activation cancellation.
 func WithActivationRunCanceler(value ActivationRunCanceler) Option {
 	return func(opts *serviceOptions) { opts.canceler = value }
 }
+
+// WithSessionInvoker configures child-session lifecycle operations.
 func WithSessionInvoker(value SessionInvoker) Option {
 	return func(opts *serviceOptions) { opts.invoker = value }
 }
+
+// WithPublishBridge configures one-way Network publication.
 func WithPublishBridge(value PublishBridge) Option {
 	return func(opts *serviceOptions) { opts.publisher = value }
 }
+
+// WithHookDispatcher configures fail-open lifecycle observation.
 func WithHookDispatcher(value HookDispatcher) Option {
 	return func(opts *serviceOptions) { opts.hooks = value }
 }
+
+// WithConfig configures call limits and result policies.
 func WithConfig(value config.CallsConfig) Option {
 	return func(opts *serviceOptions) { opts.config = value }
 }
+
+// WithClock configures the service clock.
 func WithClock(value func() time.Time) Option {
 	return func(opts *serviceOptions) { opts.now = value }
 }
+
+// WithIDGenerator configures durable identifier generation.
 func WithIDGenerator(value func(string) (string, error)) Option {
 	return func(opts *serviceOptions) { opts.newID = value }
 }
 
+// NewService constructs a call service with validated dependencies and policies.
 func NewService(options ...Option) (*Service, error) {
 	opts := serviceOptions{
 		config: config.DefaultCallsConfig(),
@@ -144,6 +169,14 @@ func prefixedID(prefix string) (string, error) {
 	return strings.TrimSpace(prefix) + "_" + id, nil
 }
 
-func (s *Service) scope(profileID string, scope Scope, workspaceID string) CallScope {
-	return CallScope{ProfileID: strings.TrimSpace(profileID), Scope: scope, WorkspaceID: strings.TrimSpace(workspaceID)}
+// NormalizeCallScope trims, infers, and validates a service ownership boundary.
+func NormalizeCallScope(scope CallScope) (CallScope, error) {
+	scope.ProfileID = strings.TrimSpace(scope.ProfileID)
+	normalized, workspaceID, err := NormalizeReadScope(scope.Scope, scope.WorkspaceID)
+	if err != nil {
+		return CallScope{}, newError(CodeValidation, "invalid call scope", err)
+	}
+	scope.Scope = normalized
+	scope.WorkspaceID = workspaceID
+	return scope, nil
 }

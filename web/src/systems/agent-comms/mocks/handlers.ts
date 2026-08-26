@@ -30,6 +30,7 @@ export function setAgentCommsMockMessages(next: readonly CallMessagePayload[]): 
 export function resetAgentCommsMockState(): void {
   store.setCalls(activityTreeCallsFixture);
   store.setMessages(callMessagesFixture);
+  store.resetSequences();
 }
 
 export const handlers: HttpHandler[] = buildAgentCommsHandlers(store);

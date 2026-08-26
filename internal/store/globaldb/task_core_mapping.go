@@ -135,71 +135,8 @@ func taskRunFromGenerated(row *sqlcgen.GetTaskRunRow) (taskpkg.Run, error) {
 }
 
 func taskRunFromStatusGenerated(row *sqlcgen.ListTaskRunsByStatusRow) (taskpkg.Run, error) {
-	attempt, err := taskAttemptFromInt64(row.Attempt)
-	if err != nil {
-		return taskpkg.Run{}, err
-	}
-	recoveryCount, err := taskAttemptFromInt64(row.RecoveryCount)
-	if err != nil {
-		return taskpkg.Run{}, err
-	}
-	run := taskpkg.Run{
-		ID:            row.ID,
-		TaskID:        taskNullStringValue(row.TaskID),
-		WorkspaceID:   taskNullStringValue(row.WorkspaceID),
-		Attempt:       attempt,
-		RecoveryCount: recoveryCount,
-		Origin:        taskpkg.Origin{Ref: row.OriginRef},
-	}
-	run.SetWorktreeID(taskNullStringValue(row.WorktreeID))
-	fields := taskRunScanFields{
-		status:                 row.Status,
-		runKind:                row.RunKind,
-		loopRunID:              row.LoopRunID,
-		previousRunID:          row.PreviousRunID,
-		failureKind:            row.FailureKind,
-		claimedByKind:          row.ClaimedByKind,
-		claimedByRef:           row.ClaimedByRef,
-		sessionID:              row.SessionID,
-		originKind:             row.OriginKind,
-		idempotencyKey:         row.IdempotencyKey,
-		networkSpecJSON:        row.NetworkSpecJson,
-		networkMode:            row.NetworkMode,
-		networkChannel:         row.NetworkChannel,
-		networkSource:          row.NetworkSource,
-		designationGroupID:     row.DesignationGroupID,
-		resolvedWorktreeMode:   row.ResolvedWorktreeMode,
-		resolvedWorktreeRef:    row.ResolvedWorktreeRef,
-		claimToken:             nullableTaskString(row.ClaimToken),
-		claimTokenHash:         row.ClaimTokenHash,
-		leaseUntilRaw:          row.LeaseUntil,
-		heartbeatAtRaw:         row.HeartbeatAt,
-		queuedAtRaw:            row.QueuedAt,
-		claimedAtRaw:           row.ClaimedAt,
-		startedAtRaw:           row.StartedAt,
-		endedAtRaw:             row.EndedAt,
-		tokensUsed:             row.TokensUsed,
-		runErr:                 row.Error,
-		metadataJSON:           row.MetadataJson,
-		resultJSON:             row.ResultJson,
-		reviewRequired:         row.ReviewRequired,
-		reviewRequestRound:     int(row.ReviewRequestRound),
-		reviewPolicySnapshot:   row.ReviewPolicySnapshot,
-		reviewRequestID:        row.ReviewRequestID,
-		parentRunID:            row.ParentRunID,
-		reviewID:               row.ReviewID,
-		reviewRound:            int(row.ReviewRound),
-		continuationReason:     row.ContinuationReason,
-		missingWorkJSON:        row.MissingWorkJson,
-		nextRoundGuidance:      row.NextRoundGuidance,
-		networkWakeID:          row.NetworkWakeID,
-		networkTargetSessionID: row.NetworkTargetSessionID,
-		networkOwnerKey:        row.NetworkOwnerKey,
-		expectDigest:           row.ExpectDigest,
-		resultBudgetBytes:      row.ResultBudgetBytes,
-		resultOverflow:         row.ResultOverflow,
-	}
-	return fields.record(run)
+	canonical := sqlcgen.GetTaskRunRow(*row)
+	return taskRunFromGenerated(&canonical)
 }
 
 func taskAttemptFromInt64(value int64) (int32, error) {

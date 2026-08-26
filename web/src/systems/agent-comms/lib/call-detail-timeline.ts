@@ -9,18 +9,9 @@
  * The `queued` moment shares `created_at`: admission and enqueue are one act, so
  * showing two timestamps would imply a delay the record does not describe.
  */
-import {
-  Check,
-  Circle,
-  Clock,
-  FileX,
-  Plus,
-  RotateCcw,
-  Sparkles,
-  type LucideIcon,
-} from "lucide-react";
+import { Circle, CircleOff, Clock, Plus, RotateCcw, Sparkles, type LucideIcon } from "lucide-react";
 
-import { CALL_VERDICT_SIGNAL, toCallState, toCallVerdict } from "./call-state";
+import { CALL_STATE_SIGNAL, CALL_VERDICT_SIGNAL, toCallState, toCallVerdict } from "./call-state";
 import type { CallPayload } from "../types";
 
 export type CallTimelineTone = "neutral" | "success" | "warning" | "danger";
@@ -36,21 +27,6 @@ export interface CallTimelineEvent {
   tone: CallTimelineTone;
   glyph: LucideIcon;
 }
-
-const SETTLED_TONE: Record<string, CallTimelineTone> = {
-  completed: "success",
-  "invalid-result": "danger",
-  "completed-without-result": "danger",
-  failed: "danger",
-  expired: "danger",
-  canceled: "warning",
-  timeout: "warning",
-};
-
-const SETTLED_GLYPH: Record<string, LucideIcon> = {
-  completed: Check,
-  "invalid-result": FileX,
-};
 
 /**
  * Why the call ended, in plain words.
@@ -138,8 +114,8 @@ export function buildCallTimeline(call: CallPayload): CallTimelineEvent[] {
       title: state === null ? "Settled" : `Settled — ${state}`,
       detail: settledDetail(call),
       at: call.settled_at,
-      tone: (state && SETTLED_TONE[state]) ?? "neutral",
-      glyph: (state && SETTLED_GLYPH[state]) ?? Check,
+      tone: state === null ? "neutral" : CALL_STATE_SIGNAL[state].tone,
+      glyph: state === null ? CircleOff : CALL_STATE_SIGNAL[state].glyph,
     });
   }
 

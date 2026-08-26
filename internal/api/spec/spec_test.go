@@ -154,22 +154,25 @@ func TestDocumentDescribesCallsAndMessages(t *testing.T) {
 		t.Parallel()
 
 		for _, prefix := range []string{"/api", "/api/workspaces/{workspace_id}"} {
-			for path, methods := range map[string][]string{
-				prefix + "/calls":                      {http.MethodGet, http.MethodPost},
-				prefix + "/calls/{call_id}":            {http.MethodGet},
-				prefix + "/calls/{call_id}/prompt":     {http.MethodGet},
-				prefix + "/calls/{call_id}/result":     {http.MethodGet},
-				prefix + "/calls/{call_id}/superseded": {http.MethodGet},
-				prefix + "/calls/{call_id}/await":      {http.MethodPost},
-				prefix + "/calls/{call_id}/cancel":     {http.MethodPost},
-				prefix + "/calls/{call_id}/publish":    {http.MethodPost},
-				prefix + "/messages":                   {http.MethodGet, http.MethodPost},
-				prefix + "/messages/{message_id}":      {http.MethodGet},
+			for path, family := range map[string]struct {
+				methods []string
+				tag     string
+			}{
+				prefix + "/calls":                      {methods: []string{http.MethodGet, http.MethodPost}, tag: specCallsKey},
+				prefix + "/calls/{call_id}":            {methods: []string{http.MethodGet}, tag: specCallsKey},
+				prefix + "/calls/{call_id}/prompt":     {methods: []string{http.MethodGet}, tag: specCallsKey},
+				prefix + "/calls/{call_id}/result":     {methods: []string{http.MethodGet}, tag: specCallsKey},
+				prefix + "/calls/{call_id}/superseded": {methods: []string{http.MethodGet}, tag: specCallsKey},
+				prefix + "/calls/{call_id}/await":      {methods: []string{http.MethodPost}, tag: specCallsKey},
+				prefix + "/calls/{call_id}/cancel":     {methods: []string{http.MethodPost}, tag: specCallsKey},
+				prefix + "/calls/{call_id}/publish":    {methods: []string{http.MethodPost}, tag: specCallsKey},
+				prefix + "/messages":                   {methods: []string{http.MethodGet, http.MethodPost}, tag: specMessagesKey},
+				prefix + "/messages/{message_id}":      {methods: []string{http.MethodGet}, tag: specMessagesKey},
 			} {
-				for _, method := range methods {
+				for _, method := range family.methods {
 					operation := operationFor(t, doc, path, method)
-					if len(operation.Tags) != 1 || (operation.Tags[0] != specCallsKey && operation.Tags[0] != specMessagesKey) {
-						t.Fatalf("%s %s tags = %#v", method, path, operation.Tags)
+					if !slices.Equal(operation.Tags, []string{family.tag}) {
+						t.Fatalf("%s %s tags = %#v, want [%q]", method, path, operation.Tags, family.tag)
 					}
 				}
 			}

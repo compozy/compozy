@@ -87,8 +87,7 @@ type nativeNotificationSessionManager struct {
 
 type nativeOrchestrationSessionManager struct {
 	apitest.StubSessionManager
-	waitFn  func(context.Context, session.WaitRequest) (session.WaitOutcome, error)
-	spawnFn func(context.Context, session.SpawnOpts) (*session.Session, error)
+	waitFn func(context.Context, session.WaitRequest) (session.WaitOutcome, error)
 }
 
 type nativeCoreOnlySessionManager struct {
@@ -143,6 +142,13 @@ func (nativeCallsServiceStub) GetRead(
 	string,
 ) (callspkg.CallRecord, error) {
 	return callspkg.CallRecord{}, errors.New("unexpected GetRead call")
+}
+
+func (nativeCallsServiceStub) ProjectPayloads(
+	context.Context,
+	[]callspkg.CallRecord,
+) ([]callspkg.ProjectionContent, error) {
+	return nil, errors.New("unexpected ProjectPayloads call")
 }
 
 func (nativeCallsServiceStub) Result(
@@ -306,13 +312,6 @@ func (m *nativeOrchestrationSessionManager) WaitForBadge(
 	req session.WaitRequest,
 ) (session.WaitOutcome, error) {
 	return m.waitFn(ctx, req)
-}
-
-func (m *nativeOrchestrationSessionManager) Spawn(
-	ctx context.Context,
-	opts session.SpawnOpts,
-) (*session.Session, error) {
-	return m.spawnFn(ctx, opts)
 }
 
 type nativeOrchestrationClarifyBroker struct {
@@ -720,9 +719,6 @@ func TestDaemonNativeTools(t *testing.T) {
 			waitFn: func(context.Context, session.WaitRequest) (session.WaitOutcome, error) {
 				return session.WaitOutcome{}, errors.New("WaitForBadge() must not run")
 			},
-			spawnFn: func(context.Context, session.SpawnOpts) (*session.Session, error) {
-				return nil, errors.New("Spawn() must not run")
-			},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Sessions: manager, Workspaces: nativeNetworkTestWorkspaceService(t),
@@ -774,9 +770,6 @@ func TestDaemonNativeTools(t *testing.T) {
 			StubSessionManager: base,
 			waitFn: func(context.Context, session.WaitRequest) (session.WaitOutcome, error) {
 				return session.WaitOutcome{}, errors.New("WaitForBadge() must not run across workspaces")
-			},
-			spawnFn: func(context.Context, session.SpawnOpts) (*session.Session, error) {
-				return nil, errors.New("Spawn() is not part of targeted cross-workspace calls")
 			},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -832,9 +825,6 @@ func TestDaemonNativeTools(t *testing.T) {
 			StubSessionManager: nativeNetworkTestSessionManager("ws-native"),
 			waitFn: func(context.Context, session.WaitRequest) (session.WaitOutcome, error) {
 				return session.WaitOutcome{}, errors.New("WaitForBadge() must not run without workspace resolution")
-			},
-			spawnFn: func(context.Context, session.SpawnOpts) (*session.Session, error) {
-				return nil, errors.New("Spawn() must not run without workspace resolution")
 			},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -11855,17 +11845,29 @@ func TestNativeAgentCallContractErrors(t *testing.T) {
 				Config: compozyconfig.Config{Calls: compozyconfig.DefaultCallsConfig()},
 				Calls:  func() core.CallsService { return service },
 			}}
-			for _, value := range []string{"0", "-1", "1.5", `"1"`, "null"} {
-				_, err := native.agentCall(t.Context(), scope, toolspkg.CallRequest{
-					ToolID: toolspkg.ToolIDAgentCall,
-					Input: json.RawMessage(fmt.Sprintf(
-						`{"agent":"reviewer","prompt":"Review","deadline_seconds":%s}`,
-						value,
-					)),
+			cases := []struct {
+				name  string
+				value string
+			}{
+				{name: "Should reject deadline zero", value: "0"},
+				{name: "Should reject deadline negative", value: "-1"},
+				{name: "Should reject deadline fractional", value: "1.5"},
+				{name: "Should reject deadline string", value: `"1"`},
+				{name: "Should reject deadline null", value: "null"},
+			}
+			for _, tc := range cases {
+				t.Run(tc.name, func(t *testing.T) {
+					_, err := native.agentCall(t.Context(), scope, toolspkg.CallRequest{
+						ToolID: toolspkg.ToolIDAgentCall,
+						Input: json.RawMessage(fmt.Sprintf(
+							`{"agent":"reviewer","prompt":"Review","deadline_seconds":%s}`,
+							tc.value,
+						)),
+					})
+					if !callspkg.IsCode(err, callspkg.CodeDeadlineInvalid) {
+						t.Fatalf("agentCall(deadline_seconds=%s) error = %v", tc.value, err)
+					}
 				})
-				if !callspkg.IsCode(err, callspkg.CodeDeadlineInvalid) {
-					t.Fatalf("agentCall(deadline_seconds=%s) error = %v", value, err)
-				}
 			}
 			if createCalls != 0 {
 				t.Fatalf("Create calls = %d, want zero after invalid deadline", createCalls)

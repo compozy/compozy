@@ -84,6 +84,7 @@ func (m *Service) settleCompletedTerminalRunCommand(
 	if err != nil {
 		return err
 	}
+	eventResult := completionEventResult(rawJSONValue(completed.Run.Result))
 	event, err := m.newTaskEventWithIDAt(
 		eventID,
 		completed.Run.TaskID,
@@ -92,9 +93,8 @@ func (m *Service) settleCompletedTerminalRunCommand(
 		command.Actor(),
 		completed.Run.EndedAt,
 		completedRunPayload{
-			Status:     completed.Run.Status,
-			TaskStatus: completed.Task.Status,
-			Result:     completionEventResult(rawJSONValue(completed.Run.Result)),
+			Status: completed.Run.Status, TaskStatus: completed.Task.Status,
+			Result: eventResult.payload, ResultDisposition: eventResult.disposition,
 		},
 	)
 	if err != nil {

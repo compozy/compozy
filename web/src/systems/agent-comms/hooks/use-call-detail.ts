@@ -50,14 +50,17 @@ export interface CallDetailModel {
   /** Undefined until the operator asks for the whole payload. */
   fullPayload: unknown;
   fullPayloadPending: boolean;
+  fullPayloadError: Error | null;
   fetchFullPayload: () => void;
   /** The exact ask, once fetched. Call again needs this, not the preview. */
   fullPrompt: string | undefined;
   fullPromptPending: boolean;
+  fullPromptError: Error | null;
   fetchFullPrompt: () => void;
   /** Late evidence, fetched only when the bounded preview is not enough. */
   supersededPayload: unknown;
   supersededPending: boolean;
+  supersededError: Error | null;
   fetchSuperseded: () => void;
   refetch: () => void;
 }
@@ -88,13 +91,34 @@ export function useCallDetail(callId: string, options: UseCallDetailOptions): Ca
     error: detail.error,
     fullPayload: result.data?.result,
     fullPayloadPending: wantsFullPayload && result.isPending,
-    fetchFullPayload: () => setWantsFullPayload(true),
+    fullPayloadError: result.error,
+    fetchFullPayload: () => {
+      if (wantsFullPayload) {
+        void result.refetch();
+      } else {
+        setWantsFullPayload(true);
+      }
+    },
     fullPrompt: prompt.data?.prompt,
     fullPromptPending: wantsFullPrompt && prompt.isPending,
-    fetchFullPrompt: () => setWantsFullPrompt(true),
+    fullPromptError: prompt.error,
+    fetchFullPrompt: () => {
+      if (wantsFullPrompt) {
+        void prompt.refetch();
+      } else {
+        setWantsFullPrompt(true);
+      }
+    },
     supersededPayload: superseded.data?.result,
     supersededPending: wantsSuperseded && superseded.isPending,
-    fetchSuperseded: () => setWantsSuperseded(true),
+    supersededError: superseded.error,
+    fetchSuperseded: () => {
+      if (wantsSuperseded) {
+        void superseded.refetch();
+      } else {
+        setWantsSuperseded(true);
+      }
+    },
     refetch: () => {
       void detail.refetch();
     },

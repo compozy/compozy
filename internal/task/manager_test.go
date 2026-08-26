@@ -3059,6 +3059,9 @@ func (s *inMemoryManagerStore) ReserveQueuedRun(
 	}
 	if strings.TrimSpace(taskRecord.ExpectDigest) != "" {
 		budget := normalizedReservation.ResultBudget
+		if taskRecord.ResultBudget != nil {
+			budget = *taskRecord.ResultBudget
+		}
 		run.ExpectDigest = taskRecord.ExpectDigest
 		run.ResultBudget = &budget
 	}
@@ -8627,6 +8630,9 @@ func TestManagerTerminalRunStopsBackingSession(t *testing.T) {
 		if running.ExpectDigest != original.Digest || running.ResultBudget == nil {
 			t.Fatalf("run snapshot = digest %q budget %#v", running.ExpectDigest, running.ResultBudget)
 		}
+		if running.ResultBudget.MaxBytes != 1024 || running.ResultBudget.Overflow != contracts.OverflowReject {
+			t.Fatalf("run budget snapshot = %#v, want 1024/reject from task", running.ResultBudget)
+		}
 		_, err = manager.CompleteRun(context.Background(), running.ID, RunResult{
 			Value: json.RawMessage(`{"changed":true}`),
 		}, actor)
@@ -8661,6 +8667,25 @@ func TestManagerTerminalRunStopsBackingSession(t *testing.T) {
 		if got := string(rawJSONValue(completed.Result)); got != `{"answer":42}` {
 			t.Fatalf("completed result = %s, want single wrapper removed", got)
 		}
+	})
+
+	t.Run("Should stop after one result contract repair", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTestWithOptions(
+			t,
+			store,
+			WithSessionExecutor(&recordingSessionExecutor{}),
+			WithCancelGracePeriod(0),
+		)
+		original, err := contracts.Prepare(json.RawMessage(
+			`{"type":"object","required":["answer"],"properties":{"answer":{"type":"integer"}},"additionalProperties":false}`,
+		))
+		if err != nil {
+			t.Fatalf("contracts.Prepare() error = %v", err)
+		}
+		actor := validActorContext()
 
 		secondTask, err := manager.CreateTask(context.Background(), CreateTask{
 			ProfileID: storepkg.DefaultProfileID,

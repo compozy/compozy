@@ -60,7 +60,7 @@ func (g *CallRepo) ResolveCallTargetContext(
 	}
 	target, err := g.loadCallSessionContext(ctx, input.Target.SessionID)
 	if errors.Is(err, sql.ErrNoRows) {
-		base.State = "missing"
+		base.State = callspkg.TargetStateMissing
 		return base, nil
 	}
 	if err != nil {
@@ -92,9 +92,9 @@ func (g *CallRepo) ResolveCallTargetContext(
 	}
 	base.Allowed = !operator && target.profileID == caller.profileID &&
 		target.workspaceID == caller.workspaceID && target.parentID == caller.id && targetRoot == rootID
-	base.State = target.state
+	base.State = callspkg.TargetState(target.state)
 	if target.parkedAt.Valid {
-		base.State = "parked"
+		base.State = callspkg.TargetStateParked
 	}
 	if target.idleExpiresAt.Valid {
 		expiresAt, parseErr := store.ParseTimestamp(target.idleExpiresAt.String)
@@ -103,7 +103,7 @@ func (g *CallRepo) ResolveCallTargetContext(
 		}
 		base.ExpiredAt = expiresAt
 		if !expiresAt.After(g.now()) {
-			base.State = "expired"
+			base.State = callspkg.TargetStateExpired
 		}
 	}
 	return base, nil

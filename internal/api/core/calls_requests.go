@@ -31,31 +31,21 @@ func callSurfaceScope(c *gin.Context, requestedScope, requestedWorkspace string)
 		}
 		workspaceID = bodyWorkspace
 	}
-	scope := callspkg.Scope(strings.TrimSpace(requestedScope))
-	if scope == "" {
-		if workspaceID == "" {
-			scope = callspkg.ScopeGlobal
-		} else {
-			scope = callspkg.ScopeWorkspace
-		}
-	}
-	if scope == callspkg.ScopeGlobal && workspaceID != "" || scope == callspkg.ScopeWorkspace && workspaceID == "" {
-		return "", "", callRequestError(callspkg.CodeValidation, "scope and workspace_id do not match")
+	scope, workspaceID, err := callspkg.NormalizeReadScope(callspkg.Scope(requestedScope), workspaceID)
+	if err != nil {
+		return "", "", callRequestError(callspkg.CodeValidation, err.Error())
 	}
 	return scope, workspaceID, nil
 }
 
 func (h *BaseHandlers) createCallInputs(
-	c *gin.Context,
 	req contract.CreateCallRequest,
 	profileID string,
+	scope callspkg.Scope,
+	workspaceID string,
 	caller participation.OwnerRef,
 	actor callspkg.Actor,
 ) ([]callspkg.CreateInput, bool, error) {
-	scope, workspaceID, err := callSurfaceScope(c, req.Scope, req.WorkspaceID)
-	if err != nil {
-		return nil, false, err
-	}
 	items, batch := []contract.CreateCallItemRequest{req.CreateCallItemRequest}, false
 	if req.TasksPresent || len(req.Tasks) > 0 {
 		items, batch = req.Tasks, true
@@ -151,7 +141,7 @@ func callRequestError(code callspkg.ErrorCode, message string) error {
 	return &callspkg.Error{Code: code, Message: strings.TrimSpace(message)}
 }
 
-func parseCallStates(values []string) ([]callspkg.State, error) {
+func parseCallStates(values []string) []callspkg.State {
 	states := make([]callspkg.State, 0, len(values))
 	for _, raw := range values {
 		for _, value := range strings.Split(raw, ",") {
@@ -162,7 +152,7 @@ func parseCallStates(values []string) ([]callspkg.State, error) {
 			states = append(states, callspkg.State(value))
 		}
 	}
-	return states, nil
+	return states
 }
 
 func decodeCallBody(c *gin.Context, target any) error {

@@ -5,7 +5,7 @@ description: How call-created child sessions are bounded by lineage, idle TTL, c
 
 A governed child is a session a caller creates by calling an agent. The daemon owns every boundary
 around it: lineage, idle TTL, depth and child caps, permission narrowing, and cleanup. The child
-cannot outlive, outreach, or out-permission its parent.
+cannot outlive its parent, reach outside its lineage, or exceed its permissions.
 
 [`compozy call`](/docs/agent-comms/calls) and `compozy__agent_call` are the only surfaces that
 create one. This page documents the governance; the delegation contract itself lives in
@@ -53,11 +53,11 @@ See [Narrow what a child may touch](/docs/agent-comms/subagents#narrow-what-a-ch
 
 ## Feedback to the parent
 
-When a managed session's call settles, CompozyOS queues a sanitized synthetic turn on that caller
-carrying the outcome and its result reference. The wake never interrupts an active parent prompt,
-and it is suppressed when the parent is no longer live or the delivery would wake the same session.
-The wake and the outcome always travel together — there is no completion signal without its result
-reference. Operator calls use `compozy call await` instead.
+When a managed session's call settles, CompozyOS queues a sanitized synthetic turn on that caller.
+A successfully completed call with a stored `ResultRef` includes a bounded preview and the result
+reference. Terminal failures and resultless terminal states carry their outcome and reason instead.
+The wake never interrupts an active parent prompt, and it is suppressed when the parent is no longer
+live or the delivery would wake the same session. Operator calls use `compozy call await` instead.
 
 ## Cleanup and active leases
 

@@ -15,6 +15,8 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
+const daemonAgentSessionActorKind = "agent_session"
+
 type nativeCallTask struct {
 	Agent           string              `json:"agent"`
 	SessionID       string              `json:"session_id"`
@@ -153,7 +155,7 @@ func (n *daemonNativeTools) nativeCreateCallInput(
 		Target: callspkg.Target{Agent: input.Agent, SessionID: input.SessionID},
 		Prompt: input.Prompt, Expect: append(json.RawMessage(nil), input.Expect...), Strict: input.Strict,
 		IdempotencyKey: input.IdempotencyKey,
-		Actor:          callspkg.Actor{Kind: "agent_session", ID: strings.TrimSpace(scope.SessionID)},
+		Actor:          callspkg.Actor{Kind: daemonAgentSessionActorKind, ID: strings.TrimSpace(scope.SessionID)},
 		Narrow: callspkg.PermissionAtoms{
 			Tools: input.Narrow.Tools, Skills: input.Narrow.Skills, MCPServers: input.Narrow.MCPServers,
 			WorkspacePaths: input.Narrow.WorkspacePaths, NetworkChannels: input.Narrow.NetworkChannels,
@@ -232,7 +234,7 @@ func (n *daemonNativeTools) callReturn(
 	settlement, err := service.Return(operationCtx, callspkg.ReturnInput{
 		CallID: input.CallID, ChildSessionID: scope.SessionID, Result: input.Result,
 		FinalText: input.FinalText, ChildLive: true,
-		Actor: callspkg.SettlementActor{Kind: "agent_session", ID: scope.SessionID},
+		Actor: callspkg.SettlementActor{Kind: daemonAgentSessionActorKind, ID: scope.SessionID},
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -285,9 +287,9 @@ func (n *daemonNativeTools) callAwait(
 		settled = append(settled, item)
 	}
 	return structuredNetworkResult(map[string]any{
-		"settled": settled, "pending": outcome.Pending, "outcome": outcome.Outcome,
+		"settled": settled, "pending": outcome.Pending, "outcome": string(outcome.Outcome),
 		"resume": outcome.Resume, "clamped_timeout_ms": outcome.ClampedTimeout.Milliseconds(),
-	}, outcome.Outcome)
+	}, string(outcome.Outcome))
 }
 
 func (n *daemonNativeTools) callCancel(
@@ -312,7 +314,7 @@ func (n *daemonNativeTools) callCancel(
 		return toolspkg.ToolResult{}, err
 	}
 	record, err := service.Cancel(operationCtx, input.CallID, input.Reason, callspkg.Actor{
-		Kind: "agent_session", ID: scope.SessionID,
+		Kind: daemonAgentSessionActorKind, ID: scope.SessionID,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -379,7 +381,7 @@ func (n *daemonNativeTools) agentMessage(
 	}
 	return structuredNetworkResult(map[string]any{
 		"message_id": record.MessageID, "delivery": record.Delivery,
-	}, record.MessageID+" "+record.Delivery)
+	}, record.MessageID+" "+string(record.Delivery))
 }
 
 func (n *daemonNativeTools) callPublish(
@@ -399,7 +401,7 @@ func (n *daemonNativeTools) callPublish(
 	callScope := nativeCallsScope(scope)
 	receipt, err := service.Publish(operationCtx, callspkg.PublishInput{
 		ProfileID: callScope.ProfileID, Scope: callScope.Scope, WorkspaceID: callScope.WorkspaceID,
-		CallID: input.CallID, Actor: callspkg.Actor{Kind: "agent_session", ID: scope.SessionID},
+		CallID: input.CallID, Actor: callspkg.Actor{Kind: daemonAgentSessionActorKind, ID: scope.SessionID},
 		Channel: input.Channel, ThreadID: input.ThreadID,
 	})
 	if err != nil {
@@ -416,7 +418,11 @@ func (n *daemonNativeTools) requireCallsService(toolID toolspkg.ToolID) (coreCal
 	if service == nil {
 		return nil, nativeUnavailableError(toolID, "calls service is unavailable")
 	}
-	return service, nil
+	combined, ok := service.(coreCallsService)
+	if !ok {
+		return nil, nativeUnavailableError(toolID, "daemon calls service does not support settlement")
+	}
+	return combined, nil
 }
 
 type coreCallsService interface {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { AgentCatalogItem, AgentPayload } from "../../types";
-import { FIXTURE_AGENT_DEFINITION_DIGEST } from "../../mocks/fixtures";
+import { agentFixtures, FIXTURE_AGENT_DEFINITION_DIGEST } from "../../mocks/fixtures";
 import {
   agentFleetChipsToFilters,
   agentFleetFiltersToChips,
@@ -76,6 +76,26 @@ describe("validateAgentsFleetSearch", () => {
 });
 
 describe("agent fleet projection", () => {
+  /**
+   * Invariant: every shadowed fixture has a winning definition, and only the
+   * winner can start a session. The fleet projection owns this action truth.
+   */
+  it("Should pair a shadowed definition with its winner and disable its session action", () => {
+    const releaseDefinitions = agentFixtures.filter(
+      agent => agent.name === "release-manager-agent"
+    );
+    const rows = projectAgentFleetRows({
+      items: releaseDefinitions.map(definition => catalogItem(definition)),
+      sessionsAvailable: true,
+    });
+
+    expect(rows).toHaveLength(2);
+    expect(rows.map(row => [row.agent.origin, row.agent.shadowed, row.canStartSession])).toEqual([
+      ["workspace", false, true],
+      ["global", true, false],
+    ]);
+  });
+
   it("Should retain the backend page order and map exact session counts", () => {
     const agents = [agent({ name: "zeta" }), agent({ name: "alpha" }), agent({ name: "Beta" })];
     const rows = projectAgentFleetRows({

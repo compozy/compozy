@@ -6,6 +6,7 @@ import "context"
 type HookEvent string
 
 const (
+	// HookCallCreated and the following constants identify observable call transitions.
 	HookCallCreated          HookEvent = "call.created"
 	HookCallSettled          HookEvent = "call.settled"
 	HookCallCanceled         HookEvent = "call.canceled"

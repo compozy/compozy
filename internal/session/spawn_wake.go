@@ -32,7 +32,7 @@ var (
 // SpawnWakeReason identifies why a child woke its creator.
 type SpawnWakeReason string
 
-// SpawnWakeEvent is the bounded child-session wake payload handed to the daemon bridge.
+// SpawnWakeEvent is the bounded child-session wake payload; WakeEventID is stable for one attention occurrence and changes for a repeated occurrence.
 type SpawnWakeEvent struct {
 	ChildSessionID string          `json:"child_session_id"`
 	ChildAgentName string          `json:"child_agent_name,omitempty"`
@@ -42,7 +42,7 @@ type SpawnWakeEvent struct {
 	WakeEventID    string          `json:"wake_event_id"`
 }
 
-// SpawnWakeNotifier delivers a child-session wake to its creator.
+// SpawnWakeNotifier delivers a child-session wake using WakeEventID as the idempotency identity for one occurrence.
 type SpawnWakeNotifier interface {
 	WakeSpawnCreator(ctx context.Context, creatorSessionID string, event SpawnWakeEvent) error
 }

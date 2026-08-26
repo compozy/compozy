@@ -69,6 +69,9 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets *shutdownTa
 	if targets.coordinator != nil {
 		appendWrappedError(errs, "daemon: shutdown coordinator runtime", targets.coordinator.shutdown(ctx))
 	}
+	if targets.calls != nil {
+		appendWrappedError(errs, "daemon: shutdown calls runtime", targets.calls.shutdown(ctx))
+	}
 	if targets.scheduler != nil {
 		appendWrappedError(errs, "daemon: shutdown scheduler wake dispatcher", targets.scheduler.shutdownWaker(ctx))
 	}

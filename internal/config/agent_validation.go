@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/reasoning"
 )
 
+// AgentDescriptionMaxCharacters bounds agent descriptions by Unicode characters.
 const AgentDescriptionMaxCharacters = 500
 
 // Validate ensures the parsed agent definition is usable.

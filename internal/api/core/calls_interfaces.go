@@ -11,9 +11,9 @@ import (
 type CallsService interface {
 	Create(context.Context, callspkg.CreateInput) (callspkg.CallRecord, error)
 	CreateBatch(context.Context, []callspkg.CreateInput) ([]callspkg.BatchOutcome, error)
-	Return(context.Context, callspkg.ReturnInput) (callspkg.Settlement, error)
 	List(context.Context, callspkg.CallListQuery) (callspkg.CallPage, error)
 	GetRead(context.Context, callspkg.CallReadQuery, string) (callspkg.CallRecord, error)
+	ProjectPayloads(context.Context, []callspkg.CallRecord) ([]callspkg.ProjectionContent, error)
 	Result(context.Context, callspkg.CallReadQuery, string) (callspkg.ResultPayload, error)
 	Prompt(context.Context, callspkg.CallReadQuery, string) (callspkg.PromptPayload, error)
 	Superseded(context.Context, callspkg.CallReadQuery, string) (callspkg.ResultPayload, error)

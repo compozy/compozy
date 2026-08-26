@@ -14,35 +14,52 @@ import (
 
 func TestAgentListPayloadsDistinguishesInactiveShadows(t *testing.T) {
 	t.Parallel()
-	home, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-	shadowPath := filepath.Join(home.AgentsDir, "reviewer", compozyconfig.AgentDefinitionFileName)
-	if _, err := compozyconfig.CreateAgentDefFile(shadowPath, compozyconfig.AgentDefinitionDraft{
-		Name: "reviewer", Description: "Global review", Provider: "codex", Prompt: "Review globally.",
-	}, false); err != nil {
-		t.Fatalf("CreateAgentDefFile(shadow) error = %v", err)
-	}
-	entries := []core.AgentCatalogEntry{{
-		Def: compozyconfig.AgentDef{
-			Name: "reviewer", Description: "Workspace review", Provider: "claude", Prompt: "Review locally.",
-			SourceLayer: "project", ShadowedDefinitions: []compozyconfig.AgentDefinitionRef{{
-				Layer: "user", Path: shadowPath,
-			}},
-		},
-		Origin: contract.AgentOriginWorkspace, WorkspaceID: "ws-1",
-	}}
-	payloads := core.AgentListPayloads(entries, nil, home, "ws-1")
-	if got, want := len(payloads), 2; got != want {
-		t.Fatalf("AgentListPayloads() length = %d, want %d", got, want)
-	}
-	active, shadowed := payloads[0], payloads[1]
-	if active.Shadowed || active.Scope != "workspace" || active.Description != "Workspace review" ||
-		!shadowed.Shadowed || shadowed.Scope != "shadowed" || shadowed.Layer != "user" ||
-		shadowed.Description != "Global review" || shadowed.DefinitionDigest == "" {
-		t.Fatalf("AgentListPayloads() = %#v", payloads)
-	}
+
+	t.Run("Should distinguish the active workspace definition from its inactive user shadow", func(t *testing.T) {
+		t.Parallel()
+		home, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		shadowPath := filepath.Join(home.AgentsDir, "reviewer", compozyconfig.AgentDefinitionFileName)
+		if _, err := compozyconfig.CreateAgentDefFile(shadowPath, compozyconfig.AgentDefinitionDraft{
+			Name: "reviewer", Description: "Global review", Provider: "codex", Prompt: "Review globally.",
+		}, false); err != nil {
+			t.Fatalf("CreateAgentDefFile(shadow) error = %v", err)
+		}
+		entries := []core.AgentCatalogEntry{{
+			Def: compozyconfig.AgentDef{
+				Name: "reviewer", Description: "Workspace review", Provider: "claude", Prompt: "Review locally.",
+				SourceLayer: "project", ShadowedDefinitions: []compozyconfig.AgentDefinitionRef{{
+					Layer: "user", Path: shadowPath,
+				}},
+			},
+			Origin: contract.AgentOriginWorkspace, WorkspaceID: "ws-1",
+		}}
+		payloads := core.AgentListPayloads(entries, nil, home, "ws-1")
+		if got, want := len(payloads), 2; got != want {
+			t.Fatalf("AgentListPayloads() length = %d, want %d", got, want)
+		}
+		active, shadowed := payloads[0], payloads[1]
+		if active.Shadowed {
+			t.Fatal("active.Shadowed = true, want false")
+		}
+		if active.Scope != "workspace" || active.Description != "Workspace review" {
+			t.Fatalf("active payload = %#v", active)
+		}
+		if !shadowed.Shadowed {
+			t.Fatal("shadowed.Shadowed = false, want true")
+		}
+		if shadowed.Scope != "shadowed" || shadowed.Layer != "user" {
+			t.Fatalf("shadowed ownership = scope %q layer %q", shadowed.Scope, shadowed.Layer)
+		}
+		if shadowed.Description != "Global review" {
+			t.Fatalf("shadowed.Description = %q, want Global review", shadowed.Description)
+		}
+		if shadowed.DefinitionDigest == "" {
+			t.Fatal("shadowed.DefinitionDigest is empty")
+		}
+	})
 }
 
 func TestAgentPayloadDoesNotExposeMCPSecretBindings(t *testing.T) {

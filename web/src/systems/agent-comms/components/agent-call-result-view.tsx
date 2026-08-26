@@ -19,18 +19,20 @@
  */
 import { Download, Maximize2 } from "lucide-react";
 
-import { Button, CopyIconButton, Eyebrow, JsonViewer, Panel } from "@compozy/ui";
+import {
+  ActionResultBanner,
+  Button,
+  CopyIconButton,
+  Eyebrow,
+  JsonViewer,
+  Panel,
+} from "@compozy/ui";
 
 import { AgentCallVerdictChip } from "./agent-call-state-pill";
 import type { CallResultView } from "../lib/call-detail-view-model";
 import type { CallResultRow } from "../lib/call-result-rows";
+import { formatAgentCallBytes } from "../lib/format-bytes";
 import type { CallVerdict } from "../types";
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  const kib = bytes / 1024;
-  return kib < 1024 ? `${kib.toFixed(1)} KiB` : `${(kib / 1024).toFixed(1)} MiB`;
-}
 
 function ResultRows({ rows }: { rows: readonly CallResultRow[] }) {
   return (
@@ -53,6 +55,18 @@ function ResultRows({ rows }: { rows: readonly CallResultRow[] }) {
   );
 }
 
+function FullPayload({ value }: { value: unknown }) {
+  return (
+    <div className="mt-3" data-testid="agent-call-result-full-payload">
+      <span className="mb-1 flex items-center gap-2">
+        <Eyebrow>Full payload</Eyebrow>
+        <CopyIconButton value={JSON.stringify(value, null, 2)} copyLabel="Copy result" />
+      </span>
+      <JsonViewer value={value} />
+    </div>
+  );
+}
+
 export interface AgentCallResultViewProps {
   result: CallResultView;
   verdict: CallVerdict | null;
@@ -60,6 +74,7 @@ export interface AgentCallResultViewProps {
   fullPayload?: unknown;
   onFetchFullPayload?: () => void;
   fullPayloadPending?: boolean;
+  fullPayloadError?: Error | null;
   /** Absent when the child session no longer exists. */
   onOpenChildSession?: () => void;
   "data-testid"?: string;
@@ -71,6 +86,7 @@ export function AgentCallResultView({
   fullPayload,
   onFetchFullPayload,
   fullPayloadPending = false,
+  fullPayloadError = null,
   onOpenChildSession,
   "data-testid": testId,
 }: AgentCallResultViewProps) {
@@ -122,10 +138,10 @@ export function AgentCallResultView({
         foot={
           <span className="flex w-full items-center gap-2">
             <span className="font-mono text-form text-muted">
-              {`${formatBytes(result.bytes)} stored · budget ${formatBytes(result.budgetBytes)} · overflow ${result.overflow}`}
+              {`${formatAgentCallBytes(result.bytes)} stored · budget ${formatAgentCallBytes(result.budgetBytes)} · overflow ${result.overflow}`}
             </span>
             <span className="flex-1" />
-            {onFetchFullPayload ? (
+            {onFetchFullPayload && fullPayload === undefined ? (
               <Button
                 data-testid="agent-call-result-fetch"
                 size="xs"
@@ -144,18 +160,22 @@ export function AgentCallResultView({
         <p className="text-small-body text-fg">
           The answer was recorded but is too large to show here. Fetch it to read the whole thing.
         </p>
-        {fullPayload !== undefined ? (
-          <div className="mt-3" data-testid="agent-call-result-full-payload">
-            <span className="mb-1 flex items-center gap-2">
-              <Eyebrow>Full payload</Eyebrow>
-              <CopyIconButton
-                value={JSON.stringify(fullPayload, null, 2)}
-                copyLabel="Copy result"
-              />
-            </span>
-            <JsonViewer value={fullPayload} />
-          </div>
+        {fullPayloadError ? (
+          <ActionResultBanner
+            className="mt-3"
+            title="Couldn't open the full result."
+            description={fullPayloadError.message}
+            tone="danger"
+            actions={
+              onFetchFullPayload ? (
+                <Button size="xs" type="button" variant="outline" onClick={onFetchFullPayload}>
+                  Retry
+                </Button>
+              ) : null
+            }
+          />
         ) : null}
+        {fullPayload !== undefined ? <FullPayload value={fullPayload} /> : null}
       </Panel>
     );
   }
@@ -180,11 +200,13 @@ export function AgentCallResultView({
       foot={
         <span className="flex w-full items-center gap-2">
           <span className="font-mono text-form text-muted">
-            {result.bytes === null ? "size unknown" : `${formatBytes(result.bytes)} stored`}
-            {` · budget ${formatBytes(result.budgetBytes)} · overflow ${result.overflow}`}
+            {result.bytes === null
+              ? "size unknown"
+              : `${formatAgentCallBytes(result.bytes)} stored`}
+            {` · budget ${formatAgentCallBytes(result.budgetBytes)} · overflow ${result.overflow}`}
           </span>
           <span className="flex-1" />
-          {onFetchFullPayload ? (
+          {onFetchFullPayload && fullPayload === undefined ? (
             <Button
               data-testid="agent-call-result-fetch"
               size="xs"
@@ -210,14 +232,21 @@ export function AgentCallResultView({
       ) : shape.kind === "rows" ? (
         <ResultRows rows={shape.rows} />
       ) : null}
-      {fullPayload !== undefined ? (
-        <div className="mt-3" data-testid="agent-call-result-full-payload">
-          <span className="mb-1 flex items-center gap-2">
-            <Eyebrow>Full payload</Eyebrow>
-            <CopyIconButton value={JSON.stringify(fullPayload, null, 2)} copyLabel="Copy result" />
-          </span>
-          <JsonViewer value={fullPayload} />
-        </div>
+      {fullPayload !== undefined ? <FullPayload value={fullPayload} /> : null}
+      {fullPayloadError ? (
+        <ActionResultBanner
+          className="mt-3"
+          title="Couldn't open the full result."
+          description={fullPayloadError.message}
+          tone="danger"
+          actions={
+            onFetchFullPayload ? (
+              <Button size="xs" type="button" variant="outline" onClick={onFetchFullPayload}>
+                Retry
+              </Button>
+            ) : null
+          }
+        />
       ) : null}
     </Panel>
   );

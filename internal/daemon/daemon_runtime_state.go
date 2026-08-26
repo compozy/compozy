@@ -38,6 +38,7 @@ type daemonRuntimeState struct {
 	sessions               SessionManager
 	sessionWakeBridge      *sessionWakeBridge
 	tasks                  *taskRuntime
+	calls                  *callRuntime
 	coordinator            *coordinatorRuntime
 	spawnReaper            *spawnReaper
 	scheduler              *schedulerRuntime

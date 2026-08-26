@@ -8,10 +8,10 @@
 export type APIRoute = { method: string; path: string };
 
 const HTTP_METHODS = "GET|POST|PATCH|PUT|DELETE";
-const ASSIGNMENT_MATCHER = /^\s*(\w+)\s*:=\s*(\w+)\.Group\("([^"]*)"/;
-const METHOD_MATCHER = new RegExp(`^\\s*(\\w+)\\.(${HTTP_METHODS})\\("([^"]*)"`);
+const ASSIGNMENT_MATCHER = /^\s*(\w+)\s*:=\s*(\w+)\.Group\(\s*"([^"]*)"/;
+const METHOD_MATCHER = new RegExp(`^\\s*(\\w+)\\.(${HTTP_METHODS})\\(\\s*"([^"]*)"`);
 /** `registerScopedCallRoutes(api.Group("/workspaces/:workspace_id"), handlers)` */
-const HELPER_GROUP_CALL_MATCHER = /^\s*(\w+)\(\s*(\w+)\.Group\("([^"]*)"\s*\)/;
+const HELPER_GROUP_CALL_MATCHER = /^\s*(\w+)\(\s*(\w+)\.Group\(\s*"([^"]*)"\s*\)/;
 /** `registerCallRoutes(api, handlers)` */
 const HELPER_PLAIN_CALL_MATCHER = /^\s*(\w+)\(\s*(\w+)\s*[,)]/;
 /** `func registerScopedCallRoutes(scope gin.IRouter, handlers *Handlers) {` */
@@ -20,6 +20,49 @@ const HELPER_DEFINITION_MATCHER = /^func\s+(\w+)\(\s*(\w+)\s+(?:gin\.IRouter|\*g
 const MAX_HELPER_DEPTH = 4;
 
 type Helper = { param: string; body: string[] };
+
+/** Collapse only expressions with open parentheses; braces remain line boundaries. */
+function logicalLines(source: string): string[] {
+  const logical: string[] = [];
+  let current = "";
+  let depth = 0;
+  let quoted = false;
+  let escaped = false;
+
+  for (const rawLine of source.split("\n")) {
+    const line = rawLine.trim();
+    current = current === "" ? line : `${current} ${line}`;
+
+    for (let index = 0; index < rawLine.length; index += 1) {
+      const char = rawLine[index];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\" && quoted) {
+        escaped = true;
+        continue;
+      }
+      if (char === '"') {
+        quoted = !quoted;
+        continue;
+      }
+      if (quoted) continue;
+      if (char === "/" && rawLine[index + 1] === "/") break;
+      if (char === "(") depth += 1;
+      if (char === ")") depth -= 1;
+    }
+
+    if (depth <= 0) {
+      if (current !== "") logical.push(current);
+      current = "";
+      depth = 0;
+    }
+  }
+
+  if (current !== "") logical.push(current);
+  return logical;
+}
 
 export function joinRoute(left: string, right: string): string {
   if (!right) {
@@ -129,7 +172,7 @@ function walk(
  * are expanded with the parameter bound to the resolved prefix, so both scopes are reported.
  */
 export function extractRegisteredRoutes(source: string): APIRoute[] {
-  const lines = source.split("\n");
+  const lines = logicalLines(source);
   const routes: APIRoute[] = [];
   walk(lines, new Map([["api", "/api"]]), collectHelpers(lines), 0, routes);
   return routes;

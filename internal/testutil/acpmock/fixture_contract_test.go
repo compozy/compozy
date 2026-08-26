@@ -49,12 +49,12 @@ func TestAcpmockBehaviorContracts(t *testing.T) {
 			t.Fatal("glob testdata returned no fixtures")
 		}
 		for _, entry := range entries {
-			t.Run(filepath.Base(entry), func(t *testing.T) {
+			t.Run("Should parse fixture "+filepath.Base(entry), func(t *testing.T) {
 				fixture, err := LoadFixture(entry)
 				if err != nil {
 					// `tool_permission_golden.json` is a recorded diagnostics
 					// transcript, not a fixture; anything else must parse.
-					if strings.Contains(filepath.Base(entry), "golden") {
+					if filepath.Base(entry) == "tool_permission_golden.json" {
 						t.Skipf("%s is a golden transcript, not a fixture", filepath.Base(entry))
 					}
 					t.Fatalf("LoadFixture(%s) error = %v", entry, err)
@@ -67,16 +67,40 @@ func TestAcpmockBehaviorContracts(t *testing.T) {
 	})
 
 	t.Run("Should validate every hosted native call input", func(t *testing.T) {
-		for _, kind := range []StepKind{StepKindCallReturn, StepKindAgentMessage, StepKindAgentCall} {
-			valid := Step{Kind: kind, RawInput: []byte(`{"text":"hello"}`)}
-			if err := valid.Validate("step"); err != nil {
-				t.Fatalf("Step.Validate(%s) error = %v", kind, err)
-			}
-			for _, raw := range []string{"", `[]`, `{`} {
-				invalid := Step{Kind: kind, RawInput: []byte(raw)}
-				if err := invalid.Validate("step"); err == nil || !strings.Contains(err.Error(), "raw_input") {
-					t.Fatalf("Step.Validate(%s, %q) error = %v, want raw_input error", kind, raw, err)
+		kinds := []struct {
+			name string
+			kind StepKind
+		}{
+			{name: "call return", kind: StepKindCallReturn},
+			{name: "agent message", kind: StepKindAgentMessage},
+			{name: "agent call", kind: StepKindAgentCall},
+		}
+		invalidInputs := []struct {
+			name string
+			raw  string
+			want string
+		}{
+			{name: "empty input", raw: "", want: "acpmock: step.raw_input is required"},
+			{
+				name: "array input", raw: `[]`,
+				want: "acpmock: step.raw_input must be a JSON object: json: cannot unmarshal array into Go value of type map[string]interface {}",
+			},
+			{name: "invalid JSON", raw: `{`, want: "acpmock: step.raw_input must be a JSON object: unexpected end of JSON input"},
+		}
+		for _, kindCase := range kinds {
+			t.Run("Should accept "+kindCase.name+" input", func(t *testing.T) {
+				valid := Step{Kind: kindCase.kind, RawInput: []byte(`{"text":"hello"}`)}
+				if err := valid.Validate("step"); err != nil {
+					t.Fatalf("Step.Validate(%s) error = %v", kindCase.kind, err)
 				}
+			})
+			for _, inputCase := range invalidInputs {
+				t.Run("Should reject "+kindCase.name+" "+inputCase.name, func(t *testing.T) {
+					invalid := Step{Kind: kindCase.kind, RawInput: []byte(inputCase.raw)}
+					if err := invalid.Validate("step"); err == nil || err.Error() != inputCase.want {
+						t.Fatalf("Step.Validate(%s, %q) error = %v, want %q", kindCase.kind, inputCase.raw, err, inputCase.want)
+					}
+				})
 			}
 		}
 	})

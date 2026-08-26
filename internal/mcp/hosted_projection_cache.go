@@ -114,11 +114,20 @@ func (s *HostedService) buildHostedProjection(
 	if err != nil {
 		return HostedProjectionResponse{}, err
 	}
+	return s.decorateHostedProjection(ctx, scope, views)
+}
+
+func (s *HostedService) decorateHostedProjection(
+	ctx context.Context,
+	scope tools.Scope,
+	views []tools.ToolView,
+) (HostedProjectionResponse, error) {
 	if s.projectionDecorator != nil {
-		views, err = s.projectionDecorator(ctx, scope, cloneToolViews(views))
+		decorated, err := s.projectionDecorator(ctx, scope, cloneToolViews(views))
 		if err != nil {
 			return HostedProjectionResponse{}, err
 		}
+		views = decorated
 	}
 	return hostedProjectionResponse(views), nil
 }

@@ -144,27 +144,15 @@ func (m *Service) CompleteRunLease(
 	}
 	storedResult, err = m.prepareResultContract(ctx, run, storedResult)
 	if validationErr, invalid := asResultContractValidationError(err); invalid {
-		first, admissionErr := m.admitResultContractRepair(
+		return m.settleInvalidResultContract(
 			ctx, run, normalized.ClaimToken, actor, validationErr,
+			func(ctx context.Context, failure RunFailure) (*Run, error) {
+				return m.FailRunLease(ctx, LeaseFailure{
+					RunID: normalized.RunID, ClaimToken: normalized.ClaimToken,
+					Failure: failure, TokensUsed: normalized.TokensUsed, Now: normalized.Now,
+				}, actor)
+			},
 		)
-		if admissionErr != nil {
-			return nil, admissionErr
-		}
-		if first {
-			return nil, validationErr
-		}
-		failure, failureErr := invalidTaskResultFailure(validationErr)
-		if failureErr != nil {
-			return nil, failureErr
-		}
-		failed, failureErr := m.FailRunLease(ctx, LeaseFailure{
-			RunID: normalized.RunID, ClaimToken: normalized.ClaimToken,
-			Failure: failure, TokensUsed: normalized.TokensUsed, Now: normalized.Now,
-		}, actor)
-		if failureErr != nil {
-			return nil, errors.Join(ErrResultInvalid, validationErr, failureErr)
-		}
-		return failed, errors.Join(ErrResultInvalid, validationErr)
 	}
 	if err != nil {
 		return nil, err

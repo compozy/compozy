@@ -18,7 +18,7 @@ func (s *Service) Publish(ctx context.Context, input PublishInput) (PublishRecei
 	if err := validatePublishInput(input); err != nil {
 		return PublishReceipt{}, err
 	}
-	store, err := s.publicationStore()
+	publicationStore, err := s.publicationStore()
 	if err != nil {
 		return PublishReceipt{}, err
 	}
@@ -26,13 +26,19 @@ func (s *Service) Publish(ctx context.Context, input PublishInput) (PublishRecei
 	// The daemon is the sole writer. Serializing check/post/record prevents duplicate bridge calls.
 	s.publishMu.Lock()
 	defer s.publishMu.Unlock()
-	if existing, getErr := store.GetPublication(ctx, input.CallID, input.Channel, input.ThreadID); getErr == nil {
+	if existing, getErr := publicationStore.GetPublication(ctx, input.CallID, input.Channel, input.ThreadID); getErr == nil {
 		return PublishReceipt{NetworkMessageID: existing.NetworkMessageID, Published: false}, nil
 	} else if !errors.Is(getErr, ErrPublicationNotFound) {
 		return PublishReceipt{}, getErr
 	}
 
-	record, err := s.store.GetCall(ctx, s.scope(input.ProfileID, input.Scope, input.WorkspaceID), input.CallID)
+	scope, err := NormalizeCallScope(CallScope{
+		ProfileID: input.ProfileID, Scope: input.Scope, WorkspaceID: input.WorkspaceID,
+	})
+	if err != nil {
+		return PublishReceipt{}, err
+	}
+	record, err := s.store.GetCall(ctx, scope, input.CallID)
 	if err != nil {
 		return PublishReceipt{}, err
 	}
@@ -68,7 +74,7 @@ func (s *Service) Publish(ctx context.Context, input PublishInput) (PublishRecei
 	if err != nil {
 		return PublishReceipt{}, newError(CodePublishNoParticipation, "active Network participation is required", err)
 	}
-	publication, inserted, err := store.RecordPublication(ctx, Publication{
+	publication, inserted, err := publicationStore.RecordPublication(ctx, Publication{
 		CallID: record.CallID, Channel: input.Channel, ThreadID: input.ThreadID,
 		NetworkMessageID: networkMessageID, CreatedAt: s.now().UTC(),
 	})

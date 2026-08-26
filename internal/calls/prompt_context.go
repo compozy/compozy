@@ -5,7 +5,8 @@ import (
 	"strings"
 )
 
-func callPromptWithRemainingDepth(prompt string, remaining int) string {
+// CallPromptWithRemainingDepth projects literal remaining-depth context into a child prompt.
+func CallPromptWithRemainingDepth(prompt string, remaining int) string {
 	if remaining < 0 {
 		remaining = 0
 	}
@@ -20,9 +21,4 @@ func callPromptWithRemainingDepth(prompt string, remaining int) string {
 		depthContext,
 		strings.TrimSpace(prompt),
 	)
-}
-
-// CallPromptWithRemainingDepth projects the literal remaining-depth context at the daemon boundary.
-func CallPromptWithRemainingDepth(prompt string, remaining int) string {
-	return callPromptWithRemainingDepth(prompt, remaining)
 }

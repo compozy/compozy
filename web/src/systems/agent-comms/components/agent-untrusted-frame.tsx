@@ -20,14 +20,12 @@ import { Shield } from "lucide-react";
 
 import { cn } from "@compozy/ui";
 
-export interface AgentUntrustedFrameProps {
+export interface AgentUntrustedFrameProps extends Omit<React.ComponentProps<"div">, "children"> {
   /** Who wrote it — an agent name when known, else the session identity. */
   authorLabel: string;
   /** The session the text came from, shown beside the author when known. */
   sourceId?: string | null;
   children: string;
-  className?: string;
-  "data-testid"?: string;
 }
 
 export function AgentUntrustedFrame({
@@ -35,11 +33,11 @@ export function AgentUntrustedFrame({
   sourceId,
   children,
   className,
-  "data-testid": testId,
+  ...props
 }: AgentUntrustedFrameProps) {
   return (
     <div
-      data-testid={testId}
+      {...props}
       data-slot="agent-untrusted-frame"
       className={cn(
         "rounded-md border border-dashed border-line-strong bg-canvas-soft px-3 py-2",

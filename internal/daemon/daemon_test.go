@@ -1712,81 +1712,95 @@ func TestBootRejectsConcurrentCallWhileFirstBootIsInProgress(t *testing.T) {
 }
 
 func TestShutdownTearsDownInRequiredOrder(t *testing.T) {
-	homePaths := testHomePaths(t)
-	cfg := testConfig(t, homePaths)
-	d := newTestDaemon(t, homePaths, &cfg)
+	t.Run("Should stop the calls runtime before sessions and clear every runtime", func(t *testing.T) {
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		d := newTestDaemon(t, homePaths, &cfg)
 
-	var events []string
-	d.extensions = &fakeExtensionRuntime{
-		onStop: func() {
-			events = append(events, "extensions")
-		},
-	}
-	d.automation = &fakeAutomationManager{
-		onShutdown: func() {
-			events = append(events, "automation")
-		},
-	}
-	d.sessions = &fakeSessionManager{
-		infos: []*session.Info{{ID: "sess-a"}, {ID: "sess-b"}},
-		onStop: func(id string) {
-			events = append(events, "session:"+id)
-		},
-	}
-	d.tasks = &taskRuntime{}
-	d.network = &fakeNetworkRuntime{
-		onShutdown: func() {
-			events = append(events, "network")
-		},
-	}
-	d.httpServer = &fakeServer{name: "http", onShutdown: func() { events = append(events, "http") }}
-	d.udsServer = &fakeServer{name: "uds", onShutdown: func() { events = append(events, "uds") }}
-	d.registry = &recordingRegistry{
-		path: homePaths.DatabaseFile,
-		onClose: func() {
-			events = append(events, "db")
-		},
-	}
-	d.hooks = &fakeHookRuntime{
-		onClose: func() {
-			events = append(events, "hooks")
-		},
-	}
-	d.lock = &Lock{
-		path: homePaths.DaemonLock,
-		releaseFn: func() error {
-			events = append(events, "lock")
+		var events []string
+		d.extensions = &fakeExtensionRuntime{
+			onStop: func() {
+				events = append(events, "extensions")
+			},
+		}
+		d.automation = &fakeAutomationManager{
+			onShutdown: func() {
+				events = append(events, "automation")
+			},
+		}
+		callsCtx, cancelCalls := context.WithCancel(context.Background())
+		callsDone := make(chan struct{})
+		go func() {
+			<-callsCtx.Done()
+			events = append(events, "calls")
+			close(callsDone)
+		}()
+		d.calls = &callRuntime{cancel: cancelCalls, done: callsDone}
+		d.sessions = &fakeSessionManager{
+			infos: []*session.Info{{ID: "sess-a"}, {ID: "sess-b"}},
+			onStop: func(id string) {
+				events = append(events, "session:"+id)
+			},
+		}
+		d.tasks = &taskRuntime{}
+		d.network = &fakeNetworkRuntime{
+			onShutdown: func() {
+				events = append(events, "network")
+			},
+		}
+		d.httpServer = &fakeServer{name: "http", onShutdown: func() { events = append(events, "http") }}
+		d.udsServer = &fakeServer{name: "uds", onShutdown: func() { events = append(events, "uds") }}
+		d.registry = &recordingRegistry{
+			path: homePaths.DatabaseFile,
+			onClose: func() {
+				events = append(events, "db")
+			},
+		}
+		d.hooks = &fakeHookRuntime{
+			onClose: func() {
+				events = append(events, "hooks")
+			},
+		}
+		d.lock = &Lock{
+			path: homePaths.DaemonLock,
+			releaseFn: func() error {
+				events = append(events, "lock")
+				return nil
+			},
+		}
+		d.closeLogger = func() error {
+			events = append(events, "logger")
 			return nil
-		},
-	}
-	d.closeLogger = func() error {
-		events = append(events, "logger")
-		return nil
-	}
+		}
 
-	if err := d.Shutdown(testutil.Context(t)); err != nil {
-		t.Fatalf("Shutdown() error = %v", err)
-	}
-	if d.tasks != nil {
-		t.Fatalf("Shutdown() left task runtime = %#v, want nil", d.tasks)
-	}
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+		if d.tasks != nil {
+			t.Fatalf("Shutdown() left task runtime = %#v, want nil", d.tasks)
+		}
+		if d.calls != nil {
+			t.Fatalf("Shutdown() left calls runtime = %#v, want nil", d.calls)
+		}
 
-	want := []string{
-		"extensions",
-		"automation",
-		"session:sess-a",
-		"session:sess-b",
-		"http",
-		"uds",
-		"network",
-		"hooks",
-		"db",
-		"lock",
-		"logger",
-	}
-	if !testutil.EqualStringSlices(events, want) {
-		t.Fatalf("Shutdown() order = %#v, want %#v", events, want)
-	}
+		want := []string{
+			"extensions",
+			"automation",
+			"calls",
+			"session:sess-a",
+			"session:sess-b",
+			"http",
+			"uds",
+			"network",
+			"hooks",
+			"db",
+			"lock",
+			"logger",
+		}
+		if !testutil.EqualStringSlices(events, want) {
+			t.Fatalf("Shutdown() order = %#v, want %#v", events, want)
+		}
+	})
 }
 
 func TestDaemonShutdownOperation(t *testing.T) {

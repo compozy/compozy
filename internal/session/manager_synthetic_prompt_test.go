@@ -185,10 +185,20 @@ func TestSendPromptDurablyAdmitsSyntheticDeliveryMetadata(t *testing.T) {
 			t.Fatalf("len(promptCalls) = %d, want active plus synthetic dispatch", got)
 		}
 		meta := h.driver.promptCalls[1].Meta.Normalize()
-		if meta.TurnSource != acp.PromptTurnSourceSynthetic || meta.Synthetic == nil ||
-			meta.Synthetic.CallID != "call_1" || meta.Synthetic.WakeEventID != "wake_1" ||
-			meta.Synthetic.ResultRef != "sha256:result" {
-			t.Fatalf("durable queued synthetic prompt metadata = %#v", meta)
+		if meta.TurnSource != acp.PromptTurnSourceSynthetic {
+			t.Fatalf("turn source = %q, want synthetic", meta.TurnSource)
+		}
+		if meta.Synthetic == nil {
+			t.Fatal("synthetic metadata = nil")
+		}
+		if meta.Synthetic.CallID != "call_1" {
+			t.Fatalf("synthetic call id = %q, want call_1", meta.Synthetic.CallID)
+		}
+		if meta.Synthetic.WakeEventID != "wake_1" {
+			t.Fatalf("synthetic wake event id = %q, want wake_1", meta.Synthetic.WakeEventID)
+		}
+		if meta.Synthetic.ResultRef != "sha256:result" {
+			t.Fatalf("synthetic result ref = %q, want sha256:result", meta.Synthetic.ResultRef)
 		}
 	})
 }

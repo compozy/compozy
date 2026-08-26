@@ -3,6 +3,7 @@ package loop
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/compozy/compozy/internal/contracts"
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -35,7 +36,7 @@ func parseCoordinatorActionRunMetadata(raw json.RawMessage) (coordinatorActionRu
 	meta.ResumeFromSessionID = strings.TrimSpace(meta.ResumeFromSessionID)
 	meta.SessionHandle = strings.TrimSpace(meta.SessionHandle)
 	meta.ReviewedParamsRef = strings.TrimSpace(meta.ReviewedParamsRef)
-	if meta.ReviewedParamsRef != "" && !OutputRefLooksContentAddressed(meta.ReviewedParamsRef) {
+	if meta.ReviewedParamsRef != "" && !contracts.OutputRefLooksContentAddressed(meta.ReviewedParamsRef) {
 		return coordinatorActionRunMetadata{}, fmt.Errorf("%w: reviewed params ref is invalid", ErrValidation)
 	}
 	if meta.Generation <= 0 {

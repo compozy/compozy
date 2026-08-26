@@ -2471,28 +2471,32 @@ func TestUnixSocketClientTaskExecutionMethods(t *testing.T) {
 func TestUnixSocketClientAgentContextMethod(t *testing.T) {
 	t.Parallel()
 
-	credentials := agentidentity.Credentials{SessionID: "sess-1", AgentName: "coder"}
-	client := &daemonClient{
-		target: LocalClientTarget("/tmp/compozy.sock"),
-		httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-			assertAgentRequestHeaders(t, req, credentials)
-			if req.Method != http.MethodGet || req.URL.Path != "/api/agent/context" {
-				t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
-			}
-			return newHTTPResponse(
-				http.StatusOK,
-				`{"context":{"self":{"session_id":"sess-1","agent_name":"coder","provider":"test"},"workspace":{"id":"ws-1"},"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}}`,
-			), nil
-		})},
-	}
+	t.Run("Should get agent context", func(t *testing.T) {
+		t.Parallel()
 
-	contextRecord, err := client.AgentContext(context.Background(), credentials)
-	if err != nil {
-		t.Fatalf("AgentContext() error = %v", err)
-	}
-	if contextRecord.Self.SessionID != "sess-1" || contextRecord.Workspace.ID != "ws-1" {
-		t.Fatalf("AgentContext() = %#v, want caller context", contextRecord)
-	}
+		credentials := agentidentity.Credentials{SessionID: "sess-1", AgentName: "coder"}
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				assertAgentRequestHeaders(t, req, credentials)
+				if req.Method != http.MethodGet || req.URL.Path != "/api/agent/context" {
+					t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
+				}
+				return newHTTPResponse(
+					http.StatusOK,
+					`{"context":{"self":{"session_id":"sess-1","agent_name":"coder","provider":"test"},"workspace":{"id":"ws-1"},"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","workspace_path":"/tmp","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}}`,
+				), nil
+			})},
+		}
+
+		contextRecord, err := client.AgentContext(context.Background(), credentials)
+		if err != nil {
+			t.Fatalf("AgentContext() error = %v", err)
+		}
+		if contextRecord.Self.SessionID != "sess-1" || contextRecord.Workspace.ID != "ws-1" {
+			t.Fatalf("AgentContext() = %#v, want caller context", contextRecord)
+		}
+	})
 }
 func assertAgentRequestHeaders(t *testing.T, req *http.Request, credentials agentidentity.Credentials) {
 	t.Helper()

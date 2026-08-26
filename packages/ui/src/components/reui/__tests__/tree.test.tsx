@@ -46,11 +46,13 @@ function TreeHarness({
   itemProps,
   features = [syncDataLoaderFeature],
   expandedItems = ["folder", "subfolder"],
+  itemChildren = testChildren,
 }: {
   treeProps?: Partial<TreeProps<TestTreeItem>>;
   itemProps?: Partial<TreeItemProps<TestTreeItem>>;
   features?: Parameters<typeof useTree<TestTreeItem>>[0]["features"];
   expandedItems?: string[];
+  itemChildren?: Record<string, string[]>;
 } = {}) {
   const tree = useTree<TestTreeItem>({
     rootItemId: "root",
@@ -59,7 +61,7 @@ function TreeHarness({
     initialState: { expandedItems },
     dataLoader: {
       getItem: id => testData[id] ?? { kind: "leaf", label: "" },
-      getChildren: id => testChildren[id] ?? [],
+      getChildren: id => itemChildren[id] ?? [],
     },
     features,
   });
@@ -170,9 +172,16 @@ describe("Tree", () => {
       screen.getByTestId("tree-item-folder"),
       screen.getByTestId("tree-item-subfolder"),
       screen.getByTestId("tree-item-leaf"),
+      screen.getByTestId("tree-item-deepLeaf"),
     ];
     const focusable = items.filter(item => item.getAttribute("tabindex") !== "-1");
-    expect(focusable.length).toBeLessThanOrEqual(1);
+    expect(focusable).toHaveLength(1);
+  });
+
+  it("Should expose no tree-item tab stop when the tree is empty", () => {
+    render(<TreeHarness itemChildren={{ ...testChildren, root: [] }} />);
+
+    expect(screen.queryAllByRole("treeitem")).toHaveLength(0);
   });
 
   it("Should mark the selected item so a consumer can style it without local state", () => {

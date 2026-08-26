@@ -51,6 +51,24 @@ describe("AgentCallTree", () => {
     expect(groups[0]).toHaveAttribute("aria-expanded", "true");
   });
 
+  it("Should collapse and expand a group with ArrowLeft and ArrowRight", async () => {
+    const user = userEvent.setup();
+    renderTree();
+    const group = screen.getAllByTestId("agent-call-tree-group")[0]!;
+    const expandedRows = screen.getAllByTestId("agent-call-tree-row").length;
+
+    group.focus();
+    await user.keyboard("{ArrowLeft}");
+
+    expect(group).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getAllByTestId("agent-call-tree-row").length).toBeLessThan(expandedRows);
+
+    await user.keyboard("{ArrowRight}");
+
+    expect(group).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getAllByTestId("agent-call-tree-row")).toHaveLength(expandedRows);
+  });
+
   it("Should carry the tree's worst state on the group header", () => {
     renderTree();
 
@@ -58,6 +76,7 @@ describe("AgentCallTree", () => {
     // The marketing tree holds an invalid-result call.
     const escalated = groups.find(group => within(group).queryByText("invalid-result") !== null);
     expect(escalated).toBeDefined();
+    expect(escalated?.querySelector('[data-state="invalid-result"]')).not.toBeNull();
   });
 
   it("Should render daemon counts on the header and omit the clauses that are zero", () => {
