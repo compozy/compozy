@@ -121,7 +121,10 @@ func finishActivationRun(
 		return fmt.Errorf("store: inspect call activation run %q settlement: %w", runID, err)
 	}
 	if affected != 1 {
-		return fmt.Errorf("store: call activation run %q settlement was fenced", runID)
+		return &callspkg.Error{
+			Code:    callspkg.CodeAlreadySettled,
+			Message: fmt.Sprintf("call activation run %q was already settled", runID),
+		}
 	}
 	return nil
 }

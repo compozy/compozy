@@ -62,6 +62,9 @@ func (s *Service) invokeClaimedActivation(
 			Code: failureCode, Detail: sanitizeDiagnostic(invokeErr.Error(), "activation failed"), FailedAt: s.now().UTC(),
 		})
 		if settleErr != nil {
+			if latest, handled, raceErr := s.resolveActivationSettlementRace(ctx, record.CallID, settleErr, nil); handled {
+				return latest, raceErr
+			}
 			releaseErr := s.releaseActivationClaim(ctx, claim, "activation settlement failed")
 			return CallRecord{}, errors.Join(invokeErr, settleErr, releaseErr)
 		}
@@ -79,8 +82,33 @@ func (s *Service) invokeClaimedActivation(
 	if createdChild {
 		cleanupErr = s.invoker.StopManaged(ctx, childID, "call activation persistence failed")
 	}
+	if latest, handled, raceErr := s.resolveActivationSettlementRace(ctx, record.CallID, err, cleanupErr); handled {
+		return latest, raceErr
+	}
 	releaseErr := s.releaseActivationClaim(ctx, claim, "activation persistence failed")
 	return CallRecord{}, errors.Join(err, cleanupErr, releaseErr)
+}
+
+func (s *Service) resolveActivationSettlementRace(
+	ctx context.Context,
+	callID string,
+	settleErr error,
+	cleanupErr error,
+) (CallRecord, bool, error) {
+	if !IsCode(settleErr, CodeAlreadySettled) {
+		return CallRecord{}, false, nil
+	}
+	latest, loadErr := s.store.GetCallForSettlement(ctx, callID)
+	if loadErr != nil {
+		return CallRecord{}, true, errors.Join(settleErr, cleanupErr, loadErr)
+	}
+	if !latest.State.Terminal() {
+		return CallRecord{}, false, nil
+	}
+	if cleanupErr != nil {
+		return latest, true, cleanupErr
+	}
+	return latest, true, nil
 }
 
 // DispatchQueued claims call activations from the durable task queue and invokes them.

@@ -36,6 +36,7 @@ type memoryCallStore struct {
 	drainFences          []string
 	operations           []string
 	payloadBatchReads    int
+	beforeBindActivation func(ActivationBinding)
 }
 
 var (
@@ -270,6 +271,9 @@ func (s *memoryCallStore) GetOpenCallForChild(_ context.Context, childID string)
 }
 
 func (s *memoryCallStore) BindActivationChild(_ context.Context, binding ActivationBinding) (CallRecord, error) {
+	if s.beforeBindActivation != nil {
+		s.beforeBindActivation(binding)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	record, ok := s.calls[binding.CallID]
@@ -277,7 +281,7 @@ func (s *memoryCallStore) BindActivationChild(_ context.Context, binding Activat
 		return CallRecord{}, newError(CodeNotFound, "call was not found", nil)
 	}
 	if record.ActivationRunID != binding.RunID || record.State != StateRunning {
-		return CallRecord{}, fmt.Errorf("call activation binding was fenced")
+		return CallRecord{}, newError(CodeAlreadySettled, "call activation binding was fenced", nil)
 	}
 	record.ChildSessionID = binding.ChildID
 	record.State = StateRunning
@@ -482,6 +486,7 @@ func (d staticCallDirectory) ResolveCallTarget(context.Context, CreateInput) (Ta
 type fakeActivationClaimer struct {
 	mu       sync.Mutex
 	criteria []task.ClaimCriteria
+	releases []task.LeaseRelease
 	claimErr error
 	store    *memoryCallStore
 }
@@ -510,7 +515,14 @@ func (c *fakeActivationClaimer) ClaimNextRun(_ context.Context, criteria task.Cl
 	}, nil
 }
 
-func (c *fakeActivationClaimer) ReleaseRunLease(context.Context, task.LeaseRelease, task.ActorContext) (*task.Run, error) {
+func (c *fakeActivationClaimer) ReleaseRunLease(
+	_ context.Context,
+	release task.LeaseRelease,
+	_ task.ActorContext,
+) (*task.Run, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.releases = append(c.releases, release)
 	return nil, nil
 }
 

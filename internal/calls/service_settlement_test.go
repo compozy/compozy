@@ -534,6 +534,44 @@ func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 		}
 	})
 
+	t.Run("Should return the durable timeout when deadline settlement wins activation binding", func(t *testing.T) {
+		t.Parallel()
+		service, database, claimer, invoker := newCallServiceHarness(
+			t,
+			config.DefaultCallsConfig(),
+			validAgentTarget(),
+		)
+		timedOutAt := time.Date(2026, 8, 25, 0, 0, 1, 0, time.UTC)
+		database.beforeBindActivation = func(binding ActivationBinding) {
+			database.mu.Lock()
+			defer database.mu.Unlock()
+			record := database.calls[binding.CallID]
+			record.State = StateTimeout
+			record.FailureCode = "call_timeout"
+			record.FailureDetail = "deadline elapsed"
+			record.SettledAt = timedOutAt
+			record.UpdatedAt = timedOutAt
+			database.calls[binding.CallID] = record
+		}
+
+		deadline := time.Date(2026, 8, 25, 0, 0, 2, 0, time.UTC)
+		input := validCreateInput("work", nil, nil)
+		input.Deadline = &deadline
+		record, err := service.Create(context.Background(), input)
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		if record.State != StateTimeout || record.FailureCode != "call_timeout" {
+			t.Fatalf("Create() record = %#v, want durable timeout", record)
+		}
+		if len(invoker.stops) != 1 || invoker.stops[0] != "child-"+record.CallID {
+			t.Fatalf("orphan cleanup stops = %#v, want spawned child", invoker.stops)
+		}
+		if len(claimer.releases) != 0 {
+			t.Fatalf("activation releases = %#v, want settlement winner to retain claim authority", claimer.releases)
+		}
+	})
+
 	t.Run("Should stop each subtree child once and close every open call", func(t *testing.T) {
 		t.Parallel()
 		service, database, _, invoker := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
