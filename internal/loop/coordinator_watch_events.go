@@ -102,8 +102,7 @@ func evaluateWatchEventsNode(
 		rows,
 	)
 	if err != nil {
-		var predicateFailure *predicateFailureError
-		if errors.As(err, &predicateFailure) {
+		if predicateFailure, ok := errors.AsType[*predicateFailureError](err); ok {
 			failed, failureErr := applyPredicateFailureDisposition(
 				output,
 				node,

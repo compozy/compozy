@@ -1401,8 +1401,7 @@ func TestProgressAccumulatorPropagatesSinkFailures(t *testing.T) {
 		sink.editError = MarkCommittedMutation(errors.New("edit result unavailable"))
 
 		err := accumulator.Flush(ctx)
-		var committed *CommittedMutationError
-		if !errors.As(err, &committed) {
+		if _, ok := errors.AsType[*CommittedMutationError](err); !ok {
 			t.Fatalf("Flush() error = %T %v, want CommittedMutationError", err, err)
 		}
 

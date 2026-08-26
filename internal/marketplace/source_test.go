@@ -265,8 +265,7 @@ func TestDecodeDocumentValidation(t *testing.T) {
 		if err == nil {
 			t.Fatal("DecodeDocument() error = nil, want unsupported manifest error")
 		}
-		var versionErr *UnsupportedManifestVersionError
-		if !errors.As(err, &versionErr) {
+		if _, ok := errors.AsType[*UnsupportedManifestVersionError](err); !ok {
 			t.Fatalf("DecodeDocument() error = %T, want UnsupportedManifestVersionError", err)
 		}
 		if !strings.Contains(err.Error(), "client too old") {

@@ -271,7 +271,7 @@ func publishStatusError(response *http.Response, operation string, repo string) 
 }
 
 func releaseAssetUploadURL(template string, name string) (string, error) {
-	rawURL := strings.Split(strings.TrimSpace(template), "{")[0]
+	rawURL, _, _ := strings.Cut(strings.TrimSpace(template), "{")
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
 		return "", err

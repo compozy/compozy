@@ -1802,8 +1802,7 @@ func TestNormalizeMCPErrorWithContext(t *testing.T) {
 			normalized := normalizeMCPErrorWithContext(ctx, "mcp__fixture__echo", test.err, true)
 			requireReason(t, normalized, toolspkg.ReasonMCPAuthRequired)
 			if test.wantScope {
-				var scopeErr *InsufficientScopeError
-				if !errors.As(normalized, &scopeErr) {
+				if _, ok := errors.AsType[*InsufficientScopeError](normalized); !ok {
 					t.Fatalf("normalizeMCPErrorWithContext() error = %v, want InsufficientScopeError", normalized)
 				}
 				return

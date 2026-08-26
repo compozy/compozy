@@ -846,8 +846,7 @@ func TestCatalogViews(t *testing.T) {
 		t.Parallel()
 
 		_, err := applyCatalogView(nil, CatalogView("recent"))
-		var invalid *InvalidViewError
-		if !errors.As(err, &invalid) {
+		if _, ok := errors.AsType[*InvalidViewError](err); !ok {
 			t.Fatalf("applyCatalogView() error = %v, want InvalidViewError", err)
 		}
 	})

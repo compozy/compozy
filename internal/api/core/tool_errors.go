@@ -16,8 +16,7 @@ func StatusForToolError(err error) int {
 	if err == nil {
 		return http.StatusOK
 	}
-	var validation *toolspkg.ValidationError
-	if errors.As(err, &validation) {
+	if validation, ok := errors.AsType[*toolspkg.ValidationError](err); ok && validation != nil {
 		return http.StatusBadRequest
 	}
 	if toolErr, ok := errors.AsType[*toolspkg.ToolError](err); ok {

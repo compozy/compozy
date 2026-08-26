@@ -130,8 +130,7 @@ func (d daemonWorktreeHookDispatcher) DispatchWorktreeHook(
 	default:
 		return worktree.HookVerdict{}, nil
 	}
-	var denied *hookspkg.DeniedError
-	if errors.As(err, &denied) {
+	if denied, ok := errors.AsType[*hookspkg.DeniedError](err); ok {
 		return worktree.HookVerdict{
 			Denied: true, HookName: denied.HookName, Reason: denied.Reason,
 		}, nil

@@ -87,8 +87,7 @@ func TestCapabilityCheckerMarketplaceModelCeilings(t *testing.T) {
 				if err == nil {
 					t.Fatalf("CheckHostAPI(%q) error = nil, want capability denied", method)
 				}
-				var denied *ErrCapabilityDenied
-				if !errors.As(err, &denied) {
+				if _, ok := errors.AsType[*ErrCapabilityDenied](err); !ok {
 					t.Fatalf("CheckHostAPI(%q) error = %T, want *ErrCapabilityDenied", method, err)
 				}
 			})

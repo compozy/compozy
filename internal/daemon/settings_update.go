@@ -59,8 +59,7 @@ func (c settingsUpdateController) ApplyUpdate(
 	}
 	operation, err := c.manager.AcquireOperation(ctx, request)
 	if err != nil {
-		var blocked *compozyupdate.BlockedError
-		if errors.As(err, &blocked) {
+		if blocked, ok := errors.AsType[*compozyupdate.BlockedError](err); ok {
 			return core.SettingsUpdateApply{
 				Targets: requestedTargets, Status: compozyupdate.ApplyStatusBlocked,
 				OperationID: blocked.Operation.ID, Message: "An update operation is already active.",

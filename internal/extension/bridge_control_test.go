@@ -351,8 +351,7 @@ func TestManagerBridgeControlRequiresStartedRegisteredEnabledAdapter(t *testing.
 			if !errors.Is(err, bridgepkg.ErrBridgeControlTransportUnavailable) {
 				t.Fatalf("CheckBridge() error = %v, want control transport unavailable", err)
 			}
-			var redactedErr *bridgeControlRedactedError
-			if !errors.As(err, &redactedErr) {
+			if _, ok := errors.AsType[*bridgeControlRedactedError](err); !ok {
 				t.Fatalf("CheckBridge() error type = %T, want *bridgeControlRedactedError", err)
 			}
 			if got := launcher.launchCount(); got != 0 {

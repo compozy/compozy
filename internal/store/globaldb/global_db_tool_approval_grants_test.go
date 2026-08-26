@@ -245,7 +245,6 @@ func TestGlobalDBToolApprovalGrantMigration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("OpenSQLiteDatabase(v16 prefix) error = %v", err)
 		}
-		ctx := testutil.Context(t)
 		prefixGlobalDB := &GlobalDB{db: prefixDB, path: path, now: approvalGrantTestTime}
 		prefixGlobalDB.initializeRepositories(openConfig{})
 		workspaceID := registerWorkspaceForGlobalTests(t, prefixGlobalDB, "approval-upgrade", t.TempDir())
@@ -257,7 +256,7 @@ func TestGlobalDBToolApprovalGrantMigration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(v17 upgrade) error = %v", err)
 		}
-		ctx = testutil.Context(t)
+		ctx := testutil.Context(t)
 		created := putApprovalGrantForTest(t, globalDB, toolspkg.ApprovalGrant{
 			ApprovalGrantKey: approvalGrantTestKey(workspaceID, "codex", approvalGrantDigest("upgrade")),
 			Decision:         toolspkg.ApprovalGrantAllow,

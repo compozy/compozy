@@ -29,8 +29,7 @@ func wrapResourceValidationError(path string, err error) error {
 	if err == nil {
 		return nil
 	}
-	var positioned *resourceValidationError
-	if errors.As(err, &positioned) {
+	if positioned, ok := errors.AsType[*resourceValidationError](err); ok && positioned != nil {
 		return err
 	}
 	return &resourceValidationError{Path: strings.TrimSpace(path), Err: err}

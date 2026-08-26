@@ -598,8 +598,7 @@ func TestLinearProviderHandleBridgesDeliverCommittedOutcome(t *testing.T) {
 		})
 
 		_, err = provider.handleBridgesDeliver(context.Background(), nil, request)
-		var committedErr *bridgesdk.CommittedMutationError
-		if !errors.As(err, &committedErr) {
+		if _, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); !ok {
 			t.Fatalf("handleBridgesDeliver() error = %T, want CommittedMutationError", err)
 		}
 		if got, want := len(committedAPI.updatedComments), 1; got != want {
@@ -871,8 +870,7 @@ func TestLinearClientClassifiesHTTPFailures(t *testing.T) {
 	if _, err := client.ValidateAuth(context.Background()); err == nil {
 		t.Fatal("ValidateAuth(403) error = nil, want non-nil")
 	} else {
-		var authErr *bridgesdk.AuthError
-		if !errors.As(err, &authErr) {
+		if _, ok := errors.AsType[*bridgesdk.AuthError](err); !ok {
 			t.Fatalf("ValidateAuth() error = %#v, want auth error", err)
 		}
 	}
@@ -881,8 +879,7 @@ func TestLinearClientClassifiesHTTPFailures(t *testing.T) {
 	if _, err := client.CreateComment(context.Background(), "issue-1", "hello", ""); err == nil {
 		t.Fatal("CreateComment(429) error = nil, want non-nil")
 	} else {
-		var rateErr *bridgesdk.RateLimitError
-		if !errors.As(err, &rateErr) {
+		if _, ok := errors.AsType[*bridgesdk.RateLimitError](err); !ok {
 			t.Fatalf("CreateComment() error = %#v, want rate limit error", err)
 		}
 	}

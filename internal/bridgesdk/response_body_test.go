@@ -159,8 +159,7 @@ func TestDrainAndCloseHTTPResponseBodyPreservesCleanupFailures(t *testing.T) {
 		if !errors.Is(err, closeErr) {
 			t.Fatalf("FinalizeHTTPResponseBody() error = %v, want cleanup failure", err)
 		}
-		var committed *CommittedMutationError
-		if !errors.As(err, &committed) {
+		if _, ok := errors.AsType[*CommittedMutationError](err); !ok {
 			t.Fatalf("FinalizeHTTPResponseBody() error = %T, want CommittedMutationError", err)
 		}
 	})
@@ -176,8 +175,7 @@ func TestDrainAndCloseHTTPResponseBodyPreservesCleanupFailures(t *testing.T) {
 			HTTPResponseCommittedBySuccessStatus,
 			func(error) { t.Fatal("cleanup reporter called for a failed operation") },
 		)
-		var committed *CommittedMutationError
-		if !errors.As(err, &committed) {
+		if _, ok := errors.AsType[*CommittedMutationError](err); !ok {
 			t.Fatalf("FinalizeHTTPResponseBody() error = %T, want CommittedMutationError", err)
 		}
 		if !errors.Is(err, decodeErr) || !errors.Is(err, closeErr) {

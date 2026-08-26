@@ -32,8 +32,7 @@ func (h *BaseHandlers) ListTasks(c *gin.Context) {
 	readScope := actor.ReadScope
 	transportQuery, err := ParseTaskListQuery(c)
 	if err != nil {
-		var invalidField *invalidTaskQueryFieldError
-		if errors.As(err, &invalidField) {
+		if invalidField, ok := errors.AsType[*invalidTaskQueryFieldError](err); ok {
 			c.JSON(http.StatusBadRequest, contract.TaskQueryErrorPayload{
 				ErrorPayload: contract.ErrorPayload{Error: "invalid_query_field"},
 				Field:        invalidField.field,

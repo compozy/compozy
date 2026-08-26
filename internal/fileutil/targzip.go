@@ -74,7 +74,7 @@ func WriteTarGzipDirectory(
 		if relative == "." {
 			return nil
 		}
-		topLevel := strings.Split(filepath.ToSlash(relative), "/")[0]
+		topLevel, _, _ := strings.Cut(filepath.ToSlash(relative), "/")
 		if _, excluded := excludeTopLevel[topLevel]; excluded {
 			if entry.IsDir() && relative == topLevel {
 				return filepath.SkipDir

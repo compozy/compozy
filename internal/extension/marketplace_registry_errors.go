@@ -11,8 +11,7 @@ func mapMarketplaceRegistryError(slug string, err error) error {
 	if err == nil {
 		return nil
 	}
-	var layoutErr *registrypkg.ClientSpecificPluginLayoutError
-	if errors.As(err, &layoutErr) {
+	if layoutErr, ok := errors.AsType[*registrypkg.ClientSpecificPluginLayoutError](err); ok {
 		return &AgentPluginClientLayoutError{
 			Root:   strings.TrimSpace(slug),
 			Layout: strings.TrimSpace(layoutErr.Layout),

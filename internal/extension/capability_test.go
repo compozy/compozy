@@ -303,8 +303,7 @@ func TestCapabilityCheckerMarketplaceShouldDenyRestrictedCapabilities(t *testing
 			if err == nil {
 				t.Fatalf("Check(%q) error = nil, want capability denied", tt.capability)
 			}
-			var denied *ErrCapabilityDenied
-			if !errors.As(err, &denied) {
+			if _, ok := errors.AsType[*ErrCapabilityDenied](err); !ok {
 				t.Fatalf("Check(%q) error type = %T, want *ErrCapabilityDenied", tt.capability, err)
 			}
 		})

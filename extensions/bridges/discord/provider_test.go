@@ -660,8 +660,7 @@ func TestExecuteDiscordDeliveryChunksTerminalContent(t *testing.T) {
 		if got, want := bridgesdk.ClassifyError(err).Class, bridgesdk.ErrorClassPermanent; got != want {
 			t.Fatalf("executeDiscordDelivery() error class = %q, want %q: %v", got, want, err)
 		}
-		var committedErr *bridgesdk.CommittedMutationError
-		if !errors.As(err, &committedErr) {
+		if _, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); !ok {
 			t.Fatalf("executeDiscordDelivery() error = %T, want CommittedMutationError", err)
 		}
 		if got, want := len(api.postAttempts), 1; got != want {
@@ -1294,8 +1293,7 @@ func TestDiscordBotClientRoutesRequestsAndClassifiesFailures(t *testing.T) {
 		if err == nil {
 			t.Fatal("postDiscordDeliveryMessage(truncated response) error = nil, want non-nil")
 		}
-		var committedErr *bridgesdk.CommittedMutationError
-		if !errors.As(err, &committedErr) {
+		if _, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); !ok {
 			t.Fatalf("postDiscordDeliveryMessage() error = %T, want CommittedMutationError", err)
 		}
 		if got, want := attempts, 1; got != want {

@@ -1,6 +1,9 @@
 package acp
 
-import "sync"
+import (
+	"slices"
+	"sync"
+)
 
 type lockedBuffer struct {
 	mu sync.Mutex
@@ -25,7 +28,7 @@ func appendBounded(dst []byte, src []byte, limit int) []byte {
 		return nil
 	}
 
-	dst = append(dst[:len(dst):len(dst)], src...)
+	dst = append(slices.Clip(dst), src...)
 	combined := dst
 	if len(combined) <= limit {
 		return combined

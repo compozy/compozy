@@ -599,8 +599,7 @@ func TestExecuteDeliveryPostEditDeleteAndResume(t *testing.T) {
 				request.Event.Content.Text = testCase.content
 
 				_, gotState, err := executeDelivery(context.Background(), api, request, deliveryState{})
-				var committedErr *bridgesdk.CommittedMutationError
-				if !errors.As(err, &committedErr) {
+				if _, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); !ok {
 					t.Fatalf("executeDelivery() error = %T %v, want CommittedMutationError", err, err)
 				}
 				if gotState.LastSeq != 0 || gotState.RemoteMessageID != "" || gotState.ReplaceRemoteMessageID != "" {
@@ -1344,8 +1343,7 @@ func TestExecuteDeliveryFormatsAndChunksCumulativeText(t *testing.T) {
 		request.Event.Content.Text = "**bold** result"
 
 		_, gotState, err := executeDelivery(context.Background(), api, request, deliveryState{})
-		var committedErr *bridgesdk.CommittedMutationError
-		if !errors.As(err, &committedErr) {
+		if _, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); !ok {
 			t.Fatalf("executeDelivery() error = %T %v, want CommittedMutationError", err, err)
 		}
 		if gotState.LastSeq != 0 || gotState.RemoteMessageID != "" || gotState.Chunks.NextChunk() != 0 {
@@ -2250,8 +2248,7 @@ func TestTelegramBotClientAndClassificationHelpers(t *testing.T) {
 			telegramSendMessageRequest{ChatID: "42"},
 			telegramOutboundText{Text: "hello", PlainText: "hello"},
 		)
-		var committedErr *bridgesdk.CommittedMutationError
-		if !errors.As(err, &committedErr) {
+		if _, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); !ok {
 			t.Fatalf("sendTelegramOutbound() error = %T %v, want CommittedMutationError", err, err)
 		}
 		if got, want := attempts.Load(), int32(1); got != want {
@@ -2408,8 +2405,7 @@ func TestTelegramBotClientAndClassificationHelpers(t *testing.T) {
 		Description: "slow down",
 		Parameters:  telegramAPIErrorDetails{RetryAfter: 2},
 	})
-	var typedRateErr *bridgesdk.RateLimitError
-	if !errors.As(rateErr, &typedRateErr) {
+	if _, ok := errors.AsType[*bridgesdk.RateLimitError](rateErr); !ok {
 		t.Fatalf("classifyTelegramHTTPError(429) = %T, want *RateLimitError", rateErr)
 	}
 
@@ -2417,8 +2413,7 @@ func TestTelegramBotClientAndClassificationHelpers(t *testing.T) {
 		401,
 		telegramAPIEnvelope[json.RawMessage]{Description: "unauthorized"},
 	)
-	var typedAuthErr *bridgesdk.AuthError
-	if !errors.As(authErr, &typedAuthErr) {
+	if _, ok := errors.AsType[*bridgesdk.AuthError](authErr); !ok {
 		t.Fatalf("classifyTelegramHTTPError(401) = %T, want *AuthError", authErr)
 	}
 
@@ -2426,8 +2421,7 @@ func TestTelegramBotClientAndClassificationHelpers(t *testing.T) {
 		http.StatusBadRequest,
 		telegramAPIEnvelope[json.RawMessage]{Description: "Bad Request: can't parse entities"},
 	)
-	var typedMarkdownErr *telegramMarkdownParseError
-	if !errors.As(markdownErr, &typedMarkdownErr) {
+	if _, ok := errors.AsType[*telegramMarkdownParseError](markdownErr); !ok {
 		t.Fatalf(
 			"classifyTelegramHTTPError(markdown) = %T, want *telegramMarkdownParseError",
 			markdownErr,

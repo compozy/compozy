@@ -915,13 +915,11 @@ Prompt.
 		t.Fatal("ParseAgentDef() error = nil, want decode failure")
 	}
 
-	var yamlErr *yaml.SyntaxError
-	if !errors.As(err, &yamlErr) {
+	if _, ok := errors.AsType[*yaml.SyntaxError](err); !ok {
 		t.Fatalf("ParseAgentDef() error = %v, want yaml syntax error in unwrap chain", err)
 	}
 
-	var tomlErr toml.ParseError
-	if !errors.As(err, &tomlErr) {
+	if _, ok := errors.AsType[toml.ParseError](err); !ok {
 		t.Fatalf("ParseAgentDef() error = %v, want TOML parse error in unwrap chain", err)
 	}
 }

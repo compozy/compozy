@@ -55,8 +55,7 @@ func (s *OperationStore) RequestAppApply(ctx context.Context, request AppApplyRe
 		Deadline:    request.Deadline,
 	})
 	if err != nil {
-		var blocked *BlockedError
-		if errors.As(err, &blocked) {
+		if blocked, ok := errors.AsType[*BlockedError](err); ok {
 			return AppApplyResult{
 				Target: TargetApp, Status: ApplyStatusBlocked, OperationID: blocked.Operation.ID,
 				Message: "An update operation is already active.", Holder: cloneHolder(blocked.Operation.Holder),

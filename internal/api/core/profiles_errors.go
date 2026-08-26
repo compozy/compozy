@@ -27,8 +27,7 @@ func respondProfileError(c *gin.Context, err error) {
 }
 
 func profileErrorResponse(err error) (int, contract.ProfileErrorPayload) {
-	var typed *profilepkg.Error
-	if errors.As(err, &typed) {
+	if typed, ok := errors.AsType[*profilepkg.Error](err); ok {
 		return profileErrorStatus(typed), contract.ProfileErrorPayload{Error: contract.ProfileError{
 			Code: typed.Code, Message: typed.Message, Action: typed.Action,
 		}}

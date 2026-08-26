@@ -185,8 +185,7 @@ func validPullPayload(pull pullPayload) bool {
 }
 
 func githubErrorCause(err error) string {
-	var apiErr *githubAPIError
-	if errors.As(err, &apiErr) {
+	if apiErr, ok := errors.AsType[*githubAPIError](err); ok {
 		return apiErr.cause
 	}
 	return ""

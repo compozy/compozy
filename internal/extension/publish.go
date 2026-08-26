@@ -121,7 +121,6 @@ func safePublishAssetPart(value string) string {
 	}
 	result := strings.Trim(builder.String(), "-.")
 	if result == "" {
-		//nolint:goconst // this is an archive-name fallback, independent of authored-context keys.
 		return "extension"
 	}
 	return result

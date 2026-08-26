@@ -455,8 +455,7 @@ func TestGChatProgressRendering(t *testing.T) {
 			&bridgesdk.Session{},
 			final,
 		)
-		var committedErr *bridgesdk.CommittedMutationError
-		if !errors.As(err, &committedErr) {
+		if _, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); !ok {
 			t.Fatalf("handleBridgesDeliver(final) error = %T %v, want CommittedMutationError", err, err)
 		}
 		if _, exists := provider.deliveries.Load(
@@ -1278,8 +1277,7 @@ func TestExecuteGChatDeliveryChunks(t *testing.T) {
 		if got, want := bridgesdk.ClassifyError(err).Class, bridgesdk.ErrorClassPermanent; got != want {
 			t.Fatalf("executeGChatDelivery() error class = %q, want %q: %v", got, want, err)
 		}
-		var committedErr *bridgesdk.CommittedMutationError
-		if !errors.As(err, &committedErr) {
+		if _, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); !ok {
 			t.Fatalf("executeGChatDelivery() error = %T, want CommittedMutationError", err)
 		}
 		if got, want := len(api.createAttempts), 1; got != want {
@@ -2257,8 +2255,7 @@ func TestGChatTransportAndClassificationHelpers(t *testing.T) {
 		if err == nil {
 			t.Fatal("createGChatDeliveryMessage(truncated response) error = nil, want non-nil")
 		}
-		var committedErr *bridgesdk.CommittedMutationError
-		if !errors.As(err, &committedErr) {
+		if _, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); !ok {
 			t.Fatalf("createGChatDeliveryMessage() error = %T, want CommittedMutationError", err)
 		}
 		attemptsMu.Lock()

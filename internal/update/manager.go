@@ -311,8 +311,7 @@ func (m *Manager) downloadReleaseArtifacts(
 			downloaded.archivePath,
 			m.artifactPolicy.MaxArchiveBytes,
 		); err != nil {
-			var downloadErr *downloadSizeError
-			if errors.As(err, &downloadErr) {
+			if downloadErr, ok := errors.AsType[*downloadSizeError](err); ok {
 				return downloadedReleaseArtifacts{}, &ArtifactSizeError{
 					Kind:  ArtifactKindArchive,
 					Size:  downloadErr.Size,

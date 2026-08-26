@@ -58,8 +58,7 @@ func TestLinearOAuthTokenFailures(t *testing.T) {
 		if _, err := client.ValidateAuth(context.Background()); err == nil {
 			t.Fatal("ValidateAuth(oauth token 500) error = nil, want non-nil")
 		} else {
-			var transientErr *bridgesdk.TransientError
-			if !errors.As(err, &transientErr) {
+			if _, ok := errors.AsType[*bridgesdk.TransientError](err); !ok {
 				t.Fatalf("ValidateAuth(oauth token 500) error = %#v, want transient error", err)
 			}
 		}
