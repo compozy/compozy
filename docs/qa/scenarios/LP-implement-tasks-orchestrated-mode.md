@@ -7,10 +7,10 @@ journey: J-01
 expected: Running implement-tasks with mode=orchestrated uses the bundled orchestrator in one continuous Goal session, gives every task its category-selected worker runtime, proves completed task frontmatter on disk, stops every spawned worker, marks the per-task branch not_taken, and settles done.
 entry_points: compozy loop run --name implement-tasks --input slug=<slug> --input mode=orchestrated; compozy loop status; compozy session list --parent <goal-session>; web /loop-runs/:run_id detail
 qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
+bug_ids: BUG-20260826-optional-runtime-run-fails
+fix_status: fixed
+retest_status: pending
+fix_commits: d2490f96e
 evidence:
 last_report:
 overlaps: LP-003; LP-goal-command-judge; ET-spec-cycle-skill-bundle
