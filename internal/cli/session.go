@@ -50,7 +50,7 @@ const (
 )
 
 func newSessionStopCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "stop <id>",
 		Short: "Stop a session",
 		Example: `  # Stop a running session
@@ -72,6 +72,8 @@ func newSessionStopCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, sessionBundle(&info, deps.now))
 		},
 	}
+	configureProfileMutationCommand(cmd, deps)
+	return cmd
 }
 
 func newSessionRemoveCommand(deps commandDeps) *cobra.Command {

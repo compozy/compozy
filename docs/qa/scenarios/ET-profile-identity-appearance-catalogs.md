@@ -6,10 +6,10 @@ persona: Ada
 journey: J-operate-profiles
 expected: The identity picker offers the entire Lucide catalog in a searchable virtualized grid tinted by the chosen color, a full emoji catalog with search and skin-tone control served from local data (no CDN), and free color choice through a popover behind the spectrum toggle that never grows the dialog; every chosen symbol renders identically on the topbar, Settings, and the command palette, a profile can be edited directly from a switcher row, and the daemon refuses icon slugs outside the catalog with a plain-language error.
 entry_points: menubar switcher → Create profile / row edit button; Settings → Profiles → edit identity; POST /api/profiles; PATCH /api/profiles/{name}
-qa_status: untested
+qa_status: pass
 bug_ids:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-profiles-final-20260826-081429-551001-lab/qa-artifacts/qa/icon-search-binoculars.png; /Users/pedronauck/dev/qa-labs/compozy-profiles-final-20260826-081429-551001-lab/qa-artifacts/qa/emoji-search-tone.png; /Users/pedronauck/dev/qa-labs/compozy-profiles-final-20260826-081429-551001-lab/qa-artifacts/qa/color-popover.png; /Users/pedronauck/dev/qa-labs/compozy-profiles-final-20260826-081429-551001-lab/qa-artifacts/qa/settings-profiles-identity.png
+last_report: docs/qa/reports/2026-08-26-profile-identity-final.md
 overlaps: ET-profile-switcher-restore; ET-profile-web-settings-lifecycle-dialogs
 ---
 
@@ -37,3 +37,7 @@ Walk:
 Expected evidence: screenshots of the searched grid, the emoji tab with a non-default skin tone, the
 color popover open over an unchanged dialog, the updated glyph on all four surfaces, the local-only
 network log, and the terminal transcript for the rejected and accepted slugs.
+
+QA 2026-08-26: Passed in an isolated lab. The full Lucide and local Emojibase catalogs, skin tone,
+free color popover, switcher-row edit, cross-surface rendering, and daemon slug validation all matched
+the contract.

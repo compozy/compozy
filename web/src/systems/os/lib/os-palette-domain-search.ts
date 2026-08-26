@@ -1,4 +1,5 @@
 import type { VaultSecret } from "@/systems/vault";
+import { ownerFromRow, type ProfileOwner, type ProfileOwnerLabel } from "@/systems/profiles";
 import type { WorkspaceScopeMode } from "@/systems/workspace";
 import { networkChannelLocation } from "@/systems/network/lib/network-window-location";
 
@@ -24,6 +25,8 @@ export interface OsPaletteDomainRow {
     readonly worktreeId: string;
   };
   readonly status?: string;
+  /** Worktrees always name their profile because disk state crosses profile lenses. */
+  readonly owner?: ProfileOwner;
 }
 
 /** Names and non-secret metadata are the entire Vault palette contract. */
@@ -48,6 +51,14 @@ export interface QueryState {
   readonly isError: boolean;
   readonly isLoading: boolean;
   readonly error: unknown;
+}
+
+export interface PaletteWorktreeRow extends ProfileOwnerLabel {
+  readonly id: string;
+  readonly name: string;
+  readonly branch: string;
+  readonly state: string;
+  readonly workspace_id: string;
 }
 
 export function isPaletteDomainSearchEnabled(
@@ -175,6 +186,27 @@ export function rowSeed(
     subtype: "path",
     row,
   };
+}
+
+export function worktreeRowSeed(worktree: PaletteWorktreeRow, workspaceName?: string): DomainSeed {
+  return rowSeed(
+    "Worktrees",
+    {
+      key: `worktree:${worktree.id}`,
+      label: worktree.name,
+      detail: worktree.branch,
+      workspaceLabel: workspaceName,
+      status: worktree.state,
+      owner: ownerFromRow(worktree),
+      app: "dashboard",
+      route: { pathname: "/", search: {} },
+      worktreeSelection: {
+        workspaceId: worktree.workspace_id,
+        worktreeId: worktree.id,
+      },
+    },
+    [worktree.profile_name]
+  );
 }
 
 export function section(

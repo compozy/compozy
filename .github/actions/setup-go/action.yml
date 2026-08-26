@@ -117,4 +117,4 @@ runs:
       if: inputs.install-golangci-lint == 'true'
       shell: bash
       run: |
-        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b "$(go env GOPATH)/bin" v2.13.1
+        go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.1

@@ -2,6 +2,8 @@ import { AlertCircle, LoaderCircle } from "lucide-react";
 
 import { CommandGroup, CommandItem } from "@compozy/ui";
 
+import { ProfileOwnerTag } from "@/systems/profiles";
+
 import type {
   OsPaletteDomainRow,
   OsPaletteDomainSection,
@@ -75,6 +77,7 @@ export function OsPaletteDomainSections({ sections, onOpen }: OsPaletteDomainSec
               {row.workspaceLabel ? (
                 <span className="shrink-0 text-micro text-faint">{row.workspaceLabel}</span>
               ) : null}
+              {row.owner ? <ProfileOwnerTag owner={row.owner} /> : null}
             </CommandItem>
           );
         })}
