@@ -45,6 +45,9 @@ func callListBundle(response contract.CallsResponse) outputBundle {
 func callResultBundle(result contract.CallResultResponse) outputBundle {
 	return outputBundle{
 		jsonValue: result.Result,
+		json: func(cmd *cobra.Command) error {
+			return writeJSONWithoutWorkspaceResolution(cmd, result.Result)
+		},
 		jsonl: func(cmd *cobra.Command) error {
 			return writeJSONLineWithoutWorkspaceResolution(cmd, result.Result)
 		},

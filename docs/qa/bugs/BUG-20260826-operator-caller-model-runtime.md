@@ -1,6 +1,6 @@
 # BUG-20260826-operator-caller-model-runtime: Completion delivery attached a model runtime to the operator caller
 
-- **Status:** fixed, pending public-surface retest
+- **Status:** fixed and publicly verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno; Ada
@@ -34,10 +34,13 @@ reads and operator attention, and later calls reuse the identity after restart.
   session runtime state; the durable call and attention read models remain the UI/CLI authority.
 - **Regression:** The canonical daemon call-delivery suite proves an operator completion becomes an
   injected attention item with zero status, resume, or prompt operations.
-- **Fix commit:** pending QA remediation commit.
+- **Fix commit:** `82d27bca1`.
 
 ## Verification
 
 - Focused regression: `go test -race ./internal/daemon -run 'TestDaemonCallDeliveryTracksDurableQueueState' -count=1` — 3 tests passed.
-- Public restart/reuse retest is pending a rebuilt isolated daemon and clean operator-caller owner.
+- Public reuse retest: two completed calls reused operator caller
+  `ses_operator_d91c902184f7d67758c837aa`; session inspection reported it detached, healthy,
+  inactive, and non-attachable after completion delivery.
+- Retest evidence: `/Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/qa-remediation-public-retest.md`.
 - Reproduction evidence: `/Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/operator-caller-runtime-reproduction.md`.

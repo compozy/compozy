@@ -77,10 +77,14 @@ func runCallCreate(deps commandDeps, flags *callCreateFlags) func(*cobra.Command
 		}
 		record, err := calls.CreateCall(cmd.Context(), workspaceID, request)
 		if err != nil {
-			return err
+			return withCallCommandExit(err)
 		}
 		return writeCommandOutput(cmd, callCreateBundle(record))
 	}
+}
+
+func withCallCommandExit(err error) error {
+	return withCommandExitCode(2, err)
 }
 
 func (flags *callCreateFlags) request(target, prompt string) (contract.CreateCallRequest, error) {

@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	callspkg "github.com/compozy/compozy/internal/calls"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -54,7 +55,7 @@ type spawnReaper struct {
 type spawnReaperCallLifecycle interface {
 	FenceReapSession(context.Context, string) (bool, error)
 	FailRecipientDeliveries(context.Context, string, string) error
-	FinalizeReapedSession(context.Context, string, string) error
+	FinalizeReapedSession(context.Context, callspkg.ReapedSession) error
 }
 
 type spawnReaperReport struct {
@@ -249,8 +250,9 @@ func (r *spawnReaper) reapTTLSystemCandidate(info *session.Info) (spawnReapCandi
 	if lineage.TTLExpiresAt.After(r.now().UTC()) {
 		return spawnReapCandidate{}, false
 	}
-	info.Lineage = lineage
-	return spawnReapCandidate{child: info, reason: spawnReapReasonTTLExpired}, true
+	normalized := *info
+	normalized.Lineage = lineage
+	return spawnReapCandidate{child: &normalized, reason: spawnReapReasonTTLExpired}, true
 }
 
 func (r *spawnReaper) reapSpawnedCandidate(
@@ -259,10 +261,13 @@ func (r *spawnReaper) reapSpawnedCandidate(
 ) (spawnReapCandidate, bool) {
 	lineage := store.NormalizeSessionLineage(info.ID, info.Lineage)
 	if lineage.ParentSessionID == "" {
-		info.Lineage = lineage
-		return spawnReapCandidate{child: info, reason: spawnReapReasonOrphaned}, true
+		normalized := *info
+		normalized.Lineage = lineage
+		return spawnReapCandidate{child: &normalized, reason: spawnReapReasonOrphaned}, true
 	}
-	info.Lineage = lineage
+	normalized := *info
+	normalized.Lineage = lineage
+	info = &normalized
 
 	now := r.now().UTC()
 	if info.ParkedAt != nil {
@@ -320,7 +325,17 @@ func (r *spawnReaper) reap(
 	if stopErr == nil && r.callLifecycle != nil {
 		deliveryErr = r.callLifecycle.FailRecipientDeliveries(ctx, child.ID, reason)
 		if deliveryErr == nil {
-			finalizeErr = r.callLifecycle.FinalizeReapedSession(ctx, child.ID, reason)
+			lineage := store.NormalizeSessionLineage(child.ID, child.Lineage)
+			finalizeErr = r.callLifecycle.FinalizeReapedSession(ctx, callspkg.ReapedSession{
+				ProfileID:       child.ProfileID,
+				Scope:           callspkg.Scope(child.Scope),
+				WorkspaceID:     child.WorkspaceID,
+				SessionID:       child.ID,
+				ParentSessionID: lineage.ParentSessionID,
+				RootSessionID:   lineage.RootSessionID,
+				AgentName:       child.AgentName,
+				Reason:          reason,
+			})
 		}
 	}
 	if stopErr == nil && deliveryErr == nil && finalizeErr == nil && report != nil {

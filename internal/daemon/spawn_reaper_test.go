@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	callspkg "github.com/compozy/compozy/internal/calls"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -381,11 +382,10 @@ func (f *fakeSpawnReaperCallLifecycle) FailRecipientDeliveries(
 
 func (f *fakeSpawnReaperCallLifecycle) FinalizeReapedSession(
 	_ context.Context,
-	sessionID string,
-	reason string,
+	input callspkg.ReapedSession,
 ) error {
-	f.finalized = append(f.finalized, sessionID+":"+reason)
-	f.sequence = append(f.sequence, "finalize:"+sessionID+":"+reason)
+	f.finalized = append(f.finalized, input.SessionID+":"+input.Reason)
+	f.sequence = append(f.sequence, "finalize:"+input.SessionID+":"+input.Reason)
 	return nil
 }
 

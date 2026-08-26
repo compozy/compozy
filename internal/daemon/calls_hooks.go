@@ -36,7 +36,8 @@ func (d daemonCallHookDispatcher) ObserveCall(
 		CallID: payload.CallID, MessageID: payload.MessageID,
 		ParentSessionID: payload.ParentSessionID, ChildSessionID: payload.ChildSessionID,
 		RootSessionID: payload.RootSessionID, AgentName: payload.AgentName,
-		State: string(payload.State), Verdict: string(payload.Verdict),
+		PreviousState: string(payload.PreviousState), State: string(payload.State),
+		Reason: payload.Reason, Verdict: string(payload.Verdict),
 		ActorKind: payload.Actor.Kind, ActorID: payload.Actor.ID,
 		Channel: payload.Channel, ThreadID: payload.ThreadID,
 		NetworkMessageID: payload.NetworkMessageID, Delivery: payload.Delivery,
@@ -69,6 +70,8 @@ func dispatchCallHook(
 	switch event {
 	case hookspkg.HookCallCreated:
 		_, err = dispatcher.DispatchCallCreated(ctx, payload)
+	case hookspkg.HookCallStateChanged:
+		_, err = dispatcher.DispatchCallStateChanged(ctx, payload)
 	case hookspkg.HookCallSettled:
 		_, err = dispatcher.DispatchCallSettled(ctx, payload)
 	case hookspkg.HookCallCanceled:
@@ -79,6 +82,12 @@ func dispatchCallHook(
 		_, err = dispatcher.DispatchCallMessageSent(ctx, payload)
 	case hookspkg.HookCallMessageDelivered:
 		_, err = dispatcher.DispatchCallMessageDelivered(ctx, payload)
+	case hookspkg.HookCallMessageRejected:
+		_, err = dispatcher.DispatchCallMessageRejected(ctx, payload)
+	case hookspkg.HookCallRevived:
+		_, err = dispatcher.DispatchCallRevived(ctx, payload)
+	case hookspkg.HookCallReaped:
+		_, err = dispatcher.DispatchCallReaped(ctx, payload)
 	case hookspkg.HookCallSubtreeDrained:
 		_, err = dispatcher.DispatchCallSubtreeDrained(ctx, payload)
 	}

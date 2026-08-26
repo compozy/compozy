@@ -60,7 +60,7 @@ flowchart TD
     SCOPE -->|Network publish| D5[The established profile-blind delivery exception, and only that]
 
     AUDIT --> HOOK[Install a test extension declaring the call hook family]
-    HOOK --> EV[Seven events fire: call.created, call.settled, call.canceled, call.published, call.message_sent, call.message_delivered, call.subtree_drained]
+    HOOK --> EV[Eleven events fire: call.created, call.state_changed, call.settled, call.canceled, call.published, call.message_sent, call.message_delivered, call.message_rejected, call.revived, call.reaped, call.subtree_drained]
     EV --> NARROW{Hook mutates the permission set}
     NARROW -->|narrows| NOK[Accepted — and re-validated AFTER the mutation, not only before]
     NARROW -->|widens| NREJ[Rejected with the widening atoms named]
@@ -98,7 +98,7 @@ journey:
       origin: direct
     - url: "CLI/HTTP: compozy call list --all-profiles; Global-scope calls with no workspace; cross-workspace and cross-profile targets"
       origin: direct
-    - url: "extension: declared call hook family (call.created, call.settled, call.canceled, call.published, call.message_sent, call.message_delivered, call.subtree_drained); Host API calls/list, calls/get, calls/result, messages/list under calls:read consent"
+    - url: "extension: declared call hook family (call.created, call.state_changed, call.settled, call.canceled, call.published, call.message_sent, call.message_delivered, call.message_rejected, call.revived, call.reaped, call.subtree_drained); Host API calls/list, calls/get, calls/result, messages/list under calls:read consent"
       origin: direct
     - url: "removed surfaces probed as negatives: compozy spawn; POST /api/agent/spawn; the UDS spawn route; compozy__session_spawn; the native catalog"
       origin: direct
@@ -126,7 +126,7 @@ journey:
       expected_observable: "Cross-workspace targets are denied with call_workspace_denied before any side effect; cross-profile typed calls are denied; --all-profiles aggregate reads carry owner labels and authorize no mutation; Global scope with no workspace works; Network publish keeps its documented profile-blind delivery exception and nothing else does"
     - step: 8
       verb: "Install a test extension that declares the call hooks and reads through the Host API, then take it down"
-      expected_observable: "All seven events fire with sanitized payloads carrying the resolved profile owner; a narrowing hook mutation is accepted and re-validated after the mutation, a widening one is rejected with its atoms named; calls/list, calls/get, calls/result and messages/list work under calls:read and no mutation method exists; a downed extension fails open rather than blocking the call path"
+      expected_observable: "All eleven events fire with sanitized payloads carrying the resolved profile owner; transition events carry the previous state and sender-side rejections or reaping carry their reason; a narrowing hook mutation is accepted and re-validated after the mutation, a widening one is rejected with its atoms named; calls/list, calls/get, calls/result and messages/list work under calls:read and no mutation method exists; a downed extension fails open rather than blocking the call path"
     - step: 9
       verb: "Probe every deleted spawn entry point"
       expected_observable: "CLI verb, HTTP route, UDS route, native tool, schemas and generated clients all respond as genuinely absent — a normal not-found or unknown-command with no compatibility alias, no deprecation shim and no 'formerly known as' text"

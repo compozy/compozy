@@ -218,11 +218,15 @@ export type HookEvent =
   | "worktree.adopted"
   | "worktree.removed"
   | "call.created"
+  | "call.state_changed"
   | "call.settled"
   | "call.canceled"
   | "call.published"
   | "call.message_sent"
   | "call.message_delivered"
+  | "call.message_rejected"
+  | "call.revived"
+  | "call.reaped"
   | "call.subtree_drained";
 
 export interface AgentCrashedPayload {
@@ -1344,7 +1348,9 @@ export interface CallPayload {
   child_session_id?: string;
   root_session_id?: string;
   agent_name?: string;
+  previous_state?: string;
   state?: string;
+  reason?: string;
   verdict?: string;
   actor_kind?: string;
   actor_id?: string;
@@ -7862,11 +7868,15 @@ export interface HookPayloadByEvent {
   "worktree.adopted": WorktreeObservationPayload;
   "worktree.removed": WorktreeObservationPayload;
   "call.created": CallPayload;
+  "call.state_changed": CallPayload;
   "call.settled": CallPayload;
   "call.canceled": CallPayload;
   "call.published": CallPayload;
   "call.message_sent": CallPayload;
   "call.message_delivered": CallPayload;
+  "call.message_rejected": CallPayload;
+  "call.revived": CallPayload;
+  "call.reaped": CallPayload;
   "call.subtree_drained": CallPayload;
 }
 
@@ -7976,11 +7986,15 @@ export interface HookPatchByEvent {
   "worktree.adopted": WorktreeObservationPatch;
   "worktree.removed": WorktreeObservationPatch;
   "call.created": CallObservationPatch;
+  "call.state_changed": CallObservationPatch;
   "call.settled": CallObservationPatch;
   "call.canceled": CallObservationPatch;
   "call.published": CallObservationPatch;
   "call.message_sent": CallObservationPatch;
   "call.message_delivered": CallObservationPatch;
+  "call.message_rejected": CallObservationPatch;
+  "call.revived": CallObservationPatch;
+  "call.reaped": CallObservationPatch;
   "call.subtree_drained": CallObservationPatch;
 }
 

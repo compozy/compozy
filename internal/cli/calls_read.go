@@ -33,7 +33,7 @@ func newCallListCommand(deps commandDeps) *cobra.Command {
 				Cursor: flags.cursor, Limit: flags.limit,
 			})
 			if err != nil {
-				return err
+				return withCallCommandExit(err)
 			}
 			return writeCommandOutput(cmd, callListBundle(response))
 		},
@@ -56,7 +56,7 @@ func newCallShowCommand(deps commandDeps) *cobra.Command {
 			}
 			record, err := client.GetCall(cmd.Context(), workspaceID, args[0])
 			if err != nil {
-				return err
+				return withCallCommandExit(err)
 			}
 			return writeCommandOutput(cmd, callDetailBundle(record))
 		},
@@ -79,7 +79,7 @@ func newCallResultCommand(deps commandDeps) *cobra.Command {
 			}
 			result, err := client.GetCallResult(cmd.Context(), workspaceID, args[0])
 			if err != nil {
-				return err
+				return withCallCommandExit(err)
 			}
 			return writeCommandOutput(cmd, callResultBundle(result))
 		},
@@ -109,7 +109,7 @@ func newCallAwaitCommand(deps commandDeps) *cobra.Command {
 				TimeoutMS: timeout.Milliseconds(), Resume: strings.TrimSpace(resume),
 			})
 			if err != nil {
-				return err
+				return withCallCommandExit(err)
 			}
 			if err := writeCommandOutput(cmd, callAwaitBundle(response)); err != nil {
 				return err
@@ -143,7 +143,7 @@ func newCallCancelCommand(deps commandDeps) *cobra.Command {
 				Reason: strings.TrimSpace(reason),
 			})
 			if err != nil {
-				return err
+				return withCallCommandExit(err)
 			}
 			return writeCommandOutput(cmd, callCancelBundle(response))
 		},
@@ -171,7 +171,7 @@ func newCallPublishCommand(deps commandDeps) *cobra.Command {
 				Channel: strings.TrimSpace(channel), ThreadID: strings.TrimSpace(threadID),
 			})
 			if err != nil {
-				return err
+				return withCallCommandExit(err)
 			}
 			return writeCommandOutput(cmd, callPublishBundle(response))
 		},

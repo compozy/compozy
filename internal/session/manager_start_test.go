@@ -2,6 +2,7 @@ package session
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -23,6 +25,19 @@ func (globalSessionAgentResolver) ResolveAgent(
 	_ *workspacepkg.ResolvedWorkspace,
 ) (compozyconfig.AgentDef, error) {
 	return compozyconfig.AgentDef{Name: name, Provider: "claude", Prompt: "You are a coding assistant."}, nil
+}
+
+type runtimeFreeSessionAgentResolver struct{}
+
+func (runtimeFreeSessionAgentResolver) ResolveAgent(
+	name string,
+	_ *workspacepkg.ResolvedWorkspace,
+) (compozyconfig.AgentDef, error) {
+	return compozyconfig.AgentDef{
+		Name:        name,
+		Permissions: string(compozyconfig.PermissionModeApproveAll),
+		Prompt:      "You are a logical caller identity.",
+	}, nil
 }
 
 func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
@@ -174,6 +189,72 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 		}
 		if err := h.manager.Stop(testutil.Context(t), created.ID); err != nil {
 			t.Fatalf("Stop(global) cleanup error = %v", err)
+		}
+	})
+
+	t.Run("Should create and resume a runtime-free logical caller without a provider", func(t *testing.T) {
+		t.Parallel()
+
+		universe := []toolspkg.ToolID{"compozy__agent_call", "compozy__agent_message"}
+		managerOptions := []Option{
+			WithAgentResolver(runtimeFreeSessionAgentResolver{}),
+			WithToolUniverse(universe),
+		}
+		h := newHarness(t, managerOptions...)
+		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+			RuntimeFree: true,
+			Session: CreateOpts{
+				DesiredSessionID: "sess-runtime-free-caller",
+				Global:           true,
+				AgentName:        "general",
+				DisableSandbox:   true,
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateAccepted(runtime-free) error = %v", err)
+		}
+		if created.Provider != "" || created.Model != "" || created.RuntimeStatus != RuntimeStatusUnbound {
+			t.Fatalf("CreateAccepted(runtime-free) = %#v, want providerless unbound session", created)
+		}
+		if got := len(h.driver.startCalls); got != 0 {
+			t.Fatalf("driver start calls = %d, want 0", got)
+		}
+		wantTools := []string{"compozy__agent_call", "compozy__agent_message"}
+		if created.Lineage == nil || !slices.Equal(created.Lineage.PermissionPolicy.Tools, wantTools) {
+			t.Fatalf("runtime-free lineage tools = %#v, want %#v", created.Lineage, wantTools)
+		}
+		live, ok := h.manager.Get(created.ID)
+		if !ok {
+			t.Fatalf("Get(%q) did not find runtime-free session", created.ID)
+		}
+		meta := readMeta(t, live.MetaPath())
+		if meta.CreationProfile != nil || meta.CreationOptions != nil || meta.Provider != "" {
+			t.Fatalf("runtime-free metadata = %#v, want no runtime creation identity", meta)
+		}
+		if err := h.manager.Stop(testutil.Context(t), created.ID); err != nil {
+			t.Fatalf("Stop(runtime-free) error = %v", err)
+		}
+
+		h.manager = newManagerWithHarness(t, h, managerOptions...)
+		status, err := h.manager.Status(testutil.Context(t), created.ID)
+		if err != nil {
+			t.Fatalf("Status(runtime-free) error = %v", err)
+		}
+		if status.State != StateStopped || status.Provider != "" {
+			t.Fatalf("Status(runtime-free) = %#v, want stopped providerless session", status)
+		}
+		resumed, err := h.manager.Resume(testutil.Context(t), created.ID)
+		if err != nil {
+			t.Fatalf("Resume(runtime-free) error = %v", err)
+		}
+		if info := resumed.Info(); info.Provider != "" || info.RuntimeStatus != RuntimeStatusUnbound {
+			t.Fatalf("Resume(runtime-free) = %#v, want providerless unbound session", info)
+		}
+		if got := len(h.driver.startCalls); got != 0 {
+			t.Fatalf("driver start calls after Resume(runtime-free) = %d, want 0", got)
+		}
+		if err := h.manager.Stop(testutil.Context(t), created.ID); err != nil {
+			t.Fatalf("Stop(resumed runtime-free) error = %v", err)
 		}
 	})
 

@@ -2,14 +2,17 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	callspkg "github.com/compozy/compozy/internal/calls"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 // Invariant: activation recovery reuses the deterministic child identity and
@@ -57,6 +60,7 @@ func TestDaemonCallSessionInvokerRecovery(t *testing.T) {
 			t.Fatalf("SendPrompt() synthetic metadata = %#v, want call request identity", manager.sent.Synthetic)
 		}
 	})
+
 }
 
 func TestDaemonCallSessionInvokerReviveMetadata(t *testing.T) {
@@ -91,6 +95,26 @@ func TestDaemonCallSessionInvokerReviveMetadata(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "ses-child") {
 			t.Fatalf("Revive() error = %q, want session identity", err)
+		}
+	})
+
+	t.Run("Should retry when the prior park wins the resume-to-send race", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &callSessionManagerStub{
+			info:     &session.Info{ID: "ses-child", State: session.StateStopped},
+			sendErrs: []error{session.ErrSessionNotActive},
+		}
+		invoker := &daemonCallSessionInvoker{sessions: manager}
+		if err := invoker.Revive(context.Background(), "ses-child", "Follow up.", "call-2"); err != nil {
+			t.Fatalf("Revive() error = %v", err)
+		}
+		if manager.resumeCalls != 2 || manager.sendCalls != 2 {
+			t.Fatalf(
+				"Revive() calls = resume %d send %d, want two attempts after the park race",
+				manager.resumeCalls,
+				manager.sendCalls,
+			)
 		}
 	})
 }
@@ -231,17 +255,118 @@ func TestDaemonCallDeliveryTracksDurableQueueState(t *testing.T) {
 	})
 }
 
+func TestCallRuntimeTurnEndSettlement(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should settle an omitted return from the final assistant text", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &callSessionManagerStub{
+			transcriptPage: transcript.Page{
+				Entries: []transcript.Entry{{
+					Message: transcript.UIMessage{
+						Role:     transcript.UIRoleSystem,
+						Metadata: json.RawMessage(`{"synthetic":{"call_id":"call-1"}}`),
+					},
+				}, {
+					Message: transcript.UIMessage{
+						Role: transcript.UIRoleAssistant,
+						Parts: []transcript.UIMessagePart{{
+							Type: "text",
+							Text: "Reviewed the change without a structured result.",
+						}},
+					},
+				}},
+			},
+		}
+		service := &callRuntimeServiceStub{}
+		runtime := &callRuntime{turnEndService: service, sessions: sessions, ctx: t.Context()}
+
+		runtime.onTurnEnd("ses-child")
+
+		if service.drainCalls != 1 || service.returnCalls != 1 {
+			t.Fatalf(
+				"turn-end calls = drain %d return %d, want one each",
+				service.drainCalls,
+				service.returnCalls,
+			)
+		}
+		if service.returnInput.CallID != "call-1" ||
+			service.returnInput.ChildSessionID != "ses-child" ||
+			service.returnInput.Actor.ID != "ses-child" ||
+			service.returnInput.FinalText != "Reviewed the change without a structured result." {
+			t.Fatalf("Return() input = %#v, want child-owned final prose", service.returnInput)
+		}
+	})
+
+	t.Run("Should defer omitted return settlement when a delivery starts the next turn", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &callSessionManagerStub{}
+		service := &callRuntimeServiceStub{drain: func() { sessions.prompting = true }}
+		runtime := &callRuntime{turnEndService: service, sessions: sessions, ctx: t.Context()}
+
+		runtime.onTurnEnd("ses-child")
+
+		if service.drainCalls != 1 || service.returnCalls != 0 {
+			t.Fatalf(
+				"turn-end calls = drain %d return %d, want delivery-only boundary",
+				service.drainCalls,
+				service.returnCalls,
+			)
+		}
+	})
+}
+
+type callRuntimeServiceStub struct {
+	drain       func()
+	drainCalls  int
+	returnCalls int
+	returnInput callspkg.ReturnInput
+}
+
+func (s *callRuntimeServiceStub) DispatchQueued(context.Context, int) (int, error) {
+	return 0, nil
+}
+
+func (s *callRuntimeServiceStub) SweepDeadlines(
+	context.Context,
+	time.Time,
+) (callspkg.SweepReport, error) {
+	return callspkg.SweepReport{}, nil
+}
+
+func (s *callRuntimeServiceStub) DrainDeliveries(context.Context, string, int) error {
+	s.drainCalls++
+	if s.drain != nil {
+		s.drain()
+	}
+	return nil
+}
+
+func (s *callRuntimeServiceStub) Return(
+	_ context.Context,
+	input callspkg.ReturnInput,
+) (callspkg.Settlement, error) {
+	s.returnCalls++
+	s.returnInput = input
+	return callspkg.Settlement{}, nil
+}
+
 type callSessionManagerStub struct {
-	info          *session.Info
-	statusCalls   int
-	resumeErr     error
-	resumeCalls   int
-	sentSessionID string
-	sent          session.SendPromptOpts
-	sendResult    session.SendPromptResult
-	queuedStatus  session.InputDeliveryStatus
-	prompting     bool
-	sendCalls     int
+	info           *session.Info
+	statusCalls    int
+	resumeErr      error
+	resumeCalls    int
+	sentSessionID  string
+	sent           session.SendPromptOpts
+	sendResult     session.SendPromptResult
+	queuedStatus   session.InputDeliveryStatus
+	prompting      bool
+	sendCalls      int
+	sendErrs       []error
+	transcriptPage transcript.Page
+	transcriptErr  error
 }
 
 func (s *callSessionManagerStub) Status(context.Context, string) (*session.Info, error) {
@@ -250,6 +375,14 @@ func (s *callSessionManagerStub) Status(context.Context, string) (*session.Info,
 }
 
 func (s *callSessionManagerStub) IsPrompting(string) bool { return s.prompting }
+
+func (s *callSessionManagerStub) TranscriptPage(
+	context.Context,
+	string,
+	transcript.PageQuery,
+) (transcript.Page, error) {
+	return s.transcriptPage, s.transcriptErr
+}
 
 func (s *callSessionManagerStub) Resume(context.Context, string) (*session.Session, error) {
 	s.resumeCalls++
@@ -267,6 +400,11 @@ func (s *callSessionManagerStub) SendPrompt(
 	s.sendCalls++
 	s.sentSessionID = sessionID
 	s.sent = opts
+	if len(s.sendErrs) > 0 {
+		err := s.sendErrs[0]
+		s.sendErrs = s.sendErrs[1:]
+		return session.SendPromptResult{}, err
+	}
 	if s.sendResult.Status != "" {
 		return s.sendResult, nil
 	}

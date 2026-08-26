@@ -84,15 +84,21 @@ func (i *daemonCallSessionInvoker) SpawnChild(
 }
 
 func (i *daemonCallSessionInvoker) Revive(ctx context.Context, sessionID, prompt, callID string) error {
-	if _, err := i.sessions.Resume(ctx, sessionID); err != nil {
-		return fmt.Errorf("daemon: resume call session %q: %w", sessionID, err)
-	}
-	_, err := i.send(ctx, sessionID, prompt, callID, &acp.PromptSyntheticMeta{
+	metadata := &acp.PromptSyntheticMeta{
 		CallID: callID, CallState: string(callspkg.StateRunning),
 		ChildSessionID: sessionID, Reason: "call_follow_up",
-	})
-	if err == nil {
-		return nil
+	}
+	var err error
+	for attempt := 0; attempt < 2; attempt++ {
+		if _, err = i.sessions.Resume(ctx, sessionID); err != nil {
+			return fmt.Errorf("daemon: resume call session %q: %w", sessionID, err)
+		}
+		if _, err = i.send(ctx, sessionID, prompt, callID, metadata); err == nil {
+			return nil
+		}
+		if !errors.Is(err, session.ErrSessionNotActive) {
+			break
+		}
 	}
 	cleanupErr := i.sessions.StopWithCause(ctx, sessionID, session.CauseFailed, "call revival prompt failed")
 	return errors.Join(err, cleanupErr)

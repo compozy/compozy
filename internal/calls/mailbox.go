@@ -61,11 +61,13 @@ func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (Mess
 		return MessageRecord{}, newError(CodeValidation, "message body is required", nil)
 	}
 	if len([]byte(clean)) > s.messageMaxBytes {
-		return MessageRecord{}, newError(
+		rejectErr := newError(
 			CodeMessageTooLarge,
 			fmt.Sprintf("message is %d bytes; maximum is %d", len([]byte(clean)), s.messageMaxBytes),
 			nil,
 		)
+		s.emitMessageRejected(ctx, input, rejectErr)
+		return MessageRecord{}, rejectErr
 	}
 	messageID, err := s.newID("msg")
 	if err != nil {
@@ -84,6 +86,7 @@ func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (Mess
 		PendingCap: s.config.Messages.PendingCap,
 	})
 	if err != nil {
+		s.emitMessageRejected(ctx, input, err)
 		return MessageRecord{}, err
 	}
 	s.emitHook(ctx, HookCallMessageSent, HookPayload{
@@ -92,6 +95,27 @@ func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (Mess
 		Actor: Actor{Kind: record.From.Kind, ID: record.From.ID}, Delivery: string(record.Delivery),
 	})
 	return record, nil
+}
+
+func (s *Service) emitMessageRejected(ctx context.Context, input SendMessageInput, err error) {
+	var callErr *Error
+	if !errors.As(err, &callErr) {
+		return
+	}
+	switch callErr.Code {
+	case CodeMessageTooLarge, CodeMessageRateLimited, CodeMessageDuplicate, CodeMessagePendingCap:
+	default:
+		return
+	}
+	s.emitHook(ctx, HookCallMessageRejected, HookPayload{
+		ProfileID:      input.ProfileID,
+		Scope:          input.Scope,
+		WorkspaceID:    input.WorkspaceID,
+		CallID:         input.CallID,
+		ChildSessionID: input.To,
+		Actor:          Actor{Kind: input.From.Kind, ID: input.From.ID},
+		Reason:         string(callErr.Code),
+	})
 }
 
 func validateMessageIdentity(input SendMessageInput) error {
@@ -390,12 +414,25 @@ func (s *Service) FailRecipientDeliveries(ctx context.Context, sessionID, reason
 }
 
 // FinalizeReapedSession closes a fenced session after its runtime stops.
-func (s *Service) FinalizeReapedSession(ctx context.Context, sessionID, reason string) error {
+func (s *Service) FinalizeReapedSession(ctx context.Context, input ReapedSession) error {
 	mailbox, err := s.mailboxStore()
 	if err != nil {
 		return err
 	}
-	return mailbox.FinalizeReapedSession(
-		ctx, strings.TrimSpace(sessionID), strings.TrimSpace(reason), s.now().UTC(),
-	)
+	input.SessionID = strings.TrimSpace(input.SessionID)
+	input.Reason = strings.TrimSpace(input.Reason)
+	if err := mailbox.FinalizeReapedSession(ctx, input.SessionID, input.Reason, s.now().UTC()); err != nil {
+		return err
+	}
+	s.emitHook(ctx, HookCallReaped, HookPayload{
+		ProfileID:       input.ProfileID,
+		Scope:           input.Scope,
+		WorkspaceID:     input.WorkspaceID,
+		ChildSessionID:  input.SessionID,
+		ParentSessionID: input.ParentSessionID,
+		RootSessionID:   input.RootSessionID,
+		AgentName:       input.AgentName,
+		Reason:          input.Reason,
+	})
+	return nil
 }

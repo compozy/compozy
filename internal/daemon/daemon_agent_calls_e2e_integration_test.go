@@ -270,7 +270,7 @@ func TestDaemonE2EAgentCallsRuntimeAndPublicSurfaces(t *testing.T) {
 			path,
 			compozycontract.CreateCallRequest{CreateCallItemRequest: compozycontract.CreateCallItemRequest{
 				Target: compozycontract.CallTargetRequest{Agent: "reviewer"}, Prompt: "invalid expect",
-				Expect: json.RawMessage(`{"type":`),
+				Expect: json.RawMessage(`{"type":"object","properties":{"x":{"type":"not-a-type"}}}`),
 			}},
 		)
 		if status != http.StatusUnprocessableEntity || malformed.Code != string(callspkg.CodeExpectInvalid) {
@@ -311,15 +311,18 @@ func TestDaemonE2EAgentCallsRuntimeAndPublicSurfaces(t *testing.T) {
 			"--idle-ttl",
 			"1s",
 		)
-		ttlSettled := waitForAgentCallState(t, ctx, harness, ttl.CallID, callspkg.StateCompleted)
-		waitForAgentCallCLIErrorCode(
-			t,
+		ttlSettled := waitForAgentCallExpiredIdleClock(t, ctx, harness, ttl.CallID)
+		_, stderr, err := harness.CLI.RunInDir(
 			ctx,
-			harness,
-			10*time.Second,
-			callspkg.CodeTargetExpired,
+			harness.WorkspaceRoot,
 			"call", ttlSettled.ChildSessionID, "one more thing",
 			"--workspace", harness.WorkspaceRoot, "-o", "json",
+		)
+		assertAgentCallCLIErrorCode(
+			t,
+			err,
+			stderr,
+			callspkg.CodeTargetExpired,
 		)
 
 		messaged := createAgentCallCLI(t, ctx, harness, "messenger", "message parent")
@@ -391,27 +394,13 @@ func TestDaemonE2EAgentCallsRuntimeAndPublicSurfaces(t *testing.T) {
 		if sdkToolListContains(listed.Tools, toolspkg.ToolIDAgentCall.String()) {
 			t.Fatalf("depth-wall tools = %#v, must omit %s", sdkToolNames(listed.Tools), toolspkg.ToolIDAgentCall)
 		}
-		registration, ok := harness.MockAgentRegistration("blocker")
-		if !ok {
-			t.Fatal("MockAgentRegistration(blocker) = missing")
-		}
-		records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
-		if err != nil {
-			t.Fatalf("ReadDiagnostics(blocker) error = %v", err)
-		}
-		visibleDepthWall := false
-		for _, record := range acpmock.DiagnosticsForCompozySession(records, depthThreeCall.ChildSessionID) {
-			if strings.Contains(record.Prompt, "You cannot delegate further.") {
-				visibleDepthWall = true
-				break
-			}
-		}
-		if !visibleDepthWall {
-			t.Fatalf(
-				"depth-three diagnostics contain %d session records, want literal zero remaining depth prompt",
-				len(acpmock.DiagnosticsForCompozySession(records, depthThreeCall.ChildSessionID)),
-			)
-		}
+		waitForAgentCallTranscriptText(
+			t,
+			ctx,
+			harness,
+			depthThreeCall.ChildSessionID,
+			"You cannot delegate further.",
+		)
 	})
 
 	t.Run("Should apply the task result contract through CLI and agent lease surfaces E2E-026", func(t *testing.T) {
@@ -453,13 +442,18 @@ func TestDaemonE2EAgentCallsRuntimeAndPublicSurfaces(t *testing.T) {
 		if started.ExpectDigest != created.ExpectDigest || started.ResultBudget == nil {
 			t.Fatalf("started run = %#v, want task contract snapshot", started)
 		}
+		const rawClaimToken = "compozy_claim_result-contract-secret"
 		_, err = harness.CompleteClaimedTaskRunForSession(
 			ctx,
 			run.ID,
 			&worker,
-			compozycontract.AgentTaskCompleteRequest{Result: json.RawMessage(`{"wrong":true}`)},
+			compozycontract.AgentTaskCompleteRequest{
+				Result: json.RawMessage(`{"answer":"` + rawClaimToken + `"}`),
+			},
 		)
-		if err == nil || !strings.Contains(err.Error(), "task_result_invalid") || strings.Contains(err.Error(), "wrong") {
+		if err == nil ||
+			!strings.Contains(err.Error(), taskpkg.ResultContractInvalidCode) ||
+			strings.Contains(err.Error(), rawClaimToken) {
 			t.Fatalf("invalid task completion error = %v, want sanitized typed rejection", err)
 		}
 		completed, err := harness.CompleteClaimedTaskRunForSession(
@@ -474,18 +468,18 @@ func TestDaemonE2EAgentCallsRuntimeAndPublicSurfaces(t *testing.T) {
 		if completed.Status.Normalize() != taskpkg.TaskRunStatusCompleted {
 			t.Fatalf("completed task lease = %#v", completed)
 		}
-		var read compozycontract.TaskResponse
+		var read compozycontract.TaskDetailResponse
 		if err := harness.HTTPJSON(
 			ctx,
 			http.MethodGet,
-			"/api/workspaces/"+url.PathEscape(harness.WorkspaceID)+"/tasks/"+url.PathEscape(created.ID),
+			"/api/tasks/"+url.PathEscape(created.ID),
 			nil,
 			&read,
 		); err != nil {
 			t.Fatalf("HTTP task read error = %v", err)
 		}
-		if read.Task.ExpectDigest != created.ExpectDigest || read.Task.ResultBudget == nil {
-			t.Fatalf("HTTP task read = %#v, want contract projection", read.Task)
+		if read.Task.Task.ExpectDigest != created.ExpectDigest || read.Task.Task.ResultBudget == nil {
+			t.Fatalf("HTTP task read = %#v, want contract projection", read.Task.Task)
 		}
 		var runRead compozycontract.TaskRunDetailResponse
 		if err := harness.HTTPJSON(
@@ -691,7 +685,19 @@ func waitForAgentCallState(
 		}
 		lastErr = err
 		if err == nil && isAgentCallTerminal(last.State) && last.State != string(want) {
-			t.Fatalf("call %s settled %s, want %s; payload=%#v", callID, last.State, want, last)
+			transcriptPage, transcriptErr := harness.SessionTranscript(ctx, last.ChildSessionID)
+			eventsPage, eventsErr := harness.SessionEvents(ctx, last.ChildSessionID)
+			t.Fatalf(
+				"call %s settled %s, want %s; payload=%#v; transcript=%#v error=%v; events=%#v error=%v",
+				callID,
+				last.State,
+				want,
+				last,
+				transcriptPage,
+				transcriptErr,
+				eventsPage,
+				eventsErr,
+			)
 		}
 		select {
 		case <-ctx.Done():
@@ -703,6 +709,44 @@ func waitForAgentCallState(
 
 func isAgentCallTerminal(state string) bool {
 	return callspkg.State(state).Terminal()
+}
+
+func waitForAgentCallTranscriptText(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	sessionID string,
+	want string,
+) {
+	t.Helper()
+	waitCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	var lastVisible string
+	var lastErr error
+	for {
+		page, err := harness.SessionTranscript(waitCtx, sessionID)
+		lastErr = err
+		if err == nil {
+			lastVisible = joinTranscriptContent(sessionTranscriptMessages(page))
+			if strings.Contains(lastVisible, want) {
+				return
+			}
+		}
+		select {
+		case <-waitCtx.Done():
+			t.Fatalf(
+				"wait for session %s transcript text %q: %v; last visible=%q; last read error=%v",
+				sessionID,
+				want,
+				waitCtx.Err(),
+				lastVisible,
+				lastErr,
+			)
+		case <-ticker.C:
+		}
+	}
 }
 
 func createNestedAgentCall(
@@ -800,37 +844,37 @@ func assertAgentCallPublishCLIError(
 	assertAgentCallCLIErrorCode(t, err, stderr, want)
 }
 
-func waitForAgentCallCLIErrorCode(
+func waitForAgentCallExpiredIdleClock(
 	t testing.TB,
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
-	timeout time.Duration,
-	want callspkg.ErrorCode,
-	args ...string,
-) {
+	callID string,
+) compozycontract.CallPayload {
 	t.Helper()
-	waitCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
+	var last compozycontract.CallPayload
 	var lastErr error
-	var lastCode string
 	for {
-		_, stderr, err := harness.CLI.RunInDir(waitCtx, harness.WorkspaceRoot, args...)
-		lastErr = err
-		if code, ok := agentCallCLIErrorCode(err, stderr); ok {
-			lastCode = code
-			if code == string(want) {
-				return
-			}
+		lastErr = harness.CLI.RunJSONInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			&last,
+			"call", "show", callID,
+			"--workspace", harness.WorkspaceRoot,
+			"-o", "json",
+		)
+		if lastErr == nil && last.State == string(callspkg.StateCompleted) &&
+			last.IdleExpiresAt != nil && !last.IdleExpiresAt.After(time.Now()) {
+			return last
 		}
 		select {
-		case <-waitCtx.Done():
+		case <-ctx.Done():
 			t.Fatalf(
-				"wait for CLI error code %s: %v; last code=%q; last command error=%v",
-				want,
-				waitCtx.Err(),
-				lastCode,
+				"wait for call %s expired idle clock: %v; last=%#v; last read error=%v",
+				callID,
+				ctx.Err(),
+				last,
 				lastErr,
 			)
 		case <-ticker.C:

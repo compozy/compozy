@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-message-a-running-agent
 expected: The idle clock arms only on park and suspends the moment a call or message arrives, a session with an open call is never reaped, and expiry terminalizes every queued message with that reason before the target is finalized.
 entry_points: compozy call reviewer "Park after completion" --idle-ttl 30s; compozy config set calls.idle_ttl 30s; compozy message send ses_01JBD8G2MZTX "Wake and continue"; compozy call ses_01JBD8G2MZTX "Check the tests too"; compozy session status ses_01JBD8G2MZTX; HTTP and UDS GET /api/workspaces/{workspace_id}/calls/{call_id} and assert idle_expires_at
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: fail
+bug_ids: BUG-20260826-parked-child-idle-clock
+fix_status: fixed
+retest_status: passed
+fix_commits: ed9c5ac; 8181f49
+evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/ttl-public-retest.md
+last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: RT-agent-call-follow-up; RT-agent-mailbox-send-list; RT-session-stop-subtree
 ---
 

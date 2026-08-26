@@ -28,7 +28,9 @@ type CallPayload struct {
 	ChildSessionID   string    `json:"child_session_id,omitempty"`
 	RootSessionID    string    `json:"root_session_id,omitempty"`
 	AgentName        string    `json:"agent_name,omitempty"`
+	PreviousState    string    `json:"previous_state,omitempty"`
 	State            string    `json:"state,omitempty"`
+	Reason           string    `json:"reason,omitempty"`
 	Verdict          string    `json:"verdict,omitempty"`
 	ActorKind        string    `json:"actor_kind,omitempty"`
 	ActorID          string    `json:"actor_id,omitempty"`

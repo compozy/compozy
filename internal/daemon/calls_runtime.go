@@ -2,23 +2,42 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	callspkg "github.com/compozy/compozy/internal/calls"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
-const callDispatchInterval = time.Second
+const (
+	callDispatchInterval = time.Second
+	callTurnEndTimeout   = 10 * time.Second
+)
+
+type callTurnEndService interface {
+	DrainDeliveries(context.Context, string, int) error
+	Return(context.Context, callspkg.ReturnInput) (callspkg.Settlement, error)
+}
+
+type callTurnEndSessionReader interface {
+	IsPrompting(string) bool
+	TranscriptPage(context.Context, string, transcript.PageQuery) (transcript.Page, error)
+}
 
 type callRuntime struct {
-	service *callspkg.Service
-	ctx     context.Context
-	logger  *slog.Logger
-	cancel  context.CancelFunc
-	done    chan struct{}
+	service        *callspkg.Service
+	turnEndService callTurnEndService
+	sessions       callTurnEndSessionReader
+	ctx            context.Context
+	logger         *slog.Logger
+	cancel         context.CancelFunc
+	done           chan struct{}
 }
 
 func (d *Daemon) bootCalls(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
@@ -69,9 +88,10 @@ func (d *Daemon) bootCalls(ctx context.Context, state *bootState, cleanup *bootC
 	}
 	runCtx, cancel := context.WithCancel(ctx)
 	runtime := &callRuntime{
-		service: service, ctx: runCtx, logger: state.logger,
+		service: service, turnEndService: service, ctx: runCtx, logger: state.logger,
 		cancel: cancel, done: make(chan struct{}),
 	}
+	runtime.sessions, _ = state.sessions.(callTurnEndSessionReader)
 	state.calls = runtime
 	state.deps.Calls = newCallSurfaceService(service, state.sessions)
 	if registrar, ok := state.sessions.(turnEndNotifierRegistrar); ok {
@@ -108,18 +128,103 @@ func (r *callRuntime) run(ctx context.Context, logger *slog.Logger) {
 }
 
 func (r *callRuntime) onTurnEnd(sessionID string) {
-	if r == nil || r.service == nil || r.ctx == nil {
+	if r == nil || r.turnEndService == nil || r.ctx == nil {
 		return
 	}
-	if err := r.service.DrainDeliveries(r.ctx, sessionID, 100); err != nil &&
-		!errors.Is(err, context.Canceled) {
-		logger := r.logger
-		if logger == nil {
-			logger = slog.Default()
+	turnCtx, cancel := context.WithTimeout(r.ctx, callTurnEndTimeout)
+	defer cancel()
+	if err := r.turnEndService.DrainDeliveries(turnCtx, sessionID, 100); err != nil {
+		if !errors.Is(err, context.Canceled) {
+			runtimeLogger(r.logger).Warn(
+				"daemon: drain call deliveries at turn boundary failed",
+				"session_id", sessionID,
+				"error", err,
+			)
 		}
-		logger.Warn("daemon: drain call deliveries at turn boundary failed", "session_id", sessionID, "error", err)
+		return
 	}
+	if r.sessions == nil || r.sessions.IsPrompting(sessionID) {
+		return
+	}
+	callID, finalText, err := r.finalCallTurn(turnCtx, sessionID)
+	if err != nil {
+		runtimeLogger(r.logger).Warn(
+			"daemon: read final assistant text at call boundary failed",
+			"session_id", sessionID,
+			"error", err,
+		)
+		return
+	}
+	if callID == "" {
+		return
+	}
+	_, err = r.turnEndService.Return(turnCtx, callspkg.ReturnInput{
+		CallID:         callID,
+		ChildSessionID: sessionID,
+		FinalText:      finalText,
+		ChildLive:      true,
+		Actor: callspkg.SettlementActor{
+			Kind: "agent_session",
+			ID:   sessionID,
+		},
+	})
+	if err == nil || callspkg.IsCode(err, callspkg.CodeReturnUnbound) ||
+		callspkg.IsCode(err, callspkg.CodeAlreadySettled) {
+		return
+	}
+	runtimeLogger(r.logger).Warn(
+		"daemon: settle omitted call return at turn boundary failed",
+		"session_id", sessionID,
+		"error", err,
+	)
 }
+
+func (r *callRuntime) finalCallTurn(ctx context.Context, sessionID string) (string, string, error) {
+	page, err := r.sessions.TranscriptPage(ctx, sessionID, transcript.PageQuery{Limit: 50})
+	if err != nil {
+		return "", "", err
+	}
+	callInput := -1
+	callID := ""
+	for index := len(page.Entries) - 1; index >= 0; index-- {
+		var metadata struct {
+			Synthetic *struct {
+				CallID string `json:"call_id"`
+			} `json:"synthetic"`
+		}
+		if len(page.Entries[index].Message.Metadata) == 0 ||
+			json.Unmarshal(page.Entries[index].Message.Metadata, &metadata) != nil || metadata.Synthetic == nil {
+			continue
+		}
+		if candidate := strings.TrimSpace(metadata.Synthetic.CallID); candidate != "" {
+			callInput = index
+			callID = candidate
+			break
+		}
+	}
+	if callInput < 0 {
+		return "", "", nil
+	}
+	finalText := ""
+	for index := len(page.Entries) - 1; index > callInput; index-- {
+		message := page.Entries[index].Message
+		if message.Role == transcript.UIRoleAssistant {
+			finalText = transcript.UIMessageText(message)
+			break
+		}
+	}
+	return callID, finalText, nil
+}
+
+func runtimeLogger(logger *slog.Logger) *slog.Logger {
+	if logger == nil {
+		return slog.Default()
+	}
+	return logger
+}
+
+var _ callTurnEndService = (*callspkg.Service)(nil)
+var _ callTurnEndSessionReader = (*session.Manager)(nil)
 
 func (r *callRuntime) shutdown(ctx context.Context) error {
 	if r == nil {

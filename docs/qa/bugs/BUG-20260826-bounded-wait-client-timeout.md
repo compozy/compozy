@@ -1,6 +1,6 @@
 # BUG-20260826-bounded-wait-client-timeout: The CLI transport interrupted valid waits after 30 seconds
 
-- **Status:** fixed, pending public-surface retest
+- **Status:** fixed and publicly verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Ada; Bruno
@@ -32,10 +32,12 @@ as a transport error before the daemon could report a checkpoint or state transi
   plus five seconds for response delivery. An earlier caller context deadline still wins.
 - **Regression:** The canonical CLI client suite proves call and session waits use the dedicated
   transport, carry the requested deadline beyond 30 seconds, and clamp oversized waits.
-- **Fix commit:** pending QA remediation commit.
+- **Fix commit:** `cf46ed340`.
 
 ## Verification
 
 - Focused regression: `go test -race ./internal/cli -run 'TestBoundedWaitClientsUseRequestedDeadline|TestNewClientConfiguresTimeouts' -count=1` — 5 tests passed.
-- Public UDS retest is pending the next rebuilt isolated binary.
+- Public UDS retest: call await and session wait both returned their normal timeout checkpoints after
+  35 seconds (35.29s and 35.07s), beyond the former 30-second transport deadline.
+- Retest evidence: `/Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/qa-remediation-public-retest.md`.
 - Reproduction evidence: `/Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/bounded-wait-client-timeout-reproduction.md`.

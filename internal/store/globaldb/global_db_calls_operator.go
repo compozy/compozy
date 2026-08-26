@@ -6,10 +6,56 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	callspkg "github.com/compozy/compozy/internal/calls"
 	"github.com/compozy/compozy/internal/store"
 )
+
+func (g *CallRepo) ReopenOperatorCaller(
+	ctx context.Context,
+	sessionID string,
+	at time.Time,
+) error {
+	if err := g.checkReady(ctx, "reopen operator caller"); err != nil {
+		return err
+	}
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return errors.New("store: operator caller session is required")
+	}
+	return g.tasks.withTaskImmediateTransaction(ctx, "reopen operator caller", func(exec taskSQLExecutor) error {
+		var state string
+		var drainingAt sql.NullString
+		var openCalls int
+		err := exec.QueryRowContext(ctx, `SELECT session.state, session.draining_at,
+			(SELECT COUNT(1) FROM calls WHERE governed_root_id = session.id
+				AND state IN ('queued', 'running'))
+			FROM sessions session
+			JOIN operator_caller_sessions operator ON operator.session_id = session.id
+			WHERE session.id = ?`, sessionID).Scan(&state, &drainingAt, &openCalls)
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("store: session %q is not an operator caller", sessionID)
+		}
+		if err != nil {
+			return fmt.Errorf("store: inspect operator caller %q before reopen: %w", sessionID, err)
+		}
+		if !drainingAt.Valid {
+			return nil
+		}
+		if state != "stopped" {
+			return fmt.Errorf("store: operator caller %q must be stopped before reopen", sessionID)
+		}
+		if openCalls != 0 {
+			return fmt.Errorf("store: operator caller %q still has %d open calls", sessionID, openCalls)
+		}
+		if _, err := exec.ExecContext(ctx, `UPDATE sessions
+			SET draining_at = NULL, updated_at = ? WHERE id = ?`, store.FormatTimestamp(at), sessionID); err != nil {
+			return fmt.Errorf("store: reopen operator caller %q: %w", sessionID, err)
+		}
+		return nil
+	})
+}
 
 func (g *CallRepo) ResolveOperatorCaller(
 	ctx context.Context,

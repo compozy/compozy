@@ -30,7 +30,7 @@ func newMessageSendCommand(deps commandDeps) *cobra.Command {
 				Text: args[1], CallID: strings.TrimSpace(callID),
 			})
 			if err != nil {
-				return err
+				return withCallCommandExit(err)
 			}
 			return writeCommandOutput(cmd, messageSendBundle(response))
 		},
@@ -60,7 +60,7 @@ func newMessageListCommand(deps commandDeps) *cobra.Command {
 				WorkspaceID: workspaceID, SessionID: sessionID, Cursor: cursor, Limit: limit,
 			})
 			if err != nil {
-				return err
+				return withCallCommandExit(err)
 			}
 			return writeCommandOutput(cmd, messageListBundle(response))
 		},

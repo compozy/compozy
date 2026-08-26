@@ -41963,11 +41963,15 @@ export interface operations {
           | "worktree.adopted"
           | "worktree.removed"
           | "call.created"
+          | "call.state_changed"
           | "call.settled"
           | "call.canceled"
           | "call.published"
           | "call.message_sent"
           | "call.message_delivered"
+          | "call.message_rejected"
+          | "call.revived"
+          | "call.reaped"
           | "call.subtree_drained";
         /** @description Hook source */
         source?: "native" | "config" | "agent_definition" | "skill";
@@ -62763,11 +62767,15 @@ export interface operations {
                   | "worktree.adopted"
                   | "worktree.removed"
                   | "call.created"
+                  | "call.state_changed"
                   | "call.settled"
                   | "call.canceled"
                   | "call.published"
                   | "call.message_sent"
                   | "call.message_delivered"
+                  | "call.message_rejected"
+                  | "call.revived"
+                  | "call.reaped"
                   | "call.subtree_drained";
                 /** @enum {string} */
                 executor_kind?: "native" | "subprocess" | "wasm";
@@ -63085,11 +63093,15 @@ export interface operations {
                   | "worktree.adopted"
                   | "worktree.removed"
                   | "call.created"
+                  | "call.state_changed"
                   | "call.settled"
                   | "call.canceled"
                   | "call.published"
                   | "call.message_sent"
                   | "call.message_delivered"
+                  | "call.message_rejected"
+                  | "call.revived"
+                  | "call.reaped"
                   | "call.subtree_drained";
                 /** @enum {string} */
                 executor_kind?: "native" | "subprocess" | "wasm";
@@ -63672,11 +63684,15 @@ export interface operations {
               | "worktree.adopted"
               | "worktree.removed"
               | "call.created"
+              | "call.state_changed"
               | "call.settled"
               | "call.canceled"
               | "call.published"
               | "call.message_sent"
               | "call.message_delivered"
+              | "call.message_rejected"
+              | "call.revived"
+              | "call.reaped"
               | "call.subtree_drained";
             /** @enum {string} */
             executor_kind?: "native" | "subprocess" | "wasm";
@@ -105620,11 +105636,15 @@ export interface operations {
           | "worktree.adopted"
           | "worktree.removed"
           | "call.created"
+          | "call.state_changed"
           | "call.settled"
           | "call.canceled"
           | "call.published"
           | "call.message_sent"
           | "call.message_delivered"
+          | "call.message_rejected"
+          | "call.revived"
+          | "call.reaped"
           | "call.subtree_drained";
         /** @description Hook execution outcome */
         outcome?: "applied" | "denied" | "failed" | "skipped" | "dropped" | "rejected";

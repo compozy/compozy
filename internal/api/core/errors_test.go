@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	contractspkg "github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/diagnostics"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/network"
@@ -466,6 +467,23 @@ func TestErrorPayloadForError(t *testing.T) {
 			payload.Details[looppkg.ReasonMetaAllowedTransitions] != "requeue,cancel,kill" ||
 			payload.Details[looppkg.ReasonMetaWinnerActorID] != "operator:alice" {
 			t.Fatalf("Loop lifecycle error payload = %#v", payload)
+		}
+	})
+
+	t.Run("Should preserve the result-contract repair code and sanitized detail", func(t *testing.T) {
+		t.Parallel()
+
+		payload := ErrorPayloadForError(&taskpkg.ResultContractValidationError{
+			Issues: []contractspkg.ValidationIssue{{
+				Path:    "$.answer",
+				Message: "claim_token=compozy_claim_secret has the wrong type",
+			}},
+		})
+		if payload.Code != taskpkg.ResultContractInvalidCode {
+			t.Fatalf("result-contract payload code = %q, want %q", payload.Code, taskpkg.ResultContractInvalidCode)
+		}
+		if strings.Contains(payload.Error, "compozy_claim_secret") || !strings.Contains(payload.Error, "[REDACTED]") {
+			t.Fatalf("result-contract payload error = %q, want redacted repair detail", payload.Error)
 		}
 	})
 

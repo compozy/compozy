@@ -74,6 +74,9 @@ type CreateOpts struct {
 // CreateAcceptedOpts carries one logical user-session creation request.
 type CreateAcceptedOpts struct {
 	Session CreateOpts
+	// RuntimeFree creates a durable logical session without resolving or
+	// attaching a model provider. It is reserved for daemon-owned identities.
+	RuntimeFree bool
 }
 
 // StoreOpener opens the per-session events store for the exact immutable owner.

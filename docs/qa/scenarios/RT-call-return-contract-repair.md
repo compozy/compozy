@@ -10,8 +10,8 @@ qa_status: fail
 bug_ids: BUG-20260826-call-child-tool-policy
 fix_status: fixed
 retest_status: pending
-fix_commits: pending QA remediation commit
-evidence: live child tool projection for call-1a2697770f3d8ea3
+fix_commits: 5df9697
+evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/qa-remediation-public-retest.md
 last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: RT-agent-call-golden-path; TA-task-result-contract; LP-loop-contract-regime-adoption
 ---

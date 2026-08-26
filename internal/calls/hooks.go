@@ -8,11 +8,15 @@ type HookEvent string
 const (
 	// HookCallCreated and the following constants identify observable call transitions.
 	HookCallCreated          HookEvent = "call.created"
+	HookCallStateChanged     HookEvent = "call.state_changed"
 	HookCallSettled          HookEvent = "call.settled"
 	HookCallCanceled         HookEvent = "call.canceled"
 	HookCallPublished        HookEvent = "call.published"
 	HookCallMessageSent      HookEvent = "call.message_sent"
 	HookCallMessageDelivered HookEvent = "call.message_delivered"
+	HookCallMessageRejected  HookEvent = "call.message_rejected"
+	HookCallRevived          HookEvent = "call.revived"
+	HookCallReaped           HookEvent = "call.reaped"
 	HookCallSubtreeDrained   HookEvent = "call.subtree_drained"
 )
 
@@ -28,7 +32,9 @@ type HookPayload struct {
 	ChildSessionID   string
 	RootSessionID    string
 	AgentName        string
+	PreviousState    State
 	State            State
+	Reason           string
 	Verdict          Verdict
 	Actor            Actor
 	Channel          string
@@ -60,4 +66,15 @@ func hookPayloadForCall(record CallRecord) HookPayload {
 		AgentName: record.AgentName, State: record.State, Verdict: record.Verdict,
 		Actor: record.Actor,
 	}
+}
+
+func (s *Service) emitStateChanged(ctx context.Context, previous State, record CallRecord) {
+	payload := hookPayloadForCall(record)
+	payload.PreviousState = previous
+	s.emitHook(ctx, HookCallStateChanged, payload)
+}
+
+func (s *Service) emitTerminalTransition(ctx context.Context, previous State, record CallRecord) {
+	s.emitStateChanged(ctx, previous, record)
+	s.emitHook(ctx, HookCallSettled, hookPayloadForCall(record))
 }

@@ -10,8 +10,8 @@ qa_status: fail
 bug_ids: BUG-20260826-call-deadline-activation-fence; BUG-20260826-bounded-wait-client-timeout
 fix_status: fixed
 retest_status: pending
-fix_commits: pending QA remediation commit
-evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/call-deadline-activation-fence-reproduction.md
+fix_commits: a669e796a; cf46ed340
+evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/call-deadline-activation-fence-reproduction.md; /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/qa-remediation-public-retest.md
 last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: RT-agent-call-golden-path; RT-agent-call-cancel
 ---

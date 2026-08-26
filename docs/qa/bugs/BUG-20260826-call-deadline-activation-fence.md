@@ -1,6 +1,6 @@
 # BUG-20260826-call-deadline-activation-fence: Deadline settlement leaked activation fence internals from call creation
 
-- **Status:** fixed, pending public-surface retest
+- **Status:** fixed and publicly verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno
@@ -35,10 +35,12 @@ durable call `call-a2dd5c68719b0a90` was already `timeout` with `call_timeout`.
 - **Regression:** The canonical call settlement suite deterministically terminalizes the call
   immediately before bind, then proves Create returns `timeout`, the orphan child is stopped once,
   and no second lease release occurs.
-- **Fix commit:** pending QA remediation commit.
+- **Fix commit:** `a669e796a`.
 
 ## Verification
 
 - Focused red/green scope: `go test -race ./internal/calls ./internal/store/globaldb -run 'TestServiceCancelAwaitDeadlineAndDrain|TestGlobalDBCallActivationClaimCancelRaceHasOneFencedOutcome' -count=1` — 13 tests passed.
-- Public CLI retest in the isolated lab is pending a rebuilt daemon.
+- Public CLI retest: call `call-329dacee192956d7` returned its durable `timeout` record for a
+  one-second deadline without leaking an activation-fence or claim-token error.
+- Retest evidence: `/Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/qa-remediation-public-retest.md`.
 - Reproduction evidence: `/Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/call-deadline-activation-fence-reproduction.md`.

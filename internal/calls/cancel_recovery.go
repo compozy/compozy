@@ -104,7 +104,6 @@ func (s *Service) SweepDeadlines(ctx context.Context, now time.Time) (SweepRepor
 			return report, settleErr
 		}
 		report.TimedOut = append(report.TimedOut, settled.CallID)
-		s.emitHook(ctx, HookCallSettled, hookPayloadForCall(settled))
 	}
 	return report, nil
 }
@@ -229,5 +228,6 @@ func (s *Service) settleControlledCall(
 		return CallRecord{}, false, err
 	}
 	s.notifyWaiters(settled.CallID)
+	s.emitTerminalTransition(ctx, current.State, settled)
 	return settled, true, nil
 }

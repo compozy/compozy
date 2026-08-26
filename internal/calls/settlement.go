@@ -229,7 +229,7 @@ func (s *Service) settleTerminal(
 	settled, err := s.store.SettleCall(ctx, mutation)
 	if err == nil {
 		s.notifyWaiters(record.CallID)
-		s.emitHook(ctx, HookCallSettled, hookPayloadForCall(settled))
+		s.emitTerminalTransition(ctx, record.State, settled)
 		if parkErr := s.parkSettledChild(ctx, settled); parkErr != nil {
 			return settled, parkErr
 		}

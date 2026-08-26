@@ -29,16 +29,16 @@
 
 | # | Charter | Journey / Scenario | Persona | Tour | Status | Issue | Fix commit |
 |---|---|---|---|---|---|---|---|
-| 1 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-agent-call-golden-path | Bruno | Interrupt Tour | Fixed, retest pending | BUG-20260826-operator-caller-model-runtime | pending QA remediation commit |
+| 1 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-agent-call-golden-path | Bruno | Interrupt Tour | Fix verified, full walk pending | BUG-20260826-operator-caller-model-runtime; BUG-20260826-call-child-tool-policy | 82d27bca1; 5df9697 |
 | 2 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-agent-call-cancel | Bruno | Interrupt Tour | Pending | | |
-| 3 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-agent-call-deadline-timeout | Bruno | Interrupt Tour | Fixed, retest pending | BUG-20260826-call-deadline-activation-fence; BUG-20260826-bounded-wait-client-timeout | pending QA remediation commits |
-| 4 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-call-return-contract-repair | Bruno | Interrupt Tour | Fixed, retest pending | BUG-20260826-call-child-tool-policy | pending QA remediation commit |
+| 3 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-agent-call-deadline-timeout | Bruno | Interrupt Tour | Fix verified, full walk pending | BUG-20260826-call-deadline-activation-fence; BUG-20260826-bounded-wait-client-timeout | a669e796a; cf46ed340 |
+| 4 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-call-return-contract-repair | Bruno | Interrupt Tour | Fix verified, full walk pending | BUG-20260826-call-child-tool-policy | 5df9697 |
 | 5 | CH-agent-comms-delivery-exactly-once | J-delegate-work-to-an-agent / RT-call-wake-delivery-exactly-once | Ada | Multi-Tab Tour | Pending | | |
 | 6 | CH-agent-comms-delivery-exactly-once | J-delegate-work-to-an-agent / RT-agent-call-follow-up | Ada | Multi-Tab Tour | Pending | | |
 | 7 | CH-agent-comms-delivery-exactly-once | J-delegate-work-to-an-agent / RT-agent-call-batch | Ada | Multi-Tab Tour | Pending | | |
 | 8 | CH-agent-comms-mailbox-backpressure | J-message-a-running-agent / RT-agent-mailbox-send-list | Bruno | Garbage Tour | Pending | | |
 | 9 | CH-agent-comms-mailbox-backpressure | J-message-a-running-agent / RT-message-limits-typed-rejections | Bruno | Garbage Tour | Pending | | |
-| 10 | CH-agent-comms-mailbox-backpressure | J-message-a-running-agent / RT-parked-child-idle-ttl | Bruno | Garbage Tour | Pending | | |
+| 10 | CH-agent-comms-mailbox-backpressure | J-message-a-running-agent / RT-parked-child-idle-ttl | Bruno | Garbage Tour | Fix verified, full walk pending | BUG-20260826-parked-child-idle-clock | ed9c5ac; 8181f49 |
 | 11 | CH-agent-comms-containment-fence | J-contain-and-audit-delegation / RT-delegation-depth-and-caps | Dora | Error Guessing Tour | Pending | | |
 | 12 | CH-agent-comms-containment-fence | J-contain-and-audit-delegation / RT-calls-config-effects | Dora | Error Guessing Tour | Pending | | |
 | 13 | CH-agent-comms-containment-fence | J-contain-and-audit-delegation / RT-session-spawn-removed | Dora | Error Guessing Tour | Pending | | |
@@ -73,22 +73,27 @@ Pending execution.
 - `BUG-20260826-call-deadline-activation-fence` — a deadline could win between child creation and
   activation binding, leaving the durable call correctly timed out while Create leaked internal
   fence and claim-token errors. The service now cleans up the unbound child and returns the durable
-  terminal record without attempting a second claim release. Focused race-enabled regression is
-  green; public CLI retest remains pending a rebuilt isolated daemon.
+  terminal record without attempting a second claim release. Focused race-enabled regression and
+  the public CLI retest pass.
 - `BUG-20260826-operator-caller-model-runtime` — completion delivery treated the operator caller as
   a normal agent session and attached a model runtime, contradicting the accepted spec and blocking
   later calls after crash recovery. The daemon now resolves this role before delivery and records
-  operator attention without status, resume, or prompt operations. Focused regression is green;
-  public restart/reuse retest remains pending.
+  operator attention without status, resume, or prompt operations. Focused regression and the
+  public reuse retest pass with one stable, runtime-free operator caller.
 - `BUG-20260826-bounded-wait-client-timeout` — valid call/session waits longer than 30 seconds were
   interrupted by the generic CLI HTTP timeout. Bounded waits now use the dedicated transport with
-  the requested/clamped server wait plus response grace. Five focused race-enabled client tests pass;
-  public UDS retest remains pending.
+  the requested/clamped server wait plus response grace. Five focused race-enabled client tests and
+  the public UDS waits beyond the former 30-second deadline pass.
 - `BUG-20260826-call-child-tool-policy` — unrestricted logical callers persisted an empty concrete
   tool policy, and omitted call narrowing categories did not inherit from the caller. Call children
   consequently saw `compozy__call_return` as denied and could not settle their work. Root sessions
   now materialize the native tool universe and calls inherit omitted categories. Canonical focused
-  and package race suites pass; public child-catalog and settlement retest remain pending.
+  and package race suites pass; the public child-catalog and settlement retest also passes.
+- `BUG-20260826-parked-child-idle-clock` — stopping a settled child canceled the return request and
+  cleared its newly persisted idle clock; after preservation, call reads still projected stale
+  in-memory lifecycle fields. Settlement now uses bounded detached stop and cleanup contexts, and
+  stopped spawned-session reads overlay the durable parking lifecycle. The package race suites and
+  a public TTL expiry retest pass.
 
 ## Paper Cuts
 
@@ -108,6 +113,9 @@ None recorded yet.
 - Child session `ses_call_call-1a2697770f3d8ea3` completed its prompt with
   `compozy__call_return` denied by the session policy, leaving call `call-1a2697770f3d8ea3`
   running. See `BUG-20260826-call-child-tool-policy`.
+- Completed child `ses_call_call-cb436767ac2b68c4` lost its two-second parking clock after the
+  settlement stop and remained callable beyond its requested TTL. See
+  `BUG-20260826-parked-child-idle-clock`.
 
 ## Human Verifications Needed
 
@@ -119,7 +127,7 @@ None identified yet.
 
 ## Learnings
 
-- The run keeps the seven extension hooks separate from the eleven canonical observability events; the accepted spec defines both catalogs explicitly.
+- The call hook family and canonical observability catalog share the same eleven event names. Transition events expose the previous state, while sender-side rejection and idle reaping expose a reason without leaking payload data.
 
 ## Final Status
 

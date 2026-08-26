@@ -88,6 +88,14 @@ func (m *Manager) restoreFailedResumeStart(
 }
 
 func (m *Manager) validateInfrastructure(ctx context.Context, meta store.SessionMeta) []error {
+	return m.validateInfrastructureForRuntime(ctx, meta, false)
+}
+
+func (m *Manager) validateInfrastructureForRuntime(
+	ctx context.Context,
+	meta store.SessionMeta,
+	runtimeFree bool,
+) []error {
 	var errs []error
 
 	if err := meta.Validate(); err != nil {
@@ -116,22 +124,24 @@ func (m *Manager) validateInfrastructure(ctx context.Context, meta store.Session
 			})
 		}
 
-		if agentErr := m.validateResumeAgent(
-			meta.AgentName,
-			meta.Provider,
-			normalizeSessionType(Type(meta.SessionType)),
-			&resolvedWorkspace,
-		); agentErr != nil {
-			errs = append(errs, resumeValidationError{
-				check: resumeValidationCheckAgent,
-				err: fmt.Errorf(
-					"session: validate agent %q with provider %q for session %q: %w",
-					strings.TrimSpace(meta.AgentName),
-					strings.TrimSpace(meta.Provider),
-					strings.TrimSpace(meta.ID),
-					agentErr,
-				),
-			})
+		if !runtimeFree {
+			if agentErr := m.validateResumeAgent(
+				meta.AgentName,
+				meta.Provider,
+				normalizeSessionType(Type(meta.SessionType)),
+				&resolvedWorkspace,
+			); agentErr != nil {
+				errs = append(errs, resumeValidationError{
+					check: resumeValidationCheckAgent,
+					err: fmt.Errorf(
+						"session: validate agent %q with provider %q for session %q: %w",
+						strings.TrimSpace(meta.AgentName),
+						strings.TrimSpace(meta.Provider),
+						strings.TrimSpace(meta.ID),
+						agentErr,
+					),
+				})
+			}
 		}
 	}
 

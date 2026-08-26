@@ -43,6 +43,7 @@ type sessionStartSpec struct {
 	promptOverlay            string
 	contractOverlay          string
 	runtimeMode              string
+	runtimeFree              bool
 	sessionType              Type
 	lineage                  *store.SessionLineage
 	allowedToolsOverride     []string

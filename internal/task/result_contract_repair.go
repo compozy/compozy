@@ -13,7 +13,8 @@ import (
 	"github.com/compozy/compozy/internal/contracts"
 )
 
-const resultContractInvalidCode = "task_result_invalid"
+// ResultContractInvalidCode is the stable public code for a repairable result-contract rejection.
+const ResultContractInvalidCode = "task_result_invalid"
 
 // ResultContractRepairAdmission atomically verifies completion ownership and
 // records the one durable repair attempt for a run.
@@ -46,7 +47,7 @@ func (m *Service) admitResultContractRepair(
 		run.ID,
 		taskEventRunRejected,
 		actor,
-		resultContractRejectedPayload{Code: resultContractInvalidCode, RepairPrompt: prompt},
+		resultContractRejectedPayload{Code: ResultContractInvalidCode, RepairPrompt: prompt},
 	)
 	if err != nil {
 		return false, err
@@ -71,14 +72,14 @@ func resultContractRepairEventID(runID string) string {
 func invalidTaskResultFailure(validationErr *ResultContractValidationError) (RunFailure, error) {
 	prompt := contracts.BuildRepairPrompt(validationErr.Issues)
 	metadata, err := json.Marshal(map[string]string{
-		"code":          resultContractInvalidCode,
+		"code":          ResultContractInvalidCode,
 		"repair_prompt": prompt,
 	})
 	if err != nil {
 		return RunFailure{}, fmt.Errorf("task: marshal invalid result metadata: %w", err)
 	}
 	return RunFailure{
-		Error:    resultContractInvalidCode + ": " + prompt,
+		Error:    ResultContractInvalidCode + ": " + prompt,
 		Metadata: metadata,
 	}, nil
 }

@@ -69,6 +69,7 @@ func (s *Service) invokeClaimedActivation(
 			return CallRecord{}, errors.Join(invokeErr, settleErr, releaseErr)
 		}
 		s.notifyWaiters(record.CallID)
+		s.emitTerminalTransition(ctx, record.State, failed)
 		return failed, nil
 	}
 	bound, err := s.store.BindActivationChild(ctx, ActivationBinding{
@@ -76,6 +77,10 @@ func (s *Service) invokeClaimedActivation(
 		ChildID: childID, ActivatedAt: s.now().UTC(),
 	})
 	if err == nil {
+		s.emitStateChanged(ctx, record.State, bound)
+		if activation.Kind == ActivationKindRevive {
+			s.emitHook(ctx, HookCallRevived, hookPayloadForCall(bound))
+		}
 		return bound, nil
 	}
 	var cleanupErr error

@@ -14,6 +14,11 @@ func (h *Hooks) DispatchCallCreated(ctx context.Context, payload CallPayload) (C
 	return h.dispatchCall(ctx, HookCallCreated, payload)
 }
 
+// DispatchCallStateChanged dispatches HookCallStateChanged after a durable state transition.
+func (h *Hooks) DispatchCallStateChanged(ctx context.Context, payload CallPayload) (CallPayload, error) {
+	return h.dispatchCall(ctx, HookCallStateChanged, payload)
+}
+
 // DispatchCallSettled dispatches HookCallSettled after terminal settlement.
 func (h *Hooks) DispatchCallSettled(ctx context.Context, payload CallPayload) (CallPayload, error) {
 	return h.dispatchCall(ctx, HookCallSettled, payload)
@@ -37,6 +42,21 @@ func (h *Hooks) DispatchCallMessageSent(ctx context.Context, payload CallPayload
 // DispatchCallMessageDelivered dispatches HookCallMessageDelivered after boundary delivery.
 func (h *Hooks) DispatchCallMessageDelivered(ctx context.Context, payload CallPayload) (CallPayload, error) {
 	return h.dispatchCall(ctx, HookCallMessageDelivered, payload)
+}
+
+// DispatchCallMessageRejected dispatches HookCallMessageRejected after a sender-side brake rejects admission.
+func (h *Hooks) DispatchCallMessageRejected(ctx context.Context, payload CallPayload) (CallPayload, error) {
+	return h.dispatchCall(ctx, HookCallMessageRejected, payload)
+}
+
+// DispatchCallRevived dispatches HookCallRevived after a parked child resumes.
+func (h *Hooks) DispatchCallRevived(ctx context.Context, payload CallPayload) (CallPayload, error) {
+	return h.dispatchCall(ctx, HookCallRevived, payload)
+}
+
+// DispatchCallReaped dispatches HookCallReaped after a parked child is reaped.
+func (h *Hooks) DispatchCallReaped(ctx context.Context, payload CallPayload) (CallPayload, error) {
+	return h.dispatchCall(ctx, HookCallReaped, payload)
 }
 
 // DispatchCallSubtreeDrained dispatches HookCallSubtreeDrained after governed-tree cleanup.

@@ -164,6 +164,25 @@ func TestCallReadCommands(t *testing.T) {
 		}
 	})
 
+	t.Run("Should print the complete stored result without resolution metadata", func(t *testing.T) {
+		// not parallel: this suite intentionally shares one mutable call client stub.
+
+		stdout, stderr, err := executeRootCommand(t, deps, "call", "result", "call-1", "-o", "json")
+		if err != nil || stderr != "" {
+			t.Fatalf("call result output/stderr/error = %q/%q/%v", stdout, stderr, err)
+		}
+		var payload map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(call result) error = %v; output=%s", err, stdout)
+		}
+		if _, found := payload["resolution_source"]; found {
+			t.Fatalf("call result = %s, want stored payload without resolution metadata", stdout)
+		}
+		if string(payload["score"]) != "9" {
+			t.Fatalf("call result score = %s, want 9", payload["score"])
+		}
+	})
+
 	t.Run("Should emit await checkpoint data and exit three on timeout", func(t *testing.T) {
 		client.awaitCallFn = func(
 			_ context.Context,
@@ -184,6 +203,40 @@ func TestCallReadCommands(t *testing.T) {
 		if code != 3 || !strings.Contains(stdout, `"resume": "resume-1"`) ||
 			!strings.Contains(stderr, "timeout checkpoint") {
 			t.Fatalf("call await = code %d stdout %q stderr %q", code, stdout, stderr)
+		}
+	})
+
+	t.Run("Should preserve typed call errors and exit two", func(t *testing.T) {
+		// not parallel: this suite intentionally shares one mutable call client stub.
+
+		client.publishCallFn = func(
+			context.Context,
+			string,
+			string,
+			contract.PublishCallRequest,
+		) (contract.PublishCallResponse, error) {
+			return contract.PublishCallResponse{}, &daemonAPIError{
+				statusCode: 409,
+				status:     "409 Conflict",
+				payload: contract.ErrorPayload{
+					Error: "call_publish_not_settled: call is running",
+					Code:  "call_publish_not_settled",
+				},
+			}
+		}
+		code, stdout, stderr := executeRootCommandWithExit(
+			t,
+			deps,
+			"call",
+			"publish",
+			"call-1",
+			"--channel",
+			"reviews",
+			"-o",
+			"json",
+		)
+		if code != 2 || stdout != "" || !strings.Contains(stderr, `"code":"call_publish_not_settled"`) {
+			t.Fatalf("call publish error = code %d stdout %q stderr %q", code, stdout, stderr)
 		}
 	})
 }

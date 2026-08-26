@@ -1271,10 +1271,12 @@ func TestManagerStatusReturnsDurableParkedLifecycleForStoppedSession(t *testing.
 
 		parkedAt := time.Date(2026, 8, 26, 9, 0, 0, 0, time.UTC)
 		idleExpiresAt := parkedAt.Add(2 * time.Second)
+		drainingAt := idleExpiresAt.Add(time.Second)
 		catalog.mu.Lock()
 		durable := catalog.sessions[child.ID]
 		durable.ParkedAt = &parkedAt
 		durable.IdleExpiresAt = &idleExpiresAt
+		durable.DrainingAt = &drainingAt
 		catalog.sessions[child.ID] = durable
 		catalog.mu.Unlock()
 
@@ -1283,13 +1285,16 @@ func TestManagerStatusReturnsDurableParkedLifecycleForStoppedSession(t *testing.
 			t.Fatalf("Status(parked child) error = %v", err)
 		}
 		if info.ParkedAt == nil || !info.ParkedAt.Equal(parkedAt) ||
-			info.IdleExpiresAt == nil || !info.IdleExpiresAt.Equal(idleExpiresAt) {
+			info.IdleExpiresAt == nil || !info.IdleExpiresAt.Equal(idleExpiresAt) ||
+			info.DrainingAt == nil || !info.DrainingAt.Equal(drainingAt) {
 			t.Fatalf(
-				"Status(parked child) lifecycle = parked %v expires %v, want %s/%s",
+				"Status(parked child) lifecycle = parked %v expires %v draining %v, want %s/%s/%s",
 				info.ParkedAt,
 				info.IdleExpiresAt,
+				info.DrainingAt,
 				parkedAt,
 				idleExpiresAt,
+				drainingAt,
 			)
 		}
 	})

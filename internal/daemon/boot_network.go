@@ -52,7 +52,7 @@ func (d *Daemon) bootNetwork(ctx context.Context, state *bootState, cleanup *boo
 	}
 
 	bindable.SetNetworkPeerLifecycle(manager)
-	bindable.SetTurnEndNotifier(manager.OnTurnEnd)
+	bindable.AddTurnEndNotifier(manager.OnTurnEnd)
 	cleanup.add(func(ctx context.Context) error {
 		return manager.Shutdown(ctx)
 	})

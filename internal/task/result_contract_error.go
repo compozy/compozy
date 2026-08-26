@@ -19,6 +19,11 @@ func (e *ResultContractValidationError) Error() string {
 	return "task result does not satisfy its contract: " + contracts.BuildRepairPrompt(e.Issues)
 }
 
+// DiagnosticCode returns the stable public rejection code.
+func (e *ResultContractValidationError) DiagnosticCode() string {
+	return ResultContractInvalidCode
+}
+
 // Unwrap exposes both the stable task sentinel and an underlying contract error.
 func (e *ResultContractValidationError) Unwrap() []error {
 	if e == nil {

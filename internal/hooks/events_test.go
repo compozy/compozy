@@ -2,7 +2,7 @@ package hooks
 
 import "testing"
 
-const expectedHookEventCount = 111
+const expectedHookEventCount = 115
 
 func TestAllHookEvents(t *testing.T) {
 	t.Run("Should expose a complete unique event taxonomy", func(t *testing.T) {
@@ -84,11 +84,15 @@ func TestSyncEligibleClassification(t *testing.T) {
 			HookWorktreeAdopted:                 {},
 			HookWorktreeRemoved:                 {},
 			HookCallCreated:                     {},
+			HookCallStateChanged:                {},
 			HookCallSettled:                     {},
 			HookCallCanceled:                    {},
 			HookCallPublished:                   {},
 			HookCallMessageSent:                 {},
 			HookCallMessageDelivered:            {},
+			HookCallMessageRejected:             {},
+			HookCallRevived:                     {},
+			HookCallReaped:                      {},
 			HookCallSubtreeDrained:              {},
 		}
 

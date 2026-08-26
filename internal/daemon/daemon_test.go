@@ -1447,6 +1447,10 @@ func TestBootEnabledNetworkLateBindsSessionCallbacksAndPersistsSafeDiagnostics(t
 	}
 
 	bindableSessions := newFakeNetworkBindableSessionManager()
+	priorTurnEndCalls := 0
+	bindableSessions.AddTurnEndNotifier(func(string) {
+		priorTurnEndCalls++
+	})
 	d := newTestDaemon(t, homePaths, &cfg)
 	d.openRegistry = func(context.Context, string) (Registry, error) {
 		return &recordingRegistry{path: homePaths.DatabaseFile}, nil
@@ -1481,6 +1485,10 @@ func TestBootEnabledNetworkLateBindsSessionCallbacksAndPersistsSafeDiagnostics(t
 	}
 	if bindableSessions.currentTurnEndNotifier() == nil {
 		t.Fatal("boot() did not late-bind turn-end notifier")
+	}
+	bindableSessions.currentTurnEndNotifier()("sess-turn-end")
+	if priorTurnEndCalls != 1 {
+		t.Fatalf("boot() prior turn-end notifier calls = %d, want 1", priorTurnEndCalls)
 	}
 
 	info, err := ReadInfo(homePaths.DaemonInfo)
@@ -7952,6 +7960,8 @@ func (f *fakeSessionManager) SetNetworkPeerLifecycle(session.NetworkPeerLifecycl
 
 func (f *fakeSessionManager) SetTurnEndNotifier(session.TurnEndNotifier) {}
 
+func (f *fakeSessionManager) AddTurnEndNotifier(session.TurnEndNotifier) {}
+
 func (f *fakeSessionManager) PromptNetwork(
 	context.Context,
 	string,
@@ -8124,10 +8134,18 @@ func (f *fakeNetworkBindableSessionManager) currentNetworkPeerLifecycle() sessio
 	return f.networkPeers
 }
 
-func (f *fakeNetworkBindableSessionManager) SetTurnEndNotifier(fn session.TurnEndNotifier) {
+func (f *fakeNetworkBindableSessionManager) AddTurnEndNotifier(fn session.TurnEndNotifier) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.turnEndNotifier = fn
+	previous := f.turnEndNotifier
+	if previous == nil {
+		f.turnEndNotifier = fn
+		return
+	}
+	f.turnEndNotifier = func(sessionID string) {
+		previous(sessionID)
+		fn(sessionID)
+	}
 }
 
 func (f *fakeNetworkBindableSessionManager) currentTurnEndNotifier() session.TurnEndNotifier {

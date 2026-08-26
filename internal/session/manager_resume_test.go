@@ -10,7 +10,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
@@ -71,6 +73,124 @@ func TestResumeLoadsMetaAndPassesStoredACPSessionID(t *testing.T) {
 		if got := resumed.Info().StopDetail; got != "" {
 			t.Fatalf("resumed stop detail = %q, want empty", got)
 		}
+	})
+}
+
+func TestResumeWaitsForStoppingSessionFinalization(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should resume after an in-flight stop reaches its durable terminal state", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		created := createSession(t, h)
+		stopEntered := make(chan struct{})
+		releaseStop := make(chan struct{})
+		h.driver.stopHook = func(proc *fakeProcess) error {
+			close(stopEntered)
+			<-releaseStop
+			proc.exit()
+			return nil
+		}
+
+		stopDone := make(chan error, 1)
+		go func() {
+			stopDone <- h.manager.Stop(t.Context(), created.ID)
+		}()
+		<-stopEntered
+
+		type resumeResult struct {
+			session *Session
+			err     error
+		}
+		resumeDone := make(chan resumeResult, 1)
+		go func() {
+			resumed, err := h.manager.Resume(t.Context(), created.ID)
+			resumeDone <- resumeResult{session: resumed, err: err}
+		}()
+		select {
+		case result := <-resumeDone:
+			t.Fatalf("Resume() completed before stop finalization: %#v", result)
+		case <-time.After(50 * time.Millisecond):
+		}
+		close(releaseStop)
+
+		if err := <-stopDone; err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		result := <-resumeDone
+		if result.err != nil {
+			t.Fatalf("Resume() error = %v", result.err)
+		}
+		if result.session == nil || result.session.Info().State != StateActive {
+			t.Fatalf("Resume() session = %#v, want active", result.session)
+		}
+		h.driver.stopHook = nil
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), result.session.ID); err != nil {
+				t.Errorf("Stop(resumed) cleanup error = %v", err)
+			}
+		})
+	})
+
+	t.Run("Should wait for stopped session finalization before replacement", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		created := createSession(t, h)
+		materializeEntered := make(chan struct{})
+		releaseMaterialize := make(chan struct{})
+		var materializeOnce sync.Once
+		h.manager.ledgerMaterializer = &testLedgerMaterializer{
+			materialize: func(context.Context, store.SessionLedgerRecord) error {
+				materializeOnce.Do(func() { close(materializeEntered) })
+				<-releaseMaterialize
+				return nil
+			},
+			discard: func(context.Context, store.SessionLedgerRecord) error {
+				return nil
+			},
+		}
+		stopDone := make(chan error, 1)
+		go func() {
+			stopDone <- h.manager.Stop(t.Context(), created.ID)
+		}()
+		<-materializeEntered
+		if created.Info().State != StateStopped {
+			t.Fatalf("stopped session state = %q, want %q", created.Info().State, StateStopped)
+		}
+
+		type resumeResult struct {
+			session *Session
+			err     error
+		}
+		resumeDone := make(chan resumeResult, 1)
+		go func() {
+			resumed, err := h.manager.Resume(t.Context(), created.ID)
+			resumeDone <- resumeResult{session: resumed, err: err}
+		}()
+		select {
+		case result := <-resumeDone:
+			t.Fatalf("Resume() completed before stopped finalization: %#v", result)
+		case <-time.After(50 * time.Millisecond):
+		}
+		close(releaseMaterialize)
+
+		if err := <-stopDone; err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		result := <-resumeDone
+		if result.err != nil {
+			t.Fatalf("Resume() error = %v", result.err)
+		}
+		if result.session == nil || result.session.Info().State != StateActive {
+			t.Fatalf("Resume() session = %#v, want active replacement", result.session)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), result.session.ID); err != nil {
+				t.Errorf("Stop(resumed) cleanup error = %v", err)
+			}
+		})
 	})
 }
 

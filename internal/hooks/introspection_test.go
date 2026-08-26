@@ -154,6 +154,15 @@ func TestAllEventDescriptorsReturnsFullTaxonomy(t *testing.T) {
 		descriptor.PatchSchema != "CallObservationPatch" {
 		t.Fatalf("call.created descriptor = %#v, want asynchronous call observation", descriptor)
 	}
+	for _, event := range []HookEvent{
+		HookCallStateChanged, HookCallMessageRejected, HookCallRevived, HookCallReaped,
+	} {
+		descriptor := byEvent[event]
+		if descriptor.Family != HookEventFamilyCall || descriptor.SyncEligible ||
+			descriptor.PayloadSchema != "CallPayload" || descriptor.PatchSchema != "CallObservationPatch" {
+			t.Fatalf("%s descriptor = %#v, want asynchronous call observation", event, descriptor)
+		}
+	}
 	if descriptor := byEvent[HookAutomationJobPreFire]; descriptor.Family != HookEventFamilyAutomation ||
 		!descriptor.SyncEligible ||
 		descriptor.PatchSchema != "AutomationFirePatch" {

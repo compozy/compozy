@@ -112,6 +112,18 @@ type CallScope struct {
 	WorkspaceID string
 }
 
+// ReapedSession identifies one call-owned child after durable reaping.
+type ReapedSession struct {
+	ProfileID       string
+	Scope           Scope
+	WorkspaceID     string
+	SessionID       string
+	ParentSessionID string
+	RootSessionID   string
+	AgentName       string
+	Reason          string
+}
+
 // Admission contains the atomic durable state for one accepted call.
 type Admission struct {
 	Record      CallRecord

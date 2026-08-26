@@ -960,6 +960,23 @@ func TestGlobalDBOperatorCallerBindingConvergesAndSurvivesReopen(t *testing.T) {
 	if !excluded {
 		t.Fatalf("winner %q is not fenced as operator caller", winnerID)
 	}
+	drainedAt := now.Add(time.Minute)
+	if _, err := reopened.db.ExecContext(ctx, `UPDATE sessions
+		SET state = 'stopped', draining_at = ? WHERE id = ?`, store.FormatTimestamp(drainedAt), winnerID); err != nil {
+		t.Fatalf("mark operator caller drained error = %v", err)
+	}
+	if err := reopened.ReopenOperatorCaller(ctx, winnerID, drainedAt.Add(time.Second)); err != nil {
+		t.Fatalf("ReopenOperatorCaller() error = %v", err)
+	}
+	var state string
+	var drainingAt sql.NullString
+	if err := reopened.db.QueryRowContext(ctx, `SELECT state, draining_at FROM sessions WHERE id = ?`, winnerID).
+		Scan(&state, &drainingAt); err != nil {
+		t.Fatalf("read reopened operator caller error = %v", err)
+	}
+	if state != "stopped" || drainingAt.Valid {
+		t.Fatalf("reopened operator caller = state %q draining %#v, want stopped with no drain fence", state, drainingAt)
+	}
 }
 
 func TestGlobalDBCallIdempotencyRaceAndContractBudgetSnapshots(t *testing.T) {

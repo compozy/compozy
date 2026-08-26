@@ -25,6 +25,13 @@ func (m *Manager) CreateAccepted(ctx context.Context, opts CreateAcceptedOpts) (
 	// A logical session has no ACP process yet. Catalog validation belongs to
 	// the first runtime bind, where the concrete per-prompt selection is known.
 	spec.deferRuntimeValidation = true
+	if opts.RuntimeFree {
+		if spec.creationIdentityPinned {
+			return nil, fmt.Errorf("%w: runtime-free sessions cannot pin a runtime creation profile", ErrValidation)
+		}
+		spec.runtimeFree = true
+		spec.creationIdentityEnabled = false
+	}
 	accepted, err := m.acceptSessionStart(ctx, m.lifecycleCtx, &spec)
 	if err != nil {
 		return nil, err

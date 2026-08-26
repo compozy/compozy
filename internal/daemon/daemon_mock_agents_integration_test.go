@@ -1288,9 +1288,8 @@ func TestDaemonE2EWorkspaceAccessModeAndConsentMatrix(t *testing.T) {
 		assertSessionPermissionEventCount(t, ctx, harness, approveAllSession.ID, 0)
 	})
 
-	t.Run("Should preserve CLI and spawn workspace policy parity", func(t *testing.T) {
+	t.Run("Should preserve CLI workspace policy parity", func(t *testing.T) {
 		assertWorkspaceAccessAgentCLIParity(t, ctx, harness, onceSession, approveAllSession, target.ID)
-		assertWorkspaceAccessSpawnParity(t, ctx, harness, onceSession, approveAllSession, target.ID)
 	})
 
 	t.Run("Should reuse session consent at the task seam", func(t *testing.T) {
@@ -1836,91 +1835,6 @@ func assertWorkspaceAccessAgentCLIParity(
 	}
 	if payload.ResolutionSource != "cross_workspace_attempt" {
 		t.Fatalf("approve-all CLI resolution_source = %q, want cross_workspace_attempt", payload.ResolutionSource)
-	}
-}
-
-func assertWorkspaceAccessSpawnParity(
-	t testing.TB,
-	ctx context.Context,
-	harness *e2etest.RuntimeHarness,
-	approveReads compozycontract.SessionPayload,
-	approveAll compozycontract.SessionPayload,
-	targetWorkspaceID string,
-) {
-	t.Helper()
-
-	readEnv := map[string]string{
-		agentidentity.EnvSessionID: approveReads.ID,
-		agentidentity.EnvAgent:     approveReads.AgentName,
-	}
-	promptCountBefore := sessionPermissionEventCount(t, ctx, harness, approveReads.ID)
-	_, deniedStderr, err := harness.CLI.RunInDirWithEnv(
-		ctx,
-		harness.WorkspaceRoot,
-		readEnv,
-		"spawn",
-		"--agent",
-		approveReads.AgentName,
-		"--workspace",
-		targetWorkspaceID,
-		"--ttl-seconds",
-		"60",
-		"--idempotency-key",
-		"cross-workspace-spawn-denied",
-		"-o",
-		"json",
-	)
-	if err == nil {
-		t.Fatalf("approve-reads cross-workspace spawn error = nil, want denial")
-	}
-	exitErr, exitErrMatched := errors.AsType[*exec.ExitError](err)
-	if !exitErrMatched || exitErr.ExitCode() != agentidentity.ExitUnauthorized {
-		t.Fatalf(
-			"approve-reads cross-workspace spawn error = %v, want exit %d; stderr=%s",
-			err,
-			agentidentity.ExitUnauthorized,
-			deniedStderr,
-		)
-	}
-	if !strings.Contains(deniedStderr, workspaceaccess.DenialHint) {
-		t.Fatalf("approve-reads cross-workspace spawn stderr = %q, want denial hint", deniedStderr)
-	}
-	assertSessionPermissionEventCount(t, ctx, harness, approveReads.ID, promptCountBefore)
-
-	allEnv := map[string]string{
-		agentidentity.EnvSessionID: approveAll.ID,
-		agentidentity.EnvAgent:     approveAll.AgentName,
-	}
-	stdout, stderr, err := harness.CLI.RunInDirWithEnv(
-		ctx,
-		harness.WorkspaceRoot,
-		allEnv,
-		"spawn",
-		"--agent",
-		approveAll.AgentName,
-		"--workspace",
-		targetWorkspaceID,
-		"--ttl-seconds",
-		"60",
-		"--idempotency-key",
-		"cross-workspace-spawn-allowed",
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("approve-all cross-workspace spawn error = %v; stderr=%s", err, stderr)
-	}
-	var payload struct {
-		Session struct {
-			ID          string `json:"id"`
-			WorkspaceID string `json:"workspace_id"`
-		} `json:"session"`
-	}
-	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
-		t.Fatalf("json.Unmarshal(approve-all spawn output) error = %v; stdout=%s", err, stdout)
-	}
-	if payload.Session.ID == "" || payload.Session.WorkspaceID != targetWorkspaceID {
-		t.Fatalf("approve-all spawn output = %#v, want child in workspace %q", payload, targetWorkspaceID)
 	}
 }
 

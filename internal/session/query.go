@@ -122,8 +122,10 @@ func (m *Manager) Status(ctx context.Context, id string) (*Info, error) {
 		return nil, err
 	}
 	if !m.isPending(target) {
-		if err := requirePersistedProvider(meta); err != nil {
-			return nil, err
+		if !isRuntimeFreeLogicalSession(meta) {
+			if err := requirePersistedProvider(meta); err != nil {
+				return nil, err
+			}
 		}
 	}
 	info := m.sessionInfoFromMeta(ctx, meta)
@@ -149,6 +151,7 @@ func (m *Manager) overlayDurableSpawnLifecycle(ctx context.Context, info *Info) 
 	}
 	info.ParkedAt = cloneTimePointer(durable.ParkedAt)
 	info.IdleExpiresAt = cloneTimePointer(durable.IdleExpiresAt)
+	info.DrainingAt = cloneTimePointer(durable.DrainingAt)
 	return nil
 }
 

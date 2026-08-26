@@ -163,7 +163,7 @@ type networkBindableSessionManager interface {
 	CancelPrompt(ctx context.Context, sessionID string) (session.PromptCancelResult, error)
 	IsPrompting(sessionID string) bool
 	SetNetworkPeerLifecycle(session.NetworkPeerLifecycle)
-	SetTurnEndNotifier(session.TurnEndNotifier)
+	AddTurnEndNotifier(session.TurnEndNotifier)
 }
 
 type memoryProviderShutdowner interface {

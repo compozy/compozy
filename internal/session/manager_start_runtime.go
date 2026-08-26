@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -9,6 +10,76 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
+
+func (m *Manager) resolveAcceptedSessionStartRuntime(
+	spec *sessionStartSpec,
+) (sessionStartRuntime, error) {
+	if spec == nil {
+		return sessionStartRuntime{}, errors.New("session: start spec is required")
+	}
+	if spec.runtimeFree {
+		return m.resolveRuntimeFreeSessionStart(spec)
+	}
+	return m.resolveSessionStartRuntime(spec)
+}
+
+func (m *Manager) resolveRuntimeFreeSessionStart(
+	spec *sessionStartSpec,
+) (sessionStartRuntime, error) {
+	if strings.TrimSpace(spec.provider) != "" || strings.TrimSpace(spec.model) != "" ||
+		strings.TrimSpace(spec.reasoningEffort) != "" || spec.selectedRuntime != nil {
+		return sessionStartRuntime{}, fmt.Errorf(
+			"%w: runtime-free session %q cannot select a model runtime",
+			ErrInvalidRuntimeOverride,
+			spec.sessionID,
+		)
+	}
+	artifacts, err := m.resolveWorkspaceAgentArtifactsForSession(
+		spec.agentName,
+		spec.sessionType,
+		&spec.workspace,
+	)
+	if err != nil {
+		return sessionStartRuntime{}, fmt.Errorf(
+			"session: resolve workspace agent %q: %w",
+			spec.agentName,
+			err,
+		)
+	}
+	agentDef := compozyconfig.CloneAgentDef(artifacts.Agent)
+	permissions := strings.TrimSpace(agentDef.Permissions)
+	if permissions == "" {
+		permissions = strings.TrimSpace(string(spec.workspace.Config.Permissions.Mode))
+	}
+	resolved := compozyconfig.ResolvedAgent{
+		Name:        strings.TrimSpace(agentDef.Name),
+		ProfileName: strings.TrimSpace(spec.workspace.ProfileName),
+		Permissions: permissions,
+		Prompt:      strings.TrimSpace(agentDef.Prompt),
+	}
+	if err := spec.applyAllowedToolsOverride(&resolved, m.toolsetCatalog); err != nil {
+		return sessionStartRuntime{}, fmt.Errorf("session: apply allowed tools for %q: %w", spec.sessionID, err)
+	}
+	if err := spec.applyDeniedToolsOverride(&resolved); err != nil {
+		return sessionStartRuntime{}, fmt.Errorf("session: apply denied tools for %q: %w", spec.sessionID, err)
+	}
+	if err := spec.materializeRootDelegationTools(resolved, m.toolsetCatalog, m.toolUniverse); err != nil {
+		return sessionStartRuntime{}, fmt.Errorf(
+			"session: materialize delegation tools for %q: %w",
+			spec.sessionID,
+			err,
+		)
+	}
+	agentDef.Provider = ""
+	agentDef.Command = ""
+	agentDef.Model = ""
+	agentDef.ReasoningEffort = ""
+	agentDef.Tools = nil
+	agentDef.Toolsets = nil
+	agentDef.DenyTools = nil
+	agentDef.MCPServers = nil
+	return sessionStartRuntime{agent: resolved, agentDef: agentDef}, nil
+}
 
 func (m *Manager) resolveSessionStartRuntime(
 	spec *sessionStartSpec,

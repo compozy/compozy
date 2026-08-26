@@ -1,6 +1,6 @@
 # BUG-20260826-call-child-tool-policy: Unrestricted call children could not return results
 
-- **Status:** fixed, pending public-surface retest
+- **Status:** fixed and publicly verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno; Ada
@@ -35,10 +35,13 @@ while the call remained `running`.
 - **Regression:** The canonical call admission suite proves omitted categories inherit from the
   caller, and the canonical session lineage suite proves an unrestricted logical root persists the
   native tool universe.
-- **Fix commit:** pending QA remediation commit.
+- **Fix commit:** `5df9697`.
 
 ## Verification
 
 - Focused regressions: `go test -race ./internal/calls ./internal/session -run 'TestServiceCreateAdmissionAndActivation|TestCreateAllowedToolsOverrideNarrowsAgentProfile' -count=1` — 16 tests passed.
 - Package suites: `go test -race ./internal/calls ./internal/session -count=1` — passed.
-- Public child catalog and settlement retest is pending a rebuilt isolated daemon.
+- Public child catalog and settlement retest: `compozy__call_return` was visible, callable, and
+  session-allowed for child `ses_call_call-7a54d88caf3b151f`; the call settled `completed` with
+  verdict `returned` and the complete result was readable through the CLI.
+- Retest evidence: `/Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/qa-remediation-public-retest.md`.

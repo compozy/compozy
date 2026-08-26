@@ -35,11 +35,15 @@ func (r *callHookRecorder) snapshot() ([]HookEvent, []HookPayload) {
 
 type hookLifecycleStore struct {
 	*publishTestStore
-	messages   map[string]MessageRecord
-	deliveries []DeliveryRecord
+	messages         map[string]MessageRecord
+	deliveries       []DeliveryRecord
+	acceptMessageErr error
 }
 
 func (s *hookLifecycleStore) AcceptMessage(_ context.Context, admission MessageAdmission) (MessageRecord, error) {
+	if s.acceptMessageErr != nil {
+		return MessageRecord{}, s.acceptMessageErr
+	}
 	record := admission.Record
 	record.ToSessionID = admission.Target
 	record.Delivery = "pending"
@@ -224,11 +228,57 @@ func TestCallHookTransitions(t *testing.T) {
 		if err := service.DrainDeliveries(context.Background(), message.ToSessionID, 10); err != nil {
 			t.Fatalf("DrainDeliveries() error = %v", err)
 		}
+		store.acceptMessageErr = newError(CodeMessageRateLimited, "sender rate limit reached", nil)
+		_, err = service.SendMessage(context.Background(), SendMessageInput{
+			ProfileID: "default", Scope: ScopeWorkspace, WorkspaceID: "ws-1",
+			From: MessageSender{Kind: "operator", ID: "operator:test"}, To: "child-mailbox",
+			CallID: created.CallID, Body: "rate-limited message",
+		})
+		if !IsCode(err, CodeMessageRateLimited) {
+			t.Fatalf("SendMessage(rate limited) error = %v, want %s", err, CodeMessageRateLimited)
+		}
+		store.acceptMessageErr = nil
+
+		parkedTarget := validAgentTarget()
+		parkedTarget.AgentName = ""
+		parkedTarget.ChildSessionID = "parked-child"
+		parkedTarget.State = TargetStateParked
+		reviveService, err := NewService(
+			WithStore(store),
+			WithDirectory(staticCallDirectory{target: parkedTarget}),
+			WithActivationClaimer(claimer),
+			WithActivationRunCanceler(canceler),
+			WithSessionInvoker(invoker),
+			WithPublishBridge(bridge),
+			WithHookDispatcher(hooks),
+			WithConfig(config.DefaultCallsConfig()),
+			WithClock(func() time.Time { return time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC) }),
+			WithIDGenerator(func(prefix string) (string, error) {
+				return fmt.Sprintf("%s-%d", prefix, sequence.Add(1)), nil
+			}),
+		)
+		if err != nil {
+			t.Fatalf("NewService(revive) error = %v", err)
+		}
+		reviveInput := validCreateInput("resume the parked child", nil, nil)
+		reviveInput.Target = Target{SessionID: parkedTarget.ChildSessionID}
+		reviveInput.IdempotencyKey = "revive-key"
+		if _, err := reviveService.Create(context.Background(), reviveInput); err != nil {
+			t.Fatalf("Create(revive) error = %v", err)
+		}
+		if err := service.FinalizeReapedSession(context.Background(), ReapedSession{
+			ProfileID: "default", Scope: ScopeWorkspace, WorkspaceID: "ws-1",
+			SessionID: "parked-child", ParentSessionID: "parent-1", RootSessionID: "root-1",
+			AgentName: "reviewer", Reason: "ttl_expired",
+		}); err != nil {
+			t.Fatalf("FinalizeReapedSession() error = %v", err)
+		}
 
 		events, payloads := hooks.snapshot()
 		for _, want := range []HookEvent{
-			HookCallCreated, HookCallSettled, HookCallCanceled, HookCallPublished,
-			HookCallMessageSent, HookCallMessageDelivered, HookCallSubtreeDrained,
+			HookCallCreated, HookCallStateChanged, HookCallSettled, HookCallCanceled,
+			HookCallPublished, HookCallMessageSent, HookCallMessageDelivered,
+			HookCallMessageRejected, HookCallRevived, HookCallReaped, HookCallSubtreeDrained,
 		} {
 			if !slices.Contains(events, want) {
 				t.Fatalf("hook events = %#v, missing %q", events, want)
@@ -244,6 +294,25 @@ func TestCallHookTransitions(t *testing.T) {
 					t.Fatalf("hook payload leaked %q: %s", secret, encoded)
 				}
 			}
+		}
+		var sawStateTransition, sawRejectionReason, sawReapReason bool
+		for index, event := range events {
+			switch event {
+			case HookCallStateChanged:
+				sawStateTransition = payloads[index].PreviousState != "" && payloads[index].State != ""
+			case HookCallMessageRejected:
+				sawRejectionReason = payloads[index].Reason == string(CodeMessageRateLimited)
+			case HookCallReaped:
+				sawReapReason = payloads[index].Reason == "ttl_expired"
+			}
+		}
+		if !sawStateTransition || !sawRejectionReason || !sawReapReason {
+			t.Fatalf(
+				"hook payload facts = state:%t rejection:%t reap:%t, want all true",
+				sawStateTransition,
+				sawRejectionReason,
+				sawReapReason,
+			)
 		}
 	})
 }

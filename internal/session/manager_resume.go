@@ -22,13 +22,45 @@ func (m *Manager) Resume(ctx context.Context, id string) (resumed *Session, err 
 	if err != nil {
 		return nil, err
 	}
-	ctx, unlockConversation, err := m.lockConversationOperation(ctx, target)
-	if err != nil {
-		return nil, err
-	}
-	defer unlockConversation()
-	if session, ok := m.Get(target); ok && session.Info().State == StateActive {
-		return m.waitForResumedSession(ctx, target, session)
+	baseCtx := ctx
+	for {
+		operationCtx, unlockConversation, lockErr := m.lockConversationOperation(baseCtx, target)
+		if lockErr != nil {
+			return nil, lockErr
+		}
+		current, exists := m.Get(target)
+		if exists && current != nil {
+			switch current.Info().State {
+			case StateStopping, StateStopped:
+				unlockConversation()
+				if waitErr := m.waitForTerminalSessionBeforeResume(baseCtx, target); waitErr != nil {
+					return nil, waitErr
+				}
+				continue
+			case StateActive:
+				active, activeErr := m.waitForResumedSession(operationCtx, target, current)
+				if activeErr == nil {
+					unlockConversation()
+					return active, nil
+				}
+				currentState := current.Info().State
+				becameTerminal := errors.Is(activeErr, ErrSessionNotActive) &&
+					(currentState == StateStopping || currentState == StateStopped)
+				unlockConversation()
+				if !becameTerminal {
+					return nil, activeErr
+				}
+				if currentState == StateStopping {
+					if waitErr := m.waitForTerminalSessionBeforeResume(baseCtx, target); waitErr != nil {
+						return nil, waitErr
+					}
+				}
+				continue
+			}
+		}
+		ctx = operationCtx
+		defer unlockConversation()
+		break
 	}
 	run, owner, err := m.beginSessionResume(target)
 	if err != nil {
@@ -54,8 +86,46 @@ func (m *Manager) Resume(ctx context.Context, id string) (resumed *Session, err 
 	return m.resumeSession(ctx, target)
 }
 
+func (m *Manager) waitForTerminalSessionBeforeResume(ctx context.Context, target string) error {
+	m.mu.RLock()
+	current := m.sessions[target]
+	finalization := m.finalizing[target]
+	m.mu.RUnlock()
+	if current == nil {
+		return nil
+	}
+	if current.Info().State == StateStopped {
+		if finalization == nil {
+			return fmt.Errorf("session: stopped session %q remains active without finalization", target)
+		}
+		if err := waitForSessionFinalization(ctx, finalization); err != nil {
+			return fmt.Errorf("session: wait for stopped session %q finalization before resume: %w", target, err)
+		}
+		return nil
+	}
+	if current.Info().State != StateStopping {
+		return nil
+	}
+	process := current.processHandle()
+	if process != nil {
+		select {
+		case <-process.Done():
+		case <-ctx.Done():
+			return fmt.Errorf("session: wait for stopping process %q before resume: %w", target, ctx.Err())
+		}
+		if err := m.finalizeStopped(ctx, current, process.Wait()); err != nil {
+			return fmt.Errorf("session: finalize stopping session %q before resume: %w", target, err)
+		}
+		return nil
+	}
+	if err := m.finalizeStopped(ctx, current, nil); err != nil {
+		return fmt.Errorf("session: finalize runtime-free session %q before resume: %w", target, err)
+	}
+	return nil
+}
+
 func (m *Manager) resumeSession(ctx context.Context, target string) (*Session, error) {
-	if session, ok := m.Get(target); ok {
+	if session, ok := m.Get(target); ok && session.Info().State != StateStopped {
 		return m.waitForResumedSession(ctx, target, session)
 	}
 	if err := m.checkNewWorkAdmission(ctx); err != nil {
@@ -66,10 +136,13 @@ func (m *Manager) resumeSession(ctx context.Context, target string) (*Session, e
 	if err != nil {
 		return nil, err
 	}
-	if err := requirePersistedProvider(meta); err != nil {
-		return nil, err
+	runtimeFree := isRuntimeFreeLogicalSession(meta)
+	if !runtimeFree {
+		if err := requirePersistedProvider(meta); err != nil {
+			return nil, err
+		}
 	}
-	if validationErrs := m.validateInfrastructure(ctx, meta); len(validationErrs) > 0 {
+	if validationErrs := m.validateInfrastructureForRuntime(ctx, meta, runtimeFree); len(validationErrs) > 0 {
 		m.logResumeValidationFailures(meta, validationErrs)
 		return nil, fmt.Errorf(
 			"session: validate resume infrastructure for %q: %w",
@@ -85,6 +158,7 @@ func (m *Manager) resumeSession(ctx context.Context, target string) (*Session, e
 	if err != nil {
 		return nil, err
 	}
+	spec.runtimeFree = runtimeFree
 	if err := m.discardMaterializedSessionLedgerForResume(ctx, meta); err != nil {
 		return nil, err
 	}
@@ -151,6 +225,16 @@ func isUnboundLogicalResume(meta store.SessionMeta) bool {
 	return meta.RuntimeStatus == RuntimeStatusUnbound &&
 		meta.RuntimeTransition == RuntimeTransitionNone &&
 		strings.TrimSpace(derefString(meta.ACPSessionID)) == ""
+}
+
+func isRuntimeFreeLogicalSession(meta store.SessionMeta) bool {
+	return isUnboundLogicalResume(meta) &&
+		strings.TrimSpace(meta.Provider) == "" &&
+		meta.CreationProfile == nil &&
+		meta.CreationOptions == nil &&
+		strings.TrimSpace(meta.CreationProfileRef) == "" &&
+		strings.TrimSpace(meta.PolicySpecDigest) == "" &&
+		strings.TrimSpace(meta.CreationDigest) == ""
 }
 
 func (m *Manager) resumeAcceptedLogicalSession(

@@ -92,6 +92,15 @@ inside the dedup window, a queued-undelivered cap per recipient, and a byte cap.
 typed code (`message_rate_limited`, `message_duplicate`, `message_pending_cap`,
 `message_too_large`) instead of resending.
 
+## Observation events
+
+Extensions observe the complete async call lifecycle through `call.created`,
+`call.state_changed`, `call.settled`, `call.canceled`, `call.published`,
+`call.message_sent`, `call.message_delivered`, `call.message_rejected`, `call.revived`,
+`call.reaped`, and `call.subtree_drained`. `call.state_changed` carries the previous and
+current state; rejection and reap events carry a typed reason. These hooks observe durable
+transitions and never gate them.
+
 ## CLI fallback
 
 ```bash

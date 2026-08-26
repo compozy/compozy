@@ -64,6 +64,14 @@ func (s *callSurfaceService) ensureOperatorCallerSession(
 ) error {
 	info, err := s.sessions.Status(ctx, sessionID)
 	if err == nil {
+		if info.DrainingAt != nil {
+			if info.State != session.StateStopped {
+				return fmt.Errorf("daemon: operator caller %q is still draining", sessionID)
+			}
+			if reopenErr := s.Service.ReopenOperatorCaller(ctx, sessionID); reopenErr != nil {
+				return fmt.Errorf("daemon: reopen operator caller %q: %w", sessionID, reopenErr)
+			}
+		}
 		if info.State == session.StateStopped {
 			if _, resumeErr := s.sessions.Resume(ctx, sessionID); resumeErr != nil {
 				return fmt.Errorf("daemon: resume operator caller %q: %w", sessionID, resumeErr)
@@ -80,15 +88,18 @@ func (s *callSurfaceService) ensureOperatorCallerSession(
 	if !ok {
 		return errors.New("daemon: session manager cannot accept an operator caller")
 	}
-	_, createErr := acceptance.CreateAccepted(ctx, session.CreateAcceptedOpts{Session: session.CreateOpts{
-		DesiredSessionID: sessionID,
-		Global:           scope.Scope == callspkg.ScopeGlobal,
-		ProfileID:        scope.ProfileID,
-		Workspace:        scope.WorkspaceID,
-		Name:             "Operator calls",
-		Type:             session.SessionTypeUser,
-		DisableSandbox:   true,
-	}})
+	_, createErr := acceptance.CreateAccepted(ctx, session.CreateAcceptedOpts{
+		RuntimeFree: true,
+		Session: session.CreateOpts{
+			DesiredSessionID: sessionID,
+			Global:           scope.Scope == callspkg.ScopeGlobal,
+			ProfileID:        scope.ProfileID,
+			Workspace:        scope.WorkspaceID,
+			Name:             "Operator calls",
+			Type:             session.SessionTypeUser,
+			DisableSandbox:   true,
+		},
+	})
 	if createErr == nil {
 		return nil
 	}
