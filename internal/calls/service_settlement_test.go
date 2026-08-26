@@ -16,6 +16,41 @@ import (
 func TestServiceReturnSettlementPipeline(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve the idle clock when stopping the child cancels the return request", func(t *testing.T) {
+		t.Parallel()
+		service, database, _, _ := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
+		parkingStore := newSettlementParkingStore(database)
+		requestCtx, cancelRequest := context.WithCancel(context.Background())
+		defer cancelRequest()
+		invoker := &settlementCancelingInvoker{
+			fakeSessionInvoker: &fakeSessionInvoker{},
+			cancelRequest:      cancelRequest,
+		}
+		service.store = parkingStore
+		service.invoker = invoker
+
+		record := createContractedCall(t, service)
+		settlement, err := service.Return(requestCtx, ReturnInput{
+			CallID: record.CallID, ChildSessionID: record.ChildSessionID,
+			Result: json.RawMessage(`{"answer":42}`), ChildLive: true,
+			Actor: SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
+		})
+		if err != nil {
+			t.Fatalf("Return() error = %v", err)
+		}
+		if settlement.Call.State != StateCompleted || parkingStore.parkedAt.IsZero() ||
+			parkingStore.idleExpiresAt.IsZero() || parkingStore.clearCount != 0 || len(invoker.stops) != 1 {
+			t.Fatalf(
+				"Return() = %#v, park=%s/%s clears=%d stops=%#v",
+				settlement,
+				parkingStore.parkedAt,
+				parkingStore.idleExpiresAt,
+				parkingStore.clearCount,
+				invoker.stops,
+			)
+		}
+	})
+
 	t.Run("Should settle a valid typed return and preserve the first result", func(t *testing.T) {
 		t.Parallel()
 		service, database, _, _ := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
@@ -134,6 +169,53 @@ func TestServiceReturnSettlementPipeline(t *testing.T) {
 				settlement, err, database.repairDeliveries, invoker.deliveries)
 		}
 	})
+}
+
+type settlementParkingStore struct {
+	*hookLifecycleStore
+	parkedAt      time.Time
+	idleExpiresAt time.Time
+	clearCount    int
+}
+
+func newSettlementParkingStore(database *memoryCallStore) *settlementParkingStore {
+	return &settlementParkingStore{hookLifecycleStore: &hookLifecycleStore{
+		publishTestStore: &publishTestStore{
+			memoryCallStore: database,
+			publications:    make(map[string]Publication),
+		},
+		messages: make(map[string]MessageRecord),
+	}}
+}
+
+func (s *settlementParkingStore) ParkCallChild(
+	_ context.Context,
+	_ string,
+	parkedAt time.Time,
+	idleExpiresAt time.Time,
+) (bool, error) {
+	s.parkedAt = parkedAt
+	s.idleExpiresAt = idleExpiresAt
+	return true, nil
+}
+
+func (s *settlementParkingStore) ClearCallChildIdleClock(context.Context, string, time.Time) error {
+	s.clearCount++
+	return nil
+}
+
+type settlementCancelingInvoker struct {
+	*fakeSessionInvoker
+	cancelRequest context.CancelFunc
+}
+
+func (i *settlementCancelingInvoker) StopManaged(ctx context.Context, sessionID string, reason string) error {
+	i.fakeSessionInvoker.mu.Lock()
+	i.fakeSessionInvoker.stops = append(i.fakeSessionInvoker.stops, sessionID)
+	i.fakeSessionInvoker.stopReasons = append(i.fakeSessionInvoker.stopReasons, reason)
+	i.fakeSessionInvoker.mu.Unlock()
+	i.cancelRequest()
+	return ctx.Err()
 }
 
 func TestServiceReturnExtractionStrictAndBudget(t *testing.T) {

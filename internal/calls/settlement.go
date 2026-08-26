@@ -6,9 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/contracts"
 )
+
+const settledChildStopTimeout = 30 * time.Second
 
 // RequireCallSettlementActor accepts only the child session bound to the call.
 func RequireCallSettlementActor(record CallRecord, actor SettlementActor) error {
@@ -251,8 +254,12 @@ func (s *Service) parkSettledChild(ctx context.Context, record CallRecord) error
 	if !eligible {
 		return nil
 	}
-	if err := s.invoker.StopManaged(ctx, childID, "call child parked"); err != nil {
-		clearErr := mailbox.ClearCallChildIdleClock(ctx, childID, now)
+	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), settledChildStopTimeout)
+	defer cancel()
+	if err := s.invoker.StopManaged(stopCtx, childID, "call child parked"); err != nil {
+		clearCtx, clearCancel := context.WithTimeout(context.WithoutCancel(ctx), settledChildStopTimeout)
+		defer clearCancel()
+		clearErr := mailbox.ClearCallChildIdleClock(clearCtx, childID, now)
 		return errors.Join(fmt.Errorf("calls: park child runtime %q: %w", childID, err), clearErr)
 	}
 	return nil
