@@ -416,6 +416,9 @@ func TestResourceAuthorityKeepsFilesystemDiscoveryNonAuthoritative(t *testing.T)
 	}
 }
 
+// Invariant: resource projections use the registered workspace ID even when the runtime identity differs.
+// Owner: skill registry resource projection.
+// Canonical suite: resource authority projection tests.
 func TestResourceAuthorityProjectsWorkspaceSkills(t *testing.T) {
 	t.Parallel()
 
@@ -478,8 +481,9 @@ func TestResourceAuthorityProjectsWorkspaceSkills(t *testing.T) {
 	}
 
 	skills, err := registry.ForWorkspace(context.Background(), &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: "/workspace/project"},
-		ProfileID: store.DefaultProfileID, ProfileName: "default",
+		Workspace:   workspacepkg.Workspace{ID: "/workspace/project"},
+		WorkspaceID: "runtime-workspace-identity",
+		ProfileID:   store.DefaultProfileID, ProfileName: "default",
 	})
 	if err != nil {
 		t.Fatalf("ForWorkspace() error = %v", err)

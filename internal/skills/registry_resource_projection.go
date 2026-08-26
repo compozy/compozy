@@ -145,10 +145,10 @@ func resourceWorkspaceKey(resolved *workspacepkg.ResolvedWorkspace) string {
 	if resolved == nil {
 		return ""
 	}
-	if workspaceID := strings.TrimSpace(resolved.WorkspaceID); workspaceID != "" {
-		return workspaceID
+	if registrationID := strings.TrimSpace(resolved.ID); registrationID != "" {
+		return registrationID
 	}
-	return strings.TrimSpace(resolved.ID)
+	return strings.TrimSpace(resolved.WorkspaceID)
 }
 
 func skillRecordSortKey(record resources.Record[SkillResourceSpec]) string {
